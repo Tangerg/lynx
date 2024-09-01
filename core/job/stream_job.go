@@ -1,4 +1,4 @@
-package scheduler
+package job
 
 import (
 	"context"
@@ -10,72 +10,77 @@ import (
 	"sync/atomic"
 )
 
-type Config struct {
-	MaxWorker int `yaml:"MaxWorker"`
+type StreamJobConfig struct {
+	MaxWork int `yaml:"MaxWorker"`
 }
-type Options struct {
-	Config *Config
-	Worker worker.Worker
+
+type StreamJobOptions struct {
+	Config *StreamJobConfig
+	Worker worker.StreamWorker
 	Broker broker.Broker
 }
 
-type Scheduler struct {
+type StreamJob struct {
 	cancel  context.CancelFunc
 	wg      sync.WaitGroup
-	stopped atomic.Bool
+	running atomic.Bool
 	limiter *xsync.Limiter
-	worker  worker.Worker
+	worker  worker.StreamWorker
 	broker  broker.Broker
 }
 
-func New(opt *Options) *Scheduler {
-	return &Scheduler{
-		limiter: xsync.NewLimiter(opt.Config.MaxWorker),
+func NewStreamJob(opt *StreamJobOptions) Job {
+	return &StreamJob{
+		limiter: xsync.NewLimiter(opt.Config.MaxWork),
 		worker:  opt.Worker,
 		broker:  opt.Broker,
 	}
 }
 
-func (s *Scheduler) Start(ctx context.Context) {
+func (s *StreamJob) Start(ctx context.Context) error {
+	if s.running.Load() {
+		return nil
+	}
+	s.running.Store(true)
 	nctx, cancel := context.WithCancel(ctx)
 	s.cancel = cancel
 	xsync.Go(func() {
 		s.run(nctx)
 	})
+	return nil
 }
 
-func (s *Scheduler) Stop() {
-	s.stopped.Store(true)
+func (s *StreamJob) Stop() error {
+	if !s.running.Load() {
+		return nil
+	}
+	s.running.Store(false)
 	if s.cancel != nil {
 		s.cancel()
 	}
 	s.wg.Wait()
+	return nil
 }
 
-func (s *Scheduler) run(ctx context.Context) {
+func (s *StreamJob) run(ctx context.Context) {
 	for {
 		s.limiter.Acquire()
-		if s.stopped.Load() {
+		if !s.running.Load() {
 			return
 		}
 		s.wg.Add(1)
 		xsync.Go(func() {
-			defer s.wg.Done()
-			defer s.limiter.Release()
 			err := s.work(ctx)
 			if err != nil {
-				slog.Error("scheduler err", slog.String("err", err.Error()))
+				slog.Error("job err", slog.String("err", err.Error()))
 			}
 		})
 	}
 }
 
-func (s *Scheduler) work(ctx context.Context) error {
-	select {
-	case <-ctx.Done():
-		return nil
-	default:
-	}
+func (s *StreamJob) work(ctx context.Context) error {
+	defer s.wg.Done()
+	defer s.limiter.Release()
 
 	msg, msgId, err := s.broker.Consume(ctx)
 	if err != nil {

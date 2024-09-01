@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/Tangerg/lynx/core/msg"
+	"github.com/Tangerg/lynx/core/message"
 	"github.com/apache/pulsar-client-go/pulsar"
 )
 
@@ -45,7 +45,7 @@ func NewPulsar(conf *PulsarConfig) Broker {
 	}
 }
 
-func (p *Pulsar) Produce(ctx context.Context, msgs ...*msg.Msg) error {
+func (p *Pulsar) Produce(ctx context.Context, msgs ...*message.Msg) error {
 	if len(msgs) == 1 {
 		_, err := p.producer.Send(ctx, &pulsar.ProducerMessage{
 			Payload: msgs[0].Payload(),
@@ -62,18 +62,18 @@ func (p *Pulsar) Produce(ctx context.Context, msgs ...*msg.Msg) error {
 	return errors.Join(errs...)
 }
 
-func (p *Pulsar) Consume(ctx context.Context) (*msg.Msg, msg.ID, error) {
+func (p *Pulsar) Consume(ctx context.Context) (*message.Msg, message.ID, error) {
 	m, err := p.consumer.Receive(ctx)
 	if err != nil {
 		return nil, nil, err
 	}
-	return msg.New(m), m.ID(), nil
+	return message.New(m), m.ID(), nil
 }
 
-func (p *Pulsar) Ack(ctx context.Context, id msg.ID) error {
+func (p *Pulsar) Ack(ctx context.Context, id message.ID) error {
 	mid, ok := id.(pulsar.MessageID)
 	if !ok {
-		return errors.New("ack msg is not pulsar.Message")
+		return errors.New("ack message is not pulsar.Message")
 	}
 	return p.consumer.AckID(mid)
 }

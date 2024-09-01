@@ -2,39 +2,59 @@ package lynx
 
 import (
 	"context"
-	"github.com/Tangerg/lynx/core/scheduler"
+	"errors"
+	"github.com/Tangerg/lynx/core/job"
 	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
 )
 
-type Lynx struct {
-	stopChan  chan os.Signal
-	scheduler *scheduler.Scheduler
+type Options struct {
+	Jobs []job.Job
 }
 
-func New(s *scheduler.Scheduler) *Lynx {
+type Lynx struct {
+	stopChan chan os.Signal
+	jobs     []job.Job
+}
+
+func New(opt *Options) *Lynx {
 	return &Lynx{
-		scheduler: s,
-		stopChan:  make(chan os.Signal, 1),
+		jobs:     opt.Jobs,
+		stopChan: make(chan os.Signal, 1),
 	}
 }
 
-func (l *Lynx) start() {
+func (l *Lynx) start() error {
 	slog.Info("-----------------")
 	slog.Info("-------Lynx Start--------")
 	slog.Info("-----------------")
-	l.scheduler.Start(context.Background())
+	ctx := context.Background()
+	errs := make([]error, 0, len(l.jobs))
+	for _, j := range l.jobs {
+		err := j.Start(ctx)
+		errs = append(errs, err)
+	}
+	return errors.Join(errs...)
 }
+
 func (l *Lynx) wait() {
+	slog.Info("-----------------")
+	slog.Info("-------Lynx Wait--------")
+	slog.Info("-----------------")
 	signal.Notify(l.stopChan, syscall.SIGHUP, syscall.SIGQUIT, syscall.SIGTERM, syscall.SIGINT)
 	<-l.stopChan
 	close(l.stopChan)
 }
-func (l *Lynx) stop() {
+func (l *Lynx) stop() error {
 	slog.Info("-----------------")
 	slog.Info("-------Lynx Stop--------")
 	slog.Info("-----------------")
-	l.scheduler.Stop()
+	errs := make([]error, 0, len(l.jobs))
+	for _, j := range l.jobs {
+		err := j.Stop()
+		errs = append(errs, err)
+	}
+	return errors.Join(errs...)
 }

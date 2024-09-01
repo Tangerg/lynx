@@ -4,12 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/Tangerg/lynx/core/msg"
+	"github.com/Tangerg/lynx/core/message"
 	"github.com/segmentio/kafka-go"
 	"time"
 )
 
-type Config struct {
+//TODO 实现
+
+type KafkaConfig struct {
 	Address      string        `yaml:"Address"`
 	Topic        string        `yaml:"Topic"`
 	Partition    int           `yaml:"Partition"`
@@ -18,11 +20,11 @@ type Config struct {
 }
 
 type Kafka struct {
-	conf *Config
+	conf *KafkaConfig
 	conn *kafka.Conn
 }
 
-func NewKafka(conf *Config) Broker {
+func NewKafka(conf *KafkaConfig) Broker {
 	conn, err := kafka.DialLeader(
 		context.Background(),
 		"tcp",
@@ -38,7 +40,7 @@ func NewKafka(conf *Config) Broker {
 	}
 }
 
-func (k *Kafka) Produce(ctx context.Context, msgs ...*msg.Msg) error {
+func (k *Kafka) Produce(ctx context.Context, msgs ...*message.Msg) error {
 	if len(msgs) == 1 {
 		_, err := k.conn.Write(msgs[0].Payload())
 		return err
@@ -52,13 +54,13 @@ func (k *Kafka) Produce(ctx context.Context, msgs ...*msg.Msg) error {
 	return errors.Join(errs...)
 }
 
-func (k *Kafka) Consume(ctx context.Context) (*msg.Msg, msg.ID, error) {
+func (k *Kafka) Consume(ctx context.Context) (*message.Msg, message.ID, error) {
 	payload := make([]byte, 0)
 	_, err := k.conn.Read(payload)
-	return msg.New(payload), nil, err
+	return message.New(payload), nil, err
 }
 
-func (k *Kafka) Ack(ctx context.Context, msg msg.ID) error {
+func (k *Kafka) Ack(ctx context.Context, id message.ID) error {
 	return nil
 }
 

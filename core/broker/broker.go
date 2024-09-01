@@ -2,16 +2,16 @@ package broker
 
 import (
 	"context"
-	"github.com/Tangerg/lynx/core/msg"
+	"github.com/Tangerg/lynx/core/message"
 	"io"
 )
 
 type Producer interface {
-	Produce(ctx context.Context, msgs ...*msg.Msg) error
+	Produce(ctx context.Context, msgs ...*message.Msg) error
 }
 type Consumer interface {
-	Consume(ctx context.Context) (*msg.Msg, msg.ID, error)
-	Ack(ctx context.Context, msg msg.ID) error
+	Consume(ctx context.Context) (*message.Msg, message.ID, error)
+	Ack(ctx context.Context, id message.ID) error
 }
 
 type Broker interface {

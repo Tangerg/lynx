@@ -1,6 +1,4 @@
-package msg
-
-import "encoding/json"
+package message
 
 type ID any
 type Msg struct {
@@ -12,13 +10,14 @@ func New(payload any) *Msg {
 	case []byte:
 		return &Msg{payload: payload.([]byte)}
 	}
-	v, _ := json.Marshal(payload)
+	v, _ := Marshal(payload)
 	return &Msg{payload: v}
 }
 
 func (m *Msg) Payload() []byte {
 	return m.payload
 }
+
 func (m *Msg) Unmarshal(v any) error {
-	return json.Unmarshal(m.payload, v)
+	return Unmarshal(m.payload, v)
 }
