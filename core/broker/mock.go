@@ -10,7 +10,7 @@ type MockBroker struct {
 	Empty bool
 }
 
-func (m *MockBroker) Produce(ctx context.Context, msgs ...*message.Msg) error {
+func (m *MockBroker) Produce(ctx context.Context, msgs map[string]message.Message) error {
 	for _, msg := range msgs {
 		fmt.Println("MockBroker Produce")
 		fmt.Println(string(msg.Payload()))
@@ -18,17 +18,23 @@ func (m *MockBroker) Produce(ctx context.Context, msgs ...*message.Msg) error {
 	return nil
 }
 
-func (m *MockBroker) Consume(ctx context.Context) (*message.Msg, message.ID, error) {
+func (m *MockBroker) Consume(ctx context.Context) (message.Message, error) {
 	if m.Empty {
-		return nil, nil, nil
+		return nil, nil
 	}
 	fmt.Println("MockBroker Consume")
-	return message.New("Mock Msg"), 1, nil
+	return message.NewSimpleMessage().SetPayload([]byte("MockBroker Consume")), nil
 }
 
-func (m *MockBroker) Ack(ctx context.Context, id message.ID) error {
+func (m *MockBroker) Ack(ctx context.Context, msg message.Message) error {
 	fmt.Println("MockBroker Ack")
-	fmt.Println(id)
+	fmt.Println(msg.Payload())
+	return nil
+}
+
+func (m *MockBroker) Nack(ctx context.Context, msg message.Message) error {
+	fmt.Println("MockBroker Nack")
+	fmt.Println(msg.Payload())
 	return nil
 }
 

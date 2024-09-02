@@ -82,7 +82,7 @@ func (s *StreamJob) work(ctx context.Context) error {
 	defer s.wg.Done()
 	defer s.limiter.Release()
 
-	msg, msgId, err := s.broker.Consume(ctx)
+	msg, err := s.broker.Consume(ctx)
 	if err != nil {
 		return err
 	}
@@ -92,14 +92,14 @@ func (s *StreamJob) work(ctx context.Context) error {
 	}
 	msgs, err := s.worker.Work(ctx, msg)
 	if err != nil {
-		return err
+		return s.broker.Nack(ctx, msg)
 	}
 	if len(msgs) == 0 {
-		return s.broker.Ack(ctx, msgId)
+		return s.broker.Ack(ctx, msg)
 	}
-	err = s.broker.Produce(ctx, msgs...)
+	err = s.broker.Produce(ctx, msgs)
 	if err != nil {
 		return err
 	}
-	return s.broker.Ack(ctx, msgId)
+	return s.broker.Ack(ctx, msg)
 }

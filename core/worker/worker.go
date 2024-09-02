@@ -16,6 +16,6 @@ type BatchWorker interface {
 }
 
 type StreamWorker interface {
-	Work(ctx context.Context, msg *message.Msg) ([]*message.Msg, error)
+	Work(ctx context.Context, msg message.Message) (map[string]message.Message, error)
 	Sleep()
 }

@@ -5,15 +5,17 @@ import (
 	"github.com/Tangerg/lynx/core/worker"
 	xsync "github.com/Tangerg/lynx/pkg/sync"
 	"sync"
+	"sync/atomic"
 )
 
 type CondTrigger struct {
+	running atomic.Bool
 	workers []worker.Worker
-	cond    <-chan struct{}
+	cond    *sync.Cond
 	once    sync.Once
 }
 
-func NewCondTrigger(cond <-chan struct{}) *CondTrigger {
+func NewCondTrigger(cond *sync.Cond) *CondTrigger {
 	return &CondTrigger{
 		cond:    cond,
 		workers: make([]worker.Worker, 0),
@@ -23,18 +25,31 @@ func NewCondTrigger(cond <-chan struct{}) *CondTrigger {
 func (c *CondTrigger) AddWorkers(ctx context.Context, workers ...worker.Worker) (int, error) {
 	c.workers = append(c.workers, workers...)
 	c.once.Do(func() {
-		go c.listen(ctx)
+		c.running.Store(true)
+		go c.listenCtx(ctx)
+		go c.listenCond()
 	})
 	return len(c.workers), nil
 }
 
-func (c *CondTrigger) listen(ctx context.Context) {
+func (c *CondTrigger) listenCond() {
+	for {
+		c.cond.L.Lock()
+		c.cond.Wait()
+		c.cond.L.Unlock()
+		if !c.running.Load() {
+			return
+		}
+		c.work()
+	}
+}
+
+func (c *CondTrigger) listenCtx(ctx context.Context) {
+	defer c.running.Store(false)
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case <-c.cond:
-			c.work()
 		}
 	}
 }

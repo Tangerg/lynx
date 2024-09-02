@@ -49,8 +49,8 @@ func (m *MockStreamWorker) Sleep() {
 	fmt.Println("MockStreamWorker Sleep")
 	time.Sleep(1 * time.Second)
 }
-func (m *MockStreamWorker) Work(ctx context.Context, msg *message.Msg) ([]*message.Msg, error) {
+func (m *MockStreamWorker) Work(ctx context.Context, msg message.Message) (map[string]message.Message, error) {
 	fmt.Println("MockStreamWorker Work")
 	fmt.Println(string(msg.Payload()))
-	return []*message.Msg{msg}, nil
+	return make(map[string]message.Message), nil
 }

@@ -2,14 +2,11 @@ package broker
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"github.com/Tangerg/lynx/core/message"
 	"github.com/segmentio/kafka-go"
 	"time"
 )
-
-//TODO 实现
 
 type KafkaConfig struct {
 	Address      string        `yaml:"Address"`
@@ -17,11 +14,6 @@ type KafkaConfig struct {
 	Partition    int           `yaml:"Partition"`
 	WriteTimeout time.Duration `yaml:"WriteTimeout"`
 	ReadTimeout  time.Duration `yaml:"ReadTimeout"`
-}
-
-type Kafka struct {
-	conf *KafkaConfig
-	conn *kafka.Conn
 }
 
 func NewKafka(conf *KafkaConfig) Broker {
@@ -40,30 +32,33 @@ func NewKafka(conf *KafkaConfig) Broker {
 	}
 }
 
-func (k *Kafka) Produce(ctx context.Context, msgs ...*message.Msg) error {
-	if len(msgs) == 1 {
-		_, err := k.conn.Write(msgs[0].Payload())
-		return err
-	}
-
-	errs := make([]error, 0, len(msgs))
-	for _, m := range msgs {
-		_, err := k.conn.Write(m.Payload())
-		errs = append(errs, err)
-	}
-	return errors.Join(errs...)
+// Kafka TODO 实现
+type Kafka struct {
+	conf *KafkaConfig
+	conn *kafka.Conn
 }
 
-func (k *Kafka) Consume(ctx context.Context) (*message.Msg, message.ID, error) {
-	payload := make([]byte, 0)
-	_, err := k.conn.Read(payload)
-	return message.New(payload), nil, err
+func (k *Kafka) Produce(ctx context.Context, msgs map[string]message.Message) error {
+	//TODO implement me
+	panic("implement me")
 }
 
-func (k *Kafka) Ack(ctx context.Context, id message.ID) error {
-	return nil
+func (k *Kafka) Consume(ctx context.Context) (message.Message, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (k *Kafka) Ack(ctx context.Context, msg message.Message) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (k *Kafka) Nack(ctx context.Context, msg message.Message) error {
+	//TODO implement me
+	panic("implement me")
 }
 
 func (k *Kafka) Close() error {
-	return k.conn.Close()
+	//TODO implement me
+	panic("implement me")
 }
