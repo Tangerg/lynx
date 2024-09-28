@@ -10,7 +10,7 @@ import (
 	"github.com/Tangerg/lynx/stream/message"
 )
 
-// messageID The identifier used to identify each broker message
+// messageID The identifier used to identify each message headers
 const messageID = "message_id"
 
 type Config struct {
