@@ -2,8 +2,9 @@ package broker
 
 import (
 	"context"
-	"github.com/Tangerg/lynx/core/message"
 	"io"
+
+	"github.com/Tangerg/lynx/core/message"
 )
 
 // messageID The identifier used to identify each broker message
