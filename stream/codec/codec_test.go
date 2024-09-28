@@ -1,6 +1,8 @@
-package message
+package codec
 
-import "testing"
+import (
+	"testing"
+)
 
 func TestMarshal(t *testing.T) {
 	v, err := Marshal(123)
