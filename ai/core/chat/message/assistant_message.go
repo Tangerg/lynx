@@ -1,25 +1,25 @@
 package message
 
-func NewAssisantMessage(content string) *AssisantMessage {
-	return &AssisantMessage{
+func NewAssistantMessage(content string) *AssistantMessage {
+	return &AssistantMessage{
 		content:  content,
 		metadata: make(map[string]any),
 	}
 }
 
-type AssisantMessage struct {
+type AssistantMessage struct {
 	content  string
 	metadata map[string]any
 }
 
-func (s *AssisantMessage) Role() Role {
+func (s *AssistantMessage) Role() Role {
 	return Assistant
 }
 
-func (s *AssisantMessage) Content() string {
+func (s *AssistantMessage) Content() string {
 	return s.content
 }
 
-func (s *AssisantMessage) Metadata() map[string]any {
+func (s *AssistantMessage) Metadata() map[string]any {
 	return s.metadata
 }

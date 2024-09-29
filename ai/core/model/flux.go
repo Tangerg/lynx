@@ -1,6 +1,8 @@
 package model
 
-import "context"
+import (
+	"context"
+)
 
 // Flux is a generic interface that defines methods for writing, processing, and reading data.
 // T is a type parameter that can be any type, allowing for flexibility in the data types used.

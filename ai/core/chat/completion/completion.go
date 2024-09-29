@@ -8,17 +8,17 @@ import (
 
 type Completion[RM metadata.GenerationMetadata] struct {
 	metadata model.ResponseMetadata
-	results  []model.Result[*message.AssisantMessage, RM]
+	results  []model.Result[*message.AssistantMessage, RM]
 }
 
-func (c *Completion[RM]) Result() model.Result[*message.AssisantMessage, RM] {
+func (c *Completion[RM]) Result() model.Result[*message.AssistantMessage, RM] {
 	if len(c.results) == 0 {
 		return nil
 	}
 	return c.results[0]
 }
 
-func (c *Completion[RM]) Results() []model.Result[*message.AssisantMessage, RM] {
+func (c *Completion[RM]) Results() []model.Result[*message.AssistantMessage, RM] {
 	return c.results
 }
 
@@ -33,7 +33,7 @@ type Builder[RM metadata.GenerationMetadata] struct {
 func NewBuilder[RM metadata.GenerationMetadata]() *Builder[RM] {
 	return &Builder[RM]{
 		completion: &Completion[RM]{
-			results: make([]model.Result[*message.AssisantMessage, RM], 0),
+			results: make([]model.Result[*message.AssistantMessage, RM], 0),
 		},
 	}
 }

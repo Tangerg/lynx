@@ -6,11 +6,11 @@ import (
 )
 
 type Generation[M metadata.GenerationMetadata] struct {
-	message  *message.AssisantMessage
+	message  *message.AssistantMessage
 	metadata M
 }
 
-func (g *Generation[M]) Output() *message.AssisantMessage {
+func (g *Generation[M]) Output() *message.AssistantMessage {
 	return g.message
 }
 
@@ -23,10 +23,10 @@ type GenerationBuilder[RM metadata.GenerationMetadata] struct {
 }
 
 func (b *GenerationBuilder[RM]) WithContent(content string) *GenerationBuilder[RM] {
-	return b.WithMessage(message.NewAssisantMessage(content))
+	return b.WithMessage(message.NewAssistantMessage(content))
 }
 
-func (b *GenerationBuilder[RM]) WithMessage(msg *message.AssisantMessage) *GenerationBuilder[RM] {
+func (b *GenerationBuilder[RM]) WithMessage(msg *message.AssistantMessage) *GenerationBuilder[RM] {
 	b.result.message = msg
 	return b
 }
