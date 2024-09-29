@@ -60,9 +60,9 @@ func (b *Builder[RM]) WithMetadata(metadata model.ResponseMetadata) *Builder[RM]
 }
 
 func (b *Builder[RM]) Build() (*Completion[RM], error) {
-	if b.completion.metadata == nil {
-		return nil, errors.New("metadata is nil")
-	}
+	//if b.completion.metadata == nil {
+	//	return nil, errors.New("metadata is nil")
+	//}
 	if b.completion.results == nil || len(b.completion.results) == 0 {
 		return nil, errors.New("results is nil")
 	}
