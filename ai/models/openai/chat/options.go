@@ -52,7 +52,7 @@ func (o *OpenAIChatOptions) TopP() *float64 {
 }
 
 func (o *OpenAIChatOptions) Copy() prompt.Options {
-	builder := NewOpenaiChatOptionsBuilder()
+	builder := NewOpenAIChatOptionsBuilder()
 	if o.model != nil {
 		builder.WithModel(*o.model)
 	}
@@ -81,49 +81,49 @@ func (o *OpenAIChatOptions) Copy() prompt.Options {
 	return cp
 }
 
-type OpenaiChatOptionsBuilder struct {
+type OpenAIChatOptionsBuilder struct {
 	options *OpenAIChatOptions
 }
 
-func NewOpenaiChatOptionsBuilder() *OpenaiChatOptionsBuilder {
-	return &OpenaiChatOptionsBuilder{
+func NewOpenAIChatOptionsBuilder() *OpenAIChatOptionsBuilder {
+	return &OpenAIChatOptionsBuilder{
 		options: &OpenAIChatOptions{},
 	}
 }
 
-func (o *OpenaiChatOptionsBuilder) WithModel(model string) *OpenaiChatOptionsBuilder {
+func (o *OpenAIChatOptionsBuilder) WithModel(model string) *OpenAIChatOptionsBuilder {
 	o.options.model = &model
 	return o
 }
-func (o *OpenaiChatOptionsBuilder) WithMaxTokens(maxTokens int64) *OpenaiChatOptionsBuilder {
+func (o *OpenAIChatOptionsBuilder) WithMaxTokens(maxTokens int64) *OpenAIChatOptionsBuilder {
 	o.options.maxTokens = &maxTokens
 	return o
 }
-func (o *OpenaiChatOptionsBuilder) WithPresencePenalty(presencePenalty float64) *OpenaiChatOptionsBuilder {
+func (o *OpenAIChatOptionsBuilder) WithPresencePenalty(presencePenalty float64) *OpenAIChatOptionsBuilder {
 	o.options.presencePenalty = &presencePenalty
 	return o
 }
-func (o *OpenaiChatOptionsBuilder) WithStopSequences(stopSequences []string) *OpenaiChatOptionsBuilder {
+func (o *OpenAIChatOptionsBuilder) WithStopSequences(stopSequences []string) *OpenAIChatOptionsBuilder {
 	o.options.stopSequences = stopSequences
 	return o
 }
-func (o *OpenaiChatOptionsBuilder) WithTemperature(temperature float64) *OpenaiChatOptionsBuilder {
+func (o *OpenAIChatOptionsBuilder) WithTemperature(temperature float64) *OpenAIChatOptionsBuilder {
 	o.options.temperature = &temperature
 	return o
 }
-func (o *OpenaiChatOptionsBuilder) WithTopK(topK int64) *OpenaiChatOptionsBuilder {
+func (o *OpenAIChatOptionsBuilder) WithTopK(topK int64) *OpenAIChatOptionsBuilder {
 	o.options.topK = &topK
 	return o
 }
-func (o *OpenaiChatOptionsBuilder) WithTopP(topP float64) *OpenaiChatOptionsBuilder {
+func (o *OpenAIChatOptionsBuilder) WithTopP(topP float64) *OpenAIChatOptionsBuilder {
 	o.options.topP = &topP
 	return o
 }
-func (o *OpenaiChatOptionsBuilder) WithStreamFunc(f func(ctx context.Context, chunk []byte) error) *OpenaiChatOptionsBuilder {
+func (o *OpenAIChatOptionsBuilder) WithStreamFunc(f func(ctx context.Context, chunk []byte) error) *OpenAIChatOptionsBuilder {
 	o.options.streamFunc = f
 	return o
 }
-func (o *OpenaiChatOptionsBuilder) Build() (*OpenAIChatOptions, error) {
+func (o *OpenAIChatOptionsBuilder) Build() (*OpenAIChatOptions, error) {
 	if o.options.model == nil {
 		return nil, errors.New("model is required")
 	}
