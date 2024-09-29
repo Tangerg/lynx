@@ -1,25 +1,35 @@
 package model
 
 import (
-	"github.com/Tangerg/lynx/ai/core/chat/message"
+	"github.com/Tangerg/lynx/ai/core/chat/completion"
 	"github.com/Tangerg/lynx/ai/core/chat/metadata"
 	"github.com/Tangerg/lynx/ai/core/chat/prompt"
 	"github.com/Tangerg/lynx/ai/core/model"
 )
 
-// StreamingModel is an interface that represents a streaming model for processing messages.
-// It is parameterized by O, which represents the options for the prompt, and M,
-// which represents the metadata for generation.
+// StreamingModel is a generic interface that extends the model.StreamingModel interface.
+// It is parameterized with two types, O and M, which represent options and metadata, respectively.
 //
-// This interface extends the model.StreamingModel interface, which takes the following type parameters:
-//   - []message.Message: A slice of Message objects that the model will process in a streaming manner.
-//   - O: The options type that provides configuration for the prompt.
-//   - *message.AssistantMessage: A pointer to an AssistantMessage, which is the type of message
-//     that the model will produce as output in a streaming fashion.
-//   - M: The type of metadata that will be associated with the generation process.
+// Type Parameters:
+//   - O: Represents the type of options used in the prompt. This is typically a struct or type
+//     that holds configuration or settings for generating the prompt.
+//   - M: Represents the type of metadata associated with the generation process. This is typically
+//     a struct or type that holds additional information about the generation process.
 //
-// The StreamingModel interface is designed for scenarios where messages are processed and generated
-// in a continuous stream, allowing for real-time interaction and feedback.
+// This interface is designed to work with a specific streaming model that takes a prompt and
+// returns a completion, both of which are parameterized with the types O and M.
+//
+// Underlying Interface:
+//   - model.StreamingModel[*prompt.Prompt[O], *completion.Completion[M]]:
+//     This indicates that the StreamingModel interface is based on another interface that
+//     operates with pointers to prompt.Prompt and completion.Completion, parameterized with
+//     the types O and M, respectively.
+//
+// Usage:
+//
+//	This interface is typically implemented by types that need to perform streaming operations
+//	where a prompt is processed to generate a completion, with both the prompt and completion
+//	being customizable through the use of options and metadata.
 type StreamingModel[O prompt.Options, M metadata.GenerationMetadata] interface {
-	model.StreamingModel[[]message.Message, O, *message.AssistantMessage, M]
+	model.StreamingModel[*prompt.Prompt[O], *completion.Completion[M]]
 }

@@ -1,10 +1,14 @@
 package chat
 
 import (
+	"context"
+	"errors"
 	"github.com/Tangerg/lynx/ai/core/chat/prompt"
 )
 
-type OpenaiChatOptions struct {
+var _ prompt.Options = (*OpenAIChatOptions)(nil)
+
+type OpenAIChatOptions struct {
 	model           *string
 	maxTokens       *int64
 	presencePenalty *float64
@@ -12,41 +16,42 @@ type OpenaiChatOptions struct {
 	temperature     *float64
 	topK            *int64
 	topP            *float64
+	streamFunc      func(ctx context.Context, chunk []byte) error
 }
 
-func (o *OpenaiChatOptions) UseStream() bool {
-	return false
+func (o *OpenAIChatOptions) StreamFunc() func(ctx context.Context, chunk []byte) error {
+	return o.streamFunc
 }
 
-func (o *OpenaiChatOptions) Model() *string {
+func (o *OpenAIChatOptions) Model() *string {
 	return o.model
 }
 
-func (o *OpenaiChatOptions) MaxTokens() *int64 {
+func (o *OpenAIChatOptions) MaxTokens() *int64 {
 	return o.maxTokens
 }
 
-func (o *OpenaiChatOptions) PresencePenalty() *float64 {
+func (o *OpenAIChatOptions) PresencePenalty() *float64 {
 	return o.presencePenalty
 }
 
-func (o *OpenaiChatOptions) StopSequences() []string {
+func (o *OpenAIChatOptions) StopSequences() []string {
 	return o.stopSequences
 }
 
-func (o *OpenaiChatOptions) Temperature() *float64 {
+func (o *OpenAIChatOptions) Temperature() *float64 {
 	return o.temperature
 }
 
-func (o *OpenaiChatOptions) TopK() *int64 {
+func (o *OpenAIChatOptions) TopK() *int64 {
 	return o.topK
 }
 
-func (o *OpenaiChatOptions) TopP() *float64 {
+func (o *OpenAIChatOptions) TopP() *float64 {
 	return o.topP
 }
 
-func (o *OpenaiChatOptions) Copy() prompt.Options {
+func (o *OpenAIChatOptions) Copy() prompt.Options {
 	builder := NewOpenaiChatOptionsBuilder()
 	if o.model != nil {
 		builder.WithModel(*o.model)
@@ -69,16 +74,20 @@ func (o *OpenaiChatOptions) Copy() prompt.Options {
 	if o.topP != nil {
 		builder.WithTopP(*o.topP)
 	}
-	return builder.Build()
+	if o.streamFunc != nil {
+		builder.WithStreamFunc(o.streamFunc)
+	}
+	cp, _ := builder.Build()
+	return cp
 }
 
 type OpenaiChatOptionsBuilder struct {
-	options *OpenaiChatOptions
+	options *OpenAIChatOptions
 }
 
 func NewOpenaiChatOptionsBuilder() *OpenaiChatOptionsBuilder {
 	return &OpenaiChatOptionsBuilder{
-		options: &OpenaiChatOptions{},
+		options: &OpenAIChatOptions{},
 	}
 }
 
@@ -110,6 +119,13 @@ func (o *OpenaiChatOptionsBuilder) WithTopP(topP float64) *OpenaiChatOptionsBuil
 	o.options.topP = &topP
 	return o
 }
-func (o *OpenaiChatOptionsBuilder) Build() *OpenaiChatOptions {
-	return o.options
+func (o *OpenaiChatOptionsBuilder) WithStreamFunc(f func(ctx context.Context, chunk []byte) error) *OpenaiChatOptionsBuilder {
+	o.options.streamFunc = f
+	return o
+}
+func (o *OpenaiChatOptionsBuilder) Build() (*OpenAIChatOptions, error) {
+	if o.options.model == nil {
+		return nil, errors.New("model is required")
+	}
+	return o.options, nil
 }

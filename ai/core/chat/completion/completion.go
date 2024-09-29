@@ -1,10 +1,13 @@
 package completion
 
 import (
+	"errors"
 	"github.com/Tangerg/lynx/ai/core/chat/message"
 	"github.com/Tangerg/lynx/ai/core/chat/metadata"
 	"github.com/Tangerg/lynx/ai/core/model"
 )
+
+var _ model.Response[*message.AssistantMessage, metadata.GenerationMetadata] = (*Completion[metadata.GenerationMetadata])(nil)
 
 type Completion[RM metadata.GenerationMetadata] struct {
 	metadata model.ResponseMetadata
@@ -30,7 +33,7 @@ type Builder[RM metadata.GenerationMetadata] struct {
 	completion *Completion[RM]
 }
 
-func NewBuilder[RM metadata.GenerationMetadata]() *Builder[RM] {
+func NewCompletionBuilder[RM metadata.GenerationMetadata]() *Builder[RM] {
 	return &Builder[RM]{
 		completion: &Completion[RM]{
 			results: make([]model.Result[*message.AssistantMessage, RM], 0),
@@ -56,6 +59,12 @@ func (b *Builder[RM]) WithMetadata(metadata model.ResponseMetadata) *Builder[RM]
 	return b
 }
 
-func (b *Builder[RM]) Build() *Completion[RM] {
-	return b.completion
+func (b *Builder[RM]) Build() (*Completion[RM], error) {
+	if b.completion.metadata == nil {
+		return nil, errors.New("metadata is nil")
+	}
+	if b.completion.results == nil || len(b.completion.results) == 0 {
+		return nil, errors.New("results is nil")
+	}
+	return b.completion, nil
 }

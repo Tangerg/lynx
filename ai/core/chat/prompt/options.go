@@ -1,6 +1,10 @@
 package prompt
 
-import "github.com/Tangerg/lynx/ai/core/model"
+import (
+	"context"
+	"errors"
+	"github.com/Tangerg/lynx/ai/core/model"
+)
 
 // Options interface defines a set of methods for configuring model generation options.
 type Options interface {
@@ -39,8 +43,12 @@ type DefaultOptions struct {
 	temperature     *float64
 	topK            *int64
 	topP            *float64
+	streamFunc      func(ctx context.Context, chunk []byte) error
 }
 
+func (d *DefaultOptions) StreamFunc() func(ctx context.Context, chunk []byte) error {
+	return d.streamFunc
+}
 func (d *DefaultOptions) Model() *string {
 	return d.model
 }
@@ -92,7 +100,9 @@ func (d *DefaultOptions) Copy() Options {
 	if d.topP != nil {
 		builder.WithTopP(*d.topP)
 	}
-	return builder.Build()
+
+	cp, _ := builder.Build()
+	return cp
 }
 
 type DefaultOptionsBuilder struct {
@@ -133,6 +143,13 @@ func (d *DefaultOptionsBuilder) WithTopP(topP float64) *DefaultOptionsBuilder {
 	d.options.topP = &topP
 	return d
 }
-func (d *DefaultOptionsBuilder) Build() Options {
-	return d.options
+func (d *DefaultOptionsBuilder) WithStreamFunc(f func(ctx context.Context, chunk []byte) error) *DefaultOptionsBuilder {
+	d.options.streamFunc = f
+	return d
+}
+func (d *DefaultOptionsBuilder) Build() (Options, error) {
+	if d.options.model != nil {
+		return nil, errors.New("model is required")
+	}
+	return d.options, nil
 }

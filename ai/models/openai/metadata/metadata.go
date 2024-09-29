@@ -4,6 +4,6 @@ import (
 	chatMetadata "github.com/Tangerg/lynx/ai/core/chat/metadata"
 )
 
-type GenerationMetadata struct {
+type OpenAIChatGenerationMetadata struct {
 	chatMetadata.GenerationMetadata
 }

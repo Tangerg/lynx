@@ -2,16 +2,15 @@ package model
 
 import "context"
 
-// Model is a generic interface that represents a model capable of processing
-// requests and returning responses. It is parameterized by four types:
-//   - Treq: The type of the request data.
-//   - OReq: The type of the options associated with the request.
-//   - TRes: The type of the response data.
-//   - MRes: The type of the metadata associated with the response, which must
-//     implement the ResultMetadata interface.
-type Model[Treq any, OReq Options, TRes any, MRes ResultMetadata] interface {
-	// Call processes a request of type Request[Treq, OReq] within the given
-	// context and returns a response of type Response[TRes, MRes] or an error
-	// if the processing fails.
-	Call(ctx context.Context, req Request[Treq, OReq]) (Response[TRes, MRes], error)
+// Model is a generic interface that defines a contract for executing a call with a request and returning a response.
+// It is parameterized with two types: TReq and TRes, which represent the request and response types respectively.
+//
+// Type Parameters:
+//   - TReq: Represents the type of the request object that will be passed to the Call method.
+//   - TRes: Represents the type of the response object that will be returned by the Call method.
+//
+// Methods:
+//   - Call(ctx context.Context, req TReq) (TRes, error): This method takes a context and a request of type TReq, and returns a response of type TRes along with an error. The context is used to control the lifetime of the request, allowing for cancellation and timeout management.
+type Model[TReq any, TRes any] interface {
+	Call(ctx context.Context, req TReq) (TRes, error)
 }

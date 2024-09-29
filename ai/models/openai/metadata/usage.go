@@ -1,13 +1,51 @@
 package metadata
 
-// Usage interface defines methods for tracking token usage in a model operation.
-type Usage interface {
-	// PromptTokens returns the number of tokens used in the input prompt.
-	PromptTokens() int64
+import (
+	chatMetadata "github.com/Tangerg/lynx/ai/core/chat/metadata"
+)
 
-	// CompletionTokens returns the number of tokens generated in the completion.
-	CompletionTokens() int64
+type OpenAIUsage struct {
+	promptTokens     int64
+	completionTokens int64
+	reasoningTokens  int64
+	totalTokens      int64
+}
 
-	// TotalTokens returns the total number of tokens used, including both prompt and completion tokens.
-	TotalTokens() int64
+func NewOpenAIUsage() chatMetadata.Usage {
+	return &OpenAIUsage{}
+}
+
+func (o *OpenAIUsage) IncrPromptTokens(tokens int64) {
+	o.promptTokens = o.promptTokens + tokens
+}
+
+func (o *OpenAIUsage) IncrCompletionTokens(tokens int64) {
+	o.completionTokens = o.completionTokens + tokens
+}
+
+func (o *OpenAIUsage) IncrReasoningTokens(tokens int64) {
+	o.reasoningTokens = o.reasoningTokens + tokens
+}
+
+func (o *OpenAIUsage) IncrTotalTokens(tokens int64) {
+	o.totalTokens = o.totalTokens + tokens
+}
+
+func (o *OpenAIUsage) PromptTokens() int64 {
+	return o.promptTokens
+}
+
+func (o *OpenAIUsage) CompletionTokens() int64 {
+	return o.completionTokens
+}
+
+func (o *OpenAIUsage) ReasoningTokens() int64 {
+	return o.reasoningTokens
+}
+
+func (o *OpenAIUsage) TotalTokens() int64 {
+	if o.totalTokens == 0 {
+		return o.promptTokens + o.completionTokens
+	}
+	return o.totalTokens
 }
