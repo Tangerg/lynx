@@ -2,7 +2,7 @@ package message
 
 type SystemMessage struct {
 	content  string
-	metaData map[string]any
+	metadata map[string]any
 }
 
 func (s *SystemMessage) Role() Role {
@@ -14,5 +14,5 @@ func (s *SystemMessage) Content() string {
 }
 
 func (s *SystemMessage) Metadata() map[string]any {
-	return s.metaData
+	return s.metadata
 }

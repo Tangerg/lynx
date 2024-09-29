@@ -5,19 +5,22 @@ import (
 	"github.com/Tangerg/lynx/ai/model"
 )
 
-type Completion[Msg *message.AssisantMessage, RM ResultMetadata] struct {
+type Completion[RM ResultMetadata] struct {
 	metadata model.ResponseMetadata
-	results  []model.Result[Msg, RM]
+	results  []model.Result[*message.AssisantMessage, RM]
 }
 
-func (c *Completion[Msg, RM]) Result() model.Result[Msg, RM] {
+func (c *Completion[RM]) Result() model.Result[*message.AssisantMessage, RM] {
+	if len(c.results) == 0 {
+		return nil
+	}
 	return c.results[0]
 }
 
-func (c *Completion[Msg, RM]) Results() []model.Result[Msg, RM] {
+func (c *Completion[RM]) Results() []model.Result[*message.AssisantMessage, RM] {
 	return c.results
 }
 
-func (c *Completion[Msg, RM]) Metadata() model.ResponseMetadata {
+func (c *Completion[RM]) Metadata() model.ResponseMetadata {
 	return c.metadata
 }

@@ -13,9 +13,9 @@ func NewBuilder[O Options]() *Builder[O] {
 		},
 	}
 }
+
 func (b *Builder[O]) WithContent(content string) *Builder[O] {
-	userMsg := message.NewUserMessage(content)
-	b.prompt.messages = append(b.prompt.messages, userMsg)
+	b.WithMessages(message.NewUserMessage(content))
 	return b
 }
 

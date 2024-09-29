@@ -1,8 +1,15 @@
 package message
 
+func NewAssisantMessage(content string) *AssisantMessage {
+	return &AssisantMessage{
+		content:  content,
+		metadata: make(map[string]any),
+	}
+}
+
 type AssisantMessage struct {
 	content  string
-	metaData map[string]any
+	metadata map[string]any
 }
 
 func (s *AssisantMessage) Role() Role {
@@ -14,5 +21,5 @@ func (s *AssisantMessage) Content() string {
 }
 
 func (s *AssisantMessage) Metadata() map[string]any {
-	return s.metaData
+	return s.metadata
 }

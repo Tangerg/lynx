@@ -1,15 +1,15 @@
 package message
 
-type UserMessage struct {
-	content  string
-	metaData map[string]any
-}
-
 func NewUserMessage(content string) *UserMessage {
 	return &UserMessage{
 		content:  content,
-		metaData: make(map[string]any),
+		metadata: make(map[string]any),
 	}
+}
+
+type UserMessage struct {
+	content  string
+	metadata map[string]any
 }
 
 func (s *UserMessage) Role() Role {
@@ -21,5 +21,5 @@ func (s *UserMessage) Content() string {
 }
 
 func (s *UserMessage) Metadata() map[string]any {
-	return s.metaData
+	return s.metadata
 }
