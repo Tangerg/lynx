@@ -20,9 +20,9 @@ import (
 // returns a completion, both of which are parameterized with the types O and M.
 //
 // Underlying Interface:
-//   - model.StreamingModel[*prompt.Prompt[O], *completion.Completion[M]]:
+//   - model.StreamingModel[*prompt.ChatPrompt[O], *completion.ChatCompletion[M]]:
 //     This indicates that the StreamingModel interface is based on another interface that
-//     operates with pointers to prompt.Prompt and completion.Completion, parameterized with
+//     operates with pointers to prompt.ChatPrompt and completion.ChatCompletion, parameterized with
 //     the types O and M, respectively.
 //
 // Usage:
@@ -30,6 +30,6 @@ import (
 //	This interface is typically implemented by types that need to perform streaming operations
 //	where a prompt is processed to generate a completion, with both the prompt and completion
 //	being customizable through the use of options and metadata.
-type StreamingModel[O prompt.Options, M metadata.GenerationMetadata] interface {
-	model.StreamingModel[*prompt.Prompt[O], *completion.Completion[M]]
+type StreamingModel[O prompt.ChatOptions, M metadata.ChatGenerationMetadata] interface {
+	model.StreamingModel[*prompt.ChatPrompt[O], *completion.ChatCompletion[M]]
 }

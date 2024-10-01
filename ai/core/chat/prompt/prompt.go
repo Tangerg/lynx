@@ -7,49 +7,49 @@ import (
 	"github.com/Tangerg/lynx/ai/core/model"
 )
 
-var _ model.Request[[]message.Message, Options] = (*Prompt[Options])(nil)
+var _ model.Request[[]message.ChatMessage, ChatOptions] = (*ChatPrompt[ChatOptions])(nil)
 
-type Prompt[O Options] struct {
-	messages []message.Message
+type ChatPrompt[O ChatOptions] struct {
+	messages []message.ChatMessage
 	options  O
 }
 
-func (p *Prompt[O]) Instructions() []message.Message {
+func (p *ChatPrompt[O]) Instructions() []message.ChatMessage {
 	return p.messages
 }
 
-func (p *Prompt[O]) Options() O {
+func (p *ChatPrompt[O]) Options() O {
 	return p.options
 }
 
-type Builder[O Options] struct {
-	prompt *Prompt[O]
+type ChatPromptBuilder[O ChatOptions] struct {
+	prompt *ChatPrompt[O]
 }
 
-func NewPromptBuilder[O Options]() *Builder[O] {
-	return &Builder[O]{
-		prompt: &Prompt[O]{
-			messages: make([]message.Message, 0),
+func NewChatPromptBuilder[O ChatOptions]() *ChatPromptBuilder[O] {
+	return &ChatPromptBuilder[O]{
+		prompt: &ChatPrompt[O]{
+			messages: make([]message.ChatMessage, 0),
 		},
 	}
 }
 
-func (b *Builder[O]) WithContent(content string) *Builder[O] {
+func (b *ChatPromptBuilder[O]) WithContent(content string) *ChatPromptBuilder[O] {
 	b.WithMessages(message.NewUserMessage(content))
 	return b
 }
 
-func (b *Builder[O]) WithMessages(msg ...message.Message) *Builder[O] {
+func (b *ChatPromptBuilder[O]) WithMessages(msg ...message.ChatMessage) *ChatPromptBuilder[O] {
 	b.prompt.messages = msg
 	return b
 }
 
-func (b *Builder[O]) WithOptions(opts O) *Builder[O] {
+func (b *ChatPromptBuilder[O]) WithOptions(opts O) *ChatPromptBuilder[O] {
 	b.prompt.options = opts
 	return b
 }
 
-func (b *Builder[O]) Build() (*Prompt[O], error) {
+func (b *ChatPromptBuilder[O]) Build() (*ChatPrompt[O], error) {
 	if b.prompt.options == nil {
 		return nil, errors.New("no options")
 	}

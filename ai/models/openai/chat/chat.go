@@ -16,18 +16,18 @@ import (
 
 var _ model.ChatModel[*OpenAIChatOptions, *metadata.OpenAIChatGenerationMetadata] = (*OpenAIChatModel)(nil)
 
-type OpenAIPrompt = *prompt.Prompt[*OpenAIChatOptions]
-type OpenAICompletion = *completion.Completion[*metadata.OpenAIChatGenerationMetadata]
+type OpenAIChatPrompt = *prompt.ChatPrompt[*OpenAIChatOptions]
+type OpenAIChatCompletion = *completion.ChatCompletion[*metadata.OpenAIChatGenerationMetadata]
 
 type OpenAIChatModel struct {
 	openAIApi *api.OpenAIApi
 }
 
-func (o *OpenAIChatModel) promptToCompletionRequest(prompt OpenAIPrompt) *openai.CompletionRequest {
+func (o *OpenAIChatModel) promptToCompletionRequest(prompt OpenAIChatPrompt) *openai.CompletionRequest {
 	return &openai.CompletionRequest{}
 }
 
-func (o *OpenAIChatModel) Stream(ctx context.Context, req OpenAIPrompt) (OpenAICompletion, error) {
+func (o *OpenAIChatModel) Stream(ctx context.Context, req OpenAIChatPrompt) (OpenAIChatCompletion, error) {
 	creq := o.promptToCompletionRequest(req)
 	stream, err := o.openAIApi.CreateCompletionStream(ctx, creq)
 	if err != nil {
@@ -36,10 +36,10 @@ func (o *OpenAIChatModel) Stream(ctx context.Context, req OpenAIPrompt) (OpenAIC
 	defer stream.Close()
 
 	var (
-		res        OpenAICompletion
+		res        OpenAIChatCompletion
 		sb         strings.Builder
-		builder    = completion.NewCompletionBuilder[*metadata.OpenAIChatGenerationMetadata]()
-		genBuilder = builder.NewGenerationBuilder()
+		builder    = completion.NewChatCompletionBuilder[*metadata.OpenAIChatGenerationMetadata]()
+		genBuilder = builder.NewChatGenerationBuilder()
 	)
 
 	for {
@@ -49,7 +49,7 @@ func (o *OpenAIChatModel) Stream(ctx context.Context, req OpenAIPrompt) (OpenAIC
 		}
 		if err1 != nil {
 			gen, _ := genBuilder.Build()
-			res, _ = builder.WithGenerations(gen).Build()
+			res, _ = builder.WithChatGenerations(gen).Build()
 			return res, err1
 		}
 		streamFunc := req.Options().StreamFunc()
@@ -57,7 +57,7 @@ func (o *OpenAIChatModel) Stream(ctx context.Context, req OpenAIPrompt) (OpenAIC
 			err2 := streamFunc(ctx, []byte(recv.Choices[0].Text))
 			if err2 != nil {
 				gen, _ := genBuilder.Build()
-				res, _ = builder.WithGenerations(gen).Build()
+				res, _ = builder.WithChatGenerations(gen).Build()
 				return res, err2
 			}
 		}
@@ -78,10 +78,10 @@ func (o *OpenAIChatModel) Stream(ctx context.Context, req OpenAIPrompt) (OpenAIC
 	if err != nil {
 		return nil, err
 	}
-	return builder.WithGenerations(gen).Build()
+	return builder.WithChatGenerations(gen).Build()
 }
 
-func (o *OpenAIChatModel) Call(ctx context.Context, req OpenAIPrompt) (OpenAICompletion, error) {
+func (o *OpenAIChatModel) Call(ctx context.Context, req OpenAIChatPrompt) (OpenAIChatCompletion, error) {
 	creq := o.promptToCompletionRequest(req)
 	cres, err := o.openAIApi.CreateCompletion(ctx, creq)
 	if err != nil {
@@ -93,9 +93,9 @@ func (o *OpenAIChatModel) Call(ctx context.Context, req OpenAIPrompt) (OpenAICom
 		FromCompletionResponse(&cres).
 		Build()
 
-	builder := completion.NewCompletionBuilder[*metadata.OpenAIChatGenerationMetadata]()
+	builder := completion.NewChatCompletionBuilder[*metadata.OpenAIChatGenerationMetadata]()
 	gen, err := builder.
-		NewGenerationBuilder().
+		NewChatGenerationBuilder().
 		WithContent(cres.Choices[0].Text).
 		WithMetadata(md).
 		Build()
@@ -104,6 +104,6 @@ func (o *OpenAIChatModel) Call(ctx context.Context, req OpenAIPrompt) (OpenAICom
 	}
 
 	return builder.
-		WithGenerations(gen).
+		WithChatGenerations(gen).
 		Build()
 }

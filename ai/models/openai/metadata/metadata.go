@@ -6,7 +6,7 @@ import (
 	chatMetadata "github.com/Tangerg/lynx/ai/core/chat/metadata"
 )
 
-var _ chatMetadata.GenerationMetadata = (*OpenAIChatGenerationMetadata)(nil)
+var _ chatMetadata.ChatGenerationMetadata = (*OpenAIChatGenerationMetadata)(nil)
 
 type OpenAIChatGenerationMetadata struct {
 	finishReason string

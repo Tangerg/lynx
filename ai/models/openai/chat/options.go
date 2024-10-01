@@ -7,7 +7,7 @@ import (
 	"github.com/Tangerg/lynx/ai/core/chat/prompt"
 )
 
-var _ prompt.Options = (*OpenAIChatOptions)(nil)
+var _ prompt.ChatOptions = (*OpenAIChatOptions)(nil)
 
 type OpenAIChatOptions struct {
 	model           *string
@@ -52,7 +52,7 @@ func (o *OpenAIChatOptions) TopP() *float64 {
 	return o.topP
 }
 
-func (o *OpenAIChatOptions) Copy() prompt.Options {
+func (o *OpenAIChatOptions) Copy() prompt.ChatOptions {
 	builder := NewOpenAIChatOptionsBuilder()
 	if o.model != nil {
 		builder.WithModel(*o.model)

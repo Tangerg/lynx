@@ -6,8 +6,8 @@ import (
 	"github.com/Tangerg/lynx/core/message"
 )
 
-// Memory interface defines methods for managing conversation memory, allowing storage, retrieval, and clearing of messages.
-type Memory interface {
+// ChatMemory interface defines methods for managing conversation memory, allowing storage, retrieval, and clearing of messages.
+type ChatMemory interface {
 	// Add stores one or more messages associated with a specific conversation ID.
 	// Parameters:
 	// - conversationId: A string representing the unique identifier for the conversation.

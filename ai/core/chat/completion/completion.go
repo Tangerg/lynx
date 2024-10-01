@@ -8,59 +8,59 @@ import (
 	"github.com/Tangerg/lynx/ai/core/model"
 )
 
-var _ model.Response[*message.AssistantMessage, metadata.GenerationMetadata] = (*Completion[metadata.GenerationMetadata])(nil)
+var _ model.Response[*message.AssistantMessage, metadata.ChatGenerationMetadata] = (*ChatCompletion[metadata.ChatGenerationMetadata])(nil)
 
-type Completion[RM metadata.GenerationMetadata] struct {
+type ChatCompletion[RM metadata.ChatGenerationMetadata] struct {
 	metadata model.ResponseMetadata
 	results  []model.Result[*message.AssistantMessage, RM]
 }
 
-func (c *Completion[RM]) Result() model.Result[*message.AssistantMessage, RM] {
+func (c *ChatCompletion[RM]) Result() model.Result[*message.AssistantMessage, RM] {
 	if len(c.results) == 0 {
 		return nil
 	}
 	return c.results[0]
 }
 
-func (c *Completion[RM]) Results() []model.Result[*message.AssistantMessage, RM] {
+func (c *ChatCompletion[RM]) Results() []model.Result[*message.AssistantMessage, RM] {
 	return c.results
 }
 
-func (c *Completion[RM]) Metadata() model.ResponseMetadata {
+func (c *ChatCompletion[RM]) Metadata() model.ResponseMetadata {
 	return c.metadata
 }
 
-type Builder[RM metadata.GenerationMetadata] struct {
-	completion *Completion[RM]
+type ChatCompletionBuilder[RM metadata.ChatGenerationMetadata] struct {
+	completion *ChatCompletion[RM]
 }
 
-func NewCompletionBuilder[RM metadata.GenerationMetadata]() *Builder[RM] {
-	return &Builder[RM]{
-		completion: &Completion[RM]{
+func NewChatCompletionBuilder[RM metadata.ChatGenerationMetadata]() *ChatCompletionBuilder[RM] {
+	return &ChatCompletionBuilder[RM]{
+		completion: &ChatCompletion[RM]{
 			results: make([]model.Result[*message.AssistantMessage, RM], 0),
 		},
 	}
 }
 
-func (b *Builder[RM]) NewGenerationBuilder() *GenerationBuilder[RM] {
-	return &GenerationBuilder[RM]{
-		result: &Generation[RM]{},
+func (b *ChatCompletionBuilder[RM]) NewChatGenerationBuilder() *ChatGenerationBuilder[RM] {
+	return &ChatGenerationBuilder[RM]{
+		result: &ChatGeneration[RM]{},
 	}
 }
 
-func (b *Builder[RM]) WithGenerations(gens ...*Generation[RM]) *Builder[RM] {
+func (b *ChatCompletionBuilder[RM]) WithChatGenerations(gens ...*ChatGeneration[RM]) *ChatCompletionBuilder[RM] {
 	for _, gen := range gens {
 		b.completion.results = append(b.completion.results, gen)
 	}
 	return b
 }
 
-func (b *Builder[RM]) WithMetadata(metadata model.ResponseMetadata) *Builder[RM] {
+func (b *ChatCompletionBuilder[RM]) WithMetadata(metadata model.ResponseMetadata) *ChatCompletionBuilder[RM] {
 	b.completion.metadata = metadata
 	return b
 }
 
-func (b *Builder[RM]) Build() (*Completion[RM], error) {
+func (b *ChatCompletionBuilder[RM]) Build() (*ChatCompletion[RM], error) {
 	//if b.completion.metadata == nil {
 	//	return nil, errors.New("metadata is nil")
 	//}

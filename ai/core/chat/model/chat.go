@@ -19,7 +19,7 @@ import (
 //
 // The ChatModel interface is designed for applications that require flexible message processing
 // capabilities, supporting both traditional batch processing and modern streaming interactions.
-type ChatModel[O prompt.Options, M metadata.GenerationMetadata] interface {
+type ChatModel[O prompt.ChatOptions, M metadata.ChatGenerationMetadata] interface {
 	Model[O, M]
 	StreamingModel[O, M]
 }

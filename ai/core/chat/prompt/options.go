@@ -7,8 +7,8 @@ import (
 	"github.com/Tangerg/lynx/ai/core/model"
 )
 
-// Options interface defines a set of methods for configuring model generation options.
-type Options interface {
+// ChatOptions interface defines a set of methods for configuring model generation options.
+type ChatOptions interface {
 	model.Options
 
 	// Model returns a pointer to a string representing the name of the model to be used.
@@ -32,11 +32,11 @@ type Options interface {
 	// TopP returns a pointer to a float64 used to set the nucleus sampling parameter for text generation.
 	TopP() *float64
 
-	// Copy returns a new instance of Options, copying the current configuration.
-	Copy() Options
+	// Copy returns a new instance of ChatOptions, copying the current configuration.
+	Copy() ChatOptions
 }
 
-type DefaultOptions struct {
+type DefaultChatOptions struct {
 	model           *string
 	maxTokens       *int64
 	presencePenalty *float64
@@ -47,39 +47,39 @@ type DefaultOptions struct {
 	streamFunc      func(ctx context.Context, chunk []byte) error
 }
 
-func (d *DefaultOptions) StreamFunc() func(ctx context.Context, chunk []byte) error {
+func (d *DefaultChatOptions) StreamFunc() func(ctx context.Context, chunk []byte) error {
 	return d.streamFunc
 }
-func (d *DefaultOptions) Model() *string {
+func (d *DefaultChatOptions) Model() *string {
 	return d.model
 }
 
-func (d *DefaultOptions) MaxTokens() *int64 {
+func (d *DefaultChatOptions) MaxTokens() *int64 {
 	return d.maxTokens
 }
 
-func (d *DefaultOptions) PresencePenalty() *float64 {
+func (d *DefaultChatOptions) PresencePenalty() *float64 {
 	return d.presencePenalty
 }
 
-func (d *DefaultOptions) StopSequences() []string {
+func (d *DefaultChatOptions) StopSequences() []string {
 	return d.stopSequences
 }
 
-func (d *DefaultOptions) Temperature() *float64 {
+func (d *DefaultChatOptions) Temperature() *float64 {
 	return d.temperature
 }
 
-func (d *DefaultOptions) TopK() *int64 {
+func (d *DefaultChatOptions) TopK() *int64 {
 	return d.topK
 }
 
-func (d *DefaultOptions) TopP() *float64 {
+func (d *DefaultChatOptions) TopP() *float64 {
 	return d.topP
 }
 
-func (d *DefaultOptions) Copy() Options {
-	builder := NewOptionsBuilder()
+func (d *DefaultChatOptions) Copy() ChatOptions {
+	builder := NewDefaultChatOptionsBuilder()
 	if d.model != nil {
 		builder.WithModel(*d.model)
 	}
@@ -106,49 +106,49 @@ func (d *DefaultOptions) Copy() Options {
 	return cp
 }
 
-type DefaultOptionsBuilder struct {
-	options *DefaultOptions
+type DefaultChatOptionsBuilder struct {
+	options *DefaultChatOptions
 }
 
-func NewOptionsBuilder() *DefaultOptionsBuilder {
-	return &DefaultOptionsBuilder{
-		options: &DefaultOptions{},
+func NewDefaultChatOptionsBuilder() *DefaultChatOptionsBuilder {
+	return &DefaultChatOptionsBuilder{
+		options: &DefaultChatOptions{},
 	}
 }
 
-func (d *DefaultOptionsBuilder) WithModel(model string) *DefaultOptionsBuilder {
+func (d *DefaultChatOptionsBuilder) WithModel(model string) *DefaultChatOptionsBuilder {
 	d.options.model = &model
 	return d
 }
-func (d *DefaultOptionsBuilder) WithMaxTokens(maxTokens int64) *DefaultOptionsBuilder {
+func (d *DefaultChatOptionsBuilder) WithMaxTokens(maxTokens int64) *DefaultChatOptionsBuilder {
 	d.options.maxTokens = &maxTokens
 	return d
 }
-func (d *DefaultOptionsBuilder) WithPresencePenalty(presencePenalty float64) *DefaultOptionsBuilder {
+func (d *DefaultChatOptionsBuilder) WithPresencePenalty(presencePenalty float64) *DefaultChatOptionsBuilder {
 	d.options.presencePenalty = &presencePenalty
 	return d
 }
-func (d *DefaultOptionsBuilder) WithStopSequences(stopSequences []string) *DefaultOptionsBuilder {
+func (d *DefaultChatOptionsBuilder) WithStopSequences(stopSequences []string) *DefaultChatOptionsBuilder {
 	d.options.stopSequences = stopSequences
 	return d
 }
-func (d *DefaultOptionsBuilder) WithTemperature(temperature float64) *DefaultOptionsBuilder {
+func (d *DefaultChatOptionsBuilder) WithTemperature(temperature float64) *DefaultChatOptionsBuilder {
 	d.options.temperature = &temperature
 	return d
 }
-func (d *DefaultOptionsBuilder) WithTopK(topK int64) *DefaultOptionsBuilder {
+func (d *DefaultChatOptionsBuilder) WithTopK(topK int64) *DefaultChatOptionsBuilder {
 	d.options.topK = &topK
 	return d
 }
-func (d *DefaultOptionsBuilder) WithTopP(topP float64) *DefaultOptionsBuilder {
+func (d *DefaultChatOptionsBuilder) WithTopP(topP float64) *DefaultChatOptionsBuilder {
 	d.options.topP = &topP
 	return d
 }
-func (d *DefaultOptionsBuilder) WithStreamFunc(f func(ctx context.Context, chunk []byte) error) *DefaultOptionsBuilder {
+func (d *DefaultChatOptionsBuilder) WithStreamFunc(f func(ctx context.Context, chunk []byte) error) *DefaultChatOptionsBuilder {
 	d.options.streamFunc = f
 	return d
 }
-func (d *DefaultOptionsBuilder) Build() (Options, error) {
+func (d *DefaultChatOptionsBuilder) Build() (ChatOptions, error) {
 	if d.options.model != nil {
 		return nil, errors.New("model is required")
 	}

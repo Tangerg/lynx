@@ -8,40 +8,40 @@ import (
 	"github.com/Tangerg/lynx/ai/core/model"
 )
 
-var _ model.Result[*message.AssistantMessage, metadata.GenerationMetadata] = (*Generation[metadata.GenerationMetadata])(nil)
+var _ model.Result[*message.AssistantMessage, metadata.ChatGenerationMetadata] = (*ChatGeneration[metadata.ChatGenerationMetadata])(nil)
 
-type Generation[M metadata.GenerationMetadata] struct {
+type ChatGeneration[M metadata.ChatGenerationMetadata] struct {
 	message  *message.AssistantMessage
 	metadata M
 }
 
-func (g *Generation[M]) Output() *message.AssistantMessage {
+func (g *ChatGeneration[M]) Output() *message.AssistantMessage {
 	return g.message
 }
 
-func (g *Generation[M]) Metadata() M {
+func (g *ChatGeneration[M]) Metadata() M {
 	return g.metadata
 }
 
-type GenerationBuilder[RM metadata.GenerationMetadata] struct {
-	result *Generation[RM]
+type ChatGenerationBuilder[RM metadata.ChatGenerationMetadata] struct {
+	result *ChatGeneration[RM]
 }
 
-func (b *GenerationBuilder[RM]) WithContent(content string) *GenerationBuilder[RM] {
+func (b *ChatGenerationBuilder[RM]) WithContent(content string) *ChatGenerationBuilder[RM] {
 	return b.WithMessage(message.NewAssistantMessage(content))
 }
 
-func (b *GenerationBuilder[RM]) WithMessage(msg *message.AssistantMessage) *GenerationBuilder[RM] {
+func (b *ChatGenerationBuilder[RM]) WithMessage(msg *message.AssistantMessage) *ChatGenerationBuilder[RM] {
 	b.result.message = msg
 	return b
 }
 
-func (b *GenerationBuilder[RM]) WithMetadata(meta RM) *GenerationBuilder[RM] {
+func (b *ChatGenerationBuilder[RM]) WithMetadata(meta RM) *ChatGenerationBuilder[RM] {
 	b.result.metadata = meta
 	return b
 }
 
-func (b *GenerationBuilder[RM]) Build() (*Generation[RM], error) {
+func (b *ChatGenerationBuilder[RM]) Build() (*ChatGeneration[RM], error) {
 	if b.result.metadata == nil {
 		return nil, errors.New("metadata is nil")
 	}

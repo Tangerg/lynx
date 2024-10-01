@@ -7,17 +7,17 @@ import (
 	"github.com/Tangerg/lynx/core/message"
 )
 
-func NewInMemoryMemory() Memory {
-	return &InMemoryMemory{
+func NewInMemoryChatMemory() ChatMemory {
+	return &InMemoryChatMemory{
 		conversations: make(map[string][]message.Message),
 	}
 }
 
-type InMemoryMemory struct {
+type InMemoryChatMemory struct {
 	conversations map[string][]message.Message
 }
 
-func (i *InMemoryMemory) Add(ctx context.Context, conversationId string, messages ...message.Message) error {
+func (i *InMemoryChatMemory) Add(ctx context.Context, conversationId string, messages ...message.Message) error {
 	if i.conversations[conversationId] == nil {
 		i.conversations[conversationId] = make([]message.Message, 0)
 	}
@@ -25,14 +25,14 @@ func (i *InMemoryMemory) Add(ctx context.Context, conversationId string, message
 	return nil
 }
 
-func (i *InMemoryMemory) Get(ctx context.Context, conversationId string, lastN int) ([]message.Message, error) {
+func (i *InMemoryChatMemory) Get(ctx context.Context, conversationId string, lastN int) ([]message.Message, error) {
 	if i.conversations[conversationId] == nil {
 		return nil, fmt.Errorf("conversation %s not found", conversationId)
 	}
 	return i.conversations[conversationId][lastN:], nil
 }
 
-func (i *InMemoryMemory) Clear(ctx context.Context, conversationId string) error {
+func (i *InMemoryChatMemory) Clear(ctx context.Context, conversationId string) error {
 	if i.conversations[conversationId] == nil {
 		return nil
 	}
