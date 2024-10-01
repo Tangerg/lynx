@@ -3,6 +3,7 @@ package chat
 import (
 	"context"
 	"errors"
+
 	"github.com/Tangerg/lynx/ai/core/chat/prompt"
 )
 

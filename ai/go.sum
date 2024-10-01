@@ -1,2 +1,4 @@
+github.com/Tangerg/lynx/core v0.0.0-20240929205004-31426f8c95e7 h1:zQqkFv0VXj6Kkt/8bjRvEjV9ZZnPA8rkEUSJq1lB7X4=
+github.com/Tangerg/lynx/core v0.0.0-20240929205004-31426f8c95e7/go.mod h1:yNVV6g035WPDJl1ZUw4jrzlF2s9MAaNw6XH+aMJVAiI=
 github.com/sashabaranov/go-openai v1.31.0 h1:rGe77x7zUeCjtS2IS7NCY6Tp4bQviXNMhkQM6hz/UC4=
 github.com/sashabaranov/go-openai v1.31.0/go.mod h1:lj5b/K+zjTSFxVLijLSTDZuP7adOgerWeFyZLUhAKRg=

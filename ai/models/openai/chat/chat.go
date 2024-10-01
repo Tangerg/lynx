@@ -2,14 +2,16 @@ package chat
 
 import (
 	"context"
+	"io"
+	"strings"
+
+	"github.com/sashabaranov/go-openai"
+
 	"github.com/Tangerg/lynx/ai/core/chat/completion"
 	"github.com/Tangerg/lynx/ai/core/chat/model"
 	"github.com/Tangerg/lynx/ai/core/chat/prompt"
 	"github.com/Tangerg/lynx/ai/models/openai/api"
 	"github.com/Tangerg/lynx/ai/models/openai/metadata"
-	"github.com/sashabaranov/go-openai"
-	"io"
-	"strings"
 )
 
 var _ model.ChatModel[*OpenAIChatOptions, *metadata.OpenAIChatGenerationMetadata] = (*OpenAIChatModel)(nil)

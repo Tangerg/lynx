@@ -1,8 +1,9 @@
 package metadata
 
 import (
-	chatMetadata "github.com/Tangerg/lynx/ai/core/chat/metadata"
 	"github.com/sashabaranov/go-openai"
+
+	chatMetadata "github.com/Tangerg/lynx/ai/core/chat/metadata"
 )
 
 var _ chatMetadata.GenerationMetadata = (*OpenAIChatGenerationMetadata)(nil)

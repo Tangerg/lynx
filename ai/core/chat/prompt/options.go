@@ -3,6 +3,7 @@ package prompt
 import (
 	"context"
 	"errors"
+
 	"github.com/Tangerg/lynx/ai/core/model"
 )
 

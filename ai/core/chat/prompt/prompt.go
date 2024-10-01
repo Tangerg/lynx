@@ -2,6 +2,7 @@ package prompt
 
 import (
 	"errors"
+
 	"github.com/Tangerg/lynx/ai/core/chat/message"
 	"github.com/Tangerg/lynx/ai/core/model"
 )

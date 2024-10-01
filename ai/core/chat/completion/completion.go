@@ -2,6 +2,7 @@ package completion
 
 import (
 	"errors"
+
 	"github.com/Tangerg/lynx/ai/core/chat/message"
 	"github.com/Tangerg/lynx/ai/core/chat/metadata"
 	"github.com/Tangerg/lynx/ai/core/model"
