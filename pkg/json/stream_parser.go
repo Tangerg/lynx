@@ -1,4 +1,4 @@
-package stream
+package json
 
 import (
 	"bytes"
@@ -13,7 +13,7 @@ const (
 	object = "object"
 )
 
-type JSONParser struct {
+type StreamParser struct {
 	readbufferSize int
 	scopes         []string
 	buffers        []*bytes.Buffer
@@ -21,13 +21,17 @@ type JSONParser struct {
 	OnArray        func([]any)
 }
 
-func NewJSONParser(size int) *JSONParser {
-	return &JSONParser{
+func NewStreamParser(size int) *StreamParser {
+	return &StreamParser{
 		readbufferSize: size,
 	}
 }
 
-func (p *JSONParser) Parse(input io.Reader) error {
+func (p *StreamParser) Parse(input io.Reader) error {
+	if input == nil {
+		return errors.New("input reader cannot be nil")
+	}
+
 	defer func() {
 		clear(p.scopes[0:len(p.scopes)])
 		clear(p.buffers[0:len(p.buffers)])
@@ -69,7 +73,7 @@ func (p *JSONParser) Parse(input io.Reader) error {
 	}
 }
 
-func (p *JSONParser) readChar(char byte) {
+func (p *StreamParser) readChar(char byte) {
 	if len(p.scopes) == 0 {
 		return
 	}
@@ -78,12 +82,12 @@ func (p *JSONParser) readChar(char byte) {
 	currentBuffer.WriteByte(char)
 }
 
-func (p *JSONParser) startScope(scopeType string) {
+func (p *StreamParser) startScope(scopeType string) {
 	p.scopes = append(p.scopes, scopeType)
 	p.buffers = append(p.buffers, new(bytes.Buffer))
 }
 
-func (p *JSONParser) endScope(scopeType string) {
+func (p *StreamParser) endScope(scopeType string) {
 	if len(p.scopes) == 0 {
 		return
 	}
@@ -110,7 +114,7 @@ func (p *JSONParser) endScope(scopeType string) {
 	}
 }
 
-func (p *JSONParser) processObjectBuffer(buffer *bytes.Buffer) {
+func (p *StreamParser) processObjectBuffer(buffer *bytes.Buffer) {
 	var obj map[string]interface{}
 	err := json.Unmarshal(buffer.Bytes(), &obj)
 	if err != nil {
@@ -121,7 +125,7 @@ func (p *JSONParser) processObjectBuffer(buffer *bytes.Buffer) {
 	}
 }
 
-func (p *JSONParser) processArrayBuffer(buffer *bytes.Buffer) {
+func (p *StreamParser) processArrayBuffer(buffer *bytes.Buffer) {
 	var arr []any
 	err := json.Unmarshal(buffer.Bytes(), &arr)
 	if err != nil {
