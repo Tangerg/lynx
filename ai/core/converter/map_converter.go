@@ -2,6 +2,7 @@ package converter
 
 import (
 	"encoding/json"
+	"strings"
 )
 
 var _ StructuredConverter[map[string]any] = (*MapConverter)(nil)
@@ -20,6 +21,10 @@ Remove the ` + "```" + "json markdown surrounding the output including the trail
 }
 
 func (m *MapConverter) Convert(raw string) (map[string]any, error) {
+	if strings.HasPrefix(raw, "```json") &&
+		strings.HasSuffix(raw, "```") {
+		raw = raw[7 : len(raw)-3]
+	}
 	rv := make(map[string]any)
 	return rv, json.Unmarshal([]byte(raw), &rv)
 }

@@ -1,5 +1,12 @@
 package message
 
+func NewSystemMessage(content string) *SystemMessage {
+	return &SystemMessage{
+		content:  content,
+		metadata: make(map[string]any),
+	}
+}
+
 type SystemMessage struct {
 	content  string
 	metadata map[string]any

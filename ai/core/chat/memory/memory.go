@@ -3,7 +3,7 @@ package memory
 import (
 	"context"
 
-	"github.com/Tangerg/lynx/core/message"
+	"github.com/Tangerg/lynx/ai/core/chat/message"
 )
 
 // ChatMemory interface defines methods for managing conversation memory, allowing storage, retrieval, and clearing of messages.
@@ -12,7 +12,7 @@ type ChatMemory interface {
 	// Parameters:
 	// - conversationId: A string representing the unique identifier for the conversation.
 	// - messages: A variadic parameter of message.Message type representing the messages to be added.
-	Add(ctx context.Context, conversationId string, messages ...message.Message) error
+	Add(ctx context.Context, conversationId string, messages ...message.ChatMessage) error
 
 	// Get retrieves the last N messages from a specific conversation.
 	// Parameters:
@@ -20,7 +20,7 @@ type ChatMemory interface {
 	// - lastN: An integer specifying the number of recent messages to retrieve.
 	// Returns:
 	// - A slice of message.Message containing the retrieved messages.
-	Get(ctx context.Context, conversationId string, lastN int) ([]message.Message, error)
+	Get(ctx context.Context, conversationId string, lastN int) ([]message.ChatMessage, error)
 
 	// Clear removes all messages associated with a specific conversation ID.
 	// Parameters:
