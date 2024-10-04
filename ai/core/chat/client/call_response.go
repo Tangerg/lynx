@@ -9,34 +9,34 @@ import (
 	"github.com/Tangerg/lynx/ai/core/converter"
 )
 
-type CallResponseSpec interface {
+type CallResponse interface {
 	Entity(ctx context.Context, v any) error
 	EntityByConvert(ctx context.Context, v any, converter converter.StructuredConverter[any]) error
 	Content(ctx context.Context) (string, error)
 	ChatResponse(ctx context.Context) (*completion.ChatCompletion[metadata.ChatGenerationMetadata], error)
 }
 
-var _ CallResponseSpec = (*DefaultCallResponseSpec)(nil)
+var _ CallResponse = (*DefaultCallResponse)(nil)
 
-type DefaultCallResponseSpec struct {
+type DefaultCallResponse struct {
 	request *DefaultChatClientRequest
 }
 
-func NewDefaultCallResponseSpec(req *DefaultChatClientRequest) *DefaultCallResponseSpec {
-	return &DefaultCallResponseSpec{
+func NewDefaultCallResponseSpec(req *DefaultChatClientRequest) *DefaultCallResponse {
+	return &DefaultCallResponse{
 		request: req,
 	}
 }
 
-func (d *DefaultCallResponseSpec) doGetChatResponse(ctx context.Context, request *DefaultChatClientRequest, format string) (*completion.ChatCompletion[metadata.ChatGenerationMetadata], error) {
+func (d *DefaultCallResponse) doGetChatResponse(ctx context.Context, format string) (*completion.ChatCompletion[metadata.ChatGenerationMetadata], error) {
 	c := api.NewContext(ctx)
 	if format != "" {
 		c.SetParam("formatParam", format)
 	}
-	c.SetParams(request.advisorParams)
-	c.Request = request.ToAdvisedRequest()
+	c.SetParams(d.request.advisorParams)
+	c.Request = d.request.toAdvisedRequest()
 
-	reqAdvisors := api.ExtractRequestAdvisor(request.advisors)
+	reqAdvisors := api.ExtractRequestAdvisor(d.request.advisors)
 	for _, reqAdvisor := range reqAdvisors {
 		err := reqAdvisor.AdviseRequest(c)
 		if err != nil {
@@ -44,23 +44,30 @@ func (d *DefaultCallResponseSpec) doGetChatResponse(ctx context.Context, request
 		}
 	}
 
-	err := request.aroundAdvisorChain.NextAroundCall(c)
+	err := d.request.aroundAdvisorChain.NextAroundCall(c)
 	if err != nil {
 		return nil, err
 	}
 
-	respAdvisors := api.ExtractResponseAdvisor(request.advisors)
+	respAdvisors := api.ExtractResponseAdvisor(d.request.advisors)
 	for _, respAdvisor := range respAdvisors {
 		err = respAdvisor.AdviseCallResponse(c)
 		if err != nil {
 			return nil, err
 		}
 	}
+
 	return c.Response, nil
 }
 
-func (d *DefaultCallResponseSpec) EntityByConvert(ctx context.Context, v any, converter converter.StructuredConverter[any]) error {
-	resp, err := d.doGetChatResponse(ctx, d.request, converter.GetFormat())
+func (d *DefaultCallResponse) Entity(ctx context.Context, v any) error {
+	c := new(converter.StructConverter[any])
+	c.SetV(v)
+	return d.EntityByConvert(ctx, v, c)
+}
+
+func (d *DefaultCallResponse) EntityByConvert(ctx context.Context, v any, converter converter.StructuredConverter[any]) error {
+	resp, err := d.doGetChatResponse(ctx, converter.GetFormat())
 	if err != nil {
 		return err
 	}
@@ -72,13 +79,7 @@ func (d *DefaultCallResponseSpec) EntityByConvert(ctx context.Context, v any, co
 	return nil
 }
 
-func (d *DefaultCallResponseSpec) Entity(ctx context.Context, v any) error {
-	c := new(converter.StructConverter[any])
-	c.SetV(v)
-	return d.EntityByConvert(ctx, v, c)
-}
-
-func (d *DefaultCallResponseSpec) Content(ctx context.Context) (string, error) {
+func (d *DefaultCallResponse) Content(ctx context.Context) (string, error) {
 	resp, err := d.ChatResponse(ctx)
 	if err != nil {
 		return "", err
@@ -86,6 +87,6 @@ func (d *DefaultCallResponseSpec) Content(ctx context.Context) (string, error) {
 	return resp.Result().Output().Content(), nil
 }
 
-func (d *DefaultCallResponseSpec) ChatResponse(ctx context.Context) (*completion.ChatCompletion[metadata.ChatGenerationMetadata], error) {
-	return d.doGetChatResponse(ctx, d.request, "")
+func (d *DefaultCallResponse) ChatResponse(ctx context.Context) (*completion.ChatCompletion[metadata.ChatGenerationMetadata], error) {
+	return d.doGetChatResponse(ctx, "")
 }

@@ -50,9 +50,6 @@ func (b *ChatPromptBuilder[O]) WithOptions(opts O) *ChatPromptBuilder[O] {
 }
 
 func (b *ChatPromptBuilder[O]) Build() (*ChatPrompt[O], error) {
-	if b.prompt.options == nil {
-		return nil, errors.New("no options")
-	}
 	if b.prompt.options.Model() == nil {
 		return nil, errors.New("no options model")
 	}

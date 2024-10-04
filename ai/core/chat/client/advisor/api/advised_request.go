@@ -1,6 +1,8 @@
 package api
 
 import (
+	"strings"
+
 	"github.com/Tangerg/lynx/ai/core/chat/message"
 	"github.com/Tangerg/lynx/ai/core/chat/metadata"
 	"github.com/Tangerg/lynx/ai/core/chat/model"
@@ -23,10 +25,10 @@ func (a *AdvisedRequest) ChatModel() model.ChatModel[prompt.ChatOptions, metadat
 	return a.chatModel
 }
 func (a *AdvisedRequest) UserText() string {
-	return a.userText
+	return strings.TrimSpace(a.userText)
 }
 func (a *AdvisedRequest) SystemText() string {
-	return a.systemText
+	return strings.TrimSpace(a.systemText)
 }
 func (a *AdvisedRequest) ChatOptions() prompt.ChatOptions {
 	return a.chatOptions

@@ -11,13 +11,14 @@ type DefaultAroundChain struct {
 	streamAroundAdvisors []api.StreamAroundAdvisor
 }
 
-func (d *DefaultAroundChain) PushAroundAdvisors(advisors ...api.Advisor) {
+func (d *DefaultAroundChain) PushAroundAdvisors(advisors ...api.Advisor) *DefaultAroundChain {
 	for _, advisor := range advisors {
 		d.PushAroundAdvisor(advisor)
 	}
+	return d
 }
 
-func (d *DefaultAroundChain) PushAroundAdvisor(advisor api.Advisor) {
+func (d *DefaultAroundChain) PushAroundAdvisor(advisor api.Advisor) *DefaultAroundChain {
 	callAroundAdvisor, ok := advisor.(api.CallAroundAdvisor)
 	if ok {
 		d.callAroundAdvisors = append(d.callAroundAdvisors, callAroundAdvisor)
@@ -26,6 +27,7 @@ func (d *DefaultAroundChain) PushAroundAdvisor(advisor api.Advisor) {
 	if ok {
 		d.streamAroundAdvisors = append(d.streamAroundAdvisors, streamAroundAdvisor)
 	}
+	return d
 }
 
 func (d *DefaultAroundChain) popCallAroundAdvisor() (api.CallAroundAdvisor, error) {
@@ -63,8 +65,5 @@ func (d *DefaultAroundChain) NextAroundStream(ctx *api.Context) error {
 }
 
 func NewDefaultAroundChain() *DefaultAroundChain {
-	return &DefaultAroundChain{
-		callAroundAdvisors:   make([]api.CallAroundAdvisor, 0),
-		streamAroundAdvisors: make([]api.StreamAroundAdvisor, 0),
-	}
+	return &DefaultAroundChain{}
 }
