@@ -32,8 +32,8 @@ type ChatOptions interface {
 	// TopP returns a pointer to a float64 used to set the nucleus sampling parameter for text generation.
 	TopP() *float64
 
-	// Copy returns a new instance of ChatOptions, copying the current configuration.
-	Copy() ChatOptions
+	// Clone returns a new instance of ChatOptions, copying the current configuration.
+	Clone() ChatOptions
 }
 
 type DefaultChatOptions struct {
@@ -78,7 +78,7 @@ func (d *DefaultChatOptions) TopP() *float64 {
 	return d.topP
 }
 
-func (d *DefaultChatOptions) Copy() ChatOptions {
+func (d *DefaultChatOptions) Clone() ChatOptions {
 	builder := NewDefaultChatOptionsBuilder()
 	if d.model != nil {
 		builder.WithModel(*d.model)

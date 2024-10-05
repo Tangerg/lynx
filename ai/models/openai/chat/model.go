@@ -52,7 +52,9 @@ func (o *OpenAIChatModel) Stream(ctx context.Context, req OpenAIChatPrompt) (Ope
 	if err != nil {
 		return nil, err
 	}
-	defer stream.Close()
+	defer func() {
+		_ = stream.Close()
+	}()
 
 	var (
 		openAIChatCompletion OpenAIChatCompletion

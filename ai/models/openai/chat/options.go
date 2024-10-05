@@ -65,7 +65,7 @@ func (o *OpenAIChatOptions) StreamCompletionFunc() func(ctx context.Context, com
 	return o.streamCompletionFunc
 }
 
-func (o *OpenAIChatOptions) Copy() prompt.ChatOptions {
+func (o *OpenAIChatOptions) Clone() prompt.ChatOptions {
 	builder := NewOpenAIChatOptionsBuilder()
 	if o.model != nil {
 		builder.WithModel(*o.model)
