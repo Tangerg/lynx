@@ -5,7 +5,6 @@ import (
 	"github.com/Tangerg/lynx/ai/core/chat/message"
 	"github.com/Tangerg/lynx/ai/core/chat/metadata"
 	"github.com/Tangerg/lynx/ai/core/chat/prompt"
-	pkgSystem "github.com/Tangerg/lynx/pkg/system"
 )
 
 func NewDialAdvisor[O prompt.ChatOptions, M metadata.ChatGenerationMetadata]() *DialAdvisor[O, M] {
@@ -26,32 +25,11 @@ func (r *DialAdvisor[O, M]) doGetPrompt(ctx *api.Context[O, M]) (*prompt.ChatPro
 
 	systemText := ctx.Request.SystemText()
 	if systemText != "" {
-		systemParams := ctx.Request.SystemParams()
-		if len(systemParams) > 0 {
-			tpl := prompt.NewTemplate()
-			err := tpl.Execute(systemText, systemParams)
-			if err == nil {
-				systemText = tpl.Render()
-			}
-		}
-		messages = append(messages, message.NewSystemMessage(systemText))
+		messages = append(messages, message.NewUserMessage(systemText))
 	}
 
 	userText := ctx.Request.UserText()
-	userParams := ctx.Request.UserParams()
-	formatParam, ok := ctx.Param("formatParam")
-	if ok {
-		userText = userText + pkgSystem.LineSeparator() + "{{.lynx_ai_soc_format}}"
-		userParams["lynx_ai_soc_format"] = formatParam
-	}
 	if userText != "" {
-		if len(userParams) > 0 {
-			tpl := prompt.NewTemplate()
-			err := tpl.Execute(userText, userParams)
-			if err == nil {
-				userText = tpl.Render()
-			}
-		}
 		messages = append(messages, message.NewUserMessage(userText))
 	}
 

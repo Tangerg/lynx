@@ -10,14 +10,13 @@ import (
 var _ StructuredConverter[any] = (*StructConverter[any])(nil)
 
 type StructConverter[T any] struct {
-	v          T
-	jsonSchema string
-	format     string
+	v      T
+	format string
 }
 
-// SetDefault If the generic type is any, assist in obtaining the specific type
-func (s *StructConverter[T]) SetDefault(v T) {
-	s.v = v
+// NewStructConverterWithDefault the default value, If the generic type is any, assist in obtaining the specific type
+func NewStructConverterWithDefault[T any](v T) *StructConverter[T] {
+	return &StructConverter[T]{v: v}
 }
 
 func (s *StructConverter[T]) getFormat() string {
@@ -28,8 +27,8 @@ Do not include markdown code blocks in your response.
 Remove the ` + "```" + "json markdown surrounding the output including the trailing " + "```." +
 		`
 Here is the JSON Schema instance your output must adhere to: %s`
-	s.jsonSchema = pkgjson.StringSchemaOf(s.v)
-	return fmt.Sprintf(format, s.jsonSchema)
+
+	return fmt.Sprintf(format, pkgjson.StringSchemaOf(s.v))
 }
 
 func (s *StructConverter[T]) GetFormat() string {

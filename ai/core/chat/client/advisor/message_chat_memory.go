@@ -8,22 +8,22 @@ import (
 	"github.com/Tangerg/lynx/ai/core/chat/prompt"
 )
 
-func NewMessageChatMemory[O prompt.ChatOptions, M metadata.ChatGenerationMetadata](store memory.ChatMemory) *MessageChatMemory[O, M] {
-	return &MessageChatMemory[O, M]{
+func NewMessageChatMemory[O prompt.ChatOptions, M metadata.ChatGenerationMetadata](store memory.ChatMemory) *MessageChatMemoryAdvisor[O, M] {
+	return &MessageChatMemoryAdvisor[O, M]{
 		&ChatMemoryAdvisor[O, M, memory.ChatMemory]{
 			store,
 		},
 	}
 }
 
-var _ api.RequestAdvisor[prompt.ChatOptions, metadata.ChatGenerationMetadata] = (*MessageChatMemory[prompt.ChatOptions, metadata.ChatGenerationMetadata])(nil)
-var _ api.ResponseAdvisor[prompt.ChatOptions, metadata.ChatGenerationMetadata] = (*MessageChatMemory[prompt.ChatOptions, metadata.ChatGenerationMetadata])(nil)
+var _ api.RequestAdvisor[prompt.ChatOptions, metadata.ChatGenerationMetadata] = (*MessageChatMemoryAdvisor[prompt.ChatOptions, metadata.ChatGenerationMetadata])(nil)
+var _ api.ResponseAdvisor[prompt.ChatOptions, metadata.ChatGenerationMetadata] = (*MessageChatMemoryAdvisor[prompt.ChatOptions, metadata.ChatGenerationMetadata])(nil)
 
-type MessageChatMemory[O prompt.ChatOptions, M metadata.ChatGenerationMetadata] struct {
+type MessageChatMemoryAdvisor[O prompt.ChatOptions, M metadata.ChatGenerationMetadata] struct {
 	*ChatMemoryAdvisor[O, M, memory.ChatMemory]
 }
 
-func (c *MessageChatMemory[O, M]) AdviseRequest(ctx *api.Context[O, M]) error {
+func (c *MessageChatMemoryAdvisor[O, M]) AdviseRequest(ctx *api.Context[O, M]) error {
 	cid := c.doGetConversationId(ctx.Params())
 	size := c.doGetChatMemoryRetrieveSize(ctx.Params())
 
@@ -51,7 +51,7 @@ func (c *MessageChatMemory[O, M]) AdviseRequest(ctx *api.Context[O, M]) error {
 		)
 }
 
-func (c *MessageChatMemory[O, M]) AdviseStreamResponse(ctx *api.Context[O, M]) error {
+func (c *MessageChatMemoryAdvisor[O, M]) AdviseStreamResponse(ctx *api.Context[O, M]) error {
 	msgs := make([]message.ChatMessage, 0)
 	for _, result := range ctx.Response.Results() {
 		msgs = append(msgs, result.Output())
@@ -65,7 +65,7 @@ func (c *MessageChatMemory[O, M]) AdviseStreamResponse(ctx *api.Context[O, M]) e
 		)
 }
 
-func (c *MessageChatMemory[O, M]) AdviseCallResponse(ctx *api.Context[O, M]) error {
+func (c *MessageChatMemoryAdvisor[O, M]) AdviseCallResponse(ctx *api.Context[O, M]) error {
 	msgs := make([]message.ChatMessage, 0)
 	for _, result := range ctx.Response.Results() {
 		msgs = append(msgs, result.Output())

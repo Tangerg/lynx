@@ -3,6 +3,7 @@ package client
 import (
 	"context"
 
+	"github.com/Tangerg/lynx/ai/core/chat/client/advisor"
 	"github.com/Tangerg/lynx/ai/core/chat/client/advisor/api"
 	"github.com/Tangerg/lynx/ai/core/chat/completion"
 	"github.com/Tangerg/lynx/ai/core/chat/metadata"
@@ -13,7 +14,7 @@ import (
 type CallResponse[O prompt.ChatOptions, M metadata.ChatGenerationMetadata] interface {
 	ResponseValue(ctx context.Context, def any) (ResponseValue[any, M], error)
 	ResponseValueSlice(ctx context.Context) (ResponseValue[[]string, M], error)
-	ResponseValueMap(ctx context.Context) (ResponseValue[map[string]any, M], error)
+	ResponseValueMap(ctx context.Context, example map[string]any) (ResponseValue[map[string]any, M], error)
 	ResponseValueStruct(ctx context.Context, def any) (ResponseValue[any, M], error)
 	ResponseValueWithStructuredConvert(ctx context.Context, def any, c converter.StructuredConverter[any]) (ResponseValue[any, M], error)
 	Content(ctx context.Context) (string, error)
@@ -35,8 +36,9 @@ func NewDefaultCallResponse[O prompt.ChatOptions, M metadata.ChatGenerationMetad
 func (d *DefaultCallResponse[O, M]) doGetChatResponse(ctx context.Context, format string) (*completion.ChatCompletion[M], error) {
 	c := api.NewContext[O, M](ctx)
 	if format != "" {
-		c.SetParam("formatParam", format)
+		d.request.advisors = append([]api.Advisor{advisor.NewFormatResponseAdvisor[O, M](format)}, d.request.advisors...)
 	}
+
 	c.SetParams(d.request.advisorParams)
 	c.Request = d.request.toAdvisedRequest()
 
@@ -69,7 +71,7 @@ func (d *DefaultCallResponse[O, M]) ResponseValue(ctx context.Context, def any) 
 }
 
 func (d *DefaultCallResponse[O, M]) ResponseValueSlice(ctx context.Context) (ResponseValue[[]string, M], error) {
-	c := new(converter.SliceConverter)
+	c := converter.NewSliceConverter()
 	resp, err := d.doGetChatResponse(ctx, c.GetFormat())
 	if err != nil {
 		return nil, err
@@ -86,8 +88,8 @@ func (d *DefaultCallResponse[O, M]) ResponseValueSlice(ctx context.Context) (Res
 	return rv, nil
 }
 
-func (d *DefaultCallResponse[O, M]) ResponseValueMap(ctx context.Context) (ResponseValue[map[string]any, M], error) {
-	c := new(converter.MapConverter)
+func (d *DefaultCallResponse[O, M]) ResponseValueMap(ctx context.Context, example map[string]any) (ResponseValue[map[string]any, M], error) {
+	c := converter.NewMapConverterWithExample(example)
 	resp, err := d.doGetChatResponse(ctx, c.GetFormat())
 	if err != nil {
 		return nil, err
@@ -105,9 +107,11 @@ func (d *DefaultCallResponse[O, M]) ResponseValueMap(ctx context.Context) (Respo
 }
 
 func (d *DefaultCallResponse[O, M]) ResponseValueStruct(ctx context.Context, def any) (ResponseValue[any, M], error) {
-	c := new(converter.StructConverter[any])
-	c.SetDefault(def)
-	return d.ResponseValueWithStructuredConvert(ctx, def, c)
+	return d.ResponseValueWithStructuredConvert(
+		ctx,
+		def,
+		converter.NewStructConverterWithDefault(def),
+	)
 }
 
 func (d *DefaultCallResponse[O, M]) ResponseValueWithStructuredConvert(ctx context.Context, def any, c converter.StructuredConverter[any]) (ResponseValue[any, M], error) {
