@@ -1,24 +1,17 @@
 package metadata
 
 import (
-	"github.com/sashabaranov/go-openai"
-
 	chatMetadata "github.com/Tangerg/lynx/ai/core/chat/metadata"
 )
 
 var _ chatMetadata.ChatGenerationMetadata = (*OpenAIChatGenerationMetadata)(nil)
 
 type OpenAIChatGenerationMetadata struct {
-	finishReason string
-	usage        *OpenAIUsage
+	finishReason chatMetadata.FinishReason
 }
 
-func (o *OpenAIChatGenerationMetadata) FinishReason() string {
+func (o *OpenAIChatGenerationMetadata) FinishReason() chatMetadata.FinishReason {
 	return o.finishReason
-}
-
-func (o *OpenAIChatGenerationMetadata) Usage() chatMetadata.Usage {
-	return o.usage
 }
 
 type OpenAIChatGenerationMetadataBuilder struct {
@@ -31,16 +24,8 @@ func NewOpenAIChatGenerationMetadataBuilder() *OpenAIChatGenerationMetadataBuild
 	}
 }
 
-func (b *OpenAIChatGenerationMetadataBuilder) FromCompletionResponse(resp *openai.CompletionResponse) *OpenAIChatGenerationMetadataBuilder {
-	return b
-}
-
-func (b *OpenAIChatGenerationMetadataBuilder) WithFinishReason(reason string) *OpenAIChatGenerationMetadataBuilder {
+func (b *OpenAIChatGenerationMetadataBuilder) WithFinishReason(reason chatMetadata.FinishReason) *OpenAIChatGenerationMetadataBuilder {
 	b.metadata.finishReason = reason
-	return b
-}
-func (b *OpenAIChatGenerationMetadataBuilder) WithUsage(usage *OpenAIUsage) *OpenAIChatGenerationMetadataBuilder {
-	b.metadata.usage = usage
 	return b
 }
 

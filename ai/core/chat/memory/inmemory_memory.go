@@ -2,7 +2,6 @@ package memory
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/Tangerg/lynx/ai/core/chat/message"
 )
@@ -27,9 +26,13 @@ func (i *InMemoryChatMemory) Add(_ context.Context, conversationId string, messa
 
 func (i *InMemoryChatMemory) Get(_ context.Context, conversationId string, lastN int) ([]message.ChatMessage, error) {
 	if i.conversations[conversationId] == nil {
-		return nil, fmt.Errorf("conversation %s not found", conversationId)
+		return make([]message.ChatMessage, 0), nil
 	}
-	return i.conversations[conversationId][lastN:], nil
+	messages := i.conversations[conversationId]
+	if len(messages) <= lastN {
+		return messages, nil
+	}
+	return messages[len(messages)-lastN:], nil
 }
 
 func (i *InMemoryChatMemory) Clear(_ context.Context, conversationId string) error {

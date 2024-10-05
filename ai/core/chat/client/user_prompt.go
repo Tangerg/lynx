@@ -13,6 +13,12 @@ type UserPrompt interface {
 	SetParams(m map[string]any) UserPrompt
 }
 
+func NewDefaultUserPrompt() *DefaultUserPrompt {
+	return &DefaultUserPrompt{
+		params: make(map[string]any),
+	}
+}
+
 var _ UserPrompt = (*DefaultUserPrompt)(nil)
 
 type DefaultUserPrompt struct {
@@ -48,10 +54,4 @@ func (d *DefaultUserPrompt) SetParams(m map[string]any) UserPrompt {
 		d.params[k] = v
 	}
 	return d
-}
-
-func NewDefaultUserPrompt() *DefaultUserPrompt {
-	return &DefaultUserPrompt{
-		params: make(map[string]any),
-	}
 }

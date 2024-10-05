@@ -3,25 +3,25 @@ package advisor
 import (
 	"github.com/Tangerg/lynx/ai/core/chat/client/advisor/api"
 	"github.com/Tangerg/lynx/ai/core/chat/message"
+	"github.com/Tangerg/lynx/ai/core/chat/metadata"
 	"github.com/Tangerg/lynx/ai/core/chat/prompt"
 	pkgSystem "github.com/Tangerg/lynx/pkg/system"
 )
 
-var _ api.CallAroundAdvisor = (*DialAdvisor)(nil)
-var _ api.StreamAroundAdvisor = (*DialAdvisor)(nil)
-
-type DialAdvisor struct {
+func NewDialAdvisor[O prompt.ChatOptions, M metadata.ChatGenerationMetadata]() *DialAdvisor[O, M] {
+	return &DialAdvisor[O, M]{}
 }
 
-func NewDialAdvisor() *DialAdvisor {
-	return &DialAdvisor{}
-}
+var _ api.CallAroundAdvisor[prompt.ChatOptions, metadata.ChatGenerationMetadata] = (*DialAdvisor[prompt.ChatOptions, metadata.ChatGenerationMetadata])(nil)
+var _ api.StreamAroundAdvisor[prompt.ChatOptions, metadata.ChatGenerationMetadata] = (*DialAdvisor[prompt.ChatOptions, metadata.ChatGenerationMetadata])(nil)
 
-func (r *DialAdvisor) Name() string {
+type DialAdvisor[O prompt.ChatOptions, M metadata.ChatGenerationMetadata] struct{}
+
+func (r *DialAdvisor[O, M]) Name() string {
 	return "DialAdvisor"
 }
 
-func (r *DialAdvisor) doGetPrompt(ctx *api.Context) (*prompt.ChatPrompt[prompt.ChatOptions], error) {
+func (r *DialAdvisor[O, M]) doGetPrompt(ctx *api.Context[O, M]) (*prompt.ChatPrompt[O], error) {
 	messages := ctx.Request.Messages()
 
 	systemText := ctx.Request.SystemText()
@@ -42,7 +42,7 @@ func (r *DialAdvisor) doGetPrompt(ctx *api.Context) (*prompt.ChatPrompt[prompt.C
 	formatParam, ok := ctx.Param("formatParam")
 	if ok {
 		userText = userText + pkgSystem.LineSeparator() + "{{.lynx_ai_soc_format}}"
-		userParams[".lynx_ai_soc_format"] = formatParam
+		userParams["lynx_ai_soc_format"] = formatParam
 	}
 	if userText != "" {
 		if len(userParams) > 0 {
@@ -56,18 +56,21 @@ func (r *DialAdvisor) doGetPrompt(ctx *api.Context) (*prompt.ChatPrompt[prompt.C
 	}
 
 	return prompt.
-		NewChatPromptBuilder[prompt.ChatOptions]().
+		NewChatPromptBuilder[O]().
 		WithMessages(messages...).
 		WithOptions(ctx.Request.ChatOptions()).
 		Build()
 }
 
-func (r *DialAdvisor) AroundCall(ctx *api.Context, _ api.AroundAdvisorChain) error {
+func (r *DialAdvisor[O, M]) AroundCall(ctx *api.Context[O, M], _ api.AroundAdvisorChain[O, M]) error {
 	p, err := r.doGetPrompt(ctx)
 	if err != nil {
 		return err
 	}
-	resp, err := ctx.Request.ChatModel().Call(ctx.Context(), p)
+	resp, err := ctx.
+		Request.
+		ChatModel().
+		Call(ctx.Context(), p)
 	if err != nil {
 		return err
 	}
@@ -75,12 +78,15 @@ func (r *DialAdvisor) AroundCall(ctx *api.Context, _ api.AroundAdvisorChain) err
 	return nil
 }
 
-func (r *DialAdvisor) AroundStream(ctx *api.Context, _ api.AroundAdvisorChain) error {
+func (r *DialAdvisor[O, M]) AroundStream(ctx *api.Context[O, M], _ api.AroundAdvisorChain[O, M]) error {
 	p, err := r.doGetPrompt(ctx)
 	if err != nil {
 		return err
 	}
-	resp, err := ctx.Request.ChatModel().Stream(ctx.Context(), p)
+	resp, err := ctx.
+		Request.
+		ChatModel().
+		Stream(ctx.Context(), p)
 	if err != nil {
 		return err
 	}

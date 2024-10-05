@@ -1,15 +1,20 @@
 package api
 
-type ResponseAdvisor interface {
+import (
+	"github.com/Tangerg/lynx/ai/core/chat/metadata"
+	"github.com/Tangerg/lynx/ai/core/chat/prompt"
+)
+
+type ResponseAdvisor[O prompt.ChatOptions, M metadata.ChatGenerationMetadata] interface {
 	Advisor
-	AdviseCallResponse(ctx *Context) error
-	AdviseStreamResponse(ctx *Context) error
+	AdviseCallResponse(ctx *Context[O, M]) error
+	AdviseStreamResponse(ctx *Context[O, M]) error
 }
 
-func ExtractResponseAdvisor(advisors []Advisor) []ResponseAdvisor {
-	rv := make([]ResponseAdvisor, 0, len(advisors))
+func ExtractResponseAdvisor[O prompt.ChatOptions, M metadata.ChatGenerationMetadata](advisors []Advisor) []ResponseAdvisor[O, M] {
+	rv := make([]ResponseAdvisor[O, M], 0, len(advisors))
 	for _, advisor := range advisors {
-		responseAdvisor, ok := advisor.(ResponseAdvisor)
+		responseAdvisor, ok := advisor.(ResponseAdvisor[O, M])
 		if ok {
 			rv = append(rv, responseAdvisor)
 		}

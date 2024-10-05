@@ -15,10 +15,10 @@ func NewOpenAIApi(token string) *OpenAIApi {
 	return &OpenAIApi{client: client}
 }
 
-func (c *OpenAIApi) CreateCompletion(ctx context.Context, request *CompletionRequest) (CompletionResponse, error) {
-	return c.client.CreateCompletion(ctx, *request)
+func (c *OpenAIApi) CreateChatCompletion(ctx context.Context, request *openai.ChatCompletionRequest) (openai.ChatCompletionResponse, error) {
+	return c.client.CreateChatCompletion(ctx, *request)
 }
 
-func (c *OpenAIApi) CreateCompletionStream(ctx context.Context, request *CompletionRequest) (*CompletionStream, error) {
-	return c.client.CreateCompletionStream(ctx, *request)
+func (c *OpenAIApi) CreateChatCompletionStream(ctx context.Context, request *openai.ChatCompletionRequest) (*openai.ChatCompletionStream, error) {
+	return c.client.CreateChatCompletionStream(ctx, *request)
 }

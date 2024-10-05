@@ -42,9 +42,6 @@ func (b *ChatGenerationBuilder[RM]) WithMetadata(meta RM) *ChatGenerationBuilder
 }
 
 func (b *ChatGenerationBuilder[RM]) Build() (*ChatGeneration[RM], error) {
-	if b.result.metadata == nil {
-		return nil, errors.New("metadata is nil")
-	}
 	if b.result.message == nil {
 		return nil, errors.New("message is nil")
 	}

@@ -2,35 +2,41 @@ package advisor
 
 import (
 	"github.com/Tangerg/lynx/ai/core/chat/client/advisor/api"
+	"github.com/Tangerg/lynx/ai/core/chat/metadata"
+	"github.com/Tangerg/lynx/ai/core/chat/prompt"
 )
 
-var _ api.AroundAdvisorChain = (*DefaultAroundChain)(nil)
-
-type DefaultAroundChain struct {
-	callAroundAdvisors   []api.CallAroundAdvisor
-	streamAroundAdvisors []api.StreamAroundAdvisor
+func NewDefaultAroundChain[O prompt.ChatOptions, M metadata.ChatGenerationMetadata]() *DefaultAroundChain[O, M] {
+	return &DefaultAroundChain[O, M]{}
 }
 
-func (d *DefaultAroundChain) PushAroundAdvisors(advisors ...api.Advisor) *DefaultAroundChain {
+var _ api.AroundAdvisorChain[prompt.ChatOptions, metadata.ChatGenerationMetadata] = (*DefaultAroundChain[prompt.ChatOptions, metadata.ChatGenerationMetadata])(nil)
+
+type DefaultAroundChain[O prompt.ChatOptions, M metadata.ChatGenerationMetadata] struct {
+	callAroundAdvisors   []api.CallAroundAdvisor[O, M]
+	streamAroundAdvisors []api.StreamAroundAdvisor[O, M]
+}
+
+func (d *DefaultAroundChain[O, M]) PushAroundAdvisors(advisors ...api.Advisor) *DefaultAroundChain[O, M] {
 	for _, advisor := range advisors {
 		d.PushAroundAdvisor(advisor)
 	}
 	return d
 }
 
-func (d *DefaultAroundChain) PushAroundAdvisor(advisor api.Advisor) *DefaultAroundChain {
-	callAroundAdvisor, ok := advisor.(api.CallAroundAdvisor)
+func (d *DefaultAroundChain[O, M]) PushAroundAdvisor(advisor api.Advisor) *DefaultAroundChain[O, M] {
+	callAroundAdvisor, ok := advisor.(api.CallAroundAdvisor[O, M])
 	if ok {
 		d.callAroundAdvisors = append(d.callAroundAdvisors, callAroundAdvisor)
 	}
-	streamAroundAdvisor, ok := advisor.(api.StreamAroundAdvisor)
+	streamAroundAdvisor, ok := advisor.(api.StreamAroundAdvisor[O, M])
 	if ok {
 		d.streamAroundAdvisors = append(d.streamAroundAdvisors, streamAroundAdvisor)
 	}
 	return d
 }
 
-func (d *DefaultAroundChain) popCallAroundAdvisor() (api.CallAroundAdvisor, error) {
+func (d *DefaultAroundChain[O, M]) popCallAroundAdvisor() (api.CallAroundAdvisor[O, M], error) {
 	if len(d.callAroundAdvisors) == 0 {
 		return nil, ErrorChainNoAroundAdvisor
 	}
@@ -39,7 +45,7 @@ func (d *DefaultAroundChain) popCallAroundAdvisor() (api.CallAroundAdvisor, erro
 	return rv, nil
 }
 
-func (d *DefaultAroundChain) popStreamAroundAdvisor() (api.StreamAroundAdvisor, error) {
+func (d *DefaultAroundChain[O, M]) popStreamAroundAdvisor() (api.StreamAroundAdvisor[O, M], error) {
 	if len(d.streamAroundAdvisors) == 0 {
 		return nil, ErrorChainNoAroundAdvisor
 	}
@@ -48,7 +54,7 @@ func (d *DefaultAroundChain) popStreamAroundAdvisor() (api.StreamAroundAdvisor, 
 	return rv, nil
 }
 
-func (d *DefaultAroundChain) NextAroundCall(ctx *api.Context) error {
+func (d *DefaultAroundChain[O, M]) NextAroundCall(ctx *api.Context[O, M]) error {
 	advisor, err := d.popCallAroundAdvisor()
 	if err != nil {
 		return err
@@ -56,7 +62,7 @@ func (d *DefaultAroundChain) NextAroundCall(ctx *api.Context) error {
 	return advisor.AroundCall(ctx, d)
 }
 
-func (d *DefaultAroundChain) NextAroundStream(ctx *api.Context) error {
+func (d *DefaultAroundChain[O, M]) NextAroundStream(ctx *api.Context[O, M]) error {
 	advisor, err := d.popStreamAroundAdvisor()
 	if err != nil {
 		return err
@@ -64,6 +70,13 @@ func (d *DefaultAroundChain) NextAroundStream(ctx *api.Context) error {
 	return advisor.AroundStream(ctx, d)
 }
 
-func NewDefaultAroundChain() *DefaultAroundChain {
-	return &DefaultAroundChain{}
+func (d *DefaultAroundChain[O, M]) Clone() *DefaultAroundChain[O, M] {
+	newChain := NewDefaultAroundChain[O, M]()
+	newChain.callAroundAdvisors = make([]api.CallAroundAdvisor[O, M], len(d.callAroundAdvisors))
+	newChain.streamAroundAdvisors = make([]api.StreamAroundAdvisor[O, M], len(d.streamAroundAdvisors))
+
+	copy(newChain.callAroundAdvisors, d.callAroundAdvisors)
+	copy(newChain.streamAroundAdvisors, d.streamAroundAdvisors)
+
+	return newChain
 }

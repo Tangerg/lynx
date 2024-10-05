@@ -7,8 +7,5 @@ type ChatGenerationMetadata interface {
 	model.ResultMetadata
 
 	// FinishReason returns a string indicating the reason why the generation process finished.
-	FinishReason() string
-
-	// Usage returns an instance of the Usage interface, providing details about token usage.
-	Usage() Usage
+	FinishReason() FinishReason
 }

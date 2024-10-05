@@ -15,8 +15,8 @@ type StructConverter[T any] struct {
 	format     string
 }
 
-// SetV If the generic type is any, assist in obtaining the specific type
-func (s *StructConverter[T]) SetV(v T) {
+// SetDefault If the generic type is any, assist in obtaining the specific type
+func (s *StructConverter[T]) SetDefault(v T) {
 	s.v = v
 }
 
@@ -40,6 +40,9 @@ func (s *StructConverter[T]) GetFormat() string {
 }
 
 func (s *StructConverter[T]) Convert(raw string) (T, error) {
-	var rv T
-	return rv, json.Unmarshal([]byte(raw), &rv)
+	err := json.Unmarshal([]byte(raw), &s.v)
+	if err != nil {
+		return s.v, err
+	}
+	return s.v, nil
 }

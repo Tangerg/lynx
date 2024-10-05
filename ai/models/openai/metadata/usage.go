@@ -1,9 +1,5 @@
 package metadata
 
-import (
-	chatMetadata "github.com/Tangerg/lynx/ai/core/chat/metadata"
-)
-
 type OpenAIUsage struct {
 	promptTokens     int64
 	completionTokens int64
@@ -11,24 +7,28 @@ type OpenAIUsage struct {
 	totalTokens      int64
 }
 
-func NewOpenAIUsage() chatMetadata.Usage {
+func NewOpenAIUsage() *OpenAIUsage {
 	return &OpenAIUsage{}
 }
 
-func (o *OpenAIUsage) IncrPromptTokens(tokens int64) {
+func (o *OpenAIUsage) IncrPromptTokens(tokens int64) *OpenAIUsage {
 	o.promptTokens = o.promptTokens + tokens
+	return o
 }
 
-func (o *OpenAIUsage) IncrCompletionTokens(tokens int64) {
+func (o *OpenAIUsage) IncrCompletionTokens(tokens int64) *OpenAIUsage {
 	o.completionTokens = o.completionTokens + tokens
+	return o
 }
 
-func (o *OpenAIUsage) IncrReasoningTokens(tokens int64) {
+func (o *OpenAIUsage) IncrReasoningTokens(tokens int64) *OpenAIUsage {
 	o.reasoningTokens = o.reasoningTokens + tokens
+	return o
 }
 
-func (o *OpenAIUsage) IncrTotalTokens(tokens int64) {
+func (o *OpenAIUsage) IncrTotalTokens(tokens int64) *OpenAIUsage {
 	o.totalTokens = o.totalTokens + tokens
+	return o
 }
 
 func (o *OpenAIUsage) PromptTokens() int64 {
@@ -36,7 +36,7 @@ func (o *OpenAIUsage) PromptTokens() int64 {
 }
 
 func (o *OpenAIUsage) CompletionTokens() int64 {
-	return o.completionTokens
+	return o.completionTokens + o.reasoningTokens
 }
 
 func (o *OpenAIUsage) ReasoningTokens() int64 {
@@ -45,7 +45,7 @@ func (o *OpenAIUsage) ReasoningTokens() int64 {
 
 func (o *OpenAIUsage) TotalTokens() int64 {
 	if o.totalTokens == 0 {
-		return o.promptTokens + o.completionTokens
+		return o.PromptTokens() + o.CompletionTokens()
 	}
 	return o.totalTokens
 }

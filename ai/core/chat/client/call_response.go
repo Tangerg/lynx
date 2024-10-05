@@ -6,37 +6,41 @@ import (
 	"github.com/Tangerg/lynx/ai/core/chat/client/advisor/api"
 	"github.com/Tangerg/lynx/ai/core/chat/completion"
 	"github.com/Tangerg/lynx/ai/core/chat/metadata"
+	"github.com/Tangerg/lynx/ai/core/chat/prompt"
 	"github.com/Tangerg/lynx/ai/core/converter"
 )
 
-type CallResponse interface {
-	Entity(ctx context.Context, v any) error
-	EntityByConvert(ctx context.Context, v any, converter converter.StructuredConverter[any]) error
+type CallResponse[O prompt.ChatOptions, M metadata.ChatGenerationMetadata] interface {
+	ResponseValue(ctx context.Context, def any) (ResponseValue[any, M], error)
+	ResponseValueSlice(ctx context.Context) (ResponseValue[[]string, M], error)
+	ResponseValueMap(ctx context.Context) (ResponseValue[map[string]any, M], error)
+	ResponseValueStruct(ctx context.Context, def any) (ResponseValue[any, M], error)
+	ResponseValueWithStructuredConvert(ctx context.Context, def any, c converter.StructuredConverter[any]) (ResponseValue[any, M], error)
 	Content(ctx context.Context) (string, error)
-	ChatResponse(ctx context.Context) (*completion.ChatCompletion[metadata.ChatGenerationMetadata], error)
+	ChatResponse(ctx context.Context) (*completion.ChatCompletion[M], error)
 }
 
-var _ CallResponse = (*DefaultCallResponse)(nil)
+var _ CallResponse[prompt.ChatOptions, metadata.ChatGenerationMetadata] = (*DefaultCallResponse[prompt.ChatOptions, metadata.ChatGenerationMetadata])(nil)
 
-type DefaultCallResponse struct {
-	request *DefaultChatClientRequest
+type DefaultCallResponse[O prompt.ChatOptions, M metadata.ChatGenerationMetadata] struct {
+	request *DefaultChatClientRequest[O, M]
 }
 
-func NewDefaultCallResponseSpec(req *DefaultChatClientRequest) *DefaultCallResponse {
-	return &DefaultCallResponse{
+func NewDefaultCallResponse[O prompt.ChatOptions, M metadata.ChatGenerationMetadata](req *DefaultChatClientRequest[O, M]) *DefaultCallResponse[O, M] {
+	return &DefaultCallResponse[O, M]{
 		request: req,
 	}
 }
 
-func (d *DefaultCallResponse) doGetChatResponse(ctx context.Context, format string) (*completion.ChatCompletion[metadata.ChatGenerationMetadata], error) {
-	c := api.NewContext(ctx)
+func (d *DefaultCallResponse[O, M]) doGetChatResponse(ctx context.Context, format string) (*completion.ChatCompletion[M], error) {
+	c := api.NewContext[O, M](ctx)
 	if format != "" {
 		c.SetParam("formatParam", format)
 	}
 	c.SetParams(d.request.advisorParams)
 	c.Request = d.request.toAdvisedRequest()
 
-	reqAdvisors := api.ExtractRequestAdvisor(d.request.advisors)
+	reqAdvisors := api.ExtractRequestAdvisor[O, M](d.request.advisors)
 	for _, reqAdvisor := range reqAdvisors {
 		err := reqAdvisor.AdviseRequest(c)
 		if err != nil {
@@ -49,7 +53,7 @@ func (d *DefaultCallResponse) doGetChatResponse(ctx context.Context, format stri
 		return nil, err
 	}
 
-	respAdvisors := api.ExtractResponseAdvisor(d.request.advisors)
+	respAdvisors := api.ExtractResponseAdvisor[O, M](d.request.advisors)
 	for _, respAdvisor := range respAdvisors {
 		err = respAdvisor.AdviseCallResponse(c)
 		if err != nil {
@@ -60,26 +64,72 @@ func (d *DefaultCallResponse) doGetChatResponse(ctx context.Context, format stri
 	return c.Response, nil
 }
 
-func (d *DefaultCallResponse) Entity(ctx context.Context, v any) error {
+func (d *DefaultCallResponse[O, M]) ResponseValue(ctx context.Context, def any) (ResponseValue[any, M], error) {
+	return d.ResponseValueStruct(ctx, def)
+}
+
+func (d *DefaultCallResponse[O, M]) ResponseValueSlice(ctx context.Context) (ResponseValue[[]string, M], error) {
+	c := new(converter.SliceConverter)
+	resp, err := d.doGetChatResponse(ctx, c.GetFormat())
+	if err != nil {
+		return nil, err
+	}
+
+	rv := NewDefaultResponseValue[[]string, M]([]string{})
+	convert, err := c.Convert(resp.Result().Output().Content())
+	if err != nil {
+		return rv, err
+	}
+	rv.value = convert
+	rv.response = resp
+
+	return rv, nil
+}
+
+func (d *DefaultCallResponse[O, M]) ResponseValueMap(ctx context.Context) (ResponseValue[map[string]any, M], error) {
+	c := new(converter.MapConverter)
+	resp, err := d.doGetChatResponse(ctx, c.GetFormat())
+	if err != nil {
+		return nil, err
+	}
+
+	rv := NewDefaultResponseValue[map[string]any, M](map[string]any{})
+	convert, err := c.Convert(resp.Result().Output().Content())
+	if err != nil {
+		return rv, err
+	}
+	rv.value = convert
+	rv.response = resp
+
+	return rv, nil
+}
+
+func (d *DefaultCallResponse[O, M]) ResponseValueStruct(ctx context.Context, def any) (ResponseValue[any, M], error) {
 	c := new(converter.StructConverter[any])
-	c.SetV(v)
-	return d.EntityByConvert(ctx, v, c)
+	c.SetDefault(def)
+	return d.ResponseValueWithStructuredConvert(ctx, def, c)
 }
 
-func (d *DefaultCallResponse) EntityByConvert(ctx context.Context, v any, converter converter.StructuredConverter[any]) error {
-	resp, err := d.doGetChatResponse(ctx, converter.GetFormat())
+func (d *DefaultCallResponse[O, M]) ResponseValueWithStructuredConvert(ctx context.Context, def any, c converter.StructuredConverter[any]) (ResponseValue[any, M], error) {
+	resp, err := d.doGetChatResponse(ctx, c.GetFormat())
 	if err != nil {
-		return err
+		return nil, err
 	}
-	convert, err := converter.Convert(resp.Result().Output().Content())
+
+	rv := NewDefaultResponseValue[any, M](def)
+
+	convert, err := c.Convert(resp.Result().Output().Content())
 	if err != nil {
-		return err
+		return rv, err
 	}
-	v = convert
-	return nil
+	rv.value = convert
+	rv.response = resp
+
+	return rv, nil
+
 }
 
-func (d *DefaultCallResponse) Content(ctx context.Context) (string, error) {
+func (d *DefaultCallResponse[O, M]) Content(ctx context.Context) (string, error) {
 	resp, err := d.ChatResponse(ctx)
 	if err != nil {
 		return "", err
@@ -87,6 +137,6 @@ func (d *DefaultCallResponse) Content(ctx context.Context) (string, error) {
 	return resp.Result().Output().Content(), nil
 }
 
-func (d *DefaultCallResponse) ChatResponse(ctx context.Context) (*completion.ChatCompletion[metadata.ChatGenerationMetadata], error) {
+func (d *DefaultCallResponse[O, M]) ChatResponse(ctx context.Context) (*completion.ChatCompletion[M], error) {
 	return d.doGetChatResponse(ctx, "")
 }

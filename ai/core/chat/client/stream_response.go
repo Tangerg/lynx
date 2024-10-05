@@ -6,34 +6,35 @@ import (
 	"github.com/Tangerg/lynx/ai/core/chat/client/advisor/api"
 	"github.com/Tangerg/lynx/ai/core/chat/completion"
 	"github.com/Tangerg/lynx/ai/core/chat/metadata"
+	"github.com/Tangerg/lynx/ai/core/chat/prompt"
 )
 
-type StreamResponse interface {
+type StreamResponse[O prompt.ChatOptions, M metadata.ChatGenerationMetadata] interface {
 	Content(ctx context.Context) (string, error)
-	ChatResponse(ctx context.Context) (*completion.ChatCompletion[metadata.ChatGenerationMetadata], error)
+	ChatResponse(ctx context.Context) (*completion.ChatCompletion[M], error)
 }
 
-var _ StreamResponse = (*DefaultStreamResponse)(nil)
+var _ StreamResponse[prompt.ChatOptions, metadata.ChatGenerationMetadata] = (*DefaultStreamResponse[prompt.ChatOptions, metadata.ChatGenerationMetadata])(nil)
 
-type DefaultStreamResponse struct {
-	request *DefaultChatClientRequest
+type DefaultStreamResponse[O prompt.ChatOptions, M metadata.ChatGenerationMetadata] struct {
+	request *DefaultChatClientRequest[O, M]
 }
 
-func NewDefaultStreamResponseSpec(req *DefaultChatClientRequest) *DefaultStreamResponse {
-	return &DefaultStreamResponse{
+func NewDefaultStreamResponseSpec[O prompt.ChatOptions, M metadata.ChatGenerationMetadata](req *DefaultChatClientRequest[O, M]) *DefaultStreamResponse[O, M] {
+	return &DefaultStreamResponse[O, M]{
 		request: req,
 	}
 }
 
-func (d *DefaultStreamResponse) doGetChatResponse(ctx context.Context, format string) (*completion.ChatCompletion[metadata.ChatGenerationMetadata], error) {
-	c := api.NewContext(ctx)
+func (d *DefaultStreamResponse[O, M]) doGetChatResponse(ctx context.Context, format string) (*completion.ChatCompletion[M], error) {
+	c := api.NewContext[O, M](ctx)
 	if format != "" {
 		c.SetParam("formatParam", format)
 	}
 	c.SetParams(d.request.advisorParams)
 	c.Request = d.request.toAdvisedRequest()
 
-	reqAdvisors := api.ExtractRequestAdvisor(d.request.advisors)
+	reqAdvisors := api.ExtractRequestAdvisor[O, M](d.request.advisors)
 	for _, reqAdvisor := range reqAdvisors {
 		err := reqAdvisor.AdviseRequest(c)
 		if err != nil {
@@ -46,7 +47,7 @@ func (d *DefaultStreamResponse) doGetChatResponse(ctx context.Context, format st
 		return nil, err
 	}
 
-	respAdvisors := api.ExtractResponseAdvisor(d.request.advisors)
+	respAdvisors := api.ExtractResponseAdvisor[O, M](d.request.advisors)
 	for _, respAdvisor := range respAdvisors {
 		err = respAdvisor.AdviseCallResponse(c)
 		if err != nil {
@@ -57,7 +58,7 @@ func (d *DefaultStreamResponse) doGetChatResponse(ctx context.Context, format st
 	return c.Response, nil
 }
 
-func (d *DefaultStreamResponse) Content(ctx context.Context) (string, error) {
+func (d *DefaultStreamResponse[O, M]) Content(ctx context.Context) (string, error) {
 	resp, err := d.ChatResponse(ctx)
 	if err != nil {
 		return "", err
@@ -65,6 +66,6 @@ func (d *DefaultStreamResponse) Content(ctx context.Context) (string, error) {
 	return resp.Result().Output().Content(), nil
 }
 
-func (d *DefaultStreamResponse) ChatResponse(ctx context.Context) (*completion.ChatCompletion[metadata.ChatGenerationMetadata], error) {
+func (d *DefaultStreamResponse[O, M]) ChatResponse(ctx context.Context) (*completion.ChatCompletion[M], error) {
 	return d.doGetChatResponse(ctx, "")
 }

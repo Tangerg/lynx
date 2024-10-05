@@ -13,45 +13,45 @@ type Advisors interface {
 	SetParams(m map[string]any) Advisors
 }
 
-var _ Advisors = (*DefaultAdvisorSpec)(nil)
+func NewDefaultAdvisors() *DefaultAdvisors {
+	return &DefaultAdvisors{
+		params: make(map[string]any),
+	}
+}
 
-type DefaultAdvisorSpec struct {
+var _ Advisors = (*DefaultAdvisors)(nil)
+
+type DefaultAdvisors struct {
 	advisors []api.Advisor
 	params   map[string]any
 }
 
-func (d *DefaultAdvisorSpec) Advisors() []api.Advisor {
+func (d *DefaultAdvisors) Advisors() []api.Advisor {
 	return d.advisors
 }
 
-func (d *DefaultAdvisorSpec) Param(key string) (any, bool) {
+func (d *DefaultAdvisors) Param(key string) (any, bool) {
 	v, ok := d.params[key]
 	return v, ok
 }
 
-func (d *DefaultAdvisorSpec) Params() map[string]any {
+func (d *DefaultAdvisors) Params() map[string]any {
 	return d.params
 }
 
-func (d *DefaultAdvisorSpec) SetAdvisors(advisors ...api.Advisor) Advisors {
+func (d *DefaultAdvisors) SetAdvisors(advisors ...api.Advisor) Advisors {
 	d.advisors = append(d.advisors, advisors...)
 	return d
 }
 
-func (d *DefaultAdvisorSpec) SetParam(k string, v any) Advisors {
+func (d *DefaultAdvisors) SetParam(k string, v any) Advisors {
 	d.params[k] = v
 	return d
 }
 
-func (d *DefaultAdvisorSpec) SetParams(m map[string]any) Advisors {
+func (d *DefaultAdvisors) SetParams(m map[string]any) Advisors {
 	for k, v := range m {
 		d.params[k] = v
 	}
 	return d
-}
-
-func NewDefaultAdvisors() *DefaultAdvisorSpec {
-	return &DefaultAdvisorSpec{
-		params: make(map[string]any),
-	}
 }

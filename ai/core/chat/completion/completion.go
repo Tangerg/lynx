@@ -11,7 +11,7 @@ import (
 var _ model.Response[*message.AssistantMessage, metadata.ChatGenerationMetadata] = (*ChatCompletion[metadata.ChatGenerationMetadata])(nil)
 
 type ChatCompletion[RM metadata.ChatGenerationMetadata] struct {
-	metadata model.ResponseMetadata
+	metadata *metadata.ChatCompletionMetadata
 	results  []model.Result[*message.AssistantMessage, RM]
 }
 
@@ -55,7 +55,7 @@ func (b *ChatCompletionBuilder[RM]) WithChatGenerations(gens ...*ChatGeneration[
 	return b
 }
 
-func (b *ChatCompletionBuilder[RM]) WithMetadata(metadata model.ResponseMetadata) *ChatCompletionBuilder[RM] {
+func (b *ChatCompletionBuilder[RM]) WithMetadata(metadata *metadata.ChatCompletionMetadata) *ChatCompletionBuilder[RM] {
 	b.completion.metadata = metadata
 	return b
 }

@@ -10,18 +10,16 @@ import (
 var _ prompt.ChatOptions = (*OpenAIChatOptions)(nil)
 
 type OpenAIChatOptions struct {
-	model           *string
-	maxTokens       *int64
-	presencePenalty *float64
-	stopSequences   []string
-	temperature     *float64
-	topK            *int64
-	topP            *float64
-	streamFunc      func(ctx context.Context, chunk []byte) error
-}
-
-func (o *OpenAIChatOptions) StreamFunc() func(ctx context.Context, chunk []byte) error {
-	return o.streamFunc
+	model                *string
+	maxTokens            *int64
+	presencePenalty      *float64
+	stopSequences        []string
+	temperature          *float64
+	topK                 *int64
+	topP                 *float64
+	n                    int
+	streamChunkFunc      func(ctx context.Context, chunk string) error
+	streamCompletionFunc func(ctx context.Context, completion OpenAIChatCompletion) error
 }
 
 func (o *OpenAIChatOptions) Model() *string {
@@ -52,6 +50,21 @@ func (o *OpenAIChatOptions) TopP() *float64 {
 	return o.topP
 }
 
+func (o *OpenAIChatOptions) N() int {
+	if o.n < 1 {
+		o.n = 1
+	}
+	return o.n
+}
+
+func (o *OpenAIChatOptions) StreamChunkFunc() func(ctx context.Context, chunk string) error {
+	return o.streamChunkFunc
+}
+
+func (o *OpenAIChatOptions) StreamCompletionFunc() func(ctx context.Context, completion OpenAIChatCompletion) error {
+	return o.streamCompletionFunc
+}
+
 func (o *OpenAIChatOptions) Copy() prompt.ChatOptions {
 	builder := NewOpenAIChatOptionsBuilder()
 	if o.model != nil {
@@ -75,8 +88,8 @@ func (o *OpenAIChatOptions) Copy() prompt.ChatOptions {
 	if o.topP != nil {
 		builder.WithTopP(*o.topP)
 	}
-	if o.streamFunc != nil {
-		builder.WithStreamFunc(o.streamFunc)
+	if o.streamChunkFunc != nil {
+		builder.WithStreamChunkFunc(o.streamChunkFunc)
 	}
 	cp, _ := builder.Build()
 	return cp
@@ -120,8 +133,16 @@ func (o *OpenAIChatOptionsBuilder) WithTopP(topP float64) *OpenAIChatOptionsBuil
 	o.options.topP = &topP
 	return o
 }
-func (o *OpenAIChatOptionsBuilder) WithStreamFunc(f func(ctx context.Context, chunk []byte) error) *OpenAIChatOptionsBuilder {
-	o.options.streamFunc = f
+func (o *OpenAIChatOptionsBuilder) WithN(n int) *OpenAIChatOptionsBuilder {
+	o.options.n = n
+	return o
+}
+func (o *OpenAIChatOptionsBuilder) WithStreamChunkFunc(f func(ctx context.Context, chunk string) error) *OpenAIChatOptionsBuilder {
+	o.options.streamChunkFunc = f
+	return o
+}
+func (o *OpenAIChatOptionsBuilder) WithStreamCompletionFunc(f func(ctx context.Context, completion OpenAIChatCompletion) error) *OpenAIChatOptionsBuilder {
+	o.options.streamCompletionFunc = f
 	return o
 }
 func (o *OpenAIChatOptionsBuilder) Build() (*OpenAIChatOptions, error) {

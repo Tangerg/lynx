@@ -1,56 +1,52 @@
 package client
 
 import (
-	"github.com/Tangerg/lynx/ai/core/chat/message"
+	"github.com/Tangerg/lynx/ai/core/chat/metadata"
 	"github.com/Tangerg/lynx/ai/core/chat/prompt"
 )
 
-type ChatClient interface {
-	Prompt() ChatClientRequest
-	PromptText(text string) ChatClientRequest
-	PromptPrompt(prompt *prompt.ChatPrompt[prompt.ChatOptions]) ChatClientRequest
-	Mutate() ChatClientBuilder
+type ChatClient[O prompt.ChatOptions, M metadata.ChatGenerationMetadata] interface {
+	Prompt() ChatClientRequest[O, M]
+	PromptText(text string) ChatClientRequest[O, M]
+	PromptPrompt(prompt *prompt.ChatPrompt[O]) ChatClientRequest[O, M]
+	Mutate() ChatClientBuilder[O, M]
 }
 
-func NewDefaultChatClient(request *DefaultChatClientRequest) *DefaultChatClient {
-	return &DefaultChatClient{defaultRequest: request}
+func NewDefaultChatClient[O prompt.ChatOptions, M metadata.ChatGenerationMetadata](request *DefaultChatClientRequest[O, M]) *DefaultChatClient[O, M] {
+	return &DefaultChatClient[O, M]{defaultRequest: request}
 }
 
-var _ ChatClient = (*DefaultChatClient)(nil)
+var _ ChatClient[prompt.ChatOptions, metadata.ChatGenerationMetadata] = (*DefaultChatClient[prompt.ChatOptions, metadata.ChatGenerationMetadata])(nil)
 
-type DefaultChatClient struct {
-	defaultRequest *DefaultChatClientRequest
+type DefaultChatClient[O prompt.ChatOptions, M metadata.ChatGenerationMetadata] struct {
+	defaultRequest *DefaultChatClientRequest[O, M]
 }
 
-func (d *DefaultChatClient) Prompt() ChatClientRequest {
-	request, _ := NewDefaultChatClientRequestBuilder().
+func (d *DefaultChatClient[O, M]) Prompt() ChatClientRequest[O, M] {
+	request, _ := NewDefaultChatClientRequestBuilder[O, M]().
 		FromDefaultChatClientRequest(d.defaultRequest).
 		Build()
 	return request
 }
 
-func (d *DefaultChatClient) PromptText(text string) ChatClientRequest {
+func (d *DefaultChatClient[O, M]) PromptText(text string) ChatClientRequest[O, M] {
 	p, _ := prompt.
-		NewChatPromptBuilder[prompt.ChatOptions]().
+		NewChatPromptBuilder[O]().
 		WithContent(text).
 		WithOptions(d.defaultRequest.chatOptions).
 		Build()
 	return d.PromptPrompt(p)
 }
 
-func (d *DefaultChatClient) PromptPrompt(prompt *prompt.ChatPrompt[prompt.ChatOptions]) ChatClientRequest {
-	spec, _ := NewDefaultChatClientRequestBuilder().
+func (d *DefaultChatClient[O, M]) PromptPrompt(prompt *prompt.ChatPrompt[O]) ChatClientRequest[O, M] {
+	spec, _ := NewDefaultChatClientRequestBuilder[O, M]().
 		FromDefaultChatClientRequest(d.defaultRequest).
 		Build()
-
-	if prompt.Options() != nil {
-		spec.SetChatOptions(prompt.Options())
-	}
 
 	messages := prompt.Instructions()
 	if len(messages) > 0 {
 		lastMessage := messages[len(messages)-1]
-		if lastMessage.Role() == message.User {
+		if lastMessage.Role().IsUser() {
 			spec.SetUserPrompt(
 				NewDefaultUserPrompt().
 					SetText(lastMessage.Content()),
@@ -64,6 +60,6 @@ func (d *DefaultChatClient) PromptPrompt(prompt *prompt.ChatPrompt[prompt.ChatOp
 	return spec
 }
 
-func (d *DefaultChatClient) Mutate() ChatClientBuilder {
+func (d *DefaultChatClient[O, M]) Mutate() ChatClientBuilder[O, M] {
 	return d.defaultRequest.Mutate()
 }

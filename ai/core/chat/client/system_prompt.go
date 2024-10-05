@@ -13,6 +13,12 @@ type SystemPrompt interface {
 	SetParams(m map[string]any) SystemPrompt
 }
 
+func NewDefaultSystemPrompt() *DefaultSystemPrompt {
+	return &DefaultSystemPrompt{
+		params: make(map[string]any),
+	}
+}
+
 var _ SystemPrompt = (*DefaultSystemPrompt)(nil)
 
 type DefaultSystemPrompt struct {
@@ -48,10 +54,4 @@ func (d *DefaultSystemPrompt) SetParams(m map[string]any) SystemPrompt {
 		d.params[k] = v
 	}
 	return d
-}
-
-func NewDefaultSystemPrompt() *DefaultSystemPrompt {
-	return &DefaultSystemPrompt{
-		params: make(map[string]any),
-	}
 }

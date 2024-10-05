@@ -1,19 +1,17 @@
 package api
 
 import (
-	"strings"
-
 	"github.com/Tangerg/lynx/ai/core/chat/message"
 	"github.com/Tangerg/lynx/ai/core/chat/metadata"
 	"github.com/Tangerg/lynx/ai/core/chat/model"
 	"github.com/Tangerg/lynx/ai/core/chat/prompt"
 )
 
-type AdvisedRequest struct {
-	chatModel     model.ChatModel[prompt.ChatOptions, metadata.ChatGenerationMetadata]
+type AdvisedRequest[O prompt.ChatOptions, M metadata.ChatGenerationMetadata] struct {
+	chatModel     model.ChatModel[O, M]
 	userText      string
 	systemText    string
-	chatOptions   prompt.ChatOptions
+	chatOptions   O
 	messages      []message.ChatMessage
 	userParams    map[string]any
 	systemParams  map[string]any
@@ -21,94 +19,94 @@ type AdvisedRequest struct {
 	advisorParams map[string]any
 }
 
-func (a *AdvisedRequest) ChatModel() model.ChatModel[prompt.ChatOptions, metadata.ChatGenerationMetadata] {
+func (a *AdvisedRequest[O, M]) ChatModel() model.ChatModel[O, M] {
 	return a.chatModel
 }
-func (a *AdvisedRequest) UserText() string {
-	return strings.TrimSpace(a.userText)
+func (a *AdvisedRequest[O, M]) UserText() string {
+	return a.userText
 }
-func (a *AdvisedRequest) SystemText() string {
-	return strings.TrimSpace(a.systemText)
+func (a *AdvisedRequest[O, M]) SystemText() string {
+	return a.systemText
 }
-func (a *AdvisedRequest) ChatOptions() prompt.ChatOptions {
+func (a *AdvisedRequest[O, M]) ChatOptions() O {
 	return a.chatOptions
 }
-func (a *AdvisedRequest) Messages() []message.ChatMessage {
+func (a *AdvisedRequest[O, M]) Messages() []message.ChatMessage {
 	return a.messages
 }
-func (a *AdvisedRequest) UserParams() map[string]any {
+func (a *AdvisedRequest[O, M]) UserParams() map[string]any {
 	return a.userParams
 }
-func (a *AdvisedRequest) SystemParams() map[string]any {
+func (a *AdvisedRequest[O, M]) SystemParams() map[string]any {
 	return a.systemParams
 }
-func (a *AdvisedRequest) Advisors() []Advisor {
+func (a *AdvisedRequest[O, M]) Advisors() []Advisor {
 	return a.advisors
 }
-func (a *AdvisedRequest) AdvisorParams() map[string]any {
+func (a *AdvisedRequest[O, M]) AdvisorParams() map[string]any {
 	return a.advisorParams
 }
 
-func NewAdvisedRequestBuilder() *AdvisedRequestBuilder {
-	return &AdvisedRequestBuilder{
-		request: &AdvisedRequest{},
+func NewAdvisedRequestBuilder[O prompt.ChatOptions, M metadata.ChatGenerationMetadata]() *AdvisedRequestBuilder[O, M] {
+	return &AdvisedRequestBuilder[O, M]{
+		request: &AdvisedRequest[O, M]{},
 	}
 }
 
-type AdvisedRequestBuilder struct {
-	request *AdvisedRequest
+type AdvisedRequestBuilder[O prompt.ChatOptions, M metadata.ChatGenerationMetadata] struct {
+	request *AdvisedRequest[O, M]
 }
 
-func (b *AdvisedRequestBuilder) FromAdvisedRequest(a *AdvisedRequest) *AdvisedRequestBuilder {
-	b.request = a
+func (b *AdvisedRequestBuilder[O, M]) FromAdvisedRequest(req *AdvisedRequest[O, M]) *AdvisedRequestBuilder[O, M] {
+	b.request = req
 	return b
 }
 
-func (b *AdvisedRequestBuilder) WithChatModel(chatModel model.ChatModel[prompt.ChatOptions, metadata.ChatGenerationMetadata]) *AdvisedRequestBuilder {
+func (b *AdvisedRequestBuilder[O, M]) WithChatModel(chatModel model.ChatModel[O, M]) *AdvisedRequestBuilder[O, M] {
 	b.request.chatModel = chatModel
 	return b
 }
 
-func (b *AdvisedRequestBuilder) WithUserText(userText string) *AdvisedRequestBuilder {
+func (b *AdvisedRequestBuilder[O, M]) WithUserText(userText string) *AdvisedRequestBuilder[O, M] {
 	b.request.userText = userText
 	return b
 }
 
-func (b *AdvisedRequestBuilder) WithSystemText(systemText string) *AdvisedRequestBuilder {
+func (b *AdvisedRequestBuilder[O, M]) WithSystemText(systemText string) *AdvisedRequestBuilder[O, M] {
 	b.request.systemText = systemText
 	return b
 }
 
-func (b *AdvisedRequestBuilder) WithChatOptions(chatOptions prompt.ChatOptions) *AdvisedRequestBuilder {
+func (b *AdvisedRequestBuilder[O, M]) WithChatOptions(chatOptions O) *AdvisedRequestBuilder[O, M] {
 	b.request.chatOptions = chatOptions
 	return b
 }
 
-func (b *AdvisedRequestBuilder) WithMessages(messages ...message.ChatMessage) *AdvisedRequestBuilder {
+func (b *AdvisedRequestBuilder[O, M]) WithMessages(messages ...message.ChatMessage) *AdvisedRequestBuilder[O, M] {
 	b.request.messages = messages
 	return b
 }
 
-func (b *AdvisedRequestBuilder) WithUserParam(userParams map[string]any) *AdvisedRequestBuilder {
+func (b *AdvisedRequestBuilder[O, M]) WithUserParam(userParams map[string]any) *AdvisedRequestBuilder[O, M] {
 	b.request.userParams = userParams
 	return b
 }
 
-func (b *AdvisedRequestBuilder) WithSystemParam(systemParams map[string]any) *AdvisedRequestBuilder {
+func (b *AdvisedRequestBuilder[O, M]) WithSystemParam(systemParams map[string]any) *AdvisedRequestBuilder[O, M] {
 	b.request.systemParams = systemParams
 	return b
 }
 
-func (b *AdvisedRequestBuilder) WithAdvisors(advisors ...Advisor) *AdvisedRequestBuilder {
+func (b *AdvisedRequestBuilder[O, M]) WithAdvisors(advisors ...Advisor) *AdvisedRequestBuilder[O, M] {
 	b.request.advisors = advisors
 	return b
 }
 
-func (b *AdvisedRequestBuilder) WithAdvisorParam(advisorParams map[string]any) *AdvisedRequestBuilder {
+func (b *AdvisedRequestBuilder[O, M]) WithAdvisorParam(advisorParams map[string]any) *AdvisedRequestBuilder[O, M] {
 	b.request.advisorParams = advisorParams
 	return b
 }
 
-func (b *AdvisedRequestBuilder) Build() *AdvisedRequest {
+func (b *AdvisedRequestBuilder[O, M]) Build() *AdvisedRequest[O, M] {
 	return b.request
 }

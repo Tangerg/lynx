@@ -35,13 +35,13 @@ func TestStructConverter(t *testing.T) {
 
 	s5 := new(StructConverter[any])
 	user := &TestUser{}
-	s5.SetV(user)
+	s5.SetDefault(user)
 	format5 := s5.GetFormat()
 	t.Log(format5)
 
 	s6 := new(StructConverter[any])
 	var a any
-	s5.SetV(a)
+	s5.SetDefault(a)
 	format6 := s6.GetFormat()
 	t.Log(format6)
 }
@@ -49,13 +49,13 @@ func TestStructConverter(t *testing.T) {
 func TestStructConverter2(t *testing.T) {
 	s5 := new(StructConverter[any])
 	user := &TestUser{}
-	s5.SetV(user)
+	s5.SetDefault(user)
 	format5 := s5.GetFormat()
 	t.Log(format5)
 
 	var a *TestUser
 	s6 := new(StructConverter[any])
-	s6.SetV(a)
+	s6.SetDefault(a)
 	format6 := s6.GetFormat()
 	t.Log(format6)
 }
