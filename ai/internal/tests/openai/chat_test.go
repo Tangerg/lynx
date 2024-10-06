@@ -2,36 +2,63 @@ package openai
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"testing"
 
 	"github.com/sashabaranov/go-openai"
 
 	"github.com/Tangerg/lynx/ai/core/chat/client"
-	"github.com/Tangerg/lynx/ai/core/chat/client/advisor"
+	"github.com/Tangerg/lynx/ai/core/chat/client/middleware/chatmemory"
+	"github.com/Tangerg/lynx/ai/core/chat/client/middleware/modelinvoke"
+	"github.com/Tangerg/lynx/ai/core/chat/client/middleware/outputguide"
+	"github.com/Tangerg/lynx/ai/core/chat/client/middleware/safeguard"
+	"github.com/Tangerg/lynx/ai/core/chat/client/middleware/templaterender"
 	"github.com/Tangerg/lynx/ai/core/chat/memory"
 	"github.com/Tangerg/lynx/ai/models/openai/chat"
 	"github.com/Tangerg/lynx/ai/models/openai/metadata"
 )
 
-func Test1(t *testing.T) {
+type O = *chat.OpenAIChatOptions
+type M = *metadata.OpenAIChatGenerationMetadata
+
+func newClient() client.ChatClient[O, M] {
 	token := os.Getenv("OPENAI_TOKEN")
-	t.Log(token)
 	openAIChatModel := chat.NewOpenAIChatModel(chat.OpenAIChatModelConfig{
 		Token: token,
 	})
-	opts, err := chat.
+	sg := safeguard.New[O, M]("fuck")
+	chatMemory := memory.NewInMemoryChatMemory()
+	cm := chatmemory.New[O, M](&chatmemory.Config{
+		Store: chatMemory,
+	})
+	og := outputguide.New[O, M]()
+	tr := templaterender.New[O, M]()
+	mi := modelinvoke.New[O, M]()
+	opts, _ := chat.
 		NewOpenAIChatOptionsBuilder().
 		WithModel(openai.GPT4oMini).
+		WithStreamChunkFunc(func(ctx context.Context, chunk string) error {
+			fmt.Println(chunk)
+			return nil
+		}).
 		Build()
-	if err != nil {
-		t.Log(err)
-		return
-	}
-	cli := client.NewDefaultChatClientBuilder(openAIChatModel).
-		DefaultChatOptions(opts).Build()
+	cli := client.
+		NewDefaultChatClientBuilder(openAIChatModel).
+		DefaultChatOptions(opts).
+		DefaultMiddlewaresWithParams(
+			map[string]any{},
+			sg, cm, og, tr, mi,
+		).
+		Build()
+	return cli
+}
+
+func Test1(t *testing.T) {
+	cli := newClient()
 	content, err := cli.PromptText("hello! who are you?").
-		Call().Content(context.Background())
+		Stream().
+		Content(context.Background())
 	if err != nil {
 		t.Log(err)
 		return
@@ -40,23 +67,7 @@ func Test1(t *testing.T) {
 }
 
 func Test2(t *testing.T) {
-	token := os.Getenv("OPENAI_TOKEN")
-	t.Log(token)
-	openAIChatModel := chat.NewOpenAIChatModel(chat.OpenAIChatModelConfig{
-		Token: token,
-	})
-	opts, err := chat.
-		NewOpenAIChatOptionsBuilder().
-		WithModel(openai.GPT4oMini).
-		Build()
-	if err != nil {
-		t.Log(err)
-		return
-	}
-	safaguard := advisor.NewSafeGuardAroundAdvisor[*chat.OpenAIChatOptions, *metadata.OpenAIChatGenerationMetadata]([]string{"fuck"})
-	cli := client.NewDefaultChatClientBuilder(openAIChatModel).
-		DefaultChatOptions(opts).
-		DefaultPrueAdvisors(safaguard).Build()
+	cli := newClient()
 	content, err := cli.PromptText("sad fuck sdsad").
 		Call().Content(context.Background())
 	if err != nil {
@@ -67,28 +78,7 @@ func Test2(t *testing.T) {
 }
 
 func Test3(t *testing.T) {
-	token := os.Getenv("OPENAI_TOKEN")
-	t.Log(token)
-	openAIChatModel := chat.NewOpenAIChatModel(chat.OpenAIChatModelConfig{
-		Token: token,
-	})
-	opts, err := chat.
-		NewOpenAIChatOptionsBuilder().
-		WithModel(openai.GPT4oMini).
-		Build()
-	if err != nil {
-		t.Log(err)
-		return
-	}
-	chatMemory := memory.NewInMemoryChatMemory()
-	mem := advisor.NewMessageChatMemory[*chat.OpenAIChatOptions, *metadata.OpenAIChatGenerationMetadata](chatMemory)
-	cli := client.NewDefaultChatClientBuilder(openAIChatModel).
-		DefaultChatOptions(opts).
-		DefaultAdvisorsWihtParams(map[string]any{
-			advisor.ChatMemoryConversationIdKey: "chat_id_o1",
-			advisor.ChatMemoryRetrieveSizeKey:   100,
-		}, mem).
-		Build()
+	cli := newClient()
 	content, err := cli.PromptText("hello! My name is Tom!").
 		Call().
 		Content(context.Background())
@@ -131,29 +121,7 @@ func Test3(t *testing.T) {
 }
 
 func Test4(t *testing.T) {
-	token := os.Getenv("OPENAI_TOKEN")
-	t.Log(token)
-	openAIChatModel := chat.NewOpenAIChatModel(chat.OpenAIChatModelConfig{
-		Token: token,
-	})
-	opts, err := chat.
-		NewOpenAIChatOptionsBuilder().
-		WithModel(openai.GPT4oMini).
-		Build()
-	if err != nil {
-		t.Log(err)
-		return
-	}
-	chatMemory := memory.NewInMemoryChatMemory()
-	mem := advisor.NewMessageChatMemory[*chat.OpenAIChatOptions, *metadata.OpenAIChatGenerationMetadata](chatMemory)
-	render := advisor.NewRenderAdvisor[*chat.OpenAIChatOptions, *metadata.OpenAIChatGenerationMetadata]()
-	cli := client.NewDefaultChatClientBuilder(openAIChatModel).
-		DefaultChatOptions(opts).
-		DefaultAdvisorsWihtParams(map[string]any{
-			advisor.ChatMemoryConversationIdKey: "chat_id_o1",
-			advisor.ChatMemoryRetrieveSizeKey:   100,
-		}, mem, render).
-		Build()
+	cli := newClient()
 	content, err := cli.PromptText("hello! My name is Tom!").
 		Call().
 		Content(context.Background())
@@ -200,28 +168,7 @@ func Test4(t *testing.T) {
 }
 
 func Test5(t *testing.T) {
-	token := os.Getenv("OPENAI_TOKEN")
-	t.Log(token)
-	openAIChatModel := chat.NewOpenAIChatModel(chat.OpenAIChatModelConfig{
-		Token: token,
-	})
-	opts, err := chat.
-		NewOpenAIChatOptionsBuilder().
-		WithModel(openai.GPT4oMini).
-		Build()
-	if err != nil {
-		t.Log(err)
-		return
-	}
-	chatMemory := memory.NewInMemoryChatMemory()
-	mem := advisor.NewMessageChatMemory[*chat.OpenAIChatOptions, *metadata.OpenAIChatGenerationMetadata](chatMemory)
-	cli := client.NewDefaultChatClientBuilder(openAIChatModel).
-		DefaultChatOptions(opts).
-		DefaultAdvisorsWihtParams(map[string]any{
-			advisor.ChatMemoryConversationIdKey: "chat_id_o1",
-			advisor.ChatMemoryRetrieveSizeKey:   100,
-		}, mem).
-		Build()
+	cli := newClient()
 	content, err := cli.PromptText("hello! My name is Tom!").
 		Call().
 		Content(context.Background())
@@ -273,30 +220,7 @@ func Test5(t *testing.T) {
 }
 
 func Test6(t *testing.T) {
-	token := os.Getenv("OPENAI_TOKEN")
-	t.Log(token)
-	openAIChatModel := chat.NewOpenAIChatModel(chat.OpenAIChatModelConfig{
-		Token: token,
-	})
-	opts, err := chat.
-		NewOpenAIChatOptionsBuilder().
-		WithModel(openai.GPT4oMini).
-		Build()
-	if err != nil {
-		t.Log(err)
-		return
-	}
-	chatMemory := memory.NewInMemoryChatMemory()
-	mem := advisor.NewMessageChatMemory[*chat.OpenAIChatOptions, *metadata.OpenAIChatGenerationMetadata](chatMemory)
-	render := advisor.NewRenderAdvisor[*chat.OpenAIChatOptions, *metadata.OpenAIChatGenerationMetadata]()
-
-	cli := client.NewDefaultChatClientBuilder(openAIChatModel).
-		DefaultChatOptions(opts).
-		DefaultAdvisorsWihtParams(map[string]any{
-			advisor.ChatMemoryConversationIdKey: "chat_id_o1",
-			advisor.ChatMemoryRetrieveSizeKey:   100,
-		}, mem, render).
-		Build()
+	cli := newClient()
 	content, err := cli.PromptText("hello! My name is Tom!").
 		Call().
 		Content(context.Background())

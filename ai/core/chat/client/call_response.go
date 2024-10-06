@@ -3,8 +3,8 @@ package client
 import (
 	"context"
 
-	"github.com/Tangerg/lynx/ai/core/chat/client/advisor"
-	"github.com/Tangerg/lynx/ai/core/chat/client/advisor/api"
+	"github.com/Tangerg/lynx/ai/core/chat/client/middleware"
+	"github.com/Tangerg/lynx/ai/core/chat/client/middleware/outputguide"
 	"github.com/Tangerg/lynx/ai/core/chat/completion"
 	"github.com/Tangerg/lynx/ai/core/chat/metadata"
 	"github.com/Tangerg/lynx/ai/core/chat/prompt"
@@ -34,33 +34,18 @@ func NewDefaultCallResponse[O prompt.ChatOptions, M metadata.ChatGenerationMetad
 }
 
 func (d *DefaultCallResponse[O, M]) doGetChatResponse(ctx context.Context, format string) (*completion.ChatCompletion[M], error) {
-	c := api.NewContext[O, M](ctx)
+	c := middleware.NewContext[O, M](ctx)
+
 	if format != "" {
-		d.request.advisors = append([]api.Advisor{advisor.NewFormatResponseAdvisor[O, M](format)}, d.request.advisors...)
+		c.Set(outputguide.FormatKey, format)
 	}
+	c.SetMap(d.request.middlewareParams)
+	c.Request = d.request.toMiddlewareRequest()
+	c.SetMiddlewares(d.request.middlewares...)
 
-	c.SetParams(d.request.advisorParams)
-	c.Request = d.request.toAdvisedRequest()
-
-	reqAdvisors := api.ExtractRequestAdvisor[O, M](d.request.advisors)
-	for _, reqAdvisor := range reqAdvisors {
-		err := reqAdvisor.AdviseRequest(c)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	err := d.request.aroundAdvisorChain.NextAroundCall(c)
+	err := c.Next()
 	if err != nil {
 		return nil, err
-	}
-
-	respAdvisors := api.ExtractResponseAdvisor[O, M](d.request.advisors)
-	for _, respAdvisor := range respAdvisors {
-		err = respAdvisor.AdviseCallResponse(c)
-		if err != nil {
-			return nil, err
-		}
 	}
 
 	return c.Response, nil

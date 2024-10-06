@@ -1,8 +1,7 @@
 package client
 
 import (
-	"github.com/Tangerg/lynx/ai/core/chat/client/advisor"
-	"github.com/Tangerg/lynx/ai/core/chat/client/advisor/api"
+	"github.com/Tangerg/lynx/ai/core/chat/client/middleware"
 	"github.com/Tangerg/lynx/ai/core/chat/metadata"
 	"github.com/Tangerg/lynx/ai/core/chat/model"
 	"github.com/Tangerg/lynx/ai/core/chat/prompt"
@@ -10,9 +9,8 @@ import (
 
 type ChatClientBuilder[O prompt.ChatOptions, M metadata.ChatGenerationMetadata] interface {
 	DefaultChatOptions(options O) ChatClientBuilder[O, M]
-	DefaultPrueAdvisors(advisors ...api.Advisor) ChatClientBuilder[O, M]
-	DefaultAdvisorsWihtParams(params map[string]any, advisors ...api.Advisor) ChatClientBuilder[O, M]
-	DefaultAdvisors(advisors Advisors) ChatClientBuilder[O, M]
+	DefaultMiddlewares(middlewares Middlewares[O, M]) ChatClientBuilder[O, M]
+	DefaultMiddlewaresWithParams(params map[string]any, middlewares ...middleware.Middleware[O, M]) ChatClientBuilder[O, M]
 	DefaultUserPromptText(text string) ChatClientBuilder[O, M]
 	DefaultUserPromptTextWihtParams(text string, params map[string]any) ChatClientBuilder[O, M]
 	DefaultUserPrompt(user UserPrompt) ChatClientBuilder[O, M]
@@ -23,13 +21,9 @@ type ChatClientBuilder[O prompt.ChatOptions, M metadata.ChatGenerationMetadata] 
 }
 
 func NewDefaultChatClientBuilder[O prompt.ChatOptions, M metadata.ChatGenerationMetadata](chatModel model.ChatModel[O, M]) *DefaultChatClientBuilder[O, M] {
-	chain := advisor.
-		NewDefaultAroundChain[O, M]().
-		PushAroundAdvisor(advisor.NewDialAdvisor[O, M]())
 
 	request, _ := NewDefaultChatClientRequestBuilder[O, M]().
 		WithChatModel(chatModel).
-		WihtAroundAdvisorChain(chain).
 		Build()
 
 	return &DefaultChatClientBuilder[O, M]{
@@ -43,20 +37,16 @@ type DefaultChatClientBuilder[O prompt.ChatOptions, M metadata.ChatGenerationMet
 	request *DefaultChatClientRequest[O, M]
 }
 
-func (d *DefaultChatClientBuilder[O, M]) DefaultPrueAdvisors(advisors ...api.Advisor) ChatClientBuilder[O, M] {
-	return d.DefaultAdvisorsWihtParams(nil, advisors...)
-}
-
-func (d *DefaultChatClientBuilder[O, M]) DefaultAdvisorsWihtParams(params map[string]any, advisors ...api.Advisor) ChatClientBuilder[O, M] {
-	return d.DefaultAdvisors(
-		NewDefaultAdvisors().
-			SetAdvisors(advisors...).
+func (d *DefaultChatClientBuilder[O, M]) DefaultMiddlewaresWithParams(params map[string]any, middlewares ...middleware.Middleware[O, M]) ChatClientBuilder[O, M] {
+	return d.DefaultMiddlewares(
+		NewDefaultMiddlewares[O, M]().
+			SetMiddlewares(middlewares...).
 			SetParams(params),
 	)
 }
 
-func (d *DefaultChatClientBuilder[O, M]) DefaultAdvisors(advisors Advisors) ChatClientBuilder[O, M] {
-	d.request.SetAdvisors(advisors)
+func (d *DefaultChatClientBuilder[O, M]) DefaultMiddlewares(middlewares Middlewares[O, M]) ChatClientBuilder[O, M] {
+	d.request.SetMiddlewares(middlewares)
 	return d
 }
 

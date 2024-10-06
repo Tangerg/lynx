@@ -1,8 +1,7 @@
 package client
 
 import (
-	"github.com/Tangerg/lynx/ai/core/chat/client/advisor"
-	"github.com/Tangerg/lynx/ai/core/chat/client/advisor/api"
+	"github.com/Tangerg/lynx/ai/core/chat/client/middleware"
 	"github.com/Tangerg/lynx/ai/core/chat/message"
 	"github.com/Tangerg/lynx/ai/core/chat/metadata"
 	"github.com/Tangerg/lynx/ai/core/chat/model"
@@ -15,7 +14,7 @@ type ChatClientRequest[O prompt.ChatOptions, M metadata.ChatGenerationMetadata] 
 	SetSystemPrompt(system SystemPrompt) ChatClientRequest[O, M]
 	SetUserPrompt(user UserPrompt) ChatClientRequest[O, M]
 	SetMessages(messages ...message.ChatMessage) ChatClientRequest[O, M]
-	SetAdvisors(advisors Advisors) ChatClientRequest[O, M]
+	SetMiddlewares(middlewares Middlewares[O, M]) ChatClientRequest[O, M]
 	Call() CallResponse[O, M]
 	Stream() StreamResponse[O, M]
 	Mutate() ChatClientBuilder[O, M]
@@ -23,26 +22,24 @@ type ChatClientRequest[O prompt.ChatOptions, M metadata.ChatGenerationMetadata] 
 
 func NewDefaultChatClientRequest[O prompt.ChatOptions, M metadata.ChatGenerationMetadata]() *DefaultChatClientRequest[O, M] {
 	return &DefaultChatClientRequest[O, M]{
-		systemParams:       make(map[string]any),
-		userParams:         make(map[string]any),
-		advisorParams:      make(map[string]any),
-		aroundAdvisorChain: advisor.NewDefaultAroundChain[O, M](),
+		systemParams:     make(map[string]any),
+		userParams:       make(map[string]any),
+		middlewareParams: make(map[string]any),
 	}
 }
 
 var _ ChatClientRequest[prompt.ChatOptions, metadata.ChatGenerationMetadata] = (*DefaultChatClientRequest[prompt.ChatOptions, metadata.ChatGenerationMetadata])(nil)
 
 type DefaultChatClientRequest[O prompt.ChatOptions, M metadata.ChatGenerationMetadata] struct {
-	chatModel          model.ChatModel[O, M]
-	chatOptions        O
-	systemText         string
-	systemParams       map[string]any
-	userText           string
-	userParams         map[string]any
-	messages           []message.ChatMessage
-	advisors           []api.Advisor
-	advisorParams      map[string]any
-	aroundAdvisorChain *advisor.DefaultAroundChain[O, M]
+	chatModel        model.ChatModel[O, M]
+	chatOptions      O
+	systemText       string
+	systemParams     map[string]any
+	userText         string
+	userParams       map[string]any
+	messages         []message.ChatMessage
+	middlewares      []middleware.Middleware[O, M]
+	middlewareParams map[string]any
 }
 
 func (d *DefaultChatClientRequest[O, M]) SetChatModel(model model.ChatModel[O, M]) ChatClientRequest[O, M] {
@@ -76,12 +73,11 @@ func (d *DefaultChatClientRequest[O, M]) SetMessages(messages ...message.ChatMes
 	return d
 }
 
-func (d *DefaultChatClientRequest[O, M]) SetAdvisors(advisors Advisors) ChatClientRequest[O, M] {
-	d.advisors = append(d.advisors, advisors.Advisors()...)
-	for k, v := range advisors.Params() {
-		d.advisorParams[k] = v
+func (d *DefaultChatClientRequest[O, M]) SetMiddlewares(middlewares Middlewares[O, M]) ChatClientRequest[O, M] {
+	d.middlewares = append(d.middlewares, middlewares.Middlewares()...)
+	for k, v := range middlewares.Params() {
+		d.middlewareParams[k] = v
 	}
-	d.aroundAdvisorChain.PushAroundAdvisors(advisors.Advisors()...)
 	return d
 }
 
@@ -95,28 +91,27 @@ func (d *DefaultChatClientRequest[O, M]) Stream() StreamResponse[O, M] {
 
 func (d *DefaultChatClientRequest[O, M]) Mutate() ChatClientBuilder[O, M] {
 	builder := NewDefaultChatClientBuilder[O, M](d.chatModel).
-		DefaultChatOptions(d.chatOptions).
 		DefaultSystemPromptTextWihtParams(d.systemText, d.systemParams).
 		DefaultUserPromptTextWihtParams(d.userText, d.userParams).
-		DefaultAdvisorsWihtParams(d.advisorParams, d.advisors...).(*DefaultChatClientBuilder[O, M])
+		DefaultMiddlewaresWithParams(d.middlewareParams, d.middlewares...).
+		DefaultChatOptions(d.chatOptions).(*DefaultChatClientBuilder[O, M])
 
 	builder.request.messages = append(builder.request.messages, d.messages...)
 
 	return builder
 }
 
-func (d *DefaultChatClientRequest[O, M]) toAdvisedRequest() *api.AdvisedRequest[O, M] {
-	return api.NewAdvisedRequestBuilder[O, M]().
-		WithChatModel(d.chatModel).
-		WithUserText(d.userText).
-		WithSystemText(d.systemText).
-		WithChatOptions(d.chatOptions).
-		WithMessages(d.messages...).
-		WithUserParam(d.userParams).
-		WithSystemParam(d.systemParams).
-		WithAdvisors(d.advisors...).
-		WithAdvisorParam(d.advisorParams).
-		Build()
+func (d *DefaultChatClientRequest[O, M]) toMiddlewareRequest() *middleware.Request[O, M] {
+	return &middleware.Request[O, M]{
+		ChatModel:    d.chatModel,
+		ChatOptions:  d.chatOptions,
+		UserText:     d.userText,
+		UserParams:   d.userParams,
+		SystemText:   d.systemText,
+		SystemParams: d.systemParams,
+		Messages:     d.messages,
+		Mode:         middleware.CallRequest,
+	}
 }
 
 func NewDefaultChatClientRequestBuilder[O prompt.ChatOptions, M metadata.ChatGenerationMetadata]() *DefaultChatClientRequestBuilder[O, M] {
@@ -131,16 +126,15 @@ type DefaultChatClientRequestBuilder[O prompt.ChatOptions, M metadata.ChatGenera
 
 func (b *DefaultChatClientRequestBuilder[O, M]) FromDefaultChatClientRequest(old *DefaultChatClientRequest[O, M]) *DefaultChatClientRequestBuilder[O, M] {
 	b.request = &DefaultChatClientRequest[O, M]{
-		chatModel:          old.chatModel,
-		userText:           old.userText,
-		systemText:         old.systemText,
-		chatOptions:        old.chatOptions,
-		messages:           old.messages,
-		userParams:         old.userParams,
-		systemParams:       old.systemParams,
-		advisors:           old.advisors,
-		advisorParams:      old.advisorParams,
-		aroundAdvisorChain: old.aroundAdvisorChain.Clone(),
+		chatModel:        old.chatModel,
+		userText:         old.userText,
+		systemText:       old.systemText,
+		chatOptions:      old.chatOptions,
+		messages:         old.messages,
+		userParams:       old.userParams,
+		systemParams:     old.systemParams,
+		middlewares:      old.middlewares,
+		middlewareParams: old.middlewareParams,
 	}
 	return b
 }
@@ -171,18 +165,6 @@ func (b *DefaultChatClientRequestBuilder[O, M]) WithSystemParams(systemParams ma
 }
 func (b *DefaultChatClientRequestBuilder[O, M]) WithMessages(messages ...message.ChatMessage) *DefaultChatClientRequestBuilder[O, M] {
 	b.request.messages = messages
-	return b
-}
-func (b *DefaultChatClientRequestBuilder[O, M]) WithAdvisors(advisors ...api.Advisor) *DefaultChatClientRequestBuilder[O, M] {
-	b.request.advisors = advisors
-	return b
-}
-func (b *DefaultChatClientRequestBuilder[O, M]) WithAdvisorParams(advisorParams map[string]any) *DefaultChatClientRequestBuilder[O, M] {
-	b.request.advisorParams = advisorParams
-	return b
-}
-func (b *DefaultChatClientRequestBuilder[O, M]) WihtAroundAdvisorChain(chain *advisor.DefaultAroundChain[O, M]) *DefaultChatClientRequestBuilder[O, M] {
-	b.request.aroundAdvisorChain = chain
 	return b
 }
 func (b *DefaultChatClientRequestBuilder[O, M]) Build() (*DefaultChatClientRequest[O, M], error) {

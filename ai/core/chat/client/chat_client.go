@@ -44,14 +44,16 @@ func (d *DefaultChatClient[O, M]) PromptPrompt(prompt *prompt.ChatPrompt[O]) Cha
 		Build()
 
 	messages := prompt.Instructions()
-	if len(messages) > 0 {
-		lastMessage := messages[len(messages)-1]
-		if lastMessage.Role().IsUser() {
-			spec.SetUserPrompt(
-				NewDefaultUserPrompt().
-					SetText(lastMessage.Content()),
-			)
-		}
+	if len(messages) == 0 {
+		return spec
+	}
+
+	lastMessage := messages[len(messages)-1]
+	if lastMessage.Role().IsUser() {
+		spec.SetUserPrompt(
+			NewDefaultUserPrompt().
+				SetText(lastMessage.Content()),
+		)
 		messages = messages[:len(messages)-1]
 	}
 
