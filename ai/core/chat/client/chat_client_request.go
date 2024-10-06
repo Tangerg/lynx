@@ -110,7 +110,7 @@ func (d *DefaultChatClientRequest[O, M]) toMiddlewareRequest() *middleware.Reque
 		SystemText:   d.systemText,
 		SystemParams: d.systemParams,
 		Messages:     d.messages,
-		Mode:         middleware.CallRequest,
+		Mode:         model.CallRequest,
 	}
 }
 

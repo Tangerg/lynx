@@ -7,6 +7,7 @@ import (
 	"github.com/Tangerg/lynx/ai/core/chat/client/middleware/outputguide"
 	"github.com/Tangerg/lynx/ai/core/chat/completion"
 	"github.com/Tangerg/lynx/ai/core/chat/metadata"
+	"github.com/Tangerg/lynx/ai/core/chat/model"
 	"github.com/Tangerg/lynx/ai/core/chat/prompt"
 )
 
@@ -35,7 +36,7 @@ func (d *DefaultStreamResponse[O, M]) doGetChatResponse(ctx context.Context, for
 	}
 	c.SetMap(d.request.middlewareParams)
 	c.Request = d.request.toMiddlewareRequest()
-	c.Request.Mode = middleware.StreamRequest
+	c.Request.Mode = model.StreamRequest
 	c.SetMiddlewares(d.request.middlewares...)
 
 	err := c.Next()

@@ -23,3 +23,10 @@ type ChatModel[O prompt.ChatOptions, M metadata.ChatGenerationMetadata] interfac
 	Model[O, M]
 	StreamingModel[O, M]
 }
+
+type ChatRequestMode string
+
+const (
+	CallRequest   ChatRequestMode = "call"
+	StreamRequest ChatRequestMode = "stream"
+)

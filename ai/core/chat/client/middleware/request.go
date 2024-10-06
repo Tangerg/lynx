@@ -7,13 +7,6 @@ import (
 	"github.com/Tangerg/lynx/ai/core/chat/prompt"
 )
 
-type RequestMode string
-
-const (
-	CallRequest   RequestMode = "call"
-	StreamRequest RequestMode = "stream"
-)
-
 type Request[O prompt.ChatOptions, M metadata.ChatGenerationMetadata] struct {
 	ChatModel    model.ChatModel[O, M]
 	ChatOptions  O
@@ -22,15 +15,15 @@ type Request[O prompt.ChatOptions, M metadata.ChatGenerationMetadata] struct {
 	SystemText   string
 	SystemParams map[string]any
 	Messages     []message.ChatMessage
-	Mode         RequestMode
+	Mode         model.ChatRequestMode
 }
 
 func (r *Request[O, M]) IsCall() bool {
-	return r.Mode == CallRequest
+	return r.Mode == model.CallRequest
 }
 
 func (r *Request[O, M]) IsStream() bool {
-	return r.Mode == StreamRequest
+	return r.Mode == model.StreamRequest
 }
 
 func (r *Request[O, M]) UserParam(key string) (any, bool) {
