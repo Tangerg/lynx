@@ -7,6 +7,54 @@ import (
 	"github.com/Tangerg/lynx/ai/core/chat/prompt"
 )
 
+// ChatClientBuilder is a generic interface that defines the contract for building and configuring
+// a chat client in a chat application. It is parameterized by chat options (O) and chat generation metadata (M).
+//
+// Type Parameters:
+//   - O: Represents the chat options, defined by the prompt.ChatOptions type.
+//   - M: Represents the metadata associated with chat generation, defined by the metadata.ChatGenerationMetadata type.
+//
+// Methods:
+//
+// DefaultChatOptions(options O) ChatClientBuilder[O, M]
+//   - Sets the default chat options for the chat client.
+//   - Returns the ChatClientBuilder instance to allow method chaining.
+//
+// DefaultMiddlewares(middlewares Middlewares[O, M]) ChatClientBuilder[O, M]
+//   - Sets the default middleware functions for the chat client.
+//   - Returns the ChatClientBuilder instance to allow method chaining.
+//
+// DefaultMiddlewaresWithParams(params map[string]any, middlewares ...middleware.Middleware[O, M]) ChatClientBuilder[O, M]
+//   - Sets the default middleware functions with additional parameters for the chat client.
+//   - Returns the ChatClientBuilder instance to allow method chaining.
+//
+// DefaultUserPromptText(text string) ChatClientBuilder[O, M]
+//   - Sets the default user prompt text for the chat client.
+//   - Returns the ChatClientBuilder instance to allow method chaining.
+//
+// DefaultUserPromptTextWihtParams(text string, params map[string]any) ChatClientBuilder[O, M]
+//   - Sets the default user prompt text with additional parameters for the chat client.
+//   - Returns the ChatClientBuilder instance to allow method chaining.
+//
+// DefaultUserPrompt(user UserPrompt) ChatClientBuilder[O, M]
+//   - Sets the default user prompt using a UserPrompt object for the chat client.
+//   - Returns the ChatClientBuilder instance to allow method chaining.
+//
+// DefaultSystemPromptText(text string) ChatClientBuilder[O, M]
+//   - Sets the default system prompt text for the chat client.
+//   - Returns the ChatClientBuilder instance to allow method chaining.
+//
+// DefaultSystemPromptTextWihtParams(text string, params map[string]any) ChatClientBuilder[O, M]
+//   - Sets the default system prompt text with additional parameters for the chat client.
+//   - Returns the ChatClientBuilder instance to allow method chaining.
+//
+// DefaultSystemPrompt(systemPrompt SystemPrompt) ChatClientBuilder[O, M]
+//   - Sets the default system prompt using a SystemPrompt object for the chat client.
+//   - Returns the ChatClientBuilder instance to allow method chaining.
+//
+// Build() ChatClient[O, M]
+//   - Finalizes the configuration and builds the chat client.
+//   - Returns a ChatClient instance configured with the specified defaults.
 type ChatClientBuilder[O prompt.ChatOptions, M metadata.ChatGenerationMetadata] interface {
 	DefaultChatOptions(options O) ChatClientBuilder[O, M]
 	DefaultMiddlewares(middlewares Middlewares[O, M]) ChatClientBuilder[O, M]

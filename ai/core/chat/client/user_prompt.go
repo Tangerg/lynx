@@ -4,6 +4,35 @@ import (
 	"strings"
 )
 
+// UserPrompt is an interface that defines the contract for managing user prompts
+// and their associated parameters in a chat application. A user prompt typically includes
+// the input or query provided by the user to initiate or continue a chat interaction.
+//
+// Methods:
+//
+// Text() string
+//   - Returns the text of the user prompt.
+//   - This method provides access to the current user prompt text used in the chat application.
+//
+// Param(key string) (any, bool)
+//   - Retrieves a parameter value associated with the specified key.
+//   - Returns the value and a boolean indicating whether the key was found in the parameters map.
+//
+// Params() map[string]any
+//   - Returns a map of all parameters currently set for the user prompt.
+//   - This method provides access to all key-value pairs used to configure the user prompt.
+//
+// SetText(text string) UserPrompt
+//   - Sets the text of the user prompt.
+//   - Returns the UserPrompt instance to allow method chaining.
+//
+// SetParam(k string, v any) UserPrompt
+//   - Sets a single parameter key-value pair for the user prompt configuration.
+//   - Returns the UserPrompt instance to allow method chaining.
+//
+// SetParams(m map[string]any) UserPrompt
+//   - Sets multiple parameters using a map of key-value pairs for the user prompt configuration.
+//   - Returns the UserPrompt instance to allow method chaining.
 type UserPrompt interface {
 	Text() string
 	Param(key string) (any, bool)

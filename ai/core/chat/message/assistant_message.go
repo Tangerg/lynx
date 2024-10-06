@@ -2,14 +2,16 @@ package message
 
 func NewAssistantMessage(content string) *AssistantMessage {
 	return &AssistantMessage{
-		content:  content,
-		metadata: make(map[string]any),
+		toolCalls: make([]*ToolCall, 0),
+		content:   content,
+		metadata:  make(map[string]any),
 	}
 }
 
 type AssistantMessage struct {
-	content  string
-	metadata map[string]any
+	toolCalls []*ToolCall
+	content   string
+	metadata  map[string]any
 }
 
 func (s *AssistantMessage) Role() Role {
@@ -22,4 +24,12 @@ func (s *AssistantMessage) Content() string {
 
 func (s *AssistantMessage) Metadata() map[string]any {
 	return s.metadata
+}
+
+func (s *AssistantMessage) ToolCalls() []*ToolCall {
+	return s.toolCalls
+}
+
+func (s *AssistantMessage) HasToolCalls() bool {
+	return len(s.toolCalls) > 0
 }

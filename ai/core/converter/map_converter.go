@@ -8,14 +8,31 @@ import (
 
 var _ StructuredConverter[map[string]any] = (*MapConverter)(nil)
 
+// NewMapConverterWithExample creates a new instance of the MapConverter struct,
+// initialized with a map of string keys to values of any type. This function is
+// particularly useful when the generic type is `any`, as it assists in obtaining
+// the specific type for conversion or processing.
+//
+// Parameters:
+//
+// v map[string]any
+//   - A map where the keys are strings and the values are of any type.
+//   - This map serves as the initial data for the MapConverter, allowing for
+//     flexible handling and conversion of various data types.
+//
+// Returns:
+//
+// *MapConverter
+//   - Returns a pointer to a newly created MapConverter instance, initialized
+//     with the provided map. This instance can be used to perform type-specific
+//     conversions or manipulations on the map data.
+func NewMapConverterWithExample(v map[string]any) *MapConverter {
+	return &MapConverter{v: v}
+}
+
 type MapConverter struct {
 	v      map[string]any
 	format string
-}
-
-// NewMapConverterWithExample If the generic type is any, assist in obtaining the specific type
-func NewMapConverterWithExample(v map[string]any) *MapConverter {
-	return &MapConverter{v: v}
 }
 
 func (m *MapConverter) getFormat() string {

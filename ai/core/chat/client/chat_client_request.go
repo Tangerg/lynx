@@ -8,6 +8,48 @@ import (
 	"github.com/Tangerg/lynx/ai/core/chat/prompt"
 )
 
+// ChatClientRequest is a generic interface that defines the contract for building and executing
+// chat client requests in a chat application. It is parameterized by chat options (O) and
+// chat generation metadata (M).
+//
+// Type Parameters:
+//   - O: Represents the chat options, defined by the prompt.ChatOptions type.
+//   - M: Represents the metadata associated with chat generation, defined by the metadata.ChatGenerationMetadata type.
+//
+// Methods:
+//
+// SetChatModel(model model.ChatModel[O, M]) ChatClientRequest[O, M]
+//   - Sets the chat model to be used for processing the request.
+//   - Returns the ChatClientRequest instance to allow method chaining.
+//
+// SetChatOptions(options O) ChatClientRequest[O, M]
+//   - Sets the chat options for the request.
+//   - Returns the ChatClientRequest instance to allow method chaining.
+//
+// SetSystemPrompt(system SystemPrompt) ChatClientRequest[O, M]
+//   - Sets the system prompt, which may include system-generated instructions or context.
+//   - Returns the ChatClientRequest instance to allow method chaining.
+//
+// SetUserPrompt(user UserPrompt) ChatClientRequest[O, M]
+//   - Sets the user prompt, which includes the user's input or query.
+//   - Returns the ChatClientRequest instance to allow method chaining.
+//
+// SetMessages(messages ...message.ChatMessage) ChatClientRequest[O, M]
+//   - Sets the sequence of chat messages for the request.
+//   - Returns the ChatClientRequest instance to allow method chaining.
+//
+// SetMiddlewares(middlewares Middlewares[O, M]) ChatClientRequest[O, M]
+//   - Sets the middleware functions to be executed during the request processing.
+//   - Returns the ChatClientRequest instance to allow method chaining.
+//
+// Call() CallResponse[O, M]
+//   - Executes the request in a call-based mode and returns a CallResponse containing the result.
+//
+// Stream() StreamResponse[O, M]
+//   - Executes the request in a stream-based mode and returns a StreamResponse containing the result.
+//
+// Mutate() ChatClientBuilder[O, M]
+//   - Returns a ChatClientBuilder instance, allowing further modifications to the request configuration.
 type ChatClientRequest[O prompt.ChatOptions, M metadata.ChatGenerationMetadata] interface {
 	SetChatModel(model model.ChatModel[O, M]) ChatClientRequest[O, M]
 	SetChatOptions(options O) ChatClientRequest[O, M]
