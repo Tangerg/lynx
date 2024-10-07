@@ -28,7 +28,7 @@ type ChatGenerationBuilder[RM metadata.ChatGenerationMetadata] struct {
 }
 
 func (b *ChatGenerationBuilder[RM]) WithContent(content string) *ChatGenerationBuilder[RM] {
-	return b.WithMessage(message.NewAssistantMessage(content))
+	return b.WithMessage(message.NewAssistantMessage(content, nil, nil))
 }
 
 func (b *ChatGenerationBuilder[RM]) WithMessage(msg *message.AssistantMessage) *ChatGenerationBuilder[RM] {

@@ -35,7 +35,7 @@ func NewChatPromptBuilder[O ChatOptions]() *ChatPromptBuilder[O] {
 }
 
 func (b *ChatPromptBuilder[O]) WithContent(content string) *ChatPromptBuilder[O] {
-	b.WithMessages(message.NewUserMessage(content))
+	b.WithMessages(message.NewUserMessage(content, nil))
 	return b
 }
 

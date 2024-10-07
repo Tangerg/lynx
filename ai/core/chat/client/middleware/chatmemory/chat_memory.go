@@ -86,7 +86,7 @@ func (c *chatMemory[O, M]) beforeRequest(ctx *middleware.Context[O, M]) error {
 	err = c.saveMessages(
 		ctx.Context(),
 		ctx.Request.UserParams,
-		message.NewUserMessage(ctx.Request.UserText),
+		message.NewUserMessage(ctx.Request.UserText, nil),
 	)
 	if err != nil {
 		return err

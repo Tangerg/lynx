@@ -54,4 +54,10 @@ func TestStringSchemaOf8(t *testing.T) {
 func TestMapSchemaOf1(t *testing.T) {
 	rv := MapSchemaOf(&TestUser{})
 	t.Log(rv)
+	t.Log(rv["$defs"])
+}
+
+func TestStringDefSchemaOf1(t *testing.T) {
+	rv := StringDefSchemaOf(&TestUser{})
+	t.Log(rv)
 }

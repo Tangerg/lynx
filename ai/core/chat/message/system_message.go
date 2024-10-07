@@ -1,9 +1,13 @@
 package message
 
-func NewSystemMessage(content string) *SystemMessage {
+func NewSystemMessage(content string, metadata map[string]any) *SystemMessage {
+	if metadata == nil {
+		metadata = make(map[string]any)
+	}
+	metadata[KeyOfMessageType] = System.String()
 	return &SystemMessage{
 		content:  content,
-		metadata: make(map[string]any),
+		metadata: metadata,
 	}
 }
 
@@ -12,7 +16,7 @@ type SystemMessage struct {
 	metadata map[string]any
 }
 
-func (s *SystemMessage) Role() Role {
+func (s *SystemMessage) Type() Type {
 	return System
 }
 

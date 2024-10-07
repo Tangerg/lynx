@@ -1,39 +1,44 @@
 package message
 
-// Role represents the role of a participant in a conversation.
-type Role string
+// Type represents the message role of a participant in a conversation.
+type Type string
 
-func (r Role) String() string {
+func (r Type) String() string {
 	return string(r)
 }
 
-func (r Role) IsSystem() bool {
+func (r Type) IsSystem() bool {
 	return r == System
 }
 
-func (r Role) IsUser() bool {
+func (r Type) IsUser() bool {
 	return r == User
 }
 
-func (r Role) IsAssistant() bool {
+func (r Type) IsAssistant() bool {
 	return r == Assistant
 }
 
-func (r Role) IsTool() bool {
+func (r Type) IsTool() bool {
 	return r == Tool
 }
 
 // Constants defining the various roles in a chat system.
 const (
 	// System represents messages or instructions from the system itself.
-	System Role = "system"
+	System Type = "system"
 
 	// User represents messages from the end-user or client.
-	User Role = "user"
+	User Type = "user"
 
 	// Assistant represents messages from an AI assistant or chatbot.
-	Assistant Role = "assistant"
+	Assistant Type = "assistant"
 
 	// Tool represents messages from integrated tools or external services.
-	Tool Role = "tool"
+	Tool Type = "tool"
+)
+
+const (
+	// KeyOfMessageType for metadata use
+	KeyOfMessageType = "message_type"
 )

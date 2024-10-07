@@ -1,20 +1,27 @@
 package message
 
-func NewAssistantMessage(content string) *AssistantMessage {
+func NewAssistantMessage(content string, metadata map[string]any, toolCalls []*ToolCallRequest) *AssistantMessage {
+	if toolCalls == nil {
+		toolCalls = make([]*ToolCallRequest, 0)
+	}
+	if metadata == nil {
+		metadata = make(map[string]any)
+	}
+	metadata[KeyOfMessageType] = Assistant.String()
 	return &AssistantMessage{
-		toolCalls: make([]*ToolCall, 0),
-		content:   content,
-		metadata:  make(map[string]any),
+		toolCallRequests: toolCalls,
+		content:          content,
+		metadata:         metadata,
 	}
 }
 
 type AssistantMessage struct {
-	toolCalls []*ToolCall
-	content   string
-	metadata  map[string]any
+	content          string
+	metadata         map[string]any
+	toolCallRequests []*ToolCallRequest
 }
 
-func (s *AssistantMessage) Role() Role {
+func (s *AssistantMessage) Type() Type {
 	return Assistant
 }
 
@@ -26,10 +33,10 @@ func (s *AssistantMessage) Metadata() map[string]any {
 	return s.metadata
 }
 
-func (s *AssistantMessage) ToolCalls() []*ToolCall {
-	return s.toolCalls
+func (s *AssistantMessage) ToolCalls() []*ToolCallRequest {
+	return s.toolCallRequests
 }
 
 func (s *AssistantMessage) HasToolCalls() bool {
-	return len(s.toolCalls) > 0
+	return len(s.toolCallRequests) > 0
 }

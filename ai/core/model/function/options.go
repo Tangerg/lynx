@@ -16,12 +16,12 @@ package function
 //   - `funcs` is a slice of Function instances that will replace the current set of functions.
 //   - This method allows for updating or configuring the functions available for execution.
 //
-// UseProxy() bool
+// ProxyToolCalls() bool
 //   - Returns a boolean indicating whether proxy usage is enabled.
 //   - This method provides access to the current proxy configuration, which determines
 //     whether certain internal functions should be bypassed and handled externally.
 //
-// SetUseProxy(enable bool)
+// SetProxyToolCalls(enable bool)
 //   - Enables or disables proxy usage based on the provided boolean value.
 //   - `enable` is a boolean that determines whether the system should bypass certain
 //     internal functions and delegate their handling to external processes.
@@ -30,6 +30,6 @@ package function
 type Options interface {
 	Functions() []Function
 	SetFunctions(funcs []Function)
-	UseProxy() bool
-	SetUseProxy(enable bool)
+	ProxyToolCalls() bool
+	SetProxyToolCalls(enable bool)
 }

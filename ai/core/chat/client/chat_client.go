@@ -74,7 +74,7 @@ func (d *DefaultChatClient[O, M]) PromptPrompt(prompt *prompt.ChatPrompt[O]) Cha
 	}
 
 	lastMessage := messages[len(messages)-1]
-	if lastMessage.Role().IsUser() {
+	if lastMessage.Type().IsUser() {
 		spec.SetUserPrompt(
 			NewDefaultUserPrompt().
 				SetText(lastMessage.Content()),

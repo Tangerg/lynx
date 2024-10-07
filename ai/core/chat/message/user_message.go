@@ -1,9 +1,13 @@
 package message
 
-func NewUserMessage(content string) *UserMessage {
+func NewUserMessage(content string, metadata map[string]any) *UserMessage {
+	if metadata == nil {
+		metadata = make(map[string]any)
+	}
+	metadata[KeyOfMessageType] = User.String()
 	return &UserMessage{
 		content:  content,
-		metadata: make(map[string]any),
+		metadata: metadata,
 	}
 }
 
@@ -12,7 +16,7 @@ type UserMessage struct {
 	metadata map[string]any
 }
 
-func (s *UserMessage) Role() Role {
+func (s *UserMessage) Type() Type {
 	return User
 }
 

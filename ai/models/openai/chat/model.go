@@ -7,6 +7,7 @@ import (
 	"github.com/sashabaranov/go-openai"
 
 	"github.com/Tangerg/lynx/ai/core/chat/completion"
+	chatMetadata "github.com/Tangerg/lynx/ai/core/chat/metadata"
 	"github.com/Tangerg/lynx/ai/core/chat/model"
 	"github.com/Tangerg/lynx/ai/core/chat/prompt"
 	"github.com/Tangerg/lynx/ai/models/openai/api"
@@ -15,38 +16,34 @@ import (
 
 type OpenAIChatPrompt = *prompt.ChatPrompt[*OpenAIChatOptions]
 
-func NewChatPromptBuilder() *prompt.ChatPromptBuilder[*OpenAIChatOptions] {
+func newChatPromptBuilder() *prompt.ChatPromptBuilder[*OpenAIChatOptions] {
 	return prompt.NewChatPromptBuilder[*OpenAIChatOptions]()
 }
 
 type OpenAIChatCompletion = *completion.ChatCompletion[*metadata.OpenAIChatGenerationMetadata]
 
-func NewChatCompletionBuilder() *completion.ChatCompletionBuilder[*metadata.OpenAIChatGenerationMetadata] {
+func newChatCompletionBuilder() *completion.ChatCompletionBuilder[*metadata.OpenAIChatGenerationMetadata] {
 	return completion.NewChatCompletionBuilder[*metadata.OpenAIChatGenerationMetadata]()
 }
 
 var _ model.ChatModel[*OpenAIChatOptions, *metadata.OpenAIChatGenerationMetadata] = (*OpenAIChatModel)(nil)
 
 type OpenAIChatModel struct {
-	converter *converter
+	helper    *helper
 	config    *OpenAIChatModelConfig
 	openAIApi *api.OpenAIApi
 }
 
 func NewOpenAIChatModel(conf OpenAIChatModelConfig) model.ChatModel[*OpenAIChatOptions, *metadata.OpenAIChatGenerationMetadata] {
 	return &OpenAIChatModel{
-		converter: &converter{},
+		helper:    &helper{},
 		config:    &conf,
 		openAIApi: api.NewOpenAIApi(conf.Token),
 	}
 }
 
 func (o *OpenAIChatModel) Stream(ctx context.Context, req OpenAIChatPrompt) (OpenAIChatCompletion, error) {
-	creq := o.converter.toOpenAIApiChatCompletionRequest(req)
-	creq.Stream = true
-	creq.StreamOptions = &openai.StreamOptions{
-		IncludeUsage: true,
-	}
+	creq := o.helper.createApiRequest(req, true)
 
 	stream, err := o.openAIApi.CreateChatCompletionStream(ctx, creq)
 	if err != nil {
@@ -69,7 +66,7 @@ func (o *OpenAIChatModel) Stream(ctx context.Context, req OpenAIChatPrompt) (Ope
 
 		if err != nil {
 			if err == io.EOF {
-				return o.converter.combineOpenAIChatCompletion(recvs)
+				return o.helper.merageStreamResponse(recvs)
 			}
 			return openAIChatCompletion, err
 		}
@@ -78,7 +75,7 @@ func (o *OpenAIChatModel) Stream(ctx context.Context, req OpenAIChatPrompt) (Ope
 			continue
 		}
 		recvs = append(recvs, recv)
-		openAIChatCompletion = o.converter.toOpenAIChatCompletionByStream(&recv)
+		openAIChatCompletion = o.helper.createStreamResponse(&recv)
 
 		if streamFunc != nil {
 			err = streamFunc(ctx, recv.Choices[0].Delta.Content)
@@ -97,12 +94,34 @@ func (o *OpenAIChatModel) Stream(ctx context.Context, req OpenAIChatPrompt) (Ope
 }
 
 func (o *OpenAIChatModel) Call(ctx context.Context, req OpenAIChatPrompt) (OpenAIChatCompletion, error) {
-	creq := o.converter.toOpenAIApiChatCompletionRequest(req)
+	creq := o.helper.createApiRequest(req, false)
 
 	cres, err := o.openAIApi.CreateChatCompletion(ctx, creq)
 	if err != nil {
 		return nil, err
 	}
 
-	return o.converter.toOpenAIChatCompletionByCall(&cres), nil
+	resp := o.helper.createCallResponse(&cres)
+
+	if o.helper.IsProxyToolCalls(req.Options(), o.helper.defaultOptions) {
+		return resp, nil
+	}
+
+	if !o.helper.IsToolCallChatCompletion(
+		resp,
+		[]chatMetadata.FinishReason{chatMetadata.ToolCalls, chatMetadata.Stop},
+	) {
+		return resp, nil
+	}
+
+	msgs, err := o.helper.HandleToolCalls(ctx, req, resp)
+	if err != nil {
+		return resp, err
+	}
+	newReq, _ := newChatPromptBuilder().
+		WithOptions(req.Options()).
+		WithMessages(msgs...).
+		Build()
+
+	return o.Call(ctx, newReq)
 }

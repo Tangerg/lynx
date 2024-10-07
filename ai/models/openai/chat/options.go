@@ -4,10 +4,14 @@ import (
 	"context"
 	"errors"
 
+	"github.com/samber/lo"
+
 	"github.com/Tangerg/lynx/ai/core/chat/prompt"
+	"github.com/Tangerg/lynx/ai/core/model/function"
 )
 
 var _ prompt.ChatOptions = (*OpenAIChatOptions)(nil)
+var _ function.Options = (*OpenAIChatOptions)(nil)
 
 type OpenAIChatOptions struct {
 	model                *string
@@ -20,6 +24,25 @@ type OpenAIChatOptions struct {
 	n                    int
 	streamChunkFunc      func(ctx context.Context, chunk string) error
 	streamCompletionFunc func(ctx context.Context, completion OpenAIChatCompletion) error
+	functions            []function.Function
+	proxyToolCalls       bool
+}
+
+func (o *OpenAIChatOptions) Functions() []function.Function {
+	return o.functions
+}
+
+func (o *OpenAIChatOptions) SetFunctions(funcs []function.Function) {
+	funcs = lo.Uniq(funcs)
+	o.functions = funcs
+}
+
+func (o *OpenAIChatOptions) ProxyToolCalls() bool {
+	return o.proxyToolCalls
+}
+
+func (o *OpenAIChatOptions) SetProxyToolCalls(enable bool) {
+	o.proxyToolCalls = enable
 }
 
 func (o *OpenAIChatOptions) Model() *string {
@@ -91,6 +114,9 @@ func (o *OpenAIChatOptions) Clone() prompt.ChatOptions {
 	if o.streamChunkFunc != nil {
 		builder.WithStreamChunkFunc(o.streamChunkFunc)
 	}
+	if o.functions != nil {
+		builder.WithFunctions(o.functions...)
+	}
 	cp, _ := builder.Build()
 	return cp
 }
@@ -143,6 +169,10 @@ func (o *OpenAIChatOptionsBuilder) WithStreamChunkFunc(f func(ctx context.Contex
 }
 func (o *OpenAIChatOptionsBuilder) WithStreamCompletionFunc(f func(ctx context.Context, completion OpenAIChatCompletion) error) *OpenAIChatOptionsBuilder {
 	o.options.streamCompletionFunc = f
+	return o
+}
+func (o *OpenAIChatOptionsBuilder) WithFunctions(funcs ...function.Function) *OpenAIChatOptionsBuilder {
+	o.options.SetFunctions(funcs)
 	return o
 }
 func (o *OpenAIChatOptionsBuilder) Build() (*OpenAIChatOptions, error) {

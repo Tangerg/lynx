@@ -28,7 +28,7 @@ func TestOpenAIChatModel_Call(t *testing.T) {
 		WithModel(openai.GPT4oMini).
 		Build()
 
-	prompt, err := NewChatPromptBuilder().
+	prompt, err := newChatPromptBuilder().
 		WithContent("hello! who are you?").
 		WithOptions(opts).
 		Build()
@@ -43,7 +43,7 @@ func TestOpenAIChatModel_Call(t *testing.T) {
 		return
 	}
 	for _, v := range resp.Results() {
-		t.Log(v.Output().Role())
+		t.Log(v.Output().Type())
 		t.Log(v.Output().Content())
 		t.Log(v.Metadata().FinishReason())
 	}
@@ -64,7 +64,7 @@ func TestOpenAIChatModel_Stream(t *testing.T) {
 		}).
 		WithStreamCompletionFunc(func(ctx context.Context, completion OpenAIChatCompletion) error {
 			for _, v := range completion.Results() {
-				t.Log(v.Output().Role())
+				t.Log(v.Output().Type())
 				t.Log(v.Output().Content())
 				t.Log(v.Metadata().FinishReason())
 			}
@@ -72,7 +72,7 @@ func TestOpenAIChatModel_Stream(t *testing.T) {
 		}).
 		Build()
 
-	prompt, err := NewChatPromptBuilder().
+	prompt, err := newChatPromptBuilder().
 		WithContent("hello! who are you?").
 		WithOptions(opts).
 		Build()
@@ -87,11 +87,11 @@ func TestOpenAIChatModel_Stream(t *testing.T) {
 		return
 	}
 	for _, v := range resp.Results() {
-		t.Log(v.Output().Role())
+		t.Log(v.Output().Type())
 		t.Log(v.Output().Content())
 		t.Log(v.Metadata().FinishReason())
 	}
 	t.Log(resp.Result().Metadata().FinishReason())
-	t.Log(resp.Result().Output().Role())
+	t.Log(resp.Result().Output().Type())
 	t.Log(resp.Result().Output().Content())
 }

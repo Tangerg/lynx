@@ -17,24 +17,18 @@ import (
 	"github.com/Tangerg/lynx/ai/core/model/function"
 )
 
-func NewSupport[O prompt.ChatOptions, M metadata.ChatGenerationMetadata](options function.Options, funcs ...function.Function) *Support[O, M] {
-	s := &Support[O, M]{
-		functions: make(map[string]function.Function),
-	}
-	s.RegisterFunctions(s.Merage(options, funcs...)...)
-	return s
-}
-
+// Support is a generic structure that provides support for managing and executing register
+// within a chat-based system. It is designed to be extended and not instantiated directly.
 type Support[O prompt.ChatOptions, M metadata.ChatGenerationMetadata] struct {
-	mu        sync.RWMutex
-	functions map[string]function.Function
+	mu       sync.RWMutex
+	register map[string]function.Function
 }
 
 func (s *Support[O, M]) Functions() map[string]function.Function {
-	return s.functions
+	return s.register
 }
 
-func (s *Support[O, M]) Merage(options function.Options, funcs ...function.Function) []function.Function {
+func (s *Support[O, M]) MerageOptionsAndFunctions(options function.Options, funcs ...function.Function) []function.Function {
 	rv := make([]function.Function, 0)
 	rv = append(rv, funcs...)
 	rv = append(rv, options.Functions()...)
@@ -46,12 +40,15 @@ func (s *Support[O, M]) RegisterFunctions(funcs ...function.Function) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	if s.register == nil {
+		s.register = map[string]function.Function{}
+	}
 	for _, f := range funcs {
-		s.functions[f.Name()] = f
+		s.register[f.Name()] = f
 	}
 }
 
-func (s *Support[O, M]) LookupFunctions(names ...string) []function.Function {
+func (s *Support[O, M]) FindFunctions(names ...string) []function.Function {
 	names = lo.Uniq(names)
 
 	s.mu.RLock()
@@ -60,7 +57,7 @@ func (s *Support[O, M]) LookupFunctions(names ...string) []function.Function {
 	rv := make([]function.Function, 0, len(names))
 
 	for _, name := range names {
-		f, ok := s.functions[name]
+		f, ok := s.register[name]
 		if ok {
 			rv = append(rv, f)
 		}
@@ -91,17 +88,17 @@ func (s *Support[O, M]) HandleToolCalls(ctx context.Context, p *prompt.ChatPromp
 	), nil
 }
 
-func (s *Support[O, M]) BuildToolCallConversation(msgs []message.ChatMessage, assistantMessage *message.AssistantMessage, toolMessage *message.ToolMessage) []message.ChatMessage {
+func (s *Support[O, M]) BuildToolCallConversation(msgs []message.ChatMessage, assistantMessage *message.AssistantMessage, toolMessage *message.ToolCallsMessage) []message.ChatMessage {
 	rv := make([]message.ChatMessage, 0, len(msgs)+2)
 	copy(rv, msgs)
 	rv = append(rv, assistantMessage, toolMessage)
 	return rv
 }
 
-func (s *Support[O, M]) ExecuteFunctions(ctx context.Context, assistantMessage *message.AssistantMessage) (*message.ToolMessage, error) {
-	resps := make([]*message.ToolResponse, 0, len(assistantMessage.ToolCalls()))
+func (s *Support[O, M]) ExecuteFunctions(ctx context.Context, assistantMessage *message.AssistantMessage) (*message.ToolCallsMessage, error) {
+	resps := make([]*message.ToolCallResponse, 0, len(assistantMessage.ToolCalls()))
 	for _, toolCall := range assistantMessage.ToolCalls() {
-		f, ok := s.functions[toolCall.Name]
+		f, ok := s.register[toolCall.Name]
 		if !ok {
 			return nil, fmt.Errorf("no function callback found for function name: %s", toolCall.Name)
 		}
@@ -109,13 +106,13 @@ func (s *Support[O, M]) ExecuteFunctions(ctx context.Context, assistantMessage *
 		if err != nil {
 			return nil, err
 		}
-		resps = append(resps, &message.ToolResponse{
+		resps = append(resps, &message.ToolCallResponse{
 			ID:   toolCall.ID,
 			Name: toolCall.Name,
 			Data: resp,
 		})
 	}
-	return message.NewToolMessage(resps), nil
+	return message.NewToolCallsMessage(resps, nil), nil
 }
 
 func (s *Support[O, M]) IsToolCallChatCompletion(chatResp *completion.ChatCompletion[M], finishReasons []metadata.FinishReason) bool {
@@ -142,10 +139,10 @@ func (s *Support[O, M]) IsToolCallChatGeneration(gen model.Result[*message.Assis
 
 func (s *Support[O, M]) IsProxyToolCalls(options function.Options, defaultOptions function.Options) bool {
 	if options != nil {
-		return options.UseProxy()
+		return options.ProxyToolCalls()
 	}
 	if defaultOptions != nil {
-		return defaultOptions.UseProxy()
+		return defaultOptions.ProxyToolCalls()
 	}
 	return false
 }

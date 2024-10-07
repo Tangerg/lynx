@@ -60,10 +60,10 @@ func (r *Request[O, M]) AddMessage(msg ...message.ChatMessage) {
 	r.Messages = append(r.Messages, msg...)
 }
 func (r *Request[O, M]) AddUserMessage(text string) {
-	msg := message.NewUserMessage(text)
+	msg := message.NewUserMessage(text, nil)
 	r.AddMessage(msg)
 }
 func (r *Request[O, M]) AddSystemMessage(text string) {
-	msg := message.NewSystemMessage(text)
+	msg := message.NewSystemMessage(text, nil)
 	r.AddMessage(msg)
 }
