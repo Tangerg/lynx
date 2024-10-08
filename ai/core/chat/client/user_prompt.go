@@ -1,6 +1,7 @@
 package client
 
 import (
+	"github.com/Tangerg/lynx/ai/core/model/media"
 	"strings"
 )
 
@@ -37,9 +38,11 @@ type UserPrompt interface {
 	Text() string
 	Param(key string) (any, bool)
 	Params() map[string]any
+	Media() []*media.Media
 	SetText(text string) UserPrompt
 	SetParam(k string, v any) UserPrompt
 	SetParams(m map[string]any) UserPrompt
+	SetMedia(media ...*media.Media) UserPrompt
 }
 
 func NewDefaultUserPrompt() *DefaultUserPrompt {
@@ -53,6 +56,11 @@ var _ UserPrompt = (*DefaultUserPrompt)(nil)
 type DefaultUserPrompt struct {
 	text   string
 	params map[string]any
+	media  []*media.Media
+}
+
+func (d *DefaultUserPrompt) Media() []*media.Media {
+	return d.media
 }
 
 func (d *DefaultUserPrompt) Text() string {
@@ -82,5 +90,10 @@ func (d *DefaultUserPrompt) SetParams(m map[string]any) UserPrompt {
 	for k, v := range m {
 		d.params[k] = v
 	}
+	return d
+}
+
+func (d *DefaultUserPrompt) SetMedia(media ...*media.Media) UserPrompt {
+	d.media = append(d.media, media...)
 	return d
 }

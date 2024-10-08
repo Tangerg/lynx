@@ -1,8 +1,11 @@
 package chat
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"github.com/Tangerg/lynx/ai/core/model/media"
 	"strings"
 
 	"github.com/sashabaranov/go-openai"
@@ -57,12 +60,44 @@ func (h *helper) getRole(mt message.Type) string {
 	return openai.ChatMessageRoleUser
 }
 
+func (h *helper) createApiMultiContent(media []*media.Media) []openai.ChatMessagePart {
+	rv := make([]openai.ChatMessagePart, 0, len(media))
+	for _, m := range media {
+		part := openai.ChatMessagePart{
+			Type:     openai.ChatMessagePartTypeImageURL,
+			ImageURL: &openai.ChatMessageImageURL{},
+		}
+		if m.MimeType() == nil {
+			part.ImageURL.URL = string(m.Data())
+		} else {
+			part.ImageURL.URL =
+				fmt.Sprintf("data:%s;base64,%s",
+					m.MimeType().String(),
+					base64.StdEncoding.EncodeToString(m.Data()),
+				)
+		}
+		rv = append(rv, part)
+	}
+	return rv
+}
+
 func (h *helper) createApiMessages(msgs []message.ChatMessage) []openai.ChatCompletionMessage {
 	rv := make([]openai.ChatCompletionMessage, 0, len(msgs))
 	for _, chatMessage := range msgs {
 		msg := openai.ChatCompletionMessage{
 			Role:    h.getRole(chatMessage.Type()),
 			Content: chatMessage.Content(),
+		}
+		if chatMessage.Type().IsUser() {
+			userMessage := chatMessage.(*message.UserMessage)
+			if len(userMessage.Media()) > 0 {
+				msg.MultiContent = append(msg.MultiContent, openai.ChatMessagePart{
+					Type: openai.ChatMessagePartTypeText,
+					Text: userMessage.Content(),
+				})
+				msg.MultiContent = append(msg.MultiContent, h.createApiMultiContent(userMessage.Media())...)
+			}
+
 		}
 		if chatMessage.Type().IsAssistant() {
 			assistantMessage := chatMessage.(*message.AssistantMessage)

@@ -6,6 +6,7 @@ import (
 	"github.com/Tangerg/lynx/ai/core/chat/metadata"
 	"github.com/Tangerg/lynx/ai/core/chat/model"
 	"github.com/Tangerg/lynx/ai/core/chat/prompt"
+	"github.com/Tangerg/lynx/ai/core/model/media"
 )
 
 // ChatClientRequest is a generic interface that defines the contract for building and executing
@@ -79,6 +80,7 @@ type DefaultChatClientRequest[O prompt.ChatOptions, M metadata.ChatGenerationMet
 	systemParams     map[string]any
 	userText         string
 	userParams       map[string]any
+	userMedia        []*media.Media
 	messages         []message.ChatMessage
 	middlewares      []middleware.Middleware[O, M]
 	middlewareParams map[string]any
@@ -107,6 +109,7 @@ func (d *DefaultChatClientRequest[O, M]) SetUserPrompt(userPrompt UserPrompt) Ch
 	for k, v := range userPrompt.Params() {
 		d.userParams[k] = v
 	}
+	d.userMedia = append(d.userMedia, userPrompt.Media()...)
 	return d
 }
 
@@ -134,7 +137,7 @@ func (d *DefaultChatClientRequest[O, M]) Stream() StreamResponse[O, M] {
 func (d *DefaultChatClientRequest[O, M]) Mutate() ChatClientBuilder[O, M] {
 	builder := NewDefaultChatClientBuilder[O, M](d.chatModel).
 		DefaultSystemPromptTextWihtParams(d.systemText, d.systemParams).
-		DefaultUserPromptTextWihtParams(d.userText, d.userParams).
+		DefaultUserPromptTextWihtParamsAndMedia(d.userText, d.userParams, d.userMedia...).
 		DefaultMiddlewaresWithParams(d.middlewareParams, d.middlewares...).
 		DefaultChatOptions(d.chatOptions).(*DefaultChatClientBuilder[O, M])
 

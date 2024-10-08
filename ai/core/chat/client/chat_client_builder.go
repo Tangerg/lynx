@@ -5,6 +5,7 @@ import (
 	"github.com/Tangerg/lynx/ai/core/chat/metadata"
 	"github.com/Tangerg/lynx/ai/core/chat/model"
 	"github.com/Tangerg/lynx/ai/core/chat/prompt"
+	"github.com/Tangerg/lynx/ai/core/model/media"
 )
 
 // ChatClientBuilder is a generic interface that defines the contract for building and configuring
@@ -61,6 +62,7 @@ type ChatClientBuilder[O prompt.ChatOptions, M metadata.ChatGenerationMetadata] 
 	DefaultMiddlewaresWithParams(params map[string]any, middlewares ...middleware.Middleware[O, M]) ChatClientBuilder[O, M]
 	DefaultUserPromptText(text string) ChatClientBuilder[O, M]
 	DefaultUserPromptTextWihtParams(text string, params map[string]any) ChatClientBuilder[O, M]
+	DefaultUserPromptTextWihtParamsAndMedia(text string, params map[string]any, media ...*media.Media) ChatClientBuilder[O, M]
 	DefaultUserPrompt(user UserPrompt) ChatClientBuilder[O, M]
 	DefaultSystemPromptText(text string) ChatClientBuilder[O, M]
 	DefaultSystemPromptTextWihtParams(text string, params map[string]any) ChatClientBuilder[O, M]
@@ -108,10 +110,15 @@ func (d *DefaultChatClientBuilder[O, M]) DefaultUserPromptText(text string) Chat
 }
 
 func (d *DefaultChatClientBuilder[O, M]) DefaultUserPromptTextWihtParams(text string, params map[string]any) ChatClientBuilder[O, M] {
+	return d.DefaultUserPromptTextWihtParamsAndMedia(text, params)
+}
+
+func (d *DefaultChatClientBuilder[O, M]) DefaultUserPromptTextWihtParamsAndMedia(text string, params map[string]any, media ...*media.Media) ChatClientBuilder[O, M] {
 	return d.DefaultUserPrompt(
 		NewDefaultUserPrompt().
 			SetText(text).
-			SetParams(params),
+			SetParams(params).
+			SetMedia(media...),
 	)
 }
 
