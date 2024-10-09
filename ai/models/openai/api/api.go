@@ -22,3 +22,7 @@ func (c *OpenAIApi) CreateChatCompletion(ctx context.Context, request *openai.Ch
 func (c *OpenAIApi) CreateChatCompletionStream(ctx context.Context, request *openai.ChatCompletionRequest) (*openai.ChatCompletionStream, error) {
 	return c.client.CreateChatCompletionStream(ctx, *request)
 }
+
+func (c *OpenAIApi) CreateEmbeddings(ctx context.Context, request *openai.EmbeddingRequestStrings) (openai.EmbeddingResponse, error) {
+	return c.client.CreateEmbeddings(ctx, *request)
+}

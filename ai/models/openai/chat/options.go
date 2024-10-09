@@ -23,7 +23,7 @@ type OpenAIChatOptions struct {
 	topP                 *float64
 	n                    int
 	streamChunkFunc      func(ctx context.Context, chunk string) error
-	streamCompletionFunc func(ctx context.Context, completion OpenAIChatCompletion) error
+	streamCompletionFunc func(ctx context.Context, completion *OpenAIChatCompletion) error
 	functions            []function.Function
 	proxyToolCalls       bool
 }
@@ -84,7 +84,7 @@ func (o *OpenAIChatOptions) StreamChunkFunc() func(ctx context.Context, chunk st
 	return o.streamChunkFunc
 }
 
-func (o *OpenAIChatOptions) StreamCompletionFunc() func(ctx context.Context, completion OpenAIChatCompletion) error {
+func (o *OpenAIChatOptions) StreamCompletionFunc() func(ctx context.Context, completion *OpenAIChatCompletion) error {
 	return o.streamCompletionFunc
 }
 
@@ -167,7 +167,7 @@ func (o *OpenAIChatOptionsBuilder) WithStreamChunkFunc(f func(ctx context.Contex
 	o.options.streamChunkFunc = f
 	return o
 }
-func (o *OpenAIChatOptionsBuilder) WithStreamCompletionFunc(f func(ctx context.Context, completion OpenAIChatCompletion) error) *OpenAIChatOptionsBuilder {
+func (o *OpenAIChatOptionsBuilder) WithStreamCompletionFunc(f func(ctx context.Context, completion *OpenAIChatCompletion) error) *OpenAIChatOptionsBuilder {
 	o.options.streamCompletionFunc = f
 	return o
 }

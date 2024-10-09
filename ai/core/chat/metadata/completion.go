@@ -46,6 +46,7 @@ func (c *ChatCompletionMetadata) Created() int64 {
 func newChatCompletionMetadata() *ChatCompletionMetadata {
 	return &ChatCompletionMetadata{
 		metadata: make(map[string]any),
+		usage:    &EmptyUsage{},
 	}
 }
 

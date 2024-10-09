@@ -134,7 +134,7 @@ func (h *helper) createApiMessages(msgs []message.ChatMessage) []openai.ChatComp
 	}
 	return rv
 }
-func (h *helper) createApiRequest(prompt OpenAIChatPrompt, stream bool) *openai.ChatCompletionRequest {
+func (h *helper) createApiRequest(prompt *OpenAIChatPrompt, stream bool) *openai.ChatCompletionRequest {
 	rv := &openai.ChatCompletionRequest{}
 
 	if stream {
@@ -202,7 +202,7 @@ func (h *helper) createToolCallRequests(toolCalls []openai.ToolCall) []*message.
 	return rv
 }
 
-func (h *helper) createCallResponse(resp *openai.ChatCompletionResponse) OpenAIChatCompletion {
+func (h *helper) createCallResponse(resp *openai.ChatCompletionResponse) *OpenAIChatCompletion {
 	usage := metadata.
 		NewOpenAIUsage().
 		IncrPromptTokens(int64(resp.Usage.PromptTokens)).
@@ -250,7 +250,7 @@ func (h *helper) createCallResponse(resp *openai.ChatCompletionResponse) OpenAIC
 	return completion
 }
 
-func (h *helper) createStreamResponse(resp *openai.ChatCompletionStreamResponse) OpenAIChatCompletion {
+func (h *helper) createStreamResponse(resp *openai.ChatCompletionStreamResponse) *OpenAIChatCompletion {
 	cmb := chatMetadata.
 		NewChatCompletionMetadataBuilder().
 		WithID(resp.ID).
@@ -288,7 +288,7 @@ func (h *helper) createStreamResponse(resp *openai.ChatCompletionStreamResponse)
 	return completion
 }
 
-func (h *helper) merageStreamResponse(resps []openai.ChatCompletionStreamResponse) (OpenAIChatCompletion, error) {
+func (h *helper) merageStreamResponse(resps []openai.ChatCompletionStreamResponse) (*OpenAIChatCompletion, error) {
 	if len(resps) == 0 {
 		return nil, errors.New("empty response")
 	}

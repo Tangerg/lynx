@@ -1,5 +1,9 @@
 package metadata
 
+import chatMetadata "github.com/Tangerg/lynx/ai/core/chat/metadata"
+
+var _ chatMetadata.Usage = (*OpenAIUsage)(nil)
+
 type OpenAIUsage struct {
 	promptTokens     int64
 	completionTokens int64

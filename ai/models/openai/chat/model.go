@@ -14,13 +14,13 @@ import (
 	"github.com/Tangerg/lynx/ai/models/openai/metadata"
 )
 
-type OpenAIChatPrompt = *prompt.ChatPrompt[*OpenAIChatOptions]
+type OpenAIChatPrompt = prompt.ChatPrompt[*OpenAIChatOptions]
 
 func newChatPromptBuilder() *prompt.ChatPromptBuilder[*OpenAIChatOptions] {
 	return prompt.NewChatPromptBuilder[*OpenAIChatOptions]()
 }
 
-type OpenAIChatCompletion = *completion.ChatCompletion[*metadata.OpenAIChatGenerationMetadata]
+type OpenAIChatCompletion = completion.ChatCompletion[*metadata.OpenAIChatGenerationMetadata]
 
 func newChatCompletionBuilder() *completion.ChatCompletionBuilder[*metadata.OpenAIChatGenerationMetadata] {
 	return completion.NewChatCompletionBuilder[*metadata.OpenAIChatGenerationMetadata]()
@@ -42,7 +42,7 @@ func NewOpenAIChatModel(conf OpenAIChatModelConfig) model.ChatModel[*OpenAIChatO
 	}
 }
 
-func (o *OpenAIChatModel) Stream(ctx context.Context, req OpenAIChatPrompt) (OpenAIChatCompletion, error) {
+func (o *OpenAIChatModel) Stream(ctx context.Context, req *OpenAIChatPrompt) (*OpenAIChatCompletion, error) {
 	creq := o.helper.createApiRequest(req, true)
 
 	stream, err := o.openAIApi.CreateChatCompletionStream(ctx, creq)
@@ -54,7 +54,7 @@ func (o *OpenAIChatModel) Stream(ctx context.Context, req OpenAIChatPrompt) (Ope
 	}()
 
 	var (
-		openAIChatCompletion OpenAIChatCompletion
+		openAIChatCompletion *OpenAIChatCompletion
 		recv                 openai.ChatCompletionStreamResponse
 		recvs                = make([]openai.ChatCompletionStreamResponse, 0, 64)
 		streamFunc           = req.Options().StreamChunkFunc()
@@ -93,7 +93,7 @@ func (o *OpenAIChatModel) Stream(ctx context.Context, req OpenAIChatPrompt) (Ope
 	}
 }
 
-func (o *OpenAIChatModel) Call(ctx context.Context, req OpenAIChatPrompt) (OpenAIChatCompletion, error) {
+func (o *OpenAIChatModel) Call(ctx context.Context, req *OpenAIChatPrompt) (*OpenAIChatCompletion, error) {
 	creq := o.helper.createApiRequest(req, false)
 
 	cres, err := o.openAIApi.CreateChatCompletion(ctx, creq)

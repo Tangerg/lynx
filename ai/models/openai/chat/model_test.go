@@ -62,7 +62,7 @@ func TestOpenAIChatModel_Stream(t *testing.T) {
 			t.Log(chunk)
 			return nil
 		}).
-		WithStreamCompletionFunc(func(ctx context.Context, completion OpenAIChatCompletion) error {
+		WithStreamCompletionFunc(func(ctx context.Context, completion *OpenAIChatCompletion) error {
 			for _, v := range completion.Results() {
 				t.Log(v.Output().Type())
 				t.Log(v.Output().Content())
