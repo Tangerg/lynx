@@ -152,6 +152,7 @@ func (d *DefaultChatClientRequest[O, M]) toMiddlewareRequest() *middleware.Reque
 		ChatOptions:  d.chatOptions,
 		UserText:     d.userText,
 		UserParams:   d.userParams,
+		UserMedia:    d.userMedia,
 		SystemText:   d.systemText,
 		SystemParams: d.systemParams,
 		Messages:     d.messages,
@@ -172,12 +173,13 @@ type DefaultChatClientRequestBuilder[O prompt.ChatOptions, M metadata.ChatGenera
 func (b *DefaultChatClientRequestBuilder[O, M]) FromDefaultChatClientRequest(old *DefaultChatClientRequest[O, M]) *DefaultChatClientRequestBuilder[O, M] {
 	b.request = &DefaultChatClientRequest[O, M]{
 		chatModel:        old.chatModel,
-		userText:         old.userText,
-		systemText:       old.systemText,
 		chatOptions:      old.chatOptions,
-		messages:         old.messages,
-		userParams:       old.userParams,
+		systemText:       old.systemText,
 		systemParams:     old.systemParams,
+		userMedia:        old.userMedia,
+		userText:         old.userText,
+		userParams:       old.userParams,
+		messages:         old.messages,
 		middlewares:      old.middlewares,
 		middlewareParams: old.middlewareParams,
 	}

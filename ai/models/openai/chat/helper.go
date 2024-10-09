@@ -5,8 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/Tangerg/lynx/ai/core/model/media"
 	"strings"
+
+	"github.com/Tangerg/lynx/ai/core/model/media"
 
 	"github.com/sashabaranov/go-openai"
 
@@ -91,6 +92,7 @@ func (h *helper) createApiMessages(msgs []message.ChatMessage) []openai.ChatComp
 		if chatMessage.Type().IsUser() {
 			userMessage := chatMessage.(*message.UserMessage)
 			if len(userMessage.Media()) > 0 {
+				msg.Content = ""
 				msg.MultiContent = append(msg.MultiContent, openai.ChatMessagePart{
 					Type: openai.ChatMessagePartTypeText,
 					Text: userMessage.Content(),

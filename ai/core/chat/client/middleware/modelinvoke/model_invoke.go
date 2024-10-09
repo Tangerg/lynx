@@ -9,11 +9,11 @@ import (
 type invoker[O prompt.ChatOptions, M metadata.ChatGenerationMetadata] struct{}
 
 func (i *invoker[O, M]) buildPrompt(req *middleware.Request[O, M]) *prompt.ChatPrompt[O] {
-	if req.UserText != "" {
-		req.AddUserMessage(req.UserText)
+	if req.UserText != "" || req.UserMedia != nil {
+		req.AddUserMessage(req.UserText, req.UserParams, req.UserMedia...)
 	}
 	if req.SystemText != "" {
-		req.AddSystemMessage(req.SystemText)
+		req.AddSystemMessage(req.SystemText, req.SystemParams)
 	}
 	p, _ := prompt.
 		NewChatPromptBuilder[O]().

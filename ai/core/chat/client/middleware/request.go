@@ -5,6 +5,7 @@ import (
 	"github.com/Tangerg/lynx/ai/core/chat/metadata"
 	"github.com/Tangerg/lynx/ai/core/chat/model"
 	"github.com/Tangerg/lynx/ai/core/chat/prompt"
+	"github.com/Tangerg/lynx/ai/core/model/media"
 )
 
 // Request is a generic struct representing a chat request in a chat application.
@@ -28,6 +29,7 @@ type Request[O prompt.ChatOptions, M metadata.ChatGenerationMetadata] struct {
 	ChatOptions  O
 	UserText     string
 	UserParams   map[string]any
+	UserMedia    []*media.Media
 	SystemText   string
 	SystemParams map[string]any
 	Messages     []message.ChatMessage
@@ -59,11 +61,11 @@ func (r *Request[O, M]) SetSystemParam(key string, val any) {
 func (r *Request[O, M]) AddMessage(msg ...message.ChatMessage) {
 	r.Messages = append(r.Messages, msg...)
 }
-func (r *Request[O, M]) AddUserMessage(text string) {
-	msg := message.NewUserMessage(text, nil)
+func (r *Request[O, M]) AddUserMessage(text string, metadata map[string]any, m ...*media.Media) {
+	msg := message.NewUserMessage(text, metadata, m...)
 	r.AddMessage(msg)
 }
-func (r *Request[O, M]) AddSystemMessage(text string) {
-	msg := message.NewSystemMessage(text, nil)
+func (r *Request[O, M]) AddSystemMessage(text string, metadata map[string]any) {
+	msg := message.NewSystemMessage(text, metadata)
 	r.AddMessage(msg)
 }

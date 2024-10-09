@@ -1,6 +1,7 @@
 package client
 
 import (
+	"github.com/Tangerg/lynx/ai/core/chat/message"
 	"github.com/Tangerg/lynx/ai/core/chat/metadata"
 	"github.com/Tangerg/lynx/ai/core/chat/prompt"
 )
@@ -75,9 +76,12 @@ func (d *DefaultChatClient[O, M]) PromptPrompt(prompt *prompt.ChatPrompt[O]) Cha
 
 	lastMessage := messages[len(messages)-1]
 	if lastMessage.Type().IsUser() {
+		usermessage := lastMessage.(*message.UserMessage)
 		spec.SetUserPrompt(
 			NewDefaultUserPrompt().
-				SetText(lastMessage.Content()),
+				SetText(usermessage.Content()).
+				SetParams(usermessage.Metadata()).
+				SetMedia(usermessage.Media()...),
 		)
 		messages = messages[:len(messages)-1]
 	}
