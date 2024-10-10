@@ -3,10 +3,12 @@ package embedding
 import (
 	"context"
 	"fmt"
-	"github.com/Tangerg/lynx/ai/core/embedding"
-	"github.com/Tangerg/lynx/ai/models/openai/api"
+
 	"github.com/samber/lo"
 	"github.com/sashabaranov/go-openai"
+
+	"github.com/Tangerg/lynx/ai/core/embedding"
+	"github.com/Tangerg/lynx/ai/models/openai/api"
 )
 
 type OpenAIEmbeddingRequest = embedding.Request[*OpenAIEmbeddingOptions]
@@ -17,12 +19,16 @@ type OpenAIEmbeddingModel struct {
 	openAIApi *api.OpenAIApi
 }
 
+func NewOpenAIEmbeddingModel(openAIApi *api.OpenAIApi) *OpenAIEmbeddingModel {
+	return &OpenAIEmbeddingModel{openAIApi: openAIApi}
+}
+
 func (o *OpenAIEmbeddingModel) createApiRequest(req *OpenAIEmbeddingRequest) *openai.EmbeddingRequestStrings {
 	return &openai.EmbeddingRequestStrings{
 		Input:          req.Instructions(),
-		Model:          "",
+		Model:          openai.SmallEmbedding3,
 		User:           req.Options().User(),
-		EncodingFormat: "",
+		EncodingFormat: "float",
 		Dimensions:     req.Options().Dimensions(),
 	}
 }
