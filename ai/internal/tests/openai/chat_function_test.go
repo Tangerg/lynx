@@ -27,7 +27,7 @@ type weatherRequest struct {
 }
 
 const result = `{
-  "location": "New York",
+  "location": %s,
   "timestamp": {
     "start": %d,
     "end": %d
@@ -73,7 +73,7 @@ func newClient2() client.ChatClient[O, M] {
 			if err != nil {
 				return "", err
 			}
-			return fmt.Sprintf(result, req.StartAt, req.EndAt), nil
+			return fmt.Sprintf(result, req.Location, req.StartAt, req.EndAt), nil
 		}).
 		Build()
 
