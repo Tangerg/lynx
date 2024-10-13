@@ -5,16 +5,21 @@ import (
 )
 
 var camelCaseTestCases = []string{
-	"UserAccountManager",
-	"DataProcessingUnit",
-	"NetworkConfigurationTool",
-	"FileUploadService",
-	"UserProfileSettings",
-	"OrderTrackingSystem",
-	"PaymentGatewayIntegration",
-	"ProductInventoryManager",
-	"ShoppingCartService",
-	"AuthenticationMiddleware",
+	"HTTPRequestHandler",           // 大写缩写混合
+	"User123ProfileData",           // 数字混合
+	"XMLParserUtility",             // 大写缩写前缀
+	"GetHTTPResponseCode",          // 大写缩写与常规单词混合
+	"checkUser2FAStatus",           // 小驼峰命名，包含数字
+	"APIServerHealthCheck",         // 大写缩写
+	"processDataJSONFile",          // 小驼峰命名，包含大写缩写
+	"OAuthTokenGenerator",          // 大写缩写与常规单词混合
+	"Error404Handler",              // 数字与大写字母混合
+	"UserProfilePageV2",            // 版本号与单词混合
+	"emailServiceSMTPConfig",       // 小驼峰命名，带大写缩写
+	"DatabaseConnectionPool",       // 常规驼峰命名
+	"CheckIOStatusPort45",          // 大写缩写、数字和单词混合
+	"ImageProcessingTool2024",      // 年份后缀
+	"verifyUserInput_UTF8Encoding", // 包含非字母符号（下划线）
 }
 var snakeTestCases = []string{
 	"user_account_manager",
@@ -27,6 +32,8 @@ var snakeTestCases = []string{
 	"product_inventory_manager",
 	"shopping_cart_service",
 	"authentication_middleware",
+	"user_123_name",
+	"id_card",
 }
 
 func TestCamelCaseSplit(t *testing.T) {

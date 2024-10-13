@@ -17,39 +17,40 @@ func CamelCaseSplitWith(source string, predicate func(string) string) []string {
 		sb     strings.Builder
 	)
 
-	for i := 1; i < length-1; i++ {
-		prev := runes[i-1]
+	for i := 0; i < length; i++ {
 		cur := runes[i]
-		next := runes[i+1]
+		sb.WriteRune(cur)
 
-		sb.WriteRune(prev)
+		if i < length-1 {
+			next := runes[i+1]
 
-		if unicode.IsLower(prev) &&
-			unicode.IsUpper(cur) {
+			if (unicode.IsLetter(cur) && !unicode.IsLetter(next)) ||
+				(!unicode.IsLetter(cur) && unicode.IsLetter(next)) {
+				parts = append(parts, sb.String())
+				sb.Reset()
+				continue
+			}
 
-			parts = append(parts, sb.String())
-			sb.Reset()
-			continue
-		}
-		if unicode.IsUpper(prev) &&
-			unicode.IsUpper(cur) &&
-			unicode.IsLower(next) {
+			if unicode.IsLower(cur) && unicode.IsUpper(next) {
+				parts = append(parts, sb.String())
+				sb.Reset()
+				continue
+			}
 
-			parts = append(parts, sb.String())
-			sb.Reset()
-			continue
-		}
-
-		if i == length-2 {
-			sb.WriteRune(cur)
-			sb.WriteRune(next)
-			parts = append(parts, sb.String())
-			sb.Reset()
+			if unicode.IsUpper(cur) && unicode.IsUpper(next) && i+2 < length && unicode.IsLower(runes[i+2]) {
+				parts = append(parts, sb.String())
+				sb.Reset()
+				continue
+			}
 		}
 	}
 
+	if sb.Len() > 0 {
+		parts = append(parts, sb.String())
+	}
+
 	if predicate != nil {
-		for i, _ := range parts {
+		for i := range parts {
 			parts[i] = predicate(parts[i])
 		}
 	}
@@ -69,7 +70,15 @@ func CamelCaseToSnakeCase(source string) string {
 	if source == "" {
 		return ""
 	}
-	return strings.Join(CamelCaseSplitToLower(source), "_")
+	words := CamelCaseSplitWith(source, nil)
+	newWords := make([]string, 0, len(words))
+	for _, word := range words {
+		if word == "_" || word == "" {
+			continue
+		}
+		newWords = append(newWords, strings.ToLower(word))
+	}
+	return strings.Join(newWords, "_")
 }
 
 func SnakeCaseSplitWith(source string, predicate func(string) string) []string {
