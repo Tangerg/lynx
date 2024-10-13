@@ -4,6 +4,16 @@ import (
 	"runtime"
 )
 
+var lineSeparator string
+
+func init() {
+	if runtime.GOOS == "windows" {
+		lineSeparator = "\r\n"
+	} else {
+		lineSeparator = "\n"
+	}
+}
+
 /*
 LineSeparator
 Returns the system-dependent line separator string. It always returns the same value - the initial value of the system property line. separator.
@@ -12,8 +22,5 @@ Returns:
 the system-dependent line separator string
 */
 func LineSeparator() string {
-	if runtime.GOOS == "windows" {
-		return "\r\n"
-	}
-	return "\n"
+	return lineSeparator
 }

@@ -1,5 +1,9 @@
 package document
 
+import (
+	"context"
+)
+
 type Writer interface {
-	Write(docs []*Document) error
+	Write(ctx context.Context, docs []*Document) error
 }

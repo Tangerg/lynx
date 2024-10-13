@@ -32,15 +32,17 @@ func (d *Document) Media() []*media.Media {
 	return d.media
 }
 
-func (d *Document) SetEmbedding(embedding []float64) {
+func (d *Document) SetEmbedding(embedding []float64) *Document {
 	d.embedding = embedding
+	return d
 }
 
 func (d *Document) Embedding() []float64 {
 	return d.embedding
 }
-func (d *Document) SetContentFormatter(formatter ContentFormatter) {
+func (d *Document) SetContentFormatter(formatter ContentFormatter) *Document {
 	d.contentFormatter = formatter
+	return d
 }
 func (d *Document) ContentFormatter() ContentFormatter {
 	return d.contentFormatter
