@@ -1,5 +1,7 @@
 package document
 
+import "context"
+
 type Transformer interface {
-	Transform([]*Document) ([]*Document, error)
+	Transform(ctx context.Context, docs []*Document) ([]*Document, error)
 }
