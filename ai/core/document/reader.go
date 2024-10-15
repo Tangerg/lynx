@@ -1,5 +1,7 @@
 package document
 
+import "context"
+
 type Reader interface {
-	Read() ([]*Document, error)
+	Read(ctx context.Context) ([]*Document, error)
 }

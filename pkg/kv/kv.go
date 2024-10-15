@@ -142,3 +142,7 @@ func NewKSVA(lens ...int) KSVA {
 func Of[K comparable, V any](kv KV[K, V]) KV[K, V] {
 	return New[K, V](kv.Size()).PutAll(kv)
 }
+
+func As[K comparable, V any](m map[K]V) KV[K, V] {
+	return m
+}
