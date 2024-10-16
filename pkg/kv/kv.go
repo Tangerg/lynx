@@ -16,22 +16,22 @@ func (m KV[K, V]) IsEmpty() bool {
 	return m.Size() == 0
 }
 
-// Value returns the value associated with the specified key and a boolean indicating whether the key exists.
-func (m KV[K, V]) Value(k K) (V, bool) {
+// Get returns the value associated with the specified key and a boolean indicating whether the key exists.
+func (m KV[K, V]) Get(k K) (V, bool) {
 	v, ok := m[k]
 	return v, ok
 }
 
-// Get retrieves the value associated with the specified key.
+// Value retrieves the value associated with the specified key.
 // If the key does not exist, the zero value for the value type is returned.
-func (m KV[K, V]) Get(k K) V {
+func (m KV[K, V]) Value(k K) V {
 	return m[k]
 }
 
 // GetOrDefault retrieves the value associated with the specified key,
 // or returns the provided default value if the key does not exist.
 func (m KV[K, V]) GetOrDefault(k K, def V) V {
-	if v, ok := m.Value(k); ok {
+	if v, ok := m.Get(k); ok {
 		return v
 	}
 	return def
@@ -65,7 +65,7 @@ func (m KV[K, V]) PutIfAbsent(k K, v V) KV[K, V] {
 // Remove deletes a key-value pair from the map based on the specified key.
 // It returns the removed value.
 func (m KV[K, V]) Remove(k K) V {
-	get := m.Get(k)
+	get := m.Value(k)
 	delete(m, k)
 	return get
 }
@@ -119,7 +119,7 @@ func (m KV[K, V]) ForEach(f func(k K, v V)) {
 // a pointer to the Reply struct.
 func (m KV[K, V]) GetReply(k K) *Reply {
 	return &Reply{
-		v: m.Get(k),
+		v: m.Value(k),
 	}
 }
 
