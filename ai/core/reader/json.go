@@ -4,15 +4,18 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"github.com/Tangerg/lynx/ai/core/document"
 	"io"
 	"unicode"
+
+	"github.com/Tangerg/lynx/ai/core/document"
+	pkgio "github.com/Tangerg/lynx/pkg/io"
 )
 
 var _ document.Reader = (*JSONReader)(nil)
 
 type JSONReader struct {
-	reader io.Reader
+	reader         io.Reader
+	readBufferSize int
 }
 
 func (j *JSONReader) maybeArray(data []byte) bool {
@@ -46,7 +49,7 @@ func (j *JSONReader) tryParseToArray(v []byte) ([]*document.Document, error) {
 }
 
 func (j *JSONReader) Read(_ context.Context) ([]*document.Document, error) {
-	v, err := io.ReadAll(j.reader)
+	v, err := pkgio.ReadAll(j.reader, j.readBufferSize)
 	if err != nil {
 		return nil, err
 	}
@@ -64,6 +67,13 @@ func (j *JSONReader) Read(_ context.Context) ([]*document.Document, error) {
 	}, nil
 }
 
-func NewJSONReader(reader io.Reader) *JSONReader {
-	return &JSONReader{reader: reader}
+func NewJSONReader(reader io.Reader, sizes ...int) *JSONReader {
+	var size = 8192
+	if len(sizes) > 0 && sizes[0] > 0 {
+		size = sizes[0]
+	}
+	return &JSONReader{
+		reader:         reader,
+		readBufferSize: size,
+	}
 }

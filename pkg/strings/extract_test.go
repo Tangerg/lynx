@@ -24,7 +24,7 @@ func TestDeleteTopTextLines(t *testing.T) {
 }
 
 func TestDeleteBottomTextLines(t *testing.T) {
-	text := "Line 1\nLine 2\nLine 3\nLine 4"
-	result := DeleteBottomTextLines(text, 5)
+	text := "Line 1\nLine 2\nLine 3\nLine 4\r\nLine 5"
+	result := DeleteBottomTextLines(text, 1)
 	t.Log(result)
 }

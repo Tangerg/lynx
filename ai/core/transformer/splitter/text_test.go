@@ -2,8 +2,9 @@ package splitter
 
 import (
 	"context"
-	"github.com/Tangerg/lynx/ai/core/document"
 	"testing"
+
+	"github.com/Tangerg/lynx/ai/core/document"
 )
 
 func TestTextSplitter(t *testing.T) {

@@ -2,10 +2,10 @@ package reader
 
 import (
 	"context"
-	"errors"
-	"github.com/Tangerg/lynx/ai/core/document"
 	"io"
-	"strings"
+
+	"github.com/Tangerg/lynx/ai/core/document"
+	pkgio "github.com/Tangerg/lynx/pkg/io"
 )
 
 var _ document.Reader = (*TextReader)(nil)
@@ -16,21 +16,13 @@ type TextReader struct {
 }
 
 func (t *TextReader) Read(_ context.Context) ([]*document.Document, error) {
-	buffer := make([]byte, 0, t.readBufferSize)
-	sb := strings.Builder{}
-	for {
-		_, err := t.reader.Read(buffer)
-		if err != nil {
-			if errors.Is(err, io.EOF) {
-				break
-			}
-			return nil, err
-		}
-		sb.Write(buffer)
+	buffer, err := pkgio.ReadAll(t.reader, t.readBufferSize)
+	if err != nil {
+		return nil, err
 	}
 	return []*document.Document{
 		document.NewBuilder().
-			WithContent(sb.String()).
+			WithContent(string(buffer)).
 			Build(),
 	}, nil
 }

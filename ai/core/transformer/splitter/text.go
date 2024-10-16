@@ -2,9 +2,10 @@ package splitter
 
 import (
 	"context"
+	"strings"
+
 	"github.com/Tangerg/lynx/ai/core/document"
 	"github.com/Tangerg/lynx/pkg/kv"
-	"strings"
 )
 
 var _ document.Transformer = (*TextSplitter)(nil)

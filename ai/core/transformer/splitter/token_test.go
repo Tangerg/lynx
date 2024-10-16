@@ -2,9 +2,10 @@ package splitter
 
 import (
 	"context"
+	"testing"
+
 	"github.com/Tangerg/lynx/ai/core/document"
 	"github.com/Tangerg/lynx/ai/core/tokenizer"
-	"testing"
 )
 
 const content = `GPT-4o has safety built-in by design across modalities, through techniques such as filtering training data and refining the model’s behavior through post-training. We have also created new safety systems to provide guardrails on voice outputs.

@@ -1,9 +1,12 @@
 package splitter
 
 import (
+	"context"
+	"strings"
+
+	"github.com/Tangerg/lynx/ai/core/document"
 	"github.com/Tangerg/lynx/ai/core/tokenizer"
 	pkgSystem "github.com/Tangerg/lynx/pkg/system"
-	"strings"
 )
 
 type TokenSplitter struct {
@@ -14,6 +17,13 @@ type TokenSplitter struct {
 	minChunkLengthToEmbed int
 	maxNumChunks          int
 	keepSeparator         bool
+}
+
+func (t *TokenSplitter) Transform(_ context.Context, documents []*document.Document) ([]*document.Document, error) {
+	if t.TextSplitFunc == nil {
+		t.TextSplitFunc = t.splitText
+	}
+	return t.doSplitDocuments(documents), nil
 }
 
 func (t *TokenSplitter) splitText(text string) []string {
@@ -81,17 +91,15 @@ func (t *TokenSplitter) doSplit(text string, chunkSize int) []string {
 }
 
 func NewTokenSplitterBuilder(tokenizer tokenizer.Tokenizer) *TokenSplitterBuilder {
-	ts := &TokenSplitter{
-		tokenizer:             tokenizer,
-		defaultChunkSize:      800,
-		minChunkSizeChars:     350,
-		minChunkLengthToEmbed: 5,
-		maxNumChunks:          10000,
-		keepSeparator:         true,
-	}
-	ts.TextSplitFunc = ts.splitText
 	return &TokenSplitterBuilder{
-		ts: ts,
+		ts: &TokenSplitter{
+			tokenizer:             tokenizer,
+			defaultChunkSize:      800,
+			minChunkSizeChars:     350,
+			minChunkLengthToEmbed: 5,
+			maxNumChunks:          10000,
+			keepSeparator:         true,
+		},
 	}
 }
 

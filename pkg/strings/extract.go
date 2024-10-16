@@ -1,9 +1,10 @@
 package strings
 
 import (
-	pkgSystem "github.com/Tangerg/lynx/pkg/system"
 	"regexp"
 	"strings"
+
+	pkgSystem "github.com/Tangerg/lynx/pkg/system"
 )
 
 var (
@@ -15,7 +16,6 @@ var (
 
 func AlignToLeft(text string) string {
 	text = spacesRegex.ReplaceAllString(text, "")
-	text = emptyLinesRegex.ReplaceAllString(text, "\r\n")
 	text = emptyLinesRegex.ReplaceAllString(text, "\n")
 	return text
 }
