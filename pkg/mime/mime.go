@@ -240,3 +240,10 @@ func (m *Mime) IsMoreSpecific(other *Mime) bool {
 func (m *Mime) IsLessSpecific(other *Mime) bool {
 	return !m.IsMoreSpecific(other)
 }
+
+func (m *Mime) Clone() *Mime {
+	newM, _ := NewBuilder().
+		FromMime(m).
+		Build()
+	return newM
+}

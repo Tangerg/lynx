@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-var extToMimeType = map[string]string{
+var extToMimeTypeString = map[string]string{
 	".xlsx":          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
 	".xltx":          "application/vnd.openxmlformats-officedocument.spreadsheetml.template",
 	".potx":          "application/vnd.openxmlformats-officedocument.presentationml.template",
@@ -561,10 +561,10 @@ var extToMimeType = map[string]string{
 	".json":          "application/json",
 }
 
-func TypeByExtension(filePath string) string {
+func StringTypeByExtension(filePath string) string {
 	m := mime.TypeByExtension(path.Ext(filePath))
 	if m == "" {
-		m = extToMimeType[strings.ToLower(path.Ext(filePath))]
+		m = extToMimeTypeString[strings.ToLower(path.Ext(filePath))]
 		if m == "" {
 			m = "application/octet-stream"
 		}
