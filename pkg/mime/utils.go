@@ -5,6 +5,8 @@ import (
 	"github.com/Tangerg/lynx/pkg/kv"
 	"github.com/gabriel-vasile/mimetype"
 	"io"
+	"mime"
+	"path"
 	"strings"
 )
 
@@ -20,11 +22,8 @@ func New(_type string, subType string) (*Mime, error) {
 }
 
 func newMime(_type string, subType string) *Mime {
-	mime, _ := NewBuilder().
-		WithType(_type).
-		WithSubType(subType).
-		Build()
-	return mime
+	m, _ := New(_type, subType)
+	return m
 }
 
 func Parse(mime string) (*Mime, error) {
@@ -108,4 +107,39 @@ func DetectFile(path string) (*Mime, error) {
 		return nil, err
 	}
 	return Parse(m.String())
+}
+
+func StringTypeByExtension(filePath string) string {
+	m := mime.TypeByExtension(path.Ext(filePath))
+	if m == "" {
+		m = extToMimeTypeString[strings.ToLower(path.Ext(filePath))]
+		if m == "" {
+			m = "application/octet-stream"
+		}
+	}
+	return m
+}
+
+func TypeByExtension(ext string) (*Mime, bool) {
+	mimt, ok := extToMimeType[ext]
+	if ok {
+		return mimt.Clone(), ok
+	}
+	return nil, false
+}
+
+func IsVideo(m *Mime) bool {
+	return video.EqualsType(m)
+}
+func IsAudio(m *Mime) bool {
+	return audio.EqualsType(m)
+}
+func IsImage(m *Mime) bool {
+	return image.EqualsType(m)
+}
+func IsText(m *Mime) bool {
+	return text.EqualsType(m)
+}
+func IsApplication(m *Mime) bool {
+	return application.EqualsType(m)
 }

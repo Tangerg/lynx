@@ -1,10 +1,7 @@
 package mime
 
 import (
-	"fmt"
 	"github.com/Tangerg/lynx/pkg/kv"
-	pkgStrings "github.com/Tangerg/lynx/pkg/strings"
-	"github.com/bits-and-blooms/bitset"
 	"strings"
 )
 
@@ -13,65 +10,12 @@ const (
 	paramCharset = "charset"
 )
 
-var tokenBitSet = bitset.New(128)
-
-func init() {
-	ctl := bitset.New(128)
-	for i := 0; i < 31; i++ {
-		ctl.Set(uint(i))
-	}
-	ctl.Set(127)
-	separatorChars := []rune{
-		'(', ')', '<', '>', '@', ',', ';', ':', '\\', '"',
-		'/', '[', ']', '?', '=', '{', '}', ' ', '\t',
-	}
-	separators := bitset.New(128)
-	for _, char := range separatorChars {
-		separators.Set(uint(char))
-	}
-	for i := uint(0); i < 128; i++ {
-		tokenBitSet.Set(i)
-	}
-	tokenBitSet.InPlaceSymmetricDifference(ctl)
-	tokenBitSet.InPlaceSymmetricDifference(separators)
-}
-
 type Mime struct {
 	_type       string
 	subType     string
 	charset     string
 	params      kv.KV[string, string]
 	stringValue string
-}
-
-func (m *Mime) checkToken(token string) error {
-	for _, char := range token {
-		if !tokenBitSet.Test(uint(char)) {
-			return fmt.Errorf("invalid character %s in token: %s", string(char), token)
-		}
-	}
-	return nil
-}
-
-func (m *Mime) checkParam(k string, v string) error {
-	err := m.checkToken(k)
-	if err != nil {
-		return err
-	}
-	if pkgStrings.IsQuoted(v) {
-		return nil
-	}
-	return m.checkToken(v)
-}
-
-func (m *Mime) checkParams() error {
-	for k, v := range m.params {
-		err := m.checkParam(k, v)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 func (m *Mime) formatStringValue() {
