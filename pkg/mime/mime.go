@@ -13,7 +13,7 @@ const (
 	paramCharset = "charset"
 )
 
-var tokenBitSet *bitset.BitSet
+var tokenBitSet = bitset.New(128)
 
 func init() {
 	ctl := bitset.New(128)
@@ -29,7 +29,6 @@ func init() {
 	for _, char := range separatorChars {
 		separators.Set(uint(char))
 	}
-	tokenBitSet = bitset.New(128)
 	for i := uint(0); i < 128; i++ {
 		tokenBitSet.Set(i)
 	}
@@ -59,16 +58,10 @@ func (m *Mime) checkParam(k string, v string) error {
 	if err != nil {
 		return err
 	}
-	if k == paramCharset {
-		if m.charset == "" {
-			m.charset = pkgStrings.UnQuote(v)
-		}
+	if pkgStrings.IsQuoted(v) {
 		return nil
 	}
-	if !pkgStrings.IsQuoted(v) {
-		return m.checkToken(v)
-	}
-	return nil
+	return m.checkToken(v)
 }
 
 func (m *Mime) checkParams() error {

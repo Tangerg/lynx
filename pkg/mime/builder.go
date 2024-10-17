@@ -2,6 +2,7 @@ package mime
 
 import (
 	"github.com/Tangerg/lynx/pkg/kv"
+	pkgStrings "github.com/Tangerg/lynx/pkg/strings"
 	"strings"
 )
 
@@ -10,20 +11,21 @@ type Builder struct {
 }
 
 func (b *Builder) WithType(typ string) *Builder {
-	b.mime._type = strings.ToLower(typ)
+	b.mime._type = pkgStrings.UnQuote(strings.ToLower(typ))
 	return b
 }
 func (b *Builder) WithSubType(subType string) *Builder {
-	b.mime.subType = strings.ToLower(subType)
+	b.mime.subType = pkgStrings.UnQuote(strings.ToLower(subType))
 	return b
 }
 func (b *Builder) WithCharset(charset string) *Builder {
-	charset = strings.ToUpper(charset)
+	charset = pkgStrings.UnQuote(strings.ToUpper(charset))
 	b.mime.charset = charset
 	b.mime.params.Put(paramCharset, charset)
 	return b
 }
 func (b *Builder) WithParam(key string, value string) *Builder {
+	key = pkgStrings.UnQuote(strings.ToLower(key))
 	if key == paramCharset {
 		return b.WithCharset(value)
 	}
@@ -55,6 +57,12 @@ func (b *Builder) Build() (*Mime, error) {
 	err = b.mime.checkToken(b.mime.subType)
 	if err != nil {
 		return nil, err
+	}
+	if b.mime.charset != "" {
+		err = b.mime.checkToken(b.mime.charset)
+		if err != nil {
+			return nil, err
+		}
 	}
 	err = b.mime.checkParams()
 	if err != nil {
