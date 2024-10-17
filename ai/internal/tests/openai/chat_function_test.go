@@ -34,13 +34,13 @@ const result = `{
   },
   "temperature": {
     "value": 20,
-    "unit": "Celsius"
+    "dataunit": "Celsius"
   },
   "condition": "Sunny",
   "humidity": 55,
   "wind": {
     "speed": 10,
-    "unit": "km/h",
+    "dataunit": "km/h",
     "direction": "North-East"
   },
   "source": "WeatherAPI"
