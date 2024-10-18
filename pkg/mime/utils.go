@@ -2,12 +2,14 @@ package mime
 
 import (
 	"errors"
-	"github.com/Tangerg/lynx/pkg/kv"
-	"github.com/gabriel-vasile/mimetype"
 	"io"
 	"mime"
 	"path"
 	"strings"
+
+	"github.com/gabriel-vasile/mimetype"
+
+	"github.com/Tangerg/lynx/pkg/kv"
 )
 
 var (
