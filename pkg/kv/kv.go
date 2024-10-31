@@ -1,5 +1,7 @@
 package kv
 
+import "iter"
+
 // KV is a generic key-value map with comparable keys and any type of values.
 type KV[K comparable, V any] map[K]V
 
@@ -103,8 +105,19 @@ func (m KV[K, V]) Values() []V {
 
 // Clone creates and returns a shallow copy of the current map.
 func (m KV[K, V]) Clone() KV[K, V] {
-	return New[K, V](m.Size()).
-		PutAll(m)
+	return New[K, V](m.Size()).PutAll(m)
+}
+
+// Iterator returns a sequence function that iterates over the key-value pairs
+// in the KV map. The iteration stops if the yield function returns false.
+func (m KV[K, V]) Iterator() iter.Seq2[K, V] {
+	return func(yield func(key K, value V) bool) {
+		for k, v := range m {
+			if !yield(k, v) {
+				return
+			}
+		}
+	}
 }
 
 // ForEach iterates over all key-value pairs in the map and applies the provided function.
@@ -143,6 +156,7 @@ func Of[K comparable, V any](kv KV[K, V]) KV[K, V] {
 	return New[K, V](kv.Size()).PutAll(kv)
 }
 
+// As easy to use map
 func As[K comparable, V any](m map[K]V) KV[K, V] {
 	return m
 }
