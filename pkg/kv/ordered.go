@@ -76,7 +76,7 @@ func (m *OrderedKV[K, V]) tryUnmarshalMap(key K, bs []byte) {
 	om := NewOrderedKV[string, any]()
 	_ = json.Unmarshal(bs, om)
 
-	// only put value while V's Type is any|interface
+	// only put value while V's Type is any|interface|OrderedKV
 	v, ok := reflect.ValueOf(om).Interface().(V)
 	if ok {
 		m.Put(key, v)
