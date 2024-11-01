@@ -3,10 +3,12 @@ package kv
 import (
 	"bytes"
 	"encoding/json"
-	xstrings "github.com/Tangerg/lynx/pkg/strings"
 	"iter"
+	"reflect"
 	"slices"
 	"strings"
+
+	xstrings "github.com/Tangerg/lynx/pkg/strings"
 )
 
 var _ json.Marshaler = (*OrderedKV[any, any])(nil)
@@ -52,9 +54,33 @@ func (m *OrderedKV[K, V]) UnmarshalJSON(bs []byte) error {
 
 		// need to consume value token to ensure next token is key
 		_ = decoder.Decode(&rawValue)
+		m.tryUnmarshalMap(key, rawValue)
 	}
 
 	return nil
+}
+
+func (m *OrderedKV[K, V]) tryUnmarshalMap(key K, bs []byte) {
+	if len(bs) < 2 {
+		return
+	}
+	if !(bs[0] == '{' && bs[len(bs)-1] == '}') {
+		return
+	}
+	mv := m.Value(key)
+	kind := reflect.ValueOf(mv).Kind()
+	if kind != reflect.Map {
+		return
+	}
+
+	om := NewOrderedKV[string, any]()
+	_ = json.Unmarshal(bs, om)
+
+	// only put value while V's Type is any|interface
+	v, ok := reflect.ValueOf(om).Interface().(V)
+	if ok {
+		m.Put(key, v)
+	}
 }
 
 // MarshalJSON implement [json.Marshaler]

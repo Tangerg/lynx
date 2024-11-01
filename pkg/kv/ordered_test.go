@@ -144,6 +144,42 @@ func TestNewOrderedKV6(t *testing.T) {
 	})
 }
 
+func TestNewOrderedKV7(t *testing.T) {
+	m1 := NewOrderedKV[string, map[string]string]()
+	m1.Put("address", map[string]string{
+		"city":    "New York",
+		"zipcode": "10001",
+	})
+	v, _ := json.Marshal(m1)
+	t.Log(string(v))
+	m2 := NewOrderedKV[string, map[string]string]()
+	err := json.Unmarshal(v, &m2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m2.ForEach(func(k string, v map[string]string) {
+		t.Log(k, v)
+	})
+
+	m3 := NewOrderedKV[string, any]()
+	err = json.Unmarshal(v, &m3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m3.ForEach(func(k string, v any) {
+		t.Log(k, v)
+	})
+
+	m4 := NewOrderedKV[string, *OrderedKV[string, string]]()
+	err = json.Unmarshal(v, &m4)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m4.ForEach(func(k string, v *OrderedKV[string, string]) {
+		t.Log(k, v)
+	})
+}
+
 func BenchmarkOrderedKVMarshal(b *testing.B) {
 	m1 := NewOrderedKV[string, any]()
 	m1.Put("name", "Alice")
