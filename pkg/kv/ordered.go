@@ -52,7 +52,6 @@ func (m *OrderedKV[K, V]) UnmarshalJSON(bs []byte) error {
 		key := keys[keyStr]
 		m.keys = append(m.keys, key)
 
-		// need to consume value token to ensure next token is key
 		_ = decoder.Decode(&rawValue)
 		m.tryUnmarshalMap(key, rawValue)
 	}
@@ -67,20 +66,18 @@ func (m *OrderedKV[K, V]) tryUnmarshalMap(key K, bs []byte) {
 	if !(bs[0] == '{' && bs[len(bs)-1] == '}') {
 		return
 	}
-	mv := m.Value(key)
-	kind := reflect.ValueOf(mv).Kind()
-	if kind != reflect.Map {
+	if reflect.ValueOf(m.Value(key)).Kind() != reflect.Map {
 		return
 	}
 
 	om := NewOrderedKV[string, any]()
-	_ = json.Unmarshal(bs, om)
-
 	// only put value while V's Type is any|interface|OrderedKV
-	v, ok := reflect.ValueOf(om).Interface().(V)
-	if ok {
-		m.Put(key, v)
+	value, ok := reflect.ValueOf(om).Interface().(V)
+	if !ok {
+		return
 	}
+	_ = om.UnmarshalJSON(bs)
+	m.Put(key, value)
 }
 
 // MarshalJSON implement [json.Marshaler]
