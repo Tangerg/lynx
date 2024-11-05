@@ -2,15 +2,28 @@ package model
 
 import "context"
 
-// Model is a generic interface that defines a contract for executing a call with a request and returning a response.
-// It is parameterized with two types: TReq and TRes, which represent the request and response types respectively.
+// Model defines a contract for executing a request and returning a response.
+// It uses generic types for flexibility.
 //
 // Type Parameters:
-//   - TReq: Represents the type of the request object that will be passed to the Call method.
-//   - TRes: Represents the type of the response object that will be returned by the Call method.
+//   - Req: The request type.
+//   - Res: The response type.
 //
 // Methods:
-//   - Call(ctx context.Context, req TReq) (TRes, error): This method takes a context and a request of type TReq, and returns a response of type TRes along with an error. The context is used to control the lifetime of the request, allowing for cancellation and timeout management.
-type Model[TReq any, TRes any] interface {
-	Call(ctx context.Context, req TReq) (TRes, error)
+//   - Call: Executes with a given context and request, returning a response and an error.
+type Model[Req any, Res any] interface {
+	Call(ctx context.Context, req Req) (Res, error)
+}
+
+// StreamingModel defines a contract for executing a streaming operation.
+// It also uses generic types for flexibility.
+//
+// Type Parameters:
+//   - Req: The request type.
+//   - Res: The response type.
+//
+// Methods:
+//   - Stream: Initiates a streaming operation with a given context and request, returning a response and an error.
+type StreamingModel[Req any, Res any] interface {
+	Stream(ctx context.Context, req Req) (Res, error)
 }

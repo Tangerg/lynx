@@ -12,6 +12,7 @@ type Media struct {
 func (m *Media) MimeType() *pkgmime.Mime {
 	return m.mimeType
 }
+
 func (m *Media) Data() []byte {
 	return m.data
 }

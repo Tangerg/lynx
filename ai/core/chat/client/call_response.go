@@ -6,9 +6,9 @@ import (
 	"github.com/Tangerg/lynx/ai/core/chat/client/middleware"
 	"github.com/Tangerg/lynx/ai/core/chat/client/middleware/outputguide"
 	"github.com/Tangerg/lynx/ai/core/chat/completion"
+	"github.com/Tangerg/lynx/ai/core/chat/converter"
 	"github.com/Tangerg/lynx/ai/core/chat/metadata"
 	"github.com/Tangerg/lynx/ai/core/chat/prompt"
-	"github.com/Tangerg/lynx/ai/core/converter"
 )
 
 // CallResponse is a generic interface that defines the contract for handling responses

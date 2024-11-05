@@ -1,8 +1,10 @@
 package embedding
 
-import "github.com/Tangerg/lynx/ai/core/embedding"
+import (
+	"github.com/Tangerg/lynx/ai/core/embedding/request"
+)
 
-var _ embedding.Options = (*OpenAIEmbeddingOptions)(nil)
+var _ request.EmbeddingRequestOptions = (*OpenAIEmbeddingOptions)(nil)
 
 type OpenAIEmbeddingOptions struct {
 	model          string

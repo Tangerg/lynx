@@ -3,13 +3,14 @@ package document
 import (
 	"github.com/Tangerg/lynx/ai/core/document/id"
 	"github.com/Tangerg/lynx/ai/core/model/media"
+	"github.com/Tangerg/lynx/pkg/kv"
 )
 
 var _ media.Content = (*Document)(nil)
 
 type Document struct {
 	id               string
-	metadata         map[string]any
+	metadata         kv.KSVA
 	content          string
 	media            []*media.Media
 	embedding        []float64

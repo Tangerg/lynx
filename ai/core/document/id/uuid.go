@@ -1,6 +1,10 @@
 package id
 
-import "github.com/google/uuid"
+import (
+	"github.com/google/uuid"
+)
+
+var _ Generator = (*UUIDGenerator)(nil)
 
 type UUIDGenerator struct {
 }

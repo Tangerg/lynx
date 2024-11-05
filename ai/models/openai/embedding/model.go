@@ -3,17 +3,20 @@ package embedding
 import (
 	"context"
 	"fmt"
+	"github.com/Tangerg/lynx/ai/core/embedding/model"
+	"github.com/Tangerg/lynx/ai/core/embedding/request"
+	"github.com/Tangerg/lynx/ai/core/embedding/response"
+	"github.com/Tangerg/lynx/ai/core/embedding/result"
 
 	"github.com/samber/lo"
 	"github.com/sashabaranov/go-openai"
 
-	"github.com/Tangerg/lynx/ai/core/embedding"
 	"github.com/Tangerg/lynx/ai/models/openai/api"
 )
 
-type OpenAIEmbeddingRequest = embedding.Request[*OpenAIEmbeddingOptions]
+type OpenAIEmbeddingRequest = request.EmbeddingRequest[*OpenAIEmbeddingOptions]
 
-var _ embedding.Model[*OpenAIEmbeddingOptions] = (*OpenAIEmbeddingModel)(nil)
+var _ model.EmbeddingModel[*OpenAIEmbeddingOptions] = (*OpenAIEmbeddingModel)(nil)
 
 type OpenAIEmbeddingModel struct {
 	openAIApi *api.OpenAIApi
@@ -33,11 +36,11 @@ func (o *OpenAIEmbeddingModel) createApiRequest(req *OpenAIEmbeddingRequest) *op
 	}
 }
 
-func (o *OpenAIEmbeddingModel) createResponse(resp *openai.EmbeddingResponse) *embedding.Response {
-	ebds := make([]*embedding.Embedding, 0, len(resp.Data))
+func (o *OpenAIEmbeddingModel) createResponse(resp *openai.EmbeddingResponse) *response.EmbeddingResponse {
+	ebds := make([]*result.EmbeddingResult, 0, len(resp.Data))
 	for _, data := range resp.Data {
 		ebds = append(ebds,
-			embedding.NewEmbedding(
+			result.NewEmbedding(
 				lo.Map(data.Embedding, func(item float32, index int) float64 {
 					return float64(item)
 				}),
@@ -45,11 +48,11 @@ func (o *OpenAIEmbeddingModel) createResponse(resp *openai.EmbeddingResponse) *e
 				nil),
 		)
 	}
-	rv := embedding.NewResponse(ebds, nil)
+	rv := response.NewEmbeddingResponse(ebds, nil)
 	return rv
 }
 
-func (o *OpenAIEmbeddingModel) Call(ctx context.Context, req *OpenAIEmbeddingRequest) (*embedding.Response, error) {
+func (o *OpenAIEmbeddingModel) Call(ctx context.Context, req *OpenAIEmbeddingRequest) (*response.EmbeddingResponse, error) {
 	ereq := o.createApiRequest(req)
 	embeddings, err := o.openAIApi.CreateEmbeddings(ctx, ereq)
 	if err != nil {

@@ -1,42 +1,13 @@
-package prompt
+package request
 
 import (
 	"context"
 	"errors"
-
-	"github.com/Tangerg/lynx/ai/core/model"
 )
 
-// ChatOptions interface defines a set of methods for configuring model generation options.
-type ChatOptions interface {
-	model.RequestOptions
+var _ ChatRequestOptions = (*DefaultChatRequestOptions)(nil)
 
-	// Model returns a pointer to a string representing the name of the model to be used.
-	Model() *string
-
-	// MaxTokens returns a pointer to an int64 representing the maximum number of tokens to generate.
-	MaxTokens() *int64
-
-	// PresencePenalty returns a pointer to a float64 used to set the penalty for the presence of certain tokens in the generated text.
-	PresencePenalty() *float64
-
-	// StopSequences returns a slice of strings containing the sequences that will stop the text generation.
-	StopSequences() []string
-
-	// Temperature returns a pointer to a float64 used to set the randomness of the text generation.
-	Temperature() *float64
-
-	// TopK returns a pointer to an int64 used to set the top-k sampling parameter for text generation.
-	TopK() *int64
-
-	// TopP returns a pointer to a float64 used to set the nucleus sampling parameter for text generation.
-	TopP() *float64
-
-	// Clone returns a new instance of ChatOptions, copying the current configuration.
-	Clone() ChatOptions
-}
-
-type DefaultChatOptions struct {
+type DefaultChatRequestOptions struct {
 	model           *string
 	maxTokens       *int64
 	presencePenalty *float64
@@ -47,38 +18,38 @@ type DefaultChatOptions struct {
 	streamFunc      func(ctx context.Context, chunk []byte) error
 }
 
-func (d *DefaultChatOptions) StreamFunc() func(ctx context.Context, chunk []byte) error {
+func (d *DefaultChatRequestOptions) StreamFunc() func(ctx context.Context, chunk []byte) error {
 	return d.streamFunc
 }
-func (d *DefaultChatOptions) Model() *string {
+func (d *DefaultChatRequestOptions) Model() *string {
 	return d.model
 }
 
-func (d *DefaultChatOptions) MaxTokens() *int64 {
+func (d *DefaultChatRequestOptions) MaxTokens() *int64 {
 	return d.maxTokens
 }
 
-func (d *DefaultChatOptions) PresencePenalty() *float64 {
+func (d *DefaultChatRequestOptions) PresencePenalty() *float64 {
 	return d.presencePenalty
 }
 
-func (d *DefaultChatOptions) StopSequences() []string {
+func (d *DefaultChatRequestOptions) StopSequences() []string {
 	return d.stopSequences
 }
 
-func (d *DefaultChatOptions) Temperature() *float64 {
+func (d *DefaultChatRequestOptions) Temperature() *float64 {
 	return d.temperature
 }
 
-func (d *DefaultChatOptions) TopK() *int64 {
+func (d *DefaultChatRequestOptions) TopK() *int64 {
 	return d.topK
 }
 
-func (d *DefaultChatOptions) TopP() *float64 {
+func (d *DefaultChatRequestOptions) TopP() *float64 {
 	return d.topP
 }
 
-func (d *DefaultChatOptions) Clone() ChatOptions {
+func (d *DefaultChatRequestOptions) Clone() ChatRequestOptions {
 	builder := NewDefaultChatOptionsBuilder()
 	if d.model != nil {
 		builder.WithModel(*d.model)
@@ -107,12 +78,12 @@ func (d *DefaultChatOptions) Clone() ChatOptions {
 }
 
 type DefaultChatOptionsBuilder struct {
-	options *DefaultChatOptions
+	options *DefaultChatRequestOptions
 }
 
 func NewDefaultChatOptionsBuilder() *DefaultChatOptionsBuilder {
 	return &DefaultChatOptionsBuilder{
-		options: &DefaultChatOptions{},
+		options: &DefaultChatRequestOptions{},
 	}
 }
 
@@ -148,7 +119,7 @@ func (d *DefaultChatOptionsBuilder) WithStreamFunc(f func(ctx context.Context, c
 	d.options.streamFunc = f
 	return d
 }
-func (d *DefaultChatOptionsBuilder) Build() (ChatOptions, error) {
+func (d *DefaultChatOptionsBuilder) Build() (*DefaultChatRequestOptions, error) {
 	if d.options.model != nil {
 		return nil, errors.New("model is required")
 	}
