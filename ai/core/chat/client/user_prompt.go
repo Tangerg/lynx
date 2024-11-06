@@ -1,8 +1,9 @@
 package client
 
 import (
-	"github.com/Tangerg/lynx/ai/core/model/media"
 	"strings"
+
+	"github.com/Tangerg/lynx/ai/core/model/media"
 )
 
 // UserPrompt is an interface that defines the contract for managing user prompts

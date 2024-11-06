@@ -8,8 +8,8 @@ import (
 	"github.com/samber/lo"
 
 	"github.com/Tangerg/lynx/ai/core/chat/client/middleware"
-	"github.com/Tangerg/lynx/ai/core/chat/metadata"
-	"github.com/Tangerg/lynx/ai/core/chat/prompt"
+	"github.com/Tangerg/lynx/ai/core/chat/request"
+	"github.com/Tangerg/lynx/ai/core/chat/result"
 )
 
 var ErrorSensitiveUserText = errors.New("the text entered by the user contains sensitive vocabulary")
@@ -34,9 +34,10 @@ func (s sensitiveWords) check(text string) error {
 	return nil
 }
 
-func New[O prompt.ChatOptions, M metadata.ChatGenerationMetadata](words ...string) middleware.Middleware[O, M] {
-	s := make(sensitiveWords, 0)
-	s = append(s, words...)
+func New[O request.ChatRequestOptions, M result.ChatResultMetadata](words ...string) middleware.Middleware[O, M] {
+	s := make(sensitiveWords, 0, len(words))
+	copy(s, words)
+
 	return func(ctx *middleware.Context[O, M]) error {
 		err := s.check(ctx.Request.UserText)
 		if err != nil {

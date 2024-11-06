@@ -9,17 +9,17 @@ import (
 
 	"github.com/samber/lo"
 
-	"github.com/Tangerg/lynx/ai/core/chat/completion"
 	"github.com/Tangerg/lynx/ai/core/chat/message"
-	"github.com/Tangerg/lynx/ai/core/chat/metadata"
-	"github.com/Tangerg/lynx/ai/core/chat/prompt"
+	"github.com/Tangerg/lynx/ai/core/chat/request"
+	"github.com/Tangerg/lynx/ai/core/chat/response"
+	"github.com/Tangerg/lynx/ai/core/chat/result"
 	"github.com/Tangerg/lynx/ai/core/model"
 	"github.com/Tangerg/lynx/ai/core/model/function"
 )
 
 // Support is a generic structure that provides support for managing and executing register
 // within a chat-based system. It is designed to be extended and not instantiated directly.
-type Support[O prompt.ChatOptions, M metadata.ChatGenerationMetadata] struct {
+type Support[O request.ChatRequestOptions, M result.ChatResultMetadata] struct {
 	mu       sync.RWMutex
 	register map[string]function.Function
 }
@@ -66,24 +66,24 @@ func (s *Support[O, M]) FindFunctions(names ...string) []function.Function {
 	return rv
 }
 
-func (s *Support[O, M]) HandleToolCalls(ctx context.Context, p *prompt.ChatPrompt[O], chatResp *completion.ChatCompletion[M]) ([]message.ChatMessage, error) {
-	var toolCallGeneration model.Result[*message.AssistantMessage, M]
-	for _, result := range chatResp.Results() {
-		if result.Output().HasToolCalls() {
-			toolCallGeneration = result
+func (s *Support[O, M]) HandleToolCalls(ctx context.Context, req *request.ChatRequest[O], res *response.ChatResponse[M]) ([]message.ChatMessage, error) {
+	var toolcallResult model.Result[*message.AssistantMessage, M]
+	for _, r := range res.Results() {
+		if r.Output().HasToolCalls() {
+			toolcallResult = r
 			break
 		}
 	}
-	if toolCallGeneration == nil {
-		return nil, errors.New("no tool call generation found in the response")
+	if toolcallResult == nil {
+		return nil, errors.New("no tool call result found in the response")
 	}
-	toolMessage, err := s.ExecuteFunctions(ctx, toolCallGeneration.Output())
+	toolMessage, err := s.ExecuteFunctions(ctx, toolcallResult.Output())
 	if err != nil {
 		return nil, err
 	}
 	return s.BuildToolCallConversation(
-		p.Instructions(),
-		toolCallGeneration.Output(),
+		req.Instructions(),
+		toolcallResult.Output(),
 		toolMessage,
 	), nil
 }
@@ -115,20 +115,20 @@ func (s *Support[O, M]) ExecuteFunctions(ctx context.Context, assistantMessage *
 	return message.NewToolCallsMessage(resps, nil), nil
 }
 
-func (s *Support[O, M]) IsToolCallChatCompletion(chatResp *completion.ChatCompletion[M], finishReasons []metadata.FinishReason) bool {
-	for _, result := range chatResp.Results() {
-		if s.IsToolCallChatGeneration(result, finishReasons) {
+func (s *Support[O, M]) IsToolCallChatCompletion(res *response.ChatResponse[M], finishReasons []result.FinishReason) bool {
+	for _, r := range res.Results() {
+		if s.IsToolCallChatResult(r, finishReasons) {
 			return true
 		}
 	}
 	return false
 }
 
-func (s *Support[O, M]) IsToolCallChatGeneration(gen model.Result[*message.AssistantMessage, M], finishReasons []metadata.FinishReason) bool {
-	if !gen.Output().HasToolCalls() {
+func (s *Support[O, M]) IsToolCallChatResult(assistantMessage model.Result[*message.AssistantMessage, M], finishReasons []result.FinishReason) bool {
+	if !assistantMessage.Output().HasToolCalls() {
 		return false
 	}
-	reason := gen.Metadata().FinishReason()
+	reason := assistantMessage.Metadata().FinishReason()
 	for _, finishReason := range finishReasons {
 		if strings.ToLower(reason.String()) == strings.ToLower(finishReason.String()) {
 			return true

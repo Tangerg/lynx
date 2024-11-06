@@ -3,9 +3,9 @@ package client
 import (
 	"github.com/Tangerg/lynx/ai/core/chat/client/middleware"
 	"github.com/Tangerg/lynx/ai/core/chat/message"
-	"github.com/Tangerg/lynx/ai/core/chat/metadata"
 	"github.com/Tangerg/lynx/ai/core/chat/model"
-	"github.com/Tangerg/lynx/ai/core/chat/prompt"
+	"github.com/Tangerg/lynx/ai/core/chat/request"
+	"github.com/Tangerg/lynx/ai/core/chat/result"
 	"github.com/Tangerg/lynx/ai/core/model/media"
 )
 
@@ -51,7 +51,7 @@ import (
 //
 // Mutate() ChatClientBuilder[O, M]
 //   - Returns a ChatClientBuilder instance, allowing further modifications to the request configuration.
-type ChatClientRequest[O prompt.ChatOptions, M metadata.ChatGenerationMetadata] interface {
+type ChatClientRequest[O request.ChatRequestOptions, M result.ChatResultMetadata] interface {
 	SetChatModel(model model.ChatModel[O, M]) ChatClientRequest[O, M]
 	SetChatOptions(options O) ChatClientRequest[O, M]
 	SetSystemPrompt(system SystemPrompt) ChatClientRequest[O, M]
@@ -63,7 +63,7 @@ type ChatClientRequest[O prompt.ChatOptions, M metadata.ChatGenerationMetadata] 
 	Mutate() ChatClientBuilder[O, M]
 }
 
-func NewDefaultChatClientRequest[O prompt.ChatOptions, M metadata.ChatGenerationMetadata]() *DefaultChatClientRequest[O, M] {
+func NewDefaultChatClientRequest[O request.ChatRequestOptions, M result.ChatResultMetadata]() *DefaultChatClientRequest[O, M] {
 	return &DefaultChatClientRequest[O, M]{
 		systemParams:     make(map[string]any),
 		userParams:       make(map[string]any),
@@ -71,19 +71,19 @@ func NewDefaultChatClientRequest[O prompt.ChatOptions, M metadata.ChatGeneration
 	}
 }
 
-var _ ChatClientRequest[prompt.ChatOptions, metadata.ChatGenerationMetadata] = (*DefaultChatClientRequest[prompt.ChatOptions, metadata.ChatGenerationMetadata])(nil)
+var _ ChatClientRequest[request.ChatRequestOptions, result.ChatResultMetadata] = (*DefaultChatClientRequest[request.ChatRequestOptions, result.ChatResultMetadata])(nil)
 
-type DefaultChatClientRequest[O prompt.ChatOptions, M metadata.ChatGenerationMetadata] struct {
-	chatModel        model.ChatModel[O, M]
-	chatOptions      O
-	systemText       string
-	systemParams     map[string]any
-	userText         string
-	userParams       map[string]any
-	userMedia        []*media.Media
-	messages         []message.ChatMessage
-	middlewares      []middleware.Middleware[O, M]
-	middlewareParams map[string]any
+type DefaultChatClientRequest[O request.ChatRequestOptions, M result.ChatResultMetadata] struct {
+	chatModel          model.ChatModel[O, M]
+	chatRequestOptions O
+	systemText         string
+	systemParams       map[string]any
+	userText           string
+	userParams         map[string]any
+	userMedia          []*media.Media
+	messages           []message.ChatMessage
+	middlewares        []middleware.Middleware[O, M]
+	middlewareParams   map[string]any
 }
 
 func (d *DefaultChatClientRequest[O, M]) SetChatModel(model model.ChatModel[O, M]) ChatClientRequest[O, M] {
@@ -92,7 +92,7 @@ func (d *DefaultChatClientRequest[O, M]) SetChatModel(model model.ChatModel[O, M
 }
 
 func (d *DefaultChatClientRequest[O, M]) SetChatOptions(options O) ChatClientRequest[O, M] {
-	d.chatOptions = options
+	d.chatRequestOptions = options
 	return d
 }
 
@@ -139,7 +139,7 @@ func (d *DefaultChatClientRequest[O, M]) Mutate() ChatClientBuilder[O, M] {
 		DefaultSystemPromptTextWihtParams(d.systemText, d.systemParams).
 		DefaultUserPromptTextWihtParamsAndMedia(d.userText, d.userParams, d.userMedia...).
 		DefaultMiddlewaresWithParams(d.middlewareParams, d.middlewares...).
-		DefaultChatOptions(d.chatOptions).(*DefaultChatClientBuilder[O, M])
+		DefaultChatRequestOptions(d.chatRequestOptions).(*DefaultChatClientBuilder[O, M])
 
 	builder.request.messages = append(builder.request.messages, d.messages...)
 
@@ -148,40 +148,40 @@ func (d *DefaultChatClientRequest[O, M]) Mutate() ChatClientBuilder[O, M] {
 
 func (d *DefaultChatClientRequest[O, M]) toMiddlewareRequest() *middleware.Request[O, M] {
 	return &middleware.Request[O, M]{
-		ChatModel:    d.chatModel,
-		ChatOptions:  d.chatOptions,
-		UserText:     d.userText,
-		UserParams:   d.userParams,
-		UserMedia:    d.userMedia,
-		SystemText:   d.systemText,
-		SystemParams: d.systemParams,
-		Messages:     d.messages,
-		Mode:         model.CallRequest,
+		ChatModel:          d.chatModel,
+		ChatRequestOptions: d.chatRequestOptions,
+		UserText:           d.userText,
+		UserParams:         d.userParams,
+		UserMedia:          d.userMedia,
+		SystemText:         d.systemText,
+		SystemParams:       d.systemParams,
+		Messages:           d.messages,
+		Mode:               middleware.CallRequest,
 	}
 }
 
-func NewDefaultChatClientRequestBuilder[O prompt.ChatOptions, M metadata.ChatGenerationMetadata]() *DefaultChatClientRequestBuilder[O, M] {
+func NewDefaultChatClientRequestBuilder[O request.ChatRequestOptions, M result.ChatResultMetadata]() *DefaultChatClientRequestBuilder[O, M] {
 	return &DefaultChatClientRequestBuilder[O, M]{
 		request: NewDefaultChatClientRequest[O, M](),
 	}
 }
 
-type DefaultChatClientRequestBuilder[O prompt.ChatOptions, M metadata.ChatGenerationMetadata] struct {
+type DefaultChatClientRequestBuilder[O request.ChatRequestOptions, M result.ChatResultMetadata] struct {
 	request *DefaultChatClientRequest[O, M]
 }
 
 func (b *DefaultChatClientRequestBuilder[O, M]) FromDefaultChatClientRequest(old *DefaultChatClientRequest[O, M]) *DefaultChatClientRequestBuilder[O, M] {
 	b.request = &DefaultChatClientRequest[O, M]{
-		chatModel:        old.chatModel,
-		chatOptions:      old.chatOptions,
-		systemText:       old.systemText,
-		systemParams:     old.systemParams,
-		userMedia:        old.userMedia,
-		userText:         old.userText,
-		userParams:       old.userParams,
-		messages:         old.messages,
-		middlewares:      old.middlewares,
-		middlewareParams: old.middlewareParams,
+		chatModel:          old.chatModel,
+		chatRequestOptions: old.chatRequestOptions,
+		systemText:         old.systemText,
+		systemParams:       old.systemParams,
+		userMedia:          old.userMedia,
+		userText:           old.userText,
+		userParams:         old.userParams,
+		messages:           old.messages,
+		middlewares:        old.middlewares,
+		middlewareParams:   old.middlewareParams,
 	}
 	return b
 }
@@ -191,7 +191,7 @@ func (b *DefaultChatClientRequestBuilder[O, M]) WithChatModel(chatModel model.Ch
 	return b
 }
 func (b *DefaultChatClientRequestBuilder[O, M]) WithChatOptions(options O) *DefaultChatClientRequestBuilder[O, M] {
-	b.request.chatOptions = options
+	b.request.chatRequestOptions = options
 	return b
 }
 func (b *DefaultChatClientRequestBuilder[O, M]) WithUserText(userText string) *DefaultChatClientRequestBuilder[O, M] {

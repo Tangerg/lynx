@@ -27,6 +27,6 @@ type ChatRequestOptions interface {
 	// TopP returns a pointer to a float64 used to set the nucleus sampling parameter for text generation.
 	TopP() *float64
 
-	// Clone returns a new instance of ChatOptions, copying the current configuration.
+	// Clone returns a new instance of ChatRequestOptions, copying the current configuration.
 	Clone() ChatRequestOptions
 }

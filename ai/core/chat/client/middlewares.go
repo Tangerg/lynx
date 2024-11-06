@@ -2,8 +2,8 @@ package client
 
 import (
 	"github.com/Tangerg/lynx/ai/core/chat/client/middleware"
-	"github.com/Tangerg/lynx/ai/core/chat/metadata"
-	"github.com/Tangerg/lynx/ai/core/chat/prompt"
+	"github.com/Tangerg/lynx/ai/core/chat/request"
+	"github.com/Tangerg/lynx/ai/core/chat/result"
 )
 
 // Middlewares is a generic interface that defines the contract for managing middleware functions
@@ -39,7 +39,7 @@ import (
 // SetParams(m map[string]any) Middlewares[O, M]
 //   - Sets multiple parameters using a map of key-value pairs for the middleware configuration.
 //   - Returns the Middlewares instance to allow method chaining.
-type Middlewares[O prompt.ChatOptions, M metadata.ChatGenerationMetadata] interface {
+type Middlewares[O request.ChatRequestOptions, M result.ChatResultMetadata] interface {
 	Middlewares() []middleware.Middleware[O, M]
 	Param(key string) (any, bool)
 	Params() map[string]any
@@ -48,15 +48,15 @@ type Middlewares[O prompt.ChatOptions, M metadata.ChatGenerationMetadata] interf
 	SetParams(m map[string]any) Middlewares[O, M]
 }
 
-func NewDefaultMiddlewares[O prompt.ChatOptions, M metadata.ChatGenerationMetadata]() *DefaultMiddlewares[O, M] {
+func NewDefaultMiddlewares[O request.ChatRequestOptions, M result.ChatResultMetadata]() *DefaultMiddlewares[O, M] {
 	return &DefaultMiddlewares[O, M]{
 		params: make(map[string]any),
 	}
 }
 
-var _ Middlewares[prompt.ChatOptions, metadata.ChatGenerationMetadata] = (*DefaultMiddlewares[prompt.ChatOptions, metadata.ChatGenerationMetadata])(nil)
+var _ Middlewares[request.ChatRequestOptions, result.ChatResultMetadata] = (*DefaultMiddlewares[request.ChatRequestOptions, result.ChatResultMetadata])(nil)
 
-type DefaultMiddlewares[O prompt.ChatOptions, M metadata.ChatGenerationMetadata] struct {
+type DefaultMiddlewares[O request.ChatRequestOptions, M result.ChatResultMetadata] struct {
 	middlewares []middleware.Middleware[O, M]
 	params      map[string]any
 }

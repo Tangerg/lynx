@@ -1,8 +1,8 @@
 package client
 
 import (
-	"github.com/Tangerg/lynx/ai/core/chat/completion"
-	"github.com/Tangerg/lynx/ai/core/chat/metadata"
+	"github.com/Tangerg/lynx/ai/core/chat/response"
+	"github.com/Tangerg/lynx/ai/core/chat/result"
 )
 
 // ResponseValue is a generic interface that defines the contract for accessing
@@ -26,24 +26,24 @@ import (
 // Response() *completion.ChatCompletion[M]
 //   - Returns a pointer to the ChatCompletion, which contains the full details of the chat response.
 //   - This method provides access to the complete response object, including metadata and other relevant information.
-type ResponseValue[T any, M metadata.ChatGenerationMetadata] interface {
+type ResponseValue[T any, M result.ChatResultMetadata] interface {
 	Value() T
 	Content() string
-	Response() *completion.ChatCompletion[M]
+	Response() *response.ChatResponse[M]
 }
 
-func NewDefaultResponseValue[T any, M metadata.ChatGenerationMetadata](value T) *DefaultResponseValue[T, M] {
+func NewDefaultResponseValue[T any, M result.ChatResultMetadata](value T) *DefaultResponseValue[T, M] {
 	r := &DefaultResponseValue[T, M]{
 		value: value,
 	}
 	return r
 }
 
-var _ ResponseValue[any, metadata.ChatGenerationMetadata] = (*DefaultResponseValue[any, metadata.ChatGenerationMetadata])(nil)
+var _ ResponseValue[any, result.ChatResultMetadata] = (*DefaultResponseValue[any, result.ChatResultMetadata])(nil)
 
-type DefaultResponseValue[T any, M metadata.ChatGenerationMetadata] struct {
+type DefaultResponseValue[T any, M result.ChatResultMetadata] struct {
 	value    T
-	response *completion.ChatCompletion[M]
+	response *response.ChatResponse[M]
 }
 
 func (e *DefaultResponseValue[T, M]) Value() T {
@@ -54,6 +54,6 @@ func (e *DefaultResponseValue[T, M]) Content() string {
 	return e.response.Result().Output().Content()
 }
 
-func (e *DefaultResponseValue[T, M]) Response() *completion.ChatCompletion[M] {
+func (e *DefaultResponseValue[T, M]) Response() *response.ChatResponse[M] {
 	return e.response
 }

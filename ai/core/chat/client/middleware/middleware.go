@@ -1,8 +1,8 @@
 package middleware
 
 import (
-	"github.com/Tangerg/lynx/ai/core/chat/metadata"
-	"github.com/Tangerg/lynx/ai/core/chat/prompt"
+	"github.com/Tangerg/lynx/ai/core/chat/request"
+	"github.com/Tangerg/lynx/ai/core/chat/result"
 )
 
 // Middleware is a function type that represents a middleware component in a chat application.
@@ -24,4 +24,4 @@ import (
 // Middleware functions are used to process and manipulate chat requests and responses. They can be used for tasks
 // such as logging, authentication, modifying request/response data, etc. Each middleware function can decide whether
 // to pass control to the next middleware in the chain or terminate the chain by returning an error.
-type Middleware[O prompt.ChatOptions, M metadata.ChatGenerationMetadata] func(ctx *Context[O, M]) error
+type Middleware[O request.ChatRequestOptions, M result.ChatResultMetadata] func(ctx *Context[O, M]) error

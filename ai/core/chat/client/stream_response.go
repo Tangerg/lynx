@@ -5,10 +5,9 @@ import (
 
 	"github.com/Tangerg/lynx/ai/core/chat/client/middleware"
 	"github.com/Tangerg/lynx/ai/core/chat/client/middleware/outputguide"
-	"github.com/Tangerg/lynx/ai/core/chat/completion"
-	"github.com/Tangerg/lynx/ai/core/chat/metadata"
-	"github.com/Tangerg/lynx/ai/core/chat/model"
-	"github.com/Tangerg/lynx/ai/core/chat/prompt"
+	"github.com/Tangerg/lynx/ai/core/chat/request"
+	"github.com/Tangerg/lynx/ai/core/chat/response"
+	"github.com/Tangerg/lynx/ai/core/chat/result"
 )
 
 // StreamResponse is a generic interface that defines the contract for handling responses
@@ -30,24 +29,24 @@ import (
 //   - Retrieves the full chat response as a ChatCompletion, using the provided context.
 //   - Returns a pointer to the ChatCompletion and an error if any issues occur during the retrieval process.
 //   - This method provides access to the complete response object, including metadata and other relevant information.
-type StreamResponse[O prompt.ChatOptions, M metadata.ChatGenerationMetadata] interface {
+type StreamResponse[O request.ChatRequestOptions, M result.ChatResultMetadata] interface {
 	Content(ctx context.Context) (string, error)
-	ChatResponse(ctx context.Context) (*completion.ChatCompletion[M], error)
+	ChatResponse(ctx context.Context) (*response.ChatResponse[M], error)
 }
 
-var _ StreamResponse[prompt.ChatOptions, metadata.ChatGenerationMetadata] = (*DefaultStreamResponse[prompt.ChatOptions, metadata.ChatGenerationMetadata])(nil)
+var _ StreamResponse[request.ChatRequestOptions, result.ChatResultMetadata] = (*DefaultStreamResponse[request.ChatRequestOptions, result.ChatResultMetadata])(nil)
 
-type DefaultStreamResponse[O prompt.ChatOptions, M metadata.ChatGenerationMetadata] struct {
+type DefaultStreamResponse[O request.ChatRequestOptions, M result.ChatResultMetadata] struct {
 	request *DefaultChatClientRequest[O, M]
 }
 
-func NewDefaultStreamResponseSpec[O prompt.ChatOptions, M metadata.ChatGenerationMetadata](req *DefaultChatClientRequest[O, M]) *DefaultStreamResponse[O, M] {
+func NewDefaultStreamResponseSpec[O request.ChatRequestOptions, M result.ChatResultMetadata](req *DefaultChatClientRequest[O, M]) *DefaultStreamResponse[O, M] {
 	return &DefaultStreamResponse[O, M]{
 		request: req,
 	}
 }
 
-func (d *DefaultStreamResponse[O, M]) doGetChatResponse(ctx context.Context, format string) (*completion.ChatCompletion[M], error) {
+func (d *DefaultStreamResponse[O, M]) doGetChatResponse(ctx context.Context, format string) (*response.ChatResponse[M], error) {
 	c := middleware.NewContext[O, M](ctx)
 
 	if format != "" {
@@ -55,7 +54,7 @@ func (d *DefaultStreamResponse[O, M]) doGetChatResponse(ctx context.Context, for
 	}
 	c.SetMap(d.request.middlewareParams)
 	c.Request = d.request.toMiddlewareRequest()
-	c.Request.Mode = model.StreamRequest
+	c.Request.Mode = middleware.StreamRequest
 	c.SetMiddlewares(d.request.middlewares...)
 
 	err := c.Next()
@@ -74,6 +73,6 @@ func (d *DefaultStreamResponse[O, M]) Content(ctx context.Context) (string, erro
 	return resp.Result().Output().Content(), nil
 }
 
-func (d *DefaultStreamResponse[O, M]) ChatResponse(ctx context.Context) (*completion.ChatCompletion[M], error) {
+func (d *DefaultStreamResponse[O, M]) ChatResponse(ctx context.Context) (*response.ChatResponse[M], error) {
 	return d.doGetChatResponse(ctx, "")
 }

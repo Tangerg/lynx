@@ -2,6 +2,7 @@ package response
 
 import (
 	"errors"
+
 	"github.com/Tangerg/lynx/ai/core/chat/message"
 	"github.com/Tangerg/lynx/ai/core/chat/result"
 	"github.com/Tangerg/lynx/ai/core/model"

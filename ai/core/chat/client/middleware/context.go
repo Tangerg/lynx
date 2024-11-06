@@ -4,9 +4,9 @@ import (
 	"context"
 	"sync"
 
-	"github.com/Tangerg/lynx/ai/core/chat/completion"
-	"github.com/Tangerg/lynx/ai/core/chat/metadata"
-	"github.com/Tangerg/lynx/ai/core/chat/prompt"
+	"github.com/Tangerg/lynx/ai/core/chat/request"
+	"github.com/Tangerg/lynx/ai/core/chat/response"
+	"github.com/Tangerg/lynx/ai/core/chat/result"
 )
 
 // Context is a generic struct that holds the state and controls the flow of chat processing
@@ -25,14 +25,14 @@ import (
 //   - middlewares: A slice of Middleware[O, M] functions that are executed in sequence.
 //   - Request: A pointer to a Request[O, M] struct, representing the incoming chat request.
 //   - Response: A pointer to a completion.ChatCompletion[M] struct, representing the chat response.
-type Context[O prompt.ChatOptions, M metadata.ChatGenerationMetadata] struct {
+type Context[O request.ChatRequestOptions, M result.ChatResultMetadata] struct {
 	ctx             context.Context
 	mu              sync.RWMutex
 	params          map[string]any
 	middlewareIndex int
 	middlewares     []Middleware[O, M]
 	Request         *Request[O, M]
-	Response        *completion.ChatCompletion[M]
+	Response        *response.ChatResponse[M]
 }
 
 func (c *Context[O, M]) Context() context.Context {
@@ -77,7 +77,7 @@ func (c *Context[O, M]) SetMiddlewares(middlewares ...Middleware[O, M]) {
 	c.middlewares = append(c.middlewares, middlewares...)
 }
 
-func NewContext[O prompt.ChatOptions, M metadata.ChatGenerationMetadata](ctx context.Context) *Context[O, M] {
+func NewContext[O request.ChatRequestOptions, M result.ChatResultMetadata](ctx context.Context) *Context[O, M] {
 	return &Context[O, M]{
 		ctx:             ctx,
 		params:          make(map[string]any),

@@ -4,8 +4,8 @@ import (
 	"github.com/spf13/cast"
 
 	"github.com/Tangerg/lynx/ai/core/chat/client/middleware"
-	"github.com/Tangerg/lynx/ai/core/chat/metadata"
-	"github.com/Tangerg/lynx/ai/core/chat/prompt"
+	"github.com/Tangerg/lynx/ai/core/chat/request"
+	"github.com/Tangerg/lynx/ai/core/chat/result"
 	pkgSystem "github.com/Tangerg/lynx/pkg/system"
 )
 
@@ -15,7 +15,7 @@ const (
 	formatPlaceholder = "{{." + formatContentKey + "}}"
 )
 
-func New[O prompt.ChatOptions, M metadata.ChatGenerationMetadata]() middleware.Middleware[O, M] {
+func New[O request.ChatRequestOptions, M result.ChatResultMetadata]() middleware.Middleware[O, M] {
 	return func(ctx *middleware.Context[O, M]) error {
 		format, ok := ctx.Get(FormatKey)
 		if ok {

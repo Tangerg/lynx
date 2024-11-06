@@ -8,13 +8,13 @@ import (
 	"github.com/Tangerg/lynx/ai/core/chat/client/middleware"
 	"github.com/Tangerg/lynx/ai/core/chat/memory"
 	"github.com/Tangerg/lynx/ai/core/chat/message"
-	"github.com/Tangerg/lynx/ai/core/chat/metadata"
-	"github.com/Tangerg/lynx/ai/core/chat/prompt"
+	"github.com/Tangerg/lynx/ai/core/chat/request"
+	"github.com/Tangerg/lynx/ai/core/chat/result"
 )
 
 const (
-	ChatMemoryConversationIdKey = "chat_memory_conversation_id"
-	ChatMemoryRetrieveSizeKey   = "chat_memory_response_size"
+	ConversationIdKey = "chat_memory_conversation_id"
+	RetrieveSizeKey   = "chat_memory_response_size"
 )
 
 const (
@@ -22,37 +22,37 @@ const (
 )
 
 type Config struct {
-	ChatMemoryConversationIdKey string `json:"ChatMemoryConversationIdKey" yaml:"ChatMemoryConversationIdKey"`
-	ChatMemoryRetrieveSizeKey   string `json:"ChatMemoryRetrieveSizeKey" yaml:"ChatMemoryRetrieveSizeKey"`
-	Store                       memory.ChatMemory
+	ConversationIdKey string `json:"ConversationIdKey" yaml:"ConversationIdKey"`
+	RetrieveSizeKey   string `json:"RetrieveSizeKey" yaml:"RetrieveSizeKey"`
+	Store             memory.ChatMemory
 }
 
-func newChatMemory[O prompt.ChatOptions, M metadata.ChatGenerationMetadata](conf *Config) *chatMemory[O, M] {
-	if conf.ChatMemoryConversationIdKey == "" {
-		conf.ChatMemoryConversationIdKey = ChatMemoryConversationIdKey
+func newChatMemory[O request.ChatRequestOptions, M result.ChatResultMetadata](conf *Config) *chatMemory[O, M] {
+	if conf.ConversationIdKey == "" {
+		conf.ConversationIdKey = ConversationIdKey
 	}
-	if conf.ChatMemoryRetrieveSizeKey == "" {
-		conf.ChatMemoryRetrieveSizeKey = ChatMemoryRetrieveSizeKey
+	if conf.RetrieveSizeKey == "" {
+		conf.RetrieveSizeKey = RetrieveSizeKey
 	}
 	if conf.Store == nil {
 		panic("the chat memory store can not nil")
 	}
 
 	return &chatMemory[O, M]{
-		chatMemoryConversationIdKey: conf.ChatMemoryConversationIdKey,
-		chatMemoryRetrieveSizeKey:   conf.ChatMemoryRetrieveSizeKey,
-		store:                       conf.Store,
+		conversationIdKey: conf.ConversationIdKey,
+		retrieveSizeKey:   conf.RetrieveSizeKey,
+		store:             conf.Store,
 	}
 }
 
-type chatMemory[O prompt.ChatOptions, M metadata.ChatGenerationMetadata] struct {
-	chatMemoryConversationIdKey string
-	chatMemoryRetrieveSizeKey   string
-	store                       memory.ChatMemory
+type chatMemory[O request.ChatRequestOptions, M result.ChatResultMetadata] struct {
+	conversationIdKey string
+	retrieveSizeKey   string
+	store             memory.ChatMemory
 }
 
 func (c *chatMemory[O, M]) getConversationId(m map[string]any) string {
-	id, ok := m[c.chatMemoryConversationIdKey]
+	id, ok := m[c.conversationIdKey]
 	if !ok {
 		return ""
 	}
@@ -60,7 +60,7 @@ func (c *chatMemory[O, M]) getConversationId(m map[string]any) string {
 }
 
 func (c *chatMemory[O, M]) getChatMemoryRetrieveSize(m map[string]any) int {
-	size, ok := m[c.chatMemoryRetrieveSizeKey]
+	size, ok := m[c.retrieveSizeKey]
 	if !ok {
 		return defaultChatMemoryResponseSize
 	}
@@ -97,23 +97,24 @@ func (c *chatMemory[O, M]) beforeRequest(ctx *middleware.Context[O, M]) error {
 
 func (c *chatMemory[O, M]) afterRequest(ctx *middleware.Context[O, M]) error {
 	msgs := make([]message.ChatMessage, 0, len(ctx.Response.Results()))
-	for _, result := range ctx.Response.Results() {
-		msgs = append(msgs, result.Output())
+	for _, r := range ctx.Response.Results() {
+		msgs = append(msgs, r.Output())
 	}
 	return c.saveMessages(ctx.Context(), ctx.Request.UserParams, msgs...)
 }
 
-func New[O prompt.ChatOptions, M metadata.ChatGenerationMetadata](conf *Config) middleware.Middleware[O, M] {
-	cm := newChatMemory[O, M](conf)
-	return func(ctx *middleware.Context[O, M]) error {
-		err := cm.beforeRequest(ctx)
-		if err != nil {
-			return err
-		}
-		err = ctx.Next()
-		if err != nil {
-			return err
-		}
-		return cm.afterRequest(ctx)
+func (c *chatMemory[O, M]) do(ctx *middleware.Context[O, M]) error {
+	err := c.beforeRequest(ctx)
+	if err != nil {
+		return err
 	}
+	err = ctx.Next()
+	if err != nil {
+		return err
+	}
+	return c.afterRequest(ctx)
+}
+
+func New[O request.ChatRequestOptions, M result.ChatResultMetadata](conf *Config) middleware.Middleware[O, M] {
+	return newChatMemory[O, M](conf).do
 }

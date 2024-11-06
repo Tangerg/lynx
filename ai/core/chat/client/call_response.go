@@ -5,10 +5,10 @@ import (
 
 	"github.com/Tangerg/lynx/ai/core/chat/client/middleware"
 	"github.com/Tangerg/lynx/ai/core/chat/client/middleware/outputguide"
-	"github.com/Tangerg/lynx/ai/core/chat/completion"
 	"github.com/Tangerg/lynx/ai/core/chat/converter"
-	"github.com/Tangerg/lynx/ai/core/chat/metadata"
-	"github.com/Tangerg/lynx/ai/core/chat/prompt"
+	"github.com/Tangerg/lynx/ai/core/chat/request"
+	"github.com/Tangerg/lynx/ai/core/chat/response"
+	"github.com/Tangerg/lynx/ai/core/chat/result"
 )
 
 // CallResponse is a generic interface that defines the contract for handling responses
@@ -52,29 +52,29 @@ import (
 // ChatResponse(ctx context.Context) (*completion.ChatCompletion[M], error)
 //   - Retrieves the full chat response as a ChatCompletion, using the provided context.
 //   - Returns a pointer to the ChatCompletion and an error if any issues occur.
-type CallResponse[O prompt.ChatOptions, M metadata.ChatGenerationMetadata] interface {
+type CallResponse[O request.ChatRequestOptions, M result.ChatResultMetadata] interface {
 	ResponseValue(ctx context.Context, def any) (ResponseValue[any, M], error)
 	ResponseValueSlice(ctx context.Context) (ResponseValue[[]string, M], error)
 	ResponseValueMap(ctx context.Context, example map[string]any) (ResponseValue[map[string]any, M], error)
 	ResponseValueStruct(ctx context.Context, def any) (ResponseValue[any, M], error)
 	ResponseValueWithStructuredConvert(ctx context.Context, def any, c converter.StructuredConverter[any]) (ResponseValue[any, M], error)
 	Content(ctx context.Context) (string, error)
-	ChatResponse(ctx context.Context) (*completion.ChatCompletion[M], error)
+	ChatResponse(ctx context.Context) (*response.ChatResponse[M], error)
 }
 
-var _ CallResponse[prompt.ChatOptions, metadata.ChatGenerationMetadata] = (*DefaultCallResponse[prompt.ChatOptions, metadata.ChatGenerationMetadata])(nil)
+var _ CallResponse[request.ChatRequestOptions, result.ChatResultMetadata] = (*DefaultCallResponse[request.ChatRequestOptions, result.ChatResultMetadata])(nil)
 
-type DefaultCallResponse[O prompt.ChatOptions, M metadata.ChatGenerationMetadata] struct {
+type DefaultCallResponse[O request.ChatRequestOptions, M result.ChatResultMetadata] struct {
 	request *DefaultChatClientRequest[O, M]
 }
 
-func NewDefaultCallResponse[O prompt.ChatOptions, M metadata.ChatGenerationMetadata](req *DefaultChatClientRequest[O, M]) *DefaultCallResponse[O, M] {
+func NewDefaultCallResponse[O request.ChatRequestOptions, M result.ChatResultMetadata](req *DefaultChatClientRequest[O, M]) *DefaultCallResponse[O, M] {
 	return &DefaultCallResponse[O, M]{
 		request: req,
 	}
 }
 
-func (d *DefaultCallResponse[O, M]) doGetChatResponse(ctx context.Context, format string) (*completion.ChatCompletion[M], error) {
+func (d *DefaultCallResponse[O, M]) doGetChatResponse(ctx context.Context, format string) (*response.ChatResponse[M], error) {
 	c := middleware.NewContext[O, M](ctx)
 
 	if format != "" {
@@ -167,6 +167,6 @@ func (d *DefaultCallResponse[O, M]) Content(ctx context.Context) (string, error)
 	return resp.Result().Output().Content(), nil
 }
 
-func (d *DefaultCallResponse[O, M]) ChatResponse(ctx context.Context) (*completion.ChatCompletion[M], error) {
+func (d *DefaultCallResponse[O, M]) ChatResponse(ctx context.Context) (*response.ChatResponse[M], error) {
 	return d.doGetChatResponse(ctx, "")
 }

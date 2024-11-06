@@ -2,9 +2,9 @@ package client
 
 import (
 	"github.com/Tangerg/lynx/ai/core/chat/client/middleware"
-	"github.com/Tangerg/lynx/ai/core/chat/metadata"
 	"github.com/Tangerg/lynx/ai/core/chat/model"
-	"github.com/Tangerg/lynx/ai/core/chat/prompt"
+	"github.com/Tangerg/lynx/ai/core/chat/request"
+	"github.com/Tangerg/lynx/ai/core/chat/result"
 	"github.com/Tangerg/lynx/ai/core/model/media"
 )
 
@@ -56,8 +56,8 @@ import (
 // Build() ChatClient[O, M]
 //   - Finalizes the configuration and builds the chat client.
 //   - Returns a ChatClient instance configured with the specified defaults.
-type ChatClientBuilder[O prompt.ChatOptions, M metadata.ChatGenerationMetadata] interface {
-	DefaultChatOptions(options O) ChatClientBuilder[O, M]
+type ChatClientBuilder[O request.ChatRequestOptions, M result.ChatResultMetadata] interface {
+	DefaultChatRequestOptions(options O) ChatClientBuilder[O, M]
 	DefaultMiddlewares(middlewares Middlewares[O, M]) ChatClientBuilder[O, M]
 	DefaultMiddlewaresWithParams(params map[string]any, middlewares ...middleware.Middleware[O, M]) ChatClientBuilder[O, M]
 	DefaultUserPromptText(text string) ChatClientBuilder[O, M]
@@ -70,20 +70,20 @@ type ChatClientBuilder[O prompt.ChatOptions, M metadata.ChatGenerationMetadata] 
 	Build() ChatClient[O, M]
 }
 
-func NewDefaultChatClientBuilder[O prompt.ChatOptions, M metadata.ChatGenerationMetadata](chatModel model.ChatModel[O, M]) *DefaultChatClientBuilder[O, M] {
+func NewDefaultChatClientBuilder[O request.ChatRequestOptions, M result.ChatResultMetadata](chatModel model.ChatModel[O, M]) *DefaultChatClientBuilder[O, M] {
 
-	request, _ := NewDefaultChatClientRequestBuilder[O, M]().
+	req, _ := NewDefaultChatClientRequestBuilder[O, M]().
 		WithChatModel(chatModel).
 		Build()
 
 	return &DefaultChatClientBuilder[O, M]{
-		request: request,
+		request: req,
 	}
 }
 
-var _ ChatClientBuilder[prompt.ChatOptions, metadata.ChatGenerationMetadata] = (*DefaultChatClientBuilder[prompt.ChatOptions, metadata.ChatGenerationMetadata])(nil)
+var _ ChatClientBuilder[request.ChatRequestOptions, result.ChatResultMetadata] = (*DefaultChatClientBuilder[request.ChatRequestOptions, result.ChatResultMetadata])(nil)
 
-type DefaultChatClientBuilder[O prompt.ChatOptions, M metadata.ChatGenerationMetadata] struct {
+type DefaultChatClientBuilder[O request.ChatRequestOptions, M result.ChatResultMetadata] struct {
 	request *DefaultChatClientRequest[O, M]
 }
 
@@ -100,7 +100,7 @@ func (d *DefaultChatClientBuilder[O, M]) DefaultMiddlewares(middlewares Middlewa
 	return d
 }
 
-func (d *DefaultChatClientBuilder[O, M]) DefaultChatOptions(options O) ChatClientBuilder[O, M] {
+func (d *DefaultChatClientBuilder[O, M]) DefaultChatRequestOptions(options O) ChatClientBuilder[O, M] {
 	d.request.SetChatOptions(options)
 	return d
 }
