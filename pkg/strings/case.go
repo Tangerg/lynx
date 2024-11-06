@@ -5,14 +5,24 @@ import (
 	"unicode"
 )
 
-func CamelCaseSplitWith(source string, predicate func(string) string) []string {
-	if source == "" {
+func AsCamelCase(s string) CamelCase {
+	return CamelCase(s)
+}
+
+type CamelCase string
+
+func (c CamelCase) String() string {
+	return string(c)
+}
+
+func (c CamelCase) SplitWith(predicate func(string) string) []string {
+	if c == "" {
 		return nil
 	}
 
 	var (
-		parts  = make([]string, 0, len(source))
-		runes  = []rune(source)
+		parts  = make([]string, 0, len(c))
+		runes  = []rune(c)
 		length = len(runes)
 		sb     strings.Builder
 	)
@@ -57,20 +67,24 @@ func CamelCaseSplitWith(source string, predicate func(string) string) []string {
 
 	return parts
 }
-func CamelCaseSplit(source string) []string {
-	return CamelCaseSplitWith(source, nil)
+
+func (c CamelCase) Split() []string {
+	return c.SplitWith(nil)
 }
-func CamelCaseSplitToLower(source string) []string {
-	return CamelCaseSplitWith(source, strings.ToLower)
+
+func (c CamelCase) SplitToLower() []string {
+	return c.SplitWith(strings.ToLower)
 }
-func CamelCaseSplitToUpper(source string) []string {
-	return CamelCaseSplitWith(source, strings.ToUpper)
+
+func (c CamelCase) SplitToUpper() []string {
+	return c.SplitWith(strings.ToUpper)
 }
-func CamelCaseToSnakeCase(source string) string {
-	if source == "" {
+
+func (c CamelCase) ToSnakeCase() SnakeCase {
+	if c == "" {
 		return ""
 	}
-	words := CamelCaseSplitWith(source, nil)
+	words := c.Split()
 	newWords := make([]string, 0, len(words))
 	for _, word := range words {
 		if word == "_" || word == "" {
@@ -78,14 +92,24 @@ func CamelCaseToSnakeCase(source string) string {
 		}
 		newWords = append(newWords, strings.ToLower(word))
 	}
-	return strings.Join(newWords, "_")
+	return AsSnakeCase(strings.Join(newWords, "_"))
 }
 
-func SnakeCaseSplitWith(source string, predicate func(string) string) []string {
-	if source == "" {
+func AsSnakeCase(s string) SnakeCase {
+	return SnakeCase(s)
+}
+
+type SnakeCase string
+
+func (s SnakeCase) String() string {
+	return string(s)
+}
+
+func (s SnakeCase) SplitWith(predicate func(string) string) []string {
+	if s == "" {
 		return nil
 	}
-	parts := strings.Split(source, "_")
+	parts := strings.Split(s.String(), "_")
 
 	if predicate != nil {
 		for i, part := range parts {
@@ -95,35 +119,39 @@ func SnakeCaseSplitWith(source string, predicate func(string) string) []string {
 
 	return parts
 }
-func SnakeCaseSplit(source string) []string {
-	return SnakeCaseSplitWith(source, nil)
+
+func (s SnakeCase) Split() []string {
+	return s.SplitWith(nil)
 }
-func SnakeCaseSplitToLower(source string) []string {
-	return SnakeCaseSplitWith(source, strings.ToLower)
+
+func (s SnakeCase) SplitToLower() []string {
+	return s.SplitWith(strings.ToLower)
 }
-func SnakeCaseSplitToUpper(source string) []string {
-	return SnakeCaseSplitWith(source, strings.ToUpper)
+
+func (s SnakeCase) SplitToUpper() []string {
+	return s.SplitWith(strings.ToUpper)
 }
-func SnakeCaseToCamelCase(source string) string {
-	if source == "" {
+
+func (s SnakeCase) ToCamelCase() CamelCase {
+	if s == "" {
 		return ""
 	}
-	toLower := SnakeCaseSplitToLower(source)
+	toLower := s.SplitToLower()
 	var sb strings.Builder
-	for i, s := range toLower {
+	for i, lower := range toLower {
 		if i == 0 {
-			sb.WriteString(s)
+			sb.WriteString(lower)
 			continue
 		}
-		if s == "" {
+		if lower == "" {
 			continue
 		}
-		if len(s) == 1 {
-			sb.WriteString(strings.ToUpper(s))
+		if len(lower) == 1 {
+			sb.WriteString(strings.ToUpper(lower))
 		} else {
-			sb.WriteString(strings.ToUpper(s[:1]))
-			sb.WriteString(s[1:])
+			sb.WriteString(strings.ToUpper(lower[:1]))
+			sb.WriteString(lower[1:])
 		}
 	}
-	return sb.String()
+	return AsCamelCase(sb.String())
 }

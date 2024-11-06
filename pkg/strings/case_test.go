@@ -38,7 +38,7 @@ var snakeTestCases = []string{
 
 func TestCamelCaseSplit(t *testing.T) {
 	for _, testCase := range camelCaseTestCases {
-		for _, s := range CamelCaseSplit(testCase) {
+		for _, s := range AsCamelCase(testCase).Split() {
 			t.Log(s)
 		}
 	}
@@ -46,7 +46,7 @@ func TestCamelCaseSplit(t *testing.T) {
 
 func TestCamelCaseSplitToLower(t *testing.T) {
 	for _, testCase := range camelCaseTestCases {
-		for _, s := range CamelCaseSplitToLower(testCase) {
+		for _, s := range AsCamelCase(testCase).SplitToLower() {
 			t.Log(s)
 		}
 	}
@@ -54,7 +54,7 @@ func TestCamelCaseSplitToLower(t *testing.T) {
 
 func TestCamelCaseSplitToUpper(t *testing.T) {
 	for _, testCase := range camelCaseTestCases {
-		for _, s := range CamelCaseSplitToUpper(testCase) {
+		for _, s := range AsCamelCase(testCase).SplitToUpper() {
 			t.Log(s)
 		}
 	}
@@ -62,7 +62,7 @@ func TestCamelCaseSplitToUpper(t *testing.T) {
 
 func TestCamelCaseToSnakeCase(t *testing.T) {
 	for _, testCase := range camelCaseTestCases {
-		t.Log(CamelCaseToSnakeCase(testCase))
+		t.Log(AsCamelCase(testCase).ToSnakeCase())
 	}
 }
 
@@ -70,14 +70,14 @@ func BenchmarkCamelCaseSplit(b *testing.B) {
 	var test = camelCaseTestCases[0]
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		CamelCaseSplit(test)
+		AsCamelCase(test).Split()
 	}
 	b.StopTimer()
 }
 
 func TestSnakeCaseSplit(t *testing.T) {
 	for _, testCase := range snakeTestCases {
-		for _, s := range SnakeCaseSplit(testCase) {
+		for _, s := range AsSnakeCase(testCase).Split() {
 			t.Log(s)
 		}
 	}
@@ -85,7 +85,7 @@ func TestSnakeCaseSplit(t *testing.T) {
 
 func TestSnakeCaseSplitToLower(t *testing.T) {
 	for _, testCase := range snakeTestCases {
-		for _, s := range SnakeCaseSplitToLower(testCase) {
+		for _, s := range AsSnakeCase(testCase).SplitToLower() {
 			t.Log(s)
 		}
 	}
@@ -93,7 +93,7 @@ func TestSnakeCaseSplitToLower(t *testing.T) {
 
 func TestSnakeCaseSplitToUpper(t *testing.T) {
 	for _, testCase := range snakeTestCases {
-		for _, s := range SnakeCaseSplitToUpper(testCase) {
+		for _, s := range AsSnakeCase(testCase).SplitToUpper() {
 			t.Log(s)
 		}
 	}
@@ -101,6 +101,6 @@ func TestSnakeCaseSplitToUpper(t *testing.T) {
 
 func TestSnakeCaseToCamelCase(t *testing.T) {
 	for _, testCase := range snakeTestCases {
-		t.Log(SnakeCaseToCamelCase(testCase))
+		t.Log(AsSnakeCase(testCase).ToCamelCase())
 	}
 }
