@@ -9,11 +9,11 @@ var _ ChatRequestOptions = (*DefaultChatRequestOptions)(nil)
 
 type DefaultChatRequestOptions struct {
 	model           *string
-	maxTokens       *int64
+	maxTokens       *int
 	presencePenalty *float64
 	stopSequences   []string
 	temperature     *float64
-	topK            *int64
+	topK            *int
 	topP            *float64
 	streamFunc      func(ctx context.Context, chunk []byte) error
 }
@@ -25,7 +25,7 @@ func (d *DefaultChatRequestOptions) Model() *string {
 	return d.model
 }
 
-func (d *DefaultChatRequestOptions) MaxTokens() *int64 {
+func (d *DefaultChatRequestOptions) MaxTokens() *int {
 	return d.maxTokens
 }
 
@@ -41,7 +41,7 @@ func (d *DefaultChatRequestOptions) Temperature() *float64 {
 	return d.temperature
 }
 
-func (d *DefaultChatRequestOptions) TopK() *int64 {
+func (d *DefaultChatRequestOptions) TopK() *int {
 	return d.topK
 }
 
@@ -91,7 +91,7 @@ func (d *DefaultChatOptionsBuilder) WithModel(model string) *DefaultChatOptionsB
 	d.options.model = &model
 	return d
 }
-func (d *DefaultChatOptionsBuilder) WithMaxTokens(maxTokens int64) *DefaultChatOptionsBuilder {
+func (d *DefaultChatOptionsBuilder) WithMaxTokens(maxTokens int) *DefaultChatOptionsBuilder {
 	d.options.maxTokens = &maxTokens
 	return d
 }
@@ -107,7 +107,7 @@ func (d *DefaultChatOptionsBuilder) WithTemperature(temperature float64) *Defaul
 	d.options.temperature = &temperature
 	return d
 }
-func (d *DefaultChatOptionsBuilder) WithTopK(topK int64) *DefaultChatOptionsBuilder {
+func (d *DefaultChatOptionsBuilder) WithTopK(topK int) *DefaultChatOptionsBuilder {
 	d.options.topK = &topK
 	return d
 }

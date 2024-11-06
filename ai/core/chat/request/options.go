@@ -9,8 +9,8 @@ type ChatRequestOptions interface {
 	// Model returns a pointer to a string representing the name of the model to be used.
 	Model() *string
 
-	// MaxTokens returns a pointer to an int64 representing the maximum number of tokens to generate.
-	MaxTokens() *int64
+	// MaxTokens returns a pointer to an int representing the maximum number of tokens to generate.
+	MaxTokens() *int
 
 	// PresencePenalty returns a pointer to a float64 used to set the penalty for the presence of certain tokens in the generated text.
 	PresencePenalty() *float64
@@ -21,8 +21,8 @@ type ChatRequestOptions interface {
 	// Temperature returns a pointer to a float64 used to set the randomness of the text generation.
 	Temperature() *float64
 
-	// TopK returns a pointer to an int64 used to set the top-k sampling parameter for text generation.
-	TopK() *int64
+	// TopK returns a pointer to an int used to set the top-k sampling parameter for text generation.
+	TopK() *int
 
 	// TopP returns a pointer to a float64 used to set the nucleus sampling parameter for text generation.
 	TopP() *float64

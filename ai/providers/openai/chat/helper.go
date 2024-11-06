@@ -1,0 +1,316 @@
+package chat
+
+import (
+	"encoding/base64"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"github.com/Tangerg/lynx/ai/core/chat/function"
+	"github.com/Tangerg/lynx/ai/core/chat/message"
+	"github.com/Tangerg/lynx/ai/core/chat/response"
+	"github.com/Tangerg/lynx/ai/core/chat/result"
+	"github.com/Tangerg/lynx/ai/core/model/media"
+	"github.com/Tangerg/lynx/pkg/mime"
+	"github.com/sashabaranov/go-openai"
+	"strings"
+)
+
+type helper struct {
+	function.Support[*OpenAIChatRequestOptions, *OpenAIChatResultMetadata]
+}
+
+func (h *helper) convertFinishReason(reason openai.FinishReason) result.FinishReason {
+	switch reason {
+	case openai.FinishReasonStop:
+		return result.Stop
+
+	case openai.FinishReasonLength:
+		return result.Length
+
+	case openai.FinishReasonFunctionCall,
+		openai.FinishReasonToolCalls:
+		return result.ToolCalls
+
+	case openai.FinishReasonContentFilter:
+		return result.ContentFilter
+
+	case openai.FinishReasonNull, "":
+		return result.Null
+
+	default:
+		return result.Other
+	}
+}
+
+func (h *helper) getMessageRole(mt message.Type) string {
+	if mt.IsUser() {
+		return openai.ChatMessageRoleUser
+	}
+	if mt.IsSystem() {
+		return openai.ChatMessageRoleSystem
+	}
+	if mt.IsAssistant() {
+		return openai.ChatMessageRoleAssistant
+	}
+	if mt.IsTool() {
+		return openai.ChatMessageRoleTool
+	}
+	return openai.ChatMessageRoleUser
+}
+
+func (h *helper) createApiChatMessageParts(media []*media.Media) []openai.ChatMessagePart {
+	rv := make([]openai.ChatMessagePart, 0, len(media))
+
+	for _, m := range media {
+		part := openai.ChatMessagePart{
+			Type:     openai.ChatMessagePartTypeImageURL,
+			ImageURL: &openai.ChatMessageImageURL{},
+		}
+
+		if mime.IsImage(m.MimeType()) {
+			part.ImageURL.URL = fmt.Sprintf(
+				"data:%s;base64,%s",
+				m.MimeType().String(),
+				base64.StdEncoding.EncodeToString(m.Data()),
+			)
+		} else {
+			part.ImageURL.URL = string(m.Data())
+		}
+
+		rv = append(rv, part)
+	}
+
+	return rv
+}
+
+func (h *helper) createApiChatCompletionMessages(msgs []message.ChatMessage) []openai.ChatCompletionMessage {
+	rv := make([]openai.ChatCompletionMessage, 0, len(msgs))
+
+	for _, chatMessage := range msgs {
+		if chatMessage.Type().IsTool() {
+			toolCallsMessage := chatMessage.(*message.ToolCallsMessage)
+			for _, resp := range toolCallsMessage.Responses() {
+				if resp.ID == "" {
+					continue
+				}
+				rv = append(rv, openai.ChatCompletionMessage{
+					Role:       openai.ChatMessageRoleTool,
+					Content:    resp.Data,
+					Name:       resp.Name,
+					ToolCallID: resp.ID,
+				})
+			}
+			continue
+		}
+
+		msg := openai.ChatCompletionMessage{
+			Role:    h.getMessageRole(chatMessage.Type()),
+			Content: chatMessage.Content(),
+		}
+
+		if chatMessage.Type().IsUser() {
+			userMessage := chatMessage.(*message.UserMessage)
+			if len(userMessage.Media()) > 0 {
+				msg.Content = ""
+				msg.MultiContent = append(msg.MultiContent, openai.ChatMessagePart{
+					Type: openai.ChatMessagePartTypeText,
+					Text: userMessage.Content(),
+				})
+				msg.MultiContent = append(msg.MultiContent, h.createApiChatMessageParts(userMessage.Media())...)
+			}
+		}
+
+		if chatMessage.Type().IsAssistant() {
+			assistantMessage := chatMessage.(*message.AssistantMessage)
+			for _, toolCallRequest := range assistantMessage.ToolCalls() {
+				msg.ToolCalls = append(msg.ToolCalls, openai.ToolCall{
+					ID:   toolCallRequest.ID,
+					Type: openai.ToolTypeFunction,
+					Function: openai.FunctionCall{
+						Name:      toolCallRequest.Name,
+						Arguments: toolCallRequest.Arguments,
+					},
+				})
+			}
+		}
+		rv = append(rv, msg)
+	}
+
+	return rv
+}
+
+func (h *helper) createApiChatCompletionRequest(req *OpenAIChatRequest, stream bool) *openai.ChatCompletionRequest {
+	rv := &openai.ChatCompletionRequest{}
+
+	if stream {
+		rv.Stream = true
+		rv.StreamOptions = &openai.StreamOptions{
+			IncludeUsage: true,
+		}
+	}
+
+	rv.Messages = h.createApiChatCompletionMessages(req.Instructions())
+
+	opts := req.Options()
+	if opts == nil {
+		return rv
+	}
+
+	rv.Model = *opts.Model()
+
+	if opts.MaxTokens() != nil {
+		rv.MaxTokens = *opts.MaxTokens()
+	}
+
+	if opts.Temperature() != nil {
+		rv.Temperature = float32(*opts.Temperature())
+	}
+
+	if opts.TopP() != nil {
+		rv.TopP = float32(*opts.TopP())
+	}
+
+	rv.N = opts.N()
+
+	rv.Stop = opts.StopSequences()
+
+	if opts.PresencePenalty() != nil {
+		rv.PresencePenalty = float32(*opts.PresencePenalty())
+	}
+
+	for _, f := range opts.Functions() {
+		rv.Tools = append(rv.Tools, openai.Tool{
+			Type: openai.ToolTypeFunction,
+			Function: &openai.FunctionDefinition{
+				Name:        f.Name(),
+				Description: f.Description(),
+				Strict:      true,
+				Parameters:  json.RawMessage(f.InputTypeSchema()),
+			},
+		})
+		h.RegisterFunctions(f)
+	}
+
+	return rv
+}
+
+func (h *helper) createMessageToolCallRequests(toolCalls []openai.ToolCall) []*message.ToolCallRequest {
+	rv := make([]*message.ToolCallRequest, 0, len(toolCalls))
+	for _, toolCall := range toolCalls {
+		rv = append(rv, &message.ToolCallRequest{
+			ID:        toolCall.ID,
+			Type:      "function",
+			Name:      toolCall.Function.Name,
+			Arguments: toolCall.Function.Arguments,
+		})
+	}
+	return rv
+}
+
+func (h *helper) createOpenAICallChatResponse(resp *openai.ChatCompletionResponse) *OpenAIChatResponse {
+	usage := NewOpenAIUsage().
+		IncrPromptTokens(int64(resp.Usage.PromptTokens)).
+		IncrCompletionTokens(int64(resp.Usage.CompletionTokens)).
+		IncrReasoningTokens(int64(resp.Usage.CompletionTokensDetails.ReasoningTokens)).
+		IncrTotalTokens(int64(resp.Usage.CompletionTokens))
+
+	responseMetadata := response.
+		NewChatResponseMetadataBuilder().
+		WithID(resp.ID).
+		WithModel(resp.Model).
+		WithUsage(usage).
+		WithCreated(resp.Created).
+		Build()
+
+	builder := newOpenAIChatResponseBuilder().
+		WithMetadata(responseMetadata)
+
+	for _, choice := range resp.Choices {
+		resultMetadata := NewOpenAIChatResultMetadataBuilder().
+			WithFinishReason(h.convertFinishReason(choice.FinishReason)).
+			Build()
+
+		assistantMessage := message.NewAssistantMessage(
+			choice.Message.Content,
+			nil,
+			h.createMessageToolCallRequests(choice.Message.ToolCalls),
+		)
+
+		chatResult, _ := builder.
+			NewChatResultBuilder().
+			WithMessage(assistantMessage).
+			WithMetadata(resultMetadata).
+			Build()
+
+		builder.WithChatResults(chatResult)
+	}
+
+	rv, _ := builder.Build()
+	return rv
+}
+
+func (h *helper) createOpenAIStreamChatResponse(resp *openai.ChatCompletionStreamResponse) *OpenAIChatResponse {
+	responseMetadataBuilder := response.
+		NewChatResponseMetadataBuilder().
+		WithID(resp.ID).
+		WithModel(resp.Model).
+		WithCreated(resp.Created)
+
+	if resp.Usage != nil {
+		usage := NewOpenAIUsage().
+			IncrPromptTokens(int64(resp.Usage.PromptTokens)).
+			IncrCompletionTokens(int64(resp.Usage.CompletionTokens)).
+			IncrReasoningTokens(int64(resp.Usage.CompletionTokensDetails.ReasoningTokens)).
+			IncrTotalTokens(int64(resp.Usage.CompletionTokens))
+		responseMetadataBuilder.WithUsage(usage)
+	}
+
+	builder := newOpenAIChatResponseBuilder().
+		WithMetadata(responseMetadataBuilder.Build())
+
+	for _, choice := range resp.Choices {
+		resultMetada := NewOpenAIChatResultMetadataBuilder().
+			WithFinishReason(h.convertFinishReason(choice.FinishReason)).
+			Build()
+
+		chatResult, _ := builder.
+			NewChatResultBuilder().
+			WithContent(choice.Delta.Content).
+			WithMetadata(resultMetada).
+			Build()
+
+		builder.WithChatResults(chatResult)
+	}
+
+	rv, _ := builder.Build()
+	return rv
+}
+
+func (h *helper) merageApiChatCompletionStreamResponse(resps []openai.ChatCompletionStreamResponse) (*OpenAIChatResponse, error) {
+	if len(resps) == 0 {
+		return nil, errors.New("empty response")
+	}
+	if len(resps) == 1 {
+		return h.createOpenAIStreamChatResponse(&resps[0]), nil
+	}
+
+	lastResp := resps[len(resps)-1]
+
+	contents := make([]*strings.Builder, len(lastResp.Choices))
+	for i := range contents {
+		contents[i] = &strings.Builder{}
+	}
+
+	for _, resp := range resps {
+		for i, choice := range resp.Choices {
+			contents[i].WriteString(choice.Delta.Content)
+		}
+	}
+
+	for i, choice := range lastResp.Choices {
+		choice.Delta.Content = contents[i].String()
+		lastResp.Choices[i] = choice
+	}
+
+	return h.createOpenAIStreamChatResponse(&lastResp), nil
+}
