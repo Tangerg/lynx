@@ -10,11 +10,18 @@ import (
 type Direction int
 
 const (
-	_              Direction = iota // Skip the zero value for Direction
-	Send                            // Send indicates that the binding is used for sending messages.
-	Receive                         // Receive indicates that the binding is used for receiving messages.
-	SendAndReceive                  // SendAndReceive indicates that the binding can both send and receive messages.
+	_              Direction        = iota // Skip the zero value for Direction
+	Send                                   // Send indicates that the binding is used for sending messages.
+	Receive                                // Receive indicates that the binding is used for receiving messages.
+	SendAndReceive = Send | Receive        // SendAndReceive indicates that the binding can both send and receive messages.
 )
+
+func (d Direction) CanSend() bool {
+	return d&Send == Send
+}
+func (d Direction) CanReceive() bool {
+	return d&Receive == Receive
+}
 
 // Binding is an interface that defines methods for sending, receiving, acknowledging,
 // and negatively acknowledging messages in a message stream.
@@ -34,4 +41,7 @@ type Binding interface {
 	// Nack negatively acknowledges a message, indicating that it was not processed successfully.
 	// It takes a context and the message to be negatively acknowledged.
 	Nack(ctx context.Context, message message.Message) error
+
+	// Close make this Binding instance close
+	Close() error
 }

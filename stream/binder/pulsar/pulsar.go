@@ -7,7 +7,7 @@ import (
 )
 
 type Config struct {
-	URL string `yaml:"URL"`
+	URL string `yaml:"URL" json:"URL"`
 }
 
 func NewPulsar(conf Config) binder.Binder {
@@ -15,6 +15,8 @@ func NewPulsar(conf Config) binder.Binder {
 		config: conf,
 	}
 }
+
+var _ binder.Binder = (*Pulsar)(nil)
 
 type Pulsar struct {
 	config Config

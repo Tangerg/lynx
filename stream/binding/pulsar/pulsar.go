@@ -13,12 +13,6 @@ import (
 // messageID The identifier used to identify each message headers
 const messageID = "message_id"
 
-type Config struct {
-	URL       string            `json:"URL"`
-	Topic     string            `json:"Topic"`
-	Direction binding.Direction `json:"Direction"`
-}
-
 func NewPulsar(conf Config) binding.Binding {
 	client, err := pulsar.NewClient(pulsar.ClientOptions{
 		URL: conf.URL,
@@ -45,6 +39,8 @@ func NewPulsar(conf Config) binding.Binding {
 	}
 }
 
+var _ binding.Binding = (*Pulsar)(nil)
+
 type Pulsar struct {
 	direction binding.Direction
 	client    pulsar.Client
@@ -53,7 +49,7 @@ type Pulsar struct {
 }
 
 func (p *Pulsar) Send(ctx context.Context, message message.Message) error {
-	if p.direction == binding.Receive {
+	if !p.direction.CanSend() {
 		return binding.ErrorSendWithinReceiveBinding
 	}
 
@@ -66,7 +62,7 @@ func (p *Pulsar) Send(ctx context.Context, message message.Message) error {
 }
 
 func (p *Pulsar) Receive(ctx context.Context) (message.Message, error) {
-	if p.direction == binding.Send {
+	if !p.direction.CanReceive() {
 		return nil, binding.ErrorReceiveWithinSendBinding
 	}
 
@@ -106,7 +102,11 @@ func (p *Pulsar) getMid(msg message.Message) (pulsar.MessageID, error) {
 	return pmid, nil
 }
 
-func (p *Pulsar) Ack(ctx context.Context, msg message.Message) error {
+func (p *Pulsar) Ack(_ context.Context, msg message.Message) error {
+	if !p.direction.CanReceive() {
+		return binding.ErrorReceiveWithinSendBinding
+	}
+
 	mid, err := p.getMid(msg)
 	if err != nil {
 		return err
@@ -114,11 +114,22 @@ func (p *Pulsar) Ack(ctx context.Context, msg message.Message) error {
 	return p.consumer.AckID(mid)
 }
 
-func (p *Pulsar) Nack(ctx context.Context, msg message.Message) error {
+func (p *Pulsar) Nack(_ context.Context, msg message.Message) error {
+	if !p.direction.CanReceive() {
+		return binding.ErrorReceiveWithinSendBinding
+	}
+
 	mid, err := p.getMid(msg)
 	if err != nil {
 		return err
 	}
 	p.consumer.NackID(mid)
+	return nil
+}
+
+func (p *Pulsar) Close() error {
+	p.consumer.Close()
+	p.producer.Close()
+	p.client.Close()
 	return nil
 }
