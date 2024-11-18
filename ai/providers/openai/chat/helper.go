@@ -3,7 +3,6 @@ package chat
 import (
 	"encoding/base64"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"github.com/Tangerg/lynx/ai/core/chat/function"
 	"github.com/Tangerg/lynx/ai/core/chat/message"
@@ -12,7 +11,6 @@ import (
 	"github.com/Tangerg/lynx/ai/core/model/media"
 	"github.com/Tangerg/lynx/pkg/mime"
 	"github.com/sashabaranov/go-openai"
-	"strings"
 )
 
 type helper struct {
@@ -58,7 +56,7 @@ func (h *helper) getMessageRole(mt message.Type) string {
 	return openai.ChatMessageRoleUser
 }
 
-func (h *helper) createApiChatMessageParts(media []*media.Media) []openai.ChatMessagePart {
+func (h *helper) makeApiChatMessageParts(media []*media.Media) []openai.ChatMessagePart {
 	rv := make([]openai.ChatMessagePart, 0, len(media))
 
 	for _, m := range media {
@@ -83,7 +81,7 @@ func (h *helper) createApiChatMessageParts(media []*media.Media) []openai.ChatMe
 	return rv
 }
 
-func (h *helper) createApiChatCompletionMessages(msgs []message.ChatMessage) []openai.ChatCompletionMessage {
+func (h *helper) makeApiChatCompletionMessages(msgs []message.ChatMessage) []openai.ChatCompletionMessage {
 	rv := make([]openai.ChatCompletionMessage, 0, len(msgs))
 
 	for _, chatMessage := range msgs {
@@ -116,7 +114,7 @@ func (h *helper) createApiChatCompletionMessages(msgs []message.ChatMessage) []o
 					Type: openai.ChatMessagePartTypeText,
 					Text: userMessage.Content(),
 				})
-				msg.MultiContent = append(msg.MultiContent, h.createApiChatMessageParts(userMessage.Media())...)
+				msg.MultiContent = append(msg.MultiContent, h.makeApiChatMessageParts(userMessage.Media())...)
 			}
 		}
 
@@ -139,7 +137,7 @@ func (h *helper) createApiChatCompletionMessages(msgs []message.ChatMessage) []o
 	return rv
 }
 
-func (h *helper) createApiChatCompletionRequest(req *OpenAIChatRequest, stream bool) *openai.ChatCompletionRequest {
+func (h *helper) makeApiChatCompletionRequest(req *OpenAIChatRequest, stream bool) *openai.ChatCompletionRequest {
 	rv := &openai.ChatCompletionRequest{}
 
 	if stream {
@@ -149,7 +147,7 @@ func (h *helper) createApiChatCompletionRequest(req *OpenAIChatRequest, stream b
 		}
 	}
 
-	rv.Messages = h.createApiChatCompletionMessages(req.Instructions())
+	rv.Messages = h.makeApiChatCompletionMessages(req.Instructions())
 
 	opts := req.Options()
 	if opts == nil {
@@ -194,7 +192,7 @@ func (h *helper) createApiChatCompletionRequest(req *OpenAIChatRequest, stream b
 	return rv
 }
 
-func (h *helper) createMessageToolCallRequests(toolCalls []openai.ToolCall) []*message.ToolCallRequest {
+func (h *helper) makeMessageToolCallRequests(toolCalls []openai.ToolCall) []*message.ToolCallRequest {
 	rv := make([]*message.ToolCallRequest, 0, len(toolCalls))
 	for _, toolCall := range toolCalls {
 		rv = append(rv, &message.ToolCallRequest{
@@ -207,7 +205,7 @@ func (h *helper) createMessageToolCallRequests(toolCalls []openai.ToolCall) []*m
 	return rv
 }
 
-func (h *helper) createOpenAICallChatResponse(resp *openai.ChatCompletionResponse) *OpenAIChatResponse {
+func (h *helper) makeOpenAICallChatResponse(resp *openai.ChatCompletionResponse) *OpenAIChatResponse {
 	usage := NewOpenAIUsage().
 		IncrPromptTokens(int64(resp.Usage.PromptTokens)).
 		IncrCompletionTokens(int64(resp.Usage.CompletionTokens)).
@@ -233,7 +231,7 @@ func (h *helper) createOpenAICallChatResponse(resp *openai.ChatCompletionRespons
 		assistantMessage := message.NewAssistantMessage(
 			choice.Message.Content,
 			nil,
-			h.createMessageToolCallRequests(choice.Message.ToolCalls),
+			h.makeMessageToolCallRequests(choice.Message.ToolCalls),
 		)
 
 		chatResult, _ := builder.
@@ -249,7 +247,7 @@ func (h *helper) createOpenAICallChatResponse(resp *openai.ChatCompletionRespons
 	return rv
 }
 
-func (h *helper) createOpenAIStreamChatResponse(resp *openai.ChatCompletionStreamResponse) *OpenAIChatResponse {
+func (h *helper) makeOpenAIChatResponseByStreamChunk(resp *openai.ChatCompletionStreamResponse) *OpenAIChatResponse {
 	responseMetadataBuilder := response.
 		NewChatResponseMetadataBuilder().
 		WithID(resp.ID).
@@ -284,33 +282,4 @@ func (h *helper) createOpenAIStreamChatResponse(resp *openai.ChatCompletionStrea
 
 	rv, _ := builder.Build()
 	return rv
-}
-
-func (h *helper) merageApiChatCompletionStreamResponse(resps []openai.ChatCompletionStreamResponse) (*OpenAIChatResponse, error) {
-	if len(resps) == 0 {
-		return nil, errors.New("empty response")
-	}
-	if len(resps) == 1 {
-		return h.createOpenAIStreamChatResponse(&resps[0]), nil
-	}
-
-	lastResp := resps[len(resps)-1]
-
-	contents := make([]*strings.Builder, len(lastResp.Choices))
-	for i := range contents {
-		contents[i] = &strings.Builder{}
-	}
-
-	for _, resp := range resps {
-		for i, choice := range resp.Choices {
-			contents[i].WriteString(choice.Delta.Content)
-		}
-	}
-
-	for i, choice := range lastResp.Choices {
-		choice.Delta.Content = contents[i].String()
-		lastResp.Choices[i] = choice
-	}
-
-	return h.createOpenAIStreamChatResponse(&lastResp), nil
 }
