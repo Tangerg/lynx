@@ -12,6 +12,8 @@ func NewInMemoryChatMemory() ChatMemory {
 	}
 }
 
+var _ ChatMemory = &InMemoryChatMemory{}
+
 type InMemoryChatMemory struct {
 	conversations map[string][]message.ChatMessage
 }

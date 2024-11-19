@@ -10,54 +10,106 @@ import (
 	"github.com/Tangerg/lynx/ai/core/chat/result"
 )
 
-// CallResponse is a generic interface that defines the contract for handling responses
-// from a call-based chat request in a chat application. It is parameterized by chat options (O)
-// and chat generation metadata (M).
+// CallResponse is a generic interface defining the contract for handling responses
+// from call-based chat requests in a chat application. It allows retrieval of
+// response values in various formats and the full chat response.
 //
 // Type Parameters:
-//   - O: Represents the chat options, defined by the prompt.ChatOptions type.
-//   - M: Represents the metadata associated with chat generation, defined by the metadata.ChatGenerationMetadata type.
+//   - O: Represents the chat options, typically defined by request.ChatRequestOptions.
+//   - M: Represents the metadata associated with chat generation, typically defined by result.ChatResultMetadata.
 //
 // Methods:
 //
-// ResponseValue(ctx context.Context, def any) (ResponseValue[any, M], error)
-//   - Retrieves a response value of any type, using the provided context for managing request-scoped values.
-//   - Takes a default value (def) to be used if the response value is not available.
-//   - Returns a ResponseValue containing the result and an error if any issues occur.
+// ResponseValue:
 //
-// ResponseValueSlice(ctx context.Context) (ResponseValue[[]string, M], error)
-//   - Retrieves a response value as a slice of strings, using the provided context.
-//   - Returns a ResponseValue containing the result and an error if any issues occur.
+//	ResponseValue(ctx context.Context, def any) (ResponseValue[any, M], error)
+//	Retrieves a response value of any type, using the provided context for managing
+//	request-scoped values. A default value (def) can be provided to use if the
+//	response value is unavailable.
+//	Returns:
+//	  - ResponseValue[any, M]: A container for the result and metadata.
+//	  - error: An error if any issues occur during retrieval.
 //
-// ResponseValueMap(ctx context.Context, example map[string]any) (ResponseValue[map[string]any, M], error)
-//   - Retrieves a response value as a map, using the provided context.
-//   - Takes an example map to guide the structure of the response value.
-//   - Returns a ResponseValue containing the result and an error if any issues occur.
+// ResponseValueSlice:
 //
-// ResponseValueStruct(ctx context.Context, def any) (ResponseValue[any, M], error)
-//   - Retrieves a response value as a structured type, using the provided context.
-//   - Takes a default value (def) to be used if the response value is not available.
-//   - Returns a ResponseValue containing the result and an error if any issues occur.
+//	ResponseValueSlice(ctx context.Context) (ResponseValue[[]string, M], error)
+//	Retrieves a response value as a slice of strings, using the provided context.
+//	Returns:
+//	  - ResponseValue[[]string, M]: A container for the result and metadata.
+//	  - error: An error if any issues occur during retrieval.
 //
-// ResponseValueWithStructuredConvert(ctx context.Context, def any, c converter.StructuredConverter[any]) (ResponseValue[any, M], error)
-//   - Retrieves a response value with a structured conversion, using the provided context.
-//   - Takes a default value (def) and a converter to transform the response value into a structured format.
-//   - Returns a ResponseValue containing the result and an error if any issues occur.
+// ResponseValueMap:
 //
-// Content(ctx context.Context) (string, error)
-//   - Retrieves the content of the response as a string, using the provided context.
-//   - Returns the content and an error if any issues occur.
+//	ResponseValueMap(ctx context.Context, example map[string]any) (ResponseValue[map[string]any, M], error)
+//	Retrieves a response value as a map, using the provided context. An example
+//	map can be passed to guide the structure of the response value.
+//	Returns:
+//	  - ResponseValue[map[string]any, M]: A container for the result and metadata.
+//	  - error: An error if any issues occur during retrieval.
 //
-// ChatResponse(ctx context.Context) (*completion.ChatCompletion[M], error)
-//   - Retrieves the full chat response as a ChatCompletion, using the provided context.
-//   - Returns a pointer to the ChatCompletion and an error if any issues occur.
+// ResponseValueStruct:
+//
+//	ResponseValueStruct(ctx context.Context, def any) (ResponseValue[any, M], error)
+//	Retrieves a response value as a structured type, using the provided context.
+//	A default value (def) can be provided to use if the response value is unavailable.
+//	Returns:
+//	  - ResponseValue[any, M]: A container for the result and metadata.
+//	  - error: An error if any issues occur during retrieval.
+//
+// ResponseValueWithStructuredConvert:
+//
+//	ResponseValueWithStructuredConvert(ctx context.Context, def any, c converter.StructuredConverter[any]) (ResponseValue[any, M], error)
+//	Retrieves a response value with structured conversion, using the provided context.
+//	A default value (def) and a converter can be provided to transform the response
+//	value into a structured format.
+//	Returns:
+//	  - ResponseValue[any, M]: A container for the result and metadata.
+//	  - error: An error if any issues occur during retrieval.
+//
+// Content:
+//
+//	Content(ctx context.Context) (string, error)
+//	Retrieves the content of the response as a string, using the provided context.
+//	Returns:
+//	  - string: The content of the response.
+//	  - error: An error if any issues occur during retrieval.
+//
+// ChatResponse:
+//
+//	ChatResponse(ctx context.Context) (*response.ChatResponse[M], error)
+//	Retrieves the full chat response as a ChatResponse.
+//	Returns:
+//	  - *response.ChatResponse[M]: A pointer to the ChatResponse instance.
+//	  - error: An error if any issues occur during retrieval.
+//
+// Example Usage:
+//
+//	var callResp CallResponse[ChatOptions, ChatMetadata]
+//	content, err := callResp.Content(ctx)
+//	if err != nil {
+//	    log.Fatal(err)
+//	}
+//	fmt.Println("Response content:", content)
 type CallResponse[O request.ChatRequestOptions, M result.ChatResultMetadata] interface {
+	// ResponseValue Retrieves a response value of any type, using the provided context and a default value.
 	ResponseValue(ctx context.Context, def any) (ResponseValue[any, M], error)
+
+	// ResponseValueSlice Retrieves a response value as a slice of strings.
 	ResponseValueSlice(ctx context.Context) (ResponseValue[[]string, M], error)
+
+	// ResponseValueMap Retrieves a response value as a map, using an example map to guide its structure.
 	ResponseValueMap(ctx context.Context, example map[string]any) (ResponseValue[map[string]any, M], error)
+
+	// ResponseValueStruct Retrieves a response value as a structured type, using a default value if unavailable.
 	ResponseValueStruct(ctx context.Context, def any) (ResponseValue[any, M], error)
+
+	// ResponseValueWithStructuredConvert Retrieves a response value with structured conversion, using a default value and converter.
 	ResponseValueWithStructuredConvert(ctx context.Context, def any, c converter.StructuredConverter[any]) (ResponseValue[any, M], error)
+
+	// Content Retrieves the content of the response as a string.
 	Content(ctx context.Context) (string, error)
+
+	// ChatResponse Retrieves the full chat response as a ChatResponse.
 	ChatResponse(ctx context.Context) (*response.ChatResponse[M], error)
 }
 

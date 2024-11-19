@@ -5,19 +5,70 @@ import (
 	"github.com/Tangerg/lynx/ai/core/chat/result"
 )
 
-// ChatModel is an interface representing a chat model capable of both batch and streaming message processing.
-// It is parameterized by O, which represents the options for the prompt, and M, which represents the metadata for generation.
+// ChatModel is a generic interface representing a chat model capable of handling both
+// batch and streaming message processing. It is parameterized by two types:
 //
-// This interface combines the functionalities of both Model and StreamingModel interfaces,
-// allowing it to handle message processing in both batch and streaming modes.
+// Type Parameters:
+//   - O: Represents the options for the prompt, typically containing configuration
+//     or settings for generating chat messages.
+//   - M: Represents the metadata for the generation process, providing additional
+//     context or details about the output.
 //
-//   - Model[O, M]: Provides the capability to process messages in a batch mode, where messages are
-//     processed and generated as a complete set.
-//   - StreamingModel[O, M]: Provides the capability to process messages in a streaming mode, where
-//     messages are processed and generated continuously, allowing for real-time interaction.
+// Functionalities:
+// ChatModel combines the capabilities of both the `Model` and `StreamingModel` interfaces:
 //
-// The ChatModel interface is designed for applications requiring flexible message processing
-// capabilities, supporting both traditional batch processing and modern streaming interactions.
+//   - Model[O, M]:
+//     Supports batch message processing, where messages are processed and generated as a
+//     complete set in response to a given input.
+//
+//   - StreamingModel[O, M]:
+//     Enables streaming message processing, where messages are processed and generated
+//     incrementally, supporting real-time interactions.
+//
+// Applications:
+// This interface is designed for scenarios requiring flexible message processing, such as:
+//   - Batch processing of chat messages for applications like customer service reports or
+//     document summarization.
+//   - Streaming interactions for real-time conversational AI or chatbots.
+//
+// Example Implementation:
+//
+//	type MyChatModel struct {}
+//
+//	func (m *MyChatModel) Call(
+//	    ctx context.Context,
+//	    req *request.ChatRequest[ChatOptions],
+//	) (*response.ChatResponse[ChatMetadata], error) {
+//	    // Implementation for batch message processing.
+//	}
+//
+//	func (m *MyChatModel) Stream(
+//	    ctx context.Context,
+//	    req *request.ChatRequest[ChatOptions],
+//	    handler func(*response.ChatResponse[ChatMetadata]) error,
+//	) (*response.ChatResponse[ChatMetadata], error) {
+//	    // Implementation for streaming message processing.
+//	}
+//
+// Example Usage:
+//
+//	var chatModel ChatModel[ChatOptions, ChatMetadata]
+//
+//	// Batch processing
+//	response, err := chatModel.Call(ctx, chatRequest)
+//	if err != nil {
+//	    log.Fatal(err)
+//	}
+//	fmt.Println("Batch response:", response)
+//
+//	// Streaming processing
+//	err = chatModel.Stream(ctx, chatRequest, func(resp *response.ChatResponse[ChatMetadata]) error {
+//	    fmt.Println("Streaming response chunk:", resp)
+//	    return nil
+//	})
+//	if err != nil {
+//	    log.Fatal(err)
+//	}
 type ChatModel[O request.ChatRequestOptions, M result.ChatResultMetadata] interface {
 	Model[O, M]
 	StreamingModel[O, M]

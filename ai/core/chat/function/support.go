@@ -17,8 +17,26 @@ import (
 	"github.com/Tangerg/lynx/ai/core/model/function"
 )
 
-// Support is a generic structure that provides support for managing and executing register
-// within a chat-based system. It is designed to be extended and not instantiated directly.
+// Support is a generic structure designed for managing and executing registered functions
+// within a chat-based system. It provides thread-safe access to a registry of functions
+// and serves as a foundational component for systems requiring extensible function handling.
+//
+// Type Parameters:
+//   - O: Represents the options for the chat prompt, typically used to configure or customize
+//     chat requests. This type should conform to request.ChatRequestOptions.
+//   - M: Represents the metadata for chat responses, providing additional context or information
+//     about the generation process. This type should conform to result.ChatResultMetadata.
+//
+// Fields:
+//   - mu: A sync.RWMutex that ensures thread-safe access to the `register` field. This
+//     allows concurrent reads while preventing data races during modifications.
+//   - register: A map that holds registered functions, keyed by their unique names. The
+//     values are instances of function.Function, enabling dynamic function execution.
+//
+// Usage:
+// The Support struct is designed to be extended and not directly instantiated. Custom
+// implementations can embed Support to build on its functionality, such as managing
+// dynamic function registrations in a chat system.
 type Support[O request.ChatRequestOptions, M result.ChatResultMetadata] struct {
 	mu       sync.RWMutex
 	register map[string]function.Function

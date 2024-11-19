@@ -17,6 +17,8 @@ func NewUserMessage(content string, metadata map[string]any, m ...*media.Media) 
 	}
 }
 
+var _ ChatMessage = (*UserMessage)(nil)
+
 type UserMessage struct {
 	content  string
 	media    []*media.Media

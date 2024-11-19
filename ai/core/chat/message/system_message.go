@@ -11,6 +11,8 @@ func NewSystemMessage(content string, metadata map[string]any) *SystemMessage {
 	}
 }
 
+var _ ChatMessage = (*SystemMessage)(nil)
+
 type SystemMessage struct {
 	content  string
 	metadata map[string]any

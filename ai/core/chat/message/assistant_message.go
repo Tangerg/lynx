@@ -15,6 +15,8 @@ func NewAssistantMessage(content string, metadata map[string]any, toolCalls []*T
 	}
 }
 
+var _ ChatMessage = (*AssistantMessage)(nil)
+
 type AssistantMessage struct {
 	content          string
 	metadata         map[string]any

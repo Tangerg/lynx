@@ -9,22 +9,24 @@ import (
 	"github.com/Tangerg/lynx/ai/core/chat/result"
 )
 
-// Context is a generic struct that holds the state and controls the flow of chat processing
-// through a series of middleware functions. It is parameterized by chat options (O) and
-// chat generation metadata (M).
+// Context is a generic struct that manages the state and flow of chat processing
+// through a sequence of middleware functions. It is parameterized by chat options (O)
+// and chat generation metadata (M).
 //
 // Type Parameters:
-//   - O: Represents the chat options, defined by the prompt.ChatOptions type.
-//   - M: Represents the metadata associated with chat generation, defined by the metadata.ChatGenerationMetadata type.
+//   - O: Represents the chat options, typically defined by request.ChatRequestOptions.
+//   - M: Represents the metadata associated with chat generation, typically defined
+//     by result.ChatResultMetadata.
 //
 // Fields:
-//   - ctx: An instance of context.Context, used for managing request-scoped values, cancellation signals, and deadlines.
-//   - mu: A read-write mutex (sync.RWMutex) to ensure thread-safe access to the params map.
-//   - params: A map for storing arbitrary key-value pairs, allowing middleware to share data.
-//   - middlewareIndex: An integer tracking the current position in the middleware chain.
-//   - middlewares: A slice of Middleware[O, M] functions that are executed in sequence.
+//   - ctx: The base context.Context instance, used for managing request-scoped values,
+//     deadlines, and cancellation signals.
+//   - mu: A sync.RWMutex to ensure thread-safe access to the params map.
+//   - params: A map for storing arbitrary key-value pairs, enabling middleware to share data.
+//   - middlewareIndex: An integer tracking the current position in the middleware execution chain.
+//   - middlewares: A slice of Middleware[O, M] functions, executed in sequence.
 //   - Request: A pointer to a Request[O, M] struct, representing the incoming chat request.
-//   - Response: A pointer to a completion.ChatCompletion[M] struct, representing the chat response.
+//   - Response: A pointer to a response.ChatResponse[M] struct, representing the generated response.
 type Context[O request.ChatRequestOptions, M result.ChatResultMetadata] struct {
 	ctx             context.Context
 	mu              sync.RWMutex
@@ -39,9 +41,11 @@ func (c *Context[O, M]) Context() context.Context {
 	return c.ctx
 }
 
-// Next
-//   - Advances to the next middleware in the chain. If there are no more middlewares, it returns nil.
-//   - Returns an error if the current middleware encounters an issue.
+// Next advances to the next middleware in the execution chain.
+// If no more middleware functions are available, it simply returns nil.
+//
+// Returns:
+//   - error: If the current middleware encounters an error, it is returned.
 func (c *Context[O, M]) Next() error {
 	c.middlewareIndex++
 	if c.middlewareIndex < len(c.middlewares) {
@@ -77,6 +81,14 @@ func (c *Context[O, M]) SetMiddlewares(middlewares ...Middleware[O, M]) {
 	c.middlewares = append(c.middlewares, middlewares...)
 }
 
+// NewContext creates a new Context instance with an initialized middleware chain
+// and an empty params map.
+//
+// Parameters:
+//   - ctx: The base context.Context instance for managing request-scoped values.
+//
+// Returns:
+//   - *Context[O, M]: A new Context instance ready for middleware processing.
 func NewContext[O request.ChatRequestOptions, M result.ChatResultMetadata](ctx context.Context) *Context[O, M] {
 	return &Context[O, M]{
 		ctx:             ctx,

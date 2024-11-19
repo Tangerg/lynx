@@ -34,7 +34,7 @@ package openai
 //		return
 //	}
 //	content, err := client.
-//		PromptPrompt(p).
+//		PromptRequest(p).
 //		Call().
 //		Content(context.Background())
 //	if err != nil {

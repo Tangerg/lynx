@@ -9,8 +9,9 @@ import (
 
 var _ function.Function = (*Wrapper)(nil)
 
-// Wrapper is a struct that encapsulates a function with additional metadata.
-// It includes a name, description, input type schema, and a caller function.
+// Wrapper is a struct that encapsulates a function along with its associated metadata.
+// It implements the `function.Function` interface, providing details about the function
+// and enabling its execution.
 type Wrapper struct {
 	name            string
 	description     string

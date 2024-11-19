@@ -11,6 +11,8 @@ func NewToolCallsMessage(resps []*ToolCallResponse, metadata map[string]any) *To
 	}
 }
 
+var _ ChatMessage = (*ToolCallsMessage)(nil)
+
 type ToolCallsMessage struct {
 	responses []*ToolCallResponse
 	content   string
