@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"github.com/Tangerg/lynx/ai/core/chat/model"
-	baseModel "github.com/Tangerg/lynx/ai/core/model"
 	"github.com/Tangerg/lynx/ai/providers/openai/api"
 	"io"
 )
@@ -41,7 +40,7 @@ func (o *OpenAIChatModel) Call(ctx context.Context, req *OpenAIChatRequest) (*Op
 	return o.Call(ctx, newReq)
 }
 
-func (o *OpenAIChatModel) Stream(ctx context.Context, req *OpenAIChatRequest, handler baseModel.StreamChunkHandler[*OpenAIChatResponse]) (*OpenAIChatResponse, error) {
+func (o *OpenAIChatModel) Stream(ctx context.Context, req *OpenAIChatRequest, handler OpenAIChatStreamChunkHandler) (*OpenAIChatResponse, error) {
 	o.helper.RegisterFunctions(req.Options().Functions()...)
 	creq := o.converter.makeApiChatCompletionRequest(req, true)
 
