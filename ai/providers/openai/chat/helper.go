@@ -1,285 +1,32 @@
 package chat
 
 import (
-	"encoding/base64"
-	"encoding/json"
-	"fmt"
+	"context"
 	"github.com/Tangerg/lynx/ai/core/chat/function"
-	"github.com/Tangerg/lynx/ai/core/chat/message"
-	"github.com/Tangerg/lynx/ai/core/chat/response"
 	"github.com/Tangerg/lynx/ai/core/chat/result"
-	"github.com/Tangerg/lynx/ai/core/model/media"
-	"github.com/Tangerg/lynx/pkg/mime"
-	"github.com/sashabaranov/go-openai"
 )
 
 type helper struct {
 	function.Support[*OpenAIChatRequestOptions, *OpenAIChatResultMetadata]
 }
 
-func (h *helper) convertFinishReason(reason openai.FinishReason) result.FinishReason {
-	switch reason {
-	case openai.FinishReasonStop:
-		return result.Stop
-
-	case openai.FinishReasonLength:
-		return result.Length
-
-	case openai.FinishReasonFunctionCall,
-		openai.FinishReasonToolCalls:
-		return result.ToolCalls
-
-	case openai.FinishReasonContentFilter:
-		return result.ContentFilter
-
-	case openai.FinishReasonNull, "":
-		return result.Null
-
-	default:
-		return result.Other
+func (h *helper) shouldHandleToolCalls(defaultOptions *OpenAIChatRequestOptions, req *OpenAIChatRequest, resp *OpenAIChatResponse) bool {
+	if h.IsProxyToolCalls(req.Options(), defaultOptions) {
+		return false
 	}
+	return h.IsToolCallChatResponse(resp, []result.FinishReason{result.ToolCalls, result.Stop})
 }
 
-func (h *helper) getMessageRole(mt message.Type) string {
-	if mt.IsUser() {
-		return openai.ChatMessageRoleUser
-	}
-	if mt.IsSystem() {
-		return openai.ChatMessageRoleSystem
-	}
-	if mt.IsAssistant() {
-		return openai.ChatMessageRoleAssistant
-	}
-	if mt.IsTool() {
-		return openai.ChatMessageRoleTool
-	}
-	return openai.ChatMessageRoleUser
-}
-
-func (h *helper) makeApiChatMessageParts(media []*media.Media) []openai.ChatMessagePart {
-	rv := make([]openai.ChatMessagePart, 0, len(media))
-
-	for _, m := range media {
-		part := openai.ChatMessagePart{
-			Type:     openai.ChatMessagePartTypeImageURL,
-			ImageURL: &openai.ChatMessageImageURL{},
-		}
-
-		if mime.IsImage(m.MimeType()) {
-			part.ImageURL.URL = fmt.Sprintf(
-				"data:%s;base64,%s",
-				m.MimeType().String(),
-				base64.StdEncoding.EncodeToString(m.Data()),
-			)
-		} else {
-			part.ImageURL.URL = string(m.Data())
-		}
-
-		rv = append(rv, part)
+func (h *helper) handleToolCalls(ctx context.Context, req *OpenAIChatRequest, resp *OpenAIChatResponse) (*OpenAIChatRequest, error) {
+	msgs, err := h.HandleToolCalls(ctx, req, resp)
+	if err != nil {
+		return nil, err
 	}
 
-	return rv
-}
-
-func (h *helper) makeApiChatCompletionMessages(msgs []message.ChatMessage) []openai.ChatCompletionMessage {
-	rv := make([]openai.ChatCompletionMessage, 0, len(msgs))
-
-	for _, chatMessage := range msgs {
-		if chatMessage.Type().IsTool() {
-			toolCallsMessage := chatMessage.(*message.ToolCallsMessage)
-			for _, resp := range toolCallsMessage.Responses() {
-				if resp.ID == "" {
-					continue
-				}
-				rv = append(rv, openai.ChatCompletionMessage{
-					Role:       openai.ChatMessageRoleTool,
-					Content:    resp.Data,
-					Name:       resp.Name,
-					ToolCallID: resp.ID,
-				})
-			}
-			continue
-		}
-
-		msg := openai.ChatCompletionMessage{
-			Role:    h.getMessageRole(chatMessage.Type()),
-			Content: chatMessage.Content(),
-		}
-
-		if chatMessage.Type().IsUser() {
-			userMessage := chatMessage.(*message.UserMessage)
-			if len(userMessage.Media()) > 0 {
-				msg.Content = ""
-				msg.MultiContent = append(msg.MultiContent, openai.ChatMessagePart{
-					Type: openai.ChatMessagePartTypeText,
-					Text: userMessage.Content(),
-				})
-				msg.MultiContent = append(msg.MultiContent, h.makeApiChatMessageParts(userMessage.Media())...)
-			}
-		}
-
-		if chatMessage.Type().IsAssistant() {
-			assistantMessage := chatMessage.(*message.AssistantMessage)
-			for _, toolCallRequest := range assistantMessage.ToolCalls() {
-				msg.ToolCalls = append(msg.ToolCalls, openai.ToolCall{
-					ID:   toolCallRequest.ID,
-					Type: openai.ToolTypeFunction,
-					Function: openai.FunctionCall{
-						Name:      toolCallRequest.Name,
-						Arguments: toolCallRequest.Arguments,
-					},
-				})
-			}
-		}
-		rv = append(rv, msg)
-	}
-
-	return rv
-}
-
-func (h *helper) makeApiChatCompletionRequest(req *OpenAIChatRequest, stream bool) *openai.ChatCompletionRequest {
-	rv := &openai.ChatCompletionRequest{}
-
-	if stream {
-		rv.Stream = true
-		rv.StreamOptions = &openai.StreamOptions{
-			IncludeUsage: true,
-		}
-	}
-
-	rv.Messages = h.makeApiChatCompletionMessages(req.Instructions())
-
-	opts := req.Options()
-	if opts == nil {
-		return rv
-	}
-
-	rv.Model = *opts.Model()
-
-	if opts.MaxTokens() != nil {
-		rv.MaxTokens = *opts.MaxTokens()
-	}
-
-	if opts.Temperature() != nil {
-		rv.Temperature = float32(*opts.Temperature())
-	}
-
-	if opts.TopP() != nil {
-		rv.TopP = float32(*opts.TopP())
-	}
-
-	rv.N = opts.N()
-
-	rv.Stop = opts.StopSequences()
-
-	if opts.PresencePenalty() != nil {
-		rv.PresencePenalty = float32(*opts.PresencePenalty())
-	}
-
-	for _, f := range opts.Functions() {
-		rv.Tools = append(rv.Tools, openai.Tool{
-			Type: openai.ToolTypeFunction,
-			Function: &openai.FunctionDefinition{
-				Name:        f.Name(),
-				Description: f.Description(),
-				Strict:      true,
-				Parameters:  json.RawMessage(f.InputTypeSchema()),
-			},
-		})
-		h.RegisterFunctions(f)
-	}
-
-	return rv
-}
-
-func (h *helper) makeMessageToolCallRequests(toolCalls []openai.ToolCall) []*message.ToolCallRequest {
-	rv := make([]*message.ToolCallRequest, 0, len(toolCalls))
-	for _, toolCall := range toolCalls {
-		rv = append(rv, &message.ToolCallRequest{
-			ID:        toolCall.ID,
-			Type:      "function",
-			Name:      toolCall.Function.Name,
-			Arguments: toolCall.Function.Arguments,
-		})
-	}
-	return rv
-}
-
-func (h *helper) makeOpenAICallChatResponse(resp *openai.ChatCompletionResponse) *OpenAIChatResponse {
-	usage := NewOpenAIUsage().
-		IncrPromptTokens(int64(resp.Usage.PromptTokens)).
-		IncrCompletionTokens(int64(resp.Usage.CompletionTokens)).
-		IncrReasoningTokens(int64(resp.Usage.CompletionTokensDetails.ReasoningTokens)).
-		IncrTotalTokens(int64(resp.Usage.CompletionTokens))
-
-	responseMetadata := response.
-		NewChatResponseMetadataBuilder().
-		WithID(resp.ID).
-		WithModel(resp.Model).
-		WithUsage(usage).
-		WithCreated(resp.Created).
+	newReq, _ := newOpenAIChatRequestBuilder().
+		WithOptions(req.Options()).
+		WithMessages(msgs...).
 		Build()
 
-	builder := newOpenAIChatResponseBuilder().
-		WithMetadata(responseMetadata)
-
-	for _, choice := range resp.Choices {
-		resultMetadata := NewOpenAIChatResultMetadataBuilder().
-			WithFinishReason(h.convertFinishReason(choice.FinishReason)).
-			Build()
-
-		assistantMessage := message.NewAssistantMessage(
-			choice.Message.Content,
-			nil,
-			h.makeMessageToolCallRequests(choice.Message.ToolCalls),
-		)
-
-		chatResult, _ := builder.
-			NewChatResultBuilder().
-			WithMessage(assistantMessage).
-			WithMetadata(resultMetadata).
-			Build()
-
-		builder.WithChatResults(chatResult)
-	}
-
-	rv, _ := builder.Build()
-	return rv
-}
-
-func (h *helper) makeOpenAIChatResponseByStreamChunk(resp *openai.ChatCompletionStreamResponse) *OpenAIChatResponse {
-	responseMetadataBuilder := response.
-		NewChatResponseMetadataBuilder().
-		WithID(resp.ID).
-		WithModel(resp.Model).
-		WithCreated(resp.Created)
-
-	if resp.Usage != nil {
-		usage := NewOpenAIUsage().
-			IncrPromptTokens(int64(resp.Usage.PromptTokens)).
-			IncrCompletionTokens(int64(resp.Usage.CompletionTokens)).
-			IncrReasoningTokens(int64(resp.Usage.CompletionTokensDetails.ReasoningTokens)).
-			IncrTotalTokens(int64(resp.Usage.CompletionTokens))
-		responseMetadataBuilder.WithUsage(usage)
-	}
-
-	builder := newOpenAIChatResponseBuilder().
-		WithMetadata(responseMetadataBuilder.Build())
-
-	for _, choice := range resp.Choices {
-		resultMetada := NewOpenAIChatResultMetadataBuilder().
-			WithFinishReason(h.convertFinishReason(choice.FinishReason)).
-			Build()
-
-		chatResult, _ := builder.
-			NewChatResultBuilder().
-			WithContent(choice.Delta.Content).
-			WithMetadata(resultMetada).
-			Build()
-
-		builder.WithChatResults(chatResult)
-	}
-
-	rv, _ := builder.Build()
-	return rv
+	return newReq, nil
 }

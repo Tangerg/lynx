@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/Tangerg/lynx/ai/core/chat/client/middleware"
-	"github.com/Tangerg/lynx/ai/core/chat/client/middleware/outputguide"
 	"github.com/Tangerg/lynx/ai/core/chat/request"
 	"github.com/Tangerg/lynx/ai/core/chat/response"
 	"github.com/Tangerg/lynx/ai/core/chat/result"
@@ -50,11 +49,10 @@ func (d *DefaultStreamResponse[O, M]) doGetChatResponse(ctx context.Context, for
 	c := middleware.NewContext[O, M](ctx)
 
 	if format != "" {
-		c.Set(outputguide.FormatKey, format)
+		c.Set(middleware.ResponseFormatKey, format)
 	}
 	c.SetMap(d.request.middlewareParams)
-	c.Request = d.request.toMiddlewareRequest()
-	c.Request.Mode = middleware.StreamRequest
+	c.Request = d.request.toMiddlewareRequest(middleware.StreamRequest)
 	c.SetMiddlewares(d.request.middlewares...)
 
 	err := c.Next()

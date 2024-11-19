@@ -4,15 +4,10 @@ import (
 	"github.com/Tangerg/lynx/ai/core/chat/message"
 	"github.com/Tangerg/lynx/ai/core/chat/model"
 	"github.com/Tangerg/lynx/ai/core/chat/request"
+	"github.com/Tangerg/lynx/ai/core/chat/response"
 	"github.com/Tangerg/lynx/ai/core/chat/result"
+	baseModel "github.com/Tangerg/lynx/ai/core/model"
 	"github.com/Tangerg/lynx/ai/core/model/media"
-)
-
-type ChatRequestMode string
-
-const (
-	CallRequest   ChatRequestMode = "call"
-	StreamRequest ChatRequestMode = "stream"
 )
 
 // Request is a generic struct representing a chat request in a chat application.
@@ -41,6 +36,7 @@ type Request[O request.ChatRequestOptions, M result.ChatResultMetadata] struct {
 	SystemParams       map[string]any
 	Messages           []message.ChatMessage
 	Mode               ChatRequestMode
+	StreamChunkHandler baseModel.StreamChunkHandler[*response.ChatResponse[M]]
 }
 
 func (r *Request[O, M]) IsCall() bool {

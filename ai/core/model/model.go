@@ -25,5 +25,7 @@ type Model[Req any, Res any] interface {
 // Methods:
 //   - Stream: Initiates a streaming operation with a given context and request, returning a response and an error.
 type StreamingModel[Req any, Res any] interface {
-	Stream(ctx context.Context, req Req) (Res, error)
+	Stream(ctx context.Context, req Req, handler StreamChunkHandler[Res]) (Res, error)
 }
+
+type StreamChunkHandler[T any] func(ctx context.Context, chunk T) error

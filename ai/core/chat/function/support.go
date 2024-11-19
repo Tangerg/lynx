@@ -37,6 +37,10 @@ func (s *Support[O, M]) MerageOptionsAndFunctions(options function.Options, func
 }
 
 func (s *Support[O, M]) RegisterFunctions(funcs ...function.Function) {
+	if len(funcs) == 0 {
+		return
+	}
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -77,25 +81,25 @@ func (s *Support[O, M]) HandleToolCalls(ctx context.Context, req *request.ChatRe
 	if toolcallResult == nil {
 		return nil, errors.New("no tool call result found in the response")
 	}
-	toolMessage, err := s.ExecuteFunctions(ctx, toolcallResult.Output())
+	toolMessage, err := s.executeFunctions(ctx, toolcallResult.Output())
 	if err != nil {
 		return nil, err
 	}
-	return s.BuildToolCallConversation(
+	return s.buildToolCallConversation(
 		req.Instructions(),
 		toolcallResult.Output(),
 		toolMessage,
 	), nil
 }
 
-func (s *Support[O, M]) BuildToolCallConversation(msgs []message.ChatMessage, assistantMessage *message.AssistantMessage, toolMessage *message.ToolCallsMessage) []message.ChatMessage {
+func (s *Support[O, M]) buildToolCallConversation(msgs []message.ChatMessage, assistantMessage *message.AssistantMessage, toolMessage *message.ToolCallsMessage) []message.ChatMessage {
 	rv := make([]message.ChatMessage, 0, len(msgs)+2)
 	copy(rv, msgs)
 	rv = append(rv, assistantMessage, toolMessage)
 	return rv
 }
 
-func (s *Support[O, M]) ExecuteFunctions(ctx context.Context, assistantMessage *message.AssistantMessage) (*message.ToolCallsMessage, error) {
+func (s *Support[O, M]) executeFunctions(ctx context.Context, assistantMessage *message.AssistantMessage) (*message.ToolCallsMessage, error) {
 	resps := make([]*message.ToolCallResponse, 0, len(assistantMessage.ToolCalls()))
 	for _, toolCall := range assistantMessage.ToolCalls() {
 		f, ok := s.register[toolCall.Name]
@@ -115,16 +119,16 @@ func (s *Support[O, M]) ExecuteFunctions(ctx context.Context, assistantMessage *
 	return message.NewToolCallsMessage(resps, nil), nil
 }
 
-func (s *Support[O, M]) IsToolCallChatCompletion(res *response.ChatResponse[M], finishReasons []result.FinishReason) bool {
+func (s *Support[O, M]) IsToolCallChatResponse(res *response.ChatResponse[M], finishReasons []result.FinishReason) bool {
 	for _, r := range res.Results() {
-		if s.IsToolCallChatResult(r, finishReasons) {
+		if s.isToolCallChatResult(r, finishReasons) {
 			return true
 		}
 	}
 	return false
 }
 
-func (s *Support[O, M]) IsToolCallChatResult(assistantMessage model.Result[*message.AssistantMessage, M], finishReasons []result.FinishReason) bool {
+func (s *Support[O, M]) isToolCallChatResult(assistantMessage model.Result[*message.AssistantMessage, M], finishReasons []result.FinishReason) bool {
 	if !assistantMessage.Output().HasToolCalls() {
 		return false
 	}

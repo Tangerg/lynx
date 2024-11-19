@@ -38,7 +38,7 @@ func (i *invoker[O, M]) callInvoke(ctx *middleware.Context[O, M]) error {
 
 func (i *invoker[O, M]) streamInvoke(ctx *middleware.Context[O, M]) error {
 	p := i.buildChatRequest(ctx.Request)
-	resp, err := ctx.Request.ChatModel.Stream(ctx.Context(), p)
+	resp, err := ctx.Request.ChatModel.Stream(ctx.Context(), p, ctx.Request.StreamChunkHandler)
 	ctx.Response = resp
 	return err
 }

@@ -5,7 +5,9 @@ import (
 	"github.com/Tangerg/lynx/ai/core/chat/message"
 	"github.com/Tangerg/lynx/ai/core/chat/model"
 	"github.com/Tangerg/lynx/ai/core/chat/request"
+	"github.com/Tangerg/lynx/ai/core/chat/response"
 	"github.com/Tangerg/lynx/ai/core/chat/result"
+	baseModel "github.com/Tangerg/lynx/ai/core/model"
 	"github.com/Tangerg/lynx/ai/core/model/media"
 )
 
@@ -58,6 +60,7 @@ type ChatClientRequest[O request.ChatRequestOptions, M result.ChatResultMetadata
 	SetUserPrompt(user UserPrompt) ChatClientRequest[O, M]
 	SetMessages(messages ...message.ChatMessage) ChatClientRequest[O, M]
 	SetMiddlewares(middlewares Middlewares[O, M]) ChatClientRequest[O, M]
+	SetStreamChunkHandler(handler baseModel.StreamChunkHandler[*response.ChatResponse[M]]) ChatClientRequest[O, M]
 	Call() CallResponse[O, M]
 	Stream() StreamResponse[O, M]
 	Mutate() ChatClientBuilder[O, M]
@@ -84,6 +87,7 @@ type DefaultChatClientRequest[O request.ChatRequestOptions, M result.ChatResultM
 	messages           []message.ChatMessage
 	middlewares        []middleware.Middleware[O, M]
 	middlewareParams   map[string]any
+	streamChunkHandler baseModel.StreamChunkHandler[*response.ChatResponse[M]]
 }
 
 func (d *DefaultChatClientRequest[O, M]) SetChatModel(model model.ChatModel[O, M]) ChatClientRequest[O, M] {
@@ -126,6 +130,11 @@ func (d *DefaultChatClientRequest[O, M]) SetMiddlewares(middlewares Middlewares[
 	return d
 }
 
+func (d *DefaultChatClientRequest[O, M]) SetStreamChunkHandler(handler baseModel.StreamChunkHandler[*response.ChatResponse[M]]) ChatClientRequest[O, M] {
+	d.streamChunkHandler = handler
+	return d
+}
+
 func (d *DefaultChatClientRequest[O, M]) Call() CallResponse[O, M] {
 	return NewDefaultCallResponse[O, M](d)
 }
@@ -146,7 +155,7 @@ func (d *DefaultChatClientRequest[O, M]) Mutate() ChatClientBuilder[O, M] {
 	return builder
 }
 
-func (d *DefaultChatClientRequest[O, M]) toMiddlewareRequest() *middleware.Request[O, M] {
+func (d *DefaultChatClientRequest[O, M]) toMiddlewareRequest(mode middleware.ChatRequestMode) *middleware.Request[O, M] {
 	return &middleware.Request[O, M]{
 		ChatModel:          d.chatModel,
 		ChatRequestOptions: d.chatRequestOptions,
@@ -156,7 +165,8 @@ func (d *DefaultChatClientRequest[O, M]) toMiddlewareRequest() *middleware.Reque
 		SystemText:         d.systemText,
 		SystemParams:       d.systemParams,
 		Messages:           d.messages,
-		Mode:               middleware.CallRequest,
+		Mode:               mode,
+		StreamChunkHandler: d.streamChunkHandler,
 	}
 }
 
@@ -182,6 +192,7 @@ func (b *DefaultChatClientRequestBuilder[O, M]) FromDefaultChatClientRequest(old
 		messages:           old.messages,
 		middlewares:        old.middlewares,
 		middlewareParams:   old.middlewareParams,
+		streamChunkHandler: old.streamChunkHandler,
 	}
 	return b
 }
@@ -212,6 +223,18 @@ func (b *DefaultChatClientRequestBuilder[O, M]) WithSystemParams(systemParams ma
 }
 func (b *DefaultChatClientRequestBuilder[O, M]) WithMessages(messages ...message.ChatMessage) *DefaultChatClientRequestBuilder[O, M] {
 	b.request.messages = messages
+	return b
+}
+func (b *DefaultChatClientRequestBuilder[O, M]) WithMiddlewares(middlewares ...middleware.Middleware[O, M]) *DefaultChatClientRequestBuilder[O, M] {
+	b.request.middlewares = append(b.request.middlewares, middlewares...)
+	return b
+}
+func (b *DefaultChatClientRequestBuilder[O, M]) WithMiddlewareParams(middlewareParams map[string]any) *DefaultChatClientRequestBuilder[O, M] {
+	b.request.middlewareParams = middlewareParams
+	return b
+}
+func (b *DefaultChatClientRequestBuilder[O, M]) WithStreamChunkHandler(streamChunkHandler baseModel.StreamChunkHandler[*response.ChatResponse[M]]) *DefaultChatClientRequestBuilder[O, M] {
+	b.request.streamChunkHandler = streamChunkHandler
 	return b
 }
 func (b *DefaultChatClientRequestBuilder[O, M]) Build() (*DefaultChatClientRequest[O, M], error) {

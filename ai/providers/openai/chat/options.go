@@ -1,7 +1,6 @@
 package chat
 
 import (
-	"context"
 	"errors"
 	"github.com/Tangerg/lynx/ai/core/chat/request"
 	"github.com/Tangerg/lynx/ai/core/model/function"
@@ -9,17 +8,16 @@ import (
 )
 
 type OpenAIChatRequestOptions struct {
-	model              *string
-	maxTokens          *int
-	presencePenalty    *float64
-	stopSequences      []string
-	temperature        *float64
-	topK               *int
-	topP               *float64
-	n                  int
-	streamResponseFunc func(ctx context.Context, res *OpenAIChatResponse) error
-	functions          []function.Function
-	proxyToolCalls     bool
+	model           *string
+	maxTokens       *int
+	presencePenalty *float64
+	stopSequences   []string
+	temperature     *float64
+	topK            *int
+	topP            *float64
+	n               int
+	functions       []function.Function
+	proxyToolCalls  bool
 }
 
 func (o *OpenAIChatRequestOptions) Functions() []function.Function {
@@ -74,10 +72,6 @@ func (o *OpenAIChatRequestOptions) N() int {
 	return o.n
 }
 
-func (o *OpenAIChatRequestOptions) StreamResponseFunc() func(ctx context.Context, completion *OpenAIChatResponse) error {
-	return o.streamResponseFunc
-}
-
 func (o *OpenAIChatRequestOptions) Clone() request.ChatRequestOptions {
 	builder := NewOpenAIChatRequestOptionsBuilder()
 	if o.model != nil {
@@ -103,9 +97,6 @@ func (o *OpenAIChatRequestOptions) Clone() request.ChatRequestOptions {
 	}
 	if o.functions != nil {
 		builder.WithFunctions(o.functions...)
-	}
-	if o.streamResponseFunc != nil {
-		builder.WithStreamResponseFunc(o.streamResponseFunc)
 	}
 	builder.WithProxyToolCalls(o.proxyToolCalls)
 	builder.WithN(o.n)
@@ -154,10 +145,6 @@ func (o *OpenAIChatRequestOptionsBuilder) WithTopP(topP float64) *OpenAIChatRequ
 }
 func (o *OpenAIChatRequestOptionsBuilder) WithN(n int) *OpenAIChatRequestOptionsBuilder {
 	o.options.n = n
-	return o
-}
-func (o *OpenAIChatRequestOptionsBuilder) WithStreamResponseFunc(f func(ctx context.Context, resp *OpenAIChatResponse) error) *OpenAIChatRequestOptionsBuilder {
-	o.options.streamResponseFunc = f
 	return o
 }
 func (o *OpenAIChatRequestOptionsBuilder) WithFunctions(funcs ...function.Function) *OpenAIChatRequestOptionsBuilder {
