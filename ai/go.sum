@@ -1,5 +1,5 @@
-github.com/Tangerg/lynx/pkg v0.0.0-20241017183436-a8c47ec473be h1:ldEB9WO1KUGCXlKNesWjQlRehSEv16/Tg3Mhy7UJlXM=
-github.com/Tangerg/lynx/pkg v0.0.0-20241017183436-a8c47ec473be/go.mod h1:X3j07JF17PmhQ18gVuxTjChrdjsXDTv+5kQ/WhHmkdA=
+github.com/Tangerg/lynx/pkg v0.0.0-20241119161252-b54044fc3892 h1:JMJ9zVEpb4v4a9hfWnk6RJzAdIWV/x3W9umM6V+DH+Y=
+github.com/Tangerg/lynx/pkg v0.0.0-20241119161252-b54044fc3892/go.mod h1:kdlP68kUpvmSLJr9LYJsR8wVfs+gAD7e578MqGtS0Pg=
 github.com/bahlo/generic-list-go v0.2.0 h1:5sz/EEAK+ls5wF+NeqDpk5+iNdMDXrh3z3nPnH1Wvgk=
 github.com/bahlo/generic-list-go v0.2.0/go.mod h1:2KvAjgMlE5NNynlg/5iLrrCCZ2+5xWbdbCW3pNTGyYg=
 github.com/bits-and-blooms/bitset v1.14.3 h1:Gd2c8lSNf9pKXom5JtD7AaKO8o7fGQ2LtFj1436qilA=

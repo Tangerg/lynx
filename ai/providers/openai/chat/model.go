@@ -26,7 +26,7 @@ func (o *OpenAIChatModel) Call(ctx context.Context, req *OpenAIChatRequest) (*Op
 		return nil, err
 	}
 
-	resp := o.converter.makeOpenAIChatResponse(&cres)
+	resp := o.converter.makeOpenAIChatResponse(cres)
 
 	if !o.helper.shouldHandleToolCalls(o.defaultOptions, req, resp) {
 		return resp, nil

@@ -7,6 +7,9 @@ import (
 	"github.com/samber/lo"
 )
 
+var _ request.ChatRequestOptions = (*OpenAIChatRequestOptions)(nil)
+var _ function.Options = (*OpenAIChatRequestOptions)(nil)
+
 type OpenAIChatRequestOptions struct {
 	model           *string
 	maxTokens       *int

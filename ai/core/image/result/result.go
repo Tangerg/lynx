@@ -19,3 +19,10 @@ func (i *ImageResult[M]) Output() *image.Image {
 func (i *ImageResult[M]) Metadata() M {
 	return i.metadata
 }
+
+func NewImageResult[M ImageResultMetadata](image *image.Image, metadata M) *ImageResult[M] {
+	return &ImageResult[M]{
+		metadata: metadata,
+		image:    image,
+	}
+}

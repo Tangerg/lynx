@@ -4,7 +4,7 @@ import "github.com/Tangerg/lynx/ai/core/model"
 
 type ImageRequestOptions interface {
 	model.RequestOptions
-	N() int64
+	N() int
 	Model() string
 	Width() int
 	Height() int

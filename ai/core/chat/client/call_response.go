@@ -2,9 +2,9 @@ package client
 
 import (
 	"context"
+	"github.com/Tangerg/lynx/ai/core/converter"
 
 	"github.com/Tangerg/lynx/ai/core/chat/client/middleware"
-	"github.com/Tangerg/lynx/ai/core/chat/converter"
 	"github.com/Tangerg/lynx/ai/core/chat/request"
 	"github.com/Tangerg/lynx/ai/core/chat/response"
 	"github.com/Tangerg/lynx/ai/core/chat/result"

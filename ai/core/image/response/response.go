@@ -27,3 +27,14 @@ func (r *ImageResponse[M]) Results() []model.Result[*image.Image, M] {
 func (r *ImageResponse[M]) Metadata() model.ResponseMetadata {
 	return r.metadata
 }
+
+func NewImageResponse[M result.ImageResultMetadata](images []*result.ImageResult[M], metadata *ImageResponseMetadata) *ImageResponse[M] {
+	rv := &ImageResponse[M]{
+		metadata: metadata,
+		results:  make([]model.Result[*image.Image, M], 0, len(images)),
+	}
+	for _, img := range images {
+		rv.results = append(rv.results, img)
+	}
+	return rv
+}

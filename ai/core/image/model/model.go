@@ -7,6 +7,6 @@ import (
 	"github.com/Tangerg/lynx/ai/core/model"
 )
 
-type TranscriptionModel[O request.ImageRequestOptions, M result.ImageResultMetadata] interface {
+type ImageModel[O request.ImageRequestOptions, M result.ImageResultMetadata] interface {
 	model.Model[*request.ImageRequest[O], *response.ImageResponse[M]]
 }

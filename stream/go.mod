@@ -2,7 +2,10 @@ module github.com/Tangerg/lynx/stream
 
 go 1.23.0
 
-require github.com/apache/pulsar-client-go v0.14.0
+require (
+	github.com/apache/pulsar-client-go v0.14.0
+	github.com/segmentio/kafka-go v0.4.47
+)
 
 require (
 	github.com/99designs/go-keychain v0.0.0-20191008050251-8e49817e8af4 // indirect
@@ -36,7 +39,6 @@ require (
 	github.com/prometheus/client_model v0.3.0 // indirect
 	github.com/prometheus/common v0.37.0 // indirect
 	github.com/prometheus/procfs v0.8.0 // indirect
-	github.com/segmentio/kafka-go v0.4.47 // indirect
 	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
 	go.uber.org/atomic v1.7.0 // indirect

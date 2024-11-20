@@ -3,7 +3,7 @@ module github.com/Tangerg/lynx/ai
 go 1.23.0
 
 require (
-	github.com/Tangerg/lynx/pkg v0.0.0-20241017183436-a8c47ec473be
+	github.com/Tangerg/lynx/pkg v0.0.0-20241119161252-b54044fc3892
 	github.com/google/uuid v1.6.0
 	github.com/pkoukk/tiktoken-go v0.1.7
 	github.com/samber/lo v1.47.0
@@ -17,7 +17,6 @@ require (
 	github.com/buger/jsonparser v1.1.1 // indirect
 	github.com/dlclark/regexp2 v1.11.4 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.6 // indirect
-	github.com/google/go-cmp v0.6.0 // indirect
 	github.com/invopop/jsonschema v0.12.0 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
 	github.com/wk8/go-ordered-map/v2 v2.1.8 // indirect

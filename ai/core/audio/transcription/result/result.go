@@ -2,17 +2,24 @@ package result
 
 import "github.com/Tangerg/lynx/ai/core/model"
 
-var _ model.Result[string, TranscriptionResultMetadata] = (*TranscriptionResult[TranscriptionResultMetadata])(nil)
+var _ model.Result[string, *TranscriptionResultMetadata] = (*TranscriptionResult[*TranscriptionResultMetadata])(nil)
 
-type TranscriptionResult[M TranscriptionResultMetadata] struct {
-	metadata M
+type TranscriptionResult struct {
+	metadata *TranscriptionResultMetadata
 	text     string
 }
 
-func (t *TranscriptionResult[M]) Output() string {
+func NewTranscriptionResult(text string, metadata *TranscriptionResultMetadata) *TranscriptionResult {
+	return &TranscriptionResult{
+		text:     text,
+		metadata: metadata,
+	}
+}
+
+func (t *TranscriptionResult) Output() string {
 	return t.text
 }
 
-func (t *TranscriptionResult[M]) Metadata() M {
+func (t *TranscriptionResult) Metadata() *TranscriptionResultMetadata {
 	return t.metadata
 }
