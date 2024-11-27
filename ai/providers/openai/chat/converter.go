@@ -208,11 +208,19 @@ func (c *converter) makeOpenAIChatResponse(resp *openai.ChatCompletionResponse) 
 		IncrReasoningTokens(int64(resp.Usage.CompletionTokensDetails.ReasoningTokens)).
 		IncrTotalTokens(int64(resp.Usage.CompletionTokens))
 
+	respLimit := resp.GetRateLimitHeaders()
+	rateLimit := NewOpenAIRateLimit().
+		SetRequestsLimit(int64(respLimit.LimitRequests)).
+		SetRequestsRemaining(int64(respLimit.RemainingRequests)).
+		SetRequestsReset(respLimit.ResetRequests).SetTokensLimit(int64(respLimit.LimitTokens)).SetTokensRemaining(int64(respLimit.RemainingTokens)).
+		SetTokensReset(respLimit.ResetTokens)
+
 	responseMetadata := response.
 		NewChatResponseMetadataBuilder().
 		WithID(resp.ID).
 		WithModel(resp.Model).
 		WithUsage(usage).
+		WithRateLimit(rateLimit).
 		WithCreated(resp.Created).
 		Build()
 

@@ -1,6 +1,10 @@
 package chat
 
-import "github.com/Tangerg/lynx/ai/core/chat/response"
+import (
+	"github.com/Tangerg/lynx/ai/core/chat/response"
+	"github.com/sashabaranov/go-openai"
+	"time"
+)
 
 var _ response.Usage = (*OpenAIUsage)(nil)
 
@@ -52,6 +56,77 @@ func (o *OpenAIUsage) TotalTokens() int64 {
 		return o.PromptTokens() + o.CompletionTokens()
 	}
 	return o.totalTokens
+}
+
+var _ response.RateLimit = (*OpenAIRateLimit)(nil)
+
+type OpenAIRateLimit struct {
+	requestsLimit     int64
+	requestsRemaining int64
+	requestsReset     time.Duration
+	tokensLimit       int64
+	tokensRemaining   int64
+	tokensReset       time.Duration
+}
+
+func NewOpenAIRateLimit() *OpenAIRateLimit {
+	return &OpenAIRateLimit{}
+}
+
+func (o *OpenAIRateLimit) SetRequestsLimit(requestsLimit int64) *OpenAIRateLimit {
+	o.requestsLimit = requestsLimit
+	return o
+}
+
+func (o *OpenAIRateLimit) SetRequestsRemaining(requestsRemaining int64) *OpenAIRateLimit {
+	o.requestsRemaining = requestsRemaining
+	return o
+}
+
+func (o *OpenAIRateLimit) SetRequestsReset(requestsReset openai.ResetTime) *OpenAIRateLimit {
+	duration, _ := time.ParseDuration(requestsReset.String())
+	o.requestsReset = duration
+	return o
+}
+
+func (o *OpenAIRateLimit) SetTokensLimit(tokensLimit int64) *OpenAIRateLimit {
+	o.tokensLimit = tokensLimit
+	return o
+}
+
+func (o *OpenAIRateLimit) SetTokensRemaining(tokensRemaining int64) *OpenAIRateLimit {
+	o.tokensRemaining = tokensRemaining
+	return o
+}
+
+func (o *OpenAIRateLimit) SetTokensReset(tokensReset openai.ResetTime) *OpenAIRateLimit {
+	duration, _ := time.ParseDuration(tokensReset.String())
+	o.tokensReset = duration
+	return o
+}
+
+func (o *OpenAIRateLimit) RequestsLimit() int64 {
+	return o.requestsLimit
+}
+
+func (o *OpenAIRateLimit) RequestsRemaining() int64 {
+	return o.requestsRemaining
+}
+
+func (o *OpenAIRateLimit) RequestsReset() time.Duration {
+	return o.requestsReset
+}
+
+func (o *OpenAIRateLimit) TokensLimit() int64 {
+	return o.tokensLimit
+}
+
+func (o *OpenAIRateLimit) TokensRemaining() int64 {
+	return o.tokensRemaining
+}
+
+func (o *OpenAIRateLimit) TokensReset() time.Duration {
+	return o.tokensReset
 }
 
 type OpenAIChatResponse = response.ChatResponse[*OpenAIChatResultMetadata]

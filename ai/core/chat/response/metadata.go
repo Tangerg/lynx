@@ -1,24 +1,18 @@
 package response
 
+import (
+	"github.com/Tangerg/lynx/ai/core/model"
+	"github.com/Tangerg/lynx/pkg/kv"
+)
+
 type ChatResponseMetadata struct {
-	id       string
-	model    string
-	metadata map[string]any
-	usage    Usage
-	created  int64
-}
-
-func (c *ChatResponseMetadata) Get(key string) (any, bool) {
-	v, ok := c.metadata[key]
-	return v, ok
-}
-
-func (c *ChatResponseMetadata) GetOrDefault(key string, def any) any {
-	v, ok := c.metadata[key]
-	if !ok {
-		v = def
-	}
-	return v
+	model.ResponseMetadata
+	id        string
+	model     string
+	metadata  kv.KSVA
+	usage     Usage
+	rateLimit RateLimit
+	created   int64
 }
 
 func (c *ChatResponseMetadata) ID() string {
@@ -33,14 +27,23 @@ func (c *ChatResponseMetadata) Usage() Usage {
 	return c.usage
 }
 
+func (c *ChatResponseMetadata) RateLimit() RateLimit {
+	return c.rateLimit
+}
+
 func (c *ChatResponseMetadata) Created() int64 {
 	return c.created
 }
 
+func (c *ChatResponseMetadata) Get(key string) (any, bool) {
+	return c.metadata.Get(key)
+}
+
 func newChatResponseMetadata() *ChatResponseMetadata {
 	return &ChatResponseMetadata{
-		metadata: make(map[string]any),
-		usage:    &EmptyUsage{},
+		metadata:  kv.NewKSVA(),
+		usage:     &EmptyUsage{},
+		rateLimit: &EmptyRateLimit{},
 	}
 }
 
@@ -69,20 +72,23 @@ func (b *ChatResponseMetadataBuilder) WithUsage(usage Usage) *ChatResponseMetada
 	return b
 }
 
+func (b *ChatResponseMetadataBuilder) WithRateLimit(rateLimit RateLimit) *ChatResponseMetadataBuilder {
+	b.metadata.rateLimit = rateLimit
+	return b
+}
+
 func (b *ChatResponseMetadataBuilder) WithCreated(created int64) *ChatResponseMetadataBuilder {
 	b.metadata.created = created
 	return b
 }
 
 func (b *ChatResponseMetadataBuilder) WithKeyValue(key string, value any) *ChatResponseMetadataBuilder {
-	b.metadata.metadata[key] = value
+	b.metadata.metadata.Put(key, value)
 	return b
 }
 
 func (b *ChatResponseMetadataBuilder) WithMetadata(metadata map[string]any) *ChatResponseMetadataBuilder {
-	for k, v := range metadata {
-		b.metadata.metadata[k] = v
-	}
+	b.metadata.metadata.PutAll(kv.As(metadata))
 	return b
 }
 
