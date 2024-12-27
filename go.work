@@ -3,5 +3,6 @@ go 1.23.0
 use (
 	./ai
 	./pkg
+	./sse
 	./stream
 )
