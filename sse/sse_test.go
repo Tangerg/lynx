@@ -21,7 +21,10 @@ func newServer() {
 		time.Sleep(1 * time.Second)
 		for i := 0; i < 100; i++ {
 			itoa := strconv.Itoa(i + 1)
-			data := "hello world " + itoa
+			data := map[string]any{
+				"id":         itoa,
+				"time_stamp": time.Now().Unix(),
+			}
 			marshal, _ := json.Marshal(data)
 			eventChan <- &Message{
 				ID:    itoa,
@@ -54,11 +57,15 @@ func TestSSE2(t *testing.T) {
 		if err != nil {
 			t.Log(err)
 		}
-		var str string
+		var str map[string]any
 		err = json.Unmarshal(current.Data, &str)
 		if err != nil {
 			t.Log(err)
 		}
 		t.Log(current.ID, current.Event, str)
 	}
+}
+
+func Test2(t *testing.T) {
+	newServer()
 }

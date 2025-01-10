@@ -4,15 +4,21 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+
+	"github.com/sashabaranov/go-openai"
+
 	"github.com/Tangerg/lynx/ai/core/chat/message"
 	"github.com/Tangerg/lynx/ai/core/chat/response"
 	"github.com/Tangerg/lynx/ai/core/chat/result"
 	"github.com/Tangerg/lynx/ai/core/model/media"
 	"github.com/Tangerg/lynx/pkg/mime"
-	"github.com/sashabaranov/go-openai"
 )
 
 type converter struct{}
+
+func newConverter() *converter {
+	return &converter{}
+}
 
 func (c *converter) convertFinishReason(reason openai.FinishReason) result.FinishReason {
 	switch reason {

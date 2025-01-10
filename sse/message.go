@@ -3,41 +3,42 @@ package sse
 import (
 	"bufio"
 	"bytes"
+	"encoding/json"
 	"io"
 	"strconv"
 	"strings"
 )
 
 type Message struct {
-	Event string `json:"event,omitempty"`
-	Data  []byte `json:"data,omitempty"`
-	ID    string `json:"id,omitempty"`
-	Retry int    `json:"retry,omitempty"`
+	Event string          `json:"event,omitempty"`
+	Data  json.RawMessage `json:"data,omitempty"`
+	ID    string          `json:"id,omitempty"`
+	Retry int             `json:"retry,omitempty"`
 }
 
 func (m *Message) Marshal() ([]byte, error) {
 	buf := bytes.NewBuffer(nil)
 
 	if m.ID != "" {
-		buf.WriteString("id:")
+		buf.WriteString("id: ")
 		buf.WriteString(m.ID)
 		buf.WriteString("\n")
 	}
 
 	if m.Event != "" {
-		buf.WriteString("event:")
+		buf.WriteString("event: ")
 		buf.WriteString(m.Event)
 		buf.WriteString("\n")
 	}
 
 	if len(m.Data) > 0 {
-		buf.WriteString("data:")
+		buf.WriteString("data: ")
 		buf.Write(m.Data)
 		buf.WriteString("\n")
 	}
 
 	if m.Retry > 0 {
-		buf.WriteString("retry:")
+		buf.WriteString("retry: ")
 		buf.WriteString(strconv.Itoa(m.Retry))
 		buf.WriteString("\n")
 	}

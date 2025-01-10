@@ -3,9 +3,10 @@ package chat
 import (
 	"context"
 	"errors"
+	"io"
+
 	"github.com/Tangerg/lynx/ai/core/chat/model"
 	"github.com/Tangerg/lynx/ai/providers/openai/api"
-	"io"
 )
 
 var _ model.ChatModel[*OpenAIChatRequestOptions, *OpenAIChatResultMetadata] = (*OpenAIChatModel)(nil)
@@ -15,6 +16,15 @@ type OpenAIChatModel struct {
 	openAIApi      *api.OpenAIApi
 	helper         *helper
 	converter      *converter
+}
+
+func NewOpenAIChatModel(openAIApi *api.OpenAIApi, defaultOptions *OpenAIChatRequestOptions) model.ChatModel[*OpenAIChatRequestOptions, *OpenAIChatResultMetadata] {
+	return &OpenAIChatModel{
+		openAIApi:      openAIApi,
+		defaultOptions: defaultOptions,
+		helper:         newHelper(),
+		converter:      newConverter(),
+	}
 }
 
 func (o *OpenAIChatModel) Call(ctx context.Context, req *OpenAIChatRequest) (*OpenAIChatResponse, error) {

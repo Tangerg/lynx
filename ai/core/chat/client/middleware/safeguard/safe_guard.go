@@ -36,7 +36,7 @@ func (s sensitiveWords) check(text string) error {
 
 func New[O request.ChatRequestOptions, M result.ChatResultMetadata](words ...string) middleware.Middleware[O, M] {
 	s := make(sensitiveWords, 0, len(words))
-	copy(s, words)
+	s = append(s, words...)
 
 	return func(ctx *middleware.Context[O, M]) error {
 		err := s.check(ctx.Request.UserText)

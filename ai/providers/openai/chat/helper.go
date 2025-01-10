@@ -2,12 +2,17 @@ package chat
 
 import (
 	"context"
+
 	"github.com/Tangerg/lynx/ai/core/chat/function"
 	"github.com/Tangerg/lynx/ai/core/chat/result"
 )
 
 type helper struct {
 	function.Support[*OpenAIChatRequestOptions, *OpenAIChatResultMetadata]
+}
+
+func newHelper() *helper {
+	return &helper{}
 }
 
 func (h *helper) shouldHandleToolCalls(defaultOptions *OpenAIChatRequestOptions, req *OpenAIChatRequest, resp *OpenAIChatResponse) bool {

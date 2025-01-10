@@ -7,6 +7,11 @@ import (
 )
 
 func WithSSE(ctx context.Context, response http.ResponseWriter, eventChan chan *Message) error {
+	header := response.Header()
+	header.Set("Content-Type", "text/event-stream")
+	header.Set("Cache-Control", "no-cache")
+	header.Set("Connection", "keep-alive")
+
 	flusher, ok := response.(http.Flusher)
 	if !ok {
 		return errors.New("response is not a http.Flusher")

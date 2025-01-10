@@ -2,6 +2,7 @@ package result
 
 import (
 	"errors"
+
 	"github.com/Tangerg/lynx/ai/core/chat/message"
 )
 
@@ -23,7 +24,9 @@ type ChatResultBuilder[M ChatResultMetadata] struct {
 }
 
 func NewChatResultBuilder[M ChatResultMetadata]() *ChatResultBuilder[M] {
-	return &ChatResultBuilder[M]{}
+	return &ChatResultBuilder[M]{
+		result: &ChatResult[M]{},
+	}
 }
 
 func (b *ChatResultBuilder[M]) WithContent(content string) *ChatResultBuilder[M] {
