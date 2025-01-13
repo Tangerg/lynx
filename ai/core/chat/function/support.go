@@ -111,7 +111,7 @@ func (s *Support[O, M]) HandleToolCalls(ctx context.Context, req *request.ChatRe
 }
 
 func (s *Support[O, M]) buildToolCallConversation(msgs []message.ChatMessage, assistantMessage *message.AssistantMessage, toolMessage *message.ToolCallsMessage) []message.ChatMessage {
-	rv := make([]message.ChatMessage, len(msgs)+2)
+	rv := make([]message.ChatMessage, len(msgs), len(msgs)+2)
 	copy(rv, msgs)
 	rv = append(rv, assistantMessage, toolMessage)
 	return rv
