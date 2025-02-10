@@ -3,6 +3,7 @@ package converter
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	pkgjson "github.com/Tangerg/lynx/pkg/json"
 )
@@ -62,6 +63,11 @@ func (s *StructConverter[T]) GetFormat() string {
 }
 
 func (s *StructConverter[T]) Convert(raw string) (T, error) {
+	if strings.HasPrefix(raw, "```") &&
+		strings.HasSuffix(raw, "```") &&
+		strings.HasPrefix(strings.ToLower(raw), "```json") {
+		raw = raw[7 : len(raw)-3]
+	}
 	err := json.Unmarshal([]byte(raw), &s.v)
 	if err != nil {
 		return s.v, err

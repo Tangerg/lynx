@@ -54,8 +54,9 @@ func (m *MapConverter) GetFormat() string {
 }
 
 func (m *MapConverter) Convert(raw string) (map[string]any, error) {
-	if strings.HasPrefix(raw, "```json") &&
-		strings.HasSuffix(raw, "```") {
+	if strings.HasPrefix(raw, "```") &&
+		strings.HasSuffix(raw, "```") &&
+		strings.HasPrefix(strings.ToLower(raw), "```json") {
 		raw = raw[7 : len(raw)-3]
 	}
 	rv := make(map[string]any)
