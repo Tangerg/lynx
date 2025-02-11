@@ -30,7 +30,7 @@ func NewChatResultBuilder[M ChatResultMetadata]() *ChatResultBuilder[M] {
 }
 
 func (b *ChatResultBuilder[M]) WithContent(content string) *ChatResultBuilder[M] {
-	return b.WithMessage(message.NewAssistantMessage(content, nil, nil))
+	return b.WithMessage(message.NewAssistantMessage(content, nil))
 }
 
 func (b *ChatResultBuilder[M]) WithMessage(msg *message.AssistantMessage) *ChatResultBuilder[M] {

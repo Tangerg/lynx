@@ -241,7 +241,7 @@ func (c *converter) makeOpenAIChatResponse(resp *openai.ChatCompletionResponse) 
 		assistantMessage := message.NewAssistantMessage(
 			choice.Message.Content,
 			nil,
-			c.makeMessageToolCallRequests(choice.Message.ToolCalls),
+			c.makeMessageToolCallRequests(choice.Message.ToolCalls)...,
 		)
 
 		chatResult, _ := builder.

@@ -1,18 +1,21 @@
 package message
 
-func NewAssistantMessage(content string, metadata map[string]any, toolCalls []*ToolCallRequest) *AssistantMessage {
-	if toolCalls == nil {
-		toolCalls = make([]*ToolCallRequest, 0)
-	}
+func NewAssistantMessage(content string, metadata map[string]any, toolCalls ...*ToolCallRequest) *AssistantMessage {
 	if metadata == nil {
 		metadata = make(map[string]any)
 	}
 	metadata[KeyOfMessageType] = Assistant.String()
-	return &AssistantMessage{
-		toolCallRequests: toolCalls,
+	rv := &AssistantMessage{
 		content:          content,
 		metadata:         metadata,
+		toolCallRequests: make([]*ToolCallRequest, 0, len(toolCalls)),
 	}
+	for _, toolCall := range toolCalls {
+		if toolCall != nil {
+			rv.toolCallRequests = append(rv.toolCallRequests, toolCall)
+		}
+	}
+	return rv
 }
 
 var _ ChatMessage = (*AssistantMessage)(nil)

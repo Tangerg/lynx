@@ -2,19 +2,22 @@ package message
 
 import "github.com/Tangerg/lynx/ai/core/model/media"
 
-func NewUserMessage(content string, metadata map[string]any, m ...*media.Media) *UserMessage {
+func NewUserMessage(content string, metadata map[string]any, md ...*media.Media) *UserMessage {
 	if metadata == nil {
 		metadata = make(map[string]any)
 	}
 	metadata[KeyOfMessageType] = User.String()
-	if len(m) == 0 {
-		m = make([]*media.Media, 0)
-	}
-	return &UserMessage{
+
+	rv := &UserMessage{
 		content:  content,
 		metadata: metadata,
-		media:    m,
+		media:    make([]*media.Media, 0, len(md)),
 	}
+	for _, m := range md {
+		rv.media = append(rv.media, m)
+	}
+
+	return rv
 }
 
 var _ ChatMessage = (*UserMessage)(nil)
