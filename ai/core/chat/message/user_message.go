@@ -14,7 +14,9 @@ func NewUserMessage(content string, metadata map[string]any, md ...*media.Media)
 		media:    make([]*media.Media, 0, len(md)),
 	}
 	for _, m := range md {
-		rv.media = append(rv.media, m)
+		if m != nil {
+			rv.media = append(rv.media, m)
+		}
 	}
 
 	return rv
