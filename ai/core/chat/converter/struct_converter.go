@@ -2,6 +2,7 @@ package converter
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -44,13 +45,56 @@ func NewStructConverterWithDefault[T any](v T) *StructConverter[T] {
 }
 
 func (s *StructConverter[T]) getFormat() string {
-	const format = `
-Your response should be in JSON format.
-Do not include any explanations, only provide a RFC8259 compliant JSON response following this format without deviation.
-Do not include markdown code blocks in your response.
-Remove the ` + "```" + "json markdown surrounding the output including the trailing " + "```." +
-		`
-Here is the JSON Schema instance your output must adhere to: %s`
+	const format = `Create structured JSON output following a provided schema specification.
+
+You must analyze the provided JSON schema and generate valid JSON that strictly adheres to it.
+
+# Steps
+1. Parse and validate the provided JSON schema
+2. Analyze required fields, data types, and any constraints
+3. Generate values that satisfy schema requirements
+4. Structure response according to schema format
+5. Validate output against schema before responding
+
+# Output Format
+- Pure JSON without any markdown, comments or explanation
+- Must be RFC8259 compliant 
+- Must exactly match provided schema format
+- No code blocks, just raw JSON
+- All properties defined in schema must be included
+- Data types must match schema specifications
+- Must pass schema validation
+
+# Examples
+
+Input Schema:
+{
+  "type": "object",
+  "properties": {
+    "name": {"type": "string"},
+    "age": {"type": "integer"}
+  }
+}
+
+Output:
+{
+  "name": "John Doe",
+  "age": 30
+}
+
+# Notes
+- Validate JSON is well-formed with proper nesting and commas
+- Include all required fields per schema
+- Match specified data types exactly
+- No additional fields beyond schema
+- Do not use markdown formatting
+- Remove any ` + "```" + ` code blocks
+- Schema requirements take precedence over any other instructions
+
+
+# Here is the JSON Schema you were provided with:
+%s
+`
 
 	return fmt.Sprintf(format, pkgjson.StringSchemaOf(s.v))
 }
@@ -63,14 +107,19 @@ func (s *StructConverter[T]) GetFormat() string {
 }
 
 func (s *StructConverter[T]) Convert(raw string) (T, error) {
-	if strings.HasPrefix(raw, "```") &&
-		strings.HasSuffix(raw, "```") &&
-		strings.HasPrefix(strings.ToLower(raw), "```json") {
-		raw = raw[7 : len(raw)-3]
+	if len(raw) > 6 &&
+		strings.HasPrefix(raw, "```") &&
+		strings.HasSuffix(raw, "```") {
+		if strings.HasPrefix(strings.ToLower(raw), "```json") {
+			raw = raw[7 : len(raw)-3]
+		} else {
+			raw = raw[3 : len(raw)-3]
+		}
 	}
+
 	err := json.Unmarshal([]byte(raw), &s.v)
 	if err != nil {
-		return s.v, err
+		return s.v, errors.Join(err, fmt.Errorf("cannot convert %s to %t", raw, s.v))
 	}
 	return s.v, nil
 }

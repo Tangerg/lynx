@@ -14,8 +14,28 @@ func NewSliceConverter() *SliceConverter {
 
 func (s *SliceConverter) GetFormat() string {
 	const format = `
-Your response should be a list of comma separated values
-eg: foo,bar,baz,etc...
+Generate a comma-separated list of values.
+
+# Output Format
+- Output should be only comma-separated values, with no leading text, trailing text or comments
+- Each value should be followed by a comma and a single space
+- The list should not end with a comma
+- The output should be a single line
+- No surrounding quotes, brackets, or other characters
+
+# Examples
+
+Input: List three colors
+Output: red, blue, green
+
+Input: List two animals
+Output: cat, dog
+
+# Notes
+- Do not add any explanatory text or commentary
+- Do not use quotes around values unless they are part of the value itself
+- Do not add a period at the end
+- Do not add line breaks
 `
 	return format
 }
