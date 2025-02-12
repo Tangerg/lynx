@@ -59,7 +59,6 @@ func (s *StructConverter[T]) getFormat() string {
 - Must be RFC8259 compliant 
 - Must exactly match provided schema format
 - No ` + "```" + ` or other markdown code blocks syntax, just raw JSON
-- Start directly with { and end with }, using proper indentation
 - All properties defined in schema must be included
 - Data types must match schema specifications
 - Must pass schema validation
