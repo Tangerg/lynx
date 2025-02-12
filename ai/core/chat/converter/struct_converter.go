@@ -45,14 +45,21 @@ func NewStructConverterWithDefault[T any](v T) *StructConverter[T] {
 }
 
 func (s *StructConverter[T]) getFormat() string {
-	const format = `Create structured JSON output following a provided schema specification.You must analyze the provided JSON schema and generate valid JSON that strictly adheres to it. Use proper indentation and line breaks for readability, but avoid any additional formatting characters or markdown syntax.
+	const format = `Return structured JSON output following a provided schema specification.You must analyze the provided JSON schema and generate valid JSON that strictly adheres to it. Use proper indentation and line breaks for readability, but avoid any additional formatting characters or markdown syntax.
 
 # Steps
 1. Parse and validate the provided JSON schema
 2. Analyze required fields, data types, and any constraints
 3. Generate values that satisfy schema requirements
 4. Structure response according to schema format
-5. Validate output against schema before responding
+5. Verify RFC8259 compliance:
+   - Use UTF-8 encoding
+   - Keys must be double-quoted strings
+   - String values must be double-quoted
+   - Numbers must be integers or decimal literals
+   - Arrays/objects must be properly terminated
+   - No trailing commas allowed
+6. Validate output against schema before responding
 
 # Output Format
 - Pure JSON without any markdown, comments or explanation

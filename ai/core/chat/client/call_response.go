@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+
 	"github.com/Tangerg/lynx/ai/core/chat/client/middleware"
 	"github.com/Tangerg/lynx/ai/core/chat/converter"
 	"github.com/Tangerg/lynx/ai/core/chat/request"
@@ -154,12 +155,12 @@ func (d *DefaultCallResponse[O, M]) ResponseValueSlice(ctx context.Context) (Res
 	}
 
 	rv := NewDefaultResponseValue[[]string, M]([]string{})
+	rv.response = resp
 	convert, err := c.Convert(resp.Result().Output().Content())
 	if err != nil {
 		return rv, err
 	}
 	rv.value = convert
-	rv.response = resp
 
 	return rv, nil
 }
@@ -172,12 +173,12 @@ func (d *DefaultCallResponse[O, M]) ResponseValueMap(ctx context.Context, exampl
 	}
 
 	rv := NewDefaultResponseValue[map[string]any, M](map[string]any{})
+	rv.response = resp
 	convert, err := c.Convert(resp.Result().Output().Content())
 	if err != nil {
 		return rv, err
 	}
 	rv.value = convert
-	rv.response = resp
 
 	return rv, nil
 }
@@ -197,13 +198,12 @@ func (d *DefaultCallResponse[O, M]) ResponseValueWithStructuredConvert(ctx conte
 	}
 
 	rv := NewDefaultResponseValue[any, M](def)
-
+	rv.response = resp
 	convert, err := c.Convert(resp.Result().Output().Content())
 	if err != nil {
 		return rv, err
 	}
 	rv.value = convert
-	rv.response = resp
 
 	return rv, nil
 
