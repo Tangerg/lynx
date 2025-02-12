@@ -45,7 +45,7 @@ func NewStructConverterWithDefault[T any](v T) *StructConverter[T] {
 }
 
 func (s *StructConverter[T]) getFormat() string {
-	const format = `Create structured JSON output following a provided schema specification.You must analyze the provided JSON schema and generate valid JSON that strictly adheres to it. Simply start with the opening curly brace { and end with the closing brace }. Use proper indentation and line breaks for readability, but avoid any additional formatting characters or markdown syntax.
+	const format = `Create structured JSON output following a provided schema specification.You must analyze the provided JSON schema and generate valid JSON that strictly adheres to it. Use proper indentation and line breaks for readability, but avoid any additional formatting characters or markdown syntax.
 
 # Steps
 1. Parse and validate the provided JSON schema
