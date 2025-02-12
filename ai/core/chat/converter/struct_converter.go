@@ -45,9 +45,7 @@ func NewStructConverterWithDefault[T any](v T) *StructConverter[T] {
 }
 
 func (s *StructConverter[T]) getFormat() string {
-	const format = `Create structured JSON output following a provided schema specification.
-
-You must analyze the provided JSON schema and generate valid JSON that strictly adheres to it.
+	const format = `Create structured JSON output following a provided schema specification.You must analyze the provided JSON schema and generate valid JSON that strictly adheres to it. Simply start with the opening curly brace { and end with the closing brace }. Use proper indentation and line breaks for readability, but avoid any additional formatting characters or markdown syntax.
 
 # Steps
 1. Parse and validate the provided JSON schema
@@ -60,7 +58,8 @@ You must analyze the provided JSON schema and generate valid JSON that strictly 
 - Pure JSON without any markdown, comments or explanation
 - Must be RFC8259 compliant 
 - Must exactly match provided schema format
-- No code blocks, just raw JSON
+- No ` + "```" + ` or other markdown code blocks syntax, just raw JSON
+- Start directly with { and end with }, using proper indentation
 - All properties defined in schema must be included
 - Data types must match schema specifications
 - Must pass schema validation
@@ -107,6 +106,7 @@ func (s *StructConverter[T]) GetFormat() string {
 }
 
 func (s *StructConverter[T]) Convert(raw string) (T, error) {
+	raw = strings.TrimSpace(raw)
 	if len(raw) > 6 &&
 		strings.HasPrefix(raw, "```") &&
 		strings.HasSuffix(raw, "```") {

@@ -37,7 +37,7 @@ type MapConverter struct {
 }
 
 func (m *MapConverter) getFormat() string {
-	const format = `Return JSON data matching a provided example format, ensuring RFC8259 compliance and compatibility with golang map deserialization.
+	const format = `Return JSON data matching a provided example format, ensuring RFC8259 compliance and compatibility with golang map deserialization. Simply start with the opening curly brace { and end with the closing brace }. Use proper indentation and line breaks for readability, but avoid any additional formatting characters or markdown syntax.
 
 # Steps
 1. Parse the provided example JSON structure carefully
@@ -62,7 +62,8 @@ Raw JSON data with no markdown formatting or code blocks. The output must:
 - Use identical key names
 - Maintain the same nesting levels
 - Use compatible data types for golang mapping
-
+- No ` + "```" + ` or other markdown code blocks syntax, just raw JSON
+- Start directly with { and end with }, using proper indentation
 
 # Examples
 Input:
@@ -113,6 +114,7 @@ func (m *MapConverter) GetFormat() string {
 }
 
 func (m *MapConverter) Convert(raw string) (map[string]any, error) {
+	raw = strings.TrimSpace(raw)
 	if len(raw) > 6 &&
 		strings.HasPrefix(raw, "```") &&
 		strings.HasSuffix(raw, "```") {
