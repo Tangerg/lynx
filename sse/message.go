@@ -72,22 +72,34 @@ func (e *messageDecoder) Next() bool {
 	}
 
 	var (
-		event = ""
-		data  = bytes.NewBuffer(nil)
-		id    = ""
-		retry = 0
+		event            = ""
+		data             = bytes.NewBuffer(nil)
+		id               = ""
+		retry            = 0
+		consecutiveEmpty = 0
 	)
 
 	for e.scanner.Scan() {
 		content := e.scanner.Text()
+
 		if len(content) == 0 {
-			e.currentMessage = Message{
-				Event: event,
-				Data:  data.Bytes(),
-				ID:    id,
-				Retry: retry,
+			consecutiveEmpty++
+			if consecutiveEmpty >= 2 {
+				e.error = e.Close()
+				return false
 			}
-			return true
+
+			if event != "" || data.Len() > 0 || id != "" || retry != 0 {
+				e.currentMessage = Message{
+					Event: event,
+					Data:  data.Bytes(),
+					ID:    id,
+					Retry: retry,
+				}
+				consecutiveEmpty = 0
+				return true
+			}
+			continue
 		}
 
 		key, value, found := strings.Cut(content, ":")
