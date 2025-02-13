@@ -29,12 +29,12 @@ func WithSSE(ctx context.Context, response http.ResponseWriter, eventChan chan *
 					return err
 				}
 				flusher.Flush()
+				return ctx.Err()
 			} else {
 				marshal, err1 := event.Marshal()
 				if err1 != nil {
 					return err1
 				}
-
 				_, err := response.Write(marshal)
 				if err != nil {
 					return err

@@ -16,6 +16,7 @@ func newServer() {
 		eventChan := make(chan *Message)
 		go func() {
 			err := WithSSE(ctx, w, eventChan)
+			fmt.Println("sse stop")
 			fmt.Println(err)
 		}()
 		time.Sleep(1 * time.Second)
