@@ -16,47 +16,6 @@ type TestUser struct {
 	FavColor    string                 `json:"fav_color,omitempty" jsonschema:"enum=red,enum=green,enum=blue"`
 }
 
-func TestStringSchemaOf1(t *testing.T) {
-	rv := StringSchemaOf(map[string]any{
-		"a": "a",
-		"b": 1,
-	})
-	t.Log(rv)
-}
-func TestStringSchemaOf2(t *testing.T) {
-	rv := StringSchemaOf(false)
-	t.Log(rv)
-}
-func TestStringSchemaOf3(t *testing.T) {
-	rv := StringSchemaOf(123)
-	t.Log(rv)
-}
-func TestStringSchemaOf4(t *testing.T) {
-	rv := StringSchemaOf(123.123)
-	t.Log(rv)
-}
-func TestStringSchemaOf5(t *testing.T) {
-	rv := StringSchemaOf("string")
-	t.Log(rv)
-}
-func TestStringSchemaOf6(t *testing.T) {
-	rv := StringSchemaOf([]int{1, 2, 3})
-	t.Log(rv)
-}
-func TestStringSchemaOf7(t *testing.T) {
-	rv := StringSchemaOf([]string{"a", "b", "c"})
-	t.Log(rv)
-}
-func TestStringSchemaOf8(t *testing.T) {
-	rv := StringSchemaOf(&TestUser{})
-	t.Log(rv)
-}
-func TestMapSchemaOf1(t *testing.T) {
-	rv := MapSchemaOf(&TestUser{})
-	t.Log(rv)
-	t.Log(rv["$defs"])
-}
-
 func TestStringDefSchemaOf1(t *testing.T) {
 	rv := StringDefSchemaOf(&TestUser{})
 	t.Log(rv)

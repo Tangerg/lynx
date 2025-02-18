@@ -101,7 +101,7 @@ Output:
 %s
 `
 
-	return fmt.Sprintf(format, pkgjson.StringSchemaOf(s.v))
+	return fmt.Sprintf(format, pkgjson.StringDefSchemaOf(s.v))
 }
 
 func (s *StructConverter[T]) GetFormat() string {
