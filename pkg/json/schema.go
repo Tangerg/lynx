@@ -1,16 +1,30 @@
 package json
 
 import (
+	"reflect"
+
 	"github.com/invopop/jsonschema"
 )
 
 // StringDefSchemaOf generates a JSON schema definition string for a given value.
 // It returns the first definition string from the list of definitions.
 func StringDefSchemaOf(v any) string {
-	schema := jsonschema.Reflect(v)
-	for _, def := range schema.Definitions {
-		json, _ := def.MarshalJSON()
-		return string(json)
+	r := &jsonschema.Reflector{
+		Anonymous:      true,
+		ExpandedStruct: false,
+		DoNotReference: true,
 	}
-	return ""
+	t := reflect.TypeOf(v)
+	if t.Kind() == reflect.Struct {
+		r.ExpandedStruct = true
+	}
+
+	schema := r.Reflect(v)
+	schema.Version = ""
+	marshalJSON, err := schema.MarshalJSON()
+	if err != nil {
+		return ""
+	}
+
+	return string(marshalJSON)
 }
