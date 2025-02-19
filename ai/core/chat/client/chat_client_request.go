@@ -258,19 +258,17 @@ type DefaultChatClientRequestBuilder[O request.ChatRequestOptions, M result.Chat
 }
 
 func (b *DefaultChatClientRequestBuilder[O, M]) FromDefaultChatClientRequest(old *DefaultChatClientRequest[O, M]) *DefaultChatClientRequestBuilder[O, M] {
-	b.request = &DefaultChatClientRequest[O, M]{
-		chatModel:          old.chatModel,
-		chatRequestOptions: old.chatRequestOptions,
-		systemText:         old.systemText,
-		systemParams:       old.systemParams,
-		userMedia:          old.userMedia,
-		userText:           old.userText,
-		userParams:         old.userParams,
-		messages:           old.messages,
-		middlewares:        old.middlewares,
-		middlewareParams:   old.middlewareParams,
-		streamChunkHandler: old.streamChunkHandler,
-	}
+	b.WithChatModel(old.chatModel).
+		WithChatOptions(old.chatRequestOptions).
+		WithSystemText(old.systemText).
+		WithSystemParams(old.systemParams).
+		WithUserText(old.userText).
+		WithUserParam(old.userParams).
+		WithUserMeida(old.userMedia...).
+		WithMessages(old.messages...).
+		WithMiddlewares(old.middlewares...).
+		WithMiddlewareParams(old.middlewareParams).
+		WithStreamChunkHandler(old.streamChunkHandler)
 	return b
 }
 
@@ -278,42 +276,72 @@ func (b *DefaultChatClientRequestBuilder[O, M]) WithChatModel(chatModel model.Ch
 	b.request.chatModel = chatModel
 	return b
 }
+
 func (b *DefaultChatClientRequestBuilder[O, M]) WithChatOptions(options O) *DefaultChatClientRequestBuilder[O, M] {
-	b.request.chatRequestOptions = options
+	b.request.chatRequestOptions = options.Clone().(O)
 	return b
 }
-func (b *DefaultChatClientRequestBuilder[O, M]) WithUserText(userText string) *DefaultChatClientRequestBuilder[O, M] {
-	b.request.userText = userText
-	return b
-}
-func (b *DefaultChatClientRequestBuilder[O, M]) WithUserParam(userParams map[string]any) *DefaultChatClientRequestBuilder[O, M] {
-	b.request.userParams = userParams
-	return b
-}
+
 func (b *DefaultChatClientRequestBuilder[O, M]) WithSystemText(systemText string) *DefaultChatClientRequestBuilder[O, M] {
 	b.request.systemText = systemText
 	return b
 }
+
 func (b *DefaultChatClientRequestBuilder[O, M]) WithSystemParams(systemParams map[string]any) *DefaultChatClientRequestBuilder[O, M] {
-	b.request.systemParams = systemParams
+	if b.request.systemParams == nil {
+		b.request.systemParams = make(map[string]any)
+	}
+	for k, v := range systemParams {
+		b.request.systemParams[k] = v
+	}
 	return b
 }
+
+func (b *DefaultChatClientRequestBuilder[O, M]) WithUserText(userText string) *DefaultChatClientRequestBuilder[O, M] {
+	b.request.userText = userText
+	return b
+}
+
+func (b *DefaultChatClientRequestBuilder[O, M]) WithUserParam(userParams map[string]any) *DefaultChatClientRequestBuilder[O, M] {
+	if b.request.userParams == nil {
+		b.request.userParams = make(map[string]any)
+	}
+	for k, v := range userParams {
+		b.request.userParams[k] = v
+	}
+	return b
+}
+
+func (b *DefaultChatClientRequestBuilder[O, M]) WithUserMeida(media ...*media.Media) *DefaultChatClientRequestBuilder[O, M] {
+	b.request.userMedia = append(b.request.userMedia, media...)
+	return b
+}
+
 func (b *DefaultChatClientRequestBuilder[O, M]) WithMessages(messages ...message.ChatMessage) *DefaultChatClientRequestBuilder[O, M] {
-	b.request.messages = messages
+	b.request.messages = append(b.request.messages, messages...)
 	return b
 }
+
 func (b *DefaultChatClientRequestBuilder[O, M]) WithMiddlewares(middlewares ...middleware.Middleware[O, M]) *DefaultChatClientRequestBuilder[O, M] {
 	b.request.middlewares = append(b.request.middlewares, middlewares...)
 	return b
 }
+
 func (b *DefaultChatClientRequestBuilder[O, M]) WithMiddlewareParams(middlewareParams map[string]any) *DefaultChatClientRequestBuilder[O, M] {
-	b.request.middlewareParams = middlewareParams
+	if b.request.middlewareParams == nil {
+		b.request.middlewareParams = make(map[string]any)
+	}
+	for k, v := range middlewareParams {
+		b.request.middlewareParams[k] = v
+	}
 	return b
 }
+
 func (b *DefaultChatClientRequestBuilder[O, M]) WithStreamChunkHandler(streamChunkHandler baseModel.StreamChunkHandler[*response.ChatResponse[M]]) *DefaultChatClientRequestBuilder[O, M] {
 	b.request.streamChunkHandler = streamChunkHandler
 	return b
 }
+
 func (b *DefaultChatClientRequestBuilder[O, M]) Build() (*DefaultChatClientRequest[O, M], error) {
 	return b.request, nil
 }
