@@ -1,7 +1,7 @@
 package client
 
 import (
-	"reflect"
+	"github.com/samber/lo"
 
 	"github.com/Tangerg/lynx/ai/core/chat/client/middleware"
 	"github.com/Tangerg/lynx/ai/core/chat/message"
@@ -280,13 +280,9 @@ func (b *DefaultChatClientRequestBuilder[O, M]) WithChatModel(chatModel model.Ch
 }
 
 func (b *DefaultChatClientRequestBuilder[O, M]) WithChatOptions(options O) *DefaultChatClientRequestBuilder[O, M] {
-	value := reflect.ValueOf(options)
-	if value.IsValid() ||
-		value.IsNil() ||
-		value.IsZero() {
-		return b
+	if !lo.IsNil(options) {
+		b.request.chatRequestOptions = options.Clone().(O)
 	}
-	b.request.chatRequestOptions = options.Clone().(O)
 	return b
 }
 
