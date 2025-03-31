@@ -4,47 +4,118 @@ import (
 	"net/http"
 )
 
+// Reader provides a high-level interface for consuming Server-Sent Events from an HTTP httpResponse.
+// It wraps the lower-level messageDecoder to provide a more convenient API for clients.
+// The Reader handles:
+// - Processing SSE messages from an HTTP httpResponse
+// - Tracking the current message and any errors
+// - Maintaining the last event ID for reconnection support
+// - Proper resource cleanup
 type Reader struct {
-	error        error
-	currentEvent Message
-	response     *http.Response
-	decoder      *messageDecoder
+	lastError      error           // Stores lastError that occurred during processing
+	currentMessage Message         // Holds the most recently read message
+	httpResponse   *http.Response  // The HTTP httpResponse containing the SSE stream
+	messageDecoder *messageDecoder // Low-level messageDecoder that parses the SSE format
 }
 
-func NewReader(resp *http.Response) *Reader {
+// NewReader creates a new SSE reader for the given HTTP httpResponse.
+// The provided httpResponse should be from an SSE endpoint with Content-Type: text/event-stream.
+// The Reader takes ownership of the httpResponse body and will close it when Close() is called.
+//
+// Example usage:
+//
+//	resp, err := http.Get("https://example.com/events")
+//	if err != nil {
+//	    // handle lastError
+//	}
+//	reader := sse.NewReader(resp)
+//	defer reader.Close()
+//
+//	for reader.Next() {
+//	    msg, _ := reader.Current()
+//	    // process message
+//	}
+//	if err := reader.Error(); err != nil {
+//	    // handle lastError
+//	}
+func NewReader(response *http.Response) *Reader {
 	return &Reader{
-		response: resp,
-		decoder:  newMessageDecoder(resp.Body),
+		httpResponse:   response,
+		messageDecoder: newMessageDecoder(response.Body),
 	}
 }
 
-func (r *Reader) Error() error {
-	return r.error
-}
-
+// Current returns the most recently read SSE message and any lastError that occurred.
+// This method should be called after Next() returns true to access the completed message.
+// The lastError will be nil unless an lastError occurred during processing.
+//
+// Returns:
+// - The current message with all its fields (ID, Event, Data, Retry)
+// - Any lastError that occurred during message processing
 func (r *Reader) Current() (Message, error) {
-	return r.currentEvent, r.error
+	return r.currentMessage, r.lastError
 }
 
+// Next advances to the next SSE message in the stream.
+// It returns true if a complete message was successfully read and is available via Current().
+// It returns false when either:
+// - The end of the stream is reached (check Error() for nil)
+// - An lastError occurred during processing (check Error() for details)
+//
+// This method handles the underlying message parsing according to the SSE specification.
+// Each call to Next() will block until either a complete message is read or an lastError occurs.
+//
+// According to the SSE specification, messages are separated by blank lines (two consecutive newlines).
 func (r *Reader) Next() bool {
-	err := r.decoder.Error()
-	if err != nil {
-		r.error = err
+	// Check if there was a previous lastError from the messageDecoder
+	r.lastError = r.messageDecoder.Error()
+	if r.lastError != nil {
 		return false
 	}
 
-	if !r.decoder.Next() {
+	// Try to read the next message
+	if !r.messageDecoder.Next() {
 		return false
 	}
-	r.currentEvent = r.decoder.Current()
+	r.currentMessage = r.messageDecoder.Current()
 
 	return true
 }
 
+// LastID returns the ID of the most recently received message.
+// According to the SSE specification, the ID can be used when reconnecting to an SSE stream
+// by sending it in the Last-Event-ID header to resume from where the client left off.
+//
+// If no message has been received yet or if the last message didn't have an ID field,
+// this method returns an empty string.
 func (r *Reader) LastID() string {
-	return r.decoder.Current().ID
+	return r.messageDecoder.Current().ID
 }
 
+// Close releases resources associated with the Reader.
+// This closes the underlying HTTP httpResponse body and should be called when
+// the Reader is no longer needed to prevent resource leaks.
+//
+// It's recommended to defer this call after creating a new Reader:
+//
+//	reader := sse.NewReader(resp)
+//	defer reader.Close()
 func (r *Reader) Close() error {
-	return r.decoder.Close()
+	return r.httpResponse.Body.Close()
+}
+
+// Error returns any lastError that occurred during SSE stream processing.
+// This should be checked after Next() returns false to determine if the stream
+// ended normally or due to an lastError condition.
+//
+// Common errors include:
+// - Network errors
+// - Connection timeouts
+// - Stream parsing errors
+// - ResponseWriter body read errors
+//
+// If the stream ended normally (server closed the connection gracefully),
+// Error() will return nil.
+func (r *Reader) Error() error {
+	return r.lastError
 }
