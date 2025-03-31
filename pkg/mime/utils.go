@@ -1,3 +1,5 @@
+// Package mime provides utilities for working with MIME types, including parsing,
+// creation, detection, and type checking functionality.
 package mime
 
 import (
@@ -13,9 +15,12 @@ import (
 )
 
 var (
+	// ErrorInvalidMimeType is returned when an invalid MIME type is encountered during parsing
 	ErrorInvalidMimeType = errors.New("invalid mime type")
 )
 
+// New creates a new Mime instance with the specified type and subtype
+// Returns the created Mime and any error that occurred during creation
 func New(_type string, subType string) (*Mime, error) {
 	return NewBuilder().
 		WithType(_type).
@@ -23,11 +28,16 @@ func New(_type string, subType string) (*Mime, error) {
 		Build()
 }
 
+// newMime is an internal helper that creates a new Mime instance
+// Similar to New but ignores errors and always returns a Mime object
 func newMime(_type string, subType string) *Mime {
 	m, _ := New(_type, subType)
 	return m
 }
 
+// Parse converts a string representation of a MIME type into a Mime object
+// Handles parameters, wildcards, and validates the format according to standards
+// Returns an error for malformed MIME type strings
 func Parse(mime string) (*Mime, error) {
 	index := strings.Index(mime, ";")
 	fullType := mime
@@ -90,11 +100,15 @@ func Parse(mime string) (*Mime, error) {
 	return m, nil
 }
 
+// Detect identifies the MIME type of a byte slice
+// Uses the mimetype library for content-based detection
 func Detect(b []byte) (*Mime, error) {
 	m := mimetype.Detect(b)
 	return Parse(m.String())
 }
 
+// DetectReader identifies the MIME type of content from an io.Reader
+// Uses the mimetype library for content-based detection
 func DetectReader(r io.Reader) (*Mime, error) {
 	m, err := mimetype.DetectReader(r)
 	if err != nil {
@@ -103,6 +117,8 @@ func DetectReader(r io.Reader) (*Mime, error) {
 	return Parse(m.String())
 }
 
+// DetectFile identifies the MIME type of a file at the given path
+// Uses the mimetype library for content-based detection
 func DetectFile(path string) (*Mime, error) {
 	m, err := mimetype.DetectFile(path)
 	if err != nil {
@@ -111,6 +127,8 @@ func DetectFile(path string) (*Mime, error) {
 	return Parse(m.String())
 }
 
+// StringTypeByExtension returns the MIME type string associated with a file extension
+// Falls back to application/octet-stream if the extension is not recognized
 func StringTypeByExtension(filePath string) string {
 	m := mime.TypeByExtension(path.Ext(filePath))
 	if m == "" {
@@ -122,6 +140,8 @@ func StringTypeByExtension(filePath string) string {
 	return m
 }
 
+// TypeByExtension returns a Mime object for the given file extension
+// Returns the MIME type and a boolean indicating if the extension was recognized
 func TypeByExtension(ext string) (*Mime, bool) {
 	mimt, ok := extToMimeType[ext]
 	if ok {
@@ -130,18 +150,27 @@ func TypeByExtension(ext string) (*Mime, bool) {
 	return nil, false
 }
 
+// IsVideo checks if the given MIME type belongs to the video category
 func IsVideo(m *Mime) bool {
 	return video.EqualsType(m)
 }
+
+// IsAudio checks if the given MIME type belongs to the audio category
 func IsAudio(m *Mime) bool {
 	return audio.EqualsType(m)
 }
+
+// IsImage checks if the given MIME type belongs to the image category
 func IsImage(m *Mime) bool {
 	return image.EqualsType(m)
 }
+
+// IsText checks if the given MIME type belongs to the text category
 func IsText(m *Mime) bool {
 	return text.EqualsType(m)
 }
+
+// IsApplication checks if the given MIME type belongs to the application category
 func IsApplication(m *Mime) bool {
 	return application.EqualsType(m)
 }
