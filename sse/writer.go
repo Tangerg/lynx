@@ -108,7 +108,7 @@ func NewWriter(conf *WriterConfig) (*Writer, error) {
 		httpResponse:   conf.ResponseWriter,
 		httpFlusher:    conf.ResponseWriter.(http.Flusher),
 		ticker:         time.NewTicker(conf.HeartBeat),
-		closeSignal:    make(chan struct{}),
+		closeSignal:    make(chan struct{}, 1),
 	}
 	w.run()
 	return w, nil
@@ -127,8 +127,8 @@ func (w *Writer) run() {
 // It waits for any in-flight messages to be processed before returning.
 //
 // This method:
-// - Sets the shutdown flag to prevent new messages from being processed
 // - Signals the background goroutine to stop
+// - Sets the shutdown flag to prevent new messages from being processed
 // - Waits for the background goroutine to complete
 // - Closes the message queue and signal channels
 // - Returns any error that occurred during processing
@@ -139,8 +139,8 @@ func (w *Writer) Close() error {
 	if w.isClosed.Load() {
 		return nil
 	}
-	w.isClosed.Store(true)
 	w.closeSignal <- struct{}{}
+	w.isClosed.Store(true)
 	w.waitGroup.Wait()
 	close(w.messageQueue)
 	close(w.closeSignal)
