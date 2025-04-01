@@ -1,4 +1,6 @@
 // Package mime provides functionality for handling MIME (Multipurpose Internet Mail Extensions) types.
+// MIME types are standardized identifiers that represent the format and nature of files, documents,
+// or byte streams, widely used in HTTP, email, and other internet protocols.
 package mime
 
 import (
@@ -8,15 +10,25 @@ import (
 )
 
 const (
-	// wildcardType represents the wildcard character used in MIME type patterns
+	// wildcardType represents the wildcard character used in MIME type patterns.
+	// Example:
+	// - In "*", the primary type is a wildcard that matches any type.
+	// - In "video/*", the subType is a wildcard that matches any video type.
 	wildcardType = "*"
-	// paramCharset is the standard parameter name for character set specification
+
+	// paramCharset is the standard parameter name for character set specification.
+	// Example: In "text/html; charset=UTF-8", "charset" is the parameter name.
 	paramCharset = "charset"
 )
 
 // Mime represents a MIME type structure with its components and properties.
 // It stores the type (e.g., "text"), subtype (e.g., "html"), optional charset,
 // and additional parameters.
+//
+// Examples:
+// - "text/html; charset=UTF-8" -> type="text", subType="html", charset="UTF-8"
+// - "application/json" -> type="application", subType="json"
+// - "image/svg+xml" -> type="image", subType="svg+xml"
 type Mime struct {
 	_type       string                // The primary type component (e.g., "text", "application")
 	subType     string                // The subtype component (e.g., "html", "json")
@@ -26,7 +38,11 @@ type Mime struct {
 }
 
 // formatStringValue constructs and caches the full string representation of the MIME type
-// in the standard format "type/subtype; param1=value1; param2=value2"
+// in the standard format "type/subtype; param1=value1; param2=value2".
+//
+// Example:
+// For a MIME with type="text", subType="html", and params={"charset":"UTF-8"},
+// the resulting string would be "text/html;charset=UTF-8"
 func (m *Mime) formatStringValue() {
 	sb := strings.Builder{}
 	sb.WriteString(m._type)
@@ -41,39 +57,54 @@ func (m *Mime) formatStringValue() {
 	m.stringValue = sb.String()
 }
 
-// Type returns the primary type component of this MIME type
+// Type returns the primary type component of this MIME type.
+// Example: For "text/html", returns "text".
 func (m *Mime) Type() string {
 	return m._type
 }
 
-// SubType returns the subtype component of this MIME type
+// SubType returns the subtype component of this MIME type.
+// Example: For "application/json", returns "json".
 func (m *Mime) SubType() string {
 	return m.subType
 }
 
-// TypeAndSubType returns the combined type and subtype in the format "type/subtype"
+// TypeAndSubType returns the combined type and subtype in the format "type/subtype".
+// Example: For a MIME with type="image" and subType="png", returns "image/png".
 func (m *Mime) TypeAndSubType() string {
 	return m._type + "/" + m.subType
 }
 
-// Charset returns the character set parameter value if specified
+// Charset returns the character set parameter value if specified.
+// Example: For "text/html; charset=UTF-8", returns "UTF-8".
 func (m *Mime) Charset() string {
 	return m.charset
 }
 
-// Param retrieves a specific parameter value by key
-// Returns the value and a boolean indicating if the parameter exists
+// Param retrieves a specific parameter value by key.
+// Returns the value and a boolean indicating if the parameter exists.
+//
+// Example:
+// For "application/json; version=1.0":
+// m.Param("version") returns "1.0", true
+// m.Param("charset") returns "", false
 func (m *Mime) Param(key string) (string, bool) {
 	return m.params.Get(key)
 }
 
-// Params returns all parameters as a map of key-value pairs
+// Params returns all parameters as a map of key-value pairs.
+// Example: For "text/html; charset=UTF-8; level=1", returns {"charset":"UTF-8", "level":"1"}
 func (m *Mime) Params() map[string]string {
 	return m.params
 }
 
-// String returns the complete string representation of this MIME type
-// Uses the cached value if available for better performance
+// String returns the complete string representation of this MIME type.
+// Uses the cached value if available for better performance.
+//
+// Example outputs:
+// - "text/html;charset=UTF-8"
+// - "application/json"
+// - "image/png;quality=high"
 func (m *Mime) String() string {
 	if m.stringValue == "" {
 		m.formatStringValue()
@@ -81,26 +112,41 @@ func (m *Mime) String() string {
 	return m.stringValue
 }
 
-// IsWildcardType checks if this MIME type has a wildcard primary type (e.g., "*/html")
+// IsWildcardType checks if this MIME type has a wildcard primary type.
+// Example: For "*/html", returns true; for "text/html", returns false.
 func (m *Mime) IsWildcardType() bool {
 	return m._type == wildcardType
 }
 
-// IsWildcardSubType checks if this MIME type has a wildcard subtype
-// Returns true for both "*" and "*+suffix" patterns (e.g., "text/*" or "application/*+json")
+// IsWildcardSubType checks if this MIME type has a wildcard subtype.
+// Returns true for both "*" and "*+suffix" patterns.
+//
+// Examples:
+// - "text/*" -> true
+// - "application/*+json" -> true
+// - "text/html" -> false
 func (m *Mime) IsWildcardSubType() bool {
 	return m.subType == wildcardType ||
 		strings.HasPrefix(m.subType, "*+")
 }
 
-// IsConcrete returns true if neither the type nor subtype contains wildcards
-// A concrete MIME type represents a specific format rather than a pattern
+// IsConcrete returns true if neither the type nor subtype contains wildcards.
+// A concrete MIME type represents a specific format rather than a pattern.
+//
+// Examples:
+// - "text/html" -> true (concrete)
+// - "text/*" -> false (has wildcard)
+// - "*/json" -> false (has wildcard)
 func (m *Mime) IsConcrete() bool {
 	return !m.IsWildcardType() && !m.IsWildcardSubType()
 }
 
-// GetSubtypeSuffix extracts the suffix part after the '+' character in the subtype
-// For example, in "application/vnd.api+json", the suffix is "json"
+// GetSubtypeSuffix extracts the suffix part after the '+' character in the subtype.
+//
+// Examples:
+// - "application/vnd.api+json" -> "json"
+// - "application/xml+xhtml" -> "xhtml"
+// - "text/html" -> "" (no suffix)
 func (m *Mime) GetSubtypeSuffix() string {
 	suffixIndex := strings.LastIndexByte(m.subType, '+')
 	if suffixIndex != -1 && len(m.subType) > suffixIndex {
@@ -109,8 +155,14 @@ func (m *Mime) GetSubtypeSuffix() string {
 	return ""
 }
 
-// Includes checks if this MIME type includes (is more general than) another MIME type
-// Implements the MIME type matching rules for wildcard patterns
+// Includes checks if this MIME type includes (is more general than) another MIME type.
+// Implements the MIME type matching rules for wildcard patterns.
+//
+// Examples:
+// - "text/*" includes "text/html" (wildcard subtype match)
+// - "*/*" includes "image/png" (wildcard type and subtype)
+// - "application/*+json" includes "application/vnd.api+json" (suffix match)
+// - "text/html" does not include "text/plain" (different concrete subtypes)
 func (m *Mime) Includes(other *Mime) bool {
 	if other == nil {
 		return false
@@ -137,14 +189,19 @@ func (m *Mime) Includes(other *Mime) bool {
 	}
 	thisSubtypeNoSuffix := m.subType[0:thisPlusIdx]
 	thisSubtypeSuffix := m.subType[thisPlusIdx+1:]
-	otherSubtypeSuffix := m.subType[otherPlusIdx+1:]
+	otherSubtypeSuffix := other.subType[otherPlusIdx+1:]
 
 	return thisSubtypeSuffix == otherSubtypeSuffix &&
 		thisSubtypeNoSuffix == wildcardType
 }
 
-// IsCompatibleWith checks if this MIME type is compatible with another MIME type
-// Two MIME types are compatible if either one includes the other
+// IsCompatibleWith checks if this MIME type is compatible with another MIME type.
+// Two MIME types are compatible if either one includes the other.
+//
+// Examples:
+// - "text/*" is compatible with "text/html" (one includes the other)
+// - "application/json" is compatible with "application/json" (they're equal)
+// - "text/html" is not compatible with "application/json" (different types)
 func (m *Mime) IsCompatibleWith(other *Mime) bool {
 	if other == nil {
 		return false
@@ -152,7 +209,11 @@ func (m *Mime) IsCompatibleWith(other *Mime) bool {
 	return m.Includes(other) || other.Includes(m)
 }
 
-// EqualsType checks if this MIME type's primary type equals another's
+// EqualsType checks if this MIME type's primary type equals another's.
+//
+// Examples:
+// - "text/html" and "text/plain" have equal types ("text")
+// - "image/png" and "application/json" have different types
 func (m *Mime) EqualsType(other *Mime) bool {
 	if other == nil {
 		return false
@@ -160,7 +221,11 @@ func (m *Mime) EqualsType(other *Mime) bool {
 	return m._type == other._type
 }
 
-// EqualsSubtype checks if this MIME type's subtype equals another's
+// EqualsSubtype checks if this MIME type's subtype equals another's.
+//
+// Examples:
+// - "text/html" and "application/html" have equal subtypes ("html")
+// - "text/plain" and "text/html" have different subtypes
 func (m *Mime) EqualsSubtype(other *Mime) bool {
 	if other == nil {
 		return false
@@ -168,15 +233,27 @@ func (m *Mime) EqualsSubtype(other *Mime) bool {
 	return m.subType == other.subType
 }
 
-// EqualsTypeAndSubtype checks if both the type and subtype match another MIME type
-// Only compares the type/subtype components, ignoring parameters
+// EqualsTypeAndSubtype checks if both the type and subtype match another MIME type.
+// Only compares the type/subtype components, ignoring parameters.
+//
+// Examples:
+// - "text/html; charset=UTF-8" equals "text/html" (parameters ignored)
+// - "text/html" does not equal "text/plain" (different subtypes)
 func (m *Mime) EqualsTypeAndSubtype(other *Mime) bool {
+	if other == nil {
+		return false
+	}
 	return m.EqualsType(other) &&
 		m.EqualsSubtype(other)
 }
 
-// EqualsParams checks if all parameters match another MIME type's parameters
-// Requires the same parameters with identical values in both MIME types
+// EqualsParams checks if all parameters match another MIME type's parameters.
+// Requires the same parameters with identical values in both MIME types.
+//
+// Examples:
+// - "text/html; charset=UTF-8" and "text/plain; charset=UTF-8" have equal params
+// - "text/html; charset=UTF-8" and "text/html; charset=ASCII" have different params
+// - "text/html; charset=UTF-8" and "text/html" have different params (one has none)
 func (m *Mime) EqualsParams(other *Mime) bool {
 	if other == nil {
 		return false
@@ -193,7 +270,11 @@ func (m *Mime) EqualsParams(other *Mime) bool {
 	return equal
 }
 
-// EqualsCharset checks if this MIME type's charset equals another's
+// EqualsCharset checks if this MIME type's charset equals another's.
+//
+// Examples:
+// - "text/html; charset=UTF-8" and "text/plain; charset=UTF-8" have equal charsets
+// - "text/html; charset=UTF-8" and "text/html; charset=ASCII" have different charsets
 func (m *Mime) EqualsCharset(other *Mime) bool {
 	if other == nil {
 		return false
@@ -201,16 +282,27 @@ func (m *Mime) EqualsCharset(other *Mime) bool {
 	return m.charset == other.charset
 }
 
-// Equals performs a complete comparison of all MIME type components
-// Returns true only if type, subtype, charset, and all parameters match exactly
+// Equals performs a complete comparison of all MIME type components.
+// Returns true only if type, subtype, charset, and all parameters match exactly.
+//
+// Examples:
+// - "text/html; charset=UTF-8" equals "text/html; charset=UTF-8"
+// - "text/html; charset=UTF-8" does not equal "text/html; charset=UTF-8; level=1"
+// - "text/html; charset=UTF-8" does not equal "text/plain; charset=UTF-8"
 func (m *Mime) Equals(other *Mime) bool {
+	if other == nil {
+		return false
+	}
 	return m.EqualsTypeAndSubtype(other) &&
 		m.EqualsCharset(other) &&
 		m.EqualsParams(other)
 }
 
-// IsPresentIn checks if this MIME type is present in a list of MIME types
-// Matches based on type and subtype only, ignoring parameters
+// IsPresentIn checks if this MIME type is present in a list of MIME types.
+// Matches based on type and subtype only, ignoring parameters.
+//
+// Example:
+// For a list ["text/html", "application/json"], "text/html; charset=UTF-8" returns true
 func (m *Mime) IsPresentIn(mimes []*Mime) bool {
 	for _, mime := range mimes {
 		if mime.EqualsTypeAndSubtype(m) {
@@ -220,9 +312,14 @@ func (m *Mime) IsPresentIn(mimes []*Mime) bool {
 	return false
 }
 
-// IsMoreSpecific checks if this MIME type is more specific than another
+// IsMoreSpecific checks if this MIME type is more specific than another.
 // A MIME type is more specific if it has concrete types where the other has wildcards,
-// or if it has more parameters when types are equal
+// or if it has more parameters when types are equal.
+//
+// Examples:
+// - "text/html" is more specific than "text/*" (concrete vs wildcard)
+// - "text/html; charset=UTF-8" is more specific than "text/html" (more parameters)
+// - "text/html" is not more specific than "application/json" (different types)
 func (m *Mime) IsMoreSpecific(other *Mime) bool {
 	if other == nil {
 		return false
@@ -245,14 +342,22 @@ func (m *Mime) IsMoreSpecific(other *Mime) bool {
 	return false
 }
 
-// IsLessSpecific is the inverse of IsMoreSpecific
-// Returns true if this MIME type is less specific (more general) than the other
+// IsLessSpecific is the inverse of IsMoreSpecific.
+// Returns true if this MIME type is less specific (more general) than the other.
+//
+// Examples:
+// - "text/*" is less specific than "text/html" (wildcard vs concrete)
+// - "text/html" is less specific than "text/html; charset=UTF-8" (fewer parameters)
 func (m *Mime) IsLessSpecific(other *Mime) bool {
 	return !m.IsMoreSpecific(other)
 }
 
-// Clone creates a deep copy of this MIME type
-// Returns a new instance with the same properties but separate memory allocation
+// Clone creates a deep copy of this MIME type.
+// Returns a new instance with the same properties but separate memory allocation.
+//
+// Example:
+// myMime = "text/html; charset=UTF-8"
+// clone = myMime.Clone() // Creates a new instance with the same values
 func (m *Mime) Clone() *Mime {
 	newM, _ := NewBuilder().
 		FromMime(m).
