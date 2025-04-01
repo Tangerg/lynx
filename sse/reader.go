@@ -89,7 +89,7 @@ func (r *Reader) Next() bool {
 // If no message has been received yet or if the last message didn't have an ID field,
 // this method returns an empty string.
 func (r *Reader) LastID() string {
-	return r.messageDecoder.Current().ID
+	return r.currentMessage.ID
 }
 
 // Close releases resources associated with the Reader.

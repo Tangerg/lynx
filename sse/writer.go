@@ -23,16 +23,16 @@ var heartBeatPing = []byte(":ping")
 // - Error tracking and propagation
 // The Writer is designed to be created once per client connection.
 type Writer struct {
-	isShutdown     atomic.Bool         // Flag to signal shutdown state
-	lastError      error               // Stores the last error that occurred
+	isClosed       atomic.Bool         // Flag indicating whether the writer has been closed
+	lastError      error               // Stores the last error encountered during processing
 	waitGroup      sync.WaitGroup      // Tracks active goroutines for graceful shutdown
-	ctx            context.Context     // Context for cancellation control
+	ctx            context.Context     // Context for cancellation and lifecycle control
 	messageQueue   chan *Message       // Channel for queueing messages to be sent
-	messageEncoder *messageEncoder     // Converts Message objects to SSE wire format
+	messageEncoder *messageEncoder     // Handles encoding messages to SSE wire format
 	httpResponse   http.ResponseWriter // HTTP response writer for the connection
 	httpFlusher    http.Flusher        // Interface for flushing buffered data to client
 	ticker         *time.Ticker        // Timer for sending periodic heartbeats
-	shutDownSignal chan struct{}
+	closeSignal    chan struct{}       // Channel to signal graceful shutdown
 }
 
 // WriterConfig contains the configuration options for creating a new SSE Writer.
@@ -62,7 +62,7 @@ func (c *WriterConfig) validate() error {
 	}
 	_, ok := c.ResponseWriter.(http.Flusher)
 	if !ok {
-		return errors.New("httpResponse does not implement http.Flusher")
+		return errors.New("responseWriter does not implement http.Flusher")
 	}
 	if c.QueueSize == 0 {
 		c.QueueSize = 64
@@ -92,13 +92,13 @@ func (c *WriterConfig) validate() error {
 //	if err != nil {
 //	    // handle error
 //	}
-//	defer writer.Shutdown()
+//	defer writer.Close()
 //
 //	// Send messages with writer.Send(), writer.SendData(), etc.
 func NewWriter(conf *WriterConfig) (*Writer, error) {
 	err := conf.validate()
 	if err != nil {
-		return nil, errors.New("httpResponse does not implement http.Flusher")
+		return nil, err // Return the actual validation error
 	}
 
 	w := &Writer{
@@ -108,7 +108,7 @@ func NewWriter(conf *WriterConfig) (*Writer, error) {
 		httpResponse:   conf.ResponseWriter,
 		httpFlusher:    conf.ResponseWriter.(http.Flusher),
 		ticker:         time.NewTicker(conf.HeartBeat),
-		shutDownSignal: make(chan struct{}),
+		closeSignal:    make(chan struct{}),
 	}
 	w.run()
 	return w, nil
@@ -123,26 +123,27 @@ func (w *Writer) run() {
 	go w.process()
 }
 
-// Shutdown gracefully stops the Writer's background processing and closes resources.
+// Close gracefully stops the Writer's background processing and closes resources.
 // It waits for any in-flight messages to be processed before returning.
 //
 // This method:
 // - Sets the shutdown flag to prevent new messages from being processed
+// - Signals the background goroutine to stop
 // - Waits for the background goroutine to complete
-// - Closes the message queue channel
+// - Closes the message queue and signal channels
 // - Returns any error that occurred during processing
 //
-// It is safe to call Shutdown multiple times; subsequent calls will have no effect.
-// Clients should always call Shutdown when finished with the Writer to free resources.
-func (w *Writer) Shutdown() error {
-	if w.isShutdown.Load() {
+// It is safe to call Close multiple times; subsequent calls will have no effect.
+// Clients should always call Close when finished with the Writer to free resources.
+func (w *Writer) Close() error {
+	if w.isClosed.Load() {
 		return nil
 	}
-	w.isShutdown.Store(true)
-	w.shutDownSignal <- struct{}{}
+	w.isClosed.Store(true)
+	w.closeSignal <- struct{}{}
 	w.waitGroup.Wait()
 	close(w.messageQueue)
-	close(w.shutDownSignal)
+	close(w.closeSignal)
 	return w.lastError
 }
 
@@ -151,6 +152,7 @@ func (w *Writer) Shutdown() error {
 // until the Writer is shut down or an error occurs.
 //
 // The event loop handles:
+// - Manual close signals
 // - Context cancellation
 // - Periodic heartbeats to keep the connection alive
 // - Processing and sending messages from the queue
@@ -161,9 +163,15 @@ func (w *Writer) process() {
 	defer w.waitGroup.Done()
 	defer w.ticker.Stop()
 
-	for !w.isShutdown.Load() {
+	for !w.isClosed.Load() {
 		select {
-		case <-w.shutDownSignal:
+		case <-w.closeSignal:
+			_, w.lastError = w.httpResponse.Write(byteLFLF)
+			if w.lastError != nil {
+				return
+			}
+			w.httpFlusher.Flush()
+			w.lastError = w.ctx.Err()
 			return
 		case <-w.ctx.Done():
 			w.lastError = w.ctx.Err()
@@ -171,17 +179,7 @@ func (w *Writer) process() {
 		case <-w.ticker.C:
 			_, _ = w.httpResponse.Write(heartBeatPing)
 			w.httpFlusher.Flush()
-		case event, ok := <-w.messageQueue:
-			if !ok {
-				_, w.lastError = w.httpResponse.Write(byteLFLF)
-				if w.lastError != nil {
-					return
-				}
-				w.httpFlusher.Flush()
-				w.lastError = w.ctx.Err()
-				return
-			}
-
+		case event := <-w.messageQueue:
 			encode, err := w.messageEncoder.Encode(event)
 			if err != nil {
 				w.lastError = err
@@ -205,19 +203,10 @@ func (w *Writer) process() {
 // Parameters:
 //   - msg: The SSE message to send with fields like ID, Event, Data, and Retry
 func (w *Writer) Send(msg *Message) {
+	if w.isClosed.Load() {
+		return
+	}
 	w.messageQueue <- msg
-}
-
-// SendID sends a message containing only an ID field.
-// This is useful for updating the last event ID on the client without
-// sending any data, which can be used for resuming connections.
-//
-// Parameters:
-//   - id: The event ID to send
-func (w *Writer) SendID(id string) {
-	w.Send(&Message{
-		ID: id,
-	})
 }
 
 // SendEvent sends a message containing only an Event field.
