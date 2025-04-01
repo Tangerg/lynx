@@ -100,7 +100,7 @@ func newServer3() {
 				Event: "event_" + itoa,
 				Retry: 0,
 			})
-			time.Sleep(100 * time.Millisecond)
+			time.Sleep(500 * time.Millisecond)
 		}
 	})
 	_ = http.ListenAndServe(":8080", nil)

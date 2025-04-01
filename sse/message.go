@@ -313,7 +313,9 @@ func (e *messageDecoder) Next() bool {
 			if !insideMessageBlock {
 				continue // Skip leading empty lines
 			}
-			// Process complete message
+			if !e.hasContent() {
+				continue
+			}
 			e.constructMessage()
 			return true
 		}

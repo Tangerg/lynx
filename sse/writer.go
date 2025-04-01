@@ -13,7 +13,7 @@ import (
 // heartBeatPing is the byte sequence sent as a keep-alive ping message to clients.
 // The colon prefix indicates a comment line in SSE protocol, which clients will ignore
 // but will keep the connection alive.
-var heartBeatPing = []byte(":ping")
+var heartBeatPing = []byte(delimiter + whitespace + "ping" + string(byteLFLF))
 
 // Writer provides functionality for sending Server-Sent Events (SSE) to clients.
 // It handles the complexities of SSE stream management including:
