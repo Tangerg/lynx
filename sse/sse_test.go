@@ -85,6 +85,7 @@ func newServer3() {
 			Context:        ctx,
 			ResponseWriter: w,
 			QueueSize:      128,
+			HeartBeat:      5 * time.Second,
 		})
 		if err != nil {
 			fmt.Println(err)
@@ -100,7 +101,7 @@ func newServer3() {
 				Event: "event_" + itoa,
 				Retry: 0,
 			})
-			time.Sleep(500 * time.Millisecond)
+			time.Sleep(1 * time.Second)
 		}
 	})
 	_ = http.ListenAndServe(":8080", nil)
@@ -189,5 +190,5 @@ func Test4(t *testing.T) {
 		t.Log(current.ID, current.Event, string(current.Data))
 	}
 	reader.Close()
-	time.Sleep(1 * time.Second)
+	time.Sleep(10 * time.Second)
 }
