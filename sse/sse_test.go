@@ -57,7 +57,10 @@ func newServer2() {
 			fmt.Println(err)
 			return
 		}
-		defer writer.Close()
+		defer func() {
+			writer.Close()
+			fmt.Println("close writer")
+		}()
 		time.Sleep(1 * time.Second)
 		for i := 0; i < 100; i++ {
 			itoa := strconv.Itoa(i + 1)
