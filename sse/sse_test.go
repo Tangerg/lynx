@@ -88,7 +88,7 @@ func newServer3() {
 			Context:        ctx,
 			ResponseWriter: w,
 			QueueSize:      128,
-			HeartBeat:      5 * time.Second,
+			HeartBeat:      50 * time.Millisecond,
 		})
 		if err != nil {
 			fmt.Println(err)
@@ -96,7 +96,7 @@ func newServer3() {
 		}
 		defer writer.Close()
 		time.Sleep(1 * time.Second)
-		for i := 0; i < 100; i++ {
+		for i := 0; i < 1000; i++ {
 			itoa := strconv.Itoa(i + 1)
 			writer.Send(&Message{
 				ID:    itoa,
@@ -104,7 +104,7 @@ func newServer3() {
 				Event: "event_" + itoa,
 				Retry: 0,
 			})
-			time.Sleep(1 * time.Second)
+			time.Sleep(1 * time.Millisecond)
 		}
 	})
 	_ = http.ListenAndServe(":8080", nil)
