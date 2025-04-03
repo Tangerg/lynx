@@ -67,41 +67,28 @@ func SetSSEHeaders(header http.Header) {
 //	  }
 //	})
 func WithSSE(ctx context.Context, response http.ResponseWriter, messageChan chan *Message) error {
-	flusher, ok := response.(http.Flusher)
-	if !ok {
-		return errors.New("httpResponse is not a http.Flusher")
+	writer, err := NewWriter(&WriterConfig{
+		Context:        ctx,
+		ResponseWriter: response,
+		QueueSize:      len(messageChan),
+	})
+	if err != nil {
+		return err
 	}
-
-	SetSSEHeaders(response.Header())
-
-	encoder := newMessageEncoder()
 
 	for {
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			return writer.Close()
 
-		case message, ok1 := <-messageChan:
-			if !ok1 {
-				_, err := response.Write(byteLFLF)
-				if err != nil {
-					return err
-				}
-				flusher.Flush()
-				return ctx.Err()
+		case message, ok := <-messageChan:
+			if !ok {
+				return writer.Close()
 			}
-
-			encode, err := encoder.Encode(message)
+			err = writer.Send(message)
 			if err != nil {
-				return err
+				return errors.Join(err, writer.Close())
 			}
-
-			_, err = response.Write(encode)
-			if err != nil {
-				return err
-			}
-
-			flusher.Flush()
 		}
 	}
 }
