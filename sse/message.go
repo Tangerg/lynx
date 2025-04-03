@@ -1,4 +1,5 @@
-// Package sse implements the Server-Sent Events (SSE) protocol according to the W3C specification.
+// Package sse implements the Server-Sent Events (SSE)  protocol according to the W3C specification.
+// see w3c doc https://www.w3.org/TR/2009/WD-eventsource-20091029/
 // SSE is a one-way communication protocol that allows servers to push real-time updates
 // to clients over a single HTTP connection.
 //
@@ -191,10 +192,10 @@ type messageDecoder struct {
 }
 
 // newMessageDecoder creates a new SSE decoder for processing messages from the specified reader.
-func newMessageDecoder(readCloser io.Reader) *messageDecoder {
+func newMessageDecoder(reader io.Reader) *messageDecoder {
 	return &messageDecoder{
-		reader:      readCloser,
-		scanner:     bufio.NewScanner(readCloser),
+		reader:      reader,
+		scanner:     bufio.NewScanner(reader),
 		eventBuffer: bytes.NewBuffer(make([]byte, 0, 64)),
 		dataBuffer:  bytes.NewBuffer(make([]byte, 0, 128)),
 	}
