@@ -15,16 +15,19 @@ import (
 	"bufio"
 	"bytes"
 	"errors"
+	"fmt"
 	"io"
 	"strconv"
 	"strings"
+	"unicode"
 	"unicode/utf8"
 )
 
-// ErrMessageNoContent is returned when attempting to encode a message with no fields.
-// According to the SSE specification, a valid message must contain at least one non-empty field.
 var (
-	ErrMessageNoContent = errors.New("message has no content")
+	// ErrMessageNoContent is returned when attempting to encode a message with no fields.
+	// According to the SSE specification, a valid message must contain at least one non-empty field.
+	ErrMessageNoContent        = errors.New("message has no content")
+	ErrMessageInvalidEventName = errors.New("message event name is invalid")
 )
 
 // lineBreakReplacer handles escaping of CR and LF characters in fields like id and event,
@@ -54,6 +57,11 @@ const (
 	whitespace             = " "            // Standard space after delimiter
 	invalidUTF8Replacement = "\uFFFD"       // Unicode replacement character
 	utf8BomSequence        = "\xEF\xBB\xBF" // UTF-8 Byte Order Mark
+
+	// eventNameMessage is the default event type used when no explicit event is specified.
+	// According to the SSE specification, when a message doesn't include an event field,
+	// clients should dispatch it using the "message" event type.
+	eventNameMessage = "message"
 )
 
 // Precomputed byte arrays for field prefixes to optimize message encoding.
@@ -74,6 +82,67 @@ type Message struct {
 	Event string // Message type
 	Data  []byte // Message payload
 	Retry int    // Reconnection time in milliseconds
+}
+
+// isValidSSEEventName checks if the SSE event name meets the specification requirements.
+// If the event name is empty, it's considered valid as the default "message" type will be used.
+// Otherwise, it must follow DOM event naming rules.
+//
+// Valid event name rules:
+// - Empty string is valid (default "message" type will be used)
+// - Must start with a letter
+// - Can only contain letters, digits, underscore, hyphen, and period
+// - Cannot contain ".." sequence
+// - Cannot start or end with a period
+// - Cannot contain any whitespace characters
+//
+// Examples: "update", "user.created", "system-alert" are valid
+// While ".update", "user..profile", "alert!" are invalid
+func isValidSSEEventName(eventName string) bool {
+	if eventName == "" {
+		return true
+	}
+	return isValidDOMEventName(eventName)
+}
+
+// isValidDOMEventName validates event names according to DOM specifications:
+// - Must not be empty
+// - Must not contain '..' or start/end with '.'
+// - Must start with a letter
+// - Can only contain letters, digits, underscore, hyphen, or period
+// - Cannot contain any whitespace
+func isValidDOMEventName(eventName string) bool {
+	if eventName == "" {
+		return false
+	}
+
+	if strings.Contains(eventName, "..") ||
+		strings.HasPrefix(eventName, ".") ||
+		strings.HasSuffix(eventName, ".") {
+		return false
+	}
+
+	runes := []rune(eventName)
+
+	if !unicode.IsLetter(runes[0]) {
+		return false
+	}
+
+	for _, r := range runes {
+		if unicode.IsSpace(r) {
+			return false
+		}
+		if unicode.IsLetter(r) ||
+			unicode.IsDigit(r) ||
+			r == '_' ||
+			r == '-' ||
+			r == '.' {
+			continue
+		}
+		return false
+	}
+
+	return true
 }
 
 // Encoder handles the conversion of Message objects to the SSE wire format.
@@ -171,9 +240,20 @@ func (e *Encoder) encodeToBytes(msg *Message) []byte {
 }
 
 // Encode validates and encodes a message into the SSE wire format.
-// Returns an error if the message contains no content.
+// Returns an error if the message contains no content or has an invalid event name.
 // This method is concurrency-safe and can be called by multiple goroutines.
+//
+// Boundary conditions:
+// - If msg is nil, ErrMessageNoContent will be returned
+// - Empty string as Event is valid (default "message" type will be used)
+// - Newlines in the Data field will be properly handled as multiline data fields
+// - Newlines in ID and Event fields will be escaped as \n
+// - Generated message will always end with a blank line, even if no fields are provided
+// - If Retry value is negative, it will be ignored
 func (e *Encoder) Encode(msg *Message) ([]byte, error) {
+	if !isValidSSEEventName(msg.Event) {
+		return nil, errors.Join(ErrMessageInvalidEventName, fmt.Errorf("event name: %s", msg.Event))
+	}
 	if !e.isValidMessage(msg) {
 		return nil, ErrMessageNoContent
 	}
@@ -194,14 +274,58 @@ type Decoder struct {
 	retry          int            // Current reconnection time value
 }
 
-// NewDecoder creates a new SSE decoder for processing messages from the specified reader.
+// NewDecoder creates a new SSE decoder that processes messages from the provided reader.
+// It initializes:
+// - A scanner with custom line splitting for SSE protocol
+// - Buffers for accumulating event type and data payloads
+// - Internal state for tracking message IDs and retry intervals
+// The returned decoder is ready to parse SSE messages using the Next() method.
+// Note: The decoder does not close the underlying reader when finished.
 func NewDecoder(reader io.Reader) *Decoder {
-	return &Decoder{
+	d := &Decoder{
 		reader:      reader,
 		scanner:     bufio.NewScanner(reader),
 		eventBuffer: bytes.NewBuffer(make([]byte, 0, 64)),
 		dataBuffer:  bytes.NewBuffer(make([]byte, 0, 128)),
 	}
+	d.scanner.Split(d.scanLinesSplit)
+
+	return d
+}
+
+// scanLinesSplit implements a custom split function for bufio.Scanner to handle various
+// line ending patterns in SSE streams. It properly processes:
+// - CRLF (\r\n) sequences as a single line break
+// - CR (\r) alone as a line break
+// - LF (\n) alone as a line break
+// - EOF at the end of data
+// This ensures compatibility with different server implementations and platforms.
+// The function returns the number of bytes to advance, the line token without
+// line break characters, and any error encountered.
+func (e *Decoder) scanLinesSplit(data []byte, atEOF bool) (advance int, token []byte, err error) {
+	if atEOF && len(data) == 0 {
+		return 0, nil, nil
+	}
+
+	if i := bytes.Index(data, byteCR); i >= 0 {
+		if i+1 < len(data) && data[i+1] == byteLF[0] {
+			return i + 2, data[:i], nil
+		}
+		return i + 1, data[:i], nil
+	}
+
+	if i := bytes.IndexByte(data, byteLF[0]); i >= 0 {
+		return i + 1, data[:i], nil
+	}
+
+	if atEOF {
+		if len(data) > 0 && data[len(data)-1] == byteCR[0] {
+			return len(data), data[:len(data)-1], nil
+		}
+		return len(data), data, nil
+	}
+
+	return 0, nil, nil
 }
 
 // normalizeValue processes a field value according to the SSE specification:
@@ -281,6 +405,12 @@ func (e *Decoder) processLine(line string) {
 	case fieldID:
 		e.lastID = value // Update the last seen ID
 	case fieldEvent:
+		if value == "" {
+			value = eventNameMessage
+		} else if !isValidSSEEventName(value) {
+			e.lastError = errors.Join(ErrMessageInvalidEventName, fmt.Errorf("event name: %s", value))
+			return
+		}
 		e.eventBuffer.WriteString(value) // Store event type
 	case fieldData:
 		e.dataBuffer.WriteString(value) // Append data content
@@ -302,6 +432,15 @@ func (e *Decoder) Current() Message {
 // Next advances to the next message in the stream, parsing lines until a complete
 // message is found or the stream ends. Returns true if a message was successfully
 // decoded, false if the stream ended or an error occurred.
+//
+// Boundary conditions:
+// - Returns false if the stream has ended
+// - Returns false and sets internal error state (retrievable via Error()) if an error is encountered
+// - Completes parsing of the current message and returns true when an empty line is encountered
+// - If an empty line is encountered but there is no current content, continues parsing until a message with content is found
+// - If there is an incomplete message at the end of the stream (not terminated by an empty line), still parses and returns that message
+// - If a message contains an invalid event name, that message will be ignored and parsing continues
+// - If invalid UTF-8 sequences are found, they will be replaced with the U+FFFD character
 func (e *Decoder) Next() bool {
 	if e.lastError != nil {
 		return false
@@ -310,6 +449,10 @@ func (e *Decoder) Next() bool {
 	var insideMessageBlock = false // Tracks if we've started processing a message
 
 	for e.scanner.Scan() {
+		if e.lastError != nil {
+			return false
+		}
+
 		line := e.scanner.Text()
 
 		// Empty line indicates end of message

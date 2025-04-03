@@ -113,10 +113,28 @@ func NewWriter(config *WriterConfig) (*Writer, error) {
 // starts background goroutines to process messages and send heartbeats.
 // This is called automatically by NewWriter.
 func (w *Writer) initialize() {
-	SetSSEHeaders(w.httpResponse.Header())
+	w.setSSEHeaders(w.httpResponse.Header())
 	w.waitGroup.Add(2)
 	go w.processMessageQueue()
 	go w.startHeartbeatLoop()
+}
+
+// setSSEHeaders sets the necessary HTTP headers for a Server-Sent Events stream.
+// According to the SSE specification, the following headers should be set:
+// - Content-Type: text/event-stream; charset=utf-8 (required for SSE)
+// - Connection: keep-alive (maintains persistent connection)
+// - Cache-Control: no-cache (prevents caching of events)
+//
+// The function preserves any existing Cache-Control header if already set.
+//
+// Parameters:
+//   - header: The HTTP header collection to modify
+func (w *Writer) setSSEHeaders(header http.Header) {
+	header.Set("Content-Type", "text/event-stream; charset=utf-8")
+	header.Set("Connection", "keep-alive")
+	if len(header.Get("Cache-Control")) == 0 {
+		header.Set("Cache-Control", "no-cache")
+	}
 }
 
 // writeDataToClient sends raw data to the HTTP response writer and flushes it to the client.
@@ -219,6 +237,17 @@ func (w *Writer) processMessageQueue() {
 // - Returns any errors encountered during operation.
 //
 // Calling Close multiple times is safe; subsequent calls are no-ops.
+//
+// Error handling strategy:
+// - Collects and joins all errors encountered during the shutdown process
+// - Uses errors.Join() to combine multiple errors into a single return value
+// - Returns nil on successful closure
+// - All resources are released even if errors occur during the shutdown process
+//
+// Timeout handling:
+// - Close() will wait for all messages to be processed, which may block
+// - For timeout-based shutdown, cancel the context provided in WriterConfig first
+// - When the context is canceled, the Writer will stop processing new messages and begin shutdown
 func (w *Writer) Close() error {
 	if w.isClosed.Load() {
 		return nil
@@ -239,6 +268,13 @@ func (w *Writer) Close() error {
 //
 // Parameters:
 //   - msg: The SSE Message to send, which may include fields like ID, Event, Data, and Retry.
+//
+// Boundary conditions:
+// - If the Writer is closed (Close() has been called), this method will silently return without error
+// - If the message has no content (all fields empty), returns ErrMessageNoContent
+// - If the event name is invalid, returns ErrMessageInvalidEventName
+// - If the message queue is full, this method will block until space is available or the context is canceled
+// - There is no hard limit on message size, but very large messages may cause memory pressure
 func (w *Writer) Send(msg *Message) error {
 	if w.isClosed.Load() {
 		return nil
@@ -285,4 +321,72 @@ func (w *Writer) SendData(data any) error {
 // Returns nil if no errors were recorded.
 func (w *Writer) Error() error {
 	return errors.Join(w.errors...)
+}
+
+// WithSSE establishes a Server-Sent Events stream that sends messages
+// from the provided channel to the client over HTTP.
+//
+// This function:
+// 1. Sets appropriate SSE headers
+// 2. Verifies that the response writer supports flushing (required for streaming)
+// 3. Creates a message encoder for converting Message objects to SSE wire format
+// 4. Continuously processes messages from the channel until:
+//   - The context is canceled
+//   - The message channel is closed
+//   - A write error occurs
+//
+// Error handling strategy:
+// - Returns an error immediately if the ResponseWriter doesn't support http.Flusher
+// - If message encoding fails, closes the Writer and returns a joined error
+// - If writing fails, closes the Writer and returns a joined error
+// - If the context is canceled, closes the Writer normally and returns the context error
+// - If the message channel is closed, closes the Writer normally and returns nil
+//
+// Important notes:
+// - This function blocks until an error occurs or the channel is closed
+// - No heartbeat mechanism is provided; use NewWriter with HeartBeat for heartbeats
+// - If the client disconnects, the underlying http.ResponseWriter write will fail and cause the function to return
+// - All resources are properly released when the function returns
+//
+// Usage example:
+//
+//	messageChan := make(chan *sse.Message)
+//	go func() {
+//	  // Send messages to the channel
+//	  messageChan <- &sse.Message{Data: []byte("update")}
+//	  // Close the channel when done
+//	  close(messageChan)
+//	}()
+//
+//	http.HandleFunc("/events", func(w http.ResponseWriter, r *http.Request) {
+//	  err := sse.WithSSE(r.Context(), w, messageChan)
+//	  if err != nil {
+//	    // Handle error
+//	  }
+//	})
+func WithSSE(ctx context.Context, response http.ResponseWriter, messageChan chan *Message) error {
+	writer, err := NewWriter(&WriterConfig{
+		Context:        ctx,
+		ResponseWriter: response,
+		QueueSize:      len(messageChan),
+	})
+	if err != nil {
+		return err
+	}
+
+	for {
+		select {
+		case <-ctx.Done():
+			return writer.Close()
+
+		case message, ok := <-messageChan:
+			if !ok {
+				return writer.Close()
+			}
+			err = writer.Send(message)
+			if err != nil {
+				return errors.Join(err, writer.Close())
+			}
+		}
+	}
 }

@@ -104,7 +104,10 @@ func newServer3() {
 				ID: i,
 				TS: time.Now().Unix(),
 			}
-			writer.SendData(data)
+			err = writer.SendData(data)
+			if err != nil {
+				fmt.Println(err)
+			}
 		}
 	})
 	_ = http.ListenAndServe(":8080", nil)

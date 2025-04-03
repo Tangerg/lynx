@@ -104,18 +104,24 @@ func (r *Reader) Close() error {
 	return r.httpResponse.Body.Close()
 }
 
-// Error returns any lastError that occurred during SSE stream processing.
+// Error returns any error that occurred during SSE stream processing.
 // This should be checked after Next() returns false to determine if the stream
-// ended normally or due to an lastError condition.
+// ended normally or due to an error condition.
 //
-// Common errors include:
-// - Network errors
-// - Connection timeouts
-// - Stream parsing errors
-// - ResponseWriter body read errors
+// Error handling strategy:
+// 1. Normal stream end: If the server gracefully closed the connection, Error() returns nil
+// 2. Parsing errors: If invalid format is encountered, returns specific format errors
+//   - Invalid event name: Returns ErrMessageInvalidEventName
+//   - Invalid UTF-8: Automatically replaced with U+FFFD, no error returned
 //
-// If the stream ended normally (server closed the connection gracefully),
-// Error() will return nil.
+// 3. I/O errors: Underlying read errors are propagated (e.g., connection reset, timeout)
+// 4. Context cancellation: If the HTTP request context is canceled, returns context.Canceled
+//
+// Error handling best practices:
+// - Always check Error() after Next() returns false
+// - Distinguish between normal termination (Error() == nil) and abnormal termination
+// - For network errors, consider implementing retry logic
+// - Parsing errors typically indicate the server sent invalid data and should be logged and investigated
 func (r *Reader) Error() error {
 	return r.lastError
 }
