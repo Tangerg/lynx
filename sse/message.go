@@ -69,10 +69,10 @@ var (
 // - Data: Contains the event payload
 // - Retry: Specifies the reconnection time in milliseconds
 type Message struct {
-	ID    string // Event identifier
-	Event string // Event type
-	Data  []byte // Event payload
-	Retry int    // Reconnection time in milliseconds
+	ID    string // Message identifier
+	Event string // Message type
+	Data  []byte // Message payload
+	Retry int    // Message Reconnection time in milliseconds
 }
 
 // messageEncoder handles the conversion of Message objects to the SSE wire format

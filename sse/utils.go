@@ -67,12 +67,12 @@ func SetSSEHeaders(header http.Header) {
 //	  }
 //	})
 func WithSSE(ctx context.Context, response http.ResponseWriter, messageChan chan *Message) error {
-	SetSSEHeaders(response.Header())
-
 	flusher, ok := response.(http.Flusher)
 	if !ok {
 		return errors.New("httpResponse is not a http.Flusher")
 	}
+
+	SetSSEHeaders(response.Header())
 
 	encoder := newMessageEncoder()
 
