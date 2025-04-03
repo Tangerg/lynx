@@ -10,6 +10,10 @@ import (
 	"time"
 )
 
+// `heartBeatPing` is the keep-alive ping message sent to clients.
+// Comments in SSE start with a colon `:`, meaning they are ignored by the client but maintain the connection.
+var heartBeatPing = []byte(delimiter + whitespace + "ping" + string(byteLFLF)) // ": ping\n\n"
+
 // WriterConfig contains the configuration options for creating a new SSE Writer.
 // All fields have reasonable defaults, except for Context and ResponseWriter which are required.
 type WriterConfig struct {
@@ -37,7 +41,7 @@ func (c *WriterConfig) validate() error {
 	if !ok {
 		return errors.New("responseWriter does not implement http.Flusher")
 	}
-	if c.QueueSize == 0 {
+	if c.QueueSize <= 0 {
 		c.QueueSize = 64
 	}
 	return nil
@@ -145,10 +149,6 @@ func (w *Writer) heartBeat() {
 
 	ticker := time.NewTicker(w.config.HeartBeat)
 	defer ticker.Stop()
-
-	// `heartBeatPing` is the keep-alive ping message sent to clients.
-	// Comments in SSE start with a colon `:`, meaning they are ignored by the client but maintain the connection.
-	var heartBeatPing = []byte(delimiter + whitespace + "ping" + string(byteLFLF)) // ": ping\n\n"
 
 	for !w.isClosed.Load() {
 		select {
