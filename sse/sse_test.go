@@ -88,7 +88,7 @@ func newServer3() {
 			Context:        ctx,
 			ResponseWriter: w,
 			QueueSize:      128,
-			HeartBeat:      50 * time.Millisecond,
+			HeartBeat:      1 * time.Millisecond,
 		})
 		if err != nil {
 			fmt.Println(err)
@@ -96,15 +96,15 @@ func newServer3() {
 		}
 		defer writer.Close()
 		time.Sleep(1 * time.Second)
-		for i := 0; i < 1000; i++ {
-			itoa := strconv.Itoa(i + 1)
-			writer.Send(&Message{
-				ID:    itoa,
-				Data:  []byte("test\n\n\ntest"),
-				Event: "event_" + itoa,
-				Retry: 0,
-			})
-			time.Sleep(1 * time.Millisecond)
+		for i := 0; i < 100; i++ {
+			data := struct {
+				ID int   `json:"id"`
+				TS int64 `json:"ts"`
+			}{
+				ID: i,
+				TS: time.Now().Unix(),
+			}
+			writer.SendData(data)
 		}
 	})
 	_ = http.ListenAndServe(":8080", nil)
@@ -182,16 +182,13 @@ func Test4(t *testing.T) {
 	}
 
 	reader := NewReader(resp)
-	t.Log(reader.LastID())
 	for reader.Next() {
-		t.Log(reader.LastID())
 		current, err := reader.Current()
 		if err != nil {
 			t.Log(err)
 		}
-
-		t.Log(current.ID, current.Event, string(current.Data))
+		t.Log(string(current.Data))
 	}
 	reader.Close()
-	time.Sleep(10 * time.Second)
+	time.Sleep(2 * time.Second)
 }

@@ -1,14 +1,14 @@
-// Package sse implements the Server-Sent Events (SSE)  protocol according to the W3C specification.
-// see w3c doc https://www.w3.org/TR/2009/WD-eventsource-20091029/
-// SSE is a one-way communication protocol that allows servers to push real-time updates
-// to clients over a single HTTP connection.
+// Package sse implements the Server-Sent Events (SSE) protocol according to the W3C specification.
+// See: https://www.w3.org/TR/2009/WD-eventsource-20091029/
 //
-// This package provides functionality to:
-// - Encode SSE messages into the required wire format
-// - Decode SSE messages from an HTTP response stream
-// - Handle all essential SSE fields: id, event, data, and retry
-// - Process multiline data according to the specification
-// - Validate and sanitize messages
+// SSE is a one-way communication protocol that allows servers to push real-time updates
+// to clients over a single HTTP connection. This package provides:
+//
+// - Message encoding into the SSE wire format
+// - Message decoding from HTTP response streams
+// - Support for all SSE fields: id, event, data, and retry
+// - Multiline data processing according to specification
+// - Message validation and sanitization
 package sse
 
 import (
@@ -27,7 +27,7 @@ var (
 	ErrMessageNoContent = errors.New("message has no content")
 )
 
-// lineBreakReplacer handles the escaping of CR and LF characters in fields such as id and event,
+// lineBreakReplacer handles escaping of CR and LF characters in fields like id and event,
 // as required by the SSE specification.
 var (
 	lineBreakReplacer = strings.NewReplacer(
@@ -36,7 +36,7 @@ var (
 	)
 )
 
-// Predefined byte constants for message processing to improve performance.
+// Byte constants for message processing to improve performance.
 var (
 	byteLF        = []byte("\n")   // Line feed character
 	byteLFLF      = []byte("\n\n") // Two line feeds indicating message boundary
@@ -44,12 +44,12 @@ var (
 	byteEscapedCR = []byte("\\r")  // Escaped carriage return
 )
 
-// Constants for SSE field names, delimiters, and special characters as defined in the W3C specification.
+// SSE field names, delimiters, and special characters as defined in the W3C specification.
 const (
-	fieldID                = "id"           // ID field identifier
-	fieldEvent             = "event"        // Event type identifier
-	fieldData              = "data"         // Data payload identifier
-	fieldRetry             = "retry"        // Reconnection time identifier
+	fieldID                = "id"           // Unique message identifier
+	fieldEvent             = "event"        // Event type
+	fieldData              = "data"         // Event payload
+	fieldRetry             = "retry"        // Reconnection time in milliseconds
 	delimiter              = ":"            // Field name-value delimiter
 	whitespace             = " "            // Standard space after delimiter
 	invalidUTF8Replacement = "\uFFFD"       // Unicode replacement character
@@ -73,26 +73,23 @@ type Message struct {
 	ID    string // Message identifier
 	Event string // Message type
 	Data  []byte // Message payload
-	Retry int    // Message Reconnection time in milliseconds
+	Retry int    // Reconnection time in milliseconds
 }
 
-// messageEncoder handles the conversion of Message objects to the SSE wire format
-// while maintaining an internal buffer to reduce memory allocations.
-type messageEncoder struct {
-	buffer *bytes.Buffer // Internal buffer for message construction
-}
+// Encoder handles the conversion of Message objects to the SSE wire format.
+// It is concurrency-safe for use by multiple goroutines simultaneously.
+type Encoder struct{}
 
-// newMessageEncoder creates a new SSE message encoder with a pre-allocated buffer
-// to minimize reallocations during encoding operations.
-func newMessageEncoder() *messageEncoder {
-	return &messageEncoder{
-		buffer: bytes.NewBuffer(make([]byte, 0, 512)),
-	}
+// NewEncoder creates a new SSE message encoder.
+// The returned encoder is safe for concurrent use across multiple goroutines.
+func NewEncoder() *Encoder {
+	return &Encoder{}
 }
 
 // isValidMessage verifies that at least one field in the message contains content.
 // According to the SSE specification, a message must have at least one non-empty field.
-func (e *messageEncoder) isValidMessage(msg *Message) bool {
+// This method is concurrency-safe as it doesn't modify encoder state.
+func (e *Encoder) isValidMessage(msg *Message) bool {
 	if len(msg.ID) == 0 &&
 		len(msg.Event) == 0 &&
 		len(msg.Data) == 0 {
@@ -103,31 +100,34 @@ func (e *messageEncoder) isValidMessage(msg *Message) bool {
 
 // writeID formats and writes the ID field to the buffer if it contains content,
 // escaping any CR and LF characters as required by the specification.
-func (e *messageEncoder) writeID(id string) {
+// This method is concurrency-safe as it operates only on the provided buffer.
+func (e *Encoder) writeID(id string, buffer *bytes.Buffer) {
 	if len(id) == 0 {
 		return
 	}
 
-	e.buffer.Write(fieldPrefixID)
-	e.buffer.WriteString(lineBreakReplacer.Replace(id))
-	e.buffer.Write(byteLF)
+	buffer.Write(fieldPrefixID)
+	buffer.WriteString(lineBreakReplacer.Replace(id))
+	buffer.Write(byteLF)
 }
 
 // writeEvent formats and writes the event field to the buffer if specified,
 // escaping any CR and LF characters. When not specified, clients default to "message".
-func (e *messageEncoder) writeEvent(event string) {
+// This method is concurrency-safe as it operates only on the provided buffer.
+func (e *Encoder) writeEvent(event string, buffer *bytes.Buffer) {
 	if len(event) == 0 {
 		return
 	}
 
-	e.buffer.Write(fieldPrefixEvent)
-	e.buffer.WriteString(lineBreakReplacer.Replace(event))
-	e.buffer.Write(byteLF)
+	buffer.Write(fieldPrefixEvent)
+	buffer.WriteString(lineBreakReplacer.Replace(event))
+	buffer.Write(byteLF)
 }
 
 // writeData formats and writes the data field to the buffer,
 // handling multiline data by prefixing each line with "data: " and properly escaping CR characters.
-func (e *messageEncoder) writeData(data []byte) {
+// This method is concurrency-safe as it operates only on the provided buffer.
+func (e *Encoder) writeData(data []byte, buffer *bytes.Buffer) {
 	if len(data) == 0 {
 		return
 	}
@@ -136,41 +136,44 @@ func (e *messageEncoder) writeData(data []byte) {
 
 	lines := bytes.Split(processedData, byteLF)
 	for _, line := range lines {
-		e.buffer.Write(fieldPrefixData)
-		e.buffer.Write(line)
-		e.buffer.Write(byteLF)
+		buffer.Write(fieldPrefixData)
+		buffer.Write(line)
+		buffer.Write(byteLF)
 	}
 }
 
 // writeRetry writes the retry field to the buffer if the value is non-zero,
 // indicating the time in milliseconds clients should wait before reconnecting.
-func (e *messageEncoder) writeRetry(retry int) {
+// This method is concurrency-safe as it operates only on the provided buffer.
+func (e *Encoder) writeRetry(retry int, buffer *bytes.Buffer) {
 	if retry == 0 {
 		return
 	}
 
-	e.buffer.Write(fieldPrefixRetry)
-	e.buffer.WriteString(strconv.Itoa(retry))
-	e.buffer.Write(byteLF)
+	buffer.Write(fieldPrefixRetry)
+	buffer.WriteString(strconv.Itoa(retry))
+	buffer.Write(byteLF)
 }
 
 // encodeToBytes formats the message into the SSE wire format according to the specification,
 // ensuring each field is properly formatted and terminating the message with a blank line.
-func (e *messageEncoder) encodeToBytes(msg *Message) []byte {
-	defer e.buffer.Reset()
+// This method is concurrency-safe as it creates a new buffer for each call.
+func (e *Encoder) encodeToBytes(msg *Message) []byte {
+	buffer := bytes.NewBuffer(make([]byte, 0, len(msg.ID)+len(msg.Event)+2*len(msg.Data)+8))
 
-	e.writeID(msg.ID)
-	e.writeEvent(msg.Event)
-	e.writeData(msg.Data)
-	e.writeRetry(msg.Retry)
-	e.buffer.Write(byteLF) // Terminate message with blank line
+	e.writeID(msg.ID, buffer)
+	e.writeEvent(msg.Event, buffer)
+	e.writeData(msg.Data, buffer)
+	e.writeRetry(msg.Retry, buffer)
+	buffer.Write(byteLF) // Terminate message with blank line
 
-	return e.buffer.Bytes()
+	return buffer.Bytes()
 }
 
 // Encode validates and encodes a message into the SSE wire format.
 // Returns an error if the message contains no content.
-func (e *messageEncoder) Encode(msg *Message) ([]byte, error) {
+// This method is concurrency-safe and can be called by multiple goroutines.
+func (e *Encoder) Encode(msg *Message) ([]byte, error) {
 	if !e.isValidMessage(msg) {
 		return nil, ErrMessageNoContent
 	}
@@ -178,9 +181,9 @@ func (e *messageEncoder) Encode(msg *Message) ([]byte, error) {
 	return e.encodeToBytes(msg), nil
 }
 
-// messageDecoder processes an SSE stream from an io.Reader, parsing fields and
+// Decoder processes an SSE stream from an io.Reader, parsing fields and
 // detecting message boundaries according to the specification.
-type messageDecoder struct {
+type Decoder struct {
 	lastError      error          // Most recent error encountered
 	currentMessage Message        // Currently decoded message
 	reader         io.Reader      // Input stream containing SSE messages
@@ -191,9 +194,9 @@ type messageDecoder struct {
 	retry          int            // Current reconnection time value
 }
 
-// newMessageDecoder creates a new SSE decoder for processing messages from the specified reader.
-func newMessageDecoder(reader io.Reader) *messageDecoder {
-	return &messageDecoder{
+// NewDecoder creates a new SSE decoder for processing messages from the specified reader.
+func NewDecoder(reader io.Reader) *Decoder {
+	return &Decoder{
 		reader:      reader,
 		scanner:     bufio.NewScanner(reader),
 		eventBuffer: bytes.NewBuffer(make([]byte, 0, 64)),
@@ -205,7 +208,7 @@ func newMessageDecoder(reader io.Reader) *messageDecoder {
 // - Removes leading whitespace
 // - Handles UTF-8 BOM sequences
 // - Replaces invalid UTF-8 sequences with the replacement character
-func (e *messageDecoder) normalizeValue(value string) string {
+func (e *Decoder) normalizeValue(value string) string {
 	value = strings.TrimPrefix(value, whitespace)
 	value = strings.TrimPrefix(value, utf8BomSequence)
 	if !utf8.ValidString(value) {
@@ -217,7 +220,7 @@ func (e *messageDecoder) normalizeValue(value string) string {
 // hasContent determines if the current message contains any data to dispatch.
 // According to the SSE specification, a message should be dispatched only if
 // it contains at least one non-empty field (either event or data).
-func (e *messageDecoder) hasContent() bool {
+func (e *Decoder) hasContent() bool {
 	if e.eventBuffer.Len() == 0 &&
 		e.dataBuffer.Len() == 0 {
 		return false
@@ -227,13 +230,13 @@ func (e *messageDecoder) hasContent() bool {
 
 // constructMessage builds a Message from the accumulated field values and updates currentMessage.
 // Called when a complete SSE message has been parsed (indicated by an empty line).
-// The method:
+// This method:
 // - Extracts the event type from eventBuffer
 // - Retrieves data from dataBuffer, removing any trailing newline
 // - Sets the message ID from the lastID (which persists across messages)
 // - Sets the retry value for reconnection timing
 // - Resets buffers after constructing the message
-func (e *messageDecoder) constructMessage() {
+func (e *Decoder) constructMessage() {
 	defer e.resetBuffers()
 
 	event := e.eventBuffer.String()
@@ -247,7 +250,7 @@ func (e *messageDecoder) constructMessage() {
 // resetBuffers clears the temporary buffers and values after a message has been dispatched.
 // According to the SSE specification, the lastID field persists between messages until
 // explicitly changed by a new ID field, so it is not reset here.
-func (e *messageDecoder) resetBuffers() {
+func (e *Decoder) resetBuffers() {
 	e.eventBuffer.Reset()
 	e.dataBuffer.Reset()
 	e.retry = 0
@@ -261,7 +264,7 @@ func (e *messageDecoder) resetBuffers() {
 //   - "event": Appends to the event buffer
 //   - "data": Appends to the data buffer with a trailing newline
 //   - "retry": Converts to an integer for reconnection timing
-func (e *messageDecoder) processLine(line string) {
+func (e *Decoder) processLine(line string) {
 	if strings.HasPrefix(line, delimiter) {
 		return // Ignore comment lines
 	}
@@ -292,14 +295,14 @@ func (e *messageDecoder) processLine(line string) {
 
 // Current returns the most recently decoded message.
 // Should be called after Next() returns true to access the parsed message.
-func (e *messageDecoder) Current() Message {
+func (e *Decoder) Current() Message {
 	return e.currentMessage
 }
 
 // Next advances to the next message in the stream, parsing lines until a complete
 // message is found or the stream ends. Returns true if a message was successfully
 // decoded, false if the stream ended or an error occurred.
-func (e *messageDecoder) Next() bool {
+func (e *Decoder) Next() bool {
 	if e.lastError != nil {
 		return false
 	}
@@ -339,6 +342,6 @@ func (e *messageDecoder) Next() bool {
 // Error returns any error encountered during the decoding process.
 // Should be checked after Next() returns false to determine if the stream
 // ended normally or due to an error condition.
-func (e *messageDecoder) Error() error {
+func (e *Decoder) Error() error {
 	return e.lastError
 }

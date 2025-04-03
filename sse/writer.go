@@ -59,7 +59,7 @@ type Writer struct {
 	isClosed       atomic.Bool         // Tracks if the writer has been closed.
 	waitGroup      sync.WaitGroup      // Manages active goroutines for graceful shutdown.
 	ctx            context.Context     // Context to control the writer's lifecycle.
-	messageEncoder *messageEncoder     // Encodes messages in SSE-compliant format.
+	messageEncoder *Encoder            // Encodes messages in SSE-compliant format.
 	httpResponse   http.ResponseWriter // HTTP response writer for client communication.
 	httpFlusher    http.Flusher        // Handles flushing the response to the client.
 	closeSignal    chan struct{}       // Channel signaling graceful shutdown.
@@ -98,30 +98,30 @@ func NewWriter(config *WriterConfig) (*Writer, error) {
 	w := &Writer{
 		config:         config,
 		ctx:            config.Context,
-		messageEncoder: newMessageEncoder(),
+		messageEncoder: NewEncoder(),
 		httpResponse:   config.ResponseWriter,
 		httpFlusher:    config.ResponseWriter.(http.Flusher),
 		closeSignal:    make(chan struct{}),
 		messageQueue:   make(chan []byte, config.QueueSize),
 		errors:         make([]error, 0, config.QueueSize),
 	}
-	w.run()
+	w.initialize()
 	return w, nil
 }
 
-// run initializes the SSE response by setting the necessary HTTP headers and
+// initialize sets up the SSE response by configuring the necessary HTTP headers and
 // starts background goroutines to process messages and send heartbeats.
 // This is called automatically by NewWriter.
-func (w *Writer) run() {
+func (w *Writer) initialize() {
 	SetSSEHeaders(w.httpResponse.Header())
 	w.waitGroup.Add(2)
-	go w.process()
-	go w.heartBeat()
+	go w.processMessageQueue()
+	go w.startHeartbeatLoop()
 }
 
-// postData sends raw data to the HTTP response writer and flushes it to the client.
+// writeDataToClient sends raw data to the HTTP response writer and flushes it to the client.
 // Returns an error if writing to the response fails.
-func (w *Writer) postData(data []byte) error {
+func (w *Writer) writeDataToClient(data []byte) error {
 	_, err := w.httpResponse.Write(data)
 	if err != nil {
 		return err
@@ -130,17 +130,31 @@ func (w *Writer) postData(data []byte) error {
 	return nil
 }
 
-// appendError adds an error to the Writer's error list. Skips if the error is nil.
-func (w *Writer) appendError(err error) {
+// recordError adds an error to the Writer's error list. Skips if the error is nil.
+func (w *Writer) recordError(err error) {
 	if err == nil {
 		return
 	}
 	w.errors = append(w.errors, err)
 }
 
-// heartBeat sends periodic heartbeat messages to the client to keep the connection alive.
+// sendHeartbeatNonBlocking attempts to send a heartbeat ping message to the message queue.
+// It first checks if the writer is closed, and only attempts to send if the writer is still active.
+// The send operation is non-blocking; if the queue is full, the message is dropped.
+func (w *Writer) sendHeartbeatNonBlocking() {
+	if w.isClosed.Load() {
+		return
+	}
+
+	select {
+	case w.messageQueue <- heartBeatPing:
+	default:
+	}
+}
+
+// startHeartbeatLoop sends periodic heartbeat messages to the client to keep the connection alive.
 // The heartbeat message is a comment line (": ping\n\n") as per the SSE protocol.
-func (w *Writer) heartBeat() {
+func (w *Writer) startHeartbeatLoop() {
 	defer w.waitGroup.Done()
 
 	if w.config.HeartBeat <= 0 { // Heartbeat is disabled if duration is not set.
@@ -150,31 +164,46 @@ func (w *Writer) heartBeat() {
 	ticker := time.NewTicker(w.config.HeartBeat)
 	defer ticker.Stop()
 
-	for !w.isClosed.Load() {
+	for {
 		select {
 		case <-w.closeSignal:
 			return
+		case <-w.ctx.Done():
+			return
 		case <-ticker.C:
-			w.messageQueue <- heartBeatPing
+			w.sendHeartbeatNonBlocking()
 		}
 	}
 }
 
-// process handles the message queue and sends messages to the client asynchronously.
+// drainMessageQueue closes the message queue and processes any remaining messages.
+// This ensures all pending messages are sent to the client before shutting down.
+// After all messages are processed, it sends a final double line feed to properly
+// terminate the SSE stream according to the protocol.
+// Any errors encountered during this process are collected.
+func (w *Writer) drainMessageQueue() {
+	close(w.messageQueue)
+	for msg := range w.messageQueue {
+		w.recordError(w.writeDataToClient(msg))
+	}
+	w.recordError(w.writeDataToClient(byteLFLF))
+}
+
+// processMessageQueue handles the message queue and sends messages to the client asynchronously.
 // If the writer is closed or the context is canceled, it stops processing.
-func (w *Writer) process() {
+func (w *Writer) processMessageQueue() {
 	defer w.waitGroup.Done()
 
-	for !w.isClosed.Load() {
+	for {
 		select {
 		case <-w.closeSignal:
-			w.appendError(w.postData(byteLFLF))
+			w.drainMessageQueue()
 			return
 		case <-w.ctx.Done():
-			w.appendError(w.ctx.Err())
+			w.recordError(w.ctx.Err())
 			return
 		case msg := <-w.messageQueue:
-			w.appendError(w.postData(msg))
+			w.recordError(w.writeDataToClient(msg))
 		}
 	}
 }
@@ -199,7 +228,6 @@ func (w *Writer) Close() error {
 	close(w.closeSignal)
 
 	w.waitGroup.Wait()
-	close(w.messageQueue)
 	return w.Error()
 }
 

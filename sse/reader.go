@@ -5,17 +5,17 @@ import (
 )
 
 // Reader provides a high-level interface for consuming Server-Sent Events from an HTTP httpResponse.
-// It wraps the lower-level messageDecoder to provide a more convenient API for clients.
+// It wraps the lower-level Decoder to provide a more convenient API for clients.
 // The Reader handles:
 // - Processing SSE messages from an HTTP httpResponse
 // - Tracking the current message and any errors
 // - Maintaining the last event ID for reconnection support
 // - Proper resource cleanup
 type Reader struct {
-	lastError      error           // Stores lastError that occurred during processing
-	currentMessage Message         // Holds the most recently read message
-	httpResponse   *http.Response  // The HTTP httpResponse containing the SSE stream
-	messageDecoder *messageDecoder // Low-level messageDecoder that parses the SSE format
+	lastError      error          // Stores lastError that occurred during processing
+	currentMessage Message        // Holds the most recently read message
+	httpResponse   *http.Response // The HTTP httpResponse containing the SSE stream
+	messageDecoder *Decoder       // Low-level messageDecoder that parses the SSE format
 }
 
 // NewReader creates a new SSE reader for the given HTTP httpResponse.
@@ -41,7 +41,7 @@ type Reader struct {
 func NewReader(response *http.Response) *Reader {
 	return &Reader{
 		httpResponse:   response,
-		messageDecoder: newMessageDecoder(response.Body),
+		messageDecoder: NewDecoder(response.Body),
 	}
 }
 
@@ -67,7 +67,7 @@ func (r *Reader) Current() (Message, error) {
 //
 // According to the SSE specification, messages are separated by blank lines (two consecutive newlines).
 func (r *Reader) Next() bool {
-	// Check if there was a previous lastError from the messageDecoder
+	// Check if there was a previous lastError from the Decoder
 	r.lastError = r.messageDecoder.Error()
 	if r.lastError != nil {
 		return false
