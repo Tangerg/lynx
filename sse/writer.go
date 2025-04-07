@@ -243,6 +243,7 @@ func (w *Writer) listenContext() {
 		case <-w.ctx.Done():
 			w.recordError(w.ctx.Err())
 			_ = w.Close()
+			return
 		}
 	}
 }
