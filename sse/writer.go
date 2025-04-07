@@ -114,7 +114,8 @@ func NewWriter(config *WriterConfig) (*Writer, error) {
 // This is called automatically by NewWriter.
 func (w *Writer) initialize() {
 	w.setSSEHeaders(w.httpResponse.Header())
-	w.waitGroup.Add(2)
+	w.waitGroup.Add(3)
+	go w.listenContext()
 	go w.processMessageQueue()
 	go w.startHeartbeatLoop()
 }
@@ -186,8 +187,6 @@ func (w *Writer) startHeartbeatLoop() {
 		select {
 		case <-w.closeSignal:
 			return
-		case <-w.ctx.Done():
-			return
 		case <-ticker.C:
 			w.sendHeartbeatNonBlocking()
 		}
@@ -208,20 +207,42 @@ func (w *Writer) drainMessageQueue() {
 }
 
 // processMessageQueue handles the message queue and sends messages to the client asynchronously.
-// If the writer is closed or the context is canceled, it stops processing.
+// If the writer is closed, it stops processing after draining the queue.
 func (w *Writer) processMessageQueue() {
+	defer w.waitGroup.Done()
+	defer w.drainMessageQueue()
+
+	for {
+		select {
+		case <-w.closeSignal:
+			return
+		case msg := <-w.messageQueue:
+			w.recordError(w.writeDataToClient(msg))
+		}
+	}
+}
+
+// listenContext monitors the parent context and initiates a graceful shutdown
+// when the context is canceled. This ensures proper resource cleanup when the
+// parent context signals termination.
+//
+// This goroutine is responsible for:
+// - Watching for context cancellation signals
+// - Recording the context error when it occurs
+// - Triggering the Writer's close process
+//
+// This design separates context monitoring from message processing,
+// ensuring reliable cleanup regardless of the message queue state.
+func (w *Writer) listenContext() {
 	defer w.waitGroup.Done()
 
 	for {
 		select {
 		case <-w.closeSignal:
-			w.drainMessageQueue()
 			return
 		case <-w.ctx.Done():
 			w.recordError(w.ctx.Err())
-			return
-		case msg := <-w.messageQueue:
-			w.recordError(w.writeDataToClient(msg))
+			_ = w.Close()
 		}
 	}
 }
@@ -236,12 +257,13 @@ func (w *Writer) processMessageQueue() {
 // - Closes internal channels and queues.
 // - Returns any errors encountered during operation.
 //
-// Calling Close multiple times is safe; subsequent calls are no-ops.
+// Calling Close multiple times is safe; subsequent calls are no-ops but will still
+// return any errors that occurred during operation.
 //
 // Error handling strategy:
 // - Collects and joins all errors encountered during the shutdown process
 // - Uses errors.Join() to combine multiple errors into a single return value
-// - Returns nil on successful closure
+// - Returns nil on successful closure with no errors
 // - All resources are released even if errors occur during the shutdown process
 //
 // Timeout handling:
@@ -250,7 +272,7 @@ func (w *Writer) processMessageQueue() {
 // - When the context is canceled, the Writer will stop processing new messages and begin shutdown
 func (w *Writer) Close() error {
 	if w.isClosed.Load() {
-		return nil
+		return w.Error()
 	}
 
 	w.isClosed.Store(true)
@@ -291,11 +313,16 @@ func (w *Writer) Send(msg *Message) error {
 // SendEvent sends an SSE message that includes only an Event field.
 // This is useful for notifying clients of specific event types without data payloads.
 //
+// To ensure maximum client compatibility, this method includes a minimal data field
+// containing a single newline character. This helps certain browser implementations
+// that might not correctly process event-only messages.
+//
 // Parameters:
 //   - event: Identifier for the event type, which clients can listen for using EventSource.addEventListener().
 func (w *Writer) SendEvent(event string) error {
 	return w.Send(&Message{
 		Event: event,
+		Data:  byteLF,
 	})
 }
 
