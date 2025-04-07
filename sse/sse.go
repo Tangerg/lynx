@@ -26,7 +26,10 @@ import (
 var (
 	// ErrMessageNoContent is returned when attempting to encode a message with no fields.
 	// According to the SSE specification, a valid message must contain at least one non-empty field.
-	ErrMessageNoContent        = errors.New("message has no content")
+	ErrMessageNoContent = errors.New("message has no content")
+
+	// ErrMessageInvalidEventName is returned when attempting to encode a message with an invalid event name.
+	// Event names must follow DOM event naming rules.
 	ErrMessageInvalidEventName = errors.New("message event name is invalid")
 )
 
@@ -41,22 +44,22 @@ var (
 
 // Byte constants for message processing to improve performance.
 var (
-	byteLF        = []byte("\n")   // Line feed character
-	byteLFLF      = []byte("\n\n") // Two line feeds indicating message boundary
-	byteCR        = []byte("\r")   // Carriage return character
-	byteEscapedCR = []byte("\\r")  // Escaped carriage return
+	byteLF          = []byte("\n")           // Line feed character
+	byteLFLF        = []byte("\n\n")         // Two line feeds indicating message boundary
+	byteCR          = []byte("\r")           // Carriage return character
+	byteEscapedCR   = []byte("\\r")          // Escaped carriage return
+	utf8BomSequence = []byte("\xEF\xBB\xBF") // UTF-8 Byte Order Mark
 )
 
 // SSE field names, delimiters, and special characters as defined in the W3C specification.
 const (
-	fieldID                = "id"           // Unique message identifier
-	fieldEvent             = "event"        // Event type
-	fieldData              = "data"         // Event payload
-	fieldRetry             = "retry"        // Reconnection time in milliseconds
-	delimiter              = ":"            // Field name-value delimiter
-	whitespace             = " "            // Standard space after delimiter
-	invalidUTF8Replacement = "\uFFFD"       // Unicode replacement character
-	utf8BomSequence        = "\xEF\xBB\xBF" // UTF-8 Byte Order Mark
+	fieldID                = "id"     // Unique message identifier
+	fieldEvent             = "event"  // Event type
+	fieldData              = "data"   // Event payload
+	fieldRetry             = "retry"  // Reconnection time in milliseconds
+	delimiter              = ":"      // Field name-value delimiter
+	whitespace             = " "      // Standard space after delimiter
+	invalidUTF8Replacement = "\uFFFD" // Unicode replacement character
 
 	// eventNameMessage is the default event type used when no explicit event is specified.
 	// According to the SSE specification, when a message doesn't include an event field,
@@ -266,16 +269,17 @@ func (e *Encoder) Encode(msg *Message) ([]byte, error) {
 type Decoder struct {
 	lastError      error          // Most recent error encountered
 	currentMessage Message        // Currently decoded message
-	reader         io.Reader      // Input stream containing SSE messages
+	reader         *bufio.Reader  // Input stream containing SSE messages
 	scanner        *bufio.Scanner // Line scanner for the input stream
 	lastID         string         // Most recently parsed ID (persists between messages)
-	eventBuffer    *bytes.Buffer  // Buffer for the current event type
+	eventBuffer    string         // Buffer for the current event type
 	dataBuffer     *bytes.Buffer  // Buffer for the current data payload
 	retry          int            // Current reconnection time value
 }
 
 // NewDecoder creates a new SSE decoder that processes messages from the provided reader.
 // It initializes:
+// - A bufio.Reader checks for and skips the UTF-8 Byte Order Mark (BOM) sequence
 // - A scanner with custom line splitting for SSE protocol
 // - Buffers for accumulating event type and data payloads
 // - Internal state for tracking message IDs and retry intervals
@@ -283,14 +287,29 @@ type Decoder struct {
 // Note: The decoder does not close the underlying reader when finished.
 func NewDecoder(reader io.Reader) *Decoder {
 	d := &Decoder{
-		reader:      reader,
-		scanner:     bufio.NewScanner(reader),
-		eventBuffer: bytes.NewBuffer(make([]byte, 0, 64)),
-		dataBuffer:  bytes.NewBuffer(make([]byte, 0, 128)),
+		reader:     bufio.NewReader(reader),
+		scanner:    bufio.NewScanner(reader),
+		dataBuffer: bytes.NewBuffer(make([]byte, 0, 128)),
 	}
+	d.skipLeadingUTF8BOM()
 	d.scanner.Split(d.scanLinesSplit)
 
 	return d
+}
+
+// skipLeadingUTF8BOM checks for and skips the UTF-8 Byte Order Mark (BOM) sequence
+// at the beginning of the stream if present. According to the SSE specification,
+// one leading U+FEFF BOM character must be ignored if present at the start of the stream.
+// This method is called once during decoder initialization and does not affect
+// subsequent data processing.
+func (d *Decoder) skipLeadingUTF8BOM() {
+	peek, err := d.reader.Peek(3)
+	if err != nil {
+		return
+	}
+	if bytes.Equal(peek, utf8BomSequence) {
+		_, _ = d.reader.Discard(3)
+	}
 }
 
 // scanLinesSplit implements a custom split function for bufio.Scanner to handle various
@@ -302,12 +321,12 @@ func NewDecoder(reader io.Reader) *Decoder {
 // This ensures compatibility with different server implementations and platforms.
 // The function returns the number of bytes to advance, the line token without
 // line break characters, and any error encountered.
-func (e *Decoder) scanLinesSplit(data []byte, atEOF bool) (advance int, token []byte, err error) {
+func (d *Decoder) scanLinesSplit(data []byte, atEOF bool) (advance int, token []byte, err error) {
 	if atEOF && len(data) == 0 {
 		return 0, nil, nil
 	}
 
-	if i := bytes.Index(data, byteCR); i >= 0 {
+	if i := bytes.IndexByte(data, byteCR[0]); i >= 0 {
 		if i+1 < len(data) && data[i+1] == byteLF[0] {
 			return i + 2, data[:i], nil
 		}
@@ -332,23 +351,36 @@ func (e *Decoder) scanLinesSplit(data []byte, atEOF bool) (advance int, token []
 // - Removes leading whitespace
 // - Handles UTF-8 BOM sequences
 // - Replaces invalid UTF-8 sequences with the replacement character
-func (e *Decoder) normalizeValue(value string) string {
+func (d *Decoder) normalizeValue(value string) string {
 	value = strings.TrimPrefix(value, whitespace)
-	value = strings.TrimPrefix(value, utf8BomSequence)
 	if !utf8.ValidString(value) {
 		value = strings.ToValidUTF8(value, invalidUTF8Replacement)
 	}
 	return value
 }
 
-// hasContent determines if the current message contains any data to dispatch.
-// According to the SSE specification, a message should be dispatched only if
-// it contains at least one non-empty field (either event or data).
-func (e *Decoder) hasContent() bool {
-	if e.eventBuffer.Len() == 0 &&
-		e.dataBuffer.Len() == 0 {
+// hasValidData checks if the data buffer contains actual content beyond just line terminators.
+// Since empty data fields still result in a newline character being added to the buffer,
+// this method verifies that the buffer contains more than just that single newline.
+// Returns true if there is meaningful data to be processed, false otherwise.
+func (d *Decoder) hasValidData() bool {
+	return d.dataBuffer.Len() > 1 // Buffer length > 1 indicates presence of actual data content
+}
+
+// dispatch constructs a message from accumulated field values if valid data is present.
+// Returns true if a message was successfully constructed, false otherwise.
+// Also resets buffers after attempting to construct a message.
+func (d *Decoder) dispatch() bool {
+	defer d.resetBuffers()
+
+	if !d.hasValidData() {
 		return false
 	}
+	if !isValidSSEEventName(d.eventBuffer) {
+		return false
+	}
+
+	d.constructMessage()
 	return true
 }
 
@@ -359,25 +391,21 @@ func (e *Decoder) hasContent() bool {
 // - Retrieves data from dataBuffer, removing any trailing newline
 // - Sets the message ID from the lastID (which persists across messages)
 // - Sets the retry value for reconnection timing
-// - Resets buffers after constructing the message
-func (e *Decoder) constructMessage() {
-	defer e.resetBuffers()
-
-	event := e.eventBuffer.String()
-	data := bytes.TrimSuffix(e.dataBuffer.Bytes(), byteLF)
-	e.currentMessage.ID = e.lastID
-	e.currentMessage.Event = event
-	e.currentMessage.Data = data
-	e.currentMessage.Retry = e.retry
+func (d *Decoder) constructMessage() {
+	data := bytes.TrimSuffix(d.dataBuffer.Bytes(), byteLF)
+	d.currentMessage.ID = d.lastID
+	d.currentMessage.Event = d.eventBuffer
+	d.currentMessage.Data = data
+	d.currentMessage.Retry = d.retry
 }
 
 // resetBuffers clears the temporary buffers and values after a message has been dispatched.
 // According to the SSE specification, the lastID field persists between messages until
 // explicitly changed by a new ID field, so it is not reset here.
-func (e *Decoder) resetBuffers() {
-	e.eventBuffer.Reset()
-	e.dataBuffer.Reset()
-	e.retry = 0
+func (d *Decoder) resetBuffers() {
+	d.eventBuffer = ""
+	d.dataBuffer.Reset()
+	d.retry = 0
 }
 
 // processLine handles a single line of input from the SSE stream according to the specification:
@@ -388,7 +416,7 @@ func (e *Decoder) resetBuffers() {
 //   - "event": Appends to the event buffer
 //   - "data": Appends to the data buffer with a trailing newline
 //   - "retry": Converts to an integer for reconnection timing
-func (e *Decoder) processLine(line string) {
+func (d *Decoder) processLine(line string) {
 	if strings.HasPrefix(line, delimiter) {
 		return // Ignore comment lines
 	}
@@ -398,35 +426,34 @@ func (e *Decoder) processLine(line string) {
 		key = line
 		value = ""
 	} else {
-		value = e.normalizeValue(value)
+		value = d.normalizeValue(value)
 	}
 
 	switch key {
 	case fieldID:
-		e.lastID = value // Update the last seen ID
+		d.lastID = value // Update the last seen ID
 	case fieldEvent:
 		if value == "" {
 			value = eventNameMessage
-		} else if !isValidSSEEventName(value) {
-			e.lastError = errors.Join(ErrMessageInvalidEventName, fmt.Errorf("event name: %s", value))
-			return
 		}
-		e.eventBuffer.WriteString(value) // Store event type
+		d.eventBuffer = value
 	case fieldData:
-		e.dataBuffer.WriteString(value) // Append data content
-		e.dataBuffer.Write(byteLF)      // Add newline after each data line
+		d.dataBuffer.WriteString(value)
+		// Add newline after each data line, the last \n will be trimmed when constructMessage
+		d.dataBuffer.Write(byteLF)
 	case fieldRetry:
-		retry, _ := strconv.Atoi(value) // Parse reconnection time
-		if retry > 0 {
-			e.retry = retry // Update only if positive
+		retry, err := strconv.Atoi(value) // Parse reconnection time
+		if err == nil &&
+			retry > 0 {
+			d.retry = retry // Update only if positive and valid
 		}
 	}
 }
 
 // Current returns the most recently decoded message.
 // Should be called after Next() returns true to access the parsed message.
-func (e *Decoder) Current() Message {
-	return e.currentMessage
+func (d *Decoder) Current() Message {
+	return d.currentMessage
 }
 
 // Next advances to the next message in the stream, parsing lines until a complete
@@ -441,50 +468,42 @@ func (e *Decoder) Current() Message {
 // - If there is an incomplete message at the end of the stream (not terminated by an empty line), still parses and returns that message
 // - If a message contains an invalid event name, that message will be ignored and parsing continues
 // - If invalid UTF-8 sequences are found, they will be replaced with the U+FFFD character
-func (e *Decoder) Next() bool {
-	if e.lastError != nil {
+func (d *Decoder) Next() bool {
+	if d.lastError != nil {
 		return false
 	}
 
-	var insideMessageBlock = false // Tracks if we've started processing a message
-
-	for e.scanner.Scan() {
-		if e.lastError != nil {
+	for d.scanner.Scan() {
+		d.lastError = d.scanner.Err()
+		if d.lastError != nil {
 			return false
 		}
 
-		line := e.scanner.Text()
+		line := d.scanner.Text()
 
 		// Empty line indicates end of message
 		if len(line) == 0 {
-			if !insideMessageBlock {
-				continue // Skip leading empty lines
+			if d.dispatch() {
+				return true
 			}
-			if !e.hasContent() {
-				continue
-			}
-			e.constructMessage()
-			return true
 		}
 
-		insideMessageBlock = true
-		e.processLine(line)
+		d.processLine(line)
 	}
 
 	// Handle any final message at end of stream
-	if e.hasContent() {
-		e.constructMessage()
+	if d.dispatch() {
 		return true
 	}
 
 	// Check for scanner errors
-	e.lastError = e.scanner.Err()
+	d.lastError = d.scanner.Err()
 	return false
 }
 
 // Error returns any error encountered during the decoding process.
 // Should be checked after Next() returns false to determine if the stream
 // ended normally or due to an error condition.
-func (e *Decoder) Error() error {
-	return e.lastError
+func (d *Decoder) Error() error {
+	return d.lastError
 }

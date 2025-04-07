@@ -111,7 +111,7 @@ func (r *Reader) Close() error {
 // Error handling strategy:
 // 1. Normal stream end: If the server gracefully closed the connection, Error() returns nil
 // 2. Parsing errors: If invalid format is encountered, returns specific format errors
-//   - Invalid event name: Returns ErrMessageInvalidEventName
+//   - returns any error encountered during the decoding process.
 //   - Invalid UTF-8: Automatically replaced with U+FFFD, no error returned
 //
 // 3. I/O errors: Underlying read errors are propagated (e.g., connection reset, timeout)
