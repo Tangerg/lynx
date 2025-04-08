@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"sync"
 	"sync/atomic"
@@ -300,15 +301,32 @@ func (w *Writer) Close() error {
 // - There is no hard limit on message size, but very large messages may cause memory pressure
 func (w *Writer) Send(msg *Message) error {
 	if w.isClosed.Load() {
-		return nil
+		return errors.New("writer is closed")
 	}
 
-	message, err := w.messageEncoder.Encode(msg)
-	if err != nil {
-		return err
+	buffer := GetBuffer()
+	defer ReleaseBuffer(buffer)
+
+	if !w.messageEncoder.isValidMessage(msg) {
+		return ErrMessageNoContent
 	}
-	w.messageQueue <- message
-	return nil
+
+	if !isValidSSEEventName(msg.Event) {
+		return errors.Join(ErrMessageInvalidEventName, fmt.Errorf("event name: %s", msg.Event))
+	}
+
+	w.messageEncoder.writeID(msg.ID, buffer)
+	w.messageEncoder.writeEvent(msg.Event, buffer)
+	w.messageEncoder.writeData(msg.Data, buffer)
+	w.messageEncoder.writeRetry(msg.Retry, buffer)
+	buffer.Write(byteLFLF)
+
+	select {
+	case w.messageQueue <- buffer.Bytes():
+		return nil
+	case <-w.closeSignal:
+		return errors.New("writer is closed")
+	}
 }
 
 // SendEvent sends an SSE message that includes only an Event field.
@@ -334,14 +352,17 @@ func (w *Writer) SendEvent(event string) error {
 //   - data: Any value that is JSON-marshalable.
 //
 // Note: For raw, unstructured data, use `Send()` with a manually constructed Message.
-func (w *Writer) SendData(data any) error {
-	marshal, err := json.Marshal(data)
+func (w *Writer) SendData(data interface{}) error {
+	msg := GetMessage()
+	defer ReleaseMessage(msg)
+
+	var err error
+	msg.Data, err = json.Marshal(data)
 	if err != nil {
 		return err
 	}
-	return w.Send(&Message{
-		Data: marshal,
-	})
+
+	return w.Send(msg)
 }
 
 // Error retrieves any errors that occurred during the Writer's operation.
