@@ -334,7 +334,12 @@ func (w *Writer) SendEvent(event string) error {
 //   - data: Any value that is JSON-marshalable.
 //
 // Note: For raw, unstructured data, use `Send()` with a manually constructed Message.
+// - If the Writer is closed (Close() has been called), this method will silently return without error
 func (w *Writer) SendData(data any) error {
+	if w.isClosed.Load() {
+		return nil
+	}
+
 	marshal, err := json.Marshal(data)
 	if err != nil {
 		return err
