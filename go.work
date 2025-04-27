@@ -1,7 +1,8 @@
-go 1.23.0
+go 1.24.2
 
 use (
 	./ai
+	./flow
 	./pkg
 	./sse
 	./stream
