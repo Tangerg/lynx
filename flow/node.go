@@ -61,7 +61,7 @@ type core[I any, O any] struct {
 	// processor is the function that performs the actual data transformation
 	// for this node. It takes a context and input value, and returns a processed
 	// output and any error encountered.
-	processor func(context.Context, I) (O, error)
+	processor Processor[I, O]
 }
 
 // ensureContextActive checks if the context has been canceled or exceeded its deadline.
@@ -104,7 +104,7 @@ func (n *core[I, O]) processInput(ctx context.Context, input I) (O, error) {
 //
 // The processing function defines the actual transformation logic for this node.
 // This is an internal method used by the public WithProcessor methods of concrete node types.
-func (n *core[I, O]) withProcessor(processor func(context.Context, I) (O, error)) {
+func (n *core[I, O]) withProcessor(processor Processor[I, O]) {
 	if processor != nil {
 		n.processor = processor
 	}
@@ -159,7 +159,7 @@ func (s *SequenceNode) Run(ctx context.Context, input any) (any, error) {
 // and return a processed output value or an error.
 //
 // Returns the SequenceNode instance for method chaining.
-func (s *SequenceNode) WithProcessor(processor func(context.Context, any) (any, error)) *SequenceNode {
+func (s *SequenceNode) WithProcessor(processor Processor[any, any]) *SequenceNode {
 	s.withProcessor(processor)
 	return s
 }
@@ -279,24 +279,24 @@ func (b *BranchNode) WithRouteSelector(routeSelector func(context.Context, any, 
 // the original input to determine which branch to follow.
 //
 // Returns the BranchNode instance for method chaining.
-func (b *BranchNode) WithProcessor(processor func(context.Context, any) (any, error)) *BranchNode {
+func (b *BranchNode) WithProcessor(processor Processor[any, any]) *BranchNode {
 	b.withProcessor(processor)
 	return b
 }
 
 // AddBranch adds a new branch node with the given identifier.
 //
-// The action string is used as the key for selecting this branch when the
+// The route string is used as the key for selecting this branch when the
 // route selector returns a matching identifier. Multiple branches can be
 // added to create a comprehensive conditional processing system.
 //
 // Returns the BranchNode instance for method chaining.
-func (b *BranchNode) AddBranch(action string, node Node[any, any]) *BranchNode {
+func (b *BranchNode) AddBranch(route string, node Node[any, any]) *BranchNode {
 	if b.branches == nil {
 		b.branches = make(map[string]Node[any, any])
 	}
 	if node != nil {
-		b.branches[action] = node
+		b.branches[route] = node
 	}
 	return b
 }
@@ -387,7 +387,7 @@ func (l *LoopNode[I, O]) Run(ctx context.Context, input I) (O, error) {
 // Its output from one iteration becomes its input for the next iteration.
 //
 // Returns the LoopNode instance for method chaining.
-func (l *LoopNode[I, O]) WithProcessor(processor func(context.Context, I) (O, error)) *LoopNode[I, O] {
+func (l *LoopNode[I, O]) WithProcessor(processor Processor[I, O]) *LoopNode[I, O] {
 	l.withProcessor(processor)
 	return l
 }
@@ -447,7 +447,7 @@ type BatchNode[I any, O any, SI any, SO any] struct {
 //   - Otherwise, it creates a single-item slice containing the original input
 //
 // Returns a slice of segments to be processed individually.
-func (b *BatchNode[I, _, SI, _]) createSegments(ctx context.Context, input I) ([]SI, error) {
+func (b *BatchNode[I, O, SI, SO]) createSegments(ctx context.Context, input I) ([]SI, error) {
 	var res []SI
 	if b.segmenter == nil {
 		return res, nil
@@ -466,7 +466,7 @@ func (b *BatchNode[I, _, SI, _]) createSegments(ctx context.Context, input I) ([
 //   - Otherwise, it returns the slice of results directly
 //
 // Returns the combined or aggregated result.
-func (b *BatchNode[_, O, _, SO]) aggregateResults(ctx context.Context, results []SO) (O, error) {
+func (b *BatchNode[I, O, SI, SO]) aggregateResults(ctx context.Context, results []SO) (O, error) {
 	var res O
 	if b.aggregator == nil {
 		return res, nil
@@ -488,7 +488,7 @@ func (b *BatchNode[_, O, _, SO]) aggregateResults(ctx context.Context, results [
 //
 // If all segments fail, returns a joined error. If some succeed,
 // returns the aggregated results of successful operations.
-func (b *BatchNode[I, O, _, SO]) Run(ctx context.Context, input I) (O, error) {
+func (b *BatchNode[I, O, SI, SO]) Run(ctx context.Context, input I) (O, error) {
 	var res O
 	segments, err := b.createSegments(ctx, input)
 	if err != nil {
@@ -548,7 +548,7 @@ func (b *BatchNode[I, O, SI, SO]) WithAggregator(aggregator func(context.Context
 // return the processed result.
 //
 // Returns the BatchNode instance for method chaining.
-func (b *BatchNode[I, O, SI, SO]) WithProcessor(processor func(context.Context, SI) (SO, error)) *BatchNode[I, O, SI, SO] {
+func (b *BatchNode[I, O, SI, SO]) WithProcessor(processor Processor[SI, SO]) *BatchNode[I, O, SI, SO] {
 	b.withProcessor(processor)
 	return b
 }
@@ -630,7 +630,7 @@ func (p *ParallelNode[I, O, SI, SO]) Run(ctx context.Context, input I) (O, error
 // It should be thread-safe as it will be executed in separate goroutines.
 //
 // Returns the ParallelNode instance for method chaining.
-func (p *ParallelNode[I, O, SI, SO]) WithProcessor(processor func(context.Context, SI) (SO, error)) *ParallelNode[I, O, SI, SO] {
+func (p *ParallelNode[I, O, SI, SO]) WithProcessor(processor Processor[SI, SO]) *ParallelNode[I, O, SI, SO] {
 	p.withProcessor(processor)
 	return p
 }
@@ -698,7 +698,7 @@ func (a *AsyncNode[I]) Run(ctx context.Context, input I) (any, error) {
 // and return a processed output value or an error.
 //
 // Returns the AsyncNode instance for method chaining.
-func (a *AsyncNode[I]) WithProcessor(processor func(context.Context, I) (any, error)) *AsyncNode[I] {
+func (a *AsyncNode[I]) WithProcessor(processor Processor[I, any]) *AsyncNode[I] {
 	a.withProcessor(processor)
 	return a
 }
