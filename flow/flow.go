@@ -42,8 +42,7 @@ func NewFlow() *Flow {
 // 2. Passes the output to the successor Flow, if one exists
 // 3. Returns the final result after all connected flows complete
 //
-// If no node is configured for this Flow, returns nil, nil to allow
-// for placeholder flows in a pipeline.
+// If no node is configured for this Flow, returns an error.
 func (f *Flow) Run(ctx context.Context, input any) (any, error) {
 	if f.node == nil {
 		return nil, errors.New("flow node is required")
@@ -58,14 +57,14 @@ func (f *Flow) Run(ctx context.Context, input any) (any, error) {
 	return f.successor.Run(ctx, output)
 }
 
-// Then creates a successor Flow and returns it for further configuration.
+// Next creates a successor Flow and returns it for further configuration.
 //
 // This method enables the fluent chaining of processing steps in a pipeline,
 // allowing for the construction of multi-step workflows.
 //
 // If no node is set in the current Flow, returns the current Flow instead
 // of creating a successor to avoid empty placeholder flows.
-func (f *Flow) Then() *Flow {
+func (f *Flow) Next() *Flow {
 	if f.node == nil {
 		return f
 	}
@@ -73,7 +72,20 @@ func (f *Flow) Then() *Flow {
 	return f.successor
 }
 
-// Compile validates and prepares the Flow for execution.
+// Then adds a pre-configured Node to this Flow.
+//
+// This method allows for incorporating an existing Node implementation
+// into the pipeline. After setting the node, it creates and returns a
+// successor Flow for further pipeline configuration.
+//
+// This provides an escape hatch for cases where the builder methods
+// don't offer the desired flexibility.
+func (f *Flow) Then(node Node[any, any]) *Flow {
+	f.node = node
+	return f.Next()
+}
+
+// Build validates and prepares the Flow for execution.
 //
 // This method performs validation to ensure the Flow is properly configured:
 // - Checks that the current node is defined
@@ -91,11 +103,11 @@ func (f *Flow) Then() *Flow {
 //	pipeline, err := flow.NewFlow().
 //	    Sequence().
 //	    WithProcessor(firstStep).
-//	    Then().
+//	    End().
 //	    Parallel().
 //	    WithProcessor(secondStep).
-//	    Then().
-//	    Compile()
+//	    End().
+//	    Build()
 //
 //	if err != nil {
 //	    // Handle configuration error
@@ -103,7 +115,7 @@ func (f *Flow) Then() *Flow {
 //
 //	// Use the compiled pipeline
 //	result, err := pipeline.Run(ctx, input)
-func (f *Flow) Compile() (Node[any, any], error) {
+func (f *Flow) Build() (Node[any, any], error) {
 	if f.node == nil {
 		return nil, errors.New("flow node is required")
 	}
@@ -111,19 +123,6 @@ func (f *Flow) Compile() (Node[any, any], error) {
 		f.successor = nil
 	}
 	return f, nil
-}
-
-// WithNode adds a pre-configured Node to this Flow.
-//
-// This method allows for incorporating an existing Node implementation
-// into the pipeline. After setting the node, it creates and returns a
-// successor Flow for further pipeline configuration.
-//
-// This provides an escape hatch for cases where the builder methods
-// don't offer the desired flexibility.
-func (f *Flow) WithNode(node Node[any, any]) *Flow {
-	f.node = node
-	return f.Then()
 }
 
 // Sequence starts building a SequenceNode in this Flow.
@@ -137,7 +136,7 @@ func (f *Flow) WithNode(node Node[any, any]) *Flow {
 //	    WithProcessor(func(ctx context.Context, input any) (any, error) {
 //	        return fmt.Sprintf("Processed: %v", input), nil
 //	    }).
-//	    Then()
+//	    End()
 func (f *Flow) Sequence() *SequenceNodeBuilder {
 	return newSequenceNodeBuilder(f)
 }
@@ -154,7 +153,7 @@ func (f *Flow) Sequence() *SequenceNodeBuilder {
 //	    WithRouteSelector(determineRoute).
 //	    AddBranch("route1", handler1).
 //	    AddBranch("route2", handler2).
-//	    Then()
+//	    End()
 func (f *Flow) Branch() *BranchNodeBuilder {
 	return newBranchNodeBuilder(f)
 }
@@ -171,7 +170,7 @@ func (f *Flow) Branch() *BranchNodeBuilder {
 //	    WithStopCondition(func(ctx context.Context, i int, in, out any) (bool, error) {
 //	        return i >= 5, nil  // Stop after 5 iterations
 //	    }).
-//	    Then()
+//	    End()
 func (f *Flow) Loop() *LoopNodeBuilder {
 	return newLoopNodeBuilder(f)
 }
@@ -188,7 +187,7 @@ func (f *Flow) Loop() *LoopNodeBuilder {
 //	    WithSegmenter(splitIntoChunks).
 //	    WithProcessor(processChunk).
 //	    WithAggregator(combineResults).
-//	    Then()
+//	    End()
 func (f *Flow) Batch() *BatchNodeBuilder {
 	return newBatchNodeBuilder(f)
 }
@@ -204,7 +203,7 @@ func (f *Flow) Batch() *BatchNodeBuilder {
 //	    WithSegmenter(splitIntoIndependentTasks).
 //	    WithProcessor(processTask).
 //	    WithAggregator(combineTaskResults).
-//	    Then()
+//	    End()
 func (f *Flow) Parallel() *ParallelNodeBuilder {
 	return newParallelNodeBuilder(f)
 }
@@ -229,7 +228,7 @@ type builder struct {
 // This shared implementation reduces code duplication across builders.
 func (b *builder) build(node Node[any, any]) *Flow {
 	b.flow.node = node
-	return b.flow.Then()
+	return b.flow.Next()
 }
 
 // SequenceNodeBuilder provides a fluent API for configuring a SequenceNode.
@@ -266,8 +265,13 @@ func (s *SequenceNodeBuilder) WithProcessor(processor Processor[any, any]) *Sequ
 
 // WithSuccessor sets the next node in the processing chain.
 //
-// This method creates a sequential flow where the output of this node
-// becomes the input to the specified successor node.
+// This method only sets the successor node without completing the current node
+// configuration or creating a new sequence node. The processing flow will continue
+// through this successor after the current node completes.
+//
+// Unlike Then(), WithSuccessor does not finalize the current node or create a new
+// SequenceNodeBuilder. It's useful when you need to set a successor but continue
+// configuring the current node.
 //
 // Returns the builder for method chaining.
 func (s *SequenceNodeBuilder) WithSuccessor(successor Node[any, any]) *SequenceNodeBuilder {
@@ -275,12 +279,34 @@ func (s *SequenceNodeBuilder) WithSuccessor(successor Node[any, any]) *SequenceN
 	return s
 }
 
-// Then completes the configuration of this node and adds it to the flow.
+// Then sets the next node in the processing chain and automatically creates a new sequence node.
+//
+// Unlike WithSuccessor which only sets the successor node, Then:
+// 1. Sets the successor node for the current sequence node
+// 2. Calls End() to finalize the current sequence node and add it to the flow
+// 3. Creates and returns a new SequenceNodeBuilder for immediate configuration
+//
+// This method enables a more concise fluent API for building sequential chains
+// of processors without repeatedly calling End() and Sequence().
+//
+// Example:
+//
+//	flow.NewFlow().Sequence().
+//	    WithProcessor(step1).
+//	    Then(specialNode).    // Add specialNode and start new sequence
+//	    WithProcessor(step2).
+//	    End()
+func (s *SequenceNodeBuilder) Then(successor Node[any, any]) *SequenceNodeBuilder {
+	s.node.WithSuccessor(successor)
+	return s.End().Sequence()
+}
+
+// End completes the configuration of this node and adds it to the flow.
 //
 // This method finalizes the builder process, integrating the configured
 // SequenceNode into the flow pipeline and returning the successor flow
 // for further configuration.
-func (s *SequenceNodeBuilder) Then() *Flow {
+func (s *SequenceNodeBuilder) End() *Flow {
 	return s.build(s.node)
 }
 
@@ -338,12 +364,12 @@ func (b *BranchNodeBuilder) AddBranch(route string, node Node[any, any]) *Branch
 	return b
 }
 
-// Then completes the configuration of this node and adds it to the flow.
+// End completes the configuration of this node and adds it to the flow.
 //
 // This method finalizes the builder process, integrating the configured
 // BranchNode into the flow pipeline and returning the successor flow
 // for further configuration.
-func (b *BranchNodeBuilder) Then() *Flow {
+func (b *BranchNodeBuilder) End() *Flow {
 	return b.build(b.node)
 }
 
@@ -390,12 +416,12 @@ func (l *LoopNodeBuilder) WithStopCondition(condition func(context.Context, int,
 	return l
 }
 
-// Then completes the configuration of this node and adds it to the flow.
+// End completes the configuration of this node and adds it to the flow.
 //
 // This method finalizes the builder process, integrating the configured
 // LoopNode into the flow pipeline and returning the successor flow
 // for further configuration.
-func (l *LoopNodeBuilder) Then() *Flow {
+func (l *LoopNodeBuilder) End() *Flow {
 	return l.build(l.node)
 }
 
@@ -453,12 +479,12 @@ func (b *BatchNodeBuilder) WithProcessor(processor Processor[any, any]) *BatchNo
 	return b
 }
 
-// Then completes the configuration of this node and adds it to the flow.
+// End completes the configuration of this node and adds it to the flow.
 //
 // This method finalizes the builder process, integrating the configured
 // BatchNode into the flow pipeline and returning the successor flow
 // for further configuration.
-func (b *BatchNodeBuilder) Then() *Flow {
+func (b *BatchNodeBuilder) End() *Flow {
 	return b.build(b.node)
 }
 
@@ -516,11 +542,11 @@ func (p *ParallelNodeBuilder) WithProcessor(processor Processor[any, any]) *Para
 	return p
 }
 
-// Then completes the configuration of this node and adds it to the flow.
+// End completes the configuration of this node and adds it to the flow.
 //
 // This method finalizes the builder process, integrating the configured
 // ParallelNode into the flow pipeline and returning the successor flow
 // for further configuration.
-func (p *ParallelNodeBuilder) Then() *Flow {
+func (p *ParallelNodeBuilder) End() *Flow {
 	return p.build(p.node)
 }

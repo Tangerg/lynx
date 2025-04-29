@@ -100,7 +100,7 @@ func (p *AsyncResult[T]) awaitCompletion() {
 	}
 }
 
-// chainFrom copies the result and error from the parent AsyncResult when it completes.
+// forkFrom copies the result and error from the parent AsyncResult when it completes.
 // This is an internal method used by Chain().
 //
 // It waits for either:
@@ -109,7 +109,7 @@ func (p *AsyncResult[T]) awaitCompletion() {
 //
 // This method allows for creating dependency chains between AsyncResults without
 // blocking the caller.
-func (p *AsyncResult[T]) chainFrom(parent *AsyncResult[T]) {
+func (p *AsyncResult[T]) forkFrom(parent *AsyncResult[T]) {
 	defer p.markAsCompleted()
 
 	select {
@@ -247,7 +247,7 @@ func (p *AsyncResult[T]) Result() (T, error) {
 	return p.result, p.err
 }
 
-// Chain creates a new AsyncResult that will be completed with the same
+// Fork creates a new AsyncResult that will be completed with the same
 // result and error as this one. This allows creating dependent operations
 // that only proceed when the parent operation completes.
 //
@@ -276,9 +276,9 @@ func (p *AsyncResult[T]) Result() (T, error) {
 //	}()
 //
 //	// The original goroutine can continue with other work
-func (p *AsyncResult[T]) Chain() *AsyncResult[T] {
+func (p *AsyncResult[T]) Fork() *AsyncResult[T] {
 	res := NewAsyncResult[T](p.ctx)
-	go res.chainFrom(p)
+	go res.forkFrom(p)
 	return res
 }
 
@@ -298,93 +298,4 @@ func (p *AsyncResult[T]) markAsCompleted() {
 	p.isCompleted.Store(true)
 	close(p.completionCh)
 	p.completionWg.Wait()
-}
-
-// AsyncNode executes processing in a non-blocking, asynchronous manner.
-//
-// AsyncNode allows for "fire and forget" processing where the caller doesn't
-// need to wait for the operation to complete. It returns an AsyncResult that
-// provides a structured way to retrieve results later, allowing the caller to:
-//   - Continue execution without waiting for results
-//   - Safely retrieve results when needed with proper cancellation handling
-//   - Implement fan-out processing patterns with full type safety
-//
-// The AsyncResult returned by Run provides a concurrency-safe way to access
-// the operation's result or error when processing completes.
-//
-// Example:
-//
-//	// Create an async node for background processing
-//	backgroundProcessor := &flow.AsyncNode{}
-//	    .WithProcessor(generateReport)
-//
-//	// Start processing and continue without waiting
-//	resultAsync, _ := backgroundProcessor.Run(ctx, data)
-//
-//	// Optionally, retrieve results later
-//	go func() {
-//	    value, err := resultAsync.Result() // Blocks until result is available
-//	    if err != nil {
-//	        // Handle error
-//	        return
-//	    }
-//	    // Use the result value
-//	}()
-//
-//	// Or check if it's completed without blocking
-//	if resultAsync.IsCompleted() {
-//	    value, err := resultAsync.Result() // Won't block if completed
-//	    // Handle result
-//	}
-type AsyncNode[I any, O any] struct {
-	core[I, O]
-}
-
-// Run executes processing asynchronously and returns an AsyncResult for the operation.
-//
-// This method launches a goroutine to perform the processing and immediately
-// returns an AsyncResult that will be completed when processing finishes.
-//
-// The returned AsyncResult:
-//   - Provides thread-safe access to the operation's result or error
-//   - Integrates with the provided context for cancellation handling
-//   - Can be chained to create dependent operations
-//   - Guarantees eventual completion (either with result, error, or context cancellation)
-//
-// The caller can safely retrieve the result later using the AsyncResult.Result() method,
-// which will block until the operation completes or the context is canceled.
-func (a *AsyncNode[I, O]) Run(ctx context.Context, input I) (*AsyncResult[O], error) {
-	res := NewAsyncResult[O](ctx)
-	go func() {
-		output, err := a.processInput(ctx, input)
-		if err != nil {
-			res.SetError(err)
-		} else {
-			res.SetResult(output)
-		}
-	}()
-	return res, nil
-}
-
-// WithProcessor assigns a processing function to this node.
-//
-// The processor function defines the operation that will be executed
-// asynchronously when Run is called. It should take an input value
-// and return a processed output value or an error.
-//
-// Returns the AsyncNode instance for method chaining.
-//
-// Example:
-//
-//	processor := &AsyncNode[Request, Response]{}
-//	    .WithProcessor(func(ctx context.Context, req Request) (Response, error) {
-//	        // Process the request
-//	        return Response{Data: processed}, nil
-//	    })
-//
-//	result, _ := processor.Run(ctx, request)
-//	// Continue execution while processing happens in background
-func (a *AsyncNode[I, O]) WithProcessor(processor Processor[I, O]) *AsyncNode[I, O] {
-	a.withProcessor(processor)
-	return a
 }

@@ -155,10 +155,9 @@ func (s *SequenceNode) Run(ctx context.Context, input any) (any, error) {
 // WithProcessor assigns a processing function to this node.
 //
 // The processor function defines the transformation logic for this node
-// and will be executed when Run is called. It should take an input value
-// and return a processed output value or an error.
+// and will be executed when Run is called.
 //
-// Returns the SequenceNode instance for method chaining.
+// Returns the current SequenceNode to allow for method chaining on this node.
 func (s *SequenceNode) WithProcessor(processor Processor[any, any]) *SequenceNode {
 	s.withProcessor(processor)
 	return s
@@ -167,13 +166,35 @@ func (s *SequenceNode) WithProcessor(processor Processor[any, any]) *SequenceNod
 // WithSuccessor sets the next node in the processing chain.
 //
 // This method creates a sequential flow where the output of this node
-// becomes the input to the specified successor node. Multiple nodes
-// can be chained together to form a processing pipeline.
+// becomes the input to the specified successor node.
 //
-// Returns the SequenceNode instance for method chaining.
+// Returns the current SequenceNode, allowing for further configuration
+// of this node through method chaining. To continue building the chain from
+// the successor node, use Then instead.
 func (s *SequenceNode) WithSuccessor(successor Node[any, any]) *SequenceNode {
 	if successor != nil {
 		s.successor = successor
+	}
+	return s
+}
+
+// Then adds a new node after this one and returns the new node.
+//
+// This method creates a new SequenceNode with the provided processor,
+// sets it as this node's successor, and returns the new node to allow
+// for continued chain building.
+//
+// Unlike WithSuccessor which returns the current node, Then returns
+// the newly created successor node, enabling a fluent API for building
+// processing chains like: nodeA.Then(proc1).Then(proc2)
+//
+// If nil is provided, returns this node without modifying the chain.
+func (s *SequenceNode) Then(processor Processor[any, any]) *SequenceNode {
+	if processor != nil {
+		successor := &SequenceNode{}
+		successor.WithProcessor(processor)
+		s.successor = successor
+		return successor
 	}
 	return s
 }
@@ -633,4 +654,93 @@ func (p *ParallelNode[I, O, SI, SO]) Run(ctx context.Context, input I) (O, error
 func (p *ParallelNode[I, O, SI, SO]) WithProcessor(processor Processor[SI, SO]) *ParallelNode[I, O, SI, SO] {
 	p.withProcessor(processor)
 	return p
+}
+
+// AsyncNode executes processing in a non-blocking, asynchronous manner.
+//
+// AsyncNode allows for "fire and forget" processing where the caller doesn't
+// need to wait for the operation to complete. It returns an AsyncResult that
+// provides a structured way to retrieve results later, allowing the caller to:
+//   - Continue execution without waiting for results
+//   - Safely retrieve results when needed with proper cancellation handling
+//   - Implement fan-out processing patterns with full type safety
+//
+// The AsyncResult returned by Run provides a concurrency-safe way to access
+// the operation's result or error when processing completes.
+//
+// Example:
+//
+//	// Create an async node for background processing
+//	backgroundProcessor := &flow.AsyncNode{}
+//	    .WithProcessor(generateReport)
+//
+//	// Start processing and continue without waiting
+//	resultAsync, _ := backgroundProcessor.Run(ctx, data)
+//
+//	// Optionally, retrieve results later
+//	go func() {
+//	    value, err := resultAsync.Result() // Blocks until result is available
+//	    if err != nil {
+//	        // Handle error
+//	        return
+//	    }
+//	    // Use the result value
+//	}()
+//
+//	// Or check if it's completed without blocking
+//	if resultAsync.IsCompleted() {
+//	    value, err := resultAsync.Result() // Won't block if completed
+//	    // Handle result
+//	}
+type AsyncNode[I any, O any] struct {
+	core[I, O]
+}
+
+// Run executes processing asynchronously and returns an AsyncResult for the operation.
+//
+// This method launches a goroutine to perform the processing and immediately
+// returns an AsyncResult that will be completed when processing finishes.
+//
+// The returned AsyncResult:
+//   - Provides thread-safe access to the operation's result or error
+//   - Integrates with the provided context for cancellation handling
+//   - Can be chained to create dependent operations
+//   - Guarantees eventual completion (either with result, error, or context cancellation)
+//
+// The caller can safely retrieve the result later using the AsyncResult.Result() method,
+// which will block until the operation completes or the context is canceled.
+func (a *AsyncNode[I, O]) Run(ctx context.Context, input I) (*AsyncResult[O], error) {
+	res := NewAsyncResult[O](ctx)
+	go func() {
+		output, err := a.processInput(ctx, input)
+		if err != nil {
+			res.SetError(err)
+		} else {
+			res.SetResult(output)
+		}
+	}()
+	return res.Fork(), nil
+}
+
+// WithProcessor assigns a processing function to this node.
+//
+// The processor function defines the operation that will be executed
+// asynchronously when Run is called. It should take an input value
+// and return a processed output value or an error.
+//
+// Returns the AsyncNode instance for method chaining.
+//
+// Example:
+//
+//	processor := &AsyncNode[Request, Response]{}
+//	    .WithProcessor(func(ctx context.Context, req Request) (Response, error) {
+//	        // Process the request
+//	        return Response{Data: processed}, nil
+//	    })
+//
+//	result, _ := processor.Run(ctx, request)
+//	// Continue execution while processing happens in background
+func (a *AsyncNode[I, O]) WithProcessor(processor Processor[I, O]) *AsyncNode[I, O] {
+	a.withProcessor(processor)
+	return a
 }
