@@ -1,36 +1,10 @@
-// Package flow provides a robust, composable pipeline framework for creating data processing workflows.
-//
-// The flow package enables developers to build complex data processing pipelines through a set
-// of composable nodes that can be connected in various configurations. The framework supports:
-//
-//   - Sequential processing with SequenceNode
-//   - Conditional branching with BranchNode
-//   - Iterative processing with LoopNode
-//   - Batch processing with BatchNode
-//   - Concurrent execution with ParallelNode
-//   - Asynchronous processing with AsyncNode
-//
-// Each node type implements the Node interface, providing a standardized way to run processing
-// logic and connect nodes together. The framework is designed for flexibility, allowing developers
-// to express complex workflows while maintaining clear semantics and separation of concerns.
-//
-// Basic Usage:
-//
-//	// Create a simple processing pipeline
-//	processor := &flow.SequenceNode{}
-//	processor.WithProcessor(func(ctx context.Context, input any) (any, error) {
-//		// Transform the input
-//		return input.(string) + " processed", nil
-//	})
-//
-// More complex workflows can be built by chaining and nesting different node types.
 package flow
 
 import (
 	"context"
 	"errors"
 	"fmt"
-	"sync"
+	"golang.org/x/sync/errgroup"
 )
 
 // Node is the fundamental interface that all flow processing nodes implement.
@@ -79,7 +53,7 @@ func (n *core[I, O]) ensureContextActive(ctx context.Context) error {
 	}
 }
 
-// processInput executes the node's processor function with appropriate context handling.
+// process executes the node's processor function with appropriate context handling.
 //
 // This method performs validation, checks context status, and runs the processing function.
 // It's a central component used by all node implementations to execute their logic.
@@ -88,14 +62,14 @@ func (n *core[I, O]) ensureContextActive(ctx context.Context) error {
 //   - No processor function is defined
 //   - The context has been canceled
 //   - The processor function itself returns an error
-func (n *core[I, O]) processInput(ctx context.Context, input I) (O, error) {
-	var res O
+func (n *core[I, O]) process(ctx context.Context, input I) (O, error) {
+	var zero O
 	if n.processor == nil {
-		return res, errors.New("processor function is required")
+		return zero, errors.New("processor function is required")
 	}
 	err := n.ensureContextActive(ctx)
 	if err != nil {
-		return res, err
+		return zero, err
 	}
 	return n.processor(ctx, input)
 }
@@ -110,93 +84,35 @@ func (n *core[I, O]) withProcessor(processor Processor[I, O]) {
 	}
 }
 
-// SequenceNode implements a linear, sequential processing node in a workflow.
+// StepNode implements a simple single-step processing node in a flow pipeline.
 //
-// SequenceNode represents the most basic form of pipeline processing, where
-// data flows through a series of operations in a defined order. The output of
-// each node becomes the input to the next node in the sequence.
-//
-// SequenceNodes are ideal for straightforward transformations where each step
-// depends on the results of the previous step.
-//
-// Example:
-//
-//	// Create a pipeline that formats and then encrypts data
-//	formatter := &flow.SequenceNode{}.WithProcessor(formatData)
-//	encryptor := &flow.SequenceNode{}.WithProcessor(encryptData)
-//	pipeline := formatter.WithSuccessor(encryptor)
-//
-//	// Process input through the pipeline
-//	result, err := pipeline.Run(ctx, rawData)
-type SequenceNode struct {
-	core[any, any]
-	// successor is the next node in the processing chain
-	successor Node[any, any]
-}
-
-// Run processes the input and passes the result to the successor node.
-//
-// The method first applies this node's processing function to the input.
-// If successful and a successor exists, it then passes the output to
-// the successor node. This creates a chain of processing steps.
-//
-// If no successor is defined, returns the output of this node directly.
-func (s *SequenceNode) Run(ctx context.Context, input any) (any, error) {
-	output, err := s.processInput(ctx, input)
-	if err != nil {
-		return nil, err
-	}
-	if s.successor == nil {
-		return output, nil
-	}
-	return s.successor.Run(ctx, output)
+// StepNode is the most basic node type that applies a single processing function
+// to transform input into output. It forms the building block for more complex
+// flow patterns.
+type StepNode[I any, O any] struct {
+	core[I, O]
 }
 
 // WithProcessor assigns a processing function to this node.
 //
-// The processor function defines the transformation logic for this node
-// and will be executed when Run is called.
+// The processor function defines the transformation that will be applied
+// when the node is executed. It should take an input of type I and return
+// an output of type O.
 //
-// Returns the current SequenceNode to allow for method chaining on this node.
-func (s *SequenceNode) WithProcessor(processor Processor[any, any]) *SequenceNode {
+// Returns the StepNode instance for method chaining.
+func (s *StepNode[I, O]) WithProcessor(processor Processor[I, O]) *StepNode[I, O] {
 	s.withProcessor(processor)
 	return s
 }
 
-// WithSuccessor sets the next node in the processing chain.
+// Run executes the node's processing logic with the provided input and context.
 //
-// This method creates a sequential flow where the output of this node
-// becomes the input to the specified successor node.
+// This method applies the configured processor function to the input and
+// returns the resulting output, handling context cancellation appropriately.
 //
-// Returns the current SequenceNode, allowing for further configuration
-// of this node through method chaining. To continue building the chain from
-// the successor node, use Then instead.
-func (s *SequenceNode) WithSuccessor(successor Node[any, any]) *SequenceNode {
-	if successor != nil {
-		s.successor = successor
-	}
-	return s
-}
-
-// Then adds a new node after this one and returns the new node.
-//
-// This method creates a new SequenceNode with the provided processor,
-// sets it as this node's successor, and returns the new node to allow
-// for continued chain building.
-//
-// Unlike WithSuccessor which returns the current node, Then returns
-// the newly created successor node, enabling a fluent API for building
-// processing chains like: nodeA.Then(proc1).Then(proc2)
-//
-// If nil is provided, returns this node without modifying the chain.
-func (s *SequenceNode) Then(processor Processor[any, any]) *SequenceNode {
-	if processor != nil {
-		successor := &SequenceNode{}
-		successor.WithProcessor(processor)
-		s.successor = successor
-		return successor
-	}
-	return s
+// If the processor is not configured or the context is canceled, an error is returned.
+func (s *StepNode[I, O]) Run(ctx context.Context, input I) (O, error) {
+	return s.process(ctx, input)
 }
 
 // BranchNode implements conditional routing of data based on the processing outcome.
@@ -222,8 +138,8 @@ func (s *SequenceNode) Then(processor Processor[any, any]) *SequenceNode {
 //	    .AddBranch("low", lowPriorityHandler)
 type BranchNode struct {
 	core[any, any]
-	// routeSelector determines which branch to follow based on input and output
-	routeSelector func(context.Context, any, any) (string, error)
+	// routeResolver determines which branch to follow based on input and output
+	routeResolver func(context.Context, any, any) (string, error)
 	// branches maps route identifiers to their corresponding Node implementations
 	branches map[string]Node[any, any]
 }
@@ -238,14 +154,14 @@ type BranchNode struct {
 //   - An error if the route selection fails or if the selected branch doesn't exist
 //   - nil, nil if no route selector is defined (indicating no branching)
 func (b *BranchNode) resolveRoute(ctx context.Context, input any, output any) (Node[any, any], error) {
-	if b.routeSelector == nil {
-		return nil, nil
+	if b.routeResolver == nil {
+		return nil, errors.New("branch resolver is required")
 	}
 	err := b.ensureContextActive(ctx)
 	if err != nil {
 		return nil, err
 	}
-	route, err := b.routeSelector(ctx, input, output)
+	route, err := b.routeResolver(ctx, input, output)
 	if err != nil {
 		return nil, err
 	}
@@ -265,13 +181,14 @@ func (b *BranchNode) resolveRoute(ctx context.Context, input any, output any) (N
 // If no branches are defined or no route selector is set, returns the
 // output of this node's processor directly.
 func (b *BranchNode) Run(ctx context.Context, input any) (any, error) {
-	output, err := b.processInput(ctx, input)
+	output, err := b.process(ctx, input)
 	if err != nil {
 		return nil, err
 	}
-	if len(b.branches) == 0 {
+	if len(b.branches) == 0 || b.routeResolver == nil {
 		return output, nil
 	}
+
 	branch, err := b.resolveRoute(ctx, input, output)
 	if err != nil {
 		return nil, err
@@ -279,16 +196,16 @@ func (b *BranchNode) Run(ctx context.Context, input any) (any, error) {
 	return branch.Run(ctx, output)
 }
 
-// WithRouteSelector assigns a function that determines the branch to follow.
+// WithRouteResolver assigns a function that determines the branch to follow.
 //
 // The route selector examines the input and output of this node's processor
 // and returns a string identifier for the branch to follow. This string must
 // match one of the branch keys added with AddBranch.
 //
 // Returns the BranchNode instance for method chaining.
-func (b *BranchNode) WithRouteSelector(routeSelector func(context.Context, any, any) (string, error)) *BranchNode {
-	if routeSelector != nil {
-		b.routeSelector = routeSelector
+func (b *BranchNode) WithRouteResolver(routeResolver func(context.Context, any, any) (string, error)) *BranchNode {
+	if routeResolver != nil {
+		b.routeResolver = routeResolver
 	}
 	return b
 }
@@ -344,8 +261,8 @@ func (b *BranchNode) AddBranch(route string, node Node[any, any]) *BranchNode {
 //	    })
 type LoopNode[I any, O any] struct {
 	core[I, O]
-	// stopCondition determines when to stop looping based on iteration count, input, and output
-	stopCondition func(context.Context, int, I, O) (bool, error)
+	// terminator determines when to stop looping based on iteration count, input, and output
+	terminator func(context.Context, int, I, O) (bool, error)
 }
 
 // shouldTerminate evaluates whether the looping should stop.
@@ -360,46 +277,46 @@ type LoopNode[I any, O any] struct {
 //   - an error if condition evaluation fails
 //   - true, nil if no stop condition is defined (to prevent infinite loops)
 func (l *LoopNode[I, O]) shouldTerminate(ctx context.Context, iteration int, input I, output O) (bool, error) {
-	if l.stopCondition == nil {
+	if l.terminator == nil {
 		return true, nil
 	}
 	err := l.ensureContextActive(ctx)
 	if err != nil {
 		return false, err
 	}
-	return l.stopCondition(ctx, iteration, input, output)
+	return l.terminator(ctx, iteration, input, output)
 }
 
-// executeIteration performs recursive loop execution with iteration tracking.
+// runIteration performs recursive loop execution with iteration tracking.
 //
 // This internal method handles the actual looping mechanism, maintaining
 // the iteration count and evaluating the termination condition after each run.
 //
 // If the stop condition returns true or an error occurs, the loop terminates.
 // Otherwise, it recursively calls itself with an incremented iteration count.
-func (l *LoopNode[I, O]) executeIteration(ctx context.Context, iteration int, input I) (O, error) {
-	var res O
-	output, err := l.processInput(ctx, input)
+func (l *LoopNode[I, O]) runIteration(ctx context.Context, iteration int, input I) (O, error) {
+	var zero O
+	output, err := l.process(ctx, input)
 	if err != nil {
-		return res, err
+		return zero, err
 	}
 	shouldTerminate, err := l.shouldTerminate(ctx, iteration, input, output)
 	if err != nil {
-		return res, err
+		return zero, err
 	}
 	if shouldTerminate {
 		return output, nil
 	}
-	return l.executeIteration(ctx, iteration+1, input)
+	return l.runIteration(ctx, iteration+1, input)
 }
 
 // Run executes the processing logic in a loop until termination.
 //
-// This method initiates the looping process by calling executeIteration
+// This method initiates the looping process by calling runIteration
 // with an initial iteration count of 0. The final output (after all iterations)
 // is returned when the loop terminates.
 func (l *LoopNode[I, O]) Run(ctx context.Context, input I) (O, error) {
-	return l.executeIteration(ctx, 0, input)
+	return l.runIteration(ctx, 0, input)
 }
 
 // WithProcessor assigns a processing function to this node.
@@ -413,9 +330,9 @@ func (l *LoopNode[I, O]) WithProcessor(processor Processor[I, O]) *LoopNode[I, O
 	return l
 }
 
-// WithStopCondition assigns a function that determines when to stop looping.
+// WithTerminator assigns a function that determines when to stop looping.
 //
-// The condition function examines:
+// The terminator function examines:
 //   - The current iteration count
 //   - The original input to the loop
 //   - The output from the most recent iteration
@@ -423,9 +340,9 @@ func (l *LoopNode[I, O]) WithProcessor(processor Processor[I, O]) *LoopNode[I, O
 // It should return true when looping should stop, or false to continue.
 //
 // Returns the LoopNode instance for method chaining.
-func (l *LoopNode[I, O]) WithStopCondition(condition func(context.Context, int, I, O) (bool, error)) *LoopNode[I, O] {
-	if condition != nil {
-		l.stopCondition = condition
+func (l *LoopNode[I, O]) WithTerminator(terminator func(context.Context, int, I, O) (bool, error)) *LoopNode[I, O] {
+	if terminator != nil {
+		l.terminator = terminator
 	}
 	return l
 }
@@ -452,26 +369,25 @@ func (l *LoopNode[I, O]) WithStopCondition(condition func(context.Context, int, 
 //	        // Combine individual results into a summary
 //	        return summarizeResults(results), nil
 //	    })
-type BatchNode[I any, O any, SI any, SO any] struct {
-	core[SI, SO]
+type BatchNode[I any, O any, T any, R any] struct {
+	core[T, R]
+	allowFailure bool
 	// segmenter divides the input into multiple segments for processing
-	segmenter func(context.Context, I) ([]SI, error)
+	segmenter func(context.Context, I) ([]T, error)
 	// aggregator combines processed segments back into a single result
-	aggregator func(context.Context, []SO) (O, error)
+	aggregator func(context.Context, []R) (O, error)
 }
 
 // createSegments divides the input into multiple chunks for processing.
 //
-// This method determines how to split the input:
-//   - If input is already a slice, it uses that directly
-//   - If a segmenter function is defined, it calls that to divide the input
-//   - Otherwise, it creates a single-item slice containing the original input
+// This method applies the segmenter function to divide the input into
+// multiple segments that will be processed individually.
 //
-// Returns a slice of segments to be processed individually.
-func (b *BatchNode[I, O, SI, SO]) createSegments(ctx context.Context, input I) ([]SI, error) {
-	var res []SI
+// If no segmenter is defined, returns an empty slice.
+// Returns any error encountered during segmentation.
+func (b *BatchNode[I, O, T, R]) createSegments(ctx context.Context, input I) ([]T, error) {
 	if b.segmenter == nil {
-		return res, nil
+		return make([]T, 0), nil
 	}
 	err := b.ensureContextActive(ctx)
 	if err != nil {
@@ -482,19 +398,19 @@ func (b *BatchNode[I, O, SI, SO]) createSegments(ctx context.Context, input I) (
 
 // aggregateResults combines the processed outputs into a single result.
 //
-// This method merges the individual segment results:
-//   - If an aggregator function is defined, it calls that to combine results
-//   - Otherwise, it returns the slice of results directly
+// This method applies the aggregator function to combine the processed segment
+// results into a final output.
 //
-// Returns the combined or aggregated result.
-func (b *BatchNode[I, O, SI, SO]) aggregateResults(ctx context.Context, results []SO) (O, error) {
-	var res O
+// If no aggregator is defined, returns the zero value for type O.
+// Returns any error encountered during aggregation.
+func (b *BatchNode[I, O, T, R]) aggregateResults(ctx context.Context, results []R) (O, error) {
+	var zero O
 	if b.aggregator == nil {
-		return res, nil
+		return zero, nil
 	}
 	err := b.ensureContextActive(ctx)
 	if err != nil {
-		return res, err
+		return zero, err
 	}
 	return b.aggregator(ctx, results)
 }
@@ -504,33 +420,30 @@ func (b *BatchNode[I, O, SI, SO]) aggregateResults(ctx context.Context, results 
 // The method:
 //  1. Divides the input into segments
 //  2. Processes each segment with the processor function
-//  3. Collects all successful results
+//  3. Collects results from successful operations
 //  4. Aggregates the results into a final output
 //
-// If all segments fail, returns a joined error. If some succeed,
-// returns the aggregated results of successful operations.
-func (b *BatchNode[I, O, SI, SO]) Run(ctx context.Context, input I) (O, error) {
-	var res O
+// If allowFailure is false, stops processing and returns the error on first failure.
+// If allowFailure is true, continues processing all segments and returns the
+// aggregated results from successful operations.
+func (b *BatchNode[I, O, T, R]) Run(ctx context.Context, input I) (O, error) {
+	var zero O
 	segments, err := b.createSegments(ctx, input)
 	if err != nil {
-		return res, err
+		return zero, err
 	}
-	var (
-		results = make([]SO, 0, len(segments))
-		errs    = make([]error, 0, len(segments))
-	)
+
+	results := make([]R, 0, len(segments))
 
 	for _, segment := range segments {
-		output, err1 := b.processInput(ctx, segment)
-		if err1 != nil {
-			errs = append(errs, err1)
-			continue
+		output, err1 := b.process(ctx, segment)
+		if err1 == nil {
+			results = append(results, output)
+		} else if !b.allowFailure {
+			return zero, err1
 		}
-		results = append(results, output)
 	}
-	if len(results) == 0 {
-		return res, errors.Join(errs...)
-	}
+
 	return b.aggregateResults(ctx, results)
 }
 
@@ -541,7 +454,7 @@ func (b *BatchNode[I, O, SI, SO]) Run(ctx context.Context, input I) (O, error) {
 // or complex data structures into their components.
 //
 // Returns the BatchNode instance for method chaining.
-func (b *BatchNode[I, O, SI, SO]) WithSegmenter(segmenter func(context.Context, I) ([]SI, error)) *BatchNode[I, O, SI, SO] {
+func (b *BatchNode[I, O, T, R]) WithSegmenter(segmenter func(context.Context, I) ([]T, error)) *BatchNode[I, O, T, R] {
 	if segmenter != nil {
 		b.segmenter = segmenter
 	}
@@ -555,7 +468,7 @@ func (b *BatchNode[I, O, SI, SO]) WithSegmenter(segmenter func(context.Context, 
 // merging, or other collective operations on the batch results.
 //
 // Returns the BatchNode instance for method chaining.
-func (b *BatchNode[I, O, SI, SO]) WithAggregator(aggregator func(context.Context, []SO) (O, error)) *BatchNode[I, O, SI, SO] {
+func (b *BatchNode[I, O, T, R]) WithAggregator(aggregator func(context.Context, []R) (O, error)) *BatchNode[I, O, T, R] {
 	if aggregator != nil {
 		b.aggregator = aggregator
 	}
@@ -569,8 +482,20 @@ func (b *BatchNode[I, O, SI, SO]) WithAggregator(aggregator func(context.Context
 // return the processed result.
 //
 // Returns the BatchNode instance for method chaining.
-func (b *BatchNode[I, O, SI, SO]) WithProcessor(processor Processor[SI, SO]) *BatchNode[I, O, SI, SO] {
+func (b *BatchNode[I, O, T, R]) WithProcessor(processor Processor[T, R]) *BatchNode[I, O, T, R] {
 	b.withProcessor(processor)
+	return b
+}
+
+// AllowFailure configures whether the batch processing should continue
+// when individual segment processing fails.
+//
+// When set to true, processing continues even if some segments fail.
+// When false (default), processing stops on the first error.
+//
+// Returns the BatchNode instance for method chaining.
+func (b *BatchNode[I, O, T, R]) AllowFailure(allowFailure bool) *BatchNode[I, O, T, R] {
+	b.allowFailure = allowFailure
 	return b
 }
 
@@ -583,8 +508,8 @@ func (b *BatchNode[I, O, SI, SO]) WithProcessor(processor Processor[SI, SO]) *Ba
 //   - IO-bound operations that can operate independently
 //   - Any batch processing where items don't depend on each other
 //
-// The number of concurrent goroutines is determined by the number of segments,
-// so be cautious with very large collections to avoid resource exhaustion.
+// The number of concurrent goroutines is determined by the limit parameter,
+// or by the number of segments if no limit is set.
 //
 // Example:
 //
@@ -595,53 +520,70 @@ func (b *BatchNode[I, O, SI, SO]) WithProcessor(processor Processor[SI, SO]) *Ba
 //	        // Combine download results into a report
 //	        return createDownloadReport(results), nil
 //	    })
-type ParallelNode[I any, O any, SI any, SO any] struct {
-	BatchNode[I, O, SI, SO]
+type ParallelNode[I any, O any, T any, R any] struct {
+	BatchNode[I, O, T, R]
+	limit int
+}
+
+// getLimit returns the configured concurrency limit or -1 if no limit is set.
+//
+// A negative return value indicates that the number of goroutines should
+// only be limited by the number of segments to process.
+func (p *ParallelNode[I, O, T, R]) getLimit() int {
+	if p.limit <= 0 {
+		return -1 // no limit
+	}
+	return p.limit
 }
 
 // Run processes each segment concurrently and combines the results.
 //
 // This method overrides BatchNode.Run to use goroutines for concurrent execution:
 //  1. Divides the input into segments
-//  2. Launches a goroutine for each segment
+//  2. Launches a goroutine for each segment (with optional limit)
 //  3. Collects results as they complete
 //  4. Waits for all processing to finish
 //  5. Aggregates successful results
 //
-// Uses sync.WaitGroup to coordinate goroutines and sync.Mutex to safely
-// collect results from concurrent operations.
-func (p *ParallelNode[I, O, SI, SO]) Run(ctx context.Context, input I) (O, error) {
-	var res O
+// Uses errgroup to coordinate goroutines and safely collect results
+// from concurrent operations.
+func (p *ParallelNode[I, O, T, R]) Run(ctx context.Context, input I) (O, error) {
+	var zero O
 	segments, err := p.createSegments(ctx, input)
 	if err != nil {
-		return res, err
+		return zero, err
 	}
+
 	var (
-		results = make([]SO, 0, len(segments))
-		errs    = make([]error, 0, len(segments))
-		wg      sync.WaitGroup
-		mu      sync.Mutex
+		channel         = make(chan R, len(segments))
+		results         = make([]R, 0, len(segments))
+		group, groupCtx = errgroup.WithContext(ctx)
 	)
+
+	group.SetLimit(p.getLimit())
 	for _, segment := range segments {
-		wg.Add(1)
-		go func(segment SI) {
-			defer wg.Done()
-
-			output, err1 := p.processInput(ctx, segment)
-			mu.Lock()
-			if err1 != nil {
-				errs = append(errs, err1)
-			} else {
-				results = append(results, output)
+		group.Go(func() error {
+			output, err1 := p.process(groupCtx, segment)
+			if err1 == nil {
+				channel <- output
 			}
-			mu.Unlock()
-		}(segment)
+			if !p.allowFailure {
+				return err1
+			}
+			return nil
+		})
 	}
-	wg.Wait()
 
-	if len(results) == 0 {
-		return res, errors.Join(errs...)
+	err = group.Wait()
+	if err != nil {
+		return zero, err
 	}
+
+	close(channel)
+	for result := range channel {
+		results = append(results, result)
+	}
+
 	return p.aggregateResults(ctx, results)
 }
 
@@ -651,22 +593,46 @@ func (p *ParallelNode[I, O, SI, SO]) Run(ctx context.Context, input I) (O, error
 // It should be thread-safe as it will be executed in separate goroutines.
 //
 // Returns the ParallelNode instance for method chaining.
-func (p *ParallelNode[I, O, SI, SO]) WithProcessor(processor Processor[SI, SO]) *ParallelNode[I, O, SI, SO] {
+func (p *ParallelNode[I, O, T, R]) WithProcessor(processor Processor[T, R]) *ParallelNode[I, O, T, R] {
 	p.withProcessor(processor)
+	return p
+}
+
+// AllowFailure configures whether the parallel processing should continue
+// when individual segment processing fails.
+//
+// When set to true, processing continues even if some segments fail.
+// When false (default), processing stops on the first error.
+//
+// Returns the ParallelNode instance for method chaining.
+func (p *ParallelNode[I, O, T, R]) AllowFailure(allowFailure bool) *ParallelNode[I, O, T, R] {
+	p.allowFailure = allowFailure
+	return p
+}
+
+// Limit sets the maximum number of concurrent goroutines to use for processing.
+//
+// This allows control over resource utilization when processing large batches.
+// A value <= 0 means no limit (use a goroutine for each segment).
+//
+// Returns the ParallelNode instance for method chaining.
+func (p *ParallelNode[I, O, T, R]) Limit(limit int) *ParallelNode[I, O, T, R] {
+	p.limit = limit
 	return p
 }
 
 // AsyncNode executes processing in a non-blocking, asynchronous manner.
 //
 // AsyncNode allows for "fire and forget" processing where the caller doesn't
-// need to wait for the operation to complete. It returns an AsyncResult that
+// need to wait for the operation to complete. It returns a ReadonlyAsyncResult that
 // provides a structured way to retrieve results later, allowing the caller to:
 //   - Continue execution without waiting for results
 //   - Safely retrieve results when needed with proper cancellation handling
 //   - Implement fan-out processing patterns with full type safety
 //
-// The AsyncResult returned by Run provides a concurrency-safe way to access
-// the operation's result or error when processing completes.
+// The ReadonlyAsyncResult returned by Run provides a concurrency-safe way to access
+// the operation's result or error when processing completes, without the ability
+// to modify the result.
 //
 // Example:
 //
@@ -696,30 +662,41 @@ type AsyncNode[I any, O any] struct {
 	core[I, O]
 }
 
-// Run executes processing asynchronously and returns an AsyncResult for the operation.
+// RunType executes processing asynchronously and returns a ReadonlyAsyncResult for the operation.
 //
 // This method launches a goroutine to perform the processing and immediately
-// returns an AsyncResult that will be completed when processing finishes.
+// returns a ReadonlyAsyncResult that will be completed when processing finishes.
+// The returned value is intentionally read-only to ensure the result can only
+// be set by the async operation itself.
 //
-// The returned AsyncResult:
+// The returned ReadonlyAsyncResult:
 //   - Provides thread-safe access to the operation's result or error
 //   - Integrates with the provided context for cancellation handling
-//   - Can be chained to create dependent operations
+//   - Can be checked for completion status without blocking
 //   - Guarantees eventual completion (either with result, error, or context cancellation)
+//   - Prevents external code from modifying the operation's outcome
 //
-// The caller can safely retrieve the result later using the AsyncResult.Result() method,
+// The caller can safely retrieve the result later using the ReadonlyAsyncResult.Result() method,
 // which will block until the operation completes or the context is canceled.
-func (a *AsyncNode[I, O]) Run(ctx context.Context, input I) (*AsyncResult[O], error) {
-	res := NewAsyncResult[O](ctx)
+func (a *AsyncNode[I, O]) RunType(ctx context.Context, input I) (*ReadonlyAsyncResult[O], error) {
+	res := NewWritableAsyncResult[O](ctx)
 	go func() {
-		output, err := a.processInput(ctx, input)
-		if err != nil {
-			res.SetError(err)
-		} else {
-			res.SetResult(output)
-		}
+		output, err := a.process(ctx, input)
+		res.Set(output, err)
 	}()
 	return res.Fork(), nil
+}
+
+// Run implements the Node[I, any] interface by executing the processor asynchronously.
+//
+// Instead of returning the result directly, this method returns a ReadonlyAsyncResult
+// which acts as a future/promise for the actual result. This allows the caller to
+// continue execution without waiting for the processor to complete.
+//
+// The returned ReadonlyAsyncResult is wrapped as an 'any' type to conform to the Node
+// interface. To access the strongly-typed AsyncResult, use RunType instead.
+func (a *AsyncNode[I, O]) Run(ctx context.Context, input I) (any, error) {
+	return a.RunType(ctx, input)
 }
 
 // WithProcessor assigns a processing function to this node.

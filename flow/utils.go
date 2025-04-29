@@ -36,7 +36,7 @@ func Chain(nodes ...Node[any, any]) (Node[any, any], error) {
 	for _, node := range nodes {
 		flow.Then(node)
 	}
-	return flow.Build()
+	return flow, nil
 }
 
 // OfNode creates a Flow from an existing Node.
@@ -50,17 +50,17 @@ func Chain(nodes ...Node[any, any]) (Node[any, any], error) {
 //   - node: The existing Node[any, any] to be used as the starting point
 //
 // Returns:
-//   - A Flow instance with the provided node as its starting point
+//   - A Flow instance with the provided node as its first processing step
 //
 // Example:
 //
 //	existingNode := getExistingNode()
-//	flow.OfNode(existingProcessor).
-//	    Next().
-//	    Sequence().
+//	flow := flow.OfNode(existingNode).
+//	    Step().
 //	    WithProcessor(additionalProcessing).
-//	    End().
-//	    Build()
+//	    Then()
+//
+//	result, err := flow.Run(ctx, input)
 func OfNode(node Node[any, any]) *Flow {
 	return NewFlow().Then(node)
 }
@@ -69,26 +69,26 @@ func OfNode(node Node[any, any]) *Flow {
 //
 // This utility function simplifies the common case of creating a flow
 // that starts with a single processing function. It automatically wraps
-// the provided processor in a SequenceNode and returns a Flow ready for
+// the provided processor in a StepNode and returns a Flow ready for
 // further configuration.
 //
 // Parameters:
 //   - processor: A function that implements the Processor[any, any] interface
 //
 // Returns:
-//   - A Flow instance with a SequenceNode containing the provided processor
+//   - A Flow instance with a StepNode containing the provided processor
 //
 // Example:
 //
-//	flow.OfProcessor(func(ctx context.Context, input any) (any, error) {
+//	pipeline := flow.OfProcessor(func(ctx context.Context, input any) (any, error) {
 //	    return fmt.Sprintf("Processed: %v", input), nil
 //	}).
-//	Next().
 //	Branch().
-//	WithRouteSelector(routeSelector).
+//	WithRouteResolver(routeResolver).
 //	AddBranch("route1", handler1).
-//	End().
-//	Build()
+//	Then()
+//
+//	result, err := pipeline.Run(ctx, input)
 func OfProcessor(processor Processor[any, any]) *Flow {
-	return NewFlow().Sequence().WithProcessor(processor).End()
+	return NewFlow().Step().WithProcessor(processor).Then()
 }

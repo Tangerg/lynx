@@ -1,12 +1,3 @@
-// Package flow provides utilities for managing asynchronous operations with type safety.
-//
-// This package introduces the AsyncResult type, which represents a value that
-// may not yet be available. It provides concurrency-safe mechanisms to set and
-// retrieve results, chain operations, and handle errors with proper context cancellation.
-//
-// AsyncResult implements a promise-like pattern that works with Go's context
-// system for cancellation and timeouts. It allows for safe concurrent access
-// to results that may be computed by background goroutines.
 package flow
 
 import (
@@ -15,18 +6,18 @@ import (
 	"sync/atomic"
 )
 
-// AsyncResult represents a value that will be available in the future.
+// ReadonlyAsyncResult represents a value that will be available in the future.
 // It provides a type-safe way to work with asynchronous operations.
 //
-// AsyncResult implements a promise-like pattern with these key features:
+// ReadonlyAsyncResult implements a promise-like pattern with these key features:
 // - Generic type parameter for type-safe result handling
 // - Context integration for cancellation
 // - Thread-safe access to results
-// - Ability to chain results to create dependent operations
+// - Ability to fork results to create dependent operations
 // - Safe handling of completion state with atomic operations
 //
 // The zero value is not usable; use NewAsyncResult to create a new instance.
-type AsyncResult[T any] struct {
+type ReadonlyAsyncResult[T any] struct {
 	// ctx is the context that can cancel this async result
 	ctx context.Context
 
@@ -53,7 +44,7 @@ type AsyncResult[T any] struct {
 	completionWg sync.WaitGroup
 }
 
-// NewAsyncResult creates a new AsyncResult instance with the given context.
+// NewReadonlyAsyncResult creates a new ReadonlyAsyncResult instance with the given context.
 // The context can be used to cancel the operation that will produce the result.
 //
 // It initializes the necessary synchronization primitives and starts a background
@@ -68,137 +59,86 @@ type AsyncResult[T any] struct {
 //
 //	// The result will automatically complete with a context.DeadlineExceeded
 //	// error if no value is set within 5 seconds
-func NewAsyncResult[T any](ctx context.Context) *AsyncResult[T] {
-	res := &AsyncResult[T]{
+func NewReadonlyAsyncResult[T any](ctx context.Context) *ReadonlyAsyncResult[T] {
+	res := &ReadonlyAsyncResult[T]{
 		ctx:          ctx,
-		completionCh: make(chan struct{}, 1),
+		completionCh: make(chan struct{}),
 	}
 	res.completionWg.Add(1)
-	res.awaitCompletion()
+	go res.awaitCompletion()
 	return res
 }
 
 // awaitCompletion waits for either the context to be canceled or the result to be set.
 // This method runs in a background goroutine started by NewAsyncResult.
 //
-// When the context is canceled, the AsyncResult is completed with the context's error.
-// When the completionCh is closed (by Set/ SetResult/ SetError), the AsyncResult completes
+// When the context is canceled, the ReadonlyAsyncResult is completed with the context's error.
+// When the completionCh is closed (by Set/SetResult/SetError), the ReadonlyAsyncResult completes
 // with the provided value and error.
 //
-// This method ensures that an AsyncResult always eventually completes, even if
+// This method ensures that an ReadonlyAsyncResult always eventually completes, even if
 // the producer fails to call Set methods.
-func (p *AsyncResult[T]) awaitCompletion() {
+func (a *ReadonlyAsyncResult[T]) awaitCompletion() {
 	defer func() {
-		p.isCompleted.Store(true)
-		p.completionWg.Done()
+		a.isCompleted.Store(true)
+		a.completionWg.Done()
 	}()
 
 	select {
-	case <-p.ctx.Done():
-		p.err = p.ctx.Err()
-	case <-p.completionCh:
+	case <-a.ctx.Done():
+		a.mu.Lock()
+		a.err = a.ctx.Err()
+		a.mu.Unlock()
+	case <-a.completionCh:
 	}
 }
 
-// forkFrom copies the result and error from the parent AsyncResult when it completes.
-// This is an internal method used by Chain().
+// forkFrom copies the result and error from the parent ReadonlyAsyncResult when it completes.
+// This is an internal method used by Fork().
 //
 // It waits for either:
 // - The current context to be canceled, in which case it completes with the context error
-// - The parent AsyncResult to complete, in which case it copies the parent's result and error
+// - The parent ReadonlyAsyncResult to complete, in which case it copies the parent's result and error
 //
 // This method allows for creating dependency chains between AsyncResults without
 // blocking the caller.
-func (p *AsyncResult[T]) forkFrom(parent *AsyncResult[T]) {
-	defer p.markAsCompleted()
+func (a *ReadonlyAsyncResult[T]) forkFrom(parent *ReadonlyAsyncResult[T]) {
+	defer a.markAsCompleted()
 
 	select {
-	case <-p.ctx.Done():
-		p.err = p.ctx.Err()
+	case <-a.ctx.Done():
+		a.mu.Lock()
+		a.err = a.ctx.Err()
+		a.mu.Unlock()
 	case <-parent.completionCh:
 		// Copy the parent's result and error when it completes
-		p.result, p.err = parent.result, parent.err
+		parent.mu.RLock()
+		a.mu.Lock()
+		a.result, a.err = parent.result, parent.err
+		a.mu.Unlock()
+		parent.mu.RUnlock()
 	}
 }
 
-// SetResult sets the result value and marks the AsyncResult as completed.
-// If the AsyncResult is already completed, this method does nothing.
+// markAsCompleted marks the ReadonlyAsyncResult as completed and signals any waiters.
+// This is an internal method used by Set, SetResult, and SetError.
 //
-// This is a convenience method that calls Set with a nil error.
+// The method ensures that:
+// - The completion flag is set atomically
+// - The completion channel is closed to signal any waiting goroutines
+// - We wait for the background completion routine to finish
 //
-// Example:
-//
-//	result := NewAsyncResult[string](ctx)
-//	go func() {
-//	    // Perform some computation
-//	    time.Sleep(time.Second)
-//	    result.SetResult("computation complete")
-//	}()
-//
-//	// In another goroutine or later
-//	value, err := result.Result() // Will block until result is set or ctx is canceled
-func (p *AsyncResult[T]) SetResult(result T) {
-	p.Set(result, nil)
-}
-
-// SetError sets an error and marks the AsyncResult as completed with that error.
-// If the AsyncResult is already completed, this method does nothing.
-//
-// This is a convenience method that calls Set with a zero value for the result type
-// and the provided error.
-//
-// Example:
-//
-//	result := NewAsyncResult[string](ctx)
-//	go func() {
-//	    // Attempt some operation
-//	    if err := someRiskyOperation(); err != nil {
-//	        result.SetError(err)
-//	        return
-//	    }
-//	    result.SetResult("operation succeeded")
-//	}()
-func (p *AsyncResult[T]) SetError(err error) {
-	var zero T
-	p.Set(zero, err)
-}
-
-// Set sets both the result value and error, then marks the AsyncResult as completed.
-// If the AsyncResult is already completed, this method does nothing.
-//
-// This is a lower-level method typically used internally or when both a result
-// and error need to be set simultaneously. Most callers should use SetResult or
-// SetError instead.
-//
-// The method is thread-safe and can be called from any goroutine.
-//
-// Example:
-//
-//	func processData(data []byte) (string, error) {
-//	    // Process data and return result or error
-//	    if len(data) == 0 {
-//	        return "", errors.New("empty data")
-//	    }
-//	    return string(data), nil
-//	}
-//
-//	result := NewAsyncResult[string](ctx)
-//	go func() {
-//	    res, err := processData(someData)
-//	    result.Set(res, err) // Set both result and error at once
-//	}()
-func (p *AsyncResult[T]) Set(result T, err error) {
-	if p.IsCompleted() {
+// This method is idempotent and will do nothing if the ReadonlyAsyncResult is already completed.
+func (a *ReadonlyAsyncResult[T]) markAsCompleted() {
+	if a.IsCompleted() {
 		return
 	}
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	p.result = result
-	p.err = err
-	p.markAsCompleted()
+	a.isCompleted.Store(true)
+	close(a.completionCh)
+	a.completionWg.Wait()
 }
 
-// IsCompleted returns true if the AsyncResult has been completed, either with
+// IsCompleted returns true if the ReadonlyAsyncResult has been completed, either with
 // a value, an error, or by context cancellation.
 //
 // This method is thread-safe and non-blocking, making it useful for checking
@@ -214,12 +154,12 @@ func (p *AsyncResult[T]) Set(result T, err error) {
 //	    // Result is not yet available
 //	    // Maybe do something else while waiting...
 //	}
-func (p *AsyncResult[T]) IsCompleted() bool {
-	return p.isCompleted.Load()
+func (a *ReadonlyAsyncResult[T]) IsCompleted() bool {
+	return a.isCompleted.Load()
 }
 
 // Result returns the result value and any error. This method blocks until
-// the AsyncResult is completed, either by setting a value/error or by
+// the ReadonlyAsyncResult is completed, either by setting a value/error or by
 // context cancellation.
 //
 // The method is thread-safe and can be called concurrently from multiple goroutines.
@@ -240,18 +180,18 @@ func (p *AsyncResult[T]) IsCompleted() bool {
 //
 //	// Use the value
 //	log.Printf("Got result: %v", value)
-func (p *AsyncResult[T]) Result() (T, error) {
-	p.completionWg.Wait()
-	p.mu.RLock()
-	defer p.mu.RUnlock()
-	return p.result, p.err
+func (a *ReadonlyAsyncResult[T]) Result() (T, error) {
+	a.completionWg.Wait()
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	return a.result, a.err
 }
 
-// Fork creates a new AsyncResult that will be completed with the same
+// Fork creates a new ReadonlyAsyncResult that will be completed with the same
 // result and error as this one. This allows creating dependent operations
 // that only proceed when the parent operation completes.
 //
-// The chained result inherits the same context as the parent, so it will
+// The forked result inherits the same context as the parent, so it will
 // be canceled if the parent context is canceled.
 //
 // This method is useful for creating pipelines of asynchronous operations
@@ -263,7 +203,7 @@ func (p *AsyncResult[T]) Result() (T, error) {
 //	parent := fetchDataAsync(ctx)
 //
 //	// Create a dependent operation that waits for the first to complete
-//	child := parent.Chain()
+//	child := parent.Fork()
 //
 //	// Start work with the child in another goroutine
 //	go func() {
@@ -276,26 +216,146 @@ func (p *AsyncResult[T]) Result() (T, error) {
 //	}()
 //
 //	// The original goroutine can continue with other work
-func (p *AsyncResult[T]) Fork() *AsyncResult[T] {
-	res := NewAsyncResult[T](p.ctx)
-	go res.forkFrom(p)
+func (a *ReadonlyAsyncResult[T]) Fork() *ReadonlyAsyncResult[T] {
+	res := NewReadonlyAsyncResult[T](a.ctx)
+	go res.forkFrom(a)
 	return res
 }
 
-// markAsCompleted marks the AsyncResult as completed and signals any waiters.
-// This is an internal method used by Set, SetResult, and SetError.
+// WritableAsyncResult extends ReadonlyAsyncResult with methods to set results and errors.
+// It provides a clear separation between consumers and producers of async results.
 //
-// The method ensures that:
-// - The completion flag is set atomically
-// - The completion channel is closed to signal any waiting goroutines
-// - We wait for the background completion routine to finish
+// WritableAsyncResult adds the ability to:
+// - Set successful result values with SetResult
+// - Set error conditions with SetError
+// - Set both result and error simultaneously with Set
+// - Explicitly cancel operations with Cancel
+type WritableAsyncResult[T any] struct {
+	// cancel is the function to cancel the internal context
+	cancel context.CancelFunc
+
+	// ReadonlyAsyncResult contains the core implementation
+	ReadonlyAsyncResult[T]
+}
+
+// NewWritableAsyncResult creates a new WritableAsyncResult instance with the given context.
+// This is used when you need to both produce and consume an async result.
 //
-// This method is idempotent and will do nothing if the AsyncResult is already completed.
-func (p *AsyncResult[T]) markAsCompleted() {
-	if p.IsCompleted() {
+// The method creates a derived cancellable context from the provided parent context,
+// allowing explicit cancellation through the Cancel method.
+//
+// Example:
+//
+//	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+//	defer cancel()
+//	result := NewWritableAsyncResult[string](ctx)
+//
+//	// Later, set the result
+//	result.SetResult("computation complete")
+func NewWritableAsyncResult[T any](ctx context.Context) *WritableAsyncResult[T] {
+	cancelCtx, cancel := context.WithCancel(ctx)
+	return &WritableAsyncResult[T]{
+		cancel:              cancel,
+		ReadonlyAsyncResult: *NewReadonlyAsyncResult[T](cancelCtx),
+	}
+}
+
+// SetResult sets the result value and marks the ReadonlyAsyncResult as completed.
+// If the ReadonlyAsyncResult is already completed, this method does nothing.
+//
+// This is a convenience method that calls Set with a nil error.
+//
+// Example:
+//
+//	result := NewWritableAsyncResult[string](ctx)
+//	go func() {
+//	    // Perform some computation
+//	    time.Sleep(time.Second)
+//	    result.SetResult("computation complete")
+//	}()
+//
+//	// In another goroutine or later
+//	value, err := result.Result() // Will block until result is set or ctx is canceled
+func (a *WritableAsyncResult[T]) SetResult(result T) {
+	a.Set(result, nil)
+}
+
+// SetError sets an error and marks the ReadonlyAsyncResult as completed with that error.
+// If the ReadonlyAsyncResult is already completed, this method does nothing.
+//
+// This is a convenience method that calls Set with a zero value for the result type
+// and the provided error.
+//
+// Example:
+//
+//	result := NewWritableAsyncResult[string](ctx)
+//	go func() {
+//	    // Attempt some operation
+//	    if err := someRiskyOperation(); err != nil {
+//	        result.SetError(err)
+//	        return
+//	    }
+//	    result.SetResult("operation succeeded")
+//	}()
+func (a *WritableAsyncResult[T]) SetError(err error) {
+	var zero T
+	a.Set(zero, err)
+}
+
+// Set sets both the result value and error, then marks the ReadonlyAsyncResult as completed.
+// If the ReadonlyAsyncResult is already completed, this method does nothing.
+//
+// This is a lower-level method typically used internally or when both a result
+// and error need to be set simultaneously. Most callers should use SetResult or
+// SetError instead.
+//
+// The method is thread-safe and can be called from any goroutine.
+//
+// Example:
+//
+//	func processData(data []byte) (string, error) {
+//	    // Process data and return result or error
+//	    if len(data) == 0 {
+//	        return "", errors.New("empty data")
+//	    }
+//	    return string(data), nil
+//	}
+//
+//	result := NewWritableAsyncResult[string](ctx)
+//	go func() {
+//	    res, err := processData(someData)
+//	    result.Set(res, err) // Set both result and error at once
+//	}()
+func (a *WritableAsyncResult[T]) Set(result T, err error) {
+	if a.IsCompleted() {
 		return
 	}
-	p.isCompleted.Store(true)
-	close(p.completionCh)
-	p.completionWg.Wait()
+	a.mu.Lock()
+	a.result = result
+	a.err = err
+	a.mu.Unlock()
+	a.markAsCompleted()
+}
+
+// Cancel actively cancels the operation and marks the ReadonlyAsyncResult as completed
+// with a context.Canceled error.
+// If the ReadonlyAsyncResult is already completed, this method does nothing.
+//
+// This method provides an explicit way to cancel the operation beyond waiting
+// for the parent context to be canceled. Calling this method immediately stops
+// any work associated with this AsyncResult through the internal cancellable context.
+//
+// Example:
+//
+//	result := NewWritableAsyncResult[string](ctx)
+//
+//	// Later, if you need to cancel the operation:
+//	result.Cancel()
+//
+//	// Anyone waiting on result.Result() will now receive context.Canceled error
+func (a *WritableAsyncResult[T]) Cancel() {
+	if a.IsCompleted() {
+		return
+	}
+	a.cancel()
 }
