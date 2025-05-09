@@ -1,19 +1,18 @@
-// Package future provides a unified interface for various goroutine pool implementations.
-// It allows interchangeable usage of different concurrency libraries through a common API.
-package future
+package sync
 
 import (
+	"sync/atomic"
+
 	"github.com/gammazero/workerpool"
 	"github.com/panjf2000/ants/v2"
 	conc "github.com/sourcegraph/conc/pool"
-	"sync/atomic"
 )
 
 // Pool defines the common interface for all goroutine pool implementations.
 // Any pool implementing this interface can be used to execute functions concurrently.
 type Pool interface {
-	// Go submits a function to be executed concurrently by the pool.
-	Go(f func())
+	// Submit submits a function to be executed concurrently by the pool.
+	Submit(f func())
 }
 
 // defaultPool is the package-level default pool instance.
@@ -36,29 +35,24 @@ func SetDefaultPool(pool Pool) {
 
 // init initializes the package by setting the default pool to a simple goroutine pool.
 func init() {
-	defaultPool.Store(PoolOfGoroutines())
+	defaultPool.Store(PoolOfNoPool())
 }
 
-// poolWrapper is an adapter type that converts a function with the signature
+// poolAdapter is an adapter type that converts a function with the signature
 // func(func()) into a Pool implementation.
-type poolWrapper func(f func())
+type poolAdapter func(f func())
 
-// Go implements the Pool interface for poolWrapper by calling the wrapped function.
-func (p poolWrapper) Go(f func()) {
+// Submit implements the Pool interface for poolAdapter by calling the wrapped function.
+func (p poolAdapter) Submit(f func()) {
 	p(f)
 }
 
-// PoolOfGoroutines creates a Pool that simply launches a new goroutine for each task.
+// PoolOfNoPool creates a Pool that simply launches a new goroutine for each task.
 // This implementation has no limits on concurrency and doesn't provide any pooling benefits.
-// It does include basic panic recovery for safety.
-func PoolOfGoroutines() Pool {
-	return poolWrapper(func(f func()) {
-		go func() {
-			defer func() {
-				recover()
-			}()
-			f()
-		}()
+// It does include basic panic recovery for safety by Go.
+func PoolOfNoPool() Pool {
+	return poolAdapter(func(f func()) {
+		Go(f)
 	})
 }
 
@@ -68,7 +62,7 @@ func PoolOfConc(pool *conc.Pool) Pool {
 	if pool == nil {
 		panic("conc pool is nil")
 	}
-	return poolWrapper(func(f func()) {
+	return poolAdapter(func(f func()) {
 		pool.Go(f)
 	})
 }
@@ -79,7 +73,7 @@ func PoolOfAnts(pool *ants.Pool) Pool {
 	if pool == nil {
 		panic("ants pool is nil")
 	}
-	return poolWrapper(func(f func()) {
+	return poolAdapter(func(f func()) {
 		_ = pool.Submit(f)
 	})
 }
@@ -90,7 +84,7 @@ func PoolOfWorkerpool(pool *workerpool.WorkerPool) Pool {
 	if pool == nil {
 		panic("worker pool is nil")
 	}
-	return poolWrapper(func(f func()) {
+	return poolAdapter(func(f func()) {
 		pool.Submit(f)
 	})
 }
