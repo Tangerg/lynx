@@ -50,8 +50,8 @@ func Split[T any](slice []T, size int) [][]T {
 	)
 
 	for i := 0; i < length; i += size {
-		rv = append(rv, slice[i:min(i+size, length)])
+		end := min(i+size, length)
+		rv = append(rv, slice[i:end:end])
 	}
-
 	return rv
 }
