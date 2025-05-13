@@ -9,8 +9,10 @@ import (
 func TestGo(t *testing.T) {
 	Go(func() {
 		time.Sleep(2 * time.Second)
-		panic("err")
+		panic("custom panic error")
 	}, func(err error) {
 		fmt.Print(err)
 	})
+
+	time.Sleep(5 * time.Second)
 }
