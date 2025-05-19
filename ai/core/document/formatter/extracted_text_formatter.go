@@ -1,7 +1,7 @@
 package formatter
 
 import (
-	pkgStrings "github.com/Tangerg/lynx/pkg/strings"
+	pkgText "github.com/Tangerg/lynx/pkg/text"
 )
 
 type ExtractedTextFormatter struct {
@@ -12,19 +12,19 @@ type ExtractedTextFormatter struct {
 }
 
 func (e *ExtractedTextFormatter) Format(text string, pageNumberOption ...int) string {
-	text = pkgStrings.TrimAdjacentBlankLines(text)
+	text = pkgText.TrimAdjacentBlankLines(text)
 
 	var pageNumber = 0
 	if len(pageNumberOption) > 0 {
 		pageNumber = pageNumberOption[0]
 	}
 	if pageNumber > e.numberOfTopPagesToSkipBeforeDelete {
-		text = pkgStrings.DeleteTopTextLines(text, e.numberOfTopTextLinesToDelete)
-		text = pkgStrings.DeleteBottomTextLines(text, e.numberOfBottomTextLinesToDelete)
+		text = pkgText.DeleteTopLines(text, e.numberOfTopTextLinesToDelete)
+		text = pkgText.DeleteBottomLines(text, e.numberOfBottomTextLinesToDelete)
 	}
 
 	if e.leftAlignment {
-		text = pkgStrings.AlignToLeft(text)
+		text = pkgText.AlignToLeft(text)
 	}
 	return text
 }
