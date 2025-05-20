@@ -110,8 +110,8 @@ var xPrefixSubtypeToStandard = map[string]string{
 // - "application/x-javascript" becomes "application/javascript"
 // - "text/x-markdown" becomes "text/markdown"
 //
-// This function always returns a new Mime instance and does not modify the original.
-func NormalizeXSubtype(m *Mime) *Mime {
+// This function always returns a new MIME instance and does not modify the original.
+func NormalizeXSubtype(m *MIME) *MIME {
 	if !strings.HasPrefix(m.subType, "x-") {
 		return m.Clone()
 	}

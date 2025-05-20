@@ -53,7 +53,7 @@ func init() {
 // It provides a fluent API for constructing MIME types with validation at each step,
 // ensuring that the resulting MIME type adheres to the standards defined in RFC 2045 and 2046.
 type Builder struct {
-	mime *Mime // The MIME type being constructed
+	mime *MIME // The MIME type being constructed
 }
 
 // checkToken validates that a token contains only characters allowed in MIME tokens.
@@ -183,16 +183,16 @@ func (b *Builder) WithParams(params map[string]string) *Builder {
 	return b
 }
 
-// FromMime initializes the builder from an existing Mime instance.
+// FromMime initializes the builder from an existing MIME instance.
 // It performs a deep copy of all fields, ensuring that modifications to the builder
 // do not affect the original MIME type.
 //
 // If the input MIME is nil, it returns the builder unchanged.
 //
 // Example:
-// existingMime := &Mime{_type: "text", subType: "html", charset: "UTF-8", ...}
+// existingMime := &MIME{_type: "text", subType: "html", charset: "UTF-8", ...}
 // builder.FromMime(existingMime) // Copies all properties from existingMime
-func (b *Builder) FromMime(mime *Mime) *Builder {
+func (b *Builder) FromMime(mime *MIME) *Builder {
 	if mime == nil {
 		return b
 	}
@@ -215,7 +215,7 @@ func (b *Builder) FromMime(mime *Mime) *Builder {
 // Example usages:
 // - NewBuilder().WithType("text").WithSubType("html").Build() returns a valid MIME
 // - NewBuilder().WithType("text/html").Build() returns an error (invalid type)
-func (b *Builder) Build() (*Mime, error) {
+func (b *Builder) Build() (*MIME, error) {
 	if b.mime._type == "" {
 		b.mime._type = wildcardType
 	} else {
@@ -258,7 +258,7 @@ func (b *Builder) Build() (*Mime, error) {
 // builder := NewBuilder() // Creates a builder for "*/*" MIME type
 func NewBuilder() *Builder {
 	return &Builder{
-		mime: &Mime{
+		mime: &MIME{
 			_type:   wildcardType,
 			subType: wildcardType,
 			charset: "",

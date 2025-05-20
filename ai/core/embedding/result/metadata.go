@@ -18,7 +18,7 @@ type EmbeddingResultMetadata struct {
 	model.ResultMetadata
 	modalityType ModalityType
 	documentId   string
-	mimeType     *mime.Mime
+	mimeType     *mime.MIME
 	documentData []byte
 }
 
@@ -31,6 +31,6 @@ func (e *EmbeddingResultMetadata) DocumentId() string {
 func (e *EmbeddingResultMetadata) DocumentData() []byte {
 	return e.documentData
 }
-func (e *EmbeddingResultMetadata) MimeType() *mime.Mime {
+func (e *EmbeddingResultMetadata) MimeType() *mime.MIME {
 	return e.mimeType
 }

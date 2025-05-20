@@ -594,7 +594,7 @@ var extMimetypeStringMappings = map[string]string{
 }
 
 var (
-	extToMimeTypeMappings = map[string]*Mime{}
+	extToMimeTypeMappings = map[string]*MIME{}
 )
 
 func init() {
