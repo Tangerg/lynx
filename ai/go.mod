@@ -1,6 +1,6 @@
 module github.com/Tangerg/lynx/ai
 
-go 1.23.0
+go 1.24.2
 
 require (
 	github.com/Tangerg/lynx/pkg v0.0.0-20241119161252-b54044fc3892

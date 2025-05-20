@@ -1,6 +1,6 @@
 module github.com/Tangerg/lynx/stream
 
-go 1.23.0
+go 1.24.2
 
 require (
 	github.com/apache/pulsar-client-go v0.14.0

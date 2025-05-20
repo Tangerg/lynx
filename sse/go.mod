@@ -1,3 +1,3 @@
 module github.com/Tangerg/lynx/sse
 
-go 1.23.0
+go 1.24.2
