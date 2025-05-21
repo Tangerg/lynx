@@ -201,8 +201,8 @@ func (p *Parallel[I, O]) WithAggregator(aggregator func(context.Context, []any) 
 // WithCancelRemaining sets whether to cancel remaining processors after collecting enough results.
 // If true, processors that haven't completed will be canceled when waitCount results are collected.
 // Returns the Parallel for chaining.
-func (p *Parallel[I, O]) WithCancelRemaining(cancelRemaining bool) *Parallel[I, O] {
-	p.cancelRemaining = cancelRemaining
+func (p *Parallel[I, O]) WithCancelRemaining() *Parallel[I, O] {
+	p.cancelRemaining = true
 	return p
 }
 
@@ -210,8 +210,8 @@ func (p *Parallel[I, O]) WithCancelRemaining(cancelRemaining bool) *Parallel[I, 
 // If true, errors are collected and returned after waitCount results or errors.
 // If false (default), the operation stops on the first error.
 // Returns the Parallel for chaining.
-func (p *Parallel[I, O]) WithContinueOnError(continueOnError bool) *Parallel[I, O] {
-	p.continueOnError = continueOnError
+func (p *Parallel[I, O]) WithContinueOnError() *Parallel[I, O] {
+	p.continueOnError = true
 	return p
 }
 
@@ -267,15 +267,15 @@ func (p *ParallelBuilder) WithAggregator(aggregator func(context.Context, []any)
 
 // WithCancelRemaining sets whether to cancel remaining processors after collecting enough results.
 // Returns the ParallelBuilder for chaining.
-func (p *ParallelBuilder) WithCancelRemaining(cancelRemaining bool) *ParallelBuilder {
-	p.parallel.WithCancelRemaining(cancelRemaining)
+func (p *ParallelBuilder) WithCancelRemaining() *ParallelBuilder {
+	p.parallel.WithCancelRemaining()
 	return p
 }
 
 // WithContinueOnError sets whether to continue collecting results after an error.
 // Returns the ParallelBuilder for chaining.
-func (p *ParallelBuilder) WithContinueOnError(continueOnError bool) *ParallelBuilder {
-	p.parallel.WithContinueOnError(continueOnError)
+func (p *ParallelBuilder) WithContinueOnError() *ParallelBuilder {
+	p.parallel.WithContinueOnError()
 	return p
 }
 

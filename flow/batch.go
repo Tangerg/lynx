@@ -162,8 +162,8 @@ func (b *Batch[I, O, T, R]) Run(ctx context.Context, input I) (output O, err err
 // If true, processing continues with remaining segments when one fails.
 // If false (default), processing stops on the first error.
 // Returns the Batch for chaining.
-func (b *Batch[I, O, T, R]) WithContinueOnError(continueOnError bool) *Batch[I, O, T, R] {
-	b.continueOnError = continueOnError
+func (b *Batch[I, O, T, R]) WithContinueOnError() *Batch[I, O, T, R] {
+	b.continueOnError = true
 	return b
 }
 
@@ -205,8 +205,8 @@ type BatchBuilder struct {
 
 // WithContinueOnError sets whether to continue processing segments after an error.
 // Returns the BatchBuilder for chaining.
-func (b *BatchBuilder) WithContinueOnError(continueOnError bool) *BatchBuilder {
-	b.batch.WithContinueOnError(continueOnError)
+func (b *BatchBuilder) WithContinueOnError() *BatchBuilder {
+	b.batch.WithContinueOnError()
 	return b
 }
 
