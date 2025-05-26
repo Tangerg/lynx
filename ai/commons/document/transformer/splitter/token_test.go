@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/ai/commons/document"
-	"github.com/Tangerg/lynx/ai/core/tokenizer"
 )
 
 const content = `GPT-4o has safety built-in by design across modalities, through techniques such as filtering training data and refining the model’s behavior through post-training. We have also created new safety systems to provide guardrails on voice outputs.
@@ -28,8 +27,13 @@ Developers can also now access GPT-4o in the API as a text and vision model. GPT
 `
 
 func TestTokenSplitter(t *testing.T) {
-	tiktoken, _ := tokenizer.NewTiktoken("o200k_base")
-	ts := NewTokenSplitterBuilder(tiktoken).WithDefaultChunkSize(100).Build()
+	ts, err := NewTokenSplitterBuilder().
+		WithEncodingByEncodingName("cl100k_base").
+		WithChunkSize(50).
+		Build()
+	if err != nil {
+		t.Fatal(err)
+	}
 	doc, err := document.
 		NewBuilder().
 		WithText(content).

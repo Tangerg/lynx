@@ -15,7 +15,7 @@ func TestTextSplitter(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	transDocs, _ := NewTextSplitter(nil).
+	transDocs, _ := NewTextSplitter("\n").
 		Transform(context.Background(), []*document.Document{doc})
 	for _, transDoc := range transDocs {
 		t.Log(transDoc.Text())

@@ -2,7 +2,6 @@ package splitter
 
 import (
 	"context"
-	"maps"
 	"strings"
 
 	"github.com/Tangerg/lynx/ai/commons/document"
@@ -10,67 +9,63 @@ import (
 
 var _ document.Transformer = (*TextSplitter)(nil)
 
+// TextSplitter is a document transformer that splits documents by a specified separator string.
+// It provides a simple built-in implementation for common text splitting scenarios based on delimiters.
 type TextSplitter struct {
-	textSplitFunc        func(string) []string
-	copyContentFormatter bool
+	splitter *Splitter
 }
 
-func NewTextSplitter(textSplitFunc func(string) []string) *TextSplitter {
-	return &TextSplitter{textSplitFunc: textSplitFunc}
-}
-
-func (t *TextSplitter) SetCopyContentFormatter(copyContentFormatter bool) {
-	t.copyContentFormatter = copyContentFormatter
-}
-
-func (t *TextSplitter) IsCopyContentFormatter() bool {
-	return t.copyContentFormatter
-}
-
-func (t *TextSplitter) Transform(_ context.Context, documents []*document.Document) ([]*document.Document, error) {
-	if t.textSplitFunc == nil {
-		t.textSplitFunc = func(s string) []string {
-			return strings.Split(s, "\n")
-		}
+// NewTextSplitter creates a new TextSplitter with the specified separator.
+//
+// Parameters:
+//   - separator: the string used to split the document text
+//
+// Returns a new TextSplitter instance.
+//
+// Common usage examples:
+//
+//	NewTextSplitter("\n")      // Split by newlines
+//	NewTextSplitter("\r\n")    // Split by Windows line endings
+//	NewTextSplitter(",")       // Split by commas
+//	NewTextSplitter(" ")       // Split by spaces
+//	NewTextSplitter("\n\n")    // Split by double newlines (paragraphs)
+func NewTextSplitter(separator string) *TextSplitter {
+	return &TextSplitter{
+		splitter: NewSplitter(func(s string) []string {
+			return strings.Split(s, separator)
+		}),
 	}
-	return t.doSplitDocuments(documents), nil
 }
 
-func (t *TextSplitter) doSplitDocuments(docs []*document.Document) []*document.Document {
-	var (
-		texts      = make([]string, 0, len(docs))
-		metadatas  = make([]map[string]any, 0, len(docs))
-		formatters = make([]document.ContentFormatter, 0, len(docs))
-	)
-
-	for _, doc := range docs {
-		texts = append(texts, doc.Text())
-		metadatas = append(metadatas, doc.Metadata())
-		formatters = append(formatters, doc.ContentFormatter())
-	}
-	return t.createDocuments(texts, metadatas, formatters)
+// SetCopyContentFormatter enables or disables copying content formatter from original
+// documents to split chunks.
+//
+// Parameters:
+//   - copyContentFormatter: true to enable copying content formatter, false to disable
+//
+// Returns the TextSplitter instance for method chaining.
+func (s *TextSplitter) SetCopyContentFormatter(copyContentFormatter bool) *TextSplitter {
+	s.splitter.SetCopyContentFormatter(copyContentFormatter)
+	return s
 }
 
-func (t *TextSplitter) createDocuments(texts []string, metadatas []map[string]any, formatters []document.ContentFormatter) []*document.Document {
-	docs := make([]*document.Document, 0, len(texts))
-	for i := 0; i < len(texts); i++ {
-		text := texts[i]
-		metadata := metadatas[i]
-		chunks := t.textSplitFunc(text)
-		for _, chunk := range chunks {
-			if chunk == "" {
-				continue
-			}
-			metadataClone := maps.Clone(metadata)
-			newDoc, _ := document.NewBuilder().
-				WithMetadata(metadataClone).
-				WithText(chunk).
-				Build()
-			if t.copyContentFormatter {
-				newDoc.SetContentFormatter(formatters[i])
-			}
-			docs = append(docs, newDoc)
-		}
-	}
-	return docs
+// Transform splits the provided documents using the configured separator.
+// Each document's content is split by the separator string, creating new
+// documents for each resulting chunk while preserving metadata.
+//
+// Parameters:
+//   - ctx: the context for the transformation operation
+//   - docs: slice of documents to be split
+//
+// Returns:
+//   - []*document.Document: slice of split document chunks
+//   - error: any error that occurred during transformation
+//
+// The transformation process:
+//  1. Splits each document's content by the configured separator
+//  2. Creates new documents for each non-empty chunk
+//  3. Preserves original metadata in each chunk
+//  4. Optionally copies content formatter if enabled
+func (s *TextSplitter) Transform(ctx context.Context, docs []*document.Document) ([]*document.Document, error) {
+	return s.splitter.Transform(ctx, docs)
 }

@@ -2,6 +2,7 @@ package document
 
 import (
 	"errors"
+
 	"github.com/Tangerg/lynx/ai/commons/content"
 	"github.com/Tangerg/lynx/ai/commons/document/id"
 )
@@ -149,8 +150,8 @@ func NewBuilder() *Builder {
 	return &Builder{}
 }
 
-// WithId sets the ID for the document being built
-func (b *Builder) WithId(id string) *Builder {
+// WithID sets the ID for the document being built
+func (b *Builder) WithID(id string) *Builder {
 	b.id = id
 	return b
 }

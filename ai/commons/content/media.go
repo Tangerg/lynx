@@ -3,8 +3,10 @@ package content
 import (
 	"errors"
 	"fmt"
-	"github.com/Tangerg/lynx/pkg/mime"
+
 	"github.com/google/uuid"
+
+	"github.com/Tangerg/lynx/pkg/mime"
 )
 
 // generateDefaultName creates a default name for a media object using its MIME subtype and a UUID
@@ -83,8 +85,8 @@ func NewMediaBuilder() *MediaBuilder {
 	return &MediaBuilder{}
 }
 
-// WithId sets the ID for the media being built
-func (b *MediaBuilder) WithId(id string) *MediaBuilder {
+// WithID sets the ID for the media being built
+func (b *MediaBuilder) WithID(id string) *MediaBuilder {
 	b.id = id
 	return b
 }

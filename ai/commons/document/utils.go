@@ -2,10 +2,11 @@ package document
 
 import (
 	"context"
-	"github.com/spf13/cast"
 	"maps"
 	"slices"
 	"strings"
+
+	"github.com/spf13/cast"
 )
 
 // Reader defines an interface for reading documents from a source.
