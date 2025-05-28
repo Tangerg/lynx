@@ -40,13 +40,13 @@ type Writer[T any] interface {
 	//
 	// Parameters:
 	//   - ctx: Context for cancellation and timeout control
-	//   - t: The value to write to the stream
+	//   - v: The value to write to the stream
 	//
 	// Returns:
 	//   - error: nil on success, ctx.Err() if context was cancelled,
 	//            ErrStreamClosed if attempting to write to a closed stream,
 	//            or other errors for exceptional conditions
-	Write(ctx context.Context, t T) error
+	Write(ctx context.Context, v T) error
 }
 
 // ReadWriter combines both Reader and Writer interfaces, providing bidirectional stream operations.
@@ -125,18 +125,18 @@ func (c *Stream[T]) Read(ctx context.Context) (v T, err error) {
 //
 // Parameters:
 //   - ctx: Context for cancellation and timeout control
-//   - t: The value to write to the stream
+//   - v: The value to write to the stream
 //
 // Returns:
 //   - error: nil on success, ctx.Err() if context was cancelled,
 //     ErrStreamClosed if attempting to write to a closed stream
-func (c *Stream[T]) Write(ctx context.Context, t T) error {
+func (c *Stream[T]) Write(ctx context.Context, v T) error {
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
 	case <-c.closed:
 		return ErrStreamClosed
-	case c.value <- t:
+	case c.value <- v:
 		return nil
 	}
 }
