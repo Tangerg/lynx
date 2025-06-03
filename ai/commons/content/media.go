@@ -114,3 +114,12 @@ func (b *MediaBuilder) WithData(data any) *MediaBuilder {
 func (b *MediaBuilder) Build() (*Media, error) {
 	return NewMedia(b.id, b.name, b.mimeType, b.data)
 }
+
+// MustBuild creates and returns a new Media instance, panicking if validation fails.
+func (b *MediaBuilder) MustBuild() *Media {
+	m, err := b.Build()
+	if err != nil {
+		panic(err)
+	}
+	return m
+}
