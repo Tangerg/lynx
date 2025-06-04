@@ -2,8 +2,9 @@ package tool
 
 import (
 	"errors"
-	pkgString "github.com/Tangerg/lynx/pkg/strings"
 	"strings"
+
+	pkgString "github.com/Tangerg/lynx/pkg/strings"
 )
 
 // Definition represents a tool definition that is used by the AI model to determine

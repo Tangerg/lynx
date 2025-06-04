@@ -5,6 +5,8 @@ package model
 // response, such as total computation time, request ID, or other relevant details
 // that enhance understanding and management of AI model responses.
 type ResponseMetadata interface {
+	// Get retrieves a custom metadata value by key.
+	Get(key string) (any, bool)
 }
 
 // Response represents the response received from an AI model. It provides

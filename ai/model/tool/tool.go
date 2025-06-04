@@ -2,7 +2,8 @@ package tool
 
 import (
 	"errors"
-	"github.com/Tangerg/lynx/ai/chat/model"
+
+	"github.com/Tangerg/lynx/ai/model/chat/model"
 )
 
 // Tool represents a tool whose execution can be triggered by an AI model.
