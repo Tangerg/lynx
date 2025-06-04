@@ -76,28 +76,37 @@ type ChatResultMetadataBuilder struct {
 	finishReason FinishReason
 }
 
-// WithFinishReason sets the finish reason for the metadata being built.
+// WithFinishReason sets the finish reason for the metadata being built if finishReason is not empty.
 // Returns the builder instance for method chaining.
 // This method modifies the builder's internal state before the final build.
 func (b *ChatResultMetadataBuilder) WithFinishReason(f FinishReason) *ChatResultMetadataBuilder {
-	b.finishReason = f
+	if f.String() != "" {
+		b.finishReason = f
+	}
 	return b
 }
 
-// WithParam adds a single key-value pair to the metadata fields.
+// WithField adds a single key-value pair to the metadata fields if key is not empty.
+// Value can be nil/empty as it might be intentionally set to such values.
 // Returns the builder instance for method chaining.
 // This method modifies the builder's internal state before the final build.
-func (b *ChatResultMetadataBuilder) WithParam(key string, value any) *ChatResultMetadataBuilder {
-	b.fields[key] = value
+func (b *ChatResultMetadataBuilder) WithField(key string, value any) *ChatResultMetadataBuilder {
+	if key != "" {
+		b.fields[key] = value
+	}
 	return b
 }
 
-// WithParams adds multiple key-value pairs to the metadata fields.
-// The provided map is copied into the metadata, preserving existing fields.
+// WithFields adds multiple key-value pairs to the metadata fields, filtering out empty keys.
+// Values can be nil/empty as they might be intentionally set to such values.
 // Returns the builder instance for method chaining.
 // This method modifies the builder's internal state before the final build.
-func (b *ChatResultMetadataBuilder) WithParams(params map[string]any) *ChatResultMetadataBuilder {
-	maps.Copy(b.fields, params)
+func (b *ChatResultMetadataBuilder) WithFields(fields map[string]any) *ChatResultMetadataBuilder {
+	if fields != nil {
+		for k, v := range fields {
+			b.WithField(k, v)
+		}
+	}
 	return b
 }
 

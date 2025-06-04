@@ -59,17 +59,21 @@ func NewChatResultBuilder() *ChatResultBuilder {
 	return &ChatResultBuilder{}
 }
 
-// WithAssistantMessage sets the assistant message for the chat result being built.
+// WithAssistantMessage sets the assistant message for the chat result being built if message is not nil.
 // Returns the builder instance for method chaining.
 func (b *ChatResultBuilder) WithAssistantMessage(message *messages.AssistantMessage) *ChatResultBuilder {
-	b.assistantMessage = message
+	if message != nil {
+		b.assistantMessage = message
+	}
 	return b
 }
 
-// WithMetadata sets the metadata for the chat result being built.
+// WithMetadata sets the metadata for the chat result being built if metadata is not nil.
 // Returns the builder instance for method chaining.
 func (b *ChatResultBuilder) WithMetadata(metadata *ChatResultMetadata) *ChatResultBuilder {
-	b.metadata = metadata
+	if metadata != nil {
+		b.metadata = metadata
+	}
 	return b
 }
 

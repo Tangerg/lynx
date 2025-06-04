@@ -67,7 +67,7 @@ func NewDefinitionBuilder() *DefinitionBuilder {
 	return &DefinitionBuilder{}
 }
 
-// WithName sets the tool name for the definition being built.
+// WithName sets the tool name for the definition being built if name is not empty.
 // The name parameter must be unique within the tool set provided to a model
 // and should not be empty. The name is used by the AI model to identify
 // and invoke the specific tool.
@@ -78,11 +78,13 @@ func NewDefinitionBuilder() *DefinitionBuilder {
 // Returns:
 //   - *DefinitionBuilder: The builder instance for method chaining
 func (b *DefinitionBuilder) WithName(name string) *DefinitionBuilder {
-	b.name = name
+	if name != "" {
+		b.name = name
+	}
 	return b
 }
 
-// WithDescription sets the tool description for the definition being built.
+// WithDescription sets the tool description for the definition being built if desc is not empty.
 // The description should clearly explain what the tool does and when it
 // should be used. This information helps the AI model make informed
 // decisions about tool invocation.
@@ -93,7 +95,9 @@ func (b *DefinitionBuilder) WithName(name string) *DefinitionBuilder {
 // Returns:
 //   - *DefinitionBuilder: The builder instance for method chaining
 func (b *DefinitionBuilder) WithDescription(desc string) *DefinitionBuilder {
-	b.desc = desc
+	if desc != "" {
+		b.desc = desc
+	}
 	return b
 }
 
@@ -114,7 +118,7 @@ func (b *DefinitionBuilder) WithAutoDescription() *DefinitionBuilder {
 }
 
 // WithInputSchema sets the JSON Schema that defines the structure and validation
-// rules for the tool's input parameters. The schema should follow the JSON Schema
+// rules for the tool's input parameters if schema is not empty. The schema should follow the JSON Schema
 // specification and describe all required and optional parameters, their types,
 // and any validation constraints.
 //
@@ -135,7 +139,9 @@ func (b *DefinitionBuilder) WithAutoDescription() *DefinitionBuilder {
 // Returns:
 //   - *DefinitionBuilder: The builder instance for method chaining
 func (b *DefinitionBuilder) WithInputSchema(schema string) *DefinitionBuilder {
-	b.schema = schema
+	if schema != "" {
+		b.schema = schema
+	}
 	return b
 }
 

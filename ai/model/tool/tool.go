@@ -74,7 +74,7 @@ func NewBuilder() *Builder {
 	return &Builder{}
 }
 
-// WithDefinition sets the tool definition for the tool being built.
+// WithDefinition sets the tool definition for the tool being built if def is not nil.
 // The definition contains essential information that the AI model uses to
 // understand the tool's purpose, parameters, and when to invoke it.
 //
@@ -84,11 +84,13 @@ func NewBuilder() *Builder {
 // Returns:
 //   - *Builder: The builder instance for method chaining
 func (b *Builder) WithDefinition(def Definition) *Builder {
-	b.definition = def
+	if def != nil {
+		b.definition = def
+	}
 	return b
 }
 
-// WithMetadata sets the tool metadata for the tool being built.
+// WithMetadata sets the tool metadata for the tool being built if metadata is not nil.
 // Metadata provides additional configuration for tool execution, such as
 // whether results should be returned directly to the user or passed back
 // to the AI model for further processing.
@@ -101,11 +103,13 @@ func (b *Builder) WithDefinition(def Definition) *Builder {
 // Returns:
 //   - *Builder: The builder instance for method chaining
 func (b *Builder) WithMetadata(metadata Metadata) *Builder {
-	b.metadata = metadata
+	if metadata != nil {
+		b.metadata = metadata
+	}
 	return b
 }
 
-// WithExecutor sets the executor function for the tool being built.
+// WithExecutor sets the executor function for the tool being built if executor is not nil.
 // The executor function contains the actual business logic that will be
 // executed when the AI model invokes this tool. It receives the execution
 // context and input parameters, and returns the result or an error.
@@ -121,7 +125,9 @@ func (b *Builder) WithMetadata(metadata Metadata) *Builder {
 // Returns:
 //   - *Builder: The builder instance for method chaining
 func (b *Builder) WithExecutor(executor func(ctx *model.ToolContext, input string) (string, error)) *Builder {
-	b.executor = executor
+	if executor != nil {
+		b.executor = executor
+	}
 	return b
 }
 
