@@ -28,17 +28,17 @@ type Model[Request any, Response any] interface {
 	//
 	// Parameters:
 	//   ctx: Context for cancellation, timeouts, and request-scoped values
-	//   request: The request object to be sent to the AI model
+	//   req: The request object to be sent to the AI model. must implement the Request interface.
 	//
 	// Returns:
-	//   Response: The complete response from the AI model
+	//   Response: The complete response from the AI model. must implement the Response interface.
 	//   error: Any error that occurred during the model invocation
 	//
 	// The context allows for:
 	//   - Request cancellation if the client disconnects
 	//   - Timeout handling for long-running requests
 	//   - Passing request-scoped metadata (tracing, authentication, etc.)
-	Call(ctx context.Context, request Request) (Response, error)
+	Call(ctx context.Context, req Request) (Response, error)
 }
 
 // StreamingModel provides a generic API for invoking AI models with streaming
@@ -65,10 +65,13 @@ type StreamingModel[Request any, Response any] interface {
 	//
 	// Parameters:
 	//   ctx: Context for cancellation, timeouts, and request-scoped values
-	//   req: The request object to be sent to the AI model
+	//   req: The request object to be sent to the AI model. must implement the Request interface.
+	//
+	// Returns:
 	//
 	// Returns:
 	//   stream.Reader[Response]: A stream reader for consuming response chunks
+	//   - Response: The complete response from the AI model. must implement the Response interface.
 	//   error: Any error that occurred during the initial request setup
 	//
 	// The returned stream.Reader allows you to:
@@ -82,7 +85,6 @@ type StreamingModel[Request any, Response any] interface {
 	//   if err != nil {
 	//       return err
 	//   }
-	//   defer reader.Close()
 	//
 	//   for {
 	//       chunk, err := reader.Read(ctx)
