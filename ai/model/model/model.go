@@ -3,7 +3,7 @@ package model
 import (
 	"context"
 
-	"github.com/Tangerg/lynx/ai/commons/stream"
+	"github.com/Tangerg/lynx/pkg/stream"
 )
 
 // Model provides a generic API for invoking AI models. It is designed to
