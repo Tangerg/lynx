@@ -33,9 +33,9 @@ import (
 //   - Memory-efficient processing of large responses
 //
 // Type Parameters:
-//   - Request: ChatRequest[ChatOptions] - Encapsulates chat messages, system prompts,
+//   - Request: [*request.ChatRequest] - Encapsulates chat messages, system prompts,
 //     temperature, max tokens, and other chat-specific configuration options
-//   - Response: ChatResponse - Contains the model's response message, usage statistics,
+//   - Response: [*response.ChatResponse] - Contains the model's response message, usage statistics,
 //     finish reason, and other metadata
 //
 // Usage Examples:
@@ -69,6 +69,15 @@ import (
 // design allows developers to easily switch between different chat model providers
 // or implementations without changing the application code.
 type ChatModel interface {
-	model.Model[request.ChatRequest[request.ChatOptions], response.ChatResponse]
-	model.StreamingModel[request.ChatRequest[request.ChatOptions], response.ChatResponse]
+	model.Model[*request.ChatRequest, *response.ChatResponse]
+	model.StreamingModel[*request.ChatRequest, *response.ChatResponse]
+	// DefaultOptions returns the default configuration options for this chat model.
+	// These options include model-specific defaults such as temperature, max tokens,
+	// top-p sampling, presence penalty, frequency penalty, and other parameters
+	// that are optimized for the particular model implementation.
+	//
+	// The returned options can be used as a baseline configuration and modified
+	// as needed for specific requests. This provides a convenient way to get
+	// reasonable defaults without having to specify all parameters manually.
+	DefaultOptions() request.ChatOptions
 }

@@ -41,14 +41,14 @@ import (
 //
 // SetSystemPrompt:
 //
-//	SetSystemPrompt(system SystemPrompt) ChatClientRequest[O, M]
+//	SetSystemPromptTemplate(system SystemPrompt) ChatClientRequest[O, M]
 //	Sets the system prompt, which may include system-generated instructions or context.
 //	Returns:
 //	  - ChatClientRequest[O, M]: The instance itself, enabling method chaining.
 //
 // SetUserPrompt:
 //
-//	SetUserPrompt(user UserPrompt) ChatClientRequest[O, M]
+//	SetUserPromptTemplate(user UserPrompt) ChatClientRequest[O, M]
 //	Sets the user prompt, which includes the user's input or query.
 //	Returns:
 //	  - ChatClientRequest[O, M]: The instance itself, enabling method chaining.
@@ -105,7 +105,7 @@ import (
 //	response := chatRequest.
 //	    SetChatModel(myChatModel).
 //	    SetChatOptions(ChatOptions{Temperature: 0.7}).
-//	    SetUserPrompt(UserPrompt{Text: "Hello, world!"}).
+//	    SetUserPromptTemplate(UserPrompt{Text: "Hello, world!"}).
 //	    Call()
 //
 //	content, err := response.Content(ctx)

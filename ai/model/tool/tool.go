@@ -2,8 +2,6 @@ package tool
 
 import (
 	"errors"
-
-	chatTool "github.com/Tangerg/lynx/ai/model/chat/tool"
 )
 
 // Tool represents a tool whose execution can be triggered by an AI model.
@@ -26,13 +24,13 @@ type Tool interface {
 	// this tool invocation.
 	//
 	// Parameters:
-	//   - ctx: chatTool.Context The tool execution context containing conversation state and environment info
+	//   - ctx: Context The tool execution context containing conversation state and environment info
 	//   - input: The input parameters as a string (typically JSON format)
 	//
 	// Returns:
 	//   - string: The tool execution result to be sent back to the AI model
 	//   - error: An error if the tool execution fails
-	Call(ctx *chatTool.Context, input string) (string, error)
+	Call(ctx Context, input string) (string, error)
 }
 
 // tool is the default implementation of the Tool interface.
@@ -41,21 +39,18 @@ type Tool interface {
 type tool struct {
 	definition Definition
 	metadata   Metadata
-	executor   func(ctx *chatTool.Context, input string) (string, error)
+	executor   func(ctx Context, input string) (string, error)
 }
 
-// Definition returns the tool definition.
 func (t *tool) Definition() Definition {
 	return t.definition
 }
 
-// Metadata returns the tool metadata.
 func (t *tool) Metadata() Metadata {
 	return t.metadata
 }
 
-// Call executes the tool by invoking the configured executor function.
-func (t *tool) Call(ctx *chatTool.Context, input string) (string, error) {
+func (t *tool) Call(ctx Context, input string) (string, error) {
 	return t.executor(ctx, input)
 }
 
@@ -65,7 +60,7 @@ func (t *tool) Call(ctx *chatTool.Context, input string) (string, error) {
 type Builder struct {
 	definition Definition
 	metadata   Metadata
-	executor   func(ctx *chatTool.Context, input string) (string, error)
+	executor   func(ctx Context, input string) (string, error)
 }
 
 // NewBuilder creates and returns a new Builder instance with default values.
@@ -124,7 +119,7 @@ func (b *Builder) WithMetadata(metadata Metadata) *Builder {
 //
 // Returns:
 //   - *Builder: The builder instance for method chaining
-func (b *Builder) WithExecutor(executor func(ctx *chatTool.Context, input string) (string, error)) *Builder {
+func (b *Builder) WithExecutor(executor func(ctx Context, input string) (string, error)) *Builder {
 	if executor != nil {
 		b.executor = executor
 	}
