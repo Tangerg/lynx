@@ -8,13 +8,13 @@ import (
 )
 
 // ErrStreamClosed is returned when attempting to operate on a stream that has been closed.
-// This error is returned in the following scenarios:
+// This error occurs in the following scenarios:
 //   - Writing to a stream that has already been closed
 //   - Attempting to close a stream that is already closed (duplicate close)
 var ErrStreamClosed = errors.New("stream already closed")
 
 // Reader defines the interface for reading values from a stream.
-// The Read operation is context-aware and supports cancellation.
+// All read operations are context-aware and support cancellation.
 // Type parameter T represents the type of values that can be read from the stream.
 type Reader[T any] interface {
 	// Read attempts to read a single value from the stream.
@@ -32,7 +32,7 @@ type Reader[T any] interface {
 }
 
 // Writer defines the interface for writing values to a stream.
-// The Write operation is context-aware and supports cancellation.
+// All write operations are context-aware and support cancellation.
 // Type parameter T represents the type of values that can be written to the stream.
 type Writer[T any] interface {
 	// Write attempts to write a single value to the stream.
@@ -49,49 +49,48 @@ type Writer[T any] interface {
 	Write(ctx context.Context, v T) error
 }
 
-// ReadWriter combines both Reader and Writer interfaces, providing bidirectional stream operations.
-// This interface allows a single stream to support both reading and writing operations
-// with the same value type T.
-//
-// Type parameter T represents the type of values that can be both read from and written to the stream.
-type ReadWriter[T any] interface {
+// Stream combines Reader and Writer interfaces with io.Closer to provide
+// a complete bidirectional streaming interface. It supports both reading
+// and writing operations with proper lifecycle management.
+type Stream[T any] interface {
 	Reader[T]
 	Writer[T]
+	io.Closer
 }
 
-// Closer is an alias for io.Closer, providing the standard Close method.
-// This allows streams to implement proper resource cleanup and lifecycle management.
+// stream implements the Stream interface using Go channels as the underlying
+// transport mechanism. It provides thread-safe read/write operations with
+// proper lifecycle management and graceful shutdown semantics.
 //
-// Error behavior:
-//   - First call to Close(): should return nil on successful closure
-//   - Subsequent calls to Close(): should return ErrStreamClosed
-//   - After closure: Write operations return ErrStreamClosed
-//   - After closure: Read operations return io.EOF when all buffered data is consumed
-type Closer = io.Closer
-
-var (
-	_ ReadWriter[any] = (*Stream[any])(nil)
-	_ Closer          = (*Stream[any])(nil)
-)
-
-// Stream implements a stream using Go channels as the underlying transport mechanism.
-// It provides thread-safe read/write operations with proper lifecycle management.
-// The stream supports buffering and graceful shutdown semantics.
+// The implementation supports:
+//   - Buffered and unbuffered channels
+//   - Context-aware operations with cancellation support
+//   - Thread-safe concurrent access
+//   - Graceful shutdown with proper resource cleanup
+//   - Prevention of operations on closed streams
 //
 // Type parameter T represents the type of values that flow through the stream.
-type Stream[T any] struct {
-	value  chan T
+type stream[T any] struct {
+	// value is the underlying channel for data transport
+	value chan T
+	// closed signals when the stream has been closed
 	closed chan struct{}
-	once   sync.Once
+	// once ensures Close() operations are executed exactly once
+	once sync.Once
 }
 
-// Read attempts to read a single value from the channel stream.
-// It respects context cancellation and properly handles stream closure.
+// Read attempts to read a single value from the channel-based stream.
+// It implements context-aware reading with proper handling of cancellation
+// and stream closure states.
 //
-// The method blocks until:
-//   - A value becomes available on the channel
-//   - The provided context is cancelled
-//   - The stream is closed (channel is closed)
+// Behavior:
+//   - Blocks until a value becomes available on the channel
+//   - Respects context cancellation and returns ctx.Err()
+//   - Returns io.EOF when the stream is closed and no more data is available
+//   - Returns zero value of type T when an error occurs
+//
+// Thread Safety:
+// This method is safe for concurrent use by multiple goroutines.
 //
 // Parameters:
 //   - ctx: Context for cancellation and timeout control
@@ -100,7 +99,7 @@ type Stream[T any] struct {
 //   - T: The value read from the stream (zero value if error occurred)
 //   - error: nil on success, ctx.Err() if context was cancelled,
 //     io.EOF if stream is closed and no more data is available
-func (c *Stream[T]) Read(ctx context.Context) (v T, err error) {
+func (c *stream[T]) Read(ctx context.Context) (v T, err error) {
 	select {
 	case <-ctx.Done():
 		err = ctx.Err()
@@ -115,13 +114,19 @@ func (c *Stream[T]) Read(ctx context.Context) (v T, err error) {
 	}
 }
 
-// Write attempts to write a single value to the channel stream.
-// It respects context cancellation and prevents writes to closed streams.
+// Write attempts to write a single value to the channel-based stream.
+// It implements context-aware writing with proper handling of cancellation
+// and stream closure prevention.
 //
-// The method blocks until:
-//   - The value is successfully written to the channel
-//   - The provided context is cancelled
-//   - The stream is detected as closed
+// Behavior:
+//   - Blocks until the value is successfully written to the channel
+//   - Respects context cancellation and returns ctx.Err()
+//   - Prevents writes to closed streams by returning ErrStreamClosed
+//   - For buffered streams, may complete immediately if buffer has space
+//   - For unbuffered streams, blocks until a reader is available
+//
+// Thread Safety:
+// This method is safe for concurrent use by multiple goroutines.
 //
 // Parameters:
 //   - ctx: Context for cancellation and timeout control
@@ -130,7 +135,7 @@ func (c *Stream[T]) Read(ctx context.Context) (v T, err error) {
 // Returns:
 //   - error: nil on success, ctx.Err() if context was cancelled,
 //     ErrStreamClosed if attempting to write to a closed stream
-func (c *Stream[T]) Write(ctx context.Context, v T) error {
+func (c *stream[T]) Write(ctx context.Context, v T) error {
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
@@ -141,18 +146,29 @@ func (c *Stream[T]) Write(ctx context.Context, v T) error {
 	}
 }
 
-// Close shuts down the channel stream, preventing further writes and eventually reads.
-// This method is safe to call concurrently and multiple times.
+// Close shuts down the stream, preventing further writes and eventually reads.
+// It implements graceful shutdown semantics with proper resource cleanup.
 //
-// The closure process:
-//  1. Signals closure state via the closed channel
+// Closure Process:
+//  1. Signals closure state via the closed channel to prevent new writes
 //  2. Closes the value channel to prevent new writes and signal EOF to readers
 //  3. Uses sync.Once to ensure the closure logic runs exactly once
+//
+// Behavior:
+//   - First call: Performs actual closure and returns nil
+//   - Subsequent calls: Returns ErrStreamClosed immediately
+//   - Ongoing Read operations will receive io.EOF after buffered data is consumed
+//   - Ongoing Write operations will receive ErrStreamClosed
+//   - New operations after closure will fail immediately
+//
+// Thread Safety:
+// This method is safe for concurrent use by multiple goroutines and
+// can be called multiple times without causing panics.
 //
 // Returns:
 //   - error: nil on successful closure (first call),
 //     ErrStreamClosed if the stream was already closed (subsequent calls)
-func (c *Stream[T]) Close() error {
+func (c *stream[T]) Close() error {
 	select {
 	case <-c.closed:
 		return ErrStreamClosed
@@ -165,26 +181,37 @@ func (c *Stream[T]) Close() error {
 	}
 }
 
-// NewStream creates a new Stream instance with optional buffering.
-// The function accepts multiple size parameters but only uses the first non-negative value.
+// NewStream creates a new Stream instance with configurable buffering.
+// The function provides flexible buffer size configuration while maintaining
+// simplicity for common use cases.
 //
-// Buffer behavior:
-//   - If no sizes provided or all are negative: creates an unbuffered channel (synchronous)
-//   - If a non-negative size is provided: creates a buffered channel with that capacity
-//   - Only the first valid (non-negative) size parameter is used
+// Buffer Configuration:
+//   - No parameters: Creates an unbuffered (synchronous) stream
+//   - Negative sizes: Ignored, continues searching for valid size
+//   - First non-negative size: Used as buffer capacity
+//   - Subsequent parameters: Ignored after first valid size is found
+//
+// Buffer Behavior:
+//   - Unbuffered (size 0): Write operations block until a reader is available
+//   - Buffered (size > 0): Write operations complete immediately until buffer is full
+//   - Buffer full: Write operations block until buffer space becomes available
+//
+// Thread Safety:
+// The returned Stream is safe for concurrent use by multiple goroutines.
 //
 // Parameters:
 //   - sizes: Optional buffer sizes (variadic). Only the first non-negative value is used.
 //
 // Returns:
-//   - *Stream[T]: A new channel stream instance ready for use
+//   - Stream[T]: A new stream instance ready for use
 //
-// Example usage:
+// Example Usage:
 //
-//	stream1 := NewStream[int]()        // Unbuffered
-//	stream2 := NewStream[int](10)      // Buffered with capacity 10
-//	stream3 := NewStream[int](-1,5)   // Buffered with capacity 5 (ignores -1)
-func NewStream[T any](sizes ...int) *Stream[T] {
+//	unbuffered := NewStream[int]()           // Synchronous communication
+//	buffered := NewStream[int](10)           // Buffer capacity of 10
+//	alsoBuffered := NewStream[int](-1,5)    // Buffer capacity of 5 (ignores -1)
+//	defaultUnbuffered := NewStream[string](-1,-2) // Unbuffered (all sizes invalid)
+func NewStream[T any](sizes ...int) Stream[T] {
 	var bufferSize = 0
 	for _, size := range sizes {
 		if size >= 0 {
@@ -192,7 +219,7 @@ func NewStream[T any](sizes ...int) *Stream[T] {
 			break
 		}
 	}
-	return &Stream[T]{
+	return &stream[T]{
 		value:  make(chan T, bufferSize),
 		closed: make(chan struct{}),
 	}
