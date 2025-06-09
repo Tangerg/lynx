@@ -7,27 +7,27 @@ import (
 )
 
 type CallHandler interface {
-	Call(ctx *Context) (*Response, error)
+	Call(request *Request) (*Response, error)
 }
 
 type CallMiddleware func(CallHandler) CallHandler
 
-type CallHandlerFunc func(*Context) (*Response, error)
+type CallHandlerFunc func(*Request) (*Response, error)
 
-func (c CallHandlerFunc) Call(ctx *Context) (*Response, error) {
-	return c(ctx)
+func (c CallHandlerFunc) Call(request *Request) (*Response, error) {
+	return c(request)
 }
 
 type StreamHandler interface {
-	Stream(ctx *Context) (stream.Reader[*Response], error)
+	Stream(request *Request) (stream.Reader[*Response], error)
 }
 
 type StreamMiddleware func(StreamHandler) StreamHandler
 
-type StreamHandlerFunc func(*Context) (stream.Reader[*Response], error)
+type StreamHandlerFunc func(*Request) (stream.Reader[*Response], error)
 
-func (c StreamHandlerFunc) Stream(ctx *Context) (stream.Reader[*Response], error) {
-	return c(ctx)
+func (c StreamHandlerFunc) Stream(request *Request) (stream.Reader[*Response], error) {
+	return c(request)
 }
 
 type Middlewares struct {

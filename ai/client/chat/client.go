@@ -12,60 +12,60 @@ import (
 )
 
 type Client struct {
-	defaultRequest *Request
+	defaultOptions *Options
 }
 
-func NewClient(request *Request) (*Client, error) {
-	if request == nil {
-		return nil, errors.New("request is required")
+func NewClient(options *Options) (*Client, error) {
+	if options == nil {
+		return nil, errors.New("options is required")
 	}
 	return &Client{
-		defaultRequest: request,
+		defaultOptions: options,
 	}, nil
 }
 
-func (c *Client) Chat() *Request {
-	return c.defaultRequest.Clone()
+func (c *Client) Chat() *Options {
+	return c.defaultOptions.Clone()
 }
 
-func (c *Client) ChatText(text string) *Request {
+func (c *Client) ChatText(text string) *Options {
 	userMessage := messages.NewUserMessage(text, nil)
 	chatRequest := request.
 		NewChatRequestBuilder().
 		WithMessages(userMessage).
-		WithOptions(c.defaultRequest.chatOptions.Clone()).
+		WithOptions(c.defaultOptions.chatOptions.Clone()).
 		MustBuild()
 	return c.ChatRequest(chatRequest)
 }
 
-func (c *Client) ChatRequest(request *request.ChatRequest) *Request {
-	if request == nil {
-		panic("request is required")
+func (c *Client) ChatRequest(chatRequest *request.ChatRequest) *Options {
+	if chatRequest == nil {
+		panic("chatRequest is required")
 	}
 
-	req := c.defaultRequest.Clone()
+	options := c.defaultOptions.Clone()
 
-	if request.Options() != nil {
-		req.SetChatOptions(request.Options())
+	if chatRequest.Options() != nil {
+		options.WithChatOptions(chatRequest.Options())
 	}
-	if len(request.Instructions()) > 0 {
-		req.SetMessages(request.Instructions()...)
+	if len(chatRequest.Instructions()) > 0 {
+		options.WithMessages(chatRequest.Instructions()...)
 	}
 
-	return req
+	return options
 }
 
 func (c *Client) Fork() *Builder {
 	b := NewBuilder().
-		WithChatModel(c.defaultRequest.chatModel).
-		WithChatOptions(c.defaultRequest.chatOptions).
-		WithUserPromptTemplate(c.defaultRequest.userPromptTemplate).
-		WithSystemPromptTemplate(c.defaultRequest.systemPromptTemplate).
-		WithMessages(c.defaultRequest.messages...).
-		WithMiddlewares(c.defaultRequest.middlewares).
-		WithMiddlewareParams(c.defaultRequest.middlewareParams).
-		WithTools(c.defaultRequest.tools...).
-		WithToolParams(c.defaultRequest.toolParams)
+		WithChatModel(c.defaultOptions.chatModel).
+		WithChatOptions(c.defaultOptions.chatOptions).
+		WithUserPromptTemplate(c.defaultOptions.userPromptTemplate).
+		WithSystemPromptTemplate(c.defaultOptions.systemPromptTemplate).
+		WithMessages(c.defaultOptions.messages...).
+		WithMiddlewares(c.defaultOptions.middlewares).
+		WithMiddlewareParams(c.defaultOptions.middlewareParams).
+		WithTools(c.defaultOptions.tools...).
+		WithToolParams(c.defaultOptions.toolParams)
 	return b
 }
 
@@ -83,7 +83,7 @@ type Builder struct {
 
 func NewBuilder() *Builder {
 	return &Builder{
-		userPromptTemplate:   NewUserPromptTemplate().SetTemplate("Hi!"),
+		userPromptTemplate:   NewUserPromptTemplate().WithTemplate("Hi!"),
 		systemPromptTemplate: NewSystemPromptTemplate(),
 		messages:             make([]messages.Message, 0),
 		middlewares:          NewMiddlewares(),
@@ -109,7 +109,7 @@ func (b *Builder) WithChatOptions(chatOptions request.ChatOptions) *Builder {
 
 func (b *Builder) WithUserPrompt(userPrompt string) *Builder {
 	if userPrompt != "" {
-		b.userPromptTemplate = NewUserPromptTemplate().SetTemplate(userPrompt)
+		b.userPromptTemplate = NewUserPromptTemplate().WithTemplate(userPrompt)
 	}
 	return b
 }
@@ -123,7 +123,7 @@ func (b *Builder) WithUserPromptTemplate(userPromptTemplate *UserPromptTemplate)
 
 func (b *Builder) WithSystemPrompt(systemPrompt string) *Builder {
 	if systemPrompt != "" {
-		b.systemPromptTemplate = NewSystemPromptTemplate().SetTemplate(systemPrompt)
+		b.systemPromptTemplate = NewSystemPromptTemplate().WithTemplate(systemPrompt)
 	}
 	return b
 }
@@ -171,21 +171,21 @@ func (b *Builder) WithToolParams(toolParams map[string]any) *Builder {
 }
 
 func (b *Builder) Build() (*Client, error) {
-	newRequest, err := NewRequest(b.chatModel)
+	newOptions, err := NewOptions(b.chatModel)
 	if err != nil {
 		return nil, err
 	}
-	newRequest.
-		SetChatOptions(b.chatOptions).
-		SetUserPromptTemplate(b.userPromptTemplate).
-		SetSystemPromptTemplate(b.systemPromptTemplate).
-		SetMessages(b.messages...).
-		SetMiddlewares(b.middlewares).
-		SetMiddlewareParams(b.middlewareParams).
-		SetTools(b.tools...).
-		SetToolParams(b.toolParams)
+	newOptions.
+		WithChatOptions(b.chatOptions).
+		WithUserPromptTemplate(b.userPromptTemplate).
+		WithSystemPromptTemplate(b.systemPromptTemplate).
+		WithMessages(b.messages...).
+		WithMiddlewares(b.middlewares).
+		WithMiddlewareParams(b.middlewareParams).
+		WithTools(b.tools...).
+		WithToolParams(b.toolParams)
 
-	return NewClient(newRequest)
+	return NewClient(newOptions)
 }
 
 func (b *Builder) MustBuild() *Client {

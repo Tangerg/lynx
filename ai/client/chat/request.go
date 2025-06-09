@@ -1,128 +1,59 @@
 package chat
 
 import (
-	"errors"
-	"maps"
-	"slices"
-
-	"github.com/Tangerg/lynx/ai/model/chat/messages"
+	"context"
 	"github.com/Tangerg/lynx/ai/model/chat/model"
+	"maps"
+	"sync"
+
 	"github.com/Tangerg/lynx/ai/model/chat/request"
-	"github.com/Tangerg/lynx/ai/model/tool"
 )
 
 type Request struct {
-	chatModel            model.ChatModel
-	chatOptions          request.ChatOptions
-	userPromptTemplate   *UserPromptTemplate
-	systemPromptTemplate *SystemPromptTemplate
-	messages             []messages.Message
-	middlewares          *Middlewares
-	middlewareParams     map[string]any
-	tools                []tool.Tool
-	toolParams           map[string]any
+	ctx         context.Context
+	fields      map[string]any
+	mu          sync.RWMutex
+	chatModel   model.ChatModel
+	chatRequest *request.ChatRequest
 }
 
-func NewRequest(chatModel model.ChatModel) (*Request, error) {
-	if chatModel == nil {
-		return nil, errors.New("chatModel is required")
+// NewRequest todo fix it to all fill
+func NewRequest(ctx context.Context, options *Options) *Request {
+	return &Request{}
+}
+
+func (c *Request) Context() context.Context {
+	if c.ctx == nil {
+		return context.Background()
 	}
-	return &Request{
-		chatModel:            chatModel,
-		chatOptions:          chatModel.DefaultOptions().Clone(),
-		userPromptTemplate:   NewUserPromptTemplate().SetTemplate("Hi!"),
-		systemPromptTemplate: NewSystemPromptTemplate(),
-		messages:             make([]messages.Message, 0),
-		middlewares:          NewMiddlewares(),
-		middlewareParams:     make(map[string]any),
-		tools:                make([]tool.Tool, 0),
-		toolParams:           make(map[string]any),
-	}, nil
+	return c.ctx
 }
 
-func (r *Request) Call() *Call {
-	callRequest, _ := NewCall(r, r.middlewares)
-	return callRequest
+func (c *Request) Set(key string, value any) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.fields[key] = value
 }
 
-func (r *Request) Stream() *Stream {
-	streamRequest, _ := NewStream(r, r.middlewares)
-	return streamRequest
+func (c *Request) SetMap(m map[string]any) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	maps.Copy(c.fields, m)
 }
 
-func (r *Request) SetChatOptions(options request.ChatOptions) *Request {
-	if options != nil {
-		r.chatOptions = options.Clone()
-	}
-	return r
+func (c *Request) Get(key string) (any, bool) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	val, ok := c.fields[key]
+	return val, ok
 }
 
-func (r *Request) SetUserPromptTemplate(userPrompt *UserPromptTemplate) *Request {
-	if userPrompt != nil {
-		r.userPromptTemplate = userPrompt.Clone()
-	}
-	return r
+func (c *Request) ChatRequest() *request.ChatRequest {
+	return c.chatRequest
 }
 
-func (r *Request) SetSystemPromptTemplate(systemPrompt *SystemPromptTemplate) *Request {
-	if systemPrompt != nil {
-		r.systemPromptTemplate = systemPrompt.Clone()
-	}
-	return r
-}
-
-func (r *Request) SetMessages(messages ...messages.Message) *Request {
-	if len(messages) > 0 {
-		r.messages = slices.Clone(messages)
-	}
-	return r
-}
-
-func (r *Request) SetMiddlewares(middlewares *Middlewares) *Request {
-	if middlewares != nil {
-		r.middlewares = middlewares.Clone()
-	}
-	return r
-}
-
-func (r *Request) AddMiddlewares(middlewares ...any) *Request {
-	if len(middlewares) > 0 {
-		r.middlewares.Add(middlewares...)
-	}
-	return r
-}
-
-func (r *Request) SetMiddlewareParams(params map[string]any) *Request {
-	if len(params) > 0 {
-		r.middlewareParams = maps.Clone(params)
-	}
-	return r
-}
-
-func (r *Request) SetTools(tools ...tool.Tool) *Request {
-	if len(tools) > 0 {
-		r.tools = slices.Clone(tools)
-	}
-	return r
-}
-
-func (r *Request) SetToolParams(params map[string]any) *Request {
-	if len(params) > 0 {
-		r.toolParams = maps.Clone(params)
-	}
-	return r
-}
-
-func (r *Request) Clone() *Request {
-	newRequest, _ := NewRequest(r.chatModel)
-	newRequest.
-		SetChatOptions(r.chatOptions).
-		SetUserPromptTemplate(r.userPromptTemplate).
-		SetSystemPromptTemplate(r.systemPromptTemplate).
-		SetMessages(r.messages...).
-		SetMiddlewares(r.middlewares).
-		SetMiddlewareParams(r.middlewareParams).
-		SetTools(r.tools...).
-		SetToolParams(r.toolParams)
-	return newRequest
+func (c *Request) ChatModel() model.ChatModel {
+	return c.chatModel
 }

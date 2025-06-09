@@ -8,30 +8,28 @@ import (
 	"github.com/Tangerg/lynx/pkg/stream"
 )
 
-type Stream struct {
-	request     *Request
+type Streamer struct {
+	options     *Options
 	middleWares *Middlewares
 }
 
-func NewStream(request *Request, middleWares ...*Middlewares) (*Stream, error) {
-	if request == nil {
-		return nil, errors.New("request is required")
-	}
-	var md *Middlewares
-	if len(middleWares) > 0 &&
-		middleWares[0] != nil {
-		md = middleWares[0]
-	} else {
-		md = NewMiddlewares()
+func NewStreamer(options *Options) (*Streamer, error) {
+	if options == nil {
+		return nil, errors.New("options is required")
 	}
 
-	return &Stream{
-		request:     request,
-		middleWares: md.Clone(),
+	middleWares := options.middlewares
+	if middleWares == nil {
+		middleWares = NewMiddlewares()
+	}
+
+	return &Streamer{
+		options:     options,
+		middleWares: middleWares.Clone(),
 	}, nil
 }
 
-func (s *Stream) Text(ctx context.Context) (stream.Reader[string], error) {
+func (s *Streamer) Text(ctx context.Context) (stream.Reader[string], error) {
 	resp, err := s.ChatResponse(ctx)
 	if err != nil {
 		return nil, err
@@ -41,7 +39,7 @@ func (s *Stream) Text(ctx context.Context) (stream.Reader[string], error) {
 	}), nil
 }
 
-func (s *Stream) ChatResponse(ctx context.Context) (stream.Reader[*response.ChatResponse], error) {
+func (s *Streamer) ChatResponse(ctx context.Context) (stream.Reader[*response.ChatResponse], error) {
 	resp, err := s.Response(ctx)
 	if err != nil {
 		return nil, err
@@ -51,12 +49,19 @@ func (s *Stream) ChatResponse(ctx context.Context) (stream.Reader[*response.Chat
 	}), nil
 }
 
-func (s *Stream) Response(ctx context.Context) (stream.Reader[*Response], error) {
-	return s.do(newContextFromRequest(ctx, s.request))
+func (s *Streamer) Response(ctx context.Context) (stream.Reader[*Response], error) {
+	return s.Do(NewRequest(ctx, s.options))
 }
 
-func (s *Stream) do(ctx *Context) (stream.Reader[*Response], error) {
-	invoker := newModelInvoker(s.request.chatModel)
-	streamHandler := s.middleWares.makeStreamHandler(invoker)
+func (s *Streamer) Do(ctx *Request) (stream.Reader[*Response], error) {
+	invoker, err := newModelInvoker(ctx.chatModel)
+	if err != nil {
+		return nil, err
+	}
+	middleWares := s.middleWares
+	if middleWares == nil {
+		middleWares = NewMiddlewares()
+	}
+	streamHandler := middleWares.makeStreamHandler(invoker)
 	return streamHandler.Stream(ctx)
 }
