@@ -50,10 +50,14 @@ func (s *Streamer) ChatResponse(ctx context.Context) (stream.Reader[*response.Ch
 }
 
 func (s *Streamer) Response(ctx context.Context) (stream.Reader[*Response], error) {
-	return s.Do(NewRequest(ctx, s.options))
+	request, err := NewRequest(ctx, s.options)
+	if err != nil {
+		return nil, err
+	}
+	return s.Execute(request)
 }
 
-func (s *Streamer) Do(ctx *Request) (stream.Reader[*Response], error) {
+func (s *Streamer) Execute(ctx *Request) (stream.Reader[*Response], error) {
 	invoker, err := newModelInvoker(ctx.chatModel)
 	if err != nil {
 		return nil, err

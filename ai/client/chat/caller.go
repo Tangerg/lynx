@@ -45,11 +45,15 @@ func (c *Caller) ChatResponse(ctx context.Context) (*response.ChatResponse, erro
 }
 
 func (c *Caller) Response(ctx context.Context) (*Response, error) {
-	return c.Do(NewRequest(ctx, c.options))
+	request, err := NewRequest(ctx, c.options)
+	if err != nil {
+		return nil, err
+	}
+	return c.Execute(request)
 }
 
-func (c *Caller) Do(ctx *Request) (*Response, error) {
-	invoker, err := newModelInvoker(ctx.ChatModel())
+func (c *Caller) Execute(ctx *Request) (*Response, error) {
+	invoker, err := newModelInvoker(ctx.chatModel)
 	if err != nil {
 		return nil, err
 	}

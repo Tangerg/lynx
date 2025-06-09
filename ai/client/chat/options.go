@@ -28,15 +28,11 @@ func NewOptions(chatModel model.ChatModel) (*Options, error) {
 		return nil, errors.New("chatModel is required")
 	}
 	return &Options{
-		chatModel:            chatModel,
-		chatOptions:          chatModel.DefaultOptions().Clone(),
-		userPromptTemplate:   NewUserPromptTemplate().WithTemplate("Hi!"),
-		systemPromptTemplate: NewSystemPromptTemplate(),
-		messages:             make([]messages.Message, 0),
-		middlewares:          NewMiddlewares(),
-		middlewareParams:     make(map[string]any),
-		tools:                make([]tool.Tool, 0),
-		toolParams:           make(map[string]any),
+		chatModel:        chatModel,
+		middlewares:      NewMiddlewares(),
+		middlewareParams: make(map[string]any),
+		tools:            make([]tool.Tool, 0),
+		toolParams:       make(map[string]any),
 	}, nil
 }
 
@@ -132,4 +128,47 @@ func (o *Options) Clone() *Options {
 		WithTools(o.tools...).
 		WithToolParams(o.toolParams)
 	return newOptions
+}
+
+func (o *Options) prepareMessages() ([]messages.Message, error) {
+	if len(o.messages) == 0 && o.userPromptTemplate == nil {
+		return nil, errors.New("at least one message is required")
+	}
+
+	processedMessages := make([]messages.Message, 0, len(o.messages)+2)
+
+	if o.systemPromptTemplate != nil {
+		if !messages.ContainsType(o.messages, messages.System) {
+			systemMessage, err := o.systemPromptTemplate.RenderMessage()
+			if err != nil {
+				return nil, err
+			}
+			processedMessages = append(processedMessages, systemMessage)
+		}
+	}
+
+	processedMessages = append(processedMessages, o.messages...)
+
+	if o.userPromptTemplate != nil {
+		if !messages.IsLastOfType(o.messages, messages.User) {
+			userMessage, err := o.userPromptTemplate.RenderMessage()
+			if err != nil {
+				return nil, err
+			}
+			processedMessages = append(processedMessages, userMessage)
+		}
+	}
+
+	return processedMessages, nil
+}
+
+func (o *Options) prepareChatOptions() request.ChatOptions {
+	var chatOptions request.ChatOptions
+	if o.chatOptions != nil {
+		chatOptions = o.chatOptions.Clone()
+	} else {
+		chatOptions = o.chatModel.DefaultOptions().Clone()
+	}
+
+	return chatOptions
 }

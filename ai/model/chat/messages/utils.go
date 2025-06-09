@@ -119,7 +119,70 @@ func MergeUserMessages(messages ...*UserMessage) *UserMessage {
 //	hasSystem := ContainsType(messages, System)  // returns true
 //	hasTool := ContainsType(messages, Tool)  // returns false
 func ContainsType(messages []Message, typ Type) bool {
+	if len(messages) == 0 {
+		return false
+	}
 	return slices.ContainsFunc(messages, func(m Message) bool {
 		return m != nil && m.Type() == typ
 	})
+}
+
+// IsLastOfType checks whether the last message in a slice has the specified type.
+// This function is useful for validating conversation flow or implementing conditional logic
+// based on the type of the most recent message in a conversation.
+//
+// The function performs a safe check for empty slices but does not check for nil messages.
+// If the last message is nil, calling Type() will cause a panic.
+//
+// Parameters:
+//   - messages: Slice of Message interfaces to check
+//   - typ: The Type to match against the last message
+//
+// Returns:
+//   - false if the messages slice is empty
+//   - true if the last message's type matches the specified type
+//   - false if the last message's type does not match the specified type
+//
+// Example:
+//
+//	messages := []Message{systemMsg, userMsg, assistantMsg}
+//	isLastAssistant := IsLastMessageOfType(messages, Assistant)  // returns true
+//	isLastUser := IsLastMessageOfType(messages, User)            // returns false
+//	isEmpty := IsLastMessageOfType([]Message{}, User)            // returns false
+func IsLastOfType(messages []Message, typ Type) bool {
+	if len(messages) == 0 {
+		return false
+	}
+	lastMsg := messages[len(messages)-1]
+	return lastMsg != nil && lastMsg.Type() == typ
+}
+
+// IsFirstOfType checks whether the first message in a slice has the specified type.
+// This function is useful for validating conversation flow or implementing conditional logic
+// based on the type of the initial message in a conversation.
+//
+// The function performs a safe check for empty slices but does not check for nil messages.
+// If the first message is nil, calling Type() will cause a panic.
+//
+// Parameters:
+//   - messages: Slice of Message interfaces to check
+//   - typ: The Type to match against the first message
+//
+// Returns:
+//   - false if the messages slice is empty
+//   - true if the first message's type matches the specified type
+//   - false if the first message's type does not match the specified type
+//
+// Example:
+//
+//	msgs := []Message{systemMsg, userMsg, assistantMsg}
+//	isFirstSystem := messages.IsFirstOfType(msgs, System)     // returns true
+//	isFirstUser := messages.IsFirstOfType(msgs, User)         // returns false
+//	isEmpty := messages.IsFirstOfType([]Message{}, System)    // returns false
+func IsFirstOfType(messages []Message, typ Type) bool {
+	if len(messages) == 0 {
+		return false
+	}
+	firstMsg := messages[0]
+	return firstMsg != nil && firstMsg.Type() == typ
 }

@@ -2,6 +2,7 @@ package chat
 
 import (
 	"context"
+	"errors"
 	"github.com/Tangerg/lynx/ai/model/chat/model"
 	"maps"
 	"sync"
@@ -17,9 +18,39 @@ type Request struct {
 	chatRequest *request.ChatRequest
 }
 
-// NewRequest todo fix it to all fill
-func NewRequest(ctx context.Context, options *Options) *Request {
-	return &Request{}
+func NewRequest(ctx context.Context, options *Options) (*Request, error) {
+	if ctx == nil {
+		return nil, errors.New("ctx is required")
+	}
+	if options == nil {
+		return nil, errors.New("options is required")
+	}
+	if options.chatModel == nil {
+		return nil, errors.New("chatModel is required")
+	}
+
+	msgs, err := options.prepareMessages()
+	if err != nil {
+		return nil, err
+	}
+	opts := options.prepareChatOptions()
+
+	chatRequest, err := request.
+		NewChatRequestBuilder().
+		WithMessages(msgs...).
+		WithOptions(opts).
+		Build()
+	if err != nil {
+		return nil, err
+	}
+	fields := make(map[string]any, len(options.middlewareParams))
+	maps.Copy(fields, options.middlewareParams)
+	return &Request{
+		ctx:         ctx,
+		fields:      fields,
+		chatModel:   options.chatModel,
+		chatRequest: chatRequest,
+	}, nil
 }
 
 func (c *Request) Context() context.Context {
