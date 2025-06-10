@@ -3,8 +3,8 @@ package chat
 import (
 	"context"
 	"errors"
-
 	"github.com/Tangerg/lynx/ai/model/chat/response"
+	"github.com/Tangerg/lynx/ai/model/converter"
 )
 
 type Caller struct {
@@ -28,6 +28,77 @@ func NewCaller(options *Options) (*Caller, error) {
 	}, nil
 }
 
+func (c *Caller) response(ctx context.Context, converter converter.StructuredConverter[any]) (*Response, error) {
+	request, err := NewRequest(ctx, c.options)
+	if err != nil {
+		return nil, err
+	}
+	if converter != nil {
+		request.Set(OutputFormat.String(), converter.GetFormat())
+	}
+	return c.Execute(request)
+}
+
+func (c *Caller) Execute(request *Request) (*Response, error) {
+	invoker, err := newModelInvoker(request.ChatModel())
+	if err != nil {
+		return nil, err
+	}
+	callHandler := c.middleWares.makeCallHandler(invoker)
+	return callHandler.Call(request)
+}
+
+func (c *Caller) Response(ctx context.Context) (*Response, error) {
+	return c.response(ctx, nil)
+}
+
+func (c *Caller) TextStructuredResponse(ctx context.Context) (*StructuredResponse[string], error) {
+	resp, err := c.response(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	text := resp.ChatResponse().Result().Output().Text()
+	return newStructuredResponse[string](text, resp), nil
+}
+
+func (c *Caller) ListStructuredResponse(ctx context.Context) (*StructuredResponse[[]string], error) {
+	listConverter := converter.NewListConverter()
+	resp, err := c.response(ctx, converter.AsAny(listConverter))
+	if err != nil {
+		return nil, err
+	}
+	list, err := listConverter.Convert(resp.ChatResponse().Result().Output().Text())
+	if err != nil {
+		return nil, err
+	}
+	return newStructuredResponse[[]string](list, resp), nil
+}
+
+func (c *Caller) MapStructuredResponse(ctx context.Context) (*StructuredResponse[map[string]any], error) {
+	mapConverter := converter.NewMapConverter()
+	resp, err := c.response(ctx, converter.AsAny(mapConverter))
+	if err != nil {
+		return nil, err
+	}
+	m, err := mapConverter.Convert(resp.ChatResponse().Result().Output().Text())
+	if err != nil {
+		return nil, err
+	}
+	return newStructuredResponse[map[string]any](m, resp), nil
+}
+
+func (c *Caller) AnyStructuredResponse(ctx context.Context, converter converter.StructuredConverter[any]) (*StructuredResponse[any], error) {
+	resp, err := c.response(ctx, converter)
+	if err != nil {
+		return nil, err
+	}
+	structured, err := converter.Convert(resp.ChatResponse().Result().Output().Text())
+	if err != nil {
+		return nil, err
+	}
+	return newStructuredResponse[any](structured, resp), nil
+}
+
 func (c *Caller) Text(ctx context.Context) (string, error) {
 	resp, err := c.ChatResponse(ctx)
 	if err != nil {
@@ -36,31 +107,34 @@ func (c *Caller) Text(ctx context.Context) (string, error) {
 	return resp.Result().Output().Text(), nil
 }
 
+func (c *Caller) List(ctx context.Context) ([]string, error) {
+	resp, err := c.ListStructuredResponse(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return resp.Data(), nil
+}
+
+func (c *Caller) Map(ctx context.Context) (map[string]any, error) {
+	resp, err := c.MapStructuredResponse(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return resp.Data(), nil
+}
+
+func (c *Caller) Any(ctx context.Context, converter converter.StructuredConverter[any]) (any, error) {
+	resp, err := c.AnyStructuredResponse(ctx, converter)
+	if err != nil {
+		return nil, err
+	}
+	return resp.Data(), nil
+}
+
 func (c *Caller) ChatResponse(ctx context.Context) (*response.ChatResponse, error) {
-	resp, err := c.Response(ctx)
+	resp, err := c.response(ctx, nil)
 	if err != nil {
 		return nil, err
 	}
 	return resp.ChatResponse(), nil
-}
-
-func (c *Caller) Response(ctx context.Context) (*Response, error) {
-	request, err := NewRequest(ctx, c.options)
-	if err != nil {
-		return nil, err
-	}
-	return c.Execute(request)
-}
-
-func (c *Caller) Execute(ctx *Request) (*Response, error) {
-	invoker, err := newModelInvoker(ctx.chatModel)
-	if err != nil {
-		return nil, err
-	}
-	middleWares := c.middleWares
-	if middleWares == nil {
-		middleWares = NewMiddlewares()
-	}
-	callHandler := middleWares.makeCallHandler(invoker)
-	return callHandler.Call(ctx)
 }

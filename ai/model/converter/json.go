@@ -8,30 +8,42 @@ import (
 	pkgjson "github.com/Tangerg/lynx/pkg/json"
 )
 
-var _ StructuredOutputConverter[any] = (*StructOutputConverter[any])(nil)
+var _ StructuredConverter[any] = (*JSONConverter[any])(nil)
 
-// StructOutputConverter is a generic StructuredOutputConverter implementation that converts
+// JSONConverter is a generic StructuredConverter implementation that converts
 // the LLM output into a structured type T by parsing JSON format with JSON Schema validation.
-type StructOutputConverter[T any] struct {
+type JSONConverter[T any] struct {
 	format string
+}
+
+func NewJSONConverter[T any]() *JSONConverter[T] {
+	return &JSONConverter[T]{}
 }
 
 // genFormat generates the format instructions with JSON Schema for the LLM output.
 // The schema is automatically derived from the generic type T.
-func (s *StructOutputConverter[T]) genFormat() string {
-	const template = `
-Your response should be in JSON format.
-Do not include any explanations, only provide a RFC8259 compliant JSON response following this format without deviation.
-Do not include markdown code blocks in your response.
-Remove the` + " '```json' markdown surrounding the output including the trailing '```'. " +
-		`Here is the JSON Schema instance your output must adhere to: ` + "```%s```"
+func (s *JSONConverter[T]) genFormat() string {
+	const template = `[OUTPUT FORMAT]
+JSON only - RFC8259 compliant
+
+[RESTRICTIONS]
+• No explanations or commentary
+• No markdown formatting or code blocks
+• No backticks or ` + "```json```" + ` wrappers
+• Exact schema compliance required
+
+[JSON SCHEMA]
+%s
+
+[EXPECTED OUTPUT]
+Raw JSON object matching the schema above.`
 	var t T
 	return fmt.Sprintf(template, pkgjson.StringDefSchemaOf(t))
 }
 
 // GetFormat returns the format instructions for the LLM to output JSON data
 // that conforms to the JSON Schema of type T. The format is generated once and cached.
-func (s *StructOutputConverter[T]) GetFormat() string {
+func (s *JSONConverter[T]) GetFormat() string {
 	if s.format == "" {
 		s.format = s.genFormat()
 	}
@@ -40,7 +52,7 @@ func (s *StructOutputConverter[T]) GetFormat() string {
 
 // Convert converts the raw LLM output string into type T by parsing JSON.
 // It automatically strips Markdown code blocks (```json and ```) if present.
-func (s *StructOutputConverter[T]) Convert(raw string) (T, error) {
+func (s *JSONConverter[T]) Convert(raw string) (T, error) {
 	content := stripMarkdownCodeBlock(raw)
 	var t T
 	err := json.Unmarshal([]byte(content), &t)

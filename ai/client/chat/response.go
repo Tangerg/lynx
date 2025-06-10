@@ -45,3 +45,23 @@ func (c *Response) Get(key string) (any, bool) {
 func (c *Response) ChatResponse() *response.ChatResponse {
 	return c.chatResponse
 }
+
+type StructuredResponse[T any] struct {
+	data     T
+	response *Response
+}
+
+func newStructuredResponse[T any](data T, response *Response) *StructuredResponse[T] {
+	return &StructuredResponse[T]{
+		data:     data,
+		response: response,
+	}
+}
+
+func (r *StructuredResponse[T]) Data() T {
+	return r.data
+}
+
+func (r *StructuredResponse[T]) Response() *Response {
+	return r.response
+}

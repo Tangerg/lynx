@@ -58,14 +58,10 @@ func (s *Streamer) Response(ctx context.Context) (stream.Reader[*Response], erro
 }
 
 func (s *Streamer) Execute(ctx *Request) (stream.Reader[*Response], error) {
-	invoker, err := newModelInvoker(ctx.chatModel)
+	invoker, err := newModelInvoker(ctx.ChatModel())
 	if err != nil {
 		return nil, err
 	}
-	middleWares := s.middleWares
-	if middleWares == nil {
-		middleWares = NewMiddlewares()
-	}
-	streamHandler := middleWares.makeStreamHandler(invoker)
+	streamHandler := s.middleWares.makeStreamHandler(invoker)
 	return streamHandler.Stream(ctx)
 }
