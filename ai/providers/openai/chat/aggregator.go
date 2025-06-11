@@ -1,8 +1,9 @@
 package chat
 
 import (
-	xslices "github.com/Tangerg/lynx/pkg/slices"
 	"github.com/sashabaranov/go-openai"
+
+	xslices "github.com/Tangerg/lynx/pkg/slices"
 )
 
 type streamAggregator struct {
@@ -43,7 +44,7 @@ func (a *streamAggregator) aggregateChoices() []openai.ChatCompletionChoice {
 	rv := make([]openai.ChatCompletionChoice, 0)
 	for _, chunk := range a.chunks {
 		for _, choice := range chunk.Choices {
-			rv = xslices.ExpandToFit(rv, choice.Index)
+			rv = xslices.EnsureIndex(rv, choice.Index)
 			rvChoice := rv[choice.Index]
 			rvChoice.Index = choice.Index
 			rvChoice.FinishReason = choice.FinishReason
@@ -55,7 +56,7 @@ func (a *streamAggregator) aggregateChoices() []openai.ChatCompletionChoice {
 			for j := range choice.Delta.ToolCalls {
 				deltaTool := &choice.Delta.ToolCalls[j]
 
-				rvChoice.Message.ToolCalls = xslices.ExpandToFit(rvChoice.Message.ToolCalls, *deltaTool.Index)
+				rvChoice.Message.ToolCalls = xslices.EnsureIndex(rvChoice.Message.ToolCalls, *deltaTool.Index)
 				tool := &rvChoice.Message.ToolCalls[*deltaTool.Index]
 
 				if deltaTool.ID != "" {
