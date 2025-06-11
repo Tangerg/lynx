@@ -44,6 +44,7 @@ func NewRequest(ctx context.Context, options *Options) (*Request, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	fields := make(map[string]any, len(options.middlewareParams))
 	maps.Copy(fields, options.middlewareParams)
 	return &Request{
@@ -84,4 +85,8 @@ func (c *Request) Get(key string) (any, bool) {
 
 func (c *Request) ChatRequest() *request.ChatRequest {
 	return c.chatRequest
+}
+
+func (c *Request) String() string {
+	return ""
 }

@@ -1,6 +1,7 @@
 package messages
 
 import (
+	pkgSlices "github.com/Tangerg/lynx/pkg/slices"
 	"maps"
 	"slices"
 	"strings"
@@ -150,10 +151,10 @@ func ContainsType(messages []Message, typ Type) bool {
 //	isLastUser := IsLastMessageOfType(messages, User)            // returns false
 //	isEmpty := IsLastMessageOfType([]Message{}, User)            // returns false
 func IsLastOfType(messages []Message, typ Type) bool {
-	if len(messages) == 0 {
+	lastMsg, ok := pkgSlices.At(messages, -1)
+	if !ok {
 		return false
 	}
-	lastMsg := messages[len(messages)-1]
 	return lastMsg != nil && lastMsg.Type() == typ
 }
 
@@ -180,9 +181,9 @@ func IsLastOfType(messages []Message, typ Type) bool {
 //	isFirstUser := messages.IsFirstOfType(msgs, User)         // returns false
 //	isEmpty := messages.IsFirstOfType([]Message{}, System)    // returns false
 func IsFirstOfType(messages []Message, typ Type) bool {
-	if len(messages) == 0 {
+	firstMsg, ok := pkgSlices.At(messages, 0)
+	if !ok {
 		return false
 	}
-	firstMsg := messages[0]
 	return firstMsg != nil && firstMsg.Type() == typ
 }

@@ -27,6 +27,7 @@ func TestAt(t *testing.T) {
 		e, ok = At(s, i+1)
 		t.Log(ok, e)
 	}
+	t.Log(At(s, -1))
 }
 
 func TestAtOr(t *testing.T) {

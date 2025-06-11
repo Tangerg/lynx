@@ -79,13 +79,11 @@ type Builder struct {
 
 func NewBuilder() *Builder {
 	return &Builder{
-		userPromptTemplate:   NewUserPromptTemplate().WithTemplate("Hi!"),
-		systemPromptTemplate: NewSystemPromptTemplate(),
-		messages:             make([]messages.Message, 0),
-		middlewares:          NewMiddlewares(),
-		middlewareParams:     make(map[string]any),
-		tools:                make([]tool.Tool, 0),
-		toolParams:           make(map[string]any),
+		messages:         make([]messages.Message, 0),
+		middlewares:      NewMiddlewares(),
+		middlewareParams: make(map[string]any),
+		tools:            make([]tool.Tool, 0),
+		toolParams:       make(map[string]any),
 	}
 }
 

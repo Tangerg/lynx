@@ -46,6 +46,10 @@ func (c *Response) ChatResponse() *response.ChatResponse {
 	return c.chatResponse
 }
 
+func (c *Response) String() string {
+	return ""
+}
+
 type StructuredResponse[T any] struct {
 	data     T
 	response *Response

@@ -131,8 +131,9 @@ func (o *Options) Clone() *Options {
 }
 
 func (o *Options) prepareMessages() ([]messages.Message, error) {
-	if len(o.messages) == 0 && o.userPromptTemplate == nil {
-		return nil, errors.New("at least one message is required")
+	if len(o.messages) == 0 &&
+		o.userPromptTemplate == nil {
+		o.messages = append(o.messages, messages.NewUserMessage("", nil))
 	}
 
 	processedMessages := make([]messages.Message, 0, len(o.messages)+2)
@@ -150,7 +151,8 @@ func (o *Options) prepareMessages() ([]messages.Message, error) {
 	processedMessages = append(processedMessages, o.messages...)
 
 	if o.userPromptTemplate != nil {
-		if !messages.IsLastOfType(o.messages, messages.User) {
+		if !messages.IsLastOfType(o.messages, messages.User) ||
+			!messages.IsLastOfType(o.messages, messages.Tool) {
 			userMessage, err := o.userPromptTemplate.RenderMessage()
 			if err != nil {
 				return nil, err
@@ -164,6 +166,7 @@ func (o *Options) prepareMessages() ([]messages.Message, error) {
 
 func (o *Options) prepareChatOptions() request.ChatOptions {
 	var chatOptions request.ChatOptions
+
 	if o.chatOptions != nil {
 		chatOptions = o.chatOptions.Clone()
 	} else {
