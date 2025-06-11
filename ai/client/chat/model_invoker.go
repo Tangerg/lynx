@@ -2,6 +2,7 @@ package chat
 
 import (
 	"errors"
+
 	"github.com/Tangerg/lynx/ai/model/chat/model"
 	"github.com/Tangerg/lynx/ai/model/chat/response"
 	"github.com/Tangerg/lynx/pkg/stream"

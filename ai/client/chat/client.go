@@ -39,10 +39,6 @@ func (c *Client) ChatText(text string) *Options {
 }
 
 func (c *Client) ChatRequest(chatRequest *request.ChatRequest) *Options {
-	if chatRequest == nil {
-		panic("chatRequest is required")
-	}
-
 	options := c.defaultOptions.Clone()
 
 	if chatRequest.Options() != nil {

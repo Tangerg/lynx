@@ -1,9 +1,10 @@
 package chat
 
 import (
+	"slices"
+
 	"github.com/Tangerg/lynx/ai/model/chat/messages"
 	"github.com/Tangerg/lynx/pkg/text"
-	"slices"
 
 	"github.com/Tangerg/lynx/ai/commons/content"
 )

@@ -3,8 +3,10 @@ package chat
 import (
 	"context"
 	"errors"
+
 	"github.com/Tangerg/lynx/ai/model/chat/response"
 	"github.com/Tangerg/lynx/ai/model/converter"
+	pkgSlices "github.com/Tangerg/lynx/pkg/slices"
 )
 
 type Caller struct {
@@ -40,7 +42,7 @@ func (c *Caller) response(ctx context.Context, converter converter.StructuredCon
 }
 
 func (c *Caller) Execute(request *Request) (*Response, error) {
-	invoker, err := newModelInvoker(request.ChatModel())
+	invoker, err := newModelInvoker(request.chatModel)
 	if err != nil {
 		return nil, err
 	}
@@ -61,26 +63,32 @@ func (c *Caller) TextStructuredResponse(ctx context.Context) (*StructuredRespons
 	return newStructuredResponse[string](text, resp), nil
 }
 
-func (c *Caller) ListStructuredResponse(ctx context.Context) (*StructuredResponse[[]string], error) {
-	listConverter := converter.NewListConverter()
-	resp, err := c.response(ctx, converter.AsAny(listConverter))
+func (c *Caller) ListStructuredResponse(ctx context.Context, listConverter ...converter.StructuredConverter[[]string]) (*StructuredResponse[[]string], error) {
+	lc, _ := pkgSlices.At(listConverter, 0)
+	if lc == nil {
+		lc = converter.NewListConverter()
+	}
+	resp, err := c.response(ctx, converter.AsAny(lc))
 	if err != nil {
 		return nil, err
 	}
-	list, err := listConverter.Convert(resp.ChatResponse().Result().Output().Text())
+	list, err := lc.Convert(resp.ChatResponse().Result().Output().Text())
 	if err != nil {
 		return nil, err
 	}
 	return newStructuredResponse[[]string](list, resp), nil
 }
 
-func (c *Caller) MapStructuredResponse(ctx context.Context) (*StructuredResponse[map[string]any], error) {
-	mapConverter := converter.NewMapConverter()
-	resp, err := c.response(ctx, converter.AsAny(mapConverter))
+func (c *Caller) MapStructuredResponse(ctx context.Context, mapConverter ...converter.StructuredConverter[map[string]any]) (*StructuredResponse[map[string]any], error) {
+	mc, _ := pkgSlices.At(mapConverter, 0)
+	if mc == nil {
+		mc = converter.NewMapConverter()
+	}
+	resp, err := c.response(ctx, converter.AsAny(mc))
 	if err != nil {
 		return nil, err
 	}
-	m, err := mapConverter.Convert(resp.ChatResponse().Result().Output().Text())
+	m, err := mc.Convert(resp.ChatResponse().Result().Output().Text())
 	if err != nil {
 		return nil, err
 	}
@@ -107,16 +115,16 @@ func (c *Caller) Text(ctx context.Context) (string, error) {
 	return resp.Result().Output().Text(), nil
 }
 
-func (c *Caller) List(ctx context.Context) ([]string, error) {
-	resp, err := c.ListStructuredResponse(ctx)
+func (c *Caller) List(ctx context.Context, listConverter ...converter.StructuredConverter[[]string]) ([]string, error) {
+	resp, err := c.ListStructuredResponse(ctx, listConverter...)
 	if err != nil {
 		return nil, err
 	}
 	return resp.Data(), nil
 }
 
-func (c *Caller) Map(ctx context.Context) (map[string]any, error) {
-	resp, err := c.MapStructuredResponse(ctx)
+func (c *Caller) Map(ctx context.Context, mapConverter ...converter.StructuredConverter[map[string]any]) (map[string]any, error) {
+	resp, err := c.MapStructuredResponse(ctx, mapConverter...)
 	if err != nil {
 		return nil, err
 	}

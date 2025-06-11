@@ -58,7 +58,7 @@ func (s *Streamer) Response(ctx context.Context) (stream.Reader[*Response], erro
 }
 
 func (s *Streamer) Execute(ctx *Request) (stream.Reader[*Response], error) {
-	invoker, err := newModelInvoker(ctx.ChatModel())
+	invoker, err := newModelInvoker(ctx.chatModel)
 	if err != nil {
 		return nil, err
 	}

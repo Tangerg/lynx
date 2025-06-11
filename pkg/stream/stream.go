@@ -5,6 +5,8 @@ import (
 	"errors"
 	"io"
 	"sync"
+
+	pkgSlices "github.com/Tangerg/lynx/pkg/slices"
 )
 
 // ErrStreamClosed is returned when attempting to operate on a stream that has been closed.
@@ -182,14 +184,13 @@ func (c *stream[T]) Close() error {
 }
 
 // NewStream creates a new Stream instance with configurable buffering.
-// The function provides flexible buffer size configuration while maintaining
-// simplicity for common use cases.
+// The function provides simple buffer size configuration for common use cases.
 //
 // Buffer Configuration:
 //   - No parameters: Creates an unbuffered (synchronous) stream
-//   - Negative sizes: Ignored, continues searching for valid size
-//   - First non-negative size: Used as buffer capacity
-//   - Subsequent parameters: Ignored after first valid size is found
+//   - First parameter < 0: Creates an unbuffered stream (treated as 0)
+//   - First parameter >= 0: Used as buffer capacity
+//   - Additional parameters: Ignored (only first parameter is considered)
 //
 // Buffer Behavior:
 //   - Unbuffered (size 0): Write operations block until a reader is available
@@ -200,7 +201,7 @@ func (c *stream[T]) Close() error {
 // The returned Stream is safe for concurrent use by multiple goroutines.
 //
 // Parameters:
-//   - sizes: Optional buffer sizes (variadic). Only the first non-negative value is used.
+//   - sizes: Optional buffer sizes (variadic). Only the first value is used.
 //
 // Returns:
 //   - Stream[T]: A new stream instance ready for use
@@ -209,18 +210,15 @@ func (c *stream[T]) Close() error {
 //
 //	unbuffered := NewStream[int]()           // Synchronous communication
 //	buffered := NewStream[int](10)           // Buffer capacity of 10
-//	alsoBuffered := NewStream[int](-1,5)    // Buffer capacity of 5 (ignores -1)
-//	defaultUnbuffered := NewStream[string](-1,-2) // Unbuffered (all sizes invalid)
+//	alsoUnbuffered := NewStream[int](-1)     // Unbuffered (negative treated as 0)
+//	ignored := NewStream[string](5,10)      // Buffer capacity of 5 (10 is ignored)
 func NewStream[T any](sizes ...int) Stream[T] {
-	var bufferSize = 0
-	for _, size := range sizes {
-		if size >= 0 {
-			bufferSize = size
-			break
-		}
+	size, _ := pkgSlices.At(sizes, 0)
+	if size < 0 {
+		size = 0
 	}
 	return &stream[T]{
-		value:  make(chan T, bufferSize),
+		value:  make(chan T, size),
 		closed: make(chan struct{}),
 	}
 }

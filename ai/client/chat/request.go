@@ -3,9 +3,10 @@ package chat
 import (
 	"context"
 	"errors"
-	"github.com/Tangerg/lynx/ai/model/chat/model"
 	"maps"
 	"sync"
+
+	"github.com/Tangerg/lynx/ai/model/chat/model"
 
 	"github.com/Tangerg/lynx/ai/model/chat/request"
 )
@@ -83,8 +84,4 @@ func (c *Request) Get(key string) (any, bool) {
 
 func (c *Request) ChatRequest() *request.ChatRequest {
 	return c.chatRequest
-}
-
-func (c *Request) ChatModel() model.ChatModel {
-	return c.chatModel
 }
