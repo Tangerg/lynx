@@ -9,56 +9,72 @@ import (
 
 // Definition represents a tool definition that is used by the AI model to determine
 // when and how to call the tool. It provides essential metadata including the tool's
-// name, description, and input parameter schema.
-type Definition interface {
-	// Name returns the tool name. The name must be unique within the tool set
-	// provided to a model and should follow naming conventions (e.g., camelCase
-	// or snake_case). This name is used by the AI model to identify and invoke
-	// the specific tool.
-	Name() string
-
-	// Description returns the tool description, which is used by the AI model
-	// to understand what the tool does and when it should be called. A clear
-	// and concise description helps the model make better decisions about
-	// tool usage.
-	Description() string
-
-	// InputSchema returns the JSON Schema that defines the structure and
-	// validation rules for the parameters used to call the tool. This schema
-	// helps the AI model understand what arguments to provide when invoking
-	// the tool.
-	InputSchema() string
-}
-
-// definition is the default implementation of the Definition interface.
-// It provides a simple, immutable representation of a tool definition
-// with all required fields.
-type definition struct {
+// name, description, and input parameter inputSchema.
+type Definition struct {
 	name        string // The unique tool name
 	description string // The tool description for AI model guidance
 	inputSchema string // The JSON Schema for tool parameters
 }
 
-func (d *definition) Name() string {
+// Name returns the tool name. The name must be unique within the tool set
+// provided to a model and should follow naming conventions (e.g., camelCase
+// or snake_case). This name is used by the AI model to identify and invoke
+// the specific tool.
+func (d *Definition) Name() string {
 	return d.name
 }
 
-func (d *definition) Description() string {
+// Description returns the tool description, which is used by the AI model
+// to understand what the tool does and when it should be called. A clear
+// and concise description helps the model make better decisions about
+// tool usage.
+func (d *Definition) Description() string {
 	return d.description
 }
 
-func (d *definition) InputSchema() string {
+// InputSchema returns the JSON Schema that defines the structure and
+// validation rules for the parameters used to call the tool. This inputSchema
+// helps the AI model understand what arguments to provide when invoking
+// the tool.
+func (d *Definition) InputSchema() string {
 	return d.inputSchema
+}
+
+// NewDefinition creates a new Definition instance with the provided parameters.
+// This is a simple constructor function that performs basic validation and
+// returns a Definition instance.
+//
+// Parameters:
+//   - name: The unique identifier for the tool. Must not be empty.
+//   - description: A clear and concise description of the tool's functionality.
+//   - inputSchema: A valid JSON Schema string defining the tool's input parameters. Must not be empty.
+//
+// Returns:
+//   - *Definition: A new Definition instance if validation passes
+//   - error: An error describing what validation failed, nil on success
+func NewDefinition(name, description, inputSchema string) (*Definition, error) {
+	if name == "" {
+		return nil, errors.New("name is required")
+	}
+	if inputSchema == "" {
+		return nil, errors.New("input inputSchema is required")
+	}
+
+	return &Definition{
+		name:        name,
+		description: description,
+		inputSchema: inputSchema,
+	}, nil
 }
 
 // DefinitionBuilder provides a fluent interface for constructing Definition instances.
 // It supports method chaining and offers features like automatic description
 // generation and validation of required fields.
 type DefinitionBuilder struct {
-	name     string
-	desc     string
-	schema   string
-	autoDesc bool
+	name            string
+	description     string
+	inputSchema     string
+	autoDescription bool
 }
 
 // NewDefinitionBuilder creates and returns a new DefinitionBuilder instance with default values.
@@ -84,19 +100,19 @@ func (b *DefinitionBuilder) WithName(name string) *DefinitionBuilder {
 	return b
 }
 
-// WithDescription sets the tool description for the definition being built if desc is not empty.
+// WithDescription sets the tool description for the definition being built if description is not empty.
 // The description should clearly explain what the tool does and when it
 // should be used. This information helps the AI model make informed
 // decisions about tool invocation.
 //
 // Parameters:
-//   - desc: A clear and concise description of the tool's functionality
+//   - description: A clear and concise description of the tool's functionality
 //
 // Returns:
 //   - *DefinitionBuilder: The builder instance for method chaining
 func (b *DefinitionBuilder) WithDescription(desc string) *DefinitionBuilder {
 	if desc != "" {
-		b.desc = desc
+		b.description = desc
 	}
 	return b
 }
@@ -113,16 +129,16 @@ func (b *DefinitionBuilder) WithDescription(desc string) *DefinitionBuilder {
 // Returns:
 //   - *DefinitionBuilder: The builder instance for method chaining
 func (b *DefinitionBuilder) WithAutoDescription() *DefinitionBuilder {
-	b.autoDesc = true
+	b.autoDescription = true
 	return b
 }
 
 // WithInputSchema sets the JSON Schema that defines the structure and validation
-// rules for the tool's input parameters if schema is not empty. The schema should follow the JSON Schema
+// rules for the tool's input parameters if inputSchema is not empty. The inputSchema should follow the JSON Schema
 // specification and describe all required and optional parameters, their types,
 // and any validation constraints.
 //
-// Example schema:
+// Example inputSchema:
 //
 //	{
 //	  "type": "object",
@@ -134,13 +150,13 @@ func (b *DefinitionBuilder) WithAutoDescription() *DefinitionBuilder {
 //	}
 //
 // Parameters:
-//   - schema: A valid JSON Schema string defining the tool's input parameters
+//   - inputSchema: A valid JSON Schema string defining the tool's input parameters
 //
 // Returns:
 //   - *DefinitionBuilder: The builder instance for method chaining
 func (b *DefinitionBuilder) WithInputSchema(schema string) *DefinitionBuilder {
 	if schema != "" {
-		b.schema = schema
+		b.inputSchema = schema
 	}
 	return b
 }
@@ -153,7 +169,7 @@ func (b *DefinitionBuilder) WithInputSchema(schema string) *DefinitionBuilder {
 // Validation rules:
 //   - name must not be empty
 //   - inputSchema must not be empty
-//   - if autoDesc is true and desc is empty, generates a default description
+//   - if autoDescription is true and description is empty, generates a default description
 //
 // Returns:
 //   - error: An error if validation fails, nil otherwise
@@ -161,19 +177,19 @@ func (b *DefinitionBuilder) validate() error {
 	if b.name == "" {
 		return errors.New("name is required")
 	}
-	if b.schema == "" {
-		return errors.New("input schema is required")
+	if b.inputSchema == "" {
+		return errors.New("input inputSchema is required")
 	}
 
 	// Generate description if auto-description is enabled and no explicit description is set
-	if b.desc == "" && b.autoDesc {
-		b.desc = b.generateDescription()
+	if b.description == "" && b.autoDescription {
+		b.description = b.genDescription()
 	}
 
 	return nil
 }
 
-// generateDescription creates a default description based on the tool name.
+// genDescription creates a default description based on the tool name.
 // It performs the following transformations:
 //  1. Converts the name to camelCase then to snake_case
 //  2. Replaces underscores with spaces
@@ -187,7 +203,7 @@ func (b *DefinitionBuilder) validate() error {
 //
 // Returns:
 //   - string: The generated description, or "tool" if the name is empty
-func (b *DefinitionBuilder) generateDescription() string {
+func (b *DefinitionBuilder) genDescription() string {
 	if b.name == "" {
 		return "tool"
 	}
@@ -215,18 +231,14 @@ func (b *DefinitionBuilder) generateDescription() string {
 //   - inputSchema is empty or not set
 //
 // Returns:
-//   - Definition: A new Definition instance if validation passes
+//   - *Definition: A new Definition instance if validation passes
 //   - error: An error describing what validation failed, nil on success
-func (b *DefinitionBuilder) Build() (Definition, error) {
+func (b *DefinitionBuilder) Build() (*Definition, error) {
 	if err := b.validate(); err != nil {
 		return nil, err
 	}
 
-	return &definition{
-		name:        b.name,
-		description: b.desc,
-		inputSchema: b.schema,
-	}, nil
+	return NewDefinition(b.name, b.description, b.inputSchema)
 }
 
 // MustBuild creates and returns a new Definition instance, panicking if validation fails.
@@ -242,8 +254,8 @@ func (b *DefinitionBuilder) Build() (Definition, error) {
 //   - If validation fails (e.g., missing required fields)
 //
 // Returns:
-//   - Definition: A new Definition instance
-func (b *DefinitionBuilder) MustBuild() Definition {
+//   - *Definition: A new Definition instance
+func (b *DefinitionBuilder) MustBuild() *Definition {
 	def, err := b.Build()
 	if err != nil {
 		panic(err)

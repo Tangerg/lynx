@@ -23,6 +23,10 @@ const (
 	// ContentFilter indicates the response was blocked by content safety filters
 	ContentFilter FinishReason = "content_filter"
 
+	// ReturnDirect indicates the tool execution results were returned directly
+	// without AI processing, typically when all executed tools have ReturnDirect=true
+	ReturnDirect FinishReason = "return_direct"
+
 	// Other represents any completion reason not covered by other constants
 	Other FinishReason = "other"
 
@@ -48,6 +52,11 @@ func (r FinishReason) IsToolCalls() bool {
 // IsContentFilter returns true if the finish reason is ContentFilter
 func (r FinishReason) IsContentFilter() bool {
 	return r == ContentFilter
+}
+
+// IsReturnDirect returns true if the finish reason is ReturnDirect
+func (r FinishReason) IsReturnDirect() bool {
+	return r == ReturnDirect
 }
 
 // IsOther returns true if the finish reason is Other
