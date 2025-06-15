@@ -30,11 +30,11 @@ func NewRequest(ctx context.Context, options *Options) (*Request, error) {
 		return nil, errors.New("chatModel is required")
 	}
 
-	msgs, err := options.prepareMessages()
+	msgs, err := options.NormalizeMessages()
 	if err != nil {
 		return nil, err
 	}
-	opts := options.prepareChatOptions()
+	opts := options.ChatOptions()
 
 	chatRequest, err := request.
 		NewChatRequestBuilder().

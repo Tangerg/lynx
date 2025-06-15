@@ -48,6 +48,18 @@ func (c *ChatResponse) Metadata() *ChatResponseMetadata {
 	return c.metadata
 }
 
+// FirstToolCallsResult returns the first chat result that contains tool calls.
+// It iterates through all chat results and returns the first one that has tool calls.
+// Returns nil if no ChatResult with tool calls is found.
+func (c *ChatResponse) FirstToolCallsResult() *result.ChatResult {
+	for _, chatResult := range c.results {
+		if chatResult.Output().HasToolCalls() {
+			return chatResult
+		}
+	}
+	return nil
+}
+
 // ChatResponseBuilder provides a builder pattern for creating ChatResponse instances.
 type ChatResponseBuilder struct {
 	results  []*result.ChatResult
@@ -68,7 +80,7 @@ func (c *ChatResponseBuilder) WithResult(result *result.ChatResult) *ChatRespons
 }
 
 // WithResults replaces all chat results with the provided results if results is not nil.
-func (c *ChatResponseBuilder) WithResults(results []*result.ChatResult) *ChatResponseBuilder {
+func (c *ChatResponseBuilder) WithResults(results ...*result.ChatResult) *ChatResponseBuilder {
 	if results != nil {
 		c.results = results
 	}

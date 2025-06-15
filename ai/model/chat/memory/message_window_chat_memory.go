@@ -3,11 +3,9 @@ package memory
 import (
 	"context"
 	"errors"
-	"slices"
-
-	"github.com/samber/lo"
 
 	"github.com/Tangerg/lynx/ai/model/chat/messages"
+	pkgSlices "github.com/Tangerg/lynx/pkg/slices"
 )
 
 // MessageWindowChatMemory implements ChatMemory interface with a sliding window strategy.
@@ -79,44 +77,29 @@ func (m *MessageWindowChatMemory) Get(ctx context.Context, conversationID string
 // Returns:
 //   - []messages.Message: Processed messages within the size limit
 func (m *MessageWindowChatMemory) process(msgs []messages.Message) []messages.Message {
-	// If we're within the limit, return a copy of all messages
+	// If we're within the limit, return
 	if len(msgs) <= m.maxMessages {
-		return slices.Clone(msgs)
+		return msgs
 	}
 
-	systemMsgs := lo.Map(
-		lo.Filter(
-			msgs,
-			func(item messages.Message, _ int) bool {
-				return item.Type().IsSystem()
-			},
-		),
-		func(item messages.Message, _ int) *messages.SystemMessage {
-			return item.(*messages.SystemMessage)
-		},
-	)
+	processedMsgs := make([]messages.Message, 0, m.maxMessages)
 
-	otherMsgs := lo.Filter(msgs, func(item messages.Message, _ int) bool {
-		return !item.Type().IsSystem()
-	})
-
-	trimmedMessages := make([]messages.Message, 0, m.maxMessages)
-
-	systemMsg := messages.MergeSystemMessages(systemMsgs...)
+	systemMsg := messages.MergeSystemMessages(msgs)
 	if systemMsg != nil {
-		trimmedMessages = append(trimmedMessages, systemMsg)
+		processedMsgs = append(processedMsgs, systemMsg)
 	}
+	otherMsgs := messages.FilterByTypes(msgs, messages.User, messages.Assistant, messages.Tool)
 
 	// Calculate remaining capacity for non-system messages
-	remainingCap := m.maxMessages - len(trimmedMessages)
+	remainingCap := m.maxMessages - len(processedMsgs)
 	if remainingCap > 0 && len(otherMsgs) > 0 {
 		// Take the most recent messages that fit in the remaining capacity
 		takeCount := min(remainingCap, len(otherMsgs))
 		startIndex := len(otherMsgs) - takeCount
-		trimmedMessages = append(trimmedMessages, otherMsgs[startIndex:]...)
+		processedMsgs = append(processedMsgs, otherMsgs[startIndex:]...)
 	}
 
-	return trimmedMessages
+	return processedMsgs
 }
 
 // Clear removes all stored messages for the specified conversation by
@@ -137,36 +120,31 @@ func (m *MessageWindowChatMemory) Clear(ctx context.Context, conversationID stri
 //
 // Parameters:
 //   - chatMemoryRepository: The repository for message persistence, must not be nil
-//   - limit: Optional maximum number of messages to retain. If not provided or <= 0, defaults to 20
+//   - limit: Optional maximum number of messages to retain.
+//     Valid range: 10-100. Values outside this range will be automatically
+//     clamped to the nearest valid value. If not provided, defaults to 10.
 //
 // Returns:
 //   - *MessageWindowChatMemory: Configured instance ready for use
 //   - error: Validation error if repository is nil
 //
-// Example:
+// Examples:
 //
-//	// Using default limit (20)
+//	// Using default limit (10)
 //	memory, err := NewMessageWindowChatMemory(myRepository)
-//	if err != nil {
-//	    // handle error
-//	}
 //
-//	// Using custom limit
-//	memory, err := NewMessageWindowChatMemory(myRepository, 10)
-//	if err != nil {
-//	    // handle error
-//	}
+//	// Using custom limit (clamped to valid range)
+//	memory, err := NewMessageWindowChatMemory(myRepository, 50)  // Uses 50
+//	memory, err := NewMessageWindowChatMemory(myRepository, 5)   // Clamped to 10
+//	memory, err := NewMessageWindowChatMemory(myRepository, 200) // Clamped to 100
 func NewMessageWindowChatMemory(chatMemoryRepository ChatMemoryRepository, limit ...int) (*MessageWindowChatMemory, error) {
 	if chatMemoryRepository == nil {
 		return nil, errors.New("chat memory repository is required")
 	}
 
-	maxMessages := 20
-	for _, l := range limit {
-		if l > 0 {
-			maxMessages = l
-		}
-	}
+	maxMessages, _ := pkgSlices.First(limit)
+	maxMessages = max(maxMessages, 10)
+	maxMessages = min(maxMessages, 100)
 
 	return &MessageWindowChatMemory{
 		maxMessages:          maxMessages,

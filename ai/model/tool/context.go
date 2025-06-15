@@ -23,7 +23,7 @@ type Context interface {
 	// timeout control, and other standard context operations.
 	//
 	// This method provides access to the standard Go context for implementing
-	// cancellation, deadlines, and carrying request-scoped values across API boundaries.
+	// cancellation, deadlines, and carrying chatRequest-scoped values across API boundaries.
 	Context() stdContext.Context
 
 	// Set stores a key-value pair in the context's data storage.

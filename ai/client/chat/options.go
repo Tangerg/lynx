@@ -130,41 +130,7 @@ func (o *Options) Clone() *Options {
 	return newOptions
 }
 
-func (o *Options) prepareMessages() ([]messages.Message, error) {
-	if len(o.messages) == 0 &&
-		o.userPromptTemplate == nil {
-		o.messages = append(o.messages, messages.NewUserMessage("", nil))
-	}
-
-	processedMessages := make([]messages.Message, 0, len(o.messages)+2)
-
-	if o.systemPromptTemplate != nil {
-		if !messages.ContainsType(o.messages, messages.System) {
-			systemMessage, err := o.systemPromptTemplate.RenderMessage()
-			if err != nil {
-				return nil, err
-			}
-			processedMessages = append(processedMessages, systemMessage)
-		}
-	}
-
-	processedMessages = append(processedMessages, o.messages...)
-
-	if o.userPromptTemplate != nil {
-		if !messages.IsLastOfType(o.messages, messages.User) ||
-			!messages.IsLastOfType(o.messages, messages.Tool) {
-			userMessage, err := o.userPromptTemplate.RenderMessage()
-			if err != nil {
-				return nil, err
-			}
-			processedMessages = append(processedMessages, userMessage)
-		}
-	}
-
-	return processedMessages, nil
-}
-
-func (o *Options) prepareChatOptions() request.ChatOptions {
+func (o *Options) ChatOptions() request.ChatOptions {
 	var chatOptions request.ChatOptions
 
 	if o.chatOptions != nil {
@@ -174,4 +140,76 @@ func (o *Options) prepareChatOptions() request.ChatOptions {
 	}
 
 	return chatOptions
+}
+
+// NormalizeMessages processes and normalizes message sequences for AI conversation systems.
+// This method ensures proper message structure and optimizes message sequences
+// for AI model consumption.
+//
+// Processing Flow:
+// 1. Initialize message list from template if empty
+// 2. Process system messages (merge existing or render from template)
+// 3. Add non-system messages (User, Assistant, Tool types)
+// 4. Merge adjacent same-type messages for optimization
+//
+// Message Type Priority:
+// - System messages: Always placed at the beginning
+// - Other messages: Maintain original order (User, Assistant, Tool)
+//
+// Empty Message Handling:
+// - If userPromptTemplate exists: render from template
+// - Otherwise: create default greeting message "Hi!"
+//
+// Returns:
+// - Processed message slice with merged adjacent same-type messages
+// - Error if message rendering fails
+func (o *Options) NormalizeMessages() ([]messages.Message, error) {
+	msgs := slices.Clone(o.messages)
+
+	// Case 1: Handle empty message list
+	// Initialize conversation with user prompt template or default greeting
+	if len(msgs) == 0 {
+		if o.userPromptTemplate != nil {
+			userMessage, err := o.userPromptTemplate.RenderMessage()
+			if err != nil {
+				return nil, errors.Join(err, errors.New("failed to render user prompt template"))
+			}
+			msgs = append(msgs, userMessage)
+		} else {
+			// Use friendly greeting as fallback to ensure conversation can start
+			msgs = append(msgs, messages.NewUserMessage("Hi!", nil))
+		}
+	}
+
+	// Pre-allocate capacity for performance optimization
+	// Reserve space for existing messages plus potential system message
+	processedMsgs := make([]messages.Message, 0, len(msgs)+1)
+
+	// Case 2: System message processing with priority-based selection
+	// Strategy: Existing system messages take precedence over template-generated ones
+	// Note: If neither existing system messages nor template exists, no system message is added
+	systemMsg := messages.MergeSystemMessages(msgs)
+	if systemMsg != nil {
+		// Priority 1: Use merged existing system messages
+		processedMsgs = append(processedMsgs, systemMsg)
+	} else if o.systemPromptTemplate != nil {
+		// Priority 2: Generate system message from template when no existing ones found
+		renderedSystemMsg, err := o.systemPromptTemplate.RenderMessage()
+		if err != nil {
+			return nil, errors.Join(err, errors.New("failed to render system prompt template"))
+		}
+		processedMsgs = append(processedMsgs, renderedSystemMsg)
+	}
+
+	// Case 3: Add non-system messages while preserving order
+	// Filter out system messages to prevent duplication since they're already processed above
+	// Only include User, Assistant, and Tool messages in their original sequence
+	otherTypeMsg := messages.FilterByTypes(msgs, messages.User, messages.Assistant, messages.Tool)
+	processedMsgs = append(processedMsgs, otherTypeMsg...)
+
+	// Case 4: Final optimization - merge adjacent messages of the same type
+	// This step combines consecutive messages of identical types to reduce redundancy
+	// and optimize the message sequence for better AI model consumption
+	// Example: [User1, User2, System, User3, Tool1, Tool2] → [MergedUser(1+2), System, User3, MergedTool(1+2)]
+	return messages.MergeAdjacentSameTypeMessages(processedMsgs), nil
 }

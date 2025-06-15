@@ -22,7 +22,7 @@ const (
 	// in response to user input.
 	Assistant Type = "assistant"
 
-	// Tool represents a message containing function call responses
+	// Tool represents a message containing function call toolResponses
 	// or tool execution results in a chat application.
 	Tool Type = "tool"
 )

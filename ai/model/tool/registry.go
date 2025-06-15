@@ -1,8 +1,9 @@
 package tool
 
 import (
-	pkgSlices "github.com/Tangerg/lynx/pkg/slices"
 	"sync"
+
+	pkgSlices "github.com/Tangerg/lynx/pkg/slices"
 )
 
 // Registry provides a thread-safe registry for managing tool instances.
@@ -59,6 +60,9 @@ func (r *Registry) Register(tools ...Tool) *Registry {
 	defer r.mu.Unlock()
 
 	for _, t := range tools {
+		if t == nil {
+			continue
+		}
 		name := t.Definition().Name()
 		_, ok := r.store[name]
 		if ok {
@@ -87,6 +91,9 @@ func (r *Registry) Unregister(names ...string) *Registry {
 	defer r.mu.Unlock()
 
 	for _, name := range names {
+		if name == "" {
+			continue
+		}
 		_, ok := r.store[name]
 		if !ok {
 			continue

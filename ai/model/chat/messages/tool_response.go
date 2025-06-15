@@ -15,35 +15,35 @@ type ToolResponse struct {
 // Compile-time check to ensure ToolResponseMessage implements Message interface.
 var _ Message = (*ToolResponseMessage)(nil)
 
-// ToolResponseMessage represents a message containing responses from tool calls.
+// ToolResponseMessage represents a message containing toolResponses from tool calls.
 // This message type is used to provide the results of function/tool executions
 // back to the AI assistant, allowing it to continue the conversation with
 // the tool execution results.
 type ToolResponseMessage struct {
 	message
-	responses []*ToolResponse // List of tool responses
+	toolResponses []*ToolResponse
 }
 
-// Responses returns the tool responses contained in this message.
-func (t *ToolResponseMessage) Responses() []*ToolResponse {
-	return t.responses
+// ToolResponses returns the tool toolResponses contained in this message.
+func (t *ToolResponseMessage) ToolResponses() []*ToolResponse {
+	return t.toolResponses
 }
 
-// NewToolResponseMessage creates a new tool response message with the given responses.
+// NewToolResponseMessage creates a new tool response message with the given toolResponses.
 //
-// The responses parameter must contain at least one response.
+// The toolResponses parameter must contain at least one response.
 //
 // Optionally accepts metadata as a map. If multiple metadata maps are provided,
 // only the first one will be used.
 //
 // Note: ToolResponseMessage typically has empty text content as the actual content
-// is contained within the tool responses.
-func NewToolResponseMessage(responses []*ToolResponse, metadata ...map[string]any) (*ToolResponseMessage, error) {
-	if len(responses) == 0 {
-		return nil, errors.New("tool responses must contain at least one response")
+// is contained within the tool toolResponses.
+func NewToolResponseMessage(toolResponses []*ToolResponse, metadata ...map[string]any) (*ToolResponseMessage, error) {
+	if len(toolResponses) == 0 {
+		return nil, errors.New("tool response message must contain at least one tool response")
 	}
 	return &ToolResponseMessage{
-		message:   newmessage(Tool, "", metadata...), //toolcall not have text content
-		responses: responses,
+		message:       newmessage(Tool, "", metadata...), //toolcall not have text content
+		toolResponses: toolResponses,
 	}, nil
 }

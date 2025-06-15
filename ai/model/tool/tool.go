@@ -25,7 +25,7 @@ import (
 // This separation provides several benefits:
 // - Clear responsibility boundaries between client and server
 // - Type safety at compile time (CallableTool guarantees Call method exists)
-// - Performance optimization (internal tools execute immediately)
+// - Performance optimization (internal tools invoke immediately)
 // - Security isolation (external tools run in user's environment)
 // - Resource management (internal tools can share server resources)
 type Tool interface {
