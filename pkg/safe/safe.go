@@ -3,41 +3,38 @@ package safe
 import (
 	"fmt"
 	"runtime/debug"
-	"sync/atomic"
 	"time"
 )
 
 // PanicError represents a recovered panic with additional metadata.
 // It stores the time when panic occurred, the original panic information,
-// stack trace, and a cached error message for performance.
+// stack trace, and a pre-computed error message.
 type PanicError struct {
-	time  time.Time              // Timestamp when the panic occurred
-	info  any                    // The value passed to panic()
-	stack []byte                 // Stack trace at the time of panic
-	cache atomic.Pointer[string] // Cached error message to avoid regeneration
+	time    time.Time // Timestamp when the panic occurred
+	info    any       // The value passed to panic()
+	stack   []byte    // Stack trace at the time of panic
+	message string    // Pre-computed error message (eager initialization)
 }
 
 // Error implements the error interface for PanicError.
-// It returns a formatted error message including timestamp, error information,
-// and stack trace, using caching for better performance.
+// It returns the pre-computed error message for better performance.
 func (e *PanicError) Error() string {
-	if e.cache.Load() == nil {
-		timestamp := e.time.Format(time.RFC3339Nano)
-		stackTrace := string(e.stack)
-		err := fmt.Sprintf("panic: \ntimestamp: %s, \nerror: %+v, \nstack: %s", timestamp, e.info, stackTrace)
-		e.cache.Store(&err)
-	}
-	cache := e.cache.Load()
-	return *cache
+	return e.message
 }
 
 // NewPanicError creates a new PanicError instance with the given panic information and stack trace.
-// This is typically used internally by recovery functions.
+// The error message is computed immediately upon creation (eager initialization).
 func NewPanicError(info any, stack []byte) error {
+	timestamp := time.Now()
+	stackTrace := string(stack)
+	message := fmt.Sprintf("panic: \ntimestamp: %s, \nerror: %+v, \nstack: %s",
+		timestamp.Format(time.RFC3339Nano), info, stackTrace)
+
 	return &PanicError{
-		time:  time.Now(),
-		info:  info,
-		stack: stack,
+		time:    timestamp,
+		info:    info,
+		stack:   stack,
+		message: message,
 	}
 }
 
