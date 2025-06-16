@@ -138,6 +138,12 @@ func (o *Options) ChatOptions() chat.Options {
 		chatOptions = o.chatModel.DefaultOptions().Clone()
 	}
 
+	toolOptions, ok := chatOptions.(tool.Options)
+	if ok {
+		toolOptions.SetTools(o.tools)
+		toolOptions.SetParams(o.toolParams)
+	}
+
 	return chatOptions
 }
 

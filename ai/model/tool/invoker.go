@@ -248,9 +248,14 @@ func (e *invoker) shouldInvokeToolCalls(chatResponse *chat.Response) (bool, erro
 	return false, nil
 }
 
-// buildContext creates a new execution context for tool operations.
-func (e *invoker) buildContext(ctx stdContext.Context) Context {
-	return NewContext(ctx)
+// makeContext creates a new execution context for tool operations.
+func (e *invoker) makeContext(stdCtx stdContext.Context, chatRequest *chat.Request) Context {
+	ctx := NewContext(stdCtx)
+	toolOptions, ok := chatRequest.Options().(Options)
+	if ok {
+		return ctx.SetMap(toolOptions.Params())
+	}
+	return ctx
 }
 
 // invokeToolCalls processes a list of tool calls, executing internal tools immediately
@@ -328,7 +333,7 @@ func (e *invoker) invoke(ctx stdContext.Context, chatRequest *chat.Request, chat
 	chatResult := chatResponse.FirstToolCallsResult()
 
 	executionResultBuilder, err := e.invokeToolCalls(
-		e.buildContext(ctx),
+		e.makeContext(ctx, chatRequest),
 		chatResult.Output().ToolCalls(),
 	)
 	if err != nil {

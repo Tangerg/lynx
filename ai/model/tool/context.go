@@ -82,7 +82,7 @@ func (t *context) Set(key string, val any) Context {
 }
 
 func (t *context) SetMap(m map[string]any) Context {
-	if m == nil {
+	if len(m) == 0 {
 		return t
 	}
 
