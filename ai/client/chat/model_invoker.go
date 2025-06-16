@@ -2,11 +2,9 @@ package chat
 
 import (
 	"errors"
-	"github.com/Tangerg/lynx/ai/model/chat/request"
+	"github.com/Tangerg/lynx/ai/model/chat"
 	"github.com/spf13/cast"
 
-	"github.com/Tangerg/lynx/ai/model/chat/model"
-	"github.com/Tangerg/lynx/ai/model/chat/response"
 	"github.com/Tangerg/lynx/pkg/stream"
 )
 
@@ -16,10 +14,10 @@ var (
 )
 
 type modelInvoker struct {
-	chatModel model.ChatModel
+	chatModel chat.Model
 }
 
-func newModelInvoker(chatModel model.ChatModel) (*modelInvoker, error) {
+func newModelInvoker(chatModel chat.Model) (*modelInvoker, error) {
 	if chatModel == nil {
 		return nil, errors.New("chatModel is required")
 	}
@@ -28,7 +26,7 @@ func newModelInvoker(chatModel model.ChatModel) (*modelInvoker, error) {
 	}, nil
 }
 
-func (i *modelInvoker) augmentLastUserMessageOutput(request *Request) *request.ChatRequest {
+func (i *modelInvoker) augmentLastUserMessageOutput(request *Request) *chat.Request {
 	outputFormat, ok := request.Get(OutputFormat.String())
 	if ok {
 		request.ChatRequest().AugmentLastUserMessageText(cast.ToString(outputFormat))
@@ -56,7 +54,7 @@ func (i *modelInvoker) Stream(request *Request) (stream.Reader[*Response], error
 	if err != nil {
 		return nil, err
 	}
-	return stream.Map(reader, func(t *response.ChatResponse) *Response {
+	return stream.Map(reader, func(t *chat.Response) *Response {
 		return NewResponse(t)
 	}), nil
 }

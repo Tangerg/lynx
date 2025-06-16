@@ -3,106 +3,102 @@ package tool
 import (
 	"errors"
 	"fmt"
+	"github.com/Tangerg/lynx/pkg/assert"
 )
 
-// Tool represents a tool that can be invoked by an AI model during conversation.
+// Tool represents an immutable tool definition that can be invoked by LLM models.
+// Once created, tools cannot be modified, ensuring consistent behavior across
+// LLM interactions and maintaining thread safety in concurrent environments.
 //
 // Design Philosophy - Internal vs External Execution:
-// This interface design supports two distinct execution patterns:
+// Supports two distinct execution patterns based on immutable tool configuration:
 //
-// 1. External Tools: Tools that must be executed by the client/user environment
-//   - Examples: ask_user, update_view, file_operations, send_notifications
-//   - These tools only implement the Tool interface (no Call method)
-//   - The framework delegates execution to the external environment
-//   - Results are typically returned directly to the user (returnDirect=true)
+// 1. External Tools: Immutable tools requiring client-side execution
+//   - Examples: user interactions, UI updates, file operations, notifications
+//   - Only implement Tool interface (no Call method)
+//   - Framework delegates execution to external environment
+//   - Results are always returned directly to user (returnDirect setting ignored)
 //
-// 2. Internal Tools: Tools that can be executed within the framework
-//   - Examples: database_query, web_search, calculations, data_processing
-//   - These tools implement both Tool and CallableTool interfaces
-//   - The framework executes them directly via the Call method
-//   - Results are usually fed back to the AI model for further processing
+// 2. Internal Tools: Immutable tools with built-in execution capability
+//   - Examples: database queries, calculations, web searches, data processing
+//   - Implement both Tool and CallableTool interfaces
+//   - Framework executes directly via immutable Call method reference
+//   - Usually configured with returnDirect=false for LLM integration
 //
-// This separation provides several benefits:
-// - Clear responsibility boundaries between client and server
-// - Type safety at compile time (CallableTool guarantees Call method exists)
-// - Performance optimization (internal tools invoke immediately)
-// - Security isolation (external tools run in user's environment)
-// - Resource management (internal tools can share server resources)
+// Benefits of immutable design:
+// - Thread-safe concurrent LLM interactions
+// - Consistent tool behavior throughout application lifecycle
+// - Safe sharing across multiple LLM instances
+// - Compile-time guarantees about tool capabilities
 type Tool interface {
-	// Definition returns the tool definition used by the AI model to determine
-	// when and how to call the tool. This includes the tool's name, description,
-	// and input parameter inputSchema that guides the model's decision-making process.
+	// Definition returns the immutable tool definition for LLM recognition.
+	// Contains unchangeable tool metadata including name, description, and parameter schema
+	// that guides LLM decision-making throughout the tool's lifetime.
 	Definition() *Definition
 
-	// Metadata returns execution metadata that configures how the framework
-	// should handle the tool's results, such as whether to return results
-	// directly to the user or pass them back to the AI model for further processing.
+	// Metadata returns the immutable execution configuration.
+	// Defines unchangeable behavior settings such as result handling patterns
+	// that remain consistent across all tool invocations.
 	Metadata() *Metadata
 }
 
-// CallableTool extends Tool to support direct execution within the framework.
+// CallableTool extends Tool with immutable internal execution capability.
+// Tools implementing this interface contain an immutable execution function
+// that provides consistent behavior across all invocations.
 //
-// Tools implementing this interface are considered "internal tools" that can be
-// executed immediately by the framework without external delegation. This design
-// enables:
+// The immutable Call method reference ensures:
+// - Consistent execution behavior throughout tool lifetime
+// - Thread-safe concurrent invocations
+// - Predictable resource utilization patterns
+// - Compile-time execution capability guarantees
 //
-// - Immediate execution and response
-// - Shared resource utilization (database connections, caches, etc.)
-// - Controlled security context
-// - Performance optimization through local execution
-//
-// The presence of the Call method serves as a compile-time indicator that this
-// tool can be executed internally. Tools that only implement Tool (without
-// CallableTool) are automatically treated as external tools requiring delegation.
-//
-// Example internal tools: database queries, calculations, web searches, data processing
-// Example external tools: user interactions, UI updates, local file operations
+// Once created, the execution logic cannot be modified, providing stability
+// for long-running LLM applications and shared tool registries.
 type CallableTool interface {
 	Tool
 
-	// Call executes the tool's business logic within the framework environment.
-	// This method is only called for internal tools and provides immediate
-	// execution without external delegation.
-	//
-	// The execution context contains conversation state and environment information,
-	// while input contains the specific parameters for this tool invocation.
+	// Call executes the tool's immutable business logic within the framework.
+	// The execution function is fixed at creation time and cannot be changed,
+	// ensuring consistent behavior across all invocations.
 	//
 	// Parameters:
-	//   - ctx: Tool execution context containing conversation state and environment info
-	//   - input: Input parameters as a string (typically JSON format)
+	//   - ctx: Execution context with conversation state and environment info
+	//   - input: Input parameters (typically JSON format)
 	//
 	// Returns:
-	//   - string: The tool execution result, usually fed back to the AI model
-	//   - error: An error if the tool execution fails
+	//   - string: Tool execution result for LLM processing
+	//   - error: Execution error if the immutable logic fails
 	Call(ctx Context, input string) (string, error)
 }
 
-// tool provides the base implementation of the Tool interface.
-// This struct represents external tools that require delegation to the client
-// environment for execution. It contains only the essential components needed
-// for tool definition and metadata without execution capabilities.
+// tool provides immutable base implementation for external tools.
+// Once created, the definition and metadata cannot be changed, ensuring
+// consistent delegation behavior throughout the tool's lifetime.
 type tool struct {
-	definition *Definition
-	metadata   *Metadata
+	definition *Definition // Immutable tool definition
+	metadata   *Metadata   // Immutable execution metadata
 }
 
+// Definition returns the immutable tool definition.
 func (t *tool) Definition() *Definition {
 	return t.definition
 }
 
+// Metadata returns the immutable execution metadata.
 func (t *tool) Metadata() *Metadata {
 	return t.metadata
 }
 
-// callableTool extends the base tool with internal execution capabilities.
-// This struct represents internal tools that can be executed directly within
-// the framework. It combines the base tool properties with a caller function
-// that implements the actual business logic.
+// callableTool provides immutable implementation for internal tools.
+// Combines immutable base tool properties with a fixed execution function
+// that cannot be modified after creation, ensuring consistent execution behavior.
 type callableTool struct {
 	tool
-	caller func(ctx Context, input string) (string, error)
+	caller func(ctx Context, input string) (string, error) // Immutable execution function
 }
 
+// Call executes the tool's immutable business logic.
+// The caller function is fixed at creation time and cannot be changed.
 func (t *callableTool) Call(ctx Context, input string) (string, error) {
 	if t.caller == nil {
 		return "", fmt.Errorf("caller function is required for internal tool %s", t.definition.Name())
@@ -110,59 +106,52 @@ func (t *callableTool) Call(ctx Context, input string) (string, error) {
 	return t.caller(ctx, input)
 }
 
-// Builder provides a fluent interface for constructing Tool instances with
-// proper validation and configuration. It automatically determines whether to
-// create an internal tool (with Call capability) or external tool (delegation only)
-// based on whether a caller function is provided.
+// Builder provides a fluent interface for constructing immutable Tool instances.
+// Once Build() is called, the resulting tool cannot be modified, ensuring
+// consistent behavior throughout its lifetime.
 //
-// The builder pattern ensures:
-// - Required components are validated before construction
-// - Appropriate defaults are applied
-// - Type-safe tool creation
-// - Clear distinction between internal and external tools
+// Automatically determines tool type based on configuration:
+// - With caller function: Creates immutable CallableTool (internal execution)
+// - Without caller: Creates immutable Tool (external delegation)
+//
+// The builder ensures all tools are properly validated before becoming immutable.
 type Builder struct {
 	definition *Definition
 	metadata   *Metadata
 	caller     func(ctx Context, input string) (string, error)
 }
 
-// NewBuilder creates and returns a new Builder instance for tool construction.
-// All fields start as nil and will be validated during the build process.
+// NewBuilder creates a new builder for constructing immutable tools.
+// All configuration is validated before creating the final immutable instance.
 func NewBuilder() *Builder {
 	return &Builder{}
 }
 
-// WithDefinition configures the tool definition if the provided definition is not nil.
-// The definition contains essential information that the AI model uses to
-// understand the tool's purpose, parameters, and when to invoke it.
-//
-// This is a required component for all tools - the build process will fail
-// if no definition is provided.
+// WithDefinition sets the immutable tool definition if not nil.
+// Once the tool is built, this definition cannot be changed.
+// Required for all tools - build will fail without a valid definition.
 //
 // Parameters:
-//   - def: A Definition instance containing tool name, description, and input inputSchema
+//   - definition: Immutable definition containing tool metadata for LLM recognition
 //
 // Returns:
-//   - *Builder: The builder instance for method chaining
-func (b *Builder) WithDefinition(def *Definition) *Builder {
-	if def != nil {
-		b.definition = def
+//   - *Builder: Builder instance for method chaining
+func (b *Builder) WithDefinition(definition *Definition) *Builder {
+	if definition != nil {
+		b.definition = definition
 	}
 	return b
 }
 
-// WithMetadata configures the tool metadata if the provided metadata is not nil.
-// Metadata provides execution configuration such as whether results should be
-// returned directly to the user or passed back to the AI model.
-//
-// If not explicitly set, default metadata will be applied during build validation
-// with returnDirect=false (results go back to AI model).
+// WithMetadata sets the immutable execution metadata if not nil.
+// Once the tool is built, this metadata cannot be changed.
+// If not provided, defaults to returnDirect=false for LLM integration.
 //
 // Parameters:
-//   - metadata: A Metadata instance containing execution configuration
+//   - metadata: Immutable execution configuration
 //
 // Returns:
-//   - *Builder: The builder instance for method chaining
+//   - *Builder: Builder instance for method chaining
 func (b *Builder) WithMetadata(metadata *Metadata) *Builder {
 	if metadata != nil {
 		b.metadata = metadata
@@ -170,23 +159,18 @@ func (b *Builder) WithMetadata(metadata *Metadata) *Builder {
 	return b
 }
 
-// WithCaller configures the caller function for internal tool execution.
-// Providing a caller function transforms the tool into an internal tool
-// (implementing CallableTool) that can be executed directly by the framework.
+// WithCaller sets the immutable execution function for internal tools.
+// Once the tool is built, this execution logic cannot be changed.
+// Providing a caller creates a CallableTool with internal execution capability.
 //
-// If no caller is provided, the resulting tool will be an external tool
-// that requires delegation to the client environment for execution.
-//
-// The caller function implements the tool's actual business logic:
-//   - ctx: Tool execution context with conversation state and environment info
-//   - input: Input parameters as a string (typically JSON format)
-//   - Returns: (result string, error)
+// The caller function becomes permanently associated with the tool,
+// ensuring consistent execution behavior throughout its lifetime.
 //
 // Parameters:
-//   - caller: The function that implements the tool's business logic
+//   - caller: Immutable function implementing the tool's business logic
 //
 // Returns:
-//   - *Builder: The builder instance for method chaining
+//   - *Builder: Builder instance for method chaining
 func (b *Builder) WithCaller(caller func(ctx Context, input string) (string, error)) *Builder {
 	if caller != nil {
 		b.caller = caller
@@ -194,20 +178,16 @@ func (b *Builder) WithCaller(caller func(ctx Context, input string) (string, err
 	return b
 }
 
-// validate performs comprehensive validation of the builder's configuration
-// and applies appropriate defaults. This ensures that the resulting tool
-// is properly configured for its intended execution pattern.
+// validate ensures all required components are present before creating immutable tool.
+// Applies default metadata if not explicitly provided.
 //
-// Validation rules:
-//   - definition must not be nil (required for all tools)
+// Validation requirements:
+//   - definition must not be nil
 //   - definition name must not be empty
-//   - metadata will be set to default if nil
-//
-// Default values applied:
-//   - metadata: NewMetadata(false) - results go back to AI model by default
+//   - metadata defaults to NewMetadata(false) if not provided
 //
 // Returns:
-//   - error: An error describing validation failures, nil if validation passes
+//   - error: Validation error if requirements not met
 func (b *Builder) validate() error {
 	if b.definition == nil {
 		return errors.New("tool definition is required")
@@ -224,24 +204,20 @@ func (b *Builder) validate() error {
 	return nil
 }
 
-// Build creates and returns a new Tool instance based on the configured parameters.
-// The type of tool created depends on whether a caller function was provided:
+// Build creates an immutable Tool instance with the configured parameters.
+// Once created, the tool cannot be modified, ensuring consistent behavior
+// throughout its lifetime and thread safety across concurrent LLM interactions.
 //
-// - With caller: Returns a CallableTool (internal execution)
-// - Without caller: Returns a Tool (external execution via delegation)
+// Tool type determination:
+// - With caller: Creates immutable CallableTool for internal execution
+// - Without caller: Creates immutable Tool for external delegation
 //
-// This method performs validation to ensure all required components are properly
-// configured and applies appropriate defaults where needed.
-//
-// Build process:
-//  1. Validates required components (definition with valid name)
-//  2. Applies default metadata if not explicitly provided
-//  3. Creates appropriate tool type based on caller presence
-//  4. Returns the immutable Tool instance
+// The resulting tool is thread-safe and can be safely shared across
+// multiple LLM instances and concurrent operations.
 //
 // Returns:
-//   - Tool: A new Tool instance (either *tool or *callableTool)
-//   - error: An error if validation fails
+//   - Tool: Immutable tool instance (external or internal based on configuration)
+//   - error: Validation error if required components are missing
 func (b *Builder) Build() (Tool, error) {
 	if err := b.validate(); err != nil {
 		return nil, err
@@ -253,34 +229,32 @@ func (b *Builder) Build() (Tool, error) {
 	}
 
 	if b.caller == nil {
-		// External tool: only implements Tool interface
+		// External tool: immutable Tool interface implementation
 		return &baseTool, nil
 	}
 
-	// Internal tool: implements both Tool and CallableTool interfaces
+	// Internal tool: immutable CallableTool implementation
 	return &callableTool{
 		tool:   baseTool,
 		caller: b.caller,
 	}, nil
 }
 
-// MustBuild creates and returns a new Tool instance, panicking if validation fails.
-// This is a convenience method for scenarios where:
-// - All required components are known to be properly configured
-// - Application initialization where failing fast is preferred
-// - Error handling complexity should be avoided in favor of fail-fast behavior
+// MustBuild creates an immutable Tool instance, panicking on validation failure.
+// The resulting tool cannot be modified and is thread-safe for concurrent use.
 //
-// Use with caution in production code - prefer Build() for robust error handling.
+// Recommended for:
+// - Application initialization where all parameters are known valid
+// - Static tool definitions where errors are unexpected
+// - Test scenarios where panicking is acceptable
+//
+// The created tool maintains immutable behavior throughout its lifetime.
 //
 // Panics:
-//   - If validation fails (e.g., missing definition, empty tool name)
+//   - If validation fails due to missing required components
 //
 // Returns:
-//   - Tool: A new Tool instance (*tool for external, *callableTool for internal)
+//   - Tool: Immutable tool instance ready for LLM integration
 func (b *Builder) MustBuild() Tool {
-	t, err := b.Build()
-	if err != nil {
-		panic(fmt.Sprintf("tool build failed: %v", err))
-	}
-	return t
+	return assert.ErrorIsNil(b.Build())
 }

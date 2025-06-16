@@ -1,29 +1,41 @@
 package tool
 
-// Metadata represents metadata about a tool specification and execution.
-// It contains configuration that affects how the framework handles tool results.
+// Metadata represents immutable metadata about tool specification and execution behavior.
+// Once created, the metadata cannot be modified, ensuring consistent tool behavior
+// across LLM interactions and maintaining thread safety in concurrent environments.
+//
+// Controls how the LLM framework processes tool execution results.
 type Metadata struct {
-	// ReturnDirect indicates whether the tool result should be returned directly
-	// to the user or passed back to the AI model for further processing.
+	// ReturnDirect is an immutable flag indicating whether tool results should bypass
+	// further LLM processing and be returned directly to the user.
 	//
-	// - true: Return result directly to user (typical for external tools like user interactions)
-	// - false: Pass result back to AI model for further processing (typical for internal tools)
+	// - true: Return result directly to user (e.g., user interaction tools, final output tools)
+	// - false: Pass result back to LLM for integration and further processing (default behavior)
 	returnDirect bool
 }
 
-// ReturnDirect returns whether the tool result should be returned directly
-// to the user or passed back to the AI model for further processing.
+// ReturnDirect returns the immutable setting for direct result handling.
+// This value cannot be changed after the Metadata instance is created.
+//
+// Returns:
+//   - bool: true if tool results should bypass LLM and go directly to user
 func (m *Metadata) ReturnDirect() bool {
 	return m.returnDirect
 }
 
-// NewMetadata creates a new Metadata instance with the specified returnDirect setting.
+// NewMetadata creates an immutable Metadata instance with the specified behavior.
+// Once created, the metadata configuration cannot be modified, ensuring consistent
+// tool execution behavior throughout the application lifecycle.
+//
+// The returnDirect setting affects LLM workflow:
+//   - true: Tool result becomes the final response, bypassing further LLM processing
+//   - false: Tool result is fed back to LLM for integration into the conversation
 //
 // Parameters:
-//   - returnDirect: Whether tool results should be returned directly to the user
+//   - returnDirect: Immutable flag for direct result handling behavior
 //
 // Returns:
-//   - *Metadata: A new Metadata instance
+//   - *Metadata: Immutable metadata instance with thread-safe access
 func NewMetadata(returnDirect bool) *Metadata {
 	return &Metadata{
 		returnDirect: returnDirect,

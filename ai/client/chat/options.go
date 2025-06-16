@@ -2,18 +2,17 @@ package chat
 
 import (
 	"errors"
+	"github.com/Tangerg/lynx/ai/model/chat"
 	"maps"
 	"slices"
 
 	"github.com/Tangerg/lynx/ai/model/chat/messages"
-	"github.com/Tangerg/lynx/ai/model/chat/model"
-	"github.com/Tangerg/lynx/ai/model/chat/request"
 	"github.com/Tangerg/lynx/ai/model/tool"
 )
 
 type Options struct {
-	chatModel            model.ChatModel
-	chatOptions          request.ChatOptions
+	chatModel            chat.Model
+	chatOptions          chat.Options
 	userPromptTemplate   *UserPromptTemplate
 	systemPromptTemplate *SystemPromptTemplate
 	messages             []messages.Message
@@ -23,7 +22,7 @@ type Options struct {
 	toolParams           map[string]any
 }
 
-func NewOptions(chatModel model.ChatModel) (*Options, error) {
+func NewOptions(chatModel chat.Model) (*Options, error) {
 	if chatModel == nil {
 		return nil, errors.New("chatModel is required")
 	}
@@ -46,7 +45,7 @@ func (o *Options) Stream() *Streamer {
 	return streamer
 }
 
-func (o *Options) WithChatOptions(chatOptions request.ChatOptions) *Options {
+func (o *Options) WithChatOptions(chatOptions chat.Options) *Options {
 	if chatOptions != nil {
 		o.chatOptions = chatOptions.Clone()
 	}
@@ -130,8 +129,8 @@ func (o *Options) Clone() *Options {
 	return newOptions
 }
 
-func (o *Options) ChatOptions() request.ChatOptions {
-	var chatOptions request.ChatOptions
+func (o *Options) ChatOptions() chat.Options {
+	var chatOptions chat.Options
 
 	if o.chatOptions != nil {
 		chatOptions = o.chatOptions.Clone()

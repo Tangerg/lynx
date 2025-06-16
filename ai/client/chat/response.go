@@ -1,19 +1,18 @@
 package chat
 
 import (
+	"github.com/Tangerg/lynx/ai/model/chat"
 	"maps"
 	"sync"
-
-	"github.com/Tangerg/lynx/ai/model/chat/response"
 )
 
 type Response struct {
 	mu           sync.RWMutex
 	fields       map[string]any
-	chatResponse *response.ChatResponse
+	chatResponse *chat.Response
 }
 
-func NewResponse(chatResponse *response.ChatResponse) *Response {
+func NewResponse(chatResponse *chat.Response) *Response {
 	return &Response{
 		chatResponse: chatResponse,
 		fields:       make(map[string]any),
@@ -42,7 +41,7 @@ func (c *Response) Get(key string) (any, bool) {
 	return val, ok
 }
 
-func (c *Response) ChatResponse() *response.ChatResponse {
+func (c *Response) ChatResponse() *chat.Response {
 	return c.chatResponse
 }
 

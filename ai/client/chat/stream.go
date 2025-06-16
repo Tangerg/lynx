@@ -3,8 +3,8 @@ package chat
 import (
 	"context"
 	"errors"
+	"github.com/Tangerg/lynx/ai/model/chat"
 
-	"github.com/Tangerg/lynx/ai/model/chat/response"
 	"github.com/Tangerg/lynx/pkg/stream"
 )
 
@@ -34,17 +34,17 @@ func (s *Streamer) Text(ctx context.Context) (stream.Reader[string], error) {
 	if err != nil {
 		return nil, err
 	}
-	return stream.Map(resp, func(c *response.ChatResponse) string {
+	return stream.Map(resp, func(c *chat.Response) string {
 		return c.Result().Output().Text()
 	}), nil
 }
 
-func (s *Streamer) ChatResponse(ctx context.Context) (stream.Reader[*response.ChatResponse], error) {
+func (s *Streamer) ChatResponse(ctx context.Context) (stream.Reader[*chat.Response], error) {
 	resp, err := s.Response(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return stream.Map(resp, func(c *Response) *response.ChatResponse {
+	return stream.Map(resp, func(c *Response) *chat.Response {
 		return c.ChatResponse()
 	}), nil
 }

@@ -2,12 +2,11 @@ package chat
 
 import (
 	"errors"
+	"github.com/Tangerg/lynx/ai/model/chat"
 	"maps"
 	"slices"
 
 	"github.com/Tangerg/lynx/ai/model/chat/messages"
-	"github.com/Tangerg/lynx/ai/model/chat/model"
-	"github.com/Tangerg/lynx/ai/model/chat/request"
 	"github.com/Tangerg/lynx/ai/model/tool"
 )
 
@@ -30,15 +29,12 @@ func (c *Client) Chat() *Options {
 
 func (c *Client) ChatText(text string) *Options {
 	userMessage := messages.NewUserMessage(text, nil)
-	chatRequest := request.
-		NewChatRequestBuilder().
-		WithMessages(userMessage).
-		WithOptions(c.defaultOptions.chatOptions.Clone()).
-		MustBuild()
+	chatRequest, _ := chat.NewRequest([]messages.Message{userMessage}, c.defaultOptions.chatOptions.Clone())
+
 	return c.ChatRequest(chatRequest)
 }
 
-func (c *Client) ChatRequest(chatRequest *request.ChatRequest) *Options {
+func (c *Client) ChatRequest(chatRequest *chat.Request) *Options {
 	options := c.defaultOptions.Clone()
 
 	if chatRequest.Options() != nil {
@@ -66,8 +62,8 @@ func (c *Client) Fork() *Builder {
 }
 
 type Builder struct {
-	chatModel            model.ChatModel
-	chatOptions          request.ChatOptions
+	chatModel            chat.Model
+	chatOptions          chat.Options
 	userPromptTemplate   *UserPromptTemplate
 	systemPromptTemplate *SystemPromptTemplate
 	messages             []messages.Message
@@ -87,14 +83,14 @@ func NewBuilder() *Builder {
 	}
 }
 
-func (b *Builder) WithChatModel(chatModel model.ChatModel) *Builder {
+func (b *Builder) WithChatModel(chatModel chat.Model) *Builder {
 	if chatModel != nil {
 		b.chatModel = chatModel
 	}
 	return b
 }
 
-func (b *Builder) WithChatOptions(chatOptions request.ChatOptions) *Builder {
+func (b *Builder) WithChatOptions(chatOptions chat.Options) *Builder {
 	if chatOptions != nil {
 		b.chatOptions = chatOptions.Clone()
 	}

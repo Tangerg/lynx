@@ -3,8 +3,8 @@ package chat
 import (
 	"context"
 	"errors"
+	"github.com/Tangerg/lynx/ai/model/chat"
 
-	"github.com/Tangerg/lynx/ai/model/chat/response"
 	"github.com/Tangerg/lynx/ai/model/converter"
 	pkgSlices "github.com/Tangerg/lynx/pkg/slices"
 )
@@ -139,7 +139,7 @@ func (c *Caller) Any(ctx context.Context, converter converter.StructuredConverte
 	return resp.Data(), nil
 }
 
-func (c *Caller) ChatResponse(ctx context.Context) (*response.ChatResponse, error) {
+func (c *Caller) ChatResponse(ctx context.Context) (*chat.Response, error) {
 	resp, err := c.response(ctx, nil)
 	if err != nil {
 		return nil, err

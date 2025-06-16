@@ -3,20 +3,17 @@ package chat
 import (
 	"context"
 	"errors"
+	"github.com/Tangerg/lynx/ai/model/chat"
 	"maps"
 	"sync"
-
-	"github.com/Tangerg/lynx/ai/model/chat/model"
-
-	"github.com/Tangerg/lynx/ai/model/chat/request"
 )
 
 type Request struct {
 	ctx         context.Context
 	fields      map[string]any
 	mu          sync.RWMutex
-	chatModel   model.ChatModel
-	chatRequest *request.ChatRequest
+	chatModel   chat.Model
+	chatRequest *chat.Request
 }
 
 func NewRequest(ctx context.Context, options *Options) (*Request, error) {
@@ -36,11 +33,7 @@ func NewRequest(ctx context.Context, options *Options) (*Request, error) {
 	}
 	opts := options.ChatOptions()
 
-	chatRequest, err := request.
-		NewChatRequestBuilder().
-		WithMessages(msgs...).
-		WithOptions(opts).
-		Build()
+	chatRequest, err := chat.NewRequest(msgs, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -83,7 +76,7 @@ func (c *Request) Get(key string) (any, bool) {
 	return val, ok
 }
 
-func (c *Request) ChatRequest() *request.ChatRequest {
+func (c *Request) ChatRequest() *chat.Request {
 	return c.chatRequest
 }
 

@@ -2,74 +2,50 @@ package tool
 
 import (
 	"errors"
+	"github.com/Tangerg/lynx/pkg/assert"
 	"strings"
 
 	pkgString "github.com/Tangerg/lynx/pkg/strings"
 )
 
-// Definition represents a tool definition that is used by the AI model to determine
-// when and how to call the tool. It provides essential metadata including the tool's
-// name, description, and input parameter inputSchema.
+// Definition represents an immutable tool definition used by LLM models to understand
+// when and how to invoke external functions. Once created, the definition cannot be modified,
+// ensuring consistency and thread safety across concurrent LLM interactions.
+//
+// Contains essential metadata for LLM tool calling:
+//   - Unique tool identifier for LLM recognition
+//   - Human-readable description for LLM decision making
+//   - JSON Schema defining input parameter structure
 type Definition struct {
-	name        string // The unique tool name
-	description string // The tool description for AI model guidance
-	inputSchema string // The JSON Schema for tool parameters
+	name        string // Immutable unique tool identifier
+	description string // Immutable tool description for LLM guidance
+	inputSchema string // Immutable JSON Schema for input validation
 }
 
-// Name returns the tool name. The name must be unique within the tool set
-// provided to a model and should follow naming conventions (e.g., camelCase
-// or snake_case). This name is used by the AI model to identify and invoke
-// the specific tool.
+// Name returns the immutable tool identifier.
+// This name must be unique within the tool set and follows LLM provider naming conventions.
+// The LLM uses this identifier to reference and invoke the specific tool.
 func (d *Definition) Name() string {
 	return d.name
 }
 
-// Description returns the tool description, which is used by the AI model
-// to understand what the tool does and when it should be called. A clear
-// and concise description helps the model make better decisions about
-// tool usage.
+// Description returns the immutable tool description.
+// Provides context to help the LLM understand the tool's purpose and appropriate usage scenarios.
+// A clear description improves LLM tool selection accuracy.
 func (d *Definition) Description() string {
 	return d.description
 }
 
-// InputSchema returns the JSON Schema that defines the structure and
-// validation rules for the parameters used to call the tool. This inputSchema
-// helps the AI model understand what arguments to provide when invoking
-// the tool.
+// InputSchema returns the immutable JSON Schema for tool parameters.
+// Defines the structure, types, and validation rules for arguments the LLM should provide
+// when invoking this tool. Must be valid JSON Schema format.
 func (d *Definition) InputSchema() string {
 	return d.inputSchema
 }
 
-// NewDefinition creates a new Definition instance with the provided parameters.
-// This is a simple constructor function that performs basic validation and
-// returns a Definition instance.
-//
-// Parameters:
-//   - name: The unique identifier for the tool. Must not be empty.
-//   - description: A clear and concise description of the tool's functionality.
-//   - inputSchema: A valid JSON Schema string defining the tool's input parameters. Must not be empty.
-//
-// Returns:
-//   - *Definition: A new Definition instance if validation passes
-//   - error: An error describing what validation failed, nil on success
-func NewDefinition(name, description, inputSchema string) (*Definition, error) {
-	if name == "" {
-		return nil, errors.New("name is required")
-	}
-	if inputSchema == "" {
-		return nil, errors.New("input inputSchema is required")
-	}
-
-	return &Definition{
-		name:        name,
-		description: description,
-		inputSchema: inputSchema,
-	}, nil
-}
-
-// DefinitionBuilder provides a fluent interface for constructing Definition instances.
-// It supports method chaining and offers features like automatic description
-// generation and validation of required fields.
+// DefinitionBuilder provides a fluent interface for constructing immutable Definition instances.
+// Supports method chaining, automatic description generation, and validation before creation.
+// Once Build() is called, the resulting Definition cannot be modified.
 type DefinitionBuilder struct {
 	name            string
 	description     string
@@ -77,22 +53,21 @@ type DefinitionBuilder struct {
 	autoDescription bool
 }
 
-// NewDefinitionBuilder creates and returns a new DefinitionBuilder instance with default values.
-// All fields are initially empty and auto-description is disabled by default.
+// NewDefinitionBuilder creates a new builder for constructing immutable tool definitions.
+// All fields start empty and can be configured through method chaining.
 func NewDefinitionBuilder() *DefinitionBuilder {
 	return &DefinitionBuilder{}
 }
 
-// WithName sets the tool name for the definition being built if name is not empty.
-// The name parameter must be unique within the tool set provided to a model
-// and should not be empty. The name is used by the AI model to identify
-// and invoke the specific tool.
+// WithName sets the unique tool identifier if the name is not empty.
+// The name becomes immutable once the Definition is built.
+// Must be unique within the LLM's tool set and follow provider naming conventions.
 //
 // Parameters:
-//   - name: The unique identifier for the tool
+//   - name: Unique identifier for LLM tool recognition
 //
 // Returns:
-//   - *DefinitionBuilder: The builder instance for method chaining
+//   - *DefinitionBuilder: Builder instance for method chaining
 func (b *DefinitionBuilder) WithName(name string) *DefinitionBuilder {
 	if name != "" {
 		b.name = name
@@ -100,16 +75,15 @@ func (b *DefinitionBuilder) WithName(name string) *DefinitionBuilder {
 	return b
 }
 
-// WithDescription sets the tool description for the definition being built if description is not empty.
-// The description should clearly explain what the tool does and when it
-// should be used. This information helps the AI model make informed
-// decisions about tool invocation.
+// WithDescription sets the tool description if not empty.
+// The description becomes immutable once the Definition is built.
+// Should clearly explain the tool's functionality to help LLM decision making.
 //
 // Parameters:
-//   - description: A clear and concise description of the tool's functionality
+//   - description: Clear explanation of tool functionality for LLM understanding
 //
 // Returns:
-//   - *DefinitionBuilder: The builder instance for method chaining
+//   - *DefinitionBuilder: Builder instance for method chaining
 func (b *DefinitionBuilder) WithDescription(desc string) *DefinitionBuilder {
 	if desc != "" {
 		b.description = desc
@@ -117,43 +91,43 @@ func (b *DefinitionBuilder) WithDescription(desc string) *DefinitionBuilder {
 	return b
 }
 
-// WithAutoDescription enables automatic description generation based on the tool name.
-// When enabled, if no explicit description is provided via WithDescription(),
-// the builder will automatically generate a description by converting the tool
-// name from camelCase to a human-readable format and appending "tool".
+// WithAutoDescription enables automatic description generation from the tool name.
+// If no explicit description is provided, generates a human-readable description
+// by converting camelCase names to readable format with "tool" suffix.
 //
-// For example:
-//   - "getUserInfo" becomes "get user info tool"
-//   - "calculateSum" becomes "calculate sum tool"
+// Examples:
+//   - "getUserInfo" → "get user info tool"
+//   - "calculateSum" → "calculate sum tool"
+//
+// The generated description becomes immutable once the Definition is built.
 //
 // Returns:
-//   - *DefinitionBuilder: The builder instance for method chaining
+//   - *DefinitionBuilder: Builder instance for method chaining
 func (b *DefinitionBuilder) WithAutoDescription() *DefinitionBuilder {
 	b.autoDescription = true
 	return b
 }
 
-// WithInputSchema sets the JSON Schema that defines the structure and validation
-// rules for the tool's input parameters if inputSchema is not empty. The inputSchema should follow the JSON Schema
-// specification and describe all required and optional parameters, their types,
-// and any validation constraints.
+// WithInputSchema sets the JSON Schema for tool parameters if not empty.
+// The schema becomes immutable once the Definition is built.
+// Must be valid JSON Schema defining parameter structure and validation rules.
 //
-// Example inputSchema:
+// Example schema:
 //
 //	{
 //	  "type": "object",
 //	  "properties": {
-//	    "city": {"type": "string", "description": "The city name"},
+//	    "city": {"type": "string", "description": "City name"},
 //	    "units": {"type": "string", "enum": ["celsius", "fahrenheit"]}
 //	  },
 //	  "required": ["city"]
 //	}
 //
 // Parameters:
-//   - inputSchema: A valid JSON Schema string defining the tool's input parameters
+//   - schema: Valid JSON Schema string for parameter validation
 //
 // Returns:
-//   - *DefinitionBuilder: The builder instance for method chaining
+//   - *DefinitionBuilder: Builder instance for method chaining
 func (b *DefinitionBuilder) WithInputSchema(schema string) *DefinitionBuilder {
 	if schema != "" {
 		b.inputSchema = schema
@@ -161,24 +135,22 @@ func (b *DefinitionBuilder) WithInputSchema(schema string) *DefinitionBuilder {
 	return b
 }
 
-// validate performs validation checks on the builder's current state and
-// generates a description if auto-description is enabled and no explicit
-// description was provided. This method is called internally before building
-// the final Definition instance.
+// validate ensures all required fields are set before creating an immutable Definition.
+// Generates automatic description if enabled and no explicit description was provided.
 //
-// Validation rules:
-//   - name must not be empty
-//   - inputSchema must not be empty
-//   - if autoDescription is true and description is empty, generates a default description
+// Required fields:
+//   - name: Must not be empty
+//   - inputSchema: Must not be empty
+//   - description: Auto-generated if autoDescription is enabled and description is empty
 //
 // Returns:
-//   - error: An error if validation fails, nil otherwise
+//   - error: Validation error if required fields are missing, nil if valid
 func (b *DefinitionBuilder) validate() error {
 	if b.name == "" {
 		return errors.New("name is required")
 	}
 	if b.inputSchema == "" {
-		return errors.New("input inputSchema is required")
+		return errors.New("input schema is required")
 	}
 
 	// Generate description if auto-description is enabled and no explicit description is set
@@ -189,20 +161,21 @@ func (b *DefinitionBuilder) validate() error {
 	return nil
 }
 
-// genDescription creates a default description based on the tool name.
-// It performs the following transformations:
-//  1. Converts the name to camelCase then to snake_case
-//  2. Replaces underscores with spaces
-//  3. Trims any existing "tool" prefix or suffix to avoid duplication
-//  4. Appends " tool" to the result
+// genDescription automatically generates a tool description from the tool name.
+// Converts camelCase to readable format and adds "tool" suffix.
+//
+// Transformation process:
+//  1. Convert name to camelCase then to snake_case
+//  2. Replace underscores with spaces
+//  3. Remove existing "tool" prefix/suffix to avoid duplication
+//  4. Append " tool" to the result
 //
 // Examples:
-//   - "getUserInfo" -> "get user info tool"
-//   - "tool_calculate_sum" -> "calculate sum tool"
-//   - "weatherTool" -> "weather tool"
+//   - "getUserInfo" → "get user info tool"
+//   - "weatherTool" → "weather tool"
 //
 // Returns:
-//   - string: The generated description, or "tool" if the name is empty
+//   - string: Generated description, or "tool" if name is empty
 func (b *DefinitionBuilder) genDescription() string {
 	if b.name == "" {
 		return "tool"
@@ -222,43 +195,45 @@ func (b *DefinitionBuilder) genDescription() string {
 	return desc + " tool"
 }
 
-// Build creates and returns a new Definition instance with the configured parameters.
-// This method performs validation to ensure all required fields are properly set
-// and generates auto-description if enabled.
+// Build creates an immutable Definition instance after validation.
+// Once created, the Definition cannot be modified, ensuring thread safety
+// and consistency across LLM interactions.
 //
-// The method will return an error if:
-//   - name is empty or not set
-//   - inputSchema is empty or not set
+// Validation requirements:
+//   - name must not be empty
+//   - inputSchema must not be empty
 //
 // Returns:
-//   - *Definition: A new Definition instance if validation passes
-//   - error: An error describing what validation failed, nil on success
+//   - *Definition: Immutable tool definition if validation passes
+//   - error: Validation error if required fields are missing
 func (b *DefinitionBuilder) Build() (*Definition, error) {
 	if err := b.validate(); err != nil {
 		return nil, err
 	}
 
-	return NewDefinition(b.name, b.description, b.inputSchema)
+	return &Definition{
+		name:        b.name,
+		description: b.description,
+		inputSchema: b.inputSchema,
+	}, nil
 }
 
-// MustBuild creates and returns a new Definition instance, panicking if validation fails.
-// This is a convenience method for cases where errors are not expected or when
-// building definitions during application initialization where panicking is acceptable.
+// MustBuild creates an immutable Definition instance, panicking on validation failure.
+// Use when errors are unexpected or during application initialization where
+// failing fast is preferred over error handling.
 //
-// Use this method when:
-//   - You are confident that all required fields are properly set
-//   - You are building definitions during application startup
-//   - You prefer to fail fast rather than handle errors
+// The resulting Definition is immutable and thread-safe.
+//
+// Recommended usage:
+//   - Application startup configuration
+//   - Static tool definitions where all fields are known to be valid
+//   - Test scenarios where panicking on errors is acceptable
 //
 // Panics:
-//   - If validation fails (e.g., missing required fields)
+//   - If validation fails due to missing required fields
 //
 // Returns:
-//   - *Definition: A new Definition instance
+//   - *Definition: Immutable tool definition
 func (b *DefinitionBuilder) MustBuild() *Definition {
-	def, err := b.Build()
-	if err != nil {
-		panic(err)
-	}
-	return def
+	return assert.ErrorIsNil(b.Build())
 }
