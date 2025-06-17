@@ -2,10 +2,10 @@ package chat
 
 import (
 	"errors"
-	"github.com/Tangerg/lynx/ai/model/chat"
 	"maps"
 	"slices"
 
+	"github.com/Tangerg/lynx/ai/model/chat"
 	"github.com/Tangerg/lynx/ai/model/chat/messages"
 	"github.com/Tangerg/lynx/ai/model/tool"
 )

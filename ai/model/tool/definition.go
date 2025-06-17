@@ -2,9 +2,9 @@ package tool
 
 import (
 	"errors"
-	"github.com/Tangerg/lynx/pkg/assert"
 	"strings"
 
+	"github.com/Tangerg/lynx/pkg/assert"
 	pkgString "github.com/Tangerg/lynx/pkg/strings"
 )
 

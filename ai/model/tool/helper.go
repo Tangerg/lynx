@@ -2,10 +2,9 @@ package tool
 
 import (
 	stdContext "context"
+
 	"github.com/Tangerg/lynx/ai/model/chat"
-
 	"github.com/Tangerg/lynx/ai/model/chat/messages"
-
 	pkgSlices "github.com/Tangerg/lynx/pkg/slices"
 )
 
@@ -50,6 +49,11 @@ func NewHelper(cap ...int) *Helper {
 // used by the Helper's invocation operations.
 func (m *Helper) Registry() *Registry {
 	return m.registry
+}
+
+// RegisterTools fast to use
+func (m *Helper) RegisterTools(tools ...Tool) {
+	m.registry.Register(tools...)
 }
 
 // ShouldReturnDirect determines if a conversation should return directly to the user

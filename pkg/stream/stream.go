@@ -213,7 +213,7 @@ func (c *stream[T]) Close() error {
 //	alsoUnbuffered := NewStream[int](-1)     // Unbuffered (negative treated as 0)
 //	ignored := NewStream[string](5,10)      // Buffer capacity of 5 (10 is ignored)
 func NewStream[T any](sizes ...int) Stream[T] {
-	size, _ := pkgSlices.At(sizes, 0)
+	size, _ := pkgSlices.First(sizes)
 	if size < 0 {
 		size = 0
 	}

@@ -3,6 +3,7 @@ package tool
 import (
 	"errors"
 	"fmt"
+
 	"github.com/Tangerg/lynx/pkg/assert"
 )
 

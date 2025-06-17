@@ -29,7 +29,7 @@ type Options interface {
 	//   - tools: Slice of Tool instances to make available for function calling.
 	SetTools(tools []Tool)
 
-	// Params returns additional parameters that will be passed to tools during execution.
+	// ToolParams returns additional parameters that will be passed to tools during execution.
 	// These parameters provide contextual information or configuration that tools may need
 	// beyond their specific function arguments.
 	//
@@ -41,14 +41,14 @@ type Options interface {
 	// - User context information (user ID, session data)
 	//
 	// The returned map should be treated as read-only.
-	Params() map[string]any
+	ToolParams() map[string]any
 
-	// SetParams configures additional parameters that will be available to tools during execution.
+	// SetToolParams configures additional parameters that will be available to tools during execution.
 	// These parameters are passed to the tool execution context and can be accessed by tools
 	// to customize their behavior or access external resources.
 	//
 	// Parameters:
 	//   - params: Map of parameter names to values that tools can access during execution.
 	//            Parameter names and types depend on the specific tools being used.
-	SetParams(params map[string]any)
+	SetToolParams(params map[string]any)
 }

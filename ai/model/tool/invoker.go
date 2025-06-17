@@ -4,9 +4,9 @@ import (
 	stdContext "context"
 	"errors"
 	"fmt"
-	"github.com/Tangerg/lynx/ai/model/chat"
 	"slices"
 
+	"github.com/Tangerg/lynx/ai/model/chat"
 	"github.com/Tangerg/lynx/ai/model/chat/messages"
 )
 
@@ -253,7 +253,7 @@ func (e *invoker) makeContext(stdCtx stdContext.Context, chatRequest *chat.Reque
 	ctx := NewContext(stdCtx)
 	toolOptions, ok := chatRequest.Options().(Options)
 	if ok {
-		return ctx.SetMap(toolOptions.Params())
+		return ctx.SetMap(toolOptions.ToolParams())
 	}
 	return ctx
 }

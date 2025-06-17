@@ -2,8 +2,9 @@ package chat
 
 import (
 	"errors"
-	"github.com/Tangerg/lynx/ai/model/model"
 	"time"
+
+	"github.com/Tangerg/lynx/ai/model/model"
 )
 
 // Usage tracks token consumption for LLM API requests.

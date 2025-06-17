@@ -3,8 +3,8 @@ package chat
 import (
 	"context"
 	"errors"
-	"github.com/Tangerg/lynx/ai/model/chat"
 
+	"github.com/Tangerg/lynx/ai/model/chat"
 	"github.com/Tangerg/lynx/pkg/stream"
 )
 

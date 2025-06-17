@@ -1,9 +1,10 @@
 package chat
 
 import (
-	"github.com/Tangerg/lynx/ai/model/chat"
 	"maps"
 	"sync"
+
+	"github.com/Tangerg/lynx/ai/model/chat"
 )
 
 type Response struct {

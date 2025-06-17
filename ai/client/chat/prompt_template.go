@@ -3,10 +3,9 @@ package chat
 import (
 	"slices"
 
+	"github.com/Tangerg/lynx/ai/commons/content"
 	"github.com/Tangerg/lynx/ai/model/chat/messages"
 	"github.com/Tangerg/lynx/pkg/text"
-
-	"github.com/Tangerg/lynx/ai/commons/content"
 )
 
 type SystemPromptTemplate struct {

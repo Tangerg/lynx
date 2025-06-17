@@ -3,9 +3,10 @@ package chat
 import (
 	"context"
 	"errors"
-	"github.com/Tangerg/lynx/ai/model/chat"
 	"maps"
 	"sync"
+
+	"github.com/Tangerg/lynx/ai/model/chat"
 )
 
 type Request struct {
