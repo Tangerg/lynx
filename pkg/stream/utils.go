@@ -100,6 +100,9 @@ func OfChannelReader[T any](items <-chan T) Reader[T] {
 //
 // Type parameter T represents the type of values flowing through the pipe.
 //
+// Parameters:
+//   - sizes: Optional buffer sizes (variadic). Only the first value is used.
+//
 // Returns:
 //   - Reader[T]: Interface for reading from the pipe
 //   - Writer[T]: Interface for writing to the pipe
@@ -124,8 +127,8 @@ func OfChannelReader[T any](items <-chan T) Reader[T] {
 //	    }
 //	    fmt.Println(val)
 //	}
-func Pipe[T any]() (Reader[T], Writer[T]) {
-	cs := NewStream[T]()
+func Pipe[T any](sizes ...int) (Reader[T], Writer[T]) {
+	cs := NewStream[T](sizes...)
 	return cs, cs
 }
 

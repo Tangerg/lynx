@@ -1,9 +1,11 @@
 package logger
 
 import (
-	"github.com/Tangerg/lynx/ai/client/chat"
-	"github.com/Tangerg/lynx/pkg/stream"
 	"strings"
+
+	"github.com/Tangerg/lynx/ai/client/chat"
+	"github.com/Tangerg/lynx/pkg/result"
+	"github.com/Tangerg/lynx/pkg/stream"
 )
 
 type Logger interface {
@@ -70,7 +72,7 @@ func (l *logger) callMiddleware(next chat.CallHandler) chat.CallHandler {
 }
 
 func (l *logger) streamMiddleware(next chat.StreamHandler) chat.StreamHandler {
-	return chat.StreamHandlerFunc(func(request *chat.Request) (stream.Reader[*chat.Response], error) {
+	return chat.StreamHandlerFunc(func(request *chat.Request) (stream.Reader[result.Result[*chat.Response]], error) {
 		l.logRequest(request)
 		resp, err := next.Stream(request)
 		if err != nil {

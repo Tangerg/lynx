@@ -2,6 +2,7 @@ package tool
 
 import (
 	stdContext "context"
+	"errors"
 
 	"github.com/Tangerg/lynx/ai/model/chat"
 	"github.com/Tangerg/lynx/ai/model/chat/messages"
@@ -76,13 +77,16 @@ func (m *Helper) ShouldReturnDirect(msgs []messages.Message) bool {
 	}
 
 	message, _ := pkgSlices.Last(msgs)
-	toolResponseMessage := message.(*messages.ToolResponseMessage)
+	toolResponseMessage, ok := message.(*messages.ToolResponseMessage)
+	if !ok {
+		return false
+	}
 
 	var returnDirect = true
 	for _, toolResponse := range toolResponseMessage.ToolResponses() {
 		// Verify tool exists in registry
-		t, ok := m.registry.Find(toolResponse.Name)
-		if !ok {
+		t, ok1 := m.registry.Find(toolResponse.Name)
+		if !ok1 {
 			return false // Unknown tool - cannot determine behavior
 		}
 		// ALL tools must be configured for direct return
@@ -90,6 +94,27 @@ func (m *Helper) ShouldReturnDirect(msgs []messages.Message) bool {
 	}
 
 	return returnDirect
+}
+
+func (m *Helper) MakeReturnDirectChatResponse(msgs []messages.Message) (*chat.Response, error) {
+	if !m.ShouldReturnDirect(msgs) {
+		return nil, errors.New("cannot build chat response")
+	}
+	message, _ := pkgSlices.Last(msgs)
+	// prechecked by ShouldReturnDirect
+	toolResponseMessage := message.(*messages.ToolResponseMessage)
+
+	assistantMessage := messages.NewAssistantMessage("", nil, nil, map[string]any{
+		"create_by": chat.ReturnDirect.String(),
+	})
+	metadata := &chat.ResultMetadata{
+		FinishReason: chat.ReturnDirect,
+	}
+	chatResult, err := chat.NewResult(assistantMessage, metadata, toolResponseMessage)
+	if err != nil {
+		return nil, err
+	}
+	return chat.NewResponse([]*chat.Result{chatResult}, &chat.ResponseMetadata{})
 }
 
 // ShouldInvokeToolCalls determines if the chat response contains valid tool calls

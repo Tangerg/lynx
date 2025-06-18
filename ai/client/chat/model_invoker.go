@@ -6,6 +6,7 @@ import (
 	"github.com/spf13/cast"
 
 	"github.com/Tangerg/lynx/ai/model/chat"
+	"github.com/Tangerg/lynx/pkg/result"
 	"github.com/Tangerg/lynx/pkg/stream"
 )
 
@@ -47,7 +48,7 @@ func (i *modelInvoker) Call(request *Request) (*Response, error) {
 }
 
 // Stream  not support structured ouptput now
-func (i *modelInvoker) Stream(request *Request) (stream.Reader[*Response], error) {
+func (i *modelInvoker) Stream(request *Request) (stream.Reader[result.Result[*Response]], error) {
 	reader, err := i.chatModel.Stream(
 		request.Context(),
 		request.ChatRequest(),
@@ -55,7 +56,15 @@ func (i *modelInvoker) Stream(request *Request) (stream.Reader[*Response], error
 	if err != nil {
 		return nil, err
 	}
-	return stream.Map(reader, func(t *chat.Response) *Response {
-		return NewResponse(t)
-	}), nil
+
+	return stream.Map(
+		reader,
+		func(t result.Result[*chat.Response]) result.Result[*Response] {
+			return result.Map(
+				t,
+				func(t *chat.Response) *Response {
+					return NewResponse(t)
+				},
+			)
+		}), nil
 }

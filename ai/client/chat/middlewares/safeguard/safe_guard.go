@@ -3,11 +3,13 @@ package safeguard
 import (
 	"errors"
 	"fmt"
-	"github.com/Tangerg/lynx/ai/client/chat"
-	"github.com/Tangerg/lynx/ai/model/chat/messages"
-	"github.com/Tangerg/lynx/pkg/stream"
 	"slices"
 	"strings"
+
+	"github.com/Tangerg/lynx/ai/client/chat"
+	"github.com/Tangerg/lynx/ai/model/chat/messages"
+	"github.com/Tangerg/lynx/pkg/result"
+	"github.com/Tangerg/lynx/pkg/stream"
 )
 
 var ErrSensitiveText = errors.New("the text entered by input contains sensitive vocabulary")
@@ -62,8 +64,8 @@ func (s *safeGuard) callMiddleware(next chat.CallHandler) chat.CallHandler {
 }
 
 func (s *safeGuard) streamMiddleware(next chat.StreamHandler) chat.StreamHandler {
-	return chat.StreamHandlerFunc(func(request *chat.Request) (stream.Reader[*chat.Response], error) {
-		err := s.Check(request)
+	return chat.StreamHandlerFunc(func(request *chat.Request) (resp stream.Reader[result.Result[*chat.Response]], err error) {
+		err = s.Check(request)
 		if err != nil {
 			return nil, err
 		}

@@ -4,6 +4,7 @@ import (
 	"slices"
 	"sync"
 
+	"github.com/Tangerg/lynx/pkg/result"
 	"github.com/Tangerg/lynx/pkg/stream"
 )
 
@@ -20,12 +21,12 @@ func (c CallHandlerFunc) Call(request *Request) (*Response, error) {
 type CallMiddleware func(CallHandler) CallHandler
 
 type StreamHandler interface {
-	Stream(request *Request) (stream.Reader[*Response], error)
+	Stream(request *Request) (stream.Reader[result.Result[*Response]], error)
 }
 
-type StreamHandlerFunc func(*Request) (stream.Reader[*Response], error)
+type StreamHandlerFunc func(request *Request) (stream.Reader[result.Result[*Response]], error)
 
-func (c StreamHandlerFunc) Stream(request *Request) (stream.Reader[*Response], error) {
+func (c StreamHandlerFunc) Stream(request *Request) (stream.Reader[result.Result[*Response]], error) {
 	return c(request)
 }
 

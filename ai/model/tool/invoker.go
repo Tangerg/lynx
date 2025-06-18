@@ -27,7 +27,7 @@ type InvokeResult struct {
 	externalToolCalls   []*messages.ToolCall          // Tool calls requiring external execution
 }
 
-// ShouldBuildChatRequest determines if a new chat request should be constructed
+// ShouldMakeChatRequest determines if a new chat request should be constructed
 // for continued LLM processing. Returns true ONLY when:
 // - No external tools exist (external tools always return directly) AND
 // - At least one internal tool is configured for LLM integration (returnDirect=false)
@@ -35,7 +35,7 @@ type InvokeResult struct {
 // External tools always force direct return to client for execution.
 // For internal tools: if ANY tool needs LLM processing, the conversation continues with LLM.
 // Only when ALL internal tools are configured for direct return does the flow bypass LLM.
-func (e *InvokeResult) ShouldBuildChatRequest() bool {
+func (e *InvokeResult) ShouldMakeChatRequest() bool {
 	// External tools always return directly - no LLM continuation
 	if len(e.externalToolCalls) > 0 {
 		return false
@@ -44,17 +44,17 @@ func (e *InvokeResult) ShouldBuildChatRequest() bool {
 	return !e.returnDirect
 }
 
-// ShouldBuildChatResponse determines if a chat response should be constructed
+// ShouldMakeChatResponse determines if a chat response should be constructed
 // for direct return to client. Returns true when:
 // - External tools exist (always require direct return for client execution) OR
 // - ALL internal tools are configured for direct return (returnDirect=true)
 //
-// This is the inverse of ShouldBuildChatRequest.
-func (e *InvokeResult) ShouldBuildChatResponse() bool {
-	return !e.ShouldBuildChatRequest()
+// This is the inverse of ShouldMakeChatRequest.
+func (e *InvokeResult) ShouldMakeChatResponse() bool {
+	return !e.ShouldMakeChatRequest()
 }
 
-// BuildChatRequest constructs a new chat request for continued LLM processing.
+// MakeChatRequest constructs a new chat request for continued LLM processing.
 // This method integrates tool responses into the conversation history and
 // prepares the request for the next LLM interaction cycle.
 //
@@ -69,8 +69,8 @@ func (e *InvokeResult) ShouldBuildChatResponse() bool {
 //
 // Returns an error if the result is not configured for chat request building
 // or if required components are missing.
-func (e *InvokeResult) BuildChatRequest() (*chat.Request, error) {
-	if !e.ShouldBuildChatRequest() {
+func (e *InvokeResult) MakeChatRequest() (*chat.Request, error) {
+	if !e.ShouldMakeChatRequest() {
 		return nil, errors.New("cannot build chat request")
 	}
 	if e.chatRequest == nil {
@@ -97,7 +97,7 @@ func (e *InvokeResult) BuildChatRequest() (*chat.Request, error) {
 	return chat.NewRequest(msgs, opts)
 }
 
-// BuildChatResponse constructs a chat response for direct return to client.
+// MakeChatResponse constructs a chat response for direct return to client.
 // This method creates a response that either:
 // - Contains external tool calls for client-side execution (external tools always return directly)
 // - Provides direct results when ALL internal tools are configured for direct return
@@ -112,8 +112,8 @@ func (e *InvokeResult) BuildChatRequest() (*chat.Request, error) {
 //
 // Returns an error if the result is not configured for chat response building
 // or if required components are missing.
-func (e *InvokeResult) BuildChatResponse() (*chat.Response, error) {
-	if !e.ShouldBuildChatResponse() {
+func (e *InvokeResult) MakeChatResponse() (*chat.Response, error) {
+	if !e.ShouldMakeChatResponse() {
 		return nil, errors.New("cannot build chat response")
 	}
 	if e.chatResponse == nil {

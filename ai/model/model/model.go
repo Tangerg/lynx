@@ -3,6 +3,7 @@ package model
 import (
 	"context"
 
+	"github.com/Tangerg/lynx/pkg/result"
 	"github.com/Tangerg/lynx/pkg/stream"
 )
 
@@ -96,5 +97,5 @@ type StreamingModel[Request any, Response any] interface {
 	//       }
 	//       // Process chunk
 	//   }
-	Stream(ctx context.Context, req Request) (stream.Reader[Response], error)
+	Stream(ctx context.Context, req Request) (stream.Reader[result.Result[Response]], error)
 }

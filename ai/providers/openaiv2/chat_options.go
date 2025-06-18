@@ -1,6 +1,8 @@
 package openaiv2
 
 import (
+	"errors"
+
 	"github.com/Tangerg/lynx/ai/model/chat"
 	"github.com/Tangerg/lynx/ai/model/tool"
 	"github.com/Tangerg/lynx/pkg/assert"
@@ -186,6 +188,9 @@ func (b *ChatOptionsBuilder) WithToolParams(params map[string]any) *ChatOptionsB
 }
 
 func (b *ChatOptionsBuilder) Build() (*ChatOptions, error) {
+	if b.model == "" {
+		return nil, errors.New("model is required")
+	}
 	return &ChatOptions{
 		model:            b.model,
 		frequencyPenalty: b.frequencyPenalty,

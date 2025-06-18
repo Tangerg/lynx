@@ -2,7 +2,9 @@ package recover
 
 import (
 	"errors"
+
 	"github.com/Tangerg/lynx/ai/client/chat"
+	"github.com/Tangerg/lynx/pkg/result"
 	"github.com/Tangerg/lynx/pkg/safe"
 	"github.com/Tangerg/lynx/pkg/stream"
 )
@@ -25,7 +27,7 @@ func (r *recoverer) callMiddleware(next chat.CallHandler) chat.CallHandler {
 }
 
 func (r *recoverer) streamMiddleware(next chat.StreamHandler) chat.StreamHandler {
-	return chat.StreamHandlerFunc(func(request *chat.Request) (resp stream.Reader[*chat.Response], err error) {
+	return chat.StreamHandlerFunc(func(request *chat.Request) (resp stream.Reader[result.Result[*chat.Response]], err error) {
 		safe.WithRecover(func() {
 			resp, err = next.Stream(request)
 		}, func(panicErr error) {

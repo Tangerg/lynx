@@ -1,4 +1,4 @@
-package api
+package openaiv2
 
 import (
 	"context"
@@ -10,23 +10,23 @@ import (
 	"github.com/Tangerg/lynx/ai/model/model"
 )
 
-type OpenAIApi struct {
+type Api struct {
 	apiKey model.ApiKey
 	client *openai.Client
 }
 
-func NewOpenAIApi(apiKey model.ApiKey) *OpenAIApi {
+func NewApi(apiKey model.ApiKey) *Api {
 	client := openai.NewClient(option.WithAPIKey(apiKey.Get()))
-	return &OpenAIApi{
+	return &Api{
 		apiKey: apiKey,
 		client: &client,
 	}
 }
 
-func (o *OpenAIApi) ChatCompletion(ctx context.Context, req *openai.ChatCompletionNewParams) (*openai.ChatCompletion, error) {
+func (o *Api) ChatCompletion(ctx context.Context, req *openai.ChatCompletionNewParams) (*openai.ChatCompletion, error) {
 	return o.client.Chat.Completions.New(ctx, *req)
 }
 
-func (o *OpenAIApi) ChatCompletionStream(ctx context.Context, req *openai.ChatCompletionNewParams) *ssestream.Stream[openai.ChatCompletionChunk] {
+func (o *Api) ChatCompletionStream(ctx context.Context, req *openai.ChatCompletionNewParams) *ssestream.Stream[openai.ChatCompletionChunk] {
 	return o.client.Chat.Completions.NewStreaming(ctx, *req)
 }
