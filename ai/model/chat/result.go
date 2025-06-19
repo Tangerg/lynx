@@ -76,10 +76,11 @@ func (r FinishReason) IsNull() bool {
 	return r == Null
 }
 
+var _ model.ResultMetadata = (*ResultMetadata)(nil)
+
 // ResultMetadata contains metadata for a single LLM generation result.
 // Includes completion status and extensible provider-specific information.
 type ResultMetadata struct {
-	model.ResultMetadata
 	FinishReason FinishReason   // Why the LLM stopped generating
 	extra        map[string]any // Additional provider-specific metadata
 }

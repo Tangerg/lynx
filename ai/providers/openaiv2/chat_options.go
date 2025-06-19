@@ -14,7 +14,7 @@ var _ tool.Options = (*ChatOptions)(nil)
 type ChatOptions struct {
 	model            string
 	frequencyPenalty *float64
-	maxTokens        *int
+	maxTokens        *int64
 	presencePenalty  *float64
 	stopSequences    []string
 	temperature      *float64
@@ -61,7 +61,7 @@ func (o *ChatOptions) FrequencyPenalty() *float64 {
 	return o.frequencyPenalty
 }
 
-func (o *ChatOptions) MaxTokens() *int {
+func (o *ChatOptions) MaxTokens() *int64 {
 	return o.maxTokens
 }
 
@@ -107,7 +107,7 @@ func (o *ChatOptions) Fork() *ChatOptionsBuilder {
 type ChatOptionsBuilder struct {
 	model            string
 	frequencyPenalty *float64
-	maxTokens        *int
+	maxTokens        *int64
 	presencePenalty  *float64
 	stopSequences    []string
 	temperature      *float64
@@ -133,7 +133,7 @@ func (b *ChatOptionsBuilder) WithFrequencyPenalty(penalty *float64) *ChatOptions
 	return b
 }
 
-func (b *ChatOptionsBuilder) WithMaxTokens(maxTokens *int) *ChatOptionsBuilder {
+func (b *ChatOptionsBuilder) WithMaxTokens(maxTokens *int64) *ChatOptionsBuilder {
 	if maxTokens != nil {
 		b.maxTokens = maxTokens
 	}

@@ -15,8 +15,12 @@ type Api struct {
 	client *openai.Client
 }
 
-func NewApi(apiKey model.ApiKey) *Api {
-	client := openai.NewClient(option.WithAPIKey(apiKey.Get()))
+func NewApi(apiKey model.ApiKey, opts ...option.RequestOption) *Api {
+	options := make([]option.RequestOption, 0, len(opts)+1)
+	options = append(options, opts...)
+	options = append(options, option.WithAPIKey(apiKey.Get()))
+
+	client := openai.NewClient(options...)
 	return &Api{
 		apiKey: apiKey,
 		client: &client,

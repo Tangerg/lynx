@@ -10,14 +10,14 @@ import (
 // Usage tracks token consumption for LLM API requests.
 // Token usage is a critical metric for cost calculation and rate limiting in LLM services.
 type Usage struct {
-	PromptTokens     int         `json:"prompt_tokens"`            // Tokens consumed by input messages
-	CompletionTokens int         `json:"completion_tokens"`        // Tokens generated in LLM response
+	PromptTokens     int64       `json:"prompt_tokens"`            // Tokens consumed by input messages
+	CompletionTokens int64       `json:"completion_tokens"`        // Tokens generated in LLM response
 	OriginalUsage    interface{} `json:"original_usage,omitempty"` // Provider-specific usage data
 }
 
 // TotalTokens returns the combined token count for both input and output.
 // Used for billing calculations and monitoring LLM API consumption.
-func (u *Usage) TotalTokens() int {
+func (u *Usage) TotalTokens() int64 {
 	return u.PromptTokens + u.CompletionTokens
 }
 
@@ -32,10 +32,11 @@ type RateLimit struct {
 	TokensReset       time.Duration `json:"tokens_reset"`       // Time until token quota resets
 }
 
+var _ model.ResponseMetadata = (*ResponseMetadata)(nil)
+
 // ResponseMetadata contains comprehensive metadata from LLM API responses.
 // Includes usage statistics, rate limits, and extensible provider-specific data.
 type ResponseMetadata struct {
-	model.ResponseMetadata
 	ID        string         // Unique identifier for this LLM response
 	Model     string         // LLM model name/version used for generation
 	Usage     *Usage         // Token consumption details
@@ -84,8 +85,8 @@ type Response struct {
 // NewResponse creates a new LLM chat response with results and metadata.
 // Both parameters are required as they contain essential response information.
 func NewResponse(results []*Result, metadata *ResponseMetadata) (*Response, error) {
-	if results == nil {
-		return nil, errors.New("results is required")
+	if len(results) == 0 {
+		return nil, errors.New("results at least one result required")
 	}
 	if metadata == nil {
 		return nil, errors.New("metadata is required")

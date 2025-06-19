@@ -16,7 +16,7 @@ type Options interface {
 
 	// MaxTokens limits the maximum number of tokens the LLM can generate in response.
 	// This controls the length and computational cost of the generated text.
-	MaxTokens() *int
+	MaxTokens() *int64
 
 	// PresencePenalty encourages the LLM to introduce new topics and concepts.
 	// Range: typically -2.0 to 2.0, where positive values promote topic diversity.
