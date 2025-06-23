@@ -46,12 +46,16 @@ func TestApi_ChatCompletion(t *testing.T) {
 
 func TestApi_ChatCompletionStream(t *testing.T) {
 	api := newApi()
-	stream := api.ChatCompletionStream(context.Background(), &openai.ChatCompletionNewParams{
+	stream, err := api.ChatCompletionStream(context.Background(), &openai.ChatCompletionNewParams{
 		Messages: []openai.ChatCompletionMessageParamUnion{
 			openai.UserMessage("hi!"),
 		},
 		Model: baseModel,
 	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	acc := openai.ChatCompletionAccumulator{}
 
 	for stream.Next() {

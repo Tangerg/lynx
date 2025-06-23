@@ -11,9 +11,10 @@ import (
 // It returns the first definition string from the list of definitions.
 func StringDefSchemaOf(v any) string {
 	r := &jsonschema.Reflector{
-		Anonymous:      true,
-		ExpandedStruct: false,
-		DoNotReference: true,
+		Anonymous:                 true,
+		ExpandedStruct:            false,
+		DoNotReference:            true,
+		AllowAdditionalProperties: false,
 	}
 	t := reflect.TypeOf(v)
 	if t.Kind() == reflect.Struct {

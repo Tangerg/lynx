@@ -19,7 +19,8 @@ var _ chat.Model = (*ChatModel)(nil)
 
 type ChatModel struct {
 	chatHelper
-	api *Api
+	api            *Api
+	defaultOptions *ChatOptions
 }
 
 func NewChatModel(apiKey model.ApiKey, defaultOptions *ChatOptions, opts ...option.RequestOption) (*ChatModel, error) {
@@ -27,8 +28,9 @@ func NewChatModel(apiKey model.ApiKey, defaultOptions *ChatOptions, opts ...opti
 		return nil, errors.New("options is required")
 	}
 	return &ChatModel{
-		chatHelper: newChatHelper(defaultOptions),
-		api:        NewApi(apiKey, opts...),
+		chatHelper:     newChatHelper(defaultOptions),
+		api:            NewApi(apiKey, opts...),
+		defaultOptions: defaultOptions,
 	}, nil
 }
 
@@ -65,20 +67,13 @@ func (c *ChatModel) call(ctx context.Context, req *chat.Request, helper *tool.He
 	return c.call(ctx, nexReq, helper)
 }
 
-func (c *ChatModel) Call(ctx context.Context, req *chat.Request) (*chat.Response, error) {
-	toolHelper := c.beforeChat(req)
-
-	chatResponse, err := toolHelper.MakeReturnDirectChatResponse(req.Instructions())
-	if err == nil {
-		return chatResponse, nil
-	}
-
-	return c.call(ctx, req, toolHelper)
-}
-
 func (c *ChatModel) stream(ctx context.Context, req *chat.Request, helper *tool.Helper, writer stream.Writer[result.Result[*chat.Response]]) {
 	apiReq := c.makeApiChatCompletionRequest(req)
-	apiStreamResp := c.api.ChatCompletionStream(ctx, apiReq)
+	apiStreamResp, err := c.api.ChatCompletionStream(ctx, apiReq)
+	if err != nil {
+		_ = writer.Write(ctx, result.Error[*chat.Response](err))
+		return
+	}
 	defer apiStreamResp.Close()
 
 	fullAcc := openai.ChatCompletionAccumulator{}
@@ -87,19 +82,19 @@ func (c *ChatModel) stream(ctx context.Context, req *chat.Request, helper *tool.
 		chunk := apiStreamResp.Current()
 		onceAcc := openai.ChatCompletionAccumulator{}
 		onceAcc.AddChunk(chunk)
-		resp, err := c.makeChatResponse(&onceAcc.ChatCompletion)
-		if err != nil {
-			_ = writer.Write(ctx, result.Error[*chat.Response](err))
+		resp, err1 := c.makeChatResponse(&onceAcc.ChatCompletion)
+		if err1 != nil {
+			_ = writer.Write(ctx, result.Error[*chat.Response](err1))
 			return
 		}
-		err = writer.Write(ctx, result.Value(resp))
-		if err != nil {
+		err1 = writer.Write(ctx, result.Value(resp))
+		if err1 != nil {
 			return
 		}
 		fullAcc.AddChunk(chunk)
 	}
 
-	err := apiStreamResp.Err()
+	err = apiStreamResp.Err()
 	if err != nil {
 		_ = writer.Write(ctx, result.Error[*chat.Response](err))
 		return
@@ -144,6 +139,34 @@ func (c *ChatModel) stream(ctx context.Context, req *chat.Request, helper *tool.
 
 	_ = apiStreamResp.Close()
 	c.stream(ctx, nextReq, helper, writer)
+}
+
+// beforeChat make tool.Helper and inject tool params
+func (c *ChatModel) beforeChat(req *chat.Request) *tool.Helper {
+	toolHelper := tool.NewHelper()
+
+	toolHelper.RegisterTools(c.defaultOptions.Tools()...)
+
+	options := req.Options()
+	if options != nil {
+		toolOptions, ok := options.(tool.Options)
+		if ok {
+			toolHelper.RegisterTools(toolOptions.Tools()...)
+			toolOptions.SetToolParams(c.defaultOptions.ToolParams())
+		}
+	}
+	return toolHelper
+}
+
+func (c *ChatModel) Call(ctx context.Context, req *chat.Request) (*chat.Response, error) {
+	toolHelper := c.beforeChat(req)
+
+	chatResponse, err := toolHelper.MakeReturnDirectChatResponse(req.Instructions())
+	if err == nil {
+		return chatResponse, nil
+	}
+
+	return c.call(ctx, req, toolHelper)
 }
 
 func (c *ChatModel) Stream(ctx context.Context, req *chat.Request) (stream.Reader[result.Result[*chat.Response]], error) {

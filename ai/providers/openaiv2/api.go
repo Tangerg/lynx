@@ -2,6 +2,7 @@ package openaiv2
 
 import (
 	"context"
+	"errors"
 
 	"github.com/openai/openai-go"
 	"github.com/openai/openai-go/option"
@@ -28,9 +29,15 @@ func NewApi(apiKey model.ApiKey, opts ...option.RequestOption) *Api {
 }
 
 func (o *Api) ChatCompletion(ctx context.Context, req *openai.ChatCompletionNewParams) (*openai.ChatCompletion, error) {
+	if req == nil {
+		return nil, errors.New("invalid parameter, ChatCompletionNewParams cannot be nil")
+	}
 	return o.client.Chat.Completions.New(ctx, *req)
 }
 
-func (o *Api) ChatCompletionStream(ctx context.Context, req *openai.ChatCompletionNewParams) *ssestream.Stream[openai.ChatCompletionChunk] {
-	return o.client.Chat.Completions.NewStreaming(ctx, *req)
+func (o *Api) ChatCompletionStream(ctx context.Context, req *openai.ChatCompletionNewParams) (*ssestream.Stream[openai.ChatCompletionChunk], error) {
+	if req == nil {
+		return nil, errors.New("invalid parameter, ChatCompletionNewParams cannot be nil")
+	}
+	return o.client.Chat.Completions.NewStreaming(ctx, *req), nil
 }

@@ -200,9 +200,36 @@ func (b *ChatOptionsBuilder) Build() (*ChatOptions, error) {
 		temperature:      b.temperature,
 		topK:             b.topK,
 		topP:             b.topP,
+		tools:            b.tools,
+		toolParams:       b.toolParams,
 	}, nil
 }
 
 func (b *ChatOptionsBuilder) MustBuild() *ChatOptions {
 	return assert.ErrorIsNil(b.Build())
+}
+
+func MergeChatOptions(options *ChatOptions, opts ...chat.Options) (*ChatOptions, error) {
+	fork := options.Fork()
+	for _, o := range opts {
+		if o == nil {
+			continue
+		}
+		builder := fork.
+			WithModel(o.Model()).
+			WithFrequencyPenalty(o.FrequencyPenalty()).
+			WithMaxTokens(o.MaxTokens()).
+			WithPresencePenalty(o.PresencePenalty()).
+			WithStopSequences(o.StopSequences()).
+			WithTemperature(o.Temperature()).
+			WithTopK(o.TopK()).
+			WithTopP(o.TopP())
+		toolOptions, ok := o.(tool.Options)
+		if ok {
+			builder.
+				WithTools(toolOptions.Tools()).
+				WithToolParams(toolOptions.ToolParams())
+		}
+	}
+	return fork.Build()
 }
