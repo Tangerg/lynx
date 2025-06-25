@@ -1,4 +1,4 @@
-package openaiv2
+package openai
 
 import (
 	"errors"

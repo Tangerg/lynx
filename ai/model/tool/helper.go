@@ -104,7 +104,7 @@ func (m *Helper) MakeReturnDirectChatResponse(msgs []messages.Message) (*chat.Re
 	// prechecked by ShouldReturnDirect
 	toolResponseMessage := message.(*messages.ToolResponseMessage)
 
-	assistantMessage := messages.NewAssistantMessage("", nil, nil, map[string]any{
+	assistantMessage := messages.NewAssistantMessage(map[string]any{
 		"create_by": chat.ReturnDirect.String(),
 	})
 	metadata := &chat.ResultMetadata{

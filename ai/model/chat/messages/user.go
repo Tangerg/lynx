@@ -28,18 +28,49 @@ func (u *UserMessage) Media() []*content.Media {
 	return u.media
 }
 
-// NewUserMessage creates a new user message with the given text content and media attachments.
+type UserMessageParam struct {
+	Text     string
+	Media    []*content.Media
+	Metadata map[string]any
+}
+
+// NewUserMessage creates a new user message using Go generics to simulate function overloading.
+// This allows creating user messages with different parameter types in a single function call.
 //
-// The media parameter can be nil or an empty slice if no media is needed.
+// Supported parameter types:
+//   - string: Sets the text content
+//   - []*content.Media: Sets media attachments
+//   - UserMessageParam: Complete parameter struct with text, media, and metadata fields
 //
-// Optionally accepts metadata as a map. If multiple metadata maps are provided,
-// only the first one will be used.
-func NewUserMessage(text string, media []*content.Media, metadata ...map[string]any) *UserMessage {
-	if media == nil {
-		media = make([]*content.Media, 0)
+// The function uses type constraints and type switching to handle different input types,
+// providing a convenient API that mimics function overloading found in other languages.
+//
+// Examples:
+//
+//	NewUserMessage("Hello, how are you?")               // Text only
+//	NewUserMessage(mediaSlice)                          // Media only
+//	NewUserMessage(UserMessageParam{...})               // Full configuration
+func NewUserMessage[T string | []*content.Media | UserMessageParam](param T) *UserMessage {
+	var p UserMessageParam
+
+	input := any(param)
+	switch input.(type) {
+	case string:
+		p.Text = input.(string)
+	case []*content.Media:
+		p.Media = input.([]*content.Media)
+	case map[string]any:
+		p.Metadata = input.(map[string]any)
+	case UserMessageParam:
+		p = input.(UserMessageParam)
 	}
+
+	if p.Media == nil {
+		p.Media = make([]*content.Media, 0)
+	}
+
 	return &UserMessage{
-		message: newmessage(User, text, metadata...),
-		media:   media,
+		message: newMessage(User, p.Text, p.Metadata),
+		media:   p.Media,
 	}
 }

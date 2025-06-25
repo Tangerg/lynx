@@ -22,7 +22,7 @@ func NewRequest(msgs []messages.Message, options ...Options) (*Request, error) {
 	}
 
 	return &request[Options]{
-		messages: messages.FilterNonNil(msgs),
+		messages: messages.FilterStandardTypes(msgs),
 		options:  pkgSlices.FirstOr(options, nil),
 	}, nil
 }
@@ -78,7 +78,11 @@ func (c *request[O]) AugmentLastUserMessage(fn func(*messages.UserMessage) *mess
 // Preserves the original message's media and metadata.
 func (c *request[O]) AugmentLastUserMessageText(text string) {
 	c.AugmentLastUserMessage(func(userMessage *messages.UserMessage) *messages.UserMessage {
-		return messages.NewUserMessage(userMessage.Text()+"\n\n"+text, userMessage.Media(), userMessage.Metadata())
+		return messages.NewUserMessage(messages.UserMessageParam{
+			Text:     userMessage.Text() + "\n\n" + text,
+			Media:    userMessage.Media(),
+			Metadata: userMessage.Metadata(),
+		})
 	})
 }
 
@@ -104,6 +108,9 @@ func (c *request[O]) AugmentLastSystemMessage(fn func(*messages.SystemMessage) *
 // Useful for dynamically adding behavioral guidelines or context-specific instructions.
 func (c *request[O]) AugmentLastSystemMessageText(text string) {
 	c.AugmentLastSystemMessage(func(systemMessage *messages.SystemMessage) *messages.SystemMessage {
-		return messages.NewSystemMessage(systemMessage.Text()+"\n\n"+text, systemMessage.Metadata())
+		return messages.NewSystemMessage(messages.SystemMessageParam{
+			Text:     systemMessage.Text() + "\n\n" + text,
+			Metadata: systemMessage.Metadata(),
+		})
 	})
 }

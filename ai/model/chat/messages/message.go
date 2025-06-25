@@ -94,23 +94,25 @@ func (m *message) Type() Type {
 	return m._type
 }
 
-// newmessage creates a new base message with the specified type, text content, and optional metadata.
-// This is an internal helper function used by concrete message type constructors to avoid code duplication.
+// newMessage creates a new base message with specified type and content.
+// Used internally by message constructors to avoid code duplication.
 //
 // Parameters:
-//   - typ: The message type (System, User, Assistant, or Tool)
-//   - text: The text content of the message
-//   - metadata: Optional metadata map. If multiple maps are provided, only the first non-nil one is used
+//   - typ: Message type (System, User, Assistant, or Tool)
+//   - text: Message text content
+//   - metadata: Optional metadata map
 //
 // Returns:
-//   - message: A base message struct with the provided content and automatically injected type metadata
+//   - message: Base message with content and type metadata
 //
-// Note: The function automatically adds a MessageType key to the metadata with the message type as string value.
-// The metadata parameter is defensively copied to prevent external modifications.
-func newmessage(typ Type, text string, metadata ...map[string]any) message {
-	md := make(map[string]any)
-	if len(metadata) > 0 && metadata[0] != nil {
-		md = maps.Clone(metadata[0])
+// The function automatically adds MessageType to metadata and defensively copies
+// the metadata map to prevent external modifications.
+func newMessage(typ Type, text string, metadata map[string]any) message {
+	var md map[string]any
+	if metadata != nil {
+		md = maps.Clone(metadata)
+	} else {
+		md = make(map[string]any)
 	}
 	md[MessageType] = typ.String()
 	return message{

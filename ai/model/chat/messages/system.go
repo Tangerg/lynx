@@ -11,12 +11,37 @@ type SystemMessage struct {
 	message
 }
 
-// NewSystemMessage creates a new system message with the given text content.
+type SystemMessageParam struct {
+	Text     string
+	Metadata map[string]any
+}
+
+// NewSystemMessage creates a new system message using Go generics to simulate function overloading.
+// This allows creating system messages with different parameter types in a single function call.
 //
-// Optionally accepts metadata as a map. If multiple metadata maps are provided,
-// only the first one will be used.
-func NewSystemMessage(text string, metadata ...map[string]any) *SystemMessage {
+// Supported parameter types:
+//   - string: Sets the text content
+//   - SystemMessageParam: Complete parameter struct with text and metadata fields
+//
+// The function uses type constraints and type switching to handle different input types,
+// providing a convenient API that mimics function overloading found in other languages.
+//
+// Examples:
+//
+//	NewSystemMessage("You are a helpful assistant")      // Text only
+//	NewSystemMessage(SystemMessageParam{...})            // Full configuration
+func NewSystemMessage[T string | SystemMessageParam](param T) *SystemMessage {
+	var p SystemMessageParam
+
+	input := any(param)
+	switch input.(type) {
+	case string:
+		p.Text = input.(string)
+	case SystemMessageParam:
+		p = input.(SystemMessageParam)
+	}
+
 	return &SystemMessage{
-		message: newmessage(System, text, metadata...),
+		message: newMessage(System, p.Text, p.Metadata),
 	}
 }

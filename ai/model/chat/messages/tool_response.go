@@ -2,6 +2,7 @@ package messages
 
 import (
 	"errors"
+	"slices"
 )
 
 // ToolResponse represents the response from a tool call execution.
@@ -29,21 +30,50 @@ func (t *ToolResponseMessage) ToolResponses() []*ToolResponse {
 	return t.toolResponses
 }
 
-// NewToolResponseMessage creates a new tool response message with the given toolResponses.
+type ToolResponseMessageParam struct {
+	ToolResponses []*ToolResponse
+	Metadata      map[string]any
+}
+
+// NewToolResponseMessage creates a new tool response message using Go generics to simulate function overloading.
+// This allows creating tool response messages with different parameter types in a single function call.
 //
-// The toolResponses parameter must contain at least one response.
+// Supported parameter types:
+//   - []*ToolResponse: Sets the tool responses directly
+//   - ToolResponseMessageParam: Complete parameter struct with tool responses and metadata fields
 //
-// Optionally accepts metadata as a map. If multiple metadata maps are provided,
-// only the first one will be used.
+// The function uses type constraints and type switching to handle different input types,
+// providing a convenient API that mimics function overloading found in other languages.
+//
+// Requirements:
+//   - The toolResponses parameter must contain at least one response
 //
 // Note: ToolResponseMessage typically has empty text content as the actual content
-// is contained within the tool toolResponses.
-func NewToolResponseMessage(toolResponses []*ToolResponse, metadata ...map[string]any) (*ToolResponseMessage, error) {
-	if len(toolResponses) == 0 {
+// is contained within the tool responses.
+//
+// Examples:
+//
+//	NewToolResponseMessage(toolResponseSlice)           // Tool responses only
+//	NewToolResponseMessage(ToolResponseMessageParam{...}) // Full configuration
+//
+// Returns:
+//   - *ToolResponseMessage: The created message
+//   - error: Non-nil if no tool responses are provided
+func NewToolResponseMessage[T []*ToolResponse | ToolResponseMessageParam](param T) (*ToolResponseMessage, error) {
+	var p ToolResponseMessageParam
+
+	input := any(param)
+	switch input.(type) {
+	case []*ToolResponse:
+		p.ToolResponses = input.([]*ToolResponse)
+	case ToolResponseMessageParam:
+		p = input.(ToolResponseMessageParam)
+	}
+	if len(p.ToolResponses) == 0 {
 		return nil, errors.New("tool response message must contain at least one tool response")
 	}
 	return &ToolResponseMessage{
-		message:       newmessage(Tool, "", metadata...), //toolcall not have text content
-		toolResponses: toolResponses,
+		message:       newMessage(Tool, "", p.Metadata), //toolcall not have text content
+		toolResponses: slices.Clone(p.ToolResponses),
 	}, nil
 }

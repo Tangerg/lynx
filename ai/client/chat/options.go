@@ -182,7 +182,7 @@ func (o *Options) NormalizeMessages() ([]messages.Message, error) {
 			msgs = append(msgs, userMessage)
 		} else {
 			// Use friendly greeting as fallback to ensure conversation can start
-			msgs = append(msgs, messages.NewUserMessage("Hi!", nil))
+			msgs = append(msgs, messages.NewUserMessage("Hi!"))
 		}
 	}
 

@@ -1,6 +1,8 @@
 package messages
 
 import (
+	"slices"
+
 	"github.com/Tangerg/lynx/ai/commons/content"
 )
 
@@ -49,23 +51,60 @@ func (a *AssistantMessage) ToolCalls() []*ToolCall {
 	return a.toolCalls
 }
 
-// NewAssistantMessage creates a new assistant message with the given text content,
+type AssistantMessageParam struct {
+	Text      string
+	Media     []*content.Media
+	ToolCalls []*ToolCall
+	Metadata  map[string]any
+}
+
+// NewAssistantMessage creates a new assistant message using Go generics to simulate function overloading.
+// This allows creating assistant messages with different parameter types in a single function call.
 //
-// media attachments, and tool calls. Both media and toolCalls parameters can be nil
-// or empty slices if not needed.
+// Supported parameter types:
+//   - string: Sets the text content
+//   - []*content.Media: Sets media attachments
+//   - []*ToolCall: Sets tool calls
+//   - map[string]any: Sets metadata
+//   - AssistantMessageParam: Complete parameter struct with all fields
 //
-// Optionally accepts metadata as a map. If multiple metadata maps are provided,
-// only the first one will be used.
-func NewAssistantMessage(text string, media []*content.Media, toolCalls []*ToolCall, metadata ...map[string]any) *AssistantMessage {
-	if media == nil {
-		media = make([]*content.Media, 0)
+// The function uses type constraints and type switching to handle different input types,
+// providing a convenient API that mimics function overloading found in other languages.
+//
+// Examples:
+//
+//	NewAssistantMessage("Hello world")                    // Text only
+//	NewAssistantMessage(mediaSlice)                       // Media only
+//	NewAssistantMessage(toolCallSlice)                    // Tool calls only
+//	NewAssistantMessage(metadataMap)                      // Metadata only, This is very useful in scenarios where the tool needs to return directly
+//	NewAssistantMessage(AssistantMessageParam{...})       // Full configuration
+func NewAssistantMessage[T string | []*content.Media | []*ToolCall | map[string]any | AssistantMessageParam](param T) *AssistantMessage {
+	var p AssistantMessageParam
+
+	input := any(param)
+	switch input.(type) {
+	case string:
+		p.Text = input.(string)
+	case []*content.Media:
+		p.Media = input.([]*content.Media)
+	case []*ToolCall:
+		p.ToolCalls = input.([]*ToolCall)
+	case map[string]any:
+		p.Metadata = input.(map[string]any)
+	case AssistantMessageParam:
+		p = input.(AssistantMessageParam)
 	}
-	if toolCalls == nil {
-		toolCalls = make([]*ToolCall, 0)
+
+	if p.Media == nil {
+		p.Media = make([]*content.Media, 0)
 	}
+	if p.ToolCalls == nil {
+		p.ToolCalls = make([]*ToolCall, 0)
+	}
+
 	return &AssistantMessage{
-		message:   newmessage(Assistant, text, metadata...),
-		media:     media,
-		toolCalls: toolCalls,
+		message:   newMessage(Assistant, p.Text, p.Metadata),
+		media:     slices.Clone(p.Media),
+		toolCalls: slices.Clone(p.ToolCalls),
 	}
 }

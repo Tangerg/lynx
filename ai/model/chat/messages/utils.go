@@ -11,142 +11,16 @@ import (
 	"github.com/Tangerg/lynx/ai/commons/content"
 )
 
-func mergeSystemMessages(messages []*SystemMessage) *SystemMessage {
-	if len(messages) == 0 {
-		return nil
-	}
-	if len(messages) == 1 {
-		return messages[0]
-	}
-
-	sb := strings.Builder{}
-	metadata := make(map[string]any)
-
-	for i, msg := range messages {
-		if msg == nil {
-			continue
-		}
-		sb.WriteString(msg.Text())
-		if i < len(messages)-1 {
-			sb.WriteString("\n\n")
-		}
-		maps.Copy(metadata, msg.Metadata())
-	}
-
-	return NewSystemMessage(sb.String(), metadata)
-}
-
-// MergeSystemMessages combines multiple SystemMessage instances into a single SystemMessage.
-// Text content is concatenated with double newlines as separators.
-// Metadata from all messages is merged, with later messages overwriting earlier ones for duplicate keys.
-func MergeSystemMessages(messages []Message) *SystemMessage {
-	systemMessages := make([]*SystemMessage, 0, len(messages))
-
-	for _, msg := range messages {
-		if msg == nil {
-			continue
-		}
-		systemMessage, ok := msg.(*SystemMessage)
-		if !ok {
-			continue
-		}
-		systemMessages = append(systemMessages, systemMessage)
-	}
-
-	return mergeSystemMessages(systemMessages)
-}
-
-func mergeUserMessages(messages []*UserMessage) *UserMessage {
-	if len(messages) == 0 {
-		return nil
-	}
-	if len(messages) == 1 {
-		return messages[0]
-	}
-
-	sb := strings.Builder{}
-	metadata := make(map[string]any)
-	media := make([]*content.Media, 0)
-
-	for i, msg := range messages {
-		if msg == nil {
-			continue
-		}
-		sb.WriteString(msg.Text())
-		if i < len(messages)-1 {
-			sb.WriteString("\n\n")
-		}
-		maps.Copy(metadata, msg.Metadata())
-		media = append(media, msg.Media()...)
-	}
-
-	return NewUserMessage(sb.String(), media, metadata)
-}
-
-// MergeUserMessages combines multiple UserMessage instances into a single UserMessage.
-// Text content is concatenated with double newlines, media content is combined into a single slice,
-// and metadata is merged with later messages overwriting earlier ones for duplicate keys.
-func MergeUserMessages(messages []Message) *UserMessage {
-	userMessages := make([]*UserMessage, 0, len(messages))
-
-	for _, msg := range messages {
-		if msg == nil {
-			continue
-		}
-		userMessage, ok := msg.(*UserMessage)
-		if !ok {
-			continue
-		}
-		userMessages = append(userMessages, userMessage)
-	}
-
-	return mergeUserMessages(userMessages)
-}
-
-func mergeToolResponseMessages(messages []*ToolResponseMessage) (*ToolResponseMessage, error) {
-	if len(messages) == 0 {
-		return nil, nil
-	}
-	if len(messages) == 1 {
-		return messages[0], nil
-	}
-
-	metadata := make(map[string]any)
-	responses := make([]*ToolResponse, 0)
-
-	for _, msg := range messages {
-		if msg == nil {
-			continue
-		}
-		responses = append(responses, msg.ToolResponses()...)
-		maps.Copy(metadata, msg.Metadata())
-	}
-
-	return NewToolResponseMessage(responses, metadata)
-}
-
-// MergeToolResponseMessages combines multiple ToolResponseMessage instances into a single ToolResponseMessage.
-// All tool responses are combined into a single slice and metadata is merged with later messages
-// overwriting earlier ones for duplicate keys.
-func MergeToolResponseMessages(messages []Message) (*ToolResponseMessage, error) {
-	toolResponseMessages := make([]*ToolResponseMessage, 0, len(messages))
-
-	for _, msg := range messages {
-		if msg == nil {
-			continue
-		}
-		toolResponseMessage, ok := msg.(*ToolResponseMessage)
-		if !ok {
-			continue
-		}
-		toolResponseMessages = append(toolResponseMessages, toolResponseMessage)
-	}
-
-	return mergeToolResponseMessages(toolResponseMessages)
-}
-
 // ContainsType checks whether a slice of messages contains at least one message of the specified type.
-// Returns false for empty slices or when all messages are nil.
+//
+// Parameters:
+//   - messages: The slice of messages to check
+//   - typ: The message type to search for
+//
+// Returns:
+//   - bool: True if at least one message of the specified type is found, false otherwise
+//
+// Note: Returns false for empty slices or when all messages are nil.
 func ContainsType(messages []Message, typ Type) bool {
 	if len(messages) == 0 {
 		return false
@@ -158,20 +32,45 @@ func ContainsType(messages []Message, typ Type) bool {
 }
 
 // IsLastOfType checks whether the last message in a slice has the specified type.
-// Returns false for empty slices or when the last message is nil.
+//
+// Parameters:
+//   - messages: The slice of messages to check
+//   - typ: The expected message type
+//
+// Returns:
+//   - bool: True if the last message has the specified type, false otherwise
+//
+// Note: Returns false for empty slices or when the last message is nil.
 func IsLastOfType(messages []Message, typ Type) bool {
 	return IsIndexOfType(messages, -1, typ)
 }
 
 // IsFirstOfType checks whether the first message in a slice has the specified type.
-// Returns false for empty slices or when the first message is nil.
+//
+// Parameters:
+//   - messages: The slice of messages to check
+//   - typ: The expected message type
+//
+// Returns:
+//   - bool: True if the first message has the specified type, false otherwise
+//
+// Note: Returns false for empty slices or when the first message is nil.
 func IsFirstOfType(messages []Message, typ Type) bool {
 	return IsIndexOfType(messages, 0, typ)
 }
 
 // IsIndexOfType checks whether the message at a specific index has the specified type.
 // Supports both positive and negative indexing (-1 for last element).
-// Returns false for out-of-bounds indices or nil messages.
+//
+// Parameters:
+//   - messages: The slice of messages to check
+//   - index: The index to check (supports negative indexing)
+//   - typ: The expected message type
+//
+// Returns:
+//   - bool: True if the message at the specified index has the expected type, false otherwise
+//
+// Note: Returns false for out-of-bounds indices or nil messages.
 func IsIndexOfType(messages []Message, index int, typ Type) bool {
 	msg, ok := pkgSlices.At(messages, index)
 	if !ok {
@@ -181,20 +80,16 @@ func IsIndexOfType(messages []Message, index int, typ Type) bool {
 	return msg != nil && msg.Type() == typ
 }
 
-// FilterByTypes filters messages by their types, returning only messages that match any of the specified types.
-// Returns the original slice if no types are specified. Nil messages are automatically skipped and original message order is preserved.
-func FilterByTypes(messages []Message, types ...Type) []Message {
-	if len(types) == 0 {
-		return messages
-	}
-
-	return Filter(messages, func(item Message) bool {
-		return item != nil && slices.Contains(types, item.Type())
-	})
-}
-
 // Filter filters messages using a custom predicate function.
-// Returns an empty slice if no messages are provided or no messages match the predicate.
+//
+// Parameters:
+//   - messages: The slice of messages to filter
+//   - predicate: Function that returns true for messages to keep
+//
+// Returns:
+//   - []Message: New slice containing only messages that match the predicate
+//
+// Note: Returns an empty slice if no messages are provided or no messages match the predicate.
 // Panics if the predicate function is nil.
 func Filter(messages []Message, predicate func(item Message) bool) []Message {
 	if predicate == nil {
@@ -215,8 +110,206 @@ func Filter(messages []Message, predicate func(item Message) bool) []Message {
 	return msgs
 }
 
+// FilterByTypes filters messages by their types, returning only messages that match any of the specified types.
+// Nil messages are automatically skipped and the original message order is preserved.
+//
+// Parameters:
+//   - messages: The slice of messages to filter
+//   - types: Variable number of message types to include (System, User, Assistant, Tool)
+//
+// Returns:
+//   - []Message: New slice containing only messages of the specified types
+//
+// Note: If no types are specified, returns the original slice unchanged.
+//
+// Example:
+//
+//	FilterByTypes(msgs, User, Assistant) // Returns only user and assistant messages
+func FilterByTypes(messages []Message, types ...Type) []Message {
+	if len(types) == 0 {
+		return messages
+	}
+
+	return Filter(messages, func(item Message) bool {
+		return item != nil && slices.Contains(types, item.Type())
+	})
+}
+
+// FilterNonNil removes all nil messages from the slice.
+//
+// Parameters:
+//   - messages: The slice of messages to filter
+//
+// Returns:
+//   - []Message: New slice with all nil messages removed
+//
+// Note: This is useful for cleaning up message slices that may contain nil values.
+func FilterNonNil(messages []Message) []Message {
+	return Filter(messages, func(item Message) bool {
+		return item != nil
+	})
+}
+
+// FilterStandardTypes filters messages to include only standard concrete message types.
+// A message is considered standard if it's one of the built-in concrete types:
+// AssistantMessage, SystemMessage, UserMessage, or ToolResponseMessage.
+//
+// Parameters:
+//   - messages: The slice of messages to filter
+//
+// Returns:
+//   - []Message: New slice containing only standard message types
+//
+// Note: Nil messages and custom implementations are automatically excluded.
+// This function is useful for ensuring type safety when working with
+// message slices that might contain unexpected implementations of the Message interface.
+func FilterStandardTypes(messages []Message) []Message {
+	return Filter(messages, func(item Message) bool {
+		if item == nil {
+			return false
+		}
+		switch item.(type) {
+		case *AssistantMessage, *SystemMessage, *UserMessage, *ToolResponseMessage:
+			return true
+		default:
+			return false
+		}
+	})
+}
+
+// MergeSystemMessages combines multiple SystemMessage instances into a single SystemMessage.
+// Text content is concatenated with double newlines as separators.
+// Metadata from all messages is merged, with later messages overwriting earlier ones for duplicate keys.
+//
+// Parameters:
+//   - messages: The slice of messages to filter and merge
+//
+// Returns:
+//   - *SystemMessage: The merged system message, or nil if no system messages are found
+func MergeSystemMessages(messages []Message) *SystemMessage {
+	messages = FilterByTypes(messages, System)
+
+	if len(messages) == 0 {
+		return nil
+	}
+	if len(messages) == 1 {
+		systemMessage, ok := messages[0].(*SystemMessage)
+		if ok {
+			return systemMessage
+		}
+	}
+
+	sb := strings.Builder{}
+	metadata := make(map[string]any)
+
+	for _, msg := range messages {
+		sb.WriteString(msg.Text())
+		sb.WriteString("\n\n")
+		maps.Copy(metadata, msg.Metadata())
+	}
+
+	return NewSystemMessage(
+		SystemMessageParam{
+			Text:     strings.TrimSuffix(sb.String(), "\n\n"),
+			Metadata: metadata,
+		})
+}
+
+// MergeUserMessages combines multiple UserMessage instances into a single UserMessage.
+// Text content is concatenated with double newlines, media content is combined into a single slice,
+// and metadata is merged with later messages overwriting earlier ones for duplicate keys.
+//
+// Parameters:
+//   - messages: The slice of messages to filter and merge
+//
+// Returns:
+//   - *UserMessage: The merged user message, or nil if no user messages are found
+func MergeUserMessages(messages []Message) *UserMessage {
+	messages = FilterByTypes(messages, User)
+
+	if len(messages) == 0 {
+		return nil
+	}
+	if len(messages) == 1 {
+		userMessage, ok := messages[0].(*UserMessage)
+		if ok {
+			return userMessage
+		}
+	}
+
+	sb := strings.Builder{}
+	metadata := make(map[string]any)
+	media := make([]*content.Media, 0)
+
+	for _, msg := range messages {
+		sb.WriteString(msg.Text())
+		sb.WriteString("\n\n")
+		maps.Copy(metadata, msg.Metadata())
+		userMessage, ok := msg.(*UserMessage)
+		if ok {
+			media = append(media, userMessage.Media()...)
+		}
+	}
+
+	return NewUserMessage(UserMessageParam{
+		Text:     strings.TrimSuffix(sb.String(), "\n\n"),
+		Media:    media,
+		Metadata: metadata,
+	})
+
+}
+
+// MergeToolResponseMessages combines multiple ToolResponseMessage instances into a single ToolResponseMessage.
+// All tool responses are combined into a single slice and metadata is merged with later messages
+// overwriting earlier ones for duplicate keys.
+//
+// Parameters:
+//   - messages: The slice of messages to filter and merge
+//
+// Returns:
+//   - *ToolResponseMessage: The merged tool response message, or nil if no tool response messages are found
+//   - error: Non-nil if the merge operation fails
+func MergeToolResponseMessages(messages []Message) (*ToolResponseMessage, error) {
+	messages = FilterByTypes(messages, Tool)
+
+	if len(messages) == 0 {
+		return nil, nil
+	}
+	if len(messages) == 1 {
+		toolResponseMessage, ok := messages[0].(*ToolResponseMessage)
+		if ok {
+			return toolResponseMessage, nil
+		}
+	}
+
+	metadata := make(map[string]any)
+	responses := make([]*ToolResponse, 0)
+
+	for _, msg := range messages {
+		maps.Copy(metadata, msg.Metadata())
+		toolResponseMessage, ok := msg.(*ToolResponseMessage)
+		if ok {
+			responses = append(responses, toolResponseMessage.ToolResponses()...)
+		}
+	}
+
+	return NewToolResponseMessage(ToolResponseMessageParam{
+		ToolResponses: responses,
+		Metadata:      metadata,
+	})
+}
+
 // MergeMessagesByType merges messages of the specified type using the appropriate merge function.
-// Returns an error for unsupported message types.
+//
+// Parameters:
+//   - messages: The slice of messages to merge
+//   - typ: The message type to filter and merge (System, User, or Tool)
+//
+// Returns:
+//   - Message: The merged message of the specified type, or nil if no messages of that type are found
+//   - error: Non-nil for unsupported message types or merge failures
+//
+// Note: Assistant messages are not supported for merging as they typically represent individual responses.
 func MergeMessagesByType(messages []Message, typ Type) (Message, error) {
 	if typ.IsSystem() {
 		return MergeSystemMessages(messages), nil
@@ -231,13 +324,6 @@ func MergeMessagesByType(messages []Message, typ Type) (Message, error) {
 	}
 
 	return nil, fmt.Errorf("unsupported message type for merging: %s", typ.String())
-}
-
-// FilterNonNil filters out nil messages from the slice.
-func FilterNonNil(messages []Message) []Message {
-	return Filter(messages, func(item Message) bool {
-		return item != nil
-	})
 }
 
 type adjacentSameTypeMerger struct {
@@ -281,7 +367,15 @@ func (a *adjacentSameTypeMerger) compressCurrentGroup(end int) {
 
 // MergeAdjacentSameTypeMessages merges consecutive messages of the same type into single messages.
 // Only adjacent messages with identical types are combined together.
-// Non-adjacent messages or messages with different types remain separate.
+//
+// Parameters:
+//   - messages: The slice of messages to process
+//
+// Returns:
+//   - []Message: New slice with adjacent same-type messages merged
+//
+// Note: Non-adjacent messages or messages with different types remain separate.
+// Nil messages are automatically filtered out before processing.
 //
 // Example:
 //

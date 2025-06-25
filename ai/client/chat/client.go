@@ -28,7 +28,7 @@ func (c *Client) Chat() *Options {
 }
 
 func (c *Client) ChatText(text string) *Options {
-	userMessage := messages.NewUserMessage(text, nil)
+	userMessage := messages.NewUserMessage(text)
 	chatRequest, _ := chat.NewRequest([]messages.Message{userMessage}, c.defaultOptions.chatOptions.Clone())
 
 	return c.ChatRequest(chatRequest)

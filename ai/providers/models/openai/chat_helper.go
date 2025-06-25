@@ -1,4 +1,4 @@
-package openaiv2
+package openai
 
 import (
 	"encoding/json"
@@ -155,7 +155,12 @@ func (r *responseHelper) makeResultAssistantMessage(message *openai.ChatCompleti
 			Arguments: toolCall.Function.Arguments,
 		})
 	}
-	return messages.NewAssistantMessage(message.Content, nil, toolCalls)
+	return messages.NewAssistantMessage(
+		messages.AssistantMessageParam{
+			Text:      message.Content,
+			ToolCalls: toolCalls,
+		},
+	)
 }
 
 func (r *responseHelper) makeResultMetadata(choice *openai.ChatCompletionChoice) *chat.ResultMetadata {

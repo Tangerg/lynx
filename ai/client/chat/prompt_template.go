@@ -95,5 +95,8 @@ func (u *UserPromptTemplate) RenderMessage() (*messages.UserMessage, error) {
 	if err != nil {
 		return nil, err
 	}
-	return messages.NewUserMessage(contentText, u.media), nil
+	return messages.NewUserMessage(messages.UserMessageParam{
+		Text:  contentText,
+		Media: u.media,
+	}), nil
 }

@@ -1,4 +1,4 @@
-package openaiv2
+package openai
 
 import (
 	"context"
@@ -30,7 +30,7 @@ func TestNewChatModel(t *testing.T) {
 func TestChatModel_Call(t *testing.T) {
 	newModel := newChatModel()
 	request, _ := chat.NewRequest([]messages.Message{
-		messages.NewUserMessage("hi!", nil),
+		messages.NewUserMessage("hi!"),
 	})
 	resp, err := newModel.Call(context.Background(), request)
 	if err != nil {
@@ -42,7 +42,7 @@ func TestChatModel_Call(t *testing.T) {
 func TestChatModel_Stream(t *testing.T) {
 	newModel := newChatModel()
 	request, _ := chat.NewRequest([]messages.Message{
-		messages.NewUserMessage("hi!", nil),
+		messages.NewUserMessage("hi!"),
 	})
 	reader, err := newModel.Stream(context.Background(), request)
 	if err != nil {
@@ -127,7 +127,7 @@ func TestChatModel_Call_Tool(t *testing.T) {
 		MustBuild()
 	request, err := chat.NewRequest(
 		[]messages.Message{
-			messages.NewUserMessage("我想要查询北京在2023年5月1日的天气情况", nil),
+			messages.NewUserMessage("我想要查询北京在2023年5月1日的天气情况"),
 		},
 		opts,
 	)
@@ -139,4 +139,44 @@ func TestChatModel_Call_Tool(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Log(resp.Result().Output().Text())
+}
+
+func TestChatModel_Stream_Tool(t *testing.T) {
+	newModel := newChatModel()
+	opts := NewChatOptionsBuilder().
+		WithTools([]tool.Tool{newWeatherTool()}).
+		WithModel(baseModel).
+		MustBuild()
+	request, err := chat.NewRequest(
+		[]messages.Message{
+			messages.NewUserMessage("我想要查询北京在2023年5月1日的天气情况"),
+		},
+		opts,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	reader, err := newModel.Stream(context.Background(), request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for {
+		read, err := reader.Read(context.Background())
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				break
+			}
+			t.Fatal(err)
+		}
+		response, err := read.Get()
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, toolCall := range response.Result().Output().ToolCalls() {
+			t.Log(toolCall.ID)
+			t.Log(toolCall.Name)
+			t.Log(toolCall.Arguments)
+		}
+		t.Log(response.Result().Output().Text())
+	}
 }

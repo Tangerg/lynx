@@ -127,11 +127,12 @@ func (e *InvokeResult) MakeChatResponse() (*chat.Response, error) {
 
 	msg := chatResult.Output()
 	newMsg := messages.NewAssistantMessage(
-		msg.Text(),
-		msg.Media(),
-		e.externalToolCalls,
-		msg.Metadata(),
-	)
+		messages.AssistantMessageParam{
+			Text:      msg.Text(),
+			Media:     msg.Media(),
+			ToolCalls: e.externalToolCalls,
+			Metadata:  msg.Metadata(),
+		})
 	newResult, err := chat.NewResult(newMsg, chatResult.Metadata(), e.toolResponseMessage)
 	if err != nil {
 		return nil, err
@@ -299,7 +300,7 @@ func (e *invoker) invokeToolCalls(ctx Context, toolCalls []*messages.ToolCall) (
 	}
 
 	// Create tool response message from internal tool results
-	toolMessage, err := messages.NewToolResponseMessage(toolCallResponses, nil)
+	toolMessage, err := messages.NewToolResponseMessage(toolCallResponses)
 	if err != nil {
 		return nil, err
 	}
