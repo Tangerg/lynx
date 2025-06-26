@@ -5,9 +5,11 @@ import (
 
 	"github.com/openai/openai-go"
 
+	"github.com/Tangerg/lynx/ai/commons/content"
 	"github.com/Tangerg/lynx/ai/model/chat"
 	"github.com/Tangerg/lynx/ai/model/chat/messages"
 	"github.com/Tangerg/lynx/ai/model/tool"
+	"github.com/Tangerg/lynx/pkg/mime"
 )
 
 type chatHelper struct {
@@ -27,8 +29,8 @@ func (h *chatHelper) makeApiChatCompletionRequest(req *chat.Request) *openai.Cha
 	return h.requestHelper.makeRequest(req)
 }
 
-func (h *chatHelper) makeChatResponse(resp *openai.ChatCompletion) (*chat.Response, error) {
-	return h.responseHelper.makeResponse(resp)
+func (h *chatHelper) makeChatResponse(req *openai.ChatCompletionNewParams, resp *openai.ChatCompletion) (*chat.Response, error) {
+	return h.responseHelper.makeResponse(req, resp)
 }
 
 type requestHelper struct {
@@ -66,8 +68,8 @@ func (r *requestHelper) makeOptions(options chat.Options) *openai.ChatCompletion
 	if chatOptions.presencePenalty != nil {
 		opt.PresencePenalty = openai.Float(*chatOptions.presencePenalty)
 	}
-	if len(chatOptions.stopSequences) > 0 {
-		opt.Stop.OfStringArray = chatOptions.stopSequences
+	if len(chatOptions.stop) > 0 {
+		opt.Stop.OfStringArray = chatOptions.stop
 	}
 	if chatOptions.temperature != nil {
 		opt.Temperature = openai.Float(*chatOptions.temperature)
@@ -145,43 +147,73 @@ func (r *requestHelper) makeRequest(req *chat.Request) *openai.ChatCompletionNew
 
 type responseHelper struct{}
 
-func (r *responseHelper) makeResultAssistantMessage(message *openai.ChatCompletionMessage) *messages.AssistantMessage {
-	toolCalls := make([]*messages.ToolCall, 0, len(message.ToolCalls))
-	for _, toolCall := range message.ToolCalls {
-		toolCalls = append(toolCalls, &messages.ToolCall{
-			ID:        toolCall.ID,
-			Type:      "function",
-			Name:      toolCall.Function.Name,
-			Arguments: toolCall.Function.Arguments,
-		})
+func (r *responseHelper) makeResultAssistantMessage(req *openai.ChatCompletionNewParams, message *openai.ChatCompletionMessage) *messages.AssistantMessage {
+	param := messages.AssistantMessageParam{
+		Text:     message.Content,
+		Metadata: make(map[string]any),
 	}
-	return messages.NewAssistantMessage(
-		messages.AssistantMessageParam{
-			Text:      message.Content,
-			ToolCalls: toolCalls,
-		},
-	)
+	param.Metadata["refusal"] = message.Refusal
+	param.Metadata["annotations"] = message.Annotations
+
+	for _, toolCall := range message.ToolCalls {
+		param.ToolCalls = append(
+			param.ToolCalls,
+			&messages.ToolCall{
+				ID:        toolCall.ID,
+				Type:      "function",
+				Name:      toolCall.Function.Name,
+				Arguments: toolCall.Function.Arguments,
+			},
+		)
+	}
+
+	if message.Audio.ID != "" {
+		param.Metadata["audio.id"] = message.Audio.ID
+		param.Metadata["audio.expires_at"] = message.Audio.ExpiresAt
+		mt, _ := mime.New("audio", string(req.Audio.Format))
+		param.Metadata["audio.mimetype"] = mt.String()
+		param.Metadata["audio.voice"] = req.Audio.Voice
+
+		param.Media = append(
+			param.Media,
+			content.
+				NewMediaBuilder().
+				WithID(message.Audio.ID).
+				WithData(message.Audio.Data).
+				WithMimeType(mt).
+				MustBuild(),
+		)
+		if param.Text == "" {
+			param.Text = message.Audio.Transcript
+		}
+	}
+
+	return messages.NewAssistantMessage(param)
 }
 
-func (r *responseHelper) makeResultMetadata(choice *openai.ChatCompletionChoice) *chat.ResultMetadata {
-	if choice.FinishReason == "function_call" {
-		choice.FinishReason = "tool_calls"
-	}
-	return &chat.ResultMetadata{
+func (r *responseHelper) makeResultMetadata(req *openai.ChatCompletionNewParams, choice *openai.ChatCompletionChoice) *chat.ResultMetadata {
+	metadata := &chat.ResultMetadata{
 		FinishReason: chat.FinishReason(choice.FinishReason),
 	}
+	metadata.Set("index", choice.Index)
+
+	if req.Logprobs.Value {
+		metadata.Set("logprobs", choice.Logprobs)
+	}
+	return metadata
 }
 
-func (r *responseHelper) makeResult(choice *openai.ChatCompletionChoice) (*chat.Result, error) {
-	assistantMessage := r.makeResultAssistantMessage(&choice.Message)
-	metadata := r.makeResultMetadata(choice)
+func (r *responseHelper) makeResult(req *openai.ChatCompletionNewParams, choice *openai.ChatCompletionChoice) (*chat.Result, error) {
+	assistantMessage := r.makeResultAssistantMessage(req, &choice.Message)
+	metadata := r.makeResultMetadata(req, choice)
+
 	return chat.NewResult(assistantMessage, metadata)
 }
 
-func (r *responseHelper) makeResults(choices []openai.ChatCompletionChoice) ([]*chat.Result, error) {
-	results := make([]*chat.Result, 0, len(choices))
-	for _, choice := range choices {
-		result, err := r.makeResult(&choice)
+func (r *responseHelper) makeResults(req *openai.ChatCompletionNewParams, resp *openai.ChatCompletion) ([]*chat.Result, error) {
+	results := make([]*chat.Result, 0, len(resp.Choices))
+	for _, choice := range resp.Choices {
+		result, err := r.makeResult(req, &choice)
 		if err != nil {
 			return nil, err
 		}
@@ -190,24 +222,29 @@ func (r *responseHelper) makeResults(choices []openai.ChatCompletionChoice) ([]*
 	return results, nil
 }
 
-func (r *responseHelper) makeMetadata(resp *openai.ChatCompletion) *chat.ResponseMetadata {
+func (r *responseHelper) makeMetadata(req *openai.ChatCompletionNewParams, resp *openai.ChatCompletion) *chat.ResponseMetadata {
 	metadata := &chat.ResponseMetadata{
-		ID:    resp.ID,
-		Model: resp.Model,
+		ID:      resp.ID,
+		Model:   resp.Model,
+		Created: resp.Created,
 		Usage: &chat.Usage{
 			PromptTokens:     resp.Usage.PromptTokens,
 			CompletionTokens: resp.Usage.CompletionTokens,
 			OriginalUsage:    resp.Usage,
 		},
 	}
+	metadata.Set("original.request", req)
+	metadata.Set("original.response", resp)
+	metadata.Set("service_tier", resp.ServiceTier)
+	metadata.Set("system_fingerprint", resp.SystemFingerprint)
 	return metadata
 }
 
-func (r *responseHelper) makeResponse(resp *openai.ChatCompletion) (*chat.Response, error) {
-	results, err := r.makeResults(resp.Choices)
+func (r *responseHelper) makeResponse(req *openai.ChatCompletionNewParams, resp *openai.ChatCompletion) (*chat.Response, error) {
+	results, err := r.makeResults(req, resp)
 	if err != nil {
 		return nil, err
 	}
-	metadata := r.makeMetadata(resp)
+	metadata := r.makeMetadata(req, resp)
 	return chat.NewResponse(results, metadata)
 }

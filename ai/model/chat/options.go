@@ -22,9 +22,9 @@ type Options interface {
 	// Range: typically -2.0 to 2.0, where positive values promote topic diversity.
 	PresencePenalty() *float64
 
-	// StopSequences defines text sequences that will halt LLM generation when encountered.
+	// Stop defines text sequences that will halt LLM generation when encountered.
 	// Useful for controlling output format and preventing unwanted continuation.
-	StopSequences() []string
+	Stop() []string
 
 	// Temperature controls the randomness of LLM token selection.
 	// Range: typically 0.0 to 2.0, where 0 is deterministic and higher values increase creativity.
@@ -32,7 +32,7 @@ type Options interface {
 
 	// TopK limits the LLM to consider only the K most probable next tokens.
 	// Lower values make output more focused, higher values allow more diversity.
-	TopK() *int
+	TopK() *int64
 
 	// TopP implements nucleus sampling for LLM token selection.
 	// Range: 0.0 to 1.0, considers tokens with cumulative probability up to P.

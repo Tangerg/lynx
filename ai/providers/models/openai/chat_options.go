@@ -8,20 +8,31 @@ import (
 	"github.com/Tangerg/lynx/pkg/assert"
 )
 
-var _ chat.Options = (*ChatOptions)(nil)
 var _ tool.Options = (*ChatOptions)(nil)
 
 type ChatOptions struct {
-	model            string
-	frequencyPenalty *float64
-	maxTokens        *int64
-	presencePenalty  *float64
-	stopSequences    []string
-	temperature      *float64
-	topK             *int
-	topP             *float64
-	tools            []tool.Tool
-	toolParams       map[string]any
+	model               string
+	frequencyPenalty    *float64
+	logitBias           map[string]any
+	logprobs            *bool
+	maxCompletionTokens *int64
+	maxTokens           *int64
+	metadata            map[string]any
+	modalities          []string
+	n                   *int64
+	parallelToolCalls   *bool
+	presencePenalty     *float64
+	reasoningEffort     *string
+	seed                *int64
+	serviceTier         *string
+	stop                []string
+	store               *bool
+	temperature         *float64
+	topLogprobs         *int64
+	topP                *float64
+	user                *string
+	tools               []tool.Tool
+	toolParams          map[string]any
 }
 
 func (o *ChatOptions) Tools() []tool.Tool {
@@ -69,16 +80,16 @@ func (o *ChatOptions) PresencePenalty() *float64 {
 	return o.presencePenalty
 }
 
-func (o *ChatOptions) StopSequences() []string {
-	return o.stopSequences
+func (o *ChatOptions) Stop() []string {
+	return o.stop
 }
 
 func (o *ChatOptions) Temperature() *float64 {
 	return o.temperature
 }
 
-func (o *ChatOptions) TopK() *int {
-	return o.topK
+func (o *ChatOptions) TopK() *int64 {
+	return nil
 }
 
 func (o *ChatOptions) TopP() *float64 {
@@ -86,35 +97,61 @@ func (o *ChatOptions) TopP() *float64 {
 }
 
 func (o *ChatOptions) Clone() chat.Options {
-	return o.Fork().
-		MustBuild()
+	return o.Fork().MustBuild()
 }
 
 func (o *ChatOptions) Fork() *ChatOptionsBuilder {
-	return NewChatOptionsBuilder().
+	// 修复：需要拷贝所有字段，包括之前遗漏的
+	builder := NewChatOptionsBuilder().
 		WithModel(o.model).
 		WithFrequencyPenalty(o.frequencyPenalty).
 		WithMaxTokens(o.maxTokens).
 		WithPresencePenalty(o.presencePenalty).
-		WithStopSequences(o.stopSequences).
+		WithStop(o.stop).
 		WithTemperature(o.temperature).
-		WithTopK(o.topK).
 		WithTopP(o.topP).
 		WithTools(o.tools).
-		WithToolParams(o.toolParams)
+		WithToolParams(o.toolParams).
+		WithLogitBias(o.logitBias).
+		WithLogprobs(o.logprobs).
+		WithMaxCompletionTokens(o.maxCompletionTokens).
+		WithMetadata(o.metadata).
+		WithModalities(o.modalities).
+		WithN(o.n).
+		WithParallelToolCalls(o.parallelToolCalls).
+		WithReasoningEffort(o.reasoningEffort).
+		WithSeed(o.seed).
+		WithServiceTier(o.serviceTier).
+		WithStore(o.store).
+		WithTopLogprobs(o.topLogprobs).
+		WithUser(o.user)
+
+	return builder
 }
 
 type ChatOptionsBuilder struct {
-	model            string
-	frequencyPenalty *float64
-	maxTokens        *int64
-	presencePenalty  *float64
-	stopSequences    []string
-	temperature      *float64
-	topK             *int
-	topP             *float64
-	tools            []tool.Tool
-	toolParams       map[string]any
+	model               string
+	frequencyPenalty    *float64
+	logitBias           map[string]any
+	logprobs            *bool
+	maxCompletionTokens *int64
+	maxTokens           *int64
+	metadata            map[string]any
+	modalities          []string
+	n                   *int64
+	parallelToolCalls   *bool
+	presencePenalty     *float64
+	reasoningEffort     *string
+	seed                *int64
+	serviceTier         *string
+	stop                []string
+	store               *bool
+	temperature         *float64
+	topLogprobs         *int64
+	topP                *float64
+	user                *string
+	tools               []tool.Tool
+	toolParams          map[string]any
 }
 
 func NewChatOptionsBuilder() *ChatOptionsBuilder {
@@ -133,9 +170,58 @@ func (b *ChatOptionsBuilder) WithFrequencyPenalty(penalty *float64) *ChatOptions
 	return b
 }
 
+func (b *ChatOptionsBuilder) WithLogitBias(logitBias map[string]any) *ChatOptionsBuilder {
+	if len(logitBias) > 0 {
+		b.logitBias = logitBias
+	}
+	return b
+}
+
+func (b *ChatOptionsBuilder) WithLogprobs(logprobs *bool) *ChatOptionsBuilder {
+	if logprobs != nil {
+		b.logprobs = logprobs
+	}
+	return b
+}
+
+func (b *ChatOptionsBuilder) WithMaxCompletionTokens(maxTokens *int64) *ChatOptionsBuilder {
+	if maxTokens != nil {
+		b.maxCompletionTokens = maxTokens
+	}
+	return b
+}
+
 func (b *ChatOptionsBuilder) WithMaxTokens(maxTokens *int64) *ChatOptionsBuilder {
 	if maxTokens != nil {
 		b.maxTokens = maxTokens
+	}
+	return b
+}
+
+func (b *ChatOptionsBuilder) WithMetadata(metadata map[string]any) *ChatOptionsBuilder {
+	if len(metadata) > 0 {
+		b.metadata = metadata
+	}
+	return b
+}
+
+func (b *ChatOptionsBuilder) WithModalities(modalities []string) *ChatOptionsBuilder {
+	if len(modalities) > 0 {
+		b.modalities = modalities
+	}
+	return b
+}
+
+func (b *ChatOptionsBuilder) WithN(n *int64) *ChatOptionsBuilder {
+	if n != nil {
+		b.n = n
+	}
+	return b
+}
+
+func (b *ChatOptionsBuilder) WithParallelToolCalls(parallel *bool) *ChatOptionsBuilder {
+	if parallel != nil {
+		b.parallelToolCalls = parallel
 	}
 	return b
 }
@@ -147,8 +233,38 @@ func (b *ChatOptionsBuilder) WithPresencePenalty(penalty *float64) *ChatOptionsB
 	return b
 }
 
-func (b *ChatOptionsBuilder) WithStopSequences(sequences []string) *ChatOptionsBuilder {
-	b.stopSequences = sequences
+func (b *ChatOptionsBuilder) WithReasoningEffort(effort *string) *ChatOptionsBuilder {
+	if effort != nil {
+		b.reasoningEffort = effort
+	}
+	return b
+}
+
+func (b *ChatOptionsBuilder) WithSeed(seed *int64) *ChatOptionsBuilder {
+	if seed != nil {
+		b.seed = seed
+	}
+	return b
+}
+
+func (b *ChatOptionsBuilder) WithServiceTier(tier *string) *ChatOptionsBuilder {
+	if tier != nil {
+		b.serviceTier = tier
+	}
+	return b
+}
+
+func (b *ChatOptionsBuilder) WithStop(stop []string) *ChatOptionsBuilder {
+	if len(stop) > 0 {
+		b.stop = stop
+	}
+	return b
+}
+
+func (b *ChatOptionsBuilder) WithStore(store *bool) *ChatOptionsBuilder {
+	if store != nil {
+		b.store = store
+	}
 	return b
 }
 
@@ -159,9 +275,9 @@ func (b *ChatOptionsBuilder) WithTemperature(temperature *float64) *ChatOptionsB
 	return b
 }
 
-func (b *ChatOptionsBuilder) WithTopK(topK *int) *ChatOptionsBuilder {
-	if topK != nil {
-		b.topK = topK
+func (b *ChatOptionsBuilder) WithTopLogprobs(topLogprobs *int64) *ChatOptionsBuilder {
+	if topLogprobs != nil {
+		b.topLogprobs = topLogprobs
 	}
 	return b
 }
@@ -169,6 +285,13 @@ func (b *ChatOptionsBuilder) WithTopK(topK *int) *ChatOptionsBuilder {
 func (b *ChatOptionsBuilder) WithTopP(topP *float64) *ChatOptionsBuilder {
 	if topP != nil {
 		b.topP = topP
+	}
+	return b
+}
+
+func (b *ChatOptionsBuilder) WithUser(user *string) *ChatOptionsBuilder {
+	if user != nil {
+		b.user = user
 	}
 	return b
 }
@@ -192,16 +315,28 @@ func (b *ChatOptionsBuilder) Build() (*ChatOptions, error) {
 		return nil, errors.New("model is required")
 	}
 	return &ChatOptions{
-		model:            b.model,
-		frequencyPenalty: b.frequencyPenalty,
-		maxTokens:        b.maxTokens,
-		presencePenalty:  b.presencePenalty,
-		stopSequences:    b.stopSequences,
-		temperature:      b.temperature,
-		topK:             b.topK,
-		topP:             b.topP,
-		tools:            b.tools,
-		toolParams:       b.toolParams,
+		model:               b.model,
+		frequencyPenalty:    b.frequencyPenalty,
+		logitBias:           b.logitBias,
+		logprobs:            b.logprobs,
+		maxCompletionTokens: b.maxCompletionTokens,
+		maxTokens:           b.maxTokens,
+		metadata:            b.metadata,
+		modalities:          b.modalities,
+		n:                   b.n,
+		parallelToolCalls:   b.parallelToolCalls,
+		presencePenalty:     b.presencePenalty,
+		reasoningEffort:     b.reasoningEffort,
+		seed:                b.seed,
+		serviceTier:         b.serviceTier,
+		stop:                b.stop,
+		store:               b.store,
+		temperature:         b.temperature,
+		topLogprobs:         b.topLogprobs,
+		topP:                b.topP,
+		user:                b.user,
+		tools:               b.tools,
+		toolParams:          b.toolParams,
 	}, nil
 }
 
@@ -215,18 +350,18 @@ func MergeChatOptions(options *ChatOptions, opts ...chat.Options) (*ChatOptions,
 		if o == nil {
 			continue
 		}
-		builder := fork.
+		fork.
 			WithModel(o.Model()).
 			WithFrequencyPenalty(o.FrequencyPenalty()).
 			WithMaxTokens(o.MaxTokens()).
 			WithPresencePenalty(o.PresencePenalty()).
-			WithStopSequences(o.StopSequences()).
+			WithStop(o.Stop()).
 			WithTemperature(o.Temperature()).
-			WithTopK(o.TopK()).
 			WithTopP(o.TopP())
+
 		toolOptions, ok := o.(tool.Options)
 		if ok {
-			builder.
+			fork.
 				WithTools(toolOptions.Tools()).
 				WithToolParams(toolOptions.ToolParams())
 		}

@@ -41,6 +41,7 @@ type ResponseMetadata struct {
 	Model     string         // LLM model name/version used for generation
 	Usage     *Usage         // Token consumption details
 	RateLimit *RateLimit     // API rate limiting information
+	Created   int64          // The Unix timestamp (in seconds) of when the Response was created.
 	extra     map[string]any // Additional provider-specific metadata
 }
 

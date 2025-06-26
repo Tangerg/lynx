@@ -86,6 +86,9 @@ func (m *message) Text() string {
 
 // Metadata returns the metadata of the message.
 func (m *message) Metadata() map[string]any {
+	if m.metadata == nil {
+		m.metadata = make(map[string]any)
+	}
 	return m.metadata
 }
 

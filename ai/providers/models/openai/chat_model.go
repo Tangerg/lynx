@@ -41,7 +41,7 @@ func (c *ChatModel) call(ctx context.Context, req *chat.Request, helper *tool.He
 		return nil, err
 	}
 
-	resp, err := c.makeChatResponse(apiResp)
+	resp, err := c.makeChatResponse(apiReq, apiResp)
 	if err != nil {
 		return nil, err
 	}
@@ -82,7 +82,7 @@ func (c *ChatModel) stream(ctx context.Context, req *chat.Request, helper *tool.
 		chunk := apiStreamResp.Current()
 		onceAcc := openai.ChatCompletionAccumulator{}
 		onceAcc.AddChunk(chunk)
-		resp, err1 := c.makeChatResponse(&onceAcc.ChatCompletion)
+		resp, err1 := c.makeChatResponse(apiReq, &onceAcc.ChatCompletion)
 		if err1 != nil {
 			_ = writer.Write(ctx, result.Error[*chat.Response](err1))
 			return
@@ -100,7 +100,7 @@ func (c *ChatModel) stream(ctx context.Context, req *chat.Request, helper *tool.
 		return
 	}
 
-	resp, err := c.makeChatResponse(&fullAcc.ChatCompletion)
+	resp, err := c.makeChatResponse(apiReq, &fullAcc.ChatCompletion)
 	if err != nil {
 		_ = writer.Write(ctx, result.Error[*chat.Response](err))
 		return
