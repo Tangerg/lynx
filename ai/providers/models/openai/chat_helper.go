@@ -2,8 +2,8 @@ package openai
 
 import (
 	"encoding/json"
-
 	"github.com/openai/openai-go"
+	"github.com/spf13/cast"
 
 	"github.com/Tangerg/lynx/ai/commons/content"
 	"github.com/Tangerg/lynx/ai/model/chat"
@@ -37,49 +37,92 @@ type requestHelper struct {
 	defaultOptions *ChatOptions
 }
 
-func (r *requestHelper) makeOptionsTools(tools []tool.Tool) []openai.ChatCompletionToolParam {
+func (r *requestHelper) makeParamsTools(tools []tool.Tool) []openai.ChatCompletionToolParam {
 	rv := make([]openai.ChatCompletionToolParam, 0, len(tools))
 	for _, t := range tools {
 		var parameters map[string]any
 		_ = json.Unmarshal([]byte(t.Definition().InputSchema()), &parameters)
-		rv = append(rv, openai.ChatCompletionToolParam{
-			Function: openai.FunctionDefinitionParam{
-				Name:        t.Definition().Name(),
-				Description: openai.String(t.Definition().Description()),
-				Strict:      openai.Bool(true),
-				Parameters:  parameters,
+		rv = append(
+			rv,
+			openai.ChatCompletionToolParam{
+				Function: openai.FunctionDefinitionParam{
+					Name:        t.Definition().Name(),
+					Description: openai.String(t.Definition().Description()),
+					Strict:      openai.Bool(true),
+					Parameters:  parameters,
+				},
 			},
-		})
+		)
 	}
 	return rv
 }
 
-func (r *requestHelper) makeOptions(options chat.Options) *openai.ChatCompletionNewParams {
+func (r *requestHelper) makeParams(options chat.Options) *openai.ChatCompletionNewParams {
 	chatOptions, _ := MergeChatOptions(r.defaultOptions, options)
 
-	opt := new(openai.ChatCompletionNewParams)
-	opt.Model = chatOptions.model
+	params := new(openai.ChatCompletionNewParams)
+	params.Model = chatOptions.model
 	if chatOptions.frequencyPenalty != nil {
-		opt.FrequencyPenalty = openai.Float(*chatOptions.frequencyPenalty)
+		params.FrequencyPenalty = openai.Float(*chatOptions.frequencyPenalty)
+	}
+	if chatOptions.logitBias != nil {
+		params.LogitBias = chatOptions.logitBias
+	}
+	if chatOptions.logprobs != nil {
+		params.Logprobs = openai.Bool(*chatOptions.logprobs)
+	}
+	if chatOptions.maxCompletionTokens != nil {
+		params.MaxCompletionTokens = openai.Int(*chatOptions.maxCompletionTokens)
 	}
 	if chatOptions.maxTokens != nil {
-		opt.MaxTokens = openai.Int(*chatOptions.maxTokens)
+		params.MaxTokens = openai.Int(*chatOptions.maxTokens)
+	}
+	if chatOptions.metadata != nil {
+		params.Metadata = chatOptions.metadata
+	}
+	if chatOptions.modalities != nil {
+		params.Modalities = chatOptions.modalities
+	}
+	if chatOptions.n != nil {
+		params.N = openai.Int(*chatOptions.n)
+	}
+	if chatOptions.parallelToolCalls != nil {
+		params.ParallelToolCalls = openai.Bool(*chatOptions.parallelToolCalls)
 	}
 	if chatOptions.presencePenalty != nil {
-		opt.PresencePenalty = openai.Float(*chatOptions.presencePenalty)
+		params.PresencePenalty = openai.Float(*chatOptions.presencePenalty)
+	}
+	if chatOptions.reasoningEffort != nil {
+		params.ReasoningEffort = openai.ReasoningEffort(*chatOptions.reasoningEffort)
+	}
+	if chatOptions.seed != nil {
+		params.Seed = openai.Int(*chatOptions.seed)
+	}
+	if chatOptions.serviceTier != nil {
+		params.ServiceTier = openai.ChatCompletionNewParamsServiceTier(*chatOptions.serviceTier)
 	}
 	if len(chatOptions.stop) > 0 {
-		opt.Stop.OfStringArray = chatOptions.stop
+		params.Stop.OfStringArray = chatOptions.stop
+	}
+	if chatOptions.store != nil {
+		params.Store = openai.Bool(*chatOptions.store)
 	}
 	if chatOptions.temperature != nil {
-		opt.Temperature = openai.Float(*chatOptions.temperature)
+		params.Temperature = openai.Float(*chatOptions.temperature)
+	}
+	if chatOptions.topLogprobs != nil {
+		params.TopLogprobs = openai.Int(*chatOptions.topLogprobs)
 	}
 	if chatOptions.topP != nil {
-		opt.TopP = openai.Float(*chatOptions.topP)
+		params.TopP = openai.Float(*chatOptions.topP)
 	}
-	opt.Tools = r.makeOptionsTools(chatOptions.tools)
+	if chatOptions.user != nil {
+		params.User = openai.String(*chatOptions.user)
+	}
 
-	return opt
+	params.Tools = r.makeParamsTools(chatOptions.tools)
+
+	return params
 }
 
 func (r *requestHelper) makeSystemMessage(msg *messages.SystemMessage) openai.ChatCompletionMessageParamUnion {
@@ -87,7 +130,54 @@ func (r *requestHelper) makeSystemMessage(msg *messages.SystemMessage) openai.Ch
 }
 
 func (r *requestHelper) makeUserMessage(msg *messages.UserMessage) openai.ChatCompletionMessageParamUnion {
-	return openai.UserMessage(msg.Text())
+	message := openai.UserMessage(msg.Text())
+
+	if msg.HasMedia() {
+		message.OfUser.Content.OfString = openai.String("")
+		message.OfUser.Content.OfArrayOfContentParts = append(
+			message.OfUser.Content.OfArrayOfContentParts,
+			openai.ChatCompletionContentPartUnionParam{
+				OfText: &openai.ChatCompletionContentPartTextParam{
+					Text: msg.Text(),
+				},
+			})
+	}
+
+	for _, media := range msg.Media() {
+		mt := media.MimeType()
+		data, _ := media.DataAsString()
+		param := openai.ChatCompletionContentPartUnionParam{}
+
+		if mime.IsImage(mt) {
+			param.OfImageURL = &openai.ChatCompletionContentPartImageParam{
+				ImageURL: openai.ChatCompletionContentPartImageImageURLParam{
+					URL: data,
+				},
+			}
+		} else if mime.IsAudio(mt) {
+			param.OfInputAudio = &openai.ChatCompletionContentPartInputAudioParam{
+				InputAudio: openai.ChatCompletionContentPartInputAudioInputAudioParam{
+					Data:   data,
+					Format: mt.SubType(),
+				},
+			}
+		} else {
+			param.OfFile = &openai.ChatCompletionContentPartFileParam{
+				File: openai.ChatCompletionContentPartFileFileParam{
+					FileData: openai.String(data),
+					Filename: openai.String(media.Name()),
+					FileID:   openai.String(media.ID()),
+				},
+			}
+		}
+
+		message.OfUser.Content.OfArrayOfContentParts = append(
+			message.OfUser.Content.OfArrayOfContentParts,
+			param,
+		)
+	}
+
+	return message
 }
 
 func (r *requestHelper) makeAssistantMessage(msg *messages.AssistantMessage) openai.ChatCompletionMessageParamUnion {
@@ -102,12 +192,21 @@ func (r *requestHelper) makeAssistantMessage(msg *messages.AssistantMessage) ope
 				},
 			})
 	}
+	for _, media := range msg.Media() {
+		message.OfAssistant.Audio.ID = media.ID()
+	}
+	for k, v := range msg.Metadata() {
+		if k == "refusal" {
+			message.OfAssistant.Refusal = openai.String(cast.ToString(v))
+		}
+	}
 	return message
 }
 
 func (r *requestHelper) makeToolMessages(msg *messages.ToolResponseMessage) []openai.ChatCompletionMessageParamUnion {
-	msgs := make([]openai.ChatCompletionMessageParamUnion, 0, len(msg.ToolResponses()))
-	for _, toolResponse := range msg.ToolResponses() {
+	toolResponses := msg.ToolResponses()
+	msgs := make([]openai.ChatCompletionMessageParamUnion, 0, len(toolResponses))
+	for _, toolResponse := range toolResponses {
 		msgs = append(msgs, openai.ToolMessage(toolResponse.ResponseData, toolResponse.ID))
 	}
 	return msgs
@@ -139,10 +238,10 @@ func (r *requestHelper) makeMessages(msgs []messages.Message) []openai.ChatCompl
 }
 
 func (r *requestHelper) makeRequest(req *chat.Request) *openai.ChatCompletionNewParams {
-	options := r.makeOptions(req.Options())
+	params := r.makeParams(req.Options())
 	msgs := r.makeMessages(req.Instructions())
-	options.Messages = msgs
-	return options
+	params.Messages = msgs
+	return params
 }
 
 type responseHelper struct{}

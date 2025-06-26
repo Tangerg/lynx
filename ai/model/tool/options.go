@@ -21,13 +21,21 @@ type Options interface {
 	// Tools can be either internal (CallableTool) or external (require client execution).
 	Tools() []Tool
 
-	// SetTools configures the available tools for LLM function calling.
+	// SetTools replaces all available tools for LLM function calling.
 	// The provided tools will be serialized and sent to the LLM as function definitions.
 	// Accepts both internal tools (executed automatically) and external tools (delegated to client).
 	//
 	// Parameters:
-	//   - tools: Slice of Tool instances to make available for function calling.
+	//   - tools: Slice of Tool instances to replace all existing tools.
 	SetTools(tools []Tool)
+
+	// AddTools appends additional tools to the existing available tools for LLM function calling.
+	// The provided tools will be serialized and sent to the LLM as function definitions.
+	// Accepts both internal tools (executed automatically) and external tools (delegated to client).
+	//
+	// Parameters:
+	//   - tools: Slice of Tool instances to add to existing tools.
+	AddTools(tools []Tool)
 
 	// ToolParams returns additional parameters that will be passed to tools during execution.
 	// These parameters provide contextual information or configuration that tools may need
@@ -43,12 +51,21 @@ type Options interface {
 	// The returned map should be treated as read-only.
 	ToolParams() map[string]any
 
-	// SetToolParams configures additional parameters that will be available to tools during execution.
+	// SetToolParams replaces all tool parameters that will be available to tools during execution.
 	// These parameters are passed to the tool execution context and can be accessed by tools
 	// to customize their behavior or access external resources.
 	//
 	// Parameters:
-	//   - params: Map of parameter names to values that tools can access during execution.
+	//   - params: Map of parameter names to values that replaces all existing tool parameters.
 	//            Parameter names and types depend on the specific tools being used.
 	SetToolParams(params map[string]any)
+
+	// AddToolParams adds additional parameters to the existing tool parameters available during execution.
+	// These parameters are merged with existing parameters and passed to the tool execution context.
+	// If a parameter key already exists, it will be overwritten with the new value.
+	//
+	// Parameters:
+	//   - params: Map of parameter names to values to add to existing tool parameters.
+	//            Parameter names and types depend on the specific tools being used.
+	AddToolParams(params map[string]any)
 }

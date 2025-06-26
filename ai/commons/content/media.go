@@ -72,6 +72,14 @@ func (m *Media) DataAsBytes() ([]byte, error) {
 	return nil, fmt.Errorf("data type is %T, not bytes", m.data)
 }
 
+func (m *Media) DataAsString() (string, error) {
+	data, ok := m.data.(string)
+	if ok {
+		return data, nil
+	}
+	return "", fmt.Errorf("data type is %T, not string", m.data)
+}
+
 // MediaBuilder implements the builder pattern for creating Media objects
 type MediaBuilder struct {
 	id       string     // ID to assign to the media

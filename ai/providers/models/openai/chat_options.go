@@ -13,11 +13,11 @@ var _ tool.Options = (*ChatOptions)(nil)
 type ChatOptions struct {
 	model               string
 	frequencyPenalty    *float64
-	logitBias           map[string]any
+	logitBias           map[string]int64
 	logprobs            *bool
 	maxCompletionTokens *int64
 	maxTokens           *int64
-	metadata            map[string]any
+	metadata            map[string]string
 	modalities          []string
 	n                   *int64
 	parallelToolCalls   *bool
@@ -40,25 +40,43 @@ func (o *ChatOptions) Tools() []tool.Tool {
 }
 
 func (o *ChatOptions) SetTools(tools []tool.Tool) {
+	if tools != nil {
+		o.tools = tools
+	}
+}
+
+func (o *ChatOptions) AddTools(tools []tool.Tool) {
 	for _, t := range tools {
 		o.tools = append(o.tools, t)
 	}
 }
 
-func (o *ChatOptions) ToolParams() map[string]any {
+func (o *ChatOptions) ensureToolParams() {
 	if o.toolParams == nil {
 		o.toolParams = make(map[string]any)
 	}
+}
+
+func (o *ChatOptions) ToolParams() map[string]any {
+	o.ensureToolParams()
 	return o.toolParams
 }
 
 func (o *ChatOptions) SetToolParams(params map[string]any) {
-	if o.toolParams == nil {
-		o.toolParams = make(map[string]any)
-	}
-	if len(params) == 0 {
+	if params == nil {
 		return
 	}
+
+	o.ensureToolParams()
+
+	for k, v := range params {
+		o.toolParams[k] = v
+	}
+}
+
+func (o *ChatOptions) AddToolParams(params map[string]any) {
+	o.ensureToolParams()
+
 	for k, v := range params {
 		o.toolParams[k] = v
 	}
@@ -72,20 +90,68 @@ func (o *ChatOptions) FrequencyPenalty() *float64 {
 	return o.frequencyPenalty
 }
 
+func (o *ChatOptions) LogitBias() map[string]int64 {
+	return o.logitBias
+}
+
+func (o *ChatOptions) Logprobs() *bool {
+	return o.logprobs
+}
+
+func (o *ChatOptions) MaxCompletionTokens() *int64 {
+	return o.maxCompletionTokens
+}
+
 func (o *ChatOptions) MaxTokens() *int64 {
 	return o.maxTokens
+}
+
+func (o *ChatOptions) Metadata() map[string]string {
+	return o.metadata
+}
+
+func (o *ChatOptions) Modalities() []string {
+	return o.modalities
+}
+
+func (o *ChatOptions) N() *int64 {
+	return o.n
+}
+
+func (o *ChatOptions) ParallelToolCalls() *bool {
+	return o.parallelToolCalls
 }
 
 func (o *ChatOptions) PresencePenalty() *float64 {
 	return o.presencePenalty
 }
 
+func (o *ChatOptions) ReasoningEffort() *string {
+	return o.reasoningEffort
+}
+
+func (o *ChatOptions) Seed() *int64 {
+	return o.seed
+}
+
+func (o *ChatOptions) ServiceTier() *string {
+	return o.serviceTier
+}
+
 func (o *ChatOptions) Stop() []string {
 	return o.stop
 }
 
+func (o *ChatOptions) Store() *bool {
+	return o.store
+}
+
 func (o *ChatOptions) Temperature() *float64 {
 	return o.temperature
+}
+
+func (o *ChatOptions) TopLogprobs() *int64 {
+	return o.topLogprobs
 }
 
 func (o *ChatOptions) TopK() *int64 {
@@ -96,12 +162,15 @@ func (o *ChatOptions) TopP() *float64 {
 	return o.topP
 }
 
+func (o *ChatOptions) User() *string {
+	return o.user
+}
+
 func (o *ChatOptions) Clone() chat.Options {
 	return o.Fork().MustBuild()
 }
 
 func (o *ChatOptions) Fork() *ChatOptionsBuilder {
-	// 修复：需要拷贝所有字段，包括之前遗漏的
 	builder := NewChatOptionsBuilder().
 		WithModel(o.model).
 		WithFrequencyPenalty(o.frequencyPenalty).
@@ -132,11 +201,11 @@ func (o *ChatOptions) Fork() *ChatOptionsBuilder {
 type ChatOptionsBuilder struct {
 	model               string
 	frequencyPenalty    *float64
-	logitBias           map[string]any
+	logitBias           map[string]int64
 	logprobs            *bool
 	maxCompletionTokens *int64
 	maxTokens           *int64
-	metadata            map[string]any
+	metadata            map[string]string
 	modalities          []string
 	n                   *int64
 	parallelToolCalls   *bool
@@ -170,7 +239,7 @@ func (b *ChatOptionsBuilder) WithFrequencyPenalty(penalty *float64) *ChatOptions
 	return b
 }
 
-func (b *ChatOptionsBuilder) WithLogitBias(logitBias map[string]any) *ChatOptionsBuilder {
+func (b *ChatOptionsBuilder) WithLogitBias(logitBias map[string]int64) *ChatOptionsBuilder {
 	if len(logitBias) > 0 {
 		b.logitBias = logitBias
 	}
@@ -198,7 +267,7 @@ func (b *ChatOptionsBuilder) WithMaxTokens(maxTokens *int64) *ChatOptionsBuilder
 	return b
 }
 
-func (b *ChatOptionsBuilder) WithMetadata(metadata map[string]any) *ChatOptionsBuilder {
+func (b *ChatOptionsBuilder) WithMetadata(metadata map[string]string) *ChatOptionsBuilder {
 	if len(metadata) > 0 {
 		b.metadata = metadata
 	}
@@ -364,6 +433,24 @@ func MergeChatOptions(options *ChatOptions, opts ...chat.Options) (*ChatOptions,
 			fork.
 				WithTools(toolOptions.Tools()).
 				WithToolParams(toolOptions.ToolParams())
+		}
+
+		chatOptions, ok := o.(*ChatOptions)
+		if ok {
+			fork.
+				WithLogitBias(chatOptions.logitBias).
+				WithLogprobs(chatOptions.logprobs).
+				WithMaxCompletionTokens(chatOptions.maxCompletionTokens).
+				WithMetadata(chatOptions.metadata).
+				WithModalities(chatOptions.modalities).
+				WithN(chatOptions.n).
+				WithParallelToolCalls(chatOptions.parallelToolCalls).
+				WithReasoningEffort(chatOptions.reasoningEffort).
+				WithSeed(chatOptions.seed).
+				WithServiceTier(chatOptions.serviceTier).
+				WithStore(chatOptions.store).
+				WithTopLogprobs(chatOptions.topLogprobs).
+				WithUser(chatOptions.user)
 		}
 	}
 	return fork.Build()
