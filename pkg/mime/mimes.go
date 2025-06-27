@@ -5,37 +5,55 @@ var (
 	// It has the format "*/*" where both the primary type and subtype are wildcards.
 	// This is used for operations that should work with all possible MIME types.
 	// Example: For content negotiation, "*/*" indicates accepting any MIME type.
-	all = newMime(wildcardType, wildcardType)
+	all = MIME{
+		_type:   wildcardType,
+		subType: wildcardType,
+	}
 
 	// text represents a MIME type that matches any text-based format.
 	// It has the format "text/*" with a concrete primary type and wildcard subtype.
 	// This category includes formats like plain text, HTML, CSS, and other text-based formats.
 	// Examples: "text/plain", "text/html", "text/css", "text/markdown"
-	text = newMime("text", wildcardType)
+	text = MIME{
+		_type:   "text",
+		subType: wildcardType,
+	}
 
 	// video represents a MIME type that matches any video format.
 	// It has the format "video/*" with a concrete primary type and wildcard subtype.
 	// This category includes various video container formats and codecs.
 	// Examples: "video/mp4", "video/webm", "video/ogg", "video/quicktime"
-	video = newMime("video", wildcardType)
+	video = MIME{
+		_type:   "video",
+		subType: wildcardType,
+	}
 
 	// audio represents a MIME type that matches any audio format.
 	// It has the format "audio/*" with a concrete primary type and wildcard subtype.
 	// This category includes various audio container formats and codecs.
 	// Examples: "audio/mpeg", "audio/wav", "audio/ogg", "audio/midi"
-	audio = newMime("audio", wildcardType)
+	audio = MIME{
+		_type:   "audio",
+		subType: wildcardType,
+	}
 
 	// image represents a MIME type that matches any image format.
 	// It has the format "image/*" with a concrete primary type and wildcard subtype.
 	// This category includes both raster and vector image formats.
 	// Examples: "image/jpeg", "image/png", "image/gif", "image/svg+xml"
-	image = newMime("image", wildcardType)
+	image = MIME{
+		_type:   "image",
+		subType: wildcardType,
+	}
 
 	// application represents a MIME type that matches any application-specific format.
 	// It has the format "application/*" with a concrete primary type and wildcard subtype.
 	// This is the largest category and includes data formats, documents, and executable content.
 	// Examples: "application/json", "application/pdf", "application/zip", "application/javascript"
-	application = newMime("application", wildcardType)
+	application = MIME{
+		_type:   "application",
+		subType: wildcardType,
+	}
 )
 
 var extMimetypeStringMappings = map[string]string{

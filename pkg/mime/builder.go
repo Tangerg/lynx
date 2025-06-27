@@ -10,43 +10,39 @@ import (
 
 	"github.com/bits-and-blooms/bitset"
 
+	"github.com/Tangerg/lynx/pkg/assert"
 	"github.com/Tangerg/lynx/pkg/kv"
 	pkgStrings "github.com/Tangerg/lynx/pkg/strings"
 )
 
 // tokenBitSet contains a bitset representing valid token characters in MIME specifications.
 // MIME tokens are restricted to a specific set of ASCII characters according to RFC standards.
-var tokenBitSet = bitset.New(128)
+var tokenBitSet *bitset.BitSet
 
 // init initializes the tokenBitSet with valid token characters according to MIME specifications.
 // It marks valid characters by excluding control characters (0-31 and 127) and separator characters.
 // This follows the MIME specification in RFC 2045, which defines the syntax for MIME headers.
 func init() {
-	// Create a bitset for control characters (0-31 and DEL)
 	ctl := bitset.New(128)
-	for i := 0; i < 31; i++ {
-		ctl.Set(uint(i))
+	for i := uint(0); i <= 31; i++ {
+		ctl.Set(i)
 	}
-	ctl.Set(127) // DEL character
+	ctl.Set(127)
 
-	// Define separator characters as per MIME specification in RFC 2045
-	// These characters have special meaning in MIME syntax and cannot be part of tokens
-	separatorChars := []rune{
-		'(', ')', '<', '>', '@', ',', ';', ':', '\\', '"',
-		'/', '[', ']', '?', '=', '{', '}', ' ', '\t',
-	}
 	separators := bitset.New(128)
-	for _, char := range separatorChars {
-		separators.Set(uint(char))
+	separatorPositions := []uint{40, 41, 60, 62, 64, 44, 59, 58, 92, 34, 47, 91, 93, 63, 61, 123, 125, 32, 9}
+	for _, pos := range separatorPositions {
+		separators.Set(pos)
 	}
 
-	// Set all bits initially (all characters from 0-127),
-	// then remove control chars and separators to retain only valid token characters
+	token := bitset.New(128)
 	for i := uint(0); i < 128; i++ {
-		tokenBitSet.Set(i)
+		token.Set(i)
 	}
-	tokenBitSet.InPlaceSymmetricDifference(ctl)
-	tokenBitSet.InPlaceSymmetricDifference(separators)
+
+	token = token.Difference(ctl)
+	token = token.Difference(separators)
+	tokenBitSet = token
 }
 
 // Builder is a utility for creating properly formatted MIME type instances.
@@ -54,6 +50,24 @@ func init() {
 // ensuring that the resulting MIME type adheres to the standards defined in RFC 2045 and 2046.
 type Builder struct {
 	mime *MIME // The MIME type being constructed
+}
+
+// NewBuilder creates a new MIME type builder with default values.
+// It initializes a builder with wildcard type and subtype, empty charset,
+// and an empty parameters map, providing a starting point for building
+// custom MIME types.
+//
+// Example:
+// builder := NewBuilder() // Creates a builder for "*/*" MIME type
+func NewBuilder() *Builder {
+	return &Builder{
+		mime: &MIME{
+			_type:   wildcardType,
+			subType: wildcardType,
+			charset: "",
+			params:  kv.New[string, string](),
+		},
+	}
 }
 
 // checkToken validates that a token contains only characters allowed in MIME tokens.
@@ -249,20 +263,6 @@ func (b *Builder) Build() (*MIME, error) {
 	return b.mime, nil
 }
 
-// NewBuilder creates a new MIME type builder with default values.
-// It initializes a builder with wildcard type and subtype, empty charset,
-// and an empty parameters map, providing a starting point for building
-// custom MIME types.
-//
-// Example:
-// builder := NewBuilder() // Creates a builder for "*/*" MIME type
-func NewBuilder() *Builder {
-	return &Builder{
-		mime: &MIME{
-			_type:   wildcardType,
-			subType: wildcardType,
-			charset: "",
-			params:  kv.New[string, string](),
-		},
-	}
+func (b *Builder) MustBuild() *MIME {
+	return assert.ErrorIsNil(b.Build())
 }

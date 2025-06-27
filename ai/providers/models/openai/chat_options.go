@@ -63,14 +63,10 @@ func (o *ChatOptions) ToolParams() map[string]any {
 }
 
 func (o *ChatOptions) SetToolParams(params map[string]any) {
-	if params == nil {
-		return
-	}
-
 	o.ensureToolParams()
 
-	for k, v := range params {
-		o.toolParams[k] = v
+	if params != nil {
+		o.toolParams = params
 	}
 }
 

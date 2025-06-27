@@ -13,7 +13,7 @@ import (
 
 var (
 	baseURL   = "https://api.moonshot.cn/v1"
-	baseModel = "moonshot-v1-8k"
+	baseModel = "moonshot-v1-8k-vision-preview"
 )
 
 func newApiKey() model.ApiKey {

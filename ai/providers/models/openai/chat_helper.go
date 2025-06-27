@@ -2,6 +2,7 @@ package openai
 
 import (
 	"encoding/json"
+
 	"github.com/openai/openai-go"
 	"github.com/spf13/cast"
 
@@ -40,14 +41,17 @@ type requestHelper struct {
 func (r *requestHelper) makeParamsTools(tools []tool.Tool) []openai.ChatCompletionToolParam {
 	rv := make([]openai.ChatCompletionToolParam, 0, len(tools))
 	for _, t := range tools {
-		var parameters map[string]any
-		_ = json.Unmarshal([]byte(t.Definition().InputSchema()), &parameters)
+		var (
+			parameters map[string]any
+			definition = t.Definition()
+		)
+		_ = json.Unmarshal([]byte(definition.InputSchema()), &parameters)
 		rv = append(
 			rv,
 			openai.ChatCompletionToolParam{
 				Function: openai.FunctionDefinitionParam{
-					Name:        t.Definition().Name(),
-					Description: openai.String(t.Definition().Description()),
+					Name:        definition.Name(),
+					Description: openai.String(definition.Description()),
 					Strict:      openai.Bool(true),
 					Parameters:  parameters,
 				},
@@ -130,18 +134,16 @@ func (r *requestHelper) makeSystemMessage(msg *messages.SystemMessage) openai.Ch
 }
 
 func (r *requestHelper) makeUserMessage(msg *messages.UserMessage) openai.ChatCompletionMessageParamUnion {
-	message := openai.UserMessage(msg.Text())
-
-	if msg.HasMedia() {
-		message.OfUser.Content.OfString = openai.String("")
-		message.OfUser.Content.OfArrayOfContentParts = append(
-			message.OfUser.Content.OfArrayOfContentParts,
-			openai.ChatCompletionContentPartUnionParam{
-				OfText: &openai.ChatCompletionContentPartTextParam{
-					Text: msg.Text(),
-				},
-			})
+	if !msg.HasMedia() {
+		return openai.UserMessage(msg.Text())
 	}
+
+	params := make([]openai.ChatCompletionContentPartUnionParam, 0, 1+len(msg.Media()))
+	params = append(params, openai.ChatCompletionContentPartUnionParam{
+		OfText: &openai.ChatCompletionContentPartTextParam{
+			Text: msg.Text(),
+		},
+	})
 
 	for _, media := range msg.Media() {
 		mt := media.MimeType()
@@ -170,21 +172,19 @@ func (r *requestHelper) makeUserMessage(msg *messages.UserMessage) openai.ChatCo
 				},
 			}
 		}
-
-		message.OfUser.Content.OfArrayOfContentParts = append(
-			message.OfUser.Content.OfArrayOfContentParts,
-			param,
-		)
+		params = append(params, param)
 	}
 
-	return message
+	return openai.UserMessage(params)
 }
 
 func (r *requestHelper) makeAssistantMessage(msg *messages.AssistantMessage) openai.ChatCompletionMessageParamUnion {
 	message := openai.AssistantMessage(msg.Text())
+	ofAssistant := message.OfAssistant
+
 	for _, toolCall := range msg.ToolCalls() {
-		message.OfAssistant.ToolCalls = append(
-			message.OfAssistant.ToolCalls, openai.ChatCompletionMessageToolCallParam{
+		ofAssistant.ToolCalls = append(
+			ofAssistant.ToolCalls, openai.ChatCompletionMessageToolCallParam{
 				ID: toolCall.ID,
 				Function: openai.ChatCompletionMessageToolCallFunctionParam{
 					Name:      toolCall.Name,
@@ -193,11 +193,14 @@ func (r *requestHelper) makeAssistantMessage(msg *messages.AssistantMessage) ope
 			})
 	}
 	for _, media := range msg.Media() {
-		message.OfAssistant.Audio.ID = media.ID()
+		if mime.IsAudio(media.MimeType()) {
+			ofAssistant.Audio.ID = media.ID()
+			break
+		}
 	}
 	for k, v := range msg.Metadata() {
 		if k == "refusal" {
-			message.OfAssistant.Refusal = openai.String(cast.ToString(v))
+			ofAssistant.Refusal = openai.String(cast.ToString(v))
 		}
 	}
 	return message

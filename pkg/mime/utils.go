@@ -43,21 +43,6 @@ func New(_type string, subType string) (*MIME, error) {
 		Build()
 }
 
-// newMime is an internal helper that creates a new MIME instance.
-// Unlike the public New function, this method ignores validation errors
-// and always returns a MIME object, making it suitable for internal use
-// where the inputs are known to be valid.
-//
-// Parameters:
-//   - _type: The primary type component
-//   - subType: The subtype component
-//
-// Returns a MIME object with the specified type and subtype.
-func newMime(_type string, subType string) *MIME {
-	m, _ := New(_type, subType)
-	return m
-}
-
 // Parse converts a string representation of a MIME type into a MIME object.
 // It handles the full MIME type syntax including parameters, validation of format,
 // and special cases like wildcards. The function follows the MIME type parsing rules
