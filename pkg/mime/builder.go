@@ -22,31 +22,26 @@ var tokenBitSet = bitset.New(128)
 // It marks valid characters by excluding control characters (0-31 and 127) and separator characters.
 // This follows the MIME specification in RFC 2045, which defines the syntax for MIME headers.
 func init() {
-	// Create a bitset for control characters (0-31 and DEL)
 	ctl := bitset.New(128)
-	for i := 0; i < 31; i++ {
-		ctl.Set(uint(i))
+	for i := uint(0); i <= 31; i++ {
+		ctl.Set(i)
 	}
-	ctl.Set(127) // DEL character
+	ctl.Set(127)
 
-	// Define separator characters as per MIME specification in RFC 2045
-	// These characters have special meaning in MIME syntax and cannot be part of tokens
-	separatorChars := []rune{
-		'(', ')', '<', '>', '@', ',', ';', ':', '\\', '"',
-		'/', '[', ']', '?', '=', '{', '}', ' ', '\t',
-	}
 	separators := bitset.New(128)
-	for _, char := range separatorChars {
-		separators.Set(uint(char))
+	separatorPositions := []uint{40, 41, 60, 62, 64, 44, 59, 58, 92, 34, 47, 91, 93, 63, 61, 123, 125, 32, 9}
+	for _, pos := range separatorPositions {
+		separators.Set(pos)
 	}
 
-	// Set all bits initially (all characters from 0-127),
-	// then remove control chars and separators to retain only valid token characters
+	token := bitset.New(128)
 	for i := uint(0); i < 128; i++ {
-		tokenBitSet.Set(i)
+		token.Set(i)
 	}
-	tokenBitSet.InPlaceSymmetricDifference(ctl)
-	tokenBitSet.InPlaceSymmetricDifference(separators)
+
+	token = token.Difference(ctl)
+	token = token.Difference(separators)
+	tokenBitSet = token
 }
 
 // Builder is a utility for creating properly formatted MIME type instances.

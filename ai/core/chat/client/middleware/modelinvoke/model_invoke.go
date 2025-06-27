@@ -9,11 +9,11 @@ import (
 type invoker[O request.ChatRequestOptions, M result.ChatResultMetadata] struct{}
 
 func (i *invoker[O, M]) buildChatRequest(req *middleware.Request[O, M]) *request.ChatRequest[O] {
-	if req.UserText != "" || req.UserMedia != nil {
-		req.AddUserMessage(req.UserText, req.UserParams, req.UserMedia...)
-	}
 	if req.SystemText != "" {
 		req.AddSystemMessage(req.SystemText, req.SystemParams)
+	}
+	if req.UserText != "" || req.UserMedia != nil {
+		req.AddUserMessage(req.UserText, req.UserParams, req.UserMedia...)
 	}
 	p, _ := request.NewChatRequestBuilder[O]().
 		WithMessages(req.Messages...).
