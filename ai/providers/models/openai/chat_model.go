@@ -3,6 +3,7 @@ package openai
 import (
 	"context"
 	"errors"
+	"maps"
 
 	"github.com/openai/openai-go"
 	"github.com/openai/openai-go/option"
@@ -45,6 +46,7 @@ func (c *ChatModel) call(ctx context.Context, req *chat.Request, helper *tool.He
 	if err != nil {
 		return nil, err
 	}
+
 	apiResp, err := c.api.ChatCompletion(ctx, apiReq)
 	if err != nil {
 		return nil, err
@@ -55,25 +57,29 @@ func (c *ChatModel) call(ctx context.Context, req *chat.Request, helper *tool.He
 		return nil, err
 	}
 
-	shouldInvokeToolCalls, err := helper.ShouldInvokeToolCalls(resp)
+	shouldInvoke, err := helper.ShouldInvokeToolCalls(resp)
 	if err != nil {
 		return nil, err
 	}
-	if !shouldInvokeToolCalls {
+	if !shouldInvoke {
 		return resp, nil
 	}
+
 	invokeResult, err := helper.InvokeToolCalls(ctx, req, resp)
 	if err != nil {
 		return nil, err
 	}
+
 	if invokeResult.ShouldMakeChatResponse() {
 		return invokeResult.MakeChatResponse()
 	}
-	nexReq, err := invokeResult.MakeChatRequest()
+
+	nextReq, err := invokeResult.MakeChatRequest()
 	if err != nil {
 		return nil, err
 	}
-	return c.call(ctx, nexReq, helper)
+
+	return c.call(ctx, nextReq, helper)
 }
 
 func (c *ChatModel) stream(ctx context.Context, req *chat.Request, helper *tool.Helper, writer stream.Writer[result.Result[*chat.Response]]) {
@@ -82,6 +88,7 @@ func (c *ChatModel) stream(ctx context.Context, req *chat.Request, helper *tool.
 		_ = writer.Write(ctx, result.Error[*chat.Response](err))
 		return
 	}
+
 	apiStreamResp, err := c.api.ChatCompletionStream(ctx, apiReq)
 	if err != nil {
 		_ = writer.Write(ctx, result.Error[*chat.Response](err))
@@ -89,21 +96,27 @@ func (c *ChatModel) stream(ctx context.Context, req *chat.Request, helper *tool.
 	}
 	defer apiStreamResp.Close()
 
-	fullAcc := openai.ChatCompletionAccumulator{}
+	var (
+		fullAcc = openai.ChatCompletionAccumulator{}
+		resp    *chat.Response
+	)
 
 	for apiStreamResp.Next() {
 		chunk := apiStreamResp.Current()
 		onceAcc := openai.ChatCompletionAccumulator{}
 		onceAcc.AddChunk(chunk)
-		resp, err1 := c.makeChatResponse(apiReq, &onceAcc.ChatCompletion)
-		if err1 != nil {
-			_ = writer.Write(ctx, result.Error[*chat.Response](err1))
+
+		resp, err = c.makeChatResponse(apiReq, &onceAcc.ChatCompletion)
+		if err != nil {
+			_ = writer.Write(ctx, result.Error[*chat.Response](err))
 			return
 		}
-		err1 = writer.Write(ctx, result.Value(resp))
-		if err1 != nil {
+
+		err = writer.Write(ctx, result.Value(resp))
+		if err != nil {
 			return
 		}
+
 		fullAcc.AddChunk(chunk)
 	}
 
@@ -113,18 +126,18 @@ func (c *ChatModel) stream(ctx context.Context, req *chat.Request, helper *tool.
 		return
 	}
 
-	resp, err := c.makeChatResponse(apiReq, &fullAcc.ChatCompletion)
+	resp, err = c.makeChatResponse(apiReq, &fullAcc.ChatCompletion)
 	if err != nil {
 		_ = writer.Write(ctx, result.Error[*chat.Response](err))
 		return
 	}
 
-	shouldInvokeToolCalls, err := helper.ShouldInvokeToolCalls(resp)
+	shouldInvoke, err := helper.ShouldInvokeToolCalls(resp)
 	if err != nil {
 		_ = writer.Write(ctx, result.Error[*chat.Response](err))
 		return
 	}
-	if !shouldInvokeToolCalls {
+	if !shouldInvoke {
 		return
 	}
 
@@ -158,25 +171,36 @@ func (c *ChatModel) stream(ctx context.Context, req *chat.Request, helper *tool.
 func (c *ChatModel) beforeChat(req *chat.Request) *tool.Helper {
 	toolHelper := tool.NewHelper()
 
-	toolHelper.RegisterTools(c.defaultOptions.Tools()...)
+	toolHelper.RegisterTools(c.defaultOptions.tools...)
 
 	options := req.Options()
-	if options != nil {
-		toolOptions, ok := options.(tool.Options)
-		if ok {
-			toolHelper.RegisterTools(toolOptions.Tools()...)
-			toolOptions.SetToolParams(c.defaultOptions.ToolParams())
-		}
+	if options == nil {
+		return toolHelper
 	}
+
+	toolOptions, ok := options.(tool.Options)
+	if !ok {
+		return toolHelper
+	}
+
+	// use custom tools to override default tools
+	toolHelper.RegisterTools(toolOptions.Tools()...)
+
+	toolParams := make(map[string]any)
+	maps.Copy(toolParams, c.defaultOptions.toolParams)
+	// use custom tool parameters to override default tool parameters
+	maps.Copy(toolParams, toolOptions.ToolParams())
+
+	toolOptions.SetToolParams(toolParams)
+
 	return toolHelper
 }
 
 func (c *ChatModel) Call(ctx context.Context, req *chat.Request) (*chat.Response, error) {
 	toolHelper := c.beforeChat(req)
 
-	chatResponse, err := toolHelper.MakeReturnDirectChatResponse(req.Instructions())
-	if err == nil {
-		return chatResponse, nil
+	if toolHelper.ShouldReturnDirect(req.Instructions()) {
+		return toolHelper.MakeReturnDirectChatResponse(req.Instructions())
 	}
 
 	return c.call(ctx, req, toolHelper)
@@ -187,8 +211,12 @@ func (c *ChatModel) Stream(ctx context.Context, req *chat.Request) (stream.Reade
 	streamer := stream.NewStream[result.Result[*chat.Response]](1)
 	toolHelper := c.beforeChat(req)
 
-	chatResponse, err := toolHelper.MakeReturnDirectChatResponse(req.Instructions())
-	if err == nil {
+	if toolHelper.ShouldReturnDirect(req.Instructions()) {
+		chatResponse, err := toolHelper.MakeReturnDirectChatResponse(req.Instructions())
+		if err != nil {
+			return nil, err
+		}
+
 		_ = streamer.Close()
 		return streamer, streamer.Write(ctx, result.Value(chatResponse))
 	}
@@ -197,6 +225,7 @@ func (c *ChatModel) Stream(ctx context.Context, req *chat.Request) (stream.Reade
 		defer streamer.Close()
 		c.stream(ctx, req, toolHelper, streamer)
 	})
+
 	return streamer, nil
 }
 

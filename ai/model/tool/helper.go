@@ -82,11 +82,14 @@ func (m *Helper) ShouldReturnDirect(msgs []messages.Message) bool {
 		return false
 	}
 
-	var returnDirect = true
+	var (
+		returnDirect = true
+		t            Tool
+	)
 	for _, toolResponse := range toolResponseMessage.ToolResponses() {
 		// Verify tool exists in registry
-		t, ok1 := m.registry.Find(toolResponse.Name)
-		if !ok1 {
+		t, ok = m.registry.Find(toolResponse.Name)
+		if !ok {
 			return false // Unknown tool - cannot determine behavior
 		}
 		// ALL tools must be configured for direct return

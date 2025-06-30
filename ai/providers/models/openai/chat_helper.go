@@ -40,15 +40,18 @@ type requestHelper struct {
 
 func (r *requestHelper) makeParamsTools(tools []tool.Tool) ([]openai.ChatCompletionToolParam, error) {
 	rv := make([]openai.ChatCompletionToolParam, 0, len(tools))
+
 	for _, t := range tools {
 		var (
 			parameters map[string]any
 			definition = t.Definition()
 		)
+
 		err := json.Unmarshal([]byte(definition.InputSchema()), &parameters)
 		if err != nil {
 			return nil, err
 		}
+
 		rv = append(
 			rv,
 			openai.ChatCompletionToolParam{
@@ -61,6 +64,7 @@ func (r *requestHelper) makeParamsTools(tools []tool.Tool) ([]openai.ChatComplet
 			},
 		)
 	}
+
 	return rv, nil
 }
 
@@ -125,6 +129,7 @@ func (r *requestHelper) makeParamsBase(chatOptions *ChatOptions) *openai.ChatCom
 	if chatOptions.user != nil {
 		params.User = openai.String(*chatOptions.user)
 	}
+
 	return params
 }
 
@@ -165,8 +170,8 @@ func (r *requestHelper) makeUserMessage(msg *messages.UserMessage) openai.ChatCo
 		if err != nil {
 			continue
 		}
-		param := openai.ChatCompletionContentPartUnionParam{}
 
+		param := openai.ChatCompletionContentPartUnionParam{}
 		if mime.IsImage(mt) {
 			param.OfImageURL = &openai.ChatCompletionContentPartImageParam{
 				ImageURL: openai.ChatCompletionContentPartImageImageURLParam{
@@ -209,6 +214,7 @@ func (r *requestHelper) makeAssistantMessage(msg *messages.AssistantMessage) ope
 				},
 			})
 	}
+
 	for _, media := range msg.Media() {
 		if mime.IsAudio(media.MimeType()) {
 			ofAssistant.Audio.ID = media.ID()
@@ -216,20 +222,24 @@ func (r *requestHelper) makeAssistantMessage(msg *messages.AssistantMessage) ope
 			break
 		}
 	}
+
 	for k, v := range msg.Metadata() {
 		if k == "refusal" {
 			ofAssistant.Refusal = openai.String(cast.ToString(v))
 		}
 	}
+
 	return message
 }
 
 func (r *requestHelper) makeToolMessages(msg *messages.ToolResponseMessage) []openai.ChatCompletionMessageParamUnion {
 	toolResponses := msg.ToolResponses()
 	msgs := make([]openai.ChatCompletionMessageParamUnion, 0, len(toolResponses))
+
 	for _, toolResponse := range toolResponses {
 		msgs = append(msgs, openai.ToolMessage(toolResponse.ResponseData, toolResponse.ID))
 	}
+
 	return msgs
 }
 
@@ -244,11 +254,13 @@ func (r *requestHelper) makeMessage(msg messages.Message) openai.ChatCompletionM
 	if msg.Type().IsAssistant() {
 		return r.makeAssistantMessage(msg.(*messages.AssistantMessage))
 	}
+
 	return openai.UserMessage(msg.Text())
 }
 
 func (r *requestHelper) makeMessages(msgs []messages.Message) []openai.ChatCompletionMessageParamUnion {
 	rv := make([]openai.ChatCompletionMessageParamUnion, 0, len(msgs))
+
 	for _, msg := range msgs {
 		if msg.Type().IsTool() {
 			rv = append(rv, r.makeToolMessages(msg.(*messages.ToolResponseMessage))...)
@@ -256,6 +268,7 @@ func (r *requestHelper) makeMessages(msgs []messages.Message) []openai.ChatCompl
 			rv = append(rv, r.makeMessage(msg))
 		}
 	}
+
 	return rv
 }
 
@@ -264,6 +277,7 @@ func (r *requestHelper) makeRequest(req *chat.Request) (*openai.ChatCompletionNe
 	if err != nil {
 		return nil, err
 	}
+
 	params.Messages = r.makeMessages(req.Instructions())
 	return params, nil
 }
@@ -296,7 +310,6 @@ func (r *responseHelper) makeResultAssistantMessage(req *openai.ChatCompletionNe
 		mt, _ := mime.New("audio", string(req.Audio.Format))
 		param.Metadata["audio.mimetype"] = mt.String()
 		param.Metadata["audio.voice"] = req.Audio.Voice
-
 		param.Media = append(
 			param.Media,
 			content.
@@ -323,6 +336,7 @@ func (r *responseHelper) makeResultMetadata(req *openai.ChatCompletionNewParams,
 	if req.Logprobs.Value {
 		metadata.Set("logprobs", choice.Logprobs)
 	}
+
 	return metadata
 }
 
@@ -335,6 +349,7 @@ func (r *responseHelper) makeResult(req *openai.ChatCompletionNewParams, choice 
 
 func (r *responseHelper) makeResults(req *openai.ChatCompletionNewParams, resp *openai.ChatCompletion) ([]*chat.Result, error) {
 	results := make([]*chat.Result, 0, len(resp.Choices))
+
 	for _, choice := range resp.Choices {
 		result, err := r.makeResult(req, &choice)
 		if err != nil {
@@ -342,6 +357,7 @@ func (r *responseHelper) makeResults(req *openai.ChatCompletionNewParams, resp *
 		}
 		results = append(results, result)
 	}
+
 	return results, nil
 }
 
@@ -360,6 +376,7 @@ func (r *responseHelper) makeMetadata(req *openai.ChatCompletionNewParams, resp 
 	metadata.Set("original.response", resp)
 	metadata.Set("service_tier", resp.ServiceTier)
 	metadata.Set("system_fingerprint", resp.SystemFingerprint)
+
 	return metadata
 }
 
@@ -368,6 +385,8 @@ func (r *responseHelper) makeResponse(req *openai.ChatCompletionNewParams, resp 
 	if err != nil {
 		return nil, err
 	}
+
 	metadata := r.makeMetadata(req, resp)
+
 	return chat.NewResponse(results, metadata)
 }

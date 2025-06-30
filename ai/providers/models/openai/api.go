@@ -20,9 +20,10 @@ func NewApi(apiKey model.ApiKey, opts ...option.RequestOption) (*Api, error) {
 	if apiKey == nil {
 		return nil, errors.New("apiKey is required")
 	}
-	options := append(opts, option.WithAPIKey(apiKey.Get()))
 
+	options := append(opts, option.WithAPIKey(apiKey.Get()))
 	client := openai.NewClient(options...)
+
 	return &Api{
 		apiKey: apiKey,
 		client: &client,
@@ -33,6 +34,7 @@ func (a *Api) ChatCompletion(ctx context.Context, req *openai.ChatCompletionNewP
 	if req == nil {
 		return nil, errors.New("invalid parameter, ChatCompletionNewParams is required")
 	}
+
 	return a.client.Chat.Completions.New(ctx, *req)
 }
 
@@ -40,5 +42,6 @@ func (a *Api) ChatCompletionStream(ctx context.Context, req *openai.ChatCompleti
 	if req == nil {
 		return nil, errors.New("invalid parameter, ChatCompletionNewParams is required")
 	}
+
 	return a.client.Chat.Completions.NewStreaming(ctx, *req), nil
 }
