@@ -25,17 +25,26 @@ type ChatModel struct {
 
 func NewChatModel(apiKey model.ApiKey, defaultOptions *ChatOptions, opts ...option.RequestOption) (*ChatModel, error) {
 	if defaultOptions == nil {
-		return nil, errors.New("options is required")
+		return nil, errors.New("defaultOptions is required")
 	}
+
+	api, err := NewApi(apiKey, opts...)
+	if err != nil {
+		return nil, err
+	}
+
 	return &ChatModel{
 		chatHelper:     newChatHelper(defaultOptions),
-		api:            NewApi(apiKey, opts...),
+		api:            api,
 		defaultOptions: defaultOptions,
 	}, nil
 }
 
 func (c *ChatModel) call(ctx context.Context, req *chat.Request, helper *tool.Helper) (*chat.Response, error) {
-	apiReq := c.makeApiChatCompletionRequest(req)
+	apiReq, err := c.makeApiChatCompletionRequest(req)
+	if err != nil {
+		return nil, err
+	}
 	apiResp, err := c.api.ChatCompletion(ctx, apiReq)
 	if err != nil {
 		return nil, err
@@ -68,7 +77,11 @@ func (c *ChatModel) call(ctx context.Context, req *chat.Request, helper *tool.He
 }
 
 func (c *ChatModel) stream(ctx context.Context, req *chat.Request, helper *tool.Helper, writer stream.Writer[result.Result[*chat.Response]]) {
-	apiReq := c.makeApiChatCompletionRequest(req)
+	apiReq, err := c.makeApiChatCompletionRequest(req)
+	if err != nil {
+		_ = writer.Write(ctx, result.Error[*chat.Response](err))
+		return
+	}
 	apiStreamResp, err := c.api.ChatCompletionStream(ctx, apiReq)
 	if err != nil {
 		_ = writer.Write(ctx, result.Error[*chat.Response](err))

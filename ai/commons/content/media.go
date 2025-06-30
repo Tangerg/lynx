@@ -72,6 +72,8 @@ func (m *Media) DataAsBytes() ([]byte, error) {
 	return nil, fmt.Errorf("data type is %T, not bytes", m.data)
 }
 
+// DataAsString attempts to return the media data as a string
+// Returns an error if the data is not of the expected type
 func (m *Media) DataAsString() (string, error) {
 	data, ok := m.data.(string)
 	if ok {

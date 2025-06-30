@@ -26,7 +26,7 @@ func newChatHelper(defaultOptions *ChatOptions) chatHelper {
 	}
 }
 
-func (h *chatHelper) makeApiChatCompletionRequest(req *chat.Request) *openai.ChatCompletionNewParams {
+func (h *chatHelper) makeApiChatCompletionRequest(req *chat.Request) (*openai.ChatCompletionNewParams, error) {
 	return h.requestHelper.makeRequest(req)
 }
 
@@ -38,14 +38,17 @@ type requestHelper struct {
 	defaultOptions *ChatOptions
 }
 
-func (r *requestHelper) makeParamsTools(tools []tool.Tool) []openai.ChatCompletionToolParam {
+func (r *requestHelper) makeParamsTools(tools []tool.Tool) ([]openai.ChatCompletionToolParam, error) {
 	rv := make([]openai.ChatCompletionToolParam, 0, len(tools))
 	for _, t := range tools {
 		var (
 			parameters map[string]any
 			definition = t.Definition()
 		)
-		_ = json.Unmarshal([]byte(definition.InputSchema()), &parameters)
+		err := json.Unmarshal([]byte(definition.InputSchema()), &parameters)
+		if err != nil {
+			return nil, err
+		}
 		rv = append(
 			rv,
 			openai.ChatCompletionToolParam{
@@ -58,14 +61,13 @@ func (r *requestHelper) makeParamsTools(tools []tool.Tool) []openai.ChatCompleti
 			},
 		)
 	}
-	return rv
+	return rv, nil
 }
 
-func (r *requestHelper) makeParams(options chat.Options) *openai.ChatCompletionNewParams {
-	chatOptions, _ := MergeChatOptions(r.defaultOptions, options)
-
+func (r *requestHelper) makeParamsBase(chatOptions *ChatOptions) *openai.ChatCompletionNewParams {
 	params := new(openai.ChatCompletionNewParams)
 	params.Model = chatOptions.model
+
 	if chatOptions.frequencyPenalty != nil {
 		params.FrequencyPenalty = openai.Float(*chatOptions.frequencyPenalty)
 	}
@@ -123,10 +125,22 @@ func (r *requestHelper) makeParams(options chat.Options) *openai.ChatCompletionN
 	if chatOptions.user != nil {
 		params.User = openai.String(*chatOptions.user)
 	}
-
-	params.Tools = r.makeParamsTools(chatOptions.tools)
-
 	return params
+}
+
+func (r *requestHelper) makeParams(options chat.Options) (*openai.ChatCompletionNewParams, error) {
+	chatOptions, err := MergeChatOptions(r.defaultOptions, options)
+	if err != nil {
+		return nil, err
+	}
+
+	params := r.makeParamsBase(chatOptions)
+	params.Tools, err = r.makeParamsTools(chatOptions.tools)
+	if err != nil {
+		return nil, err
+	}
+
+	return params, nil
 }
 
 func (r *requestHelper) makeSystemMessage(msg *messages.SystemMessage) openai.ChatCompletionMessageParamUnion {
@@ -147,7 +161,10 @@ func (r *requestHelper) makeUserMessage(msg *messages.UserMessage) openai.ChatCo
 
 	for _, media := range msg.Media() {
 		mt := media.MimeType()
-		data, _ := media.DataAsString()
+		data, err := media.DataAsString()
+		if err != nil {
+			continue
+		}
 		param := openai.ChatCompletionContentPartUnionParam{}
 
 		if mime.IsImage(mt) {
@@ -195,6 +212,7 @@ func (r *requestHelper) makeAssistantMessage(msg *messages.AssistantMessage) ope
 	for _, media := range msg.Media() {
 		if mime.IsAudio(media.MimeType()) {
 			ofAssistant.Audio.ID = media.ID()
+			//only one is allowed
 			break
 		}
 	}
@@ -215,6 +233,7 @@ func (r *requestHelper) makeToolMessages(msg *messages.ToolResponseMessage) []op
 	return msgs
 }
 
+// makeMessage All assertions cannot panic because the parameters have already been determined during construction by [chat.NewRequest] and [messages.FilterStandardTypes]
 func (r *requestHelper) makeMessage(msg messages.Message) openai.ChatCompletionMessageParamUnion {
 	if msg.Type().IsSystem() {
 		return r.makeSystemMessage(msg.(*messages.SystemMessage))
@@ -240,11 +259,13 @@ func (r *requestHelper) makeMessages(msgs []messages.Message) []openai.ChatCompl
 	return rv
 }
 
-func (r *requestHelper) makeRequest(req *chat.Request) *openai.ChatCompletionNewParams {
-	params := r.makeParams(req.Options())
-	msgs := r.makeMessages(req.Instructions())
-	params.Messages = msgs
-	return params
+func (r *requestHelper) makeRequest(req *chat.Request) (*openai.ChatCompletionNewParams, error) {
+	params, err := r.makeParams(req.Options())
+	if err != nil {
+		return nil, err
+	}
+	params.Messages = r.makeMessages(req.Instructions())
+	return params, nil
 }
 
 type responseHelper struct{}

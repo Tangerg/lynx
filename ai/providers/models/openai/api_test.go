@@ -22,7 +22,8 @@ func newApiKey() model.ApiKey {
 	return model.NewApiKey(k)
 }
 func newApi() *Api {
-	return NewApi(newApiKey(), option.WithBaseURL(baseURL))
+	api, _ := NewApi(newApiKey(), option.WithBaseURL(baseURL))
+	return api
 }
 
 func TestNewApi(t *testing.T) {

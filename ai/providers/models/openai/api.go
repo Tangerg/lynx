@@ -16,28 +16,29 @@ type Api struct {
 	client *openai.Client
 }
 
-func NewApi(apiKey model.ApiKey, opts ...option.RequestOption) *Api {
-	options := make([]option.RequestOption, 0, len(opts)+1)
-	options = append(options, opts...)
-	options = append(options, option.WithAPIKey(apiKey.Get()))
+func NewApi(apiKey model.ApiKey, opts ...option.RequestOption) (*Api, error) {
+	if apiKey == nil {
+		return nil, errors.New("apiKey is required")
+	}
+	options := append(opts, option.WithAPIKey(apiKey.Get()))
 
 	client := openai.NewClient(options...)
 	return &Api{
 		apiKey: apiKey,
 		client: &client,
-	}
+	}, nil
 }
 
-func (o *Api) ChatCompletion(ctx context.Context, req *openai.ChatCompletionNewParams) (*openai.ChatCompletion, error) {
+func (a *Api) ChatCompletion(ctx context.Context, req *openai.ChatCompletionNewParams) (*openai.ChatCompletion, error) {
 	if req == nil {
-		return nil, errors.New("invalid parameter, ChatCompletionNewParams cannot be nil")
+		return nil, errors.New("invalid parameter, ChatCompletionNewParams is required")
 	}
-	return o.client.Chat.Completions.New(ctx, *req)
+	return a.client.Chat.Completions.New(ctx, *req)
 }
 
-func (o *Api) ChatCompletionStream(ctx context.Context, req *openai.ChatCompletionNewParams) (*ssestream.Stream[openai.ChatCompletionChunk], error) {
+func (a *Api) ChatCompletionStream(ctx context.Context, req *openai.ChatCompletionNewParams) (*ssestream.Stream[openai.ChatCompletionChunk], error) {
 	if req == nil {
-		return nil, errors.New("invalid parameter, ChatCompletionNewParams cannot be nil")
+		return nil, errors.New("invalid parameter, ChatCompletionNewParams is required")
 	}
-	return o.client.Chat.Completions.NewStreaming(ctx, *req), nil
+	return a.client.Chat.Completions.NewStreaming(ctx, *req), nil
 }
