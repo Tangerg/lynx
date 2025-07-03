@@ -59,8 +59,6 @@ func NewUserMessage[T string | []*content.Media | UserMessageParam](param T) *Us
 		p.Text = input.(string)
 	case []*content.Media:
 		p.Media = input.([]*content.Media)
-	case map[string]any:
-		p.Metadata = input.(map[string]any)
 	case UserMessageParam:
 		p = input.(UserMessageParam)
 	}

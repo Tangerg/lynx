@@ -17,70 +17,72 @@ type Request struct {
 	chatRequest *chat.Request
 }
 
-func NewRequest(ctx context.Context, options *Options) (*Request, error) {
+func NewRequest(ctx context.Context, session *Session) (*Request, error) {
 	if ctx == nil {
 		return nil, errors.New("ctx is required")
 	}
-	if options == nil {
-		return nil, errors.New("options is required")
+	if session == nil {
+		return nil, errors.New("session is required")
 	}
-	if options.chatModel == nil {
+	if session.chatModel == nil {
 		return nil, errors.New("chatModel is required")
 	}
 
-	msgs, err := options.NormalizeMessages()
-	if err != nil {
-		return nil, err
-	}
-	opts := options.ChatOptions()
-
-	chatRequest, err := chat.NewRequest(msgs, opts)
+	normalizedMessages, err := session.NormalizeMessages()
 	if err != nil {
 		return nil, err
 	}
 
-	fields := make(map[string]any, len(options.middlewareParams))
-	maps.Copy(fields, options.middlewareParams)
+	chatRequest, err := chat.NewRequest(normalizedMessages, session.ChatOptions())
+	if err != nil {
+		return nil, err
+	}
+
+	params := make(map[string]any, len(session.params))
+	maps.Copy(params, session.params)
+
 	return &Request{
 		ctx:         ctx,
-		fields:      fields,
-		chatModel:   options.chatModel,
+		fields:      params,
+		chatModel:   session.chatModel,
 		chatRequest: chatRequest,
 	}, nil
 }
 
-func (c *Request) Context() context.Context {
-	if c.ctx == nil {
+func (r *Request) Context() context.Context {
+	if r.ctx == nil {
 		return context.Background()
 	}
-	return c.ctx
+
+	return r.ctx
 }
 
-func (c *Request) Set(key string, value any) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+func (r *Request) Set(key string, value any) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 
-	c.fields[key] = value
+	r.fields[key] = value
 }
 
-func (c *Request) SetMap(m map[string]any) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+func (r *Request) SetMap(fieldsMap map[string]any) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 
-	maps.Copy(c.fields, m)
+	maps.Copy(r.fields, fieldsMap)
 }
 
-func (c *Request) Get(key string) (any, bool) {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	val, ok := c.fields[key]
-	return val, ok
+func (r *Request) Get(key string) (any, bool) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	value, exists := r.fields[key]
+	return value, exists
 }
 
-func (c *Request) ChatRequest() *chat.Request {
-	return c.chatRequest
+func (r *Request) ChatRequest() *chat.Request {
+	return r.chatRequest
 }
 
-func (c *Request) String() string {
+func (r *Request) String() string {
 	return ""
 }

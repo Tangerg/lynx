@@ -7,5 +7,5 @@ func (attr Attribute) String() string {
 }
 
 const (
-	OutputFormat Attribute = "lynx.ai.client.chat.output.format"
+	AttrChatOutputFormat Attribute = "lynx.ai.client.chat.output.format"
 )

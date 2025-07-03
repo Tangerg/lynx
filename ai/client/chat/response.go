@@ -23,21 +23,21 @@ func NewResponse(chatResponse *chat.Response) *Response {
 func (c *Response) Set(key string, value any) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+
 	c.fields[key] = value
 }
 
 func (c *Response) SetMap(m map[string]any) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+
 	maps.Copy(c.fields, m)
 }
 
 func (c *Response) Get(key string) (any, bool) {
-	if key == "" {
-		return nil, false
-	}
 	c.mu.RLock()
 	defer c.mu.RUnlock()
+
 	val, ok := c.fields[key]
 	return val, ok
 }

@@ -1,102 +1,72 @@
 package chat
 
 import (
-	"slices"
-
 	"github.com/Tangerg/lynx/ai/commons/content"
 	"github.com/Tangerg/lynx/ai/model/chat/messages"
 	"github.com/Tangerg/lynx/pkg/text"
+	"slices"
 )
 
-type SystemPromptTemplate struct {
-	renderer *text.Renderer
-}
-
-func NewSystemPromptTemplate() *SystemPromptTemplate {
-	return &SystemPromptTemplate{
-		renderer: text.NewRenderer(),
-	}
-}
-
-func (s *SystemPromptTemplate) WithTemplate(template string) *SystemPromptTemplate {
-	s.renderer.WithTemplate(template)
-	return s
-}
-
-func (s *SystemPromptTemplate) WithVariable(key string, value any) *SystemPromptTemplate {
-	s.renderer.WithVariable(key, value)
-	return s
-}
-
-func (s *SystemPromptTemplate) WithVariables(variables map[string]any) *SystemPromptTemplate {
-	s.renderer.WithVariables(variables)
-	return s
-}
-
-func (s *SystemPromptTemplate) Clone() *SystemPromptTemplate {
-	return &SystemPromptTemplate{
-		renderer: s.renderer.Clone(),
-	}
-}
-
-func (s *SystemPromptTemplate) RenderMessage() (*messages.SystemMessage, error) {
-	contentText, err := s.renderer.Render()
-	if err != nil {
-		return nil, err
-	}
-	return messages.NewSystemMessage(contentText), nil
-}
-
-type UserPromptTemplate struct {
+type PromptTemplate struct {
 	renderer *text.Renderer
 	media    []*content.Media
 }
 
-func NewUserPromptTemplate() *UserPromptTemplate {
-	return &UserPromptTemplate{
+func NewPromptTemplate() *PromptTemplate {
+	return &PromptTemplate{
 		renderer: text.NewRenderer(),
 		media:    make([]*content.Media, 0),
 	}
 }
 
-func (u *UserPromptTemplate) Media() []*content.Media {
-	return u.media
+func (p *PromptTemplate) WithTemplate(template string) *PromptTemplate {
+	p.renderer.WithTemplate(template)
+	return p
 }
 
-func (u *UserPromptTemplate) WithTemplate(template string) *UserPromptTemplate {
-	u.renderer.WithTemplate(template)
-	return u
+func (p *PromptTemplate) WithVariable(name string, value any) *PromptTemplate {
+	p.renderer.WithVariable(name, value)
+	return p
 }
 
-func (u *UserPromptTemplate) WithVariable(key string, value any) *UserPromptTemplate {
-	u.renderer.WithVariable(key, value)
-	return u
+func (p *PromptTemplate) WithVariables(variables map[string]any) *PromptTemplate {
+	p.renderer.WithVariables(variables)
+	return p
 }
 
-func (u *UserPromptTemplate) WithVariables(variables map[string]any) *UserPromptTemplate {
-	u.renderer.WithVariables(variables)
-	return u
+func (p *PromptTemplate) WithMedia(media ...*content.Media) *PromptTemplate {
+	p.media = append(p.media, media...)
+	return p
 }
 
-func (u *UserPromptTemplate) WithMedia(m ...*content.Media) *UserPromptTemplate {
-	u.media = append(u.media, m...)
-	return u
+func (p *PromptTemplate) Media() []*content.Media {
+	return p.media
 }
 
-func (u *UserPromptTemplate) Clone() *UserPromptTemplate {
-	return &UserPromptTemplate{
-		renderer: u.renderer.Clone(),
-		media:    slices.Clone(u.media),
+func (p *PromptTemplate) Clone() *PromptTemplate {
+	return &PromptTemplate{
+		renderer: p.renderer.Clone(),
+		media:    slices.Clone(p.media),
 	}
 }
 
-func (u *UserPromptTemplate) RenderMessage() (*messages.UserMessage, error) {
-	contentText, err := u.renderer.Render()
+func (p *PromptTemplate) RenderSystemMessage() (*messages.SystemMessage, error) {
+	contentText, err := p.renderer.Render()
 	if err != nil {
 		return nil, err
 	}
+
+	return messages.NewSystemMessage(contentText), nil
+}
+
+func (p *PromptTemplate) RenderUserMessage() (*messages.UserMessage, error) {
+	contentText, err := p.renderer.Render()
+	if err != nil {
+		return nil, err
+	}
+
 	return messages.NewUserMessage(messages.UserMessageParam{
 		Text:  contentText,
-		Media: u.media,
+		Media: p.media,
 	}), nil
 }

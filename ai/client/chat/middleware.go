@@ -14,8 +14,8 @@ type CallHandler interface {
 
 type CallHandlerFunc func(*Request) (*Response, error)
 
-func (c CallHandlerFunc) Call(request *Request) (*Response, error) {
-	return c(request)
+func (chf CallHandlerFunc) Call(request *Request) (*Response, error) {
+	return chf(request)
 }
 
 type CallMiddleware func(CallHandler) CallHandler
@@ -26,45 +26,47 @@ type StreamHandler interface {
 
 type StreamHandlerFunc func(request *Request) (stream.Reader[result.Result[*Response]], error)
 
-func (c StreamHandlerFunc) Stream(request *Request) (stream.Reader[result.Result[*Response]], error) {
-	return c(request)
+func (shf StreamHandlerFunc) Stream(request *Request) (stream.Reader[result.Result[*Response]], error) {
+	return shf(request)
 }
 
 type StreamMiddleware func(StreamHandler) StreamHandler
 
-type Middlewares struct {
+type MiddlewareManager struct {
 	mu                sync.Mutex
 	callMiddlewares   []CallMiddleware
 	streamMiddlewares []StreamMiddleware
 }
 
-func NewMiddlewares() *Middlewares {
-	return &Middlewares{}
+func NewMiddlewareManager() *MiddlewareManager {
+	return &MiddlewareManager{}
 }
 
-func (m *Middlewares) makeCallHandler(endpoint CallHandler) CallHandler {
+func (m *MiddlewareManager) makeCallHandler(endpoint CallHandler) CallHandler {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	handler := endpoint
+	currentHandler := endpoint
 	for i := len(m.callMiddlewares) - 1; i >= 0; i-- {
-		handler = m.callMiddlewares[i](handler)
+		currentHandler = m.callMiddlewares[i](currentHandler)
 	}
-	return handler
+
+	return currentHandler
 }
 
-func (m *Middlewares) makeStreamHandler(endpoint StreamHandler) StreamHandler {
+func (m *MiddlewareManager) makeStreamHandler(endpoint StreamHandler) StreamHandler {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	handler := endpoint
+	currentHandler := endpoint
 	for i := len(m.streamMiddlewares) - 1; i >= 0; i-- {
-		handler = m.streamMiddlewares[i](handler)
+		currentHandler = m.streamMiddlewares[i](currentHandler)
 	}
-	return handler
+
+	return currentHandler
 }
 
-func (m *Middlewares) UseCall(callMiddlewares ...CallMiddleware) *Middlewares {
+func (m *MiddlewareManager) UseCallMiddlewares(callMiddlewares ...CallMiddleware) *MiddlewareManager {
 	if len(callMiddlewares) == 0 {
 		return m
 	}
@@ -76,12 +78,14 @@ func (m *Middlewares) UseCall(callMiddlewares ...CallMiddleware) *Middlewares {
 		if callMiddleware == nil {
 			continue
 		}
+
 		m.callMiddlewares = append(m.callMiddlewares, callMiddleware)
 	}
+
 	return m
 }
 
-func (m *Middlewares) UseStream(streamMiddlewares ...StreamMiddleware) *Middlewares {
+func (m *MiddlewareManager) UseStreamMiddlewares(streamMiddlewares ...StreamMiddleware) *MiddlewareManager {
 	if len(streamMiddlewares) == 0 {
 		return m
 	}
@@ -93,12 +97,14 @@ func (m *Middlewares) UseStream(streamMiddlewares ...StreamMiddleware) *Middlewa
 		if streamMiddleware == nil {
 			continue
 		}
+
 		m.streamMiddlewares = append(m.streamMiddlewares, streamMiddleware)
 	}
+
 	return m
 }
 
-func (m *Middlewares) Use(middlewares ...any) *Middlewares {
+func (m *MiddlewareManager) UseMiddlewares(middlewares ...any) *MiddlewareManager {
 	if len(middlewares) == 0 {
 		return m
 	}
@@ -110,23 +116,24 @@ func (m *Middlewares) Use(middlewares ...any) *Middlewares {
 		if middleware == nil {
 			continue
 		}
-		callMiddleware, ok := middleware.(CallMiddleware)
-		if ok {
+
+		if callMiddleware, ok := middleware.(CallMiddleware); ok {
 			m.callMiddlewares = append(m.callMiddlewares, callMiddleware)
 		}
-		streamMiddleware, ok := middleware.(StreamMiddleware)
-		if ok {
+
+		if streamMiddleware, ok := middleware.(StreamMiddleware); ok {
 			m.streamMiddlewares = append(m.streamMiddlewares, streamMiddleware)
 		}
 	}
+
 	return m
 }
 
-func (m *Middlewares) Clone() *Middlewares {
+func (m *MiddlewareManager) Clone() *MiddlewareManager {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	return &Middlewares{
+	return &MiddlewareManager{
 		callMiddlewares:   slices.Clone(m.callMiddlewares),
 		streamMiddlewares: slices.Clone(m.streamMiddlewares),
 	}

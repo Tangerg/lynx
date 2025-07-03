@@ -52,10 +52,8 @@ func (r *Renderer) markChanged() {
 // Returns the receiver for method chaining.
 // If templateStr is empty, the template string remains unchanged.
 func (r *Renderer) WithTemplate(templateStr string) *Renderer {
-	if templateStr != "" {
-		r.templateString = templateStr
-		r.markChanged()
-	}
+	r.templateString = templateStr
+	r.markChanged()
 	return r
 }
 
@@ -64,19 +62,19 @@ func (r *Renderer) WithTemplate(templateStr string) *Renderer {
 // If name is empty, the variable is not set.
 // Existing variable with the same key will be overwritten.
 func (r *Renderer) WithVariable(name string, value any) *Renderer {
-	if name != "" {
-		r.variables[name] = value
-		r.markChanged()
-	}
+	r.variables[name] = value
+	r.markChanged()
 	return r
 }
 
-// WithVariables sets multiple variables from a map.
+// WithVariables replaces all existing variables with the provided map.
+// This method clears any previously set variables before adding the new ones.
 // Returns the receiver for method chaining.
-// Existing variables with the same keys will be overwritten.
 func (r *Renderer) WithVariables(variables map[string]any) *Renderer {
+	clear(r.variables)
 	for k, v := range variables {
-		r.WithVariable(k, v)
+		r.variables[k] = v
+		r.markChanged()
 	}
 	return r
 }
@@ -102,18 +100,13 @@ func (r *Renderer) Clone() *Renderer {
 	return newR
 }
 
-// WithDelimiters sets custom delimiters for template variables.
+// WithDelimiters sets the action delimiters to the specified strings.
+// An empty delimiter stands for the corresponding default: {{ or }}.
 // Returns the receiver for method chaining.
-// If leftDelimiter or rightDelimiter is empty, the corresponding delimiter remains unchanged.
 func (r *Renderer) WithDelimiters(leftDelimiter, rightDelimiter string) *Renderer {
-	if leftDelimiter != "" {
-		r.leftDelimiter = leftDelimiter
-		r.markChanged()
-	}
-	if rightDelimiter != "" {
-		r.rightDelimiter = rightDelimiter
-		r.markChanged()
-	}
+	r.leftDelimiter = leftDelimiter
+	r.rightDelimiter = rightDelimiter
+	r.markChanged()
 	return r
 }
 

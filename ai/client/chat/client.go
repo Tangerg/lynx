@@ -11,177 +11,189 @@ import (
 )
 
 type Client struct {
-	defaultOptions *Options
+	defaultSession *Session
 }
 
-func NewClient(options *Options) (*Client, error) {
-	if options == nil {
-		return nil, errors.New("options is required")
+func NewClient(session *Session) (*Client, error) {
+	if session == nil {
+		return nil, errors.New("session is required")
 	}
+
 	return &Client{
-		defaultOptions: options,
+		defaultSession: session,
 	}, nil
 }
 
-func (c *Client) Chat() *Options {
-	return c.defaultOptions.Clone()
+func (c *Client) Chat() *Session {
+	return c.defaultSession.Clone()
 }
 
-func (c *Client) ChatText(text string) *Options {
+func (c *Client) ChatText(text string) *Session {
 	userMessage := messages.NewUserMessage(text)
-	chatRequest, _ := chat.NewRequest([]messages.Message{userMessage}, c.defaultOptions.chatOptions.Clone())
+
+	chatRequest, _ := chat.NewRequest([]messages.Message{userMessage}, c.defaultSession.chatOptions)
 
 	return c.ChatRequest(chatRequest)
 }
 
-func (c *Client) ChatRequest(chatRequest *chat.Request) *Options {
-	options := c.defaultOptions.Clone()
+func (c *Client) ChatRequest(chatRequest *chat.Request) *Session {
+	clonedSession := c.defaultSession.Clone()
 
 	if chatRequest.Options() != nil {
-		options.WithChatOptions(chatRequest.Options())
+		clonedSession.WithChatOptions(chatRequest.Options())
 	}
+
 	if len(chatRequest.Instructions()) > 0 {
-		options.WithMessages(chatRequest.Instructions()...)
+		clonedSession.WithMessages(chatRequest.Instructions()...)
 	}
 
-	return options
+	return clonedSession
 }
 
-func (c *Client) Fork() *Builder {
-	b := NewBuilder().
-		WithChatModel(c.defaultOptions.chatModel).
-		WithChatOptions(c.defaultOptions.chatOptions).
-		WithUserPromptTemplate(c.defaultOptions.userPromptTemplate).
-		WithSystemPromptTemplate(c.defaultOptions.systemPromptTemplate).
-		WithMessages(c.defaultOptions.messages...).
-		WithMiddlewares(c.defaultOptions.middlewares).
-		WithMiddlewareParams(c.defaultOptions.middlewareParams).
-		WithTools(c.defaultOptions.tools...).
-		WithToolParams(c.defaultOptions.toolParams)
-	return b
+func (c *Client) Fork() *ClientBuilder {
+	builder := NewClientBuilder().
+		WithChatModel(c.defaultSession.chatModel).
+		WithChatOptions(c.defaultSession.chatOptions).
+		WithUserPromptTemplate(c.defaultSession.userPromptTemplate).
+		WithSystemPromptTemplate(c.defaultSession.systemPromptTemplate).
+		WithMessages(c.defaultSession.messages...).
+		WithMiddlewareManager(c.defaultSession.middlewareManager).
+		WithParams(c.defaultSession.params).
+		WithTools(c.defaultSession.tools...).
+		WithToolParams(c.defaultSession.toolParams)
+
+	return builder
 }
 
-type Builder struct {
+type ClientBuilder struct {
 	chatModel            chat.Model
 	chatOptions          chat.Options
-	userPromptTemplate   *UserPromptTemplate
-	systemPromptTemplate *SystemPromptTemplate
+	userPromptTemplate   *PromptTemplate
+	systemPromptTemplate *PromptTemplate
 	messages             []messages.Message
-	middlewares          *Middlewares
-	middlewareParams     map[string]any
+	middlewareManager    *MiddlewareManager
+	params               map[string]any
 	tools                []tool.Tool
 	toolParams           map[string]any
 }
 
-func NewBuilder() *Builder {
-	return &Builder{
-		messages:         make([]messages.Message, 0),
-		middlewares:      NewMiddlewares(),
-		middlewareParams: make(map[string]any),
-		tools:            make([]tool.Tool, 0),
-		toolParams:       make(map[string]any),
+func NewClientBuilder() *ClientBuilder {
+	return &ClientBuilder{
+		messages:          make([]messages.Message, 0),
+		middlewareManager: NewMiddlewareManager(),
+		params:            make(map[string]any),
+		tools:             make([]tool.Tool, 0),
+		toolParams:        make(map[string]any),
 	}
 }
 
-func (b *Builder) WithChatModel(chatModel chat.Model) *Builder {
+func (b *ClientBuilder) WithChatModel(chatModel chat.Model) *ClientBuilder {
 	if chatModel != nil {
 		b.chatModel = chatModel
 	}
 	return b
 }
 
-func (b *Builder) WithChatOptions(chatOptions chat.Options) *Builder {
+func (b *ClientBuilder) WithChatOptions(chatOptions chat.Options) *ClientBuilder {
 	if chatOptions != nil {
 		b.chatOptions = chatOptions.Clone()
 	}
 	return b
 }
 
-func (b *Builder) WithUserPrompt(userPrompt string) *Builder {
+func (b *ClientBuilder) WithUserPrompt(userPrompt string) *ClientBuilder {
 	if userPrompt != "" {
-		b.userPromptTemplate = NewUserPromptTemplate().WithTemplate(userPrompt)
+		b.userPromptTemplate = NewPromptTemplate().WithTemplate(userPrompt)
 	}
 	return b
 }
 
-func (b *Builder) WithUserPromptTemplate(userPromptTemplate *UserPromptTemplate) *Builder {
+func (b *ClientBuilder) WithUserPromptTemplate(userPromptTemplate *PromptTemplate) *ClientBuilder {
 	if userPromptTemplate != nil {
 		b.userPromptTemplate = userPromptTemplate.Clone()
 	}
 	return b
 }
 
-func (b *Builder) WithSystemPrompt(systemPrompt string) *Builder {
+func (b *ClientBuilder) WithSystemPrompt(systemPrompt string) *ClientBuilder {
 	if systemPrompt != "" {
-		b.systemPromptTemplate = NewSystemPromptTemplate().WithTemplate(systemPrompt)
+		b.systemPromptTemplate = NewPromptTemplate().WithTemplate(systemPrompt)
 	}
 	return b
 }
 
-func (b *Builder) WithSystemPromptTemplate(systemPrompt *SystemPromptTemplate) *Builder {
-	if systemPrompt != nil {
-		b.systemPromptTemplate = systemPrompt.Clone()
+func (b *ClientBuilder) WithSystemPromptTemplate(systemPromptTemplate *PromptTemplate) *ClientBuilder {
+	if systemPromptTemplate != nil {
+		b.systemPromptTemplate = systemPromptTemplate.Clone()
 	}
 	return b
 }
 
-func (b *Builder) WithMessages(messages ...messages.Message) *Builder {
-	if len(messages) > 0 {
-		b.messages = slices.Clone(messages)
+func (b *ClientBuilder) WithMessages(messageList ...messages.Message) *ClientBuilder {
+	if len(messageList) > 0 {
+		b.messages = slices.Clone(messageList)
 	}
 	return b
 }
 
-func (b *Builder) WithMiddlewares(middlewares *Middlewares) *Builder {
-	if middlewares != nil {
-		b.middlewares = middlewares.Clone()
+func (b *ClientBuilder) WithMiddlewares(middlewareList ...any) *ClientBuilder {
+	if len(middlewareList) > 0 {
+		b.middlewareManager = NewMiddlewareManager().UseMiddlewares(middlewareList...)
 	}
 	return b
 }
 
-func (b *Builder) WithMiddlewareParams(middlewareParams map[string]any) *Builder {
-	if len(middlewareParams) > 0 {
-		b.middlewareParams = maps.Clone(middlewareParams)
+func (b *ClientBuilder) WithMiddlewareManager(middlewareManager *MiddlewareManager) *ClientBuilder {
+	if middlewareManager != nil {
+		b.middlewareManager = middlewareManager.Clone()
 	}
 	return b
 }
 
-func (b *Builder) WithTools(tools ...tool.Tool) *Builder {
-	if len(tools) > 0 {
-		b.tools = slices.Clone(tools)
+func (b *ClientBuilder) WithParams(paramMap map[string]any) *ClientBuilder {
+	if len(paramMap) > 0 {
+		b.params = maps.Clone(paramMap)
 	}
 	return b
 }
 
-func (b *Builder) WithToolParams(toolParams map[string]any) *Builder {
-	if len(toolParams) > 0 {
-		b.toolParams = maps.Clone(toolParams)
+func (b *ClientBuilder) WithTools(toolList ...tool.Tool) *ClientBuilder {
+	if len(toolList) > 0 {
+		b.tools = slices.Clone(toolList)
 	}
 	return b
 }
 
-func (b *Builder) Build() (*Client, error) {
-	newOptions, err := NewOptions(b.chatModel)
+func (b *ClientBuilder) WithToolParams(toolParamMap map[string]any) *ClientBuilder {
+	if len(toolParamMap) > 0 {
+		b.toolParams = maps.Clone(toolParamMap)
+	}
+	return b
+}
+
+func (b *ClientBuilder) Build() (*Client, error) {
+	builtSession, err := NewSession(b.chatModel)
 	if err != nil {
 		return nil, err
 	}
-	newOptions.
+
+	builtSession.
 		WithChatOptions(b.chatOptions).
 		WithUserPromptTemplate(b.userPromptTemplate).
 		WithSystemPromptTemplate(b.systemPromptTemplate).
 		WithMessages(b.messages...).
-		WithMiddlewares(b.middlewares).
-		WithMiddlewareParams(b.middlewareParams).
+		WithMiddlewareManager(b.middlewareManager).
+		WithParams(b.params).
 		WithTools(b.tools...).
 		WithToolParams(b.toolParams)
 
-	return NewClient(newOptions)
+	return NewClient(builtSession)
 }
 
-func (b *Builder) MustBuild() *Client {
-	build, err := b.Build()
+func (b *ClientBuilder) MustBuild() *Client {
+	client, err := b.Build()
 	if err != nil {
 		panic(err)
 	}
-	return build
+	return client
 }

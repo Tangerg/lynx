@@ -10,63 +10,67 @@ import (
 )
 
 type Streamer struct {
-	options     *Options
-	middleWares *Middlewares
+	session           *Session
+	middlewareManager *MiddlewareManager
 }
 
-func NewStreamer(options *Options) (*Streamer, error) {
-	if options == nil {
-		return nil, errors.New("options is required")
+func NewStreamer(session *Session) (*Streamer, error) {
+	if session == nil {
+		return nil, errors.New("session is required")
 	}
 
-	middleWares := options.middlewares
-	if middleWares == nil {
-		middleWares = NewMiddlewares()
+	middlewareManager := session.middlewareManager
+	if middlewareManager == nil {
+		middlewareManager = NewMiddlewareManager()
 	}
 
 	return &Streamer{
-		options:     options,
-		middleWares: middleWares.Clone(),
+		session:           session,
+		middlewareManager: middlewareManager.Clone(),
 	}, nil
 }
 
 func (s *Streamer) Text(ctx context.Context) (stream.Reader[result.Result[string]], error) {
-	resp, err := s.ChatResponse(ctx)
+	chatResponseStream, err := s.ChatResponse(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return stream.Map(resp, func(c result.Result[*chat.Response]) result.Result[string] {
-		return result.Map(c, func(t *chat.Response) string {
-			return t.Result().Output().Text()
+
+	return stream.Map(chatResponseStream, func(chatResult result.Result[*chat.Response]) result.Result[string] {
+		return result.Map(chatResult, func(chatResponse *chat.Response) string {
+			return chatResponse.Result().Output().Text()
 		})
 	}), nil
 }
 
 func (s *Streamer) ChatResponse(ctx context.Context) (stream.Reader[result.Result[*chat.Response]], error) {
-	resp, err := s.Response(ctx)
+	responseStream, err := s.Response(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return stream.Map(resp, func(c result.Result[*Response]) result.Result[*chat.Response] {
-		return result.Map(c, func(t *Response) *chat.Response {
-			return t.ChatResponse()
+
+	return stream.Map(responseStream, func(responseResult result.Result[*Response]) result.Result[*chat.Response] {
+		return result.Map(responseResult, func(response *Response) *chat.Response {
+			return response.ChatResponse()
 		})
 	}), nil
 }
 
 func (s *Streamer) Response(ctx context.Context) (stream.Reader[result.Result[*Response]], error) {
-	request, err := NewRequest(ctx, s.options)
+	request, err := NewRequest(ctx, s.session)
 	if err != nil {
 		return nil, err
 	}
+
 	return s.Execute(request)
 }
 
-func (s *Streamer) Execute(ctx *Request) (stream.Reader[result.Result[*Response]], error) {
-	invoker, err := newModelInvoker(ctx.chatModel)
+func (s *Streamer) Execute(request *Request) (stream.Reader[result.Result[*Response]], error) {
+	invoker, err := newModelInvoker(request.chatModel)
 	if err != nil {
 		return nil, err
 	}
-	streamHandler := s.middleWares.makeStreamHandler(invoker)
-	return streamHandler.Stream(ctx)
+
+	streamHandler := s.middlewareManager.makeStreamHandler(invoker)
+	return streamHandler.Stream(request)
 }
