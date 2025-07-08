@@ -25,9 +25,9 @@ type Renderer struct {
 // NewRenderer creates a new Renderer instance with default settings.
 // Default delimiters are "{{" and "}}".
 func NewRenderer() *Renderer {
-	r := &Renderer{}
-	r.init()
-	return r
+	renderer := &Renderer{}
+	renderer.init()
+	return renderer
 }
 
 // init initializes the renderer with default values.
@@ -51,8 +51,8 @@ func (r *Renderer) markChanged() {
 // WithTemplate sets the template string to be rendered.
 // Returns the receiver for method chaining.
 // If templateStr is empty, the template string remains unchanged.
-func (r *Renderer) WithTemplate(templateStr string) *Renderer {
-	r.templateString = templateStr
+func (r *Renderer) WithTemplate(templateString string) *Renderer {
+	r.templateString = templateString
 	r.markChanged()
 	return r
 }
@@ -61,8 +61,8 @@ func (r *Renderer) WithTemplate(templateStr string) *Renderer {
 // Returns the receiver for method chaining.
 // If name is empty, the variable is not set.
 // Existing variable with the same key will be overwritten.
-func (r *Renderer) WithVariable(name string, value any) *Renderer {
-	r.variables[name] = value
+func (r *Renderer) WithVariable(variableName string, variableValue any) *Renderer {
+	r.variables[variableName] = variableValue
 	r.markChanged()
 	return r
 }
@@ -70,12 +70,16 @@ func (r *Renderer) WithVariable(name string, value any) *Renderer {
 // WithVariables replaces all existing variables with the provided map.
 // This method clears any previously set variables before adding the new ones.
 // Returns the receiver for method chaining.
-func (r *Renderer) WithVariables(variables map[string]any) *Renderer {
+func (r *Renderer) WithVariables(variableMap map[string]any) *Renderer {
+	// Clear existing variables
 	clear(r.variables)
-	for k, v := range variables {
-		r.variables[k] = v
-		r.markChanged()
+
+	// Add new variables
+	for variableName, variableValue := range variableMap {
+		r.variables[variableName] = variableValue
 	}
+
+	r.markChanged()
 	return r
 }
 
@@ -90,14 +94,17 @@ func (r *Renderer) Reset() *Renderer {
 // The cloned renderer is independent and modifications to it won't affect the original.
 // Returns a new Renderer instance with the same settings as the original.
 func (r *Renderer) Clone() *Renderer {
-	newR := NewRenderer()
-	newR.templateString = r.templateString
-	newR.variables = maps.Clone(r.variables)
-	newR.leftDelimiter = r.leftDelimiter
-	newR.rightDelimiter = r.rightDelimiter
-	newR.changed = r.changed
-	newR.renderedString = r.renderedString
-	return newR
+	clonedRenderer := NewRenderer()
+
+	// Copy all configuration
+	clonedRenderer.templateString = r.templateString
+	clonedRenderer.variables = maps.Clone(r.variables)
+	clonedRenderer.leftDelimiter = r.leftDelimiter
+	clonedRenderer.rightDelimiter = r.rightDelimiter
+	clonedRenderer.changed = r.changed
+	clonedRenderer.renderedString = r.renderedString
+
+	return clonedRenderer
 }
 
 // WithDelimiters sets the action delimiters to the specified strings.
@@ -113,7 +120,8 @@ func (r *Renderer) WithDelimiters(leftDelimiter, rightDelimiter string) *Rendere
 // render performs the actual template rendering.
 // It creates a new template, parses the template string, and executes it with the variables.
 func (r *Renderer) render() (string, error) {
-	tmpl, err := template.
+	// Create and parse template
+	templateInstance, err := template.
 		New("renderer").
 		Delims(r.leftDelimiter, r.rightDelimiter).
 		Parse(r.templateString)
@@ -121,13 +129,14 @@ func (r *Renderer) render() (string, error) {
 		return "", err
 	}
 
-	var sb strings.Builder
-	err = tmpl.Execute(&sb, r.variables)
+	// Execute template with variables
+	var outputBuilder strings.Builder
+	err = templateInstance.Execute(&outputBuilder, r.variables)
 	if err != nil {
 		return "", err
 	}
 
-	return sb.String(), nil
+	return outputBuilder.String(), nil
 }
 
 // Render renders the template with the configured variables and returns the result.
@@ -135,28 +144,33 @@ func (r *Renderer) render() (string, error) {
 // Returns an empty string and nil error if no template is set.
 // Returns an error if template parsing or execution fails.
 func (r *Renderer) Render() (string, error) {
+	// Return empty string if no template is set
 	if r.templateString == "" {
 		return "", nil
 	}
+
+	// Re-render if configuration has changed
 	if r.changed {
-		renderedString, err := r.render()
+		renderedOutput, err := r.render()
 		if err != nil {
 			return "", err
 		}
-		r.renderedString = renderedString
+
+		r.renderedString = renderedOutput
 		r.changed = false
 	}
+
 	return r.renderedString, nil
 }
 
 // MustRender renders the template and panics if an error occurs.
 // This is a convenience method for cases where errors should not be handled gracefully.
 func (r *Renderer) MustRender() string {
-	result, err := r.Render()
+	renderResult, err := r.Render()
 	if err != nil {
 		panic(err)
 	}
-	return result
+	return renderResult
 }
 
 // Render is a convenience function that creates a new renderer,
@@ -164,8 +178,11 @@ func (r *Renderer) MustRender() string {
 // Returns the rendered string and any error that occurred.
 //
 // This function is thread-safe as it creates a new Renderer instance for each call.
-func Render(tmplStr string, data map[string]any) (string, error) {
-	return NewRenderer().WithTemplate(tmplStr).WithVariables(data).Render()
+func Render(templateString string, templateData map[string]any) (string, error) {
+	return NewRenderer().
+		WithTemplate(templateString).
+		WithVariables(templateData).
+		Render()
 }
 
 // MustRender is a convenience function that creates a new renderer,
@@ -173,6 +190,9 @@ func Render(tmplStr string, data map[string]any) (string, error) {
 // Panics if an error occurs during rendering.
 //
 // This function is thread-safe as it creates a new Renderer instance for each call.
-func MustRender(tmplStr string, data map[string]any) string {
-	return NewRenderer().WithTemplate(tmplStr).WithVariables(data).MustRender()
+func MustRender(templateString string, templateData map[string]any) string {
+	return NewRenderer().
+		WithTemplate(templateString).
+		WithVariables(templateData).
+		MustRender()
 }

@@ -23,26 +23,29 @@ var tokenBitSet *bitset.BitSet
 // It marks valid characters by excluding control characters (0-31 and 127) and separator characters.
 // This follows the MIME specification in RFC 2045, which defines the syntax for MIME headers.
 func init() {
-	ctl := bitset.New(128)
+	// Initialize control characters bitset (0-31 and 127)
+	controlChars := bitset.New(128)
 	for i := uint(0); i <= 31; i++ {
-		ctl.Set(i)
+		controlChars.Set(i)
 	}
-	ctl.Set(127)
+	controlChars.Set(127)
 
-	separators := bitset.New(128)
+	// Initialize separator characters bitset
+	separatorChars := bitset.New(128)
 	separatorPositions := []uint{40, 41, 60, 62, 64, 44, 59, 58, 92, 34, 47, 91, 93, 63, 61, 123, 125, 32, 9}
-	for _, pos := range separatorPositions {
-		separators.Set(pos)
+	for _, position := range separatorPositions {
+		separatorChars.Set(position)
 	}
 
-	token := bitset.New(128)
+	// Create token bitset by excluding control and separator characters
+	validTokenChars := bitset.New(128)
 	for i := uint(0); i < 128; i++ {
-		token.Set(i)
+		validTokenChars.Set(i)
 	}
 
-	token = token.Difference(ctl)
-	token = token.Difference(separators)
-	tokenBitSet = token
+	validTokenChars = validTokenChars.Difference(controlChars)
+	validTokenChars = validTokenChars.Difference(separatorChars)
+	tokenBitSet = validTokenChars
 }
 
 // Builder is a utility for creating properly formatted MIME type instances.
@@ -95,24 +98,27 @@ func (b *Builder) checkToken(token string) error {
 // - Key "charset" with value "UTF-8" is valid
 // - Key "title" with value "\"My Document\"" is valid (quoted string)
 // - Key "content@type" is invalid (key contains invalid character)
-func (b *Builder) checkParam(k string, v string) error {
-	err := b.checkToken(k)
-	if err != nil {
+func (b *Builder) checkParam(paramKey string, paramValue string) error {
+	// Validate parameter key (must be a valid token)
+	if err := b.checkToken(paramKey); err != nil {
 		return err
 	}
-	if pkgStrings.IsQuoted(v) {
-		return nil // Quoted strings can contain any character
+
+	// Skip validation for quoted strings (they can contain any character)
+	if pkgStrings.IsQuoted(paramValue) {
+		return nil
 	}
-	return b.checkToken(v)
+
+	// Validate parameter value if it's not quoted
+	return b.checkToken(paramValue)
 }
 
 // checkParams validates all parameters in the MIME type.
 // It iterates through all parameters, validating each key-value pair
 // according to MIME parameter syntax rules.
 func (b *Builder) checkParams() error {
-	for k, v := range b.mime.params {
-		err := b.checkParam(k, v)
-		if err != nil {
+	for paramKey, paramValue := range b.mime.params {
+		if err := b.checkParam(paramKey, paramValue); err != nil {
 			return err
 		}
 	}
@@ -126,8 +132,9 @@ func (b *Builder) checkParams() error {
 // - WithType("text") sets the type to "text"
 // - WithType("IMAGE") sets the type to "image" (normalized to lowercase)
 // - WithType("\"application\"") sets the type to "application" (quotes removed)
-func (b *Builder) WithType(typ string) *Builder {
-	b.mime._type = pkgStrings.UnQuote(strings.ToLower(typ))
+func (b *Builder) WithType(mimeType string) *Builder {
+	normalizedType := pkgStrings.UnQuote(strings.ToLower(mimeType))
+	b.mime._type = normalizedType
 	return b
 }
 
@@ -138,8 +145,9 @@ func (b *Builder) WithType(typ string) *Builder {
 // - WithSubType("html") sets the subtype to "html"
 // - WithSubType("JSON") sets the subtype to "json" (normalized to lowercase)
 // - WithSubType("\"xml\"") sets the subtype to "xml" (quotes removed)
-func (b *Builder) WithSubType(subType string) *Builder {
-	b.mime.subType = pkgStrings.UnQuote(strings.ToLower(subType))
+func (b *Builder) WithSubType(mimeSubType string) *Builder {
+	normalizedSubType := pkgStrings.UnQuote(strings.ToLower(mimeSubType))
+	b.mime.subType = normalizedSubType
 	return b
 }
 
@@ -150,13 +158,14 @@ func (b *Builder) WithSubType(subType string) *Builder {
 // Examples:
 // - WithCharset("utf-8") sets charset to "UTF-8"
 // - WithCharset("\"ISO-8859-1\"") sets charset to "ISO-8859-1" (quotes removed)
-func (b *Builder) WithCharset(charset string) *Builder {
-	charset = pkgStrings.UnQuote(strings.ToUpper(charset))
-	if charset == "" {
+func (b *Builder) WithCharset(charsetValue string) *Builder {
+	normalizedCharset := pkgStrings.UnQuote(strings.ToUpper(charsetValue))
+	if normalizedCharset == "" {
 		return b
 	}
-	b.mime.charset = charset
-	b.mime.params.Put(paramCharset, charset)
+
+	b.mime.charset = normalizedCharset
+	b.mime.params.Put(paramCharset, normalizedCharset)
 	return b
 }
 
@@ -168,15 +177,18 @@ func (b *Builder) WithCharset(charset string) *Builder {
 // - WithParam("version", "1.0") adds the parameter "version=1.0"
 // - WithParam("QUALITY", "high") adds the parameter "quality=high" (key normalized to lowercase)
 // - WithParam("charset", "utf-8") delegates to WithCharset
-func (b *Builder) WithParam(key string, value string) *Builder {
-	key = pkgStrings.UnQuote(strings.ToLower(key))
-	if key == "" {
+func (b *Builder) WithParam(paramKey string, paramValue string) *Builder {
+	normalizedKey := pkgStrings.UnQuote(strings.ToLower(paramKey))
+	if normalizedKey == "" {
 		return b
 	}
-	if key == paramCharset {
-		return b.WithCharset(value)
+
+	// Handle charset parameter specially
+	if normalizedKey == paramCharset {
+		return b.WithCharset(paramValue)
 	}
-	b.mime.params.Put(key, value)
+
+	b.mime.params.Put(normalizedKey, paramValue)
 	return b
 }
 
@@ -190,9 +202,9 @@ func (b *Builder) WithParam(key string, value string) *Builder {
 //	  "version": "1.0",
 //	  "q": "0.8",
 //	})
-func (b *Builder) WithParams(params map[string]string) *Builder {
-	for k, v := range params {
-		b.WithParam(k, v)
+func (b *Builder) WithParams(paramMap map[string]string) *Builder {
+	for paramKey, paramValue := range paramMap {
+		b.WithParam(paramKey, paramValue)
 	}
 	return b
 }
@@ -206,15 +218,18 @@ func (b *Builder) WithParams(params map[string]string) *Builder {
 // Example:
 // existingMime := &MIME{_type: "text", subType: "html", charset: "UTF-8", ...}
 // builder.FromMime(existingMime) // Copies all properties from existingMime
-func (b *Builder) FromMime(mime *MIME) *Builder {
-	if mime == nil {
+func (b *Builder) FromMime(sourceMime *MIME) *Builder {
+	if sourceMime == nil {
 		return b
 	}
-	b.mime._type = mime._type
-	b.mime.subType = mime.subType
-	b.mime.charset = mime.charset
-	b.mime.params = mime.params.Clone()
-	b.mime.stringValue = mime.stringValue
+
+	// Deep copy all fields from source MIME
+	b.mime._type = sourceMime._type
+	b.mime.subType = sourceMime.subType
+	b.mime.charset = sourceMime.charset
+	b.mime.params = sourceMime.params.Clone()
+	b.mime.stringValue = sourceMime.stringValue
+
 	return b
 }
 
@@ -230,33 +245,33 @@ func (b *Builder) FromMime(mime *MIME) *Builder {
 // - NewBuilder().WithType("text").WithSubType("html").Build() returns a valid MIME
 // - NewBuilder().WithType("text/html").Build() returns an error (invalid type)
 func (b *Builder) Build() (*MIME, error) {
+	// Validate and set default for type
 	if b.mime._type == "" {
 		b.mime._type = wildcardType
 	} else {
-		err := b.checkToken(b.mime._type)
-		if err != nil {
+		if err := b.checkToken(b.mime._type); err != nil {
 			return nil, err
 		}
 	}
 
+	// Validate and set default for subtype
 	if b.mime.subType == "" {
 		b.mime.subType = wildcardType
 	} else {
-		err := b.checkToken(b.mime.subType)
-		if err != nil {
+		if err := b.checkToken(b.mime.subType); err != nil {
 			return nil, err
 		}
 	}
 
+	// Validate charset if present
 	if b.mime.charset != "" {
-		err := b.checkToken(b.mime.charset)
-		if err != nil {
+		if err := b.checkToken(b.mime.charset); err != nil {
 			return nil, err
 		}
 	}
 
-	err := b.checkParams()
-	if err != nil {
+	// Validate all parameters
+	if err := b.checkParams(); err != nil {
 		return nil, err
 	}
 

@@ -5,8 +5,8 @@ import (
 	"unicode"
 )
 
-func AsCamelCase(s string) CamelCase {
-	return CamelCase(s)
+func AsCamelCase(inputString string) CamelCase {
+	return CamelCase(inputString)
 }
 
 type CamelCase string
@@ -15,57 +15,63 @@ func (c CamelCase) String() string {
 	return string(c)
 }
 
-func (c CamelCase) SplitWith(predicate func(string) string) []string {
+func (c CamelCase) SplitWith(transformFunc func(string) string) []string {
 	if c == "" {
 		return nil
 	}
 
 	var (
-		parts  = make([]string, 0, len(c))
-		runes  = []rune(c)
-		length = len(runes)
-		sb     strings.Builder
+		splitParts    = make([]string, 0, len(c))
+		inputRunes    = []rune(c)
+		totalLength   = len(inputRunes)
+		stringBuilder strings.Builder
 	)
 
-	for i := 0; i < length; i++ {
-		cur := runes[i]
-		sb.WriteRune(cur)
+	for currentIndex := 0; currentIndex < totalLength; currentIndex++ {
+		currentRune := inputRunes[currentIndex]
+		stringBuilder.WriteRune(currentRune)
 
-		if i < length-1 {
-			next := runes[i+1]
+		if currentIndex < totalLength-1 {
+			nextRune := inputRunes[currentIndex+1]
 
-			if (unicode.IsLetter(cur) && !unicode.IsLetter(next)) ||
-				(!unicode.IsLetter(cur) && unicode.IsLetter(next)) {
-				parts = append(parts, sb.String())
-				sb.Reset()
+			// Check for letter to non-letter or non-letter to letter transition
+			if (unicode.IsLetter(currentRune) && !unicode.IsLetter(nextRune)) ||
+				(!unicode.IsLetter(currentRune) && unicode.IsLetter(nextRune)) {
+				splitParts = append(splitParts, stringBuilder.String())
+				stringBuilder.Reset()
 				continue
 			}
 
-			if unicode.IsLower(cur) && unicode.IsUpper(next) {
-				parts = append(parts, sb.String())
-				sb.Reset()
+			// Check for lowercase to uppercase transition
+			if unicode.IsLower(currentRune) && unicode.IsUpper(nextRune) {
+				splitParts = append(splitParts, stringBuilder.String())
+				stringBuilder.Reset()
 				continue
 			}
 
-			if unicode.IsUpper(cur) && unicode.IsUpper(next) && i+2 < length && unicode.IsLower(runes[i+2]) {
-				parts = append(parts, sb.String())
-				sb.Reset()
+			// Check for uppercase sequence followed by lowercase
+			if unicode.IsUpper(currentRune) && unicode.IsUpper(nextRune) &&
+				currentIndex+2 < totalLength && unicode.IsLower(inputRunes[currentIndex+2]) {
+				splitParts = append(splitParts, stringBuilder.String())
+				stringBuilder.Reset()
 				continue
 			}
 		}
 	}
 
-	if sb.Len() > 0 {
-		parts = append(parts, sb.String())
+	// Add the remaining part if any
+	if stringBuilder.Len() > 0 {
+		splitParts = append(splitParts, stringBuilder.String())
 	}
 
-	if predicate != nil {
-		for i := range parts {
-			parts[i] = predicate(parts[i])
+	// Apply transformation function if provided
+	if transformFunc != nil {
+		for partIndex := range splitParts {
+			splitParts[partIndex] = transformFunc(splitParts[partIndex])
 		}
 	}
 
-	return parts
+	return splitParts
 }
 
 func (c CamelCase) Split() []string {
@@ -84,19 +90,25 @@ func (c CamelCase) ToSnakeCase() SnakeCase {
 	if c == "" {
 		return ""
 	}
-	words := c.Split()
-	newWords := make([]string, 0, len(words))
-	for _, word := range words {
+
+	// Split camelCase into words
+	camelWords := c.Split()
+
+	// Filter and convert words to lowercase
+	snakeWords := make([]string, 0, len(camelWords))
+	for _, word := range camelWords {
 		if word == "_" || word == "" {
 			continue
 		}
-		newWords = append(newWords, strings.ToLower(word))
+		snakeWords = append(snakeWords, strings.ToLower(word))
 	}
-	return AsSnakeCase(strings.Join(newWords, "_"))
+
+	// Join words with underscores
+	return AsSnakeCase(strings.Join(snakeWords, "_"))
 }
 
-func AsSnakeCase(s string) SnakeCase {
-	return SnakeCase(s)
+func AsSnakeCase(inputString string) SnakeCase {
+	return SnakeCase(inputString)
 }
 
 type SnakeCase string
@@ -105,19 +117,22 @@ func (s SnakeCase) String() string {
 	return string(s)
 }
 
-func (s SnakeCase) SplitWith(predicate func(string) string) []string {
+func (s SnakeCase) SplitWith(transformFunc func(string) string) []string {
 	if s == "" {
 		return nil
 	}
-	parts := strings.Split(s.String(), "_")
 
-	if predicate != nil {
-		for i, part := range parts {
-			parts[i] = predicate(part)
+	// Split by underscore
+	splitParts := strings.Split(s.String(), "_")
+
+	// Apply transformation function if provided
+	if transformFunc != nil {
+		for partIndex, part := range splitParts {
+			splitParts[partIndex] = transformFunc(part)
 		}
 	}
 
-	return parts
+	return splitParts
 }
 
 func (s SnakeCase) Split() []string {
@@ -136,22 +151,32 @@ func (s SnakeCase) ToCamelCase() CamelCase {
 	if s == "" {
 		return ""
 	}
-	toLower := s.SplitToLower()
-	var sb strings.Builder
-	for i, lower := range toLower {
-		if i == 0 {
-			sb.WriteString(lower)
+
+	// Split and convert to lowercase
+	lowercaseWords := s.SplitToLower()
+	var camelBuilder strings.Builder
+
+	// Build camelCase string
+	for wordIndex, lowercaseWord := range lowercaseWords {
+		// First word remains lowercase
+		if wordIndex == 0 {
+			camelBuilder.WriteString(lowercaseWord)
 			continue
 		}
-		if lower == "" {
+
+		// Skip empty words
+		if lowercaseWord == "" {
 			continue
 		}
-		if len(lower) == 1 {
-			sb.WriteString(strings.ToUpper(lower))
+
+		// Capitalize first letter of subsequent words
+		if len(lowercaseWord) == 1 {
+			camelBuilder.WriteString(strings.ToUpper(lowercaseWord))
 		} else {
-			sb.WriteString(strings.ToUpper(lower[:1]))
-			sb.WriteString(lower[1:])
+			camelBuilder.WriteString(strings.ToUpper(lowercaseWord[:1]))
+			camelBuilder.WriteString(lowercaseWord[1:])
 		}
 	}
-	return AsCamelCase(sb.String())
+
+	return AsCamelCase(camelBuilder.String())
 }
