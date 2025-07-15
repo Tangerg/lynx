@@ -1,42 +1,62 @@
 package filter
 
-type Operand interface {
+import "github.com/spf13/cast"
+
+type Expression interface {
+	Expression() string
 }
 
-type Key struct {
-	Operand
-	key string
+type Field struct {
+	field string
+}
+
+func (f *Field) Expression() string {
+	return f.field
 }
 
 type Value struct {
-	Operand
 	value any
 }
 
-type ExpressionType string
+func (v *Value) Expression() string {
+	return cast.ToString(v.value)
+}
+
+type Operator string
+
+func (o Operator) Expression() string {
+	return string(o)
+}
 
 const (
-	AND ExpressionType = "AND"
-	OR  ExpressionType = "OR"
-	EQ  ExpressionType = "EQ"
-	NEQ ExpressionType = "NEQ"
-	GT  ExpressionType = "GT"
-	GTE ExpressionType = "GTE"
-	LT  ExpressionType = "LT"
-	LTE ExpressionType = "LTE"
-	IN  ExpressionType = "IN"
-	NIN ExpressionType = "NIN"
-	NOT ExpressionType = "NOT"
+	AND  Operator = "AND"
+	OR   Operator = "OR"
+	NOT  Operator = "NOT"
+	EQ   Operator = "="
+	NEQ  Operator = "!="
+	GT   Operator = ">"
+	GTE  Operator = ">="
+	LT   Operator = "<"
+	LTE  Operator = "<="
+	IN   Operator = "IN"
+	NIN  Operator = "NOT IN"
+	LIKE Operator = "LIKE"
 )
 
-type Expression struct {
-	Operand
-	_type ExpressionType
-	left  Operand
-	right Operand
+type Condition struct {
+	operator Operator
+	left     Expression
+	right    Expression
+}
+
+func (c *Condition) Expression() string {
+	return c.left.Expression() + " " + c.operator.Expression() + " " + c.right.Expression()
 }
 
 type Group struct {
-	Operand
-	expression *Expression
+	inner Expression
+}
+
+func (g *Group) Expression() string {
+	return "(" + g.inner.Expression() + ")"
 }
