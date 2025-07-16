@@ -2,20 +2,24 @@ package parser
 
 import (
 	"errors"
-	"fmt"
 	"io"
 	"strings"
 	"unicode"
 )
 
 type Lexer struct {
-	input    string
-	position Position
-	current  rune
-	reader   *strings.Reader
+	input         string
+	position      Position
+	currentChar   rune
+	reader        *strings.Reader
+	stringBuilder strings.Builder
 }
 
-func NewLexer(input string) *Lexer {
+func NewLexer(input string) (*Lexer, error) {
+	if len(input) == 0 {
+		return nil, errors.New("input is empty")
+	}
+
 	return &Lexer{
 		input:  input,
 		reader: strings.NewReader(input),
@@ -23,20 +27,20 @@ func NewLexer(input string) *Lexer {
 			line:   1,
 			column: 1,
 		},
-	}
+	}, nil
 }
 
 func (l *Lexer) readRune() error {
-	char, _, err := l.reader.ReadRune()
+	character, _, err := l.reader.ReadRune()
 	if err != nil {
 		return err
 	}
 
-	l.current = char
+	l.currentChar = character
 
-	if char == '\n' {
+	if character == '\n' {
 		l.position.line++
-		l.position.column = 0
+		l.position.column = 1
 	} else {
 		l.position.column++
 	}
@@ -45,7 +49,7 @@ func (l *Lexer) readRune() error {
 }
 
 func (l *Lexer) peekRune() (rune, error) {
-	char, _, err := l.reader.ReadRune()
+	nextChar, _, err := l.reader.ReadRune()
 	if err != nil {
 		return 0, err
 	}
@@ -54,7 +58,7 @@ func (l *Lexer) peekRune() (rune, error) {
 		return 0, err
 	}
 
-	return char, nil
+	return nextChar, nil
 }
 
 func (l *Lexer) skipSpace() error {
@@ -63,230 +67,226 @@ func (l *Lexer) skipSpace() error {
 			return err
 		}
 
-		if !unicode.IsSpace(l.current) {
+		if !unicode.IsSpace(l.currentChar) {
 			return nil
 		}
 	}
 }
 
-func (l *Lexer) readString() (Token, error) {
-	var sb strings.Builder
+var escapeChars = map[rune]rune{
+	'n':  '\n',
+	't':  '\t',
+	'r':  '\r',
+	'\\': '\\',
+	'\'': '\'',
+}
+
+func (l *Lexer) readString() Token {
+	defer l.stringBuilder.Reset()
 
 	for {
 		if err := l.readRune(); err != nil {
-			if errors.Is(err, io.EOF) {
-				return NewToken(ILLEGAL, fmt.Sprintf("unexpected EOF at %s", l.position.String()), l.position),
-					errors.Join(io.EOF, io.ErrUnexpectedEOF, errors.New(l.position.String()))
-			}
-			return NewToken(ERROR, sb.String(), l.position), err
+			return NewErrorToken(err, l.position)
 		}
 
-		if l.current == '\'' {
+		if l.currentChar == '\'' {
 			break
 		}
 
-		if l.current == '\\' {
-			if err := l.readRune(); err != nil {
-				return NewToken(ERROR, sb.String(), l.position), err
-			}
+		if l.currentChar != '\\' {
+			l.stringBuilder.WriteRune(l.currentChar)
+			continue
+		}
 
-			switch l.current {
-			case 'n':
-				sb.WriteRune('\n')
-			case 't':
-				sb.WriteRune('\t')
-			case 'r':
-				sb.WriteRune('\r')
-			case '\\':
-				sb.WriteRune('\\')
-			case '\'':
-				sb.WriteRune('\'')
-			default:
-				sb.WriteRune(l.current)
-			}
+		if err := l.readRune(); err != nil {
+			return NewErrorToken(err, l.position)
+		}
+
+		escapeChar, ok := escapeChars[l.currentChar]
+		if ok {
+			l.stringBuilder.WriteRune(escapeChar)
 		} else {
-			sb.WriteRune(l.current)
+			l.stringBuilder.WriteRune(l.currentChar)
 		}
 	}
 
-	return NewToken(STRING, sb.String(), l.position), nil
+	return NewToken(STRING, l.stringBuilder.String(), l.position)
 }
 
-func (l *Lexer) readNumber() (Token, error) {
-	var (
-		sb      strings.Builder
-		isFloat bool
-	)
+func (l *Lexer) readNumber() Token {
+	defer l.stringBuilder.Reset()
 
 	for {
-		sb.WriteRune(l.current)
+		l.stringBuilder.WriteRune(l.currentChar)
 
-		next, err := l.peekRune()
+		nextChar, err := l.peekRune()
 		if err != nil {
 			if errors.Is(err, io.EOF) {
 				break
 			}
-			return NewToken(ERROR, sb.String(), l.position), err
+			return NewErrorToken(err, l.position)
 		}
 
-		if !unicode.IsDigit(next) {
+		if !unicode.IsDigit(nextChar) {
 			break
 		}
 
 		if err = l.readRune(); err != nil {
-			return NewToken(ERROR, sb.String(), l.position), err
+			return NewErrorToken(err, l.position)
 		}
 	}
 
-	next, err := l.peekRune()
+	nextChar, err := l.peekRune()
 	if err != nil && !errors.Is(err, io.EOF) {
-		return NewToken(ERROR, sb.String(), l.position), err
+		return NewErrorToken(err, l.position)
 	}
 
-	if err == nil && next == '.' {
+	var isFloat bool
+	if err == nil && nextChar == '.' {
 		isFloat = true
+
 		if err = l.readRune(); err != nil {
-			return NewToken(ERROR, sb.String(), l.position), err
+			return NewErrorToken(err, l.position)
 		}
-		sb.WriteRune(l.current)
 
 		for {
-			next, err = l.peekRune()
+			l.stringBuilder.WriteRune(l.currentChar)
+
+			nextChar, err = l.peekRune()
 			if err != nil {
 				if errors.Is(err, io.EOF) {
 					break
 				}
-				return NewToken(ERROR, sb.String(), l.position), err
+				return NewErrorToken(err, l.position)
 			}
 
-			if !unicode.IsDigit(next) {
+			if !unicode.IsDigit(nextChar) {
 				break
 			}
 
 			if err = l.readRune(); err != nil {
-				return NewToken(ERROR, sb.String(), l.position), err
+				return NewErrorToken(err, l.position)
 			}
-			sb.WriteRune(l.current)
 		}
 	}
 
-	value := sb.String()
+	numberValue := l.stringBuilder.String()
 	if isFloat {
-		return NewToken(FLOAT, value, l.position), nil
+		return NewToken(DECIMAL, numberValue, l.position)
 	}
-	return NewToken(INT, value, l.position), nil
+	return NewToken(INTEGER, numberValue, l.position)
 }
 
-func (l *Lexer) readIdentifier() (Token, error) {
-	var sb strings.Builder
+func (l *Lexer) readIdentifier() Token {
+	defer l.stringBuilder.Reset()
 
 	for {
-		sb.WriteRune(l.current)
+		l.stringBuilder.WriteRune(l.currentChar)
 
-		next, err := l.peekRune()
+		nextChar, err := l.peekRune()
 		if err != nil {
 			if errors.Is(err, io.EOF) {
 				break
 			}
-			return NewToken(ERROR, sb.String(), l.position), err
+			return NewErrorToken(err, l.position)
 		}
 
-		if !unicode.IsLetter(next) &&
-			!unicode.IsDigit(next) &&
-			next != '_' {
+		if !unicode.IsLetter(nextChar) &&
+			!unicode.IsDigit(nextChar) &&
+			nextChar != '_' {
 			break
 		}
 
 		if err = l.readRune(); err != nil {
-			return NewToken(ERROR, sb.String(), l.position), err
+			return NewErrorToken(err, l.position)
 		}
 	}
 
-	value := sb.String()
-	tokenType := LookupTokenType(value)
-	return NewToken(tokenType, value, l.position), nil
+	identifierValue := l.stringBuilder.String()
+	tokenType := LookupTokenType(identifierValue)
+
+	return NewToken(tokenType, identifierValue, l.position)
 }
 
-func (l *Lexer) readTwoCharOperator(first, second rune, singleType, doubleType TokenType) (Token, error) {
-	next, err := l.peekRune()
+func (l *Lexer) readTwoCharOperator(firstChar, expectedSecondChar rune,
+	singleCharType, doubleCharType TokenType) Token {
+
+	nextChar, err := l.peekRune()
 	if err != nil {
 		if errors.Is(err, io.EOF) {
-			return NewToken(singleType, string(first), l.position), nil
+			return NewToken(singleCharType, string(firstChar), l.position)
 		}
-		return NewToken(ERROR, err.Error(), l.position), err
+		return NewErrorToken(err, l.position)
 	}
 
-	if next != second {
-		return NewToken(singleType, string(first), l.position), nil
+	if nextChar != expectedSecondChar {
+		return NewToken(singleCharType, string(firstChar), l.position)
 	}
 
 	if err = l.readRune(); err != nil {
-		return NewToken(ERROR, err.Error(), l.position), err
+		return NewErrorToken(err, l.position)
 	}
 
-	return NewToken(doubleType, string([]rune{first, second}), l.position), nil
+	operatorValue := string(firstChar) + string(expectedSecondChar)
+	return NewToken(doubleCharType, operatorValue, l.position)
 }
 
-func (l *Lexer) NextToken() (Token, error) {
+func (l *Lexer) NextToken() Token {
 	err := l.skipSpace()
 	if err != nil {
 		if errors.Is(err, io.EOF) {
-			return NewToken(EOF, "", l.position), nil
+			return NewEOFToken(l.position)
 		}
-		return NewToken(ERROR, err.Error(), l.position), err
+		return NewErrorToken(err, l.position)
 	}
 
-	switch l.current {
+	switch l.currentChar {
 	case '=':
-		return NewToken(EQ, "=", l.position), nil
+		return NewToken(EQ, "=", l.position)
 	case '!':
-		return l.readTwoCharOperator('!', '=', ILLEGAL, NEQ)
+		return l.readTwoCharOperator('!', '=', ILLEGAL, NE)
 	case '>':
-		return l.readTwoCharOperator('>', '=', GT, GTE)
+		return l.readTwoCharOperator('>', '=', GT, GE)
 	case '<':
-		return l.readTwoCharOperator('<', '=', LT, LTE)
+		return l.readTwoCharOperator('<', '=', LT, LE)
 	case ',':
-		return NewToken(COMMA, ",", l.position), nil
+		return l.NextToken()
 	case '\'':
 		return l.readString()
 	case '(':
-		return NewToken(LPAREN, "(", l.position), nil
+		return NewToken(LPAREN, "(", l.position)
 	case ')':
-		return NewToken(RPAREN, ")", l.position), nil
+		return NewToken(RPAREN, ")", l.position)
 	case '[':
-		return NewToken(LBRACKET, "[", l.position), nil
+		return NewToken(LSQUARE, "[", l.position)
 	case ']':
-		return NewToken(RBRACKET, "]", l.position), nil
+		return NewToken(RSQUARE, "]", l.position)
 	case ';':
-		return NewToken(SEMICOLON, ";", l.position), nil
+		return l.NextToken()
 	}
 
-	if unicode.IsDigit(l.current) {
+	if unicode.IsDigit(l.currentChar) {
 		return l.readNumber()
 	}
 
-	if unicode.IsLetter(l.current) || l.current == '_' {
+	if unicode.IsLetter(l.currentChar) || l.currentChar == '_' {
 		return l.readIdentifier()
 	}
 
-	return NewToken(ILLEGAL, string(l.current), l.position), nil
+	return NewIllegalToken(l.currentChar, l.position)
 }
 
-func (l *Lexer) Tokenize() ([]Token, error) {
+func (l *Lexer) Tokenize() []Token {
 	var tokens []Token
 
 	for {
-		token, err := l.NextToken()
-		if err != nil {
-			return nil, errors.Join(err, fmt.Errorf("lexer error at %s: %s", token.position.String(), token.value))
-		}
-
+		token := l.NextToken()
 		tokens = append(tokens, token)
 
-		if token._type == EOF {
+		if token.tokenType == EOF {
 			break
 		}
 	}
 
-	return tokens, nil
+	return tokens
 }

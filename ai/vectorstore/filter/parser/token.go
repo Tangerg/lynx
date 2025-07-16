@@ -1,6 +1,9 @@
 package parser
 
-import "fmt"
+import (
+	"fmt"
+	"unicode/utf8"
+)
 
 type TokenType int
 
@@ -10,30 +13,27 @@ const (
 	EOF
 	IDENTIFIER
 	STRING
-	INT
-	FLOAT
+	INTEGER
+	DECIMAL
 	TRUE
 	FALSE
 	NULL
-	EQ
-	NEQ
-	GT
-	GTE
-	LT
-	LTE
-	LIKE
-	IS
-	IN
-	AND
-	OR
-	NOT
-	COMMA
-	QUOTE
-	LPAREN
-	RPAREN
-	LBRACKET
-	RBRACKET
-	SEMICOLON
+	EQ      // =
+	NE      // !=
+	GT      // >
+	GE      // >=
+	LT      // <
+	LE      // <=
+	LIKE    // LIKE
+	IS      // IS
+	IN      // IN
+	AND     // AND
+	OR      // OR
+	NOT     // NOT
+	LPAREN  // (
+	RPAREN  // )
+	LSQUARE // [
+	RSQUARE // ]
 )
 
 var tokenTypes = map[TokenType]string{
@@ -42,54 +42,35 @@ var tokenTypes = map[TokenType]string{
 	EOF:        "EOF",
 	IDENTIFIER: "IDENTIFIER",
 	STRING:     "STRING",
-	INT:        "INT",
-	FLOAT:      "FLOAT",
+	INTEGER:    "INTEGER",
+	DECIMAL:    "DECIMAL",
 	TRUE:       "TRUE",
 	FALSE:      "FALSE",
 	NULL:       "NULL",
+	EQ:         "EQ",
+	NE:         "NE",
+	GT:         "GT",
+	GE:         "GE",
+	LT:         "LT",
+	LE:         "LE",
 	LIKE:       "LIKE",
+	IS:         "IS",
+	IN:         "IN",
 	AND:        "AND",
 	OR:         "OR",
 	NOT:        "NOT",
-	IN:         "IN",
-	IS:         "IS",
-	EQ:         "EQ",
-	NEQ:        "NEQ",
-	GT:         "GT",
-	GTE:        "GTE",
-	LT:         "LT",
-	LTE:        "LTE",
-	COMMA:      "COMMA",
-	QUOTE:      "QUOTE",
 	LPAREN:     "LPAREN",
 	RPAREN:     "RPAREN",
-	LBRACKET:   "LBRACKET",
-	RBRACKET:   "RBRACKET",
-	SEMICOLON:  "SEMICOLON",
+	LSQUARE:    "LSQUARE",
+	RSQUARE:    "RSQUARE",
 }
 
 func (t TokenType) String() string {
-	s, ok := tokenTypes[t]
-	if ok {
-		return s
+	tokenName, exists := tokenTypes[t]
+	if exists {
+		return tokenName
 	}
 	return tokenTypes[ERROR]
-}
-
-func (t TokenType) IsError() bool {
-	return t == ERROR
-}
-
-func (t TokenType) IsIllegal() bool {
-	return t == ILLEGAL
-}
-
-func (t TokenType) IsEOF() bool {
-	return t == EOF
-}
-
-func (t TokenType) IsIdentifier() bool {
-	return t == IDENTIFIER
 }
 
 var keywords = map[string]TokenType{
@@ -113,9 +94,9 @@ var keywords = map[string]TokenType{
 	"in":    IN,
 }
 
-func LookupTokenType(ident string) TokenType {
-	if tok, ok := keywords[ident]; ok {
-		return tok
+func LookupTokenType(identifier string) TokenType {
+	if tokenType, exists := keywords[identifier]; exists {
+		return tokenType
 	}
 	return IDENTIFIER
 }
@@ -138,18 +119,50 @@ func (p *Position) String() string {
 }
 
 type Token struct {
-	_type    TokenType
-	value    string
-	position Position
+	tokenType TokenType
+	value     string
+	position  Position
 }
 
-func NewToken(_type TokenType, value string, position Position) Token {
-	position.column = max(position.column-len(value), 1)
-	return Token{_type: _type, value: value, position: position}
+func NewIllegalToken(character rune, position Position) Token {
+	position.column = max(position.column-1, 1)
+	return Token{
+		tokenType: ILLEGAL,
+		value:     string(character),
+		position:  position,
+	}
+}
+
+func NewEOFToken(position Position) Token {
+	return Token{
+		tokenType: EOF,
+		value:     "",
+		position:  position,
+	}
+}
+
+func NewErrorToken(err error, position Position) Token {
+	if err == nil {
+		panic("error is nil")
+	}
+	return Token{
+		tokenType: ERROR,
+		value:     err.Error(),
+		position:  position,
+	}
+}
+
+func NewToken(tokenType TokenType, value string, position Position) Token {
+	position.column = max(position.column-utf8.RuneCountInString(value), 1)
+	return Token{
+		tokenType: tokenType,
+		value:     value,
+		position:  position,
+	}
 }
 
 func (t *Token) Type() TokenType {
-	return t._type
+	return t.tokenType
 }
 
 func (t *Token) Value() string {
@@ -161,5 +174,6 @@ func (t *Token) Position() Position {
 }
 
 func (t *Token) String() string {
-	return fmt.Sprintf("Token{type: %s, value: %s, position: %s}", t._type, t.value, t.position.String())
+	return fmt.Sprintf("Token{type: %s, value: %s, position: %s}",
+		t.tokenType.String(), t.value, t.position.String())
 }
