@@ -8,12 +8,12 @@ import (
 )
 
 // Lexer performs lexical analysis on input text, breaking it into tokens.
-// It maintains the current parsing state including position tracking,
+// It maintains the currentToken parsing state including position tracking,
 // character reading, and token buffer management.
 type Lexer struct {
 	input       string          // The complete input string being tokenized
 	currentPos  Position        // Current position in the input (line and column)
-	currentChar rune            // The current character being processed
+	currentChar rune            // The currentToken character being processed
 	reader      *strings.Reader // Reader for efficient character-by-character processing
 	buffer      strings.Builder // Reusable buffer for building token values
 }
@@ -27,16 +27,28 @@ func NewLexer(input string) (*Lexer, error) {
 	}
 
 	return &Lexer{
-		input:  input,
-		reader: strings.NewReader(input),
+		input: input,
 		currentPos: Position{
 			lineNum:   1,
 			columnNum: 1,
 		},
+		currentChar: 0,
+		reader:      strings.NewReader(input),
+		buffer:      strings.Builder{},
 	}, nil
 }
 
-// readRune reads the next rune from the input and updates the current position.
+func (l *Lexer) Reset() {
+	l.currentPos = Position{
+		lineNum:   1,
+		columnNum: 1,
+	}
+	l.currentChar = 0
+	l.reader.Reset(l.input)
+	l.buffer.Reset()
+}
+
+// readRune reads the nextToken rune from the input and updates the currentToken position.
 // It properly handles newline characters by incrementing the line number
 // and resetting the column number to 1. For other characters, it simply
 // increments the column number.
@@ -59,10 +71,10 @@ func (l *Lexer) readRune() error {
 	return nil
 }
 
-// peekRune returns the next rune without consuming it from the input.
+// peekRune returns the nextToken rune without consuming it from the input.
 // This is useful for lookahead operations where we need to check what
-// comes next without advancing the lexer position. The rune is immediately
-// put back using UnreadRune() to maintain the current position.
+// comes nextToken without advancing the lexer position. The rune is immediately
+// put back using UnreadRune() to maintain the currentToken position.
 func (l *Lexer) peekRune() (rune, error) {
 	nextChar, _, err := l.reader.ReadRune()
 	if err != nil {
@@ -77,7 +89,7 @@ func (l *Lexer) peekRune() (rune, error) {
 	return nextChar, nil
 }
 
-// skipSpace skips whitespace characters and positions the lexer at the next non-space character.
+// skipSpace skips whitespace characters and positions the lexer at the nextToken non-space character.
 // It continues reading characters until it finds a non-whitespace character or reaches EOF.
 // This is essential for ignoring insignificant whitespace between tokens.
 func (l *Lexer) skipSpace() error {
@@ -167,12 +179,12 @@ func (l *Lexer) readNegativeNumber() Token {
 
 	// Parse the number portion
 	numberToken := l.readNumber()
-	if numberToken.kind == ERROR {
+	if numberToken.Kind() == ERROR {
 		return numberToken
 	}
 
 	// Prepend the minus sign to create the negative value
-	negativeValue := "-" + numberToken.value
+	negativeValue := "-" + numberToken.Value()
 	return NewToken(NUMBER, negativeValue, l.currentPos)
 }
 
@@ -195,7 +207,7 @@ func (l *Lexer) readNumber() Token {
 			return NewErrorToken(err, l.currentPos)
 		}
 
-		// Stop if next character is not a digit
+		// Stop if nextToken character is not a digit
 		if !unicode.IsDigit(nextChar) {
 			break
 		}
@@ -229,7 +241,7 @@ func (l *Lexer) readNumber() Token {
 				return NewErrorToken(err, l.currentPos)
 			}
 
-			// Stop if next character is not a digit
+			// Stop if nextToken character is not a digit
 			if !unicode.IsDigit(nextChar) {
 				break
 			}
@@ -262,7 +274,7 @@ func (l *Lexer) readKeywordsOrIdentifier() Token {
 			return NewErrorToken(err, l.currentPos)
 		}
 
-		// Stop if next character is not part of an identifier
+		// Stop if nextToken character is not part of an identifier
 		if !unicode.IsLetter(nextChar) &&
 			!unicode.IsDigit(nextChar) &&
 			nextChar != '_' {
@@ -297,7 +309,7 @@ func (l *Lexer) readTwoCharOperator(firstChar, expectedSecondChar rune,
 		return NewErrorToken(err, l.currentPos)
 	}
 
-	// If next character doesn't match expected, return single character operator
+	// If nextToken character doesn't match expected, return single character operator
 	if nextChar != expectedSecondChar {
 		return NewToken(singleCharKind, string(firstChar), l.currentPos)
 	}
@@ -327,13 +339,13 @@ func (l *Lexer) readExclamationOperator() Token {
 	return NewToken(NE, "!=", l.currentPos)
 }
 
-// NextToken returns the next token from the input stream.
+// NextToken returns the nextToken token from the input stream.
 // This is the main entry point for tokenization. It skips whitespace,
 // then uses a switch statement to handle different character types.
 // Each case represents a different token type or delegates to specialized
 // reading functions for complex tokens.
 func (l *Lexer) NextToken() Token {
-	// Skip any whitespace before the next token
+	// Skip any whitespace before the nextToken token
 	err := l.skipSpace()
 	if err != nil {
 		if errors.Is(err, io.EOF) {
@@ -342,7 +354,7 @@ func (l *Lexer) NextToken() Token {
 		return NewErrorToken(err, l.currentPos)
 	}
 
-	// Handle different token types based on current character
+	// Handle different token types based on currentToken character
 	switch l.currentChar {
 	case '=':
 		return NewToken(EQ, "=", l.currentPos)
@@ -360,10 +372,10 @@ func (l *Lexer) NextToken() Token {
 		return NewToken(LPAREN, "(", l.currentPos)
 	case ')':
 		return NewToken(RPAREN, ")", l.currentPos)
-	case '[':
-		return NewToken(LBRACKET, "[", l.currentPos)
-	case ']':
-		return NewToken(RBRACKET, "]", l.currentPos)
+	//case '[':
+	//	return NewToken(LBRACKET, "[", l.currentPos)
+	//case ']':
+	//	return NewToken(RBRACKET, "]", l.currentPos)
 	case '-':
 		return l.readNegativeNumber() // Negative number
 	}
@@ -393,7 +405,7 @@ func (l *Lexer) Tokens() []Token {
 		token := l.NextToken()
 		tokenList = append(tokenList, token)
 
-		if token.kind == EOF {
+		if token.Kind() == EOF {
 			break
 		}
 	}

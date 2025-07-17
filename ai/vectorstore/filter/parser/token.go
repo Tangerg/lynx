@@ -17,22 +17,22 @@ const (
 	STRING
 	NUMBER
 	BOOLEAN
-	EQ       // =
-	NE       // !=
-	GT       // >
-	GE       // >=
-	LT       // <
-	LE       // <=
-	LIKE     // LIKE
-	IN       // IN
-	AND      // AND
-	OR       // OR
-	NOT      // NOT
-	COMMA    //,
-	LPAREN   // (
-	RPAREN   // )
-	LBRACKET // [
-	RBRACKET // ]
+	EQ     // =
+	NE     // !=
+	GT     // >
+	GE     // >=
+	LT     // <
+	LE     // <=
+	LIKE   // LIKE
+	IN     // IN
+	AND    // AND
+	OR     // OR
+	NOT    // NOT
+	COMMA  //,
+	LPAREN // (
+	RPAREN // )
+	//LBRACKET // [
+	//RBRACKET // ]
 )
 
 // tokenKindNames maps token kinds to their string representations.
@@ -57,13 +57,17 @@ var tokenKindNames = map[TokenKind]string{
 	COMMA:      "COMMA",
 	LPAREN:     "LPAREN",
 	RPAREN:     "RPAREN",
-	LBRACKET:   "LBRACKET",
-	RBRACKET:   "RBRACKET",
+	//LBRACKET:   "LBRACKET",
+	//RBRACKET:   "RBRACKET",
 }
 
 // String returns the string representation of a TokenKind.
 func (t TokenKind) String() string {
 	return tokenKindNames[t]
+}
+
+func (t TokenKind) Is(test TokenKind) bool {
+	return t == test
 }
 
 // reservedWords maps reserved keywords to their corresponding token kinds.
