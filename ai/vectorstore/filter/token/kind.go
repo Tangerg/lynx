@@ -173,15 +173,65 @@ func (k Kind) IsKeyword() bool {
 	return slices.Contains(keywordKinds, k)
 }
 
-// IsBinaryOperator returns true if this Kind represents a binary operator.
-// Binary operators require two operands (left and right).
-func (k Kind) IsBinaryOperator() bool {
+// IsEqualityOperator returns true if this Kind represents an equality operator.
+// Equality operators test for equality or inequality between two values and can
+// be applied to any comparable types (numbers, strings, booleans, etc.).
+func (k Kind) IsEqualityOperator() bool {
 	switch k {
-	case EQ, NE, LT, LE, GT, GE, AND, OR, IN, LIKE:
+	case EQ, NE:
 		return true
 	default:
 		return false
 	}
+}
+
+// IsOrderingOperator returns true if this Kind represents an ordering operator.
+// Ordering operators compare the relative order between two values and can
+// only be applied to orderable types (numbers, comparable strings).
+func (k Kind) IsOrderingOperator() bool {
+	switch k {
+	case LT, LE, GT, GE:
+		return true
+	default:
+		return false
+	}
+}
+
+// IsComparisonOperator returns true if this Kind represents a comparison operator.
+// Comparison operators evaluate the relationship between two values and return
+// a boolean result. These include equality, inequality, and relational operators.
+func (k Kind) IsComparisonOperator() bool {
+	return k.IsEqualityOperator() || k.IsOrderingOperator()
+}
+
+// IsLogicalOperator returns true if this Kind represents a logical operator.
+// Logical operators perform boolean logic operations on boolean operands
+// and return boolean results. These include conjunction (AND) and disjunction (OR).
+func (k Kind) IsLogicalOperator() bool {
+	switch k {
+	case AND, OR:
+		return true
+	default:
+		return false
+	}
+}
+
+// IsMatchingOperator returns true if this Kind represents a matching operator.
+// Matching operators test whether a value satisfies certain criteria or patterns
+// and return boolean results. These include membership (IN) and pattern matching (LIKE).
+func (k Kind) IsMatchingOperator() bool {
+	switch k {
+	case IN, LIKE:
+		return true
+	default:
+		return false
+	}
+}
+
+// IsBinaryOperator returns true if this Kind represents a binary operator.
+// Binary operators require two operands (left and right).
+func (k Kind) IsBinaryOperator() bool {
+	return k.IsComparisonOperator() || k.IsLogicalOperator() || k.IsMatchingOperator()
 }
 
 // IsUnaryOperator returns true if this Kind represents a unary operator.
@@ -195,6 +245,26 @@ func (k Kind) IsUnaryOperator() bool {
 func (k Kind) IsOperator() bool {
 	return k.IsBinaryOperator() || k.IsUnaryOperator()
 }
+
+// IsDelimiter returns true if this Kind represents a delimiter
+func (k Kind) IsDelimiter() bool {
+	switch k {
+	case LPAREN, RPAREN, LBRACK, RBRACK, COMMA:
+		return true
+	default:
+		return false
+	}
+}
+
+const (
+	PrecedenceLowest = iota
+	PrecedenceOR     // 1: OR
+	PrecedenceAND    // 2: AND
+	PrecedenceNOT    // 3: NOT
+	PrecedenceEQ     // 4: EQ, NE
+	PrecedenceCMP    // 5: LT, LE, GT, GE
+	PrecedenceMatch  // 6: LIKE, IN
+)
 
 // Precedence returns the operator precedence for this Kind.
 // Higher numbers indicate higher precedence (tighter binding).
@@ -211,19 +281,19 @@ func (k Kind) IsOperator() bool {
 func (k Kind) Precedence() int {
 	switch k {
 	case OR:
-		return 1
+		return PrecedenceOR
 	case AND:
-		return 2
+		return PrecedenceAND
 	case NOT:
-		return 3
+		return PrecedenceNOT
 	case EQ, NE:
-		return 4
+		return PrecedenceEQ
 	case LT, LE, GT, GE:
-		return 5
+		return PrecedenceCMP
 	case LIKE, IN:
-		return 6
+		return PrecedenceMatch
 	default:
-		return 0 // Non-operators have no precedence
+		return PrecedenceLowest // Non-operators have no precedence
 	}
 }
 

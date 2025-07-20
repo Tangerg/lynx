@@ -88,7 +88,7 @@ func (l *Lexer) markTokenStart() {
 //   - Ensures consistent error reporting across all lexer methods
 func (l *Lexer) createErrorToken(err error) token.Token {
 	l.markTokenStart()
-	return token.NewErrorToken(err, l.startPosition)
+	return token.OfError(err, l.startPosition)
 }
 
 // createIllegalToken creates an illegal character token with proper position information.
@@ -105,7 +105,38 @@ func (l *Lexer) createErrorToken(err error) token.Token {
 //   - Provides precise location information for debugging
 func (l *Lexer) createIllegalToken() token.Token {
 	l.markTokenStart()
-	return token.NewIllegalToken(l.currentChar, l.startPosition)
+	return token.OfIllegal(l.currentChar, l.startPosition)
+}
+
+// createKindToken creates a token using the kind's default literal value.
+// Uses the current lexer position range (from startPosition to current position)
+// and automatically derives the literal from the token kind.
+//
+// Parameters:
+//   - kind: The token kind to create
+//
+// Returns:
+//   - token.Token: A token with the kind's default literal and current position range
+func (l *Lexer) createKindToken(kind token.Kind) token.Token {
+	return token.OfKind(kind, l.startPosition, l.position)
+}
+
+// createLiteralToken creates a token with custom literal content and validation.
+// Uses the current lexer position range and applies validation/normalization
+// based on the token kind (particularly for NUMBER tokens).
+//
+// Parameters:
+//   - kind: The token kind to create
+//   - literal: The literal string content for the token
+//
+// Returns:
+//   - token.Token: A validated token, or an error token if validation fails
+func (l *Lexer) createLiteralToken(kind token.Kind, literal string) token.Token {
+	return token.OfLiteral(kind, literal, l.startPosition, l.position)
+}
+
+func (l *Lexer) createIdentToken(literal string) token.Token {
+	return token.OfIdent(literal, l.startPosition, l.position)
 }
 
 // peekNextChar examines the next character in the input stream without consuming it.
@@ -338,7 +369,7 @@ func (l *Lexer) scanStringLiteral() token.Token {
 		}
 	}
 
-	return token.NewLiteralToken(token.STRING, l.valueBuffer.String(), l.startPosition, l.position)
+	return l.createLiteralToken(token.STRING, l.valueBuffer.String())
 }
 
 // collectDigits reads consecutive digit characters into the value buffer.
@@ -443,7 +474,7 @@ func (l *Lexer) scanNumericLiteral() token.Token {
 		}
 	}
 
-	return token.NewLiteralToken(token.NUMBER, l.valueBuffer.String(), l.startPosition, l.position)
+	return l.createLiteralToken(token.NUMBER, l.valueBuffer.String())
 }
 
 // scanNegativeNumericLiteral tokenizes negative numeric literals that start with a minus sign.
@@ -486,7 +517,7 @@ func (l *Lexer) scanNegativeNumericLiteral() token.Token {
 
 	// Prepend minus sign to create the complete negative literal
 	negativeValue := "-" + numericToken.Literal
-	return token.NewLiteralToken(token.NUMBER, negativeValue, l.startPosition, l.position)
+	return l.createLiteralToken(token.NUMBER, negativeValue)
 }
 
 // scanIdentifier tokenizes identifiers and keyword literals that start with a letter.
@@ -541,10 +572,10 @@ func (l *Lexer) scanIdentifier() token.Token {
 
 	// Use canonical form for keywords, preserve original case for identifiers
 	if tokenKind.IsKeyword() {
-		return token.NewToken(tokenKind, l.startPosition, l.position)
+		return l.createKindToken(tokenKind)
 	}
 
-	return token.NewLiteralToken(tokenKind, identifierValue, l.startPosition, l.position)
+	return l.createIdentToken(identifierValue)
 }
 
 // scanVariableLengthOperator handles operators that can be either one or two characters long.
@@ -572,19 +603,19 @@ func (l *Lexer) scanVariableLengthOperator(secondChar rune, singleCharKind, doub
 	if err != nil {
 		if errors.Is(err, io.EOF) {
 			// End of input - return single character operator
-			return token.NewToken(singleCharKind, l.startPosition, l.position)
+			return l.createKindToken(singleCharKind)
 		}
 		return l.createErrorToken(err)
 	}
 
 	// Check if we have the two-character operator variant
 	if nextChar != secondChar {
-		return token.NewToken(singleCharKind, l.startPosition, l.position)
+		return l.createKindToken(singleCharKind)
 	}
 
 	// Consume second character to complete two-character operator
 	l.consumeExpectedChar(nextChar)
-	return token.NewToken(doubleCharKind, l.startPosition, l.position)
+	return l.createKindToken(doubleCharKind)
 }
 
 // scanFixedLengthOperator handles operators that must be exactly two characters.
@@ -621,7 +652,7 @@ func (l *Lexer) scanFixedLengthOperator(requiredSecondChar rune, operatorKind to
 		return l.createIllegalToken()
 	}
 
-	return token.NewToken(operatorKind, l.startPosition, l.position)
+	return l.createKindToken(operatorKind)
 }
 
 // dispatchToken analyzes the current character and routes to the appropriate token scanning method.
@@ -662,15 +693,15 @@ func (l *Lexer) dispatchToken() token.Token {
 	case '-':
 		return l.scanNegativeNumericLiteral()
 	case '(':
-		return token.NewToken(token.LPAREN, l.startPosition, l.position)
+		return l.createKindToken(token.LPAREN)
 	case ')':
-		return token.NewToken(token.RPAREN, l.startPosition, l.position)
+		return l.createKindToken(token.RPAREN)
 	case '[':
-		return token.NewToken(token.LBRACK, l.startPosition, l.position)
+		return l.createKindToken(token.LBRACK)
 	case ']':
-		return token.NewToken(token.RBRACK, l.startPosition, l.position)
+		return l.createKindToken(token.RBRACK)
 	case ',':
-		return token.NewToken(token.COMMA, l.startPosition, l.position)
+		return l.createKindToken(token.COMMA)
 	}
 
 	// Handle character-class-based token types
@@ -721,7 +752,7 @@ func (l *Lexer) Scan() token.Token {
 	// Skip any leading whitespace before token recognition
 	if err := l.skipWhitespace(); err != nil {
 		if errors.Is(err, io.EOF) {
-			return token.NewEOFToken(l.position)
+			return token.OfEOF(l.position)
 		}
 		return l.createErrorToken(err)
 	}
