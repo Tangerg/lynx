@@ -1,0 +1,13 @@
+Expression     := OrExpression
+OrExpression   := AndExpression ( "or" AndExpression )*
+AndExpression  := NotExpression ( "and" NotExpression )*
+NotExpression  := "not" NotExpression | Comparison
+Comparison     := Primary ( CompOp Primary )?
+CompOp         := "==" | "!=" | "<" | "<=" | ">" | ">=" | "like" | "in"
+Primary        := Identifier | Literal | ParenExpr | ListLiteral
+ParenExpr      := "(" Expression ")"
+ListLiteral    := "(" LiteralList ")"
+LiteralList    := ( Literal ( "," Literal )* )?
+Literal        := NUMBER | STRING | BOOLEAN
+BOOLEAN        := "true" | "false"
+Identifier     := IDENT
