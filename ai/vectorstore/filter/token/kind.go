@@ -256,14 +256,15 @@ func (k Kind) IsDelimiter() bool {
 	}
 }
 
+// see doc at https://www.postgresql.org/docs/current/sql-syntax-lexical.html#SQL-PRECEDENCE
+// lowest -> highest
 const (
 	PrecedenceLowest = iota
 	PrecedenceOR     // 1: OR
 	PrecedenceAND    // 2: AND
 	PrecedenceNOT    // 3: NOT
-	PrecedenceEQ     // 4: EQ, NE
-	PrecedenceCMP    // 5: LT, LE, GT, GE
-	PrecedenceMatch  // 6: LIKE, IN
+	PrecedenceCMP    // 4: EQ, NE, LT, LE, GT, GE
+	PrecedenceMatch  // 5: LIKE, IN
 )
 
 // Precedence returns the operator precedence for this Kind.
@@ -275,9 +276,8 @@ const (
 //	1: OR (lowest precedence)
 //	2: AND
 //	3: NOT
-//	4: EQ, NE
-//	5: LT, LE, GT, GE
-//	6: LIKE, IN (highest precedence)
+//	4: EQ, NE, LT, LE, GT, GE
+//	5: LIKE, IN
 func (k Kind) Precedence() int {
 	switch k {
 	case OR:
@@ -286,9 +286,7 @@ func (k Kind) Precedence() int {
 		return PrecedenceAND
 	case NOT:
 		return PrecedenceNOT
-	case EQ, NE:
-		return PrecedenceEQ
-	case LT, LE, GT, GE:
+	case EQ, NE, LT, LE, GT, GE:
 		return PrecedenceCMP
 	case LIKE, IN:
 		return PrecedenceMatch

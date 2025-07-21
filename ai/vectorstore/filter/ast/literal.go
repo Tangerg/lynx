@@ -9,12 +9,18 @@ import (
 	"github.com/Tangerg/lynx/ai/vectorstore/filter/token"
 )
 
+// Literal represents a literal value node in the AST.
+// It holds both the token information (including position and kind) and the string
+// representation of the literal value. Literals are atomic expressions that represent
+// constant values like strings, numbers, or boolean values.
 type Literal struct {
-	Token token.Token
-	Value string
+	Token token.Token // The underlying token containing position and kind information
+	Value string      // The string representation of the literal value
 }
 
 func (l *Literal) expr() {}
+
+func (l *Literal) atomicExpr() {}
 
 func (l *Literal) Start() token.Position {
 	return l.Token.Start
@@ -24,41 +30,47 @@ func (l *Literal) End() token.Position {
 	return l.Token.End
 }
 
-func (l *Literal) String() string {
-	// for string, must add "'"
-	if l.IsString() {
-		return "'" + l.Value + "'"
-	}
-	// for number/true/false
-	return l.Value
-}
-
+// IsString checks if this literal represents a string value
 func (l *Literal) IsString() bool {
 	return l.Token.Kind.Is(token.STRING)
 }
 
+// AsString returns the string value of this literal.
+// Returns an error if the literal is not a string type.
 func (l *Literal) AsString() (string, error) {
 	if !l.IsString() {
-		return "", fmt.Errorf("expecting a STRING literal, but got %s", l.Token.Kind.Name())
+		return "", fmt.Errorf("type mismatch: expected STRING literal, got %s with value '%s'",
+			l.Token.Kind.Name(), l.Value)
 	}
 	return l.Value, nil
 }
 
+// IsNumber checks if this literal represents a numeric value
 func (l *Literal) IsNumber() bool {
 	return l.Token.Kind.Is(token.NUMBER)
 }
 
+// AsNumber parses and returns the numeric value of this literal as a float64.
+// Returns an error if the literal is not a number type or cannot be parsed.
 func (l *Literal) AsNumber() (float64, error) {
 	if !l.IsNumber() {
-		return 0, fmt.Errorf("expecting a NUMBER literal, but got %s", l.Token.Kind.Name())
+		return 0, fmt.Errorf("type mismatch: expected NUMBER literal, got %s with value '%s'",
+			l.Token.Kind.Name(), l.Value)
 	}
-	return strconv.ParseFloat(l.Value, 64)
+	num, err := strconv.ParseFloat(l.Value, 64)
+	if err != nil {
+		return 0, fmt.Errorf("failed to parse number literal '%s': %w", l.Value, err)
+	}
+	return num, nil
 }
 
+// IsBool checks if this literal represents a boolean value (true or false)
 func (l *Literal) IsBool() bool {
 	return l.Token.Kind.Is(token.TRUE) || l.Token.Kind.Is(token.FALSE)
 }
 
+// AsBool returns the boolean value of this literal.
+// Returns an error if the literal is not a boolean type.
 func (l *Literal) AsBool() (bool, error) {
 	switch {
 	case l.Token.Kind.Is(token.TRUE):
@@ -66,17 +78,27 @@ func (l *Literal) AsBool() (bool, error) {
 	case l.Token.Kind.Is(token.FALSE):
 		return false, nil
 	default:
-		return false, fmt.Errorf("expecting a TRUE or FALSE literal, but got %s", l.Token.Kind.Name())
+		return false, fmt.Errorf("type mismatch: expected boolean literal (TRUE or FALSE), got %s with value '%s'",
+			l.Token.Kind.Name(), l.Value)
 	}
 }
 
-type numberAble interface {
+// numericType defines the constraint for all supported numeric types.
+// This includes all standard Go integer, unsigned integer, and floating-point types.
+type numericType interface {
 	int | int8 | int16 | int32 | int64 |
 		uint | uint8 | uint16 | uint32 | uint64 |
 		float32 | float64
 }
 
-func isNumberAble(v any) bool {
+// isNumericType performs runtime type checking to determine if a value is numeric.
+// This function complements the compile-time numericType constraint for runtime validation.
+// Parameters:
+//   - v: the value to check
+//
+// Returns:
+//   - true if the value is any numeric type, false otherwise
+func isNumericType(v any) bool {
 	switch v.(type) {
 	case int, int8, int16, int32, int64,
 		uint, uint8, uint16, uint32, uint64,
@@ -87,22 +109,28 @@ func isNumberAble(v any) bool {
 	}
 }
 
-// literalAble
-// string 'tom' 'tom@gmail.com'
-// number 1,2,3 /-1,-2,-3 / 1.23 / -1.23
-// bool true/false
-// *NumberLiteral
-// *StringLiteral
-// *BoolLiteral
-type literalAble interface {
-	numberAble |
+// literalType defines the constraint for types that can be used to create literals.
+// Supported types include:
+//   - Numeric types: integers (signed/unsigned), floating-point numbers
+//   - String type: for text literals
+//   - Bool type: for true/false values
+//   - *Literal: for existing literal nodes
+type literalType interface {
+	numericType |
 		string |
 		bool |
 		*Literal
 }
 
-func isLiteralAble(v any) bool {
-	if isNumberAble(v) {
+// isLiteralType performs runtime type checking to determine if a value can create a literal.
+// This function validates that the given value matches one of the supported literal types.
+// Parameters:
+//   - v: the value to check
+//
+// Returns:
+//   - true if the value can be used to create a literal, false otherwise
+func isLiteralType(v any) bool {
+	if isNumericType(v) {
 		return true
 	}
 	switch v.(type) {
@@ -117,16 +145,28 @@ func isLiteralAble(v any) bool {
 	}
 }
 
-func NewLiteral[T literalAble](value T) *Literal {
-	switch typedValue := any(value).(type) {
-	case int, int8, int16, int32, int64,
-		uint, uint8, uint16, uint32, uint64,
-		float32, float64:
-		number := cast.ToString(typedValue)
+// NewLiteral creates a new literal from the given value using Go generics.
+// It automatically determines the appropriate token kind based on the value type:
+//   - Numeric types are converted to NUMBER tokens
+//   - String values become STRING tokens
+//   - Boolean values become TRUE or FALSE tokens
+//   - Existing *Literal pointers are returned as-is (identity function)
+//
+// Parameters:
+//   - value: the value to create a literal from (must satisfy literalType constraint)
+//
+// Returns:
+//   - a pointer to a new Literal struct, or the existing *Literal if passed
+func NewLiteral[T literalType](value T) *Literal {
+	if isNumericType(value) {
+		number := cast.ToString(value)
 		return &Literal{
 			Token: token.OfLiteral(token.NUMBER, number, token.NoPosition, token.NoPosition),
 			Value: number,
 		}
+	}
+
+	switch typedValue := any(value).(type) {
 	case string:
 		return &Literal{
 			Token: token.OfLiteral(token.STRING, typedValue, token.NoPosition, token.NoPosition),
@@ -144,11 +184,18 @@ func NewLiteral[T literalAble](value T) *Literal {
 	case *Literal:
 		return typedValue
 	default:
-		return nil //It will never case here, just to compile pass
+		return nil // This case should never occur due to generic constraints, included for compilation
 	}
 }
 
-func NewLiterals[T literalAble](values []T) []*Literal {
+// NewLiterals creates a slice of literals from a slice of values.
+// This is a convenience function that applies NewLiteral to each element in the input slice.
+// Parameters:
+//   - values: a slice of values that satisfy the literalType constraint
+//
+// Returns:
+//   - a slice of *Literal pointers corresponding to the input values
+func NewLiterals[T literalType](values []T) []*Literal {
 	var literals []*Literal
 	for _, value := range values {
 		literals = append(literals, NewLiteral(value))
