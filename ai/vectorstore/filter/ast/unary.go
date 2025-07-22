@@ -7,10 +7,10 @@ import (
 
 // UnaryExpr represents a unary expression node in the AST.
 // It consists of a unary operator applied to a single operand, such as:
-// logical negation (NOT condition), or other prefix operators.
+// logical negation (Not condition), or other prefix operators.
 // Unary expressions are computed expressions that apply an operation to one sub-expression.
 type UnaryExpr struct {
-	Op    token.Token  // The unary operator token (NOT, etc.)
+	Op    token.Token  // The unary operator token (Not, etc.)
 	Right ComputedExpr // The operand expression that the operator is applied to
 }
 
@@ -48,9 +48,9 @@ func (u *UnaryExpr) IsRightLower() bool {
 	return false
 }
 
-// NOT creates a logical negation unary expression.
-// It applies the NOT operator to negate the given computed expression.
-// Supports logical negation like: NOT (age > 18), NOT (status == 'active')
+// Not creates a logical negation unary expression.
+// It applies the Not operator to negate the given computed expression.
+// Supports logical negation like: Not (age > 18), Not (status == 'active')
 // Note: This function only constructs the AST node and does not perform validation.
 // Type checking and semantic validation occur in later processing stages.
 // Parameters:
@@ -58,7 +58,7 @@ func (u *UnaryExpr) IsRightLower() bool {
 //
 // Returns:
 //   - a pointer to a new UnaryExpr representing the logical negation
-func NOT[T ComputedExpr](r T) *UnaryExpr {
+func Not[T ComputedExpr](r T) *UnaryExpr {
 	return &UnaryExpr{
 		Op:    newKindToken(token.NOT),
 		Right: r,

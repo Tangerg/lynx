@@ -5,20 +5,20 @@ import (
 )
 
 func TestNewSQLLikeVisitor(t *testing.T) {
-	ast := OR(
-		AND(
+	ast := Or(
+		And(
 			EQ("user_type", "individual"),
-			OR(
-				AND(
+			Or(
+				And(
 					GE("age", 18),
-					LIKE("name", "%tom"),
+					Like("name", "%tom"),
 				),
 				EQ("verified", true),
 			),
 		),
-		AND(
-			NOT(EQ("status", "suspended")),
-			IN("tier", []string{"gold", "platinum"}),
+		And(
+			Not(EQ("status", "suspended")),
+			In("tier", []string{"gold", "platinum"}),
 		),
 	)
 

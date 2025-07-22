@@ -7,7 +7,7 @@ import (
 
 // ParenExpr represents a parenthesized expression node in the AST.
 // It wraps another computed expression in parentheses to control logical operator precedence
-// or improve readability, such as condition1 AND (condition2 OR condition3).
+// or improve readability, such as condition1 And (condition2 Or condition3).
 // Parenthesized expressions are computed expressions that contain other computed expressions.
 type ParenExpr struct {
 	Lparen token.Token  // The left parenthesis token '('
@@ -28,7 +28,7 @@ func (p *ParenExpr) End() token.Position {
 
 // Paren creates a new parenthesized expression wrapping the given computed expression.
 // This function is used to explicitly group logical expressions and control operator precedence
-// in filter conditions, such as grouping AND operations within OR operations.
+// in filter conditions, such as grouping And operations within Or operations.
 // The function creates synthetic parenthesis tokens with no position information.
 // Parameters:
 //   - inner: the computed expression to be enclosed in parentheses

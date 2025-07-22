@@ -7,12 +7,12 @@ import (
 
 // BinaryExpr represents a binary expression node in the AST.
 // It consists of a left operand, an operator, and a right operand, such as:
-// comparison operations (id == 1, age > 18), logical operations (condition1 AND condition2),
-// membership tests (status IN ['active', 'pending']), or pattern matching (name LIKE 'John%').
+// comparison operations (id == 1, age > 18), logical operations (condition1 And condition2),
+// membership tests (status In ['active', 'pending']), or pattern matching (name Like 'John%').
 // Binary expressions are computed expressions that combine two sub-expressions with an operator.
 type BinaryExpr struct {
 	Left  Expr        // The left operand expression
-	Op    token.Token // The binary operator token (==, !=, <, >, AND, OR, IN, LIKE, etc.)
+	Op    token.Token // The binary operator token (==, !=, <, >, And, Or, In, Like, etc.)
 	Right Expr        // The right operand expression
 }
 
@@ -129,7 +129,7 @@ func GE[L identType, R numericType | *Literal](l L, r R) *BinaryExpr {
 }
 
 // Logic creates a logical binary expression between two computed expressions.
-// This is a generic helper function for building logical operations like AND, OR.
+// This is a generic helper function for building logical operations like And, Or.
 // Note: This function only constructs the AST node and does not perform validation.
 // Parameters:
 //   - l: the left computed expression
@@ -146,24 +146,24 @@ func Logic[L ComputedExpr, R ComputedExpr](l L, r R, op token.Kind) *BinaryExpr 
 	}
 }
 
-// AND creates a logical AND expression between two computed expressions.
-// Supports logical combinations like: (age > 18) AND (status == 'active')
+// And creates a logical And expression between two computed expressions.
+// Supports logical combinations like: (age > 18) And (status == 'active')
 // Note: This function only constructs the AST node and does not perform validation.
-func AND[L ComputedExpr, R ComputedExpr](l L, r R) *BinaryExpr {
+func And[L ComputedExpr, R ComputedExpr](l L, r R) *BinaryExpr {
 	return Logic(l, r, token.AND)
 }
 
-// OR creates a logical OR expression between two computed expressions.
-// Supports logical combinations like: (status == 'active') OR (status == 'pending')
+// Or creates a logical Or expression between two computed expressions.
+// Supports logical combinations like: (status == 'active') Or (status == 'pending')
 // Note: This function only constructs the AST node and does not perform validation.
-func OR[L ComputedExpr, R ComputedExpr](l L, r R) *BinaryExpr {
+func Or[L ComputedExpr, R ComputedExpr](l L, r R) *BinaryExpr {
 	return Logic(l, r, token.OR)
 }
 
-// IN creates a membership test expression to check if an identifier's value exists in a list.
-// Supports membership tests like: status IN ['active', 'pending', 'inactive'], id IN [1, 2, 3]
+// In creates a membership test expression to check if an identifier's value exists in a list.
+// Supports membership tests like: status In ['active', 'pending', 'inactive'], id In [1, 2, 3]
 // Note: This function only constructs the AST node and does not perform validation.
-func IN[L identType, R listLiteralType](l L, r R) *BinaryExpr {
+func In[L identType, R listLiteralType](l L, r R) *BinaryExpr {
 	return &BinaryExpr{
 		Left:  NewIdent(l),
 		Op:    newKindToken(token.IN),
@@ -171,10 +171,10 @@ func IN[L identType, R listLiteralType](l L, r R) *BinaryExpr {
 	}
 }
 
-// LIKE creates a pattern matching expression for string comparison.
-// Supports pattern matching like: name LIKE 'John%', email LIKE '%@gmail.com'
+// Like creates a pattern matching expression for string comparison.
+// Supports pattern matching like: name Like 'John%', email Like '%@gmail.com'
 // Note: This function only constructs the AST node and does not perform validation.
-func LIKE[L identType, R string | *Literal](l L, r R) *BinaryExpr {
+func Like[L identType, R string | *Literal](l L, r R) *BinaryExpr {
 	return &BinaryExpr{
 		Left:  NewIdent(l),
 		Op:    newKindToken(token.LIKE),

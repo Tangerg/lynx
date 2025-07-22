@@ -1,6 +1,7 @@
 package ast
 
 import (
+	"fmt"
 	"github.com/Tangerg/lynx/ai/vectorstore/filter/token"
 )
 
@@ -24,52 +25,53 @@ func (i *Ident) End() token.Position {
 	return i.Token.End
 }
 
-// identType defines the constraint for types that can be used to create identifiers.
-// It allows either a string value or an existing *Ident pointer.
+// identType constrains the types that can be used to construct identifiers.
+// Accepts either a string value for creating new identifiers or an existing
+// *Ident pointer for passthrough operations.
 type identType interface {
 	string |
 		*Ident
 }
 
-// isIdentType checks whether the given value can be used to create an identifier.
-// It performs runtime type checking to determine if the value is either a string
-// or an *Ident pointer.
-// Parameters:
-//   - v: the value to check
-//
-// Returns:
-//   - true if the value is a string or *Ident, false otherwise
-func isIdentType(v any) bool {
-	switch v.(type) {
-	case string:
-		return true
-	case *Ident:
-		return true
-	default:
-		return false
-	}
-}
-
-// NewIdent creates a new identifier from the given value using Go generics.
-// It supports creating identifiers from either string values or existing *Ident pointers.
-// When given a string, it creates a new Ident with a token but no position information.
-// When given an *Ident, it returns the same pointer (identity function).
-// Parameters:
-//   - value: either a string to create a new identifier from, or an existing *Ident
-//
-// Returns:
-//   - a pointer to an Ident struct, or nil if the type constraint is violated
-//     (though nil should never be returned due to the generic constraint)
-func NewIdent[T identType](value T) *Ident {
-	switch typedValue := any(value).(type) {
+// newIdent is an internal constructor that creates an Ident from various input types.
+// It handles type assertion and validation, returning appropriate errors for
+// unsupported types.
+func newIdent(value any) (*Ident, error) {
+	switch typedValue := value.(type) {
 	case string:
 		return &Ident{
 			Token: token.OfIdent(typedValue, token.NoPosition, token.NoPosition),
 			Value: typedValue,
-		}
+		}, nil
 	case *Ident:
-		return typedValue
+		return typedValue, nil
 	default:
-		return nil // This case should never occur due to generic constraints, included for compilation
+		return nil, fmt.Errorf("type mismatch: expected string or *Ident, got %T with value '%v'", value, value)
 	}
+}
+
+// NewIdent creates a new identifier using Go generics with compile-time type safety.
+// This function provides a type-safe interface for identifier creation, supporting
+// both string-to-Ident conversion and Ident passthrough operations.
+//
+// For string inputs: Creates a new Ident with the provided value and generates
+// a corresponding token (position information will be set to NoPosition).
+//
+// For *Ident inputs: Returns the same pointer unchanged (identity operation).
+//
+// Parameters:
+//   - value: Either a string to create a new identifier from, or an existing *Ident pointer
+//
+// Returns:
+//   - *Ident: A pointer to the identifier struct
+//
+// Note: This function will panic if called with invalid types, though the generic
+// constraint should prevent such cases at compile time.
+func NewIdent[T identType](value T) *Ident {
+	ident, err := newIdent(value)
+	if err != nil {
+		// This should never occur due to generic type constraints
+		panic(fmt.Sprintf("NewIdent: unexpected error: %v", err))
+	}
+	return ident
 }
