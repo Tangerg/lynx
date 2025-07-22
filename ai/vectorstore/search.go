@@ -1,7 +1,7 @@
 package vectorstore
 
 import (
-	"github.com/Tangerg/lynx/ai/vectorstore/filter"
+	"github.com/Tangerg/lynx/ai/vectorstore/filter/ast"
 )
 
 const (
@@ -13,7 +13,7 @@ type SearchRequest struct {
 	query               string
 	topK                int
 	similarityThreshold float64
-	filterExpression    *filter.Expression
+	expr                ast.ComputedExpr
 }
 
 func (s *SearchRequest) Query() string {
@@ -28,6 +28,6 @@ func (s *SearchRequest) SimilarityThreshold() float64 {
 	return s.similarityThreshold
 }
 
-func (s *SearchRequest) FilterExpression() *filter.Expression {
-	return s.filterExpression
+func (s *SearchRequest) Expr() ast.ComputedExpr {
+	return s.expr
 }

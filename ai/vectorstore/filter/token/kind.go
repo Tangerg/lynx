@@ -167,6 +167,17 @@ func (k Kind) Is(other Kind) bool {
 	return k == other
 }
 
+// IsLiteral returns true if this Kind represents a literal value.
+// Literals are constant values like strings, numbers, and booleans.
+func (k Kind) IsLiteral() bool {
+	switch k {
+	case STRING, NUMBER, TRUE, FALSE:
+		return true
+	default:
+		return false
+	}
+}
+
 // IsKeyword returns true if this Kind represents a reserved keyword.
 // Keywords cannot be used as identifiers in the query language.
 func (k Kind) IsKeyword() bool {
@@ -265,6 +276,8 @@ const (
 	PrecedenceNOT    // 3: NOT
 	PrecedenceCMP    // 4: EQ, NE, LT, LE, GT, GE
 	PrecedenceMatch  // 5: LIKE, IN
+	PrecedenceIndex  // 6: []
+	PrecedenceHighest
 )
 
 // Precedence returns the operator precedence for this Kind.
@@ -278,6 +291,7 @@ const (
 //	3: NOT
 //	4: EQ, NE, LT, LE, GT, GE
 //	5: LIKE, IN
+//	6: []
 func (k Kind) Precedence() int {
 	switch k {
 	case OR:
@@ -290,6 +304,8 @@ func (k Kind) Precedence() int {
 		return PrecedenceCMP
 	case LIKE, IN:
 		return PrecedenceMatch
+	case LBRACK:
+		return PrecedenceIndex
 	default:
 		return PrecedenceLowest // Non-operators have no precedence
 	}

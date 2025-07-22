@@ -1,8 +1,10 @@
-package ast
+package visitors
 
 import (
 	"errors"
 	"strings"
+
+	"github.com/Tangerg/lynx/ai/vectorstore/filter/ast"
 )
 
 type SQLLikeVisitor struct {
@@ -27,12 +29,12 @@ func (s *SQLLikeVisitor) SQL() string {
 	return s.buffer.String()
 }
 
-func (s *SQLLikeVisitor) Visit(expr Expr) Visitor {
+func (s *SQLLikeVisitor) Visit(expr ast.Expr) ast.Visitor {
 	s.visit(expr)
 	return nil
 }
 
-func (s *SQLLikeVisitor) visit(expr Expr) {
+func (s *SQLLikeVisitor) visit(expr ast.Expr) {
 	if s.err != nil {
 		return
 	}
@@ -43,24 +45,22 @@ func (s *SQLLikeVisitor) visit(expr Expr) {
 	}
 
 	switch exprItem := expr.(type) {
-	case *UnaryExpr:
+	case *ast.UnaryExpr:
 		s.visitUnaryExpr(exprItem)
-	case *BinaryExpr:
+	case *ast.BinaryExpr:
 		s.visitBinaryExpr(exprItem)
-	case *ParenExpr:
-		s.visitParenExpr(exprItem)
-	case *BrackExpr:
-		s.visitBrackExpr(exprItem)
-	case *Ident:
+	case *ast.IndexExpr:
+		s.visitIndexExpr(exprItem)
+	case *ast.Ident:
 		s.visitIdent(exprItem)
-	case *Literal:
+	case *ast.Literal:
 		s.visitLiteral(exprItem)
-	case *ListLiteral:
+	case *ast.ListLiteral:
 		s.visitListLiteral(exprItem)
 	}
 }
 
-func (s *SQLLikeVisitor) visitUnaryExpr(expr *UnaryExpr) {
+func (s *SQLLikeVisitor) visitUnaryExpr(expr *ast.UnaryExpr) {
 	s.buffer.WriteString(expr.Op.Literal)
 	s.buffer.WriteString(" ")
 
@@ -74,7 +74,7 @@ func (s *SQLLikeVisitor) visitUnaryExpr(expr *UnaryExpr) {
 	}
 }
 
-func (s *SQLLikeVisitor) visitBinaryExpr(expr *BinaryExpr) {
+func (s *SQLLikeVisitor) visitBinaryExpr(expr *ast.BinaryExpr) {
 
 	isLeftLower := expr.IsLeftLower()
 	if isLeftLower {
@@ -100,24 +100,18 @@ func (s *SQLLikeVisitor) visitBinaryExpr(expr *BinaryExpr) {
 
 }
 
-func (s *SQLLikeVisitor) visitParenExpr(expr *ParenExpr) {
-	s.buffer.WriteString(expr.Lparen.Literal)
-	s.visit(expr.Inner)
-	s.buffer.WriteString(expr.Rparen.Literal)
-}
-
-func (s *SQLLikeVisitor) visitBrackExpr(expr *BrackExpr) {
+func (s *SQLLikeVisitor) visitIndexExpr(expr *ast.IndexExpr) {
 	s.visit(expr.Left)
 	s.buffer.WriteString(expr.LBrack.Literal)
 	s.visit(expr.Literal)
 	s.buffer.WriteString(expr.RBrack.Literal)
 }
 
-func (s *SQLLikeVisitor) visitIdent(expr *Ident) {
+func (s *SQLLikeVisitor) visitIdent(expr *ast.Ident) {
 	s.buffer.WriteString(expr.Value)
 }
 
-func (s *SQLLikeVisitor) visitLiteral(expr *Literal) {
+func (s *SQLLikeVisitor) visitLiteral(expr *ast.Literal) {
 	if expr.IsString() {
 		s.buffer.WriteString("'")
 		s.buffer.WriteString(expr.Value)
@@ -127,7 +121,7 @@ func (s *SQLLikeVisitor) visitLiteral(expr *Literal) {
 	}
 }
 
-func (s *SQLLikeVisitor) visitListLiteral(expr *ListLiteral) {
+func (s *SQLLikeVisitor) visitListLiteral(expr *ast.ListLiteral) {
 	s.buffer.WriteString(expr.Lparen.Literal)
 	for i, value := range expr.Values {
 		if i > 0 {

@@ -1,34 +1,39 @@
-package ast
+package filter
 
-func buildExpr(b *ExprBuilder) (ComputedExpr, error) {
-	return nil, nil
+import (
+	"github.com/Tangerg/lynx/ai/vectorstore/filter/ast"
+)
+
+// buildExpr todo Check grammar and semantics
+func buildExpr(b *ExprBuilder) (ast.ComputedExpr, error) {
+	return b.expr, nil
 }
 
 type ExprBuilder struct {
 	err  error
-	expr ComputedExpr
+	expr ast.ComputedExpr
 }
 
 func NewExprBuilder() *ExprBuilder {
 	return &ExprBuilder{}
 }
 
-func (b *ExprBuilder) and(expr ComputedExpr) {
+func (b *ExprBuilder) and(expr ast.ComputedExpr) {
 	if b.expr == nil {
 		b.expr = expr
 		return
 	}
 
-	andExpr := And(expr, b.expr)
+	andExpr := And(b.expr, expr)
 	b.expr = andExpr
 }
 
-func (b *ExprBuilder) or(expr ComputedExpr) {
+func (b *ExprBuilder) or(expr ast.ComputedExpr) {
 	if b.expr == nil {
 		b.expr = expr
 	}
 
-	orExpr := Or(expr, b.expr)
+	orExpr := Or(b.expr, expr)
 	b.expr = orExpr
 }
 
@@ -274,26 +279,6 @@ func (b *ExprBuilder) Not(fn func(*ExprBuilder)) *ExprBuilder {
 	return b
 }
 
-func (b *ExprBuilder) Paren(fn func(*ExprBuilder)) *ExprBuilder {
-	if b.err != nil {
-		return b
-	}
-
-	sub := NewExprBuilder()
-	fn(sub)
-
-	subExpr, err := buildExpr(sub)
-	if err != nil {
-		b.err = err
-		return b
-	}
-
-	parenExpr := Paren(subExpr)
-	b.and(parenExpr)
-
-	return b
-}
-
 type Builder struct {
 	exprBuilder *ExprBuilder
 }
@@ -353,12 +338,10 @@ func (b *Builder) Like(l, r any) *Builder {
 	return b
 }
 
-func (b *Builder) Paren(fn func(*ExprBuilder)) *Builder {
-	b.exprBuilder.Paren(fn)
-	return b
-}
-
-func (b *Builder) Build() (Expr, error) {
+func (b *Builder) Build() (ast.Expr, error) {
+	if b.exprBuilder.err != nil {
+		return nil, b.exprBuilder.err
+	}
 	return buildExpr(b.exprBuilder)
 }
 
