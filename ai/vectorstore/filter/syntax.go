@@ -9,7 +9,7 @@ import (
 	"github.com/Tangerg/lynx/ai/vectorstore/filter/token"
 )
 
-// newKindToken creates a token with the specified kind and no position information.
+// newKindToken creates a Token with the specified kind and no currentPosition information.
 func newKindToken(kind token.Kind) token.Token {
 	return token.OfKind(kind, token.NoPosition, token.NoPosition)
 }
@@ -60,10 +60,12 @@ type literalType interface {
 	numericType | string | bool | *ast.Literal
 }
 
-// newLiteral creates a literal from various input types, determining the appropriate token kind.
+// newLiteral creates a literal from various input types, determining the appropriate Token kind.
 func newLiteral(value any) (*ast.Literal, error) {
 	switch typedValue := value.(type) {
-	case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, float32, float64:
+	case int, int8, int16, int32, int64,
+		uint, uint8, uint16, uint32, uint64,
+		float32, float64:
 		number := cast.ToString(value)
 		return &ast.Literal{
 			Token: token.OfLiteral(token.NUMBER, number, token.NoPosition, token.NoPosition),
@@ -94,7 +96,7 @@ func newLiteral(value any) (*ast.Literal, error) {
 	}
 }
 
-// NewLiteral creates a type-safe literal with automatic token kind detection.
+// NewLiteral creates a type-safe literal with automatic Token kind detection.
 // Numeric types → NUMBER, strings → STRING, booleans → TRUE/FALSE tokens.
 // Existing *ast.Literal nodes pass through unchanged.
 func NewLiteral[T literalType](value T) *ast.Literal {
@@ -136,8 +138,6 @@ func newListLiteral(value any) (*ast.ListLiteral, error) {
 	}
 
 	switch typedValue := value.(type) {
-	case []*ast.Literal:
-		result.Values = typedValue
 	case []int:
 		result.Values = NewLiterals(typedValue)
 	case []int8:
@@ -166,6 +166,8 @@ func newListLiteral(value any) (*ast.ListLiteral, error) {
 		result.Values = NewLiterals(typedValue)
 	case []bool:
 		result.Values = NewLiterals(typedValue)
+	case []*ast.Literal:
+		result.Values = typedValue
 	default:
 		return nil, fmt.Errorf("expected listLiteralType, got %T: '%v'", value, value)
 	}
@@ -274,13 +276,13 @@ func Not[T ast.ComputedExpr](r T) *ast.UnaryExpr {
 	}
 }
 
-// Index creates array/map access expressions: arr[0], obj["key"], or chained access arr[0][1].
+// Index creates array/map access expressions: arr[0], obj['key'], or chained access arr[0][1].
 // Supports identifiers for simple access and existing IndexExpr for nested access.
-func Index[T identType | *ast.IndexExpr](left T, literal *ast.Literal) *ast.IndexExpr {
+func Index[L identType | *ast.IndexExpr, I numericType | string | *ast.Literal](left L, index I) *ast.IndexExpr {
 	indexExpr := &ast.IndexExpr{
-		LBrack:  newKindToken(token.LBRACK),
-		RBrack:  newKindToken(token.RBRACK),
-		Literal: literal,
+		LBrack: newKindToken(token.LBRACK),
+		RBrack: newKindToken(token.RBRACK),
+		Index:  NewLiteral(index),
 	}
 
 	switch typedL := any(left).(type) {

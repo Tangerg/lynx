@@ -1,14 +1,14 @@
-package visitors
+package visitors_test
 
 import (
 	"testing"
 
 	"github.com/Tangerg/lynx/ai/vectorstore/filter"
-	ast2 "github.com/Tangerg/lynx/ai/vectorstore/filter/ast"
+	"github.com/Tangerg/lynx/ai/vectorstore/filter/visitors"
 )
 
 func TestNewSQLLikeVisitor(t *testing.T) {
-	ast := filter.Or(
+	expr := filter.Or(
 		filter.And(
 			filter.EQ("user_type", "individual"),
 			filter.Or(
@@ -25,9 +25,9 @@ func TestNewSQLLikeVisitor(t *testing.T) {
 		),
 	)
 
-	visitor := NewSQLLikeVisitor()
+	visitor := visitors.NewSQLLikeVisitor()
 
-	ast2.Walk(visitor, ast)
+	visitor.Visit(expr)
 
 	sql := visitor.SQL()
 	t.Log(sql)

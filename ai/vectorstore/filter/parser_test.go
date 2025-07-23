@@ -1,6 +1,7 @@
 package filter
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/Tangerg/lynx/ai/vectorstore/filter/visitors"
@@ -29,7 +30,9 @@ AND session['is_active'] == true`)
 
 	expr, err := parser.Parse()
 	if err != nil {
-		token := err.(*ParseError).Token()
+		var parseError *ParseError
+		errors.As(err, &parseError)
+		token := parseError.Token
 		t.Log(token.String())
 		t.Fatal(err)
 	}

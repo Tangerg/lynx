@@ -103,7 +103,7 @@ func (s *SQLLikeVisitor) visitBinaryExpr(expr *ast.BinaryExpr) {
 func (s *SQLLikeVisitor) visitIndexExpr(expr *ast.IndexExpr) {
 	s.visit(expr.Left)
 	s.buffer.WriteString(expr.LBrack.Literal)
-	s.visit(expr.Literal)
+	s.visit(expr.Index)
 	s.buffer.WriteString(expr.RBrack.Literal)
 }
 

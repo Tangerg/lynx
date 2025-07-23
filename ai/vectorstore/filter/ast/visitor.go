@@ -25,21 +25,21 @@ func Walk(v Visitor, expr Expr) {
 		return
 	}
 
-	switch exprItem := expr.(type) {
+	switch typedExpr := expr.(type) {
 	case *UnaryExpr:
-		Walk(v, exprItem.Right)
+		Walk(v, typedExpr.Right)
 	case *BinaryExpr:
-		Walk(v, exprItem.Left)
-		Walk(v, exprItem.Right)
+		Walk(v, typedExpr.Left)
+		Walk(v, typedExpr.Right)
 	case *IndexExpr:
-		Walk(v, exprItem.Left)
-		Walk(v, exprItem.Literal)
+		Walk(v, typedExpr.Left)
+		Walk(v, typedExpr.Index)
 	case *Ident:
-		Walk(v, exprItem)
+		Walk(v, typedExpr)
 	case *Literal:
-		Walk(v, exprItem)
+		Walk(v, typedExpr)
 	case *ListLiteral:
-		for _, literal := range exprItem.Values {
+		for _, literal := range typedExpr.Values {
 			Walk(v, literal)
 		}
 	}

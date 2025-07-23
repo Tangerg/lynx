@@ -249,10 +249,10 @@ func (b *BinaryExpr) IsRightLower() bool {
 // It represents array/map access operations such as arr[0], obj['key'], or nested access like arr[0][1].
 // Index expressions are computed expressions that involve indexing or key-based access operations.
 type IndexExpr struct {
-	LBrack  token.Token // The left bracket token '['
-	RBrack  token.Token // The right bracket token ']'
-	Left    Expr        // The left expression being indexed (identifier or another index expression)
-	Literal *Literal    // The index or key literal used for access
+	LBrack token.Token // The left bracket token '['
+	RBrack token.Token // The right bracket token ']'
+	Left   Expr        // The left expression being indexed (identifier or another index expression)
+	Index  *Literal    // The index or key literal used for access
 }
 
 func (i *IndexExpr) expr()         {}

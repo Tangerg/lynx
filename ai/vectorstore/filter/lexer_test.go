@@ -256,7 +256,7 @@ func TestErrorHandling(t *testing.T) {
 			// Check for ERROR or ILLEGAL tokens
 			for _, tk := range tokens {
 				if tk.Kind.Is(token.EOF) {
-					t.Log("Found error token:", tk.String())
+					t.Log("Found error Token:", tk.String())
 				}
 			}
 		})
