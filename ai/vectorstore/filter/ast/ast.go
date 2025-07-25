@@ -138,6 +138,19 @@ func (l *Literal) AsBool() (bool, error) {
 	}
 }
 
+// IsSameKind checks if two literals have the same kind.
+// Returns true if both literals are of the same basic type (bool, string, or number),
+// false otherwise.
+func (l *Literal) IsSameKind(other *Literal) bool {
+	if other == nil {
+		return false
+	}
+
+	return (l.IsBool() && other.IsBool()) ||
+		(l.IsString() && other.IsString()) ||
+		(l.IsNumber() && other.IsNumber())
+}
+
 // ListLiteral represents a list literal node in the Abstract Syntax Tree (AST).
 // It encapsulates a collection of literal values enclosed in parentheses, such as
 // (1, 2, 3), ('a', 'b', 'c'), or (true, false). List literals serve as atomic

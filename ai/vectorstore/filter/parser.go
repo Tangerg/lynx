@@ -319,17 +319,11 @@ func (p *Parser) parseListLiteral(leftParen token.Token, firstExpr ast.Expr) (as
 		}
 
 		// Enforce type consistency
-		if (firstLiteral.IsBool() && !literalValue.IsBool()) ||
-			(firstLiteral.IsNumber() && !literalValue.IsNumber()) ||
-			(firstLiteral.IsString() && !literalValue.IsString()) {
-			firstLiteralKind := firstLiteral.Token.Kind.Name()
-			if firstLiteral.IsBool() {
-				firstLiteralKind = "boolean"
-			}
+		if !firstLiteral.IsSameKind(literalValue) {
 			return nil, &ParseError{
 				Message: fmt.Sprintf(
 					"Type mismatch in array: all elements must be of type %s, but found %s",
-					firstLiteralKind,
+					firstLiteral.Token.Kind.Name(),
 					literalValue.Token.Kind.Name(),
 				),
 				Token: literalValue.Token,
