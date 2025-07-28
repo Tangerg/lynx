@@ -13,7 +13,15 @@ type SearchRequest struct {
 	query               string
 	topK                int
 	similarityThreshold float64
-	expr                ast.ComputedExpr
+	filter              ast.Expr
+}
+
+func NewSearchRequest(query string) *SearchRequest {
+	return &SearchRequest{
+		query:               query,
+		topK:                DefaultTopK,
+		similarityThreshold: SimilarityThresholdAcceptAll,
+	}
 }
 
 func (s *SearchRequest) Query() string {
@@ -28,6 +36,6 @@ func (s *SearchRequest) SimilarityThreshold() float64 {
 	return s.similarityThreshold
 }
 
-func (s *SearchRequest) Expr() ast.ComputedExpr {
-	return s.expr
+func (s *SearchRequest) Filter() ast.Expr {
+	return s.filter
 }

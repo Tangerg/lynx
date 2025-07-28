@@ -2,7 +2,6 @@ package filter
 
 import (
 	"fmt"
-
 	"github.com/Tangerg/lynx/ai/vectorstore/filter/ast"
 	"github.com/Tangerg/lynx/ai/vectorstore/filter/token"
 )
@@ -439,4 +438,13 @@ func (p *Parser) parseIndexExpr(leftExpr ast.Expr) (ast.Expr, error) {
 		Left:   leftExpr,
 		Index:  literalValue,
 	}, nil
+}
+
+func Parse(input string) (ast.Expr, error) {
+	parser, err := NewParser(input)
+	if err != nil {
+		return nil, err
+	}
+
+	return parser.Parse()
 }

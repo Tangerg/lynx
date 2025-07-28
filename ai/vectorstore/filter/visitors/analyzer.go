@@ -14,6 +14,10 @@ type Analyzer struct {
 	err error
 }
 
+func NewAnalyzer() *Analyzer {
+	return &Analyzer{}
+}
+
 // Error returns the last error encountered during analysis.
 func (a *Analyzer) Error() error {
 	return a.err

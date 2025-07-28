@@ -7,6 +7,10 @@ import (
 	"github.com/Tangerg/lynx/ai/commons/document/id"
 )
 
+const (
+	MetadataDistance = "distance"
+)
+
 // Document represents a unit of information that may contain text, media, metadata, and a relevance score.
 type Document struct {
 	id               string           // Unique identifier for the document
