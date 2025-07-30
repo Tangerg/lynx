@@ -100,27 +100,6 @@ func MapAsAny() StructuredConverter[any] {
 	return AsAny(NewMapConverter())
 }
 
-// JSONAsAny creates a StructuredConverter[any] that parses JSON data
-// and returns the result as any type. The underlying converter uses
-// NewJSONConverter[any](), which means it can parse any valid JSON
-// structure (objects, arrays, primitives) into the corresponding Go types.
-//
-// This is a convenience function equivalent to AsAny(NewJSONConverter[any]()).
-// The returned converter will parse JSON input into the appropriate Go type
-// (map[string]any for objects, []any for arrays, etc.) and return it as any.
-//
-// Returns:
-//   - A StructuredConverter[any] configured for parsing any JSON structure
-//
-// Example:
-//
-//	converter := JSONAsAny()
-//	result, err := converter.Convert(`{"users":[{"name":"John"},{"name":"Jane"}]}`)
-//	// result is map[string]any with nested structures as any
-func JSONAsAny() StructuredConverter[any] {
-	return AsAny(NewJSONConverter[any]())
-}
-
 // JSONAsAnyOf creates a StructuredConverter[any] that parses JSON data
 // into a specific type T and then returns it as any. This function provides
 // type-safe JSON parsing while maintaining compatibility with the any interface.
