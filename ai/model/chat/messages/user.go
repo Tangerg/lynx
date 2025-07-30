@@ -53,14 +53,13 @@ type UserMessageParam struct {
 func NewUserMessage[T string | []*content.Media | UserMessageParam](param T) *UserMessage {
 	var p UserMessageParam
 
-	input := any(param)
-	switch input.(type) {
+	switch typedParam := any(param).(type) {
 	case string:
-		p.Text = input.(string)
+		p.Text = typedParam
 	case []*content.Media:
-		p.Media = input.([]*content.Media)
+		p.Media = typedParam
 	case UserMessageParam:
-		p = input.(UserMessageParam)
+		p = typedParam
 	}
 
 	if p.Media == nil {

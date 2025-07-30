@@ -81,18 +81,17 @@ type AssistantMessageParam struct {
 func NewAssistantMessage[T string | []*content.Media | []*ToolCall | map[string]any | AssistantMessageParam](param T) *AssistantMessage {
 	var p AssistantMessageParam
 
-	input := any(param)
-	switch input.(type) {
+	switch typedParam := any(param).(type) {
 	case string:
-		p.Text = input.(string)
+		p.Text = typedParam
 	case []*content.Media:
-		p.Media = input.([]*content.Media)
+		p.Media = typedParam
 	case []*ToolCall:
-		p.ToolCalls = input.([]*ToolCall)
+		p.ToolCalls = typedParam
 	case map[string]any:
-		p.Metadata = input.(map[string]any)
+		p.Metadata = typedParam
 	case AssistantMessageParam:
-		p = input.(AssistantMessageParam)
+		p = typedParam
 	}
 
 	if p.Media == nil {

@@ -150,33 +150,6 @@ func FilterNonNil(messages []Message) []Message {
 	})
 }
 
-// FilterStandardTypes filters messages to include only standard concrete message types.
-// A message is considered standard if it's one of the built-in concrete types:
-// AssistantMessage, SystemMessage, UserMessage, or ToolResponseMessage.
-//
-// Parameters:
-//   - messages: The slice of messages to filter
-//
-// Returns:
-//   - []Message: New slice containing only standard message types
-//
-// Note: Nil messages and custom implementations are automatically excluded.
-// This function is useful for ensuring type safety when working with
-// message slices that might contain unexpected implementations of the Message interface.
-func FilterStandardTypes(messages []Message) []Message {
-	return Filter(messages, func(item Message) bool {
-		if item == nil {
-			return false
-		}
-		switch item.(type) {
-		case *AssistantMessage, *SystemMessage, *UserMessage, *ToolResponseMessage:
-			return true
-		default:
-			return false
-		}
-	})
-}
-
 // MergeSystemMessages combines multiple SystemMessage instances into a single SystemMessage.
 // Text content is concatenated with double newlines as separators.
 // Metadata from all messages is merged, with later messages overwriting earlier ones for duplicate keys.
@@ -193,19 +166,17 @@ func MergeSystemMessages(messages []Message) *SystemMessage {
 		return nil
 	}
 	if len(messages) == 1 {
-		systemMessage, ok := messages[0].(*SystemMessage)
-		if ok {
-			return systemMessage
-		}
+		return messages[0].(*SystemMessage)
 	}
 
 	sb := strings.Builder{}
 	metadata := make(map[string]any)
 
 	for _, msg := range messages {
-		sb.WriteString(msg.Text())
+		systemMessage := msg.(*SystemMessage)
+		sb.WriteString(systemMessage.text)
 		sb.WriteString("\n\n")
-		maps.Copy(metadata, msg.Metadata())
+		maps.Copy(metadata, systemMessage.metadata)
 	}
 
 	return NewSystemMessage(
@@ -231,10 +202,7 @@ func MergeUserMessages(messages []Message) *UserMessage {
 		return nil
 	}
 	if len(messages) == 1 {
-		userMessage, ok := messages[0].(*UserMessage)
-		if ok {
-			return userMessage
-		}
+		return messages[0].(*UserMessage)
 	}
 
 	sb := strings.Builder{}
@@ -242,13 +210,11 @@ func MergeUserMessages(messages []Message) *UserMessage {
 	media := make([]*content.Media, 0)
 
 	for _, msg := range messages {
-		sb.WriteString(msg.Text())
+		userMessage := msg.(*UserMessage)
+		sb.WriteString(userMessage.text)
 		sb.WriteString("\n\n")
-		maps.Copy(metadata, msg.Metadata())
-		userMessage, ok := msg.(*UserMessage)
-		if ok {
-			media = append(media, userMessage.Media()...)
-		}
+		maps.Copy(metadata, userMessage.metadata)
+		media = append(media, userMessage.media...)
 	}
 
 	return NewUserMessage(UserMessageParam{
@@ -276,21 +242,16 @@ func MergeToolResponseMessages(messages []Message) (*ToolResponseMessage, error)
 		return nil, nil
 	}
 	if len(messages) == 1 {
-		toolResponseMessage, ok := messages[0].(*ToolResponseMessage)
-		if ok {
-			return toolResponseMessage, nil
-		}
+		return messages[0].(*ToolResponseMessage), nil
 	}
 
 	metadata := make(map[string]any)
 	responses := make([]*ToolResponse, 0)
 
 	for _, msg := range messages {
-		maps.Copy(metadata, msg.Metadata())
-		toolResponseMessage, ok := msg.(*ToolResponseMessage)
-		if ok {
-			responses = append(responses, toolResponseMessage.ToolResponses()...)
-		}
+		toolResponseMessage := msg.(*ToolResponseMessage)
+		maps.Copy(metadata, toolResponseMessage.metadata)
+		responses = append(responses, toolResponseMessage.toolResponses...)
 	}
 
 	return NewToolResponseMessage(ToolResponseMessageParam{

@@ -6,6 +6,9 @@ import (
 	"github.com/Tangerg/lynx/ai/commons/content"
 )
 
+// Type represents the type of a message in a chat conversation.
+type Type string
+
 // Message types for chat applications.
 // These constants define the four types of messages that can be used
 // in a chat conversation with AI models.
@@ -26,9 +29,6 @@ const (
 	// or tool execution results in a chat application.
 	Tool Type = "tool"
 )
-
-// Type represents the type of a message in a chat conversation.
-type Type string
 
 // String returns the string representation of the message type.
 // It implements the fmt.Stringer interface.
@@ -57,8 +57,8 @@ func (t Type) IsTool() bool {
 }
 
 const (
-	// MessageType for metadata use
-	MessageType = "message_type"
+	// MessageTypeMetadataKey for metadata use
+	MessageTypeMetadataKey = "message_type"
 )
 
 // Message represents a message that can be sent or received in a chat application.
@@ -67,6 +67,7 @@ type Message interface {
 	content.Content
 	// Type returns the message type.
 	Type() Type
+	message()
 }
 
 var _ Message = (*message)(nil)
@@ -79,20 +80,16 @@ type message struct {
 	metadata map[string]any // Additional metadata for the message
 }
 
-// Text returns the text content of the message.
+func (m *message) message() {}
+
 func (m *message) Text() string {
 	return m.text
 }
 
-// Metadata returns the metadata of the message.
 func (m *message) Metadata() map[string]any {
-	if m.metadata == nil {
-		m.metadata = make(map[string]any)
-	}
 	return m.metadata
 }
 
-// Type returns the message type of the message.
 func (m *message) Type() Type {
 	return m._type
 }
@@ -108,7 +105,7 @@ func (m *message) Type() Type {
 // Returns:
 //   - message: Base message with content and type metadata
 //
-// The function automatically adds MessageType to metadata and defensively copies
+// The function automatically adds MessageTypeMetadataKey to metadata and defensively copies
 // the metadata map to prevent external modifications.
 func newMessage(typ Type, text string, metadata map[string]any) message {
 	var md map[string]any
@@ -117,7 +114,7 @@ func newMessage(typ Type, text string, metadata map[string]any) message {
 	} else {
 		md = make(map[string]any)
 	}
-	md[MessageType] = typ.String()
+	md[MessageTypeMetadataKey] = typ.String()
 	return message{
 		_type:    typ,
 		text:     text,

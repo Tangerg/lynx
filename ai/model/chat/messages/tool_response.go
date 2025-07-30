@@ -62,12 +62,11 @@ type ToolResponseMessageParam struct {
 func NewToolResponseMessage[T []*ToolResponse | ToolResponseMessageParam](param T) (*ToolResponseMessage, error) {
 	var p ToolResponseMessageParam
 
-	input := any(param)
-	switch input.(type) {
+	switch typedParam := any(param).(type) {
 	case []*ToolResponse:
-		p.ToolResponses = input.([]*ToolResponse)
+		p.ToolResponses = typedParam
 	case ToolResponseMessageParam:
-		p = input.(ToolResponseMessageParam)
+		p = typedParam
 	}
 	if len(p.ToolResponses) == 0 {
 		return nil, errors.New("tool response message must contain at least one tool response")

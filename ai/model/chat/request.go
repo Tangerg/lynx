@@ -22,7 +22,7 @@ func NewRequest(msgs []messages.Message, options ...Options) (*Request, error) {
 	}
 
 	return &request[Options]{
-		messages: messages.FilterStandardTypes(msgs),
+		messages: messages.FilterNonNil(msgs),
 		options:  pkgSlices.FirstOr(options, nil),
 	}, nil
 }

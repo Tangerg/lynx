@@ -243,7 +243,7 @@ func (r *requestHelper) makeToolMessages(msg *messages.ToolResponseMessage) []op
 	return msgs
 }
 
-// makeMessage All assertions cannot panic because the parameters have already been determined during construction by [chat.NewRequest] and [messages.FilterStandardTypes]
+// makeMessage All assertions cannot panic because the parameters have already been determined during construction by [chat.NewRequest]
 func (r *requestHelper) makeMessage(msg messages.Message) openai.ChatCompletionMessageParamUnion {
 	if msg.Type().IsSystem() {
 		return r.makeSystemMessage(msg.(*messages.SystemMessage))

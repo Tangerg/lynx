@@ -33,12 +33,11 @@ type SystemMessageParam struct {
 func NewSystemMessage[T string | SystemMessageParam](param T) *SystemMessage {
 	var p SystemMessageParam
 
-	input := any(param)
-	switch input.(type) {
+	switch typedParam := any(param).(type) {
 	case string:
-		p.Text = input.(string)
+		p.Text = typedParam
 	case SystemMessageParam:
-		p = input.(SystemMessageParam)
+		p = typedParam
 	}
 
 	return &SystemMessage{
