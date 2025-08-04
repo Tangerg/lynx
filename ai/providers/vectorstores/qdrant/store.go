@@ -2,11 +2,13 @@ package qdrant
 
 import (
 	"context"
+
+	"github.com/qdrant/go-client/qdrant"
+
 	"github.com/Tangerg/lynx/ai/commons/document"
 	"github.com/Tangerg/lynx/ai/vectorstore"
 	"github.com/Tangerg/lynx/ai/vectorstore/filter"
 	"github.com/Tangerg/lynx/ai/vectorstore/filter/ast"
-	"github.com/qdrant/go-client/qdrant"
 )
 
 var _ vectorstore.Store = (*Store)(nil)

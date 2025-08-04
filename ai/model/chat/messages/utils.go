@@ -31,7 +31,7 @@ func ContainsType(messages []Message, typ Type) bool {
 	})
 }
 
-// IsLastOfType checks whether the last message in a slice has the specified type.
+// HasTypeAtLast checks whether the last message in a slice has the specified type.
 //
 // Parameters:
 //   - messages: The slice of messages to check
@@ -41,11 +41,11 @@ func ContainsType(messages []Message, typ Type) bool {
 //   - bool: True if the last message has the specified type, false otherwise
 //
 // Note: Returns false for empty slices or when the last message is nil.
-func IsLastOfType(messages []Message, typ Type) bool {
-	return IsIndexOfType(messages, -1, typ)
+func HasTypeAtLast(messages []Message, typ Type) bool {
+	return HasTypeAt(messages, -1, typ)
 }
 
-// IsFirstOfType checks whether the first message in a slice has the specified type.
+// HasTypeAtFirst checks whether the first message in a slice has the specified type.
 //
 // Parameters:
 //   - messages: The slice of messages to check
@@ -55,11 +55,11 @@ func IsLastOfType(messages []Message, typ Type) bool {
 //   - bool: True if the first message has the specified type, false otherwise
 //
 // Note: Returns false for empty slices or when the first message is nil.
-func IsFirstOfType(messages []Message, typ Type) bool {
-	return IsIndexOfType(messages, 0, typ)
+func HasTypeAtFirst(messages []Message, typ Type) bool {
+	return HasTypeAt(messages, 0, typ)
 }
 
-// IsIndexOfType checks whether the message at a specific index has the specified type.
+// HasTypeAt checks whether the message at a specific index has the specified type.
 // Supports both positive and negative indexing (-1 for last element).
 //
 // Parameters:
@@ -71,7 +71,7 @@ func IsFirstOfType(messages []Message, typ Type) bool {
 //   - bool: True if the message at the specified index has the expected type, false otherwise
 //
 // Note: Returns false for out-of-bounds indices or nil messages.
-func IsIndexOfType(messages []Message, index int, typ Type) bool {
+func HasTypeAt(messages []Message, index int, typ Type) bool {
 	msg, ok := pkgSlices.At(messages, index)
 	if !ok {
 		return false
@@ -93,7 +93,7 @@ func IsIndexOfType(messages []Message, index int, typ Type) bool {
 // Panics if the predicate function is nil.
 func Filter(messages []Message, predicate func(item Message) bool) []Message {
 	if predicate == nil {
-		panic("FilterBy: predicate is nil")
+		panic("Filter: predicate is nil")
 	}
 
 	if len(messages) == 0 {
@@ -135,7 +135,7 @@ func FilterByTypes(messages []Message, types ...Type) []Message {
 	})
 }
 
-// FilterNonNil removes all nil messages from the slice.
+// ExcludeNil removes all nil messages from the slice.
 //
 // Parameters:
 //   - messages: The slice of messages to filter
@@ -144,7 +144,7 @@ func FilterByTypes(messages []Message, types ...Type) []Message {
 //   - []Message: New slice with all nil messages removed
 //
 // Note: This is useful for cleaning up message slices that may contain nil values.
-func FilterNonNil(messages []Message) []Message {
+func ExcludeNil(messages []Message) []Message {
 	return Filter(messages, func(item Message) bool {
 		return item != nil
 	})
@@ -343,7 +343,7 @@ func (a *adjacentSameTypeMerger) compressCurrentGroup(end int) {
 //	Input:  [UserMsg, UserMsg, SystemMsg, UserMsg, ToolMsg, ToolMsg]
 //	Output: [MergedUserMsg, SystemMsg, UserMsg, MergedToolMsg]
 func MergeAdjacentSameTypeMessages(messages []Message) []Message {
-	validMessages := FilterNonNil(messages)
+	validMessages := ExcludeNil(messages)
 	if len(validMessages) <= 1 {
 		return validMessages
 	}
@@ -354,4 +354,82 @@ func MergeAdjacentSameTypeMessages(messages []Message) []Message {
 	}
 
 	return merger.merge()
+}
+
+// FirstIndexOfType finds the first occurrence of a message with the specified type.
+//
+// Parameters:
+//   - messages: The slice of messages to search
+//   - typ: The message type to search for
+//
+// Returns:
+//   - int: The index of the first message with the specified type, or -1 if not found
+//   - Message: The message at that index, or nil if not found
+//
+// Note: Automatically skips nil messages during the search.
+func FirstIndexOfType(messages []Message, typ Type) (int, Message) {
+	for i := 0; i < len(messages); i++ {
+		msg := messages[i]
+		if msg != nil && msg.Type() == typ {
+			return i, msg
+		}
+	}
+	return -1, nil
+}
+
+// LastIndexOfType finds the last occurrence of a message with the specified type.
+//
+// Parameters:
+//   - messages: The slice of messages to search
+//   - typ: The message type to search for
+//
+// Returns:
+//   - int: The index of the last message with the specified type, or -1 if not found
+//   - Message: The message at that index, or nil if not found
+//
+// Note: Automatically skips nil messages during the search.
+func LastIndexOfType(messages []Message, typ Type) (int, Message) {
+	for i := len(messages) - 1; i >= 0; i-- {
+		msg := messages[i]
+		if msg != nil && msg.Type() == typ {
+			return i, msg
+		}
+	}
+	return -1, nil
+}
+
+// AugmentLastMessageOfType finds the last message of the specified type and applies
+// the transformation function to it. If the transformation returns nil, the original
+// message remains unchanged.
+func AugmentLastMessageOfType(messages []Message, msgType Type, transformFn func(message Message) Message) {
+	if transformFn == nil {
+		return
+	}
+
+	lastIndex, lastMsg := LastIndexOfType(messages, msgType)
+	if lastIndex == -1 {
+		return
+	}
+
+	transformedMsg := transformFn(lastMsg)
+	if transformedMsg != nil {
+		messages[lastIndex] = transformedMsg
+	}
+}
+
+// AugmentTextLastMessageOfType appends additional text to the last message of the
+// specified type. Only supports UserMessage and SystemMessage types.
+func AugmentTextLastMessageOfType(messages []Message, msgType Type, additionalText string) {
+	AugmentLastMessageOfType(messages, msgType, func(currentMsg Message) Message {
+		switch typedMsg := currentMsg.(type) {
+		case *UserMessage:
+			typedMsg.text = typedMsg.text + "\n\n" + additionalText
+			return typedMsg
+		case *SystemMessage:
+			typedMsg.text = typedMsg.text + "\n\n" + additionalText
+			return typedMsg
+		default:
+			return typedMsg
+		}
+	})
 }

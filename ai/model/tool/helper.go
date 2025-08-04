@@ -72,7 +72,7 @@ func (m *Helper) RegisterTools(tools ...Tool) {
 // Note: If any tool is missing from the registry, returns false for safety.
 func (m *Helper) ShouldReturnDirect(msgs []messages.Message) bool {
 	// Check if the last message is a tool response
-	if !messages.IsLastOfType(msgs, messages.Tool) {
+	if !messages.HasTypeAtLast(msgs, messages.Tool) {
 		return false
 	}
 

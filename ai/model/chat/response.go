@@ -42,28 +42,21 @@ type ResponseMetadata struct {
 	Usage     *Usage         // Token consumption details
 	RateLimit *RateLimit     // API rate limiting information
 	Created   int64          // The Unix timestamp (in seconds) of when the Response was created.
-	extra     map[string]any // Additional provider-specific metadata
+	Extra     map[string]any // Provider-specific metadata for non-standard attributes that may become standard fields in the future
 }
 
 // ensureExtra initializes the extra metadata map if not already present.
 func (r *ResponseMetadata) ensureExtra() {
-	if r.extra == nil {
-		r.extra = make(map[string]any)
+	if r.Extra == nil {
+		r.Extra = make(map[string]any)
 	}
-}
-
-// Extra returns all additional metadata from the LLM provider.
-// Useful for accessing provider-specific response information.
-func (r *ResponseMetadata) Extra() map[string]any {
-	r.ensureExtra()
-	return r.extra
 }
 
 // Get retrieves a specific metadata value by key.
 // Returns the value and a boolean indicating if the key exists.
 func (r *ResponseMetadata) Get(key string) (any, bool) {
 	r.ensureExtra()
-	v, ok := r.extra[key]
+	v, ok := r.Extra[key]
 	return v, ok
 }
 
@@ -71,7 +64,7 @@ func (r *ResponseMetadata) Get(key string) (any, bool) {
 // Allows extending metadata with provider-specific information.
 func (r *ResponseMetadata) Set(key string, value any) {
 	r.ensureExtra()
-	r.extra[key] = value
+	r.Extra[key] = value
 }
 
 var _ model.Response[*Result, *ResponseMetadata] = (*Response)(nil)
