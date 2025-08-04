@@ -82,33 +82,27 @@ var _ model.ResultMetadata = (*ResultMetadata)(nil)
 // Includes completion status and extensible provider-specific information.
 type ResultMetadata struct {
 	FinishReason FinishReason   // Why the LLM stopped generating
-	extra        map[string]any // Additional provider-specific metadata
+	Extra        map[string]any // Additional provider-specific metadata
 }
 
 // ensureExtra initializes the extra metadata map if not present.
 func (r *ResultMetadata) ensureExtra() {
-	if r.extra == nil {
-		r.extra = make(map[string]any)
+	if r.Extra == nil {
+		r.Extra = make(map[string]any)
 	}
-}
-
-// Extra returns all additional metadata from the LLM provider.
-func (r *ResultMetadata) Extra() map[string]any {
-	r.ensureExtra()
-	return r.extra
 }
 
 // Get retrieves a specific metadata value by key.
 func (r *ResultMetadata) Get(key string) (any, bool) {
 	r.ensureExtra()
-	v, ok := r.extra[key]
+	v, ok := r.Extra[key]
 	return v, ok
 }
 
 // Set stores additional LLM provider-specific metadata.
 func (r *ResultMetadata) Set(key string, value any) {
 	r.ensureExtra()
-	r.extra[key] = value
+	r.Extra[key] = value
 }
 
 var _ model.Result[*messages.AssistantMessage, *ResultMetadata] = (*Result)(nil)
