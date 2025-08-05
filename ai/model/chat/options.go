@@ -1,7 +1,7 @@
 package chat
 
 import (
-	"github.com/Tangerg/lynx/ai/model/model"
+	"github.com/Tangerg/lynx/ai/model"
 )
 
 // Options defines the configuration parameters for AI LLM chat models.

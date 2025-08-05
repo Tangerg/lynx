@@ -3,17 +3,15 @@ package openai
 import (
 	"context"
 	"errors"
+	"iter"
 	"maps"
 
 	"github.com/openai/openai-go"
 	"github.com/openai/openai-go/option"
 
+	"github.com/Tangerg/lynx/ai/model"
 	"github.com/Tangerg/lynx/ai/model/chat"
-	"github.com/Tangerg/lynx/ai/model/model"
-	"github.com/Tangerg/lynx/ai/model/tool"
-	"github.com/Tangerg/lynx/pkg/result"
-	"github.com/Tangerg/lynx/pkg/safe"
-	"github.com/Tangerg/lynx/pkg/stream"
+	"github.com/Tangerg/lynx/ai/model/chat/tool"
 )
 
 var _ chat.Model = (*ChatModel)(nil)
@@ -29,156 +27,29 @@ func NewChatModel(apiKey model.ApiKey, defaultOptions *ChatOptions, opts ...opti
 		return nil, errors.New("defaultOptions is required")
 	}
 
-	api, err := NewApi(apiKey, opts...)
+	apiClient, err := NewApi(apiKey, opts...)
 	if err != nil {
 		return nil, err
 	}
 
 	return &ChatModel{
 		chatHelper:     newChatHelper(defaultOptions),
-		api:            api,
+		api:            apiClient,
 		defaultOptions: defaultOptions,
 	}, nil
 }
 
-func (c *ChatModel) call(ctx context.Context, req *chat.Request, helper *tool.Helper) (*chat.Response, error) {
-	apiReq, err := c.makeApiChatCompletionRequest(req)
-	if err != nil {
-		return nil, err
-	}
-
-	apiResp, err := c.api.ChatCompletion(ctx, apiReq)
-	if err != nil {
-		return nil, err
-	}
-
-	resp, err := c.makeChatResponse(apiReq, apiResp)
-	if err != nil {
-		return nil, err
-	}
-
-	shouldInvoke, err := helper.ShouldInvokeToolCalls(resp)
-	if err != nil {
-		return nil, err
-	}
-	if !shouldInvoke {
-		return resp, nil
-	}
-
-	invokeResult, err := helper.InvokeToolCalls(ctx, req, resp)
-	if err != nil {
-		return nil, err
-	}
-
-	if invokeResult.ShouldMakeChatResponse() {
-		return invokeResult.MakeChatResponse()
-	}
-
-	nextReq, err := invokeResult.MakeChatRequest()
-	if err != nil {
-		return nil, err
-	}
-
-	return c.call(ctx, nextReq, helper)
-}
-
-func (c *ChatModel) stream(ctx context.Context, req *chat.Request, helper *tool.Helper, writer stream.Writer[result.Result[*chat.Response]]) {
-	apiReq, err := c.makeApiChatCompletionRequest(req)
-	if err != nil {
-		_ = writer.Write(ctx, result.Error[*chat.Response](err))
-		return
-	}
-
-	apiStreamResp, err := c.api.ChatCompletionStream(ctx, apiReq)
-	if err != nil {
-		_ = writer.Write(ctx, result.Error[*chat.Response](err))
-		return
-	}
-	defer apiStreamResp.Close()
-
-	var (
-		fullAcc = openai.ChatCompletionAccumulator{}
-		resp    *chat.Response
-	)
-
-	for apiStreamResp.Next() {
-		chunk := apiStreamResp.Current()
-		onceAcc := openai.ChatCompletionAccumulator{}
-		onceAcc.AddChunk(chunk)
-
-		resp, err = c.makeChatResponse(apiReq, &onceAcc.ChatCompletion)
-		if err != nil {
-			_ = writer.Write(ctx, result.Error[*chat.Response](err))
-			return
-		}
-
-		err = writer.Write(ctx, result.Value(resp))
-		if err != nil {
-			return
-		}
-
-		fullAcc.AddChunk(chunk)
-	}
-
-	err = apiStreamResp.Err()
-	if err != nil {
-		_ = writer.Write(ctx, result.Error[*chat.Response](err))
-		return
-	}
-
-	resp, err = c.makeChatResponse(apiReq, &fullAcc.ChatCompletion)
-	if err != nil {
-		_ = writer.Write(ctx, result.Error[*chat.Response](err))
-		return
-	}
-
-	shouldInvoke, err := helper.ShouldInvokeToolCalls(resp)
-	if err != nil {
-		_ = writer.Write(ctx, result.Error[*chat.Response](err))
-		return
-	}
-	if !shouldInvoke {
-		return
-	}
-
-	invokeResult, err := helper.InvokeToolCalls(ctx, req, resp)
-	if err != nil {
-		_ = writer.Write(ctx, result.Error[*chat.Response](err))
-		return
-	}
-
-	if invokeResult.ShouldMakeChatResponse() {
-		resp, err = invokeResult.MakeChatResponse()
-		if err != nil {
-			_ = writer.Write(ctx, result.Error[*chat.Response](err))
-		} else {
-			_ = writer.Write(ctx, result.Value(resp))
-		}
-		return
-	}
-
-	nextReq, err := invokeResult.MakeChatRequest()
-	if err != nil {
-		_ = writer.Write(ctx, result.Error[*chat.Response](err))
-		return
-	}
-
-	_ = apiStreamResp.Close()
-	c.stream(ctx, nextReq, helper, writer)
-}
-
-// beforeChat make tool.Helper and inject tool params
-func (c *ChatModel) beforeChat(req *chat.Request) *tool.Helper {
+// buildToolHelper make tool.Helper and inject tool params
+func (c *ChatModel) buildToolHelper(chatRequest *chat.Request) *tool.Helper {
 	toolHelper := tool.NewHelper()
-
 	toolHelper.RegisterTools(c.defaultOptions.tools...)
 
-	options := req.Options()
-	if options == nil {
+	requestOptions := chatRequest.Options()
+	if requestOptions == nil {
 		return toolHelper
 	}
 
-	toolOptions, ok := options.(tool.Options)
+	toolOptions, ok := requestOptions.(tool.Options)
 	if !ok {
 		return toolHelper
 	}
@@ -186,47 +57,157 @@ func (c *ChatModel) beforeChat(req *chat.Request) *tool.Helper {
 	// use custom tools to override default tools
 	toolHelper.RegisterTools(toolOptions.Tools()...)
 
-	toolParams := make(map[string]any)
-	maps.Copy(toolParams, c.defaultOptions.toolParams)
+	// merge tool parameters
+	mergedToolParams := make(map[string]any)
+	maps.Copy(mergedToolParams, c.defaultOptions.toolParams)
 	// use custom tool parameters to override default tool parameters
-	maps.Copy(toolParams, toolOptions.ToolParams())
+	maps.Copy(mergedToolParams, toolOptions.ToolParams())
 
-	toolOptions.SetToolParams(toolParams)
+	toolOptions.SetToolParams(mergedToolParams)
 
 	return toolHelper
 }
 
-func (c *ChatModel) Call(ctx context.Context, req *chat.Request) (*chat.Response, error) {
-	toolHelper := c.beforeChat(req)
-
-	if toolHelper.ShouldReturnDirect(req.Instructions()) {
-		return toolHelper.MakeReturnDirectChatResponse(req.Instructions())
+func (c *ChatModel) call(ctx context.Context, chatRequest *chat.Request, toolHelper *tool.Helper) (*chat.Response, error) {
+	apiRequest, err := c.makeApiChatCompletionRequest(chatRequest)
+	if err != nil {
+		return nil, err
 	}
 
-	return c.call(ctx, req, toolHelper)
+	apiResponse, err := c.api.ChatCompletion(ctx, apiRequest)
+	if err != nil {
+		return nil, err
+	}
+
+	chatResponse, err := c.makeChatResponse(apiRequest, apiResponse)
+	if err != nil {
+		return nil, err
+	}
+
+	shouldInvokeTools, err := toolHelper.ShouldInvokeToolCalls(chatResponse)
+	if err != nil {
+		return nil, err
+	}
+	if !shouldInvokeTools {
+		return chatResponse, nil
+	}
+
+	toolInvokeResult, err := toolHelper.InvokeToolCalls(ctx, chatRequest, chatResponse)
+	if err != nil {
+		return nil, err
+	}
+
+	if toolInvokeResult.ShouldMakeChatResponse() {
+		return toolInvokeResult.MakeChatResponse()
+	}
+
+	nextChatRequest, err := toolInvokeResult.MakeChatRequest()
+	if err != nil {
+		return nil, err
+	}
+
+	return c.call(ctx, nextChatRequest, toolHelper)
 }
 
-func (c *ChatModel) Stream(ctx context.Context, req *chat.Request) (stream.Reader[result.Result[*chat.Response]], error) {
-	// at least 1 to store mock chat response
-	streamer := stream.NewStream[result.Result[*chat.Response]](1)
-	toolHelper := c.beforeChat(req)
-
-	if toolHelper.ShouldReturnDirect(req.Instructions()) {
-		chatResponse, err := toolHelper.MakeReturnDirectChatResponse(req.Instructions())
-		if err != nil {
-			return nil, err
-		}
-
-		_ = streamer.Close()
-		return streamer, streamer.Write(ctx, result.Value(chatResponse))
+func (c *ChatModel) stream(ctx context.Context, chatRequest *chat.Request, toolHelper *tool.Helper, yield func(*chat.Response, error) bool) {
+	apiRequest, err := c.makeApiChatCompletionRequest(chatRequest)
+	if err != nil {
+		yield(nil, err)
+		return
 	}
 
-	safe.Go(func() {
-		defer streamer.Close()
-		c.stream(ctx, req, toolHelper, streamer)
-	})
+	apiStreamResponse, err := c.api.ChatCompletionStream(ctx, apiRequest)
+	if err != nil {
+		yield(nil, err)
+		return
+	}
+	defer apiStreamResponse.Close()
 
-	return streamer, nil
+	var (
+		fullAccumulator = openai.ChatCompletionAccumulator{}
+		chatResponse    *chat.Response
+	)
+
+	for apiStreamResponse.Next() {
+		chunk := apiStreamResponse.Current()
+		chunkAccumulator := openai.ChatCompletionAccumulator{}
+		chunkAccumulator.AddChunk(chunk)
+
+		chatResponse, err = c.makeChatResponse(apiRequest, &chunkAccumulator.ChatCompletion)
+		if err != nil {
+			yield(nil, err)
+			return
+		}
+
+		if !yield(chatResponse, nil) {
+			return
+		}
+
+		fullAccumulator.AddChunk(chunk)
+	}
+
+	if err = apiStreamResponse.Err(); err != nil {
+		yield(nil, err)
+		return
+	}
+
+	finalChatResponse, err := c.makeChatResponse(apiRequest, &fullAccumulator.ChatCompletion)
+	if err != nil {
+		yield(nil, err)
+		return
+	}
+
+	shouldInvokeTools, err := toolHelper.ShouldInvokeToolCalls(finalChatResponse)
+	if err != nil {
+		yield(nil, err)
+		return
+	}
+	if !shouldInvokeTools {
+		return
+	}
+
+	toolInvokeResult, err := toolHelper.InvokeToolCalls(ctx, chatRequest, finalChatResponse)
+	if err != nil {
+		yield(nil, err)
+		return
+	}
+
+	if toolInvokeResult.ShouldMakeChatResponse() {
+		yield(toolInvokeResult.MakeChatResponse())
+		return
+	}
+
+	nextChatRequest, err := toolInvokeResult.MakeChatRequest()
+	if err != nil {
+		yield(nil, err)
+		return
+	}
+
+	_ = apiStreamResponse.Close()
+	c.stream(ctx, nextChatRequest, toolHelper, yield)
+}
+
+func (c *ChatModel) Call(ctx context.Context, chatRequest *chat.Request) (*chat.Response, error) {
+	toolHelper := c.buildToolHelper(chatRequest)
+
+	if toolHelper.ShouldReturnDirect(chatRequest.Instructions()) {
+		return toolHelper.MakeReturnDirectChatResponse(chatRequest.Instructions())
+	}
+
+	return c.call(ctx, chatRequest, toolHelper)
+}
+
+func (c *ChatModel) Stream(ctx context.Context, chatRequest *chat.Request) iter.Seq2[*chat.Response, error] {
+	return func(yield func(*chat.Response, error) bool) {
+		toolHelper := c.buildToolHelper(chatRequest)
+
+		if toolHelper.ShouldReturnDirect(chatRequest.Instructions()) {
+			yield(toolHelper.MakeReturnDirectChatResponse(chatRequest.Instructions()))
+			return
+		}
+
+		c.stream(ctx, chatRequest, toolHelper, yield)
+	}
 }
 
 func (c *ChatModel) DefaultOptions() chat.Options {

@@ -67,7 +67,7 @@ type Message interface {
 	content.Content
 	// Type returns the message type.
 	Type() Type
-	message()
+	impl()
 }
 
 var _ Message = (*message)(nil)
@@ -80,7 +80,7 @@ type message struct {
 	metadata map[string]any // Additional metadata for the message
 }
 
-func (m *message) message() {}
+func (m *message) impl() {}
 
 func (m *message) Text() string {
 	return m.text

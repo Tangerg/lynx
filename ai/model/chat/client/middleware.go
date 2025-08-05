@@ -1,28 +1,30 @@
-package chat
+package client
 
 import (
 	"context"
 	"iter"
 	"slices"
 	"sync"
+
+	"github.com/Tangerg/lynx/ai/model/chat"
 )
 
 type CallHandler interface {
-	Call(ctx context.Context, req *Request) (*Response, error)
+	Call(ctx context.Context, req *chat.Request) (*chat.Response, error)
 }
-type CallHandlerFunc func(ctx context.Context, req *Request) (*Response, error)
+type CallHandlerFunc func(ctx context.Context, req *chat.Request) (*chat.Response, error)
 
-func (f CallHandlerFunc) Call(ctx context.Context, req *Request) (*Response, error) {
+func (f CallHandlerFunc) Call(ctx context.Context, req *chat.Request) (*chat.Response, error) {
 	return f(ctx, req)
 }
 
 type StreamHandler interface {
-	Stream(ctx context.Context, req *Request) iter.Seq2[*Response, error]
+	Stream(ctx context.Context, req *chat.Request) iter.Seq2[*chat.Response, error]
 }
 
-type StreamHandlerFunc func(ctx context.Context, req *Request) iter.Seq2[*Response, error]
+type StreamHandlerFunc func(ctx context.Context, req *chat.Request) iter.Seq2[*chat.Response, error]
 
-func (f StreamHandlerFunc) Stream(ctx context.Context, req *Request) iter.Seq2[*Response, error] {
+func (f StreamHandlerFunc) Stream(ctx context.Context, req *chat.Request) iter.Seq2[*chat.Response, error] {
 	return f(ctx, req)
 }
 

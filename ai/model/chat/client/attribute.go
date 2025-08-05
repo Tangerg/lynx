@@ -1,4 +1,4 @@
-package chat
+package client
 
 type Attribute string
 
@@ -7,5 +7,5 @@ func (attr Attribute) String() string {
 }
 
 const (
-	AttrChatOutputFormat Attribute = "lynx.ai.client.chat.output.format"
+	AttrOutputFormat Attribute = "lynx.ai.model.chat.client.output_format"
 )

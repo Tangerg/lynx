@@ -1,10 +1,11 @@
-package chat
+package client
 
 import (
+	"slices"
+
 	"github.com/Tangerg/lynx/ai/commons/content"
 	"github.com/Tangerg/lynx/ai/model/chat/messages"
 	"github.com/Tangerg/lynx/pkg/text"
-	"slices"
 )
 
 type PromptTemplate struct {
@@ -37,10 +38,6 @@ func (p *PromptTemplate) WithVariables(variables map[string]any) *PromptTemplate
 func (p *PromptTemplate) WithMedia(media ...*content.Media) *PromptTemplate {
 	p.media = append(p.media, media...)
 	return p
-}
-
-func (p *PromptTemplate) Media() []*content.Media {
-	return p.media
 }
 
 func (p *PromptTemplate) Clone() *PromptTemplate {

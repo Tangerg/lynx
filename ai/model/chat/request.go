@@ -2,9 +2,10 @@ package chat
 
 import (
 	"errors"
+	"sync"
 
+	"github.com/Tangerg/lynx/ai/model"
 	"github.com/Tangerg/lynx/ai/model/chat/messages"
-	"github.com/Tangerg/lynx/ai/model/model"
 	pkgSlices "github.com/Tangerg/lynx/pkg/slices"
 )
 
@@ -25,7 +26,7 @@ func NewRequest(msgs []messages.Message, options ...Options) (*Request, error) {
 	return &request[Options]{
 		messages: validMsgs,
 		options:  pkgSlices.FirstOr(options, nil),
-		fields:   make(map[string]any),
+		params:   make(map[string]any),
 	}, nil
 }
 
@@ -33,7 +34,8 @@ func NewRequest(msgs []messages.Message, options ...Options) (*Request, error) {
 type request[O Options] struct {
 	messages []messages.Message
 	options  O
-	fields   map[string]any
+	mu       sync.RWMutex
+	params   map[string]any //context params
 }
 
 // Instructions returns the conversation messages that will be sent to the LLM.
@@ -46,17 +48,36 @@ func (c *request[O]) Options() O {
 	return c.options
 }
 
-func (c *request[O]) Fields() map[string]any {
-	return c.fields
+func (c *request[O]) Params() map[string]any {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	return c.params
 }
 
 func (c *request[O]) Get(key string) (any, bool) {
-	val, ok := c.fields[key]
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	val, ok := c.params[key]
 	return val, ok
 }
 
 func (c *request[O]) Set(key string, val any) {
-	c.fields[key] = val
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.params[key] = val
+}
+
+func (c *request[O]) SetParams(params map[string]any) {
+	if params == nil {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.params = params
 }
 
 // AugmentLastUserMessageText appends additional context to the user's input before LLM processing.

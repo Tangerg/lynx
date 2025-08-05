@@ -8,7 +8,7 @@ import (
 	"github.com/openai/openai-go"
 	"github.com/openai/openai-go/option"
 
-	"github.com/Tangerg/lynx/ai/model/model"
+	"github.com/Tangerg/lynx/ai/model"
 )
 
 var (

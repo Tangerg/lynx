@@ -8,7 +8,7 @@ import (
 	"github.com/openai/openai-go/option"
 	"github.com/openai/openai-go/packages/ssestream"
 
-	"github.com/Tangerg/lynx/ai/model/model"
+	"github.com/Tangerg/lynx/ai/model"
 )
 
 type Api struct {

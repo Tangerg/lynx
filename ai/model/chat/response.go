@@ -4,7 +4,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/Tangerg/lynx/ai/model/model"
+	"github.com/Tangerg/lynx/ai/model"
 )
 
 // Usage tracks token consumption for LLM API requests.
@@ -42,7 +42,7 @@ type ResponseMetadata struct {
 	Usage     *Usage         // Token consumption details
 	RateLimit *RateLimit     // API rate limiting information
 	Created   int64          // The Unix timestamp (in seconds) of when the Response was created.
-	Extra     map[string]any // Provider-specific metadata for non-standard attributes that may become standard fields in the future
+	Extra     map[string]any // Provider-specific metadata for non-standard attributes that may become standard params in the future
 }
 
 // ensureExtra initializes the extra metadata map if not already present.

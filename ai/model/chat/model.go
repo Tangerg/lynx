@@ -1,7 +1,7 @@
 package chat
 
 import (
-	"github.com/Tangerg/lynx/ai/model/model"
+	"github.com/Tangerg/lynx/ai/model"
 )
 
 // Model defines the interface for LLM chat models supporting both synchronous and streaming interactions.

@@ -9,7 +9,7 @@ import (
 	"github.com/Tangerg/lynx/ai/commons/content"
 	"github.com/Tangerg/lynx/ai/model/chat"
 	"github.com/Tangerg/lynx/ai/model/chat/messages"
-	"github.com/Tangerg/lynx/ai/model/tool"
+	"github.com/Tangerg/lynx/ai/model/chat/tool"
 	"github.com/Tangerg/lynx/pkg/mime"
 )
 
