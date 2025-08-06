@@ -102,7 +102,7 @@ func (c *Config) WithMiddlewareManager(middlewareManager *MiddlewareManager) *Co
 }
 
 func (c *Config) WithParams(params map[string]any) *Config {
-	if params != nil {
+	if len(params) > 0 {
 		c.params = params
 	}
 	return c
@@ -116,7 +116,7 @@ func (c *Config) WithTools(tools ...tool.Tool) *Config {
 }
 
 func (c *Config) WithToolParams(toolParams map[string]any) *Config {
-	if toolParams != nil {
+	if len(toolParams) > 0 {
 		c.toolParams = toolParams
 	}
 	return c
@@ -147,8 +147,8 @@ func (c *Config) getChatOptions() chat.Options {
 		mergedChatOptions = c.chatModel.DefaultOptions().Clone()
 	}
 
-	toolOptions, isToolCapable := mergedChatOptions.(tool.Options)
-	if isToolCapable {
+	toolOptions, ok := mergedChatOptions.(tool.Options)
+	if ok {
 		toolOptions.AddTools(c.tools)
 		toolOptions.AddToolParams(c.toolParams)
 	}
