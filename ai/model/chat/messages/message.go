@@ -3,7 +3,7 @@ package messages
 import (
 	"maps"
 
-	"github.com/Tangerg/lynx/ai/commons/content"
+	"github.com/Tangerg/lynx/ai/content"
 )
 
 // Type represents the type of a message in a chat conversation.

@@ -3,7 +3,7 @@ package messages
 import (
 	"slices"
 
-	"github.com/Tangerg/lynx/ai/commons/content"
+	"github.com/Tangerg/lynx/ai/content"
 )
 
 // ToolCall represents a function call made by the AI assistant.

@@ -36,6 +36,12 @@ func (c *Client) ChatText(text string) *Config {
 	return c.ChatRequest(textChatRequest)
 }
 
+func (c *Client) ChatPromptTemplate(promptTemplate *PromptTemplate) *Config {
+	clonedConfig := c.defaultConfig.Clone()
+	clonedConfig.WithUserPromptTemplate(promptTemplate)
+	return clonedConfig
+}
+
 func (c *Client) ChatRequest(chatRequest *chat.Request) *Config {
 	clonedConfig := c.defaultConfig.Clone()
 

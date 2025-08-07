@@ -8,7 +8,7 @@ import (
 
 	pkgSlices "github.com/Tangerg/lynx/pkg/slices"
 
-	"github.com/Tangerg/lynx/ai/commons/content"
+	"github.com/Tangerg/lynx/ai/content"
 )
 
 // ContainsType checks whether a slice of messages contains at least one message of the specified type.

@@ -37,6 +37,28 @@ type MIME struct {
 	stringValue string                // Cached string representation for performance
 }
 
+func (m *MIME) MarshalJSON() ([]byte, error) {
+	if m == nil {
+		return nil, nil
+	}
+	return []byte(m.String()), nil
+}
+
+func (m *MIME) UnmarshalJSON(data []byte) error {
+	parsed, err := Parse(string(data))
+	if err != nil {
+		return err
+	}
+
+	m._type = parsed._type
+	m.subType = parsed.subType
+	m.charset = parsed.charset
+	m.params = parsed.params
+	m.stringValue = parsed.stringValue
+
+	return nil
+}
+
 // formatStringValue constructs and caches the full string representation of the MIME type
 // in the standard format "type/subtype; param1=value1; param2=value2".
 //

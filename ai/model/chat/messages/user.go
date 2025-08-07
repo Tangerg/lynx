@@ -1,7 +1,7 @@
 package messages
 
 import (
-	"github.com/Tangerg/lynx/ai/commons/content"
+	"github.com/Tangerg/lynx/ai/content"
 )
 
 var (
