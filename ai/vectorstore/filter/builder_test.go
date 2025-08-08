@@ -17,6 +17,10 @@ func TestNewBuilder(t *testing.T) {
 		Not(func(builder *ExprBuilder) {
 			builder.In("status", []string{"suspended"})
 		}).
+		EQ(Index("color", 1), "red").
+		NE(Index(Index("a", 1), "b"), "red").
+		EQ(Index("addr", "country"), "UK").
+		In(Index("info", "email"), []string{"tom@gmail.com"}).
 		Build()
 	if err != nil {
 		t.Fatal(err)

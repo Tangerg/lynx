@@ -51,6 +51,6 @@ func (p *Position) Reset() {
 // String returns a human-readable string representation of the position.
 // The format "L:C" is commonly used in error messages and debugging output.
 // This makes it easy to locate issues in the source code.
-func (p *Position) String() string {
+func (p Position) String() string {
 	return strconv.Itoa(p.Line) + ":" + strconv.Itoa(p.Column)
 }

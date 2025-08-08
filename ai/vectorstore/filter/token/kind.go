@@ -39,72 +39,67 @@ const (
 	LBRACK                // Left bracket: [
 	RBRACK                // Right bracket: ]
 	COMMA                 // Comma separator: ,
-
-	kindEnd // Boundary marker for validation - not a valid token
+	kindEnd               // Boundary marker for validation - not a valid token
 )
 
 // kindNames maps each Kind to its human-readable name for debugging and error reporting.
 // The array indices correspond to Kind enum values for O(1) lookup.
 var kindNames = [...]string{
-	kindBegin: "",
-	ERROR:     "ERROR",
-	EOF:       "EOF",
-	IDENT:     "IDENT",
-	NUMBER:    "NUMBER",
-	STRING:    "STRING",
-	TRUE:      "BOOL",
-	FALSE:     "BOOL",
-	EQ:        "EQ",
-	NE:        "NE",
-	LT:        "LT",
-	LE:        "LE",
-	GT:        "GT",
-	GE:        "GE",
-	AND:       "AND",
-	OR:        "OR",
-	NOT:       "NOT",
-	IN:        "IN",
-	LIKE:      "LIKE",
-	LPAREN:    "LPAREN",
-	RPAREN:    "RPAREN",
-	LBRACK:    "LBRACK",
-	RBRACK:    "RBRACK",
-	COMMA:     "COMMA",
-	kindEnd:   "",
+	ERROR:  "ERROR",
+	EOF:    "EOF",
+	IDENT:  "IDENT",
+	NUMBER: "NUMBER",
+	STRING: "STRING",
+	TRUE:   "BOOL",
+	FALSE:  "BOOL",
+	EQ:     "EQ",
+	NE:     "NE",
+	LT:     "LT",
+	LE:     "LE",
+	GT:     "GT",
+	GE:     "GE",
+	AND:    "AND",
+	OR:     "OR",
+	NOT:    "NOT",
+	IN:     "IN",
+	LIKE:   "LIKE",
+	LPAREN: "LPAREN",
+	RPAREN: "RPAREN",
+	LBRACK: "LBRACK",
+	RBRACK: "RBRACK",
+	COMMA:  "COMMA",
 }
 
 // kindLiterals maps each Kind to its literal string representation in source code.
 // Only tokens with fixed literal representations are included (operators, keywords, punctuation).
 var kindLiterals = [...]string{
-	kindBegin: "",
-	TRUE:      "true",
-	FALSE:     "false",
-	EQ:        "==",
-	NE:        "!=",
-	LT:        "<",
-	LE:        "<=",
-	GT:        ">",
-	GE:        ">=",
-	AND:       "and",
-	OR:        "or",
-	IN:        "in",
-	LIKE:      "like",
-	NOT:       "not",
-	LPAREN:    "(",
-	RPAREN:    ")",
-	LBRACK:    "[",
-	RBRACK:    "]",
-	COMMA:     ",",
-	kindEnd:   "",
+	TRUE:   "true",
+	FALSE:  "false",
+	EQ:     "==",
+	NE:     "!=",
+	LT:     "<",
+	LE:     "<=",
+	GT:     ">",
+	GE:     ">=",
+	AND:    "and",
+	OR:     "or",
+	IN:     "in",
+	LIKE:   "like",
+	NOT:    "not",
+	LPAREN: "(",
+	RPAREN: ")",
+	LBRACK: "[",
+	RBRACK: "]",
+	COMMA:  ",",
 }
 
 // keywordKinds defines which token types are reserved keywords in the language.
 // These identifiers cannot be used as variable names or field names.
 var keywordKinds = []Kind{
-	TRUE, FALSE, // Boolean literals
-	AND, OR, // Logical operators
-	IN, LIKE, // Special operators
-	NOT, // Unary operator
+	TRUE, FALSE,
+	AND, OR,
+	IN, LIKE,
+	NOT,
 }
 
 // keywordKindsMap provides O(1) lookup for keyword recognition during tokenization.

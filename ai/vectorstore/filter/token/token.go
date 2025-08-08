@@ -1,5 +1,3 @@
-// Package token provides lexical analysis utilities for parsing query expressions.
-// This file defines the Token structure and factory functions for creating various token types.
 package token
 
 import (

@@ -2,6 +2,7 @@ package filter
 
 import (
 	"fmt"
+
 	"github.com/Tangerg/lynx/ai/vectorstore/filter/ast"
 	"github.com/Tangerg/lynx/ai/vectorstore/filter/token"
 )
@@ -309,13 +310,7 @@ func (p *Parser) parseListLiteral(leftParen token.Token, firstExpr ast.Expr) (as
 			return nil, fmt.Errorf("failed to parse array element: %w", err)
 		}
 
-		literalValue, isLiteral := nextLiteral.(*ast.Literal)
-		if !isLiteral {
-			return nil, &ParseError{
-				Message: "Array elements must be literal values (numbers, strings, or booleans)",
-				Token:   p.currentToken,
-			}
-		}
+		literalValue, _ := nextLiteral.(*ast.Literal)
 
 		// Enforce type consistency
 		if !firstLiteral.IsSameKind(literalValue) {

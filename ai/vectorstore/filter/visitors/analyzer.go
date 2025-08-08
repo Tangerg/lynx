@@ -8,8 +8,8 @@ import (
 	"github.com/Tangerg/lynx/ai/vectorstore/filter/token"
 )
 
-// Analyzer performs semantic analysis on AST expressions to validate syntax correctness.
-// It implements the visitor pattern to traverse and analyze different expression types.
+// Analyzer performs semantic analysis on AST expressions using the visitor pattern.
+// It validates syntax correctness and maintains error state throughout analysis.
 type Analyzer struct {
 	err error
 }
@@ -23,46 +23,47 @@ func (a *Analyzer) Error() error {
 	return a.err
 }
 
-// Visit implements the Visitor interface by analyzing the given expression.
-// Returns nil to stop traversal after analysis is complete.
+// Visit implements the Visitor interface and analyzes the given expression.
+// Returns nil to stop traversal after analysis completion.
 func (a *Analyzer) Visit(expr ast.Expr) ast.Visitor {
 	a.err = a.analyze(expr)
 	return nil
 }
 
 // analyze dispatches analysis to specific methods based on expression type.
-// Returns error if expression is nil or unsupported.
 func (a *Analyzer) analyze(expr ast.Expr) error {
 	if expr == nil {
 		return errors.New("expression cannot be nil")
 	}
 
-	switch typedExpr := expr.(type) {
+	switch e := expr.(type) {
 	case *ast.Ident:
-		return a.analyzeIdent(typedExpr)
+		return a.analyzeIdent(e)
 	case *ast.Literal:
-		return a.analyzeLiteral(typedExpr)
+		return a.analyzeLiteral(e)
 	case *ast.ListLiteral:
-		return a.analyzeListLiteral(typedExpr)
+		return a.analyzeListLiteral(e)
 	case *ast.UnaryExpr:
-		return a.analyzeUnaryExpr(typedExpr)
+		return a.analyzeUnaryExpr(e)
 	case *ast.BinaryExpr:
-		return a.analyzeBinaryExpr(typedExpr)
+		return a.analyzeBinaryExpr(e)
 	case *ast.IndexExpr:
-		return a.analyzeIndexExpr(typedExpr)
+		return a.analyzeIndexExpr(e)
 	default:
-		return fmt.Errorf("unsupported expression type: %T", typedExpr)
+		return fmt.Errorf("unsupported expression type: %T at %s", e, expr.Start().String())
 	}
 }
 
 // analyzeIdent validates identifier tokens and ensures they are not reserved keywords.
-func (a *Analyzer) analyzeIdent(expr *ast.Ident) error {
-	if !expr.Token.Kind.Is(token.IDENT) {
-		return fmt.Errorf("identifier token must be IDENT type, but got %s", expr.Token.Kind.String())
+func (a *Analyzer) analyzeIdent(ident *ast.Ident) error {
+	if !ident.Token.Kind.Is(token.IDENT) {
+		return fmt.Errorf("expected identifier token, got: %s(%s) at %s",
+			ident.Token.Literal, ident.Token.Kind.Name(), ident.Start().String())
 	}
 
-	if token.IsKeyword(expr.Value) {
-		return fmt.Errorf("identifier '%s' cannot be a reserved keyword", expr.Value)
+	if token.IsKeyword(ident.Value) {
+		return fmt.Errorf("'%s(%s)' is a reserved keyword and cannot be used as identifier at %s",
+			ident.Token.Literal, ident.Token.Kind.Name(), ident.Start().String())
 	}
 
 	return nil
@@ -70,248 +71,251 @@ func (a *Analyzer) analyzeIdent(expr *ast.Ident) error {
 
 // analyzeLiteral validates literal expressions including strings, numbers, and booleans.
 // Ensures numeric and boolean literals can be properly parsed.
-func (a *Analyzer) analyzeLiteral(expr *ast.Literal) error {
-	if expr.IsString() {
+func (a *Analyzer) analyzeLiteral(lit *ast.Literal) error {
+	pos := lit.Start().String()
+
+	if lit.IsString() {
 		return nil
 	}
 
-	if expr.IsNumber() {
-		if _, err := expr.AsNumber(); err != nil {
-			return fmt.Errorf("invalid number literal: %w", err)
+	if lit.IsNumber() {
+		if _, err := lit.AsNumber(); err != nil {
+			return fmt.Errorf("invalid number literal at %s", pos)
 		}
 		return nil
 	}
 
-	if expr.IsBool() {
-		if _, err := expr.AsBool(); err != nil {
-			return fmt.Errorf("invalid bool literal: %w", err)
+	if lit.IsBool() {
+		if _, err := lit.AsBool(); err != nil {
+			return fmt.Errorf("invalid boolean literal at %s", pos)
 		}
 		return nil
 	}
 
-	return fmt.Errorf("unsupported literal type: %s", expr.Token.Kind.String())
+	return fmt.Errorf("unsupported literal type: %s(%s) at %s",
+		lit.Token.Literal, lit.Token.Kind.Name(), pos)
 }
 
 // analyzeListLiteral validates list literals ensuring non-empty lists with uniform element types.
-// Recursively analyzes each list element for correctness.
-func (a *Analyzer) analyzeListLiteral(expr *ast.ListLiteral) error {
-	if len(expr.Values) == 0 {
-		return errors.New("list literal cannot be empty")
+// Each list element is recursively analyzed for correctness.
+func (a *Analyzer) analyzeListLiteral(list *ast.ListLiteral) error {
+	pos := list.Start().String()
+
+	if len(list.Values) == 0 {
+		return fmt.Errorf("list literal cannot be empty at %s", pos)
 	}
 
-	firstLiteral := expr.Values[0]
-	firstType := firstLiteral.Token.Kind.Name()
+	firstElement := list.Values[0]
+	expectedType := firstElement.Token.Kind.Name()
 
-	for i, literal := range expr.Values {
-		if !firstLiteral.IsSameKind(literal) {
-			currentType := literal.Token.Kind.Name()
-			return fmt.Errorf("list element at index %d has type %s, but expected %s (all elements must have the same type)",
-				i, currentType, firstType)
+	for i, element := range list.Values {
+		if !firstElement.IsSameKind(element) {
+			actualType := element.Token.Kind.Name()
+			return fmt.Errorf("list element at index %d has type '%s', expected '%s' (all elements must have same type) at %s",
+				i, actualType, expectedType, element.Start().String())
 		}
 
-		err := a.analyze(literal)
-		if err != nil {
-			return fmt.Errorf("error in list element at index %d: %w", i, err)
+		if err := a.analyze(element); err != nil {
+			return err
 		}
 	}
 
 	return nil
 }
 
-// analyzeUnaryExpr validates unary expressions by analyzing the operator type and the right operand.
-func (a *Analyzer) analyzeUnaryExpr(expr *ast.UnaryExpr) error {
-	if !expr.Op.Kind.IsUnaryOperator() {
-		return fmt.Errorf("unsupported unary operator: %s", expr.Op.Kind.String())
+// analyzeUnaryExpr validates unary expressions by checking operator type and operand.
+func (a *Analyzer) analyzeUnaryExpr(unary *ast.UnaryExpr) error {
+	pos := unary.Start().String()
+
+	if !unary.Op.Kind.IsUnaryOperator() {
+		return fmt.Errorf("unsupported unary operator: %s(%s) at %s",
+			unary.Op.Literal, unary.Op.Kind.Name(), pos)
 	}
-	err := a.analyze(expr.Right)
-	if err != nil {
-		return fmt.Errorf("error in unary expression operand: %w", err)
-	}
-	return nil
+
+	return a.analyze(unary.Right)
 }
 
 // analyzeBinaryExpr validates binary expressions based on operator type.
-// Routes analysis to specific methods for logical, equality, ordering, IN, and LIKE operators.
-func (a *Analyzer) analyzeBinaryExpr(expr *ast.BinaryExpr) error {
-	opName := expr.Op.Kind.String()
+// Routes analysis to specific methods for different operator categories.
+func (a *Analyzer) analyzeBinaryExpr(binary *ast.BinaryExpr) error {
+	pos := binary.Start().String()
 
-	// Logical operators (AND, OR)
-	if expr.Op.Kind.IsLogicalOperator() {
-		return a.analyzeLogicalOperation(expr, opName)
+	// Handle logical operators (AND, OR)
+	if binary.Op.Kind.IsLogicalOperator() {
+		return a.analyzeLogicalOperation(binary)
 	}
 
-	// For other operators, left operand must be an identifier
-	if _, ok := expr.Left.(*ast.Ident); !ok {
-		return fmt.Errorf("%s operator requires an identifier on the left side, but got %T", opName, expr.Left)
+	// For non-logical operators, left operand must be identifier or index expression
+	switch binary.Left.(type) {
+	case *ast.Ident, *ast.IndexExpr:
+		// Valid left operand types
+	default:
+		return fmt.Errorf("operator '%s(%s)' requires identifier or index expression on left side, got: %T at %s",
+			binary.Op.Literal, binary.Op.Kind.Name(), binary.Left, pos)
 	}
 
-	// Equality operators (EQ, NE)
-	if expr.Op.Kind.IsEqualityOperator() {
-		return a.analyzeEqualityOperation(expr, opName)
+	// Handle equality operators (EQ, NE)
+	if binary.Op.Kind.IsEqualityOperator() {
+		return a.analyzeEqualityOperation(binary)
 	}
 
-	// Comparison operators (LT, LE, GT, GE)
-	if expr.Op.Kind.IsOrderingOperator() {
-		return a.analyzeOrderingOperation(expr, opName)
+	// Handle comparison operators (LT, LE, GT, GE)
+	if binary.Op.Kind.IsOrderingOperator() {
+		return a.analyzeOrderingOperation(binary)
 	}
 
-	// IN operator
-	if expr.Op.Kind.Is(token.IN) {
-		return a.analyzeInOperation(expr)
+	// Handle IN operator
+	if binary.Op.Kind.Is(token.IN) {
+		return a.analyzeInOperation(binary)
 	}
 
-	// LIKE operator
-	if expr.Op.Kind.Is(token.LIKE) {
-		return a.analyzeLikeOperation(expr)
+	// Handle LIKE operator
+	if binary.Op.Kind.Is(token.LIKE) {
+		return a.analyzeLikeOperation(binary)
 	}
 
-	return fmt.Errorf("unsupported binary operator: %s", expr.Op.Kind.String())
+	return fmt.Errorf("unsupported binary operator: %s(%s) at %s",
+		binary.Op.Literal, binary.Op.Kind.Name(), pos)
 }
 
-// analyzeLogicalOperation validates logical operators (AND, OR) requiring computed expressions on both sides.
-// Recursively analyzes both operands for semantic correctness.
-func (a *Analyzer) analyzeLogicalOperation(expr *ast.BinaryExpr, opName string) error {
-	_, leftOk := expr.Left.(ast.ComputedExpr)
-	_, rightOk := expr.Right.(ast.ComputedExpr)
+// analyzeLogicalOperation validates logical operators (AND, OR) requiring computed expressions.
+// Both operands are recursively analyzed for semantic correctness.
+func (a *Analyzer) analyzeLogicalOperation(binary *ast.BinaryExpr) error {
+	pos := binary.Start().String()
+	opName := binary.Op.Literal
 
-	if !leftOk {
-		return fmt.Errorf("%s operator requires a computed expression on the left side, but got %T", opName, expr.Left)
+	// Validate operand types
+	if _, ok := binary.Left.(ast.ComputedExpr); !ok {
+		return fmt.Errorf("operator '%s(%s)' requires computed expression on left side, got: %T at %s",
+			opName, binary.Op.Kind.Name(), binary.Left, pos)
 	}
-	if !rightOk {
-		return fmt.Errorf("%s operator requires a computed expression on the right side, but got %T", opName, expr.Right)
-	}
-
-	// Recursively analyze left and right operands
-	err := a.analyze(expr.Left)
-	if err != nil {
-		return fmt.Errorf("error in %s operator left operand: %w", opName, err)
+	if _, ok := binary.Right.(ast.ComputedExpr); !ok {
+		return fmt.Errorf("operator '%s(%s)' requires computed expression on right side, got: %T at %s",
+			opName, binary.Op.Kind.Name(), binary.Right, pos)
 	}
 
-	err = a.analyze(expr.Right)
-	if err != nil {
-		return fmt.Errorf("error in %s operator right operand: %w", opName, err)
+	// Analyze left operand
+	if err := a.analyze(binary.Left); err != nil {
+		return err
 	}
 
-	return nil
+	// Analyze right operand
+	return a.analyze(binary.Right)
 }
 
-// analyzeEqualityOperation validates equality operators (==, !=) with literal values on the right side.
-func (a *Analyzer) analyzeEqualityOperation(expr *ast.BinaryExpr, opName string) error {
-	if _, ok := expr.Right.(*ast.Literal); !ok {
-		return fmt.Errorf("%s operator requires a literal value on the right side, but got %T", opName, expr.Right)
+// analyzeEqualityOperation validates equality operators (==, !=) with literal values.
+func (a *Analyzer) analyzeEqualityOperation(binary *ast.BinaryExpr) error {
+	pos := binary.Start().String()
+	opName := binary.Op.Literal
+
+	// Right operand must be a literal
+	if _, ok := binary.Right.(*ast.Literal); !ok {
+		return fmt.Errorf("operator '%s(%s)' requires literal value on right side, got: %T at %s",
+			opName, binary.Op.Kind.Name(), binary.Right, pos)
 	}
 
-	// Analyze left and right operands
-	err := a.analyze(expr.Left)
-	if err != nil {
-		return fmt.Errorf("error in %s operator left operand: %w", opName, err)
+	// Analyze left operand
+	if err := a.analyze(binary.Left); err != nil {
+		return err
 	}
 
-	err = a.analyze(expr.Right)
-	if err != nil {
-		return fmt.Errorf("error in %s operator right operand: %w", opName, err)
-	}
-
-	return nil
+	// Analyze right operand
+	return a.analyze(binary.Right)
 }
 
-// analyzeOrderingOperation validates ordering operators (<, <=, >, >=) requiring numeric literals on the right side.
-func (a *Analyzer) analyzeOrderingOperation(expr *ast.BinaryExpr, opName string) error {
-	literal, ok := expr.Right.(*ast.Literal)
+// analyzeOrderingOperation validates ordering operators (<, <=, >, >=) requiring numeric literals.
+func (a *Analyzer) analyzeOrderingOperation(binary *ast.BinaryExpr) error {
+	pos := binary.Start().String()
+	opName := binary.Op.Literal
+
+	// Right operand must be a numeric literal
+	literal, ok := binary.Right.(*ast.Literal)
 	if !ok {
-		return fmt.Errorf("%s operator requires a literal value on the right side, but got %T", opName, expr.Right)
+		return fmt.Errorf("operator '%s(%s)' requires literal value on right side, got: %T at %s",
+			opName, binary.Op.Kind.Name(), binary.Right, pos)
 	}
-
 	if !literal.IsNumber() {
-		return fmt.Errorf("%s operator requires a numeric literal on the right side, but got %s", opName, literal.Token.Kind.String())
+		return fmt.Errorf("operator '%s(%s)' requires numeric literal on right side, got: %s(%s) at %s",
+			opName, binary.Op.Kind.Name(), literal.Token.Literal, literal.Token.Kind.Name(), pos)
 	}
 
-	// Analyze left and right operands
-	err := a.analyze(expr.Left)
-	if err != nil {
-		return fmt.Errorf("error in %s operator left operand: %w", opName, err)
+	// Analyze left operand
+	if err := a.analyze(binary.Left); err != nil {
+		return err
 	}
 
-	err = a.analyze(expr.Right)
-	if err != nil {
-		return fmt.Errorf("error in %s operator right operand: %w", opName, err)
-	}
-
-	return nil
+	// Analyze right operand
+	return a.analyze(binary.Right)
 }
 
 // analyzeInOperation validates IN operators requiring list literals on the right side.
-func (a *Analyzer) analyzeInOperation(expr *ast.BinaryExpr) error {
-	if _, ok := expr.Right.(*ast.ListLiteral); !ok {
-		return fmt.Errorf("IN operator requires a list literal on the right side, but got %T", expr.Right)
+func (a *Analyzer) analyzeInOperation(binary *ast.BinaryExpr) error {
+	pos := binary.Start().String()
+
+	// Right operand must be a list literal
+	if _, ok := binary.Right.(*ast.ListLiteral); !ok {
+		return fmt.Errorf("operator 'IN(%s)' requires list literal on right side, got: %T at %s",
+			binary.Op.Kind.Name(), binary.Right, pos)
 	}
 
-	// Analyze left and right operands
-	err := a.analyze(expr.Left)
-	if err != nil {
-		return fmt.Errorf("error in IN operator left operand: %w", err)
+	// Analyze left operand
+	if err := a.analyze(binary.Left); err != nil {
+		return err
 	}
 
-	err = a.analyze(expr.Right)
-	if err != nil {
-		return fmt.Errorf("error in IN operator right operand: %w", err)
-	}
-
-	return nil
+	// Analyze right operand
+	return a.analyze(binary.Right)
 }
 
 // analyzeLikeOperation validates LIKE operators requiring string literals on the right side.
-func (a *Analyzer) analyzeLikeOperation(expr *ast.BinaryExpr) error {
-	literal, ok := expr.Right.(*ast.Literal)
+func (a *Analyzer) analyzeLikeOperation(binary *ast.BinaryExpr) error {
+	pos := binary.Start().String()
+
+	// Right operand must be a string literal
+	literal, ok := binary.Right.(*ast.Literal)
 	if !ok {
-		return fmt.Errorf("LIKE operator requires a literal value on the right side, but got %T", expr.Right)
+		return fmt.Errorf("operator 'LIKE(%s)' requires literal value on right side, got: %T at %s",
+			binary.Op.Kind.Name(), binary.Right, pos)
 	}
-
 	if !literal.IsString() {
-		return fmt.Errorf("LIKE operator requires a string literal on the right side, but got %s", literal.Token.Kind.String())
+		return fmt.Errorf("operator 'LIKE(%s)' requires string literal on right side, got: %s(%s) at %s",
+			binary.Op.Kind.Name(), literal.Token.Literal, literal.Token.Kind.Name(), pos)
 	}
 
-	// Analyze left and right operands
-	err := a.analyze(expr.Left)
-	if err != nil {
-		return fmt.Errorf("error in LIKE operator left operand: %w", err)
+	// Analyze left operand
+	if err := a.analyze(binary.Left); err != nil {
+		return err
 	}
 
-	err = a.analyze(expr.Right)
-	if err != nil {
-		return fmt.Errorf("error in LIKE operator right operand: %w", err)
-	}
-
-	return nil
+	// Analyze right operand
+	return a.analyze(binary.Right)
 }
 
-// analyzeIndexExpr validates index expressions with identifiers or nested indices on the left.
-// Ensures index values are numeric or string literals.
-func (a *Analyzer) analyzeIndexExpr(expr *ast.IndexExpr) error {
-	// Analyze left side expression
-	switch typedLeft := expr.Left.(type) {
+// analyzeIndexExpr validates index expressions with identifiers or nested indices.
+// Index values must be numeric or string literals.
+func (a *Analyzer) analyzeIndexExpr(index *ast.IndexExpr) error {
+	pos := index.Start().String()
+
+	// Validate left side expression
+	switch left := index.Left.(type) {
 	case *ast.Ident:
-		err := a.analyze(typedLeft)
-		if err != nil {
-			return fmt.Errorf("error in index expression identifier: %w", err)
+		if err := a.analyze(left); err != nil {
+			return err
 		}
 	case *ast.IndexExpr:
-		err := a.analyze(typedLeft)
-		if err != nil {
-			return fmt.Errorf("error in nested index expression: %w", err)
+		if err := a.analyze(left); err != nil {
+			return err
 		}
 	default:
-		return fmt.Errorf("index expression requires an identifier or another index expression on the left side, but got %T", typedLeft)
+		return fmt.Errorf("index expression requires identifier or index expression on left side, got: %T at %s",
+			left, pos)
 	}
 
-	// Check index type
-	if expr.Index.IsNumber() || expr.Index.IsString() {
-		err := a.analyze(expr.Index)
-		if err != nil {
-			return fmt.Errorf("error in index expression index: %w", err)
-		}
-		return nil
+	// Validate index type and value
+	if !index.Index.IsNumber() && !index.Index.IsString() {
+		return fmt.Errorf("index must be number or string literal, got: %s(%s) at %s",
+			index.Index.Token.Literal, index.Index.Token.Kind.Name(), pos)
 	}
 
-	return fmt.Errorf("index must be a number or string literal, but got %s", expr.Index.Token.Kind.String())
+	return a.analyze(index.Index)
 }

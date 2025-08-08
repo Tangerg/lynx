@@ -22,26 +22,25 @@ const (
 	DefaultTokenCountReservePercentage = 0.1
 )
 
-var _ BatchingStrategy = (*TokenCountStrategy)(nil)
+var _ BatchingStrategy = (*TokenCountBatchingStrategy)(nil)
 
-// TokenCountStrategy batches documents based on token count limits.
+// TokenCountBatchingStrategy batches documents based on token count limits.
 // Uses a reserve percentage to provide buffer for token count variations.
-type TokenCountStrategy struct {
+type TokenCountBatchingStrategy struct {
 	tokenCountEstimator tokenizer.TokenCountEstimator
 	maxInputTokenCount  int
 	formatter           Formatter
 	metadataMode        MetadataMode
 }
 
-// NewTokenCountStrategy creates a TokenCountStrategy with default settings.
-func NewTokenCountStrategy(tokenCountEstimator tokenizer.TokenCountEstimator) (*TokenCountStrategy, error) {
-	return NewTokenCountStrategyBuilder().
+func NewTokenCountBatchingStrategy(tokenCountEstimator tokenizer.TokenCountEstimator) (*TokenCountBatchingStrategy, error) {
+	return NewTokenCountBatchingStrategyBuilder().
 		WithTokenCountEstimator(tokenCountEstimator).
 		Build()
 }
 
 // Batch splits documents into token-limited batches while preserving order.
-func (s *TokenCountStrategy) Batch(ctx context.Context, docs []*Document) ([][]*Document, error) {
+func (s *TokenCountBatchingStrategy) Batch(ctx context.Context, docs []*Document) ([][]*Document, error) {
 	type docWithTokens struct {
 		doc    *Document
 		tokens int
@@ -90,8 +89,8 @@ func (s *TokenCountStrategy) Batch(ctx context.Context, docs []*Document) ([][]*
 	return batches, nil
 }
 
-// TokenCountStrategyBuilder provides fluent API for creating TokenCountStrategy instances.
-type TokenCountStrategyBuilder struct {
+// TokenCountBatchingStrategyBuilder provides fluent API for creating TokenCountBatchingStrategy instances.
+type TokenCountBatchingStrategyBuilder struct {
 	tokenCountEstimator tokenizer.TokenCountEstimator
 	maxInputTokenCount  int
 	reservePercentage   float64
@@ -99,9 +98,8 @@ type TokenCountStrategyBuilder struct {
 	metadataMode        MetadataMode
 }
 
-// NewTokenCountStrategyBuilder creates a builder with default configuration.
-func NewTokenCountStrategyBuilder() *TokenCountStrategyBuilder {
-	return &TokenCountStrategyBuilder{
+func NewTokenCountBatchingStrategyBuilder() *TokenCountBatchingStrategyBuilder {
+	return &TokenCountBatchingStrategyBuilder{
 		maxInputTokenCount: MaxInputTokenCount,
 		reservePercentage:  DefaultTokenCountReservePercentage,
 		formatter:          NewDefaultFormatterBuilder().Build(),
@@ -109,28 +107,28 @@ func NewTokenCountStrategyBuilder() *TokenCountStrategyBuilder {
 	}
 }
 
-func (b *TokenCountStrategyBuilder) WithTokenCountEstimator(tokenCountEstimator tokenizer.TokenCountEstimator) *TokenCountStrategyBuilder {
+func (b *TokenCountBatchingStrategyBuilder) WithTokenCountEstimator(tokenCountEstimator tokenizer.TokenCountEstimator) *TokenCountBatchingStrategyBuilder {
 	if tokenCountEstimator != nil {
 		b.tokenCountEstimator = tokenCountEstimator
 	}
 	return b
 }
 
-func (b *TokenCountStrategyBuilder) WithMaxInputTokenCount(maxInputTokenCount int) *TokenCountStrategyBuilder {
+func (b *TokenCountBatchingStrategyBuilder) WithMaxInputTokenCount(maxInputTokenCount int) *TokenCountBatchingStrategyBuilder {
 	if maxInputTokenCount > 0 {
 		b.maxInputTokenCount = maxInputTokenCount
 	}
 	return b
 }
 
-func (b *TokenCountStrategyBuilder) WithReservePercentage(reservePercentage float64) *TokenCountStrategyBuilder {
+func (b *TokenCountBatchingStrategyBuilder) WithReservePercentage(reservePercentage float64) *TokenCountBatchingStrategyBuilder {
 	if reservePercentage >= 0 && reservePercentage < 1 {
 		b.reservePercentage = reservePercentage
 	}
 	return b
 }
 
-func (b *TokenCountStrategyBuilder) WithFormatter(formatter Formatter) *TokenCountStrategyBuilder {
+func (b *TokenCountBatchingStrategyBuilder) WithFormatter(formatter Formatter) *TokenCountBatchingStrategyBuilder {
 	if formatter != nil {
 		b.formatter = formatter
 	}
@@ -138,7 +136,7 @@ func (b *TokenCountStrategyBuilder) WithFormatter(formatter Formatter) *TokenCou
 }
 
 // WithMetadataMode sets how document metadata is handled during formatting.
-func (b *TokenCountStrategyBuilder) WithMetadataMode(metadataMode MetadataMode) *TokenCountStrategyBuilder {
+func (b *TokenCountBatchingStrategyBuilder) WithMetadataMode(metadataMode MetadataMode) *TokenCountBatchingStrategyBuilder {
 	validModes := []MetadataMode{
 		MetadataModeAll,
 		MetadataModeEmbed,
@@ -152,8 +150,8 @@ func (b *TokenCountStrategyBuilder) WithMetadataMode(metadataMode MetadataMode) 
 	return b
 }
 
-// Build creates a TokenCountStrategy with configured parameters and calculated token limits.
-func (b *TokenCountStrategyBuilder) Build() (*TokenCountStrategy, error) {
+// Build creates a TokenCountBatchingStrategy with configured parameters and calculated token limits.
+func (b *TokenCountBatchingStrategyBuilder) Build() (*TokenCountBatchingStrategy, error) {
 	if b.tokenCountEstimator == nil {
 		return nil, errors.New("token count estimator is required")
 	}
@@ -169,7 +167,7 @@ func (b *TokenCountStrategyBuilder) Build() (*TokenCountStrategy, error) {
 
 	actualMaxTokens := int(math.Round(float64(b.maxInputTokenCount) * (1 - b.reservePercentage)))
 
-	return &TokenCountStrategy{
+	return &TokenCountBatchingStrategy{
 		tokenCountEstimator: b.tokenCountEstimator,
 		maxInputTokenCount:  actualMaxTokens,
 		formatter:           b.formatter,
