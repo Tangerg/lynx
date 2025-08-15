@@ -60,7 +60,7 @@ func (s *Streamer) chatResponse(ctx context.Context, structuredConverter convert
 		}
 
 		if structuredConverter != nil {
-			chatRequest.Set(AttrOutputFormat.String(), structuredConverter.GetFormat())
+			chatRequest.Set(OutputFormat, structuredConverter.GetFormat())
 		}
 
 		for chatResponse, executionErr := range s.execute(ctx, chatRequest) {

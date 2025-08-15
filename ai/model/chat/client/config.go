@@ -239,12 +239,12 @@ func (c *Config) getMiddlewareManager() *MiddlewareManager {
 }
 
 func (c *Config) toChatRequest() (*chat.Request, error) {
-	normalizedMessageList, err := c.getMessages()
+	messageList, err := c.getMessages()
 	if err != nil {
 		return nil, err
 	}
 
-	chatRequest, err := chat.NewRequest(normalizedMessageList, c.getChatOptions())
+	chatRequest, err := chat.NewRequest(messageList, c.getChatOptions())
 	if err != nil {
 		return nil, err
 	}

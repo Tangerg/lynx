@@ -47,7 +47,7 @@ func (r *requestHelper) makeParamsTools(tools []tool.Tool) ([]openai.ChatComplet
 			definition = t.Definition()
 		)
 
-		err := json.Unmarshal([]byte(definition.InputSchema()), &parameters)
+		err := json.Unmarshal([]byte(definition.InputSchema), &parameters)
 		if err != nil {
 			return nil, err
 		}
@@ -56,8 +56,8 @@ func (r *requestHelper) makeParamsTools(tools []tool.Tool) ([]openai.ChatComplet
 			rv,
 			openai.ChatCompletionToolParam{
 				Function: openai.FunctionDefinitionParam{
-					Name:        definition.Name(),
-					Description: openai.String(definition.Description()),
+					Name:        definition.Name,
+					Description: openai.String(definition.Description),
 					Strict:      openai.Bool(true),
 					Parameters:  parameters,
 				},

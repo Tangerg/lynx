@@ -2,70 +2,47 @@ package tool
 
 import "github.com/Tangerg/lynx/ai/model/chat"
 
-// Options extends chat.Options with tool-specific configuration for LLM interactions
-// that support function calling. It provides a unified interface for managing both
-// standard chat parameters and tool-related settings in a single configuration object.
+// Options extends chat.Options with tool-specific configuration for LLM function calling.
+// Provides a unified interface for managing both standard chat parameters and tool settings.
 //
-// This interface enables LLM clients to:
+// Key capabilities:
 // - Configure available tools for function calling
-// - Set execution parameters passed to tools during invocation
+// - Set execution parameters for tool invocation
+// - Support both internal (auto-executed) and external (client-delegated) tools
 // - Maintain compatibility with standard chat options
-// - Support both internal tools (executed immediately) and external tools (client-delegated)
-//
-// Implementations should ensure thread-safety if used across multiple goroutines.
 type Options interface {
-	chat.Options // Inherits standard chat configuration (model, temperature, etc.)
+	chat.Options // Standard chat configuration (model, temperature, etc.)
 
-	// Tools returns the list of tools available for LLM function calling.
-	// The returned slice should be treated as read-only to prevent unintended modifications.
-	// Tools can be either internal (CallableTool) or external (require client execution).
+	// Tools returns the list of available tools for LLM function calling.
+	// The returned slice should be treated as read-only.
 	Tools() []Tool
 
 	// SetTools replaces all available tools for LLM function calling.
-	// The provided tools will be serialized and sent to the LLM as function definitions.
-	// Accepts both internal tools (executed automatically) and external tools (delegated to client).
-	//
-	// Parameters:
-	//   - tools: Slice of Tool instances to replace all existing tools.
+	// Accepts both internal and external tools.
 	SetTools(tools []Tool)
 
-	// AddTools appends additional tools to the existing available tools for LLM function calling.
-	// The provided tools will be serialized and sent to the LLM as function definitions.
-	// Accepts both internal tools (executed automatically) and external tools (delegated to client).
-	//
-	// Parameters:
-	//   - tools: Slice of Tool instances to add to existing tools.
+	// AddTools appends additional tools to the existing tool list.
+	// Accepts both internal and external tools.
 	AddTools(tools []Tool)
 
-	// ToolParams returns additional parameters that will be passed to tools during execution.
-	// These parameters provide contextual information or configuration that tools may need
-	// beyond their specific function arguments.
+	// ToolParams returns additional parameters passed to tools during execution.
+	// These provide contextual information beyond function arguments.
 	//
-	// Examples of tool execution parameters:
-	// - API endpoints or base URLs for external services
-	// - Timeout values for tool operations
-	// - Authentication tokens or credentials
-	// - Environment-specific configuration (dev/prod settings)
-	// - User context information (user ID, session data)
+	// Common parameter examples:
+	// - API endpoints and base URLs
+	// - Timeout values and retry settings
+	// - Authentication tokens
+	// - Environment configuration (dev/prod)
+	// - User context (user ID, session data)
 	//
 	// The returned map should be treated as read-only.
 	ToolParams() map[string]any
 
-	// SetToolParams replaces all tool parameters that will be available to tools during execution.
-	// These parameters are passed to the tool execution context and can be accessed by tools
-	// to customize their behavior or access external resources.
-	//
-	// Parameters:
-	//   - params: Map of parameter names to values that replaces all existing tool parameters.
-	//            Parameter names and types depend on the specific tools being used.
+	// SetToolParams replaces all tool execution parameters.
+	// Parameters are passed to the tool execution Context.
 	SetToolParams(params map[string]any)
 
-	// AddToolParams adds additional parameters to the existing tool parameters available during execution.
-	// These parameters are merged with existing parameters and passed to the tool execution context.
-	// If a parameter key already exists, it will be overwritten with the new value.
-	//
-	// Parameters:
-	//   - params: Map of parameter names to values to add to existing tool parameters.
-	//            Parameter names and types depend on the specific tools being used.
+	// AddToolParams adds parameters to existing tool parameters.
+	// If a key already exists, it will be overwritten.
 	AddToolParams(params map[string]any)
 }

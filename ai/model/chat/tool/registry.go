@@ -40,7 +40,7 @@ func (r *Registry) Register(tools ...Tool) *Registry {
 		if t == nil {
 			continue
 		}
-		name := t.Definition().Name()
+		name := t.Definition().Name
 		if _, exists := r.store[name]; !exists {
 			r.store[name] = t
 		}
@@ -59,9 +59,9 @@ func (r *Registry) Unregister(names ...string) *Registry {
 	defer r.mu.Unlock()
 
 	for _, name := range names {
-		if name != "" {
-			delete(r.store, name)
-		}
+
+		delete(r.store, name)
+
 	}
 	return r
 }
@@ -69,9 +69,6 @@ func (r *Registry) Unregister(names ...string) *Registry {
 // Find retrieves a tool by name.
 // Returns the tool and true if found, nil and false otherwise.
 func (r *Registry) Find(name string) (Tool, bool) {
-	if name == "" {
-		return nil, false
-	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 

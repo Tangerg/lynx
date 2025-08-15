@@ -20,7 +20,7 @@ func newInvoker(chatModel chat.Model) *invoker {
 }
 
 func (i *invoker) augmentLastUserMessageOutput(chatRequest *chat.Request) {
-	outputFormat, ok := chatRequest.Get(AttrOutputFormat.String())
+	outputFormat, ok := chatRequest.Get(OutputFormat)
 	if ok {
 		chatRequest.AugmentLastUserMessageText(cast.ToString(outputFormat))
 	}

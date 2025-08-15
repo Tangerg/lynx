@@ -8,7 +8,7 @@ import (
 
 	"github.com/openai/openai-go/option"
 
-	"github.com/Tangerg/lynx/ai/commons/content"
+	"github.com/Tangerg/lynx/ai/content"
 	"github.com/Tangerg/lynx/ai/model/chat"
 	"github.com/Tangerg/lynx/ai/model/chat/messages"
 	"github.com/Tangerg/lynx/ai/model/chat/tool"
@@ -81,28 +81,23 @@ const weatherResponse = `{
 `
 
 func newWeatherTool() tool.Tool {
-	def := tool.
-		NewDefinitionBuilder().
-		WithName("weather_query").
-		WithDescription("a weather query tool").
-		WithInputSchema(pkgJson.StringDefSchemaOf(weatherRequest{})).
-		MustBuild()
-
-	weatherTool := tool.
-		NewBuilder().
-		WithDefinition(def).
-		WithCaller(
-			func(_ tool.Context, input string) (string, error) {
-				fmt.Println(input)
-				req := weatherRequest{}
-				err := json.Unmarshal([]byte(input), &req)
-				if err != nil {
-					return "", err
-				}
-				return fmt.Sprintf(weatherResponse, req.Location, req.StartAt, req.EndAt), nil
-			},
-		).
-		MustBuild()
+	weatherTool, _ := tool.NewTool(
+		tool.Definition{
+			Name:        "weather_query",
+			Description: "a weather query tool",
+			InputSchema: pkgJson.StringDefSchemaOf(weatherRequest{}),
+		},
+		tool.Metadata{},
+		func(_ *tool.Context, input string) (string, error) {
+			fmt.Println(input)
+			req := weatherRequest{}
+			err := json.Unmarshal([]byte(input), &req)
+			if err != nil {
+				return "", err
+			}
+			return fmt.Sprintf(weatherResponse, req.Location, req.StartAt, req.EndAt), nil
+		},
+	)
 	return weatherTool
 }
 

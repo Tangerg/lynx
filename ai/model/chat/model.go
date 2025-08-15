@@ -22,10 +22,11 @@ import (
 //   - Easier error handling and response validation
 //
 // 2. Streaming Mode:
-//   - Token-by-token response streaming
+//   - Token-by-token response streaming using Go iterators
 //   - Real-time chat interfaces and live content generation
 //   - Reduced perceived latency for long responses
 //   - Memory efficient for large LLM outputs
+//   - Built-in backpressure handling and early termination support
 //
 // Type Parameters:
 //   - Request: Chat request containing messages, system prompts, and LLM parameters
@@ -41,23 +42,20 @@ import (
 //	content := response.Result().Output().Text()
 //
 //	// Streaming LLM interaction
-//	stream, err := llmModel.Stream(ctx, chatRequest)
-//	if err != nil {
-//	    return err
-//	}
-//	defer stream.Close()
-//
-//	for {
-//	    chunk, err := stream.Read(ctx)
-//	    if err == io.EOF {
-//	        break
-//	    }
+//	for chunk, err := range llmModel.Stream(ctx, chatRequest) {
 //	    if err != nil {
-//	        return err
+//	        return fmt.Errorf("streaming error: %w", err)
 //	    }
-//	    // Process streaming token
+//	    // Process streaming chunk
 //	    fmt.Print(chunk.Result().Output().Text())
 //	}
+//
+// The streaming approach provides several benefits:
+//   - Improved user experience with real-time feedback
+//   - Memory efficiency by processing responses incrementally
+//   - Better resource utilization through backpressure handling
+//   - Early termination capability when response is satisfactory
+//   - Context cancellation and timeout support
 //
 // The interface abstracts LLM provider differences while maintaining access to
 // provider-specific features through the Options and metadata systems.

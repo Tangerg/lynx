@@ -7,6 +7,10 @@ import (
 	"github.com/Tangerg/lynx/ai/model/chat/messages"
 )
 
+const (
+	OutputFormat = "lynx.ai.model.chat.client.output_format"
+)
+
 type Client struct {
 	defaultConfig *Config
 }

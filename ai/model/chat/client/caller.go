@@ -45,7 +45,7 @@ func (c *Caller) chatResponse(ctx context.Context, structuredConverter converter
 	}
 
 	if structuredConverter != nil {
-		chatRequest.Set(AttrOutputFormat.String(), structuredConverter.GetFormat())
+		chatRequest.Set(OutputFormat, structuredConverter.GetFormat())
 	}
 
 	return c.execute(ctx, chatRequest)

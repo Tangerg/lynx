@@ -28,3 +28,9 @@ func ErrorIsNil[T any](v T, err error) T {
 	}
 	return v
 }
+
+func Assert(cond bool, message string) {
+	if !cond {
+		panic(message)
+	}
+}
