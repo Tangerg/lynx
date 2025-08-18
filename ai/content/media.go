@@ -26,6 +26,7 @@ type Media struct {
 
 // NewMedia creates a new Media instance with the specified attributes.
 // Returns an error if required fields are missing.
+// TODO use MediaParam Config struct create
 func NewMedia(id string, name string, mimeType *mime.MIME, data any) (*Media, error) {
 	if mimeType == nil {
 		return nil, errors.New("failed to create media: MIME type is required but was nil")

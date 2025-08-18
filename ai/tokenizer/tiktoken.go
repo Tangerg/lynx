@@ -11,6 +11,7 @@ import (
 )
 
 var _ TokenCountEstimator = (*Tiktoken)(nil)
+var _ Tokenizer = (*Tiktoken)(nil)
 
 // Tiktoken is a token count estimator implementation using the tiktoken library.
 // It provides token estimation for text and media content based on OpenAI's tokenization models.
@@ -54,7 +55,10 @@ func NewTiktoken(encodingName string) (*Tiktoken, error) {
 //
 // Returns the estimated number of tokens and any error that occurred during estimation.
 func (t *Tiktoken) EstimateText(ctx context.Context, text string) (int, error) {
-	mt, _ := mime.New("text", "plain")
+	mt, err := mime.New("text", "plain")
+	if err != nil {
+		return 0, err
+	}
 	media, err := content.
 		NewMediaBuilder().
 		WithData(text).
@@ -130,4 +134,12 @@ func (t *Tiktoken) estimateMedia(_ context.Context, media *content.Media) (int, 
 	// Count tokens for content and add to MIME type tokens
 	token = token + len(t.encoding.Encode(text, nil, nil))
 	return token, nil
+}
+
+func (t *Tiktoken) Encode(_ context.Context, text string) ([]int, error) {
+	return t.encoding.Encode(text, nil, nil), nil
+}
+
+func (t *Tiktoken) Decode(_ context.Context, token []int) (string, error) {
+	return t.encoding.Decode(token), nil
 }

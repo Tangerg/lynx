@@ -1,10 +1,11 @@
-package splitter
+package processors_test
 
 import (
 	"context"
 	"testing"
 
 	"github.com/Tangerg/lynx/ai/content/document"
+	"github.com/Tangerg/lynx/ai/providers/document/processors"
 )
 
 const content = `GPT-4o has safety built-in by design across modalities, through techniques such as filtering training data and refining the model’s behavior through post-training. We have also created new safety systems to provide guardrails on voice outputs.
@@ -26,14 +27,7 @@ Developers can also now access GPT-4o in the API as a text and vision model. GPT
 
 `
 
-func TestTokenSplitter(t *testing.T) {
-	ts, err := NewTokenSplitterBuilder().
-		WithEncodingByEncodingName("cl100k_base").
-		WithChunkSize(50).
-		Build()
-	if err != nil {
-		t.Fatal(err)
-	}
+func TestTextSplitter_Process(t *testing.T) {
 	doc, err := document.
 		NewBuilder().
 		WithText(content).
@@ -41,8 +35,15 @@ func TestTokenSplitter(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	transDocs, _ := ts.Transform(context.Background(), []*document.Document{doc})
-	for _, transDoc := range transDocs {
-		t.Log(transDoc.Text())
+	ts := &processors.TextSplitter{
+		Separator:     "\n",
+		CopyFormatter: true,
+	}
+	process, err := ts.Process(context.Background(), []*document.Document{doc})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, d := range process {
+		t.Log(d.Text())
 	}
 }

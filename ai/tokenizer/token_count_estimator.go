@@ -35,3 +35,16 @@ type TokenCountEstimator interface {
 	//   EstimateMedia(ctx, mediaList...)      // Spread slice of media objects
 	EstimateMedia(ctx context.Context, media ...*content.Media) (int, error)
 }
+
+type TokenEncoder interface {
+	Encode(ctx context.Context, text string) ([]int, error)
+}
+
+type TokenDecoder interface {
+	Decode(ctx context.Context, token []int) (string, error)
+}
+
+type Tokenizer interface {
+	TokenEncoder
+	TokenDecoder
+}

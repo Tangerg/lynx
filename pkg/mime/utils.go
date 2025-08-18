@@ -14,6 +14,7 @@ import (
 
 	"github.com/gabriel-vasile/mimetype"
 
+	"github.com/Tangerg/lynx/pkg/assert"
 	"github.com/Tangerg/lynx/pkg/kv"
 )
 
@@ -41,6 +42,10 @@ func New(mimeType string, subType string) (*MIME, error) {
 		WithType(mimeType).
 		WithSubType(subType).
 		Build()
+}
+
+func MustNew(mimeType string, subType string) *MIME {
+	return assert.ErrorIsNil(New(mimeType, subType))
 }
 
 // Parse converts a string representation of a MIME type into a MIME object.

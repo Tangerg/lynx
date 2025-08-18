@@ -5,11 +5,9 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
-
-	"github.com/Tangerg/lynx/ai/content/document"
 )
 
-var _ document.IDGenerator = (*Sha256Generator)(nil)
+var _ IDGenerator = (*Sha256Generator)(nil)
 
 type Sha256Generator struct {
 	salt []byte
@@ -21,9 +19,9 @@ func NewSha256Generator(salt []byte) *Sha256Generator {
 	}
 }
 
-func (s *Sha256Generator) Generate(_ context.Context, objects ...any) string {
+func (s *Sha256Generator) Generate(_ context.Context, objects ...any) (string, error) {
 	if len(objects) == 0 {
-		return ""
+		return "", nil
 	}
 
 	hasher := sha256.New()
@@ -35,5 +33,5 @@ func (s *Sha256Generator) Generate(_ context.Context, objects ...any) string {
 	}
 
 	hashBytes := hasher.Sum(s.salt)
-	return hex.EncodeToString(hashBytes)
+	return hex.EncodeToString(hashBytes), nil
 }
