@@ -13,11 +13,11 @@ import (
 // InvokeResult represents the outcome of tool invocation in LLM chat interactions.
 // It encapsulates execution results and determines the next steps in conversation flow.
 type InvokeResult struct {
-	chatRequest         *chat.Request                 // original LLM chat request
-	chatResponse        *chat.Response                // LLM response containing tool calls
-	toolResponseMessage *messages.ToolResponseMessage // aggregated responses from internal tools
-	returnDirect        bool                          // whether ALL internal tools are configured for direct return
-	externalToolCalls   []*messages.ToolCall          // tool calls requiring external execution
+	chatRequest         *chat.Request         // original LLM chat request
+	chatResponse        *chat.Response        // LLM response containing tool calls
+	toolResponseMessage *messages.ToolMessage // aggregated responses from internal tools
+	returnDirect        bool                  // whether ALL internal tools are configured for direct return
+	externalToolCalls   []*messages.ToolCall  // tool calls requiring external execution
 }
 
 // ShouldMakeChatRequest determines if a new chat request should be constructed
@@ -93,7 +93,7 @@ func (r *InvokeResult) MakeChatResponse() (*chat.Response, error) {
 
 	msg := result.Output()
 	newMsg := messages.NewAssistantMessage(
-		messages.AssistantMessageParam{
+		messages.MessageParams{
 			Text:      msg.Text(),
 			Media:     msg.Media(),
 			ToolCalls: r.externalToolCalls,
@@ -169,9 +169,9 @@ func (i *invoker) makeContext(stdCtx stdContext.Context, request *chat.Request) 
 // and collecting external tools for client-side processing.
 func (i *invoker) invokeToolCalls(ctx *Context, toolCalls []*messages.ToolCall) (*InvokeResult, error) {
 	var (
-		externalToolCalls []*messages.ToolCall     // tools requiring external execution
-		returnDirect      = true                   // whether to return results directly
-		responses         []*messages.ToolResponse // responses from internal tools
+		externalToolCalls []*messages.ToolCall   // tools requiring external execution
+		returnDirect      = true                 // whether to return results directly
+		responses         []*messages.ToolReturn // responses from internal tools
 	)
 
 	for _, toolCall := range toolCalls {
@@ -193,15 +193,15 @@ func (i *invoker) invokeToolCalls(ctx *Context, toolCalls []*messages.ToolCall) 
 
 		// Update flow control based on tool metadata
 		returnDirect = returnDirect && ct.Metadata().ReturnDirect
-		responses = append(responses, &messages.ToolResponse{
-			ID:           toolCall.ID,
-			Name:         toolCall.Name,
-			ResponseData: resp,
+		responses = append(responses, &messages.ToolReturn{
+			ID:     toolCall.ID,
+			Name:   toolCall.Name,
+			Result: resp,
 		})
 	}
 
 	// Create tool response message from internal tool results
-	toolResponseMessage, err := messages.NewToolResponseMessage(responses)
+	toolResponseMessage, err := messages.NewToolMessage(responses)
 	if err != nil {
 		return nil, err
 	}

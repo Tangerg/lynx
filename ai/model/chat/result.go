@@ -18,62 +18,62 @@ func (r FinishReason) String() string {
 
 // LLM completion finish reasons
 const (
-	// Stop indicates the LLM completed generation naturally or hit a stop sequence
-	Stop FinishReason = "stop"
+	// FinishReasonStop indicates the LLM completed generation naturally or hit a stop sequence
+	FinishReasonStop FinishReason = "stop"
 
-	// Length indicates the LLM response was truncated due to token limits
-	Length FinishReason = "length"
+	// FinishReasonLength indicates the LLM response was truncated due to token limits
+	FinishReasonLength FinishReason = "length"
 
-	// ToolCalls indicates the LLM finished to execute function/tool calls
-	ToolCalls FinishReason = "tool_calls"
+	// FinishReasonToolCalls indicates the LLM finished to execute function/tool calls
+	FinishReasonToolCalls FinishReason = "tool_calls"
 
-	// ContentFilter indicates the LLM response was blocked by safety filters
-	ContentFilter FinishReason = "content_filter"
+	// FinishReasonContentFilter indicates the LLM response was blocked by safety filters
+	FinishReasonContentFilter FinishReason = "content_filter"
 
-	// ReturnDirect indicates tool results were returned without further LLM processing
-	// Occurs when all executed tools have ReturnDirect=true
-	ReturnDirect FinishReason = "return_direct"
+	// FinishReasonReturnDirect indicates tool results were returned without further LLM processing
+	// Occurs when all executed tools have FinishReasonReturnDirect=true
+	FinishReasonReturnDirect FinishReason = "return_direct"
 
-	// Other represents any LLM completion reason not covered by standard cases
-	Other FinishReason = "other"
+	// FinishReasonOther represents any LLM completion reason not covered by standard cases
+	FinishReasonOther FinishReason = "other"
 
-	// Null represents an undefined or unset finish reason
-	Null FinishReason = "null"
+	// FinishReasonNull represents an undefined or unset finish reason
+	FinishReasonNull FinishReason = "null"
 )
 
 // IsStop returns true if the LLM completed generation naturally.
 func (r FinishReason) IsStop() bool {
-	return r == Stop
+	return r == FinishReasonStop
 }
 
 // IsLength returns true if the LLM response was truncated due to token limits.
 func (r FinishReason) IsLength() bool {
-	return r == Length
+	return r == FinishReasonLength
 }
 
 // IsToolCalls returns true if the LLM requested tool/function execution.
 func (r FinishReason) IsToolCalls() bool {
-	return r == ToolCalls
+	return r == FinishReasonToolCalls
 }
 
 // IsContentFilter returns true if the LLM response was blocked by safety filters.
 func (r FinishReason) IsContentFilter() bool {
-	return r == ContentFilter
+	return r == FinishReasonContentFilter
 }
 
 // IsReturnDirect returns true if tool results bypassed further LLM processing.
 func (r FinishReason) IsReturnDirect() bool {
-	return r == ReturnDirect
+	return r == FinishReasonReturnDirect
 }
 
 // IsOther returns true if the LLM completion reason is non-standard.
 func (r FinishReason) IsOther() bool {
-	return r == Other
+	return r == FinishReasonOther
 }
 
 // IsNull returns true if the finish reason is undefined.
 func (r FinishReason) IsNull() bool {
-	return r == Null
+	return r == FinishReasonNull
 }
 
 var _ model.ResultMetadata = (*ResultMetadata)(nil)
@@ -114,20 +114,20 @@ var _ model.Result[*messages.AssistantMessage, *ResultMetadata] = (*Result)(nil)
 // - Standard: Direct LLM text response with completion metadata
 // - Tool-enhanced: LLM response with tool calls and optional tool execution results
 type Result struct {
-	assistantMessage    *messages.AssistantMessage    // LLM's generated response (required)
-	metadata            *ResultMetadata               // Generation metadata (required)
-	toolResponseMessage *messages.ToolResponseMessage // Optional tool execution results
+	assistantMessage *AssistantMessage // LLM's generated response (required)
+	metadata         *ResultMetadata   // Generation metadata (required)
+	toolMessage      *ToolMessage      // Optional tool execution results
 }
 
-// ToolResponseMessage returns tool execution results if available.
+// ToolMessage returns tool execution results if available.
 // Used in tool-enhanced LLM workflows where the LLM can call external functions.
-func (r *Result) ToolResponseMessage() *messages.ToolResponseMessage {
-	return r.toolResponseMessage
+func (r *Result) ToolMessage() *ToolMessage {
+	return r.toolMessage
 }
 
 // Output returns the LLM's generated response message.
 // May contain text content, tool calls, or both depending on the LLM's decision.
-func (r *Result) Output() *messages.AssistantMessage {
+func (r *Result) Output() *AssistantMessage {
 	return r.assistantMessage
 }
 
@@ -143,10 +143,10 @@ func (r *Result) Metadata() *ResultMetadata {
 // Parameters:
 //   - assistantMessage: The LLM's generated response (required)
 //   - metadata: Generation completion metadata (required)
-//   - toolResponseMessage: Optional tool execution results
+//   - toolMessage: Optional tool execution results
 //
 // Returns an error if required parameters are missing.
-func NewResult(assistantMessage *messages.AssistantMessage, metadata *ResultMetadata, toolResponseMessage ...*messages.ToolResponseMessage) (*Result, error) {
+func NewResult(assistantMessage *AssistantMessage, metadata *ResultMetadata, toolMessages ...*ToolMessage) (*Result, error) {
 	if assistantMessage == nil {
 		return nil, errors.New("assistant message is required")
 	}
@@ -155,8 +155,8 @@ func NewResult(assistantMessage *messages.AssistantMessage, metadata *ResultMeta
 	}
 
 	return &Result{
-		assistantMessage:    assistantMessage,
-		metadata:            metadata,
-		toolResponseMessage: pkgSlices.FirstOr(toolResponseMessage, nil),
+		assistantMessage: assistantMessage,
+		metadata:         metadata,
+		toolMessage:      pkgSlices.FirstOr(toolMessages, nil),
 	}, nil
 }

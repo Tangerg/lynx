@@ -168,7 +168,7 @@ func (c *Config) getChatOptions() chat.Options {
 //
 // Message Type Priority:
 // - System messages: Always placed at the beginning
-// - Other messages: Maintain original order (User, Assistant, Tool)
+// - FinishReasonOther messages: Maintain original order (User, Assistant, Tool)
 //
 // Empty Message Handling:
 // - If userPromptTemplate exists: render from template

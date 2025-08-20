@@ -9,7 +9,7 @@ import (
 	pkgSlices "github.com/Tangerg/lynx/pkg/slices"
 )
 
-var _ model.Request[[]messages.Message, Options] = (*request[Options])(nil)
+var _ model.Request[[]Message, Options] = (*request[Options])(nil)
 
 // Request is a type alias for the most common LLM chat request configuration.
 type Request = request[Options]
@@ -17,7 +17,7 @@ type Request = request[Options]
 // NewRequest creates an LLM chat request with conversation messages and optional model parameters.
 // Returns an error if no messages are provided, as LLMs require at least one input message.
 // If multiple options are given, only the first non-nil option is used.
-func NewRequest(msgs []messages.Message, options ...Options) (*Request, error) {
+func NewRequest(msgs []Message, options ...Options) (*Request, error) {
 	validMsgs := messages.ExcludeNil(msgs)
 	if len(validMsgs) == 0 {
 		return nil, errors.New("at least one valid message is required")
@@ -32,14 +32,14 @@ func NewRequest(msgs []messages.Message, options ...Options) (*Request, error) {
 
 // request represents an LLM chat request containing conversation context and model parameters.
 type request[O Options] struct {
-	messages []messages.Message
+	messages []Message
 	options  O
 	mu       sync.RWMutex
 	params   map[string]any //context params
 }
 
 // Instructions returns the conversation messages that will be sent to the LLM.
-func (c *request[O]) Instructions() []messages.Message {
+func (c *request[O]) Instructions() []Message {
 	return c.messages
 }
 
@@ -84,5 +84,5 @@ func (c *request[O]) SetParams(params map[string]any) {
 // Text is appended with "\n\n" separator to maintain proper formatting for the LLM.
 // Preserves the original message's media and metadata.
 func (c *request[O]) AugmentLastUserMessageText(text string) {
-	messages.AugmentTextLastMessageOfType(c.messages, messages.User, text)
+	messages.AugmentTextLastMessageOfType(c.messages, MessageTypeUser, text)
 }

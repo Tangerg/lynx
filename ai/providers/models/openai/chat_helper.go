@@ -232,12 +232,12 @@ func (r *requestHelper) makeAssistantMessage(msg *messages.AssistantMessage) ope
 	return message
 }
 
-func (r *requestHelper) makeToolMessages(msg *messages.ToolResponseMessage) []openai.ChatCompletionMessageParamUnion {
-	toolResponses := msg.ToolResponses()
+func (r *requestHelper) makeToolMessages(msg *messages.ToolMessage) []openai.ChatCompletionMessageParamUnion {
+	toolResponses := msg.ToolReturns()
 	msgs := make([]openai.ChatCompletionMessageParamUnion, 0, len(toolResponses))
 
 	for _, toolResponse := range toolResponses {
-		msgs = append(msgs, openai.ToolMessage(toolResponse.ResponseData, toolResponse.ID))
+		msgs = append(msgs, openai.ToolMessage(toolResponse.Result, toolResponse.ID))
 	}
 
 	return msgs
@@ -263,7 +263,7 @@ func (r *requestHelper) makeMessages(msgs []messages.Message) []openai.ChatCompl
 
 	for _, msg := range msgs {
 		if msg.Type().IsTool() {
-			rv = append(rv, r.makeToolMessages(msg.(*messages.ToolResponseMessage))...)
+			rv = append(rv, r.makeToolMessages(msg.(*messages.ToolMessage))...)
 		} else {
 			rv = append(rv, r.makeMessage(msg))
 		}
@@ -285,7 +285,7 @@ func (r *requestHelper) makeRequest(req *chat.Request) (*openai.ChatCompletionNe
 type responseHelper struct{}
 
 func (r *responseHelper) makeResultAssistantMessage(req *openai.ChatCompletionNewParams, message *openai.ChatCompletionMessage) *messages.AssistantMessage {
-	param := messages.AssistantMessageParam{
+	param := messages.MessageParams{
 		Text:     message.Content,
 		Metadata: make(map[string]any),
 	}
@@ -297,7 +297,6 @@ func (r *responseHelper) makeResultAssistantMessage(req *openai.ChatCompletionNe
 			param.ToolCalls,
 			&messages.ToolCall{
 				ID:        toolCall.ID,
-				Type:      "function",
 				Name:      toolCall.Function.Name,
 				Arguments: toolCall.Function.Arguments,
 			},

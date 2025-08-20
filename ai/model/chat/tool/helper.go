@@ -46,7 +46,7 @@ func (h *Helper) RegisterTools(tools ...Tool) {
 // based on the last message in the conversation history.
 //
 // Returns true when:
-// - The last message is a ToolResponseMessage AND
+// - The last message is a ToolMessage AND
 // - ALL tools referenced in the message are registered AND
 // - ALL tools are configured with returnDirect=true
 func (h *Helper) ShouldReturnDirect(msgs []messages.Message) bool {
@@ -56,13 +56,13 @@ func (h *Helper) ShouldReturnDirect(msgs []messages.Message) bool {
 	}
 
 	message, _ := pkgSlices.Last(msgs)
-	toolResponseMessage, ok := message.(*messages.ToolResponseMessage)
+	toolResponseMessage, ok := message.(*messages.ToolMessage)
 	if !ok {
 		return false
 	}
 
 	returnDirect := true
-	for _, toolResponse := range toolResponseMessage.ToolResponses() {
+	for _, toolResponse := range toolResponseMessage.ToolReturns() {
 		// Verify tool exists in registry
 		t, ok1 := h.registry.Find(toolResponse.Name)
 		if !ok1 {
@@ -85,14 +85,14 @@ func (h *Helper) MakeReturnDirectChatResponse(msgs []messages.Message) (*chat.Re
 
 	message, _ := pkgSlices.Last(msgs)
 	// prechecked by ShouldReturnDirect
-	toolResponseMessage := message.(*messages.ToolResponseMessage)
+	toolResponseMessage := message.(*messages.ToolMessage)
 
 	assistantMessage := messages.NewAssistantMessage(map[string]any{
-		"create_by": chat.ReturnDirect.String(),
+		"create_by": chat.FinishReasonReturnDirect.String(),
 	})
 
 	metadata := &chat.ResultMetadata{
-		FinishReason: chat.ReturnDirect,
+		FinishReason: chat.FinishReasonReturnDirect,
 	}
 
 	result, err := chat.NewResult(assistantMessage, metadata, toolResponseMessage)

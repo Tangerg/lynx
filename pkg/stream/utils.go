@@ -690,7 +690,7 @@ func (f *flatMapReader[T, U]) Read(ctx context.Context) (v U, err error) {
 //	    return SliceReader([]rune(s))
 //	})
 //
-//	// Result stream will emit: 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i'
+//	// Output stream will emit: 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i'
 //
 //	// Expand users to their email addresses
 //	userReader := SliceReader([]User{user1, user2, user3})
@@ -802,12 +802,12 @@ func (d *distinctReader[T]) Read(ctx context.Context) (v T, err error) {
 //	// Remove duplicate numbers
 //	numbers := SliceReader([]int{1, 2, 3, 2, 4, 1, 5})
 //	uniqueNumbers := Distinct(numbers)
-//	// Result stream: 1, 2, 3, 4, 5
+//	// Output stream: 1, 2, 3, 4, 5
 //
 //	// Remove duplicate strings (case-sensitive)
 //	words := SliceReader([]string{"apple", "banana", "apple", "cherry", "banana"})
 //	uniqueWords := Distinct(words)
-//	// Result stream: "apple", "banana", "cherry"
+//	// Output stream: "apple", "banana", "cherry"
 //
 //	// Chain with other operations
 //	pipeline := Map(

@@ -58,11 +58,11 @@ func EnsureIndex[S ~[]E, E any](s S, i int) S {
 //
 //	numbers := []int{1, 2, 3, 4, 5, 6}
 //	chunks := Chunk(numbers, 2)
-//	// Result: [[1, 2], [3, 4], [5, 6]]
+//	// Output: [[1, 2], [3, 4], [5, 6]]
 //
 //	letters := []string{"a", "b", "c", "d", "e"}
 //	chunks := Chunk(letters, 3)
-//	// Result: [["a", "b", "c"], ["d", "e"]]
+//	// Output: [["a", "b", "c"], ["d", "e"]]
 func Chunk[S ~[]E, E any](s S, size int) []S {
 	if size <= 0 {
 		panic("chunk size must be positive")

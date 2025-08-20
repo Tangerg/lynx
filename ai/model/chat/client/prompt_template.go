@@ -62,7 +62,7 @@ func (p *PromptTemplate) RenderUserMessage() (*messages.UserMessage, error) {
 		return nil, err
 	}
 
-	return messages.NewUserMessage(messages.UserMessageParam{
+	return messages.NewUserMessage(messages.MessageParams{
 		Text:  contentText,
 		Media: p.media,
 	}), nil

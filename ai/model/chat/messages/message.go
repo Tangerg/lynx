@@ -1,6 +1,7 @@
 package messages
 
 import (
+	"errors"
 	"maps"
 
 	"github.com/Tangerg/lynx/ai/content"
@@ -25,8 +26,8 @@ const (
 	// in response to user input.
 	Assistant Type = "assistant"
 
-	// Tool represents a message containing function call toolResponses
-	// or tool execution results in a chat application.
+	// Tool represents a message containing function call results
+	// or tool execution outcomes in a chat application.
 	Tool Type = "tool"
 )
 
@@ -56,31 +57,25 @@ func (t Type) IsTool() bool {
 	return t == Tool
 }
 
-const (
-	// MessageTypeMetadataKey for metadata use
-	MessageTypeMetadataKey = "message_type"
-)
-
 // Message represents a message that can be sent or received in a chat application.
-// Messages can have content, metadata, and message types.
+// Messages can contain text content, media attachments, metadata, and have specific types.
 type Message interface {
 	content.Content
 	// Type returns the message type.
 	Type() Type
-	impl()
+	isMessage()
 }
 
 var _ Message = (*message)(nil)
 
 // message is the internal implementation of the Message interface.
-// It provides a base implementation for message content, metadata, and message type.
+// It provides a base implementation for message content and metadata.
 type message struct {
-	_type    Type           // The message type
 	text     string         // The text content of the message
-	metadata map[string]any // Additional metadata for the message
+	metadata map[string]any // Additional metadata associated with the message
 }
 
-func (m *message) impl() {}
+func (m *message) isMessage() {}
 
 func (m *message) Text() string {
 	return m.text
@@ -91,33 +86,66 @@ func (m *message) Metadata() map[string]any {
 }
 
 func (m *message) Type() Type {
-	return m._type
+	panic("implement me")
 }
 
-// newMessage creates a new base message with specified type and content.
-// Used internally by message constructors to avoid code duplication.
+// newMessage creates a new base message with specified text content and metadata.
+// This function is used internally by specific message constructors.
 //
 // Parameters:
-//   - typ: Message type (System, User, Assistant, or Tool)
-//   - text: Message text content
-//   - metadata: Optional metadata map
+//   - text: The text content of the message
+//   - metadata: Optional metadata map for additional message information
 //
 // Returns:
-//   - message: Base message with content and type metadata
+//   - message: Base message instance with the provided content and metadata
 //
-// The function automatically adds MessageTypeMetadataKey to metadata and defensively copies
-// the metadata map to prevent external modifications.
-func newMessage(typ Type, text string, metadata map[string]any) message {
+// The function performs a defensive copy of the metadata map to prevent
+// external modifications after message creation.
+func newMessage(text string, metadata map[string]any) message {
 	var md map[string]any
 	if metadata != nil {
 		md = maps.Clone(metadata)
 	} else {
 		md = make(map[string]any)
 	}
-	md[MessageTypeMetadataKey] = typ.String()
 	return message{
-		_type:    typ,
 		text:     text,
 		metadata: md,
+	}
+}
+
+// MessageParams contains the parameters needed to create a new message.
+// It supports various message components including text, media, tool calls, and tool returns.
+type MessageParams struct {
+	Type        Type             // The type of the message (System, User, Assistant, or Tool)
+	Text        string           // The text content of the message
+	Metadata    map[string]any   // metadata for additional message information
+	Media       []*content.Media // Media attachments (images, documents, etc.)
+	ToolCalls   []*ToolCall      // Tool function calls for assistant messages
+	ToolReturns []*ToolReturn    // Tool execution results for tool messages
+}
+
+// NewMessage creates a new message based on the provided parameters.
+// It acts as a factory function that delegates to specific message constructors
+// based on the message type.
+//
+// Parameters:
+//   - params: MessageParams containing all necessary information for message creation
+//
+// Returns:
+//   - Message: The created message instance
+//   - error: An error if the message type is not supported
+func NewMessage(params MessageParams) (Message, error) {
+	switch params.Type {
+	case System:
+		return NewSystemMessage(params), nil
+	case Assistant:
+		return NewAssistantMessage(params), nil
+	case User:
+		return NewUserMessage(params), nil
+	case Tool:
+		return NewToolMessage(params)
+	default:
+		return nil, errors.New("message type not supported")
 	}
 }
