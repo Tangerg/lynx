@@ -16,62 +16,90 @@ var (
 	baseModel = "moonshot-v1-8k-vision-preview"
 )
 
-func newApiKey() model.ApiKey {
-	k := os.Getenv("apiKey")
+func newAPIKey() model.ApiKey {
+	apiKey := os.Getenv("apiKey")
 
-	return model.NewApiKey(k)
+	return model.NewApiKey(apiKey)
 }
-func newApi() *Api {
-	api, _ := NewApi(newApiKey(), option.WithBaseURL(baseURL))
-	return api
+
+func newAPI() *Api {
+	apiInstance, _ := NewApi(
+		newAPIKey(),
+		option.WithBaseURL(baseURL),
+	)
+
+	return apiInstance
 }
 
 func TestNewApi(t *testing.T) {
-	api := newApi()
-	t.Log(api)
+	apiInstance := newAPI()
+
+	t.Log(apiInstance)
 }
 
 func TestApi_ChatCompletion(t *testing.T) {
-	api := newApi()
-	completion, err := api.ChatCompletion(context.Background(), &openai.ChatCompletionNewParams{
-		Messages: []openai.ChatCompletionMessageParamUnion{
-			openai.UserMessage("hi!"),
-		},
-		Model: baseModel,
-	})
+	apiInstance := newAPI()
+
+	messages := []openai.ChatCompletionMessageParamUnion{
+		openai.UserMessage("hi!"),
+	}
+
+	params := &openai.ChatCompletionNewParams{
+		Messages: messages,
+		Model:    baseModel,
+	}
+
+	completion, err := apiInstance.ChatCompletion(
+		context.Background(),
+		params,
+	)
+
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Log(completion.Choices[0].Message.Content)
+
+	content := completion.Choices[0].Message.Content
+	t.Log(content)
 }
 
 func TestApi_ChatCompletionStream(t *testing.T) {
-	api := newApi()
-	stream, err := api.ChatCompletionStream(context.Background(), &openai.ChatCompletionNewParams{
-		Messages: []openai.ChatCompletionMessageParamUnion{
-			openai.UserMessage("hi!"),
-		},
-		Model: baseModel,
-	})
+	apiInstance := newAPI()
+
+	messages := []openai.ChatCompletionMessageParamUnion{
+		openai.UserMessage("hi!"),
+	}
+
+	params := &openai.ChatCompletionNewParams{
+		Messages: messages,
+		Model:    baseModel,
+	}
+
+	streamResponse, err := apiInstance.ChatCompletionStream(
+		context.Background(),
+		params,
+	)
+
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	acc := openai.ChatCompletionAccumulator{}
+	accumulator := openai.ChatCompletionAccumulator{}
 
-	for stream.Next() {
-		chunk := stream.Current()
-		acc.AddChunk(chunk)
-		once := openai.ChatCompletionAccumulator{}
-		once.AddChunk(chunk)
-		content := once.Choices[0].Message.Content
-		t.Log(content)
+	for streamResponse.Next() {
+		chunk := streamResponse.Current()
+		accumulator.AddChunk(chunk)
+
+		chunkAccumulator := openai.ChatCompletionAccumulator{}
+		chunkAccumulator.AddChunk(chunk)
+
+		chunkContent := chunkAccumulator.Choices[0].Message.Content
+		t.Log(chunkContent)
 	}
 
-	if stream.Err() != nil {
-		t.Fatal(stream.Err())
+	if streamResponse.Err() != nil {
+		t.Fatal(streamResponse.Err())
 	}
 
-	content := acc.Choices[0].Message.Content
-	t.Log(content)
+	finalContent := accumulator.Choices[0].Message.Content
+	t.Log(finalContent)
 }

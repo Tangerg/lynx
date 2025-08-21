@@ -4,7 +4,6 @@ import (
 	"errors"
 
 	"github.com/Tangerg/lynx/ai/model"
-	"github.com/Tangerg/lynx/ai/model/chat/messages"
 	pkgSlices "github.com/Tangerg/lynx/pkg/slices"
 )
 
@@ -24,7 +23,7 @@ const (
 	// FinishReasonLength indicates the LLM response was truncated due to token limits
 	FinishReasonLength FinishReason = "length"
 
-	// FinishReasonToolCalls indicates the LLM finished to execute function/tool calls
+	// FinishReasonToolCalls indicates the LLM finished to call function/tool calls
 	FinishReasonToolCalls FinishReason = "tool_calls"
 
 	// FinishReasonContentFilter indicates the LLM response was blocked by safety filters
@@ -105,14 +104,14 @@ func (r *ResultMetadata) Set(key string, value any) {
 	r.Extra[key] = value
 }
 
-var _ model.Result[*messages.AssistantMessage, *ResultMetadata] = (*Result)(nil)
+var _ model.Result[*AssistantMessage, *ResultMetadata] = (*Result)(nil)
 
 // Result represents a single LLM generation result with associated metadata.
 // Contains the LLM's response and information about how the generation completed.
 //
 // Supports both standard LLM conversations and tool-enhanced workflows:
 // - Standard: Direct LLM text response with completion metadata
-// - Tool-enhanced: LLM response with tool calls and optional tool execution results
+// - MessageTypeTool-enhanced: LLM response with tool calls and optional tool execution results
 type Result struct {
 	assistantMessage *AssistantMessage // LLM's generated response (required)
 	metadata         *ResultMetadata   // Generation metadata (required)

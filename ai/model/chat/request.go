@@ -5,7 +5,6 @@ import (
 	"sync"
 
 	"github.com/Tangerg/lynx/ai/model"
-	"github.com/Tangerg/lynx/ai/model/chat/messages"
 	pkgSlices "github.com/Tangerg/lynx/pkg/slices"
 )
 
@@ -18,7 +17,7 @@ type Request = request[Options]
 // Returns an error if no messages are provided, as LLMs require at least one input message.
 // If multiple options are given, only the first non-nil option is used.
 func NewRequest(msgs []Message, options ...Options) (*Request, error) {
-	validMsgs := messages.ExcludeNil(msgs)
+	validMsgs := excludeNilMessages(msgs)
 	if len(validMsgs) == 0 {
 		return nil, errors.New("at least one valid message is required")
 	}
@@ -83,6 +82,6 @@ func (c *request[O]) SetParams(params map[string]any) {
 // AugmentLastUserMessageText appends additional context to the user's input before LLM processing.
 // Text is appended with "\n\n" separator to maintain proper formatting for the LLM.
 // Preserves the original message's media and metadata.
-func (c *request[O]) AugmentLastUserMessageText(text string) {
-	messages.AugmentTextLastMessageOfType(c.messages, MessageTypeUser, text)
+func (c *request[O]) augmentLastUserMessageText(text string) {
+	augmentTextLastMessageOfType(c.messages, MessageTypeUser, text)
 }

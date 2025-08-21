@@ -106,14 +106,14 @@ func (c *Response) Results() []*Result {
 	return c.results
 }
 
-// Metadata returns the comprehensive response metadata from the LLM provider.
+// ToolMetadata returns the comprehensive response metadata from the LLM provider.
 // Includes usage statistics, rate limits, and provider-specific information.
 func (c *Response) Metadata() *ResponseMetadata {
 	return c.metadata
 }
 
 // FirstToolCallsResult finds the first LLM result that contains tool/function calls.
-// Tool calls enable LLMs to interact with external systems and APIs.
+// MessageTypeTool calls enable LLMs to interact with external systems and APIs.
 // Returns nil if no result contains tool calls.
 func (c *Response) FirstToolCallsResult() *Result {
 	for _, chatResult := range c.results {

@@ -1,10 +1,9 @@
-package client
+package chat
 
 import (
 	"slices"
 
 	"github.com/Tangerg/lynx/ai/content"
-	"github.com/Tangerg/lynx/ai/model/chat/messages"
 	"github.com/Tangerg/lynx/pkg/text"
 )
 
@@ -47,22 +46,22 @@ func (p *PromptTemplate) Clone() *PromptTemplate {
 	}
 }
 
-func (p *PromptTemplate) RenderSystemMessage() (*messages.SystemMessage, error) {
+func (p *PromptTemplate) RenderSystemMessage() (*SystemMessage, error) {
 	contentText, err := p.renderer.Render()
 	if err != nil {
 		return nil, err
 	}
 
-	return messages.NewSystemMessage(contentText), nil
+	return NewSystemMessage(contentText), nil
 }
 
-func (p *PromptTemplate) RenderUserMessage() (*messages.UserMessage, error) {
+func (p *PromptTemplate) RenderUserMessage() (*UserMessage, error) {
 	contentText, err := p.renderer.Render()
 	if err != nil {
 		return nil, err
 	}
 
-	return messages.NewUserMessage(messages.MessageParams{
+	return NewUserMessage(MessageParams{
 		Text:  contentText,
 		Media: p.media,
 	}), nil

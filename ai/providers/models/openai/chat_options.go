@@ -4,11 +4,10 @@ import (
 	"errors"
 
 	"github.com/Tangerg/lynx/ai/model/chat"
-	"github.com/Tangerg/lynx/ai/model/chat/tool"
 	"github.com/Tangerg/lynx/pkg/assert"
 )
 
-var _ tool.Options = (*ChatOptions)(nil)
+var _ chat.ToolOptions = (*ChatOptions)(nil)
 
 type ChatOptions struct {
 	model               string
@@ -31,21 +30,21 @@ type ChatOptions struct {
 	topLogprobs         *int64
 	topP                *float64
 	user                *string
-	tools               []tool.Tool
+	tools               []chat.Tool
 	toolParams          map[string]any
 }
 
-func (o *ChatOptions) Tools() []tool.Tool {
+func (o *ChatOptions) Tools() []chat.Tool {
 	return o.tools
 }
 
-func (o *ChatOptions) SetTools(tools []tool.Tool) {
+func (o *ChatOptions) SetTools(tools []chat.Tool) {
 	if tools != nil {
 		o.tools = tools
 	}
 }
 
-func (o *ChatOptions) AddTools(tools []tool.Tool) {
+func (o *ChatOptions) AddTools(tools []chat.Tool) {
 	for _, t := range tools {
 		o.tools = append(o.tools, t)
 	}
@@ -215,7 +214,7 @@ type ChatOptionsBuilder struct {
 	topLogprobs         *int64
 	topP                *float64
 	user                *string
-	tools               []tool.Tool
+	tools               []chat.Tool
 	toolParams          map[string]any
 }
 
@@ -361,7 +360,7 @@ func (b *ChatOptionsBuilder) WithUser(user *string) *ChatOptionsBuilder {
 	return b
 }
 
-func (b *ChatOptionsBuilder) WithTools(tools []tool.Tool) *ChatOptionsBuilder {
+func (b *ChatOptionsBuilder) WithTools(tools []chat.Tool) *ChatOptionsBuilder {
 	if len(tools) > 0 {
 		b.tools = tools
 	}
@@ -424,7 +423,7 @@ func MergeChatOptions(options *ChatOptions, opts ...chat.Options) (*ChatOptions,
 			WithTemperature(o.Temperature()).
 			WithTopP(o.TopP())
 
-		toolOptions, ok := o.(tool.Options)
+		toolOptions, ok := o.(chat.ToolOptions)
 		if ok {
 			fork.
 				WithTools(toolOptions.Tools()).

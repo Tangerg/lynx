@@ -28,21 +28,21 @@ import (
 //   - Memory efficient for large LLM outputs
 //   - Built-in backpressure handling and early termination support
 //
-// Type Parameters:
+// MessageType Parameters:
 //   - Request: Chat request containing messages, system prompts, and LLM parameters
 //   - Response: LLM response with generated content, usage statistics, and metadata
 //
 // Usage Examples:
 //
 //	// Synchronous LLM interaction
-//	response, err := llmModel.Call(ctx, chatRequest)
+//	response, err := llmModel.Call(ctx, request)
 //	if err != nil {
 //	    return err
 //	}
 //	content := response.Result().Output().Text()
 //
 //	// Streaming LLM interaction
-//	for chunk, err := range llmModel.Stream(ctx, chatRequest) {
+//	for chunk, err := range llmModel.Stream(ctx, request) {
 //	    if err != nil {
 //	        return fmt.Errorf("streaming error: %w", err)
 //	    }
@@ -55,7 +55,7 @@ import (
 //   - Memory efficiency by processing responses incrementally
 //   - Better resource utilization through backpressure handling
 //   - Early termination capability when response is satisfactory
-//   - Context cancellation and timeout support
+//   - ToolContext cancellation and timeout support
 //
 // The interface abstracts LLM provider differences while maintaining access to
 // provider-specific features through the Options and metadata systems.
