@@ -18,7 +18,7 @@ const (
 var _ document.Batcher = (*TokenCountBatcher)(nil)
 
 type TokenCountBatcherConfig struct {
-	TokenCountEstimator tokenizer.TokenCountEstimator
+	TokenCountEstimator tokenizer.Estimator
 	MaxInputTokenCount  int
 	ReservePercentage   float64
 	Formatter           document.Formatter
@@ -62,7 +62,7 @@ func (c *TokenCountBatcherConfig) initializeDefaults() {
 }
 
 type TokenCountBatcher struct {
-	tokenCountEstimator tokenizer.TokenCountEstimator
+	tokenCountEstimator tokenizer.Estimator
 	maxInputTokenCount  int
 	formatter           document.Formatter
 	metadataMode        document.MetadataMode

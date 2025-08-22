@@ -10,7 +10,7 @@ import (
 	"github.com/Tangerg/lynx/pkg/mime"
 )
 
-var _ TokenCountEstimator = (*Tiktoken)(nil)
+var _ Estimator = (*Tiktoken)(nil)
 var _ Tokenizer = (*Tiktoken)(nil)
 
 // Tiktoken is a token count estimator implementation using the tiktoken library.

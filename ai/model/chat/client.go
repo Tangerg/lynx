@@ -107,13 +107,11 @@ func NewClientConfig(model Model) (*ClientConfig, error) {
 }
 
 func (c *ClientConfig) Call() *ClientCaller {
-	caller, _ := NewClientCaller(c)
-	return caller
+	return newClientCaller(c)
 }
 
 func (c *ClientConfig) Stream() *ClientStreamer {
-	streamer, _ := NewClientStreamer(c)
-	return streamer
+	return newClientStreamer(c)
 }
 
 func (c *ClientConfig) WithOptions(options Options) *ClientConfig {
@@ -357,15 +355,11 @@ type ClientStreamer struct {
 	middlewareManager *MiddlewareManager
 }
 
-func NewClientStreamer(config *ClientConfig) (*ClientStreamer, error) {
-	if config == nil {
-		return nil, errors.New("config is required")
-	}
-
+func newClientStreamer(config *ClientConfig) *ClientStreamer {
 	return &ClientStreamer{
 		config:            config,
 		middlewareManager: config.getMiddlewareManager(),
-	}, nil
+	}
 }
 
 func (s *ClientStreamer) execute(ctx context.Context, req *Request) iter.Seq2[*Response, error] {
@@ -425,15 +419,11 @@ type ClientCaller struct {
 	middlewareManager *MiddlewareManager
 }
 
-func NewClientCaller(config *ClientConfig) (*ClientCaller, error) {
-	if config == nil {
-		return nil, errors.New("config is required")
-	}
-
+func newClientCaller(config *ClientConfig) *ClientCaller {
 	return &ClientCaller{
 		config:            config,
 		middlewareManager: config.getMiddlewareManager(),
-	}, nil
+	}
 }
 
 func (c *ClientCaller) call(ctx context.Context, req *Request) (*Response, error) {
@@ -469,32 +459,32 @@ func (c *ClientCaller) Text(ctx context.Context) (string, *Response, error) {
 }
 
 func (c *ClientCaller) List(ctx context.Context, listParser ...StructuredParser[[]string]) ([]string, *Response, error) {
-	conv := pkgSlices.FirstOr(listParser, nil)
-	if conv == nil {
-		conv = NewListParser()
+	parser := pkgSlices.FirstOr(listParser, nil)
+	if parser == nil {
+		parser = NewListParser()
 	}
 
-	resp, err := c.response(ctx, ParserAsAny(conv))
+	resp, err := c.response(ctx, ParserAsAny(parser))
 	if err != nil {
 		return nil, nil, err
 	}
 
-	data, err := conv.Parse(resp.Result().Output().Text())
+	data, err := parser.Parse(resp.Result().Output().Text())
 	return data, resp, err
 }
 
 func (c *ClientCaller) Map(ctx context.Context, mapParser ...StructuredParser[map[string]any]) (map[string]any, *Response, error) {
-	conv := pkgSlices.FirstOr(mapParser, nil)
-	if conv == nil {
-		conv = NewMapParser()
+	parser := pkgSlices.FirstOr(mapParser, nil)
+	if parser == nil {
+		parser = NewMapParser()
 	}
 
-	resp, err := c.response(ctx, ParserAsAny(conv))
+	resp, err := c.response(ctx, ParserAsAny(parser))
 	if err != nil {
 		return nil, nil, err
 	}
 
-	data, err := conv.Parse(resp.Result().Output().Text())
+	data, err := parser.Parse(resp.Result().Output().Text())
 	return data, resp, err
 }
 

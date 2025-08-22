@@ -11,51 +11,6 @@ import (
 	pkgSlices "github.com/Tangerg/lynx/pkg/slices"
 )
 
-// ToolOptions extends Options with tool-specific configuration for LLM function calling.
-// Provides a unified interface for managing both standard chat parameters and tool settings.
-//
-// Key capabilities:
-// - Configure available tools for function calling
-// - Set execution parameters for tool invocation
-// - Support both internal (auto-executed) and external (client-delegated) tools
-// - Maintain compatibility with standard chat options
-type ToolOptions interface {
-	Options // Standard chat configuration (model, temperature, etc.)
-
-	// Tools returns the list of available tools for LLM function calling.
-	// The returned slice should be treated as read-only.
-	Tools() []Tool
-
-	// SetTools replaces all available tools for LLM function calling.
-	// Accepts both internal and external tools.
-	SetTools(tools []Tool)
-
-	// AddTools appends additional tools to the existing tool list.
-	// Accepts both internal and external tools.
-	AddTools(tools []Tool)
-
-	// ToolParams returns additional parameters passed to tools during execution.
-	// These provide contextual information beyond function arguments.
-	//
-	// Common parameter examples:
-	// - API endpoints and base URLs
-	// - Timeout values and retry settings
-	// - Authentication tokens
-	// - Environment configuration (dev/prod)
-	// - User context (user ID, session data)
-	//
-	// The returned map should be treated as read-only.
-	ToolParams() map[string]any
-
-	// SetToolParams replaces all tool execution parameters.
-	// Parameters are passed to the tool execution Context.
-	SetToolParams(params map[string]any)
-
-	// AddToolParams adds parameters to existing tool parameters.
-	// If a key already exists, it will be overwritten.
-	AddToolParams(params map[string]any)
-}
-
 // ToolDefinition represents a tool definition that enables LLM models to understand
 // when and how to invoke external functions.
 //
@@ -268,9 +223,9 @@ type ToolRegistry struct {
 	store map[string]Tool // Maps tool names to immutable Tool instances
 }
 
-// NewToolRegistry creates a new registry with optional initial capacity.
+// newToolRegistry creates a new registry with optional initial capacity.
 // Negative capacity values default to 0.
-func NewToolRegistry(cap ...int) *ToolRegistry {
+func newToolRegistry(cap ...int) *ToolRegistry {
 	c, _ := pkgSlices.First(cap)
 	if c < 0 {
 		c = 0
@@ -430,7 +385,7 @@ func (r *ToolInvokeResult) MakeRequest() (*Request, error) {
 		return nil, errors.New("tool response message is required")
 	}
 
-	res := r.response.FirstToolCallsResult()
+	res := r.response.firstToolCallsResult()
 	if res == nil {
 		return nil, errors.New("tool calls result is required")
 	}
@@ -456,7 +411,7 @@ func (r *ToolInvokeResult) MakeResponse() (*Response, error) {
 		return nil, errors.New("chat response is required")
 	}
 
-	res := r.response.FirstToolCallsResult()
+	res := r.response.firstToolCallsResult()
 	if res == nil {
 		return nil, errors.New("tool calls result is required")
 	}
@@ -508,7 +463,7 @@ func newToolInvoker(registry *ToolRegistry) *toolInvoker {
 // canInvokeToolCalls determines if the chat response contains valid tool calls
 // that can be processed. It validates that all requested tools exist in the registry.
 func (i *toolInvoker) canInvokeToolCalls(response *Response) (bool, error) {
-	res := response.FirstToolCallsResult()
+	res := response.firstToolCallsResult()
 	if res == nil {
 		return false, nil
 	}
@@ -596,7 +551,7 @@ func (i *toolInvoker) invoke(ctx context.Context, request *Request, response *Re
 	}
 
 	// Tool calls result guaranteed by canInvokeToolCalls precheck
-	res := response.FirstToolCallsResult()
+	res := response.firstToolCallsResult()
 
 	invokeRes, err := i.invokeToolCalls(
 		i.createContext(ctx, request),
@@ -628,7 +583,7 @@ type ToolSupport struct {
 //	helper := NewToolSupport()       // Default capacity
 //	helper := NewToolSupport(50)     // Initial capacity of 50 tools
 func NewToolSupport(cap ...int) *ToolSupport {
-	registry := NewToolRegistry(cap...)
+	registry := newToolRegistry(cap...)
 	return &ToolSupport{
 		registry: registry,
 		invoker:  newToolInvoker(registry),
@@ -643,6 +598,11 @@ func (h *ToolSupport) Registry() *ToolRegistry {
 // RegisterTools registers multiple tools to the internal registry.
 func (h *ToolSupport) RegisterTools(tools ...Tool) {
 	h.registry.Register(tools...)
+}
+
+// UnregisterTools removes tools by name from the registry.
+func (h *ToolSupport) UnregisterTools(names ...string) {
+	h.registry.Unregister(names...)
 }
 
 // ShouldReturnDirect determines if a conversation should return directly to the user
