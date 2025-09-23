@@ -1,0 +1,125 @@
+package chat
+
+import (
+	"errors"
+	"time"
+
+	"github.com/Tangerg/lynx/ai/model"
+)
+
+// Usage tracks token consumption for LLM API requests.
+// Token usage is a critical metric for cost calculation and rate limiting in LLM services.
+type Usage struct {
+	PromptTokens     int64       `json:"prompt_tokens"`            // Tokens consumed by input messages
+	CompletionTokens int64       `json:"completion_tokens"`        // Tokens generated in LLM response
+	OriginalUsage    interface{} `json:"original_usage,omitempty"` // Provider-specific usage data
+}
+
+// TotalTokens returns the combined token count for both input and output.
+// Used for billing calculations and monitoring LLM API consumption.
+func (u *Usage) TotalTokens() int64 {
+	return u.PromptTokens + u.CompletionTokens
+}
+
+// RateLimit contains LLM API rate limiting information from the provider.
+// Essential for managing API quota and implementing proper backoff strategies.
+type RateLimit struct {
+	RequestsLimit     int64         `json:"requests_limit"`     // Maximum requests allowed per time window
+	RequestsRemaining int64         `json:"requests_remaining"` // Remaining requests in current window
+	RequestsReset     time.Duration `json:"requests_reset"`     // Time until request quota resets
+	TokensLimit       int64         `json:"tokens_limit"`       // Maximum tokens allowed per time window
+	TokensRemaining   int64         `json:"tokens_remaining"`   // Remaining tokens in current window
+	TokensReset       time.Duration `json:"tokens_reset"`       // Time until token quota resets
+}
+
+var _ model.ResponseMetadata = (*ResponseMetadata)(nil)
+
+// ResponseMetadata contains comprehensive metadata from LLM API responses.
+// Includes usage statistics, rate limits, and extensible provider-specific data.
+type ResponseMetadata struct {
+	ID        string         // Unique identifier for this LLM response
+	Model     string         // LLM model name/version used for generation
+	Usage     *Usage         // Token consumption details
+	RateLimit *RateLimit     // API rate limiting information
+	Created   int64          // The Unix timestamp (in seconds) of when the Response was created.
+	Extra     map[string]any // Provider-specific metadata for non-standard attributes that may become standard params in the future
+}
+
+// ensureExtra initializes the extra metadata map if not already present.
+func (r *ResponseMetadata) ensureExtra() {
+	if r.Extra == nil {
+		r.Extra = make(map[string]any)
+	}
+}
+
+// Get retrieves a specific metadata value by key.
+// Returns the value and a boolean indicating if the key exists.
+func (r *ResponseMetadata) Get(key string) (any, bool) {
+	r.ensureExtra()
+	v, ok := r.Extra[key]
+	return v, ok
+}
+
+// Set stores additional metadata from the LLM provider response.
+// Allows extending metadata with provider-specific information.
+func (r *ResponseMetadata) Set(key string, value any) {
+	r.ensureExtra()
+	r.Extra[key] = value
+}
+
+var _ model.Response[*Result, *ResponseMetadata] = (*Response)(nil)
+
+// Response represents a complete LLM chat response with generated content and metadata.
+// Contains one or more result variants and comprehensive response metadata.
+type Response struct {
+	results  []*Result
+	metadata *ResponseMetadata
+}
+
+// NewResponse creates a new LLM chat response with results and metadata.
+// Both parameters are required as they contain essential response information.
+func NewResponse(results []*Result, metadata *ResponseMetadata) (*Response, error) {
+	if len(results) == 0 {
+		return nil, errors.New("results at least one result required")
+	}
+	if metadata == nil {
+		return nil, errors.New("metadata is required")
+	}
+	return &Response{
+		results:  results,
+		metadata: metadata,
+	}, nil
+}
+
+// Result returns the primary LLM-generated result.
+// Most LLM responses contain a single result, this provides convenient access to it.
+func (c *Response) Result() *Result {
+	if len(c.results) > 0 {
+		return c.results[0]
+	}
+	return nil
+}
+
+// Results returns all LLM-generated result variants.
+// Some LLM providers may return multiple response alternatives.
+func (c *Response) Results() []*Result {
+	return c.results
+}
+
+// Metadata returns the comprehensive response metadata from the LLM provider.
+// Includes usage statistics, rate limits, and provider-specific information.
+func (c *Response) Metadata() *ResponseMetadata {
+	return c.metadata
+}
+
+// firstToolCallsResult finds the first LLM result that contains tool/function calls.
+// MessageTypeTool calls enable LLMs to interact with external systems and APIs.
+// Returns nil if no result contains tool calls.
+func (c *Response) firstToolCallsResult() *Result {
+	for _, chatResult := range c.results {
+		if chatResult.Output().HasToolCalls() {
+			return chatResult
+		}
+	}
+	return nil
+}

@@ -134,7 +134,7 @@ type Future[V any] interface {
 type FutureTask[V any] struct {
 	task      func(interrupt <-chan struct{}) (V, error) // The task to execute
 	state     atomic.Int32                               // Current state of the future
-	value     V                                          // Result value (valid only if state is Success)
+	value     V                                          // Output value (valid only if state is Success)
 	error     error                                      // Error result (valid only if state is Failed or Cancelled)
 	done      chan struct{}                              // Channel closed when the task completes
 	interrupt chan struct{}                              // Channel closed to interrupt the task
@@ -345,7 +345,7 @@ func (f *FutureTask[V]) IsCancelled() bool {
 //	// Non-blocking check if the task is done
 //	if future.IsDone() {
 //	    result, err := future.Get() // Won't block now
-//	    fmt.Println("Result:", result, "Error:", err)
+//	    fmt.Println("Output:", result, "Error:", err)
 //	} else {
 //	    fmt.Println("Task is still running")
 //	}
@@ -376,7 +376,7 @@ func (f *FutureTask[V]) IsDone() bool {
 //	if err != nil {
 //	    log.Fatalf("Task failed: %v", err)
 //	}
-//	fmt.Println("Result:", result) // Output: Result: 42
+//	fmt.Println("Output:", result) // Output: Output: 42
 func (f *FutureTask[V]) Get() (V, error) {
 	<-f.done
 	return f.value, f.error
@@ -443,7 +443,7 @@ func (f *FutureTask[V]) GetWithTimeout(timeout time.Duration) (v V, err error) {
 //	        fmt.Println("Error:", err)
 //	    }
 //	} else {
-//	    fmt.Println("Result:", result)
+//	    fmt.Println("Output:", result)
 //	}
 func (f *FutureTask[V]) GetWithContext(ctx context.Context) (v V, err error) {
 	select {
@@ -500,7 +500,7 @@ func (f *FutureTask[V]) State() FutureState {
 //
 //	    // This will panic if the future is not done
 //	    result, err := future.MustGet()
-//	    fmt.Println("Result:", result, "Error:", err)
+//	    fmt.Println("Output:", result, "Error:", err)
 //	}
 func (f *FutureTask[V]) MustGet() (V, error) {
 	if !f.IsDone() {

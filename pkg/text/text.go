@@ -11,17 +11,20 @@ import (
 // - An array with a single empty string if the input is empty or contains only whitespace
 // - An array of strings representing each line in the original text otherwise
 // Each line in the returned array does not include line terminators (\n, \r\n).
-func Lines(text string) []string {
-	if strings.TrimSpace(text) == "" {
+func Lines(inputText string) []string {
+	if strings.TrimSpace(inputText) == "" {
 		return []string{""}
 	}
-	scanner := bufio.NewScanner(strings.NewReader(text))
-	lines := make([]string, 0)
-	for scanner.Scan() {
-		line := scanner.Text()
-		lines = append(lines, line)
+
+	textScanner := bufio.NewScanner(strings.NewReader(inputText))
+	textLines := make([]string, 0)
+
+	for textScanner.Scan() {
+		currentLine := textScanner.Text()
+		textLines = append(textLines, currentLine)
 	}
-	return lines
+
+	return textLines
 }
 
 // AlignToLeft removes leading whitespace from all lines in the text.
@@ -30,14 +33,16 @@ func Lines(text string) []string {
 // 2. Trims all leading whitespace characters from each line
 // 3. Rejoins the lines with newline characters
 // The result is text with all content aligned to the left margin.
-func AlignToLeft(text string) string {
-	lines := Lines(text)
-	sb := strings.Builder{}
-	for _, line := range lines {
-		sb.WriteString(strings.TrimLeftFunc(line, unicode.IsSpace))
-		sb.WriteString("\n")
+func AlignToLeft(inputText string) string {
+	textLines := Lines(inputText)
+	outputBuilder := strings.Builder{}
+
+	for _, textLine := range textLines {
+		outputBuilder.WriteString(strings.TrimLeftFunc(textLine, unicode.IsSpace))
+		outputBuilder.WriteString("\n")
 	}
-	return sb.String()
+
+	return outputBuilder.String()
 }
 
 // AlignToRight removes trailing whitespace from all lines in the text.
@@ -46,14 +51,16 @@ func AlignToLeft(text string) string {
 // 2. Trims all trailing whitespace characters from each line
 // 3. Rejoins the lines with newline characters
 // The result is text with no trailing whitespace on any line.
-func AlignToRight(text string) string {
-	lines := Lines(text)
-	sb := strings.Builder{}
-	for _, line := range lines {
-		sb.WriteString(strings.TrimRightFunc(line, unicode.IsSpace))
-		sb.WriteString("\n")
+func AlignToRight(inputText string) string {
+	textLines := Lines(inputText)
+	outputBuilder := strings.Builder{}
+
+	for _, textLine := range textLines {
+		outputBuilder.WriteString(strings.TrimRightFunc(textLine, unicode.IsSpace))
+		outputBuilder.WriteString("\n")
 	}
-	return sb.String()
+
+	return outputBuilder.String()
 }
 
 // AlignCenter centers all lines of text within a specified width.
@@ -74,33 +81,45 @@ func AlignToRight(text string) string {
 //
 //	Input text: "Hello\nWorld" with maxWidth = 10
 //	Output:    "   Hello  \n   World  "
-func AlignCenter(text string, maxWidth int) string {
-	lines := Lines(text)
-	for i, line := range lines {
-		lines[i] = strings.TrimSpace(line)
-		lineWidth := len([]rune(line))
+func AlignCenter(inputText string, maxWidth int) string {
+	textLines := Lines(inputText)
+
+	// Trim lines and determine maximum width
+	for lineIndex, textLine := range textLines {
+		textLines[lineIndex] = strings.TrimSpace(textLine)
+		lineWidth := len([]rune(textLine))
 		if lineWidth > maxWidth {
 			maxWidth = lineWidth
 		}
 	}
-	sb := strings.Builder{}
-	sb.Grow((maxWidth + 1) * len(lines))
-	for _, line := range lines {
-		lineWidth := len([]rune(line))
+
+	// Build centered output
+	outputBuilder := strings.Builder{}
+	outputBuilder.Grow((maxWidth + 1) * len(textLines))
+
+	for _, textLine := range textLines {
+		lineWidth := len([]rune(textLine))
 		totalPadding := maxWidth - lineWidth
 		leftPadding := totalPadding / 2
 		rightPadding := totalPadding - leftPadding
 
+		// Add left padding
 		for range leftPadding {
-			sb.WriteString(" ")
+			outputBuilder.WriteString(" ")
 		}
-		sb.WriteString(line)
+
+		// Add line content
+		outputBuilder.WriteString(textLine)
+
+		// Add right padding
 		for range rightPadding {
-			sb.WriteString(" ")
+			outputBuilder.WriteString(" ")
 		}
-		sb.WriteString("\n")
+
+		outputBuilder.WriteString("\n")
 	}
-	return sb.String()
+
+	return outputBuilder.String()
 }
 
 // TrimAdjacentBlankLines removes consecutive blank lines from text while preserving paragraph structure.
@@ -124,28 +143,35 @@ func AlignCenter(text string, maxWidth int) string {
 // - Multiple consecutive blank lines between paragraphs are reduced to at most one blank line
 // - Paragraph structure is maintained while removing excessive whitespace
 // - No trailing blank lines are preserved
-func TrimAdjacentBlankLines(text string) string {
-	lines := Lines(text)
+func TrimAdjacentBlankLines(inputText string) string {
+	textLines := Lines(inputText)
 
-	sb := strings.Builder{}
-	prevLineIsBlank := true
-	contentFlag := false
-	for _, line := range lines {
-		curLineIsBlank := strings.TrimSpace(line) == ""
-		if !curLineIsBlank {
-			if prevLineIsBlank && contentFlag {
-				sb.WriteString("\n")
+	outputBuilder := strings.Builder{}
+	previousLineIsBlank := true
+	hasContentBeenSeen := false
+
+	for _, currentLine := range textLines {
+		currentLineIsBlank := strings.TrimSpace(currentLine) == ""
+
+		if !currentLineIsBlank {
+			// Add paragraph separator if needed
+			if previousLineIsBlank && hasContentBeenSeen {
+				outputBuilder.WriteString("\n")
 			}
-			sb.WriteString(line)
-			sb.WriteString("\n")
-			prevLineIsBlank = false
-			contentFlag = true
+
+			// Add current line
+			outputBuilder.WriteString(currentLine)
+			outputBuilder.WriteString("\n")
+
+			previousLineIsBlank = false
+			hasContentBeenSeen = true
 			continue
 		}
-		prevLineIsBlank = true
+
+		previousLineIsBlank = true
 	}
 
-	return sb.String()
+	return outputBuilder.String()
 }
 
 // DeleteTopLines removes a specified number of lines from the beginning of the text.
@@ -157,15 +183,17 @@ func TrimAdjacentBlankLines(text string) string {
 // - Empty string if the input text has fewer or equal lines than the specified number to delete
 // - The remaining text with the specified number of top lines removed otherwise
 // - Original text if the input is empty or contains only whitespace
-func DeleteTopLines(text string, numberOfLines int) string {
-	if strings.TrimSpace(text) == "" {
-		return text
+func DeleteTopLines(inputText string, linesToDelete int) string {
+	if strings.TrimSpace(inputText) == "" {
+		return inputText
 	}
-	lines := Lines(text)
-	if len(lines) <= numberOfLines {
+
+	textLines := Lines(inputText)
+	if len(textLines) <= linesToDelete {
 		return ""
 	}
-	return strings.Join(lines[numberOfLines:], "\n")
+
+	return strings.Join(textLines[linesToDelete:], "\n")
 }
 
 // DeleteBottomLines removes a specified number of lines from the end of the text.
@@ -177,13 +205,15 @@ func DeleteTopLines(text string, numberOfLines int) string {
 // - Empty string if the input text has fewer or equal lines than the specified number to delete
 // - The remaining text with the specified number of bottom lines removed otherwise
 // - Original text if the input is empty or contains only whitespace
-func DeleteBottomLines(text string, numberOfLines int) string {
-	if strings.TrimSpace(text) == "" {
-		return text
+func DeleteBottomLines(inputText string, linesToDelete int) string {
+	if strings.TrimSpace(inputText) == "" {
+		return inputText
 	}
-	lines := Lines(text)
-	if len(lines) <= numberOfLines {
+
+	textLines := Lines(inputText)
+	if len(textLines) <= linesToDelete {
 		return ""
 	}
-	return strings.Join(lines[:len(lines)-numberOfLines], "\n")
+
+	return strings.Join(textLines[:len(textLines)-linesToDelete], "\n")
 }

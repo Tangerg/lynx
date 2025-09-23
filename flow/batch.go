@@ -12,7 +12,7 @@ import (
 // - I: Input type for the batch
 // - O: Output type after aggregation
 // - T: Type of each segment after dividing the input
-// - R: Result type after processing each segment
+// - R: Output type after processing each segment
 type Batch[I any, O any, T any, R any] struct {
 	// processor handles each individual segment
 	processor Processor[T, R]

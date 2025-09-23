@@ -1,6 +1,7 @@
 package json
 
 import (
+	"encoding/json"
 	"reflect"
 
 	"github.com/invopop/jsonschema"
@@ -10,9 +11,10 @@ import (
 // It returns the first definition string from the list of definitions.
 func StringDefSchemaOf(v any) string {
 	r := &jsonschema.Reflector{
-		Anonymous:      true,
-		ExpandedStruct: false,
-		DoNotReference: true,
+		Anonymous:                 true,
+		ExpandedStruct:            false,
+		DoNotReference:            true,
+		AllowAdditionalProperties: false,
 	}
 	t := reflect.TypeOf(v)
 	if t.Kind() == reflect.Struct {
@@ -27,4 +29,23 @@ func StringDefSchemaOf(v any) string {
 	}
 
 	return string(marshalJSON)
+}
+
+func MapDefSchemaOf(v any) map[string]any {
+	r := &jsonschema.Reflector{
+		Anonymous:      true,
+		ExpandedStruct: false,
+		DoNotReference: true,
+	}
+	t := reflect.TypeOf(v)
+	if t.Kind() == reflect.Struct {
+		r.ExpandedStruct = true
+	}
+
+	schema := r.Reflect(v)
+	schema.Version = ""
+	raw, _ := schema.MarshalJSON()
+	var m map[string]any
+	_ = json.Unmarshal(raw, &m)
+	return m
 }

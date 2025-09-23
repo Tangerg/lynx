@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-// `heartBeatPing` is the keep-alive ping message sent to clients.
+// heartBeatPing is the keep-alive ping message sent to clients.
 // Comments in SSE start with a colon `:`, meaning they are ignored by the client but maintain the connection.
 var heartBeatPing = []byte(delimiter + whitespace + "ping" + string(byteLFLF)) // ": ping\n\n"
 
@@ -34,16 +34,19 @@ func (c *WriterConfig) validate() error {
 	if c.Context == nil {
 		return errors.New("missing context")
 	}
+
 	if c.ResponseWriter == nil {
 		return errors.New("missing responseWriter")
 	}
-	_, ok := c.ResponseWriter.(http.Flusher)
-	if !ok {
+
+	if _, ok := c.ResponseWriter.(http.Flusher); !ok {
 		return errors.New("responseWriter does not implement http.Flusher")
 	}
+
 	if c.QueueSize <= 0 {
 		c.QueueSize = 64
 	}
+
 	return nil
 }
 
@@ -77,12 +80,12 @@ type Writer struct {
 //
 // Example usage:
 //
-//	conf := &sse.WriterConfig{
+//	config := &sse.WriterConfig{
 //	    Context:        r.Context(),
 //	    ResponseWriter: w,
 //	    HeartBeat:      15 * time.Second,
 //	}
-//	writer, err := sse.NewWriter(conf)
+//	writer, err := sse.NewWriter(config)
 //	if err != nil {
 //	    // handle error
 //	}
@@ -90,12 +93,11 @@ type Writer struct {
 //
 //	// Send messages using writer.Send(), writer.SendData(), etc.
 func NewWriter(config *WriterConfig) (*Writer, error) {
-	err := config.validate()
-	if err != nil {
-		return nil, err // Return validation error if the configuration is invalid.
+	if err := config.validate(); err != nil {
+		return nil, err
 	}
 
-	w := &Writer{
+	writer := &Writer{
 		config:         config,
 		ctx:            config.Context,
 		messageEncoder: NewEncoder(),
@@ -105,8 +107,9 @@ func NewWriter(config *WriterConfig) (*Writer, error) {
 		messageQueue:   make(chan []byte, config.QueueSize),
 		errors:         make([]error, 0, config.QueueSize),
 	}
-	w.initialize()
-	return w, nil
+
+	writer.initialize()
+	return writer, nil
 }
 
 // initialize sets up the SSE response by configuring the necessary HTTP headers and
@@ -114,6 +117,7 @@ func NewWriter(config *WriterConfig) (*Writer, error) {
 // This is called automatically by NewWriter.
 func (w *Writer) initialize() {
 	w.setSSEHeaders(w.httpResponse.Header())
+
 	w.waitGroup.Add(3)
 	go w.listenContext()
 	go w.processMessageQueue()
@@ -133,6 +137,7 @@ func (w *Writer) initialize() {
 func (w *Writer) setSSEHeaders(header http.Header) {
 	header.Set("Content-Type", "text/event-stream; charset=utf-8")
 	header.Set("Connection", "keep-alive")
+
 	if len(header.Get("Cache-Control")) == 0 {
 		header.Set("Cache-Control", "no-cache")
 	}
@@ -141,20 +146,19 @@ func (w *Writer) setSSEHeaders(header http.Header) {
 // writeDataToClient sends raw data to the HTTP response writer and flushes it to the client.
 // Returns an error if writing to the response fails.
 func (w *Writer) writeDataToClient(data []byte) error {
-	_, err := w.httpResponse.Write(data)
-	if err != nil {
+	if _, err := w.httpResponse.Write(data); err != nil {
 		return err
 	}
+
 	w.httpFlusher.Flush()
 	return nil
 }
 
 // recordError adds an error to the Writer's error list. Skips if the error is nil.
 func (w *Writer) recordError(err error) {
-	if err == nil {
-		return
+	if err != nil {
+		w.errors = append(w.errors, err)
 	}
-	w.errors = append(w.errors, err)
 }
 
 // sendHeartbeatNonBlocking attempts to send a heartbeat ping message to the message queue.
@@ -168,6 +172,7 @@ func (w *Writer) sendHeartbeatNonBlocking() {
 	select {
 	case w.messageQueue <- heartBeatPing:
 	default:
+		// Queue is full, drop the heartbeat
 	}
 }
 
@@ -176,8 +181,8 @@ func (w *Writer) sendHeartbeatNonBlocking() {
 func (w *Writer) startHeartbeatLoop() {
 	defer w.waitGroup.Done()
 
-	if w.config.HeartBeat <= 0 { // Heartbeat is disabled if duration is not set.
-		return
+	if w.config.HeartBeat <= 0 {
+		return // Heartbeat is disabled
 	}
 
 	ticker := time.NewTicker(w.config.HeartBeat)
@@ -200,9 +205,12 @@ func (w *Writer) startHeartbeatLoop() {
 // Any errors encountered during this process are collected.
 func (w *Writer) drainMessageQueue() {
 	close(w.messageQueue)
-	for msg := range w.messageQueue {
-		w.recordError(w.writeDataToClient(msg))
+
+	for remainingMsg := range w.messageQueue {
+		w.recordError(w.writeDataToClient(remainingMsg))
 	}
+
+	// Send final termination sequence
 	w.recordError(w.writeDataToClient(byteLFLF))
 }
 
@@ -216,8 +224,8 @@ func (w *Writer) processMessageQueue() {
 		select {
 		case <-w.closeSignal:
 			return
-		case msg := <-w.messageQueue:
-			w.recordError(w.writeDataToClient(msg))
+		case queuedMsg := <-w.messageQueue:
+			w.recordError(w.writeDataToClient(queuedMsg))
 		}
 	}
 }
@@ -303,11 +311,12 @@ func (w *Writer) Send(msg *Message) error {
 		return nil
 	}
 
-	message, err := w.messageEncoder.Encode(msg)
+	encodedMsg, err := w.messageEncoder.Encode(msg)
 	if err != nil {
 		return err
 	}
-	w.messageQueue <- message
+
+	w.messageQueue <- encodedMsg
 	return nil
 }
 
@@ -321,10 +330,12 @@ func (w *Writer) Send(msg *Message) error {
 // Parameters:
 //   - event: Identifier for the event type, which clients can listen for using EventSource.addEventListener().
 func (w *Writer) SendEvent(event string) error {
-	return w.Send(&Message{
+	eventMsg := &Message{
 		Event: event,
 		Data:  byteLF,
-	})
+	}
+
+	return w.Send(eventMsg)
 }
 
 // SendData sends a structured message containing JSON-encoded data.
@@ -340,13 +351,16 @@ func (w *Writer) SendData(data any) error {
 		return nil
 	}
 
-	marshal, err := json.Marshal(data)
+	jsonData, err := json.Marshal(data)
 	if err != nil {
 		return err
 	}
-	return w.Send(&Message{
-		Data: marshal,
-	})
+
+	dataMsg := &Message{
+		Data: jsonData,
+	}
+
+	return w.Send(dataMsg)
 }
 
 // Error retrieves any errors that occurred during the Writer's operation.
@@ -356,6 +370,9 @@ func (w *Writer) Error() error {
 	return errors.Join(w.errors...)
 }
 
+// Deprecated: Use NewWriter instead for better control over SSE streaming.
+// NewWriter provides more features including heartbeat support, better error handling,
+// and more flexible configuration options.
 // WithSSE establishes a Server-Sent Events stream that sends messages
 // from the provided channel to the client over HTTP.
 //
@@ -398,11 +415,13 @@ func (w *Writer) Error() error {
 //	  }
 //	})
 func WithSSE(ctx context.Context, response http.ResponseWriter, messageChan chan *Message) error {
-	writer, err := NewWriter(&WriterConfig{
+	writerConfig := &WriterConfig{
 		Context:        ctx,
 		ResponseWriter: response,
 		QueueSize:      len(messageChan),
-	})
+	}
+
+	writer, err := NewWriter(writerConfig)
 	if err != nil {
 		return err
 	}
@@ -412,12 +431,12 @@ func WithSSE(ctx context.Context, response http.ResponseWriter, messageChan chan
 		case <-ctx.Done():
 			return writer.Close()
 
-		case message, ok := <-messageChan:
-			if !ok {
+		case incomingMsg, channelOpen := <-messageChan:
+			if !channelOpen {
 				return writer.Close()
 			}
-			err = writer.Send(message)
-			if err != nil {
+
+			if err := writer.Send(incomingMsg); err != nil {
 				return errors.Join(err, writer.Close())
 			}
 		}

@@ -1,6 +1,7 @@
 package json
 
 import (
+	"encoding/json"
 	"testing"
 	"time"
 )
@@ -34,4 +35,11 @@ func TestStringDefSchemaOf2(t *testing.T) {
 func TestStringDefSchemaOf3(t *testing.T) {
 	rv := StringDefSchemaOf(1)
 	t.Log(rv)
+}
+
+func TestMapDefSchemaOf3(t *testing.T) {
+	rv := MapDefSchemaOf(&TestUser{})
+	marshal, _ := json.Marshal(rv)
+
+	t.Log(string(marshal))
 }

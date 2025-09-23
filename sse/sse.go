@@ -119,27 +119,30 @@ func isValidDOMEventName(eventName string) bool {
 		return false
 	}
 
+	// Check for invalid dot patterns
 	if strings.Contains(eventName, "..") ||
 		strings.HasPrefix(eventName, ".") ||
 		strings.HasSuffix(eventName, ".") {
 		return false
 	}
 
-	runes := []rune(eventName)
+	eventRunes := []rune(eventName)
 
-	if !unicode.IsLetter(runes[0]) {
+	// First character must be a letter
+	if !unicode.IsLetter(eventRunes[0]) {
 		return false
 	}
 
-	for _, r := range runes {
-		if unicode.IsSpace(r) {
+	// Check all characters for validity
+	for _, currentRune := range eventRunes {
+		if unicode.IsSpace(currentRune) {
 			return false
 		}
-		if unicode.IsLetter(r) ||
-			unicode.IsDigit(r) ||
-			r == '_' ||
-			r == '-' ||
-			r == '.' {
+		if unicode.IsLetter(currentRune) ||
+			unicode.IsDigit(currentRune) ||
+			currentRune == '_' ||
+			currentRune == '-' ||
+			currentRune == '.' {
 			continue
 		}
 		return false
@@ -161,10 +164,10 @@ func NewEncoder() *Encoder {
 // isValidMessage verifies that at least one field in the message contains content.
 // According to the SSE specification, a message must have at least one non-empty field.
 // This method is concurrency-safe as it doesn't modify encoder state.
-func (e *Encoder) isValidMessage(msg *Message) bool {
-	if len(msg.ID) == 0 &&
-		len(msg.Event) == 0 &&
-		len(msg.Data) == 0 {
+func (e *Encoder) isValidMessage(messageToValidate *Message) bool {
+	if len(messageToValidate.ID) == 0 &&
+		len(messageToValidate.Event) == 0 &&
+		len(messageToValidate.Data) == 0 {
 		return false
 	}
 	return true
@@ -173,73 +176,79 @@ func (e *Encoder) isValidMessage(msg *Message) bool {
 // writeID formats and writes the ID field to the buffer if it contains content,
 // escaping any CR and LF characters as required by the specification.
 // This method is concurrency-safe as it operates only on the provided buffer.
-func (e *Encoder) writeID(id string, buffer *bytes.Buffer) {
-	if len(id) == 0 {
+func (e *Encoder) writeID(messageID string, outputBuffer *bytes.Buffer) {
+	if len(messageID) == 0 {
 		return
 	}
 
-	buffer.Write(fieldPrefixID)
-	buffer.WriteString(lineBreakReplacer.Replace(id))
-	buffer.Write(byteLF)
+	outputBuffer.Write(fieldPrefixID)
+	outputBuffer.WriteString(lineBreakReplacer.Replace(messageID))
+	outputBuffer.Write(byteLF)
 }
 
 // writeEvent formats and writes the event field to the buffer if specified,
 // escaping any CR and LF characters. When not specified, clients default to "message".
 // This method is concurrency-safe as it operates only on the provided buffer.
-func (e *Encoder) writeEvent(event string, buffer *bytes.Buffer) {
-	if len(event) == 0 {
+func (e *Encoder) writeEvent(eventName string, outputBuffer *bytes.Buffer) {
+	if len(eventName) == 0 {
 		return
 	}
 
-	buffer.Write(fieldPrefixEvent)
-	buffer.WriteString(lineBreakReplacer.Replace(event))
-	buffer.Write(byteLF)
+	outputBuffer.Write(fieldPrefixEvent)
+	outputBuffer.WriteString(lineBreakReplacer.Replace(eventName))
+	outputBuffer.Write(byteLF)
 }
 
 // writeData formats and writes the data field to the buffer,
 // handling multiline data by prefixing each line with "data: " and properly escaping CR characters.
 // This method is concurrency-safe as it operates only on the provided buffer.
-func (e *Encoder) writeData(data []byte, buffer *bytes.Buffer) {
-	if len(data) == 0 {
+func (e *Encoder) writeData(messageData []byte, outputBuffer *bytes.Buffer) {
+	if len(messageData) == 0 {
 		return
 	}
 
-	processedData := bytes.ReplaceAll(data, byteCR, byteEscapedCR)
+	// Escape carriage return characters
+	processedData := bytes.ReplaceAll(messageData, byteCR, byteEscapedCR)
 
-	lines := bytes.Split(processedData, byteLF)
-	for _, line := range lines {
-		buffer.Write(fieldPrefixData)
-		buffer.Write(line)
-		buffer.Write(byteLF)
+	// Split into lines and write each with data prefix
+	dataLines := bytes.Split(processedData, byteLF)
+	for _, dataLine := range dataLines {
+		outputBuffer.Write(fieldPrefixData)
+		outputBuffer.Write(dataLine)
+		outputBuffer.Write(byteLF)
 	}
 }
 
 // writeRetry writes the retry field to the buffer if the value is non-zero,
 // indicating the time in milliseconds clients should wait before reconnecting.
 // This method is concurrency-safe as it operates only on the provided buffer.
-func (e *Encoder) writeRetry(retry int, buffer *bytes.Buffer) {
-	if retry == 0 {
+func (e *Encoder) writeRetry(retryValue int, outputBuffer *bytes.Buffer) {
+	if retryValue == 0 {
 		return
 	}
 
-	buffer.Write(fieldPrefixRetry)
-	buffer.WriteString(strconv.Itoa(retry))
-	buffer.Write(byteLF)
+	outputBuffer.Write(fieldPrefixRetry)
+	outputBuffer.WriteString(strconv.Itoa(retryValue))
+	outputBuffer.Write(byteLF)
 }
 
 // encodeToBytes formats the message into the SSE wire format according to the specification,
 // ensuring each field is properly formatted and terminating the message with a blank line.
 // This method is concurrency-safe as it creates a new buffer for each call.
-func (e *Encoder) encodeToBytes(msg *Message) []byte {
-	buffer := bytes.NewBuffer(make([]byte, 0, len(msg.ID)+len(msg.Event)+2*len(msg.Data)+8))
+func (e *Encoder) encodeToBytes(messageToEncode *Message) []byte {
+	estimatedCapacity := len(messageToEncode.ID) + len(messageToEncode.Event) + 2*len(messageToEncode.Data) + 8
+	outputBuffer := bytes.NewBuffer(make([]byte, 0, estimatedCapacity))
 
-	e.writeID(msg.ID, buffer)
-	e.writeEvent(msg.Event, buffer)
-	e.writeData(msg.Data, buffer)
-	e.writeRetry(msg.Retry, buffer)
-	buffer.Write(byteLF) // Terminate message with blank line
+	// Write all message fields
+	e.writeID(messageToEncode.ID, outputBuffer)
+	e.writeEvent(messageToEncode.Event, outputBuffer)
+	e.writeData(messageToEncode.Data, outputBuffer)
+	e.writeRetry(messageToEncode.Retry, outputBuffer)
 
-	return buffer.Bytes()
+	// Terminate message with blank line
+	outputBuffer.Write(byteLF)
+
+	return outputBuffer.Bytes()
 }
 
 // Encode validates and encodes a message into the SSE wire format.
@@ -253,15 +262,18 @@ func (e *Encoder) encodeToBytes(msg *Message) []byte {
 // - Newlines in ID and Event fields will be escaped as \n
 // - Generated message will always end with a blank line, even if no fields are provided
 // - If Retry value is negative, it will be ignored
-func (e *Encoder) Encode(msg *Message) ([]byte, error) {
-	if !isValidSSEEventName(msg.Event) {
-		return nil, errors.Join(ErrMessageInvalidEventName, fmt.Errorf("event name: %s", msg.Event))
+func (e *Encoder) Encode(messageToEncode *Message) ([]byte, error) {
+	// Validate event name
+	if !isValidSSEEventName(messageToEncode.Event) {
+		return nil, errors.Join(ErrMessageInvalidEventName, fmt.Errorf("event name: %s", messageToEncode.Event))
 	}
-	if !e.isValidMessage(msg) {
+
+	// Validate message content
+	if !e.isValidMessage(messageToEncode) {
 		return nil, ErrMessageNoContent
 	}
 
-	return e.encodeToBytes(msg), nil
+	return e.encodeToBytes(messageToEncode), nil
 }
 
 // Decoder processes an SSE stream from an io.Reader, parsing fields and
@@ -269,8 +281,8 @@ func (e *Encoder) Encode(msg *Message) ([]byte, error) {
 type Decoder struct {
 	lastError      error          // Most recent error encountered
 	currentMessage Message        // Currently decoded message
-	reader         *bufio.Reader  // Input stream containing SSE messages
-	scanner        *bufio.Scanner // Line scanner for the input stream
+	streamReader   *bufio.Reader  // Input stream containing SSE messages
+	lineScanner    *bufio.Scanner // Line scanner for the input stream
 	lastID         string         // Most recently parsed ID (persists between messages)
 	eventBuffer    string         // Buffer for the current event type
 	dataBuffer     *bytes.Buffer  // Buffer for the current data payload
@@ -285,16 +297,18 @@ type Decoder struct {
 // - Internal state for tracking message IDs and retry intervals
 // The returned decoder is ready to parse SSE messages using the Next() method.
 // Note: The decoder does not close the underlying reader when finished.
-func NewDecoder(reader io.Reader) *Decoder {
-	d := &Decoder{
-		reader:     bufio.NewReader(reader),
-		scanner:    bufio.NewScanner(reader),
-		dataBuffer: bytes.NewBuffer(make([]byte, 0, 128)),
+func NewDecoder(inputReader io.Reader) *Decoder {
+	decoder := &Decoder{
+		streamReader: bufio.NewReader(inputReader),
+		lineScanner:  bufio.NewScanner(inputReader),
+		dataBuffer:   bytes.NewBuffer(make([]byte, 0, 128)),
 	}
-	d.skipLeadingUTF8BOM()
-	d.scanner.Split(d.scanLinesSplit)
 
-	return d
+	// Initialize decoder state
+	decoder.skipLeadingUTF8BOM()
+	decoder.lineScanner.Split(decoder.scanLinesSplit)
+
+	return decoder
 }
 
 // skipLeadingUTF8BOM checks for and skips the UTF-8 Byte Order Mark (BOM) sequence
@@ -303,12 +317,13 @@ func NewDecoder(reader io.Reader) *Decoder {
 // This method is called once during decoder initialization and does not affect
 // subsequent data processing.
 func (d *Decoder) skipLeadingUTF8BOM() {
-	peek, err := d.reader.Peek(3)
+	peekedBytes, err := d.streamReader.Peek(3)
 	if err != nil {
 		return
 	}
-	if bytes.Equal(peek, utf8BomSequence) {
-		_, _ = d.reader.Discard(3)
+
+	if bytes.Equal(peekedBytes, utf8BomSequence) {
+		_, _ = d.streamReader.Discard(3)
 	}
 }
 
@@ -326,17 +341,22 @@ func (d *Decoder) scanLinesSplit(data []byte, atEOF bool) (advance int, token []
 		return 0, nil, nil
 	}
 
-	if i := bytes.IndexByte(data, byteCR[0]); i >= 0 {
-		if i+1 < len(data) && data[i+1] == byteLF[0] {
-			return i + 2, data[:i], nil
+	// Look for CR character
+	if crIndex := bytes.IndexByte(data, byteCR[0]); crIndex >= 0 {
+		// Check for CRLF sequence
+		if crIndex+1 < len(data) && data[crIndex+1] == byteLF[0] {
+			return crIndex + 2, data[:crIndex], nil
 		}
-		return i + 1, data[:i], nil
+		// Just CR
+		return crIndex + 1, data[:crIndex], nil
 	}
 
-	if i := bytes.IndexByte(data, byteLF[0]); i >= 0 {
-		return i + 1, data[:i], nil
+	// Look for LF character
+	if lfIndex := bytes.IndexByte(data, byteLF[0]); lfIndex >= 0 {
+		return lfIndex + 1, data[:lfIndex], nil
 	}
 
+	// Handle EOF
 	if atEOF {
 		if len(data) > 0 && data[len(data)-1] == byteCR[0] {
 			return len(data), data[:len(data)-1], nil
@@ -351,12 +371,12 @@ func (d *Decoder) scanLinesSplit(data []byte, atEOF bool) (advance int, token []
 // - Removes leading whitespace
 // - Handles UTF-8 BOM sequences
 // - Replaces invalid UTF-8 sequences with the replacement character
-func (d *Decoder) normalizeValue(value string) string {
-	value = strings.TrimPrefix(value, whitespace)
-	if !utf8.ValidString(value) {
-		value = strings.ToValidUTF8(value, invalidUTF8Replacement)
+func (d *Decoder) normalizeValue(fieldValue string) string {
+	normalizedValue := strings.TrimPrefix(fieldValue, whitespace)
+	if !utf8.ValidString(normalizedValue) {
+		normalizedValue = strings.ToValidUTF8(normalizedValue, invalidUTF8Replacement)
 	}
-	return value
+	return normalizedValue
 }
 
 // hasValidData checks if the data buffer contains actual content beyond just line terminators.
@@ -373,9 +393,12 @@ func (d *Decoder) hasValidData() bool {
 func (d *Decoder) dispatch() bool {
 	defer d.resetBuffers()
 
+	// Check if we have valid data to dispatch
 	if !d.hasValidData() {
 		return false
 	}
+
+	// Validate event name
 	if !isValidSSEEventName(d.eventBuffer) {
 		return false
 	}
@@ -392,10 +415,13 @@ func (d *Decoder) dispatch() bool {
 // - Sets the message ID from the lastID (which persists across messages)
 // - Sets the retry value for reconnection timing
 func (d *Decoder) constructMessage() {
-	data := bytes.TrimSuffix(d.dataBuffer.Bytes(), byteLF)
+	// Remove trailing newline from data buffer
+	messageData := bytes.TrimSuffix(d.dataBuffer.Bytes(), byteLF)
+
+	// Build the message
 	d.currentMessage.ID = d.lastID
 	d.currentMessage.Event = d.eventBuffer
-	d.currentMessage.Data = data
+	d.currentMessage.Data = messageData
 	d.currentMessage.Retry = d.retry
 }
 
@@ -416,36 +442,41 @@ func (d *Decoder) resetBuffers() {
 //   - "event": Appends to the event buffer
 //   - "data": Appends to the data buffer with a trailing newline
 //   - "retry": Converts to an integer for reconnection timing
-func (d *Decoder) processLine(line string) {
-	if strings.HasPrefix(line, delimiter) {
-		return // Ignore comment lines
+func (d *Decoder) processLine(inputLine string) {
+	// Ignore comment lines
+	if strings.HasPrefix(inputLine, delimiter) {
+		return
 	}
 
-	key, value, found := strings.Cut(line, delimiter)
-	if !found {
-		key = line
-		value = ""
+	// Parse field name and value
+	fieldName, fieldValue, hasValue := strings.Cut(inputLine, delimiter)
+	if !hasValue {
+		fieldName = inputLine
+		fieldValue = ""
 	} else {
-		value = d.normalizeValue(value)
+		fieldValue = d.normalizeValue(fieldValue)
 	}
 
-	switch key {
+	// Process based on field name
+	switch fieldName {
 	case fieldID:
-		d.lastID = value // Update the last seen ID
+		d.lastID = fieldValue // Update the last seen ID
+
 	case fieldEvent:
-		if value == "" {
-			value = eventNameMessage
+		if fieldValue == "" {
+			fieldValue = eventNameMessage
 		}
-		d.eventBuffer = value
+		d.eventBuffer = fieldValue
+
 	case fieldData:
-		d.dataBuffer.WriteString(value)
+		d.dataBuffer.WriteString(fieldValue)
 		// Add newline after each data line, the last \n will be trimmed when constructMessage
 		d.dataBuffer.Write(byteLF)
+
 	case fieldRetry:
-		retry, err := strconv.Atoi(value) // Parse reconnection time
-		if err == nil &&
-			retry > 0 {
-			d.retry = retry // Update only if positive and valid
+		retryValue, parseErr := strconv.Atoi(fieldValue) // Parse reconnection time
+		if parseErr == nil && retryValue > 0 {
+			d.retry = retryValue // Update only if positive and valid
 		}
 	}
 }
@@ -473,22 +504,30 @@ func (d *Decoder) Next() bool {
 		return false
 	}
 
-	for d.scanner.Scan() {
-		d.lastError = d.scanner.Err()
+	// Process lines from the scanner
+	for d.lineScanner.Scan() {
+		d.lastError = d.lineScanner.Err()
 		if d.lastError != nil {
 			return false
 		}
 
-		line := d.scanner.Text()
+		currentLine := d.lineScanner.Text()
 
 		// Empty line indicates end of message
-		if len(line) == 0 {
+		if len(currentLine) == 0 {
 			if d.dispatch() {
 				return true
 			}
+			continue
 		}
 
-		d.processLine(line)
+		d.processLine(currentLine)
+	}
+
+	// Check for scanner errors
+	d.lastError = d.lineScanner.Err()
+	if d.lastError != nil {
+		return false
 	}
 
 	// Handle any final message at end of stream
@@ -496,8 +535,6 @@ func (d *Decoder) Next() bool {
 		return true
 	}
 
-	// Check for scanner errors
-	d.lastError = d.scanner.Err()
 	return false
 }
 
