@@ -1,9 +1,10 @@
-package filter
+package parser
 
 import (
 	"fmt"
 
 	"github.com/Tangerg/lynx/ai/vectorstore/filter/ast"
+	lexer2 "github.com/Tangerg/lynx/ai/vectorstore/filter/lexer"
 	"github.com/Tangerg/lynx/ai/vectorstore/filter/token"
 )
 
@@ -28,7 +29,7 @@ func (e *ParseError) Error() string {
 // Parser represents a recursive descent parser with Pratt parsing capabilities.
 // Uses the Pratt algorithm for efficient operator precedence handling.
 type Parser struct {
-	lexer          *Lexer                                          // Token provider from input
+	lexer          *lexer2.Lexer                                   // Token provider from input
 	currentToken   token.Token                                     // Current Token being processed
 	prefixHandlers map[token.Kind]func() (ast.Expr, error)         // Handles expression-starting tokens
 	infixHandlers  map[token.Kind]func(ast.Expr) (ast.Expr, error) // Handles binary operators
@@ -36,26 +37,26 @@ type Parser struct {
 
 // NewParser creates a new parser with proper initialization.
 // Accepts either string input or existing *Lexer for flexibility.
-func NewParser[I string | *Lexer](input I) (*Parser, error) {
+func NewParser[I string | *lexer2.Lexer](input I) (*Parser, error) {
 	var (
-		lexer *Lexer
+		lexer *lexer2.Lexer
 		err   error
 	)
 
 	switch typedInput := any(input).(type) {
 	case string:
-		lexer, err = NewLexer(typedInput)
+		lexer, err = lexer2.NewLexer(typedInput)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create lexer from input string: %w", err)
 		}
-	case *Lexer:
+	case *lexer2.Lexer:
 		lexer = typedInput
 		lexer.Reset()
 	}
 
 	parser := &Parser{
 		lexer:          lexer,
-		currentToken:   lexer.Scan(),
+		currentToken:   lexer.Scan(), //consume first token
 		prefixHandlers: make(map[token.Kind]func() (ast.Expr, error)),
 		infixHandlers:  make(map[token.Kind]func(ast.Expr) (ast.Expr, error)),
 	}
@@ -435,6 +436,12 @@ func (p *Parser) parseIndexExpr(leftExpr ast.Expr) (ast.Expr, error) {
 	}, nil
 }
 
+// Parse is a convenient function that parses a filter expression from a string input.
+// This is the primary entry point for parsing filter expressions in most use cases.
+//
+// The function creates a new parser instance, parses the input string into an AST,
+// and returns the root expression node. It handles the complete parsing pipeline
+// including lexical analysis and syntax analysis.
 func Parse(input string) (ast.Expr, error) {
 	parser, err := NewParser(input)
 	if err != nil {

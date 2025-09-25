@@ -9,6 +9,7 @@ import (
 	"github.com/Tangerg/lynx/ai/vectorstore"
 	"github.com/Tangerg/lynx/ai/vectorstore/filter"
 	"github.com/Tangerg/lynx/ai/vectorstore/filter/ast"
+	"github.com/Tangerg/lynx/ai/vectorstore/filter/parser"
 )
 
 var _ vectorstore.Store = (*Store)(nil)
@@ -61,7 +62,7 @@ func (s *Store) DeleteByIDs(ctx context.Context, ids []string) error {
 }
 
 func (s *Store) DeleteByFilter(ctx context.Context, fs string) error {
-	expr, err := filter.Parse(fs)
+	expr, err := parser.Parse(fs)
 	if err != nil {
 		return err
 	}

@@ -1,4 +1,4 @@
-package filter
+package lexer
 
 import (
 	"testing"
@@ -11,7 +11,7 @@ func TestNewLexer(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	tokens := lexer.Tokens()
+	tokens := lexer.AllTokens()
 
 	for _, tk := range tokens {
 		t.Log(tk.String())
@@ -25,7 +25,7 @@ func TestNewLexer2(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	tokens := lexer.Tokens()
+	tokens := lexer.AllTokens()
 
 	for _, tk := range tokens {
 		t.Log(tk.String())
@@ -38,7 +38,7 @@ func TestComplexNestedConditions(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	tokens := lexer.Tokens()
+	tokens := lexer.AllTokens()
 
 	for _, tk := range tokens {
 		t.Log(tk.String())
@@ -51,7 +51,7 @@ func TestMixedDataTypes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	tokens := lexer.Tokens()
+	tokens := lexer.AllTokens()
 
 	for _, tk := range tokens {
 		t.Log(tk.String())
@@ -64,7 +64,7 @@ func TestLikeOperatorWithPatterns(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	tokens := lexer.Tokens()
+	tokens := lexer.AllTokens()
 
 	for _, tk := range tokens {
 		t.Log(tk.String())
@@ -77,7 +77,7 @@ func TestArrayOperations(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	tokens := lexer.Tokens()
+	tokens := lexer.AllTokens()
 
 	for _, tk := range tokens {
 		t.Log(tk.String())
@@ -90,7 +90,7 @@ func TestNullChecksAndComparisons(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	tokens := lexer.Tokens()
+	tokens := lexer.AllTokens()
 
 	for _, tk := range tokens {
 		t.Log(tk.String())
@@ -103,7 +103,7 @@ func TestBooleanLogic(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	tokens := lexer.Tokens()
+	tokens := lexer.AllTokens()
 
 	for _, tk := range tokens {
 		t.Log(tk.String())
@@ -116,7 +116,7 @@ func TestComplexMathematicalConditions(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	tokens := lexer.Tokens()
+	tokens := lexer.AllTokens()
 
 	for _, tk := range tokens {
 		t.Log(tk.String())
@@ -144,7 +144,7 @@ func TestMultilineComplexQuery(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	tokens := lexer.Tokens()
+	tokens := lexer.AllTokens()
 
 	for _, tk := range tokens {
 		t.Log(tk.String())
@@ -157,7 +157,7 @@ func TestSpecialCharactersInStrings(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	tokens := lexer.Tokens()
+	tokens := lexer.AllTokens()
 
 	for _, tk := range tokens {
 		t.Log(tk.String())
@@ -170,7 +170,7 @@ func TestEdgeCaseNumbers(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	tokens := lexer.Tokens()
+	tokens := lexer.AllTokens()
 
 	for _, tk := range tokens {
 		t.Log(tk.String())
@@ -183,7 +183,7 @@ func TestMixedCaseKeywords(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	tokens := lexer.Tokens()
+	tokens := lexer.AllTokens()
 
 	for _, tk := range tokens {
 		t.Log(tk.String())
@@ -197,7 +197,7 @@ func TestDeepNestedConditions(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	tokens := lexer.Tokens()
+	tokens := lexer.AllTokens()
 
 	for _, tk := range tokens {
 		t.Log(tk.String())
@@ -211,7 +211,7 @@ func TestArrayWithMixedTypes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	tokens := lexer.Tokens()
+	tokens := lexer.AllTokens()
 
 	for _, tk := range tokens {
 		t.Log(tk.String())
@@ -225,7 +225,7 @@ func TestComplexLikePatterns(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	tokens := lexer.Tokens()
+	tokens := lexer.AllTokens()
 
 	for _, tk := range tokens {
 		t.Log(tk.String())
@@ -251,7 +251,7 @@ func TestErrorHandling(t *testing.T) {
 				t.Log("Expected error:", err)
 				return
 			}
-			tokens := lexer.Tokens()
+			tokens := lexer.AllTokens()
 
 			// Check for ERROR or ILLEGAL tokens
 			for _, tk := range tokens {
@@ -268,7 +268,7 @@ func TestWhitespaceHandling(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	tokens := lexer.Tokens()
+	tokens := lexer.AllTokens()
 
 	for _, tk := range tokens {
 		t.Log(tk.String())
@@ -280,7 +280,7 @@ func TestSemicolonTermination(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	tokens := lexer.Tokens()
+	tokens := lexer.AllTokens()
 
 	for _, tk := range tokens {
 		t.Log(tk.String())

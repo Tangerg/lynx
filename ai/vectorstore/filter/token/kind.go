@@ -2,7 +2,6 @@ package token
 
 import (
 	"fmt"
-	"slices"
 	"strconv"
 	"strings"
 	"unicode"
@@ -42,76 +41,125 @@ const (
 	kindEnd               // Boundary marker for validation - not a valid token
 )
 
-// kindNames maps each Kind to its human-readable name for debugging and error reporting.
-// The array indices correspond to Kind enum values for O(1) lookup.
-var kindNames = [...]string{
-	ERROR:  "ERROR",
-	EOF:    "EOF",
-	IDENT:  "IDENT",
-	NUMBER: "NUMBER",
-	STRING: "STRING",
-	TRUE:   "BOOL",
-	FALSE:  "BOOL",
-	EQ:     "EQ",
-	NE:     "NE",
-	LT:     "LT",
-	LE:     "LE",
-	GT:     "GT",
-	GE:     "GE",
-	AND:    "AND",
-	OR:     "OR",
-	NOT:    "NOT",
-	IN:     "IN",
-	LIKE:   "LIKE",
-	LPAREN: "LPAREN",
-	RPAREN: "RPAREN",
-	LBRACK: "LBRACK",
-	RBRACK: "RBRACK",
-	COMMA:  "COMMA",
+// kindsMetadata maps each Kind to its metadata for O(1) lookup.
+// The array indices correspond to Kind enum values.
+var kindsMetadata = [...]*struct {
+	Name      string // Human-readable name for debugging and error reporting
+	Literal   string // Literal string representation in source code (empty if not applicable)
+	IsKeyword bool   // Whether this token kind is a reserved keyword
+}{
+	ERROR: {
+		Name: "ERROR",
+	},
+	EOF: {
+		Name: "EOF",
+	},
+	IDENT: {
+		Name: "IDENT",
+	},
+	NUMBER: {
+		Name: "NUMBER",
+	},
+	STRING: {
+		Name: "STRING",
+	},
+	TRUE: {
+		Name:      "BOOL",
+		Literal:   "true",
+		IsKeyword: true,
+	},
+	FALSE: {
+		Name:      "BOOL",
+		Literal:   "false",
+		IsKeyword: true,
+	},
+	EQ: {
+		Name:    "EQ",
+		Literal: "==",
+	},
+	NE: {
+		Name:    "NE",
+		Literal: "!=",
+	},
+	LT: {
+		Name:    "LT",
+		Literal: "<",
+	},
+	LE: {
+		Name:    "LE",
+		Literal: "<=",
+	},
+	GT: {
+		Name:    "GT",
+		Literal: ">",
+	},
+	GE: {
+		Name:    "GE",
+		Literal: ">=",
+	},
+	AND: {
+		Name:      "AND",
+		Literal:   "and",
+		IsKeyword: true,
+	},
+	OR: {
+		Name:      "OR",
+		Literal:   "or",
+		IsKeyword: true,
+	},
+	NOT: {
+		Name:      "NOT",
+		Literal:   "not",
+		IsKeyword: true,
+	},
+	IN: {
+		Name:      "IN",
+		Literal:   "in",
+		IsKeyword: true,
+	},
+	LIKE: {
+		Name:      "LIKE",
+		Literal:   "like",
+		IsKeyword: true,
+	},
+	LPAREN: {
+		Name:    "LPAREN",
+		Literal: "(",
+	},
+	RPAREN: {
+		Name:    "RPAREN",
+		Literal: ")",
+	},
+	LBRACK: {
+		Name:    "LBRACK",
+		Literal: "[",
+	},
+	RBRACK: {
+		Name:    "RBRACK",
+		Literal: "]",
+	},
+	COMMA: {
+		Name:    "COMMA",
+		Literal: ",",
+	},
 }
 
-// kindLiterals maps each Kind to its literal string representation in source code.
-// Only tokens with fixed literal representations are included (operators, keywords, punctuation).
-var kindLiterals = [...]string{
-	TRUE:   "true",
-	FALSE:  "false",
-	EQ:     "==",
-	NE:     "!=",
-	LT:     "<",
-	LE:     "<=",
-	GT:     ">",
-	GE:     ">=",
-	AND:    "and",
-	OR:     "or",
-	IN:     "in",
-	LIKE:   "like",
-	NOT:    "not",
-	LPAREN: "(",
-	RPAREN: ")",
-	LBRACK: "[",
-	RBRACK: "]",
-	COMMA:  ",",
-}
-
-// keywordKinds defines which token types are reserved keywords in the language.
-// These identifiers cannot be used as variable names or field names.
-var keywordKinds = []Kind{
-	TRUE, FALSE,
-	AND, OR,
-	IN, LIKE,
-	NOT,
-}
-
-// keywordKindsMap provides O(1) lookup for keyword recognition during tokenization.
+// keywordKinds provides O(1) lookup for keyword recognition during tokenization.
 // It maps lowercase keyword strings to their corresponding Kind values.
-var keywordKindsMap map[string]Kind
+var keywordKinds map[string]Kind
 
 // init initializes the keyword lookup map for efficient keyword recognition.
 // This runs once at package initialization time.
 func init() {
-	keywordKindsMap = make(map[string]Kind, len(keywordKinds))
-	for _, keywordKind := range keywordKinds {
-		keywordKindsMap[keywordKind.Literal()] = keywordKind
+	keywordKinds = make(map[string]Kind)
+	for i := kindBegin + 1; i < kindEnd; i++ {
+		k := kindsMetadata[i]
+		if k == nil {
+			panic(fmt.Sprintf("missing metadata for token kind %d", i))
+		}
+		if k.IsKeyword {
+			keywordKinds[k.Literal] = i
+		}
 	}
 }
 
@@ -133,26 +181,28 @@ func (k Kind) ensureValid() {
 // This is primarily used for debugging, error messages, and logging.
 func (k Kind) Name() string {
 	k.ensureValid()
-	return kindNames[k]
+	return kindsMetadata[k].Name
 }
 
 // Literal returns the literal string representation of the token kind.
-// Returns empty string for tokens that don't have fixed literals (like IDENT, NUMBER).
+// Returns empty string for tokens that don't have fixed literals (like IDENT, NUMBER, STRING, etc...).
 func (k Kind) Literal() string {
 	k.ensureValid()
-	return kindLiterals[k]
+	return kindsMetadata[k].Literal
 }
 
 // String provides a formatted string representation of the Kind for debugging.
 // It includes both the name and literal representation in a readable format.
 func (k Kind) String() string {
+	k.ensureValid()
+	metadata := kindsMetadata[k]
 	return fmt.Sprintf(
 		`
 Kind {
   name: %s, 
   literal: %s
 }`,
-		k.Name(), k.Literal(),
+		metadata.Name, metadata.Literal,
 	)
 }
 
@@ -176,7 +226,8 @@ func (k Kind) IsLiteral() bool {
 // IsKeyword returns true if this Kind represents a reserved keyword.
 // Keywords cannot be used as identifiers in the query language.
 func (k Kind) IsKeyword() bool {
-	return slices.Contains(keywordKinds, k)
+	k.ensureValid()
+	return kindsMetadata[k].IsKeyword
 }
 
 // IsEqualityOperator returns true if this Kind represents an equality operator.
@@ -252,7 +303,8 @@ func (k Kind) IsOperator() bool {
 	return k.IsBinaryOperator() || k.IsUnaryOperator()
 }
 
-// IsDelimiter returns true if this Kind represents a delimiter
+// IsDelimiter returns true if this Kind represents a delimiter.
+// Delimiters are punctuation marks used to separate or group elements.
 func (k Kind) IsDelimiter() bool {
 	switch k {
 	case LPAREN, RPAREN, LBRACK, RBRACK, COMMA:
@@ -262,31 +314,30 @@ func (k Kind) IsDelimiter() bool {
 	}
 }
 
-// see doc at https://www.postgresql.org/docs/current/sql-syntax-lexical.html#SQL-PRECEDENCE
-// lowest -> highest
+// Operator precedence constants based on PostgreSQL documentation.
+// See: https://www.postgresql.org/docs/current/sql-syntax-lexical.html#SQL-PRECEDENCE
+// Higher values indicate higher precedence (tighter binding).
 const (
 	PrecedenceLowest = iota
-	PrecedenceOR     // 1: OR
+	PrecedenceOR     // 1: OR (lowest precedence)
 	PrecedenceAND    // 2: AND
 	PrecedenceNOT    // 3: NOT
 	PrecedenceCMP    // 4: EQ, NE, LT, LE, GT, GE
 	PrecedenceMatch  // 5: LIKE, IN
-	PrecedenceIndex  // 6: []
-	PrecedenceHighest
+	PrecedenceIndex  // 6: [] (highest precedence)
 )
 
 // Precedence returns the operator precedence for this Kind.
 // Higher numbers indicate higher precedence (tighter binding).
-// Returns 0 for non-operators.
+// Returns PrecedenceLowest for non-operators.
 //
 // Precedence levels:
-//
-//	1: OR (lowest precedence)
-//	2: AND
-//	3: NOT
-//	4: EQ, NE, LT, LE, GT, GE
-//	5: LIKE, IN
-//	6: []
+//   - 1: OR (lowest precedence)
+//   - 2: AND
+//   - 3: NOT
+//   - 4: EQ, NE, LT, LE, GT, GE
+//   - 5: LIKE, IN
+//   - 6: [] (highest precedence)
 func (k Kind) Precedence() int {
 	switch k {
 	case OR:
@@ -310,7 +361,7 @@ func (k Kind) Precedence() int {
 // If the identifier is a reserved keyword, returns the corresponding keyword Kind.
 // Otherwise, returns IDENT. The comparison is case-insensitive.
 func KindOf(ident string) Kind {
-	keywordKind, exists := keywordKindsMap[strings.ToLower(ident)]
+	keywordKind, exists := keywordKinds[strings.ToLower(ident)]
 	if exists {
 		return keywordKind
 	}
@@ -347,10 +398,5 @@ func IsIdentifier(ident string) bool {
 //   - Unicode digits
 //   - Underscore (_)
 func IsLiteralChar(char rune) bool {
-	if !unicode.IsLetter(char) &&
-		!unicode.IsDigit(char) &&
-		char != '_' {
-		return false
-	}
-	return true
+	return unicode.IsLetter(char) || unicode.IsDigit(char) || char == '_'
 }

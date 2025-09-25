@@ -80,20 +80,40 @@ func OfIdent(ident string, start, end Position) Token {
 }
 
 // OfLiteral creates a token with literal validation and normalization.
-// Only supports STRING, and NUMBER kinds.
+// Only supports STRING, NUMBER, TRUE, and FALSE kinds.
 // For NUMBER tokens, validates the numeric literal and normalizes the format.
+// For TRUE or FALSE tokens, uses the keyword literal from metadata.
 // Returns an error token if the kind is unsupported or validation fails.
 func OfLiteral(kind Kind, literal string, start, end Position) Token {
 	switch kind {
 	case NUMBER:
-		number, err := strconv.ParseFloat(literal, 64)
-		if err != nil {
-			return OfError(err, start)
-		}
-		return Of(NUMBER, strconv.FormatFloat(number, 'g', -1, 64), start, end)
+		return OfNumericLiteral(literal, start, end)
 	case STRING:
-		return Of(kind, literal, start, end)
+		return Of(STRING, literal, start, end)
+	case TRUE:
+		return OfKind(TRUE, start, end)
+	case FALSE:
+		return OfKind(FALSE, start, end)
 	default:
 		return OfError(errors.New("unsupported kind: "+kind.Name()), start)
 	}
+}
+
+// OfNumericLiteral creates a NUMBER token with validation and normalization.
+// It parses the literal string as a floating-point number to validate syntax,
+// then normalizes the representation using Go's standard formatting.
+// This ensures consistent number representation regardless of input format:
+//   - "123.000" becomes "123"
+//   - "1.23e+02" becomes "123"
+//   - "0.000123" becomes "0.000123"
+//
+// Returns an error token if the literal cannot be parsed as a valid number.
+func OfNumericLiteral(literal string, start, end Position) Token {
+	number, err := strconv.ParseFloat(literal, 64)
+	if err != nil {
+		return OfError(err, start)
+	}
+	// Format using 'g' format: chooses %e or %f automatically for readability
+	// -1 precision means use the smallest number of digits necessary
+	return Of(NUMBER, strconv.FormatFloat(number, 'g', -1, 64), start, end)
 }

@@ -61,8 +61,8 @@ func (a *Analyzer) analyzeIdent(ident *ast.Ident) error {
 			ident.Token.Literal, ident.Token.Kind.Name(), ident.Start().String())
 	}
 
-	if token.IsKeyword(ident.Value) {
-		return fmt.Errorf("'%s(%s)' is a reserved keyword and cannot be used as identifier at %s",
+	if !token.IsIdentifier(ident.Value) {
+		return fmt.Errorf("'%s(%s)' cannot be used as identifier at %s",
 			ident.Token.Literal, ident.Token.Kind.Name(), ident.Start().String())
 	}
 

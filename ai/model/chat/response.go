@@ -10,8 +10,8 @@ import (
 // Usage tracks token consumption for LLM API requests.
 // Token usage is a critical metric for cost calculation and rate limiting in LLM services.
 type Usage struct {
-	PromptTokens     int64       `json:"prompt_tokens"`            // Tokens consumed by input messages
-	CompletionTokens int64       `json:"completion_tokens"`        // Tokens generated in LLM response
+	PromptTokens     int64       `json:"prompt_tokens"`            // AllTokens consumed by input messages
+	CompletionTokens int64       `json:"completion_tokens"`        // AllTokens generated in LLM response
 	OriginalUsage    interface{} `json:"original_usage,omitempty"` // Provider-specific usage data
 }
 

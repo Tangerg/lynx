@@ -1,9 +1,10 @@
-package visitors
+package visitors_test
 
 import (
 	"testing"
 
 	"github.com/Tangerg/lynx/ai/vectorstore/filter"
+	"github.com/Tangerg/lynx/ai/vectorstore/filter/visitors"
 )
 
 func TestNewAnalyzer(t *testing.T) {
@@ -23,7 +24,7 @@ func TestNewAnalyzer(t *testing.T) {
 			filter.In("tier", []string{"gold", "platinum"}),
 		),
 	)
-	analyzer := NewAnalyzer()
+	analyzer := visitors.NewAnalyzer()
 	analyzer.Visit(expr)
 	t.Log(analyzer.Error())
 }
