@@ -4,16 +4,13 @@ import (
 	"context"
 	"testing"
 
-	"github.com/Tangerg/lynx/ai/content/document"
-	"github.com/Tangerg/lynx/ai/providers/document/processors"
+	"github.com/Tangerg/lynx/ai/media/document"
+	"github.com/Tangerg/lynx/ai/media/document/processors"
 	"github.com/Tangerg/lynx/ai/tokenizer"
 )
 
 func TestTokenSplitter_Process(t *testing.T) {
-	doc, err := document.
-		NewBuilder().
-		WithText(content).
-		Build()
+	doc, err := document.NewDocument(content, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -26,6 +23,6 @@ func TestTokenSplitter_Process(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, d := range process {
-		t.Log(d.Text())
+		t.Log(d.Text)
 	}
 }

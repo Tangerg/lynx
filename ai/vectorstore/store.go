@@ -3,7 +3,7 @@ package vectorstore
 import (
 	"context"
 
-	"github.com/Tangerg/lynx/ai/content/document"
+	"github.com/Tangerg/lynx/ai/media/document"
 
 	"github.com/Tangerg/lynx/ai/vectorstore/filter/ast"
 )

@@ -9,7 +9,7 @@ import (
 
 	"github.com/spf13/cast"
 
-	"github.com/Tangerg/lynx/ai/content/document"
+	"github.com/Tangerg/lynx/ai/media/document"
 )
 
 const (
@@ -43,11 +43,9 @@ func (fw *FileWriter) buildDocumentContent(docIndex int, doc *document.Document)
 	if fw.WithDocumentMarkers {
 		contentBuilder.WriteString("### Index: ")
 		contentBuilder.WriteString(strconv.Itoa(docIndex))
-		contentBuilder.WriteString(", ID: ")
-		contentBuilder.WriteString(doc.ID())
 		contentBuilder.WriteString(", Pages:[")
 
-		docMetadata := doc.Metadata()
+		docMetadata := doc.Metadata
 		startPage := cast.ToString(docMetadata[MetadataStartPageNumber])
 		endPage := cast.ToString(docMetadata[MetadataEndPageNumber])
 
@@ -58,10 +56,10 @@ func (fw *FileWriter) buildDocumentContent(docIndex int, doc *document.Document)
 		contentBuilder.WriteString("\n")
 	}
 
-	if doc.Formatter() != nil {
+	if doc.Formatter != nil {
 		contentBuilder.WriteString(doc.Format())
 	} else {
-		contentBuilder.WriteString(doc.Text())
+		contentBuilder.WriteString(doc.Text)
 	}
 
 	contentBuilder.WriteString("\n\n")

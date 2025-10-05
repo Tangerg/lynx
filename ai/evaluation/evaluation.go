@@ -1,6 +1,6 @@
 package evaluation
 
-import "github.com/Tangerg/lynx/ai/content/document"
+import "github.com/Tangerg/lynx/ai/media/document"
 
 // Request encapsulates all the data needed for evaluating an AI response.
 // It contains the original user query, the reference documents, and the

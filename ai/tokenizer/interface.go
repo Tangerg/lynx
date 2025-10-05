@@ -6,7 +6,7 @@ package tokenizer
 import (
 	"context"
 
-	"github.com/Tangerg/lynx/ai/content"
+	"github.com/Tangerg/lynx/ai/media"
 )
 
 // TextEstimator estimates the number of tokens in text content.
@@ -45,7 +45,7 @@ type MediaEstimator interface {
 	//
 	// Returns the total estimated number of tokens for all provided media and any error
 	// that occurred during the estimation process.
-	EstimateMedia(ctx context.Context, media ...*content.Media) (int, error)
+	EstimateMedia(ctx context.Context, media ...*media.Media) (int, error)
 }
 
 // Estimator combines both text and media token estimation capabilities.

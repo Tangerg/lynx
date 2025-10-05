@@ -4,7 +4,7 @@ import (
 	"context"
 	"io"
 
-	"github.com/Tangerg/lynx/ai/content/document"
+	"github.com/Tangerg/lynx/ai/media/document"
 	pkgio "github.com/Tangerg/lynx/pkg/io"
 	pkgSlices "github.com/Tangerg/lynx/pkg/slices"
 )
@@ -22,9 +22,7 @@ func (t *TextReader) Read(_ context.Context) ([]*document.Document, error) {
 		return nil, err
 	}
 
-	doc, err := document.NewBuilder().
-		WithText(string(data)).
-		Build()
+	doc, err := document.NewDocument(string(data), nil)
 	if err != nil {
 		return nil, err
 	}

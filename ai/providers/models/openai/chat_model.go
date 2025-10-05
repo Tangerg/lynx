@@ -43,7 +43,7 @@ func (c *ChatModel) buildToolSupport(chatRequest *chat.Request) *chat.ToolSuppor
 	toolSupport := chat.NewToolSupport()
 	toolSupport.RegisterTools(c.defaultOptions.tools...)
 
-	requestOptions := chatRequest.Options()
+	requestOptions := chatRequest.Options
 	if requestOptions == nil {
 		return toolSupport
 	}
@@ -189,8 +189,8 @@ func (c *ChatModel) stream(ctx context.Context, chatRequest *chat.Request, toolS
 func (c *ChatModel) Call(ctx context.Context, chatRequest *chat.Request) (*chat.Response, error) {
 	toolSupport := c.buildToolSupport(chatRequest)
 
-	if toolSupport.ShouldReturnDirect(chatRequest.Instructions()) {
-		return toolSupport.MakeReturnDirectResponse(chatRequest.Instructions())
+	if toolSupport.ShouldReturnDirect(chatRequest.Messages) {
+		return toolSupport.MakeReturnDirectResponse(chatRequest.Messages)
 	}
 
 	return c.call(ctx, chatRequest, toolSupport)
@@ -200,8 +200,8 @@ func (c *ChatModel) Stream(ctx context.Context, chatRequest *chat.Request) iter.
 	return func(yield func(*chat.Response, error) bool) {
 		toolSupport := c.buildToolSupport(chatRequest)
 
-		if toolSupport.ShouldReturnDirect(chatRequest.Instructions()) {
-			yield(toolSupport.MakeReturnDirectResponse(chatRequest.Instructions()))
+		if toolSupport.ShouldReturnDirect(chatRequest.Messages) {
+			yield(toolSupport.MakeReturnDirectResponse(chatRequest.Messages))
 			return
 		}
 

@@ -390,13 +390,17 @@ func (r *ToolInvokeResult) MakeRequest() (*Request, error) {
 		return nil, errors.New("tool calls result is required")
 	}
 
-	opts := r.request.Options().Clone()
-	history := r.request.Instructions()
+	history := r.request.Messages
 	msgs := slices.Clone(history)
-	msgs = append(msgs, res.Output())
+	msgs = append(msgs, res.AssistantMessage)
 	msgs = append(msgs, r.toolMessage)
 
-	return NewRequest(msgs, opts)
+	req, err := NewRequest(msgs)
+	if err != nil {
+		return nil, err
+	}
+	req.Options = r.request.Options
+	return req, nil
 }
 
 // MakeResponse constructs a chat response for direct return to client.
@@ -416,21 +420,22 @@ func (r *ToolInvokeResult) MakeResponse() (*Response, error) {
 		return nil, errors.New("tool calls result is required")
 	}
 
-	msg := res.Output()
+	msg := res.AssistantMessage
 	newMsg := NewAssistantMessage(
 		MessageParams{
-			Text:      msg.Text(),
-			Media:     msg.Media(),
+			Text:      msg.Text,
+			Media:     msg.Media,
 			ToolCalls: r.externalToolCalls,
-			Metadata:  msg.Metadata(),
+			Metadata:  msg.Metadata,
 		})
 
-	newRes, err := NewResult(newMsg, res.Metadata(), r.toolMessage)
+	newRes, err := NewResult(newMsg, res.Metadata)
 	if err != nil {
 		return nil, err
 	}
+	newRes.ToolMessage = r.toolMessage
 
-	return NewResponse([]*Result{newRes}, r.response.Metadata())
+	return NewResponse([]*Result{newRes}, r.response.Metadata)
 }
 
 func validateInvokeResult(result *ToolInvokeResult) error {
@@ -468,7 +473,7 @@ func (i *toolInvoker) canInvokeToolCalls(response *Response) (bool, error) {
 		return false, nil
 	}
 
-	for _, call := range res.Output().ToolCalls() {
+	for _, call := range res.AssistantMessage.ToolCalls {
 		_, ok := i.registry.Find(call.Name)
 		if !ok {
 			return false, fmt.Errorf("tool not found: %s", call.Name)
@@ -482,8 +487,11 @@ func (i *toolInvoker) canInvokeToolCalls(response *Response) (bool, error) {
 // createContext creates a new execution context for tool operations.
 func (i *toolInvoker) createContext(ctx context.Context, request *Request) *ToolContext {
 	toolCtx := NewToolContext(ctx)
+	if request.Options == nil {
+		return toolCtx
+	}
 
-	if opts, ok := request.Options().(ToolOptions); ok {
+	if opts, ok := request.Options.(ToolOptions); ok {
 		return toolCtx.SetMap(opts.ToolParams())
 	}
 
@@ -555,7 +563,7 @@ func (i *toolInvoker) invoke(ctx context.Context, request *Request, response *Re
 
 	invokeRes, err := i.invokeToolCalls(
 		i.createContext(ctx, request),
-		res.Output().ToolCalls(),
+		res.AssistantMessage.ToolCalls,
 	)
 	if err != nil {
 		return nil, err
@@ -625,7 +633,7 @@ func (h *ToolSupport) ShouldReturnDirect(msgs []Message) bool {
 	}
 
 	returnDirect := true
-	for _, resp := range toolMsg.ToolReturns() {
+	for _, resp := range toolMsg.ToolReturns {
 		// Verify tool exists in registry
 		t, ok := h.registry.Find(resp.Name)
 		if !ok {
@@ -647,8 +655,6 @@ func (h *ToolSupport) MakeReturnDirectResponse(msgs []Message) (*Response, error
 	}
 
 	msg, _ := pkgSlices.Last(msgs)
-	// prechecked by ShouldReturnDirect
-	toolMsg := msg.(*ToolMessage)
 
 	assistantMsg := NewAssistantMessage(map[string]any{
 		"create_by": FinishReasonReturnDirect.String(),
@@ -658,10 +664,12 @@ func (h *ToolSupport) MakeReturnDirectResponse(msgs []Message) (*Response, error
 		FinishReason: FinishReasonReturnDirect,
 	}
 
-	res, err := NewResult(assistantMsg, meta, toolMsg)
+	res, err := NewResult(assistantMsg, meta)
 	if err != nil {
 		return nil, err
 	}
+	// prechecked by ShouldReturnDirect
+	res.ToolMessage = msg.(*ToolMessage)
 
 	return NewResponse([]*Result{res}, &ResponseMetadata{})
 }

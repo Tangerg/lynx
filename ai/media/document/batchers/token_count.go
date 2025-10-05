@@ -6,7 +6,7 @@ import (
 	"math"
 	"slices"
 
-	"github.com/Tangerg/lynx/ai/content/document"
+	"github.com/Tangerg/lynx/ai/media/document"
 	"github.com/Tangerg/lynx/ai/tokenizer"
 )
 

@@ -8,7 +8,7 @@ import (
 
 	"github.com/spf13/cast"
 
-	"github.com/Tangerg/lynx/ai/content/document"
+	"github.com/Tangerg/lynx/ai/media/document"
 )
 
 const (
@@ -49,7 +49,7 @@ func (s *SimpleFormatter) initializeDefaultValues() {
 func (s *SimpleFormatter) Format(doc *document.Document, mode document.MetadataMode) string {
 	s.initializeDefaultValues()
 
-	filteredMetadata := s.filterMetadataByMode(doc.Metadata(), mode)
+	filteredMetadata := s.filterMetadataByMode(doc.Metadata, mode)
 
 	var metadataEntries []string
 	for key, value := range filteredMetadata {
@@ -60,7 +60,7 @@ func (s *SimpleFormatter) Format(doc *document.Document, mode document.MetadataM
 
 	metadataText := strings.Join(metadataEntries, s.MetadataSeparator)
 	finalResult := strings.ReplaceAll(s.TextTemplate, defaultTextTemplateMetadataPlaceholder, metadataText)
-	finalResult = strings.ReplaceAll(finalResult, defaultTextTemplateContentPlaceholder, doc.Text())
+	finalResult = strings.ReplaceAll(finalResult, defaultTextTemplateContentPlaceholder, doc.Text)
 
 	return finalResult
 }

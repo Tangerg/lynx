@@ -36,7 +36,7 @@ func (n *Nop) Write(_ context.Context, _ []*Document) error {
 // Format returns only the document's text content, ignoring metadata mode.
 // Provides minimal formatting suitable for basic text extraction scenarios.
 func (n *Nop) Format(doc *Document, _ MetadataMode) string {
-	return doc.Text()
+	return doc.Text
 }
 
 // Process returns documents unchanged without any transformation.

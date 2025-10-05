@@ -6,7 +6,7 @@ import (
 	"github.com/openai/openai-go"
 	"github.com/spf13/cast"
 
-	"github.com/Tangerg/lynx/ai/content"
+	"github.com/Tangerg/lynx/ai/media"
 	"github.com/Tangerg/lynx/ai/model/chat"
 	"github.com/Tangerg/lynx/pkg/mime"
 )
@@ -147,24 +147,24 @@ func (r *requestHelper) makeParams(options chat.Options) (*openai.ChatCompletion
 }
 
 func (r *requestHelper) makeSystemMessage(msg *chat.SystemMessage) openai.ChatCompletionMessageParamUnion {
-	return openai.SystemMessage(msg.Text())
+	return openai.SystemMessage(msg.Text)
 }
 
 func (r *requestHelper) makeUserMessage(msg *chat.UserMessage) openai.ChatCompletionMessageParamUnion {
 	if !msg.HasMedia() {
-		return openai.UserMessage(msg.Text())
+		return openai.UserMessage(msg.Text)
 	}
 
-	params := make([]openai.ChatCompletionContentPartUnionParam, 0, 1+len(msg.Media()))
+	params := make([]openai.ChatCompletionContentPartUnionParam, 0, 1+len(msg.Media))
 	params = append(params, openai.ChatCompletionContentPartUnionParam{
 		OfText: &openai.ChatCompletionContentPartTextParam{
-			Text: msg.Text(),
+			Text: msg.Text,
 		},
 	})
 
-	for _, media := range msg.Media() {
-		mt := media.MimeType()
-		data, err := media.DataAsString()
+	for _, md := range msg.Media {
+		mt := md.MimeType
+		data, err := md.DataAsString()
 		if err != nil {
 			continue
 		}
@@ -187,8 +187,8 @@ func (r *requestHelper) makeUserMessage(msg *chat.UserMessage) openai.ChatComple
 			param.OfFile = &openai.ChatCompletionContentPartFileParam{
 				File: openai.ChatCompletionContentPartFileFileParam{
 					FileData: openai.String(data),
-					Filename: openai.String(media.Name()),
-					FileID:   openai.String(media.ID()),
+					Filename: openai.String(md.Name),
+					FileID:   openai.String(md.ID),
 				},
 			}
 		}
@@ -199,10 +199,10 @@ func (r *requestHelper) makeUserMessage(msg *chat.UserMessage) openai.ChatComple
 }
 
 func (r *requestHelper) makeAssistantMessage(msg *chat.AssistantMessage) openai.ChatCompletionMessageParamUnion {
-	message := openai.AssistantMessage(msg.Text())
+	message := openai.AssistantMessage(msg.Text)
 	ofAssistant := message.OfAssistant
 
-	for _, toolCall := range msg.ToolCalls() {
+	for _, toolCall := range msg.ToolCalls {
 		ofAssistant.ToolCalls = append(
 			ofAssistant.ToolCalls, openai.ChatCompletionMessageToolCallParam{
 				ID: toolCall.ID,
@@ -213,15 +213,15 @@ func (r *requestHelper) makeAssistantMessage(msg *chat.AssistantMessage) openai.
 			})
 	}
 
-	for _, media := range msg.Media() {
-		if mime.IsAudio(media.MimeType()) {
-			ofAssistant.Audio.ID = media.ID()
+	for _, md := range msg.Media {
+		if mime.IsAudio(md.MimeType) {
+			ofAssistant.Audio.ID = md.ID
 			//only one is allowed
 			break
 		}
 	}
 
-	for k, v := range msg.Metadata() {
+	for k, v := range msg.Metadata {
 		if k == "refusal" {
 			ofAssistant.Refusal = openai.String(cast.ToString(v))
 		}
@@ -231,7 +231,7 @@ func (r *requestHelper) makeAssistantMessage(msg *chat.AssistantMessage) openai.
 }
 
 func (r *requestHelper) makeToolMessages(msg *chat.ToolMessage) []openai.ChatCompletionMessageParamUnion {
-	toolResponses := msg.ToolReturns()
+	toolResponses := msg.ToolReturns
 	msgs := make([]openai.ChatCompletionMessageParamUnion, 0, len(toolResponses))
 
 	for _, toolResponse := range toolResponses {
@@ -241,7 +241,6 @@ func (r *requestHelper) makeToolMessages(msg *chat.ToolMessage) []openai.ChatCom
 	return msgs
 }
 
-// makeMessage All assertions cannot panic because the parameters have already been determined during construction by [chat.NewRequest]
 func (r *requestHelper) makeMessage(msg chat.Message) openai.ChatCompletionMessageParamUnion {
 	if msg.Type().IsSystem() {
 		return r.makeSystemMessage(msg.(*chat.SystemMessage))
@@ -253,7 +252,7 @@ func (r *requestHelper) makeMessage(msg chat.Message) openai.ChatCompletionMessa
 		return r.makeAssistantMessage(msg.(*chat.AssistantMessage))
 	}
 
-	return openai.UserMessage(msg.Text())
+	return openai.UserMessage("")
 }
 
 func (r *requestHelper) makeMessages(msgs []chat.Message) []openai.ChatCompletionMessageParamUnion {
@@ -271,12 +270,12 @@ func (r *requestHelper) makeMessages(msgs []chat.Message) []openai.ChatCompletio
 }
 
 func (r *requestHelper) makeRequest(req *chat.Request) (*openai.ChatCompletionNewParams, error) {
-	params, err := r.makeParams(req.Options())
+	params, err := r.makeParams(req.Options)
 	if err != nil {
 		return nil, err
 	}
 
-	params.Messages = r.makeMessages(req.Instructions())
+	params.Messages = r.makeMessages(req.Messages)
 	return params, nil
 }
 
@@ -309,12 +308,11 @@ func (r *responseHelper) makeResultAssistantMessage(req *openai.ChatCompletionNe
 		param.Metadata["audio.voice"] = req.Audio.Voice
 		param.Media = append(
 			param.Media,
-			content.
-				NewMediaBuilder().
-				WithID(message.Audio.ID).
-				WithData(message.Audio.Data).
-				WithMimeType(mt).
-				MustBuild(),
+			&media.Media{
+				ID:       message.Audio.ID,
+				MimeType: mt,
+				Data:     message.Audio.Data,
+			},
 		)
 		if param.Text == "" {
 			param.Text = message.Audio.Transcript

@@ -14,6 +14,6 @@ func TestNewTextReader(t *testing.T) {
 		return
 	}
 	for _, doc := range docs {
-		t.Log(doc.Text())
+		t.Log(doc.Text)
 	}
 }

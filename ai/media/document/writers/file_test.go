@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/Tangerg/lynx/ai/content/document"
+	"github.com/Tangerg/lynx/ai/media/document"
 )
 
 func TestNewFileWriterBuilder(t *testing.T) {
@@ -14,10 +14,7 @@ func TestNewFileWriterBuilder(t *testing.T) {
 		AppendMode:          true,
 	}
 
-	doc, err := document.
-		NewBuilder().
-		WithText("test test").
-		Build()
+	doc, err := document.NewDocument("test test", nil)
 	if err != nil {
 		t.Fatal(err)
 	}

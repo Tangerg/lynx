@@ -5,7 +5,7 @@ import (
 
 	"github.com/qdrant/go-client/qdrant"
 
-	"github.com/Tangerg/lynx/ai/content/document"
+	"github.com/Tangerg/lynx/ai/media/document"
 	"github.com/Tangerg/lynx/ai/vectorstore"
 	"github.com/Tangerg/lynx/ai/vectorstore/filter"
 	"github.com/Tangerg/lynx/ai/vectorstore/filter/ast"

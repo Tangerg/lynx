@@ -13,14 +13,14 @@ func TestJSONReader_Read(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, doc := range docs {
-		t.Log(doc.Text())
+		t.Log(doc.Text)
 	}
 	docs, err = NewJSONReader(strings.NewReader("false")).Read(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, doc := range docs {
-		t.Log(doc.Text())
+		t.Log(doc.Text)
 	}
 
 	docs, err = NewJSONReader(strings.NewReader(`["string","test"]`)).Read(ctx)
@@ -28,7 +28,7 @@ func TestJSONReader_Read(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, doc := range docs {
-		t.Log(doc.Text())
+		t.Log(doc.Text)
 	}
 
 	docs, err = NewJSONReader(strings.NewReader(`{"key":"value"}`)).Read(ctx)
@@ -36,6 +36,6 @@ func TestJSONReader_Read(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, doc := range docs {
-		t.Log(doc.Text())
+		t.Log(doc.Text)
 	}
 }

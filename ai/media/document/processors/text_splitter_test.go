@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/Tangerg/lynx/ai/content/document"
-	"github.com/Tangerg/lynx/ai/providers/document/processors"
+	"github.com/Tangerg/lynx/ai/media/document"
+	"github.com/Tangerg/lynx/ai/media/document/processors"
 )
 
 const content = `GPT-4o has safety built-in by design across modalities, through techniques such as filtering training data and refining the model’s behavior through post-training. We have also created new safety systems to provide guardrails on voice outputs.
@@ -28,10 +28,7 @@ Developers can also now access GPT-4o in the API as a text and vision model. GPT
 `
 
 func TestTextSplitter_Process(t *testing.T) {
-	doc, err := document.
-		NewBuilder().
-		WithText(content).
-		Build()
+	doc, err := document.NewDocument(content, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -44,6 +41,6 @@ func TestTextSplitter_Process(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, d := range process {
-		t.Log(d.Text())
+		t.Log(d.Text)
 	}
 }

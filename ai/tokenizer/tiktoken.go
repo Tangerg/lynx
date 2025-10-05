@@ -6,7 +6,7 @@ import (
 
 	"github.com/pkoukk/tiktoken-go"
 
-	"github.com/Tangerg/lynx/ai/content"
+	"github.com/Tangerg/lynx/ai/media"
 	"github.com/Tangerg/lynx/pkg/mime"
 )
 
@@ -59,7 +59,7 @@ func (t *Tiktoken) EstimateText(ctx context.Context, text string) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	media, err := content.
+	media, err := media.
 		NewMediaBuilder().
 		WithData(text).
 		WithMimeType(mt).
@@ -80,7 +80,7 @@ func (t *Tiktoken) EstimateText(ctx context.Context, text string) (int, error) {
 //
 // Returns the total estimated number of tokens for all provided media and any error
 // that occurred during the estimation process.
-func (t *Tiktoken) EstimateMedia(ctx context.Context, media ...*content.Media) (int, error) {
+func (t *Tiktoken) EstimateMedia(ctx context.Context, media ...*media.Media) (int, error) {
 	if len(media) == 0 {
 		return 0, nil
 	}
@@ -109,7 +109,7 @@ func (t *Tiktoken) EstimateMedia(ctx context.Context, media ...*content.Media) (
 // Returns the estimated number of tokens for the media object and any error.
 // If JSON marshaling fails for non-string/[]byte data, the error is ignored
 // and only MIME type tokens are counted.
-func (t *Tiktoken) estimateMedia(_ context.Context, media *content.Media) (int, error) {
+func (t *Tiktoken) estimateMedia(_ context.Context, media *media.Media) (int, error) {
 	// Count tokens for MIME type
 	mt := media.MimeType().String()
 	token := len(t.encoding.Encode(mt, nil, nil))

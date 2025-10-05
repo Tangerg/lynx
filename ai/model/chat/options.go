@@ -1,14 +1,15 @@
 package chat
 
-import (
-	"github.com/Tangerg/lynx/ai/model"
-)
-
 // Options defines the configuration parameters for AI LLM chat models.
 // These parameters control the behavior and output characteristics of large language models.
 // All parameters are optional and use pointers to distinguish between zero values and unset values.
 type Options interface {
-	model.Options
+	// Model return the model name
+	// Example model names:
+	//   - OpenAI: "gpt-4", "gpt-3.5-turbo", "text-embedding-ada-002"
+	//   - Anthropic: "claude-3-sonnet", "claude-3-haiku"
+	//   - Local models: "llama-2-7b-chat", "mistral-7b-instruct"
+	Model() string
 
 	// FrequencyPenalty reduces repetition in LLM output by penalizing frequently used tokens.
 	// Range: typically -2.0 to 2.0, where positive values decrease repetition.

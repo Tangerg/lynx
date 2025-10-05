@@ -5,7 +5,7 @@ import (
 	"errors"
 	"maps"
 
-	"github.com/Tangerg/lynx/ai/content/document"
+	"github.com/Tangerg/lynx/ai/media/document"
 )
 
 var _ document.Processor = (*Splitter)(nil)
@@ -24,7 +24,7 @@ func (s *Splitter) splitTextContent(ctx context.Context, text string) ([]string,
 }
 
 func (s *Splitter) splitSingleDocument(ctx context.Context, doc *document.Document) ([]*document.Document, error) {
-	textChunks, err := s.splitTextContent(ctx, doc.Text())
+	textChunks, err := s.splitTextContent(ctx, doc.Text)
 	if err != nil {
 		return nil, err
 	}
@@ -35,17 +35,14 @@ func (s *Splitter) splitSingleDocument(ctx context.Context, doc *document.Docume
 		if chunk == "" {
 			continue
 		}
-
-		chunkDoc, err := document.NewBuilder().
-			WithMetadata(maps.Clone(doc.Metadata())).
-			WithText(chunk).
-			Build()
+		chunkDoc, err := document.NewDocument(chunk, nil)
 		if err != nil {
 			return nil, err
 		}
+		chunkDoc.Metadata = maps.Clone(doc.Metadata)
 
 		if s.CopyFormatter {
-			chunkDoc.SetFormatter(doc.Formatter())
+			chunkDoc.Formatter = doc.Formatter
 		}
 
 		splitDocs = append(splitDocs, chunkDoc)
