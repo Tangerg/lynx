@@ -3,7 +3,6 @@ package embedding
 import (
 	"errors"
 
-	"github.com/Tangerg/lynx/ai/model"
 	"github.com/Tangerg/lynx/pkg/mime"
 )
 
@@ -20,26 +19,9 @@ func (m ModalityType) String() string {
 	return string(m)
 }
 
-func (m ModalityType) IsText() bool {
-	return m == Text
-}
-
-func (m ModalityType) IsImage() bool {
-	return m == Image
-}
-
-func (m ModalityType) IsAudio() bool {
-	return m == Audio
-}
-
-func (m ModalityType) IsVideo() bool {
-	return m == Video
-}
-
 type ResultMetadata struct {
 	ModalityType ModalityType
 	MimeType     *mime.MIME
-	DocumentID   string
 	Extra        map[string]any
 }
 
@@ -60,15 +42,12 @@ func (r *ResultMetadata) Set(key string, value any) {
 	r.Extra[key] = value
 }
 
-var _ model.Result[[]float64, *ResultMetadata] = (*Result)(nil)
-
 type Result struct {
-	index     int64
-	embedding []float64
-	metadata  *ResultMetadata
+	Embedding []float64
+	Metadata  *ResultMetadata
 }
 
-func NewResult(index int64, embedding []float64, metadata *ResultMetadata) (*Result, error) {
+func NewResult(embedding []float64, metadata *ResultMetadata) (*Result, error) {
 	if len(embedding) == 0 {
 		return nil, errors.New("embedding is empty")
 	}
@@ -76,16 +55,7 @@ func NewResult(index int64, embedding []float64, metadata *ResultMetadata) (*Res
 		return nil, errors.New("metadata is required")
 	}
 	return &Result{
-		index:     index,
-		embedding: embedding,
-		metadata:  metadata,
+		Embedding: embedding,
+		Metadata:  metadata,
 	}, nil
-}
-
-func (r Result) Output() []float64 {
-	return r.embedding
-}
-
-func (r Result) Metadata() *ResultMetadata {
-	return r.metadata
 }

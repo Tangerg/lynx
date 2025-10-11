@@ -26,9 +26,9 @@ type Request struct {
 	Params   map[string]any `json:"params"` // context params
 }
 
-// ensureExtra initializes the params map if it hasn't been
+// ensureParams initializes the params map if it hasn't been
 // created yet to prevent nil pointer operations.
-func (r *Request) ensureExtra() {
+func (r *Request) ensureParams() {
 	if r.Params == nil {
 		r.Params = make(map[string]any)
 	}
@@ -37,7 +37,7 @@ func (r *Request) ensureExtra() {
 // Get retrieves a parameter value by key.
 // Returns the value and true if found, or nil and false otherwise.
 func (r *Request) Get(key string) (any, bool) {
-	r.ensureExtra()
+	r.ensureParams()
 	val, ok := r.Params[key]
 	return val, ok
 }
@@ -45,7 +45,7 @@ func (r *Request) Get(key string) (any, bool) {
 // Set stores a parameter value with the specified key.
 // Automatically initializes the params map if needed.
 func (r *Request) Set(key string, val any) {
-	r.ensureExtra()
+	r.ensureParams()
 	r.Params[key] = val
 }
 

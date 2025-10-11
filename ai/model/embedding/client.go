@@ -27,7 +27,7 @@ func (c *Client) EmbedText(ctx context.Context, text string) (*Response, error) 
 }
 
 func (c *Client) EmbedTexts(ctx context.Context, texts []string) (*Response, error) {
-	req, err := NewRequest(texts, c.model.DefaultOptions())
+	req, err := NewRequest(texts)
 	if err != nil {
 		return nil, err
 	}

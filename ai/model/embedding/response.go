@@ -3,7 +3,6 @@ package embedding
 import (
 	"errors"
 
-	"github.com/Tangerg/lynx/ai/model"
 	"github.com/Tangerg/lynx/ai/model/chat"
 )
 
@@ -32,37 +31,27 @@ func (r *ResponseMetadata) Set(key string, value any) {
 	r.Extra[key] = value
 }
 
-var _ model.Response[*Result, *ResponseMetadata] = (*Response)(nil)
-
 type Response struct {
-	results  []*Result
-	metadata *ResponseMetadata
+	Results  []*Result         `json:"results"`
+	Metadata *ResponseMetadata `json:"metadata"`
 }
 
 func NewResponse(results []*Result, metadata *ResponseMetadata) (*Response, error) {
 	if len(results) == 0 {
-		return nil, errors.New("results at least one result required")
+		return nil, errors.New("embedding response requires at least one result")
 	}
 	if metadata == nil {
-		return nil, errors.New("metadata is required")
+		return nil, errors.New("embedding response metadata is required")
 	}
 	return &Response{
-		results:  results,
-		metadata: metadata,
+		Results:  results,
+		Metadata: metadata,
 	}, nil
 }
 
-func (r *Response) Result() *Result {
-	if len(r.results) > 0 {
-		return r.results[0]
+func (c *Response) Result() *Result {
+	if len(c.Results) > 0 {
+		return c.Results[0]
 	}
 	return nil
-}
-
-func (r *Response) Results() []*Result {
-	return r.results
-}
-
-func (r *Response) Metadata() *ResponseMetadata {
-	return r.metadata
 }

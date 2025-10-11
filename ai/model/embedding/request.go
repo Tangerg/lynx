@@ -2,71 +2,44 @@ package embedding
 
 import (
 	"errors"
-	"sync"
-
-	"github.com/Tangerg/lynx/ai/model"
-	pkgSlices "github.com/Tangerg/lynx/pkg/slices"
 )
 
-var _ model.Request[[]string, Options] = (*request[Options])(nil)
-
-type Request = request[Options]
-
-type request[O Options] struct {
-	inputs  []string
-	options O
-	mu      sync.RWMutex
-	params  map[string]any //context params
+type Request struct {
+	Inputs  []string
+	Options Options
+	Params  map[string]any //context params
 }
 
-func NewRequest(inputs []string, options ...Options) (*Request, error) {
+func NewRequest(inputs []string) (*Request, error) {
 	if len(inputs) == 0 {
 		return nil, errors.New("at least one string is required")
 	}
 
-	return &request[Options]{
-		inputs:  inputs,
-		options: pkgSlices.FirstOr(options, nil),
-		params:  make(map[string]any),
+	return &Request{
+		Inputs: inputs,
+		Params: make(map[string]any),
 	}, nil
 }
 
-func (c *request[O]) Instructions() []string {
-	return c.inputs
+// ensureExtra initializes the params map if it hasn't been
+// created yet to prevent nil pointer operations.
+func (r *Request) ensureParams() {
+	if r.Params == nil {
+		r.Params = make(map[string]any)
+	}
 }
 
-func (c *request[O]) Options() O {
-	return c.options
-}
-
-func (c *request[O]) Params() map[string]any {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-
-	return c.params
-}
-
-func (c *request[O]) Get(key string) (any, bool) {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-
-	val, ok := c.params[key]
+// Get retrieves a parameter value by key.
+// Returns the value and true if found, or nil and false otherwise.
+func (r *Request) Get(key string) (any, bool) {
+	r.ensureParams()
+	val, ok := r.Params[key]
 	return val, ok
 }
 
-func (c *request[O]) Set(key string, val any) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	c.params[key] = val
-}
-
-func (c *request[O]) SetParams(params map[string]any) {
-	if params == nil {
-		return
-	}
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	c.params = params
+// Set stores a parameter value with the specified key.
+// Automatically initializes the params map if needed.
+func (r *Request) Set(key string, val any) {
+	r.ensureParams()
+	r.Params[key] = val
 }
