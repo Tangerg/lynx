@@ -5,193 +5,384 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"strconv"
-	"sync"
 	"testing"
 	"time"
 )
 
-func newServer() {
-	http.HandleFunc("/sse", func(w http.ResponseWriter, r *http.Request) {
-		ctx := context.Background()
-		eventChan := make(chan *Message)
-		wg := sync.WaitGroup{}
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			err := WithSSE(ctx, w, eventChan)
-			fmt.Println("sse stop")
-			fmt.Println(err)
-		}()
-		time.Sleep(1 * time.Second)
-		for i := 0; i < 100; i++ {
-			itoa := strconv.Itoa(i + 1)
-			data := map[string]any{
-				"id":         itoa,
-				"time_stamp": time.Now().Unix(),
-			}
-			marshal, _ := json.Marshal(data)
-			eventChan <- &Message{
-				ID:    itoa,
-				Data:  marshal,
-				Event: "event_" + itoa,
-				Retry: 0,
-			}
-			time.Sleep(100 * time.Millisecond)
-		}
-		close(eventChan)
-		wg.Wait()
-	})
-	_ = http.ListenAndServe(":8080", nil)
+type TestMessage struct {
+	ID        int   `json:"id"`
+	Timestamp int64 `json:"ts"`
 }
 
-func newServer2() {
-	http.HandleFunc("/sse", func(w http.ResponseWriter, r *http.Request) {
-		ctx := context.Background()
-		writer, err := NewWriter(&WriterConfig{
-			Context:        ctx,
-			ResponseWriter: w,
-			QueueSize:      128,
-		})
-		if err != nil {
-			fmt.Println(err)
-			return
+const (
+	testPort = 10086
+	testURL  = "http://localhost:10086/sse"
+)
+
+// 启动测试服务器
+func setupRealServer(t *testing.T, handler http.HandlerFunc) *http.Server {
+	t.Helper()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/sse", handler)
+
+	server := &http.Server{
+		Addr:    fmt.Sprintf(":%d", testPort),
+		Handler: mux,
+	}
+
+	// 启动服务器
+	go func() {
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			t.Logf("Server error: %v", err)
 		}
-		defer func() {
-			writer.Close()
-			fmt.Println("close writer")
-		}()
-		time.Sleep(1 * time.Second)
-		for i := 0; i < 100; i++ {
-			itoa := strconv.Itoa(i + 1)
-			data := map[string]any{
-				"id":         itoa,
-				"time_stamp": time.Now().Unix(),
-			}
-			marshal, _ := json.Marshal(data)
-			writer.Send(&Message{
-				ID:    itoa,
-				Data:  marshal,
-				Event: "event_" + itoa,
-				Retry: 0,
-			})
-			time.Sleep(100 * time.Millisecond)
+	}()
+
+	// 等待服务器启动
+	time.Sleep(100 * time.Millisecond)
+
+	// 清理函数
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := server.Shutdown(ctx); err != nil {
+			t.Logf("Server shutdown error: %v", err)
 		}
 	})
-	_ = http.ListenAndServe(":8080", nil)
+
+	return server
 }
 
-func newServer3() {
-	http.HandleFunc("/sse", func(w http.ResponseWriter, r *http.Request) {
-		ctx := context.Background()
+func writerSSEHandler(messageCount int, delay time.Duration, heartbeat time.Duration) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
 		writer, err := NewWriter(&WriterConfig{
-			Context:        ctx,
+			Context:        r.Context(),
 			ResponseWriter: w,
 			QueueSize:      128,
-			HeartBeat:      1 * time.Millisecond,
+			HeartBeat:      heartbeat,
 		})
 		if err != nil {
-			fmt.Println(err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 		defer writer.Close()
-		time.Sleep(1 * time.Second)
-		for i := 0; i < 100; i++ {
-			data := struct {
-				ID int   `json:"id"`
-				TS int64 `json:"ts"`
-			}{
-				ID: i,
-				TS: time.Now().Unix(),
+
+		time.Sleep(100 * time.Millisecond)
+
+		for i := 0; i < messageCount; i++ {
+			data := TestMessage{
+				ID:        i + 1,
+				Timestamp: time.Now().Unix(),
 			}
-			err = writer.SendData(data)
-			if err != nil {
-				fmt.Println(err)
+
+			if err := writer.SendData(data); err != nil {
+				fmt.Printf("Send error: %v\n", err)
+				return
 			}
+			time.Sleep(delay)
+		}
+	}
+}
+
+func printMessage(t *testing.T, prefix string, msg Message) {
+	t.Helper()
+	dataStr := string(msg.Data)
+	if len(dataStr) > 100 {
+		dataStr = dataStr[:100] + "..."
+	}
+
+	t.Logf("%s | ID: %q, Event: %q, Data: %s, Retry: %d",
+		prefix, msg.ID, msg.Event, dataStr, msg.Retry)
+}
+
+func TestSSEBasicReaderWriter(t *testing.T) {
+	setupRealServer(t, writerSSEHandler(10, 50*time.Millisecond, 1))
+
+	resp, err := http.Get(testURL)
+	if err != nil {
+		t.Fatalf("Failed to connect: %v", err)
+	}
+
+	reader, err := NewReader(resp)
+	if err != nil {
+		t.Fatalf("Failed to create reader: %v", err)
+	}
+	defer reader.Close()
+
+	count := 0
+	for reader.Next() {
+		msg, err := reader.Current()
+		if err != nil {
+			t.Errorf("Read error: %v", err)
+			continue
+		}
+
+		count++
+		printMessage(t, fmt.Sprintf("Message %02d", count), msg)
+
+		var data TestMessage
+		if err := json.Unmarshal(msg.Data, &data); err != nil {
+			t.Errorf("JSON unmarshal error: %v", err)
+		}
+	}
+
+	if err := reader.Error(); err != nil {
+		t.Errorf("Reader error: %v", err)
+	}
+
+	if count != 10 {
+		t.Errorf("Expected 10 messages, got %d", count)
+	}
+
+	t.Logf("Total messages received: %d", count)
+}
+
+func TestSSELargeMessageVolume(t *testing.T) {
+	setupRealServer(t, writerSSEHandler(100, 10*time.Millisecond, 0))
+
+	resp, err := http.Get(testURL)
+	if err != nil {
+		t.Fatalf("Failed to connect: %v", err)
+	}
+
+	reader, err := NewReader(resp)
+	if err != nil {
+		t.Fatalf("Failed to create reader: %v", err)
+	}
+	defer reader.Close()
+
+	count := 0
+	for reader.Next() {
+		msg, err := reader.Current()
+		if err != nil {
+			t.Errorf("Read error: %v", err)
+			continue
+		}
+
+		count++
+		if count%10 == 0 || count <= 5 || count > 95 {
+			printMessage(t, fmt.Sprintf("Message %03d", count), msg)
+		}
+
+		var data TestMessage
+		if err := json.Unmarshal(msg.Data, &data); err != nil {
+			t.Errorf("JSON unmarshal error: %v", err)
+		}
+	}
+
+	if err := reader.Error(); err != nil {
+		t.Errorf("Reader error: %v", err)
+	}
+
+	if count != 100 {
+		t.Errorf("Expected 100 messages, got %d", count)
+	}
+
+	t.Logf("Total messages received: %d", count)
+}
+
+func TestSSEWithIter(t *testing.T) {
+	setupRealServer(t, writerSSEHandler(10, 50*time.Millisecond, 0))
+
+	resp, err := http.Get(testURL)
+	if err != nil {
+		t.Fatalf("Failed to connect: %v", err)
+	}
+
+	count := 0
+	for msg, err := range Iter(resp) {
+		if err != nil {
+			t.Fatalf("Iter error: %v", err)
+		}
+
+		count++
+		printMessage(t, fmt.Sprintf("Message %02d", count), msg)
+
+		var data TestMessage
+		if err := json.Unmarshal(msg.Data, &data); err != nil {
+			t.Errorf("JSON unmarshal error: %v", err)
+			continue
+		}
+	}
+
+	if count != 10 {
+		t.Errorf("Expected 10 messages, got %d", count)
+	}
+
+	t.Logf("Total messages received: %d", count)
+}
+
+func TestSSELastID(t *testing.T) {
+	setupRealServer(t, writerSSEHandler(5, 50*time.Millisecond, 0))
+
+	resp, err := http.Get(testURL)
+	if err != nil {
+		t.Fatalf("Failed to connect: %v", err)
+	}
+
+	reader, err := NewReader(resp)
+	if err != nil {
+		t.Fatalf("Failed to create reader: %v", err)
+	}
+	defer reader.Close()
+
+	count := 0
+	for reader.Next() {
+		msg, err := reader.Current()
+		if err != nil {
+			t.Errorf("Read error: %v", err)
+			continue
+		}
+
+		count++
+		printMessage(t, fmt.Sprintf("Message %02d", count), msg)
+
+		currentLastID := reader.LastID()
+		t.Logf("Reader.LastID: %q", currentLastID)
+
+		if msg.ID != "" && currentLastID != msg.ID {
+			t.Errorf("LastID mismatch: expected %q, got %q", msg.ID, currentLastID)
+		}
+	}
+
+	finalLastID := reader.LastID()
+	t.Logf("Final LastID: %q", finalLastID)
+
+	if count != 5 {
+		t.Errorf("Expected 5 messages, got %d", count)
+	}
+}
+
+func TestSSEEarlyTermination(t *testing.T) {
+	setupRealServer(t, writerSSEHandler(100, 10*time.Millisecond, 0))
+
+	resp, err := http.Get(testURL)
+	if err != nil {
+		t.Fatalf("Failed to connect: %v", err)
+	}
+
+	count := 0
+	maxMessages := 5
+
+	for msg, err := range Iter(resp) {
+		if err != nil {
+			t.Fatalf("Iter error: %v", err)
+		}
+
+		count++
+		printMessage(t, fmt.Sprintf("Message %02d", count), msg)
+
+		if count >= maxMessages {
+			t.Logf("Breaking early at message %d", count)
+			break
+		}
+	}
+
+	if count != maxMessages {
+		t.Errorf("Expected %d messages before break, got %d", maxMessages, count)
+	}
+
+	t.Logf("Terminated after %d messages", count)
+}
+
+func TestSSEReaderError(t *testing.T) {
+	setupRealServer(t, func(w http.ResponseWriter, r *http.Request) {
+		writer, err := NewWriter(&WriterConfig{
+			Context:        r.Context(),
+			ResponseWriter: w,
+			QueueSize:      10,
+		})
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		defer writer.Close()
+
+		for i := 0; i < 3; i++ {
+			data := TestMessage{ID: i + 1, Timestamp: time.Now().Unix()}
+			if err := writer.SendData(data); err != nil {
+				return
+			}
+			time.Sleep(50 * time.Millisecond)
 		}
 	})
-	_ = http.ListenAndServe(":8080", nil)
+
+	resp, err := http.Get(testURL)
+	if err != nil {
+		t.Fatalf("Failed to connect: %v", err)
+	}
+
+	reader, err := NewReader(resp)
+	if err != nil {
+		t.Fatalf("Failed to create reader: %v", err)
+	}
+	defer reader.Close()
+
+	count := 0
+	for reader.Next() {
+		msg, err := reader.Current()
+		if err != nil {
+			t.Errorf("Read error: %v", err)
+			continue
+		}
+
+		count++
+		printMessage(t, fmt.Sprintf("Message %02d", count), msg)
+	}
+
+	t.Logf("Total messages before connection close: %d", count)
+
+	if count != 3 {
+		t.Logf("Note: Expected 3 messages, got %d (connection may have closed early)", count)
+	}
 }
 
-func TestSSE2(t *testing.T) {
-	go func() {
-		newServer()
-	}()
+func TestSSEConcurrentReaders(t *testing.T) {
+	setupRealServer(t, writerSSEHandler(10, 50*time.Millisecond, 0))
 
-	time.Sleep(2 * time.Second)
-	resp, err := http.Get("http://localhost:8080/sse")
-	if err != nil {
-		t.Fatal(err)
+	done := make(chan bool, 2)
+
+	for clientID := 1; clientID <= 2; clientID++ {
+		go func(id int) {
+			defer func() { done <- true }()
+
+			resp, err := http.Get(testURL)
+			if err != nil {
+				t.Errorf("Client %d: Failed to connect: %v", id, err)
+				return
+			}
+
+			reader, err := NewReader(resp)
+			if err != nil {
+				t.Errorf("Client %d: Failed to create reader: %v", id, err)
+				return
+			}
+			defer reader.Close()
+
+			count := 0
+			for reader.Next() {
+				msg, err := reader.Current()
+				if err != nil {
+					t.Errorf("Client %d: Read error: %v", id, err)
+					continue
+				}
+
+				count++
+				printMessage(t, fmt.Sprintf("Client %d Message %02d", id, count), msg)
+			}
+
+			t.Logf("Client %d: Total messages received: %d", id, count)
+		}(clientID)
+
+		time.Sleep(100 * time.Millisecond)
 	}
 
-	reader := NewReader(resp)
-	t.Log(reader.LastID())
-	for reader.Next() {
-		t.Log(reader.LastID())
-		current, err := reader.Current()
-		if err != nil {
-			t.Log(err)
+	timeout := time.After(5 * time.Second)
+	for i := 0; i < 2; i++ {
+		select {
+		case <-done:
+		case <-timeout:
+			t.Fatal("Test timeout waiting for concurrent readers")
 		}
-		var str map[string]any
-		err = json.Unmarshal(current.Data, &str)
-		if err != nil {
-			t.Log(err)
-		}
-		t.Log(current.ID, current.Event, str)
 	}
-	reader.Close()
-	time.Sleep(1 * time.Second)
-}
-
-func Test3(t *testing.T) {
-	go func() {
-		newServer2()
-	}()
-
-	time.Sleep(2 * time.Second)
-	resp, err := http.Get("http://localhost:8080/sse")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	reader := NewReader(resp)
-	t.Log(reader.LastID())
-	for reader.Next() {
-		t.Log(reader.LastID())
-		current, err := reader.Current()
-		if err != nil {
-			t.Log(err)
-		}
-		var str map[string]any
-		err = json.Unmarshal(current.Data, &str)
-		if err != nil {
-			t.Log(err)
-		}
-		t.Log(current.ID, current.Event, str)
-	}
-	reader.Close()
-	time.Sleep(1 * time.Second)
-}
-
-func Test4(t *testing.T) {
-	go func() {
-		newServer3()
-	}()
-
-	time.Sleep(2 * time.Second)
-	resp, err := http.Get("http://localhost:8080/sse")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	reader := NewReader(resp)
-	for reader.Next() {
-		current, err := reader.Current()
-		if err != nil {
-			t.Log(err)
-		}
-		t.Log(string(current.Data))
-	}
-	reader.Close()
-	time.Sleep(2 * time.Second)
 }

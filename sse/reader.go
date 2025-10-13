@@ -1,7 +1,10 @@
 package sse
 
 import (
+	"fmt"
+	"iter"
 	"net/http"
+	"strings"
 )
 
 // Reader provides a high-level interface for consuming Server-Sent Events from an HTTP response.
@@ -38,10 +41,85 @@ type Reader struct {
 //	if err := reader.Error(); err != nil {
 //	    // handle error
 //	}
-func NewReader(httpResponse *http.Response) *Reader {
+func NewReader(httpResponse *http.Response) (*Reader, error) {
+	contentType := httpResponse.Header.Get("Content-Type")
+	if !strings.HasPrefix(contentType, "text/event-stream") {
+		return nil, fmt.Errorf("expected Content-Type 'text/event-stream', got %s", contentType)
+	}
 	return &Reader{
 		httpResponse:   httpResponse,
 		messageDecoder: NewDecoder(httpResponse.Body),
+	}, nil
+}
+
+// Iter creates an iterator-based SSE reader for simplified stream consumption.
+// It returns an iter.Seq2 that yields Message and error pairs, providing a convenient
+// way to consume SSE streams using Go 1.23+ range-over-function syntax.
+//
+// This is a convenience wrapper around Reader that simplifies common use cases.
+// For more control over the reading process (e.g., checking LastID() during iteration,
+// conditional processing, custom error handling), use NewReader directly.
+//
+// The iterator automatically closes the HTTP response body when iteration completes,
+// either normally or through early termination (break/return).
+//
+// Trade-offs:
+//   - Simpler API: No need to manually call Next() or Close()
+//   - Automatic cleanup: Response body is closed when iteration ends
+//   - Less control: Cannot access Reader methods like LastID() during iteration
+//
+// Example - Simple iteration:
+//
+//	resp, err := http.Get("https://example.com/events")
+//	if err != nil {
+//	    // handle error
+//	}
+//	// No need for defer resp.Body.Close() - iterator handles cleanup
+//
+//	for msg, err := range sse.NewIterReader(resp) {
+//	    if err != nil {
+//	        log.Printf("Error: %v", err)
+//	        break  // Body is automatically closed
+//	    }
+//	    fmt.Printf("Event: %s, Data: %s\n", msg.Event, msg.Data)
+//	}
+//
+// Example - When you need more control, use Reader instead:
+//
+//	reader := sse.NewReader(resp)
+//	defer reader.Close()
+//
+//	for reader.Next() {
+//	    msg, err := reader.Current()
+//	    if err != nil {
+//	        // handle error
+//	    }
+//	    // Can access reader.LastID() here for reconnection logic
+//	    lastID := reader.LastID()
+//	}
+//
+// Parameters:
+//   - httpResponse: HTTP response from an SSE endpoint (Content-Type: text/event-stream)
+//
+// Returns:
+//   - An iterator that yields (Message, error) pairs for each SSE message
+func Iter(httpResponse *http.Response) iter.Seq2[Message, error] {
+	reader, err := NewReader(httpResponse)
+	return func(yield func(Message, error) bool) {
+		defer reader.Close()
+		if err != nil {
+			yield(Message{}, err)
+			return
+		}
+		for reader.Next() {
+			if reader.Error() != nil {
+				yield(Message{}, reader.Error())
+				return
+			}
+			if !yield(reader.Current()) {
+				return
+			}
+		}
 	}
 }
 
