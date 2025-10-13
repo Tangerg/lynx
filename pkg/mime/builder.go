@@ -11,7 +11,7 @@ import (
 	"github.com/bits-and-blooms/bitset"
 
 	"github.com/Tangerg/lynx/pkg/assert"
-	"github.com/Tangerg/lynx/pkg/kv"
+	"github.com/Tangerg/lynx/pkg/maps"
 	pkgStrings "github.com/Tangerg/lynx/pkg/strings"
 )
 
@@ -68,7 +68,7 @@ func NewBuilder() *Builder {
 			_type:   wildcardType,
 			subType: wildcardType,
 			charset: "",
-			params:  kv.New[string, string](),
+			params:  maps.NewHashMap[string, string](),
 		},
 	}
 }
@@ -227,8 +227,8 @@ func (b *Builder) FromMime(sourceMime *MIME) *Builder {
 	b.mime._type = sourceMime._type
 	b.mime.subType = sourceMime.subType
 	b.mime.charset = sourceMime.charset
-	b.mime.params = sourceMime.params.Clone()
-	b.mime.stringValue = sourceMime.stringValue
+	b.mime.params = sourceMime.params.Clone().(maps.HashMap[string, string])
+	b.mime.stringCache = sourceMime.stringCache
 
 	return b
 }
@@ -279,5 +279,5 @@ func (b *Builder) Build() (*MIME, error) {
 }
 
 func (b *Builder) MustBuild() *MIME {
-	return assert.ErrorIsNil(b.Build())
+	return assert.Must(b.Build())
 }

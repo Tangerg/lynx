@@ -9,9 +9,89 @@ import (
 
 	"github.com/spf13/cast"
 
+	"github.com/Tangerg/lynx/ai/media"
 	"github.com/Tangerg/lynx/ai/model"
 	pkgSlices "github.com/Tangerg/lynx/pkg/slices"
+	"github.com/Tangerg/lynx/pkg/text"
 )
+
+// PromptTemplate provides a builder for creating chat messages with
+// template rendering and media attachment support.
+type PromptTemplate struct {
+	renderer *text.Renderer
+	media    []*media.Media
+}
+
+// NewPromptTemplate creates a new PromptTemplate instance with
+// an initialized renderer and empty media collection.
+func NewPromptTemplate() *PromptTemplate {
+	return &PromptTemplate{
+		renderer: text.NewRenderer(),
+		media:    make([]*media.Media, 0),
+	}
+}
+
+// WithTemplate sets the template string to be rendered.
+// Returns the template for method chaining.
+func (p *PromptTemplate) WithTemplate(template string) *PromptTemplate {
+	p.renderer.WithTemplate(template)
+	return p
+}
+
+// WithVariable adds a single template variable with its value.
+// Returns the template for method chaining.
+func (p *PromptTemplate) WithVariable(name string, value any) *PromptTemplate {
+	p.renderer.WithVariable(name, value)
+	return p
+}
+
+// WithVariables adds multiple template variables from a map.
+// Returns the template for method chaining.
+func (p *PromptTemplate) WithVariables(variables map[string]any) *PromptTemplate {
+	p.renderer.WithVariables(variables)
+	return p
+}
+
+// WithMedia appends one or more media attachments to the template.
+// Returns the template for method chaining.
+func (p *PromptTemplate) WithMedia(media ...*media.Media) *PromptTemplate {
+	p.media = append(p.media, media...)
+	return p
+}
+
+// Clone creates a deep copy of the PromptTemplate with its
+// renderer state and media attachments.
+func (p *PromptTemplate) Clone() *PromptTemplate {
+	return &PromptTemplate{
+		renderer: p.renderer.Clone(),
+		media:    slices.Clone(p.media),
+	}
+}
+
+// RenderSystemMessage renders the template and creates a SystemMessage.
+// Returns an error if template rendering fails.
+func (p *PromptTemplate) RenderSystemMessage() (*SystemMessage, error) {
+	content, err := p.renderer.Render()
+	if err != nil {
+		return nil, err
+	}
+
+	return NewSystemMessage(content), nil
+}
+
+// RenderUserMessage renders the template and creates a UserMessage with
+// text content and any attached media. Returns an error if rendering fails.
+func (p *PromptTemplate) RenderUserMessage() (*UserMessage, error) {
+	content, err := p.renderer.Render()
+	if err != nil {
+		return nil, err
+	}
+
+	return NewUserMessage(MessageParams{
+		Text:  content,
+		Media: p.media,
+	}), nil
+}
 
 type CallHandler = model.CallHandler[*Request, *Response]
 type StreamHandler = model.StreamHandler[*Request, *Response]
@@ -39,11 +119,11 @@ type Client struct {
 // Returns an error if config is nil.
 func NewClient(config *ClientConfig) (*Client, error) {
 	if config == nil {
-		return nil, errors.New("client config is required")
+		return nil, errors.New("client configuration cannot be nil")
 	}
 
 	return &Client{
-		defaultConfig: config.Clone(),
+		defaultConfig: config,
 	}, nil
 }
 
@@ -56,53 +136,50 @@ func (c *Client) Chat() *ClientConfig {
 // ChatText creates a chat interaction with a simple text message
 // using default options.
 func (c *Client) ChatText(text string) *ClientConfig {
-	msg := NewUserMessage(text)
-
-	req := &Request{
-		Messages: []Message{msg},
-		Options:  c.defaultConfig.getOptions(),
-	}
-
-	return c.ChatRequest(req)
+	return c.
+		defaultConfig.
+		Clone().
+		WithMessages(NewUserMessage(text))
 }
 
 // ChatPromptTemplate creates a chat interaction using a prompt template
 // for the user message.
 func (c *Client) ChatPromptTemplate(promptTemplate *PromptTemplate) *ClientConfig {
-	return c.Chat().WithUserPromptTemplate(promptTemplate)
+	return c.
+		defaultConfig.
+		Clone().
+		WithUserPromptTemplate(promptTemplate)
 }
 
 // ChatRequest creates a chat interaction from an existing request,
 // merging its configuration with client defaults.
-func (c *Client) ChatRequest(chatRequest *Request) *ClientConfig {
-	cfg := c.defaultConfig.Clone()
-
-	cfg.WithOptions(chatRequest.Options).
-		WithMessages(chatRequest.Messages...).
-		WithParams(chatRequest.Params)
-
-	return cfg
+func (c *Client) ChatRequest(req *Request) *ClientConfig {
+	return c.
+		defaultConfig.
+		Clone().
+		WithMessages(req.Messages...).
+		WithOptions(req.Options).
+		WithParams(req.Params)
 }
 
 // ClientConfig provides fluent configuration for chat interactions
 // including messages, options, templates, and middleware.
 type ClientConfig struct {
 	model                Model
-	options              Options
+	options              *Options
 	userPromptTemplate   *PromptTemplate
 	systemPromptTemplate *PromptTemplate
 	messages             []Message
 	middlewareManager    *MiddlewareManager
 	params               map[string]any
 	tools                []Tool
-	toolParams           map[string]any
 }
 
 // NewClientConfig creates a new client configuration with the specified model.
 // Returns an error if model is nil.
 func NewClientConfig(model Model) (*ClientConfig, error) {
 	if model == nil {
-		return nil, errors.New("chat model is required")
+		return nil, errors.New("chat model cannot be nil")
 	}
 
 	return &ClientConfig{
@@ -110,7 +187,6 @@ func NewClientConfig(model Model) (*ClientConfig, error) {
 		middlewareManager: NewMiddlewareManager(),
 		params:            make(map[string]any),
 		tools:             make([]Tool, 0),
-		toolParams:        make(map[string]any),
 	}, nil
 }
 
@@ -126,7 +202,7 @@ func (c *ClientConfig) Stream() *ClientStreamer {
 
 // WithOptions sets the model options for the chat interaction.
 // Returns the config for method chaining.
-func (c *ClientConfig) WithOptions(options Options) *ClientConfig {
+func (c *ClientConfig) WithOptions(options *Options) *ClientConfig {
 	if options != nil {
 		c.options = options
 	}
@@ -144,9 +220,9 @@ func (c *ClientConfig) WithUserPrompt(prompt string) *ClientConfig {
 
 // WithUserPromptTemplate sets the user prompt template.
 // Returns the config for method chaining.
-func (c *ClientConfig) WithUserPromptTemplate(userPromptTemplate *PromptTemplate) *ClientConfig {
-	if userPromptTemplate != nil {
-		c.userPromptTemplate = userPromptTemplate
+func (c *ClientConfig) WithUserPromptTemplate(template *PromptTemplate) *ClientConfig {
+	if template != nil {
+		c.userPromptTemplate = template
 	}
 	return c
 }
@@ -162,9 +238,9 @@ func (c *ClientConfig) WithSystemPrompt(prompt string) *ClientConfig {
 
 // WithSystemPromptTemplate sets the system prompt template.
 // Returns the config for method chaining.
-func (c *ClientConfig) WithSystemPromptTemplate(systemPromptTemplate *PromptTemplate) *ClientConfig {
-	if systemPromptTemplate != nil {
-		c.systemPromptTemplate = systemPromptTemplate
+func (c *ClientConfig) WithSystemPromptTemplate(template *PromptTemplate) *ClientConfig {
+	if template != nil {
+		c.systemPromptTemplate = template
 	}
 	return c
 }
@@ -214,15 +290,6 @@ func (c *ClientConfig) WithTools(tools ...Tool) *ClientConfig {
 	return c
 }
 
-// WithToolParams sets parameters for tool execution.
-// Returns the config for method chaining.
-func (c *ClientConfig) WithToolParams(toolParams map[string]any) *ClientConfig {
-	if len(toolParams) > 0 {
-		c.toolParams = toolParams
-	}
-	return c
-}
-
 // Clone creates a deep copy of the configuration.
 func (c *ClientConfig) Clone() *ClientConfig {
 	cfg, _ := NewClientConfig(c.model)
@@ -234,27 +301,20 @@ func (c *ClientConfig) Clone() *ClientConfig {
 		WithMessages(c.messages...).
 		WithMiddlewareManager(c.middlewareManager).
 		WithParams(c.params).
-		WithTools(c.tools...).
-		WithToolParams(c.toolParams)
+		WithTools(c.tools...)
 
 	return cfg
 }
 
 // getOptions returns the effective options for the chat interaction,
 // merging config options with tool-specific settings.
-func (c *ClientConfig) getOptions() Options {
-	var opts Options
+func (c *ClientConfig) getOptions() *Options {
+	var opts *Options
 
 	if c.options != nil {
 		opts = c.options.Clone()
 	} else {
 		opts = c.model.DefaultOptions().Clone()
-	}
-
-	toolOpts, ok := opts.(ToolOptions)
-	if ok {
-		toolOpts.AddTools(c.tools)
-		toolOpts.AddToolParams(c.toolParams)
 	}
 
 	return opts
@@ -295,8 +355,7 @@ func (c *ClientConfig) getMessages() ([]Message, error) {
 			msgs = append(msgs, userMsg)
 		} else {
 			// Use friendly greeting as fallback to ensure conversation can start
-			defaultMsg := NewUserMessage("Hi!")
-			msgs = append(msgs, defaultMsg)
+			msgs = append(msgs, NewUserMessage("Hi!"))
 		}
 	}
 
@@ -313,15 +372,15 @@ func (c *ClientConfig) getMessages() ([]Message, error) {
 		result = append(result, sysMsg)
 	} else if c.systemPromptTemplate != nil {
 		// Priority 2: Generate system message from template when no existing ones found
-		renderedSysMsg, err := c.systemPromptTemplate.RenderSystemMessage()
+		renderedMsg, err := c.systemPromptTemplate.RenderSystemMessage()
 		if err != nil {
 			return nil, errors.Join(err, errors.New("failed to render system prompt template"))
 		}
-		result = append(result, renderedSysMsg)
+		result = append(result, renderedMsg)
 	}
 
 	// Case 3: Add non-system messages while preserving order
-	// FilterMessages out system messages to prevent duplication since they're already processed above
+	// Filter out system messages to prevent duplication since they're already processed above
 	// Only include User, Assistant, and Tool messages in their original sequence
 	filtered := FilterMessagesByMessageTypes(msgs, MessageTypeUser, MessageTypeAssistant, MessageTypeTool)
 	result = append(result, filtered...)
@@ -343,8 +402,8 @@ func (c *ClientConfig) getMiddlewareManager() *MiddlewareManager {
 	return c.middlewareManager
 }
 
-// toRequest converts the configuration to a chat request.
-func (c *ClientConfig) toRequest() (*Request, error) {
+// buildRequest converts the configuration to a chat request.
+func (c *ClientConfig) buildRequest() (*Request, error) {
 	msgs, err := c.getMessages()
 	if err != nil {
 		return nil, err
@@ -354,7 +413,9 @@ func (c *ClientConfig) toRequest() (*Request, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	req.Options = c.getOptions()
+	req.Options.Tools = append(req.Options.Tools, c.tools...)
 	req.Params = maps.Clone(c.params)
 
 	return req, nil
@@ -362,35 +423,35 @@ func (c *ClientConfig) toRequest() (*Request, error) {
 
 // modelInvoker handles direct model invocation with output format augmentation.
 type modelInvoker struct {
-	chatModel Model
+	model Model
 }
 
 // newModelInvoker creates a new model invoker for the specified chat model.
-func newModelInvoker(chatModel Model) *modelInvoker {
+func newModelInvoker(model Model) *modelInvoker {
 	return &modelInvoker{
-		chatModel: chatModel,
+		model: model,
 	}
 }
 
-// augmentLastUserMessageOutput appends output format instructions to the last user message
+// augmentOutputFormat appends output format instructions to the last user message
 // if OutputFormat parameter is present in the request.
-func (i *modelInvoker) augmentLastUserMessageOutput(req *Request) {
+func (i *modelInvoker) augmentOutputFormat(req *Request) {
 	format, ok := req.Get(OutputFormat)
 	if ok {
-		req.augmentLastUserMessageText(cast.ToString(format))
+		req.appendTextToLastUserMessage(cast.ToString(format))
 	}
 }
 
 // Call invokes the model synchronously with output format augmentation.
 func (i *modelInvoker) Call(ctx context.Context, req *Request) (*Response, error) {
-	i.augmentLastUserMessageOutput(req)
-	return i.chatModel.Call(ctx, req)
+	i.augmentOutputFormat(req)
+	return i.model.Call(ctx, req)
 }
 
 // Stream invokes the model in streaming mode with output format augmentation.
 func (i *modelInvoker) Stream(ctx context.Context, req *Request) iter.Seq2[*Response, error] {
-	i.augmentLastUserMessageOutput(req)
-	return i.chatModel.Stream(ctx, req)
+	i.augmentOutputFormat(req)
+	return i.model.Stream(ctx, req)
 }
 
 // ClientStreamer handles streaming chat operations with middleware support.
@@ -407,8 +468,8 @@ func newClientStreamer(config *ClientConfig) *ClientStreamer {
 	}
 }
 
-// execute runs the streaming chat operation through the middleware chain.
-func (s *ClientStreamer) execute(ctx context.Context, req *Request) iter.Seq2[*Response, error] {
+// stream runs the streaming chat operation through the middleware chain.
+func (s *ClientStreamer) stream(ctx context.Context, req *Request) iter.Seq2[*Response, error] {
 	handler := s.middlewareManager.MakeStreamHandler(newModelInvoker(s.config.model))
 	return handler.Stream(ctx, req)
 }
@@ -417,7 +478,7 @@ func (s *ClientStreamer) execute(ctx context.Context, req *Request) iter.Seq2[*R
 // Note: Structured parsing is not yet implemented for streaming due to data aggregation requirements.
 func (s *ClientStreamer) response(ctx context.Context, parser StructuredParser[any]) iter.Seq2[*Response, error] {
 	return func(yield func(*Response, error) bool) {
-		req, err := s.config.toRequest()
+		req, err := s.config.buildRequest()
 		if err != nil {
 			yield(nil, err)
 			return
@@ -427,9 +488,9 @@ func (s *ClientStreamer) response(ctx context.Context, parser StructuredParser[a
 			req.Set(OutputFormat, parser.Instructions())
 		}
 
-		for resp, execErr := range s.execute(ctx, req) {
-			if execErr != nil {
-				yield(nil, execErr)
+		for resp, streamErr := range s.stream(ctx, req) {
+			if streamErr != nil {
+				yield(nil, streamErr)
 				return
 			}
 
@@ -483,7 +544,7 @@ func (c *ClientCaller) call(ctx context.Context, req *Request) (*Response, error
 
 // response performs the chat operation with optional structured parsing.
 func (c *ClientCaller) response(ctx context.Context, parser StructuredParser[any]) (*Response, error) {
-	req, err := c.config.toRequest()
+	req, err := c.config.buildRequest()
 	if err != nil {
 		return nil, err
 	}
@@ -518,13 +579,13 @@ func (c *ClientCaller) List(ctx context.Context, listParser ...StructuredParser[
 		parser = NewListParser()
 	}
 
-	resp, err := c.response(ctx, ParserAsAny(parser))
+	resp, err := c.response(ctx, WrapParserAsAny(parser))
 	if err != nil {
 		return nil, nil, err
 	}
 
-	data, err := parser.Parse(resp.Result().AssistantMessage.Text)
-	return data, resp, err
+	data, parseErr := parser.Parse(resp.Result().AssistantMessage.Text)
+	return data, resp, parseErr
 }
 
 // Map executes the chat with map parsing and returns structured map data.
@@ -535,13 +596,13 @@ func (c *ClientCaller) Map(ctx context.Context, mapParser ...StructuredParser[ma
 		parser = NewMapParser()
 	}
 
-	resp, err := c.response(ctx, ParserAsAny(parser))
+	resp, err := c.response(ctx, WrapParserAsAny(parser))
 	if err != nil {
 		return nil, nil, err
 	}
 
-	data, err := parser.Parse(resp.Result().AssistantMessage.Text)
-	return data, resp, err
+	data, parseErr := parser.Parse(resp.Result().AssistantMessage.Text)
+	return data, resp, parseErr
 }
 
 // Any executes the chat with custom structured parsing.
@@ -551,6 +612,6 @@ func (c *ClientCaller) Any(ctx context.Context, anyParser StructuredParser[any])
 		return nil, nil, err
 	}
 
-	data, err := anyParser.Parse(resp.Result().AssistantMessage.Text)
-	return data, resp, err
+	data, parseErr := anyParser.Parse(resp.Result().AssistantMessage.Text)
+	return data, resp, parseErr
 }

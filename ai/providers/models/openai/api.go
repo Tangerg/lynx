@@ -30,18 +30,18 @@ func NewApi(apiKey model.ApiKey, opts ...option.RequestOption) (*Api, error) {
 	}, nil
 }
 
-func (a *Api) ChatCompletion(ctx context.Context, req *openai.ChatCompletionNewParams) (*openai.ChatCompletion, error) {
+func (a *Api) ChatCompletion(ctx context.Context, req *openai.ChatCompletionNewParams, opts ...option.RequestOption) (*openai.ChatCompletion, error) {
 	if req == nil {
-		return nil, errors.New("invalid parameter, ChatCompletionNewParams is required")
+		return nil, errors.New("request parameters cannot be nil")
 	}
 
-	return a.client.Chat.Completions.New(ctx, *req)
+	return a.client.Chat.Completions.New(ctx, *req, opts...)
 }
 
-func (a *Api) ChatCompletionStream(ctx context.Context, req *openai.ChatCompletionNewParams) (*ssestream.Stream[openai.ChatCompletionChunk], error) {
+func (a *Api) ChatCompletionStream(ctx context.Context, req *openai.ChatCompletionNewParams, opts ...option.RequestOption) (*ssestream.Stream[openai.ChatCompletionChunk], error) {
 	if req == nil {
-		return nil, errors.New("invalid parameter, ChatCompletionNewParams is required")
+		return nil, errors.New("request parameters cannot be nil")
 	}
 
-	return a.client.Chat.Completions.NewStreaming(ctx, *req), nil
+	return a.client.Chat.Completions.NewStreaming(ctx, *req, opts...), nil
 }

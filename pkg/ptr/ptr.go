@@ -16,3 +16,12 @@ func Value[T any](ptr *T) (v T) {
 	}
 	return
 }
+
+// Clone creates a new pointer pointing to a copy of the value.
+// If the pointer is nil, it returns nil.
+func Clone[T any](ptr *T) *T {
+	if ptr == nil {
+		return nil
+	}
+	return &*ptr
+}

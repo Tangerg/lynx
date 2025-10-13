@@ -51,7 +51,7 @@ type StructuredParser[T any] interface {
 	Parse(rawLLMOutput string) (T, error)
 }
 
-// stripMarkdownCodeBlock removes Markdown code block delimiters from the input string.
+// removeMarkdownCodeBlockDelimiters removes Markdown code block delimiters from the input string.
 // It handles code blocks with various language identifiers like ```json, ```JSON, or plain ```.
 //
 // The function works by:
@@ -59,29 +59,28 @@ type StructuredParser[T any] interface {
 //  2. Checking for opening and closing ``` delimiters
 //  3. Removing the first line (containing ```) and the trailing ```
 //  4. Returning the cleaned content
-func stripMarkdownCodeBlock(input string) string {
-	trimmed := strings.TrimSpace(input)
+func removeMarkdownCodeBlockDelimiters(input string) string {
+	trimmedInput := strings.TrimSpace(input)
 
-	if len(trimmed) < 6 {
-		return trimmed
+	if len(trimmedInput) < 6 {
+		return trimmedInput
 	}
 
 	// Check if starts with ``` and ends with ```
-	if !strings.HasPrefix(trimmed, "```") ||
-		!strings.HasSuffix(trimmed, "```") {
-		return trimmed
+	if !strings.HasPrefix(trimmedInput, "```") || !strings.HasSuffix(trimmedInput, "```") {
+		return trimmedInput
 	}
 
 	// Find the first newline after ```
-	newlineIdx := strings.Index(trimmed, "\n")
-	if newlineIdx == -1 {
+	firstNewlineIndex := strings.Index(trimmedInput, "\n")
+	if firstNewlineIndex == -1 {
 		// No newlines, treat as single line: ```content```
-		return strings.TrimSpace(trimmed[3 : len(trimmed)-3])
+		return strings.TrimSpace(trimmedInput[3 : len(trimmedInput)-3])
 	}
 
 	// Multi-line case: skip first line (```json or ```), remove last ```
-	content := trimmed[newlineIdx+1 : len(trimmed)-3]
-	return strings.TrimSpace(content)
+	contentWithoutDelimiters := trimmedInput[firstNewlineIndex+1 : len(trimmedInput)-3]
+	return strings.TrimSpace(contentWithoutDelimiters)
 }
 
 var _ StructuredParser[[]string] = (*ListParser)(nil)
@@ -122,11 +121,13 @@ Raw comma-separated values matching the format above.`
 //  2. Trimming whitespace from each resulting element
 //  3. Returning the cleaned slice of strings
 func (l *ListParser) Parse(rawLLMOutput string) ([]string, error) {
-	values := strings.Split(rawLLMOutput, ",")
-	for i, v := range values {
-		values[i] = strings.TrimSpace(v)
+	splitValues := strings.Split(rawLLMOutput, ",")
+
+	for i, value := range splitValues {
+		splitValues[i] = strings.TrimSpace(value)
 	}
-	return values, nil
+
+	return splitValues, nil
 }
 
 var _ StructuredParser[map[string]any] = (*MapParser)(nil)
@@ -171,13 +172,18 @@ Raw JSON object with string keys and any valid JSON values.`
 //  2. Unmarshaling the JSON into a map[string]any
 //  3. Returning detailed error information if parsing fails
 func (m *MapParser) Parse(rawLLMOutput string) (map[string]any, error) {
-	clean := stripMarkdownCodeBlock(rawLLMOutput)
-	result := make(map[string]any)
-	err := json.Unmarshal([]byte(clean), &result)
+	cleanedContent := removeMarkdownCodeBlockDelimiters(rawLLMOutput)
+
+	parsedResult := make(map[string]any)
+	err := json.Unmarshal([]byte(cleanedContent), &parsedResult)
 	if err != nil {
-		return nil, errors.Join(err, fmt.Errorf("failed to parse JSON content: %s (original input: %s)", clean, rawLLMOutput))
+		return nil, errors.Join(
+			err,
+			fmt.Errorf("failed to parse JSON content: %s (original input: %s)", cleanedContent, rawLLMOutput),
+		)
 	}
-	return result, nil
+
+	return parsedResult, nil
 }
 
 var _ StructuredParser[any] = (*JSONParser[any])(nil)
@@ -193,15 +199,15 @@ type JSONParser[T any] struct {
 
 // NewJSONParser creates a new instance of JSONParser for type T.
 func NewJSONParser[T any]() *JSONParser[T] {
-	j := &JSONParser[T]{}
-	j.cachedInstructions = j.generateInstructions()
-	return j
+	parser := &JSONParser[T]{}
+	parser.cachedInstructions = parser.generateInstructions()
+	return parser
 }
 
 // generateInstructions generates format instructions with JSON Schema for the LLM output.
 // The schema is automatically derived from the generic type T using reflection.
 func (j *JSONParser[T]) generateInstructions() string {
-	const template = `[OUTPUT FORMAT]
+	const instructionTemplate = `[OUTPUT FORMAT]
 JSON only - RFC8259 compliant
 
 [RESTRICTIONS]
@@ -215,8 +221,11 @@ JSON only - RFC8259 compliant
 
 [EXPECTED OUTPUT]
 Raw JSON object matching the schema above.`
-	var instance T
-	return fmt.Sprintf(template, pkgjson.StringDefSchemaOf(instance))
+
+	var typeInstance T
+	jsonSchema := pkgjson.StringDefSchemaOf(typeInstance)
+
+	return fmt.Sprintf(instructionTemplate, jsonSchema)
 }
 
 // Instructions returns formatting instructions for the LLM to generate JSON data
@@ -234,13 +243,18 @@ func (j *JSONParser[T]) Instructions() string {
 //  2. Unmarshaling the JSON into the target type T
 //  3. Providing detailed error information including both processed content and raw input
 func (j *JSONParser[T]) Parse(rawLLMOutput string) (T, error) {
-	clean := stripMarkdownCodeBlock(rawLLMOutput)
-	var result T
-	err := json.Unmarshal([]byte(clean), &result)
+	cleanedContent := removeMarkdownCodeBlockDelimiters(rawLLMOutput)
+
+	var parsedResult T
+	err := json.Unmarshal([]byte(cleanedContent), &parsedResult)
 	if err != nil {
-		return result, errors.Join(err, fmt.Errorf("failed to parse JSON content to type %T: %s (original input: %s)", result, clean, rawLLMOutput))
+		return parsedResult, errors.Join(
+			err,
+			fmt.Errorf("failed to parse JSON content to type %T: %s (original input: %s)", parsedResult, cleanedContent, rawLLMOutput),
+		)
 	}
-	return result, nil
+
+	return parsedResult, nil
 }
 
 var _ StructuredParser[any] = (*AnyParser)(nil)
@@ -254,50 +268,51 @@ type AnyParser struct {
 }
 
 // Instructions returns the format instructions from the wrapped parser.
-func (parser *AnyParser) Instructions() string {
-	return parser.FormatInstructions
+func (a *AnyParser) Instructions() string {
+	return a.FormatInstructions
 }
 
 // Parse delegates to the wrapped parse function and returns the result as any.
 // Returns an error if the parse function is not properly initialized.
-func (parser *AnyParser) Parse(rawLLMOutput string) (any, error) {
-	if parser.ParseFunction == nil {
-		return nil, errors.New("parse function cannot be nil")
+func (a *AnyParser) Parse(rawLLMOutput string) (any, error) {
+	if a.ParseFunction == nil {
+		return nil, errors.New("parse function is not initialized")
 	}
-	return parser.ParseFunction(rawLLMOutput)
+
+	return a.ParseFunction(rawLLMOutput)
 }
 
-// ParserAsAny wraps any StructuredParser[T] and converts it to StructuredParser[any].
+// WrapParserAsAny wraps any StructuredParser[T] and converts it to StructuredParser[any].
 // The adapter preserves format instructions and parsing behavior while performing
 // type erasure to enable uniform handling of different parser types.
 //
 // This is useful when you need to store different parser types in a common collection
 // or pass them through interfaces that expect StructuredParser[any].
-func ParserAsAny[T any](original StructuredParser[T]) *AnyParser {
+func WrapParserAsAny[T any](originalParser StructuredParser[T]) *AnyParser {
 	return &AnyParser{
-		FormatInstructions: original.Instructions(),
+		FormatInstructions: originalParser.Instructions(),
 		ParseFunction: func(rawLLMOutput string) (any, error) {
-			result, err := original.Parse(rawLLMOutput)
-			return result, err
+			parsedResult, err := originalParser.Parse(rawLLMOutput)
+			return parsedResult, err
 		},
 	}
 }
 
 // ListParserAsAny creates a StructuredParser[any] that parses comma-separated values.
-// This is a convenience function equivalent to ParserAsAny(NewListParser()).
+// This is a convenience function equivalent to WrapParserAsAny(NewListParser()).
 func ListParserAsAny() *AnyParser {
-	return ParserAsAny(NewListParser())
+	return WrapParserAsAny(NewListParser())
 }
 
 // MapParserAsAny creates a StructuredParser[any] that parses JSON objects into maps.
-// This is a convenience function equivalent to ParserAsAny(NewMapParser()).
+// This is a convenience function equivalent to WrapParserAsAny(NewMapParser()).
 func MapParserAsAny() *AnyParser {
-	return ParserAsAny(NewMapParser())
+	return WrapParserAsAny(NewMapParser())
 }
 
 // JSONParserAsAnyOf creates a StructuredParser[any] that parses JSON into type T
 // and returns it as any. This is a convenience function equivalent to
-// ParserAsAny(NewJSONParser[T]()).
+// WrapParserAsAny(NewJSONParser[T]()).
 func JSONParserAsAnyOf[T any]() *AnyParser {
-	return ParserAsAny(NewJSONParser[T]())
+	return WrapParserAsAny(NewJSONParser[T]())
 }

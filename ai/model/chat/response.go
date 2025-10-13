@@ -5,12 +5,92 @@ import (
 	"time"
 )
 
+// FinishReason indicates why the LLM stopped generating tokens,
+// providing context for response completion handling.
+type FinishReason string
+
+func (r FinishReason) String() string {
+	return string(r)
+}
+
+// Standard finish reasons for LLM generation completion
+const (
+	// FinishReasonStop indicates natural completion or stop sequence reached
+	FinishReasonStop FinishReason = "stop"
+
+	// FinishReasonLength indicates truncation due to token limit
+	FinishReasonLength FinishReason = "length"
+
+	// FinishReasonToolCalls indicates completion to execute internalTool/function calls
+	FinishReasonToolCalls FinishReason = "tool_calls"
+
+	// FinishReasonContentFilter indicates response blocked by safety filters
+	FinishReasonContentFilter FinishReason = "content_filter"
+
+	// FinishReasonReturnDirect indicates direct internalTool result return without further generation
+	FinishReasonReturnDirect FinishReason = "return_direct"
+
+	// FinishReasonOther represents non-standard completion reasons
+	FinishReasonOther FinishReason = "other"
+
+	// FinishReasonNull represents undefined or unset finish reason
+	FinishReasonNull FinishReason = "null"
+)
+
+// ResultMetadata contains completion status and provider-specific metadata
+// for a single LLM generation result.
+type ResultMetadata struct {
+	FinishReason FinishReason   `json:"finish_reason"` // Completion reason
+	Extra        map[string]any `json:"extra"`         // Provider-specific metadata
+}
+
+func (m *ResultMetadata) ensureExtra() {
+	if m.Extra == nil {
+		m.Extra = make(map[string]any)
+	}
+}
+
+func (m *ResultMetadata) Get(key string) (any, bool) {
+	m.ensureExtra()
+	value, exists := m.Extra[key]
+	return value, exists
+}
+
+func (m *ResultMetadata) Set(key string, value any) {
+	m.ensureExtra()
+	m.Extra[key] = value
+}
+
+// Result represents a single LLM generation result containing the assistant's
+// response, completion metadata, and optional internalTool execution results.
+type Result struct {
+	AssistantMessage *AssistantMessage `json:"assistant_message"` // LLM generated response
+	Metadata         *ResultMetadata   `json:"metadata"`          // Completion metadata
+	ToolMessage      *ToolMessage      `json:"tool_message"`      // Tool execution results (optional)
+}
+
+// NewResult creates a new generation result with the required assistant message
+// and metadata. Returns an error if either parameter is nil.
+func NewResult(assistantMessage *AssistantMessage, metadata *ResultMetadata) (*Result, error) {
+	if assistantMessage == nil {
+		return nil, errors.New("assistant message cannot be nil")
+	}
+	if metadata == nil {
+		return nil, errors.New("result metadata cannot be nil")
+	}
+
+	return &Result{
+		AssistantMessage: assistantMessage,
+		Metadata:         metadata,
+	}, nil
+}
+
 // Usage tracks token consumption statistics for LLM API requests,
 // including both input prompt and generated completion tokens.
 type Usage struct {
-	PromptTokens     int64       `json:"prompt_tokens"`            // Tokens consumed by input messages
-	CompletionTokens int64       `json:"completion_tokens"`        // Tokens generated in response
-	OriginalUsage    interface{} `json:"original_usage,omitempty"` // Provider-specific usage data
+	PromptTokens     int64 `json:"prompt_tokens"`            // Tokens consumed by input messages
+	CompletionTokens int64 `json:"completion_tokens"`        // Tokens generated in response
+	OriginalUsage    any   `json:"original_usage,omitempty"` // Provider-specific usage data
 }
 
 // TotalTokens returns the sum of prompt and completion tokens,
@@ -41,45 +121,40 @@ type ResponseMetadata struct {
 	Extra     map[string]any `json:"extra"`      // Provider-specific metadata
 }
 
-// ensureExtra initializes the extra metadata map if it hasn't been
-// created yet to prevent nil pointer operations.
-func (r *ResponseMetadata) ensureExtra() {
-	if r.Extra == nil {
-		r.Extra = make(map[string]any)
+func (m *ResponseMetadata) ensureExtra() {
+	if m.Extra == nil {
+		m.Extra = make(map[string]any)
 	}
 }
 
-// Get retrieves a metadata value by key.
-// Returns the value and true if found, or nil and false otherwise.
-func (r *ResponseMetadata) Get(key string) (any, bool) {
-	r.ensureExtra()
-	v, ok := r.Extra[key]
-	return v, ok
+func (m *ResponseMetadata) Get(key string) (any, bool) {
+	m.ensureExtra()
+	value, exists := m.Extra[key]
+	return value, exists
 }
 
-// Set stores additional provider-specific metadata with the specified key.
-// Automatically initializes the extra map if needed.
-func (r *ResponseMetadata) Set(key string, value any) {
-	r.ensureExtra()
-	r.Extra[key] = value
+func (m *ResponseMetadata) Set(key string, value any) {
+	m.ensureExtra()
+	m.Extra[key] = value
 }
 
 // Response represents a complete LLM chat response containing generated
 // results and associated metadata.
 type Response struct {
-	Results  []*Result         `json:"results"`
-	Metadata *ResponseMetadata `json:"metadata"`
+	Results  []*Result         `json:"results"`  // Generated results from the LLM
+	Metadata *ResponseMetadata `json:"metadata"` // Response metadata
 }
 
 // NewResponse creates a new chat response with results and metadata.
 // Returns an error if results are empty or metadata is nil.
 func NewResponse(results []*Result, metadata *ResponseMetadata) (*Response, error) {
 	if len(results) == 0 {
-		return nil, errors.New("chat response requires at least one result")
+		return nil, errors.New("response must contain at least one result")
 	}
 	if metadata == nil {
-		return nil, errors.New("response metadata is required")
+		return nil, errors.New("response metadata cannot be nil")
 	}
+
 	return &Response{
 		Results:  results,
 		Metadata: metadata,
@@ -88,20 +163,22 @@ func NewResponse(results []*Result, metadata *ResponseMetadata) (*Response, erro
 
 // Result returns the first result from the response for convenient access.
 // Returns nil if the response contains no results.
-func (c *Response) Result() *Result {
-	if len(c.Results) > 0 {
-		return c.Results[0]
+func (r *Response) Result() *Result {
+	if len(r.Results) > 0 {
+		return r.Results[0]
 	}
+
 	return nil
 }
 
-// firstToolCallsResult finds and returns the first result containing tool calls.
-// Returns nil if no result contains tool/function calls.
-func (c *Response) firstToolCallsResult() *Result {
-	for _, chatResult := range c.Results {
-		if chatResult.AssistantMessage.HasToolCalls() {
-			return chatResult
+// findFirstResultWithToolCalls finds and returns the first result containing internalTool calls.
+// Returns nil if no result contains internalTool/function calls.
+func (r *Response) findFirstResultWithToolCalls() *Result {
+	for _, result := range r.Results {
+		if result.AssistantMessage.HasToolCalls() {
+			return result
 		}
 	}
+
 	return nil
 }

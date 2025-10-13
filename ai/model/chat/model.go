@@ -69,5 +69,5 @@ type Model interface {
 	//
 	// These defaults provide a good starting point and can be customized per request.
 	// Useful for maintaining consistent behavior across different LLM interactions.
-	DefaultOptions() Options
+	DefaultOptions() *Options
 }

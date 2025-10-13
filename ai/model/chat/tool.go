@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"maps"
-	"slices"
 	"sync"
 
 	pkgSlices "github.com/Tangerg/lynx/pkg/slices"
@@ -31,82 +29,6 @@ type ToolMetadata struct {
 	// When true, results are returned directly to the user (e.g., UI interactions, notifications).
 	// When false, results are passed back to the LLM for integration and further processing.
 	ReturnDirect bool
-}
-
-// ToolContext implements the ToolContext interface with thread-safe key-value storage.
-type ToolContext struct {
-	ctx    context.Context
-	mu     sync.RWMutex   // Protects concurrent access to fields
-	fields map[string]any // Thread-safe key-value storage
-}
-
-// NewToolContext creates a new thread-safe ToolContext instance with the provided context.
-func NewToolContext(ctx context.Context) *ToolContext {
-	return &ToolContext{
-		ctx:    ctx,
-		fields: make(map[string]any),
-	}
-}
-
-func (t *ToolContext) Context() context.Context {
-	if t.ctx == nil {
-		return context.Background()
-	}
-	return t.ctx
-}
-
-func (t *ToolContext) Set(key string, val any) *ToolContext {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-
-	t.fields[key] = val
-	return t
-}
-
-func (t *ToolContext) SetMap(m map[string]any) *ToolContext {
-	if len(m) == 0 {
-		return t
-	}
-
-	t.mu.Lock()
-	defer t.mu.Unlock()
-
-	for k, v := range m {
-		t.fields[k] = v
-	}
-	return t
-}
-
-func (t *ToolContext) Get(key string) (any, bool) {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-
-	v, ok := t.fields[key]
-	return v, ok
-}
-
-func (t *ToolContext) Fields() map[string]any {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-
-	return maps.Clone(t.fields)
-}
-
-func (t *ToolContext) Clear() {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-
-	clear(t.fields)
-}
-
-func (t *ToolContext) Clone() *ToolContext {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-
-	return &ToolContext{
-		ctx:    t.ctx,
-		fields: maps.Clone(t.fields),
-	}
 }
 
 // Tool represents a tool definition that can be invoked by LLM models.
@@ -150,49 +72,50 @@ type CallableTool interface {
 	// Returns:
 	//   - string: Execution result for LLM processing or direct user output
 	//   - error: Execution error if the operation fails
-	Call(ctx *ToolContext, arguments string) (string, error)
+	Call(ctx context.Context, arguments string) (string, error)
 }
 
-// tool provides the base implementation for external tools requiring delegation.
-type tool struct {
+// baseTool provides the base implementation for external tools requiring delegation.
+type baseTool struct {
 	definition ToolDefinition
 	metadata   ToolMetadata
 }
 
-func (t *tool) Definition() ToolDefinition {
+func (t *baseTool) Definition() ToolDefinition {
 	return t.definition
 }
 
-func (t *tool) Metadata() ToolMetadata {
+func (t *baseTool) Metadata() ToolMetadata {
 	return t.metadata
 }
 
 // callableTool provides the implementation for internal tools with execution capability.
 // Combines base properties with an execution function.
 type callableTool struct {
-	tool
-	caller func(ctx *ToolContext, input string) (string, error) // execution function
+	baseTool
+	execFunc func(ctx context.Context, arguments string) (string, error)
 }
 
-func (t *callableTool) Call(ctx *ToolContext, input string) (string, error) {
-	if t.caller == nil {
+func (t *callableTool) Call(ctx context.Context, arguments string) (string, error) {
+	if t.execFunc == nil {
 		return "", fmt.Errorf("execution function is required for tool %s", t.definition.Name)
 	}
-	return t.caller(ctx, input)
+
+	return t.execFunc(ctx, arguments)
 }
 
 // NewTool creates a new tool instance.
-// If caller is provided, returns a CallableTool; otherwise returns a Tool for external execution.
+// If execFunc is provided, returns a CallableTool; otherwise returns a Tool for external execution.
 //
 // Parameters:
 //   - definition: Tool metadata and schema information
 //   - metadata: Execution behavior configuration
-//   - caller: Optional execution function (nil for external tools)
+//   - execFunc: Optional call function (nil for external tools)
 //
 // Returns:
-//   - Tool: External tool (when caller is nil) or CallableTool (when caller is provided)
+//   - Tool: External tool (when execFunc is nil) or CallableTool (when callFunc is provided)
 //   - error: Validation error if required fields are missing
-func NewTool(definition ToolDefinition, metadata ToolMetadata, caller func(ctx *ToolContext, input string) (string, error)) (Tool, error) {
+func NewTool(definition ToolDefinition, metadata ToolMetadata, execFunc func(ctx context.Context, arguments string) (string, error)) (Tool, error) {
 	if definition.Name == "" {
 		return nil, errors.New("tool name cannot be empty")
 	}
@@ -200,18 +123,18 @@ func NewTool(definition ToolDefinition, metadata ToolMetadata, caller func(ctx *
 		return nil, errors.New("tool input schema cannot be empty")
 	}
 
-	t := tool{
+	base := baseTool{
 		definition: definition,
 		metadata:   metadata,
 	}
 
-	if caller == nil {
-		return &t, nil
+	if execFunc == nil {
+		return &base, nil
 	}
 
 	return &callableTool{
-		tool:   t,
-		caller: caller,
+		baseTool: base,
+		execFunc: execFunc,
 	}, nil
 }
 
@@ -219,19 +142,20 @@ func NewTool(definition ToolDefinition, metadata ToolMetadata, caller func(ctx *
 // Uses tool names as unique identifiers and prevents duplicate registrations.
 // All operations are concurrent-safe and work with immutable tools that cannot be modified after creation.
 type ToolRegistry struct {
-	mu    sync.RWMutex    // Protects concurrent access to the store
-	store map[string]Tool // Maps tool names to immutable Tool instances
+	mu    sync.RWMutex    // Protects concurrent access to the tools map
+	tools map[string]Tool // Maps tool names to immutable Tool instances
 }
 
 // newToolRegistry creates a new registry with optional initial capacity.
 // Negative capacity values default to 0.
-func newToolRegistry(cap ...int) *ToolRegistry {
-	c, _ := pkgSlices.First(cap)
-	if c < 0 {
-		c = 0
+func newToolRegistry(capacityHint ...int) *ToolRegistry {
+	capacity, _ := pkgSlices.First(capacityHint)
+	if capacity < 0 {
+		capacity = 0
 	}
+
 	return &ToolRegistry{
-		store: make(map[string]Tool, c),
+		tools: make(map[string]Tool, capacity),
 	}
 }
 
@@ -246,15 +170,17 @@ func (r *ToolRegistry) Register(tools ...Tool) *ToolRegistry {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	for _, t := range tools {
-		if t == nil {
+	for _, tool := range tools {
+		if tool == nil {
 			continue
 		}
-		name := t.Definition().Name
-		if _, exists := r.store[name]; !exists {
-			r.store[name] = t
+
+		name := tool.Definition().Name
+		if _, exists := r.tools[name]; !exists {
+			r.tools[name] = tool
 		}
 	}
+
 	return r
 }
 
@@ -270,8 +196,9 @@ func (r *ToolRegistry) Unregister(names ...string) *ToolRegistry {
 	defer r.mu.Unlock()
 
 	for _, name := range names {
-		delete(r.store, name)
+		delete(r.tools, name)
 	}
+
 	return r
 }
 
@@ -281,14 +208,14 @@ func (r *ToolRegistry) Find(name string) (Tool, bool) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	t, ok := r.store[name]
-	return t, ok
+	tool, exists := r.tools[name]
+	return tool, exists
 }
 
 // Exists checks if a tool with the specified name is registered.
 func (r *ToolRegistry) Exists(name string) bool {
-	_, ok := r.Find(name)
-	return ok
+	_, exists := r.Find(name)
+	return exists
 }
 
 // All returns a copy of all registered tools.
@@ -297,11 +224,12 @@ func (r *ToolRegistry) All() []Tool {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	tools := make([]Tool, 0, len(r.store))
-	for _, t := range r.store {
-		tools = append(tools, t)
+	result := make([]Tool, 0, len(r.tools))
+	for _, tool := range r.tools {
+		result = append(result, tool)
 	}
-	return tools
+
+	return result
 }
 
 // Names returns a copy of all registered tool names.
@@ -310,11 +238,12 @@ func (r *ToolRegistry) Names() []string {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	names := make([]string, 0, len(r.store))
-	for name := range r.store {
-		names = append(names, name)
+	result := make([]string, 0, len(r.tools))
+	for name := range r.tools {
+		result = append(result, name)
 	}
-	return names
+
+	return result
 }
 
 // Size returns the total number of registered tools.
@@ -322,7 +251,7 @@ func (r *ToolRegistry) Size() int {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	return len(r.store)
+	return len(r.tools)
 }
 
 // Clear removes all tools from the registry.
@@ -331,226 +260,216 @@ func (r *ToolRegistry) Clear() *ToolRegistry {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	clear(r.store)
+	clear(r.tools)
+
 	return r
 }
 
-// ToolInvokeResult represents the outcome of tool invocation in LLM chat interactions.
+// ToolInvocationResult represents the outcome of tool invocation in LLM chat interactions.
 // It encapsulates execution results and determines the next steps in conversation flow.
-type ToolInvokeResult struct {
+//
+// The result handles two types of tools:
+//   - Internal tools: execution results are captured in toolMessage
+//   - External tools: invocation requests are collected in externalToolCalls for client-side execution
+type ToolInvocationResult struct {
 	request           *Request     // original LLM chat request
 	response          *Response    // LLM response containing tool calls
 	toolMessage       *ToolMessage // aggregated responses from internal tools
-	returnDirect      bool         // whether ALL internal tools are configured for direct return
+	allReturnDirect   bool         // whether ALL internal tools are configured for direct return
 	externalToolCalls []*ToolCall  // tool calls requiring external execution
 }
 
-// ShouldRequest determines if a new chat request should be constructed
+// ShouldContinue determines if a new chat request should be constructed
 // for continued LLM processing. Returns true ONLY when:
 // - No external tools exist (external tools always return directly) AND
 // - At least one internal tool is configured for LLM integration (returnDirect=false)
-func (r *ToolInvokeResult) ShouldRequest() bool {
+func (r *ToolInvocationResult) ShouldContinue() bool {
 	// External tools always return directly - no LLM continuation
 	if len(r.externalToolCalls) > 0 {
 		return false
 	}
 
 	// For internal tools only: continue with LLM if any tool requires integration
-	return !r.returnDirect
+	return !r.allReturnDirect
 }
 
-// ShouldResponse determines if a chat response should be constructed
-// for direct return to client. This is the inverse of ShouldRequest.
-func (r *ToolInvokeResult) ShouldResponse() bool {
-	return !r.ShouldRequest()
+// ShouldReturn determines if a chat response should be constructed
+// for direct return to client. This is the inverse of ShouldContinue.
+func (r *ToolInvocationResult) ShouldReturn() bool {
+	return !r.ShouldContinue()
 }
 
-// MakeRequest constructs a new chat request for continued LLM processing.
-// This integrates tool responses into conversation history and prepares the request
-// for the next LLM interaction cycle.
+// BuildContinueRequest appends tool invocation results to the original chat request
+// for continued LLM processing. This method modifies the original request in-place by
+// adding the assistant's tool call message and the tool execution results to the
+// conversation history, preparing it for the next LLM interaction cycle.
 //
 // Called ONLY when no external tools exist and at least one internal tool
 // requires LLM integration (returnDirect=false).
-func (r *ToolInvokeResult) MakeRequest() (*Request, error) {
-	if !r.ShouldRequest() {
-		return nil, errors.New("cannot make chat request")
+//
+// Note: This method mutates the original request by appending messages to its Messages slice.
+func (r *ToolInvocationResult) BuildContinueRequest() (*Request, error) {
+	if !r.ShouldContinue() {
+		return nil, errors.New("cannot build continuation request: should return directly")
 	}
 	if r.request == nil {
 		return nil, errors.New("original chat request is required")
 	}
 	if r.response == nil {
-		return nil, errors.New("chat response is required")
+		return nil, errors.New("LLM response is required")
 	}
 	if r.toolMessage == nil {
-		return nil, errors.New("tool response message is required")
+		return nil, errors.New("internal tools message is required")
 	}
 
-	res := r.response.firstToolCallsResult()
-	if res == nil {
-		return nil, errors.New("tool calls result is required")
+	result := r.response.findFirstResultWithToolCalls()
+	if result == nil {
+		return nil, errors.New("result with tool calls is required")
 	}
 
-	history := r.request.Messages
-	msgs := slices.Clone(history)
-	msgs = append(msgs, res.AssistantMessage)
-	msgs = append(msgs, r.toolMessage)
+	r.request.Messages = append(r.request.Messages, result.AssistantMessage)
+	r.request.Messages = append(r.request.Messages, r.toolMessage)
 
-	req, err := NewRequest(msgs)
-	if err != nil {
-		return nil, err
-	}
-	req.Options = r.request.Options
-	return req, nil
+	return r.request, nil
 }
 
-// MakeResponse constructs a chat response for direct return to client.
+// BuildReturnResponse constructs a chat response for direct return to client.
 // This creates a response that either contains external tool calls for client-side
 // execution or provides direct results when ALL internal tools are configured
 // for direct return.
-func (r *ToolInvokeResult) MakeResponse() (*Response, error) {
-	if !r.ShouldResponse() {
-		return nil, errors.New("cannot make chat response")
+func (r *ToolInvocationResult) BuildReturnResponse() (*Response, error) {
+	if !r.ShouldReturn() {
+		return nil, errors.New("cannot build direct response: should continue with LLM")
 	}
 	if r.response == nil {
-		return nil, errors.New("chat response is required")
+		return nil, errors.New("LLM response is required")
 	}
 
-	res := r.response.firstToolCallsResult()
-	if res == nil {
-		return nil, errors.New("tool calls result is required")
+	result := r.response.findFirstResultWithToolCalls()
+	if result == nil {
+		return nil, errors.New("result with tool calls is required")
 	}
 
-	msg := res.AssistantMessage
-	newMsg := NewAssistantMessage(
+	origMsg := result.AssistantMessage
+
+	modMsg := NewAssistantMessage(
 		MessageParams{
-			Text:      msg.Text,
-			Media:     msg.Media,
+			Text:      origMsg.Text,
+			Media:     origMsg.Media,
 			ToolCalls: r.externalToolCalls,
-			Metadata:  msg.Metadata,
+			Metadata:  origMsg.Metadata,
 		})
 
-	newRes, err := NewResult(newMsg, res.Metadata)
+	modResult, err := NewResult(modMsg, result.Metadata)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create modified result: %w", err)
 	}
-	newRes.ToolMessage = r.toolMessage
 
-	return NewResponse([]*Result{newRes}, r.response.Metadata)
+	modResult.ToolMessage = r.toolMessage
+
+	return NewResponse([]*Result{modResult}, r.response.Metadata)
 }
 
-func validateInvokeResult(result *ToolInvokeResult) error {
-	if result.request == nil {
+func (r *ToolInvocationResult) validate() error {
+	if r.request == nil {
 		return errors.New("original chat request is required")
 	}
-	if result.response == nil {
-		return errors.New("chat response is required")
+	if r.response == nil {
+		return errors.New("LLM response is required")
 	}
-	if result.toolMessage == nil && len(result.externalToolCalls) == 0 {
-		return errors.New("tool response or external tool calls is required")
+	if r.toolMessage == nil && len(r.externalToolCalls) == 0 {
+		return errors.New("either internal tools message or external tool calls is required")
 	}
+
 	return nil
 }
 
-// toolInvoker handles the execution of tool calls from LLM responses.
+// toolCallInvoker handles the invocation of tool calls from LLM responses.
 // It processes both internal tools (executed immediately) and external tools
 // (delegated to client), managing flow control and result aggregation.
-type toolInvoker struct {
+type toolCallInvoker struct {
 	registry *ToolRegistry // tool registry for looking up available tools
 }
 
-// newToolInvoker creates a new tool invoker with the specified registry.
-func newToolInvoker(registry *ToolRegistry) *toolInvoker {
-	return &toolInvoker{
+// newToolCallInvoker creates a new tool call invoker with the specified registry.
+func newToolCallInvoker(registry *ToolRegistry) *toolCallInvoker {
+	return &toolCallInvoker{
 		registry: registry,
 	}
 }
 
 // canInvokeToolCalls determines if the chat response contains valid tool calls
 // that can be processed. It validates that all requested tools exist in the registry.
-func (i *toolInvoker) canInvokeToolCalls(response *Response) (bool, error) {
-	res := response.firstToolCallsResult()
-	if res == nil {
+func (i *toolCallInvoker) canInvokeToolCalls(resp *Response) (bool, error) {
+	result := resp.findFirstResultWithToolCalls()
+	if result == nil {
 		return false, nil
 	}
 
-	for _, call := range res.AssistantMessage.ToolCalls {
-		_, ok := i.registry.Find(call.Name)
-		if !ok {
-			return false, fmt.Errorf("tool not found: %s", call.Name)
+	for _, toolCall := range result.AssistantMessage.ToolCalls {
+		_, exists := i.registry.Find(toolCall.Name)
+		if !exists {
+			return false, fmt.Errorf("tool not found in registry: %s", toolCall.Name)
 		}
-		return true, nil
 	}
 
-	return false, nil
-}
-
-// createContext creates a new execution context for tool operations.
-func (i *toolInvoker) createContext(ctx context.Context, request *Request) *ToolContext {
-	toolCtx := NewToolContext(ctx)
-	if request.Options == nil {
-		return toolCtx
-	}
-
-	if opts, ok := request.Options.(ToolOptions); ok {
-		return toolCtx.SetMap(opts.ToolParams())
-	}
-
-	return toolCtx
+	return true, nil
 }
 
 // invokeToolCalls processes a list of tool calls, executing internal tools immediately
 // and collecting external tools for client-side processing.
-func (i *toolInvoker) invokeToolCalls(ctx *ToolContext, toolCalls []*ToolCall) (*ToolInvokeResult, error) {
+func (i *toolCallInvoker) invokeToolCalls(ctx context.Context, toolCalls []*ToolCall) (*ToolInvocationResult, error) {
 	var (
-		extCalls     []*ToolCall   // tools requiring external execution
-		returnDirect = true        // whether to return results directly
-		responses    []*ToolReturn // responses from internal tools
+		externalCalls   []*ToolCall   // tools requiring external execution
+		allReturnDirect = true        // whether to return results directly
+		internalReturns []*ToolReturn // responses from internal tools
 	)
 
-	for _, call := range toolCalls {
+	for _, toolCall := range toolCalls {
 		// Tool existence guaranteed by canInvokeToolCalls precheck
-		t, _ := i.registry.Find(call.Name)
+		tool, _ := i.registry.Find(toolCall.Name)
 
-		ct, ok := t.(CallableTool)
+		callable, ok := tool.(CallableTool)
 		if !ok {
 			// External tool - add to delegation list
-			extCalls = append(extCalls, call)
+			externalCalls = append(externalCalls, toolCall)
 			continue
 		}
 
-		// Internal tool - call immediately
-		result, err := ct.Call(ctx, call.Arguments)
+		// Internal tool - execute immediately
+		result, err := callable.Call(ctx, toolCall.Arguments)
 		if err != nil {
-			return nil, fmt.Errorf("failed to call tool %s: %w", call.Name, err)
+			return nil, fmt.Errorf("failed to execute tool %s: %w", toolCall.Name, err)
 		}
 
 		// Update flow control based on tool metadata
-		returnDirect = returnDirect && ct.Metadata().ReturnDirect
-		responses = append(responses, &ToolReturn{
-			ID:     call.ID,
-			Name:   call.Name,
+		allReturnDirect = allReturnDirect && callable.Metadata().ReturnDirect
+
+		internalReturns = append(internalReturns, &ToolReturn{
+			ID:     toolCall.ID,
+			Name:   toolCall.Name,
 			Result: result,
 		})
 	}
 
 	// Create tool response message from internal tool results
-	toolMsg, err := NewToolMessage(responses)
+	toolMsg, err := NewToolMessage(internalReturns)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create internal tools message: %w", err)
 	}
 
-	return &ToolInvokeResult{
+	return &ToolInvocationResult{
 		toolMessage:       toolMsg,
-		externalToolCalls: extCalls,
-		returnDirect:      returnDirect,
+		externalToolCalls: externalCalls,
+		allReturnDirect:   allReturnDirect,
 	}, nil
 }
 
 // invoke orchestrates the complete tool invocation process for an LLM chat interaction.
-// It validates tool calls, executes available tools, and constructs the appropriate
+// It validates tool calls, invokes available tools, and constructs the appropriate
 // result for the next step in the conversation flow.
-func (i *toolInvoker) invoke(ctx context.Context, request *Request, response *Response) (*ToolInvokeResult, error) {
-	canInvoke, err := i.canInvokeToolCalls(response)
+func (i *toolCallInvoker) invoke(ctx context.Context, req *Request, resp *Response) (*ToolInvocationResult, error) {
+	canInvoke, err := i.canInvokeToolCalls(resp)
 	if err != nil {
 		return nil, err
 	}
@@ -559,58 +478,56 @@ func (i *toolInvoker) invoke(ctx context.Context, request *Request, response *Re
 	}
 
 	// Tool calls result guaranteed by canInvokeToolCalls precheck
-	res := response.firstToolCallsResult()
+	result := resp.findFirstResultWithToolCalls()
 
-	invokeRes, err := i.invokeToolCalls(
-		i.createContext(ctx, request),
-		res.AssistantMessage.ToolCalls,
-	)
+	invResult, err := i.invokeToolCalls(ctx, result.AssistantMessage.ToolCalls)
 	if err != nil {
 		return nil, err
 	}
 
-	invokeRes.request = request
-	invokeRes.response = response
+	invResult.request = req
+	invResult.response = resp
 
-	return invokeRes, validateInvokeResult(invokeRes)
+	return invResult, invResult.validate()
 }
 
 // ToolSupport provides a high-level interface for managing tools and processing tool calls
 // in LLM chat interactions. It combines tool registry management with tool invocation
 // capabilities for common tool-related operations.
 type ToolSupport struct {
-	registry *ToolRegistry // tool registry for managing tool instances
-	invoker  *toolInvoker  // tool invocation processor
+	registry *ToolRegistry    // tool registry for managing tool instances
+	invoker  *toolCallInvoker // tool invocation processor
 }
 
 // NewToolSupport creates a new ToolSupport instance with an internal tool registry.
-// The optional cap parameter specifies the initial capacity for the tool registry.
+// The optional capacityHint parameter specifies the initial capacity for the tool registry.
 //
 // Example:
 //
-//	helper := NewToolSupport()       // Default capacity
-//	helper := NewToolSupport(50)     // Initial capacity of 50 tools
-func NewToolSupport(cap ...int) *ToolSupport {
-	registry := newToolRegistry(cap...)
+//	support := NewToolSupport()       // Default capacity
+//	support := NewToolSupport(50)     // Initial capacity of 50 tools
+func NewToolSupport(capacityHint ...int) *ToolSupport {
+	registry := newToolRegistry(capacityHint...)
+
 	return &ToolSupport{
 		registry: registry,
-		invoker:  newToolInvoker(registry),
+		invoker:  newToolCallInvoker(registry),
 	}
 }
 
 // Registry returns the internal tool registry for direct tool management operations.
-func (h *ToolSupport) Registry() *ToolRegistry {
-	return h.registry
+func (s *ToolSupport) Registry() *ToolRegistry {
+	return s.registry
 }
 
 // RegisterTools registers multiple tools to the internal registry.
-func (h *ToolSupport) RegisterTools(tools ...Tool) {
-	h.registry.Register(tools...)
+func (s *ToolSupport) RegisterTools(tools ...Tool) {
+	s.registry.Register(tools...)
 }
 
 // UnregisterTools removes tools by name from the registry.
-func (h *ToolSupport) UnregisterTools(names ...string) {
-	h.registry.Unregister(names...)
+func (s *ToolSupport) UnregisterTools(names ...string) {
+	s.registry.Unregister(names...)
 }
 
 // ShouldReturnDirect determines if a conversation should return directly to the user
@@ -620,64 +537,65 @@ func (h *ToolSupport) UnregisterTools(names ...string) {
 // - The last message is a ToolMessage AND
 // - ALL tools referenced in the message are registered AND
 // - ALL tools are configured with returnDirect=true
-func (h *ToolSupport) ShouldReturnDirect(msgs []Message) bool {
+func (s *ToolSupport) ShouldReturnDirect(msgs []Message) bool {
 	// Check if the last message is a tool response
 	if !hasMessageTypeAtLast(msgs, MessageTypeTool) {
 		return false
 	}
 
-	msg, _ := pkgSlices.Last(msgs)
-	toolMsg, ok := msg.(*ToolMessage)
+	lastMsg, _ := pkgSlices.Last(msgs)
+	toolMsg, ok := lastMsg.(*ToolMessage)
 	if !ok {
 		return false
 	}
 
-	returnDirect := true
-	for _, resp := range toolMsg.ToolReturns {
+	allDirect := true
+	for _, toolReturn := range toolMsg.ToolReturns {
 		// Verify tool exists in registry
-		t, ok := h.registry.Find(resp.Name)
-		if !ok {
+		tool, exists := s.registry.Find(toolReturn.Name)
+		if !exists {
 			return false // Unknown tool - cannot determine behavior
 		}
 
 		// ALL tools must be configured for direct return
-		returnDirect = returnDirect && t.Metadata().ReturnDirect
+		allDirect = allDirect && tool.Metadata().ReturnDirect
 	}
 
-	return returnDirect
+	return allDirect
 }
 
-// MakeReturnDirectResponse creates a chat response for direct return when all tools
+// BuildReturnDirectResponse creates a chat response for direct return when all tools
 // are configured for direct return.
-func (h *ToolSupport) MakeReturnDirectResponse(msgs []Message) (*Response, error) {
-	if !h.ShouldReturnDirect(msgs) {
-		return nil, errors.New("cannot create return direct chat response")
+func (s *ToolSupport) BuildReturnDirectResponse(msgs []Message) (*Response, error) {
+	if !s.ShouldReturnDirect(msgs) {
+		return nil, errors.New("cannot build return direct response: conditions not met")
 	}
 
-	msg, _ := pkgSlices.Last(msgs)
+	lastMsg, _ := pkgSlices.Last(msgs)
 
 	assistantMsg := NewAssistantMessage(map[string]any{
-		"create_by": FinishReasonReturnDirect.String(),
+		"created_by": FinishReasonReturnDirect.String(),
 	})
 
-	meta := &ResultMetadata{
+	metadata := &ResultMetadata{
 		FinishReason: FinishReasonReturnDirect,
 	}
 
-	res, err := NewResult(assistantMsg, meta)
+	result, err := NewResult(assistantMsg, metadata)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create result: %w", err)
 	}
-	// prechecked by ShouldReturnDirect
-	res.ToolMessage = msg.(*ToolMessage)
 
-	return NewResponse([]*Result{res}, &ResponseMetadata{})
+	// Prechecked by ShouldReturnDirect
+	result.ToolMessage = lastMsg.(*ToolMessage)
+
+	return NewResponse([]*Result{result}, &ResponseMetadata{})
 }
 
 // ShouldInvokeToolCalls determines if the chat response contains valid tool calls
 // that should be processed. It validates that all requested tools exist in the registry.
-func (h *ToolSupport) ShouldInvokeToolCalls(response *Response) (bool, error) {
-	return h.invoker.canInvokeToolCalls(response)
+func (s *ToolSupport) ShouldInvokeToolCalls(resp *Response) (bool, error) {
+	return s.invoker.canInvokeToolCalls(resp)
 }
 
 // InvokeToolCalls processes tool calls from an LLM chat response, executing internal tools
@@ -688,12 +606,12 @@ func (h *ToolSupport) ShouldInvokeToolCalls(response *Response) (bool, error) {
 // 2. Separates internal tools (CallableTool) from external tools
 // 3. Executes internal tools and collects their responses
 // 4. Determines conversation flow control based on tool metadata and external tool presence
-// 5. Constructs InvokeResult with appropriate configuration for next steps
+// 5. Constructs InvocationResult with appropriate configuration for next steps
 //
 // Flow control logic:
 // - External tools always force direct return
 // - Internal tools: if ANY tool has returnDirect=false, continue with LLM processing
 // - Only when ALL internal tools have returnDirect=true does the flow bypass LLM
-func (h *ToolSupport) InvokeToolCalls(ctx context.Context, request *Request, response *Response) (*ToolInvokeResult, error) {
-	return h.invoker.invoke(ctx, request, response)
+func (s *ToolSupport) InvokeToolCalls(ctx context.Context, req *Request, resp *Response) (*ToolInvocationResult, error) {
+	return s.invoker.invoke(ctx, req, resp)
 }

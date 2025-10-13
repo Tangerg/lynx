@@ -28,11 +28,9 @@ func newAPIKey() model.ApiKey {
 }
 
 func newChatModel() *openai.ChatModel {
-	defaultOptions := openai.NewChatOptionsBuilder().
-		WithModel(baseModel).
-		MustBuild()
+	defaultOptions := assert.Must(chat.NewOptions(baseModel))
 
-	return assert.ErrorIsNil(openai.NewChatModel(
+	return assert.Must(openai.NewChatModel(
 		newAPIKey(),
 		defaultOptions,
 		option.WithBaseURL(baseURL),
@@ -40,11 +38,11 @@ func newChatModel() *openai.ChatModel {
 }
 
 func newChatClient() *chat.Client {
-	clientConfig := assert.ErrorIsNil(
+	clientConfig := assert.Must(
 		chat.NewClientConfig(newChatModel()),
 	)
 
-	return assert.ErrorIsNil(
+	return assert.Must(
 		chat.NewClient(clientConfig),
 	)
 }
@@ -78,13 +76,13 @@ const weatherResponse = `{
 func newWeatherTool() chat.Tool {
 	toolDefinition := chat.ToolDefinition{
 		Name:        "weather_query",
-		Description: "a weather query tool",
+		Description: "a weather query internalTool",
 		InputSchema: pkgJson.StringDefSchemaOf(weatherRequest{}),
 	}
 
 	toolMetadata := chat.ToolMetadata{}
 
-	toolFunction := func(_ *chat.ToolContext, input string) (string, error) {
+	toolFunction := func(_ context.Context, input string) (string, error) {
 		fmt.Println("weather_query called")
 		fmt.Println(input)
 

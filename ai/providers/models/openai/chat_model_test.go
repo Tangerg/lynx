@@ -16,11 +16,9 @@ import (
 )
 
 func newChatModel() *ChatModel {
-	defaultOptions := NewChatOptionsBuilder().
-		WithModel(baseModel).
-		MustBuild()
+	defaultOptions := assert.Must(chat.NewOptions(baseModel))
 
-	return assert.ErrorIsNil(NewChatModel(
+	return assert.Must(NewChatModel(
 		newAPIKey(),
 		defaultOptions,
 		option.WithBaseURL(baseURL),
@@ -113,7 +111,7 @@ func newWeatherTool() chat.Tool {
 
 	toolMetadata := chat.ToolMetadata{}
 
-	toolFunction := func(_ *chat.ToolContext, input string) (string, error) {
+	toolFunction := func(_ context.Context, input string) (string, error) {
 		fmt.Println("weather_query called")
 		fmt.Println(input)
 
@@ -144,11 +142,8 @@ func TestChatModel_Call_Tool(t *testing.T) {
 	chatModel := newChatModel()
 
 	weatherTool := newWeatherTool()
-	toolOptions := NewChatOptionsBuilder().
-		WithTools([]chat.Tool{weatherTool}).
-		WithModel(baseModel).
-		MustBuild()
-
+	toolOptions := assert.Must(chat.NewOptions(baseModel))
+	toolOptions.Tools = []chat.Tool{weatherTool}
 	messages := []chat.Message{
 		chat.NewUserMessage("I want to inquire about the weather conditions in Beijing on May 1st, 2023"),
 	}
@@ -177,10 +172,8 @@ func TestChatModel_Stream_Tool(t *testing.T) {
 	chatModel := newChatModel()
 
 	weatherTool := newWeatherTool()
-	toolOptions := NewChatOptionsBuilder().
-		WithTools([]chat.Tool{weatherTool}).
-		WithModel(baseModel).
-		MustBuild()
+	toolOptions := assert.Must(chat.NewOptions(baseModel))
+	toolOptions.Tools = []chat.Tool{weatherTool}
 
 	messages := []chat.Message{
 		chat.NewUserMessage("I want to inquire about the weather conditions in Beijing on May 1st, 2023"),

@@ -12,133 +12,96 @@ import (
 )
 
 type chatHelper struct {
-	requestHelper  requestHelper
-	responseHelper responseHelper
+	reqHelper  requestHelper
+	respHelper responseHelper
 }
 
-func newChatHelper(defaultOptions *ChatOptions) chatHelper {
+func newChatHelper(defaultOpts *chat.Options) chatHelper {
 	return chatHelper{
-		requestHelper: requestHelper{
-			defaultOptions,
+		reqHelper: requestHelper{
+			defaultOpts,
 		},
 	}
 }
 
-func (h *chatHelper) makeApiChatCompletionRequest(req *chat.Request) (*openai.ChatCompletionNewParams, error) {
-	return h.requestHelper.makeRequest(req)
+func (h *chatHelper) makeChatRequest(req *chat.Request) (*openai.ChatCompletionNewParams, error) {
+	return h.reqHelper.makeRequest(req)
 }
 
 func (h *chatHelper) makeChatResponse(req *openai.ChatCompletionNewParams, resp *openai.ChatCompletion) (*chat.Response, error) {
-	return h.responseHelper.makeResponse(req, resp)
+	return h.respHelper.makeResponse(req, resp)
 }
 
 type requestHelper struct {
-	defaultOptions *ChatOptions
+	defaultOptions *chat.Options
 }
 
-func (r *requestHelper) makeParamsTools(tools []chat.Tool) ([]openai.ChatCompletionToolParam, error) {
-	rv := make([]openai.ChatCompletionToolParam, 0, len(tools))
+func (r *requestHelper) makeToolParams(tools []chat.Tool) ([]openai.ChatCompletionToolParam, error) {
+	toolParams := make([]openai.ChatCompletionToolParam, 0, len(tools))
 
 	for _, t := range tools {
-		var (
-			parameters map[string]any
-			definition = t.Definition()
-		)
+		var params map[string]any
+		def := t.Definition()
 
-		err := json.Unmarshal([]byte(definition.InputSchema), &parameters)
-		if err != nil {
+		if err := json.Unmarshal([]byte(def.InputSchema), &params); err != nil {
 			return nil, err
 		}
 
-		rv = append(
-			rv,
-			openai.ChatCompletionToolParam{
-				Function: openai.FunctionDefinitionParam{
-					Name:        definition.Name,
-					Description: openai.String(definition.Description),
-					Strict:      openai.Bool(true),
-					Parameters:  parameters,
-				},
+		toolParams = append(toolParams, openai.ChatCompletionToolParam{
+			Function: openai.FunctionDefinitionParam{
+				Name:        def.Name,
+				Description: openai.String(def.Description),
+				Strict:      openai.Bool(true),
+				Parameters:  params,
 			},
-		)
+		})
 	}
 
-	return rv, nil
+	return toolParams, nil
 }
 
-func (r *requestHelper) makeParamsBase(chatOptions *ChatOptions) *openai.ChatCompletionNewParams {
+func (r *requestHelper) makeBaseParams(opts *chat.Options) *openai.ChatCompletionNewParams {
 	params := new(openai.ChatCompletionNewParams)
-	params.Model = chatOptions.model
 
-	if chatOptions.frequencyPenalty != nil {
-		params.FrequencyPenalty = openai.Float(*chatOptions.frequencyPenalty)
+	if extra, exist := opts.Get(ChatCompletionOptions); exist && extra != nil {
+		if extraParams, ok := extra.(*openai.ChatCompletionNewParams); ok {
+			params = extraParams
+		}
 	}
-	if chatOptions.logitBias != nil {
-		params.LogitBias = chatOptions.logitBias
+
+	params.Model = opts.Model
+
+	if opts.FrequencyPenalty != nil {
+		params.FrequencyPenalty = openai.Float(*opts.FrequencyPenalty)
 	}
-	if chatOptions.logprobs != nil {
-		params.Logprobs = openai.Bool(*chatOptions.logprobs)
+	if opts.MaxTokens != nil {
+		params.MaxTokens = openai.Int(*opts.MaxTokens)
 	}
-	if chatOptions.maxCompletionTokens != nil {
-		params.MaxCompletionTokens = openai.Int(*chatOptions.maxCompletionTokens)
+	if opts.PresencePenalty != nil {
+		params.PresencePenalty = openai.Float(*opts.PresencePenalty)
 	}
-	if chatOptions.maxTokens != nil {
-		params.MaxTokens = openai.Int(*chatOptions.maxTokens)
+	if len(opts.Stop) > 0 {
+		params.Stop.OfStringArray = opts.Stop
 	}
-	if chatOptions.metadata != nil {
-		params.Metadata = chatOptions.metadata
+	if opts.Temperature != nil {
+		params.Temperature = openai.Float(*opts.Temperature)
 	}
-	if chatOptions.modalities != nil {
-		params.Modalities = chatOptions.modalities
-	}
-	if chatOptions.n != nil {
-		params.N = openai.Int(*chatOptions.n)
-	}
-	if chatOptions.parallelToolCalls != nil {
-		params.ParallelToolCalls = openai.Bool(*chatOptions.parallelToolCalls)
-	}
-	if chatOptions.presencePenalty != nil {
-		params.PresencePenalty = openai.Float(*chatOptions.presencePenalty)
-	}
-	if chatOptions.reasoningEffort != nil {
-		params.ReasoningEffort = openai.ReasoningEffort(*chatOptions.reasoningEffort)
-	}
-	if chatOptions.seed != nil {
-		params.Seed = openai.Int(*chatOptions.seed)
-	}
-	if chatOptions.serviceTier != nil {
-		params.ServiceTier = openai.ChatCompletionNewParamsServiceTier(*chatOptions.serviceTier)
-	}
-	if len(chatOptions.stop) > 0 {
-		params.Stop.OfStringArray = chatOptions.stop
-	}
-	if chatOptions.store != nil {
-		params.Store = openai.Bool(*chatOptions.store)
-	}
-	if chatOptions.temperature != nil {
-		params.Temperature = openai.Float(*chatOptions.temperature)
-	}
-	if chatOptions.topLogprobs != nil {
-		params.TopLogprobs = openai.Int(*chatOptions.topLogprobs)
-	}
-	if chatOptions.topP != nil {
-		params.TopP = openai.Float(*chatOptions.topP)
-	}
-	if chatOptions.user != nil {
-		params.User = openai.String(*chatOptions.user)
+	if opts.TopP != nil {
+		params.TopP = openai.Float(*opts.TopP)
 	}
 
 	return params
 }
 
-func (r *requestHelper) makeParams(options chat.Options) (*openai.ChatCompletionNewParams, error) {
-	chatOptions, err := MergeChatOptions(r.defaultOptions, options)
+func (r *requestHelper) makeParams(opts *chat.Options) (*openai.ChatCompletionNewParams, error) {
+	mergedOpts, err := chat.MergeOptions(r.defaultOptions, opts)
 	if err != nil {
 		return nil, err
 	}
 
-	params := r.makeParamsBase(chatOptions)
-	params.Tools, err = r.makeParamsTools(chatOptions.tools)
+	params := r.makeBaseParams(mergedOpts)
+
+	params.Tools, err = r.makeToolParams(mergedOpts.Tools)
 	if err != nil {
 		return nil, err
 	}
@@ -146,45 +109,46 @@ func (r *requestHelper) makeParams(options chat.Options) (*openai.ChatCompletion
 	return params, nil
 }
 
-func (r *requestHelper) makeSystemMessage(msg *chat.SystemMessage) openai.ChatCompletionMessageParamUnion {
+func (r *requestHelper) makeSystemMsg(msg *chat.SystemMessage) openai.ChatCompletionMessageParamUnion {
 	return openai.SystemMessage(msg.Text)
 }
 
-func (r *requestHelper) makeUserMessage(msg *chat.UserMessage) openai.ChatCompletionMessageParamUnion {
+func (r *requestHelper) makeUserMsg(msg *chat.UserMessage) openai.ChatCompletionMessageParamUnion {
 	if !msg.HasMedia() {
 		return openai.UserMessage(msg.Text)
 	}
 
-	params := make([]openai.ChatCompletionContentPartUnionParam, 0, 1+len(msg.Media))
-	params = append(params, openai.ChatCompletionContentPartUnionParam{
+	parts := make([]openai.ChatCompletionContentPartUnionParam, 0, 1+len(msg.Media))
+	parts = append(parts, openai.ChatCompletionContentPartUnionParam{
 		OfText: &openai.ChatCompletionContentPartTextParam{
 			Text: msg.Text,
 		},
 	})
 
 	for _, md := range msg.Media {
-		mt := md.MimeType
 		data, err := md.DataAsString()
 		if err != nil {
 			continue
 		}
 
-		param := openai.ChatCompletionContentPartUnionParam{}
+		part := openai.ChatCompletionContentPartUnionParam{}
+		mt := md.MimeType
+
 		if mime.IsImage(mt) {
-			param.OfImageURL = &openai.ChatCompletionContentPartImageParam{
+			part.OfImageURL = &openai.ChatCompletionContentPartImageParam{
 				ImageURL: openai.ChatCompletionContentPartImageImageURLParam{
 					URL: data,
 				},
 			}
 		} else if mime.IsAudio(mt) {
-			param.OfInputAudio = &openai.ChatCompletionContentPartInputAudioParam{
+			part.OfInputAudio = &openai.ChatCompletionContentPartInputAudioParam{
 				InputAudio: openai.ChatCompletionContentPartInputAudioInputAudioParam{
 					Data:   data,
 					Format: mt.SubType(),
 				},
 			}
 		} else {
-			param.OfFile = &openai.ChatCompletionContentPartFileParam{
+			part.OfFile = &openai.ChatCompletionContentPartFileParam{
 				File: openai.ChatCompletionContentPartFileFileParam{
 					FileData: openai.String(data),
 					Filename: openai.String(md.Name),
@@ -192,81 +156,74 @@ func (r *requestHelper) makeUserMessage(msg *chat.UserMessage) openai.ChatComple
 				},
 			}
 		}
-		params = append(params, param)
+
+		parts = append(parts, part)
 	}
 
-	return openai.UserMessage(params)
+	return openai.UserMessage(parts)
 }
 
-func (r *requestHelper) makeAssistantMessage(msg *chat.AssistantMessage) openai.ChatCompletionMessageParamUnion {
+func (r *requestHelper) makeAssistantMsg(msg *chat.AssistantMessage) openai.ChatCompletionMessageParamUnion {
 	message := openai.AssistantMessage(msg.Text)
-	ofAssistant := message.OfAssistant
+	assistant := message.OfAssistant
 
-	for _, toolCall := range msg.ToolCalls {
-		ofAssistant.ToolCalls = append(
-			ofAssistant.ToolCalls, openai.ChatCompletionMessageToolCallParam{
-				ID: toolCall.ID,
-				Function: openai.ChatCompletionMessageToolCallFunctionParam{
-					Name:      toolCall.Name,
-					Arguments: toolCall.Arguments,
-				},
-			})
+	for _, tc := range msg.ToolCalls {
+		assistant.ToolCalls = append(assistant.ToolCalls, openai.ChatCompletionMessageToolCallParam{
+			ID: tc.ID,
+			Function: openai.ChatCompletionMessageToolCallFunctionParam{
+				Name:      tc.Name,
+				Arguments: tc.Arguments,
+			},
+		})
 	}
 
 	for _, md := range msg.Media {
 		if mime.IsAudio(md.MimeType) {
-			ofAssistant.Audio.ID = md.ID
-			//only one is allowed
-			break
+			assistant.Audio.ID = md.ID
+			break // only one is allowed
 		}
 	}
 
-	for k, v := range msg.Metadata {
-		if k == "refusal" {
-			ofAssistant.Refusal = openai.String(cast.ToString(v))
-		}
+	if refusal, exists := msg.Metadata["refusal"]; exists {
+		assistant.Refusal = openai.String(cast.ToString(refusal))
 	}
 
 	return message
 }
 
-func (r *requestHelper) makeToolMessages(msg *chat.ToolMessage) []openai.ChatCompletionMessageParamUnion {
-	toolResponses := msg.ToolReturns
-	msgs := make([]openai.ChatCompletionMessageParamUnion, 0, len(toolResponses))
+func (r *requestHelper) makeToolMsgs(msg *chat.ToolMessage) []openai.ChatCompletionMessageParamUnion {
+	returns := msg.ToolReturns
+	msgs := make([]openai.ChatCompletionMessageParamUnion, 0, len(returns))
 
-	for _, toolResponse := range toolResponses {
-		msgs = append(msgs, openai.ToolMessage(toolResponse.Result, toolResponse.ID))
+	for _, ret := range returns {
+		msgs = append(msgs, openai.ToolMessage(ret.Result, ret.ID))
 	}
 
 	return msgs
 }
 
-func (r *requestHelper) makeMessage(msg chat.Message) openai.ChatCompletionMessageParamUnion {
-	if msg.Type().IsSystem() {
-		return r.makeSystemMessage(msg.(*chat.SystemMessage))
-	}
+func (r *requestHelper) makeMsg(msg chat.Message) openai.ChatCompletionMessageParamUnion {
 	if msg.Type().IsUser() {
-		return r.makeUserMessage(msg.(*chat.UserMessage))
+		return r.makeUserMsg(msg.(*chat.UserMessage))
+	} else if msg.Type().IsAssistant() {
+		return r.makeAssistantMsg(msg.(*chat.AssistantMessage))
+	} else {
+		return r.makeSystemMsg(msg.(*chat.SystemMessage))
 	}
-	if msg.Type().IsAssistant() {
-		return r.makeAssistantMessage(msg.(*chat.AssistantMessage))
-	}
-
-	return openai.UserMessage("")
 }
 
-func (r *requestHelper) makeMessages(msgs []chat.Message) []openai.ChatCompletionMessageParamUnion {
-	rv := make([]openai.ChatCompletionMessageParamUnion, 0, len(msgs))
+func (r *requestHelper) makeMsgs(msgs []chat.Message) []openai.ChatCompletionMessageParamUnion {
+	result := make([]openai.ChatCompletionMessageParamUnion, 0, len(msgs))
 
 	for _, msg := range msgs {
 		if msg.Type().IsTool() {
-			rv = append(rv, r.makeToolMessages(msg.(*chat.ToolMessage))...)
+			result = append(result, r.makeToolMsgs(msg.(*chat.ToolMessage))...)
 		} else {
-			rv = append(rv, r.makeMessage(msg))
+			result = append(result, r.makeMsg(msg))
 		}
 	}
 
-	return rv
+	return result
 }
 
 func (r *requestHelper) makeRequest(req *chat.Request) (*openai.ChatCompletionNewParams, error) {
@@ -275,71 +232,68 @@ func (r *requestHelper) makeRequest(req *chat.Request) (*openai.ChatCompletionNe
 		return nil, err
 	}
 
-	params.Messages = r.makeMessages(req.Messages)
+	params.Messages = r.makeMsgs(req.Messages)
 	return params, nil
 }
 
 type responseHelper struct{}
 
-func (r *responseHelper) makeResultAssistantMessage(req *openai.ChatCompletionNewParams, message *openai.ChatCompletionMessage) *chat.AssistantMessage {
+func (r *responseHelper) makeAssistantMsg(req *openai.ChatCompletionNewParams, msg *openai.ChatCompletionMessage) *chat.AssistantMessage {
 	param := chat.MessageParams{
-		Text:     message.Content,
+		Text:     msg.Content,
 		Metadata: make(map[string]any),
 	}
-	param.Metadata["refusal"] = message.Refusal
-	param.Metadata["annotations"] = message.Annotations
+	param.Metadata["refusal"] = msg.Refusal
+	param.Metadata["annotations"] = msg.Annotations
 
-	for _, toolCall := range message.ToolCalls {
-		param.ToolCalls = append(
-			param.ToolCalls,
-			&chat.ToolCall{
-				ID:        toolCall.ID,
-				Name:      toolCall.Function.Name,
-				Arguments: toolCall.Function.Arguments,
-			},
-		)
+	for _, tc := range msg.ToolCalls {
+		param.ToolCalls = append(param.ToolCalls, &chat.ToolCall{
+			ID:        tc.ID,
+			Name:      tc.Function.Name,
+			Arguments: tc.Function.Arguments,
+		})
 	}
 
-	if message.Audio.ID != "" {
-		param.Metadata["audio.id"] = message.Audio.ID
-		param.Metadata["audio.expires_at"] = message.Audio.ExpiresAt
+	if msg.Audio.ID != "" {
+		param.Metadata["audio.id"] = msg.Audio.ID
+		param.Metadata["audio.expires_at"] = msg.Audio.ExpiresAt
+
 		mt, _ := mime.New("audio", string(req.Audio.Format))
 		param.Metadata["audio.mimetype"] = mt.String()
 		param.Metadata["audio.voice"] = req.Audio.Voice
-		param.Media = append(
-			param.Media,
-			&media.Media{
-				ID:       message.Audio.ID,
-				MimeType: mt,
-				Data:     message.Audio.Data,
-			},
-		)
+
+		param.Media = append(param.Media, &media.Media{
+			ID:       msg.Audio.ID,
+			MimeType: mt,
+			Data:     msg.Audio.Data,
+		})
+
 		if param.Text == "" {
-			param.Text = message.Audio.Transcript
+			param.Text = msg.Audio.Transcript
 		}
 	}
 
 	return chat.NewAssistantMessage(param)
 }
 
-func (r *responseHelper) makeResultMetadata(req *openai.ChatCompletionNewParams, choice *openai.ChatCompletionChoice) *chat.ResultMetadata {
-	metadata := &chat.ResultMetadata{
+func (r *responseHelper) makeResultMeta(req *openai.ChatCompletionNewParams, choice *openai.ChatCompletionChoice) *chat.ResultMetadata {
+	meta := &chat.ResultMetadata{
 		FinishReason: chat.FinishReason(choice.FinishReason),
 	}
-	metadata.Set("index", choice.Index)
+	meta.Set("index", choice.Index)
 
 	if req.Logprobs.Value {
-		metadata.Set("logprobs", choice.Logprobs)
+		meta.Set("logprobs", choice.Logprobs)
 	}
 
-	return metadata
+	return meta
 }
 
 func (r *responseHelper) makeResult(req *openai.ChatCompletionNewParams, choice *openai.ChatCompletionChoice) (*chat.Result, error) {
-	assistantMessage := r.makeResultAssistantMessage(req, &choice.Message)
-	metadata := r.makeResultMetadata(req, choice)
+	assistantMsg := r.makeAssistantMsg(req, &choice.Message)
+	meta := r.makeResultMeta(req, choice)
 
-	return chat.NewResult(assistantMessage, metadata)
+	return chat.NewResult(assistantMsg, meta)
 }
 
 func (r *responseHelper) makeResults(req *openai.ChatCompletionNewParams, resp *openai.ChatCompletion) ([]*chat.Result, error) {
@@ -356,8 +310,8 @@ func (r *responseHelper) makeResults(req *openai.ChatCompletionNewParams, resp *
 	return results, nil
 }
 
-func (r *responseHelper) makeMetadata(req *openai.ChatCompletionNewParams, resp *openai.ChatCompletion) *chat.ResponseMetadata {
-	metadata := &chat.ResponseMetadata{
+func (r *responseHelper) makeMeta(req *openai.ChatCompletionNewParams, resp *openai.ChatCompletion) *chat.ResponseMetadata {
+	meta := &chat.ResponseMetadata{
 		ID:      resp.ID,
 		Model:   resp.Model,
 		Created: resp.Created,
@@ -367,12 +321,12 @@ func (r *responseHelper) makeMetadata(req *openai.ChatCompletionNewParams, resp 
 			OriginalUsage:    resp.Usage,
 		},
 	}
-	metadata.Set("original.request", req)
-	metadata.Set("original.response", resp)
-	metadata.Set("service_tier", resp.ServiceTier)
-	metadata.Set("system_fingerprint", resp.SystemFingerprint)
+	meta.Set("original.request", req)
+	meta.Set("original.response", resp)
+	meta.Set("service_tier", resp.ServiceTier)
+	meta.Set("system_fingerprint", resp.SystemFingerprint)
 
-	return metadata
+	return meta
 }
 
 func (r *responseHelper) makeResponse(req *openai.ChatCompletionNewParams, resp *openai.ChatCompletion) (*chat.Response, error) {
@@ -381,7 +335,7 @@ func (r *responseHelper) makeResponse(req *openai.ChatCompletionNewParams, resp 
 		return nil, err
 	}
 
-	metadata := r.makeMetadata(req, resp)
+	meta := r.makeMeta(req, resp)
 
-	return chat.NewResponse(results, metadata)
+	return chat.NewResponse(results, meta)
 }

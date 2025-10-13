@@ -6,7 +6,7 @@ package mime
 import (
 	"strings"
 
-	"github.com/Tangerg/lynx/pkg/kv"
+	"github.com/Tangerg/lynx/pkg/maps"
 )
 
 const (
@@ -30,11 +30,11 @@ const (
 // - "application/json" -> type="application", subType="json"
 // - "image/svg+xml" -> type="image", subType="svg+xml"
 type MIME struct {
-	_type       string                // The primary type component (e.g., "text", "application")
-	subType     string                // The subtype component (e.g., "html", "json")
-	charset     string                // The character set value (e.g., "UTF-8")
-	params      kv.KV[string, string] // Additional parameters as key-value pairs
-	stringValue string                // Cached string representation for performance
+	_type       string                       // The primary type component (e.g., "text", "application")
+	subType     string                       // The subtype component (e.g., "html", "json")
+	charset     string                       // The character set value (e.g., "UTF-8")
+	params      maps.HashMap[string, string] // Additional parameters as key-value pairs
+	stringCache string                       // Cached string representation for performance
 }
 
 func (m *MIME) MarshalJSON() ([]byte, error) {
@@ -54,7 +54,7 @@ func (m *MIME) UnmarshalJSON(data []byte) error {
 	m.subType = parsed.subType
 	m.charset = parsed.charset
 	m.params = parsed.params
-	m.stringValue = parsed.stringValue
+	m.stringCache = parsed.stringCache
 
 	return nil
 }
@@ -81,7 +81,7 @@ func (m *MIME) formatStringValue() {
 		stringBuilder.WriteString(paramValue)
 	})
 
-	m.stringValue = stringBuilder.String()
+	m.stringCache = stringBuilder.String()
 }
 
 // Type returns the primary type component of this MIME type.
@@ -100,6 +100,11 @@ func (m *MIME) SubType() string {
 // Example: For a MIME with type="image" and subType="png", returns "image/png".
 func (m *MIME) TypeAndSubType() string {
 	return m._type + "/" + m.subType
+}
+
+// FullType is an alias for TypeAndSubType
+func (m *MIME) FullType() string {
+	return m.TypeAndSubType()
 }
 
 // Charset returns the character set parameter value if specified.
@@ -133,10 +138,10 @@ func (m *MIME) Params() map[string]string {
 // - "application/json"
 // - "image/png;quality=high"
 func (m *MIME) String() string {
-	if m.stringValue == "" {
+	if m.stringCache == "" {
 		m.formatStringValue()
 	}
-	return m.stringValue
+	return m.stringCache
 }
 
 // IsWildcardType checks if this MIME type has a wildcard primary type.
@@ -303,8 +308,11 @@ func (m *MIME) EqualsParams(otherMime *MIME) bool {
 	// Compare each parameter
 	parametersEqual := true
 	m.params.ForEach(func(paramKey, paramValue string) {
-		if paramValue != otherMime.params.Value(paramKey) {
-			parametersEqual = false
+		otherValue, ok := otherMime.params.Get(paramKey)
+		if ok {
+			if paramValue != otherValue {
+				parametersEqual = false
+			}
 		}
 	})
 

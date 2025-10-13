@@ -1,36 +1,21 @@
 package assert
 
-// ErrorIsNil checks if the error from a function call is nil and returns the value.
-// If the error is not nil, it panics with the error.
+// Must panics if err is not nil, otherwise returns the value.
 //
-// It's a generic function that accepts any type T as the return value,
-// making it usable with any function that returns a value and an error.
+// Example:
 //
-// Example usage:
-//
-//	result := assert.ErrorNil(someFunction())
-//
-// Parameters:
-//
-//	v   - The value returned by the function
-//	err - The error returned by the function
-//
-// Returns:
-//
-//	The value v if err is nil
-//
-// Panics:
-//
-//	If err is not nil
-func ErrorIsNil[T any](v T, err error) T {
+//	result := assert.Must(someFunction())
+func Must[T any](value T, err error) T {
 	if err != nil {
 		panic(err)
 	}
-	return v
+
+	return value
 }
 
-func Ensure(cond bool, message string) {
-	if !cond {
+// Ensure panics with message if condition is false.
+func Ensure(condition bool, message string) {
+	if !condition {
 		panic(message)
 	}
 }

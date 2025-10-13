@@ -7,6 +7,7 @@ package mime
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"mime"
 	"path"
@@ -15,7 +16,7 @@ import (
 	"github.com/gabriel-vasile/mimetype"
 
 	"github.com/Tangerg/lynx/pkg/assert"
-	"github.com/Tangerg/lynx/pkg/kv"
+	"github.com/Tangerg/lynx/pkg/maps"
 )
 
 var (
@@ -45,7 +46,7 @@ func New(mimeType string, subType string) (*MIME, error) {
 }
 
 func MustNew(mimeType string, subType string) *MIME {
-	return assert.ErrorIsNil(New(mimeType, subType))
+	return assert.Must(New(mimeType, subType))
 }
 
 // Parse converts a string representation of a MIME type into a MIME object.
@@ -80,7 +81,7 @@ func Parse(mimeString string) (*MIME, error) {
 
 	// Validate the type/subtype portion
 	if typeSubtypeString == "" {
-		return nil, errors.Join(ErrorInvalidMimeType, errors.New("'mime type' must not be empty"))
+		return nil, fmt.Errorf("%w: 'mime type' must not be empty", ErrorInvalidMimeType)
 	}
 
 	// Handle the special case of "*" as shorthand for "*/*"
@@ -91,10 +92,10 @@ func Parse(mimeString string) (*MIME, error) {
 	// Ensure the type/subtype contains a forward slash
 	slashIndex := strings.Index(typeSubtypeString, "/")
 	if slashIndex == -1 {
-		return nil, errors.Join(ErrorInvalidMimeType, errors.New("does not contain '/'"))
+		return nil, fmt.Errorf("%w: does not contain '/'", ErrorInvalidMimeType)
 	}
 	if slashIndex == len(typeSubtypeString)-1 {
-		return nil, errors.Join(ErrorInvalidMimeType, errors.New("does not contain subtype after '/'"))
+		return nil, fmt.Errorf("%w: does not contain subtype after '/'", ErrorInvalidMimeType)
 	}
 
 	// Extract the type and subtype
@@ -103,11 +104,11 @@ func Parse(mimeString string) (*MIME, error) {
 
 	// Validate wildcard type usage
 	if primaryType == wildcardType && subType != wildcardType {
-		return nil, errors.Join(ErrorInvalidMimeType, errors.New("wildcard type is legal only in '*/*' (all mime types)"))
+		return nil, fmt.Errorf("%w: wildcard type is legal only in '*/*' (all mime types)", ErrorInvalidMimeType)
 	}
 
 	// Process parameters (if any)
-	parameterMap := kv.New[string, string]()
+	parameterMap := maps.NewHashMap[string, string]()
 	for semicolonIndex < len(mimeString) {
 		nextSemicolonIndex := semicolonIndex + 1
 		isQuoted := false
@@ -145,7 +146,7 @@ func Parse(mimeString string) (*MIME, error) {
 		WithParams(parameterMap).
 		Build()
 	if err != nil {
-		return nil, errors.Join(ErrorInvalidMimeType, err)
+		return nil, fmt.Errorf("%w: %w", ErrorInvalidMimeType, err)
 	}
 
 	return mimeResult, nil

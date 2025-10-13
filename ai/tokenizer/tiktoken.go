@@ -111,7 +111,7 @@ func (t *Tiktoken) EstimateMedia(ctx context.Context, media ...*media.Media) (in
 // and only MIME type tokens are counted.
 func (t *Tiktoken) estimateMedia(_ context.Context, media *media.Media) (int, error) {
 	// Count tokens for MIME type
-	mt := media.MimeType().String()
+	mt := media.MIMEType().String()
 	token := len(t.encoding.Encode(mt, nil, nil))
 
 	// Convert data to text based on type
