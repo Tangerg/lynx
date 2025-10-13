@@ -4,11 +4,11 @@
 // SSE is a one-way communication protocol that allows servers to push real-time updates
 // to clients over a single HTTP connection. This package provides:
 //
-// - Message encoding into the SSE wire format
-// - Message decoding from HTTP response streams
-// - Support for all SSE fields: id, event, data, and retry
-// - Multiline data processing according to specification
-// - Message validation and sanitization
+//   - Message encoding into the SSE wire format
+//   - Message decoding from HTTP response streams
+//   - Support for all SSE fields: id, event, data, and retry
+//   - Multiline data processing according to specification
+//   - Message validation and sanitization
 package sse
 
 import (
@@ -70,14 +70,14 @@ var (
 )
 
 // Message represents a Server-Sent Event with all fields defined in the SSE specification:
-// - ID: Uniquely identifies the event and enables connection resumption
-// - Event: Defines the event type (defaults to "message" if not specified)
-// - Data: Contains the event payload
-// - Retry: Specifies the reconnection time in milliseconds
+//   - ID: Uniquely identifies the event and enables connection resumption
+//   - Event: Defines the event type (defaults to "message" if not specified)
+//   - Data: Contains the event payload
+//   - Retry: Specifies the reconnection time in milliseconds
 type Message struct {
 	ID    string // Message identifier
-	Event string // Message type
-	Data  []byte // Message payload
+	Event string // Event type
+	Data  []byte // Event payload
 	Retry int    // Reconnection time in milliseconds
 }
 
@@ -86,15 +86,15 @@ type Message struct {
 // Otherwise, it must follow DOM event naming rules.
 //
 // Valid event name rules:
-// - Empty string is valid (default "message" type will be used)
-// - Must start with a letter
-// - Can only contain letters, digits, underscore, hyphen, and period
-// - Cannot contain ".." sequence
-// - Cannot start or end with a period
-// - Cannot contain any whitespace characters
+//   - Empty string is valid (default "message" type will be used)
+//   - Must start with a letter
+//   - Can only contain letters, digits, underscore, hyphen, and period
+//   - Cannot contain ".." sequence
+//   - Cannot start or end with a period
+//   - Cannot contain any whitespace characters
 //
-// Examples: "update", "user.created", "system-alert" are valid
-// While ".update", "user..profile", "alert!" are invalid
+// Valid examples: "update", "user.created", "system-alert"
+// Invalid examples: ".update", "user..profile", "alert!"
 func isValidSSEEventName(eventName string) bool {
 	if eventName == "" {
 		return true
@@ -102,12 +102,18 @@ func isValidSSEEventName(eventName string) bool {
 	return isValidDOMEventName(eventName)
 }
 
-// isValidDOMEventName validates event names according to DOM specifications:
-// - Must not be empty
-// - Must not contain '..' or start/end with '.'
-// - Must start with a letter
-// - Can only contain letters, digits, underscore, hyphen, or period
-// - Cannot contain any whitespace
+// isValidDOMEventName validates event names according to DOM specifications.
+//
+// Requirements:
+//   - Must not be empty
+//   - Must not contain ".." or start/end with "."
+//   - Must start with a letter
+//   - Can only contain letters, digits, underscore, hyphen, or period
+//   - Cannot contain any whitespace
+//
+// Returns:
+//   - true if the event name is valid according to DOM specifications
+//   - false otherwise
 func isValidDOMEventName(eventName string) bool {
 	if eventName == "" {
 		return false

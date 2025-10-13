@@ -17,19 +17,22 @@ var heartBeatPing = []byte(delimiter + whitespace + "ping" + string(byteLFLF)) /
 // WriterConfig contains the configuration options for creating a new SSE Writer.
 // All fields have reasonable defaults, except for Context and ResponseWriter which are required.
 type WriterConfig struct {
-	Context        context.Context     // Required: Controls the lifecycle of the Writer.
-	ResponseWriter http.ResponseWriter // Required: HTTP response writer to send SSE data.
-	QueueSize      int                 // Optional: Size of the message queue buffer (default: 64).
-	HeartBeat      time.Duration       // Optional: Interval for sending heartbeat pings (default: disabled if 0).
+	Context        context.Context     // Required: Controls the lifecycle of the Writer
+	ResponseWriter http.ResponseWriter // Required: HTTP response writer to send SSE data
+	QueueSize      int                 // Optional: Size of the message queue buffer (default: 64)
+	HeartBeat      time.Duration       // Optional: Interval for sending heartbeat pings (default: disabled if 0)
 }
 
 // validate checks the validity of the WriterConfig settings and configures defaults when needed.
-// Returns an error if any required parameter is missing or invalid.
 //
-// Validation Rules:
-// - Context must not be nil.
-// - ResponseWriter must not be nil and must implement http.Flusher.
-// - QueueSize defaults to 64 if not provided.
+// Validation rules:
+//   - Context must not be nil
+//   - ResponseWriter must not be nil and must implement http.Flusher
+//   - QueueSize defaults to 64 if not provided or zero
+//
+// Returns:
+//   - nil if the configuration is valid
+//   - An error describing the validation failure
 func (c *WriterConfig) validate() error {
 	if c.Context == nil {
 		return errors.New("missing context")
@@ -51,32 +54,37 @@ func (c *WriterConfig) validate() error {
 }
 
 // Writer encapsulates the logic for sending Server-Sent Events (SSE) to clients.
-// It provides features like:
-// - Asynchronous message processing.
-// - Connection maintenance with heartbeats.
-// - Graceful shutdown handling.
-// - Error tracking and propagation.
+//
+// Features:
+//   - Asynchronous message processing
+//   - Connection maintenance with heartbeats
+//   - Graceful shutdown handling
+//   - Error tracking and propagation
+//
 // A Writer is intended to be tied to a single client connection.
 type Writer struct {
 	config         *WriterConfig
-	isClosed       atomic.Bool         // Tracks if the writer has been closed.
-	waitGroup      sync.WaitGroup      // Manages active goroutines for graceful shutdown.
-	ctx            context.Context     // Context to control the writer's lifecycle.
-	messageEncoder *Encoder            // Encodes messages in SSE-compliant format.
-	httpResponse   http.ResponseWriter // HTTP response writer for client communication.
-	httpFlusher    http.Flusher        // Handles flushing the response to the client.
-	closeSignal    chan struct{}       // Channel signaling graceful shutdown.
-	messageQueue   chan []byte         // Buffered message queue for asynchronous processing.
-	errors         []error             // Stores any errors encountered during processing.
+	isClosed       atomic.Bool         // Tracks if the writer has been closed
+	waitGroup      sync.WaitGroup      // Manages active goroutines for graceful shutdown
+	ctx            context.Context     // Context to control the writer's lifecycle
+	messageEncoder *Encoder            // Encodes messages in SSE-compliant format
+	httpResponse   http.ResponseWriter // HTTP response writer for client communication
+	httpFlusher    http.Flusher        // Handles flushing the response to the client
+	closeSignal    chan struct{}       // Channel signaling graceful shutdown
+	messageQueue   chan []byte         // Buffered message queue for asynchronous processing
+	errors         []error             // Stores any errors encountered during processing
 }
 
 // NewWriter initializes and returns a new SSE Writer with the provided configuration.
 // It validates the configuration, sets up the internal dependencies, and starts
 // background processes for message handling.
 //
+// Parameters:
+//   - config: Configuration settings for the Writer
+//
 // Returns:
-// - A pointer to the initialized Writer instance.
-// - An error if the configuration is invalid.
+//   - A pointer to the initialized Writer instance
+//   - An error if the configuration is invalid
 //
 // Example usage:
 //
@@ -125,12 +133,11 @@ func (w *Writer) initialize() {
 }
 
 // setSSEHeaders sets the necessary HTTP headers for a Server-Sent Events stream.
-// According to the SSE specification, the following headers should be set:
-// - Content-Type: text/event-stream; charset=utf-8 (required for SSE)
-// - Connection: keep-alive (maintains persistent connection)
-// - Cache-Control: no-cache (prevents caching of events)
 //
-// The function preserves any existing Cache-Control header if already set.
+// According to the SSE specification, the following headers are set:
+//   - Content-Type: text/event-stream; charset=utf-8 (required for SSE)
+//   - Connection: keep-alive (maintains persistent connection)
+//   - Cache-Control: no-cache (prevents caching of events, only if not already set)
 //
 // Parameters:
 //   - header: The HTTP header collection to modify
@@ -144,7 +151,12 @@ func (w *Writer) setSSEHeaders(header http.Header) {
 }
 
 // writeDataToClient sends raw data to the HTTP response writer and flushes it to the client.
-// Returns an error if writing to the response fails.
+//
+// Parameters:
+//   - data: The raw bytes to write
+//
+// Returns:
+//   - An error if writing to the response fails
 func (w *Writer) writeDataToClient(data []byte) error {
 	if _, err := w.httpResponse.Write(data); err != nil {
 		return err
@@ -155,6 +167,9 @@ func (w *Writer) writeDataToClient(data []byte) error {
 }
 
 // recordError adds an error to the Writer's error list. Skips if the error is nil.
+//
+// Parameters:
+//   - err: The error to record
 func (w *Writer) recordError(err error) {
 	if err != nil {
 		w.errors = append(w.errors, err)
@@ -178,6 +193,7 @@ func (w *Writer) sendHeartbeatNonBlocking() {
 
 // startHeartbeatLoop sends periodic heartbeat messages to the client to keep the connection alive.
 // The heartbeat message is a comment line (": ping\n\n") as per the SSE protocol.
+// If HeartBeat is set to 0 or negative in the config, this function returns immediately.
 func (w *Writer) startHeartbeatLoop() {
 	defer w.waitGroup.Done()
 
@@ -235,9 +251,9 @@ func (w *Writer) processMessageQueue() {
 // parent context signals termination.
 //
 // This goroutine is responsible for:
-// - Watching for context cancellation signals
-// - Recording the context error when it occurs
-// - Triggering the Writer's close process
+//   - Watching for context cancellation signals
+//   - Recording the context error when it occurs
+//   - Triggering the Writer's close process
 //
 // This design separates context monitoring from message processing,
 // ensuring reliable cleanup regardless of the message queue state.
@@ -259,26 +275,29 @@ func (w *Writer) listenContext() {
 // Close gracefully shuts down the Writer, ensuring all queued messages are processed
 // and releasing resources. It blocks until all background goroutines complete.
 //
-// This method performs the following:
-// - Signals background goroutines to shut down.
-// - Sets the `isClosed` flag to prevent new message processing.
-// - Waits for all active processes to finish.
-// - Closes internal channels and queues.
-// - Returns any errors encountered during operation.
+// Behavior:
+//   - Signals background goroutines to shut down
+//   - Sets the isClosed flag to prevent new message processing
+//   - Waits for all active processes to finish
+//   - Closes internal channels and queues
 //
 // Calling Close multiple times is safe; subsequent calls are no-ops but will still
 // return any errors that occurred during operation.
 //
-// Error handling strategy:
-// - Collects and joins all errors encountered during the shutdown process
-// - Uses errors.Join() to combine multiple errors into a single return value
-// - Returns nil on successful closure with no errors
-// - All resources are released even if errors occur during the shutdown process
+// Error handling:
+//   - Collects and joins all errors encountered during the shutdown process
+//   - Uses errors.Join() to combine multiple errors into a single return value
+//   - Returns nil on successful closure with no errors
+//   - All resources are released even if errors occur during the shutdown process
 //
 // Timeout handling:
-// - Close() will wait for all messages to be processed, which may block
-// - For timeout-based shutdown, cancel the context provided in WriterConfig first
-// - When the context is canceled, the Writer will stop processing new messages and begin shutdown
+//   - Close() will wait for all messages to be processed, which may block
+//   - For timeout-based shutdown, cancel the context provided in WriterConfig first
+//   - When the context is canceled, the Writer will stop processing new messages and begin shutdown
+//
+// Returns:
+//   - nil if no errors occurred during operation
+//   - A joined error containing all errors encountered during the Writer's lifetime
 func (w *Writer) Close() error {
 	if w.isClosed.Load() {
 		return w.Error()
@@ -297,15 +316,19 @@ func (w *Writer) Close() error {
 // to be processed by the background goroutines asynchronously. It is non-blocking
 // unless the queue is full.
 //
-// Parameters:
-//   - msg: The SSE Message to send, which may include fields like ID, Event, Data, and Retry.
+// Behavior:
+//   - If the Writer is closed, this method will silently return without error
+//   - If the message has no content (all fields empty), returns ErrMessageNoContent
+//   - If the event name is invalid, returns ErrMessageInvalidEventName
+//   - If the message queue is full, this method will block until space is available or the context is canceled
+//   - There is no hard limit on message size, but very large messages may cause memory pressure
 //
-// Boundary conditions:
-// - If the Writer is closed (Close() has been called), this method will silently return without error
-// - If the message has no content (all fields empty), returns ErrMessageNoContent
-// - If the event name is invalid, returns ErrMessageInvalidEventName
-// - If the message queue is full, this method will block until space is available or the context is canceled
-// - There is no hard limit on message size, but very large messages may cause memory pressure
+// Parameters:
+//   - msg: The SSE Message to send, which may include fields like ID, Event, Data, and Retry
+//
+// Returns:
+//   - nil if the message was successfully enqueued
+//   - An error if message encoding fails or validation fails
 func (w *Writer) Send(msg *Message) error {
 	if w.isClosed.Load() {
 		return nil
@@ -328,7 +351,11 @@ func (w *Writer) Send(msg *Message) error {
 // that might not correctly process event-only messages.
 //
 // Parameters:
-//   - event: Identifier for the event type, which clients can listen for using EventSource.addEventListener().
+//   - event: Identifier for the event type, which clients can listen for using EventSource.addEventListener()
+//
+// Returns:
+//   - nil if the event was successfully sent
+//   - An error if the send operation fails
 func (w *Writer) SendEvent(event string) error {
 	eventMsg := &Message{
 		Event: event,
@@ -339,13 +366,18 @@ func (w *Writer) SendEvent(event string) error {
 }
 
 // SendData sends a structured message containing JSON-encoded data.
-// The data is marshaled into JSON format and set as the `Data` field of the SSE message.
+// The data is marshaled into JSON format and set as the Data field of the SSE message.
 //
 // Parameters:
-//   - data: Any value that is JSON-marshalable.
+//   - data: Any value that is JSON-marshalable
 //
-// Note: For raw, unstructured data, use `Send()` with a manually constructed Message.
-// - If the Writer is closed (Close() has been called), this method will silently return without error
+// Returns:
+//   - nil if the data was successfully sent
+//   - An error if JSON marshaling fails or the send operation fails
+//
+// Note:
+//   - If the Writer is closed, this method will silently return without error
+//   - For raw, unstructured data, use Send() with a manually constructed Message
 func (w *Writer) SendData(data any) error {
 	if w.isClosed.Load() {
 		return nil
@@ -365,7 +397,10 @@ func (w *Writer) SendData(data any) error {
 
 // Error retrieves any errors that occurred during the Writer's operation.
 // In case of multiple errors, they are joined and returned as a single error value.
-// Returns nil if no errors were recorded.
+//
+// Returns:
+//   - nil if no errors were recorded
+//   - A joined error containing all errors encountered during operation
 func (w *Writer) Error() error {
 	return errors.Join(w.errors...)
 }

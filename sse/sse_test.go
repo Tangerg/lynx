@@ -111,11 +111,12 @@ func TestSSEBasicReaderWriter(t *testing.T) {
 
 	count := 0
 	for reader.Next() {
-		msg, err := reader.Current()
+		err = reader.Error()
 		if err != nil {
 			t.Errorf("Read error: %v", err)
 			continue
 		}
+		msg := reader.Current()
 
 		count++
 		printMessage(t, fmt.Sprintf("Message %02d", count), msg)
@@ -153,11 +154,12 @@ func TestSSELargeMessageVolume(t *testing.T) {
 
 	count := 0
 	for reader.Next() {
-		msg, err := reader.Current()
+		err = reader.Error()
 		if err != nil {
 			t.Errorf("Read error: %v", err)
 			continue
 		}
+		msg := reader.Current()
 
 		count++
 		if count%10 == 0 || count <= 5 || count > 95 {
@@ -228,11 +230,12 @@ func TestSSELastID(t *testing.T) {
 
 	count := 0
 	for reader.Next() {
-		msg, err := reader.Current()
+		err = reader.Error()
 		if err != nil {
 			t.Errorf("Read error: %v", err)
 			continue
 		}
+		msg := reader.Current()
 
 		count++
 		printMessage(t, fmt.Sprintf("Message %02d", count), msg)
@@ -320,11 +323,12 @@ func TestSSEReaderError(t *testing.T) {
 
 	count := 0
 	for reader.Next() {
-		msg, err := reader.Current()
+		err = reader.Error()
 		if err != nil {
 			t.Errorf("Read error: %v", err)
 			continue
 		}
+		msg := reader.Current()
 
 		count++
 		printMessage(t, fmt.Sprintf("Message %02d", count), msg)
@@ -361,11 +365,12 @@ func TestSSEConcurrentReaders(t *testing.T) {
 
 			count := 0
 			for reader.Next() {
-				msg, err := reader.Current()
+				err = reader.Error()
 				if err != nil {
-					t.Errorf("Client %d: Read error: %v", id, err)
+					t.Errorf("Read error: %v", err)
 					continue
 				}
+				msg := reader.Current()
 
 				count++
 				printMessage(t, fmt.Sprintf("Client %d Message %02d", id, count), msg)

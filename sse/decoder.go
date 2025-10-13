@@ -23,13 +23,22 @@ type Decoder struct {
 }
 
 // NewDecoder creates a new SSE decoder that processes messages from the provided reader.
-// It initializes:
-// - A bufio.Reader checks for and skips the UTF-8 Byte Order Mark (BOM) sequence
-// - A scanner with custom line splitting for SSE protocol
-// - Buffers for accumulating event type and data payloads
-// - Internal state for tracking message IDs and retry intervals
+//
+// The decoder initializes:
+//   - A bufio.Reader that checks for and skips the UTF-8 Byte Order Mark (BOM) sequence
+//   - A scanner with custom line splitting for SSE protocol
+//   - Buffers for accumulating event type and data payloads
+//   - Internal state for tracking message IDs and retry intervals
+//
 // The returned decoder is ready to parse SSE messages using the Next() method.
+//
 // Note: The decoder does not close the underlying reader when finished.
+//
+// Parameters:
+//   - inputReader: The reader containing the SSE stream
+//
+// Returns:
+//   - A new decoder ready to parse SSE messages
 func NewDecoder(inputReader io.Reader) *Decoder {
 	streamReader := bufio.NewReader(inputReader)
 
@@ -49,6 +58,7 @@ func NewDecoder(inputReader io.Reader) *Decoder {
 // skipLeadingUTF8BOM checks for and skips the UTF-8 Byte Order Mark (BOM) sequence
 // at the beginning of the stream if present. According to the SSE specification,
 // one leading U+FEFF BOM character must be ignored if present at the start of the stream.
+//
 // This method is called once during decoder initialization and does not affect
 // subsequent data processing.
 func (d *Decoder) skipLeadingUTF8BOM() {
@@ -62,16 +72,27 @@ func (d *Decoder) skipLeadingUTF8BOM() {
 	}
 }
 
-// scanLinesSplit copy form github.com/Tangerg/lynx/pkg/bufio.ScanLinesAllFormats
-// implements a custom split function for bufio.Scanner to handle various
-// line ending patterns in SSE streams. It properly processes:
-// - CRLF (\r\n) sequences as a single line break
-// - CR (\r) alone as a line break
-// - LF (\n) alone as a line break
-// - EOF at the end of data
+// scanLinesSplit implements a custom split function for bufio.Scanner to handle various
+// line ending patterns in SSE streams.
+//
+// Copied from github.com/Tangerg/lynx/pkg/bufio.ScanLinesAllFormats
+//
+// It properly processes:
+//   - CRLF (\r\n) sequences as a single line break
+//   - CR (\r) alone as a line break
+//   - LF (\n) alone as a line break
+//   - EOF at the end of data
+//
 // This ensures compatibility with different server implementations and platforms.
-// The function returns the number of bytes to advance, the line token without
-// line break characters, and any error encountered.
+//
+// Parameters:
+//   - data: The data buffer to scan
+//   - atEOF: Whether the end of the stream has been reached
+//
+// Returns:
+//   - advance: Number of bytes to advance in the buffer
+//   - token: The line token without line break characters
+//   - err: Any error encountered during scanning
 func scanLinesSplit(data []byte, atEOF bool) (advance int, token []byte, err error) {
 	if atEOF && len(data) == 0 {
 		return 0, nil, nil
@@ -104,9 +125,15 @@ func scanLinesSplit(data []byte, atEOF bool) (advance int, token []byte, err err
 }
 
 // normalizeValue processes a field value according to the SSE specification:
-// - Removes leading whitespace
-// - Handles UTF-8 BOM sequences
-// - Replaces invalid UTF-8 sequences with the replacement character
+//   - Removes leading whitespace
+//   - Handles UTF-8 BOM sequences
+//   - Replaces invalid UTF-8 sequences with the replacement character
+//
+// Parameters:
+//   - fieldValue: The field value to normalize
+//
+// Returns:
+//   - The normalized field value
 func (d *Decoder) normalizeValue(fieldValue string) string {
 	normalizedValue := strings.TrimPrefix(fieldValue, whitespace)
 	if !utf8.ValidString(normalizedValue) {
@@ -118,14 +145,20 @@ func (d *Decoder) normalizeValue(fieldValue string) string {
 // hasValidData checks if the data buffer contains actual content beyond just line terminators.
 // Since empty data fields still result in a newline character being added to the buffer,
 // this method verifies that the buffer contains more than just that single newline.
-// Returns true if there is meaningful data to be processed, false otherwise.
+//
+// Returns:
+//   - true if there is meaningful data to be processed
+//   - false otherwise
 func (d *Decoder) hasValidData() bool {
 	return d.dataBuffer.Len() > 1 // Buffer length > 1 indicates presence of actual data content
 }
 
 // dispatch constructs a message from accumulated field values if valid data is present.
-// Returns true if a message was successfully constructed, false otherwise.
 // Also resets buffers after attempting to construct a message.
+//
+// Returns:
+//   - true if a message was successfully constructed
+//   - false otherwise
 func (d *Decoder) dispatch() bool {
 	defer d.resetBuffers()
 
@@ -145,11 +178,12 @@ func (d *Decoder) dispatch() bool {
 
 // constructMessage builds a Message from the accumulated field values and updates currentMessage.
 // Called when a complete SSE message has been parsed (indicated by an empty line).
+//
 // This method:
-// - Extracts the event type from eventBuffer
-// - Retrieves data from dataBuffer, removing any trailing newline
-// - Sets the message ID from the lastID (which persists across messages)
-// - Sets the retry value for reconnection timing
+//   - Extracts the event type from eventBuffer
+//   - Retrieves data from dataBuffer, removing any trailing newline
+//   - Sets the message ID from lastID (which persists across messages)
+//   - Sets the retry value for reconnection timing
 func (d *Decoder) constructMessage() {
 	// Remove trailing newline from data buffer
 	messageData := bytes.TrimSuffix(d.dataBuffer.Bytes(), byteLF)
@@ -170,14 +204,19 @@ func (d *Decoder) resetBuffers() {
 	d.retry = 0
 }
 
-// processLine handles a single line of input from the SSE stream according to the specification:
-// - Ignores comment lines (starting with ':')
-// - Parses field name and value pairs
-// - Updates the appropriate internal state based on the field name:
+// processLine handles a single line of input from the SSE stream according to the specification.
+//
+// Behavior:
+//   - Ignores comment lines (starting with ':')
+//   - Parses field name and value pairs
+//   - Updates the appropriate internal state based on the field name:
 //   - "id": Updates the lastID field
-//   - "event": Appends to the event buffer
+//   - "event": Sets the event buffer (defaults to "message" if empty)
 //   - "data": Appends to the data buffer with a trailing newline
-//   - "retry": Converts to an integer for reconnection timing
+//   - "retry": Converts to an integer for reconnection timing (only if positive and valid)
+//
+// Parameters:
+//   - inputLine: The line to process
 func (d *Decoder) processLine(inputLine string) {
 	// Ignore comment lines
 	if strings.HasPrefix(inputLine, delimiter) {
@@ -219,22 +258,28 @@ func (d *Decoder) processLine(inputLine string) {
 
 // Current returns the most recently decoded message.
 // Should be called after Next() returns true to access the parsed message.
+//
+// Returns:
+//   - The current message
 func (d *Decoder) Current() Message {
 	return d.currentMessage
 }
 
 // Next advances to the next message in the stream, parsing lines until a complete
-// message is found or the stream ends. Returns true if a message was successfully
-// decoded, false if the stream ended or an error occurred.
+// message is found or the stream ends.
 //
-// Boundary conditions:
-// - Returns false if the stream has ended
-// - Returns false and sets internal error state (retrievable via Error()) if an error is encountered
-// - Completes parsing of the current message and returns true when an empty line is encountered
-// - If an empty line is encountered but there is no current content, continues parsing until a message with content is found
-// - If there is an incomplete message at the end of the stream (not terminated by an empty line), still parses and returns that message
-// - If a message contains an invalid event name, that message will be ignored and parsing continues
-// - If invalid UTF-8 sequences are found, they will be replaced with the U+FFFD character
+// Behavior:
+//   - Returns false if the stream has ended
+//   - Returns false and sets internal error state (retrievable via Error()) if an error is encountered
+//   - Completes parsing of the current message and returns true when an empty line is encountered
+//   - If an empty line is encountered but there is no current content, continues parsing until a message with content is found
+//   - If there is an incomplete message at the end of the stream (not terminated by an empty line), still parses and returns that message
+//   - If a message contains an invalid event name, that message will be ignored and parsing continues
+//   - Invalid UTF-8 sequences are replaced with the U+FFFD character
+//
+// Returns:
+//   - true if a message was successfully decoded
+//   - false if the stream ended or an error occurred
 func (d *Decoder) Next() bool {
 	if d.lastError != nil {
 		return false
@@ -276,6 +321,10 @@ func (d *Decoder) Next() bool {
 // Error returns any error encountered during the decoding process.
 // Should be checked after Next() returns false to determine if the stream
 // ended normally or due to an error condition.
+//
+// Returns:
+//   - nil if the stream ended normally
+//   - The error that caused decoding to stop
 func (d *Decoder) Error() error {
 	return d.lastError
 }
