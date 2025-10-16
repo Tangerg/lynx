@@ -138,6 +138,9 @@ func (m *MIME) Params() map[string]string {
 // - "application/json"
 // - "image/png;quality=high"
 func (m *MIME) String() string {
+	if m == nil {
+		return ""
+	}
 	if m.stringCache == "" {
 		m.formatStringValue()
 	}

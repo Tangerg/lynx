@@ -59,15 +59,10 @@ func (t *Tiktoken) EstimateText(ctx context.Context, text string) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	media, err := media.
-		NewMediaBuilder().
-		WithData(text).
-		WithMimeType(mt).
-		Build()
-	if err != nil {
-		return 0, err
-	}
-	return t.EstimateMedia(ctx, media)
+	return t.EstimateMedia(ctx, &media.Media{
+		Data:     text,
+		MimeType: mt,
+	})
 }
 
 // EstimateMedia estimates the number of tokens in the given media content.
@@ -110,12 +105,15 @@ func (t *Tiktoken) EstimateMedia(ctx context.Context, media ...*media.Media) (in
 // If JSON marshaling fails for non-string/[]byte data, the error is ignored
 // and only MIME type tokens are counted.
 func (t *Tiktoken) estimateMedia(_ context.Context, media *media.Media) (int, error) {
+	if media == nil {
+		return 0, nil
+	}
 	// Count tokens for MIME type
-	mt := media.MIMEType().String()
+	mt := media.MimeType.String()
 	token := len(t.encoding.Encode(mt, nil, nil))
 
 	// Convert data to text based on type
-	data := media.Data()
+	data := media.Data
 	var text string
 	switch data.(type) {
 	case string:
