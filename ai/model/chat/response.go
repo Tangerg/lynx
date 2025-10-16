@@ -40,8 +40,11 @@ const (
 // ResultMetadata contains completion status and provider-specific metadata
 // for a single LLM generation result.
 type ResultMetadata struct {
-	FinishReason FinishReason   `json:"finish_reason"` // Completion reason
-	Extra        map[string]any `json:"extra"`         // Provider-specific metadata
+	// FinishReason Completion reason
+	FinishReason FinishReason `json:"finish_reason"`
+
+	// Extra Provider-specific metadata
+	Extra map[string]any `json:"extra"`
 }
 
 func (m *ResultMetadata) ensureExtra() {
@@ -64,9 +67,14 @@ func (m *ResultMetadata) Set(key string, value any) {
 // Result represents a single LLM generation result containing the assistant's
 // response, completion metadata, and optional internalTool execution results.
 type Result struct {
-	AssistantMessage *AssistantMessage `json:"assistant_message"` // LLM generated response
-	Metadata         *ResultMetadata   `json:"metadata"`          // Completion metadata
-	ToolMessage      *ToolMessage      `json:"tool_message"`      // Tool execution results (optional)
+	// AssistantMessage LLM generated response
+	AssistantMessage *AssistantMessage `json:"assistant_message"`
+
+	// Metadata Completion metadata
+	Metadata *ResultMetadata `json:"metadata"`
+
+	// ToolMessage Tool execution results (optional)
+	ToolMessage *ToolMessage `json:"tool_message"`
 }
 
 // NewResult creates a new generation result with the required assistant message
@@ -88,9 +96,14 @@ func NewResult(assistantMessage *AssistantMessage, metadata *ResultMetadata) (*R
 // Usage tracks token consumption statistics for LLM API requests,
 // including both input prompt and generated completion tokens.
 type Usage struct {
-	PromptTokens     int64 `json:"prompt_tokens"`            // Tokens consumed by input messages
-	CompletionTokens int64 `json:"completion_tokens"`        // Tokens generated in response
-	OriginalUsage    any   `json:"original_usage,omitempty"` // Provider-specific usage data
+	// PromptTokens Tokens consumed by input messages
+	PromptTokens int64 `json:"prompt_tokens"`
+
+	// CompletionTokens Tokens generated in response
+	CompletionTokens int64 `json:"completion_tokens"`
+
+	// OriginalUsage Provider-specific usage data
+	OriginalUsage any `json:"original_usage,omitempty"`
 }
 
 // TotalTokens returns the sum of prompt and completion tokens,
@@ -102,23 +115,45 @@ func (u *Usage) TotalTokens() int64 {
 // RateLimit contains API rate limiting information from the provider,
 // including quota limits, remaining quotas, and reset timings.
 type RateLimit struct {
-	RequestsLimit     int64         `json:"requests_limit"`     // Maximum requests per time window
-	RequestsRemaining int64         `json:"requests_remaining"` // Remaining requests in current window
-	RequestsReset     time.Duration `json:"requests_reset"`     // Time until request quota resets
-	TokensLimit       int64         `json:"tokens_limit"`       // Maximum tokens per time window
-	TokensRemaining   int64         `json:"tokens_remaining"`   // Remaining tokens in current window
-	TokensReset       time.Duration `json:"tokens_reset"`       // Time until token quota resets
+	// RequestsLimit Maximum requests per time window
+	RequestsLimit int64 `json:"requests_limit"`
+
+	// RequestsRemaining Remaining requests in current window
+	RequestsRemaining int64 `json:"requests_remaining"`
+
+	// RequestsReset Time until request quota resets
+	RequestsReset time.Duration `json:"requests_reset"`
+
+	// TokensLimit Maximum tokens per time window
+	TokensLimit int64 `json:"tokens_limit"`
+
+	// TokensRemaining Remaining tokens in current window
+	TokensRemaining int64 `json:"tokens_remaining"`
+
+	// TokensReset Time until token quota resets
+	TokensReset time.Duration `json:"tokens_reset"`
 }
 
 // ResponseMetadata contains comprehensive metadata from LLM responses including
 // usage statistics, rate limits, and provider-specific attributes.
 type ResponseMetadata struct {
-	ID        string         `json:"id"`         // Unique response identifier
-	Model     string         `json:"model"`      // Model name/version used
-	Usage     *Usage         `json:"usage"`      // Token consumption details
-	RateLimit *RateLimit     `json:"rate_limit"` // Rate limiting information
-	Created   int64          `json:"created"`    // Unix timestamp of response creation
-	Extra     map[string]any `json:"extra"`      // Provider-specific metadata
+	// ID Unique response identifier
+	ID string `json:"id"`
+
+	// Model name/version used
+	Model string `json:"model"`
+
+	// Usage Token consumption details
+	Usage *Usage `json:"usage"`
+
+	// RateLimit Rate limiting information
+	RateLimit *RateLimit `json:"rate_limit"`
+
+	// Created Unix timestamp of response creation
+	Created int64 `json:"created"`
+
+	// Extra Provider-specific metadata
+	Extra map[string]any `json:"extra"`
 }
 
 func (m *ResponseMetadata) ensureExtra() {
@@ -141,8 +176,11 @@ func (m *ResponseMetadata) Set(key string, value any) {
 // Response represents a complete LLM chat response containing generated
 // results and associated metadata.
 type Response struct {
-	Results  []*Result         `json:"results"`  // Generated results from the LLM
-	Metadata *ResponseMetadata `json:"metadata"` // Response metadata
+	// Results Generated results from the LLM
+	Results []*Result `json:"results"`
+
+	// Metadata Response metadata
+	Metadata *ResponseMetadata `json:"metadata"`
 }
 
 // NewResponse creates a new chat response with results and metadata.

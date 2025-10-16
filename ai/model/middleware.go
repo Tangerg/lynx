@@ -27,6 +27,10 @@ type MiddlewareManager[CallRequest any, CallResponse any, StreamRequest any, Str
 	streamMiddlewares []StreamMiddleware[StreamRequest, StreamResponse]
 }
 
+func NewMiddlewareManager[CallRequest any, CallResponse any, StreamRequest any, StreamResponse any]() *MiddlewareManager[CallRequest, CallResponse, StreamRequest, StreamResponse] {
+	return &MiddlewareManager[CallRequest, CallResponse, StreamRequest, StreamResponse]{}
+}
+
 // BuildCallHandler applies the registered call middleware chain to the provided
 // CallHandler endpoint. The middleware is applied in reverse order (last added, first executed).
 // This method is thread-safe and uses a read lock for consistent middleware chain application.
@@ -133,11 +137,101 @@ func (m *MiddlewareManager[CallRequest, CallResponse, StreamRequest, StreamRespo
 // chains. Useful for creating separate configurations that start with the same base
 // middleware but may diverge over time. Thread-safe operation with no shared state.
 func (m *MiddlewareManager[CallRequest, CallResponse, StreamRequest, StreamResponse]) Clone() *MiddlewareManager[CallRequest, CallResponse, StreamRequest, StreamResponse] {
+	if m == nil {
+		return nil
+	}
+
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	return &MiddlewareManager[CallRequest, CallResponse, StreamRequest, StreamResponse]{
 		callMiddlewares:   slices.Clone(m.callMiddlewares),
 		streamMiddlewares: slices.Clone(m.streamMiddlewares),
+	}
+}
+
+// CallMiddlewareManager provides a specialized manager for call middleware only.
+// It wraps the generic MiddlewareManager to provide a simpler, focused interface
+// for managing call-specific middleware chains without exposing stream middleware methods.
+type CallMiddlewareManager[CallRequest any, CallResponse any] struct {
+	inner *MiddlewareManager[CallRequest, CallResponse, any, any]
+}
+
+func NewCallMiddlewareManager[CallRequest any, CallResponse any]() *CallMiddlewareManager[CallRequest, CallResponse] {
+	return &CallMiddlewareManager[CallRequest, CallResponse]{
+		inner: NewMiddlewareManager[CallRequest, CallResponse, any, any](),
+	}
+}
+
+// UseMiddlewares registers one or more CallMiddleware instances to the middleware chain.
+// This method provides a fluent interface for building up the middleware stack incrementally.
+// Returns the CallMiddlewareManager instance for method chaining.
+func (c *CallMiddlewareManager[CallRequest, CallResponse]) UseMiddlewares(callMiddlewares ...CallMiddleware[CallRequest, CallResponse]) *CallMiddlewareManager[CallRequest, CallResponse] {
+	c.inner.UseCallMiddlewares(callMiddlewares...)
+	return c
+}
+
+// BuildHandler applies the registered middleware chain to the provided CallHandler endpoint.
+// The middleware is applied in reverse order of registration (last registered, first executed),
+// creating a layered wrapper around the core handler. This allows middleware to intercept
+// and modify both the request and response in a composable manner.
+func (c *CallMiddlewareManager[CallRequest, CallResponse]) BuildHandler(endpoint CallHandler[CallRequest, CallResponse]) CallHandler[CallRequest, CallResponse] {
+	return c.inner.BuildCallHandler(endpoint)
+}
+
+// Clone creates a deep copy of the CallMiddlewareManager with an independent middleware chain.
+// This is useful when you need to create variations of a base middleware configuration
+// without affecting the original. The cloned manager maintains all registered middleware
+// but operates independently from the source manager. Returns nil if called on a nil receiver.
+func (c *CallMiddlewareManager[CallRequest, CallResponse]) Clone() *CallMiddlewareManager[CallRequest, CallResponse] {
+	if c == nil {
+		return nil
+	}
+
+	return &CallMiddlewareManager[CallRequest, CallResponse]{
+		inner: c.inner.Clone(),
+	}
+}
+
+// StreamMiddlewareManager provides a specialized manager for stream middleware only.
+// It wraps the generic MiddlewareManager to provide a simpler, focused interface
+// for managing streaming-specific middleware chains without exposing call middleware methods.
+type StreamMiddlewareManager[StreamRequest any, StreamResponse any] struct {
+	inner *MiddlewareManager[any, any, StreamRequest, StreamResponse]
+}
+
+func NewStreamMiddlewareManager[StreamRequest any, StreamResponse any]() *StreamMiddlewareManager[StreamRequest, StreamResponse] {
+	return &StreamMiddlewareManager[StreamRequest, StreamResponse]{
+		inner: NewMiddlewareManager[any, any, StreamRequest, StreamResponse](),
+	}
+}
+
+// UseMiddlewares registers one or more StreamMiddleware instances to the middleware chain.
+// This method provides a fluent interface for building up the middleware stack incrementally.
+// Returns the StreamMiddlewareManager instance for method chaining.
+func (s *StreamMiddlewareManager[StreamRequest, StreamResponse]) UseMiddlewares(streamMiddlewares ...StreamMiddleware[StreamRequest, StreamResponse]) *StreamMiddlewareManager[StreamRequest, StreamResponse] {
+	s.inner.UseStreamMiddlewares(streamMiddlewares...)
+	return s
+}
+
+// BuildHandler applies the registered middleware chain to the provided StreamHandler endpoint.
+// The middleware is applied in reverse order of registration (last registered, first executed),
+// creating a layered wrapper around the core handler. This allows middleware to intercept
+// and modify both the request and response streams in a composable manner.
+func (s *StreamMiddlewareManager[StreamRequest, StreamResponse]) BuildHandler(endpoint StreamHandler[StreamRequest, StreamResponse]) StreamHandler[StreamRequest, StreamResponse] {
+	return s.inner.BuildStreamHandler(endpoint)
+}
+
+// Clone creates a deep copy of the StreamMiddlewareManager with an independent middleware chain.
+// This is useful when you need to create variations of a base middleware configuration
+// without affecting the original. The cloned manager maintains all registered middleware
+// but operates independently from the source manager. Returns nil if called on a nil receiver.
+func (s *StreamMiddlewareManager[StreamRequest, StreamResponse]) Clone() *StreamMiddlewareManager[StreamRequest, StreamResponse] {
+	if s == nil {
+		return nil
+	}
+
+	return &StreamMiddlewareManager[StreamRequest, StreamResponse]{
+		inner: s.inner.Clone(),
 	}
 }

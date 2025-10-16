@@ -14,16 +14,35 @@ import (
 // It includes standard parameters like temperature and token limits,
 // as well as provider-specific options stored in the Extra field.
 type Options struct {
-	Model            string         `json:"model"`             // The AI model identifier to use
-	FrequencyPenalty *float64       `json:"frequency_penalty"` // Penalty for token frequency (-2.0 to 2.0)
-	MaxTokens        *int64         `json:"max_tokens"`        // Maximum number of tokens to generate
-	PresencePenalty  *float64       `json:"presence_penalty"`  // Penalty for token presence (-2.0 to 2.0)
-	Stop             []string       `json:"stop"`              // Sequences where generation should stop
-	Temperature      *float64       `json:"temperature"`       // Sampling temperature (0.0 to 2.0)
-	TopK             *int64         `json:"top_k"`             // Top-K sampling parameter
-	TopP             *float64       `json:"top_p"`             // Nucleus sampling parameter
-	Extra            map[string]any `json:"extra"`             // Provider-specific options
-	Tools            []Tool         `json:"-"`                 // Tools that can be invoked by LLM models.
+	// Model The AI model identifier to use
+	Model string `json:"model"`
+
+	// FrequencyPenalty Penalty for token frequency (-2.0 to 2.0)
+	FrequencyPenalty *float64 `json:"frequency_penalty"`
+
+	// MaxTokens Maximum number of tokens to generate
+	MaxTokens *int64 `json:"max_tokens"`
+
+	// PresencePenalty Penalty for token presence (-2.0 to 2.0)
+	PresencePenalty *float64 `json:"presence_penalty"`
+
+	// Stop Sequences where generation should stop
+	Stop []string `json:"stop"`
+
+	// Temperature Sampling temperature (0.0 to 2.0)
+	Temperature *float64 `json:"temperature"`
+
+	// TopK Top-K sampling parameter
+	TopK *int64 `json:"top_k"`
+
+	// TopP Nucleus sampling parameter
+	TopP *float64 `json:"top_p"`
+
+	// Extra Provider-specific options
+	Extra map[string]any `json:"extra"`
+
+	// Tools that can be invoked by LLM models.
+	Tools []Tool `json:"-"`
 }
 
 // NewOptions creates a new Options instance with the specified model.
@@ -45,21 +64,6 @@ func NewOptions(model string) (*Options, error) {
 	}, nil
 }
 
-func (o *Options) Clone() *Options {
-	return &Options{
-		Model:            o.Model,
-		FrequencyPenalty: ptr.Clone(o.FrequencyPenalty),
-		MaxTokens:        ptr.Clone(o.MaxTokens),
-		PresencePenalty:  ptr.Clone(o.PresencePenalty),
-		Stop:             slices.Clone(o.Stop),
-		Temperature:      ptr.Clone(o.Temperature),
-		TopK:             ptr.Clone(o.TopK),
-		TopP:             ptr.Clone(o.TopP),
-		Tools:            slices.Clone(o.Tools),
-		Extra:            maps.Clone(o.Extra),
-	}
-}
-
 func (o *Options) ensureExtra() {
 	if o.Extra == nil {
 		o.Extra = make(map[string]any)
@@ -75,6 +79,25 @@ func (o *Options) Get(key string) (any, bool) {
 func (o *Options) Set(key string, value any) {
 	o.ensureExtra()
 	o.Extra[key] = value
+}
+
+func (o *Options) Clone() *Options {
+	if o == nil {
+		return nil
+	}
+
+	return &Options{
+		Model:            o.Model,
+		FrequencyPenalty: ptr.Clone(o.FrequencyPenalty),
+		MaxTokens:        ptr.Clone(o.MaxTokens),
+		PresencePenalty:  ptr.Clone(o.PresencePenalty),
+		Stop:             slices.Clone(o.Stop),
+		Temperature:      ptr.Clone(o.Temperature),
+		TopK:             ptr.Clone(o.TopK),
+		TopP:             ptr.Clone(o.TopP),
+		Tools:            slices.Clone(o.Tools),
+		Extra:            maps.Clone(o.Extra),
+	}
 }
 
 // MergeOptions merges multiple Options into a single Options instance.
@@ -110,7 +133,9 @@ func MergeOptions(options *Options, opts ...*Options) (*Options, error) {
 		if opt == nil {
 			continue
 		}
-		mergedOpts.Model = opt.Model
+		if opt.Model != "" {
+			mergedOpts.Model = opt.Model
+		}
 		if opt.FrequencyPenalty != nil {
 			mergedOpts.FrequencyPenalty = opt.FrequencyPenalty
 		}
@@ -148,9 +173,14 @@ func MergeOptions(options *Options, opts ...*Options) (*Options, error) {
 // Request represents a chat request containing conversation messages,
 // model-specific options, and contextual parameters.
 type Request struct {
-	Messages []Message      `json:"messages"` // The conversation message history
-	Options  *Options       `json:"options"`  // Model configuration options
-	Params   map[string]any `json:"params"`   // Request parameters like userID, sessionID, etc.
+	// Messages The conversation message history
+	Messages []Message `json:"messages"`
+
+	// Options Model configuration options
+	Options *Options `json:"options"`
+
+	// Params Request parameters like userID, sessionID, etc.
+	Params map[string]any `json:"params"`
 }
 
 // NewRequest creates a new chat request with the provided messages.

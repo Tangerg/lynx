@@ -38,12 +38,12 @@ func newChatModel() *openai.ChatModel {
 }
 
 func newChatClient() *chat.Client {
-	clientConfig := assert.Must(
-		chat.NewClientConfig(newChatModel()),
+	req := assert.Must(
+		chat.NewClientRequest(newChatModel()),
 	)
 
 	return assert.Must(
-		chat.NewClient(clientConfig),
+		chat.NewClient(req),
 	)
 }
 

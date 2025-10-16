@@ -17,9 +17,14 @@ import (
 //   - Description: Human-readable explanation for LLM decision-making
 //   - InputSchema: JSON Schema defining required input parameter structure
 type ToolDefinition struct {
-	Name        string // unique identifier for tool recognition
-	Description string // descriptive text guiding LLM usage decisions
-	InputSchema string // JSON Schema for parameter validation
+	// unique identifier for tool recognition
+	Name string
+
+	// descriptive text guiding LLM usage decisions
+	Description string
+
+	// JSON Schema for parameter validation
+	InputSchema string
 }
 
 // ToolMetadata represents execution configuration that controls how the LLM framework

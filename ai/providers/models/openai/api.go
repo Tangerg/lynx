@@ -45,3 +45,10 @@ func (a *Api) ChatCompletionStream(ctx context.Context, req *openai.ChatCompleti
 
 	return a.client.Chat.Completions.NewStreaming(ctx, *req, opts...), nil
 }
+
+func (a *Api) Embeddings(ctx context.Context, req *openai.EmbeddingNewParams, opts ...option.RequestOption) (*openai.CreateEmbeddingResponse, error) {
+	if req == nil {
+		return nil, errors.New("request parameters cannot be nil")
+	}
+	return a.client.Embeddings.New(ctx, *req, opts...)
+}

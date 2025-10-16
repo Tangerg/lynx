@@ -60,6 +60,9 @@ func (p *PromptTemplate) WithMedia(media ...*media.Media) *PromptTemplate {
 // Clone creates a deep copy of the PromptTemplate with its
 // renderer state and media attachments.
 func (p *PromptTemplate) Clone() *PromptTemplate {
+	if p == nil {
+		return nil
+	}
 	return &PromptTemplate{
 		renderer: p.renderer.Clone(),
 		media:    slices.Clone(p.media),
@@ -101,83 +104,30 @@ type MiddlewareManager = model.MiddlewareManager[*Request, *Response, *Request, 
 
 // NewMiddlewareManager creates a new middleware manager for chat operations.
 func NewMiddlewareManager() *MiddlewareManager {
-	return &MiddlewareManager{}
+	return model.NewMiddlewareManager[*Request, *Response, *Request, *Response]()
 }
 
-// Client provides a high-level interface for chat interactions
-// with configurable defaults and fluent API support.
-type Client struct {
-	defaultConfig *ClientConfig
-}
-
-// NewClient creates a new chat client with the specified default configuration.
-// Returns an error if config is nil.
-func NewClient(config *ClientConfig) (*Client, error) {
-	if config == nil {
-		return nil, errors.New("client configuration cannot be nil")
-	}
-
-	return &Client{
-		defaultConfig: config,
-	}, nil
-}
-
-// Chat returns a new configuration based on the client's defaults
-// for creating customized chat interactions.
-func (c *Client) Chat() *ClientConfig {
-	return c.defaultConfig.Clone()
-}
-
-// ChatText creates a chat interaction with a simple text message
-// using default options.
-func (c *Client) ChatText(text string) *ClientConfig {
-	return c.
-		defaultConfig.
-		Clone().
-		WithMessages(NewUserMessage(text))
-}
-
-// ChatPromptTemplate creates a chat interaction using a prompt template
-// for the user message.
-func (c *Client) ChatPromptTemplate(promptTemplate *PromptTemplate) *ClientConfig {
-	return c.
-		defaultConfig.
-		Clone().
-		WithUserPromptTemplate(promptTemplate)
-}
-
-// ChatRequest creates a chat interaction from an existing request,
-// merging its configuration with client defaults.
-func (c *Client) ChatRequest(req *Request) *ClientConfig {
-	return c.
-		defaultConfig.
-		Clone().
-		WithMessages(req.Messages...).
-		WithOptions(req.Options).
-		WithParams(req.Params)
-}
-
-// ClientConfig provides fluent configuration for chat interactions
+// ClientRequest provides fluent configuration for chat interactions
 // including messages, options, templates, and middleware.
-type ClientConfig struct {
+type ClientRequest struct {
 	model                Model
+	middlewareManager    *MiddlewareManager
 	options              *Options
 	userPromptTemplate   *PromptTemplate
 	systemPromptTemplate *PromptTemplate
 	messages             []Message
-	middlewareManager    *MiddlewareManager
 	params               map[string]any
 	tools                []Tool
 }
 
-// NewClientConfig creates a new client configuration with the specified model.
+// NewClientRequest creates a new client request with the specified model.
 // Returns an error if model is nil.
-func NewClientConfig(model Model) (*ClientConfig, error) {
+func NewClientRequest(model Model) (*ClientRequest, error) {
 	if model == nil {
 		return nil, errors.New("chat model cannot be nil")
 	}
 
-	return &ClientConfig{
+	return &ClientRequest{
 		model:             model,
 		middlewareManager: NewMiddlewareManager(),
 		params:            make(map[string]any),
@@ -185,131 +135,119 @@ func NewClientConfig(model Model) (*ClientConfig, error) {
 	}, nil
 }
 
-// Call returns a caller for synchronous chat operations.
-func (c *ClientConfig) Call() *ClientCaller {
-	return newClientCaller(c)
-}
-
-// Stream returns a streamer for streaming chat operations.
-func (c *ClientConfig) Stream() *ClientStreamer {
-	return newClientStreamer(c)
-}
-
-// WithOptions sets the model options for the chat interaction.
-// Returns the config for method chaining.
-func (c *ClientConfig) WithOptions(options *Options) *ClientConfig {
-	if options != nil {
-		c.options = options
-	}
-	return c
-}
-
-// WithUserPrompt sets the user prompt from a string template.
-// Returns the config for method chaining.
-func (c *ClientConfig) WithUserPrompt(prompt string) *ClientConfig {
-	if prompt != "" {
-		c.userPromptTemplate = NewPromptTemplate().WithTemplate(prompt)
-	}
-	return c
-}
-
-// WithUserPromptTemplate sets the user prompt template.
-// Returns the config for method chaining.
-func (c *ClientConfig) WithUserPromptTemplate(template *PromptTemplate) *ClientConfig {
-	if template != nil {
-		c.userPromptTemplate = template
-	}
-	return c
-}
-
-// WithSystemPrompt sets the system prompt from a string template.
-// Returns the config for method chaining.
-func (c *ClientConfig) WithSystemPrompt(prompt string) *ClientConfig {
-	if prompt != "" {
-		c.systemPromptTemplate = NewPromptTemplate().WithTemplate(prompt)
-	}
-	return c
-}
-
-// WithSystemPromptTemplate sets the system prompt template.
-// Returns the config for method chaining.
-func (c *ClientConfig) WithSystemPromptTemplate(template *PromptTemplate) *ClientConfig {
-	if template != nil {
-		c.systemPromptTemplate = template
-	}
-	return c
-}
-
-// WithMessages appends messages to the conversation.
-// Returns the config for method chaining.
-func (c *ClientConfig) WithMessages(messages ...Message) *ClientConfig {
-	if len(messages) > 0 {
-		c.messages = messages
-	}
-	return c
-}
-
 // WithMiddlewares sets the middleware chain for the chat interaction.
-// Returns the config for method chaining.
-func (c *ClientConfig) WithMiddlewares(middlewares ...any) *ClientConfig {
+// Returns the request for method chaining.
+func (r *ClientRequest) WithMiddlewares(middlewares ...any) *ClientRequest {
 	if len(middlewares) > 0 {
-		c.middlewareManager = NewMiddlewareManager().UseMiddlewares(middlewares...)
+		r.middlewareManager = NewMiddlewareManager().UseMiddlewares(middlewares...)
 	}
-	return c
+	return r
 }
 
 // WithMiddlewareManager sets the middleware manager.
-// Returns the config for method chaining.
-func (c *ClientConfig) WithMiddlewareManager(middlewareManager *MiddlewareManager) *ClientConfig {
+// Returns the request for method chaining.
+func (r *ClientRequest) WithMiddlewareManager(middlewareManager *MiddlewareManager) *ClientRequest {
 	if middlewareManager != nil {
-		c.middlewareManager = middlewareManager
+		r.middlewareManager = middlewareManager
 	}
-	return c
+	return r
+}
+
+// WithOptions sets the model options for the chat interaction.
+// Returns the request for method chaining.
+func (r *ClientRequest) WithOptions(options *Options) *ClientRequest {
+	if options != nil {
+		r.options = options
+	}
+	return r
+}
+
+// WithUserPrompt sets the user prompt from a string template.
+// Returns the request for method chaining.
+func (r *ClientRequest) WithUserPrompt(prompt string) *ClientRequest {
+	if prompt != "" {
+		r.userPromptTemplate = NewPromptTemplate().WithTemplate(prompt)
+	}
+	return r
+}
+
+// WithUserPromptTemplate sets the user prompt template.
+// Returns the request for method chaining.
+func (r *ClientRequest) WithUserPromptTemplate(template *PromptTemplate) *ClientRequest {
+	if template != nil {
+		r.userPromptTemplate = template
+	}
+	return r
+}
+
+// WithSystemPrompt sets the system prompt from a string template.
+// Returns the request for method chaining.
+func (r *ClientRequest) WithSystemPrompt(prompt string) *ClientRequest {
+	if prompt != "" {
+		r.systemPromptTemplate = NewPromptTemplate().WithTemplate(prompt)
+	}
+	return r
+}
+
+// WithSystemPromptTemplate sets the system prompt template.
+// Returns the request for method chaining.
+func (r *ClientRequest) WithSystemPromptTemplate(template *PromptTemplate) *ClientRequest {
+	if template != nil {
+		r.systemPromptTemplate = template
+	}
+	return r
+}
+
+// WithMessages appends messages to the conversation.
+// Returns the request for method chaining.
+func (r *ClientRequest) WithMessages(messages ...Message) *ClientRequest {
+	if len(messages) > 0 {
+		r.messages = messages
+	}
+	return r
 }
 
 // WithParams sets additional parameters for the chat request.
-// Returns the config for method chaining.
-func (c *ClientConfig) WithParams(params map[string]any) *ClientConfig {
+// Returns the request for method chaining.
+func (r *ClientRequest) WithParams(params map[string]any) *ClientRequest {
 	if len(params) > 0 {
-		c.params = params
+		r.params = params
 	}
-	return c
+	return r
 }
 
 // WithTools adds tools available for the chat interaction.
-// Returns the config for method chaining.
-func (c *ClientConfig) WithTools(tools ...Tool) *ClientConfig {
+// Returns the request for method chaining.
+func (r *ClientRequest) WithTools(tools ...Tool) *ClientRequest {
 	if len(tools) > 0 {
-		c.tools = tools
+		r.tools = tools
 	}
-	return c
+	return r
 }
 
-// Clone creates a deep copy of the configuration.
-func (c *ClientConfig) Clone() *ClientConfig {
-	cfg, _ := NewClientConfig(c.model)
-
-	cfg.
-		WithOptions(c.options).
-		WithUserPromptTemplate(c.userPromptTemplate).
-		WithSystemPromptTemplate(c.systemPromptTemplate).
-		WithMessages(c.messages...).
-		WithMiddlewareManager(c.middlewareManager).
-		WithParams(c.params).
-		WithTools(c.tools...)
-
-	return cfg
+// Clone creates a deep copy of the client request.
+func (r *ClientRequest) Clone() *ClientRequest {
+	return &ClientRequest{
+		model:                r.model,
+		middlewareManager:    r.middlewareManager.Clone(),
+		options:              r.options.Clone(),
+		userPromptTemplate:   r.userPromptTemplate.Clone(),
+		systemPromptTemplate: r.systemPromptTemplate.Clone(),
+		messages:             slices.Clone(r.messages),
+		params:               maps.Clone(r.params),
+		tools:                slices.Clone(r.tools),
+	}
 }
 
 // getOptions returns the effective options for the chat interaction,
-// merging config options with tool-specific settings.
-func (c *ClientConfig) getOptions() *Options {
+// merging request options with tool-specific settings.
+func (r *ClientRequest) getOptions() *Options {
 	var opts *Options
 
-	if c.options != nil {
-		opts = c.options.Clone()
+	if r.options != nil {
+		opts = r.options.Clone()
 	} else {
-		opts = c.model.DefaultOptions().Clone()
+		opts = r.model.DefaultOptions().Clone()
 	}
 
 	return opts
@@ -336,14 +274,14 @@ func (c *ClientConfig) getOptions() *Options {
 // Returns:
 // - Processed message slice with merged adjacent same-type messages
 // - Error if message rendering fails
-func (c *ClientConfig) getMessages() ([]Message, error) {
-	msgs := slices.Clone(c.messages)
+func (r *ClientRequest) getMessages() ([]Message, error) {
+	msgs := slices.Clone(r.messages)
 
 	// Case 1: Handle empty message list
 	// Initialize conversation with user prompt template or default greeting
 	if len(msgs) == 0 {
-		if c.userPromptTemplate != nil {
-			userMsg, err := c.userPromptTemplate.RenderUserMessage()
+		if r.userPromptTemplate != nil {
+			userMsg, err := r.userPromptTemplate.RenderUserMessage()
 			if err != nil {
 				return nil, errors.Join(err, errors.New("failed to render user prompt template"))
 			}
@@ -365,9 +303,9 @@ func (c *ClientConfig) getMessages() ([]Message, error) {
 	if sysMsg != nil {
 		// Priority 1: Use merged existing system messages
 		result = append(result, sysMsg)
-	} else if c.systemPromptTemplate != nil {
+	} else if r.systemPromptTemplate != nil {
 		// Priority 2: Generate system message from template when no existing ones found
-		renderedMsg, err := c.systemPromptTemplate.RenderSystemMessage()
+		renderedMsg, err := r.systemPromptTemplate.RenderSystemMessage()
 		if err != nil {
 			return nil, errors.Join(err, errors.New("failed to render system prompt template"))
 		}
@@ -390,16 +328,16 @@ func (c *ClientConfig) getMessages() ([]Message, error) {
 }
 
 // getMiddlewareManager returns the middleware manager, initializing if needed.
-func (c *ClientConfig) getMiddlewareManager() *MiddlewareManager {
-	if c.middlewareManager == nil {
-		c.middlewareManager = NewMiddlewareManager()
+func (r *ClientRequest) getMiddlewareManager() *MiddlewareManager {
+	if r.middlewareManager == nil {
+		r.middlewareManager = NewMiddlewareManager()
 	}
-	return c.middlewareManager
+	return r.middlewareManager
 }
 
-// buildRequest converts the configuration to a chat request.
-func (c *ClientConfig) buildRequest() (*Request, error) {
-	msgs, err := c.getMessages()
+// buildRequest converts the client request to a model request.
+func (r *ClientRequest) buildRequest() (*Request, error) {
+	msgs, err := r.getMessages()
 	if err != nil {
 		return nil, err
 	}
@@ -409,38 +347,46 @@ func (c *ClientConfig) buildRequest() (*Request, error) {
 		return nil, err
 	}
 
-	req.Options = c.getOptions()
-	req.Options.Tools = append(req.Options.Tools, c.tools...)
-	req.Params = maps.Clone(c.params)
+	req.Options = r.getOptions()
+	req.Options.Tools = append(req.Options.Tools, r.tools...)
+	req.Params = maps.Clone(r.params)
 
 	return req, nil
 }
 
-// ClientStreamer handles streaming chat operations with middleware support.
-type ClientStreamer struct {
-	config            *ClientConfig
-	middlewareManager *MiddlewareManager
+// Call returns a caller for synchronous chat operations.
+func (r *ClientRequest) Call() *ClientCaller {
+	return &ClientCaller{
+		request: r,
+	}
 }
 
-// newClientStreamer creates a new client streamer with the specified configuration.
-func newClientStreamer(config *ClientConfig) *ClientStreamer {
+// Stream returns a streamer for streaming chat operations.
+func (r *ClientRequest) Stream() *ClientStreamer {
 	return &ClientStreamer{
-		config:            config,
-		middlewareManager: config.getMiddlewareManager(),
+		request: r,
 	}
+}
+
+// ClientStreamer handles streaming chat operations.
+type ClientStreamer struct {
+	request *ClientRequest
 }
 
 // stream runs the streaming chat operation through the middleware chain.
 func (s *ClientStreamer) stream(ctx context.Context, req *Request) iter.Seq2[*Response, error] {
-	handler := s.middlewareManager.BuildStreamHandler(s.config.model)
-	return handler.Stream(ctx, req)
+	return s.
+		request.
+		getMiddlewareManager().
+		BuildStreamHandler(s.request.model).
+		Stream(ctx, req)
 }
 
 // response performs the streaming chat operation with optional structured parsing.
 // Note: Structured parsing is not yet implemented for streaming due to data aggregation requirements.
 func (s *ClientStreamer) response(ctx context.Context, parser StructuredParser[any]) iter.Seq2[*Response, error] {
 	return func(yield func(*Response, error) bool) {
-		req, err := s.config.buildRequest()
+		req, err := s.request.buildRequest()
 		if err != nil {
 			yield(nil, err)
 			return
@@ -484,29 +430,23 @@ func (s *ClientStreamer) Text(ctx context.Context) iter.Seq2[string, error] {
 	}
 }
 
-// ClientCaller handles synchronous chat operations with middleware support.
+// ClientCaller handles synchronous chat operations.
 type ClientCaller struct {
-	config            *ClientConfig
-	middlewareManager *MiddlewareManager
-}
-
-// newClientCaller creates a new client caller with the specified configuration.
-func newClientCaller(config *ClientConfig) *ClientCaller {
-	return &ClientCaller{
-		config:            config,
-		middlewareManager: config.getMiddlewareManager(),
-	}
+	request *ClientRequest
 }
 
 // call executes the synchronous chat operation through the middleware chain.
 func (c *ClientCaller) call(ctx context.Context, req *Request) (*Response, error) {
-	handler := c.middlewareManager.BuildCallHandler(c.config.model)
-	return handler.Call(ctx, req)
+	return c.
+		request.
+		getMiddlewareManager().
+		BuildCallHandler(c.request.model).
+		Call(ctx, req)
 }
 
 // response performs the chat operation with optional structured parsing.
 func (c *ClientCaller) response(ctx context.Context, parser StructuredParser[any]) (*Response, error) {
-	req, err := c.config.buildRequest()
+	req, err := c.request.buildRequest()
 	if err != nil {
 		return nil, err
 	}
@@ -576,4 +516,57 @@ func (c *ClientCaller) Any(ctx context.Context, anyParser StructuredParser[any])
 
 	data, parseErr := anyParser.Parse(resp.Result().AssistantMessage.Text)
 	return data, resp, parseErr
+}
+
+// Client provides a high-level interface for chat interactions
+// with configurable defaults and fluent API support.
+type Client struct {
+	defaultRequest *ClientRequest
+}
+
+// NewClient creates a new chat client with the specified default client request.
+// Returns an error if request is nil.
+func NewClient(request *ClientRequest) (*Client, error) {
+	if request == nil {
+		return nil, errors.New("client request cannot be nil")
+	}
+
+	return &Client{
+		defaultRequest: request,
+	}, nil
+}
+
+// Chat returns a new client request based on the client's defaults
+// for creating customized chat interactions.
+func (c *Client) Chat() *ClientRequest {
+	return c.defaultRequest.Clone()
+}
+
+// ChatText creates a chat interaction with a simple text message
+// using default options.
+func (c *Client) ChatText(text string) *ClientRequest {
+	return c.
+		defaultRequest.
+		Clone().
+		WithMessages(NewUserMessage(text))
+}
+
+// ChatPromptTemplate creates a chat interaction using a prompt template
+// for the user message.
+func (c *Client) ChatPromptTemplate(promptTemplate *PromptTemplate) *ClientRequest {
+	return c.
+		defaultRequest.
+		Clone().
+		WithUserPromptTemplate(promptTemplate)
+}
+
+// ChatRequest creates a chat interaction from an existing request,
+// merging its configuration with client defaults.
+func (c *Client) ChatRequest(req *Request) *ClientRequest {
+	return c.
+		defaultRequest.
+		Clone().
+		WithMessages(req.Messages...).
+		WithOptions(req.Options).
+		WithParams(req.Params)
 }

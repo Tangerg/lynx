@@ -12,8 +12,11 @@ import (
 )
 
 var (
-	baseURL   = "https://api.moonshot.cn/v1"
-	baseModel = "moonshot-v1-8k-vision-preview"
+	//baseURL   = "https://api.moonshot.cn/v1"
+	//baseModel = "moonshot-v1-8k-vision-preview"
+
+	baseURL   = "https://api.siliconflow.cn/v1"
+	baseModel = "BAAI/bge-m3"
 )
 
 func newAPIKey() model.ApiKey {
@@ -102,4 +105,19 @@ func TestApi_ChatCompletionStream(t *testing.T) {
 
 	finalContent := accumulator.Choices[0].Message.Content
 	t.Log(finalContent)
+}
+
+func TestApi_Embeddings(t *testing.T) {
+	apiInstance := newAPI()
+
+	embeddings, err := apiInstance.Embeddings(context.Background(), &openai.EmbeddingNewParams{
+		Model: baseModel,
+		Input: openai.EmbeddingNewParamsInputUnion{
+			OfString: openai.String("test string"),
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Log(embeddings.Data[0].Embedding)
 }
