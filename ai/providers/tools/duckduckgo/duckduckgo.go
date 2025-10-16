@@ -1,25 +1,27 @@
 package duckduckgo
 
 import (
-	"github.com/Tangerg/lynx/ai/model/tool"
+	"context"
+
+	"github.com/Tangerg/lynx/ai/model/chat"
 )
 
-var _ tool.CallableTool = (*DuckDuckGo)(nil)
+var _ chat.CallableTool = (*DuckDuckGo)(nil)
 
 type DuckDuckGo struct {
-	definition *tool.Definition
-	metadata   *tool.Metadata
+	definition chat.ToolDefinition
+	metadata   chat.ToolMetadata
 }
 
-func (d *DuckDuckGo) Definition() *tool.Definition {
+func (d *DuckDuckGo) Definition() chat.ToolDefinition {
 	return d.definition
 }
 
-func (d *DuckDuckGo) Metadata() *tool.Metadata {
+func (d *DuckDuckGo) Metadata() chat.ToolMetadata {
 	return d.metadata
 }
 
-func (d *DuckDuckGo) Call(ctx tool.Context, input string) (string, error) {
+func (d *DuckDuckGo) Call(ctx context.Context, arguments string) (string, error) {
 	//TODO implement me
 	panic("implement me")
 }

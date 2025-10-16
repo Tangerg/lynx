@@ -27,10 +27,10 @@ type MiddlewareManager[CallRequest any, CallResponse any, StreamRequest any, Str
 	streamMiddlewares []StreamMiddleware[StreamRequest, StreamResponse]
 }
 
-// MakeCallHandler applies the registered call middleware chain to the provided
+// BuildCallHandler applies the registered call middleware chain to the provided
 // CallHandler endpoint. The middleware is applied in reverse order (last added, first executed).
 // This method is thread-safe and uses a read lock for consistent middleware chain application.
-func (m *MiddlewareManager[CallRequest, CallResponse, StreamRequest, StreamResponse]) MakeCallHandler(endpoint CallHandler[CallRequest, CallResponse]) CallHandler[CallRequest, CallResponse] {
+func (m *MiddlewareManager[CallRequest, CallResponse, StreamRequest, StreamResponse]) BuildCallHandler(endpoint CallHandler[CallRequest, CallResponse]) CallHandler[CallRequest, CallResponse] {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -42,10 +42,10 @@ func (m *MiddlewareManager[CallRequest, CallResponse, StreamRequest, StreamRespo
 	return currentHandler
 }
 
-// MakeStreamHandler applies the registered stream middleware chain to the provided
-// StreamHandler endpoint. Similar to MakeCallHandler, middleware is applied in reverse order.
+// BuildStreamHandler applies the registered stream middleware chain to the provided
+// StreamHandler endpoint. Similar to BuildCallHandler, middleware is applied in reverse order.
 // This method ensures streaming-specific middleware is properly applied to the streaming handler.
-func (m *MiddlewareManager[CallRequest, CallResponse, StreamRequest, StreamResponse]) MakeStreamHandler(endpoint StreamHandler[StreamRequest, StreamResponse]) StreamHandler[StreamRequest, StreamResponse] {
+func (m *MiddlewareManager[CallRequest, CallResponse, StreamRequest, StreamResponse]) BuildStreamHandler(endpoint StreamHandler[StreamRequest, StreamResponse]) StreamHandler[StreamRequest, StreamResponse] {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 

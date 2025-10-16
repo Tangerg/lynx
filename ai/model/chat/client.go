@@ -432,7 +432,7 @@ func newClientStreamer(config *ClientConfig) *ClientStreamer {
 
 // stream runs the streaming chat operation through the middleware chain.
 func (s *ClientStreamer) stream(ctx context.Context, req *Request) iter.Seq2[*Response, error] {
-	handler := s.middlewareManager.MakeStreamHandler(s.config.model)
+	handler := s.middlewareManager.BuildStreamHandler(s.config.model)
 	return handler.Stream(ctx, req)
 }
 
@@ -500,7 +500,7 @@ func newClientCaller(config *ClientConfig) *ClientCaller {
 
 // call executes the synchronous chat operation through the middleware chain.
 func (c *ClientCaller) call(ctx context.Context, req *Request) (*Response, error) {
-	handler := c.middlewareManager.MakeCallHandler(c.config.model)
+	handler := c.middlewareManager.BuildCallHandler(c.config.model)
 	return handler.Call(ctx, req)
 }
 

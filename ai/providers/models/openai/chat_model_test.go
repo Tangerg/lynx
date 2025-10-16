@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/openai/openai-go/option"
+	"github.com/openai/openai-go/v3/option"
 
 	"github.com/Tangerg/lynx/ai/media"
 	"github.com/Tangerg/lynx/ai/model/chat"

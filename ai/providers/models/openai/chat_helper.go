@@ -3,7 +3,7 @@ package openai
 import (
 	"encoding/json"
 
-	"github.com/openai/openai-go"
+	"github.com/openai/openai-go/v3"
 	"github.com/spf13/cast"
 
 	"github.com/Tangerg/lynx/ai/media"
@@ -36,8 +36,8 @@ type requestHelper struct {
 	defaultOptions *chat.Options
 }
 
-func (r *requestHelper) buildToolParams(tools []chat.Tool) ([]openai.ChatCompletionToolParam, error) {
-	toolParams := make([]openai.ChatCompletionToolParam, 0, len(tools))
+func (r *requestHelper) buildToolParams(tools []chat.Tool) ([]openai.ChatCompletionToolUnionParam, error) {
+	toolParams := make([]openai.ChatCompletionToolUnionParam, 0, len(tools))
 
 	for _, t := range tools {
 		var params map[string]any
@@ -47,12 +47,14 @@ func (r *requestHelper) buildToolParams(tools []chat.Tool) ([]openai.ChatComplet
 			return nil, err
 		}
 
-		toolParams = append(toolParams, openai.ChatCompletionToolParam{
-			Function: openai.FunctionDefinitionParam{
-				Name:        def.Name,
-				Description: openai.String(def.Description),
-				Strict:      openai.Bool(true),
-				Parameters:  params,
+		toolParams = append(toolParams, openai.ChatCompletionToolUnionParam{
+			OfFunction: &openai.ChatCompletionFunctionToolParam{
+				Function: openai.FunctionDefinitionParam{
+					Name:        def.Name,
+					Description: openai.String(def.Description),
+					Strict:      openai.Bool(true),
+					Parameters:  params,
+				},
 			},
 		})
 	}
@@ -168,11 +170,13 @@ func (r *requestHelper) buildAssistantMsg(msg *chat.AssistantMessage) openai.Cha
 	assistant := message.OfAssistant
 
 	for _, tc := range msg.ToolCalls {
-		assistant.ToolCalls = append(assistant.ToolCalls, openai.ChatCompletionMessageToolCallParam{
-			ID: tc.ID,
-			Function: openai.ChatCompletionMessageToolCallFunctionParam{
-				Name:      tc.Name,
-				Arguments: tc.Arguments,
+		assistant.ToolCalls = append(assistant.ToolCalls, openai.ChatCompletionMessageToolCallUnionParam{
+			OfFunction: &openai.ChatCompletionMessageFunctionToolCallParam{
+				ID: tc.ID,
+				Function: openai.ChatCompletionMessageFunctionToolCallFunctionParam{
+					Name:      tc.Name,
+					Arguments: tc.Arguments,
+				},
 			},
 		})
 	}
