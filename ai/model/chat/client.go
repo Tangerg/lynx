@@ -7,8 +7,6 @@ import (
 	"maps"
 	"slices"
 
-	"github.com/spf13/cast"
-
 	"github.com/Tangerg/lynx/ai/media"
 	"github.com/Tangerg/lynx/ai/model"
 	pkgSlices "github.com/Tangerg/lynx/pkg/slices"
@@ -105,9 +103,6 @@ type MiddlewareManager = model.MiddlewareManager[*Request, *Response, *Request, 
 func NewMiddlewareManager() *MiddlewareManager {
 	return &MiddlewareManager{}
 }
-
-// OutputFormat is the parameter key for specifying response format instructions.
-const OutputFormat = "lynx.ai.model.client.output_format"
 
 // Client provides a high-level interface for chat interactions
 // with configurable defaults and fluent API support.
@@ -421,39 +416,6 @@ func (c *ClientConfig) buildRequest() (*Request, error) {
 	return req, nil
 }
 
-// modelInvoker handles direct model invocation with output format augmentation.
-type modelInvoker struct {
-	model Model
-}
-
-// newModelInvoker creates a new model invoker for the specified chat model.
-func newModelInvoker(model Model) *modelInvoker {
-	return &modelInvoker{
-		model: model,
-	}
-}
-
-// augmentOutputFormat appends output format instructions to the last user message
-// if OutputFormat parameter is present in the request.
-func (i *modelInvoker) augmentOutputFormat(req *Request) {
-	format, ok := req.Get(OutputFormat)
-	if ok {
-		req.appendTextToLastUserMessage(cast.ToString(format))
-	}
-}
-
-// Call invokes the model synchronously with output format augmentation.
-func (i *modelInvoker) Call(ctx context.Context, req *Request) (*Response, error) {
-	i.augmentOutputFormat(req)
-	return i.model.Call(ctx, req)
-}
-
-// Stream invokes the model in streaming mode with output format augmentation.
-func (i *modelInvoker) Stream(ctx context.Context, req *Request) iter.Seq2[*Response, error] {
-	i.augmentOutputFormat(req)
-	return i.model.Stream(ctx, req)
-}
-
 // ClientStreamer handles streaming chat operations with middleware support.
 type ClientStreamer struct {
 	config            *ClientConfig
@@ -470,7 +432,7 @@ func newClientStreamer(config *ClientConfig) *ClientStreamer {
 
 // stream runs the streaming chat operation through the middleware chain.
 func (s *ClientStreamer) stream(ctx context.Context, req *Request) iter.Seq2[*Response, error] {
-	handler := s.middlewareManager.MakeStreamHandler(newModelInvoker(s.config.model))
+	handler := s.middlewareManager.MakeStreamHandler(s.config.model)
 	return handler.Stream(ctx, req)
 }
 
@@ -485,7 +447,7 @@ func (s *ClientStreamer) response(ctx context.Context, parser StructuredParser[a
 		}
 
 		if parser != nil {
-			req.Set(OutputFormat, parser.Instructions())
+			req.appendTextToLastUserMessage(parser.Instructions())
 		}
 
 		for resp, streamErr := range s.stream(ctx, req) {
@@ -538,7 +500,7 @@ func newClientCaller(config *ClientConfig) *ClientCaller {
 
 // call executes the synchronous chat operation through the middleware chain.
 func (c *ClientCaller) call(ctx context.Context, req *Request) (*Response, error) {
-	handler := c.middlewareManager.MakeCallHandler(newModelInvoker(c.config.model))
+	handler := c.middlewareManager.MakeCallHandler(c.config.model)
 	return handler.Call(ctx, req)
 }
 
@@ -550,7 +512,7 @@ func (c *ClientCaller) response(ctx context.Context, parser StructuredParser[any
 	}
 
 	if parser != nil {
-		req.Set(OutputFormat, parser.Instructions())
+		req.appendTextToLastUserMessage(parser.Instructions())
 	}
 
 	return c.call(ctx, req)

@@ -54,7 +54,7 @@ func (c *ChatModel) buildToolSupport(req *chat.Request) *chat.ToolSupport {
 }
 
 func (c *ChatModel) call(ctx context.Context, req *chat.Request, support *chat.ToolSupport) (*chat.Response, error) {
-	apiReq, err := c.makeChatRequest(req)
+	apiReq, err := c.buildChatRequest(req)
 	if err != nil {
 		return nil, err
 	}
@@ -64,7 +64,7 @@ func (c *ChatModel) call(ctx context.Context, req *chat.Request, support *chat.T
 		return nil, err
 	}
 
-	resp, err := c.makeChatResponse(apiReq, apiResp)
+	resp, err := c.buildChatResponse(apiReq, apiResp)
 	if err != nil {
 		return nil, err
 	}
@@ -95,7 +95,7 @@ func (c *ChatModel) call(ctx context.Context, req *chat.Request, support *chat.T
 }
 
 func (c *ChatModel) stream(ctx context.Context, req *chat.Request, support *chat.ToolSupport, yield func(*chat.Response, error) bool) {
-	apiReq, err := c.makeChatRequest(req)
+	apiReq, err := c.buildChatRequest(req)
 	if err != nil {
 		yield(nil, err)
 		return
@@ -118,7 +118,7 @@ func (c *ChatModel) stream(ctx context.Context, req *chat.Request, support *chat
 		chunkAcc := openai.ChatCompletionAccumulator{}
 		chunkAcc.AddChunk(chunk)
 
-		resp, err = c.makeChatResponse(apiReq, &chunkAcc.ChatCompletion)
+		resp, err = c.buildChatResponse(apiReq, &chunkAcc.ChatCompletion)
 		if err != nil {
 			yield(nil, err)
 			return
@@ -136,7 +136,7 @@ func (c *ChatModel) stream(ctx context.Context, req *chat.Request, support *chat
 		return
 	}
 
-	finalResp, err := c.makeChatResponse(apiReq, &fullAcc.ChatCompletion)
+	finalResp, err := c.buildChatResponse(apiReq, &fullAcc.ChatCompletion)
 	if err != nil {
 		yield(nil, err)
 		return
@@ -197,4 +197,10 @@ func (c *ChatModel) Stream(ctx context.Context, req *chat.Request) iter.Seq2[*ch
 
 func (c *ChatModel) DefaultOptions() *chat.Options {
 	return c.defaultOptions
+}
+
+func (c *ChatModel) Info() chat.ModelInfo {
+	return chat.ModelInfo{
+		Provider: "OpenAI",
+	}
 }

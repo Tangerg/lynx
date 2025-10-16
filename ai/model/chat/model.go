@@ -28,37 +28,31 @@ import (
 //   - Memory efficient for large LLM outputs
 //   - Built-in backpressure handling and early termination support
 //
-// MessageType Parameters:
+// Request/Response Structure:
 //   - Request: Chat request containing messages, system prompts, and LLM parameters
-//   - Response: LLM response with generated content, usage statistics, and metadata
+//   - Response: Contains one or more Results with assistant messages, metadata, and optional tool execution results
+//   - Result: Single generation result with AssistantMessage, ResultMetadata, and optional ToolMessage
+//   - ResponseMetadata: Usage statistics (token consumption), rate limits, and provider-specific metadata
 //
-// Usage Examples:
+// Finish Reasons:
+// The ResultMetadata provides finish reasons to understand why generation stopped:
+//   - FinishReasonStop: Natural completion or stop sequence reached
+//   - FinishReasonLength: Truncated due to token limit
+//   - FinishReasonToolCalls: Stopped to execute tool/function calls
+//   - FinishReasonContentFilter: Response blocked by safety filters
+//   - FinishReasonReturnDirect: Direct tool result return without further generation
 //
-//	// Synchronous LLM interaction
-//	response, err := llmModel.Call(ctx, request)
-//	if err != nil {
-//	    return err
-//	}
-//	content := response.Result().Output().Text()
-//
-//	// Streaming LLM interaction
-//	for chunk, err := range llmModel.Stream(ctx, request) {
-//	    if err != nil {
-//	        return fmt.Errorf("streaming error: %w", err)
-//	    }
-//	    // Process streaming chunk
-//	    fmt.Print(chunk.Result().Output().Text())
-//	}
-//
-// The streaming approach provides several benefits:
+// Streaming Benefits:
 //   - Improved user experience with real-time feedback
 //   - Memory efficiency by processing responses incrementally
 //   - Better resource utilization through backpressure handling
 //   - Early termination capability when response is satisfactory
-//   - ToolContext cancellation and timeout support
+//   - Context cancellation and timeout support
 //
 // The interface abstracts LLM provider differences while maintaining access to
-// provider-specific features through the Options and metadata systems.
+// provider-specific features through the Options system and metadata Extra fields.
+// Both ResultMetadata and ResponseMetadata support custom key-value pairs for
+// provider-specific information through their Get/Set methods.
 type Model interface {
 	model.Model[*Request, *Response]
 	model.StreamingModel[*Request, *Response]
@@ -70,4 +64,16 @@ type Model interface {
 	// These defaults provide a good starting point and can be customized per request.
 	// Useful for maintaining consistent behavior across different LLM interactions.
 	DefaultOptions() *Options
+
+	// Info returns basic information about the model, including the provider name.
+	// This can be used to identify which LLM provider is being used and implement
+	// provider-specific logic or logging when needed.
+	Info() ModelInfo
+}
+
+// ModelInfo contains basic metadata about the LLM model instance.
+type ModelInfo struct {
+	// Provider identifies the LLM service provider (e.g., "OpenAI", "Anthropic", "Google").
+	// Used for provider-specific feature detection and analytics.
+	Provider string `json:"provider"`
 }

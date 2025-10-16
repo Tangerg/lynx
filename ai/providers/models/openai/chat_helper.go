@@ -24,19 +24,19 @@ func newChatHelper(defaultOpts *chat.Options) chatHelper {
 	}
 }
 
-func (h *chatHelper) makeChatRequest(req *chat.Request) (*openai.ChatCompletionNewParams, error) {
-	return h.reqHelper.makeRequest(req)
+func (h *chatHelper) buildChatRequest(req *chat.Request) (*openai.ChatCompletionNewParams, error) {
+	return h.reqHelper.buildRequest(req)
 }
 
-func (h *chatHelper) makeChatResponse(req *openai.ChatCompletionNewParams, resp *openai.ChatCompletion) (*chat.Response, error) {
-	return h.respHelper.makeResponse(req, resp)
+func (h *chatHelper) buildChatResponse(req *openai.ChatCompletionNewParams, resp *openai.ChatCompletion) (*chat.Response, error) {
+	return h.respHelper.buildResponse(req, resp)
 }
 
 type requestHelper struct {
 	defaultOptions *chat.Options
 }
 
-func (r *requestHelper) makeToolParams(tools []chat.Tool) ([]openai.ChatCompletionToolParam, error) {
+func (r *requestHelper) buildToolParams(tools []chat.Tool) ([]openai.ChatCompletionToolParam, error) {
 	toolParams := make([]openai.ChatCompletionToolParam, 0, len(tools))
 
 	for _, t := range tools {
@@ -60,7 +60,7 @@ func (r *requestHelper) makeToolParams(tools []chat.Tool) ([]openai.ChatCompleti
 	return toolParams, nil
 }
 
-func (r *requestHelper) makeBaseParams(opts *chat.Options) *openai.ChatCompletionNewParams {
+func (r *requestHelper) buildBaseParams(opts *chat.Options) *openai.ChatCompletionNewParams {
 	params := new(openai.ChatCompletionNewParams)
 
 	if extra, exist := opts.Get(ChatCompletionOptions); exist && extra != nil {
@@ -93,15 +93,15 @@ func (r *requestHelper) makeBaseParams(opts *chat.Options) *openai.ChatCompletio
 	return params
 }
 
-func (r *requestHelper) makeParams(opts *chat.Options) (*openai.ChatCompletionNewParams, error) {
+func (r *requestHelper) buildParams(opts *chat.Options) (*openai.ChatCompletionNewParams, error) {
 	mergedOpts, err := chat.MergeOptions(r.defaultOptions, opts)
 	if err != nil {
 		return nil, err
 	}
 
-	params := r.makeBaseParams(mergedOpts)
+	params := r.buildBaseParams(mergedOpts)
 
-	params.Tools, err = r.makeToolParams(mergedOpts.Tools)
+	params.Tools, err = r.buildToolParams(mergedOpts.Tools)
 	if err != nil {
 		return nil, err
 	}
@@ -109,11 +109,11 @@ func (r *requestHelper) makeParams(opts *chat.Options) (*openai.ChatCompletionNe
 	return params, nil
 }
 
-func (r *requestHelper) makeSystemMsg(msg *chat.SystemMessage) openai.ChatCompletionMessageParamUnion {
+func (r *requestHelper) buildSystemMsg(msg *chat.SystemMessage) openai.ChatCompletionMessageParamUnion {
 	return openai.SystemMessage(msg.Text)
 }
 
-func (r *requestHelper) makeUserMsg(msg *chat.UserMessage) openai.ChatCompletionMessageParamUnion {
+func (r *requestHelper) buildUserMsg(msg *chat.UserMessage) openai.ChatCompletionMessageParamUnion {
 	if !msg.HasMedia() {
 		return openai.UserMessage(msg.Text)
 	}
@@ -163,7 +163,7 @@ func (r *requestHelper) makeUserMsg(msg *chat.UserMessage) openai.ChatCompletion
 	return openai.UserMessage(parts)
 }
 
-func (r *requestHelper) makeAssistantMsg(msg *chat.AssistantMessage) openai.ChatCompletionMessageParamUnion {
+func (r *requestHelper) buildAssistantMsg(msg *chat.AssistantMessage) openai.ChatCompletionMessageParamUnion {
 	message := openai.AssistantMessage(msg.Text)
 	assistant := message.OfAssistant
 
@@ -191,7 +191,7 @@ func (r *requestHelper) makeAssistantMsg(msg *chat.AssistantMessage) openai.Chat
 	return message
 }
 
-func (r *requestHelper) makeToolMsgs(msg *chat.ToolMessage) []openai.ChatCompletionMessageParamUnion {
+func (r *requestHelper) buildToolMsgs(msg *chat.ToolMessage) []openai.ChatCompletionMessageParamUnion {
 	returns := msg.ToolReturns
 	msgs := make([]openai.ChatCompletionMessageParamUnion, 0, len(returns))
 
@@ -202,43 +202,43 @@ func (r *requestHelper) makeToolMsgs(msg *chat.ToolMessage) []openai.ChatComplet
 	return msgs
 }
 
-func (r *requestHelper) makeMsg(msg chat.Message) openai.ChatCompletionMessageParamUnion {
+func (r *requestHelper) buildMsg(msg chat.Message) openai.ChatCompletionMessageParamUnion {
 	if msg.Type().IsUser() {
-		return r.makeUserMsg(msg.(*chat.UserMessage))
+		return r.buildUserMsg(msg.(*chat.UserMessage))
 	} else if msg.Type().IsAssistant() {
-		return r.makeAssistantMsg(msg.(*chat.AssistantMessage))
+		return r.buildAssistantMsg(msg.(*chat.AssistantMessage))
 	} else {
-		return r.makeSystemMsg(msg.(*chat.SystemMessage))
+		return r.buildSystemMsg(msg.(*chat.SystemMessage))
 	}
 }
 
-func (r *requestHelper) makeMsgs(msgs []chat.Message) []openai.ChatCompletionMessageParamUnion {
+func (r *requestHelper) buildMsgs(msgs []chat.Message) []openai.ChatCompletionMessageParamUnion {
 	result := make([]openai.ChatCompletionMessageParamUnion, 0, len(msgs))
 
 	for _, msg := range msgs {
 		if msg.Type().IsTool() {
-			result = append(result, r.makeToolMsgs(msg.(*chat.ToolMessage))...)
+			result = append(result, r.buildToolMsgs(msg.(*chat.ToolMessage))...)
 		} else {
-			result = append(result, r.makeMsg(msg))
+			result = append(result, r.buildMsg(msg))
 		}
 	}
 
 	return result
 }
 
-func (r *requestHelper) makeRequest(req *chat.Request) (*openai.ChatCompletionNewParams, error) {
-	params, err := r.makeParams(req.Options)
+func (r *requestHelper) buildRequest(req *chat.Request) (*openai.ChatCompletionNewParams, error) {
+	params, err := r.buildParams(req.Options)
 	if err != nil {
 		return nil, err
 	}
 
-	params.Messages = r.makeMsgs(req.Messages)
+	params.Messages = r.buildMsgs(req.Messages)
 	return params, nil
 }
 
 type responseHelper struct{}
 
-func (r *responseHelper) makeAssistantMsg(req *openai.ChatCompletionNewParams, msg *openai.ChatCompletionMessage) *chat.AssistantMessage {
+func (r *responseHelper) buildAssistantMsg(req *openai.ChatCompletionNewParams, msg *openai.ChatCompletionMessage) *chat.AssistantMessage {
 	param := chat.MessageParams{
 		Text:     msg.Content,
 		Metadata: make(map[string]any),
@@ -276,7 +276,7 @@ func (r *responseHelper) makeAssistantMsg(req *openai.ChatCompletionNewParams, m
 	return chat.NewAssistantMessage(param)
 }
 
-func (r *responseHelper) makeResultMeta(req *openai.ChatCompletionNewParams, choice *openai.ChatCompletionChoice) *chat.ResultMetadata {
+func (r *responseHelper) buildResultMeta(req *openai.ChatCompletionNewParams, choice *openai.ChatCompletionChoice) *chat.ResultMetadata {
 	meta := &chat.ResultMetadata{
 		FinishReason: chat.FinishReason(choice.FinishReason),
 	}
@@ -289,18 +289,18 @@ func (r *responseHelper) makeResultMeta(req *openai.ChatCompletionNewParams, cho
 	return meta
 }
 
-func (r *responseHelper) makeResult(req *openai.ChatCompletionNewParams, choice *openai.ChatCompletionChoice) (*chat.Result, error) {
-	assistantMsg := r.makeAssistantMsg(req, &choice.Message)
-	meta := r.makeResultMeta(req, choice)
+func (r *responseHelper) buildResult(req *openai.ChatCompletionNewParams, choice *openai.ChatCompletionChoice) (*chat.Result, error) {
+	assistantMsg := r.buildAssistantMsg(req, &choice.Message)
+	meta := r.buildResultMeta(req, choice)
 
 	return chat.NewResult(assistantMsg, meta)
 }
 
-func (r *responseHelper) makeResults(req *openai.ChatCompletionNewParams, resp *openai.ChatCompletion) ([]*chat.Result, error) {
+func (r *responseHelper) buildResults(req *openai.ChatCompletionNewParams, resp *openai.ChatCompletion) ([]*chat.Result, error) {
 	results := make([]*chat.Result, 0, len(resp.Choices))
 
 	for _, choice := range resp.Choices {
-		result, err := r.makeResult(req, &choice)
+		result, err := r.buildResult(req, &choice)
 		if err != nil {
 			return nil, err
 		}
@@ -310,7 +310,7 @@ func (r *responseHelper) makeResults(req *openai.ChatCompletionNewParams, resp *
 	return results, nil
 }
 
-func (r *responseHelper) makeMeta(req *openai.ChatCompletionNewParams, resp *openai.ChatCompletion) *chat.ResponseMetadata {
+func (r *responseHelper) buildMeta(req *openai.ChatCompletionNewParams, resp *openai.ChatCompletion) *chat.ResponseMetadata {
 	meta := &chat.ResponseMetadata{
 		ID:      resp.ID,
 		Model:   resp.Model,
@@ -329,13 +329,13 @@ func (r *responseHelper) makeMeta(req *openai.ChatCompletionNewParams, resp *ope
 	return meta
 }
 
-func (r *responseHelper) makeResponse(req *openai.ChatCompletionNewParams, resp *openai.ChatCompletion) (*chat.Response, error) {
-	results, err := r.makeResults(req, resp)
+func (r *responseHelper) buildResponse(req *openai.ChatCompletionNewParams, resp *openai.ChatCompletion) (*chat.Response, error) {
+	results, err := r.buildResults(req, resp)
 	if err != nil {
 		return nil, err
 	}
 
-	meta := r.makeMeta(req, resp)
+	meta := r.buildMeta(req, resp)
 
 	return chat.NewResponse(results, meta)
 }
