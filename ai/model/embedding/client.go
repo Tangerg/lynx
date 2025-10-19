@@ -39,7 +39,7 @@ func NewClientRequest(model Model) (*ClientRequest, error) {
 	}, nil
 }
 
-// WithMiddlewares adds middlewares to the request processing chain.
+// WithMiddlewares sets the middleware chain for the request, replacing any existing middlewares.
 // Middlewares are executed in the order they are provided.
 func (r *ClientRequest) WithMiddlewares(middlewares ...Middleware) *ClientRequest {
 	if len(middlewares) > 0 {
@@ -84,6 +84,14 @@ func (r *ClientRequest) WithParams(params map[string]any) *ClientRequest {
 	return r
 }
 
+// MiddlewareManager returns the middleware manager, initializing a new one if needed.
+func (r *ClientRequest) MiddlewareManager() *MiddlewareManager {
+	if r.middlewareManager == nil {
+		r.middlewareManager = NewMiddlewareManager()
+	}
+	return r.middlewareManager
+}
+
 // Clone creates a deep copy of the client request.
 // This is useful for creating multiple requests based on a common configuration.
 func (r *ClientRequest) Clone() *ClientRequest {
@@ -124,14 +132,6 @@ func (r *ClientRequest) buildRequest() (*Request, error) {
 	return req, nil
 }
 
-// getMiddlewareManager returns the middleware manager, initializing a new one if needed.
-func (r *ClientRequest) getMiddlewareManager() *MiddlewareManager {
-	if r.middlewareManager == nil {
-		r.middlewareManager = NewMiddlewareManager()
-	}
-	return r.middlewareManager
-}
-
 // Call prepares the request for execution and returns a ClientCaller for making the actual API call.
 func (r *ClientRequest) Call() *ClientCaller {
 	return &ClientCaller{
@@ -154,7 +154,7 @@ func (c *ClientCaller) Response(ctx context.Context) (*Response, error) {
 	}
 	return c.
 		request.
-		getMiddlewareManager().
+		MiddlewareManager().
 		BuildHandler(c.request.model).
 		Call(ctx, req)
 }
@@ -202,6 +202,17 @@ func NewClient(request *ClientRequest) (*Client, error) {
 	return &Client{
 		defaultRequest: request,
 	}, nil
+}
+
+// NewClientWithModel creates a new chat client with the specified model.
+// This is a convenience function that creates a default ClientRequest internally.
+// Returns an error if model is nil or request creation fails.
+func NewClientWithModel(model Model) (*Client, error) {
+	request, err := NewClientRequest(model)
+	if err != nil {
+		return nil, err
+	}
+	return NewClient(request)
 }
 
 // Embed returns a cloned client request based on the default configuration.

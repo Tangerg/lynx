@@ -91,6 +91,23 @@ func (o *Options) Clone() *Options {
 	}
 }
 
+// MergeOptions merges multiple Options into a single Options instance.
+// It creates a clone of the base options and applies each subsequent option in order.
+// Later options override earlier ones for all fields.
+//
+// Parameters:
+//   - options: The base Options to clone (must not be nil)
+//   - opts: Additional Options to merge (nil entries are skipped)
+//
+// Returns:
+//   - *Options: The merged result
+//   - error: An error if the base options is nil
+//
+// Merge behavior:
+//   - Model field: Later non-empty values override earlier ones
+//   - EncodingFormat field: Later valid values override earlier ones
+//   - Dimensions field: Later non-nil values override earlier ones
+//   - Map field (Extra): Later entries are merged into the result map
 func MergeOptions(options *Options, opts ...*Options) (*Options, error) {
 	if options == nil {
 		return nil, errors.New("options cannot be nil")

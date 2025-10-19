@@ -35,12 +35,8 @@ func newEmbeddingModel() *openai.EmbeddingModel {
 }
 
 func newEmbeddingClient() *embedding.Client {
-	req := assert.Must(
-		embedding.NewClientRequest(newEmbeddingModel()),
-	)
-
 	return assert.Must(
-		embedding.NewClient(req),
+		embedding.NewClientWithModel(newEmbeddingModel()),
 	)
 }
 

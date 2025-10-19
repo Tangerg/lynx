@@ -3,6 +3,7 @@ package openai
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/option"
@@ -68,6 +69,7 @@ func (e *EmbeddingModel) buildEmbeddingResponse(apiResp *openai.CreateEmbeddingR
 			PromptTokens:  apiResp.Usage.PromptTokens,
 			OriginalUsage: apiResp.Usage,
 		},
+		Created: time.Now().Unix(),
 	}
 
 	results := make([]*embedding.Result, 0, len(apiResp.Data))

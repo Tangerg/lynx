@@ -135,7 +135,8 @@ func NewClientRequest(model Model) (*ClientRequest, error) {
 	}, nil
 }
 
-// WithMiddlewares sets the middleware chain for the chat interaction.
+// WithMiddlewares sets the middleware chain for the request, replacing any existing middlewares.
+// Middlewares are executed in the order they are provided.
 // Returns the request for method chaining.
 func (r *ClientRequest) WithMiddlewares(middlewares ...any) *ClientRequest {
 	if len(middlewares) > 0 {
@@ -223,6 +224,14 @@ func (r *ClientRequest) WithTools(tools ...Tool) *ClientRequest {
 		r.tools = tools
 	}
 	return r
+}
+
+// MiddlewareManager returns the middleware manager, initializing if needed.
+func (r *ClientRequest) MiddlewareManager() *MiddlewareManager {
+	if r.middlewareManager == nil {
+		r.middlewareManager = NewMiddlewareManager()
+	}
+	return r.middlewareManager
 }
 
 // Clone creates a deep copy of the client request.
@@ -327,14 +336,6 @@ func (r *ClientRequest) getMessages() ([]Message, error) {
 	return final, nil
 }
 
-// getMiddlewareManager returns the middleware manager, initializing if needed.
-func (r *ClientRequest) getMiddlewareManager() *MiddlewareManager {
-	if r.middlewareManager == nil {
-		r.middlewareManager = NewMiddlewareManager()
-	}
-	return r.middlewareManager
-}
-
 // buildRequest converts the client request to a model request.
 func (r *ClientRequest) buildRequest() (*Request, error) {
 	msgs, err := r.getMessages()
@@ -377,7 +378,7 @@ type ClientStreamer struct {
 func (s *ClientStreamer) stream(ctx context.Context, req *Request) iter.Seq2[*Response, error] {
 	return s.
 		request.
-		getMiddlewareManager().
+		MiddlewareManager().
 		BuildStreamHandler(s.request.model).
 		Stream(ctx, req)
 }
@@ -439,7 +440,7 @@ type ClientCaller struct {
 func (c *ClientCaller) call(ctx context.Context, req *Request) (*Response, error) {
 	return c.
 		request.
-		getMiddlewareManager().
+		MiddlewareManager().
 		BuildCallHandler(c.request.model).
 		Call(ctx, req)
 }
@@ -534,6 +535,17 @@ func NewClient(request *ClientRequest) (*Client, error) {
 	return &Client{
 		defaultRequest: request,
 	}, nil
+}
+
+// NewClientWithModel creates a new chat client with the specified model.
+// This is a convenience function that creates a default ClientRequest internally.
+// Returns an error if model is nil or request creation fails.
+func NewClientWithModel(model Model) (*Client, error) {
+	request, err := NewClientRequest(model)
+	if err != nil {
+		return nil, err
+	}
+	return NewClient(request)
 }
 
 // Chat returns a new client request based on the client's defaults
