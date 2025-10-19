@@ -14,9 +14,14 @@ func TestTokenSplitter_Process(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	splitter := &processors.TokenSplitter{
-		Tokenizer: tokenizer.NewTiktokenWithCL100KBase(),
+	config := &processors.TokenSplitterConfig{
+		Tokenizer:     tokenizer.NewTiktokenWithCL100KBase(),
+		ChunkSize:     20,
+		CopyFormatter: false,
+	}
+	splitter, err := processors.NewTokenSplitter(config)
+	if err != nil {
+		t.Fatal(err)
 	}
 	process, err := splitter.Process(context.Background(), []*document.Document{doc})
 	if err != nil {

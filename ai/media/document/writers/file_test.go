@@ -8,11 +8,12 @@ import (
 )
 
 func TestNewFileWriterBuilder(t *testing.T) {
-	writer := &FileWriter{
+	writerConf := &FileWriterConfig{
 		Path:                "/Users/tangerg/Desktop/lynx/ai/commons/document/writer/test.txt",
 		WithDocumentMarkers: true,
 		AppendMode:          true,
 	}
+	writer, _ := NewFileWriter(writerConf)
 
 	doc, err := document.NewDocument("test test", nil)
 	if err != nil {

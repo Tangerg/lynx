@@ -10,13 +10,6 @@ import (
 	"github.com/Tangerg/lynx/ai/tokenizer"
 )
 
-const (
-	MaxInputTokenCount                 = 8191
-	DefaultTokenCountReservePercentage = 0.1
-)
-
-var _ document.Batcher = (*TokenCountBatcher)(nil)
-
 type TokenCountBatcherConfig struct {
 	TokenCountEstimator tokenizer.Estimator
 	MaxInputTokenCount  int
@@ -26,6 +19,21 @@ type TokenCountBatcherConfig struct {
 }
 
 func (c *TokenCountBatcherConfig) validate() error {
+	const (
+		maxInputTokenCount = 8191
+		reservePercentage  = 0.1
+	)
+
+	if c == nil {
+		return errors.New("config is required")
+	}
+	if c.MaxInputTokenCount == 0 {
+		c.MaxInputTokenCount = maxInputTokenCount
+	}
+	if c.ReservePercentage == 0 {
+		c.ReservePercentage = reservePercentage
+	}
+
 	if c.TokenCountEstimator == nil {
 		return errors.New("token count estimator is required")
 	}
@@ -52,14 +60,7 @@ func (c *TokenCountBatcherConfig) validate() error {
 	return nil
 }
 
-func (c *TokenCountBatcherConfig) initializeDefaults() {
-	if c.MaxInputTokenCount == 0 {
-		c.MaxInputTokenCount = MaxInputTokenCount
-	}
-	if c.ReservePercentage == 0 {
-		c.ReservePercentage = DefaultTokenCountReservePercentage
-	}
-}
+var _ document.Batcher = (*TokenCountBatcher)(nil)
 
 type TokenCountBatcher struct {
 	tokenCountEstimator tokenizer.Estimator
@@ -69,8 +70,6 @@ type TokenCountBatcher struct {
 }
 
 func NewTokenCountBatcher(config *TokenCountBatcherConfig) (*TokenCountBatcher, error) {
-	config.initializeDefaults()
-
 	if err := config.validate(); err != nil {
 		return nil, err
 	}
@@ -91,7 +90,7 @@ func (b *TokenCountBatcher) Batch(ctx context.Context, docs []*document.Document
 		tokenCount int
 	}
 
-	var docsWithTokens []*docWithTokenCount
+	docsWithTokens := make([]*docWithTokenCount, 0, len(docs))
 	for _, doc := range docs {
 		formattedContent := doc.FormatByMetadataModeWithFormatter(b.metadataMode, b.formatter)
 
@@ -111,14 +110,16 @@ func (b *TokenCountBatcher) Batch(ctx context.Context, docs []*document.Document
 	}
 
 	var (
-		currentTokenCount = 0
+		currentTokenCount int
 		resultBatches     [][]*document.Document
 		currentBatch      []*document.Document
 	)
 
 	for _, docWithToken := range docsWithTokens {
 		if currentTokenCount+docWithToken.tokenCount > b.maxInputTokenCount {
-			resultBatches = append(resultBatches, currentBatch)
+			if len(currentBatch) > 0 {
+				resultBatches = append(resultBatches, currentBatch)
+			}
 			currentBatch = make([]*document.Document, 0)
 			currentTokenCount = 0
 		}

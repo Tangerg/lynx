@@ -8,23 +8,39 @@ import (
 	"github.com/Tangerg/lynx/ai/media/document"
 )
 
-var _ document.Processor = (*Splitter)(nil)
-
-type Splitter struct {
+type SplitterConfig struct {
 	CopyFormatter bool
 	SplitFunc     func(context.Context, string) ([]string, error)
 }
 
-func (s *Splitter) splitTextContent(ctx context.Context, text string) ([]string, error) {
-	if s.SplitFunc == nil {
-		return nil, errors.New("split function is required")
+func (c *SplitterConfig) validate() error {
+	if c == nil {
+		return errors.New("config is required")
+	}
+	if c.SplitFunc == nil {
+		return errors.New("config split func is required")
+	}
+	return nil
+}
+
+var _ document.Processor = (*Splitter)(nil)
+
+type Splitter struct {
+	config *SplitterConfig
+}
+
+func NewSplitter(config *SplitterConfig) (*Splitter, error) {
+	if err := config.validate(); err != nil {
+		return nil, err
 	}
 
-	return s.SplitFunc(ctx, text)
+	return &Splitter{
+		config: config,
+	}, nil
 }
 
 func (s *Splitter) splitSingleDocument(ctx context.Context, doc *document.Document) ([]*document.Document, error) {
-	textChunks, err := s.splitTextContent(ctx, doc.Text)
+	textChunks, err := s.config.SplitFunc(ctx, doc.Text)
 	if err != nil {
 		return nil, err
 	}
@@ -41,7 +57,7 @@ func (s *Splitter) splitSingleDocument(ctx context.Context, doc *document.Docume
 		}
 		chunkDoc.Metadata = maps.Clone(doc.Metadata)
 
-		if s.CopyFormatter {
+		if s.config.CopyFormatter {
 			chunkDoc.Formatter = doc.Formatter
 		}
 

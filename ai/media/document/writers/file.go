@@ -2,6 +2,7 @@ package writers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"strconv"
@@ -17,61 +18,75 @@ const (
 	MetadataEndPageNumber   = "end_page_number"
 )
 
-var _ document.Writer = (*FileWriter)(nil)
-
-type FileWriter struct {
+type FileWriterConfig struct {
 	Path                string
 	WithDocumentMarkers bool
 	AppendMode          bool
 }
 
-func (fw *FileWriter) determineFileFlags() int {
+func (c *FileWriterConfig) validate() error {
+	if c == nil {
+		return errors.New("config is required")
+	}
+	if c.Path == "" {
+		return errors.New("file path is required")
+	}
+	return nil
+}
+
+var _ document.Writer = (*FileWriter)(nil)
+
+type FileWriter struct {
+	path                string
+	withDocumentMarkers bool
+	appendMode          bool
+}
+
+func NewFileWriter(config *FileWriterConfig) (*FileWriter, error) {
+	if err := config.validate(); err != nil {
+		return nil, err
+	}
+
+	return &FileWriter{
+		path:                config.Path,
+		withDocumentMarkers: config.WithDocumentMarkers,
+		appendMode:          config.AppendMode,
+	}, nil
+}
+
+func (f *FileWriter) Write(ctx context.Context, documents []*document.Document) error {
+	fileFlags := f.determineFileFlags()
+	outputFile, err := os.OpenFile(f.path, fileFlags, 0666)
+	if err != nil {
+		return fmt.Errorf("failed to open file %s: %w", f.path, err)
+	}
+	defer outputFile.Close()
+
+	if err = f.writeDocumentBatch(documents, outputFile); err != nil {
+		return fmt.Errorf("failed to write documents to file %s: %w", f.path, err)
+	}
+
+	return nil
+}
+
+func (f *FileWriter) determineFileFlags() int {
 	const (
 		createWriteTrunc  = os.O_CREATE | os.O_WRONLY | os.O_TRUNC
 		createWriteAppend = os.O_CREATE | os.O_WRONLY | os.O_APPEND
 	)
 
-	if fw.AppendMode {
+	if f.appendMode {
 		return createWriteAppend
 	}
 	return createWriteTrunc
 }
 
-func (fw *FileWriter) buildDocumentContent(docIndex int, doc *document.Document) string {
-	var contentBuilder strings.Builder
-
-	if fw.WithDocumentMarkers {
-		contentBuilder.WriteString("### Index: ")
-		contentBuilder.WriteString(strconv.Itoa(docIndex))
-		contentBuilder.WriteString(", Pages:[")
-
-		docMetadata := doc.Metadata
-		startPage := cast.ToString(docMetadata[MetadataStartPageNumber])
-		endPage := cast.ToString(docMetadata[MetadataEndPageNumber])
-
-		contentBuilder.WriteString(startPage)
-		contentBuilder.WriteString(",")
-		contentBuilder.WriteString(endPage)
-		contentBuilder.WriteString("]")
-		contentBuilder.WriteString("\n")
-	}
-
-	if doc.Formatter != nil {
-		contentBuilder.WriteString(doc.Format())
-	} else {
-		contentBuilder.WriteString(doc.Text)
-	}
-
-	contentBuilder.WriteString("\n\n")
-	return contentBuilder.String()
-}
-
-func (fw *FileWriter) writeDocumentBatch(documents []*document.Document, outputFile *os.File) error {
+func (f *FileWriter) writeDocumentBatch(documents []*document.Document, outputFile *os.File) error {
 	const writeBatchSize = 5
 	var batchBuffer strings.Builder
 
 	for docIndex, currentDoc := range documents {
-		formattedContent := fw.buildDocumentContent(docIndex, currentDoc)
+		formattedContent := f.buildDocumentContent(docIndex, currentDoc)
 		batchBuffer.WriteString(formattedContent)
 
 		shouldFlushBatch := (docIndex+1)%writeBatchSize == 0
@@ -84,26 +99,44 @@ func (fw *FileWriter) writeDocumentBatch(documents []*document.Document, outputF
 	}
 
 	if batchBuffer.Len() > 0 {
-		if _, writeErr := outputFile.WriteString(batchBuffer.String()); writeErr != nil {
-			return fmt.Errorf("failed to write final document batch: %w", writeErr)
+		if _, err := outputFile.WriteString(batchBuffer.String()); err != nil {
+			return fmt.Errorf("failed to write final document batch: %w", err)
 		}
 	}
 
 	return nil
 }
 
-func (fw *FileWriter) Write(_ context.Context, documents []*document.Document) error {
-	fileFlags := fw.determineFileFlags()
-	outputFile, openErr := os.OpenFile(fw.Path, fileFlags, 0666)
-	if openErr != nil {
-		return fmt.Errorf("failed to open file %s: %w", fw.Path, openErr)
-	}
-	defer outputFile.Close()
+func (f *FileWriter) buildDocumentContent(docIndex int, doc *document.Document) string {
+	var contentBuilder strings.Builder
 
-	err := fw.writeDocumentBatch(documents, outputFile)
-	if err != nil {
-		return fmt.Errorf("failed to write documents to file %s: %w", fw.Path, err)
+	if f.withDocumentMarkers {
+		contentBuilder.WriteString("### Index: ")
+		contentBuilder.WriteString(strconv.Itoa(docIndex))
+
+		docMetadata := doc.Metadata
+		if docMetadata != nil {
+			startPage := cast.ToString(docMetadata[MetadataStartPageNumber])
+			endPage := cast.ToString(docMetadata[MetadataEndPageNumber])
+			if startPage != "" && endPage != "" {
+				contentBuilder.WriteString(", Pages:[")
+				contentBuilder.WriteString(startPage)
+				contentBuilder.WriteString(",")
+				contentBuilder.WriteString(endPage)
+				contentBuilder.WriteString("]")
+			}
+		}
+
+		contentBuilder.WriteString("\n")
 	}
 
-	return nil
+	if doc.Formatter != nil {
+		contentBuilder.WriteString(doc.Format())
+	} else {
+		contentBuilder.WriteString(doc.Text)
+	}
+
+	contentBuilder.WriteString("\n\n")
+
+	return contentBuilder.String()
 }

@@ -3,31 +3,45 @@ package processors
 import (
 	"context"
 	"strings"
-	"sync"
 
 	"github.com/Tangerg/lynx/ai/media/document"
 )
 
-type TextSplitter struct {
-	once          sync.Once
-	splitter      *Splitter
+type TextSplitterConfig struct {
 	Separator     string
 	CopyFormatter bool
 }
 
-func (t *TextSplitter) initializeSplitter() {
-	t.once.Do(func() {
-		t.splitter = &Splitter{
-			CopyFormatter: t.CopyFormatter,
-			SplitFunc: func(_ context.Context, text string) ([]string, error) {
-				return strings.Split(text, t.Separator), nil
-			},
+var _ document.Processor = (*TextSplitter)(nil)
+
+type TextSplitter struct {
+	config   *TextSplitterConfig
+	splitter *Splitter
+}
+
+func NewTextSplitter(config *TextSplitterConfig) *TextSplitter {
+	if config == nil {
+		config = &TextSplitterConfig{
+			Separator: "\n",
 		}
+	}
+	splitter, _ := NewSplitter(&SplitterConfig{
+		CopyFormatter: config.CopyFormatter,
+		SplitFunc: func(ctx context.Context, s string) ([]string, error) {
+			return strings.Split(s, config.Separator), nil
+		},
 	})
+
+	return &TextSplitter{
+		config:   config,
+		splitter: splitter,
+	}
+}
+
+func NewDefaultTextSplitter() *TextSplitter {
+	return NewTextSplitter(nil)
 }
 
 func (t *TextSplitter) Process(ctx context.Context, docs []*document.Document) ([]*document.Document, error) {
-	t.initializeSplitter()
-
 	return t.splitter.Process(ctx, docs)
 }

@@ -4,63 +4,66 @@ import (
 	"maps"
 	"slices"
 	"strings"
-	"sync"
 
 	"github.com/spf13/cast"
 
 	"github.com/Tangerg/lynx/ai/media/document"
 )
 
-const (
-	DefaultMetadataSeparator                = "\n"
-	defaultMetadataTemplateKeyPlaceholder   = "{{.key}}"
-	defaultMetadataTemplateValuePlaceholder = "{{.value}}"
-	DefaultMetadataTemplate                 = defaultMetadataTemplateKeyPlaceholder + ": " + defaultMetadataTemplateValuePlaceholder
-	defaultTextTemplateMetadataPlaceholder  = "{{.metadata}}"
-	defaultTextTemplateContentPlaceholder   = "{{.content}}"
-	DefaultTextTemplate                     = defaultTextTemplateMetadataPlaceholder + "\n\n" + defaultTextTemplateContentPlaceholder
-)
-
-var _ document.Formatter = (*SimpleFormatter)(nil)
-
-type SimpleFormatter struct {
-	once                          sync.Once
-	MetadataTemplate              string
-	MetadataSeparator             string
-	TextTemplate                  string
+type SimpleFormatterConfig struct {
 	ExcludedInferenceMetadataKeys []string
 	ExcludedEmbedMetadataKeys     []string
 }
 
-func (s *SimpleFormatter) initializeDefaultValues() {
-	s.once.Do(func() {
-		if s.MetadataTemplate == "" {
-			s.MetadataTemplate = DefaultMetadataTemplate
-		}
-		if s.MetadataSeparator == "" {
-			s.MetadataSeparator = DefaultMetadataSeparator
-		}
-		if s.TextTemplate == "" {
-			s.TextTemplate = DefaultTextTemplate
-		}
-	})
+var _ document.Formatter = (*SimpleFormatter)(nil)
+
+type SimpleFormatter struct {
+	config *SimpleFormatterConfig
+}
+
+func NewSimpleFormatter(config *SimpleFormatterConfig) *SimpleFormatter {
+	if config == nil {
+		config = &SimpleFormatterConfig{}
+	}
+	if config.ExcludedInferenceMetadataKeys == nil {
+		config.ExcludedInferenceMetadataKeys = []string{}
+	}
+	if config.ExcludedEmbedMetadataKeys == nil {
+		config.ExcludedEmbedMetadataKeys = []string{}
+	}
+
+	return &SimpleFormatter{
+		config: config,
+	}
+}
+
+func NewDefaultSimpleFormatter() *SimpleFormatter {
+	return NewSimpleFormatter(nil)
 }
 
 func (s *SimpleFormatter) Format(doc *document.Document, mode document.MetadataMode) string {
-	s.initializeDefaultValues()
+	const (
+		metadataSeparator                = "\n"
+		metadataTemplateKeyPlaceholder   = "{{.key}}"
+		metadataTemplateValuePlaceholder = "{{.value}}"
+		metadataTemplate                 = metadataTemplateKeyPlaceholder + ": " + metadataTemplateValuePlaceholder
+		textTemplateMetadataPlaceholder  = "{{.metadata}}"
+		textTemplateContentPlaceholder   = "{{.content}}"
+		textTemplate                     = textTemplateMetadataPlaceholder + "\n\n" + textTemplateContentPlaceholder
+	)
 
 	filteredMetadata := s.filterMetadataByMode(doc.Metadata, mode)
 
-	var metadataEntries []string
+	metadataEntries := make([]string, 0, len(filteredMetadata))
 	for key, value := range filteredMetadata {
-		formattedEntry := strings.ReplaceAll(s.MetadataTemplate, defaultMetadataTemplateKeyPlaceholder, key)
-		formattedEntry = strings.ReplaceAll(formattedEntry, defaultMetadataTemplateValuePlaceholder, cast.ToString(value))
+		formattedEntry := strings.ReplaceAll(metadataTemplate, metadataTemplateKeyPlaceholder, key)
+		formattedEntry = strings.ReplaceAll(formattedEntry, metadataTemplateValuePlaceholder, cast.ToString(value))
 		metadataEntries = append(metadataEntries, formattedEntry)
 	}
 
-	metadataText := strings.Join(metadataEntries, s.MetadataSeparator)
-	finalResult := strings.ReplaceAll(s.TextTemplate, defaultTextTemplateMetadataPlaceholder, metadataText)
-	finalResult = strings.ReplaceAll(finalResult, defaultTextTemplateContentPlaceholder, doc.Text)
+	metadataText := strings.Join(metadataEntries, metadataSeparator)
+	finalResult := strings.ReplaceAll(textTemplate, textTemplateMetadataPlaceholder, metadataText)
+	finalResult = strings.ReplaceAll(finalResult, textTemplateContentPlaceholder, doc.Text)
 
 	return finalResult
 }
@@ -79,11 +82,11 @@ func (s *SimpleFormatter) filterMetadataByMode(metadata map[string]any, mode doc
 	switch mode {
 	case document.MetadataModeInference:
 		excludeKeyFunc = func(key string, _ any) bool {
-			return slices.Contains(s.ExcludedInferenceMetadataKeys, key)
+			return slices.Contains(s.config.ExcludedInferenceMetadataKeys, key)
 		}
 	case document.MetadataModeEmbed:
 		excludeKeyFunc = func(key string, _ any) bool {
-			return slices.Contains(s.ExcludedEmbedMetadataKeys, key)
+			return slices.Contains(s.config.ExcludedEmbedMetadataKeys, key)
 		}
 	}
 

@@ -32,10 +32,11 @@ func TestTextSplitter_Process(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ts := &processors.TextSplitter{
+	tsConf := &processors.TextSplitterConfig{
 		Separator:     "\n",
 		CopyFormatter: true,
 	}
+	ts := processors.NewTextSplitter(tsConf)
 	process, err := ts.Process(context.Background(), []*document.Document{doc})
 	if err != nil {
 		t.Fatal(err)
