@@ -37,8 +37,8 @@ type Evaluator interface {
 //	A string containing the concatenated text of all documents, separated by newlines
 func GetSupportingData(req *Request) string {
 	var texts []string
-	for _, document := range req.dataList {
-		text := document.Text()
+	for _, document := range req.Documents {
+		text := document.Text
 		if text != "" {
 			texts = append(texts, text)
 		}
