@@ -52,3 +52,10 @@ func (a *Api) Embeddings(ctx context.Context, req *openai.EmbeddingNewParams, op
 	}
 	return a.client.Embeddings.New(ctx, *req, opts...)
 }
+
+func (a *Api) Images(ctx context.Context, req *openai.ImageGenerateParams, opts ...option.RequestOption) (*openai.ImagesResponse, error) {
+	if req == nil {
+		return nil, errors.New("request parameters cannot be nil")
+	}
+	return a.client.Images.Generate(ctx, *req, opts...)
+}

@@ -9,8 +9,8 @@ type Image struct {
 	// URL is the direct link to the generated image
 	URL string `json:"url"`
 
-	// B64Json is the base64-encoded representation of the image
-	B64Json string `json:"b64_json"`
+	// B64JSON is the base64-encoded representation of the image
+	B64JSON string `json:"b64_json"`
 }
 
 // NewImage creates a new Image instance
@@ -22,7 +22,7 @@ func NewImage(URL string, b64Json string) (*Image, error) {
 	}
 	return &Image{
 		URL:     URL,
-		B64Json: b64Json,
+		B64JSON: b64Json,
 	}, nil
 }
 

@@ -36,11 +36,11 @@ func (r ResponseFormat) Valid() bool {
 
 // Options represents the configuration options for image generation
 type Options struct {
-	// NegativePrompt specifies what should not appear in the generated image
-	NegativePrompt string `json:"negative_prompt"`
-
 	// Model specifies the AI model to use for image generation
 	Model string `json:"model"`
+
+	// NegativePrompt specifies what should not appear in the generated image
+	NegativePrompt string `json:"negative_prompt"`
 
 	// Width specifies the width of the generated image in pixels
 	Width *int64 `json:"width"`

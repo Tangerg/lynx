@@ -15,8 +15,9 @@ var (
 	//baseURL   = "https://api.moonshot.cn/v1"
 	//baseModel = "moonshot-v1-8k-vision-preview"
 
-	baseURL   = "https://api.siliconflow.cn/v1"
-	baseModel = "BAAI/bge-m3"
+	baseURL = "https://api.siliconflow.cn/v1"
+	//baseModel = "BAAI/bge-m3"
+	baseModel = "Qwen/Qwen-Image"
 )
 
 func newAPIKey() model.ApiKey {
@@ -120,4 +121,18 @@ func TestApi_Embeddings(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Log(embeddings.Data[0].Embedding)
+}
+
+func TestApi_Images(t *testing.T) {
+	apiInstance := newAPI()
+
+	response, err := apiInstance.Images(context.Background(), &openai.ImageGenerateParams{
+		Model:  baseModel,
+		Prompt: "an island near sea, with seagulls, moon shining over the sea, light house, boats int he background, fish flying over the sea",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Log(response.Data[0].URL)
+	t.Log(response.Data[0].B64JSON)
 }
