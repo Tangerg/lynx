@@ -44,22 +44,23 @@ func (e *EmbeddingModel) buildApiEmbeddingRequest(req *embedding.Request) (*open
 		return nil, err
 	}
 
-	apiParams := &openai.EmbeddingNewParams{
-		Model: mergedOpts.Model,
-		Input: openai.EmbeddingNewParamsInputUnion{
-			OfArrayOfStrings: req.Inputs,
-		},
+	params := getOptionsParams[openai.EmbeddingNewParams](mergedOpts)
+
+	params.Model = mergedOpts.Model
+
+	params.Input = openai.EmbeddingNewParamsInputUnion{
+		OfArrayOfStrings: req.Inputs,
 	}
 
 	if mergedOpts.Dimensions != nil {
-		apiParams.Dimensions = openai.Int(ptr.Value(mergedOpts.Dimensions))
+		params.Dimensions = openai.Int(ptr.Value(mergedOpts.Dimensions))
 	}
 
 	if mergedOpts.EncodingFormat.Valid() {
-		apiParams.EncodingFormat = openai.EmbeddingNewParamsEncodingFormat(mergedOpts.EncodingFormat)
+		params.EncodingFormat = openai.EmbeddingNewParamsEncodingFormat(mergedOpts.EncodingFormat)
 	}
 
-	return apiParams, nil
+	return params, nil
 }
 
 func (e *EmbeddingModel) buildEmbeddingResponse(apiResp *openai.CreateEmbeddingResponse) (*embedding.Response, error) {
@@ -115,6 +116,6 @@ func (e *EmbeddingModel) DefaultOptions() *embedding.Options {
 
 func (e *EmbeddingModel) Info() embedding.ModelInfo {
 	return embedding.ModelInfo{
-		Provider: provider,
+		Provider: Provider,
 	}
 }

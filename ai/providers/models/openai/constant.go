@@ -1,10 +1,24 @@
 package openai
 
 const (
-	provider = "OpenAI"
+	Provider = "OpenAI"
 )
 
 const (
-	ChatOptionsKey      = "openai.chat.options"
-	EmbeddingOptionsKey = "openai.embedding.options"
+	OptionsKey = "openai.options"
 )
+
+func getOptionsParams[T any](
+	opts interface {
+		Get(key string) (any, bool)
+	},
+) *T {
+	params := new(T)
+
+	if extra, exist := opts.Get(OptionsKey); exist && extra != nil {
+		if extraParams, ok := extra.(*T); ok {
+			params = extraParams
+		}
+	}
+	return params
+}

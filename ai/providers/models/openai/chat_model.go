@@ -47,13 +47,7 @@ func (r *requestHelper) buildToolParams(tools []chat.Tool) ([]openai.ChatComplet
 }
 
 func (r *requestHelper) buildBaseParams(opts *chat.Options) *openai.ChatCompletionNewParams {
-	params := new(openai.ChatCompletionNewParams)
-
-	if extra, exist := opts.Get(ChatOptionsKey); exist && extra != nil {
-		if extraParams, ok := extra.(*openai.ChatCompletionNewParams); ok {
-			params = extraParams
-		}
-	}
+	params := getOptionsParams[openai.ChatCompletionNewParams](opts)
 
 	params.Model = opts.Model
 
@@ -523,6 +517,6 @@ func (c *ChatModel) DefaultOptions() *chat.Options {
 
 func (c *ChatModel) Info() chat.ModelInfo {
 	return chat.ModelInfo{
-		Provider: provider,
+		Provider: Provider,
 	}
 }

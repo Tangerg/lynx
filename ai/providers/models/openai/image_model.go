@@ -3,12 +3,14 @@ package openai
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/option"
 
 	"github.com/Tangerg/lynx/ai/model"
 	"github.com/Tangerg/lynx/ai/model/image"
+	"github.com/Tangerg/lynx/pkg/mime"
 )
 
 var _ image.Model = (*ImageModel)(nil)
@@ -34,20 +36,37 @@ func NewImageModel(apiKey model.ApiKey, defaultOptions *image.Options, opts ...o
 	}, nil
 }
 
-// buildApiImageRequest Todo Complete all parameters
 func (i *ImageModel) buildApiImageRequest(req *image.Request) (*openai.ImageGenerateParams, error) {
 	mergedOpts, err := image.MergeOptions(i.defaultOptions, req.Options)
 	if err != nil {
 		return nil, err
 	}
-	apiParams := &openai.ImageGenerateParams{
-		Prompt: req.Prompt,
-		Model:  mergedOpts.Model,
+	params := getOptionsParams[openai.ImageGenerateParams](mergedOpts)
+
+	params.Prompt = req.Prompt
+
+	params.Model = mergedOpts.Model
+
+	if mergedOpts.OutputFormat != nil &&
+		mime.IsImage(mergedOpts.OutputFormat) {
+		params.OutputFormat = openai.ImageGenerateParamsOutputFormat(mergedOpts.OutputFormat.SubType())
 	}
-	return apiParams, nil
+
+	if mergedOpts.ResponseFormat.Valid() {
+		params.ResponseFormat = openai.ImageGenerateParamsResponseFormat(mergedOpts.ResponseFormat)
+	}
+
+	if mergedOpts.Width != nil && mergedOpts.Height != nil {
+		params.Size = openai.ImageGenerateParamsSize(fmt.Sprintf("%dx%d", mergedOpts.Width, mergedOpts.Height))
+	} else {
+		params.Size = openai.ImageGenerateParamsSizeAuto
+	}
+
+	params.Style = openai.ImageGenerateParamsStyle(mergedOpts.Style)
+
+	return params, nil
 }
 
-// buildImageResp Todo Complete all parameters
 func (i *ImageModel) buildImageResp(resp *openai.ImagesResponse) (*image.Response, error) {
 	results := make([]*image.Result, 0, len(resp.Data))
 	for _, item := range resp.Data {
@@ -87,6 +106,6 @@ func (i *ImageModel) DefaultOptions() *image.Options {
 
 func (i *ImageModel) Info() image.ModelInfo {
 	return image.ModelInfo{
-		Provider: provider,
+		Provider: Provider,
 	}
 }
