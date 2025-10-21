@@ -32,7 +32,7 @@ const (
 
 	// MessageTypeTool represents a message containing function call results
 	// or internalTool execution outcomes in a chat application.
-	MessageTypeTool MessageType = "internalTool"
+	MessageTypeTool MessageType = "tool"
 )
 
 func (t MessageType) String() string {

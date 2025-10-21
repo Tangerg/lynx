@@ -370,18 +370,7 @@ func (v *VectorStore) buildDocumentsFromPoints(scoredPoints []*qdrant.ScoredPoin
 	docs := make([]*document.Document, 0, len(scoredPoints))
 
 	for _, point := range scoredPoints {
-		payload := point.GetPayload()
-		if payload == nil {
-			return nil, fmt.Errorf("point %v has nil payload", point.GetId())
-		}
-
 		doc := &document.Document{}
-
-		if contentValue, ok := payload[payloadDocumentContentKey]; ok {
-			doc.Text = contentValue.GetStringValue()
-		}
-
-		delete(payload, payloadDocumentContentKey)
 
 		if pointID := point.GetId(); pointID != nil {
 			doc.ID = pointID.GetUuid()
@@ -389,7 +378,16 @@ func (v *VectorStore) buildDocumentsFromPoints(scoredPoints []*qdrant.ScoredPoin
 
 		doc.Score = float64(point.GetScore())
 
-		doc.Metadata = v.convertPayloadToMetadata(payload)
+		payload := point.GetPayload()
+		if payload != nil {
+			if contentValue, ok := payload[payloadDocumentContentKey]; ok {
+				doc.Text = contentValue.GetStringValue()
+			}
+
+			delete(payload, payloadDocumentContentKey)
+
+			doc.Metadata = v.convertPayloadToMetadata(payload)
+		}
 
 		docs = append(docs, doc)
 	}
