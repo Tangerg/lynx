@@ -16,11 +16,6 @@ func NewSQLLikeVisitor() *SQLLikeVisitor {
 	return &SQLLikeVisitor{}
 }
 
-func (s *SQLLikeVisitor) Reset() {
-	s.err = nil
-	s.buffer.Reset()
-}
-
 func (s *SQLLikeVisitor) Error() error {
 	return s.err
 }

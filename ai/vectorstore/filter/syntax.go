@@ -7,6 +7,7 @@ import (
 
 	"github.com/Tangerg/lynx/ai/vectorstore/filter/ast"
 	"github.com/Tangerg/lynx/ai/vectorstore/filter/token"
+	"github.com/Tangerg/lynx/pkg/math"
 )
 
 // newKindToken creates a Token with the specified kind and no position information.
@@ -47,17 +48,10 @@ func NewIdent[T identType](value T) *ast.Ident {
 	return ident
 }
 
-// numericType encompasses all Go numeric types for literal creation.
-type numericType interface {
-	int | int8 | int16 | int32 | int64 |
-		uint | uint8 | uint16 | uint32 | uint64 |
-		float32 | float64
-}
-
 // literalType defines acceptable types for literal construction.
 // Includes all numeric types, strings, booleans, and existing *ast.Literal nodes.
 type literalType interface {
-	numericType | string | bool | *ast.Literal
+	math.NumericType | string | bool | *ast.Literal
 }
 
 // newLiteral creates a literal AST node from various input types with automatic token kind detection.
@@ -224,25 +218,25 @@ func NE[L identType | *ast.IndexExpr, R literalType](l L, r R) *ast.BinaryExpr {
 
 // LT creates less-than comparison expressions for numeric values.
 // Examples: age < 18, price < 100.50, scores[0] < 90
-func LT[L identType | *ast.IndexExpr, R numericType | *ast.Literal](l L, r R) *ast.BinaryExpr {
+func LT[L identType | *ast.IndexExpr, R math.NumericType | *ast.Literal](l L, r R) *ast.BinaryExpr {
 	return compare(l, r, token.LT)
 }
 
 // LE creates less-than-or-equal comparison expressions for numeric values.
 // Examples: age <= 18, price <= 100.50, scores[0] <= 90
-func LE[L identType | *ast.IndexExpr, R numericType | *ast.Literal](l L, r R) *ast.BinaryExpr {
+func LE[L identType | *ast.IndexExpr, R math.NumericType | *ast.Literal](l L, r R) *ast.BinaryExpr {
 	return compare(l, r, token.LE)
 }
 
 // GT creates greater-than comparison expressions for numeric values.
 // Examples: age > 18, price > 100.50, scores[0] > 90
-func GT[L identType | *ast.IndexExpr, R numericType | *ast.Literal](l L, r R) *ast.BinaryExpr {
+func GT[L identType | *ast.IndexExpr, R math.NumericType | *ast.Literal](l L, r R) *ast.BinaryExpr {
 	return compare(l, r, token.GT)
 }
 
 // GE creates greater-than-or-equal comparison expressions for numeric values.
 // Examples: age >= 18, price >= 100.50, scores[0] >= 90
-func GE[L identType | *ast.IndexExpr, R numericType | *ast.Literal](l L, r R) *ast.BinaryExpr {
+func GE[L identType | *ast.IndexExpr, R math.NumericType | *ast.Literal](l L, r R) *ast.BinaryExpr {
 	return compare(l, r, token.GE)
 }
 
@@ -316,7 +310,7 @@ func Not[T ast.ComputedExpr](r T) *ast.UnaryExpr {
 // Index creates array/map access expressions for accessing nested data structures.
 // Supports chaining for multi-level access and both identifier and existing IndexExpr as left operand.
 // Examples: arr[0], obj["key"], matrix[1][2], users[0]["name"]
-func Index[L identType | *ast.IndexExpr, I numericType | string | *ast.Literal](left L, index I) *ast.IndexExpr {
+func Index[L identType | *ast.IndexExpr, I math.NumericType | string | *ast.Literal](left L, index I) *ast.IndexExpr {
 	indexExpr := &ast.IndexExpr{
 		LBrack: newKindToken(token.LBRACK),
 		RBrack: newKindToken(token.RBRACK),

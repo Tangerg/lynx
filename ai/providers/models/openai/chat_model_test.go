@@ -2,16 +2,14 @@ package openai
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
 	"testing"
 
 	"github.com/openai/openai-go/v3/option"
 
 	"github.com/Tangerg/lynx/ai/media"
 	"github.com/Tangerg/lynx/ai/model/chat"
+	"github.com/Tangerg/lynx/ai/providers/tools/fakeweatherquery"
 	"github.com/Tangerg/lynx/pkg/assert"
-	pkgJson "github.com/Tangerg/lynx/pkg/json"
 	"github.com/Tangerg/lynx/pkg/mime"
 )
 
@@ -76,72 +74,10 @@ func TestChatModel_Stream(t *testing.T) {
 	}
 }
 
-type weatherRequest struct {
-	StartAt  int64  `json:"after" jsonschema_description:"Start time of weather query, second level timestamp in Unix format"`
-	EndAt    int64  `json:"before" jsonschema_description:"End time of weather query, second level timestamp in Unix format"`
-	Location string `json:"location" jsonschema_description:"Location required for weather query"`
-}
-
-const weatherResponse = `{
-	"location": %s,
-	"timestamp": {
-		"start": %d,
-		"end": %d
-	},
-	"temperature": {
-		"value": 20,
-		"dataunit": "Celsius"
-	},
-	"condition": "Sunny",
-	"humidity": 55,
-	"wind": {
-		"speed": 10,
-		"dataunit": "km/h",
-		"direction": "North-East"
-	},
-	"source": "WeatherAPI"
-}`
-
-func newWeatherTool() chat.Tool {
-	toolDefinition := chat.ToolDefinition{
-		Name:        "weather_query",
-		Description: "a weather query tool",
-		InputSchema: pkgJson.StringDefSchemaOf(weatherRequest{}),
-	}
-
-	toolMetadata := chat.ToolMetadata{}
-
-	toolFunction := func(_ context.Context, input string) (string, error) {
-		fmt.Println("weather_query called")
-		fmt.Println(input)
-
-		request := weatherRequest{}
-		err := json.Unmarshal([]byte(input), &request)
-		if err != nil {
-			return "", err
-		}
-
-		return fmt.Sprintf(
-			weatherResponse,
-			request.Location,
-			request.StartAt,
-			request.EndAt,
-		), nil
-	}
-
-	weatherTool, _ := chat.NewTool(
-		toolDefinition,
-		toolMetadata,
-		toolFunction,
-	)
-
-	return weatherTool
-}
-
 func TestChatModel_Call_Tool(t *testing.T) {
 	chatModel := newChatModel()
 
-	weatherTool := newWeatherTool()
+	weatherTool := fakeweatherquery.NewFakeWeatherQuery(nil)
 	toolOptions := assert.Must(chat.NewOptions(baseModel))
 	toolOptions.Tools = []chat.Tool{weatherTool}
 	messages := []chat.Message{
@@ -171,7 +107,7 @@ func TestChatModel_Call_Tool(t *testing.T) {
 func TestChatModel_Stream_Tool(t *testing.T) {
 	chatModel := newChatModel()
 
-	weatherTool := newWeatherTool()
+	weatherTool := fakeweatherquery.NewFakeWeatherQuery(nil)
 	toolOptions := assert.Must(chat.NewOptions(baseModel))
 	toolOptions.Tools = []chat.Tool{weatherTool}
 
