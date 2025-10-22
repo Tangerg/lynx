@@ -554,12 +554,21 @@ func (c *Client) Chat() *ClientRequest {
 	return c.defaultRequest.Clone()
 }
 
+// ChatRequest creates a chat interaction from an existing request,
+// merging its configuration with client defaults.
+func (c *Client) ChatRequest(req *Request) *ClientRequest {
+	return c.
+		Chat().
+		WithMessages(req.Messages...).
+		WithOptions(req.Options).
+		WithParams(req.Params)
+}
+
 // ChatText creates a chat interaction with a simple text message
 // using default options.
 func (c *Client) ChatText(text string) *ClientRequest {
 	return c.
-		defaultRequest.
-		Clone().
+		Chat().
 		WithMessages(NewUserMessage(text))
 }
 
@@ -567,18 +576,6 @@ func (c *Client) ChatText(text string) *ClientRequest {
 // for the user message.
 func (c *Client) ChatPromptTemplate(promptTemplate *PromptTemplate) *ClientRequest {
 	return c.
-		defaultRequest.
-		Clone().
+		Chat().
 		WithUserPromptTemplate(promptTemplate)
-}
-
-// ChatRequest creates a chat interaction from an existing request,
-// merging its configuration with client defaults.
-func (c *Client) ChatRequest(req *Request) *ClientRequest {
-	return c.
-		defaultRequest.
-		Clone().
-		WithMessages(req.Messages...).
-		WithOptions(req.Options).
-		WithParams(req.Params)
 }

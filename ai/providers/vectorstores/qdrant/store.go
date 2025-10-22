@@ -170,21 +170,17 @@ func (v *VectorStore) buildUpsertPoints(ctx context.Context, req *vectorstore.Cr
 	}
 
 	for _, docs := range batchedDocs {
-		contents := make([]string, 0, len(docs))
-		for _, doc := range docs {
-			contents = append(contents, doc.Format())
-		}
-
-		embeddings, _, err := v.embeddingClient.
-			EmbedTexts(contents).
+		vectors, _, err := v.
+			embeddingClient.
+			EmbedDocuments(docs).
 			Call().
 			Embeddings(ctx)
 		if err != nil {
-			return nil, fmt.Errorf("failed to generate embeddings: %w", err)
+			return nil, fmt.Errorf("failed to generate vectors: %w", err)
 		}
 
 		for i, doc := range docs {
-			point, err := v.buildPointStruct(doc, embeddings[i], contents[i])
+			point, err := v.buildPointStruct(doc, vectors[i])
 			if err != nil {
 				return nil, fmt.Errorf("failed to build point struct for document %s: %w", doc.ID, err)
 			}
@@ -196,7 +192,7 @@ func (v *VectorStore) buildUpsertPoints(ctx context.Context, req *vectorstore.Cr
 	return upsertPoints, nil
 }
 
-func (v *VectorStore) buildPointStruct(doc *document.Document, embedding []float64, content string) (*qdrant.PointStruct, error) {
+func (v *VectorStore) buildPointStruct(doc *document.Document, vector []float64) (*qdrant.PointStruct, error) {
 	docID := doc.ID
 	if docID == "" {
 		docID = uuid.NewString()
@@ -206,7 +202,7 @@ func (v *VectorStore) buildPointStruct(doc *document.Document, embedding []float
 		Id: qdrant.NewID(docID),
 	}
 
-	vectorData := math.ConvertSlice[float64, float32](embedding)
+	vectorData := math.ConvertSlice[float64, float32](vector)
 	point.Vectors = qdrant.NewVectors(vectorData...)
 
 	payload, err := qdrant.TryValueMap(doc.Metadata)
@@ -216,7 +212,7 @@ func (v *VectorStore) buildPointStruct(doc *document.Document, embedding []float
 	point.Payload = payload
 
 	if v.storeDocumentContent {
-		contentValue, err := qdrant.NewValue(content)
+		contentValue, err := qdrant.NewValue(doc.Text)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create content value: %w", err)
 		}

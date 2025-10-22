@@ -215,22 +215,20 @@ func (c *Client) Generate() *ClientRequest {
 		Clone()
 }
 
-// GeneratePrompt creates a new ClientRequest with the specified prompt
-// Clones the default request and sets the prompt
-func (c *Client) GeneratePrompt(prompt string) *ClientRequest {
-	return c.
-		defaultRequest.
-		Clone().
-		WithPrompt(prompt)
-}
-
 // GenerateRequest creates a new ClientRequest based on an existing Request object
 // Clones the default request and applies the prompt, options, and params from the provided request
 func (c *Client) GenerateRequest(request *Request) *ClientRequest {
 	return c.
-		defaultRequest.
-		Clone().
+		Generate().
 		WithPrompt(request.Prompt).
 		WithOptions(request.Options).
 		WithParams(request.Params)
+}
+
+// GeneratePrompt creates a new ClientRequest with the specified prompt
+// Clones the default request and sets the prompt
+func (c *Client) GeneratePrompt(prompt string) *ClientRequest {
+	return c.
+		Generate().
+		WithPrompt(prompt)
 }

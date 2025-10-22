@@ -6,6 +6,7 @@ import (
 	"maps"
 	"slices"
 
+	"github.com/Tangerg/lynx/ai/media/document"
 	"github.com/Tangerg/lynx/ai/model"
 )
 
@@ -221,31 +222,42 @@ func (c *Client) Embed() *ClientRequest {
 	return c.defaultRequest.Clone()
 }
 
+// EmbedRequest creates a client request from an existing Request object.
+// This allows for reusing previously configured requests with the client's settings.
+func (c *Client) EmbedRequest(req *Request) *ClientRequest {
+	return c.
+		Embed().
+		WithInputs(req.Inputs).
+		WithOptions(req.Options).
+		WithParams(req.Params)
+}
+
 // EmbedText creates a request to embed a single text string.
 // This is a convenience method that combines cloning and setting the input.
 func (c *Client) EmbedText(text string) *ClientRequest {
-	return c.
-		defaultRequest.
-		Clone().
-		WithInputs([]string{text})
+	return c.EmbedTexts([]string{text})
 }
 
 // EmbedTexts creates a request to embed multiple text strings.
 // This is a convenience method for batch embedding operations.
 func (c *Client) EmbedTexts(texts []string) *ClientRequest {
 	return c.
-		defaultRequest.
-		Clone().
+		Embed().
 		WithInputs(texts)
 }
 
-// EmbedRequest creates a client request from an existing Request object.
-// This allows for reusing previously configured requests with the client's settings.
-func (c *Client) EmbedRequest(req *Request) *ClientRequest {
-	return c.
-		defaultRequest.
-		Clone().
-		WithInputs(req.Inputs).
-		WithOptions(req.Options).
-		WithParams(req.Params)
+// EmbedDocument creates a client request for embedding a single document.
+// The document's text content will be used as the embedding input.
+func (c *Client) EmbedDocument(doc *document.Document) *ClientRequest {
+	return c.EmbedText(doc.Text)
+}
+
+// EmbedDocuments creates a client request for embedding multiple documents.
+// Each document's text content will be extracted and embedded in order.
+func (c *Client) EmbedDocuments(docs []*document.Document) *ClientRequest {
+	contents := make([]string, 0, len(docs))
+	for _, doc := range docs {
+		contents = append(contents, doc.Text)
+	}
+	return c.EmbedTexts(contents)
 }

@@ -100,7 +100,7 @@ func (b *TokenCountBatcher) Batch(ctx context.Context, docs []*document.Document
 		}
 
 		if estimatedTokens > b.maxInputTokenCount {
-			return nil, errors.New("document token count exceeds maximum allowed input tokens")
+			return nil, errors.New("tokens in a single document exceeds the maximum number of allowed input tokens")
 		}
 
 		docsWithTokens = append(docsWithTokens, &docWithTokenCount{
