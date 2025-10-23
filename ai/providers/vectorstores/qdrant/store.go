@@ -257,35 +257,18 @@ func (v *VectorStore) buildQueryPoints(ctx context.Context, req *vectorstore.Ret
 		queryPoints.Filter = filter
 	}
 
-	queryVector, err := v.convertQueryToVector(ctx, req.Query)
+	vector, _, err := v.embeddingClient.
+		EmbedText(req.Query).
+		Call().
+		Embedding(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to embed query text: %w", err)
 	}
 
-	vectorData := math.ConvertSlice[float64, float32](queryVector)
-	queryPoints.Query = qdrant.NewQuery(vectorData...)
+	queryVector := math.ConvertSlice[float64, float32](vector)
+	queryPoints.Query = qdrant.NewQuery(queryVector...)
 
 	return queryPoints, nil
-}
-
-func (v *VectorStore) convertQueryToVector(ctx context.Context, query any) ([]float64, error) {
-	switch q := query.(type) {
-	case *vectorstore.TextQuery:
-		vector, _, err := v.embeddingClient.
-			EmbedText(q.Text).
-			Call().
-			Embedding(ctx)
-		if err != nil {
-			return nil, fmt.Errorf("failed to embed query text: %w", err)
-		}
-		return vector, nil
-
-	case *vectorstore.VectorQuery:
-		return q.Vector, nil
-
-	default:
-		return nil, fmt.Errorf("unsupported query type: %T", query)
-	}
 }
 
 func (v *VectorStore) convertQdrantValue(value *qdrant.Value) any {

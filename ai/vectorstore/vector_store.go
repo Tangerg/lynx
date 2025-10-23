@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math"
 
 	"github.com/Tangerg/lynx/ai/media/document"
 	"github.com/Tangerg/lynx/ai/vectorstore/filter"
@@ -28,38 +27,11 @@ const (
 	AcceptAllScores = MinSimilarityScore
 )
 
-// Query represents the input for similarity search in a vector store.
-// It can be either a TextQuery for text-based search or a VectorQuery for direct vector search.
-// This is a sealed interface - only TextQuery and VectorQuery can implement it.
-type Query interface {
-	query()
-}
-
-// TextQuery represents a text-based search query.
-// The text will be converted to a vector embedding by the vector store implementation
-// before performing the similarity search.
-type TextQuery struct {
-	// Text is the search text to be converted into a vector embedding.
-	Text string
-}
-
-func (*TextQuery) query() {}
-
-// VectorQuery represents a direct vector-based search query.
-// Use this when you already have a pre-computed vector embedding.
-type VectorQuery struct {
-	// Vector is the embedding vector to search for similar documents.
-	// The dimension must match the vector store's expected dimension.
-	Vector []float64
-}
-
-func (*VectorQuery) query() {}
-
 // RetrievalRequest specifies parameters for retrieving documents from vector stores.
 // It supports both text-based and vector-based queries with configurable result filtering.
 type RetrievalRequest struct {
-	// Query is either a TextQuery or VectorQuery that defines the search input.
-	Query Query
+	// Query is the text that defines the search input.
+	Query string
 
 	// TopK is the maximum number of documents to return, ranked by similarity score.
 	// Must be greater than 0. Defaults to DefaultTopK (5) if not specified.
@@ -76,32 +48,16 @@ type RetrievalRequest struct {
 	Filter ast.Expr
 }
 
-// NewTextRetrievalRequest creates a new retrieval request with a text query.
+// NewRetrievalRequest creates a new retrieval request with a text query.
 // The request is initialized with default values (TopK=5, MinScore=0.0, no filter).
 //
 // Parameters:
 //   - text: The search text, must not be empty
 //
 // Returns an error if validation fails.
-func NewTextRetrievalRequest(text string) (*RetrievalRequest, error) {
+func NewRetrievalRequest(text string) (*RetrievalRequest, error) {
 	req := &RetrievalRequest{
-		Query:    &TextQuery{Text: text},
-		TopK:     DefaultTopK,
-		MinScore: AcceptAllScores,
-	}
-	return req, req.Validate()
-}
-
-// NewVectorRetrievalRequest creates a new retrieval request with a vector query.
-// The request is initialized with default values (TopK=5, MinScore=0.0, no filter).
-//
-// Parameters:
-//   - vector: The embedding vector, must not be empty
-//
-// Returns an error if validation fails.
-func NewVectorRetrievalRequest(vector []float64) (*RetrievalRequest, error) {
-	req := &RetrievalRequest{
-		Query:    &VectorQuery{Vector: vector},
+		Query:    text,
 		TopK:     DefaultTopK,
 		MinScore: AcceptAllScores,
 	}
@@ -156,7 +112,7 @@ func (r *RetrievalRequest) WithFilter(filter ast.Expr) *RetrievalRequest {
 
 // Validate checks if the request parameters are valid.
 // It validates:
-//   - Query is not nil and has valid content
+//   - Query is not empty
 //   - TopK is greater than 0
 //   - MinScore is within [0.0, 1.0]
 //   - Filter expression is syntactically correct (if present)
@@ -167,24 +123,8 @@ func (r *RetrievalRequest) Validate() error {
 		return errors.New("request cannot be nil")
 	}
 
-	switch q := r.Query.(type) {
-	case *TextQuery:
-		if q == nil || q.Text == "" {
-			return errors.New("text query cannot be empty")
-		}
-	case *VectorQuery:
-		if q == nil || len(q.Vector) == 0 {
-			return errors.New("vector query cannot be empty")
-		}
-		for i, v := range q.Vector {
-			if math.IsNaN(v) || math.IsInf(v, 0) {
-				return fmt.Errorf("vector contains invalid value at index %d", i)
-			}
-		}
-	case nil:
-		return errors.New("query cannot be nil")
-	default:
-		return errors.New("invalid query type, must be TextQuery or VectorQuery")
+	if r.Query == "" {
+		return errors.New("query text cannot be empty")
 	}
 
 	if r.TopK <= 0 {
@@ -349,7 +289,7 @@ type VectorStore interface {
 }
 
 // StoreInfo contains metadata about the vector store implementation.
-// It provides information about the underlying provider and access to native client.
+// It provides information about the underlying provider and access to the native client.
 type StoreInfo struct {
 	// NativeClient is the underlying client used by the store.
 	// This can be used for advanced operations not covered by the VectorStore interface.
