@@ -766,13 +766,21 @@ func augmentLastMessageOfType(messages []Message, targetType MessageType, augmen
 }
 
 // appendTextToLastMessageOfType appends additional text to the last message of the specified type.
-// The text is appended with double newlines as separators. Only supports UserMessage and
-// SystemMessage types as they contain modifiable text content.
+// The text is appended with double newlines as separators, preserving the original content.
+// Only supports UserMessage and SystemMessage types as they contain modifiable text content.
+//
+// This function is useful when you need to add supplementary information, context, or notes
+// to an existing message without losing the original content.
 //
 // Parameters:
 //   - messages: The slice of messages to modify (modified in-place)
 //   - targetType: The type of message to find and augment (User or System)
 //   - textToAppend: The text to append to the found message
+//
+// Behavior:
+//   - Original text: "Hello"
+//   - Text to append: "World"
+//   - Result: "Hello\n\nWorld"
 //
 // Note: If the message type doesn't support text augmentation, no modification occurs.
 // For unsupported message types (Assistant, Tool), the function silently does nothing.
@@ -784,6 +792,44 @@ func appendTextToLastMessageOfType(messages []Message, targetType MessageType, t
 			return typedMessage
 		case *SystemMessage:
 			typedMessage.Text = typedMessage.Text + "\n\n" + textToAppend
+			return typedMessage
+		default:
+			return typedMessage // Return unchanged for unsupported types
+		}
+	})
+}
+
+// replaceTextOfLastMessageOfType completely replaces the text content of the last message
+// of the specified type with new text. The original content is discarded.
+// Only supports UserMessage and SystemMessage types as they contain modifiable text content.
+//
+// This function is useful when you need to correct errors, update the entire message content,
+// or completely rewrite a message without preserving the original text.
+//
+// Parameters:
+//   - messages: The slice of messages to modify (modified in-place)
+//   - targetType: The type of message to find and replace (User or System)
+//   - textToReplace: The new text that will replace the existing content
+//
+// Behavior:
+//   - Original text: "Hello"
+//   - Text to replace: "World"
+//   - Result: "World"
+//
+// Difference from appendTextToLastMessageOfType:
+//   - appendTextToLastMessageOfType: Preserves original content and adds new text
+//   - replaceTextOfLastMessageOfType: Discards original content and sets new text
+//
+// Note: If the message type doesn't support text replacement, no modification occurs.
+// For unsupported message types (Assistant, Tool), the function silently does nothing.
+func replaceTextOfLastMessageOfType(messages []Message, targetType MessageType, textToReplace string) {
+	augmentLastMessageOfType(messages, targetType, func(currentMessage Message) Message {
+		switch typedMessage := currentMessage.(type) {
+		case *UserMessage:
+			typedMessage.Text = textToReplace
+			return typedMessage
+		case *SystemMessage:
+			typedMessage.Text = textToReplace
 			return typedMessage
 		default:
 			return typedMessage // Return unchanged for unsupported types

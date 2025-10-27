@@ -2,15 +2,18 @@ package rag
 
 import (
 	"maps"
-	"slices"
-
-	"github.com/Tangerg/lynx/ai/model/chat"
 )
 
+// Query represents a user query with its text content and additional metadata.
+// It is used throughout the RAG pipeline for query transformation, expansion,
+// retrieval, and augmentation operations.
 type Query struct {
-	Text    string
-	History []chat.Message
-	Extra   map[string]any
+	// Text is the main content of the query.
+	Text string
+
+	// Extra holds additional metadata associated with the query,
+	// such as filters, parameters, or any contextual information.
+	Extra map[string]any
 }
 
 func (q *Query) ensureExtra() {
@@ -32,8 +35,7 @@ func (q *Query) Set(key string, value any) {
 
 func (q *Query) Clone() *Query {
 	return &Query{
-		Text:    q.Text,
-		History: slices.Clone(q.History),
-		Extra:   maps.Clone(q.Extra),
+		Text:  q.Text,
+		Extra: maps.Clone(q.Extra),
 	}
 }

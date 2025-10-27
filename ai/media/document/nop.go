@@ -6,7 +6,7 @@ import (
 
 var _ Reader = (*Nop)(nil)
 var _ Writer = (*Nop)(nil)
-var _ Processor = (*Nop)(nil)
+var _ Transformer = (*Nop)(nil)
 var _ Formatter = (*Nop)(nil)
 var _ Batcher = (*Nop)(nil)
 
@@ -15,16 +15,19 @@ var _ Batcher = (*Nop)(nil)
 // where certain operations should be skipped without causing errors.
 type Nop struct{}
 
-// NewNop creates a new no-operation implementation instance.
-// Useful for initializing default behaviors or testing scenarios.
+// nop is a singleton instance of Nop to avoid unnecessary allocations.
+var nop = &Nop{}
+
+// NewNop returns a singleton instance of Nop.
+// Since Nop is stateless, the same instance can be safely reused.
 func NewNop() *Nop {
-	return &Nop{}
+	return nop
 }
 
-// Read returns an empty document slice without performing any actual reading.
+// Read returns a nil document slice without performing any actual reading.
 // Satisfies the Reader interface for cases where no input is needed.
 func (n *Nop) Read(_ context.Context) ([]*Document, error) {
-	return []*Document{}, nil
+	return nil, nil
 }
 
 // Write accepts documents but performs no actual storage operation.
@@ -39,9 +42,9 @@ func (n *Nop) Format(doc *Document, _ MetadataMode) string {
 	return doc.Text
 }
 
-// Process returns documents unchanged without any transformation.
+// Transform returns documents unchanged without any transformation.
 // Useful as a pass-through processor in pipeline configurations.
-func (n *Nop) Process(_ context.Context, docs []*Document) ([]*Document, error) {
+func (n *Nop) Transform(_ context.Context, docs []*Document) ([]*Document, error) {
 	return docs, nil
 }
 

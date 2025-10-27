@@ -1,4 +1,4 @@
-package processors
+package transformers
 
 import (
 	"context"
@@ -48,7 +48,7 @@ func (c *TokenSplitterConfig) validate() error {
 	return nil
 }
 
-var _ document.Processor = (*TokenSplitter)(nil)
+var _ document.Transformer = (*TokenSplitter)(nil)
 
 type TokenSplitter struct {
 	config   *TokenSplitterConfig
@@ -147,6 +147,6 @@ func (t *TokenSplitter) splitByTokens(ctx context.Context, text string) ([]strin
 	return textChunks, nil
 }
 
-func (t *TokenSplitter) Process(ctx context.Context, docs []*document.Document) ([]*document.Document, error) {
-	return t.splitter.Process(ctx, docs)
+func (t *TokenSplitter) Transform(ctx context.Context, docs []*document.Document) ([]*document.Document, error) {
+	return t.splitter.Transform(ctx, docs)
 }

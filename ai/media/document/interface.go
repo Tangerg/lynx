@@ -57,14 +57,14 @@ type Formatter interface {
 	Format(doc *Document, mode MetadataMode) string
 }
 
-// Processor defines an interface for transforming documents in processing pipelines.
+// Transformer defines an interface for transforming documents in processing pipelines.
 // Implementations can modify, filter, enrich, or validate documents while maintaining
 // proper error handling and context support for cancellation and timeouts.
-type Processor interface {
-	// Process handles a batch of documents and returns the transformed result.
+type Transformer interface {
+	// Transform handles a batch of documents and returns the transformed result.
 	// The returned slice may have different length than input (filtering/expansion).
 	// Context should be respected for cancellation and timeout handling.
-	Process(ctx context.Context, docs []*Document) ([]*Document, error)
+	Transform(ctx context.Context, docs []*Document) ([]*Document, error)
 }
 
 // Batcher defines an interface for optimizing document batching for embedding operations.

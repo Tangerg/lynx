@@ -311,7 +311,7 @@ func (s *ClientStreamer) response(ctx context.Context, parser StructuredParser[a
 		}
 
 		if parser != nil {
-			req.appendTextToLastUserMessage(parser.Instructions())
+			req.AppendToLastUserMessage(parser.Instructions())
 		}
 
 		for resp, streamErr := range s.stream(ctx, req) {
@@ -370,7 +370,7 @@ func (c *ClientCaller) response(ctx context.Context, parser StructuredParser[any
 	}
 
 	if parser != nil {
-		req.appendTextToLastUserMessage(parser.Instructions())
+		req.AppendToLastUserMessage(parser.Instructions())
 	}
 
 	return c.call(ctx, req)

@@ -1,11 +1,11 @@
-package processors_test
+package transformers_test
 
 import (
 	"context"
 	"testing"
 
 	"github.com/Tangerg/lynx/ai/media/document"
-	"github.com/Tangerg/lynx/ai/media/document/processors"
+	"github.com/Tangerg/lynx/ai/media/document/transformers"
 	"github.com/Tangerg/lynx/ai/tokenizer"
 )
 
@@ -14,16 +14,16 @@ func TestTokenSplitter_Process(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	config := &processors.TokenSplitterConfig{
+	config := &transformers.TokenSplitterConfig{
 		Tokenizer:     tokenizer.NewTiktokenWithCL100KBase(),
 		ChunkSize:     20,
 		CopyFormatter: false,
 	}
-	splitter, err := processors.NewTokenSplitter(config)
+	splitter, err := transformers.NewTokenSplitter(config)
 	if err != nil {
 		t.Fatal(err)
 	}
-	process, err := splitter.Process(context.Background(), []*document.Document{doc})
+	process, err := splitter.Transform(context.Background(), []*document.Document{doc})
 	if err != nil {
 		t.Fatal(err)
 	}

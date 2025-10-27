@@ -1,4 +1,4 @@
-package processors
+package transformers
 
 import (
 	"context"
@@ -12,7 +12,7 @@ type TextSplitterConfig struct {
 	CopyFormatter bool
 }
 
-var _ document.Processor = (*TextSplitter)(nil)
+var _ document.Transformer = (*TextSplitter)(nil)
 
 type TextSplitter struct {
 	config   *TextSplitterConfig
@@ -42,6 +42,6 @@ func NewDefaultTextSplitter() *TextSplitter {
 	return NewTextSplitter(nil)
 }
 
-func (t *TextSplitter) Process(ctx context.Context, docs []*document.Document) ([]*document.Document, error) {
-	return t.splitter.Process(ctx, docs)
+func (t *TextSplitter) Transform(ctx context.Context, docs []*document.Document) ([]*document.Document, error) {
+	return t.splitter.Transform(ctx, docs)
 }

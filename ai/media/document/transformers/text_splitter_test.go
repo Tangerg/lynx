@@ -1,11 +1,11 @@
-package processors_test
+package transformers_test
 
 import (
 	"context"
 	"testing"
 
 	"github.com/Tangerg/lynx/ai/media/document"
-	"github.com/Tangerg/lynx/ai/media/document/processors"
+	"github.com/Tangerg/lynx/ai/media/document/transformers"
 )
 
 const content = `GPT-4o has safety built-in by design across modalities, through techniques such as filtering training data and refining the model’s behavior through post-training. We have also created new safety systems to provide guardrails on voice outputs.
@@ -32,12 +32,12 @@ func TestTextSplitter_Process(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	tsConf := &processors.TextSplitterConfig{
+	tsConf := &transformers.TextSplitterConfig{
 		Separator:     "\n",
 		CopyFormatter: true,
 	}
-	ts := processors.NewTextSplitter(tsConf)
-	process, err := ts.Process(context.Background(), []*document.Document{doc})
+	ts := transformers.NewTextSplitter(tsConf)
+	process, err := ts.Transform(context.Background(), []*document.Document{doc})
 	if err != nil {
 		t.Fatal(err)
 	}

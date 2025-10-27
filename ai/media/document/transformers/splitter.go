@@ -1,4 +1,4 @@
-package processors
+package transformers
 
 import (
 	"context"
@@ -23,7 +23,7 @@ func (c *SplitterConfig) validate() error {
 	return nil
 }
 
-var _ document.Processor = (*Splitter)(nil)
+var _ document.Transformer = (*Splitter)(nil)
 
 type Splitter struct {
 	config *SplitterConfig
@@ -67,7 +67,7 @@ func (s *Splitter) splitSingleDocument(ctx context.Context, doc *document.Docume
 	return splitDocs, nil
 }
 
-func (s *Splitter) Process(ctx context.Context, docs []*document.Document) ([]*document.Document, error) {
+func (s *Splitter) Transform(ctx context.Context, docs []*document.Document) ([]*document.Document, error) {
 	processedDocs := make([]*document.Document, 0, len(docs))
 
 	for _, doc := range docs {

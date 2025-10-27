@@ -221,6 +221,34 @@ func (r *Request) Set(key string, value any) {
 	r.Params[key] = value
 }
 
-func (r *Request) appendTextToLastUserMessage(textToAppend string) {
+// AppendToLastUserMessage appends text to the last user message with double newlines as separator.
+// If no user message exists, the function does nothing.
+func (r *Request) AppendToLastUserMessage(textToAppend string) {
 	appendTextToLastMessageOfType(r.Messages, MessageTypeUser, textToAppend)
+}
+
+// ReplaceOfLastUserMessage replaces the entire text content of the last user message.
+// If no user message exists, the function does nothing.
+func (r *Request) ReplaceOfLastUserMessage(textToReplace string) {
+	replaceTextOfLastMessageOfType(r.Messages, MessageTypeUser, textToReplace)
+}
+
+// UserMessage returns the last user message in the request.
+// If no user message exists, returns an empty UserMessage.
+func (r *Request) UserMessage() *UserMessage {
+	lastIndex, lastMessage := findLastMessageIndexOfType(r.Messages, MessageTypeUser)
+	if lastIndex == -1 {
+		return NewUserMessage("")
+	}
+	return lastMessage.(*UserMessage)
+}
+
+// SystemMessage returns the last system message in the request.
+// If no system message exists, returns an empty SystemMessage.
+func (r *Request) SystemMessage() *SystemMessage {
+	lastIndex, lastMessage := findLastMessageIndexOfType(r.Messages, MessageTypeSystem)
+	if lastIndex == -1 {
+		return NewSystemMessage("")
+	}
+	return lastMessage.(*SystemMessage)
 }
