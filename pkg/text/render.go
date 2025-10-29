@@ -1,6 +1,7 @@
 package text
 
 import (
+	"fmt"
 	"maps"
 	"strings"
 	"text/template"
@@ -50,7 +51,7 @@ func (r *Renderer) markChanged() {
 
 // WithTemplate sets the template string to be rendered.
 // Returns the receiver for method chaining.
-// If templateStr is empty, the template string remains unchanged.
+// An empty templateString is accepted and will be set as-is.
 func (r *Renderer) WithTemplate(templateString string) *Renderer {
 	r.templateString = templateString
 	r.markChanged()
@@ -59,7 +60,7 @@ func (r *Renderer) WithTemplate(templateString string) *Renderer {
 
 // WithVariable sets a single variable that can be used in the template.
 // Returns the receiver for method chaining.
-// If name is empty, the variable is not set.
+// Note: Empty variableName is accepted and will create a variable with empty string key.
 // Existing variable with the same key will be overwritten.
 func (r *Renderer) WithVariable(variableName string, variableValue any) *Renderer {
 	r.variables[variableName] = variableValue
@@ -70,6 +71,7 @@ func (r *Renderer) WithVariable(variableName string, variableValue any) *Rendere
 // WithVariables replaces all existing variables with the provided map.
 // This method clears any previously set variables before adding the new ones.
 // Returns the receiver for method chaining.
+// Nil or empty map will clear all variables.
 func (r *Renderer) WithVariables(variableMap map[string]any) *Renderer {
 	// Clear existing variables
 	clear(r.variables)
@@ -92,6 +94,7 @@ func (r *Renderer) Reset() *Renderer {
 
 // Clone creates a deep copy of the renderer with all its current configuration and state.
 // The cloned renderer is independent and modifications to it won't affect the original.
+// The cached rendered result is also copied, preserving the cache state.
 // Returns a new Renderer instance with the same settings as the original.
 func (r *Renderer) Clone() *Renderer {
 	clonedRenderer := NewRenderer()
@@ -119,6 +122,8 @@ func (r *Renderer) WithDelimiters(leftDelimiter, rightDelimiter string) *Rendere
 
 // render performs the actual template rendering.
 // It creates a new template, parses the template string, and executes it with the variables.
+// Returns the rendered string or an error if template parsing or execution fails.
+// The error is returned as-is from the underlying text/template package without wrapping.
 func (r *Renderer) render() (string, error) {
 	// Create and parse template
 	templateInstance, err := template.
@@ -140,9 +145,10 @@ func (r *Renderer) render() (string, error) {
 }
 
 // Render renders the template with the configured variables and returns the result.
-// Uses caching to avoid re-rendering when configuration hasn't changed.
+// Uses caching to avoid re-rendering when configuration hasn't changed since last render.
 // Returns an empty string and nil error if no template is set.
 // Returns an error if template parsing or execution fails.
+// The cached result is updated only after successful rendering.
 func (r *Renderer) Render() (string, error) {
 	// Return empty string if no template is set
 	if r.templateString == "" {
@@ -165,6 +171,8 @@ func (r *Renderer) Render() (string, error) {
 
 // MustRender renders the template and panics if an error occurs.
 // This is a convenience method for cases where errors should not be handled gracefully.
+// Uses the same caching mechanism as Render().
+// Panics with the error returned from Render() if rendering fails.
 func (r *Renderer) MustRender() string {
 	renderResult, err := r.Render()
 	if err != nil {
@@ -173,11 +181,48 @@ func (r *Renderer) MustRender() string {
 	return renderResult
 }
 
+// RequireVariables verifies that all specified template variables exist in the template.
+// Automatically constructs the placeholder format using current delimiters and dot notation.
+// Returns an error if any of the variables are not found in the template.
+//
+// Note: This method performs literal string matching of the constructed placeholders.
+// It does not account for:
+//   - Template syntax validity beyond simple string matching
+//   - Variables within comments or string literals
+//   - Complex template expressions (e.g., {{.User.Name}})
+//
+// Example:
+//
+//	r.RequireVariables("user", "message")
+//	// Will check for "{{.user}}" and "{{.message}}" with default delimiters
+//
+//	r.WithDelimiters("[[", "]]").RequireVariables("user")
+//	// Will check for "[[.user]]"
+func (r *Renderer) RequireVariables(variableNames ...string) error {
+	missingVariables := make([]string, 0, len(variableNames))
+
+	for _, varName := range variableNames {
+		// Construct the full placeholder with current delimiters
+		placeholder := r.leftDelimiter + "." + varName + r.rightDelimiter
+
+		if !strings.Contains(r.templateString, placeholder) {
+			missingVariables = append(missingVariables, varName)
+		}
+	}
+
+	if len(missingVariables) > 0 {
+		return fmt.Errorf("the following variables must be present in the template: %s",
+			strings.Join(missingVariables, ", "))
+	}
+	return nil
+}
+
 // Render is a convenience function that creates a new renderer,
 // sets the template and variables, and renders the result in one call.
 // Returns the rendered string and any error that occurred.
 //
 // This function is thread-safe as it creates a new Renderer instance for each call.
+// Equivalent to: NewRenderer().WithTemplate(templateString).WithVariables(templateData).Render()
 func Render(templateString string, templateData map[string]any) (string, error) {
 	return NewRenderer().
 		WithTemplate(templateString).
@@ -190,6 +235,7 @@ func Render(templateString string, templateData map[string]any) (string, error) 
 // Panics if an error occurs during rendering.
 //
 // This function is thread-safe as it creates a new Renderer instance for each call.
+// Equivalent to: NewRenderer().WithTemplate(templateString).WithVariables(templateData).MustRender()
 func MustRender(templateString string, templateData map[string]any) string {
 	return NewRenderer().
 		WithTemplate(templateString).

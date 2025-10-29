@@ -82,6 +82,27 @@ func (p *PromptTemplate) WithMedia(media ...*media.Media) *PromptTemplate {
 	return p
 }
 
+// RequireVariables verifies that all specified template variables exist in the template.
+// Automatically constructs the placeholder format using current delimiters and dot notation.
+// Returns an error if any of the variables are not found in the template.
+//
+// Note: This method performs literal string matching of the constructed placeholders.
+// It does not account for:
+//   - Template syntax validity beyond simple string matching
+//   - Variables within comments or string literals
+//   - Complex template expressions (e.g., {{.User.Name}})
+//
+// Example:
+//
+//	r.RequireVariables("user", "message")
+//	// Will check for "{{.user}}" and "{{.message}}" with default delimiters
+//
+//	r.WithDelimiters("[[", "]]").RequireVariables("user")
+//	// Will check for "[[.user]]"
+func (p *PromptTemplate) RequireVariables(variableNames ...string) error {
+	return p.renderer.RequireVariables(variableNames...)
+}
+
 // Clone creates a deep copy of the PromptTemplate, including its renderer state
 // and media attachments. This is useful for template reuse scenarios or when you
 // need to create variations of a base template without affecting the original.

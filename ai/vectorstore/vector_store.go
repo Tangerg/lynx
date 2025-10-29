@@ -101,7 +101,7 @@ func (r *RetrievalRequest) WithMinScore(score float64) *RetrievalRequest {
 //
 // Example:
 //
-//	request.WithFilter(ast.EQ("category", "tech")).WithTopK(10)
+//	request.WithFilter(filter.EQ("category", "tech")).WithTopK(10)
 func (r *RetrievalRequest) WithFilter(filter ast.Expr) *RetrievalRequest {
 	if filter != nil {
 		r.Filter = filter

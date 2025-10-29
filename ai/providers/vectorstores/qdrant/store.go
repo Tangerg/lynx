@@ -21,7 +21,7 @@ const (
 
 const (
 	// payloadDocumentContentKey is the payload key for saving document content
-	payloadDocumentContentKey = "__payload_document_content__"
+	payloadDocumentContentKey = "lynx:ai:vectorstore:qdrant:payload_document_content"
 )
 
 // VectorStoreConfig contains configuration options for Qdrant vector store.

@@ -1,6 +1,7 @@
 package chat
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"maps"
@@ -835,4 +836,55 @@ func replaceTextOfLastMessageOfType(messages []Message, targetType MessageType, 
 			return typedMessage // Return unchanged for unsupported types
 		}
 	})
+}
+
+// MessageToString converts a Message interface to its string representation.
+// It formats the message by prepending the message type, followed by the message content.
+// For AssistantMessage with tool calls, it appends the serialized tool calls in JSON format.
+// For ToolMessage, it serializes the tool returns as JSON.
+//
+// Parameters:
+//   - message: The Message interface to be converted to string
+//
+// Returns:
+//   - A formatted string representation of the message
+func MessageToString(message Message) string {
+	sb := strings.Builder{}
+	sb.WriteString(message.Type().String())
+	sb.WriteString(": ")
+
+	switch typedMessage := message.(type) {
+	case *UserMessage:
+		sb.WriteString(typedMessage.Text)
+	case *SystemMessage:
+		sb.WriteString(typedMessage.Text)
+	case *AssistantMessage:
+		sb.WriteString(typedMessage.Text)
+		if typedMessage.HasToolCalls() {
+			sb.WriteString("\n")
+			toolCalls, _ := json.Marshal(typedMessage.ToolCalls)
+			sb.Write(toolCalls)
+		}
+	case *ToolMessage:
+		toolReturns, _ := json.Marshal(typedMessage.ToolReturns)
+		sb.Write(toolReturns)
+	}
+
+	return sb.String()
+}
+
+// MessagesToStrings converts a slice of Message interfaces to a slice of string representations.
+// Each message is converted using MessageToString function.
+//
+// Parameters:
+//   - messages: A slice of Message interfaces to be converted
+//
+// Returns:
+//   - A slice of strings, where each string represents one message from the input slice
+func MessagesToStrings(messages []Message) []string {
+	result := make([]string, 0, len(messages))
+	for _, message := range messages {
+		result = append(result, MessageToString(message))
+	}
+	return result
 }

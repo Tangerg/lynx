@@ -5,7 +5,7 @@ const (
 )
 
 const (
-	OptionsKey = "openai.options"
+	OptionsKey = "lynx:ai:model:openai_options"
 )
 
 func getOptionsParams[T any](

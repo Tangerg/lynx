@@ -250,6 +250,9 @@ func (p *Pipeline) Execute(ctx context.Context, query *Query) (*Query, []*docume
 
 // Run is a convenience method that creates a Query from a text string and executes the pipeline.
 func (p *Pipeline) Run(ctx context.Context, text string) (*Query, []*document.Document, error) {
-	query := &Query{Text: text}
+	query, err := NewQuery(text)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to create query: %w", err)
+	}
 	return p.Execute(ctx, query)
 }

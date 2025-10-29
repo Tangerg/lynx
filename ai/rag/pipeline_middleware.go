@@ -11,10 +11,10 @@ import (
 
 const (
 	// DocumentContextKey is the metadata key for storing retrieved documents in chat responses.
-	DocumentContextKey = "rag:document_context"
+	DocumentContextKey = "lynx:ai:rag:document_context"
 
 	// ChatHistoryKey is the metadata key for storing chat history in the query context.
-	ChatHistoryKey = "rag:chat_history"
+	ChatHistoryKey = "lynx:ai:rag:chat_history"
 )
 
 // pipelineMiddleware wraps a RAG pipeline as middleware for chat model calls.
@@ -42,8 +42,14 @@ func NewPipelineMiddleware(config *PipelineConfig) (chat.CallMiddleware, chat.St
 // executeRAG runs the RAG pipeline on the chat request's last user message.
 func (m *pipelineMiddleware) executeRAG(ctx context.Context, req *chat.Request) (*Query, []*document.Document, error) {
 	// Build query from the last user message
-	query := &Query{
-		Text: req.UserMessage().Text,
+	query, err := NewQuery(req.UserMessage().Text)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to create query: %w", err)
+	}
+
+	// Attach chat request params
+	for key, val := range req.Params {
+		query.Set(key, val)
 	}
 
 	// Attach chat history to query context for potential use in retrieval

@@ -1,6 +1,7 @@
 package rag
 
 import (
+	"errors"
 	"maps"
 )
 
@@ -14,6 +15,15 @@ type Query struct {
 	// Extra holds additional metadata associated with the query,
 	// such as filters, parameters, or any contextual information.
 	Extra map[string]any
+}
+
+func NewQuery(text string) (*Query, error) {
+	if text == "" {
+		return nil, errors.New("text is empty")
+	}
+	return &Query{
+		Text: text,
+	}, nil
 }
 
 func (q *Query) ensureExtra() {

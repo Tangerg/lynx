@@ -130,11 +130,7 @@ func (f *FileWriter) buildDocumentContent(docIndex int, doc *document.Document) 
 		contentBuilder.WriteString("\n")
 	}
 
-	if doc.Formatter != nil {
-		contentBuilder.WriteString(doc.Format())
-	} else {
-		contentBuilder.WriteString(doc.Text)
-	}
+	contentBuilder.WriteString(doc.Format())
 
 	contentBuilder.WriteString("\n\n")
 
