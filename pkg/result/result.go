@@ -16,23 +16,23 @@ type Result[T any] struct {
 
 // New creates a new Result with both value and error.
 // This is useful when you want to wrap existing functions that return (T, error).
-func New[T any](v T, err error) Result[T] {
-	return Result[T]{
+func New[T any](v T, err error) *Result[T] {
+	return &Result[T]{
 		v:   v,
 		err: err,
 	}
 }
 
 // Value creates a new Result containing a successful value with no error.
-func Value[T any](v T) Result[T] {
-	return Result[T]{
+func Value[T any](v T) *Result[T] {
+	return &Result[T]{
 		v: v,
 	}
 }
 
 // Error creates a new Result containing only an error with zero value of type T.
-func Error[T any](err error) Result[T] {
-	return Result[T]{
+func Error[T any](err error) *Result[T] {
+	return &Result[T]{
 		err: err,
 	}
 }
@@ -81,7 +81,7 @@ func (r *Result[T]) String() string {
 //	result := Value(10)
 //	doubled := Map(result, func(x int) int { return x * 2 })
 //	// doubled contains Value(20)
-func Map[T, U any](res Result[T], fn func(T) U) Result[U] {
+func Map[T, U any](res *Result[T], fn func(T) U) *Result[U] {
 	if res.err != nil {
 		return Error[U](res.err)
 	}

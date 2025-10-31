@@ -184,6 +184,10 @@ func TrimAdjacentBlankLines(inputText string) string {
 // - The remaining text with the specified number of top lines removed otherwise
 // - Original text if the input is empty or contains only whitespace
 func DeleteTopLines(inputText string, linesToDelete int) string {
+	if linesToDelete <= 0 {
+		return inputText
+	}
+
 	if strings.TrimSpace(inputText) == "" {
 		return inputText
 	}
@@ -193,7 +197,9 @@ func DeleteTopLines(inputText string, linesToDelete int) string {
 		return ""
 	}
 
-	return strings.Join(textLines[linesToDelete:], "\n")
+	result := strings.Join(textLines[linesToDelete:], "\n")
+
+	return result
 }
 
 // DeleteBottomLines removes a specified number of lines from the end of the text.
@@ -206,6 +212,10 @@ func DeleteTopLines(inputText string, linesToDelete int) string {
 // - The remaining text with the specified number of bottom lines removed otherwise
 // - Original text if the input is empty or contains only whitespace
 func DeleteBottomLines(inputText string, linesToDelete int) string {
+	if linesToDelete <= 0 {
+		return inputText
+	}
+
 	if strings.TrimSpace(inputText) == "" {
 		return inputText
 	}
@@ -215,5 +225,7 @@ func DeleteBottomLines(inputText string, linesToDelete int) string {
 		return ""
 	}
 
-	return strings.Join(textLines[:len(textLines)-linesToDelete], "\n")
+	result := strings.Join(textLines[:len(textLines)-linesToDelete], "\n")
+
+	return result
 }

@@ -5,13 +5,27 @@ import (
 	"math"
 )
 
+// NumericType encompasses all Go numeric types for literal creation.
+type NumericType interface {
+	~int | ~int8 | ~int16 | ~int32 | ~int64 |
+		~uint | ~uint8 | ~uint16 | ~uint32 | ~uint64 |
+		~float32 | ~float64
+}
+
 // Abs returns the absolute value of an integer.
-// It supports different integer types using generics.
-func Abs[T int | int8 | int16 | int32 | int64](x T) T {
-	if x < 0 {
-		return -x
+// It supports different NumericType using generics.
+func Abs[T NumericType](x T) T {
+	switch typedX := any(x).(type) {
+	case float32:
+		return T(math.Abs(float64(typedX)))
+	case float64:
+		return T(math.Abs(typedX))
+	default:
+		if x < 0 {
+			return -x
+		}
+		return x
 	}
-	return x
 }
 
 // MultiplyExact multiplies two int64 numbers and checks for overflow.

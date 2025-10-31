@@ -91,6 +91,9 @@ func WithRecover(fn func(), panicFns ...func(error)) func() {
 					return
 				}
 				err := NewPanicError(r, debug.Stack())
+				defer func() {
+					recover() // to recover panicFns
+				}()
 				for _, panicFn := range panicFns {
 					panicFn(err)
 				}

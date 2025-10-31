@@ -180,7 +180,7 @@ func NewFutureTask[V any](task func(interrupt <-chan struct{}) (V, error)) *Futu
 //
 // Example:
 //
-//	future := NewFutureTaskAndRun(func(interrupt <-chan struct{}) (int, error) {
+//	future, _ := NewFutureTaskAndRun(func(interrupt <-chan struct{}) (int, error) {
 //	    // Do calculation
 //	    for i := 0; i < 10; i++ {
 //	        select {
@@ -196,7 +196,7 @@ func NewFutureTask[V any](task func(interrupt <-chan struct{}) (V, error)) *Futu
 //
 //	// Later, get the result
 //	result, err := future.Get()
-func NewFutureTaskAndRun[V any](task func(interrupt <-chan struct{}) (V, error)) *FutureTask[V] {
+func NewFutureTaskAndRun[V any](task func(interrupt <-chan struct{}) (V, error)) (*FutureTask[V], error) {
 	return NewFutureTaskAndRunWithPool(task, DefaultPool())
 }
 
@@ -214,7 +214,7 @@ func NewFutureTaskAndRun[V any](task func(interrupt <-chan struct{}) (V, error))
 //	pool := NewFixedPool(5)
 //	defer pool.Shutdown()
 //
-//	future := NewFutureTaskAndRunWithPool(
+//	future, _ := NewFutureTaskAndRunWithPool(
 //	    func(interrupt <-chan struct{}) (float64, error) {
 //	        // Perform complex calculation
 //	        return 3.14159, nil
@@ -224,13 +224,16 @@ func NewFutureTaskAndRun[V any](task func(interrupt <-chan struct{}) (V, error))
 //
 //	// Get result with a timeout
 //	result, err := future.GetWithTimeout(2 * time.Second)
-func NewFutureTaskAndRunWithPool[V any](task func(interrupt <-chan struct{}) (V, error), pool Pool) *FutureTask[V] {
+func NewFutureTaskAndRunWithPool[V any](task func(interrupt <-chan struct{}) (V, error), pool Pool) (*FutureTask[V], error) {
 	if pool == nil {
 		panic("pool is nil")
 	}
 	f := NewFutureTask(task)
-	pool.Submit(f.Run)
-	return f
+	err := pool.Submit(f.Run)
+	if err != nil {
+		return nil, err
+	}
+	return f, nil
 }
 
 // complete sets the final result of the future task, either success or failure.

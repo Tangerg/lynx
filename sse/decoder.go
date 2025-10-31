@@ -72,55 +72,56 @@ func (d *Decoder) skipLeadingUTF8BOM() {
 	}
 }
 
+// dropCR drops a terminal \r from the data.
+func dropCR(data []byte) []byte {
+	if len(data) > 0 && data[len(data)-1] == '\r' {
+		return data[0 : len(data)-1]
+	}
+	return data
+}
+
 // scanLinesSplit implements a custom split function for bufio.Scanner to handle various
 // line ending patterns in SSE streams.
 //
 // Copied from github.com/Tangerg/lynx/pkg/bufio.ScanLinesAllFormats
-//
-// It properly processes:
-//   - CRLF (\r\n) sequences as a single line break
-//   - CR (\r) alone as a line break
-//   - LF (\n) alone as a line break
-//   - EOF at the end of data
-//
-// This ensures compatibility with different server implementations and platforms.
-//
-// Parameters:
-//   - data: The data buffer to scan
-//   - atEOF: Whether the end of the stream has been reached
-//
-// Returns:
-//   - advance: Number of bytes to advance in the buffer
-//   - token: The line token without line break characters
-//   - err: Any error encountered during scanning
 func scanLinesSplit(data []byte, atEOF bool) (advance int, token []byte, err error) {
 	if atEOF && len(data) == 0 {
 		return 0, nil, nil
 	}
 
-	// Look for CR character
-	if crIndex := bytes.IndexByte(data, byteCR[0]); crIndex >= 0 {
-		// Check for CRLF sequence
-		if crIndex+1 < len(data) && data[crIndex+1] == byteLF[0] {
-			return crIndex + 2, data[:crIndex], nil
+	n := bytes.IndexByte(data, '\n')
+	r := bytes.IndexByte(data, '\r')
+
+	// only \n
+	if r == -1 && n >= 0 {
+		return n + 1, dropCR(data[0:n]), nil
+	}
+
+	// only \r
+	if n == -1 && r >= 0 {
+		return r + 1, dropCR(data[0:r]), nil
+	}
+
+	// \r && \n
+	if n >= 0 && r >= 0 {
+		// \r\n
+		if n == r+1 {
+			return n + 1, dropCR(data[0:n]), nil
 		}
-		// Just CR
-		return crIndex + 1, data[:crIndex], nil
+		// \r...\n
+		if n > r {
+			return r + 1, dropCR(data[0:r]), nil
+		}
+		// \n...\r
+		return n + 1, dropCR(data[0:n]), nil
 	}
 
-	// Look for LF character
-	if lfIndex := bytes.IndexByte(data, byteLF[0]); lfIndex >= 0 {
-		return lfIndex + 1, data[:lfIndex], nil
-	}
-
-	// Handle EOF
+	// If we're at EOF, we have a final, non-terminated line. Return it.
 	if atEOF {
-		if len(data) > 0 && data[len(data)-1] == byteCR[0] {
-			return len(data), data[:len(data)-1], nil
-		}
-		return len(data), data, nil
+		return len(data), dropCR(data), nil
 	}
 
+	// Request more data.
 	return 0, nil, nil
 }
 

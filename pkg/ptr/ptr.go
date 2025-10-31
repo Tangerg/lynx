@@ -23,5 +23,7 @@ func Clone[T any](ptr *T) *T {
 	if ptr == nil {
 		return nil
 	}
-	return &*ptr
+	cloned := new(T)
+	*cloned = Value(ptr)
+	return cloned
 }

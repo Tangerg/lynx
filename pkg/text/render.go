@@ -5,6 +5,8 @@ import (
 	"maps"
 	"strings"
 	"text/template"
+
+	"github.com/Tangerg/lynx/pkg/assert"
 )
 
 // Renderer is a fluent interface for rendering text templates.
@@ -174,11 +176,7 @@ func (r *Renderer) Render() (string, error) {
 // Uses the same caching mechanism as Render().
 // Panics with the error returned from Render() if rendering fails.
 func (r *Renderer) MustRender() string {
-	renderResult, err := r.Render()
-	if err != nil {
-		panic(err)
-	}
-	return renderResult
+	return assert.Must(r.Render())
 }
 
 // RequireVariables verifies that all specified template variables exist in the template.

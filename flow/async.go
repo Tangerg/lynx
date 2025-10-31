@@ -33,13 +33,12 @@ func (a *Async[I, O]) RunType(ctx context.Context, input I) (sync.Future[O], err
 	if err != nil {
 		return nil, err
 	}
-	future := sync.NewFutureTaskAndRunWithPool(
+	return sync.NewFutureTaskAndRunWithPool(
 		func(interrupt <-chan struct{}) (O, error) {
 			return a.processor.Run(ctx, input)
 		},
 		a.getPool(),
 	)
-	return future, nil
 }
 
 // Run implements the Node interface for Async.

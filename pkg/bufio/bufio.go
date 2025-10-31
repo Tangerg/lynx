@@ -4,6 +4,14 @@ import (
 	"bytes"
 )
 
+// dropCR drops a terminal \r from the data.
+func dropCR(data []byte) []byte {
+	if len(data) > 0 && data[len(data)-1] == '\r' {
+		return data[0 : len(data)-1]
+	}
+	return data
+}
+
 // ScanLinesAllFormats is a custom split function for bufio.Scanner that returns each line of
 // text, stripped of any trailing end-of-line marker ('\r', '\n', or "\r\n").
 // The returned line may be empty.
@@ -31,23 +39,38 @@ func ScanLinesAllFormats(data []byte, atEOF bool) (advance int, token []byte, er
 		return 0, nil, nil
 	}
 
-	if i := bytes.IndexByte(data, '\r'); i >= 0 {
-		if i+1 < len(data) && data[i+1] == '\n' {
-			return i + 2, data[:i], nil
+	n := bytes.IndexByte(data, '\n')
+	r := bytes.IndexByte(data, '\r')
+
+	// only \n
+	if r == -1 && n >= 0 {
+		return n + 1, dropCR(data[0:n]), nil
+	}
+
+	// only \r
+	if n == -1 && r >= 0 {
+		return r + 1, dropCR(data[0:r]), nil
+	}
+
+	// \r && \n
+	if n >= 0 && r >= 0 {
+		// \r\n
+		if n == r+1 {
+			return n + 1, dropCR(data[0:n]), nil
 		}
-		return i + 1, data[:i], nil
+		// \r...\n
+		if n > r {
+			return r + 1, dropCR(data[0:r]), nil
+		}
+		// \n...\r
+		return n + 1, dropCR(data[0:n]), nil
 	}
 
-	if i := bytes.IndexByte(data, '\n'); i >= 0 {
-		return i + 1, data[:i], nil
-	}
-
+	// If we're at EOF, we have a final, non-terminated line. Return it.
 	if atEOF {
-		if len(data) > 0 && data[len(data)-1] == '\r' {
-			return len(data), data[:len(data)-1], nil
-		}
-		return len(data), data, nil
+		return len(data), dropCR(data), nil
 	}
 
+	// Request more data.
 	return 0, nil, nil
 }

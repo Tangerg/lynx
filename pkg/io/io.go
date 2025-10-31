@@ -2,31 +2,55 @@ package io
 
 import (
 	"io"
+
+	"github.com/Tangerg/lynx/pkg/slices"
 )
 
-// ReadAll reads data from an io.Reader into a buffer of a specified size
-// until an error or io.EOF is encountered, and returns the data it read.
-// If the bufferSize is less than or equal to zero, a default size of 512 bytes is used.
-// A successful call returns err == nil, not err == io.EOF. Because ReadAll is
-// defined to read from the reader until io.EOF, it does not treat an io.EOF from Read
-// as an error to be reported.
-func ReadAll(r io.Reader, bufferSize int) ([]byte, error) {
-	if bufferSize <= 0 {
-		bufferSize = 512
+// ReadAll reads all data from an io.Reader into a dynamically growing buffer.
+//
+// The function reads data until io.EOF is encountered or an error occurs.
+// The buffer starts with the specified size and grows automatically as needed.
+//
+// Parameters:
+//   - r: The io.Reader to read from
+//   - bufferSize: Optional initial buffer size (default: 512 bytes)
+//     If multiple values are provided, only the first is used.
+//     If the value is 0 or not provided, defaults to 512 bytes.
+//     Negative values cause a panic.
+//
+// Returns:
+//   - []byte: All data read from the reader
+//   - error: Any error encountered except io.EOF (which is treated as success)
+//
+// Note: Unlike io.ReadAll, this function allows customizing the initial buffer size,
+// which can improve performance when the approximate data size is known.
+func ReadAll(r io.Reader, bufferSize ...int) ([]byte, error) {
+	size := slices.FirstOr(bufferSize, 0)
+	if size < 0 {
+		panic("buffer size cannot be negative")
 	}
-	buffer := make([]byte, 0, bufferSize)
+	if size == 0 {
+		size = 512
+	}
+
+	buffer := make([]byte, 0, size)
 	for {
+		// Expand buffer capacity if needed before reading
+		if len(buffer) == cap(buffer) {
+			// Double the capacity by appending a zero byte and truncating
+			buffer = append(buffer, 0)[:len(buffer)]
+		}
+
+		// Read into the available capacity
 		n, err := r.Read(buffer[len(buffer):cap(buffer)])
 		buffer = buffer[:len(buffer)+n]
+
 		if err != nil {
+			// io.EOF indicates successful completion, not an error
 			if err == io.EOF {
 				err = nil
 			}
 			return buffer, err
-		}
-
-		if len(buffer) == cap(buffer) {
-			buffer = append(buffer, 0)[:len(buffer)]
 		}
 	}
 }
