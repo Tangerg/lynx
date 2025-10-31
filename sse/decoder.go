@@ -176,14 +176,15 @@ func (d *Decoder) dispatch() bool {
 	return true
 }
 
-// constructMessage builds a Message from the accumulated field values and updates currentMessage.
+// constructMessage builds a Message from accumulated field values.
 // Called when a complete SSE message has been parsed (indicated by an empty line).
 //
-// This method:
-//   - Extracts the event type from eventBuffer
-//   - Retrieves data from dataBuffer, removing any trailing newline
-//   - Sets the message ID from lastID (which persists across messages)
-//   - Sets the retry value for reconnection timing
+// Processing steps:
+//   - Removes trailing newline from data buffer
+//   - Assigns persistent message ID from lastID
+//   - Sets event type from eventBuffer
+//   - Clones data to new memory allocation
+//   - Sets retry interval for reconnection timing
 func (d *Decoder) constructMessage() {
 	// Remove trailing newline from data buffer
 	messageData := bytes.TrimSuffix(d.dataBuffer.Bytes(), byteLF)
@@ -191,7 +192,7 @@ func (d *Decoder) constructMessage() {
 	// Build the message
 	d.currentMessage.ID = d.lastID
 	d.currentMessage.Event = d.eventBuffer
-	d.currentMessage.Data = messageData
+	d.currentMessage.Data = bytes.Clone(messageData) // Allocate new memory to avoid buffer reuse issues
 	d.currentMessage.Retry = d.retry
 }
 

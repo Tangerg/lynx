@@ -1,14 +1,3 @@
-// Package sse implements the Server-Sent Events (SSE) protocol according to the W3C specification.
-// See: https://www.w3.org/TR/2009/WD-eventsource-20091029/
-//
-// SSE is a one-way communication protocol that allows servers to push real-time updates
-// to clients over a single HTTP connection. This package provides:
-//
-//   - Message encoding into the SSE wire format
-//   - Message decoding from HTTP response streams
-//   - Support for all SSE fields: id, event, data, and retry
-//   - Multiline data processing according to specification
-//   - Message validation and sanitization
 package sse
 
 import (

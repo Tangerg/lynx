@@ -99,7 +99,7 @@ func (e *Encoder) writeData(messageData []byte, outputBuffer *bytes.Buffer) {
 //   - retryValue: The retry time in milliseconds
 //   - outputBuffer: The buffer to write to
 func (e *Encoder) writeRetry(retryValue int, outputBuffer *bytes.Buffer) {
-	if retryValue == 0 {
+	if retryValue <= 0 {
 		return
 	}
 
