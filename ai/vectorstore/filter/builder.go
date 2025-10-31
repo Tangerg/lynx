@@ -370,7 +370,9 @@ func (b *ExprBuilder) Not(fn func(*ExprBuilder)) *ExprBuilder {
 		b.err = subExpr.err
 		return b
 	}
-
+	if any(subExpr.expr) == nil {
+		return b
+	}
 	notExpr := Not(subExpr.expr)
 	b.and(notExpr)
 	return b

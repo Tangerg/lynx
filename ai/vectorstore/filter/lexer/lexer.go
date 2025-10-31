@@ -433,11 +433,11 @@ func (l *Lexer) Scan() token.Token {
 	return l.dispatchToken()
 }
 
-// Tokens returns an iterator that yields tokens one by one from the input stream.
+// Token returns an iterator that yields tokens one by one from the input stream.
 // This method provides a convenient way to iterate over all tokens using Go's
 // The iterator continues until the consumer stops requesting tokens or
 // an error occurs. Each call to the iterator internally calls Scan().
-func (l *Lexer) Tokens() iter.Seq[token.Token] {
+func (l *Lexer) Token() iter.Seq[token.Token] {
 	return func(yield func(token.Token) bool) {
 		for {
 			if !yield(l.Scan()) {
@@ -447,15 +447,15 @@ func (l *Lexer) Tokens() iter.Seq[token.Token] {
 	}
 }
 
-// AllTokens processes entire input and returns all tokens as a slice.
+// Tokens processes entire input and returns all tokens as a slice.
 // Convenience method for batch processing. Continues until EOF token encountered.
 // Includes ERROR and ILLEGAL tokens in result for error recovery and debugging.
 //
 // Note: This method consumes the entire input stream and stores all tokens in memory.
-// For large inputs, consider using Scan() or Tokens() for streaming processing.
-func (l *Lexer) AllTokens() []token.Token {
+// For large inputs, consider using Scan() or Token() for streaming processing.
+func (l *Lexer) Tokens() []token.Token {
 	var allTokens []token.Token
-	for currentToken := range l.Tokens() {
+	for currentToken := range l.Token() {
 		allTokens = append(allTokens, currentToken)
 
 		if currentToken.Kind.Is(token.EOF) {

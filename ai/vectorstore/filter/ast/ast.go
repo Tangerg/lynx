@@ -4,6 +4,7 @@
 package ast
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 
@@ -127,13 +128,23 @@ func (l *Literal) IsBool() bool {
 // AsBool returns the boolean value of this literal.
 // Returns an error if the literal is not of boolean type.
 func (l *Literal) AsBool() (bool, error) {
+	parseBool, err := strconv.ParseBool(l.Value)
+	if err != nil {
+		return false, fmt.Errorf("failed to parse bool literal '%s': %w", l.Value, err)
+	}
 	switch {
 	case l.Token.Kind.Is(token.TRUE):
+		if !parseBool {
+			return true, errors.New("expected true, got false")
+		}
 		return true, nil
 	case l.Token.Kind.Is(token.FALSE):
+		if parseBool {
+			return false, errors.New("expected false, got true")
+		}
 		return false, nil
 	default:
-		return false, fmt.Errorf("type mismatch: expected boolean literal (TRUE or FALSE), got %s with value '%s'",
+		return false, fmt.Errorf("type mismatch: expected boolean literal (true or false), got %s with value '%s'",
 			l.Token.Kind.Name(), l.Value)
 	}
 }

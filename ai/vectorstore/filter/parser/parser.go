@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/Tangerg/lynx/ai/vectorstore/filter/ast"
-	lexer2 "github.com/Tangerg/lynx/ai/vectorstore/filter/lexer"
+	"github.com/Tangerg/lynx/ai/vectorstore/filter/lexer"
 	"github.com/Tangerg/lynx/ai/vectorstore/filter/token"
 )
 
@@ -29,7 +29,7 @@ func (e *ParseError) Error() string {
 // Parser represents a recursive descent parser with Pratt parsing capabilities.
 // Uses the Pratt algorithm for efficient operator precedence handling.
 type Parser struct {
-	lexer          *lexer2.Lexer                                   // Token provider from input
+	lexer          *lexer.Lexer                                    // Token provider from input
 	currentToken   token.Token                                     // Current Token being processed
 	prefixHandlers map[token.Kind]func() (ast.Expr, error)         // Handles expression-starting tokens
 	infixHandlers  map[token.Kind]func(ast.Expr) (ast.Expr, error) // Handles binary operators
@@ -37,28 +37,33 @@ type Parser struct {
 
 // NewParser creates a new parser with proper initialization.
 // Accepts either string input or existing *Lexer for flexibility.
-func NewParser[I string | *lexer2.Lexer](input I) (*Parser, error) {
+func NewParser[I string | *lexer.Lexer](input I) (*Parser, error) {
 	var (
-		lexer *lexer2.Lexer
-		err   error
+		l   *lexer.Lexer
+		err error
 	)
 
 	switch typedInput := any(input).(type) {
 	case string:
-		lexer, err = lexer2.NewLexer(typedInput)
+		l, err = lexer.NewLexer(typedInput)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create lexer from input string: %w", err)
 		}
-	case *lexer2.Lexer:
-		lexer = typedInput
-		lexer.Reset()
+	case *lexer.Lexer:
+		l = typedInput
+		l.Reset()
 	}
 
 	parser := &Parser{
-		lexer:          lexer,
-		currentToken:   lexer.Scan(), //consume first token
+		lexer:          l,
 		prefixHandlers: make(map[token.Kind]func() (ast.Expr, error)),
 		infixHandlers:  make(map[token.Kind]func(ast.Expr) (ast.Expr, error)),
+	}
+
+	// Consume first token and check for lexical errors
+	parser.currentToken = l.Scan()
+	if err := parser.checkTokenError(); err != nil {
+		return nil, err
 	}
 
 	// Register prefix parse functions for expression starters
@@ -90,6 +95,21 @@ func NewParser[I string | *lexer2.Lexer](input I) (*Parser, error) {
 	return parser, nil
 }
 
+// checkTokenError checks if the current token is an ERROR token.
+// Returns a ParseError with the lexical error details if found.
+func (p *Parser) checkTokenError() error {
+	if p.currentToken.Kind.Is(token.ERROR) {
+		return &ParseError{
+			Message: fmt.Sprintf(
+				"Lexical error: %s",
+				p.currentToken.Literal,
+			),
+			Token: p.currentToken,
+		}
+	}
+	return nil
+}
+
 // addPrefixHandler associates a prefix parsing function with a Token kind.
 // Handles tokens that can appear at the beginning of expressions.
 func (p *Parser) addPrefixHandler(kind token.Kind, fn func() (ast.Expr, error)) {
@@ -104,16 +124,25 @@ func (p *Parser) addInfixHandler(kind token.Kind, fn func(ast.Expr) (ast.Expr, e
 
 // consumeToken advances the parser to the next Token in input stream.
 // Primary mechanism for consuming tokens during parsing.
-func (p *Parser) consumeToken() {
+// Returns error if the new token is an ERROR token.
+func (p *Parser) consumeToken() error {
 	p.currentToken = p.lexer.Scan()
+	return p.checkTokenError()
 }
 
 // consumeExpectedKindToken verifies current Token matches expected kind and advances.
 // Used for mandatory tokens that must appear in specific positions.
 func (p *Parser) consumeExpectedKindToken(expectedKind token.Kind) (token.Token, error) {
+	// Check for ERROR token before validation
+	if err := p.checkTokenError(); err != nil {
+		return p.currentToken, err
+	}
+
 	if p.currentToken.Kind.Is(expectedKind) {
 		consumedToken := p.currentToken
-		p.consumeToken()
+		if err := p.consumeToken(); err != nil {
+			return consumedToken, err
+		}
 		return consumedToken, nil
 	}
 
@@ -131,6 +160,11 @@ func (p *Parser) consumeExpectedKindToken(expectedKind token.Kind) (token.Token,
 // Parse is the main entry point for parsing complete expressions.
 // Parses full expression and ensures no unexpected tokens remain.
 func (p *Parser) Parse() (ast.Expr, error) {
+	// Check for ERROR token at the start
+	if err := p.checkTokenError(); err != nil {
+		return nil, err
+	}
+
 	expr, err := p.parseExpr(token.PrecedenceLowest)
 	if err != nil {
 		return nil, fmt.Errorf("expression parsing failed: %w", err)
@@ -138,6 +172,11 @@ func (p *Parser) Parse() (ast.Expr, error) {
 
 	// Ensure entire input is consumed
 	if !p.currentToken.Kind.Is(token.EOF) {
+		// Check if it's an ERROR token
+		if err := p.checkTokenError(); err != nil {
+			return nil, err
+		}
+
 		return nil, &ParseError{
 			Message: fmt.Sprintf(
 				"Unexpected Token '%s' found after complete expression. Expected end of input",
@@ -153,6 +192,11 @@ func (p *Parser) Parse() (ast.Expr, error) {
 // parseExpr implements core Pratt parser with precedence climbing.
 // Handles operator precedence automatically through recursive parsing.
 func (p *Parser) parseExpr(precedence int) (ast.Expr, error) {
+	// Check for ERROR token before parsing
+	if err := p.checkTokenError(); err != nil {
+		return nil, err
+	}
+
 	// Get prefix parsing function for current Token
 	prefixHandler, exists := p.prefixHandlers[p.currentToken.Kind]
 	if !exists {
@@ -175,6 +219,11 @@ func (p *Parser) parseExpr(precedence int) (ast.Expr, error) {
 	for {
 		if p.currentToken.Kind.Is(token.EOF) {
 			break
+		}
+
+		// Check for ERROR token in the loop
+		if err := p.checkTokenError(); err != nil {
+			return nil, err
 		}
 
 		// Stop if current precedence is higher or equal
@@ -211,8 +260,13 @@ func (p *Parser) parseIdent() (ast.Expr, error) {
 }
 
 // parseLiteral parses literal values including numbers, strings, booleans.
-// Creates Index AST node with value and type information.
+// Creates Literal AST node with value and type information.
 func (p *Parser) parseLiteral() (ast.Expr, error) {
+	// Check for ERROR token
+	if err := p.checkTokenError(); err != nil {
+		return nil, err
+	}
+
 	literalToken := p.currentToken
 
 	if !literalToken.Kind.IsLiteral() {
@@ -225,7 +279,9 @@ func (p *Parser) parseLiteral() (ast.Expr, error) {
 		}
 	}
 
-	p.consumeToken()
+	if err := p.consumeToken(); err != nil {
+		return nil, fmt.Errorf("failed to advance after parsing literal: %w", err)
+	}
 
 	return &ast.Literal{
 		Token: literalToken,
@@ -295,7 +351,7 @@ func (p *Parser) parseListLiteral(leftParen token.Token, firstExpr ast.Expr) (as
 	for p.currentToken.Kind.Is(token.COMMA) {
 		_, err := p.consumeExpectedKindToken(token.COMMA)
 		if err != nil {
-			return nil, fmt.Errorf("failed to consumeExpectedKindToken comma in array: %w", err)
+			return nil, fmt.Errorf("failed to consume comma in array: %w", err)
 		}
 
 		// Check for trailing comma
@@ -352,7 +408,9 @@ func (p *Parser) parseUnaryExpr() (ast.Expr, error) {
 		}
 	}
 
-	p.consumeToken()
+	if err := p.consumeToken(); err != nil {
+		return nil, fmt.Errorf("failed to advance after unary operator '%s': %w", op.Literal, err)
+	}
 
 	rightExpr, err := p.parseExpr(op.Kind.Precedence())
 	if err != nil {
@@ -388,7 +446,9 @@ func (p *Parser) parseBinaryExpr(leftExpr ast.Expr) (ast.Expr, error) {
 		}
 	}
 
-	p.consumeToken()
+	if err := p.consumeToken(); err != nil {
+		return nil, fmt.Errorf("failed to advance after binary operator '%s': %w", op.Literal, err)
+	}
 
 	rightExpr, err := p.parseExpr(op.Kind.Precedence())
 	if err != nil {

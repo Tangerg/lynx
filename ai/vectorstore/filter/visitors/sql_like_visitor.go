@@ -59,14 +59,11 @@ func (s *SQLLikeVisitor) visitUnaryExpr(expr *ast.UnaryExpr) {
 	s.buffer.WriteString(expr.Op.Literal)
 	s.buffer.WriteString(" ")
 
-	isRightLower := expr.IsRightLower()
-	if isRightLower {
-		s.buffer.WriteString("(")
-	}
+	// always add '(' and ')'
+	s.buffer.WriteString("(")
 	s.visit(expr.Right)
-	if isRightLower {
-		s.buffer.WriteString(")")
-	}
+	s.buffer.WriteString(")")
+
 }
 
 func (s *SQLLikeVisitor) visitBinaryExpr(expr *ast.BinaryExpr) {

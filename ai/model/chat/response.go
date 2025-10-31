@@ -96,10 +96,10 @@ func NewResult(assistantMessage *AssistantMessage, metadata *ResultMetadata) (*R
 // Usage tracks token consumption statistics for LLM API requests,
 // including both input prompt and generated completion tokens.
 type Usage struct {
-	// PromptTokens Tokens consumed by input messages
+	// PromptTokens Token consumed by input messages
 	PromptTokens int64 `json:"prompt_tokens"`
 
-	// CompletionTokens Tokens generated in response
+	// CompletionTokens Token generated in response
 	CompletionTokens int64 `json:"completion_tokens"`
 
 	// OriginalUsage Provider-specific usage data

@@ -252,10 +252,13 @@ func (a *Analyzer) visitOrderingOperation(binary *ast.BinaryExpr) error {
 func (a *Analyzer) visitInOperation(binary *ast.BinaryExpr) error {
 	pos := binary.Start().String()
 
-	// Right operand must be a list literal
+	// Right operand must be a list literal or one item literal
 	if _, ok := binary.Right.(*ast.ListLiteral); !ok {
-		return fmt.Errorf("operator 'IN(%s)' requires list literal on right side, got: %T at %s",
-			binary.Op.Kind.Name(), binary.Right, pos)
+		// For one item
+		if _, ok = binary.Right.(*ast.Literal); !ok {
+			return fmt.Errorf("operator 'IN(%s)' requires list literal on right side, got: %T at %s",
+				binary.Op.Kind.Name(), binary.Right, pos)
+		}
 	}
 
 	// Analyze left operand
