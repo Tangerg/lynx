@@ -9,6 +9,61 @@ import (
 	"unicode/utf8"
 )
 
+// dropCR drops a terminal \r from the data.
+func dropCR(data []byte) []byte {
+	if len(data) > 0 && data[len(data)-1] == '\r' {
+		return data[0 : len(data)-1]
+	}
+	return data
+}
+
+// scanLinesSplit implements a custom split function for bufio.Scanner to handle various
+// line ending patterns in SSE streams.
+//
+// Copied from github.com/Tangerg/lynx/pkg/bufio.ScanLinesAllFormats
+func scanLinesSplit(data []byte, atEOF bool) (advance int, token []byte, err error) {
+	// If we're at EOF and there's no data, return 0 to indicate no more tokens
+	if atEOF && len(data) == 0 {
+		return 0, nil, nil
+	}
+
+	// Find the position of the first '\n' character, returns -1 if not found
+	n := bytes.IndexByte(data, '\n')
+	// Find the position of the first '\r' character, returns -1 if not found
+	r := bytes.IndexByte(data, '\r')
+
+	// Handle the case when both \r and \n exist in the data
+	if n >= 0 && r >= 0 {
+		// Check if it's a Windows-style line ending "\r\n"
+		if n == r+1 {
+			// Advance past the '\n', drop the '\r' from the token
+			return n + 1, dropCR(data[0:n]), nil
+		}
+
+		// For "\r...\n" or "\n...\r" patterns, use the earlier occurrence
+		// min(n, r) gives us the position of whichever comes first
+		i := min(n, r)
+		// Advance past the first line ending character, drop any trailing '\r'
+		return i + 1, dropCR(data[0:i]), nil
+	}
+	// Handle the case when only \r or only \n exists (not both)
+	// max(n, r) returns the valid index (the other one is -1)
+	if i := max(n, r); i >= 0 {
+		// Advance past the line ending character, drop any trailing '\r'
+		return i + 1, dropCR(data[0:i]), nil
+	}
+
+	// If we're at EOF, return the remaining data as the final line
+	if atEOF {
+		// No line ending characters exist in data at this point (both n and r are -1)
+		// So no need to drop '\r'
+		return len(data), data, nil
+	}
+
+	// Request more data by returning 0 advance with no token
+	return 0, nil, nil
+}
+
 // Decoder processes an SSE stream from an io.Reader, parsing fields and
 // detecting message boundaries according to the specification.
 type Decoder struct {
@@ -70,59 +125,6 @@ func (d *Decoder) skipLeadingUTF8BOM() {
 	if bytes.Equal(peekedBytes, utf8BomSequence) {
 		_, _ = d.streamReader.Discard(3)
 	}
-}
-
-// dropCR drops a terminal \r from the data.
-func dropCR(data []byte) []byte {
-	if len(data) > 0 && data[len(data)-1] == '\r' {
-		return data[0 : len(data)-1]
-	}
-	return data
-}
-
-// scanLinesSplit implements a custom split function for bufio.Scanner to handle various
-// line ending patterns in SSE streams.
-//
-// Copied from github.com/Tangerg/lynx/pkg/bufio.ScanLinesAllFormats
-func scanLinesSplit(data []byte, atEOF bool) (advance int, token []byte, err error) {
-	if atEOF && len(data) == 0 {
-		return 0, nil, nil
-	}
-
-	n := bytes.IndexByte(data, '\n')
-	r := bytes.IndexByte(data, '\r')
-
-	// only \n
-	if r == -1 && n >= 0 {
-		return n + 1, dropCR(data[0:n]), nil
-	}
-
-	// only \r
-	if n == -1 && r >= 0 {
-		return r + 1, dropCR(data[0:r]), nil
-	}
-
-	// \r && \n
-	if n >= 0 && r >= 0 {
-		// \r\n
-		if n == r+1 {
-			return n + 1, dropCR(data[0:n]), nil
-		}
-		// \r...\n
-		if n > r {
-			return r + 1, dropCR(data[0:r]), nil
-		}
-		// \n...\r
-		return n + 1, dropCR(data[0:n]), nil
-	}
-
-	// If we're at EOF, we have a final, non-terminated line. Return it.
-	if atEOF {
-		return len(data), dropCR(data), nil
-	}
-
-	// Request more data.
-	return 0, nil, nil
 }
 
 // normalizeValue processes a field value according to the SSE specification:

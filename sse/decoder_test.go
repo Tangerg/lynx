@@ -710,7 +710,7 @@ func TestDecoder_Next(t *testing.T) {
 			name:  "mixed line endings",
 			input: "data: line1\r\ndata: line2\ndata: line3\r\n\n",
 			wantMessages: []Message{
-				{Data: []byte("line1\nline2\ndata: line3")},
+				{Data: []byte("line1\nline2\nline3")},
 			},
 		},
 		{

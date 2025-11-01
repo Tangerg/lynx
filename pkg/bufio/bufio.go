@@ -35,42 +35,44 @@ func dropCR(data []byte) []byte {
 //   - token: The token identified (line without EOL marker)
 //   - err: Any error encountered during scanning
 func ScanLinesAllFormats(data []byte, atEOF bool) (advance int, token []byte, err error) {
+	// If we're at EOF and there's no data, return 0 to indicate no more tokens
 	if atEOF && len(data) == 0 {
 		return 0, nil, nil
 	}
 
+	// Find the position of the first '\n' character, returns -1 if not found
 	n := bytes.IndexByte(data, '\n')
+	// Find the position of the first '\r' character, returns -1 if not found
 	r := bytes.IndexByte(data, '\r')
 
-	// only \n
-	if r == -1 && n >= 0 {
-		return n + 1, dropCR(data[0:n]), nil
-	}
-
-	// only \r
-	if n == -1 && r >= 0 {
-		return r + 1, dropCR(data[0:r]), nil
-	}
-
-	// \r && \n
+	// Handle the case when both \r and \n exist in the data
 	if n >= 0 && r >= 0 {
-		// \r\n
+		// Check if it's a Windows-style line ending "\r\n"
 		if n == r+1 {
+			// Advance past the '\n', drop the '\r' from the token
 			return n + 1, dropCR(data[0:n]), nil
 		}
-		// \r...\n
-		if n > r {
-			return r + 1, dropCR(data[0:r]), nil
-		}
-		// \n...\r
-		return n + 1, dropCR(data[0:n]), nil
+
+		// For "\r...\n" or "\n...\r" patterns, use the earlier occurrence
+		// min(n, r) gives us the position of whichever comes first
+		i := min(n, r)
+		// Advance past the first line ending character, drop any trailing '\r'
+		return i + 1, dropCR(data[0:i]), nil
+	}
+	// Handle the case when only \r or only \n exists (not both)
+	// max(n, r) returns the valid index (the other one is -1)
+	if i := max(n, r); i >= 0 {
+		// Advance past the line ending character, drop any trailing '\r'
+		return i + 1, dropCR(data[0:i]), nil
 	}
 
-	// If we're at EOF, we have a final, non-terminated line. Return it.
+	// If we're at EOF, return the remaining data as the final line
 	if atEOF {
-		return len(data), dropCR(data), nil
+		// No line ending characters exist in data at this point (both n and r are -1)
+		// So no need to drop '\r'
+		return len(data), data, nil
 	}
 
-	// Request more data.
+	// Request more data by returning 0 advance with no token
 	return 0, nil, nil
 }
