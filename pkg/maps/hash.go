@@ -69,7 +69,7 @@ func (h HashMap[K, V]) Size() int {
 
 // IsEmpty returns true if this map contains no key-value mappings.
 func (h HashMap[K, V]) IsEmpty() bool {
-	return len(h) == 0
+	return h.Size() == 0
 }
 
 // Clear removes all of the mappings from this map using Go's built-in clear function.
@@ -87,7 +87,7 @@ func (h HashMap[K, V]) PutAll(other Map[K, V]) {
 // Keys returns a slice containing all the keys in this map.
 // The returned slice is a snapshot of the current keys.
 func (h HashMap[K, V]) Keys() []K {
-	keys := make([]K, 0, len(h))
+	keys := make([]K, 0, h.Size())
 	for k := range h {
 		keys = append(keys, k)
 	}
@@ -97,7 +97,7 @@ func (h HashMap[K, V]) Keys() []K {
 // Values returns a slice containing all the values in this map.
 // The returned slice is a snapshot of the current values.
 func (h HashMap[K, V]) Values() []V {
-	values := make([]V, 0, len(h))
+	values := make([]V, 0, h.Size())
 	for _, v := range h {
 		values = append(values, v)
 	}
@@ -107,7 +107,7 @@ func (h HashMap[K, V]) Values() []V {
 // Entries returns a slice containing all the key-value pairs in this map.
 // Each entry is represented as a pointer to an Entry struct.
 func (h HashMap[K, V]) Entries() []*Entry[K, V] {
-	entries := make([]*Entry[K, V], 0, len(h))
+	entries := make([]*Entry[K, V], 0, h.Size())
 	for k, v := range h {
 		entries = append(entries, &Entry[K, V]{
 			key:   k,

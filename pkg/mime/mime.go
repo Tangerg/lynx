@@ -30,11 +30,11 @@ const (
 // - "application/json" -> type="application", subType="json"
 // - "image/svg+xml" -> type="image", subType="svg+xml"
 type MIME struct {
-	_type       string                       // The primary type component (e.g., "text", "application")
-	subType     string                       // The subtype component (e.g., "html", "json")
-	charset     string                       // The character set value (e.g., "UTF-8")
-	params      maps.HashMap[string, string] // Additional parameters as key-value pairs
-	stringCache string                       // Cached string representation for performance
+	_type        string                       // The primary type component (e.g., "text", "application")
+	subType      string                       // The subtype component (e.g., "html", "json")
+	charset      string                       // The character set value (e.g., "UTF-8")
+	params       maps.HashMap[string, string] // Additional parameters as key-value pairs
+	cachedString string                       // Cached string representation for performance
 }
 
 func (m *MIME) MarshalJSON() ([]byte, error) {
@@ -54,7 +54,7 @@ func (m *MIME) UnmarshalJSON(data []byte) error {
 	m.subType = parsed.subType
 	m.charset = parsed.charset
 	m.params = parsed.params
-	m.stringCache = parsed.stringCache
+	m.cachedString = parsed.cachedString
 
 	return nil
 }
@@ -81,7 +81,7 @@ func (m *MIME) formatStringValue() {
 		stringBuilder.WriteString(paramValue)
 	})
 
-	m.stringCache = stringBuilder.String()
+	m.cachedString = stringBuilder.String()
 }
 
 // Type returns the primary type component of this MIME type.
@@ -141,10 +141,10 @@ func (m *MIME) String() string {
 	if m == nil {
 		return ""
 	}
-	if m.stringCache == "" {
+	if m.cachedString == "" {
 		m.formatStringValue()
 	}
-	return m.stringCache
+	return m.cachedString
 }
 
 // IsWildcardType checks if this MIME type has a wildcard primary type.
@@ -316,6 +316,8 @@ func (m *MIME) EqualsParams(otherMime *MIME) bool {
 			if paramValue != otherValue {
 				parametersEqual = false
 			}
+		} else {
+			parametersEqual = false
 		}
 	})
 

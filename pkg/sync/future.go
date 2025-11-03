@@ -74,7 +74,7 @@ const (
 // wait for its completion, and retrieve its result.
 type Future[V any] interface {
 	// Cancel attempts to cancel the execution of this future.
-	// Returns true if the future was successfully cancelled.
+	// Returns true if the future was successfully cancelled by this call.
 	//
 	// If mayInterruptIfRunning is false, the future will only be cancelled if
 	// execution hasn't begun. If true, the currently executing task will be
@@ -82,6 +82,9 @@ type Future[V any] interface {
 	//
 	// Once a future is cancelled, it transitions to the cancelled state and
 	// any call to Get() will return ErrFutureCancelled.
+	//
+	// Returns false if the task has already completed (succeeded, failed, or
+	// was already cancelled).
 	Cancel(mayInterruptIfRunning bool) bool
 
 	// IsCancelled returns true if this future was cancelled before it completed.
@@ -116,15 +119,14 @@ type Future[V any] interface {
 	// is joined with any existing error.
 	GetWithContext(ctx context.Context) (V, error)
 
+	// TryGet attempts to retrieve the result without blocking.
+	// Returns the result, error, and a boolean indicating whether the future is done.
+	// If the future is not done, the boolean will be false and result/error should be ignored.
+	TryGet() (V, error, bool)
+
 	// State returns the current state of the future.
 	// This can be used to check the current execution state without blocking.
 	State() FutureState
-
-	// MustGet retrieves the result if the future is done, otherwise it panics.
-	// This is useful when you're certain the future is completed.
-	//
-	// Use this method with caution, as it will cause a panic if the future is not done.
-	MustGet() (V, error)
 }
 
 // FutureTask implements the Future interface and represents a cancellable asynchronous computation.
@@ -168,8 +170,8 @@ func NewFutureTask[V any](task func(interrupt <-chan struct{}) (V, error)) *Futu
 	}
 	return &FutureTask[V]{
 		task:      task,
-		done:      make(chan struct{}, 1),
-		interrupt: make(chan struct{}, 1),
+		done:      make(chan struct{}),
+		interrupt: make(chan struct{}),
 	}
 }
 
@@ -251,14 +253,13 @@ func (f *FutureTask[V]) complete(v V, err error) {
 			f.value = v
 		}
 		close(f.done)
-	})
 
-	// ensure interrupt channel always closes
-	select {
-	case <-f.interrupt:
-	default:
-		close(f.interrupt)
-	}
+		select {
+		case <-f.interrupt:
+		default:
+			close(f.interrupt)
+		}
+	})
 }
 
 // Run executes the task if it hasn't already started.
@@ -291,7 +292,8 @@ func (f *FutureTask[V]) Run() {
 }
 
 // Cancel attempts to cancel execution of this task.
-// Returns true if this task was successfully cancelled.
+// Returns true if this call successfully cancelled the task.
+// Returns false if the task has already completed (succeeded, failed, or was already cancelled).
 //
 // If mayInterruptIfRunning is true, the thread executing this task will be interrupted
 // by closing the interrupt channel, which the task should periodically check.
@@ -315,6 +317,7 @@ func (f *FutureTask[V]) Run() {
 //	cancelled := future.Cancel(true)
 //	fmt.Println("Cancelled:", cancelled)
 func (f *FutureTask[V]) Cancel(mayInterruptIfRunning bool) bool {
+	cancelled := false
 	f.doneOnce.Do(func() {
 		f.state.Store(FutureStateCancelled.int32())
 		f.error = ErrFutureCancelled
@@ -322,8 +325,9 @@ func (f *FutureTask[V]) Cancel(mayInterruptIfRunning bool) bool {
 			close(f.interrupt) // notify task to interrupt
 		}
 		close(f.done)
+		cancelled = true
 	})
-	return f.IsCancelled()
+	return cancelled
 }
 
 // IsCancelled returns true if this task was cancelled before it completed normally.
@@ -389,7 +393,7 @@ func (f *FutureTask[V]) Get() (V, error) {
 // and then retrieves its result, if available.
 //
 // If the timeout expires before the task completes, the task is cancelled and ErrFutureTimedOut
-// is returned. A zero timeout will immediately return the current state without waiting.
+// is returned. A zero or negative timeout will immediately check the current state without waiting.
 //
 // Example:
 //
@@ -407,7 +411,11 @@ func (f *FutureTask[V]) Get() (V, error) {
 //	} else {
 //	    fmt.Println("Got result:", result)
 //	}
-func (f *FutureTask[V]) GetWithTimeout(timeout time.Duration) (v V, err error) {
+func (f *FutureTask[V]) GetWithTimeout(timeout time.Duration) (V, error) {
+	if timeout <= 0 {
+		return f.tryGetOrTimeout()
+	}
+
 	timer := time.NewTimer(timeout)
 	defer timer.Stop()
 
@@ -415,16 +423,36 @@ func (f *FutureTask[V]) GetWithTimeout(timeout time.Duration) (v V, err error) {
 	case <-f.done:
 		return f.value, f.error
 	case <-timer.C:
+		select {
+		case <-f.done:
+			return f.value, f.error
+		default:
+			f.Cancel(true)
+			var zero V
+			return zero, ErrFutureTimedOut
+		}
+	}
+}
+
+// tryGetOrTimeout is a helper method that attempts to get the result immediately
+// or returns a timeout error if not done.
+func (f *FutureTask[V]) tryGetOrTimeout() (V, error) {
+	select {
+	case <-f.done:
+		return f.value, f.error
+	default:
 		f.Cancel(true)
-		return v, ErrFutureTimedOut
+		var zero V
+		return zero, ErrFutureTimedOut
 	}
 }
 
 // GetWithContext waits if necessary until the context is done for the computation to complete,
 // and then retrieves its result, if available.
 //
-// If the context is cancelled or times out before the task completes, the task is cancelled
-// and the context error is joined with any existing error.
+// If the task completes before the context is done, this method returns the result.
+// If the context is cancelled or times out, the task is cancelled and the context error
+// is joined with any existing error.
 //
 // Example:
 //
@@ -448,13 +476,49 @@ func (f *FutureTask[V]) GetWithTimeout(timeout time.Duration) (v V, err error) {
 //	} else {
 //	    fmt.Println("Output:", result)
 //	}
-func (f *FutureTask[V]) GetWithContext(ctx context.Context) (v V, err error) {
+func (f *FutureTask[V]) GetWithContext(ctx context.Context) (V, error) {
 	select {
 	case <-f.done:
 		return f.value, f.error
 	case <-ctx.Done():
-		f.Cancel(true)
-		return v, errors.Join(f.error, ctx.Err())
+		select {
+		case <-f.done:
+			return f.value, f.error
+		default:
+			f.Cancel(true)
+			var zero V
+			return zero, errors.Join(f.error, ctx.Err())
+		}
+	}
+}
+
+// TryGet attempts to retrieve the result without blocking.
+// Returns the result, error, and a boolean indicating whether the future is done.
+//
+// If the boolean is false, the future is not done and the result/error should be ignored.
+// If the boolean is true, the future has completed and result/error are valid.
+//
+// This is useful when you want to check if a result is available without waiting.
+//
+// Example:
+//
+//	result, err, ok := future.TryGet()
+//	if ok {
+//	    if err != nil {
+//	        fmt.Println("Task failed:", err)
+//	    } else {
+//	        fmt.Println("Got result:", result)
+//	    }
+//	} else {
+//	    fmt.Println("Task is still running")
+//	}
+func (f *FutureTask[V]) TryGet() (V, error, bool) {
+	select {
+	case <-f.done:
+		return f.value, f.error, true
+	default:
+		var zero V
+		return zero, nil, false
 	}
 }
 
@@ -478,36 +542,4 @@ func (f *FutureTask[V]) GetWithContext(ctx context.Context) (v V, err error) {
 //	}
 func (f *FutureTask[V]) State() FutureState {
 	return FutureState(f.state.Load())
-}
-
-// MustGet retrieves the result if the future is done, otherwise it panics.
-// This is useful when you're certain the future is completed.
-//
-// Use this method with caution, as it will cause a panic if the future is not done.
-//
-// Example:
-//
-//	// Only call MustGet when you're sure the future is done
-//	if future.IsDone() {
-//	    result, err := future.MustGet()
-//	    // Handle result...
-//	}
-//
-//	// Or with a deferred recovery
-//	func processFuture(future Future[string]) {
-//	    defer func() {
-//	        if r := recover(); r != nil {
-//	            fmt.Println("Recovered from panic:", r)
-//	        }
-//	    }()
-//
-//	    // This will panic if the future is not done
-//	    result, err := future.MustGet()
-//	    fmt.Println("Output:", result, "Error:", err)
-//	}
-func (f *FutureTask[V]) MustGet() (V, error) {
-	if !f.IsDone() {
-		panic("Task has not completed")
-	}
-	return f.value, f.error
 }

@@ -159,7 +159,7 @@ func (l *LinkedMap[K, V]) Size() int {
 // IsEmpty returns true if this map contains no key-value mappings.
 // Time complexity: O(1)
 func (l *LinkedMap[K, V]) IsEmpty() bool {
-	return len(l.nodes) == 0
+	return l.Size() == 0
 }
 
 // Clear removes all of the mappings from this map.

@@ -228,7 +228,7 @@ func (b *Builder) FromMime(sourceMime *MIME) *Builder {
 	b.mime.subType = sourceMime.subType
 	b.mime.charset = sourceMime.charset
 	b.mime.params = sourceMime.params.Clone().(maps.HashMap[string, string])
-	b.mime.stringCache = sourceMime.stringCache
+	b.mime.cachedString = sourceMime.cachedString
 
 	return b
 }
@@ -278,6 +278,7 @@ func (b *Builder) Build() (*MIME, error) {
 	return b.mime, nil
 }
 
+// MustBuild panics if build err is not nil, otherwise returns a valid MIME
 func (b *Builder) MustBuild() *MIME {
 	return assert.Must(b.Build())
 }

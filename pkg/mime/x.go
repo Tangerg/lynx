@@ -2,6 +2,7 @@ package mime
 
 import (
 	"strings"
+	"sync"
 )
 
 // xPrefixSubtypeToStandard maps MIME types with x-prefix to their standard equivalents
@@ -102,6 +103,46 @@ var xPrefixSubtypeToStandard = map[string]string{
 	"x-quicktime":           "quicktime",
 }
 
+// Mutex for thread-safe access to xPrefixSubtypeToStandard
+var xPrefixMutex sync.RWMutex
+
+// RegisterXSubtype registers a custom x-prefix subtype to standard subtype mapping.
+// This allows users to define their own normalization rules for x-prefix MIME types.
+//
+// Parameters:
+//   - xSubtype: The x-prefix subtype (e.g., "x-custom")
+//   - standardSubtype: The standard subtype it should map to (e.g., "custom")
+//
+// Example:
+//
+//	RegisterXSubtype("x-custom-format", "custom-format")
+//	// Now application/x-custom-format will normalize to application/custom-format
+func RegisterXSubtype(xSubtype, standardSubtype string) {
+	xPrefixMutex.Lock()
+	defer xPrefixMutex.Unlock()
+	xPrefixSubtypeToStandard[xSubtype] = standardSubtype
+}
+
+// RegisterXSubtypes registers multiple x-prefix subtype mappings at once.
+// This is a convenience function for batch registration.
+//
+// Parameters:
+//   - mappings: A map of x-prefix subtypes to their standard equivalents
+//
+// Example:
+//
+//	RegisterXSubtypes(map[string]string{
+//	    "x-custom1": "custom1",
+//	    "x-custom2": "custom2",
+//	})
+func RegisterXSubtypes(mappings map[string]string) {
+	xPrefixMutex.Lock()
+	defer xPrefixMutex.Unlock()
+	for xSubtype, standardSubtype := range mappings {
+		xPrefixSubtypeToStandard[xSubtype] = standardSubtype
+	}
+}
+
 // NormalizeXSubtype converts MIME types with x-prefix in subtype to their standard form.
 // It first checks a predefined mapping table for known conversions. If no mapping is found,
 // it simply removes the "x-" prefix from the subtype.
@@ -117,8 +158,11 @@ func NormalizeXSubtype(sourceMime *MIME) *MIME {
 		return sourceMime.Clone()
 	}
 
+	xPrefixMutex.RLock()
 	// Check if there's a specific mapping for this x-prefix subtype
 	normalizedSubtype, hasMapping := xPrefixSubtypeToStandard[sourceMime.subType]
+	xPrefixMutex.RUnlock()
+
 	if !hasMapping {
 		// If no mapping found, simply remove the "x-" prefix
 		normalizedSubtype = strings.TrimPrefix(sourceMime.subType, "x-")

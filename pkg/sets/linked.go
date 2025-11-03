@@ -54,160 +54,16 @@ func NewLinkedSet[T comparable](size ...int) *LinkedSet[T] {
 	return ls
 }
 
-// Add inserts an element at the end of the insertion order.
-// Returns false if the element already exists.
+// Size returns the number of elements using the hash map size.
 // Time complexity: O(1)
-func (l *LinkedSet[T]) Add(x T) bool {
-	// Check existence using the hash map for O(1) lookup
-	if l.Contains(x) {
-		return false
-	}
-
-	// Create new node and add to hash map
-	newNode := &node[T]{value: x}
-	l.nodes[x] = newNode
-
-	// Insert at the end of the linked list
-	if l.tail == nil {
-		// Empty list - both head and tail point to the new node
-		l.head = newNode
-		l.tail = newNode
-	} else {
-		// Non-empty list - append to tail
-		l.tail.next = newNode
-		newNode.prev = l.tail
-		l.tail = newNode
-	}
-
-	return true
+func (l *LinkedSet[T]) Size() int {
+	return len(l.nodes)
 }
 
-// AddAll adds multiple elements in the order they appear in the items slice.
-// Elements already in the set are skipped, maintaining the original insertion order.
-// This method is optimized for batch operations and minimizes linked list traversals.
-func (l *LinkedSet[T]) AddAll(items ...T) bool {
-	if len(items) == 0 {
-		return false
-	}
-
-	// Pre-filter items to find which ones actually need to be added
-	// This creates a slice of only new items, avoiding redundant work
-	toAdd := make([]T, 0, len(items))
-	for _, item := range items {
-		if _, exists := l.nodes[item]; !exists {
-			toAdd = append(toAdd, item)
-		}
-	}
-
-	// If no items need to be added, return early
-	if len(toAdd) == 0 {
-		return false
-	}
-
-	// Batch create all nodes first
-	newNodes := make([]*node[T], len(toAdd))
-	for i, item := range toAdd {
-		newNodes[i] = &node[T]{value: item}
-		l.nodes[item] = newNodes[i]
-	}
-
-	// Link all nodes to the existing list structure
-	if l.tail == nil {
-		// Empty list case - chain all new nodes together
-		l.head = newNodes[0]
-		for i := 0; i < len(newNodes)-1; i++ {
-			newNodes[i].next = newNodes[i+1]
-			newNodes[i+1].prev = newNodes[i]
-		}
-		l.tail = newNodes[len(newNodes)-1]
-	} else {
-		// Non-empty list case - append all new nodes to the end
-		firstNew := newNodes[0]
-		firstNew.prev = l.tail
-		l.tail.next = firstNew
-
-		// Chain the new nodes together
-		for i := 0; i < len(newNodes)-1; i++ {
-			newNodes[i].next = newNodes[i+1]
-			newNodes[i+1].prev = newNodes[i]
-		}
-
-		// Update tail to point to the last new node
-		l.tail = newNodes[len(newNodes)-1]
-	}
-
-	return true
-}
-
-// Remove removes an element while maintaining the linked list structure.
-// Returns false if the element doesn't exist.
+// IsEmpty checks if the set contains no elements.
 // Time complexity: O(1)
-func (l *LinkedSet[T]) Remove(x T) bool {
-	// Find the node using the hash map for O(1) lookup
-	nodeToRemove, exists := l.nodes[x]
-	if !exists {
-		return false
-	}
-
-	// Remove from hash map
-	delete(l.nodes, x)
-
-	// Remove from linked list structure
-	l.removeNode(nodeToRemove)
-
-	return true
-}
-
-// removeNode removes a node from the doubly-linked list and updates head/tail pointers.
-// This is a helper method that handles all the pointer manipulation safely.
-func (l *LinkedSet[T]) removeNode(node *node[T]) {
-	// Update previous node's next pointer
-	if node.prev != nil {
-		node.prev.next = node.next
-	} else {
-		// Removing the head node
-		l.head = node.next
-	}
-
-	// Update next node's previous pointer
-	if node.next != nil {
-		node.next.prev = node.prev
-	} else {
-		// Removing the tail node
-		l.tail = node.prev
-	}
-
-	// Clear the removed node's pointers to prevent memory leaks
-	node.prev = nil
-	node.next = nil
-}
-
-// RemoveAll removes multiple elements efficiently.
-// Uses batch processing to minimize linked list traversals.
-func (l *LinkedSet[T]) RemoveAll(items ...T) bool {
-	if len(items) == 0 {
-		return false
-	}
-
-	// Pre-identify nodes that actually exist to avoid redundant work
-	toRemoves := make([]*node[T], 0, len(items))
-	for _, item := range items {
-		if toRemove, exists := l.nodes[item]; exists {
-			toRemoves = append(toRemoves, toRemove)
-		}
-	}
-
-	if len(toRemoves) == 0 {
-		return false
-	}
-
-	// Batch remove all identified nodes
-	for _, toRemove := range toRemoves {
-		delete(l.nodes, toRemove.value)
-		l.removeNode(toRemove)
-	}
-
-	return true
+func (l *LinkedSet[T]) IsEmpty() bool {
+	return l.Size() == 0
 }
 
 // Contains checks element existence using the internal hash map.
@@ -239,38 +95,104 @@ func (l *LinkedSet[T]) ContainsAny(items ...T) bool {
 	return false
 }
 
-// Retain keeps only the specified element, removing all others.
-// If the element doesn't exist, the set becomes empty.
-// Optimized to detect when no change is needed.
-func (l *LinkedSet[T]) Retain(x T) bool {
-	if !l.Contains(x) {
-		if l.IsEmpty() {
-			return false // No change needed
-		}
-		l.Clear()
-		return true // Set was cleared
-	}
-
-	// If set contains only the element to retain, no change needed
-	if l.Size() == 1 {
+// Add inserts an element at the end of the insertion order.
+// Returns false if the element already exists.
+// Time complexity: O(1)
+func (l *LinkedSet[T]) Add(x T) bool {
+	// Check existence using the hash map for O(1) lookup
+	if l.Contains(x) {
 		return false
 	}
 
-	// Remove all elements except the one to retain
-	current := l.head
-	changed := false
+	// Create new node and add to hash map
+	newNode := &node[T]{value: x}
+	l.nodes[x] = newNode
 
-	for current != nil {
-		next := current.next // Save next before potential deletion
-		if current.value != x {
-			delete(l.nodes, current.value)
-			l.removeNode(current)
-			changed = true
-		}
-		current = next
+	// Insert at the end of the linked list
+	if l.tail == nil {
+		// Empty list - both head and tail point to the new node
+		l.head = newNode
+		l.tail = newNode
+	} else {
+		// Non-empty list - append to tail
+		l.tail.next = newNode
+		newNode.prev = l.tail
+		l.tail = newNode
 	}
 
+	return true
+}
+
+// AddAll adds multiple elements in the order they appear in the items slice.
+// Elements already in the set are skipped, maintaining the original insertion order.
+func (l *LinkedSet[T]) AddAll(items ...T) bool {
+	changed := false
+	for _, item := range items {
+		if l.Add(item) {
+			changed = true
+		}
+	}
 	return changed
+}
+
+// removeNode removes a node from the doubly-linked list and updates head/tail pointers.
+// This is a helper method that handles all the pointer manipulation safely.
+func (l *LinkedSet[T]) removeNode(node *node[T]) {
+	// Update previous node's next pointer
+	if node.prev != nil {
+		node.prev.next = node.next
+	} else {
+		// Removing the head node
+		l.head = node.next
+	}
+
+	// Update next node's previous pointer
+	if node.next != nil {
+		node.next.prev = node.prev
+	} else {
+		// Removing the tail node
+		l.tail = node.prev
+	}
+
+	// Clear the removed node's pointers to prevent memory leaks
+	node.prev = nil
+	node.next = nil
+}
+
+// Remove removes an element while maintaining the linked list structure.
+// Returns false if the element doesn't exist.
+// Time complexity: O(1)
+func (l *LinkedSet[T]) Remove(x T) bool {
+	// Find the node using the hash map for O(1) lookup
+	nodeToRemove, exists := l.nodes[x]
+	if !exists {
+		return false
+	}
+
+	// Remove from hash map
+	delete(l.nodes, x)
+
+	// Remove from linked list structure
+	l.removeNode(nodeToRemove)
+
+	return true
+}
+
+// RemoveAll removes multiple elements efficiently.
+func (l *LinkedSet[T]) RemoveAll(items ...T) bool {
+	changed := false
+	for _, item := range items {
+		if l.Remove(item) {
+			changed = true
+		}
+	}
+	return changed
+}
+
+// Retain keeps only the specified element, removing all others.
+// If the element doesn't exist, the set becomes empty.
+func (l *LinkedSet[T]) Retain(x T) bool {
+	return l.RetainAll(x)
 }
 
 // RetainAll keeps only elements that appear in the items slice.
@@ -286,7 +208,7 @@ func (l *LinkedSet[T]) RetainAll(items ...T) bool {
 	}
 
 	// Create a lookup map for elements to retain
-	toRetain := make(map[T]struct{}, len(items))
+	toRetain := make(HashSet[T], len(items))
 	for _, item := range items {
 		toRetain[item] = struct{}{}
 	}
@@ -297,7 +219,7 @@ func (l *LinkedSet[T]) RetainAll(items ...T) bool {
 
 	for current != nil {
 		next := current.next // Save next before potential deletion
-		if _, shouldRetain := toRetain[current.value]; !shouldRetain {
+		if !toRetain.Contains(current.value) {
 			delete(l.nodes, current.value)
 			l.removeNode(current)
 			changed = true
@@ -306,18 +228,6 @@ func (l *LinkedSet[T]) RetainAll(items ...T) bool {
 	}
 
 	return changed
-}
-
-// Size returns the number of elements using the hash map size.
-// Time complexity: O(1)
-func (l *LinkedSet[T]) Size() int {
-	return len(l.nodes)
-}
-
-// IsEmpty checks if the set contains no elements.
-// Time complexity: O(1)
-func (l *LinkedSet[T]) IsEmpty() bool {
-	return l.Size() == 0
 }
 
 // Clear removes all elements and resets the linked list structure.

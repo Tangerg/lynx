@@ -30,7 +30,7 @@ type FakeWeatherQuery struct {
 	writer io.Writer
 }
 
-var inputSchema = pkgJson.StringDefSchemaOf(WeatherRequest{})
+var inputSchema, _ = pkgJson.StringDefSchemaOf(WeatherRequest{})
 
 func (f *FakeWeatherQuery) Definition() chat.ToolDefinition {
 	return chat.ToolDefinition{

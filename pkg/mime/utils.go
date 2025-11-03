@@ -9,14 +9,68 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"mime"
-	"path"
 	"strings"
 
 	"github.com/gabriel-vasile/mimetype"
 
 	"github.com/Tangerg/lynx/pkg/assert"
 	"github.com/Tangerg/lynx/pkg/maps"
+)
+
+var (
+	// all represents a wildcard MIME type that matches any valid MIME type.
+	// It has the format "*/*" where both the primary type and subtype are wildcards.
+	// This is used for operations that should work with all possible MIME types.
+	// Example: For content negotiation, "*/*" indicates accepting any MIME type.
+	all = MIME{
+		_type:   wildcardType,
+		subType: wildcardType,
+	}
+
+	// text represents a MIME type that matches any text-based format.
+	// It has the format "text/*" with a concrete primary type and wildcard subtype.
+	// This category includes formats like plain text, HTML, CSS, and other text-based formats.
+	// Examples: "text/plain", "text/html", "text/css", "text/markdown"
+	text = MIME{
+		_type:   "text",
+		subType: wildcardType,
+	}
+
+	// video represents a MIME type that matches any video format.
+	// It has the format "video/*" with a concrete primary type and wildcard subtype.
+	// This category includes various video container formats and codecs.
+	// Examples: "video/mp4", "video/webm", "video/ogg", "video/quicktime"
+	video = MIME{
+		_type:   "video",
+		subType: wildcardType,
+	}
+
+	// audio represents a MIME type that matches any audio format.
+	// It has the format "audio/*" with a concrete primary type and wildcard subtype.
+	// This category includes various audio container formats and codecs.
+	// Examples: "audio/mpeg", "audio/wav", "audio/ogg", "audio/midi"
+	audio = MIME{
+		_type:   "audio",
+		subType: wildcardType,
+	}
+
+	// image represents a MIME type that matches any image format.
+	// It has the format "image/*" with a concrete primary type and wildcard subtype.
+	// This category includes both raster and vector image formats.
+	// Examples: "image/jpeg", "image/png", "image/gif", "image/svg+xml"
+	image = MIME{
+		_type:   "image",
+		subType: wildcardType,
+	}
+
+	// application represents a MIME type that matches any application-specific format.
+	// It has the format "application/*" with a concrete primary type and wildcard subtype.
+	// This is the largest category and includes data formats, documents, and executable content.
+	// Examples: "application/json", "application/pdf", "application/zip", "application/javascript"
+	application = MIME{
+		_type:   "application",
+		subType: wildcardType,
+	}
 )
 
 var (
@@ -212,65 +266,6 @@ func DetectFile(filePath string) (*MIME, error) {
 		return nil, err
 	}
 	return Parse(detectedMime.String())
-}
-
-// StringTypeByExtension returns the MIME type string associated with a file extension.
-// It uses both the Go standard library's mime package and an internal mapping to
-// determine the appropriate MIME type. If the extension is not recognized,
-// it falls back to "application/octet-stream" which is the standard default for
-// binary content of unknown type.
-//
-// Parameters:
-//   - filePath: A file path or filename from which to extract the extension
-//
-// Examples:
-//   - StringTypeByExtension("document.pdf") returns "application/pdf"
-//   - StringTypeByExtension("image.png") returns "image/png"
-//   - StringTypeByExtension("file.unknown") returns "application/octet-stream"
-//
-// Returns a string representation of the MIME type associated with the file extension.
-func StringTypeByExtension(filePath string) string {
-	fileExtension := strings.ToLower(path.Ext(filePath))
-
-	// First try the standard library's mime package
-	mimeTypeString := mime.TypeByExtension(fileExtension)
-	if mimeTypeString != "" {
-		return mimeTypeString
-	}
-
-	// Fall back to internal mapping
-	mimeTypeString = extMimetypeStringMappings[fileExtension]
-	if mimeTypeString == "" {
-		mimeTypeString = "application/octet-stream"
-	}
-
-	return mimeTypeString
-}
-
-// TypeByExtension returns a MIME object for the given file path or filename.
-// It extracts the extension from the file path and looks it up in an internal
-// mapping of extensions to MIME types. This provides a way to determine the likely
-// MIME type of a file based on its extension without examining the file's contents.
-//
-// Parameters:
-//   - filePath: The file path or filename from which to extract the extension
-//
-// Examples:
-//   - TypeByExtension("document.html") returns a MIME object for "text/html"
-//   - TypeByExtension("images/photo.jpg") returns a MIME object for "image/jpeg"
-//   - TypeByExtension("/path/to/data.json") returns a MIME object for "application/json"
-//
-// Returns a MIME type object and a boolean indicating if the extension was recognized.
-// If the extension is not recognized, returns nil and false.
-func TypeByExtension(filePath string) (*MIME, bool) {
-	fileExtension := strings.ToLower(path.Ext(filePath))
-
-	mappedMime, extensionFound := extToMimeTypeMappings[fileExtension]
-	if extensionFound {
-		return mappedMime.Clone(), true
-	}
-
-	return nil, false
 }
 
 // IsVideo checks if the given MIME type belongs to the video category.

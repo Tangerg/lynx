@@ -223,7 +223,7 @@ JSON only - RFC8259 compliant
 Raw JSON object matching the schema above.`
 
 	var typeInstance T
-	jsonSchema := pkgjson.StringDefSchemaOf(typeInstance)
+	jsonSchema, _ := pkgjson.StringDefSchemaOf(typeInstance)
 
 	return fmt.Sprintf(instructionTemplate, jsonSchema)
 }
