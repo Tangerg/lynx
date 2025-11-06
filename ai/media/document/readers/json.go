@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"unicode"
 
@@ -77,7 +78,10 @@ func (j *JSONReader) Read(_ context.Context) ([]*document.Document, error) {
 	return []*document.Document{doc}, nil
 }
 
-func NewJSONReader(reader io.Reader, sizes ...int) *JSONReader {
+func NewJSONReader(reader io.Reader, sizes ...int) (*JSONReader, error) {
+	if reader == nil {
+		return nil, errors.New("reader is nil")
+	}
 	const defaultBufferSize = 8192
 
 	bufferSize, _ := pkgSlices.First(sizes)
@@ -88,5 +92,5 @@ func NewJSONReader(reader io.Reader, sizes ...int) *JSONReader {
 	return &JSONReader{
 		reader:     reader,
 		bufferSize: bufferSize,
-	}
+	}, nil
 }

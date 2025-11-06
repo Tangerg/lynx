@@ -457,10 +457,17 @@ func (i *toolCallInvoker) invokeToolCalls(ctx context.Context, toolCalls []*Tool
 		})
 	}
 
-	// Create tool response message from internal tool results
-	toolMsg, err := NewToolMessage(internalReturns)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create internal tools message: %w", err)
+	var (
+		toolMsg *ToolMessage
+		err     error
+	)
+
+	if len(internalReturns) > 0 {
+		// Create tool response message from internal tool results
+		toolMsg, err = NewToolMessage(internalReturns)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create internal tools message: %w", err)
+		}
 	}
 
 	return &ToolInvocationResult{

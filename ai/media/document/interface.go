@@ -29,6 +29,10 @@ type Writer interface {
 // allowing optimization for specific use cases like embedding or inference.
 type MetadataMode string
 
+func (m MetadataMode) String() string {
+	return string(m)
+}
+
 const (
 	// MetadataModeAll includes all available metadata in the formatted content.
 	// Use this mode when you need complete document information.

@@ -387,7 +387,7 @@ func NewToolMessage[T []*ToolReturn | MessageParams](param T) (*ToolMessage, err
 	}
 
 	if len(messageParams.ToolReturns) == 0 {
-		return nil, errors.New("internalTool message must contain at least one internalTool return")
+		return nil, errors.New("tool message must contain at least one tool return")
 	}
 
 	if messageParams.Metadata == nil {

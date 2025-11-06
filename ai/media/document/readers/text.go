@@ -2,6 +2,7 @@ package readers
 
 import (
 	"context"
+	"errors"
 	"io"
 
 	"github.com/Tangerg/lynx/ai/media/document"
@@ -30,7 +31,10 @@ func (t *TextReader) Read(_ context.Context) ([]*document.Document, error) {
 	return []*document.Document{doc}, nil
 }
 
-func NewTextReader(reader io.Reader, sizes ...int) *TextReader {
+func NewTextReader(reader io.Reader, sizes ...int) (*TextReader, error) {
+	if reader == nil {
+		return nil, errors.New("reader is nil")
+	}
 	const defaultBufferSize = 8192
 
 	bufferSize, _ := pkgSlices.First(sizes)
@@ -41,5 +45,5 @@ func NewTextReader(reader io.Reader, sizes ...int) *TextReader {
 	return &TextReader{
 		reader:     reader,
 		bufferSize: bufferSize,
-	}
+	}, nil
 }

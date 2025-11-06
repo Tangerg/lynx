@@ -124,7 +124,7 @@ func (t *TokenSplitter) splitByTokens(ctx context.Context, text string) ([]strin
 		if err != nil {
 			return nil, err
 		}
-		tokens = tokens[len(actualTokens):]
+		tokens = tokens[min(len(actualTokens), len(tokens)):]
 
 		processedCount++
 	}
