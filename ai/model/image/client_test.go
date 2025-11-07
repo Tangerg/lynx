@@ -7,9 +7,9 @@ import (
 
 	"github.com/openai/openai-go/v3/option"
 
+	"github.com/Tangerg/lynx/ai/extensions/models/openai"
 	"github.com/Tangerg/lynx/ai/model"
 	"github.com/Tangerg/lynx/ai/model/image"
-	"github.com/Tangerg/lynx/ai/providers/models/openai"
 	"github.com/Tangerg/lynx/pkg/assert"
 )
 

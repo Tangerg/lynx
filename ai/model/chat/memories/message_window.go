@@ -65,10 +65,6 @@ func (m *MessageWindowMemory) Read(ctx context.Context, conversationID string) (
 // It merges system messages and retains the most recent non-system messages
 // within the configured limit.
 func (m *MessageWindowMemory) applySlidingWindow(all []chat.Message) []chat.Message {
-	if len(all) <= m.maximumMessages {
-		return all
-	}
-
 	result := make([]chat.Message, 0, m.maximumMessages)
 
 	// Merge and preserve system messages

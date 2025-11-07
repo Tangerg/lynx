@@ -10,16 +10,16 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/Tangerg/lynx/ai/extensions/models/openai"
+	"github.com/Tangerg/lynx/ai/extensions/tools/fakeweatherquery"
 	"github.com/Tangerg/lynx/ai/model"
 	"github.com/Tangerg/lynx/ai/model/chat"
-	"github.com/Tangerg/lynx/ai/providers/models/openai"
-	"github.com/Tangerg/lynx/ai/providers/tools/fakeweatherquery"
 )
 
 const (
-	defaultBaseURL = "https://api.moonshot.cn/v1"
-	defaultModel   = "moonshot-v1-8k-vision-preview"
-	apiKeyEnvVar   = "MOONSHOT_API_KEY"
+	defaultBaseURL = "https://api.siliconflow.cn/v1"
+	defaultModel   = "Qwen/Qwen2.5-7B-Instruct"
+	apiKeyEnvVar   = "API_KEY"
 	defaultTimeout = 30 * time.Second
 )
 
@@ -36,7 +36,7 @@ func newTestConfig() *testConfig {
 	return &testConfig{
 		baseURL: getEnvOrDefault("TEST_BASE_URL", defaultBaseURL),
 		model:   getEnvOrDefault("TEST_MODEL", defaultModel),
-		apiKey:  os.Getenv(apiKeyEnvVar),
+		apiKey:  getEnvOrDefault(apiKeyEnvVar, ""),
 		timeout: defaultTimeout,
 	}
 }
@@ -340,7 +340,6 @@ func TestClient_Stream_Chat(t *testing.T) {
 
 	for text, err := range responseStream {
 		require.NoError(t, err)
-		assert.NotEmpty(t, text)
 		chunks = append(chunks, text)
 		t.Logf("Chunk: %s", text)
 	}

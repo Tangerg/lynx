@@ -27,6 +27,10 @@ func NewInMemoryMemory() *InMemoryMemory {
 // Write stores the specified messages for the given conversation ID.
 // If no messages are provided, the operation is a no-op.
 func (m *InMemoryMemory) Write(ctx context.Context, conversationID string, messages ...chat.Message) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
 	if len(messages) == 0 {
 		return nil
 	}
@@ -41,6 +45,9 @@ func (m *InMemoryMemory) Write(ctx context.Context, conversationID string, messa
 // Read retrieves all stored messages for the specified conversation ID.
 // Returns an empty slice if the conversation ID does not exist.
 func (m *InMemoryMemory) Read(ctx context.Context, conversationID string) ([]chat.Message, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
 
@@ -57,6 +64,10 @@ func (m *InMemoryMemory) Read(ctx context.Context, conversationID string) ([]cha
 
 // Clear removes all stored messages for the specified conversation ID.
 func (m *InMemoryMemory) Clear(ctx context.Context, conversationID string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 

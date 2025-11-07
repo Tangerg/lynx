@@ -24,7 +24,11 @@ func NewDeduplicationRefiner() *DeduplicationRefiner {
 	return &DeduplicationRefiner{}
 }
 
-func (d *DeduplicationRefiner) Refine(_ context.Context, _ *rag.Query, documents []*document.Document) ([]*document.Document, error) {
+func (d *DeduplicationRefiner) Refine(ctx context.Context, _ *rag.Query, documents []*document.Document) ([]*document.Document, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
 	seenIDs := sets.NewHashSet[string]()
 	uniqueDocuments := make([]*document.Document, 0, len(documents))
 

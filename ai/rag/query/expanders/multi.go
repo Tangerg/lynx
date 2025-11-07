@@ -5,6 +5,8 @@ import (
 	"errors"
 	"strings"
 
+	"github.com/samber/lo"
+
 	"github.com/Tangerg/lynx/ai/model/chat"
 	"github.com/Tangerg/lynx/ai/rag"
 )
@@ -135,16 +137,21 @@ func (m *MultiExpander) Expand(ctx context.Context, query *rag.Query) ([]*rag.Qu
 		queries = append(queries, query)
 	}
 
+	variantTexts = lo.Filter(variantTexts, func(item string, _ int) bool {
+		return item != ""
+	})
+
 	for i, variantText := range variantTexts {
-		if variantText == "" {
-			continue
-		}
 		if i >= m.numberOfQueries {
 			break
 		}
 		clonedQuery := query.Clone()
 		clonedQuery.Text = variantText
 		queries = append(queries, clonedQuery)
+	}
+
+	if len(queries) == 0 {
+		queries = append(queries, query)
 	}
 
 	return queries, nil

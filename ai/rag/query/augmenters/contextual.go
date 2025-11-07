@@ -97,7 +97,11 @@ func NewContextualAugmenter(cfg *ContextualAugmenterConfig) (*ContextualAugmente
 	}, nil
 }
 
-func (c *ContextualAugmenter) Augment(_ context.Context, query *rag.Query, documents []*document.Document) (*rag.Query, error) {
+func (c *ContextualAugmenter) Augment(ctx context.Context, query *rag.Query, documents []*document.Document) (*rag.Query, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
 	if query == nil {
 		return nil, errors.New("query cannot be nil")
 	}

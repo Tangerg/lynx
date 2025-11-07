@@ -30,7 +30,11 @@ func NewRankRefiner(topK int) *RankRefiner {
 	return &RankRefiner{topK: topK}
 }
 
-func (r *RankRefiner) Refine(_ context.Context, _ *rag.Query, documents []*document.Document) ([]*document.Document, error) {
+func (r *RankRefiner) Refine(ctx context.Context, _ *rag.Query, documents []*document.Document) ([]*document.Document, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
 	sortedDocuments := make([]*document.Document, len(documents))
 	copy(sortedDocuments, documents)
 
