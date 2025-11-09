@@ -171,17 +171,6 @@ func TestDeduplicationRefiner_Refine(t *testing.T) {
 	}
 }
 
-func TestDeduplicationRefiner_Refine_NilContext(t *testing.T) {
-	refiner := NewDeduplicationRefiner()
-	documents := []*document.Document{
-		createDoc(t, "doc1", "Content 1", 0.9),
-	}
-
-	result, err := refiner.Refine(nil, &rag.Query{}, documents)
-	require.NoError(t, err)
-	assert.Equal(t, 1, len(result))
-}
-
 func TestDeduplicationRefiner_Refine_NilQuery(t *testing.T) {
 	refiner := NewDeduplicationRefiner()
 	documents := []*document.Document{

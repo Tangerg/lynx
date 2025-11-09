@@ -149,14 +149,14 @@ func (p *Pipeline) retrieveByQueries(ctx context.Context, queries []*Query) ([]*
 	var (
 		mu   sync.Mutex
 		docs []*document.Document
+		g, _ = errgroup.WithContext(ctx)
 	)
 
-	g, gctx := errgroup.WithContext(ctx)
 	g.SetLimit(len(queries))
 
 	for idx, query := range queries {
 		g.Go(func() error {
-			retrieved, err := p.retrieveByQuery(gctx, query)
+			retrieved, err := p.retrieveByQuery(ctx, query)
 			if err != nil {
 				return fmt.Errorf("retrieval for query %d failed: %w", idx, err)
 			}

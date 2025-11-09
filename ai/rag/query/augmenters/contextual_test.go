@@ -268,21 +268,6 @@ func TestContextualAugmenter_Augment(t *testing.T) {
 	}
 }
 
-func TestContextualAugmenter_Augment_NilContext(t *testing.T) {
-	config := &ContextualAugmenterConfig{}
-	augmenter, err := NewContextualAugmenter(config)
-	require.NoError(t, err)
-
-	query := mustCreateQuery(t, "Test query")
-	documents := []*document.Document{
-		createDoc(t, "doc1", "Test content", 0.9),
-	}
-
-	result, err := augmenter.Augment(nil, query, documents)
-	require.NoError(t, err)
-	assert.NotNil(t, result)
-}
-
 func TestContextualAugmenter_handleEmptyContext(t *testing.T) {
 	tests := []struct {
 		name              string

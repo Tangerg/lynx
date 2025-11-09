@@ -1,6 +1,8 @@
 package embedding
 
 import (
+	"context"
+
 	"github.com/Tangerg/lynx/ai/model"
 )
 
@@ -11,7 +13,7 @@ type Model interface {
 
 	// Dimensions returns the dimensionality of the embedding vectors produced by this model.
 	// For example, a model might return 768 or 1536 dimensional vectors.
-	Dimensions() int64
+	Dimensions(ctx context.Context) int64
 
 	// DefaultOptions returns the default configuration options for this embedding model.
 	// These options can be overridden when making embedding requests.

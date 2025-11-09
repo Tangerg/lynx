@@ -292,7 +292,7 @@ func TestEmbeddingModel_Call_WithOptions(t *testing.T) {
 func TestEmbeddingModel_Dimensions(t *testing.T) {
 	model := newTestEmbeddingModel(t)
 
-	dims := model.Dimensions()
+	dims := model.Dimensions(context.Background())
 
 	t.Logf("Model dimensions: %d", dims)
 }

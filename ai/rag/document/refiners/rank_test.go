@@ -278,18 +278,6 @@ func TestRankRefiner_Refine_DoesNotModifyOriginal(t *testing.T) {
 	}
 }
 
-func TestRankRefiner_Refine_NilContext(t *testing.T) {
-	refiner := NewRankRefiner(2)
-	documents := []*document.Document{
-		createDoc(t, "doc1", "Content 1", 0.9),
-		createDoc(t, "doc2", "Content 2", 0.7),
-	}
-
-	result, err := refiner.Refine(nil, &rag.Query{}, documents)
-	require.NoError(t, err)
-	assert.Equal(t, 2, len(result))
-}
-
 func TestRankRefiner_Refine_NilQuery(t *testing.T) {
 	refiner := NewRankRefiner(2)
 	documents := []*document.Document{

@@ -106,8 +106,8 @@ func (e *EmbeddingModel) Call(ctx context.Context, req *embedding.Request) (*emb
 	return e.buildEmbeddingResponse(apiResp)
 }
 
-func (e *EmbeddingModel) Dimensions() int64 {
-	return 0
+func (e *EmbeddingModel) Dimensions(ctx context.Context) int64 {
+	return embedding.GetDimensions(ctx, e)
 }
 
 func (e *EmbeddingModel) DefaultOptions() *embedding.Options {

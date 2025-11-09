@@ -123,7 +123,7 @@ func NewVectorStore(config *VectorStoreConfig) (*VectorStore, error) {
 		storeDocumentContent: config.StoreDocumentContent,
 	}
 
-	if err := store.initialize(config.Context); err != nil {
+	if err = store.initialize(config.Context); err != nil {
 		return nil, fmt.Errorf("qdrant: failed to initialize vector store: %w", err)
 	}
 
@@ -144,10 +144,15 @@ func (v *VectorStore) initialize(ctx context.Context) error {
 		return nil
 	}
 
+	dimensions := v.embeddingModel.Dimensions(ctx)
+	if dimensions <= 0 {
+		return errors.New("qdrant: dimensions must be greater than zero")
+	}
+
 	err = v.client.CreateCollection(ctx, &qdrant.CreateCollection{
 		CollectionName: v.collectionName,
 		VectorsConfig: qdrant.NewVectorsConfig(&qdrant.VectorParams{
-			Size:     uint64(v.embeddingModel.Dimensions()),
+			Size:     uint64(dimensions),
 			Distance: qdrant.Distance_Cosine,
 		}),
 	})
@@ -193,10 +198,7 @@ func (v *VectorStore) buildUpsertPoints(ctx context.Context, req *vectorstore.Cr
 }
 
 func (v *VectorStore) buildPointStruct(doc *document.Document, vector []float64) (*qdrant.PointStruct, error) {
-	docID := doc.ID
-	if docID == "" {
-		docID = uuid.NewString()
-	}
+	docID := uuid.NewString()
 
 	point := &qdrant.PointStruct{
 		Id: qdrant.NewID(docID),
