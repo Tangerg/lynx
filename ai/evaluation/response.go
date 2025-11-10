@@ -16,3 +16,22 @@ type Response struct {
 	// Metadata Additional evaluation metadata as key-value pairs
 	Metadata map[string]any
 }
+
+func (r *Response) ensureMetadata() {
+	if r.Metadata == nil {
+		r.Metadata = make(map[string]any)
+	}
+}
+
+func (r *Response) Get(key string) (any, bool) {
+	r.ensureMetadata()
+
+	v, ok := r.Metadata[key]
+	return v, ok
+}
+
+func (r *Response) Set(key string, value any) {
+	r.ensureMetadata()
+
+	r.Metadata[key] = value
+}
