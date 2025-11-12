@@ -2,112 +2,156 @@ package flow
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"maps"
 	"slices"
 )
 
-// Branch enables conditional execution based on the output of a processor.
-// It routes processing through different nodes based on a comparable identifier.
-type Branch[T comparable] struct {
-	// processor is the node that generates the output used for branch selection
-	processor Processor[any, any]
-	// branchResolver determines which branch to take based on input and processor output
-	branchResolver func(context.Context, any, any) (T, error)
-	// branches maps branch identifiers to their corresponding processing nodes
-	branches map[T]Node[any, any]
+// BranchConfig contains the configuration for creating a Branch node.
+// It defines a main node and conditional branches based on the main node's output.
+type BranchConfig struct {
+	// Node is the main processing unit whose output determines which branch to take
+	Node Node[any, any]
+
+	// BranchResolver determines which branch to execute based on the input and output.
+	// Parameters:
+	//   - ctx: Context for cancellation control
+	//   - input: Original input to the main node
+	//   - output: Output from the main node
+	// Returns:
+	//   - string: The name of the branch to execute
+	//   - error: Any error during branch resolution
+	// If nil, no branching occurs and only the main node is executed.
+	BranchResolver func(context.Context, any, any) (string, error)
+
+	// Branches maps branch names to their corresponding nodes.
+	// The branch selected by BranchResolver will be executed with the main node's output.
+	// If empty, no branching occurs.
+	Branches map[string]Node[any, any]
 }
 
-// resolveBranch determines which branch to execute based on input and processor output.
-// Returns the selected Node and any error that occurred during branch selection.
-func (b *Branch[T]) resolveBranch(ctx context.Context, input any, output any) (Node[any, any], error) {
-	err := b.processor.checkContextCancellation(ctx)
+// validate checks if the BranchConfig is valid and ready to use.
+// Returns an error if the config or its Node field is nil.
+func (cfg *BranchConfig) validate() error {
+	if cfg == nil {
+		return errors.New("branch config cannot be nil")
+	}
+
+	if cfg.Node == nil {
+		return errors.New("branch node cannot be nil")
+	}
+
+	return nil
+}
+
+// Branch represents a conditional node that executes different paths based on a decision.
+// It first runs the main node, then uses the resolver to determine and execute a branch.
+//
+// Execution flow:
+//  1. Execute the main node with the input
+//  2. Use the branch resolver to determine which branch to take (based on input and output)
+//  3. Execute the selected branch node with the main node's output
+type Branch struct {
+	node           Node[any, any]
+	branchResolver func(context.Context, any, any) (string, error)
+	branches       map[string]Node[any, any]
+}
+
+// NewBranch creates a new Branch instance with the provided configuration.
+// Returns an error if the configuration is invalid.
+//
+// Example:
+//
+//	branch, err := NewBranch(&BranchConfig{
+//	    Node: validatorNode,
+//	    BranchResolver: func(ctx context.Context, input, output any) (string, error) {
+//	        if isValid(output) {
+//	            return "success", nil
+//	        }
+//	        return "failure", nil
+//	    },
+//	    Branches: map[string]Node[any, any]{
+//	        "success": successNode,
+//	        "failure": failureNode,
+//	    },
+//	})
+func NewBranch(cfg *BranchConfig) (*Branch, error) {
+	if err := cfg.validate(); err != nil {
+		return nil, err
+	}
+
+	return &Branch{
+		node:           cfg.Node,
+		branchResolver: cfg.BranchResolver,
+		branches:       cfg.Branches,
+	}, nil
+}
+
+// resolveBranch determines which branch node to execute based on the resolver's decision.
+// Returns an error if the branch name doesn't exist in the branches map.
+//
+// Parameters:
+//   - ctx: Context for cancellation control
+//   - input: Original input to the main node
+//   - output: Output from the main node
+//
+// Returns:
+//   - The node corresponding to the resolved branch name
+//   - An error if branch resolution fails or the branch doesn't exist
+func (b *Branch) resolveBranch(ctx context.Context, input, output any) (Node[any, any], error) {
+	branchName, err := b.branchResolver(ctx, input, output)
 	if err != nil {
 		return nil, err
 	}
-	branch, err := b.branchResolver(ctx, input, output)
-	if err != nil {
-		return nil, err
-	}
-	node, ok := b.branches[branch]
-	if !ok {
-		return nil, fmt.Errorf("branch '%v' not found: available branches are %v", branch, slices.Collect(maps.Keys(b.branches)))
-	}
-	return node, nil
-}
 
-// run executes the branch processor and then the appropriate branch based on its output.
-// If no branches are defined or no branch resolver is set, it only runs the processor.
-func (b *Branch[T]) run(ctx context.Context, input any) (output any, err error) {
-	output, err = b.processor.Run(ctx, input)
-	if err != nil {
-		return
+	branchNode, exists := b.branches[branchName]
+	if !exists {
+		availableBranches := slices.Collect(maps.Keys(b.branches))
+		return nil, fmt.Errorf(
+			"branch '%s' not found: available branches are %v",
+			branchName,
+			availableBranches,
+		)
 	}
-	if len(b.branches) == 0 || b.branchResolver == nil {
-		return
-	}
-	branch, err := b.resolveBranch(ctx, input, output)
-	if err != nil {
-		return
-	}
-	return branch.Run(ctx, output)
+
+	return branchNode, nil
 }
 
 // Run implements the Node interface for Branch.
-// It first validates the processor, then executes the branch logic.
-func (b *Branch[T]) Run(ctx context.Context, input any) (any, error) {
-	err := validateProcessor(b.processor)
+// It executes the main node first, then conditionally executes a branch based on the resolver.
+//
+// Execution logic:
+//  1. Run the main node with the provided input
+//  2. If branches are empty or resolver is nil, return the main node's output
+//  3. Otherwise, resolve which branch to take based on input and output
+//  4. Execute the selected branch node with the main node's output
+//
+// Parameters:
+//   - ctx: Context for cancellation and timeout control
+//   - input: Input value for the main node
+//
+// Returns:
+//   - The output from the executed branch (or main node if no branching occurs)
+//   - An error if the main node, branch resolution, or branch execution fails
+func (b *Branch) Run(ctx context.Context, input any) (any, error) {
+	// Step 1: Execute the main node
+	output, err := b.node.Run(ctx, input)
 	if err != nil {
 		return nil, err
 	}
-	return b.run(ctx, input)
-}
 
-// AddBranch adds a new branch with the given identifier and processing node.
-// Initializes the branches map if needed. Ignores nil nodes.
-// Returns the Branch for method chaining.
-func (b *Branch[T]) AddBranch(branch T, node Node[any, any]) *Branch[T] {
-	if b.branches == nil {
-		b.branches = make(map[T]Node[any, any])
+	// Step 2: Check if branching is configured
+	if len(b.branches) == 0 || b.branchResolver == nil {
+		return output, nil
 	}
-	if node != nil {
-		b.branches[branch] = node
+
+	// Step 3: Resolve which branch to execute
+	branchNode, err := b.resolveBranch(ctx, input, output)
+	if err != nil {
+		return nil, err
 	}
-	return b
-}
 
-// WithProcessor sets the processor for this branch.
-// The processor's output will be used to determine which branch to execute.
-// Returns the Branch for method chaining.
-func (b *Branch[T]) WithProcessor(processor Processor[any, any]) *Branch[T] {
-	b.processor = processor
-	return b
-}
-
-// BranchBuilder helps construct a Branch node with a fluent API.
-// It maintains references to both the parent flow and the branch being built.
-type BranchBuilder struct {
-	flow   *Flow
-	branch *Branch[string]
-}
-
-// AddBranch adds a new branch to the branch being built.
-// Returns the BranchBuilder for method chaining.
-func (b *BranchBuilder) AddBranch(branch string, node Node[any, any]) *BranchBuilder {
-	b.branch.AddBranch(branch, node)
-	return b
-}
-
-// WithProcessor sets the processor for the branch being built.
-// Returns the BranchBuilder for method chaining.
-func (b *BranchBuilder) WithProcessor(processor Processor[any, any]) *BranchBuilder {
-	b.branch.WithProcessor(processor)
-	return b
-}
-
-// Then adds the constructed branch to the parent flow and returns the flow.
-// This completes the branch construction and continues building the flow.
-func (b *BranchBuilder) Then() *Flow {
-	b.flow.Then(b.branch)
-	return b.flow
+	// Step 4: Execute the selected branch
+	return branchNode.Run(ctx, output)
 }

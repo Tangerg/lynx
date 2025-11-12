@@ -2,89 +2,112 @@ package flow
 
 import (
 	"context"
+	"errors"
+	"fmt"
 
 	"github.com/Tangerg/lynx/pkg/sync"
 )
 
-// Async enables asynchronous execution of a processor.
-// Instead of waiting for the processor to complete, it returns a sync.Future
-// that can be used to check completion status and retrieve the result later.
-// Generic parameters I and O define the input and output types for the processor.
-type Async[I any, O any] struct {
-	processor Processor[I, O]
-	pool      sync.Pool
+// AsyncConfig contains the configuration for creating an Async node.
+// It defines the node to be executed asynchronously and the thread pool to use.
+type AsyncConfig[I any, O any] struct {
+	// Node is the processing unit to be executed asynchronously
+	Node Node[I, O]
+
+	// Pool is the thread pool for executing the async task.
+	// If nil, a default no-pool executor will be used.
+	Pool sync.Pool
 }
 
-// getPool returns the pool to be used for async execution.
-// If a pool has been explicitly set, it returns that pool.
-// Otherwise, it returns the default pool from sync package.
-func (a *Async[I, O]) getPool() sync.Pool {
-	if a.pool != nil {
-		return a.pool
+// validate checks if the AsyncConfig is valid and applies defaults.
+// Returns an error if the config or its Node field is nil.
+// Sets a default Pool if none is provided.
+func (cfg *AsyncConfig[I, O]) validate() error {
+	if cfg == nil {
+		return errors.New("async config cannot be nil")
 	}
-	return sync.DefaultPool()
+
+	if cfg.Node == nil {
+		return errors.New("async node cannot be nil")
+	}
+
+	if cfg.Pool == nil {
+		cfg.Pool = sync.PoolOfNoPool()
+	}
+
+	return nil
 }
 
-// RunType executes the processor asynchronously and returns a typed sync.Future.
-// It validates the processor, then uses the pool to run it in a separate goroutine.
-// Returns the future handle and any error encountered during setup.
-func (a *Async[I, O]) RunType(ctx context.Context, input I) (sync.Future[O], error) {
-	err := validateProcessor(a.processor)
-	if err != nil {
+// Async represents a node that executes another node asynchronously.
+// It returns a Future that can be used to retrieve the result later.
+type Async[I any, O any] struct {
+	node Node[I, O]
+	pool sync.Pool
+}
+
+// NewAsync creates a new Async instance with the provided configuration.
+// Returns an error if the configuration is invalid.
+//
+// Example:
+//
+//	async, err := NewAsync(&AsyncConfig{
+//	    Node: myNode,
+//	    Pool: myThreadPool,
+//	})
+func NewAsync[I any, O any](cfg *AsyncConfig[I, O]) (*Async[I, O], error) {
+	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
+
+	return &Async[I, O]{
+		node: cfg.Node,
+		pool: cfg.Pool,
+	}, nil
+}
+
+// RunType executes the configured node asynchronously and returns a typed Future.
+// The Future can be used to retrieve the result when it's ready or check for errors.
+//
+// Parameters:
+//   - ctx: Context for cancellation and timeout control
+//   - input: Input value for the async node
+//
+// Returns:
+//   - A Future[O] that will eventually contain the result
+//   - An error if the async task cannot be submitted
+//
+// Example:
+//
+//	future, err := async.RunType(ctx, input)
+//	if err != nil {
+//	    return err
+//	}
+//	result, err := future.Get()
+func (a *Async[I, O]) RunType(ctx context.Context, input I) (sync.Future[O], error) {
 	return sync.NewFutureTaskAndRunWithPool(
-		func(interrupt <-chan struct{}) (O, error) {
-			return a.processor.Run(ctx, input)
+		func(interrupt <-chan struct{}) (output O, err error) {
+			select {
+			case <-interrupt:
+				return output, fmt.Errorf("async task cancelled")
+			default:
+				return a.node.Run(ctx, input)
+			}
 		},
-		a.getPool(),
+		a.pool,
 	)
 }
 
 // Run implements the Node interface for Async.
-// It executes the processor asynchronously and returns the sync.Future as an any type.
+// It executes the configured node asynchronously and returns a Future as any type.
+// For type-safe usage, prefer using RunType instead.
+//
+// Parameters:
+//   - ctx: Context for cancellation and timeout control
+//   - input: Input value for the async node
+//
+// Returns:
+//   - A Future (as any type) that will eventually contain the result
+//   - An error if the async task cannot be submitted
 func (a *Async[I, O]) Run(ctx context.Context, input I) (any, error) {
 	return a.RunType(ctx, input)
-}
-
-// WithProcessor sets the processor to execute asynchronously.
-// Returns the Async for chaining.
-func (a *Async[I, O]) WithProcessor(processor Processor[I, O]) *Async[I, O] {
-	a.processor = processor
-	return a
-}
-
-// WithPool sets the goroutine pool to use for async execution.
-// Returns the Async for chaining.
-func (a *Async[I, O]) WithPool(pool sync.Pool) *Async[I, O] {
-	a.pool = pool
-	return a
-}
-
-// AsyncBuilder helps construct an Async node with a fluent API.
-// It maintains references to both the parent flow and the async operation being built.
-type AsyncBuilder struct {
-	flow  *Flow
-	async *Async[any, any]
-}
-
-// WithProcessor sets the processor to execute asynchronously.
-// Returns the AsyncBuilder for chaining.
-func (a *AsyncBuilder) WithProcessor(processor Processor[any, any]) *AsyncBuilder {
-	a.async.WithProcessor(processor)
-	return a
-}
-
-// WithPool sets the goroutine pool to use for async execution.
-// Returns the AsyncBuilder for chaining.
-func (a *AsyncBuilder) WithPool(pool sync.Pool) *AsyncBuilder {
-	a.async.WithPool(pool)
-	return a
-}
-
-// Then adds the constructed async operation to the parent flow and returns the flow.
-// This completes the async construction and continues building the flow.
-func (a *AsyncBuilder) Then() *Flow {
-	a.flow.Then(a.async)
-	return a.flow
 }

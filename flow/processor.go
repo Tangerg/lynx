@@ -5,37 +5,41 @@ import (
 	"errors"
 )
 
-// Processor is a function type that implements basic processing logic.
-// It takes a context and input of type I, and returns output of type O and an error.
-// Processors are the building blocks of more complex nodes in the workflow.
+// Processor is a function type that implements the Node interface.
+// It provides a convenient way to create nodes from simple functions without
+// defining separate struct types.
+//
+// Type parameters:
+//   - I: Input type for the processor function
+//   - O: Output type from the processor function
+//
+// Example:
+//
+//	// Define a processor function
+//	toUpper := Processor[string, string](func(ctxcontext.Context,inputstring) (string, error) {
+//	    return strings.ToUpper(input), nil
+//	})
+//
+//	// Use it as a Node
+//	result, err := toUpper.Run(ctx, "hello")
 type Processor[I any, O any] func(context.Context, I) (O, error)
 
-// checkContextCancellation verifies if the context has been canceled or reached its deadline.
-// Returns context.Err() if the context is done, otherwise returns nil.
-func (p Processor[I, O]) checkContextCancellation(ctx context.Context) error {
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	default:
-		return nil
-	}
-}
+// Run implements the Node interface for Processor.
+// It executes the underlying function with the provided context and input.
+//
+// Parameters:
+//   - ctx: Context for cancellation and timeout control
+//   - input: Input value for the processor function
+//
+// Returns:
+//   - The output from the processor function
+//   - An error if the processor is nil or the function returns an error
+func (p Processor[I, O]) Run(ctx context.Context, input I) (O, error) {
+	var zero O
 
-// Run implements the Node interface for Processor type, making any Processor function usable as a Node.
-// It first checks for context cancellation before executing the processor function.
-func (p Processor[I, O]) Run(ctx context.Context, input I) (o O, err error) {
-	err = p.checkContextCancellation(ctx)
-	if err != nil {
-		return
+	if p == nil {
+		return zero, errors.New("processor cannot be nil")
 	}
+
 	return p(ctx, input)
-}
-
-// validateProcessor ensures the processor is not nil, which would lead to a panic if executed.
-// Returns an error if the processor is nil, otherwise returns nil.
-func validateProcessor[I any, O any](processor Processor[I, O]) error {
-	if processor == nil {
-		return errors.New("processor cannot be nil")
-	}
-	return nil
 }

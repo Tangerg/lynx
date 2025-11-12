@@ -2,7 +2,6 @@ package flow
 
 import (
 	"context"
-	"errors"
 )
 
 // Node represents a processing unit in the workflow that can transform input to output.
@@ -21,20 +20,5 @@ type Middleware[I any, O any] func(node Node[I, O]) Node[I, O]
 // The nodes are executed in sequence, with each node's output becoming the next node's input.
 // Returns the combined flow or an error if no nodes are provided.
 func Join(nodes ...Node[any, any]) (Node[any, any], error) {
-	if len(nodes) == 0 {
-		return nil, errors.New("at least one node is required")
-	}
-	flow := NewFlow()
-	for _, node := range nodes {
-		flow.Then(node)
-	}
-	return flow, nil
+	return NewFlow(nodes...)
 }
-
-// OfNode creates a new flow containing the specified node.
-// It's a convenience function for creating a flow with a single existing node.
-func OfNode(node Node[any, any]) *Flow { return NewFlow().Then(node) }
-
-// OfProcessor creates a new flow containing the specified processor.
-// It's a convenience function for creating a flow with a single processor function.
-func OfProcessor(processor Processor[any, any]) *Flow { return NewFlow().Step(processor) }
