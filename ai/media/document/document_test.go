@@ -114,11 +114,10 @@ func TestDocument_Format(t *testing.T) {
 		doc, err := NewDocument("test content", nil)
 		require.NoError(t, err)
 
-		customFormatter := &mockFormatter{
-			formatFn: func(d *Document, mode MetadataMode) string {
+		customFormatter := mockFormatterFn(
+			func(d *Document, mode MetadataMode) string {
 				return "custom: " + d.Text
-			},
-		}
+			})
 		doc.Formatter = customFormatter
 
 		result := doc.Format()
@@ -199,8 +198,8 @@ func TestDocument_FormatByMetadataMode_CustomFormatter(t *testing.T) {
 		require.NoError(t, err)
 		doc.Metadata["key"] = "value"
 
-		customFormatter := &mockFormatter{
-			formatFn: func(d *Document, mode MetadataMode) string {
+		customFormatter := mockFormatterFn(
+			func(d *Document, mode MetadataMode) string {
 				switch mode {
 				case MetadataModeAll:
 					return d.Text + " [all metadata]"
@@ -211,8 +210,7 @@ func TestDocument_FormatByMetadataMode_CustomFormatter(t *testing.T) {
 				default:
 					return d.Text
 				}
-			},
-		}
+			})
 		doc.Formatter = customFormatter
 
 		t.Run("all mode", func(t *testing.T) {
@@ -238,11 +236,9 @@ func TestDocument_FormatByMetadataModeWithFormatter(t *testing.T) {
 		doc, err := NewDocument("test", nil)
 		require.NoError(t, err)
 
-		customFormatter := &mockFormatter{
-			formatFn: func(d *Document, mode MetadataMode) string {
-				return "custom: " + d.Text + " mode: " + string(mode)
-			},
-		}
+		customFormatter := mockFormatterFn(func(d *Document, mode MetadataMode) string {
+			return "custom: " + d.Text + " mode: " + string(mode)
+		})
 
 		result := doc.FormatByMetadataModeWithFormatter(MetadataModeAll, customFormatter)
 		assert.Equal(t, "custom: test mode: all", result)
@@ -262,18 +258,13 @@ func TestDocument_FormatByMetadataModeWithFormatter(t *testing.T) {
 		doc, err := NewDocument("content", nil)
 		require.NoError(t, err)
 
-		doc.Formatter = &mockFormatter{
-			formatFn: func(d *Document, mode MetadataMode) string {
-				return "default: " + d.Text
-			},
-		}
+		doc.Formatter = mockFormatterFn(func(d *Document, mode MetadataMode) string {
+			return "default: " + d.Text
+		})
 
-		overrideFormatter := &mockFormatter{
-			formatFn: func(d *Document, mode MetadataMode) string {
-				return "override: " + d.Text
-			},
-		}
-
+		overrideFormatter := mockFormatterFn(func(d *Document, mode MetadataMode) string {
+			return "override: " + d.Text
+		})
 		result := doc.FormatByMetadataModeWithFormatter(MetadataModeAll, overrideFormatter)
 		assert.Equal(t, "override: content", result)
 	})
@@ -282,11 +273,9 @@ func TestDocument_FormatByMetadataModeWithFormatter(t *testing.T) {
 		doc, err := NewDocument("test", nil)
 		require.NoError(t, err)
 
-		formatter := &mockFormatter{
-			formatFn: func(d *Document, mode MetadataMode) string {
-				return d.Text + ":" + string(mode)
-			},
-		}
+		formatter := mockFormatterFn(func(d *Document, mode MetadataMode) string {
+			return d.Text + ":" + string(mode)
+		})
 
 		resultAll := doc.FormatByMetadataModeWithFormatter(MetadataModeAll, formatter)
 		resultEmbed := doc.FormatByMetadataModeWithFormatter(MetadataModeEmbed, formatter)
@@ -301,8 +290,8 @@ func TestDocument_FormatByMetadataModeWithFormatter(t *testing.T) {
 // TestDocument_Fields tests all document fields
 func TestDocument_Fields(t *testing.T) {
 	t.Run("all fields can be set and retrieved", func(t *testing.T) {
-		media := mustCreateMedia(t, "video/mp4", []byte{0x00, 0x00, 0x00, 0x18})
-		doc, err := NewDocument("test content", media)
+		m := mustCreateMedia(t, "video/mp4", []byte{0x00, 0x00, 0x00, 0x18})
+		doc, err := NewDocument("test content", m)
 		require.NoError(t, err)
 
 		// Set all fields
@@ -312,19 +301,16 @@ func TestDocument_Fields(t *testing.T) {
 		doc.Metadata["tags"] = []string{"test", "document"}
 		doc.Metadata["priority"] = 1
 
-		customFormatter := &mockFormatter{
-			formatFn: func(d *Document, mode MetadataMode) string {
-				return "formatted"
-			},
-		}
+		customFormatter := mockFormatterFn(func(d *Document, mode MetadataMode) string {
+			return "formatted"
+		})
 		doc.Formatter = customFormatter
 
 		// Verify all fields
 		assert.Equal(t, "doc-123", doc.ID)
 		assert.Equal(t, 0.95, doc.Score)
 		assert.Equal(t, "test content", doc.Text)
-		assert.Same(t, media, doc.Media)
-		assert.Same(t, customFormatter, doc.Formatter)
+		assert.Same(t, m, doc.Media)
 		assert.Equal(t, "John Doe", doc.Metadata["author"])
 		assert.Equal(t, []string{"test", "document"}, doc.Metadata["tags"])
 		assert.Equal(t, 1, doc.Metadata["priority"])
@@ -356,9 +342,9 @@ func TestDocument_Fields(t *testing.T) {
 func TestDocument_WithMedia(t *testing.T) {
 	t.Run("document with image media", func(t *testing.T) {
 		imageData := []byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}
-		media := mustCreateMedia(t, "image/png", imageData)
+		m := mustCreateMedia(t, "image/png", imageData)
 
-		doc, err := NewDocument("Image description", media)
+		doc, err := NewDocument("Image description", m)
 		require.NoError(t, err)
 
 		assert.Equal(t, "Image description", doc.Text)
@@ -372,9 +358,9 @@ func TestDocument_WithMedia(t *testing.T) {
 
 	t.Run("document with audio media", func(t *testing.T) {
 		audioData := []byte{0x49, 0x44, 0x33} // ID3 tag
-		media := mustCreateMedia(t, "audio/mpeg", audioData)
+		m := mustCreateMedia(t, "audio/mpeg", audioData)
 
-		doc, err := NewDocument("", media)
+		doc, err := NewDocument("", m)
 		require.NoError(t, err)
 
 		assert.Empty(t, doc.Text)
@@ -405,11 +391,9 @@ func TestDocument_Integration(t *testing.T) {
 		assert.Equal(t, "Initial content", result2)
 
 		// Format with custom formatter
-		customFormatter := &mockFormatter{
-			formatFn: func(d *Document, mode MetadataMode) string {
-				return "[" + d.ID + "] " + d.Text
-			},
-		}
+		customFormatter := mockFormatterFn(func(d *Document, mode MetadataMode) string {
+			return "[" + d.ID + "] " + d.Text
+		})
 		result3 := doc.FormatByMetadataModeWithFormatter(MetadataModeAll, customFormatter)
 		assert.Equal(t, "[doc-001] Initial content", result3)
 
@@ -425,22 +409,20 @@ func TestDocument_Integration(t *testing.T) {
 	})
 
 	t.Run("document with media and custom formatting", func(t *testing.T) {
-		media := mustCreateMedia(t, "video/mp4", []byte{0x00, 0x00, 0x00, 0x20})
-		doc, err := NewDocument("Video tutorial", media)
+		m := mustCreateMedia(t, "video/mp4", []byte{0x00, 0x00, 0x00, 0x20})
+		doc, err := NewDocument("Video tutorial", m)
 		require.NoError(t, err)
 
 		doc.ID = "vid-001"
 		doc.Metadata["duration"] = 120
 		doc.Metadata["resolution"] = "1920x1080"
 
-		customFormatter := &mockFormatter{
-			formatFn: func(d *Document, mode MetadataMode) string {
-				if d.Media != nil {
-					return d.Text + " [" + d.Media.MimeType.String() + "]"
-				}
-				return d.Text
-			},
-		}
+		customFormatter := mockFormatterFn(func(d *Document, mode MetadataMode) string {
+			if d.Media != nil {
+				return d.Text + " [" + d.Media.MimeType.String() + "]"
+			}
+			return d.Text
+		})
 
 		result := doc.FormatByMetadataModeWithFormatter(MetadataModeAll, customFormatter)
 		assert.Equal(t, "Video tutorial [video/mp4]", result)
@@ -448,13 +430,11 @@ func TestDocument_Integration(t *testing.T) {
 }
 
 // mockFormatter is a test helper for custom formatter testing
-type mockFormatter struct {
-	formatFn func(*Document, MetadataMode) string
-}
+type mockFormatterFn func(*Document, MetadataMode) string
 
-func (m *mockFormatter) Format(doc *Document, mode MetadataMode) string {
-	if m.formatFn != nil {
-		return m.formatFn(doc, mode)
+func (m mockFormatterFn) Format(doc *Document, mode MetadataMode) string {
+	if m != nil {
+		return m(doc, mode)
 	}
 	return doc.Text
 }

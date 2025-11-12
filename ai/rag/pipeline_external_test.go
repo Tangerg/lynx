@@ -2,80 +2,15 @@ package rag_test
 
 import (
 	"context"
-	"os"
 	"testing"
-	"time"
 
-	"github.com/openai/openai-go/v3/option"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/Tangerg/lynx/ai/extensions/models/openai"
 	"github.com/Tangerg/lynx/ai/media/document"
-	"github.com/Tangerg/lynx/ai/model"
-	"github.com/Tangerg/lynx/ai/model/chat"
 	"github.com/Tangerg/lynx/ai/rag"
-	"github.com/Tangerg/lynx/ai/rag/document/refiners"
-	"github.com/Tangerg/lynx/ai/rag/document/retrievers"
-	"github.com/Tangerg/lynx/ai/rag/query/augmenters"
-	"github.com/Tangerg/lynx/ai/rag/query/expanders"
-	"github.com/Tangerg/lynx/ai/rag/query/transformers"
 	"github.com/Tangerg/lynx/ai/vectorstore"
 )
-
-const (
-	defaultBaseURL = "https://api.siliconflow.cn/v1"
-	defaultModel   = "Qwen/Qwen2.5-7B-Instruct"
-	apiKeyEnvVar   = "API_KEY"
-	defaultTimeout = 60 * time.Second
-)
-
-type testConfig struct {
-	baseURL string
-	model   string
-	apiKey  string
-	timeout time.Duration
-}
-
-func newTestConfig() *testConfig {
-	return &testConfig{
-		baseURL: getEnvOrDefault("TEST_BASE_URL", defaultBaseURL),
-		model:   getEnvOrDefault("TEST_MODEL", defaultModel),
-		apiKey:  getEnvOrDefault(apiKeyEnvVar, ""),
-		timeout: defaultTimeout,
-	}
-}
-
-func getEnvOrDefault(key, defaultValue string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
-	}
-	return defaultValue
-}
-
-func skipIfNoAPIKey(t *testing.T, config *testConfig) {
-	if config.apiKey == "" {
-		t.Skipf("Skipping integration test: %s not set", apiKeyEnvVar)
-	}
-}
-
-func newTestChatModel(t *testing.T) *openai.ChatModel {
-	t.Helper()
-	config := newTestConfig()
-	skipIfNoAPIKey(t, config)
-
-	defaultOptions, err := chat.NewOptions(config.model)
-	require.NoError(t, err)
-
-	chatModel, err := openai.NewChatModel(
-		model.NewApiKey(config.apiKey),
-		defaultOptions,
-		option.WithBaseURL(config.baseURL),
-	)
-	require.NoError(t, err)
-
-	return chatModel
-}
 
 // MultilingualMockVectorStore simulates a vector store with multilingual documents
 type MultilingualMockVectorStore struct {
@@ -421,13 +356,13 @@ func TestPipeline_MultilingualQueries(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup pipeline with translation
-			translationTransformer, err := transformers.NewTranslationTransformer(&transformers.TranslationTransformerConfig{
+			translationTransformer, err := rag.NewTranslationQueryTransformer(&rag.TranslationQueryTransformerConfig{
 				ChatModel:      newTestChatModel(t),
 				TargetLanguage: tc.targetLanguage,
 			})
 			require.NoError(t, err)
 
-			vectorStoreRetriever, err := retrievers.NewVectorStoreRetriever(&retrievers.VectorStoreRetrieverConfig{
+			vectorStoreRetriever, err := rag.NewVectorStoreDocumentRetriever(&rag.VectorStoreDocumentRetrieverConfig{
 				VectorStore: NewMultilingualMockVectorStore(),
 				TopK:        5,
 			})
@@ -441,8 +376,8 @@ func TestPipeline_MultilingualQueries(t *testing.T) {
 					vectorStoreRetriever,
 				},
 				DocumentRefiners: []rag.DocumentRefiner{
-					refiners.NewDeduplicationRefiner(),
-					refiners.NewRankRefiner(3),
+					rag.NewDeduplicationDocumentRefiner(),
+					rag.NewRankDocumentRefiner(3),
 				},
 			})
 			require.NoError(t, err)
@@ -479,36 +414,36 @@ func TestPipeline_ChineseFullIntegration(t *testing.T) {
 	skipIfNoAPIKey(t, config)
 
 	// Setup transformers
-	compressionTransformer, err := transformers.NewCompressionTransformer(&transformers.CompressionTransformerConfig{
+	compressionTransformer, err := rag.NewCompressionQueryTransformer(&rag.CompressionQueryTransformerConfig{
 		ChatModel: newTestChatModel(t),
 	})
 	require.NoError(t, err)
 
-	rewriteTransformer, err := transformers.NewRewriteTransformer(&transformers.RewriteTransformerConfig{
+	rewriteTransformer, err := rag.NewRewriteQueryTransformer(&rag.RewriteQueryTransformerConfig{
 		ChatModel: newTestChatModel(t),
 	})
 	require.NoError(t, err)
 
-	translationTransformer, err := transformers.NewTranslationTransformer(&transformers.TranslationTransformerConfig{
+	translationTransformer, err := rag.NewTranslationQueryTransformer(&rag.TranslationQueryTransformerConfig{
 		ChatModel:      newTestChatModel(t),
 		TargetLanguage: "English",
 	})
 	require.NoError(t, err)
 
-	multiExpander, err := expanders.NewMultiExpander(&expanders.MultiExpanderConfig{
+	multiExpander, err := rag.NewMultiQueryExpander(&rag.MultiQueryExpanderConfig{
 		ChatModel:       newTestChatModel(t),
 		IncludeOriginal: true,
 		NumberOfQueries: 3,
 	})
 	require.NoError(t, err)
 
-	vectorStoreRetriever, err := retrievers.NewVectorStoreRetriever(&retrievers.VectorStoreRetrieverConfig{
+	vectorStoreRetriever, err := rag.NewVectorStoreDocumentRetriever(&rag.VectorStoreDocumentRetrieverConfig{
 		VectorStore: NewMultilingualMockVectorStore(),
 		TopK:        10,
 	})
 	require.NoError(t, err)
 
-	augmenter, err := augmenters.NewContextualAugmenter(&augmenters.ContextualAugmenterConfig{})
+	augmenter, err := rag.NewContextualQueryAugmenter(&rag.ContextualQueryAugmenterConfig{})
 	require.NoError(t, err)
 
 	pipeline, err := rag.NewPipeline(&rag.PipelineConfig{
@@ -522,8 +457,8 @@ func TestPipeline_ChineseFullIntegration(t *testing.T) {
 			vectorStoreRetriever,
 		},
 		DocumentRefiners: []rag.DocumentRefiner{
-			refiners.NewDeduplicationRefiner(),
-			refiners.NewRankRefiner(5),
+			rag.NewDeduplicationDocumentRefiner(),
+			rag.NewRankDocumentRefiner(5),
 		},
 		QueryAugmenter: augmenter,
 	})
@@ -553,19 +488,19 @@ func TestPipeline_JapaneseFullIntegration(t *testing.T) {
 	config := newTestConfig()
 	skipIfNoAPIKey(t, config)
 
-	translationTransformer, err := transformers.NewTranslationTransformer(&transformers.TranslationTransformerConfig{
+	translationTransformer, err := rag.NewTranslationQueryTransformer(&rag.TranslationQueryTransformerConfig{
 		ChatModel:      newTestChatModel(t),
 		TargetLanguage: "English",
 	})
 	require.NoError(t, err)
 
-	vectorStoreRetriever, err := retrievers.NewVectorStoreRetriever(&retrievers.VectorStoreRetrieverConfig{
+	vectorStoreRetriever, err := rag.NewVectorStoreDocumentRetriever(&rag.VectorStoreDocumentRetrieverConfig{
 		VectorStore: NewMultilingualMockVectorStore(),
 		TopK:        5,
 	})
 	require.NoError(t, err)
 
-	augmenter, err := augmenters.NewContextualAugmenter(&augmenters.ContextualAugmenterConfig{})
+	augmenter, err := rag.NewContextualQueryAugmenter(&rag.ContextualQueryAugmenterConfig{})
 	require.NoError(t, err)
 
 	pipeline, err := rag.NewPipeline(&rag.PipelineConfig{
@@ -599,19 +534,19 @@ func TestPipeline_KoreanFullIntegration(t *testing.T) {
 	config := newTestConfig()
 	skipIfNoAPIKey(t, config)
 
-	translationTransformer, err := transformers.NewTranslationTransformer(&transformers.TranslationTransformerConfig{
+	translationTransformer, err := rag.NewTranslationQueryTransformer(&rag.TranslationQueryTransformerConfig{
 		ChatModel:      newTestChatModel(t),
 		TargetLanguage: "English",
 	})
 	require.NoError(t, err)
 
-	vectorStoreRetriever, err := retrievers.NewVectorStoreRetriever(&retrievers.VectorStoreRetrieverConfig{
+	vectorStoreRetriever, err := rag.NewVectorStoreDocumentRetriever(&rag.VectorStoreDocumentRetrieverConfig{
 		VectorStore: NewMultilingualMockVectorStore(),
 		TopK:        5,
 	})
 	require.NoError(t, err)
 
-	augmenter, err := augmenters.NewContextualAugmenter(&augmenters.ContextualAugmenterConfig{})
+	augmenter, err := rag.NewContextualQueryAugmenter(&rag.ContextualQueryAugmenterConfig{})
 	require.NoError(t, err)
 
 	pipeline, err := rag.NewPipeline(&rag.PipelineConfig{
@@ -652,13 +587,13 @@ func TestPipeline_CrossLanguageComparison(t *testing.T) {
 		"English":  "What are the main advantages of RAG?",
 	}
 
-	translationTransformer, err := transformers.NewTranslationTransformer(&transformers.TranslationTransformerConfig{
+	translationTransformer, err := rag.NewTranslationQueryTransformer(&rag.TranslationQueryTransformerConfig{
 		ChatModel:      newTestChatModel(t),
 		TargetLanguage: "English",
 	})
 	require.NoError(t, err)
 
-	vectorStoreRetriever, err := retrievers.NewVectorStoreRetriever(&retrievers.VectorStoreRetrieverConfig{
+	vectorStoreRetriever, err := rag.NewVectorStoreDocumentRetriever(&rag.VectorStoreDocumentRetrieverConfig{
 		VectorStore: NewMultilingualMockVectorStore(),
 		TopK:        3,
 	})
@@ -672,7 +607,7 @@ func TestPipeline_CrossLanguageComparison(t *testing.T) {
 			vectorStoreRetriever,
 		},
 		DocumentRefiners: []rag.DocumentRefiner{
-			refiners.NewRankRefiner(3),
+			rag.NewRankDocumentRefiner(3),
 		},
 	})
 	require.NoError(t, err)
@@ -741,30 +676,30 @@ func TestPipeline_ComplexMultilingualQuery(t *testing.T) {
 	for _, tc := range complexQueries {
 		t.Run(tc.name, func(t *testing.T) {
 			// Full pipeline setup
-			compressionTransformer, err := transformers.NewCompressionTransformer(&transformers.CompressionTransformerConfig{
+			compressionTransformer, err := rag.NewCompressionQueryTransformer(&rag.CompressionQueryTransformerConfig{
 				ChatModel: newTestChatModel(t),
 			})
 			require.NoError(t, err)
 
-			translationTransformer, err := transformers.NewTranslationTransformer(&transformers.TranslationTransformerConfig{
+			translationTransformer, err := rag.NewTranslationQueryTransformer(&rag.TranslationQueryTransformerConfig{
 				ChatModel:      newTestChatModel(t),
 				TargetLanguage: "English",
 			})
 			require.NoError(t, err)
 
-			multiExpander, err := expanders.NewMultiExpander(&expanders.MultiExpanderConfig{
+			multiExpander, err := rag.NewMultiQueryExpander(&rag.MultiQueryExpanderConfig{
 				ChatModel:       newTestChatModel(t),
 				IncludeOriginal: true,
 			})
 			require.NoError(t, err)
 
-			vectorStoreRetriever, err := retrievers.NewVectorStoreRetriever(&retrievers.VectorStoreRetrieverConfig{
+			vectorStoreRetriever, err := rag.NewVectorStoreDocumentRetriever(&rag.VectorStoreDocumentRetrieverConfig{
 				VectorStore: NewMultilingualMockVectorStore(),
 				TopK:        8,
 			})
 			require.NoError(t, err)
 
-			augmenter, err := augmenters.NewContextualAugmenter(&augmenters.ContextualAugmenterConfig{})
+			augmenter, err := rag.NewContextualQueryAugmenter(&rag.ContextualQueryAugmenterConfig{})
 			require.NoError(t, err)
 
 			pipeline, err := rag.NewPipeline(&rag.PipelineConfig{
@@ -777,8 +712,8 @@ func TestPipeline_ComplexMultilingualQuery(t *testing.T) {
 					vectorStoreRetriever,
 				},
 				DocumentRefiners: []rag.DocumentRefiner{
-					refiners.NewDeduplicationRefiner(),
-					refiners.NewRankRefiner(5),
+					rag.NewDeduplicationDocumentRefiner(),
+					rag.NewRankDocumentRefiner(5),
 				},
 				QueryAugmenter: augmenter,
 			})

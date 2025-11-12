@@ -2,19 +2,17 @@ package rag_test
 
 import (
 	"context"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	qdrant2 "github.com/Tangerg/lynx/ai/extensions/vectorstores/qdrant"
 	"github.com/Tangerg/lynx/ai/media/document"
 	"github.com/Tangerg/lynx/ai/model/chat"
 	"github.com/Tangerg/lynx/ai/rag"
-	"github.com/Tangerg/lynx/ai/rag/document/refiners"
-	"github.com/Tangerg/lynx/ai/rag/document/retrievers"
-	"github.com/Tangerg/lynx/ai/rag/query/augmenters"
-	"github.com/Tangerg/lynx/ai/rag/query/expanders"
-	"github.com/Tangerg/lynx/ai/rag/query/transformers"
 )
 
 // TestPipelineMiddleware_BasicCall tests basic middleware functionality with chat call
@@ -23,7 +21,7 @@ func TestPipelineMiddleware_BasicCall(t *testing.T) {
 	skipIfNoAPIKey(t, config)
 
 	// Setup minimal pipeline
-	vectorStoreRetriever, err := retrievers.NewVectorStoreRetriever(&retrievers.VectorStoreRetrieverConfig{
+	vectorStoreRetriever, err := rag.NewVectorStoreDocumentRetriever(&rag.VectorStoreDocumentRetrieverConfig{
 		VectorStore: NewMultilingualMockVectorStore(),
 		TopK:        5,
 	})
@@ -80,24 +78,24 @@ func TestPipelineMiddleware_FullPipeline(t *testing.T) {
 	skipIfNoAPIKey(t, config)
 
 	// Setup transformers
-	compressionTransformer, err := transformers.NewCompressionTransformer(&transformers.CompressionTransformerConfig{
+	compressionTransformer, err := rag.NewCompressionQueryTransformer(&rag.CompressionQueryTransformerConfig{
 		ChatModel: newTestChatModel(t),
 	})
 	require.NoError(t, err)
 
-	rewriteTransformer, err := transformers.NewRewriteTransformer(&transformers.RewriteTransformerConfig{
+	rewriteTransformer, err := rag.NewRewriteQueryTransformer(&rag.RewriteQueryTransformerConfig{
 		ChatModel: newTestChatModel(t),
 	})
 	require.NoError(t, err)
 
-	translationTransformer, err := transformers.NewTranslationTransformer(&transformers.TranslationTransformerConfig{
+	translationTransformer, err := rag.NewTranslationQueryTransformer(&rag.TranslationQueryTransformerConfig{
 		ChatModel:      newTestChatModel(t),
 		TargetLanguage: "English",
 	})
 	require.NoError(t, err)
 
 	// Setup expander
-	multiExpander, err := expanders.NewMultiExpander(&expanders.MultiExpanderConfig{
+	multiExpander, err := rag.NewMultiQueryExpander(&rag.MultiQueryExpanderConfig{
 		ChatModel:       newTestChatModel(t),
 		IncludeOriginal: true,
 		NumberOfQueries: 3,
@@ -105,14 +103,14 @@ func TestPipelineMiddleware_FullPipeline(t *testing.T) {
 	require.NoError(t, err)
 
 	// Setup retriever
-	vectorStoreRetriever, err := retrievers.NewVectorStoreRetriever(&retrievers.VectorStoreRetrieverConfig{
+	vectorStoreRetriever, err := rag.NewVectorStoreDocumentRetriever(&rag.VectorStoreDocumentRetrieverConfig{
 		VectorStore: NewMultilingualMockVectorStore(),
 		TopK:        10,
 	})
 	require.NoError(t, err)
 
 	// Setup augmenter
-	augmenter, err := augmenters.NewContextualAugmenter(&augmenters.ContextualAugmenterConfig{})
+	augmenter, err := rag.NewContextualQueryAugmenter(&rag.ContextualQueryAugmenterConfig{})
 	require.NoError(t, err)
 
 	// Create middleware
@@ -127,8 +125,8 @@ func TestPipelineMiddleware_FullPipeline(t *testing.T) {
 			vectorStoreRetriever,
 		},
 		DocumentRefiners: []rag.DocumentRefiner{
-			refiners.NewDeduplicationRefiner(),
-			refiners.NewRankRefiner(5),
+			rag.NewDeduplicationDocumentRefiner(),
+			rag.NewRankDocumentRefiner(5),
 		},
 		QueryAugmenter: augmenter,
 	})
@@ -236,19 +234,19 @@ func TestPipelineMiddleware_MultilingualConversation(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup pipeline with translation
-			translationTransformer, err := transformers.NewTranslationTransformer(&transformers.TranslationTransformerConfig{
+			translationTransformer, err := rag.NewTranslationQueryTransformer(&rag.TranslationQueryTransformerConfig{
 				ChatModel:      newTestChatModel(t),
 				TargetLanguage: "English",
 			})
 			require.NoError(t, err)
 
-			vectorStoreRetriever, err := retrievers.NewVectorStoreRetriever(&retrievers.VectorStoreRetrieverConfig{
+			vectorStoreRetriever, err := rag.NewVectorStoreDocumentRetriever(&rag.VectorStoreDocumentRetrieverConfig{
 				VectorStore: NewMultilingualMockVectorStore(),
 				TopK:        5,
 			})
 			require.NoError(t, err)
 
-			augmenter, err := augmenters.NewContextualAugmenter(&augmenters.ContextualAugmenterConfig{})
+			augmenter, err := rag.NewContextualQueryAugmenter(&rag.ContextualQueryAugmenterConfig{})
 			require.NoError(t, err)
 
 			callMiddleware, streamMiddleware, err := rag.NewPipelineMiddleware(&rag.PipelineConfig{
@@ -259,7 +257,7 @@ func TestPipelineMiddleware_MultilingualConversation(t *testing.T) {
 					vectorStoreRetriever,
 				},
 				DocumentRefiners: []rag.DocumentRefiner{
-					refiners.NewRankRefiner(3),
+					rag.NewRankDocumentRefiner(3),
 				},
 				QueryAugmenter: augmenter,
 			})
@@ -307,13 +305,13 @@ func TestPipelineMiddleware_StreamResponse(t *testing.T) {
 	skipIfNoAPIKey(t, config)
 
 	// Setup pipeline
-	vectorStoreRetriever, err := retrievers.NewVectorStoreRetriever(&retrievers.VectorStoreRetrieverConfig{
+	vectorStoreRetriever, err := rag.NewVectorStoreDocumentRetriever(&rag.VectorStoreDocumentRetrieverConfig{
 		VectorStore: NewMultilingualMockVectorStore(),
 		TopK:        5,
 	})
 	require.NoError(t, err)
 
-	augmenter, err := augmenters.NewContextualAugmenter(&augmenters.ContextualAugmenterConfig{})
+	augmenter, err := rag.NewContextualQueryAugmenter(&rag.ContextualQueryAugmenterConfig{})
 	require.NoError(t, err)
 
 	callMiddleware, streamMiddleware, err := rag.NewPipelineMiddleware(&rag.PipelineConfig{
@@ -385,7 +383,7 @@ func TestPipelineMiddleware_WithRequestParams(t *testing.T) {
 	config := newTestConfig()
 	skipIfNoAPIKey(t, config)
 
-	vectorStoreRetriever, err := retrievers.NewVectorStoreRetriever(&retrievers.VectorStoreRetrieverConfig{
+	vectorStoreRetriever, err := rag.NewVectorStoreDocumentRetriever(&rag.VectorStoreDocumentRetrieverConfig{
 		VectorStore: NewMultilingualMockVectorStore(),
 		TopK:        5,
 	})
@@ -459,7 +457,7 @@ func TestPipelineMiddleware_Performance(t *testing.T) {
 	config := newTestConfig()
 	skipIfNoAPIKey(t, config)
 
-	vectorStoreRetriever, err := retrievers.NewVectorStoreRetriever(&retrievers.VectorStoreRetrieverConfig{
+	vectorStoreRetriever, err := rag.NewVectorStoreDocumentRetriever(&rag.VectorStoreDocumentRetrieverConfig{
 		VectorStore: NewMultilingualMockVectorStore(),
 		TopK:        5,
 	})
@@ -470,7 +468,7 @@ func TestPipelineMiddleware_Performance(t *testing.T) {
 			vectorStoreRetriever,
 		},
 		DocumentRefiners: []rag.DocumentRefiner{
-			refiners.NewRankRefiner(3),
+			rag.NewRankDocumentRefiner(3),
 		},
 	})
 	require.NoError(t, err)
@@ -518,7 +516,7 @@ func TestPipelineMiddleware_ConcurrentRequests(t *testing.T) {
 	config := newTestConfig()
 	skipIfNoAPIKey(t, config)
 
-	vectorStoreRetriever, err := retrievers.NewVectorStoreRetriever(&retrievers.VectorStoreRetrieverConfig{
+	vectorStoreRetriever, err := rag.NewVectorStoreDocumentRetriever(&rag.VectorStoreDocumentRetrieverConfig{
 		VectorStore: NewMultilingualMockVectorStore(),
 		TopK:        5,
 	})
@@ -594,4 +592,235 @@ func TestPipelineMiddleware_ConcurrentRequests(t *testing.T) {
 		assert.Greater(t, res.docs, 0)
 		t.Logf("Query: %s, Docs: %d", res.query, res.docs)
 	}
+}
+
+func TestPipelineMiddleware_RAGKnowledge(t *testing.T) {
+	fixture := newTestFixture(t)
+	defer fixture.cleanup()
+
+	t.Log("=== Step 1: Initializing Knowledge Base ===")
+	fixture.insertRAGKnowledge()
+
+	vectorStore := fixture.createStore(&qdrant2.VectorStoreConfig{
+		InitializeSchema:     false,
+		StoreDocumentContent: true,
+	})
+
+	config := newTestConfig()
+	skipIfNoAPIKey(t, config)
+
+	t.Log("=== Step 2: Setting up Transformers ===")
+	compressionTransformer, err := rag.NewCompressionQueryTransformer(&rag.CompressionQueryTransformerConfig{
+		ChatModel: newTestChatModel(t),
+	})
+	require.NoError(t, err)
+
+	rewriteTransformer, err := rag.NewRewriteQueryTransformer(&rag.RewriteQueryTransformerConfig{
+		ChatModel: newTestChatModel(t),
+	})
+	require.NoError(t, err)
+
+	multiExpander, err := rag.NewMultiQueryExpander(&rag.MultiQueryExpanderConfig{
+		ChatModel:       newTestChatModel(t),
+		IncludeOriginal: true,
+		NumberOfQueries: 2,
+	})
+	require.NoError(t, err)
+
+	vectorStoreRetriever, err := rag.NewVectorStoreDocumentRetriever(&rag.VectorStoreDocumentRetrieverConfig{
+		VectorStore: vectorStore,
+		TopK:        5,
+	})
+	require.NoError(t, err)
+
+	augmenter, err := rag.NewContextualQueryAugmenter(&rag.ContextualQueryAugmenterConfig{})
+	require.NoError(t, err)
+
+	t.Log("=== Step 3: Creating Pipeline Middleware ===")
+	callMiddleware, streamMiddleware, err := rag.NewPipelineMiddleware(&rag.PipelineConfig{
+		QueryTransformers: []rag.QueryTransformer{
+			compressionTransformer,
+			rewriteTransformer,
+		},
+		QueryExpander: multiExpander,
+		DocumentRetrievers: []rag.DocumentRetriever{
+			vectorStoreRetriever,
+		},
+		DocumentRefiners: []rag.DocumentRefiner{
+			rag.NewDeduplicationDocumentRefiner(),
+			rag.NewRankDocumentRefiner(3),
+		},
+		QueryAugmenter: augmenter,
+	})
+	require.NoError(t, err)
+
+	chatClient, err := chat.NewClientWithModel(newTestChatModel(t))
+	require.NoError(t, err)
+
+	testQueries := []string{
+		"什么是RAG?它有什么优势?",
+		"RAG的核心组件有哪些?",
+		"向量嵌入在RAG中起什么作用?",
+		"RAG如何处理查询转换?",
+		"RAG适用于哪些实际应用场景?",
+	}
+
+	for i, query := range testQueries {
+		t.Logf("\n=== Test Query %d ===", i+1)
+		t.Logf("Question: %s", query)
+
+		request, err := chat.NewRequest([]chat.Message{
+			chat.NewUserMessage(query),
+		})
+		require.NoError(t, err)
+
+		ctx, cancel := context.WithTimeout(context.Background(), config.timeout)
+
+		text, resp, err := chatClient.
+			ChatRequest(request).
+			WithMiddlewares(callMiddleware, streamMiddleware).
+			Call().
+			Text(ctx)
+
+		cancel()
+
+		require.NoError(t, err, "Query %d failed", i+1)
+		assert.NotEmpty(t, text, "Response should not be empty for query %d", i+1)
+
+		docs, ok := resp.Metadata.Get(rag.DocumentContextKey)
+		assert.True(t, ok, "Should have retrieved documents for query %d", i+1)
+		assert.NotNil(t, docs, "Documents should not be nil for query %d", i+1)
+
+		documents, ok := docs.([]*document.Document)
+		assert.True(t, ok, "Documents should be of correct type for query %d", i+1)
+		assert.NotEmpty(t, documents, "Should have at least one document for query %d", i+1)
+		assert.LessOrEqual(t, len(documents), 3, "Should be limited by rank refiner for query %d", i+1)
+
+		t.Log("\n--- Response ---")
+		t.Logf("%s", text)
+
+		t.Log("\n--- Retrieved Documents ---")
+		for j, doc := range documents {
+			lang, _ := doc.Metadata["language"].(string)
+			docType, _ := doc.Metadata["type"].(string)
+			t.Logf("Document %d: ID=%s, Language=%s, Type=%s",
+				j+1, doc.ID, lang, docType)
+			t.Logf("Content preview: %s...", doc.Text)
+		}
+
+		t.Log("\n" + strings.Repeat("=", 80))
+
+		if i < len(testQueries)-1 {
+			time.Sleep(2 * time.Second)
+		}
+	}
+}
+
+func TestPipelineMiddleware_RAGKnowledge2(t *testing.T) {
+	fixture := newTestFixture(t)
+	defer fixture.cleanup()
+
+	t.Log("=== Step 1: Initializing Knowledge Base ===")
+	fixture.insertRAGKnowledge()
+
+	vectorStore := fixture.createStore(&qdrant2.VectorStoreConfig{
+		InitializeSchema:     false,
+		StoreDocumentContent: true,
+	})
+
+	config := newTestConfig()
+	skipIfNoAPIKey(t, config)
+
+	t.Log("=== Step 2: Setting up Transformers ===")
+	compressionTransformer, err := rag.NewCompressionQueryTransformer(&rag.CompressionQueryTransformerConfig{
+		ChatModel: newTestChatModel(t),
+	})
+	require.NoError(t, err)
+
+	rewriteTransformer, err := rag.NewRewriteQueryTransformer(&rag.RewriteQueryTransformerConfig{
+		ChatModel: newTestChatModel(t),
+	})
+	require.NoError(t, err)
+
+	multiExpander, err := rag.NewMultiQueryExpander(&rag.MultiQueryExpanderConfig{
+		ChatModel:       newTestChatModel(t),
+		IncludeOriginal: true,
+		NumberOfQueries: 2,
+	})
+	require.NoError(t, err)
+
+	vectorStoreRetriever, err := rag.NewVectorStoreDocumentRetriever(&rag.VectorStoreDocumentRetrieverConfig{
+		VectorStore: vectorStore,
+		TopK:        5,
+	})
+	require.NoError(t, err)
+
+	augmenter, err := rag.NewContextualQueryAugmenter(&rag.ContextualQueryAugmenterConfig{})
+	require.NoError(t, err)
+
+	t.Log("=== Step 3: Creating Pipeline Middleware ===")
+	callMiddleware, streamMiddleware, err := rag.NewPipelineMiddleware(&rag.PipelineConfig{
+		QueryTransformers: []rag.QueryTransformer{
+			compressionTransformer,
+			rewriteTransformer,
+		},
+		QueryExpander: multiExpander,
+		DocumentRetrievers: []rag.DocumentRetriever{
+			vectorStoreRetriever,
+		},
+		DocumentRefiners: []rag.DocumentRefiner{
+			rag.NewDeduplicationDocumentRefiner(),
+			rag.NewRankDocumentRefiner(3),
+		},
+		QueryAugmenter: augmenter,
+	})
+	require.NoError(t, err)
+
+	chatClient, err := chat.NewClientWithModel(newTestChatModel(t))
+	require.NoError(t, err)
+
+	request, err := chat.NewRequest([]chat.Message{
+		chat.NewUserMessage("什么是RAG?"),
+		chat.NewAssistantMessage("RAG 是 Retrieval-Augmented Generation 的缩写，它是一种将信息检索与文本生成相结合的技术，以提供更加准确和上下文相关的响应。"),
+		chat.NewUserMessage("那么它的主要组件是什么?"),
+		chat.NewAssistantMessage("RAG架构由三个主要组件组成：查询处理、文档检索和响应生成。"),
+		chat.NewUserMessage("展开说说"),
+	})
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithTimeout(context.Background(), config.timeout)
+
+	text, resp, err := chatClient.
+		ChatRequest(request).
+		WithMiddlewares(callMiddleware, streamMiddleware).
+		Call().
+		Text(ctx)
+
+	cancel()
+
+	require.NoError(t, err, "Query failed")
+	assert.NotEmpty(t, text, "Response should not be empty for query")
+
+	docs, ok := resp.Metadata.Get(rag.DocumentContextKey)
+	assert.True(t, ok, "Should have retrieved documents for query")
+	assert.NotNil(t, docs, "Documents should not be nil for query")
+
+	documents, ok := docs.([]*document.Document)
+	assert.True(t, ok, "Documents should be of correct type for query")
+	assert.NotEmpty(t, documents, "Should have at least one document for query")
+	assert.LessOrEqual(t, len(documents), 3, "Should be limited by rank refiner for query")
+
+	t.Log("\n--- Response ---")
+	t.Logf("%s", text)
+
+	t.Log("\n--- Retrieved Documents ---")
+	for j, doc := range documents {
+		lang, _ := doc.Metadata["language"].(string)
+		docType, _ := doc.Metadata["type"].(string)
+		t.Logf("Document %d: ID=%s, Language=%s, Type=%s",
+			j+1, doc.ID, lang, docType)
+		t.Logf("Content preview: %s...", doc.Text)
+	}
+
+	t.Log("\n" + strings.Repeat("=", 80))
 }

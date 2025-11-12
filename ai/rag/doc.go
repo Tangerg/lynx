@@ -123,9 +123,9 @@
 // receives the output of the previous transformer as its input.
 //
 // Built-in implementations:
-//   - TranslationTransformer: Translates queries to match document language
-//   - RewriteTransformer: Optimizes queries for specific search systems
-//   - CompressionTransformer: Compresses conversation history into standalone queries
+//   - TranslationQueryTransformer: Translates queries to match document language
+//   - RewriteQueryTransformer: Optimizes queries for specific search systems
+//   - CompressionQueryTransformer: Compresses conversation history into standalone queries
 //
 // QueryExpander expands a single query into multiple variations. This increases
 // recall by exploring different semantic angles and perspectives. It addresses:
@@ -138,7 +138,7 @@
 // phrasing of the query might not match the indexed documents.
 //
 // Built-in implementations:
-//   - MultiExpander: Uses LLMs to generate semantically diverse query variants
+//   - MultiQueryExpander: Uses LLMs to generate semantically diverse query variants
 //
 // DocumentRetriever retrieves documents from underlying data sources based on
 // the query. Multiple retrievers can be configured to run in parallel, enabling
@@ -149,7 +149,7 @@
 // If some retrievers fail, results from successful retrievers are still returned.
 //
 // Built-in implementations:
-//   - VectorStoreRetriever: Performs semantic search using vector embeddings
+//   - VectorStoreDocumentRetriever: Performs semantic search using vector embeddings
 //
 // Common retrieval strategies:
 //   - Semantic search: Vector similarity for conceptual matches
@@ -169,8 +169,8 @@
 // complex refinement pipelines.
 //
 // Built-in implementations:
-//   - DeduplicationRefiner: Removes duplicate documents based on IDs
-//   - RankRefiner: Sorts by relevance and returns top-K results
+//   - DeduplicationDocumentRefiner: Removes duplicate documents based on IDs
+//   - RankDocumentRefiner: Sorts by relevance and returns top-K results
 //
 // Common refinement strategies:
 //   - Deduplication: Remove redundant information
@@ -189,7 +189,7 @@
 //   - Formatting to optimize LLM comprehension
 //
 // Built-in implementations:
-//   - ContextualAugmenter: Injects document context into structured prompts
+//   - ContextualQueryAugmenter: Injects document context into structured prompts
 //
 // # Pipeline Configuration
 //
@@ -350,7 +350,7 @@
 // Reserved metadata keys (defined as constants):
 //   - rag.ChatHistoryKey: Conversation history for context compression
 //   - rag.DocumentContextKey: Retrieved documents in response metadata
-//   - retrievers.FilterExprKey: Filter expressions for vector stores
+//   - rag.FilterExprKey: Filter expressions for vector stores
 //
 // The middleware automatically propagates metadata from requests to queries,
 // making it easy to pass request-level parameters through the pipeline.
@@ -362,7 +362,7 @@
 //
 // Query Transformers (package rag/query/transformers):
 //
-// TranslationTransformer translates queries to match the language of indexed
+// TranslationQueryTransformer translates queries to match the language of indexed
 // documents. Essential for multilingual systems where user queries might be
 // in different languages than the knowledge base.
 //
@@ -377,7 +377,7 @@
 //   - International applications
 //   - Cross-language information retrieval
 //
-// RewriteTransformer optimizes queries for specific search systems. It removes
+// RewriteQueryTransformer optimizes queries for specific search systems. It removes
 // noise, extracts key concepts, and formats queries to maximize retrieval
 // effectiveness.
 //
@@ -392,7 +392,7 @@
 //   - Conversational queries needing formalization
 //   - System-specific optimization
 //
-// CompressionTransformer compresses conversation history into standalone queries.
+// CompressionQueryTransformer compresses conversation history into standalone queries.
 // Essential for multi-turn conversations where context is needed but the full
 // history would be too long or expensive to process.
 //
@@ -409,7 +409,7 @@
 //
 // Query Expanders (package rag/query/expanders):
 //
-// MultiExpander generates multiple query variants using LLMs. Each variant
+// MultiQueryExpander generates multiple query variants using LLMs. Each variant
 // explores a different perspective or aspect of the original query, increasing
 // the likelihood of finding relevant information.
 //
@@ -426,7 +426,7 @@
 //
 // Document Retrievers (package rag/document/retrievers):
 //
-// VectorStoreRetriever performs semantic search using vector embeddings. It
+// VectorStoreDocumentRetriever performs semantic search using vector embeddings. It
 // finds documents that are conceptually similar to the query, even if they
 // don't share exact keywords.
 //
@@ -444,7 +444,7 @@
 //
 // Document Refiners (package rag/document/refiners):
 //
-// DeduplicationRefiner removes duplicate documents based on IDs. Essential
+// DeduplicationDocumentRefiner removes duplicate documents based on IDs. Essential
 // when using multiple retrievers or query expansion, which can result in
 // the same document being retrieved multiple times.
 //
@@ -459,7 +459,7 @@
 //   - Query expansion scenarios
 //   - Hybrid search strategies
 //
-// RankRefiner sorts documents by relevance score and returns top-K results.
+// RankDocumentRefiner sorts documents by relevance score and returns top-K results.
 // This reduces the number of documents passed to the LLM, improving quality
 // and reducing costs.
 //
@@ -476,7 +476,7 @@
 //
 // Query Augmenters (package rag/query/augmenters):
 //
-// ContextualAugmenter injects retrieved documents into structured prompts.
+// ContextualQueryAugmenter injects retrieved documents into structured prompts.
 // It formats documents as context and combines them with the original query,
 // providing the LLM with grounded information.
 //
@@ -510,34 +510,34 @@
 //	)
 //
 //	// Setup transformers
-//	translationTx, _ := transformers.NewTranslationTransformer(
-//	    &transformers.TranslationTransformerConfig{
+//	translationTx, _ := transformers.NewTranslationQueryTransformer(
+//	    &transformers.TranslationQueryTransformerConfig{
 //	        ChatModel:      chatModel,
 //	        TargetLanguage: "English",
 //	    })
 //
-//	rewriteTx, _ := transformers.NewRewriteTransformer(
-//	    &transformers.RewriteTransformerConfig{
+//	rewriteTx, _ := transformers.NewRewriteQueryTransformer(
+//	    &transformers.RewriteQueryTransformerConfig{
 //	        ChatModel: chatModel,
 //	    })
 //
 //	// Setup expander
-//	expander, _ := expanders.NewMultiExpander(
-//	    &expanders.MultiExpanderConfig{
+//	expander, _ := expanders.NewMultiQueryExpander(
+//	    &expanders.MultiQueryExpanderConfig{
 //	        ChatModel:       chatModel,
 //	        NumberOfQueries: 3,
 //	    })
 //
 //	// Setup retriever
-//	retriever, _ := retrievers.NewVectorStoreRetriever(
-//	    &retrievers.VectorStoreRetrieverConfig{
+//	retriever, _ := retrievers.NewVectorStoreDocumentRetriever(
+//	    &retrievers.VectorStoreDocumentRetrieverConfig{
 //	        VectorStore: vectorStore,
 //	        TopK:        10,
 //	    })
 //
 //	// Setup augmenter
-//	augmenter, _ := augmenters.NewContextualAugmenter(
-//	    &augmenters.ContextualAugmenterConfig{})
+//	augmenter, _ := augmenters.NewContextualQueryAugmenter(
+//	    &augmenters.ContextualQueryAugmenterConfig{})
 //
 //	// Create middleware
 //	callMw, streamMw, _ := rag.NewPipelineMiddleware(&rag.PipelineConfig{
@@ -545,8 +545,8 @@
 //	    QueryExpander:      expander,
 //	    DocumentRetrievers: []rag.DocumentRetriever{retriever},
 //	    DocumentRefiners:   []rag.DocumentRefiner{
-//	        refiners.NewDeduplicationRefiner(),
-//	        refiners.NewRankRefiner(5),
+//	        refiners.NewDeduplicationDocumentRefiner(),
+//	        refiners.NewRankDocumentRefiner(5),
 //	    },
 //	    QueryAugmenter: augmenter,
 //	})
@@ -684,7 +684,7 @@
 //  7. Monitor pipeline stages: Track execution time of each stage to identify
 //     bottlenecks and optimize performance.
 //
-//  8. Handle empty results: Configure ContextualAugmenter with appropriate
+//  8. Handle empty results: Configure ContextualQueryAugmenter with appropriate
 //     empty context handling based on whether you want strict grounding or
 //     allow the LLM to use its base knowledge.
 //
@@ -697,7 +697,7 @@
 // # Multilingual Support
 //
 // The framework provides comprehensive multilingual support through the
-// TranslationTransformer. This is essential for applications serving users
+// TranslationQueryTransformer. This is essential for applications serving users
 // in multiple languages or with multilingual knowledge bases.
 //
 // Key capabilities:
@@ -710,8 +710,8 @@
 // Example workflow:
 //
 //	// Setup translation to English (common for embeddings)
-//	translator, _ := transformers.NewTranslationTransformer(
-//	    &transformers.TranslationTransformerConfig{
+//	translator, _ := transformers.NewTranslationQueryTransformer(
+//	    &transformers.TranslationQueryTransformerConfig{
 //	        ChatModel:      chatModel,
 //	        TargetLanguage: "English",
 //	    })

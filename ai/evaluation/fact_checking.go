@@ -3,15 +3,19 @@ package evaluation
 import (
 	"context"
 	"errors"
-	"strings"
 
 	"github.com/Tangerg/lynx/ai/model/chat"
 )
 
 var _ Evaluator = (*FactCheckingEvaluator)(nil)
 
+// FactCheckingEvaluatorConfig  holds the configuration for FactCheckingEvaluator.
 type FactCheckingEvaluatorConfig struct {
-	ChatModel      chat.Model
+	// ChatModel The language model used to perform fact-checking evaluations
+	ChatModel chat.Model
+
+	// PromptTemplate Custom template for fact-checking prompts (optional)
+	// If not provided, a default template will be used
 	PromptTemplate *chat.PromptTemplate
 }
 
@@ -39,6 +43,11 @@ func (c *FactCheckingEvaluatorConfig) validate() error {
 	return c.PromptTemplate.RequireVariables("Document", "Claim")
 }
 
+// FactCheckingEvaluator evaluates whether a generated claim is factually supported
+// by the provided source documents using a language model.
+//
+// The evaluator uses a prompt-based approach where the LLM is asked to determine
+// if a claim is supported by reference documents, responding with "YES" or "NO".
 type FactCheckingEvaluator struct {
 	chatClient     *chat.Client
 	promptTemplate *chat.PromptTemplate
@@ -62,12 +71,13 @@ func (f *FactCheckingEvaluator) Evaluate(ctx context.Context, req *Request) (*Re
 	if req == nil {
 		return nil, errors.New("nil request")
 	}
+
 	text, _, err := f.
 		chatClient.
 		ChatPromptTemplate(
 			f.promptTemplate.
 				Clone().
-				WithVariable("Document", getSupportingData(req)).
+				WithVariable("Document", extractDocuments(req)).
 				WithVariable("Claim", req.Generation),
 		).
 		Call().
@@ -75,7 +85,6 @@ func (f *FactCheckingEvaluator) Evaluate(ctx context.Context, req *Request) (*Re
 	if err != nil {
 		return nil, err
 	}
-	return &Response{
-		Pass: strings.EqualFold(text, "YES"),
-	}, nil
+
+	return buildResponse(text)
 }

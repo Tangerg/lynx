@@ -1,6 +1,8 @@
 package evaluation
 
 import (
+	"strings"
+
 	"github.com/Tangerg/lynx/ai/media/document"
 )
 
@@ -16,4 +18,15 @@ type Request struct {
 
 	// Documents Reference documents used to generate the response
 	Documents []*document.Document
+}
+
+func extractDocuments(req *Request) string {
+	var texts []string
+	for _, doc := range req.Documents {
+		text := doc.Text
+		if text != "" {
+			texts = append(texts, text)
+		}
+	}
+	return strings.Join(texts, "\n")
 }

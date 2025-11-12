@@ -700,19 +700,3 @@ func TestPipeline_Run_InvalidQuery(t *testing.T) {
 
 	assert.Error(t, err)
 }
-
-// Helper functions
-
-func mustCreateQuery(t *testing.T, text string) *Query {
-	query, err := NewQuery(text)
-	require.NoError(t, err)
-	return query
-}
-
-func createMockDocuments(count int) []*document.Document {
-	docs := make([]*document.Document, count)
-	for i := 0; i < count; i++ {
-		docs[i], _ = document.NewDocument("mock document", nil)
-	}
-	return docs
-}
