@@ -54,7 +54,8 @@ The simplest workflow is a sequential chain of processing steps:
 
 # Flow Builder
 
-For complex workflows, use the Builder API for better readability:
+For complex workflows, use the Builder API with closure-based configuration
+for better readability and scoped setup:
 
 	flow, err := NewBuilder().
 	    Then(validateNode).
@@ -66,23 +67,31 @@ For complex workflows, use the Builder API for better readability:
 
 Loop: Execute a node repeatedly until a termination condition is met.
 
+Direct construction:
+
 	loop, err := NewLoop(&LoopConfig[int, int]{
 	    Node: incrementNode,
+	    MaxIterations: 10,
 	    Terminator: func(ctx context.Context, iteration int, input, output int) (bool, error) {
 	        return output < 10, nil // Continue while output < 10
 	    },
 	})
 
-Using Builder:
+Using Builder with closure:
 
 	flow, err := NewBuilder().
-	    Loop().
-	        WithNode(incrementNode).
-	        WithTerminator(terminatorFunc).
-	        Then().
+	    Loop(func(loop *LoopBuilder) {
+	        loop.WithNode(incrementNode).
+	            WithMaxIterations(10).
+	            WithTerminator(func(ctx context.Context, iteration int, input, output any) (bool, error) {
+	                return output.(int) < 10, nil
+	            })
+	    }).
 	    Build()
 
 Branch: Execute different paths based on a condition.
+
+Direct construction:
 
 	branch, err := NewBranch(&BranchConfig{
 	    Node: validatorNode,
@@ -98,20 +107,27 @@ Branch: Execute different paths based on a condition.
 	    },
 	})
 
-Using Builder:
+Using Builder with closure:
 
 	flow, err := NewBuilder().
-	    Branch().
-	        WithNode(decisionNode).
-	        WithBranch("success", successNode).
-	        WithBranch("failure", failureNode).
-	        WithBranchResolver(resolver).
-	        Then().
+	    Branch(func(branch *BranchBuilder) {
+	        branch.WithNode(decisionNode).
+	            WithBranch("success", successNode).
+	            WithBranch("failure", failureNode).
+	            WithBranchResolver(func(ctx context.Context, input, output any) (string, error) {
+	                if isValid(output) {
+	                    return "success", nil
+	                }
+	                return "failure", nil
+	            })
+	    }).
 	    Build()
 
 # Parallel Processing
 
 Parallel: Execute multiple nodes concurrently and aggregate results.
+
+Direct construction:
 
 	parallel, err := NewParallel(&ParallelConfig[string, []string]{
 	    Nodes: []Node[string, any]{serviceA, serviceB, serviceC},
@@ -127,44 +143,68 @@ Parallel: Execute multiple nodes concurrently and aggregate results.
 	    ContinueOnError: true,  // Don't stop on first error
 	})
 
-Using Builder:
+Using Builder with closure:
 
 	flow, err := NewBuilder().
-	    Parallel().
-	        WithNodes(node1, node2, node3).
-	        WithAggregator(aggregatorFunc).
-	        WithWaitCount(2).
-	        WithRequiredSuccesses(1).
-	        WithContinueOnError().
-	        Then().
+	    Parallel(func(parallel *ParallelBuilder) {
+	        parallel.WithNodes(node1, node2, node3).
+	            WithWaitCount(2).
+	            WithRequiredSuccesses(1).
+	            WithContinueOnError().
+	            WithAggregator(func(ctx context.Context, results []any) (any, error) {
+	                combined := make([]string, len(results))
+	                for i, r := range results {
+	                    if r != nil {
+	                        combined[i] = r.(string)
+	                    }
+	                }
+	                return combined, nil
+	            })
+	    }).
 	    Build()
 
 Parallel execution strategies:
 
 	// Wait for all nodes (default)
-	.Parallel().WithWaitAll()...
+	.Parallel(func(p *ParallelBuilder) {
+	    p.WithWaitAll().
+	        WithNodes(nodes...)
+	})
 
 	// Wait for first completion (race mode)
-	.Parallel().WithWaitAny()...
+	.Parallel(func(p *ParallelBuilder) {
+	    p.WithWaitAny().
+	        WithNodes(nodes...).
+	        WithCancelRemaining()
+	})
 
 	// Wait for specific number with cancellation
-	.Parallel().
-	    WithWaitCount(3).
-	    WithCancelRemaining()...
+	.Parallel(func(p *ParallelBuilder) {
+	    p.WithWaitCount(3).
+	        WithCancelRemaining().
+	        WithNodes(nodes...)
+	})
 
 	// Fault-tolerant: N out of K must succeed
-	.Parallel().
-	    WithNodes(node1, node2, node3, node4, node5).
-	    WithWaitCount(4).
-	    WithRequiredSuccesses(3).
-	    WithContinueOnError()...
+	.Parallel(func(p *ParallelBuilder) {
+	    p.WithNodes(node1, node2, node3, node4, node5).
+	        WithWaitCount(4).
+	        WithRequiredSuccesses(3).
+	        WithContinueOnError()
+	})
 
 Batch: Split input into segments, process in parallel, and aggregate results.
+
+Direct construction:
 
 	batch, err := NewBatch(&BatchConfig[[]int, int, int, int]{
 	    Node: squareNode,
 	    Segmenter: func(ctx context.Context, input []int) ([]int, error) {
-	        return input, nil // Each element is a segment
+	        segments := make([]int, len(input))
+	        for i, v := range input {
+	            segments[i] = v
+	        }
+	        return segments, nil
 	    },
 	    Aggregator: func(ctx context.Context, results []int) (int, error) {
 	        sum := 0
@@ -177,21 +217,38 @@ Batch: Split input into segments, process in parallel, and aggregate results.
 	    ContinueOnError: true,
 	})
 
-Using Builder:
+Using Builder with closure:
 
 	flow, err := NewBuilder().
-	    Batch().
-	        WithNode(processorNode).
-	        WithSegmenter(segmenterFunc).
-	        WithAggregator(aggregatorFunc).
-	        WithConcurrencyLimit(10).
-	        WithContinueOnError().
-	        Then().
+	    Batch(func(batch *BatchBuilder) {
+	        batch.WithNode(processorNode).
+	            WithSegmenter(func(ctx context.Context, input any) ([]any, error) {
+	                arr := input.([]int)
+	                segments := make([]any, len(arr))
+	                for i, v := range arr {
+	                    segments[i] = v
+	                }
+	                return segments, nil
+	            }).
+	            WithAggregator(func(ctx context.Context, results []any) (any, error) {
+	                sum := 0
+	                for _, r := range results {
+	                    if r != nil {
+	                        sum += r.(int)
+	                    }
+	                }
+	                return sum, nil
+	            }).
+	            WithConcurrencyLimit(10).
+	            WithContinueOnError()
+	    }).
 	    Build()
 
 # Asynchronous Execution
 
 Async: Execute a node asynchronously and return a Future for the result.
+
+Direct construction:
 
 	async, err := NewAsync(&AsyncConfig[string, string]{
 	    Node: slowNode,
@@ -207,64 +264,94 @@ Async: Execute a node asynchronously and return a Future for the result.
 	// Get result when needed
 	result, err := future.Get()
 
-Using Builder:
+Using Builder with closure:
 
 	flow, err := NewBuilder().
 	    Then(preprocessNode).
-	    Async().
-	        WithNode(slowNode).
-	        WithPool(threadPool).
-	        Then().
+	    Async(func(async *AsyncBuilder) {
+	        async.WithNode(slowNode).
+	            WithPool(threadPool)
+	    }).
 	    Then(postprocessNode). // Receives Future as input
 	    Build()
 
 # Complex Workflows
 
-Combine multiple patterns for sophisticated pipelines:
+Combine multiple patterns for sophisticated pipelines using closure-based configuration:
 
 	flow, err := NewBuilder().
 	    // Initial validation
 	    Then(validateInputNode).
 
 	    // Parallel API calls
-	    Parallel().
-	        WithNodes(fetchUserNode, fetchOrdersNode, fetchInventoryNode).
-	        WithAggregator(combineDataNode).
-	        WithWaitAll().
-	        WithContinueOnError().
-	        Then().
+	    Parallel(func(parallel *ParallelBuilder) {
+	        parallel.WithNodes(fetchUserNode, fetchOrdersNode, fetchInventoryNode).
+	            WithWaitAll().
+	            WithContinueOnError().
+	            WithAggregator(combineDataNode)
+	    }).
 
 	    // Conditional processing
-	    Branch().
-	        WithNode(checkStatusNode).
-	        WithBranch("approved", approvalFlowNode).
-	        WithBranch("pending", reviewFlowNode).
-	        WithBranch("rejected", rejectionFlowNode).
-	        WithBranchResolver(statusResolver).
-	        Then().
+	    Branch(func(branch *BranchBuilder) {
+	        branch.WithNode(checkStatusNode).
+	            WithBranch("approved", approvalFlowNode).
+	            WithBranch("pending", reviewFlowNode).
+	            WithBranch("rejected", rejectionFlowNode).
+	            WithBranchResolver(statusResolver)
+	    }).
 
 	    // Batch processing
-	    Batch().
-	        WithNode(processItemNode).
-	        WithSegmenter(splitItemsFunc).
-	        WithAggregator(mergeResultsFunc).
-	        WithConcurrencyLimit(20).
-	        Then().
+	    Batch(func(batch *BatchBuilder) {
+	        batch.WithNode(processItemNode).
+	            WithSegmenter(splitItemsFunc).
+	            WithAggregator(mergeResultsFunc).
+	            WithConcurrencyLimit(20)
+	    }).
 
 	    // Async notification
-	    Async().
-	        WithNode(notifyNode).
-	        WithPool(notificationPool).
-	        Then().
+	    Async(func(async *AsyncBuilder) {
+	        async.WithNode(notifyNode).
+	            WithPool(notificationPool)
+	    }).
 
 	    // Retry loop for failures
-	    Loop().
-	        WithNode(retryNode).
-	        WithTerminator(maxRetriesTerminator).
-	        Then().
+	    Loop(func(loop *LoopBuilder) {
+	        loop.WithNode(retryNode).
+	            WithMaxIterations(3).
+	            WithTerminator(maxRetriesTerminator)
+	    }).
 
 	    // Final result
 	    Then(formatOutputNode).
+	    Build()
+
+# Builder API Design
+
+The Builder uses a closure-based configuration pattern that provides several benefits:
+
+ 1. Scoped Configuration: Each builder type (Loop, Branch, etc.) is configured
+    within its own closure, making the configuration scope clear and preventing
+    accidental cross-configuration.
+
+ 2. Automatic Building: Builders are automatically constructed and added to the
+    flow when the closure completes, eliminating the need for manual Then() calls.
+
+3. Type Safety: Configuration errors are caught at build time rather than runtime.
+
+4. Readability: The nested structure mirrors the logical flow structure.
+
+Example showing the pattern:
+
+	flow, err := NewBuilder().
+	    Then(node1).
+	    Loop(func(loop *LoopBuilder) {
+	        // Everything in this closure configures the loop
+	        loop.WithNode(loopNode).
+	            WithMaxIterations(5).
+	            WithTerminator(terminator)
+	        // Loop is automatically built and added when closure exits
+	    }).
+	    Then(node2). // Executes after the loop
 	    Build()
 
 # Error Handling
@@ -285,29 +372,34 @@ All nodes support context-aware error handling:
 	    }
 	}
 
-Configure error handling behavior:
+Configure error handling behavior using closures:
 
 	// Fail fast (default): stop on first error
-	.Parallel().
-	    WithNodes(node1, node2, node3).
-	    WithAggregator(agg)...
+	.Parallel(func(p *ParallelBuilder) {
+	    p.WithNodes(node1, node2, node3).
+	        WithAggregator(agg)
+	})
 
 	// Continue on error: collect all errors
-	.Parallel().
-	    WithNodes(node1, node2, node3).
-	    WithContinueOnError().
-	    WithRequiredSuccesses(2)... // At least 2 must succeed
+	.Parallel(func(p *ParallelBuilder) {
+	    p.WithNodes(node1, node2, node3).
+	        WithContinueOnError().
+	        WithRequiredSuccesses(2) // At least 2 must succeed
+	})
 
 	// Batch with error tolerance
-	.Batch().
-	    WithNode(processorNode).
-	    WithContinueOnError()... // Skip failed segments
+	.Batch(func(b *BatchBuilder) {
+	    b.WithNode(processorNode).
+	        WithContinueOnError() // Skip failed segments
+	})
 
 # Best Practices
 
 1. Use Processor for simple transformations:
 
-	uppercase := Processor[string, string](strings.ToUpper)
+	uppercase := Processor[string, string](func(ctxcontext.Context,inputstring) (string, error) {
+	    return strings.ToUpper(input), nil
+	})
 
 2. Define reusable nodes as structs for complex logic:
 
@@ -322,34 +414,52 @@ Configure error handling behavior:
 	    return input, nil
 	}
 
-3. Use Builder API for readability in complex workflows:
+3. Use closure-based Builder API for readability in complex workflows:
 
 	flow, err := NewBuilder().
 	    Then(step1).
-	    Parallel().
-	        WithNodes(step2a, step2b).
-	        WithAggregator(merge).
-	        Then().
+	    Parallel(func(p *ParallelBuilder) {
+	        p.WithNodes(step2a, step2b).
+	            WithAggregator(merge)
+	    }).
 	    Then(step3).
 	    Build()
 
-4. Leverage context for cancellation and timeouts:
+4. Keep closures focused and concise:
+
+	// Good: focused configuration
+	.Loop(func(loop *LoopBuilder) {
+	    loop.WithNode(retryNode).
+	        WithMaxIterations(3)
+	})
+
+	// Avoid: complex logic in closures
+	.Loop(func(loop *LoopBuilder) {
+	    // Don't put business logic here
+	    node := createComplexNode()
+	    terminator := buildTerminator()
+	    loop.WithNode(node).WithTerminator(terminator)
+	})
+
+5. Leverage context for cancellation and timeouts:
 
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
 	result, err := flow.Run(ctx, input)
 
-5. Configure concurrency limits to control resource usage:
+6. Configure concurrency limits to control resource usage:
 
-	.Batch().
-	    WithConcurrencyLimit(runtime.NumCPU())...
+	.Batch(func(b *BatchBuilder) {
+	    b.WithConcurrencyLimit(runtime.NumCPU())
+	})
 
-	.Parallel().
-	    WithNodes(nodes...).
-	    WithWaitCount(runtime.NumCPU())...
+	.Parallel(func(p *ParallelBuilder) {
+	    p.WithNodes(nodes...).
+	        WithWaitCount(runtime.NumCPU())
+	})
 
-6. Use type-safe methods when possible:
+7. Use type-safe methods when possible:
 
 	// Preferred: type-safe
 	future, err := async.RunType(ctx, input)
@@ -359,6 +469,23 @@ Configure error handling behavior:
 	anyFuture, err := async.Run(ctx, input)
 	future := anyFuture.(sync.Future[string])
 
+8. Build flows once and reuse them:
+
+	// Build once
+	flow, err := NewBuilder().
+	    Then(node1).
+	    Then(node2).
+	    Build()
+	if err != nil {
+	    log.Fatal(err)
+	}
+
+	// Reuse many times
+	for _, input := range inputs {
+	    result, err := flow.Run(ctx, input)
+	    // Process result
+	}
+
 # Performance Considerations
 
 - Parallel and Batch nodes create goroutines; use concurrency limits to control overhead
@@ -366,6 +493,7 @@ Configure error handling behavior:
 - Loop nodes run synchronously; consider async execution for long-running loops
 - Branch nodes evaluate the main node before branching; optimize the decision node
 - Use context cancellation to stop expensive operations early
+- Builder has minimal overhead; closures are executed only during Build(), not during Run()
 
 # Thread Safety
 
@@ -374,7 +502,6 @@ shared state in Processor functions and custom node implementations.
 
 Safe:
 
-	counter := 0
 	node := Processor[int, int](func(ctxcontext.Context,inputint) (int, error) {
 	    return input + 1, nil // No shared state
 	})
@@ -384,6 +511,17 @@ Unsafe without synchronization:
 	counter := 0
 	node := Processor[int, int](func(ctxcontext.Context,inputint) (int, error) {
 	    counter++ // Data race!
+	    return counter, nil
+	})
+
+Safe with synchronization:
+
+	var mu sync.Mutex
+	counter := 0
+	node := Processor[int, int](func(ctxcontext.Context,inputint) (int, error) {
+	    mu.Lock()
+	    defer mu.Unlock()
+	    counter++
 	    return counter, nil
 	})
 
@@ -399,12 +537,15 @@ Nodes are easy to test in isolation:
 	    assert.Equal(t, expectedOutput, output)
 	}
 
-Test complete flows:
+Test complete flows with closures:
 
 	func TestWorkflow(t *testing.T) {
 	    flow, err := NewBuilder().
 	        Then(node1).
-	        Then(node2).
+	        Parallel(func(p *ParallelBuilder) {
+	            p.WithNodes(node2, node3).
+	                WithAggregator(testAggregator)
+	        }).
 	        Build()
 
 	    require.NoError(t, err)
@@ -412,6 +553,30 @@ Test complete flows:
 	    output, err := flow.Run(context.Background(), testInput)
 	    assert.NoError(t, err)
 	    assert.Equal(t, expectedOutput, output)
+	}
+
+Mock nodes for testing:
+
+	type MockNode struct {
+	    RunFunc func(context.Context, any) (any, error)
+	}
+
+	func (m *MockNode) Run(ctx context.Context, input any) (any, error) {
+	    return m.RunFunc(ctx, input)
+	}
+
+	func TestWithMock(t *testing.T) {
+	    mock := &MockNode{
+	        RunFunc: func(ctx context.Context, input any) (any, error) {
+	            return "mocked", nil
+	        },
+	    }
+
+	    flow, err := NewBuilder().
+	        Then(mock).
+	        Build()
+
+	    // Test flow with mock
 	}
 */
 package flow
