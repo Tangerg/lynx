@@ -99,8 +99,14 @@ var _ Transformer = (*TokenSplitter)(nil)
 //  3. Filters out chunks shorter than MinEmbedLength to avoid meaningless embeddings
 //  4. Limits total chunks per document to MaxChunkCount for safety
 type TokenSplitter struct {
-	config   *TokenSplitterConfig
-	splitter *Splitter
+	tokenizer      tokenizer.Tokenizer
+	chunkSize      int
+	minChunkSize   int
+	minEmbedLength int
+	maxChunkCount  int
+	keepSeparator  bool
+	copyFormatter  bool
+	splitter       *Splitter
 }
 
 func NewTokenSplitter(config *TokenSplitterConfig) (*TokenSplitter, error) {
@@ -108,7 +114,13 @@ func NewTokenSplitter(config *TokenSplitterConfig) (*TokenSplitter, error) {
 		return nil, err
 	}
 	ts := &TokenSplitter{
-		config: config,
+		tokenizer:      config.Tokenizer,
+		chunkSize:      config.ChunkSize,
+		minChunkSize:   config.MinChunkSize,
+		minEmbedLength: config.MinEmbedLength,
+		maxChunkCount:  config.MaxChunkCount,
+		keepSeparator:  config.KeepSeparator,
+		copyFormatter:  config.CopyFormatter,
 	}
 	ts.splitter, _ = NewSplitter(&SplitterConfig{
 		CopyFormatter: config.CopyFormatter,
@@ -122,19 +134,19 @@ func (t *TokenSplitter) splitByTokens(ctx context.Context, text string) ([]strin
 		return []string{}, nil
 	}
 
-	tokens, err := t.config.Tokenizer.Encode(ctx, text)
+	tokens, err := t.tokenizer.Encode(ctx, text)
 	if err != nil {
 		return nil, err
 	}
 
-	textChunks := make([]string, 0, t.config.ChunkSize)
+	textChunks := make([]string, 0, t.chunkSize)
 	processedCount := 0
 
-	for len(tokens) > 0 && processedCount < t.config.MaxChunkCount {
-		chunkEnd := min(t.config.ChunkSize, len(tokens))
+	for len(tokens) > 0 && processedCount < t.maxChunkCount {
+		chunkEnd := min(t.chunkSize, len(tokens))
 		currentTokens := tokens[:chunkEnd]
 
-		chunkText, err := t.config.Tokenizer.Decode(ctx, currentTokens)
+		chunkText, err := t.tokenizer.Decode(ctx, currentTokens)
 		if err != nil {
 			return nil, err
 		}
@@ -151,12 +163,12 @@ func (t *TokenSplitter) splitByTokens(ctx context.Context, text string) ([]strin
 					strings.LastIndex(chunkText, "\n"))),
 		)
 
-		if lastPunctuation != -1 && lastPunctuation > t.config.MinChunkSize {
+		if lastPunctuation != -1 && lastPunctuation > t.minChunkSize {
 			chunkText = chunkText[:lastPunctuation+1]
 		}
 
 		var finalChunk string
-		if t.config.KeepSeparator {
+		if t.keepSeparator {
 			finalChunk = strings.TrimSpace(chunkText)
 		} else {
 			finalChunk = strings.TrimSpace(
@@ -164,11 +176,11 @@ func (t *TokenSplitter) splitByTokens(ctx context.Context, text string) ([]strin
 			)
 		}
 
-		if len(finalChunk) > t.config.MinEmbedLength {
+		if len(finalChunk) > t.minEmbedLength {
 			textChunks = append(textChunks, finalChunk)
 		}
 
-		actualTokens, err := t.config.Tokenizer.Encode(ctx, chunkText)
+		actualTokens, err := t.tokenizer.Encode(ctx, chunkText)
 		if err != nil {
 			return nil, err
 		}
@@ -178,7 +190,7 @@ func (t *TokenSplitter) splitByTokens(ctx context.Context, text string) ([]strin
 	}
 
 	if len(tokens) > 0 {
-		remainingText, err := t.config.Tokenizer.Decode(ctx, tokens)
+		remainingText, err := t.tokenizer.Decode(ctx, tokens)
 		if err != nil {
 			return nil, err
 		}
@@ -187,7 +199,7 @@ func (t *TokenSplitter) splitByTokens(ctx context.Context, text string) ([]strin
 			strings.ReplaceAll(remainingText, "\n", " "),
 		)
 
-		if len(cleanedText) > t.config.MinEmbedLength {
+		if len(cleanedText) > t.minEmbedLength {
 			textChunks = append(textChunks, cleanedText)
 		}
 	}

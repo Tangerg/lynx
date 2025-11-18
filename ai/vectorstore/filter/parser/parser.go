@@ -62,7 +62,7 @@ func NewParser[I string | *lexer.Lexer](input I) (*Parser, error) {
 
 	// Consume first token and check for lexical errors
 	parser.currentToken = l.Scan()
-	if err := parser.checkTokenError(); err != nil {
+	if err = parser.checkTokenError(); err != nil {
 		return nil, err
 	}
 
@@ -173,7 +173,7 @@ func (p *Parser) Parse() (ast.Expr, error) {
 	// Ensure entire input is consumed
 	if !p.currentToken.Kind.Is(token.EOF) {
 		// Check if it's an ERROR token
-		if err := p.checkTokenError(); err != nil {
+		if err = p.checkTokenError(); err != nil {
 			return nil, err
 		}
 
@@ -222,7 +222,7 @@ func (p *Parser) parseExpr(precedence int) (ast.Expr, error) {
 		}
 
 		// Check for ERROR token in the loop
-		if err := p.checkTokenError(); err != nil {
+		if err = p.checkTokenError(); err != nil {
 			return nil, err
 		}
 

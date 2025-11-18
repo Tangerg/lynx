@@ -97,7 +97,6 @@ func TestNewSplitter(t *testing.T) {
 
 		require.NoError(t, err)
 		require.NotNil(t, splitter)
-		assert.Equal(t, config, splitter.config)
 	})
 
 	t.Run("with copy formatter enabled", func(t *testing.T) {
@@ -112,7 +111,7 @@ func TestNewSplitter(t *testing.T) {
 
 		require.NoError(t, err)
 		require.NotNil(t, splitter)
-		assert.True(t, splitter.config.CopyFormatter)
+		assert.True(t, splitter.copyFormatter)
 	})
 }
 

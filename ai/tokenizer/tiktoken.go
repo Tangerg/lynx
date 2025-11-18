@@ -25,7 +25,10 @@ type Tiktoken struct {
 //
 // Returns a new Tiktoken instance
 func NewTiktokenWithCL100KBase() *Tiktoken {
-	cli, _ := NewTiktoken(tiktoken.MODEL_CL100K_BASE)
+	cli, err := NewTiktoken(tiktoken.MODEL_CL100K_BASE)
+	if err != nil {
+		panic(err)
+	}
 	return cli
 }
 

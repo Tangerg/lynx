@@ -47,7 +47,8 @@ var _ Transformer = (*Splitter)(nil)
 // allowing each chunk to maintain context about its source. Empty chunks are
 // automatically filtered out to avoid creating meaningless documents.
 type Splitter struct {
-	config *SplitterConfig
+	copyFormatter bool
+	splitFunc     func(context.Context, string) ([]string, error)
 }
 
 func NewSplitter(config *SplitterConfig) (*Splitter, error) {
@@ -56,12 +57,13 @@ func NewSplitter(config *SplitterConfig) (*Splitter, error) {
 	}
 
 	return &Splitter{
-		config: config,
+		copyFormatter: config.CopyFormatter,
+		splitFunc:     config.SplitFunc,
 	}, nil
 }
 
 func (s *Splitter) splitSingleDocument(ctx context.Context, doc *Document) ([]*Document, error) {
-	textChunks, err := s.config.SplitFunc(ctx, doc.Text)
+	textChunks, err := s.splitFunc(ctx, doc.Text)
 	if err != nil {
 		return nil, err
 	}
@@ -78,7 +80,7 @@ func (s *Splitter) splitSingleDocument(ctx context.Context, doc *Document) ([]*D
 		}
 		chunkDoc.Metadata = maps.Clone(doc.Metadata)
 
-		if s.config.CopyFormatter {
+		if s.copyFormatter {
 			chunkDoc.Formatter = doc.Formatter
 		}
 

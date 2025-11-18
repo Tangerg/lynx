@@ -170,7 +170,6 @@ func TestNewTokenSplitter(t *testing.T) {
 
 		require.NoError(t, err)
 		require.NotNil(t, splitter)
-		assert.NotNil(t, splitter.config)
 		assert.NotNil(t, splitter.splitter)
 	})
 
@@ -182,10 +181,10 @@ func TestNewTokenSplitter(t *testing.T) {
 		splitter, err := NewTokenSplitter(config)
 
 		require.NoError(t, err)
-		assert.Equal(t, 800, splitter.config.ChunkSize)
-		assert.Equal(t, 350, splitter.config.MinChunkSize)
-		assert.Equal(t, 5, splitter.config.MinEmbedLength)
-		assert.Equal(t, 10000, splitter.config.MaxChunkCount)
+		assert.Equal(t, 800, splitter.chunkSize)
+		assert.Equal(t, 350, splitter.minChunkSize)
+		assert.Equal(t, 5, splitter.minEmbedLength)
+		assert.Equal(t, 10000, splitter.maxChunkCount)
 	})
 }
 

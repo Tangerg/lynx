@@ -322,8 +322,8 @@ func (w writeFunc) Write(ctx context.Context, docs []*document.Document) error {
 //	err := writer.Write(ctx, documents)
 func NewDocumentWriter(creator Creator) document.Writer {
 	return writeFunc(func(ctx context.Context, docs []*document.Document) error {
-		req := &CreateRequest{Documents: docs}
-		if err := req.Validate(); err != nil {
+		req, err := NewCreateRequest(docs)
+		if err != nil {
 			return fmt.Errorf("invalid document write request: %w", err)
 		}
 
