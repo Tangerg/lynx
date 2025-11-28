@@ -49,7 +49,7 @@ func (e *EmbeddingModel) buildApiEmbeddingRequest(req *embedding.Request) (*open
 	params.Model = mergedOpts.Model
 
 	params.Input = openai.EmbeddingNewParamsInputUnion{
-		OfArrayOfStrings: req.Inputs,
+		OfArrayOfStrings: req.Texts,
 	}
 
 	if mergedOpts.Dimensions != nil {

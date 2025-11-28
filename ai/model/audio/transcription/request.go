@@ -1,13 +1,15 @@
-package moderation
+package transcription
 
 import (
 	"errors"
 	"maps"
+
+	"github.com/Tangerg/lynx/ai/media"
 )
 
-// Options represents configuration options for moderation requests
+// Options represents configuration options for audio transcription requests
 type Options struct {
-	// Model specifies the moderation model to use
+	// Model specifies the transcription model to use for audio-to-text conversion
 	Model string `json:"model"`
 
 	// Extra holds provider-specific options that are not part of the standard fields
@@ -42,8 +44,6 @@ func (o *Options) Set(key string, value any) {
 	o.Extra[key] = value
 }
 
-// Clone creates a deep copy of the Options instance
-// Returns nil if the original Options is nil
 func (o *Options) Clone() *Options {
 	if o == nil {
 		return nil
@@ -77,42 +77,25 @@ func MergeOptions(options *Options, opts ...*Options) (*Options, error) {
 	return mergedOpts, nil
 }
 
-// Request represents a moderation request containing text and configuration
+// Request represents an audio transcription request containing audio data and configuration
 type Request struct {
-	// Text is the text content to be moderated
-	Text string `json:"text"`
+	// Audio is the audio media to be transcribed to text
+	Audio *media.Media `json:"audio"`
 
-	// Options contains the moderation configuration settings
+	// Options contains the transcription configuration settings
 	Options *Options `json:"options"`
 
 	// Params holds additional request-specific parameters
 	Params map[string]any `json:"params"`
 }
 
-func (r *Request) ensureParams() {
-	if r.Params == nil {
-		r.Params = make(map[string]any)
-	}
-}
-
-func (r *Request) Get(key string) (any, bool) {
-	r.ensureParams()
-	value, exists := r.Params[key]
-	return value, exists
-}
-
-func (r *Request) Set(key string, value any) {
-	r.ensureParams()
-	r.Params[key] = value
-}
-
-// NewRequest creates a new Request instance with the specified text
-// Returns an error if text is empty
-func NewRequest(text string) (*Request, error) {
-	if text == "" {
-		return nil, errors.New("text text cannot be empty")
+// NewRequest creates a new Request instance with the specified audio media
+// Returns an error if audio is nil
+func NewRequest(audio *media.Media) (*Request, error) {
+	if audio == nil {
+		return nil, errors.New("audio cannot be nil")
 	}
 	return &Request{
-		Text: text,
+		Audio: audio,
 	}, nil
 }

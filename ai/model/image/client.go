@@ -160,25 +160,25 @@ func (c *ClientCaller) Response(ctx context.Context) (*Response, error) {
 // Image executes the request and returns the first generated image along with the full response
 // Returns an error if the request fails
 func (c *ClientCaller) Image(ctx context.Context) (*Image, *Response, error) {
-	response, err := c.Response(ctx)
+	resp, err := c.Response(ctx)
 	if err != nil {
 		return nil, nil, err
 	}
-	return response.Result().Image, response, nil
+	return resp.Result().Image, resp, nil
 }
 
 // Images executes the request and returns all generated images along with the full response
 // Returns an error if the request fails
 func (c *ClientCaller) Images(ctx context.Context) ([]*Image, *Response, error) {
-	response, err := c.Response(ctx)
+	resp, err := c.Response(ctx)
 	if err != nil {
 		return nil, nil, err
 	}
-	images := make([]*Image, 0, len(response.Results))
-	for _, result := range response.Results {
+	images := make([]*Image, 0, len(resp.Results))
+	for _, result := range resp.Results {
 		images = append(images, result.Image)
 	}
-	return images, response, nil
+	return images, resp, nil
 }
 
 // Client provides a high-level interface for image generation with a default request configuration
@@ -200,11 +200,11 @@ func NewClient(request *ClientRequest) (*Client, error) {
 // NewClientWithModel creates a new Client with a model, using default request configuration
 // Returns an error if the model is invalid
 func NewClientWithModel(model Model) (*Client, error) {
-	request, err := NewClientRequest(model)
+	cliReq, err := NewClientRequest(model)
 	if err != nil {
 		return nil, err
 	}
-	return NewClient(request)
+	return NewClient(cliReq)
 }
 
 // Generate creates a new ClientRequest by cloning the default request

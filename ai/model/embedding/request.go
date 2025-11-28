@@ -138,8 +138,8 @@ func MergeOptions(options *Options, opts ...*Options) (*Options, error) {
 
 // Request represents an embedding generation request containing input texts and configuration.
 type Request struct {
-	// Inputs contains the text strings to be converted into embeddings.
-	Inputs []string `json:"inputs"`
+	// Texts contains the text strings to be converted into embeddings.
+	Texts []string `json:"texts"`
 
 	// Options specifies the configuration for how embeddings should be generated.
 	Options *Options `json:"options"`
@@ -150,14 +150,14 @@ type Request struct {
 }
 
 // NewRequest creates a new embedding request with the given input texts.
-// Returns an error if the inputs slice is empty, as at least one input is required.
-func NewRequest(inputs []string) (*Request, error) {
-	if len(inputs) == 0 {
-		return nil, errors.New("inputs cannot be empty: at least one input string is required")
+// Returns an error if the texts slice is empty, as at least one input is required.
+func NewRequest(texts []string) (*Request, error) {
+	if len(texts) == 0 {
+		return nil, errors.New("texts cannot be empty: at least one string is required")
 	}
 
 	return &Request{
-		Inputs: inputs,
+		Texts:  texts,
 		Params: make(map[string]any),
 	}, nil
 }

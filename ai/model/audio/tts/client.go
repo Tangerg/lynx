@@ -1,25 +1,29 @@
-package moderation
+package tts
 
 import (
 	"context"
 	"errors"
+	"iter"
 	"maps"
 
 	"github.com/Tangerg/lynx/ai/model"
 )
 
-type Handler = model.CallHandler[*Request, *Response]
-type HandlerFunc = model.CallHandlerFunc[*Request, *Response]
-type Middleware = model.CallMiddleware[*Request, *Response]
-type MiddlewareManager = model.CallMiddlewareManager[*Request, *Response]
+type CallHandler = model.CallHandler[*Request, *Response]
+type StreamHandler = model.StreamHandler[*Request, *Response]
+type CallHandlerFunc = model.CallHandlerFunc[*Request, *Response]
+type StreamHandlerFunc = model.StreamHandlerFunc[*Request, *Response]
+type CallMiddleware = model.CallMiddleware[*Request, *Response]
+type StreamMiddleware = model.StreamMiddleware[*Request, *Response]
+type MiddlewareManager = model.MiddlewareManager[*Request, *Response, *Request, *Response]
 
-// NewMiddlewareManager creates a new middleware manager for moderation requests
+// NewMiddlewareManager creates a new middleware manager for TTS requests
 func NewMiddlewareManager() *MiddlewareManager {
-	return model.NewCallMiddlewareManager[*Request, *Response]()
+	return model.NewMiddlewareManager[*Request, *Response, *Request, *Response]()
 }
 
-// ClientRequest represents a fluent builder for constructing moderation requests
-// It allows configuring the model, middlewares, options, text, and additional parameters
+// ClientRequest represents a fluent builder for constructing text-to-speech requests
+// It allows configuring the model, middlewares, options, text content, and additional parameters
 type ClientRequest struct {
 	model             Model
 	middlewareManager *MiddlewareManager
@@ -28,7 +32,7 @@ type ClientRequest struct {
 	params            map[string]any
 }
 
-// NewClientRequest creates a new ClientRequest with the specified moderation model
+// NewClientRequest creates a new ClientRequest with the specified TTS model
 // Returns an error if the model is nil
 func NewClientRequest(model Model) (*ClientRequest, error) {
 	if model == nil {
@@ -40,8 +44,9 @@ func NewClientRequest(model Model) (*ClientRequest, error) {
 }
 
 // WithMiddlewares adds middlewares to the request
+// Accepts both CallMiddleware and StreamMiddleware types
 // Returns the ClientRequest for method chaining
-func (r *ClientRequest) WithMiddlewares(middlewares ...Middleware) *ClientRequest {
+func (r *ClientRequest) WithMiddlewares(middlewares ...any) *ClientRequest {
 	if len(middlewares) > 0 {
 		r.middlewareManager = NewMiddlewareManager().UseMiddlewares(middlewares...)
 	}
@@ -66,11 +71,11 @@ func (r *ClientRequest) WithOptions(options *Options) *ClientRequest {
 	return r
 }
 
-// WithText sets the text content to be moderated
+// WithText sets the text content to be converted to speech
 // Returns the ClientRequest for method chaining
-func (r *ClientRequest) WithText(input string) *ClientRequest {
-	if input != "" {
-		r.text = input
+func (r *ClientRequest) WithText(text string) *ClientRequest {
+	if text != "" {
+		r.text = text
 	}
 	return r
 }
@@ -132,20 +137,27 @@ func (r *ClientRequest) buildRequest() (*Request, error) {
 	return req, nil
 }
 
-// Call creates a ClientCaller to execute the moderation request
+// Call creates a ClientCaller to execute the TTS request synchronously
 func (r *ClientRequest) Call() *ClientCaller {
 	return &ClientCaller{
 		request: r,
 	}
 }
 
-// ClientCaller handles the execution of moderation requests and provides various
-// methods to retrieve different aspects of the moderation response
+// Stream creates a ClientStreamer to execute the TTS request in streaming mode
+func (r *ClientRequest) Stream() *ClientStreamer {
+	return &ClientStreamer{
+		request: r,
+	}
+}
+
+// ClientCaller handles the synchronous execution of TTS requests and provides various
+// methods to retrieve different aspects of the speech generation response
 type ClientCaller struct {
 	request *ClientRequest
 }
 
-// Response executes the moderation request and returns the complete response
+// Response executes the TTS request and returns the complete response
 // Returns an error if the request fails or validation fails
 func (c *ClientCaller) Response(ctx context.Context) (*Response, error) {
 	req, err := c.request.buildRequest()
@@ -155,36 +167,91 @@ func (c *ClientCaller) Response(ctx context.Context) (*Response, error) {
 	return c.
 		request.
 		MiddlewareManager().
-		BuildHandler(c.request.model).
+		BuildCallHandler(c.request.model).
 		Call(ctx, req)
 }
 
-// Moderation executes the request and returns the first moderation result along with the full response
+// Speech executes the request and returns the first speech audio data along with the full response
 // Returns an error if the request fails
-func (c *ClientCaller) Moderation(ctx context.Context) (*Moderation, *Response, error) {
+func (c *ClientCaller) Speech(ctx context.Context) ([]byte, *Response, error) {
 	resp, err := c.Response(ctx)
 	if err != nil {
 		return nil, nil, err
 	}
-	return resp.Result().Moderation, resp, nil
+	return resp.Result().Speech, resp, nil
 }
 
-// Moderations executes the request and returns all moderation results along with the full response
+// Speeches executes the request and returns all speech audio data along with the full response
 // Returns an error if the request fails
-func (c *ClientCaller) Moderations(ctx context.Context) ([]*Moderation, *Response, error) {
+func (c *ClientCaller) Speeches(ctx context.Context) ([][]byte, *Response, error) {
 	resp, err := c.Response(ctx)
 	if err != nil {
 		return nil, nil, err
 	}
-	moderations := make([]*Moderation, 0, len(resp.Results))
+	speeches := make([][]byte, 0, len(resp.Results))
 	for _, result := range resp.Results {
-		moderations = append(moderations, result.Moderation)
+		speeches = append(speeches, result.Speech)
 	}
-	return moderations, resp, nil
+	return speeches, resp, nil
 }
 
-// Client provides a high-level interface for making moderation requests
+// ClientStreamer handles the streaming execution of TTS requests and provides
+// iterator-based access to progressive speech generation responses
+type ClientStreamer struct {
+	request *ClientRequest
+}
+
+// stream executes the streaming request and returns an iterator of responses
+func (s *ClientStreamer) stream(ctx context.Context, req *Request) iter.Seq2[*Response, error] {
+	return s.
+		request.
+		MiddlewareManager().
+		BuildStreamHandler(s.request.model).
+		Stream(ctx, req)
+}
+
+// Response executes the TTS request in streaming mode and returns an iterator of responses
+// Each iteration yields a response chunk or an error
+func (s *ClientStreamer) Response(ctx context.Context) iter.Seq2[*Response, error] {
+	return func(yield func(*Response, error) bool) {
+		req, err := s.request.buildRequest()
+		if err != nil {
+			yield(nil, err)
+			return
+		}
+
+		for resp, streamErr := range s.stream(ctx, req) {
+			if streamErr != nil {
+				yield(nil, streamErr)
+				return
+			}
+
+			if !yield(resp, nil) {
+				return
+			}
+		}
+	}
+}
+
+// Speech executes the request in streaming mode and returns an iterator of speech audio chunks
+// Each iteration yields an audio data chunk or an error
+func (s *ClientStreamer) Speech(ctx context.Context) iter.Seq2[[]byte, error] {
+	return func(yield func([]byte, error) bool) {
+		for resp, err := range s.Response(ctx) {
+			if err != nil {
+				yield(nil, err)
+				return
+			}
+			if !yield(resp.Result().Speech, nil) {
+				return
+			}
+		}
+	}
+}
+
+// Client provides a high-level interface for making text-to-speech requests
 // It maintains a default request configuration that can be cloned and customized
+// Supports both synchronous and streaming speech generation
 type Client struct {
 	defaultRequest *ClientRequest
 }
@@ -210,28 +277,28 @@ func NewClientWithModel(model Model) (*Client, error) {
 	return NewClient(cliReq)
 }
 
-// Moderate creates a new ClientRequest by cloning the default request configuration
-// This is the starting point for building a customized moderation request
-func (c *Client) Moderate() *ClientRequest {
+// Generate creates a new ClientRequest by cloning the default request configuration
+// This is the starting point for building a customized TTS request
+func (c *Client) Generate() *ClientRequest {
 	return c.
 		defaultRequest.
 		Clone()
 }
 
-// ModerateRequest creates a ClientRequest from an existing Request object
+// GenerateRequest creates a ClientRequest from an existing Request object
 // Copies the text, options, and params from the provided request
-func (c *Client) ModerateRequest(request *Request) *ClientRequest {
+func (c *Client) GenerateRequest(request *Request) *ClientRequest {
 	return c.
-		Moderate().
+		Generate().
 		WithText(request.Text).
 		WithOptions(request.Options).
 		WithParams(request.Params)
 }
 
-// ModerateText creates a ClientRequest for moderating a single text
-// This is a convenience method for simple moderation tasks
-func (c *Client) ModerateText(text string) *ClientRequest {
+// GenerateText creates a ClientRequest for generating speech from a single text input
+// This is a convenience method for simple TTS tasks
+func (c *Client) GenerateText(text string) *ClientRequest {
 	return c.
-		Moderate().
+		Generate().
 		WithText(text)
 }

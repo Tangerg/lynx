@@ -458,11 +458,11 @@ func NewClient(request *ClientRequest) (*Client, error) {
 // This is a convenience function that creates a default ClientRequest internally.
 // Returns an error if model is nil or request creation fails.
 func NewClientWithModel(model Model) (*Client, error) {
-	request, err := NewClientRequest(model)
+	cliReq, err := NewClientRequest(model)
 	if err != nil {
 		return nil, err
 	}
-	return NewClient(request)
+	return NewClient(cliReq)
 }
 
 // Chat returns a new client request based on the client's defaults

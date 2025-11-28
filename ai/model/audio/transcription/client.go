@@ -1,10 +1,11 @@
-package moderation
+package transcription
 
 import (
 	"context"
 	"errors"
 	"maps"
 
+	"github.com/Tangerg/lynx/ai/media"
 	"github.com/Tangerg/lynx/ai/model"
 )
 
@@ -13,22 +14,22 @@ type HandlerFunc = model.CallHandlerFunc[*Request, *Response]
 type Middleware = model.CallMiddleware[*Request, *Response]
 type MiddlewareManager = model.CallMiddlewareManager[*Request, *Response]
 
-// NewMiddlewareManager creates a new middleware manager for moderation requests
+// NewMiddlewareManager creates a new middleware manager for transcription requests
 func NewMiddlewareManager() *MiddlewareManager {
-	return model.NewCallMiddlewareManager[*Request, *Response]()
+	return model.NewCallMiddlewareManager[*Request, *Response, *Request, *Response]()
 }
 
-// ClientRequest represents a fluent builder for constructing moderation requests
-// It allows configuring the model, middlewares, options, text, and additional parameters
+// ClientRequest represents a fluent builder for constructing audio transcription requests
+// It allows configuring the model, middlewares, options, audio data, and additional parameters
 type ClientRequest struct {
 	model             Model
 	middlewareManager *MiddlewareManager
 	options           *Options
-	text              string
+	audio             *media.Media
 	params            map[string]any
 }
 
-// NewClientRequest creates a new ClientRequest with the specified moderation model
+// NewClientRequest creates a new ClientRequest with the specified transcription model
 // Returns an error if the model is nil
 func NewClientRequest(model Model) (*ClientRequest, error) {
 	if model == nil {
@@ -66,11 +67,11 @@ func (r *ClientRequest) WithOptions(options *Options) *ClientRequest {
 	return r
 }
 
-// WithText sets the text content to be moderated
+// WithAudio sets the audio media to be transcribed
 // Returns the ClientRequest for method chaining
-func (r *ClientRequest) WithText(input string) *ClientRequest {
-	if input != "" {
-		r.text = input
+func (r *ClientRequest) WithAudio(audio *media.Media) *ClientRequest {
+	if audio != nil {
+		r.audio = audio
 	}
 	return r
 }
@@ -94,12 +95,13 @@ func (r *ClientRequest) MiddlewareManager() *MiddlewareManager {
 }
 
 // Clone creates a deep copy of the ClientRequest
+// Note: The audio media reference is shared to conserve memory
 func (r *ClientRequest) Clone() *ClientRequest {
 	return &ClientRequest{
 		model:             r.model,
 		middlewareManager: r.middlewareManager.Clone(),
 		options:           r.options.Clone(),
-		text:              r.text,
+		audio:             r.audio, // use same audio file reference to save memory
 		params:            maps.Clone(r.params),
 	}
 }
@@ -119,9 +121,9 @@ func (r *ClientRequest) getOptions() *Options {
 }
 
 // buildRequest constructs the final Request object from the ClientRequest configuration
-// Returns an error if the text is invalid
+// Returns an error if the audio is invalid
 func (r *ClientRequest) buildRequest() (*Request, error) {
-	req, err := NewRequest(r.text)
+	req, err := NewRequest(r.audio)
 	if err != nil {
 		return nil, err
 	}
@@ -132,20 +134,20 @@ func (r *ClientRequest) buildRequest() (*Request, error) {
 	return req, nil
 }
 
-// Call creates a ClientCaller to execute the moderation request
+// Call creates a ClientCaller to execute the transcription request synchronously
 func (r *ClientRequest) Call() *ClientCaller {
 	return &ClientCaller{
 		request: r,
 	}
 }
 
-// ClientCaller handles the execution of moderation requests and provides various
-// methods to retrieve different aspects of the moderation response
+// ClientCaller handles the synchronous execution of transcription requests and provides
+// various methods to retrieve different aspects of the transcription response
 type ClientCaller struct {
 	request *ClientRequest
 }
 
-// Response executes the moderation request and returns the complete response
+// Response executes the transcription request and returns the complete response
 // Returns an error if the request fails or validation fails
 func (c *ClientCaller) Response(ctx context.Context) (*Response, error) {
 	req, err := c.request.buildRequest()
@@ -159,32 +161,34 @@ func (c *ClientCaller) Response(ctx context.Context) (*Response, error) {
 		Call(ctx, req)
 }
 
-// Moderation executes the request and returns the first moderation result along with the full response
+// Text executes the request and returns the first transcribed text along with the full response
 // Returns an error if the request fails
-func (c *ClientCaller) Moderation(ctx context.Context) (*Moderation, *Response, error) {
+func (c *ClientCaller) Text(ctx context.Context) (string, *Response, error) {
 	resp, err := c.Response(ctx)
 	if err != nil {
-		return nil, nil, err
+		return "", nil, err
 	}
-	return resp.Result().Moderation, resp, nil
+	return resp.Result().Text, resp, nil
 }
 
-// Moderations executes the request and returns all moderation results along with the full response
+// Texts executes the request and returns all transcribed texts along with the full response
+// Useful when the response contains multiple transcription alternatives or segments
 // Returns an error if the request fails
-func (c *ClientCaller) Moderations(ctx context.Context) ([]*Moderation, *Response, error) {
+func (c *ClientCaller) Texts(ctx context.Context) ([]string, *Response, error) {
 	resp, err := c.Response(ctx)
 	if err != nil {
 		return nil, nil, err
 	}
-	moderations := make([]*Moderation, 0, len(resp.Results))
+	texts := make([]string, 0, len(resp.Results))
 	for _, result := range resp.Results {
-		moderations = append(moderations, result.Moderation)
+		texts = append(texts, result.Text)
 	}
-	return moderations, resp, nil
+	return texts, resp, nil
 }
 
-// Client provides a high-level interface for making moderation requests
+// Client provides a high-level interface for making audio transcription requests
 // It maintains a default request configuration that can be cloned and customized
+// Supports synchronous audio-to-text transcription operations
 type Client struct {
 	defaultRequest *ClientRequest
 }
@@ -210,28 +214,28 @@ func NewClientWithModel(model Model) (*Client, error) {
 	return NewClient(cliReq)
 }
 
-// Moderate creates a new ClientRequest by cloning the default request configuration
-// This is the starting point for building a customized moderation request
-func (c *Client) Moderate() *ClientRequest {
+// Transcribe creates a new ClientRequest by cloning the default request configuration
+// This is the starting point for building a customized transcription request
+func (c *Client) Transcribe() *ClientRequest {
 	return c.
 		defaultRequest.
 		Clone()
 }
 
-// ModerateRequest creates a ClientRequest from an existing Request object
-// Copies the text, options, and params from the provided request
-func (c *Client) ModerateRequest(request *Request) *ClientRequest {
+// TranscribeRequest creates a ClientRequest from an existing Request object
+// Copies the audio, options, and params from the provided request
+func (c *Client) TranscribeRequest(request *Request) *ClientRequest {
 	return c.
-		Moderate().
-		WithText(request.Text).
+		Transcribe().
+		WithAudio(request.Audio).
 		WithOptions(request.Options).
 		WithParams(request.Params)
 }
 
-// ModerateText creates a ClientRequest for moderating a single text
-// This is a convenience method for simple moderation tasks
-func (c *Client) ModerateText(text string) *ClientRequest {
+// TranscribeAudio creates a ClientRequest for transcribing a single audio media
+// This is a convenience method for simple transcription tasks
+func (c *Client) TranscribeAudio(audio *media.Media) *ClientRequest {
 	return c.
-		Moderate().
-		WithText(text)
+		Transcribe().
+		WithAudio(audio)
 }
