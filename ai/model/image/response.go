@@ -104,10 +104,10 @@ func (r *ResponseMetadata) Set(key string, value any) {
 // It contains one or more results and associated metadata
 type Response struct {
 	// Results contains all generated image results
-	Results []*Result
+	Results []*Result `json:"results"`
 
 	// Metadata contains information about the response itself
-	Metadata *ResponseMetadata
+	Metadata *ResponseMetadata `json:"metadata"`
 }
 
 // NewResponse creates a new Response instance
