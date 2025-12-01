@@ -8,7 +8,6 @@ import (
 	"slices"
 
 	"github.com/Tangerg/lynx/ai/model"
-	pkgSlices "github.com/Tangerg/lynx/pkg/slices"
 )
 
 type CallHandler = model.CallHandler[*Request, *Response]
@@ -230,7 +229,7 @@ func (r *ClientRequest) getMessages() ([]Message, error) {
 		// Priority 1: Use merged existing system messages
 		result = append(result, sysMsg)
 	} else if r.systemPromptTemplate != nil {
-		// Priority 2: Generate system message from template when no existing ones found
+		// Priority 2: Synthesize system message from template when no existing ones found
 		renderedMsg, err := r.systemPromptTemplate.CreateSystemMessage()
 		if err != nil {
 			return nil, err
@@ -413,48 +412,14 @@ func (c *ClientCaller) Text(ctx context.Context) (string, *Response, error) {
 	return resp.Result().AssistantMessage.Text, resp, nil
 }
 
-// List executes the chat with list parsing and returns structured list data.
-// Uses default list parser if none provided.
-func (c *ClientCaller) List(ctx context.Context, listParser ...StructuredParser[[]string]) ([]string, *Response, error) {
-	parser := pkgSlices.FirstOr(listParser, nil)
-	if parser == nil {
-		parser = NewListParser()
-	}
-
-	resp, err := c.response(ctx, WrapParserAsAny(parser))
+// Structured executes the chat with custom structured parsing.
+func (c *ClientCaller) Structured(ctx context.Context, parser StructuredParser[any]) (any, *Response, error) {
+	resp, err := c.response(ctx, parser)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	data, parseErr := parser.Parse(resp.Result().AssistantMessage.Text)
-	return data, resp, parseErr
-}
-
-// Map executes the chat with map parsing and returns structured map data.
-// Uses default map parser if none provided.
-func (c *ClientCaller) Map(ctx context.Context, mapParser ...StructuredParser[map[string]any]) (map[string]any, *Response, error) {
-	parser := pkgSlices.FirstOr(mapParser, nil)
-	if parser == nil {
-		parser = NewMapParser()
-	}
-
-	resp, err := c.response(ctx, WrapParserAsAny(parser))
-	if err != nil {
-		return nil, nil, err
-	}
-
-	data, parseErr := parser.Parse(resp.Result().AssistantMessage.Text)
-	return data, resp, parseErr
-}
-
-// Any executes the chat with custom structured parsing.
-func (c *ClientCaller) Any(ctx context.Context, anyParser StructuredParser[any]) (any, *Response, error) {
-	resp, err := c.response(ctx, anyParser)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	data, parseErr := anyParser.Parse(resp.Result().AssistantMessage.Text)
 	return data, resp, parseErr
 }
 
@@ -493,9 +458,9 @@ func (c *Client) Chat() *ClientRequest {
 	return c.defaultRequest.Clone()
 }
 
-// ChatRequest creates a chat interaction from an existing request,
+// ChatWithRequest creates a chat interaction from an existing request,
 // merging its configuration with client defaults.
-func (c *Client) ChatRequest(req *Request) *ClientRequest {
+func (c *Client) ChatWithRequest(req *Request) *ClientRequest {
 	return c.
 		Chat().
 		WithMessages(req.Messages...).
@@ -503,17 +468,22 @@ func (c *Client) ChatRequest(req *Request) *ClientRequest {
 		WithParams(req.Params)
 }
 
-// ChatText creates a chat interaction with a simple text message
+// ChatWithText creates a chat interaction with a simple text message
 // using default options.
-func (c *Client) ChatText(text string) *ClientRequest {
+func (c *Client) ChatWithText(text string) *ClientRequest {
 	return c.
 		Chat().
 		WithMessages(NewUserMessage(text))
 }
 
-// ChatPromptTemplate creates a chat interaction using a prompt template
+// ChatWithPrompt is an alias for ChatWithText.
+func (c *Client) ChatWithPrompt(prompt string) *ClientRequest {
+	return c.ChatWithText(prompt)
+}
+
+// ChatWithPromptTemplate creates a chat interaction using a prompt template
 // for the user message.
-func (c *Client) ChatPromptTemplate(promptTemplate *PromptTemplate) *ClientRequest {
+func (c *Client) ChatWithPromptTemplate(promptTemplate *PromptTemplate) *ClientRequest {
 	return c.
 		Chat().
 		WithUserPromptTemplate(promptTemplate)

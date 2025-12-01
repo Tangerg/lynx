@@ -92,7 +92,7 @@ func (c *CompressionQueryTransformer) Transform(ctx context.Context, query *Quer
 
 	compressedText, _, err := c.
 		chatClient.
-		ChatPromptTemplate(
+		ChatWithPromptTemplate(
 			c.promptTemplate.
 				Clone().
 				WithVariable("History", conversationHistory).

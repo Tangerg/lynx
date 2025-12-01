@@ -51,7 +51,7 @@ func TestPipelineMiddleware_BasicCall(t *testing.T) {
 	defer cancel()
 
 	text, resp, err := chatClient.
-		ChatRequest(request).
+		ChatWithRequest(request).
 		WithMiddlewares(callMiddleware, streamMiddleware).
 		Call().
 		Text(ctx)
@@ -151,7 +151,7 @@ func TestPipelineMiddleware_FullPipeline(t *testing.T) {
 	defer cancel()
 
 	text, resp, err := chatClient.
-		ChatRequest(request).
+		ChatWithRequest(request).
 		WithMiddlewares(callMiddleware, streamMiddleware).
 		Call().
 		Text(ctx)
@@ -276,7 +276,7 @@ func TestPipelineMiddleware_MultilingualConversation(t *testing.T) {
 			defer cancel()
 
 			text, resp, err := chatClient.
-				ChatRequest(request).
+				ChatWithRequest(request).
 				WithMiddlewares(callMiddleware, streamMiddleware).
 				Call().
 				Text(ctx)
@@ -337,7 +337,7 @@ func TestPipelineMiddleware_StreamResponse(t *testing.T) {
 	defer cancel()
 
 	stream := chatClient.
-		ChatRequest(request).
+		ChatWithRequest(request).
 		WithMiddlewares(callMiddleware, streamMiddleware).
 		Stream().
 		Response(ctx)
@@ -416,7 +416,7 @@ func TestPipelineMiddleware_WithRequestParams(t *testing.T) {
 	defer cancel()
 
 	text, resp, err := chatClient.
-		ChatRequest(request).
+		ChatWithRequest(request).
 		WithMiddlewares(callMiddleware, streamMiddleware).
 		Call().
 		Text(ctx)
@@ -493,7 +493,7 @@ func TestPipelineMiddleware_Performance(t *testing.T) {
 			defer cancel()
 
 			text, resp, err := chatClient.
-				ChatRequest(request).
+				ChatWithRequest(request).
 				WithMiddlewares(callMiddleware, streamMiddleware).
 				Call().
 				Text(ctx)
@@ -562,7 +562,7 @@ func TestPipelineMiddleware_ConcurrentRequests(t *testing.T) {
 			defer cancel()
 
 			text, resp, err := chatClient.
-				ChatRequest(request).
+				ChatWithRequest(request).
 				WithMiddlewares(callMiddleware, streamMiddleware).
 				Call().
 				Text(ctx)
@@ -677,7 +677,7 @@ func TestPipelineMiddleware_RAGKnowledge(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), config.timeout)
 
 		text, resp, err := chatClient.
-			ChatRequest(request).
+			ChatWithRequest(request).
 			WithMiddlewares(callMiddleware, streamMiddleware).
 			Call().
 			Text(ctx)
@@ -791,7 +791,7 @@ func TestPipelineMiddleware_RAGKnowledge2(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), config.timeout)
 
 	text, resp, err := chatClient.
-		ChatRequest(request).
+		ChatWithRequest(request).
 		WithMiddlewares(callMiddleware, streamMiddleware).
 		Call().
 		Text(ctx)

@@ -222,9 +222,9 @@ func (c *Client) Embed() *ClientRequest {
 	return c.defaultRequest.Clone()
 }
 
-// EmbedRequest creates a client request from an existing Request object.
+// EmbedWithRequest creates a client request from an existing Request object.
 // This allows for reusing previously configured requests with the client's settings.
-func (c *Client) EmbedRequest(req *Request) *ClientRequest {
+func (c *Client) EmbedWithRequest(req *Request) *ClientRequest {
 	return c.
 		Embed().
 		WithTexts(req.Texts).
@@ -232,32 +232,32 @@ func (c *Client) EmbedRequest(req *Request) *ClientRequest {
 		WithParams(req.Params)
 }
 
-// EmbedText creates a request to embed a single text string.
+// EmbedWithText creates a request to embed a single text string.
 // This is a convenience method that combines cloning and setting the input.
-func (c *Client) EmbedText(text string) *ClientRequest {
-	return c.EmbedTexts([]string{text})
+func (c *Client) EmbedWithText(text string) *ClientRequest {
+	return c.EmbedWithTexts([]string{text})
 }
 
-// EmbedTexts creates a request to embed multiple text strings.
+// EmbedWithTexts creates a request to embed multiple text strings.
 // This is a convenience method for batch embedding operations.
-func (c *Client) EmbedTexts(texts []string) *ClientRequest {
+func (c *Client) EmbedWithTexts(texts []string) *ClientRequest {
 	return c.
 		Embed().
 		WithTexts(texts)
 }
 
-// EmbedDocument creates a client request for embedding a single document.
+// EmbedWithDocument creates a client request for embedding a single document.
 // The document's text content will be used as the embedding input.
-func (c *Client) EmbedDocument(doc *document.Document) *ClientRequest {
-	return c.EmbedText(doc.Text)
+func (c *Client) EmbedWithDocument(doc *document.Document) *ClientRequest {
+	return c.EmbedWithText(doc.Text)
 }
 
-// EmbedDocuments creates a client request for embedding multiple documents.
+// EmbedWithDocuments creates a client request for embedding multiple documents.
 // Each document's text content will be extracted and embedded in order.
-func (c *Client) EmbedDocuments(docs []*document.Document) *ClientRequest {
+func (c *Client) EmbedWithDocuments(docs []*document.Document) *ClientRequest {
 	contents := make([]string, 0, len(docs))
 	for _, doc := range docs {
 		contents = append(contents, doc.Text)
 	}
-	return c.EmbedTexts(contents)
+	return c.EmbedWithTexts(contents)
 }

@@ -177,7 +177,7 @@ func (v *VectorStore) buildUpsertPoints(ctx context.Context, req *vectorstore.Cr
 	for _, docs := range batchedDocs {
 		vectors, _, err := v.
 			embeddingClient.
-			EmbedDocuments(docs).
+			EmbedWithDocuments(docs).
 			Call().
 			Embeddings(ctx)
 		if err != nil {
@@ -260,7 +260,7 @@ func (v *VectorStore) buildQueryPoints(ctx context.Context, req *vectorstore.Ret
 	}
 
 	vector, _, err := v.embeddingClient.
-		EmbedText(req.Query).
+		EmbedWithText(req.Query).
 		Call().
 		Embedding(ctx)
 	if err != nil {

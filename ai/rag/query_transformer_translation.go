@@ -98,7 +98,7 @@ func (t *TranslationQueryTransformer) Transform(ctx context.Context, query *Quer
 
 	translatedText, _, err := t.
 		chatClient.
-		ChatPromptTemplate(
+		ChatWithPromptTemplate(
 			t.promptTemplate.
 				Clone().
 				WithVariable("Target", t.targetLanguage).

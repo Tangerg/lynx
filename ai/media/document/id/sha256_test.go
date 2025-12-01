@@ -36,7 +36,7 @@ func TestNewSha256Generator(t *testing.T) {
 	})
 }
 
-// TestSha256Generator_Generate tests the Generate method
+// TestSha256Generator_Generate tests the Synthesize method
 func TestSha256Generator_Generate(t *testing.T) {
 	t.Run("empty objects returns empty string", func(t *testing.T) {
 		generator := NewSha256Generator(nil)
@@ -426,7 +426,7 @@ func TestSha256Generator_Integration(t *testing.T) {
 			},
 		}
 
-		// Generate ID multiple times
+		// Synthesize ID multiple times
 		id1, err1 := generator.Generate(ctx, doc)
 		id2, err2 := generator.Generate(ctx, doc)
 

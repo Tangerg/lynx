@@ -113,7 +113,7 @@ func (m *MultiQueryExpander) Expand(ctx context.Context, query *Query) ([]*Query
 
 	expandedText, _, err := m.
 		chatClient.
-		ChatPromptTemplate(
+		ChatWithPromptTemplate(
 			m.promptTemplate.
 				Clone().
 				WithVariable("Number", m.numberOfQueries).

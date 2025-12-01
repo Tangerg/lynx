@@ -96,7 +96,7 @@ func (r *RewriteQueryTransformer) Transform(ctx context.Context, query *Query) (
 
 	rewrittenText, _, err := r.
 		chatClient.
-		ChatPromptTemplate(
+		ChatWithPromptTemplate(
 			r.promptTemplate.
 				Clone().
 				WithVariable("Target", r.targetSearchSystem).

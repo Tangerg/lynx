@@ -486,7 +486,7 @@
 //	        return err
 //	    }
 //
-//	    // 1. Generate embeddings for documents
+//	    // 1. Synthesize embeddings for documents
 //	    embeddings := s.generateEmbeddings(req.Documents)
 //
 //	    // 2. Store in provider's format
@@ -499,7 +499,7 @@
 //	        return nil, err
 //	    }
 //
-//	    // 1. Generate query embedding
+//	    // 1. Synthesize query embedding
 //	    queryEmbed := s.generateEmbedding(req.Query)
 //
 //	    // 2. Convert filter expression to provider's query format

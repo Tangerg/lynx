@@ -45,10 +45,10 @@
 //	┌─────────────────────────────────────────────────────────────┐
 //	│ Stage 2: Query Expansion (One to Many)                      │
 //	│                                                              │
-//	│ Purpose: Generate query variants to improve recall          │
+//	│ Purpose: Synthesize query variants to improve recall          │
 //	│ Examples:                                                    │
 //	│  • Rephrase from different perspectives                     │
-//	│  • Generate semantically similar questions                  │
+//	│  • Synthesize semantically similar questions                  │
 //	│  • Break down complex queries into sub-questions            │
 //	│                                                              │
 //	│ Flow: single query → [variant 1, variant 2, ..., variant N]│
@@ -279,7 +279,7 @@
 //
 //	// Execute with middleware - RAG happens automatically
 //	text, response, err := chatClient.
-//	    ChatRequest(request).
+//	    ChatWithRequest(request).
 //	    WithMiddlewares(callMw, streamMw).
 //	    Call().
 //	    Text(ctx)
@@ -303,7 +303,7 @@
 // Streaming example:
 //
 //	stream := chatClient.
-//	    ChatRequest(request).
+//	    ChatWithRequest(request).
 //	    WithMiddlewares(callMw, streamMw).
 //	    Stream().
 //	    Response(ctx)
@@ -561,7 +561,7 @@
 //
 //	// Execute with RAG
 //	text, response, err := chatClient.
-//	    ChatRequest(request).
+//	    ChatWithRequest(request).
 //	    WithMiddlewares(callMw, streamMw).
 //	    Call().
 //	    Text(context.Background())
@@ -650,7 +650,7 @@
 //	            chat.NewUserMessage(query),
 //	        })
 //	        text, _, _ := chatClient.
-//	            ChatRequest(request).
+//	            ChatWithRequest(request).
 //	            WithMiddlewares(callMw, streamMw).
 //	            Call().
 //	            Text(ctx)

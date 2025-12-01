@@ -28,7 +28,7 @@ func TestNewUUIDGenerator(t *testing.T) {
 	})
 }
 
-// TestUUIDGenerator_Generate tests the Generate method
+// TestUUIDGenerator_Generate tests the Synthesize method
 func TestUUIDGenerator_Generate(t *testing.T) {
 	t.Run("generates valid UUID", func(t *testing.T) {
 		generator := NewUUIDGenerator()
@@ -49,7 +49,7 @@ func TestUUIDGenerator_Generate(t *testing.T) {
 		generator := NewUUIDGenerator()
 		ctx := context.Background()
 
-		// Generate multiple UUIDs
+		// Synthesize multiple UUIDs
 		ids := make(map[string]bool)
 		const count = 1000
 
@@ -69,7 +69,7 @@ func TestUUIDGenerator_Generate(t *testing.T) {
 		generator := NewUUIDGenerator()
 		ctx := context.Background()
 
-		// Generate with different inputs
+		// Synthesize with different inputs
 		id1, err1 := generator.Generate(ctx)
 		id2, err2 := generator.Generate(ctx, "test")
 		id3, err3 := generator.Generate(ctx, "test", 123)
@@ -198,7 +198,7 @@ func TestUUIDGenerator_Concurrency(t *testing.T) {
 		idsChan := make(chan string, goroutines*idsPerGoroutine)
 		errChan := make(chan error, goroutines)
 
-		// Generate UUIDs concurrently
+		// Synthesize UUIDs concurrently
 		for i := 0; i < goroutines; i++ {
 			go func() {
 				for j := 0; j < idsPerGoroutine; j++ {
@@ -464,7 +464,7 @@ func TestUUIDGenerator_Performance(t *testing.T) {
 		generator := NewUUIDGenerator()
 		ctx := context.Background()
 
-		// Generate many UUIDs without storing them
+		// Synthesize many UUIDs without storing them
 		// Should not cause memory issues
 		for i := 0; i < 1000000; i++ {
 			_, err := generator.Generate(ctx)

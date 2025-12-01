@@ -121,7 +121,7 @@ func TestClient_Call_ChatText(t *testing.T) {
 	ctx := newTestContext(t)
 
 	text, resp, err := client.
-		ChatText("Hi! How are you!").
+		ChatWithText("Hi! How are you!").
 		Call().
 		Text(ctx)
 
@@ -141,13 +141,13 @@ func TestClient_Call_ChatText_List(t *testing.T) {
 	client := newTestClient(t)
 	ctx := newTestContext(t)
 
-	colorList, resp, err := client.
-		ChatText("List five colors").
+	colors, resp, err := client.
+		ChatWithText("List five colors").
 		Call().
-		List(ctx)
-
+		Structured(ctx, chat.ListParserAsAny())
 	require.NoError(t, err)
 	assert.NotNil(t, resp)
+	colorList := colors.([]string)
 	assert.NotEmpty(t, colorList)
 	assert.LessOrEqual(t, len(colorList), 10, "should return reasonable number of colors")
 
@@ -166,13 +166,14 @@ func TestClient_Call_ChatText_Map(t *testing.T) {
 	client := newTestClient(t)
 	ctx := newTestContext(t)
 
-	userInfoMap, resp, err := client.
-		ChatText("Tom, 18 years old, Email is Tom@gmail.com. Please format this user's information as JSON").
+	userInfo, resp, err := client.
+		ChatWithText("Tom, 18 years old, Email is Tom@gmail.com. Please format this user's information as JSON").
 		Call().
-		Map(ctx)
+		Structured(ctx, chat.MapParserAsAny())
 
 	require.NoError(t, err)
 	assert.NotNil(t, resp)
+	userInfoMap := userInfo.(map[string]any)
 	assert.NotEmpty(t, userInfoMap)
 
 	t.Log("User info map:")
@@ -182,7 +183,7 @@ func TestClient_Call_ChatText_Map(t *testing.T) {
 	}
 }
 
-func TestClient_Call_ChatText_Any(t *testing.T) {
+func TestClient_Call_ChatText_Structured(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping integration test in short mode")
 	}
@@ -197,9 +198,9 @@ func TestClient_Call_ChatText_Any(t *testing.T) {
 	ctx := newTestContext(t)
 
 	userAny, resp, err := client.
-		ChatText("Tom, 18 years old, Email is Tom@gmail.com. Please format this user's information as JSON").
+		ChatWithText("Tom, 18 years old, Email is Tom@gmail.com. Please format this user's information as JSON").
 		Call().
-		Any(ctx, chat.JSONParserAsAnyOf[*User]())
+		Structured(ctx, chat.JSONParserAsAnyOf[*User]())
 
 	require.NoError(t, err)
 	assert.NotNil(t, resp)
@@ -223,7 +224,7 @@ func TestClient_Call_PromptTemplate(t *testing.T) {
 	ctx := newTestContext(t)
 
 	text, resp, err := client.
-		ChatPromptTemplate(
+		ChatWithPromptTemplate(
 			chat.
 				NewPromptTemplate().
 				WithTemplate("Hi! My name is {{.name}}, how are you?").
@@ -254,7 +255,7 @@ func TestClient_Call_ChatRequest(t *testing.T) {
 	require.NoError(t, err)
 
 	text, resp, err := client.
-		ChatRequest(chatRequest).
+		ChatWithRequest(chatRequest).
 		Call().
 		Text(ctx)
 
@@ -276,7 +277,7 @@ func TestClient_Call_Tool(t *testing.T) {
 	require.NotNil(t, weatherTool)
 
 	text, resp, err := client.
-		ChatText("I want to inquire about the weather conditions in Beijing on May 1st, 2023").
+		ChatWithText("I want to inquire about the weather conditions in Beijing on May 1st, 2023").
 		WithTools(weatherTool).
 		Call().
 		Text(ctx)
@@ -296,7 +297,7 @@ func TestClient_Call_MultipleMessages(t *testing.T) {
 	ctx := newTestContext(t)
 
 	text1, resp1, err := client.
-		ChatText("What is 2+2?").
+		ChatWithText("What is 2+2?").
 		Call().
 		Text(ctx)
 
@@ -314,7 +315,7 @@ func TestClient_Call_MultipleMessages(t *testing.T) {
 	require.NoError(t, err)
 
 	text2, resp2, err := client.
-		ChatRequest(chatRequest).
+		ChatWithRequest(chatRequest).
 		Call().
 		Text(ctx)
 
@@ -358,7 +359,7 @@ func TestClient_Stream_ChatText(t *testing.T) {
 
 	var chunks []string
 	responseStream := client.
-		ChatText("Tell me a short joke").
+		ChatWithText("Tell me a short joke").
 		Stream().
 		Text(ctx)
 
@@ -382,7 +383,7 @@ func TestClient_Stream_PromptTemplate(t *testing.T) {
 
 	var chunks []string
 	responseStream := client.
-		ChatPromptTemplate(
+		ChatWithPromptTemplate(
 			chat.
 				NewPromptTemplate().
 				WithTemplate("Hi! My name is {{.name}}, tell me a short fact").
@@ -417,7 +418,7 @@ func TestClient_Stream_ChatRequest(t *testing.T) {
 
 	var chunks []string
 	responseStream := client.
-		ChatRequest(chatRequest).
+		ChatWithRequest(chatRequest).
 		Stream().
 		Text(ctx)
 
@@ -443,7 +444,7 @@ func TestClient_Stream_Tool(t *testing.T) {
 
 	var chunks []string
 	responseStream := client.
-		ChatText("What's the weather in Beijing on May 1st, 2023?").
+		ChatWithText("What's the weather in Beijing on May 1st, 2023?").
 		WithTools(weatherTool).
 		Stream().
 		Text(ctx)
@@ -469,7 +470,7 @@ func TestClient_ErrorHandling(t *testing.T) {
 		defer cancel()
 
 		_, _, err := client.
-			ChatText("Tell me a long story").
+			ChatWithText("Tell me a long story").
 			Call().
 			Text(ctx)
 
@@ -482,7 +483,7 @@ func TestClient_ErrorHandling(t *testing.T) {
 		cancel() // Cancel immediately
 
 		_, _, err := client.
-			ChatText("Hello").
+			ChatWithText("Hello").
 			Call().
 			Text(ctx)
 
@@ -509,7 +510,7 @@ func TestClient_WithOptions(t *testing.T) {
 	opts.MaxTokens = &maxTokens
 
 	text, resp, err := client.
-		ChatText("Say hello").
+		ChatWithText("Say hello").
 		WithOptions(opts).
 		Call().
 		Text(ctx)
@@ -533,7 +534,7 @@ func BenchmarkClient_Call_Simple(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		_, _, err := client.
-			ChatText("Hi").
+			ChatWithText("Hi").
 			Call().
 			Text(ctx)
 		if err != nil {

@@ -222,9 +222,9 @@ func (c *Client) Transcribe() *ClientRequest {
 		Clone()
 }
 
-// TranscribeRequest creates a ClientRequest from an existing Request object
+// TranscribeWithRequest creates a ClientRequest from an existing Request object
 // Copies the audio, options, and params from the provided request
-func (c *Client) TranscribeRequest(request *Request) *ClientRequest {
+func (c *Client) TranscribeWithRequest(request *Request) *ClientRequest {
 	return c.
 		Transcribe().
 		WithAudio(request.Audio).
@@ -232,9 +232,9 @@ func (c *Client) TranscribeRequest(request *Request) *ClientRequest {
 		WithParams(request.Params)
 }
 
-// TranscribeAudio creates a ClientRequest for transcribing a single audio media
+// TranscribeWithAudio creates a ClientRequest for transcribing a single audio media
 // This is a convenience method for simple transcription tasks
-func (c *Client) TranscribeAudio(audio *media.Media) *ClientRequest {
+func (c *Client) TranscribeWithAudio(audio *media.Media) *ClientRequest {
 	return c.
 		Transcribe().
 		WithAudio(audio)

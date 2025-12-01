@@ -98,7 +98,7 @@ func (r *RelevancyEvaluator) Evaluate(ctx context.Context, req *Request) (*Respo
 
 	text, _, err := r.
 		chatClient.
-		ChatPromptTemplate(
+		ChatWithPromptTemplate(
 			r.promptTemplate.
 				Clone().
 				WithVariable("Query", req.Prompt).

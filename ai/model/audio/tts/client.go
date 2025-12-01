@@ -181,20 +181,6 @@ func (c *ClientCaller) Speech(ctx context.Context) ([]byte, *Response, error) {
 	return resp.Result().Speech, resp, nil
 }
 
-// Speeches executes the request and returns all speech audio data along with the full response
-// Returns an error if the request fails
-func (c *ClientCaller) Speeches(ctx context.Context) ([][]byte, *Response, error) {
-	resp, err := c.Response(ctx)
-	if err != nil {
-		return nil, nil, err
-	}
-	speeches := make([][]byte, 0, len(resp.Results))
-	for _, result := range resp.Results {
-		speeches = append(speeches, result.Speech)
-	}
-	return speeches, resp, nil
-}
-
 // ClientStreamer handles the streaming execution of TTS requests and provides
 // iterator-based access to progressive speech generation responses
 type ClientStreamer struct {
@@ -277,28 +263,28 @@ func NewClientWithModel(model Model) (*Client, error) {
 	return NewClient(cliReq)
 }
 
-// Generate creates a new ClientRequest by cloning the default request configuration
+// Synthesize creates a new ClientRequest by cloning the default request configuration
 // This is the starting point for building a customized TTS request
-func (c *Client) Generate() *ClientRequest {
+func (c *Client) Synthesize() *ClientRequest {
 	return c.
 		defaultRequest.
 		Clone()
 }
 
-// GenerateRequest creates a ClientRequest from an existing Request object
+// SynthesizeWithRequest creates a ClientRequest from an existing Request object
 // Copies the text, options, and params from the provided request
-func (c *Client) GenerateRequest(request *Request) *ClientRequest {
+func (c *Client) SynthesizeWithRequest(request *Request) *ClientRequest {
 	return c.
-		Generate().
+		Synthesize().
 		WithText(request.Text).
 		WithOptions(request.Options).
 		WithParams(request.Params)
 }
 
-// GenerateText creates a ClientRequest for generating speech from a single text input
+// SynthesizeWithText creates a ClientRequest for generating speech from a single text input
 // This is a convenience method for simple TTS tasks
-func (c *Client) GenerateText(text string) *ClientRequest {
+func (c *Client) SynthesizeWithText(text string) *ClientRequest {
 	return c.
-		Generate().
+		Synthesize().
 		WithText(text)
 }

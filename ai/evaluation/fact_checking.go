@@ -74,7 +74,7 @@ func (f *FactCheckingEvaluator) Evaluate(ctx context.Context, req *Request) (*Re
 
 	text, _, err := f.
 		chatClient.
-		ChatPromptTemplate(
+		ChatWithPromptTemplate(
 			f.promptTemplate.
 				Clone().
 				WithVariable("Document", extractDocuments(req)).

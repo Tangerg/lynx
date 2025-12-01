@@ -218,9 +218,9 @@ func (c *Client) Moderate() *ClientRequest {
 		Clone()
 }
 
-// ModerateRequest creates a ClientRequest from an existing Request object
+// ModerateWithRequest creates a ClientRequest from an existing Request object
 // Copies the text, options, and params from the provided request
-func (c *Client) ModerateRequest(request *Request) *ClientRequest {
+func (c *Client) ModerateWithRequest(request *Request) *ClientRequest {
 	return c.
 		Moderate().
 		WithText(request.Text).
@@ -228,9 +228,9 @@ func (c *Client) ModerateRequest(request *Request) *ClientRequest {
 		WithParams(request.Params)
 }
 
-// ModerateText creates a ClientRequest for moderating a single text
+// ModerateWithText creates a ClientRequest for moderating a single text
 // This is a convenience method for simple moderation tasks
-func (c *Client) ModerateText(text string) *ClientRequest {
+func (c *Client) ModerateWithText(text string) *ClientRequest {
 	return c.
 		Moderate().
 		WithText(text)

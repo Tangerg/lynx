@@ -58,7 +58,7 @@ func TestClient_GeneratePrompt(t *testing.T) {
 	client := newImageClient()
 
 	img, _, err := client.
-		GeneratePrompt("an island").
+		GenerateWithPrompt("an island").
 		Call().
 		Image(context.Background())
 	if err != nil {
@@ -71,7 +71,7 @@ func TestClient_GenerateRequest(t *testing.T) {
 	client := newImageClient()
 
 	img, _, err := client.
-		GenerateRequest(assert.Must(image.NewRequest("an island"))).
+		GenerateWithRequest(assert.Must(image.NewRequest("an island"))).
 		Call().
 		Image(context.Background())
 	if err != nil {

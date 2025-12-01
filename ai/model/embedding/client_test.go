@@ -43,7 +43,7 @@ func newEmbeddingClient() *embedding.Client {
 func TestClient_EmbedText(t *testing.T) {
 	client := newEmbeddingClient()
 	embeddings, _, err := client.
-		EmbedText("test text").
+		EmbedWithText("test text").
 		Call().
 		Embedding(context.Background())
 	if err != nil {
@@ -55,7 +55,7 @@ func TestClient_EmbedText(t *testing.T) {
 func TestClient_EmbedTexts(t *testing.T) {
 	client := newEmbeddingClient()
 	embeddings, _, err := client.
-		EmbedTexts([]string{"test text1", "test text2"}).
+		EmbedWithTexts([]string{"test text1", "test text2"}).
 		Call().
 		Embeddings(context.Background())
 	if err != nil {

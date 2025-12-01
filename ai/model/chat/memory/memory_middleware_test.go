@@ -272,7 +272,7 @@ func TestMemoryMiddleware_Call_SingleTurn(t *testing.T) {
 
 	// First turn
 	text1, resp1, err := client.
-		ChatText("What is 2+2?").
+		ChatWithText("What is 2+2?").
 		WithParams(map[string]any{
 			ConversationIDKey: testConversationID,
 		}).
@@ -297,7 +297,7 @@ func TestMemoryMiddleware_Call_MultiTurn(t *testing.T) {
 
 	// First turn
 	text1, _, err := client.
-		ChatText("My name is Alice").
+		ChatWithText("My name is Alice").
 		WithParams(map[string]any{
 			ConversationIDKey: testConversationID,
 		}).
@@ -309,7 +309,7 @@ func TestMemoryMiddleware_Call_MultiTurn(t *testing.T) {
 
 	// Second turn - should remember name
 	text2, _, err := client.
-		ChatText("What is my name?").
+		ChatWithText("What is my name?").
 		WithParams(map[string]any{
 			ConversationIDKey: testConversationID,
 		}).
@@ -338,7 +338,7 @@ func TestMemoryMiddleware_Call_MultipleConversations(t *testing.T) {
 
 	// Conversation 1
 	_, _, err := client.
-		ChatText("My favorite color is blue").
+		ChatWithText("My favorite color is blue").
 		WithParams(map[string]any{
 			ConversationIDKey: conversationID1,
 		}).
@@ -348,7 +348,7 @@ func TestMemoryMiddleware_Call_MultipleConversations(t *testing.T) {
 
 	// Conversation 2
 	_, _, err = client.
-		ChatText("My favorite color is red").
+		ChatWithText("My favorite color is red").
 		WithParams(map[string]any{
 			ConversationIDKey: conversationID2,
 		}).
@@ -358,7 +358,7 @@ func TestMemoryMiddleware_Call_MultipleConversations(t *testing.T) {
 
 	// Ask about color in conversation 1
 	text1, _, err := client.
-		ChatText("What is my favorite color?").
+		ChatWithText("What is my favorite color?").
 		WithParams(map[string]any{
 			ConversationIDKey: conversationID1,
 		}).
@@ -369,7 +369,7 @@ func TestMemoryMiddleware_Call_MultipleConversations(t *testing.T) {
 
 	// Ask about color in conversation 2
 	text2, _, err := client.
-		ChatText("What is my favorite color?").
+		ChatWithText("What is my favorite color?").
 		WithParams(map[string]any{
 			ConversationIDKey: conversationID2,
 		}).
@@ -395,7 +395,7 @@ func TestMemoryMiddleware_Stream_SingleTurn(t *testing.T) {
 
 	var fullText string
 	for text, err := range client.
-		ChatText("Count from 1 to 5").
+		ChatWithText("Count from 1 to 5").
 		WithParams(map[string]any{
 			ConversationIDKey: testConversationID,
 		}).
@@ -424,7 +424,7 @@ func TestMemoryMiddleware_Stream_MultiTurn(t *testing.T) {
 	// First turn with streaming
 	var text1 string
 	for chunk, err := range client.
-		ChatText("My hobby is painting").
+		ChatWithText("My hobby is painting").
 		WithParams(map[string]any{
 			ConversationIDKey: testConversationID,
 		}).
@@ -439,7 +439,7 @@ func TestMemoryMiddleware_Stream_MultiTurn(t *testing.T) {
 	// Second turn - should remember hobby
 	var text2 string
 	for chunk, err := range client.
-		ChatText("What is my hobby?").
+		ChatWithText("What is my hobby?").
 		WithParams(map[string]any{
 			ConversationIDKey: testConversationID,
 		}).
@@ -467,7 +467,7 @@ func TestMemoryMiddleware_NoConversationID(t *testing.T) {
 
 	// First turn without conversation ID
 	text1, _, err := client.
-		ChatText("Hello").
+		ChatWithText("Hello").
 		Call().
 		Text(ctx)
 
@@ -476,7 +476,7 @@ func TestMemoryMiddleware_NoConversationID(t *testing.T) {
 
 	// Second turn - should not remember previous message
 	text2, _, err := client.
-		ChatText("What did I just say?").
+		ChatWithText("What did I just say?").
 		Call().
 		Text(ctx)
 
@@ -496,7 +496,7 @@ func TestMemoryMiddleware_ClearConversation(t *testing.T) {
 
 	// Create a conversation
 	_, _, err := client.
-		ChatText("Remember this: XYZ123").
+		ChatWithText("Remember this: XYZ123").
 		WithParams(map[string]any{
 			ConversationIDKey: testConversationID,
 		}).
@@ -520,7 +520,7 @@ func TestMemoryMiddleware_ClearConversation(t *testing.T) {
 
 	// New conversation should not remember cleared data
 	text, _, err := client.
-		ChatText("What did I ask you to remember?").
+		ChatWithText("What did I ask you to remember?").
 		WithParams(map[string]any{
 			ConversationIDKey: testConversationID,
 		}).
@@ -542,7 +542,7 @@ func TestMemoryMiddleware_Call_WithToolCall(t *testing.T) {
 
 	// First turn - tool call
 	text1, resp1, err := client.
-		ChatText("What's the weather in Beijing on May 1st, 2023?").
+		ChatWithText("What's the weather in Beijing on May 1st, 2023?").
 		WithTools(weatherTool).
 		WithParams(map[string]any{
 			ConversationIDKey: testConversationID,
@@ -581,7 +581,7 @@ func TestMemoryMiddleware_Call_WithToolCall(t *testing.T) {
 
 	// Second turn - should remember the weather query context
 	text2, _, err := client.
-		ChatText("Is it suitable for outdoor activities?").
+		ChatWithText("Is it suitable for outdoor activities?").
 		WithParams(map[string]any{
 			ConversationIDKey: testConversationID,
 		}).
@@ -611,7 +611,7 @@ func TestMemoryMiddleware_Call_MultipleToolCalls(t *testing.T) {
 
 	// First tool call - Beijing weather
 	text1, _, err := client.
-		ChatText("What's the weather in Beijing on May 1st, 2023?").
+		ChatWithText("What's the weather in Beijing on May 1st, 2023?").
 		WithTools(weatherTool).
 		WithParams(map[string]any{
 			ConversationIDKey: testConversationID,
@@ -624,7 +624,7 @@ func TestMemoryMiddleware_Call_MultipleToolCalls(t *testing.T) {
 
 	// Second tool call - Shanghai weather
 	text2, _, err := client.
-		ChatText("And what about Shanghai on the same day?").
+		ChatWithText("And what about Shanghai on the same day?").
 		WithTools(weatherTool).
 		WithParams(map[string]any{
 			ConversationIDKey: testConversationID,
@@ -637,7 +637,7 @@ func TestMemoryMiddleware_Call_MultipleToolCalls(t *testing.T) {
 
 	// Third turn - compare the two
 	text3, _, err := client.
-		ChatText("Which city has better weather for traveling?").
+		ChatWithText("Which city has better weather for traveling?").
 		WithParams(map[string]any{
 			ConversationIDKey: testConversationID,
 		}).
@@ -672,7 +672,7 @@ func TestMemoryMiddleware_Stream_WithToolCall(t *testing.T) {
 	// First turn - streaming with tool call
 	var text1 string
 	for chunk, err := range client.
-		ChatText("Check the weather in Tokyo on June 15th, 2023").
+		ChatWithText("Check the weather in Tokyo on June 15th, 2023").
 		WithTools(weatherTool).
 		WithParams(map[string]any{
 			ConversationIDKey: testConversationID,
@@ -696,7 +696,7 @@ func TestMemoryMiddleware_Stream_WithToolCall(t *testing.T) {
 	// Second turn - should remember the tool call context
 	var text2 string
 	for chunk, err := range client.
-		ChatText("What about the next day?").
+		ChatWithText("What about the next day?").
 		WithTools(weatherTool).
 		WithParams(map[string]any{
 			ConversationIDKey: testConversationID,
@@ -727,7 +727,7 @@ func TestMemoryMiddleware_ToolCallContextRetention(t *testing.T) {
 
 	// Step 1: Ask about weather (with tool)
 	text1, _, err := client.
-		ChatText("What's the temperature in Paris on July 14th, 2023?").
+		ChatWithText("What's the temperature in Paris on July 14th, 2023?").
 		WithTools(weatherTool).
 		WithParams(map[string]any{
 			ConversationIDKey: testConversationID,
@@ -740,7 +740,7 @@ func TestMemoryMiddleware_ToolCallContextRetention(t *testing.T) {
 
 	// Step 2: Ask follow-up without tool (should still have context)
 	text2, _, err := client.
-		ChatText("Is that temperature comfortable for walking?").
+		ChatWithText("Is that temperature comfortable for walking?").
 		WithParams(map[string]any{
 			ConversationIDKey: testConversationID,
 		}).
@@ -752,7 +752,7 @@ func TestMemoryMiddleware_ToolCallContextRetention(t *testing.T) {
 
 	// Step 3: Another follow-up
 	text3, _, err := client.
-		ChatText("Should I bring an umbrella?").
+		ChatWithText("Should I bring an umbrella?").
 		WithParams(map[string]any{
 			ConversationIDKey: testConversationID,
 		}).
@@ -800,7 +800,7 @@ func TestMemoryMiddleware_MixedToolAndNonToolConversation(t *testing.T) {
 
 	// Turn 1: Normal conversation (no tool)
 	_, _, err := client.
-		ChatText("Hello, I'm planning a trip").
+		ChatWithText("Hello, I'm planning a trip").
 		WithParams(map[string]any{
 			ConversationIDKey: testConversationID,
 		}).
@@ -810,7 +810,7 @@ func TestMemoryMiddleware_MixedToolAndNonToolConversation(t *testing.T) {
 
 	// Turn 2: With tool
 	text2, _, err := client.
-		ChatText("What's the weather in London on August 20th, 2023?").
+		ChatWithText("What's the weather in London on August 20th, 2023?").
 		WithTools(weatherTool).
 		WithParams(map[string]any{
 			ConversationIDKey: testConversationID,
@@ -822,7 +822,7 @@ func TestMemoryMiddleware_MixedToolAndNonToolConversation(t *testing.T) {
 
 	// Turn 3: Follow-up without tool
 	text3, _, err := client.
-		ChatText("Based on that weather, what should I pack?").
+		ChatWithText("Based on that weather, what should I pack?").
 		WithParams(map[string]any{
 			ConversationIDKey: testConversationID,
 		}).
@@ -833,7 +833,7 @@ func TestMemoryMiddleware_MixedToolAndNonToolConversation(t *testing.T) {
 
 	// Turn 4: Another tool call
 	text4, _, err := client.
-		ChatText("And what about Berlin on the same date?").
+		ChatWithText("And what about Berlin on the same date?").
 		WithTools(weatherTool).
 		WithParams(map[string]any{
 			ConversationIDKey: testConversationID,
@@ -845,7 +845,7 @@ func TestMemoryMiddleware_MixedToolAndNonToolConversation(t *testing.T) {
 
 	// Turn 5: Conclusion without tool
 	text5, _, err := client.
-		ChatText("Which city would you recommend?").
+		ChatWithText("Which city would you recommend?").
 		WithParams(map[string]any{
 			ConversationIDKey: testConversationID,
 		}).
@@ -881,7 +881,7 @@ func TestMemoryMiddleware_ToolCallAcrossConversations(t *testing.T) {
 
 	// Conversation 1: Check weather for vacation
 	text1a, _, err := client.
-		ChatText("What's the weather in Hawaii on December 25th, 2023?").
+		ChatWithText("What's the weather in Hawaii on December 25th, 2023?").
 		WithTools(weatherTool).
 		WithParams(map[string]any{
 			ConversationIDKey: conversationID1,
@@ -893,7 +893,7 @@ func TestMemoryMiddleware_ToolCallAcrossConversations(t *testing.T) {
 
 	// Conversation 2: Check weather for business trip
 	text2a, _, err := client.
-		ChatText("What's the weather in New York on December 25th, 2023?").
+		ChatWithText("What's the weather in New York on December 25th, 2023?").
 		WithTools(weatherTool).
 		WithParams(map[string]any{
 			ConversationIDKey: conversationID2,
@@ -905,7 +905,7 @@ func TestMemoryMiddleware_ToolCallAcrossConversations(t *testing.T) {
 
 	// Continue conversation 1 - should only know about Hawaii
 	text1b, _, err := client.
-		ChatText("Is it good for beach activities?").
+		ChatWithText("Is it good for beach activities?").
 		WithParams(map[string]any{
 			ConversationIDKey: conversationID1,
 		}).
@@ -916,7 +916,7 @@ func TestMemoryMiddleware_ToolCallAcrossConversations(t *testing.T) {
 
 	// Continue conversation 2 - should only know about New York
 	text2b, _, err := client.
-		ChatText("Should I bring a heavy coat?").
+		ChatWithText("Should I bring a heavy coat?").
 		WithParams(map[string]any{
 			ConversationIDKey: conversationID2,
 		}).
