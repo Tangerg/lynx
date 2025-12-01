@@ -61,6 +61,13 @@ func (t MessageType) IsTool() bool {
 type Message interface {
 	// Type returns the message type.
 	Type() MessageType
+
+	// Meta returns the metadata associated with this message.
+	// Metadata can include additional information such as timestamps, sender info,
+	// delivery status, or any custom key-value pairs that provide context about the message.
+	// Returns a map where keys are metadata field names and values can be of any type.
+	Meta() map[string]any
+
 	message()
 }
 
@@ -133,6 +140,13 @@ func (a *AssistantMessage) message() {}
 
 func (a *AssistantMessage) Type() MessageType {
 	return MessageTypeAssistant
+}
+
+func (a *AssistantMessage) Meta() map[string]any {
+	if a.Metadata == nil {
+		a.Metadata = make(map[string]any)
+	}
+	return a.Metadata
 }
 
 func (a *AssistantMessage) HasMedia() bool {
@@ -214,10 +228,17 @@ type SystemMessage struct {
 	Metadata map[string]any `json:"metadata"`
 }
 
-func (m *SystemMessage) message() {}
+func (s *SystemMessage) message() {}
 
-func (m *SystemMessage) Type() MessageType {
+func (s *SystemMessage) Type() MessageType {
 	return MessageTypeSystem
+}
+
+func (s *SystemMessage) Meta() map[string]any {
+	if s.Metadata == nil {
+		s.Metadata = make(map[string]any)
+	}
+	return s.Metadata
 }
 
 // NewSystemMessage creates a new system message using Go generics for type-safe parameter handling.
@@ -275,6 +296,13 @@ func (u *UserMessage) message() {}
 
 func (u *UserMessage) Type() MessageType {
 	return MessageTypeUser
+}
+
+func (u *UserMessage) Meta() map[string]any {
+	if u.Metadata == nil {
+		u.Metadata = make(map[string]any)
+	}
+	return u.Metadata
 }
 
 func (u *UserMessage) HasMedia() bool {
@@ -343,9 +371,15 @@ type ToolMessage struct {
 
 func (t *ToolMessage) message() {}
 
-// Type returns the message type as Tool.
 func (t *ToolMessage) Type() MessageType {
 	return MessageTypeTool
+}
+
+func (t *ToolMessage) Meta() map[string]any {
+	if t.Metadata == nil {
+		t.Metadata = make(map[string]any)
+	}
+	return t.Metadata
 }
 
 // NewToolMessage creates a new internalTool message using Go generics for type-safe parameter handling.

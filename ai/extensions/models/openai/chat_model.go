@@ -208,7 +208,7 @@ func (r *requestHelper) buildMsgs(msgs []chat.Message) []openai.ChatCompletionMe
 	return result
 }
 
-func (r *requestHelper) buildRequest(req *chat.Request) (*openai.ChatCompletionNewParams, error) {
+func (r *requestHelper) buildApiRequest(req *chat.Request) (*openai.ChatCompletionNewParams, error) {
 	params, err := r.buildParams(req.Options)
 	if err != nil {
 		return nil, err
@@ -311,7 +311,7 @@ func (r *responseHelper) buildMeta(req *openai.ChatCompletionNewParams, resp *op
 	return meta
 }
 
-func (r *responseHelper) buildResponse(req *openai.ChatCompletionNewParams, resp *openai.ChatCompletion) (*chat.Response, error) {
+func (r *responseHelper) buildChatResponse(req *openai.ChatCompletionNewParams, resp *openai.ChatCompletion) (*chat.Response, error) {
 	results, err := r.buildResults(req, resp)
 	if err != nil {
 		return nil, err
@@ -349,28 +349,9 @@ func NewChatModel(apiKey model.ApiKey, defaultOptions *chat.Options, opts ...opt
 		},
 	}, nil
 }
-func (c *ChatModel) buildApiChatRequest(req *chat.Request) (*openai.ChatCompletionNewParams, error) {
-	return c.reqHelper.buildRequest(req)
-}
 
-func (c *ChatModel) buildChatResponse(req *openai.ChatCompletionNewParams, resp *openai.ChatCompletion) (*chat.Response, error) {
-	return c.respHelper.buildResponse(req, resp)
-}
-
-func (c *ChatModel) buildToolSupport(req *chat.Request) *chat.ToolSupport {
-	support := chat.NewToolSupport()
-	support.RegisterTools(c.defaultOptions.Tools...)
-
-	// use custom tools to override default tools
-	if req.Options != nil {
-		support.RegisterTools(req.Options.Tools...)
-	}
-
-	return support
-}
-
-func (c *ChatModel) call(ctx context.Context, req *chat.Request, support *chat.ToolSupport) (*chat.Response, error) {
-	apiReq, err := c.buildApiChatRequest(req)
+func (c *ChatModel) Call(ctx context.Context, req *chat.Request) (*chat.Response, error) {
+	apiReq, err := c.reqHelper.buildApiRequest(req)
 	if err != nil {
 		return nil, err
 	}
@@ -380,134 +361,45 @@ func (c *ChatModel) call(ctx context.Context, req *chat.Request, support *chat.T
 		return nil, err
 	}
 
-	resp, err := c.buildChatResponse(apiReq, apiResp)
-	if err != nil {
-		return nil, err
-	}
-
-	shouldInvoke, err := support.ShouldInvokeToolCalls(resp)
-	if err != nil {
-		return nil, err
-	}
-	if !shouldInvoke {
-		return resp, nil
-	}
-
-	invokeResult, err := support.InvokeToolCalls(ctx, req, resp)
-	if err != nil {
-		return nil, err
-	}
-
-	if invokeResult.ShouldReturn() {
-		return invokeResult.BuildReturnResponse()
-	}
-
-	nextReq, err := invokeResult.BuildContinueRequest()
-	if err != nil {
-		return nil, err
-	}
-
-	return c.call(ctx, nextReq, support)
+	return c.respHelper.buildChatResponse(apiReq, apiResp)
 }
-
-func (c *ChatModel) stream(ctx context.Context, req *chat.Request, support *chat.ToolSupport, yield func(*chat.Response, error) bool) {
-	apiReq, err := c.buildApiChatRequest(req)
-	if err != nil {
-		yield(nil, err)
-		return
-	}
-
-	apiStream, err := c.api.ChatCompletionStream(ctx, apiReq)
-	if err != nil {
-		yield(nil, err)
-		return
-	}
-	defer apiStream.Close()
-
-	var (
-		fullAcc = openai.ChatCompletionAccumulator{}
-		resp    *chat.Response
-	)
-
-	for apiStream.Next() {
-		chunk := apiStream.Current()
-		chunkAcc := openai.ChatCompletionAccumulator{}
-		chunkAcc.AddChunk(chunk)
-
-		resp, err = c.buildChatResponse(apiReq, &chunkAcc.ChatCompletion)
+func (c *ChatModel) Stream(ctx context.Context, req *chat.Request) iter.Seq2[*chat.Response, error] {
+	return func(yield func(*chat.Response, error) bool) {
+		apiReq, err := c.reqHelper.buildApiRequest(req)
 		if err != nil {
 			yield(nil, err)
 			return
 		}
 
-		if !yield(resp, nil) {
+		apiStream, err := c.api.ChatCompletionStream(ctx, apiReq)
+		if err != nil {
+			yield(nil, err)
 			return
 		}
+		defer apiStream.Close()
 
-		fullAcc.AddChunk(chunk)
-	}
+		for apiStream.Next() {
+			err = apiStream.Err()
+			if err != nil {
+				yield(nil, err)
+				return
+			}
 
-	if err = apiStream.Err(); err != nil {
-		yield(nil, err)
-		return
-	}
+			chunk := apiStream.Current()
 
-	finalResp, err := c.buildChatResponse(apiReq, &fullAcc.ChatCompletion)
-	if err != nil {
-		yield(nil, err)
-		return
-	}
+			accumulator := openai.ChatCompletionAccumulator{}
+			accumulator.AddChunk(chunk)
 
-	shouldInvoke, err := support.ShouldInvokeToolCalls(finalResp)
-	if err != nil {
-		yield(nil, err)
-		return
-	}
-	if !shouldInvoke {
-		return
-	}
+			resp, err := c.respHelper.buildChatResponse(apiReq, &accumulator.ChatCompletion)
+			if err != nil {
+				yield(nil, err)
+				return
+			}
 
-	invokeResult, err := support.InvokeToolCalls(ctx, req, finalResp)
-	if err != nil {
-		yield(nil, err)
-		return
-	}
-
-	if invokeResult.ShouldReturn() {
-		yield(invokeResult.BuildReturnResponse())
-		return
-	}
-
-	nextReq, err := invokeResult.BuildContinueRequest()
-	if err != nil {
-		yield(nil, err)
-		return
-	}
-
-	_ = apiStream.Close()
-	c.stream(ctx, nextReq, support, yield)
-}
-
-func (c *ChatModel) Call(ctx context.Context, req *chat.Request) (*chat.Response, error) {
-	support := c.buildToolSupport(req)
-
-	if support.ShouldReturnDirect(req.Messages) {
-		return support.BuildReturnDirectResponse(req.Messages)
-	}
-
-	return c.call(ctx, req, support)
-}
-
-func (c *ChatModel) Stream(ctx context.Context, req *chat.Request) iter.Seq2[*chat.Response, error] {
-	return func(yield func(*chat.Response, error) bool) {
-		support := c.buildToolSupport(req)
-
-		if support.ShouldReturnDirect(req.Messages) {
-			yield(support.BuildReturnDirectResponse(req.Messages))
-			return
+			if !yield(resp, nil) {
+				return
+			}
 		}
-
-		c.stream(ctx, req, support, yield)
 	}
 }
 

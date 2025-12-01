@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"sync"
 
 	pkgSlices "github.com/Tangerg/lynx/pkg/slices"
@@ -311,8 +312,6 @@ func (r *ToolInvocationResult) ShouldReturn() bool {
 //
 // Called ONLY when no external tools exist and at least one internal tool
 // requires LLM integration (returnDirect=false).
-//
-// Note: This method mutates the original request by appending messages to its Messages slice.
 func (r *ToolInvocationResult) BuildContinueRequest() (*Request, error) {
 	if !r.ShouldContinue() {
 		return nil, errors.New("cannot build continuation request: should return directly")
@@ -332,10 +331,15 @@ func (r *ToolInvocationResult) BuildContinueRequest() (*Request, error) {
 		return nil, errors.New("result with tool calls is required")
 	}
 
-	r.request.Messages = append(r.request.Messages, result.AssistantMessage)
-	r.request.Messages = append(r.request.Messages, r.toolMessage)
+	msgs := append(r.request.Messages, result.AssistantMessage, r.toolMessage)
+	continueReq, err := NewRequest(msgs)
+	if err != nil {
+		return nil, err
+	}
+	continueReq.Options = r.request.Options.Clone()
+	continueReq.Params = maps.Clone(r.request.Params)
 
-	return r.request, nil
+	return continueReq, nil
 }
 
 // BuildReturnResponse constructs a chat response for direct return to client.
@@ -490,9 +494,7 @@ func (i *toolCallInvoker) invoke(ctx context.Context, req *Request, resp *Respon
 	}
 
 	// Tool calls result guaranteed by canInvokeToolCalls precheck
-	result := resp.findFirstResultWithToolCalls()
-
-	invResult, err := i.invokeToolCalls(ctx, result.AssistantMessage.ToolCalls)
+	invResult, err := i.invokeToolCalls(ctx, resp.findFirstResultWithToolCalls().AssistantMessage.ToolCalls)
 	if err != nil {
 		return nil, err
 	}

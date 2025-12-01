@@ -132,7 +132,7 @@ func TestNewPipelineMiddleware(t *testing.T) {
 	}
 }
 
-func TestPipelineMiddleware_executeRAG(t *testing.T) {
+func TestPipelineMiddleware_runPipeline(t *testing.T) {
 	tests := []struct {
 		name     string
 		config   *PipelineConfig
@@ -217,7 +217,7 @@ func TestPipelineMiddleware_executeRAG(t *testing.T) {
 			}
 
 			ctx := context.Background()
-			query, docs, err := middleware.executeRAG(ctx, tt.request)
+			query, docs, err := middleware.runPipeline(ctx, tt.request)
 
 			if tt.wantErr {
 				assert.Error(t, err)
@@ -231,7 +231,7 @@ func TestPipelineMiddleware_executeRAG(t *testing.T) {
 	}
 }
 
-func TestPipelineMiddleware_handleCall(t *testing.T) {
+func TestPipelineMiddleware_executeCall(t *testing.T) {
 	tests := []struct {
 		name     string
 		config   *PipelineConfig
@@ -326,7 +326,7 @@ func TestPipelineMiddleware_handleCall(t *testing.T) {
 			}
 
 			ctx := context.Background()
-			response, err := middleware.handleCall(ctx, tt.request, tt.handler)
+			response, err := middleware.executeCall(ctx, tt.request, tt.handler)
 
 			if tt.wantErr {
 				assert.Error(t, err)
@@ -340,7 +340,7 @@ func TestPipelineMiddleware_handleCall(t *testing.T) {
 	}
 }
 
-func TestPipelineMiddleware_handleStream(t *testing.T) {
+func TestPipelineMiddleware_executeStream(t *testing.T) {
 	tests := []struct {
 		name     string
 		config   *PipelineConfig
@@ -475,7 +475,7 @@ func TestPipelineMiddleware_handleStream(t *testing.T) {
 			}
 
 			ctx := context.Background()
-			stream := middleware.handleStream(ctx, tt.request, tt.handler)
+			stream := middleware.executeStream(ctx, tt.request, tt.handler)
 
 			var responses []*chat.Response
 			var streamErr error

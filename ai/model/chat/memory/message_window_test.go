@@ -1,4 +1,4 @@
-package chat
+package memory
 
 import (
 	"context"
@@ -8,6 +8,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/Tangerg/lynx/ai/model/chat"
 )
 
 // TestNewMessageWindowMemory tests the constructor
@@ -119,7 +121,7 @@ func TestWrite(t *testing.T) {
 		inner := NewInMemoryMemory()
 		memory, _ := NewMessageWindowMemory(inner, 10)
 
-		msg := NewUserMessage("Hello")
+		msg := chat.NewUserMessage("Hello")
 		err := memory.Write(ctx, "conv1", msg)
 
 		require.NoError(t, err)
@@ -132,9 +134,9 @@ func TestWrite(t *testing.T) {
 		inner := NewInMemoryMemory()
 		memory, _ := NewMessageWindowMemory(inner, 15)
 
-		msg1 := NewUserMessage("First")
-		msg2 := NewAssistantMessage("Second")
-		msg3 := NewUserMessage("Third")
+		msg1 := chat.NewUserMessage("First")
+		msg2 := chat.NewAssistantMessage("Second")
+		msg3 := chat.NewUserMessage("Third")
 
 		err := memory.Write(ctx, "conv1", msg1, msg2, msg3)
 		require.NoError(t, err)
@@ -147,7 +149,7 @@ func TestWrite(t *testing.T) {
 		inner := NewInMemoryMemory()
 		memory, _ := NewMessageWindowMemory(inner, 20)
 
-		msg := NewUserMessage("Test")
+		msg := chat.NewUserMessage("Test")
 		memory.Write(ctx, "conv1", msg)
 
 		// Verify inner memory has the message
@@ -175,7 +177,7 @@ func TestRead_WithinLimit(t *testing.T) {
 		memory, _ := NewMessageWindowMemory(inner, 20)
 
 		for i := 0; i < 15; i++ {
-			memory.Write(ctx, "conv1", NewUserMessage("message"))
+			memory.Write(ctx, "conv1", chat.NewUserMessage("message"))
 		}
 
 		messages, _ := memory.Read(ctx, "conv1")
@@ -187,7 +189,7 @@ func TestRead_WithinLimit(t *testing.T) {
 		memory, _ := NewMessageWindowMemory(inner, 10)
 
 		for i := 0; i < 10; i++ {
-			memory.Write(ctx, "conv1", NewUserMessage("message"))
+			memory.Write(ctx, "conv1", chat.NewUserMessage("message"))
 		}
 
 		messages, _ := memory.Read(ctx, "conv1")
@@ -198,7 +200,7 @@ func TestRead_WithinLimit(t *testing.T) {
 		inner := NewInMemoryMemory()
 		memory, _ := NewMessageWindowMemory(inner, 100)
 
-		memory.Write(ctx, "conv1", NewUserMessage("message"))
+		memory.Write(ctx, "conv1", chat.NewUserMessage("message"))
 
 		messages, _ := memory.Read(ctx, "conv1")
 		assert.Len(t, messages, 1)
@@ -215,7 +217,7 @@ func TestRead_ExceedingLimit(t *testing.T) {
 
 		// Write 15 messages (exceeds minimum limit)
 		for i := 0; i < 15; i++ {
-			memory.Write(ctx, "conv1", NewUserMessage("message"))
+			memory.Write(ctx, "conv1", chat.NewUserMessage("message"))
 		}
 
 		messages, _ := memory.Read(ctx, "conv1")
@@ -228,7 +230,7 @@ func TestRead_ExceedingLimit(t *testing.T) {
 
 		// Write 75 messages
 		for i := 0; i < 75; i++ {
-			memory.Write(ctx, "conv1", NewUserMessage("message"))
+			memory.Write(ctx, "conv1", chat.NewUserMessage("message"))
 		}
 
 		messages, _ := memory.Read(ctx, "conv1")
@@ -241,7 +243,7 @@ func TestRead_ExceedingLimit(t *testing.T) {
 
 		// Write 150 messages
 		for i := 0; i < 150; i++ {
-			memory.Write(ctx, "conv1", NewUserMessage("message"))
+			memory.Write(ctx, "conv1", chat.NewUserMessage("message"))
 		}
 
 		messages, _ := memory.Read(ctx, "conv1")
@@ -254,7 +256,7 @@ func TestRead_ExceedingLimit(t *testing.T) {
 
 		// Write messages
 		for i := 0; i < 25; i++ {
-			memory.Write(ctx, "conv1", NewUserMessage("message"))
+			memory.Write(ctx, "conv1", chat.NewUserMessage("message"))
 		}
 
 		messages, _ := memory.Read(ctx, "conv1")
@@ -262,7 +264,7 @@ func TestRead_ExceedingLimit(t *testing.T) {
 
 		// All messages should be user messages
 		for _, msg := range messages {
-			assert.Equal(t, MessageTypeUser, msg.Type())
+			assert.Equal(t, chat.MessageTypeUser, msg.Type())
 		}
 	})
 }
@@ -275,45 +277,45 @@ func TestRead_WithSystemMessages(t *testing.T) {
 		inner := NewInMemoryMemory()
 		memory, _ := NewMessageWindowMemory(inner, 20)
 
-		sysMsg := NewSystemMessage("You are a helpful assistant")
+		sysMsg := chat.NewSystemMessage("You are a helpful assistant")
 		memory.Write(ctx, "conv1", sysMsg)
 
 		for i := 0; i < 15; i++ {
-			memory.Write(ctx, "conv1", NewUserMessage("message"))
+			memory.Write(ctx, "conv1", chat.NewUserMessage("message"))
 		}
 
 		messages, _ := memory.Read(ctx, "conv1")
 		assert.Len(t, messages, 16)
-		assert.Equal(t, MessageTypeSystem, messages[0].Type())
+		assert.Equal(t, chat.MessageTypeSystem, messages[0].Type())
 	})
 
 	t.Run("preserves single system message exceeding limit", func(t *testing.T) {
 		inner := NewInMemoryMemory()
 		memory, _ := NewMessageWindowMemory(inner, 10)
 
-		sysMsg := NewSystemMessage("You are a helpful assistant")
+		sysMsg := chat.NewSystemMessage("You are a helpful assistant")
 		memory.Write(ctx, "conv1", sysMsg)
 
 		for i := 0; i < 20; i++ {
-			memory.Write(ctx, "conv1", NewUserMessage("message"))
+			memory.Write(ctx, "conv1", chat.NewUserMessage("message"))
 		}
 
 		messages, _ := memory.Read(ctx, "conv1")
 		assert.Len(t, messages, 10)
-		assert.Equal(t, MessageTypeSystem, messages[0].Type())
+		assert.Equal(t, chat.MessageTypeSystem, messages[0].Type())
 	})
 
 	t.Run("merges multiple system messages", func(t *testing.T) {
 		inner := NewInMemoryMemory()
 		memory, _ := NewMessageWindowMemory(inner, 15)
 
-		sysMsg1 := NewSystemMessage("First instruction")
-		sysMsg2 := NewSystemMessage("Second instruction")
+		sysMsg1 := chat.NewSystemMessage("First instruction")
+		sysMsg2 := chat.NewSystemMessage("Second instruction")
 		memory.Write(ctx, "conv1", sysMsg1)
 		memory.Write(ctx, "conv1", sysMsg2)
 
 		for i := 0; i < 20; i++ {
-			memory.Write(ctx, "conv1", NewUserMessage("message"))
+			memory.Write(ctx, "conv1", chat.NewUserMessage("message"))
 		}
 
 		messages, _ := memory.Read(ctx, "conv1")
@@ -322,7 +324,7 @@ func TestRead_WithSystemMessages(t *testing.T) {
 		// Should have one merged system message
 		systemCount := 0
 		for _, msg := range messages {
-			if msg.Type() == MessageTypeSystem {
+			if msg.Type() == chat.MessageTypeSystem {
 				systemCount++
 			}
 		}
@@ -333,11 +335,11 @@ func TestRead_WithSystemMessages(t *testing.T) {
 		inner := NewInMemoryMemory()
 		memory, _ := NewMessageWindowMemory(inner, 10)
 
-		sysMsg := NewSystemMessage("System")
+		sysMsg := chat.NewSystemMessage("System")
 		memory.Write(ctx, "conv1", sysMsg)
 
 		for i := 0; i < 20; i++ {
-			memory.Write(ctx, "conv1", NewUserMessage("message"))
+			memory.Write(ctx, "conv1", chat.NewUserMessage("message"))
 		}
 
 		messages, _ := memory.Read(ctx, "conv1")
@@ -347,9 +349,9 @@ func TestRead_WithSystemMessages(t *testing.T) {
 		systemCount := 0
 		userCount := 0
 		for _, msg := range messages {
-			if msg.Type() == MessageTypeSystem {
+			if msg.Type() == chat.MessageTypeSystem {
 				systemCount++
-			} else if msg.Type() == MessageTypeUser {
+			} else if msg.Type() == chat.MessageTypeUser {
 				userCount++
 			}
 		}
@@ -361,11 +363,11 @@ func TestRead_WithSystemMessages(t *testing.T) {
 		inner := NewInMemoryMemory()
 		memory, _ := NewMessageWindowMemory(inner, 100)
 
-		sysMsg := NewSystemMessage("System")
+		sysMsg := chat.NewSystemMessage("System")
 		memory.Write(ctx, "conv1", sysMsg)
 
 		for i := 0; i < 120; i++ {
-			memory.Write(ctx, "conv1", NewUserMessage("message"))
+			memory.Write(ctx, "conv1", chat.NewUserMessage("message"))
 		}
 
 		messages, _ := memory.Read(ctx, "conv1")
@@ -375,9 +377,9 @@ func TestRead_WithSystemMessages(t *testing.T) {
 		systemCount := 0
 		userCount := 0
 		for _, msg := range messages {
-			if msg.Type() == MessageTypeSystem {
+			if msg.Type() == chat.MessageTypeSystem {
 				systemCount++
-			} else if msg.Type() == MessageTypeUser {
+			} else if msg.Type() == chat.MessageTypeUser {
 				userCount++
 			}
 		}
@@ -394,20 +396,20 @@ func TestRead_WithMixedMessageTypes(t *testing.T) {
 		inner := NewInMemoryMemory()
 		memory, _ := NewMessageWindowMemory(inner, 20)
 
-		sysMsg := NewSystemMessage("System")
+		sysMsg := chat.NewSystemMessage("System")
 		memory.Write(ctx, "conv1", sysMsg)
 
 		// Add user and assistant messages
 		for i := 0; i < 15; i++ {
 			memory.Write(ctx, "conv1",
-				NewUserMessage("question"),
-				NewAssistantMessage("answer"),
+				chat.NewUserMessage("question"),
+				chat.NewAssistantMessage("answer"),
 			)
 		}
 
 		messages, _ := memory.Read(ctx, "conv1")
 		assert.Len(t, messages, 20)
-		assert.Equal(t, MessageTypeSystem, messages[0].Type())
+		assert.Equal(t, chat.MessageTypeSystem, messages[0].Type())
 	})
 
 	t.Run("handles tool messages", func(t *testing.T) {
@@ -415,35 +417,35 @@ func TestRead_WithMixedMessageTypes(t *testing.T) {
 		memory, _ := NewMessageWindowMemory(inner, 15)
 
 		// Add various message types
-		memory.Write(ctx, "conv1", NewSystemMessage("System"))
-		memory.Write(ctx, "conv1", NewUserMessage("What's the weather?"))
+		memory.Write(ctx, "conv1", chat.NewSystemMessage("System"))
+		memory.Write(ctx, "conv1", chat.NewUserMessage("What's the weather?"))
 
-		toolCall := &ToolCall{
+		toolCall := &chat.ToolCall{
 			ID:        "call_123",
 			Name:      "get_weather",
 			Arguments: `{"location": "NYC"}`,
 		}
-		memory.Write(ctx, "conv1", NewAssistantMessage([]*ToolCall{toolCall}))
+		memory.Write(ctx, "conv1", chat.NewAssistantMessage([]*chat.ToolCall{toolCall}))
 
-		toolReturn := &ToolReturn{
+		toolReturn := &chat.ToolReturn{
 			ID:     "call_123",
 			Name:   "get_weather",
 			Result: `{"temp": 72}`,
 		}
-		toolMsg, _ := NewToolMessage([]*ToolReturn{toolReturn})
+		toolMsg, _ := chat.NewToolMessage([]*chat.ToolReturn{toolReturn})
 		memory.Write(ctx, "conv1", toolMsg)
 
-		memory.Write(ctx, "conv1", NewAssistantMessage("It's 72°F"))
+		memory.Write(ctx, "conv1", chat.NewAssistantMessage("It's 72°F"))
 
 		messages, _ := memory.Read(ctx, "conv1")
 		assert.Len(t, messages, 5)
 
 		// Verify order: system, user, assistant (with tool), tool, assistant
-		assert.Equal(t, MessageTypeSystem, messages[0].Type())
-		assert.Equal(t, MessageTypeUser, messages[1].Type())
-		assert.Equal(t, MessageTypeAssistant, messages[2].Type())
-		assert.Equal(t, MessageTypeTool, messages[3].Type())
-		assert.Equal(t, MessageTypeAssistant, messages[4].Type())
+		assert.Equal(t, chat.MessageTypeSystem, messages[0].Type())
+		assert.Equal(t, chat.MessageTypeUser, messages[1].Type())
+		assert.Equal(t, chat.MessageTypeAssistant, messages[2].Type())
+		assert.Equal(t, chat.MessageTypeTool, messages[3].Type())
+		assert.Equal(t, chat.MessageTypeAssistant, messages[4].Type())
 	})
 
 	t.Run("complete conversation flow with window", func(t *testing.T) {
@@ -451,12 +453,12 @@ func TestRead_WithMixedMessageTypes(t *testing.T) {
 		memory, _ := NewMessageWindowMemory(inner, 12)
 
 		// Write a conversation that exceeds the limit
-		memory.Write(ctx, "conv1", NewSystemMessage("System"))
+		memory.Write(ctx, "conv1", chat.NewSystemMessage("System"))
 
 		for i := 0; i < 10; i++ {
 			memory.Write(ctx, "conv1",
-				NewUserMessage("question"),
-				NewAssistantMessage("answer"),
+				chat.NewUserMessage("question"),
+				chat.NewAssistantMessage("answer"),
 			)
 		}
 
@@ -464,40 +466,40 @@ func TestRead_WithMixedMessageTypes(t *testing.T) {
 		assert.Len(t, messages, 12)
 
 		// Should have: 1 system + 11 recent non-system messages
-		assert.Equal(t, MessageTypeSystem, messages[0].Type())
+		assert.Equal(t, chat.MessageTypeSystem, messages[0].Type())
 	})
 
 	t.Run("conversation with tool calls exceeding limit", func(t *testing.T) {
 		inner := NewInMemoryMemory()
 		memory, _ := NewMessageWindowMemory(inner, 30)
 
-		memory.Write(ctx, "conv1", NewSystemMessage("System"))
+		memory.Write(ctx, "conv1", chat.NewSystemMessage("System"))
 
 		// Add 20 complete tool call cycles
 		for i := 0; i < 20; i++ {
-			memory.Write(ctx, "conv1", NewUserMessage("question"))
+			memory.Write(ctx, "conv1", chat.NewUserMessage("question"))
 
-			toolCall := &ToolCall{
+			toolCall := &chat.ToolCall{
 				ID:        "call_123",
 				Name:      "test",
 				Arguments: `{}`,
 			}
-			memory.Write(ctx, "conv1", NewAssistantMessage([]*ToolCall{toolCall}))
+			memory.Write(ctx, "conv1", chat.NewAssistantMessage([]*chat.ToolCall{toolCall}))
 
-			toolReturn := &ToolReturn{
+			toolReturn := &chat.ToolReturn{
 				ID:     "call_123",
 				Name:   "test",
 				Result: "result",
 			}
-			toolMsg, _ := NewToolMessage([]*ToolReturn{toolReturn})
+			toolMsg, _ := chat.NewToolMessage([]*chat.ToolReturn{toolReturn})
 			memory.Write(ctx, "conv1", toolMsg)
 
-			memory.Write(ctx, "conv1", NewAssistantMessage("answer"))
+			memory.Write(ctx, "conv1", chat.NewAssistantMessage("answer"))
 		}
 
 		messages, _ := memory.Read(ctx, "conv1")
 		assert.Len(t, messages, 30)
-		assert.Equal(t, MessageTypeSystem, messages[0].Type())
+		assert.Equal(t, chat.MessageTypeSystem, messages[0].Type())
 	})
 }
 
@@ -510,28 +512,28 @@ func TestRead_EdgeCases(t *testing.T) {
 		memory, _ := NewMessageWindowMemory(inner, 15)
 
 		for i := 0; i < 10; i++ {
-			memory.Write(ctx, "conv1", NewSystemMessage("system"))
+			memory.Write(ctx, "conv1", chat.NewSystemMessage("system"))
 		}
 
 		messages, _ := memory.Read(ctx, "conv1")
 		assert.Len(t, messages, 1) // Merged into one
-		assert.Equal(t, MessageTypeSystem, messages[0].Type())
+		assert.Equal(t, chat.MessageTypeSystem, messages[0].Type())
 	})
 
 	t.Run("exactly one message per type", func(t *testing.T) {
 		inner := NewInMemoryMemory()
 		memory, _ := NewMessageWindowMemory(inner, 10)
 
-		memory.Write(ctx, "conv1", NewSystemMessage("system"))
-		memory.Write(ctx, "conv1", NewUserMessage("user"))
-		memory.Write(ctx, "conv1", NewAssistantMessage("assistant"))
+		memory.Write(ctx, "conv1", chat.NewSystemMessage("system"))
+		memory.Write(ctx, "conv1", chat.NewUserMessage("user"))
+		memory.Write(ctx, "conv1", chat.NewAssistantMessage("assistant"))
 
-		toolReturn := &ToolReturn{
+		toolReturn := &chat.ToolReturn{
 			ID:     "1",
 			Name:   "test",
 			Result: "result",
 		}
-		toolMsg, _ := NewToolMessage([]*ToolReturn{toolReturn})
+		toolMsg, _ := chat.NewToolMessage([]*chat.ToolReturn{toolReturn})
 		memory.Write(ctx, "conv1", toolMsg)
 
 		messages, _ := memory.Read(ctx, "conv1")
@@ -542,20 +544,20 @@ func TestRead_EdgeCases(t *testing.T) {
 		inner := NewInMemoryMemory()
 		memory, _ := NewMessageWindowMemory(inner, 10)
 
-		memory.Write(ctx, "conv1", NewSystemMessage("system"))
+		memory.Write(ctx, "conv1", chat.NewSystemMessage("system"))
 
 		for i := 0; i < 10; i++ {
-			memory.Write(ctx, "conv1", NewUserMessage("message"))
+			memory.Write(ctx, "conv1", chat.NewUserMessage("message"))
 		}
 
 		messages, _ := memory.Read(ctx, "conv1")
 		assert.Len(t, messages, 10)
-		assert.Equal(t, MessageTypeSystem, messages[0].Type())
+		assert.Equal(t, chat.MessageTypeSystem, messages[0].Type())
 
 		// Should have 9 user messages (10 - 1 system)
 		userCount := 0
 		for _, msg := range messages {
-			if msg.Type() == MessageTypeUser {
+			if msg.Type() == chat.MessageTypeUser {
 				userCount++
 			}
 		}
@@ -566,20 +568,20 @@ func TestRead_EdgeCases(t *testing.T) {
 		inner := NewInMemoryMemory()
 		memory, _ := NewMessageWindowMemory(inner, 10)
 
-		memory.Write(ctx, "conv1", NewSystemMessage("system"))
+		memory.Write(ctx, "conv1", chat.NewSystemMessage("system"))
 
 		for i := 0; i < 11; i++ {
-			memory.Write(ctx, "conv1", NewUserMessage("message"))
+			memory.Write(ctx, "conv1", chat.NewUserMessage("message"))
 		}
 
 		messages, _ := memory.Read(ctx, "conv1")
 		assert.Len(t, messages, 10)
-		assert.Equal(t, MessageTypeSystem, messages[0].Type())
+		assert.Equal(t, chat.MessageTypeSystem, messages[0].Type())
 
 		// Should have 9 user messages
 		userCount := 0
 		for _, msg := range messages {
-			if msg.Type() == MessageTypeUser {
+			if msg.Type() == chat.MessageTypeUser {
 				userCount++
 			}
 		}
@@ -590,15 +592,15 @@ func TestRead_EdgeCases(t *testing.T) {
 		inner := NewInMemoryMemory()
 		memory, _ := NewMessageWindowMemory(inner, 100)
 
-		memory.Write(ctx, "conv1", NewSystemMessage("system"))
+		memory.Write(ctx, "conv1", chat.NewSystemMessage("system"))
 
 		for i := 0; i < 200; i++ {
-			memory.Write(ctx, "conv1", NewUserMessage("message"))
+			memory.Write(ctx, "conv1", chat.NewUserMessage("message"))
 		}
 
 		messages, _ := memory.Read(ctx, "conv1")
 		assert.Len(t, messages, 100)
-		assert.Equal(t, MessageTypeSystem, messages[0].Type())
+		assert.Equal(t, chat.MessageTypeSystem, messages[0].Type())
 	})
 }
 
@@ -610,7 +612,7 @@ func TestClear(t *testing.T) {
 		inner := NewInMemoryMemory()
 		memory, _ := NewMessageWindowMemory(inner, 15)
 
-		memory.Write(ctx, "conv1", NewUserMessage("message"))
+		memory.Write(ctx, "conv1", chat.NewUserMessage("message"))
 		memory.Clear(ctx, "conv1")
 
 		messages, _ := memory.Read(ctx, "conv1")
@@ -629,7 +631,7 @@ func TestClear(t *testing.T) {
 		inner := NewInMemoryMemory()
 		memory, _ := NewMessageWindowMemory(inner, 25)
 
-		memory.Write(ctx, "conv1", NewUserMessage("message"))
+		memory.Write(ctx, "conv1", chat.NewUserMessage("message"))
 		memory.Clear(ctx, "conv1")
 
 		// Verify inner memory is also cleared
@@ -641,9 +643,9 @@ func TestClear(t *testing.T) {
 		inner := NewInMemoryMemory()
 		memory, _ := NewMessageWindowMemory(inner, 30)
 
-		memory.Write(ctx, "conv1", NewUserMessage("first"))
+		memory.Write(ctx, "conv1", chat.NewUserMessage("first"))
 		memory.Clear(ctx, "conv1")
-		memory.Write(ctx, "conv1", NewUserMessage("second"))
+		memory.Write(ctx, "conv1", chat.NewUserMessage("second"))
 
 		messages, _ := memory.Read(ctx, "conv1")
 		assert.Len(t, messages, 1)
@@ -660,12 +662,12 @@ func TestMultipleConversations(t *testing.T) {
 
 		// Fill conv1 beyond limit
 		for i := 0; i < 25; i++ {
-			memory.Write(ctx, "conv1", NewUserMessage("conv1"))
+			memory.Write(ctx, "conv1", chat.NewUserMessage("conv1"))
 		}
 
 		// Fill conv2 within limit
 		for i := 0; i < 10; i++ {
-			memory.Write(ctx, "conv2", NewUserMessage("conv2"))
+			memory.Write(ctx, "conv2", chat.NewUserMessage("conv2"))
 		}
 
 		messages1, _ := memory.Read(ctx, "conv1")
@@ -679,8 +681,8 @@ func TestMultipleConversations(t *testing.T) {
 		inner := NewInMemoryMemory()
 		memory, _ := NewMessageWindowMemory(inner, 20)
 
-		memory.Write(ctx, "conv1", NewUserMessage("conv1"))
-		memory.Write(ctx, "conv2", NewUserMessage("conv2"))
+		memory.Write(ctx, "conv1", chat.NewUserMessage("conv1"))
+		memory.Write(ctx, "conv2", chat.NewUserMessage("conv2"))
 
 		memory.Clear(ctx, "conv1")
 
@@ -699,8 +701,8 @@ func TestMultipleConversations(t *testing.T) {
 		memory2, _ := NewMessageWindowMemory(inner2, 50)
 
 		for i := 0; i < 60; i++ {
-			memory1.Write(ctx, "conv1", NewUserMessage("message"))
-			memory2.Write(ctx, "conv1", NewUserMessage("message"))
+			memory1.Write(ctx, "conv1", chat.NewUserMessage("message"))
+			memory2.Write(ctx, "conv1", chat.NewUserMessage("message"))
 		}
 
 		messages1, _ := memory1.Read(ctx, "conv1")
@@ -728,7 +730,7 @@ func TestConcurrentOperations(t *testing.T) {
 			go func() {
 				defer wg.Done()
 				for j := 0; j < messagesPerGoroutine; j++ {
-					memory.Write(ctx, "conv1", NewUserMessage("message"))
+					memory.Write(ctx, "conv1", chat.NewUserMessage("message"))
 				}
 			}()
 		}
@@ -747,7 +749,7 @@ func TestConcurrentOperations(t *testing.T) {
 
 		// Initialize with some data
 		for i := 0; i < 10; i++ {
-			memory.Write(ctx, "conv1", NewUserMessage("init"))
+			memory.Write(ctx, "conv1", chat.NewUserMessage("init"))
 		}
 
 		// Concurrent operations
@@ -756,7 +758,7 @@ func TestConcurrentOperations(t *testing.T) {
 
 			go func() {
 				defer wg.Done()
-				memory.Write(ctx, "conv1", NewUserMessage("writer"))
+				memory.Write(ctx, "conv1", chat.NewUserMessage("writer"))
 			}()
 
 			go func() {
@@ -782,7 +784,7 @@ func TestConcurrentOperations(t *testing.T) {
 
 			go func(id string) {
 				defer wg.Done()
-				memory.Write(ctx, id, NewUserMessage("message"))
+				memory.Write(ctx, id, chat.NewUserMessage("message"))
 			}(convID)
 
 			go func(id string) {
@@ -808,15 +810,15 @@ func TestApplySlidingWindow(t *testing.T) {
 	memory, _ := NewMessageWindowMemory(inner, 15)
 
 	t.Run("empty input", func(t *testing.T) {
-		result := memory.applySlidingWindow([]Message{})
+		result := memory.applySlidingWindow([]chat.Message{})
 		assert.Empty(t, result)
 	})
 
 	t.Run("input within limit", func(t *testing.T) {
-		messages := []Message{
-			NewUserMessage("1"),
-			NewUserMessage("2"),
-			NewUserMessage("3"),
+		messages := []chat.Message{
+			chat.NewUserMessage("1"),
+			chat.NewUserMessage("2"),
+			chat.NewUserMessage("3"),
 		}
 
 		result := memory.applySlidingWindow(messages)
@@ -824,9 +826,9 @@ func TestApplySlidingWindow(t *testing.T) {
 	})
 
 	t.Run("input exceeds limit with no system messages", func(t *testing.T) {
-		messages := make([]Message, 25)
+		messages := make([]chat.Message, 25)
 		for i := 0; i < 25; i++ {
-			messages[i] = NewUserMessage("message")
+			messages[i] = chat.NewUserMessage("message")
 		}
 
 		result := memory.applySlidingWindow(messages)
@@ -834,18 +836,18 @@ func TestApplySlidingWindow(t *testing.T) {
 	})
 
 	t.Run("input exceeds limit with system messages", func(t *testing.T) {
-		messages := []Message{
-			NewSystemMessage("sys1"),
-			NewSystemMessage("sys2"),
+		messages := []chat.Message{
+			chat.NewSystemMessage("sys1"),
+			chat.NewSystemMessage("sys2"),
 		}
 
 		for i := 0; i < 20; i++ {
-			messages = append(messages, NewUserMessage("message"))
+			messages = append(messages, chat.NewUserMessage("message"))
 		}
 
 		result := memory.applySlidingWindow(messages)
 		assert.Len(t, result, 15)
-		assert.Equal(t, MessageTypeSystem, result[0].Type())
+		assert.Equal(t, chat.MessageTypeSystem, result[0].Type())
 	})
 }
 
@@ -872,7 +874,7 @@ func TestErrorPropagation(t *testing.T) {
 
 		memory, _ := NewMessageWindowMemory(failingMemory, 25)
 
-		err := memory.Write(ctx, "conv1", NewUserMessage("test"))
+		err := memory.Write(ctx, "conv1", chat.NewUserMessage("test"))
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "write failed")
 	})
@@ -897,18 +899,18 @@ type failingMemory struct {
 	clearError error
 }
 
-func (f *failingMemory) Write(ctx context.Context, conversationID string, messages ...Message) error {
+func (f *failingMemory) Write(ctx context.Context, conversationID string, messages ...chat.Message) error {
 	if f.writeError != nil {
 		return f.writeError
 	}
 	return nil
 }
 
-func (f *failingMemory) Read(ctx context.Context, conversationID string) ([]Message, error) {
+func (f *failingMemory) Read(ctx context.Context, conversationID string) ([]chat.Message, error) {
 	if f.readError != nil {
 		return nil, f.readError
 	}
-	return []Message{}, nil
+	return []chat.Message{}, nil
 }
 
 func (f *failingMemory) Clear(ctx context.Context, conversationID string) error {
@@ -926,7 +928,7 @@ func BenchmarkMessageWindowRead(b *testing.B) {
 
 	// Prepare data
 	for i := 0; i < 100; i++ {
-		memory.Write(ctx, "bench", NewUserMessage("test"))
+		memory.Write(ctx, "bench", chat.NewUserMessage("test"))
 	}
 
 	b.ResetTimer()
@@ -940,7 +942,7 @@ func BenchmarkMessageWindowWrite(b *testing.B) {
 	ctx := context.Background()
 	inner := NewInMemoryMemory()
 	memory, _ := NewMessageWindowMemory(inner, 50)
-	msg := NewUserMessage("benchmark")
+	msg := chat.NewUserMessage("benchmark")
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -954,10 +956,10 @@ func BenchmarkApplySlidingWindow(b *testing.B) {
 	memory, _ := NewMessageWindowMemory(inner, 50)
 
 	// Prepare messages
-	messages := make([]Message, 100)
-	messages[0] = NewSystemMessage("system")
+	messages := make([]chat.Message, 100)
+	messages[0] = chat.NewSystemMessage("system")
 	for i := 1; i < 100; i++ {
-		messages[i] = NewUserMessage("message")
+		messages[i] = chat.NewUserMessage("message")
 	}
 
 	b.ResetTimer()
@@ -978,7 +980,7 @@ func BenchmarkReadWithDifferentLimits(b *testing.B) {
 
 			// Prepare data exceeding the limit
 			for i := 0; i < limit*2; i++ {
-				memory.Write(ctx, "bench", NewUserMessage("test"))
+				memory.Write(ctx, "bench", chat.NewUserMessage("test"))
 			}
 
 			b.ResetTimer()

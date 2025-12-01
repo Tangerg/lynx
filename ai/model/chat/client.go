@@ -292,12 +292,23 @@ type ClientStreamer struct {
 }
 
 // stream runs the streaming chat operation through the middleware chain.
+// ToolMiddleware is automatically injected at the outermost layer to ensure
+// tool execution is handled correctly and visible to all other middlewares.
 func (s *ClientStreamer) stream(ctx context.Context, req *Request) iter.Seq2[*Response, error] {
-	return s.
-		request.
-		MiddlewareManager().
-		BuildStreamHandler(s.request.model).
-		Stream(ctx, req)
+	// Build the base handler chain from user-configured middlewares
+	streamHandler := s.request.MiddlewareManager().BuildStreamHandler(s.request.model)
+
+	// Wrap with ToolMiddleware at the outermost layer
+	// This ensures:
+	//   1. Tool execution happens before other middlewares
+	//   2. All middlewares can observe tool execution process
+	//   3. User cannot accidentally disable tool execution
+	if len(req.Options.Tools) > 0 {
+		_, streamMW := NewToolMiddleware()
+		streamHandler = streamMW(streamHandler)
+	}
+
+	return streamHandler.Stream(ctx, req)
 }
 
 // response performs the streaming chat operation with optional structured parsing.
@@ -354,12 +365,23 @@ type ClientCaller struct {
 }
 
 // call executes the synchronous chat operation through the middleware chain.
+// ToolMiddleware is automatically injected at the outermost layer to ensure
+// tool execution is handled correctly and visible to all other middlewares.
 func (c *ClientCaller) call(ctx context.Context, req *Request) (*Response, error) {
-	return c.
-		request.
-		MiddlewareManager().
-		BuildCallHandler(c.request.model).
-		Call(ctx, req)
+	// Build the base handler chain from user-configured middlewares
+	callHandler := c.request.MiddlewareManager().BuildCallHandler(c.request.model)
+
+	// Wrap with ToolMiddleware at the outermost layer
+	// This ensures:
+	//   1. Tool execution happens before other middlewares
+	//   2. All middlewares can observe tool execution process
+	//   3. User cannot accidentally disable tool execution
+	if len(req.Options.Tools) > 0 {
+		callMW, _ := NewToolMiddleware()
+		callHandler = callMW(callHandler)
+	}
+
+	return callHandler.Call(ctx, req)
 }
 
 // response performs the chat operation with optional structured parsing.

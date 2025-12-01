@@ -215,7 +215,7 @@ func TestChatModel_Stream(t *testing.T) {
 
 			stream := model.Stream(ctx, req)
 			chunkCount := 0
-			var lastResponse *chat.Response
+			accumulator := chat.NewResponseAccumulator()
 
 			for resp, err := range stream {
 				if err != nil && !tt.wantErr {
@@ -237,18 +237,29 @@ func TestChatModel_Stream(t *testing.T) {
 				}
 
 				chunkCount++
+				accumulator.AddChunk(resp)
+
 				responseText := result.AssistantMessage.Text
 				t.Logf("Chunk %d: %s", chunkCount, responseText)
-
-				lastResponse = resp
 			}
 
 			if !tt.wantErr && chunkCount == 0 {
 				t.Error("expected at least one chunk")
 			}
 
-			if lastResponse != nil && lastResponse.Metadata == nil {
-				t.Error("expected non-nil metadata in last response")
+			finalResponse := &accumulator.Response
+			if finalResponse.Metadata == nil {
+				t.Error("expected non-nil metadata in accumulated response")
+			}
+
+			finalResult := finalResponse.Result()
+			if finalResult != nil && finalResult.AssistantMessage != nil {
+				fullText := finalResult.AssistantMessage.Text
+				t.Logf("Accumulated full text: %s", fullText)
+
+				if fullText == "" {
+					t.Error("expected non-empty accumulated text")
+				}
 			}
 
 			t.Logf("Total chunks received: %d", chunkCount)
@@ -265,26 +276,29 @@ func TestChatModel_Call_Tool(t *testing.T) {
 	toolOptions.Tools = []chat.Tool{weatherTool}
 
 	tests := []struct {
-		name     string
-		messages []chat.Message
-		options  *chat.Options
-		wantErr  bool
+		name          string
+		messages      []chat.Message
+		options       *chat.Options
+		wantErr       bool
+		expectToolUse bool
 	}{
 		{
-			name: "weather query with tool",
+			name: "weather query with tool - should return tool call",
 			messages: []chat.Message{
 				chat.NewUserMessage(weatherQuery),
 			},
-			options: toolOptions,
-			wantErr: false,
+			options:       toolOptions,
+			wantErr:       false,
+			expectToolUse: true,
 		},
 		{
-			name: "non-tool query with tool available",
+			name: "non-tool query with tool available - should not use tool",
 			messages: []chat.Message{
 				chat.NewUserMessage("What is the capital of France?"),
 			},
-			options: toolOptions,
-			wantErr: false,
+			options:       toolOptions,
+			wantErr:       false,
+			expectToolUse: false,
 		},
 	}
 
@@ -319,16 +333,52 @@ func TestChatModel_Call_Tool(t *testing.T) {
 				t.Fatal("expected non-nil result")
 			}
 
-			responseText := result.AssistantMessage.Text
-			t.Logf("Response: %s", responseText)
-
 			toolCalls := result.AssistantMessage.ToolCalls
-			if len(toolCalls) > 0 {
-				t.Logf("Tool calls made: %d", len(toolCalls))
-				for i, tc := range toolCalls {
-					t.Logf("Tool call %d - ID: %s, Name: %s", i, tc.ID, tc.Name)
-					t.Logf("Tool call %d - Arguments: %s", i, tc.Arguments)
+
+			if tt.expectToolUse {
+				if len(toolCalls) == 0 {
+					t.Error("expected tool calls but got none")
+				} else {
+					t.Logf("✅ Model returned %d tool call(s)", len(toolCalls))
+					for i, tc := range toolCalls {
+						t.Logf("  Tool call %d:", i+1)
+						t.Logf("    ID: %s", tc.ID)
+						t.Logf("    Name: %s", tc.Name)
+						t.Logf("    Arguments: %s", tc.Arguments)
+
+						if tc.Name != weatherTool.Definition().Name {
+							t.Errorf("expected tool name %q, got %q",
+								weatherTool.Definition().Name, tc.Name)
+						}
+
+						if tc.ID == "" {
+							t.Error("tool call ID should not be empty")
+						}
+						if tc.Arguments == "" {
+							t.Error("tool call arguments should not be empty")
+						}
+					}
 				}
+
+				if result.Metadata.FinishReason != chat.FinishReasonToolCalls {
+					t.Errorf("expected finish reason %q, got %q",
+						chat.FinishReasonToolCalls, result.Metadata.FinishReason)
+				}
+			} else {
+				if len(toolCalls) > 0 {
+					t.Logf("⚠️ Unexpected tool calls (model decided to use tools):")
+					for i, tc := range toolCalls {
+						t.Logf("  Tool call %d: %s", i+1, tc.Name)
+					}
+				} else {
+					t.Logf("✅ No tool calls as expected")
+				}
+
+				responseText := result.AssistantMessage.Text
+				if responseText == "" && len(toolCalls) == 0 {
+					t.Error("expected either text response or tool calls")
+				}
+				t.Logf("Response: %s", responseText)
 			}
 		})
 	}
@@ -343,18 +393,20 @@ func TestChatModel_Stream_Tool(t *testing.T) {
 	toolOptions.Tools = []chat.Tool{weatherTool}
 
 	tests := []struct {
-		name     string
-		messages []chat.Message
-		options  *chat.Options
-		wantErr  bool
+		name          string
+		messages      []chat.Message
+		options       *chat.Options
+		wantErr       bool
+		expectToolUse bool
 	}{
 		{
-			name: "streaming weather query with tool",
+			name: "streaming weather query with tool - should return tool call",
 			messages: []chat.Message{
 				chat.NewUserMessage(weatherQuery),
 			},
-			options: toolOptions,
-			wantErr: false,
+			options:       toolOptions,
+			wantErr:       false,
+			expectToolUse: true,
 		},
 	}
 
@@ -369,7 +421,7 @@ func TestChatModel_Stream_Tool(t *testing.T) {
 
 			stream := model.Stream(ctx, req)
 			chunkCount := 0
-			hasToolCalls := false
+			accumulator := chat.NewResponseAccumulator()
 
 			for resp, err := range stream {
 				if err != nil && !tt.wantErr {
@@ -390,23 +442,61 @@ func TestChatModel_Stream_Tool(t *testing.T) {
 				}
 
 				chunkCount++
+				accumulator.AddChunk(resp)
 
 				toolCalls := result.AssistantMessage.ToolCalls
 				if len(toolCalls) > 0 {
-					hasToolCalls = true
-					for _, tc := range toolCalls {
-						t.Logf("Tool call - ID: %s, Name: %s", tc.ID, tc.Name)
-						t.Logf("Tool call - Arguments: %s", tc.Arguments)
+					t.Logf("Chunk %d - Tool calls: %d", chunkCount, len(toolCalls))
+					for i, tc := range toolCalls {
+						t.Logf("  Tool call %d: ID=%s, Name=%s", i+1, tc.ID, tc.Name)
+						if tc.Arguments != "" {
+							t.Logf("  Arguments: %s", tc.Arguments)
+						}
 					}
 				}
 
 				responseText := result.AssistantMessage.Text
 				if responseText != "" {
-					t.Logf("Chunk %d: %s", chunkCount, responseText)
+					t.Logf("Chunk %d - Text: %s", chunkCount, responseText)
 				}
 			}
 
-			t.Logf("Total chunks: %d, Tool calls detected: %v", chunkCount, hasToolCalls)
+			finalResponse := &accumulator.Response
+			finalResult := finalResponse.Result()
+
+			if tt.expectToolUse {
+				finalToolCalls := finalResult.AssistantMessage.ToolCalls
+				if len(finalToolCalls) == 0 {
+					t.Error("expected tool calls in accumulated response but got none")
+				} else {
+					t.Logf("✅ Accumulated response contains %d tool call(s)", len(finalToolCalls))
+					for i, tc := range finalToolCalls {
+						t.Logf("  Accumulated tool call %d:", i+1)
+						t.Logf("    ID: %s", tc.ID)
+						t.Logf("    Name: %s", tc.Name)
+						t.Logf("    Arguments: %s", tc.Arguments)
+
+						if tc.Name != weatherTool.Definition().Name {
+							t.Errorf("expected tool name %q, got %q",
+								weatherTool.Definition().Name, tc.Name)
+						}
+
+						if tc.ID == "" {
+							t.Error("accumulated tool call ID should not be empty")
+						}
+						if tc.Arguments == "" {
+							t.Error("accumulated tool call arguments should not be empty")
+						}
+					}
+
+					if finalResult.Metadata.FinishReason != chat.FinishReasonToolCalls {
+						t.Errorf("expected finish reason %q, got %q",
+							chat.FinishReasonToolCalls, finalResult.Metadata.FinishReason)
+					}
+				}
+			}
+
+			t.Logf("Total chunks: %d", chunkCount)
 		})
 	}
 }
