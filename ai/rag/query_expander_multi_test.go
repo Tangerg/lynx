@@ -74,7 +74,7 @@ func TestMultiExpanderConfig_validate(t *testing.T) {
 				ChatModel:       chatModel,
 				NumberOfQueries: 2,
 				PromptTemplate: chat.NewPromptTemplate().
-					WithTemplate("Synthesize {{.Number}} variants for: {{.Query}}"),
+					WithTemplate("Generate {{.Number}} variants for: {{.Query}}"),
 			},
 			wantErr: false,
 		},
@@ -84,7 +84,7 @@ func TestMultiExpanderConfig_validate(t *testing.T) {
 				ChatModel:       chatModel,
 				NumberOfQueries: 3,
 				PromptTemplate: chat.NewPromptTemplate().
-					WithTemplate("Synthesize variants for: {{.Query}}"),
+					WithTemplate("Generate variants for: {{.Query}}"),
 			},
 			wantErr: true,
 		},
@@ -94,7 +94,7 @@ func TestMultiExpanderConfig_validate(t *testing.T) {
 				ChatModel:       chatModel,
 				NumberOfQueries: 3,
 				PromptTemplate: chat.NewPromptTemplate().
-					WithTemplate("Synthesize {{.Number}} variants"),
+					WithTemplate("Generate {{.Number}} variants"),
 			},
 			wantErr: true,
 		},
@@ -258,7 +258,7 @@ func TestMultiExpander_Expand(t *testing.T) {
 				ChatModel:       chatModel,
 				NumberOfQueries: 2,
 				PromptTemplate: chat.NewPromptTemplate().
-					WithTemplate(`Synthesize {{.Number}} alternative search queries for: {{.Query}}
+					WithTemplate(`Generate {{.Number}} alternative search queries for: {{.Query}}
 Provide only the queries, one per line.`),
 			},
 			query:   mustCreateQuery(t, "deep learning applications"),

@@ -45,10 +45,10 @@
 //	┌─────────────────────────────────────────────────────────────┐
 //	│ Stage 2: Query Expansion (One to Many)                      │
 //	│                                                              │
-//	│ Purpose: Synthesize query variants to improve recall          │
+//	│ Purpose: Generate query variants to improve recall          │
 //	│ Examples:                                                    │
 //	│  • Rephrase from different perspectives                     │
-//	│  • Synthesize semantically similar questions                  │
+//	│  • Generate semantically similar questions                  │
 //	│  • Break down complex queries into sub-questions            │
 //	│                                                              │
 //	│ Flow: single query → [variant 1, variant 2, ..., variant N]│

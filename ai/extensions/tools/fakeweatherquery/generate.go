@@ -205,7 +205,7 @@ func GenerateFakeWeatherResponse(req *WeatherRequest) (*WeatherResponse, error) 
 	coords := generateCoordinates(req.Location, rng)
 	seasonal := getSeasonalPattern(zone)
 
-	// Synthesize base temperature
+	// Generate base temperature
 	month := int(targetDate.Month())
 	hour := targetDate.Hour()
 	baseTemp := getBaseTemperature(month, zone, coords.Latitude)
@@ -218,63 +218,63 @@ func GenerateFakeWeatherResponse(req *WeatherRequest) (*WeatherResponse, error) 
 	elevationEffect := -int(float64(coords.Elevation) * 0.006)
 	currentTemp += elevationEffect
 
-	// Synthesize temperature range
+	// Generate temperature range
 	minTemp := currentTemp - 3 - rng.IntN(5)
 	maxTemp := currentTemp + 3 + rng.IntN(5)
 
-	// Synthesize weather conditions
+	// Generate weather conditions
 	conditions := getReasonableConditions(currentTemp, month, zone, seasonal)
 	condition := conditions[rng.IntN(len(conditions))]
 
-	// Synthesize wind information
+	// Generate wind information
 	wind := generateWind(condition, zone, coords, rng)
 
-	// Synthesize humidity
+	// Generate humidity
 	humidity := generateHumidity(condition, zone, month, seasonal, rng)
 
 	// Calculate feels like temperature
 	feelsLike := calculateFeelsLike(currentTemp, humidity, wind.Speed)
 
-	// Synthesize pressure (standard pressure 1013 hPa, considering elevation and weather)
+	// Generate pressure (standard pressure 1013 hPa, considering elevation and weather)
 	pressure := generatePressure(coords.Elevation, condition, rng)
 
-	// Synthesize visibility
+	// Generate visibility
 	visibility := generateVisibility(condition, humidity, rng)
 
-	// Synthesize cloud cover
+	// Generate cloud cover
 	cloudCover := generateCloudCover(condition, rng)
 
 	// Calculate dew point temperature
 	dewPoint := calculateDewPoint(currentTemp, humidity)
 
-	// Synthesize precipitation information
+	// Generate precipitation information
 	var precipitation *Precipitation
 	if needsPrecipitation(condition) {
 		precipitation = generatePrecipitation(condition, currentTemp, month, seasonal, rng)
 	}
 
-	// Synthesize air quality
+	// Generate air quality
 	var airQuality *AirQuality
 	if req.IncludeAirQuality {
 		airQuality = generateAirQuality(req.Location, condition, zone, rng)
 	}
 
-	// Synthesize UV index
+	// Generate UV index
 	uvIndex := generateUVIndex(month, coords.Latitude, condition, cloudCover, rng)
 
-	// Synthesize astronomical information
+	// Generate astronomical information
 	astronomy := generateAstronomy(targetDate, coords, rng)
 
-	// Synthesize hourly forecast
+	// Generate hourly forecast
 	var hourlyForecast []HourlyForecast
 	if req.IncludeHourly {
 		hourlyForecast = generateHourlyForecast(targetDate, baseTemp, condition, zone, rng)
 	}
 
-	// Synthesize weather alerts
+	// Generate weather alerts
 	alerts := generateWeatherAlerts(condition, currentTemp, wind.Speed, zone, targetDate, rng)
 
-	// Synthesize detailed description
+	// Generate detailed description
 	description := generateWeatherDescription(condition, currentTemp, wind, humidity, precipitation)
 
 	// Time range
@@ -618,7 +618,7 @@ func generatePrecipitation(condition string, temp int, month int, seasonal Seaso
 		precip.Probability = min(100, precip.Probability+15)
 	}
 
-	// Synthesize precipitation amount
+	// Generate precipitation amount
 	switch condition {
 	case "Stormy":
 		precip.Amount = 20.0 + rng.Float64()*40.0
@@ -707,7 +707,7 @@ func generateAirQuality(location string, condition string, zone ClimateZone, rng
 		aq.Description = "Health warning of emergency conditions: everyone is more likely to be affected."
 	}
 
-	// Synthesize pollutant concentrations
+	// Generate pollutant concentrations
 	aq.PM25 = int(float64(aq.AQI) * 0.5 * (1 + rng.Float64()*0.4))
 	aq.PM10 = int(float64(aq.PM25) * 1.5 * (1 + rng.Float64()*0.3))
 	aq.Ozone = 20 + rng.IntN(80)

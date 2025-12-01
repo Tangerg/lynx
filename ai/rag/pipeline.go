@@ -210,7 +210,7 @@ func (p *Pipeline) augmentQuery(ctx context.Context, query *Query, docs []*docum
 //
 // Pipeline stages:
 //  1. Transform: Apply query transformations
-//  2. Expand: Synthesize multiple query variants
+//  2. Expand: Generate multiple query variants
 //  3. Retrieve: Fetch documents from all retrievers
 //  4. Refine: Filter and rank documents
 //  5. Augment: Enhance query with document context
