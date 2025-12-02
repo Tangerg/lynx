@@ -11,47 +11,47 @@ import (
 // TestReadAll_BasicFunctionality tests basic reading functionality
 func TestReadAll_BasicFunctionality(t *testing.T) {
 	tests := []struct {
-		name       string
-		input      string
-		bufferSize int
-		want       string
+		name     string
+		input    string
+		capacity int
+		want     string
 	}{
 		{
-			name:       "simple text",
-			input:      "hello world",
-			bufferSize: 128,
-			want:       "hello world",
+			name:     "simple text",
+			input:    "hello world",
+			capacity: 128,
+			want:     "hello world",
 		},
 		{
-			name:       "empty string",
-			input:      "",
-			bufferSize: 128,
-			want:       "",
+			name:     "empty string",
+			input:    "",
+			capacity: 128,
+			want:     "",
 		},
 		{
-			name:       "single character",
-			input:      "a",
-			bufferSize: 128,
-			want:       "a",
+			name:     "single character",
+			input:    "a",
+			capacity: 128,
+			want:     "a",
 		},
 		{
-			name:       "with newlines",
-			input:      "line1\nline2\nline3",
-			bufferSize: 128,
-			want:       "line1\nline2\nline3",
+			name:     "with newlines",
+			input:    "line1\nline2\nline3",
+			capacity: 128,
+			want:     "line1\nline2\nline3",
 		},
 		{
-			name:       "with special characters",
-			input:      "hello\t\r\n\x00world",
-			bufferSize: 128,
-			want:       "hello\t\r\n\x00world",
+			name:     "with special characters",
+			input:    "hello\t\r\n\x00world",
+			capacity: 128,
+			want:     "hello\t\r\n\x00world",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			reader := strings.NewReader(tt.input)
-			got, err := ReadAll(reader, tt.bufferSize)
+			got, err := ReadAll(reader, tt.capacity)
 
 			if err != nil {
 				t.Errorf("ReadAll() error = %v, want nil", err)
@@ -65,53 +65,53 @@ func TestReadAll_BasicFunctionality(t *testing.T) {
 	}
 }
 
-// TestReadAll_BufferSizes tests different buffer sizes
-func TestReadAll_BufferSizes(t *testing.T) {
+// TestReadAll_BufferCapacities tests different buffer capacities
+func TestReadAll_BufferCapacities(t *testing.T) {
 	input := "hello world"
 
 	tests := []struct {
 		name       string
-		bufferSize []int
+		capacities []int
 		want       string
 	}{
 		{
-			name:       "default buffer size (no arg)",
-			bufferSize: nil,
+			name:       "default capacity (no arg)",
+			capacities: nil,
 			want:       input,
 		},
 		{
-			name:       "default buffer size (zero)",
-			bufferSize: []int{0},
+			name:       "default capacity (zero)",
+			capacities: []int{0},
 			want:       input,
 		},
 		{
-			name:       "small buffer (1 byte)",
-			bufferSize: []int{1},
+			name:       "small capacity (1 byte)",
+			capacities: []int{1},
 			want:       input,
 		},
 		{
-			name:       "small buffer (4 bytes)",
-			bufferSize: []int{4},
+			name:       "small capacity (4 bytes)",
+			capacities: []int{4},
 			want:       input,
 		},
 		{
-			name:       "exact size buffer",
-			bufferSize: []int{len(input)},
+			name:       "exact size capacity",
+			capacities: []int{len(input)},
 			want:       input,
 		},
 		{
-			name:       "large buffer",
-			bufferSize: []int{1024},
+			name:       "large capacity",
+			capacities: []int{1024},
 			want:       input,
 		},
 		{
-			name:       "very large buffer",
-			bufferSize: []int{1024 * 1024},
+			name:       "very large capacity",
+			capacities: []int{1024 * 1024},
 			want:       input,
 		},
 		{
 			name:       "multiple values (first is used)",
-			bufferSize: []int{128, 256, 512},
+			capacities: []int{128, 256, 512},
 			want:       input,
 		},
 	}
@@ -119,7 +119,7 @@ func TestReadAll_BufferSizes(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			reader := strings.NewReader(input)
-			got, err := ReadAll(reader, tt.bufferSize...)
+			got, err := ReadAll(reader, tt.capacities...)
 
 			if err != nil {
 				t.Errorf("ReadAll() error = %v, want nil", err)
@@ -133,11 +133,11 @@ func TestReadAll_BufferSizes(t *testing.T) {
 	}
 }
 
-// TestReadAll_NegativeBufferSize tests panic on negative buffer size
-func TestReadAll_NegativeBufferSize(t *testing.T) {
+// TestReadAll_NegativeCapacity tests panic on negative capacity
+func TestReadAll_NegativeCapacity(t *testing.T) {
 	tests := []struct {
-		name       string
-		bufferSize int
+		name     string
+		capacity int
 	}{
 		{"negative one", -1},
 		{"negative small", -10},
@@ -148,12 +148,12 @@ func TestReadAll_NegativeBufferSize(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			defer func() {
 				if r := recover(); r == nil {
-					t.Error("expected panic for negative buffer size, but didn't panic")
+					t.Error("expected panic for negative capacity, but didn't panic")
 				}
 			}()
 
 			reader := strings.NewReader("test")
-			_, _ = ReadAll(reader, tt.bufferSize)
+			_, _ = ReadAll(reader, tt.capacity)
 		})
 	}
 }
@@ -161,14 +161,14 @@ func TestReadAll_NegativeBufferSize(t *testing.T) {
 // TestReadAll_LargeData tests reading large amounts of data
 func TestReadAll_LargeData(t *testing.T) {
 	tests := []struct {
-		name       string
-		dataSize   int
-		bufferSize int
+		name     string
+		dataSize int
+		capacity int
 	}{
-		{"1KB data, small buffer", 1024, 16},
-		{"10KB data, small buffer", 10 * 1024, 64},
-		{"100KB data, medium buffer", 100 * 1024, 512},
-		{"1MB data, large buffer", 1024 * 1024, 4096},
+		{"1KB data, small capacity", 1024, 16},
+		{"10KB data, small capacity", 10 * 1024, 64},
+		{"100KB data, medium capacity", 100 * 1024, 512},
+		{"1MB data, large capacity", 1024 * 1024, 4096},
 	}
 
 	for _, tt := range tests {
@@ -177,7 +177,7 @@ func TestReadAll_LargeData(t *testing.T) {
 			data := bytes.Repeat([]byte("a"), tt.dataSize)
 			reader := bytes.NewReader(data)
 
-			got, err := ReadAll(reader, tt.bufferSize)
+			got, err := ReadAll(reader, tt.capacity)
 
 			if err != nil {
 				t.Errorf("ReadAll() error = %v, want nil", err)
@@ -197,11 +197,11 @@ func TestReadAll_LargeData(t *testing.T) {
 
 // TestReadAll_BufferGrowth tests buffer growth behavior
 func TestReadAll_BufferGrowth(t *testing.T) {
-	// Create data larger than initial buffer
+	// Create data larger than initial capacity
 	largeData := strings.Repeat("x", 2000)
 	reader := strings.NewReader(largeData)
 
-	got, err := ReadAll(reader, 10) // Very small initial buffer
+	got, err := ReadAll(reader, 10) // Very small initial capacity
 
 	if err != nil {
 		t.Errorf("ReadAll() error = %v, want nil", err)
@@ -376,14 +376,14 @@ func TestReadAll_MultipleReads(t *testing.T) {
 	data := []byte("test data for multiple reads")
 
 	tests := []struct {
-		name       string
-		readSize   int
-		bufferSize int
+		name     string
+		readSize int
+		capacity int
 	}{
-		{"small reads, small buffer", 1, 4},
-		{"small reads, large buffer", 1, 128},
-		{"medium reads, small buffer", 5, 4},
-		{"large reads, small buffer", 20, 4},
+		{"small reads, small capacity", 1, 4},
+		{"small reads, large capacity", 1, 128},
+		{"medium reads, small capacity", 5, 4},
+		{"large reads, small capacity", 20, 4},
 	}
 
 	for _, tt := range tests {
@@ -393,7 +393,7 @@ func TestReadAll_MultipleReads(t *testing.T) {
 				readSize: tt.readSize,
 			}
 
-			got, err := ReadAll(reader, tt.bufferSize)
+			got, err := ReadAll(reader, tt.capacity)
 
 			if err != nil {
 				t.Errorf("ReadAll() error = %v, want nil", err)
@@ -438,40 +438,353 @@ func TestReadAll_Comparison(t *testing.T) {
 	}
 }
 
-// BenchmarkReadAll benchmarks ReadAll with different buffer sizes
-func BenchmarkReadAll(b *testing.B) {
-	data := bytes.Repeat([]byte("x"), 10*1024) // 10KB
+// TestRead_BasicFunctionality tests basic iterator functionality
+func TestRead_BasicFunctionality(t *testing.T) {
+	tests := []struct {
+		name       string
+		input      string
+		bufferSize int
+		maxReads   int
+		wantChunks []string
+	}{
+		{
+			name:       "simple text",
+			input:      "hello world",
+			bufferSize: 128,
+			maxReads:   1,
+			wantChunks: []string{"hello world"},
+		},
+		{
+			name:       "empty string",
+			input:      "",
+			bufferSize: 128,
+			maxReads:   1,
+			wantChunks: []string{""},
+		},
+		{
+			name:       "small buffer multiple reads",
+			input:      "hello",
+			bufferSize: 2,
+			maxReads:   3,
+			wantChunks: []string{"he", "ll", "o"},
+		},
+	}
 
-	sizes := []int{16, 64, 128, 512, 1024, 4096}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			reader := strings.NewReader(tt.input)
+			iter := Read(reader, tt.bufferSize)
 
-	for _, size := range sizes {
-		b.Run("buffer_"+string(rune(size)), func(b *testing.B) {
-			b.ReportAllocs()
-			for i := 0; i < b.N; i++ {
-				reader := bytes.NewReader(data)
-				_, _ = ReadAll(reader, size)
+			chunks := make([]string, 0, tt.maxReads)
+			count := 0
+
+			for data, err := range iter {
+				if err != nil && err != io.EOF {
+					t.Errorf("Read() unexpected error = %v", err)
+					return
+				}
+
+				chunks = append(chunks, string(data))
+				count++
+
+				if count >= tt.maxReads {
+					break
+				}
+			}
+
+			if len(chunks) != len(tt.wantChunks) {
+				t.Errorf("Read() chunks count = %d, want %d", len(chunks), len(tt.wantChunks))
+				return
+			}
+
+			for i, chunk := range chunks {
+				if chunk != tt.wantChunks[i] {
+					t.Errorf("Read() chunk[%d] = %q, want %q", i, chunk, tt.wantChunks[i])
+				}
 			}
 		})
 	}
 }
 
-// BenchmarkReadAll_vsStdLib compares performance with standard library
-func BenchmarkReadAll_vsStdLib(b *testing.B) {
-	data := bytes.Repeat([]byte("x"), 10*1024)
+// TestRead_BufferSizes tests different buffer sizes
+func TestRead_BufferSizes(t *testing.T) {
+	input := "test data"
 
-	b.Run("custom_implementation", func(b *testing.B) {
-		b.ReportAllocs()
-		for i := 0; i < b.N; i++ {
-			reader := bytes.NewReader(data)
-			_, _ = ReadAll(reader, 512)
+	tests := []struct {
+		name        string
+		bufferSizes []int
+	}{
+		{
+			name:        "default size (no arg)",
+			bufferSizes: nil,
+		},
+		{
+			name:        "default size (zero)",
+			bufferSizes: []int{0},
+		},
+		{
+			name:        "small size",
+			bufferSizes: []int{1},
+		},
+		{
+			name:        "medium size",
+			bufferSizes: []int{64},
+		},
+		{
+			name:        "large size",
+			bufferSizes: []int{1024},
+		},
+		{
+			name:        "multiple values (first is used)",
+			bufferSizes: []int{128, 256, 512},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			reader := strings.NewReader(input)
+			iter := Read(reader, tt.bufferSizes...)
+
+			count := 0
+			for _, err := range iter {
+				if err != nil && err != io.EOF {
+					t.Errorf("Read() unexpected error = %v", err)
+					return
+				}
+				count++
+				if count >= 1 {
+					break
+				}
+			}
+
+			if count == 0 {
+				t.Error("Read() should yield at least one chunk")
+			}
+		})
+	}
+}
+
+// TestRead_NegativeBufferSize tests panic on negative buffer size
+func TestRead_NegativeBufferSize(t *testing.T) {
+	tests := []struct {
+		name       string
+		bufferSize int
+	}{
+		{"negative one", -1},
+		{"negative small", -10},
+		{"negative large", -1024},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			defer func() {
+				if r := recover(); r == nil {
+					t.Error("expected panic for negative buffer size, but didn't panic")
+				}
+			}()
+
+			reader := strings.NewReader("test")
+			_ = Read(reader, tt.bufferSize)
+		})
+	}
+}
+
+// TestRead_EarlyBreak tests iterator early termination
+func TestRead_EarlyBreak(t *testing.T) {
+	largeData := strings.Repeat("x", 1000)
+	reader := strings.NewReader(largeData)
+	iter := Read(reader, 10)
+
+	count := 0
+	maxReads := 5
+
+	for range iter {
+		count++
+		if count >= maxReads {
+			break
+		}
+	}
+
+	if count != maxReads {
+		t.Errorf("Read() count = %d, want %d", count, maxReads)
+	}
+}
+
+// TestRead_EOF tests EOF handling
+func TestRead_EOF(t *testing.T) {
+	t.Run("EOF converted to nil", func(t *testing.T) {
+		reader := strings.NewReader("test")
+		iter := Read(reader, 128)
+
+		count := 0
+		for _, err := range iter {
+			if err != nil {
+				t.Errorf("Read() error = %v, want nil (EOF should be converted)", err)
+			}
+			count++
+			if count >= 2 {
+				break
+			}
 		}
 	})
 
-	b.Run("standard_library", func(b *testing.B) {
-		b.ReportAllocs()
-		for i := 0; i < b.N; i++ {
-			reader := bytes.NewReader(data)
-			_, _ = io.ReadAll(reader)
+	t.Run("empty reader", func(t *testing.T) {
+		reader := strings.NewReader("")
+		iter := Read(reader, 128)
+
+		count := 0
+		for data, err := range iter {
+			if err != nil {
+				t.Errorf("Read() error = %v, want nil", err)
+			}
+			if len(data) != 0 {
+				t.Errorf("Read() data length = %d, want 0", len(data))
+			}
+			count++
+			if count >= 1 {
+				break
+			}
 		}
 	})
+}
+
+// TestRead_BinaryData tests reading binary data
+func TestRead_BinaryData(t *testing.T) {
+	tests := []struct {
+		name string
+		data []byte
+	}{
+		{
+			name: "all zeros",
+			data: make([]byte, 50),
+		},
+		{
+			name: "all ones",
+			data: bytes.Repeat([]byte{0xFF}, 50),
+		},
+		{
+			name: "mixed binary",
+			data: []byte{0x00, 0x01, 0x02, 0xFE, 0xFF},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			reader := bytes.NewReader(tt.data)
+			iter := Read(reader, 10)
+
+			var result []byte
+			count := 0
+			maxReads := (len(tt.data) + 9) / 10 // Calculate expected chunks
+
+			for data, err := range iter {
+				if err != nil {
+					t.Errorf("Read() error = %v, want nil", err)
+					return
+				}
+				result = append(result, data...)
+				count++
+				if count >= maxReads {
+					break
+				}
+			}
+
+			if !bytes.Equal(result, tt.data) {
+				t.Error("Read() binary data mismatch")
+			}
+		})
+	}
+}
+
+// TestRead_ReadErrors tests error handling in iterator
+func TestRead_ReadErrors(t *testing.T) {
+	testErr := errors.New("read error")
+
+	reader := &mockReader{
+		data:     []byte("test data"),
+		readSize: 4,
+		err:      testErr,
+		errAfter: 3,
+	}
+
+	iter := Read(reader, 10)
+
+	count := 0
+	gotError := false
+
+	for _, err := range iter {
+		count++
+		if err != nil && errors.Is(err, testErr) {
+			gotError = true
+			break
+		}
+		if count >= 5 {
+			break
+		}
+	}
+
+	if !gotError {
+		t.Error("Read() should propagate errors from underlying reader")
+	}
+}
+
+// TestRead_BufferIsolation tests that buffers don't alias
+func TestRead_BufferIsolation(t *testing.T) {
+	reader := strings.NewReader("abcdefghij")
+	iter := Read(reader, 2)
+
+	var buffers [][]byte
+	count := 0
+	maxReads := 3
+
+	for data, err := range iter {
+		if err != nil {
+			t.Errorf("Read() error = %v", err)
+			return
+		}
+		// Store reference to buffer
+		buffers = append(buffers, data)
+		count++
+		if count >= maxReads {
+			break
+		}
+	}
+
+	// Verify each buffer is independent
+	for i := 0; i < len(buffers)-1; i++ {
+		if &buffers[i][0] == &buffers[i+1][0] {
+			t.Error("Read() buffers should not alias each other")
+		}
+	}
+}
+
+// TestRead_ConcurrentSafetyPattern tests safe concurrent usage pattern
+func TestRead_ConcurrentSafetyPattern(t *testing.T) {
+	data := bytes.Repeat([]byte("test"), 100)
+	reader := bytes.NewReader(data)
+	iter := Read(reader, 20)
+
+	results := make([][]byte, 0)
+	count := 0
+	maxReads := 10
+
+	for chunk, err := range iter {
+		if err != nil {
+			t.Errorf("Read() error = %v", err)
+			return
+		}
+		// Copy data before storing
+		copied := make([]byte, len(chunk))
+		copy(copied, chunk)
+		results = append(results, copied)
+
+		count++
+		if count >= maxReads {
+			break
+		}
+	}
+
+	if len(results) != maxReads {
+		t.Errorf("Read() results count = %d, want %d", len(results), maxReads)
+	}
 }

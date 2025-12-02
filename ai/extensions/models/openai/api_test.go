@@ -52,7 +52,10 @@ func newTestAPI(t *testing.T, opts ...option.RequestOption) *Api {
 	}
 	defaultOpts = append(defaultOpts, opts...)
 
-	api, err := NewApi(getAPIKey(t), defaultOpts...)
+	api, err := NewApi(&ApiConfig{
+		ApiKey:         getAPIKey(t),
+		RequestOptions: defaultOpts,
+	})
 	if err != nil {
 		t.Fatalf("failed to create API instance: %v", err)
 	}
@@ -84,7 +87,10 @@ func TestNewApi(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			api, err := NewApi(tt.apiKey, tt.opts...)
+			api, err := NewApi(&ApiConfig{
+				ApiKey:         tt.apiKey,
+				RequestOptions: tt.opts,
+			})
 
 			if tt.wantErr {
 				if err == nil {
@@ -301,7 +307,7 @@ func TestApi_Embeddings(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			embeddings, err := api.Embeddings(ctx, tt.params)
+			embeddings, err := api.Embedding(ctx, tt.params)
 
 			if tt.wantErr {
 				if err == nil {
@@ -370,7 +376,7 @@ func TestApi_Images(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			response, err := api.Images(ctx, tt.params)
+			response, err := api.Image(ctx, tt.params)
 
 			if tt.wantErr {
 				if err == nil {

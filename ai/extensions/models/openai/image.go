@@ -13,6 +13,25 @@ import (
 	"github.com/Tangerg/lynx/pkg/mime"
 )
 
+type ImageModelConfig struct {
+	ApiKey         model.ApiKey
+	DefaultOptions *image.Options
+	RequestOptions []option.RequestOption
+}
+
+func (c *ImageModelConfig) validate() error {
+	if c == nil {
+		return errors.New("config is nil")
+	}
+	if c.ApiKey == nil {
+		return errors.New("apiKey is required")
+	}
+	if c.DefaultOptions == nil {
+		return errors.New("default options cannot be nil")
+	}
+	return nil
+}
+
 var _ image.Model = (*ImageModel)(nil)
 
 type ImageModel struct {
@@ -20,19 +39,22 @@ type ImageModel struct {
 	defaultOptions *image.Options
 }
 
-func NewImageModel(apiKey model.ApiKey, defaultOptions *image.Options, opts ...option.RequestOption) (*ImageModel, error) {
-	if defaultOptions == nil {
-		return nil, errors.New("default options cannot be nil")
+func NewImageModel(cfg *ImageModelConfig) (*ImageModel, error) {
+	if err := cfg.validate(); err != nil {
+		return nil, err
 	}
 
-	api, err := NewApi(apiKey, opts...)
+	api, err := NewApi(&ApiConfig{
+		ApiKey:         cfg.ApiKey,
+		RequestOptions: cfg.RequestOptions,
+	})
 	if err != nil {
 		return nil, err
 	}
 
 	return &ImageModel{
 		api:            api,
-		defaultOptions: defaultOptions,
+		defaultOptions: cfg.DefaultOptions,
 	}, nil
 }
 
@@ -41,11 +63,12 @@ func (i *ImageModel) buildApiImageRequest(req *image.Request) (*openai.ImageGene
 	if err != nil {
 		return nil, err
 	}
+
 	params := getOptionsParams[openai.ImageGenerateParams](mergedOpts)
 
-	params.Prompt = req.Prompt
-
 	params.Model = mergedOpts.Model
+
+	params.Prompt = req.Prompt
 
 	if mergedOpts.OutputFormat != nil &&
 		mime.IsImage(mergedOpts.OutputFormat) {
@@ -67,7 +90,7 @@ func (i *ImageModel) buildApiImageRequest(req *image.Request) (*openai.ImageGene
 	return params, nil
 }
 
-func (i *ImageModel) buildImageResp(resp *openai.ImagesResponse) (*image.Response, error) {
+func (i *ImageModel) buildImageResponse(resp *openai.ImagesResponse) (*image.Response, error) {
 	results := make([]*image.Result, 0, len(resp.Data))
 	for _, item := range resp.Data {
 		newImage, err := image.NewImage(item.URL, item.B64JSON)
@@ -92,12 +115,12 @@ func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Respo
 		return nil, err
 	}
 
-	apiResp, err := i.api.Images(ctx, apiReq)
+	apiResp, err := i.api.Image(ctx, apiReq)
 	if err != nil {
 		return nil, err
 	}
 
-	return i.buildImageResp(apiResp)
+	return i.buildImageResponse(apiResp)
 }
 
 func (i *ImageModel) DefaultOptions() *image.Options {

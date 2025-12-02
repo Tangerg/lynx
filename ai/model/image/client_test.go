@@ -28,9 +28,13 @@ func newImageModel() *openai.ImageModel {
 	defaultOptions := assert.Must(image.NewOptions(baseModel))
 
 	return assert.Must(openai.NewImageModel(
-		newAPIKey(),
-		defaultOptions,
-		option.WithBaseURL(baseURL),
+		&openai.ImageModelConfig{
+			ApiKey:         newAPIKey(),
+			DefaultOptions: defaultOptions,
+			RequestOptions: []option.RequestOption{
+				option.WithBaseURL(baseURL),
+			},
+		},
 	))
 }
 

@@ -16,53 +16,69 @@ type Category struct {
 // Moderation contains all moderation categories for content analysis
 // It provides comprehensive content safety checks across multiple dimensions
 type Moderation struct {
-	// Sexual content detection
+	// Sexual detects content meant to arouse sexual excitement, such as the description of sexual activity,
+	// or that promotes sexual services (excluding sex education and wellness)
 	Sexual Category `json:"sexual"`
 
-	// Hate speech detection
+	// Hate detects content that expresses, incites, or promotes hate based on race, gender, ethnicity, religion,
+	// nationality, sexual orientation, disability status, or caste
 	Hate Category `json:"hate"`
 
-	// Harassment content detection
+	// Harassment detects content that expresses, incites, or promotes harassing language towards any target
 	Harassment Category `json:"harassment"`
 
-	// Self-harm content detection
+	// SelfHarm detects content that promotes, encourages, or depicts acts of self-harm, such as suicide, cutting,
+	// and eating disorders
 	SelfHarm Category `json:"self_harm"`
 
-	// Sexual content involving minors detection
+	// SexualMinors detects sexual content that includes an individual who is under 18 years old
 	SexualMinors Category `json:"sexual_minors"`
 
-	// Threatening hate speech detection
+	// HateThreatening detects hateful content that also includes violence or serious harm towards the targeted
+	// group based on race, gender, ethnicity, religion, nationality, sexual orientation, disability status, or caste
 	HateThreatening Category `json:"hate_threatening"`
 
-	// Graphic violence detection
+	// ViolenceGraphic detects content that depicts death, violence, or physical injury in graphic detail
 	ViolenceGraphic Category `json:"violence_graphic"`
 
-	// Self-harm intent detection
+	// SelfHarmIntent detects content where the speaker expresses that they are engaging or intend to engage
+	// in acts of self-harm, such as suicide, cutting, and eating disorders
 	SelfHarmIntent Category `json:"self_harm_intent"`
 
-	// Self-harm instruction detection
+	// SelfHarmInstructions detects content that encourages performing acts of self-harm, such as suicide, cutting,
+	// and eating disorders, or that gives instructions or advice on how to commit such acts
 	SelfHarmInstructions Category `json:"self_harm_instructions"`
 
-	// Threatening harassment detection
+	// HarassmentThreatening detects harassment content that also includes violence or serious harm towards any target
 	HarassmentThreatening Category `json:"harassment_threatening"`
 
-	// Violence detection
+	// Violence detects content that depicts death, violence, or physical injury
 	Violence Category `json:"violence"`
 
-	// Dangerous and criminal content detection
+	// DangerousAndCriminalContent detects dangerous and criminal content
 	DangerousAndCriminalContent Category `json:"dangerous_and_criminal_content"`
 
-	// Health-related misinformation detection
+	// Health detects health-related misinformation
 	Health Category `json:"health"`
 
-	// Financial misinformation or fraud detection
+	// Financial detects financial misinformation or fraud
 	Financial Category `json:"financial"`
 
-	// Legal misinformation detection
+	// Law detects legal misinformation
 	Law Category `json:"law"`
 
-	// Personally identifiable information detection
+	// Pii detects personally identifiable information
 	Pii Category `json:"pii"`
+
+	// Illicit detects content that includes instructions or advice that facilitate the planning or execution
+	// of wrongdoing, or that gives advice or instruction on how to commit illicit acts.
+	// For example, "how to shoplift" would fit this category
+	Illicit Category `json:"illicit"`
+
+	// IllicitViolent detects content that includes instructions or advice that facilitate the planning or
+	// execution of wrongdoing that also includes violence, or that gives advice or instruction on the
+	// procurement of any weapon
+	IllicitViolent Category `json:"illicit_violent"`
 }
 
 // Flagged returns true if any moderation category is flagged

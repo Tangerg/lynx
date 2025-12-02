@@ -69,9 +69,13 @@ func newTestChatModel(t *testing.T) *openai.ChatModel {
 	require.NoError(t, err)
 
 	chatModel, err := openai.NewChatModel(
-		model.NewApiKey(config.apiKey),
-		defaultOptions,
-		option.WithBaseURL(config.baseURL),
+		&openai.ChatModelConfig{
+			ApiKey:         model.NewApiKey(config.apiKey),
+			DefaultOptions: defaultOptions,
+			RequestOptions: []option.RequestOption{
+				option.WithBaseURL(config.baseURL),
+			},
+		},
 	)
 	require.NoError(t, err)
 
@@ -110,9 +114,13 @@ func newTestFixture(t *testing.T) *testFixture {
 	options, _ := embedding.NewOptions(defaultEmbeddingModel)
 	options.Dimensions = ptr.Pointer[int64](512)
 	embeddingModel, err := openai.NewEmbeddingModel(
-		model.NewApiKey(apiKey2),
-		options,
-		option.WithBaseURL(defaultBaseURL),
+		&openai.EmbeddingModelConfig{
+			ApiKey:         model.NewApiKey(apiKey2),
+			DefaultOptions: options,
+			RequestOptions: []option.RequestOption{
+				option.WithBaseURL(defaultBaseURL),
+			},
+		},
 	)
 	require.NoError(t, err, "failed to create embedding model")
 

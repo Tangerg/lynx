@@ -31,9 +31,13 @@ func newTestImageModel(t *testing.T) *ImageModel {
 	defaultOptions := assert.Must(image.NewOptions(currentConfig.imageModel))
 
 	model, err := NewImageModel(
-		getAPIKey(t),
-		defaultOptions,
-		option.WithBaseURL(currentConfig.baseURL),
+		&ImageModelConfig{
+			ApiKey:         getAPIKey(t),
+			DefaultOptions: defaultOptions,
+			RequestOptions: []option.RequestOption{
+				option.WithBaseURL(currentConfig.baseURL),
+			},
+		},
 	)
 	if err != nil {
 		t.Fatalf("failed to create image model: %v", err)
@@ -78,9 +82,13 @@ func TestNewImageModel(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			model, err := NewImageModel(
-				tt.apiKey,
-				tt.defaultOptions,
-				option.WithBaseURL(currentConfig.baseURL),
+				&ImageModelConfig{
+					ApiKey:         tt.apiKey,
+					DefaultOptions: tt.defaultOptions,
+					RequestOptions: []option.RequestOption{
+						option.WithBaseURL(currentConfig.baseURL),
+					},
+				},
 			)
 
 			if tt.wantErr {

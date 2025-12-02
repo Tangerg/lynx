@@ -15,6 +15,25 @@ import (
 	"github.com/Tangerg/lynx/pkg/ptr"
 )
 
+type EmbeddingModelConfig struct {
+	ApiKey         model.ApiKey
+	DefaultOptions *embedding.Options
+	RequestOptions []option.RequestOption
+}
+
+func (c *EmbeddingModelConfig) validate() error {
+	if c == nil {
+		return errors.New("config is nil")
+	}
+	if c.ApiKey == nil {
+		return errors.New("apiKey is required")
+	}
+	if c.DefaultOptions == nil {
+		return errors.New("default options cannot be nil")
+	}
+	return nil
+}
+
 var _ embedding.Model = (*EmbeddingModel)(nil)
 
 type EmbeddingModel struct {
@@ -22,19 +41,22 @@ type EmbeddingModel struct {
 	defaultOptions *embedding.Options
 }
 
-func NewEmbeddingModel(apiKey model.ApiKey, defaultOptions *embedding.Options, opts ...option.RequestOption) (*EmbeddingModel, error) {
-	if defaultOptions == nil {
-		return nil, errors.New("default options cannot be nil")
+func NewEmbeddingModel(cfg *EmbeddingModelConfig) (*EmbeddingModel, error) {
+	if err := cfg.validate(); err != nil {
+		return nil, err
 	}
 
-	api, err := NewApi(apiKey, opts...)
+	api, err := NewApi(&ApiConfig{
+		ApiKey:         cfg.ApiKey,
+		RequestOptions: cfg.RequestOptions,
+	})
 	if err != nil {
 		return nil, err
 	}
 
 	return &EmbeddingModel{
 		api:            api,
-		defaultOptions: defaultOptions,
+		defaultOptions: cfg.DefaultOptions,
 	}, nil
 }
 
@@ -98,7 +120,7 @@ func (e *EmbeddingModel) Call(ctx context.Context, req *embedding.Request) (*emb
 		return nil, err
 	}
 
-	apiResp, err := e.api.Embeddings(ctx, apiReq)
+	apiResp, err := e.api.Embedding(ctx, apiReq)
 	if err != nil {
 		return nil, err
 	}

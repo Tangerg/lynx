@@ -13,11 +13,11 @@ type Options struct {
 	// Voice specifies the voice profile or speaker to use for synthesis
 	Voice string `json:"voice"`
 
-	// Format specifies the audio output format (e.g., "mp3", "wav", "opus")
-	Format string `json:"format"`
+	// ResponseFormat specifies the audio output format (e.g., "mp3", "wav", "opus")
+	ResponseFormat string `json:"format"`
 
-	// Speed controls the speech rate/speed of the generated audio
-	Speed string `json:"speed"`
+	// Speed controls the speech of the generated audio
+	Speed float64 `json:"speed"`
 
 	// Extra holds provider-specific options that are not part of the standard fields
 	Extra map[string]any `json:"extra"`
@@ -56,11 +56,11 @@ func (o *Options) Clone() *Options {
 		return nil
 	}
 	return &Options{
-		Model:  o.Model,
-		Voice:  o.Voice,
-		Format: o.Format,
-		Speed:  o.Speed,
-		Extra:  maps.Clone(o.Extra),
+		Model:          o.Model,
+		Voice:          o.Voice,
+		ResponseFormat: o.ResponseFormat,
+		Speed:          o.Speed,
+		Extra:          maps.Clone(o.Extra),
 	}
 }
 
@@ -82,8 +82,8 @@ func MergeOptions(options *Options, opts ...*Options) (*Options, error) {
 		if opt.Voice != "" {
 			mergedOpts.Voice = opt.Voice
 		}
-		if opt.Format != "" {
-			mergedOpts.Format = opt.Format
+		if opt.ResponseFormat != "" {
+			mergedOpts.ResponseFormat = opt.ResponseFormat
 		}
 		if opt.Speed != "" {
 			mergedOpts.Speed = opt.Speed

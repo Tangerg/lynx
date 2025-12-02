@@ -62,9 +62,13 @@ func newTestFixture(t *testing.T) *testFixture {
 		t.Skip("apiKey environment variable not set")
 	}
 	embeddingModel, err := openai.NewEmbeddingModel(
-		model.NewApiKey(apiKey2),
-		pkgAssert.Must(embedding.NewOptions(baseModel)),
-		option.WithBaseURL(baseURL),
+		&openai.EmbeddingModelConfig{
+			ApiKey:         model.NewApiKey(apiKey2),
+			DefaultOptions: pkgAssert.Must(embedding.NewOptions(baseModel)),
+			RequestOptions: []option.RequestOption{
+				option.WithBaseURL(baseURL),
+			},
+		},
 	)
 	require.NoError(t, err, "failed to create embedding model")
 

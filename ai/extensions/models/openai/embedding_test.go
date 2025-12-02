@@ -27,9 +27,13 @@ func newTestEmbeddingModel(t *testing.T) *EmbeddingModel {
 	defaultOptions := assert.Must(embedding.NewOptions(currentConfig.embedModel))
 
 	model, err := NewEmbeddingModel(
-		getAPIKey(t),
-		defaultOptions,
-		option.WithBaseURL(currentConfig.baseURL),
+		&EmbeddingModelConfig{
+			ApiKey:         getAPIKey(t),
+			DefaultOptions: defaultOptions,
+			RequestOptions: []option.RequestOption{
+				option.WithBaseURL(currentConfig.baseURL),
+			},
+		},
 	)
 	if err != nil {
 		t.Fatalf("failed to create embedding model: %v", err)
@@ -74,9 +78,13 @@ func TestNewEmbeddingModel(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			model, err := NewEmbeddingModel(
-				tt.apiKey,
-				tt.defaultOptions,
-				option.WithBaseURL(currentConfig.baseURL),
+				&EmbeddingModelConfig{
+					ApiKey:         tt.apiKey,
+					DefaultOptions: tt.defaultOptions,
+					RequestOptions: []option.RequestOption{
+						option.WithBaseURL(currentConfig.baseURL),
+					},
+				},
 			)
 
 			if tt.wantErr {

@@ -68,9 +68,13 @@ func newTestChatModel(t *testing.T) *openai.ChatModel {
 	require.NoError(t, err)
 
 	chatModel, err := openai.NewChatModel(
-		model.NewApiKey(config.apiKey),
-		defaultOptions,
-		option.WithBaseURL(config.baseURL),
+		&openai.ChatModelConfig{
+			ApiKey:         model.NewApiKey(config.apiKey),
+			DefaultOptions: defaultOptions,
+			RequestOptions: []option.RequestOption{
+				option.WithBaseURL(config.baseURL),
+			},
+		},
 	)
 	require.NoError(t, err)
 

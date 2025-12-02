@@ -27,9 +27,13 @@ func newTestChatModel(t *testing.T) *ChatModel {
 	defaultOptions := assert.Must(chat.NewOptions(currentConfig.chatModel))
 
 	model, err := NewChatModel(
-		getAPIKey(t),
-		defaultOptions,
-		option.WithBaseURL(currentConfig.baseURL),
+		&ChatModelConfig{
+			ApiKey:         getAPIKey(t),
+			DefaultOptions: defaultOptions,
+			RequestOptions: []option.RequestOption{
+				option.WithBaseURL(currentConfig.baseURL),
+			},
+		},
 	)
 	if err != nil {
 		t.Fatalf("failed to create chat model: %v", err)
@@ -70,9 +74,13 @@ func TestNewChatModel(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			model, err := NewChatModel(
-				tt.apiKey,
-				tt.defaultOptions,
-				option.WithBaseURL(currentConfig.baseURL),
+				&ChatModelConfig{
+					ApiKey:         tt.apiKey,
+					DefaultOptions: tt.defaultOptions,
+					RequestOptions: []option.RequestOption{
+						option.WithBaseURL(currentConfig.baseURL),
+					},
+				},
 			)
 
 			if tt.wantErr {

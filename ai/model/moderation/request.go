@@ -79,8 +79,8 @@ func MergeOptions(options *Options, opts ...*Options) (*Options, error) {
 
 // Request represents a moderation request containing text and configuration
 type Request struct {
-	// Text is the text content to be moderated
-	Text string `json:"text"`
+	// Texts is the text contents to be moderated
+	Texts []string `json:"text"`
 
 	// Options contains the moderation configuration settings
 	Options *Options `json:"options"`
@@ -108,11 +108,11 @@ func (r *Request) Set(key string, value any) {
 
 // NewRequest creates a new Request instance with the specified text
 // Returns an error if text is empty
-func NewRequest(text string) (*Request, error) {
-	if text == "" {
-		return nil, errors.New("text text cannot be empty")
+func NewRequest(texts []string) (*Request, error) {
+	if len(texts) == 0 {
+		return nil, errors.New("no texts provided")
 	}
 	return &Request{
-		Text: text,
+		Texts: texts,
 	}, nil
 }

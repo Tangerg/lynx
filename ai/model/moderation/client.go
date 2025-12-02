@@ -19,12 +19,12 @@ func NewMiddlewareManager() *MiddlewareManager {
 }
 
 // ClientRequest represents a fluent builder for constructing moderation requests
-// It allows configuring the model, middlewares, options, text, and additional parameters
+// It allows configuring the model, middlewares, options, texts, and additional parameters
 type ClientRequest struct {
 	model             Model
 	middlewareManager *MiddlewareManager
 	options           *Options
-	text              string
+	texts             []string
 	params            map[string]any
 }
 
@@ -66,11 +66,11 @@ func (r *ClientRequest) WithOptions(options *Options) *ClientRequest {
 	return r
 }
 
-// WithText sets the text content to be moderated
+// WithTexts sets the text contents to be moderated
 // Returns the ClientRequest for method chaining
-func (r *ClientRequest) WithText(input string) *ClientRequest {
-	if input != "" {
-		r.text = input
+func (r *ClientRequest) WithTexts(texts []string) *ClientRequest {
+	if len(texts) > 0 {
+		r.texts = texts
 	}
 	return r
 }
@@ -99,7 +99,7 @@ func (r *ClientRequest) Clone() *ClientRequest {
 		model:             r.model,
 		middlewareManager: r.middlewareManager.Clone(),
 		options:           r.options.Clone(),
-		text:              r.text,
+		texts:             r.texts,
 		params:            maps.Clone(r.params),
 	}
 }
@@ -119,9 +119,9 @@ func (r *ClientRequest) getOptions() *Options {
 }
 
 // buildRequest constructs the final Request object from the ClientRequest configuration
-// Returns an error if the text is invalid
+// Returns an error if the texts is invalid
 func (r *ClientRequest) buildRequest() (*Request, error) {
-	req, err := NewRequest(r.text)
+	req, err := NewRequest(r.texts)
 	if err != nil {
 		return nil, err
 	}
@@ -223,7 +223,7 @@ func (c *Client) Moderate() *ClientRequest {
 func (c *Client) ModerateWithRequest(request *Request) *ClientRequest {
 	return c.
 		Moderate().
-		WithText(request.Text).
+		WithTexts(request.Texts).
 		WithOptions(request.Options).
 		WithParams(request.Params)
 }
@@ -233,5 +233,13 @@ func (c *Client) ModerateWithRequest(request *Request) *ClientRequest {
 func (c *Client) ModerateWithText(text string) *ClientRequest {
 	return c.
 		Moderate().
-		WithText(text)
+		WithTexts([]string{text})
+}
+
+// ModerateWithTexts creates a ClientRequest for moderating text contents
+// This is a convenience method for batch moderation tasks
+func (c *Client) ModerateWithTexts(texts []string) *ClientRequest {
+	return c.
+		Moderate().
+		WithTexts(texts)
 }

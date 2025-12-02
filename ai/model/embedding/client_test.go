@@ -28,9 +28,13 @@ func newEmbeddingModel() *openai.EmbeddingModel {
 	defaultOptions := assert.Must(embedding.NewOptions(baseModel))
 
 	return assert.Must(openai.NewEmbeddingModel(
-		newAPIKey(),
-		defaultOptions,
-		option.WithBaseURL(baseURL),
+		&openai.EmbeddingModelConfig{
+			ApiKey:         newAPIKey(),
+			DefaultOptions: defaultOptions,
+			RequestOptions: []option.RequestOption{
+				option.WithBaseURL(baseURL),
+			},
+		},
 	))
 }
 

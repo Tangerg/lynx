@@ -171,21 +171,6 @@ func (c *ClientCaller) Text(ctx context.Context) (string, *Response, error) {
 	return resp.Result().Text, resp, nil
 }
 
-// Texts executes the request and returns all transcribed texts along with the full response
-// Useful when the response contains multiple transcription alternatives or segments
-// Returns an error if the request fails
-func (c *ClientCaller) Texts(ctx context.Context) ([]string, *Response, error) {
-	resp, err := c.Response(ctx)
-	if err != nil {
-		return nil, nil, err
-	}
-	texts := make([]string, 0, len(resp.Results))
-	for _, result := range resp.Results {
-		texts = append(texts, result.Text)
-	}
-	return texts, resp, nil
-}
-
 // Client provides a high-level interface for making audio transcription requests
 // It maintains a default request configuration that can be cloned and customized
 // Supports synchronous audio-to-text transcription operations
