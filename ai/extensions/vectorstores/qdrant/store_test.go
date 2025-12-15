@@ -53,7 +53,6 @@ func newTestFixture(t *testing.T) *testFixture {
 		Port:   qdrantPort,
 		APIKey: apiKey,
 		UseTLS: true,
-		Cloud:  true,
 	})
 	require.NoError(t, err, "failed to create Qdrant client")
 

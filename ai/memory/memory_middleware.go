@@ -32,7 +32,7 @@ type chatMemoryMiddleware struct {
 // Returns error if store is nil.
 func NewMemoryMiddleware(store Store) (chat.CallMiddleware, chat.StreamMiddleware, error) {
 	if store == nil {
-		return nil, nil, errors.New("memory storage is required")
+		return nil, nil, errors.New("memory store is required")
 	}
 	mw := &chatMemoryMiddleware{
 		store: store,

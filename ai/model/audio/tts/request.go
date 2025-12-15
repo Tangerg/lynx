@@ -85,7 +85,7 @@ func MergeOptions(options *Options, opts ...*Options) (*Options, error) {
 		if opt.ResponseFormat != "" {
 			mergedOpts.ResponseFormat = opt.ResponseFormat
 		}
-		if opt.Speed != "" {
+		if opt.Speed != 0 {
 			mergedOpts.Speed = opt.Speed
 		}
 		if len(opt.Extra) > 0 {

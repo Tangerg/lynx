@@ -16,7 +16,7 @@ type MiddlewareManager = model.CallMiddlewareManager[*Request, *Response]
 
 // NewMiddlewareManager creates a new middleware manager for transcription requests
 func NewMiddlewareManager() *MiddlewareManager {
-	return model.NewCallMiddlewareManager[*Request, *Response, *Request, *Response]()
+	return model.NewCallMiddlewareManager[*Request, *Response]()
 }
 
 // ClientRequest represents a fluent builder for constructing audio transcription requests
