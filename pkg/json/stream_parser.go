@@ -86,11 +86,6 @@ func (p *StreamParser) Parse() error {
 
 	for {
 		n, err := p.reader.Read(buf)
-		if n > 0 {
-			if err = p.processBytes(buf[:n]); err != nil {
-				return fmt.Errorf("process bytes: %w", err)
-			}
-		}
 
 		if err != nil {
 			if errors.Is(err, io.EOF) {
@@ -106,6 +101,13 @@ func (p *StreamParser) Parse() error {
 			}
 			return fmt.Errorf("read error: %w", err)
 		}
+
+		if n > 0 {
+			if err = p.processBytes(buf[:n]); err != nil {
+				return fmt.Errorf("process bytes: %w", err)
+			}
+		}
+
 	}
 }
 
