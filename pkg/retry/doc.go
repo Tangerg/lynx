@@ -102,11 +102,11 @@
 //
 // Custom delay strategy:
 //
-//	retry.WithDelayFunc(func(attempt int, err error, config retry.delayConfig) time.Duration {
+//	retry.WithDelayFunc(func(attempt int, err error, config retry.DelayConfig) time.Duration {
 //		if errors.Is(err, ErrRateLimited) {
 //			return 5 * time.Second
 //		}
-//		return config.baseDelay * time.Duration(attempt)
+//		return config.BaseDelay * time.Duration(attempt)
 //	})
 //
 // # Conditional Retry
@@ -164,6 +164,8 @@
 //   - WithFixedDelay(): Fixed delay between retries
 //   - WithFullJitter(): Full jitter backoff (AWS recommended)
 //   - WithDelayFunc(f): Custom delay calculation function
+//   - WithBackoffStep(f): Maximum backoff step for exponential backoff
+//   - WithDelayConfig(f): Configuring all delay-related parameters in a single call
 //
 // Retry Control:
 //   - WithContext(ctx): Set context for cancellation/timeout
