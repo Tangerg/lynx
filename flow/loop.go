@@ -96,11 +96,11 @@ func NewLoop[I any, O any](cfg *LoopConfig[I, O]) (*Loop[I, O], error) {
 func (l *Loop[I, O]) shouldTerminate(ctx context.Context, iteration int, input I, output O) (bool, error) {
 	// Case 1: Both limits set - require both conditions
 	if l.maxIterations > 0 && l.terminator != nil {
-		terminator, err := l.terminator(ctx, iteration, input, output)
+		terminate, err := l.terminator(ctx, iteration, input, output)
 		if err != nil {
 			return false, err
 		}
-		return (iteration >= l.maxIterations-1) || terminator, nil
+		return (iteration >= l.maxIterations-1) || terminate, nil
 	}
 
 	// Case 2: Only max iterations set

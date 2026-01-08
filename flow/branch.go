@@ -14,6 +14,11 @@ type BranchConfig struct {
 	// Node is the main processing unit whose output determines which branch to take
 	Node Node[any, any]
 
+	// Branches maps branch names to their corresponding nodes.
+	// The branch selected by BranchResolver will be executed with the main node's output.
+	// If empty, no branching occurs.
+	Branches map[string]Node[any, any]
+
 	// BranchResolver determines which branch to execute based on the input and output.
 	// Parameters:
 	//   - ctx: Context for cancellation control
@@ -24,11 +29,6 @@ type BranchConfig struct {
 	//   - error: Any error during branch resolution
 	// If nil, no branching occurs and only the main node is executed.
 	BranchResolver func(context.Context, any, any) (string, error)
-
-	// Branches maps branch names to their corresponding nodes.
-	// The branch selected by BranchResolver will be executed with the main node's output.
-	// If empty, no branching occurs.
-	Branches map[string]Node[any, any]
 }
 
 // validate checks if the BranchConfig is valid and ready to use.
@@ -54,8 +54,8 @@ func (cfg *BranchConfig) validate() error {
 //  3. Execute the selected branch node with the main node's output
 type Branch struct {
 	node           Node[any, any]
-	branchResolver func(context.Context, any, any) (string, error)
 	branches       map[string]Node[any, any]
+	branchResolver func(context.Context, any, any) (string, error)
 }
 
 // NewBranch creates a new Branch instance with the provided configuration.
