@@ -3,879 +3,494 @@ package flow
 import (
 	"context"
 	"errors"
-	"fmt"
+	"math"
 	"testing"
 	"time"
 )
 
+// TestLoopConfig_validate tests the validation logic for LoopConfig
 func TestLoopConfig_validate(t *testing.T) {
-	t.Run("valid config", func(t *testing.T) {
-		mockNode := Processor[string, string](func(ctx context.Context, input string) (string, error) {
-			return input, nil
-		})
-
-		cfg := &LoopConfig[string, string]{
-			Node: mockNode,
-		}
-
-		err := cfg.validate()
-		if err != nil {
-			t.Errorf("expected no error, got %v", err)
-		}
-	})
-
-	t.Run("nil config", func(t *testing.T) {
-		var cfg *LoopConfig[string, string]
-
-		err := cfg.validate()
-		if err == nil {
-			t.Error("expected error for nil config, got nil")
-		}
-
-		if err.Error() != "loop config cannot be nil" {
-			t.Errorf("expected 'loop config cannot be nil' error, got %v", err)
-		}
-	})
-
-	t.Run("nil node", func(t *testing.T) {
-		cfg := &LoopConfig[string, string]{
-			Node: nil,
-		}
-
-		err := cfg.validate()
-		if err == nil {
-			t.Error("expected error for nil node, got nil")
-		}
-
-		if err.Error() != "loop node cannot be nil" {
-			t.Errorf("expected 'loop node cannot be nil' error, got %v", err)
-		}
-	})
-
-	t.Run("valid config with terminator", func(t *testing.T) {
-		mockNode := Processor[string, string](func(ctx context.Context, input string) (string, error) {
-			return input, nil
-		})
-
-		cfg := &LoopConfig[string, string]{
-			Node: mockNode,
-			Terminator: func(ctx context.Context, iteration int, input, output string) (bool, error) {
-				return iteration >= 5, nil
+	tests := []struct {
+		name    string
+		config  *LoopConfig[int]
+		wantErr bool
+		errMsg  string
+	}{
+		{
+			name:    "nil config",
+			config:  nil,
+			wantErr: true,
+			errMsg:  "loop config cannot be nil",
+		},
+		{
+			name: "nil processor",
+			config: &LoopConfig[int]{
+				Processor:     nil,
+				MaxIterations: 10,
 			},
-		}
-
-		err := cfg.validate()
-		if err != nil {
-			t.Errorf("expected no error, got %v", err)
-		}
-	})
-}
-
-func TestNewLoop(t *testing.T) {
-	t.Run("valid config", func(t *testing.T) {
-		mockNode := Processor[string, string](func(ctx context.Context, input string) (string, error) {
-			return input, nil
-		})
-
-		cfg := &LoopConfig[string, string]{
-			Node: mockNode,
-		}
-
-		loop, err := NewLoop(cfg)
-		if err != nil {
-			t.Errorf("expected no error, got %v", err)
-		}
-
-		if loop == nil {
-			t.Error("expected non-nil loop")
-		}
-
-		if loop.node == nil {
-			t.Error("expected non-nil node in loop")
-		}
-	})
-
-	t.Run("invalid config", func(t *testing.T) {
-		cfg := &LoopConfig[string, string]{
-			Node: nil,
-		}
-
-		loop, err := NewLoop(cfg)
-		if err == nil {
-			t.Error("expected error for invalid config, got nil")
-		}
-
-		if loop != nil {
-			t.Error("expected nil loop for invalid config")
-		}
-	})
-
-	t.Run("nil config", func(t *testing.T) {
-		loop, err := NewLoop[string, string](nil)
-		if err == nil {
-			t.Error("expected error for nil config, got nil")
-		}
-
-		if loop != nil {
-			t.Error("expected nil loop for nil config")
-		}
-	})
-}
-
-func TestLoop_shouldTerminate(t *testing.T) {
-	t.Run("nil terminator returns true", func(t *testing.T) {
-		mockNode := Processor[string, string](func(ctx context.Context, input string) (string, error) {
-			return input, nil
-		})
-
-		loop := &Loop[string, string]{
-			node:       mockNode,
-			terminator: nil,
-		}
-
-		shouldStop, err := loop.shouldTerminate(context.Background(), 0, "input", "output")
-		if err != nil {
-			t.Errorf("expected no error, got %v", err)
-		}
-
-		if !shouldStop {
-			t.Error("expected true for nil terminator")
-		}
-	})
-
-	t.Run("terminator returns true", func(t *testing.T) {
-		mockNode := Processor[string, string](func(ctx context.Context, input string) (string, error) {
-			return input, nil
-		})
-
-		loop := &Loop[string, string]{
-			node: mockNode,
-			terminator: func(ctx context.Context, iteration int, input, output string) (bool, error) {
-				return true, nil
+			wantErr: true,
+			errMsg:  "loop processor cannot be nil",
+		},
+		{
+			name: "valid config",
+			config: &LoopConfig[int]{
+				Processor: func(ctx context.Context, i int, val int) (int, bool, error) {
+					return val, false, nil
+				},
+				MaxIterations: 10,
 			},
-		}
-
-		shouldStop, err := loop.shouldTerminate(context.Background(), 0, "input", "output")
-		if err != nil {
-			t.Errorf("expected no error, got %v", err)
-		}
-
-		if !shouldStop {
-			t.Error("expected true from terminator")
-		}
-	})
-
-	t.Run("terminator returns false", func(t *testing.T) {
-		mockNode := Processor[string, string](func(ctx context.Context, input string) (string, error) {
-			return input, nil
-		})
-
-		loop := &Loop[string, string]{
-			node: mockNode,
-			terminator: func(ctx context.Context, iteration int, input, output string) (bool, error) {
-				return false, nil
+			wantErr: false,
+		},
+		{
+			name: "valid config with zero max iterations",
+			config: &LoopConfig[int]{
+				Processor: func(ctx context.Context, i int, val int) (int, bool, error) {
+					return val, false, nil
+				},
+				MaxIterations: math.MaxInt16,
 			},
-		}
-
-		shouldStop, err := loop.shouldTerminate(context.Background(), 0, "input", "output")
-		if err != nil {
-			t.Errorf("expected no error, got %v", err)
-		}
-
-		if shouldStop {
-			t.Error("expected false from terminator")
-		}
-	})
-
-	t.Run("terminator returns error", func(t *testing.T) {
-		mockNode := Processor[string, string](func(ctx context.Context, input string) (string, error) {
-			return input, nil
-		})
-
-		expectedErr := errors.New("terminator error")
-		loop := &Loop[string, string]{
-			node: mockNode,
-			terminator: func(ctx context.Context, iteration int, input, output string) (bool, error) {
-				return false, expectedErr
-			},
-		}
-
-		_, err := loop.shouldTerminate(context.Background(), 0, "input", "output")
-		if !errors.Is(err, expectedErr) {
-			t.Errorf("expected error %v, got %v", expectedErr, err)
-		}
-	})
-}
-
-func TestLoop_Run(t *testing.T) {
-	t.Run("single iteration with nil terminator", func(t *testing.T) {
-		counter := 0
-		mockNode := Processor[string, string](func(ctx context.Context, input string) (string, error) {
-			counter++
-			return fmt.Sprintf("iteration-%d", counter), nil
-		})
-
-		cfg := &LoopConfig[string, string]{
-			Node: mockNode,
-		}
-
-		loop, err := NewLoop(cfg)
-		if err != nil {
-			t.Fatalf("failed to create loop: %v", err)
-		}
-
-		result, err := loop.Run(context.Background(), "test")
-		if err != nil {
-			t.Errorf("expected no error, got %v", err)
-		}
-
-		if counter != 1 {
-			t.Errorf("expected 1 iteration, got %d", counter)
-		}
-
-		if result != "iteration-1" {
-			t.Errorf("expected 'iteration-1', got %q", result)
-		}
-	})
-
-	t.Run("multiple iterations with count terminator", func(t *testing.T) {
-		counter := 0
-		mockNode := Processor[string, string](func(ctx context.Context, input string) (string, error) {
-			counter++
-			return fmt.Sprintf("iteration-%d", counter), nil
-		})
-
-		cfg := &LoopConfig[string, string]{
-			Node: mockNode,
-			Terminator: func(ctx context.Context, iteration int, input, output string) (bool, error) {
-				return iteration >= 4, nil
-			},
-		}
-
-		loop, err := NewLoop(cfg)
-		if err != nil {
-			t.Fatalf("failed to create loop: %v", err)
-		}
-
-		result, err := loop.Run(context.Background(), "test")
-		if err != nil {
-			t.Errorf("expected no error, got %v", err)
-		}
-
-		if counter != 5 {
-			t.Errorf("expected 5 iterations, got %d", counter)
-		}
-
-		if result != "iteration-5" {
-			t.Errorf("expected 'iteration-5', got %q", result)
-		}
-	})
-
-	t.Run("node returns error", func(t *testing.T) {
-		expectedErr := errors.New("node error")
-		mockNode := Processor[string, string](func(ctx context.Context, input string) (string, error) {
-			return "", expectedErr
-		})
-
-		cfg := &LoopConfig[string, string]{
-			Node: mockNode,
-			Terminator: func(ctx context.Context, iteration int, input, output string) (bool, error) {
-				return iteration >= 10, nil
-			},
-		}
-
-		loop, err := NewLoop(cfg)
-		if err != nil {
-			t.Fatalf("failed to create loop: %v", err)
-		}
-
-		result, err := loop.Run(context.Background(), "test")
-		if !errors.Is(err, expectedErr) {
-			t.Errorf("expected error %v, got %v", expectedErr, err)
-		}
-
-		if result != "" {
-			t.Errorf("expected empty result, got %q", result)
-		}
-	})
-
-	t.Run("terminator returns error", func(t *testing.T) {
-		counter := 0
-		mockNode := Processor[string, string](func(ctx context.Context, input string) (string, error) {
-			counter++
-			return fmt.Sprintf("iteration-%d", counter), nil
-		})
-
-		expectedErr := errors.New("terminator error")
-		cfg := &LoopConfig[string, string]{
-			Node: mockNode,
-			Terminator: func(ctx context.Context, iteration int, input, output string) (bool, error) {
-				if iteration >= 2 {
-					return false, expectedErr
-				}
-				return false, nil
-			},
-		}
-
-		loop, err := NewLoop(cfg)
-		if err != nil {
-			t.Fatalf("failed to create loop: %v", err)
-		}
-
-		_, err = loop.Run(context.Background(), "test")
-		if !errors.Is(err, expectedErr) {
-			t.Errorf("expected error %v, got %v", expectedErr, err)
-		}
-
-		if counter != 3 {
-			t.Errorf("expected 3 iterations, got %d", counter)
-		}
-	})
-
-	t.Run("context cancellation", func(t *testing.T) {
-		counter := 0
-		mockNode := Processor[string, string](func(ctx context.Context, input string) (string, error) {
-			counter++
-			select {
-			case <-ctx.Done():
-				return "", ctx.Err()
-			case <-time.After(10 * time.Millisecond):
-				return fmt.Sprintf("iteration-%d", counter), nil
-			}
-		})
-
-		cfg := &LoopConfig[string, string]{
-			Node: mockNode,
-			Terminator: func(ctx context.Context, iteration int, input, output string) (bool, error) {
-				return iteration >= 100, nil
-			},
-		}
-
-		loop, err := NewLoop(cfg)
-		if err != nil {
-			t.Fatalf("failed to create loop: %v", err)
-		}
-
-		ctx, cancel := context.WithCancel(context.Background())
-		go func() {
-			time.Sleep(25 * time.Millisecond)
-			cancel()
-		}()
-
-		_, err = loop.Run(ctx, "test")
-		if !errors.Is(err, context.Canceled) {
-			t.Errorf("expected context.Canceled error, got %v", err)
-		}
-	})
-
-	t.Run("output-based termination", func(t *testing.T) {
-		counter := 0
-		mockNode := Processor[int, int](func(ctx context.Context, input int) (int, error) {
-			counter++
-			return input * 2, nil
-		})
-
-		cfg := &LoopConfig[int, int]{
-			Node: mockNode,
-			Terminator: func(ctx context.Context, iteration int, _, _ int) (bool, error) {
-				return iteration >= 32, nil
-			},
-		}
-
-		loop, err := NewLoop(cfg)
-		if err != nil {
-			t.Fatalf("failed to create loop: %v", err)
-		}
-
-		result, err := loop.Run(context.Background(), 1)
-		if err != nil {
-			t.Errorf("expected no error, got %v", err)
-		}
-
-		if result != 2 {
-			t.Errorf("expected 2, got %d", result)
-		}
-
-		if counter != 33 {
-			t.Errorf("expected 33 iterations, got %d", counter)
-		}
-	})
-
-	t.Run("struct types", func(t *testing.T) {
-		type Input struct {
-			Value int
-		}
-		type Output struct {
-			Count int
-			Sum   int
-		}
-
-		mockNode := Processor[Input, Output](func(ctx context.Context, input Input) (Output, error) {
-			return Output{Count: 1, Sum: input.Value}, nil
-		})
-
-		cfg := &LoopConfig[Input, Output]{
-			Node: mockNode,
-			Terminator: func(ctx context.Context, iteration int, input Input, output Output) (bool, error) {
-				return iteration >= 3, nil
-			},
-		}
-
-		loop, err := NewLoop(cfg)
-		if err != nil {
-			t.Fatalf("failed to create loop: %v", err)
-		}
-
-		input := Input{Value: 10}
-		result, err := loop.Run(context.Background(), input)
-		if err != nil {
-			t.Errorf("expected no error, got %v", err)
-		}
-
-		if result.Count != 1 {
-			t.Errorf("expected count 1, got %d", result.Count)
-		}
-
-		if result.Sum != 10 {
-			t.Errorf("expected sum 10, got %d", result.Sum)
-		}
-	})
-
-	t.Run("iteration count starts at zero", func(t *testing.T) {
-		var iterations []int
-		mockNode := Processor[string, string](func(ctx context.Context, input string) (string, error) {
-			return input, nil
-		})
-
-		cfg := &LoopConfig[string, string]{
-			Node: mockNode,
-			Terminator: func(ctx context.Context, iteration int, input, output string) (bool, error) {
-				iterations = append(iterations, iteration)
-				return iteration >= 2, nil
-			},
-		}
-
-		loop, err := NewLoop(cfg)
-		if err != nil {
-			t.Fatalf("failed to create loop: %v", err)
-		}
-
-		_, err = loop.Run(context.Background(), "test")
-		if err != nil {
-			t.Errorf("expected no error, got %v", err)
-		}
-
-		expectedIterations := []int{0, 1, 2}
-		if len(iterations) != len(expectedIterations) {
-			t.Errorf("expected %d iterations, got %d", len(expectedIterations), len(iterations))
-		}
-
-		for i, expected := range expectedIterations {
-			if iterations[i] != expected {
-				t.Errorf("iteration %d: expected %d, got %d", i, expected, iterations[i])
-			}
-		}
-	})
-}
-
-func BenchmarkLoop_Run_SingleIteration(b *testing.B) {
-	mockNode := Processor[string, string](func(ctx context.Context, input string) (string, error) {
-		return input + "-processed", nil
-	})
-
-	cfg := &LoopConfig[string, string]{
-		Node: mockNode,
-	}
-
-	loop, _ := NewLoop(cfg)
-	ctx := context.Background()
-	b.ResetTimer()
-
-	for i := 0; i < b.N; i++ {
-		_, _ = loop.Run(ctx, "test")
-	}
-}
-
-func TestLoop_MaxIterations(t *testing.T) {
-	t.Run("max iterations without terminator", func(t *testing.T) {
-		counter := 0
-		mockNode := Processor[string, string](func(ctx context.Context, input string) (string, error) {
-			counter++
-			return fmt.Sprintf("iteration-%d", counter), nil
-		})
-
-		cfg := &LoopConfig[string, string]{
-			Node:          mockNode,
-			MaxIterations: 5,
-			Terminator:    nil, // No terminator, rely on MaxIterations
-		}
-
-		loop, err := NewLoop(cfg)
-		if err != nil {
-			t.Fatalf("failed to create loop: %v", err)
-		}
-
-		result, err := loop.Run(context.Background(), "test")
-		if err != nil {
-			t.Errorf("expected no error, got %v", err)
-		}
-
-		if counter != 5 {
-			t.Errorf("expected 5 iterations, got %d", counter)
-		}
-
-		if result != "iteration-5" {
-			t.Errorf("expected 'iteration-5', got %q", result)
-		}
-	})
-
-	t.Run("max iterations reached before terminator", func(t *testing.T) {
-		counter := 0
-		mockNode := Processor[string, string](func(ctx context.Context, input string) (string, error) {
-			counter++
-			return fmt.Sprintf("iteration-%d", counter), nil
-		})
-
-		cfg := &LoopConfig[string, string]{
-			Node:          mockNode,
-			MaxIterations: 3,
-			Terminator: func(ctx context.Context, iteration int, input, output string) (bool, error) {
-				return iteration >= 10, nil // Would run 11 times without MaxIterations
-			},
-		}
-
-		loop, err := NewLoop(cfg)
-		if err != nil {
-			t.Fatalf("failed to create loop: %v", err)
-		}
-
-		result, err := loop.Run(context.Background(), "test")
-
-		if counter != 3 {
-			t.Errorf("expected 3 iterations, got %d", counter)
-		}
-
-		if result != "iteration-3" {
-			t.Errorf("expected 'iteration-3', got %q", result)
-		}
-	})
-
-	t.Run("terminator stops before max iterations", func(t *testing.T) {
-		counter := 0
-		mockNode := Processor[string, string](func(ctx context.Context, input string) (string, error) {
-			counter++
-			return fmt.Sprintf("iteration-%d", counter), nil
-		})
-
-		cfg := &LoopConfig[string, string]{
-			Node:          mockNode,
-			MaxIterations: 10,
-			Terminator: func(ctx context.Context, iteration int, input, output string) (bool, error) {
-				return iteration >= 2, nil // Stop at iteration 2
-			},
-		}
-
-		loop, err := NewLoop(cfg)
-		if err != nil {
-			t.Fatalf("failed to create loop: %v", err)
-		}
-
-		result, err := loop.Run(context.Background(), "test")
-		if err != nil {
-			t.Errorf("expected no error, got %v", err)
-		}
-
-		if counter != 3 {
-			t.Errorf("expected 3 iterations (0,1,2), got %d", counter)
-		}
-
-		if result != "iteration-3" {
-			t.Errorf("expected 'iteration-3', got %q", result)
-		}
-	})
-
-	t.Run("zero max iterations with terminator", func(t *testing.T) {
-		counter := 0
-		mockNode := Processor[string, string](func(ctx context.Context, input string) (string, error) {
-			counter++
-			return fmt.Sprintf("iteration-%d", counter), nil
-		})
-
-		cfg := &LoopConfig[string, string]{
-			Node:          mockNode,
-			MaxIterations: 0, // No limit
-			Terminator: func(ctx context.Context, iteration int, input, output string) (bool, error) {
-				return iteration >= 5, nil
-			},
-		}
-
-		loop, err := NewLoop(cfg)
-		if err != nil {
-			t.Fatalf("failed to create loop: %v", err)
-		}
-
-		result, err := loop.Run(context.Background(), "test")
-		if err != nil {
-			t.Errorf("expected no error, got %v", err)
-		}
-
-		if counter != 6 {
-			t.Errorf("expected 6 iterations, got %d", counter)
-		}
-
-		if result != "iteration-6" {
-			t.Errorf("expected 'iteration-6', got %q", result)
-		}
-	})
-
-	t.Run("negative max iterations treated as no limit", func(t *testing.T) {
-		counter := 0
-		mockNode := Processor[string, string](func(ctx context.Context, input string) (string, error) {
-			counter++
-			return fmt.Sprintf("iteration-%d", counter), nil
-		})
-
-		cfg := &LoopConfig[string, string]{
-			Node:          mockNode,
-			MaxIterations: -1, // Should be treated as no limit
-			Terminator: func(ctx context.Context, iteration int, input, output string) (bool, error) {
-				return iteration >= 3, nil
-			},
-		}
-
-		loop, err := NewLoop(cfg)
-		if err != nil {
-			t.Fatalf("failed to create loop: %v", err)
-		}
-
-		result, err := loop.Run(context.Background(), "test")
-		if err != nil {
-			t.Errorf("expected no error, got %v", err)
-		}
-
-		if counter != 4 {
-			t.Errorf("expected 4 iterations, got %d", counter)
-		}
-
-		if result != "iteration-4" {
-			t.Errorf("expected 'iteration-4', got %q", result)
-		}
-	})
-
-	t.Run("max iterations is 1", func(t *testing.T) {
-		counter := 0
-		mockNode := Processor[string, string](func(ctx context.Context, input string) (string, error) {
-			counter++
-			return fmt.Sprintf("iteration-%d", counter), nil
-		})
-
-		cfg := &LoopConfig[string, string]{
-			Node:          mockNode,
-			MaxIterations: 1,
-			Terminator: func(ctx context.Context, iteration int, input, output string) (bool, error) {
-				return false, nil // Never terminate by terminator
-			},
-		}
-
-		loop, err := NewLoop(cfg)
-		if err != nil {
-			t.Fatalf("failed to create loop: %v", err)
-		}
-
-		result, err := loop.Run(context.Background(), "test")
-
-		if counter != 1 {
-			t.Errorf("expected 1 iteration, got %d", counter)
-		}
-
-		if result != "iteration-1" {
-			t.Errorf("expected 'iteration-1', got %q", result)
-		}
-	})
-
-	t.Run("node error before max iterations", func(t *testing.T) {
-		counter := 0
-		expectedErr := errors.New("node failure")
-		mockNode := Processor[string, string](func(ctx context.Context, input string) (string, error) {
-			counter++
-			if counter == 2 {
-				return "", expectedErr
-			}
-			return fmt.Sprintf("iteration-%d", counter), nil
-		})
-
-		cfg := &LoopConfig[string, string]{
-			Node:          mockNode,
-			MaxIterations: 5,
-		}
-
-		loop, err := NewLoop(cfg)
-		if err != nil {
-			t.Fatalf("failed to create loop: %v", err)
-		}
-
-		_, err = loop.Run(context.Background(), "test")
-		if !errors.Is(err, expectedErr) {
-			t.Errorf("expected error %v, got %v", expectedErr, err)
-		}
-
-		if counter != 2 {
-			t.Errorf("expected 2 iterations before error, got %d", counter)
-		}
-	})
-
-	t.Run("terminator error before max iterations", func(t *testing.T) {
-		counter := 0
-		terminatorErr := errors.New("terminator failure")
-		mockNode := Processor[string, string](func(ctx context.Context, input string) (string, error) {
-			counter++
-			return fmt.Sprintf("iteration-%d", counter), nil
-		})
-
-		cfg := &LoopConfig[string, string]{
-			Node:          mockNode,
-			MaxIterations: 10,
-			Terminator: func(ctx context.Context, iteration int, input, output string) (bool, error) {
-				if iteration == 3 {
-					return false, terminatorErr
-				}
-				return false, nil
-			},
-		}
-
-		loop, err := NewLoop(cfg)
-		if err != nil {
-			t.Fatalf("failed to create loop: %v", err)
-		}
-
-		_, err = loop.Run(context.Background(), "test")
-		if !errors.Is(err, terminatorErr) {
-			t.Errorf("expected error %v, got %v", terminatorErr, err)
-		}
-
-		if counter != 4 {
-			t.Errorf("expected 4 iterations before terminator error, got %d", counter)
-		}
-	})
-}
-
-func TestLoop_MaxIterations_EdgeCases(t *testing.T) {
-	t.Run("max iterations with accumulating state", func(t *testing.T) {
-		mockNode := Processor[int, int](func(ctx context.Context, input int) (int, error) {
-			return input + 1, nil
-		})
-
-		cfg := &LoopConfig[int, int]{
-			Node:          mockNode,
-			MaxIterations: 100,
-			Terminator: func(ctx context.Context, iteration int, input, output int) (bool, error) {
-				return output >= 50, nil // Stop when output reaches 50
-			},
-		}
-
-		loop, err := NewLoop(cfg)
-		if err != nil {
-			t.Fatalf("failed to create loop: %v", err)
-		}
-
-		result, err := loop.Run(context.Background(), 0)
-		if err != nil {
-			t.Errorf("expected no error, got %v", err)
-		}
-
-		// Note: output is from node.Run, which returns input+1
-		// But we're checking terminator against output, not iteration count
-		// This test verifies terminator gets the actual output value
-		if result != 1 {
-			t.Errorf("expected result >= 1, got %d", result)
-		}
-	})
-
-	t.Run("max iterations exactly equals terminator condition", func(t *testing.T) {
-		counter := 0
-		mockNode := Processor[string, string](func(ctx context.Context, input string) (string, error) {
-			counter++
-			return input, nil
-		})
-
-		cfg := &LoopConfig[string, string]{
-			Node:          mockNode,
-			MaxIterations: 5,
-			Terminator: func(ctx context.Context, iteration int, input, output string) (bool, error) {
-				return iteration >= 4, nil // Would stop at iteration 4 (5th execution)
-			},
-		}
-
-		loop, err := NewLoop(cfg)
-		if err != nil {
-			t.Fatalf("failed to create loop: %v", err)
-		}
-
-		_, err = loop.Run(context.Background(), "test")
-		if err != nil {
-			t.Errorf("expected no error, got %v", err)
-		}
-
-		// Terminator stops at iteration 4, which is the 5th execution
-		if counter != 5 {
-			t.Errorf("expected 5 iterations, got %d", counter)
-		}
-	})
-
-	t.Run("context cancellation before max iterations", func(t *testing.T) {
-		counter := 0
-		mockNode := Processor[string, string](func(ctx context.Context, input string) (string, error) {
-			counter++
-			select {
-			case <-ctx.Done():
-				return "", ctx.Err()
-			case <-time.After(10 * time.Millisecond):
-				return input, nil
-			}
-		})
-
-		cfg := &LoopConfig[string, string]{
-			Node:          mockNode,
-			MaxIterations: 100,
-		}
-
-		loop, err := NewLoop(cfg)
-		if err != nil {
-			t.Fatalf("failed to create loop: %v", err)
-		}
-
-		ctx, cancel := context.WithTimeout(context.Background(), 35*time.Millisecond)
-		defer cancel()
-
-		_, err = loop.Run(ctx, "test")
-		if !errors.Is(err, context.DeadlineExceeded) {
-			t.Errorf("expected context.DeadlineExceeded, got %v", err)
-		}
-
-		// Should execute 3-4 times before timeout (10ms each + overhead)
-		if counter < 2 || counter > 5 {
-			t.Errorf("expected 2-5 iterations before timeout, got %d", counter)
-		}
-	})
-}
-
-func BenchmarkLoop_Run_MultipleIterations(b *testing.B) {
-	mockNode := Processor[int, int](func(ctx context.Context, input int) (int, error) {
-		return input + 1, nil
-	})
-
-	cfg := &LoopConfig[int, int]{
-		Node: mockNode,
-		Terminator: func(ctx context.Context, iteration int, input, output int) (bool, error) {
-			return iteration >= 9, nil
+			wantErr: false,
 		},
 	}
 
-	loop, _ := NewLoop(cfg)
-	ctx := context.Background()
-	b.ResetTimer()
-
-	for i := 0; i < b.N; i++ {
-		_, _ = loop.Run(ctx, 0)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.config.validate()
+			if tt.wantErr {
+				if err == nil {
+					t.Errorf("validate() expected error but got nil")
+				} else if tt.errMsg != "" && err.Error() != tt.errMsg {
+					t.Errorf("validate() error = %v, want %v", err.Error(), tt.errMsg)
+				}
+			} else {
+				if err != nil {
+					t.Errorf("validate() unexpected error = %v", err)
+				}
+			}
+		})
 	}
+}
+
+// TestNewLoop tests the constructor for Loop
+func TestNewLoop(t *testing.T) {
+	tests := []struct {
+		name    string
+		config  LoopConfig[int]
+		wantErr bool
+	}{
+		{
+			name: "valid configuration",
+			config: LoopConfig[int]{
+				Processor: func(ctx context.Context, i int, val int) (int, bool, error) {
+					return val * 2, i >= 5, nil
+				},
+				MaxIterations: 10,
+			},
+			wantErr: false,
+		},
+		{
+			name: "nil processor",
+			config: LoopConfig[int]{
+				Processor:     nil,
+				MaxIterations: 10,
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			loop, err := NewLoop(tt.config)
+			if tt.wantErr {
+				if err == nil {
+					t.Errorf("NewLoop() expected error but got nil")
+				}
+				if loop != nil {
+					t.Errorf("NewLoop() expected nil loop on error")
+				}
+			} else {
+				if err != nil {
+					t.Errorf("NewLoop() unexpected error = %v", err)
+				}
+				if loop == nil {
+					t.Errorf("NewLoop() returned nil loop")
+				}
+			}
+		})
+	}
+}
+
+// TestLoop_Run tests the main execution logic
+func TestLoop_Run(t *testing.T) {
+	tests := []struct {
+		name      string
+		config    LoopConfig[int]
+		input     int
+		want      int
+		wantErr   bool
+		errSubstr string
+	}{
+		{
+			name: "simple doubling until > 100",
+			config: LoopConfig[int]{
+				Processor: func(ctx context.Context, i int, val int) (int, bool, error) {
+					newVal := val * 2
+					return newVal, newVal > 100, nil
+				},
+				MaxIterations: 10,
+			},
+			input:   1,
+			want:    128, // 1 → 2 → 4 → 8 → 16 → 32 → 64 → 128
+			wantErr: false,
+		},
+		{
+			name: "immediate completion",
+			config: LoopConfig[int]{
+				Processor: func(ctx context.Context, i int, val int) (int, bool, error) {
+					return val + 1, true, nil
+				},
+				MaxIterations: 10,
+			},
+			input:   5,
+			want:    6,
+			wantErr: false,
+		},
+		{
+			name: "error in processor",
+			config: LoopConfig[int]{
+				Processor: func(ctx context.Context, i int, val int) (int, bool, error) {
+					if i == 3 {
+						return val, false, errors.New("processing error")
+					}
+					return val + 1, false, nil
+				},
+				MaxIterations: 10,
+			},
+			input:     0,
+			want:      3,
+			wantErr:   true,
+			errSubstr: "loop failed at iteration 3",
+		},
+		{
+			name: "max iterations exceeded",
+			config: LoopConfig[int]{
+				Processor: func(ctx context.Context, i int, val int) (int, bool, error) {
+					return val + 1, false, nil // Never terminates naturally
+				},
+				MaxIterations: 5,
+			},
+			input:     0,
+			want:      5,
+			wantErr:   true,
+			errSubstr: "loop exceeded max iterations (5)",
+		},
+		{
+			name: "no max iterations limit",
+			config: LoopConfig[int]{
+				Processor: func(ctx context.Context, i int, val int) (int, bool, error) {
+					return val + 1, i >= 100, nil
+				},
+				MaxIterations: math.MaxInt16,
+			},
+			input:   0,
+			want:    101,
+			wantErr: false,
+		},
+		{
+			name: "iteration counter works correctly",
+			config: LoopConfig[int]{
+				Processor: func(ctx context.Context, i int, val int) (int, bool, error) {
+					// Store iteration number in value
+					return i, i >= 10, nil
+				},
+				MaxIterations: 20,
+			},
+			input:   0,
+			want:    10,
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			loop, err := NewLoop(tt.config)
+			if err != nil {
+				t.Fatalf("NewLoop() error = %v", err)
+			}
+
+			ctx := context.Background()
+			got, err := loop.Run(ctx, tt.input)
+
+			if tt.wantErr {
+				if err == nil {
+					t.Errorf("Run() expected error but got nil")
+				} else if tt.errSubstr != "" {
+					if !contains(err.Error(), tt.errSubstr) {
+						t.Errorf("Run() error = %v, want substring %v", err.Error(), tt.errSubstr)
+					}
+				}
+			} else {
+				if err != nil {
+					t.Errorf("Run() unexpected error = %v", err)
+				}
+			}
+
+			if got != tt.want {
+				t.Errorf("Run() got = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+// TestLoop_RunWithContext tests context cancellation
+func TestLoop_RunWithContext(t *testing.T) {
+	t.Run("context cancellation", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+
+		config := LoopConfig[int]{
+			Processor: func(ctx context.Context, i int, val int) (int, bool, error) {
+				// Check context cancellation
+				select {
+				case <-ctx.Done():
+					return val, false, ctx.Err()
+				default:
+				}
+
+				// Cancel after 3 iterations
+				if i == 3 {
+					cancel()
+				}
+
+				return val + 1, false, nil
+			},
+			MaxIterations: 100,
+		}
+
+		loop, err := NewLoop(config)
+		if err != nil {
+			t.Fatalf("NewLoop() error = %v", err)
+		}
+
+		_, err = loop.Run(ctx, 0)
+		if err == nil {
+			t.Errorf("Run() expected context cancellation error")
+		}
+		if !errors.Is(err, context.Canceled) && !contains(err.Error(), "context canceled") {
+			t.Errorf("Run() error should be context.Canceled, got %v", err)
+		}
+	})
+
+	t.Run("context timeout", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+		defer cancel()
+
+		config := LoopConfig[int]{
+			Processor: func(ctx context.Context, i int, val int) (int, bool, error) {
+				// Check context
+				select {
+				case <-ctx.Done():
+					return val, false, ctx.Err()
+				default:
+				}
+
+				// Simulate slow processing
+				time.Sleep(20 * time.Millisecond)
+				return val + 1, false, nil
+			},
+			MaxIterations: 100,
+		}
+
+		loop, err := NewLoop(config)
+		if err != nil {
+			t.Fatalf("NewLoop() error = %v", err)
+		}
+
+		_, err = loop.Run(ctx, 0)
+		if err == nil {
+			t.Errorf("Run() expected timeout error")
+		}
+	})
+}
+
+// TestLoopBuilder tests the builder pattern
+func TestLoopBuilder(t *testing.T) {
+	t.Run("complete builder chain", func(t *testing.T) {
+		loop, err := NewLoopBuilder[int]().
+			WithMaxIterations(10).
+			WithProcessor(func(ctx context.Context, i int, input int) (int, bool, error) {
+				return input * 2, input*2 > 50, nil
+			}).
+			Build()
+
+		if err != nil {
+			t.Fatalf("Build() error = %v", err)
+		}
+
+		ctx := context.Background()
+		result, err := loop.Run(ctx, 1)
+		if err != nil {
+			t.Errorf("Run() error = %v", err)
+		}
+
+		if result != 64 {
+			t.Errorf("Run() got = %v, want 64", result)
+		}
+	})
+
+	t.Run("builder without processor", func(t *testing.T) {
+		_, err := NewLoopBuilder[any]().
+			WithMaxIterations(10).
+			Build()
+
+		if err == nil {
+			t.Errorf("Build() expected error for missing processor")
+		}
+	})
+
+	t.Run("builder with type assertion", func(t *testing.T) {
+		loop, err := NewLoopBuilder[string]().
+			WithProcessor(func(ctx context.Context, i int, str string) (string, bool, error) {
+				return str + "x", len(str) >= 5, nil
+			}).
+			WithMaxIterations(math.MaxInt16).
+			Build()
+
+		if err != nil {
+			t.Fatalf("Build() error = %v", err)
+		}
+
+		ctx := context.Background()
+		result, err := loop.Run(ctx, "a")
+		if err != nil {
+			t.Errorf("Run() error = %v", err)
+		}
+
+		if result != "axxxxx" {
+			t.Errorf("Run() got = %v, want 'axxxxx'", result)
+		}
+	})
+}
+
+// TestLoop_ComplexScenarios tests more complex use cases
+func TestLoop_ComplexScenarios(t *testing.T) {
+	t.Run("fibonacci until > 100", func(t *testing.T) {
+		type FibState struct {
+			prev, curr int
+		}
+
+		config := LoopConfig[FibState]{
+			Processor: func(ctx context.Context, i int, state FibState) (FibState, bool, error) {
+				next := state.prev + state.curr
+				return FibState{prev: state.curr, curr: next}, next > 100, nil
+			},
+			MaxIterations: 20,
+		}
+
+		loop, err := NewLoop(config)
+		if err != nil {
+			t.Fatalf("NewLoop() error = %v", err)
+		}
+
+		result, err := loop.Run(context.Background(), FibState{prev: 0, curr: 1})
+		if err != nil {
+			t.Errorf("Run() error = %v", err)
+		}
+
+		// First fibonacci > 100 is 144
+		if result.curr != 144 {
+			t.Errorf("Run() got = %v, want 144", result.curr)
+		}
+	})
+
+	t.Run("retry with exponential backoff", func(t *testing.T) {
+		type RetryState struct {
+			attempt int
+			success bool
+		}
+
+		attempts := 0
+		config := LoopConfig[RetryState]{
+			Processor: func(ctx context.Context, i int, state RetryState) (RetryState, bool, error) {
+				attempts++
+				// Succeed on 3rd attempt
+				if attempts >= 3 {
+					return RetryState{attempt: attempts, success: true}, true, nil
+				}
+				return RetryState{attempt: attempts, success: false}, false, nil
+			},
+			MaxIterations: 5,
+		}
+
+		loop, err := NewLoop(config)
+		if err != nil {
+			t.Fatalf("NewLoop() error = %v", err)
+		}
+
+		result, err := loop.Run(context.Background(), RetryState{})
+		if err != nil {
+			t.Errorf("Run() error = %v", err)
+		}
+
+		if result.attempt != 3 {
+			t.Errorf("Run() attempts = %v, want 3", result.attempt)
+		}
+		if !result.success {
+			t.Errorf("Run() success = false, want true")
+		}
+	})
+
+	t.Run("state machine", func(t *testing.T) {
+		type State string
+		const (
+			StateInit       State = "init"
+			StateProcessing State = "processing"
+			StateValidating State = "validating"
+			StateCompleted  State = "completed"
+		)
+
+		config := LoopConfig[State]{
+			Processor: func(ctx context.Context, i int, current State) (State, bool, error) {
+				switch current {
+				case StateInit:
+					return StateProcessing, false, nil
+				case StateProcessing:
+					return StateValidating, false, nil
+				case StateValidating:
+					return StateCompleted, false, nil
+				case StateCompleted:
+					return StateCompleted, true, nil
+				default:
+					return current, false, errors.New("unknown state")
+				}
+			},
+			MaxIterations: 10,
+		}
+
+		loop, err := NewLoop(config)
+		if err != nil {
+			t.Fatalf("NewLoop() error = %v", err)
+		}
+
+		result, err := loop.Run(context.Background(), StateInit)
+		if err != nil {
+			t.Errorf("Run() error = %v", err)
+		}
+
+		if result != StateCompleted {
+			t.Errorf("Run() final state = %v, want %v", result, StateCompleted)
+		}
+	})
+}
+
+// Helper function to check if a string contains a substring
+func contains(s, substr string) bool {
+	return len(s) >= len(substr) && (s == substr || len(substr) == 0 ||
+		func() bool {
+			for i := 0; i <= len(s)-len(substr); i++ {
+				if s[i:i+len(substr)] == substr {
+					return true
+				}
+			}
+			return false
+		}())
 }
