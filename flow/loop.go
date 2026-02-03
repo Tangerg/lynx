@@ -3,149 +3,101 @@ package flow
 import (
 	"context"
 	"errors"
+	"fmt"
 )
 
-// LoopConfig contains the configuration for creating a Loop node.
-// It defines the node to be executed repeatedly and the termination condition.
-type LoopConfig[I any, O any] struct {
-	// Node is the processing unit to be executed in each iteration
-	Node Node[I, O]
+// LoopConfig defines the configuration for a loop node that repeatedly processes data
+// until a termination condition is met.
+type LoopConfig[T any] struct {
+	// Processor is the function executed in each iteration.
+	// It receives the iteration index and current value, returning:
+	//   - output: the transformed value for the next iteration
+	//   - done: whether to terminate the loop
+	//   - err: any error that occurred during processing
+	Processor func(ctx context.Context, iteration int, input T) (output T, done bool, err error)
 
-	// MaxIterations sets the hard limit for the number of loop iterations.
-	// This prevents infinite loops and runaway executions.
-	// If <= 0, no limit is enforced (loop relies solely on Terminator).
-	// The iteration count is 0-based, so MaxIterations=10 means iterations 0-9.
-	// This limit is checked before evaluating the Terminator condition.
+	// MaxIterations limits the number of loop iterations.
+	//
+	// Values:
+	//   - 0: Uses DefaultMaxIterations (1024)
+	//   - Positive integer: Custom iteration limit
+	//   - Must not be negative
+	//
+	// The loop will return an error if this limit is reached without
+	// the processor returning done=true.
 	MaxIterations int
-
-	// Terminator is an optional function that determines when to stop the loop.
-	// Parameters:
-	//   - ctx: Context for cancellation control
-	//   - iteration: Current iteration count (0-based)
-	//   - input: Original input to the loop
-	//   - output: Output from the current iteration
-	// Returns:
-	//   - bool: true to terminate the loop, false to continue
-	//   - error: Any error that occurred during termination check
-	// If nil, the loop executes only once.
-	Terminator func(context.Context, int, I, O) (bool, error)
 }
 
-// validate checks if the LoopConfig is valid and ready to use.
-// Returns an error if the config or its Node field is nil.
-func (cfg *LoopConfig[I, O]) validate() error {
+// validate checks if the loop configuration is valid.
+func (cfg *LoopConfig[T]) validate() error {
 	if cfg == nil {
 		return errors.New("loop config cannot be nil")
 	}
 
-	if cfg.Node == nil {
-		return errors.New("loop node cannot be nil")
+	if cfg.Processor == nil {
+		return errors.New("loop processor cannot be nil")
 	}
-
+	if cfg.MaxIterations < 0 {
+		return errors.New("max iterations must be greater than zero")
+	}
+	if cfg.MaxIterations == 0 {
+		cfg.MaxIterations = 1024
+	}
 	return nil
 }
 
-// Loop represents a node that executes another node repeatedly until a termination condition is met.
-// The output of each iteration can be used to determine if the loop should continue.
-type Loop[I any, O any] struct {
-	node          Node[I, O]
+var _ Node[any, any] = (*Loop[any])(nil)
+
+// Loop represents a node that repeatedly processes data until a condition is met.
+type Loop[T any] struct {
+	processor     func(context.Context, int, T) (T, bool, error)
 	maxIterations int
-	terminator    func(context.Context, int, I, O) (bool, error)
 }
 
-// NewLoop creates a new Loop instance with the provided configuration.
+// NewLoop creates a new loop node with the provided configuration.
 // Returns an error if the configuration is invalid.
-//
-// Example:
-//
-//	loop, err := NewLoop(&LoopConfig{
-//	    Node: myNode,
-//	    Terminator: func(ctx context.Context, iteration int, input I, output O) (bool, error) {
-//	        return iteration >= 10, nil // Stop after 10 iterations
-//	    },
-//	})
-func NewLoop[I any, O any](cfg *LoopConfig[I, O]) (*Loop[I, O], error) {
+func NewLoop[T any](cfg LoopConfig[T]) (*Loop[T], error) {
 	if err := cfg.validate(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("invalid loop config: %w", err)
 	}
 
-	return &Loop[I, O]{
-		node:          cfg.Node,
+	return &Loop[T]{
+		processor:     cfg.Processor,
 		maxIterations: cfg.MaxIterations,
-		terminator:    cfg.Terminator,
 	}, nil
 }
 
-// shouldTerminate determines whether the loop should stop iterating.
-//
-// Termination rules:
-//   - MaxIterations + Terminator: stops when any one conditions are satisfied (OR logic)
-//   - MaxIterations only: stops when iteration reaches the limit (iteration >= MaxIterations-1)
-//   - Terminator only: stops when terminator returns true
-//   - Neither set: executes once and stops
-//
-// Parameters:
-//   - ctx: Context for cancellation control
-//   - iteration: Current iteration count (0-based)
-//   - input: Original input to the loop
-//   - output: Output from the current iteration
-//
-// Returns:
-//   - bool: true to stop, false to continue
-//   - error: Any error from the terminator function
-func (l *Loop[I, O]) shouldTerminate(ctx context.Context, iteration int, input I, output O) (bool, error) {
-	// Case 1: Both limits set - require both conditions
-	if l.maxIterations > 0 && l.terminator != nil {
-		terminate, err := l.terminator(ctx, iteration, input, output)
+// Run executes the loop, repeatedly applying the processor until completion or error.
+// The loop terminates when:
+//   - The processor returns done=true
+//   - An error occurs
+//   - MaxIterations is reached (if set)
+func (l *Loop[T]) Run(ctx context.Context, input T) (T, error) {
+	var (
+		iteration int
+		current   = input
+		done      bool
+		err       error
+	)
+
+	for iteration < l.maxIterations {
+		// Execute processor for current iteration
+		current, done, err = l.processor(ctx, iteration, current)
 		if err != nil {
-			return false, err
-		}
-		return (iteration >= l.maxIterations-1) || terminate, nil
-	}
-
-	// Case 2: Only max iterations set
-	if l.maxIterations > 0 {
-		return iteration >= l.maxIterations-1, nil
-	}
-
-	// Case 3: No termination condition - single iteration
-	if l.terminator == nil {
-		return true, nil
-	}
-
-	// Case 4: Only terminator set
-	return l.terminator(ctx, iteration, input, output)
-}
-
-// Run implements the Node interface for Loop.
-// It repeatedly executes the configured node until the termination condition is met.
-// Each iteration uses the same input, but the output is updated after each execution.
-//
-// Parameters:
-//   - ctx: Context for cancellation and timeout control
-//   - input: Input value for the loop node
-//
-// Returns:
-//   - The output from the final iteration
-//   - An error if any iteration fails or the terminator returns an error
-func (l *Loop[I, O]) Run(ctx context.Context, input I) (O, error) {
-	var iteration int
-
-	for {
-		output, err := l.node.Run(ctx, input)
-		if err != nil {
-			return output, err
+			return current, fmt.Errorf("loop failed at iteration %d: %w", iteration, err)
 		}
 
-		shouldStop, err := l.shouldTerminate(ctx, iteration, input, output)
-		if err != nil {
-			return output, err
-		}
-
-		if shouldStop {
-			return output, nil
+		// Check termination condition
+		if done {
+			return current, nil
 		}
 
 		iteration++
 	}
+
+	// Exceeded max iterations
+	return current, fmt.Errorf(
+		"loop exceeded max iterations (%d): termination condition not met",
+		l.maxIterations,
+	)
 }

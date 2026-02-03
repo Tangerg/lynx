@@ -4,110 +4,82 @@ import (
 	"context"
 	"errors"
 	"fmt"
-
-	"github.com/Tangerg/lynx/pkg/sync"
+	"time"
 )
 
-// AsyncConfig contains the configuration for creating an Async node.
-// It defines the node to be executed asynchronously and the thread pool to use.
-type AsyncConfig[I any, O any] struct {
-	// Node is the processing unit to be executed asynchronously
-	Node Node[I, O]
-
-	// Pool is the thread pool for executing the async task.
-	// If nil, a default no-pool executor will be used.
-	Pool sync.Pool
-}
-
-// validate checks if the AsyncConfig is valid and applies defaults.
-// Returns an error if the config or its Node field is nil.
-// Sets a default Pool if none is provided.
-func (cfg *AsyncConfig[I, O]) validate() error {
-	if cfg == nil {
-		return errors.New("async config cannot be nil")
-	}
-
-	if cfg.Node == nil {
-		return errors.New("async node cannot be nil")
-	}
-
-	if cfg.Pool == nil {
-		cfg.Pool = sync.PoolOfNoPool()
-	}
-
-	return nil
-}
-
-// Async represents a node that executes another node asynchronously.
-// It returns a Future that can be used to retrieve the result later.
-type Async[I any, O any] struct {
-	node Node[I, O]
-	pool sync.Pool
-}
-
-// NewAsync creates a new Async instance with the provided configuration.
-// Returns an error if the configuration is invalid.
+// Future represents an asynchronous computation result that may not be immediately available.
+// It provides multiple methods to retrieve the result with different blocking strategies.
 //
-// Example:
+// Note: This package does not provide a default Future implementation.
+// Users must implement this interface according to their specific needs.
+type Future[V any] interface {
+	// Get blocks until the result is available or an error occurs.
+	Get() (V, error)
+
+	// GetWithTimeout blocks until the result is available, the timeout expires,
+	// or an error occurs. Returns an error if the timeout is exceeded.
+	GetWithTimeout(timeout time.Duration) (V, error)
+
+	// GetWithContext blocks until the result is available, the context is cancelled,
+	// or an error occurs. Returns an error if the context is cancelled.
+	GetWithContext(ctx context.Context) (V, error)
+
+	// TryGet attempts to retrieve the result without blocking.
+	// Returns:
+	//   - value: the result if available
+	//   - error: any error that occurred during computation
+	//   - ready: true if the result is ready, false otherwise
+	TryGet() (value V, err error, ready bool)
+}
+
+var _ Node[any, Future[any]] = (*Async[any, any, Future[any]])(nil)
+
+// Async represents a node that executes asynchronous operations and returns a Future
+// for deferred result retrieval.
 //
-//	async, err := NewAsync(&AsyncConfig{
-//	    Node: myNode,
-//	    Pool: myThreadPool,
-//	})
-func NewAsync[I any, O any](cfg *AsyncConfig[I, O]) (*Async[I, O], error) {
-	if err := cfg.validate(); err != nil {
-		return nil, err
+// This node is useful for:
+//   - Long-running operations that shouldn't block the workflow
+//   - Operations that can be executed in the background
+//   - Computations where results are needed at a later time
+//
+// The actual Future implementation must be provided by the user, allowing flexibility
+// in choosing or implementing different asynchronous execution strategies.
+type Async[I, O any, F Future[O]] struct {
+	processor func(context.Context, I) (F, error)
+}
+
+// NewAsync creates a new async node with the provided processor function.
+//
+// The processor should:
+//   - Accept an input and return a Future that will eventually contain the output
+//   - Handle its own asynchronous execution logic
+//   - Return an error if the async operation cannot be started
+//
+// Returns an error if the processor is nil.
+func NewAsync[I, O any, F Future[O]](processor func(context.Context, I) (F, error)) (*Async[I, O, F], error) {
+	if processor == nil {
+		return nil, errors.New("async processor cannot be nil")
 	}
 
-	return &Async[I, O]{
-		node: cfg.Node,
-		pool: cfg.Pool,
+	return &Async[I, O, F]{
+		processor: processor,
 	}, nil
 }
 
-// RunType executes the configured node asynchronously and returns a typed Future.
-// The Future can be used to retrieve the result when it's ready or check for errors.
+// Run executes the async processor and returns a Future for the result.
 //
-// Parameters:
-//   - ctx: Context for cancellation and timeout control
-//   - input: Input value for the async node
+// The returned Future allows the caller to retrieve the result at a later time
+// using one of the Future's retrieval methods (Get, GetWithTimeout, etc.).
 //
-// Returns:
-//   - A Future[O] that will eventually contain the result
-//   - An error if the async task cannot be submitted
-//
-// Example:
-//
-//	future, err := async.RunType(ctx, input)
-//	if err != nil {
-//	    return err
-//	}
-//	result, err := future.Get()
-func (a *Async[I, O]) RunType(ctx context.Context, input I) (sync.Future[O], error) {
-	return sync.NewFutureTaskAndRunWithPool(
-		func(interrupt <-chan struct{}) (output O, err error) {
-			select {
-			case <-interrupt:
-				return output, fmt.Errorf("async task cancelled")
-			default:
-				return a.node.Run(ctx, input)
-			}
-		},
-		a.pool,
-	)
-}
+// Note: This method returns immediately after starting the async operation.
+// The actual computation happens asynchronously, and results are obtained
+// through the returned Future.
+func (a *Async[I, O, F]) Run(ctx context.Context, input I) (F, error) {
+	future, err := a.processor(ctx, input)
+	if err != nil {
+		var zero F
+		return zero, fmt.Errorf("failed to start async operation: %w", err)
+	}
 
-// Run implements the Node interface for Async.
-// It executes the configured node asynchronously and returns a Future as any type.
-// For type-safe usage, prefer using RunType instead.
-//
-// Parameters:
-//   - ctx: Context for cancellation and timeout control
-//   - input: Input value for the async node
-//
-// Returns:
-//   - A Future (as any type) that will eventually contain the result
-//   - An error if the async task cannot be submitted
-func (a *Async[I, O]) Run(ctx context.Context, input I) (any, error) {
-	return a.RunType(ctx, input)
+	return future, nil
 }

@@ -13,10 +13,6 @@ func TestNew(t *testing.T) {
 	t.Run("with value and no error", func(t *testing.T) {
 		result := New(42, nil)
 
-		if result == nil {
-			t.Fatal("New() returned nil")
-		}
-
 		v, err := result.Get()
 		if v != 42 {
 			t.Errorf("Get() value = %d, want 42", v)
@@ -86,10 +82,6 @@ func TestNew(t *testing.T) {
 func TestValue(t *testing.T) {
 	t.Run("int value", func(t *testing.T) {
 		result := Value(42)
-
-		if result == nil {
-			t.Fatal("Value() returned nil")
-		}
 
 		v, err := result.Get()
 		if v != 42 {
@@ -169,10 +161,6 @@ func TestError(t *testing.T) {
 	t.Run("with error", func(t *testing.T) {
 		testErr := errors.New("test error")
 		result := Error[int](testErr)
-
-		if result == nil {
-			t.Fatal("Error() returned nil")
-		}
 
 		v, err := result.Get()
 		if v != 0 {
@@ -656,7 +644,7 @@ func TestResult_UsagePatterns(t *testing.T) {
 	})
 
 	t.Run("transforming values with Map", func(t *testing.T) {
-		parseNumber := func(s string) *Result[int] {
+		parseNumber := func(s string) Result[int] {
 			var n int
 			_, err := fmt.Sscanf(s, "%d", &n)
 			return New(n, err)

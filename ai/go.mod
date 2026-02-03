@@ -3,6 +3,7 @@ module github.com/Tangerg/lynx/ai
 go 1.24.2
 
 require (
+	github.com/Tangerg/lynx/flow v0.0.0-20260108175427-02f5e924a8fc
 	github.com/Tangerg/lynx/pkg v0.0.0-20251202120040-4d3535f43696
 	github.com/google/uuid v1.6.0
 	github.com/openai/openai-go/v3 v3.12.0
@@ -21,15 +22,20 @@ require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/dlclark/regexp2 v1.11.5 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.12 // indirect
+	github.com/gammazero/deque v1.2.0 // indirect
+	github.com/gammazero/workerpool v1.1.3 // indirect
 	github.com/invopop/jsonschema v0.13.0 // indirect
 	github.com/mailru/easyjson v0.9.1 // indirect
+	github.com/panjf2000/ants/v2 v2.11.3 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
+	github.com/sourcegraph/conc v0.3.0 // indirect
 	github.com/stretchr/objx v0.5.2 // indirect
 	github.com/tidwall/gjson v1.18.0 // indirect
 	github.com/tidwall/match v1.2.0 // indirect
 	github.com/tidwall/pretty v1.2.1 // indirect
 	github.com/tidwall/sjson v1.2.5 // indirect
 	github.com/wk8/go-ordered-map/v2 v2.1.8 // indirect
+	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/net v0.48.0 // indirect
 	golang.org/x/sys v0.39.0 // indirect
 	golang.org/x/text v0.32.0 // indirect

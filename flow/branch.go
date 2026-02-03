@@ -8,104 +8,75 @@ import (
 	"slices"
 )
 
-// BranchConfig contains the configuration for creating a Branch node.
-// It defines a main node and conditional branches based on the main node's output.
-type BranchConfig struct {
-	// Node is the main processing unit whose output determines which branch to take
-	Node Node[any, any]
+// BranchConfig defines the configuration for a branch node that routes execution
+// to different processing paths based on runtime conditions.
+type BranchConfig[I, O any] struct {
+	// Branches maps branch names to their corresponding processor functions.
+	// Each branch must accept the same input type and produce the same output type.
+	Branches map[string]func(context.Context, I) (O, error)
 
-	// Branches maps branch names to their corresponding nodes.
-	// The branch selected by BranchResolver will be executed with the main node's output.
-	// If empty, no branching occurs.
-	Branches map[string]Node[any, any]
-
-	// BranchResolver determines which branch to execute based on the input and output.
-	// Parameters:
-	//   - ctx: Context for cancellation control
-	//   - input: Original input to the main node
-	//   - output: Output from the main node
-	// Returns:
-	//   - string: The name of the branch to execute
-	//   - error: Any error during branch resolution
-	// If nil, no branching occurs and only the main node is executed.
-	BranchResolver func(context.Context, any, any) (string, error)
+	// BranchResolver determines which branch to execute based on the input.
+	// It returns the name of the branch to be executed.
+	// If nil and only one branch exists, that branch will be used by default.
+	BranchResolver func(context.Context, I) string
 }
 
-// validate checks if the BranchConfig is valid and ready to use.
-// Returns an error if the config or its Node field is nil.
-func (cfg *BranchConfig) validate() error {
+// validate checks if the branch configuration is valid and applies defaults.
+func (cfg *BranchConfig[I, O]) validate() error {
 	if cfg == nil {
 		return errors.New("branch config cannot be nil")
 	}
 
-	if cfg.Node == nil {
-		return errors.New("branch node cannot be nil")
+	if len(cfg.Branches) == 0 {
+		return errors.New("at least one branch is required")
+	}
+
+	// Optimization: if only one branch exists and not provide branch resolver, use it as default
+	if len(cfg.Branches) == 1 && cfg.BranchResolver == nil {
+		var defaultBranch string
+		for defaultBranch = range cfg.Branches {
+			break
+		}
+		cfg.BranchResolver = func(context.Context, I) string {
+			return defaultBranch
+		}
+	}
+
+	if cfg.BranchResolver == nil {
+		return errors.New("branch resolver cannot be nil for multiple branches")
 	}
 
 	return nil
 }
 
-// Branch represents a conditional node that executes different paths based on a decision.
-// It first runs the main node, then uses the resolver to determine and execute a branch.
-//
-// Execution flow:
-//  1. Execute the main node with the input
-//  2. Use the branch resolver to determine which branch to take (based on input and output)
-//  3. Execute the selected branch node with the main node's output
-type Branch struct {
-	node           Node[any, any]
-	branches       map[string]Node[any, any]
-	branchResolver func(context.Context, any, any) (string, error)
+var _ Node[any, any] = (*Branch[any, any])(nil)
+
+// Branch represents a node that conditionally routes execution to different branches
+// based on input characteristics.
+type Branch[I, O any] struct {
+	branches       map[string]func(context.Context, I) (O, error)
+	branchResolver func(context.Context, I) string
 }
 
-// NewBranch creates a new Branch instance with the provided configuration.
+// NewBranch creates a new branch node with the provided configuration.
 // Returns an error if the configuration is invalid.
-//
-// Example:
-//
-//	branch, err := NewBranch(&BranchConfig{
-//	    Node: validatorNode,
-//	    BranchResolver: func(ctx context.Context, input, output any) (string, error) {
-//	        if isValid(output) {
-//	            return "success", nil
-//	        }
-//	        return "failure", nil
-//	    },
-//	    Branches: map[string]Node[any, any]{
-//	        "success": successNode,
-//	        "failure": failureNode,
-//	    },
-//	})
-func NewBranch(cfg *BranchConfig) (*Branch, error) {
+func NewBranch[I, O any](cfg BranchConfig[I, O]) (*Branch[I, O], error) {
 	if err := cfg.validate(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("invalid branch config: %w", err)
 	}
 
-	return &Branch{
-		node:           cfg.Node,
+	return &Branch[I, O]{
+		branches:       maps.Clone(cfg.Branches),
 		branchResolver: cfg.BranchResolver,
-		branches:       cfg.Branches,
 	}, nil
 }
 
-// resolveBranch determines which branch node to execute based on the resolver's decision.
-// Returns an error if the branch name doesn't exist in the branches map.
-//
-// Parameters:
-//   - ctx: Context for cancellation control
-//   - input: Original input to the main node
-//   - output: Output from the main node
-//
-// Returns:
-//   - The node corresponding to the resolved branch name
-//   - An error if branch resolution fails or the branch doesn't exist
-func (b *Branch) resolveBranch(ctx context.Context, input, output any) (Node[any, any], error) {
-	branchName, err := b.branchResolver(ctx, input, output)
-	if err != nil {
-		return nil, err
-	}
+// resolveBranch determines and retrieves the branch to execute based on the input.
+// Returns an error if the resolved branch name does not exist.
+func (b *Branch[I, O]) resolveBranch(ctx context.Context, input I) (func(context.Context, I) (O, error), error) {
+	branchName := b.branchResolver(ctx, input)
 
-	branchNode, exists := b.branches[branchName]
+	branch, exists := b.branches[branchName]
 	if !exists {
 		availableBranches := slices.Collect(maps.Keys(b.branches))
 		return nil, fmt.Errorf(
@@ -115,43 +86,23 @@ func (b *Branch) resolveBranch(ctx context.Context, input, output any) (Node[any
 		)
 	}
 
-	return branchNode, nil
+	return branch, nil
 }
 
-// Run implements the Node interface for Branch.
-// It executes the main node first, then conditionally executes a branch based on the resolver.
-//
-// Execution logic:
-//  1. Run the main node with the provided input
-//  2. If branches are empty or resolver is nil, return the main node's output
-//  3. Otherwise, resolve which branch to take based on input and output
-//  4. Execute the selected branch node with the main node's output
-//
-// Parameters:
-//   - ctx: Context for cancellation and timeout control
-//   - input: Input value for the main node
-//
-// Returns:
-//   - The output from the executed branch (or main node if no branching occurs)
-//   - An error if the main node, branch resolution, or branch execution fails
-func (b *Branch) Run(ctx context.Context, input any) (any, error) {
-	// Step 1: Execute the main node
-	output, err := b.node.Run(ctx, input)
+// Run executes the appropriate branch based on the input.
+// The branch is selected by the BranchResolver, then executed with the provided input.
+func (b *Branch[I, O]) Run(ctx context.Context, input I) (O, error) {
+	branch, err := b.resolveBranch(ctx, input)
 	if err != nil {
-		return nil, err
+		var zero O
+		return zero, fmt.Errorf("failed to resolve branch: %w", err)
 	}
 
-	// Step 2: Check if branching is configured
-	if len(b.branches) == 0 || b.branchResolver == nil {
-		return output, nil
-	}
-
-	// Step 3: Resolve which branch to execute
-	branchNode, err := b.resolveBranch(ctx, input, output)
+	result, err := branch(ctx, input)
 	if err != nil {
-		return nil, err
+		var zero O
+		return zero, fmt.Errorf("branch execution failed: %w", err)
 	}
 
-	// Step 4: Execute the selected branch
-	return branchNode.Run(ctx, output)
+	return result, nil
 }
