@@ -54,3 +54,15 @@ func DivideExact(x int64, y int64) (int64, error) {
 	}
 	return 0, errors.New("int64 overflow")
 }
+
+// IsNumericType checks if a value is a numeric type
+func IsNumericType(val any) bool {
+	switch val.(type) {
+	case int, int8, int16, int32, int64,
+		uint, uint8, uint16, uint32, uint64,
+		float32, float64:
+		return true
+	default:
+		return false
+	}
+}
