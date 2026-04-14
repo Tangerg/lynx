@@ -102,7 +102,7 @@ func TestEnsureIndex(t *testing.T) {
 				t.Error("EnsureIndex should panic on negative index")
 			} else {
 				if msg, ok := r.(string); ok {
-					expected := "index must be positive"
+					expected := "index must not be negative"
 					if msg != expected {
 						t.Errorf("panic message = %q, want %q", msg, expected)
 					}

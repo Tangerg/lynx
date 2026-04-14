@@ -169,7 +169,7 @@ func TestIntRange_Panic_MinGreaterThanMax(t *testing.T) {
 				} else {
 					// Verify panic message
 					if msg, ok := r.(string); ok {
-						expected := "IntRange: min cannot be greater than max"
+						expected := "min cannot be greater than max"
 						if msg != expected {
 							t.Errorf("panic message = %q, want %q", msg, expected)
 						}

@@ -56,7 +56,7 @@ func TestNewSyncSet(t *testing.T) {
 
 	t.Run("prevent double wrapping", func(t *testing.T) {
 		set1 := NewSyncSet[int]()
-		set2 := NewSyncSet[int](set1)
+		set2 := NewSyncSet(set1)
 
 		if set1 != set2 {
 			t.Error("NewSyncSet() should return same instance when wrapping SyncSet")
@@ -82,7 +82,7 @@ func TestNewSyncSet(t *testing.T) {
 		inner := NewHashSet[int]()
 		inner.Add(42)
 
-		set := NewSyncSet[int](nil, nil, inner, nil)
+		set := NewSyncSet(nil, nil, inner, nil)
 		if !set.Contains(42) {
 			t.Error("Should use the first non-nil set")
 		}

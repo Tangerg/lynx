@@ -14,7 +14,7 @@ import (
 //
 // Parameters:
 //   - r: The io.Reader to read from
-//   - caps: Optional initial buffer capacity (default: 512 bytes)
+//   - bufSize: Optional initial buffer capacity (default: 512 bytes)
 //     If multiple values are provided, only the first is used.
 //     If the value is 0 or not provided, defaults to 512 bytes.
 //     Negative values cause a panic.
@@ -25,29 +25,28 @@ import (
 //
 // Note: Unlike io.ReadAll, this function allows customizing the initial buffer capacity,
 // which can improve performance when the approximate data size is known.
-func ReadAll(r io.Reader, caps ...int) ([]byte, error) {
-	size := slices.FirstOr(caps, 0)
+func ReadAll(r io.Reader, bufSize ...int) ([]byte, error) {
+	size := slices.FirstOr(bufSize, 0)
 	if size < 0 {
-		panic("buffer capacity cannot be negative")
+		panic("buffer capacity must not be negative")
 	}
 	if size == 0 {
 		size = 512
 	}
 
-	buffer := make([]byte, 0, size)
+	buf := make([]byte, 0, size)
 	for {
-		n, err := r.Read(buffer[len(buffer):cap(buffer)])
-		buffer = buffer[:len(buffer)+n]
+		n, err := r.Read(buf[len(buf):cap(buf)])
+		buf = buf[:len(buf)+n]
 		if err != nil {
 			if err == io.EOF {
 				err = nil
 			}
-			return buffer, err
+			return buf, err
 		}
 
-		if len(buffer) == cap(buffer) {
-			// Add more capacity (let append pick how much).
-			buffer = append(buffer, 0)[:len(buffer)]
+		if len(buf) == cap(buf) {
+			buf = append(buf, 0)[:len(buf)]
 		}
 	}
 }
@@ -59,7 +58,7 @@ func ReadAll(r io.Reader, caps ...int) ([]byte, error) {
 //
 // Parameters:
 //   - r: The io.Reader to read from
-//   - caps: Optional buffer capacity for each read operation (default: 512 bytes)
+//   - bufSize: Optional buffer capacity for each read operation (default: 512 bytes)
 //     If multiple values are provided, only the first is used.
 //     If the value is 0 or not provided, defaults to 512 bytes.
 //     Negative values cause a panic.
@@ -71,10 +70,10 @@ func ReadAll(r io.Reader, caps ...int) ([]byte, error) {
 //
 // Note: A new buffer is allocated for each iteration to prevent memory aliasing issues.
 // The caller should process or copy the data before the next iteration if needed.
-func Read(r io.Reader, caps ...int) iter.Seq2[[]byte, error] {
-	size := slices.FirstOr(caps, 0)
+func Read(r io.Reader, bufSize ...int) iter.Seq2[[]byte, error] {
+	size := slices.FirstOr(bufSize, 0)
 	if size < 0 {
-		panic("buffer capacity cannot be negative")
+		panic("buffer capacity must not be negative")
 	}
 	if size == 0 {
 		size = 512
@@ -82,23 +81,20 @@ func Read(r io.Reader, caps ...int) iter.Seq2[[]byte, error] {
 
 	return func(yield func([]byte, error) bool) {
 		for {
-			// Always create a new buffer each time to avoid memory aliasing issues.
-			buffer := make([]byte, 0, size)
-			n, err := r.Read(buffer[len(buffer):cap(buffer)])
-			buffer = buffer[:len(buffer)+n]
+			buf := make([]byte, 0, size)
+			n, err := r.Read(buf[len(buf):cap(buf)])
+			buf = buf[:len(buf)+n]
 
 			if err == io.EOF {
 				err = nil
 			}
 
 			if err != nil {
-				// Yield the error once and terminate.
-				yield(buffer, err)
+				yield(buf, err)
 				return
 			}
 
-			// Yield the data read.
-			if !yield(buffer, nil) {
+			if !yield(buf, nil) {
 				return
 			}
 		}

@@ -19,7 +19,7 @@ package slices
 //	s[5] = 42              // Safe to access
 func EnsureIndex[S ~[]E, E any](s S, i int) S {
 	if i < 0 {
-		panic("index must be positive")
+		panic("index must not be negative")
 	}
 	// Return original slice if index is already accessible
 	if i < len(s) {

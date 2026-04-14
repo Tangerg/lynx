@@ -273,7 +273,7 @@ func TestPoolOfConc(t *testing.T) {
 				t.Error("PoolOfConc(nil) should panic")
 			} else {
 				if msg, ok := r.(string); ok {
-					expected := "conc pool is nil"
+					expected := "pool must not be nil"
 					if msg != expected {
 						t.Errorf("panic message = %q, want %q", msg, expected)
 					}
@@ -367,7 +367,7 @@ func TestPoolOfAnts(t *testing.T) {
 				t.Error("PoolOfAnts(nil) should panic")
 			} else {
 				if msg, ok := r.(string); ok {
-					expected := "ants pool is nil"
+					expected := "pool must not be nil"
 					if msg != expected {
 						t.Errorf("panic message = %q, want %q", msg, expected)
 					}
@@ -504,7 +504,7 @@ func TestPoolOfWorkerpool(t *testing.T) {
 				t.Error("PoolOfWorkerpool(nil) should panic")
 			} else {
 				if msg, ok := r.(string); ok {
-					expected := "worker pool is nil"
+					expected := "pool must not be nil"
 					if msg != expected {
 						t.Errorf("panic message = %q, want %q", msg, expected)
 					}
