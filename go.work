@@ -2,6 +2,8 @@ go 1.25.5
 
 use (
 	./core
+	./models
 	./pkg
-	./providers
+	./tools
+	./vectorstores
 )
