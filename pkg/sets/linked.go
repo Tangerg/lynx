@@ -42,16 +42,15 @@ type LinkedSet[T comparable] struct {
 //   - Building ordered unique collections
 //   - Maintaining insertion history
 func NewLinkedSet[T comparable](size ...int) *LinkedSet[T] {
-	var c = 0
+	c := 0
 	for _, s := range size {
 		if s > 0 {
 			c = s
 		}
 	}
-	ls := &LinkedSet[T]{
+	return &LinkedSet[T]{
 		nodes: make(map[T]*node[T], c),
 	}
-	return ls
 }
 
 // Size returns the number of elements using the hash map size.

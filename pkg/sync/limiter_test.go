@@ -42,7 +42,7 @@ func TestNewLimiter(t *testing.T) {
 				t.Error("NewLimiter(0) should panic")
 			} else {
 				if msg, ok := r.(string); ok {
-					expected := "max must be > 0"
+					expected := "max must be greater than 0"
 					if msg != expected {
 						t.Errorf("panic message = %q, want %q", msg, expected)
 					}

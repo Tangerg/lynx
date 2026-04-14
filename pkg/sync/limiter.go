@@ -63,7 +63,7 @@ type Limiter struct {
 //	limiter := NewLimiter(10)
 func NewLimiter(max int) *Limiter {
 	if max <= 0 {
-		panic("max must be > 0")
+		panic("max must be greater than 0")
 	}
 	return &Limiter{
 		semaphore: make(chan struct{}, max),

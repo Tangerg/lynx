@@ -33,30 +33,24 @@ func (u *DataUnit) Suffix() string {
 func NewUnitFromSuffix(suffix string) (*DataUnit, error) {
 	r := &DataUnit{}
 	suffix = strings.ToUpper(suffix)
-	if suffix == BSuffix {
+	switch suffix {
+	case BSuffix:
 		r.size = SizeOfB(1)
 		r.suffix = BSuffix
-		return r, nil
-	}
-	if suffix == KBSuffix {
+	case KBSuffix:
 		r.size, _ = SizeOfKB(1)
 		r.suffix = KBSuffix
-		return r, nil
-	}
-	if suffix == MBSuffix {
+	case MBSuffix:
 		r.size, _ = SizeOfMB(1)
 		r.suffix = MBSuffix
-		return r, nil
-	}
-	if suffix == GBSuffix {
+	case GBSuffix:
 		r.size, _ = SizeOfGB(1)
 		r.suffix = GBSuffix
-		return r, nil
-	}
-	if suffix == TBSuffix {
+	case TBSuffix:
 		r.size, _ = SizeOfTB(1)
 		r.suffix = TBSuffix
-		return r, nil
+	default:
+		return nil, fmt.Errorf("unknown data unit suffix: %q", suffix)
 	}
-	return nil, fmt.Errorf("unknown data unit suffix: %s", suffix)
+	return r, nil
 }

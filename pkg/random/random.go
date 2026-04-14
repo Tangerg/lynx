@@ -14,7 +14,7 @@ import (
 // Returns a random integer in [min, max) range.
 func IntRange(min, max int) int {
 	if min > max {
-		panic("IntRange: min cannot be greater than max")
+		panic("min cannot be greater than max")
 	}
 	return rand.IntN(max-min) + min
 }

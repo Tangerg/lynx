@@ -63,7 +63,7 @@ func PoolOfNoPool() Pool {
 // It panics if the provided pool is nil.
 func PoolOfConc(pool *conc.Pool) Pool {
 	if pool == nil {
-		panic("conc pool is nil")
+		panic("pool must not be nil")
 	}
 	return poolAdapter(func(f func()) error {
 		pool.Go(f)
@@ -75,7 +75,7 @@ func PoolOfConc(pool *conc.Pool) Pool {
 // It panics if the provided pool is nil.
 func PoolOfAnts(pool *ants.Pool) Pool {
 	if pool == nil {
-		panic("ants pool is nil")
+		panic("pool must not be nil")
 	}
 	return poolAdapter(func(f func()) error {
 		return pool.Submit(f)
@@ -86,7 +86,7 @@ func PoolOfAnts(pool *ants.Pool) Pool {
 // It panics if the provided pool is nil.
 func PoolOfWorkerpool(pool *workerpool.WorkerPool) Pool {
 	if pool == nil {
-		panic("worker pool is nil")
+		panic("pool must not be nil")
 	}
 	return poolAdapter(func(f func()) error {
 		pool.Submit(f)

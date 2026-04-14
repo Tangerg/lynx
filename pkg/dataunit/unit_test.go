@@ -258,7 +258,7 @@ func TestNewUnitFromSuffix_ErrorMessage(t *testing.T) {
 		t.Fatal("expected error for invalid suffix")
 	}
 
-	expectedMsg := "unknown data unit suffix: INVALID"
+	expectedMsg := `unknown data unit suffix: "INVALID"`
 	if err.Error() != expectedMsg {
 		t.Errorf("error message = %q, want %q", err.Error(), expectedMsg)
 	}

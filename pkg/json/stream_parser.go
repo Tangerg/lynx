@@ -54,7 +54,7 @@ type StreamParser struct {
 	topLevelBuf *bytes.Buffer
 	inString    bool
 	escaped     bool
-	charCount   int
+	pos         int
 	onArray     func([]any) error
 	onObject    func(map[string]any) error
 	onValue     func(any) error
@@ -95,7 +95,7 @@ func (p *StreamParser) Parse() error {
 				}
 				// Ensure all scopes are closed
 				if len(p.scopes) > 0 {
-					return fmt.Errorf("unexpected EOF: unclosed %s", p.scopes[len(p.scopes)-1])
+					return fmt.Errorf("unexpected EOF: unclosed %s element", p.scopes[len(p.scopes)-1])
 				}
 				return nil
 			}
@@ -104,7 +104,7 @@ func (p *StreamParser) Parse() error {
 
 		if n > 0 {
 			if err = p.processBytes(buf[:n]); err != nil {
-				return fmt.Errorf("process bytes: %w", err)
+				return fmt.Errorf("failed to process data: %w", err)
 			}
 		}
 
@@ -123,7 +123,7 @@ func (p *StreamParser) processBytes(data []byte) error {
 
 // processChar processes a single character.
 func (p *StreamParser) processChar(char byte) error {
-	p.charCount++
+	p.pos++
 
 	// Handle string state
 	if char == '"' && !p.escaped {
@@ -218,13 +218,13 @@ func (p *StreamParser) flushTopLevel() error {
 	// Try to parse as any JSON value
 	var v any
 	if err := json.Unmarshal(data, &v); err != nil {
-		return fmt.Errorf("unmarshal top-level value at position %d: %w", p.charCount, err)
+		return fmt.Errorf("unmarshal top-level value at position %d: %w", p.pos, err)
 	}
 
 	// Dispatch based on type
 	if p.onValue != nil {
 		if err := p.onValue(v); err != nil {
-			return fmt.Errorf("onValue callback error: %w", err)
+			return fmt.Errorf("onValue callback: %w", err)
 		}
 	}
 
@@ -256,13 +256,13 @@ func (p *StreamParser) startScope(scopeType string) {
 // endScope closes the current scope.
 func (p *StreamParser) endScope(scopeType string) error {
 	if len(p.scopes) == 0 {
-		return fmt.Errorf("unexpected closing '%s' at position %d", p.closingChar(scopeType), p.charCount)
+		return fmt.Errorf("unexpected closing '%s' at position %d", p.closingChar(scopeType), p.pos)
 	}
 
 	currentScope := p.scopes[len(p.scopes)-1]
 	if currentScope != scopeType {
 		return fmt.Errorf("mismatched brackets at position %d: expected '%s', got '%s'",
-			p.charCount, p.closingChar(currentScope), p.closingChar(scopeType))
+			p.pos, p.closingChar(currentScope), p.closingChar(scopeType))
 	}
 
 	p.scopes = p.scopes[:len(p.scopes)-1]
@@ -298,14 +298,14 @@ func (p *StreamParser) endScope(scopeType string) error {
 func (p *StreamParser) dispatchObject(data []byte) error {
 	var obj map[string]any
 	if err := json.Unmarshal(data, &obj); err != nil {
-		parseErr := fmt.Errorf("unmarshal object at position %d: %w", p.charCount, err)
+		parseErr := fmt.Errorf("unmarshal object at position %d: %w", p.pos, err)
 		p.handleError(parseErr)
 		return parseErr
 	}
 
 	if p.onObject != nil {
 		if err := p.onObject(obj); err != nil {
-			return fmt.Errorf("onObject callback error: %w", err)
+			return fmt.Errorf("onObject callback: %w", err)
 		}
 	}
 	return nil
@@ -315,14 +315,14 @@ func (p *StreamParser) dispatchObject(data []byte) error {
 func (p *StreamParser) dispatchArray(data []byte) error {
 	var arr []any
 	if err := json.Unmarshal(data, &arr); err != nil {
-		parseErr := fmt.Errorf("unmarshal array at position %d: %w", p.charCount, err)
+		parseErr := fmt.Errorf("unmarshal array at position %d: %w", p.pos, err)
 		p.handleError(parseErr)
 		return parseErr
 	}
 
 	if p.onArray != nil {
 		if err := p.onArray(arr); err != nil {
-			return fmt.Errorf("onArray callback error: %w", err)
+			return fmt.Errorf("onArray callback: %w", err)
 		}
 	}
 	return nil

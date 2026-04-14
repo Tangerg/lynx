@@ -198,10 +198,10 @@ type StreamScannerConfig struct {
 // validate checks and normalizes the configuration.
 func (c *StreamScannerConfig) validate() error {
 	if c == nil {
-		return errors.New("config is nil")
+		return errors.New("config must not be nil")
 	}
 	if len(c.Listeners) == 0 {
-		return errors.New("config.Listeners is empty")
+		return errors.New("at least one listener is required")
 	}
 
 	// Set default values
@@ -216,10 +216,10 @@ func (c *StreamScannerConfig) validate() error {
 	eleNames := make(map[Name]bool)
 	for _, listener := range c.Listeners {
 		if listener.Name.String() == "" {
-			return errors.New("element name is empty")
+			return errors.New("listener element name must not be empty")
 		}
 		if eleNames[listener.Name] {
-			return fmt.Errorf("element name %q is duplicated", listener.Name)
+			return fmt.Errorf("duplicate listener for element %q", listener.Name)
 		}
 		eleNames[listener.Name] = true
 
@@ -238,7 +238,7 @@ type StreamScanner struct {
 	onText          func(string) error        // Text content callback
 	strictMode      bool                      // Strict parsing mode
 	onError         func(error)               // Error logging callback
-	processedCount  int                       // Number of bytes processed
+	pos             int                       // Number of bytes processed
 	stack           *elementStack             // Stack for nested elements
 	buffers         *buffers                  // Parsing buffers
 	elementState    *elementState             // Current parsing state
@@ -297,7 +297,7 @@ func (p *StreamScanner) Reset() {
 	p.stack.reset()
 	p.buffers.reset()
 	p.elementState.reset()
-	p.processedCount = 0
+	p.pos = 0
 }
 
 // flushText sends accumulated text to the OnText callback.
@@ -309,7 +309,7 @@ func (p *StreamScanner) flushText() error {
 	if p.onText != nil {
 		if err := p.onText(p.buffers.text.String()); err != nil {
 			return &interruptError{
-				inner: fmt.Errorf("OnText callback failed: %w", err),
+				inner: fmt.Errorf("OnText callback: %w", err),
 			}
 		}
 	}
@@ -338,7 +338,7 @@ func (p *StreamScanner) finalize() error {
 // processChunk processes a chunk of data byte by byte.
 func (p *StreamScanner) processChunk(data []byte) error {
 	for _, b := range data {
-		p.processedCount++
+		p.pos++
 		if err := p.processByte(b); err != nil {
 			if p.strictMode {
 				return err
@@ -415,7 +415,7 @@ func (p *StreamScanner) preCheckWriteBuffer(add int) error {
 		return nil
 	}
 	if listener.MaxBufferSize > 0 && lastBuffer.Len()+add >= listener.MaxBufferSize {
-		err := fmt.Errorf("overflow max buffer size is: %d, now buffer size is: %d", listener.MaxBufferSize, lastBuffer.Len()+add)
+		err := fmt.Errorf("element buffer overflow: limit %d bytes, current %d bytes", listener.MaxBufferSize, lastBuffer.Len()+add)
 		if p.strictMode {
 			return &interruptError{
 				inner: err,
@@ -564,7 +564,7 @@ func (p *StreamScanner) processOpenElement(eleContent string) error {
 		err := errors.Join(
 			p.writeStringToCurrentBuffer(eleContent),
 			fmt.Errorf("nesting level %d exceeds maximum %d at position %d",
-				p.stack.len()+1, p.maxNestingLevel, p.processedCount),
+				p.stack.len()+1, p.maxNestingLevel, p.pos),
 		)
 		if p.strictMode {
 			return &interruptError{
@@ -580,7 +580,7 @@ func (p *StreamScanner) processOpenElement(eleContent string) error {
 		return errors.Join(
 			p.writeStringToCurrentBuffer(eleContent),
 			fmt.Errorf("failed to parse attributes for <%s> at position %d: %w",
-				eleName, p.processedCount, err),
+				eleName, p.pos, err),
 		)
 	}
 
@@ -652,7 +652,7 @@ func (p *StreamScanner) popScope(eleName Name, closeEle string) error {
 		currentScope.appendCharData(CharData(closeEle))
 		currentBuffer.WriteString(closeEle)
 		err := fmt.Errorf("mismatched closing element at position %d: expected </%s>, got </%s>",
-			p.processedCount, currentScope.element.Start.Name, eleName)
+			p.pos, currentScope.element.Start.Name, eleName)
 		return err
 	}
 
@@ -696,7 +696,7 @@ func (p *StreamScanner) popScope(eleName Name, closeEle string) error {
 	if err := currentScope.listener.OnComplete(element); err != nil {
 		// External callback errors are always fatal
 		return &interruptError{
-			inner: fmt.Errorf("OnComplete callback failed for <%s>: %w",
+			inner: fmt.Errorf("OnComplete callback for <%s>: %w",
 				currentScope.element.Start.Name, err),
 		}
 	}

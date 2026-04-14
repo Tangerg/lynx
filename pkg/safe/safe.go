@@ -27,7 +27,7 @@ func (e *PanicError) Error() string {
 func NewPanicError(info any, stack []byte) error {
 	timestamp := time.Now()
 	stackTrace := string(stack)
-	message := fmt.Sprintf("panic: \ntimestamp: %s, \nerror: %+v, \nstack: %s",
+	message := fmt.Sprintf("panic recovered\ntimestamp: %s\nerror: %+v\nstack:\n%s",
 		timestamp.Format(time.RFC3339Nano), info, stackTrace)
 
 	return &PanicError{
@@ -59,12 +59,12 @@ func NewPanicError(info any, stack []byte) error {
 //	})
 //
 // The function does not return any values and does not wait for the goroutine to complete.
-func Go(fn func(), panicFns ...func(error)) {
-	withRecoverFn := WithRecover(fn, panicFns...)
-	if withRecoverFn == nil {
+func Go(fn func(), handlers ...func(error)) {
+	wrapped := WithRecover(fn, handlers...)
+	if wrapped == nil {
 		return
 	}
-	go withRecoverFn()
+	go wrapped()
 }
 
 // WithRecover wraps a function with panic recovery logic.
@@ -80,22 +80,22 @@ func Go(fn func(), panicFns ...func(error)) {
 //   - If fn is nil, returns nil
 //
 // This function can be used directly when you want recovery but don't need a new goroutine.
-func WithRecover(fn func(), panicFns ...func(error)) func() {
+func WithRecover(fn func(), handlers ...func(error)) func() {
 	if fn == nil {
 		return fn
 	}
 	return func() {
 		defer func() {
 			if r := recover(); r != nil {
-				if len(panicFns) == 0 {
+				if len(handlers) == 0 {
 					return
 				}
 				err := NewPanicError(r, debug.Stack())
 				defer func() {
-					recover() // to recover panicFns
+					recover() // to recover handlers
 				}()
-				for _, panicFn := range panicFns {
-					panicFn(err)
+				for _, h := range handlers {
+					h(err)
 				}
 			}
 		}()

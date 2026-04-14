@@ -20,7 +20,7 @@ func TestPanicError_Error(t *testing.T) {
 			panicInfo: "test panic",
 			checkFn: func(msg string) bool {
 				return strings.Contains(msg, "test panic") &&
-					strings.Contains(msg, "panic:") &&
+					strings.Contains(msg, "panic recovered") &&
 					strings.Contains(msg, "timestamp:") &&
 					strings.Contains(msg, "error:") &&
 					strings.Contains(msg, "stack:")
@@ -44,7 +44,7 @@ func TestPanicError_Error(t *testing.T) {
 			name:      "nil panic",
 			panicInfo: nil,
 			checkFn: func(msg string) bool {
-				return strings.Contains(msg, "panic:")
+				return strings.Contains(msg, "panic recovered")
 			},
 		},
 	}
@@ -119,7 +119,7 @@ func TestNewPanicError(t *testing.T) {
 		err := NewPanicError("test info", []byte("test stack"))
 		msg := err.Error()
 
-		requiredParts := []string{"panic:", "timestamp:", "error:", "stack:", "test info", "test stack"}
+		requiredParts := []string{"panic recovered", "timestamp:", "error:", "stack:", "test info", "test stack"}
 		for _, part := range requiredParts {
 			if !strings.Contains(msg, part) {
 				t.Errorf("message missing required part %q: %s", part, msg)

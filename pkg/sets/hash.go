@@ -24,7 +24,7 @@ type HashSet[T comparable] map[T]struct{}
 //	set := NewHashSet[int](100)        // initial capacity of 100
 //	set := NewHashSet[string](0,50)   // capacity of 50 (last positive value)
 func NewHashSet[T comparable](size ...int) HashSet[T] {
-	var c = 0
+	c := 0
 	for _, s := range size {
 		if s > 0 {
 			c = s

@@ -343,7 +343,7 @@ func expandSelfCloseElement(element string, eleName string) (string, string) {
 // Output: "<element attr='value'>", "</element>"
 func ExpandSelfCloseElement(element string) (string, string, error) {
 	if !IsSelfClosingElement(element) {
-		return "", "", errors.New("invalid element syntax")
+		return "", "", errors.New("element is not self-closing")
 	}
 
 	// Extract element name
@@ -389,7 +389,7 @@ func ExtractElementContent(element string) ([]byte, error) {
 
 	content := extractElementContent(element, name.Local)
 	if content == nil {
-		return nil, fmt.Errorf("failed to extract content for element <%s>", name.Local)
+		return nil, fmt.Errorf("no content found in <%s>", name.Local)
 	}
 
 	return content, nil
