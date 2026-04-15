@@ -1,4 +1,4 @@
-package openai
+package tokenizer
 
 import (
 	"context"
@@ -7,15 +7,16 @@ import (
 	"github.com/pkoukk/tiktoken-go"
 
 	"github.com/Tangerg/lynx/core/media"
-	"github.com/Tangerg/lynx/core/tokenizer"
 	"github.com/Tangerg/lynx/pkg/mime"
 )
 
-var _ tokenizer.Estimator = (*Tiktoken)(nil)
-var _ tokenizer.Tokenizer = (*Tiktoken)(nil)
+var _ Estimator = (*Tiktoken)(nil)
+var _ Tokenizer = (*Tiktoken)(nil)
 
 // Tiktoken is a token count estimator implementation using the tiktoken library.
 // It provides token estimation for text and media content based on OpenAI's tokenization models.
+// While originally developed by OpenAI, tiktoken is used as a general-purpose estimator
+// since most LLM providers do not expose their tokenization algorithms publicly.
 type Tiktoken struct {
 	encodingName string
 	encoding     *tiktoken.Tiktoken
