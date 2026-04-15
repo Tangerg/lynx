@@ -5,8 +5,8 @@ import (
 
 	"github.com/spf13/cast"
 
-	"github.com/Tangerg/lynx/core/vectorstore/filter/internal/ast"
-	"github.com/Tangerg/lynx/core/vectorstore/filter/internal/token"
+	"github.com/Tangerg/lynx/core/vectorstore/filter/ast"
+	"github.com/Tangerg/lynx/core/vectorstore/filter/token"
 	"github.com/Tangerg/lynx/pkg/math"
 )
 

@@ -1,7 +1,7 @@
 package filter
 
 import (
-	"github.com/Tangerg/lynx/core/vectorstore/filter/internal/ast"
+	"github.com/Tangerg/lynx/core/vectorstore/filter/ast"
 )
 
 // ExprBuilder provides a fluent API for building complex filter expressions.
