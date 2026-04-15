@@ -7,14 +7,15 @@ import (
 	"github.com/qdrant/go-client/qdrant"
 	"github.com/spf13/cast"
 
-	"github.com/Tangerg/lynx/core/vectorstore/filter"
+	"github.com/Tangerg/lynx/core/vectorstore/filter/ast"
+	"github.com/Tangerg/lynx/core/vectorstore/filter/token"
 	"github.com/Tangerg/lynx/pkg/ptr"
 )
 
-var _ filter.Visitor = (*Converter)(nil)
+var _ ast.Visitor = (*Converter)(nil)
 
 // Converter transforms AST filter expressions into Qdrant filter conditions.
-// It implements the filter.Visitor interface to traverse and convert expression trees
+// It implements the ast.Visitor interface to traverse and convert expression trees
 // into Qdrant's native filter format.
 //
 // The converter maintains internal state during traversal:
@@ -66,13 +67,13 @@ func (c *Converter) Error() error {
 	return c.err
 }
 
-// Visit implements the filter.Visitor interface.
+// Visit implements the ast.Visitor interface.
 // It initiates the conversion process for the given expression and stores any error.
 // Always returns nil to stop further traversal as conversion is done in a single pass.
 //
 // This is the main entry point for AST traversal. The actual conversion logic
 // is delegated to the visit method and its specialized handlers.
-func (c *Converter) Visit(expr filter.Expr) filter.Visitor {
+func (c *Converter) Visit(expr ast.Expr) ast.Visitor {
 	c.err = c.visit(expr)
 	return nil
 }
@@ -87,7 +88,7 @@ func (c *Converter) Visit(expr filter.Expr) filter.Visitor {
 //   - Ident: Simple field identifiers
 //   - Literal: Constant values
 //   - ListLiteral: Array of constant values
-func (c *Converter) visit(expr filter.Expr) error {
+func (c *Converter) visit(expr ast.Expr) error {
 	if expr == nil {
 		return fmt.Errorf("cannot process nil expression")
 	}
@@ -96,17 +97,17 @@ func (c *Converter) visit(expr filter.Expr) error {
 	}
 
 	switch node := expr.(type) {
-	case *filter.BinaryExpr:
+	case *ast.BinaryExpr:
 		return c.visitBinaryExpr(node)
-	case *filter.UnaryExpr:
+	case *ast.UnaryExpr:
 		return c.visitUnaryExpr(node)
-	case *filter.IndexExpr:
+	case *ast.IndexExpr:
 		return c.visitIndexExpr(node)
-	case *filter.Ident:
+	case *ast.Ident:
 		return c.visitIdent(node)
-	case *filter.Literal:
+	case *ast.Literal:
 		return c.visitLiteral(node)
-	case *filter.ListLiteral:
+	case *ast.ListLiteral:
 		return c.visitListLiteral(node)
 	default:
 		return fmt.Errorf("unsupported expression type %T", node)
@@ -121,7 +122,7 @@ func (c *Converter) visit(expr filter.Expr) error {
 //   - Ordering operators: <, <=, >, >= (handled by visitOrderingExpr)
 //   - Membership operator: IN (handled by visitInExpr)
 //   - Pattern matching operator: LIKE (handled by visitLikeExpr)
-func (c *Converter) visitBinaryExpr(expr *filter.BinaryExpr) error {
+func (c *Converter) visitBinaryExpr(expr *ast.BinaryExpr) error {
 	if expr.Op.Kind.IsLogicalOperator() {
 		return c.visitLogicalExpr(expr)
 	}
@@ -131,10 +132,10 @@ func (c *Converter) visitBinaryExpr(expr *filter.BinaryExpr) error {
 	if expr.Op.Kind.IsOrderingOperator() {
 		return c.visitOrderingExpr(expr)
 	}
-	if expr.Op.Kind.Is(filter.KindIN) {
+	if expr.Op.Kind.Is(token.IN) {
 		return c.visitInExpr(expr)
 	}
-	if expr.Op.Kind.Is(filter.KindLIKE) {
+	if expr.Op.Kind.Is(token.LIKE) {
 		return c.visitLikeExpr(expr)
 	}
 	return fmt.Errorf("unsupported binary operator '%s' at %s",
@@ -143,14 +144,14 @@ func (c *Converter) visitBinaryExpr(expr *filter.BinaryExpr) error {
 
 // visitUnaryExpr handles unary expressions.
 // Currently only the NOT operator is supported for logical negation.
-func (c *Converter) visitUnaryExpr(expr *filter.UnaryExpr) error {
+func (c *Converter) visitUnaryExpr(expr *ast.UnaryExpr) error {
 	if !expr.Op.Kind.IsUnaryOperator() {
 		return fmt.Errorf("'%s' is not a valid unary operator at %s",
 			expr.Op.Literal, expr.Start().String())
 	}
 
 	switch expr.Op.Kind {
-	case filter.KindNOT:
+	case token.NOT:
 		return c.visitNotExpr(expr)
 	default:
 		// Defensive programming: should never reach here due to IsUnaryOperator check
@@ -163,7 +164,7 @@ func (c *Converter) visitUnaryExpr(expr *filter.UnaryExpr) error {
 // This method is typically called during field key extraction in binary expressions.
 //
 // Example: For expression "age > 18", this extracts "age" as the field key.
-func (c *Converter) visitIdent(ident *filter.Ident) error {
+func (c *Converter) visitIdent(ident *ast.Ident) error {
 	c.currentFieldKey = ident.Value
 	return nil
 }
@@ -172,7 +173,7 @@ func (c *Converter) visitIdent(ident *filter.Ident) error {
 // The conversion supports string, number, and boolean literals.
 //
 // This method is typically called during value extraction in binary expressions.
-func (c *Converter) visitLiteral(lit *filter.Literal) error {
+func (c *Converter) visitLiteral(lit *ast.Literal) error {
 	value, err := c.literalToValue(lit)
 	if err != nil {
 		return fmt.Errorf("failed to convert literal at %s: %w",
@@ -187,7 +188,7 @@ func (c *Converter) visitLiteral(lit *filter.Literal) error {
 //
 // This method is used by the IN operator to extract the list of values
 // for membership testing.
-func (c *Converter) visitListLiteral(list *filter.ListLiteral) error {
+func (c *Converter) visitListLiteral(list *ast.ListLiteral) error {
 	values := make([]any, 0, len(list.Values))
 	for i, lit := range list.Values {
 		value, err := c.literalToValue(lit)
@@ -207,7 +208,7 @@ func (c *Converter) visitListLiteral(list *filter.ListLiteral) error {
 //   - metadata["user"] -> "metadata.user"
 //   - data["tags"][0] -> "data.tags.0"
 //   - config["db"]["host"] -> "config.db.host"
-func (c *Converter) visitIndexExpr(expr *filter.IndexExpr) error {
+func (c *Converter) visitIndexExpr(expr *ast.IndexExpr) error {
 	fieldKey, err := c.buildIndexedFieldKey(expr)
 	if err != nil {
 		return fmt.Errorf("failed to build field path at %s: %w",
@@ -226,7 +227,7 @@ func (c *Converter) visitIndexExpr(expr *filter.IndexExpr) error {
 // Example:
 //   - "age > 18 AND status == 'active'" produces: Must[age>18, status==active]
 //   - "role == 'admin' OR role == 'owner'" produces: Should[role==admin, role==owner]
-func (c *Converter) visitLogicalExpr(expr *filter.BinaryExpr) error {
+func (c *Converter) visitLogicalExpr(expr *ast.BinaryExpr) error {
 	leftCond, err := c.buildNestedCondition(expr.Left)
 	if err != nil {
 		return fmt.Errorf("failed to process left operand of '%s' at %s: %w",
@@ -240,10 +241,10 @@ func (c *Converter) visitLogicalExpr(expr *filter.BinaryExpr) error {
 	}
 
 	switch expr.Op.Kind {
-	case filter.KindAND:
+	case token.AND:
 		c.filter.Must = append(c.filter.Must, leftCond, rightCond)
 		return nil
-	case filter.KindOR:
+	case token.OR:
 		c.filter.Should = append(c.filter.Should, leftCond, rightCond)
 		return nil
 	default:
@@ -259,7 +260,7 @@ func (c *Converter) visitLogicalExpr(expr *filter.BinaryExpr) error {
 // Example:
 //   - "NOT (age > 18)" produces: MustNot[age>18]
 //   - "NOT (status == 'active' OR role == 'admin')" produces: MustNot[Filter{Should[...]}]
-func (c *Converter) visitNotExpr(expr *filter.UnaryExpr) error {
+func (c *Converter) visitNotExpr(expr *ast.UnaryExpr) error {
 	cond, err := c.buildNestedCondition(expr.Right)
 	if err != nil {
 		return fmt.Errorf("failed to process NOT operand at %s: %w",
@@ -283,7 +284,7 @@ func (c *Converter) visitNotExpr(expr *filter.UnaryExpr) error {
 // Examples:
 //   - "status == 'active'" produces: Must[status==active]
 //   - "age != 18" produces: MustNot[age==18]
-func (c *Converter) visitEqualityExpr(expr *filter.BinaryExpr) error {
+func (c *Converter) visitEqualityExpr(expr *ast.BinaryExpr) error {
 	fieldKey, err := c.extractFieldKey(expr.Left)
 	if err != nil {
 		return fmt.Errorf("failed to extract field key from left operand of '%s' at %s: %w",
@@ -303,10 +304,10 @@ func (c *Converter) visitEqualityExpr(expr *filter.BinaryExpr) error {
 	}
 
 	switch expr.Op.Kind {
-	case filter.KindEQ:
+	case token.EQ:
 		// == operator: field must equal value
 		c.filter.Must = append(c.filter.Must, matchCond)
-	case filter.KindNE:
+	case token.NE:
 		// != operator: field must not equal value (negation)
 		c.filter.MustNot = append(c.filter.MustNot, matchCond)
 	default:
@@ -355,7 +356,7 @@ func (c *Converter) buildMatchCondition(fieldKey string, fieldValue any) (*qdran
 // Examples:
 //   - "age > 18" produces: Must[Range{Gt: 18}]
 //   - "price <= 99.99" produces: Must[Range{Lte: 99.99}]
-func (c *Converter) visitOrderingExpr(expr *filter.BinaryExpr) error {
+func (c *Converter) visitOrderingExpr(expr *ast.BinaryExpr) error {
 	fieldKey, err := c.extractFieldKey(expr.Left)
 	if err != nil {
 		return fmt.Errorf("failed to extract field key from left operand of '%s' at %s: %w",
@@ -376,22 +377,22 @@ func (c *Converter) visitOrderingExpr(expr *filter.BinaryExpr) error {
 	}
 
 	switch expr.Op.Kind {
-	case filter.KindLT:
+	case token.LT:
 		// < operator: field value must be less than the specified value
 		c.filter.Must = append(c.filter.Must, qdrant.NewRange(fieldKey, &qdrant.Range{
 			Lt: ptr.Pointer(numericValue),
 		}))
-	case filter.KindLE:
+	case token.LE:
 		// <= operator: field value must be less than or equal to the specified value
 		c.filter.Must = append(c.filter.Must, qdrant.NewRange(fieldKey, &qdrant.Range{
 			Lte: ptr.Pointer(numericValue),
 		}))
-	case filter.KindGT:
+	case token.GT:
 		// > operator: field value must be greater than the specified value
 		c.filter.Must = append(c.filter.Must, qdrant.NewRange(fieldKey, &qdrant.Range{
 			Gt: ptr.Pointer(numericValue),
 		}))
-	case filter.KindGE:
+	case token.GE:
 		// >= operator: field value must be greater than or equal to the specified value
 		c.filter.Must = append(c.filter.Must, qdrant.NewRange(fieldKey, &qdrant.Range{
 			Gte: ptr.Pointer(numericValue),
@@ -421,14 +422,14 @@ func (c *Converter) visitOrderingExpr(expr *filter.BinaryExpr) error {
 //   - "status IN ['active', 'pending']" produces: Must[MatchKeywords(status, [active, pending])]
 //   - "age IN [18, 21, 25]" produces: Must[MatchInts(age, [18, 21, 25])]
 //   - "active IN [true, false]" produces: Must[Filter{Should[active==true, active==false]}]
-func (c *Converter) visitInExpr(expr *filter.BinaryExpr) error {
+func (c *Converter) visitInExpr(expr *ast.BinaryExpr) error {
 	fieldKey, err := c.extractFieldKey(expr.Left)
 	if err != nil {
 		return fmt.Errorf("failed to extract field key from left operand of 'IN' at %s: %w",
 			expr.Start().String(), err)
 	}
 
-	listLit, ok := expr.Right.(*filter.ListLiteral)
+	listLit, ok := expr.Right.(*ast.ListLiteral)
 	if !ok {
 		return fmt.Errorf("'IN' operator requires a list on the right side at %s, got %T",
 			expr.Start().String(), expr.Right)
@@ -512,14 +513,14 @@ func (c *Converter) visitInExpr(expr *filter.BinaryExpr) error {
 //
 // Example:
 //   - "description LIKE 'python programming'" produces: Must[MatchText(description, "python programming")]
-func (c *Converter) visitLikeExpr(expr *filter.BinaryExpr) error {
+func (c *Converter) visitLikeExpr(expr *ast.BinaryExpr) error {
 	fieldKey, err := c.extractFieldKey(expr.Left)
 	if err != nil {
 		return fmt.Errorf("failed to extract field key from left operand of 'LIKE' at %s: %w",
 			expr.Start().String(), err)
 	}
 
-	lit, ok := expr.Right.(*filter.Literal)
+	lit, ok := expr.Right.(*ast.Literal)
 	if !ok {
 		return fmt.Errorf("'LIKE' operator requires a string literal on the right side at %s, got %T",
 			expr.Start().String(), expr.Right)
@@ -563,10 +564,10 @@ func (c *Converter) visitLikeExpr(expr *filter.BinaryExpr) error {
 //   - Logical: "age > 18 AND status == 'active'" -> Filter{Must[age>18, status==active]}
 //   - Nested: "(age > 18 OR age < 10) AND status == 'active'" ->
 //     Filter{Must[Filter{Should[age>18, age<10]}, status==active]}
-func (c *Converter) buildNestedCondition(expr filter.Expr) (*qdrant.Condition, error) {
+func (c *Converter) buildNestedCondition(expr ast.Expr) (*qdrant.Condition, error) {
 	switch node := expr.(type) {
-	case *filter.BinaryExpr,
-		*filter.UnaryExpr:
+	case *ast.BinaryExpr,
+		*ast.UnaryExpr:
 		// Create isolated converter to maintain proper condition scoping
 		nestedConv := NewConverter()
 		err := nestedConv.visit(node)
@@ -592,10 +593,10 @@ func (c *Converter) buildNestedCondition(expr filter.Expr) (*qdrant.Condition, e
 //   - IndexExpr: Indexed field access (e.g., metadata["user"]["name"])
 //
 // Examples:
-//   - *filter.Ident{Value: "age"} -> "age"
+//   - *ast.Ident{Value: "age"} -> "age"
 //   - metadata["user"] -> "metadata.user"
 //   - data["tags"][0] -> "data.tags.0"
-func (c *Converter) extractFieldKey(expr filter.Expr) (string, error) {
+func (c *Converter) extractFieldKey(expr ast.Expr) (string, error) {
 	savedFieldKey := c.currentFieldKey
 	c.currentFieldKey = ""
 
@@ -627,10 +628,10 @@ func (c *Converter) extractFieldKey(expr filter.Expr) (string, error) {
 //   - ListLiteral: Array of constant values
 //
 // Examples:
-//   - *filter.Literal{Value: "active"} -> "active"
-//   - *filter.Literal{Value: 18.0} -> 18.0
-//   - *filter.ListLiteral{Values: ["a", "b"]} -> []any{"a", "b"}
-func (c *Converter) extractFieldValue(expr filter.Expr) (any, error) {
+//   - *ast.Literal{Value: "active"} -> "active"
+//   - *ast.Literal{Value: 18.0} -> 18.0
+//   - *ast.ListLiteral{Values: ["a", "b"]} -> []any{"a", "b"}
+func (c *Converter) extractFieldValue(expr ast.Expr) (any, error) {
 	savedFieldValue := c.currentFieldValue
 	c.currentFieldValue = nil
 
@@ -670,7 +671,7 @@ func (c *Converter) extractFieldValue(expr filter.Expr) (any, error) {
 //   - Index values must be strings or numbers
 //   - Left side must be either another IndexExpr or an Ident
 //   - Base identifier must exist
-func (c *Converter) buildIndexedFieldKey(expr *filter.IndexExpr) (string, error) {
+func (c *Converter) buildIndexedFieldKey(expr *ast.IndexExpr) (string, error) {
 	var pathParts []string
 
 	currentExpr := expr
@@ -694,10 +695,10 @@ func (c *Converter) buildIndexedFieldKey(expr *filter.IndexExpr) (string, error)
 
 		// Process the left side of the index expression
 		switch leftNode := currentExpr.Left.(type) {
-		case *filter.IndexExpr:
+		case *ast.IndexExpr:
 			// Nested index expression: continue processing recursively
 			currentExpr = leftNode
-		case *filter.Ident:
+		case *ast.Ident:
 			// Base identifier found: prepend and complete the path
 			pathParts = append([]string{leftNode.Value}, pathParts...)
 			return strings.Join(pathParts, "."), nil
@@ -716,7 +717,7 @@ func (c *Converter) buildIndexedFieldKey(expr *filter.IndexExpr) (string, error)
 //   - Boolean literals -> bool (true/false)
 //
 // Returns an error if the literal type is not supported or if conversion fails.
-func (c *Converter) literalToValue(lit *filter.Literal) (any, error) {
+func (c *Converter) literalToValue(lit *ast.Literal) (any, error) {
 	if lit.IsString() {
 		return lit.AsString()
 	}
@@ -790,7 +791,7 @@ func (c *Converter) literalToValue(lit *filter.Literal) (any, error) {
 // Returns:
 //   - *qdrant.Filter: The converted filter ready for use with Qdrant client
 //   - error: Conversion error if the expression contains unsupported operations or syntax errors
-func ToFilter(expr filter.Expr) (*qdrant.Filter, error) {
+func ToFilter(expr ast.Expr) (*qdrant.Filter, error) {
 	conv := NewConverter()
 	conv.Visit(expr)
 	return conv.Filter(), conv.Error()

@@ -7,10 +7,11 @@ import (
 	"github.com/Tangerg/lynx/core/document"
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
+	"github.com/Tangerg/lynx/core/vectorstore/filter/ast"
 )
 
 const (
-	// FilterExprKey is the metadata key for filter filter.Expr.
+	// FilterExprKey is the metadata key for filter ast.Expr.
 	FilterExprKey = "lynx:ai:rag:retriever:filter_expr"
 )
 
@@ -33,7 +34,7 @@ type VectorStoreDocumentRetrieverConfig struct {
 	// FilterFunc is a custom function to build filter expressions dynamically.
 	// Optional. If provided, it will be called to generate filter expressions
 	// based on the query parameters.
-	FilterFunc func(ctx context.Context, params map[string]any) (filter.Expr, error)
+	FilterFunc func(ctx context.Context, params map[string]any) (ast.Expr, error)
 }
 
 func (c *VectorStoreDocumentRetrieverConfig) validate() error {
@@ -75,7 +76,7 @@ type VectorStoreDocumentRetriever struct {
 	vectorStore vectorstore.Retriever
 	topK        int
 	minScore    float64
-	filterFunc  func(ctx context.Context, params map[string]any) (filter.Expr, error)
+	filterFunc  func(ctx context.Context, params map[string]any) (ast.Expr, error)
 }
 
 func NewVectorStoreDocumentRetriever(cfg *VectorStoreDocumentRetrieverConfig) (*VectorStoreDocumentRetriever, error) {
@@ -114,13 +115,13 @@ func (v *VectorStoreDocumentRetriever) Retrieve(ctx context.Context, query *Quer
 	return v.vectorStore.Retrieve(ctx, request)
 }
 
-func (v *VectorStoreDocumentRetriever) buildFilterExpression(ctx context.Context, query *Query) (filter.Expr, error) {
+func (v *VectorStoreDocumentRetriever) buildFilterExpression(ctx context.Context, query *Query) (ast.Expr, error) {
 	filterValue, exists := query.Get(FilterExprKey)
 	if exists {
 		switch typedFilter := filterValue.(type) {
 		case string:
 			return filter.Parse(typedFilter)
-		case filter.Expr:
+		case ast.Expr:
 			return typedFilter, nil
 		}
 	}

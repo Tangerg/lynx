@@ -7,6 +7,7 @@ import (
 
 	"github.com/Tangerg/lynx/core/document"
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
+	"github.com/Tangerg/lynx/core/vectorstore/filter/ast"
 )
 
 const (
@@ -44,7 +45,7 @@ type RetrievalRequest struct {
 	// Filter is an optional AST expression for metadata-based filtering.
 	// Use this to filter documents based on their metadata fields.
 	// If nil, no metadata filtering is applied.
-	Filter filter.Expr
+	Filter ast.Expr
 }
 
 // NewRetrievalRequest creates a new retrieval request with a text query.
@@ -101,7 +102,7 @@ func (r *RetrievalRequest) WithMinScore(score float64) *RetrievalRequest {
 // Example:
 //
 //	request.WithFilter(filter.EQ("category", "tech")).WithTopK(10)
-func (r *RetrievalRequest) WithFilter(filter filter.Expr) *RetrievalRequest {
+func (r *RetrievalRequest) WithFilter(filter ast.Expr) *RetrievalRequest {
 	if filter != nil {
 		r.Filter = filter
 	}
@@ -224,7 +225,7 @@ type DeleteRequest struct {
 	// Filter specifies which documents to delete using an AST expression.
 	// Documents matching this filter will be removed from the vector store.
 	// Must not be nil - use a filter expression to specify deletion criteria.
-	Filter filter.Expr
+	Filter ast.Expr
 }
 
 // NewDeleteRequest creates a new delete request with the given filter.
@@ -234,7 +235,7 @@ type DeleteRequest struct {
 //   - filter: The filter expression, must not be nil
 //
 // Returns an error if validation fails.
-func NewDeleteRequest(filter filter.Expr) (*DeleteRequest, error) {
+func NewDeleteRequest(filter ast.Expr) (*DeleteRequest, error) {
 	req := &DeleteRequest{
 		Filter: filter,
 	}
