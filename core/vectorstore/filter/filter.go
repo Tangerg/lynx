@@ -1,8 +1,8 @@
 package filter
 
 import (
-	"github.com/Tangerg/lynx/core/vectorstore/filter/internal/ast"
-	"github.com/Tangerg/lynx/core/vectorstore/filter/internal/parser"
+	"github.com/Tangerg/lynx/core/vectorstore/filter/ast"
+	"github.com/Tangerg/lynx/core/vectorstore/filter/parser"
 	"github.com/Tangerg/lynx/core/vectorstore/filter/visitors"
 )
 

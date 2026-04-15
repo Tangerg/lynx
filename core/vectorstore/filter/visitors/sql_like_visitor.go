@@ -4,7 +4,7 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/Tangerg/lynx/core/vectorstore/filter/internal/ast"
+	"github.com/Tangerg/lynx/core/vectorstore/filter/ast"
 )
 
 type SQLLikeVisitor struct {

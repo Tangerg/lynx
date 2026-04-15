@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/Tangerg/lynx/core/vectorstore/filter/internal/token"
+	"github.com/Tangerg/lynx/core/vectorstore/filter/token"
 )
 
 // Expr represents the base interface for all expression nodes in the AST.

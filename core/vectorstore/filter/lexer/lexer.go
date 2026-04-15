@@ -8,7 +8,7 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/Tangerg/lynx/core/vectorstore/filter/internal/token"
+	"github.com/Tangerg/lynx/core/vectorstore/filter/token"
 )
 
 // Lexer represents a lexical analyzer that tokenizes input text into a stream of tokens.

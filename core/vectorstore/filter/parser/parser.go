@@ -3,9 +3,9 @@ package parser
 import (
 	"fmt"
 
-	"github.com/Tangerg/lynx/core/vectorstore/filter/internal/ast"
-	"github.com/Tangerg/lynx/core/vectorstore/filter/internal/lexer"
-	"github.com/Tangerg/lynx/core/vectorstore/filter/internal/token"
+	"github.com/Tangerg/lynx/core/vectorstore/filter/ast"
+	"github.com/Tangerg/lynx/core/vectorstore/filter/lexer"
+	"github.com/Tangerg/lynx/core/vectorstore/filter/token"
 )
 
 // ParseError represents a parsing error with currentPosition information.

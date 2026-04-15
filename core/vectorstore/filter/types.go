@@ -1,8 +1,8 @@
 package filter
 
 import (
-	"github.com/Tangerg/lynx/core/vectorstore/filter/internal/ast"
-	"github.com/Tangerg/lynx/core/vectorstore/filter/internal/token"
+	"github.com/Tangerg/lynx/core/vectorstore/filter/ast"
+	"github.com/Tangerg/lynx/core/vectorstore/filter/token"
 )
 
 // Re-exported types from internal/ast for use by external packages.
