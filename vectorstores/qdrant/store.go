@@ -92,7 +92,6 @@ func (c *VectorStoreConfig) Validate() error {
 var _ vectorstore.VectorStore = (*VectorStore)(nil)
 
 type VectorStore struct {
-	config               *VectorStoreConfig
 	client               *qdrant.Client
 	embeddingModel       embedding.Model
 	embeddingClient      *embedding.Client
@@ -113,7 +112,6 @@ func NewVectorStore(config *VectorStoreConfig) (*VectorStore, error) {
 	}
 
 	store := &VectorStore{
-		config:               config,
 		client:               config.Client,
 		embeddingModel:       config.EmbeddingModel,
 		embeddingClient:      embeddingClient,
@@ -137,7 +135,7 @@ func (v *VectorStore) initialize(ctx context.Context) error {
 
 	exists, err := v.client.CollectionExists(ctx, v.collectionName)
 	if err != nil {
-		return fmt.Errorf("failed to check collection existence: %w", err)
+		return fmt.Errorf("qdrant: failed to check collection existence: %w", err)
 	}
 
 	if exists {
@@ -157,7 +155,7 @@ func (v *VectorStore) initialize(ctx context.Context) error {
 		}),
 	})
 	if err != nil {
-		return fmt.Errorf("failed to create collection %s: %w", v.collectionName, err)
+		return fmt.Errorf("qdrant: failed to create collection %s: %w", v.collectionName, err)
 	}
 
 	return nil
@@ -171,7 +169,7 @@ func (v *VectorStore) buildUpsertPoints(ctx context.Context, req *vectorstore.Cr
 
 	batchedDocs, err := v.documentBatcher.Batch(ctx, req.Documents)
 	if err != nil {
-		return nil, fmt.Errorf("failed to batch documents: %w", err)
+		return nil, fmt.Errorf("qdrant: failed to batch documents: %w", err)
 	}
 
 	for _, docs := range batchedDocs {
@@ -181,13 +179,13 @@ func (v *VectorStore) buildUpsertPoints(ctx context.Context, req *vectorstore.Cr
 			Call().
 			Embeddings(ctx)
 		if err != nil {
-			return nil, fmt.Errorf("failed to generate vectors: %w", err)
+			return nil, fmt.Errorf("qdrant: failed to generate vectors: %w", err)
 		}
 
 		for i, doc := range docs {
 			point, err := v.buildPointStruct(doc, vectors[i])
 			if err != nil {
-				return nil, fmt.Errorf("failed to build point struct for document %s: %w", doc.ID, err)
+				return nil, fmt.Errorf("qdrant: failed to build point for document %s: %w", doc.ID, err)
 			}
 
 			upsertPoints.Points = append(upsertPoints.Points, point)
@@ -198,25 +196,23 @@ func (v *VectorStore) buildUpsertPoints(ctx context.Context, req *vectorstore.Cr
 }
 
 func (v *VectorStore) buildPointStruct(doc *document.Document, vector []float64) (*qdrant.PointStruct, error) {
-	docID := uuid.NewString()
+	id := uuid.NewString()
 
 	point := &qdrant.PointStruct{
-		Id: qdrant.NewID(docID),
+		Id:      qdrant.NewID(id),
+		Vectors: qdrant.NewVectors(math.ConvertSlice[float64, float32](vector)...),
 	}
-
-	vectorData := math.ConvertSlice[float64, float32](vector)
-	point.Vectors = qdrant.NewVectors(vectorData...)
 
 	payload, err := qdrant.TryValueMap(doc.Metadata)
 	if err != nil {
-		return nil, fmt.Errorf("failed to convert metadata to payload: %w", err)
+		return nil, fmt.Errorf("qdrant: failed to convert metadata to payload: %w", err)
 	}
 	point.Payload = payload
 
 	if v.storeDocumentContent {
 		contentValue, err := qdrant.NewValue(doc.Text)
 		if err != nil {
-			return nil, fmt.Errorf("failed to create content value: %w", err)
+			return nil, fmt.Errorf("qdrant: failed to create content value: %w", err)
 		}
 		point.Payload[payloadDocumentContentKey] = contentValue
 	}
@@ -254,7 +250,7 @@ func (v *VectorStore) buildQueryPoints(ctx context.Context, req *vectorstore.Ret
 	if req.Filter != nil {
 		filter, err := ToFilter(req.Filter)
 		if err != nil {
-			return nil, fmt.Errorf("failed to convert filter: %w", err)
+			return nil, fmt.Errorf("qdrant: failed to convert filter: %w", err)
 		}
 		queryPoints.Filter = filter
 	}
@@ -264,11 +260,10 @@ func (v *VectorStore) buildQueryPoints(ctx context.Context, req *vectorstore.Ret
 		Call().
 		Embedding(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to embed query text: %w", err)
+		return nil, fmt.Errorf("qdrant: failed to embed query text: %w", err)
 	}
 
-	queryVector := math.ConvertSlice[float64, float32](vector)
-	queryPoints.Query = qdrant.NewQuery(queryVector...)
+	queryPoints.Query = qdrant.NewQuery(math.ConvertSlice[float64, float32](vector)...)
 
 	return queryPoints, nil
 }
@@ -281,25 +276,18 @@ func (v *VectorStore) convertQdrantValue(value *qdrant.Value) any {
 	switch kind := value.Kind.(type) {
 	case *qdrant.Value_DoubleValue:
 		return kind.DoubleValue
-
 	case *qdrant.Value_IntegerValue:
 		return kind.IntegerValue
-
 	case *qdrant.Value_StringValue:
 		return kind.StringValue
-
 	case *qdrant.Value_BoolValue:
 		return kind.BoolValue
-
 	case *qdrant.Value_NullValue:
 		return nil
-
 	case *qdrant.Value_StructValue:
 		return v.convertQdrantStruct(kind.StructValue)
-
 	case *qdrant.Value_ListValue:
 		return v.convertQdrantList(kind.ListValue)
-
 	default:
 		return nil
 	}
