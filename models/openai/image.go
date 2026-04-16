@@ -21,13 +21,13 @@ type ImageModelConfig struct {
 
 func (c *ImageModelConfig) validate() error {
 	if c == nil {
-		return errors.New("config is nil")
+		return errors.New("openai: config is nil")
 	}
 	if c.ApiKey == nil {
-		return errors.New("apiKey is required")
+		return errors.New("openai: api key is required")
 	}
 	if c.DefaultOptions == nil {
-		return errors.New("default options cannot be nil")
+		return errors.New("openai: default options are required")
 	}
 	return nil
 }
@@ -67,18 +67,14 @@ func (i *ImageModel) buildApiImageRequest(req *image.Request) (*openai.ImageGene
 	params := getOptionsParams[openai.ImageGenerateParams](mergedOpts)
 
 	params.Model = mergedOpts.Model
-
 	params.Prompt = req.Prompt
 
-	if mergedOpts.OutputFormat != nil &&
-		mime.IsImage(mergedOpts.OutputFormat) {
+	if mergedOpts.OutputFormat != nil && mime.IsImage(mergedOpts.OutputFormat) {
 		params.OutputFormat = openai.ImageGenerateParamsOutputFormat(mergedOpts.OutputFormat.SubType())
 	}
-
 	if mergedOpts.ResponseFormat.Valid() {
 		params.ResponseFormat = openai.ImageGenerateParamsResponseFormat(mergedOpts.ResponseFormat)
 	}
-
 	if mergedOpts.Width != nil && mergedOpts.Height != nil {
 		params.Size = openai.ImageGenerateParamsSize(fmt.Sprintf("%dx%d", mergedOpts.Width, mergedOpts.Height))
 	} else {
@@ -92,21 +88,22 @@ func (i *ImageModel) buildApiImageRequest(req *image.Request) (*openai.ImageGene
 
 func (i *ImageModel) buildImageResponse(resp *openai.ImagesResponse) (*image.Response, error) {
 	results := make([]*image.Result, 0, len(resp.Data))
+
 	for _, item := range resp.Data {
-		newImage, err := image.NewImage(item.URL, item.B64JSON)
+		img, err := image.NewImage(item.URL, item.B64JSON)
 		if err != nil {
 			return nil, err
 		}
-		result, err := image.NewResult(newImage, &image.ResultMetadata{})
+
+		result, err := image.NewResult(img, &image.ResultMetadata{})
 		if err != nil {
 			return nil, err
 		}
+
 		results = append(results, result)
 	}
-	respMeta := &image.ResponseMetadata{
-		Created: resp.Created,
-	}
-	return image.NewResponse(results, respMeta)
+
+	return image.NewResponse(results, &image.ResponseMetadata{Created: resp.Created})
 }
 
 func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Response, error) {

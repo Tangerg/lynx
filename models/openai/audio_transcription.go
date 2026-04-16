@@ -20,13 +20,13 @@ type AudioTranscriptionModelConfig struct {
 
 func (c *AudioTranscriptionModelConfig) validate() error {
 	if c == nil {
-		return errors.New("config is nil")
+		return errors.New("openai: config is nil")
 	}
 	if c.ApiKey == nil {
-		return errors.New("apiKey is required")
+		return errors.New("openai: api key is required")
 	}
 	if c.DefaultOptions == nil {
-		return errors.New("default options cannot be nil")
+		return errors.New("openai: default options are required")
 	}
 	return nil
 }
@@ -42,6 +42,7 @@ func NewAudioTranscriptionModel(cfg *AudioTranscriptionModelConfig) (*AudioTrans
 	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
+
 	api, err := NewApi(&ApiConfig{
 		ApiKey:         cfg.ApiKey,
 		RequestOptions: cfg.RequestOptions,
@@ -49,6 +50,7 @@ func NewAudioTranscriptionModel(cfg *AudioTranscriptionModelConfig) (*AudioTrans
 	if err != nil {
 		return nil, err
 	}
+
 	return &AudioTranscriptionModel{
 		api:            api,
 		defaultOptions: cfg.DefaultOptions,

@@ -20,13 +20,13 @@ type ModerationModelConfig struct {
 
 func (c *ModerationModelConfig) validate() error {
 	if c == nil {
-		return errors.New("config is nil")
+		return errors.New("openai: config is nil")
 	}
 	if c.ApiKey == nil {
-		return errors.New("apiKey is required")
+		return errors.New("openai: api key is required")
 	}
 	if c.DefaultOptions == nil {
-		return errors.New("default options cannot be nil")
+		return errors.New("openai: default options are required")
 	}
 	return nil
 }
@@ -42,6 +42,7 @@ func NewModerationModel(cfg *ModerationModelConfig) (*ModerationModel, error) {
 	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
+
 	api, err := NewApi(&ApiConfig{
 		ApiKey:         cfg.ApiKey,
 		RequestOptions: cfg.RequestOptions,
@@ -49,6 +50,7 @@ func NewModerationModel(cfg *ModerationModelConfig) (*ModerationModel, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	return &ModerationModel{
 		api:            api,
 		defaultOptions: cfg.DefaultOptions,
@@ -64,7 +66,6 @@ func (m *ModerationModel) buildApiModerationRequest(req *moderation.Request) (*o
 	params := getOptionsParams[openai.ModerationNewParams](mergedOpts)
 
 	params.Model = mergedOpts.Model
-
 	params.Input = openai.ModerationNewParamsInputUnion{
 		OfStringArray: req.Texts,
 	}
@@ -74,73 +75,78 @@ func (m *ModerationModel) buildApiModerationRequest(req *moderation.Request) (*o
 
 func (m *ModerationModel) buildModerationResponse(resp *openai.ModerationNewResponse) (*moderation.Response, error) {
 	results := make([]*moderation.Result, 0, len(resp.Results))
-	for _, result := range resp.Results {
+
+	for _, item := range resp.Results {
 		mod := &moderation.Moderation{
 			Harassment: moderation.Category{
-				Flagged: result.Categories.Harassment,
-				Score:   result.CategoryScores.Harassment,
+				Flagged: item.Categories.Harassment,
+				Score:   item.CategoryScores.Harassment,
 			},
 			HarassmentThreatening: moderation.Category{
-				Flagged: result.Categories.HarassmentThreatening,
-				Score:   result.CategoryScores.HarassmentThreatening,
+				Flagged: item.Categories.HarassmentThreatening,
+				Score:   item.CategoryScores.HarassmentThreatening,
 			},
 			Hate: moderation.Category{
-				Flagged: result.Categories.Hate,
-				Score:   result.CategoryScores.Hate,
+				Flagged: item.Categories.Hate,
+				Score:   item.CategoryScores.Hate,
 			},
 			HateThreatening: moderation.Category{
-				Flagged: result.Categories.HateThreatening,
-				Score:   result.CategoryScores.HateThreatening,
+				Flagged: item.Categories.HateThreatening,
+				Score:   item.CategoryScores.HateThreatening,
 			},
 			Illicit: moderation.Category{
-				Flagged: result.Categories.Illicit,
-				Score:   result.CategoryScores.Illicit,
+				Flagged: item.Categories.Illicit,
+				Score:   item.CategoryScores.Illicit,
 			},
 			IllicitViolent: moderation.Category{
-				Flagged: result.Categories.IllicitViolent,
-				Score:   result.CategoryScores.IllicitViolent,
+				Flagged: item.Categories.IllicitViolent,
+				Score:   item.CategoryScores.IllicitViolent,
 			},
 			SelfHarm: moderation.Category{
-				Flagged: result.Categories.SelfHarm,
-				Score:   result.CategoryScores.SelfHarm,
+				Flagged: item.Categories.SelfHarm,
+				Score:   item.CategoryScores.SelfHarm,
 			},
 			SelfHarmInstructions: moderation.Category{
-				Flagged: result.Categories.SelfHarmInstructions,
-				Score:   result.CategoryScores.SelfHarmInstructions,
+				Flagged: item.Categories.SelfHarmInstructions,
+				Score:   item.CategoryScores.SelfHarmInstructions,
 			},
 			SelfHarmIntent: moderation.Category{
-				Flagged: result.Categories.SelfHarmIntent,
-				Score:   result.CategoryScores.SelfHarmIntent,
+				Flagged: item.Categories.SelfHarmIntent,
+				Score:   item.CategoryScores.SelfHarmIntent,
 			},
 			Sexual: moderation.Category{
-				Flagged: result.Categories.Sexual,
-				Score:   result.CategoryScores.Sexual,
+				Flagged: item.Categories.Sexual,
+				Score:   item.CategoryScores.Sexual,
 			},
 			SexualMinors: moderation.Category{
-				Flagged: result.Categories.SexualMinors,
-				Score:   result.CategoryScores.SexualMinors,
+				Flagged: item.Categories.SexualMinors,
+				Score:   item.CategoryScores.SexualMinors,
 			},
 			Violence: moderation.Category{
-				Flagged: result.Categories.Violence,
-				Score:   result.CategoryScores.Violence,
+				Flagged: item.Categories.Violence,
+				Score:   item.CategoryScores.Violence,
 			},
 			ViolenceGraphic: moderation.Category{
-				Flagged: result.Categories.ViolenceGraphic,
-				Score:   result.CategoryScores.ViolenceGraphic,
+				Flagged: item.Categories.ViolenceGraphic,
+				Score:   item.CategoryScores.ViolenceGraphic,
 			},
 		}
-		newResult, err := moderation.NewResult(mod, &moderation.ResultMetadata{})
+
+		result, err := moderation.NewResult(mod, &moderation.ResultMetadata{})
 		if err != nil {
 			return nil, err
 		}
-		results = append(results, newResult)
+
+		results = append(results, result)
 	}
-	respMeta := &moderation.ResponseMetadata{
+
+	meta := &moderation.ResponseMetadata{
 		ID:      resp.ID,
 		Model:   resp.Model,
 		Created: time.Now().Unix(),
 	}
-	return moderation.NewResponse(results, respMeta)
+
+	return moderation.NewResponse(results, meta)
 }
 
 func (m *ModerationModel) Call(ctx context.Context, req *moderation.Request) (*moderation.Response, error) {

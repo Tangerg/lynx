@@ -22,13 +22,13 @@ type AudioTTSModelConfig struct {
 
 func (c *AudioTTSModelConfig) validate() error {
 	if c == nil {
-		return errors.New("config is nil")
+		return errors.New("openai: config is nil")
 	}
 	if c.ApiKey == nil {
-		return errors.New("apiKey is required")
+		return errors.New("openai: api key is required")
 	}
 	if c.DefaultOptions == nil {
-		return errors.New("default options cannot be nil")
+		return errors.New("openai: default options are required")
 	}
 	return nil
 }
@@ -44,6 +44,7 @@ func NewAudioTTSModel(cfg *AudioTTSModelConfig) (*AudioTTSModel, error) {
 	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
+
 	api, err := NewApi(&ApiConfig{
 		ApiKey:         cfg.ApiKey,
 		RequestOptions: cfg.RequestOptions,
@@ -51,6 +52,7 @@ func NewAudioTTSModel(cfg *AudioTTSModelConfig) (*AudioTTSModel, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	return &AudioTTSModel{
 		api:            api,
 		defaultOptions: cfg.DefaultOptions,
@@ -66,15 +68,10 @@ func (a *AudioTTSModel) buildApiTTSRequest(req *tts.Request) (*openai.AudioSpeec
 	params := getOptionsParams[openai.AudioSpeechNewParams](mergedOpts)
 
 	params.Model = mergedOpts.Model
-
 	params.Input = req.Text
-
 	params.Voice = openai.AudioSpeechNewParamsVoiceUnion{OfString: param.NewOpt(mergedOpts.Voice)}
-
 	params.Speed = openai.Float(mergedOpts.Speed)
-
 	params.ResponseFormat = openai.AudioSpeechNewParamsResponseFormat(mergedOpts.ResponseFormat)
-
 	params.StreamFormat = openai.AudioSpeechNewParamsStreamFormatAudio
 
 	return params, nil
@@ -100,12 +97,12 @@ func (a *AudioTTSModel) Call(ctx context.Context, req *tts.Request) (*tts.Respon
 	}
 	defer apiResp.Body.Close()
 
-	bytes, err := pkgio.ReadAll(apiResp.Body, 16*1024)
+	data, err := pkgio.ReadAll(apiResp.Body, 16*1024)
 	if err != nil {
 		return nil, err
 	}
 
-	return a.buildTTSResponse(bytes)
+	return a.buildTTSResponse(data)
 }
 
 func (a *AudioTTSModel) Stream(ctx context.Context, req *tts.Request) iter.Seq2[*tts.Response, error] {
@@ -121,19 +118,20 @@ func (a *AudioTTSModel) Stream(ctx context.Context, req *tts.Request) iter.Seq2[
 			yield(nil, err)
 			return
 		}
-
 		defer apiResp.Body.Close()
 
-		for bytes, err := range pkgio.Read(apiResp.Body, 16*1024) {
+		for chunk, err := range pkgio.Read(apiResp.Body, 16*1024) {
 			if err != nil {
 				yield(nil, err)
 				return
 			}
-			resp, err := a.buildTTSResponse(bytes)
+
+			resp, err := a.buildTTSResponse(chunk)
 			if err != nil {
 				yield(nil, err)
 				return
 			}
+
 			if !yield(resp, nil) {
 				return
 			}

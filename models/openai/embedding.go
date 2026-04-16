@@ -23,13 +23,13 @@ type EmbeddingModelConfig struct {
 
 func (c *EmbeddingModelConfig) validate() error {
 	if c == nil {
-		return errors.New("config is nil")
+		return errors.New("openai: config is nil")
 	}
 	if c.ApiKey == nil {
-		return errors.New("apiKey is required")
+		return errors.New("openai: api key is required")
 	}
 	if c.DefaultOptions == nil {
-		return errors.New("default options cannot be nil")
+		return errors.New("openai: default options are required")
 	}
 	return nil
 }
@@ -69,7 +69,6 @@ func (e *EmbeddingModel) buildApiEmbeddingRequest(req *embedding.Request) (*open
 	params := getOptionsParams[openai.EmbeddingNewParams](mergedOpts)
 
 	params.Model = mergedOpts.Model
-
 	params.Input = openai.EmbeddingNewParamsInputUnion{
 		OfArrayOfStrings: req.Texts,
 	}
@@ -77,7 +76,6 @@ func (e *EmbeddingModel) buildApiEmbeddingRequest(req *embedding.Request) (*open
 	if mergedOpts.Dimensions != nil {
 		params.Dimensions = openai.Int(ptr.Value(mergedOpts.Dimensions))
 	}
-
 	if mergedOpts.EncodingFormat.Valid() {
 		params.EncodingFormat = openai.EmbeddingNewParamsEncodingFormat(mergedOpts.EncodingFormat)
 	}
@@ -86,7 +84,7 @@ func (e *EmbeddingModel) buildApiEmbeddingRequest(req *embedding.Request) (*open
 }
 
 func (e *EmbeddingModel) buildEmbeddingResponse(apiResp *openai.CreateEmbeddingResponse) (*embedding.Response, error) {
-	metadata := &embedding.ResponseMetadata{
+	meta := &embedding.ResponseMetadata{
 		Model: apiResp.Model,
 		Usage: &chat.Usage{
 			PromptTokens:  apiResp.Usage.PromptTokens,
@@ -96,14 +94,14 @@ func (e *EmbeddingModel) buildEmbeddingResponse(apiResp *openai.CreateEmbeddingR
 	}
 
 	results := make([]*embedding.Result, 0, len(apiResp.Data))
-	for _, embeddingData := range apiResp.Data {
-		resultMetadata := &embedding.ResultMetadata{
-			Index:        embeddingData.Index,
+	for _, item := range apiResp.Data {
+		resultMeta := &embedding.ResultMetadata{
+			Index:        item.Index,
 			ModalityType: embedding.Text,
 			MimeType:     mime.MustNew("text", "plain"),
 		}
 
-		result, err := embedding.NewResult(embeddingData.Embedding, resultMetadata)
+		result, err := embedding.NewResult(item.Embedding, resultMeta)
 		if err != nil {
 			return nil, err
 		}
@@ -111,7 +109,7 @@ func (e *EmbeddingModel) buildEmbeddingResponse(apiResp *openai.CreateEmbeddingR
 		results = append(results, result)
 	}
 
-	return embedding.NewResponse(results, metadata)
+	return embedding.NewResponse(results, meta)
 }
 
 func (e *EmbeddingModel) Call(ctx context.Context, req *embedding.Request) (*embedding.Response, error) {
