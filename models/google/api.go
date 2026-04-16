@@ -16,10 +16,10 @@ type ApiConfig struct {
 
 func (c *ApiConfig) validate() error {
 	if c == nil {
-		return errors.New("config is nil")
+		return errors.New("google: config is nil")
 	}
 	if c.ApiKey == nil {
-		return errors.New("apiKey is required")
+		return errors.New("google: api key is required")
 	}
 	return nil
 }
@@ -44,10 +44,10 @@ func NewApi(cfg *ApiConfig) (*Api, error) {
 	return &Api{client: client}, nil
 }
 
-func (a *Api) ChatCompletion(ctx context.Context, model string, contents []*genai.Content, config *genai.GenerateContentConfig) (*genai.GenerateContentResponse, error) {
-	return a.client.Models.GenerateContent(ctx, model, contents, config)
+func (a *Api) ChatCompletion(ctx context.Context, modelName string, contents []*genai.Content, config *genai.GenerateContentConfig) (*genai.GenerateContentResponse, error) {
+	return a.client.Models.GenerateContent(ctx, modelName, contents, config)
 }
 
-func (a *Api) ChatCompletionStream(ctx context.Context, model string, contents []*genai.Content, config *genai.GenerateContentConfig) iter.Seq2[*genai.GenerateContentResponse, error] {
-	return a.client.Models.GenerateContentStream(ctx, model, contents, config)
+func (a *Api) ChatCompletionStream(ctx context.Context, modelName string, contents []*genai.Content, config *genai.GenerateContentConfig) iter.Seq2[*genai.GenerateContentResponse, error] {
+	return a.client.Models.GenerateContentStream(ctx, modelName, contents, config)
 }

@@ -173,11 +173,10 @@ func (r *requestHelper) buildAssistantMsg(msg *chat.AssistantMessage) openai.Cha
 	return message
 }
 
-func (r *requestHelper) buildToolMsgs(msg *chat.ToolMessage) []openai.ChatCompletionMessageParamUnion {
-	returns := msg.ToolReturns
-	msgs := make([]openai.ChatCompletionMessageParamUnion, 0, len(returns))
+func (r *requestHelper) buildToolMsg(msg *chat.ToolMessage) []openai.ChatCompletionMessageParamUnion {
+	msgs := make([]openai.ChatCompletionMessageParamUnion, 0, len(msg.ToolReturns))
 
-	for _, ret := range returns {
+	for _, ret := range msg.ToolReturns {
 		msgs = append(msgs, openai.ToolMessage(ret.Result, ret.ID))
 	}
 
@@ -187,11 +186,11 @@ func (r *requestHelper) buildToolMsgs(msg *chat.ToolMessage) []openai.ChatComple
 func (r *requestHelper) buildMsg(msg chat.Message) openai.ChatCompletionMessageParamUnion {
 	if msg.Type().IsUser() {
 		return r.buildUserMsg(msg.(*chat.UserMessage))
-	} else if msg.Type().IsAssistant() {
-		return r.buildAssistantMsg(msg.(*chat.AssistantMessage))
-	} else {
-		return r.buildSystemMsg(msg.(*chat.SystemMessage))
 	}
+	if msg.Type().IsAssistant() {
+		return r.buildAssistantMsg(msg.(*chat.AssistantMessage))
+	}
+	return r.buildSystemMsg(msg.(*chat.SystemMessage))
 }
 
 func (r *requestHelper) buildMsgs(msgs []chat.Message) []openai.ChatCompletionMessageParamUnion {
@@ -199,7 +198,7 @@ func (r *requestHelper) buildMsgs(msgs []chat.Message) []openai.ChatCompletionMe
 
 	for _, msg := range msgs {
 		if msg.Type().IsTool() {
-			result = append(result, r.buildToolMsgs(msg.(*chat.ToolMessage))...)
+			result = append(result, r.buildToolMsg(msg.(*chat.ToolMessage))...)
 		} else {
 			result = append(result, r.buildMsg(msg))
 		}
@@ -221,15 +220,15 @@ func (r *requestHelper) buildApiChatRequest(req *chat.Request) (*openai.ChatComp
 type responseHelper struct{}
 
 func (r *responseHelper) buildAssistantMsg(req *openai.ChatCompletionNewParams, msg *openai.ChatCompletionMessage) *chat.AssistantMessage {
-	param := chat.MessageParams{
+	msgParams := chat.MessageParams{
 		Text:     msg.Content,
 		Metadata: make(map[string]any),
 	}
-	param.Metadata["refusal"] = msg.Refusal
-	param.Metadata["annotations"] = msg.Annotations
+	msgParams.Metadata["refusal"] = msg.Refusal
+	msgParams.Metadata["annotations"] = msg.Annotations
 
 	for _, tc := range msg.ToolCalls {
-		param.ToolCalls = append(param.ToolCalls, &chat.ToolCall{
+		msgParams.ToolCalls = append(msgParams.ToolCalls, &chat.ToolCall{
 			ID:        tc.ID,
 			Name:      tc.Function.Name,
 			Arguments: tc.Function.Arguments,
@@ -237,25 +236,25 @@ func (r *responseHelper) buildAssistantMsg(req *openai.ChatCompletionNewParams, 
 	}
 
 	if msg.Audio.ID != "" {
-		param.Metadata["audio.id"] = msg.Audio.ID
-		param.Metadata["audio.expires_at"] = msg.Audio.ExpiresAt
+		msgParams.Metadata["audio.id"] = msg.Audio.ID
+		msgParams.Metadata["audio.expires_at"] = msg.Audio.ExpiresAt
 
 		mt, _ := mime.New("audio", string(req.Audio.Format))
-		param.Metadata["audio.mimetype"] = mt.String()
-		param.Metadata["audio.voice"] = req.Audio.Voice
+		msgParams.Metadata["audio.mimetype"] = mt.String()
+		msgParams.Metadata["audio.voice"] = req.Audio.Voice
 
-		param.Media = append(param.Media, &media.Media{
+		msgParams.Media = append(msgParams.Media, &media.Media{
 			ID:       msg.Audio.ID,
 			MimeType: mt,
 			Data:     msg.Audio.Data,
 		})
 
-		if param.Text == "" {
-			param.Text = msg.Audio.Transcript
+		if msgParams.Text == "" {
+			msgParams.Text = msg.Audio.Transcript
 		}
 	}
 
-	return chat.NewAssistantMessage(param)
+	return chat.NewAssistantMessage(msgParams)
 }
 
 func (r *responseHelper) buildResultMeta(req *openai.ChatCompletionNewParams, choice *openai.ChatCompletionChoice) *chat.ResultMetadata {
@@ -330,13 +329,13 @@ type ChatModelConfig struct {
 
 func (c *ChatModelConfig) validate() error {
 	if c == nil {
-		return errors.New("config is nil")
+		return errors.New("openai: config is nil")
 	}
 	if c.ApiKey == nil {
-		return errors.New("apiKey is required")
+		return errors.New("openai: api key is required")
 	}
 	if c.DefaultOptions == nil {
-		return errors.New("default options cannot be nil")
+		return errors.New("openai: default options are required")
 	}
 	return nil
 }
@@ -385,6 +384,7 @@ func (c *ChatModel) Call(ctx context.Context, req *chat.Request) (*chat.Response
 
 	return c.respHelper.buildChatResponse(apiReq, apiResp)
 }
+
 func (c *ChatModel) Stream(ctx context.Context, req *chat.Request) iter.Seq2[*chat.Response, error] {
 	return func(yield func(*chat.Response, error) bool) {
 		apiReq, err := c.reqHelper.buildApiChatRequest(req)

@@ -18,10 +18,10 @@ type ApiConfig struct {
 
 func (c *ApiConfig) validate() error {
 	if c == nil {
-		return errors.New("config is nil")
+		return errors.New("anthropic: config is nil")
 	}
 	if c.ApiKey == nil {
-		return errors.New("apiKey is required")
+		return errors.New("anthropic: api key is required")
 	}
 	return nil
 }
@@ -48,7 +48,7 @@ func NewApi(cfg *ApiConfig) (*Api, error) {
 
 func (a *Api) ChatCompletion(ctx context.Context, req *anthropicsdk.MessageNewParams, opts ...option.RequestOption) (*anthropicsdk.Message, error) {
 	if req == nil {
-		return nil, errors.New("request parameters cannot be nil")
+		return nil, errors.New("anthropic: request is nil")
 	}
 	return a.client.Messages.New(ctx, *req, opts...)
 }

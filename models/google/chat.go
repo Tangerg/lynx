@@ -185,21 +185,21 @@ func (r *responseHelper) mapFinishReason(reason genai.FinishReason) chat.FinishR
 }
 
 func (r *responseHelper) buildAssistantMsg(candidate *genai.Candidate) *chat.AssistantMessage {
-	params := chat.MessageParams{
+	msgParams := chat.MessageParams{
 		Metadata: make(map[string]any),
 	}
 
 	if candidate.Content == nil {
-		return chat.NewAssistantMessage(params)
+		return chat.NewAssistantMessage(msgParams)
 	}
 
 	for _, part := range candidate.Content.Parts {
 		if part.Text != "" {
-			params.Text += part.Text
+			msgParams.Text += part.Text
 		}
 		if part.FunctionCall != nil {
 			rawArgs, _ := json.Marshal(part.FunctionCall.Args)
-			params.ToolCalls = append(params.ToolCalls, &chat.ToolCall{
+			msgParams.ToolCalls = append(msgParams.ToolCalls, &chat.ToolCall{
 				ID:        part.FunctionCall.ID,
 				Name:      part.FunctionCall.Name,
 				Arguments: string(rawArgs),
@@ -207,7 +207,7 @@ func (r *responseHelper) buildAssistantMsg(candidate *genai.Candidate) *chat.Ass
 		}
 	}
 
-	return chat.NewAssistantMessage(params)
+	return chat.NewAssistantMessage(msgParams)
 }
 
 func (r *responseHelper) buildResult(candidate *genai.Candidate) (*chat.Result, error) {
@@ -265,13 +265,13 @@ type ChatModelConfig struct {
 
 func (c *ChatModelConfig) validate() error {
 	if c == nil {
-		return errors.New("config is nil")
+		return errors.New("google: config is nil")
 	}
 	if c.ApiKey == nil {
-		return errors.New("apiKey is required")
+		return errors.New("google: api key is required")
 	}
 	if c.DefaultOptions == nil {
-		return errors.New("default options cannot be nil")
+		return errors.New("google: default options are required")
 	}
 	return nil
 }
@@ -352,4 +352,3 @@ func (c *ChatModel) Info() chat.ModelInfo {
 		Provider: Provider,
 	}
 }
-

@@ -19,10 +19,10 @@ type ApiConfig struct {
 
 func (c *ApiConfig) validate() error {
 	if c == nil {
-		return errors.New("config is nil")
+		return errors.New("openai: config is nil")
 	}
 	if c.ApiKey == nil {
-		return errors.New("apiKey is required")
+		return errors.New("openai: api key is required")
 	}
 	return nil
 }
@@ -49,49 +49,49 @@ func NewApi(cfg *ApiConfig) (*Api, error) {
 
 func (a *Api) ChatCompletion(ctx context.Context, req *openai.ChatCompletionNewParams, opts ...option.RequestOption) (*openai.ChatCompletion, error) {
 	if req == nil {
-		return nil, errors.New("request parameters cannot be nil")
+		return nil, errors.New("openai: request is nil")
 	}
 	return a.client.Chat.Completions.New(ctx, *req, opts...)
 }
 
 func (a *Api) ChatCompletionStream(ctx context.Context, req *openai.ChatCompletionNewParams, opts ...option.RequestOption) (*ssestream.Stream[openai.ChatCompletionChunk], error) {
 	if req == nil {
-		return nil, errors.New("request parameters cannot be nil")
+		return nil, errors.New("openai: request is nil")
 	}
 	return a.client.Chat.Completions.NewStreaming(ctx, *req, opts...), nil
 }
 
 func (a *Api) Embedding(ctx context.Context, req *openai.EmbeddingNewParams, opts ...option.RequestOption) (*openai.CreateEmbeddingResponse, error) {
 	if req == nil {
-		return nil, errors.New("request parameters cannot be nil")
+		return nil, errors.New("openai: request is nil")
 	}
 	return a.client.Embeddings.New(ctx, *req, opts...)
 }
 
 func (a *Api) Image(ctx context.Context, req *openai.ImageGenerateParams, opts ...option.RequestOption) (*openai.ImagesResponse, error) {
 	if req == nil {
-		return nil, errors.New("request parameters cannot be nil")
+		return nil, errors.New("openai: request is nil")
 	}
 	return a.client.Images.Generate(ctx, *req, opts...)
 }
 
 func (a *Api) Moderation(ctx context.Context, req *openai.ModerationNewParams, opts ...option.RequestOption) (*openai.ModerationNewResponse, error) {
 	if req == nil {
-		return nil, errors.New("request parameters cannot be nil")
+		return nil, errors.New("openai: request is nil")
 	}
 	return a.client.Moderations.New(ctx, *req, opts...)
 }
 
 func (a *Api) AudioTextToSpeech(ctx context.Context, req *openai.AudioSpeechNewParams, opts ...option.RequestOption) (*http.Response, error) {
 	if req == nil {
-		return nil, errors.New("request parameters cannot be nil")
+		return nil, errors.New("openai: request is nil")
 	}
 	return a.client.Audio.Speech.New(ctx, *req, opts...)
 }
 
 func (a *Api) AudioTranscription(ctx context.Context, req *openai.AudioTranscriptionNewParams, opts ...option.RequestOption) (*openai.AudioTranscriptionNewResponseUnion, error) {
 	if req == nil {
-		return nil, errors.New("request parameters cannot be nil")
+		return nil, errors.New("openai: request is nil")
 	}
 	return a.client.Audio.Transcriptions.New(ctx, *req, opts...)
 }

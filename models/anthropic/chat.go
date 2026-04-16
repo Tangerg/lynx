@@ -46,7 +46,7 @@ func (r *requestHelper) buildToolParams(tools []chat.Tool) ([]anthropicsdk.ToolU
 	return toolParams, nil
 }
 
-func (r *requestHelper) buildSystemBlocks(msgs []chat.Message) []anthropicsdk.TextBlockParam {
+func (r *requestHelper) buildSystem(msgs []chat.Message) []anthropicsdk.TextBlockParam {
 	systemMsg := chat.MergeSystemMessages(msgs)
 	if systemMsg == nil || systemMsg.Text == "" {
 		return nil
@@ -188,7 +188,7 @@ func (r *requestHelper) buildApiChatRequest(req *chat.Request) (*anthropicsdk.Me
 		return nil, err
 	}
 
-	params.System = r.buildSystemBlocks(req.Messages)
+	params.System = r.buildSystem(req.Messages)
 	params.Messages = r.buildMsgs(req.Messages)
 
 	return params, nil
@@ -196,7 +196,7 @@ func (r *requestHelper) buildApiChatRequest(req *chat.Request) (*anthropicsdk.Me
 
 type responseHelper struct{}
 
-func (r *responseHelper) mapStopReason(stopReason anthropicsdk.StopReason) chat.FinishReason {
+func (r *responseHelper) mapFinishReason(stopReason anthropicsdk.StopReason) chat.FinishReason {
 	switch stopReason {
 	case anthropicsdk.StopReasonEndTurn, anthropicsdk.StopReasonStopSequence:
 		return chat.FinishReasonStop
@@ -212,17 +212,17 @@ func (r *responseHelper) mapStopReason(stopReason anthropicsdk.StopReason) chat.
 }
 
 func (r *responseHelper) buildAssistantMsg(resp *anthropicsdk.Message) *chat.AssistantMessage {
-	params := chat.MessageParams{
+	msgParams := chat.MessageParams{
 		Metadata: make(map[string]any),
 	}
 
 	for _, block := range resp.Content {
 		switch block.Type {
 		case "text":
-			params.Text += block.Text
+			msgParams.Text += block.Text
 		case "tool_use":
 			rawInput, _ := json.Marshal(block.Input)
-			params.ToolCalls = append(params.ToolCalls, &chat.ToolCall{
+			msgParams.ToolCalls = append(msgParams.ToolCalls, &chat.ToolCall{
 				ID:        block.ID,
 				Name:      block.Name,
 				Arguments: string(rawInput),
@@ -230,13 +230,13 @@ func (r *responseHelper) buildAssistantMsg(resp *anthropicsdk.Message) *chat.Ass
 		}
 	}
 
-	return chat.NewAssistantMessage(params)
+	return chat.NewAssistantMessage(msgParams)
 }
 
 func (r *responseHelper) buildResult(resp *anthropicsdk.Message) (*chat.Result, error) {
 	assistantMsg := r.buildAssistantMsg(resp)
 	meta := &chat.ResultMetadata{
-		FinishReason: r.mapStopReason(resp.StopReason),
+		FinishReason: r.mapFinishReason(resp.StopReason),
 	}
 	return chat.NewResult(assistantMsg, meta)
 }
@@ -278,13 +278,13 @@ type ChatModelConfig struct {
 
 func (c *ChatModelConfig) validate() error {
 	if c == nil {
-		return errors.New("config is nil")
+		return errors.New("anthropic: config is nil")
 	}
 	if c.ApiKey == nil {
-		return errors.New("apiKey is required")
+		return errors.New("anthropic: api key is required")
 	}
 	if c.DefaultOptions == nil {
-		return errors.New("default options cannot be nil")
+		return errors.New("anthropic: default options are required")
 	}
 	return nil
 }
@@ -343,10 +343,6 @@ func (c *ChatModel) Stream(ctx context.Context, req *chat.Request) iter.Seq2[*ch
 		}
 
 		apiStream := c.api.ChatCompletionStream(ctx, apiReq)
-		if apiStream == nil {
-			yield(nil, errors.New("failed to create stream"))
-			return
-		}
 		defer apiStream.Close()
 
 		acc := anthropicsdk.Message{}
