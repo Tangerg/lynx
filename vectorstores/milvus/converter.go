@@ -8,9 +8,9 @@ import (
 	"github.com/Tangerg/lynx/core/vectorstore/filter/token"
 )
 
-var _ ast.Visitor = (*Converter)(nil)
+var _ ast.Visitor = (*Visitor)(nil)
 
-// Converter transforms AST filter expressions into Milvus filter expression strings.
+// Visitor transforms AST filter expressions into Milvus filter expression strings.
 // It implements the ast.Visitor interface to traverse and convert expression trees
 // into Milvus's native string expression format.
 //
@@ -32,22 +32,22 @@ var _ ast.Visitor = (*Converter)(nil)
 //	if err != nil {
 //	    log.Fatal(err)
 //	}
-type Converter struct {
+type Visitor struct {
 	err               error  // Last error encountered during conversion
 	result            string // The Milvus expression string being built
 	currentFieldKey   string // Temporary storage for field paths during extraction
 	currentFieldValue string // Temporary storage for encoded values during extraction
 }
 
-// NewConverter creates a new converter instance ready to process AST expressions.
-func NewConverter() *Converter {
-	return &Converter{}
+// NewVisitor creates a new converter instance ready to process AST expressions.
+func NewVisitor() *Visitor {
+	return &Visitor{}
 }
 
 // Result returns the constructed Milvus filter expression string.
 // Returns an empty string if an error occurred during conversion.
 // Should only be called after Visit() completes.
-func (c *Converter) Result() string {
+func (c *Visitor) Result() string {
 	if c.err != nil {
 		return ""
 	}
@@ -56,20 +56,20 @@ func (c *Converter) Result() string {
 
 // Error returns the last error encountered during conversion.
 // Returns nil if the conversion was successful.
-func (c *Converter) Error() error {
+func (c *Visitor) Error() error {
 	return c.err
 }
 
 // Visit implements the ast.Visitor interface.
 // It initiates the conversion process for the given expression and stores any error.
 // Always returns nil to stop further traversal as conversion is done in a single pass.
-func (c *Converter) Visit(expr ast.Expr) ast.Visitor {
+func (c *Visitor) Visit(expr ast.Expr) ast.Visitor {
 	c.err = c.visit(expr)
 	return nil
 }
 
 // visit dispatches conversion to specialized methods based on expression type.
-func (c *Converter) visit(expr ast.Expr) error {
+func (c *Visitor) visit(expr ast.Expr) error {
 	if expr == nil {
 		return fmt.Errorf("milvus: cannot process nil expression")
 	}
@@ -96,7 +96,7 @@ func (c *Converter) visit(expr ast.Expr) error {
 }
 
 // visitBinaryExpr routes binary expressions to appropriate handlers based on operator type.
-func (c *Converter) visitBinaryExpr(expr *ast.BinaryExpr) error {
+func (c *Visitor) visitBinaryExpr(expr *ast.BinaryExpr) error {
 	if expr.Op.Kind.IsLogicalOperator() {
 		return c.visitLogicalExpr(expr)
 	}
@@ -118,7 +118,7 @@ func (c *Converter) visitBinaryExpr(expr *ast.BinaryExpr) error {
 
 // visitUnaryExpr handles unary expressions.
 // Currently only the NOT operator is supported for logical negation.
-func (c *Converter) visitUnaryExpr(expr *ast.UnaryExpr) error {
+func (c *Visitor) visitUnaryExpr(expr *ast.UnaryExpr) error {
 	if !expr.Op.Kind.IsUnaryOperator() {
 		return fmt.Errorf("milvus: '%s' is not a valid unary operator at %s",
 			expr.Op.Literal, expr.Start().String())
@@ -134,7 +134,7 @@ func (c *Converter) visitUnaryExpr(expr *ast.UnaryExpr) error {
 }
 
 // visitIdent extracts and stores the identifier name as the current field key.
-func (c *Converter) visitIdent(ident *ast.Ident) error {
+func (c *Visitor) visitIdent(ident *ast.Ident) error {
 	c.currentFieldKey = ident.Value
 	return nil
 }
@@ -146,7 +146,7 @@ func (c *Converter) visitIdent(ident *ast.Ident) error {
 //   - Whole numbers are formatted as integers (no decimal point).
 //   - Fractional numbers use %g notation.
 //   - Booleans use Milvus syntax: True / False.
-func (c *Converter) visitLiteral(lit *ast.Literal) error {
+func (c *Visitor) visitLiteral(lit *ast.Literal) error {
 	value, err := c.literalToString(lit)
 	if err != nil {
 		return err
@@ -157,7 +157,7 @@ func (c *Converter) visitLiteral(lit *ast.Literal) error {
 
 // visitListLiteral converts a list of literals to a Milvus list expression and stores it.
 // Example output: ["active", "pending"] or [18, 21, 25]
-func (c *Converter) visitListLiteral(list *ast.ListLiteral) error {
+func (c *Visitor) visitListLiteral(list *ast.ListLiteral) error {
 	parts := make([]string, 0, len(list.Values))
 
 	for i, lit := range list.Values {
@@ -177,7 +177,7 @@ func (c *Converter) visitListLiteral(list *ast.ListLiteral) error {
 //   - metadata["user"] → metadata["user"]
 //   - data["tags"][0] → data["tags"][0]
 //   - config["db"]["host"] → config["db"]["host"]
-func (c *Converter) visitIndexExpr(expr *ast.IndexExpr) error {
+func (c *Visitor) visitIndexExpr(expr *ast.IndexExpr) error {
 	fieldKey, err := c.buildIndexedFieldKey(expr)
 	if err != nil {
 		return fmt.Errorf("milvus: failed to build field path at %s: %w",
@@ -191,7 +191,7 @@ func (c *Converter) visitIndexExpr(expr *ast.IndexExpr) error {
 // Each operand is converted using an isolated converter, then combined:
 //   - AND: (left) and (right)
 //   - OR:  (left) or (right)
-func (c *Converter) visitLogicalExpr(expr *ast.BinaryExpr) error {
+func (c *Visitor) visitLogicalExpr(expr *ast.BinaryExpr) error {
 	left, err := c.buildNestedExpr(expr.Left)
 	if err != nil {
 		return fmt.Errorf("milvus: failed to process left operand of '%s' at %s: %w",
@@ -219,7 +219,7 @@ func (c *Converter) visitLogicalExpr(expr *ast.BinaryExpr) error {
 
 // visitNotExpr handles the NOT operator.
 // Example: NOT (age > 18) → not (age > 18)
-func (c *Converter) visitNotExpr(expr *ast.UnaryExpr) error {
+func (c *Visitor) visitNotExpr(expr *ast.UnaryExpr) error {
 	operand, err := c.buildNestedExpr(expr.Right)
 	if err != nil {
 		return fmt.Errorf("milvus: failed to process NOT operand at %s: %w",
@@ -234,7 +234,7 @@ func (c *Converter) visitNotExpr(expr *ast.UnaryExpr) error {
 // Examples:
 //   - status == "active"
 //   - age != 18
-func (c *Converter) visitEqualityExpr(expr *ast.BinaryExpr) error {
+func (c *Visitor) visitEqualityExpr(expr *ast.BinaryExpr) error {
 	fieldKey, err := c.extractFieldKey(expr.Left)
 	if err != nil {
 		return fmt.Errorf("milvus: failed to extract field key from '%s' at %s: %w",
@@ -264,7 +264,7 @@ func (c *Converter) visitEqualityExpr(expr *ast.BinaryExpr) error {
 // Examples:
 //   - age > 18
 //   - price <= 99.99
-func (c *Converter) visitOrderingExpr(expr *ast.BinaryExpr) error {
+func (c *Visitor) visitOrderingExpr(expr *ast.BinaryExpr) error {
 	fieldKey, err := c.extractFieldKey(expr.Left)
 	if err != nil {
 		return fmt.Errorf("milvus: failed to extract field key from '%s' at %s: %w",
@@ -297,7 +297,7 @@ func (c *Converter) visitOrderingExpr(expr *ast.BinaryExpr) error {
 // visitInExpr handles the IN operator for membership testing.
 // The right operand must be a non-empty list literal.
 // Example: status in ["active", "pending"]
-func (c *Converter) visitInExpr(expr *ast.BinaryExpr) error {
+func (c *Visitor) visitInExpr(expr *ast.BinaryExpr) error {
 	fieldKey, err := c.extractFieldKey(expr.Left)
 	if err != nil {
 		return fmt.Errorf("milvus: failed to extract field key from 'IN' at %s: %w",
@@ -325,7 +325,7 @@ func (c *Converter) visitInExpr(expr *ast.BinaryExpr) error {
 // visitLikeExpr handles the LIKE operator for pattern matching.
 // The right operand must be a string literal.
 // Example: name like "go%"
-func (c *Converter) visitLikeExpr(expr *ast.BinaryExpr) error {
+func (c *Visitor) visitLikeExpr(expr *ast.BinaryExpr) error {
 	fieldKey, err := c.extractFieldKey(expr.Left)
 	if err != nil {
 		return fmt.Errorf("milvus: failed to extract field key from 'LIKE' at %s: %w",
@@ -352,8 +352,8 @@ func (c *Converter) visitLikeExpr(expr *ast.BinaryExpr) error {
 
 // buildNestedExpr converts a sub-expression to a string using an isolated converter.
 // This ensures that nested logical expressions maintain proper scoping.
-func (c *Converter) buildNestedExpr(expr ast.Expr) (string, error) {
-	nested := NewConverter()
+func (c *Visitor) buildNestedExpr(expr ast.Expr) (string, error) {
+	nested := NewVisitor()
 	if err := nested.visit(expr); err != nil {
 		return "", err
 	}
@@ -372,7 +372,7 @@ func (c *Converter) buildNestedExpr(expr ast.Expr) (string, error) {
 
 // extractFieldKey extracts a field key (identifier or bracket path) from an expression.
 // The converter's currentFieldKey state is preserved during extraction.
-func (c *Converter) extractFieldKey(expr ast.Expr) (string, error) {
+func (c *Visitor) extractFieldKey(expr ast.Expr) (string, error) {
 	savedKey := c.currentFieldKey
 	c.currentFieldKey = ""
 
@@ -393,7 +393,7 @@ func (c *Converter) extractFieldKey(expr ast.Expr) (string, error) {
 
 // extractFieldValue extracts an encoded value (literal or list) from an expression.
 // The converter's currentFieldValue state is preserved during extraction.
-func (c *Converter) extractFieldValue(expr ast.Expr) (string, error) {
+func (c *Visitor) extractFieldValue(expr ast.Expr) (string, error) {
 	savedValue := c.currentFieldValue
 	c.currentFieldValue = ""
 
@@ -419,7 +419,7 @@ func (c *Converter) extractFieldValue(expr ast.Expr) (string, error) {
 //   - user["name"]                → user["name"]
 //   - metadata["tags"][0]         → metadata["tags"][0]
 //   - config["db"]["host"]        → config["db"]["host"]
-func (c *Converter) buildIndexedFieldKey(expr *ast.IndexExpr) (string, error) {
+func (c *Visitor) buildIndexedFieldKey(expr *ast.IndexExpr) (string, error) {
 	var parts []string
 
 	current := expr
@@ -443,7 +443,7 @@ func (c *Converter) buildIndexedFieldKey(expr *ast.IndexExpr) (string, error) {
 }
 
 // literalToString converts an AST literal to its Milvus expression string encoding.
-func (c *Converter) literalToString(lit *ast.Literal) (string, error) {
+func (c *Visitor) literalToString(lit *ast.Literal) (string, error) {
 	if lit.IsString() {
 		s, err := lit.AsString()
 		if err != nil {
@@ -509,7 +509,7 @@ func (c *Converter) literalToString(lit *ast.Literal) (string, error) {
 //	filter, err := milvus.ToFilter(expr)
 //	// filter: (age > 18) and (status == "active")
 func ToFilter(expr ast.Expr) (string, error) {
-	conv := NewConverter()
+	conv := NewVisitor()
 	conv.Visit(expr)
 	return conv.Result(), conv.Error()
 }
