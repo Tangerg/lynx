@@ -13,6 +13,7 @@ require (
 require (
 	github.com/bits-and-blooms/bitset v1.24.4 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.12 // indirect
+	github.com/milvus-io/milvus/client/v2 v2.6.3
 	golang.org/x/net v0.50.0 // indirect
 	golang.org/x/sys v0.41.0 // indirect
 	golang.org/x/text v0.36.0 // indirect
