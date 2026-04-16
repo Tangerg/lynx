@@ -157,12 +157,12 @@ func (r *requestHelper) buildApiChatRequest(req *chat.Request) (string, []*genai
 
 	cfg.SystemInstruction = r.buildSystemInstruction(req.Messages)
 	contents := r.buildContents(req.Messages)
-	model := r.defaultOptions.Model
+	modelName := r.defaultOptions.Model
 	if req.Options != nil && req.Options.Model != "" {
-		model = req.Options.Model
+		modelName = req.Options.Model
 	}
 
-	return model, contents, cfg, nil
+	return modelName, contents, cfg, nil
 }
 
 type responseHelper struct{}
@@ -219,10 +219,10 @@ func (r *responseHelper) buildResult(candidate *genai.Candidate) (*chat.Result, 
 	return chat.NewResult(assistantMsg, meta)
 }
 
-func (r *responseHelper) buildMeta(model string, resp *genai.GenerateContentResponse) *chat.ResponseMetadata {
+func (r *responseHelper) buildMeta(modelName string, resp *genai.GenerateContentResponse) *chat.ResponseMetadata {
 	meta := &chat.ResponseMetadata{
 		ID:      resp.ResponseID,
-		Model:   model,
+		Model:   modelName,
 		Created: time.Now().Unix(),
 	}
 
@@ -240,7 +240,7 @@ func (r *responseHelper) buildMeta(model string, resp *genai.GenerateContentResp
 	return meta
 }
 
-func (r *responseHelper) buildChatResponse(model string, resp *genai.GenerateContentResponse) (*chat.Response, error) {
+func (r *responseHelper) buildChatResponse(modelName string, resp *genai.GenerateContentResponse) (*chat.Response, error) {
 	if len(resp.Candidates) == 0 {
 		return nil, errors.New("google: no candidates in response")
 	}
@@ -254,7 +254,7 @@ func (r *responseHelper) buildChatResponse(model string, resp *genai.GenerateCon
 		results = append(results, result)
 	}
 
-	meta := r.buildMeta(model, resp)
+	meta := r.buildMeta(modelName, resp)
 	return chat.NewResponse(results, meta)
 }
 
@@ -303,34 +303,34 @@ func NewChatModel(cfg *ChatModelConfig) (*ChatModel, error) {
 }
 
 func (c *ChatModel) Call(ctx context.Context, req *chat.Request) (*chat.Response, error) {
-	model, contents, cfg, err := c.reqHelper.buildApiChatRequest(req)
+	modelName, contents, cfg, err := c.reqHelper.buildApiChatRequest(req)
 	if err != nil {
 		return nil, err
 	}
 
-	resp, err := c.api.ChatCompletion(ctx, model, contents, cfg)
+	resp, err := c.api.ChatCompletion(ctx, modelName, contents, cfg)
 	if err != nil {
 		return nil, err
 	}
 
-	return c.respHelper.buildChatResponse(model, resp)
+	return c.respHelper.buildChatResponse(modelName, resp)
 }
 
 func (c *ChatModel) Stream(ctx context.Context, req *chat.Request) iter.Seq2[*chat.Response, error] {
 	return func(yield func(*chat.Response, error) bool) {
-		model, contents, cfg, err := c.reqHelper.buildApiChatRequest(req)
+		modelName, contents, cfg, err := c.reqHelper.buildApiChatRequest(req)
 		if err != nil {
 			yield(nil, err)
 			return
 		}
 
-		for resp, err := range c.api.ChatCompletionStream(ctx, model, contents, cfg) {
+		for resp, err := range c.api.ChatCompletionStream(ctx, modelName, contents, cfg) {
 			if err != nil {
 				yield(nil, err)
 				return
 			}
 
-			chatResp, err := c.respHelper.buildChatResponse(model, resp)
+			chatResp, err := c.respHelper.buildChatResponse(modelName, resp)
 			if err != nil {
 				yield(nil, err)
 				return
