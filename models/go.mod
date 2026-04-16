@@ -5,6 +5,7 @@ go 1.25.0
 require (
 	github.com/Tangerg/lynx/core v0.0.0-20260413083841-2968c088c80c
 	github.com/Tangerg/lynx/pkg v0.0.0-20260409102358-4272fdc16c67
+	github.com/anthropics/anthropic-sdk-go v1.27.1
 	github.com/openai/openai-go/v3 v3.31.0
 	github.com/spf13/cast v1.10.0
 )
@@ -22,6 +23,7 @@ require (
 	github.com/tidwall/pretty v1.2.1 // indirect
 	github.com/tidwall/sjson v1.2.5 // indirect
 	github.com/wk8/go-ordered-map/v2 v2.1.8 // indirect
+	golang.org/x/sync v0.20.0 // indirect
 	golang.org/x/text v0.36.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
