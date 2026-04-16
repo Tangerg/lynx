@@ -1,13 +1,13 @@
-package openai
+package anthropic
 
 import "github.com/Tangerg/lynx/models/internal/options"
 
 const (
-	Provider = "OpenAI"
+	Provider = "Anthropic"
 )
 
 const (
-	OptionsKey = "lynx:ai:model:openai_options"
+	OptionsKey = "lynx:ai:model:anthropic_options"
 )
 
 func getOptionsParams[T any](
