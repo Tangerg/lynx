@@ -291,22 +291,10 @@ type ClientStreamer struct {
 }
 
 // stream runs the streaming chat operation through the middleware chain.
-// ToolMiddleware is automatically injected at the outermost layer to ensure
-// tool execution is handled correctly and visible to all other middlewares.
+// Tool execution is NOT injected automatically; register ToolMiddleware explicitly
+// via WithMiddlewares if tool calls need to be handled.
 func (s *ClientStreamer) stream(ctx context.Context, req *Request) iter.Seq2[*Response, error] {
-	// Build the base handler chain from user-configured middlewares
 	streamHandler := s.request.MiddlewareManager().BuildStreamHandler(s.request.model)
-
-	// Wrap with ToolMiddleware at the outermost layer
-	// This ensures:
-	//   1. Tool execution happens before other middlewares
-	//   2. All middlewares can observe tool execution process
-	//   3. User cannot accidentally disable tool execution
-	if len(req.Options.Tools) > 0 {
-		_, streamMW := NewToolMiddleware()
-		streamHandler = streamMW(streamHandler)
-	}
-
 	return streamHandler.Stream(ctx, req)
 }
 
@@ -364,22 +352,10 @@ type ClientCaller struct {
 }
 
 // call executes the synchronous chat operation through the middleware chain.
-// ToolMiddleware is automatically injected at the outermost layer to ensure
-// tool execution is handled correctly and visible to all other middlewares.
+// Tool execution is NOT injected automatically; register ToolMiddleware explicitly
+// via WithMiddlewares if tool calls need to be handled.
 func (c *ClientCaller) call(ctx context.Context, req *Request) (*Response, error) {
-	// Build the base handler chain from user-configured middlewares
 	callHandler := c.request.MiddlewareManager().BuildCallHandler(c.request.model)
-
-	// Wrap with ToolMiddleware at the outermost layer
-	// This ensures:
-	//   1. Tool execution happens before other middlewares
-	//   2. All middlewares can observe tool execution process
-	//   3. User cannot accidentally disable tool execution
-	if len(req.Options.Tools) > 0 {
-		callMW, _ := NewToolMiddleware()
-		callHandler = callMW(callHandler)
-	}
-
 	return callHandler.Call(ctx, req)
 }
 
