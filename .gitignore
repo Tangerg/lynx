@@ -1,8 +1,2 @@
 .idea
 .vscode
-
-# local review / design notes (not tracked)
-ARCHITECTURE.md
-IMPROVEMENTS.md
-MIDDLEWARE_DESIGN.md
-SPRING_AI_COMPARISON.md
