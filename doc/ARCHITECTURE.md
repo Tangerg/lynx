@@ -262,25 +262,56 @@ func (m *Manager[H]) Build(endpoint H) H { /* reverse wrap */ }
 `chat.Client`、`embedding.Client`、`image.Client`、`audio.Client` 都在做同一件事：
 1. 持有一个 Model
 2. 提供 fluent builder
-3. 通过 `Call()` / `Stream()` 触发 Handler
+3. 通过 `Call()` / `Stream()` 触发 Handler（**仅 `chat` 全家桶有 Stream，其余只有 Call**）
 
 **DRY 违反度**：≈ 80%。
 
 **架构级改进**：
+
+Call/Stream 两路是**非对称**的（`Res` 与 `iter.Seq2[Res, error]` 类型不兼容），且只有 `chat` 需要 Stream。清爽办法是把「Call 基类」与「Stream 能力」拆开，让多数模态只嵌 Call 基类，`chat` 再叠加 Stream 基类：
+
 ```go
-// core/model/client.go
-type BaseClient[Req, Res any] struct {
-    model   Model[Req, Res]
-    manager *middleware.Manager[CallHandler[Req, Res]]
-    defaults Req
+// core/model/client.go ── 仅 Call 能力（embedding/image/audio/moderation 复用）
+type CallBaseClient[Req, Res any] struct {
+    model       CallHandler[Req, Res]
+    callManager *middleware.Manager[CallHandler[Req, Res]]
+    defaults    Req
 }
 
-// chat/client.go
-type Client struct { *BaseClient[*Request, *Response] }
-// 每个模态只加自己的 fluent 方法
+func (b *CallBaseClient[Req, Res]) Call(ctx context.Context, req Req) (Res, error) {
+    h := b.callManager.Build(b.model)
+    return h.Call(ctx, req)
+}
+
+// Stream 能力独立（只有 chat 需要）
+type StreamBaseClient[Req, Res any] struct {
+    model         StreamHandler[Req, Res]
+    streamManager *middleware.Manager[StreamHandler[Req, Res]]
+}
+
+func (b *StreamBaseClient[Req, Res]) Stream(ctx context.Context, req Req) iter.Seq2[Res, error] {
+    h := b.streamManager.Build(b.model)
+    return h.Stream(ctx, req)
+}
+
+// chat/client.go ── Call + Stream 双路
+type Client struct {
+    *CallBaseClient[*Request, *Response]
+    *StreamBaseClient[*Request, *Response]
+}
+
+// embedding/client.go ── 只有 Call
+type Client struct {
+    *CallBaseClient[*EmbeddingRequest, *EmbeddingResponse]
+}
 ```
 
-当前结构每加一个模态要重写 ~200 行 boilerplate。
+**关键取舍**：
+- `CallBaseClient` 和 `StreamBaseClient` **共享同一个 `Req` 类型参数**，但各持一个 manager——因为 `CallMiddleware` 与 `StreamMiddleware` 类型不同，不能合并到一个 `Manager`（参见 `MIDDLEWARE_DESIGN.md §2`）
+- 想让 Call / Stream 中间件一次注册两边生效，走 `AroundMiddleware`（高层包装）；底层 `*Manager` 仍然是两个
+- `chat` 在两个基类里**都传入同一个 Model 实例**（Model 自身同时实现 `CallHandler` + `StreamHandler`），Request 默认值走 `CallBaseClient.defaults`
+
+当前结构每加一个模态要重写 ~200 行 boilerplate；改造后：纯 Call 模态只写 fluent 方法，`chat` 也只多挂一个 StreamBaseClient。
 
 ---
 
