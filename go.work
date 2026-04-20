@@ -3,6 +3,7 @@ go 1.25.5
 use (
 	./core
 	./models
+	./otelbridge
 	./pkg
 	./tools
 	./vectorstores

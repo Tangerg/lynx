@@ -1,231 +1,72 @@
 # Lynx 可观测性设计
 
-> 对标 Spring AI 的 Micrometer Observation 设计，为 Lynx 设计一套**不锁定具体厂商**的可观测性体系。
-> 核心原则：**依赖抽象而非具体**——核心代码只认 `observation.Registry` 接口，OTel / Prometheus / slog 都是可插拔适配器。
+> **设计修订（2026-04）**：放弃自造 `observation.Registry` 抽象，**直接使用 OpenTelemetry API**。
+> OTel 本身就是厂商中立层，再加一层是重复建设。
+> 本文档保留「埋点清单」「语义规范」「slog 桥接」「生产接入」几部分——这些才是真正有价值的内容。
 
 ---
 
-## 1. 设计目标 & 原则
+## 1. 设计决策
 
-### 1.1 目标
-1. 为 Chat / Embedding / Image / Audio / RAG / VectorStore / Tool 提供统一的观测点
-2. 输出**分布式追踪**（trace / span）、**指标**（counter / histogram）、**结构化事件**（event / log）
-3. 遵循 OpenTelemetry GenAI 语义规范（`gen_ai.*`），与业界打通
-4. 默认零开销——未配置后端时 **no-op**，不引入任何外部依赖
+### 1.1 直接用 OTel，不再自造抽象
 
-### 1.2 原则
+| 维度 | 判断 |
+|-----|-----|
+| OTel 自身定位 | **就是** vendor-neutral 抽象层，设计目标和 Lynx 原本要做的那层完全重合 |
+| Go 生态现状 | 从一开始就是 OTel 独大，没有「Go 的 Micrometer」 |
+| API 稳定性 | trace/metric v1.0 自 2022 年稳定，近 3 年无破坏性变更 |
+| 依赖成本 | **API 包**（`go.opentelemetry.io/otel/trace`）只含接口 + noop，不拉 gRPC；**SDK 包**才是重的，但只在用户 app 引入 |
+| 零配置行为 | 不调 `otel.SetTracerProvider(...)` = 自动 noop，真·零开销 |
 
-| # | 原则 | 含义 |
-|---|-----|------|
-| P1 | **依赖抽象** | 核心代码只 import `core/observation`，不 import OTel/Prom |
-| P2 | **core 只允许 stdlib 实现** | `core/` 可以有 Noop + slog（两者都只用标准库）；**任何引入第三方 SDK 的适配器**放独立顶层 module |
-| P3 | **零配置默认** | 不注入 Registry 时 = noop，不改变行为、不增开销 |
-| P4 | **显式注入** | Registry 作为 Client/Pipeline/VectorStore 的字段，不走全局变量 |
-| P5 | **Context 传播** | Span 通过 `context.Context` 向下传递（Go 惯用法） |
-| P6 | **语义对齐** | 属性键严格遵循 OTel GenAI 规范，跨平台可比 |
-| P7 | **观测是读路径** | Observation 不应改变业务行为——只读采集 |
-| P8 | **依赖隔离** | `core` 的 `go.mod` **不**新增 OTel/Prom 这类重依赖；下游用户只装自己需要的适配器 |
+**结论**：`core/` 直接 import OTel API 包，取消 `core/observation/` 自造抽象；`observations/` 外部 module 也不需要建立。
+
+### 1.2 设计原则（精简版）
+
+| # | 原则 |
+|---|-----|
+| P1 | **直接用 OTel API**：核心代码就调 `otel.Tracer("lynx/...")`，不包装 |
+| P2 | **严格遵循 OTel GenAI 语义规范**：所有属性名用官方 `gen_ai.*` / `db.*` 前缀 |
+| P3 | **Context 传播**：span 通过 `context.Context` 自动串联 |
+| P4 | **零配置即 noop**：默认 TracerProvider 不输出任何 span，无开销 |
+| P5 | **观测是读路径**：不 mutate 业务数据 |
+| P6 | **slog 作为开发态便利**：提供一个内置 `SpanExporter → slog` 桥接，方便本地看 span |
 
 ### 1.3 非目标
-- ❌ **不**做 APM 平台——采集抽象而非后端
-- ❌ **不**内置 OTel SDK——作为独立子包，按需引入
-- ❌ **不**做日志框架——log 走 `slog`，本库只做 observation 事件发射
-- ❌ **不**做性能分析（pprof、CPU profile）——那是 Go 运行时层面的事
+
+- ❌ 不做 APM 平台（交给后端厂商）
+- ❌ 不内置 OTel SDK（用户在 app 层引入）
+- ❌ 不做自研 metrics 聚合（走 OTel metric + Prometheus pull）
+- ❌ 不做日志框架（业务日志归业务自己；这里只处理 span → slog）
 
 ---
 
-## 2. Spring AI 可观测性快速回顾
+## 2. 依赖成本 —— 对不同部署档位的实际影响
 
-Spring AI 的观测架构分三层：
+| 档位 | 装什么 | `go.sum` 影响 |
+|-----|-------|-------------|
+| 纯用 Lynx 库，不观测 | 只装 `core/` 等 | `go.opentelemetry.io/otel`（API 包，仅接口 + noop，~10KB） |
+| 开发看 span（slog） | + `otelbridge/slog` | 拉入 OTel SDK 依赖（仅此 module 的 go.sum） |
+| 生产上 OTel + Jaeger/Tempo | + `go.opentelemetry.io/otel/sdk` 和 OTLP exporter | OTel 全家桶（gRPC、protobuf） |
 
-```
-┌──────────────────────────────────────────────────────────┐
-│  Application                                              │
-│   └─ Prometheus / Zipkin / Jaeger / OTel Collector 等    │
-├──────────────────────────────────────────────────────────┤
-│  Adapters                                                 │
-│   └─ micrometer-tracing-bridge-otel                      │
-│   └─ micrometer-registry-prometheus                      │
-├──────────────────────────────────────────────────────────┤
-│  Abstractions  ←  Spring AI 只依赖这一层                  │
-│   └─ io.micrometer.observation.ObservationRegistry       │
-│   └─ Observation / ObservationConvention / Context       │
-├──────────────────────────────────────────────────────────┤
-│  Spring AI 代码（仅依赖上面抽象层）                         │
-│   ├─ ChatModelObservationConvention                      │
-│   ├─ EmbeddingModelObservationConvention                 │
-│   ├─ VectorStoreObservationConvention                    │
-│   ├─ AdvisorObservationConvention                        │
-│   └─ ToolCallingObservationConvention                    │
-└──────────────────────────────────────────────────────────┘
-```
-
-**关键洞察**：Spring AI 不 import Prometheus / OTel 的具体类。它依赖的是 Micrometer 的 Observation API（一个抽象），Micrometer 负责桥接具体后端。Lynx 要做的就是在 Go 侧建立**同样的分层**。
-
-### Spring AI 具体观测点
-
-| 层 | Convention | 名称 | 关键属性 |
-|---|-----------|------|---------|
-| Chat Model | `ChatModelObservationConvention` | `gen_ai.client.operation` | `gen_ai.system`, `gen_ai.request.model`, `gen_ai.usage.*` |
-| Embedding | `EmbeddingModelObservationConvention` | `gen_ai.client.operation` | 同上 + `gen_ai.request.embedding.dimensions` |
-| VectorStore | `VectorStoreObservationConvention` | `db.vector.client.operation` | `db.system`, `db.operation.name`, `db.vector.query.*` |
-| Advisor | `AdvisorObservationConvention` | `spring.ai.advisor` | `spring.ai.advisor.type`, `name` |
-| Tool | `ToolCallingObservationConvention` | `spring.ai.tool` | `spring.ai.tool.call.arguments` |
+**关键**：
+- `core/` 只 import OTel **API 包**（不装 SDK），所以「不主动配置观测」的用户完全不感知 OTel 重依赖
+- **所有需要 OTel SDK 的桥接实现**都放在 **独立外部 module `otelbridge/`**，严格不污染 core
+- 与 `models/`、`vectorstores/` 同架构规格：重依赖走外挂，核心保持最小
 
 ---
 
-## 3. Lynx 可观测性架构
+## 3. 语义规范（必须遵守）
 
-### 3.1 层次图 & 模块拓扑
+所有埋点使用 OpenTelemetry GenAI 官方属性名：
 
-```
-┌────────────────────────────────────────────────────────────┐
-│  用户代码                                                    │
-│   reg := otelobs.New(tracer, meter)                        │
-│   client := chat.NewClient(m, chat.WithObservation(reg))   │
-├────────────────────────────────────────────────────────────┤
-│  外部 Module（独立 go.mod，按需引入——任何第三方 SDK）         │
-│   observations/        ← 新增顶层 module（仿 models/ 规格）   │
-│   ├─ otel/             → OpenTelemetry SDK                  │
-│   ├─ prom/             → Prometheus client_golang           │
-│   ├─ datadog/          → Datadog SDK（如将来有）             │
-│   └─ ...               → 其他 SaaS / 第三方后端              │
-├────────────────────────────────────────────────────────────┤
-│  核心 Module core/observation/（仅 stdlib）                   │
-│   ├─ observation.go    Registry / Observation / Attr        │
-│   ├─ convention.go     Convention / ObservationContext      │
-│   ├─ context.go        WithRegistry / FromContext           │
-│   ├─ noop.go           零开销默认（无依赖）                  │
-│   └─ slog.go           结构化日志实现（依赖 log/slog 标准库） │
-├────────────────────────────────────────────────────────────┤
-│  Instrumentation（埋点，分散在 core/ 各处）                   │
-│   ├─ chat.Model / Client                                   │
-│   ├─ embedding.Model                                       │
-│   ├─ vectorstore.{Creator, Retriever, Deleter}             │
-│   ├─ rag.Pipeline（五段式各自埋点）                          │
-│   └─ ToolMiddleware                                        │
-└────────────────────────────────────────────────────────────┘
-```
-
-**关键决策**：核心内的实现有**严格的准入规则**：
-
-> **一个实现可以进 core，当且仅当它的 import 列表只包含 Go 标准库。**
-
-Noop 什么都不 import，slog 只 import `log/slog`，两者都满足。OTel / Prom / Datadog 等带来第三方依赖的实现，**必须**放独立顶层 module `observations/`——与 `models/`、`vectorstores/` 同架构规格：
-
-| Module | 定位 | 外部依赖 |
-|--------|-----|---------|
-| `core/` | 抽象 + Noop + slog | **仅标准库 + 少量轻量 pkg** |
-| `models/` | Provider 适配 | OpenAI SDK / Anthropic SDK / Google genai |
-| `vectorstores/` | VectorStore 适配 | Qdrant / Milvus / Pinecone / ... |
-| `observations/` | 观测后端适配（SaaS/OSS APM） | OTel SDK / Prom client / Datadog / ... |
-| `tools/` | 工具适配 | — |
-| `pkg/` | 通用工具 | — |
-
-这样 `core/go.mod` 不会多出 OTel 的 50+ 间接依赖——**开发态用 slog 看日志 / 生产态用 OTel 打 Jaeger**，两档切换零成本。
-
-### 3.2 核心抽象
-
-```go
-// core/observation/observation.go
-package observation
-
-import "context"
-
-// Registry 是观测系统的入口。核心代码只依赖此接口。
-type Registry interface {
-    // Start 开启一次观测，返回携带 span 的 ctx 和 Observation 句柄。
-    // 实现必须保证：即使 ctx、attrs 为 nil 也不 panic。
-    Start(ctx context.Context, name string, attrs ...Attr) (context.Context, Observation)
-}
-
-// Observation 代表一次观测的生命周期（一个 span + 可选的 metrics 事件）。
-// 必须 End()，否则 span 不会上报。
-type Observation interface {
-    // SetAttr 追加属性（适合结果信息，如 token 数、finish_reason）。
-    SetAttr(key string, value any)
-
-    // AddEvent 附加结构化事件（如 "first_token_received"）。
-    AddEvent(name string, attrs ...Attr)
-
-    // SetError 标记观测为错误状态；后续 End 时会带错误信息。
-    SetError(err error)
-
-    // End 结束观测。重复调用无副作用。
-    End()
-}
-
-// Attr 是最小化的键值对，避免直接依赖 otel.attribute.KeyValue。
-type Attr struct {
-    Key   string
-    Value any
-}
-
-// 便捷构造函数
-func String(k, v string) Attr       { return Attr{k, v} }
-func Int64(k string, v int64) Attr  { return Attr{k, v} }
-func Float64(k string, v float64) Attr { return Attr{k, v} }
-func Bool(k string, v bool) Attr    { return Attr{k, v} }
-func Strings(k string, v []string) Attr { return Attr{k, v} }
-```
-
-```go
-// core/observation/convention.go
-// Convention 定义一个观测点的命名和属性约定。
-// 不同适配器可覆写 Convention 来改变落地效果。
-type Convention interface {
-    // Name 返回观测点名称（如 "gen_ai.chat"）。
-    Name() string
-
-    // LowCardinalityAttrs 返回适合用作指标 label 的属性（基数有限）。
-    LowCardinalityAttrs(ctx ObservationContext) []Attr
-
-    // HighCardinalityAttrs 返回适合附加到 span 但不宜作 metric label 的属性
-    //（基数高，例如 prompt 内容、响应内容）。
-    HighCardinalityAttrs(ctx ObservationContext) []Attr
-}
-
-// ObservationContext 是埋点处传入 Convention 的数据载体。
-// 每个观测域（Chat/Embedding/VectorStore/...）有自己的结构体实现此接口。
-type ObservationContext interface {
-    OperationName() string  // "chat" | "embedding" | "retrieve" | ...
-    System() string         // "openai" | "anthropic" | "qdrant" | ...
-}
-```
-
-```go
-// core/observation/context.go
-// 通过 context.Context 传递 Registry，便于跨层调用。
-// 如果 ctx 中无 Registry，FromContext 返回 noop 实例。
-
-type ctxKey struct{}
-
-func WithRegistry(ctx context.Context, r Registry) context.Context {
-    return context.WithValue(ctx, ctxKey{}, r)
-}
-
-func FromContext(ctx context.Context) Registry {
-    if r, ok := ctx.Value(ctxKey{}).(Registry); ok && r != nil {
-        return r
-    }
-    return noopRegistry{}
-}
-```
-
----
-
-## 4. 语义规范（Attribute Naming）
-
-### 4.1 严格对齐 OpenTelemetry GenAI
-
-所有模型层观测必须使用标准属性：
+### 3.1 GenAI Model 调用
 
 | Key | 类型 | 说明 |
-|-----|-----|------|
-| `gen_ai.system` | string | `openai` / `anthropic` / `google` / ... |
+|-----|-----|-----|
+| `gen_ai.system` | string | `openai` / `anthropic` / `google` / `ollama` |
 | `gen_ai.operation.name` | string | `chat` / `embeddings` / `image` / ... |
-| `gen_ai.request.model` | string | 请求使用的模型 ID |
-| `gen_ai.response.model` | string | 实际返回的模型 ID |
+| `gen_ai.request.model` | string | 请求模型 ID |
+| `gen_ai.response.model` | string | 实际返回模型 ID |
 | `gen_ai.request.max_tokens` | int | |
 | `gen_ai.request.temperature` | float | |
 | `gen_ai.request.top_p` | float | |
@@ -235,526 +76,428 @@ func FromContext(ctx context.Context) Registry {
 | `gen_ai.usage.output_tokens` | int | |
 | `gen_ai.usage.total_tokens` | int | |
 
-### 4.2 VectorStore（参考 OTel DB 规范）
+### 3.2 VectorStore（对齐 OTel DB 规范）
 
-| Key | 类型 | 说明 |
-|-----|-----|------|
-| `db.system` | string | `qdrant` / `milvus` / `chroma` / ... |
-| `db.operation.name` | string | `create` / `retrieve` / `delete` |
-| `db.vector.query.top_k` | int | |
-| `db.vector.query.similarity_threshold` | float | |
+| Key | 类型 |
+|-----|-----|
+| `db.system` | `qdrant` / `milvus` / `chroma` / ... |
+| `db.operation.name` | `create` / `retrieve` / `delete` |
+| `db.vector.query.top_k` | int |
+| `db.vector.query.similarity_threshold` | float |
 
-### 4.3 Lynx 专有扩展（`lynx.*` 前缀）
+### 3.3 Lynx 专有扩展（`lynx.*` 前缀）
 
-OTel 未覆盖的场景使用 `lynx.*` 前缀，避免污染标准命名空间：
+OTel 未覆盖的场景用 `lynx.*` 隔离命名空间：
 
-| Key | 类型 | 说明 |
-|-----|-----|------|
-| `lynx.rag.stage` | string | `transform` / `expand` / `retrieve` / `refine` / `augment` |
-| `lynx.rag.query_count` | int | 扩展后的 query 数 |
-| `lynx.rag.doc_count` | int | 当前阶段的文档数 |
-| `lynx.tool.name` | string | 工具名 |
-| `lynx.tool.recursion_depth` | int | 工具递归深度 |
-| `lynx.middleware.name` | string | 中间件名 |
+| Key | 类型 |
+|-----|-----|
+| `lynx.rag.stage` | `transform` / `expand` / `retrieve` / `refine` / `augment` |
+| `lynx.rag.query_count` | int |
+| `lynx.rag.doc_count` | int |
+| `lynx.tool.name` | string |
+| `lynx.tool.recursion_depth` | int |
+| `lynx.agent.name` | string |
+| `lynx.agent.action.name` | string |
+| `lynx.agent.process_id` | string |
+| `lynx.agent.plan.length` | int |
 
 ---
 
-## 5. 埋点清单（Instrumentation Points）
+## 4. 埋点清单
 
-### 5.1 Chat / Embedding / Image / Audio Model
-
-**埋点位置**：Model 调用的 Client 层（而非 Provider 内部）。
+### 4.1 Chat / Embedding / Image / Audio Model（`core/model/chat/client.go` 等）
 
 ```go
-// core/model/chat/client.go (伪代码，展示集成方式)
+import (
+    "go.opentelemetry.io/otel"
+    "go.opentelemetry.io/otel/attribute"
+    "go.opentelemetry.io/otel/codes"
+)
+
+var chatTracer = otel.Tracer("lynx/chat")
+
 func (c *ClientCaller) call(ctx context.Context, req *Request) (*Response, error) {
-    reg := observation.FromContext(ctx)  // 或从 client 字段取
-    ctx, obs := reg.Start(ctx, "gen_ai.chat",
-        observation.String("gen_ai.system", c.request.model.Info().Provider),
-        observation.String("gen_ai.operation.name", "chat"),
-        observation.String("gen_ai.request.model", req.Options.Model),
-        observation.Int64("gen_ai.request.max_tokens", int64(deref(req.Options.MaxTokens))),
+    ctx, span := chatTracer.Start(ctx, "gen_ai.chat",
+        trace.WithAttributes(
+            attribute.String("gen_ai.system", c.request.model.Info().Provider),
+            attribute.String("gen_ai.operation.name", "chat"),
+            attribute.String("gen_ai.request.model", req.Options.Model),
+        ),
     )
-    defer obs.End()
+    defer span.End()
 
     res, err := c.request.MiddlewareManager().BuildCallHandler(c.request.model).Call(ctx, req)
     if err != nil {
-        obs.SetError(err)
+        span.RecordError(err)
+        span.SetStatus(codes.Error, err.Error())
         return nil, err
     }
 
     if m := res.Metadata; m != nil && m.Usage != nil {
-        obs.SetAttr("gen_ai.usage.input_tokens", m.Usage.InputTokens)
-        obs.SetAttr("gen_ai.usage.output_tokens", m.Usage.OutputTokens)
-    }
-    if len(res.Results) > 0 && res.Results[0].Metadata != nil {
-        obs.SetAttr("gen_ai.response.finish_reasons",
-            []string{res.Results[0].Metadata.FinishReason})
+        span.SetAttributes(
+            attribute.Int("gen_ai.usage.input_tokens", m.Usage.InputTokens),
+            attribute.Int("gen_ai.usage.output_tokens", m.Usage.OutputTokens),
+        )
     }
     return res, nil
 }
 ```
 
-### 5.2 Stream 模式
-
-Stream 模式需要额外事件：
+### 4.2 Stream 模式额外事件
 
 ```go
-ctx, obs := reg.Start(ctx, "gen_ai.chat.stream", ...)
-defer obs.End()
+ctx, span := chatTracer.Start(ctx, "gen_ai.chat.stream", ...)
+defer span.End()
 
 firstChunk := true
 for chunk, err := range streamHandler.Stream(ctx, req) {
     if firstChunk {
-        obs.AddEvent("first_token_received")
+        span.AddEvent("first_token_received")
         firstChunk = false
     }
     // yield to caller
 }
-obs.SetAttr("gen_ai.usage.output_tokens", accumulator.TotalTokens())
 ```
 
-### 5.3 RAG Pipeline（五阶段各自埋点）
+### 4.3 RAG Pipeline 五阶段
 
-每个阶段都应该是一个子 span，作为 pipeline 整体 span 的子节点：
+每阶段一个子 span，自然形成调用树：
 
 ```go
+var ragTracer = otel.Tracer("lynx/rag")
+
 func (p *Pipeline) Execute(ctx context.Context, q *Query) (*Query, error) {
-    reg := observation.FromContext(ctx)
-    ctx, obs := reg.Start(ctx, "lynx.rag.pipeline",
-        observation.String("lynx.rag.stage", "pipeline"),
-    )
-    defer obs.End()
+    ctx, span := ragTracer.Start(ctx, "lynx.rag.pipeline")
+    defer span.End()
 
-    ctx1, obs1 := reg.Start(ctx, "lynx.rag.transform",
-        observation.String("lynx.rag.stage", "transform"))
+    ctx1, s1 := ragTracer.Start(ctx, "lynx.rag.transform",
+        trace.WithAttributes(attribute.String("lynx.rag.stage", "transform")))
     transformed, err := p.transformQuery(ctx1, q)
-    obs1.End()
-    if err != nil { obs.SetError(err); return nil, err }
-
-    // ... expand / retrieve / refine / augment 同样模式
+    s1.End()
+    // ... 其余阶段同样模式
 }
 ```
 
-### 5.4 VectorStore
+### 4.4 VectorStore（`vectorstores/*/store.go`）
 
 ```go
-// vectorstores/qdrant/store.go (伪代码)
+var qdrantTracer = otel.Tracer("lynx/vectorstore/qdrant")
+
 func (s *Store) Retrieve(ctx context.Context, req *RetrievalRequest) ([]*Document, error) {
-    reg := observation.FromContext(ctx)
-    ctx, obs := reg.Start(ctx, "db.vector.retrieve",
-        observation.String("db.system", "qdrant"),
-        observation.String("db.operation.name", "retrieve"),
-        observation.Int64("db.vector.query.top_k", int64(req.TopK)),
+    ctx, span := qdrantTracer.Start(ctx, "db.vector.retrieve",
+        trace.WithAttributes(
+            attribute.String("db.system", "qdrant"),
+            attribute.String("db.operation.name", "retrieve"),
+            attribute.Int("db.vector.query.top_k", req.TopK),
+        ),
     )
-    defer obs.End()
-
-    docs, err := s.retrieve(ctx, req)
-    if err != nil { obs.SetError(err); return nil, err }
-
-    obs.SetAttr("lynx.rag.doc_count", int64(len(docs)))
-    return docs, nil
+    defer span.End()
+    // ...
+    span.SetAttributes(attribute.Int("lynx.rag.doc_count", len(docs)))
 }
 ```
 
-### 5.5 Tool Middleware
-
-工具调用递归时每次都是新 span：
+### 4.5 Agent Tick / Action / Plan（`agent/runtime/`）
 
 ```go
-// 在 ToolMiddleware.executeCallRecursively 里
-ctx, obs := reg.Start(ctx, "lynx.tool.invoke",
-    observation.String("lynx.tool.name", toolCall.Name),
-    observation.Int64("lynx.tool.recursion_depth", int64(depth)),
+var agentTracer = otel.Tracer("lynx/agent")
+
+func (p *AgentProcess) Tick(ctx context.Context) error {
+    ctx, span := agentTracer.Start(ctx, "lynx.agent.tick",
+        trace.WithAttributes(
+            attribute.String("lynx.agent.name", p.Agent.Name),
+            attribute.String("lynx.agent.process_id", p.ID),
+        ),
+    )
+    defer span.End()
+    // ...
+}
+
+func (p *AgentProcess) executeAction(ctx context.Context, a Action) ... {
+    ctx, span := agentTracer.Start(ctx, "lynx.agent.action",
+        trace.WithAttributes(attribute.String("lynx.agent.action.name", a.Name())),
+    )
+    defer span.End()
+    // ...
+}
+```
+
+### 4.6 Tool Middleware
+
+```go
+var toolTracer = otel.Tracer("lynx/tool")
+
+ctx, span := toolTracer.Start(ctx, "lynx.tool.invoke",
+    trace.WithAttributes(
+        attribute.String("lynx.tool.name", toolCall.Name),
+        attribute.Int("lynx.tool.recursion_depth", depth),
+    ),
 )
 result, err := tool.Call(ctx, toolCall.Arguments)
-if err != nil { obs.SetError(err) }
-obs.End()
+if err != nil { span.RecordError(err) }
+span.End()
 ```
+
+### 4.7 埋点粒度规则
+
+**一个 span = 用户能直接理解的边界**：
+- ✅ Chat 一次调用
+- ✅ VectorStore 一次查询
+- ✅ RAG 一个阶段
+- ✅ Agent 一个 tick / action
+- ✅ Tool 一次调用
+- ❌ 不对中间件链每环埋 span
+- ❌ 不对每个 Document format 埋 span
 
 ---
 
-## 6. 适配器（Adapters）
+## 5. Noop 行为（默认）
 
-**核心原则**：只用 stdlib 的实现（Noop、slog）留在 `core/observation`；**任何引入第三方 SDK 的适配器**放独立顶层 module `observations/`。
-
-### 6.1 Noop（留在 core，默认启用）
+**什么都不用写**。OTel 的 `TracerProvider` 默认返回 Noop 实现：
 
 ```go
-// core/observation/noop.go
-package observation
+import "go.opentelemetry.io/otel"
 
-import "context"
-
-type noopRegistry struct{}
-func (noopRegistry) Start(ctx context.Context, _ string, _ ...Attr) (context.Context, Observation) {
-    return ctx, noopObservation{}
+// 用户 main.go 里什么都不调
+func main() {
+    client := chat.NewClient(...)
+    client.ChatWithText("hello").Call().Response(ctx)
+    // ↑ 这里面所有 otel.Tracer(...).Start(...) 返回 noop span，零开销
 }
-
-type noopObservation struct{}
-func (noopObservation) SetAttr(string, any)       {}
-func (noopObservation) AddEvent(string, ...Attr)  {}
-func (noopObservation) SetError(error)            {}
-func (noopObservation) End()                      {}
 ```
 
-**零开销**：无堆分配、无锁、无系统调用。**无任何外部依赖**。
+**OTel 官方保证**：noop `TracerProvider` 的 `Start()`、`span.End()`、`span.SetAttributes(...)` 都是 inline-able 的空函数，编译后几乎被优化掉。**实测零分配、零系统调用**。
 
-> 为什么 Noop 不另起一个 module？因为它是零依赖的默认实现，放 core 才能让 `FromContext` 在未注入时也能直接返回 noop，不引入循环依赖。
+---
 
-### 6.2 slog（留在 core，开发/轻量部署使用）
+## 6. Slog 桥接 —— 开发态看 span
+
+### 6.1 设计
+
+OTel SDK 通过 **`SpanExporter` 接口**输出 span。我们实现一个把 span 写进 slog 的 exporter——这是标准 OTel 扩展点，跟写 stdouttrace、jaeger exporter 是同一个模式。
+
+### 6.2 落位
+
+独立外部 module 的子包：**`otelbridge/slog/`**（父包 `otelbridge` 已表达 "otel bridge" 含义，子包不再重复 `otel` 前缀）。
+
+理由（取舍详见本节末）：
+- 依赖 OTel SDK，不能放 `core/` 或 `pkg/`（会污染整个依赖生态）
+- 与 `models/`、`vectorstores/` 同规格，符合 Lynx「重依赖走外挂」的架构原则
+- 不用 slog exporter 的用户**完全零成本**
+
+### 6.3 完整实现
+
+见仓库 `otelbridge/slog/exporter.go`（已实现）。核心代码骨架：
 
 ```go
-// core/observation/slog.go
-package observation
+package slog
 
 import (
     "context"
-    "log/slog"
-    "time"
+    stdslog "log/slog"
+
+    "go.opentelemetry.io/otel/codes"
+    sdktrace "go.opentelemetry.io/otel/sdk/trace"
 )
 
-type slogRegistry struct{ logger *slog.Logger }
+// Exporter 把 OTel span 输出到 log/slog。
+type Exporter struct {
+    logger *slog.Logger
+}
 
-// NewSlogRegistry 用标准库 log/slog 做观测后端，适合开发/轻量部署。
-// 不引入任何第三方依赖。
-func NewSlogRegistry(logger *slog.Logger) Registry {
+func NewExporter(logger *slog.Logger) *Exporter {
     if logger == nil {
         logger = slog.Default()
     }
-    return &slogRegistry{logger: logger}
+    return &Exporter{logger: logger}
 }
 
-func (r *slogRegistry) Start(ctx context.Context, name string, attrs ...Attr) (context.Context, Observation) {
-    obs := &slogObs{
-        logger: r.logger,
-        name:   name,
-        attrs:  attrsToSlogAny(attrs),
-        start:  time.Now(),
+// ExportSpans 实现 sdktrace.SpanExporter 接口
+func (e *Exporter) ExportSpans(ctx context.Context, spans []sdktrace.ReadOnlySpan) error {
+    for _, span := range spans {
+        attrs := make([]slog.Attr, 0, 6+len(span.Attributes()))
+
+        sc := span.SpanContext()
+        attrs = append(attrs,
+            slog.String("trace_id", sc.TraceID().String()),
+            slog.String("span_id", sc.SpanID().String()),
+            slog.String("name", span.Name()),
+            slog.Duration("duration", span.EndTime().Sub(span.StartTime())),
+        )
+
+        if parent := span.Parent(); parent.HasSpanID() {
+            attrs = append(attrs, slog.String("parent_span_id", parent.SpanID().String()))
+        }
+
+        // OTel 属性（gen_ai.* / db.* / lynx.* 等）→ slog 属性
+        for _, kv := range span.Attributes() {
+            attrs = append(attrs, slog.Any(string(kv.Key), kv.Value.AsInterface()))
+        }
+
+        if evs := span.Events(); len(evs) > 0 {
+            names := make([]string, len(evs))
+            for i, ev := range evs { names[i] = ev.Name }
+            attrs = append(attrs, slog.Any("events", names))
+        }
+
+        level, msg := slog.LevelInfo, "span"
+        if status := span.Status(); status.Code == codes.Error {
+            level = slog.LevelError
+            if status.Description != "" {
+                msg = "span (error): " + status.Description
+            } else {
+                msg = "span (error)"
+            }
+        }
+
+        e.logger.LogAttrs(ctx, level, msg, attrs...)
     }
-    r.logger.LogAttrs(ctx, slog.LevelDebug, "observation.start",
-        slog.String("name", name),
-        slog.Any("attrs", obs.attrs),
-    )
-    return ctx, obs
+    return nil
 }
 
-type slogObs struct {
-    logger  *slog.Logger
-    name    string
-    attrs   map[string]any
-    start   time.Time
-    err     error
-}
-
-func (o *slogObs) SetAttr(k string, v any)             { o.attrs[k] = v }
-func (o *slogObs) AddEvent(n string, a ...Attr)        { /* 立刻落 info 日志 */ }
-func (o *slogObs) SetError(err error)                  { o.err = err }
-func (o *slogObs) End() {
-    level := slog.LevelInfo
-    if o.err != nil { level = slog.LevelError }
-    o.logger.LogAttrs(context.Background(), level, "observation.end",
-        slog.String("name", o.name),
-        slog.Duration("duration", time.Since(o.start)),
-        slog.Any("attrs", o.attrs),
-        slog.Any("error", o.err),
-    )
-}
+func (e *Exporter) Shutdown(ctx context.Context) error { return nil }
 ```
 
-**为什么留 core**：`log/slog` 是 Go 1.21+ 标准库，零第三方依赖。下游用户开发态想「看点日志」不用 `go get` 任何东西。
+完整源码含：详细 godoc、处理空 status description、`exporter_test.go`（5 个测试覆盖 success / error / child-parent / nil logger / shutdown）。
 
-### 6.3 OTel 适配器（独立 module）
-
-```
-observations/
-├── go.mod          → module github.com/Tangerg/lynx/observations
-└── otel/
-    └── otel.go
-```
-
-```go
-// observations/otel/otel.go
-package otel
-
-import (
-    "context"
-    "go.opentelemetry.io/otel/trace"
-    "go.opentelemetry.io/otel/attribute"
-    "go.opentelemetry.io/otel/codes"
-    "github.com/Tangerg/lynx/core/observation"
-)
-
-type Registry struct {
-    tracer trace.Tracer
-}
-
-func New(tracer trace.Tracer) *Registry { return &Registry{tracer: tracer} }
-
-func (r *Registry) Start(ctx context.Context, name string, attrs ...observation.Attr) (context.Context, observation.Observation) {
-    ctx, span := r.tracer.Start(ctx, name, trace.WithAttributes(toOTelAttrs(attrs)...))
-    return ctx, &obs{span: span}
-}
-
-type obs struct{ span trace.Span }
-func (o *obs) SetAttr(k string, v any)                      { o.span.SetAttributes(toOTelAttr(k, v)) }
-func (o *obs) AddEvent(n string, a ...observation.Attr)     { o.span.AddEvent(n, trace.WithAttributes(toOTelAttrs(a)...)) }
-func (o *obs) SetError(err error)                           { o.span.RecordError(err); o.span.SetStatus(codes.Error, err.Error()) }
-func (o *obs) End()                                         { o.span.End() }
-
-func toOTelAttr(k string, v any) attribute.KeyValue { /* 按 Go 类型分发 */ }
-```
-
-**`observations/go.mod`** 只依赖 `core` 和 OTel：
-
-```
-module github.com/Tangerg/lynx/observations
-
-require (
-    github.com/Tangerg/lynx/core vX.Y.Z
-    go.opentelemetry.io/otel v1.x
-    go.opentelemetry.io/otel/trace v1.x
-)
-```
-
-### 6.4 Prometheus 适配器（独立 module）
-
-```
-observations/
-├── otel/
-└── prom/
-    └── prom.go    // 依赖 prometheus/client_golang
-```
-
-为每个观测点生成：调用次数 counter、时延 histogram、错误 counter。用 `Convention.LowCardinalityAttrs` 作为 labels。
-
-### 6.5 依赖隔离对比
-
-| 场景 | 装什么 | `go.sum` 膨胀 |
-|-----|-------|-------------|
-| 不需要观测 | 仅 `core/`（自动 noop） | **0 新依赖** |
-| 开发态看日志 | 仅 `core/`（NewSlogRegistry） | **0 新依赖**（用标准库 log/slog） |
-| 生产 OTel | `core/` + `observations/otel` | OTel 全家桶（50+ 间接） |
-| Prom 指标 | `core/` + `observations/prom` | prom client_golang |
-| Datadog / NewRelic / Jaeger 直连 | `core/` + `observations/<vendor>` | 对应厂商 SDK |
-
-关键优势：**从 noop 升级到 slog 零依赖成本**——开发调试不用装东西、不用改 go.mod。只有真的上 OTel/Prom 这类 SaaS 级后端时，才会动 `go.sum`。
-
----
-
-## 7. 集成方式
-
-### 7.1 Client 注入（推荐）
-
-每个 Client / Pipeline / VectorStore 接受一个可选的 Registry：
-
-```go
-// core/model/chat/client.go
-type Client struct {
-    defaultRequest *ClientRequest
-    registry       observation.Registry  // 可选
-}
-
-func WithObservation(reg observation.Registry) ClientOption {
-    return func(c *Client) { c.registry = reg }
-}
-```
-
-在方法入口把 registry 放进 ctx，埋点处 `FromContext(ctx)` 取用。
-
-### 7.2 Context 注入（灵活）
-
-如果用户不想在每个 Client 上配置，可以把 Registry 放到 context 根节点：
-
-```go
-ctx = observation.WithRegistry(ctx, otelobs.New(tracer, meter))
-// 所有 lynx 调用都会自动用上
-client.Chat().Call().Response(ctx)
-```
-
-### 7.3 中间件注入（可选）
-
-对 A 类（纯观察型）中间件，用户可以用自己的方式包一个 `LoggingMiddleware`，与 observation 并行使用——这是用户关注点，不是框架要解决的。
-
----
-
-## 8. 用户使用示例
-
-### 8.1 生产（OTel + Jaeger）
+### 6.4 用户接入（~10 行）
 
 ```go
 import (
+    stdslog "log/slog"                                    // stdlib（别名避免冲突）
     "go.opentelemetry.io/otel"
     sdktrace "go.opentelemetry.io/otel/sdk/trace"
-    lynxotel "github.com/Tangerg/lynx/observations/otel"   // 独立 module
+    "github.com/Tangerg/lynx/otelbridge/slog"              // 本包
 )
 
-tp := sdktrace.NewTracerProvider(/* export to Jaeger/Tempo */)
-otel.SetTracerProvider(tp)
+func main() {
+    // 开发态：slog 输出，同步模式看得快
+    tp := sdktrace.NewTracerProvider(
+        sdktrace.WithSyncer(slog.NewExporter(stdslog.Default())),
+    )
+    otel.SetTracerProvider(tp)
+    defer tp.Shutdown(context.Background())
 
-reg := lynxotel.New(otel.Tracer("lynx"))
-
-client, _ := chat.NewClientWithModel(openai.NewChatModel(...))
-client = client.With(chat.WithObservation(reg))
-
-resp, err := client.ChatWithText("hello").Call().Response(ctx)
-// 自动产生 gen_ai.chat span，包含 usage、model、finish_reason
+    // 之后所有 Lynx 埋点都会在 slog 输出
+    runApp()
+}
 ```
 
-### 8.2 开发（slog 控制台，零新依赖）
+### 6.5 示例输出
+
+```
+time=2026-04-20T... level=INFO msg=span trace_id=a1b2c3d4 span_id=aabb...
+  name=gen_ai.chat duration=523ms
+  gen_ai.system=openai gen_ai.request.model=gpt-4
+  gen_ai.usage.input_tokens=120 gen_ai.usage.output_tokens=85
+
+time=... level=INFO msg=span trace_id=a1b2c3d4 parent_span_id=aabb... span_id=ccdd...
+  name=lynx.tool.invoke duration=45ms
+  lynx.tool.name=web_search lynx.tool.recursion_depth=1
+
+time=... level=ERROR msg="span (error): timeout after 30s" trace_id=...
+  name=lynx.agent.action lynx.agent.action.name=classifyIntent duration=30s
+```
+
+父子 span 通过 `parent_span_id` 关联，就能重建整条调用链。
+
+### 6.6 可选增强
+
+- **仅打错误 span**：在 `ExportSpans` 里按 `span.Status().Code == codes.Error` 过滤
+- **慢调用告警**：按 `duration > 1s` 升到 `Warn` 级
+- **采样**：`sdktrace.WithSampler(sdktrace.TraceIDRatioBased(0.1))` 只采 10%
+- **隐私过滤**：在 exporter 里删除 `gen_ai.prompt` 这类敏感属性
+
+### 6.7 什么时候用 slog exporter，什么时候用别的
+
+| 场景 | 推荐 |
+|-----|-----|
+| 单机开发、快速看调用 | **slog exporter**（和业务日志同一路径） |
+| 看官方格式、不与业务日志融合 | `stdouttrace`（OTel 官方 stdout exporter） |
+| 生产要保留 trace 结构 | OTLP → Jaeger / Tempo / Grafana Tempo |
+| 生产要按指标监控 | Prometheus pull（metric exporter，不是 span） |
+
+**不要同时挂多个 exporter**——SDK 支持多 processor，但 I/O 会重复。生产一般只挂一个 OTLP 就够了，本地开发挂 slog。
+
+---
+
+## 7. 生产接入 OTel（参考）
+
+### 7.1 OTLP gRPC 到 Grafana Tempo / Jaeger
 
 ```go
 import (
-    "log/slog"
-    "github.com/Tangerg/lynx/core/observation"   // 就在 core 里
+    "go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
+    sdktrace "go.opentelemetry.io/otel/sdk/trace"
 )
 
-reg := observation.NewSlogRegistry(slog.Default())
-client = client.With(chat.WithObservation(reg))
-// 不用 go get 任何东西，直接看结构化日志
+exporter, _ := otlptracegrpc.New(ctx,
+    otlptracegrpc.WithEndpoint("tempo:4317"),
+    otlptracegrpc.WithInsecure(),
+)
+tp := sdktrace.NewTracerProvider(
+    sdktrace.WithBatcher(exporter),   // 生产用 batcher 减少 I/O
+    sdktrace.WithResource(resource.NewWithAttributes(
+        semconv.SchemaURL,
+        semconv.ServiceName("my-lynx-app"),
+    )),
+)
+otel.SetTracerProvider(tp)
 ```
 
-### 8.3 不配置 = 零开销
+### 7.2 Datadog / NewRelic / Honeycomb
 
-```go
-// 什么都不做 → 自动 noop → 无分配、无锁、core 无外部依赖
-client, _ := chat.NewClientWithModel(...)
-```
+各自官方有 OTLP 接收端或专用 exporter，配置一行 endpoint 即可。**Lynx 代码完全不动**——这是用 OTel 的根本好处。
 
 ---
 
-## 9. 与 Spring AI 的对照
+## 8. 落地清单
 
-| 维度 | Spring AI | Lynx |
-|-----|-----------|------|
-| 抽象层 | Micrometer `ObservationRegistry` | `observation.Registry` |
-| 观测对象 | `Observation` | `Observation` |
-| 规约 | `ObservationConvention` | `Convention` |
-| 传递机制 | ThreadLocal | `context.Context`（Go 惯用） |
-| 默认实现 | `ObservationRegistry.NOOP` | `noop.Registry` |
-| OTel 桥接 | `micrometer-tracing-bridge-otel` | `core/observation/otel` |
-| Prom 桥接 | `micrometer-registry-prometheus` | `core/observation/prom` |
-| 语义规范 | OTel GenAI | OTel GenAI（完全对齐） |
+### 8.1 立即可做
+- [x] **slog exporter 已实现**：`otelbridge/slog/`（独立外部 module，5 项单测）
+- [x] **stdlib log exporter 已实现**：`otelbridge/log/`（logfmt 风格单行输出，6 项单测）
+- [ ] 把 `core/model/chat/client.go` 的 Call/Stream 加 OTel 埋点
+- [ ] 把 `core/rag/pipeline.go` 五阶段加 span
+- [ ] 所有 vectorstore 实现统一加 `db.vector.*` 埋点
+- [ ] 在 `doc/` 写一页「Lynx observability quickstart」示例
 
-**设计一致**：都选「第三方抽象 → 多后端适配器」的双层结构。Lynx 用 Go 特色（context、子包）表达同一模式。
+### 8.2 M3 阶段（agent 落地时）
+- [ ] `agent/runtime/` 所有 tick / action / plan 埋点
+- [ ] Tool middleware 埋点
 
----
-
-## 10. 工程拆解（落地阶段）
-
-### 阶段 1：核心抽象 + Noop + slog（1 周）—— **在 `core/` 内**
-- [ ] `core/observation/observation.go` — `Registry` / `Observation` / `Attr`
-- [ ] `core/observation/convention.go` — `Convention` / `ObservationContext`
-- [ ] `core/observation/context.go` — `WithRegistry` / `FromContext`
-- [ ] `core/observation/noop.go` — zero-cost 默认实现
-- [ ] `core/observation/slog.go` — 基于 log/slog 的实现（stdlib only）
-- [ ] 单测覆盖 nil ctx / nil attrs 等边界
-- [ ] **验收**：`core/go.mod` **无任何第三方依赖新增**（只能出现 stdlib import）
-
-### 阶段 2：Chat 埋点（1 周）—— 仍在 `core/`
-- [ ] `core/model/chat/client.go` — Call/Stream 两路埋点
-- [ ] `chat.WithObservation(reg)` option
-- [ ] 对齐所有 `gen_ai.*` 属性
-
-### 阶段 3：RAG + VectorStore 埋点（1-2 周）—— 仍在 `core/` + `vectorstores/`
-- [ ] `core/rag/pipeline.go` — 五阶段各自 span
-- [ ] `core/vectorstore/` 埋点接口
-- [ ] `vectorstores/*/store.go` 五个 store 实现中加入埋点（仅调用 `observation.FromContext`，不引入后端依赖）
-
-### 阶段 4：第三方适配器（并行 2-3 周）—— **在新 module `observations/`**
-- [ ] 新建顶层 module `observations/go.mod`
-- [ ] `go.work` 里 `use ./observations`
-- [ ] `observations/otel/` — OpenTelemetry 桥接
-- [ ] （可选）`observations/prom/` — Prometheus 指标
-- [ ] **验收**：在不 `go get observations/otel` 的项目中，`core/` 相关功能照常工作（noop + slog 仍可用）
-
-> 注意：**slog 不放这里**——它只依赖标准库 `log/slog`，属于 core 的一等公民。
-
-### 阶段 5：其他模态（视需求）
-- [ ] Embedding / Image / Audio / Moderation 埋点
-- [ ] ToolMiddleware 埋点
+### 8.3 不做的事
+- ❌ **不**写 `observation.Registry` 接口
+- ❌ **不**建 `observations/` 外部 module
+- ❌ **不**自己写 `Convention` / `Adapter` 抽象
+- ❌ **不**提供 Prometheus metrics exporter（生产用户自己配 OTel metric SDK + prom exporter）
 
 ---
 
-## 11. 取舍说明
+## 9. 关键取舍总结
 
-### 11.1 为什么不直接用 OTel？
-
-OTel Go SDK 是事实标准，但：
-1. 让 `core/` 直接 `import go.opentelemetry.io/otel`，会让 **Lynx 的所有下游用户** 被动拉入 OTel 依赖（~50 个 go.mod 间接依赖）
-2. OTel API 偶尔破坏性变更（trace v1 → v1.x 几次迁移），核心代码绑到具体 API 会把升级成本传导给所有用户
-3. 小型项目（只想 slog）不应被迫装 OTel
-
-**用薄抽象层隔离 = 依赖倒置**，这是 Spring AI 选 Micrometer 而非 Prometheus 的同样逻辑。
-
-### 11.1.1 为什么第三方适配器必须另起 module
-
-即使是子包，Go 的 module 机制也是**以 go.mod 为单位管理依赖的**——只要 `core/observation/otel/otel.go` 出现 `import go.opentelemetry.io/otel`，`core/go.mod` 就会写入该依赖，**所有引用 `core` 的模块都会间接拉入**。子包隔离不了依赖，只有独立 module 能。
-
-### 11.1.2 为什么 slog 可以留 core、OTel 不行
-
-判定标准很简单：**看 import 列表里有没有 `go.opentelemetry.io`、`github.com/prometheus`、`github.com/DataDog` 等第三方路径**。
-
-- `log/slog` → 标准库路径，**留 core**
-- `go.opentelemetry.io/otel` → 第三方，**必须 external module**
-- `github.com/prometheus/client_golang` → 第三方，**必须 external module**
-
-这个规则简单、可自动化检查（CI 加一条「core 模块禁止 import 非标准库路径（除 Tangerg/lynx/pkg 外）」），未来添加新实现时不会有歧义。
-
-这与 Lynx 现有架构一致：
-- `models/` 承载 Provider SDK（OpenAI、Anthropic、Google），不污染 core
-- `vectorstores/` 承载向量数据库 SDK，不污染 core
-- `observations/` 承载**第三方**观测后端 SDK，同样不污染 core；**stdlib 能解决的实现（Noop、slog）留 core**
-
-**所有重依赖都在外部 module，`core/` 永远保持最小依赖面**——这是整个 Lynx 的第一架构原则。
-
-### 11.2 为什么不走全局变量？
-
-OTel 的 `otel.Tracer("name")` 隐式读全局 TracerProvider。方便，但：
-- 测试隔离困难（多测试共享全局状态）
-- 多租户场景无法区分 registry
-- 违反「显式优于隐式」的 Go 风格
-
-**显式注入 = Registry 在 Client 字段或 context**，调用路径清晰。
-
-### 11.3 为什么 Metric 不做单独抽象？
-
-Spring AI 的 Micrometer Observation 同时覆盖 trace 和 metric——一个 Observation 的生命周期自动产生一个 span + 一组计数/直方图。
-
-Lynx 初版先做 trace，Metric 在 Convention.LowCardinalityAttrs 上靠适配器生成。后续若发现不够用，再引入独立的 `Meter` 抽象（参考 OTel 的 `metric.Meter`）。**YAGNI 优先**。
-
-### 11.4 埋点粒度的取舍
-
-太细（每个 for 循环一个 span）→ span 爆炸、信噪比低。
-太粗（只埋 Call 外层）→ 看不到 RAG 内部瓶颈。
-
-规则：**用户能直接理解的边界 = 一个 span**。
-- ✅ Chat 一次调用
-- ✅ VectorStore 一次查询
-- ✅ RAG 一个阶段（transform / expand / retrieve / refine / augment）
-- ✅ Tool 一次调用
-- ❌ 不对中间件链的每一环埋 span（用户不关心）
-- ❌ 不对每个 Document 的 format 埋 span（无意义）
+| 问题 | 结论 |
+|-----|-----|
+| 是不是需要自造观测抽象？ | **不需要**。OTel 就是那层 |
+| 依赖会不会爆？ | **不会**。API 包极轻，SDK 只在用户 app 引入 |
+| 用户能不能 "零依赖"？ | **能**。不调 SetTracerProvider 就是 noop，无分配 |
+| 开发态如何看 span？ | **自带 slog exporter**，60 行桥接代码 |
+| 生产如何接后端？ | **用户自配 OTel SDK + exporter**，Lynx 代码不变 |
+| 为什么 Spring AI 用 Micrometer？ | 历史包袱。Go 世界从来没有这个问题 |
 
 ---
 
-## 12. 核心判断
+## 10. 与原方案的 diff
 
-1. **Lynx 的可观测性设计复刻 Spring AI 的「抽象+适配」双层结构**，只是在 Go 侧用 context 传播、独立 module 适配器实现。
-2. **`observation.Registry` 是唯一的第一公民**——核心代码不依赖任何具体后端。
-3. **准入规则极简**：只用 stdlib 的实现进 core（Noop、slog），引入第三方 SDK 的实现走 `observations/` 外部 module。
-4. **语义规范锚定 OpenTelemetry GenAI**，保证跨语言、跨平台可对比。
-5. **Noop 默认 + 显式注入**——零配置无开销，有配置无魔法。
-6. **slog 作为开发/轻量部署的一等公民**，升级到它不增加一行 `go get`。
-7. **初版只做 trace + 少量基础 metric**，待真实场景反馈再扩展。
-
-这套设计的价值：
-- **开发态**：直接用 `core/observation.NewSlogRegistry(...)` 看日志，零依赖
-- **生产态**：`observations/otel` 接 Jaeger / Tempo / Datadog，业务代码零改动
-- **不用观测的用户**：`go.sum` 一字不增
-
-这就是「依赖抽象而非具体」+「stdlib 留 core、第三方走外部 module」的双重落地。
+| 维度 | 原方案 | 新方案 |
+|-----|-------|-------|
+| 核心抽象 | `observation.Registry` 接口 | **删除**——直接用 OTel API |
+| Convention 概念 | `observation.Convention` | **删除**——属性名走 OTel GenAI 规范 |
+| Noop 实现 | `core/observation/noop.go` | **OTel 自带**，零代码 |
+| slog 实现 | `core/observation/slog.go` 按自造接口 | **`SpanExporter` 实现**，60 行 |
+| OTel 适配器 | `observations/otel/` 外部 module | **不需要**——用户直接用 OTel SDK |
+| Prometheus 适配器 | `observations/prom/` 外部 module | **不需要**——用户自配 OTel metric + prom |
+| 代码总量 | ~400 行抽象层 + 适配器 | ~60 行 slog exporter |
 
 ---
 
-*（配套文档：`ARCHITECTURE.md` §7 Middleware、`SPRING_AI_COMPARISON.md` §G.12 ObservationRegistry、`MIDDLEWARE_DESIGN.md`）*
+**最终判断**：原方案是「用 Java 思路解 Go 问题」的错位设计。Go 世界里 OTel 已经是共识，再加一层是负资产。新方案更轻、更标准、更容易被社区接受。
