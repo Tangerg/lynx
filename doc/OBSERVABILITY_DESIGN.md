@@ -453,13 +453,15 @@ otel.SetTracerProvider(tp)
 
 ## 8. 落地清单
 
+> **2026-04-20 复核进度**（HEAD = `63e4bb2`）：exporter 两项落地；**核心埋点 0 条**——span 目前没有源头产生，只有接收器就绪。
+
 ### 8.1 立即可做
 - [x] **slog exporter 已实现**：`otelbridge/slog/`（独立外部 module，5 项单测）
 - [x] **stdlib log exporter 已实现**：`otelbridge/log/`（logfmt 风格单行输出，6 项单测）
-- [ ] 把 `core/model/chat/client.go` 的 Call/Stream 加 OTel 埋点
-- [ ] 把 `core/rag/pipeline.go` 五阶段加 span
-- [ ] 所有 vectorstore 实现统一加 `db.vector.*` 埋点
-- [ ] 在 `doc/` 写一页「Lynx observability quickstart」示例
+- [ ] 把 `core/model/chat/client.go` 的 Call/Stream 加 OTel 埋点 ← **未动工**（代码中无 `otel.Tracer(...)` 调用）
+- [ ] 把 `core/rag/pipeline.go` 五阶段加 span ← **未动工**
+- [ ] 所有 vectorstore 实现统一加 `db.vector.*` 埋点 ← **未动工**（qdrant/milvus/pinecone/weaviate/chroma 无一挂 span）
+- [ ] 在 `doc/` 写一页「Lynx observability quickstart」示例 ← **未动工**
 
 ### 8.2 M3 阶段（agent 落地时）
 - [ ] `agent/runtime/` 所有 tick / action / plan 埋点

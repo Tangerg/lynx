@@ -269,10 +269,23 @@ case *AroundMiddleware[Req, Res]:
 
 ## 9. 决策状态
 
+**2026-04-20 复核（HEAD = `63e4bb2`）：本方案完全未动工，`core/model/around.go` 并不存在。**
+本文档在此阶段应视为**提案**而非「正在落地」。相关论断（§6「落地步骤」、§7「与 Spring AI 的对照」）也均未兑现。
+
 - [ ] 方案已确认
 - [ ] `core/model/around.go` 实现
 - [ ] `MiddlewareManager.UseMiddlewares` 接入
 - [ ] 示例补齐
 - [ ] `ARCHITECTURE.md` §7 更新
 
-— 文档版本 v1（2026-04-17）
+### 9.1 Spring AI 2.0 新参照：`BaseAdvisor` 已成为一等接口
+
+Spring AI 2.0.0-SNAPSHOT 把原本只是「默认方法集合」的 BaseAdvisor 抬升为具名接口
+（`spring-ai-client-chat/src/main/java/org/springframework/ai/chat/client/advisor/api/BaseAdvisor.java:42`），
+同时实现 `CallAdvisor` 和 `StreamAdvisor`、提供 `before()/after()` 模板方法，已被 `RetrievalAugmentationAdvisor` 采用。
+
+这进一步验证了本文档 §4 的方案 1：用「高层模板 struct」抹平 call/stream 双写。实装时：
+- 命名建议直接沿用 `AroundMiddleware`（Go 惯用 struct 字段而非抽象基类）
+- `Order` / `Name` 字段对齐 Spring `Advisor.getOrder() / getName()`，为 `OrderedMiddleware`（`SPRING_AI_COMPARISON §2.4`）铺路
+
+— 文档版本 v1（2026-04-17） / v1.1 复核（2026-04-20）

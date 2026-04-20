@@ -819,4 +819,134 @@ func (p *Platform) GetProcess(id string) (*AgentProcess, bool) { ... }
 
 ---
 
+## 附录 A：Embabel 0.4 Planner / Runtime 新机制（2026-04-20 补遗）
+
+### A.1 结构化终止：`TerminationScope` + 主动 Terminate
+
+**上游代码**：`embabel-agent-api/src/main/kotlin/com/embabel/agent/api/common/TerminationSignal.kt`
+
+原先 action 要提前结束 process 只能抛异常（`throw AgentTerminationException(...)`），调用方通过 catch 来区分。0.4 引入结构化终止：
+
+```kotlin
+enum class TerminationScope { AGENT, ACTION }
+
+// AgentProcess 新增方法
+fun terminateAgent(reason: String)    // 整个 process 立即 FAILED/COMPLETED
+fun terminateAction(reason: String)   // 当前 action 结束，planner 重规划
+```
+
+每个 tick 边界检测 `TerminationSignal`；action 内部可通过 ctx 信号发起。
+
+**Go 映射**：
+
+```go
+// agent/runtime/termination.go
+type TerminationScope int
+const (
+    TerminationScopeAgent  TerminationScope = iota  // 整个 process 停
+    TerminationScopeAction                           // 仅当前 action 停，触发重规划
+)
+
+type TerminationSignal struct {
+    Scope  TerminationScope
+    Reason string
+}
+
+// AgentProcess 公开方法
+func (p *AgentProcess) TerminateAgent(reason string) {
+    p.terminate <- TerminationSignal{Scope: TerminationScopeAgent, Reason: reason}
+}
+func (p *AgentProcess) TerminateAction(reason string) {
+    p.terminate <- TerminationSignal{Scope: TerminationScopeAction, Reason: reason}
+}
+
+// Tick 边界检测
+func (p *AgentProcess) Tick(ctx context.Context) error {
+    select {
+    case sig := <-p.terminate:
+        switch sig.Scope {
+        case TerminationScopeAgent:
+            p.status = StatusFailed
+            p.failureInfo = sig.Reason
+            return nil
+        case TerminationScopeAction:
+            // 跳过本 tick 的 Act 阶段，下 tick 重 Observe/Orient
+            p.recordActionTermination(sig.Reason)
+            return nil
+        }
+    default:
+    }
+    return p.doOODA(ctx)
+}
+```
+
+**与 ToolGroup 协同**：当 `ToolGroupRequirement.TerminationScope == ACTION` 且所需 ToolGroup 不可用，Planner 在 Orient 阶段跳过该 action；若 `AGENT`，立即 `TerminateAgent("missing tool group: ...")`。
+
+### A.2 Planner 重规划黑名单
+
+**上游变化**：`Planner.bestValuePlanToAnyGoal` 新增重载：
+
+```kotlin
+fun bestValuePlanToAnyGoal(
+    system: ActionSystem,
+    excludedActionNames: Set<String>
+): Plan?
+```
+
+用法：当某 action 抛 `ReplanRequestedException` 时，Runtime 把它的 name 加入 `excludedActionNames`，下一轮规划自动跳过它，避免死循环。
+
+**Go 映射**（扩展 §6 Planner 接口）：
+
+```go
+// agent/plan/planner.go
+type PlanOptions struct {
+    ExcludedActions map[string]struct{}  // 本次规划要跳过的 action 名
+    Budget          Budget
+    // ...
+}
+
+type Planner interface {
+    Plan(ctx context.Context, state WorldState, goal *Goal, opts PlanOptions) (*Plan, error)
+}
+```
+
+**Runtime 集成**：
+
+```go
+// agent/runtime/process.go（片段）
+func (p *AgentProcess) doOODA(ctx context.Context) error {
+    // Orient: 规划
+    opts := plan.PlanOptions{ExcludedActions: p.excludedActions}
+    plan, err := p.planner.Plan(ctx, p.worldState, p.goal, opts)
+    // ...
+
+    // Act: 执行第一个 action
+    for _, a := range plan.Actions[:1] {
+        if err := p.execute(ctx, a); err != nil {
+            var rr *ReplanRequest
+            if errors.As(err, &rr) {
+                p.excludedActions[a.Name()] = struct{}{}
+                continue  // 下 tick 重 Orient
+            }
+            return err
+        }
+    }
+    return nil
+}
+```
+
+### A.3 `@Agent` 校验收紧（仅供 DSL 对照参考）
+
+上游 0.4 不再允许 `@Agent` 构造器注入 `OperationContext` —— 启动 fail-fast。
+Go 端用 DSL / struct reflect，没有构造器注入概念，但在 **DSL 构造器里**同样应该拒绝传入未初始化的 `ProcessContext`：
+
+```go
+// 反例：不要允许用户在 Build() 时把运行时对象塞进去
+agent.New(...).WithProcessContext(pc)  // ← 这种 API 不开放
+
+// 正面：ProcessContext 由 runtime 创建，通过 ctx 透传进 Action
+```
+
+---
+
 下一份文档描述用户视角：如何定义 Agent → `04-user-api.md`

@@ -715,4 +715,159 @@ core/
 
 ---
 
+## 附录 A：Embabel 0.4 新抽象（2026-04-20 补遗）
+
+> 下列三个抽象在初版文档写完后才在 `embabel-agent 0.4.0-SNAPSHOT` 引入。它们都属于「agent 框架表面层」，对 OODA/GOAP/Blackboard 的核心建模零冲突，但影响 API 形态，必须在 Go 端同步回填。
+
+### A.1 ToolGroup 生态
+
+**上游代码**：`embabel-agent-api/src/main/kotlin/com/embabel/agent/core/ToolGroup.kt`
+
+**四个类型**：
+
+```
+ToolGroupDescription       (接口: description / role / childToolUsageNotes)
+ToolGroupMetadata          (接口: extends Description + AssetCoordinates)
+ToolGroupRequirement       (data class: role / requiredToolNames / terminationScope?)
+ToolGroupPermission        (枚举: HOST_ACCESS / INTERNET_ACCESS)
+ToolGroup                  (接口: lazy .tools 属性 — MCP 集成关键)
+```
+
+**Agent 类变化**：新增字段 `toolGroups: Set<ToolGroupRequirement>`。Planner 在推导可行 Action 前会先做 **ToolGroup 可用性检查**；若缺失且 `terminationScope == ACTION`，跳过该 Action；若 `AGENT`，整个 process 终止。
+
+**Go 建模**：
+
+```go
+// agent/core/toolgroup.go
+type ToolGroupDescription interface {
+    Description() string
+    Role() string
+    ChildToolUsageNotes() string
+}
+
+type ToolGroupPermission int
+const (
+    ToolGroupHostAccess ToolGroupPermission = iota
+    ToolGroupInternetAccess
+)
+
+type ToolGroupMetadata interface {
+    ToolGroupDescription
+    AssetCoordinates() AssetCoordinates   // provider/name/version
+    Permissions() []ToolGroupPermission
+}
+
+// 要求：agent 声明「我需要某种 role 的 ToolGroup」
+type ToolGroupRequirement struct {
+    Role              string
+    RequiredToolNames []string
+    TerminationScope  TerminationScope // AGENT / ACTION (见 03)
+}
+
+// 实际的 ToolGroup：lazy 加载（MCP / 本地 plugin / HTTP 等都走这个）
+type ToolGroup interface {
+    Metadata() ToolGroupMetadata
+    // 首次访问才真正 resolve 工具（MCP handshake 在这里发生）
+    Tools(ctx context.Context) ([]chat.Tool, error)
+}
+
+// SPI：从 requirement 匹配到具体 ToolGroup
+type ToolGroupResolver interface {
+    Resolve(ctx context.Context, req ToolGroupRequirement) (ToolGroup, error)
+}
+```
+
+**DSL 集成示意**：
+```go
+a := agent.New("researcher").
+    RequiresToolGroup(agent.ToolGroupRequirement{
+        Role:             "web_search",
+        TerminationScope: agent.TerminationScopeAction,
+    }).
+    Action("search", searchFn).
+    Goal("report", reportFn).
+    Build()
+```
+
+### A.2 Autonomy Dual Binding
+
+**上游语义**：`platform.runAgent(userInput)` 会把 `userInput` 同时按 **两个键**绑进 Blackboard：
+1. `"it"` —— 约定的默认入参引用
+2. `"userInput"` —— 从 `reflect.TypeOf(userInput).Name()` 派生的「类型引用名」（首字母小写）
+
+这让 YAML action 或 prompt-first action 可以用 `${userInput.field}` 而不用关心变量名。
+
+**Go 建模**（扩展 `Blackboard.Bind`）：
+
+```go
+// agent/core/blackboard.go
+func (b *InMemoryBlackboard) Bind(value any) {
+    b.store.Store("it", value)
+    // 派生类型键：UserInput → "userInput"
+    if t := reflect.TypeOf(value); t != nil {
+        name := t.Name()
+        if t.Kind() == reflect.Ptr {
+            name = t.Elem().Name()
+        }
+        if name != "" {
+            key := strings.ToLower(name[:1]) + name[1:]
+            b.store.Store(key, value)
+        }
+    }
+}
+```
+
+**注意**：Go 的 anonymous struct / slice / map 没有合法 `Name()`，这种情况下只绑 `"it"`。
+
+### A.3 HITL：`Awaitable[P, R]` 泛型化
+
+**上游变化**：原 `FormRequest` / `ConfirmationRequest` 是平级独立 API；0.4 抽象为：
+
+```kotlin
+interface Awaitable<P, R> {
+    fun prompt(): P                                       // 要展示给人的负载
+    fun onResponse(r: R): ResponseImpact                  // UPDATED / UNCHANGED
+}
+
+class ConfirmationRequest<P>(...)    : Awaitable<P, Boolean>
+class FormBindingRequest<P, R>(...)  : Awaitable<P, R>
+```
+
+**Go 建模**：
+
+```go
+// agent/hitl/awaitable.go
+type ResponseImpact int
+const (
+    ResponseImpactUnchanged ResponseImpact = iota
+    ResponseImpactUpdated
+)
+
+type Awaitable[P any, R any] interface {
+    Prompt() P
+    OnResponse(r R) ResponseImpact
+}
+
+type ConfirmationRequest[P any] struct {
+    Payload P
+    Handler func(bool) ResponseImpact
+}
+
+func (c *ConfirmationRequest[P]) Prompt() P                      { return c.Payload }
+func (c *ConfirmationRequest[P]) OnResponse(r bool) ResponseImpact { return c.Handler(r) }
+
+type FormBindingRequest[P any, R any] struct {
+    Payload P
+    Handler func(R) ResponseImpact
+}
+
+// Process 暂停点：当 action 返回 Awaitable 时，AgentProcess 转入 PAUSED 状态
+func Await[P, R any](ctx context.Context, a Awaitable[P, R]) (R, error) {
+    proc := ProcessFrom(ctx)
+    return proc.suspendForAwaitable(a)
+}
+```
+
+---
+
 下一份文档详细描述 `AgentProcess` 状态机与 GOAP A* 规划器的 Go 实现 → `03-planner-and-runtime.md`
