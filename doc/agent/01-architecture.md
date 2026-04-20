@@ -292,6 +292,19 @@ func (m *MulticastListener) OnEvent(event Event) {
 }
 ```
 
+### 3.13 Embabel 0.4 新 SPI → Go 映射（2026-04-20 补）
+
+| Embabel 0.4 | Go 等价物 | 备注 |
+|------------|---------|-----|
+| `LlmMessageStreamer`（厂商中立流式 SPI） | `chat.StreamHandler` | Lynx 已有同等 pull-based 迭代器，无需新建 |
+| `TokenCountEstimator<T>`（实验性 token 计数） | `core/tokenizer.Tokenizer` | 接入点已存在；Go 端只需加泛型包装 `TokenEstimator[T]` |
+| `TerminationScope { AGENT, ACTION }` + `terminateAgent/terminateAction` | `AgentProcess.TerminateAgent(reason) / TerminateAction(reason)` + `enum TerminationScope int` | 见 `03-planner-and-runtime.md` 结构化终止段 |
+| `ToolGroupRequirement { role, requiredToolNames, terminationScope }` | `agent.ToolGroupRequirement struct`（字段同构）| 见 `02-core-abstractions.md` ToolGroup 段 |
+| `ToolGroup.tools` lazy 属性（避免 MCP handshake） | `ToolGroup` 接口 + `sync.Once` + `ResolveTools(ctx) []Tool` | 见 `02-core-abstractions.md` |
+| `Planner.bestValuePlanToAnyGoal(system, excludedActionNames: Set<String>)` | `Planner.Plan(ctx, state, goal, opts)` 里的 `opts.ExcludedActions map[string]struct{}` | 见 `03-planner-and-runtime.md` 重规划段 |
+| `Awaitable<P, R>`（`ConfirmationRequest<P>` / `FormBindingRequest` 子类）| 泛型接口 `Awaitable[P any, R any]` | 见 `02-core-abstractions.md` HITL 段 |
+| Autonomy dual binding（按 `"it"` + 类型派生名） | `Blackboard.Bind(value)` 自动按 `reflect.TypeOf(value).Name()` 小写首字母绑第二个键 | 见 `02-core-abstractions.md` Blackboard 段 |
+
 ---
 
 ## 4. 总体设计原则小结

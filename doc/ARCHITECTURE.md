@@ -2,6 +2,8 @@
 
 > 从架构层面审视 `Tangerg/lynx` 的分层、抽象、可扩展性与设计张力。
 > 本文档与 `IMPROVEMENTS.md` 互补：后者聚焦战术问题，本文聚焦战略问题。
+>
+> **修订（2026-04-20）**：§3.2 ToolMiddleware 硬编码问题已通过 commit `8e58479` 落地修复；§10.1 状态同步更新。其余战略级改进项（统一 Middleware 框架、BaseVisitor、RAG Pipeline 插槽化、Document Reader 流式化等）仍未开展。
 
 ---
 
@@ -88,9 +90,11 @@ type StreamHandler[Req, Res any] interface {
 
 `MiddlewareManager.BuildCallHandler` 按**注册逆序**包装：第一个注册的中间件位于最外层，最后一个最贴近 Model。这是经典写法，与 `net/http` 的 `mux.Use()` 一致，Go 开发者零学习成本。
 
-#### 3.2 ToolMiddleware 硬编码问题（架构级瑕疵）
+#### 3.2 ToolMiddleware 硬编码问题（已落地修复 ✅）
 
-`core/model/chat/client.go:378-380` 的模式：
+> **状态（2026-04-20）**：commit `8e58479` "refactor: make ToolMiddleware opt-in instead of auto-injected" 已将该问题修复。本节保留背景说明，但结论改为「已解决」。
+
+**原问题**：`core/model/chat/client.go` 旧版在 `ClientCaller.call()` 与 `ClientStreamer.stream()` 里各自硬编码：
 
 ```go
 if len(req.Options.Tools) > 0 {
@@ -99,19 +103,21 @@ if len(req.Options.Tools) > 0 {
 }
 ```
 
-**为什么是架构瑕疵**：
-1. 破坏「中间件是一等公民」的抽象：其他中间件由用户注册、可配置顺序、可替换；ToolMiddleware 却由框架隐式注入。
-2. 用户无法：
-   - 换掉工具编排逻辑（例如改用并行执行、带 retry/超时的执行）
-   - 控制 ToolMiddleware 与其他中间件的相对位置（例如让 caching 在 tool 外层还是内层）
-   - 禁用 tool（即使传了 Tools，也总会生效）
-3. 实现代码同一逻辑在 `ClientCaller.call()` 与 `ClientStreamer.stream()` 重复一次，暗示这是「缺少合适抽象」的补丁。
+**修复后现状**（`core/model/chat/client.go:294-298, 354-359`）：两处 call/stream 路径的注释明确声明
 
-**架构级修法**：提供默认 middleware 列表，用户可 replace：
-```go
-NewClient(model, WithDefaultMiddlewares(ToolMiddleware{}, MemoryMiddleware{}))
-// 用户可以：WithMiddlewares(myCustomToolOrchestrator)
 ```
+// Tool execution is NOT injected automatically; register ToolMiddleware explicitly
+// via WithMiddlewares if tool calls need to be handled.
+```
+
+`NewToolMiddleware()` 对外开放（`core/model/chat/tool_middleware.go:15`），同时返回 `(CallMiddleware, StreamMiddleware)`，成为一等可注册中间件。
+
+**现在用户可以**：
+- 用自定义 Tool 编排替换（并行执行 / retry / 超时）
+- 控制 ToolMiddleware 与其他中间件的相对位置
+- 完全不挂（Options.Tools 非空时也不强制生效）
+
+**剩余改进空间（非阻塞）**：提供一个 fluent `WithToolMiddleware()` 或 preset，减少样板；用户现在需要写 `WithMiddlewares(NewToolMiddleware())`。
 
 #### 3.3 Memory Middleware 的「原地变更」问题
 
@@ -231,9 +237,9 @@ filter.Eq("user_id", 123).And(filter.In("category", "tech", "news"))
 
 | 维度 | ChatMiddleware | RAGPipelineMiddleware | ToolMiddleware |
 |-----|---------------|----------------------|----------------|
-| 签名 | `(CallHandler) → CallHandler` | 包裹整个 Pipeline.Execute | 硬编码进 Client |
+| 签名 | `(CallHandler) → CallHandler` | 包裹整个 Pipeline.Execute | `(CallMiddleware, StreamMiddleware)` 对 |
 | 数据 | `*chat.Request → *chat.Response` | `*Query → (Query, []Document)` | 同 ChatMiddleware |
-| 注入 | 用户注册 | 通过 ChatMiddleware 桥接 | **自动注入** |
+| 注入 | 用户注册 | 通过 ChatMiddleware 桥接 | 用户注册（原「自动注入」已于 `8e58479` 修复） |
 
 **症结**：Lynx 有「装饰器」的**实现**，没有「Middleware」的**接口**。三类中间件是三条独立进化线。Embedding/Image/Audio/Moderation 甚至**完全没有中间件故事**——无法加 logging / caching / rate-limit，除非用户自己从 Handler 层手写装饰器。
 
@@ -304,7 +310,7 @@ type Client struct { *BaseClient[*Request, *Response] }
 ### 10.1 统一 Middleware 框架 🔴 高价值
 - 抽出 `core/middleware/Manager[H]`
 - Chat / Embedding / Image / Audio / Moderation / RAG 全部切换到统一 Manager
-- 把 ToolMiddleware 从「硬编码注入」变成「默认注册、可替换」
+- ~~把 ToolMiddleware 从「硬编码注入」变成「默认注册、可替换」~~ ✅ 已落地（commit `8e58479`）
 
 ### 10.2 BaseClient[Req, Res] 泛型基类 🔴 高价值
 - 消除 4 份 Client boilerplate

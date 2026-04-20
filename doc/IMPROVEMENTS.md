@@ -1,19 +1,21 @@
 # Lynx 改进清单
 
 > 对 `Tangerg/lynx` 多模块 Go LLM 框架（core / models / vectorstores / tools / pkg）的深度审查结果。
-> 审查日期：2026-04-17
-> 审查范围：约 203 个 Go 源文件，5 个子模块
+> 审查日期：2026-04-17（最后复核：2026-04-20，HEAD = `63e4bb2`）
+> 审查范围：约 203 个 Go 源文件，6 个子模块（含新增 `otelbridge/`）
 
 ---
 
-## 总览
+## 总览（复核后）
 
-| 分类 | 数量 | 主要风险 |
-|-----|------|---------|
-| 🔴 **高优先级（阻塞性）** | 9 | 运行时 panic、测试缺失、跨模块版本漂移 |
-| 🟠 **中优先级（质量）** | 18 | API 不一致、并发隐患、错误处理 |
-| 🟡 **低优先级（打磨）** | 15 | 文档缺失、性能优化、风格 |
-| **合计** | **42** | — |
+| 分类 | 数量 | 当前进度 | 主要风险 |
+|-----|------|---------|---------|
+| 🔴 **高优先级（阻塞性）** | 9 | **已 fix 0 · 部分缓解 1 · 仍在 8** | 运行时 panic、测试缺失、跨模块版本漂移 |
+| 🟠 **中优先级（质量）** | 18 | 未再复核 | API 不一致、并发隐患、错误处理 |
+| 🟡 **低优先级（打磨）** | 15 | 未再复核 | 文档缺失、性能优化、风格 |
+| **合计** | **42** | — | — |
+
+> 注：ARCHITECTURE.md §3.2「ToolMiddleware 硬编码」属于战略项，不在 H 系，已于 commit `8e58479` 修复；本清单 H 系问题未随之解决。
 
 ---
 
@@ -54,15 +56,16 @@
 - [ ] `NewTiktokenWithCL100KBase` 在初始化失败时 `panic`，破坏 Go "返回 error" 契约。
   - **建议**：改为 `(*Tiktoken, error)`。调用方可选择 `Must...` 包装。
 
-### H-6 `core/model/chat/client.go:157-160` Clone() 潜在 nil panic
+### H-6 `core/model/chat/client.go:154-164` Clone() 潜在 nil panic（🟡 部分缓解）
 
-- [ ] `ClientRequest.Clone()` 对 `middlewareManager / options / userPromptTemplate / systemPromptTemplate` 直接调用 `Clone()`，而这些字段可能为 nil（如 `middlewareManager` 在第 147-150 行是懒初始化的）。
-  - **建议**：所有 Clone() 实现统一 `if x == nil { return nil }`；或在 `NewClientRequest` 中 eager 初始化。
+- [~] `ClientRequest.Clone()` 对 `middlewareManager / options / userPromptTemplate / systemPromptTemplate` 直接调用 `Clone()`，而这些字段可能为 nil。
+  - **2026-04-20 复核**：`NewClientRequest()` 已改为 eager 初始化 `middlewareManager`（常规路径规避了 nil 风险），但 `Clone()` 内部**仍未加防御**。如果调用方绕过构造器或字段被置 nil，panic 仍可触发。
+  - **建议**：补 `if x == nil { return nil }` 的惯用防御，彻底消除隐患。
 
-### H-7 `core/model/chat/client.go:121` `WithMessages` 语义冲突
+### H-7 `core/model/chat/client.go:120-142` `WithMessages` 语义冲突
 
-- [ ] 方法名暗示「追加」，实际实现是 `r.messages = messages`（替换）。同文件中 `WithTools`（第 138 行）却是 append。
-  - **建议**：统一语义——要么全部 `With* == 追加`、要么 `With* == 替换 + Set* 存在`。推荐后者，文档化。
+- [ ] 方法名暗示「追加」，实际实现是 `r.messages = messages`（替换）。
+  - **2026-04-20 复核**：`WithTools` 也已改为替换（`r.tools = tools`）。**两个都变成替换后**，godoc 里「appends」的措辞反而和代码脱节，需要同步更新注释，再考虑是否引入 `SetMessages/AppendMessages` 对偶。
 
 ### H-8 `core/model/chat/response_accumulator.go` 非线程安全但未声明
 
@@ -171,6 +174,21 @@
 
 ## 审查依据
 
-- 文件/行号均基于审查当时的 `main` 分支（HEAD = `a1b4083`）。
-- 本清单由两份并行深度审查合并去重而来，覆盖 core/models/vectorstores/tools/pkg 五个模块。
+- 初版文件/行号基于 `a1b4083`；**2026-04-20 复核在 HEAD = `63e4bb2`**。
+- 本清单由两份并行深度审查合并去重而来，覆盖 core/models/vectorstores/tools/pkg 五个模块（+ 新增 `otelbridge/` 仅复核未纳入基线）。
 - 未评估性能数字（无 benchmark 基线），性能建议均基于代码阅读推断。
+
+---
+
+## 2026-04-20 复核变更摘要
+
+| 项目 | 原状态 | 新状态 | 证据 |
+|-----|------|------|-----|
+| H-6 Clone() nil panic | 仍在 | 部分缓解 | `NewClientRequest` eager 初始化；`Clone()` 内部未补防御 |
+| H-7 WithMessages 语义 | `WithMessages` 替换 / `WithTools` 追加 | 两者均替换 | 冲突消失但 godoc 描述未更新 |
+| 新增：Chroma 向量库 | — | 存在 | `vectorstores/chroma/`（commit `a1b4083`） |
+| 新增：OTel exporter | — | 已实现 | `otelbridge/slog/` + `otelbridge/log/`（commit `63e4bb2`） |
+| 新增：Visitor 重命名 | — | 完成 | qdrant/milvus `converter.go → visitor.go`；5 个 store 仍共 2940 LOC，`BaseVisitor` 未抽 |
+| 架构级：ToolMiddleware 硬编码 | ARCHITECTURE §3.2 硬编码 | **已 fix** | commit `8e58479`，现在需用户显式 `WithMiddlewares(NewToolMiddleware())` |
+
+其余 H 项（H-1 版本漂移、H-2/H-3 零测试、H-4 FilterMessages panic、H-5 Tiktoken panic、H-8 ResponseAccumulator 无锁、H-9 Filter DSL 无上限）**全部仍在**，未有 commit 涉及。

@@ -3,6 +3,30 @@
 > 本目录是 `embabel-agent`（Spring AI 的 Java/Kotlin agent 框架）向 Lynx 生态的 Go 移植的完整架构设计。
 > **核心思想保持一致**：GOAP（Goal-Oriented Action Planning）+ 黑板模式 + OODA 循环。
 > **但充分考虑 Java/Kotlin 与 Go 的语言差异**，不做机械翻译，Go 风格优先。
+>
+> **初版基线**：embabel-agent ~0.3.5（2026-04-18 写作）
+> **2026-04-20 复核基线**：embabel-agent `0.4.0-SNAPSHOT`（见 §0.4 新抽象章节）
+> **实现进度**：本目录仍纯为设计文档，**尚无 Go 代码落地**（`agent/` 顶层 module 未创建）。
+
+---
+
+## 0.4 上游新抽象（2026-04-20 补遗）
+
+Embabel 从 0.3.5 进到 0.4.0-SNAPSHOT 期间新增了三个第一级抽象 + 若干语义修订，Go 端设计必须回填。完整细节见对应章节：
+
+| 新抽象 | 影响文档 | 摘要 |
+|-------|--------|------|
+| 🔴 **ToolGroup 生态**（`ToolGroupRequirement` / `ToolGroupPermission` / `ToolGroupMetadata` / `ToolGroup.tools` 懒加载）| 01 / 02 / 04 | Agent 新增 `toolGroups: Set<ToolGroupRequirement>` 字段；MCP 集成从「直接 bind tool」改为「通过 ToolGroup 懒加载」 |
+| 🔴 **Skills 模块**（`embabel-agent-skills/`：YAML 规格 + Docker/Process 执行引擎 + GitHub 分发）| 01 / README | 新顶层 module；SPI：`SkillScriptExecutionEngine` / `DirectorySkillDefinitionLoader`。Lynx 规划对标走 `agents/skills/` 外挂 |
+| 🔴 **`TerminationScope`**（`AGENT / ACTION` 枚举 + `terminateAgent(reason)` / `terminateAction(reason)`）| 03 | 从「抛异常」升级为「结构化终止」；在 tick 边界检测 |
+| 🟠 **`LlmMessageStreamer` SPI** | 01 §3.8 | 厂商中立流式工具循环接口；Lynx 的 `chat.StreamHandler` 天然对应 |
+| 🟠 **`TokenCountEstimator<T>` SPI**（实验性）| 01 | token 预算预留接口；Lynx 的 `core/tokenizer/` 可作为实现入口 |
+| 🟡 **Autonomy dual binding**（`runAgent(input)` 同时按 `"it"` 和类型派生名绑定）| 02 | Blackboard 语义细化，不破坏现有设计 |
+| 🟡 **Planner 重规划黑名单**（`bestValuePlanToAnyGoal(system, excludedActionNames)`）| 03 | action 抛 `ReplanRequestedException` 后加入黑名单重规划 |
+| 🟡 **HITL 泛化**（`FormRequest` → `Awaitable<P, R>` 接口，`ConfirmationRequest<P>` / `FormBindingRequest` 为子类）| 02 | Go 端建模为泛型 `Awaitable[P, R] interface` |
+| 🟡 **`@Agent` 校验收紧**（构造器不再允许 `OperationContext` 注入，fail-fast）| 04 | Go 的 DSL/struct reflect 方案无此约束，但差异表需注明 |
+
+**与 Spring AI 2.0 的交叉**：Spring AI 2.0 同期上线了 MCP 全家桶（`mcp-annotations` + `mcp-spring-{webmvc,webflux}` + 5 个 starter）——这与 Embabel 的 ToolGroup 在「跨进程工具接入」上形成了合流。Lynx 的 `agents/mcp/` 规划可以一次性参照两者，详见 `doc/SPRING_AI_COMPARISON.md §11`。
 
 ---
 
