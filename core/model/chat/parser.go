@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	pkgjson "github.com/Tangerg/lynx/pkg/json"
+	pkgtext "github.com/Tangerg/lynx/pkg/text"
 )
 
 // StructuredParser defines an interface for converting unstructured LLM (Large Language Model)
@@ -165,14 +166,18 @@ Raw JSON object with string keys and any valid JSON values.`
 }
 
 // Parse converts the raw LLM output string into a map[string]any by parsing JSON.
-// It automatically strips Markdown code blocks (```json and ```) if present before parsing.
+// It automatically strips reasoning-style thinking tags and Markdown code
+// blocks (```json and ```) if present before parsing, allowing the parser
+// to work transparently against models that prefix their JSON output with
+// chain-of-thought (Qwen, DeepSeek-R1 distills, Amazon Nova, etc.).
 //
 // The method handles common LLM formatting issues by:
-//  1. Stripping Markdown code block delimiters
-//  2. Unmarshaling the JSON into a map[string]any
-//  3. Returning detailed error information if parsing fails
+//  1. Removing thinking-tag wrappers (<think>, <thinking>, <reasoning>, …)
+//  2. Stripping Markdown code block delimiters
+//  3. Unmarshaling the JSON into a map[string]any
+//  4. Returning detailed error information if parsing fails
 func (m *MapParser) Parse(rawLLMOutput string) (map[string]any, error) {
-	cleanedContent := removeMarkdownCodeBlockDelimiters(rawLLMOutput)
+	cleanedContent := removeMarkdownCodeBlockDelimiters(pkgtext.CleanThinkingTags(rawLLMOutput))
 
 	parsedResult := make(map[string]any)
 	err := json.Unmarshal([]byte(cleanedContent), &parsedResult)
@@ -236,14 +241,16 @@ func (j *JSONParser[T]) Instructions() string {
 }
 
 // Parse converts the raw LLM output string into type T by parsing JSON.
-// It automatically strips Markdown code blocks (```json and ```) if present before parsing.
+// It automatically strips reasoning-style thinking tags and Markdown code
+// blocks (```json and ```) if present before parsing.
 //
 // The parsing process includes:
-//  1. Stripping any Markdown code block formatting
-//  2. Unmarshaling the JSON into the target type T
-//  3. Providing detailed error information including both processed content and raw input
+//  1. Removing thinking-tag wrappers (<think>, <thinking>, <reasoning>, …)
+//  2. Stripping any Markdown code block formatting
+//  3. Unmarshaling the JSON into the target type T
+//  4. Providing detailed error information including both processed content and raw input
 func (j *JSONParser[T]) Parse(rawLLMOutput string) (T, error) {
-	cleanedContent := removeMarkdownCodeBlockDelimiters(rawLLMOutput)
+	cleanedContent := removeMarkdownCodeBlockDelimiters(pkgtext.CleanThinkingTags(rawLLMOutput))
 
 	var parsedResult T
 	err := json.Unmarshal([]byte(cleanedContent), &parsedResult)

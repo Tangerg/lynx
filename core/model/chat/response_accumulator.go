@@ -84,8 +84,10 @@ func (r *ResponseAccumulator) accumulateResult(index int, other *Result) {
 // Accumulation strategy:
 //   - Text: concatenated (e.g., "Hello" + " world" = "Hello world")
 //   - ToolCalls: each component (ID, Name, Arguments) is concatenated
-//     This supports streaming tool calls where JSON is sent in fragments
-//   - Metadata: merged with newer values overwriting existing ones
+//   - Metadata: merged with newer values overwriting existing ones, except:
+//   - MetaReasoningContent: concatenated like Text, since DeepSeek and
+//     OpenAI-compatible servers stream reasoning text as deltas alongside
+//     the regular content stream (metadata-channel pattern, see thinking.go).
 func (r *ResponseAccumulator) accumulateAssistantMessage(msg, other *AssistantMessage) *AssistantMessage {
 	if other == nil {
 		return msg
@@ -113,7 +115,19 @@ func (r *ResponseAccumulator) accumulateAssistantMessage(msg, other *AssistantMe
 		}
 	}
 
-	maps.Copy(msg.Meta(), other.Metadata)
+	// Concatenate streaming reasoning text instead of overwriting it.
+	// Other metadata entries are merged below with last-write-wins semantics.
+	if rc, ok := other.Metadata[MetaReasoningContent].(string); ok && rc != "" {
+		prev, _ := msg.Meta()[MetaReasoningContent].(string)
+		msg.Meta()[MetaReasoningContent] = prev + rc
+	}
+
+	for k, v := range other.Metadata {
+		if k == MetaReasoningContent {
+			continue
+		}
+		msg.Meta()[k] = v
+	}
 
 	return msg
 }

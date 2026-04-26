@@ -135,7 +135,18 @@ func (r *requestHelper) buildUserMsg(msg *chat.UserMessage) anthropicsdk.Message
 func (r *requestHelper) buildAssistantMsg(msg *chat.AssistantMessage) anthropicsdk.MessageParam {
 	blocks := make([]anthropicsdk.ContentBlockParamUnion, 0, 1+len(msg.ToolCalls))
 
-	if msg.Text != "" {
+	// Replay thinking blocks first when present. Anthropic requires the
+	// original signature to be echoed so the API can validate that prior
+	// reasoning has not been tampered with; redacted thinking must also be
+	// passed through opaquely. The signature/data live in Metadata; the
+	// blocks themselves get the visible text (or empty for redacted).
+	if chat.IsThoughtMessage(msg) {
+		if data := chat.RedactedThinkingData(msg); data != "" {
+			blocks = append(blocks, anthropicsdk.NewRedactedThinkingBlock(data))
+		} else if sig := chat.ThinkingSignature(msg); sig != "" {
+			blocks = append(blocks, anthropicsdk.NewThinkingBlock(sig, msg.Text))
+		}
+	} else if msg.Text != "" {
 		blocks = append(blocks, anthropicsdk.NewTextBlock(msg.Text))
 	}
 
@@ -233,12 +244,66 @@ func (r *responseHelper) buildAssistantMsg(resp *anthropicsdk.Message) *chat.Ass
 	return chat.NewAssistantMessage(msgParams)
 }
 
-func (r *responseHelper) buildResult(resp *anthropicsdk.Message) (*chat.Result, error) {
-	assistantMsg := r.buildAssistantMsg(resp)
-	meta := &chat.ResultMetadata{
-		FinishReason: r.mapFinishReason(resp.StopReason),
+// buildThinkingResult constructs a thinking-typed Result from a single
+// ThinkingBlock or RedactedThinkingBlock. The visible reasoning text (if
+// any) goes into AssistantMessage.Text; the signature or redacted data is
+// stored in metadata so the request side can replay it verbatim on the
+// next turn (multi-Result pattern, see core/model/chat/thinking.go).
+func (r *responseHelper) buildThinkingResult(block anthropicsdk.ContentBlockUnion, finish chat.FinishReason) (*chat.Result, error) {
+	metadata := map[string]any{
+		chat.MetaIsThought: true,
 	}
-	return chat.NewResult(assistantMsg, meta)
+	switch block.Type {
+	case "thinking":
+		metadata[chat.MetaThinkingSignature] = block.Signature
+	case "redacted_thinking":
+		metadata[chat.MetaRedactedThinkingData] = block.Data
+	default:
+		return nil, nil
+	}
+	msg := chat.NewAssistantMessage(chat.MessageParams{
+		Text:     block.Thinking,
+		Metadata: metadata,
+	})
+	return chat.NewResult(msg, &chat.ResultMetadata{FinishReason: finish})
+}
+
+// buildResults emits one Result per logical content kind. Thinking blocks
+// (and redacted thinking blocks) become standalone Results carrying the
+// MetaIsThought flag; text + tool_use are aggregated into a final Result.
+// This is the Anthropic-side instance of Spring AI's multi-Generation
+// pattern: the Response.Results list itself encodes block boundaries.
+func (r *responseHelper) buildResults(resp *anthropicsdk.Message) ([]*chat.Result, error) {
+	finish := r.mapFinishReason(resp.StopReason)
+	results := make([]*chat.Result, 0, len(resp.Content))
+
+	for _, block := range resp.Content {
+		if block.Type != "thinking" && block.Type != "redacted_thinking" {
+			continue
+		}
+		// Skip in-flight thinking deltas during streaming where the
+		// signature has not yet arrived; those become valid Results once
+		// the SDK accumulator has populated the signature.
+		if block.Type == "thinking" && block.Signature == "" {
+			continue
+		}
+		thinkingResult, err := r.buildThinkingResult(block, finish)
+		if err != nil {
+			return nil, err
+		}
+		if thinkingResult != nil {
+			results = append(results, thinkingResult)
+		}
+	}
+
+	mainMsg := r.buildAssistantMsg(resp)
+	mainResult, err := chat.NewResult(mainMsg, &chat.ResultMetadata{FinishReason: finish})
+	if err != nil {
+		return nil, err
+	}
+	results = append(results, mainResult)
+
+	return results, nil
 }
 
 func (r *responseHelper) buildMeta(req *anthropicsdk.MessageNewParams, resp *anthropicsdk.Message) *chat.ResponseMetadata {
@@ -260,14 +325,14 @@ func (r *responseHelper) buildMeta(req *anthropicsdk.MessageNewParams, resp *ant
 }
 
 func (r *responseHelper) buildChatResponse(req *anthropicsdk.MessageNewParams, resp *anthropicsdk.Message) (*chat.Response, error) {
-	result, err := r.buildResult(resp)
+	results, err := r.buildResults(resp)
 	if err != nil {
 		return nil, err
 	}
 
 	meta := r.buildMeta(req, resp)
 
-	return chat.NewResponse([]*chat.Result{result}, meta)
+	return chat.NewResponse(results, meta)
 }
 
 type ChatModelConfig struct {
