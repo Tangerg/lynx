@@ -227,6 +227,21 @@ func (r *responseHelper) buildAssistantMsg(req *openai.ChatCompletionNewParams, 
 	msgParams.Metadata["refusal"] = msg.Refusal
 	msgParams.Metadata["annotations"] = msg.Annotations
 
+	// DeepSeek-R1, vLLM with reasoning parsers, and other OpenAI-compatible
+	// servers expose chain-of-thought as a non-standard `reasoning_content`
+	// field on the message. The official openai-go types do not surface it,
+	// but the raw JSON is preserved under JSON.ExtraFields. Pull it out
+	// when present and route it via the metadata-channel pattern (see
+	// core/model/chat/thinking.go). Official OpenAI Chat Completions
+	// (gpt-4o, o1, o3, gpt-5) do not expose reasoning text here, only via
+	// the Responses API, so this lookup is a silent no-op for them.
+	if reasoningField, ok := msg.JSON.ExtraFields["reasoning_content"]; ok && reasoningField.Valid() {
+		var reasoning string
+		if err := json.Unmarshal([]byte(reasoningField.Raw()), &reasoning); err == nil && reasoning != "" {
+			msgParams.Metadata[chat.MetaReasoningContent] = reasoning
+		}
+	}
+
 	for _, tc := range msg.ToolCalls {
 		msgParams.ToolCalls = append(msgParams.ToolCalls, &chat.ToolCall{
 			ID:        tc.ID,
