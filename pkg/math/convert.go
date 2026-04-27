@@ -1,39 +1,23 @@
 package math
 
-// ConvertSlice converts a slice from one numeric type to another.
-// It preserves nil slices and performs element-wise type conversion.
+// ConvertSlice converts each element of src from numeric type T1 to
+// T2. It returns nil if src is nil and an empty slice if src is empty.
 //
-// Warning: Conversion may cause precision loss (float to int) or
-// overflow (larger to smaller integer types).
-//
-// Type parameters:
-//   - T1: source numeric type
-//   - T2: target numeric type
-//
-// Parameters:
-//   - source: the input slice to convert
-//
-// Returns:
-//   - A new slice of type T2, or nil if source is nil
+// Conversion is element-wise type conversion (T2(v)); precision loss
+// (float→int) and overflow (e.g. int64→int8) follow Go's standard
+// conversion rules and are not detected.
 //
 // Example:
 //
-//	ints := []int{1, 2, 3}
-//	floats := math.ConvertSlice[int, float64](ints)
-//	// Result: []float64{1.0, 2.0, 3.0}
-func ConvertSlice[T1, T2 NumericType](source []T1) []T2 {
-	// Preserve nil slice semantics
-	if source == nil {
+//	v64 := []float64{1.5, 2.5, 3.5}
+//	v32 := math.ConvertSlice[float64, float32](v64)
+func ConvertSlice[T1, T2 NumericType](src []T1) []T2 {
+	if src == nil {
 		return nil
 	}
-
-	// Pre-allocate result slice with exact capacity
-	result := make([]T2, len(source))
-
-	// Convert each element
-	for i, value := range source {
-		result[i] = T2(value)
+	out := make([]T2, len(src))
+	for i, v := range src {
+		out[i] = T2(v)
 	}
-
-	return result
+	return out
 }

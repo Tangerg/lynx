@@ -9,219 +9,157 @@ import (
 	"github.com/Tangerg/lynx/pkg/assert"
 )
 
-// Renderer is a fluent interface for rendering text templates.
-// It wraps Go's text/template package to provide a more convenient API.
-// Uses caching to avoid re-rendering when configuration hasn't changed.
+// Renderer is a fluent wrapper around text/template that caches the
+// last rendered output.
 //
-// NOTE: This type is NOT thread-safe. Do not use the same Renderer instance
-// concurrently from multiple goroutines without proper synchronization.
-// Create separate instances for each goroutine if concurrent usage is required.
+// A Renderer is not safe for concurrent use. For one-off rendering use
+// the package-level [Render] or [MustRender] instead.
 type Renderer struct {
-	templateString string         // Template string to be rendered
-	variables      map[string]any // Variables to be injected into the template
-	leftDelimiter  string         // Left delimiter for template variables
-	rightDelimiter string         // Right delimiter for template variables
-	changed        bool           // Flag to track if configuration has changed since last render
-	renderedString string         // Cached rendered result
+	tmpl     string
+	vars     map[string]any
+	lDelim   string
+	rDelim   string
+	dirty    bool
+	rendered string
 }
 
-// NewRenderer creates a new Renderer instance with default settings.
-// Default delimiters are "{{" and "}}".
+// NewRenderer returns a new Renderer with default delimiters "{{" and
+// "}}".
 func NewRenderer() *Renderer {
-	renderer := &Renderer{}
-	renderer.init()
-	return renderer
+	r := &Renderer{}
+	r.init()
+	return r
 }
 
-// init initializes the renderer with default values.
+// init resets internal state. Used by [NewRenderer] and [Renderer.Reset].
 func (r *Renderer) init() {
-	r.templateString = ""
-	r.variables = make(map[string]any)
-	r.leftDelimiter = "{{"
-	r.rightDelimiter = "}}"
-	r.changed = false
-	r.renderedString = ""
+	r.tmpl = ""
+	r.vars = make(map[string]any)
+	r.lDelim = "{{"
+	r.rDelim = "}}"
+	r.dirty = false
+	r.rendered = ""
 }
 
-// markChanged marks the renderer as changed and clears the cached result.
-// This method should be called whenever any configuration that affects
-// the rendering output is modified.
-func (r *Renderer) markChanged() {
-	r.changed = true
-	r.renderedString = ""
+// markDirty invalidates the cached output.
+func (r *Renderer) markDirty() {
+	r.dirty = true
+	r.rendered = ""
 }
 
-// WithTemplate sets the template string to be rendered.
-// Returns the receiver for method chaining.
-// An empty templateString is accepted and will be set as-is.
+// WithTemplate sets the template source.
 func (r *Renderer) WithTemplate(tmpl string) *Renderer {
-	r.templateString = tmpl
-	r.markChanged()
+	r.tmpl = tmpl
+	r.markDirty()
 	return r
 }
 
-// WithVariable sets a single variable that can be used in the template.
-// Returns the receiver for method chaining.
-// Note: Empty variableName is accepted and will create a variable with empty string key.
-// Existing variable with the same key will be overwritten.
+// WithVariable sets a single template variable.
 func (r *Renderer) WithVariable(name string, val any) *Renderer {
-	r.variables[name] = val
-	r.markChanged()
+	r.vars[name] = val
+	r.markDirty()
 	return r
 }
 
-// WithVariables replaces all existing variables with the provided map.
-// This method clears any previously set variables before adding the new ones.
-// Returns the receiver for method chaining.
-// Nil or empty map will clear all variables.
+// WithVariables replaces all variables with vars.
 func (r *Renderer) WithVariables(vars map[string]any) *Renderer {
-	clear(r.variables)
-	maps.Copy(r.variables, vars)
-	r.markChanged()
+	clear(r.vars)
+	maps.Copy(r.vars, vars)
+	r.markDirty()
 	return r
 }
 
-// Reset clears all configuration and returns the renderer to its initial state.
-// Returns the receiver for method chaining.
+// WithDelimiters sets the action delimiters. Empty values keep the
+// defaults "{{" and "}}".
+func (r *Renderer) WithDelimiters(left, right string) *Renderer {
+	r.lDelim = left
+	r.rDelim = right
+	r.markDirty()
+	return r
+}
+
+// Reset returns r to its initial state.
 func (r *Renderer) Reset() *Renderer {
 	r.init()
 	return r
 }
 
-// Clone creates a deep copy of the renderer with all its current configuration and state.
-// The cloned renderer is independent and modifications to it won't affect the original.
-// The cached rendered result is also copied, preserving the cache state.
-// Returns a new Renderer instance with the same settings as the original.
+// Clone returns an independent copy of r, including its cached result.
 func (r *Renderer) Clone() *Renderer {
 	c := NewRenderer()
-	c.templateString = r.templateString
-	c.variables = maps.Clone(r.variables)
-	c.leftDelimiter = r.leftDelimiter
-	c.rightDelimiter = r.rightDelimiter
-	c.changed = r.changed
-	c.renderedString = r.renderedString
+	c.tmpl = r.tmpl
+	c.vars = maps.Clone(r.vars)
+	c.lDelim = r.lDelim
+	c.rDelim = r.rDelim
+	c.dirty = r.dirty
+	c.rendered = r.rendered
 	return c
 }
 
-// WithDelimiters sets the action delimiters to the specified strings.
-// An empty delimiter stands for the corresponding default: {{ or }}.
-// Returns the receiver for method chaining.
-func (r *Renderer) WithDelimiters(leftDelimiter, rightDelimiter string) *Renderer {
-	r.leftDelimiter = leftDelimiter
-	r.rightDelimiter = rightDelimiter
-	r.markChanged()
-	return r
-}
-
-// render performs the actual template rendering.
-// It creates a new template, parses the template string, and executes it with the variables.
-// Returns the rendered string or an error if template parsing or execution fails.
-// The error is returned as-is from the underlying text/template package without wrapping.
-func (r *Renderer) render() (string, error) {
-	t, err := template.
-		New("renderer").
-		Delims(r.leftDelimiter, r.rightDelimiter).
-		Parse(r.templateString)
-	if err != nil {
-		return "", err
-	}
-
-	var sb strings.Builder
-	if err = t.Execute(&sb, r.variables); err != nil {
-		return "", err
-	}
-
-	return sb.String(), nil
-}
-
-// Render renders the template with the configured variables and returns the result.
-// Uses caching to avoid re-rendering when configuration hasn't changed since last render.
-// Returns an empty string and nil error if no template is set.
-// Returns an error if template parsing or execution fails.
-// The cached result is updated only after successful rendering.
+// Render parses and executes the template, returning the result. If
+// no template is set, it returns "". Successive calls are served from
+// the cache as long as no configuration has changed.
 func (r *Renderer) Render() (string, error) {
-	// Return empty string if no template is set
-	if r.templateString == "" {
+	if r.tmpl == "" {
 		return "", nil
 	}
-
-	// Re-render if configuration has changed
-	if r.changed {
-		out, err := r.render()
+	if r.dirty {
+		out, err := r.execute()
 		if err != nil {
 			return "", err
 		}
-
-		r.renderedString = out
-		r.changed = false
+		r.rendered = out
+		r.dirty = false
 	}
-
-	return r.renderedString, nil
+	return r.rendered, nil
 }
 
-// MustRender renders the template and panics if an error occurs.
-// This is a convenience method for cases where errors should not be handled gracefully.
-// Uses the same caching mechanism as Render().
-// Panics with the error returned from Render() if rendering fails.
+// MustRender is like [Renderer.Render] but panics on error.
 func (r *Renderer) MustRender() string {
 	return assert.Must(r.Render())
 }
 
-// RequireVariables verifies that all specified template variables exist in the template.
-// Automatically constructs the placeholder format using current delimiters and dot notation.
-// Returns an error if any of the variables are not found in the template.
-//
-// Note: This method performs literal string matching of the constructed placeholders.
-// It does not account for:
-//   - Template syntax validity beyond simple string matching
-//   - Variables within comments or string literals
-//   - Complex template expressions (e.g., {{.User.Name}})
-//
-// Example:
-//
-//	r.RequireVariables("user", "message")
-//	// Will check for "{{.user}}" and "{{.message}}" with default delimiters
-//
-//	r.WithDelimiters("[[", "]]").RequireVariables("user")
-//	// Will check for "[[.user]]"
-func (r *Renderer) RequireVariables(variableNames ...string) error {
-	missing := make([]string, 0, len(variableNames))
-
-	for _, name := range variableNames {
-		placeholder := r.leftDelimiter + "." + name + r.rightDelimiter
-		if !strings.Contains(r.templateString, placeholder) {
-			missing = append(missing, name)
+// RequireVariables returns an error listing any names whose textual
+// placeholder ("{{.name}}" with current delimiters) is not present in
+// the template. Matching is literal — complex expressions like
+// "{{.User.Name}}" are not detected.
+func (r *Renderer) RequireVariables(names ...string) error {
+	missing := make([]string, 0, len(names))
+	for _, n := range names {
+		if !strings.Contains(r.tmpl, r.lDelim+"."+n+r.rDelim) {
+			missing = append(missing, n)
 		}
 	}
-
 	if len(missing) > 0 {
 		return fmt.Errorf("template missing required variables: %s", strings.Join(missing, ", "))
 	}
 	return nil
 }
 
-// Render is a convenience function that creates a new renderer,
-// sets the template and variables, and renders the result in one call.
-// Returns the rendered string and any error that occurred.
-//
-// This function is thread-safe as it creates a new Renderer instance for each call.
-// Equivalent to: NewRenderer().WithTemplate(templateString).WithVariables(templateData).Render()
-func Render(tmpl string, data map[string]any) (string, error) {
-	return NewRenderer().
-		WithTemplate(tmpl).
-		WithVariables(data).
-		Render()
+// execute parses and runs the template, returning the rendered string.
+func (r *Renderer) execute() (string, error) {
+	t, err := template.New("renderer").Delims(r.lDelim, r.rDelim).Parse(r.tmpl)
+	if err != nil {
+		return "", err
+	}
+	var sb strings.Builder
+	if err = t.Execute(&sb, r.vars); err != nil {
+		return "", err
+	}
+	return sb.String(), nil
 }
 
-// MustRender is a convenience function that creates a new renderer,
-// sets the template and variables, and renders the result in one call.
-// Panics if an error occurs during rendering.
+// Render is a one-shot helper equivalent to
+// NewRenderer().WithTemplate(tmpl).WithVariables(data).Render().
 //
-// This function is thread-safe as it creates a new Renderer instance for each call.
-// Equivalent to: NewRenderer().WithTemplate(tmpl).WithVariables(data).MustRender()
+// Example:
+//
+//	out, err := text.Render("Hello {{.Name}}!", map[string]any{"Name": "world"})
+func Render(tmpl string, data map[string]any) (string, error) {
+	return NewRenderer().WithTemplate(tmpl).WithVariables(data).Render()
+}
+
+// MustRender is the panicking variant of [Render].
 func MustRender(tmpl string, data map[string]any) string {
-	return NewRenderer().
-		WithTemplate(tmpl).
-		WithVariables(data).
-		MustRender()
+	return NewRenderer().WithTemplate(tmpl).WithVariables(data).MustRender()
 }

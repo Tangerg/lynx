@@ -26,7 +26,7 @@ func TestStreamParserConfig_Validate(t *testing.T) {
 			name:    "nil_config",
 			config:  nil,
 			wantErr: true,
-			errMsg:  "config is nil",
+			errMsg:  "nil config",
 		},
 		{
 			name: "nil_reader",
@@ -34,7 +34,7 @@ func TestStreamParserConfig_Validate(t *testing.T) {
 				Reader: nil,
 			},
 			wantErr: true,
-			errMsg:  "reader must not be nil",
+			errMsg:  "reader required",
 		},
 		{
 			name: "valid_config_with_buffer_size",
@@ -120,7 +120,7 @@ func TestNewStreamParser(t *testing.T) {
 				assert.NotNil(t, parser)
 				assert.NotNil(t, parser.scopes)
 				assert.NotNil(t, parser.buffers)
-				assert.NotNil(t, parser.topLevelBuf)
+				assert.NotNil(t, parser.topBuf)
 			}
 		})
 	}

@@ -1,26 +1,17 @@
 package system
 
-import (
-	"runtime"
-)
+import "runtime"
 
-var lineSeparator string
-
-func init() {
+// lineSep holds the OS-specific line separator computed at init time.
+var lineSep = func() string {
 	if runtime.GOOS == "windows" {
-		lineSeparator = "\r\n"
-	} else {
-		lineSeparator = "\n"
+		return "\r\n"
 	}
-}
+	return "\n"
+}()
 
-/*
-LineSeparator
-Returns the system-dependent line separator string. It always returns the same value - the initial value of the system property line. separator.
-On UNIX systems, it returns "\n"; on Microsoft Windows systems it returns "\r\n".
-Returns:
-the system-dependent line separator string
-*/
+// LineSeparator returns the OS line separator: "\r\n" on Windows and
+// "\n" elsewhere. The value is fixed for the lifetime of the process.
 func LineSeparator() string {
-	return lineSeparator
+	return lineSep
 }

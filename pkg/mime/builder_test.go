@@ -831,7 +831,7 @@ func TestBuilder_ComplexMIME(t *testing.T) {
 // BenchmarkBuilder_Build benchmarks the build process
 func BenchmarkBuilder_Build(b *testing.B) {
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_, _ = NewBuilder().
 			WithType("application").
 			WithSubType("json").
@@ -850,7 +850,7 @@ func BenchmarkBuilder_WithParams(b *testing.B) {
 	}
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_ = NewBuilder().
 			WithType("text").
 			WithSubType("html").
@@ -872,7 +872,7 @@ func BenchmarkBuilder_FromMime(b *testing.B) {
 	}
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_ = NewBuilder().FromMime(sourceMime)
 	}
 }
