@@ -176,7 +176,7 @@ Raw JSON object with string keys and any valid JSON values.`
 //  3. Unmarshaling the JSON into a map[string]any
 //  4. Returning detailed error information if parsing fails
 func (m *MapParser) Parse(rawLLMOutput string) (map[string]any, error) {
-	cleanedContent := removeMarkdownCodeBlockDelimiters(CleanThinkingTags(rawLLMOutput))
+	cleanedContent := removeMarkdownCodeBlockDelimiters(CleanReasoningTags(rawLLMOutput))
 
 	parsedResult := make(map[string]any)
 	err := json.Unmarshal([]byte(cleanedContent), &parsedResult)
@@ -249,7 +249,7 @@ func (j *JSONParser[T]) Instructions() string {
 //  3. Unmarshaling the JSON into the target type T
 //  4. Providing detailed error information including both processed content and raw input
 func (j *JSONParser[T]) Parse(rawLLMOutput string) (T, error) {
-	cleanedContent := removeMarkdownCodeBlockDelimiters(CleanThinkingTags(rawLLMOutput))
+	cleanedContent := removeMarkdownCodeBlockDelimiters(CleanReasoningTags(rawLLMOutput))
 
 	var parsedResult T
 	err := json.Unmarshal([]byte(cleanedContent), &parsedResult)

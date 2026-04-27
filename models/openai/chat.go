@@ -230,15 +230,16 @@ func (r *responseHelper) buildAssistantMsg(req *openai.ChatCompletionNewParams, 
 	// DeepSeek-R1, vLLM with reasoning parsers, and other OpenAI-compatible
 	// servers expose chain-of-thought as a non-standard `reasoning_content`
 	// field on the message. The official openai-go types do not surface it,
-	// but the raw JSON is preserved under JSON.ExtraFields. Pull it out
-	// when present and route it via the metadata-channel pattern (see
-	// core/model/chat/thinking.go). Official OpenAI Chat Completions
-	// (gpt-4o, o1, o3, gpt-5) do not expose reasoning text here, only via
-	// the Responses API, so this lookup is a silent no-op for them.
+	// but the raw JSON is preserved under JSON.ExtraFields. When present,
+	// route it directly to AssistantMessage.Reasoning. Official OpenAI
+	// Chat Completions (gpt-4o, o1, o3, gpt-5) do not expose reasoning
+	// text here — only via the Responses API — so this lookup is a silent
+	// no-op for them. DeepSeek's API rejects requests that echo
+	// reasoning_content back, so the request side never reads it.
 	if reasoningField, ok := msg.JSON.ExtraFields["reasoning_content"]; ok && reasoningField.Valid() {
 		var reasoning string
-		if err := json.Unmarshal([]byte(reasoningField.Raw()), &reasoning); err == nil && reasoning != "" {
-			msgParams.Metadata[chat.MetaReasoningContent] = reasoning
+		if err := json.Unmarshal([]byte(reasoningField.Raw()), &reasoning); err == nil {
+			msgParams.Reasoning = reasoning
 		}
 	}
 
@@ -307,15 +308,23 @@ func (r *responseHelper) buildResults(req *openai.ChatCompletionNewParams, resp 
 }
 
 func (r *responseHelper) buildMeta(req *openai.ChatCompletionNewParams, resp *openai.ChatCompletion) *chat.ResponseMetadata {
+	usage := &chat.Usage{
+		PromptTokens:     resp.Usage.PromptTokens,
+		CompletionTokens: resp.Usage.CompletionTokens,
+		OriginalUsage:    resp.Usage,
+	}
+	// Surface o-series reasoning token breakdown when present. The SDK
+	// returns 0 when the field is absent from the response payload, so a
+	// 0 value is indistinguishable from "not exposed"; we treat any
+	// non-zero count as an explicit signal worth surfacing.
+	if rt := resp.Usage.CompletionTokensDetails.ReasoningTokens; rt > 0 {
+		usage.ReasoningTokens = &rt
+	}
 	meta := &chat.ResponseMetadata{
 		ID:      resp.ID,
 		Model:   resp.Model,
 		Created: resp.Created,
-		Usage: &chat.Usage{
-			PromptTokens:     resp.Usage.PromptTokens,
-			CompletionTokens: resp.Usage.CompletionTokens,
-			OriginalUsage:    resp.Usage,
-		},
+		Usage:   usage,
 	}
 	meta.Set("original.request", req)
 	meta.Set("original.response", resp)

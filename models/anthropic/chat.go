@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"iter"
+	"strings"
 	"time"
 
 	anthropicsdk "github.com/anthropics/anthropic-sdk-go"
@@ -133,20 +134,30 @@ func (r *requestHelper) buildUserMsg(msg *chat.UserMessage) anthropicsdk.Message
 }
 
 func (r *requestHelper) buildAssistantMsg(msg *chat.AssistantMessage) anthropicsdk.MessageParam {
-	blocks := make([]anthropicsdk.ContentBlockParamUnion, 0, 1+len(msg.ToolCalls))
+	blocks := make([]anthropicsdk.ContentBlockParamUnion, 0, 2+len(msg.ToolCalls))
 
-	// Replay thinking blocks first when present. Anthropic requires the
-	// original signature to be echoed so the API can validate that prior
-	// reasoning has not been tampered with; redacted thinking must also be
-	// passed through opaquely. The signature/data live in Metadata; the
-	// blocks themselves get the visible text (or empty for redacted).
-	if chat.IsThoughtMessage(msg) {
-		if data := chat.RedactedThinkingData(msg); data != "" {
-			blocks = append(blocks, anthropicsdk.NewRedactedThinkingBlock(data))
-		} else if sig := chat.ThinkingSignature(msg); sig != "" {
-			blocks = append(blocks, anthropicsdk.NewThinkingBlock(sig, msg.Text))
-		}
-	} else if msg.Text != "" {
+	// Anthropic requires content blocks in order: thinking → text → tool_use.
+	// Redacted thinking and standard thinking can both appear before text;
+	// signatures (when present) must be echoed verbatim so the API can
+	// validate that prior reasoning has not been tampered with.
+	if data := redactedReasoning(msg); data != "" {
+		blocks = append(blocks, anthropicsdk.NewRedactedThinkingBlock(data))
+	}
+	sig := reasoningSignature(msg)
+	if msg.Reasoning != "" && sig != "" {
+		blocks = append(blocks, anthropicsdk.NewThinkingBlock(sig, msg.Reasoning))
+	} else if sig != "" {
+		// OMITTED display mode: signature only, no visible reasoning text.
+		// Anthropic accepts an empty thinking string with a non-empty
+		// signature in this mode.
+		blocks = append(blocks, anthropicsdk.NewThinkingBlock(sig, ""))
+	}
+	// If we have Reasoning text but no signature, drop it on replay — the
+	// signature is required for the API to accept the block, and a missing
+	// signature usually means the message arrived from an external source
+	// that did not preserve the continuation token.
+
+	if msg.Text != "" {
 		blocks = append(blocks, anthropicsdk.NewTextBlock(msg.Text))
 	}
 
@@ -222,10 +233,20 @@ func (r *responseHelper) mapFinishReason(stopReason anthropicsdk.StopReason) cha
 	}
 }
 
+// buildAssistantMsg folds all ContentBlocks of an Anthropic response into
+// a single AssistantMessage. Thinking text accumulates into Reasoning;
+// the first non-empty signature is stored under MetaReasoningSignature
+// (sufficient for standard extended thinking — interleaved-thinking beta
+// is not supported in this initial implementation). Redacted thinking
+// data is stored under MetaRedactedReasoning. Tool uses become ToolCalls.
 func (r *responseHelper) buildAssistantMsg(resp *anthropicsdk.Message) *chat.AssistantMessage {
 	msgParams := chat.MessageParams{
 		Metadata: make(map[string]any),
 	}
+
+	var reasoningBuf strings.Builder
+	var firstSignature string
+	var redactedData string
 
 	for _, block := range resp.Content {
 		switch block.Type {
@@ -238,72 +259,32 @@ func (r *responseHelper) buildAssistantMsg(resp *anthropicsdk.Message) *chat.Ass
 				Name:      block.Name,
 				Arguments: string(rawInput),
 			})
+		case "thinking":
+			reasoningBuf.WriteString(block.Thinking)
+			if firstSignature == "" {
+				firstSignature = block.Signature
+			}
+		case "redacted_thinking":
+			redactedData = block.Data
 		}
+	}
+
+	msgParams.Reasoning = reasoningBuf.String()
+	if firstSignature != "" {
+		msgParams.Metadata[MetaReasoningSignature] = firstSignature
+	}
+	if redactedData != "" {
+		msgParams.Metadata[MetaRedactedReasoning] = redactedData
 	}
 
 	return chat.NewAssistantMessage(msgParams)
 }
 
-// buildThinkingResult constructs a thinking-typed Result from a single
-// ThinkingBlock or RedactedThinkingBlock. The visible reasoning text (if
-// any) goes into AssistantMessage.Text; the signature or redacted data is
-// stored in metadata so the request side can replay it verbatim on the
-// next turn (multi-Result pattern, see core/model/chat/thinking.go).
-func (r *responseHelper) buildThinkingResult(block anthropicsdk.ContentBlockUnion, finish chat.FinishReason) (*chat.Result, error) {
-	metadata := map[string]any{
-		chat.MetaIsThought: true,
-	}
-	switch block.Type {
-	case "thinking":
-		metadata[chat.MetaThinkingSignature] = block.Signature
-	case "redacted_thinking":
-		metadata[chat.MetaRedactedThinkingData] = block.Data
-	default:
-		return nil, nil
-	}
-	msg := chat.NewAssistantMessage(chat.MessageParams{
-		Text:     block.Thinking,
-		Metadata: metadata,
+func (r *responseHelper) buildResult(resp *anthropicsdk.Message) (*chat.Result, error) {
+	msg := r.buildAssistantMsg(resp)
+	return chat.NewResult(msg, &chat.ResultMetadata{
+		FinishReason: r.mapFinishReason(resp.StopReason),
 	})
-	return chat.NewResult(msg, &chat.ResultMetadata{FinishReason: finish})
-}
-
-// buildResults emits one Result per logical content kind. Thinking blocks
-// (and redacted thinking blocks) become standalone Results carrying the
-// MetaIsThought flag; text + tool_use are aggregated into a final Result.
-// This is the Anthropic-side instance of Spring AI's multi-Generation
-// pattern: the Response.Results list itself encodes block boundaries.
-func (r *responseHelper) buildResults(resp *anthropicsdk.Message) ([]*chat.Result, error) {
-	finish := r.mapFinishReason(resp.StopReason)
-	results := make([]*chat.Result, 0, len(resp.Content))
-
-	for _, block := range resp.Content {
-		if block.Type != "thinking" && block.Type != "redacted_thinking" {
-			continue
-		}
-		// Skip in-flight thinking deltas during streaming where the
-		// signature has not yet arrived; those become valid Results once
-		// the SDK accumulator has populated the signature.
-		if block.Type == "thinking" && block.Signature == "" {
-			continue
-		}
-		thinkingResult, err := r.buildThinkingResult(block, finish)
-		if err != nil {
-			return nil, err
-		}
-		if thinkingResult != nil {
-			results = append(results, thinkingResult)
-		}
-	}
-
-	mainMsg := r.buildAssistantMsg(resp)
-	mainResult, err := chat.NewResult(mainMsg, &chat.ResultMetadata{FinishReason: finish})
-	if err != nil {
-		return nil, err
-	}
-	results = append(results, mainResult)
-
-	return results, nil
 }
 
 func (r *responseHelper) buildMeta(req *anthropicsdk.MessageNewParams, resp *anthropicsdk.Message) *chat.ResponseMetadata {
@@ -325,14 +306,14 @@ func (r *responseHelper) buildMeta(req *anthropicsdk.MessageNewParams, resp *ant
 }
 
 func (r *responseHelper) buildChatResponse(req *anthropicsdk.MessageNewParams, resp *anthropicsdk.Message) (*chat.Response, error) {
-	results, err := r.buildResults(resp)
+	result, err := r.buildResult(resp)
 	if err != nil {
 		return nil, err
 	}
 
 	meta := r.buildMeta(req, resp)
 
-	return chat.NewResponse(results, meta)
+	return chat.NewResponse([]*chat.Result{result}, meta)
 }
 
 type ChatModelConfig struct {

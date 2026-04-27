@@ -5,8 +5,8 @@ import (
 	"strings"
 )
 
-// ThinkingTagCleaner removes thinking-tag wrappers commonly emitted by
-// reasoning-style models when their reasoning output is exposed inline in
+// ReasoningTagCleaner removes reasoning-tag wrappers commonly emitted by
+// reasoning-style models when their chain-of-thought is exposed inline in
 // the response text rather than via a structured field. Different models
 // use different wrapper conventions; the default cleaner recognizes:
 //
@@ -16,23 +16,23 @@ import (
 //   - ```thinking ... ```        (Markdown fenced)
 //   - <!-- thinking: ... -->     (HTML comment)
 //
-// This is the Go counterpart to Spring AI's ThinkingTagCleaner and exists
-// for the same reason: when a model bakes its reasoning into the visible
-// text instead of exposing a separate reasoning_content field, downstream
-// structured parsers (JSON, schema-typed) blow up on the thinking prefix.
-// The fast path keeps the cleaner cheap enough to call on every parse.
+// When a model bakes its reasoning into the visible text instead of
+// exposing a separate reasoning_content field, downstream structured
+// parsers (JSON, schema-typed) blow up on the reasoning prefix. The fast
+// path keeps the cleaner cheap enough to call on every parse.
 //
 // Patterns are matched case-insensitively and across newlines (regex (?is)
 // flags). Cleaning is deterministic: each pattern is applied in turn until
 // the string stops shrinking; nested wrappers are handled by the
 // non-greedy quantifier within each pattern.
-type ThinkingTagCleaner struct {
+type ReasoningTagCleaner struct {
 	patterns []*regexp.Regexp
 }
 
-// DefaultThinkingTagPatterns lists the wrapper regexes used by NewThinkingTagCleaner.
-// The slice is exported so callers can extend or replace it explicitly.
-var DefaultThinkingTagPatterns = []string{
+// DefaultReasoningTagPatterns lists the wrapper regexes used by
+// NewReasoningTagCleaner. The slice is exported so callers can extend or
+// replace it explicitly.
+var DefaultReasoningTagPatterns = []string{
 	`(?is)<thinking>.*?</thinking>\s*`,
 	`(?is)<think>.*?</think>\s*`,
 	`(?is)<reasoning>.*?</reasoning>\s*`,
@@ -40,37 +40,37 @@ var DefaultThinkingTagPatterns = []string{
 	`(?is)<!--\s*thinking:.*?-->\s*`,
 }
 
-// NewThinkingTagCleaner returns a cleaner configured with the default
-// pattern set. Use NewThinkingTagCleanerWithPatterns to supply a custom
+// NewReasoningTagCleaner returns a cleaner configured with the default
+// pattern set. Use NewReasoningTagCleanerWithPatterns to supply a custom
 // list of regex sources.
-func NewThinkingTagCleaner() *ThinkingTagCleaner {
-	return mustNewThinkingTagCleaner(DefaultThinkingTagPatterns)
+func NewReasoningTagCleaner() *ReasoningTagCleaner {
+	return mustNewReasoningTagCleaner(DefaultReasoningTagPatterns)
 }
 
-// NewThinkingTagCleanerWithPatterns returns a cleaner that strips text
+// NewReasoningTagCleanerWithPatterns returns a cleaner that strips text
 // matching any of the supplied regex sources. Each pattern is compiled
 // eagerly; a malformed pattern triggers a panic, mirroring how Go's
 // regexp.MustCompile handles invalid input. Pass an empty slice to disable
 // cleaning (Clean becomes a no-op fast-path identity function).
-func NewThinkingTagCleanerWithPatterns(patterns []string) *ThinkingTagCleaner {
-	return mustNewThinkingTagCleaner(patterns)
+func NewReasoningTagCleanerWithPatterns(patterns []string) *ReasoningTagCleaner {
+	return mustNewReasoningTagCleaner(patterns)
 }
 
-func mustNewThinkingTagCleaner(patterns []string) *ThinkingTagCleaner {
+func mustNewReasoningTagCleaner(patterns []string) *ReasoningTagCleaner {
 	compiled := make([]*regexp.Regexp, 0, len(patterns))
 	for _, p := range patterns {
 		compiled = append(compiled, regexp.MustCompile(p))
 	}
-	return &ThinkingTagCleaner{patterns: compiled}
+	return &ReasoningTagCleaner{patterns: compiled}
 }
 
-// Clean removes any thinking-tag wrappers from input. Empty inputs and
+// Clean removes any reasoning-tag wrappers from input. Empty inputs and
 // inputs that obviously cannot contain a wrapper short-circuit without
 // touching any regex engine, so the cleaner is safe to apply
 // unconditionally before structured parsing. Cleaning is non-destructive:
 // no surrounding whitespace beyond the trailing-space suffix in each
 // pattern is consumed.
-func (c *ThinkingTagCleaner) Clean(input string) string {
+func (c *ReasoningTagCleaner) Clean(input string) string {
 	if input == "" || len(c.patterns) == 0 {
 		return input
 	}
@@ -87,14 +87,14 @@ func (c *ThinkingTagCleaner) Clean(input string) string {
 	return result
 }
 
-// defaultThinkingTagCleaner is shared by structured parsers and other
+// defaultReasoningTagCleaner is shared by structured parsers and other
 // callers that don't need a custom configuration. It is safe for
 // concurrent use because regexp.Regexp is read-only after compilation.
-var defaultThinkingTagCleaner = NewThinkingTagCleaner()
+var defaultReasoningTagCleaner = NewReasoningTagCleaner()
 
-// CleanThinkingTags is a package-level convenience that delegates to a
+// CleanReasoningTags is a package-level convenience that delegates to a
 // shared default cleaner. Use it from hot paths where allocating a
 // per-call cleaner would be wasteful.
-func CleanThinkingTags(input string) string {
-	return defaultThinkingTagCleaner.Clean(input)
+func CleanReasoningTags(input string) string {
+	return defaultReasoningTagCleaner.Clean(input)
 }
