@@ -44,7 +44,7 @@
 - Anthropic 适配器走**多 Result 模式**
 - OpenAI 适配器走**元数据通道模式**
 - `Response.Thoughts()` / `OutputText()` 同时识别两套
-- `ThinkingTagCleaner`（与本设计正交，保留并 rename 为 `ReasoningTagCleaner`）
+- `ThinkingTagCleaner`（v2 实施过程中评估为多余——见 §10.11——直接删除而非 rename 保留）
 
 **核心痛点**：业务侧拿 reasoning 要么过 `IsThoughtMessage`、要么过 `ReasoningContent`，两套互斥访问器是 Spring AI 自己点名批评的"leaky abstraction"。Lynx 没正式 release，直接走对的设计。
 
@@ -162,7 +162,6 @@ func reasoningSignatures(m *chat.AssistantMessage) [][]byte {
 | `Response.Reasoning()` 便利视图 | `core/model/chat/response.go` |
 | 流式累积 `msg.Reasoning += other.Reasoning` | `core/model/chat/response_accumulator.go` |
 | `Usage.ReasoningTokens *int64` | `core/model/usage.go` |
-| `ReasoningTagCleaner` 工具 | `core/model/chat/reasoning_cleaner.go` |
 | key 前缀约定（`lynx:chat:<provider>:<concept>`）| 在本设计文档说明，无代码强制 |
 
 **chat 包不持有任何 provider 名称的代码**——`anthropic` / `google` / `openai` 这些字符串在 core 里 grep 零命中，是验收标准之一。
@@ -359,7 +358,7 @@ if len(sigList) > 0 {
 | OpenAI o-series Chat Completions | `""`（API 不返）| – | 不适用 |
 | OpenAI o-series Responses API | （未来）`output_reasoning` | – | 服务端持久化（previous_response_id）|
 | Google Gemini | ✅ thought parts 拼接 | `google.MetaReasoningSignatures` | 必须回传 byte signatures |
-| Qwen / Nova（inline `<think>`）| （由 `ReasoningTagCleaner` 在结构化输出前清掉）| – | 不回传 |
+| Qwen / Nova（inline `<think>`）| 由 OpenAI-compatible adapter 在 buildAssistantMsg 中拆开：thinking text → Reasoning，stripped content → Text | – | 不回传 |
 
 ---
 
@@ -421,9 +420,16 @@ API 模式：thinking 仍发生，响应只有 signature 没有 text。
 
 ### 6.3 Inline `<think>` 标签
 
-`ReasoningTagCleaner`（旧名 `ThinkingTagCleaner`，本次一并 rename）在结构化输出解析前生效，**不**自动剥离进 `Reasoning` 字段——保持 v0/v1 的"显式优于隐式"决定。
+某些通过 OpenAI 兼容 API 暴露的开源推理模型（Qwen3、Nova、DeepSeek-R1 蒸馏版部分实现）会把 `<think>...</think>` 直接拼在 content 字符串里，不走结构化字段。
 
-> 可选未来增强：在 OpenAI 兼容 adapter 的 response 路径检测 content 起始 `<think>...</think>`，opt-in flag 开启时自动剥离塞 `Reasoning`。**不在初版**。
+**v2 决策**：拆解逻辑放在**provider 适配器**里，不是 chat 包。具体做法：
+- OpenAI-compatible adapter 在 `buildAssistantMsg` 中检测 `msg.Content` 是否以 `<think>` 开头
+- 命中则用本包内的正则把 thinking 段剥离 → `Reasoning` 字段
+- 剩余文本进 `Text`
+
+这样 chat 包的 `StructuredParser.Parse(text)` 收到的 `text` 已经是干净的主答内容，无需再做 reasoning-tag 兜底。**v0/v1 在 chat 包提供的 `ReasoningTagCleaner` 直接删除**——它的存在前提是"reasoning 跟主文本混在一起到达消费者"，v2 把这种混合状态消除在 adapter 层。
+
+> 实施时 OpenAI-compatible adapter 当前还没有这层 inline 拆解；当真正需要支持 Qwen / Nova 时再在 openai 包内加一个未导出的 splitter 函数。本初版不在 OpenAI adapter 实现，因为现有 `JSON.ExtraFields["reasoning_content"]` 路径已经覆盖 DeepSeek-R1 / vLLM 等结构化暴露 reasoning 的模型。
 
 ### 6.4 Reasoning 与 ToolCalls 同时存在
 
@@ -460,12 +466,12 @@ core/model/chat/thinking.go → 直接删除（无替代文件）
   - IsThoughtMessage() / ThinkingSignature()
   - RedactedThinkingData() / ReasoningContent()
 
-core/model/chat/thinking_cleaner.go → 重命名为 reasoning_cleaner.go
-  - ThinkingTagCleaner → ReasoningTagCleaner
-  - NewThinkingTagCleaner → NewReasoningTagCleaner
-  - DefaultThinkingTagPatterns → DefaultReasoningTagPatterns
-  - CleanThinkingTags → CleanReasoningTags
-  - 默认 pattern 不变（仍然识别 <think> / <thinking> / <reasoning> 等）
+core/model/chat/thinking_cleaner.go → 直接删除（不再需要）
+  原因：reasoning 拆解是 provider 适配器的职责，chat 包的兜底
+  cleaner 是 v0 时代两套混合存储模式留下的妥协。当 reasoning 在
+  AssistantMessage.Reasoning 字段独立承载后，parser 看到的 Text
+  已经干净——前置清洗成多余环节。
+core/model/chat/thinking_cleaner_test.go → 一并删除
 
 core/model/chat/response_accumulator.go:
   - MetaReasoningContent 拼接特例（~10 行）
@@ -493,8 +499,7 @@ models/openai/chat.go:
 | 3 | `core/model/chat/response.go` | `Response.Reasoning()` + 简化 `OutputText()` |
 | 4 | `core/model/chat/response_accumulator.go` | `msg.Reasoning += other.Reasoning` 一行；删 MetaReasoningContent 特例 |
 | 5 | `core/model/usage.go` | `ReasoningTokens *int64` + `HasReasoningTokens()` |
-| 6 | `core/model/chat/reasoning_cleaner.go`（rename from thinking_cleaner.go）| 类型与函数全部 rename，保留默认 patterns |
-| 7 | `core/model/chat/parser.go` | `CleanThinkingTags` 调用改 `CleanReasoningTags` |
+| 6 | `core/model/chat/parser.go` | 移除 `CleanThinkingTags` 调用——reasoning 已在 adapter 层拆离，parser 输入本就干净 |
 | 8 | `models/anthropic/metadata.go`（**新文件**）| 定义 `MetaReasoningSignature` / `MetaRedactedReasoning` 常量 + 包内 helper |
 | 9 | `models/anthropic/chat.go` | 响应单 Result 写 Reasoning + Metadata；请求从 Reasoning + Metadata 重建 |
 | 10 | `models/openai/chat.go` | reasoning_content 改写 Reasoning；抽 ReasoningTokens 进 Usage（无 metadata key 需求）|
@@ -513,8 +518,8 @@ models/openai/chat.go:
 | `response.go`（Reasoning 方法 + OutputText 简化）| +10 / -25 净 -15 |
 | `response_accumulator.go` | +1 / -10 净 -9 |
 | `usage.go` | +10 |
-| `reasoning_cleaner.go` 文件改名 + 类型改名 | ±0 净（机械替换） |
-| `parser.go` 调用改名 | ±0 净 |
+| `thinking_cleaner.go` + `thinking_cleaner_test.go` 整体删除 | -200 |
+| `parser.go` 移除 `CleanThinkingTags` 调用 | -2 |
 | `models/anthropic/metadata.go`（新文件，2 const + 2 helper）| +30 |
 | Anthropic `chat.go`（buildAssistantMsg 改动）| +25 / -75 净 -50 |
 | OpenAI adapter | ±0（仅一处 metadata key 改字段名）|
@@ -580,7 +585,7 @@ Spring AI 提案的 `ReasoningContent` record 太重：4 字段 + 4 type enum。
 | signature 位置 | properties Map | record 字段 | attributes Map | **Metadata Map** |
 | 多 block 表达 | 多 Generation | List | 单 String 拼接 | **单 String 拼接** |
 | Usage.reasoningTokens | ❌ | ✅ | ❌ | **✅** |
-| Inline `<think>` 清洗 | ✅ ThinkingTagCleaner | ✅ | – | ✅ ReasoningTagCleaner |
+| Inline `<think>` 清洗 | ✅ ThinkingTagCleaner（chat 包）| ✅ | – | adapter 责任，chat 包**不持有** |
 | 业务侧 API | 遍历 generations + properties key | `getReasoning()` | `aiMessage.thinking()` | **`msg.Reasoning` 字段** |
 | 命名 | thinking + reasoning 混用 | reasoning | thinking | **reasoning（统一）** |
 
@@ -616,7 +621,7 @@ Spring AI 提案的 `ReasoningContent` record 太重：4 字段 + 4 type enum。
 **否**。显式优于隐式，需要时后续 opt-in。
 
 ### 10.9 ReasoningTagCleaner 是否一并 rename
-**是**。用户确认"现有代码不必考虑（疯狂迭代期）"，全包 rename 保持命名一致。默认 pattern 不变。
+**最终决策：直接删除，不 rename**。早期方案是 rename + 保留默认 pattern。落地评审时认识到——reasoning 一旦在 `AssistantMessage.Reasoning` 字段独立承载，parser 看到的 `Text` 就该已经干净，前置清洗只是 v0 双模式时代的妥协。把拆解责任交给 provider adapter 后，chat 包的兜底 cleaner 就是死代码。见 §10.11 详述。
 
 ### 10.10 Provider-specific metadata key 放哪个包
 **各自的 provider 包**（`models/anthropic/metadata.go` / 未来 `models/google/metadata.go`），不放 chat 包。理由：
@@ -624,6 +629,19 @@ Spring AI 提案的 `ReasoningContent` record 太重：4 字段 + 4 type enum。
 - 新增 provider 时不需要改 core
 - 同 provider 内的 key + helper 高度内聚，命名更短（`MetaReasoningSignature` 在 anthropic 包内一目了然，无需 `MetaAnthropic*` 前缀）
 - key 字符串值仍然带 `lynx:chat:<provider>:<concept>` 前缀，避免序列化时跨 provider 冲突
+
+### 10.11 ReasoningTagCleaner 是否保留
+**否，删除**（10.9 的延伸定案）。
+
+**前提**：`AssistantMessage` 已经把 reasoning 拆出独立字段。
+
+**论点**：reasoning-tag 拆解（`<think>...</think>`、markdown thinking fence 等）的存在前提是"reasoning 跟主文本混在同一个字符串到达消费者"。一旦 reasoning 在 adapter 层就被拆到 `Reasoning` 字段，`Text` 字段对结构化 parser 来说本就干净——前置 cleaner 是多余环节。
+
+**对应职责再分配**：
+- **provider 适配器**负责把任何形态的 reasoning（结构化 SDK 字段、`reasoning_content` JSON 字段、inline `<think>...</think>` 标签）拆出去填进 `Reasoning`
+- **chat 包**只信任 adapter 给出的字段语义，不再做兜底兼容
+
+**Inline `<think>` 何时实现**：当 Lynx 真正接 Qwen / Nova / DeepSeek-R1 distill via OpenAI-compat 时，在 OpenAI adapter 包内加一个未导出的 splitter 函数（直接写正则即可，~30 行）。比把 ~200 行的通用 cleaner 留在 chat 包等待召唤更轻。
 
 ---
 
@@ -637,11 +655,10 @@ Spring AI 提案的 `ReasoningContent` record 太重：4 字段 + 4 type enum。
 3. `core/model/chat/response.go` 加 `Response.Reasoning()`，简化 `OutputText()`
 4. `core/model/chat/response_accumulator.go` 加 `Reasoning` 拼接，删 MetaReasoningContent 特例
 5. `core/model/usage.go` 加 `ReasoningTokens`
-6. `core/model/chat/thinking_cleaner.go` 重命名为 `reasoning_cleaner.go`，类型/函数同步 rename
-7. `core/model/chat/parser.go` 更新 `CleanThinkingTags` → `CleanReasoningTags` 调用
+6. `core/model/chat/thinking_cleaner.go` + `thinking_cleaner_test.go` 整体删除
+7. `core/model/chat/parser.go` 移除 `CleanThinkingTags` 调用
 8. `core/model/chat/thinking_test.go` 删除；新写 `core/model/chat/message_reasoning_test.go`（围绕新字段）
-9. `core/model/chat/thinking_cleaner_test.go` 重命名为 `reasoning_cleaner_test.go`
-10. `go build` + `go test` 验证 `core/`，确认 `grep -r "anthropic\|openai\|google" core/model/` 零命中
+9. `go build` + `go test` 验证 `core/`，确认 `grep -r "anthropic\|openai\|google" core/model/` 零命中
 
 **Step B**（Anthropic 适配器，~2 小时）：
 11. **新建** `models/anthropic/metadata.go`：定义 `MetaReasoningSignature` / `MetaRedactedReasoning` 常量 + 包内 `reasoningSignature` / `redactedReasoning` helper
