@@ -442,6 +442,10 @@ private static final List<Pattern> DEFAULT_PATTERNS = Arrays.asList(
 
 ## 9. 对 Lynx 的设计映射（关键纠正）
 
+> **本节已被 `REASONING_UNIFIED_DESIGN.md` 取代**。结论从「不需要在 AssistantMessage 上加字段」演化为「加一个 `Reasoning string` 单字段、provider-specific signature 走 Metadata map（key 在各 provider 包内）」。详见新文档。
+>
+> 历史归档保留如下：
+
 > 本节修正 `SPRING_AI_CAPABILITY_GAPS.md §1.3 Step 1` 的过度激进——**不需要在 `AssistantMessage` 上加 `Thinking` 字段**。
 
 ### 9.1 现有 Lynx 结构已具备所有必需原语

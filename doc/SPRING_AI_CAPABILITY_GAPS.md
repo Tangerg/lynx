@@ -1,5 +1,8 @@
 # Lynx vs Spring AI 2.0 — 能力差距分析（2026-04-26）
 
+> **§1.3「Lynx 必须补齐的最小 surface」已由 `REASONING_UNIFIED_DESIGN.md` 取代落地**：
+> Reasoning 不再走多 Result + magic key，而是 `AssistantMessage.Reasoning string` 单字段 + provider 包内 metadata key。其余章节（§2-§7 关于 Anthropic Prompt Caching / OpenAI Responses API / Google Cached Content API 等）仍然有效。
+>
 > 本文是 `SPRING_AI_COMPARISON.md`（2026-04-20 基线）的**补充快照**，专注于：
 > 1. **推理模型的 think / reasoning / thinking 处理**（用户重点关注，原文档完全未覆盖）
 > 2. Spring AI 2.0-SNAPSHOT 在最近两周内继续落地、Lynx 仍空白的**新能力面**
