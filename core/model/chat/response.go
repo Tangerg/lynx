@@ -2,7 +2,6 @@ package chat
 
 import (
 	"errors"
-	"strings"
 
 	"github.com/Tangerg/lynx/core/model"
 )
@@ -186,40 +185,4 @@ func (r *Response) findFirstResultWithToolCalls() *Result {
 	}
 
 	return nil
-}
-
-// Reasoning returns the concatenation of AssistantMessage.Reasoning from
-// every result in this response. Empty string when no result carries
-// reasoning text. The order of contributions follows Results order.
-func (r *Response) Reasoning() string {
-	if r == nil {
-		return ""
-	}
-	var sb strings.Builder
-	for _, result := range r.Results {
-		if result == nil || result.AssistantMessage == nil {
-			continue
-		}
-		sb.WriteString(result.AssistantMessage.Reasoning)
-	}
-	return sb.String()
-}
-
-// OutputText returns AssistantMessage.Text concatenated across results.
-// Reasoning is a separate field on AssistantMessage (see Reasoning), so
-// the assistant's main answer is just the Text concatenation — no need
-// to filter out "thought results" the way earlier multi-Result designs
-// required.
-func (r *Response) OutputText() string {
-	if r == nil {
-		return ""
-	}
-	var sb strings.Builder
-	for _, result := range r.Results {
-		if result == nil || result.AssistantMessage == nil {
-			continue
-		}
-		sb.WriteString(result.AssistantMessage.Text)
-	}
-	return sb.String()
 }
