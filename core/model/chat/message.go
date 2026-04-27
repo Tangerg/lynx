@@ -93,6 +93,7 @@ type ToolReturn struct {
 type MessageParams struct {
 	Type        MessageType    `json:"type"`         // The type of the message (MessageTypeSystem, MessageTypeUser, MessageTypeAssistant, or MessageTypeTool)
 	Text        string         `json:"text"`         // The text content of the message
+	Reasoning   string         `json:"reasoning"`    // Visible reasoning/chain-of-thought text (assistant messages only)
 	Metadata    map[string]any `json:"metadata"`     // metadata for additional message information
 	Media       []*media.Media `json:"media"`        // Media attachments (images, documents, etc.)
 	ToolCalls   []*ToolCall    `json:"tool_calls"`   // Tool function calls for assistant messages
@@ -129,8 +130,18 @@ func NewMessage(params MessageParams) (Message, error) {
 // By including assistant messages in the conversation history, you provide context to the AI about
 // prior exchanges. AssistantMessage can contain text content, media attachments, and internalTool calls
 // for function execution.
+//
+// Reasoning is the visible chain-of-thought text returned by reasoning-style
+// models (Anthropic extended thinking, DeepSeek-R1 reasoning_content, Gemini
+// thoughts, etc.). It is an independent channel from Text: providers that
+// expose reasoning publish it via this field, providers that do not leave
+// it empty. Provider-specific continuation tokens (Anthropic signature,
+// Google thoughtSignatures, redacted-thinking payloads) are stored under
+// well-known keys in Metadata, defined in each provider's adapter package
+// using the "lynx:chat:<provider>:<concept>" namespace convention.
 type AssistantMessage struct {
 	Text      string         `json:"text"`
+	Reasoning string         `json:"reasoning,omitempty"`
 	Media     []*media.Media `json:"media"`
 	ToolCalls []*ToolCall    `json:"tool_calls"`
 	Metadata  map[string]any `json:"metadata"`
@@ -155,6 +166,12 @@ func (a *AssistantMessage) HasMedia() bool {
 
 func (a *AssistantMessage) HasToolCalls() bool {
 	return len(a.ToolCalls) > 0
+}
+
+// HasReasoning reports whether the assistant message carries visible
+// reasoning text. Returns false for nil receivers.
+func (a *AssistantMessage) HasReasoning() bool {
+	return a != nil && a.Reasoning != ""
 }
 
 // NewAssistantMessage creates a new assistant message using Go generics for type-safe parameter handling.
@@ -209,6 +226,7 @@ func NewAssistantMessage[T string | []*media.Media | []*ToolCall | map[string]an
 
 	return &AssistantMessage{
 		Text:      messageParams.Text,
+		Reasoning: messageParams.Reasoning,
 		Media:     messageParams.Media,
 		ToolCalls: messageParams.ToolCalls,
 		Metadata:  messageParams.Metadata,

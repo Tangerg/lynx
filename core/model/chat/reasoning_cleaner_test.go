@@ -2,8 +2,8 @@ package chat
 
 import "testing"
 
-func TestThinkingTagCleaner_Default_FastPath(t *testing.T) {
-	c := NewThinkingTagCleaner()
+func TestReasoningTagCleaner_Default_FastPath(t *testing.T) {
+	c := NewReasoningTagCleaner()
 
 	cases := []struct {
 		name string
@@ -24,8 +24,8 @@ func TestThinkingTagCleaner_Default_FastPath(t *testing.T) {
 	}
 }
 
-func TestThinkingTagCleaner_Default_StripsKnownPatterns(t *testing.T) {
-	c := NewThinkingTagCleaner()
+func TestReasoningTagCleaner_Default_StripsKnownPatterns(t *testing.T) {
+	c := NewReasoningTagCleaner()
 
 	cases := []struct {
 		name string
@@ -74,16 +74,16 @@ func TestThinkingTagCleaner_Default_StripsKnownPatterns(t *testing.T) {
 	}
 }
 
-func TestCleanThinkingTags_PackageLevel(t *testing.T) {
+func TestCleanReasoningTags_PackageLevel(t *testing.T) {
 	const in = "<think>hidden reasoning</think>visible"
 	const want = "visible"
-	if got := CleanThinkingTags(in); got != want {
-		t.Fatalf("CleanThinkingTags: want %q, got %q", want, got)
+	if got := CleanReasoningTags(in); got != want {
+		t.Fatalf("CleanReasoningTags: want %q, got %q", want, got)
 	}
 }
 
-func TestThinkingTagCleaner_CustomPatterns(t *testing.T) {
-	c := NewThinkingTagCleanerWithPatterns([]string{`(?is)<scratchpad>.*?</scratchpad>\s*`})
+func TestReasoningTagCleaner_CustomPatterns(t *testing.T) {
+	c := NewReasoningTagCleanerWithPatterns([]string{`(?is)<scratchpad>.*?</scratchpad>\s*`})
 	const in = "<scratchpad>x</scratchpad>kept"
 	if got := c.Clean(in); got != "kept" {
 		t.Fatalf("custom pattern: want kept, got %q", got)
@@ -95,8 +95,8 @@ func TestThinkingTagCleaner_CustomPatterns(t *testing.T) {
 	}
 }
 
-func TestThinkingTagCleaner_EmptyPatterns_NoOp(t *testing.T) {
-	c := NewThinkingTagCleanerWithPatterns(nil)
+func TestReasoningTagCleaner_EmptyPatterns_NoOp(t *testing.T) {
+	c := NewReasoningTagCleanerWithPatterns(nil)
 	const in = "<think>kept</think>tail"
 	if got := c.Clean(in); got != in {
 		t.Fatalf("empty pattern set should be a no-op, got %q", got)

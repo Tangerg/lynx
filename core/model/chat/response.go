@@ -188,18 +188,10 @@ func (r *Response) findFirstResultWithToolCalls() *Result {
 	return nil
 }
 
-// Thoughts returns all reasoning/thinking text carried by this response,
-// concatenated. It surfaces both patterns described in thinking.go:
-//
-//   - Multi-Result pattern: Results whose AssistantMessage is flagged with
-//     MetaIsThought contribute their Text.
-//   - Metadata-channel pattern: MetaReasoningContent values from any Result
-//     contribute their string.
-//
-// Returns "" when no reasoning content was returned by the model. The order
-// of contributions follows Results order, preserving the sequence the model
-// produced; thinking text precedes reasoning_content for a given Result.
-func (r *Response) Thoughts() string {
+// Reasoning returns the concatenation of AssistantMessage.Reasoning from
+// every result in this response. Empty string when no result carries
+// reasoning text. The order of contributions follows Results order.
+func (r *Response) Reasoning() string {
 	if r == nil {
 		return ""
 	}
@@ -208,20 +200,16 @@ func (r *Response) Thoughts() string {
 		if result == nil || result.AssistantMessage == nil {
 			continue
 		}
-		if IsThoughtMessage(result.AssistantMessage) {
-			sb.WriteString(result.AssistantMessage.Text)
-		}
-		if rc := ReasoningContent(result.AssistantMessage); rc != "" {
-			sb.WriteString(rc)
-		}
+		sb.WriteString(result.AssistantMessage.Reasoning)
 	}
 	return sb.String()
 }
 
-// OutputText returns the assistant's main answer text, with thinking blocks
-// stripped. It is the natural counterpart to Thoughts and corresponds to
-// Spring AI's outputWithoutThoughts metadata view. Results flagged as
-// thoughts are skipped; remaining Results contribute their Text.
+// OutputText returns AssistantMessage.Text concatenated across results.
+// Reasoning is a separate field on AssistantMessage (see Reasoning), so
+// the assistant's main answer is just the Text concatenation — no need
+// to filter out "thought results" the way earlier multi-Result designs
+// required.
 func (r *Response) OutputText() string {
 	if r == nil {
 		return ""
@@ -229,9 +217,6 @@ func (r *Response) OutputText() string {
 	var sb strings.Builder
 	for _, result := range r.Results {
 		if result == nil || result.AssistantMessage == nil {
-			continue
-		}
-		if IsThoughtMessage(result.AssistantMessage) {
 			continue
 		}
 		sb.WriteString(result.AssistantMessage.Text)
