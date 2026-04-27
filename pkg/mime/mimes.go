@@ -8,6 +8,8 @@ import (
 	"sync"
 )
 
+// extMimetypeStringMappings is the built-in extension-to-MIME table
+// loaded into [extToMimeTypeMappings] at init time.
 var extMimetypeStringMappings = map[string]string{
 	// Microsoft Office (OpenXML)
 	".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -690,23 +692,10 @@ func init() {
 	}
 }
 
-// StringTypeByExtension returns the MIME type string associated with a file extension.
-// It uses both the Go standard library's mime package and an internal mapping to
-// determine the appropriate MIME type. If the extension is not recognized,
-// it falls back to "application/octet-stream" which is the standard default for
-// binary content of unknown type.
-//
-// This function is thread-safe and uses read locks for concurrent access.
-//
-// Parameters:
-//   - filePath: A file path or filename from which to extract the extension
-//
-// Examples:
-//   - StringTypeByExtension("document.pdf") returns "application/pdf"
-//   - StringTypeByExtension("image.png") returns "image/png"
-//   - StringTypeByExtension("file.unknown") returns "application/octet-stream"
-//
-// Returns a string representation of the MIME type associated with the file extension.
+// StringTypeByExtension returns the MIME type string for the extension
+// of filePath. It consults the package's built-in table first, then
+// the standard library's mime package, falling back to
+// "application/octet-stream" if nothing matches. Safe for concurrent use.
 func StringTypeByExtension(filePath string) string {
 	fileExtension := strings.ToLower(path.Ext(filePath))
 
@@ -719,7 +708,7 @@ func StringTypeByExtension(filePath string) string {
 		return mimeTypeString
 	}
 
-	// Fall back to  the standard library's mime package
+	// Fall back to the standard library's mime package
 	mimeTypeString = mime.TypeByExtension(fileExtension)
 	if mimeTypeString != "" {
 		return mimeTypeString
@@ -730,24 +719,9 @@ func StringTypeByExtension(filePath string) string {
 	return mimeTypeString
 }
 
-// TypeByExtension returns a MIME object for the given file path or filename.
-// It extracts the extension from the file path and looks it up in an internal
-// mapping of extensions to MIME types. This provides a way to determine the likely
-// MIME type of a file based on its extension without examining the file's contents.
-//
-// This function is thread-safe and uses read locks for concurrent access.
-// The returned MIME object is a clone to ensure immutability.
-//
-// Parameters:
-//   - filePath: The file path or filename from which to extract the extension
-//
-// Examples:
-//   - TypeByExtension("document.html") returns a MIME object for "text/html"
-//   - TypeByExtension("images/photo.jpg") returns a MIME object for "image/jpeg"
-//   - TypeByExtension("/path/to/data.json") returns a MIME object for "application/json"
-//
-// Returns a MIME type object and a boolean indicating if the extension was recognized.
-// If the extension is not recognized, returns nil and false.
+// TypeByExtension returns a [MIME] for the extension of filePath and
+// whether it was found in the package's built-in table. The returned
+// value is a clone and may be mutated freely. Safe for concurrent use.
 func TypeByExtension(filePath string) (*MIME, bool) {
 	fileExtension := strings.ToLower(path.Ext(filePath))
 
@@ -762,25 +736,9 @@ func TypeByExtension(filePath string) (*MIME, bool) {
 	return nil, false
 }
 
-// RegisterExtension registers a new file extension with its corresponding MIME type.
-// It updates both the string mapping and parsed MIME type mapping.
-// If the extension already exists, it will be overwritten.
-//
-// This function is thread-safe and uses write locks to ensure data consistency.
-//
-// Parameters:
-//   - ext: The file extension (should include the leading dot, e.g., ".json")
-//   - mimeType: The MIME type string (e.g., "application/json")
-//
-// Returns:
-//   - error: Returns an error if the MIME type string is invalid
-//
-// Example:
-//
-//	err := RegisterExtension(".custom", "application/x-custom")
-//	if err != nil {
-//	    log.Printf("Failed to register extension: %v", err)
-//	}
+// RegisterExtension associates ext (with leading dot, e.g. ".json")
+// with mimeType, replacing any prior entry. Returns an error if
+// mimeType fails to parse. Safe for concurrent use.
 func RegisterExtension(ext, mimeType string) error {
 	parsedMime, err := Parse(mimeType)
 	if err != nil {
@@ -795,26 +753,9 @@ func RegisterExtension(ext, mimeType string) error {
 	return nil
 }
 
-// RegisterExtensions registers multiple file extensions with their corresponding MIME types.
-// It's a batch version of RegisterExtension for convenience.
-//
-// This function is thread-safe. It acquires a single write lock for the entire batch
-// operation to ensure atomicity and better performance than multiple individual calls.
-//
-// Parameters:
-//   - mappings: A map of file extensions to MIME type strings
-//
-// Returns:
-//   - error: Returns the first error encountered, if any. If an error occurs,
-//     no mappings from this batch will be registered (all-or-nothing behavior).
-//
-// Example:
-//
-//	mappings := map[string]string{
-//	    ".custom1": "application/x-custom1",
-//	    ".custom2": "application/x-custom2",
-//	}
-//	err := RegisterExtensions(mappings)
+// RegisterExtensions is the batch form of [RegisterExtension]. All
+// entries are validated up front; on the first parse failure no
+// mapping is installed (all-or-nothing). Safe for concurrent use.
 func RegisterExtensions(mappings map[string]string) error {
 	// Pre-parse all MIME types before acquiring the lock
 	parsedMimes := make(map[string]*MIME, len(mappings))

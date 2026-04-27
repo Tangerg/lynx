@@ -5,349 +5,153 @@ import (
 	"unicode"
 )
 
-// AsCamelCase creates a CamelCase type from a string.
-// This is a convenience constructor function that wraps a string into the CamelCase type.
+// CamelCase is a string in camelCase or PascalCase form. The methods on
+// CamelCase split the value into its constituent words.
 //
-// Parameters:
-//   - inputString: The string to convert to CamelCase type
-//
-// Returns:
-//   - A CamelCase instance wrapping the input string
-//
-// Example:
-//
-//	camel := AsCamelCase("getUserName")
-//	parts := camel.Split() // ["get", "User", "Name"]
-func AsCamelCase(s string) CamelCase {
-	return CamelCase(s)
-}
-
-// CamelCase represents a string in camelCase or PascalCase format.
-// It provides methods to split and convert the camelCase string into different formats.
-//
-// CamelCase format examples:
-//   - "getUserName" (lowerCamelCase)
-//   - "GetUserName" (UpperCamelCase/PascalCase)
-//   - "HTTPServer" (with abbreviations)
-//   - "user123Name" (with numbers)
+// Recognized boundaries:
+//   - between letters and non-letters ("user123" → "user", "123")
+//   - lower-to-upper transitions ("userName" → "user", "Name")
+//   - end of an upper-case run before a lower-case rune
+//     ("HTTPServer" → "HTTP", "Server")
 type CamelCase string
 
-// String returns the underlying string value of the CamelCase.
-// This implements the fmt.Stringer interface.
-//
-// Returns:
-//   - The string representation of the CamelCase
-func (c CamelCase) String() string {
-	return string(c)
-}
+// AsCamelCase wraps s as a [CamelCase].
+func AsCamelCase(s string) CamelCase { return CamelCase(s) }
 
-// SplitWith splits the camelCase string into separate words and applies an optional
-// transformation function to each word.
-//
-// The splitting logic handles:
-//   - Transitions between letters and non-letters (e.g., "user123" -> ["user", "123"])
-//   - Transitions from lowercase to uppercase (e.g., "userName" -> ["user", "Name"])
-//   - Uppercase sequences followed by lowercase (e.g., "HTTPServer" -> ["HTTP", "Server"])
-//
-// Parameters:
-//   - transformFunc: Optional function to transform each split part.
-//     Pass nil to skip transformation.
-//
-// Returns:
-//   - A slice of strings representing the split words.
-//     Returns nil if the input is empty.
-//
-// Example:
-//
-//	camel := AsCamelCase("getUserHTTPResponse")
-//	parts := camel.SplitWith(strings.ToLower)
-//	// Result: ["get", "user", "http", "response"]
-func (c CamelCase) SplitWith(transformFunc func(string) string) []string {
+// String returns the underlying string.
+func (c CamelCase) String() string { return string(c) }
+
+// SplitWith splits c at word boundaries and applies fn to each part.
+// If fn is nil the parts are returned unchanged. Empty input yields
+// nil.
+func (c CamelCase) SplitWith(fn func(string) string) []string {
 	if c == "" {
 		return nil
 	}
+	runes := []rune(c)
+	n := len(runes)
+	parts := make([]string, 0, n)
+	var sb strings.Builder
 
-	var (
-		parts = make([]string, 0, len(c))
-		runes = []rune(c)
-		n     = len(runes)
-		sb    strings.Builder
-	)
-
-	for i := 0; i < n; i++ {
-		r := runes[i]
+	for i, r := range runes {
 		sb.WriteRune(r)
-
-		if i < n-1 {
-			next := runes[i+1]
-
-			// Rule 1: letter/non-letter transition
-			if (unicode.IsLetter(r) && !unicode.IsLetter(next)) ||
-				(!unicode.IsLetter(r) && unicode.IsLetter(next)) {
-				parts = append(parts, sb.String())
-				sb.Reset()
-				continue
-			}
-
-			// Rule 2: lowercase to uppercase
-			if unicode.IsLower(r) && unicode.IsUpper(next) {
-				parts = append(parts, sb.String())
-				sb.Reset()
-				continue
-			}
-
-			// Rule 3: uppercase sequence before lowercase (e.g. "HTTPServer")
-			if unicode.IsUpper(r) && unicode.IsUpper(next) &&
-				i+2 < n && unicode.IsLower(runes[i+2]) {
-				parts = append(parts, sb.String())
-				sb.Reset()
-				continue
-			}
+		if i == n-1 {
+			break
 		}
+		next := runes[i+1]
+		switch {
+		case unicode.IsLetter(r) != unicode.IsLetter(next):
+			// letter↔non-letter
+		case unicode.IsLower(r) && unicode.IsUpper(next):
+			// camelCase hump
+		case unicode.IsUpper(r) && unicode.IsUpper(next) &&
+			i+2 < n && unicode.IsLower(runes[i+2]):
+			// end of an UPPER run before a lower (HTTPServer)
+		default:
+			continue
+		}
+		parts = append(parts, sb.String())
+		sb.Reset()
 	}
-
 	if sb.Len() > 0 {
 		parts = append(parts, sb.String())
 	}
-
-	if transformFunc != nil {
+	if fn != nil {
 		for i := range parts {
-			parts[i] = transformFunc(parts[i])
+			parts[i] = fn(parts[i])
 		}
 	}
-
 	return parts
 }
 
-// Split splits the camelCase string into separate words without transformation.
-// This is equivalent to calling SplitWith(nil).
-//
-// Returns:
-//   - A slice of strings representing the split words
-//
-// Example:
-//
-//	camel := AsCamelCase("getUserName")
-//	parts := camel.Split() // ["get", "User", "Name"]
-func (c CamelCase) Split() []string {
-	return c.SplitWith(nil)
-}
+// Split splits c at word boundaries with no transformation.
+func (c CamelCase) Split() []string { return c.SplitWith(nil) }
 
-// SplitToLower splits the camelCase string and converts each word to lowercase.
-// This is equivalent to calling SplitWith(strings.ToLower).
-//
-// Returns:
-//   - A slice of lowercase strings representing the split words
-//
-// Example:
-//
-//	camel := AsCamelCase("getUserName")
-//	parts := camel.SplitToLower() // ["get", "user", "name"]
-func (c CamelCase) SplitToLower() []string {
-	return c.SplitWith(strings.ToLower)
-}
+// SplitToLower splits c and lower-cases each word.
+func (c CamelCase) SplitToLower() []string { return c.SplitWith(strings.ToLower) }
 
-// SplitToUpper splits the camelCase string and converts each word to uppercase.
-// This is equivalent to calling SplitWith(strings.ToUpper).
-//
-// Returns:
-//   - A slice of uppercase strings representing the split words
-//
-// Example:
-//
-//	camel := AsCamelCase("getUserName")
-//	parts := camel.SplitToUpper() // ["GET", "USER", "NAME"]
-func (c CamelCase) SplitToUpper() []string {
-	return c.SplitWith(strings.ToUpper)
-}
+// SplitToUpper splits c and upper-cases each word.
+func (c CamelCase) SplitToUpper() []string { return c.SplitWith(strings.ToUpper) }
 
-// ToSnakeCase converts the camelCase string to snake_case format.
-// The conversion process:
-//  1. Splits the camelCase string into words
-//  2. Filters out underscores and empty strings
-//  3. Converts each word to lowercase
-//  4. Joins words with underscores
-//
-// Returns:
-//   - A SnakeCase instance representing the converted string
+// ToSnakeCase returns the snake_case form of c. Adjacent runs of
+// underscores in the source are collapsed; empty parts are skipped.
 //
 // Example:
 //
-//	camel := AsCamelCase("getUserHTTPResponse")
-//	snake := camel.ToSnakeCase() // "get_user_http_response"
+//	AsCamelCase("getUserHTTPResponse").ToSnakeCase() // "get_user_http_response"
 func (c CamelCase) ToSnakeCase() SnakeCase {
 	if c == "" {
 		return ""
 	}
-
 	words := c.Split()
-	snakeWords := make([]string, 0, len(words))
+	out := make([]string, 0, len(words))
 	for _, w := range words {
-		if w == "_" || w == "" {
+		if w == "" || w == "_" {
 			continue
 		}
-		snakeWords = append(snakeWords, strings.ToLower(w))
+		out = append(out, strings.ToLower(w))
 	}
-
-	// Join words with underscores
-	return AsSnakeCase(strings.Join(snakeWords, "_"))
+	return AsSnakeCase(strings.Join(out, "_"))
 }
 
-// AsSnakeCase creates a SnakeCase type from a string.
-// This is a convenience constructor function that wraps a string into the SnakeCase type.
-//
-// Parameters:
-//   - inputString: The string to convert to SnakeCase type
-//
-// Returns:
-//   - A SnakeCase instance wrapping the input string
-//
-// Example:
-//
-//	snake := AsSnakeCase("get_user_name")
-//	parts := snake.Split() // ["get", "user", "name"]
-func AsSnakeCase(s string) SnakeCase {
-	return SnakeCase(s)
-}
-
-// SnakeCase represents a string in snake_case format.
-// It provides methods to split and convert the snake_case string into different formats.
-//
-// Snake_case format examples:
-//   - "get_user_name"
-//   - "http_request_handler"
-//   - "user_123_id"
+// SnakeCase is a string in snake_case form. Words are separated by
+// underscore characters.
 type SnakeCase string
 
-// String returns the underlying string value of the SnakeCase.
-// This implements the fmt.Stringer interface.
-//
-// Returns:
-//   - The string representation of the SnakeCase
-func (s SnakeCase) String() string {
-	return string(s)
-}
+// AsSnakeCase wraps s as a [SnakeCase].
+func AsSnakeCase(s string) SnakeCase { return SnakeCase(s) }
 
-// SplitWith splits the snake_case string by underscores and applies an optional
-// transformation function to each word.
-//
-// Parameters:
-//   - transformFunc: Optional function to transform each split part.
-//     Pass nil to skip transformation.
-//
-// Returns:
-//   - A slice of strings representing the split words.
-//     Returns nil if the input is empty.
-//
-// Note:
-//   - Consecutive underscores will result in empty string elements in the output
-//   - Leading or trailing underscores will result in empty string elements
-//
-// Example:
-//
-//	snake := AsSnakeCase("get_user_name")
-//	parts := snake.SplitWith(strings.ToUpper)
-//	// Result: ["GET", "USER", "NAME"]
-func (s SnakeCase) SplitWith(transformFunc func(string) string) []string {
+// String returns the underlying string.
+func (s SnakeCase) String() string { return string(s) }
+
+// SplitWith splits s on underscores and applies fn to each part.
+// Consecutive or leading/trailing underscores produce empty entries.
+// Empty input returns nil.
+func (s SnakeCase) SplitWith(fn func(string) string) []string {
 	if s == "" {
 		return nil
 	}
-
-	parts := strings.Split(s.String(), "_")
-
-	if transformFunc != nil {
-		for i, part := range parts {
-			parts[i] = transformFunc(part)
+	parts := strings.Split(string(s), "_")
+	if fn != nil {
+		for i, p := range parts {
+			parts[i] = fn(p)
 		}
 	}
-
 	return parts
 }
 
-// Split splits the snake_case string by underscores without transformation.
-// This is equivalent to calling SplitWith(nil).
-//
-// Returns:
-//   - A slice of strings representing the split words
-//
-// Example:
-//
-//	snake := AsSnakeCase("get_user_name")
-//	parts := snake.Split() // ["get", "user", "name"]
-func (s SnakeCase) Split() []string {
-	return s.SplitWith(nil)
-}
+// Split splits s on underscores with no transformation.
+func (s SnakeCase) Split() []string { return s.SplitWith(nil) }
 
-// SplitToLower splits the snake_case string and converts each word to lowercase.
-// This is equivalent to calling SplitWith(strings.ToLower).
-//
-// Returns:
-//   - A slice of lowercase strings representing the split words
-//
-// Example:
-//
-//	snake := AsSnakeCase("GET_USER_NAME")
-//	parts := snake.SplitToLower() // ["get", "user", "name"]
-func (s SnakeCase) SplitToLower() []string {
-	return s.SplitWith(strings.ToLower)
-}
+// SplitToLower splits s and lower-cases each word.
+func (s SnakeCase) SplitToLower() []string { return s.SplitWith(strings.ToLower) }
 
-// SplitToUpper splits the snake_case string and converts each word to uppercase.
-// This is equivalent to calling SplitWith(strings.ToUpper).
-//
-// Returns:
-//   - A slice of uppercase strings representing the split words
-//
-// Example:
-//
-//	snake := AsSnakeCase("get_user_name")
-//	parts := snake.SplitToUpper() // ["GET", "USER", "NAME"]
-func (s SnakeCase) SplitToUpper() []string {
-	return s.SplitWith(strings.ToUpper)
-}
+// SplitToUpper splits s and upper-cases each word.
+func (s SnakeCase) SplitToUpper() []string { return s.SplitWith(strings.ToUpper) }
 
-// ToCamelCase converts the snake_case string to camelCase format.
-// The conversion process:
-//  1. Splits the snake_case string by underscores
-//  2. Converts all words to lowercase
-//  3. Keeps the first word lowercase
-//  4. Capitalizes the first letter of subsequent non-empty words
-//  5. Joins all words together
-//
-// Returns:
-//   - A CamelCase instance representing the converted string
-//
-// Note:
-//   - Empty words (from consecutive underscores) are skipped
-//   - The first word is always lowercase (lowerCamelCase format)
+// ToCamelCase returns the camelCase form of s. The first word is kept
+// lower-case (lowerCamelCase); subsequent words are title-cased. Empty
+// segments are skipped.
 //
 // Example:
 //
-//	snake := AsSnakeCase("get_user_http_response")
-//	camel := snake.ToCamelCase() // "getUserHttpResponse"
+//	AsSnakeCase("get_user_http_response").ToCamelCase() // "getUserHttpResponse"
 func (s SnakeCase) ToCamelCase() CamelCase {
 	if s == "" {
 		return ""
 	}
-
 	words := s.SplitToLower()
 	var sb strings.Builder
-
-	for i, word := range words {
+	for i, w := range words {
+		if w == "" {
+			continue
+		}
 		if i == 0 {
-			sb.WriteString(word)
+			sb.WriteString(w)
 			continue
 		}
-		if word == "" {
-			continue
-		}
-		if len(word) == 1 {
-			sb.WriteString(strings.ToUpper(word))
-		} else {
-			sb.WriteString(strings.ToUpper(word[:1]))
-			sb.WriteString(word[1:])
-		}
+		sb.WriteString(strings.ToUpper(w[:1]))
+		sb.WriteString(w[1:])
 	}
-
 	return AsCamelCase(sb.String())
 }

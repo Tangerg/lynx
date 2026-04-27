@@ -1,234 +1,101 @@
 package slices
 
-// EnsureIndex ensures that the slice can accommodate the specified index.
-// If the index is within the current length, the original slice is returned unchanged.
-// If the index exceeds the length but is within capacity, the slice is extended.
-// If the index exceeds the capacity, a new slice is allocated with sufficient space.
+// EnsureIndex returns a slice whose length is at least i+1, so that
+// s[i] is safe to read or assign. If i is already addressable, s is
+// returned unchanged. If it fits within cap(s), the length is extended
+// in place; otherwise a new backing array is allocated and existing
+// elements are copied.
 //
-// Parameters:
-//   - s: The input slice to potentially extend
-//   - i: The target index that must be accessible. Must be positive, otherwise panics
-//
-// Returns:
-//   - A slice that can safely access index i
+// EnsureIndex panics if i is negative.
 //
 // Example:
 //
 //	s := []int{1, 2, 3}
-//	s = EnsureIndex(s, 5)  // s is now length 6: [1, 2, 3, 0, 0, 0]
-//	s[5] = 42              // Safe to access
+//	s = slices.EnsureIndex(s, 5) // len 6, [1 2 3 0 0 0]
+//	s[5] = 42
 func EnsureIndex[S ~[]E, E any](s S, i int) S {
 	if i < 0 {
-		panic("index must not be negative")
+		panic("slices: index must be non-negative")
 	}
-	// Return original slice if index is already accessible
 	if i < len(s) {
 		return s
 	}
-
-	// Extend slice length if index is within capacity
 	if i < cap(s) {
 		return s[:i+1]
 	}
-
-	// Allocate new slice and copy existing elements
-	newS := make(S, i+1)
-	copy(newS, s)
-
-	return newS
+	out := make(S, i+1)
+	copy(out, s)
+	return out
 }
 
-// Chunk divides a slice into smaller sub-slices of the specified size.
-// All sub-slices except possibly the last one will have exactly 'size' elements.
-// The last sub-slice may contain fewer elements if the input length is not evenly divisible by size.
+// Chunk splits s into contiguous sub-slices of length size. The final
+// chunk may be shorter if len(s) is not a multiple of size. Each
+// returned chunk shares storage with s but has its capacity bounded to
+// its length, so appending to a chunk does not overwrite the next.
 //
-// This is a generic function that works with slices of any type.
+// Chunk panics if size <= 0.
 //
-// Parameters:
-//   - s: The input slice to be divided
-//   - size: The maximum size of each sub-slice. Must be positive, otherwise panics
+// Example:
 //
-// Returns:
-//   - A slice of sub-slices, where each sub-slice has at most 'size' elements
-//
-// Panics:
-//   - If size <= 0
-//
-// Examples:
-//
-//	numbers := []int{1, 2, 3, 4, 5, 6}
-//	chunks := Chunk(numbers, 2)
-//	// Output: [[1, 2], [3, 4], [5, 6]]
-//
-//	letters := []string{"a", "b", "c", "d", "e"}
-//	chunks := Chunk(letters, 3)
-//	// Output: [["a", "b", "c"], ["d", "e"]]
+//	slices.Chunk([]int{1, 2, 3, 4, 5}, 2) // [[1 2] [3 4] [5]]
 func Chunk[S ~[]E, E any](s S, size int) []S {
 	if size <= 0 {
-		panic("chunk size must be positive")
+		panic("slices: chunk size must be positive")
 	}
-
-	var (
-		l = len(s)
-		// Pre-calculate capacity to avoid slice reallocations
-		rv = make([]S, 0, (l+size-1)/size)
-	)
-
-	for i := 0; i < l; i += size {
-		end := min(i+size, l)
-		// Use three-index slicing to set capacity and prevent accidental modification
-		rv = append(rv, s[i:end:end])
+	n := len(s)
+	out := make([]S, 0, (n+size-1)/size)
+	for i := 0; i < n; i += size {
+		end := min(i+size, n)
+		out = append(out, s[i:end:end])
 	}
-
-	return rv
+	return out
 }
 
-// At retrieves an element from the slice at the specified index.
-// Supports negative indexing where -1 refers to the last element, -2 to the second-to-last, etc.
-// Returns the element and true if the index is valid, or the zero value and false otherwise.
+// At returns the element at index i and reports whether the index was
+// valid. Negative indices count from the end: -1 is the last element.
+// On out-of-range access, At returns the zero value and false.
 //
-// Parameters:
-//   - s: The input slice
-//   - i: The index to access (supports negative values for reverse indexing)
+// Example:
 //
-// Returns:
-//   - The element at the specified index
-//   - A boolean indicating whether the index was valid
-//
-// Examples:
-//
-//	slice := []int{10, 20, 30, 40}
-//	val, ok := At(slice, 1)    // val = 20, ok = true
-//	val, ok := At(slice, -1)   // val = 40, ok = true (last element)
-//	val, ok := At(slice, 10)   // val = 0, ok = false (out of bounds)
+//	v, ok := slices.At([]int{10, 20, 30}, -1) // 30, true
 func At[S ~[]E, E any](s S, i int) (e E, ok bool) {
-	l := len(s)
-
-	// Return zero value for empty slice
-	if l <= 0 {
+	n := len(s)
+	if n == 0 {
 		return
 	}
-
-	// Convert negative index to positive
 	if i < 0 {
-		i = l + i
+		i += n
 	}
-	// Check bounds after conversion
-	if i < 0 || i > l-1 {
+	if i < 0 || i >= n {
 		return
 	}
-
 	return s[i], true
 }
 
-// AtOr retrieves an element from the slice at the specified index, or returns a default value.
-// This is a convenience function that combines At with a fallback value.
-// Supports negative indexing like the At function.
-//
-// Parameters:
-//   - s: The input slice
-//   - i: The index to access (supports negative values for reverse indexing)
-//   - or: The default value to return if the index is invalid
-//
-// Returns:
-//   - The element at the specified index, or the default value if index is invalid
-//
-// Examples:
-//
-//	slice := []int{10, 20, 30}
-//	val := AtOr(slice, 1, -1)    // val = 20
-//	val := AtOr(slice, -1, -1)   // val = 30 (last element)
-//	val := AtOr(slice, 10, -1)   // val = -1 (default value)
+// AtOr is like [At] but returns or when the index is out of range.
 func AtOr[S ~[]E, E any](s S, i int, or E) E {
-	e, ok := At(s, i)
-	if ok {
+	if e, ok := At(s, i); ok {
 		return e
 	}
 	return or
 }
 
-// First retrieves the first element from the slice.
-// Returns the first element and true if the slice is not empty,
-// or the zero value and false if the slice is empty.
-//
-// Parameters:
-//   - s: The input slice
-//
-// Returns:
-//   - The first element of the slice
-//   - A boolean indicating whether the slice was non-empty
-//
-// Example:
-//
-//	slice := []int{10, 20, 30}
-//	val, ok := First(slice)  // val = 10, ok = true
-//
-//	empty := []int{}
-//	val, ok := First(empty)  // val = 0, ok = false
+// First returns the first element of s and whether s is non-empty.
 func First[S ~[]E, E any](s S) (E, bool) {
 	return At(s, 0)
 }
 
-// FirstOr retrieves the first element from the slice, or returns a default value.
-// This is a convenience function that combines First with a fallback value.
-//
-// Parameters:
-//   - s: The input slice
-//   - or: The default value to return if the slice is empty
-//
-// Returns:
-//   - The first element of the slice, or the default value if slice is empty
-//
-// Example:
-//
-//	slice := []int{10, 20, 30}
-//	val := FirstOr(slice, -1)  // val = 10
-//
-//	empty := []int{}
-//	val := FirstOr(empty, -1)  // val = -1 (default value)
+// FirstOr returns the first element of s, or or if s is empty.
 func FirstOr[S ~[]E, E any](s S, or E) E {
 	return AtOr(s, 0, or)
 }
 
-// Last retrieves the last element from the slice.
-// Returns the last element and true if the slice is not empty,
-// or the zero value and false if the slice is empty.
-//
-// Parameters:
-//   - s: The input slice
-//
-// Returns:
-//   - The last element of the slice
-//   - A boolean indicating whether the slice was non-empty
-//
-// Example:
-//
-//	slice := []int{10, 20, 30}
-//	val, ok := Last(slice)   // val = 30, ok = true
-//
-//	empty := []int{}
-//	val, ok := Last(empty)   // val = 0, ok = false
+// Last returns the last element of s and whether s is non-empty.
 func Last[S ~[]E, E any](s S) (E, bool) {
 	return At(s, -1)
 }
 
-// LastOr retrieves the last element from the slice, or returns a default value.
-// This is a convenience function that combines Last with a fallback value.
-//
-// Parameters:
-//   - s: The input slice
-//   - or: The default value to return if the slice is empty
-//
-// Returns:
-//   - The last element of the slice, or the default value if slice is empty
-//
-// Example:
-//
-//	slice := []int{10, 20, 30}
-//	val := LastOr(slice, -1)   // val = 30
-//
-//	empty := []int{}
-//	val := LastOr(empty, -1)   // val = -1 (default value)
+// LastOr returns the last element of s, or or if s is empty.
 func LastOr[S ~[]E, E any](s S, or E) E {
 	return AtOr(s, -1, or)
 }

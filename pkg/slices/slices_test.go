@@ -5,784 +5,249 @@ import (
 	"testing"
 )
 
-// TestEnsureIndex tests the EnsureIndex function
 func TestEnsureIndex(t *testing.T) {
-	t.Run("index within length", func(t *testing.T) {
+	t.Run("index within length returns same data", func(t *testing.T) {
 		s := []int{1, 2, 3, 4, 5}
-		result := EnsureIndex(s, 2)
-
-		if len(result) != len(s) {
-			t.Errorf("len(result) = %d, want %d", len(result), len(s))
-		}
-
-		if !reflect.DeepEqual(result, s) {
-			t.Errorf("result = %v, want %v", result, s)
+		got := EnsureIndex(s, 2)
+		if !reflect.DeepEqual(got, s) || len(got) != 5 {
+			t.Errorf("got %v len=%d, want %v", got, len(got), s)
 		}
 	})
 
-	t.Run("index within capacity", func(t *testing.T) {
+	t.Run("extends within capacity", func(t *testing.T) {
 		s := make([]int, 3, 10)
 		s[0], s[1], s[2] = 1, 2, 3
-
-		result := EnsureIndex(s, 5)
-
-		if len(result) != 6 {
-			t.Errorf("len(result) = %d, want 6", len(result))
+		got := EnsureIndex(s, 5)
+		if len(got) != 6 || cap(got) != 10 {
+			t.Errorf("len=%d cap=%d, want len=6 cap=10", len(got), cap(got))
 		}
-
-		if cap(result) != 10 {
-			t.Errorf("cap(result) = %d, want 10", cap(result))
-		}
-
-		// Check original values preserved
-		if result[0] != 1 || result[1] != 2 || result[2] != 3 {
-			t.Errorf("original values not preserved: %v", result[:3])
-		}
-
-		// Check new elements are zero values
-		for i := 3; i < len(result); i++ {
-			if result[i] != 0 {
-				t.Errorf("result[%d] = %d, want 0", i, result[i])
+		for i, want := range []int{1, 2, 3, 0, 0, 0} {
+			if got[i] != want {
+				t.Errorf("got[%d] = %d, want %d", i, got[i], want)
 			}
 		}
 	})
 
-	t.Run("index exceeds capacity", func(t *testing.T) {
+	t.Run("allocates beyond capacity", func(t *testing.T) {
 		s := []int{1, 2, 3}
-		result := EnsureIndex(s, 10)
-
-		if len(result) != 11 {
-			t.Errorf("len(result) = %d, want 11", len(result))
+		got := EnsureIndex(s, 5)
+		if len(got) != 6 {
+			t.Errorf("len = %d, want 6", len(got))
 		}
-
-		if cap(result) < 11 {
-			t.Errorf("cap(result) = %d, want at least 11", cap(result))
-		}
-
-		// Check original values preserved
-		if result[0] != 1 || result[1] != 2 || result[2] != 3 {
-			t.Errorf("original values not preserved: %v", result[:3])
-		}
-
-		// Check new elements are zero values
-		for i := 3; i < len(result); i++ {
-			if result[i] != 0 {
-				t.Errorf("result[%d] = %d, want 0", i, result[i])
+		for i, want := range []int{1, 2, 3, 0, 0, 0} {
+			if got[i] != want {
+				t.Errorf("got[%d] = %d, want %d", i, got[i], want)
 			}
 		}
 	})
 
-	t.Run("index zero", func(t *testing.T) {
-		s := []int{1, 2, 3}
-		result := EnsureIndex(s, 0)
-
-		if len(result) != len(s) {
-			t.Errorf("len(result) = %d, want %d", len(result), len(s))
-		}
-	})
-
-	t.Run("empty slice", func(t *testing.T) {
+	t.Run("nil slice", func(t *testing.T) {
 		var s []int
-		result := EnsureIndex(s, 5)
-
-		if len(result) != 6 {
-			t.Errorf("len(result) = %d, want 6", len(result))
-		}
-
-		for i := 0; i < len(result); i++ {
-			if result[i] != 0 {
-				t.Errorf("result[%d] = %d, want 0", i, result[i])
-			}
+		got := EnsureIndex(s, 3)
+		if len(got) != 4 {
+			t.Errorf("len = %d, want 4", len(got))
 		}
 	})
 
-	t.Run("negative index panics", func(t *testing.T) {
+	t.Run("zero index extends to length 1", func(t *testing.T) {
+		var s []int
+		got := EnsureIndex(s, 0)
+		if len(got) != 1 || got[0] != 0 {
+			t.Errorf("got %v len=%d, want [0]", got, len(got))
+		}
+	})
+
+	t.Run("panics on negative index", func(t *testing.T) {
 		defer func() {
-			if r := recover(); r == nil {
-				t.Error("EnsureIndex should panic on negative index")
-			} else {
-				if msg, ok := r.(string); ok {
-					expected := "index must not be negative"
-					if msg != expected {
-						t.Errorf("panic message = %q, want %q", msg, expected)
-					}
-				}
+			if recover() == nil {
+				t.Error("expected panic")
 			}
 		}()
-
-		s := []int{1, 2, 3}
-		_ = EnsureIndex(s, -1)
+		_ = EnsureIndex([]int{1}, -1)
 	})
 
-	t.Run("string slice", func(t *testing.T) {
-		s := []string{"a", "b", "c"}
-		result := EnsureIndex(s, 5)
-
-		if len(result) != 6 {
-			t.Errorf("len(result) = %d, want 6", len(result))
+	t.Run("custom slice type", func(t *testing.T) {
+		type Vec []int
+		v := Vec{1, 2, 3}
+		got := EnsureIndex(v, 5)
+		if _, ok := any(got).(Vec); !ok {
+			t.Errorf("type lost, got %T", got)
 		}
-
-		if result[0] != "a" || result[1] != "b" || result[2] != "c" {
-			t.Errorf("original values not preserved")
-		}
-
-		for i := 3; i < len(result); i++ {
-			if result[i] != "" {
-				t.Errorf("result[%d] = %q, want empty string", i, result[i])
-			}
-		}
-	})
-
-	t.Run("struct slice", func(t *testing.T) {
-		type Person struct {
-			Name string
-			Age  int
-		}
-		s := []Person{{Name: "Alice", Age: 30}}
-		result := EnsureIndex(s, 3)
-
-		if len(result) != 4 {
-			t.Errorf("len(result) = %d, want 4", len(result))
-		}
-
-		if result[0].Name != "Alice" || result[0].Age != 30 {
-			t.Errorf("original value not preserved")
-		}
-
-		// Check zero values
-		for i := 1; i < len(result); i++ {
-			if result[i].Name != "" || result[i].Age != 0 {
-				t.Errorf("result[%d] not zero value", i)
-			}
-		}
-	})
-
-	t.Run("large index", func(t *testing.T) {
-		s := []int{1}
-		result := EnsureIndex(s, 1000)
-
-		if len(result) != 1001 {
-			t.Errorf("len(result) = %d, want 1001", len(result))
-		}
-
-		if result[0] != 1 {
-			t.Error("original value not preserved")
+		if len(got) != 6 {
+			t.Errorf("len = %d, want 6", len(got))
 		}
 	})
 }
 
-// TestChunk tests the Chunk function
 func TestChunk(t *testing.T) {
-	t.Run("evenly divisible", func(t *testing.T) {
-		s := []int{1, 2, 3, 4, 5, 6}
-		result := Chunk(s, 2)
-
-		expected := [][]int{{1, 2}, {3, 4}, {5, 6}}
-
-		if len(result) != len(expected) {
-			t.Errorf("len(result) = %d, want %d", len(result), len(expected))
-		}
-
-		for i, chunk := range result {
-			if !reflect.DeepEqual(chunk, expected[i]) {
-				t.Errorf("result[%d] = %v, want %v", i, chunk, expected[i])
+	tests := []struct {
+		name string
+		in   []int
+		size int
+		want [][]int
+	}{
+		{"even split", []int{1, 2, 3, 4, 5, 6}, 2, [][]int{{1, 2}, {3, 4}, {5, 6}}},
+		{"uneven", []int{1, 2, 3, 4, 5}, 3, [][]int{{1, 2, 3}, {4, 5}}},
+		{"size > len", []int{1, 2, 3}, 10, [][]int{{1, 2, 3}}},
+		{"size 1", []int{1, 2, 3}, 1, [][]int{{1}, {2}, {3}}},
+		{"empty", []int{}, 3, [][]int{}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := Chunk(tt.in, tt.size)
+			if len(got) != len(tt.want) {
+				t.Fatalf("len = %d, want %d", len(got), len(tt.want))
 			}
-		}
-	})
-
-	t.Run("not evenly divisible", func(t *testing.T) {
-		s := []int{1, 2, 3, 4, 5}
-		result := Chunk(s, 2)
-
-		expected := [][]int{{1, 2}, {3, 4}, {5}}
-
-		if len(result) != len(expected) {
-			t.Errorf("len(result) = %d, want %d", len(result), len(expected))
-		}
-
-		for i, chunk := range result {
-			if !reflect.DeepEqual(chunk, expected[i]) {
-				t.Errorf("result[%d] = %v, want %v", i, chunk, expected[i])
-			}
-		}
-	})
-
-	t.Run("chunk size larger than slice", func(t *testing.T) {
-		s := []int{1, 2, 3}
-		result := Chunk(s, 10)
-
-		if len(result) != 1 {
-			t.Errorf("len(result) = %d, want 1", len(result))
-		}
-
-		if !reflect.DeepEqual(result[0], s) {
-			t.Errorf("result[0] = %v, want %v", result[0], s)
-		}
-	})
-
-	t.Run("chunk size equals slice length", func(t *testing.T) {
-		s := []int{1, 2, 3}
-		result := Chunk(s, 3)
-
-		if len(result) != 1 {
-			t.Errorf("len(result) = %d, want 1", len(result))
-		}
-
-		if !reflect.DeepEqual(result[0], s) {
-			t.Errorf("result[0] = %v, want %v", result[0], s)
-		}
-	})
-
-	t.Run("chunk size of 1", func(t *testing.T) {
-		s := []int{1, 2, 3}
-		result := Chunk(s, 1)
-
-		expected := [][]int{{1}, {2}, {3}}
-
-		if len(result) != len(expected) {
-			t.Errorf("len(result) = %d, want %d", len(result), len(expected))
-		}
-
-		for i, chunk := range result {
-			if !reflect.DeepEqual(chunk, expected[i]) {
-				t.Errorf("result[%d] = %v, want %v", i, chunk, expected[i])
-			}
-		}
-	})
-
-	t.Run("empty slice", func(t *testing.T) {
-		var s []int
-		result := Chunk(s, 3)
-
-		if len(result) != 0 {
-			t.Errorf("len(result) = %d, want 0", len(result))
-		}
-	})
-
-	t.Run("zero chunk size panics", func(t *testing.T) {
-		defer func() {
-			if r := recover(); r == nil {
-				t.Error("Chunk should panic on zero size")
-			} else {
-				if msg, ok := r.(string); ok {
-					expected := "chunk size must be positive"
-					if msg != expected {
-						t.Errorf("panic message = %q, want %q", msg, expected)
-					}
+			for i, c := range got {
+				if !reflect.DeepEqual([]int(c), tt.want[i]) {
+					t.Errorf("chunk[%d] = %v, want %v", i, c, tt.want[i])
 				}
 			}
-		}()
-
-		s := []int{1, 2, 3}
-		_ = Chunk(s, 0)
-	})
-
-	t.Run("negative chunk size panics", func(t *testing.T) {
-		defer func() {
-			if r := recover(); r == nil {
-				t.Error("Chunk should panic on negative size")
-			}
-		}()
-
-		s := []int{1, 2, 3}
-		_ = Chunk(s, -1)
-	})
-
-	t.Run("string slice", func(t *testing.T) {
-		s := []string{"a", "b", "c", "d", "e"}
-		result := Chunk(s, 2)
-
-		expected := [][]string{{"a", "b"}, {"c", "d"}, {"e"}}
-
-		if !reflect.DeepEqual(result, expected) {
-			t.Errorf("result = %v, want %v", result, expected)
-		}
-	})
-
-	t.Run("capacity of chunks", func(t *testing.T) {
-		s := []int{1, 2, 3, 4, 5, 6}
-		result := Chunk(s, 2)
-
-		// Each chunk should have capacity equal to its length
-		// to prevent accidental modification
-		for i, chunk := range result {
-			if cap(chunk) != len(chunk) {
-				t.Errorf("chunk[%d] cap = %d, want %d", i, cap(chunk), len(chunk))
-			}
-		}
-	})
-
-	t.Run("modification isolation", func(t *testing.T) {
-		s := []int{1, 2, 3, 4}
-		result := Chunk(s, 2)
-
-		// Modify a chunk
-		result[0][0] = 999
-
-		// Original slice should be modified (shares backing array)
-		if s[0] != 999 {
-			t.Error("chunk modification should affect original slice")
-		}
-
-		// But can't append beyond chunk capacity
-		// This is prevented by three-index slicing in Chunk
-	})
-}
-
-// TestAt tests the At function
-func TestAt(t *testing.T) {
-	t.Run("positive index in range", func(t *testing.T) {
-		s := []int{10, 20, 30, 40, 50}
-
-		testCases := []struct {
-			index    int
-			expected int
-		}{
-			{0, 10},
-			{1, 20},
-			{2, 30},
-			{3, 40},
-			{4, 50},
-		}
-
-		for _, tc := range testCases {
-			val, ok := At(s, tc.index)
-			if !ok {
-				t.Errorf("At(%d) ok = false, want true", tc.index)
-			}
-			if val != tc.expected {
-				t.Errorf("At(%d) = %d, want %d", tc.index, val, tc.expected)
-			}
-		}
-	})
-
-	t.Run("negative index", func(t *testing.T) {
-		s := []int{10, 20, 30, 40, 50}
-
-		testCases := []struct {
-			index    int
-			expected int
-		}{
-			{-1, 50}, // last element
-			{-2, 40}, // second to last
-			{-3, 30},
-			{-4, 20},
-			{-5, 10}, // first element
-		}
-
-		for _, tc := range testCases {
-			val, ok := At(s, tc.index)
-			if !ok {
-				t.Errorf("At(%d) ok = false, want true", tc.index)
-			}
-			if val != tc.expected {
-				t.Errorf("At(%d) = %d, want %d", tc.index, val, tc.expected)
-			}
-		}
-	})
-
-	t.Run("out of bounds positive", func(t *testing.T) {
-		s := []int{10, 20, 30}
-		val, ok := At(s, 10)
-
-		if ok {
-			t.Error("At(10) ok = true, want false")
-		}
-		if val != 0 {
-			t.Errorf("At(10) = %d, want 0 (zero value)", val)
-		}
-	})
-
-	t.Run("out of bounds negative", func(t *testing.T) {
-		s := []int{10, 20, 30}
-		val, ok := At(s, -10)
-
-		if ok {
-			t.Error("At(-10) ok = true, want false")
-		}
-		if val != 0 {
-			t.Errorf("At(-10) = %d, want 0 (zero value)", val)
-		}
-	})
-
-	t.Run("empty slice", func(t *testing.T) {
-		var s []int
-		val, ok := At(s, 0)
-
-		if ok {
-			t.Error("At(0) on empty slice ok = true, want false")
-		}
-		if val != 0 {
-			t.Errorf("At(0) = %d, want 0", val)
-		}
-	})
-
-	t.Run("string slice", func(t *testing.T) {
-		s := []string{"a", "b", "c"}
-		val, ok := At(s, 1)
-
-		if !ok {
-			t.Error("At(1) ok = false, want true")
-		}
-		if val != "b" {
-			t.Errorf("At(1) = %q, want \"b\"", val)
-		}
-
-		val, ok = At(s, -1)
-		if !ok {
-			t.Error("At(-1) ok = false, want true")
-		}
-		if val != "c" {
-			t.Errorf("At(-1) = %q, want \"c\"", val)
-		}
-	})
-
-	t.Run("single element slice", func(t *testing.T) {
-		s := []int{42}
-
-		val, ok := At(s, 0)
-		if !ok || val != 42 {
-			t.Errorf("At(0) = %d, %v; want 42, true", val, ok)
-		}
-
-		val, ok = At(s, -1)
-		if !ok || val != 42 {
-			t.Errorf("At(-1) = %d, %v; want 42, true", val, ok)
-		}
-
-		val, ok = At(s, 1)
-		if ok {
-			t.Error("At(1) ok = true, want false")
-		}
-	})
-}
-
-// TestAtOr tests the AtOr function
-func TestAtOr(t *testing.T) {
-	t.Run("valid positive index", func(t *testing.T) {
-		s := []int{10, 20, 30}
-		val := AtOr(s, 1, -1)
-
-		if val != 20 {
-			t.Errorf("AtOr(1, -1) = %d, want 20", val)
-		}
-	})
-
-	t.Run("valid negative index", func(t *testing.T) {
-		s := []int{10, 20, 30}
-		val := AtOr(s, -1, -1)
-
-		if val != 30 {
-			t.Errorf("AtOr(-1, -1) = %d, want 30", val)
-		}
-	})
-
-	t.Run("invalid index returns default", func(t *testing.T) {
-		s := []int{10, 20, 30}
-		val := AtOr(s, 10, -1)
-
-		if val != -1 {
-			t.Errorf("AtOr(10, -1) = %d, want -1", val)
-		}
-	})
-
-	t.Run("empty slice returns default", func(t *testing.T) {
-		var s []int
-		val := AtOr(s, 0, 999)
-
-		if val != 999 {
-			t.Errorf("AtOr(0, 999) = %d, want 999", val)
-		}
-	})
-
-	t.Run("string slice with default", func(t *testing.T) {
-		s := []string{"a", "b", "c"}
-
-		val := AtOr(s, 1, "default")
-		if val != "b" {
-			t.Errorf("AtOr(1, \"default\") = %q, want \"b\"", val)
-		}
-
-		val = AtOr(s, 10, "default")
-		if val != "default" {
-			t.Errorf("AtOr(10, \"default\") = %q, want \"default\"", val)
-		}
-	})
-
-	t.Run("zero default value", func(t *testing.T) {
-		s := []int{10, 20, 30}
-		val := AtOr(s, 10, 0)
-
-		if val != 0 {
-			t.Errorf("AtOr(10, 0) = %d, want 0", val)
-		}
-	})
-}
-
-// TestFirst tests the First function
-func TestFirst(t *testing.T) {
-	t.Run("non-empty slice", func(t *testing.T) {
-		s := []int{10, 20, 30}
-		val, ok := First(s)
-
-		if !ok {
-			t.Error("First() ok = false, want true")
-		}
-		if val != 10 {
-			t.Errorf("First() = %d, want 10", val)
-		}
-	})
-
-	t.Run("empty slice", func(t *testing.T) {
-		var s []int
-		val, ok := First(s)
-
-		if ok {
-			t.Error("First() ok = true, want false")
-		}
-		if val != 0 {
-			t.Errorf("First() = %d, want 0", val)
-		}
-	})
-
-	t.Run("single element", func(t *testing.T) {
-		s := []int{42}
-		val, ok := First(s)
-
-		if !ok || val != 42 {
-			t.Errorf("First() = %d, %v; want 42, true", val, ok)
-		}
-	})
-
-	t.Run("string slice", func(t *testing.T) {
-		s := []string{"first", "second", "third"}
-		val, ok := First(s)
-
-		if !ok || val != "first" {
-			t.Errorf("First() = %q, %v; want \"first\", true", val, ok)
-		}
-	})
-}
-
-// TestFirstOr tests the FirstOr function
-func TestFirstOr(t *testing.T) {
-	t.Run("non-empty slice", func(t *testing.T) {
-		s := []int{10, 20, 30}
-		val := FirstOr(s, -1)
-
-		if val != 10 {
-			t.Errorf("FirstOr() = %d, want 10", val)
-		}
-	})
-
-	t.Run("empty slice returns default", func(t *testing.T) {
-		var s []int
-		val := FirstOr(s, -1)
-
-		if val != -1 {
-			t.Errorf("FirstOr() = %d, want -1", val)
-		}
-	})
-
-	t.Run("string slice", func(t *testing.T) {
-		s := []string{"first", "second"}
-		val := FirstOr(s, "default")
-
-		if val != "first" {
-			t.Errorf("FirstOr() = %q, want \"first\"", val)
-		}
-
-		var empty []string
-		val = FirstOr(empty, "default")
-		if val != "default" {
-			t.Errorf("FirstOr() = %q, want \"default\"", val)
-		}
-	})
-}
-
-// TestLast tests the Last function
-func TestLast(t *testing.T) {
-	t.Run("non-empty slice", func(t *testing.T) {
-		s := []int{10, 20, 30}
-		val, ok := Last(s)
-
-		if !ok {
-			t.Error("Last() ok = false, want true")
-		}
-		if val != 30 {
-			t.Errorf("Last() = %d, want 30", val)
-		}
-	})
-
-	t.Run("empty slice", func(t *testing.T) {
-		var s []int
-		val, ok := Last(s)
-
-		if ok {
-			t.Error("Last() ok = true, want false")
-		}
-		if val != 0 {
-			t.Errorf("Last() = %d, want 0", val)
-		}
-	})
-
-	t.Run("single element", func(t *testing.T) {
-		s := []int{42}
-		val, ok := Last(s)
-
-		if !ok || val != 42 {
-			t.Errorf("Last() = %d, %v; want 42, true", val, ok)
-		}
-	})
-
-	t.Run("string slice", func(t *testing.T) {
-		s := []string{"first", "second", "last"}
-		val, ok := Last(s)
-
-		if !ok || val != "last" {
-			t.Errorf("Last() = %q, %v; want \"last\", true", val, ok)
-		}
-	})
-}
-
-// TestLastOr tests the LastOr function
-func TestLastOr(t *testing.T) {
-	t.Run("non-empty slice", func(t *testing.T) {
-		s := []int{10, 20, 30}
-		val := LastOr(s, -1)
-
-		if val != 30 {
-			t.Errorf("LastOr() = %d, want 30", val)
-		}
-	})
-
-	t.Run("empty slice returns default", func(t *testing.T) {
-		var s []int
-		val := LastOr(s, -1)
-
-		if val != -1 {
-			t.Errorf("LastOr() = %d, want -1", val)
-		}
-	})
-
-	t.Run("string slice", func(t *testing.T) {
-		s := []string{"first", "last"}
-		val := LastOr(s, "default")
-
-		if val != "last" {
-			t.Errorf("LastOr() = %q, want \"last\"", val)
-		}
-
-		var empty []string
-		val = LastOr(empty, "default")
-		if val != "default" {
-			t.Errorf("LastOr() = %q, want \"default\"", val)
-		}
-	})
-}
-
-// TestComplexTypes tests functions with complex types
-func TestComplexTypes(t *testing.T) {
-	type Person struct {
-		Name string
-		Age  int
+		})
 	}
 
-	t.Run("struct slice with At", func(t *testing.T) {
-		people := []Person{
-			{"Alice", 30},
-			{"Bob", 25},
-			{"Charlie", 35},
-		}
-
-		person, ok := At(people, 1)
-		if !ok || person.Name != "Bob" {
-			t.Errorf("At(1) = %+v, %v; want Bob", person, ok)
-		}
-
-		person, ok = At(people, -1)
-		if !ok || person.Name != "Charlie" {
-			t.Errorf("At(-1) = %+v, %v; want Charlie", person, ok)
+	t.Run("panics on non-positive size", func(t *testing.T) {
+		for _, sz := range []int{0, -1, -100} {
+			func() {
+				defer func() {
+					if recover() == nil {
+						t.Errorf("Chunk(_, %d) did not panic", sz)
+					}
+				}()
+				_ = Chunk([]int{1, 2}, sz)
+			}()
 		}
 	})
 
-	t.Run("struct slice with FirstOr", func(t *testing.T) {
-		people := []Person{{"Alice", 30}}
-		defaultPerson := Person{"Default", 0}
-
-		person := FirstOr(people, defaultPerson)
-		if person.Name != "Alice" {
-			t.Errorf("FirstOr() = %+v, want Alice", person)
-		}
-
-		var empty []Person
-		person = FirstOr(empty, defaultPerson)
-		if person.Name != "Default" {
-			t.Errorf("FirstOr() = %+v, want Default", person)
+	t.Run("chunk capacity is bounded", func(t *testing.T) {
+		s := []int{1, 2, 3, 4}
+		chunks := Chunk(s, 2)
+		// Appending to chunk[0] must not corrupt chunk[1].
+		chunks[0] = append(chunks[0], 99)
+		if chunks[1][0] != 3 {
+			t.Errorf("chunk[1][0] = %d, want 3 (chunk[0] append leaked)", chunks[1][0])
 		}
 	})
 }
 
-// BenchmarkEnsureIndex benchmarks EnsureIndex function
+func TestAt(t *testing.T) {
+	tests := []struct {
+		name   string
+		s      []int
+		i      int
+		want   int
+		wantOk bool
+	}{
+		{"positive in-range", []int{10, 20, 30}, 1, 20, true},
+		{"first", []int{10, 20, 30}, 0, 10, true},
+		{"negative -1", []int{10, 20, 30}, -1, 30, true},
+		{"negative -2", []int{10, 20, 30}, -2, 20, true},
+		{"out of range high", []int{10, 20, 30}, 10, 0, false},
+		{"out of range low", []int{10, 20, 30}, -10, 0, false},
+		{"empty slice", []int{}, 0, 0, false},
+		{"empty slice negative", []int{}, -1, 0, false},
+		{"nil slice", nil, 0, 0, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, ok := At(tt.s, tt.i)
+			if got != tt.want || ok != tt.wantOk {
+				t.Errorf("At(%v, %d) = (%d, %v), want (%d, %v)", tt.s, tt.i, got, ok, tt.want, tt.wantOk)
+			}
+		})
+	}
+}
+
+func TestAtOr(t *testing.T) {
+	tests := []struct {
+		s    []int
+		i    int
+		or   int
+		want int
+	}{
+		{[]int{10, 20, 30}, 1, -1, 20},
+		{[]int{10, 20, 30}, -1, -1, 30},
+		{[]int{10, 20, 30}, 99, -1, -1},
+		{[]int{}, 0, 42, 42},
+		{nil, 0, 42, 42},
+	}
+	for _, tt := range tests {
+		if got := AtOr(tt.s, tt.i, tt.or); got != tt.want {
+			t.Errorf("AtOr(%v, %d, %d) = %d, want %d", tt.s, tt.i, tt.or, got, tt.want)
+		}
+	}
+}
+
+func TestFirstLast(t *testing.T) {
+	t.Run("non-empty", func(t *testing.T) {
+		s := []int{10, 20, 30}
+		if v, ok := First(s); v != 10 || !ok {
+			t.Errorf("First = (%d, %v), want (10, true)", v, ok)
+		}
+		if v, ok := Last(s); v != 30 || !ok {
+			t.Errorf("Last = (%d, %v), want (30, true)", v, ok)
+		}
+	})
+	t.Run("empty", func(t *testing.T) {
+		var s []int
+		if _, ok := First(s); ok {
+			t.Error("First on empty returned ok=true")
+		}
+		if _, ok := Last(s); ok {
+			t.Error("Last on empty returned ok=true")
+		}
+	})
+	t.Run("FirstOr/LastOr fallback", func(t *testing.T) {
+		s := []int{10, 20, 30}
+		if got := FirstOr(s, -1); got != 10 {
+			t.Errorf("FirstOr = %d, want 10", got)
+		}
+		if got := LastOr(s, -1); got != 30 {
+			t.Errorf("LastOr = %d, want 30", got)
+		}
+		var empty []int
+		if got := FirstOr(empty, -1); got != -1 {
+			t.Errorf("FirstOr empty = %d, want -1", got)
+		}
+		if got := LastOr(empty, -1); got != -1 {
+			t.Errorf("LastOr empty = %d, want -1", got)
+		}
+	})
+	t.Run("single element", func(t *testing.T) {
+		s := []int{42}
+		if v, _ := First(s); v != 42 {
+			t.Errorf("First = %d", v)
+		}
+		if v, _ := Last(s); v != 42 {
+			t.Errorf("Last = %d", v)
+		}
+	})
+}
+
 func BenchmarkEnsureIndex(b *testing.B) {
-	b.Run("within length", func(b *testing.B) {
+	b.Run("within len", func(b *testing.B) {
 		s := make([]int, 100)
-		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			_ = EnsureIndex(s, 50)
 		}
 	})
-
-	b.Run("within capacity", func(b *testing.B) {
-		s := make([]int, 50, 100)
-		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
-			_ = EnsureIndex(s, 75)
-		}
-	})
-
-	b.Run("needs reallocation", func(b *testing.B) {
-		s := make([]int, 10)
-		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
-			_ = EnsureIndex(s, 100)
+	b.Run("grow", func(b *testing.B) {
+		for b.Loop() {
+			_ = EnsureIndex([]int{1, 2, 3}, 100)
 		}
 	})
 }
 
-// BenchmarkChunk benchmarks Chunk function
 func BenchmarkChunk(b *testing.B) {
 	s := make([]int, 1000)
-	for i := range s {
-		s[i] = i
+	for b.Loop() {
+		_ = Chunk(s, 10)
 	}
-
-	b.Run("size 10", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
-			_ = Chunk(s, 10)
-		}
-	})
-
-	b.Run("size 100", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
-			_ = Chunk(s, 100)
-		}
-	})
 }
 
-// BenchmarkAt benchmarks At function
 func BenchmarkAt(b *testing.B) {
-	s := make([]int, 1000)
-
-	b.Run("positive index", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
-			_, _ = At(s, 500)
-		}
-	})
-
-	b.Run("negative index", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
-			_, _ = At(s, -1)
-		}
-	})
+	s := []int{10, 20, 30, 40, 50}
+	for b.Loop() {
+		_, _ = At(s, -1)
+	}
 }

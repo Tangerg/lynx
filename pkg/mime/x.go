@@ -5,7 +5,8 @@ import (
 	"sync"
 )
 
-// xPrefixSubtypeToStandard maps MIME types with x-prefix to their standard equivalents
+// xPrefixSubtypeToStandard maps legacy "x-" subtypes onto their RFC
+// 6648 standard counterparts.
 var xPrefixSubtypeToStandard = map[string]string{
 	"x-javascript":          "javascript",
 	"x-ecmascript":          "ecmascript",
@@ -103,38 +104,18 @@ var xPrefixSubtypeToStandard = map[string]string{
 	"x-quicktime":           "quicktime",
 }
 
-// Mutex for thread-safe access to xPrefixSubtypeToStandard
+// xPrefixMutex guards xPrefixSubtypeToStandard.
 var xPrefixMutex sync.RWMutex
 
-// RegisterXSubtype registers a custom x-prefix subtype to standard subtype mapping.
-// This allows users to define their own normalization rules for x-prefix MIME types.
-//
-// Parameters:
-//   - xSubtype: The x-prefix subtype (e.g., "x-custom")
-//   - standardSubtype: The standard subtype it should map to (e.g., "custom")
-//
-// Example:
-//
-//	RegisterXSubtype("x-custom-format", "custom-format")
-//	// Now application/x-custom-format will normalize to application/custom-format
+// RegisterXSubtype registers an "x-" subtype mapping consulted by
+// [NormalizeXSubtype]. Safe for concurrent use.
 func RegisterXSubtype(xSubtype, standardSubtype string) {
 	xPrefixMutex.Lock()
 	defer xPrefixMutex.Unlock()
 	xPrefixSubtypeToStandard[xSubtype] = standardSubtype
 }
 
-// RegisterXSubtypes registers multiple x-prefix subtype mappings at once.
-// This is a convenience function for batch registration.
-//
-// Parameters:
-//   - mappings: A map of x-prefix subtypes to their standard equivalents
-//
-// Example:
-//
-//	RegisterXSubtypes(map[string]string{
-//	    "x-custom1": "custom1",
-//	    "x-custom2": "custom2",
-//	})
+// RegisterXSubtypes is the batch form of [RegisterXSubtype].
 func RegisterXSubtypes(mappings map[string]string) {
 	xPrefixMutex.Lock()
 	defer xPrefixMutex.Unlock()
@@ -143,15 +124,10 @@ func RegisterXSubtypes(mappings map[string]string) {
 	}
 }
 
-// NormalizeXSubtype converts MIME types with x-prefix in subtype to their standard form.
-// It first checks a predefined mapping table for known conversions. If no mapping is found,
-// it simply removes the "x-" prefix from the subtype.
-//
-// Examples:
-// - "application/x-javascript" becomes "application/javascript"
-// - "text/x-markdown" becomes "text/markdown"
-//
-// This function always returns a new MIME instance and does not modify the original.
+// NormalizeXSubtype returns a copy of sourceMime with its "x-" subtype
+// rewritten to the modern equivalent. If no specific mapping is
+// registered, the "x-" prefix is dropped. Subtypes without an "x-"
+// prefix are returned as a clone unchanged.
 func NormalizeXSubtype(sourceMime *MIME) *MIME {
 	// Return a clone if the subtype doesn't have x-prefix
 	if !strings.HasPrefix(sourceMime.subType, "x-") {

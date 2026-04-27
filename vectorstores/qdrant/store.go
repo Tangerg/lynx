@@ -164,7 +164,7 @@ func (v *VectorStore) initialize(ctx context.Context) error {
 func (v *VectorStore) buildUpsertPoints(ctx context.Context, req *vectorstore.CreateRequest) (*qdrant.UpsertPoints, error) {
 	upsertPoints := &qdrant.UpsertPoints{
 		CollectionName: v.collectionName,
-		Wait:           ptr.Pointer(true),
+		Wait:           ptr.To(true),
 	}
 
 	batchedDocs, err := v.documentBatcher.Batch(ctx, req.Documents)
@@ -242,8 +242,8 @@ func (v *VectorStore) Create(ctx context.Context, req *vectorstore.CreateRequest
 func (v *VectorStore) buildQueryPoints(ctx context.Context, req *vectorstore.RetrievalRequest) (*qdrant.QueryPoints, error) {
 	queryPoints := &qdrant.QueryPoints{
 		CollectionName: v.collectionName,
-		ScoreThreshold: ptr.Pointer(float32(req.MinScore)),
-		Limit:          ptr.Pointer(uint64(req.TopK)),
+		ScoreThreshold: ptr.To(float32(req.MinScore)),
+		Limit:          ptr.To(uint64(req.TopK)),
 		WithPayload:    qdrant.NewWithPayload(true),
 	}
 

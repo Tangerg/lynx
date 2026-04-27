@@ -10,48 +10,42 @@ import (
 	"github.com/Tangerg/lynx/pkg/safe"
 )
 
-// Pool defines the common interface for all goroutine pool implementations.
-// Any pool implementing this interface can be used to execute functions concurrently.
+// Pool runs functions concurrently. Implementations may impose limits
+// on parallelism, queueing, or per-task timeouts.
 type Pool interface {
-	// Submit submits a function to be executed concurrently by the pool.
 	Submit(f func()) error
 }
 
-// defaultPool is the package-level default pool instance.
-// It uses a simple goroutine-based implementation with no limits.
+// defaultPool is the package-level default Pool, accessed via
+// [DefaultPool] / [SetDefaultPool].
 var defaultPool atomic.Value
 
-// DefaultPool returns the current default pool instance.
-func DefaultPool() Pool {
-	return defaultPool.Load().(Pool)
-}
-
-// SetDefaultPool sets a new default pool for the package.
-// If the provided pool is nil, the function has no effect.
-func SetDefaultPool(pool Pool) {
-	if pool == nil {
-		return
-	}
-	defaultPool.Store(pool)
-}
-
-// init initializes the package by setting the default pool to a simple goroutine pool.
 func init() {
 	defaultPool.Store(PoolOfNoPool())
 }
 
-// poolAdapter is an adapter type that converts a function with the signature
-// func(func()) into a Pool implementation.
-type poolAdapter func(f func()) error
-
-// Submit implements the Pool interface for poolAdapter by calling the wrapped function.
-func (p poolAdapter) Submit(f func()) error {
-	return p(f)
+// DefaultPool returns the current default Pool. Until [SetDefaultPool]
+// is called, this is [PoolOfNoPool].
+func DefaultPool() Pool {
+	return defaultPool.Load().(Pool)
 }
 
-// PoolOfNoPool creates a Pool that simply launches a new goroutine for each task.
-// This implementation has no limits on concurrency and doesn't provide any pooling benefits.
-// It does include basic panic recovery for safety by Go.
+// SetDefaultPool replaces the default Pool. A nil pool is ignored.
+func SetDefaultPool(p Pool) {
+	if p == nil {
+		return
+	}
+	defaultPool.Store(p)
+}
+
+// poolAdapter adapts a func(func()) error into the [Pool] interface.
+type poolAdapter func(f func()) error
+
+// Submit implements [Pool].
+func (p poolAdapter) Submit(f func()) error { return p(f) }
+
+// PoolOfNoPool returns a Pool that launches a fresh recoverable
+// goroutine for every task. It applies no concurrency limit.
 func PoolOfNoPool() Pool {
 	return poolAdapter(func(f func()) error {
 		safe.Go(f)
@@ -59,11 +53,10 @@ func PoolOfNoPool() Pool {
 	})
 }
 
-// PoolOfConc creates a Pool adapter for the sourcegraph/conc pool implementation.
-// It panics if the provided pool is nil.
+// PoolOfConc adapts a sourcegraph/conc *Pool. Panics if pool is nil.
 func PoolOfConc(pool *conc.Pool) Pool {
 	if pool == nil {
-		panic("pool must not be nil")
+		panic("sync: pool must not be nil")
 	}
 	return poolAdapter(func(f func()) error {
 		pool.Go(f)
@@ -71,22 +64,21 @@ func PoolOfConc(pool *conc.Pool) Pool {
 	})
 }
 
-// PoolOfAnts creates a Pool adapter for the panjf2000/ants pool implementation.
-// It panics if the provided pool is nil.
+// PoolOfAnts adapts a panjf2000/ants *Pool. Panics if pool is nil.
 func PoolOfAnts(pool *ants.Pool) Pool {
 	if pool == nil {
-		panic("pool must not be nil")
+		panic("sync: pool must not be nil")
 	}
 	return poolAdapter(func(f func()) error {
 		return pool.Submit(f)
 	})
 }
 
-// PoolOfWorkerpool creates a Pool adapter for the gammazero/workerpool implementation.
-// It panics if the provided pool is nil.
+// PoolOfWorkerpool adapts a gammazero/workerpool *WorkerPool. Panics
+// if pool is nil.
 func PoolOfWorkerpool(pool *workerpool.WorkerPool) Pool {
 	if pool == nil {
-		panic("pool must not be nil")
+		panic("sync: pool must not be nil")
 	}
 	return poolAdapter(func(f func()) error {
 		pool.Submit(f)

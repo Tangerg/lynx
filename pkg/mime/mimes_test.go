@@ -755,26 +755,25 @@ func TestTextFormats(t *testing.T) {
 
 // BenchmarkStringTypeByExtension benchmarks string type lookup
 func BenchmarkStringTypeByExtension(b *testing.B) {
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_ = StringTypeByExtension("test.json")
 	}
 }
 
 // BenchmarkTypeByExtension benchmarks MIME object lookup
 func BenchmarkTypeByExtension(b *testing.B) {
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_, _ = TypeByExtension("test.json")
 	}
 }
 
 // BenchmarkRegisterExtension benchmarks extension registration
 func BenchmarkRegisterExtension(b *testing.B) {
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	i := 0
+	for b.Loop() {
 		ext := fmt.Sprintf(".bench-%d", i)
 		_ = RegisterExtension(ext, "application/test")
+		i++
 	}
 }
 
@@ -786,8 +785,7 @@ func BenchmarkRegisterExtensions(b *testing.B) {
 		".bench3": "application/test3",
 	}
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_ = RegisterExtensions(mappings)
 	}
 }
