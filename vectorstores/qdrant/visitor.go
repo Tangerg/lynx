@@ -380,22 +380,22 @@ func (c *Visitor) visitOrderingExpr(expr *ast.BinaryExpr) error {
 	case token.LT:
 		// < operator: field value must be less than the specified value
 		c.filter.Must = append(c.filter.Must, qdrant.NewRange(fieldKey, &qdrant.Range{
-			Lt: ptr.Pointer(numericValue),
+			Lt: ptr.To(numericValue),
 		}))
 	case token.LE:
 		// <= operator: field value must be less than or equal to the specified value
 		c.filter.Must = append(c.filter.Must, qdrant.NewRange(fieldKey, &qdrant.Range{
-			Lte: ptr.Pointer(numericValue),
+			Lte: ptr.To(numericValue),
 		}))
 	case token.GT:
 		// > operator: field value must be greater than the specified value
 		c.filter.Must = append(c.filter.Must, qdrant.NewRange(fieldKey, &qdrant.Range{
-			Gt: ptr.Pointer(numericValue),
+			Gt: ptr.To(numericValue),
 		}))
 	case token.GE:
 		// >= operator: field value must be greater than or equal to the specified value
 		c.filter.Must = append(c.filter.Must, qdrant.NewRange(fieldKey, &qdrant.Range{
-			Gte: ptr.Pointer(numericValue),
+			Gte: ptr.To(numericValue),
 		}))
 	default:
 		// Defensive programming: should never reach here

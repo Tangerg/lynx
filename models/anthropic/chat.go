@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"iter"
+	"strings"
 	"time"
 
 	anthropicsdk "github.com/anthropics/anthropic-sdk-go"
@@ -133,7 +134,28 @@ func (r *requestHelper) buildUserMsg(msg *chat.UserMessage) anthropicsdk.Message
 }
 
 func (r *requestHelper) buildAssistantMsg(msg *chat.AssistantMessage) anthropicsdk.MessageParam {
-	blocks := make([]anthropicsdk.ContentBlockParamUnion, 0, 1+len(msg.ToolCalls))
+	blocks := make([]anthropicsdk.ContentBlockParamUnion, 0, 2+len(msg.ToolCalls))
+
+	// Anthropic requires content blocks in order: thinking → text → tool_use.
+	// Redacted thinking and standard thinking can both appear before text;
+	// signatures (when present) must be echoed verbatim so the API can
+	// validate that prior reasoning has not been tampered with.
+	if data := redactedReasoning(msg); data != "" {
+		blocks = append(blocks, anthropicsdk.NewRedactedThinkingBlock(data))
+	}
+	sig := reasoningSignature(msg)
+	if msg.Reasoning != "" && sig != "" {
+		blocks = append(blocks, anthropicsdk.NewThinkingBlock(sig, msg.Reasoning))
+	} else if sig != "" {
+		// OMITTED display mode: signature only, no visible reasoning text.
+		// Anthropic accepts an empty thinking string with a non-empty
+		// signature in this mode.
+		blocks = append(blocks, anthropicsdk.NewThinkingBlock(sig, ""))
+	}
+	// If we have Reasoning text but no signature, drop it on replay — the
+	// signature is required for the API to accept the block, and a missing
+	// signature usually means the message arrived from an external source
+	// that did not preserve the continuation token.
 
 	if msg.Text != "" {
 		blocks = append(blocks, anthropicsdk.NewTextBlock(msg.Text))
@@ -211,10 +233,20 @@ func (r *responseHelper) mapFinishReason(stopReason anthropicsdk.StopReason) cha
 	}
 }
 
+// buildAssistantMsg folds all ContentBlocks of an Anthropic response into
+// a single AssistantMessage. Thinking text accumulates into Reasoning;
+// the first non-empty signature is stored under MetaReasoningSignature
+// (sufficient for standard extended thinking — interleaved-thinking beta
+// is not supported in this initial implementation). Redacted thinking
+// data is stored under MetaRedactedReasoning. Tool uses become ToolCalls.
 func (r *responseHelper) buildAssistantMsg(resp *anthropicsdk.Message) *chat.AssistantMessage {
 	msgParams := chat.MessageParams{
 		Metadata: make(map[string]any),
 	}
+
+	var reasoningBuf strings.Builder
+	var firstSignature string
+	var redactedData string
 
 	for _, block := range resp.Content {
 		switch block.Type {
@@ -227,30 +259,58 @@ func (r *responseHelper) buildAssistantMsg(resp *anthropicsdk.Message) *chat.Ass
 				Name:      block.Name,
 				Arguments: string(rawInput),
 			})
+		case "thinking":
+			reasoningBuf.WriteString(block.Thinking)
+			if firstSignature == "" {
+				firstSignature = block.Signature
+			}
+		case "redacted_thinking":
+			redactedData = block.Data
 		}
+	}
+
+	msgParams.Reasoning = reasoningBuf.String()
+	if firstSignature != "" {
+		msgParams.Metadata[MetaReasoningSignature] = firstSignature
+	}
+	if redactedData != "" {
+		msgParams.Metadata[MetaRedactedReasoning] = redactedData
 	}
 
 	return chat.NewAssistantMessage(msgParams)
 }
 
 func (r *responseHelper) buildResult(resp *anthropicsdk.Message) (*chat.Result, error) {
-	assistantMsg := r.buildAssistantMsg(resp)
-	meta := &chat.ResultMetadata{
+	msg := r.buildAssistantMsg(resp)
+	return chat.NewResult(msg, &chat.ResultMetadata{
 		FinishReason: r.mapFinishReason(resp.StopReason),
-	}
-	return chat.NewResult(assistantMsg, meta)
+	})
 }
 
 func (r *responseHelper) buildMeta(req *anthropicsdk.MessageNewParams, resp *anthropicsdk.Message) *chat.ResponseMetadata {
+	usage := &chat.Usage{
+		PromptTokens:     resp.Usage.InputTokens,
+		CompletionTokens: resp.Usage.OutputTokens,
+		OriginalUsage:    resp.Usage,
+	}
+	// Surface Anthropic's prompt-cache breakdown when ephemeral caching
+	// is in use. The SDK returns 0 when the field is absent from the
+	// response payload, so a 0 value is indistinguishable from "the
+	// provider did not surface this dimension"; we treat any non-zero
+	// count as an explicit signal worth surfacing. Both fields are
+	// subsets of InputTokens (= PromptTokens above).
+	if v := resp.Usage.CacheReadInputTokens; v > 0 {
+		usage.CacheReadInputTokens = &v
+	}
+	if v := resp.Usage.CacheCreationInputTokens; v > 0 {
+		usage.CacheWriteInputTokens = &v
+	}
+
 	meta := &chat.ResponseMetadata{
 		ID:      resp.ID,
 		Model:   resp.Model,
 		Created: time.Now().Unix(),
-		Usage: &chat.Usage{
-			PromptTokens:     resp.Usage.InputTokens,
-			CompletionTokens: resp.Usage.OutputTokens,
-			OriginalUsage:    resp.Usage,
-		},
+		Usage:   usage,
 	}
 	meta.Set("original.request", req)
 	meta.Set("original.response", resp)

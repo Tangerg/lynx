@@ -165,7 +165,15 @@ Raw JSON object with string keys and any valid JSON values.`
 }
 
 // Parse converts the raw LLM output string into a map[string]any by parsing JSON.
-// It automatically strips Markdown code blocks (```json and ```) if present before parsing.
+// It automatically strips Markdown code block delimiters (```json and ```)
+// if present before parsing.
+//
+// Reasoning-tag wrappers (<think>, <thinking>, <reasoning>, …) are NOT
+// stripped here. Splitting reasoning from the assistant's main text is
+// the responsibility of the provider adapter, which routes reasoning
+// content into AssistantMessage.Reasoning and leaves AssistantMessage.Text
+// clean. By the time a structured parser sees rawLLMOutput, the input
+// is the message text alone.
 //
 // The method handles common LLM formatting issues by:
 //  1. Stripping Markdown code block delimiters
@@ -236,7 +244,11 @@ func (j *JSONParser[T]) Instructions() string {
 }
 
 // Parse converts the raw LLM output string into type T by parsing JSON.
-// It automatically strips Markdown code blocks (```json and ```) if present before parsing.
+// It automatically strips Markdown code block delimiters (```json and
+// ```) if present before parsing.
+//
+// Reasoning-tag wrappers (<think>, <thinking>, <reasoning>, …) are NOT
+// stripped here — see MapParser.Parse for rationale.
 //
 // The parsing process includes:
 //  1. Stripping any Markdown code block formatting

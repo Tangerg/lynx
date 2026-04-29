@@ -8,115 +8,65 @@ import (
 	"time"
 )
 
-// Operation defines a retryable operation without return value.
+// Operation is a retryable function with no return value.
 type Operation func() error
 
-// OperationWithResult defines a retryable operation with a return value of type T.
+// OperationWithResult is a retryable function that returns a value of type T.
 type OperationWithResult[T any] func() (T, error)
 
-// DelayConfig holds delay-related configuration for retry strategies.
+// DelayConfig groups the parameters consumed by built-in delay
+// functions ([ExponentialBackoff], [FullJitterBackoff], …).
 type DelayConfig struct {
-	// Base delay duration between retries.
+	// BaseDelay is the initial delay between retries.
 	BaseDelay time.Duration
-
-	// Maximum delay duration (0 means unlimited).
+	// MaxDelay caps the computed delay; 0 means uncapped.
 	MaxDelay time.Duration
-
-	// Maximum random jitter to add to delays.
+	// MaxJitter is the upper bound of the random jitter added by
+	// [RandomJitter]; 0 disables jitter.
 	MaxJitter time.Duration
-
-	// Maximum backoff step to prevent overflow (computed internally).
+	// MaxBackoffStep caps the exponent used by exponential strategies.
+	// 0 means automatically derived from BaseDelay to avoid overflow.
 	MaxBackoffStep int
 }
 
-// Strategy encapsulates the retry strategy configuration.
-// All fields are private and can only be set through Option functions.
-// A Strategy can be safely reused across multiple retry operations.
-// Note: Strategy is NOT safe for concurrent modification. If you need to use
-// the same configuration across multiple goroutines, create separate Strategy
-// instances with the same options, or ensure external synchronization.
-//
-// Example:
-//
-//	strategy := NewRetrier(
-//		WithMaxAttempts(5),
-//		WithExponentialBackoff(),
-//	)
-//
-//	// Reuse strategy multiple times (sequentially)
-//	err1 := strategy.Do(operation1)
-//	err2 := strategy.Do(operation2)
+// Strategy holds a fully resolved retry configuration. It is built by
+// [NewRetrier] / [NewResultRetrier] from a list of [Option] values and
+// is safe to share across goroutines as long as no further mutation
+// occurs.
 type Strategy struct {
-	// Context for cancellation control.
-	context context.Context
-
-	// Maximum number of attempts (0 means unlimited retries).
-	maxAttempts int
-
-	// Callback function invoked before each retry (attempt starts from 1).
-	// This is called after an operation fails but before the delay.
-	onRetry func(attempt int, err error)
-
-	// Callback function invoked after a successful operation (attempt starts from 1).
-	// This is useful for logging successful retries.
-	onSuccess func(attempt int)
-
-	// Function to determine if an error should trigger a retry.
-	shouldRetry func(err error) bool
-
-	// Function to compute delay before next retry (attempt starts from 1).
+	context      context.Context
+	maxAttempts  int
+	onRetry      func(attempt int, err error)
+	onSuccess    func(attempt int)
+	shouldRetry  func(err error) bool
 	computeDelay func(attempt int, err error, config DelayConfig) time.Duration
-
-	// Sleep function (can be replaced for testing).
-	sleep func(duration time.Duration) <-chan time.Time
-
-	// delay configuration.
-	delayConfig DelayConfig
+	sleep        func(d time.Duration) <-chan time.Time
+	delayConfig  DelayConfig
 }
 
-// defaultStrategy returns a Strategy with sensible default values.
-// Default configuration:
-//   - Context: background context
-//   - MaxAttempts: 3
-//   - BaseDelay: 100ms
-//   - MaxDelay: unlimited (0)
-//   - MaxJitter: 100ms
-//   - ComputeDelay: ExponentialBackoff with RandomJitter
-//   - ShouldRetry: always retry
-//   - OnRetry: no-op
-//   - OnSuccess: no-op
-//   - Sleep: time.After
+// defaultStrategy returns a Strategy populated with package defaults.
 func defaultStrategy() *Strategy {
 	return &Strategy{
 		context:      context.Background(),
 		maxAttempts:  3,
-		onRetry:      func(attempt int, err error) {},
-		onSuccess:    func(attempt int) {},
-		shouldRetry:  func(err error) bool { return true },
+		onRetry:      func(int, error) {},
+		onSuccess:    func(int) {},
+		shouldRetry:  func(error) bool { return true },
 		computeDelay: CombineDelays(ExponentialBackoff, RandomJitter),
 		sleep:        time.After,
 		delayConfig: DelayConfig{
-			BaseDelay:      100 * time.Millisecond,
-			MaxDelay:       0,
-			MaxJitter:      100 * time.Millisecond,
-			MaxBackoffStep: 0,
+			BaseDelay: 100 * time.Millisecond,
+			MaxJitter: 100 * time.Millisecond,
 		},
 	}
 }
 
-// Option is a function that configures a Strategy.
+// Option configures a [Strategy].
 type Option func(*Strategy)
 
-// WithContext sets the context for retry operations.
-// The context can be used to cancel retries or set timeouts.
-//
-// Example:
-//
-//	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-//	defer cancel()
-//	err := Do(operation, WithContext(ctx))
-//
-// Default: context.Background()
+// WithContext sets the context that bounds the entire retry. Cancelling
+// it terminates retries with a wrapped context error. A nil context is
+// ignored.
 func WithContext(ctx context.Context) Option {
 	return func(s *Strategy) {
 		if ctx != nil {
@@ -125,224 +75,104 @@ func WithContext(ctx context.Context) Option {
 	}
 }
 
-// WithMaxAttempts sets the maximum number of retry attempts.
-// Set to 0 for unlimited retries (until success or context cancellation).
-// Negative values are treated as 0.
-//
-// Example:
-//
-//	err := Do(operation, WithMaxAttempts(5))  // Try up to 5 times
-//
-// Default: 3
-func WithMaxAttempts(maxAttempts int) Option {
+// WithMaxAttempts caps the total number of attempts. Use 0 (or
+// [WithUnlimitedAttempts]) for unlimited retries; pair with a context
+// deadline. Negative values are treated as 0.
+func WithMaxAttempts(n int) Option {
 	return func(s *Strategy) {
-		if maxAttempts < 0 {
-			maxAttempts = 0
+		if n < 0 {
+			n = 0
 		}
-		s.maxAttempts = maxAttempts
+		s.maxAttempts = n
 	}
 }
 
-// WithUnlimitedAttempts configures unlimited retries until success or context cancellation.
-// This is equivalent to WithMaxAttempts(0).
-// Use with caution - always pair with a context timeout to prevent infinite loops.
-//
-// Example:
-//
-//	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-//	defer cancel()
-//	err := Do(operation, WithUnlimitedAttempts(), WithContext(ctx))
-func WithUnlimitedAttempts() Option {
-	return WithMaxAttempts(0)
-}
+// WithUnlimitedAttempts is shorthand for WithMaxAttempts(0).
+func WithUnlimitedAttempts() Option { return WithMaxAttempts(0) }
 
-// WithOnRetry sets a callback function invoked before each retry.
-// The callback receives the attempt number (starting from 1) and the error that triggered the retry.
-// This is called after an operation fails but before sleeping for the next attempt.
-//
-// Example:
-//
-//	err := Do(operation,
-//		WithOnRetry(func(attempt int, err error) {
-//			log.Printf("Retry %d: %v", attempt, err)
-//		}),
-//	)
-//
-// Default: no-op function
-func WithOnRetry(onRetry func(attempt int, err error)) Option {
+// WithOnRetry installs a callback fired before each delay, after a
+// failed attempt. attempt starts at 1.
+func WithOnRetry(fn func(attempt int, err error)) Option {
 	return func(s *Strategy) {
-		if onRetry != nil {
-			s.onRetry = onRetry
+		if fn != nil {
+			s.onRetry = fn
 		}
 	}
 }
 
-// WithOnSuccess sets a callback function invoked after a successful operation.
-// The callback receives the attempt number (starting from 1).
-// This is useful for logging when an operation succeeds after retries.
-//
-// Example:
-//
-//	err := Do(operation,
-//		WithOnSuccess(func(attempt int) {
-//			if attempt > 1 {
-//				log.Printf("Succeeded after %d attempts", attempt)
-//			}
-//		}),
-//	)
-//
-// Default: no-op function
-func WithOnSuccess(onSuccess func(attempt int)) Option {
+// WithOnSuccess installs a callback fired once the operation succeeds.
+// attempt is the 1-based attempt that succeeded.
+func WithOnSuccess(fn func(attempt int)) Option {
 	return func(s *Strategy) {
-		if onSuccess != nil {
-			s.onSuccess = onSuccess
+		if fn != nil {
+			s.onSuccess = fn
 		}
 	}
 }
 
-// WithRetryCondition sets a function to determine if an error should trigger a retry.
-// Return true to retry, false to abort immediately.
-//
-// Example - Don't retry on specific errors:
-//
-//	err := Do(operation,
-//		WithRetryCondition(func(err error) bool {
-//			return !errors.Is(err, ErrFatalError)
-//		}),
-//	)
-//
-// Example - Only retry on temporary errors:
-//
-//	err := Do(operation,
-//		WithRetryCondition(func(err error) bool {
-//			var tempErr interface{ Temporary() bool }
-//			return errors.As(err, &tempErr) && tempErr.Temporary()
-//		}),
-//	)
-//
-// Default: always returns true (retry all errors)
-func WithRetryCondition(shouldRetry func(err error) bool) Option {
+// WithRetryCondition sets a predicate deciding whether to retry on a
+// given error. Return false to stop retrying immediately.
+func WithRetryCondition(fn func(err error) bool) Option {
 	return func(s *Strategy) {
-		if shouldRetry != nil {
-			s.shouldRetry = shouldRetry
+		if fn != nil {
+			s.shouldRetry = fn
 		}
 	}
 }
 
-// WithDelayFunc sets a custom delay computation function.
-// The function receives the attempt number (starting from 1), the error, and delay configuration.
-//
-// Example - Custom delay based on error type:
-//
-//	err := Do(operation,
-//		WithDelayFunc(func(attempt int, err error, config DelayConfig) time.Duration {
-//			if errors.Is(err, ErrRateLimited) {
-//				return 5 * time.Second  // Longer delay for rate limits
-//			}
-//			return config.BaseDelay * time.Duration(attempt)
-//		}),
-//	)
-//
-// Default: CombineDelays(ExponentialBackoff, RandomJitter)
-func WithDelayFunc(computeDelay func(attempt int, err error, config DelayConfig) time.Duration) Option {
+// WithDelayFunc sets a custom delay function. See [ExponentialBackoff]
+// and [CombineDelays] for building blocks.
+func WithDelayFunc(fn func(attempt int, err error, cfg DelayConfig) time.Duration) Option {
 	return func(s *Strategy) {
-		if computeDelay != nil {
-			s.computeDelay = computeDelay
+		if fn != nil {
+			s.computeDelay = fn
 		}
 	}
 }
 
-// WithSleep sets a custom sleep function for testing purposes.
-// The function should return a channel that delivers the current time after the specified duration.
-//
-// Example - Mock sleep for testing:
-//
-//	mockSleep := func(d time.Duration) <-chan time.Time {
-//		ch := make(chan time.Time, 1)
-//		ch <- time.Now()  // Return immediately
-//		return ch
-//	}
-//	err := Do(operation, WithSleep(mockSleep))
-//
-// Default: time.After
-func WithSleep(sleep func(duration time.Duration) <-chan time.Time) Option {
+// WithSleep replaces the underlying sleep function. Tests can pass a
+// mock that returns immediately to avoid real waiting.
+func WithSleep(fn func(d time.Duration) <-chan time.Time) Option {
 	return func(s *Strategy) {
-		if sleep != nil {
-			s.sleep = sleep
+		if fn != nil {
+			s.sleep = fn
 		}
 	}
 }
 
-// WithBaseDelay sets the base delay duration between retries.
-// This is the starting delay for exponential backoff strategies.
-// Negative values are treated as 0.
-//
-// Example:
-//
-//	err := Do(operation, WithBaseDelay(200*time.Millisecond))
-//
-// Default: 100ms
-func WithBaseDelay(delay time.Duration) Option {
+// WithBaseDelay sets the initial delay. Negative values become 0.
+func WithBaseDelay(d time.Duration) Option {
 	return func(s *Strategy) {
-		if delay < 0 {
-			delay = 0
+		if d < 0 {
+			d = 0
 		}
-		s.delayConfig.BaseDelay = delay
+		s.delayConfig.BaseDelay = d
 	}
 }
 
-// WithMaxDelay sets the maximum delay duration between retries.
-// Set to 0 for unlimited delay (no cap on backoff).
-// Negative values are treated as 0.
-//
-// Example:
-//
-//	err := Do(operation,
-//		WithExponentialBackoff(),
-//		WithMaxDelay(30*time.Second),  // Cap exponential growth
-//	)
-//
-// Default: 0 (unlimited)
-func WithMaxDelay(maxDelay time.Duration) Option {
+// WithMaxDelay caps the per-attempt delay. 0 disables the cap.
+func WithMaxDelay(d time.Duration) Option {
 	return func(s *Strategy) {
-		if maxDelay < 0 {
-			maxDelay = 0
+		if d < 0 {
+			d = 0
 		}
-		s.delayConfig.MaxDelay = maxDelay
+		s.delayConfig.MaxDelay = d
 	}
 }
 
-// WithMaxJitter sets the maximum random jitter to add to delays.
-// Jitter helps prevent thundering herd problems in distributed systems.
-// Negative values are treated as 0.
-//
-// Example:
-//
-//	err := Do(operation, WithMaxJitter(500*time.Millisecond))
-//
-// Default: 100ms
-func WithMaxJitter(maxJitter time.Duration) Option {
+// WithMaxJitter sets the upper bound on random jitter for
+// [RandomJitter]. Negative values become 0.
+func WithMaxJitter(d time.Duration) Option {
 	return func(s *Strategy) {
-		if maxJitter < 0 {
-			maxJitter = 0
+		if d < 0 {
+			d = 0
 		}
-		s.delayConfig.MaxJitter = maxJitter
+		s.delayConfig.MaxJitter = d
 	}
 }
 
-// WithBackoffStep sets the maximum backoff step for exponential backoff.
-// This limits the exponential growth to prevent overflow (delay = BaseDelay * 2^step).
-// Set to 0 to use the automatically calculated safe maximum.
-// Negative values are treated as 0.
-//
-// Example:
-//
-//	err := Do(operation,
-//		WithExponentialBackoff(),
-//		WithBackoffStep(10),  // Limit to 2^10 = 1024x multiplier
-//	)
-//
-// Default: 0 (auto-calculated based on BaseDelay to prevent overflow)
+// WithBackoffStep caps the exponent in exponential strategies.
+// 0 enables automatic overflow protection based on BaseDelay.
 func WithBackoffStep(step int) Option {
 	return func(s *Strategy) {
 		if step < 0 {
@@ -352,547 +182,213 @@ func WithBackoffStep(step int) Option {
 	}
 }
 
-// WithDelayConfig sets the complete delay configuration for retry strategy.
-// This allows configuring all delay-related parameters in a single call.
-// Negative values for any field will be normalized to 0.
-//
-// Fields:
-//   - BaseDelay: The initial delay between retries
-//   - MaxDelay: The maximum delay cap to prevent excessively long waits
-//   - MaxJitter: The maximum random jitter added to delays
-//   - MaxBackoffStep: The maximum backoff step for exponential backoff (0 = auto-calculated)
-//
-// Example:
-//
-//	err := Do(operation,
-//		WithDelayConfig(DelayConfig{
-//			BaseDelay:      100 * time.Millisecond,
-//			MaxDelay:       30 * time.Second,
-//			MaxJitter:      50 * time.Millisecond,
-//			MaxBackoffStep: 10,
-//		}),
-//	)
-//
-// Default: All fields set to their respective defaults
-func WithDelayConfig(config DelayConfig) Option {
+// WithDelayConfig replaces the entire [DelayConfig]. Negative fields
+// are normalized to 0.
+func WithDelayConfig(cfg DelayConfig) Option {
 	return func(s *Strategy) {
-		if config.BaseDelay < 0 {
-			config.BaseDelay = 0
+		if cfg.BaseDelay < 0 {
+			cfg.BaseDelay = 0
 		}
-		if config.MaxDelay < 0 {
-			config.MaxDelay = 0
+		if cfg.MaxDelay < 0 {
+			cfg.MaxDelay = 0
 		}
-		if config.MaxJitter < 0 {
-			config.MaxJitter = 0
+		if cfg.MaxJitter < 0 {
+			cfg.MaxJitter = 0
 		}
-		if config.MaxBackoffStep < 0 {
-			config.MaxBackoffStep = 0
+		if cfg.MaxBackoffStep < 0 {
+			cfg.MaxBackoffStep = 0
 		}
-		s.delayConfig = config
+		s.delayConfig = cfg
 	}
 }
 
-// Predefined delay strategies
-
-// WithExponentialBackoff configures exponential backoff with random jitter.
-// This is the default delay strategy and provides good balance between
-// retry frequency and avoiding overwhelming the target system.
-//
-// Formula: (BaseDelay * 2^attempt) + random(0, MaxJitter)
-//
-// Example:
-//
-//	err := Do(operation,
-//		WithExponentialBackoff(),
-//		WithBaseDelay(100*time.Millisecond),
-//		WithMaxJitter(50*time.Millisecond),
-//	)
+// WithExponentialBackoff selects exponential backoff plus random
+// jitter, the package default.
 func WithExponentialBackoff() Option {
 	return WithDelayFunc(CombineDelays(ExponentialBackoff, RandomJitter))
 }
 
-// WithFixedDelay configures a fixed delay between retries.
-// The delay is always equal to BaseDelay, regardless of attempt number.
-//
-// Example:
-//
-//	err := Do(operation,
-//		WithFixedDelay(),
-//		WithBaseDelay(1*time.Second),
-//	)
-func WithFixedDelay() Option {
-	return WithDelayFunc(FixedDelay)
-}
+// WithFixedDelay selects a constant delay equal to BaseDelay.
+func WithFixedDelay() Option { return WithDelayFunc(FixedDelay) }
 
-// WithFullJitter configures full jitter backoff strategy.
-// Returns a random duration between 0 and (BaseDelay * 2^attempt).
-// This strategy provides maximum randomization to minimize collision probability
-// in distributed systems.
-//
-// Formula: random(0, min(MaxDelay, BaseDelay * 2^attempt))
-//
-// Recommended by AWS for distributed systems:
-// https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/
-//
-// Example:
-//
-//	err := Do(operation,
-//		WithFullJitter(),
-//		WithBaseDelay(100*time.Millisecond),
-//		WithMaxDelay(30*time.Second),
-//	)
-func WithFullJitter() Option {
-	return WithDelayFunc(FullJitterBackoff)
-}
-
-// Delay computation functions
-
-// ExponentialBackoff implements an exponential backoff delay strategy.
-// The delay is calculated as: BaseDelay * 2^attempt (capped at MaxBackoffStep and MaxDelay).
-// This strategy provides increasingly longer delays between retries.
-//
-// Formula: min(MaxDelay, BaseDelay * 2^min(attempt, MaxBackoffStep))
-//
-// This function is typically used with CombineDelays to add jitter:
-//
-//	CombineDelays(ExponentialBackoff, RandomJitter)
-func ExponentialBackoff(attempt int, _ error, config DelayConfig) time.Duration {
-	if attempt <= 0 || config.BaseDelay <= 0 {
-		return config.BaseDelay
-	}
-
-	step := attempt
-	if config.MaxBackoffStep > 0 && step > config.MaxBackoffStep {
-		step = config.MaxBackoffStep
-	}
-
-	// Use bit shift for efficient exponential calculation
-	delay := config.BaseDelay << step
-
-	// Check for overflow (negative value after shift indicates overflow)
-	if delay < 0 {
-		delay = time.Duration(math.MaxInt64)
-	}
-
-	// Apply max delay cap if configured
-	if config.MaxDelay > 0 && delay > config.MaxDelay {
-		delay = config.MaxDelay
-	}
-
-	return delay
-}
-
-// FixedDelay implements a fixed delay strategy.
-// The delay is always equal to BaseDelay, regardless of the attempt number.
-//
-// This is useful when you want consistent retry intervals, such as
-// polling a job status or waiting for a resource to become available.
-func FixedDelay(_ int, _ error, config DelayConfig) time.Duration {
-	return config.BaseDelay
-}
-
-// RandomJitter implements a random jitter delay strategy.
-// Returns a random duration between 0 and MaxJitter.
-// Jitter helps prevent thundering herd problems in distributed systems (thundering herd).
-//
-// This function is typically combined with other delay strategies:
-//
-//	CombineDelays(FixedDelay, RandomJitter)       // Fixed + jitter
-//	CombineDelays(ExponentialBackoff, RandomJitter) // Exponential + jitter
-func RandomJitter(_ int, _ error, config DelayConfig) time.Duration {
-	if config.MaxJitter <= 0 {
-		return 0
-	}
-	return time.Duration(rand.Int64N(int64(config.MaxJitter)))
-}
-
-// FullJitterBackoff implements a full jitter backoff delay strategy.
-// Returns a random duration between 0 and (BaseDelay * 2^attempt).
-// This combines exponential backoff with full randomization to minimize collision probability.
-//
-// Formula: random(0, min(MaxDelay, BaseDelay * 2^attempt))
-//
-// This strategy is recommended by AWS for distributed systems as it provides
-// better distribution of retry timing compared to exponential backoff with fixed jitter.
+// WithFullJitter selects AWS-style full jitter:
+// random(0, min(MaxDelay, BaseDelay·2^attempt)).
 //
 // Reference: https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/
-func FullJitterBackoff(attempt int, _ error, config DelayConfig) time.Duration {
-	if attempt <= 0 || config.BaseDelay <= 0 {
+func WithFullJitter() Option { return WithDelayFunc(FullJitterBackoff) }
+
+// ExponentialBackoff returns BaseDelay·2^attempt, capped by MaxDelay
+// and MaxBackoffStep, saturating at math.MaxInt64 on overflow.
+func ExponentialBackoff(attempt int, _ error, cfg DelayConfig) time.Duration {
+	if attempt <= 0 || cfg.BaseDelay <= 0 {
+		return cfg.BaseDelay
+	}
+	step := attempt
+	if cfg.MaxBackoffStep > 0 && step > cfg.MaxBackoffStep {
+		step = cfg.MaxBackoffStep
+	}
+	d := cfg.BaseDelay << step
+	if d < 0 {
+		d = time.Duration(math.MaxInt64)
+	}
+	if cfg.MaxDelay > 0 && d > cfg.MaxDelay {
+		d = cfg.MaxDelay
+	}
+	return d
+}
+
+// FixedDelay always returns cfg.BaseDelay.
+func FixedDelay(_ int, _ error, cfg DelayConfig) time.Duration {
+	return cfg.BaseDelay
+}
+
+// RandomJitter returns a uniform random duration in [0, MaxJitter).
+// Returns 0 if MaxJitter <= 0.
+func RandomJitter(_ int, _ error, cfg DelayConfig) time.Duration {
+	if cfg.MaxJitter <= 0 {
 		return 0
 	}
+	return time.Duration(rand.Int64N(int64(cfg.MaxJitter)))
+}
 
-	step := attempt
-	if config.MaxBackoffStep > 0 && step > config.MaxBackoffStep {
-		step = config.MaxBackoffStep
+// FullJitterBackoff returns a uniform random duration in
+// [0, min(MaxDelay, BaseDelay·2^attempt)).
+func FullJitterBackoff(attempt int, _ error, cfg DelayConfig) time.Duration {
+	if attempt <= 0 || cfg.BaseDelay <= 0 {
+		return 0
 	}
-
-	// Use bit shift for efficient exponential calculation
-	ceiling := config.BaseDelay << step
-
-	// Check for overflow
+	step := attempt
+	if cfg.MaxBackoffStep > 0 && step > cfg.MaxBackoffStep {
+		step = cfg.MaxBackoffStep
+	}
+	ceiling := cfg.BaseDelay << step
 	if ceiling < 0 {
 		ceiling = time.Duration(math.MaxInt64)
 	}
-
-	// Apply max delay cap if configured
-	if config.MaxDelay > 0 && ceiling > config.MaxDelay {
-		ceiling = config.MaxDelay
+	if cfg.MaxDelay > 0 && ceiling > cfg.MaxDelay {
+		ceiling = cfg.MaxDelay
 	}
-
 	if ceiling <= 0 {
 		return 0
 	}
-
-	// Return random value between 0 and ceiling
 	return time.Duration(rand.Int64N(int64(ceiling)))
 }
 
-// CombineDelays combines multiple delay strategies into a single strategy.
-// The resulting delay is the sum of all individual strategy delays.
-// This allows composing simple strategies into complex ones.
+// CombineDelays returns a delay function whose result is the sum of
+// the supplied functions, saturating at math.MaxInt64 on overflow.
 //
-// If the total delay would overflow, returns math.MaxInt64.
+// Example:
 //
-// Example - Exponential backoff with jitter:
-//
-//	CombineDelays(ExponentialBackoff, RandomJitter)
-//
-// Example - Fixed delay with jitter:
-//
-//	CombineDelays(FixedDelay, RandomJitter)
-//
-// Example - Multiple custom delays:
-//
-//	CombineDelays(
-//		ExponentialBackoff,
-//		RandomJitter,
-//		func(attempt int, err error, config DelayConfig) time.Duration {
-//			// Add extra delay for specific errors
-//			if errors.Is(err, ErrRateLimited) {
-//				return 5 * time.Second
-//			}
-//			return 0
-//		},
-//	)
-func CombineDelays(delayFuncs ...func(int, error, DelayConfig) time.Duration) func(int, error, DelayConfig) time.Duration {
-	return func(attempt int, err error, config DelayConfig) time.Duration {
+//	retry.CombineDelays(retry.ExponentialBackoff, retry.RandomJitter)
+func CombineDelays(funcs ...func(int, error, DelayConfig) time.Duration) func(int, error, DelayConfig) time.Duration {
+	return func(attempt int, err error, cfg DelayConfig) time.Duration {
 		var total time.Duration
-		for _, delayFunc := range delayFuncs {
-			delay := delayFunc(attempt, err, config)
-
-			// Check for overflow before adding
-			if total > time.Duration(math.MaxInt64)-delay {
+		for _, fn := range funcs {
+			d := fn(attempt, err, cfg)
+			if total > time.Duration(math.MaxInt64)-d {
 				return time.Duration(math.MaxInt64)
 			}
-			total += delay
+			total += d
 		}
 		return total
 	}
 }
 
-// calculateMaxBackoffStep computes the maximum safe backoff step to prevent overflow.
-// The calculation ensures that BaseDelay * 2^step will not overflow time.Duration (int64).
-//
-// Returns the maximum step value that can be safely used with the given BaseDelay.
-//
-// Example:
-//   - BaseDelay = 1ns:  maxStep = 62 (2^62 ≈ 146 years)
-//   - BaseDelay = 100ms: maxStep = 36 (100ms * 2^36 ≈ 7.5 years)
-//   - BaseDelay = 1s:   maxStep = 26 (1s * 2^26 ≈ 2.1 years)
+// calculateMaxBackoffStep returns the largest exponent for which
+// baseDelay << step fits in time.Duration.
 func calculateMaxBackoffStep(baseDelay time.Duration) int {
-	const maxBackoffStep = 62 // 2^62 nanoseconds ≈ 146 years
-
+	const cap = 62 // 2^62 ns ≈ 146 years
 	if baseDelay <= 0 {
-		return maxBackoffStep
+		return cap
 	}
-
-	// Calculate the maximum shift that won't overflow
-	// BaseDelay * 2^maxStep < MaxInt64
-	// => maxStep < log2(MaxInt64 / BaseDelay)
-	maxStep := maxBackoffStep - int(math.Floor(math.Log2(float64(baseDelay))))
-	if maxStep < 0 {
+	step := cap - int(math.Floor(math.Log2(float64(baseDelay))))
+	if step < 0 {
 		return 0
 	}
-	return maxStep
+	return step
 }
 
-// doRetry implements the core retry logic.
-// It repeatedly executes the operation until success or a termination condition is met:
-//   - The operation succeeds (returns nil error)
-//   - The maximum number of attempts is reached
-//   - The retry condition returns false (shouldRetry)
-//   - The context is cancelled
-//
-// Returns the operation result and nil on success, or zero value and error on failure.
-// The error is wrapped with context information (attempt number, reason for failure).
-func doRetry[T any](operation OperationWithResult[T], strategy *Strategy) (T, error) {
-	var (
-		result  T
-		attempt int
-	)
-
-	// Check if context is already cancelled before first attempt
-	select {
-	case <-strategy.context.Done():
-		return result, fmt.Errorf("context cancelled before first attempt: %w", strategy.context.Err())
-	default:
+// doRetry implements the retry loop shared by Retrier and ResultRetrier.
+func doRetry[T any](op OperationWithResult[T], s *Strategy) (T, error) {
+	var zero T
+	if err := s.context.Err(); err != nil {
+		return zero, fmt.Errorf("context cancelled before first attempt: %w", err)
 	}
-
-	for {
-		// Execute operation (attempt number starts from 1)
-		attempt++
-		res, err := operation()
-
-		// Operation succeeded
+	for attempt := 1; ; attempt++ {
+		v, err := op()
 		if err == nil {
-			strategy.onSuccess(attempt)
-			return res, nil
+			s.onSuccess(attempt)
+			return v, nil
 		}
-
-		// Check if we should retry this error
-		if !strategy.shouldRetry(err) {
-			return result, fmt.Errorf("operation failed after %d attempts (aborted by retry condition): %w",
-				attempt, err)
+		if !s.shouldRetry(err) {
+			return zero, fmt.Errorf("operation failed after %d attempts (aborted by retry condition): %w", attempt, err)
 		}
-
-		// Check if max attempts reached
-		if strategy.maxAttempts > 0 && attempt >= strategy.maxAttempts {
-			return result, fmt.Errorf("operation failed after %d attempts (max attempts reached): %w",
-				attempt, err)
+		if s.maxAttempts > 0 && attempt >= s.maxAttempts {
+			return zero, fmt.Errorf("operation failed after %d attempts (max attempts reached): %w", attempt, err)
 		}
-
-		// Invoke retry callback (before sleeping)
-		strategy.onRetry(attempt, err)
-
-		// Compute delay for next attempt
-		delay := strategy.computeDelay(attempt, err, strategy.delayConfig)
-
-		// Wait for delay or context cancellation
+		s.onRetry(attempt, err)
 		select {
-		case <-strategy.sleep(delay):
-			// Delay completed, continue to next attempt
-		case <-strategy.context.Done():
-			// Context cancelled during sleep
-			ctxErr := strategy.context.Err()
-			if strategy.maxAttempts == 0 {
-				// Unlimited retry mode
-				return result, fmt.Errorf("operation cancelled after %d attempts (unlimited retry mode): %w (last error: %v)",
+		case <-s.sleep(s.computeDelay(attempt, err, s.delayConfig)):
+		case <-s.context.Done():
+			ctxErr := s.context.Err()
+			if s.maxAttempts == 0 {
+				return zero, fmt.Errorf("operation cancelled after %d attempts (unlimited retry mode): %w (last error: %v)",
 					attempt, ctxErr, err)
 			}
-			return result, fmt.Errorf("operation cancelled after %d attempts: %w (last error: %v)",
+			return zero, fmt.Errorf("operation cancelled after %d attempts: %w (last error: %v)",
 				attempt, ctxErr, err)
 		}
 	}
 }
 
-// ResultRetrier provides retry functionality for operations that return a value.
-// It can be reused across multiple retry operations with the same configuration.
-//
-// Note: ResultRetrier is safe for concurrent use as long as the Strategy is not
-// modified after creation. Each Do() call operates independently.
-//
-// Example:
-//
-//	retrier := NewResultRetrier[[]byte](
-//		WithMaxAttempts(5),
-//		WithExponentialBackoff(),
-//	)
-//
-//	// Reuse retrier for multiple operations
-//	data1, err1 := retrier.Do(func() ([]byte, error) { return fetchData1() })
-//	data2, err2 := retrier.Do(func() ([]byte, error) { return fetchData2() })
+// ResultRetrier executes [OperationWithResult] values with a fixed
+// configuration. It is safe for concurrent use.
 type ResultRetrier[T any] struct {
 	strategy *Strategy
 }
 
-// NewResultRetrier creates a new ResultRetrier with the given options.
-// The retrier can be safely reused across multiple retry operations.
-//
-// Type parameter T specifies the return type of the operations.
-//
-// Example:
-//
-//	retrier := NewResultRetrier[*http.Response](//WithMaxAttempts(3),
-//		WithExponentialBackoff(),
-//	)
+// NewResultRetrier builds a [ResultRetrier] from the supplied options.
 func NewResultRetrier[T any](opts ...Option) *ResultRetrier[T] {
-	strategy := defaultStrategy()
-
-	// Apply configuration options
+	s := defaultStrategy()
 	for _, opt := range opts {
-		opt(strategy)
+		opt(s)
 	}
-
-	// Calculate maximum backoff step to prevent overflow
-	maxSafeStep := calculateMaxBackoffStep(strategy.delayConfig.BaseDelay)
-	if strategy.delayConfig.MaxBackoffStep > 0 {
-		strategy.delayConfig.MaxBackoffStep = min(strategy.delayConfig.MaxBackoffStep, maxSafeStep)
+	maxStep := calculateMaxBackoffStep(s.delayConfig.BaseDelay)
+	if s.delayConfig.MaxBackoffStep > 0 {
+		s.delayConfig.MaxBackoffStep = min(s.delayConfig.MaxBackoffStep, maxStep)
 	} else {
-		strategy.delayConfig.MaxBackoffStep = maxSafeStep
+		s.delayConfig.MaxBackoffStep = maxStep
 	}
-
-	return &ResultRetrier[T]{
-		strategy: strategy,
-	}
+	return &ResultRetrier[T]{strategy: s}
 }
 
-// Do executes the operation with retry logic according to the retrier's configuration.
-//
-// Example:
-//
-//	retrier := NewResultRetrier[string](WithMaxAttempts(3))
-//	result, err := retrier.Do(func() (string, error) {
-//		return fetchData()
-//	})
-func (r *ResultRetrier[T]) Do(operation OperationWithResult[T]) (T, error) {
-	return doRetry(operation, r.strategy)
+// Do runs op with the configured retry policy.
+func (r *ResultRetrier[T]) Do(op OperationWithResult[T]) (T, error) {
+	return doRetry(op, r.strategy)
 }
 
-// Retrier provides retry functionality for operations that don't return a value.
-// It can be reused across multiple retry operations with the same configuration.
-//
-// Note: Retrier is safe for concurrent use as long as the Strategy is not
-// modified after creation. Each Do() call operates independently.
-//
-// Example:
-//
-//	retrier := NewRetrier(
-//		WithMaxAttempts(5),
-//		WithExponentialBackoff(),
-//		WithOnRetry(func(attempt int, err error) {
-//			log.Printf("Retry %d: %v", attempt, err)
-//		}),
-//	)
-//
-//	// Reuse retrier for multiple operations
-//	err1 := retrier.Do(func() error { return operation1() })
-//	err2 := retrier.Do(func() error { return operation2() })
+// Retrier executes [Operation] values with a fixed configuration.
 type Retrier struct {
-	resultRetrier *ResultRetrier[any]
+	inner *ResultRetrier[any]
 }
 
-// NewRetrier creates a new Retrier with the given options.
-// The retrier can be safely reused across multiple retry operations.
-//
-// Example:
-//
-//	retrier := NewRetrier(
-//		WithMaxAttempts(5),
-//		WithBaseDelay(200*time.Millisecond),
-//		WithExponentialBackoff(),
-//	)
+// NewRetrier builds a [Retrier] from the supplied options.
 func NewRetrier(opts ...Option) *Retrier {
-	return &Retrier{
-		resultRetrier: NewResultRetrier[any](opts...),
-	}
+	return &Retrier{inner: NewResultRetrier[any](opts...)}
 }
 
-// Do executes the operation with retry logic according to the retrier's configuration.
-//
-// Example:
-//
-//	retrier := NewRetrier(WithMaxAttempts(3))
-//	err := retrier.Do(func() error {
-//		return performOperation()
-//	})
-func (r *Retrier) Do(operation Operation) error {
-	_, err := r.resultRetrier.Do(func() (any, error) {
-		return nil, operation()
-	})
+// Do runs op with the configured retry policy.
+func (r *Retrier) Do(op Operation) error {
+	_, err := r.inner.Do(func() (any, error) { return nil, op() })
 	return err
 }
 
-// Package-level convenience functions
-
-// Do executes an operation with retry logic using the provided options.
-// This is a convenience function for one-time retry operations.
-// For repeated operations with the same configuration, consider using NewRetrier.
-//
-// The operation is retried according to the configured strategy until:
-//   - The operation succeeds (returns nil error)
-//   - The maximum number of attempts is reached
-//   - The retry condition returns false
-//   - The context is cancelled
-//
-// Example - Simple retry:
-//
-//	err := retry.Do(
-//		func() error {
-//			return performOperation()
-//		},
-//		retry.WithMaxAttempts(3),
-//	)
-//
-// Example - With timeout:
-//
-//	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-//	defer cancel()
-//
-//	err := retry.Do(
-//		func() error {
-//			return performOperation()
-//		},
-//		retry.WithContext(ctx),
-//		retry.WithMaxAttempts(5),
-//	)
-//
-// Example - With custom retry condition:
-//
-//	err := retry.Do(
-//		func() error {
-//			return performOperation()
-//		},
-//		retry.WithRetryCondition(func(err error) bool {
-//			return !errors.Is(err, ErrFatalError)
-//		}),
-//	)
-//
-// Returns nil on success, or the last error if all retries are exhausted.
-func Do(operation Operation, opts ...Option) error {
-	return NewRetrier(opts...).Do(operation)
+// Do is shorthand for NewRetrier(opts...).Do(op).
+func Do(op Operation, opts ...Option) error {
+	return NewRetrier(opts...).Do(op)
 }
 
-// DoWithResult executes an operation with retry logic and returns the result.
-// This is a convenience function for one-time retry operations that return a value.
-// For repeated operations with the same configuration, consider using NewResultRetrier.
-//
-// The operation is retried according to the configured strategy until:
-//   - The operation succeeds (returns a value and nil error)
-//   - The maximum number of attempts is reached
-//   - The retry condition returns false
-//   - The context is cancelled
-//
-// Type parameter T specifies the return type of the operation.
-//
-// Example - HTTP request with retry:
-//
-//	data, err := retry.DoWithResult(
-//		func() ([]byte, error) {
-//			resp, err := http.Get("https://api.example.com/data")
-//			if err != nil {
-//				return nil, err
-//			}
-//			defer resp.Body.Close()
-//			return io.ReadAll(resp.Body)
-//		},
-//		retry.WithMaxAttempts(3),
-//		retry.WithExponentialBackoff(),
-//	)
-//
-// Example - Database query with retry:
-//
-//	user, err := retry.DoWithResult(
-//		func() (*User, error) {
-//			return db.GetUser(userID)
-//		},
-//		retry.WithMaxAttempts(5),
-//		retry.WithRetryCondition(func(err error) bool {
-//			// Retry on temporary database errors
-//			return errors.Is(err, sql.ErrConnDone)
-//		}),
-//	)
-//
-// Returns the operation result and nil on success, or zero value and error on failure.
-func DoWithResult[T any](operation OperationWithResult[T], opts ...Option) (T, error) {
-	return NewResultRetrier[T](opts...).Do(operation)
+// DoWithResult is shorthand for NewResultRetrier[T](opts...).Do(op).
+func DoWithResult[T any](op OperationWithResult[T], opts ...Option) (T, error) {
+	return NewResultRetrier[T](opts...).Do(op)
 }

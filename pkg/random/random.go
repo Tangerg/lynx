@@ -4,17 +4,15 @@ import (
 	"math/rand/v2"
 )
 
-// IntRange returns a random integer in [min, max) range.
-// Parameters:
-//   - min: the lower bound of the range
-//   - max: the upper bound of the range
+// IntRange returns a pseudo-random int in the half-open interval [lo, hi).
+// It panics if lo >= hi.
 //
-// It panics if min > max.
-// It panics if max <=0. (by standard rand)
-// Returns a random integer in [min, max) range.
-func IntRange(min, max int) int {
-	if min > max {
-		panic("min cannot be greater than max")
+// Example:
+//
+//	n := random.IntRange(1, 7) // a value in [1, 7), i.e. a six-sided die roll
+func IntRange(lo, hi int) int {
+	if lo >= hi {
+		panic("random: lo must be less than hi")
 	}
-	return rand.IntN(max-min) + min
+	return rand.IntN(hi-lo) + lo
 }

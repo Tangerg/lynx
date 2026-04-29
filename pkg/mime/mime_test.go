@@ -1200,7 +1200,7 @@ func BenchmarkMIME_String(b *testing.B) {
 	}
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_ = mime.String()
 	}
 }
@@ -1211,7 +1211,7 @@ func BenchmarkMIME_Includes(b *testing.B) {
 	mime2 := &MIME{_type: "text", subType: "html"}
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_ = mime1.Includes(mime2)
 	}
 }
@@ -1228,7 +1228,7 @@ func BenchmarkMIME_Equals(b *testing.B) {
 	mime2 := &MIME{_type: "text", subType: "html", charset: "UTF-8", params: params2}
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_ = mime1.Equals(mime2)
 	}
 }

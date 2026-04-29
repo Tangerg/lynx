@@ -664,7 +664,7 @@ func BenchmarkParse(b *testing.B) {
 	for _, tc := range testCases {
 		b.Run(tc, func(b *testing.B) {
 			b.ResetTimer()
-			for i := 0; i < b.N; i++ {
+			for b.Loop() {
 				_, _ = Parse(tc)
 			}
 		})
@@ -675,7 +675,7 @@ func BenchmarkParse(b *testing.B) {
 func BenchmarkDetect(b *testing.B) {
 	data := []byte(`{"key": "value", "array": [1, 2, 3]}`)
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_, _ = Detect(data)
 	}
 }
@@ -683,7 +683,7 @@ func BenchmarkDetect(b *testing.B) {
 // BenchmarkNew benchmarks the New function
 func BenchmarkNew(b *testing.B) {
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_, _ = New("application", "json")
 	}
 }
@@ -693,19 +693,19 @@ func BenchmarkIsChecks(b *testing.B) {
 	mime, _ := Parse("text/html")
 
 	b.Run("IsText", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			_ = IsText(mime)
 		}
 	})
 
 	b.Run("IsImage", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			_ = IsImage(mime)
 		}
 	})
 
 	b.Run("IsVideo", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			_ = IsVideo(mime)
 		}
 	})

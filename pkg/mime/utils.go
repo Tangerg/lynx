@@ -1,8 +1,3 @@
-// Package mime provides utilities for working with MIME types, including parsing,
-// creation, detection, and type checking functionality. MIME (Multipurpose Internet Mail Extensions)
-// types are standardized identifiers used to indicate the format of content in internet protocols.
-// This package implements RFC standards for MIME type handling and provides tools for content-based
-// type detection and extension-based lookups.
 package mime
 
 import (
@@ -17,81 +12,23 @@ import (
 	"github.com/Tangerg/lynx/pkg/maps"
 )
 
+// Category prototypes used by the Is* helpers; only their type and
+// subtype fields are consulted.
 var (
-	// all represents a wildcard MIME type that matches any valid MIME type.
-	// It has the format "*/*" where both the primary type and subtype are wildcards.
-	// This is used for operations that should work with all possible MIME types.
-	// Example: For content negotiation, "*/*" indicates accepting any MIME type.
-	all = MIME{
-		_type:   wildcardType,
-		subType: wildcardType,
-	}
-
-	// text represents a MIME type that matches any text-based format.
-	// It has the format "text/*" with a concrete primary type and wildcard subtype.
-	// This category includes formats like plain text, HTML, CSS, and other text-based formats.
-	// Examples: "text/plain", "text/html", "text/css", "text/markdown"
-	text = MIME{
-		_type:   "text",
-		subType: wildcardType,
-	}
-
-	// video represents a MIME type that matches any video format.
-	// It has the format "video/*" with a concrete primary type and wildcard subtype.
-	// This category includes various video container formats and codecs.
-	// Examples: "video/mp4", "video/webm", "video/ogg", "video/quicktime"
-	video = MIME{
-		_type:   "video",
-		subType: wildcardType,
-	}
-
-	// audio represents a MIME type that matches any audio format.
-	// It has the format "audio/*" with a concrete primary type and wildcard subtype.
-	// This category includes various audio container formats and codecs.
-	// Examples: "audio/mpeg", "audio/wav", "audio/ogg", "audio/midi"
-	audio = MIME{
-		_type:   "audio",
-		subType: wildcardType,
-	}
-
-	// image represents a MIME type that matches any image format.
-	// It has the format "image/*" with a concrete primary type and wildcard subtype.
-	// This category includes both raster and vector image formats.
-	// Examples: "image/jpeg", "image/png", "image/gif", "image/svg+xml"
-	image = MIME{
-		_type:   "image",
-		subType: wildcardType,
-	}
-
-	// application represents a MIME type that matches any application-specific format.
-	// It has the format "application/*" with a concrete primary type and wildcard subtype.
-	// This is the largest category and includes data formats, documents, and executable content.
-	// Examples: "application/json", "application/pdf", "application/zip", "application/javascript"
-	application = MIME{
-		_type:   "application",
-		subType: wildcardType,
-	}
+	all         = MIME{_type: wildcardType, subType: wildcardType}
+	text        = MIME{_type: "text", subType: wildcardType}
+	video       = MIME{_type: "video", subType: wildcardType}
+	audio       = MIME{_type: "audio", subType: wildcardType}
+	image       = MIME{_type: "image", subType: wildcardType}
+	application = MIME{_type: "application", subType: wildcardType}
 )
 
-var (
-	// ErrorInvalidMimeType is returned when an invalid MIME type is encountered during parsing.
-	// This error indicates that the format of the MIME type string does not conform to the
-	// specifications outlined in RFC 2045 and RFC 2046.
-	ErrorInvalidMimeType = errors.New("invalid mime type")
-)
+// ErrorInvalidMimeType is returned by [Parse] when the input does not
+// conform to RFC 2045 / 2046 syntax.
+var ErrorInvalidMimeType = errors.New("invalid mime type")
 
-// New creates a new MIME instance with the specified type and subtype.
-// It provides a simple way to create a MIME type with just the primary type and subtype components.
-//
-// Parameters:
-//   - _type: The primary type component (e.g., "text", "application", "image")
-//   - subType: The subtype component (e.g., "html", "json", "png")
-//
-// Examples:
-//   - New("text", "html") creates a MIME type for HTML content
-//   - New("application", "json") creates a MIME type for JSON data
-//
-// Returns the created MIME object and any error that occurred during validation.
+// New returns a [MIME] with the given primary type and subtype and no
+// parameters.
 func New(mimeType string, subType string) (*MIME, error) {
 	return NewBuilder().
 		WithType(mimeType).
@@ -99,31 +36,15 @@ func New(mimeType string, subType string) (*MIME, error) {
 		Build()
 }
 
+// MustNew is like [New] but panics on error.
 func MustNew(mimeType string, subType string) *MIME {
 	return assert.Must(New(mimeType, subType))
 }
 
-// Parse converts a string representation of a MIME type into a MIME object.
-// It handles the full MIME type syntax including parameters, validation of format,
-// and special cases like wildcards. The function follows the MIME type parsing rules
-// defined in RFC 2045.
-//
-// The function processes:
-// 1. The type/subtype portion
-// 2. Parameters in the format "key=value"
-// 3. Special cases like wildcard types
-// 4. Quoted parameter values
-//
-// Parameters:
-//   - mime: The MIME type string to parse (e.g., "text/html; charset=UTF-8")
-//
-// Examples:
-//   - Parse("text/html") returns a MIME type with type="text", subtype="html"
-//   - Parse("application/json; charset=utf-8") returns a MIME type with parameters
-//   - Parse("*/*") returns a wildcard MIME type matching any type
-//
-// Returns a MIME object representing the parsed MIME type, or an error if the string
-// is malformed or does not conform to MIME type standards.
+// Parse decodes a MIME type string such as "text/html; charset=UTF-8"
+// into a [MIME]. A bare "*" is treated as "*/*". Quoted parameter
+// values are preserved verbatim. Returns [ErrorInvalidMimeType] if
+// the input is malformed.
 func Parse(mimeString string) (*MIME, error) {
 	// Find the first semicolon, which separates the type/subtype from parameters
 	semicolonIndex := strings.Index(mimeString, ";")
@@ -206,38 +127,15 @@ func Parse(mimeString string) (*MIME, error) {
 	return mimeResult, nil
 }
 
-// Detect identifies the MIME type of a byte slice based on its content.
-// It uses content analysis techniques from the mimetype library to determine
-// the format of the data, which is more reliable than extension-based detection
-// for many file formats.
-//
-// Parameters:
-//   - b: The byte slice containing the data to analyze
-//
-// Examples:
-//   - Detect(pngImageBytes) would return image/png MIME type
-//   - Detect(jsonDataBytes) would return application/json MIME type
-//
-// Returns a MIME object representing the detected type, or an error if detection fails.
+// Detect returns the MIME type inferred from the magic bytes of
+// dataBytes.
 func Detect(dataBytes []byte) (*MIME, error) {
 	detectedMime := mimetype.Detect(dataBytes)
 	return Parse(detectedMime.String())
 }
 
-// DetectReader identifies the MIME type of content from an io.Reader.
-// This allows for examining data from sources like files, network connections,
-// or any other streaming source without loading the entire content into memory.
-// It reads a small portion of data from the beginning of the stream for analysis.
-//
-// Parameters:
-//   - r: An io.Reader providing access to the content to be analyzed
-//
-// Examples:
-//   - DetectReader(fileHandle) would detect the MIME type of a file
-//   - DetectReader(httpResponse.Body) would detect the MIME type of HTTP response content
-//
-// Returns a MIME object representing the detected type, or an error if detection fails
-// or if reading from the provided reader fails.
+// DetectReader returns the MIME type inferred from the leading bytes
+// of reader. Only a small prefix is consumed.
 func DetectReader(reader io.Reader) (*MIME, error) {
 	detectedMime, err := mimetype.DetectReader(reader)
 	if err != nil {
@@ -246,20 +144,8 @@ func DetectReader(reader io.Reader) (*MIME, error) {
 	return Parse(detectedMime.String())
 }
 
-// DetectFile identifies the MIME type of a file at the given path.
-// It performs content-based detection by reading and analyzing a portion
-// of the file's contents, providing more accurate results than extension-based
-// detection for most file formats.
-//
-// Parameters:
-//   - path: The file system path to the file to be analyzed
-//
-// Examples:
-//   - DetectFile("/path/to/document.pdf") would detect application/pdf
-//   - DetectFile("/path/to/image.jpg") would detect image/jpeg
-//
-// Returns a MIME object representing the detected type, or an error if the file
-// cannot be read or if the detection process fails.
+// DetectFile returns the MIME type inferred from the contents of the
+// file at filePath.
 func DetectFile(filePath string) (*MIME, error) {
 	detectedMime, err := mimetype.DetectFile(filePath)
 	if err != nil {
@@ -268,88 +154,27 @@ func DetectFile(filePath string) (*MIME, error) {
 	return Parse(detectedMime.String())
 }
 
-// IsVideo checks if the given MIME type belongs to the video category.
-// It compares the primary type of the MIME type against the video type.
-// This is useful for determining if content represents video media.
-//
-// Parameters:
-//   - m: The MIME type to check
-//
-// Examples:
-//   - IsVideo for "video/mp4" returns true
-//   - IsVideo for "video/quicktime" returns true
-//   - IsVideo for "image/jpeg" returns false
-//
-// Returns true if the MIME type has a primary type of "video", false otherwise.
+// IsVideo reports whether mimeType has primary type "video".
 func IsVideo(mimeType *MIME) bool {
 	return video.EqualsType(mimeType)
 }
 
-// IsAudio checks if the given MIME type belongs to the audio category.
-// It compares the primary type of the MIME type against the audio type.
-// This helps identify audio content for specialized handling.
-//
-// Parameters:
-//   - m: The MIME type to check
-//
-// Examples:
-//   - IsAudio for "audio/mp3" returns true
-//   - IsAudio for "audio/ogg" returns true
-//   - IsAudio for "video/mp4" returns false
-//
-// Returns true if the MIME type has a primary type of "audio", false otherwise.
+// IsAudio reports whether mimeType has primary type "audio".
 func IsAudio(mimeType *MIME) bool {
 	return audio.EqualsType(mimeType)
 }
 
-// IsImage checks if the given MIME type belongs to the image category.
-// It compares the primary type of the MIME type against the image type.
-// This is useful for identifying image content such as photos and graphics.
-//
-// Parameters:
-//   - m: The MIME type to check
-//
-// Examples:
-//   - IsImage for "image/jpeg" returns true
-//   - IsImage for "image/svg+xml" returns true
-//   - IsImage for "text/html" returns false
-//
-// Returns true if the MIME type has a primary type of "image", false otherwise.
+// IsImage reports whether mimeType has primary type "image".
 func IsImage(mimeType *MIME) bool {
 	return image.EqualsType(mimeType)
 }
 
-// IsText checks if the given MIME type belongs to the text category.
-// It compares the primary type of the MIME type against the text type.
-// This helps identify textual content that can be read as characters.
-//
-// Parameters:
-//   - m: The MIME type to check
-//
-// Examples:
-//   - IsText for "text/plain" returns true
-//   - IsText for "text/html" returns true
-//   - IsText for "application/json" returns false (even though JSON is text-based)
-//
-// Returns true if the MIME type has a primary type of "text", false otherwise.
+// IsText reports whether mimeType has primary type "text".
 func IsText(mimeType *MIME) bool {
 	return text.EqualsType(mimeType)
 }
 
-// IsApplication checks if the given MIME type belongs to the application category.
-// It compares the primary type of the MIME type against the application type.
-// The application category includes a wide range of formats for structured data,
-// documents, and executable content.
-//
-// Parameters:
-//   - m: The MIME type to check
-//
-// Examples:
-//   - IsApplication for "application/pdf" returns true
-//   - IsApplication for "application/json" returns true
-//   - IsApplication for "text/html" returns false
-//
-// Returns true if the MIME type has a primary type of "application", false otherwise.
+// IsApplication reports whether mimeType has primary type "application".
 func IsApplication(mimeType *MIME) bool {
 	return application.EqualsType(mimeType)
 }

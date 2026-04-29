@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-// Constants representing suffixes for different data units.
+// Suffix constants used by [NewUnitFromSuffix].
 const (
 	BSuffix  = "B"
 	KBSuffix = "KB"
@@ -14,43 +14,45 @@ const (
 	TBSuffix = "TB"
 )
 
-// DataUnit represents a data size with its corresponding suffix.
+// DataUnit pairs a single-unit [DataSize] with its textual suffix.
+// It is produced by [NewUnitFromSuffix] and used to format or parse
+// human-readable byte sizes.
 type DataUnit struct {
-	size   DataSize // The size of the data unit in bytes
-	suffix string   // The suffix representing the data unit (e.g., "KB", "MB")
+	size   DataSize
+	suffix string
 }
 
-func (u *DataUnit) Size() DataSize {
-	return u.size
-}
+// Size returns the byte size of one of the unit (e.g. 1024 for KB).
+func (u *DataUnit) Size() DataSize { return u.size }
 
-func (u *DataUnit) Suffix() string {
-	return u.suffix
-}
+// Suffix returns the textual suffix (e.g. "KB").
+func (u *DataUnit) Suffix() string { return u.suffix }
 
-// NewUnitFromSuffix creates a new DataUnit based on the provided suffix.
-// Returns an error if the suffix is unknown.
+// NewUnitFromSuffix returns the DataUnit corresponding to suffix.
+// Matching is case-insensitive. It returns an error for unknown
+// suffixes.
+//
+// Example:
+//
+//	u, _ := dataunit.NewUnitFromSuffix("MB")
+//	bytesPerMB := u.Size() // 1048576
 func NewUnitFromSuffix(suffix string) (*DataUnit, error) {
-	r := &DataUnit{}
-	suffix = strings.ToUpper(suffix)
-	switch suffix {
+	switch strings.ToUpper(suffix) {
 	case BSuffix:
-		r.size = SizeOfB(1)
-		r.suffix = BSuffix
+		return &DataUnit{size: SizeOfB(1), suffix: BSuffix}, nil
 	case KBSuffix:
-		r.size, _ = SizeOfKB(1)
-		r.suffix = KBSuffix
+		s, _ := SizeOfKB(1)
+		return &DataUnit{size: s, suffix: KBSuffix}, nil
 	case MBSuffix:
-		r.size, _ = SizeOfMB(1)
-		r.suffix = MBSuffix
+		s, _ := SizeOfMB(1)
+		return &DataUnit{size: s, suffix: MBSuffix}, nil
 	case GBSuffix:
-		r.size, _ = SizeOfGB(1)
-		r.suffix = GBSuffix
+		s, _ := SizeOfGB(1)
+		return &DataUnit{size: s, suffix: GBSuffix}, nil
 	case TBSuffix:
-		r.size, _ = SizeOfTB(1)
-		r.suffix = TBSuffix
+		s, _ := SizeOfTB(1)
+		return &DataUnit{size: s, suffix: TBSuffix}, nil
 	default:
-		return nil, fmt.Errorf("unknown data unit suffix: %q", suffix)
+		return nil, fmt.Errorf("dataunit: unknown suffix %q", suffix)
 	}
-	return r, nil
 }
