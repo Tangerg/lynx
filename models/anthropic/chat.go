@@ -288,15 +288,29 @@ func (r *responseHelper) buildResult(resp *anthropicsdk.Message) (*chat.Result, 
 }
 
 func (r *responseHelper) buildMeta(req *anthropicsdk.MessageNewParams, resp *anthropicsdk.Message) *chat.ResponseMetadata {
+	usage := &chat.Usage{
+		PromptTokens:     resp.Usage.InputTokens,
+		CompletionTokens: resp.Usage.OutputTokens,
+		OriginalUsage:    resp.Usage,
+	}
+	// Surface Anthropic's prompt-cache breakdown when ephemeral caching
+	// is in use. The SDK returns 0 when the field is absent from the
+	// response payload, so a 0 value is indistinguishable from "the
+	// provider did not surface this dimension"; we treat any non-zero
+	// count as an explicit signal worth surfacing. Both fields are
+	// subsets of InputTokens (= PromptTokens above).
+	if v := resp.Usage.CacheReadInputTokens; v > 0 {
+		usage.CacheReadInputTokens = &v
+	}
+	if v := resp.Usage.CacheCreationInputTokens; v > 0 {
+		usage.CacheWriteInputTokens = &v
+	}
+
 	meta := &chat.ResponseMetadata{
 		ID:      resp.ID,
 		Model:   resp.Model,
 		Created: time.Now().Unix(),
-		Usage: &chat.Usage{
-			PromptTokens:     resp.Usage.InputTokens,
-			CompletionTokens: resp.Usage.OutputTokens,
-			OriginalUsage:    resp.Usage,
-		},
+		Usage:   usage,
 	}
 	meta.Set("original.request", req)
 	meta.Set("original.response", resp)

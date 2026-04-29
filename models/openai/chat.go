@@ -320,6 +320,12 @@ func (r *responseHelper) buildMeta(req *openai.ChatCompletionNewParams, resp *op
 	if rt := resp.Usage.CompletionTokensDetails.ReasoningTokens; rt > 0 {
 		usage.ReasoningTokens = &rt
 	}
+	// Surface OpenAI prompt-cache hits (prompt_tokens_details.cached_tokens).
+	// OpenAI's caching is automatic with no separate write-side billing,
+	// so only CacheReadInputTokens is populated here.
+	if ct := resp.Usage.PromptTokensDetails.CachedTokens; ct > 0 {
+		usage.CacheReadInputTokens = &ct
+	}
 	meta := &chat.ResponseMetadata{
 		ID:      resp.ID,
 		Model:   resp.Model,
