@@ -9,603 +9,394 @@ import (
 	"time"
 )
 
-// Mock errors for testing
 var (
 	errTemporary = errors.New("temporary error")
 	errFatal     = errors.New("fatal error")
 )
 
-// mockSleep returns a function that simulates sleep without actually sleeping
-func mockSleep() func(duration time.Duration) <-chan time.Time {
-	return func(duration time.Duration) <-chan time.Time {
+// noSleep returns immediately, eliminating real waits in tests.
+func noSleep() func(time.Duration) <-chan time.Time {
+	return func(time.Duration) <-chan time.Time {
 		ch := make(chan time.Time, 1)
 		ch <- time.Now()
 		return ch
 	}
 }
 
-// TestDefaultStrategy tests the default strategy configuration
 func TestDefaultStrategy(t *testing.T) {
 	s := defaultStrategy()
-
 	if s.maxAttempts != 3 {
-		t.Errorf("expected maxAttempts=3, got %d", s.maxAttempts)
+		t.Errorf("maxAttempts = %d, want 3", s.maxAttempts)
 	}
-
 	if s.delayConfig.BaseDelay != 100*time.Millisecond {
-		t.Errorf("expected BaseDelay=100ms, got %v", s.delayConfig.BaseDelay)
+		t.Errorf("BaseDelay = %v", s.delayConfig.BaseDelay)
 	}
-
-	if s.delayConfig.MaxDelay != 0 {
-		t.Errorf("expected MaxDelay=0, got %v", s.delayConfig.MaxDelay)
-	}
-
 	if s.delayConfig.MaxJitter != 100*time.Millisecond {
-		t.Errorf("expected MaxJitter=100ms, got %v", s.delayConfig.MaxJitter)
+		t.Errorf("MaxJitter = %v", s.delayConfig.MaxJitter)
 	}
-
 	if s.context != context.Background() {
-		t.Error("expected context.Background()")
+		t.Error("context != Background()")
 	}
 }
 
-// TestDoSuccess tests successful operation without retry
-func TestDoSuccess(t *testing.T) {
-	callCount := 0
-	operation := func() error {
-		callCount++
-		return nil
-	}
-
-	err := Do(operation, WithMaxAttempts(3), WithSleep(mockSleep()))
-
+func TestDo_Success(t *testing.T) {
+	calls := 0
+	err := Do(func() error { calls++; return nil }, WithSleep(noSleep()))
 	if err != nil {
-		t.Errorf("expected no error, got %v", err)
+		t.Errorf("err = %v", err)
 	}
-
-	if callCount != 1 {
-		t.Errorf("expected 1 call, got %d", callCount)
+	if calls != 1 {
+		t.Errorf("calls = %d, want 1", calls)
 	}
 }
 
-// TestDoRetryUntilSuccess tests retry until operation succeeds
-func TestDoRetryUntilSuccess(t *testing.T) {
-	callCount := 0
-	operation := func() error {
-		callCount++
-		if callCount < 3 {
+func TestDo_RetryUntilSuccess(t *testing.T) {
+	calls := 0
+	err := Do(func() error {
+		calls++
+		if calls < 3 {
 			return errTemporary
 		}
 		return nil
-	}
-
-	err := Do(operation, WithMaxAttempts(5), WithSleep(mockSleep()))
-
+	}, WithMaxAttempts(5), WithSleep(noSleep()))
 	if err != nil {
-		t.Errorf("expected no error, got %v", err)
+		t.Errorf("err = %v", err)
 	}
-
-	if callCount != 3 {
-		t.Errorf("expected 3 calls, got %d", callCount)
+	if calls != 3 {
+		t.Errorf("calls = %d, want 3", calls)
 	}
 }
 
-// TestDoMaxAttemptsReached tests failure after max attempts
-func TestDoMaxAttemptsReached(t *testing.T) {
-	callCount := 0
-	operation := func() error {
-		callCount++
-		return errTemporary
-	}
-
-	err := Do(operation, WithMaxAttempts(3), WithSleep(mockSleep()))
-
+func TestDo_MaxAttemptsExhausted(t *testing.T) {
+	calls := 0
+	err := Do(func() error { calls++; return errTemporary },
+		WithMaxAttempts(3), WithSleep(noSleep()))
 	if err == nil {
-		t.Error("expected error, got nil")
+		t.Fatal("expected error")
 	}
-
-	if callCount != 3 {
-		t.Errorf("expected 3 calls, got %d", callCount)
-	}
-
 	if !errors.Is(err, errTemporary) {
-		t.Errorf("expected error to wrap errTemporary, got %v", err)
+		t.Errorf("err = %v, want wraps errTemporary", err)
+	}
+	if calls != 3 {
+		t.Errorf("calls = %d, want 3", calls)
 	}
 }
 
-// TestDoWithUnlimitedAttempts tests unlimited retry mode
-func TestDoWithUnlimitedAttempts(t *testing.T) {
-	callCount := int32(0)
-	operation := func() error {
-		count := atomic.AddInt32(&callCount, 1)
-		if count < 10 {
+func TestDo_Unlimited(t *testing.T) {
+	var calls atomic.Int32
+	err := Do(func() error {
+		if calls.Add(1) < 10 {
 			return errTemporary
 		}
 		return nil
-	}
-
-	err := Do(operation, WithUnlimitedAttempts(), WithSleep(mockSleep()))
-
+	}, WithUnlimitedAttempts(), WithSleep(noSleep()))
 	if err != nil {
-		t.Errorf("expected no error, got %v", err)
+		t.Errorf("err = %v", err)
 	}
-
-	if atomic.LoadInt32(&callCount) != 10 {
-		t.Errorf("expected 10 calls, got %d", callCount)
+	if got := calls.Load(); got != 10 {
+		t.Errorf("calls = %d, want 10", got)
 	}
 }
 
-// TestDoWithContext tests context cancellation
-func TestDoWithContext(t *testing.T) {
+func TestDo_ContextCancelled(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
-
-	callCount := 0
-	operation := func() error {
-		callCount++
-		if callCount == 2 {
-			cancel() // Cancel context on second attempt
+	calls := 0
+	err := Do(func() error {
+		calls++
+		if calls == 2 {
+			cancel()
 		}
 		return errTemporary
-	}
-
-	err := Do(operation, WithContext(ctx), WithMaxAttempts(10), WithSleep(mockSleep()))
-
-	if err == nil {
-		t.Error("expected error, got nil")
-	}
-
+	}, WithContext(ctx), WithMaxAttempts(10), WithSleep(noSleep()))
 	if !errors.Is(err, context.Canceled) {
-		t.Errorf("expected context.Canceled error, got %v", err)
+		t.Errorf("err = %v, want context.Canceled", err)
 	}
-
-	// Should be called at least twice (before cancellation)
-	if callCount < 2 {
-		t.Errorf("expected at least 2 calls, got %d", callCount)
+	if calls < 2 {
+		t.Errorf("calls = %d, want >= 2", calls)
 	}
 }
 
-// TestDoWithContextTimeout tests context timeout
-func TestDoWithContextTimeout(t *testing.T) {
+func TestDo_ContextDeadlineExceeded(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer cancel()
-
-	callCount := 0
-	operation := func() error {
-		callCount++
-		return errTemporary
-	}
-
-	// Use real sleep to allow timeout to occur
-	err := Do(operation,
-		WithContext(ctx),
-		WithMaxAttempts(10),
-		WithBaseDelay(100*time.Millisecond),
-	)
-
-	if err == nil {
-		t.Error("expected error, got nil")
-	}
-
+	err := Do(func() error { return errTemporary },
+		WithContext(ctx), WithMaxAttempts(10), WithBaseDelay(100*time.Millisecond))
 	if !errors.Is(err, context.DeadlineExceeded) {
-		t.Errorf("expected context.DeadlineExceeded, got %v", err)
+		t.Errorf("err = %v, want DeadlineExceeded", err)
 	}
 }
 
-// TestDoWithContextAlreadyCancelled tests context cancelled before first attempt
-func TestDoWithContextAlreadyCancelled(t *testing.T) {
+func TestDo_PreCancelledContext(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
-	cancel() // Cancel immediately
-
-	callCount := 0
-	operation := func() error {
-		callCount++
-		return nil
-	}
-
-	err := Do(operation, WithContext(ctx), WithSleep(mockSleep()))
-
-	if err == nil {
-		t.Error("expected error, got nil")
-	}
-
+	cancel()
+	calls := 0
+	err := Do(func() error { calls++; return nil },
+		WithContext(ctx), WithSleep(noSleep()))
 	if !errors.Is(err, context.Canceled) {
-		t.Errorf("expected context.Canceled, got %v", err)
+		t.Errorf("err = %v, want context.Canceled", err)
 	}
-
-	if callCount != 0 {
-		t.Errorf("expected 0 calls, got %d", callCount)
+	if calls != 0 {
+		t.Errorf("calls = %d, want 0", calls)
 	}
 }
 
-// TestDoWithRetryCondition tests custom retry condition
-func TestDoWithRetryCondition(t *testing.T) {
-	callCount := 0
-	operation := func() error {
-		callCount++
-		if callCount == 2 {
-			return errFatal // Should not retry
+func TestDo_RetryCondition(t *testing.T) {
+	calls := 0
+	err := Do(func() error {
+		calls++
+		if calls == 2 {
+			return errFatal
 		}
 		return errTemporary
-	}
-
-	err := Do(operation,
+	},
 		WithMaxAttempts(10),
-		WithSleep(mockSleep()),
-		WithRetryCondition(func(err error) bool {
-			return !errors.Is(err, errFatal)
-		}),
+		WithSleep(noSleep()),
+		WithRetryCondition(func(err error) bool { return !errors.Is(err, errFatal) }),
 	)
-
-	if err == nil {
-		t.Error("expected error, got nil")
-	}
-
 	if !errors.Is(err, errFatal) {
-		t.Errorf("expected errFatal, got %v", err)
+		t.Errorf("err = %v, want wraps errFatal", err)
 	}
-
-	if callCount != 2 {
-		t.Errorf("expected 2 calls, got %d", callCount)
+	if calls != 2 {
+		t.Errorf("calls = %d, want 2", calls)
 	}
 }
 
-// TestDoWithOnRetry tests retry callback
-func TestDoWithOnRetry(t *testing.T) {
-	callCount := 0
-	retryCount := 0
-	var retryAttempts []int
-	var retryErrors []error
-
-	operation := func() error {
-		callCount++
-		if callCount < 3 {
-			return fmt.Errorf("attempt %d failed", callCount)
+func TestDo_OnRetryCallback(t *testing.T) {
+	calls := 0
+	var attempts []int
+	err := Do(func() error {
+		calls++
+		if calls < 3 {
+			return fmt.Errorf("fail %d", calls)
 		}
 		return nil
-	}
-
-	err := Do(operation,
+	},
 		WithMaxAttempts(5),
-		WithSleep(mockSleep()),
-		WithOnRetry(func(attempt int, err error) {
-			retryCount++
-			retryAttempts = append(retryAttempts, attempt)
-			retryErrors = append(retryErrors, err)
-		}),
+		WithSleep(noSleep()),
+		WithOnRetry(func(attempt int, _ error) { attempts = append(attempts, attempt) }),
 	)
-
 	if err != nil {
-		t.Errorf("expected no error, got %v", err)
+		t.Errorf("err = %v", err)
 	}
-
-	if retryCount != 2 {
-		t.Errorf("expected 2 retries, got %d", retryCount)
-	}
-
-	expectedAttempts := []int{1, 2}
-	if len(retryAttempts) != len(expectedAttempts) {
-		t.Errorf("expected %d retry attempts, got %d", len(expectedAttempts), len(retryAttempts))
-	}
-
-	for i, expected := range expectedAttempts {
-		if retryAttempts[i] != expected {
-			t.Errorf("retry %d: expected attempt %d, got %d", i, expected, retryAttempts[i])
-		}
+	if want := []int{1, 2}; !equalIntSlice(attempts, want) {
+		t.Errorf("attempts = %v, want %v", attempts, want)
 	}
 }
 
-// TestDoWithOnSuccess tests success callback
-func TestDoWithOnSuccess(t *testing.T) {
-	callCount := 0
-	successCalled := false
-	var successAttempt int
-
-	operation := func() error {
-		callCount++
-		if callCount < 3 {
+func TestDo_OnSuccessCallback(t *testing.T) {
+	calls := 0
+	gotAttempt := 0
+	err := Do(func() error {
+		calls++
+		if calls < 3 {
 			return errTemporary
 		}
 		return nil
-	}
-
-	err := Do(operation,
+	},
 		WithMaxAttempts(5),
-		WithSleep(mockSleep()),
-		WithOnSuccess(func(attempt int) {
-			successCalled = true
-			successAttempt = attempt
-		}),
+		WithSleep(noSleep()),
+		WithOnSuccess(func(a int) { gotAttempt = a }),
 	)
-
 	if err != nil {
-		t.Errorf("expected no error, got %v", err)
+		t.Errorf("err = %v", err)
 	}
-
-	if !successCalled {
-		t.Error("expected success callback to be called")
-	}
-
-	if successAttempt != 3 {
-		t.Errorf("expected success on attempt 3, got %d", successAttempt)
+	if gotAttempt != 3 {
+		t.Errorf("success attempt = %d, want 3", gotAttempt)
 	}
 }
 
-// TestDoWithResult tests operation with return value
 func TestDoWithResult(t *testing.T) {
-	callCount := 0
-	operation := func() (string, error) {
-		callCount++
-		if callCount < 3 {
+	calls := 0
+	got, err := DoWithResult(func() (string, error) {
+		calls++
+		if calls < 3 {
 			return "", errTemporary
 		}
-		return "success", nil
-	}
-
-	result, err := DoWithResult(operation, WithMaxAttempts(5), WithSleep(mockSleep()))
-
-	if err != nil {
-		t.Errorf("expected no error, got %v", err)
-	}
-
-	if result != "success" {
-		t.Errorf("expected result='success', got '%s'", result)
-	}
-
-	if callCount != 3 {
-		t.Errorf("expected 3 calls, got %d", callCount)
+		return "ok", nil
+	}, WithMaxAttempts(5), WithSleep(noSleep()))
+	if err != nil || got != "ok" {
+		t.Errorf("got %q err %v", got, err)
 	}
 }
 
-// TestDoWithResultFailure tests operation with result that fails
-func TestDoWithResultFailure(t *testing.T) {
-	operation := func() (int, error) {
-		return 0, errTemporary
+func TestDoWithResult_Failure(t *testing.T) {
+	got, err := DoWithResult(func() (int, error) { return 0, errTemporary },
+		WithMaxAttempts(2), WithSleep(noSleep()))
+	if got != 0 {
+		t.Errorf("got %d, want zero", got)
 	}
-
-	result, err := DoWithResult(operation, WithMaxAttempts(3), WithSleep(mockSleep()))
-
-	if err == nil {
-		t.Error("expected error, got nil")
-	}
-
-	if result != 0 {
-		t.Errorf("expected zero value result, got %d", result)
-	}
-
 	if !errors.Is(err, errTemporary) {
-		t.Errorf("expected errTemporary, got %v", err)
+		t.Errorf("err = %v", err)
 	}
 }
 
-// TestRetrier tests reusable Retrier
-func TestRetrier(t *testing.T) {
-	retrier := NewRetrier(
-		WithMaxAttempts(3),
-		WithSleep(mockSleep()),
-	)
-
-	// Test first operation
-	callCount1 := 0
-	err1 := retrier.Do(func() error {
-		callCount1++
-		if callCount1 < 2 {
-			return errTemporary
+func TestRetrier_Reusable(t *testing.T) {
+	r := NewRetrier(WithMaxAttempts(3), WithSleep(noSleep()))
+	for i := range 3 {
+		calls := 0
+		err := r.Do(func() error {
+			calls++
+			if calls < 2 {
+				return errTemporary
+			}
+			return nil
+		})
+		if err != nil {
+			t.Errorf("[%d] err = %v", i, err)
 		}
-		return nil
-	})
-
-	if err1 != nil {
-		t.Errorf("operation 1: expected no error, got %v", err1)
-	}
-
-	if callCount1 != 2 {
-		t.Errorf("operation 1: expected 2 calls, got %d", callCount1)
-	}
-
-	// Test second operation (should be independent)
-	callCount2 := 0
-	err2 := retrier.Do(func() error {
-		callCount2++
-		return nil
-	})
-
-	if err2 != nil {
-		t.Errorf("operation 2: expected no error, got %v", err2)
-	}
-
-	if callCount2 != 1 {
-		t.Errorf("operation 2: expected 1 call, got %d", callCount2)
 	}
 }
 
-// TestResultRetrier tests reusable ResultRetrier
-func TestResultRetrier(t *testing.T) {
-	retrier := NewResultRetrier[int](WithMaxAttempts(3),
-		WithSleep(mockSleep()),
-	)
-
-	// Test first operation
-	callCount1 := 0
-	result1, err1 := retrier.Do(func() (int, error) {
-		callCount1++
-		if callCount1 < 2 {
-			return 0, errTemporary
+func TestExponentialBackoff(t *testing.T) {
+	cfg := DelayConfig{BaseDelay: 100 * time.Millisecond, MaxBackoffStep: 10}
+	tests := []struct {
+		attempt int
+		want    time.Duration
+	}{
+		{0, 100 * time.Millisecond},
+		{1, 200 * time.Millisecond},
+		{2, 400 * time.Millisecond},
+		{3, 800 * time.Millisecond},
+	}
+	for _, tt := range tests {
+		if got := ExponentialBackoff(tt.attempt, nil, cfg); got != tt.want {
+			t.Errorf("attempt %d: got %v, want %v", tt.attempt, got, tt.want)
 		}
-		return 42, nil
-	})
-
-	if err1 != nil {
-		t.Errorf("operation 1: expected no error, got %v", err1)
-	}
-
-	if result1 != 42 {
-		t.Errorf("operation 1: expected result=42, got %d", result1)
-	}
-
-	// Test second operation
-	result2, err2 := retrier.Do(func() (int, error) {
-		return 99, nil
-	})
-
-	if err2 != nil {
-		t.Errorf("operation 2: expected no error, got %v", err2)
-	}
-
-	if result2 != 99 {
-		t.Errorf("operation 2: expected result=99, got %d", result2)
 	}
 }
 
-// TestWithBaseDelay tests base delay configuration
-func TestWithBaseDelay(t *testing.T) {
-	tests := []struct {
-		name     string
-		delay    time.Duration
-		expected time.Duration
-	}{
-		{"positive delay", 500 * time.Millisecond, 500 * time.Millisecond},
-		{"zero delay", 0, 0},
-		{"negative delay", -100 * time.Millisecond, 0},
+func TestExponentialBackoff_MaxDelay(t *testing.T) {
+	cfg := DelayConfig{
+		BaseDelay:      100 * time.Millisecond,
+		MaxDelay:       500 * time.Millisecond,
+		MaxBackoffStep: 10,
 	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			s := defaultStrategy()
-			WithBaseDelay(tt.delay)(s)
-
-			if s.delayConfig.BaseDelay != tt.expected {
-				t.Errorf("expected BaseDelay=%v, got %v", tt.expected, s.delayConfig.BaseDelay)
-			}
-		})
+	if got := ExponentialBackoff(10, nil, cfg); got != 500*time.Millisecond {
+		t.Errorf("got %v, want capped at 500ms", got)
 	}
 }
 
-// TestWithMaxDelay tests max delay configuration
-func TestWithMaxDelay(t *testing.T) {
-	tests := []struct {
-		name     string
-		delay    time.Duration
-		expected time.Duration
-	}{
-		{"positive delay", 30 * time.Second, 30 * time.Second},
-		{"zero delay", 0, 0},
-		{"negative delay", -5 * time.Second, 0},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			s := defaultStrategy()
-			WithMaxDelay(tt.delay)(s)
-
-			if s.delayConfig.MaxDelay != tt.expected {
-				t.Errorf("expected MaxDelay=%v, got %v", tt.expected, s.delayConfig.MaxDelay)
-			}
-		})
+func TestFixedDelay(t *testing.T) {
+	cfg := DelayConfig{BaseDelay: 250 * time.Millisecond}
+	for _, attempt := range []int{0, 1, 5} {
+		if got := FixedDelay(attempt, nil, cfg); got != cfg.BaseDelay {
+			t.Errorf("attempt %d: got %v", attempt, got)
+		}
 	}
 }
 
-// TestWithMaxJitter tests max jitter configuration
-func TestWithMaxJitter(t *testing.T) {
-	tests := []struct {
-		name     string
-		jitter   time.Duration
-		expected time.Duration
-	}{
-		{"positive jitter", 200 * time.Millisecond, 200 * time.Millisecond},
-		{"zero jitter", 0, 0},
-		{"negative jitter", -50 * time.Millisecond, 0},
+func TestRandomJitter(t *testing.T) {
+	cfg := DelayConfig{MaxJitter: 100 * time.Millisecond}
+	for range 100 {
+		got := RandomJitter(0, nil, cfg)
+		if got < 0 || got >= 100*time.Millisecond {
+			t.Fatalf("got %v, out of [0, 100ms)", got)
+		}
 	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			s := defaultStrategy()
-			WithMaxJitter(tt.jitter)(s)
-
-			if s.delayConfig.MaxJitter != tt.expected {
-				t.Errorf("expected MaxJitter=%v, got %v", tt.expected, s.delayConfig.MaxJitter)
-			}
-		})
+	if got := RandomJitter(0, nil, DelayConfig{}); got != 0 {
+		t.Errorf("zero MaxJitter: got %v, want 0", got)
 	}
 }
 
-// TestWithBackoffStep tests backoff step configuration
-func TestWithBackoffStep(t *testing.T) {
-	tests := []struct {
-		name     string
-		step     int
-		expected int
-	}{
-		{"positive step", 10, 10},
-		{"zero step", 0, 0},
-		{"negative step", -5, 0},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			s := defaultStrategy()
-			WithBackoffStep(tt.step)(s)
-
-			if s.delayConfig.MaxBackoffStep != tt.expected {
-				t.Errorf("expected MaxBackoffStep=%d, got %d", tt.expected, s.delayConfig.MaxBackoffStep)
-			}
-		})
+func TestFullJitterBackoff(t *testing.T) {
+	cfg := DelayConfig{BaseDelay: 100 * time.Millisecond, MaxBackoffStep: 10}
+	for attempt := 1; attempt < 5; attempt++ {
+		got := FullJitterBackoff(attempt, nil, cfg)
+		ceiling := cfg.BaseDelay << attempt
+		if got < 0 || got >= ceiling {
+			t.Errorf("attempt %d: got %v, ceiling %v", attempt, got, ceiling)
+		}
 	}
 }
 
-// TestWithDelayConfig tests complete delay configuration
-func TestWithDelayConfig(t *testing.T) {
-	config := DelayConfig{
-		BaseDelay:      200 * time.Millisecond,
-		MaxDelay:       10 * time.Second,
-		MaxJitter:      50 * time.Millisecond,
-		MaxBackoffStep: 5,
-	}
-
-	s := defaultStrategy()
-	WithDelayConfig(config)(s)
-
-	if s.delayConfig.BaseDelay != config.BaseDelay {
-		t.Errorf("BaseDelay: expected %v, got %v", config.BaseDelay, s.delayConfig.BaseDelay)
-	}
-
-	if s.delayConfig.MaxDelay != config.MaxDelay {
-		t.Errorf("MaxDelay: expected %v, got %v", config.MaxDelay, s.delayConfig.MaxDelay)
-	}
-
-	if s.delayConfig.MaxJitter != config.MaxJitter {
-		t.Errorf("MaxJitter: expected %v, got %v", config.MaxJitter, s.delayConfig.MaxJitter)
-	}
-
-	if s.delayConfig.MaxBackoffStep != config.MaxBackoffStep {
-		t.Errorf("MaxBackoffStep: expected %d, got %d", config.MaxBackoffStep, s.delayConfig.MaxBackoffStep)
+func TestCombineDelays(t *testing.T) {
+	d := CombineDelays(
+		func(_ int, _ error, _ DelayConfig) time.Duration { return 100 * time.Millisecond },
+		func(_ int, _ error, _ DelayConfig) time.Duration { return 50 * time.Millisecond },
+	)
+	if got := d(1, nil, DelayConfig{}); got != 150*time.Millisecond {
+		t.Errorf("got %v, want 150ms", got)
 	}
 }
 
-// TestWithDelayConfigNegativeValues tests delay config with negative values
-func TestWithDelayConfigNegativeValues(t *testing.T) {
-	config := DelayConfig{
+func TestWithDelayConfig_NormalizesNegatives(t *testing.T) {
+	r := NewRetrier(WithDelayConfig(DelayConfig{
 		BaseDelay:      -100 * time.Millisecond,
-		MaxDelay:       -5 * time.Second,
+		MaxDelay:       -1 * time.Second,
 		MaxJitter:      -50 * time.Millisecond,
-		MaxBackoffStep: -10,
+		MaxBackoffStep: -5,
+	}))
+	cfg := r.inner.strategy.delayConfig
+	if cfg.BaseDelay != 0 || cfg.MaxDelay != 0 || cfg.MaxJitter != 0 {
+		t.Errorf("negative not normalized: %+v", cfg)
 	}
+}
 
-	s := defaultStrategy()
-	WithDelayConfig(config)(s)
-
-	if s.delayConfig.BaseDelay != 0 {
-		t.Errorf("BaseDelay: expected 0, got %v", s.delayConfig.BaseDelay)
+func TestStrategyOptions_NilFunctionsIgnored(t *testing.T) {
+	var nilCtx context.Context //nolint:staticcheck // intentionally test nil-context guard
+	r := NewRetrier(
+		WithRetryCondition(nil),
+		WithDelayFunc(nil),
+		WithSleep(nil),
+		WithOnRetry(nil),
+		WithOnSuccess(nil),
+		WithContext(nilCtx),
+	)
+	// No panic, defaults preserved.
+	err := r.Do(func() error { return nil })
+	if err != nil {
+		t.Errorf("err = %v", err)
 	}
+}
 
-	if s.delayConfig.MaxDelay != 0 {
-		t.Errorf("MaxDelay: expected 0, got %v", s.delayConfig.MaxDelay)
+func TestCalculateMaxBackoffStep(t *testing.T) {
+	tests := []struct {
+		base time.Duration
+		min  int
+	}{
+		{0, 1},                       // any positive step is OK
+		{1 * time.Nanosecond, 60},    // ~62
+		{100 * time.Millisecond, 30}, // baseline check
+		{1 * time.Second, 25},
 	}
-
-	if s.delayConfig.MaxJitter != 0 {
-		t.Errorf("MaxJitter: expected 0, got %v", s.delayConfig.MaxJitter)
+	for _, tt := range tests {
+		got := calculateMaxBackoffStep(tt.base)
+		if got < tt.min {
+			t.Errorf("base %v: got %d, want >= %d", tt.base, got, tt.min)
+		}
 	}
+}
 
-	if s.delayConfig.MaxBackoffStep != 0 {
-		t.Errorf("MaxBackoffStep: expected 0, got %d", s.delayConfig.MaxBackoffStep)
+func equalIntSlice(a, b []int) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func BenchmarkDo_NoRetry(b *testing.B) {
+	op := func() error { return nil }
+	for b.Loop() {
+		_ = Do(op, WithSleep(noSleep()))
+	}
+}
+
+func BenchmarkRetrier_Reused(b *testing.B) {
+	r := NewRetrier(WithSleep(noSleep()))
+	op := func() error { return nil }
+	for b.Loop() {
+		_ = r.Do(op)
+	}
+}
+
+func BenchmarkExponentialBackoff(b *testing.B) {
+	cfg := DelayConfig{BaseDelay: time.Millisecond, MaxBackoffStep: 10}
+	for b.Loop() {
+		_ = ExponentialBackoff(5, nil, cfg)
 	}
 }

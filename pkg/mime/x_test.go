@@ -607,7 +607,7 @@ func BenchmarkNormalizeXSubtype(b *testing.B) {
 	mime, _ := Parse("application/x-javascript; charset=UTF-8")
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_ = NormalizeXSubtype(mime)
 	}
 }
@@ -618,7 +618,7 @@ func BenchmarkNormalizeXSubtype_WithMapping(b *testing.B) {
 	mime, _ := Parse("application/x-benchmark")
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_ = NormalizeXSubtype(mime)
 	}
 }
@@ -628,7 +628,7 @@ func BenchmarkNormalizeXSubtype_NoXPrefix(b *testing.B) {
 	mime, _ := Parse("application/json")
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_ = NormalizeXSubtype(mime)
 	}
 }
@@ -636,7 +636,7 @@ func BenchmarkNormalizeXSubtype_NoXPrefix(b *testing.B) {
 // BenchmarkRegisterXSubtype benchmarks registration
 func BenchmarkRegisterXSubtype(b *testing.B) {
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		RegisterXSubtype("x-test", "test")
 	}
 }

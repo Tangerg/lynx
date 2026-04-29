@@ -6,204 +6,122 @@ import (
 	"unicode"
 )
 
-// Lines splits the input text into separate lines.
-// It returns:
-// - An array with a single empty string if the input is empty or contains only whitespace
-// - An array of strings representing each line in the original text otherwise
-// Each line in the returned array does not include line terminators (\n, \r\n).
-func Lines(text string) []string {
-	if strings.TrimSpace(text) == "" {
+// Lines splits s into lines using bufio.Scanner. Returned lines have
+// no terminator. An input that is empty or only whitespace returns
+// []string{""}.
+func Lines(s string) []string {
+	if strings.TrimSpace(s) == "" {
 		return []string{""}
 	}
-
-	sc := bufio.NewScanner(strings.NewReader(text))
-	var lines []string
-
+	sc := bufio.NewScanner(strings.NewReader(s))
+	var out []string
 	for sc.Scan() {
-		lines = append(lines, sc.Text())
+		out = append(out, sc.Text())
 	}
-
-	return lines
+	return out
 }
 
-// AlignToLeft removes leading whitespace from all lines in the text.
-// This function:
-// 1. Splits the text into individual lines
-// 2. Trims all leading whitespace characters from each line
-// 3. Rejoins the lines with newline characters
-// The result is text with all content aligned to the left margin.
-func AlignToLeft(text string) string {
-	lines := Lines(text)
-	var sb strings.Builder
-
-	for _, line := range lines {
-		sb.WriteString(strings.TrimLeftFunc(line, unicode.IsSpace))
-		sb.WriteString("\n")
-	}
-
-	return sb.String()
+// AlignToLeft trims leading whitespace from every line of s, joining
+// the result with "\n" and a trailing newline.
+func AlignToLeft(s string) string {
+	return joinWith(Lines(s), func(line string) string {
+		return strings.TrimLeftFunc(line, unicode.IsSpace)
+	})
 }
 
-// AlignToRight removes trailing whitespace from all lines in the text.
-// This function:
-// 1. Splits the text into individual lines
-// 2. Trims all trailing whitespace characters from each line
-// 3. Rejoins the lines with newline characters
-// The result is text with no trailing whitespace on any line.
-func AlignToRight(text string) string {
-	lines := Lines(text)
-	var sb strings.Builder
-
-	for _, line := range lines {
-		sb.WriteString(strings.TrimRightFunc(line, unicode.IsSpace))
-		sb.WriteString("\n")
-	}
-
-	return sb.String()
+// AlignToRight trims trailing whitespace from every line of s.
+func AlignToRight(s string) string {
+	return joinWith(Lines(s), func(line string) string {
+		return strings.TrimRightFunc(line, unicode.IsSpace)
+	})
 }
 
-// AlignCenter centers all lines of text within a specified width.
-// If maxWidth is 0 or negative, it automatically finds the width of the longest line.
-// Parameters:
-// - text: The input text to center
-// - maxWidth: The maximum width to center within (optional)
-//
-// The function:
-// 1. Splits the text into lines and trims leading/trailing whitespace from each line
-// 2. Determines the width of the longest line if maxWidth is not specified
-// 3. For each line, calculates padding needed on both sides (left and right)
-// 4. Creates a new text where each line is centered within the maximum width
-// 5. Each line in the output has exactly the same width (maxWidth)
-// 6. Returns the centered text with lines joined by newlines
+// AlignCenter centers each line of s within width. If width is 0 or
+// less, the longest line's width is used. Lines are right-padded so
+// every output line has identical visual width.
 //
 // Example:
 //
-//	Input text: "Hello\nWorld" with maxWidth = 10
-//	Output:    "   Hello  \n   World  "
-func AlignCenter(text string, maxWidth int) string {
-	lines := Lines(text)
-
+//	text.AlignCenter("Hello\nWorld", 10) // "   Hello  \n   World  \n"
+func AlignCenter(s string, width int) string {
+	lines := Lines(s)
 	for i, line := range lines {
 		lines[i] = strings.TrimSpace(line)
-		if w := len([]rune(line)); w > maxWidth {
-			maxWidth = w
+		if w := len([]rune(lines[i])); w > width {
+			width = w
 		}
 	}
-
 	var sb strings.Builder
-	sb.Grow((maxWidth + 1) * len(lines))
-
+	sb.Grow((width + 1) * len(lines))
 	for _, line := range lines {
-		w := len([]rune(line))
-		total := maxWidth - w
-		left := total / 2
-		right := total - left
-
+		gap := width - len([]rune(line))
+		left := gap / 2
+		right := gap - left
 		sb.WriteString(strings.Repeat(" ", left))
 		sb.WriteString(line)
 		sb.WriteString(strings.Repeat(" ", right))
 		sb.WriteString("\n")
 	}
-
 	return sb.String()
 }
 
-// TrimAdjacentBlankLines removes consecutive blank lines from text while preserving paragraph structure.
-// The function follows these rules:
-//
-//  1. If the current line is non-blank:
-//     1.1. Check the previous line and if content has been seen before
-//     1.1.1. If the previous line was blank AND we've already seen content before,
-//     add exactly one blank line to preserve paragraph separation
-//     1.1.2. If this is the first content line or follows another content line,
-//     add the current line directly without a preceding blank line
-//     1.2. Add the current non-blank line to the result
-//     1.3. Set prevLineIsBlank flag to false and contentFlag to true
-//
-//  2. If the current line is blank:
-//     2.1. Do not add it directly to the result
-//     2.2. Set prevLineIsBlank flag to true to track consecutive blank lines
-//
-// This ensures that:
-// - All leading blank lines are removed completely
-// - Multiple consecutive blank lines between paragraphs are reduced to at most one blank line
-// - Paragraph structure is maintained while removing excessive whitespace
-// - No trailing blank lines are preserved
-func TrimAdjacentBlankLines(text string) string {
-	lines := Lines(text)
-
+// TrimAdjacentBlankLines collapses runs of blank lines into a single
+// blank line and removes leading and trailing blank lines. Paragraph
+// separations are preserved.
+func TrimAdjacentBlankLines(s string) string {
 	var sb strings.Builder
 	prevBlank := true
 	seenContent := false
-
-	for _, line := range lines {
-		blank := strings.TrimSpace(line) == ""
-
-		if !blank {
-			if prevBlank && seenContent {
-				sb.WriteString("\n")
-			}
-			sb.WriteString(line)
-			sb.WriteString("\n")
-			prevBlank = false
-			seenContent = true
+	for _, line := range Lines(s) {
+		if strings.TrimSpace(line) == "" {
+			prevBlank = true
 			continue
 		}
-
-		prevBlank = true
+		if prevBlank && seenContent {
+			sb.WriteString("\n")
+		}
+		sb.WriteString(line)
+		sb.WriteString("\n")
+		prevBlank = false
+		seenContent = true
 	}
-
 	return sb.String()
 }
 
-// DeleteTopLines removes a specified number of lines from the beginning of the text.
-// Parameters:
-// - text: The input text to process
-// - numberOfLines: The number of lines to remove from the top
-//
-// Returns:
-// - Empty string if the input text has fewer or equal lines than the specified number to delete
-// - The remaining text with the specified number of top lines removed otherwise
-// - Original text if the input is empty or contains only whitespace
-func DeleteTopLines(text string, n int) string {
-	if n <= 0 {
-		return text
+// DeleteTopLines removes n lines from the start of s. If n is
+// non-positive, s is returned unchanged. If s has at most n lines, the
+// empty string is returned.
+func DeleteTopLines(s string, n int) string {
+	if n <= 0 || strings.TrimSpace(s) == "" {
+		return s
 	}
-
-	if strings.TrimSpace(text) == "" {
-		return text
-	}
-
-	lines := Lines(text)
+	lines := Lines(s)
 	if len(lines) <= n {
 		return ""
 	}
-
 	return strings.Join(lines[n:], "\n")
 }
 
-// DeleteBottomLines removes a specified number of lines from the end of the text.
-// Parameters:
-// - text: The input text to process
-// - numberOfLines: The number of lines to remove from the bottom
-//
-// Returns:
-// - Empty string if the input text has fewer or equal lines than the specified number to delete
-// - The remaining text with the specified number of bottom lines removed otherwise
-// - Original text if the input is empty or contains only whitespace
-func DeleteBottomLines(text string, n int) string {
-	if n <= 0 {
-		return text
+// DeleteBottomLines removes n lines from the end of s. Edge cases match
+// [DeleteTopLines].
+func DeleteBottomLines(s string, n int) string {
+	if n <= 0 || strings.TrimSpace(s) == "" {
+		return s
 	}
-
-	if strings.TrimSpace(text) == "" {
-		return text
-	}
-
-	lines := Lines(text)
+	lines := Lines(s)
 	if len(lines) <= n {
 		return ""
 	}
-
 	return strings.Join(lines[:len(lines)-n], "\n")
+}
+
+// joinWith applies fn to each line and joins the results with "\n",
+// adding a trailing newline.
+func joinWith(lines []string, fn func(string) string) string {
+	var sb strings.Builder
+	for _, line := range lines {
+		sb.WriteString(fn(line))
+		sb.WriteString("\n")
+	}
+	return sb.String()
 }

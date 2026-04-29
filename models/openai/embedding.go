@@ -74,7 +74,7 @@ func (e *EmbeddingModel) buildApiEmbeddingRequest(req *embedding.Request) (*open
 	}
 
 	if mergedOpts.Dimensions != nil {
-		params.Dimensions = openai.Int(ptr.Value(mergedOpts.Dimensions))
+		params.Dimensions = openai.Int(ptr.From(mergedOpts.Dimensions))
 	}
 	if mergedOpts.EncodingFormat.Valid() {
 		params.EncodingFormat = openai.EmbeddingNewParamsEncodingFormat(mergedOpts.EncodingFormat)

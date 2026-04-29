@@ -8,40 +8,33 @@ import (
 	"github.com/invopop/jsonschema"
 )
 
-// SchemaConfig holds the configuration for JSON schema generation.
+// SchemaConfig controls JSON Schema generation. The zero value is
+// usable; [DefaultSchemaConfig] returns the recommended defaults.
 type SchemaConfig struct {
-	// Anonymous generates anonymous schemas without using references
+	// Anonymous emits anonymous schemas (no $id).
 	Anonymous bool
-	// ExpandedStruct expands struct definitions inline instead of referencing
+	// ExpandedStruct inlines struct definitions instead of referencing.
 	ExpandedStruct bool
-	// DoNotReference disables $ref usage and inlines all definitions
+	// DoNotReference disables $ref usage; all definitions are inlined.
 	DoNotReference bool
-	// AllowAdditionalProperties allows properties not defined in the schema
+	// AllowAdditionalProperties allows fields not declared in the schema.
 	AllowAdditionalProperties bool
-	// IncludeSchemaVersion includes the $schema version field in output
+	// IncludeSchemaVersion keeps the $schema field in the output.
 	IncludeSchemaVersion bool
 }
 
-// DefaultSchemaConfig returns the default configuration for schema generation.
+// DefaultSchemaConfig returns the configuration used by
+// [StringDefSchemaOf] and [MapDefSchemaOf]: anonymous, fully inlined,
+// strict (no extra fields), no $schema header.
 func DefaultSchemaConfig() SchemaConfig {
 	return SchemaConfig{
-		Anonymous:                 true,
-		ExpandedStruct:            false,
-		DoNotReference:            true,
-		AllowAdditionalProperties: false,
-		IncludeSchemaVersion:      false,
+		Anonymous:      true,
+		DoNotReference: true,
 	}
 }
 
-// StringDefSchemaOf generates a JSON schema definition string for a given value.
-// It returns the schema as a JSON string and an error if generation fails.
-//
-// Parameters:
-//   - v: the value to generate schema for (typically a struct or basic type)
-//
-// Returns:
-//   - string: JSON schema definition as a string
-//   - error: error if schema generation or marshaling fails
+// StringDefSchemaOf returns a JSON Schema for v as a JSON string,
+// using [DefaultSchemaConfig].
 //
 // Example:
 //
@@ -49,149 +42,91 @@ func DefaultSchemaConfig() SchemaConfig {
 //	    Name string `json:"name" jsonschema:"required"`
 //	    Age  int    `json:"age"`
 //	}
-//	schema, err := StringDefSchemaOf(User{})
+//	schema, _ := json.StringDefSchemaOf(User{})
 func StringDefSchemaOf(v any) (string, error) {
 	return StringDefSchemaOfWithConfig(v, DefaultSchemaConfig())
 }
 
-// StringDefSchemaOfWithConfig generates a JSON schema string with custom configuration.
-func StringDefSchemaOfWithConfig(v any, config SchemaConfig) (string, error) {
-	schema, err := generateSchema(v, config)
+// StringDefSchemaOfWithConfig is like [StringDefSchemaOf] but uses cfg.
+func StringDefSchemaOfWithConfig(v any, cfg SchemaConfig) (string, error) {
+	schema, err := generateSchema(v, cfg)
 	if err != nil {
 		return "", fmt.Errorf("generate schema: %w", err)
 	}
-
-	marshalJSON, err := schema.MarshalJSON()
+	raw, err := schema.MarshalJSON()
 	if err != nil {
-		return "", fmt.Errorf("marshal schema to JSON: %w", err)
+		return "", fmt.Errorf("marshal schema: %w", err)
 	}
-
-	return string(marshalJSON), nil
+	return string(raw), nil
 }
 
-// MapDefSchemaOf generates a JSON schema definition as a map for a given value.
-// It returns the schema as a map[string]any and an error if generation fails.
-//
-// Parameters:
-//   - v: the value to generate schema for (typically a struct or basic type)
-//
-// Returns:
-//   - map[string]any: JSON schema definition as a map
-//   - error: error if schema generation, marshaling, or unmarshaling fails
-//
-// Example:
-//
-//	type User struct {
-//	    Name string `json:"name"`
-//	}
-//	schemaMap, err := MapDefSchemaOf(User{})
-//	if err != nil {
-//	    log.Fatal(err)
-//	}
-//	properties := schemaMap["properties"]
+// MapDefSchemaOf returns a JSON Schema for v decoded into a generic
+// map, using [DefaultSchemaConfig].
 func MapDefSchemaOf(v any) (map[string]any, error) {
 	return MapDefSchemaOfWithConfig(v, DefaultSchemaConfig())
 }
 
-// MapDefSchemaOfWithConfig generates a JSON schema map with custom configuration.
-func MapDefSchemaOfWithConfig(v any, config SchemaConfig) (map[string]any, error) {
-	schema, err := generateSchema(v, config)
+// MapDefSchemaOfWithConfig is like [MapDefSchemaOf] but uses cfg.
+func MapDefSchemaOfWithConfig(v any, cfg SchemaConfig) (map[string]any, error) {
+	schema, err := generateSchema(v, cfg)
 	if err != nil {
 		return nil, fmt.Errorf("generate schema: %w", err)
 	}
-
 	raw, err := schema.MarshalJSON()
 	if err != nil {
-		return nil, fmt.Errorf("marshal schema to JSON: %w", err)
+		return nil, fmt.Errorf("marshal schema: %w", err)
 	}
-
 	var m map[string]any
 	if err := json.Unmarshal(raw, &m); err != nil {
-		return nil, fmt.Errorf("unmarshal schema to map: %w", err)
+		return nil, fmt.Errorf("unmarshal schema: %w", err)
 	}
-
 	return m, nil
 }
 
-// generateSchema is a helper function that creates a JSON schema from a given value
-// using the provided configuration. It handles type reflection and applies
-// appropriate settings based on the input type.
-//
-// Parameters:
-//   - v: the value to generate schema for
-//   - config: configuration options for schema generation
-//
-// Returns:
-//   - *jsonschema.Schema: the generated schema object
-//   - error: error if schema generation fails
-func generateSchema(v any, config SchemaConfig) (*jsonschema.Schema, error) {
-	// Validate input
+// MustStringDefSchemaOf is the panicking variant of [StringDefSchemaOf].
+func MustStringDefSchemaOf(v any) string {
+	out, err := StringDefSchemaOf(v)
+	if err != nil {
+		panic(fmt.Sprintf("json: schema generation failed: %v", err))
+	}
+	return out
+}
+
+// MustMapDefSchemaOf is the panicking variant of [MapDefSchemaOf].
+func MustMapDefSchemaOf(v any) map[string]any {
+	out, err := MapDefSchemaOf(v)
+	if err != nil {
+		panic(fmt.Sprintf("json: schema generation failed: %v", err))
+	}
+	return out
+}
+
+// generateSchema reflects a *jsonschema.Schema for v with the given
+// configuration. Struct values are always emitted with ExpandedStruct
+// set so the result is a single, self-contained object.
+func generateSchema(v any, cfg SchemaConfig) (*jsonschema.Schema, error) {
 	if v == nil {
-		return nil, fmt.Errorf("cannot generate schema for nil value")
+		return nil, fmt.Errorf("nil value")
 	}
-
-	// Create reflector with configuration
 	r := &jsonschema.Reflector{
-		Anonymous:                 config.Anonymous,
-		ExpandedStruct:            config.ExpandedStruct,
-		DoNotReference:            config.DoNotReference,
-		AllowAdditionalProperties: config.AllowAdditionalProperties,
+		Anonymous:                 cfg.Anonymous,
+		ExpandedStruct:            cfg.ExpandedStruct,
+		DoNotReference:            cfg.DoNotReference,
+		AllowAdditionalProperties: cfg.AllowAdditionalProperties,
 	}
-
-	// Check if the value is a struct type and expand if necessary
 	t := reflect.TypeOf(v)
 	if t.Kind() == reflect.Ptr {
 		t = t.Elem()
 	}
-
 	if t.Kind() == reflect.Struct {
 		r.ExpandedStruct = true
 	}
-
-	// Generate schema using reflection
 	schema := r.Reflect(v)
 	if schema == nil {
-		return nil, fmt.Errorf("failed to reflect schema for type %T", v)
+		return nil, fmt.Errorf("reflect schema for %T", v)
 	}
-
-	// Remove schema version if not required
-	if !config.IncludeSchemaVersion {
+	if !cfg.IncludeSchemaVersion {
 		schema.Version = ""
 	}
-
 	return schema, nil
-}
-
-// MustStringDefSchemaOf is a convenience wrapper around StringDefSchemaOf that panics on error.
-// Use this only when you are certain the schema generation will succeed.
-//
-// Example:
-//
-//	type Config struct {
-//	    Port int `json:"port"`
-//	}
-//	schema := MustStringDefSchemaOf(Config{})
-func MustStringDefSchemaOf(v any) string {
-	schema, err := StringDefSchemaOf(v)
-	if err != nil {
-		panic(fmt.Sprintf("failed to generate schema: %v", err))
-	}
-	return schema
-}
-
-// MustMapDefSchemaOf is a convenience wrapper around MapDefSchemaOf that panics on error.
-// Use this only when you are certain the schema generation will succeed.
-//
-// Example:
-//
-//	type Config struct {
-//	    Port int `json:"port"`
-//	}
-//	schemaMap := MustMapDefSchemaOf(Config{})
-func MustMapDefSchemaOf(v any) map[string]any {
-	schema, err := MapDefSchemaOf(v)
-	if err != nil {
-		panic(fmt.Sprintf("failed to generate schema: %v", err))
-	}
-	return schema
 }

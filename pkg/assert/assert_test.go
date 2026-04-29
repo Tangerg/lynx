@@ -5,226 +5,120 @@ import (
 	"testing"
 )
 
-func TestMust_Success(t *testing.T) {
-	t.Run("string type", func(t *testing.T) {
-		result := Must("hello", nil)
-		if result != "hello" {
-			t.Errorf("expected 'hello', got '%s'", result)
-		}
-	})
+func TestMust_ReturnsValue(t *testing.T) {
+	type point struct{ X, Y int }
 
-	t.Run("int type", func(t *testing.T) {
-		result := Must(42, nil)
-		if result != 42 {
-			t.Errorf("expected 42, got %d", result)
-		}
-	})
-
-	t.Run("struct type", func(t *testing.T) {
-		type TestStruct struct {
-			Name string
-			Age  int
-		}
-		expected := TestStruct{Name: "Alice", Age: 30}
-		result := Must(expected, nil)
-		if result != expected {
-			t.Errorf("expected %+v, got %+v", expected, result)
-		}
-	})
-
-	t.Run("pointer type", func(t *testing.T) {
-		value := 123
-		ptr := &value
-		result := Must(ptr, nil)
-		if result != ptr {
-			t.Errorf("expected pointer %p, got %p", ptr, result)
-		}
-		if *result != 123 {
-			t.Errorf("expected dereferenced value 123, got %d", *result)
-		}
-	})
-
-	t.Run("slice type", func(t *testing.T) {
-		slice := []int{1, 2, 3}
-		result := Must(slice, nil)
-		if len(result) != 3 || result[0] != 1 {
-			t.Errorf("expected slice [1 2 3], got %v", result)
-		}
-	})
+	tests := []struct {
+		name string
+		run  func(t *testing.T)
+	}{
+		{"string", func(t *testing.T) {
+			if got := Must("hello", nil); got != "hello" {
+				t.Errorf("got %q, want %q", got, "hello")
+			}
+		}},
+		{"int", func(t *testing.T) {
+			if got := Must(42, nil); got != 42 {
+				t.Errorf("got %d, want %d", got, 42)
+			}
+		}},
+		{"struct", func(t *testing.T) {
+			want := point{1, 2}
+			if got := Must(want, nil); got != want {
+				t.Errorf("got %+v, want %+v", got, want)
+			}
+		}},
+		{"pointer", func(t *testing.T) {
+			v := 7
+			if got := Must(&v, nil); got != &v {
+				t.Errorf("got %p, want %p", got, &v)
+			}
+		}},
+		{"slice", func(t *testing.T) {
+			got := Must([]int{1, 2, 3}, nil)
+			if len(got) != 3 || got[0] != 1 || got[2] != 3 {
+				t.Errorf("got %v, want [1 2 3]", got)
+			}
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, tt.run)
+	}
 }
 
-func TestMust_Panic(t *testing.T) {
-	t.Run("panic with error", func(t *testing.T) {
-		defer func() {
-			if r := recover(); r == nil {
-				t.Error("expected panic, but didn't panic")
-			} else {
+func TestMust_PanicsOnError(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+	}{
+		{"sentinel", errors.New("boom")},
+		{"wrapped", errors.New("error: code 500")},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			defer func() {
+				r := recover()
+				if r == nil {
+					t.Fatal("expected panic, got none")
+				}
 				err, ok := r.(error)
 				if !ok {
-					t.Errorf("expected error type in panic, got %T", r)
+					t.Fatalf("panic value type = %T, want error", r)
 				}
-				if err.Error() != "test error" {
-					t.Errorf("expected 'test error', got '%s'", err.Error())
+				if err.Error() != tt.err.Error() {
+					t.Errorf("panic err = %q, want %q", err.Error(), tt.err.Error())
 				}
-			}
-		}()
+			}()
+			Must(0, tt.err)
+		})
+	}
+}
 
-		Must("value", errors.New("test error"))
-	})
-
-	t.Run("panic with different error types", func(t *testing.T) {
-		testCases := []struct {
-			name string
-			err  error
-		}{
-			{"simple error", errors.New("simple")},
-			{"formatted error", errors.New("error: code 500")},
-		}
-
-		for _, tc := range testCases {
-			t.Run(tc.name, func(t *testing.T) {
-				defer func() {
-					if r := recover(); r == nil {
-						t.Error("expected panic")
+func TestEnsure(t *testing.T) {
+	tests := []struct {
+		name      string
+		condition bool
+		err       error
+		wantPanic bool
+	}{
+		{"true does not panic", true, errors.New("ok"), false},
+		{"false panics with err", false, errors.New("condition failed"), true},
+		{"comparison false panics", 1 > 2, errors.New("1 > 2"), true},
+		{"empty string check", len("") > 0, errors.New("empty"), true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			defer func() {
+				r := recover()
+				switch {
+				case tt.wantPanic && r == nil:
+					t.Fatal("expected panic, got none")
+				case !tt.wantPanic && r != nil:
+					t.Fatalf("unexpected panic: %v", r)
+				case tt.wantPanic:
+					err, ok := r.(error)
+					if !ok {
+						t.Fatalf("panic value type = %T, want error", r)
 					}
-				}()
-				Must(0, tc.err)
-			})
-		}
-	})
-}
-
-func TestEnsure_Success(t *testing.T) {
-	t.Run("true condition does not panic", func(t *testing.T) {
-		defer func() {
-			if r := recover(); r != nil {
-				t.Errorf("unexpected panic: %v", r)
-			}
-		}()
-
-		Ensure(true, "should not panic")
-		Ensure(1 == 1, "math works")
-		Ensure(len("hello") == 5, "length check")
-	})
-}
-
-func TestEnsure_Panic(t *testing.T) {
-	t.Run("false condition panics with message", func(t *testing.T) {
-		expectedMessage := "condition failed"
-
-		defer func() {
-			if r := recover(); r == nil {
-				t.Error("expected panic, but didn't panic")
-			} else {
-				message, ok := r.(string)
-				if !ok {
-					t.Errorf("expected string in panic, got %T", r)
-				}
-				if message != expectedMessage {
-					t.Errorf("expected '%s', got '%s'", expectedMessage, message)
-				}
-			}
-		}()
-
-		Ensure(false, expectedMessage)
-	})
-
-	t.Run("various false conditions", func(t *testing.T) {
-		testCases := []struct {
-			name      string
-			condition bool
-			message   string
-		}{
-			{"false literal", false, "literal false"},
-			{"comparison", 1 > 2, "invalid comparison"},
-			{"nil check", new(struct{}) == nil, "nil check failed"},
-			{"empty string", len("") > 0, "string is empty"},
-		}
-
-		for _, tc := range testCases {
-			t.Run(tc.name, func(t *testing.T) {
-				defer func() {
-					if r := recover(); r == nil {
-						t.Error("expected panic")
-					} else if r.(string) != tc.message {
-						t.Errorf("expected message '%s', got '%s'", tc.message, r.(string))
+					if err.Error() != tt.err.Error() {
+						t.Errorf("panic err = %q, want %q", err.Error(), tt.err.Error())
 					}
-				}()
-
-				Ensure(tc.condition, tc.message)
-			})
-		}
-	})
+				}
+			}()
+			Ensure(tt.condition, tt.err)
+		})
+	}
 }
 
-func TestMust_RealWorldScenarios(t *testing.T) {
-	t.Run("file operation simulation", func(t *testing.T) {
-		openFile := func(name string) (string, error) {
-			if name == "" {
-				return "", errors.New("empty filename")
-			}
-			return "file content", nil
-		}
-
-		result := Must(openFile("test.txt"))
-		if result != "file content" {
-			t.Errorf("expected 'file content', got '%s'", result)
-		}
-	})
-
-	t.Run("configuration loading", func(t *testing.T) {
-		type Config struct {
-			Host string
-			Port int
-		}
-
-		loadConfig := func() (Config, error) {
-			return Config{Host: "localhost", Port: 8080}, nil
-		}
-
-		config := Must(loadConfig())
-		if config.Host != "localhost" || config.Port != 8080 {
-			t.Errorf("unexpected config: %+v", config)
-		}
-	})
-}
-
-func TestEnsure_RealWorldScenarios(t *testing.T) {
-	t.Run("invariant checking", func(t *testing.T) {
-		balance := 100
-		withdrawAmount := 50
-
-		Ensure(balance >= withdrawAmount, "insufficient funds")
-
-		balance -= withdrawAmount
-		if balance != 50 {
-			t.Errorf("expected balance 50, got %d", balance)
-		}
-	})
-
-	t.Run("precondition validation", func(t *testing.T) {
-		processData := func(data []int) int {
-			Ensure(len(data) > 0, "data cannot be empty")
-			Ensure(data[0] >= 0, "first element must be non-negative")
-			return data[0]
-		}
-
-		result := processData([]int{10, 20, 30})
-		if result != 10 {
-			t.Errorf("expected 10, got %d", result)
-		}
-	})
-}
-
-// Benchmark tests
-func BenchmarkMust_Success(b *testing.B) {
-	for i := 0; i < b.N; i++ {
+func BenchmarkMust(b *testing.B) {
+	for b.Loop() {
 		_ = Must(42, nil)
 	}
 }
 
-func BenchmarkEnsure_True(b *testing.B) {
-	for i := 0; i < b.N; i++ {
-		Ensure(true, "benchmark")
+func BenchmarkEnsure(b *testing.B) {
+	err := errors.New("ok")
+	for b.Loop() {
+		Ensure(true, err)
 	}
 }

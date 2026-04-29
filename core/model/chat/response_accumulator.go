@@ -83,9 +83,12 @@ func (r *ResponseAccumulator) accumulateResult(index int, other *Result) {
 // accumulateAssistantMessage merges assistant message content from streaming chunks.
 // Accumulation strategy:
 //   - Text: concatenated (e.g., "Hello" + " world" = "Hello world")
+//   - Reasoning: concatenated (visible chain-of-thought streamed as deltas
+//     by DeepSeek-R1 / Anthropic thinking_delta / Gemini thoughts)
 //   - ToolCalls: each component (ID, Name, Arguments) is concatenated
-//     This supports streaming tool calls where JSON is sent in fragments
-//   - Metadata: merged with newer values overwriting existing ones
+//   - Metadata: merged with last-write-wins semantics. Provider-specific
+//     continuation tokens (signature, redacted data) typically arrive as
+//     a single final chunk, so overwriting is correct.
 func (r *ResponseAccumulator) accumulateAssistantMessage(msg, other *AssistantMessage) *AssistantMessage {
 	if other == nil {
 		return msg
@@ -96,6 +99,7 @@ func (r *ResponseAccumulator) accumulateAssistantMessage(msg, other *AssistantMe
 
 	// Concatenate text content for streaming generation
 	msg.Text += other.Text
+	msg.Reasoning += other.Reasoning
 
 	// Accumulate tool calls by concatenating their components
 	if len(other.ToolCalls) > 0 {

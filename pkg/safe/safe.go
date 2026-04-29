@@ -6,59 +6,47 @@ import (
 	"time"
 )
 
-// PanicError represents a recovered panic with additional metadata.
-// It stores the time when panic occurred, the original panic information,
-// stack trace, and a pre-computed error message.
+// PanicError represents a recovered panic. It carries the panic value,
+// the stack trace captured at recovery, and the timestamp.
 type PanicError struct {
-	time    time.Time // Timestamp when the panic occurred
-	info    any       // The value passed to panic()
-	stack   []byte    // Stack trace at the time of panic
-	message string    // Pre-computed error message (eager initialization)
+	time    time.Time
+	info    any
+	stack   []byte
+	message string
 }
 
-// Error implements the error interface for PanicError.
-// It returns the pre-computed error message for better performance.
+// Error returns a multi-line message containing the timestamp, panic
+// value, and stack trace.
 func (e *PanicError) Error() string {
 	return e.message
 }
 
-// NewPanicError creates a new PanicError instance with the given panic information and stack trace.
-// The error message is computed immediately upon creation (eager initialization).
+// NewPanicError builds a [*PanicError] from a recovered panic value and
+// stack trace. The error message is formatted eagerly.
 func NewPanicError(info any, stack []byte) error {
-	timestamp := time.Now()
-	stackTrace := string(stack)
-	message := fmt.Sprintf("panic recovered\ntimestamp: %s\nerror: %+v\nstack:\n%s",
-		timestamp.Format(time.RFC3339Nano), info, stackTrace)
-
+	now := time.Now()
 	return &PanicError{
-		time:    timestamp,
-		info:    info,
-		stack:   stack,
-		message: message,
+		time:  now,
+		info:  info,
+		stack: stack,
+		message: fmt.Sprintf("panic recovered\ntimestamp: %s\nerror: %+v\nstack:\n%s",
+			now.Format(time.RFC3339Nano), info, stack),
 	}
 }
 
-// Go launches a goroutine with built-in panic recovery.
-// This function provides a safer way to start goroutines by automatically recovering from panics
-// and invoking provided error handlers. It captures panic information including timestamp and stack trace
-// for better debugging.
+// Go runs fn in a new goroutine. If fn panics, each handler is invoked
+// with a [*PanicError] describing the panic. Handlers that themselves
+// panic do not propagate.
 //
-// Parameters:
-//   - fn: The function to execute in the goroutine. This is the main function that will run concurrently.
-//   - panicFns: Optional variadic list of error handler functions that will be called if a panic occurs.
-//     Each handler receives the error containing panic details, timestamp, and stack trace.
+// If fn is nil, Go does nothing.
 //
 // Example:
 //
-//	// Simple usage with a logger as error handler
-//	Go(func() {
-//	    // Your concurrent code here
-//	    processData()
+//	safe.Go(func() {
+//	    process(req)
 //	}, func(err error) {
-//	    log.Printf("Error in goroutine: %v", err)
+//	    log.Printf("worker panic: %v", err)
 //	})
-//
-// The function does not return any values and does not wait for the goroutine to complete.
 func Go(fn func(), handlers ...func(error)) {
 	wrapped := WithRecover(fn, handlers...)
 	if wrapped == nil {
@@ -67,36 +55,27 @@ func Go(fn func(), handlers ...func(error)) {
 	go wrapped()
 }
 
-// WithRecover wraps a function with panic recovery logic.
-// It returns a new function that will execute the provided function and recover from any panics.
-// If panic occurs, it creates a PanicError and passes it to each of the provided error handler functions.
+// WithRecover returns a function that runs fn with panic recovery.
+// On panic, each handler is called with a [*PanicError]; if no handler
+// is given, the panic is silently swallowed. Handler panics are also
+// recovered and discarded.
 //
-// Parameters:
-//   - fn: The function to wrap with recovery logic
-//   - panicFns: Optional list of functions to handle the panic error
-//
-// Returns:
-//   - A function that executes the original function with panic recovery
-//   - If fn is nil, returns nil
-//
-// This function can be used directly when you want recovery but don't need a new goroutine.
+// WithRecover returns nil if fn is nil. It is useful when you want
+// recovery without spawning a goroutine.
 func WithRecover(fn func(), handlers ...func(error)) func() {
 	if fn == nil {
-		return fn
+		return nil
 	}
 	return func() {
 		defer func() {
-			if r := recover(); r != nil {
-				if len(handlers) == 0 {
-					return
-				}
-				err := NewPanicError(r, debug.Stack())
-				defer func() {
-					recover() // to recover handlers
-				}()
-				for _, h := range handlers {
-					h(err)
-				}
+			r := recover()
+			if r == nil || len(handlers) == 0 {
+				return
+			}
+			err := NewPanicError(r, debug.Stack())
+			defer func() { _ = recover() }()
+			for _, h := range handlers {
+				h(err)
 			}
 		}()
 		fn()

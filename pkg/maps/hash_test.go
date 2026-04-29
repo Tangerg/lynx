@@ -232,8 +232,8 @@ func TestHashMap_ContainsValue(t *testing.T) {
 
 	t.Run("pointer values", func(t *testing.T) {
 		m := NewHashMap[string, *string]()
-		val1 := ptr.Pointer("abc")
-		val2 := ptr.Pointer("cba")
+		val1 := ptr.To("abc")
+		val2 := ptr.To("cba")
 
 		m.Put("a", val1)
 		if !m.ContainsValue(val1) {

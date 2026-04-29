@@ -1,21 +1,18 @@
-// Package mime provides comprehensive MIME type handling with advanced parsing,
-// detection, manipulation, and file extension mapping capabilities.
+// Package mime parses, compares, and detects MIME types.
 //
-// # Overview
+// A MIME type is constructed with [New], [Parse], or a fluent
+// [Builder]; content can be sniffed with [Detect], [DetectReader],
+// or [DetectFile]. Use [TypeByExtension] / [StringTypeByExtension]
+// to look up a type from a file extension and [RegisterExtension] /
+// [RegisterExtensions] to extend the table.
 //
-// This package offers a complete solution for working with MIME (Multipurpose
-// Internet Mail Extensions) types in Go applications. It supports RFC-compliant
-// parsing, content-based type detection, type normalization, and extensive file
-// extension to MIME type mapping.
+// [MIME] values expose component accessors ([MIME.Type],
+// [MIME.SubType], [MIME.Charset], [MIME.Param]), comparison helpers
+// ([MIME.Equals], [MIME.EqualsTypeAndSubtype], [MIME.IsCompatibleWith]),
+// and wildcard predicates ([MIME.IsWildcardType], [MIME.IsConcrete],
+// [MIME.Includes]).
 //
-// # Key Features
-//
-//   - RFC 2045/2046 compliant MIME type parsing
-//   - Content-based MIME type detection using magic bytes
-//   - Hierarchical type matching and comparison
-//   - X-prefix normalization (RFC 6648)
-//   - Comprehensive file extension mapping (600+ extensions)
-//   - Thread-safe operations with concurrent access support
-//   - Extensible registration system for custom types
-//   - Structured suffix handling (+xml, +json, etc.)
+// Category helpers [IsText], [IsImage], [IsAudio], [IsVideo], and
+// [IsApplication] test the primary type. [NormalizeXSubtype] folds
+// legacy "x-" subtypes (RFC 6648) onto their modern equivalents.
 package mime

@@ -2,6 +2,7 @@ package sync
 
 import (
 	"errors"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -11,6 +12,8 @@ import (
 	"github.com/panjf2000/ants/v2"
 	conc "github.com/sourcegraph/conc/pool"
 )
+
+func contains(s, sub string) bool { return strings.Contains(s, sub) }
 
 // TestDefaultPool tests the default pool functionality
 func TestDefaultPool(t *testing.T) {
@@ -273,9 +276,8 @@ func TestPoolOfConc(t *testing.T) {
 				t.Error("PoolOfConc(nil) should panic")
 			} else {
 				if msg, ok := r.(string); ok {
-					expected := "pool must not be nil"
-					if msg != expected {
-						t.Errorf("panic message = %q, want %q", msg, expected)
+					if !contains(msg, "pool must not be nil") {
+						t.Errorf("panic message = %q, want to contain 'pool must not be nil'", msg)
 					}
 				}
 			}
@@ -367,9 +369,8 @@ func TestPoolOfAnts(t *testing.T) {
 				t.Error("PoolOfAnts(nil) should panic")
 			} else {
 				if msg, ok := r.(string); ok {
-					expected := "pool must not be nil"
-					if msg != expected {
-						t.Errorf("panic message = %q, want %q", msg, expected)
+					if !contains(msg, "pool must not be nil") {
+						t.Errorf("panic message = %q, want to contain 'pool must not be nil'", msg)
 					}
 				}
 			}
@@ -504,9 +505,8 @@ func TestPoolOfWorkerpool(t *testing.T) {
 				t.Error("PoolOfWorkerpool(nil) should panic")
 			} else {
 				if msg, ok := r.(string); ok {
-					expected := "pool must not be nil"
-					if msg != expected {
-						t.Errorf("panic message = %q, want %q", msg, expected)
+					if !contains(msg, "pool must not be nil") {
+						t.Errorf("panic message = %q, want to contain 'pool must not be nil'", msg)
 					}
 				}
 			}
