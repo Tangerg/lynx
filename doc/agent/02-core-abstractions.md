@@ -600,8 +600,11 @@ package core
 
 import (
     "github.com/Tangerg/lynx/core/model/chat"
-    "github.com/Tangerg/lynx/core/observation"
+    "go.opentelemetry.io/otel"
+    "go.opentelemetry.io/otel/trace"
 )
+
+var agentTracer = otel.Tracer("lynx/agent")
 
 // ProcessContext 传给 Action.Execute 的上下文
 type ProcessContext struct {
@@ -612,8 +615,8 @@ type ProcessContext struct {
     Listener       EventListener        // 事件发布
 
     // 集成 Lynx 核心组件（关键改动：不再是 Spring AI）
-    chatClient   *chat.Client
-    observations observation.Registry
+    chatClient *chat.Client
+    // 观测直接走 OTel API，不再有 observation.Registry 抽象（见 doc/OBSERVABILITY.md）
 }
 
 // LLM 返回 Lynx chat 客户端，Action 代码直接用
@@ -621,9 +624,9 @@ func (pc *ProcessContext) LLM() *chat.Client {
     return pc.chatClient
 }
 
-// Observe 启动 observation span
-func (pc *ProcessContext) Observe(ctx context.Context, name string, attrs ...observation.Attr) (context.Context, observation.Observation) {
-    return pc.observations.Start(ctx, name, attrs...)
+// Tracer 返回 lynx/agent 的 OTel Tracer
+func (pc *ProcessContext) Tracer() trace.Tracer {
+    return agentTracer
 }
 
 // SetFailure / OnEvent 等
@@ -707,7 +710,7 @@ core/
 │   └── InMemoryBlackboard   （默认实现）
 │
 ├── ProcessContext (struct)
-│   └── 嵌入 chat.Client、observation.Registry 引用
+│   └── 嵌入 chat.Client；通过 otel.Tracer("lynx/agent") 直接发 span
 │
 └── AgentProcess (struct, 见 03)
     └── 状态机 + tick 循环

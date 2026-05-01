@@ -235,7 +235,7 @@ type Condition interface {
 type OperationContext struct {
     Process    *AgentProcess
     Blackboard Blackboard
-    Registry   observation.Registry
+    Tracer     trace.Tracer  // 直接用 OTel；ctx 透传 span 父子关系
 }
 
 // 具体实现类型（仅数据）
@@ -625,7 +625,7 @@ type ProcessContext struct {
 // 便捷访问方法
 func (pc *ProcessContext) LLM() *chat.Client
 func (pc *ProcessContext) Services() *ServiceProvider
-func (pc *ProcessContext) Observe(ctx context.Context, name string, attrs ...observation.Attr) (context.Context, observation.Observation)
+func (pc *ProcessContext) Tracer() trace.Tracer  // 直接返回 otel.Tracer("lynx/agent")
 func (pc *ProcessContext) Publish(e event.Event)
 func (pc *ProcessContext) ResolveTools(roles ...string) []chat.Tool
 func (pc *ProcessContext) AwaitInput(req hitl.Awaitable) ActionStatus
@@ -634,11 +634,12 @@ func (pc *ProcessContext) AwaitInput(req hitl.Awaitable) ActionStatus
 ```go
 // ServiceProvider 聚合 Lynx 核心组件
 type ServiceProvider struct {
-    Chat         *chat.Client
-    RAG          *rag.Pipeline
-    VectorStore  vectorstore.VectorStore
-    Observations observation.Registry
-    Tools        ToolGroupResolver
+    Chat        *chat.Client
+    RAG         *rag.Pipeline
+    VectorStore vectorstore.VectorStore
+    MCP         *mcp.Provider           // 跨进程工具懒加载
+    Tools       ToolGroupResolver
+    // 观测直接走 otel.Tracer("lynx/agent")，不持有 registry
 }
 ```
 
@@ -827,9 +828,10 @@ func NewPlatform(opts ...PlatformOption) *Platform
 type PlatformOption func(*Platform)
 
 func WithChatClient(c *chat.Client) PlatformOption
-func WithObservation(r observation.Registry) PlatformOption
+// 观测：用户在 main 中 otel.SetTracerProvider(...) 即可，platform 不持有
 func WithRAG(p *rag.Pipeline) PlatformOption
 func WithVectorStore(s vectorstore.VectorStore) PlatformOption
+func WithMCP(p *mcp.Provider) PlatformOption           // 跨进程工具懒加载
 func WithProcessType(t core.ProcessType) PlatformOption
 func WithPlannerFactory(f PlannerFactory) PlatformOption
 func WithListener(l event.Listener) PlatformOption
@@ -1128,7 +1130,7 @@ agent/
 | **构造后不可变** | `Agent`, `PlanningSystem` | 创建期单线程；之后只读共享 |
 | **读并发安全** | `AgentProcess`（Status/History/...）, `InMemoryBlackboard`, `event.Multicast` | 用 RWMutex 保护 |
 | **单线程调用** | `AgentProcess.Run`/`Tick`, `Builder` | 只能由一个 goroutine 调用 |
-| **内部同步** | `Platform`（Deploy/Run）, `observation.Registry` 实现 | 方法本身加锁 |
+| **内部同步** | `Platform`（Deploy/Run）；OTel `TracerProvider` 由 SDK 保证 | 方法本身加锁 |
 
 ---
 
