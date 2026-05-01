@@ -716,8 +716,8 @@ type Platform struct {
     processRepo ProcessRepository
 
     // 集成 Lynx core
-    chatClient  *chat.Client
-    observations observation.Registry
+    chatClient *chat.Client
+    // 观测：直接调 otel.Tracer("lynx/agent")，不再有 observation.Registry 抽象
 }
 
 // NewPlatform 构造器
@@ -725,10 +725,9 @@ func NewPlatform(opts ...PlatformOption) *Platform { ... }
 
 type PlatformOption func(*Platform)
 
-func WithChatClient(c *chat.Client) PlatformOption      { ... }
-func WithObservation(r observation.Registry) PlatformOption { ... }
+func WithChatClient(c *chat.Client) PlatformOption       { ... }
 func WithPlannerFactory(f PlannerFactory) PlatformOption { ... }
-func WithProcessType(t core.ProcessType) PlatformOption { ... }
+func WithProcessType(t core.ProcessType) PlatformOption  { ... }
 
 // Deploy 注册 agent
 func (p *Platform) Deploy(agent *core.Agent) error {

@@ -9,10 +9,11 @@
               │   agent/ (framework)      │
               └────────┬──────────────────┘
                        │ 依赖 / 组合
-           ┌───────────┼─────────────────┬─────────────┐
-           ↓           ↓                 ↓             ↓
-    core/model/chat  core/observation  core/rag   core/vectorstore
-    (LLM 调用)       (追踪/指标)       (RAG 管道)  (向量检索)
+           ┌───────────┼─────────────────┬─────────────┬──────────┐
+           ↓           ↓                 ↓             ↓          ↓
+    core/model/chat  go.opentelemetry  core/rag   core/vectorstore  mcp/
+    (LLM 调用)       /otel/trace       (RAG 管道)  (向量检索)        (跨进程工具)
+                     (追踪/指标)
 ```
 
 所有集成走 `core.ProcessContext` 对外暴露的方法，**Action 代码无需直接 import lynx 底层包**。
@@ -93,82 +94,91 @@ for chunk, err := range pc.LLM().ChatWithText(prompt).Stream().Text(ctx) {
 
 ---
 
-## 3. 集成：Observation（追踪/指标）
+## 3. 集成：Observability（直接用 OTel）
 
-### 3.1 平台持有 Registry
+> Lynx 不建 `core/observation/` 抽象，直接使用 OpenTelemetry API（详见 [`../OBSERVABILITY.md`](../OBSERVABILITY.md)）。
 
-```go
-func WithObservation(r observation.Registry) PlatformOption {
-    return func(p *Platform) { p.observations = r }
-}
-```
-
-### 3.2 框架层自动埋点
+### 3.1 框架层自动埋点
 
 ```go
 // agent/runtime/process_run.go
+import (
+    "go.opentelemetry.io/otel"
+    "go.opentelemetry.io/otel/attribute"
+    "go.opentelemetry.io/otel/codes"
+    "go.opentelemetry.io/otel/trace"
+)
+
+var agentTracer = otel.Tracer("lynx/agent")
+
 func (p *AgentProcess) Tick(ctx context.Context) error {
-    ctx, obs := p.platform.observations.Start(ctx, "agent.tick",
-        observation.String("agent.name", p.Agent.Name),
-        observation.String("agent.process_id", p.ID),
+    ctx, span := agentTracer.Start(ctx, "lynx.agent.tick",
+        trace.WithAttributes(
+            attribute.String("lynx.agent.name", p.Agent.Name),
+            attribute.String("lynx.agent.process_id", p.ID),
+        ),
     )
-    defer obs.End()
+    defer span.End()
 
-    // ...
     worldState := p.determiner.DetermineWorldState(ctx)
-    obs.SetAttr("agent.world_state.size", int64(len(worldState.State())))
+    span.SetAttributes(attribute.Int("lynx.agent.world_state.size", len(worldState.State())))
 
-    err := p.formulateAndExecutePlan(ctx, worldState)
-    if err != nil { obs.SetError(err) }
-    return err
+    if err := p.formulateAndExecutePlan(ctx, worldState); err != nil {
+        span.RecordError(err)
+        span.SetStatus(codes.Error, err.Error())
+        return err
+    }
+    return nil
 }
 
 func (p *AgentProcess) executeAction(ctx context.Context, action core.Action) (core.ActionStatus, *ReplanRequest) {
-    ctx, obs := p.platform.observations.Start(ctx, "agent.action",
-        observation.String("agent.action.name", action.Name()),
+    ctx, span := agentTracer.Start(ctx, "lynx.agent.action",
+        trace.WithAttributes(attribute.String("lynx.agent.action.name", action.Name())),
     )
-    defer obs.End()
+    defer span.End()
     // ...
 }
 ```
 
 每个 tick / action / plan 都是一个 span，自动形成调用树。
 
-### 3.3 规划器埋点
+### 3.2 规划器埋点
 
 ```go
 // agent/planner/goap/astar.go
+var plannerTracer = otel.Tracer("lynx/agent/planner")
+
 func (p *AStarPlanner) PlanToGoal(ctx context.Context, ...) (*plan.Plan, error) {
-    reg := observation.FromContext(ctx)
-    ctx, obs := reg.Start(ctx, "agent.planner.astar",
-        observation.String("goal.name", goal.Name),
+    ctx, span := plannerTracer.Start(ctx, "lynx.agent.planner.astar",
+        trace.WithAttributes(attribute.String("lynx.agent.goal.name", goal.Name)),
     )
-    defer obs.End()
+    defer span.End()
 
     // 迭代完成后：
-    obs.SetAttr("astar.iterations", int64(iterations))
-    obs.SetAttr("astar.plan_length", int64(len(path)))
+    span.SetAttributes(
+        attribute.Int("lynx.agent.astar.iterations", iterations),
+        attribute.Int("lynx.agent.astar.plan_length", len(path)),
+    )
     // ...
 }
 ```
 
-### 3.4 Action 自定义属性
+### 3.3 Action 自定义属性
 
 ```go
 func myAction(ctx context.Context, pc *core.ProcessContext, input Foo) (Bar, error) {
-    ctx, obs := pc.Observe(ctx, "my_action.custom_work",
-        observation.String("input.id", input.ID),
+    ctx, span := pc.Tracer().Start(ctx, "lynx.agent.action.custom",
+        trace.WithAttributes(attribute.String("input.id", input.ID)),
     )
-    defer obs.End()
+    defer span.End()
 
-    // 业务逻辑
     result := process(input)
-    obs.SetAttr("output.size", int64(len(result.Items)))
+    span.SetAttributes(attribute.Int("output.size", len(result.Items)))
     return result, nil
 }
 ```
 
-**所有 span 最终流向用户配的后端**（noop / slog / observations/otel），零额外集成工作。
+**Span 流向**：默认 noop（零开销）；用户在 main 里挂 `otelbridge/slog` 看本地、挂 OTLP exporter 接 Tempo/Jaeger/Datadog——agent 代码完全不变。
 
 ---
 
@@ -199,7 +209,7 @@ type ServiceProvider struct {
     chat        *chat.Client
     rag         *rag.Pipeline
     vectorStore vectorstore.VectorStore
-    observations observation.Registry
+    // 观测直接走 otel.Tracer，不需要持有 registry
 }
 
 func (s *ServiceProvider) Chat() *chat.Client      { return s.chat }
@@ -407,14 +417,19 @@ func main() {
     ctx := context.Background()
 
     // 1. 搭起 Lynx 基础设施
-    chatClient := buildChatClient()           // core/model/chat
-    ragPipeline := buildRAGPipeline()          // core/rag
-    obs := slogobs.New(slog.Default())         // core/observation（slog）
+    chatClient := buildChatClient()            // core/model/chat
+    ragPipeline := buildRAGPipeline()           // core/rag
+
+    // 观测：装一个 OTel TracerProvider，把 span 写到 slog
+    tp := sdktrace.NewTracerProvider(
+        sdktrace.WithSyncer(otelslog.NewExporter(slog.Default())),
+    )
+    otel.SetTracerProvider(tp)
+    defer tp.Shutdown(ctx)
 
     // 2. Agent Platform
     platform := agent.NewPlatform(
         agent.WithChatClient(chatClient),
-        agent.WithObservation(obs),
         agent.WithServices(&core.ServiceProvider{RAG: ragPipeline}),
         agent.WithProcessType(core.ProcessSimple),  // 先用顺序模式
     )
@@ -535,29 +550,36 @@ platform.AddListener(&SlogListener{logger: slog.Default()})
 
 ---
 
-## 9. 与 observation 的事件桥接
+## 9. 与 OTel 的事件桥接
 
-可选加一个桥接 listener，把事件自动转为 observation span（让不写自定义 listener 的用户也能通过 observation 看到 agent 行为）：
+可选加一个桥接 listener，把事件自动转为 OTel span。**注意**：框架层的 `Tick` / `executeAction` 已经直接发 span（§3.1），所以这个桥接器**只在用户希望基于 event 类型做更细粒度自定义 span 时才需要**：
 
 ```go
-// agent/event/bridge_observation.go
-type ObservationBridge struct {
-    registry observation.Registry
-    spans    sync.Map  // processID:actionName -> observation.Observation
+// agent/event/bridge_otel.go
+import (
+    "go.opentelemetry.io/otel"
+    "go.opentelemetry.io/otel/attribute"
+    "go.opentelemetry.io/otel/trace"
+)
+
+var bridgeTracer = otel.Tracer("lynx/agent/event")
+
+type OTelBridge struct {
+    spans sync.Map  // processID:actionName -> trace.Span
 }
 
-func (b *ObservationBridge) OnEvent(e event.Event) {
+func (b *OTelBridge) OnEvent(e event.Event) {
     switch ev := e.(type) {
     case event.ActionExecutionStartEvent:
-        _, obs := b.registry.Start(context.Background(), "agent.action", ...)
-        b.spans.Store(ev.ProcessID+":"+ev.Action.Name(), obs)
+        _, span := bridgeTracer.Start(context.Background(), "lynx.agent.action.event")
+        b.spans.Store(ev.ProcessID+":"+ev.Action.Name(), span)
 
     case event.ActionExecutionResultEvent:
         key := ev.ProcessID+":"+ev.Action.Name()
         if v, ok := b.spans.LoadAndDelete(key); ok {
-            obs := v.(observation.Observation)
-            obs.SetAttr("agent.action.status", ev.Status.String())
-            obs.End()
+            span := v.(trace.Span)
+            span.SetAttributes(attribute.String("lynx.agent.action.status", ev.Status.String()))
+            span.End()
         }
     }
 }
@@ -579,8 +601,8 @@ Action 代码
 rag.Pipeline ─────→ 复用 Lynx 已有 core/rag
     ↓
 Action 代码
-    ↓ pc.Observe()
-observation.Registry → 复用 Lynx 已有 core/observation
+    ↓ pc.Tracer().Start()
+otel.Tracer 直接 → core 不再有 observation.Registry 抽象（见 OBSERVABILITY.md）
     ↓
 (外挂) agents/a2a / agents/mcp / agents/shell
     ↓

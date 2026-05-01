@@ -79,7 +79,7 @@
 └──────────────────────────────────┬───────────────────────────────┘
                                    ↓
 ┌──────────────────────────────────────────────────────────────────┐
-│  可选外挂 agents/ Module（仿 observations/ 规格）                  │
+│  可选外挂 agents/ Module（仿 otelbridge/ 规格）                    │
 │   a2a / mcp / shell                                              │
 └──────────────────────────────────────────────────────────────────┘
 ```
@@ -327,11 +327,11 @@ func (m *MulticastListener) OnEvent(event Event) {
 1. **依赖面清晰**：`agent/` 依赖 `core/`，但 `core/` 不依赖 `agent/`（核心不该被 agent 污染）
 2. **独立版本演进**：agent 作为高阶功能，API 会更快迭代；独立 module 避免拖累 core
 3. **可选引入**：用户只想用 Lynx 的 chat / RAG 不想要 agent？不装 `agent/` 即可，零成本
-4. **架构一致性**：和 `models/`、`vectorstores/`、`observations/` 同规格，规则统一
+4. **架构一致性**：和 `models/`、`vectorstores/`、`otelbridge/` 同规格，规则统一
 
 ### `agent/` 内部不再分子 module
 
-与 `observations/` 等不同，`agent/` 内部（`core/`、`plan/`、`planner/`、`runtime/`、`dsl/` 等）是紧耦合的——它们一起构成框架的最小功能集，无可替代性，不必拆多 module。
+与 `otelbridge/` 等不同，`agent/` 内部（`core/`、`plan/`、`planner/`、`runtime/`、`dsl/` 等）是紧耦合的——它们一起构成框架的最小功能集，无可替代性，不必拆多 module。
 
 ### `agents/` 是未来扩展位
 
