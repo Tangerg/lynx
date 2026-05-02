@@ -761,7 +761,7 @@ func (p *AgentProcess) executeAction(ctx, action) (ActionStatus, *ReplanRequest)
     })
 
     if status == core.ActionSucceeded {
-        p.blackboard.SetCondition(core.HasRunKey(meta.Name), true)  // 防重跑
+        p.blackboard.SetCondition(meta.HasRunKey(), true)  // 防重跑
     }
 
     span.SetAttributes(...)

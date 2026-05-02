@@ -64,3 +64,22 @@ func (m ActionMetadata) Value(ws WorldState) float64 {
 	}
 	return m.ValueStatic
 }
+
+// HasRunKey is the conventional condition key recording that this action has
+// executed at least once. The runtime sets it after each successful run; the
+// planner consumes it as a precondition guard for non-rerunnable actions.
+func (m ActionMetadata) HasRunKey() string {
+	return "hasRun_" + m.Name
+}
+
+// IsApplicableIn reports whether every precondition holds in state. Used by
+// the concurrent runner to filter the plan's actions to those currently
+// runnable on this tick.
+func (m ActionMetadata) IsApplicableIn(state map[string]Determination) bool {
+	for key, required := range m.Preconditions {
+		if state[key] != required {
+			return false
+		}
+	}
+	return true
+}

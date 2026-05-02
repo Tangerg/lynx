@@ -174,9 +174,9 @@ func computePreconditionsAndEffects(meta ActionMetadata, extraPre, extraPost []s
 	// determiner promotes the runtime's stored hasRun condition into the
 	// world state so the planner can prune already-executed actions.
 	if !meta.CanRerun {
-		pre[HasRunKey(meta.Name)] = False
+		pre[meta.HasRunKey()] = False
 	}
-	eff[HasRunKey(meta.Name)] = True
+	eff[meta.HasRunKey()] = True
 
 	return pre, eff
 }

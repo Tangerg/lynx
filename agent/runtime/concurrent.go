@@ -100,20 +100,11 @@ func filterAchievable(actions []core.Action, ws core.WorldState) []core.Action {
 	state := ws.State()
 	out := make([]core.Action, 0, len(actions))
 	for _, action := range actions {
-		if isApplicableInState(action, state) {
+		if action.Metadata().IsApplicableIn(state) {
 			out = append(out, action)
 		}
 	}
 	return out
-}
-
-func isApplicableInState(action core.Action, state map[string]core.Determination) bool {
-	for key, required := range action.Metadata().Preconditions {
-		if state[key] != required {
-			return false
-		}
-	}
-	return true
 }
 
 // mergeStatuses collapses a parallel result vector into one process status:

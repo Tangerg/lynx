@@ -94,13 +94,6 @@ const (
 	ProcessConcurrent                    // Every applicable action of the plan in parallel.
 )
 
-// hasRunKey is the conventional condition key recording that a non-rerunnable
-// action has executed at least once. The runtime sets it after each successful
-// run; the planner consumes it as a precondition guard.
-func HasRunKey(actionName string) string {
-	return "hasRun_" + actionName
-}
-
 // nowFunc is overridable in tests so deterministic timestamps don't leak into
 // HashKey or event payloads.
 var nowFunc = time.Now
