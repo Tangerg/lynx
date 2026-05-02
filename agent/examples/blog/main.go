@@ -40,17 +40,17 @@ func (stubLogger) OnEvent(e event.Event) {
 func main() {
 	a := agent.New("BlogAgent").
 		Description("synthesize a blog post from a topic").
-		Action(agent.NewAction("research",
+		Actions(agent.NewAction("research",
 			func(ctx context.Context, pc *core.ProcessContext, t Topic) (Research, error) {
 				return Research{Sources: []string{"https://example.com/" + t.Title}}, nil
 			},
 		)).
-		Action(agent.NewAction("outline",
+		Actions(agent.NewAction("outline",
 			func(ctx context.Context, pc *core.ProcessContext, t Topic) (Outline, error) {
 				return Outline{Sections: []string{"intro", t.Title, "conclusion"}}, nil
 			},
 		)).
-		Action(agent.NewAction("write",
+		Actions(agent.NewAction("write",
 			// Use Outline as the typed input so the planner can satisfy the
 			// generic In via the blackboard. Research is fetched manually
 			// from inside the action — the WithPre below tells the planner
@@ -68,7 +68,7 @@ func main() {
 			},
 			core.WithPre("it:"+core.TypeFullNameOf[Research]()),
 		)).
-		Goal(agent.GoalProducing[BlogPost]("blog post produced")).
+		Goals(agent.GoalProducing[BlogPost]("blog post produced")).
 		Build()
 
 	platform := agent.NewPlatform(

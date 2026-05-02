@@ -39,7 +39,7 @@
 
 | Java/Kotlin | Go 等价物 | 理由 |
 |-------------|----------|------|
-| `@Agent` / `@Action` 注解 | DSL `agent.New(...).Action(...)` | Go 没有运行时注解；显式 builder 是惟一入口，无反射、可调试、IDE 友好 |
+| `@Agent` / `@Action` 注解 | DSL `agent.New(...).Actions(...)` | Go 没有运行时注解；显式 builder 是惟一入口，无反射、可调试、IDE 友好 |
 | `ThreadLocal AgentProcess.get()` | `core.WithProcess(ctx, p)` / `core.ProcessFrom(ctx)` | `context.Context` 是 Go 的标准透传机制 |
 | `throw ReplanRequestedException` | `return &core.ReplanRequest{...}` (实现 `error`) | Go 不依赖异常做控制流；error + `errors.As` 一样表达力 |
 | Spring DI `@Autowired` | `agent.NewPlatform(WithChatClient(c), WithRAG(r))` | functional options 是 Go 配置惯用法 |
@@ -65,7 +65,7 @@
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
 │  用户层                                                                │
-│   DSL builder（agent.New(...).Action(...).Goal(...).Build()）          │
+│   DSL builder（agent.New(...).Actions(...).Goals(...).Build()）        │
 └──────────────────────────────────┬───────────────────────────────────┘
                                    ↓
 ┌──────────────────────────────────────────────────────────────────────┐

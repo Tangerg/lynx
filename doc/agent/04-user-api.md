@@ -44,7 +44,7 @@ func BuildIntentAgent(llm *chat.Client) *core.Agent {
         Description("Figure out the department a customer wants to transfer to").
         Version("1.0.0").
 
-        Action(core.NewAction("classifyIntent",
+        Actions(core.NewAction("classifyIntent",
             func(ctx context.Context, pc *core.ProcessContext, input UserInput) (Intent, error) {
                 // 用 LLM 分类
                 resp, err := pc.LLM().
@@ -62,22 +62,22 @@ func BuildIntentAgent(llm *chat.Client) *core.Agent {
                 return nil, errors.New("unknown intent")
             })).
 
-        Action(core.NewAction("handleBilling",
+        Actions(core.NewAction("handleBilling",
             func(ctx context.Context, pc *core.ProcessContext, intent BillingIntent) (Resolution, error) {
                 return Resolution{Department: "billing", Notes: intent.Reason}, nil
             }).WithDescription("Route to billing department")).
 
-        Action(core.NewAction("handleSales",
+        Actions(core.NewAction("handleSales",
             func(ctx context.Context, pc *core.ProcessContext, intent SalesIntent) (Resolution, error) {
                 return Resolution{Department: "sales", Notes: intent.Product}, nil
             })).
 
-        Action(core.NewAction("handleService",
+        Actions(core.NewAction("handleService",
             func(ctx context.Context, pc *core.ProcessContext, intent ServiceIntent) (Resolution, error) {
                 return Resolution{Department: "service", Notes: intent.Issue}, nil
             })).
 
-        Goal(core.GoalProducing[Resolution]("Department has been determined").
+        Goals(core.GoalProducing[Resolution]("Department has been determined").
             WithValue(1.0)).
 
         Build()
@@ -136,11 +136,11 @@ func (b *Builder) Description(d string) *Builder { b.description = d; return b }
 func (b *Builder) Provider(p string) *Builder    { b.provider = p; return b }
 func (b *Builder) Version(v string) *Builder     { b.version = core.ParseSemver(v); return b }
 
-func (b *Builder) Action(a core.Action) *Builder { b.actions = append(b.actions, a); return b }
+func (b *Builder) Actions(actions ...core.Action) *Builder { b.actions = append(b.actions, actions...); return b }
 
-func (b *Builder) Goal(g *core.Goal) *Builder    { b.goals = append(b.goals, g); return b }
+func (b *Builder) Goals(goals ...*core.Goal) *Builder       { b.goals = append(b.goals, goals...); return b }
 
-func (b *Builder) Condition(c core.Condition) *Builder { b.conditions = append(b.conditions, c); return b }
+func (b *Builder) Condition(c core.Condition) *Builder      { b.conditions = append(b.conditions, c); return b }
 
 func (b *Builder) Opaque(o bool) *Builder        { b.opaque = o; return b }
 func (b *Builder) StuckHandler(h core.StuckHandler) *Builder { b.stuckHandler = h; return b }
@@ -231,7 +231,7 @@ core.GoalProducing[Resolution]("...").
 - 生成代码 vs 手写代码的 diff review 体验割裂
 - IDE 跳到生成代码反而比 DSL 更绕
 
-**结论**：DSL 一种入口足以覆盖所有用户场景。从 Spring/embabel 迁移过来的用户付出的代价是要写一行显式 `agent.New("X").Action(...)` 而不是给方法加注解——这点学习成本远低于在反射栈里调试或维护 codegen 模板。
+**结论**：DSL 一种入口足以覆盖所有用户场景。从 Spring/embabel 迁移过来的用户付出的代价是要写一行显式 `agent.New("X").Actions(...)` 而不是给方法加注解——这点学习成本远低于在反射栈里调试或维护 codegen 模板。
 
 ---
 
@@ -248,7 +248,7 @@ fun classify(input: UserInput): Intent { ... }
 对应 Go：
 
 ```go
-.Action(core.NewAction("classify",
+.Actions(core.NewAction("classify",
     func(ctx context.Context, pc *core.ProcessContext, input UserInput) (Intent, error) { ... },
 ))
 ```
@@ -264,10 +264,10 @@ fun done(intent: Intent): Result { ... }
 对应 Go：先注册 Action，再单独 Goal——两条意图分开声明：
 
 ```go
-.Action(core.NewAction("done",
+.Actions(core.NewAction("done",
     func(ctx context.Context, pc *core.ProcessContext, intent Intent) (Result, error) { ... },
 )).
-Goal(core.GoalProducing[Result]("Done").WithValue(1.0))
+Goals(core.GoalProducing[Result]("Done").WithValue(1.0))
 ```
 
 ### 等价的「@RequireNameMatch」

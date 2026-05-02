@@ -22,13 +22,13 @@ type CountResult struct {
 func main() {
 	a := agent.New("Hello").
 		Description("count uppercase characters of a phrase").
-		Action(agent.NewAction("count_upper",
+		Actions(agent.NewAction("count_upper",
 			func(ctx context.Context, pc *core.ProcessContext, in string) (CountResult, error) {
 				upper := strings.ToUpper(in)
 				return CountResult{Length: len(upper)}, nil
 			},
 		)).
-		Goal(agent.GoalProducing[CountResult]("uppercase length determined")).
+		Goals(agent.GoalProducing[CountResult]("uppercase length determined")).
 		Build()
 
 	platform := agent.NewPlatform()

@@ -16,12 +16,12 @@ type wordCount struct{ Count int }
 // runtime executes it to completion.
 func TestRunSingleAction(t *testing.T) {
 	a := agent.New("test").
-		Action(agent.NewAction("count",
+		Actions(agent.NewAction("count",
 			func(ctx context.Context, pc *core.ProcessContext, in word) (wordCount, error) {
 				return wordCount{Count: len(in.Text)}, nil
 			},
 		)).
-		Goal(agent.GoalProducing[wordCount]("word counted")).
+		Goals(agent.GoalProducing[wordCount]("word counted")).
 		Build()
 
 	platform := agent.NewPlatform()
@@ -57,19 +57,19 @@ func TestRunMultiStepPlanning(t *testing.T) {
 	type stage3 struct{ V int }
 
 	a := agent.New("multi").
-		Action(agent.NewAction("a",
+		Actions(agent.NewAction("a",
 			func(ctx context.Context, pc *core.ProcessContext, in word) (stage1, error) {
 				return stage1{V: len(in.Text)}, nil
 			})).
-		Action(agent.NewAction("b",
+		Actions(agent.NewAction("b",
 			func(ctx context.Context, pc *core.ProcessContext, in stage1) (stage2, error) {
 				return stage2{V: in.V * 2}, nil
 			})).
-		Action(agent.NewAction("c",
+		Actions(agent.NewAction("c",
 			func(ctx context.Context, pc *core.ProcessContext, in stage2) (stage3, error) {
 				return stage3{V: in.V + 1}, nil
 			})).
-		Goal(agent.GoalProducing[stage3]("stage3 produced")).
+		Goals(agent.GoalProducing[stage3]("stage3 produced")).
 		Build()
 
 	platform := agent.NewPlatform()
