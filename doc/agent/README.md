@@ -91,7 +91,7 @@ lynx/
 1. **核心抽象 Go 化**：Agent / Action / Goal / Condition 都是 Go 接口或 struct，用 **`context.Context` 替代 ThreadLocal**，用 **泛型顶层函数替代 Kotlin 泛型方法**。
 
 2. **三种 Agent 定义方式**：
-   - **DSL（推荐）**：`agent.New(core.AgentMeta{...}).Actions(...).Goals(...)` 流式构建
+   - **DSL（推荐）**：`agent.New(core.AgentConfig{...}).Actions(...).Goals(...)` 流式构建
    - **Struct + 反射**：在 struct 方法上打标签（struct tag 或 marker comment），反射解析
    - **代码生成**（可选）：`//go:generate lynx-agent-gen` 读源码生成注册代码
 

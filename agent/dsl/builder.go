@@ -2,73 +2,64 @@
 // only entry point for defining an agent. Explicit, type-safe, no reflection
 // at runtime; chosen over reflect-based registration so signature errors
 // surface at compile time and IDE refactoring tools stay accurate.
+//
+// The builder is a thin façade over [core.NewAgent] — it lets callers spread
+// the config across multiple statements (useful when actions/goals are
+// produced conditionally). Callers who already have a fully-formed
+// [core.AgentConfig] in hand can skip the builder and call [core.NewAgent]
+// directly.
 package dsl
 
 import (
-	"github.com/Masterminds/semver/v3"
-
 	"github.com/Tangerg/lynx/agent/core"
 )
 
-// defaultVersion is the implicit Agent.Version when meta.Version is nil.
-// Parsed once at package init via [semver.MustParse].
-var defaultVersion = semver.MustParse("1.0.0")
-
-// Builder assembles a *core.Agent through chained method calls. Build()
-// produces the immutable result; partial Builders are not safe to share
-// across goroutines.
+// Builder accumulates [core.AgentConfig] state across chained method calls
+// and produces an immutable *core.Agent at [Builder.Build]. Partial
+// builders are not safe to share across goroutines.
 type Builder struct {
-	meta       core.AgentMeta
-	actions    []core.Action
-	goals      []*core.Goal
-	conditions []core.Condition
-
-	domainTypes           []core.DomainType
-	toolGroupRequirements []core.ToolGroupRequirement
+	cfg core.AgentConfig
 }
 
-// New starts a Builder from a meta header. All scalar agent attributes —
-// name, description, provider, version, opaque, stuck handler — live on
-// the meta struct, so callers express them as a single literal rather
-// than chaining one setter per field. Empty meta.Version falls back to
-// 1.0.0.
-func New(meta core.AgentMeta) *Builder {
-	if meta.Version == nil {
-		meta.Version = defaultVersion
-	}
-	return &Builder{meta: meta}
+// New starts a Builder seeded with cfg. Subsequent slice-appending methods
+// (Actions / Goals / Conditions / DomainTypes / RequiresToolGroups) extend
+// whatever cfg already contains, so callers can mix literal and chained
+// styles freely. Empty cfg.Version falls back to 1.0.0 in
+// [core.NewAgent].
+func New(cfg core.AgentConfig) *Builder {
+	return &Builder{cfg: cfg}
 }
 
 // Actions appends one or more actions.
 func (b *Builder) Actions(actions ...core.Action) *Builder {
-	b.actions = append(b.actions, actions...)
+	b.cfg.Actions = append(b.cfg.Actions, actions...)
 	return b
 }
 
 // Goals appends one or more goals.
 func (b *Builder) Goals(goals ...*core.Goal) *Builder {
-	b.goals = append(b.goals, goals...)
+	b.cfg.Goals = append(b.cfg.Goals, goals...)
 	return b
 }
 
 // Conditions appends one or more conditions.
 func (b *Builder) Conditions(conditions ...core.Condition) *Builder {
-	b.conditions = append(b.conditions, conditions...)
+	b.cfg.Conditions = append(b.cfg.Conditions, conditions...)
 	return b
 }
 
 // DomainTypes registers one or more planning-relevant types. Use when the
-// agent has sealed-style interfaces and the planner needs to know about the
-// parent hierarchy for type-binding lookups.
+// agent has sealed-style interfaces and the planner needs to know about
+// the parent hierarchy for type-binding lookups.
 func (b *Builder) DomainTypes(types ...core.DomainType) *Builder {
-	b.domainTypes = append(b.domainTypes, types...)
+	b.cfg.DomainTypes = append(b.cfg.DomainTypes, types...)
 	return b
 }
 
 // RequiresToolGroups declares one or more agent-scoped tool group
 // requirements. Per-action requirements live on the Action itself.
 func (b *Builder) RequiresToolGroups(reqs ...core.ToolGroupRequirement) *Builder {
-	b.toolGroupRequirements = append(b.toolGroupRequirements, reqs...)
+	b.cfg.ToolGroupRequirements = append(b.cfg.ToolGroupRequirements, reqs...)
 	return b
 }
 
@@ -76,8 +67,5 @@ func (b *Builder) RequiresToolGroups(reqs ...core.ToolGroupRequirement) *Builder
 // using the builder to construct further agents; each Build() produces a
 // fresh value with its own slices.
 func (b *Builder) Build() *core.Agent {
-	agent := core.NewAgent(b.meta, b.actions, b.goals, b.conditions)
-	agent.DomainTypes = b.domainTypes
-	agent.ToolGroupRequirements = b.toolGroupRequirements
-	return agent
+	return core.NewAgent(b.cfg)
 }

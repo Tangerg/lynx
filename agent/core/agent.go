@@ -7,55 +7,88 @@ import (
 	"github.com/Masterminds/semver/v3"
 )
 
-// Agent is the deployable bundle: a name, a version, and the capability set
-// (actions / goals / conditions) that the planner reasons over. It's
-// deliberately small — orchestration knobs live in ProcessOptions, runtime
-// state lives in AgentProcess.
-type Agent struct {
-	Name         string
-	Provider     string
-	Version      *semver.Version
-	Description  string
-	Actions      []Action
-	Goals        []*Goal
-	Conditions   []Condition
-	StuckHandler StuckHandler
-	Opaque       bool
-	DomainTypes  []DomainType
+// AgentConfig is the single input to [NewAgent] — it bundles every piece
+// of state the constructor needs (scalar attributes plus the action / goal
+// / condition / domain-type / tool-group slices). The DSL [Builder] is a
+// thin façade that accumulates fields here and calls [NewAgent] at
+// [Builder.Build] time, so callers who already have an AgentConfig in hand
+// can skip the Builder entirely.
+type AgentConfig struct {
+	// Name is the agent's identifier — required, must be unique within
+	// a Platform.
+	Name string
 
-	// ToolGroupRequirements declared at agent scope. Per-action requirements
-	// live on ActionMetadata; the resolver consults both.
+	// Provider stamps the publisher / vendor.
+	Provider string
+
+	// Description is the human-readable summary surfaced in tracing
+	// and (when the agent is exposed externally) the LLM prompt.
+	Description string
+
+	// Version is the semver tag. Nil falls back to 1.0.0 in
+	// [AgentConfig.applyDefaults].
+	Version *semver.Version
+
+	// Opaque flags the agent as not-introspectable from the outside.
+	Opaque bool
+
+	// StuckHandler is the recovery hook fired when the planner returns
+	// no plan. Optional — the default is "transition to StatusStuck".
+	StuckHandler StuckHandler
+
+	// Actions are the GOAP-planner-visible actions. At least one
+	// action is required for the planner to be useful.
+	Actions []Action
+
+	// Goals are the success criteria the planner picks among.
+	Goals []*Goal
+
+	// Conditions are user-supplied named predicates the world-state
+	// determiner can evaluate alongside the auto-derived ones.
+	Conditions []Condition
+
+	// DomainTypes registers planning-relevant types — used when the
+	// agent has sealed-style interfaces and the planner needs the
+	// parent hierarchy for type-binding lookups.
+	DomainTypes []DomainType
+
+	// ToolGroupRequirements declared at agent scope. Per-action
+	// requirements live on [ActionMetadata]; the resolver consults
+	// both.
 	ToolGroupRequirements []ToolGroupRequirement
+}
+
+// defaultVersion is the implicit Agent version when AgentConfig.Version is
+// nil. Parsed once at package init via [semver.MustParse].
+var defaultVersion = semver.MustParse("1.0.0")
+
+// applyDefaults fills in zero-valued fields whose conceptual default is
+// non-zero. Mutates the receiver. Idempotent.
+func (c *AgentConfig) applyDefaults() {
+	if c.Version == nil {
+		c.Version = defaultVersion
+	}
+}
+
+// Agent is the deployable bundle the planner reasons over. The configured
+// state is held verbatim via the embedded [AgentConfig]; the trailing
+// fields are runtime-only caches that [NewAgent] zero-initialises.
+//
+// Agent is deliberately small — orchestration knobs live in
+// [ProcessOptions], runtime state lives in [AgentProcess].
+type Agent struct {
+	AgentConfig
 
 	knownConditions     atomic.Pointer[map[string]struct{}]
 	knownConditionsOnce sync.Once
 }
 
-// AgentMeta is the small immutable header used by NewAgent. Separated from
-// the full Agent struct so DSL code can build the body incrementally.
-type AgentMeta struct {
-	Name         string
-	Provider     string
-	Description  string
-	Version      *semver.Version
-	Opaque       bool
-	StuckHandler StuckHandler
-}
-
-// NewAgent assembles a fresh agent. Inputs are stored by reference; callers
-// shouldn't mutate the slices afterward.
-func NewAgent(meta AgentMeta, actions []Action, goals []*Goal, conditions []Condition) *Agent {
-	return &Agent{
-		Name:         meta.Name,
-		Provider:     meta.Provider,
-		Version:      meta.Version,
-		Description:  meta.Description,
-		Actions:      actions,
-		Goals:        goals,
-		Conditions:   conditions,
-		StuckHandler: meta.StuckHandler,
-		Opaque:       meta.Opaque,
-	}
+// NewAgent assembles a fresh agent from cfg. Slice fields are stored by
+// reference; callers shouldn't mutate them afterwards. Zero-valued
+// scalars are filled by [AgentConfig.applyDefaults].
+func NewAgent(cfg AgentConfig) *Agent {
+	cfg.applyDefaults()
+	return &Agent{AgentConfig: cfg}
 }
 
 // KnownConditions enumerates every condition key this agent can refer to —
@@ -139,17 +172,5 @@ func (a *Agent) WithSingleGoal(goal *Goal) *Agent {
 func (a *Agent) Clone() *Agent { return a.shallowClone() }
 
 func (a *Agent) shallowClone() *Agent {
-	return &Agent{
-		Name:                  a.Name,
-		Provider:              a.Provider,
-		Version:               a.Version,
-		Description:           a.Description,
-		Actions:               a.Actions,
-		Goals:                 a.Goals,
-		Conditions:            a.Conditions,
-		StuckHandler:          a.StuckHandler,
-		Opaque:                a.Opaque,
-		DomainTypes:           a.DomainTypes,
-		ToolGroupRequirements: a.ToolGroupRequirements,
-	}
+	return &Agent{AgentConfig: a.AgentConfig}
 }

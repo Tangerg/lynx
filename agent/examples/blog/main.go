@@ -38,7 +38,7 @@ func (stubLogger) OnEvent(e event.Event) {
 }
 
 func main() {
-	a := agent.New(core.AgentMeta{
+	a := agent.New(core.AgentConfig{
 		Name:        "BlogAgent",
 		Description: "synthesize a blog post from a topic",
 	}).

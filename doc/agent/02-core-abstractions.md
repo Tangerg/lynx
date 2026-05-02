@@ -792,7 +792,7 @@ type ToolGroupResolver interface {
 
 **DSL 集成示意**：
 ```go
-a := agent.New(core.AgentMeta{Name: "researcher"}).
+a := agent.New(core.AgentConfig{Name: "researcher"}).
     RequiresToolGroups(core.ToolGroupRequirement{
         Role:             "web_search",
         TerminationScope: core.TerminationScopeAction,

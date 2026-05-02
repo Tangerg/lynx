@@ -336,7 +336,7 @@ import (
 )
 
 func NewBlogAgent() *core.Agent {
-    return agent.New(core.AgentMeta{
+    return agent.New(core.AgentConfig{
         Name:        "BlogAgent",
         Description: "Generate a well-researched blog post on a given topic",
         Version:     semver.MustParse("1.0.0"),

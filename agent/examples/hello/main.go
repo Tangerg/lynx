@@ -21,7 +21,7 @@ type CountResult struct {
 }
 
 func main() {
-	a := agent.New(core.AgentMeta{
+	a := agent.New(core.AgentConfig{
 		Name:        "Hello",
 		Description: "count uppercase characters of a phrase",
 	}).
