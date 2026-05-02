@@ -9,93 +9,81 @@ import (
 	pkgjson "github.com/Tangerg/lynx/pkg/json"
 )
 
-// StructuredParser defines an interface for converting unstructured LLM (Large Language Model)
-// output into structured data of type T. This interface addresses the common challenge where LLMs
-// generate natural language responses that need to be transformed into specific data structures.
+// StructuredParser converts unstructured LLM output into a typed value.
+// Two responsibilities:
 //
-// The interface follows a two-phase approach:
-//  1. Instructions() provides formatting guidelines to guide the LLM's output generation
-//  2. Parse() transforms the raw LLM response into the desired structured format
+//  1. [StructuredParser.Instructions] returns prompt fragment to inject into
+//     the user message so the model knows the expected output shape.
+//  2. [StructuredParser.Parse] consumes the model's raw text and returns the
+//     decoded value of type T.
 //
-// Type parameter T represents the target data structure that the raw LLM output will be converted to.
-// T can be any type including structs, slices, maps, or primitive types.
+// Implementations should be permissive on input — LLMs frequently
+// surround structured output with explanatory prose, code fences, or
+// minor formatting drift.
+//
+// Example:
+//
+//	type Recipe struct {
+//	    Title string   `json:"title"`
+//	    Steps []string `json:"steps"`
+//	}
+//
+//	parser := chat.NewJSONParser[Recipe]()
+//	prompt := "Generate a pasta recipe.\n" + parser.Instructions()
+//	resp, _ := client.Chat().WithText(prompt).Call().Response(ctx)
+//	recipe, err := parser.Parse(resp.Result().AssistantMessage.Text)
 type StructuredParser[T any] interface {
-	// Instructions returns a string containing detailed formatting instructions that should be
-	// included in the LLM prompt to guide the model's output generation. These instructions
-	// describe the expected structure, format, and constraints for the response.
-	//
-	// The returned string is typically appended to the user's prompt to inform the LLM
-	// about the desired output format. This may include JSON schema requirements,
-	// list formatting rules, field specifications, or other structural constraints.
+	// Instructions is the prompt fragment that tells the LLM exactly how
+	// to format its reply. Append it to the user message.
 	Instructions() string
 
-	// Parse transforms the raw, unstructured output from an LLM into structured
-	// data of type T. This method handles the parsing, validation, and type conversion
-	// necessary to extract meaningful data from natural language responses.
-	//
-	// The implementation should be robust enough to handle variations in LLM output format,
-	// including extra explanatory text, slight formatting deviations, or minor inconsistencies
-	// that commonly occur in language model responses.
-	//
-	// Parameters:
-	//   - rawLLMOutput: The unprocessed string response from the LLM, which may contain the target
-	//     data mixed with additional natural language text, formatting, or explanations
-	//
-	// Returns:
-	//   - T: The successfully parsed and converted structured data
-	//   - error: An error if the conversion fails due to parsing issues, validation failures,
-	//     or if the raw input doesn't contain the expected data structure
-	//
-	// Common error conditions include invalid format, missing required fields, type conversion
-	// failures, or malformed structured data within the raw response.
+	// Parse decodes raw LLM output into the structured T.
 	Parse(rawLLMOutput string) (T, error)
 }
 
-// removeMarkdownCodeBlockDelimiters removes Markdown code block delimiters from the input string.
-// It handles code blocks with various language identifiers like ```json, ```JSON, or plain ```.
-//
-// The function works by:
-//  1. Trimming whitespace from the input
-//  2. Checking for opening and closing ``` delimiters
-//  3. Removing the first line (containing ```) and the trailing ```
-//  4. Returning the cleaned content
+// removeMarkdownCodeBlockDelimiters strips a leading/trailing ``` fence
+// from input. LLMs often wrap structured payloads in fenced code even
+// when told not to; the parsers handle that quietly. Whitespace around
+// the content is also trimmed.
 func removeMarkdownCodeBlockDelimiters(input string) string {
-	trimmedInput := strings.TrimSpace(input)
+	trimmed := strings.TrimSpace(input)
 
-	if len(trimmedInput) < 6 {
-		return trimmedInput
+	if len(trimmed) < 6 {
+		return trimmed
+	}
+	if !strings.HasPrefix(trimmed, "```") || !strings.HasSuffix(trimmed, "```") {
+		return trimmed
 	}
 
-	// Check if starts with ``` and ends with ```
-	if !strings.HasPrefix(trimmedInput, "```") || !strings.HasSuffix(trimmedInput, "```") {
-		return trimmedInput
+	// Single-line ``` content ``` form.
+	firstNL := strings.Index(trimmed, "\n")
+	if firstNL == -1 {
+		return strings.TrimSpace(trimmed[3 : len(trimmed)-3])
 	}
 
-	// Find the first newline after ```
-	firstNewlineIndex := strings.Index(trimmedInput, "\n")
-	if firstNewlineIndex == -1 {
-		// No newlines, treat as single line: ```content```
-		return strings.TrimSpace(trimmedInput[3 : len(trimmedInput)-3])
-	}
-
-	// Multi-line case: skip first line (```json or ```), remove last ```
-	contentWithoutDelimiters := trimmedInput[firstNewlineIndex+1 : len(trimmedInput)-3]
-	return strings.TrimSpace(contentWithoutDelimiters)
+	// Multi-line: drop the opening fence (with its language tag) and
+	// closing fence.
+	return strings.TrimSpace(trimmed[firstNL+1 : len(trimmed)-3])
 }
 
 var _ StructuredParser[[]string] = (*ListParser)(nil)
 
-// ListParser implements StructuredParser for converting LLM output into a slice of strings.
-// It expects the LLM to return comma-separated values and splits them accordingly.
+// ListParser splits comma-separated LLM output into a string slice.
+//
+// Example:
+//
+//	parser := chat.NewListParser()
+//	prompt := "List 5 fruits.\n" + parser.Instructions()
+//	// model replies: "apple, banana, cherry, date, elderberry"
+//	items, _ := parser.Parse(text) // ["apple","banana","cherry","date","elderberry"]
 type ListParser struct{}
 
-// NewListParser creates a new instance of ListParser.
-func NewListParser() *ListParser {
-	return &ListParser{}
-}
+// NewListParser returns a [ListParser]. The struct is stateless; sharing
+// one across goroutines is fine.
+func NewListParser() *ListParser { return &ListParser{} }
 
-// Instructions returns formatting instructions for the LLM to generate comma-separated values.
-// The instructions emphasize simplicity and consistency in output format.
+// Instructions returns prompt text that asks the model for raw
+// comma-separated values with no decoration.
 func (l *ListParser) Instructions() string {
 	return `[OUTPUT FORMAT]
 Comma-separated list only
@@ -113,36 +101,27 @@ item1, item2, item3, etc...
 Raw comma-separated values matching the format above.`
 }
 
-// Parse converts the raw LLM output string into a slice of strings by splitting
-// on commas and trimming whitespace from each element.
-//
-// The parsing is permissive and handles various formatting variations by:
-//  1. Splitting the input on comma delimiters
-//  2. Trimming whitespace from each resulting element
-//  3. Returning the cleaned slice of strings
+// Parse splits on commas and trims whitespace from each element. It is
+// permissive — it never returns an error.
 func (l *ListParser) Parse(rawLLMOutput string) ([]string, error) {
-	splitValues := strings.Split(rawLLMOutput, ",")
-
-	for i, value := range splitValues {
-		splitValues[i] = strings.TrimSpace(value)
+	parts := strings.Split(rawLLMOutput, ",")
+	for i, p := range parts {
+		parts[i] = strings.TrimSpace(p)
 	}
-
-	return splitValues, nil
+	return parts, nil
 }
 
 var _ StructuredParser[map[string]any] = (*MapParser)(nil)
 
-// MapParser implements StructuredParser for converting LLM output into a map[string]any
-// by parsing JSON format. It expects the LLM to return valid JSON objects.
+// MapParser decodes a JSON object into a map[string]any. Useful when
+// the schema is dynamic or when you only care about a few fields.
 type MapParser struct{}
 
-// NewMapParser creates a new instance of MapParser.
-func NewMapParser() *MapParser {
-	return &MapParser{}
-}
+// NewMapParser returns a [MapParser]. The struct is stateless.
+func NewMapParser() *MapParser { return &MapParser{} }
 
-// Instructions returns formatting instructions for the LLM to generate JSON objects
-// that can be parsed into Go's map[string]interface{} structure.
+// Instructions returns prompt text that asks the model for a bare JSON
+// object with no fences or commentary.
 func (m *MapParser) Instructions() string {
 	return `[OUTPUT FORMAT]
 JSON object only - RFC8259 compliant
@@ -164,58 +143,54 @@ JSON object only - RFC8259 compliant
 Raw JSON object with string keys and any valid JSON values.`
 }
 
-// Parse converts the raw LLM output string into a map[string]any by parsing JSON.
-// It automatically strips Markdown code block delimiters (```json and ```)
-// if present before parsing.
-//
-// Reasoning-tag wrappers (<think>, <thinking>, <reasoning>, …) are NOT
-// stripped here. Splitting reasoning from the assistant's main text is
-// the responsibility of the provider adapter, which routes reasoning
-// content into AssistantMessage.Reasoning and leaves AssistantMessage.Text
-// clean. By the time a structured parser sees rawLLMOutput, the input
-// is the message text alone.
-//
-// The method handles common LLM formatting issues by:
-//  1. Stripping Markdown code block delimiters
-//  2. Unmarshaling the JSON into a map[string]any
-//  3. Returning detailed error information if parsing fails
+// Parse decodes raw output into a map[string]any. Markdown code fences
+// are stripped automatically; reasoning wrappers (<think>, ...) are not
+// — that is the provider adapter's job, which routes reasoning into
+// AssistantMessage.Reasoning before the parser sees the text.
 func (m *MapParser) Parse(rawLLMOutput string) (map[string]any, error) {
-	cleanedContent := removeMarkdownCodeBlockDelimiters(rawLLMOutput)
+	cleaned := removeMarkdownCodeBlockDelimiters(rawLLMOutput)
 
-	parsedResult := make(map[string]any)
-	err := json.Unmarshal([]byte(cleanedContent), &parsedResult)
-	if err != nil {
+	out := make(map[string]any)
+	if err := json.Unmarshal([]byte(cleaned), &out); err != nil {
 		return nil, errors.Join(
 			err,
-			fmt.Errorf("failed to parse JSON content: %s (original input: %s)", cleanedContent, rawLLMOutput),
+			fmt.Errorf("chat.MapParser.Parse: cannot decode JSON (cleaned=%q, raw=%q)", cleaned, rawLLMOutput),
 		)
 	}
-
-	return parsedResult, nil
+	return out, nil
 }
 
 var _ StructuredParser[any] = (*JSONParser[any])(nil)
 
-// JSONParser is a generic StructuredParser implementation that converts LLM output
-// into a structured type T by parsing JSON format with automatic JSON Schema generation.
+// JSONParser decodes JSON into a user-supplied generic type T, using a
+// JSON Schema derived from T to instruct the model. The schema is
+// generated once at construction; subsequent calls reuse the cached
+// instructions string.
 //
-// The parser leverages Go's type system to automatically generate appropriate JSON Schema
-// instructions for the LLM, ensuring the output matches the expected structure.
+// Example:
+//
+//	type Recipe struct {
+//	    Title string   `json:"title"`
+//	    Steps []string `json:"steps"`
+//	}
+//	parser := chat.NewJSONParser[Recipe]()
+//	r, err := parser.Parse(`{"title":"pasta","steps":["boil","drain"]}`)
 type JSONParser[T any] struct {
-	cachedInstructions string // Cached format instructions
+	cachedInstructions string
 }
 
-// NewJSONParser creates a new instance of JSONParser for type T.
+// NewJSONParser returns a [JSONParser] for T. The schema is generated
+// eagerly so the first Instructions call is free.
 func NewJSONParser[T any]() *JSONParser[T] {
-	parser := &JSONParser[T]{}
-	parser.cachedInstructions = parser.generateInstructions()
-	return parser
+	p := &JSONParser[T]{}
+	p.cachedInstructions = p.buildInstructions()
+	return p
 }
 
-// generateInstructions generates format instructions with JSON Schema for the LLM output.
-// The schema is automatically derived from the generic type T using reflection.
-func (j *JSONParser[T]) generateInstructions() string {
-	const instructionTemplate = `[OUTPUT FORMAT]
+// buildInstructions assembles the prompt fragment using a JSON Schema
+// derived from T via reflection.
+func (j *JSONParser[T]) buildInstructions() string {
+	const tmpl = `[OUTPUT FORMAT]
 JSON only - RFC8259 compliant
 
 [RESTRICTIONS]
@@ -230,101 +205,75 @@ JSON only - RFC8259 compliant
 [EXPECTED OUTPUT]
 Raw JSON object matching the schema above.`
 
-	var typeInstance T
-	jsonSchema, _ := pkgjson.StringDefSchemaOf(typeInstance)
-
-	return fmt.Sprintf(instructionTemplate, jsonSchema)
+	var zero T
+	schema, _ := pkgjson.StringDefSchemaOf(zero)
+	return fmt.Sprintf(tmpl, schema)
 }
 
-// Instructions returns formatting instructions for the LLM to generate JSON data
-// that conforms to the JSON Schema of type T. The format is generated once and cached
-// for performance optimization.
-func (j *JSONParser[T]) Instructions() string {
-	return j.cachedInstructions
-}
+// Instructions returns the cached prompt fragment.
+func (j *JSONParser[T]) Instructions() string { return j.cachedInstructions }
 
-// Parse converts the raw LLM output string into type T by parsing JSON.
-// It automatically strips Markdown code block delimiters (```json and
-// ```) if present before parsing.
-//
-// Reasoning-tag wrappers (<think>, <thinking>, <reasoning>, …) are NOT
-// stripped here — see MapParser.Parse for rationale.
-//
-// The parsing process includes:
-//  1. Stripping any Markdown code block formatting
-//  2. Unmarshaling the JSON into the target type T
-//  3. Providing detailed error information including both processed content and raw input
+// Parse decodes raw output into T. Markdown fences are stripped first;
+// reasoning wrappers are not — see [MapParser.Parse] for rationale.
 func (j *JSONParser[T]) Parse(rawLLMOutput string) (T, error) {
-	cleanedContent := removeMarkdownCodeBlockDelimiters(rawLLMOutput)
+	cleaned := removeMarkdownCodeBlockDelimiters(rawLLMOutput)
 
-	var parsedResult T
-	err := json.Unmarshal([]byte(cleanedContent), &parsedResult)
-	if err != nil {
-		return parsedResult, errors.Join(
+	var out T
+	if err := json.Unmarshal([]byte(cleaned), &out); err != nil {
+		return out, errors.Join(
 			err,
-			fmt.Errorf("failed to parse JSON content to type %T: %s (original input: %s)", parsedResult, cleanedContent, rawLLMOutput),
+			fmt.Errorf("chat.JSONParser.Parse: cannot decode JSON into %T (cleaned=%q, raw=%q)",
+				out, cleaned, rawLLMOutput),
 		)
 	}
-
-	return parsedResult, nil
+	return out, nil
 }
 
 var _ StructuredParser[any] = (*AnyParser)(nil)
 
-// AnyParser adapts any StructuredParser[T] to StructuredParser[any] by wrapping
-// the original parser and performing type erasure. This enables uniform handling
-// of different parser types through a common interface.
+// AnyParser is a type-erased [StructuredParser]: it forwards
+// Instructions verbatim and runs the supplied parse function. Useful
+// when collecting heterogeneous parsers in one slice or storing them on
+// an interface field that expects StructuredParser[any].
 type AnyParser struct {
+	// FormatInstructions is the prompt fragment to inject.
 	FormatInstructions string
-	ParseFunction      func(rawLLMOutput string) (any, error)
+
+	// ParseFunction is invoked by [AnyParser.Parse]. Required.
+	ParseFunction func(rawLLMOutput string) (any, error)
 }
 
-// Instructions returns the format instructions from the wrapped parser.
-func (a *AnyParser) Instructions() string {
-	return a.FormatInstructions
-}
+// Instructions returns FormatInstructions verbatim.
+func (a *AnyParser) Instructions() string { return a.FormatInstructions }
 
-// Parse delegates to the wrapped parse function and returns the result as any.
-// Returns an error if the parse function is not properly initialized.
+// Parse runs ParseFunction; returns an error when it is nil.
 func (a *AnyParser) Parse(rawLLMOutput string) (any, error) {
 	if a.ParseFunction == nil {
-		return nil, errors.New("parse function is not initialized")
+		return nil, errors.New("chat.AnyParser.Parse: ParseFunction is not initialized")
 	}
-
 	return a.ParseFunction(rawLLMOutput)
 }
 
-// WrapParserAsAny wraps any StructuredParser[T] and converts it to StructuredParser[any].
-// The adapter preserves format instructions and parsing behavior while performing
-// type erasure to enable uniform handling of different parser types.
-//
-// This is useful when you need to store different parser types in a common collection
-// or pass them through interfaces that expect StructuredParser[any].
-func WrapParserAsAny[T any](originalParser StructuredParser[T]) *AnyParser {
+// WrapParserAsAny adapts a typed [StructuredParser] into [*AnyParser].
+// The wrapped parser's Instructions are captured at wrap time; if the
+// wrapped parser regenerates instructions later, the wrapper will not
+// observe the change.
+func WrapParserAsAny[T any](parser StructuredParser[T]) *AnyParser {
 	return &AnyParser{
-		FormatInstructions: originalParser.Instructions(),
+		FormatInstructions: parser.Instructions(),
 		ParseFunction: func(rawLLMOutput string) (any, error) {
-			parsedResult, err := originalParser.Parse(rawLLMOutput)
-			return parsedResult, err
+			return parser.Parse(rawLLMOutput)
 		},
 	}
 }
 
-// ListParserAsAny creates a StructuredParser[any] that parses comma-separated values.
-// This is a convenience function equivalent to WrapParserAsAny(NewListParser()).
-func ListParserAsAny() *AnyParser {
-	return WrapParserAsAny(NewListParser())
-}
+// ListParserAsAny is a shorthand for WrapParserAsAny(NewListParser()).
+func ListParserAsAny() *AnyParser { return WrapParserAsAny(NewListParser()) }
 
-// MapParserAsAny creates a StructuredParser[any] that parses JSON objects into maps.
-// This is a convenience function equivalent to WrapParserAsAny(NewMapParser()).
-func MapParserAsAny() *AnyParser {
-	return WrapParserAsAny(NewMapParser())
-}
+// MapParserAsAny is a shorthand for WrapParserAsAny(NewMapParser()).
+func MapParserAsAny() *AnyParser { return WrapParserAsAny(NewMapParser()) }
 
-// JSONParserAsAnyOf creates a StructuredParser[any] that parses JSON into type T
-// and returns it as any. This is a convenience function equivalent to
-// WrapParserAsAny(NewJSONParser[T]()).
+// JSONParserAsAnyOf is a shorthand for WrapParserAsAny(NewJSONParser[T]()).
 func JSONParserAsAnyOf[T any]() *AnyParser {
 	return WrapParserAsAny(NewJSONParser[T]())
 }
