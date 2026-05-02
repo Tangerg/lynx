@@ -1092,17 +1092,22 @@ import (
 type CountResult struct{ Length int }
 
 func main() {
-    a := agent.New("Hello").
-        Description("count uppercase characters of a phrase").
-        Action(agent.NewAction("count_upper",
+    a := agent.New(core.AgentMeta{
+        Name:        "Hello",
+        Description: "count uppercase characters of a phrase",
+    }).
+        Actions(agent.NewAction("count_upper",
             func(ctx context.Context, pc *core.ProcessContext, in string) (CountResult, error) {
                 return CountResult{Length: len(strings.ToUpper(in))}, nil
             },
+            core.ActionConfig{},
         )).
-        Goal(agent.GoalProducing[CountResult]("uppercase length determined")).
+        Goals(agent.GoalProducing[CountResult](core.Goal{
+            Description: "uppercase length determined",
+        })).
         Build()
 
-    platform := agent.NewPlatform()
+    platform := agent.NewPlatform(runtime.PlatformConfig{})
     if err := platform.Deploy(a); err != nil {
         log.Fatal(err)
     }
@@ -1110,6 +1115,7 @@ func main() {
     proc, err := platform.RunAgent(
         context.Background(), a,
         map[string]any{core.DefaultBindingName: "hello"},
+        core.ProcessOptions{},
     )
     if err != nil { log.Fatal(err) }
 
@@ -1130,21 +1136,21 @@ func main() {
 | `outline` | `Topic` | `Outline` |
 | `write` | `Outline`（+ Research/Topic 通过 Get） | `BlogPost` |
 
-Goal：`agent.GoalProducing[BlogPost]("blog post produced")`。
+Goal：`agent.GoalProducing[BlogPost](core.Goal{Description: "blog post produced"})`。
 
 规划器自动找出顺序：`research → outline → write`（或 `outline → research → write`，代价相同）。
 
 ### 10.3 Platform 配置
 
 ```go
-platform := agent.NewPlatform(
-    agent.WithChatClient(myLLMClient),
-    agent.WithListener(myEventListener),
-    runtime.WithRAG(ragPipeline),
-    runtime.WithVectorStore(vstore),
-    runtime.WithToolGroupResolver(toolResolver),
-    runtime.WithIDGenerator(runtime.NewCounterIDGenerator("test")),
-)
+platform := agent.NewPlatform(runtime.PlatformConfig{
+    Chat:        myLLMClient,
+    RAG:         ragPipeline,
+    VectorStore: vstore,
+    Tools:       toolResolver,
+    IDGenerator: runtime.NewCounterIDGenerator("test"),
+    Listeners:   []event.Listener{myEventListener},
+})
 ```
 
 ### 10.4 ProcessOptions
@@ -1233,11 +1239,11 @@ type Planner interface {
 注入：
 
 ```go
-platform := agent.NewPlatform(
-    runtime.WithPlannerFactory(func(t core.PlannerType) plan.Planner {
+platform := agent.NewPlatform(runtime.PlatformConfig{
+    PlannerFactory: func(t core.PlannerType) plan.Planner {
         return myCustomPlanner
-    }),
-)
+    },
+})
 ```
 
 ### 11.2 自定义 Blackboard
@@ -1262,9 +1268,9 @@ func (r *myResolver) Resolve(ctx context.Context, req core.ToolGroupRequirement)
     }), nil
 }
 
-platform := agent.NewPlatform(
-    runtime.WithToolGroupResolver(&myResolver{}),
-)
+platform := agent.NewPlatform(runtime.PlatformConfig{
+    Tools: &myResolver{},
+})
 ```
 
 ### 11.4 StuckHandler
@@ -1272,12 +1278,14 @@ platform := agent.NewPlatform(
 当 planner 返回 nil plan 时触发。可以在这里降级 Goal、放松约束、向用户发起 HITL 请求等。
 
 ```go
-agent.New("...").
-    StuckHandler(core.StuckHandlerFunc(func(ctx context.Context, p core.Process) core.StuckHandlingResult {
+agent.New(core.AgentMeta{
+    Name: "...",
+    StuckHandler: core.StuckHandlerFunc(func(ctx context.Context, p core.Process) core.StuckHandlingResult {
         // 例如：移除某个 protected condition
         p.Blackboard().SetCondition("strict_mode", false)
         return core.StuckHandlingResult{Code: core.StuckReplan, Reason: "relaxed strict_mode"}
-    })).
+    }),
+}).
     /* ... */ .Build()
 ```
 
@@ -1306,7 +1314,7 @@ func (a *lynxChatAdapter) Generate(ctx context.Context, prompt string) (string, 
     return resp.Result().AssistantMessage.Text, nil
 }
 
-platform := agent.NewPlatform(agent.WithChatClient(&lynxChatAdapter{lynxClient}))
+platform := agent.NewPlatform(runtime.PlatformConfig{Chat: &lynxChatAdapter{lynxClient}})
 ```
 
 ---
@@ -1392,7 +1400,7 @@ agent/
 
 **答**：embabel 大量用 Kotlin 反射读 JVM 签名信息——这在 JVM 上几乎免费且元信息丰富。Go 反射比直接调用慢 10-50×，且对自定义泛型参数的支持很弱；更关键的是 Go 社区共识是「显式优于隐式」，反射框架（@Action / @Agent / 隐式注入）会让错误推迟到运行时、IDE 重构失效、命名约定成为隐藏契约。
 
-所以我们只保留**泛型构造器** `NewAction[In, Out]` 一种入口：编译期保留所有类型、零反射、IDE 跳转/重命名全程友好。从 Spring 迁移过来的用户付出的代价是要写一行显式 `agent.New("X").Action(...)` 而不是给方法加注解——这点学习成本远低于运行时调试反射栈的代价。
+所以我们只保留**泛型构造器** `NewAction[In, Out]` 一种入口：编译期保留所有类型、零反射、IDE 跳转/重命名全程友好。从 Spring 迁移过来的用户付出的代价是要写一行显式 `agent.New(core.AgentMeta{...}).Actions(...)` 而不是给方法加注解——这点学习成本远低于运行时调试反射栈的代价。
 
 ### 13.2 为什么 ProcessContext 不直接挂 LLM Client？
 
@@ -1501,7 +1509,7 @@ agent.NewAction("write",
 
 ### A.3 "agent has no goals"
 
-GOAP 必须有目标。如果只想运行单个 Action（Function-as-a-Service 模式），仍要给一个 `GoalProducing[Out]` 或显式 `agent.NewGoal(name, desc).WithPre(...)`。
+GOAP 必须有目标。如果只想运行单个 Action（Function-as-a-Service 模式），仍要给一个 `GoalProducing[Out]` 或显式构造 `&core.Goal{Name: ..., Description: ..., Pre: []string{...}}`。
 
 ---
 

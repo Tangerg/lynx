@@ -37,20 +37,21 @@ type Topic struct{ Title string }
 type Post  struct{ Body  string }
 
 func main() {
-    a := agent.New("Hello").
-        Action(agent.NewAction("write",
+    a := agent.New(core.AgentMeta{Name: "Hello"}).
+        Actions(agent.NewAction("write",
             func(ctx context.Context, pc *core.ProcessContext, t Topic) (Post, error) {
                 return Post{Body: "About " + t.Title}, nil
             },
+            core.ActionConfig{},
         )).
-        Goal(agent.GoalProducing[Post]("post produced")).
+        Goals(agent.GoalProducing[Post](core.Goal{Description: "post produced"})).
         Build()
 
-    p := agent.NewPlatform()
+    p := agent.NewPlatform(runtime.PlatformConfig{})
     _ = p.Deploy(a)
     proc, _ := p.RunAgent(context.Background(), a, map[string]any{
         core.DefaultBinding: Topic{Title: "agents"},
-    })
+    }, core.ProcessOptions{})
     post, _ := core.ResultOfType[Post](proc)
     fmt.Println(post.Body)
 }

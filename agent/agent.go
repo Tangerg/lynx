@@ -19,18 +19,17 @@ import (
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/dsl"
-	"github.com/Tangerg/lynx/agent/event"
 	"github.com/Tangerg/lynx/agent/runtime"
 )
 
 // --- DSL ------------------------------------------------------------------
 
-// New starts a Builder for a fluently-defined agent.
-func New(name string) *dsl.Builder { return dsl.New(name) }
+// New starts a Builder for a fluently-defined agent. See [dsl.New].
+func New(meta core.AgentMeta) *dsl.Builder { return dsl.New(meta) }
 
 // --- Action / Goal / Condition shortcuts ---------------------------------
 
-// NewAction is the typed action constructor (see core.NewAction). Pass
+// NewAction is the typed action constructor (see [core.NewAction]). Pass
 // [core.ActionConfig]{} when defaults suffice.
 func NewAction[In, Out any](name string, fn core.TypedActionFunc[In, Out], cfg core.ActionConfig) core.Action {
 	return core.NewAction[In, Out](name, fn, cfg)
@@ -42,26 +41,17 @@ func NewCondition(name string, fn func(ctx context.Context, oc *core.OperationCo
 }
 
 // GoalProducing constructs a goal whose precondition is "an artifact of
-// type T exists on the blackboard".
-func GoalProducing[T any](description string) *core.Goal {
-	return core.GoalProducing[T](description)
+// type T exists on the blackboard". See [core.GoalProducing].
+func GoalProducing[T any](g core.Goal) *core.Goal {
+	return core.GoalProducing[T](g)
 }
 
 // --- Platform ------------------------------------------------------------
 
-// NewPlatform constructs a runtime Platform with the supplied options.
-func NewPlatform(opts ...runtime.PlatformOption) *runtime.Platform {
-	return runtime.NewPlatform(opts...)
-}
-
-// WithChatClient attaches an LLM client to the platform.
-func WithChatClient(c core.ChatClient) runtime.PlatformOption {
-	return runtime.WithChatClient(c)
-}
-
-// WithListener pre-attaches an event listener at platform construction.
-func WithListener(l event.Listener) runtime.PlatformOption {
-	return runtime.WithListener(l)
+// NewPlatform constructs a runtime Platform from cfg. See
+// [runtime.NewPlatform].
+func NewPlatform(cfg runtime.PlatformConfig) *runtime.Platform {
+	return runtime.NewPlatform(cfg)
 }
 
 // --- Re-exports useful for callers ---------------------------------------
