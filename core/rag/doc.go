@@ -199,7 +199,7 @@
 //
 // Basic configuration:
 //
-//	pipeline, err := rag.NewPipeline(&rag.PipelineConfig{
+//	pipeline, err := rag.NewPipeline(rag.PipelineConfig{
 //	    // Optional: Transform queries before retrieval
 //	    QueryTransformers: []rag.QueryTransformer{
 //	        translationTransformer,  // Translate to target language
@@ -265,7 +265,7 @@
 //	)
 //
 //	// Create middleware from pipeline configuration
-//	callMw, streamMw, err := rag.NewPipelineMiddleware(&rag.PipelineConfig{
+//	callMw, streamMw, err := rag.NewPipelineMiddleware(rag.PipelineConfig{
 //	    DocumentRetrievers: []rag.DocumentRetriever{vectorStoreRetriever},
 //	})
 //
@@ -540,7 +540,7 @@
 //	    &augmenters.ContextualQueryAugmenterConfig{})
 //
 //	// Create middleware
-//	callMw, streamMw, _ := rag.NewPipelineMiddleware(&rag.PipelineConfig{
+//	callMw, streamMw, _ := rag.NewPipelineMiddleware(rag.PipelineConfig{
 //	    QueryTransformers:  []rag.QueryTransformer{translationTx, rewriteTx},
 //	    QueryExpander:      expander,
 //	    DocumentRetrievers: []rag.DocumentRetriever{retriever},
@@ -802,7 +802,7 @@
 // Nop Implementation:
 // Use no-op implementations for testing without actual LLM calls:
 //
-//	pipeline, _ := rag.NewPipeline(&rag.PipelineConfig{
+//	pipeline, _ := rag.NewPipeline(rag.PipelineConfig{
 //	    QueryTransformers:  []rag.QueryTransformer{rag.NewNop()},
 //	    QueryExpander:      rag.NewNop(),
 //	    DocumentRetrievers: []rag.DocumentRetriever{mockRetriever},

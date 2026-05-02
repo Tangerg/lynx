@@ -16,7 +16,7 @@ var _ DocumentRefiner = (*DeduplicationDocumentRefiner)(nil)
 //
 // Example:
 //
-//	pipe, _ := rag.NewPipeline(&rag.PipelineConfig{
+//	pipe, _ := rag.NewPipeline(rag.PipelineConfig{
 //	    DocumentRetrievers: []rag.DocumentRetriever{r1, r2},
 //	    DocumentRefiners: []rag.DocumentRefiner{
 //	        rag.NewDeduplicationDocumentRefiner(),
