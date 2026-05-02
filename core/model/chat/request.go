@@ -10,53 +10,54 @@ import (
 	"github.com/Tangerg/lynx/pkg/ptr"
 )
 
-// Options contains configuration parameters for AI model interactions.
-// It includes standard parameters like temperature and token limits,
-// as well as provider-specific options stored in the Extra field.
+// Options holds the per-request configuration LLM providers accept.
+// Standard parameters (model id, temperature, ...) are typed; anything a
+// specific provider needs is stored in Extra. Pointer-typed fields use nil
+// to mean "not set"; the provider applies its own default.
 type Options struct {
-	// Model The AI model identifier to use
+	// Model is the provider model identifier (e.g. "gpt-4o", "claude-3-5-sonnet").
 	Model string `json:"model"`
 
-	// FrequencyPenalty Penalty for token frequency (-2.0 to 2.0)
+	// FrequencyPenalty discourages repeated tokens. Range -2.0 to 2.0.
 	FrequencyPenalty *float64 `json:"frequency_penalty"`
 
-	// MaxTokens Maximum number of tokens to generate
+	// MaxTokens caps the number of tokens the model may generate.
 	MaxTokens *int64 `json:"max_tokens"`
 
-	// PresencePenalty Penalty for token presence (-2.0 to 2.0)
+	// PresencePenalty discourages already-mentioned tokens. Range -2.0 to 2.0.
 	PresencePenalty *float64 `json:"presence_penalty"`
 
-	// Stop Sequences where generation should stop
+	// Stop terminates generation when any sequence is produced.
 	Stop []string `json:"stop"`
 
-	// Temperature Sampling temperature (0.0 to 2.0)
+	// Temperature controls sampling randomness. Range 0.0 to 2.0.
 	Temperature *float64 `json:"temperature"`
 
-	// TopK Top-K sampling parameter
+	// TopK limits sampling to the K highest-probability tokens.
 	TopK *int64 `json:"top_k"`
 
-	// TopP Nucleus sampling parameter
+	// TopP enables nucleus sampling using the cumulative probability mass.
 	TopP *float64 `json:"top_p"`
 
-	// Extra Provider-specific options
+	// Extra carries provider-specific options unknown to this struct.
 	Extra map[string]any `json:"extra"`
 
-	// Tools that can be invoked by LLM models.
+	// Tools that the model may invoke. Excluded from JSON to keep the wire
+	// format provider-agnostic; serialization is the provider's job.
 	Tools []Tool `json:"-"`
 }
 
-// NewOptions creates a new Options instance with the specified model.
-// The model parameter is required and cannot be empty.
+// NewOptions builds Options for the given model id. Returns an error if
+// model is empty — every provider requires a model id.
 //
-// Parameters:
-//   - model: The AI model identifier (must be non-empty)
+// Example:
 //
-// Returns:
-//   - *Options: A new Options instance with the specified model
-//   - error If model is an empty string
+//	opts, err := chat.NewOptions("gpt-4o")
+//	if err != nil { return err }
+//	opts.Set("response_format", map[string]any{"type": "json_object"})
 func NewOptions(model string) (*Options, error) {
 	if model == "" {
-		return nil, errors.New("model can not be empty")
+		return nil, errors.New("chat.NewOptions: model id must not be empty")
 	}
 
 	return &Options{
@@ -64,23 +65,29 @@ func NewOptions(model string) (*Options, error) {
 	}, nil
 }
 
+// ensureExtra lazily allocates Extra so callers don't have to nil-check.
 func (o *Options) ensureExtra() {
 	if o.Extra == nil {
 		o.Extra = make(map[string]any)
 	}
 }
 
+// Get returns the Extra value for key plus an existence flag.
 func (o *Options) Get(key string) (any, bool) {
 	o.ensureExtra()
 	value, exists := o.Extra[key]
 	return value, exists
 }
 
+// Set stores value under key in Extra, allocating the map if needed.
 func (o *Options) Set(key string, value any) {
 	o.ensureExtra()
 	o.Extra[key] = value
 }
 
+// Clone returns a deep copy of Options. Pointer fields, slices, and the
+// Extra map are duplicated so the result is safe to mutate independently.
+// A nil receiver yields nil.
 func (o *Options) Clone() *Options {
 	if o == nil {
 		return nil
@@ -100,155 +107,163 @@ func (o *Options) Clone() *Options {
 	}
 }
 
-// MergeOptions merges multiple Options into a single Options instance.
-// It creates a clone of the base options and applies each subsequent option in order.
-// Later options override earlier ones for scalar fields, while slices are accumulated.
+// MergeOptions clones base then applies each override left-to-right.
+// Scalar non-empty values overwrite; slices append; the Extra map merges
+// last-write-wins. Tools are de-duplicated by definition name.
 //
-// Parameters:
-//   - options: The base Options to clone (must not be nil)
-//   - opts: Additional Options to merge (nil entries are skipped)
+// Returns an error when base is nil so callers don't accidentally produce
+// an Options without a model id.
 //
-// Returns:
-//   - *Options: The merged result
-//   - error: An error if the base options is nil
+// Example:
 //
-// Merge behavior:
-//   - Pointer fields (FrequencyPenalty, MaxTokens, etc.): Later non-nil values override earlier ones
-//   - Model field: Later non-empty values override earlier ones
-//   - Slice fields (Stop, Tools): Later non-empty slices are appended to existing ones
-//   - Map field (Extra): Later entries are merged into the result map
-func MergeOptions(options *Options, opts ...*Options) (*Options, error) {
-	if options == nil {
-		return nil, errors.New("options cannot be nil")
+//	merged, err := chat.MergeOptions(modelDefaults, requestOverrides)
+//	if err != nil { return err }
+func MergeOptions(base *Options, overrides ...*Options) (*Options, error) {
+	if base == nil {
+		return nil, errors.New("chat.MergeOptions: base options must not be nil")
 	}
 
-	mergedOpts := ptr.Clone(options)
-	if len(opts) == 0 {
-		return mergedOpts, nil
+	merged := ptr.Clone(base)
+	if len(overrides) == 0 {
+		return merged, nil
 	}
 
-	mergedOpts.ensureExtra()
+	merged.ensureExtra()
 
-	for _, opt := range opts {
-		if opt == nil {
+	for _, override := range overrides {
+		if override == nil {
 			continue
 		}
-		if opt.Model != "" {
-			mergedOpts.Model = opt.Model
-		}
-		if opt.FrequencyPenalty != nil {
-			mergedOpts.FrequencyPenalty = opt.FrequencyPenalty
-		}
-		if opt.MaxTokens != nil {
-			mergedOpts.MaxTokens = opt.MaxTokens
-		}
-		if opt.PresencePenalty != nil {
-			mergedOpts.PresencePenalty = opt.PresencePenalty
-		}
-		if len(opt.Stop) > 0 {
-			mergedOpts.Stop = append(mergedOpts.Stop, opt.Stop...)
-		}
-		if opt.Temperature != nil {
-			mergedOpts.Temperature = opt.Temperature
-		}
-		if opt.TopK != nil {
-			mergedOpts.TopK = opt.TopK
-		}
-		if opt.TopP != nil {
-			mergedOpts.TopP = opt.TopP
-		}
-		if len(opt.Tools) > 0 {
-			mergedOpts.Tools = append(mergedOpts.Tools, opt.Tools...)
-		}
-		if len(opt.Extra) > 0 {
-			maps.Copy(mergedOpts.Extra, opt.Extra)
-		}
+		applyOverride(merged, override)
 	}
-	mergedOpts.Tools = lo.UniqBy(mergedOpts.Tools, func(tool Tool) string {
+
+	merged.Tools = lo.UniqBy(merged.Tools, func(tool Tool) string {
 		return tool.Definition().Name
 	})
-	return mergedOpts, nil
+	return merged, nil
 }
 
-// Request represents a chat request containing conversation messages,
-// model-specific options, and contextual parameters.
+// applyOverride mutates dst in place with the non-zero fields of src.
+// Extracted from MergeOptions to keep the merge body free of repeated
+// "if-not-zero overwrite" boilerplate.
+func applyOverride(dst, src *Options) {
+	if src.Model != "" {
+		dst.Model = src.Model
+	}
+	if src.FrequencyPenalty != nil {
+		dst.FrequencyPenalty = src.FrequencyPenalty
+	}
+	if src.MaxTokens != nil {
+		dst.MaxTokens = src.MaxTokens
+	}
+	if src.PresencePenalty != nil {
+		dst.PresencePenalty = src.PresencePenalty
+	}
+	if len(src.Stop) > 0 {
+		dst.Stop = append(dst.Stop, src.Stop...)
+	}
+	if src.Temperature != nil {
+		dst.Temperature = src.Temperature
+	}
+	if src.TopK != nil {
+		dst.TopK = src.TopK
+	}
+	if src.TopP != nil {
+		dst.TopP = src.TopP
+	}
+	if len(src.Tools) > 0 {
+		dst.Tools = append(dst.Tools, src.Tools...)
+	}
+	if len(src.Extra) > 0 {
+		maps.Copy(dst.Extra, src.Extra)
+	}
+}
+
+// Request is a chat completion request: the conversation history, the
+// model options, and free-form per-request parameters (user id, session id,
+// etc. — whatever middleware wants to thread through).
 type Request struct {
-	// Messages The conversation message history
+	// Messages is the conversation history sent to the model.
 	Messages []Message `json:"messages"`
 
-	// Options Model configuration options
+	// Options carries model-specific parameters.
 	Options *Options `json:"options"`
 
-	// Params Request parameters like userID, sessionID, etc.
+	// Params holds caller-supplied side-channel data (user id, trace id,
+	// feature flags) that middlewares can read.
 	Params map[string]any `json:"params"`
 }
 
-// NewRequest creates a new chat request with the provided messages.
-// Nil messages are automatically filtered out before validation.
+// NewRequest builds a Request from the given messages. nil entries are
+// filtered out; an empty (or nil-only) input returns an error.
 //
-// Parameters:
-//   - messages: The list of conversation messages
+// Example:
 //
-// Returns:
-//   - *Request: A new Request instance
-//   - error: Non-nil if the message list is empty or contains only nil values
+//	req, err := chat.NewRequest([]chat.Message{
+//	    chat.NewSystemMessage("You are concise."),
+//	    chat.NewUserMessage("Hello"),
+//	})
 func NewRequest(messages []Message) (*Request, error) {
-	validMessages := filterOutNilMessages(messages)
-	if len(validMessages) == 0 {
-		return nil, errors.New("chat request must contain at least one valid message")
+	valid := filterOutNilMessages(messages)
+	if len(valid) == 0 {
+		return nil, errors.New("chat.NewRequest: messages must contain at least one non-nil entry")
 	}
 
 	return &Request{
-		Messages: validMessages,
+		Messages: valid,
 		Params:   make(map[string]any),
 	}, nil
 }
 
+// ensureParams lazily allocates Params so callers don't have to nil-check.
 func (r *Request) ensureParams() {
 	if r.Params == nil {
 		r.Params = make(map[string]any)
 	}
 }
 
+// Get returns the Params value for key plus an existence flag.
 func (r *Request) Get(key string) (any, bool) {
 	r.ensureParams()
 	value, exists := r.Params[key]
 	return value, exists
 }
 
+// Set stores value under key in Params.
 func (r *Request) Set(key string, value any) {
 	r.ensureParams()
 	r.Params[key] = value
 }
 
-// AppendToLastUserMessage appends text to the last user message with double newlines as separator.
-// If no user message exists, the function does nothing.
-func (r *Request) AppendToLastUserMessage(textToAppend string) {
-	appendTextToLastMessageOfType(r.Messages, MessageTypeUser, textToAppend)
+// AppendToLastUserMessage appends text to the last user message, separated
+// from existing content by a double newline. No-op when no user message
+// exists.
+func (r *Request) AppendToLastUserMessage(text string) {
+	appendTextToLastMessageOfType(r.Messages, MessageTypeUser, text)
 }
 
-// ReplaceOfLastUserMessage replaces the entire text content of the last user message.
-// If no user message exists, the function does nothing.
-func (r *Request) ReplaceOfLastUserMessage(textToReplace string) {
-	replaceTextOfLastMessageOfType(r.Messages, MessageTypeUser, textToReplace)
+// ReplaceOfLastUserMessage replaces the entire text of the last user
+// message. No-op when no user message exists.
+func (r *Request) ReplaceOfLastUserMessage(text string) {
+	replaceTextOfLastMessageOfType(r.Messages, MessageTypeUser, text)
 }
 
-// UserMessage returns the last user message in the request.
-// If no user message exists, returns an empty UserMessage.
+// UserMessage returns the most-recent user message in the conversation,
+// or an empty *UserMessage if the conversation has none.
 func (r *Request) UserMessage() *UserMessage {
-	lastIndex, lastMessage := findLastMessageIndexOfType(r.Messages, MessageTypeUser)
-	if lastIndex == -1 {
+	idx, last := findLastMessageIndexOfType(r.Messages, MessageTypeUser)
+	if idx == -1 {
 		return NewUserMessage("")
 	}
-	return lastMessage.(*UserMessage)
+	return last.(*UserMessage)
 }
 
-// SystemMessage returns the last system message in the request.
-// If no system message exists, returns an empty SystemMessage.
+// SystemMessage returns the most-recent system message in the
+// conversation, or an empty *SystemMessage if the conversation has none.
 func (r *Request) SystemMessage() *SystemMessage {
-	lastIndex, lastMessage := findLastMessageIndexOfType(r.Messages, MessageTypeSystem)
-	if lastIndex == -1 {
+	idx, last := findLastMessageIndexOfType(r.Messages, MessageTypeSystem)
+	if idx == -1 {
 		return NewSystemMessage("")
 	}
-	return lastMessage.(*SystemMessage)
+	return last.(*SystemMessage)
 }
