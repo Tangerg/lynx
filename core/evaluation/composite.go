@@ -3,50 +3,49 @@ package evaluation
 import (
 	"context"
 	"errors"
+	"fmt"
 )
 
 var _ Evaluator = (*CompositeEvaluator)(nil)
 
-// CompositeEvaluator is a composite pattern implementation that orchestrates multiple
-// evaluators to perform comprehensive evaluation. It executes all child evaluators
-// sequentially and merges their results into a single consolidated response.
+// CompositeEvaluator runs every child evaluator sequentially against
+// the same request and merges their verdicts via mergeResponses —
+// AND-of-Pass, average-of-Score, namespace-prefixed metadata.
 //
-// This pattern is useful when you need to:
-//   - Apply multiple evaluation criteria to the same generation
-//   - Combine different evaluation aspects (e.g., relevance, accuracy, style)
-//   - Get an aggregated score and feedback from multiple evaluators
+// Use it when one generation should pass multiple criteria (fact
+// check + relevancy + style) before being accepted.
 //
-// Example use case:
+// Example:
 //
-//	Evaluating a generated answer with both fact-checking and relevance evaluators
+//	composite, _ := evaluation.NewCompositeEvaluator(factCheck, relevancy)
+//	resp, err := composite.Evaluate(ctx, req)
 type CompositeEvaluator struct {
 	evaluators []Evaluator
 }
 
+// NewCompositeEvaluator builds a [CompositeEvaluator] over the given
+// children. Returns an error when no evaluators are supplied.
 func NewCompositeEvaluator(evaluators ...Evaluator) (*CompositeEvaluator, error) {
 	if len(evaluators) == 0 {
-		return nil, errors.New("empty evaluators")
+		return nil, errors.New("evaluation.NewCompositeEvaluator: at least one evaluator is required")
 	}
-
-	return &CompositeEvaluator{
-		evaluators: evaluators,
-	}, nil
+	return &CompositeEvaluator{evaluators: evaluators}, nil
 }
 
+// Evaluate runs each child in order, short-circuiting on the first
+// error, and returns the merged verdict.
 func (c *CompositeEvaluator) Evaluate(ctx context.Context, req *Request) (*Response, error) {
 	if req == nil {
-		return nil, errors.New("nil request")
+		return nil, errors.New("evaluation.CompositeEvaluator.Evaluate: request must not be nil")
 	}
 
 	responses := make([]*Response, 0, len(c.evaluators))
-
-	for _, evaluator := range c.evaluators {
+	for i, evaluator := range c.evaluators {
 		resp, err := evaluator.Evaluate(ctx, req)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("evaluation.CompositeEvaluator: child #%d: %w", i, err)
 		}
 		responses = append(responses, resp)
 	}
-
 	return mergeResponses(responses)
 }

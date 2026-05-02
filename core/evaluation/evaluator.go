@@ -1,22 +1,18 @@
+// Package evaluation defines the [Evaluator] surface used by RAG and
+// agent pipelines to score generated responses — relevancy,
+// factuality, and any other criteria the application chooses.
+// Concrete evaluators ([FactCheckingEvaluator], [RelevancyEvaluator])
+// live in this package; combine several into one verdict via
+// [CompositeEvaluator].
 package evaluation
 
-import (
-	"context"
-)
+import "context"
 
-// Evaluator defines the interface for components that evaluate AI responses.
-// Implementations can use different strategies and criteria to assess the quality,
-// relevance, factual correctness, or other aspects of a response.
+// Evaluator scores an AI response against a request. Implementations
+// pick a strategy (relevancy check, fact verification, style scoring,
+// ...) and return a [*Response] with the verdict plus any feedback the
+// caller should surface.
 type Evaluator interface {
-	// Evaluate performs an assessment of an AI response based on the provided request.
-	//
-	// Parameters:
-	//   ctx - Context for request cancellation and timeout
-	//   req   - The evaluation request containing the user query, reference documents,
-	//         and the response content to be evaluated
-	//
-	// Returns:
-	//   An evaluation response containing the assessment results and nil error if successful
-	//   nil and an error if the evaluation fails
+	// Evaluate scores the response inside req.
 	Evaluate(ctx context.Context, req *Request) (*Response, error)
 }
