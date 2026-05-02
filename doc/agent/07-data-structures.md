@@ -295,13 +295,12 @@ type ActionMetadata struct {
 // CostFunc 基于世界状态动态算成本/价值
 type CostFunc func(ws WorldState) float64
 
-// ActionQos 重试策略
+// ActionQos 重试策略 —— 字段会被翻译成 pkg/retry 的 Option，
+// 真正的退避数学（指数、抖动、溢出保护）由 pkg/retry 实现。
 type ActionQos struct {
-    MaxAttempts       int           // 默认 5
-    BackoffMillis     int64         // 默认 10000
-    BackoffMultiplier float64       // 默认 5.0
-    BackoffMaxMillis  int64         // 默认 60000
-    Idempotent        bool          // 是否幂等（决定能否并发执行）
+    MaxAttempts int           // 默认 5
+    BaseDelay   time.Duration // 默认 10s
+    MaxDelay    time.Duration // 默认 60s（封顶）
 }
 
 // 具体实现

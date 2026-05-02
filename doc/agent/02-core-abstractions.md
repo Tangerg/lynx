@@ -358,17 +358,20 @@ const (
     ActionPaused
 )
 
-// ActionQos 重试/超时配置
+// ActionQos 重试策略 —— 字段映射到 pkg/retry 的 Option，
+// 真正的退避数学（指数、抖动、溢出保护）都委托给 pkg/retry。
 type ActionQos struct {
-    MaxAttempts       int
-    BackoffMillis     int64
-    BackoffMultiplier float64
-    BackoffMaxMillis  int64
-    Idempotent        bool
+    MaxAttempts int           // 总尝试次数（含首次）
+    BaseDelay   time.Duration // 初始退避
+    MaxDelay    time.Duration // 退避上限；0 = 不限
 }
 
 func DefaultActionQos() ActionQos {
-    return ActionQos{MaxAttempts: 5, BackoffMillis: 10_000, BackoffMultiplier: 5.0, BackoffMaxMillis: 60_000}
+    return ActionQos{
+        MaxAttempts: 5,
+        BaseDelay:   10 * time.Second,
+        MaxDelay:    60 * time.Second,
+    }
 }
 ```
 
