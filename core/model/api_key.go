@@ -5,86 +5,80 @@ import (
 	"strings"
 )
 
-// ApiKey provides a consistent interface for accessing API keys in LLM model clients.
-// Supports both static long-lived keys and dynamic short-lived keys that require periodic refresh.
+// ApiKey hides the credential a model client uses to authenticate.
+// It exists so static keys (OpenAI, Anthropic) and dynamic short-lived
+// tokens (GCP Vertex AI) share one call site: clients invoke [ApiKey.Get]
+// before each request and let the implementation handle caching, refresh,
+// or "no auth needed".
 //
-// Common use cases:
-// - Static keys (OpenAI, Anthropic): Never change during application lifecycle
-// - Dynamic keys (GCP Vertex AI): Short-lived tokens refreshed from service accounts
-// - No authentication: Local or public models that don't require credentials
-//
-// Model clients call Get() before each request to ensure valid authentication.
-// Implementations handle caching and refresh logic internally.
+// Implementations must:
+//   - return a currently valid key from [ApiKey.Get] (never expired);
+//   - be safe for concurrent use;
+//   - return "" when no authentication is required.
 type ApiKey interface {
-	// Get returns a currently valid API key for authentication.
-	// Callers should not cache the result - call this method whenever an API key is needed.
-	// Implementations must ensure the returned key is not expired.
-	//
-	// Returns empty string if no authentication is required.
+	// Get returns a currently valid API key. Callers MUST NOT cache the
+	// result — call this before each request so dynamic implementations
+	// can refresh transparently. Returns "" when no authentication is
+	// required.
 	Get() string
 }
 
-var (
-	_ ApiKey = (*apiKey)(nil)
-)
+var _ ApiKey = (*staticApiKey)(nil)
 
-// apiKey implements ApiKey for static API keys that never change.
-// Thread-safe for concurrent access as all fields are immutable after construction.
-// Caches string representation for efficient logging and debugging.
-type apiKey struct {
-	apiKey      string // Immutable API key value
-	stringCache string // Cached masked representation for logging
+// staticApiKey holds an immutable key value and a pre-computed masked form
+// for safe logging. All fields are set at construction; nothing mutates,
+// so the value is trivially safe for concurrent reads.
+type staticApiKey struct {
+	value      string
+	maskedView string
 }
 
-// NewApiKey creates an ApiKey for static keys that don't require refresh.
-// Accepts any string value including empty strings for no-auth scenarios.
+// NewApiKey wraps a fixed credential as an [ApiKey]. Pass "" for endpoints
+// that do not require authentication.
 //
-// Examples:
+// Example:
 //
-//	NewApiKey("sk-1234567890abcdef")  // OpenAI-style key
-//	NewApiKey("")                      // No authentication
-//	NewApiKey("test-key")             // Development key
-func NewApiKey(key string) ApiKey {
-	s := &apiKey{
-		apiKey: key,
-	}
-	s.stringCache = s.string()
-	return s
+//	key := NewApiKey("sk-1234567890abcdef")  // OpenAI-style key
+//	key := NewApiKey("")                      // local model, no auth
+//
+//	// In a request:
+//	req.Header.Set("Authorization", "Bearer "+key.Get())
+func NewApiKey(value string) ApiKey {
+	k := &staticApiKey{value: value}
+	k.maskedView = maskApiKey(value)
+	return k
 }
 
-// Get returns the static API key value provided during construction.
-// Always returns immediately without network calls or refresh logic.
-func (s *apiKey) Get() string {
-	return s.apiKey
+// Get returns the immutable key supplied at construction.
+func (k *staticApiKey) Get() string {
+	return k.value
 }
 
-// string generates a masked representation of the API key for safe logging.
-// Masking strategy based on key length:
-// - Empty: "api_key=<empty>"
-// - Short (≤10 chars): "api_key=" + asterisks
-// - Long (>10 chars): Shows first 2 and last 2 chars with asterisks between
+// String returns the masked representation, suitable for logs.
+// Implements [fmt.Stringer] so the value never leaks accidentally via
+// "%v" or "%s" formatting.
+func (k *staticApiKey) String() string {
+	return k.maskedView
+}
+
+// maskApiKey renders a credential as "api_key=<masked>" without revealing
+// the secret. It chooses one of three shapes by length:
 //
-// Examples:
-//
-//	"" → "api_key=<empty>"
-//	"abc" → "api_key=***"
-//	"sk-1234567890" → "api_key=sk******90"
-func (s *apiKey) string() string {
-	if s.apiKey == "" {
+//	""              -> "api_key=<empty>"
+//	len ≤ 10        -> "api_key=" + asterisks
+//	len > 10        -> "api_key=ab****yz" (first 2, last 2)
+func maskApiKey(value string) string {
+	if value == "" {
 		return "api_key=<empty>"
 	}
-	if len(s.apiKey) <= 10 {
-		return "api_key=" + strings.Repeat("*", len(s.apiKey))
-	}
-	return fmt.Sprintf("api_key=%s%s%s",
-		s.apiKey[:2],
-		strings.Repeat("*", len(s.apiKey)-4),
-		s.apiKey[len(s.apiKey)-2:])
-}
 
-// String returns a cached masked representation safe for logging and debugging.
-// Implements fmt.Stringer interface for safe use in log statements without credential exposure.
-// String representation is computed once and cached for performance.
-func (s *apiKey) String() string {
-	return s.stringCache
+	if len(value) <= 10 {
+		return "api_key=" + strings.Repeat("*", len(value))
+	}
+
+	return fmt.Sprintf("api_key=%s%s%s",
+		value[:2],
+		strings.Repeat("*", len(value)-4),
+		value[len(value)-2:],
+	)
 }
