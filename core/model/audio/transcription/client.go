@@ -9,18 +9,23 @@ import (
 	"github.com/Tangerg/lynx/core/model"
 )
 
-type Handler = model.CallHandler[*Request, *Response]
-type HandlerFunc = model.CallHandlerFunc[*Request, *Response]
-type Middleware = model.CallMiddleware[*Request, *Response]
-type MiddlewareManager = model.CallMiddlewareManager[*Request, *Response]
+// Type aliases threading transcription's *Request / *Response into the
+// generic [model] handler/middleware machinery.
+type (
+	Handler           = model.CallHandler[*Request, *Response]
+	HandlerFunc       = model.CallHandlerFunc[*Request, *Response]
+	Middleware        = model.CallMiddleware[*Request, *Response]
+	MiddlewareManager = model.CallMiddlewareManager[*Request, *Response]
+)
 
-// NewMiddlewareManager creates a new middleware manager for transcription requests
+// NewMiddlewareManager returns an empty [MiddlewareManager] keyed to
+// transcription's *Request / *Response pair.
 func NewMiddlewareManager() *MiddlewareManager {
 	return model.NewCallMiddlewareManager[*Request, *Response]()
 }
 
-// ClientRequest represents a fluent builder for constructing audio transcription requests
-// It allows configuring the model, middlewares, options, audio data, and additional parameters
+// ClientRequest is the fluent builder that turns a [Model] plus an
+// audio payload into a transcription call.
 type ClientRequest struct {
 	model             Model
 	middlewareManager *MiddlewareManager
@@ -29,19 +34,16 @@ type ClientRequest struct {
 	params            map[string]any
 }
 
-// NewClientRequest creates a new ClientRequest with the specified transcription model
-// Returns an error if the model is nil
+// NewClientRequest builds a [ClientRequest] for model. Returns an error
+// when model is nil.
 func NewClientRequest(model Model) (*ClientRequest, error) {
 	if model == nil {
-		return nil, errors.New("model is nil")
+		return nil, errors.New("transcription.NewClientRequest: model must not be nil")
 	}
-	return &ClientRequest{
-		model: model,
-	}, nil
+	return &ClientRequest{model: model}, nil
 }
 
-// WithMiddlewares adds middlewares to the request
-// Returns the ClientRequest for method chaining
+// WithMiddlewares replaces the entire middleware chain.
 func (r *ClientRequest) WithMiddlewares(middlewares ...Middleware) *ClientRequest {
 	if len(middlewares) > 0 {
 		r.middlewareManager = NewMiddlewareManager().UseMiddlewares(middlewares...)
@@ -49,17 +51,16 @@ func (r *ClientRequest) WithMiddlewares(middlewares ...Middleware) *ClientReques
 	return r
 }
 
-// WithMiddlewareManager sets a custom middleware manager for the request
-// Returns the ClientRequest for method chaining
-func (r *ClientRequest) WithMiddlewareManager(middlewareManager *MiddlewareManager) *ClientRequest {
-	if middlewareManager != nil {
-		r.middlewareManager = middlewareManager
+// WithMiddlewareManager replaces the underlying [MiddlewareManager].
+// nil is ignored.
+func (r *ClientRequest) WithMiddlewareManager(mgr *MiddlewareManager) *ClientRequest {
+	if mgr != nil {
+		r.middlewareManager = mgr
 	}
 	return r
 }
 
-// WithOptions sets the configuration options for the request
-// Returns the ClientRequest for method chaining
+// WithOptions sets the per-request [Options]. nil is ignored.
 func (r *ClientRequest) WithOptions(options *Options) *ClientRequest {
 	if options != nil {
 		r.options = options
@@ -67,8 +68,7 @@ func (r *ClientRequest) WithOptions(options *Options) *ClientRequest {
 	return r
 }
 
-// WithAudio sets the audio media to be transcribed
-// Returns the ClientRequest for method chaining
+// WithAudio sets the audio payload. nil is ignored.
 func (r *ClientRequest) WithAudio(audio *media.Media) *ClientRequest {
 	if audio != nil {
 		r.audio = audio
@@ -76,8 +76,7 @@ func (r *ClientRequest) WithAudio(audio *media.Media) *ClientRequest {
 	return r
 }
 
-// WithParams sets additional parameters for the request
-// Returns the ClientRequest for method chaining
+// WithParams replaces the side-channel params map. Empty input is ignored.
 func (r *ClientRequest) WithParams(params map[string]any) *ClientRequest {
 	if len(params) > 0 {
 		r.params = params
@@ -85,8 +84,8 @@ func (r *ClientRequest) WithParams(params map[string]any) *ClientRequest {
 	return r
 }
 
-// MiddlewareManager returns the middleware manager for this request
-// Creates a new one if it doesn't exist
+// MiddlewareManager returns the active manager, lazily allocating one
+// if none has been set yet.
 func (r *ClientRequest) MiddlewareManager() *MiddlewareManager {
 	if r.middlewareManager == nil {
 		r.middlewareManager = NewMiddlewareManager()
@@ -94,75 +93,70 @@ func (r *ClientRequest) MiddlewareManager() *MiddlewareManager {
 	return r.middlewareManager
 }
 
-// Clone creates a deep copy of the ClientRequest
-// Note: The audio media reference is shared to conserve memory
+// Clone returns a shallow copy of the request. The audio payload
+// reference is shared (audio bytes can be large; sharing is the cheap
+// default — call WithAudio explicitly if isolation is required).
 func (r *ClientRequest) Clone() *ClientRequest {
 	return &ClientRequest{
 		model:             r.model,
 		middlewareManager: r.middlewareManager.Clone(),
 		options:           r.options.Clone(),
-		audio:             r.audio, // use same audio file reference to save memory
+		audio:             r.audio,
 		params:            maps.Clone(r.params),
 	}
 }
 
-// getOptions returns the options to use for the request
-// Uses the explicitly set options if available, otherwise falls back to model defaults
-func (r *ClientRequest) getOptions() *Options {
-	var opts *Options
-
+// resolveOptions returns the effective [Options] for this call —
+// request-level options when supplied, otherwise a clone of the model's
+// defaults.
+func (r *ClientRequest) resolveOptions() *Options {
 	if r.options != nil {
-		opts = r.options.Clone()
-	} else {
-		opts = r.model.DefaultOptions().Clone()
+		return r.options.Clone()
 	}
-
-	return opts
+	return r.model.DefaultOptions().Clone()
 }
 
-// buildRequest constructs the final Request object from the ClientRequest configuration
-// Returns an error if the audio is invalid
+// buildRequest assembles the [*Request] sent through the middleware
+// chain to the underlying model.
 func (r *ClientRequest) buildRequest() (*Request, error) {
 	req, err := NewRequest(r.audio)
 	if err != nil {
 		return nil, err
 	}
-
-	req.Options = r.getOptions()
+	req.Options = r.resolveOptions()
 	req.Params = maps.Clone(r.params)
-
 	return req, nil
 }
 
-// Call creates a ClientCaller to execute the transcription request synchronously
+// Call returns a [ClientCaller] for executing the request.
+//
+// Example:
+//
+//	text, _, err := client.Transcribe().WithAudio(m).Call().Text(ctx)
 func (r *ClientRequest) Call() *ClientCaller {
-	return &ClientCaller{
-		request: r,
-	}
+	return &ClientCaller{request: r}
 }
 
-// ClientCaller handles the synchronous execution of transcription requests and provides
-// various methods to retrieve different aspects of the transcription response
+// ClientCaller drives the synchronous transcription path.
 type ClientCaller struct {
 	request *ClientRequest
 }
 
-// Response executes the transcription request and returns the complete response
-// Returns an error if the request fails or validation fails
+// Response runs the call through the middleware chain and returns the
+// raw [*Response].
 func (c *ClientCaller) Response(ctx context.Context) (*Response, error) {
 	req, err := c.request.buildRequest()
 	if err != nil {
 		return nil, err
 	}
-	return c.
-		request.
+	return c.request.
 		MiddlewareManager().
 		BuildHandler(c.request.model).
 		Call(ctx, req)
 }
 
-// Text executes the request and returns the first transcribed text along with the full response
-// Returns an error if the request fails
+// Text runs the call and returns the first transcribed segment alongside
+// the full response.
 func (c *ClientCaller) Text(ctx context.Context) (string, *Response, error) {
 	resp, err := c.Response(ctx)
 	if err != nil {
@@ -171,56 +165,44 @@ func (c *ClientCaller) Text(ctx context.Context) (string, *Response, error) {
 	return resp.Result().Text, resp, nil
 }
 
-// Client provides a high-level interface for making audio transcription requests
-// It maintains a default request configuration that can be cloned and customized
-// Supports synchronous audio-to-text transcription operations
+// Client wraps a [Model] with a sticky default [ClientRequest].
 type Client struct {
 	defaultRequest *ClientRequest
 }
 
-// NewClient creates a new Client with the specified default request configuration
-// Returns an error if the request is nil
+// NewClient wraps an existing [ClientRequest] as a sticky default.
+// Returns an error when request is nil.
 func NewClient(request *ClientRequest) (*Client, error) {
 	if request == nil {
-		return nil, errors.New("client request is required")
+		return nil, errors.New("transcription.NewClient: request must not be nil")
 	}
-	return &Client{
-		defaultRequest: request,
-	}, nil
+	return &Client{defaultRequest: request}, nil
 }
 
-// NewClientWithModel creates a new Client with a default request using the specified model
-// Returns an error if the model is invalid
+// NewClientWithModel is a one-step constructor.
 func NewClientWithModel(model Model) (*Client, error) {
-	cliReq, err := NewClientRequest(model)
+	req, err := NewClientRequest(model)
 	if err != nil {
 		return nil, err
 	}
-	return NewClient(cliReq)
+	return NewClient(req)
 }
 
-// Transcribe creates a new ClientRequest by cloning the default request configuration
-// This is the starting point for building a customized transcription request
+// Transcribe returns a fresh clone of the default request.
 func (c *Client) Transcribe() *ClientRequest {
-	return c.
-		defaultRequest.
-		Clone()
+	return c.defaultRequest.Clone()
 }
 
-// TranscribeWithRequest creates a ClientRequest from an existing Request object
-// Copies the audio, options, and params from the provided request
-func (c *Client) TranscribeWithRequest(request *Request) *ClientRequest {
-	return c.
-		Transcribe().
-		WithAudio(request.Audio).
-		WithOptions(request.Options).
-		WithParams(request.Params)
+// TranscribeWithRequest seeds a clone with the audio, options, and
+// params from req.
+func (c *Client) TranscribeWithRequest(req *Request) *ClientRequest {
+	return c.Transcribe().
+		WithAudio(req.Audio).
+		WithOptions(req.Options).
+		WithParams(req.Params)
 }
 
-// TranscribeWithAudio creates a ClientRequest for transcribing a single audio media
-// This is a convenience method for simple transcription tasks
+// TranscribeWithAudio is the most common shortcut.
 func (c *Client) TranscribeWithAudio(audio *media.Media) *ClientRequest {
-	return c.
-		Transcribe().
-		WithAudio(audio)
+	return c.Transcribe().WithAudio(audio)
 }

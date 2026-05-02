@@ -1,3 +1,6 @@
+// Package embedding defines the request/response types and Model interface
+// for text-to-vector embedding LLMs. Concrete provider implementations
+// (OpenAI, Cohere, ...) live in /models/<provider>/embedding.go.
 package embedding
 
 import (
@@ -6,27 +9,38 @@ import (
 	"github.com/Tangerg/lynx/core/model"
 )
 
-// Model defines the interface for embedding models that can convert text into vector representations.
-// It extends the base model.Model interface and adds embedding-specific capabilities.
+// Model is the provider surface for an embedding LLM — synchronous call,
+// model defaults, dimensions probe, and identity hint.
+//
+// Example:
+//
+//	type myEmbedder struct{ /* ... */ }
+//	func (m *myEmbedder) Call(ctx context.Context, req *embedding.Request) (*embedding.Response, error) { ... }
+//	func (m *myEmbedder) DefaultOptions() *embedding.Options { return embedding.NewOptionsOrPanic("text-embedding-3-small") }
+//	func (m *myEmbedder) Info() embedding.ModelInfo          { return embedding.ModelInfo{Provider: "openai"} }
+//	func (m *myEmbedder) Dimensions(ctx context.Context) int64 { return 1536 }
+//
+//	var _ embedding.Model = (*myEmbedder)(nil)
 type Model interface {
 	model.Model[*Request, *Response]
 
-	// Dimensions returns the dimensionality of the embedding vectors produced by this model.
-	// For example, a model might return 768 or 1536 dimensional vectors.
+	// Dimensions returns the vector size this model produces (e.g. 768,
+	// 1536). Implementations may probe the API on first call and cache the
+	// result.
 	Dimensions(ctx context.Context) int64
 
-	// DefaultOptions returns the default configuration options for this embedding model.
-	// These options can be overridden when making embedding requests.
+	// DefaultOptions returns the parameter set this provider uses when
+	// the caller does not override anything.
 	DefaultOptions() *Options
 
-	// Info returns metadata information about the embedding model,
-	// such as the provider name and other model characteristics.
+	// Info returns identity metadata used by logging, metrics, and any
+	// observability layer that needs to tag a span by provider.
 	Info() ModelInfo
 }
 
-// ModelInfo contains metadata information about an embedding model.
+// ModelInfo holds identity metadata for a [Model] instance. Provider
+// names are conventionally lowercase ("openai", "cohere", ...).
 type ModelInfo struct {
-	// Provider identifies the service or organization that provides this embedding model.
-	// Examples: "OpenAI", "Cohere", "HuggingFace", etc.
+	// Provider names the embedding LLM vendor.
 	Provider string `json:"provider"`
 }

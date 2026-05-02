@@ -10,17 +10,26 @@ import (
 	"github.com/Tangerg/lynx/core/model"
 )
 
-type Handler = model.CallHandler[*Request, *Response]
-type HandlerFunc = model.CallHandlerFunc[*Request, *Response]
-type Middleware = model.CallMiddleware[*Request, *Response]
-type MiddlewareManager = model.CallMiddlewareManager[*Request, *Response]
+// Type aliases threading embedding's *Request / *Response into the
+// generic [model] handler/middleware machinery.
+type (
+	Handler           = model.CallHandler[*Request, *Response]
+	HandlerFunc       = model.CallHandlerFunc[*Request, *Response]
+	Middleware        = model.CallMiddleware[*Request, *Response]
+	MiddlewareManager = model.CallMiddlewareManager[*Request, *Response]
+)
 
+// NewMiddlewareManager returns an empty [MiddlewareManager] keyed to
+// embedding's *Request / *Response pair.
 func NewMiddlewareManager() *MiddlewareManager {
 	return model.NewCallMiddlewareManager[*Request, *Response]()
 }
 
-// ClientRequest represents a builder for configuring and executing embedding requests.
-// It provides a fluent API for setting up the model, middlewares, options, texts, and parameters.
+// ClientRequest is the fluent builder that turns a [Model] plus inputs
+// and options into an embedding call. Construct one with
+// [NewClientRequest] (or [Client.Embed] which clones the client's
+// default), chain WithXxx methods, then finish with
+// [ClientRequest.Call].
 type ClientRequest struct {
 	model             Model
 	middlewareManager *MiddlewareManager
@@ -29,19 +38,16 @@ type ClientRequest struct {
 	params            map[string]any
 }
 
-// NewClientRequest creates a new client request with the specified embedding model.
-// Returns an error if the model is nil.
+// NewClientRequest builds a [ClientRequest] for model. Returns an error
+// when model is nil.
 func NewClientRequest(model Model) (*ClientRequest, error) {
 	if model == nil {
-		return nil, errors.New("embedding model cannot be nil")
+		return nil, errors.New("embedding.NewClientRequest: model must not be nil")
 	}
-	return &ClientRequest{
-		model: model,
-	}, nil
+	return &ClientRequest{model: model}, nil
 }
 
-// WithMiddlewares sets the middleware chain for the request, replacing any existing middlewares.
-// Middlewares are executed in the order they are provided.
+// WithMiddlewares replaces the entire middleware chain.
 func (r *ClientRequest) WithMiddlewares(middlewares ...Middleware) *ClientRequest {
 	if len(middlewares) > 0 {
 		r.middlewareManager = NewMiddlewareManager().UseMiddlewares(middlewares...)
@@ -49,17 +55,16 @@ func (r *ClientRequest) WithMiddlewares(middlewares ...Middleware) *ClientReques
 	return r
 }
 
-// WithMiddlewareManager sets a custom middleware manager for the request.
-// This allows for more advanced middleware configuration.
-func (r *ClientRequest) WithMiddlewareManager(middlewareManager *MiddlewareManager) *ClientRequest {
-	if middlewareManager != nil {
-		r.middlewareManager = middlewareManager
+// WithMiddlewareManager replaces the underlying [MiddlewareManager].
+// nil is ignored.
+func (r *ClientRequest) WithMiddlewareManager(mgr *MiddlewareManager) *ClientRequest {
+	if mgr != nil {
+		r.middlewareManager = mgr
 	}
 	return r
 }
 
-// WithOptions sets the configuration options for the embedding request.
-// These options control aspects like encoding format and dimensions.
+// WithOptions sets the per-request [Options]. nil is ignored.
 func (r *ClientRequest) WithOptions(options *Options) *ClientRequest {
 	if options != nil {
 		r.options = options
@@ -67,17 +72,15 @@ func (r *ClientRequest) WithOptions(options *Options) *ClientRequest {
 	return r
 }
 
-// WithTexts sets the input texts to be embedded.
-// Each input string will be converted into an embedding vector.
-func (r *ClientRequest) WithTexts(inputs []string) *ClientRequest {
-	if len(inputs) > 0 {
-		r.texts = inputs
+// WithTexts replaces the input list. Empty input is ignored.
+func (r *ClientRequest) WithTexts(texts []string) *ClientRequest {
+	if len(texts) > 0 {
+		r.texts = texts
 	}
 	return r
 }
 
-// WithParams sets request-level parameters such as userID, sessionID, etc.
-// These parameters are useful for tracking and logging but don't affect embedding generation.
+// WithParams replaces the side-channel params map. Empty input is ignored.
 func (r *ClientRequest) WithParams(params map[string]any) *ClientRequest {
 	if len(params) > 0 {
 		r.params = params
@@ -85,7 +88,8 @@ func (r *ClientRequest) WithParams(params map[string]any) *ClientRequest {
 	return r
 }
 
-// MiddlewareManager returns the middleware manager, initializing a new one if needed.
+// MiddlewareManager returns the active manager, lazily allocating one
+// if none has been set yet.
 func (r *ClientRequest) MiddlewareManager() *MiddlewareManager {
 	if r.middlewareManager == nil {
 		r.middlewareManager = NewMiddlewareManager()
@@ -93,8 +97,8 @@ func (r *ClientRequest) MiddlewareManager() *MiddlewareManager {
 	return r.middlewareManager
 }
 
-// Clone creates a deep copy of the client request.
-// This is useful for creating multiple requests based on a common configuration.
+// Clone returns a deep copy. Middleware chain, options, texts, and
+// params are all duplicated so the caller can mutate independently.
 func (r *ClientRequest) Clone() *ClientRequest {
 	return &ClientRequest{
 		model:             r.model,
@@ -105,159 +109,149 @@ func (r *ClientRequest) Clone() *ClientRequest {
 	}
 }
 
-// getOptions returns the effective options for the embedding request,
-// merging request-specific options with model default settings.
-func (r *ClientRequest) getOptions() *Options {
-	var opts *Options
-
+// resolveOptions returns the effective [Options] for this call —
+// request-level options when supplied, otherwise a clone of the model's
+// defaults so the model's state stays untouched.
+func (r *ClientRequest) resolveOptions() *Options {
 	if r.options != nil {
-		opts = r.options.Clone()
-	} else {
-		opts = r.model.DefaultOptions().Clone()
+		return r.options.Clone()
 	}
-
-	return opts
+	return r.model.DefaultOptions().Clone()
 }
 
-// buildRequest constructs the final Request object from the client request configuration.
-// Returns an error if the request cannot be built (e.g., no texts provided).
+// buildRequest assembles the [*Request] sent through the middleware
+// chain to the underlying model.
 func (r *ClientRequest) buildRequest() (*Request, error) {
 	req, err := NewRequest(r.texts)
 	if err != nil {
 		return nil, err
 	}
-
-	req.Options = r.getOptions()
+	req.Options = r.resolveOptions()
 	req.Params = maps.Clone(r.params)
-
 	return req, nil
 }
 
-// Call prepares the request for execution and returns a ClientCaller for making the actual API call.
+// Call returns a [ClientCaller] for executing the request.
+//
+// Example:
+//
+//	resp, err := client.Embed().WithTexts([]string{"hi"}).Call().Response(ctx)
 func (r *ClientRequest) Call() *ClientCaller {
-	return &ClientCaller{
-		request: r,
-	}
+	return &ClientCaller{request: r}
 }
 
-// ClientCaller handles the execution of embedding requests and provides methods
-// for retrieving results in different formats.
+// ClientCaller drives the synchronous embedding path. Build it via
+// [ClientRequest.Call]; finish via [ClientCaller.Response],
+// [ClientCaller.Embedding], or [ClientCaller.Embeddings].
 type ClientCaller struct {
 	request *ClientRequest
 }
 
-// Response executes the embedding request and returns the complete response.
-// This includes all embedding results and metadata.
+// Response runs the call through the middleware chain and returns the
+// raw [*Response].
 func (c *ClientCaller) Response(ctx context.Context) (*Response, error) {
 	req, err := c.request.buildRequest()
 	if err != nil {
 		return nil, err
 	}
-	return c.
-		request.
+	return c.request.
 		MiddlewareManager().
 		BuildHandler(c.request.model).
 		Call(ctx, req)
 }
 
-// Embedding executes the request and returns only the first embedding vector.
-// This is a convenience method for single-input requests.
-// Returns the embedding vector, the full response, and any error encountered.
+// Embedding runs the call and returns the first embedding vector
+// alongside the full response — convenient for single-input requests.
 func (c *ClientCaller) Embedding(ctx context.Context) ([]float64, *Response, error) {
 	resp, err := c.Response(ctx)
 	if err != nil {
 		return nil, nil, err
 	}
-
 	return resp.Result().Embedding, resp, nil
 }
 
-// Embeddings executes the request and returns all embedding vectors.
-// This is useful for batch embedding requests with multiple texts.
-// Returns a slice of embedding vectors, the full response, and any error encountered.
+// Embeddings runs the call and returns every embedding vector in input
+// order — convenient for batch requests.
 func (c *ClientCaller) Embeddings(ctx context.Context) ([][]float64, *Response, error) {
 	resp, err := c.Response(ctx)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	embeddings := make([][]float64, 0, len(resp.Results))
+	out := make([][]float64, 0, len(resp.Results))
 	for _, result := range resp.Results {
-		embeddings = append(embeddings, result.Embedding)
+		out = append(out, result.Embedding)
 	}
-	return embeddings, resp, nil
+	return out, resp, nil
 }
 
-// Client provides a high-level interface for making embedding requests.
-// It maintains a default configuration that can be cloned and customized for each request.
+// Client wraps a [Model] with a sticky default [ClientRequest], so each
+// [Client.Embed] call clones a pre-configured starting point.
+//
+// Example:
+//
+//	client, err := embedding.NewClientWithModel(model)
+//	v, _, err := client.EmbedWithText("hello").Call().Embedding(ctx)
 type Client struct {
 	defaultRequest *ClientRequest
 }
 
-// NewClient creates a new embedding client with the specified default request configuration.
-// Returns an error if the request is nil.
+// NewClient wraps an existing [ClientRequest] as a sticky default.
+// Returns an error when request is nil.
 func NewClient(request *ClientRequest) (*Client, error) {
 	if request == nil {
-		return nil, errors.New("client request is required")
+		return nil, errors.New("embedding.NewClient: request must not be nil")
 	}
-	return &Client{
-		defaultRequest: request,
-	}, nil
+	return &Client{defaultRequest: request}, nil
 }
 
-// NewClientWithModel creates a new chat client with the specified model.
-// This is a convenience function that creates a default ClientRequest internally.
-// Returns an error if model is nil or request creation fails.
+// NewClientWithModel is a one-step constructor: build a default
+// [ClientRequest] for model, then wrap it as a [Client].
 func NewClientWithModel(model Model) (*Client, error) {
-	cliReq, err := NewClientRequest(model)
+	req, err := NewClientRequest(model)
 	if err != nil {
 		return nil, err
 	}
-	return NewClient(cliReq)
+	return NewClient(req)
 }
 
-// Embed returns a cloned client request based on the default configuration.
-// This allows for further customization before execution.
+// Embed returns a fresh clone of the default request, ready for fluent
+// configuration.
 func (c *Client) Embed() *ClientRequest {
 	return c.defaultRequest.Clone()
 }
 
-// EmbedWithRequest creates a client request from an existing Request object.
-// This allows for reusing previously configured requests with the client's settings.
+// EmbedWithRequest seeds a clone with the texts, options, and params
+// from req — useful when the caller already has an assembled [Request].
 func (c *Client) EmbedWithRequest(req *Request) *ClientRequest {
-	return c.
-		Embed().
+	return c.Embed().
 		WithTexts(req.Texts).
 		WithOptions(req.Options).
 		WithParams(req.Params)
 }
 
-// EmbedWithText creates a request to embed a single text string.
-// This is a convenience method that combines cloning and setting the input.
+// EmbedWithText is the shorthand for a single-input request.
 func (c *Client) EmbedWithText(text string) *ClientRequest {
 	return c.EmbedWithTexts([]string{text})
 }
 
-// EmbedWithTexts creates a request to embed multiple text strings.
-// This is a convenience method for batch embedding operations.
+// EmbedWithTexts is the shorthand for a batch request.
 func (c *Client) EmbedWithTexts(texts []string) *ClientRequest {
-	return c.
-		Embed().
-		WithTexts(texts)
+	return c.Embed().WithTexts(texts)
 }
 
-// EmbedWithDocument creates a client request for embedding a single document.
-// The document's text content will be used as the embedding input.
+// EmbedWithDocument is the document-shaped shorthand for
+// [Client.EmbedWithText].
 func (c *Client) EmbedWithDocument(doc *document.Document) *ClientRequest {
 	return c.EmbedWithText(doc.Text)
 }
 
-// EmbedWithDocuments creates a client request for embedding multiple documents.
-// Each document's text content will be extracted and embedded in order.
+// EmbedWithDocuments is the document-shaped shorthand for
+// [Client.EmbedWithTexts].
 func (c *Client) EmbedWithDocuments(docs []*document.Document) *ClientRequest {
-	contents := make([]string, 0, len(docs))
+	texts := make([]string, 0, len(docs))
 	for _, doc := range docs {
-		contents = append(contents, doc.Text)
+		texts = append(texts, doc.Text)
 	}
-	return c.EmbedWithTexts(contents)
+	return c.EmbedWithTexts(texts)
 }

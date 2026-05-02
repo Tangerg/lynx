@@ -9,21 +9,28 @@ import (
 	"github.com/Tangerg/lynx/core/model"
 )
 
-type CallHandler = model.CallHandler[*Request, *Response]
-type StreamHandler = model.StreamHandler[*Request, *Response]
-type CallHandlerFunc = model.CallHandlerFunc[*Request, *Response]
-type StreamHandlerFunc = model.StreamHandlerFunc[*Request, *Response]
-type CallMiddleware = model.CallMiddleware[*Request, *Response]
-type StreamMiddleware = model.StreamMiddleware[*Request, *Response]
-type MiddlewareManager = model.MiddlewareManager[*Request, *Response, *Request, *Response]
+// Type aliases threading TTS's *Request / *Response into the generic
+// [model] handler/middleware machinery. Both call and stream sides are
+// exposed; concrete providers may implement either or both.
+type (
+	CallHandler       = model.CallHandler[*Request, *Response]
+	StreamHandler     = model.StreamHandler[*Request, *Response]
+	CallHandlerFunc   = model.CallHandlerFunc[*Request, *Response]
+	StreamHandlerFunc = model.StreamHandlerFunc[*Request, *Response]
+	CallMiddleware    = model.CallMiddleware[*Request, *Response]
+	StreamMiddleware  = model.StreamMiddleware[*Request, *Response]
+	MiddlewareManager = model.MiddlewareManager[*Request, *Response, *Request, *Response]
+)
 
-// NewMiddlewareManager creates a new middleware manager for TTS requests
+// NewMiddlewareManager returns an empty [MiddlewareManager] keyed to
+// TTS's *Request / *Response pair.
 func NewMiddlewareManager() *MiddlewareManager {
 	return model.NewMiddlewareManager[*Request, *Response, *Request, *Response]()
 }
 
-// ClientRequest represents a fluent builder for constructing text-to-speech requests
-// It allows configuring the model, middlewares, options, text content, and additional parameters
+// ClientRequest is the fluent builder that turns a [Model] plus text and
+// options into a TTS call. Use [ClientRequest.Call] for synchronous
+// generation or [ClientRequest.Stream] for chunked output.
 type ClientRequest struct {
 	model             Model
 	middlewareManager *MiddlewareManager
@@ -32,20 +39,18 @@ type ClientRequest struct {
 	params            map[string]any
 }
 
-// NewClientRequest creates a new ClientRequest with the specified TTS model
-// Returns an error if the model is nil
+// NewClientRequest builds a [ClientRequest] for model. Returns an error
+// when model is nil.
 func NewClientRequest(model Model) (*ClientRequest, error) {
 	if model == nil {
-		return nil, errors.New("model is nil")
+		return nil, errors.New("tts.NewClientRequest: model must not be nil")
 	}
-	return &ClientRequest{
-		model: model,
-	}, nil
+	return &ClientRequest{model: model}, nil
 }
 
-// WithMiddlewares adds middlewares to the request
-// Accepts both CallMiddleware and StreamMiddleware types
-// Returns the ClientRequest for method chaining
+// WithMiddlewares replaces the entire middleware chain. Accepts both
+// call and stream middlewares — type assertion routes each to the
+// matching chain.
 func (r *ClientRequest) WithMiddlewares(middlewares ...any) *ClientRequest {
 	if len(middlewares) > 0 {
 		r.middlewareManager = NewMiddlewareManager().UseMiddlewares(middlewares...)
@@ -53,17 +58,16 @@ func (r *ClientRequest) WithMiddlewares(middlewares ...any) *ClientRequest {
 	return r
 }
 
-// WithMiddlewareManager sets a custom middleware manager for the request
-// Returns the ClientRequest for method chaining
-func (r *ClientRequest) WithMiddlewareManager(middlewareManager *MiddlewareManager) *ClientRequest {
-	if middlewareManager != nil {
-		r.middlewareManager = middlewareManager
+// WithMiddlewareManager replaces the underlying [MiddlewareManager].
+// nil is ignored.
+func (r *ClientRequest) WithMiddlewareManager(mgr *MiddlewareManager) *ClientRequest {
+	if mgr != nil {
+		r.middlewareManager = mgr
 	}
 	return r
 }
 
-// WithOptions sets the configuration options for the request
-// Returns the ClientRequest for method chaining
+// WithOptions sets the per-request [Options]. nil is ignored.
 func (r *ClientRequest) WithOptions(options *Options) *ClientRequest {
 	if options != nil {
 		r.options = options
@@ -71,8 +75,7 @@ func (r *ClientRequest) WithOptions(options *Options) *ClientRequest {
 	return r
 }
 
-// WithText sets the text content to be converted to speech
-// Returns the ClientRequest for method chaining
+// WithText sets the prompt text. Empty input is ignored.
 func (r *ClientRequest) WithText(text string) *ClientRequest {
 	if text != "" {
 		r.text = text
@@ -80,8 +83,7 @@ func (r *ClientRequest) WithText(text string) *ClientRequest {
 	return r
 }
 
-// WithParams sets additional parameters for the request
-// Returns the ClientRequest for method chaining
+// WithParams replaces the side-channel params map. Empty input is ignored.
 func (r *ClientRequest) WithParams(params map[string]any) *ClientRequest {
 	if len(params) > 0 {
 		r.params = params
@@ -89,8 +91,8 @@ func (r *ClientRequest) WithParams(params map[string]any) *ClientRequest {
 	return r
 }
 
-// MiddlewareManager returns the middleware manager for this request
-// Creates a new one if it doesn't exist
+// MiddlewareManager returns the active manager, lazily allocating one
+// if none has been set yet.
 func (r *ClientRequest) MiddlewareManager() *MiddlewareManager {
 	if r.middlewareManager == nil {
 		r.middlewareManager = NewMiddlewareManager()
@@ -98,7 +100,7 @@ func (r *ClientRequest) MiddlewareManager() *MiddlewareManager {
 	return r.middlewareManager
 }
 
-// Clone creates a deep copy of the ClientRequest
+// Clone returns a deep copy.
 func (r *ClientRequest) Clone() *ClientRequest {
 	return &ClientRequest{
 		model:             r.model,
@@ -109,70 +111,69 @@ func (r *ClientRequest) Clone() *ClientRequest {
 	}
 }
 
-// getOptions returns the options to use for the request
-// Uses the explicitly set options if available, otherwise falls back to model defaults
-func (r *ClientRequest) getOptions() *Options {
-	var opts *Options
-
+// resolveOptions returns the effective [Options] for this call —
+// request-level options when supplied, otherwise a clone of the model's
+// defaults.
+func (r *ClientRequest) resolveOptions() *Options {
 	if r.options != nil {
-		opts = r.options.Clone()
-	} else {
-		opts = r.model.DefaultOptions().Clone()
+		return r.options.Clone()
 	}
-
-	return opts
+	return r.model.DefaultOptions().Clone()
 }
 
-// buildRequest constructs the final Request object from the ClientRequest configuration
-// Returns an error if the text is invalid
+// buildRequest assembles the [*Request] sent through the middleware
+// chain to the underlying model.
 func (r *ClientRequest) buildRequest() (*Request, error) {
 	req, err := NewRequest(r.text)
 	if err != nil {
 		return nil, err
 	}
-
-	req.Options = r.getOptions()
+	req.Options = r.resolveOptions()
 	req.Params = maps.Clone(r.params)
-
 	return req, nil
 }
 
-// Call creates a ClientCaller to execute the TTS request synchronously
+// Call returns a [ClientCaller] for synchronous generation.
+//
+// Example:
+//
+//	audio, _, err := client.Synthesize().WithText("hi").Call().Speech(ctx)
 func (r *ClientRequest) Call() *ClientCaller {
-	return &ClientCaller{
-		request: r,
-	}
+	return &ClientCaller{request: r}
 }
 
-// Stream creates a ClientStreamer to execute the TTS request in streaming mode
+// Stream returns a [ClientStreamer] for incremental generation.
+//
+// Example:
+//
+//	for chunk, err := range client.Synthesize().WithText("hi").Stream().Speech(ctx) {
+//	    if err != nil { return err }
+//	    write(chunk)
+//	}
 func (r *ClientRequest) Stream() *ClientStreamer {
-	return &ClientStreamer{
-		request: r,
-	}
+	return &ClientStreamer{request: r}
 }
 
-// ClientCaller handles the synchronous execution of TTS requests and provides various
-// methods to retrieve different aspects of the speech generation response
+// ClientCaller drives the synchronous TTS path.
 type ClientCaller struct {
 	request *ClientRequest
 }
 
-// Response executes the TTS request and returns the complete response
-// Returns an error if the request fails or validation fails
+// Response runs the call through the middleware chain and returns the
+// raw [*Response].
 func (c *ClientCaller) Response(ctx context.Context) (*Response, error) {
 	req, err := c.request.buildRequest()
 	if err != nil {
 		return nil, err
 	}
-	return c.
-		request.
+	return c.request.
 		MiddlewareManager().
 		BuildCallHandler(c.request.model).
 		Call(ctx, req)
 }
 
-// Speech executes the request and returns the first speech audio data along with the full response
-// Returns an error if the request fails
+// Speech runs the call and returns the first audio chunk alongside the
+// full response.
 func (c *ClientCaller) Speech(ctx context.Context) ([]byte, *Response, error) {
 	resp, err := c.Response(ctx)
 	if err != nil {
@@ -181,23 +182,20 @@ func (c *ClientCaller) Speech(ctx context.Context) ([]byte, *Response, error) {
 	return resp.Result().Speech, resp, nil
 }
 
-// ClientStreamer handles the streaming execution of TTS requests and provides
-// iterator-based access to progressive speech generation responses
+// ClientStreamer drives the streaming TTS path.
 type ClientStreamer struct {
 	request *ClientRequest
 }
 
-// stream executes the streaming request and returns an iterator of responses
+// stream feeds the request through the middleware chain into the model.
 func (s *ClientStreamer) stream(ctx context.Context, req *Request) iter.Seq2[*Response, error] {
-	return s.
-		request.
+	return s.request.
 		MiddlewareManager().
 		BuildStreamHandler(s.request.model).
 		Stream(ctx, req)
 }
 
-// Response executes the TTS request in streaming mode and returns an iterator of responses
-// Each iteration yields a response chunk or an error
+// Response yields full [*Response] chunks as they arrive.
 func (s *ClientStreamer) Response(ctx context.Context) iter.Seq2[*Response, error] {
 	return func(yield func(*Response, error) bool) {
 		req, err := s.request.buildRequest()
@@ -211,7 +209,6 @@ func (s *ClientStreamer) Response(ctx context.Context) iter.Seq2[*Response, erro
 				yield(nil, streamErr)
 				return
 			}
-
 			if !yield(resp, nil) {
 				return
 			}
@@ -219,8 +216,8 @@ func (s *ClientStreamer) Response(ctx context.Context) iter.Seq2[*Response, erro
 	}
 }
 
-// Speech executes the request in streaming mode and returns an iterator of speech audio chunks
-// Each iteration yields an audio data chunk or an error
+// Speech yields just the audio bytes — convenient when the caller wants
+// to pipe directly to a player or file.
 func (s *ClientStreamer) Speech(ctx context.Context) iter.Seq2[[]byte, error] {
 	return func(yield func([]byte, error) bool) {
 		for resp, err := range s.Response(ctx) {
@@ -235,56 +232,45 @@ func (s *ClientStreamer) Speech(ctx context.Context) iter.Seq2[[]byte, error] {
 	}
 }
 
-// Client provides a high-level interface for making text-to-speech requests
-// It maintains a default request configuration that can be cloned and customized
-// Supports both synchronous and streaming speech generation
+// Client wraps a [Model] with a sticky default [ClientRequest], so each
+// [Client.Synthesize] call clones a pre-configured starting point.
 type Client struct {
 	defaultRequest *ClientRequest
 }
 
-// NewClient creates a new Client with the specified default request configuration
-// Returns an error if the request is nil
+// NewClient wraps an existing [ClientRequest] as a sticky default.
+// Returns an error when request is nil.
 func NewClient(request *ClientRequest) (*Client, error) {
 	if request == nil {
-		return nil, errors.New("client request is required")
+		return nil, errors.New("tts.NewClient: request must not be nil")
 	}
-	return &Client{
-		defaultRequest: request,
-	}, nil
+	return &Client{defaultRequest: request}, nil
 }
 
-// NewClientWithModel creates a new Client with a default request using the specified model
-// Returns an error if the model is invalid
+// NewClientWithModel is a one-step constructor.
 func NewClientWithModel(model Model) (*Client, error) {
-	cliReq, err := NewClientRequest(model)
+	req, err := NewClientRequest(model)
 	if err != nil {
 		return nil, err
 	}
-	return NewClient(cliReq)
+	return NewClient(req)
 }
 
-// Synthesize creates a new ClientRequest by cloning the default request configuration
-// This is the starting point for building a customized TTS request
+// Synthesize returns a fresh clone of the default request.
 func (c *Client) Synthesize() *ClientRequest {
-	return c.
-		defaultRequest.
-		Clone()
+	return c.defaultRequest.Clone()
 }
 
-// SynthesizeWithRequest creates a ClientRequest from an existing Request object
-// Copies the text, options, and params from the provided request
-func (c *Client) SynthesizeWithRequest(request *Request) *ClientRequest {
-	return c.
-		Synthesize().
-		WithText(request.Text).
-		WithOptions(request.Options).
-		WithParams(request.Params)
+// SynthesizeWithRequest seeds a clone with the text, options, and
+// params from req.
+func (c *Client) SynthesizeWithRequest(req *Request) *ClientRequest {
+	return c.Synthesize().
+		WithText(req.Text).
+		WithOptions(req.Options).
+		WithParams(req.Params)
 }
 
-// SynthesizeWithText creates a ClientRequest for generating speech from a single text input
-// This is a convenience method for simple TTS tasks
+// SynthesizeWithText is the most common shortcut.
 func (c *Client) SynthesizeWithText(text string) *ClientRequest {
-	return c.
-		Synthesize().
-		WithText(text)
+	return c.Synthesize().WithText(text)
 }

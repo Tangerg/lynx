@@ -7,30 +7,25 @@ import (
 	"github.com/Tangerg/lynx/pkg/assert"
 )
 
-// dimensionsStore is a thread-safe cache that stores the embedding dimensions
-// for each model. The key is the full model identifier (provider:model),
-// and the value is the dimension count as int64.
+// dimensionsStore caches the dimension count per "provider:model" key
+// so [GetDimensions] doesn't need to round-trip the provider on every
+// call.
 var dimensionsStore sync.Map
 
-// GetDimensions retrieves the embedding dimension size for a given model.
-// It uses a cache to avoid redundant API calls for the same model.
+// GetDimensions reports how many components an embedding from the given
+// model has. The first call probes the provider with a one-token "test"
+// input and caches the answer; subsequent calls are O(1).
 //
-// Parameters:
-//   - ctx: The context for handling cancellation and timeouts
-//   - model: The embedding model to query
+// Returns 0 when the probe call fails — callers should treat 0 as
+// "unknown" rather than a real dimension count.
 //
-// Returns:
-//   - int64: The dimension size of the embedding vectors produced by the model.
-//     Returns 0 if an error occurs during the embedding call.
+// Example:
 //
-// The function first checks the cache (dimensionsStore) for the model's dimensions.
-// If not found, it makes a test embedding call with the text "test" to determine
-// the dimension size, then caches the result for future use.
+//	d := embedding.GetDimensions(ctx, openaiEmbedding) // → 1536
 func GetDimensions(ctx context.Context, model Model) int64 {
-	fullModel := model.Info().Provider + ":" + model.DefaultOptions().Model
+	cacheKey := model.Info().Provider + ":" + model.DefaultOptions().Model
 
-	value, ok := dimensionsStore.Load(fullModel)
-	if ok {
+	if value, ok := dimensionsStore.Load(cacheKey); ok {
 		return value.(int64)
 	}
 
@@ -40,8 +35,6 @@ func GetDimensions(ctx context.Context, model Model) int64 {
 	}
 
 	dimensions := int64(len(resp.Result().Embedding))
-
-	dimensionsStore.Store(fullModel, dimensions)
-
+	dimensionsStore.Store(cacheKey, dimensions)
 	return dimensions
 }

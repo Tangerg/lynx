@@ -7,39 +7,39 @@ import (
 	"github.com/Tangerg/lynx/pkg/mime"
 )
 
-// ModalityType represents the type of content that can be embedded.
+// ModalityType labels the source content an embedding represents.
+// Most callers see [Text]; image / audio / video embeddings are emitted
+// by multimodal providers.
 type ModalityType string
 
 const (
-	// Text represents textual content for embedding.
+	// Text is the textual modality.
 	Text ModalityType = "text"
-
-	// Image represents image content for embedding.
+	// Image is the image modality.
 	Image ModalityType = "image"
-
-	// Audio represents audio content for embedding.
+	// Audio is the audio modality.
 	Audio ModalityType = "audio"
-
-	// Video represents video content for embedding.
+	// Video is the video modality.
 	Video ModalityType = "video"
 )
 
-func (m ModalityType) String() string {
-	return string(m)
-}
+func (m ModalityType) String() string { return string(m) }
 
-// ResultMetadata contains metadata information about an individual embedding result.
+// ResultMetadata holds per-embedding metadata: where in the input list
+// the embedding came from, what kind of content produced it, and any
+// provider extras.
 type ResultMetadata struct {
-	// Index represents the position of this result in the original input list.
+	// Index is the position of this result in the input list.
 	Index int64 `json:"index"`
 
-	// ModalityType indicates the type of content that was embedded (text, image, audio, or video).
+	// ModalityType labels the source content type.
 	ModalityType ModalityType `json:"modality_type"`
 
-	// MimeType specifies the MIME type of the original content, if applicable.
+	// MimeType identifies the MIME type of the original content. nil
+	// when the modality is plain text or the provider did not surface it.
 	MimeType *mime.MIME `json:"mime_type"`
 
-	// Extra holds provider-specific metadata that is not part of the standard fields.
+	// Extra carries provider-specific metadata.
 	Extra map[string]any `json:"extra"`
 }
 
@@ -49,58 +49,57 @@ func (r *ResultMetadata) ensureExtra() {
 	}
 }
 
+// Get returns the Extra value for key plus an existence flag.
 func (r *ResultMetadata) Get(key string) (any, bool) {
 	r.ensureExtra()
 	value, exists := r.Extra[key]
 	return value, exists
 }
 
+// Set stores value under key in Extra.
 func (r *ResultMetadata) Set(key string, value any) {
 	r.ensureExtra()
 	r.Extra[key] = value
 }
 
-// Result represents a single embedding vector along with its associated metadata.
+// Result is one embedding plus its metadata.
 type Result struct {
-	// Embedding contains the vector representation as a slice of floating-point numbers.
+	// Embedding is the vector representation of the input.
 	Embedding []float64 `json:"embedding"`
 
-	// Metadata provides additional information about this embedding result.
+	// Metadata carries the source position, modality, and any extras.
 	Metadata *ResultMetadata `json:"metadata"`
 }
 
-// NewResult creates a new embedding result with the given embedding vector and metadata.
-// Returns an error if the embedding is empty or if metadata is nil.
+// NewResult builds a [Result]. Returns an error when the embedding is
+// empty or metadata is nil.
 func NewResult(embedding []float64, metadata *ResultMetadata) (*Result, error) {
 	if len(embedding) == 0 {
-		return nil, errors.New("embedding cannot be empty")
+		return nil, errors.New("embedding.NewResult: embedding vector must not be empty")
 	}
-
 	if metadata == nil {
-		return nil, errors.New("metadata cannot be nil")
+		return nil, errors.New("embedding.NewResult: metadata must not be nil")
 	}
-
-	return &Result{
-		Embedding: embedding,
-		Metadata:  metadata,
-	}, nil
+	return &Result{Embedding: embedding, Metadata: metadata}, nil
 }
 
-// ResponseMetadata contains metadata information about the entire embedding response.
+// ResponseMetadata holds response-level metadata: the model actually
+// used, token usage, rate-limit state, creation time, and provider
+// extras.
 type ResponseMetadata struct {
-	// Model identifies which embedding model was used to generate the embeddings.
+	// Model is the model name actually served.
 	Model string `json:"model"`
 
-	// Usage contains token usage statistics for the embedding request.
+	// Usage breaks down token consumption.
 	Usage *model.Usage `json:"usage"`
 
-	// RateLimit provides information about API rate limit status.
+	// RateLimit reports quota state at request time.
 	RateLimit *model.RateLimit `json:"rate_limit"`
 
-	// Created is the Unix timestamp indicating when the embeddings were generated.
+	// Created is the provider-reported creation time, Unix seconds.
 	Created int64 `json:"created"`
 
-	// Extra holds provider-specific metadata that is not part of the standard fields.
+	// Extra carries provider-specific metadata.
 	Extra map[string]any `json:"extra"`
 }
 
@@ -110,52 +109,46 @@ func (r *ResponseMetadata) ensureExtra() {
 	}
 }
 
+// Get returns the Extra value for key plus an existence flag.
 func (r *ResponseMetadata) Get(key string) (any, bool) {
 	r.ensureExtra()
 	value, exists := r.Extra[key]
 	return value, exists
 }
 
+// Set stores value under key in Extra.
 func (r *ResponseMetadata) Set(key string, value any) {
 	r.ensureExtra()
 	r.Extra[key] = value
 }
 
-// Response represents the complete response from an embedding request,
-// containing multiple embedding results and response-level metadata.
+// Response is the full embedding result: one [*Result] per input plus
+// shared response metadata.
 type Response struct {
-	// Results contains all the embedding vectors generated from the input texts.
-	// Each result corresponds to one input item in the original request.
+	// Results holds one entry per input text, in the same order.
 	Results []*Result `json:"results"`
 
-	// Metadata provides information about the embedding generation process.
+	// Metadata carries shared response-level fields.
 	Metadata *ResponseMetadata `json:"metadata"`
 }
 
-// NewResponse creates a new embedding response with the given results and metadata.
-// Returns an error if results is empty or if metadata is nil.
+// NewResponse builds a [Response] from at least one result and a
+// non-nil metadata.
 func NewResponse(results []*Result, metadata *ResponseMetadata) (*Response, error) {
 	if len(results) == 0 {
-		return nil, errors.New("results cannot be empty: at least one result is required")
+		return nil, errors.New("embedding.NewResponse: at least one Result is required")
 	}
-
 	if metadata == nil {
-		return nil, errors.New("metadata cannot be nil")
+		return nil, errors.New("embedding.NewResponse: metadata must not be nil")
 	}
-
-	return &Response{
-		Results:  results,
-		Metadata: metadata,
-	}, nil
+	return &Response{Results: results, Metadata: metadata}, nil
 }
 
-// Result returns the first embedding result from the response.
-// This is a convenience method for single-input embedding requests.
-// Returns nil if the response contains no results.
+// Result returns the first generation alternative — the common
+// "give me the embedding" shortcut. Returns nil when Results is empty.
 func (r *Response) Result() *Result {
-	if len(r.Results) > 0 {
-		return r.Results[0]
+	if len(r.Results) == 0 {
+		return nil
 	}
-
-	return nil
+	return r.Results[0]
 }
