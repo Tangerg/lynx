@@ -105,15 +105,15 @@ class IntentAgent {
 }
 ```
 
-**Go 无对应物**。三种替代方案：
+**Go 无对应物**。框架提供唯一入口 — Fluent DSL：
 
-| 方案 | 写法 | 优缺点 |
-|-----|------|-------|
-| **A. Fluent DSL（推荐）** | `agent.New("...").Action(...)...` | ✅ 显式、可调试、无魔法；⚠️ 略冗长 |
-| **B. Struct + 反射** | 定义 struct，方法名/标签约定为 Action | ✅ 接近注解体验；⚠️ 反射慢、类型检查弱 |
-| **C. 代码生成** | `//go:generate lynx-agent-gen` 扫描 marker 注释 | ✅ 零运行时开销；⚠️ 增加构建复杂度 |
+```go
+agent.New("...").Actions(...).Goals(...)
+```
 
-**决策**：**三种都支持，但 DSL 是一等公民**（文档、示例、测试都以 DSL 为主）。详见 `04-user-api.md`。
+✅ 显式、可调试、无魔法；⚠️ 略冗长。
+
+反射注册（struct + 方法名约定）和代码生成（`//go:generate` 扫描 marker）都被有意识地放弃了 — 见 `04-user-api.md` 末节的 rationale：错误推迟到运行时、IDE 重构失效、命名约定成为隐藏契约的代价远超带来的便利。
 
 ### 3.2 反射方法调用
 
@@ -128,11 +128,12 @@ class IntentAgent {
 - 核心路径**不走反射**——用**泛型函数 + 闭包**捕获类型：
   ```go
   // 注册时用泛型函数，编译期生成专用 adapter
-  agent.Action("classify", func(ctx context.Context, input UserInput) (Intent, error) {
-      ...
-  })
+  agent.New("...").Actions(agent.NewAction("classify",
+      func(ctx context.Context, pc *core.ProcessContext, input UserInput) (Intent, error) {
+          ...
+      },
+  ))
   ```
-- struct 反射方案**只在便利层**用一次反射扫描，生成闭包后缓存，运行时调用闭包。
 
 ### 3.3 Spring DI 依赖注入
 

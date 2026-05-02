@@ -1,8 +1,7 @@
-// Package dsl is the user-facing fluent builder for assembling agents. It
-// is the recommended way to define agents — explicit, type-safe, no
-// reflection at runtime. The reflect/ subpackage offers a struct-method-
-// driven alternative for users porting from Spring/Java; codegen would be
-// a no-reflection alternative if/when shipped.
+// Package dsl is the user-facing fluent builder for assembling agents — the
+// only entry point for defining an agent. Explicit, type-safe, no reflection
+// at runtime; chosen over reflect-based registration so signature errors
+// surface at compile time and IDE refactoring tools stay accurate.
 package dsl
 
 import "github.com/Tangerg/lynx/agent/core"
@@ -61,25 +60,13 @@ func (b *Builder) StuckHandler(h core.StuckHandler) *Builder {
 	return b
 }
 
-// Action appends an Action.
-func (b *Builder) Action(a core.Action) *Builder {
-	b.actions = append(b.actions, a)
-	return b
-}
-
-// Actions appends multiple actions in one call.
+// Actions appends one or more actions.
 func (b *Builder) Actions(actions ...core.Action) *Builder {
 	b.actions = append(b.actions, actions...)
 	return b
 }
 
-// Goal appends a Goal.
-func (b *Builder) Goal(g *core.Goal) *Builder {
-	b.goals = append(b.goals, g)
-	return b
-}
-
-// Goals appends multiple goals in one call.
+// Goals appends one or more goals.
 func (b *Builder) Goals(goals ...*core.Goal) *Builder {
 	b.goals = append(b.goals, goals...)
 	return b
