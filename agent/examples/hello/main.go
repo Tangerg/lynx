@@ -11,6 +11,7 @@ import (
 
 	"github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/core"
+	"github.com/Tangerg/lynx/agent/runtime"
 )
 
 // CountResult is what the agent ultimately produces — the goal references it
@@ -20,8 +21,10 @@ type CountResult struct {
 }
 
 func main() {
-	a := agent.New("Hello").
-		Description("count uppercase characters of a phrase").
+	a := agent.New(core.AgentMeta{
+		Name:        "Hello",
+		Description: "count uppercase characters of a phrase",
+	}).
 		Actions(agent.NewAction("count_upper",
 			func(ctx context.Context, pc *core.ProcessContext, in string) (CountResult, error) {
 				upper := strings.ToUpper(in)
@@ -29,10 +32,10 @@ func main() {
 			},
 			core.ActionConfig{},
 		)).
-		Goals(agent.GoalProducing[CountResult]("uppercase length determined")).
+		Goals(agent.GoalProducing[CountResult](core.Goal{Description: "uppercase length determined"})).
 		Build()
 
-	platform := agent.NewPlatform()
+	platform := agent.NewPlatform(runtime.PlatformConfig{})
 	if err := platform.Deploy(a); err != nil {
 		log.Fatal(err)
 	}

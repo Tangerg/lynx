@@ -792,13 +792,13 @@ type ToolGroupResolver interface {
 
 **DSL 集成示意**：
 ```go
-a := agent.New("researcher").
-    RequiresToolGroup(agent.ToolGroupRequirement{
+a := agent.New(core.AgentMeta{Name: "researcher"}).
+    RequiresToolGroups(core.ToolGroupRequirement{
         Role:             "web_search",
-        TerminationScope: agent.TerminationScopeAction,
+        TerminationScope: core.TerminationScopeAction,
     }).
-    Action("search", searchFn).
-    Goal("report", reportFn).
+    Actions(agent.NewAction("search", searchFn, core.ActionConfig{})).
+    Goals(agent.GoalProducing[Report](core.Goal{Description: "report"})).
     Build()
 ```
 

@@ -56,37 +56,30 @@ func (g *Goal) Value(ws WorldState) float64 {
 	return g.ValueStatic
 }
 
-// NewGoal is the basic constructor — name + description; everything else
-// gets filled via WithXxx.
-func NewGoal(name, description string) *Goal {
-	return &Goal{Name: name, Description: description, ValueStatic: 1.0}
-}
-
 // GoalProducing builds a Goal whose precondition is "an artifact of type T
 // exists on the blackboard". This is by far the most common shape — it's
-// what "produce a BlogPost" looks like in DSL form.
-func GoalProducing[T any](description string) *Goal {
+// what "produce a BlogPost" looks like in DSL form. The supplied template's
+// scalar fields (Description, Tags, Examples, Pre, Value, Export, …) are
+// preserved; Name/Inputs/OutputType/ValueStatic are derived from T when
+// the template leaves them at the zero value.
+//
+// Build a goal with non-default fields by passing a literal:
+//
+//	core.GoalProducing[BlogPost](core.Goal{
+//	    Description: "blog post produced",
+//	    ValueStatic: 0.8,
+//	})
+func GoalProducing[T any](g Goal) *Goal {
 	rt := reflect.TypeOf((*T)(nil)).Elem()
 	typeName := TypeFullName(rt)
-	return &Goal{
-		Name:        "produce_" + typeName,
-		Description: description,
-		Inputs:      []IoBinding{NewIoBinding[T](DefaultBinding)},
-		OutputType:  &typeName,
-		ValueStatic: 1.0,
+
+	if g.Name == "" {
+		g.Name = "produce_" + typeName
 	}
+	g.Inputs = append(g.Inputs, NewIoBinding[T](DefaultBinding))
+	g.OutputType = &typeName
+	if g.ValueStatic == 0 && g.ValueFn == nil {
+		g.ValueStatic = 1.0
+	}
+	return &g
 }
-
-// Fluent setters — Goals are "values" in spirit; each WithXxx returns the
-// pointer for chainability without copying since modifications are local
-// to the construction phase.
-
-func (g *Goal) WithName(n string) *Goal             { g.Name = n; return g }
-func (g *Goal) WithDescription(d string) *Goal      { g.Description = d; return g }
-func (g *Goal) WithPre(p ...string) *Goal           { g.Pre = append(g.Pre, p...); return g }
-func (g *Goal) WithInputs(b ...IoBinding) *Goal     { g.Inputs = append(g.Inputs, b...); return g }
-func (g *Goal) WithValue(v float64) *Goal           { g.ValueStatic = v; return g }
-func (g *Goal) WithValueFn(fn CostFunc) *Goal       { g.ValueFn = fn; return g }
-func (g *Goal) WithTags(t ...string) *Goal          { g.Tags = append(g.Tags, t...); return g }
-func (g *Goal) WithExamples(e ...string) *Goal      { g.Examples = append(g.Examples, e...); return g }
-func (g *Goal) WithExport(e ExportConfig) *Goal     { g.Export = e; return g }

@@ -42,77 +42,79 @@ type Platform struct {
 	services *core.ServiceProvider
 }
 
-// PlatformOption is the functional-options type for NewPlatform.
-type PlatformOption func(*Platform)
+// PlatformConfig is the construction-time configuration for [NewPlatform].
+// All fields are optional — pass a zero PlatformConfig{} for the default
+// platform. Per-agent service slots (Chat, RAG, VectorStore, Tools) are
+// merged into a fresh [core.ServiceProvider] unless a pre-built
+// ServiceProvider is supplied.
+type PlatformConfig struct {
+	// Chat is the default LLM client. The platform doesn't refuse
+	// construction without one because integration tests often run
+	// agents that never call the LLM.
+	Chat core.ChatClient
 
-// NewPlatform returns a fresh Platform. Defaults: A* planner factory, empty
-// service provider, UUID id generator. Override via options.
-func NewPlatform(opts ...PlatformOption) *Platform {
+	// RAG is the optional retrieval-augmented-generation client.
+	RAG core.RAGClient
+
+	// VectorStore is the optional embedding store used by RAG.
+	VectorStore core.VectorStore
+
+	// Tools resolves agent-level [ToolGroupRequirement]s into runnable
+	// tools.
+	Tools core.ToolGroupResolver
+
+	// ServiceProvider, when non-nil, replaces the per-field Chat/RAG/
+	// VectorStore/Tools entries entirely. Use it to share one service
+	// graph across multiple platforms.
+	ServiceProvider *core.ServiceProvider
+
+	// PlannerFactory overrides the default A* GOAP planner factory.
+	PlannerFactory PlannerFactory
+
+	// IDGenerator overrides the default UUID-v4 process ID generator —
+	// useful for tests that want deterministic IDs.
+	IDGenerator IDGenerator
+
+	// Listeners are attached to the platform's event multicast at
+	// construction time. [Platform.AddListener] adds more later.
+	Listeners []event.Listener
+}
+
+// NewPlatform returns a fresh Platform from cfg. Zero-valued cfg fields
+// fall back to defaults: A* planner factory, fresh service provider,
+// UUID-v4 id generator, no pre-attached listeners.
+func NewPlatform(cfg PlatformConfig) *Platform {
+	services := cfg.ServiceProvider
+	if services == nil {
+		services = core.NewServiceProvider()
+		services.Chat = cfg.Chat
+		services.RAG = cfg.RAG
+		services.VectorStore = cfg.VectorStore
+		services.Tools = cfg.Tools
+	}
+
+	plannerFactory := cfg.PlannerFactory
+	if plannerFactory == nil {
+		plannerFactory = DefaultPlannerFactory()
+	}
+
+	idGen := cfg.IDGenerator
+	if idGen == nil {
+		idGen = NewUUIDIDGenerator()
+	}
+
 	p := &Platform{
 		agents:         map[string]*core.Agent{},
 		procs:          map[string]*AgentProcess{},
-		plannerFactory: DefaultPlannerFactory(),
+		plannerFactory: plannerFactory,
 		events:         event.NewMulticast(),
-		idGen:          NewUUIDIDGenerator(),
-		services:       core.NewServiceProvider(),
+		idGen:          idGen,
+		services:       services,
 	}
-	for _, opt := range opts {
-		opt(p)
+	for _, l := range cfg.Listeners {
+		p.events.Add(l)
 	}
 	return p
-}
-
-// WithChatClient attaches an LLM client. Most agents will need one — the
-// platform doesn't refuse construction without it because integration tests
-// often run agents that never call the LLM.
-func WithChatClient(c core.ChatClient) PlatformOption {
-	return func(p *Platform) { p.services.Chat = c }
-}
-
-func WithRAG(r core.RAGClient) PlatformOption {
-	return func(p *Platform) { p.services.RAG = r }
-}
-
-func WithVectorStore(v core.VectorStore) PlatformOption {
-	return func(p *Platform) { p.services.VectorStore = v }
-}
-
-func WithToolGroupResolver(r core.ToolGroupResolver) PlatformOption {
-	return func(p *Platform) { p.services.Tools = r }
-}
-
-// WithServiceProvider replaces the entire service-provider pointer.
-func WithServiceProvider(sp *core.ServiceProvider) PlatformOption {
-	return func(p *Platform) {
-		if sp == nil {
-			return
-		}
-		p.services = sp
-	}
-}
-
-func WithPlannerFactory(f PlannerFactory) PlatformOption {
-	return func(p *Platform) {
-		if f == nil {
-			return
-		}
-		p.plannerFactory = f
-	}
-}
-
-func WithIDGenerator(g IDGenerator) PlatformOption {
-	return func(p *Platform) {
-		if g == nil {
-			return
-		}
-		p.idGen = g
-	}
-}
-
-// WithListener pre-registers a listener at construction time — same effect
-// as Platform.AddListener but composes into the option list.
-func WithListener(l event.Listener) PlatformOption {
-	return func(p *Platform) { p.events.Add(l) }
 }
 
 // AddListener registers an event listener. Listeners are delivered in

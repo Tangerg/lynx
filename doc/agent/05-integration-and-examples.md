@@ -336,12 +336,13 @@ import (
 )
 
 func NewBlogAgent() *core.Agent {
-    return agent.New("BlogAgent").
-        Description("Generate a well-researched blog post on a given topic").
-        Version("1.0.0").
-
+    return agent.New(core.AgentMeta{
+        Name:        "BlogAgent",
+        Description: "Generate a well-researched blog post on a given topic",
+        Version:     semver.MustParse("1.0.0"),
+    }).
         // 研究：从 Topic 得到 Research
-        Action(core.NewAction("research",
+        Actions(core.NewAction("research",
             func(ctx context.Context, pc *core.ProcessContext, topic Topic) (Research, error) {
                 ctx, obs := pc.Observe(ctx, "blog.research")
                 defer obs.End()
@@ -356,12 +357,14 @@ func NewBlogAgent() *core.Agent {
                 }
                 return Research{Topic: topic, Sources: sources}, nil
             },
-            core.WithToolGroups("web"),
-            core.WithQoS(core.ActionQos{MaxAttempts: 3}),
+            core.ActionConfig{
+                ToolGroups: core.ToolRolesFor("web"),
+                QoS:        core.ActionQos{MaxAttempts: 3},
+            },
         )).
 
         // 大纲：从 Topic 得到 Outline（独立可并行）
-        Action(core.NewAction("outline",
+        Actions(core.NewAction("outline",
             func(ctx context.Context, pc *core.ProcessContext, topic Topic) (Outline, error) {
                 parser := chat.NewJSONParser[Outline]()
                 result, _, err := pc.LLM().
@@ -371,10 +374,11 @@ func NewBlogAgent() *core.Agent {
                 if err != nil { return Outline{}, err }
                 return result, nil
             },
+            core.ActionConfig{},
         )).
 
         // 写作：综合 Research + Outline 输出 BlogPost
-        Action(core.NewAction("write",
+        Actions(core.NewAction("write",
             func(ctx context.Context, pc *core.ProcessContext, _ WriteInput) (BlogPost, error) {
                 // WriteInput 是聚合类型（下面解释）
                 outline, _ := core.Get[Outline](pc.Blackboard, core.DefaultBinding)
@@ -392,12 +396,14 @@ func NewBlogAgent() *core.Agent {
                 }, nil
             },
             // 显式声明依赖 Outline 和 Research（黑板必须同时有二者才可执行）
-            core.WithPre("it:blog.Outline", "it:blog.Research"),
+            core.ActionConfig{Pre: []string{"it:blog.Outline", "it:blog.Research"}},
         )).
 
         // 目标：产出一篇 BlogPost
-        Goal(core.GoalProducing[BlogPost]("A complete blog post with citations").
-            WithValue(1.0)).
+        Goals(core.GoalProducing[BlogPost](core.Goal{
+            Description: "A complete blog post with citations",
+            ValueStatic: 1.0,
+        })).
 
         Build()
 }
@@ -428,11 +434,10 @@ func main() {
     defer tp.Shutdown(ctx)
 
     // 2. Agent Platform
-    platform := agent.NewPlatform(
-        agent.WithChatClient(chatClient),
-        agent.WithServices(&core.ServiceProvider{RAG: ragPipeline}),
-        agent.WithProcessType(core.ProcessSimple),  // 先用顺序模式
-    )
+    platform := agent.NewPlatform(runtime.PlatformConfig{
+        Chat:            chatClient,
+        ServiceProvider: &core.ServiceProvider{RAG: ragPipeline},
+    })
 
     // 3. 部署 Agent
     blogAgent := blog.NewBlogAgent()
@@ -442,7 +447,7 @@ func main() {
     topic := blog.Topic{Title: "GOAP in Go agent frameworks", Audience: "Go developers"}
     proc, err := platform.RunAgent(ctx, blogAgent, map[string]any{
         "it": topic,  // 绑定到默认 "it"
-    })
+    }, core.ProcessOptions{ProcessType: core.ProcessSimple})  // 先用顺序模式
     if err != nil { log.Fatal(err) }
 
     // 5. 取结果

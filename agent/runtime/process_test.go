@@ -6,6 +6,7 @@ import (
 
 	"github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/core"
+	"github.com/Tangerg/lynx/agent/runtime"
 )
 
 type word struct{ Text string }
@@ -15,17 +16,17 @@ type wordCount struct{ Count int }
 // action, one goal. Ensures the planner finds the (single) action and the
 // runtime executes it to completion.
 func TestRunSingleAction(t *testing.T) {
-	a := agent.New("test").
+	a := agent.New(core.AgentMeta{Name: "test"}).
 		Actions(agent.NewAction("count",
 			func(ctx context.Context, pc *core.ProcessContext, in word) (wordCount, error) {
 				return wordCount{Count: len(in.Text)}, nil
 			},
 			core.ActionConfig{},
 		)).
-		Goals(agent.GoalProducing[wordCount]("word counted")).
+		Goals(agent.GoalProducing[wordCount](core.Goal{Description: "word counted"})).
 		Build()
 
-	platform := agent.NewPlatform()
+	platform := agent.NewPlatform(runtime.PlatformConfig{})
 	if err := platform.Deploy(a); err != nil {
 		t.Fatal(err)
 	}
@@ -58,7 +59,7 @@ func TestRunMultiStepPlanning(t *testing.T) {
 	type stage2 struct{ V int }
 	type stage3 struct{ V int }
 
-	a := agent.New("multi").
+	a := agent.New(core.AgentMeta{Name: "multi"}).
 		Actions(agent.NewAction("a",
 			func(ctx context.Context, pc *core.ProcessContext, in word) (stage1, error) {
 				return stage1{V: len(in.Text)}, nil
@@ -71,10 +72,10 @@ func TestRunMultiStepPlanning(t *testing.T) {
 			func(ctx context.Context, pc *core.ProcessContext, in stage2) (stage3, error) {
 				return stage3{V: in.V + 1}, nil
 			}, core.ActionConfig{})).
-		Goals(agent.GoalProducing[stage3]("stage3 produced")).
+		Goals(agent.GoalProducing[stage3](core.Goal{Description: "stage3 produced"})).
 		Build()
 
-	platform := agent.NewPlatform()
+	platform := agent.NewPlatform(runtime.PlatformConfig{})
 	if err := platform.Deploy(a); err != nil {
 		t.Fatal(err)
 	}

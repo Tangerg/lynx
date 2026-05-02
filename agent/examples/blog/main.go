@@ -38,8 +38,10 @@ func (stubLogger) OnEvent(e event.Event) {
 }
 
 func main() {
-	a := agent.New("BlogAgent").
-		Description("synthesize a blog post from a topic").
+	a := agent.New(core.AgentMeta{
+		Name:        "BlogAgent",
+		Description: "synthesize a blog post from a topic",
+	}).
 		Actions(agent.NewAction("research",
 			func(ctx context.Context, pc *core.ProcessContext, t Topic) (Research, error) {
 				return Research{Sources: []string{"https://example.com/" + t.Title}}, nil
@@ -71,12 +73,12 @@ func main() {
 				Pre: []string{"it:" + core.TypeFullNameOf[Research]()},
 			},
 		)).
-		Goals(agent.GoalProducing[BlogPost]("blog post produced")).
+		Goals(agent.GoalProducing[BlogPost](core.Goal{Description: "blog post produced"})).
 		Build()
 
-	platform := agent.NewPlatform(
-		agent.WithListener(event.ListenerFunc(stubLogger{}.OnEvent)),
-	)
+	platform := agent.NewPlatform(runtime.PlatformConfig{
+		Listeners: []event.Listener{event.ListenerFunc(stubLogger{}.OnEvent)},
+	})
 	if err := platform.Deploy(a); err != nil {
 		log.Fatal(err)
 	}
