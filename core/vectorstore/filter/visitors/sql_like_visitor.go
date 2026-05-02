@@ -80,16 +80,33 @@ func (s *SQLLikeVisitor) visitUnaryExpr(expr *ast.UnaryExpr) {
 	s.buffer.WriteString(")")
 }
 
+// precedenced is the local view of any node that exposes a numeric
+// precedence — both [ast.UnaryExpr] and [ast.BinaryExpr] satisfy it.
+// Used by [needsParens] to decide whether to wrap a child operand.
+type precedenced interface {
+	Precedence() int
+}
+
+// needsParens reports whether child binds looser than parent and
+// therefore requires parentheses when rendered next to it.
+func needsParens(parent precedenced, child ast.Expr) bool {
+	c, ok := child.(precedenced)
+	if !ok {
+		return false
+	}
+	return c.Precedence() < parent.Precedence()
+}
+
 // visitBinaryExpr renders "left op right", parenthesizing each operand
 // only when its precedence is lower than the parent — produces clean
 // output without redundant parens.
 func (s *SQLLikeVisitor) visitBinaryExpr(expr *ast.BinaryExpr) {
-	leftNeedsParens := expr.IsLeftLower()
-	if leftNeedsParens {
+	leftWraps := needsParens(expr, expr.Left)
+	if leftWraps {
 		s.buffer.WriteString("(")
 	}
 	s.visit(expr.Left)
-	if leftNeedsParens {
+	if leftWraps {
 		s.buffer.WriteString(")")
 	}
 
@@ -97,12 +114,12 @@ func (s *SQLLikeVisitor) visitBinaryExpr(expr *ast.BinaryExpr) {
 	s.buffer.WriteString(expr.Op.Literal)
 	s.buffer.WriteString(" ")
 
-	rightNeedsParens := expr.IsRightLower()
-	if rightNeedsParens {
+	rightWraps := needsParens(expr, expr.Right)
+	if rightWraps {
 		s.buffer.WriteString("(")
 	}
 	s.visit(expr.Right)
-	if rightNeedsParens {
+	if rightWraps {
 		s.buffer.WriteString(")")
 	}
 }

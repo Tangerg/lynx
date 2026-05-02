@@ -85,7 +85,7 @@ func TestLiteral_IsSameKind(t *testing.T) {
 	}
 }
 
-func TestUnaryExpr_PositionAndPrecedence(t *testing.T) {
+func TestUnaryExpr_Precedence(t *testing.T) {
 	notTok := token.OfKind(token.NOT, token.NoPosition, token.NoPosition)
 	inner := &ast.BinaryExpr{
 		Left:  &ast.Ident{Token: token.OfIdent("a", token.NoPosition, token.NoPosition), Value: "a"},
@@ -97,41 +97,14 @@ func TestUnaryExpr_PositionAndPrecedence(t *testing.T) {
 	if u.Precedence() != token.NOT.Precedence() {
 		t.Error("UnaryExpr.Precedence must mirror operator")
 	}
-	// EQ (4) binds tighter than NOT (3), so the right side does NOT
-	// bind looser — no parens needed.
-	if u.IsRightLower() {
-		t.Errorf("EQ binds tighter than NOT — IsRightLower must be false")
-	}
-}
-
-func TestUnaryExpr_RightLowerWhenLooserOp(t *testing.T) {
-	notTok := token.OfKind(token.NOT, token.NoPosition, token.NoPosition)
-	// NOT applied to (a OR b) — OR(1) < NOT(3), so right IS lower.
-	inner := &ast.BinaryExpr{
-		Left:  &ast.Ident{Token: token.OfIdent("a", token.NoPosition, token.NoPosition), Value: "a"},
-		Op:    token.OfKind(token.OR, token.NoPosition, token.NoPosition),
-		Right: &ast.Ident{Token: token.OfIdent("b", token.NoPosition, token.NoPosition), Value: "b"},
-	}
-	u := &ast.UnaryExpr{Op: notTok, Right: inner}
-	if !u.IsRightLower() {
-		t.Error("OR binds looser than NOT — IsRightLower must be true")
-	}
 }
 
 func TestBinaryExpr_Precedence(t *testing.T) {
-	left := &ast.BinaryExpr{
-		Left:  &ast.Ident{Token: token.OfIdent("a", token.NoPosition, token.NoPosition), Value: "a"},
-		Op:    token.OfKind(token.OR, token.NoPosition, token.NoPosition),
-		Right: numberLit("1"),
-	}
-	outer := &ast.BinaryExpr{
-		Left:  left,
-		Op:    token.OfKind(token.AND, token.NoPosition, token.NoPosition),
-		Right: numberLit("2"),
-	}
+	andTok := token.OfKind(token.AND, token.NoPosition, token.NoPosition)
+	b := &ast.BinaryExpr{Left: numberLit("1"), Op: andTok, Right: numberLit("2")}
 
-	if !outer.IsLeftLower() {
-		t.Error("OR binds looser than AND — IsLeftLower must be true")
+	if b.Precedence() != token.AND.Precedence() {
+		t.Error("BinaryExpr.Precedence must mirror operator")
 	}
 }
 

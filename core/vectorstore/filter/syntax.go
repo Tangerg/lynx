@@ -2,8 +2,7 @@ package filter
 
 import (
 	"fmt"
-
-	"github.com/spf13/cast"
+	"strconv"
 
 	"github.com/Tangerg/lynx/core/vectorstore/filter/ast"
 	"github.com/Tangerg/lynx/core/vectorstore/filter/token"
@@ -15,6 +14,40 @@ import (
 // detached from any source text.
 func newKindToken(kind token.Kind) token.Token {
 	return token.OfKind(kind, token.NoPosition, token.NoPosition)
+}
+
+// formatNumber stringifies any supported numeric Go value using the
+// canonical decimal form expected by [token.OfNumericLiteral]. Any
+// type outside [math.NumericType] yields "0" — unreachable while the
+// generic constraint is honored.
+func formatNumber(value any) string {
+	switch v := value.(type) {
+	case int:
+		return strconv.FormatInt(int64(v), 10)
+	case int8:
+		return strconv.FormatInt(int64(v), 10)
+	case int16:
+		return strconv.FormatInt(int64(v), 10)
+	case int32:
+		return strconv.FormatInt(int64(v), 10)
+	case int64:
+		return strconv.FormatInt(v, 10)
+	case uint:
+		return strconv.FormatUint(uint64(v), 10)
+	case uint8:
+		return strconv.FormatUint(uint64(v), 10)
+	case uint16:
+		return strconv.FormatUint(uint64(v), 10)
+	case uint32:
+		return strconv.FormatUint(uint64(v), 10)
+	case uint64:
+		return strconv.FormatUint(v, 10)
+	case float32:
+		return strconv.FormatFloat(float64(v), 'g', -1, 32)
+	case float64:
+		return strconv.FormatFloat(v, 'g', -1, 64)
+	}
+	return "0"
 }
 
 // identType is the input constraint for [NewIdent]: a raw string is
@@ -60,19 +93,17 @@ type literalType interface {
 	math.NumericType | string | bool | *ast.Literal
 }
 
-// newLiteral is the runtime worker behind [NewLiteral]. Numbers are
-// stringified via [cast.ToString]; bools become TRUE/FALSE keyword
-// tokens; strings become STRING tokens.
+// newLiteral is the runtime worker behind [NewLiteral]. Numbers route
+// through [token.OfNumericLiteral] for canonical formatting; bools
+// become TRUE/FALSE keyword tokens; strings become STRING tokens.
 func newLiteral(value any) (*ast.Literal, error) {
 	switch typed := value.(type) {
 	case int, int8, int16, int32, int64,
 		uint, uint8, uint16, uint32, uint64,
 		float32, float64:
-		number := cast.ToString(value)
-		return &ast.Literal{
-			Token: token.OfLiteral(token.NUMBER, number, token.NoPosition, token.NoPosition),
-			Value: number,
-		}, nil
+		number := formatNumber(value)
+		tk := token.OfNumericLiteral(number, token.NoPosition, token.NoPosition)
+		return &ast.Literal{Token: tk, Value: tk.Literal}, nil
 
 	case string:
 		return &ast.Literal{
@@ -194,23 +225,37 @@ func NewListLiteral[T listLiteralType](value T) *ast.ListLiteral {
 	return list
 }
 
+// identOrIndex resolves an `any` left operand to either an
+// [*ast.IndexExpr] (passed through) or a freshly built [*ast.Ident].
+// Used by [ExprBuilder] for the `any`-typed entry points; the
+// generic helpers below use [leftOperand] instead.
+func identOrIndex(l any) (ast.Expr, error) {
+	if ix, ok := l.(*ast.IndexExpr); ok {
+		return ix, nil
+	}
+	return newIdent(l)
+}
+
+// leftOperand resolves a generic left operand to an [ast.Expr] —
+// shared by [compare], [In], and [Like]. Returns the index expression
+// directly or builds an identifier from a string / [*ast.Ident].
+func leftOperand[L identType | *ast.IndexExpr](l L) ast.Expr {
+	if ix, ok := any(l).(*ast.IndexExpr); ok {
+		return ix
+	}
+	ident, _ := newIdent(l)
+	return ident
+}
+
 // compare is the shared body of [EQ] / [NE] / [LT] / [LE] / [GT] /
 // [GE]. The left operand is either an identifier (string or
 // [*ast.Ident]) or an [*ast.IndexExpr]; the right is any literal.
 func compare[L identType | *ast.IndexExpr, R literalType](l L, r R, op token.Kind) *ast.BinaryExpr {
-	expr := &ast.BinaryExpr{
+	return &ast.BinaryExpr{
+		Left:  leftOperand(l),
 		Op:    newKindToken(op),
 		Right: NewLiteral(r),
 	}
-
-	switch typedL := any(l).(type) {
-	case *ast.IndexExpr:
-		expr.Left = typedL
-	default:
-		ident, _ := newIdent(l)
-		expr.Left = ident
-	}
-	return expr
 }
 
 // EQ builds `l == r` — equality, any literal type. Examples:
@@ -271,37 +316,21 @@ func Or[L ast.ComputedExpr, R ast.ComputedExpr](l L, r R) *ast.BinaryExpr {
 // [NewListLiteral]. Examples: `status IN ('active','pending')`,
 // `id IN (1,2,3)`.
 func In[L identType | *ast.IndexExpr, R listLiteralType](l L, r R) *ast.BinaryExpr {
-	expr := &ast.BinaryExpr{
+	return &ast.BinaryExpr{
+		Left:  leftOperand(l),
 		Op:    newKindToken(token.IN),
 		Right: NewListLiteral(r),
 	}
-
-	switch typedL := any(l).(type) {
-	case *ast.IndexExpr:
-		expr.Left = typedL
-	default:
-		ident, _ := newIdent(l)
-		expr.Left = ident
-	}
-	return expr
 }
 
 // Like builds `l LIKE r`. Right operand must be a string. Examples:
 // `name LIKE 'John%'`, `email LIKE '%@gmail.com'`.
 func Like[L identType | *ast.IndexExpr, R string | *ast.Literal](l L, r R) *ast.BinaryExpr {
-	expr := &ast.BinaryExpr{
+	return &ast.BinaryExpr{
+		Left:  leftOperand(l),
 		Op:    newKindToken(token.LIKE),
 		Right: NewLiteral(r),
 	}
-
-	switch typedL := any(l).(type) {
-	case *ast.IndexExpr:
-		expr.Left = typedL
-	default:
-		ident, _ := newIdent(l)
-		expr.Left = ident
-	}
-	return expr
 }
 
 // Not builds `NOT r`. The operand must be a computed expression.
