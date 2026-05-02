@@ -3,6 +3,8 @@ package core
 import (
 	"sync"
 	"sync/atomic"
+
+	"github.com/Masterminds/semver/v3"
 )
 
 // Agent is the deployable bundle: a name, a version, and the capability set
@@ -12,7 +14,7 @@ import (
 type Agent struct {
 	Name         string
 	Provider     string
-	Version      Semver
+	Version      *semver.Version
 	Description  string
 	Actions      []Action
 	Goals        []*Goal
@@ -35,7 +37,7 @@ type AgentMeta struct {
 	Name         string
 	Provider     string
 	Description  string
-	Version      Semver
+	Version      *semver.Version
 	Opaque       bool
 	StuckHandler StuckHandler
 }

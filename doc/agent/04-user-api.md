@@ -117,7 +117,7 @@ type Builder struct {
     name         string
     description  string
     provider     string
-    version      core.Semver
+    version      *semver.Version
     actions      []core.Action
     goals        []*core.Goal
     conditions   []core.Condition
@@ -128,13 +128,13 @@ type Builder struct {
 func New(name string) *Builder {
     return &Builder{
         name:    name,
-        version: core.Semver{Major: 1},
+        version: semver.MustParse("1.0.0"),
     }
 }
 
 func (b *Builder) Description(d string) *Builder { b.description = d; return b }
 func (b *Builder) Provider(p string) *Builder    { b.provider = p; return b }
-func (b *Builder) Version(v string) *Builder     { b.version = core.ParseSemver(v); return b }
+func (b *Builder) Version(v string) *Builder     { b.version = semver.MustParse(v); return b }
 
 func (b *Builder) Actions(actions ...core.Action) *Builder { b.actions = append(b.actions, actions...); return b }
 

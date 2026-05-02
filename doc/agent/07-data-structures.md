@@ -27,7 +27,7 @@
 │   ActionMetadata / EffectSpec                                    │
 ├─────────────────────────────────────────────────────────────────┤
 │ Layer 1: Primitives（原语）                                        │
-│   Determination (3-valued) / IoBinding / Semver / DomainType     │
+│   Determination (3-valued) / IoBinding / DomainType              │
 │   ActionStatus / AgentProcessStatus / PlannerType                │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -96,22 +96,24 @@ func (b IoBinding) ResolveReflectType() reflect.Type
 
 ---
 
-### 1.3 `Semver` — 语义版本
+### 1.3 语义版本
+
+直接采用 [`github.com/Masterminds/semver/v3`](https://github.com/Masterminds/semver) — 标准 SemVer 解析、比较、约束匹配，免重复造轮子。
 
 ```go
-package core
+import "github.com/Masterminds/semver/v3"
 
-type Semver struct {
-    Major      int
-    Minor      int
-    Patch      int
-    PreRelease string  // 如 "alpha.1"
-    Build      string  // 如 "001"
-}
+// Agent.Version 字段类型
+Version *semver.Version
 
-func ParseSemver(s string) Semver   // "1.2.3-alpha.1+001"
-func (v Semver) String() string
-func (v Semver) Less(o Semver) bool
+// 解析（DSL 用 MustParse，非法字面量直接 panic 暴露编程错误）
+v := semver.MustParse("1.2.3-alpha.1+001")
+
+// 常用方法
+v.String()             // "1.2.3-alpha.1+001"
+v.Compare(other)       // -1 / 0 / 1
+v.LessThan(other)      // bool
+v.Major(), v.Minor(), v.Patch(), v.Prerelease(), v.Metadata()
 ```
 
 ---
