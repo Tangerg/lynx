@@ -25,7 +25,7 @@ import (
 // --- DSL ------------------------------------------------------------------
 
 // New starts a Builder for a fluently-defined agent. See [dsl.New].
-func New(meta core.AgentMeta) *dsl.Builder { return dsl.New(meta) }
+func New(cfg core.AgentConfig) *dsl.Builder { return dsl.New(cfg) }
 
 // --- Action / Goal / Condition shortcuts ---------------------------------
 

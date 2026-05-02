@@ -37,7 +37,7 @@ type Topic struct{ Title string }
 type Post  struct{ Body  string }
 
 func main() {
-    a := agent.New(core.AgentMeta{Name: "Hello"}).
+    a := agent.New(core.AgentConfig{Name: "Hello"}).
         Actions(agent.NewAction("write",
             func(ctx context.Context, pc *core.ProcessContext, t Topic) (Post, error) {
                 return Post{Body: "About " + t.Title}, nil
