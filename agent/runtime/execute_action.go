@@ -53,7 +53,7 @@ func (p *AgentProcess) executeAction(ctx context.Context, action core.Action) (c
 	if status == core.ActionSucceeded {
 		// hasRun gates non-rerunnable actions; we set it only on success so
 		// retrying after a future re-plan remains possible.
-		p.blackboard.SetCondition(core.HasRunKey(meta.Name), true)
+		p.blackboard.SetCondition(meta.HasRunKey(), true)
 	}
 
 	span.SetAttributes(
