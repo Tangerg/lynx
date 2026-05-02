@@ -27,30 +27,29 @@ var _ Transformer = (*TextSplitter)(nil)
 //
 // Example:
 //
-//	s := document.NewTextSplitter(&document.TextSplitterConfig{Separator: "\n\n"})
+//	s := document.NewTextSplitter(document.TextSplitterConfig{Separator: "\n\n"})
 //	chunks, _ := s.Transform(ctx, []*document.Document{doc})
 type TextSplitter struct {
-	config   *TextSplitterConfig
 	splitter *Splitter
 }
 
-// NewTextSplitter builds a [TextSplitter]. nil config falls back to
-// line-by-line splitting.
-func NewTextSplitter(config *TextSplitterConfig) *TextSplitter {
-	if config == nil {
-		config = &TextSplitterConfig{Separator: "\n"}
+// NewTextSplitter builds a [TextSplitter]. An empty Separator falls
+// back to "\n" (line-by-line splitting).
+func NewTextSplitter(config TextSplitterConfig) *TextSplitter {
+	if config.Separator == "" {
+		config.Separator = "\n"
 	}
-	splitter, _ := NewSplitter(&SplitterConfig{
+	splitter, _ := NewSplitter(SplitterConfig{
 		CopyFormatter: config.CopyFormatter,
 		SplitFunc: func(_ context.Context, text string) ([]string, error) {
 			return strings.Split(text, config.Separator), nil
 		},
 	})
-	return &TextSplitter{config: config, splitter: splitter}
+	return &TextSplitter{splitter: splitter}
 }
 
-// NewDefaultTextSplitter is a shorthand for NewTextSplitter(nil).
-func NewDefaultTextSplitter() *TextSplitter { return NewTextSplitter(nil) }
+// NewDefaultTextSplitter is a shorthand for line-by-line splitting.
+func NewDefaultTextSplitter() *TextSplitter { return NewTextSplitter(TextSplitterConfig{}) }
 
 // Transform delegates to the wrapped [Splitter].
 func (t *TextSplitter) Transform(ctx context.Context, docs []*Document) ([]*Document, error) {

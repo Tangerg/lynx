@@ -43,9 +43,6 @@ type FileWriterConfig struct {
 }
 
 func (c *FileWriterConfig) validate() error {
-	if c == nil {
-		return errors.New("document.FileWriterConfig: config must not be nil")
-	}
 	if c.Path == "" {
 		return errors.New("document.FileWriterConfig: Path is required")
 	}
@@ -61,7 +58,7 @@ var _ Writer = (*FileWriter)(nil)
 //
 // Example:
 //
-//	w, err := document.NewFileWriter(&document.FileWriterConfig{
+//	w, err := document.NewFileWriter(document.FileWriterConfig{
 //	    Path:                "out.txt",
 //	    WithDocumentMarkers: true,
 //	})
@@ -74,7 +71,7 @@ type FileWriter struct {
 
 // NewFileWriter builds a [FileWriter]. Returns an error when config is
 // invalid.
-func NewFileWriter(config *FileWriterConfig) (*FileWriter, error) {
+func NewFileWriter(config FileWriterConfig) (*FileWriter, error) {
 	if err := config.validate(); err != nil {
 		return nil, err
 	}

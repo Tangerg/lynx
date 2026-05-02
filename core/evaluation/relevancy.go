@@ -48,9 +48,6 @@ type RelevancyEvaluatorConfig struct {
 // required fields are missing or the template lacks the expected
 // variables.
 func (c *RelevancyEvaluatorConfig) validate() error {
-	if c == nil {
-		return errors.New("evaluation.RelevancyEvaluatorConfig: config must not be nil")
-	}
 	if c.ChatModel == nil {
 		return errors.New("evaluation.RelevancyEvaluatorConfig: ChatModel is required")
 	}
@@ -75,7 +72,7 @@ type RelevancyEvaluator struct {
 // NewRelevancyEvaluatorConfig (legacy name for backward compatibility)
 // builds a [RelevancyEvaluator] from config. The naming mismatch is a
 // historical artifact of the original implementation.
-func NewRelevancyEvaluatorConfig(config *RelevancyEvaluatorConfig) (*RelevancyEvaluator, error) {
+func NewRelevancyEvaluatorConfig(config RelevancyEvaluatorConfig) (*RelevancyEvaluator, error) {
 	if err := config.validate(); err != nil {
 		return nil, err
 	}

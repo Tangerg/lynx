@@ -74,14 +74,8 @@ func (t *fakeTransformer) Transform(_ context.Context, q *rag.Query) (*rag.Query
 }
 
 func TestPipeline_RequiresAtLeastOneRetriever(t *testing.T) {
-	if _, err := rag.NewPipeline(&rag.PipelineConfig{}); err == nil {
+	if _, err := rag.NewPipeline(rag.PipelineConfig{}); err == nil {
 		t.Fatal("missing retrievers must error")
-	}
-}
-
-func TestPipeline_RejectsNilConfig(t *testing.T) {
-	if _, err := rag.NewPipeline(nil); err == nil {
-		t.Fatal("nil config must error")
 	}
 }
 
@@ -89,7 +83,7 @@ func TestPipeline_HappyPath(t *testing.T) {
 	doc, _ := document.NewDocument("retrieved-doc", nil)
 	retriever := &fakeRetriever{docs: []*document.Document{doc}}
 
-	pipe, err := rag.NewPipeline(&rag.PipelineConfig{
+	pipe, err := rag.NewPipeline(rag.PipelineConfig{
 		QueryTransformers:  []rag.QueryTransformer{&fakeTransformer{suffix: "?"}},
 		DocumentRetrievers: []rag.DocumentRetriever{retriever},
 	})
@@ -118,7 +112,7 @@ func TestPipeline_TransformerErrorShortCircuits(t *testing.T) {
 	want := errors.New("boom")
 	retriever := &fakeRetriever{}
 
-	pipe, _ := rag.NewPipeline(&rag.PipelineConfig{
+	pipe, _ := rag.NewPipeline(rag.PipelineConfig{
 		QueryTransformers:  []rag.QueryTransformer{&fakeTransformer{err: want}},
 		DocumentRetrievers: []rag.DocumentRetriever{retriever},
 	})
@@ -137,7 +131,7 @@ func TestPipeline_RetrieverFanInUnionsResults(t *testing.T) {
 	r1 := &fakeRetriever{docs: []*document.Document{docA}}
 	r2 := &fakeRetriever{docs: []*document.Document{docB}}
 
-	pipe, _ := rag.NewPipeline(&rag.PipelineConfig{
+	pipe, _ := rag.NewPipeline(rag.PipelineConfig{
 		DocumentRetrievers: []rag.DocumentRetriever{r1, r2},
 	})
 
@@ -155,7 +149,7 @@ func TestPipeline_PartialRetrieverFailureReturnsAvailableDocs(t *testing.T) {
 	r1 := &fakeRetriever{docs: []*document.Document{docA}}
 	r2 := &fakeRetriever{err: errors.New("retriever 2 broken")}
 
-	pipe, _ := rag.NewPipeline(&rag.PipelineConfig{
+	pipe, _ := rag.NewPipeline(rag.PipelineConfig{
 		DocumentRetrievers: []rag.DocumentRetriever{r1, r2},
 	})
 

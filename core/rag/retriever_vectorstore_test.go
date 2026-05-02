@@ -29,13 +29,10 @@ func (f *fakeVectorRetriever) Retrieve(_ context.Context, req *vectorstore.Retri
 }
 
 func TestNewVectorStoreDocumentRetriever_RejectsInvalidConfig(t *testing.T) {
-	if _, err := rag.NewVectorStoreDocumentRetriever(nil); err == nil {
-		t.Fatal("nil config must error")
-	}
-	if _, err := rag.NewVectorStoreDocumentRetriever(&rag.VectorStoreDocumentRetrieverConfig{}); err == nil {
+	if _, err := rag.NewVectorStoreDocumentRetriever(rag.VectorStoreDocumentRetrieverConfig{}); err == nil {
 		t.Fatal("missing VectorStore must error")
 	}
-	if _, err := rag.NewVectorStoreDocumentRetriever(&rag.VectorStoreDocumentRetrieverConfig{
+	if _, err := rag.NewVectorStoreDocumentRetriever(rag.VectorStoreDocumentRetrieverConfig{
 		VectorStore: &fakeVectorRetriever{},
 		MinScore:    1.5,
 	}); err == nil {
@@ -45,7 +42,7 @@ func TestNewVectorStoreDocumentRetriever_RejectsInvalidConfig(t *testing.T) {
 
 func TestVectorStoreDocumentRetriever_AppliesTopKAndMinScore(t *testing.T) {
 	store := &fakeVectorRetriever{}
-	r, err := rag.NewVectorStoreDocumentRetriever(&rag.VectorStoreDocumentRetrieverConfig{
+	r, err := rag.NewVectorStoreDocumentRetriever(rag.VectorStoreDocumentRetrieverConfig{
 		VectorStore: store,
 		TopK:        7,
 		MinScore:    0.42,
@@ -71,7 +68,7 @@ func TestVectorStoreDocumentRetriever_PerQueryFilterOverridesFunc(t *testing.T) 
 	store := &fakeVectorRetriever{}
 	funcCalls := 0
 
-	r, err := rag.NewVectorStoreDocumentRetriever(&rag.VectorStoreDocumentRetrieverConfig{
+	r, err := rag.NewVectorStoreDocumentRetriever(rag.VectorStoreDocumentRetrieverConfig{
 		VectorStore: store,
 		FilterFunc: func(_ context.Context, _ map[string]any) (ast.Expr, error) {
 			funcCalls++
@@ -102,7 +99,7 @@ func TestVectorStoreDocumentRetriever_PerQueryFilterOverridesFunc(t *testing.T) 
 
 func TestVectorStoreDocumentRetriever_StringFilterIsParsed(t *testing.T) {
 	store := &fakeVectorRetriever{}
-	r, _ := rag.NewVectorStoreDocumentRetriever(&rag.VectorStoreDocumentRetrieverConfig{
+	r, _ := rag.NewVectorStoreDocumentRetriever(rag.VectorStoreDocumentRetrieverConfig{
 		VectorStore: store,
 	})
 
@@ -120,7 +117,7 @@ func TestVectorStoreDocumentRetriever_StringFilterIsParsed(t *testing.T) {
 func TestVectorStoreDocumentRetriever_PropagatesError(t *testing.T) {
 	want := errors.New("boom")
 	store := &fakeVectorRetriever{err: want}
-	r, _ := rag.NewVectorStoreDocumentRetriever(&rag.VectorStoreDocumentRetrieverConfig{VectorStore: store})
+	r, _ := rag.NewVectorStoreDocumentRetriever(rag.VectorStoreDocumentRetrieverConfig{VectorStore: store})
 
 	q, _ := rag.NewQuery("hi")
 	if _, err := r.Retrieve(context.Background(), q); !errors.Is(err, want) {
@@ -129,7 +126,7 @@ func TestVectorStoreDocumentRetriever_PropagatesError(t *testing.T) {
 }
 
 func TestVectorStoreDocumentRetriever_NilQuery(t *testing.T) {
-	r, _ := rag.NewVectorStoreDocumentRetriever(&rag.VectorStoreDocumentRetrieverConfig{
+	r, _ := rag.NewVectorStoreDocumentRetriever(rag.VectorStoreDocumentRetrieverConfig{
 		VectorStore: &fakeVectorRetriever{},
 	})
 	if _, err := r.Retrieve(context.Background(), nil); err == nil {
