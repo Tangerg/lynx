@@ -36,7 +36,7 @@ embabel-agent (Java/Kotlin)           →    Lynx Agent (Go)
 ────────────────────────────────────────────────────────────
 @Agent class                          →    DSL builder / struct + reflection
 @Action / @AchievesGoal method        →    agent.New(...).Actions(agent.NewAction("name", func(...)))
-@Condition method                     →    agent.Condition("name", func(...))
+@Condition method                     →    agent.New(...).Conditions(agent.NewCondition("name", func(...)))
 Spring AI ChatClient                  →    core/model/chat.Client
 Micrometer Observation                →    OpenTelemetry API（直接用，见 OBSERVABILITY.md）
 AStarGoapPlanner (Kotlin)             →    planner/goap.AStarPlanner (Go)

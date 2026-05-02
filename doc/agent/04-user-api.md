@@ -140,7 +140,7 @@ func (b *Builder) Actions(actions ...core.Action) *Builder { b.actions = append(
 
 func (b *Builder) Goals(goals ...*core.Goal) *Builder       { b.goals = append(b.goals, goals...); return b }
 
-func (b *Builder) Condition(c core.Condition) *Builder      { b.conditions = append(b.conditions, c); return b }
+func (b *Builder) Conditions(conds ...core.Condition) *Builder { b.conditions = append(b.conditions, conds...); return b }
 
 func (b *Builder) Opaque(o bool) *Builder        { b.opaque = o; return b }
 func (b *Builder) StuckHandler(h core.StuckHandler) *Builder { b.stuckHandler = h; return b }
