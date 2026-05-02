@@ -1,24 +1,35 @@
+// Package moderation defines the request/response types and Model
+// interface for content-moderation LLMs. Concrete provider implementations
+// (OpenAI moderation, Mistral, ...) live in /models/<provider>/moderation.go.
 package moderation
 
-import (
-	"github.com/Tangerg/lynx/core/model"
-)
+import "github.com/Tangerg/lynx/core/model"
 
-// Model represents a content moderation model interface that combines base model functionality
-// with moderation-specific operations. It processes moderation requests and returns safety analysis responses.
+// Model is the provider surface for a moderation LLM — synchronous
+// call, model defaults, identity hint.
+//
+// Example:
+//
+//	type myModerator struct{ /* ... */ }
+//	func (m *myModerator) Call(ctx context.Context, req *moderation.Request) (*moderation.Response, error) { ... }
+//	func (m *myModerator) DefaultOptions() *moderation.Options { ... }
+//	func (m *myModerator) Info() moderation.ModelInfo          { return moderation.ModelInfo{Provider: "openai"} }
+//
+//	var _ moderation.Model = (*myModerator)(nil)
 type Model interface {
 	model.Model[*Request, *Response]
 
-	// DefaultOptions returns the default configuration options for this moderation model
+	// DefaultOptions returns the parameter set this provider uses when
+	// the caller does not override anything.
 	DefaultOptions() *Options
 
-	// Info returns metadata information about this moderation model
+	// Info returns identity metadata used by logging, metrics, and any
+	// observability layer that needs to tag a span by provider.
 	Info() ModelInfo
 }
 
-// ModelInfo contains metadata information about a moderation model
+// ModelInfo holds identity metadata for a [Model] instance.
 type ModelInfo struct {
-	// Provider identifies the service or organization that provides this moderation model
-	// Examples: "OpenAI", etc.
+	// Provider names the moderation LLM vendor (lowercase by convention).
 	Provider string `json:"provider"`
 }

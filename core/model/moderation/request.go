@@ -5,24 +5,22 @@ import (
 	"maps"
 )
 
-// Options represents configuration options for moderation requests
+// Options holds per-request configuration for a moderation call.
 type Options struct {
-	// Model specifies the moderation model to use
+	// Model is the provider model identifier.
 	Model string `json:"model"`
 
-	// Extra holds provider-specific options that are not part of the standard fields
+	// Extra carries provider-specific options unknown to this struct.
 	Extra map[string]any `json:"extra"`
 }
 
-// NewOptions creates a new Options instance with the specified model
-// Returns an error if model is empty
+// NewOptions builds Options for the given model id. Returns an error
+// when model is empty.
 func NewOptions(model string) (*Options, error) {
 	if model == "" {
-		return nil, errors.New("no model provided")
+		return nil, errors.New("moderation.NewOptions: model id must not be empty")
 	}
-	return &Options{
-		Model: model,
-	}, nil
+	return &Options{Model: model}, nil
 }
 
 func (o *Options) ensureExtra() {
@@ -31,19 +29,20 @@ func (o *Options) ensureExtra() {
 	}
 }
 
+// Get returns the Extra value for key plus an existence flag.
 func (o *Options) Get(key string) (any, bool) {
 	o.ensureExtra()
 	value, exists := o.Extra[key]
 	return value, exists
 }
 
+// Set stores value under key in Extra.
 func (o *Options) Set(key string, value any) {
 	o.ensureExtra()
 	o.Extra[key] = value
 }
 
-// Clone creates a deep copy of the Options instance
-// Returns nil if the original Options is nil
+// Clone returns a deep copy. nil receiver yields nil.
 func (o *Options) Clone() *Options {
 	if o == nil {
 		return nil
@@ -54,39 +53,51 @@ func (o *Options) Clone() *Options {
 	}
 }
 
-// MergeOptions merges multiple Options instances into a single Options
-// Later options override earlier ones for conflicting fields
-// Returns an error if the base options parameter is nil
-func MergeOptions(options *Options, opts ...*Options) (*Options, error) {
-	if options == nil {
-		return nil, errors.New("options cannot be nil")
+// MergeOptions clones base then applies each override left-to-right.
+// Returns an error when base is nil.
+func MergeOptions(base *Options, overrides ...*Options) (*Options, error) {
+	if base == nil {
+		return nil, errors.New("moderation.MergeOptions: base options must not be nil")
 	}
-	mergedOpts := options.Clone()
-	for _, opt := range opts {
-		if opt == nil {
+
+	merged := base.Clone()
+	for _, override := range overrides {
+		if override == nil {
 			continue
 		}
-		if opt.Model != "" {
-			mergedOpts.Model = opt.Model
+		if override.Model != "" {
+			merged.Model = override.Model
 		}
-		if len(opt.Extra) > 0 {
-			maps.Copy(mergedOpts.Extra, opt.Extra)
+		if len(override.Extra) > 0 {
+			if merged.Extra == nil {
+				merged.Extra = make(map[string]any, len(override.Extra))
+			}
+			maps.Copy(merged.Extra, override.Extra)
 		}
 	}
-
-	return mergedOpts, nil
+	return merged, nil
 }
 
-// Request represents a moderation request containing text and configuration
+// Request is one moderation call: the input texts, options, and
+// caller-supplied side-channel params.
 type Request struct {
-	// Texts is the text contents to be moderated
+	// Texts is the input list. Each entry is moderated independently.
 	Texts []string `json:"text"`
 
-	// Options contains the moderation configuration settings
+	// Options carries model-specific parameters.
 	Options *Options `json:"options"`
 
-	// Params holds additional request-specific parameters
+	// Params is per-request metadata middlewares can read.
 	Params map[string]any `json:"params"`
+}
+
+// NewRequest builds a Request from texts. Returns an error when texts
+// is empty.
+func NewRequest(texts []string) (*Request, error) {
+	if len(texts) == 0 {
+		return nil, errors.New("moderation.NewRequest: texts must contain at least one entry")
+	}
+	return &Request{Texts: texts}, nil
 }
 
 func (r *Request) ensureParams() {
@@ -95,24 +106,15 @@ func (r *Request) ensureParams() {
 	}
 }
 
+// Get returns the Params value for key plus an existence flag.
 func (r *Request) Get(key string) (any, bool) {
 	r.ensureParams()
 	value, exists := r.Params[key]
 	return value, exists
 }
 
+// Set stores value under key in Params.
 func (r *Request) Set(key string, value any) {
 	r.ensureParams()
 	r.Params[key] = value
-}
-
-// NewRequest creates a new Request instance with the specified text
-// Returns an error if text is empty
-func NewRequest(texts []string) (*Request, error) {
-	if len(texts) == 0 {
-		return nil, errors.New("no texts provided")
-	}
-	return &Request{
-		Texts: texts,
-	}, nil
 }
