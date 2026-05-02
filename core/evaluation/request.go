@@ -6,26 +6,27 @@ import (
 	"github.com/Tangerg/lynx/core/document"
 )
 
-// Request encapsulates all the data needed for evaluating an AI response.
-// It contains the original user query, the reference documents, and the
-// response content to be evaluated.
+// Request bundles every input an evaluator needs: the original user
+// query, the AI-generated response under review, and the reference
+// documents the response was supposed to draw on.
 type Request struct {
-	// Prompt The original query/prompt from the user
+	// Prompt is the user's original query.
 	Prompt string
 
-	// Generation The AI-generated response content to evaluate
+	// Generation is the AI-produced response to score.
 	Generation string
 
-	// Documents Reference documents used to generate the response
+	// Documents is the supporting context (typically RAG-retrieved).
 	Documents []*document.Document
 }
 
+// extractDocuments concatenates non-empty document texts with newline
+// separators — fed into evaluator prompts as the "context" variable.
 func extractDocuments(req *Request) string {
 	var texts []string
 	for _, doc := range req.Documents {
-		text := doc.Text
-		if text != "" {
-			texts = append(texts, text)
+		if doc.Text != "" {
+			texts = append(texts, doc.Text)
 		}
 	}
 	return strings.Join(texts, "\n")
