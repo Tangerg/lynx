@@ -2,53 +2,33 @@ package core
 
 import "time"
 
-// ActionQos governs retry behavior for a single action. The defaults are
-// taken from embabel; they're aggressive (5 attempts with exponential back-off)
-// because LLM calls fail transiently more often than typical RPC.
+// ActionQos governs retry behavior for a single action. Retry math itself
+// (exponential backoff, jitter, overflow protection) is delegated to
+// [github.com/Tangerg/lynx/pkg/retry]; this struct is just the policy
+// surface the runtime translates into [retry.Option] values.
+//
+// Defaults are taken from embabel — aggressive (5 attempts) because LLM
+// calls fail transiently more often than typical RPC.
 type ActionQos struct {
-	MaxAttempts       int
-	BackoffMillis     int64
-	BackoffMultiplier float64
-	BackoffMaxMillis  int64
-	Idempotent        bool
+	// MaxAttempts caps total tries (initial + retries). 0 falls back to
+	// the package default; the runtime treats anything < 1 as 1.
+	MaxAttempts int
+
+	// BaseDelay is the initial wait between attempts. Successive
+	// attempts grow this exponentially (×2 per step) up to MaxDelay,
+	// with random jitter added on each attempt.
+	BaseDelay time.Duration
+
+	// MaxDelay caps the per-attempt wait. 0 means uncapped.
+	MaxDelay time.Duration
 }
 
 // DefaultActionQos returns sensible production defaults: 5 attempts, 10s
-// initial back-off, 5× multiplier, 60s cap.
+// initial backoff, 60s cap.
 func DefaultActionQos() ActionQos {
 	return ActionQos{
-		MaxAttempts:       5,
-		BackoffMillis:     10_000,
-		BackoffMultiplier: 5.0,
-		BackoffMaxMillis:  60_000,
-		Idempotent:        false,
+		MaxAttempts: 5,
+		BaseDelay:   10 * time.Second,
+		MaxDelay:    60 * time.Second,
 	}
-}
-
-// ShouldRetry decides whether the runtime should re-execute after a non-success
-// status. ActionFailed is retryable; Waiting/Paused are intentional pauses and
-// MUST NOT be retried.
-func (q ActionQos) ShouldRetry(status ActionStatus) bool {
-	return status == ActionFailed
-}
-
-// Backoff computes the wait between attempt N and attempt N+1, with cap.
-// attempt is zero-indexed: Backoff(0) is the wait after the first failure.
-func (q ActionQos) Backoff(attempt int) time.Duration {
-	if q.BackoffMillis <= 0 {
-		return 0
-	}
-	delay := float64(q.BackoffMillis)
-	mult := q.BackoffMultiplier
-	if mult <= 0 {
-		mult = 1
-	}
-	for i := 0; i < attempt; i++ {
-		delay *= mult
-		if q.BackoffMaxMillis > 0 && delay > float64(q.BackoffMaxMillis) {
-			delay = float64(q.BackoffMaxMillis)
-			break
-		}
-	}
-	return time.Duration(delay) * time.Millisecond
 }

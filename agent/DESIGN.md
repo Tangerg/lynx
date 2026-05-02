@@ -780,39 +780,53 @@ func (p *AgentProcess) executeAction(ctx, action) (ActionStatus, *ReplanRequest)
 
 ```go
 func (p *AgentProcess) runWithRetry(ctx, action, pc, qos) (...) {
-    for attempts = 1; attempts <= maxAttempts; attempts++ {
-        pc.ResetError()                                  // 清掉上一次的错误
-
+    op := func() error {
+        attempts++
+        pc.ResetError()
         status = runWithPanicRecovery(ctx, action, pc)   // panic → ActionFailed
         lastErr = pc.LastError()
 
         if rr := core.AsReplanRequest(lastErr); rr != nil {
-            return status, rr, attempts, lastErr         // ReplanRequest 短路
+            replan = rr
+            return lastErr                               // 不再重试，让 retry 短路
         }
-        if isTerminalActionStatus(status) { break }      // success/waiting/paused
-        if !qos.ShouldRetry(status) { break }
-
-        if waited := waitForBackoff(ctx, qos.Backoff(attempts-1)); waited != nil {
-            return status, nil, attempts, waited         // ctx 取消
+        switch status {
+        case core.ActionSucceeded:
+            return nil                                   // retry 完成
+        case core.ActionWaiting, core.ActionPaused:
+            return haltSignal{status}                    // 不重试，但也不算失败
         }
+        return lastErr                                   // ActionFailed → retry
     }
+
+    _ = retry.Do(op,
+        retry.WithContext(ctx),
+        retry.WithMaxAttempts(qos.MaxAttempts),
+        retry.WithBaseDelay(qos.BaseDelay),
+        retry.WithMaxDelay(qos.MaxDelay),
+        retry.WithExponentialBackoff(),
+        retry.WithRetryCondition(shouldRetryAction),     // replan / halt 不重试
+    )
+    return status, replan, attempts, lastErr
 }
 ```
 
-退避策略（`core/action_qos.go`）：
+退避策略（`core/action_qos.go`）—— 复用 `pkg/retry` 提供的指数退避 + 抖动：
 
 ```go
 func DefaultActionQos() ActionQos {
     return ActionQos{
-        MaxAttempts:       5,
-        BackoffMillis:     10_000,
-        BackoffMultiplier: 5.0,
-        BackoffMaxMillis:  60_000,
+        MaxAttempts: 5,
+        BaseDelay:   10 * time.Second,
+        MaxDelay:    60 * time.Second,
     }
 }
 
-// 退避序列：10s, 50s, 60s, 60s, 60s（被 cap 限制）
+// 退避序列（pkg/retry 的 ExponentialBackoff，×2 步进 + jitter）：
+// 10s, 20s, 40s, 60s（被 cap 限制）, 60s
 ```
+
+`runtime/execute_action.go` 把 `ActionQos` 翻译成一组 `retry.Option` 交给 `retry.Do`；自动获得 ctx 取消传播、抖动、溢出保护。
 
 ### 6.6 WorldStateDeterminer：OBSERVE 阶段
 

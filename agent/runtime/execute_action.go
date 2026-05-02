@@ -2,6 +2,7 @@ package runtime
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -9,6 +10,7 @@ import (
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/event"
+	"github.com/Tangerg/lynx/pkg/retry"
 )
 
 // executeAction runs a single Action with retry, panic recovery, and
@@ -75,74 +77,83 @@ func (p *AgentProcess) executeAction(ctx context.Context, action core.Action) (c
 	return status, replan
 }
 
-// runWithRetry implements the retry+back-off loop. It returns the final
-// status, any replan request the action raised, the number of attempts
-// made, and the most recent error (for span recording).
+// haltSignal is the sentinel error sent to [pkg/retry] when an action
+// returns a non-failure non-success status (Waiting / Paused). It tells
+// the retry loop to stop without treating the situation as a retryable
+// failure.
+type haltSignal struct{ status core.ActionStatus }
+
+func (h haltSignal) Error() string {
+	return "action halted with status " + h.status.String()
+}
+
+// runWithRetry runs action up to qos.MaxAttempts times, delegating the
+// retry orchestration (timing, jitter, ctx-cancellation) to
+// [github.com/Tangerg/lynx/pkg/retry]. The Operation closure captures
+// per-attempt outcomes so the caller can inspect the final state without
+// re-parsing the wrapped retry error.
 func (p *AgentProcess) runWithRetry(
 	ctx context.Context,
 	action core.Action,
 	pc *core.ProcessContext,
 	qos core.ActionQos,
 ) (status core.ActionStatus, replan *core.ReplanRequest, attempts int, lastErr error) {
-	maxAttempts := qos.MaxAttempts
-	if maxAttempts <= 0 {
-		maxAttempts = 1
-	}
-
-	for attempts = 1; attempts <= maxAttempts; attempts++ {
+	op := func() error {
+		attempts++
 		pc.ResetError()
 
 		status = runWithPanicRecovery(ctx, action, pc)
 		lastErr = pc.LastError()
 
 		if rr := core.AsReplanRequest(lastErr); rr != nil {
-			return status, rr, attempts, lastErr
+			replan = rr
+			return lastErr
 		}
 
-		if isTerminalActionStatus(status) {
-			return status, nil, attempts, lastErr
+		switch status {
+		case core.ActionSucceeded:
+			return nil
+		case core.ActionWaiting, core.ActionPaused:
+			return haltSignal{status: status}
 		}
 
-		if !qos.ShouldRetry(status) {
-			return status, nil, attempts, lastErr
+		// ActionFailed or any other non-terminal status — produce an
+		// error so [pkg/retry] knows this attempt didn't succeed.
+		if lastErr != nil {
+			return lastErr
 		}
-
-		// Wait before the next attempt, honoring ctx cancellation.
-		if waited := waitForBackoff(ctx, qos.Backoff(attempts-1)); waited != nil {
-			return status, nil, attempts, waited
-		}
+		return fmt.Errorf("action %q failed without an explicit error", action.Metadata().Name)
 	}
-	return status, nil, attempts - 1, lastErr
+
+	maxAttempts := qos.MaxAttempts
+	if maxAttempts <= 0 {
+		maxAttempts = 1
+	}
+
+	_ = retry.Do(op,
+		retry.WithContext(ctx),
+		retry.WithMaxAttempts(maxAttempts),
+		retry.WithBaseDelay(qos.BaseDelay),
+		retry.WithMaxDelay(qos.MaxDelay),
+		retry.WithExponentialBackoff(),
+		retry.WithRetryCondition(shouldRetryAction),
+	)
+	return status, replan, attempts, lastErr
 }
 
-// isTerminalActionStatus identifies statuses that should not be retried —
-// success and intentional pauses (waiting/paused).
-func isTerminalActionStatus(s core.ActionStatus) bool {
-	switch s {
-	case core.ActionSucceeded, core.ActionWaiting, core.ActionPaused:
-		return true
-	default:
+// shouldRetryAction stops the retry loop on signals that mean "don't try
+// again": replan requests (the planner needs to be re-consulted) and
+// halt sentinels (the action paused or is awaiting input). Anything else
+// — including a plain failure — is retryable.
+func shouldRetryAction(err error) bool {
+	if core.AsReplanRequest(err) != nil {
 		return false
 	}
-}
-
-// waitForBackoff sleeps for the supplied duration unless ctx is cancelled
-// first. Returns ctx.Err() on cancellation, nil when the wait completes.
-// A non-positive duration short-circuits to nil.
-func waitForBackoff(ctx context.Context, d time.Duration) error {
-	if d <= 0 {
-		return nil
+	var halt haltSignal
+	if errors.As(err, &halt) {
+		return false
 	}
-
-	timer := time.NewTimer(d)
-	defer timer.Stop()
-
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case <-timer.C:
-		return nil
-	}
+	return true
 }
 
 // recordActionFailure surfaces the underlying error onto the process so

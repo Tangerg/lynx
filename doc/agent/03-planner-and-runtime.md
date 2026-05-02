@@ -581,10 +581,8 @@ func (p *AgentProcess) executeAction(ctx context.Context, action core.Action) (c
         }
 
         if status == core.ActionSucceeded { break }
-        if !qos.ShouldRetry(status) { break }
-
-        // 指数退避
-        time.Sleep(backoff(qos, attempt))
+        // ActionWaiting / ActionPaused / replan 通过 retry condition 跳出；
+        // 退避数学（指数 + 抖动 + 上限）由 pkg/retry 接管。
     }
 
     // 4. 记录历史
