@@ -260,24 +260,24 @@ func (p *Platform) ResumeProcess(id string, response any) error {
 func (p *Platform) createProcess(
 	agentDef *core.Agent,
 	bindings map[string]any,
-	opts ...core.ProcessOptionFunc,
+	opts core.ProcessOptions,
 ) (*AgentProcess, error) {
 	if agentDef == nil {
 		return nil, errors.New("createProcess: agent definition is nil")
 	}
-	processOpts := core.NewProcessOptions(opts...)
+	opts.ApplyDefaults()
 
-	bb := processOpts.Blackboard
+	bb := opts.Blackboard
 	if bb == nil {
 		bb = NewInMemoryBlackboard()
 	}
 	bindBlackboardSeed(bb, bindings)
 
-	planner := p.plannerFactory(processOpts.PlannerType)
+	planner := p.plannerFactory(opts.PlannerType)
 	system := plan.FromAgent(agentDef)
 	id := p.idGen.Next()
 
-	proc := NewAgentProcess(id, agentDef, processOpts, bb, nil, planner, p)
+	proc := NewAgentProcess(id, agentDef, &opts, bb, nil, planner, p)
 	proc.determiner = NewBlackboardDeterminer(system, bb, proc)
 
 	p.mu.Lock()
@@ -305,14 +305,15 @@ func bindBlackboardSeed(bb core.Blackboard, bindings map[string]any) {
 }
 
 // RunAgent runs the named agent synchronously and returns the resulting
-// process (whether completed or terminal-failed).
+// process (whether completed or terminal-failed). Pass a zero
+// [core.ProcessOptions]{} for defaults.
 func (p *Platform) RunAgent(
 	ctx context.Context,
 	agentDef *core.Agent,
 	bindings map[string]any,
-	opts ...core.ProcessOptionFunc,
+	opts core.ProcessOptions,
 ) (*AgentProcess, error) {
-	proc, err := p.createProcess(agentDef, bindings, opts...)
+	proc, err := p.createProcess(agentDef, bindings, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -329,11 +330,11 @@ func (p *Platform) StartAgent(
 	ctx context.Context,
 	agentDef *core.Agent,
 	bindings map[string]any,
-	opts ...core.ProcessOptionFunc,
+	opts core.ProcessOptions,
 ) (*AgentProcess, <-chan error) {
 	done := make(chan error, 1)
 
-	proc, err := p.createProcess(agentDef, bindings, opts...)
+	proc, err := p.createProcess(agentDef, bindings, opts)
 	if err != nil {
 		done <- err
 		close(done)
@@ -352,18 +353,18 @@ func (p *Platform) StartAgent(
 func (p *Platform) CreateChildProcess(
 	agentDef *core.Agent,
 	parent *AgentProcess,
-	opts ...core.ProcessOptionFunc,
+	opts core.ProcessOptions,
 ) (*AgentProcess, error) {
 	if parent == nil {
 		return nil, errors.New("CreateChildProcess: parent process is nil")
 	}
 
-	childOpts := append(
-		[]core.ProcessOptionFunc{core.WithExistingBlackboard(parent.Blackboard().Spawn())},
-		opts...,
-	)
+	// Inherit the parent's blackboard unless the caller supplied one.
+	if opts.Blackboard == nil {
+		opts.Blackboard = parent.Blackboard().Spawn()
+	}
 
-	child, err := p.createProcess(agentDef, nil, childOpts...)
+	child, err := p.createProcess(agentDef, nil, opts)
 	if err != nil {
 		return nil, err
 	}

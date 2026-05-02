@@ -291,9 +291,11 @@ agent.NewAction("research",
     func(ctx context.Context, pc *core.ProcessContext, t Topic) (Research, error) {
         return Research{...}, nil
     },
-    core.WithDescription("从知识库检索相关资料"),
-    core.WithQoS(core.ActionQos{MaxAttempts: 3}),
-    core.WithToolRoles("web_search"),
+    core.ActionConfig{
+        Description: "从知识库检索相关资料",
+        QoS:         core.ActionQos{MaxAttempts: 3},
+        ToolGroups:  core.ToolRolesFor("web_search"),
+    },
 )
 ```
 
@@ -858,7 +860,7 @@ func (d *BlackboardDeterminer) evaluateCondition(ctx, key, oc) Determination {
 
 ```go
 platform.RunAgent(ctx, agent, bindings,
-    core.WithProcessType(core.ProcessConcurrent),
+    core.ProcessOptions{ProcessType: core.ProcessConcurrent},
 )
 ```
 
@@ -1148,19 +1150,19 @@ platform := agent.NewPlatform(
 ### 10.4 ProcessOptions
 
 ```go
-proc, _ := platform.RunAgent(ctx, a, bindings,
-    core.WithBudget(core.Budget{
+proc, _ := platform.RunAgent(ctx, a, bindings, core.ProcessOptions{
+    Budget: core.Budget{
         CostLimit:   5.0,        // USD
         ActionLimit: 100,
         TokenLimit:  500_000,
-    }),
-    core.WithVerbosity(core.Verbosity{ShowPlanning: true}),
-    core.WithProcessType(core.ProcessConcurrent),
-    core.WithProcessControl(core.ProcessControl{
+    },
+    Verbosity:   core.Verbosity{ShowPlanning: true},
+    ProcessType: core.ProcessConcurrent,
+    ProcessControl: core.ProcessControl{
         EarlyTerminationPolicy: core.MaxActionsPolicy{Max: 50},
         ToolDelay:              100 * time.Millisecond,
-    }),
-)
+    },
+})
 ```
 
 ### 10.5 错误诊断
@@ -1243,9 +1245,9 @@ platform := agent.NewPlatform(
 实现 `core.Blackboard` 接口（17 个方法）。常见需求：Redis-backed 黑板用于跨进程恢复、事件溯源黑板等。
 
 ```go
-proc, _ := platform.RunAgent(ctx, a, bindings,
-    core.WithExistingBlackboard(myCustomBlackboard),
-)
+proc, _ := platform.RunAgent(ctx, a, bindings, core.ProcessOptions{
+    Blackboard: myCustomBlackboard,
+})
 ```
 
 ### 11.3 ToolGroupResolver
@@ -1332,7 +1334,7 @@ agent/
 │   ├── action.go                           Action 接口 + ActionMetadata
 │   ├── action_qos.go                       重试策略
 │   ├── action_typed.go                     NewAction[In,Out] + TypedAction
-│   ├── action_options.go                   WithDescription / WithPre / ... 全部 ActionOption
+│   ├── action_config.go                    ActionConfig 结构 + 默认值/校验
 │   ├── goal.go                             Goal + GoalProducing[T]
 │   ├── agent.go                            Agent 聚合 + KnownConditions 缓存
 │   │
@@ -1493,7 +1495,7 @@ agent.NewAction("write",
         topic, _ := core.Get[Topic](pc.Blackboard, "it")
         ...
     },
-    core.WithPre("it:" + core.TypeFullNameOf[Research]()),
+    core.ActionConfig{Pre: []string{"it:" + core.TypeFullNameOf[Research]()}},
 )
 ```
 

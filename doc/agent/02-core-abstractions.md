@@ -387,7 +387,7 @@ type TypedAction[In, Out any] func(ctx context.Context, pc *ProcessContext, inpu
 func NewAction[In, Out any](
     name string,
     fn TypedAction[In, Out],
-    opts ...ActionOption,
+    cfg ActionConfig,
 ) Action {
     inputBinding  := NewIoBinding[In](DefaultBinding)
     outputBinding := NewIoBinding[Out](DefaultBinding)
@@ -676,14 +676,24 @@ type ProcessControl struct {
     OperationDelay         time.Duration
 }
 
-// Functional options 构造
-type ProcessOptionFunc func(*ProcessOptions)
+// 直接传值构造，零值字段在 ApplyDefaults 中填默认。
+// 不再用 WithBudget/WithVerbosity 这类函数式选项，避免一堆
+// With… 污染包命名空间，并把默认值/校验集中到一处。
+func (o *ProcessOptions) ApplyDefaults() {
+    if o.Budget == (Budget{}) {
+        o.Budget = DefaultBudget()
+    }
+    if o.OutputChannel == nil {
+        o.OutputChannel = DevNullOutputChannel
+    }
+}
 
-func WithBudget(b Budget) ProcessOptionFunc { ... }
-func WithVerbosity(v Verbosity) ProcessOptionFunc { ... }
-// ...
-
-func NewProcessOptions(opts ...ProcessOptionFunc) *ProcessOptions { ... }
+// 调用：
+platform.RunAgent(ctx, agent, bindings, ProcessOptions{
+    Budget:      Budget{CostLimit: 5.0},
+    Verbosity:   Verbosity{ShowPlanning: true},
+    ProcessType: ProcessConcurrent,
+})
 ```
 
 ---

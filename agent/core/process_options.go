@@ -2,9 +2,15 @@ package core
 
 import "time"
 
-// ProcessOptions is the per-process configuration bundle. Construction goes
-// through NewProcessOptions(opts...) to ensure defaults are applied — direct
-// struct-literal init risks "all-zero Budget" footguns.
+// ProcessOptions is the per-process configuration bundle. Pass a zero
+// ProcessOptions{} when defaults suffice — the runtime calls
+// [ProcessOptions.applyDefaults] before use, so unset fields receive their
+// conceptual defaults (Budget, PlannerType, ProcessType, OutputChannel).
+//
+// Choosing a struct over the functional-options pattern keeps defaults +
+// validation in one place ([applyDefaults]) and avoids polluting the
+// package namespace with ~10 `With…` constructors. Direct struct-literal
+// init is the intended ergonomics.
 type ProcessOptions struct {
 	ContextID       string
 	Identities      Identities
@@ -17,6 +23,23 @@ type ProcessOptions struct {
 	PlannerType     PlannerType
 	ProcessType     ProcessType
 	ToolCallContext map[string]any
+}
+
+// ApplyDefaults fills in zero-valued fields whose conceptual default is
+// non-zero. Mutates the receiver. Idempotent — safe to call repeatedly.
+// The runtime invokes this on every [ProcessOptions] it receives, so
+// users normally don't need to call it themselves.
+//
+// PlannerType and ProcessType are int8 enums whose zero value already
+// matches the desired default ([PlannerGOAP] / [ProcessSimple]), so they
+// need no explicit handling.
+func (o *ProcessOptions) ApplyDefaults() {
+	if o.Budget == (Budget{}) {
+		o.Budget = DefaultBudget()
+	}
+	if o.OutputChannel == nil {
+		o.OutputChannel = DevNullOutputChannel
+	}
 }
 
 // Verbosity controls instrumentation visible to humans. None of these fields
@@ -65,39 +88,3 @@ type User struct {
 	Name     string
 	Metadata map[string]any
 }
-
-// ProcessOptionFunc is the option type for NewProcessOptions.
-type ProcessOptionFunc func(*ProcessOptions)
-
-// NewProcessOptions applies sensible defaults then runs caller-supplied
-// options. Callers should always go through this function rather than
-// initializing the struct manually.
-func NewProcessOptions(opts ...ProcessOptionFunc) *ProcessOptions {
-	po := &ProcessOptions{
-		Budget:        DefaultBudget(),
-		PlannerType:   PlannerGOAP,
-		ProcessType:   ProcessSimple,
-		OutputChannel: DevNullOutputChannel,
-	}
-	for _, opt := range opts {
-		opt(po)
-	}
-	return po
-}
-
-func WithContextID(id string) ProcessOptionFunc       { return func(p *ProcessOptions) { p.ContextID = id } }
-func WithIdentities(i Identities) ProcessOptionFunc   { return func(p *ProcessOptions) { p.Identities = i } }
-func WithExistingBlackboard(b Blackboard) ProcessOptionFunc {
-	return func(p *ProcessOptions) { p.Blackboard = b }
-}
-func WithVerbosity(v Verbosity) ProcessOptionFunc     { return func(p *ProcessOptions) { p.Verbosity = v } }
-func WithBudget(b Budget) ProcessOptionFunc           { return func(p *ProcessOptions) { p.Budget = b } }
-func WithProcessControl(c ProcessControl) ProcessOptionFunc {
-	return func(p *ProcessOptions) { p.ProcessControl = c }
-}
-func WithPrune(b bool) ProcessOptionFunc              { return func(p *ProcessOptions) { p.Prune = b } }
-func WithOutputChannel(c OutputChannel) ProcessOptionFunc {
-	return func(p *ProcessOptions) { p.OutputChannel = c }
-}
-func WithPlannerType(t PlannerType) ProcessOptionFunc { return func(p *ProcessOptions) { p.PlannerType = t } }
-func WithProcessType(t ProcessType) ProcessOptionFunc { return func(p *ProcessOptions) { p.ProcessType = t } }

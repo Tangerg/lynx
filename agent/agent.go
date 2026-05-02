@@ -30,9 +30,10 @@ func New(name string) *dsl.Builder { return dsl.New(name) }
 
 // --- Action / Goal / Condition shortcuts ---------------------------------
 
-// NewAction is the typed action constructor (see core.NewAction).
-func NewAction[In, Out any](name string, fn core.TypedActionFunc[In, Out], opts ...core.ActionOption) core.Action {
-	return core.NewAction[In, Out](name, fn, opts...)
+// NewAction is the typed action constructor (see core.NewAction). Pass
+// [core.ActionConfig]{} when defaults suffice.
+func NewAction[In, Out any](name string, fn core.TypedActionFunc[In, Out], cfg core.ActionConfig) core.Action {
+	return core.NewAction[In, Out](name, fn, cfg)
 }
 
 // NewCondition wraps a function as a Condition.
