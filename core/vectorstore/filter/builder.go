@@ -4,22 +4,25 @@ import (
 	"github.com/Tangerg/lynx/core/vectorstore/filter/ast"
 )
 
-// ExprBuilder provides a fluent API for building complex filter expressions.
-// It uses AND logic by default to combine expressions and maintains error state
-// for deferred error handling throughout the building process.
+// ExprBuilder is the AND-by-default fluent builder for filter
+// expressions. Each comparison/membership method appends a new
+// predicate joined to the running expression with AND; nested
+// [ExprBuilder.And] / [ExprBuilder.Or] / [ExprBuilder.Not] take a
+// callback that builds a sub-expression. The first error encountered
+// is captured and short-circuits subsequent calls — call sites can
+// keep chaining and check the error once at [Builder.Build].
 type ExprBuilder struct {
 	err  error
 	expr ast.ComputedExpr
 }
 
-// NewExprBuilder creates a new expression builder with empty state.
+// NewExprBuilder returns an empty [ExprBuilder].
 func NewExprBuilder() *ExprBuilder {
 	return &ExprBuilder{}
 }
 
-// and combines the given expression with the current expression using AND logic.
-// If the current expression is nil, the given expression becomes the root.
-// Nil expressions are ignored to prevent invalid AST nodes.
+// and joins expr to the running expression with AND. nil is treated as
+// a no-op so empty sub-builders don't introduce phantom nodes.
 func (b *ExprBuilder) and(expr ast.ComputedExpr) {
 	if expr == nil {
 		return
@@ -33,9 +36,8 @@ func (b *ExprBuilder) and(expr ast.ComputedExpr) {
 	b.expr = And(b.expr, expr)
 }
 
-// or combines the given expression with the current expression using OR logic.
-// If the current expression is nil, the given expression becomes the root.
-// Nil expressions are ignored to prevent invalid AST nodes.
+// or joins expr to the running expression with OR. nil is treated as a
+// no-op (see [ExprBuilder.and]).
 func (b *ExprBuilder) or(expr ast.ComputedExpr) {
 	if expr == nil {
 		return
@@ -49,9 +51,7 @@ func (b *ExprBuilder) or(expr ast.ComputedExpr) {
 	b.expr = Or(b.expr, expr)
 }
 
-// EQ creates an equality comparison expression and adds it using AND logic.
-// Supports both identifier and index expressions as the left operand.
-// Returns the builder for method chaining with error propagation.
+// EQ appends `l == r` joined with AND. Captures any conversion error.
 func (b *ExprBuilder) EQ(l, r any) *ExprBuilder {
 	if b.err != nil {
 		return b
@@ -63,10 +63,8 @@ func (b *ExprBuilder) EQ(l, r any) *ExprBuilder {
 		return b
 	}
 
-	indexExpr, ok := l.(*ast.IndexExpr)
-	if ok {
-		eqExpr := EQ(indexExpr, literal)
-		b.and(eqExpr)
+	if indexExpr, ok := l.(*ast.IndexExpr); ok {
+		b.and(EQ(indexExpr, literal))
 		return b
 	}
 
@@ -76,15 +74,11 @@ func (b *ExprBuilder) EQ(l, r any) *ExprBuilder {
 		return b
 	}
 
-	eqExpr := EQ(ident, literal)
-	b.and(eqExpr)
-
+	b.and(EQ(ident, literal))
 	return b
 }
 
-// NE creates an inequality comparison expression and adds it using AND logic.
-// Supports both identifier and index expressions as the left operand.
-// Returns the builder for method chaining with error propagation.
+// NE appends `l != r` joined with AND.
 func (b *ExprBuilder) NE(l, r any) *ExprBuilder {
 	if b.err != nil {
 		return b
@@ -96,10 +90,8 @@ func (b *ExprBuilder) NE(l, r any) *ExprBuilder {
 		return b
 	}
 
-	indexExpr, ok := l.(*ast.IndexExpr)
-	if ok {
-		neExpr := NE(indexExpr, literal)
-		b.and(neExpr)
+	if indexExpr, ok := l.(*ast.IndexExpr); ok {
+		b.and(NE(indexExpr, literal))
 		return b
 	}
 
@@ -109,15 +101,11 @@ func (b *ExprBuilder) NE(l, r any) *ExprBuilder {
 		return b
 	}
 
-	neExpr := NE(ident, literal)
-	b.and(neExpr)
-
+	b.and(NE(ident, literal))
 	return b
 }
 
-// LT creates a less-than comparison expression and adds it using AND logic.
-// Supports both identifier and index expressions as the left operand.
-// Returns the builder for method chaining with error propagation.
+// LT appends `l < r` joined with AND. Right operand must be numeric.
 func (b *ExprBuilder) LT(l, r any) *ExprBuilder {
 	if b.err != nil {
 		return b
@@ -129,10 +117,8 @@ func (b *ExprBuilder) LT(l, r any) *ExprBuilder {
 		return b
 	}
 
-	indexExpr, ok := l.(*ast.IndexExpr)
-	if ok {
-		ltExpr := LT(indexExpr, literal)
-		b.and(ltExpr)
+	if indexExpr, ok := l.(*ast.IndexExpr); ok {
+		b.and(LT(indexExpr, literal))
 		return b
 	}
 
@@ -142,15 +128,11 @@ func (b *ExprBuilder) LT(l, r any) *ExprBuilder {
 		return b
 	}
 
-	ltExpr := LT(ident, literal)
-	b.and(ltExpr)
-
+	b.and(LT(ident, literal))
 	return b
 }
 
-// LE creates a less-than-or-equal comparison expression and adds it using AND logic.
-// Supports both identifier and index expressions as the left operand.
-// Returns the builder for method chaining with error propagation.
+// LE appends `l <= r` joined with AND. Right operand must be numeric.
 func (b *ExprBuilder) LE(l, r any) *ExprBuilder {
 	if b.err != nil {
 		return b
@@ -162,10 +144,8 @@ func (b *ExprBuilder) LE(l, r any) *ExprBuilder {
 		return b
 	}
 
-	indexExpr, ok := l.(*ast.IndexExpr)
-	if ok {
-		leExpr := LE(indexExpr, literal)
-		b.and(leExpr)
+	if indexExpr, ok := l.(*ast.IndexExpr); ok {
+		b.and(LE(indexExpr, literal))
 		return b
 	}
 
@@ -175,15 +155,11 @@ func (b *ExprBuilder) LE(l, r any) *ExprBuilder {
 		return b
 	}
 
-	leExpr := LE(ident, literal)
-	b.and(leExpr)
-
+	b.and(LE(ident, literal))
 	return b
 }
 
-// GT creates a greater-than comparison expression and adds it using AND logic.
-// Supports both identifier and index expressions as the left operand.
-// Returns the builder for method chaining with error propagation.
+// GT appends `l > r` joined with AND. Right operand must be numeric.
 func (b *ExprBuilder) GT(l, r any) *ExprBuilder {
 	if b.err != nil {
 		return b
@@ -195,10 +171,8 @@ func (b *ExprBuilder) GT(l, r any) *ExprBuilder {
 		return b
 	}
 
-	indexExpr, ok := l.(*ast.IndexExpr)
-	if ok {
-		gtExpr := GT(indexExpr, literal)
-		b.and(gtExpr)
+	if indexExpr, ok := l.(*ast.IndexExpr); ok {
+		b.and(GT(indexExpr, literal))
 		return b
 	}
 
@@ -208,15 +182,11 @@ func (b *ExprBuilder) GT(l, r any) *ExprBuilder {
 		return b
 	}
 
-	gtExpr := GT(ident, literal)
-	b.and(gtExpr)
-
+	b.and(GT(ident, literal))
 	return b
 }
 
-// GE creates a greater-than-or-equal comparison expression and adds it using AND logic.
-// Supports both identifier and index expressions as the left operand.
-// Returns the builder for method chaining with error propagation.
+// GE appends `l >= r` joined with AND. Right operand must be numeric.
 func (b *ExprBuilder) GE(l, r any) *ExprBuilder {
 	if b.err != nil {
 		return b
@@ -228,10 +198,8 @@ func (b *ExprBuilder) GE(l, r any) *ExprBuilder {
 		return b
 	}
 
-	indexExpr, ok := l.(*ast.IndexExpr)
-	if ok {
-		geExpr := GE(indexExpr, literal)
-		b.and(geExpr)
+	if indexExpr, ok := l.(*ast.IndexExpr); ok {
+		b.and(GE(indexExpr, literal))
 		return b
 	}
 
@@ -241,31 +209,25 @@ func (b *ExprBuilder) GE(l, r any) *ExprBuilder {
 		return b
 	}
 
-	geExpr := GE(ident, literal)
-	b.and(geExpr)
-
+	b.and(GE(ident, literal))
 	return b
 }
 
-// In creates a membership test expression and adds it using AND logic.
-// The right operand should be a slice or list that gets converted to a list literal.
-// Supports both identifier and index expressions as the left operand.
-// Returns the builder for method chaining with error propagation.
+// In appends `l IN (...)` joined with AND. Right operand is any slice
+// type accepted by [newListLiteral].
 func (b *ExprBuilder) In(l, r any) *ExprBuilder {
 	if b.err != nil {
 		return b
 	}
 
-	listLiteral, err := newListLiteral(r)
+	list, err := newListLiteral(r)
 	if err != nil {
 		b.err = err
 		return b
 	}
 
-	indexExpr, ok := l.(*ast.IndexExpr)
-	if ok {
-		inExpr := In(indexExpr, listLiteral)
-		b.and(inExpr)
+	if indexExpr, ok := l.(*ast.IndexExpr); ok {
+		b.and(In(indexExpr, list))
 		return b
 	}
 
@@ -275,16 +237,12 @@ func (b *ExprBuilder) In(l, r any) *ExprBuilder {
 		return b
 	}
 
-	inExpr := In(ident, listLiteral)
-	b.and(inExpr)
-
+	b.and(In(ident, list))
 	return b
 }
 
-// Like creates a pattern matching expression and adds it using AND logic.
-// Typically used for string pattern matching with wildcards (e.g., "John%").
-// Supports both identifier and index expressions as the left operand.
-// Returns the builder for method chaining with error propagation.
+// Like appends `l LIKE r` joined with AND. Right operand must be a
+// string.
 func (b *ExprBuilder) Like(l, r any) *ExprBuilder {
 	if b.err != nil {
 		return b
@@ -296,10 +254,8 @@ func (b *ExprBuilder) Like(l, r any) *ExprBuilder {
 		return b
 	}
 
-	indexExpr, ok := l.(*ast.IndexExpr)
-	if ok {
-		likeExpr := Like(indexExpr, literal)
-		b.and(likeExpr)
+	if indexExpr, ok := l.(*ast.IndexExpr); ok {
+		b.and(Like(indexExpr, literal))
 		return b
 	}
 
@@ -309,162 +265,157 @@ func (b *ExprBuilder) Like(l, r any) *ExprBuilder {
 		return b
 	}
 
-	likeExpr := Like(ident, literal)
-	b.and(likeExpr)
-
+	b.and(Like(ident, literal))
 	return b
 }
 
-// And creates a nested AND expression using a sub-builder function.
-// The sub-expression is combined with the current expression using AND logic.
-// Enables complex nested structures like (a AND b) AND (c OR d).
+// And runs fn against a fresh sub-builder and joins the resulting
+// expression with AND. Sub-builder errors propagate.
 func (b *ExprBuilder) And(fn func(*ExprBuilder)) *ExprBuilder {
 	if b.err != nil {
 		return b
 	}
 
-	subExpr := NewExprBuilder()
-	fn(subExpr)
+	sub := NewExprBuilder()
+	fn(sub)
 
-	if subExpr.err != nil {
-		b.err = subExpr.err
+	if sub.err != nil {
+		b.err = sub.err
 		return b
 	}
 
-	b.and(subExpr.expr)
+	b.and(sub.expr)
 	return b
 }
 
-// Or creates a nested OR expression using a sub-builder function.
-// The sub-expression is combined with the current expression using OR logic.
-// Enables complex nested structures like (a AND b) OR (c AND d).
+// Or runs fn against a fresh sub-builder and joins the resulting
+// expression with OR. Sub-builder errors propagate.
 func (b *ExprBuilder) Or(fn func(*ExprBuilder)) *ExprBuilder {
 	if b.err != nil {
 		return b
 	}
 
-	subExpr := NewExprBuilder()
-	fn(subExpr)
+	sub := NewExprBuilder()
+	fn(sub)
 
-	if subExpr.err != nil {
-		b.err = subExpr.err
+	if sub.err != nil {
+		b.err = sub.err
 		return b
 	}
 
-	b.or(subExpr.expr)
+	b.or(sub.expr)
 	return b
 }
 
-// Not creates a negation expression using a sub-builder function.
-// The sub-expression is negated and combined with the current expression using AND logic.
-// Enables expressions like expr AND NOT(sub-expr).
+// Not runs fn against a fresh sub-builder, wraps the resulting
+// expression in NOT, and joins it with AND. An empty sub-builder
+// (nil expression) is silently skipped.
 func (b *ExprBuilder) Not(fn func(*ExprBuilder)) *ExprBuilder {
 	if b.err != nil {
 		return b
 	}
 
-	subExpr := NewExprBuilder()
-	fn(subExpr)
+	sub := NewExprBuilder()
+	fn(sub)
 
-	if subExpr.err != nil {
-		b.err = subExpr.err
+	if sub.err != nil {
+		b.err = sub.err
 		return b
 	}
-	if any(subExpr.expr) == nil {
+	if any(sub.expr) == nil {
 		return b
 	}
-	notExpr := Not(subExpr.expr)
-	b.and(notExpr)
+
+	b.and(Not(sub.expr))
 	return b
 }
 
-// Builder provides a clean public interface wrapping ExprBuilder functionality.
-// It delegates all operations to an internal ExprBuilder and provides the Build()
-// method to retrieve the constructed expression or any accumulated errors.
+// Builder is the public entry point for fluent construction of filter
+// expressions. It thinly wraps [ExprBuilder] and exposes
+// [Builder.Build] to collect the final AST plus the first deferred
+// error.
 type Builder struct {
 	exprBuilder *ExprBuilder
 }
 
-// EQ creates an equality comparison and returns the Builder for method chaining.
+// NewBuilder returns a fresh [Builder] backed by an empty
+// [ExprBuilder].
+func NewBuilder() *Builder {
+	return &Builder{exprBuilder: NewExprBuilder()}
+}
+
+// EQ — see [ExprBuilder.EQ].
 func (b *Builder) EQ(l, r any) *Builder {
 	b.exprBuilder.EQ(l, r)
 	return b
 }
 
-// NE creates an inequality comparison and returns the Builder for method chaining.
+// NE — see [ExprBuilder.NE].
 func (b *Builder) NE(l, r any) *Builder {
 	b.exprBuilder.NE(l, r)
 	return b
 }
 
-// LT creates a less-than comparison and returns the Builder for method chaining.
+// LT — see [ExprBuilder.LT].
 func (b *Builder) LT(l, r any) *Builder {
 	b.exprBuilder.LT(l, r)
 	return b
 }
 
-// LE creates a less-than-or-equal comparison and returns the Builder for method chaining.
+// LE — see [ExprBuilder.LE].
 func (b *Builder) LE(l, r any) *Builder {
 	b.exprBuilder.LE(l, r)
 	return b
 }
 
-// GT creates a greater-than comparison and returns the Builder for method chaining.
+// GT — see [ExprBuilder.GT].
 func (b *Builder) GT(l, r any) *Builder {
 	b.exprBuilder.GT(l, r)
 	return b
 }
 
-// GE creates a greater-than-or-equal comparison and returns the Builder for method chaining.
+// GE — see [ExprBuilder.GE].
 func (b *Builder) GE(l, r any) *Builder {
 	b.exprBuilder.GE(l, r)
 	return b
 }
 
-// In creates a membership test expression and returns the Builder for method chaining.
+// In — see [ExprBuilder.In].
 func (b *Builder) In(l, r any) *Builder {
 	b.exprBuilder.In(l, r)
 	return b
 }
 
-// Like creates a pattern matching expression and returns the Builder for method chaining.
+// Like — see [ExprBuilder.Like].
 func (b *Builder) Like(l, r any) *Builder {
 	b.exprBuilder.Like(l, r)
 	return b
 }
 
-// And creates a nested AND expression and returns the Builder for method chaining.
+// And — see [ExprBuilder.And].
 func (b *Builder) And(fn func(*ExprBuilder)) *Builder {
 	b.exprBuilder.And(fn)
 	return b
 }
 
-// Or creates a nested OR expression and returns the Builder for method chaining.
+// Or — see [ExprBuilder.Or].
 func (b *Builder) Or(fn func(*ExprBuilder)) *Builder {
 	b.exprBuilder.Or(fn)
 	return b
 }
 
-// Not creates a negation expression and returns the Builder for method chaining.
+// Not — see [ExprBuilder.Not].
 func (b *Builder) Not(fn func(*ExprBuilder)) *Builder {
 	b.exprBuilder.Not(fn)
 	return b
 }
 
-// Build finalizes the expression construction and returns the built AST expression.
-// Returns any error that occurred during the building process, enabling deferred
-// error handling after a chain of operations.
+// Build returns the constructed AST and the first error captured
+// during the chain. A nil expression with a nil error means no
+// predicate was added.
 func (b *Builder) Build() (ast.Expr, error) {
 	if b.exprBuilder.err != nil {
 		return nil, b.exprBuilder.err
 	}
 	return b.exprBuilder.expr, nil
-}
-
-// NewBuilder creates a new Builder instance with a fresh ExprBuilder.
-// This is the entry point for constructing filter expressions using the fluent API.
-func NewBuilder() *Builder {
-	return &Builder{
-		exprBuilder: NewExprBuilder(),
-	}
 }
