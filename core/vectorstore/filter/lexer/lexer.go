@@ -409,8 +409,11 @@ func (l *Lexer) Token() iter.Seq[token.Token] {
 // Tokens consumes the entire input and returns every token, EOF
 // included. Convenient for tests and small inputs; for large inputs
 // prefer [Lexer.Scan] or [Lexer.Token] to avoid buffering everything.
+//
+// The capacity hint is sized so most realistic filter expressions
+// avoid reslicing.
 func (l *Lexer) Tokens() []token.Token {
-	var tokens []token.Token
+	tokens := make([]token.Token, 0, len(l.input)/4+8)
 	for tk := range l.Token() {
 		tokens = append(tokens, tk)
 		if tk.Kind.Is(token.EOF) {

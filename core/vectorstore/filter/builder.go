@@ -2,6 +2,7 @@ package filter
 
 import (
 	"github.com/Tangerg/lynx/core/vectorstore/filter/ast"
+	"github.com/Tangerg/lynx/core/vectorstore/filter/token"
 )
 
 // ExprBuilder is the AND-by-default fluent builder for filter
@@ -51,8 +52,12 @@ func (b *ExprBuilder) or(expr ast.ComputedExpr) {
 	b.expr = Or(b.expr, expr)
 }
 
-// EQ appends `l == r` joined with AND. Captures any conversion error.
-func (b *ExprBuilder) EQ(l, r any) *ExprBuilder {
+// appendBinary is the shared body of every comparison/match builder
+// method (EQ, NE, LT, LE, GT, GE, Like). It resolves the left operand
+// (identifier or pre-built index expression), builds a literal from
+// the right operand, and joins the resulting `left op right` to the
+// running expression with AND. Errors short-circuit the chain.
+func (b *ExprBuilder) appendBinary(l, r any, op token.Kind) *ExprBuilder {
 	if b.err != nil {
 		return b
 	}
@@ -63,155 +68,37 @@ func (b *ExprBuilder) EQ(l, r any) *ExprBuilder {
 		return b
 	}
 
-	if indexExpr, ok := l.(*ast.IndexExpr); ok {
-		b.and(EQ(indexExpr, literal))
-		return b
-	}
-
-	ident, err := newIdent(l)
+	left, err := identOrIndex(l)
 	if err != nil {
 		b.err = err
 		return b
 	}
 
-	b.and(EQ(ident, literal))
+	b.and(&ast.BinaryExpr{Left: left, Op: newKindToken(op), Right: literal})
 	return b
 }
+
+// EQ appends `l == r` joined with AND.
+func (b *ExprBuilder) EQ(l, r any) *ExprBuilder { return b.appendBinary(l, r, token.EQ) }
 
 // NE appends `l != r` joined with AND.
-func (b *ExprBuilder) NE(l, r any) *ExprBuilder {
-	if b.err != nil {
-		return b
-	}
-
-	literal, err := newLiteral(r)
-	if err != nil {
-		b.err = err
-		return b
-	}
-
-	if indexExpr, ok := l.(*ast.IndexExpr); ok {
-		b.and(NE(indexExpr, literal))
-		return b
-	}
-
-	ident, err := newIdent(l)
-	if err != nil {
-		b.err = err
-		return b
-	}
-
-	b.and(NE(ident, literal))
-	return b
-}
+func (b *ExprBuilder) NE(l, r any) *ExprBuilder { return b.appendBinary(l, r, token.NE) }
 
 // LT appends `l < r` joined with AND. Right operand must be numeric.
-func (b *ExprBuilder) LT(l, r any) *ExprBuilder {
-	if b.err != nil {
-		return b
-	}
-
-	literal, err := newLiteral(r)
-	if err != nil {
-		b.err = err
-		return b
-	}
-
-	if indexExpr, ok := l.(*ast.IndexExpr); ok {
-		b.and(LT(indexExpr, literal))
-		return b
-	}
-
-	ident, err := newIdent(l)
-	if err != nil {
-		b.err = err
-		return b
-	}
-
-	b.and(LT(ident, literal))
-	return b
-}
+func (b *ExprBuilder) LT(l, r any) *ExprBuilder { return b.appendBinary(l, r, token.LT) }
 
 // LE appends `l <= r` joined with AND. Right operand must be numeric.
-func (b *ExprBuilder) LE(l, r any) *ExprBuilder {
-	if b.err != nil {
-		return b
-	}
-
-	literal, err := newLiteral(r)
-	if err != nil {
-		b.err = err
-		return b
-	}
-
-	if indexExpr, ok := l.(*ast.IndexExpr); ok {
-		b.and(LE(indexExpr, literal))
-		return b
-	}
-
-	ident, err := newIdent(l)
-	if err != nil {
-		b.err = err
-		return b
-	}
-
-	b.and(LE(ident, literal))
-	return b
-}
+func (b *ExprBuilder) LE(l, r any) *ExprBuilder { return b.appendBinary(l, r, token.LE) }
 
 // GT appends `l > r` joined with AND. Right operand must be numeric.
-func (b *ExprBuilder) GT(l, r any) *ExprBuilder {
-	if b.err != nil {
-		return b
-	}
-
-	literal, err := newLiteral(r)
-	if err != nil {
-		b.err = err
-		return b
-	}
-
-	if indexExpr, ok := l.(*ast.IndexExpr); ok {
-		b.and(GT(indexExpr, literal))
-		return b
-	}
-
-	ident, err := newIdent(l)
-	if err != nil {
-		b.err = err
-		return b
-	}
-
-	b.and(GT(ident, literal))
-	return b
-}
+func (b *ExprBuilder) GT(l, r any) *ExprBuilder { return b.appendBinary(l, r, token.GT) }
 
 // GE appends `l >= r` joined with AND. Right operand must be numeric.
-func (b *ExprBuilder) GE(l, r any) *ExprBuilder {
-	if b.err != nil {
-		return b
-	}
+func (b *ExprBuilder) GE(l, r any) *ExprBuilder { return b.appendBinary(l, r, token.GE) }
 
-	literal, err := newLiteral(r)
-	if err != nil {
-		b.err = err
-		return b
-	}
-
-	if indexExpr, ok := l.(*ast.IndexExpr); ok {
-		b.and(GE(indexExpr, literal))
-		return b
-	}
-
-	ident, err := newIdent(l)
-	if err != nil {
-		b.err = err
-		return b
-	}
-
-	b.and(GE(ident, literal))
-	return b
-}
+// Like appends `l LIKE r` joined with AND. Right operand must be a
+// string.
+func (b *ExprBuilder) Like(l, r any) *ExprBuilder { return b.appendBinary(l, r, token.LIKE) }
 
 // In appends `l IN (...)` joined with AND. Right operand is any slice
 // type accepted by [newListLiteral].
@@ -226,46 +113,13 @@ func (b *ExprBuilder) In(l, r any) *ExprBuilder {
 		return b
 	}
 
-	if indexExpr, ok := l.(*ast.IndexExpr); ok {
-		b.and(In(indexExpr, list))
-		return b
-	}
-
-	ident, err := newIdent(l)
+	left, err := identOrIndex(l)
 	if err != nil {
 		b.err = err
 		return b
 	}
 
-	b.and(In(ident, list))
-	return b
-}
-
-// Like appends `l LIKE r` joined with AND. Right operand must be a
-// string.
-func (b *ExprBuilder) Like(l, r any) *ExprBuilder {
-	if b.err != nil {
-		return b
-	}
-
-	literal, err := newLiteral(r)
-	if err != nil {
-		b.err = err
-		return b
-	}
-
-	if indexExpr, ok := l.(*ast.IndexExpr); ok {
-		b.and(Like(indexExpr, literal))
-		return b
-	}
-
-	ident, err := newIdent(l)
-	if err != nil {
-		b.err = err
-		return b
-	}
-
-	b.and(Like(ident, literal))
+	b.and(&ast.BinaryExpr{Left: left, Op: newKindToken(token.IN), Right: list})
 	return b
 }
 

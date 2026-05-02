@@ -261,12 +261,31 @@ func (k Kind) Precedence() int {
 
 // KindOf maps an identifier string onto its Kind — keywords match
 // case-insensitively and return the corresponding keyword kind; all
-// other strings yield IDENT.
+// other strings yield IDENT. The all-lowercase fast path skips the
+// allocation in [strings.ToLower] for the common case where the
+// caller already supplies lowercase text.
 func KindOf(ident string) Kind {
+	if !hasUpperASCII(ident) {
+		if k, ok := keywordKinds[ident]; ok {
+			return k
+		}
+		return IDENT
+	}
 	if k, ok := keywordKinds[strings.ToLower(ident)]; ok {
 		return k
 	}
 	return IDENT
+}
+
+// hasUpperASCII reports whether s contains any A–Z byte. Cheap test
+// for the all-lowercase fast path in [KindOf].
+func hasUpperASCII(s string) bool {
+	for i := 0; i < len(s); i++ {
+		if c := s[i]; c >= 'A' && c <= 'Z' {
+			return true
+		}
+	}
+	return false
 }
 
 // IsKeyword reports whether ident is a reserved keyword.

@@ -5,7 +5,6 @@
 package ast
 
 import (
-	"errors"
 	"fmt"
 	"strconv"
 
@@ -38,18 +37,6 @@ type AtomicExpr interface {
 type ComputedExpr interface {
 	Expr
 	computedExpr()
-}
-
-// precedenceAble is the unexported interface for nodes whose operator
-// has an integer precedence. Used by [UnaryExpr.IsRightLower] /
-// [BinaryExpr.IsLeftLower] to decide whether parentheses are needed
-// when re-rendering an AST.
-type precedenceAble interface {
-	ComputedExpr
-
-	// Precedence returns the operator's precedence level. Higher
-	// values bind tighter.
-	Precedence() int
 }
 
 // Ident is a name reference — a column / metadata field the filter
@@ -120,24 +107,12 @@ func (l *Literal) IsBool() bool {
 }
 
 // AsBool returns the boolean value. Errors when the literal is not a
-// boolean or when the lexeme contradicts the token kind (a defensive
-// check — the parser should never produce this).
+// boolean.
 func (l *Literal) AsBool() (bool, error) {
-	parsed, err := strconv.ParseBool(l.Value)
-	if err != nil {
-		return false, fmt.Errorf("ast.Literal.AsBool: parse %q: %w", l.Value, err)
-	}
-
 	switch {
 	case l.Token.Kind.Is(token.TRUE):
-		if !parsed {
-			return true, errors.New("ast.Literal.AsBool: token kind TRUE but value parses to false")
-		}
 		return true, nil
 	case l.Token.Kind.Is(token.FALSE):
-		if parsed {
-			return false, errors.New("ast.Literal.AsBool: token kind FALSE but value parses to true")
-		}
 		return false, nil
 	default:
 		return false, fmt.Errorf("ast.Literal.AsBool: expected TRUE or FALSE, got %s with value %q",
@@ -196,16 +171,6 @@ func (u *UnaryExpr) End() token.Position   { return u.Right.End() }
 // Precedence returns the unary operator's precedence.
 func (u *UnaryExpr) Precedence() int { return u.Op.Kind.Precedence() }
 
-// IsRightLower reports whether the operand binds looser than this
-// expression — informs parenthesization when re-rendering.
-func (u *UnaryExpr) IsRightLower() bool {
-	right, ok := u.Right.(precedenceAble)
-	if !ok {
-		return false
-	}
-	return right.Precedence() < u.Precedence()
-}
-
 // BinaryExpr is one operator with two operands — comparisons (==, !=,
 // <, <=, >, >=), logical ops (AND, OR), membership (IN), pattern match
 // (LIKE). Binary expressions cover most of the filter language.
@@ -228,26 +193,6 @@ func (b *BinaryExpr) End() token.Position   { return b.Right.End() }
 
 // Precedence returns the binary operator's precedence.
 func (b *BinaryExpr) Precedence() int { return b.Op.Kind.Precedence() }
-
-// IsLeftLower reports whether the left operand binds looser than this
-// expression — informs parenthesization when re-rendering.
-func (b *BinaryExpr) IsLeftLower() bool {
-	left, ok := b.Left.(precedenceAble)
-	if !ok {
-		return false
-	}
-	return left.Precedence() < b.Precedence()
-}
-
-// IsRightLower reports whether the right operand binds looser than
-// this expression — informs parenthesization when re-rendering.
-func (b *BinaryExpr) IsRightLower() bool {
-	right, ok := b.Right.(precedenceAble)
-	if !ok {
-		return false
-	}
-	return right.Precedence() < b.Precedence()
-}
 
 // IndexExpr is an array / map access — arr[0], obj['key'], or nested
 // forms like arr[0][1].
