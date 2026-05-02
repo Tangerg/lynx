@@ -1,3 +1,9 @@
+// Package lexer turns filter-language source text into a stream of
+// [token.Token]s. Whitespace is skipped, single-quoted strings honour
+// `\n` `\t` `\r` `\'` `\\` escapes, numbers can be negative and
+// fractional, and unrecognised characters surface as ILLEGAL tokens
+// (with line/column position) so the parser can produce useful error
+// messages.
 package lexer
 
 import (
@@ -11,103 +17,94 @@ import (
 	"github.com/Tangerg/lynx/core/vectorstore/filter/token"
 )
 
-// Lexer represents a lexical analyzer that tokenizes input text into a stream of tokens.
-// It maintains currentPosition tracking, character buffering, and provides both single-Token
-// and batch tokenization capabilities.
+// Lexer scans a single input string. It tracks the start position of
+// the in-flight token plus the running cursor position, reuses one
+// [strings.Builder] for value accumulation, and exposes both
+// per-token and iterator/batch APIs.
 type Lexer struct {
-	input           string           // The complete source input string being tokenized
-	startPosition   token.Position   // Position where the current Token starts
-	currentPosition token.Position   // Current reading currentPosition with line and column tracking
-	currentChar     rune             // The character currently being examined
-	reader          *strings.Reader  // String reader for character-by-character processing
-	valueBuffer     *strings.Builder // Reusable buffer for constructing Token literal values
+	input         string
+	startPosition token.Position
+	cursor        token.Position
+	currentChar   rune
+	reader        *strings.Reader
+	valueBuffer   *strings.Builder
 }
 
-// NewLexer creates and initializes a new lexer instance for tokenizing the provided input.
-// Returns an error if the input is empty. The lexer is positioned at the beginning
-// and ready to start tokenization.
+// NewLexer creates a [Lexer] positioned at the start of input. Empty
+// input is rejected — callers asking to parse nothing have a bug.
 func NewLexer(input string) (*Lexer, error) {
 	if len(input) == 0 {
-		return nil, errors.New("input cannot be empty")
+		return nil, errors.New("lexer.NewLexer: input must not be empty")
 	}
 
 	return &Lexer{
-		input:           input,
-		startPosition:   token.NewPosition(),
-		currentPosition: token.NewPosition(),
-		currentChar:     0,
-		reader:          strings.NewReader(input),
-		valueBuffer:     &strings.Builder{},
+		input:         input,
+		startPosition: token.NewPosition(),
+		cursor:        token.NewPosition(),
+		reader:        strings.NewReader(input),
+		valueBuffer:   &strings.Builder{},
 	}, nil
 }
 
-// markTokenStart captures the current currentPosition as the start of a new Token.
-// Adjusts column backward by one to point to the actual character that
-// triggered the Token recognition.
+// markTokenStart snapshots the cursor as the start of the next token.
+// The column is rolled back by one because [consumeChar] has already
+// stepped past the first character of the token.
 func (l *Lexer) markTokenStart() {
-	l.startPosition = l.currentPosition
+	l.startPosition = l.cursor
 	l.startPosition.Column = max(l.startPosition.Column-1, 1)
 }
 
-// createEOFToken creates an EOF Token with proper position information.
-// Standardizes EOF Token creation by ensuring consistent position tracking.
-func (l *Lexer) createEOFToken() token.Token {
+// emitEOF synthesizes an EOF token at the current position.
+func (l *Lexer) emitEOF() token.Token {
 	l.markTokenStart()
 	return token.OfEOF(l.startPosition)
 }
 
-// createErrorToken creates an error Token with proper currentPosition information.
-// Standardizes error Token creation by ensuring consistent error reporting format.
-func (l *Lexer) createErrorToken(err error) token.Token {
+// emitError wraps a low-level read error into an ERROR token.
+func (l *Lexer) emitError(err error) token.Token {
 	l.markTokenStart()
 	return token.OfError(err, l.startPosition)
 }
 
-// createIllegalToken creates an illegal character Token with proper currentPosition information.
-// Used for characters that don't belong in the language grammar.
-func (l *Lexer) createIllegalToken() token.Token {
+// emitIllegal surfaces an unexpected character as an ILLEGAL token.
+func (l *Lexer) emitIllegal() token.Token {
 	l.markTokenStart()
 	return token.OfIllegal(l.currentChar, l.startPosition)
 }
 
-// createKindToken creates a Token using the kind's default literal value.
-// Uses the current lexer currentPosition range from startPosition to current currentPosition.
-func (l *Lexer) createKindToken(kind token.Kind) token.Token {
-	return token.OfKind(kind, l.startPosition, l.currentPosition)
+// emitKind builds a fixed-shape token (operators, punctuation,
+// keywords) using the start/cursor span.
+func (l *Lexer) emitKind(kind token.Kind) token.Token {
+	return token.OfKind(kind, l.startPosition, l.cursor)
 }
 
-// createLiteralToken creates a Token with custom literal content and validation.
-// Applies validation/normalization based on the Token kind, particularly for NUMBER tokens.
-func (l *Lexer) createLiteralToken(kind token.Kind, literal string) token.Token {
-	return token.OfLiteral(kind, literal, l.startPosition, l.currentPosition)
+// emitLiteral builds a value-bearing token (NUMBER/STRING) using the
+// current span.
+func (l *Lexer) emitLiteral(kind token.Kind, literal string) token.Token {
+	return token.OfLiteral(kind, literal, l.startPosition, l.cursor)
 }
 
-// createIdentToken creates an identifier Token with the given literal value.
-// Uses the current lexer currentPosition range from startPosition to current currentPosition.
-func (l *Lexer) createIdentToken(literal string) token.Token {
-	return token.OfIdent(literal, l.startPosition, l.currentPosition)
+// emitIdent builds an IDENT token using the current span.
+func (l *Lexer) emitIdent(literal string) token.Token {
+	return token.OfIdent(literal, l.startPosition, l.cursor)
 }
 
-// peekNextChar examines the next character without consuming it.
-// Essential for tokenization decisions where current character interpretation
-// depends on what follows (e.g., '<' vs '<='). Returns 0 and io.EOF at end of input.
+// peekNextChar returns the next rune without advancing. Returns
+// (0, io.EOF) at end of input. Internally reads-then-unreads so the
+// underlying reader's position is preserved.
 func (l *Lexer) peekNextChar() (rune, error) {
-	nextChar, _, err := l.reader.ReadRune()
+	next, _, err := l.reader.ReadRune()
 	if err != nil {
 		return 0, err
 	}
-
-	// Rewind to maintain current currentPosition
 	if err = l.reader.UnreadRune(); err != nil {
 		return 0, err
 	}
-
-	return nextChar, nil
+	return next, nil
 }
 
-// consumeChar advances to the next character and updates currentPosition tracking.
-// Handles newline detection for accurate line and column reporting.
-// Returns io.EOF when end of input is reached.
+// consumeChar advances by one rune, updating line/column. Newlines
+// reset the column. Returns io.EOF at end of input.
 func (l *Lexer) consumeChar() error {
 	char, _, err := l.reader.ReadRune()
 	if err != nil {
@@ -116,55 +113,51 @@ func (l *Lexer) consumeChar() error {
 
 	l.currentChar = char
 
-	// Update currentPosition tracking - handle newlines specially
 	if char == '\n' {
-		l.currentPosition.Line++
-		l.currentPosition.ResetColumn()
+		l.cursor.Line++
+		l.cursor.ResetColumn()
 	} else {
-		l.currentPosition.Column++
+		l.cursor.Column++
 	}
-
 	return nil
 }
 
-// bufferCurrentChar adds the current character to the value buffer.
-// Used during Token scanning to accumulate characters for Token value construction.
+// bufferCurrentChar appends the rune just consumed to the value
+// buffer. Used during string / number / identifier scanning.
 func (l *Lexer) bufferCurrentChar() {
 	l.valueBuffer.WriteRune(l.currentChar)
 }
 
-// consumeExpectedChar reads and validates the next character matches expected value.
-// Panics if expectation is violated, indicating a programming error in lexer logic.
-// Should only be called after successful peekNextChar() confirmation.
-func (l *Lexer) consumeExpectedChar(expectedChar rune) {
+// consumeExpected consumes one rune that must match expected. It
+// panics on mismatch — the caller is required to peek first, so a
+// mismatch indicates a lexer-internal bug, not bad user input.
+func (l *Lexer) consumeExpected(expected rune) {
 	if err := l.consumeChar(); err != nil {
-		panic(fmt.Errorf("failed to read expected character '%c': %w", expectedChar, err))
+		panic(fmt.Errorf("lexer.consumeExpected: read %q: %w", expected, err))
 	}
-	if l.currentChar != expectedChar {
-		panic(fmt.Errorf("expected '%c' but found '%c'", expectedChar, l.currentChar))
+	if l.currentChar != expected {
+		panic(fmt.Errorf("lexer.consumeExpected: want %q, got %q", expected, l.currentChar))
 	}
 }
 
-// skipWhitespace advances past all consecutive whitespace characters.
-// Positions the lexer at the start of the next meaningful Token.
-// Returns io.EOF when end of input is reached while skipping whitespace.
+// skipWhitespace advances past any run of unicode whitespace and
+// leaves the cursor on the next significant rune.
 func (l *Lexer) skipWhitespace() error {
 	for {
 		if err := l.consumeChar(); err != nil {
 			return err
 		}
-
 		if !unicode.IsSpace(l.currentChar) {
-			break
+			return nil
 		}
 	}
-	return nil
 }
 
-// escapeChar converts escape sequence characters to their actual representations.
-// Transforms escape sequences like 'n', 't', 'r' into '\n', '\t', '\r'.
-// Used during string literal parsing to interpret escape sequences.
-func (l *Lexer) escapeChar(char rune) rune {
+// resolveEscape turns the rune following a backslash into its actual
+// value. Unknown sequences pass through unchanged — same as Go's
+// strconv behaviour for an unrecognised escape inside a quoted
+// string.
+func (l *Lexer) resolveEscape(char rune) rune {
 	switch char {
 	case 'n':
 		return '\n'
@@ -177,266 +170,232 @@ func (l *Lexer) escapeChar(char rune) rune {
 	case '\\':
 		return '\\'
 	default:
-		return char // Unknown escape sequences treated as literal characters
+		return char
 	}
 }
 
-// scanStringLiteral tokenizes a string enclosed in single quotes with escape support.
-// Handles character accumulation, escape sequence processing, and error handling
-// for unterminated strings. Opening quote should already be current character.
-func (l *Lexer) scanStringLiteral() token.Token {
+// scanString tokenizes a single-quoted string. The opening quote is
+// the current char; the closing quote is consumed but not buffered.
+// Backslash escapes are honoured.
+func (l *Lexer) scanString() token.Token {
 	defer l.valueBuffer.Reset()
 
 	for {
 		if err := l.consumeChar(); err != nil {
-			return l.createErrorToken(err)
+			return l.emitError(err)
 		}
 
-		// Found closing quote - string literal complete
 		if l.currentChar == '\'' {
 			break
 		}
 
-		// Handle escape sequences
 		if l.currentChar == '\\' {
-			// Consume the character following the backslash
 			if err := l.consumeChar(); err != nil {
-				return l.createErrorToken(err)
+				return l.emitError(err)
 			}
-
-			escapedChar := l.escapeChar(l.currentChar)
-			l.valueBuffer.WriteRune(escapedChar)
-		} else {
-			l.bufferCurrentChar()
+			l.valueBuffer.WriteRune(l.resolveEscape(l.currentChar))
+			continue
 		}
+
+		l.bufferCurrentChar()
 	}
 
-	return l.createLiteralToken(token.STRING, l.valueBuffer.String())
+	return l.emitLiteral(token.STRING, l.valueBuffer.String())
 }
 
-// collectDigits reads consecutive digit characters into the value buffer.
-// Stops when a non-digit character is encountered or EOF is reached.
-// Uses peekNextChar to avoid consuming the terminating character.
+// collectDigits reads consecutive ASCII digits into the buffer.
+// Stops on first non-digit (peeked, not consumed) or EOF.
 func (l *Lexer) collectDigits() error {
 	for {
-		nextChar, err := l.peekNextChar()
+		next, err := l.peekNextChar()
 		if err != nil {
 			if errors.Is(err, io.EOF) {
-				return nil // End of input is valid termination
+				return nil
 			}
 			return err
 		}
-
-		if !unicode.IsDigit(nextChar) {
-			break
+		if !unicode.IsDigit(next) {
+			return nil
 		}
 
-		l.consumeExpectedChar(nextChar)
+		l.consumeExpected(next)
 		l.bufferCurrentChar()
 	}
-	return nil
 }
 
-// scanNumericLiteral tokenizes integer and floating-point number literals.
-// Handles both simple integers (123) and decimal numbers (123.45) with
-// proper validation. First digit should already be current character.
-func (l *Lexer) scanNumericLiteral() token.Token {
+// scanNumber tokenizes an integer or decimal number. The first digit
+// must be the current char. A decimal point requires at least one
+// digit after it.
+func (l *Lexer) scanNumber() token.Token {
 	defer l.valueBuffer.Reset()
 
-	// Add the initial digit
 	l.bufferCurrentChar()
 
-	// Collect remaining integer digits
 	if err := l.collectDigits(); err != nil {
-		return l.createErrorToken(err)
+		return l.emitError(err)
 	}
 
-	// Check for decimal point
-	nextChar, err := l.peekNextChar()
+	next, err := l.peekNextChar()
 	if err != nil && !errors.Is(err, io.EOF) {
-		return l.createErrorToken(err)
+		return l.emitError(err)
 	}
 
-	// Process fractional part if decimal point present
-	if err == nil && nextChar == '.' {
-		l.consumeExpectedChar(nextChar)
+	if err == nil && next == '.' {
+		l.consumeExpected(next)
 		l.bufferCurrentChar()
 
-		// Decimal point must be followed by at least one digit
 		if err = l.consumeChar(); err != nil {
-			return l.createErrorToken(err)
+			return l.emitError(err)
 		}
-
 		if !unicode.IsDigit(l.currentChar) {
-			return l.createIllegalToken()
+			return l.emitIllegal()
 		}
-
 		l.bufferCurrentChar()
 
-		// Collect remaining fractional digits
 		if err = l.collectDigits(); err != nil {
-			return l.createErrorToken(err)
+			return l.emitError(err)
 		}
 	}
 
-	return l.createLiteralToken(token.NUMBER, l.valueBuffer.String())
+	return l.emitLiteral(token.NUMBER, l.valueBuffer.String())
 }
 
-// scanNegativeNumericLiteral tokenizes negative numeric literals starting with minus sign.
-// Validates that minus is immediately followed by digits and constructs negative number Token.
-// Minus sign should already be current character.
-func (l *Lexer) scanNegativeNumericLiteral() token.Token {
-	// Character after minus must be a digit
+// scanNegativeNumber tokenizes a number that begins with '-'. The
+// minus must be immediately followed by a digit.
+func (l *Lexer) scanNegativeNumber() token.Token {
 	if err := l.consumeChar(); err != nil {
-		return l.createErrorToken(err)
+		return l.emitError(err)
 	}
-
 	if !unicode.IsDigit(l.currentChar) {
-		return l.createIllegalToken()
+		return l.emitIllegal()
 	}
 
-	// Scan numeric portion
-	numericToken := l.scanNumericLiteral()
-	if !numericToken.Kind.Is(token.NUMBER) {
-		return numericToken
+	number := l.scanNumber()
+	if !number.Kind.Is(token.NUMBER) {
+		return number
 	}
-
-	// Prepend minus sign to create negative literal
-	negativeValue := "-" + numericToken.Literal
-	return l.createLiteralToken(token.NUMBER, negativeValue)
+	return l.emitLiteral(token.NUMBER, "-"+number.Literal)
 }
 
-// scanIdentifier tokenizes identifiers and keywords starting with a letter.
-// Accumulates valid identifier characters and determines if result is a reserved keyword
-// or user-defined identifier. Case-sensitive for identifiers, case-insensitive for keywords.
+// scanIdentifier tokenizes an identifier or a keyword. The first
+// letter is the current char. A keyword match returns a canonical
+// fixed-kind token; everything else returns IDENT preserving case.
 func (l *Lexer) scanIdentifier() token.Token {
 	defer l.valueBuffer.Reset()
 
 	for {
 		l.bufferCurrentChar()
 
-		nextChar, err := l.peekNextChar()
+		next, err := l.peekNextChar()
 		if err != nil {
 			if errors.Is(err, io.EOF) {
 				break
 			}
-			return l.createErrorToken(err)
+			return l.emitError(err)
 		}
-
-		if !token.IsLiteralChar(nextChar) {
+		if !token.IsLiteralChar(next) {
 			break
 		}
 
-		l.consumeExpectedChar(nextChar)
+		l.consumeExpected(next)
 	}
 
-	identifierValue := l.valueBuffer.String()
-	tokenKind := token.KindOf(identifierValue)
+	value := l.valueBuffer.String()
+	kind := token.KindOf(value)
 
-	// Use canonical form for keywords, preserve case for identifiers
-	if tokenKind.IsKeyword() {
-		return l.createKindToken(tokenKind)
+	if kind.IsKeyword() {
+		return l.emitKind(kind)
 	}
-
-	return l.createIdentToken(identifierValue)
+	return l.emitIdent(value)
 }
 
-// scanVariableLengthOperator handles operators that can be one or two characters.
-// Examines next character to determine single vs double character operator.
-// Examples: '<' vs '<=' and '>' vs '>='.
-func (l *Lexer) scanVariableLengthOperator(secondChar rune, singleCharKind, doubleCharKind token.Kind) token.Token {
-	nextChar, err := l.peekNextChar()
+// scanOptionalSecondChar handles operators where the second character
+// is optional — `<` / `<=`, `>` / `>=`. Peeks one ahead to decide.
+func (l *Lexer) scanOptionalSecondChar(secondChar rune, single, paired token.Kind) token.Token {
+	next, err := l.peekNextChar()
 	if err != nil {
 		if errors.Is(err, io.EOF) {
-			return l.createKindToken(singleCharKind)
+			return l.emitKind(single)
 		}
-		return l.createErrorToken(err)
+		return l.emitError(err)
 	}
 
-	if nextChar != secondChar {
-		return l.createKindToken(singleCharKind)
+	if next != secondChar {
+		return l.emitKind(single)
 	}
 
-	// Consume second character for two-character operator
-	l.consumeExpectedChar(nextChar)
-	return l.createKindToken(doubleCharKind)
+	l.consumeExpected(next)
+	return l.emitKind(paired)
 }
 
-// scanFixedLengthOperator handles operators that must be exactly two characters.
-// Enforces specific two-character sequences and creates appropriate operator Token.
-// Examples: '==' and '!='. Rejects partial sequences as illegal.
-func (l *Lexer) scanFixedLengthOperator(requiredSecondChar rune, operatorKind token.Kind) token.Token {
+// scanRequiredSecondChar handles operators where the second character
+// is mandatory — `==` / `!=`. Mismatch yields ILLEGAL.
+func (l *Lexer) scanRequiredSecondChar(secondChar rune, kind token.Kind) token.Token {
 	if err := l.consumeChar(); err != nil {
-		return l.createErrorToken(err)
+		return l.emitError(err)
 	}
-
-	if l.currentChar != requiredSecondChar {
-		return l.createIllegalToken()
+	if l.currentChar != secondChar {
+		return l.emitIllegal()
 	}
-
-	return l.createKindToken(operatorKind)
+	return l.emitKind(kind)
 }
 
-// dispatchToken analyzes current character and routes to appropriate scanning method.
-// Main tokenization dispatcher implementing the lexer's decision tree for determining
-// Token types. Handles all supported categories and delegates to specialized scanners.
+// dispatchToken inspects the current rune and routes to the right
+// scanner. The first switch covers fixed punctuation/operators; then
+// digits and letters fall through to multi-char scanners.
 func (l *Lexer) dispatchToken() token.Token {
 	switch l.currentChar {
 	case '=':
-		return l.scanFixedLengthOperator('=', token.EQ)
+		return l.scanRequiredSecondChar('=', token.EQ)
 	case '!':
-		return l.scanFixedLengthOperator('=', token.NE)
+		return l.scanRequiredSecondChar('=', token.NE)
 	case '<':
-		return l.scanVariableLengthOperator('=', token.LT, token.LE)
+		return l.scanOptionalSecondChar('=', token.LT, token.LE)
 	case '>':
-		return l.scanVariableLengthOperator('=', token.GT, token.GE)
+		return l.scanOptionalSecondChar('=', token.GT, token.GE)
 	case '\'':
-		return l.scanStringLiteral()
+		return l.scanString()
 	case '-':
-		return l.scanNegativeNumericLiteral()
+		return l.scanNegativeNumber()
 	case '(':
-		return l.createKindToken(token.LPAREN)
+		return l.emitKind(token.LPAREN)
 	case ')':
-		return l.createKindToken(token.RPAREN)
+		return l.emitKind(token.RPAREN)
 	case '[':
-		return l.createKindToken(token.LBRACK)
+		return l.emitKind(token.LBRACK)
 	case ']':
-		return l.createKindToken(token.RBRACK)
+		return l.emitKind(token.RBRACK)
 	case ',':
-		return l.createKindToken(token.COMMA)
+		return l.emitKind(token.COMMA)
 	}
 
 	if unicode.IsDigit(l.currentChar) {
-		return l.scanNumericLiteral()
+		return l.scanNumber()
 	}
-
 	if unicode.IsLetter(l.currentChar) {
 		return l.scanIdentifier()
 	}
 
-	return l.createIllegalToken()
+	return l.emitIllegal()
 }
 
-// Scan returns the next Token from the input stream.
-// Primary method for single-Token extraction. Handles whitespace skipping,
-// end-of-input detection, and delegates to dispatchToken for recognition.
+// Scan returns the next token. EOF and read errors are surfaced as
+// EOF / ERROR tokens — callers never see plain io errors.
 func (l *Lexer) Scan() token.Token {
-	// Skip leading whitespace
 	if err := l.skipWhitespace(); err != nil {
 		if errors.Is(err, io.EOF) {
-			return l.createEOFToken()
+			return l.emitEOF()
 		}
-		return l.createErrorToken(err)
+		return l.emitError(err)
 	}
 
 	l.markTokenStart()
 	return l.dispatchToken()
 }
 
-// Token returns an iterator that yields tokens one by one from the input stream.
-// This method provides a convenient way to iterate over all tokens using Go's
-// The iterator continues until the consumer stops requesting tokens or
-// an error occurs. Each call to the iterator internally calls Scan().
+// Token returns an iterator over [Lexer.Scan]. The iterator yields
+// indefinitely — consumers stop by returning false. EOF tokens are
+// included so consumers can detect end-of-input themselves.
 func (l *Lexer) Token() iter.Seq[token.Token] {
 	return func(yield func(token.Token) bool) {
 		for {
@@ -447,31 +406,29 @@ func (l *Lexer) Token() iter.Seq[token.Token] {
 	}
 }
 
-// Tokens processes entire input and returns all tokens as a slice.
-// Convenience method for batch processing. Continues until EOF token encountered.
-// Includes ERROR and ILLEGAL tokens in result for error recovery and debugging.
+// Tokens consumes the entire input and returns every token, EOF
+// included. Convenient for tests and small inputs; for large inputs
+// prefer [Lexer.Scan] or [Lexer.Token] to avoid buffering everything.
 //
-// Note: This method consumes the entire input stream and stores all tokens in memory.
-// For large inputs, consider using Scan() or Token() for streaming processing.
+// The capacity hint is sized so most realistic filter expressions
+// avoid reslicing.
 func (l *Lexer) Tokens() []token.Token {
-	var allTokens []token.Token
-	for currentToken := range l.Token() {
-		allTokens = append(allTokens, currentToken)
-
-		if currentToken.Kind.Is(token.EOF) {
+	tokens := make([]token.Token, 0, len(l.input)/4+8)
+	for tk := range l.Token() {
+		tokens = append(tokens, tk)
+		if tk.Kind.Is(token.EOF) {
 			break
 		}
 	}
-
-	return allTokens
+	return tokens
 }
 
-// Reset reinitializes the lexer to begin tokenizing from start of input.
-// Clears all internal state including positions, buffers, and reader currentPosition.
-// Enables efficient reuse of lexer instances for multiple parsing operations.
+// Reset rewinds to the start of input and clears all per-scan state
+// — positions, the current rune, the value buffer. The input string
+// itself is preserved so the same instance can be reused.
 func (l *Lexer) Reset() {
 	l.startPosition.Reset()
-	l.currentPosition.Reset()
+	l.cursor.Reset()
 	l.currentChar = 0
 	l.reader.Reset(l.input)
 	l.valueBuffer.Reset()

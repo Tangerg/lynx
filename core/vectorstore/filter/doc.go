@@ -332,7 +332,7 @@
 //   - Hand-written lexer for optimal tokenization (O(n) complexity)
 //   - Pratt parser for efficient expression parsing (O(n) complexity)
 //   - Minimal allocations with careful memory management
-//   - Zero external dependencies (except optional spf13/cast for convenience)
+//   - Zero external dependencies (stdlib-only)
 //
 // Extensibility:
 //   - Visitor pattern for easy addition of new analysis passes

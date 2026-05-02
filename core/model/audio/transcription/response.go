@@ -1,67 +1,59 @@
 package transcription
 
-import (
-	"errors"
-)
+import "errors"
 
-// ResultMetadata holds metadata information for a single audio transcription result
+// ResultMetadata holds per-segment metadata returned by the provider.
 type ResultMetadata struct {
-	// Extra holds provider-specific metadata that is not part of the standard fields
+	// Extra carries provider-specific metadata.
 	Extra map[string]any `json:"extra"`
 }
 
-// ensureExtra initializes the Extra map if it is nil
 func (r *ResultMetadata) ensureExtra() {
 	if r.Extra == nil {
 		r.Extra = make(map[string]any)
 	}
 }
 
-// Get retrieves a value from the Extra metadata map
-// Returns the value and a boolean indicating whether the key exists
+// Get returns the Extra value for key plus an existence flag.
 func (r *ResultMetadata) Get(key string) (any, bool) {
 	r.ensureExtra()
 	value, exists := r.Extra[key]
 	return value, exists
 }
 
-// Set stores a key-value pair in the Extra metadata map
+// Set stores value under key in Extra.
 func (r *ResultMetadata) Set(key string, value any) {
 	r.ensureExtra()
 	r.Extra[key] = value
 }
 
-// Result represents a single audio transcription result with its associated metadata
+// Result is one transcription segment.
 type Result struct {
-	// Text contains the transcribed text from the audio
+	// Text is the transcribed text. Empty is allowed for partial /
+	// silence segments.
 	Text string `json:"text"`
 
-	// Metadata contains additional information about the transcription result
+	// Metadata carries per-segment extras.
 	Metadata *ResultMetadata `json:"metadata"`
 }
 
-// NewResult creates a new Result instance
-// Metadata is required; text can be empty for partial or failed transcriptions
-// Returns an error if metadata is nil
+// NewResult builds a [Result]. Text may be empty; metadata is required.
 func NewResult(text string, metadata *ResultMetadata) (*Result, error) {
 	if metadata == nil {
-		return nil, errors.New("metadata is nil")
+		return nil, errors.New("transcription.NewResult: metadata must not be nil")
 	}
-	return &Result{
-		Text:     text,
-		Metadata: metadata,
-	}, nil
+	return &Result{Text: text, Metadata: metadata}, nil
 }
 
-// ResponseMetadata holds metadata information for the entire audio transcription response
+// ResponseMetadata holds response-level metadata for a transcription call.
 type ResponseMetadata struct {
-	// Model is the name of the transcription model used
+	// Model is the model name actually served.
 	Model string `json:"model"`
 
-	// Created is the Unix timestamp of response creation
+	// Created is the provider-reported creation time, Unix seconds.
 	Created int64 `json:"created"`
 
-	// Extra holds provider-specific metadata that is not part of the standard fields
+	// Extra carries provider-specific metadata.
 	Extra map[string]any `json:"extra"`
 }
 
@@ -71,49 +63,47 @@ func (r *ResponseMetadata) ensureExtra() {
 	}
 }
 
+// Get returns the Extra value for key plus an existence flag.
 func (r *ResponseMetadata) Get(key string) (any, bool) {
 	r.ensureExtra()
 	value, exists := r.Extra[key]
 	return value, exists
 }
 
+// Set stores value under key in Extra.
 func (r *ResponseMetadata) Set(key string, value any) {
 	r.ensureExtra()
 	r.Extra[key] = value
 }
 
-// Response represents the complete response from an audio transcription request
-// It contains one or more transcription results and associated metadata
+// Response is the full transcription result: every segment the
+// provider produced plus shared response metadata.
 type Response struct {
-	// Results contains all transcription results from the audio processing
+	// Results holds one entry per transcribed segment.
 	Results []*Result `json:"results"`
 
-	// Metadata contains information about the response itself
+	// Metadata carries shared response-level fields.
 	Metadata *ResponseMetadata `json:"metadata"`
 }
 
-// NewResponse creates a new Response instance
-// At least one result is required, and metadata must be provided
-// Returns an error if results is empty or metadata is nil
+// NewResponse builds a [Response] from at least one result and a
+// non-nil metadata.
 func NewResponse(results []*Result, metadata *ResponseMetadata) (*Response, error) {
 	if len(results) == 0 {
-		return nil, errors.New("at least one result is required")
+		return nil, errors.New("transcription.NewResponse: at least one Result is required")
 	}
 	if metadata == nil {
-		return nil, errors.New("metadata cannot be nil")
+		return nil, errors.New("transcription.NewResponse: metadata must not be nil")
 	}
-	return &Response{
-		Results:  results,
-		Metadata: metadata,
-	}, nil
+	return &Response{Results: results, Metadata: metadata}, nil
 }
 
-// Result returns the first result from the Results slice
-// Returns nil if the Results slice is empty
-// This is a convenience method for accessing the primary transcription result
+// Result returns the first transcription segment — convenient when the
+// provider produced one continuous transcription. Returns nil when
+// Results is empty.
 func (r *Response) Result() *Result {
-	if len(r.Results) > 0 {
-		return r.Results[0]
+	if len(r.Results) == 0 {
+		return nil
 	}
-	return nil
+	return r.Results[0]
 }

@@ -1,56 +1,44 @@
 package token
 
-import (
-	"strconv"
-)
+import "strconv"
 
-// NoPosition represents an invalid or unknown position in the source code.
-// It can be used as a sentinel value when position information is not available.
+// NoPosition is the zero-value sentinel callers use when position
+// information is unavailable.
 var NoPosition = Position{}
 
-// Position represents a location in the source code with line and column information.
-// Both line and column numbers are 1-indexed to match common editor conventions.
-// This is essential for providing accurate error messages and debugging information.
+// Position locates a byte in the source — line and column are
+// 1-indexed to match editor conventions and standard error-message
+// formats.
 type Position struct {
-	Line   int // Line number in the source, starting at 1
-	Column int // Column number in the current line, starting at 1
+	// Line is the 1-indexed line number.
+	Line int
+
+	// Column is the 1-indexed column within the current line.
+	Column int
 }
 
-// NewPosition creates a new Position starting at the beginning of the source.
-// This is typically used when initializing a lexer or parser to track
-// the current position during tokenization.
+// NewPosition returns the start-of-source position, (1, 1).
 func NewPosition() Position {
-	return Position{
-		Line:   1,
-		Column: 1,
-	}
+	return Position{Line: 1, Column: 1}
 }
 
-// ResetColumn resets the column position to 1 while keeping the current line.
-// This is typically called when encountering a newline character during lexing,
-// as the cursor moves to the beginning of the next line.
-func (p *Position) ResetColumn() {
-	p.Column = 1
-}
+// ResetColumn moves Column back to 1 while keeping Line — called by
+// the lexer on every newline.
+func (p *Position) ResetColumn() { p.Column = 1 }
 
-// ResetLine resets the line position to 1 while keeping the current column.
-// This method is rarely used in practice, but provides symmetry with ResetColumn
-// and may be useful for specific parsing scenarios.
-func (p *Position) ResetLine() {
-	p.Line = 1
-}
+// ResetLine moves Line back to 1 while keeping Column. Rarely used;
+// kept for symmetry with [Position.ResetColumn].
+func (p *Position) ResetLine() { p.Line = 1 }
 
-// Reset resets both line and column positions to their initial values (1, 1).
-// This is useful when reusing a Position instance for parsing a new source
-// or when restarting the parsing process from the beginning.
+// Reset returns the position to (1, 1) — typically called when reusing
+// a Position across multiple parses.
 func (p *Position) Reset() {
 	p.Line = 1
 	p.Column = 1
 }
 
-// String returns a human-readable string representation of the position.
-// The format "L:C" is commonly used in error messages and debugging output.
-// This makes it easy to locate issues in the source code.
+// String renders the position as "line:column", the format conventional
+// in compiler error messages.
 func (p Position) String() string {
 	return strconv.Itoa(p.Line) + ":" + strconv.Itoa(p.Column)
 }

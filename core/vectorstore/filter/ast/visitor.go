@@ -1,13 +1,12 @@
 package ast
 
-// Visitor defines the visitor pattern interface for AST node operations.
-// Allows performing operations like validation, transformation, or analysis
-// without modifying the node structures.
+// Visitor walks an [Expr] tree, optionally swapping visitors as it
+// descends. The contract is identical to [go/ast.Visitor]:
+//
+//   - return the same Visitor: keep walking with the current visitor;
+//   - return a different Visitor: switch to it for the subtree;
+//   - return nil: stop descending into the current subtree.
 type Visitor interface {
-	// Visit is called for each AST node during traversal.
-	// Returns:
-	//   - same visitor: continue with current visitor
-	//   - different visitor: continue with new visitor
-	//   - nil: stop traversal of current subtree
+	// Visit is called once per AST node.
 	Visit(expr Expr) Visitor
 }

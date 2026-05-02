@@ -1,25 +1,36 @@
+// Package transcription defines the request/response types and Model
+// interface for audio-to-text LLMs. Concrete provider implementations
+// (OpenAI Whisper, Deepgram, AssemblyAI, ...) live in
+// /models/<provider>/audio_transcription.go.
 package transcription
 
-import (
-	"github.com/Tangerg/lynx/core/model"
-)
+import "github.com/Tangerg/lynx/core/model"
 
-// Model represents an audio transcription model interface that processes audio-to-text
-// conversion requests and returns transcription responses. It supports synchronous
-// transcription operations for converting speech or audio into written text.
+// Model is the provider surface for an audio transcription LLM —
+// synchronous call, model defaults, identity hint.
+//
+// Example:
+//
+//	type myWhisper struct{ /* ... */ }
+//	func (m *myWhisper) Call(ctx context.Context, req *transcription.Request) (*transcription.Response, error) { ... }
+//	func (m *myWhisper) DefaultOptions() *transcription.Options { ... }
+//	func (m *myWhisper) Info() transcription.ModelInfo          { return transcription.ModelInfo{Provider: "openai"} }
+//
+//	var _ transcription.Model = (*myWhisper)(nil)
 type Model interface {
 	model.Model[*Request, *Response]
 
-	// DefaultOptions returns the default configuration options for this transcription model
+	// DefaultOptions returns the parameter set this provider uses when
+	// the caller does not override anything.
 	DefaultOptions() *Options
 
-	// Info returns metadata information about this transcription model
+	// Info returns identity metadata used by logging, metrics, and any
+	// observability layer that needs to tag a span by provider.
 	Info() ModelInfo
 }
 
-// ModelInfo contains metadata information about an audio transcription model
+// ModelInfo holds identity metadata for a [Model] instance.
 type ModelInfo struct {
-	// Provider identifies the service or organization that provides this transcription model
-	// Examples: "OpenAI", "Google", "Azure", "AssemblyAI", "Deepgram", etc.
+	// Provider names the transcription LLM vendor (lowercase by convention).
 	Provider string `json:"provider"`
 }

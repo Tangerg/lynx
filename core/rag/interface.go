@@ -1,3 +1,9 @@
+// Package rag implements the standard Retrieval-Augmented Generation
+// pipeline: take a user query, transform it, expand it, retrieve
+// relevant documents, refine them, and augment the original query with
+// the retrieved context. The interfaces in this file are the building
+// blocks; concrete implementations live alongside (query_*.go,
+// document_*.go) and the [Pipeline] glue is in pipeline.go.
 package rag
 
 import (
@@ -6,50 +12,41 @@ import (
 	"github.com/Tangerg/lynx/core/document"
 )
 
-// QueryExpander expands the input query into a list of queries, addressing challenges
-// such as poorly formed queries by providing alternative query formulations, or by
-// breaking down complex problems into simpler sub-queries.
+// QueryExpander turns one query into many — useful for poorly formed
+// inputs (alternative phrasings) or complex problems (decompose into
+// sub-queries the retriever can answer in parallel).
 type QueryExpander interface {
-	// Expand expands the given query into a list of queries.
-	// It returns an error if the expansion process fails.
+	// Expand returns one or more queries derived from the input.
 	Expand(ctx context.Context, query *Query) ([]*Query, error)
 }
 
-// QueryTransformer transforms the input query to make it more effective for retrieval
-// tasks, addressing challenges such as poorly formed queries, ambiguous terms, complex
-// vocabulary, or unsupported languages.
+// QueryTransformer rewrites a query to be more retrieval-friendly —
+// translation, compression, ambiguity resolution, vocabulary
+// normalization. Transformations chain in [Pipeline].
 type QueryTransformer interface {
-	// Transform transforms the given query according to the implemented strategy.
-	// It returns the transformed query or an error if the transformation fails.
+	// Transform returns the rewritten query.
 	Transform(ctx context.Context, query *Query) (*Query, error)
 }
 
-// QueryAugmenter augments an input query with additional data, useful to provide a
-// large language model with the necessary context to answer the user query.
+// QueryAugmenter folds retrieved documents into the query so the LLM
+// has the right context to answer.
 type QueryAugmenter interface {
-	// Augment augments the user query with contextual data from the provided documents.
-	// It returns the augmented query or an error if the augmentation process fails.
+	// Augment returns a new query enriched with documents.
 	Augment(ctx context.Context, query *Query, documents []*document.Document) (*Query, error)
 }
 
-// DocumentRetriever retrieves documents from an underlying data source,
-// such as a search engine, a vector store, a database, or a knowledge graph.
+// DocumentRetriever pulls candidate documents from a knowledge source
+// (vector store, search engine, database, knowledge graph).
 type DocumentRetriever interface {
-	// Retrieve retrieves relevant documents from an underlying data source based on
-	// the given query. It returns the list of relevant documents or an error if the
-	// retrieval process fails.
+	// Retrieve returns documents relevant to the query.
 	Retrieve(ctx context.Context, query *Query) ([]*document.Document, error)
 }
 
-// DocumentRefiner refines retrieved documents based on a query, addressing
-// challenges such as "lost-in-the-middle", context length restrictions from the model,
-// and the need to reduce noise and redundancy in the retrieved information.
-//
-// For example, it could rank documents based on their relevance to the query, remove
-// irrelevant or redundant documents, or compress the content of each document to reduce
-// noise and redundancy.
+// DocumentRefiner narrows a candidate document list down to what the
+// LLM should actually see — re-rank by relevance, drop near-duplicates,
+// trim to fit the prompt budget. Addresses the "lost in the middle"
+// problem and reduces noise before the LLM sees the context.
 type DocumentRefiner interface {
-	// Refine refines the list of documents based on the query.
-	// It returns the refined list of documents or an error if the refinement process fails.
+	// Refine returns the trimmed/re-ranked document list.
 	Refine(ctx context.Context, query *Query, documents []*document.Document) ([]*document.Document, error)
 }

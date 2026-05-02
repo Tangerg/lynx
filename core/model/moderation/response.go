@@ -1,88 +1,95 @@
 package moderation
 
-import (
-	"errors"
-)
+import "errors"
 
-// Category represents a single moderation category with its flagged status and confidence score
+// Category is one moderation dimension's verdict — a flagged bit plus a
+// confidence score in [0, 1].
 type Category struct {
-	// Flagged indicates whether the content violates this category's policy
+	// Flagged is true when the content violates this category's policy.
 	Flagged bool `json:"flagged"`
 
-	// Score represents the confidence level of the violation (typically 0.0 to 1.0)
+	// Score is the provider's confidence in the violation, 0–1.
 	Score float64 `json:"score"`
 }
 
-// Moderation contains all moderation categories for content analysis
-// It provides comprehensive content safety checks across multiple dimensions
+// Moderation aggregates every category a content-moderation provider
+// surfaces. Providers vary in which fields they populate — unflagged
+// categories simply leave Flagged=false and Score=0.
+//
+// Field doc comments preserve OpenAI's category descriptions because
+// the policy semantics are part of the API contract callers reason
+// about.
 type Moderation struct {
-	// Sexual detects content meant to arouse sexual excitement, such as the description of sexual activity,
-	// or that promotes sexual services (excluding sex education and wellness)
+	// Sexual covers content meant to arouse sexual excitement or
+	// promote sexual services (sex education / wellness excluded).
 	Sexual Category `json:"sexual"`
 
-	// Hate detects content that expresses, incites, or promotes hate based on race, gender, ethnicity, religion,
-	// nationality, sexual orientation, disability status, or caste
+	// Hate covers content expressing or promoting hate based on race,
+	// gender, ethnicity, religion, nationality, sexual orientation,
+	// disability status, or caste.
 	Hate Category `json:"hate"`
 
-	// Harassment detects content that expresses, incites, or promotes harassing language towards any target
+	// Harassment covers content expressing, inciting, or promoting
+	// harassing language toward any target.
 	Harassment Category `json:"harassment"`
 
-	// SelfHarm detects content that promotes, encourages, or depicts acts of self-harm, such as suicide, cutting,
-	// and eating disorders
+	// SelfHarm covers content promoting, encouraging, or depicting
+	// acts of self-harm (suicide, cutting, eating disorders).
 	SelfHarm Category `json:"self_harm"`
 
-	// SexualMinors detects sexual content that includes an individual who is under 18 years old
+	// SexualMinors covers sexual content involving anyone under 18.
 	SexualMinors Category `json:"sexual_minors"`
 
-	// HateThreatening detects hateful content that also includes violence or serious harm towards the targeted
-	// group based on race, gender, ethnicity, religion, nationality, sexual orientation, disability status, or caste
+	// HateThreatening covers hateful content that also includes
+	// violence or serious harm toward the targeted group.
 	HateThreatening Category `json:"hate_threatening"`
 
-	// ViolenceGraphic detects content that depicts death, violence, or physical injury in graphic detail
+	// ViolenceGraphic covers content depicting death, violence, or
+	// physical injury in graphic detail.
 	ViolenceGraphic Category `json:"violence_graphic"`
 
-	// SelfHarmIntent detects content where the speaker expresses that they are engaging or intend to engage
-	// in acts of self-harm, such as suicide, cutting, and eating disorders
+	// SelfHarmIntent covers content where the speaker expresses
+	// intent to engage in self-harm.
 	SelfHarmIntent Category `json:"self_harm_intent"`
 
-	// SelfHarmInstructions detects content that encourages performing acts of self-harm, such as suicide, cutting,
-	// and eating disorders, or that gives instructions or advice on how to commit such acts
+	// SelfHarmInstructions covers content giving instructions or
+	// advice on committing self-harm.
 	SelfHarmInstructions Category `json:"self_harm_instructions"`
 
-	// HarassmentThreatening detects harassment content that also includes violence or serious harm towards any target
+	// HarassmentThreatening covers harassment combined with violence
+	// or threats of serious harm.
 	HarassmentThreatening Category `json:"harassment_threatening"`
 
-	// Violence detects content that depicts death, violence, or physical injury
+	// Violence covers content depicting death, violence, or physical
+	// injury (without the "graphic" qualifier).
 	Violence Category `json:"violence"`
 
-	// DangerousAndCriminalContent detects dangerous and criminal content
+	// DangerousAndCriminalContent covers dangerous or criminal content.
 	DangerousAndCriminalContent Category `json:"dangerous_and_criminal_content"`
 
-	// Health detects health-related misinformation
+	// Health flags health-related misinformation.
 	Health Category `json:"health"`
 
-	// Financial detects financial misinformation or fraud
+	// Financial flags financial misinformation or fraud.
 	Financial Category `json:"financial"`
 
-	// Law detects legal misinformation
+	// Law flags legal misinformation.
 	Law Category `json:"law"`
 
-	// Pii detects personally identifiable information
+	// Pii flags personally identifiable information.
 	Pii Category `json:"pii"`
 
-	// Illicit detects content that includes instructions or advice that facilitate the planning or execution
-	// of wrongdoing, or that gives advice or instruction on how to commit illicit acts.
-	// For example, "how to shoplift" would fit this category
+	// Illicit flags content giving instructions for committing illicit
+	// acts (e.g. "how to shoplift").
 	Illicit Category `json:"illicit"`
 
-	// IllicitViolent detects content that includes instructions or advice that facilitate the planning or
-	// execution of wrongdoing that also includes violence, or that gives advice or instruction on the
-	// procurement of any weapon
+	// IllicitViolent flags illicit-act instructions that also involve
+	// violence or weapons procurement.
 	IllicitViolent Category `json:"illicit_violent"`
 }
 
-// Flagged returns true if any moderation category is flagged
-// This is a convenience method to quickly check if content violates any policy
+// Flagged reports whether any category fired. Useful when callers only
+// need a yes/no decision without inspecting individual scores.
 func (m *Moderation) Flagged() bool {
 	return m.Sexual.Flagged ||
 		m.Hate.Flagged ||
@@ -99,12 +106,14 @@ func (m *Moderation) Flagged() bool {
 		m.Health.Flagged ||
 		m.Financial.Flagged ||
 		m.Law.Flagged ||
-		m.Pii.Flagged
+		m.Pii.Flagged ||
+		m.Illicit.Flagged ||
+		m.IllicitViolent.Flagged
 }
 
-// ResultMetadata holds metadata information for a single moderation result
+// ResultMetadata holds per-input metadata returned by the provider.
 type ResultMetadata struct {
-	// Extra holds provider-specific metadata that is not part of the standard fields
+	// Extra carries provider-specific metadata.
 	Extra map[string]any `json:"extra"`
 }
 
@@ -114,54 +123,52 @@ func (r *ResultMetadata) ensureExtra() {
 	}
 }
 
+// Get returns the Extra value for key plus an existence flag.
 func (r *ResultMetadata) Get(key string) (any, bool) {
 	r.ensureExtra()
 	value, exists := r.Extra[key]
 	return value, exists
 }
 
+// Set stores value under key in Extra.
 func (r *ResultMetadata) Set(key string, value any) {
 	r.ensureExtra()
 	r.Extra[key] = value
 }
 
-// Result represents a single moderation result with its associated metadata
+// Result is one input's moderation verdict plus metadata.
 type Result struct {
-	// Moderation contains the category-wise moderation analysis
+	// Moderation holds the per-category verdict.
 	Moderation *Moderation `json:"categories"`
 
-	// Metadata contains additional information about the moderation result
+	// Metadata carries per-input extras.
 	Metadata *ResultMetadata `json:"metadata"`
 }
 
-// NewResult creates a new Result instance
-// Both moderation and metadata are required parameters
-// Returns an error if either parameter is nil
+// NewResult builds a [Result]. Returns an error when moderation or
+// metadata is nil.
 func NewResult(moderation *Moderation, metadata *ResultMetadata) (*Result, error) {
 	if moderation == nil {
-		return nil, errors.New("moderation cannot be nil")
+		return nil, errors.New("moderation.NewResult: moderation must not be nil")
 	}
 	if metadata == nil {
-		return nil, errors.New("metadata cannot be nil")
+		return nil, errors.New("moderation.NewResult: metadata must not be nil")
 	}
-	return &Result{
-		Moderation: moderation,
-		Metadata:   metadata,
-	}, nil
+	return &Result{Moderation: moderation, Metadata: metadata}, nil
 }
 
-// ResponseMetadata holds metadata information for the entire moderation response
+// ResponseMetadata holds response-level metadata for a moderation call.
 type ResponseMetadata struct {
-	// ID is the unique identifier for this moderation request
+	// ID is the provider-assigned response id.
 	ID string `json:"id"`
 
-	// Model is the name of the moderation model used
+	// Model is the model name actually served.
 	Model string `json:"model"`
 
-	// Created is the Unix timestamp of response creation
+	// Created is the provider-reported creation time, Unix seconds.
 	Created int64 `json:"created"`
 
-	// Extra holds provider-specific metadata that is not part of the standard fields
+	// Extra carries provider-specific metadata.
 	Extra map[string]any `json:"extra"`
 }
 
@@ -171,49 +178,46 @@ func (r *ResponseMetadata) ensureExtra() {
 	}
 }
 
+// Get returns the Extra value for key plus an existence flag.
 func (r *ResponseMetadata) Get(key string) (any, bool) {
 	r.ensureExtra()
 	value, exists := r.Extra[key]
 	return value, exists
 }
 
+// Set stores value under key in Extra.
 func (r *ResponseMetadata) Set(key string, value any) {
 	r.ensureExtra()
 	r.Extra[key] = value
 }
 
-// Response represents the complete response from a moderation request
-// It contains one or more moderation results and associated metadata
+// Response is the full moderation result: one [*Result] per input plus
+// shared response metadata.
 type Response struct {
-	// Results contains all moderation results for the analyzed content
+	// Results holds one entry per input, in the same order.
 	Results []*Result `json:"results"`
 
-	// Metadata contains information about the response itself
+	// Metadata carries shared response-level fields.
 	Metadata *ResponseMetadata `json:"metadata"`
 }
 
-// NewResponse creates a new Response instance
-// At least one result is required, and metadata must be provided
-// Returns an error if results is empty or metadata is nil
+// NewResponse builds a [Response] from at least one result and a
+// non-nil metadata.
 func NewResponse(results []*Result, metadata *ResponseMetadata) (*Response, error) {
 	if len(results) == 0 {
-		return nil, errors.New("at least one result is required")
+		return nil, errors.New("moderation.NewResponse: at least one Result is required")
 	}
 	if metadata == nil {
-		return nil, errors.New("metadata cannot be nil")
+		return nil, errors.New("moderation.NewResponse: metadata must not be nil")
 	}
-	return &Response{
-		Results:  results,
-		Metadata: metadata,
-	}, nil
+	return &Response{Results: results, Metadata: metadata}, nil
 }
 
-// Result returns the first result from the Results slice
-// Returns nil if the Results slice is empty
-// This is a convenience method for accessing the primary moderation result
+// Result returns the first verdict — the common single-input shortcut.
+// Returns nil when Results is empty.
 func (r *Response) Result() *Result {
-	if len(r.Results) > 0 {
-		return r.Results[0]
+	if len(r.Results) == 0 {
+		return nil
 	}
-	return nil
+	return r.Results[0]
 }

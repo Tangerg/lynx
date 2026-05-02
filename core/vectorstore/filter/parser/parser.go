@@ -1,3 +1,8 @@
+// Package parser builds an [ast.Expr] from filter-language source
+// text. It uses a Pratt parser (operator-precedence climbing) on top
+// of [lexer.Lexer]. The single entry point [Parse] handles the
+// common case; [NewParser] is for callers that want to share a lexer
+// or inspect parser state.
 package parser
 
 import (
@@ -8,180 +13,167 @@ import (
 	"github.com/Tangerg/lynx/core/vectorstore/filter/token"
 )
 
-// ParseError represents a parsing error with currentPosition information.
-// Provides human-readable error messages for debugging and user feedback.
+// ParseError is returned when parsing fails. It carries the offending
+// token so callers can produce position-aware diagnostics.
 type ParseError struct {
-	Message string      // Human-readable error description
-	Token   token.Token // The problematic Token that caused the error
+	// Message is a human-readable description of the failure.
+	Message string
+
+	// Token is the token at which parsing stopped.
+	Token token.Token
 }
 
-// Error implements the error interface with comprehensive error formatting.
-// Includes error description and currentPosition information.
+// Error formats a [ParseError] including the token text and source
+// position.
 func (e *ParseError) Error() string {
-	return fmt.Sprintf(
-		"Parsing failed: %s (at currentPosition %s, Token: '%s')",
-		e.Message,
-		e.Token.Start.String(),
-		e.Token.Literal,
-	)
+	return fmt.Sprintf("parser: %s (at %s, token %q)",
+		e.Message, e.Token.Start.String(), e.Token.Literal)
 }
 
-// Parser represents a recursive descent parser with Pratt parsing capabilities.
-// Uses the Pratt algorithm for efficient operator precedence handling.
+// Parser is a Pratt parser over a [lexer.Lexer]. The prefix and infix
+// handler maps form the operator table; precedence climbing drives
+// the expression loop.
 type Parser struct {
-	lexer          *lexer.Lexer                                    // Token provider from input
-	currentToken   token.Token                                     // Current Token being processed
-	prefixHandlers map[token.Kind]func() (ast.Expr, error)         // Handles expression-starting tokens
-	infixHandlers  map[token.Kind]func(ast.Expr) (ast.Expr, error) // Handles binary operators
+	lexer          *lexer.Lexer
+	currentToken   token.Token
+	prefixHandlers map[token.Kind]func() (ast.Expr, error)
+	infixHandlers  map[token.Kind]func(ast.Expr) (ast.Expr, error)
 }
 
-// NewParser creates a new parser with proper initialization.
-// Accepts either string input or existing *Lexer for flexibility.
+// NewParser builds a [Parser] from either a source string (a fresh
+// lexer is created) or an existing [*lexer.Lexer] (which is reset
+// before use). The first token is consumed eagerly so the parser is
+// ready to call [Parser.Parse].
 func NewParser[I string | *lexer.Lexer](input I) (*Parser, error) {
 	var (
-		l   *lexer.Lexer
+		lex *lexer.Lexer
 		err error
 	)
 
-	switch typedInput := any(input).(type) {
+	switch typed := any(input).(type) {
 	case string:
-		l, err = lexer.NewLexer(typedInput)
+		lex, err = lexer.NewLexer(typed)
 		if err != nil {
-			return nil, fmt.Errorf("failed to create lexer from input string: %w", err)
+			return nil, fmt.Errorf("parser.NewParser: build lexer: %w", err)
 		}
 	case *lexer.Lexer:
-		l = typedInput
-		l.Reset()
+		lex = typed
+		lex.Reset()
 	}
 
-	parser := &Parser{
-		lexer:          l,
+	p := &Parser{
+		lexer:          lex,
 		prefixHandlers: make(map[token.Kind]func() (ast.Expr, error)),
 		infixHandlers:  make(map[token.Kind]func(ast.Expr) (ast.Expr, error)),
 	}
 
-	// Consume first token and check for lexical errors
-	parser.currentToken = l.Scan()
-	if err = parser.checkTokenError(); err != nil {
+	p.currentToken = lex.Scan()
+	if err = p.checkTokenError(); err != nil {
 		return nil, err
 	}
 
-	// Register prefix parse functions for expression starters
-	parser.addPrefixHandler(token.IDENT, parser.parseIdent)
-	parser.addPrefixHandler(token.NUMBER, parser.parseLiteral)
-	parser.addPrefixHandler(token.STRING, parser.parseLiteral)
-	parser.addPrefixHandler(token.TRUE, parser.parseLiteral)
-	parser.addPrefixHandler(token.FALSE, parser.parseLiteral)
+	// Atoms — anything that can start an expression.
+	p.addPrefixHandler(token.IDENT, p.parseIdent)
+	p.addPrefixHandler(token.NUMBER, p.parseLiteral)
+	p.addPrefixHandler(token.STRING, p.parseLiteral)
+	p.addPrefixHandler(token.TRUE, p.parseLiteral)
+	p.addPrefixHandler(token.FALSE, p.parseLiteral)
 
-	// Register unary operators
-	parser.addPrefixHandler(token.NOT, parser.parseUnaryExpr)
+	// Unary.
+	p.addPrefixHandler(token.NOT, p.parseUnaryExpr)
 
-	// Register binary operators
-	parser.addInfixHandler(token.AND, parser.parseBinaryExpr)
-	parser.addInfixHandler(token.OR, parser.parseBinaryExpr)
-	parser.addInfixHandler(token.EQ, parser.parseBinaryExpr)
-	parser.addInfixHandler(token.NE, parser.parseBinaryExpr)
-	parser.addInfixHandler(token.LT, parser.parseBinaryExpr)
-	parser.addInfixHandler(token.LE, parser.parseBinaryExpr)
-	parser.addInfixHandler(token.GT, parser.parseBinaryExpr)
-	parser.addInfixHandler(token.GE, parser.parseBinaryExpr)
-	parser.addInfixHandler(token.IN, parser.parseBinaryExpr)
-	parser.addInfixHandler(token.LIKE, parser.parseBinaryExpr)
+	// Binary.
+	p.addInfixHandler(token.AND, p.parseBinaryExpr)
+	p.addInfixHandler(token.OR, p.parseBinaryExpr)
+	p.addInfixHandler(token.EQ, p.parseBinaryExpr)
+	p.addInfixHandler(token.NE, p.parseBinaryExpr)
+	p.addInfixHandler(token.LT, p.parseBinaryExpr)
+	p.addInfixHandler(token.LE, p.parseBinaryExpr)
+	p.addInfixHandler(token.GT, p.parseBinaryExpr)
+	p.addInfixHandler(token.GE, p.parseBinaryExpr)
+	p.addInfixHandler(token.IN, p.parseBinaryExpr)
+	p.addInfixHandler(token.LIKE, p.parseBinaryExpr)
 
-	// Register grouping and indexing
-	parser.addPrefixHandler(token.LPAREN, parser.parseParen)
-	parser.addInfixHandler(token.LBRACK, parser.parseIndexExpr)
+	// Grouping / indexing.
+	p.addPrefixHandler(token.LPAREN, p.parseParen)
+	p.addInfixHandler(token.LBRACK, p.parseIndexExpr)
 
-	return parser, nil
+	return p, nil
 }
 
-// checkTokenError checks if the current token is an ERROR token.
-// Returns a ParseError with the lexical error details if found.
+// checkTokenError surfaces a lexer ERROR token as a [ParseError].
+// Other token kinds are passed through unchanged.
 func (p *Parser) checkTokenError() error {
 	if p.currentToken.Kind.Is(token.ERROR) {
 		return &ParseError{
-			Message: fmt.Sprintf(
-				"Lexical error: %s",
-				p.currentToken.Literal,
-			),
-			Token: p.currentToken,
+			Message: fmt.Sprintf("lexical error: %s", p.currentToken.Literal),
+			Token:   p.currentToken,
 		}
 	}
 	return nil
 }
 
-// addPrefixHandler associates a prefix parsing function with a Token kind.
-// Handles tokens that can appear at the beginning of expressions.
+// addPrefixHandler registers a handler for tokens that can start an
+// expression.
 func (p *Parser) addPrefixHandler(kind token.Kind, fn func() (ast.Expr, error)) {
 	p.prefixHandlers[kind] = fn
 }
 
-// addInfixHandler associates an infix parsing function with a Token kind.
-// Handles binary operators that appear between expressions.
+// addInfixHandler registers a handler for tokens that can sit between
+// two expressions.
 func (p *Parser) addInfixHandler(kind token.Kind, fn func(ast.Expr) (ast.Expr, error)) {
 	p.infixHandlers[kind] = fn
 }
 
-// consumeToken advances the parser to the next Token in input stream.
-// Primary mechanism for consuming tokens during parsing.
-// Returns error if the new token is an ERROR token.
+// consumeToken advances by one token. Lexer ERROR tokens surface as
+// [ParseError].
 func (p *Parser) consumeToken() error {
 	p.currentToken = p.lexer.Scan()
 	return p.checkTokenError()
 }
 
-// consumeExpectedKindToken verifies current Token matches expected kind and advances.
-// Used for mandatory tokens that must appear in specific positions.
-func (p *Parser) consumeExpectedKindToken(expectedKind token.Kind) (token.Token, error) {
-	// Check for ERROR token before validation
+// expectKind asserts the current token has the given kind, then
+// advances. Returns the consumed token. Mismatch produces a
+// [ParseError].
+func (p *Parser) expectKind(kind token.Kind) (token.Token, error) {
 	if err := p.checkTokenError(); err != nil {
 		return p.currentToken, err
 	}
 
-	if p.currentToken.Kind.Is(expectedKind) {
-		consumedToken := p.currentToken
-		if err := p.consumeToken(); err != nil {
-			return consumedToken, err
+	if !p.currentToken.Kind.Is(kind) {
+		return p.currentToken, &ParseError{
+			Message: fmt.Sprintf("expected %q but found %q",
+				kind.Literal(), p.currentToken.Kind.Literal()),
+			Token: p.currentToken,
 		}
-		return consumedToken, nil
 	}
 
-	err := &ParseError{
-		Message: fmt.Sprintf(
-			"Expected '%s' but found '%s'. Check your syntax near this currentPosition",
-			expectedKind.Literal(),
-			p.currentToken.Kind.Literal(),
-		),
-		Token: p.currentToken,
+	consumed := p.currentToken
+	if err := p.consumeToken(); err != nil {
+		return consumed, err
 	}
-	return p.currentToken, err
+	return consumed, nil
 }
 
-// Parse is the main entry point for parsing complete expressions.
-// Parses full expression and ensures no unexpected tokens remain.
+// Parse parses one complete expression and verifies the input is
+// fully consumed.
 func (p *Parser) Parse() (ast.Expr, error) {
-	// Check for ERROR token at the start
 	if err := p.checkTokenError(); err != nil {
 		return nil, err
 	}
 
 	expr, err := p.parseExpr(token.PrecedenceLowest)
 	if err != nil {
-		return nil, fmt.Errorf("expression parsing failed: %w", err)
+		return nil, fmt.Errorf("parser.Parse: %w", err)
 	}
 
-	// Ensure entire input is consumed
 	if !p.currentToken.Kind.Is(token.EOF) {
-		// Check if it's an ERROR token
 		if err = p.checkTokenError(); err != nil {
 			return nil, err
 		}
-
 		return nil, &ParseError{
-			Message: fmt.Sprintf(
-				"Unexpected Token '%s' found after complete expression. Expected end of input",
-				p.currentToken.Literal,
-			),
+			Message: fmt.Sprintf("unexpected trailing token %q after expression",
+				p.currentToken.Literal),
 			Token: p.currentToken,
 		}
 	}
@@ -189,324 +181,296 @@ func (p *Parser) Parse() (ast.Expr, error) {
 	return expr, nil
 }
 
-// parseExpr implements core Pratt parser with precedence climbing.
-// Handles operator precedence automatically through recursive parsing.
+// parseExpr is the Pratt-style precedence-climbing core. It picks a
+// prefix handler for the current token, then loops over infix
+// handlers as long as their precedence beats the binding level
+// passed in.
 func (p *Parser) parseExpr(precedence int) (ast.Expr, error) {
-	// Check for ERROR token before parsing
 	if err := p.checkTokenError(); err != nil {
 		return nil, err
 	}
 
-	// Get prefix parsing function for current Token
-	prefixHandler, exists := p.prefixHandlers[p.currentToken.Kind]
-	if !exists {
+	prefix, ok := p.prefixHandlers[p.currentToken.Kind]
+	if !ok {
 		return nil, &ParseError{
-			Message: fmt.Sprintf(
-				"Unexpected Token '%s'. Expected an identifier, number, string, boolean, or unary operator",
-				p.currentToken.Literal,
-			),
+			Message: fmt.Sprintf("unexpected token %q (expected an identifier, literal, or unary operator)",
+				p.currentToken.Literal),
 			Token: p.currentToken,
 		}
 	}
 
-	// Parse left side using prefix function
-	leftExpr, err := prefixHandler()
+	left, err := prefix()
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse prefix expression: %w", err)
+		return nil, fmt.Errorf("parser.parseExpr: prefix: %w", err)
 	}
 
-	// Continue parsing infix expressions while precedence allows
 	for {
 		if p.currentToken.Kind.Is(token.EOF) {
 			break
 		}
-
-		// Check for ERROR token in the loop
 		if err = p.checkTokenError(); err != nil {
 			return nil, err
 		}
-
-		// Stop if current precedence is higher or equal
 		if precedence >= p.currentToken.Kind.Precedence() {
 			break
 		}
 
-		infixHandler, exists := p.infixHandlers[p.currentToken.Kind]
-		if !exists {
+		infix, found := p.infixHandlers[p.currentToken.Kind]
+		if !found {
 			break
 		}
 
-		leftExpr, err = infixHandler(leftExpr)
+		left, err = infix(left)
 		if err != nil {
-			return nil, fmt.Errorf("failed to parse infix expression: %w", err)
+			return nil, fmt.Errorf("parser.parseExpr: infix: %w", err)
 		}
 	}
 
-	return leftExpr, nil
+	return left, nil
 }
 
-// parseIdent parses identifier tokens for variable/field names.
-// Creates Ident AST node with identifier information.
+// parseIdent consumes an IDENT token and produces an [*ast.Ident].
 func (p *Parser) parseIdent() (ast.Expr, error) {
-	identToken, err := p.consumeExpectedKindToken(token.IDENT)
+	tok, err := p.expectKind(token.IDENT)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse identifier: %w", err)
+		return nil, fmt.Errorf("parser.parseIdent: %w", err)
 	}
 
 	return &ast.Ident{
-		Token: identToken,
-		Value: identToken.Literal,
+		Token: tok,
+		Value: tok.Literal,
 	}, nil
 }
 
-// parseLiteral parses literal values including numbers, strings, booleans.
-// Creates Literal AST node with value and type information.
+// parseLiteral consumes a literal token (NUMBER / STRING / TRUE /
+// FALSE) and produces an [*ast.Literal].
 func (p *Parser) parseLiteral() (ast.Expr, error) {
-	// Check for ERROR token
 	if err := p.checkTokenError(); err != nil {
 		return nil, err
 	}
 
-	literalToken := p.currentToken
-
-	if !literalToken.Kind.IsLiteral() {
+	tok := p.currentToken
+	if !tok.Kind.IsLiteral() {
 		return nil, &ParseError{
-			Message: fmt.Sprintf(
-				"Expected a literal value (number, string, 'true', or 'false') but found '%s'",
-				p.currentToken.Literal,
-			),
+			Message: fmt.Sprintf("expected a literal (number, string, or boolean) but found %q",
+				p.currentToken.Literal),
 			Token: p.currentToken,
 		}
 	}
 
 	if err := p.consumeToken(); err != nil {
-		return nil, fmt.Errorf("failed to advance after parsing literal: %w", err)
+		return nil, fmt.Errorf("parser.parseLiteral: %w", err)
 	}
 
 	return &ast.Literal{
-		Token: literalToken,
-		Value: literalToken.Literal,
+		Token: tok,
+		Value: tok.Literal,
 	}, nil
 }
 
-// parseParen handles parentheses for both expression grouping and array literals.
-// Distinguishes between (expr) grouping and (val1, val2) arrays based on content.
+// parseParen handles a leading `(`. It picks between grouping (one
+// expression then `)`) and a list literal (multiple comma-separated
+// literals) based on what follows the first sub-expression.
 func (p *Parser) parseParen() (ast.Expr, error) {
-	leftParen, err := p.consumeExpectedKindToken(token.LPAREN)
+	lparen, err := p.expectKind(token.LPAREN)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse opening parenthesis: %w", err)
+		return nil, fmt.Errorf("parser.parseParen: opening paren: %w", err)
 	}
 
-	// Reject empty parentheses
 	if p.currentToken.Kind.Is(token.RPAREN) {
 		return nil, &ParseError{
-			Message: "Empty parentheses are not allowed. Use parentheses for grouping expressions or creating arrays",
+			Message: "empty parentheses are not allowed",
 			Token:   p.currentToken,
 		}
 	}
 
-	// Parse first expression
-	firstExpr, err := p.parseExpr(token.PrecedenceLowest)
+	first, err := p.parseExpr(token.PrecedenceLowest)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse expression inside parentheses: %w", err)
+		return nil, fmt.Errorf("parser.parseParen: inner expression: %w", err)
 	}
 
-	// Determine type: array literal or grouped expression
 	if p.currentToken.Kind.Is(token.COMMA) {
-		return p.parseListLiteral(leftParen, firstExpr)
+		return p.parseListLiteral(lparen, first)
 	}
 
 	if p.currentToken.Kind.Is(token.RPAREN) {
-		_, err = p.consumeExpectedKindToken(token.RPAREN)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse closing parenthesis: %w", err)
+		if _, err = p.expectKind(token.RPAREN); err != nil {
+			return nil, fmt.Errorf("parser.parseParen: closing paren: %w", err)
 		}
-		return firstExpr, nil
+		return first, nil
 	}
 
 	return nil, &ParseError{
-		Message: fmt.Sprintf(
-			"Invalid syntax in parentheses. Expected ',' (for array) or ')' (for grouping) but found '%s'",
-			p.currentToken.Literal,
-		),
+		Message: fmt.Sprintf("expected ',' (list) or ')' (grouping) but found %q",
+			p.currentToken.Literal),
 		Token: p.currentToken,
 	}
 }
 
-// parseListLiteral parses array literals with type consistency enforcement.
-// Ensures all elements are literals of the same type, no trailing commas.
-func (p *Parser) parseListLiteral(leftParen token.Token, firstExpr ast.Expr) (ast.Expr, error) {
-	// Ensure first element is literal
-	firstLiteral, isLiteral := firstExpr.(*ast.Literal)
-	if !isLiteral {
+// parseListLiteral builds an [*ast.ListLiteral]. The opening paren
+// and the first element have already been consumed by [parseParen].
+// Elements must be literals of one shared kind; trailing commas are
+// rejected.
+func (p *Parser) parseListLiteral(lparen token.Token, firstExpr ast.Expr) (ast.Expr, error) {
+	first, ok := firstExpr.(*ast.Literal)
+	if !ok {
 		return nil, &ParseError{
-			Message: "Array elements must be literal values (numbers, strings, or booleans)",
-			Token:   leftParen,
+			Message: "list elements must be literals (number, string, or boolean)",
+			Token:   lparen,
 		}
 	}
 
-	literals := []*ast.Literal{firstLiteral}
+	values := []*ast.Literal{first}
 
-	// Parse remaining elements
 	for p.currentToken.Kind.Is(token.COMMA) {
-		_, err := p.consumeExpectedKindToken(token.COMMA)
-		if err != nil {
-			return nil, fmt.Errorf("failed to consume comma in array: %w", err)
+		if _, err := p.expectKind(token.COMMA); err != nil {
+			return nil, fmt.Errorf("parser.parseListLiteral: comma: %w", err)
 		}
 
-		// Check for trailing comma
 		if p.currentToken.Kind.Is(token.RPAREN) {
 			return nil, &ParseError{
-				Message: "Trailing commas are not allowed in arrays. Remove the comma before ')'",
+				Message: "trailing comma in list is not allowed",
 				Token:   p.currentToken,
 			}
 		}
 
-		nextLiteral, err := p.parseLiteral()
+		next, err := p.parseLiteral()
 		if err != nil {
-			return nil, fmt.Errorf("failed to parse array element: %w", err)
+			return nil, fmt.Errorf("parser.parseListLiteral: element: %w", err)
 		}
 
-		literalValue, _ := nextLiteral.(*ast.Literal)
-
-		// Enforce type consistency
-		if !firstLiteral.IsSameKind(literalValue) {
+		lit := next.(*ast.Literal)
+		if !first.IsSameKind(lit) {
 			return nil, &ParseError{
-				Message: fmt.Sprintf(
-					"Type mismatch in array: all elements must be of type %s, but found %s",
-					firstLiteral.Token.Kind.Name(),
-					literalValue.Token.Kind.Name(),
-				),
-				Token: literalValue.Token,
+				Message: fmt.Sprintf("list type mismatch: first element is %s, found %s",
+					first.Token.Kind.Name(), lit.Token.Kind.Name()),
+				Token: lit.Token,
 			}
 		}
 
-		literals = append(literals, literalValue)
+		values = append(values, lit)
 	}
 
-	rightParen, err := p.consumeExpectedKindToken(token.RPAREN)
+	rparen, err := p.expectKind(token.RPAREN)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse closing parenthesis for array: %w", err)
+		return nil, fmt.Errorf("parser.parseListLiteral: closing paren: %w", err)
 	}
 
 	return &ast.ListLiteral{
-		Lparen: leftParen,
-		Rparen: rightParen,
-		Values: literals,
+		Lparen: lparen,
+		Rparen: rparen,
+		Values: values,
 	}, nil
 }
 
-// parseUnaryExpr parses unary expressions with single operand.
-// Ensures operand implements ComputedExpr interface for evaluation.
+// parseUnaryExpr handles prefix operators (NOT today). The operand
+// must be a computed expression — a bare identifier or literal can't
+// be negated.
 func (p *Parser) parseUnaryExpr() (ast.Expr, error) {
 	op := p.currentToken
-
 	if !op.Kind.IsUnaryOperator() {
 		return nil, &ParseError{
-			Message: fmt.Sprintf("'%s' is not a valid unary operator", op.Literal),
+			Message: fmt.Sprintf("%q is not a valid unary operator", op.Literal),
 			Token:   op,
 		}
 	}
 
 	if err := p.consumeToken(); err != nil {
-		return nil, fmt.Errorf("failed to advance after unary operator '%s': %w", op.Literal, err)
+		return nil, fmt.Errorf("parser.parseUnaryExpr: advance past %q: %w", op.Literal, err)
 	}
 
-	rightExpr, err := p.parseExpr(op.Kind.Precedence())
+	right, err := p.parseExpr(op.Kind.Precedence())
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse operand for unary operator '%s': %w", op.Literal, err)
+		return nil, fmt.Errorf("parser.parseUnaryExpr: operand: %w", err)
 	}
 
-	computedExpr, isComputed := rightExpr.(ast.ComputedExpr)
-	if !isComputed {
+	computed, ok := right.(ast.ComputedExpr)
+	if !ok {
 		return nil, &ParseError{
-			Message: fmt.Sprintf(
-				"The unary operator '%s' cannot be applied to this expression type",
-				op.Literal,
-			),
+			Message: fmt.Sprintf("unary %q cannot apply to a non-computed expression",
+				op.Literal),
 			Token: op,
 		}
 	}
 
 	return &ast.UnaryExpr{
 		Op:    op,
-		Right: computedExpr,
+		Right: computed,
 	}, nil
 }
 
-// parseBinaryExpr parses binary expressions with two operands.
-// Uses operator precedence for correct expression tree construction.
-func (p *Parser) parseBinaryExpr(leftExpr ast.Expr) (ast.Expr, error) {
+// parseBinaryExpr handles infix operators. The left operand is the
+// expression produced so far; the right operand is parsed at this
+// operator's precedence so right-side operators of the same level
+// are left-associative.
+func (p *Parser) parseBinaryExpr(left ast.Expr) (ast.Expr, error) {
 	op := p.currentToken
-
 	if !op.Kind.IsBinaryOperator() {
 		return nil, &ParseError{
-			Message: fmt.Sprintf("'%s' is not a valid binary operator", op.Literal),
+			Message: fmt.Sprintf("%q is not a valid binary operator", op.Literal),
 			Token:   op,
 		}
 	}
 
 	if err := p.consumeToken(); err != nil {
-		return nil, fmt.Errorf("failed to advance after binary operator '%s': %w", op.Literal, err)
+		return nil, fmt.Errorf("parser.parseBinaryExpr: advance past %q: %w", op.Literal, err)
 	}
 
-	rightExpr, err := p.parseExpr(op.Kind.Precedence())
+	right, err := p.parseExpr(op.Kind.Precedence())
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse right operand for operator '%s': %w", op.Literal, err)
+		return nil, fmt.Errorf("parser.parseBinaryExpr: right operand for %q: %w", op.Literal, err)
 	}
 
 	return &ast.BinaryExpr{
-		Left:  leftExpr,
+		Left:  left,
 		Op:    op,
-		Right: rightExpr,
+		Right: right,
 	}, nil
 }
 
-// parseIndexExpr parses array/object index access with nested support.
-// Validates index is non-boolean literal, handles left-associativity automatically.
-func (p *Parser) parseIndexExpr(leftExpr ast.Expr) (ast.Expr, error) {
-	leftBrack, err := p.consumeExpectedKindToken(token.LBRACK)
+// parseIndexExpr handles `expr[index]`. The index must be a
+// non-boolean literal (number for arrays, string for objects).
+// Left-associativity falls out naturally from the Pratt loop, so
+// `a[0][1]` parses as `Index(Index(a,0),1)`.
+func (p *Parser) parseIndexExpr(left ast.Expr) (ast.Expr, error) {
+	lbrack, err := p.expectKind(token.LBRACK)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse opening bracket for index access: %w", err)
+		return nil, fmt.Errorf("parser.parseIndexExpr: opening bracket: %w", err)
 	}
 
-	indexLiteral, err := p.parseLiteral()
+	indexExpr, err := p.parseLiteral()
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse index value: %w", err)
+		return nil, fmt.Errorf("parser.parseIndexExpr: index value: %w", err)
 	}
 
-	literalValue := indexLiteral.(*ast.Literal)
-	if literalValue.IsBool() {
+	index := indexExpr.(*ast.Literal)
+	if index.IsBool() {
 		return nil, &ParseError{
-			Message: "Index must be a number (for arrays) or string (for objects), not a boolean value",
-			Token:   literalValue.Token,
+			Message: "index must be a number or string, not a boolean",
+			Token:   index.Token,
 		}
 	}
 
-	rightBrack, err := p.consumeExpectedKindToken(token.RBRACK)
+	rbrack, err := p.expectKind(token.RBRACK)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse closing bracket for index access: %w", err)
+		return nil, fmt.Errorf("parser.parseIndexExpr: closing bracket: %w", err)
 	}
 
 	return &ast.IndexExpr{
-		LBrack: leftBrack,
-		RBrack: rightBrack,
-		Left:   leftExpr,
-		Index:  literalValue,
+		LBrack: lbrack,
+		RBrack: rbrack,
+		Left:   left,
+		Index:  index,
 	}, nil
 }
 
-// Parse is a convenient function that parses a filter expression from a string input.
-// This is the primary entry point for parsing filter expressions in most use cases.
-//
-// The function creates a new parser instance, parses the input string into an AST,
-// and returns the root expression node. It handles the complete parsing pipeline
-// including lexical analysis and syntax analysis.
+// Parse is the convenience entry point: build a parser from input
+// and return the resulting [ast.Expr]. Equivalent to
+// [NewParser] followed by [Parser.Parse].
 func Parse(input string) (ast.Expr, error) {
-	parser, err := NewParser(input)
+	p, err := NewParser(input)
 	if err != nil {
 		return nil, err
 	}
-
-	return parser.Parse()
+	return p.Parse()
 }

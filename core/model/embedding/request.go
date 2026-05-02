@@ -7,56 +7,61 @@ import (
 	"github.com/Tangerg/lynx/pkg/ptr"
 )
 
-// EncodingFormat specifies the format in which embedding vectors are encoded.
+// EncodingFormat enumerates the on-the-wire shapes a provider may use
+// for embedding vectors. Most callers want [EncodingFormatFloat] —
+// [EncodingFormatBase64] is useful when transmitting compactly over
+// channels that re-encode binary data.
 type EncodingFormat string
 
 const (
-	// EncodingFormatFloat represents embeddings as floating-point numbers.
-	// This is the most common format for direct vector operations.
+	// EncodingFormatFloat encodes each vector as JSON float numbers.
 	EncodingFormatFloat EncodingFormat = "float"
 
-	// EncodingFormatBase64 represents embeddings as base64-encoded strings.
-	// This format is useful for compact transmission and storage.
+	// EncodingFormatBase64 encodes each vector as a base64 string of the
+	// little-endian float32 byte sequence.
 	EncodingFormatBase64 EncodingFormat = "base64"
 )
 
-// Valid checks whether the encoding format is one of the supported formats.
-// Returns true if the format is valid, false otherwise.
+// Valid reports whether e is one of the recognized formats.
 func (e EncodingFormat) Valid() bool {
 	switch e {
-	case EncodingFormatFloat,
-		EncodingFormatBase64:
+	case EncodingFormatFloat, EncodingFormatBase64:
 		return true
 	default:
 		return false
 	}
 }
 
-// Options contains configuration parameters for embedding requests.
+// Options holds per-request configuration for an embedding call. Pointer
+// fields use nil to mean "not set" — providers fall back to their own
+// defaults.
 type Options struct {
-	// Model The embedding model identifier to use
+	// Model is the provider model identifier
+	// (e.g. "text-embedding-3-small").
 	Model string `json:"model"`
 
-	// EncodingFormat specifies how the embedding vectors should be encoded in the response.
+	// EncodingFormat picks the wire shape the provider should return.
 	EncodingFormat EncodingFormat `json:"encoding_format"`
 
-	// Dimensions specifies the desired dimensionality of the output embeddings.
-	// If nil, the model's default dimensions will be used.
+	// Dimensions requests an explicit output vector size. nil leaves it
+	// up to the provider's default.
 	Dimensions *int64 `json:"dimensions"`
 
-	// Extra holds provider-specific options that are not part of the standard options.
-	// This allows for extensibility without modifying the core Options structure.
+	// Extra carries provider-specific options unknown to this struct.
 	Extra map[string]any `json:"extra"`
 }
 
+// NewOptions builds Options for the given model id. Returns an error
+// when model is empty.
+//
+// Example:
+//
+//	opts, err := embedding.NewOptions("text-embedding-3-small")
 func NewOptions(model string) (*Options, error) {
 	if model == "" {
-		return nil, errors.New("model cannot be empty")
+		return nil, errors.New("embedding.NewOptions: model id must not be empty")
 	}
-
-	return &Options{
-		Model: model,
-	}, nil
+	return &Options{Model: model}, nil
 }
 
 func (o *Options) ensureExtra() {
@@ -65,24 +70,24 @@ func (o *Options) ensureExtra() {
 	}
 }
 
+// Get returns the Extra value for key plus an existence flag.
 func (o *Options) Get(key string) (any, bool) {
 	o.ensureExtra()
 	value, exists := o.Extra[key]
 	return value, exists
 }
 
+// Set stores value under key in Extra.
 func (o *Options) Set(key string, value any) {
 	o.ensureExtra()
 	o.Extra[key] = value
 }
 
-// Clone creates a deep copy of the Options.
-// Returns nil if the original Options is nil.
+// Clone returns a deep copy. nil receiver yields nil.
 func (o *Options) Clone() *Options {
 	if o == nil {
 		return nil
 	}
-
 	return &Options{
 		Model:          o.Model,
 		EncodingFormat: o.EncodingFormat,
@@ -91,71 +96,66 @@ func (o *Options) Clone() *Options {
 	}
 }
 
-// MergeOptions merges multiple Options into a single Options instance.
-// It creates a clone of the base options and applies each subsequent option in order.
-// Later options override earlier ones for all fields.
-//
-// Parameters:
-//   - options: The base Options to clone (must not be nil)
-//   - opts: Additional Options to merge (nil entries are skipped)
-//
-// Returns:
-//   - *Options: The merged result
-//   - error: An error if the base options is nil
-//
-// Merge behavior:
-//   - Model field: Later non-empty values override earlier ones
-//   - EncodingFormat field: Later valid values override earlier ones
-//   - Dimensions field: Later non-nil values override earlier ones
-//   - Map field (Extra): Later entries are merged into the result map
-func MergeOptions(options *Options, opts ...*Options) (*Options, error) {
-	if options == nil {
-		return nil, errors.New("options cannot be nil")
+// MergeOptions clones base and applies each override left-to-right.
+// Scalar non-zero values overwrite; the Extra map merges last-write-wins.
+// Returns an error when base is nil.
+func MergeOptions(base *Options, overrides ...*Options) (*Options, error) {
+	if base == nil {
+		return nil, errors.New("embedding.MergeOptions: base options must not be nil")
 	}
 
-	mergedOpts := options.Clone()
-
-	for _, opt := range opts {
-		if opt == nil {
+	merged := base.Clone()
+	for _, override := range overrides {
+		if override == nil {
 			continue
 		}
-		if opt.Model != "" {
-			mergedOpts.Model = opt.Model
-		}
-		if opt.EncodingFormat.Valid() {
-			mergedOpts.EncodingFormat = opt.EncodingFormat
-		}
-		if opt.Dimensions != nil {
-			mergedOpts.Dimensions = opt.Dimensions
-		}
-		if len(opt.Extra) > 0 {
-			maps.Copy(mergedOpts.Extra, opt.Extra)
-		}
+		applyOverride(merged, override)
 	}
-
-	return mergedOpts, nil
+	return merged, nil
 }
 
-// Request represents an embedding generation request containing input texts and configuration.
+// applyOverride mutates dst in place with the non-zero fields of src.
+func applyOverride(dst, src *Options) {
+	if src.Model != "" {
+		dst.Model = src.Model
+	}
+	if src.EncodingFormat.Valid() {
+		dst.EncodingFormat = src.EncodingFormat
+	}
+	if src.Dimensions != nil {
+		dst.Dimensions = src.Dimensions
+	}
+	if len(src.Extra) > 0 {
+		if dst.Extra == nil {
+			dst.Extra = make(map[string]any, len(src.Extra))
+		}
+		maps.Copy(dst.Extra, src.Extra)
+	}
+}
+
+// Request is one embedding call: the input texts, the options, and
+// caller-supplied side-channel params (user id, trace id, ...).
 type Request struct {
-	// Texts contains the text strings to be converted into embeddings.
+	// Texts is the input list. Each entry produces one embedding.
 	Texts []string `json:"texts"`
 
-	// Options specifies the configuration for how embeddings should be generated.
+	// Options carries model-specific parameters.
 	Options *Options `json:"options"`
 
-	// Params holds request-level metadata and parameters such as userID, sessionID, etc.
-	// These parameters typically don't affect the embedding generation but are useful for tracking and logging.
+	// Params is per-request metadata middlewares can read.
 	Params map[string]any `json:"params"`
 }
 
-// NewRequest creates a new embedding request with the given input texts.
-// Returns an error if the texts slice is empty, as at least one input is required.
+// NewRequest builds a Request from texts. Returns an error when texts
+// is empty.
+//
+// Example:
+//
+//	req, err := embedding.NewRequest([]string{"hello", "world"})
 func NewRequest(texts []string) (*Request, error) {
 	if len(texts) == 0 {
-		return nil, errors.New("texts cannot be empty: at least one string is required")
+		return nil, errors.New("embedding.NewRequest: texts must contain at least one entry")
 	}
-
 	return &Request{
 		Texts:  texts,
 		Params: make(map[string]any),
@@ -168,12 +168,14 @@ func (r *Request) ensureParams() {
 	}
 }
 
+// Get returns the Params value for key plus an existence flag.
 func (r *Request) Get(key string) (any, bool) {
 	r.ensureParams()
 	value, exists := r.Params[key]
 	return value, exists
 }
 
+// Set stores value under key in Params.
 func (r *Request) Set(key string, value any) {
 	r.ensureParams()
 	r.Params[key] = value

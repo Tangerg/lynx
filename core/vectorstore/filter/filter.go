@@ -1,3 +1,9 @@
+// Package filter implements the metadata-filter mini-language used by
+// [github.com/Tangerg/lynx/core/vectorstore]. The language is a small
+// boolean DSL (see filter.ebnf / filter.g4 for the grammar); the
+// public surface is the three top-level helpers in this file plus the
+// programmatic [Builder] and the [ast] / [token] / [lexer] / [parser] /
+// [visitors] subpackages.
 package filter
 
 import (
@@ -6,25 +12,33 @@ import (
 	"github.com/Tangerg/lynx/core/vectorstore/filter/visitors"
 )
 
-// Parse parses a filter expression string into an AST.
-// This is the main entry point for parsing filter expressions.
-// Returns the root expression node or a parsing error.
+// Parse turns a textual filter expression into an [ast.Expr]. The
+// returned tree is syntactically valid but not yet semantically
+// checked — call [Analyze] (or [ParseAndAnalyze]) before passing it to
+// a vector store.
+//
+// Example:
+//
+//	expr, err := filter.Parse(`category = "tech" AND year >= 2020`)
 func Parse(input string) (ast.Expr, error) {
 	return parser.Parse(input)
 }
 
-// Analyze performs semantic analysis on a parsed AST expression.
-// Validates semantic correctness such as type compatibility and operator usage.
-// Returns an error if semantic validation fails.
+// Analyze performs semantic checks on a parsed expression — type
+// compatibility, valid operator/operand pairings, etc. Returns the
+// first violation found.
 func Analyze(expr ast.Expr) error {
 	analyzer := visitors.NewAnalyzer()
 	analyzer.Visit(expr)
 	return analyzer.Error()
 }
 
-// ParseAndAnalyze combines parsing and semantic analysis in one step.
-// Parses the input string and validates the resulting AST semantically.
-// Returns the expression and any parsing or analysis errors.
+// ParseAndAnalyze chains [Parse] and [Analyze]. Returns the AST plus
+// the first error from either stage.
+//
+// Example:
+//
+//	expr, err := filter.ParseAndAnalyze(`tags IN ["go", "rag"]`)
 func ParseAndAnalyze(input string) (ast.Expr, error) {
 	expr, err := Parse(input)
 	if err != nil {

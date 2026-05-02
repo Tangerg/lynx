@@ -8,96 +8,85 @@ import (
 	"github.com/Tangerg/lynx/core/tokenizer"
 )
 
-// TokenSplitterConfig holds the configuration for TokenSplitter.
+// Default sizing for [TokenSplitter]. The numbers come from common
+// embedding-model token limits and a reasonable upper bound on chunks
+// per document — non-positive values fall back to these.
+const (
+	defaultTokenChunkSize      = 800
+	defaultTokenMinChunkSize   = 350
+	defaultTokenMinEmbedLength = 5
+	defaultTokenMaxChunkCount  = 10_000
+)
+
+// TokenSplitterConfig configures a [TokenSplitter]. The Tokenizer is
+// required; the rest fall back to sensible defaults.
 type TokenSplitterConfig struct {
-	// Tokenizer is used to encode text into tokens and decode tokens back to text.
-	// Required. Must not be nil.
-	// The tokenizer should match the model that will process the chunks
-	// (e.g., use the same tokenizer as your embedding model).
+	// Tokenizer encodes/decodes text. Use the same vocabulary as the
+	// embedding model that will consume the chunks. Required.
 	Tokenizer tokenizer.Tokenizer
 
-	// ChunkSize specifies the target number of tokens per chunk.
-	// Optional. Defaults to 800 tokens if not provided or <= 0.
-	// This should be set based on your embedding model's token limit,
-	// typically leaving some buffer for metadata and special tokens.
+	// ChunkSize targets a max tokens-per-chunk. Defaults to 800.
 	ChunkSize int
 
-	// MinChunkSize sets the minimum size in characters for attempting to split at punctuation.
-	// Optional. Defaults to 350 characters if not provided or <= 0.
-	// Chunks smaller than this may not split at sentence boundaries.
-	// This helps ensure chunks are semantically meaningful.
+	// MinChunkSize is the minimum size in characters at which the
+	// splitter will attempt to break at a sentence boundary.
+	// Defaults to 350.
 	MinChunkSize int
 
-	// MinEmbedLength specifies the minimum character length for a chunk to be included.
-	// Optional. Defaults to 5 characters if not provided or <= 0.
-	// Chunks shorter than this are filtered out as they typically don't
-	// provide meaningful semantic information.
+	// MinEmbedLength filters out chunks shorter than this many
+	// characters. Defaults to 5.
 	MinEmbedLength int
 
-	// MaxChunkCount limits the maximum number of chunks that can be created from a single document.
-	// Optional. Defaults to 10000 if not provided or <= 0.
-	// This prevents potential infinite loops or memory issues with extremely large documents.
+	// MaxChunkCount caps how many chunks one document may produce —
+	// guard against pathological inputs. Defaults to 10000.
 	MaxChunkCount int
 
-	// KeepSeparator determines whether to preserve newline characters in the output chunks.
-	// Optional. Defaults to false.
-	// If false, newlines are replaced with spaces for cleaner text.
-	// If true, original line structure is maintained.
+	// KeepSeparator preserves newlines instead of collapsing them to
+	// spaces. Defaults to false (cleaner one-line chunks).
 	KeepSeparator bool
 
-	// CopyFormatter determines whether to copy the formatter from the original document
-	// to each split chunk.
-	// Optional. Defaults to false.
-	// Set to true if you want split chunks to inherit the parent document's
-	// formatting behavior.
+	// CopyFormatter copies the source document's [Formatter] to each
+	// chunk. Defaults to false.
 	CopyFormatter bool
 }
 
+// validate fills in defaults for non-positive numeric fields and
+// returns an error when required fields are missing.
 func (c *TokenSplitterConfig) validate() error {
-	const (
-		chunkSize      = 800
-		minChunkSize   = 350
-		minEmbedLength = 5
-		maxChunkCount  = 10000
-	)
-
 	if c == nil {
-		return errors.New("config is required")
+		return errors.New("document.TokenSplitterConfig: config must not be nil")
 	}
 	if c.Tokenizer == nil {
-		return errors.New("tokenizer is required")
+		return errors.New("document.TokenSplitterConfig: Tokenizer is required")
 	}
 	if c.ChunkSize <= 0 {
-		c.ChunkSize = chunkSize
+		c.ChunkSize = defaultTokenChunkSize
 	}
 	if c.MinChunkSize <= 0 {
-		c.MinChunkSize = minChunkSize
+		c.MinChunkSize = defaultTokenMinChunkSize
 	}
 	if c.MinEmbedLength <= 0 {
-		c.MinEmbedLength = minEmbedLength
+		c.MinEmbedLength = defaultTokenMinEmbedLength
 	}
 	if c.MaxChunkCount <= 0 {
-		c.MaxChunkCount = maxChunkCount
+		c.MaxChunkCount = defaultTokenMaxChunkCount
 	}
 	return nil
 }
 
 var _ Transformer = (*TokenSplitter)(nil)
 
-// TokenSplitter transforms documents by splitting them into token-based chunks with
-// intelligent boundary detection.
+// TokenSplitter is a token-aware [Transformer] that splits documents
+// into chunks bounded by the configured token count, preferring
+// sentence-boundary cuts when possible.
 //
-// This transformer is useful for:
-//   - Creating chunks that respect embedding model token limits
-//   - Splitting at natural sentence boundaries when possible
-//   - Ensuring consistent chunk sizes for efficient batch processing
-//   - Preventing token truncation during embedding generation
-//
-// The splitter uses a sophisticated algorithm that:
-//  1. Splits text into token-based chunks of approximately ChunkSize tokens
-//  2. Attempts to split at sentence boundaries (., ?, !, \n) when chunks exceed MinChunkSize
-//  3. Filters out chunks shorter than MinEmbedLength to avoid meaningless embeddings
-//  4. Limits total chunks per document to MaxChunkCount for safety
+// Algorithm:
+//   1. Encode the document, take the first ChunkSize tokens, decode
+//      them back into text.
+//   2. If that text is longer than MinChunkSize, find the last
+//      ".", "?", "!" or newline and trim the chunk to end there.
+//   3. Filter chunks whose text is shorter than MinEmbedLength.
+//   4. Cap the iteration at MaxChunkCount to prevent runaways.
 type TokenSplitter struct {
 	tokenizer      tokenizer.Tokenizer
 	chunkSize      int
@@ -109,10 +98,13 @@ type TokenSplitter struct {
 	splitter       *Splitter
 }
 
+// NewTokenSplitter builds a [TokenSplitter]. Returns an error when
+// config is invalid.
 func NewTokenSplitter(config *TokenSplitterConfig) (*TokenSplitter, error) {
 	if err := config.validate(); err != nil {
 		return nil, err
 	}
+
 	ts := &TokenSplitter{
 		tokenizer:      config.Tokenizer,
 		chunkSize:      config.ChunkSize,
@@ -129,6 +121,7 @@ func NewTokenSplitter(config *TokenSplitterConfig) (*TokenSplitter, error) {
 	return ts, nil
 }
 
+// splitByTokens implements the algorithm documented on [TokenSplitter].
 func (t *TokenSplitter) splitByTokens(ctx context.Context, text string) ([]string, error) {
 	if strings.TrimSpace(text) == "" {
 		return []string{}, nil
@@ -139,74 +132,74 @@ func (t *TokenSplitter) splitByTokens(ctx context.Context, text string) ([]strin
 		return nil, err
 	}
 
-	textChunks := make([]string, 0, t.chunkSize)
-	processedCount := 0
+	chunks := make([]string, 0, t.chunkSize)
+	processed := 0
 
-	for len(tokens) > 0 && processedCount < t.maxChunkCount {
-		chunkEnd := min(t.chunkSize, len(tokens))
-		currentTokens := tokens[:chunkEnd]
+	for len(tokens) > 0 && processed < t.maxChunkCount {
+		end := min(t.chunkSize, len(tokens))
+		windowTokens := tokens[:end]
 
-		chunkText, err := t.tokenizer.Decode(ctx, currentTokens)
+		windowText, err := t.tokenizer.Decode(ctx, windowTokens)
 		if err != nil {
 			return nil, err
 		}
 
-		if strings.TrimSpace(chunkText) == "" {
-			tokens = tokens[len(currentTokens):]
+		if strings.TrimSpace(windowText) == "" {
+			tokens = tokens[end:]
 			continue
 		}
 
-		lastPunctuation := max(
-			strings.LastIndex(chunkText, "."),
-			max(strings.LastIndex(chunkText, "?"),
-				max(strings.LastIndex(chunkText, "!"),
-					strings.LastIndex(chunkText, "\n"))),
-		)
-
-		if lastPunctuation != -1 && lastPunctuation > t.minChunkSize {
-			chunkText = chunkText[:lastPunctuation+1]
+		// Try to end at the last sentence boundary inside the window.
+		lastPunct := lastSentenceEnd(windowText)
+		if lastPunct != -1 && lastPunct > t.minChunkSize {
+			windowText = windowText[:lastPunct+1]
 		}
 
-		var finalChunk string
-		if t.keepSeparator {
-			finalChunk = strings.TrimSpace(chunkText)
-		} else {
-			finalChunk = strings.TrimSpace(
-				strings.ReplaceAll(chunkText, "\n", " "),
-			)
+		final := strings.TrimSpace(windowText)
+		if !t.keepSeparator {
+			final = strings.TrimSpace(strings.ReplaceAll(windowText, "\n", " "))
+		}
+		if len(final) > t.minEmbedLength {
+			chunks = append(chunks, final)
 		}
 
-		if len(finalChunk) > t.minEmbedLength {
-			textChunks = append(textChunks, finalChunk)
-		}
-
-		actualTokens, err := t.tokenizer.Encode(ctx, chunkText)
+		// Re-encode the (possibly trimmed) chunk to know how many tokens
+		// to consume.
+		consumedTokens, err := t.tokenizer.Encode(ctx, windowText)
 		if err != nil {
 			return nil, err
 		}
-		tokens = tokens[min(len(actualTokens), len(tokens)):]
+		tokens = tokens[min(len(consumedTokens), len(tokens)):]
 
-		processedCount++
+		processed++
 	}
 
 	if len(tokens) > 0 {
-		remainingText, err := t.tokenizer.Decode(ctx, tokens)
+		tail, err := t.tokenizer.Decode(ctx, tokens)
 		if err != nil {
 			return nil, err
 		}
-
-		cleanedText := strings.TrimSpace(
-			strings.ReplaceAll(remainingText, "\n", " "),
-		)
-
-		if len(cleanedText) > t.minEmbedLength {
-			textChunks = append(textChunks, cleanedText)
+		final := strings.TrimSpace(strings.ReplaceAll(tail, "\n", " "))
+		if len(final) > t.minEmbedLength {
+			chunks = append(chunks, final)
 		}
 	}
 
-	return textChunks, nil
+	return chunks, nil
 }
 
+// lastSentenceEnd returns the highest byte index of any of ., ?, !, \n
+// in s, or -1 if none are present.
+func lastSentenceEnd(s string) int {
+	return max(
+		strings.LastIndex(s, "."),
+		max(strings.LastIndex(s, "?"),
+			max(strings.LastIndex(s, "!"),
+				strings.LastIndex(s, "\n"))),
+	)
+}
+
+// Transform delegates to the wrapped [Splitter].
 func (t *TokenSplitter) Transform(ctx context.Context, docs []*Document) ([]*Document, error) {
 	return t.splitter.Transform(ctx, docs)
 }

@@ -6,52 +6,48 @@ import (
 	"github.com/Tangerg/lynx/core/document"
 )
 
-var _ QueryExpander = (*Nop)(nil)
-var _ QueryTransformer = (*Nop)(nil)
-var _ QueryAugmenter = (*Nop)(nil)
-var _ DocumentRetriever = (*Nop)(nil)
-var _ DocumentRefiner = (*Nop)(nil)
+var (
+	_ QueryExpander     = (*Nop)(nil)
+	_ QueryTransformer  = (*Nop)(nil)
+	_ QueryAugmenter    = (*Nop)(nil)
+	_ DocumentRetriever = (*Nop)(nil)
+	_ DocumentRefiner   = (*Nop)(nil)
+)
 
-// Nop is a no-operation implementation of all RAG pipeline interfaces.
-// It provides default pass-through behavior without performing any actual operations,
-// useful for testing, optional pipeline stages, or as a placeholder implementation.
+// Nop is the do-nothing implementation that satisfies every RAG
+// interface — pass-through expand/transform/augment/refine and an
+// empty-list retriever. Useful as a default when a pipeline stage is
+// optional, or as a test double.
 type Nop struct{}
 
-// nop is a singleton instance of Nop to avoid unnecessary allocations.
-var nop = &Nop{}
+// nopSingleton is the shared zero-state instance — Nop has no fields,
+// so allocating per caller would just produce garbage.
+var nopSingleton = &Nop{}
 
-// NewNop returns a singleton instance of Nop.
-// Since Nop is stateless, the same instance can be safely reused.
-func NewNop() *Nop {
-	return nop
-}
+// NewNop returns the shared singleton.
+func NewNop() *Nop { return nopSingleton }
 
-// Expand returns the input query as a single-element slice without modification.
-// It implements the QueryExpander interface with no-op behavior.
+// Expand wraps the input query in a single-element slice.
 func (n *Nop) Expand(_ context.Context, query *Query) ([]*Query, error) {
 	return []*Query{query}, nil
 }
 
-// Retrieve returns an empty document list without performing any retrieval.
-// It implements the DocumentRetriever interface with no-op behavior.
+// Retrieve returns nil — no documents.
 func (n *Nop) Retrieve(_ context.Context, _ *Query) ([]*document.Document, error) {
 	return nil, nil
 }
 
-// Transform returns the input query without modification.
-// It implements the QueryTransformer interface with no-op behavior.
+// Transform passes the query through unchanged.
 func (n *Nop) Transform(_ context.Context, query *Query) (*Query, error) {
 	return query, nil
 }
 
-// Augment returns the input query without augmentation.
-// It implements the QueryAugmenter interface with no-op behavior.
+// Augment passes the query through unchanged.
 func (n *Nop) Augment(_ context.Context, query *Query, _ []*document.Document) (*Query, error) {
 	return query, nil
 }
 
-// Refine returns the input documents without refinement.
-// It implements the DocumentRefiner interface with no-op behavior.
+// Refine passes the documents through unchanged.
 func (n *Nop) Refine(_ context.Context, _ *Query, documents []*document.Document) ([]*document.Document, error) {
 	return documents, nil
 }
