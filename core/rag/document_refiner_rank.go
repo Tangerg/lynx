@@ -9,41 +9,39 @@ import (
 
 var _ DocumentRefiner = (*RankDocumentRefiner)(nil)
 
-// RankDocumentRefiner sorts documents by their relevance scores in descending order and
-// returns only the top-K highest scoring documents.
-//
-// This refiner is useful for:
-//   - Limiting the number of documents passed to downstream components
-//   - Focusing on the most relevant results based on similarity scores
-//   - Reducing token usage by filtering out lower-quality matches
-//   - Improving response quality by using only the best matches
+// RankDocumentRefiner sorts documents by [document.Document.Score]
+// descending and keeps the top-K. Use it after retrieval to focus on
+// the strongest matches and bound the prompt budget.
 type RankDocumentRefiner struct {
 	topK int
 }
 
+// NewRankDocumentRefiner builds a [RankDocumentRefiner]. Non-positive
+// topK falls back to 1 — every retrieval should yield at least one
+// document, never an empty result purely due to a misconfigured cap.
 func NewRankDocumentRefiner(topK int) *RankDocumentRefiner {
 	if topK < 1 {
 		topK = 1
 	}
-
 	return &RankDocumentRefiner{topK: topK}
 }
 
+// Refine sorts documents by score (descending) and returns at most
+// topK entries. The input slice is not mutated. Honors ctx cancellation.
 func (r *RankDocumentRefiner) Refine(ctx context.Context, _ *Query, documents []*document.Document) ([]*document.Document, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 
-	sortedDocuments := make([]*document.Document, len(documents))
-	copy(sortedDocuments, documents)
+	sorted := make([]*document.Document, len(documents))
+	copy(sorted, documents)
 
-	sort.Slice(sortedDocuments, func(i, j int) bool {
-		return sortedDocuments[i].Score > sortedDocuments[j].Score
+	sort.Slice(sorted, func(i, j int) bool {
+		return sorted[i].Score > sorted[j].Score
 	})
 
-	if len(sortedDocuments) > r.topK {
-		sortedDocuments = sortedDocuments[:r.topK]
+	if len(sorted) > r.topK {
+		sorted = sorted[:r.topK]
 	}
-
-	return sortedDocuments, nil
+	return sorted, nil
 }

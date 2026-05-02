@@ -1,24 +1,36 @@
+// Package image defines the request/response types and Model interface
+// for image-generation LLMs. Concrete provider implementations
+// (OpenAI DALL·E, Stability AI, ...) live in /models/<provider>/image.go.
 package image
 
-import (
-	"github.com/Tangerg/lynx/core/model"
-)
+import "github.com/Tangerg/lynx/core/model"
 
-// Model represents an image generation model interface that combines base model functionality
-// with image-specific operations. It processes image generation requests and returns responses.
+// Model is the provider surface for an image-generation LLM —
+// synchronous call, model defaults, and an identity hint.
+//
+// Example:
+//
+//	type myImageModel struct{ /* ... */ }
+//	func (m *myImageModel) Call(ctx context.Context, req *image.Request) (*image.Response, error) { ... }
+//	func (m *myImageModel) DefaultOptions() *image.Options { return image.NewOptionsOrPanic("dall-e-3") }
+//	func (m *myImageModel) Info() image.ModelInfo         { return image.ModelInfo{Provider: "openai"} }
+//
+//	var _ image.Model = (*myImageModel)(nil)
 type Model interface {
 	model.Model[*Request, *Response]
 
-	// DefaultOptions returns the default configuration options for this image model
+	// DefaultOptions returns the parameter set this provider uses when
+	// the caller does not override anything.
 	DefaultOptions() *Options
 
-	// Info returns metadata information about this image model
+	// Info returns identity metadata used by logging, metrics, and any
+	// observability layer that needs to tag a span by provider.
 	Info() ModelInfo
 }
 
-// ModelInfo contains metadata information about an image model.
+// ModelInfo holds identity metadata for a [Model] instance. Provider
+// names are conventionally lowercase ("openai", "stability", ...).
 type ModelInfo struct {
-	// Provider identifies the service or organization that provides this image model.
-	// Examples: "OpenAI", "Stability AI", "Midjourney", etc.
+	// Provider names the image-generation LLM vendor.
 	Provider string `json:"provider"`
 }

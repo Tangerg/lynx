@@ -4,22 +4,30 @@ import (
 	"context"
 	"errors"
 	"maps"
+	"slices"
 
 	"github.com/Tangerg/lynx/core/model"
 )
 
-type Handler = model.CallHandler[*Request, *Response]
-type HandlerFunc = model.CallHandlerFunc[*Request, *Response]
-type Middleware = model.CallMiddleware[*Request, *Response]
-type MiddlewareManager = model.CallMiddlewareManager[*Request, *Response]
+// Type aliases threading moderation's *Request / *Response into the
+// generic [model] handler/middleware machinery.
+type (
+	Handler           = model.CallHandler[*Request, *Response]
+	HandlerFunc       = model.CallHandlerFunc[*Request, *Response]
+	Middleware        = model.CallMiddleware[*Request, *Response]
+	MiddlewareManager = model.CallMiddlewareManager[*Request, *Response]
+)
 
-// NewMiddlewareManager creates a new middleware manager for moderation requests
+// NewMiddlewareManager returns an empty [MiddlewareManager] keyed to
+// moderation's *Request / *Response pair.
 func NewMiddlewareManager() *MiddlewareManager {
 	return model.NewCallMiddlewareManager[*Request, *Response]()
 }
 
-// ClientRequest represents a fluent builder for constructing moderation requests
-// It allows configuring the model, middlewares, options, texts, and additional parameters
+// ClientRequest is the fluent builder that turns a [Model] plus inputs
+// and options into a moderation call. Construct one with
+// [NewClientRequest] (or [Client.Moderate] which clones the client's
+// default), chain WithXxx, then finish with [ClientRequest.Call].
 type ClientRequest struct {
 	model             Model
 	middlewareManager *MiddlewareManager
@@ -28,19 +36,16 @@ type ClientRequest struct {
 	params            map[string]any
 }
 
-// NewClientRequest creates a new ClientRequest with the specified moderation model
-// Returns an error if the model is nil
+// NewClientRequest builds a [ClientRequest] for model. Returns an error
+// when model is nil.
 func NewClientRequest(model Model) (*ClientRequest, error) {
 	if model == nil {
-		return nil, errors.New("model is nil")
+		return nil, errors.New("moderation.NewClientRequest: model must not be nil")
 	}
-	return &ClientRequest{
-		model: model,
-	}, nil
+	return &ClientRequest{model: model}, nil
 }
 
-// WithMiddlewares adds middlewares to the request
-// Returns the ClientRequest for method chaining
+// WithMiddlewares replaces the entire middleware chain.
 func (r *ClientRequest) WithMiddlewares(middlewares ...Middleware) *ClientRequest {
 	if len(middlewares) > 0 {
 		r.middlewareManager = NewMiddlewareManager().UseMiddlewares(middlewares...)
@@ -48,17 +53,16 @@ func (r *ClientRequest) WithMiddlewares(middlewares ...Middleware) *ClientReques
 	return r
 }
 
-// WithMiddlewareManager sets a custom middleware manager for the request
-// Returns the ClientRequest for method chaining
-func (r *ClientRequest) WithMiddlewareManager(middlewareManager *MiddlewareManager) *ClientRequest {
-	if middlewareManager != nil {
-		r.middlewareManager = middlewareManager
+// WithMiddlewareManager replaces the underlying [MiddlewareManager].
+// nil is ignored.
+func (r *ClientRequest) WithMiddlewareManager(mgr *MiddlewareManager) *ClientRequest {
+	if mgr != nil {
+		r.middlewareManager = mgr
 	}
 	return r
 }
 
-// WithOptions sets the configuration options for the request
-// Returns the ClientRequest for method chaining
+// WithOptions sets the per-request [Options]. nil is ignored.
 func (r *ClientRequest) WithOptions(options *Options) *ClientRequest {
 	if options != nil {
 		r.options = options
@@ -66,8 +70,7 @@ func (r *ClientRequest) WithOptions(options *Options) *ClientRequest {
 	return r
 }
 
-// WithTexts sets the text contents to be moderated
-// Returns the ClientRequest for method chaining
+// WithTexts replaces the input list. Empty input is ignored.
 func (r *ClientRequest) WithTexts(texts []string) *ClientRequest {
 	if len(texts) > 0 {
 		r.texts = texts
@@ -75,8 +78,7 @@ func (r *ClientRequest) WithTexts(texts []string) *ClientRequest {
 	return r
 }
 
-// WithParams sets additional parameters for the request
-// Returns the ClientRequest for method chaining
+// WithParams replaces the side-channel params map. Empty input is ignored.
 func (r *ClientRequest) WithParams(params map[string]any) *ClientRequest {
 	if len(params) > 0 {
 		r.params = params
@@ -84,8 +86,8 @@ func (r *ClientRequest) WithParams(params map[string]any) *ClientRequest {
 	return r
 }
 
-// MiddlewareManager returns the middleware manager for this request
-// Creates a new one if it doesn't exist
+// MiddlewareManager returns the active manager, lazily allocating one
+// if none has been set yet.
 func (r *ClientRequest) MiddlewareManager() *MiddlewareManager {
 	if r.middlewareManager == nil {
 		r.middlewareManager = NewMiddlewareManager()
@@ -93,74 +95,68 @@ func (r *ClientRequest) MiddlewareManager() *MiddlewareManager {
 	return r.middlewareManager
 }
 
-// Clone creates a deep copy of the ClientRequest
+// Clone returns a deep copy.
 func (r *ClientRequest) Clone() *ClientRequest {
 	return &ClientRequest{
 		model:             r.model,
 		middlewareManager: r.middlewareManager.Clone(),
 		options:           r.options.Clone(),
-		texts:             r.texts,
+		texts:             slices.Clone(r.texts),
 		params:            maps.Clone(r.params),
 	}
 }
 
-// getOptions returns the options to use for the request
-// Uses the explicitly set options if available, otherwise falls back to model defaults
-func (r *ClientRequest) getOptions() *Options {
-	var opts *Options
-
+// resolveOptions returns the effective [Options] for this call —
+// request-level options when supplied, otherwise a clone of the model's
+// defaults.
+func (r *ClientRequest) resolveOptions() *Options {
 	if r.options != nil {
-		opts = r.options.Clone()
-	} else {
-		opts = r.model.DefaultOptions().Clone()
+		return r.options.Clone()
 	}
-
-	return opts
+	return r.model.DefaultOptions().Clone()
 }
 
-// buildRequest constructs the final Request object from the ClientRequest configuration
-// Returns an error if the texts is invalid
+// buildRequest assembles the [*Request] sent through the middleware
+// chain to the underlying model.
 func (r *ClientRequest) buildRequest() (*Request, error) {
 	req, err := NewRequest(r.texts)
 	if err != nil {
 		return nil, err
 	}
-
-	req.Options = r.getOptions()
+	req.Options = r.resolveOptions()
 	req.Params = maps.Clone(r.params)
-
 	return req, nil
 }
 
-// Call creates a ClientCaller to execute the moderation request
+// Call returns a [ClientCaller] for executing the request.
+//
+// Example:
+//
+//	mod, _, err := client.Moderate().WithTexts([]string{"hi"}).Call().Moderation(ctx)
 func (r *ClientRequest) Call() *ClientCaller {
-	return &ClientCaller{
-		request: r,
-	}
+	return &ClientCaller{request: r}
 }
 
-// ClientCaller handles the execution of moderation requests and provides various
-// methods to retrieve different aspects of the moderation response
+// ClientCaller drives the synchronous moderation path.
 type ClientCaller struct {
 	request *ClientRequest
 }
 
-// Response executes the moderation request and returns the complete response
-// Returns an error if the request fails or validation fails
+// Response runs the call through the middleware chain and returns the
+// raw [*Response].
 func (c *ClientCaller) Response(ctx context.Context) (*Response, error) {
 	req, err := c.request.buildRequest()
 	if err != nil {
 		return nil, err
 	}
-	return c.
-		request.
+	return c.request.
 		MiddlewareManager().
 		BuildHandler(c.request.model).
 		Call(ctx, req)
 }
 
-// Moderation executes the request and returns the first moderation result along with the full response
-// Returns an error if the request fails
+// Moderation runs the call and returns the first verdict alongside the
+// full response.
 func (c *ClientCaller) Moderation(ctx context.Context) (*Moderation, *Response, error) {
 	resp, err := c.Response(ctx)
 	if err != nil {
@@ -169,77 +165,63 @@ func (c *ClientCaller) Moderation(ctx context.Context) (*Moderation, *Response, 
 	return resp.Result().Moderation, resp, nil
 }
 
-// Moderations executes the request and returns all moderation results along with the full response
-// Returns an error if the request fails
+// Moderations runs the call and returns every verdict in input order.
 func (c *ClientCaller) Moderations(ctx context.Context) ([]*Moderation, *Response, error) {
 	resp, err := c.Response(ctx)
 	if err != nil {
 		return nil, nil, err
 	}
-	moderations := make([]*Moderation, 0, len(resp.Results))
+	out := make([]*Moderation, 0, len(resp.Results))
 	for _, result := range resp.Results {
-		moderations = append(moderations, result.Moderation)
+		out = append(out, result.Moderation)
 	}
-	return moderations, resp, nil
+	return out, resp, nil
 }
 
-// Client provides a high-level interface for making moderation requests
-// It maintains a default request configuration that can be cloned and customized
+// Client wraps a [Model] with a sticky default [ClientRequest], so each
+// [Client.Moderate] call clones a pre-configured starting point.
 type Client struct {
 	defaultRequest *ClientRequest
 }
 
-// NewClient creates a new Client with the specified default request configuration
-// Returns an error if the request is nil
+// NewClient wraps an existing [ClientRequest] as a sticky default.
+// Returns an error when request is nil.
 func NewClient(request *ClientRequest) (*Client, error) {
 	if request == nil {
-		return nil, errors.New("client request is required")
+		return nil, errors.New("moderation.NewClient: request must not be nil")
 	}
-	return &Client{
-		defaultRequest: request,
-	}, nil
+	return &Client{defaultRequest: request}, nil
 }
 
-// NewClientWithModel creates a new Client with a default request using the specified model
-// Returns an error if the model is invalid
+// NewClientWithModel is a one-step constructor.
 func NewClientWithModel(model Model) (*Client, error) {
-	cliReq, err := NewClientRequest(model)
+	req, err := NewClientRequest(model)
 	if err != nil {
 		return nil, err
 	}
-	return NewClient(cliReq)
+	return NewClient(req)
 }
 
-// Moderate creates a new ClientRequest by cloning the default request configuration
-// This is the starting point for building a customized moderation request
+// Moderate returns a fresh clone of the default request.
 func (c *Client) Moderate() *ClientRequest {
-	return c.
-		defaultRequest.
-		Clone()
+	return c.defaultRequest.Clone()
 }
 
-// ModerateWithRequest creates a ClientRequest from an existing Request object
-// Copies the text, options, and params from the provided request
-func (c *Client) ModerateWithRequest(request *Request) *ClientRequest {
-	return c.
-		Moderate().
-		WithTexts(request.Texts).
-		WithOptions(request.Options).
-		WithParams(request.Params)
+// ModerateWithRequest seeds a clone with the texts, options, and params
+// from req.
+func (c *Client) ModerateWithRequest(req *Request) *ClientRequest {
+	return c.Moderate().
+		WithTexts(req.Texts).
+		WithOptions(req.Options).
+		WithParams(req.Params)
 }
 
-// ModerateWithText creates a ClientRequest for moderating a single text
-// This is a convenience method for simple moderation tasks
+// ModerateWithText is the shorthand for a single-input request.
 func (c *Client) ModerateWithText(text string) *ClientRequest {
-	return c.
-		Moderate().
-		WithTexts([]string{text})
+	return c.Moderate().WithTexts([]string{text})
 }
 
-// ModerateWithTexts creates a ClientRequest for moderating text contents
-// This is a convenience method for batch moderation tasks
+// ModerateWithTexts is the shorthand for a batch request.
 func (c *Client) ModerateWithTexts(texts []string) *ClientRequest {
-	return c.
-		Moderate().
-		WithTexts(texts)
+	return c.Moderate().WithTexts(texts)
 }

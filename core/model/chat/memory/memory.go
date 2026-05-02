@@ -1,3 +1,18 @@
+// Package memory provides conversation-history primitives for chat
+// applications. It defines the [Store] interface, two reference
+// implementations ([InMemoryStore] and the windowed [MessageWindowStore]),
+// and a middleware that auto-loads / auto-saves messages on every chat
+// turn keyed by a conversation id.
+//
+// Example:
+//
+//	store := memory.NewInMemoryMemory()
+//	mw, _, err := memory.NewMemoryMiddleware(store)
+//	resp, err := client.Chat().
+//	    WithParams(map[string]any{memory.ConversationIDKey: "session-123"}).
+//	    WithMiddlewares(mw).
+//	    WithText("hi").
+//	    Call().Response(ctx)
 package memory
 
 import (
@@ -6,49 +21,32 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat"
 )
 
-// Reader defines the interface for reading conversational context from memory.
+// Reader returns the messages for a conversation that should be sent to
+// the LLM as context.
 type Reader interface {
-	// Read retrieves contextually relevant messages for the specified conversation.
-	// The implementation determines which messages to return based on its memory
-	// strategy (e.g., sliding window, token limits, or message prioritization).
-	// The returned messages represent the context that should be provided to
-	// the LLM to maintain conversational continuity.
+	// Read returns the contextually relevant messages for conversationID.
+	// What "relevant" means is up to the implementation — sliding window,
+	// token budget, prioritized summary, etc.
 	Read(ctx context.Context, conversationID string) ([]chat.Message, error)
 }
 
-// Writer defines the interface for writing conversational context to memory.
+// Writer appends new messages to a conversation.
 type Writer interface {
-	// Write stores the specified messages in memory for the given conversation.
-	// The implementation determines which messages to retain and how to manage
-	// them based on its memory strategy (e.g., filtering, merging, or evicting
-	// older messages).
+	// Write appends messages to conversationID. Implementations may apply
+	// retention rules (eviction, summarization, ...) at write time.
 	Write(ctx context.Context, conversationID string, messages ...chat.Message) error
 }
 
-// Clearer defines the interface for clearing conversational context from memory.
+// Clearer drops every message for a conversation.
 type Clearer interface {
-	// Clear removes all stored messages for the specified conversation,
-	// effectively resetting the conversational context.
+	// Clear removes all stored messages for conversationID.
 	Clear(ctx context.Context, conversationID string) error
 }
 
-// Store defines the interface for storing and managing conversational context
-// across chat interactions.
-//
-// Large language models (LLMs) are stateless and cannot retain information from
-// previous interactions. The Store interface addresses this limitation by enabling
-// store and retrieval of contextual information across multiple LLM interactions.
-//
-// Store is designed to manage contextually relevant information that helps the LLM
-// maintain conversational awareness, rather than storing complete chat history.
-// Different implementations can employ various retention strategies:
-//   - Retain the last N messages
-//   - Retain messages within a specific time window
-//   - Retain messages within token count limits
-//   - Apply message prioritization or summarization
-//
-// Note: Store focuses on maintaining conversational context for LLM interactions.
-// Complete chat history persistence should be handled by dedicated store solutions.
+// Store is the union of [Reader], [Writer], and [Clearer]. It is the
+// surface every memory backend implements; the framework treats it as
+// "conversation context manager" rather than "complete chat history",
+// so implementations are free to apply any retention strategy.
 type Store interface {
 	Reader
 	Writer

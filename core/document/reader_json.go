@@ -12,99 +12,61 @@ import (
 	pkgSlices "github.com/Tangerg/lynx/pkg/slices"
 )
 
+const defaultJSONReaderBufferSize = 8192
+
 var _ Reader = (*JSONReader)(nil)
 
-// JSONReader reads and parses JSON data into Document objects.
+// JSONReader parses a JSON payload — either a single object or a top-
+// level array — into [*Document] entries. Top-level arrays produce one
+// document per element; single objects produce one document whose Text
+// is the raw JSON string.
 //
-// This reader is useful for:
-//   - Loading documents from JSON files or API responses
-//   - Processing both single JSON objects and JSON arrays
-//   - Converting structured JSON data into document format
-//   - Building document ingestion pipelines from JSON sources
+// Use it to ingest API responses, dump files, or seed fixture data.
 //
-// The reader automatically detects whether the input is a JSON array or
-// a single JSON object. For arrays, each element becomes a separate document.
-// For single objects, the entire JSON becomes one document's content.
+// Example:
 //
-// Example JSON array input:
-//
-//	[
-//	  {"title": "Doc1", "content": "..."},
-//	  {"title": "Doc2", "content": "..."}
-//	]
-//
-// Example single JSON object input:
-//
-//	{"title": "Doc1", "content": "...", "metadata": {...}}
+//	r, err := document.NewJSONReader(strings.NewReader(`[{"id":1},{"id":2}]`))
+//	docs, err := r.Read(ctx) // 2 documents
 type JSONReader struct {
 	reader     io.Reader
 	bufferSize int
 }
 
+// NewJSONReader builds a [JSONReader]. Optional sizes[0] overrides the
+// default 8 KiB read buffer; non-positive values fall back to the
+// default.
 func NewJSONReader(reader io.Reader, sizes ...int) (*JSONReader, error) {
 	if reader == nil {
-		return nil, errors.New("reader is nil")
+		return nil, errors.New("document.NewJSONReader: reader must not be nil")
 	}
-	const defaultBufferSize = 8192
 
 	bufferSize, _ := pkgSlices.First(sizes)
 	if bufferSize <= 0 {
-		bufferSize = defaultBufferSize
+		bufferSize = defaultJSONReaderBufferSize
 	}
 
-	return &JSONReader{
-		reader:     reader,
-		bufferSize: bufferSize,
-	}, nil
+	return &JSONReader{reader: reader, bufferSize: bufferSize}, nil
 }
 
-func (j *JSONReader) maybeJSONArray(data []byte) bool {
-	trimmed := bytes.TrimFunc(data, unicode.IsSpace)
-	if len(trimmed) < 2 {
-		return false
-	}
-	return trimmed[0] == '[' && trimmed[len(trimmed)-1] == ']'
-}
-
-func (j *JSONReader) parseAsArray(data []byte) ([]*Document, error) {
-	var items []any
-	if err := json.Unmarshal(data, &items); err != nil {
-		return nil, err
-	}
-
-	documents := make([]*Document, 0, len(items))
-
-	for _, item := range items {
-		itemBytes, err := json.Marshal(item)
-		if err != nil {
-			return nil, err
-		}
-
-		doc, err := NewDocument(string(itemBytes), nil)
-		if err != nil {
-			return nil, err
-		}
-
-		documents = append(documents, doc)
-	}
-
-	return documents, nil
-}
-
+// Read consumes the underlying reader, decodes the JSON, and returns
+// one document per array element (when the payload is an array) or a
+// single document otherwise.
 func (j *JSONReader) Read(_ context.Context) ([]*Document, error) {
 	data, err := pkgio.ReadAll(j.reader, j.bufferSize)
 	if err != nil {
 		return nil, err
 	}
 
-	if j.maybeJSONArray(data) {
-		if docs, err1 := j.parseAsArray(data); err1 == nil {
+	if j.looksLikeArray(data) {
+		if docs, err := j.parseAsArray(data); err == nil {
 			return docs, nil
 		}
+		// fall through to single-document path on array decode failure;
+		// the caller's payload may be an array of unsupported items, in
+		// which case wrapping the raw bytes is still useful.
 	}
 
-	var value any
-	if err = json.Unmarshal(data, &value); err != nil {
+	if err := json.Unmarshal(data, new(any)); err != nil {
 		return nil, err
 	}
 
@@ -112,6 +74,40 @@ func (j *JSONReader) Read(_ context.Context) ([]*Document, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	return []*Document{doc}, nil
+}
+
+// looksLikeArray returns true when data, after whitespace trimming,
+// starts with '[' and ends with ']'.
+func (j *JSONReader) looksLikeArray(data []byte) bool {
+	trimmed := bytes.TrimFunc(data, unicode.IsSpace)
+	if len(trimmed) < 2 {
+		return false
+	}
+	return trimmed[0] == '[' && trimmed[len(trimmed)-1] == ']'
+}
+
+// parseAsArray decodes data as an array of arbitrary JSON values and
+// returns one document per element, with each element re-encoded back
+// to its JSON-string form for Document.Text.
+func (j *JSONReader) parseAsArray(data []byte) ([]*Document, error) {
+	var items []any
+	if err := json.Unmarshal(data, &items); err != nil {
+		return nil, err
+	}
+
+	docs := make([]*Document, 0, len(items))
+	for _, item := range items {
+		bytes, err := json.Marshal(item)
+		if err != nil {
+			return nil, err
+		}
+
+		doc, err := NewDocument(string(bytes), nil)
+		if err != nil {
+			return nil, err
+		}
+		docs = append(docs, doc)
+	}
+	return docs, nil
 }
