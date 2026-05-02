@@ -9,35 +9,11 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat"
 )
 
-// ContextualQueryAugmenterConfig holds the configuration for ContextualQueryAugmenter.
-type ContextualQueryAugmenterConfig struct {
-	// PromptTemplate defines how the augmented query is structured with context.
-	// Optional. If not provided, a default template will be used that combines
-	// the retrieved documents as context with the original query.
-	PromptTemplate *chat.PromptTemplate
-
-	// EmptyContextPromptTemplate defines the response when no documents are found.
-	// Optional. If not provided, a default template will be used that politely
-	// informs the user that the query is outside the knowledge base.
-	EmptyContextPromptTemplate *chat.PromptTemplate
-
-	// AllowEmptyContext determines whether to allow queries without any context.
-	// Optional. Defaults to false.
-	// If true, returns the original query when no documents are found.
-	// If false, uses EmptyContextPromptTemplate to generate a response.
-	AllowEmptyContext bool
-}
-
-func (c *ContextualQueryAugmenterConfig) validate() error {
-	if c == nil {
-		return errors.New("contextual augmenter config cannot be nil")
-	}
-
-	if c.PromptTemplate == nil {
-		c.PromptTemplate = chat.
-			NewPromptTemplate().
-			WithTemplate(
-				`Context information is below.
+// contextualDefaultTemplate is the default RAG augmentation prompt: it
+// drops the retrieved docs into a Context block, asks the LLM to
+// answer using only that context, and forbids "based on the
+// context..." filler so the answers read more naturally.
+const contextualDefaultTemplate = `Context information is below.
 
 ---------------------
 {{.Context}}
@@ -52,43 +28,71 @@ Follow these rules:
 
 Query: {{.Query}}
 
-Answer:`,
-			)
-	}
+Answer:`
 
+// contextualEmptyContextTemplate is the canned response when no
+// documents are retrieved and AllowEmptyContext is false.
+const contextualEmptyContextTemplate = `The user query is outside your knowledge base.
+Politely inform the user that you can't answer it.`
+
+// ContextualQueryAugmenterConfig configures a
+// [ContextualQueryAugmenter].
+type ContextualQueryAugmenterConfig struct {
+	// PromptTemplate is the augmentation template. Defaults to
+	// [contextualDefaultTemplate]. Custom templates must declare
+	// {{.Context}} and {{.Query}}.
+	PromptTemplate *chat.PromptTemplate
+
+	// EmptyContextPromptTemplate is the response template used when no
+	// documents are retrieved AND AllowEmptyContext is false. Defaults
+	// to [contextualEmptyContextTemplate].
+	EmptyContextPromptTemplate *chat.PromptTemplate
+
+	// AllowEmptyContext, when true, returns the user's query unchanged
+	// if no documents were retrieved instead of synthesizing the
+	// empty-context fallback. Defaults to false.
+	AllowEmptyContext bool
+}
+
+// validate fills the default templates and rejects invalid configs.
+func (c *ContextualQueryAugmenterConfig) validate() error {
+	if c == nil {
+		return errors.New("rag.ContextualQueryAugmenterConfig: config must not be nil")
+	}
+	if c.PromptTemplate == nil {
+		c.PromptTemplate = chat.NewPromptTemplate().WithTemplate(contextualDefaultTemplate)
+	}
 	if c.EmptyContextPromptTemplate == nil {
-		c.EmptyContextPromptTemplate = chat.
-			NewPromptTemplate().
-			WithTemplate(
-				`The user query is outside your knowledge base.
-Politely inform the user that you can't answer it.`,
-			)
+		c.EmptyContextPromptTemplate = chat.NewPromptTemplate().WithTemplate(contextualEmptyContextTemplate)
 	}
-
 	return c.PromptTemplate.RequireVariables("Context", "Query")
 }
 
 var _ QueryAugmenter = (*ContextualQueryAugmenter)(nil)
 
-// ContextualQueryAugmenter augments the user query with contextual data from the content
-// of the provided documents.
+// ContextualQueryAugmenter folds retrieved documents into the user's
+// query as a "context" block, producing a grounded prompt that
+// reduces hallucinations. Empty contexts are handled either by
+// returning the original query (AllowEmptyContext=true) or by
+// synthesizing a polite refusal (AllowEmptyContext=false, the
+// default).
 //
-// This augmenter is useful for:
-//   - Enriching queries with relevant context from retrieved documents
-//   - Creating grounded prompts that prevent hallucinations
-//   - Handling cases where no relevant documents are found
-//   - Building context-aware question-answering systems
+// Example:
+//
+//	aug, _ := rag.NewContextualQueryAugmenter(&rag.ContextualQueryAugmenterConfig{})
+//	finalQ, err := aug.Augment(ctx, q, retrievedDocs)
 type ContextualQueryAugmenter struct {
 	promptTemplate             *chat.PromptTemplate
 	emptyContextPromptTemplate *chat.PromptTemplate
 	allowEmptyContext          bool
 }
 
+// NewContextualQueryAugmenter builds a [ContextualQueryAugmenter] from
+// cfg. Returns an error when the configuration fails validation.
 func NewContextualQueryAugmenter(cfg *ContextualQueryAugmenterConfig) (*ContextualQueryAugmenter, error) {
 	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
-
 	return &ContextualQueryAugmenter{
 		promptTemplate:             cfg.PromptTemplate,
 		emptyContextPromptTemplate: cfg.EmptyContextPromptTemplate,
@@ -96,13 +100,16 @@ func NewContextualQueryAugmenter(cfg *ContextualQueryAugmenterConfig) (*Contextu
 	}, nil
 }
 
+// Augment renders the prompt template with the documents joined as
+// context. When documents is empty, falls back to
+// [ContextualQueryAugmenter.handleEmptyContext]. Honors ctx
+// cancellation.
 func (c *ContextualQueryAugmenter) Augment(ctx context.Context, query *Query, documents []*document.Document) (*Query, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-
 	if query == nil {
-		return nil, errors.New("query cannot be nil")
+		return nil, errors.New("rag.ContextualQueryAugmenter.Augment: query must not be nil")
 	}
 
 	if len(documents) == 0 {
@@ -114,28 +121,27 @@ func (c *ContextualQueryAugmenter) Augment(ctx context.Context, query *Query, do
 		contextTexts = append(contextTexts, doc.Format())
 	}
 
-	augmentedText, err := c.
-		promptTemplate.
-		Clone().
+	rendered, err := c.promptTemplate.Clone().
 		WithVariable("Context", strings.Join(contextTexts, "\n\n---\n\n")).
 		WithVariable("Query", query.Text).
 		Render()
 	if err != nil {
 		return nil, err
 	}
-
-	return NewQuery(augmentedText)
+	return NewQuery(rendered)
 }
 
+// handleEmptyContext implements the no-docs branch: pass through the
+// original query (AllowEmptyContext=true) or render the empty-context
+// refusal template.
 func (c *ContextualQueryAugmenter) handleEmptyContext(query *Query) (*Query, error) {
 	if c.allowEmptyContext {
 		return query, nil
 	}
 
-	emptyContextText, err := c.emptyContextPromptTemplate.Render()
+	rendered, err := c.emptyContextPromptTemplate.Render()
 	if err != nil {
 		return nil, err
 	}
-
-	return NewQuery(emptyContextText)
+	return NewQuery(rendered)
 }

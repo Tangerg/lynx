@@ -7,73 +7,69 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat"
 )
 
-// TranslationQueryTransformerConfig holds the configuration for TranslationQueryTransformer.
-type TranslationQueryTransformerConfig struct {
-	// ChatModel is the language model used for query translation.
-	// Required.
-	ChatModel chat.Model
-
-	// TargetLanguage specifies the language to which the query should be translated.
-	// Required. Should match the language supported by the embedding model.
-	// Examples: "English", "Chinese", "Spanish", etc.
-	TargetLanguage string
-
-	// PromptTemplate defines how the translation prompt is structured.
-	// Optional. If not provided, a default template will be used that translates
-	// the query to the target language while preserving queries already in the target language.
-	PromptTemplate *chat.PromptTemplate
-}
-
-func (c *TranslationQueryTransformerConfig) validate() error {
-	if c == nil {
-		return errors.New("translation transformer config cannot be nil")
-	}
-
-	if c.ChatModel == nil {
-		return errors.New("translation transformer config: chat model is required")
-	}
-
-	if c.TargetLanguage == "" {
-		return errors.New("translation transformer config: target language is required")
-	}
-
-	if c.PromptTemplate == nil {
-		c.PromptTemplate = chat.
-			NewPromptTemplate().
-			WithTemplate(
-				`Given a user query, translate it to {{.Target}}.
+// translationDefaultTemplate asks the LLM to translate the query into
+// the target language, returning the original unchanged when it's
+// already in that language or when language detection is uncertain.
+// {{.Target}} and {{.Query}} are filled at transform time.
+const translationDefaultTemplate = `Given a user query, translate it to {{.Target}}.
 If the query is already in {{.Target}}, return it unchanged.
 If you don't know the language of the query, return it unchanged.
 Do not add explanations nor any other text.
 
 Original query: {{.Query}}
 
-Translated query:`,
-			)
-	}
+Translated query:`
 
+// TranslationQueryTransformerConfig configures a
+// [TranslationQueryTransformer].
+type TranslationQueryTransformerConfig struct {
+	// ChatModel performs the translation. Required.
+	ChatModel chat.Model
+
+	// TargetLanguage is the language the embedding model expects —
+	// "English", "Chinese", "Spanish", etc. Required.
+	TargetLanguage string
+
+	// PromptTemplate is the LLM prompt. Defaults to
+	// [translationDefaultTemplate]. Custom templates must declare
+	// {{.Target}} and {{.Query}}.
+	PromptTemplate *chat.PromptTemplate
+}
+
+// validate fills defaults and rejects invalid configs.
+func (c *TranslationQueryTransformerConfig) validate() error {
+	if c == nil {
+		return errors.New("rag.TranslationQueryTransformerConfig: config must not be nil")
+	}
+	if c.ChatModel == nil {
+		return errors.New("rag.TranslationQueryTransformerConfig: ChatModel is required")
+	}
+	if c.TargetLanguage == "" {
+		return errors.New("rag.TranslationQueryTransformerConfig: TargetLanguage is required")
+	}
+	if c.PromptTemplate == nil {
+		c.PromptTemplate = chat.NewPromptTemplate().WithTemplate(translationDefaultTemplate)
+	}
 	return c.PromptTemplate.RequireVariables("Target", "Query")
 }
 
 var _ QueryTransformer = (*TranslationQueryTransformer)(nil)
 
-// TranslationQueryTransformer uses a large language model to translate a query to a target
-// language that is supported by the embedding model used to generate the document embeddings.
-// If the query is already in the target language, it is returned unchanged. If the language
-// of the query is unknown, it is also returned unchanged.
-//
-// This transformer is useful when the embedding model is trained on a specific language
-// and the user query is in a different language. It helps to:
-//   - Bridge language gaps between user queries and document embeddings
-//   - Ensure queries are in the same language as the indexed documents
-//   - Improve retrieval accuracy for multilingual systems
-//   - Preserve queries that are already in the correct language
+// TranslationQueryTransformer asks an LLM to translate the query into
+// the language the downstream embedding model is tuned for. Queries
+// already in the target language pass through unchanged. Useful for
+// multilingual front-ends backed by an embedding model trained on a
+// single language.
 type TranslationQueryTransformer struct {
 	chatClient     *chat.Client
 	targetLanguage string
 	promptTemplate *chat.PromptTemplate
 }
 
+// NewTranslationQueryTransformer builds a
+// [TranslationQueryTransformer]. Returns an error when the
+// configuration fails validation or the chat client cannot be
+// constructed.
 func NewTranslationQueryTransformer(cfg *TranslationQueryTransformerConfig) (*TranslationQueryTransformer, error) {
 	if err := cfg.validate(); err != nil {
 		return nil, err
@@ -91,16 +87,17 @@ func NewTranslationQueryTransformer(cfg *TranslationQueryTransformerConfig) (*Tr
 	}, nil
 }
 
+// Transform asks the LLM to translate the query. Returns a clone with
+// Text replaced by the LLM output; an empty LLM response leaves Text
+// unchanged.
 func (t *TranslationQueryTransformer) Transform(ctx context.Context, query *Query) (*Query, error) {
 	if query == nil {
-		return nil, errors.New("query cannot be nil")
+		return nil, errors.New("rag.TranslationQueryTransformer.Transform: query must not be nil")
 	}
 
-	translatedText, _, err := t.
-		chatClient.
+	translated, _, err := t.chatClient.
 		ChatWithPromptTemplate(
-			t.promptTemplate.
-				Clone().
+			t.promptTemplate.Clone().
 				WithVariable("Target", t.targetLanguage).
 				WithVariable("Query", query.Text),
 		).
@@ -110,10 +107,9 @@ func (t *TranslationQueryTransformer) Transform(ctx context.Context, query *Quer
 		return nil, err
 	}
 
-	clonedQuery := query.Clone()
-	if translatedText != "" {
-		clonedQuery.Text = translatedText
+	clone := query.Clone()
+	if translated != "" {
+		clone.Text = translated
 	}
-
-	return clonedQuery, nil
+	return clone, nil
 }
