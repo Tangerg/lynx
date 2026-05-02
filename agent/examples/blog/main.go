@@ -44,18 +44,19 @@ func main() {
 			func(ctx context.Context, pc *core.ProcessContext, t Topic) (Research, error) {
 				return Research{Sources: []string{"https://example.com/" + t.Title}}, nil
 			},
+			core.ActionConfig{},
 		)).
 		Actions(agent.NewAction("outline",
 			func(ctx context.Context, pc *core.ProcessContext, t Topic) (Outline, error) {
 				return Outline{Sections: []string{"intro", t.Title, "conclusion"}}, nil
 			},
+			core.ActionConfig{},
 		)).
 		Actions(agent.NewAction("write",
 			// Use Outline as the typed input so the planner can satisfy the
 			// generic In via the blackboard. Research is fetched manually
-			// from inside the action — the WithPre below tells the planner
-			// it must also be present before this action becomes
-			// applicable.
+			// from inside the action — the Pre below tells the planner it
+			// must also be present before this action becomes applicable.
 			func(ctx context.Context, pc *core.ProcessContext, outline Outline) (BlogPost, error) {
 				topic, _ := core.Get[Topic](pc.Blackboard, core.DefaultBinding)
 				research, _ := core.Get[Research](pc.Blackboard, core.DefaultBinding)
@@ -66,7 +67,9 @@ func main() {
 					Body:     "Blog about " + topic.Title + " using " + strings.Join(outline.Sections, ", "),
 				}, nil
 			},
-			core.WithPre("it:"+core.TypeFullNameOf[Research]()),
+			core.ActionConfig{
+				Pre: []string{"it:" + core.TypeFullNameOf[Research]()},
+			},
 		)).
 		Goals(agent.GoalProducing[BlogPost]("blog post produced")).
 		Build()
@@ -84,7 +87,7 @@ func main() {
 		map[string]any{core.DefaultBinding: Topic{Title: "agent-frameworks"}},
 		// Switch to ProcessConcurrent to run independent actions in parallel
 		// (research + outline on tick 1, write on tick 2).
-		core.WithProcessType(core.ProcessSimple),
+		core.ProcessOptions{ProcessType: core.ProcessSimple},
 	)
 	if err != nil {
 		log.Fatal(err)

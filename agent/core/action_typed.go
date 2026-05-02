@@ -99,45 +99,42 @@ func (a *TypedAction[In, Out]) writeOutput(bb Blackboard, output Out) {
 // NewAction is the type-safe action constructor. The framework derives input
 // and output bindings via reflection on T's type names, then wraps the typed
 // fn in an Action interface. Most users never see the Action interface —
-// they just write functions.
+// they just write functions. Pass [ActionConfig]{} when defaults suffice.
 func NewAction[In, Out any](
 	name string,
 	fn TypedActionFunc[In, Out],
-	opts ...ActionOption,
+	cfg ActionConfig,
 ) Action {
-	cfg := defaultActionConfig()
-	for _, opt := range opts {
-		opt(&cfg)
-	}
+	cfg.applyDefaults()
 
-	inputs := cfg.inputs
+	inputs := cfg.Inputs
 	if len(inputs) == 0 {
-		inputs = []IoBinding{NewIoBinding[In](resolveBindingName(cfg.inputBinding))}
+		inputs = []IoBinding{NewIoBinding[In](resolveBindingName(cfg.InputBinding))}
 	}
 
-	outputs := cfg.outputs
+	outputs := cfg.Outputs
 	if len(outputs) == 0 {
-		outputs = []IoBinding{NewIoBinding[Out](resolveBindingName(cfg.outputBinding))}
+		outputs = []IoBinding{NewIoBinding[Out](resolveBindingName(cfg.OutputBinding))}
 	}
 
 	meta := ActionMetadata{
 		Name:            name,
-		Description:     cfg.description,
+		Description:     cfg.Description,
 		Inputs:          inputs,
 		Outputs:         outputs,
-		CanRerun:        cfg.canRerun,
-		ReadOnly:        cfg.readOnly,
-		QoS:             cfg.qos,
-		ToolGroups:      cfg.toolGroups,
-		CostFn:          cfg.costFn,
-		ValueFn:         cfg.valueFn,
-		CostStatic:      cfg.costStatic,
-		ValueStatic:     cfg.valueStatic,
-		Trigger:         cfg.trigger,
-		OutputBinding:   cfg.outputBinding,
-		ClearBlackboard: cfg.clearBlackboard,
+		CanRerun:        cfg.CanRerun,
+		ReadOnly:        cfg.ReadOnly,
+		QoS:             cfg.QoS,
+		ToolGroups:      cfg.ToolGroups,
+		CostFn:          cfg.CostFn,
+		ValueFn:         cfg.ValueFn,
+		CostStatic:      cfg.Cost,
+		ValueStatic:     cfg.Value,
+		Trigger:         cfg.Trigger,
+		OutputBinding:   cfg.OutputBinding,
+		ClearBlackboard: cfg.ClearBlackboard,
 	}
-	meta.Preconditions, meta.Effects = computePreconditionsAndEffects(meta, cfg.pre, cfg.post)
+	meta.Preconditions, meta.Effects = computePreconditionsAndEffects(meta, cfg.Pre, cfg.Post)
 
 	return &TypedAction[In, Out]{metadata: meta, fn: fn}
 }

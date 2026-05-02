@@ -20,6 +20,7 @@ func TestRunSingleAction(t *testing.T) {
 			func(ctx context.Context, pc *core.ProcessContext, in word) (wordCount, error) {
 				return wordCount{Count: len(in.Text)}, nil
 			},
+			core.ActionConfig{},
 		)).
 		Goals(agent.GoalProducing[wordCount]("word counted")).
 		Build()
@@ -32,6 +33,7 @@ func TestRunSingleAction(t *testing.T) {
 	proc, err := platform.RunAgent(
 		context.Background(), a,
 		map[string]any{core.DefaultBinding: word{Text: "lynx"}},
+		core.ProcessOptions{},
 	)
 	if err != nil {
 		t.Fatalf("RunAgent: %v", err)
@@ -60,15 +62,15 @@ func TestRunMultiStepPlanning(t *testing.T) {
 		Actions(agent.NewAction("a",
 			func(ctx context.Context, pc *core.ProcessContext, in word) (stage1, error) {
 				return stage1{V: len(in.Text)}, nil
-			})).
+			}, core.ActionConfig{})).
 		Actions(agent.NewAction("b",
 			func(ctx context.Context, pc *core.ProcessContext, in stage1) (stage2, error) {
 				return stage2{V: in.V * 2}, nil
-			})).
+			}, core.ActionConfig{})).
 		Actions(agent.NewAction("c",
 			func(ctx context.Context, pc *core.ProcessContext, in stage2) (stage3, error) {
 				return stage3{V: in.V + 1}, nil
-			})).
+			}, core.ActionConfig{})).
 		Goals(agent.GoalProducing[stage3]("stage3 produced")).
 		Build()
 
@@ -80,6 +82,7 @@ func TestRunMultiStepPlanning(t *testing.T) {
 	proc, err := platform.RunAgent(
 		context.Background(), a,
 		map[string]any{core.DefaultBinding: word{Text: "abcd"}}, // len=4 → 4*2+1=9
+		core.ProcessOptions{},
 	)
 	if err != nil {
 		t.Fatalf("RunAgent: %v", err)

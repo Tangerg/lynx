@@ -27,6 +27,7 @@ func main() {
 				upper := strings.ToUpper(in)
 				return CountResult{Length: len(upper)}, nil
 			},
+			core.ActionConfig{},
 		)).
 		Goals(agent.GoalProducing[CountResult]("uppercase length determined")).
 		Build()
@@ -40,6 +41,7 @@ func main() {
 		context.Background(),
 		a,
 		map[string]any{core.DefaultBinding: "hello"},
+		core.ProcessOptions{},
 	)
 	if err != nil {
 		log.Fatalf("RunAgent failed: %v", err)
