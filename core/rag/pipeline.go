@@ -11,54 +11,60 @@ import (
 	"github.com/Tangerg/lynx/core/document"
 )
 
-// PipelineConfig holds the configuration for creating a RAG pipeline.
-// It defines the components that will be used in each stage of the pipeline.
+// PipelineConfig wires the components that make up a [Pipeline].
+// At least one [DocumentRetriever] is required; every other slot
+// defaults to [Nop] so callers only fill what they need.
 type PipelineConfig struct {
-	// QueryTransformers is a list of transformers applied sequentially to the query.
-	// Optional: can be nil or empty if no transformation is needed.
+	// QueryTransformers chain in the order given. Each receives the
+	// previous output. Optional.
 	QueryTransformers []QueryTransformer
 
-	// QueryExpander expands a single query into multiple queries.
-	// Optional: defaults to Nop if not provided.
+	// QueryExpander runs after transformations to fan out into
+	// multiple queries. Defaults to [Nop] (single-query passthrough).
 	QueryExpander QueryExpander
 
-	// DocumentRetrievers is a list of retrievers executed in parallel.
-	// Required: at least one retriever must be provided.
+	// DocumentRetrievers run in parallel; their results are unioned.
+	// Required — at least one entry.
 	DocumentRetrievers []DocumentRetriever
 
-	// DocumentRefiners is a list of refiners applied sequentially to documents.
-	// Optional: can be nil or empty if no refinement is needed.
+	// DocumentRefiners chain after retrieval to re-rank, dedupe, or
+	// trim the candidate list. Optional.
 	DocumentRefiners []DocumentRefiner
 
-	// QueryAugmenter augments the query with retrieved documents.
-	// Optional: defaults to Nop if not provided.
+	// QueryAugmenter folds the refined documents into the final query.
+	// Defaults to [Nop] (no augmentation).
 	QueryAugmenter QueryAugmenter
 }
 
-// validate checks if the pipeline configuration is valid and applies defaults.
+// validate fills in defaults and rejects configurations missing the
+// required pieces.
 func (c *PipelineConfig) validate() error {
 	if c == nil {
-		return errors.New("pipeline config cannot be nil")
+		return errors.New("rag.PipelineConfig: config must not be nil")
 	}
-
 	if len(c.DocumentRetrievers) == 0 {
-		return errors.New("at least one document retriever is required")
+		return errors.New("rag.PipelineConfig: at least one DocumentRetriever is required")
 	}
 
-	// Apply defaults for optional components
 	if c.QueryExpander == nil {
 		c.QueryExpander = NewNop()
 	}
 	if c.QueryAugmenter == nil {
 		c.QueryAugmenter = NewNop()
 	}
-
 	return nil
 }
 
-// Pipeline orchestrates the complete RAG (Retrieval-Augmented Generation) workflow.
-// It processes queries through multiple stages: transformation, expansion, retrieval,
-// refinement, and augmentation.
+// Pipeline runs a query through the full RAG flow: transform → expand
+// → retrieve → refine → augment.
+//
+// Example:
+//
+//	pipe, err := rag.NewPipeline(&rag.PipelineConfig{
+//	    DocumentRetrievers: []rag.DocumentRetriever{retriever},
+//	    QueryAugmenter:     contextual,
+//	})
+//	augmented, docs, err := pipe.Run(ctx, "what is GOAP?")
 type Pipeline struct {
 	queryTransformers  []QueryTransformer
 	queryExpander      QueryExpander
@@ -67,11 +73,11 @@ type Pipeline struct {
 	queryAugmenter     QueryAugmenter
 }
 
-// NewPipeline creates a new RAG pipeline with the given configuration.
-// It returns an error if the configuration is invalid.
+// NewPipeline builds a [Pipeline] from config. Returns an error when
+// the configuration fails validation.
 func NewPipeline(config *PipelineConfig) (*Pipeline, error) {
 	if err := config.validate(); err != nil {
-		return nil, fmt.Errorf("invalid pipeline config: %w", err)
+		return nil, fmt.Errorf("rag.NewPipeline: %w", err)
 	}
 
 	return &Pipeline{
@@ -83,32 +89,70 @@ func NewPipeline(config *PipelineConfig) (*Pipeline, error) {
 	}, nil
 }
 
-// transformQuery applies all registered query transformers sequentially.
-func (p *Pipeline) transformQuery(ctx context.Context, query *Query) (*Query, error) {
-	current := query
-
-	for i, transformer := range p.queryTransformers {
-		transformed, err := transformer.Transform(ctx, current)
-		if err != nil {
-			return nil, fmt.Errorf("query transformation failed at stage %d: %w", i, err)
-		}
-		current = transformed
+// Execute runs every stage and returns the final augmented query
+// together with the refined document list. An error from any stage
+// short-circuits the pipeline.
+func (p *Pipeline) Execute(ctx context.Context, query *Query) (*Query, []*document.Document, error) {
+	transformed, err := p.transformQuery(ctx, query)
+	if err != nil {
+		return nil, nil, fmt.Errorf("rag.Pipeline: transform stage: %w", err)
 	}
 
+	expanded, err := p.expandQuery(ctx, transformed)
+	if err != nil {
+		return nil, nil, fmt.Errorf("rag.Pipeline: expand stage: %w", err)
+	}
+
+	retrieved, err := p.retrieveByQueries(ctx, expanded)
+	if err != nil {
+		return nil, nil, fmt.Errorf("rag.Pipeline: retrieve stage: %w", err)
+	}
+
+	refined, err := p.refineDocuments(ctx, query, retrieved)
+	if err != nil {
+		return nil, nil, fmt.Errorf("rag.Pipeline: refine stage: %w", err)
+	}
+
+	augmented, err := p.augmentQuery(ctx, query, refined)
+	if err != nil {
+		return nil, nil, fmt.Errorf("rag.Pipeline: augment stage: %w", err)
+	}
+	return augmented, refined, nil
+}
+
+// Run is a convenience wrapper that constructs a [Query] from text and
+// invokes [Pipeline.Execute].
+func (p *Pipeline) Run(ctx context.Context, text string) (*Query, []*document.Document, error) {
+	query, err := NewQuery(text)
+	if err != nil {
+		return nil, nil, fmt.Errorf("rag.Pipeline.Run: %w", err)
+	}
+	return p.Execute(ctx, query)
+}
+
+// transformQuery applies each registered [QueryTransformer] in order.
+func (p *Pipeline) transformQuery(ctx context.Context, query *Query) (*Query, error) {
+	current := query
+	for i, transformer := range p.queryTransformers {
+		next, err := transformer.Transform(ctx, current)
+		if err != nil {
+			return nil, fmt.Errorf("transformer #%d: %w", i, err)
+		}
+		current = next
+	}
 	return current, nil
 }
 
-// expandQuery expands a single query into multiple queries for comprehensive retrieval.
+// expandQuery fans the query out to one-or-more queries via the
+// configured [QueryExpander].
 func (p *Pipeline) expandQuery(ctx context.Context, query *Query) ([]*Query, error) {
-	queries, err := p.queryExpander.Expand(ctx, query)
-	if err != nil {
-		return nil, fmt.Errorf("query expansion failed: %w", err)
-	}
-
-	return queries, nil
+	return p.queryExpander.Expand(ctx, query)
 }
 
-// retrieveByQuery retrieves documents using all configured retrievers in parallel.
+// retrieveByQuery runs every retriever in parallel and unions the
+// results. A partial failure (some retrievers fail, others return
+// docs) returns the docs we have rather than failing the whole
+// retrieval.
 func (p *Pipeline) retrieveByQuery(ctx context.Context, query *Query) ([]*document.Document, error) {
 	var (
 		mu   sync.Mutex
@@ -118,17 +162,15 @@ func (p *Pipeline) retrieveByQuery(ctx context.Context, query *Query) ([]*docume
 	g, gctx := errgroup.WithContext(ctx)
 	g.SetLimit(len(p.documentRetrievers))
 
-	for idx, retriever := range p.documentRetrievers {
+	for index, retriever := range p.documentRetrievers {
 		g.Go(func() error {
 			retrieved, err := retriever.Retrieve(gctx, query)
 			if err != nil {
-				return fmt.Errorf("retriever %d failed: %w", idx, err)
+				return fmt.Errorf("retriever #%d: %w", index, err)
 			}
-
 			mu.Lock()
 			docs = append(docs, retrieved...)
 			mu.Unlock()
-
 			return nil
 		})
 	}
@@ -137,34 +179,31 @@ func (p *Pipeline) retrieveByQuery(ctx context.Context, query *Query) ([]*docume
 		if len(docs) == 0 {
 			return nil, fmt.Errorf("all retrievers failed: %w", err)
 		}
-		// Partial failure: return what we have
 		return docs, nil
 	}
-
 	return docs, nil
 }
 
-// retrieveByQueries retrieves documents for multiple queries in parallel.
+// retrieveByQueries runs the per-query retrieval fan-in for every
+// expanded query in parallel.
 func (p *Pipeline) retrieveByQueries(ctx context.Context, queries []*Query) ([]*document.Document, error) {
 	var (
 		mu   sync.Mutex
 		docs []*document.Document
-		g, _ = errgroup.WithContext(ctx)
 	)
 
+	g, _ := errgroup.WithContext(ctx)
 	g.SetLimit(len(queries))
 
-	for idx, query := range queries {
+	for index, query := range queries {
 		g.Go(func() error {
 			retrieved, err := p.retrieveByQuery(ctx, query)
 			if err != nil {
-				return fmt.Errorf("retrieval for query %d failed: %w", idx, err)
+				return fmt.Errorf("query #%d: %w", index, err)
 			}
-
 			mu.Lock()
 			docs = append(docs, retrieved...)
 			mu.Unlock()
-
 			return nil
 		})
 	}
@@ -173,86 +212,25 @@ func (p *Pipeline) retrieveByQueries(ctx context.Context, queries []*Query) ([]*
 		if len(docs) == 0 {
 			return nil, fmt.Errorf("all query retrievals failed: %w", err)
 		}
-		// Partial failure: return what we have
 		return docs, nil
 	}
-
 	return docs, nil
 }
 
-// refineDocuments applies all registered document refiners sequentially.
+// refineDocuments applies each registered [DocumentRefiner] in order.
 func (p *Pipeline) refineDocuments(ctx context.Context, query *Query, docs []*document.Document) ([]*document.Document, error) {
 	current := docs
-
 	for i, refiner := range p.documentRefiners {
-		refined, err := refiner.Refine(ctx, query, current)
+		next, err := refiner.Refine(ctx, query, current)
 		if err != nil {
-			return nil, fmt.Errorf("document refinement failed at stage %d: %w", i, err)
+			return nil, fmt.Errorf("refiner #%d: %w", i, err)
 		}
-		current = refined
+		current = next
 	}
-
 	return current, nil
 }
 
-// augmentQuery augments the original query with the retrieved and refined documents.
+// augmentQuery folds the refined documents into the final query.
 func (p *Pipeline) augmentQuery(ctx context.Context, query *Query, docs []*document.Document) (*Query, error) {
-	augmented, err := p.queryAugmenter.Augment(ctx, query, docs)
-	if err != nil {
-		return nil, fmt.Errorf("query augmentation failed: %w", err)
-	}
-
-	return augmented, nil
-}
-
-// Execute runs the complete RAG pipeline on the given query.
-// It returns the augmented query and refined documents, or an error if any stage fails.
-//
-// Pipeline stages:
-//  1. Transform: Apply query transformations
-//  2. Expand: Generate multiple query variants
-//  3. Retrieve: Fetch documents from all retrievers
-//  4. Refine: Filter and rank documents
-//  5. Augment: Enhance query with document context
-func (p *Pipeline) Execute(ctx context.Context, query *Query) (*Query, []*document.Document, error) {
-	// Stage 1: Transform query
-	transformed, err := p.transformQuery(ctx, query)
-	if err != nil {
-		return nil, nil, fmt.Errorf("pipeline stage 'transform' failed: %w", err)
-	}
-
-	// Stage 2: Expand query
-	expanded, err := p.expandQuery(ctx, transformed)
-	if err != nil {
-		return nil, nil, fmt.Errorf("pipeline stage 'expand' failed: %w", err)
-	}
-
-	// Stage 3: Retrieve documents
-	retrieved, err := p.retrieveByQueries(ctx, expanded)
-	if err != nil {
-		return nil, nil, fmt.Errorf("pipeline stage 'retrieve' failed: %w", err)
-	}
-
-	// Stage 4: Refine documents
-	refined, err := p.refineDocuments(ctx, query, retrieved)
-	if err != nil {
-		return nil, nil, fmt.Errorf("pipeline stage 'refine' failed: %w", err)
-	}
-
-	// Stage 5: Augment query
-	augmented, err := p.augmentQuery(ctx, query, refined)
-	if err != nil {
-		return nil, nil, fmt.Errorf("pipeline stage 'augment' failed: %w", err)
-	}
-
-	return augmented, refined, nil
-}
-
-// Run is a convenience method that creates a Query from a text string and executes the pipeline.
-func (p *Pipeline) Run(ctx context.Context, text string) (*Query, []*document.Document, error) {
-	query, err := NewQuery(text)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to create query: %w", err)
-	}
-	return p.Execute(ctx, query)
+	return p.queryAugmenter.Augment(ctx, query, docs)
 }

@@ -3,6 +3,7 @@ package tokenizer
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 
 	"github.com/pkoukk/tiktoken-go"
 
@@ -10,139 +11,117 @@ import (
 	"github.com/Tangerg/lynx/pkg/mime"
 )
 
-var _ Estimator = (*Tiktoken)(nil)
-var _ Tokenizer = (*Tiktoken)(nil)
+var (
+	_ Estimator = (*Tiktoken)(nil)
+	_ Tokenizer = (*Tiktoken)(nil)
+)
 
-// Tiktoken is a token count estimator implementation using the tiktoken library.
-// It provides token estimation for text and media content based on OpenAI's tokenization models.
-// While originally developed by OpenAI, tiktoken is used as a general-purpose estimator
-// since most LLM providers do not expose their tokenization algorithms publicly.
+// Tiktoken is the [Tokenizer] / [Estimator] implementation backed by
+// OpenAI's tiktoken library. Most providers don't expose their actual
+// tokenization, so tiktoken serves as a "close enough" general-purpose
+// estimator across vendors.
+//
+// Example:
+//
+//	tk := tokenizer.NewTiktokenWithCL100KBase()
+//	n, _ := tk.EstimateText(ctx, "hello world") // ≈ 2 tokens
 type Tiktoken struct {
 	encodingName string
 	encoding     *tiktoken.Tiktoken
 }
 
-// NewTiktokenWithCL100KBase creates a new Tiktoken instance using the CL100K_BASE encoding model.
-// This is a convenience function for the most commonly used encoding.
-//
-// Returns a new Tiktoken instance
+// NewTiktokenWithCL100KBase returns a [Tiktoken] preset to the
+// CL100K_BASE encoding (gpt-3.5-turbo and gpt-4 family). Panics if the
+// encoding cannot be loaded — that would indicate a corrupt build, not
+// a runtime fault.
 func NewTiktokenWithCL100KBase() *Tiktoken {
-	cli, err := NewTiktoken(tiktoken.MODEL_CL100K_BASE)
+	tk, err := NewTiktoken(tiktoken.MODEL_CL100K_BASE)
 	if err != nil {
 		panic(err)
 	}
-	return cli
+	return tk
 }
 
-// NewTiktoken creates a new Tiktoken instance with the specified encoding name.
-//
-// Parameters:
-//   - encodingName: the name of the tiktoken encoding to use
-//
-// Returns a new Tiktoken instance or an error if the encoding cannot be loaded.
+// NewTiktoken loads encoder encodingName via tiktoken-go. Returns an
+// error when the encoding name is unknown.
 func NewTiktoken(encodingName string) (*Tiktoken, error) {
 	encoding, err := tiktoken.GetEncoding(encodingName)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("tokenizer.NewTiktoken: load %q: %w", encodingName, err)
 	}
-	return &Tiktoken{
-		encodingName: encodingName,
-		encoding:     encoding,
-	}, nil
+	return &Tiktoken{encodingName: encodingName, encoding: encoding}, nil
 }
 
-// EstimateText estimates the number of tokens in the given text.
-// It converts the text to a Media object with text/plain MIME type and delegates to EstimateMedia.
-//
-// Parameters:
-//   - ctx: context for request cancellation and timeout control
-//   - text: the text to estimate the number of tokens for
-//
-// Returns the estimated number of tokens and any error that occurred during estimation.
+// EstimateText counts tokens by routing through [Tiktoken.EstimateMedia]
+// with a synthetic text/plain wrapper — keeps the two paths consistent.
 func (t *Tiktoken) EstimateText(ctx context.Context, text string) (int, error) {
 	mt, err := mime.New("text", "plain")
 	if err != nil {
 		return 0, err
 	}
-	return t.EstimateMedia(ctx, &media.Media{
-		Data:     text,
-		MimeType: mt,
-	})
+	return t.EstimateMedia(ctx, &media.Media{Data: text, MimeType: mt})
 }
 
-// EstimateMedia estimates the number of tokens in the given media content.
-// This method accepts a variadic parameter, allowing estimation for single media,
-// multiple media objects, or an empty list.
-//
-// Parameters:
-//   - ctx: context for request cancellation and timeout control
-//   - media: the media content to estimate the number of tokens for
-//
-// Returns the total estimated number of tokens for all provided media and any error
-// that occurred during the estimation process.
-func (t *Tiktoken) EstimateMedia(ctx context.Context, media ...*media.Media) (int, error) {
-	if len(media) == 0 {
+// EstimateMedia sums per-item token estimates. Empty input returns 0.
+func (t *Tiktoken) EstimateMedia(ctx context.Context, items ...*media.Media) (int, error) {
+	if len(items) == 0 {
 		return 0, nil
 	}
-	var tokenCount int
-	for _, m := range media {
-		token, err := t.estimateMedia(ctx, m)
+
+	var total int
+	for _, item := range items {
+		count, err := t.estimateOne(ctx, item)
 		if err != nil {
 			return 0, err
 		}
-		tokenCount += token
+		total += count
 	}
-	return tokenCount, nil
+	return total, nil
 }
 
-// estimateMedia estimates the number of tokens for a single media object.
-// It calculates tokens for both the MIME type and the media data content.
-// The data is converted to text based on its type:
-//   - string: used directly
-//   - []byte: converted to string
-//   - other types: JSON marshaled then converted to string
-//
-// Parameters:
-//   - ctx: context (currently unused but kept for interface consistency)
-//   - media: the media object to estimate tokens for
-//
-// Returns the estimated number of tokens for the media object and any error.
-// If JSON marshaling fails for non-string/[]byte data, the error is ignored
-// and only MIME type tokens are counted.
-func (t *Tiktoken) estimateMedia(_ context.Context, media *media.Media) (int, error) {
-	if media == nil {
+// estimateOne tokenizes one [media.Media] payload — count the MIME
+// type's tokens (so multimodal callers get a per-attachment overhead)
+// then count the data's tokens. Non-string / non-bytes data is JSON-
+// marshaled; unmarshalable values fall back to MIME-only counting
+// rather than failing the whole estimate.
+func (t *Tiktoken) estimateOne(_ context.Context, m *media.Media) (int, error) {
+	if m == nil {
 		return 0, nil
 	}
-	// Count tokens for MIME type
-	mt := media.MimeType.String()
-	token := len(t.encoding.Encode(mt, nil, nil))
 
-	// Convert data to text based on type
-	data := media.Data
-	var text string
-	switch data.(type) {
-	case string:
-		text = data.(string)
-	case []byte:
-		text = string(data.([]byte))
-	default:
-		// Try to JSON marshal other types
-		bytes, err := json.Marshal(data)
-		if err != nil {
-			return token, nil // ignore error, only count MIME type tokens
-		}
-		text = string(bytes)
+	mimeTokens := len(t.encoding.Encode(m.MimeType.String(), nil, nil))
+
+	text, ok := payloadAsText(m.Data)
+	if !ok {
+		return mimeTokens, nil
 	}
-
-	// Count tokens for content and add to MIME type tokens
-	token = token + len(t.encoding.Encode(text, nil, nil))
-	return token, nil
+	return mimeTokens + len(t.encoding.Encode(text, nil, nil)), nil
 }
 
+// payloadAsText converts a Data field into a string for token counting.
+// Returns ("", false) when JSON marshaling would have failed; the
+// caller treats that as "skip the data tokens" rather than erroring.
+func payloadAsText(data any) (string, bool) {
+	switch typed := data.(type) {
+	case string:
+		return typed, true
+	case []byte:
+		return string(typed), true
+	default:
+		bytes, err := json.Marshal(typed)
+		if err != nil {
+			return "", false
+		}
+		return string(bytes), true
+	}
+}
+
+// Encode tokenizes text into tiktoken IDs.
 func (t *Tiktoken) Encode(_ context.Context, text string) ([]int, error) {
 	return t.encoding.Encode(text, nil, nil), nil
 }
 
-func (t *Tiktoken) Decode(_ context.Context, token []int) (string, error) {
-	return t.encoding.Decode(token), nil
+// Decode reconstructs text from tiktoken IDs.
+func (t *Tiktoken) Decode(_ context.Context, tokens []int) (string, error) {
+	return t.encoding.Decode(tokens), nil
 }

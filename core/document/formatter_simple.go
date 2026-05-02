@@ -8,52 +8,49 @@ import (
 	"github.com/spf13/cast"
 )
 
-// SimpleFormatterConfig holds the configuration for SimpleFormatter.
+// SimpleFormatterConfig configures a [SimpleFormatter]'s metadata
+// filtering. Each list names keys that should be hidden in the
+// corresponding mode — useful for keeping internal ids or timestamps
+// out of embeddings while still surfacing them at inference time.
 type SimpleFormatterConfig struct {
-	// ExcludedInferenceMetadataKeys specifies metadata keys to exclude when formatting
-	// documents in MetadataModeInference mode.
-	// Optional. Defaults to empty slice if not provided.
-	// Use this to filter out metadata that shouldn't be included during model inference,
-	// such as internal IDs or processing timestamps.
+	// ExcludedInferenceMetadataKeys names metadata keys to drop when
+	// rendering in [MetadataModeInference].
 	ExcludedInferenceMetadataKeys []string
 
-	// ExcludedEmbedMetadataKeys specifies metadata keys to exclude when formatting
-	// documents in MetadataModeEmbed mode.
-	// Optional. Defaults to empty slice if not provided.
-	// Use this to filter out metadata that shouldn't affect vector embeddings,
-	// such as UI-related fields or temporary processing flags.
+	// ExcludedEmbedMetadataKeys names metadata keys to drop when
+	// rendering in [MetadataModeEmbed].
 	ExcludedEmbedMetadataKeys []string
 }
 
 var _ Formatter = (*SimpleFormatter)(nil)
 
-// SimpleFormatter provides a basic implementation of the Formatter interface
-// that converts documents to a simple key-value text format.
-//
-// This formatter is useful for:
-//   - Creating human-readable document representations
-//   - Generating consistent text format for embedding generation
-//   - Controlling metadata visibility based on processing context
-//   - Building simple RAG pipelines without complex formatting requirements
-//
-// The formatter produces output in the following structure:
+// SimpleFormatter renders a [*Document] as
 //
 //	key1: value1
 //	key2: value2
 //
-//	[document content]
+//	<document text>
 //
-// Metadata keys can be selectively excluded based on the MetadataMode to optimize
-// the output for different use cases (embedding vs inference).
+// Metadata keys can be filtered per-mode to keep embeddings clean while
+// still showing extras at inference time.
+//
+// Example:
+//
+//	f := document.NewSimpleFormatter(&document.SimpleFormatterConfig{
+//	    ExcludedEmbedMetadataKeys: []string{"row_id", "internal"},
+//	})
 type SimpleFormatter struct {
 	excludedInferenceMetadataKeys []string
 	excludedEmbedMetadataKeys     []string
 }
 
+// NewSimpleFormatter builds a [SimpleFormatter]. nil config produces an
+// unrestricted formatter that emits every metadata key in every mode.
 func NewSimpleFormatter(config *SimpleFormatterConfig) *SimpleFormatter {
 	if config == nil {
 		config = &SimpleFormatterConfig{}
 	}
+
 	if config.ExcludedInferenceMetadataKeys == nil {
 		config.ExcludedInferenceMetadataKeys = []string{}
 	}
@@ -67,62 +64,53 @@ func NewSimpleFormatter(config *SimpleFormatterConfig) *SimpleFormatter {
 	}
 }
 
+// NewDefaultSimpleFormatter is a shorthand for NewSimpleFormatter(nil).
 func NewDefaultSimpleFormatter() *SimpleFormatter {
 	return NewSimpleFormatter(nil)
 }
 
+// Format renders doc by emitting filtered metadata as `key: value` lines
+// followed by a blank line and the document text.
 func (s *SimpleFormatter) Format(doc *Document, mode MetadataMode) string {
-	const (
-		metadataSeparator                = "\n"
-		metadataTemplateKeyPlaceholder   = "{{.key}}"
-		metadataTemplateValuePlaceholder = "{{.value}}"
-		metadataTemplate                 = metadataTemplateKeyPlaceholder + ": " + metadataTemplateValuePlaceholder
-		textTemplateMetadataPlaceholder  = "{{.metadata}}"
-		textTemplateContentPlaceholder   = "{{.content}}"
-		textTemplate                     = textTemplateMetadataPlaceholder + "\n\n" + textTemplateContentPlaceholder
-	)
+	filtered := s.filterMetadataByMode(doc.Metadata, mode)
 
-	filteredMetadata := s.filterMetadataByMode(doc.Metadata, mode)
-
-	metadataEntries := make([]string, 0, len(filteredMetadata))
-	for key, value := range filteredMetadata {
-		formattedEntry := strings.ReplaceAll(metadataTemplate, metadataTemplateKeyPlaceholder, key)
-		formattedEntry = strings.ReplaceAll(formattedEntry, metadataTemplateValuePlaceholder, cast.ToString(value))
-		metadataEntries = append(metadataEntries, formattedEntry)
+	entries := make([]string, 0, len(filtered))
+	for key, value := range filtered {
+		entries = append(entries, key+": "+cast.ToString(value))
 	}
 
-	metadataText := strings.Join(metadataEntries, metadataSeparator)
-	finalResult := strings.ReplaceAll(textTemplate, textTemplateMetadataPlaceholder, metadataText)
-	finalResult = strings.ReplaceAll(finalResult, textTemplateContentPlaceholder, doc.Text)
-
-	return finalResult
+	metadataBlock := strings.Join(entries, "\n")
+	return metadataBlock + "\n\n" + doc.Text
 }
 
+// filterMetadataByMode returns a copy of metadata with the appropriate
+// keys removed for the supplied mode. Modes that don't filter return
+// the live map directly (when [MetadataModeAll]) or an empty map
+// (when [MetadataModeNone]).
 func (s *SimpleFormatter) filterMetadataByMode(metadata map[string]any, mode MetadataMode) map[string]any {
-	if mode == MetadataModeAll {
+	switch mode {
+	case MetadataModeAll:
 		return metadata
-	}
-	if mode == MetadataModeNone {
+	case MetadataModeNone:
 		return make(map[string]any)
 	}
 
-	clonedMetadata := maps.Clone(metadata)
-	var excludeKeyFunc func(key string, value any) bool
+	cloned := maps.Clone(metadata)
 
+	var shouldExclude func(key string, value any) bool
 	switch mode {
 	case MetadataModeInference:
-		excludeKeyFunc = func(key string, _ any) bool {
+		shouldExclude = func(key string, _ any) bool {
 			return slices.Contains(s.excludedInferenceMetadataKeys, key)
 		}
 	case MetadataModeEmbed:
-		excludeKeyFunc = func(key string, _ any) bool {
+		shouldExclude = func(key string, _ any) bool {
 			return slices.Contains(s.excludedEmbedMetadataKeys, key)
 		}
 	}
 
-	if excludeKeyFunc != nil {
-		maps.DeleteFunc(clonedMetadata, excludeKeyFunc)
+	if shouldExclude != nil {
+		maps.DeleteFunc(cloned, shouldExclude)
 	}
-
-	return clonedMetadata
+	return cloned
 }

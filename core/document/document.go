@@ -1,3 +1,7 @@
+// Package document defines the [Document] container — the unit of
+// content that flows through readers, transformers, embedders, and
+// vector stores — together with the interfaces ([Reader], [Writer],
+// [Transformer], [Batcher], [Formatter]) that operate on it.
 package document
 
 import (
@@ -6,22 +10,44 @@ import (
 	"github.com/Tangerg/lynx/core/media"
 )
 
-// Document represents a structured information unit containing textual content,
-// media attachments, metadata, and an optional relevance score.
+// Document is the canonical content carrier. A document holds a unique
+// id, optional textual content, optional media, optional retrieval
+// score, a metadata map, and the formatter used to render it for
+// downstream consumers.
 type Document struct {
-	ID        string
-	Score     float64
-	Text      string
-	Media     *media.Media
+	// ID identifies the document within its source. Often a hash of the
+	// content; the [id] subpackage offers ready-made generators.
+	ID string
+
+	// Score is the retrieval relevance score. 0 when the document was
+	// not produced by a search.
+	Score float64
+
+	// Text is the textual content. May be empty if Media is set.
+	Text string
+
+	// Media is the optional non-text payload (image, audio, ...).
+	Media *media.Media
+
+	// Formatter renders the document for downstream consumers (LLM
+	// prompt, log line, ...). Defaults to a no-op that emits Text.
 	Formatter Formatter
-	Metadata  map[string]any
+
+	// Metadata carries free-form annotations (source URL, page index,
+	// section heading, ...).
+	Metadata map[string]any
 }
 
-// NewDocument creates a new Document with the provided text and/or media.
-// Returns an error if both text and media are empty/nil.
+// NewDocument builds a [Document]. At least one of text or media is
+// required.
+//
+// Example:
+//
+//	doc, err := document.NewDocument("hello", nil)
+//	doc.Metadata["source"] = "manual"
 func NewDocument(text string, media *media.Media) (*Document, error) {
 	if text == "" && media == nil {
-		return nil, errors.New("document requires either text content or media attachment")
+		return nil, errors.New("document.NewDocument: at least one of text or media is required")
 	}
 
 	return &Document{
@@ -32,20 +58,19 @@ func NewDocument(text string, media *media.Media) (*Document, error) {
 	}, nil
 }
 
-// Format returns the formatted document string including all metadata
-// using the document's default formatter.
+// Format renders the document with all metadata included.
 func (d *Document) Format() string {
 	return d.FormatByMetadataMode(MetadataModeAll)
 }
 
-// FormatByMetadataMode formats the document with the specified metadata mode
-// using the document's assigned formatter.
+// FormatByMetadataMode renders the document with the supplied metadata
+// mode using the document's installed [Formatter].
 func (d *Document) FormatByMetadataMode(mode MetadataMode) string {
 	return d.FormatByMetadataModeWithFormatter(mode, d.Formatter)
 }
 
-// FormatByMetadataModeWithFormatter formats the document using a custom formatter
-// and metadata mode. Falls back to no-op formatter if nil is provided.
+// FormatByMetadataModeWithFormatter renders the document with the
+// supplied formatter, falling back to a no-op when formatter is nil.
 func (d *Document) FormatByMetadataModeWithFormatter(mode MetadataMode, formatter Formatter) string {
 	if formatter == nil {
 		formatter = NewNop()

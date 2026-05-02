@@ -5,68 +5,54 @@ import (
 	"strings"
 )
 
-// TextSplitterConfig holds the configuration for TextSplitter.
+// TextSplitterConfig configures a [TextSplitter] — the simple
+// string-separator splitter.
 type TextSplitterConfig struct {
-	// Separator defines the string used to split document text into chunks.
-	// Optional. Defaults to "\n" (newline) if not provided.
-	// Common separators include:
-	//   - "\n" for line-based splitting
-	//   - "\n\n" for paragraph-based splitting
-	//   - ". " for sentence-based splitting
-	//   - Custom markers for structured documents
+	// Separator splits the text. Common values: "\n" (lines),
+	// "\n\n" (paragraphs), ". " (sentences). Defaults to "\n".
 	Separator string
 
-	// CopyFormatter determines whether to copy the formatter from the original document
-	// to each split chunk.
-	// Optional. Defaults to false if not provided.
-	// Set to true if you want split chunks to inherit the parent document's
-	// formatting behavior for consistent output across chunks.
+	// CopyFormatter copies the source document's [Formatter] to each
+	// chunk. Defaults to false.
 	CopyFormatter bool
 }
 
 var _ Transformer = (*TextSplitter)(nil)
 
-// TextSplitter is a simple text-based document splitter that divides documents
-// using a string separator.
+// TextSplitter is the convenience wrapper around [Splitter] that
+// splits on a fixed string separator. Reach for it when you want
+// quick line / paragraph chunking; for semantic or token-aware
+// chunking use [Splitter] with a custom SplitFunc, or
+// [TokenSplitter].
 //
-// This transformer is useful for:
-//   - Quick and simple document chunking without complex logic
-//   - Splitting documents by lines, paragraphs, or custom delimiters
-//   - Building basic document processing pipelines
-//   - Handling structured text with consistent separators
+// Example:
 //
-// TextSplitter is a convenience wrapper around Splitter that uses string.Split
-// internally. For more advanced splitting strategies (semantic chunking, token-aware
-// splitting, overlapping chunks), consider using Splitter directly with a custom
-// SplitFunc.
+//	s := document.NewTextSplitter(&document.TextSplitterConfig{Separator: "\n\n"})
+//	chunks, _ := s.Transform(ctx, []*document.Document{doc})
 type TextSplitter struct {
 	config   *TextSplitterConfig
 	splitter *Splitter
 }
 
+// NewTextSplitter builds a [TextSplitter]. nil config falls back to
+// line-by-line splitting.
 func NewTextSplitter(config *TextSplitterConfig) *TextSplitter {
 	if config == nil {
-		config = &TextSplitterConfig{
-			Separator: "\n",
-		}
+		config = &TextSplitterConfig{Separator: "\n"}
 	}
 	splitter, _ := NewSplitter(&SplitterConfig{
 		CopyFormatter: config.CopyFormatter,
-		SplitFunc: func(ctx context.Context, s string) ([]string, error) {
-			return strings.Split(s, config.Separator), nil
+		SplitFunc: func(_ context.Context, text string) ([]string, error) {
+			return strings.Split(text, config.Separator), nil
 		},
 	})
-
-	return &TextSplitter{
-		config:   config,
-		splitter: splitter,
-	}
+	return &TextSplitter{config: config, splitter: splitter}
 }
 
-func NewDefaultTextSplitter() *TextSplitter {
-	return NewTextSplitter(nil)
-}
+// NewDefaultTextSplitter is a shorthand for NewTextSplitter(nil).
+func NewDefaultTextSplitter() *TextSplitter { return NewTextSplitter(nil) }
 
+// Transform delegates to the wrapped [Splitter].
 func (t *TextSplitter) Transform(ctx context.Context, docs []*Document) ([]*Document, error) {
 	return t.splitter.Transform(ctx, docs)
 }
