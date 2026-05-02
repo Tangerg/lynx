@@ -1,3 +1,7 @@
+// Package token defines the lexical token shape and constructors used
+// by the filter language's lexer and parser. The token kinds enum
+// lives in [kind.go]; positions live in [position.go]; this file
+// gathers the [Token] struct and its factory helpers.
 package token
 
 import (
@@ -6,24 +10,30 @@ import (
 	"strconv"
 )
 
-// Token represents a lexical token found during parsing, containing its type,
-// source position range, and literal value. This is the fundamental unit returned
-// by the lexer and consumed by the parser.
+// Token is one lexical unit produced by the lexer: kind, source span,
+// and the original lexeme. The parser consumes a stream of these.
 type Token struct {
-	Kind    Kind     // The type/category of this token
-	Start   Position // Source location where this token begins
-	End     Position // Source location where this token ends
-	Literal string   // The actual text content of the token
+	// Kind classifies the token (IDENT, NUMBER, STRING, AND, ...).
+	Kind Kind
+
+	// Start is the source position of the first byte.
+	Start Position
+
+	// End is the source position one past the last byte.
+	End Position
+
+	// Literal is the lexeme as written in the source (or, for
+	// error/EOF tokens, a human-readable note).
+	Literal string
 }
 
-// String returns a formatted string representation of the token for debugging.
-// The output includes the token kind, position range, and literal content.
+// String renders the token in a multi-line debug-friendly form.
 func (t *Token) String() string {
 	return fmt.Sprintf(
 		`
 Token {
-  kind: %s, 
-  start: %s, 
+  kind: %s,
+  start: %s,
   end: %s,
   literal: %s
 }`,
@@ -31,33 +41,27 @@ Token {
 	)
 }
 
-// Of creates a token with the specified kind, literal, and position range.
+// Of returns a token with explicit kind, literal, and span.
 func Of(kind Kind, literal string, start, end Position) Token {
-	return Token{
-		Kind:    kind,
-		Literal: literal,
-		Start:   start,
-		End:     end,
-	}
+	return Token{Kind: kind, Literal: literal, Start: start, End: end}
 }
 
-// OfKind creates a token using the kind's default literal value.
-// The literal is automatically derived from the kind.
+// OfKind returns a token whose literal is derived from the kind — used
+// for keywords and fixed-text operators where the lexeme is known
+// statically.
 func OfKind(kind Kind, start, end Position) Token {
 	return Of(kind, kind.Literal(), start, end)
 }
 
-// OfEOF creates an EOF (End of File) token.
-// The start position is set to NoPosition since EOF has no source content,
-// while the end position marks where input terminates.
+// OfEOF returns an EOF sentinel positioned at pos. EOF has no source
+// content, so Start is [NoPosition].
 func OfEOF(pos Position) Token {
 	return OfKind(EOF, NoPosition, pos)
 }
 
-// OfError creates an error token with the given error message as literal.
-// Error tokens allow continued parsing and collection of multiple errors.
-// The end position is set to NoPosition since errors are point events.
-// If err is nil, uses a default error message.
+// OfError returns an ERROR token carrying err's message as the
+// literal. err==nil falls back to a generic message. End is
+// [NoPosition] — errors are point events.
 func OfError(err error, pos Position) Token {
 	if err == nil {
 		err = errors.New("unexpected error")
@@ -65,25 +69,22 @@ func OfError(err error, pos Position) Token {
 	return Of(ERROR, err.Error(), pos, NoPosition)
 }
 
-// OfIllegal creates an error token for illegal characters encountered during lexing.
-// The error message includes both the character and its location for precise reporting.
+// OfIllegal returns an ERROR token for an illegal character. The
+// embedded message names the character and its location.
 func OfIllegal(char rune, pos Position) Token {
-	err := fmt.Errorf("illegal character '%c' at %s", char, pos.String())
-	return OfError(err, pos)
+	return OfError(fmt.Errorf("illegal character '%c' at %s", char, pos.String()), pos)
 }
 
-// OfIdent creates an identifier token from a user-defined string and position range.
-// This function is specifically for user-defined identifiers (field names, variable names, etc.)
-// and always creates an IDENT token. For keywords and operators, use OfKind instead.
+// OfIdent returns an IDENT token. For keywords and operators use
+// [OfKind] instead — IDENT is reserved for user-supplied names.
 func OfIdent(ident string, start, end Position) Token {
 	return Of(IDENT, ident, start, end)
 }
 
-// OfLiteral creates a token with literal validation and normalization.
-// Only supports STRING, NUMBER, TRUE, and FALSE kinds.
-// For NUMBER tokens, validates the numeric literal and normalizes the format.
-// For TRUE or FALSE tokens, uses the keyword literal from metadata.
-// Returns an error token if the kind is unsupported or validation fails.
+// OfLiteral returns a token for a literal of one of the four allowed
+// kinds: STRING, NUMBER, TRUE, FALSE. NUMBER literals are validated
+// and normalized via [OfNumericLiteral]. Unsupported kinds yield an
+// ERROR token.
 func OfLiteral(kind Kind, literal string, start, end Position) Token {
 	switch kind {
 	case NUMBER:
@@ -95,25 +96,24 @@ func OfLiteral(kind Kind, literal string, start, end Position) Token {
 	case FALSE:
 		return OfKind(FALSE, start, end)
 	default:
-		return OfError(errors.New("unsupported kind: "+kind.Name()), start)
+		return OfError(errors.New("token.OfLiteral: unsupported kind: "+kind.Name()), start)
 	}
 }
 
-// OfNumericLiteral creates a NUMBER token with validation and normalization.
-// It parses the literal string as a floating-point number to validate syntax,
-// then normalizes the representation using Go's standard formatting.
-// This ensures consistent number representation regardless of input format:
-//   - "123.000" becomes "123"
-//   - "1.23e+02" becomes "123"
-//   - "0.000123" becomes "0.000123"
+// OfNumericLiteral builds a NUMBER token, validating that literal
+// parses as float64 and normalizing the printed form via 'g'-format.
 //
-// Returns an error token if the literal cannot be parsed as a valid number.
+// Normalization examples:
+//
+//	"123.000"   → "123"
+//	"1.23e+02"  → "123"
+//	"0.000123"  → "0.000123"
+//
+// Returns an ERROR token when literal does not parse.
 func OfNumericLiteral(literal string, start, end Position) Token {
 	number, err := strconv.ParseFloat(literal, 64)
 	if err != nil {
 		return OfError(err, start)
 	}
-	// Format using 'g' format: chooses %e or %f automatically for readability
-	// -1 precision means use the smallest number of digits necessary
 	return Of(NUMBER, strconv.FormatFloat(number, 'g', -1, 64), start, end)
 }
