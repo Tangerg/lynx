@@ -72,24 +72,24 @@ func (b *Builder) Goals(goals ...*core.Goal) *Builder {
 	return b
 }
 
-// Condition appends a Condition.
-func (b *Builder) Condition(c core.Condition) *Builder {
-	b.conditions = append(b.conditions, c)
+// Conditions appends one or more conditions.
+func (b *Builder) Conditions(conditions ...core.Condition) *Builder {
+	b.conditions = append(b.conditions, conditions...)
 	return b
 }
 
-// DomainType registers a planning-relevant type. Use when the agent has
-// sealed-style interfaces and the planner needs to know about the parent
-// hierarchy for type-binding lookups.
-func (b *Builder) DomainType(dt core.DomainType) *Builder {
-	b.domainTypes = append(b.domainTypes, dt)
+// DomainTypes registers one or more planning-relevant types. Use when the
+// agent has sealed-style interfaces and the planner needs to know about the
+// parent hierarchy for type-binding lookups.
+func (b *Builder) DomainTypes(types ...core.DomainType) *Builder {
+	b.domainTypes = append(b.domainTypes, types...)
 	return b
 }
 
-// RequiresToolGroup declares an agent-scoped tool group requirement.
-// Per-action requirements live on the Action itself.
-func (b *Builder) RequiresToolGroup(req core.ToolGroupRequirement) *Builder {
-	b.toolGroupRequirements = append(b.toolGroupRequirements, req)
+// RequiresToolGroups declares one or more agent-scoped tool group
+// requirements. Per-action requirements live on the Action itself.
+func (b *Builder) RequiresToolGroups(reqs ...core.ToolGroupRequirement) *Builder {
+	b.toolGroupRequirements = append(b.toolGroupRequirements, reqs...)
 	return b
 }
 
