@@ -563,7 +563,7 @@ package core
 type Agent struct {
     Name         string
     Provider     string
-    Version      Semver
+    Version      *semver.Version
     Description  string
     Actions      []Action
     Goals        []*Goal

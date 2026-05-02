@@ -4,7 +4,11 @@
 // surface at compile time and IDE refactoring tools stay accurate.
 package dsl
 
-import "github.com/Tangerg/lynx/agent/core"
+import (
+	"github.com/Masterminds/semver/v3"
+
+	"github.com/Tangerg/lynx/agent/core"
+)
 
 // Builder assembles a *core.Agent through chained method calls. Build()
 // produces the immutable result; partial Builders are not safe to share
@@ -19,12 +23,16 @@ type Builder struct {
 	toolGroupRequirements []core.ToolGroupRequirement
 }
 
+// defaultVersion is the implicit Agent.Version when the caller never calls
+// [Builder.Version]. Parsed once at package init via [semver.MustParse].
+var defaultVersion = semver.MustParse("1.0.0")
+
 // New starts a Builder with the given agent name. Default version is 1.0.0.
 func New(name string) *Builder {
 	return &Builder{
 		meta: core.AgentMeta{
 			Name:    name,
-			Version: core.Semver{Major: 1},
+			Version: defaultVersion,
 		},
 	}
 }
@@ -41,9 +49,11 @@ func (b *Builder) Provider(p string) *Builder {
 	return b
 }
 
-// Version parses semver.
+// Version sets the agent's semver. Panics on a malformed literal — version
+// strings come from build configuration, so a typo is a programmer error
+// that should surface immediately rather than at runtime.
 func (b *Builder) Version(s string) *Builder {
-	b.meta.Version = core.ParseSemver(s)
+	b.meta.Version = semver.MustParse(s)
 	return b
 }
 
