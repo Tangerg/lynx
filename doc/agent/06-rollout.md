@@ -142,26 +142,7 @@ agent.tick {agent.name=IntentReceptionAgent}
 
 ---
 
-## 阶段 M5：用户 API 二三种风格（约 1 周）
-
-**目标**：**Struct+反射注册能用**。
-
-### 交付物
-- [ ] `agent/reflect/register.go` —— 扫描 struct 方法生成 Agent
-- [ ] 支持约定：
-  - `_ struct{} \`agent:"name=...,description=..."\`` 顶部标签
-  - 方法签名识别 Action / Condition / AchievesGoal
-- [ ] 完整文档 + 示例（同一 agent 两种写法对照）
-- [ ] 性能测试：反射注册 vs DSL 的启动时间对比（应该都 < 10ms）
-
-**Codegen（方式 C）**延到 M6 之后再做，看需求。
-
-### 验收
-`04-user-api.md` §B 的 `IntentAgent` struct 版本能正常跑，行为与 DSL 版本完全等价。
-
----
-
-## 阶段 M6：HITL & 子 Agent（约 1-2 周）
+## 阶段 M5：HITL & 子 Agent（约 1-2 周）
 
 **目标**：支持**人机交互**和**Agent 组合**。
 
@@ -180,7 +161,7 @@ agent.tick {agent.name=IntentReceptionAgent}
 
 ---
 
-## 阶段 M7：外挂扩展（按需）
+## 阶段 M6：外挂扩展（按需）
 
 **目标**：**生态完整度**。这些是独立顶层 module `agents/` 下的内容，**不强求同步做**。
 
@@ -204,9 +185,8 @@ agent.tick {agent.name=IntentReceptionAgent}
 | M2 | GOAP A* | 1-2 | M1 |
 | M3 | Lynx 集成 | 1 | M2 |
 | M4 | QoS + 事件 + 并发 | 1-2 | M3 |
-| M5 | 反射注册 | 1 | M4 |
-| M6 | HITL + 子 Agent | 1-2 | M4 |
-| M7 | 外挂（a2a/mcp/shell） | 视需求 | M4+ |
+| M5 | HITL + 子 Agent | 1-2 | M4 |
+| M6 | 外挂（a2a/mcp/shell） | 视需求 | M4+ |
 
 **核心路径 M0-M4 约 5-8 周**能出一个**MVP 可生产**的 Go agent 框架。
 
@@ -236,7 +216,6 @@ agent.tick {agent.name=IntentReceptionAgent}
 | 风险 | 对策 |
 |-----|------|
 | GOAP A* 在大规模 action 集（>100 个）下超时 | M2 阶段加 benchmark + 调整 `maxIterations`；引入 utility planner 作 fallback |
-| 反射注册（M5）与泛型构造器（M1）行为不一致 | 两条路径都走同一 Action 接口；共享单测用例 |
 | 并发执行时黑板竞争 | `InMemoryBlackboard` 所有方法走 RWMutex；单测明确覆盖多 goroutine 同时写 |
 | LLM 返回非预期格式导致 action 卡住 | 所有 LLM 调用走 Lynx 的 `StructuredParser` + 校验；失败计入重试 |
 | embabel 后续演进带来新特性 | 以 M0-M4 的最小核心为准；新特性按功能价值评估是否吸收，不追 parity |

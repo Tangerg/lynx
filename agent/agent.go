@@ -12,7 +12,6 @@
 //	github.com/Tangerg/lynx/agent/event     — event types and listener
 //	github.com/Tangerg/lynx/agent/dsl       — fluent agent builder
 //	github.com/Tangerg/lynx/agent/hitl      — typed Awaitable / Confirmation / Form
-//	github.com/Tangerg/lynx/agent/reflect   — struct-based agent registration
 package agent
 
 import (
