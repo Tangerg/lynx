@@ -5,81 +5,114 @@ import (
 	"iter"
 )
 
-// ToolMiddleware handles tool execution in the middleware layer.
-// It intercepts chat responses containing tool calls, executes the tools,
-// and recursively calls the model with tool results until a final response is obtained.
+// ToolMiddleware turns the model handler into a self-driving tool-calling
+// loop. When the LLM emits tool calls the middleware executes them via
+// the [ToolSupport] machinery and re-prompts the model with the results,
+// repeating until the model produces a regular reply or every tool is
+// configured for direct return.
+//
+// Use it via [NewToolMiddleware], which returns both call and stream
+// halves so a single registration covers both paths.
+//
+// Example:
+//
+//	callMW, streamMW := chat.NewToolMiddleware()
+//	resp, err := client.Chat().
+//	    WithMiddlewares(callMW, streamMW).
+//	    WithTools(myTool).
+//	    Call().Response(ctx)
 type ToolMiddleware struct{}
 
-// NewToolMiddleware creates a new tool execution middleware.
-// Returns both call and stream middleware functions for use in the middleware chain.
+// NewToolMiddleware constructs the tool-calling middleware pair.
 func NewToolMiddleware() (CallMiddleware, StreamMiddleware) {
 	mw := &ToolMiddleware{}
 	return mw.wrapCallHandler, mw.wrapStreamHandler
 }
 
-// executeCallRecursively processes chat requests with tool execution support.
-// It recursively calls the model when tool invocations are required,
-// building a complete conversation flow with tool results.
+// wrapCallHandler is the call-side adapter — turns the middleware body
+// into a [CallHandler] decorator.
+func (m *ToolMiddleware) wrapCallHandler(next CallHandler) CallHandler {
+	return CallHandlerFunc(func(ctx context.Context, req *Request) (*Response, error) {
+		return m.executeCall(ctx, req, next)
+	})
+}
+
+// wrapStreamHandler is the stream-side adapter.
+func (m *ToolMiddleware) wrapStreamHandler(next StreamHandler) StreamHandler {
+	return StreamHandlerFunc(func(ctx context.Context, req *Request) iter.Seq2[*Response, error] {
+		return m.executeStream(ctx, req, next)
+	})
+}
+
+// executeCall is the synchronous entry point: short-circuit when prior
+// messages already indicate a direct return; otherwise enter the
+// recursive call/tool loop.
+func (m *ToolMiddleware) executeCall(ctx context.Context, req *Request, next CallHandler) (*Response, error) {
+	support := NewToolSupport(len(req.Options.Tools))
+
+	if support.ShouldReturnDirect(req.Messages) {
+		return support.BuildReturnDirectResponse(req.Messages)
+	}
+
+	support.RegisterTools(req.Options.Tools...)
+	return m.executeCallRecursively(ctx, req, next, support)
+}
+
+// executeCallRecursively runs one round of model + tool execution. If
+// the model asks for tools and the tools want LLM follow-up, the
+// function re-prompts and recurses.
 func (m *ToolMiddleware) executeCallRecursively(ctx context.Context, req *Request, next CallHandler, support *ToolSupport) (*Response, error) {
-	// Call the next handler (eventually reaching the model)
 	resp, err := next.Call(ctx, req)
 	if err != nil {
 		return nil, err
 	}
 
-	// Check if the response contains tool calls that need execution
 	shouldInvoke, err := support.ShouldInvokeToolCalls(resp)
 	if err != nil {
 		return nil, err
 	}
-
 	if !shouldInvoke {
 		return resp, nil
 	}
 
-	// Execute the tool calls
 	result, err := support.InvokeToolCalls(ctx, req, resp)
 	if err != nil {
 		return nil, err
 	}
 
-	// Check if tool result should be returned directly without further LLM interaction
 	if result.ShouldReturn() {
 		return result.BuildReturnResponse()
 	}
 
-	// Build a new request with tool results and continue the conversation
-	continueReq, err := result.BuildContinueRequest()
+	nextReq, err := result.BuildContinueRequest()
 	if err != nil {
 		return nil, err
 	}
-
-	// Recursively call with the updated request
-	return m.executeCallRecursively(ctx, continueReq, next, support)
+	return m.executeCallRecursively(ctx, nextReq, next, support)
 }
 
-// executeCall is the main entry point for synchronous call handling with tool support.
-// It sets up tool support, checks for direct tool returns, and initiates the recursive call chain.
-func (m *ToolMiddleware) executeCall(ctx context.Context, req *Request, next CallHandler) (*Response, error) {
-	support := NewToolSupport(len(req.Options.Tools))
+// executeStream is the streaming entry point. Same shape as executeCall
+// but delivers chunks through the iterator while accumulating them so
+// the tool-calling loop can inspect a complete response when the stream
+// closes.
+func (m *ToolMiddleware) executeStream(ctx context.Context, req *Request, next StreamHandler) iter.Seq2[*Response, error] {
+	return func(yield func(*Response, error) bool) {
+		support := NewToolSupport(len(req.Options.Tools))
 
-	// Check if any existing messages indicate a direct tool return
-	if support.ShouldReturnDirect(req.Messages) {
-		return support.BuildReturnDirectResponse(req.Messages)
+		if support.ShouldReturnDirect(req.Messages) {
+			yield(support.BuildReturnDirectResponse(req.Messages))
+			return
+		}
+
+		support.RegisterTools(req.Options.Tools...)
+		m.executeStreamRecursively(ctx, req, next, support, yield)
 	}
-
-	// Register available tools
-	support.RegisterTools(req.Options.Tools...)
-
-	// Start recursive processing
-	return m.executeCallRecursively(ctx, req, next, support)
 }
 
-// executeStreamRecursively processes streaming chat requests with tool execution support.
-// It accumulates streaming chunks, executes tools when needed, and recursively streams
-// the conversation with tool results.
+// executeStreamRecursively runs one streaming round: forward chunks to
+// the caller while accumulating them, then inspect the accumulated
+// response to decide whether to dispatch tool calls and re-stream.
 func (m *ToolMiddleware) executeStreamRecursively(ctx context.Context, req *Request, next StreamHandler, support *ToolSupport, yield func(*Response, error) bool) {
-	// Accumulate streaming chunks into a complete response
 	accumulator := NewResponseAccumulator()
 
 	for chunk, err := range next.Stream(ctx, req) {
@@ -90,78 +123,36 @@ func (m *ToolMiddleware) executeStreamRecursively(ctx context.Context, req *Requ
 
 		accumulator.AddChunk(chunk)
 
-		// Yield each chunk to the caller for real-time processing
 		if !yield(chunk, nil) {
 			return
 		}
 	}
 
-	// Check if the accumulated response contains tool calls
 	resp := &accumulator.Response
 	shouldInvoke, err := support.ShouldInvokeToolCalls(resp)
 	if err != nil {
 		yield(nil, err)
 		return
 	}
-
 	if !shouldInvoke {
 		return
 	}
 
-	// Execute the tool calls
 	result, err := support.InvokeToolCalls(ctx, req, resp)
 	if err != nil {
 		yield(nil, err)
 		return
 	}
 
-	// Check if tool result should be returned directly
 	if result.ShouldReturn() {
 		yield(result.BuildReturnResponse())
 		return
 	}
 
-	// Build a new request with tool results and continue streaming
-	continueReq, err := result.BuildContinueRequest()
+	nextReq, err := result.BuildContinueRequest()
 	if err != nil {
 		yield(nil, err)
 		return
 	}
-
-	// Recursively stream with the updated request
-	m.executeStreamRecursively(ctx, continueReq, next, support, yield)
-}
-
-// executeStream is the main entry point for streaming handling with tool support.
-// It sets up tool support, checks for direct tool returns, and initiates the recursive stream chain.
-func (m *ToolMiddleware) executeStream(ctx context.Context, req *Request, next StreamHandler) iter.Seq2[*Response, error] {
-	return func(yield func(*Response, error) bool) {
-		support := NewToolSupport(len(req.Options.Tools))
-
-		// Check if any existing messages indicate a direct tool return
-		if support.ShouldReturnDirect(req.Messages) {
-			yield(support.BuildReturnDirectResponse(req.Messages))
-			return
-		}
-
-		// Register available tools
-		support.RegisterTools(req.Options.Tools...)
-
-		// Start recursive streaming
-		m.executeStreamRecursively(ctx, req, next, support, yield)
-	}
-}
-
-// wrapCallHandler wraps the call handler with tool execution middleware.
-func (m *ToolMiddleware) wrapCallHandler(next CallHandler) CallHandler {
-	return CallHandlerFunc(func(ctx context.Context, req *Request) (*Response, error) {
-		return m.executeCall(ctx, req, next)
-	})
-}
-
-// wrapStreamHandler wraps the stream handler with tool execution middleware.
-func (m *ToolMiddleware) wrapStreamHandler(next StreamHandler) StreamHandler {
-	return StreamHandlerFunc(func(ctx context.Context, req *Request) iter.Seq2[*Response, error] {
-		return m.executeStream(ctx, req, next)
-	})
+	m.executeStreamRecursively(ctx, nextReq, next, support, yield)
 }
