@@ -1,0 +1,7 @@
+# Binaries built from examples without `-o`. Each example dir name appears
+# here so an accidental `go build ./examples/<name>` doesn't leak into git.
+/hello
+/blog
+/examples/*/hello
+/examples/*/blog
+*.exe
