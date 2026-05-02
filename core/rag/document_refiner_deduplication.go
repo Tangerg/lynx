@@ -9,36 +9,44 @@ import (
 
 var _ DocumentRefiner = (*DeduplicationDocumentRefiner)(nil)
 
-// DeduplicationDocumentRefiner removes duplicate documents from the retrieved results based
-// on document IDs, preserving the order of first occurrence.
+// DeduplicationDocumentRefiner drops duplicate documents from the
+// retrieval candidate list, keying on [document.Document.ID] and
+// preserving first-occurrence order. Useful when multiple retrievers
+// surface overlapping results.
 //
-// This refiner is useful for:
-//   - Eliminating redundant documents when the same content is retrieved multiple times
-//   - Reducing processing overhead by removing duplicate entries
-//   - Improving result quality by avoiding repetitive information
-//   - Maintaining deterministic results by preserving first-occurrence order
+// Example:
+//
+//	pipe, _ := rag.NewPipeline(&rag.PipelineConfig{
+//	    DocumentRetrievers: []rag.DocumentRetriever{r1, r2},
+//	    DocumentRefiners: []rag.DocumentRefiner{
+//	        rag.NewDeduplicationDocumentRefiner(),
+//	        rag.NewRankDocumentRefiner(5),
+//	    },
+//	})
 type DeduplicationDocumentRefiner struct{}
 
+// NewDeduplicationDocumentRefiner returns a stateless refiner — the
+// struct has no fields; sharing one across goroutines is fine.
 func NewDeduplicationDocumentRefiner() *DeduplicationDocumentRefiner {
 	return &DeduplicationDocumentRefiner{}
 }
 
+// Refine returns documents with duplicate IDs removed, keeping the
+// first occurrence in input order. Honors ctx cancellation.
 func (d *DeduplicationDocumentRefiner) Refine(ctx context.Context, _ *Query, documents []*document.Document) ([]*document.Document, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 
-	seenIDs := sets.NewHashSet[string]()
-	uniqueDocuments := make([]*document.Document, 0, len(documents))
+	seen := sets.NewHashSet[string]()
+	out := make([]*document.Document, 0, len(documents))
 
 	for _, doc := range documents {
-		if seenIDs.Contains(doc.ID) {
+		if seen.Contains(doc.ID) {
 			continue
 		}
-
-		seenIDs.Add(doc.ID)
-		uniqueDocuments = append(uniqueDocuments, doc)
+		seen.Add(doc.ID)
+		out = append(out, doc)
 	}
-
-	return uniqueDocuments, nil
+	return out, nil
 }

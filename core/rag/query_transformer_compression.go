@@ -8,33 +8,10 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat"
 )
 
-// CompressionQueryTransformerConfig holds the configuration for CompressionQueryTransformer.
-// It requires a chat model and optionally accepts a custom prompt template.
-type CompressionQueryTransformerConfig struct {
-	// ChatModel is the language model used for query compression.
-	// Required.
-	ChatModel chat.Model
-
-	// PromptTemplate defines how the compression prompt is structured.
-	// Optional. If not provided, a default template will be used that combines
-	// conversation history and follow-up query into a standalone query.
-	PromptTemplate *chat.PromptTemplate
-}
-
-func (c *CompressionQueryTransformerConfig) validate() error {
-	if c == nil {
-		return errors.New("compression transformer config cannot be nil")
-	}
-
-	if c.ChatModel == nil {
-		return errors.New("compression transformer config: chat model is required")
-	}
-
-	if c.PromptTemplate == nil {
-		c.PromptTemplate = chat.
-			NewPromptTemplate().
-			WithTemplate(
-				`Given the following conversation history and a follow-up query, your task is to synthesize
+// compressionDefaultTemplate asks the LLM to fold a chat history plus a
+// follow-up question into one self-contained query. {{.History}} and
+// {{.Query}} are filled at transform time.
+const compressionDefaultTemplate = `Given the following conversation history and a follow-up query, your task is to synthesize
 a concise, standalone query that incorporates the context from the history.
 Ensure the standalone query is clear, specific, and maintains the user's intent.
 
@@ -44,29 +21,54 @@ Conversation history:
 Follow-up query:
 {{.Query}}
 
-Standalone query:`,
-			)
-	}
+Standalone query:`
 
+// CompressionQueryTransformerConfig configures a
+// [CompressionQueryTransformer].
+type CompressionQueryTransformerConfig struct {
+	// ChatModel performs the compression. Required.
+	ChatModel chat.Model
+
+	// PromptTemplate is the LLM prompt. Defaults to
+	// [compressionDefaultTemplate]. Custom templates must declare
+	// {{.History}} and {{.Query}}.
+	PromptTemplate *chat.PromptTemplate
+}
+
+// validate fills the default prompt template and rejects invalid
+// configs.
+func (c *CompressionQueryTransformerConfig) validate() error {
+	if c == nil {
+		return errors.New("rag.CompressionQueryTransformerConfig: config must not be nil")
+	}
+	if c.ChatModel == nil {
+		return errors.New("rag.CompressionQueryTransformerConfig: ChatModel is required")
+	}
+	if c.PromptTemplate == nil {
+		c.PromptTemplate = chat.NewPromptTemplate().WithTemplate(compressionDefaultTemplate)
+	}
 	return c.PromptTemplate.RequireVariables("History", "Query")
 }
 
 var _ QueryTransformer = (*CompressionQueryTransformer)(nil)
 
-// CompressionQueryTransformer uses a large language model to compress a conversation
-// history and a follow-up query into a standalone query that captures the essence
-// of the conversation.
+// CompressionQueryTransformer collapses a chat history plus a follow-up
+// query into a single self-contained query. Reach for it when the
+// conversation context is long and a downstream retriever needs to
+// understand the question without re-reading the full transcript.
 //
-// This transformer is useful when the conversation history is long and the follow-up
-// query is related to the conversation context. It helps to:
-//   - Reduce token usage by condensing the context
-//   - Improve retrieval relevance by creating self-contained queries
-//   - Maintain the semantic intent of the original query
+// The transformer reads chat history from [Query.Extra] under
+// [ChatHistoryKey] — populated by [NewPipelineMiddleware] when the
+// pipeline runs as chat middleware.
 type CompressionQueryTransformer struct {
 	chatClient     *chat.Client
 	promptTemplate *chat.PromptTemplate
 }
 
+// NewCompressionQueryTransformer builds a
+// [CompressionQueryTransformer]. Returns an error when the
+// configuration fails validation or the chat client cannot be
+// constructed.
 func NewCompressionQueryTransformer(cfg *CompressionQueryTransformerConfig) (*CompressionQueryTransformer, error) {
 	if err := cfg.validate(); err != nil {
 		return nil, err
@@ -83,19 +85,20 @@ func NewCompressionQueryTransformer(cfg *CompressionQueryTransformerConfig) (*Co
 	}, nil
 }
 
+// Transform asks the LLM for a self-contained version of the query.
+// Returns a clone of the input with Text replaced by the LLM output;
+// when the LLM returns empty text the original Text is preserved.
 func (c *CompressionQueryTransformer) Transform(ctx context.Context, query *Query) (*Query, error) {
 	if query == nil {
-		return nil, errors.New("query cannot be nil")
+		return nil, errors.New("rag.CompressionQueryTransformer.Transform: query must not be nil")
 	}
 
-	conversationHistory := c.extractConversationHistory(query)
+	history := c.extractHistory(query)
 
-	compressedText, _, err := c.
-		chatClient.
+	compressed, _, err := c.chatClient.
 		ChatWithPromptTemplate(
-			c.promptTemplate.
-				Clone().
-				WithVariable("History", conversationHistory).
+			c.promptTemplate.Clone().
+				WithVariable("History", history).
 				WithVariable("Query", query.Text),
 		).
 		Call().
@@ -104,24 +107,25 @@ func (c *CompressionQueryTransformer) Transform(ctx context.Context, query *Quer
 		return nil, err
 	}
 
-	clonedQuery := query.Clone()
-	if compressedText != "" {
-		clonedQuery.Text = compressedText
+	clone := query.Clone()
+	if compressed != "" {
+		clone.Text = compressed
 	}
-
-	return clonedQuery, nil
+	return clone, nil
 }
 
-func (c *CompressionQueryTransformer) extractConversationHistory(query *Query) string {
-	historyValue, exists := query.Get(ChatHistoryKey)
+// extractHistory pulls the conversation messages out of the query's
+// Extra map under [ChatHistoryKey] and renders them as one string.
+// Returns "" when the slot is missing or holds the wrong type.
+func (c *CompressionQueryTransformer) extractHistory(query *Query) string {
+	value, exists := query.Get(ChatHistoryKey)
 	if !exists {
 		return ""
 	}
 
-	messages, ok := historyValue.([]chat.Message)
+	messages, ok := value.([]chat.Message)
 	if !ok {
 		return ""
 	}
-
 	return strings.Join(chat.MessagesToStrings(messages), "\n\n")
 }
