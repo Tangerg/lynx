@@ -11,62 +11,73 @@ import (
 	"github.com/spf13/cast"
 )
 
-// FileWriterConfig holds the configuration for FileWriter.
+// fileWriterBatchSize controls how many documents are buffered before
+// each [os.File].WriteString call. The number is small on purpose —
+// big enough to amortize syscall overhead, small enough to bound peak
+// memory usage on extra-large document sets.
+const fileWriterBatchSize = 5
+
+// Metadata keys recognized by [FileWriter] when writing document
+// markers. These are conventions, not part of [Document]'s public
+// fields.
+const (
+	metadataKeyStartPageNumber = "start_page_number"
+	metadataKeyEndPageNumber   = "end_page_number"
+)
+
+// FileWriterConfig configures a [FileWriter].
 type FileWriterConfig struct {
-	// Path specifies the file path where documents will be written.
-	// Required. Must not be empty.
-	// Can be an absolute or relative path. Parent directories will be created
-	// if they don't exist (depending on file system permissions).
+	// Path is the destination file. Required.
 	Path string
 
-	// WithDocumentMarkers determines whether to include document markers in the output.
-	// Optional. Defaults to false.
-	// When enabled, each document is prefixed with metadata including:
-	//   - Document index number
-	//   - Page range (if start_page_number and end_page_number metadata exist)
-	// Format: "### Index: 0, Pages:[1,5]"
+	// WithDocumentMarkers prepends each document with a header line:
+	//
+	//	### Index: 0, Pages:[1,5]
+	//
+	// The Pages segment appears only when both start_page_number and
+	// end_page_number live in the document's metadata.
 	WithDocumentMarkers bool
 
-	// AppendMode determines whether to append to existing file or overwrite it.
-	// Optional. Defaults to false (overwrite mode).
-	// If true, documents are appended to the end of the file.
-	// If false, the file is truncated before writing.
+	// AppendMode appends to an existing file instead of truncating it.
 	AppendMode bool
 }
 
 func (c *FileWriterConfig) validate() error {
 	if c == nil {
-		return errors.New("config is required")
+		return errors.New("document.FileWriterConfig: config must not be nil")
 	}
 	if c.Path == "" {
-		return errors.New("file path is required")
+		return errors.New("document.FileWriterConfig: Path is required")
 	}
 	return nil
 }
 
 var _ Writer = (*FileWriter)(nil)
 
-// FileWriter writes documents to a file with optional formatting and markers.
+// FileWriter persists documents as plain text. It honors AppendMode,
+// optionally injects document-marker headers, and calls [*os.File].Sync
+// before returning so callers can rely on durability when the call
+// completes.
 //
-// This writer is useful for:
-//   - Exporting processed documents to disk for inspection or backup
-//   - Creating human-readable document archives with optional metadata
-//   - Building document export pipelines with append or overwrite modes
-//   - Debugging document processing flows by examining intermediate outputs
+// Example:
 //
-// The writer uses batched writes (5 documents per batch) for improved I/O performance
-// and calls file.Sync() to ensure data is persisted to disk. Documents are separated
+//	w, err := document.NewFileWriter(&document.FileWriterConfig{
+//	    Path:                "out.txt",
+//	    WithDocumentMarkers: true,
+//	})
+//	err = w.Write(ctx, docs)
 type FileWriter struct {
 	path                string
 	withDocumentMarkers bool
 	appendMode          bool
 }
 
+// NewFileWriter builds a [FileWriter]. Returns an error when config is
+// invalid.
 func NewFileWriter(config *FileWriterConfig) (*FileWriter, error) {
 	if err := config.validate(); err != nil {
 		return nil, err
 	}
-
 	return &FileWriter{
 		path:                config.Path,
 		withDocumentMarkers: config.WithDocumentMarkers,
@@ -74,90 +85,88 @@ func NewFileWriter(config *FileWriterConfig) (*FileWriter, error) {
 	}, nil
 }
 
-func (f *FileWriter) Write(_ context.Context, documents []*Document) error {
-	fileFlags := f.determineFileFlags()
-	outputFile, err := os.OpenFile(f.path, fileFlags, 0666)
+// Write persists docs to the configured file.
+func (f *FileWriter) Write(_ context.Context, docs []*Document) error {
+	file, err := os.OpenFile(f.path, f.openFlags(), 0o666)
 	if err != nil {
-		return fmt.Errorf("failed to open file %s: %w", f.path, err)
+		return fmt.Errorf("document.FileWriter.Write: open %s: %w", f.path, err)
 	}
-	defer outputFile.Close()
+	defer file.Close()
 
-	if err = f.writeDocumentBatch(documents, outputFile); err != nil {
-		return fmt.Errorf("failed to write documents to file %s: %w", f.path, err)
+	if err := f.writeBatched(docs, file); err != nil {
+		return fmt.Errorf("document.FileWriter.Write: %w", err)
 	}
-
 	return nil
 }
 
-func (f *FileWriter) determineFileFlags() int {
-	const (
-		createWriteTrunc  = os.O_CREATE | os.O_WRONLY | os.O_TRUNC
-		createWriteAppend = os.O_CREATE | os.O_WRONLY | os.O_APPEND
-	)
-
+// openFlags returns the appropriate os.OpenFile flags for the
+// configured mode (truncate vs append).
+func (f *FileWriter) openFlags() int {
 	if f.appendMode {
-		return createWriteAppend
+		return os.O_CREATE | os.O_WRONLY | os.O_APPEND
 	}
-	return createWriteTrunc
+	return os.O_CREATE | os.O_WRONLY | os.O_TRUNC
 }
 
-func (f *FileWriter) writeDocumentBatch(documents []*Document, outputFile *os.File) error {
-	const writeBatchSize = 5
-	var batchBuffer strings.Builder
+// writeBatched buffers fileWriterBatchSize documents at a time, then
+// flushes to disk and Syncs at the end so the caller can rely on
+// durability.
+func (f *FileWriter) writeBatched(docs []*Document, file *os.File) error {
+	var buf strings.Builder
 
-	for docIndex, currentDoc := range documents {
-		formattedContent := f.buildDocumentContent(docIndex, currentDoc)
-		batchBuffer.WriteString(formattedContent)
+	for i, doc := range docs {
+		buf.WriteString(f.renderDocument(i, doc))
 
-		shouldFlushBatch := (docIndex+1)%writeBatchSize == 0
-		if shouldFlushBatch {
-			if _, err := outputFile.WriteString(batchBuffer.String()); err != nil {
-				return fmt.Errorf("failed to write document batch at index %d: %w", docIndex, err)
+		if (i+1)%fileWriterBatchSize == 0 {
+			if _, err := file.WriteString(buf.String()); err != nil {
+				return fmt.Errorf("flush batch at index %d: %w", i, err)
 			}
-			batchBuffer.Reset()
+			buf.Reset()
 		}
 	}
 
-	if batchBuffer.Len() > 0 {
-		if _, err := outputFile.WriteString(batchBuffer.String()); err != nil {
-			return fmt.Errorf("failed to write final document batch: %w", err)
+	if buf.Len() > 0 {
+		if _, err := file.WriteString(buf.String()); err != nil {
+			return fmt.Errorf("flush trailing batch: %w", err)
 		}
 	}
-
-	return outputFile.Sync()
+	return file.Sync()
 }
 
-func (f *FileWriter) buildDocumentContent(docIndex int, doc *Document) string {
-	const (
-		startPageNumber = "start_page_number"
-		endPageNumber   = "end_page_number"
-	)
-
-	var contentBuilder strings.Builder
+// renderDocument formats one document, optionally prefixing the marker
+// header.
+func (f *FileWriter) renderDocument(index int, doc *Document) string {
+	var buf strings.Builder
 
 	if f.withDocumentMarkers {
-		contentBuilder.WriteString("### Index: ")
-		contentBuilder.WriteString(strconv.Itoa(docIndex))
+		buf.WriteString("### Index: ")
+		buf.WriteString(strconv.Itoa(index))
 
-		docMetadata := doc.Metadata
-		if docMetadata != nil {
-			startPage := cast.ToString(docMetadata[startPageNumber])
-			endPage := cast.ToString(docMetadata[endPageNumber])
-			if startPage != "" && endPage != "" {
-				contentBuilder.WriteString(", Pages:[")
-				contentBuilder.WriteString(startPage)
-				contentBuilder.WriteString(",")
-				contentBuilder.WriteString(endPage)
-				contentBuilder.WriteString("]")
-			}
+		if start, end, ok := f.pageRange(doc); ok {
+			buf.WriteString(", Pages:[")
+			buf.WriteString(start)
+			buf.WriteString(",")
+			buf.WriteString(end)
+			buf.WriteString("]")
 		}
-
-		contentBuilder.WriteString("\n")
+		buf.WriteString("\n")
 	}
 
-	contentBuilder.WriteString(doc.Format())
+	buf.WriteString(doc.Format())
+	buf.WriteString("\n\n")
+	return buf.String()
+}
 
-	contentBuilder.WriteString("\n\n")
-
-	return contentBuilder.String()
+// pageRange returns the start/end page from doc.Metadata when both
+// fields are present and non-empty.
+func (f *FileWriter) pageRange(doc *Document) (string, string, bool) {
+	if doc.Metadata == nil {
+		return "", "", false
+	}
+	start := cast.ToString(doc.Metadata[metadataKeyStartPageNumber])
+	end := cast.ToString(doc.Metadata[metadataKeyEndPageNumber])
+	if start == "" || end == "" {
+		return "", "", false
+	}
+	return start, end, true
 }

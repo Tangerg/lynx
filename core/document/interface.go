@@ -1,82 +1,69 @@
 package document
 
-import (
-	"context"
-)
+import "context"
 
-// Reader defines an interface for reading documents from various data sources.
-// Implementations can retrieve documents from databases, file systems, APIs,
-// or other storage systems with proper error handling and context support.
+// Reader sources documents — from files, databases, APIs, or any other
+// origin. Concrete readers live alongside this interface
+// ([reader_text.go], [reader_json.go]).
 type Reader interface {
-	// Read retrieves documents from the underlying source with context support.
-	// Returns a slice of Document objects or an error if the operation fails.
-	// Context can be used for timeouts, cancellation, and request-scoped values.
+	// Read returns the documents discovered at the underlying source.
 	Read(ctx context.Context) ([]*Document, error)
 }
 
-// Writer defines an interface for writing documents to various destinations.
-// Implementations can store documents in databases, file systems, APIs,
-// or other storage systems with transactional support where applicable.
+// Writer persists documents — to files, databases, vector stores, or
+// any other sink. The error contract is "all-or-nothing on best
+// effort" — implementations document their transactionality.
 type Writer interface {
-	// Write stores documents in the underlying destination with context support.
-	// Returns an error if any document fails to write, potentially rolling back
-	// the entire operation depending on the implementation's transaction behavior.
+	// Write stores docs at the underlying destination. An error from a
+	// later document may or may not roll back earlier writes; consult
+	// the implementation's docs.
 	Write(ctx context.Context, docs []*Document) error
 }
 
-// MetadataMode defines how metadata should be handled when formatting documents.
-// Different modes control which metadata fields are included in the output,
-// allowing optimization for specific use cases like embedding or inference.
+// MetadataMode selects how much metadata a [Formatter] embeds in its
+// output — full dump for debugging, embedding-friendly subset for
+// vector stores, inference-time-only fields for prompts, or none when
+// the consumer cares only about the body.
 type MetadataMode string
 
-func (m MetadataMode) String() string {
-	return string(m)
-}
+func (m MetadataMode) String() string { return string(m) }
 
 const (
-	// MetadataModeAll includes all available metadata in the formatted content.
-	// Use this mode when you need complete document information.
+	// MetadataModeAll includes every metadata key.
 	MetadataModeAll MetadataMode = "all"
 
-	// MetadataModeEmbed includes only metadata relevant for embedding processes.
-	// This mode optimizes content for vector embedding generation.
+	// MetadataModeEmbed includes only metadata appropriate for vector
+	// embedding generation.
 	MetadataModeEmbed MetadataMode = "embed"
 
-	// MetadataModeInference includes only metadata relevant for inference operations.
-	// This mode focuses on metadata that affects model inference behavior.
+	// MetadataModeInference includes only metadata that should reach
+	// the model at prompt time.
 	MetadataModeInference MetadataMode = "inference"
 
-	// MetadataModeNone excludes all metadata from the formatted content.
-	// Use this mode when you only need the raw document content.
+	// MetadataModeNone strips every metadata key — body only.
 	MetadataModeNone MetadataMode = "none"
 )
 
-// Formatter defines an interface for formatting document content with flexible
-// metadata inclusion. Implementations should handle various document types
-// and provide consistent output formatting across different metadata modes.
+// Formatter renders a document as a string. Implementations must
+// handle nil documents gracefully and respect the supplied mode.
 type Formatter interface {
-	// Format produces a string representation of a document with controlled metadata.
-	// The mode parameter determines which metadata fields are included in the output.
-	// Implementations should handle nil documents gracefully and provide meaningful defaults.
+	// Format renders doc honoring the metadata mode.
 	Format(doc *Document, mode MetadataMode) string
 }
 
-// Transformer defines an interface for transforming documents in processing pipelines.
-// Implementations can modify, filter, enrich, or validate documents while maintaining
-// proper error handling and context support for cancellation and timeouts.
+// Transformer is one stage in a document-processing pipeline —
+// splitting, filtering, enriching, deduplicating, etc. The output
+// length may differ from the input length.
 type Transformer interface {
-	// Transform handles a batch of documents and returns the transformed result.
-	// The returned slice may have different length than input (filtering/expansion).
-	// Context should be respected for cancellation and timeout handling.
+	// Transform processes docs and returns the transformed slice.
 	Transform(ctx context.Context, docs []*Document) ([]*Document, error)
 }
 
-// Batcher defines an interface for optimizing document batching for embedding operations.
-// Implementations should consider token limits, memory constraints, and processing
-// efficiency while preserving document order for correct embedding-to-document mapping.
+// Batcher carves a document slice into chunks that fit downstream
+// service constraints (token limits, request size). Document order MUST
+// be preserved across batches so callers can map results back by index.
 type Batcher interface {
-	// Batch splits documents into optimized sub-batches for embedding processing.
-	// Document order must be preserved across all batches for correct mapping.
-	// Returns batches optimized for the target embedding service's constraints.
+	// Batch returns sub-slices of docs sized for downstream consumers.
+	// Concatenating the returned batches reproduces docs.
 	Batch(ctx context.Context, docs []*Document) ([][]*Document, error)
 }

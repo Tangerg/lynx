@@ -1,3 +1,6 @@
+// Package media defines the [Media] container shared by every modality
+// that handles non-text payloads — images on chat / vision requests,
+// audio on tts / transcription, attachments on user messages.
 package media
 
 import (
@@ -7,25 +10,41 @@ import (
 	"github.com/Tangerg/lynx/pkg/mime"
 )
 
-// Media represents a media object containing MIME type information,
-// actual data content, and associated metadata.
+// Media wraps an opaque payload (Data) with its MIME type and metadata.
+// Data is intentionally typed as any so a single struct can hold raw
+// bytes, base64 strings, URLs, or [io.Reader]s — callers extract the
+// concrete shape with [Media.DataAsBytes] / [Media.DataAsString].
 type Media struct {
-	ID       string
-	Name     string
+	// ID is an optional identifier — set when the caller wants to
+	// correlate this payload across logs / audit trails.
+	ID string
+
+	// Name is an optional display name (filename, label, ...).
+	Name string
+
+	// MimeType identifies the content type. Required.
 	MimeType *mime.MIME
-	Data     any
+
+	// Data is the actual payload — []byte, string URL, io.Reader,
+	// whatever fits the modality. Required.
+	Data any
+
+	// Metadata carries free-form annotations.
 	Metadata map[string]any
 }
 
-// NewMedia creates a new Media instance with the specified MIME type and data.
-// Returns an error if either mimeType or data is nil.
+// NewMedia builds a [Media]. Both mimeType and data are required.
+//
+// Example:
+//
+//	mt, _ := mime.Parse("audio/mpeg")
+//	m, err := media.NewMedia(mt, audioBytes)
 func NewMedia(mimeType *mime.MIME, data any) (*Media, error) {
 	if mimeType == nil {
-		return nil, errors.New("mime type is required")
+		return nil, errors.New("media.NewMedia: mimeType must not be nil")
 	}
-
 	if data == nil {
-		return nil, errors.New("data is required")
+		return nil, errors.New("media.NewMedia: data must not be nil")
 	}
 
 	return &Media{
@@ -35,32 +54,30 @@ func NewMedia(mimeType *mime.MIME, data any) (*Media, error) {
 	}, nil
 }
 
-// DataAsBytes attempts to convert and return the media data as a byte slice.
-// Returns an error if the data is nil or not of type []byte.
+// DataAsBytes returns the payload as []byte. Returns an error when Data
+// is nil or holds a non-bytes value.
 func (m *Media) DataAsBytes() ([]byte, error) {
 	if m.Data == nil {
-		return nil, errors.New("data is nil")
+		return nil, errors.New("media.DataAsBytes: data is nil")
 	}
 
 	data, ok := m.Data.([]byte)
 	if !ok {
-		return nil, fmt.Errorf("expected []byte, got %T", m.Data)
+		return nil, fmt.Errorf("media.DataAsBytes: expected []byte, got %T", m.Data)
 	}
-
 	return data, nil
 }
 
-// DataAsString attempts to convert and return the media data as a string.
-// Returns an error if the data is nil or not of type string.
+// DataAsString returns the payload as a string. Returns an error when
+// Data is nil or holds a non-string value.
 func (m *Media) DataAsString() (string, error) {
 	if m.Data == nil {
-		return "", errors.New("data is nil")
+		return "", errors.New("media.DataAsString: data is nil")
 	}
 
 	data, ok := m.Data.(string)
 	if !ok {
-		return "", fmt.Errorf("expected string, got %T", m.Data)
+		return "", fmt.Errorf("media.DataAsString: expected string, got %T", m.Data)
 	}
-
 	return data, nil
 }
