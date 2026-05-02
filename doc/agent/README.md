@@ -72,8 +72,7 @@ lynx/
 │   │   ├── goap/         A* GOAP 实现（核心）
 │   │   └── utility/      效用规划器（开放式任务）
 │   ├── runtime/          AgentProcess / 执行引擎 / 事件 / TerminationScope
-│   ├── dsl/              流式 builder API
-│   ├── reflect/          struct 反射注册（@Action 注解的 Go 等价物）
+│   ├── dsl/              流式 builder API（唯一的 Agent 定义入口，显式优于隐式）
 │   ├── event/            事件类型 + 多播监听器
 │   └── hitl/             Human-in-the-loop（Awaitable[P, R]）
 │
