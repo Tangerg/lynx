@@ -42,7 +42,7 @@
 | `@Agent` / `@Action` 注解 | DSL `agent.New(...).Actions(...)` | Go 没有运行时注解；显式 builder 是惟一入口，无反射、可调试、IDE 友好 |
 | `ThreadLocal AgentProcess.get()` | `core.WithProcess(ctx, p)` / `core.ProcessFrom(ctx)` | `context.Context` 是 Go 的标准透传机制 |
 | `throw ReplanRequestedException` | `return &core.ReplanRequest{...}` (实现 `error`) | Go 不依赖异常做控制流；error + `errors.As` 一样表达力 |
-| Spring DI `@Autowired` | `agent.NewPlatform(WithChatClient(c), WithRAG(r))` | functional options 是 Go 配置惯用法 |
+| Spring DI `@Autowired` | 用户自己往 `core.ServiceProvider` 注册任意服务 + `core.ServiceOf[T]` 类型化取出 | 不预设 LLM / RAG / VectorStore 等典型槽位，框架不绑生态 |
 | `<T> T resultOfType(Class<T>)` | `core.ResultOfType[T](proc)` | Go 1.18+ 泛型，但只能在顶层函数 |
 | Reactor `Flux<T>` | `iter.Seq2[T, error]` | Go 1.23+ pull-based 迭代器 |
 | Kotlin Coroutines | `goroutine` + `errgroup` | 更直接，无 schedulers/dispatchers 概念 |
@@ -93,7 +93,7 @@
                                    ↓
 ┌──────────────────────────────────────────────────────────────────────┐
 │  外部集成（可选注入）                                                  │
-│   ChatClient (LLM) / RAGClient / VectorStore / ToolGroupResolver /   │
+│   用户注册到 ServiceProvider 的任意服务 + ToolGroupResolver /         │
 │   OTel TracerProvider                                                 │
 └──────────────────────────────────────────────────────────────────────┘
 ```
@@ -463,7 +463,7 @@ type ProcessContext struct {
     Blackboard    Blackboard         // 黑板
     Options       *ProcessOptions
     OutputChannel OutputChannel
-    Services      *ServiceProvider   // LLM / RAG / VectorStore / ToolResolver
+    Services      *ServiceProvider   // 用户注册的任意服务（key→any）
 
     publishEvent EventPublisher      // 由 runtime 注入
     resolveTools ToolResolver        // 由 runtime 注入
@@ -476,7 +476,7 @@ type ProcessContext struct {
 每个 tick 重建一次（避免上一 action 的状态泄漏到下一个）。常用方法：
 
 ```go
-pc.LLM()                           // → ChatClient（可能 nil）
+chat, _ := core.ServiceOf[*chat.Client](pc.Services, "chat") // 类型化查
 pc.Tracer()                        // → otel.Tracer("lynx/agent")
 pc.ResolveTools(ctx, "web", "calc") // → []AgentTool 懒解析
 pc.Publish(myCustomEvent)          // 推送自定义事件
@@ -1157,14 +1157,20 @@ Goal：`agent.GoalProducing[BlogPost](core.Goal{Description: "blog post produced
 ### 10.3 Platform 配置
 
 ```go
+services := core.NewServiceProvider()
+services.Set("chat", myLLMClient)         // 任意类型
+services.Set("rag",  ragPipeline)
+services.Set("vector", vstore)
+
 platform := agent.NewPlatform(runtime.PlatformConfig{
-    Chat:        myLLMClient,
-    RAG:         ragPipeline,
-    VectorStore: vstore,
-    Tools:       toolResolver,
+    Services:    services,
+    Tools:       toolResolver,             // 工具解析器仍然是单独字段（runtime 内部用）
     IDGenerator: runtime.NewCounterIDGenerator("test"),
     Listeners:   []event.Listener{myEventListener},
 })
+
+// 在 action 里类型化取出：
+client, ok := core.ServiceOf[*chat.Client](pc.Services, "chat")
 ```
 
 ### 10.4 ProcessOptions
@@ -1315,21 +1321,24 @@ core.CompositePolicy{Policies: []core.EarlyTerminationPolicy{
 }}
 ```
 
-### 11.6 自定义 ChatClient / RAGClient
+### 11.6 注册自定义服务
 
-只是接口适配。比如把 lynx core 的 chat.Client 适配进来：
+框架不预设任何 LLM / RAG / VectorStore 类型 —— 用户自己往 `core.ServiceProvider` 里塞任意东西，action 里用泛型 helper 取：
 
 ```go
-type lynxChatAdapter struct{ inner *chat.Client }
+services := core.NewServiceProvider()
+services.Set("chat",   lynxChatClient)   // *chat.Client
+services.Set("rag",    myRAGPipeline)    // 任意 RAG 实现
+services.Set("oracle", domainOracle)     // 用户自己的领域服务
 
-func (a *lynxChatAdapter) Generate(ctx context.Context, prompt string) (string, error) {
-    resp, err := a.inner.ChatWithText(prompt).Call().Response(ctx)
-    if err != nil { return "", err }
-    return resp.Result().AssistantMessage.Text, nil
-}
+platform := agent.NewPlatform(runtime.PlatformConfig{Services: services})
 
-platform := agent.NewPlatform(runtime.PlatformConfig{Chat: &lynxChatAdapter{lynxClient}})
+// action 里：
+chat,   _ := core.ServiceOf[*chat.Client](pc.Services, "chat")
+oracle, _ := core.ServiceOf[*MyOracle](pc.Services, "oracle")
 ```
+
+这样框架就跟具体 LLM / RAG 生态完全解耦了。
 
 ---
 
@@ -1365,7 +1374,7 @@ agent/
 │   ├── process_context.go                  ProcessContext (Action 看到的)
 │   ├── process_options.go                  ProcessOptions / Budget / Verbosity / ...
 │   ├── output_channel.go                   消息推送
-│   ├── service_provider.go                 ChatClient / RAGClient / VectorStore
+│   ├── service_provider.go                 ServiceProvider 注册表 + ServiceOf[T] 泛型 helper
 │   ├── tool_group.go                       ToolGroup 生态 + TerminationScope
 │   ├── awaitable.go                        Awaitable 非泛型基接口
 │   ├── replan.go                           ReplanRequest 错误类型
@@ -1416,22 +1425,21 @@ agent/
 
 所以我们只保留**泛型构造器** `NewAction[In, Out]` 一种入口：编译期保留所有类型、零反射、IDE 跳转/重命名全程友好。从 Spring 迁移过来的用户付出的代价是要写一行显式 `agent.New(core.AgentConfig{...}).Actions(...).Build()` 而不是给方法加注解——这点学习成本远低于运行时调试反射栈的代价。
 
-### 13.2 为什么 ProcessContext 不直接挂 LLM Client？
+### 13.2 为什么 ServiceProvider 是开放的 key→any 注册表，而不预设 LLM / RAG 槽位？
 
-**答**：依赖反转。如果 `core.ProcessContext` 直接 `import lynx/core/model/chat`，agent 就无法独立编译。所以：
+**答**：依赖反转 + 不绑生态。如果 `core.ProcessContext` 暴露 `ChatClient` / `RAGClient` 这种领域接口，框架就会偏向某种 LLM 抽象（embabel 选了一种，langchain 又是另一种）。Lynx 选择不参与这场抽象大战 —— `core.ServiceProvider` 是个无类型的 map[string]any 注册表，用户自己决定塞什么、用什么 key、用什么 Go 类型。
 
 ```go
-// core 只声明接口
-type ChatClient interface {
-    Generate(ctx context.Context, prompt string) (string, error)
-}
+services := core.NewServiceProvider()
+services.Set("chat", lynxChatClient)            // *chat.Client（lynx 自己的）
+services.Set("rag",  langchainRetrievalChain)   // 任意第三方
+services.Set("billing", myDomainService)        // 用户的业务服务
 
-// 用户提供适配器（5 行 wrapper）
-type lynxChatAdapter struct{ inner *chat.Client }
-func (a *lynxChatAdapter) Generate(...) (string, error) { ... }
+// action 里类型化取出：
+chat, _ := core.ServiceOf[*chat.Client](pc.Services, "chat")
 ```
 
-代价：用户每接一个 LLM provider 要写一个 adapter；收益：agent 模块零环依赖、可独立演进。
+代价：取服务时要写一行类型断言；收益：core/agent 完全无 chat/rag 依赖、用户可以注册任意领域服务。
 
 ### 13.3 为什么 Blackboard.Hide 用 slice 而非 map？
 

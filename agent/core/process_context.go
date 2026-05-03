@@ -47,23 +47,6 @@ type ProcessContext struct {
 	lastErr error
 }
 
-// LLM returns the chat client; nil if none was attached. Action code is
-// expected to nil-check (or assert mandatory presence in its design notes).
-func (pc *ProcessContext) LLM() ChatClient {
-	if pc == nil || pc.Services == nil {
-		return nil
-	}
-	return pc.Services.Chat
-}
-
-// RAG returns the RAG client (or nil when none was configured).
-func (pc *ProcessContext) RAG() RAGClient {
-	if pc == nil || pc.Services == nil {
-		return nil
-	}
-	return pc.Services.RAG
-}
-
 // Tracer returns the framework's OTel tracer so actions can mint custom
 // spans without importing otel themselves.
 func (pc *ProcessContext) Tracer() trace.Tracer { return agentTracer }

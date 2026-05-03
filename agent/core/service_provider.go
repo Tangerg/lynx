@@ -1,57 +1,108 @@
 package core
 
-import "context"
+import "sync"
 
-// ChatClient is the agent's interface to an LLM. We intentionally keep the
-// surface minimal — actions usually want to call a chat client they already
-// own, not learn the agent framework's chat surface. Providers ARE expected
-// to provide concrete clients; we wrap them via this duck-typed interface so
-// the agent module stays free of a hard dependency on lynx/core.
-type ChatClient interface {
-	// Generate is the synchronous "give me a single response" entry point. The
-	// implementation is responsible for tool dispatching, structured output
-	// parsing, etc. — the agent layer never inspects the result beyond using
-	// it as a string or as an opaque payload.
-	Generate(ctx context.Context, prompt string) (string, error)
-}
-
-// ChatClientFunc lifts a plain function into the ChatClient interface — so
-// trivial cases (mocks, local stubs) don't need to define a type.
-type ChatClientFunc func(ctx context.Context, prompt string) (string, error)
-
-func (f ChatClientFunc) Generate(ctx context.Context, prompt string) (string, error) {
-	return f(ctx, prompt)
-}
-
-// RAGClient is the optional retrieval-augmented-generation surface. Mirrors
-// ChatClient's stance: opaque enough to pass through, typed enough to use.
-type RAGClient interface {
-	Retrieve(ctx context.Context, query string) ([]RetrievedDoc, error)
-}
-
-// RetrievedDoc is the framework-internal "document with metadata" carrier.
-// Concrete RAG providers fill in whatever metadata they support.
-type RetrievedDoc struct {
-	ID       string
-	Text     string
-	Score    float64
-	Metadata map[string]any
-}
-
-// VectorStore is the embed-and-search surface. Like the others, intentionally
-// minimal — actions that need richer queries ought to import the concrete
-// store directly instead of going through this façade.
-type VectorStore interface {
-	Search(ctx context.Context, query string, k int) ([]RetrievedDoc, error)
-}
-
-// ServiceProvider is the bag of optional integrations the platform makes
-// available to actions. Any field can be nil — actions check before using.
-// The zero value is ready to use; callers construct &ServiceProvider{...}
-// directly when they need to set fields.
+// ServiceProvider is the open-ended service registry exposed to actions
+// via [ProcessContext.Services]. Users register whatever services their
+// actions need — LLM clients, RAG engines, custom domain services — by
+// string key; actions look them up via [ServiceOf] for type-safety, or
+// via [ServiceProvider.Get] for the raw [any].
+//
+// The framework deliberately does not pre-define typed slots (Chat / RAG
+// / VectorStore / …). Different deployments use different libraries; a
+// fixed shape would either tie the framework to one ecosystem or force
+// adapter wrappers. A generic key→value map keeps the framework agnostic
+// and lets users register arbitrary types.
+//
+// All methods are safe for concurrent use.
 type ServiceProvider struct {
-	Chat        ChatClient
-	RAG         RAGClient
-	VectorStore VectorStore
-	Tools       ToolGroupResolver
+	mu       sync.RWMutex
+	services map[string]any
+}
+
+// NewServiceProvider returns an empty registry ready to receive Set
+// calls.
+func NewServiceProvider() *ServiceProvider {
+	return &ServiceProvider{services: map[string]any{}}
+}
+
+// Get returns the value registered at key plus an ok flag. Calling Get
+// on a nil receiver yields (nil, false) so action code can probe
+// optimistically without nil-checking the provider.
+func (p *ServiceProvider) Get(key string) (any, bool) {
+	if p == nil {
+		return nil, false
+	}
+
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	v, ok := p.services[key]
+	return v, ok
+}
+
+// Set registers (or replaces) the value at key. A nil receiver is
+// silently ignored — same rationale as [Get].
+func (p *ServiceProvider) Set(key string, value any) {
+	if p == nil {
+		return
+	}
+
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.services == nil {
+		p.services = map[string]any{}
+	}
+	p.services[key] = value
+}
+
+// Delete removes the entry at key, if any. A nil receiver is a no-op.
+func (p *ServiceProvider) Delete(key string) {
+	if p == nil {
+		return
+	}
+
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	delete(p.services, key)
+}
+
+// Has reports whether key is registered.
+func (p *ServiceProvider) Has(key string) bool {
+	_, ok := p.Get(key)
+	return ok
+}
+
+// Keys returns a snapshot of the currently registered keys, in
+// unspecified order. Useful for debug listings; not a contract callers
+// should range over for routing logic.
+func (p *ServiceProvider) Keys() []string {
+	if p == nil {
+		return nil
+	}
+
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	keys := make([]string, 0, len(p.services))
+	for k := range p.services {
+		keys = append(keys, k)
+	}
+	return keys
+}
+
+// ServiceOf is the typed lookup helper. Returns the value registered at
+// key cast to T, plus an ok flag. The flag is false when the key is
+// missing OR the registered value is not assignable to T — callers can
+// distinguish the two by checking [ServiceProvider.Has] separately when
+// it matters.
+func ServiceOf[T any](p *ServiceProvider, key string) (T, bool) {
+	var zero T
+	v, ok := p.Get(key)
+	if !ok {
+		return zero, false
+	}
+	typed, ok := v.(T)
+	if !ok {
+		return zero, false
+	}
+	return typed, true
 }
