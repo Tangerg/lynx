@@ -102,7 +102,7 @@ func (p *AgentProcess) runWithRetry(
 		attempts++
 		pc.ResetError()
 
-		status = runWithPanicRecovery(ctx, action, pc)
+		status = pc.ExecuteSafely(ctx, action)
 		lastErr = pc.LastError()
 
 		if rr := core.AsReplanRequest(lastErr); rr != nil {
@@ -169,36 +169,22 @@ func (p *AgentProcess) recordActionFailure(actionName string, err error) {
 	}
 }
 
-// runWithPanicRecovery isolates the user's action from the runtime: panics
-// are downgraded to ActionFailed and recorded as errors so the rest of the
-// process can keep running (or fail gracefully).
-func runWithPanicRecovery(ctx context.Context, action core.Action, pc *core.ProcessContext) (status core.ActionStatus) {
-	defer func() {
-		if r := recover(); r != nil {
-			pc.RecordPanic(r)
-			status = core.ActionFailed
-		}
-	}()
-	return action.Execute(ctx, pc)
-}
-
 // buildProcessContext assembles a fresh ProcessContext for one tick. The
 // fields all live on AgentProcess; we re-create the context every tick so
 // per-action state (lastErr, etc.) doesn't leak.
 func (p *AgentProcess) buildProcessContext() *core.ProcessContext {
-	pc := &core.ProcessContext{
+	deps := core.ProcessContextDeps{
 		Process:       p,
 		Blackboard:    p.blackboard,
 		Options:       p.options,
 		OutputChannel: p.options.OutputChannel,
 		Services:      p.platformServices(),
+		Publish:       p.publishAny,
 	}
-	pc.SetPublishFunc(p.publishAny)
-
 	if resolver := p.platformToolResolver(); resolver != nil {
-		pc.SetResolveToolsFunc(resolveToolsFor(resolver))
+		deps.ResolveTools = resolveToolsFor(resolver)
 	}
-	return pc
+	return core.NewProcessContext(deps)
 }
 
 func (p *AgentProcess) platformServices() *core.ServiceProvider {
