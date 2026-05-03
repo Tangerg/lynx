@@ -40,33 +40,25 @@ type Platform struct {
 	idGen          IDGenerator
 
 	services *core.ServiceProvider
+	tools    core.ToolGroupResolver
 }
 
 // PlatformConfig is the construction-time configuration for [NewPlatform].
-// All fields are optional — pass a zero PlatformConfig{} for the default
-// platform. Per-agent service slots (Chat, RAG, VectorStore, Tools) are
-// merged into a fresh [core.ServiceProvider] unless a pre-built
-// ServiceProvider is supplied.
+// All fields are optional — pass a zero PlatformConfig{} for a default
+// platform with no services registered.
 type PlatformConfig struct {
-	// Chat is the default LLM client. The platform doesn't refuse
-	// construction without one because integration tests often run
-	// agents that never call the LLM.
-	Chat core.ChatClient
+	// Services is the open-ended service registry handed to actions via
+	// [core.ProcessContext.Services]. Pre-populate it with whatever LLM
+	// clients, RAG engines, vector stores, or custom domain services
+	// your actions need to look up. Nil means "start empty"; the
+	// platform allocates a fresh provider.
+	Services *core.ServiceProvider
 
-	// RAG is the optional retrieval-augmented-generation client.
-	RAG core.RAGClient
-
-	// VectorStore is the optional embedding store used by RAG.
-	VectorStore core.VectorStore
-
-	// Tools resolves agent-level [ToolGroupRequirement]s into runnable
-	// tools.
+	// Tools resolves agent-level [core.ToolGroupRequirement]s into
+	// runnable tools at action-execution time. It's a separate field —
+	// not a service registered under a magic key — because the runtime
+	// itself reads from it during [core.ProcessContext.ResolveTools].
 	Tools core.ToolGroupResolver
-
-	// ServiceProvider, when non-nil, replaces the per-field Chat/RAG/
-	// VectorStore/Tools entries entirely. Use it to share one service
-	// graph across multiple platforms.
-	ServiceProvider *core.ServiceProvider
 
 	// PlannerFactory overrides the default A* GOAP planner factory.
 	PlannerFactory PlannerFactory
@@ -81,17 +73,12 @@ type PlatformConfig struct {
 }
 
 // NewPlatform returns a fresh Platform from cfg. Zero-valued cfg fields
-// fall back to defaults: A* planner factory, fresh service provider,
+// fall back to defaults: A* planner factory, empty service registry,
 // UUID-v4 id generator, no pre-attached listeners.
 func NewPlatform(cfg PlatformConfig) *Platform {
-	services := cfg.ServiceProvider
+	services := cfg.Services
 	if services == nil {
-		services = &core.ServiceProvider{
-			Chat:        cfg.Chat,
-			RAG:         cfg.RAG,
-			VectorStore: cfg.VectorStore,
-			Tools:       cfg.Tools,
-		}
+		services = core.NewServiceProvider()
 	}
 
 	plannerFactory := cfg.PlannerFactory
@@ -111,6 +98,7 @@ func NewPlatform(cfg PlatformConfig) *Platform {
 		events:         event.NewMulticast(),
 		idGen:          idGen,
 		services:       services,
+		tools:          cfg.Tools,
 	}
 	for _, l := range cfg.Listeners {
 		p.events.Add(l)

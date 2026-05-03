@@ -203,16 +203,16 @@ func (p *AgentProcess) buildProcessContext() *core.ProcessContext {
 
 func (p *AgentProcess) platformServices() *core.ServiceProvider {
 	if p.platform == nil {
-		return &core.ServiceProvider{}
+		return core.NewServiceProvider()
 	}
 	return p.platform.services
 }
 
 func (p *AgentProcess) platformToolResolver() core.ToolGroupResolver {
-	if p.platform == nil || p.platform.services == nil {
+	if p.platform == nil {
 		return nil
 	}
-	return p.platform.services.Tools
+	return p.platform.tools
 }
 
 // resolveToolsFor builds the closure handed to ProcessContext for lazy
