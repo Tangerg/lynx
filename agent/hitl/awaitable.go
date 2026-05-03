@@ -12,9 +12,12 @@ import (
 	"github.com/google/uuid"
 )
 
-// Awaitable is the typed surface every HITL request implements. Generic
+// Request is the typed surface every HITL prompt implements. Generic
 // methods Prompt/OnResponse mirror embabel 0.4's Awaitable<P, R> contract.
-type Awaitable[P any, R any] interface {
+// Named Request rather than Awaitable to avoid the same-name collision
+// with [core.Awaitable] — the latter is the non-generic root that the
+// runtime uses; this one is the typed flavour user code talks to.
+type Request[P any, R any] interface {
 	core.Awaitable
 	Prompt() P
 	OnResponse(r R) core.ResponseImpact

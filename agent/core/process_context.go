@@ -26,10 +26,31 @@ type ToolResolver func(ctx context.Context, roles []string) ([]AgentTool, error)
 // custom events through the multicast listener.
 type EventPublisher func(event any)
 
-// ProcessContext is the only thing handed to an Action.Execute call. Every
-// service the action might need lives behind a method here so future
-// refactors (swap chat client, change RAG implementation) don't ripple
-// through every action body.
+// ProcessContextDeps bundles every dependency [NewProcessContext] needs.
+// The runtime fills it once per tick and calls NewProcessContext — that
+// keeps the field-injection plumbing inside one constructor instead of
+// scattered setter methods on the public surface.
+type ProcessContextDeps struct {
+	Process       Process
+	Blackboard    Blackboard
+	Options       *ProcessOptions
+	OutputChannel OutputChannel
+	Services      *ServiceProvider
+
+	// Publish is invoked by [ProcessContext.Publish]; nil makes Publish
+	// a no-op. The runtime supplies a closure that fans the event out
+	// to the platform's multicast listener.
+	Publish EventPublisher
+
+	// ResolveTools is invoked by [ProcessContext.ResolveTools]; nil
+	// makes ResolveTools return (nil, nil). The runtime supplies a
+	// closure backed by the platform's [ToolGroupResolver].
+	ResolveTools ToolResolver
+}
+
+// ProcessContext is the only thing handed to an [Action.Execute] call.
+// Every service the action might need lives behind a method here so future
+// refactors don't ripple through every action body.
 type ProcessContext struct {
 	Process       Process
 	Blackboard    Blackboard
@@ -47,6 +68,20 @@ type ProcessContext struct {
 	lastErr error
 }
 
+// NewProcessContext assembles a ProcessContext from deps. Used by the
+// runtime once per tick; users don't construct ProcessContexts themselves.
+func NewProcessContext(deps ProcessContextDeps) *ProcessContext {
+	return &ProcessContext{
+		Process:       deps.Process,
+		Blackboard:    deps.Blackboard,
+		Options:       deps.Options,
+		OutputChannel: deps.OutputChannel,
+		Services:      deps.Services,
+		publishEvent:  deps.Publish,
+		resolveTools:  deps.ResolveTools,
+	}
+}
+
 // Tracer returns the framework's OTel tracer so actions can mint custom
 // spans without importing otel themselves.
 func (pc *ProcessContext) Tracer() trace.Tracer { return agentTracer }
@@ -58,19 +93,6 @@ func (pc *ProcessContext) Publish(event any) {
 		return
 	}
 	pc.publishEvent(event)
-}
-
-// SetPublishFunc is called by the runtime when wiring up the ProcessContext.
-// Exposed instead of made-private because the runtime lives in a sibling
-// package and Go visibility wouldn't let it set the field otherwise.
-func (pc *ProcessContext) SetPublishFunc(fn EventPublisher) {
-	pc.publishEvent = fn
-}
-
-// SetResolveToolsFunc installs the lazy tool resolver. Same visibility
-// rationale as SetPublishFunc.
-func (pc *ProcessContext) SetResolveToolsFunc(fn ToolResolver) {
-	pc.resolveTools = fn
 }
 
 // ResolveTools turns a list of role names into concrete tools via the
@@ -93,9 +115,25 @@ func (pc *ProcessContext) AwaitInput(req Awaitable) ActionStatus {
 	return pc.Process.AwaitInput(req)
 }
 
+// ExecuteSafely runs a.Execute(ctx, pc) under a panic guard, recording
+// any recovered panic on the context so callers can inspect it via
+// [ProcessContext.LastError]. A panic forces the returned status to
+// [ActionFailed].
+//
+// The runtime calls this instead of action.Execute directly so framework
+// code never trusts user action bodies to be panic-clean.
+func (pc *ProcessContext) ExecuteSafely(ctx context.Context, a Action) (status ActionStatus) {
+	defer func() {
+		if r := recover(); r != nil {
+			pc.recordPanic(r)
+			status = ActionFailed
+		}
+	}()
+	return a.Execute(ctx, pc)
+}
+
 // recordError lets the typed-action wrapper stash the underlying error so
-// the runtime can detect ReplanRequest later. Internal — exported only
-// because the typed-action constructor is in the same package.
+// the runtime can detect ReplanRequest later.
 func (pc *ProcessContext) recordError(err error) {
 	if pc == nil {
 		return
@@ -104,10 +142,9 @@ func (pc *ProcessContext) recordError(err error) {
 	pc.errSlot.Store(&err)
 }
 
-// RecordPanic stashes a recovered panic value as the underlying error. The
-// runtime's executeAction panic-recovery path uses this to surface the panic
-// uniformly with normal errors.
-func (pc *ProcessContext) RecordPanic(panicValue any) {
+// recordPanic converts a recovered panic value into an error and stashes
+// it. Used by [ExecuteSafely].
+func (pc *ProcessContext) recordPanic(panicValue any) {
 	if pc == nil {
 		return
 	}

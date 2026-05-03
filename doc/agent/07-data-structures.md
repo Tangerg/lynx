@@ -629,7 +629,7 @@ func (pc *ProcessContext) Services() *ServiceProvider
 func (pc *ProcessContext) Tracer() trace.Tracer  // 直接返回 otel.Tracer("lynx/agent")
 func (pc *ProcessContext) Publish(e event.Event)
 func (pc *ProcessContext) ResolveTools(roles ...string) []chat.Tool
-func (pc *ProcessContext) AwaitInput(req hitl.Awaitable) ActionStatus
+func (pc *ProcessContext) AwaitInput(req core.Awaitable) ActionStatus
 ```
 
 ```go
@@ -897,7 +897,7 @@ type (
     ProcessCompletedEvent struct{ baseEvent; Goal *core.Goal }
     ProcessFailedEvent    struct{ baseEvent; Err error }
     ProcessStuckEvent     struct{ baseEvent; LastWorld plan.WorldState }
-    ProcessWaitingEvent   struct{ baseEvent; Await hitl.Awaitable }
+    ProcessWaitingEvent   struct{ baseEvent; Await core.Awaitable }
     ProcessPausedEvent    struct{ baseEvent; Reason string }
     ProcessKilledEvent    struct{ baseEvent; Reason string }
 )
