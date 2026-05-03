@@ -32,6 +32,14 @@ type Process interface {
 	TerminateAgent(reason string)
 	TerminateAction(reason string)
 
+	// TerminateToolCall cancels any in-flight tool call running through
+	// a context derived from [ProcessContext.ToolCallContext]. Action
+	// bodies opt in by deriving their tool-invocation contexts from
+	// that helper; calls made with a raw ctx receive no cancellation
+	// signal. Calling TerminateToolCall when no tool call is active is
+	// a no-op.
+	TerminateToolCall(reason string)
+
 	// AwaitInput suspends the action until external input arrives. The
 	// runtime stores the Awaitable on the blackboard, transitions to
 	// StatusWaiting, and returns ActionWaiting.

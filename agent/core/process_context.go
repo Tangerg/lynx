@@ -45,6 +45,18 @@ type ProcessContextDeps struct {
 	// makes ResolveTools return (nil, nil). The runtime supplies a
 	// closure backed by the platform's [ToolGroupResolver].
 	ResolveTools ToolResolver
+
+	// RegisterToolCallCancel is invoked by [ProcessContext.ToolCallContext]
+	// to hand the runtime a cancel func tied to the in-flight tool call.
+	// The runtime stores it so [Process.TerminateToolCall] can fire it.
+	// nil disables tool-call cancellation (calls return the parent ctx
+	// unchanged).
+	RegisterToolCallCancel func(cancel context.CancelFunc)
+
+	// ClearToolCallCancel detaches the cancel func registered above —
+	// callers defer this when the tool call returns so a stale ctx
+	// doesn't get cancelled by a later [Process.TerminateToolCall].
+	ClearToolCallCancel func()
 }
 
 // ProcessContext is the only thing handed to an [Action.Execute] call.
@@ -57,8 +69,10 @@ type ProcessContext struct {
 	OutputChannel OutputChannel
 	Services      *ServiceProvider
 
-	publishEvent EventPublisher
-	resolveTools ToolResolver
+	publishEvent           EventPublisher
+	resolveTools           ToolResolver
+	registerToolCallCancel func(cancel context.CancelFunc)
+	clearToolCallCancel    func()
 
 	// lastErr captures the most recent error from a typed-action body so
 	// the runtime can extract a ReplanRequest. ProcessContext is built
@@ -71,13 +85,15 @@ type ProcessContext struct {
 // runtime once per tick; users don't construct ProcessContexts themselves.
 func NewProcessContext(deps ProcessContextDeps) *ProcessContext {
 	return &ProcessContext{
-		Process:       deps.Process,
-		Blackboard:    deps.Blackboard,
-		Options:       deps.Options,
-		OutputChannel: deps.OutputChannel,
-		Services:      deps.Services,
-		publishEvent:  deps.Publish,
-		resolveTools:  deps.ResolveTools,
+		Process:                deps.Process,
+		Blackboard:             deps.Blackboard,
+		Options:                deps.Options,
+		OutputChannel:          deps.OutputChannel,
+		Services:               deps.Services,
+		publishEvent:           deps.Publish,
+		resolveTools:           deps.ResolveTools,
+		registerToolCallCancel: deps.RegisterToolCallCancel,
+		clearToolCallCancel:    deps.ClearToolCallCancel,
 	}
 }
 
@@ -103,6 +119,34 @@ func (pc *ProcessContext) ResolveTools(ctx context.Context, roles ...string) ([]
 		return nil, nil
 	}
 	return pc.resolveTools(ctx, roles)
+}
+
+// ToolCallContext derives a child context the runtime can cancel via
+// [Process.TerminateToolCall]. Action code passes the returned ctx to
+// chat clients / tool invocations; the returned cancel func MUST be
+// deferred by the caller — it both cancels the ctx (releasing
+// resources) and detaches the runtime's pointer to it so a later
+// TerminateToolCall doesn't fire on a stale ctx.
+//
+// When pc has no registered cancel hooks (e.g. tests building a bare
+// ProcessContext), behaviour falls back to plain [context.WithCancel] —
+// TerminateToolCall becomes a no-op.
+func (pc *ProcessContext) ToolCallContext(parent context.Context) (context.Context, context.CancelFunc) {
+	ctx, cancel := context.WithCancel(parent)
+
+	if pc == nil || pc.registerToolCallCancel == nil {
+		return ctx, cancel
+	}
+
+	pc.registerToolCallCancel(cancel)
+
+	cleanup := func() {
+		cancel()
+		if pc.clearToolCallCancel != nil {
+			pc.clearToolCallCancel()
+		}
+	}
+	return ctx, cleanup
 }
 
 // AwaitInput delegates to the underlying Process.AwaitInput. Convenience

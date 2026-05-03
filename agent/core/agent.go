@@ -1,6 +1,8 @@
 package core
 
 import (
+	"errors"
+	"fmt"
 	"sync"
 	"sync/atomic"
 
@@ -107,6 +109,58 @@ func (a *Agent) KnownConditions() map[string]struct{} {
 		a.knownConditions.Store(&computed)
 	})
 	return *a.knownConditions.Load()
+}
+
+// ValidateAgent checks structural invariants that must hold for any
+// runnable agent: a non-empty name, at least one action, at least one
+// goal, and unique action / goal names within the agent. It does NOT
+// verify goal reachability — that requires the planner and lives on
+// [github.com/Tangerg/lynx/agent/runtime.Platform.Deploy], which can
+// reach the configured planner factory.
+//
+// Returns the first violation found; nil when the agent is well-formed.
+// The intent is fail-fast at deploy time rather than at first tick.
+func ValidateAgent(a *Agent) error {
+	if a == nil {
+		return errors.New("core.ValidateAgent: agent is nil")
+	}
+	if a.Name == "" {
+		return errors.New("core.ValidateAgent: agent must have a non-empty Name")
+	}
+	if len(a.Actions) == 0 {
+		return fmt.Errorf("core.ValidateAgent: agent %q has no actions", a.Name)
+	}
+	if len(a.Goals) == 0 {
+		return fmt.Errorf("core.ValidateAgent: agent %q has no goals", a.Name)
+	}
+
+	seenActions := make(map[string]struct{}, len(a.Actions))
+	for _, action := range a.Actions {
+		name := action.Metadata().Name
+		if name == "" {
+			return fmt.Errorf("core.ValidateAgent: agent %q has an action with empty Name", a.Name)
+		}
+		if _, dup := seenActions[name]; dup {
+			return fmt.Errorf("core.ValidateAgent: agent %q has duplicate action name %q", a.Name, name)
+		}
+		seenActions[name] = struct{}{}
+	}
+
+	seenGoals := make(map[string]struct{}, len(a.Goals))
+	for _, goal := range a.Goals {
+		if goal == nil {
+			return fmt.Errorf("core.ValidateAgent: agent %q has a nil goal", a.Name)
+		}
+		if goal.Name == "" {
+			return fmt.Errorf("core.ValidateAgent: agent %q has a goal with empty Name", a.Name)
+		}
+		if _, dup := seenGoals[goal.Name]; dup {
+			return fmt.Errorf("core.ValidateAgent: agent %q has duplicate goal name %q", a.Name, goal.Name)
+		}
+		seenGoals[goal.Name] = struct{}{}
+	}
+
+	return nil
 }
 
 // computeKnownConditions is the pure builder used by both Agent and

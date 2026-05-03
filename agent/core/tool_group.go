@@ -3,6 +3,8 @@ package core
 import (
 	"context"
 	"sync"
+
+	"github.com/Masterminds/semver/v3"
 )
 
 // ToolGroupPermission is the security/sensitivity flag on a ToolGroup —
@@ -16,11 +18,14 @@ const (
 )
 
 // AssetCoordinates is the (provider, name, version) triple that uniquely
-// identifies a ToolGroup release across distribution channels.
+// identifies a ToolGroup release across distribution channels. Version
+// is a [*semver.Version] so multi-version registries (e.g. several
+// MCP-server builds in the same resolver) can sort and range over them
+// without parsing strings.
 type AssetCoordinates struct {
 	Provider string
 	Name     string
-	Version  string
+	Version  *semver.Version
 }
 
 // ToolGroupDescription carries human-facing prose. Separated from metadata
