@@ -1,16 +1,15 @@
-package runtime_test
+package runtime
 
 import (
 	"testing"
 
 	"github.com/Tangerg/lynx/agent/core"
-	"github.com/Tangerg/lynx/agent/runtime"
 )
 
 type item struct{ Value string }
 
 func TestInMemoryBlackboardLatestByType(t *testing.T) {
-	bb := runtime.NewInMemoryBlackboard()
+	bb := newInMemoryBlackboard()
 	bb.Bind(item{Value: "first"})
 	bb.Bind(item{Value: "second"})
 
@@ -24,7 +23,7 @@ func TestInMemoryBlackboardLatestByType(t *testing.T) {
 }
 
 func TestInMemoryBlackboardSpawnInherits(t *testing.T) {
-	parent := runtime.NewInMemoryBlackboard()
+	parent := newInMemoryBlackboard()
 	parent.Bind(item{Value: "shared"})
 
 	child := parent.Spawn()
@@ -34,7 +33,7 @@ func TestInMemoryBlackboardSpawnInherits(t *testing.T) {
 	}
 
 	// Mutating the child must not propagate back.
-	if cm, ok := child.(*runtime.InMemoryBlackboard); ok {
+	if cm, ok := child.(*inMemoryBlackboard); ok {
 		cm.Bind(item{Value: "child-only"})
 	}
 	parentLatest, _ := core.Last[item](parent)
@@ -44,7 +43,7 @@ func TestInMemoryBlackboardSpawnInherits(t *testing.T) {
 }
 
 func TestInMemoryBlackboardConditions(t *testing.T) {
-	bb := runtime.NewInMemoryBlackboard()
+	bb := newInMemoryBlackboard()
 	if _, ok := bb.GetCondition("x"); ok {
 		t.Fatal("missing condition should not report ok")
 	}

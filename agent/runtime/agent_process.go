@@ -38,7 +38,7 @@ type AgentProcess struct {
 	pendingAwaitable atomic.Pointer[awaitSlot]
 
 	blackboard core.Blackboard
-	determiner WorldStateDeterminer
+	determiner worldStateDeterminer
 	planner    plan.Planner
 	platform   *Platform
 }
@@ -60,14 +60,14 @@ type ActionInvocation struct {
 	Attempts   int
 }
 
-// NewAgentProcess assembles a process from its inputs. The runtime calls
-// this; users invoke Platform.RunAgent.
-func NewAgentProcess(
+// newAgentProcess assembles a process from its inputs. Internal — users
+// invoke Platform.RunAgent which assembles every dependency.
+func newAgentProcess(
 	id string,
 	agentDef *core.Agent,
 	opts *core.ProcessOptions,
 	bb core.Blackboard,
-	determiner WorldStateDeterminer,
+	determiner worldStateDeterminer,
 	planner plan.Planner,
 	platform *Platform,
 ) *AgentProcess {
@@ -180,9 +180,10 @@ func (p *AgentProcess) AwaitInput(req core.Awaitable) core.ActionStatus {
 	return core.ActionWaiting
 }
 
-// PendingAwaitable returns the parked Awaitable (if any) — the platform's
-// status API surfaces this.
-func (p *AgentProcess) PendingAwaitable() core.Awaitable {
+// peekAwaitable returns the parked Awaitable (if any) — Platform's status
+// API surfaces this. Internal because it's part of the runtime's
+// suspend/resume handshake, not user-facing.
+func (p *AgentProcess) peekAwaitable() core.Awaitable {
 	slot := p.pendingAwaitable.Load()
 	if slot == nil {
 		return nil
@@ -190,9 +191,9 @@ func (p *AgentProcess) PendingAwaitable() core.Awaitable {
 	return slot.awaitable
 }
 
-// DeliverResponse is the runtime's hook for resuming a waiting process.
+// deliverResponse is the runtime's hook for resuming a waiting process.
 // Returns true if a slot was waiting; false otherwise.
-func (p *AgentProcess) DeliverResponse(response any) bool {
+func (p *AgentProcess) deliverResponse(response any) bool {
 	slot := p.pendingAwaitable.Swap(nil)
 	if slot == nil {
 		return false

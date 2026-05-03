@@ -13,21 +13,23 @@ import (
 // which is rich enough; Go gets there with generics.
 type TypedActionFunc[In, Out any] func(ctx context.Context, pc *ProcessContext, input In) (Out, error)
 
-// TypedAction is the concrete implementation backing NewAction[In,Out]. It
+// typedAction is the concrete implementation backing NewAction[In,Out]. It
 // carries the typed function plus the metadata derived at construction time.
-type TypedAction[In, Out any] struct {
+// Unexported because users only ever see the [Action] interface returned
+// from [NewAction].
+type typedAction[In, Out any] struct {
 	metadata ActionMetadata
 	fn       TypedActionFunc[In, Out]
 }
 
-func (a *TypedAction[In, Out]) Metadata() ActionMetadata { return a.metadata }
+func (a *typedAction[In, Out]) Metadata() ActionMetadata { return a.metadata }
 
 // Execute is the runtime entry point. It pulls the In value from the
 // blackboard (using the bound input variable name + type), invokes the typed
 // function, and writes the output back. Retries are NOT handled here — that
 // is the runtime's executeAction loop, which understands ActionStatus and
 // the QoS policy.
-func (a *TypedAction[In, Out]) Execute(ctx context.Context, pc *ProcessContext) ActionStatus {
+func (a *typedAction[In, Out]) Execute(ctx context.Context, pc *ProcessContext) ActionStatus {
 	if pc == nil {
 		return ActionFailed
 	}
@@ -82,7 +84,7 @@ func loadTypedInput[In any](bb Blackboard, inputs []IoBinding) (In, bool) {
 // writeOutput stores the produced value on the blackboard. The first declared
 // output binding is the canonical name; Bind() is used so the dual-binding
 // behavior (default name + type-derived name) kicks in.
-func (a *TypedAction[In, Out]) writeOutput(bb Blackboard, output Out) {
+func (a *typedAction[In, Out]) writeOutput(bb Blackboard, output Out) {
 	if len(a.metadata.Outputs) == 0 {
 		bb.Bind(output)
 		return
@@ -136,7 +138,7 @@ func NewAction[In, Out any](
 	}
 	meta.Preconditions, meta.Effects = computePreconditionsAndEffects(meta, cfg.Pre, cfg.Post)
 
-	return &TypedAction[In, Out]{metadata: meta, fn: fn}
+	return &typedAction[In, Out]{metadata: meta, fn: fn}
 }
 
 // resolveBindingName fills in DefaultBindingName when the caller didn't

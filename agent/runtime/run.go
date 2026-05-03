@@ -11,10 +11,9 @@ import (
 	"github.com/Tangerg/lynx/agent/plan"
 )
 
-// Run drives the OODA loop until the process terminates. It's the only
-// public entry point on AgentProcess (besides the cooperative
-// Tick/Terminate/Kill controls).
-func (p *AgentProcess) Run(ctx context.Context) error {
+// run drives the OODA loop until the process terminates. Internal — the
+// only caller is Platform.RunAgent / StartAgent, which Platform exposes.
+func (p *AgentProcess) run(ctx context.Context) error {
 	if !p.makeRunning() {
 		return nil
 	}
