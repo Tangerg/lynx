@@ -18,7 +18,6 @@ agent/
 ├── event/         lifecycle event types + multicast listener
 ├── dsl/           fluent agent builder (the recommended user API)
 ├── hitl/          typed Awaitable / Confirmation / Form requests
-├── reflect/       struct-method-driven agent registration (alternative)
 └── examples/      hello (1 action), blog (3-action GOAP plan)
 ```
 

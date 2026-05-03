@@ -75,23 +75,3 @@ func (s *PlanningSystem) computeKnownConditions() map[string]struct{} {
 	return out
 }
 
-// FindAction is the small lookup helper. Linear scan; the action list is
-// always small in practice.
-func (s *PlanningSystem) FindAction(name string) (core.Action, bool) {
-	for _, action := range s.Actions {
-		if action.Metadata().Name == name {
-			return action, true
-		}
-	}
-	return nil, false
-}
-
-// FindGoal mirrors FindAction.
-func (s *PlanningSystem) FindGoal(name string) (*core.Goal, bool) {
-	for _, goal := range s.Goals {
-		if goal.Name == name {
-			return goal, true
-		}
-	}
-	return nil, false
-}

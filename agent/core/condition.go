@@ -43,14 +43,6 @@ func (c *ComputedCondition) Evaluate(ctx context.Context, oc *OperationContext) 
 	return c.fn(ctx, oc)
 }
 
-// WithCost returns a copy with the supplied cost — fluent style so DSL
-// callers can attach cost without an extra option helper.
-func (c *ComputedCondition) WithCost(cost float64) *ComputedCondition {
-	clone := *c
-	clone.cost = cost
-	return &clone
-}
-
 // --- Boolean composition --------------------------------------------------
 //
 // These mirror Kotlin's operator overloads via plain functions. They

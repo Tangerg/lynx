@@ -11,17 +11,29 @@ const (
 	ResponseImpactUpdated
 )
 
-// Awaitable is the non-generic root of HITL prompts; it lives here so Process
-// can declare AwaitInput without dragging the hitl package into core. The
-// hitl/ subpackage provides the typed Awaitable[P, R] generic interface plus
-// concrete request types.
+// Awaitable is the non-generic root of HITL prompts; it lives here so
+// [Process] can declare [Process.AwaitInput] without dragging the hitl
+// package into core. The hitl/ subpackage provides the typed
+// [hitl.Request][P, R] interface plus concrete request types
+// (ConfirmationRequest, FormBindingRequest).
 type Awaitable interface {
-	// ID is a stable identifier — used by Platform.ResumeProcess to look up
-	// the pending request.
+	// ID is a stable identifier — used by [Platform.ResumeProcess] to
+	// look up the pending request.
 	ID() string
 
 	// PromptAny returns the payload to display (form schema, confirmation
-	// message, etc.) in its untyped form. Generic implementations expose a
-	// typed Prompt() too; the untyped accessor is what the runtime persists.
+	// message, etc.) in its untyped form. Generic implementations expose
+	// a typed Prompt() too; the untyped accessor is what the runtime
+	// persists and serializes.
 	PromptAny() any
+
+	// OnResponseAny accepts an untyped response and routes it to the
+	// implementation's typed handler. Returns the [ResponseImpact] the
+	// handler decided plus an error when the response value isn't
+	// assignable to the awaitable's expected response type.
+	//
+	// Typed flavours (e.g. [hitl.ConfirmationRequest]) implement this by
+	// type-asserting response to their concrete R type and forwarding
+	// to OnResponse(R).
+	OnResponseAny(response any) (ResponseImpact, error)
 }

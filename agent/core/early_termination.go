@@ -38,9 +38,10 @@ func (p MaxActionsPolicy) ShouldTerminate(proc Process) (bool, string) {
 }
 
 // BudgetPolicy fires when the running cost or token total breaches the
-// configured ceilings. The Process is expected to expose a UsageSnapshot
-// describing accumulated spend; processes without that snapshot effectively
-// disable this policy.
+// configured ceilings. Processes that don't expose Usage() (i.e. the
+// runtime's [AgentProcess] read surface) effectively disable this
+// policy — implementations not implementing the inline usage interface
+// are skipped.
 type BudgetPolicy struct {
 	Budget Budget
 }

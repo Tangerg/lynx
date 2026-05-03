@@ -8,6 +8,8 @@
 package hitl
 
 import (
+	"fmt"
+
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/google/uuid"
 )
@@ -48,6 +50,18 @@ func (c *ConfirmationRequest[P]) OnResponse(approved bool) core.ResponseImpact {
 	return c.Handler(approved)
 }
 
+// OnResponseAny implements [core.Awaitable] by type-asserting response
+// to bool and forwarding to [OnResponse]. Returns an error when the
+// caller delivers a non-bool value.
+func (c *ConfirmationRequest[P]) OnResponseAny(response any) (core.ResponseImpact, error) {
+	approved, ok := response.(bool)
+	if !ok {
+		return core.ResponseImpactUnchanged,
+			fmt.Errorf("hitl.ConfirmationRequest: expected bool response, got %T", response)
+	}
+	return c.OnResponse(approved), nil
+}
+
 // FormBindingRequest is a richer awaitable: a typed prompt plus a typed
 // reply callback. Concrete schema definitions live with the host
 // application.
@@ -71,4 +85,17 @@ func (f *FormBindingRequest[P, R]) OnResponse(response R) core.ResponseImpact {
 		return core.ResponseImpactUnchanged
 	}
 	return f.Handler(response)
+}
+
+// OnResponseAny implements [core.Awaitable] by type-asserting response
+// to R and forwarding to [OnResponse]. Returns an error when the
+// caller delivers a value of the wrong type.
+func (f *FormBindingRequest[P, R]) OnResponseAny(response any) (core.ResponseImpact, error) {
+	typed, ok := response.(R)
+	if !ok {
+		var zero R
+		return core.ResponseImpactUnchanged,
+			fmt.Errorf("hitl.FormBindingRequest: expected response of type %T, got %T", zero, response)
+	}
+	return f.OnResponse(typed), nil
 }

@@ -3,7 +3,6 @@ package core
 import (
 	"context"
 	"fmt"
-	"sync/atomic"
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
@@ -61,10 +60,10 @@ type ProcessContext struct {
 	publishEvent EventPublisher
 	resolveTools ToolResolver
 
-	// errSlot captures the most recent error from a typed-action body so the
-	// runtime can extract a ReplanRequest. Atomic store so concurrent panic
-	// recovery and normal-return paths don't race.
-	errSlot atomic.Pointer[error]
+	// lastErr captures the most recent error from a typed-action body so
+	// the runtime can extract a ReplanRequest. ProcessContext is built
+	// fresh per tick (see runtime.buildProcessContext) and never shared
+	// across goroutines, so no synchronisation is needed.
 	lastErr error
 }
 
@@ -143,14 +142,13 @@ func (pc *ProcessContext) ExecuteSafely(ctx context.Context, a Action) (status A
 	return a.Execute(ctx, pc)
 }
 
-// recordError lets the typed-action wrapper stash the underlying error so
-// the runtime can detect ReplanRequest later.
+// recordError lets the typed-action wrapper stash the underlying error
+// so the runtime can detect ReplanRequest later.
 func (pc *ProcessContext) recordError(err error) {
 	if pc == nil {
 		return
 	}
 	pc.lastErr = err
-	pc.errSlot.Store(&err)
 }
 
 // recordPanic converts a recovered panic value into an error and stashes
@@ -172,19 +170,15 @@ func (pc *ProcessContext) LastError() error {
 	if pc == nil {
 		return nil
 	}
-	if stored := pc.errSlot.Load(); stored != nil {
-		return *stored
-	}
 	return pc.lastErr
 }
 
-// ResetError clears the per-call error slot. The runtime calls this between
-// retries so a stale error from attempt N doesn't leak into the diagnosis
-// of attempt N+1's status.
+// ResetError clears the per-call error slot. The runtime calls this
+// between retries so a stale error from attempt N doesn't leak into
+// the diagnosis of attempt N+1's status.
 func (pc *ProcessContext) ResetError() {
 	if pc == nil {
 		return
 	}
 	pc.lastErr = nil
-	pc.errSlot.Store(nil)
 }
