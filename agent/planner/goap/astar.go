@@ -31,18 +31,10 @@ type AStarPlanner struct {
 }
 
 // NewAStarPlanner returns a planner with sensible defaults (10k node
-// expansions cap; matches embabel).
+// expansions cap; matches embabel). Per-call overrides go through
+// [plan.PlanOptions].MaxIterations.
 func NewAStarPlanner() *AStarPlanner {
 	return &AStarPlanner{maxIterations: defaultMaxIterations}
-}
-
-// WithMaxIterations overrides the default cap. Use sparingly — large
-// search spaces are usually a sign of an under-constrained agent rather
-// than an algorithm tuning problem.
-func (p *AStarPlanner) WithMaxIterations(n int) *AStarPlanner {
-	clone := *p
-	clone.maxIterations = n
-	return &clone
 }
 
 // PlanToGoal is the workhorse. It does a forward A* search over world
@@ -157,7 +149,6 @@ func (p *AStarPlanner) searchForGoal(
 	heap.Push(open, &searchNode{
 		state:  start,
 		gScore: 0,
-		hScore: startHeuristic,
 		fScore: startHeuristic,
 	})
 
@@ -228,13 +219,12 @@ func expandNeighbors(
 		}
 
 		gScores[nextKey] = tentativeG
-		cameFrom[nextKey] = edge{prevKey: currentKey, prevState: current.state, action: action}
+		cameFrom[nextKey] = edge{prevKey: currentKey, action: action}
 
 		h := heuristic(nextState, goal)
 		heap.Push(open, &searchNode{
 			state:  nextState,
 			gScore: tentativeG,
-			hScore: h,
 			fScore: tentativeG + h,
 		})
 	}
@@ -298,26 +288,17 @@ func (p *AStarPlanner) Prune(system *plan.PlanningSystem) *plan.PlanningSystem {
 type searchNode struct {
 	state  core.WorldState
 	gScore float64
-	hScore float64
 	fScore float64
-	index  int
 }
 
 type openList []*searchNode
 
 func (o openList) Len() int           { return len(o) }
 func (o openList) Less(i, j int) bool { return o[i].fScore < o[j].fScore }
-
-func (o openList) Swap(i, j int) {
-	o[i], o[j] = o[j], o[i]
-	o[i].index = i
-	o[j].index = j
-}
+func (o openList) Swap(i, j int)      { o[i], o[j] = o[j], o[i] }
 
 func (o *openList) Push(x any) {
-	node := x.(*searchNode)
-	node.index = len(*o)
-	*o = append(*o, node)
+	*o = append(*o, x.(*searchNode))
 }
 
 func (o *openList) Pop() any {
@@ -330,9 +311,8 @@ func (o *openList) Pop() any {
 }
 
 type edge struct {
-	prevKey   string
-	prevState core.WorldState
-	action    core.Action
+	prevKey string
+	action  core.Action
 }
 
 // heuristic counts unsatisfied goal preconditions. It's admissible (never

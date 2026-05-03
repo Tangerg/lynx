@@ -2,6 +2,7 @@ package runtime
 
 import (
 	"context"
+	"errors"
 	"slices"
 	"sync"
 	"sync/atomic"
@@ -52,11 +53,12 @@ type AgentProcess struct {
 }
 
 // awaitSlot is the parking spot used by the AwaitInput / ResumeProcess
-// pair. The action publishes a request here; the platform's resume API
-// delivers the response.
+// pair: AwaitInput stores the awaitable here and flips the process to
+// StatusWaiting; ResumeProcess swaps the slot out and routes the
+// response through awaitable.OnResponseAny so the user-supplied
+// handler runs (typically mutating the blackboard).
 type awaitSlot struct {
 	awaitable core.Awaitable
-	respond   chan any
 }
 
 // ActionInvocation is one row of the per-process history.
@@ -134,13 +136,6 @@ func (p *AgentProcess) History() []ActionInvocation {
 	return slices.Clone(p.history)
 }
 
-// HistorySize is the cheap form for the early-termination policy.
-func (p *AgentProcess) HistorySize() int {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
-	return len(p.history)
-}
-
 // Usage returns the subtree-aggregated cost / token / action totals.
 // Cost and tokens come from [AgentProcess.RecordUsage] calls (zero
 // unless integration code wires them up). The action count is the
@@ -200,16 +195,19 @@ func (p *AgentProcess) queueTermination(scope core.TerminationScope, reason stri
 	}
 }
 
-// AwaitInput parks the calling action until the platform delivers a
-// response. Returns ActionWaiting so the runtime knows to flip the process
-// to StatusWaiting.
+// AwaitInput parks the supplied awaitable on the process and returns
+// [core.ActionWaiting] so the calling action's typed-action wrapper
+// transitions the process to [core.StatusWaiting]. The action's tick
+// loop exits at that boundary; the user resumes the process by calling
+// [Platform.ResumeProcess], which routes the response through
+// awaitable.OnResponseAny — typically mutating the blackboard so the
+// next planning tick sees fresh state.
 func (p *AgentProcess) AwaitInput(req core.Awaitable) core.ActionStatus {
 	if req == nil {
 		return core.ActionFailed
 	}
 
-	slot := &awaitSlot{awaitable: req, respond: make(chan any, 1)}
-	p.pendingAwaitable.Store(slot)
+	p.pendingAwaitable.Store(&awaitSlot{awaitable: req})
 	p.publishEvent(event.ProcessWaitingEvent{
 		BaseEvent: event.NewBaseEvent(p.id),
 		Awaitable: req,
@@ -229,19 +227,20 @@ func (p *AgentProcess) peekAwaitable() core.Awaitable {
 }
 
 // deliverResponse is the runtime's hook for resuming a waiting process.
-// Returns true if a slot was waiting; false otherwise.
-func (p *AgentProcess) deliverResponse(response any) bool {
+// It atomically claims the parked slot and forwards the response to the
+// awaitable's typed handler via [core.Awaitable.OnResponseAny]. Returns
+// the handler's [core.ResponseImpact] (so [Platform.ResumeProcess] can
+// surface it to the caller — Updated typically means the caller should
+// re-run the process to pick up the new state).
+//
+// Returns an error when no slot is parked or the response value doesn't
+// match the awaitable's expected type.
+func (p *AgentProcess) deliverResponse(response any) (core.ResponseImpact, error) {
 	slot := p.pendingAwaitable.Swap(nil)
 	if slot == nil {
-		return false
+		return core.ResponseImpactUnchanged, errors.New("no awaitable pending")
 	}
-
-	select {
-	case slot.respond <- response:
-		return true
-	default:
-		return false
-	}
+	return slot.awaitable.OnResponseAny(response)
 }
 
 // --- internal mutators (used by tick / executeAction) ---------------------

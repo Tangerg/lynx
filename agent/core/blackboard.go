@@ -123,31 +123,6 @@ func Last[T any](bb Blackboard) (T, bool) {
 // Count reports how many T-typed objects are on the blackboard.
 func Count[T any](bb Blackboard) int { return len(ObjectsOfType[T](bb)) }
 
-// TypeMatches reports whether v satisfies the stable typeName form. Pointer
-// indirection unwraps; the runtime uses this whenever resolving a (variable,
-// typeName) lookup against an object produced earlier without knowing the
-// precise concrete type.
-func TypeMatches(v any, typeName string) bool {
-	if v == nil || typeName == "" {
-		return typeName == ""
-	}
-
-	rt := reflect.TypeOf(v)
-	if rt == nil {
-		return false
-	}
-
-	for {
-		if TypeFullName(rt) == typeName {
-			return true
-		}
-		if rt.Kind() != reflect.Pointer {
-			return false
-		}
-		rt = rt.Elem()
-	}
-}
-
 // DerivedTypeKey converts a Go reflect type into the variable name used by
 // Bind() for dual-binding. UserInput → "userInput", *Quote → "quote". Empty
 // names (anonymous types) yield the empty string so callers can skip.

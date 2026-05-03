@@ -94,13 +94,7 @@ const (
 	ProcessConcurrent                    // Every applicable action of the plan in parallel.
 )
 
-// nowFunc is overridable in tests so deterministic timestamps don't leak into
-// HashKey or event payloads.
-var nowFunc = time.Now
-
-// Now returns the configured time source — production code should call this
-// instead of time.Now so tests stay deterministic.
-func Now() time.Time { return nowFunc() }
-
-// SetNowFunc replaces the time source. Tests use this; production should not.
-func SetNowFunc(fn func() time.Time) { nowFunc = fn }
+// Now is the framework's time source — production code uses this so a
+// future override (e.g. for deterministic tests) lives in one place.
+// Currently a thin wrapper over [time.Now].
+func Now() time.Time { return time.Now() }

@@ -90,9 +90,9 @@ func typeFullName(rt reflect.Type) string {
 	return rt.PkgPath() + "." + rt.Name()
 }
 
-// TypeFullName exposes the same type-naming rule used internally so callers
-// (DSL, reflection layer, codegen) produce identifiers that match
-// IoBinding.Type exactly.
+// TypeFullName exposes the same type-naming rule used internally so
+// callers building IoBindings outside the [NewIoBinding]/[TypeFullNameOf]
+// generics path produce identifiers that match [IoBinding.Type] exactly.
 func TypeFullName(rt reflect.Type) string { return typeFullName(rt) }
 
 // TypeFullNameOf returns the stable type name for the generic parameter T.

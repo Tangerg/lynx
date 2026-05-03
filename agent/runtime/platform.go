@@ -226,22 +226,39 @@ func (p *Platform) KillProcess(id string) error {
 	return nil
 }
 
-// ResumeProcess delivers a response to a paused process. Returns an error
-// when the id is unknown or the process isn't waiting.
-func (p *Platform) ResumeProcess(id string, response any) error {
+// ResumeProcess delivers a response to a process parked on
+// [AgentProcess.AwaitInput]. The awaitable's typed handler runs
+// synchronously (typically mutating the blackboard), the process is
+// flipped from StatusWaiting back to StatusRunning, and the
+// [core.ResponseImpact] the handler decided is surfaced to the caller.
+//
+// ResumeProcess does NOT itself drive the process loop — it just
+// delivers the response and transitions status. The caller is expected
+// to re-run the process via [Platform.RunAgent] / [Platform.StartAgent]
+// (or some equivalent) so the planner sees the new world state. This
+// keeps Resume cheap, synchronous, and ctx-free; the run loop's
+// lifetime stays the caller's concern.
+//
+// Returns an error when the id is unknown, the process isn't actually
+// waiting, or the response value doesn't match the awaitable's expected
+// type.
+func (p *Platform) ResumeProcess(id string, response any) (core.ResponseImpact, error) {
 	proc, ok := p.GetProcess(id)
 	if !ok {
-		return fmt.Errorf("ResumeProcess: process id %q not found", id)
+		return core.ResponseImpactUnchanged,
+			fmt.Errorf("ResumeProcess: process id %q not found", id)
 	}
 	if proc.peekAwaitable() == nil {
-		return fmt.Errorf("ResumeProcess: process %q is not in a waiting state", id)
+		return core.ResponseImpactUnchanged,
+			fmt.Errorf("ResumeProcess: process %q is not in a waiting state", id)
 	}
 
-	if !proc.deliverResponse(response) {
-		return fmt.Errorf("ResumeProcess: failed to deliver response to process %q", id)
+	impact, err := proc.deliverResponse(response)
+	if err != nil {
+		return core.ResponseImpactUnchanged, fmt.Errorf("ResumeProcess: %w", err)
 	}
 	proc.setStatus(core.StatusRunning)
-	return nil
+	return impact, nil
 }
 
 // createProcess assembles an AgentProcess and its dependencies (blackboard,

@@ -5,10 +5,11 @@ import (
 	"reflect"
 )
 
-// Action is the agent's smallest planning unit. Implementations are typically
-// produced via NewAction[In, Out] (see action_typed.go) so the framework keeps
-// type information end-to-end; the interface form is here for advanced users
-// who want hand-rolled control or for the reflect-registration layer.
+// Action is the agent's smallest planning unit. Implementations are
+// typically produced via [NewAction] so the framework keeps type
+// information end-to-end; the interface form is here for advanced users
+// who want hand-rolled control over Execute (e.g. plugging into
+// non-typed integrations).
 type Action interface {
 	Metadata() ActionMetadata
 	// Execute runs the action body. It returns ActionStatus instead of an

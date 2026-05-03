@@ -4,25 +4,24 @@ import "time"
 
 // ProcessOptions is the per-process configuration bundle. Pass a zero
 // ProcessOptions{} when defaults suffice — the runtime calls
-// [ProcessOptions.applyDefaults] before use, so unset fields receive their
-// conceptual defaults (Budget, PlannerType, ProcessType, OutputChannel).
+// [ProcessOptions.ApplyDefaults] before use, so unset fields receive
+// their conceptual defaults (Budget, PlannerType, ProcessType,
+// OutputChannel).
 //
-// Choosing a struct over the functional-options pattern keeps defaults +
-// validation in one place ([applyDefaults]) and avoids polluting the
-// package namespace with ~10 `With…` constructors. Direct struct-literal
-// init is the intended ergonomics.
+// Choosing a struct over the functional-options pattern keeps defaults
+// + validation in one place ([ApplyDefaults]) and avoids polluting the
+// package namespace with ~10 `With…` constructors. Direct struct-
+// literal init is the intended ergonomics.
 type ProcessOptions struct {
-	ContextID       string
-	Identities      Identities
-	Blackboard      Blackboard
-	Verbosity       Verbosity
-	Budget          Budget
-	ProcessControl  ProcessControl
-	Prune           bool
-	OutputChannel   OutputChannel
-	PlannerType     PlannerType
-	ProcessType     ProcessType
-	ToolCallContext map[string]any
+	Identities     Identities
+	Blackboard     Blackboard
+	Verbosity      Verbosity
+	Budget         Budget
+	ProcessControl ProcessControl
+	Prune          bool
+	OutputChannel  OutputChannel
+	PlannerType    PlannerType
+	ProcessType    ProcessType
 }
 
 // ApplyDefaults fills in zero-valued fields whose conceptual default is
