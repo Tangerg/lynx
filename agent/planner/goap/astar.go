@@ -78,6 +78,14 @@ func (p *AStarPlanner) PlanToGoal(
 	}
 
 	candidates := candidateActions(system.Actions, opts.ExcludedActions)
+
+	// Reachability pre-check — short-circuits before A* burns 10k iterations
+	// chasing a goal whose required conditions no action can establish.
+	if !goalReachable(start, candidates, goal) {
+		span.SetAttributes(attribute.Bool("lynx.agent.astar.reachable", false))
+		return nil, nil
+	}
+
 	bestGoalNode, cameFrom, iterations, err := p.searchForGoal(ctx, start, candidates, goal, p.iterationCap(opts))
 	if err != nil {
 		return nil, err
@@ -91,10 +99,13 @@ func (p *AStarPlanner) PlanToGoal(
 	}
 
 	path := reconstructPath(cameFrom, bestGoalNode.state.HashKey(), start.HashKey())
+	rawLen := len(path)
+	path = backwardOptimize(path, start, goal)
 	path = forwardOptimize(path, start)
 
 	span.SetAttributes(
 		attribute.Bool("lynx.agent.astar.found", true),
+		attribute.Int("lynx.agent.astar.plan_length_raw", rawLen),
 		attribute.Int("lynx.agent.astar.plan_length", len(path)),
 	)
 	return &plan.Plan{Actions: path, Goal: goal}, nil
@@ -381,6 +392,100 @@ func reconstructPath(cameFrom map[string]edge, goalKey, startKey string) []core.
 		reversed[i], reversed[j] = reversed[j], reversed[i]
 	}
 	return reversed
+}
+
+// goalReachable is a conservative one-step backward check: every still-
+// unsatisfied goal precondition must be producible by at least one action
+// in the candidate set. It catches the common "I forgot to register the
+// action that produces X" case before A* spends 10k iterations searching
+// in vain. It is intentionally NOT a full transitive reachability proof —
+// such a check would need fixed-point iteration over the action graph and
+// is dominated by A* itself for the common case.
+func goalReachable(start core.WorldState, actions []core.Action, goal *core.Goal) bool {
+	state := start.State()
+	for key, required := range goal.Preconditions() {
+		if state[key] == required {
+			continue // already satisfied at start; no producer needed
+		}
+		produced := false
+		for _, a := range actions {
+			if a.Metadata().Effects[key] == required {
+				produced = true
+				break
+			}
+		}
+		if !produced {
+			return false
+		}
+	}
+	return true
+}
+
+// backwardOptimize walks the plan in reverse, keeping only actions whose
+// effects contribute to a still-needed condition. Tracks a "needed" set
+// initialised from goal preconditions not yet satisfied at start; for each
+// action we check whether it establishes any needed condition, drop it if
+// not, and otherwise update needed to (needed - effects) ∪ preconditions.
+//
+// This catches plans where A* picked a redundant action that happens to
+// have a low-cost path through it but doesn't actually produce anything
+// the goal needs. forwardOptimize handles the symmetric "doesn't change
+// state" case; running both passes covers redundancy from both ends.
+func backwardOptimize(actions []core.Action, start core.WorldState, goal *core.Goal) []core.Action {
+	if len(actions) <= 1 {
+		return actions
+	}
+
+	startState := start.State()
+
+	// Initialise needed = goal preconditions not yet satisfied at start.
+	needed := map[string]core.Determination{}
+	for key, required := range goal.Preconditions() {
+		if startState[key] != required {
+			needed[key] = required
+		}
+	}
+
+	keep := make([]bool, len(actions))
+	for i := len(actions) - 1; i >= 0; i-- {
+		meta := actions[i].Metadata()
+
+		// Does this action establish anything we still need?
+		contributes := false
+		for key, value := range meta.Effects {
+			if want, ok := needed[key]; ok && want == value {
+				contributes = true
+				break
+			}
+		}
+		if !contributes {
+			continue
+		}
+
+		keep[i] = true
+
+		// Effects this action establishes are no longer "needed earlier".
+		for key, value := range meta.Effects {
+			if want, ok := needed[key]; ok && want == value {
+				delete(needed, key)
+			}
+		}
+		// Its own preconditions become things earlier actions must establish.
+		for key, required := range meta.Preconditions {
+			if startState[key] == required {
+				continue
+			}
+			needed[key] = required
+		}
+	}
+
+	out := make([]core.Action, 0, len(actions))
+	for i, a := range actions {
+		if keep[i] {
+			out = append(out, a)
+		}
+	}
+	return out
 }
 
 // forwardOptimize replays the plan from start, dropping actions that don't

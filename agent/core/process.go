@@ -36,6 +36,12 @@ type Process interface {
 	// runtime stores the Awaitable on the blackboard, transitions to
 	// StatusWaiting, and returns ActionWaiting.
 	AwaitInput(req Awaitable) ActionStatus
+
+	// RecordUsage attributes LLM cost (USD) and token count to this
+	// process, contributing to subtree budget aggregation. The framework
+	// itself doesn't know LLM rates — integration code (listeners,
+	// chat-client adapters) calls this when LLMResponseEvent fires.
+	RecordUsage(cost float64, tokens int)
 }
 
 // processCtxKey is the unexported context key for embedding a Process. Using
