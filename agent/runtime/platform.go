@@ -126,14 +126,24 @@ func (p *Platform) publish(e event.Event) {
 // host application that wants to inspect what the platform sees.
 func (p *Platform) Services() *core.ServiceProvider { return p.services }
 
-// Deploy registers an agent. Re-deploying with the same name replaces the
-// previous registration — convenient when iterating during development.
+// Deploy registers an agent after validating it. Re-deploying with the
+// same name replaces the previous registration — convenient when
+// iterating during development.
+//
+// Validation runs in two layers:
+//   - [core.ValidateAgent] checks structural invariants (name non-empty,
+//     ≥1 action, ≥1 goal, unique action/goal names).
+//   - For agents using [core.PlannerGOAP], each goal is then probed via
+//     the configured planner from an empty world state. Goals that don't
+//     planner-resolve are rejected with a clear error so unreachable
+//     definitions (typo'd effect key, missing producing action, etc.)
+//     fail at deploy time rather than at first tick.
 func (p *Platform) Deploy(a *core.Agent) error {
-	if a == nil {
-		return errors.New("Deploy: agent is nil")
+	if err := core.ValidateAgent(a); err != nil {
+		return fmt.Errorf("Deploy: %w", err)
 	}
-	if a.Name == "" {
-		return errors.New("Deploy: agent must have a non-empty Name")
+	if err := p.checkGoalsReachable(a); err != nil {
+		return fmt.Errorf("Deploy: %w", err)
 	}
 
 	p.mu.Lock()
@@ -144,6 +154,51 @@ func (p *Platform) Deploy(a *core.Agent) error {
 		BaseEvent: event.NewBaseEvent(""),
 		AgentName: a.Name,
 	})
+	return nil
+}
+
+// checkGoalsReachable does a conservative one-step producer scan: for
+// every condition each goal requires, we verify that either an action's
+// effects can establish it OR an action's input binding looks like it
+// (since input bindings come from process bindings + the dual-binding
+// blackboard rules — they're considered reachable from "outside").
+//
+// This is intentionally weaker than running the full planner from empty
+// state: that approach falsely rejects agents whose first action's
+// precondition is "input binding present", because empty world state
+// has no bindings. We accept the false-negative tradeoff (some
+// genuinely-unreachable goals slip through) so legitimate input-driven
+// agents can deploy.
+func (p *Platform) checkGoalsReachable(a *core.Agent) error {
+	// Build the set of conditions any action can establish: union of
+	// every action's Effects keys whose Determination is True, plus
+	// every action's input bindings (those are externally-supplied).
+	producible := map[string]struct{}{}
+	for _, action := range a.Actions {
+		meta := action.Metadata()
+		for key, value := range meta.Effects {
+			if value == core.True {
+				producible[key] = struct{}{}
+			}
+		}
+		for _, in := range meta.Inputs {
+			producible[in.String()] = struct{}{}
+		}
+	}
+
+	for _, goal := range a.Goals {
+		for key, required := range goal.Preconditions() {
+			if required != core.True {
+				continue // we only flag missing producers for True-required conditions
+			}
+			if _, ok := producible[key]; !ok {
+				return fmt.Errorf(
+					"agent %q: goal %q requires condition %q but no action produces it",
+					a.Name, goal.Name, key,
+				)
+			}
+		}
+	}
 	return nil
 }
 

@@ -45,6 +45,7 @@ type AgentProcess struct {
 
 	terminate        chan core.TerminationScopeSignal
 	pendingAwaitable atomic.Pointer[awaitSlot]
+	toolCallCancel   atomic.Pointer[toolCallCancelEntry]
 
 	blackboard core.Blackboard
 	determiner worldStateDeterminer
@@ -59,6 +60,13 @@ type AgentProcess struct {
 // handler runs (typically mutating the blackboard).
 type awaitSlot struct {
 	awaitable core.Awaitable
+}
+
+// toolCallCancelEntry holds the cancel func of the most recently
+// derived tool-call context. TerminateToolCall fires it; the action's
+// in-flight tool invocation observes ctx.Done() and aborts.
+type toolCallCancelEntry struct {
+	cancel context.CancelFunc
 }
 
 // ActionInvocation is one row of the per-process history.
@@ -183,6 +191,35 @@ func (p *AgentProcess) TerminateAgent(reason string) {
 // TerminateAction queues a "skip the current action and re-plan" signal.
 func (p *AgentProcess) TerminateAction(reason string) {
 	p.queueTermination(core.TerminationScopeAction, reason)
+}
+
+// TerminateToolCall fires the cancel func of the most recently derived
+// tool-call context (if any). Action bodies that derive their tool
+// invocation contexts via [core.ProcessContext.ToolCallContext] observe
+// ctx.Done() at this point and abort. No-op when no tool-call context
+// is currently registered.
+func (p *AgentProcess) TerminateToolCall(reason string) {
+	entry := p.toolCallCancel.Load()
+	if entry == nil || entry.cancel == nil {
+		return
+	}
+	entry.cancel()
+	_ = reason // reserved for future event publishing
+}
+
+// registerToolCallCancel installs a fresh cancel func, replacing any
+// previously-registered one (the old context becomes orphaned — its
+// owning action body should already be done by the time a new tool
+// call starts). Used by [core.ProcessContext.ToolCallContext].
+func (p *AgentProcess) registerToolCallCancel(cancel context.CancelFunc) {
+	p.toolCallCancel.Store(&toolCallCancelEntry{cancel: cancel})
+}
+
+// clearToolCallCancel detaches the registered cancel — callers do this
+// when the tool call returns (success or error) so a stale entry doesn't
+// hang around for the next [TerminateToolCall].
+func (p *AgentProcess) clearToolCallCancel() {
+	p.toolCallCancel.Store(nil)
 }
 
 func (p *AgentProcess) queueTermination(scope core.TerminationScope, reason string) {

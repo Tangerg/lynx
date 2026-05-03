@@ -174,12 +174,14 @@ func (p *AgentProcess) recordActionFailure(actionName string, err error) {
 // per-action state (lastErr, etc.) doesn't leak.
 func (p *AgentProcess) buildProcessContext() *core.ProcessContext {
 	deps := core.ProcessContextDeps{
-		Process:       p,
-		Blackboard:    p.blackboard,
-		Options:       p.options,
-		OutputChannel: p.options.OutputChannel,
-		Services:      p.platformServices(),
-		Publish:       p.publishAny,
+		Process:                p,
+		Blackboard:             p.blackboard,
+		Options:                p.options,
+		OutputChannel:          p.options.OutputChannel,
+		Services:               p.platformServices(),
+		Publish:                p.publishAny,
+		RegisterToolCallCancel: p.registerToolCallCancel,
+		ClearToolCallCancel:    p.clearToolCallCancel,
 	}
 	if resolver := p.platformToolResolver(); resolver != nil {
 		deps.ResolveTools = resolveToolsFor(resolver)

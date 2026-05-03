@@ -352,11 +352,15 @@ sealed class OrderAgent {
 6. **`hasRun_X` 条件键防 plan 内重跑**
 7. **Subtree 预算汇总**
 
-### 还想从 embabel 借的
+### 已从 embabel 借完的（曾经的 TODO）
 
-1. **AgentValidationManager** — 启动时跑 GOAP path-to-completion 校验，比静态检查能多发现非显然的 unreachable。**TODO**。
-2. **ToolCall cancellation 管道** — enum 值已加但 in-flight 取消机制还是 placeholder，得在 tool loop 里加 `ctx.cancel()` 检查点。**TODO**。
-3. **`AssetCoordinates` / 版本化的 ToolGroup 元信息** — embabel 在 `ToolGroupMetadata` 里带 `name + provider + version`，便于多版本 MCP server 共存。我们目前只有 `Role + Description`。**值得抄。**
+~~1. **AgentValidationManager** — 启动时跑校验~~ ✅ `core.ValidateAgent`（结构）+ `Platform.Deploy` 内的 `checkGoalsReachable`（一步反向 producer 扫描）。我们用了比 embabel 更轻的版本 — embabel 从空状态跑完整 planner，会误拒 input-binding 驱动的合法 agent；我们只检查「每个 goal precondition 至少有一个 producing action」，更宽松但够用。
+
+~~2. **ToolCall cancellation 管道**~~ ✅ `Process.TerminateToolCall(reason)` 触发；`ProcessContext.ToolCallContext(parent) (ctx, cancel)` 让 action body 派生一个能被取消的 ctx，传给 chat client / tool 调用；caller defer cancel 释放。Cancellation 经 ctx.Done() 自然向下传播。
+
+~~3. **版本化 ToolGroup 元信息**~~ ✅ `AssetCoordinates.Version` 从 `string` 升到 `*semver.Version`（用 Masterminds/semver/v3，跟 `AgentConfig.Version` 一致）。多版本 MCP server 共存可以排序比较。
+
+（保留作为历史记录，方便回看曾经的差距清单。）
 
 ### 我们做得更干净的地方
 
@@ -424,4 +428,4 @@ lynx/agent 的设计图谱跟 embabel 走在同一条主路上 — GOAP / Blackb
 2. **补充了之前盲点**（AgentValidationManager / SupervisorAgent / Megazord aggregation / @State unrolling / DataDictionary / Spring Observation）
 3. **反映了 lynx 这边几次清理后的最新状态**（HITL 真的能跑、WorldState 真的不可变、更窄的 API surface）
 
-剩下三个 TODO 都是从 embabel 借的小块：startup validation、ToolCall cancellation 管道、版本化 ToolGroup 元信息。其它差异是设计取舍，不打算抹平。
+三个借鉴 TODO 现在全部落地：startup validation、ToolCall cancellation 管道、版本化 ToolGroup 元信息。其它差异是设计取舍，不打算抹平。
