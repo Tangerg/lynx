@@ -10,14 +10,14 @@ import (
 	"github.com/google/uuid"
 )
 
-// InMemoryBlackboard is the default blackboard backed by maps and a slice.
+// inMemoryBlackboard is the default blackboard backed by maps and a slice.
 // It is the only Blackboard implementation in the framework; production
 // deployments that need persistence (Redis, Postgres, ...) write a custom
 // implementation against the core.Blackboard interface.
 //
 // All public methods are safe for concurrent use. Reads use RLock, writes
 // use Lock.
-type InMemoryBlackboard struct {
+type inMemoryBlackboard struct {
 	id string
 
 	mu         sync.RWMutex
@@ -28,15 +28,15 @@ type InMemoryBlackboard struct {
 	conditions map[string]bool
 }
 
-// NewInMemoryBlackboard returns a fresh blackboard with a generated UUID id.
-func NewInMemoryBlackboard() *InMemoryBlackboard {
-	return NewInMemoryBlackboardWithID(uuid.NewString())
+// newInMemoryBlackboard returns a fresh blackboard with a generated UUID id.
+func newInMemoryBlackboard() *inMemoryBlackboard {
+	return newInMemoryBlackboardWithID(uuid.NewString())
 }
 
-// NewInMemoryBlackboardWithID lets callers supply a stable id (used when
+// newInMemoryBlackboardWithID lets callers supply a stable id (used when
 // deserializing or threading a known id through tests).
-func NewInMemoryBlackboardWithID(id string) *InMemoryBlackboard {
-	return &InMemoryBlackboard{
+func newInMemoryBlackboardWithID(id string) *inMemoryBlackboard {
+	return &inMemoryBlackboard{
 		id:         id,
 		named:      map[string]any{},
 		protected:  map[string]struct{}{},
@@ -44,12 +44,12 @@ func NewInMemoryBlackboardWithID(id string) *InMemoryBlackboard {
 	}
 }
 
-func (b *InMemoryBlackboard) ID() string { return b.id }
+func (b *inMemoryBlackboard) ID() string { return b.id }
 
 // Set stores under key AND appends to the ordered objects list. The
 // dual-record is what makes "give me the latest of type T" work via
 // GetValue("it", typeName).
-func (b *InMemoryBlackboard) Set(key string, value any) {
+func (b *inMemoryBlackboard) Set(key string, value any) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
@@ -57,7 +57,7 @@ func (b *InMemoryBlackboard) Set(key string, value any) {
 	b.objects = append(b.objects, value)
 }
 
-func (b *InMemoryBlackboard) Get(key string) (any, bool) {
+func (b *inMemoryBlackboard) Get(key string) (any, bool) {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
 
@@ -70,7 +70,7 @@ func (b *InMemoryBlackboard) Get(key string) (any, bool) {
 //   - variable == "it" / empty: newest object whose stored type matches typeName.
 //   - variable == "lastResult":  newest object regardless of type.
 //   - explicit name:             the value stored at that name, only if its type matches.
-func (b *InMemoryBlackboard) GetValue(variable, typeName string) (any, bool) {
+func (b *inMemoryBlackboard) GetValue(variable, typeName string) (any, bool) {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
 
@@ -91,14 +91,14 @@ func (b *InMemoryBlackboard) GetValue(variable, typeName string) (any, bool) {
 	return value, true
 }
 
-func (b *InMemoryBlackboard) HasValue(variable, typeName string) bool {
+func (b *inMemoryBlackboard) HasValue(variable, typeName string) bool {
 	_, ok := b.GetValue(variable, typeName)
 	return ok
 }
 
 // findLatestByType walks the objects list in reverse, skipping hidden
 // entries, returning the first match.
-func (b *InMemoryBlackboard) findLatestByType(typeName string) (any, bool) {
+func (b *inMemoryBlackboard) findLatestByType(typeName string) (any, bool) {
 	for i := len(b.objects) - 1; i >= 0; i-- {
 		obj := b.objects[i]
 		if b.isHidden(obj) {
@@ -112,7 +112,7 @@ func (b *InMemoryBlackboard) findLatestByType(typeName string) (any, bool) {
 }
 
 // findLatestVisible returns the most-recently-added non-hidden object.
-func (b *InMemoryBlackboard) findLatestVisible() (any, bool) {
+func (b *inMemoryBlackboard) findLatestVisible() (any, bool) {
 	for i := len(b.objects) - 1; i >= 0; i-- {
 		if !b.isHidden(b.objects[i]) {
 			return b.objects[i], true
@@ -124,7 +124,7 @@ func (b *InMemoryBlackboard) findLatestVisible() (any, bool) {
 // isHidden does a linear scan via DeepEqual; hidden lists are tiny in
 // practice and we need DeepEqual because Go map keys can't accept
 // unhashable struct types.
-func (b *InMemoryBlackboard) isHidden(v any) bool {
+func (b *inMemoryBlackboard) isHidden(v any) bool {
 	for _, h := range b.hidden {
 		if reflect.DeepEqual(h, v) {
 			return true
@@ -133,14 +133,14 @@ func (b *InMemoryBlackboard) isHidden(v any) bool {
 	return false
 }
 
-func (b *InMemoryBlackboard) AddObject(value any) {
+func (b *inMemoryBlackboard) AddObject(value any) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
 	b.objects = append(b.objects, value)
 }
 
-func (b *InMemoryBlackboard) Objects() []any {
+func (b *inMemoryBlackboard) Objects() []any {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
 
@@ -150,7 +150,7 @@ func (b *InMemoryBlackboard) Objects() []any {
 // Bind implements the embabel 0.4 dual-binding behavior: the value lands at
 // "it" AND at a type-derived key (UserInput → "userInput") so prompt
 // templates can refer to it by either name.
-func (b *InMemoryBlackboard) Bind(value any) {
+func (b *inMemoryBlackboard) Bind(value any) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
@@ -161,7 +161,7 @@ func (b *InMemoryBlackboard) Bind(value any) {
 	b.objects = append(b.objects, value)
 }
 
-func (b *InMemoryBlackboard) BindAll(m map[string]any) {
+func (b *inMemoryBlackboard) BindAll(m map[string]any) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
@@ -173,7 +173,7 @@ func (b *InMemoryBlackboard) BindAll(m map[string]any) {
 
 // BindProtected stores the value AND records the key as protected so a
 // subsequent Spawn() carries it onto the child blackboard.
-func (b *InMemoryBlackboard) BindProtected(key string, value any) {
+func (b *inMemoryBlackboard) BindProtected(key string, value any) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
@@ -182,21 +182,21 @@ func (b *InMemoryBlackboard) BindProtected(key string, value any) {
 	b.objects = append(b.objects, value)
 }
 
-func (b *InMemoryBlackboard) Hide(target any) {
+func (b *inMemoryBlackboard) Hide(target any) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
 	b.hidden = append(b.hidden, target)
 }
 
-func (b *InMemoryBlackboard) SetCondition(key string, value bool) {
+func (b *inMemoryBlackboard) SetCondition(key string, value bool) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
 	b.conditions[key] = value
 }
 
-func (b *InMemoryBlackboard) GetCondition(key string) (bool, bool) {
+func (b *inMemoryBlackboard) GetCondition(key string) (bool, bool) {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
 
@@ -207,11 +207,11 @@ func (b *InMemoryBlackboard) GetCondition(key string) (bool, bool) {
 // Spawn produces a child blackboard. Default behavior copies named keys,
 // protected entries, conditions, and the objects list — but NOT hidden
 // markers (the child re-derives visibility on its own).
-func (b *InMemoryBlackboard) Spawn() core.Blackboard {
+func (b *inMemoryBlackboard) Spawn() core.Blackboard {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
 
-	child := NewInMemoryBlackboard()
+	child := newInMemoryBlackboard()
 	maps.Copy(child.named, b.named)
 	maps.Copy(child.protected, b.protected)
 	maps.Copy(child.conditions, b.conditions)
@@ -221,7 +221,7 @@ func (b *InMemoryBlackboard) Spawn() core.Blackboard {
 
 // Clear wipes the blackboard while preserving entries marked via
 // BindProtected. Hidden markers and conditions are cleared.
-func (b *InMemoryBlackboard) Clear() {
+func (b *inMemoryBlackboard) Clear() {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
@@ -239,7 +239,7 @@ func (b *InMemoryBlackboard) Clear() {
 	clear(b.conditions)
 }
 
-func (b *InMemoryBlackboard) InfoString(verbose bool) string {
+func (b *inMemoryBlackboard) InfoString(verbose bool) string {
 	return core.InspectInfoString(b, verbose)
 }
 

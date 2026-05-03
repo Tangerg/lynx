@@ -203,7 +203,7 @@ func (p *AgentProcess) buildProcessContext() *core.ProcessContext {
 
 func (p *AgentProcess) platformServices() *core.ServiceProvider {
 	if p.platform == nil {
-		return core.NewServiceProvider()
+		return &core.ServiceProvider{}
 	}
 	return p.platform.services
 }

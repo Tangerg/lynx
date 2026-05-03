@@ -47,13 +47,11 @@ type VectorStore interface {
 
 // ServiceProvider is the bag of optional integrations the platform makes
 // available to actions. Any field can be nil — actions check before using.
+// The zero value is ready to use; callers construct &ServiceProvider{...}
+// directly when they need to set fields.
 type ServiceProvider struct {
 	Chat        ChatClient
 	RAG         RAGClient
 	VectorStore VectorStore
 	Tools       ToolGroupResolver
 }
-
-// NewServiceProvider returns an empty ServiceProvider; callers populate
-// fields as needed. Provided for completeness — the zero value works too.
-func NewServiceProvider() *ServiceProvider { return &ServiceProvider{} }

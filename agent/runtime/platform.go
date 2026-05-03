@@ -86,11 +86,12 @@ type PlatformConfig struct {
 func NewPlatform(cfg PlatformConfig) *Platform {
 	services := cfg.ServiceProvider
 	if services == nil {
-		services = core.NewServiceProvider()
-		services.Chat = cfg.Chat
-		services.RAG = cfg.RAG
-		services.VectorStore = cfg.VectorStore
-		services.Tools = cfg.Tools
+		services = &core.ServiceProvider{
+			Chat:        cfg.Chat,
+			RAG:         cfg.RAG,
+			VectorStore: cfg.VectorStore,
+			Tools:       cfg.Tools,
+		}
 	}
 
 	plannerFactory := cfg.PlannerFactory
@@ -244,11 +245,11 @@ func (p *Platform) ResumeProcess(id string, response any) error {
 	if !ok {
 		return fmt.Errorf("ResumeProcess: process id %q not found", id)
 	}
-	if proc.PendingAwaitable() == nil {
+	if proc.peekAwaitable() == nil {
 		return fmt.Errorf("ResumeProcess: process %q is not in a waiting state", id)
 	}
 
-	if !proc.DeliverResponse(response) {
+	if !proc.deliverResponse(response) {
 		return fmt.Errorf("ResumeProcess: failed to deliver response to process %q", id)
 	}
 	proc.setStatus(core.StatusRunning)
@@ -271,7 +272,7 @@ func (p *Platform) createProcess(
 
 	bb := opts.Blackboard
 	if bb == nil {
-		bb = NewInMemoryBlackboard()
+		bb = newInMemoryBlackboard()
 	}
 	bindBlackboardSeed(bb, bindings)
 
@@ -279,8 +280,8 @@ func (p *Platform) createProcess(
 	system := plan.FromAgent(agentDef)
 	id := p.idGen.Next()
 
-	proc := NewAgentProcess(id, agentDef, &opts, bb, nil, planner, p)
-	proc.determiner = NewBlackboardDeterminer(system, bb, proc)
+	proc := newAgentProcess(id, agentDef, &opts, bb, nil, planner, p)
+	proc.determiner = newBlackboardDeterminer(system, bb, proc)
 
 	p.mu.Lock()
 	p.procs[id] = proc
@@ -320,7 +321,7 @@ func (p *Platform) RunAgent(
 		return nil, err
 	}
 
-	if err := proc.Run(ctx); err != nil {
+	if err := proc.run(ctx); err != nil {
 		return proc, err
 	}
 	return proc, nil
@@ -344,7 +345,7 @@ func (p *Platform) StartAgent(
 	}
 
 	go func() {
-		done <- proc.Run(ctx)
+		done <- proc.run(ctx)
 		close(done)
 	}()
 	return proc, done

@@ -105,7 +105,7 @@ Tick 开始
   │
   ├─ 1. 检查终止信号（TerminationScopeAgent / Action）
   │
-  ├─ 2. OBSERVE: WorldStateDeterminer 扫描黑板 + 评估命名 Condition
+  ├─ 2. OBSERVE: 内部 worldStateDeterminer 扫描黑板 + 评估命名 Condition
   │      → 产出 ConditionWorldState (key → True/False/Unknown 的不可变快照)
   │
   ├─ 3. ORIENT: Planner.BestValuePlan(start, system, opts)
@@ -181,7 +181,7 @@ Tick 开始
 | `Plan.Actions` | 不含 nil；顺序有意义 |
 | `Agent` | 构造后只读；KnownConditions 用 `atomic.Pointer` 缓存 |
 | `AgentProcess.ID` / `.agent` / `.options` / `.startedAt` | 创建后永不变 |
-| `InMemoryBlackboard` | 所有可变字段受 `mu` 保护；读用 RLock，写用 Lock |
+| `inMemoryBlackboard`（内部） | 所有可变字段受 `mu` 保护；读用 RLock，写用 Lock |
 
 ---
 
@@ -301,7 +301,7 @@ agent.NewAction("research",
 
 框架内部 `NewAction[In, Out]` 做的事：
 1. 用 `reflect.TypeFor[In/Out]()` 算出默认 IoBinding
-2. 闭包捕获用户函数，包装成 `*TypedAction[In, Out]`（实现 Action 接口）
+2. 闭包捕获用户函数，包装成内部 `*typedAction[In, Out]`（实现 Action 接口）
 3. `computePreconditionsAndEffects` 自动算出规划用的 EffectSpec
 
 **运行时 Execute**（`core/action_typed.go`）：
@@ -1061,7 +1061,7 @@ func (p *AgentProcess) AwaitInput(req core.Awaitable) core.ActionStatus {
     return core.ActionWaiting
 }
 
-func (p *AgentProcess) DeliverResponse(response any) bool {
+func (p *AgentProcess) deliverResponse(response any) bool { // 内部，由 Platform.ResumeProcess 调用
     slot := p.pendingAwaitable.Swap(nil)
     if slot == nil { return false }
     select {
@@ -1355,7 +1355,7 @@ agent/
 │   ├── operation_context.go                Condition.Evaluate 上下文
 │   ├── action.go                           Action 接口 + ActionMetadata
 │   ├── action_qos.go                       重试策略
-│   ├── action_typed.go                     NewAction[In,Out] + TypedAction
+│   ├── action_typed.go                     NewAction[In,Out]（typedAction 私有）
 │   ├── action_config.go                    ActionConfig 结构 + 默认值/校验
 │   ├── goal.go                             Goal + GoalProducing[T]
 │   ├── agent.go                            Agent 聚合 + KnownConditions 缓存

@@ -10,13 +10,13 @@ import (
 
 const hasRunPrefix = "hasRun_"
 
-// WorldStateDeterminer is the OBSERVE stage of the OODA loop: read the
+// worldStateDeterminer is the OBSERVE stage of the OODA loop: read the
 // blackboard, return what the planner needs to know about the world.
-type WorldStateDeterminer interface {
+type worldStateDeterminer interface {
 	DetermineWorldState(ctx context.Context) core.WorldState
 }
 
-// BlackboardDeterminer is the canonical implementation. It walks the
+// blackboardDeterminer is the canonical implementation. It walks the
 // agent's PlanningSystem.KnownConditions(), classifies each condition into
 // one of four buckets, and resolves accordingly:
 //
@@ -24,22 +24,22 @@ type WorldStateDeterminer interface {
 //  2. hasRun_<action>                — true iff the blackboard's condition map says so
 //  3. named Condition                — call .Evaluate
 //  4. plain boolean key              — read from the blackboard's condition map
-type BlackboardDeterminer struct {
+type blackboardDeterminer struct {
 	system     *plan.PlanningSystem
 	blackboard core.Blackboard
 	process    core.Process
 }
 
-// NewBlackboardDeterminer wires the determiner. The Process pointer is what
+// newBlackboardDeterminer wires the determiner. The Process pointer is what
 // gets handed to user-defined Conditions during Evaluate.
-func NewBlackboardDeterminer(system *plan.PlanningSystem, bb core.Blackboard, proc core.Process) *BlackboardDeterminer {
-	return &BlackboardDeterminer{system: system, blackboard: bb, process: proc}
+func newBlackboardDeterminer(system *plan.PlanningSystem, bb core.Blackboard, proc core.Process) *blackboardDeterminer {
+	return &blackboardDeterminer{system: system, blackboard: bb, process: proc}
 }
 
 // DetermineWorldState produces a fresh ConditionWorldState reflecting the
 // blackboard's current contents. The runtime calls this at the start of
 // every tick.
-func (d *BlackboardDeterminer) DetermineWorldState(ctx context.Context) core.WorldState {
+func (d *blackboardDeterminer) DetermineWorldState(ctx context.Context) core.WorldState {
 	state := map[string]core.Determination{}
 	oc := &core.OperationContext{Process: d.process, Blackboard: d.blackboard}
 
@@ -53,7 +53,7 @@ func (d *BlackboardDeterminer) DetermineWorldState(ctx context.Context) core.Wor
 // the condition key's shape. Returns Unknown for anything that doesn't
 // match a known pattern — A* treats Unknown as "doesn't satisfy" so missing
 // state safely defers planning rather than producing a wrong plan.
-func (d *BlackboardDeterminer) evaluateCondition(ctx context.Context, key string, oc *core.OperationContext) core.Determination {
+func (d *blackboardDeterminer) evaluateCondition(ctx context.Context, key string, oc *core.OperationContext) core.Determination {
 	if strings.Contains(key, ":") {
 		return d.evaluateTypeBinding(key)
 	}
@@ -72,7 +72,7 @@ func (d *BlackboardDeterminer) evaluateCondition(ctx context.Context, key string
 	return core.Unknown
 }
 
-func (d *BlackboardDeterminer) evaluateTypeBinding(key string) core.Determination {
+func (d *blackboardDeterminer) evaluateTypeBinding(key string) core.Determination {
 	binding := core.ParseIoBinding(key)
 	if d.blackboard.HasValue(binding.Name, binding.Type) {
 		return core.True
@@ -80,7 +80,7 @@ func (d *BlackboardDeterminer) evaluateTypeBinding(key string) core.Determinatio
 	return core.False
 }
 
-func (d *BlackboardDeterminer) evaluateHasRun(key string) core.Determination {
+func (d *blackboardDeterminer) evaluateHasRun(key string) core.Determination {
 	value, ok := d.blackboard.GetCondition(key)
 	if !ok {
 		return core.False
@@ -88,7 +88,7 @@ func (d *BlackboardDeterminer) evaluateHasRun(key string) core.Determination {
 	return core.FromBool(value)
 }
 
-func (d *BlackboardDeterminer) findNamedCondition(name string) core.Condition {
+func (d *blackboardDeterminer) findNamedCondition(name string) core.Condition {
 	for _, cond := range d.system.Conditions {
 		if cond.Name() == name {
 			return cond
