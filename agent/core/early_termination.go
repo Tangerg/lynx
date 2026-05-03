@@ -14,20 +14,24 @@ type MaxActionsPolicy struct {
 	Max int
 }
 
-// ShouldTerminate returns true when the process has executed at least Max
-// actions. Processes that don't expose history return false (the policy is
+// ShouldTerminate returns true when the process tree has executed at
+// least Max actions in total. Reads the count from [Process.Usage]'s
+// third return so child-process actions count toward the same budget.
+// Processes that don't expose Usage() return false (the policy is
 // effectively disabled).
 func (p MaxActionsPolicy) ShouldTerminate(proc Process) (bool, string) {
 	if p.Max <= 0 || proc == nil {
 		return false, ""
 	}
 
-	historian, ok := proc.(interface{ HistorySize() int })
+	usable, ok := proc.(interface {
+		Usage() (cost float64, tokens int, actions int)
+	})
 	if !ok {
 		return false, ""
 	}
 
-	if historian.HistorySize() < p.Max {
+	if _, _, actions := usable.Usage(); actions < p.Max {
 		return false, ""
 	}
 	return true, "max actions exceeded"

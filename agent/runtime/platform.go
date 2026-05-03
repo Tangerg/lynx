@@ -360,5 +360,12 @@ func (p *Platform) CreateChildProcess(
 		return nil, err
 	}
 	child.parentID = parent.id
+
+	// Register the child on the parent so Usage() can recursively roll
+	// up cost / tokens / actions across the whole delegation tree.
+	parent.mu.Lock()
+	parent.children = append(parent.children, child)
+	parent.mu.Unlock()
+
 	return child, nil
 }

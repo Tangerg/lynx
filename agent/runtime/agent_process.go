@@ -34,6 +34,14 @@ type AgentProcess struct {
 	failure         error
 	excludedActions map[string]struct{}
 
+	// Subtree budget plumbing — children are spawned via
+	// Platform.CreateChildProcess; ownCost/ownTokens accumulate via
+	// RecordUsage, called by integration code that hears LLM events.
+	// Usage() walks children recursively to produce subtree totals.
+	children  []*AgentProcess
+	ownCost   float64
+	ownTokens int
+
 	terminate        chan core.TerminationScopeSignal
 	pendingAwaitable atomic.Pointer[awaitSlot]
 
@@ -133,11 +141,40 @@ func (p *AgentProcess) HistorySize() int {
 	return len(p.history)
 }
 
-// Usage returns a placeholder cost/token/action snapshot. The framework
-// doesn't yet track LLM token cost; the slot exists so Budget enforcement
-// can be added later.
+// Usage returns the subtree-aggregated cost / token / action totals.
+// Cost and tokens come from [AgentProcess.RecordUsage] calls (zero
+// unless integration code wires them up). The action count is the
+// recursive sum of every History across this process and all child
+// processes spawned via [Platform.CreateChildProcess]. [BudgetPolicy]
+// uses the result so a parent's budget governs its entire delegation
+// tree.
 func (p *AgentProcess) Usage() (cost float64, tokens int, actions int) {
-	return 0, 0, p.HistorySize()
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+
+	cost = p.ownCost
+	tokens = p.ownTokens
+	actions = len(p.history)
+
+	for _, child := range p.children {
+		c, t, a := child.Usage()
+		cost += c
+		tokens += t
+		actions += a
+	}
+	return
+}
+
+// RecordUsage adds a single LLM call's cost (USD) and token count to
+// this process's running totals. Integration code calls this — typically
+// from a listener wired to LLMResponseEvent or an LLM-client adapter
+// that knows the per-model rate. The framework itself never invents
+// numbers here.
+func (p *AgentProcess) RecordUsage(cost float64, tokens int) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.ownCost += cost
+	p.ownTokens += tokens
 }
 
 // --- core.Process mutation surface ----------------------------------------

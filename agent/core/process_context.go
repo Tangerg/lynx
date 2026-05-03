@@ -115,6 +115,17 @@ func (pc *ProcessContext) AwaitInput(req Awaitable) ActionStatus {
 	return pc.Process.AwaitInput(req)
 }
 
+// RecordUsage attributes an LLM call's cost (USD) and token count to the
+// running process. Convenience wrapper around [Process.RecordUsage] so
+// action code that's already holding pc doesn't need to reach for the
+// bare process. No-op when pc or its Process is nil.
+func (pc *ProcessContext) RecordUsage(cost float64, tokens int) {
+	if pc == nil || pc.Process == nil {
+		return
+	}
+	pc.Process.RecordUsage(cost, tokens)
+}
+
 // ExecuteSafely runs a.Execute(ctx, pc) under a panic guard, recording
 // any recovered panic on the context so callers can inspect it via
 // [ProcessContext.LastError]. A panic forces the returned status to

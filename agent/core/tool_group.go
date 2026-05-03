@@ -53,15 +53,34 @@ type ToolGroupRequirement struct {
 type TerminationScope int
 
 const (
+	// TerminationScopeAgent stops the entire process when the trigger
+	// fires. The strongest guarantee: no further actions, no replanning.
 	TerminationScopeAgent TerminationScope = iota
+
+	// TerminationScopeAction skips the current action and re-plans. Use
+	// when a missing tool / unmet precondition makes this action unable
+	// to proceed but the agent as a whole can still pursue the goal via
+	// a different path.
 	TerminationScopeAction
+
+	// TerminationScopeToolCall aborts the in-flight tool invocation but
+	// lets the action body continue (typically retrying with a different
+	// tool or a degraded mode). Mirrors embabel's TOOLCALL granularity —
+	// the finest-grained scope.
+	TerminationScopeToolCall
 )
 
 func (t TerminationScope) String() string {
-	if t == TerminationScopeAgent {
+	switch t {
+	case TerminationScopeAgent:
 		return "agent"
+	case TerminationScopeAction:
+		return "action"
+	case TerminationScopeToolCall:
+		return "tool_call"
+	default:
+		return "unknown"
 	}
-	return "action"
 }
 
 // TerminationScopeSignal is the per-instance termination payload. Agents
