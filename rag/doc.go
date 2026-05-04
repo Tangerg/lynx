@@ -260,8 +260,8 @@
 //
 //	import (
 //	    "github.com/Tangerg/lynx/core/model/chat"
-//	    "github.com/Tangerg/lynx/core/rag"
-//	    "github.com/Tangerg/lynx/core/rag/document/retrievers"
+//	    "github.com/Tangerg/lynx/rag"
+//	    "github.com/Tangerg/lynx/rag/document/retrievers"
 //	)
 //
 //	// Create middleware from pipeline configuration
@@ -501,12 +501,12 @@
 //	    "log"
 //
 //	    "github.com/Tangerg/lynx/core/model/chat"
-//	    "github.com/Tangerg/lynx/core/rag"
-//	    "github.com/Tangerg/lynx/core/rag/document/refiners"
-//	    "github.com/Tangerg/lynx/core/rag/document/retrievers"
-//	    "github.com/Tangerg/lynx/core/rag/query/augmenters"
-//	    "github.com/Tangerg/lynx/core/rag/query/expanders"
-//	    "github.com/Tangerg/lynx/core/rag/query/transformers"
+//	    "github.com/Tangerg/lynx/rag"
+//	    "github.com/Tangerg/lynx/rag/document/refiners"
+//	    "github.com/Tangerg/lynx/rag/document/retrievers"
+//	    "github.com/Tangerg/lynx/rag/query/augmenters"
+//	    "github.com/Tangerg/lynx/rag/query/expanders"
+//	    "github.com/Tangerg/lynx/rag/query/transformers"
 //	)
 //
 //	// Setup transformers

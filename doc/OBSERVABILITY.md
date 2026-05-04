@@ -2,7 +2,7 @@
 
 > Lynx **直接使用 OpenTelemetry API**，不自造观测抽象。OTel 本身就是厂商中立层，再加一层是重复建设。
 >
-> **当前状态**：`otelbridge/slog` + `otelbridge/log` 两个 SpanExporter 已实现；**核心代码尚未挂上任何 `otel.Tracer(...)` 埋点**——即「接收器就绪、源头未启动」。
+> **当前状态**：`observation/slog` + `observation/log` 两个 SpanExporter 已实现；**核心代码尚未挂上任何 `otel.Tracer(...)` 埋点**——即「接收器就绪、源头未启动」。
 
 ---
 
@@ -45,12 +45,12 @@
 | 档位 | 装什么 | `go.sum` 影响 |
 |-----|-------|-------------|
 | 纯用 Lynx 库，不观测 | 只装 `core/` 等 | `go.opentelemetry.io/otel`（API 包，仅接口 + noop，~10KB）|
-| 开发态看 span（slog）| + `otelbridge/slog` | 拉入 OTel SDK 依赖（仅此 module 的 go.sum）|
+| 开发态看 span（slog）| + `observation/slog` | 拉入 OTel SDK 依赖（仅此 module 的 go.sum）|
 | 生产 OTel + Jaeger/Tempo | + `go.opentelemetry.io/otel/sdk` + OTLP exporter | OTel 全家桶（gRPC、protobuf）|
 
 **关键**：
 - `core/` 只 import OTel **API 包**（不装 SDK）——不主动配置观测的用户完全不感知 OTel 重依赖
-- 所有需要 OTel SDK 的桥接实现都放在独立外部 module `otelbridge/`，严格不污染 core
+- 所有需要 OTel SDK 的桥接实现都放在独立外部 module `observation/`，严格不污染 core
 - 与 `models/`、`vectorstores/` 同规格——重依赖走外挂
 
 ---
@@ -285,11 +285,11 @@ func main() {
 
 ---
 
-## 6. otelbridge：自带的 SpanExporter
+## 6. observation：自带的 SpanExporter
 
 > 独立外部 module，不污染 core。两个 exporter 都已实现并有单测。
 
-### 6.1 `otelbridge/slog`：开发态看 span
+### 6.1 `observation/slog`：开发态看 span
 
 把 OTel span 写进 `log/slog`：
 
@@ -298,7 +298,7 @@ import (
     stdslog "log/slog"
     "go.opentelemetry.io/otel"
     sdktrace "go.opentelemetry.io/otel/sdk/trace"
-    "github.com/Tangerg/lynx/otelbridge/slog"
+    "github.com/Tangerg/lynx/observation/slog"
 )
 
 func main() {
@@ -330,7 +330,7 @@ time=... level=ERROR msg="span (error): timeout after 30s" trace_id=...
 
 父子 span 通过 `parent_span_id` 关联，重建调用链。
 
-### 6.2 `otelbridge/log`：stdlib log 版
+### 6.2 `observation/log`：stdlib log 版
 
 logfmt 风格单行输出，依赖更少（不需要 slog）。
 
@@ -338,7 +338,7 @@ logfmt 风格单行输出，依赖更少（不需要 slog）。
 
 | 场景 | 推荐 |
 |-----|-----|
-| 单机开发、快速看调用 | `otelbridge/slog`（与业务日志同一路径）|
+| 单机开发、快速看调用 | `observation/slog`（与业务日志同一路径）|
 | 看官方格式、不与业务日志融合 | OTel 官方 `stdouttrace` |
 | 生产保留 trace 结构 | OTLP → Jaeger / Tempo |
 | 生产按指标监控 | Prometheus pull（metric exporter，不是 span）|
@@ -381,8 +381,8 @@ otel.SetTracerProvider(tp)
 
 ### 8.1 已就绪（接收侧）
 
-- [x] `otelbridge/slog/`：5 项单测
-- [x] `otelbridge/log/`：6 项单测（logfmt 风格）
+- [x] `observation/slog/`：5 项单测
+- [x] `observation/log/`：6 项单测（logfmt 风格）
 
 ### 8.2 待动工（发射侧）
 
@@ -424,4 +424,4 @@ otel.SetTracerProvider(tp)
 
 ## 10. 一句话定档
 
-> Go 世界里 OTel 已经是共识，再加一层是负资产。Lynx 的 observability 故事就是「core 直接 import OTel API 包 + otelbridge/ 提供 slog/log 两个开发态 exporter + 生产用户自配 OTel SDK」。当前接收侧已就绪，发射侧（核心代码挂 span）是下一阶段工作——埋点点位与语义已在本文 §3-§4 定下，落地是机械活。
+> Go 世界里 OTel 已经是共识，再加一层是负资产。Lynx 的 observability 故事就是「core 直接 import OTel API 包 + observation/ 提供 slog/log 两个开发态 exporter + 生产用户自配 OTel SDK」。当前接收侧已就绪，发射侧（核心代码挂 span）是下一阶段工作——埋点点位与语义已在本文 §3-§4 定下，落地是机械活。

@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/core/document"
-	"github.com/Tangerg/lynx/core/rag"
+	"github.com/Tangerg/lynx/rag"
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
 	"github.com/Tangerg/lynx/core/vectorstore/filter/ast"

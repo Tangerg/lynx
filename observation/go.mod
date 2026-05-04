@@ -1,4 +1,4 @@
-module github.com/Tangerg/lynx/otelbridge
+module github.com/Tangerg/lynx/observation
 
 go 1.25.0
 

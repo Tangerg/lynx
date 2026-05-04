@@ -9,7 +9,7 @@ import (
 
 	"github.com/Tangerg/lynx/core/document"
 	"github.com/Tangerg/lynx/core/model/chat"
-	"github.com/Tangerg/lynx/core/rag"
+	"github.com/Tangerg/lynx/rag"
 )
 
 // stubRetriever returns a fixed document set; used to exercise the

@@ -11,7 +11,7 @@
 //	    stdlog "log"
 //	    "go.opentelemetry.io/otel"
 //	    sdktrace "go.opentelemetry.io/otel/sdk/trace"
-//	    "github.com/Tangerg/lynx/otelbridge/log"
+//	    "github.com/Tangerg/lynx/observation/log"
 //	)
 //
 //	tp := sdktrace.NewTracerProvider(
