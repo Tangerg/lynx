@@ -5,8 +5,9 @@ use (
 	./core
 	./mcp
 	./models
-	./otelbridge
+	./observation
 	./pkg
+	./rag
 	./tools
 	./vectorstores
 )

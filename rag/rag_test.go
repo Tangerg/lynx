@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/core/document"
-	"github.com/Tangerg/lynx/core/rag"
+	"github.com/Tangerg/lynx/rag"
 )
 
 func TestNewQuery_RequiresText(t *testing.T) {

@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/core/document"
-	"github.com/Tangerg/lynx/core/rag"
+	"github.com/Tangerg/lynx/rag"
 )
 
 func TestDeduplicationRefiner_DropsDuplicateIDs(t *testing.T) {

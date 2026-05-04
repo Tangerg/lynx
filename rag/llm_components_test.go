@@ -9,7 +9,7 @@ import (
 
 	"github.com/Tangerg/lynx/core/document"
 	"github.com/Tangerg/lynx/core/model/chat"
-	"github.com/Tangerg/lynx/core/rag"
+	"github.com/Tangerg/lynx/rag"
 )
 
 // fakeChatModel is the mock used by every LLM-backed component test.
