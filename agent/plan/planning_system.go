@@ -44,34 +44,9 @@ func (s *PlanningSystem) KnownConditions() map[string]struct{} {
 	}
 
 	s.knownConditionsOnce.Do(func() {
-		computed := s.computeKnownConditions()
+		computed := core.ComputeKnownConditions(s.Actions, s.Goals, s.Conditions)
 		s.knownConditions.Store(&computed)
 	})
 	return *s.knownConditions.Load()
-}
-
-func (s *PlanningSystem) computeKnownConditions() map[string]struct{} {
-	out := map[string]struct{}{}
-
-	for _, action := range s.Actions {
-		meta := action.Metadata()
-		for key := range meta.Preconditions {
-			out[key] = struct{}{}
-		}
-		for key := range meta.Effects {
-			out[key] = struct{}{}
-		}
-	}
-
-	for _, goal := range s.Goals {
-		for key := range goal.Preconditions() {
-			out[key] = struct{}{}
-		}
-	}
-
-	for _, cond := range s.Conditions {
-		out[cond.Name()] = struct{}{}
-	}
-	return out
 }
 

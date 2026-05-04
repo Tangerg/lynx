@@ -16,7 +16,7 @@ type wordCount struct{ Count int }
 // action, one goal. Ensures the planner finds the (single) action and the
 // runtime executes it to completion.
 func TestRunSingleAction(t *testing.T) {
-	a := agent.New(core.AgentConfig{Name: "test"}).
+	a := agent.New("test").
 		Actions(agent.NewAction("count",
 			func(ctx context.Context, pc *core.ProcessContext, in word) (wordCount, error) {
 				return wordCount{Count: len(in.Text)}, nil
@@ -59,7 +59,7 @@ func TestRunMultiStepPlanning(t *testing.T) {
 	type stage2 struct{ V int }
 	type stage3 struct{ V int }
 
-	a := agent.New(core.AgentConfig{Name: "multi"}).
+	a := agent.New("multi").
 		Actions(agent.NewAction("a",
 			func(ctx context.Context, pc *core.ProcessContext, in word) (stage1, error) {
 				return stage1{V: len(in.Text)}, nil

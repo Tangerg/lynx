@@ -25,6 +25,14 @@ type ToolResolver func(ctx context.Context, roles []string) ([]AgentTool, error)
 // custom events through the multicast listener.
 type EventPublisher func(event any)
 
+// ToolCallCanceller is the runtime's hook for [ProcessContext.ToolCallContext].
+// It hands the runtime a cancel func tied to the in-flight tool call (so
+// [Process.TerminateToolCall] can fire it) and returns a release closure
+// the caller MUST defer to detach the registration once the tool call
+// returns. nil disables tool-call cancellation: ToolCallContext returns
+// the parent ctx unchanged.
+type ToolCallCanceller func(cancel context.CancelFunc) (release func())
+
 // ProcessContextDeps bundles every dependency [NewProcessContext] needs.
 // The runtime fills it once per tick and calls NewProcessContext — that
 // keeps the field-injection plumbing inside one constructor instead of
@@ -46,17 +54,10 @@ type ProcessContextDeps struct {
 	// closure backed by the platform's [ToolGroupResolver].
 	ResolveTools ToolResolver
 
-	// RegisterToolCallCancel is invoked by [ProcessContext.ToolCallContext]
-	// to hand the runtime a cancel func tied to the in-flight tool call.
-	// The runtime stores it so [Process.TerminateToolCall] can fire it.
-	// nil disables tool-call cancellation (calls return the parent ctx
-	// unchanged).
-	RegisterToolCallCancel func(cancel context.CancelFunc)
-
-	// ClearToolCallCancel detaches the cancel func registered above —
-	// callers defer this when the tool call returns so a stale ctx
-	// doesn't get cancelled by a later [Process.TerminateToolCall].
-	ClearToolCallCancel func()
+	// ToolCallCancel registers a cancel func and returns a release
+	// closure — single function rather than a register/clear pair so
+	// callers can't mismatch them.
+	ToolCallCancel ToolCallCanceller
 }
 
 // ProcessContext is the only thing handed to an [Action.Execute] call.
@@ -69,10 +70,9 @@ type ProcessContext struct {
 	OutputChannel OutputChannel
 	Services      *ServiceProvider
 
-	publishEvent           EventPublisher
-	resolveTools           ToolResolver
-	registerToolCallCancel func(cancel context.CancelFunc)
-	clearToolCallCancel    func()
+	publishEvent   EventPublisher
+	resolveTools   ToolResolver
+	toolCallCancel ToolCallCanceller
 
 	// lastErr captures the most recent error from a typed-action body so
 	// the runtime can extract a ReplanRequest. ProcessContext is built
@@ -85,15 +85,14 @@ type ProcessContext struct {
 // runtime once per tick; users don't construct ProcessContexts themselves.
 func NewProcessContext(deps ProcessContextDeps) *ProcessContext {
 	return &ProcessContext{
-		Process:                deps.Process,
-		Blackboard:             deps.Blackboard,
-		Options:                deps.Options,
-		OutputChannel:          deps.OutputChannel,
-		Services:               deps.Services,
-		publishEvent:           deps.Publish,
-		resolveTools:           deps.ResolveTools,
-		registerToolCallCancel: deps.RegisterToolCallCancel,
-		clearToolCallCancel:    deps.ClearToolCallCancel,
+		Process:        deps.Process,
+		Blackboard:     deps.Blackboard,
+		Options:        deps.Options,
+		OutputChannel:  deps.OutputChannel,
+		Services:       deps.Services,
+		publishEvent:   deps.Publish,
+		resolveTools:   deps.ResolveTools,
+		toolCallCancel: deps.ToolCallCancel,
 	}
 }
 
@@ -128,25 +127,23 @@ func (pc *ProcessContext) ResolveTools(ctx context.Context, roles ...string) ([]
 // resources) and detaches the runtime's pointer to it so a later
 // TerminateToolCall doesn't fire on a stale ctx.
 //
-// When pc has no registered cancel hooks (e.g. tests building a bare
+// When pc has no registered canceller (e.g. tests building a bare
 // ProcessContext), behaviour falls back to plain [context.WithCancel] —
 // TerminateToolCall becomes a no-op.
 func (pc *ProcessContext) ToolCallContext(parent context.Context) (context.Context, context.CancelFunc) {
 	ctx, cancel := context.WithCancel(parent)
 
-	if pc == nil || pc.registerToolCallCancel == nil {
+	if pc == nil || pc.toolCallCancel == nil {
 		return ctx, cancel
 	}
 
-	pc.registerToolCallCancel(cancel)
-
-	cleanup := func() {
+	release := pc.toolCallCancel(cancel)
+	return ctx, func() {
 		cancel()
-		if pc.clearToolCallCancel != nil {
-			pc.clearToolCallCancel()
+		if release != nil {
+			release()
 		}
 	}
-	return ctx, cleanup
 }
 
 // AwaitInput delegates to the underlying Process.AwaitInput. Convenience

@@ -105,7 +105,7 @@ func (a *Agent) KnownConditions() map[string]struct{} {
 	}
 
 	a.knownConditionsOnce.Do(func() {
-		computed := computeKnownConditions(a.Actions, a.Goals, a.Conditions)
+		computed := ComputeKnownConditions(a.Actions, a.Goals, a.Conditions)
 		a.knownConditions.Store(&computed)
 	})
 	return *a.knownConditions.Load()
@@ -163,9 +163,10 @@ func ValidateAgent(a *Agent) error {
 	return nil
 }
 
-// computeKnownConditions is the pure builder used by both Agent and
-// PlanningSystem caches.
-func computeKnownConditions(actions []Action, goals []*Goal, conditions []Condition) map[string]struct{} {
+// ComputeKnownConditions is the pure builder reused by Agent and
+// plan.PlanningSystem caches: union of action precondition / effect keys,
+// goal precondition keys, and named-Condition names.
+func ComputeKnownConditions(actions []Action, goals []*Goal, conditions []Condition) map[string]struct{} {
 	out := map[string]struct{}{}
 
 	for _, action := range actions {

@@ -36,7 +36,7 @@ type Topic struct{ Title string }
 type Post  struct{ Body  string }
 
 func main() {
-    a := agent.New(core.AgentConfig{Name: "Hello"}).
+    a := agent.New("Hello").
         Actions(agent.NewAction("write",
             func(ctx context.Context, pc *core.ProcessContext, t Topic) (Post, error) {
                 return Post{Body: "About " + t.Title}, nil
@@ -49,7 +49,7 @@ func main() {
     p := agent.NewPlatform(runtime.PlatformConfig{})
     _ = p.Deploy(a)
     proc, _ := p.RunAgent(context.Background(), a, map[string]any{
-        core.DefaultBinding: Topic{Title: "agents"},
+        core.DefaultBindingName: Topic{Title: "agents"},
     }, core.ProcessOptions{})
     post, _ := core.ResultOfType[Post](proc)
     fmt.Println(post.Body)

@@ -30,14 +30,8 @@ type inMemoryBlackboard struct {
 
 // newInMemoryBlackboard returns a fresh blackboard with a generated UUID id.
 func newInMemoryBlackboard() *inMemoryBlackboard {
-	return newInMemoryBlackboardWithID(uuid.NewString())
-}
-
-// newInMemoryBlackboardWithID lets callers supply a stable id (used when
-// deserializing or threading a known id through tests).
-func newInMemoryBlackboardWithID(id string) *inMemoryBlackboard {
 	return &inMemoryBlackboard{
-		id:         id,
+		id:         uuid.NewString(),
 		named:      map[string]any{},
 		protected:  map[string]struct{}{},
 		conditions: map[string]bool{},

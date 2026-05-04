@@ -84,14 +84,13 @@ func errString(err error) string {
 // non-serializable fields ([core.IoBinding].Type already strings, but
 // [core.CostFunc] callbacks can't round-trip).
 type goalSummary struct {
-	Name        string                 `json:"name,omitempty"`
-	Description string                 `json:"description,omitempty"`
-	Pre         []string               `json:"pre,omitempty"`
-	Inputs      []core.IoBinding       `json:"inputs,omitempty"`
-	OutputType  string                 `json:"output_type,omitempty"`
-	ValueStatic float64                `json:"value_static,omitempty"`
-	Tags        []string               `json:"tags,omitempty"`
-	Examples    []string               `json:"examples,omitempty"`
+	Name        string           `json:"name,omitempty"`
+	Description string           `json:"description,omitempty"`
+	Pre         []string         `json:"pre,omitempty"`
+	Inputs      []core.IoBinding `json:"inputs,omitempty"`
+	OutputType  string           `json:"output_type,omitempty"`
+	Tags        []string         `json:"tags,omitempty"`
+	Examples    []string         `json:"examples,omitempty"`
 }
 
 func summarizeGoal(g *core.Goal) *goalSummary {
@@ -103,7 +102,6 @@ func summarizeGoal(g *core.Goal) *goalSummary {
 		Description: g.Description,
 		Pre:         g.Pre,
 		Inputs:      g.Inputs,
-		ValueStatic: g.ValueStatic,
 		Tags:        g.Tags,
 		Examples:    g.Examples,
 	}
@@ -479,12 +477,16 @@ func (m *Multicast) Remove(l Listener) {
 }
 
 // OnEvent delivers to every registered listener, isolating each call so a
-// panicking listener doesn't take down the rest.
+// panicking listener doesn't take down the rest. Listeners are snapshotted
+// under the lock and then invoked outside it, so a slow listener can't
+// block concurrent Add / Remove calls.
 func (m *Multicast) OnEvent(e Event) {
 	m.mu.RLock()
-	defer m.mu.RUnlock()
+	listeners := make([]Listener, len(m.listeners))
+	copy(listeners, m.listeners)
+	m.mu.RUnlock()
 
-	for _, listener := range m.listeners {
+	for _, listener := range listeners {
 		safeDeliver(listener, e)
 	}
 }

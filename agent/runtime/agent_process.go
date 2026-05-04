@@ -3,6 +3,7 @@ package runtime
 import (
 	"context"
 	"errors"
+	"maps"
 	"slices"
 	"sync"
 	"sync/atomic"
@@ -45,11 +46,12 @@ type AgentProcess struct {
 
 	terminate        chan core.TerminationScopeSignal
 	pendingAwaitable atomic.Pointer[awaitSlot]
-	toolCallCancel   atomic.Pointer[toolCallCancelEntry]
+	toolCallCancel   atomic.Pointer[context.CancelFunc]
 
 	blackboard core.Blackboard
 	determiner worldStateDeterminer
 	planner    plan.Planner
+	system     *plan.PlanningSystem
 	platform   *Platform
 }
 
@@ -57,16 +59,12 @@ type AgentProcess struct {
 // pair: AwaitInput stores the awaitable here and flips the process to
 // StatusWaiting; ResumeProcess swaps the slot out and routes the
 // response through awaitable.OnResponseAny so the user-supplied
-// handler runs (typically mutating the blackboard).
+// handler runs (typically mutating the blackboard). The single-field
+// wrapper exists so atomic.Pointer can park an interface value
+// (Go won't let us use atomic.Pointer[core.Awaitable] directly with
+// concrete-typed Stores).
 type awaitSlot struct {
 	awaitable core.Awaitable
-}
-
-// toolCallCancelEntry holds the cancel func of the most recently
-// derived tool-call context. TerminateToolCall fires it; the action's
-// in-flight tool invocation observes ctx.Done() and aborts.
-type toolCallCancelEntry struct {
-	cancel context.CancelFunc
 }
 
 // ActionInvocation is one row of the per-process history.
@@ -87,6 +85,7 @@ func newAgentProcess(
 	bb core.Blackboard,
 	determiner worldStateDeterminer,
 	planner plan.Planner,
+	system *plan.PlanningSystem,
 	platform *Platform,
 ) *AgentProcess {
 	return &AgentProcess{
@@ -100,6 +99,7 @@ func newAgentProcess(
 		blackboard:      bb,
 		determiner:      determiner,
 		planner:         planner,
+		system:          system,
 		platform:        platform,
 	}
 }
@@ -199,27 +199,28 @@ func (p *AgentProcess) TerminateAction(reason string) {
 // ctx.Done() at this point and abort. No-op when no tool-call context
 // is currently registered.
 func (p *AgentProcess) TerminateToolCall(reason string) {
-	entry := p.toolCallCancel.Load()
-	if entry == nil || entry.cancel == nil {
+	cancel := p.toolCallCancel.Load()
+	if cancel == nil || *cancel == nil {
 		return
 	}
-	entry.cancel()
+	(*cancel)()
 	_ = reason // reserved for future event publishing
 }
 
-// registerToolCallCancel installs a fresh cancel func, replacing any
-// previously-registered one (the old context becomes orphaned — its
-// owning action body should already be done by the time a new tool
-// call starts). Used by [core.ProcessContext.ToolCallContext].
-func (p *AgentProcess) registerToolCallCancel(cancel context.CancelFunc) {
-	p.toolCallCancel.Store(&toolCallCancelEntry{cancel: cancel})
-}
-
-// clearToolCallCancel detaches the registered cancel — callers do this
-// when the tool call returns (success or error) so a stale entry doesn't
-// hang around for the next [TerminateToolCall].
-func (p *AgentProcess) clearToolCallCancel() {
-	p.toolCallCancel.Store(nil)
+// registerToolCallCancel installs a fresh cancel func and returns a
+// release closure that detaches it. Used by
+// [core.ProcessContext.ToolCallContext]. A new registration replaces any
+// previously-stored one (the old context becomes orphaned — its owning
+// action body should already be done by the time a new tool call
+// starts).
+func (p *AgentProcess) registerToolCallCancel(cancel context.CancelFunc) (release func()) {
+	cell := &cancel
+	p.toolCallCancel.Store(cell)
+	return func() {
+		// Only clear if we still own the slot — a newer registration
+		// would have replaced us, and we mustn't stomp it.
+		p.toolCallCancel.CompareAndSwap(cell, nil)
+	}
 }
 
 func (p *AgentProcess) queueTermination(scope core.TerminationScope, reason string) {
@@ -250,17 +251,6 @@ func (p *AgentProcess) AwaitInput(req core.Awaitable) core.ActionStatus {
 		Awaitable: req,
 	})
 	return core.ActionWaiting
-}
-
-// peekAwaitable returns the parked Awaitable (if any) — Platform's status
-// API surfaces this. Internal because it's part of the runtime's
-// suspend/resume handshake, not user-facing.
-func (p *AgentProcess) peekAwaitable() core.Awaitable {
-	slot := p.pendingAwaitable.Load()
-	if slot == nil {
-		return nil
-	}
-	return slot.awaitable
 }
 
 // deliverResponse is the runtime's hook for resuming a waiting process.
@@ -327,12 +317,7 @@ func (p *AgentProcess) clearExclusions() {
 func (p *AgentProcess) snapshotExclusions() map[string]struct{} {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
-
-	out := make(map[string]struct{}, len(p.excludedActions))
-	for name := range p.excludedActions {
-		out[name] = struct{}{}
-	}
-	return out
+	return maps.Clone(p.excludedActions)
 }
 
 // publishEvent dispatches via the platform's multicast listener (if wired).

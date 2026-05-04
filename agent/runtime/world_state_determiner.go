@@ -28,12 +28,25 @@ type blackboardDeterminer struct {
 	system     *plan.PlanningSystem
 	blackboard core.Blackboard
 	process    core.Process
+
+	// namedConditions indexes system.Conditions by Name() so the per-tick
+	// dispatch is a map lookup rather than a linear scan.
+	namedConditions map[string]core.Condition
 }
 
-// newBlackboardDeterminer wires the determiner. The Process pointer is what
-// gets handed to user-defined Conditions during Evaluate.
+// newBlackboardDeterminer wires the determiner. The Process pointer is
+// what gets handed to user-defined Conditions during Evaluate.
 func newBlackboardDeterminer(system *plan.PlanningSystem, bb core.Blackboard, proc core.Process) *blackboardDeterminer {
-	return &blackboardDeterminer{system: system, blackboard: bb, process: proc}
+	named := make(map[string]core.Condition, len(system.Conditions))
+	for _, cond := range system.Conditions {
+		named[cond.Name()] = cond
+	}
+	return &blackboardDeterminer{
+		system:          system,
+		blackboard:      bb,
+		process:         proc,
+		namedConditions: named,
+	}
 }
 
 // DetermineWorldState produces a fresh ConditionWorldState reflecting the
@@ -62,7 +75,7 @@ func (d *blackboardDeterminer) evaluateCondition(ctx context.Context, key string
 		return d.evaluateHasRun(key)
 	}
 
-	if cond := d.findNamedCondition(key); cond != nil {
+	if cond, ok := d.namedConditions[key]; ok {
 		return cond.Evaluate(ctx, oc)
 	}
 
@@ -74,25 +87,11 @@ func (d *blackboardDeterminer) evaluateCondition(ctx context.Context, key string
 
 func (d *blackboardDeterminer) evaluateTypeBinding(key string) core.Determination {
 	binding := core.ParseIoBinding(key)
-	if d.blackboard.HasValue(binding.Name, binding.Type) {
-		return core.True
-	}
-	return core.False
+	return core.FromBool(d.blackboard.HasValue(binding.Name, binding.Type))
 }
 
 func (d *blackboardDeterminer) evaluateHasRun(key string) core.Determination {
-	value, ok := d.blackboard.GetCondition(key)
-	if !ok {
-		return core.False
-	}
+	value, _ := d.blackboard.GetCondition(key)
 	return core.FromBool(value)
 }
 
-func (d *blackboardDeterminer) findNamedCondition(name string) core.Condition {
-	for _, cond := range d.system.Conditions {
-		if cond.Name() == name {
-			return cond
-		}
-	}
-	return nil
-}
