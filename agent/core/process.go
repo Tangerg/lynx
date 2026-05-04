@@ -50,6 +50,13 @@ type Process interface {
 	// itself doesn't know LLM rates — integration code (listeners,
 	// chat-client adapters) calls this when LLMResponseEvent fires.
 	RecordUsage(cost float64, tokens int)
+
+	// Usage returns the subtree-aggregated cost / token / action totals.
+	// Cost and tokens come from [Process.RecordUsage] calls; the action
+	// count is the recursive sum of every History across this process
+	// and its child processes. [BudgetPolicy] reads this directly so a
+	// parent's budget governs its entire delegation tree.
+	Usage() (cost float64, tokens int, actions int)
 }
 
 // processCtxKey is the unexported context key for embedding a Process. Using

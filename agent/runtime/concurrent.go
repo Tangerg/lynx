@@ -2,7 +2,6 @@ package runtime
 
 import (
 	"context"
-	"sync"
 
 	"golang.org/x/sync/errgroup"
 
@@ -53,22 +52,18 @@ func (p *AgentProcess) tickConcurrent(ctx context.Context, ws core.WorldState) e
 
 // runActionsInParallel dispatches every achievable action onto its own
 // goroutine and waits for completion. Result indices align with the input
-// slice so the caller can correlate per-action outcomes.
+// slice so the caller can correlate per-action outcomes. Each goroutine
+// writes a unique pre-allocated slot, and g.Wait synchronises the writes
+// with the post-Wait reads — so no explicit mutex is required.
 func (p *AgentProcess) runActionsInParallel(ctx context.Context, actions []core.Action) ([]core.ActionStatus, []*core.ReplanRequest) {
 	results := make([]core.ActionStatus, len(actions))
 	replans := make([]*core.ReplanRequest, len(actions))
 
-	var slotMu sync.Mutex
 	g, egCtx := errgroup.WithContext(ctx)
 	for index, action := range actions {
 		index, action := index, action
 		g.Go(func() error {
-			status, replan := p.executeAction(egCtx, action)
-
-			slotMu.Lock()
-			results[index] = status
-			replans[index] = replan
-			slotMu.Unlock()
+			results[index], replans[index] = p.executeAction(egCtx, action)
 			return nil
 		})
 	}

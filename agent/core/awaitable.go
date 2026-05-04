@@ -14,8 +14,9 @@ const (
 // Awaitable is the non-generic root of HITL prompts; it lives here so
 // [Process] can declare [Process.AwaitInput] without dragging the hitl
 // package into core. The hitl/ subpackage provides the typed
-// [hitl.Request][P, R] interface plus concrete request types
-// (ConfirmationRequest, FormBindingRequest).
+// [hitl.Request][P, R] interface plus the canonical
+// [hitl.TypedRequest] implementation (with [hitl.NewConfirmation] as the
+// boolean-response specialisation).
 type Awaitable interface {
 	// ID is a stable identifier — used by [Platform.ResumeProcess] to
 	// look up the pending request.
@@ -32,7 +33,7 @@ type Awaitable interface {
 	// handler decided plus an error when the response value isn't
 	// assignable to the awaitable's expected response type.
 	//
-	// Typed flavours (e.g. [hitl.ConfirmationRequest]) implement this by
+	// Typed flavours (e.g. [hitl.TypedRequest]) implement this by
 	// type-asserting response to their concrete R type and forwarding
 	// to OnResponse(R).
 	OnResponseAny(response any) (ResponseImpact, error)

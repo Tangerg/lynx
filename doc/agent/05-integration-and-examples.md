@@ -336,11 +336,9 @@ import (
 )
 
 func NewBlogAgent() *core.Agent {
-    return agent.New(core.AgentConfig{
-        Name:        "BlogAgent",
-        Description: "Generate a well-researched blog post on a given topic",
-        Version:     semver.MustParse("1.0.0"),
-    }).
+    return agent.New("BlogAgent").
+        Description("Generate a well-researched blog post on a given topic").
+        Version("1.0.0").
         // 研究：从 Topic 得到 Research
         Actions(core.NewAction("research",
             func(ctx context.Context, pc *core.ProcessContext, topic Topic) (Research, error) {
@@ -381,9 +379,9 @@ func NewBlogAgent() *core.Agent {
         Actions(core.NewAction("write",
             func(ctx context.Context, pc *core.ProcessContext, _ WriteInput) (BlogPost, error) {
                 // WriteInput 是聚合类型（下面解释）
-                outline, _ := core.Get[Outline](pc.Blackboard, core.DefaultBinding)
-                research, _ := core.Get[Research](pc.Blackboard, core.DefaultBinding)
-                topic, _ := core.Get[Topic](pc.Blackboard, core.DefaultBinding)
+                outline, _ := core.Get[Outline](pc.Blackboard, core.DefaultBindingName)
+                research, _ := core.Get[Research](pc.Blackboard, core.DefaultBindingName)
+                topic, _ := core.Get[Topic](pc.Blackboard, core.DefaultBindingName)
 
                 prompt := buildBlogPrompt(topic, outline, research)
                 resp, err := pc.LLM().ChatWithText(prompt).Call().Response(ctx)

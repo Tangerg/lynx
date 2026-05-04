@@ -10,7 +10,7 @@ import (
 	"context"
 	"errors"
 	"math"
-	"sort"
+	"slices"
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -125,8 +125,8 @@ func candidateActions(actions []core.Action, excluded map[string]struct{}) []cor
 		out = append(out, a)
 	}
 
-	sort.SliceStable(out, func(i, j int) bool {
-		return len(out[i].Metadata().Preconditions) > len(out[j].Metadata().Preconditions)
+	slices.SortStableFunc(out, func(a, b core.Action) int {
+		return len(b.Metadata().Preconditions) - len(a.Metadata().Preconditions)
 	})
 	return out
 }
@@ -201,19 +201,24 @@ func expandNeighbors(
 	goal *core.Goal,
 ) {
 	currentKey := current.state.HashKey()
+	currentState := current.state.State()
 	for _, action := range actions {
-		if !isApplicable(action, current.state) {
+		meta := action.Metadata()
+		if !meta.IsApplicableIn(currentState) {
 			continue
 		}
 
-		nextState := current.state.Apply(action.Metadata().Effects)
+		nextState := current.state.Apply(meta.Effects)
 		nextKey := nextState.HashKey()
 		if nextKey == currentKey {
 			// Effect produced no observable state change in this position.
 			continue
 		}
 
-		tentativeG := current.gScore + action.Metadata().Cost(start)
+		tentativeG := current.gScore
+		if meta.Cost != nil {
+			tentativeG += meta.Cost(start)
+		}
 		if existing, ok := gScores[nextKey]; ok && tentativeG >= existing {
 			continue
 		}
@@ -253,8 +258,15 @@ func (p *AStarPlanner) PlansToGoals(
 		out = append(out, pl)
 	}
 
-	sort.SliceStable(out, func(i, j int) bool {
-		return out[i].NetValue(start) > out[j].NetValue(start)
+	slices.SortStableFunc(out, func(a, b *plan.Plan) int {
+		va, vb := a.NetValue(start), b.NetValue(start)
+		switch {
+		case va > vb:
+			return -1
+		case va < vb:
+			return 1
+		}
+		return 0
 	})
 	return out, nil
 }
@@ -334,18 +346,6 @@ func heuristic(ws core.WorldState, goal *core.Goal) float64 {
 func isGoalSatisfied(ws core.WorldState, goal *core.Goal) bool {
 	state := ws.State()
 	for key, required := range goal.Preconditions() {
-		if state[key] != required {
-			return false
-		}
-	}
-	return true
-}
-
-// isApplicable checks whether all of action's preconditions hold in ws.
-// Unknown preconditions block — we don't speculatively apply.
-func isApplicable(action core.Action, ws core.WorldState) bool {
-	state := ws.State()
-	for key, required := range action.Metadata().Preconditions {
 		if state[key] != required {
 			return false
 		}

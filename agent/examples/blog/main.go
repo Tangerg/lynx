@@ -38,10 +38,8 @@ func (stubLogger) OnEvent(e event.Event) {
 }
 
 func main() {
-	a := agent.New(core.AgentConfig{
-		Name:        "BlogAgent",
-		Description: "synthesize a blog post from a topic",
-	}).
+	a := agent.New("BlogAgent").
+		Description("synthesize a blog post from a topic").
 		Actions(agent.NewAction("research",
 			func(ctx context.Context, pc *core.ProcessContext, t Topic) (Research, error) {
 				return Research{Sources: []string{"https://example.com/" + t.Title}}, nil
@@ -60,8 +58,8 @@ func main() {
 			// from inside the action — the Pre below tells the planner it
 			// must also be present before this action becomes applicable.
 			func(ctx context.Context, pc *core.ProcessContext, outline Outline) (BlogPost, error) {
-				topic, _ := core.Get[Topic](pc.Blackboard, core.DefaultBinding)
-				research, _ := core.Get[Research](pc.Blackboard, core.DefaultBinding)
+				topic, _ := core.Get[Topic](pc.Blackboard, core.DefaultBindingName)
+				research, _ := core.Get[Research](pc.Blackboard, core.DefaultBindingName)
 				return BlogPost{
 					Topic:    topic,
 					Outline:  outline,
@@ -86,7 +84,7 @@ func main() {
 	proc, err := platform.RunAgent(
 		context.Background(),
 		a,
-		map[string]any{core.DefaultBinding: Topic{Title: "agent-frameworks"}},
+		map[string]any{core.DefaultBindingName: Topic{Title: "agent-frameworks"}},
 		// Switch to ProcessConcurrent to run independent actions in parallel
 		// (research + outline on tick 1, write on tick 2).
 		core.ProcessOptions{ProcessType: core.ProcessSimple},

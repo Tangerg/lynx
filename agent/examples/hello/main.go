@@ -21,10 +21,8 @@ type CountResult struct {
 }
 
 func main() {
-	a := agent.New(core.AgentConfig{
-		Name:        "Hello",
-		Description: "count uppercase characters of a phrase",
-	}).
+	a := agent.New("Hello").
+		Description("count uppercase characters of a phrase").
 		Actions(agent.NewAction("count_upper",
 			func(ctx context.Context, pc *core.ProcessContext, in string) (CountResult, error) {
 				upper := strings.ToUpper(in)
@@ -43,7 +41,7 @@ func main() {
 	proc, err := platform.RunAgent(
 		context.Background(),
 		a,
-		map[string]any{core.DefaultBinding: "hello"},
+		map[string]any{core.DefaultBindingName: "hello"},
 		core.ProcessOptions{},
 	)
 	if err != nil {

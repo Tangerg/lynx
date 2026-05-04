@@ -26,4 +26,15 @@ type WorldState interface {
 // CostFunc computes a dynamic cost or value from the current world state. The
 // planner samples it during A* search so an action can be cheap or expensive
 // depending on what's already been observed.
+//
+// Use [Static] to lift a constant float into a CostFunc — that single shape
+// covers both static and dynamic uses, so the framework doesn't need parallel
+// "static fallback" fields alongside every CostFunc field.
 type CostFunc func(WorldState) float64
+
+// Static returns a [CostFunc] that ignores the world state and always
+// returns v. Use it whenever a planning cost or value is constant —
+// e.g. `ActionConfig{Cost: core.Static(1.5)}`.
+func Static(v float64) CostFunc {
+	return func(WorldState) float64 { return v }
+}

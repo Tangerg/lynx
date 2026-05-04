@@ -17,7 +17,9 @@ func (p *Plan) IsComplete() bool {
 
 // Cost is the sum of action costs; the planner uses it to rank competing
 // plans. It samples each action's cost against the supplied world state so
-// dynamic-cost actions get evaluated correctly.
+// dynamic-cost actions get evaluated correctly. Actions with a nil Cost
+// contribute nothing — the canonical construction path ([core.NewAction])
+// fills in [core.Static](1.0).
 func (p *Plan) Cost(ws core.WorldState) float64 {
 	if p == nil {
 		return 0
@@ -25,15 +27,19 @@ func (p *Plan) Cost(ws core.WorldState) float64 {
 
 	total := 0.0
 	for _, action := range p.Actions {
-		total += action.Metadata().Cost(ws)
+		if fn := action.Metadata().Cost; fn != nil {
+			total += fn(ws)
+		}
 	}
 	return total
 }
 
-// Value is the goal value; cached here so callers don't have to dereference
-// (p.Goal nil-check + Value resolution) themselves.
+// Value is the goal value; cached here so callers don't have to
+// dereference (p.Goal nil-check + Value resolution) themselves. A nil
+// Goal.Value contributes 0 — [core.GoalProducing] fills in
+// [core.Static](1.0).
 func (p *Plan) Value(ws core.WorldState) float64 {
-	if p == nil || p.Goal == nil {
+	if p == nil || p.Goal == nil || p.Goal.Value == nil {
 		return 0
 	}
 	return p.Goal.Value(ws)

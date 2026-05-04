@@ -2,15 +2,16 @@ package core
 
 import "reflect"
 
-// ActionConfig is the optional configuration bundle for [NewAction]. Every
-// field is optional — pass a zero ActionConfig{} when defaults suffice.
-// Choosing a struct over the functional-options pattern avoids polluting the
-// package namespace with ~20 `With…` constructors and lets defaults +
-// validation live in one place ([applyDefaults]).
+// ActionConfig is the optional configuration bundle for [NewAction].
+// Every field is optional — pass a zero ActionConfig{} when defaults
+// suffice. Choosing a struct over functional options keeps defaults +
+// validation in one place ([applyDefaults]).
 //
-// Static cost defaults to 1.0 — the planner shouldn't accidentally treat
-// real work as zero-cost, so leaving Cost at its zero value triggers the
-// 1.0 fallback. Express a "free" action as Cost: 0.001.
+// Cost and Value are [CostFunc]s rather than (static, fn) pairs. Use
+// [Static] to lift a constant — e.g. `Cost: core.Static(2.5)`. Leave
+// Cost nil to inherit the [Static](1.0) default; leave Value nil for
+// [Static](0). The planner shouldn't accidentally treat real work as
+// zero-cost, so a nil Cost falls back to 1.0 rather than 0.
 type ActionConfig struct {
 	// Description is the human-readable prose surfaced in tracing,
 	// dashboards, and (when an action is exposed as a tool) the LLM
@@ -37,21 +38,13 @@ type ActionConfig struct {
 	// back to [DefaultActionQos].
 	QoS ActionQos
 
-	// Cost is the static planning cost. Zero falls back to 1.0.
-	// Mutually exclusive with CostFn — when both are set CostFn wins.
-	Cost float64
+	// Cost is the per-tick planning cost probe. Nil falls back to
+	// [Static](1.0).
+	Cost CostFunc
 
-	// Value is the static planning value. Mutually exclusive with
-	// ValueFn — when both are set ValueFn wins.
-	Value float64
-
-	// CostFn installs a state-dependent cost function. When set, it
-	// overrides Cost during planning.
-	CostFn CostFunc
-
-	// ValueFn installs a state-dependent value function. When set, it
-	// overrides Value during planning.
-	ValueFn CostFunc
+	// Value is the per-tick planning value probe. Nil falls back to
+	// [Static](0).
+	Value CostFunc
 
 	// ToolGroups declares the abstract tool requirements (role names) —
 	// the resolver translates these to concrete tools at execution
@@ -89,8 +82,11 @@ type ActionConfig struct {
 // applyDefaults fills in zero-valued fields whose conceptual default is
 // non-zero. Mutates the receiver.
 func (c *ActionConfig) applyDefaults() {
-	if c.Cost == 0 {
-		c.Cost = 1.0
+	if c.Cost == nil {
+		c.Cost = Static(1.0)
+	}
+	if c.Value == nil {
+		c.Value = Static(0)
 	}
 	if c.QoS == (ActionQos{}) {
 		c.QoS = DefaultActionQos()

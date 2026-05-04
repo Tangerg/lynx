@@ -1013,7 +1013,7 @@ platform.AddListener(event.ListenerFunc(func(e event.Event) {
 ```go
 agent.NewAction("approve_payment",
     func(ctx context.Context, pc *core.ProcessContext, p Payment) (Approval, error) {
-        req := hitl.NewConfirmationRequest(p, func(approved bool) core.ResponseImpact {
+        req := hitl.NewConfirmation(p, func(approved bool) core.ResponseImpact {
             // ... 处理回调，决定是否触发重 plan ...
             return core.ResponseImpactUpdated
         })
@@ -1075,10 +1075,10 @@ func (p *AgentProcess) deliverResponse(response any) bool { // 内部，由 Plat
 
 ```go
 // 确认（yes/no）
-hitl.NewConfirmationRequest(payload, func(approved bool) core.ResponseImpact { ... })
+hitl.NewConfirmation(payload, func(approved bool) core.ResponseImpact { ... })
 
 // 复杂表单（任意 P 入参 → R 出参）
-hitl.NewFormBindingRequest[OrderForm, OrderResponse](
+hitl.NewTypedRequest[OrderForm, OrderResponse](
     formData,
     func(resp OrderResponse) core.ResponseImpact { ... },
 )
@@ -1106,10 +1106,8 @@ import (
 type CountResult struct{ Length int }
 
 func main() {
-    a := agent.New(core.AgentConfig{
-        Name:        "Hello",
-        Description: "count uppercase characters of a phrase",
-    }).
+    a := agent.New("Hello").
+        Description("count uppercase characters of a phrase").
         Actions(agent.NewAction("count_upper",
             func(ctx context.Context, pc *core.ProcessContext, in string) (CountResult, error) {
                 return CountResult{Length: len(strings.ToUpper(in))}, nil
@@ -1298,14 +1296,12 @@ platform := agent.NewPlatform(runtime.PlatformConfig{
 当 planner 返回 nil plan 时触发。可以在这里降级 Goal、放松约束、向用户发起 HITL 请求等。
 
 ```go
-agent.New(core.AgentConfig{
-    Name: "...",
-    StuckHandler: core.StuckHandlerFunc(func(ctx context.Context, p core.Process) core.StuckHandlingResult {
+agent.New("...").
+    StuckHandler(core.StuckHandlerFunc(func(ctx context.Context, p core.Process) core.StuckHandlingResult {
         // 例如：移除某个 protected condition
         p.Blackboard().SetCondition("strict_mode", false)
         return core.StuckHandlingResult{Code: core.StuckReplan, Reason: "relaxed strict_mode"}
-    }),
-}).
+    })).
     /* ... */ .Build()
 ```
 
@@ -1423,7 +1419,7 @@ agent/
 
 **答**：embabel 大量用 Kotlin 反射读 JVM 签名信息——这在 JVM 上几乎免费且元信息丰富。Go 反射比直接调用慢 10-50×，且对自定义泛型参数的支持很弱；更关键的是 Go 社区共识是「显式优于隐式」，反射框架（@Action / @Agent / 隐式注入）会让错误推迟到运行时、IDE 重构失效、命名约定成为隐藏契约。
 
-所以我们只保留**泛型构造器** `NewAction[In, Out]` 一种入口：编译期保留所有类型、零反射、IDE 跳转/重命名全程友好。从 Spring 迁移过来的用户付出的代价是要写一行显式 `agent.New(core.AgentConfig{...}).Actions(...).Build()` 而不是给方法加注解——这点学习成本远低于运行时调试反射栈的代价。
+所以我们只保留**泛型构造器** `NewAction[In, Out]` 一种入口：编译期保留所有类型、零反射、IDE 跳转/重命名全程友好。从 Spring 迁移过来的用户付出的代价是要写一行显式 `agent.New("X").Description(...).Actions(...).Build()` 而不是给方法加注解——这点学习成本远低于运行时调试反射栈的代价。
 
 ### 13.2 为什么 ServiceProvider 是开放的 key→any 注册表，而不预设 LLM / RAG 槽位？
 

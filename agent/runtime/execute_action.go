@@ -122,7 +122,7 @@ func (p *AgentProcess) runWithRetry(
 		if lastErr != nil {
 			return lastErr
 		}
-		return fmt.Errorf("action %q failed without an explicit error", action.Metadata().Name)
+		return actionFailureError(action.Metadata().Name)
 	}
 
 	maxAttempts := qos.MaxAttempts
@@ -165,7 +165,7 @@ func (p *AgentProcess) recordActionFailure(actionName string, err error) {
 	}
 
 	if p.Failure() == nil {
-		p.setFailure(fmt.Errorf("action %q failed without an explicit error", actionName))
+		p.setFailure(actionFailureError(actionName))
 	}
 }
 
@@ -174,14 +174,13 @@ func (p *AgentProcess) recordActionFailure(actionName string, err error) {
 // per-action state (lastErr, etc.) doesn't leak.
 func (p *AgentProcess) buildProcessContext() *core.ProcessContext {
 	deps := core.ProcessContextDeps{
-		Process:                p,
-		Blackboard:             p.blackboard,
-		Options:                p.options,
-		OutputChannel:          p.options.OutputChannel,
-		Services:               p.platformServices(),
-		Publish:                p.publishAny,
-		RegisterToolCallCancel: p.registerToolCallCancel,
-		ClearToolCallCancel:    p.clearToolCallCancel,
+		Process:        p,
+		Blackboard:     p.blackboard,
+		Options:        p.options,
+		OutputChannel:  p.options.OutputChannel,
+		Services:       p.platformServices(),
+		Publish:        p.publishAny,
+		ToolCallCancel: p.registerToolCallCancel,
 	}
 	if resolver := p.platformToolResolver(); resolver != nil {
 		deps.ResolveTools = resolveToolsFor(resolver)

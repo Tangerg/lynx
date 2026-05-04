@@ -66,10 +66,8 @@ class IntentAgent(private val llm: ChatClient) {
 **lynx：** 流式 DSL 是唯一入口。
 
 ```go
-agent.New(core.AgentConfig{
-    Name:        "IntentAgent",
-    Description: "Routes intents",
-}).
+agent.New("IntentAgent").
+    Description("Routes intents").
     Actions(agent.NewAction("classify",
         func(ctx context.Context, pc *core.ProcessContext, in UserInput) (Intent, error) {...},
         core.ActionConfig{},
@@ -173,8 +171,8 @@ fun write(topic: Topic, outline: Outline, research: Research): Article { ... }
 ```go
 agent.NewAction("write",
     func(ctx, pc, in Outline) (Article, error) {
-        topic, _    := core.Get[Topic](pc.Blackboard, core.DefaultBinding)
-        research, _ := core.Get[Research](pc.Blackboard, core.DefaultBinding)
+        topic, _    := core.Get[Topic](pc.Blackboard, core.DefaultBindingName)
+        research, _ := core.Get[Research](pc.Blackboard, core.DefaultBindingName)
         ...
     },
     core.ActionConfig{Pre: []string{"it:" + core.TypeFullNameOf[Research]()}},

@@ -142,7 +142,7 @@ func (p *Platform) Deploy(a *core.Agent) error {
 	if err := core.ValidateAgent(a); err != nil {
 		return fmt.Errorf("Deploy: %w", err)
 	}
-	if err := p.checkGoalsReachable(a); err != nil {
+	if err := checkGoalsReachable(a); err != nil {
 		return fmt.Errorf("Deploy: %w", err)
 	}
 
@@ -169,7 +169,7 @@ func (p *Platform) Deploy(a *core.Agent) error {
 // has no bindings. We accept the false-negative tradeoff (some
 // genuinely-unreachable goals slip through) so legitimate input-driven
 // agents can deploy.
-func (p *Platform) checkGoalsReachable(a *core.Agent) error {
+func checkGoalsReachable(a *core.Agent) error {
 	// Build the set of conditions any action can establish: union of
 	// every action's Effects keys whose Determination is True, plus
 	// every action's input bindings (those are externally-supplied).
@@ -303,11 +303,10 @@ func (p *Platform) ResumeProcess(id string, response any) (core.ResponseImpact, 
 		return core.ResponseImpactUnchanged,
 			fmt.Errorf("ResumeProcess: process id %q not found", id)
 	}
-	if proc.peekAwaitable() == nil {
-		return core.ResponseImpactUnchanged,
-			fmt.Errorf("ResumeProcess: process %q is not in a waiting state", id)
-	}
 
+	// deliverResponse atomically swaps the parked awaitable; that single
+	// source of truth handles the "no awaitable pending" case so we
+	// don't pre-check separately and race a concurrent resume.
 	impact, err := proc.deliverResponse(response)
 	if err != nil {
 		return core.ResponseImpactUnchanged, fmt.Errorf("ResumeProcess: %w", err)
@@ -340,7 +339,7 @@ func (p *Platform) createProcess(
 	system := plan.FromAgent(agentDef)
 	id := p.idGen.Next()
 
-	proc := newAgentProcess(id, agentDef, &opts, bb, nil, planner, p)
+	proc := newAgentProcess(id, agentDef, &opts, bb, nil, planner, system, p)
 	proc.determiner = newBlackboardDeterminer(system, bb, proc)
 
 	p.mu.Lock()

@@ -3,6 +3,7 @@ package runtime
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"go.opentelemetry.io/otel/attribute"
 
@@ -212,10 +213,12 @@ func (p *AgentProcess) tickSimple(ctx context.Context, ws core.WorldState) error
 }
 
 // formulatePlan runs the configured planner against the current world
-// state, honoring the running exclusion list.
+// state, honoring the running exclusion list. The PlanningSystem is
+// allocated once per process at createProcess time so its KnownConditions
+// cache survives across ticks.
 func (p *AgentProcess) formulatePlan(ctx context.Context, ws core.WorldState) (*plan.Plan, error) {
 	return p.planner.BestValuePlan(
-		ctx, ws, plan.FromAgent(p.agent),
+		ctx, ws, p.system,
 		plan.PlanOptions{ExcludedActions: p.snapshotExclusions()},
 	)
 }
@@ -256,7 +259,7 @@ func (p *AgentProcess) translateActionStatus(action core.Action, status core.Act
 	case core.ActionFailed:
 		p.setStatus(core.StatusFailed)
 		if p.Failure() == nil {
-			p.setFailure(actionFailureError(action))
+			p.setFailure(actionFailureError(action.Metadata().Name))
 		}
 	case core.ActionWaiting:
 		p.setStatus(core.StatusWaiting)
@@ -268,8 +271,8 @@ func (p *AgentProcess) translateActionStatus(action core.Action, status core.Act
 // actionFailureError produces a default failure error when the action
 // returned ActionFailed without recording an explicit error on the
 // ProcessContext (rare, but possible).
-func actionFailureError(action core.Action) error {
-	return errors.New("action " + action.Metadata().Name + " failed without an explicit error")
+func actionFailureError(name string) error {
+	return fmt.Errorf("action %q failed without an explicit error", name)
 }
 
 // handleStuck is invoked when the planner returned no plan. If the agent
