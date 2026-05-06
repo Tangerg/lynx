@@ -36,8 +36,12 @@ func NewAction[In, Out any](name string, fn core.TypedActionFunc[In, Out], cfg A
 	return core.NewAction[In, Out](name, fn, cfg)
 }
 
-// NewCondition wraps a function as a [Condition].
-func NewCondition(name string, fn func(ctx context.Context, oc *OperationContext) Determination) Condition {
+// NewCondition wraps a function as a [*ComputedCondition]. Returning
+// the concrete pointer rather than the Condition interface follows
+// Go's "accept interfaces, return structs" convention — callers can
+// always assign the result to a Condition when they want the narrower
+// view.
+func NewCondition(name string, fn func(ctx context.Context, oc *OperationContext) Determination) *ComputedCondition {
 	return core.NewCondition(name, fn)
 }
 
@@ -88,8 +92,9 @@ type (
 	ActionConfig   = core.ActionConfig
 	ActionStatus   = core.ActionStatus
 	ActionQos      = core.ActionQos
-	Condition      = core.Condition
-	Determination  = core.Determination
+	Condition         = core.Condition
+	ComputedCondition = core.ComputedCondition
+	Determination     = core.Determination
 	IOBinding      = core.IOBinding
 	WorldState     = core.WorldState
 	CostFunc       = core.CostFunc
