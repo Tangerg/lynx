@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"slices"
-	"sync"
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/event"
@@ -13,27 +11,33 @@ import (
 	"github.com/Tangerg/lynx/agent/planner/goap"
 )
 
-// PlannerFactory is the abstraction that lets callers swap planners (A* vs.
-// utility vs. mock) without touching the rest of the runtime. The default
-// returns a fresh A* planner per call so planners aren't accidentally
-// shared across processes that tune them independently.
+// PlannerFactory is the abstraction that lets callers swap planners (A*
+// vs. utility vs. mock) without touching the rest of the runtime. The
+// default returns a fresh A* planner per call so planners aren't
+// accidentally shared across processes that tune them independently.
 type PlannerFactory func(t core.PlannerType) plan.Planner
 
-// DefaultPlannerFactory returns the framework's default factory. Today it
-// returns the A* GOAP planner regardless of t (utility planner not yet
-// implemented).
+// DefaultPlannerFactory returns the framework's default factory. Today
+// it returns the A* GOAP planner regardless of t (utility planner not
+// yet implemented).
 func DefaultPlannerFactory() PlannerFactory {
 	return func(_ core.PlannerType) plan.Planner {
 		return goap.NewAStarPlanner()
 	}
 }
 
-// Platform is the agent runtime's top-level container. It registers agents,
-// builds processes, dispatches events, and exposes the resume API for HITL.
+// Platform is the agent runtime's top-level container. It registers
+// agents, builds processes, dispatches events, and exposes the resume
+// API for HITL.
+//
+// Internal layout: the agent / process registries are embedded
+// sub-structs so their methods (Deploy / Undeploy / Agents / FindAgent
+// / GetProcess / ActiveProcesses) promote onto Platform. Platform
+// itself coordinates the cross-cutting concerns: deploy validation,
+// process construction, event publishing.
 type Platform struct {
-	mu     sync.RWMutex
-	agents map[string]*core.Agent
-	procs  map[string]*AgentProcess
+	agentRegistry   // Deploy-time registry of *core.Agent
+	processRegistry // Runtime registry of *AgentProcess
 
 	plannerFactory PlannerFactory
 	events         *event.Multicast
@@ -92,13 +96,13 @@ func NewPlatform(cfg PlatformConfig) *Platform {
 	}
 
 	p := &Platform{
-		agents:         map[string]*core.Agent{},
-		procs:          map[string]*AgentProcess{},
-		plannerFactory: plannerFactory,
-		events:         event.NewMulticast(),
-		idGen:          idGen,
-		services:       services,
-		tools:          cfg.Tools,
+		agentRegistry:   newAgentRegistry(),
+		processRegistry: newProcessRegistry(),
+		plannerFactory:  plannerFactory,
+		events:          event.NewMulticast(),
+		idGen:           idGen,
+		services:        services,
+		tools:           cfg.Tools,
 	}
 	for _, l := range cfg.Listeners {
 		p.events.Add(l)
@@ -122,8 +126,8 @@ func (p *Platform) publish(e event.Event) {
 	p.events.OnEvent(e)
 }
 
-// Services exposes the configured service provider — used by tests and the
-// host application that wants to inspect what the platform sees.
+// Services exposes the configured service provider — used by tests and
+// the host application that wants to inspect what the platform sees.
 func (p *Platform) Services() *core.ServiceProvider { return p.services }
 
 // Deploy registers an agent after validating it. Re-deploying with the
@@ -134,10 +138,10 @@ func (p *Platform) Services() *core.ServiceProvider { return p.services }
 //   - [core.ValidateAgent] checks structural invariants (name non-empty,
 //     ≥1 action, ≥1 goal, unique action/goal names).
 //   - For agents using [core.PlannerGOAP], each goal is then probed via
-//     the configured planner from an empty world state. Goals that don't
-//     planner-resolve are rejected with a clear error so unreachable
-//     definitions (typo'd effect key, missing producing action, etc.)
-//     fail at deploy time rather than at first tick.
+//     a one-step producer scan. Goals whose required True conditions no
+//     action can establish are rejected with a clear error so
+//     unreachable definitions (typo'd effect key, missing producing
+//     action, etc.) fail at deploy time rather than at first tick.
 func (p *Platform) Deploy(a *core.Agent) error {
 	if err := core.ValidateAgent(a); err != nil {
 		return fmt.Errorf("Deploy: %w", err)
@@ -146,10 +150,7 @@ func (p *Platform) Deploy(a *core.Agent) error {
 		return fmt.Errorf("Deploy: %w", err)
 	}
 
-	p.mu.Lock()
-	p.agents[a.Name] = a
-	p.mu.Unlock()
-
+	p.agentRegistry.register(a)
 	p.publish(event.AgentDeployedEvent{
 		BaseEvent: event.NewBaseEvent(""),
 		AgentName: a.Name,
@@ -202,17 +203,12 @@ func checkGoalsReachable(a *core.Agent) error {
 	return nil
 }
 
-// Undeploy removes an agent. Returns an error when the name is unknown so
-// callers don't silently miss typos.
+// Undeploy removes an agent. Returns an error when the name is unknown
+// so callers don't silently miss typos.
 func (p *Platform) Undeploy(name string) error {
-	p.mu.Lock()
-	if _, ok := p.agents[name]; !ok {
-		p.mu.Unlock()
-		return fmt.Errorf("Undeploy: agent %q is not deployed", name)
+	if err := p.unregister(name); err != nil {
+		return fmt.Errorf("Undeploy: %w", err)
 	}
-	delete(p.agents, name)
-	p.mu.Unlock()
-
 	p.publish(event.AgentUndeployedEvent{
 		BaseEvent: event.NewBaseEvent(""),
 		AgentName: name,
@@ -220,53 +216,8 @@ func (p *Platform) Undeploy(name string) error {
 	return nil
 }
 
-// Agents returns a snapshot of registered agents.
-func (p *Platform) Agents() []*core.Agent {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
-
-	out := make([]*core.Agent, 0, len(p.agents))
-	for _, a := range p.agents {
-		out = append(out, a)
-	}
-	return out
-}
-
-// FindAgent does a name lookup.
-func (p *Platform) FindAgent(name string) (*core.Agent, bool) {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
-
-	a, ok := p.agents[name]
-	return a, ok
-}
-
-// GetProcess looks up a process by id (used by the HITL resume API and by
-// debug tools).
-func (p *Platform) GetProcess(id string) (*AgentProcess, bool) {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
-
-	proc, ok := p.procs[id]
-	return proc, ok
-}
-
-// ActiveProcesses returns a snapshot of all currently registered processes.
-func (p *Platform) ActiveProcesses() []*AgentProcess {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
-
-	return slices.Collect(func(yield func(*AgentProcess) bool) {
-		for _, proc := range p.procs {
-			if !yield(proc) {
-				return
-			}
-		}
-	})
-}
-
-// KillProcess terminates a running process. Returns an error when the id is
-// unknown.
+// KillProcess terminates a running process. Returns an error when the
+// id is unknown.
 func (p *Platform) KillProcess(id string) error {
 	proc, ok := p.GetProcess(id)
 	if !ok {
@@ -342,9 +293,7 @@ func (p *Platform) createProcess(
 	proc := newAgentProcess(id, agentDef, &opts, bb, nil, planner, system, p)
 	proc.determiner = newBlackboardDeterminer(system, bb, proc)
 
-	p.mu.Lock()
-	p.procs[id] = proc
-	p.mu.Unlock()
+	p.processRegistry.register(proc)
 
 	p.publish(event.ProcessCreatedEvent{
 		BaseEvent: event.NewBaseEvent(id),
