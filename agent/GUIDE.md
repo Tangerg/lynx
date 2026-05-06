@@ -58,7 +58,7 @@ agent.go              ← 顶层包：再导出 New / NewAction / NewCondition /
 
 | 层 | 关键类型 | 职责 |
 |---|---|---|
-| **L0 原语** | `Determination` / `IoBinding` / `EffectSpec` / `WorldState` / `CostFunc` | 不可变值类型；3 值逻辑、类型化绑定、条件规格 |
+| **L0 原语** | `Determination` / `IOBinding` / `EffectSpec` / `WorldState` / `CostFunc` | 不可变值类型；3 值逻辑、类型化绑定、条件规格 |
 | **L1 对象** | `Action` / `Goal` / `Condition` / `Agent` / `Blackboard` / `Awaitable` | 用户可见的 agent 构件 |
 | **L2 上下文** | `Process` / `ProcessContext` / `OperationContext` / `ProcessOptions` | 一次 run 的运行时上下文 |
 | **L3 规划** | `Plan` / `PlanningSystem` / `Planner` / `AStarPlanner` | A* GOAP 算法 |
@@ -135,15 +135,15 @@ const (
 
 零值是 `Unknown`，A\* 把 Unknown 当作"不满足"——避免 GOAP 在缺失信息时出错路径。`d.And(other)`、`d.Or(other)`、`d.Not()` 是三值布尔代数，`FromBool(b)` 提升为 True/False。
 
-## II.2 IoBinding 与类型推导
+## II.2 IOBinding 与类型推导
 
 ```go
-type IoBinding struct {
+type IOBinding struct {
     Name string  // 变量名，"it" 是默认
     Type string  // 全限定类型名（含 PkgPath）
 }
-b := core.NewIoBinding[Topic]("specialName")
-// → IoBinding{Name: "specialName", Type: "github.com/Tangerg/lynx/agent/examples/blog.Topic"}
+b := core.NewIOBinding[Topic]("specialName")
+// → IOBinding{Name: "specialName", Type: "github.com/Tangerg/lynx/agent/examples/blog.Topic"}
 ```
 
 `String()` 输出 `name:Type` 形式，**这是 GOAP precondition / effect key**。即"输入 X 已存在于黑板"=`x:Type{} = True`。
@@ -172,8 +172,8 @@ type Action interface {
 type ActionMetadata struct {
     Name          string
     Description   string
-    Inputs        []IoBinding
-    Outputs       []IoBinding
+    Inputs        []IOBinding
+    Outputs       []IOBinding
     Preconditions EffectSpec  // 自动从 Inputs + cfg.Pre 推导
     Effects       EffectSpec  // 自动从 Outputs + cfg.Post 推导
     CanRerun      bool
@@ -192,7 +192,7 @@ type Goal struct {
     Name        string
     Description string
     Pre         []string      // 显式 precondition keys（除了 Inputs）
-    Inputs      []IoBinding
+    Inputs      []IOBinding
     OutputType  *string
     Value       CostFunc
     Tags, Examples []string   // (尚未被框架消费, 留给 MCP 暴露用)
@@ -1032,7 +1032,7 @@ mcpServer.Listen(":3000")
 | 在 action body 内调 `pc.Blackboard.Spawn()` | 子 blackboard 无人持有，写入丢失 | `Spawn` 是 `Platform.CreateChildProcess` 内部用的；用户用 `core.ServiceOf[T]` 拿外部依赖 |
 | Action 把状态存在 closure 里 | 跨 process 共享，并发不安全 | 状态写到 `pc.Blackboard`；closure 只捕获只读配置 |
 | 直接修改 `WorldState.State()` 返回的 map | 违反不可变约定，破坏 A\* closed set | 视为只读，用 `Apply()` 派生新状态 |
-| Action 的 `In/Out` 用 `interface{}` | GOAP 失效（无法 derive type binding） | 用具体 struct，让 `NewIoBinding[T]` 反射出稳定类型名 |
+| Action 的 `In/Out` 用 `interface{}` | GOAP 失效（无法 derive type binding） | 用具体 struct，让 `NewIOBinding[T]` 反射出稳定类型名 |
 | `Goal` 与某 action 的 `Output` type 不一致 | `checkGoalsReachable` 拒绝 deploy | `agent.GoalProducing[T]` 自动对齐 |
 | 在 Listener 里调 `Platform.RunAgent`（同步） | 死锁（事件分发线程阻塞） | Listener 内只做记录；要重启 process 在外面调 |
 | 把 LLM 客户端塞 `ProcessOptions.Services` | 每个 process 有自己实例，浪费连接 | 在 `PlatformConfig.Services` 一次注册，所有 process 共享 |
@@ -1102,8 +1102,8 @@ core.ActionConfig{
     Trigger         reflect.Type     // 见 core.TriggerType[T]()
     InputBinding    string
     OutputBinding   string
-    Inputs          []core.IoBinding
-    Outputs         []core.IoBinding
+    Inputs          []core.IOBinding
+    Outputs         []core.IOBinding
     ClearBlackboard bool
 }
 ```
@@ -1155,7 +1155,7 @@ core.ActionSucceeded / Failed / Waiting / Paused
 ```go
 core.Static(v float64) core.CostFunc
 core.FromBool(b bool) core.Determination
-core.NewIoBinding[T](name) core.IoBinding
+core.NewIOBinding[T](name) core.IOBinding
 core.TypeFullName(rt reflect.Type) string
 core.TypeFullNameOf[T]() string
 core.NewServiceProvider() *core.ServiceProvider

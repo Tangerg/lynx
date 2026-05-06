@@ -80,11 +80,11 @@ type ActionConfig struct {
 	// Inputs replaces the default single-input binding with the
 	// supplied list. Used when an action needs multiple distinct named
 	// inputs (akin to embabel's @RequireNameMatch).
-	Inputs []IoBinding
+	Inputs []IOBinding
 
 	// Outputs adds extra output bindings beyond the default one. Rare;
 	// most actions produce a single canonical artifact.
-	Outputs []IoBinding
+	Outputs []IOBinding
 
 	// ClearBlackboard marks the action as destructive — after it runs,
 	// the blackboard is wiped (preserving "protected" entries).

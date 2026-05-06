@@ -62,7 +62,7 @@ func (a *typedAction[In, Out]) Execute(ctx context.Context, pc *ProcessContext) 
 // generic In — additional inputs must be fetched via Get[T] from inside the
 // action body. Go generics carry a single type parameter cleanly, so
 // multi-input actions inevitably resort to manual lookup.
-func loadTypedInput[In any](bb Blackboard, inputs []IoBinding) (In, bool) {
+func loadTypedInput[In any](bb Blackboard, inputs []IOBinding) (In, bool) {
 	var zero In
 	if len(inputs) == 0 {
 		return zero, true
@@ -111,12 +111,12 @@ func NewAction[In, Out any](
 
 	inputs := cfg.Inputs
 	if len(inputs) == 0 {
-		inputs = []IoBinding{NewIoBinding[In](resolveBindingName(cfg.InputBinding))}
+		inputs = []IOBinding{NewIOBinding[In](resolveBindingName(cfg.InputBinding))}
 	}
 
 	outputs := cfg.Outputs
 	if len(outputs) == 0 {
-		outputs = []IoBinding{NewIoBinding[Out](resolveBindingName(cfg.OutputBinding))}
+		outputs = []IOBinding{NewIOBinding[Out](resolveBindingName(cfg.OutputBinding))}
 	}
 
 	meta := ActionMetadata{
@@ -183,7 +183,7 @@ func computePreconditionsAndEffects(meta ActionMetadata, extraPre, extraPost []s
 
 // formatBindings renders a slice of bindings for inclusion in error
 // messages — small helper kept here to keep Execute's error path tidy.
-func formatBindings(bindings []IoBinding) string {
+func formatBindings(bindings []IOBinding) string {
 	if len(bindings) == 0 {
 		return "<none>"
 	}

@@ -10,7 +10,7 @@ type Goal struct {
 	Name        string
 	Description string
 	Pre         []string
-	Inputs      []IoBinding
+	Inputs      []IOBinding
 	OutputType  *string
 
 	// Value is the planner's per-tick value probe. Use [Static] for a
@@ -75,7 +75,7 @@ func GoalProducing[T any](g Goal) *Goal {
 	if g.Name == "" {
 		g.Name = "produce_" + typeName
 	}
-	g.Inputs = append(g.Inputs, NewIoBinding[T](DefaultBindingName))
+	g.Inputs = append(g.Inputs, NewIOBinding[T](DefaultBindingName))
 	g.OutputType = &typeName
 	if g.Value == nil {
 		g.Value = Static(1.0)

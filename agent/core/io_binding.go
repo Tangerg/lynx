@@ -23,17 +23,17 @@ const (
 	LastResultBinding = LastResultBindingName
 )
 
-// IoBinding identifies a typed slot on the blackboard: a variable name plus
+// IOBinding identifies a typed slot on the blackboard: a variable name plus
 // a stable string describing its Go type. The string form ("name:Type") is
 // stable across processes so it can act as a planner condition key.
-type IoBinding struct {
+type IOBinding struct {
 	Name string
 	Type string
 }
 
 // String renders the canonical "name:Type" form. An empty Name normalizes to
 // DefaultBindingName so equivalent bindings always serialize identically.
-func (b IoBinding) String() string {
+func (b IOBinding) String() string {
 	name := b.Name
 	if name == "" {
 		name = DefaultBindingName
@@ -42,32 +42,32 @@ func (b IoBinding) String() string {
 }
 
 // IsDefault reports whether the binding uses the conventional "it" name.
-func (b IoBinding) IsDefault() bool {
+func (b IOBinding) IsDefault() bool {
 	return b.Name == "" || b.Name == DefaultBindingName
 }
 
-// NewIoBinding constructs an IoBinding for type T using reflection to derive a
+// NewIOBinding constructs an IOBinding for type T using reflection to derive a
 // stable, fully-qualified type name. Pointer types unwrap to their element
 // type so "Foo" and "*Foo" share the same binding key.
-func NewIoBinding[T any](name string) IoBinding {
+func NewIOBinding[T any](name string) IOBinding {
 	if name == "" {
 		name = DefaultBindingName
 	}
 
-	return IoBinding{
+	return IOBinding{
 		Name: name,
 		Type: typeFullName(reflect.TypeFor[T]()),
 	}
 }
 
-// ParseIoBinding restores an IoBinding from its canonical "name:Type" form.
+// ParseIOBinding restores an IOBinding from its canonical "name:Type" form.
 // An input without a colon is treated as type-only and uses the default name.
-func ParseIoBinding(s string) IoBinding {
+func ParseIOBinding(s string) IOBinding {
 	name, typ, ok := strings.Cut(s, ":")
 	if !ok {
-		return IoBinding{Name: DefaultBindingName, Type: s}
+		return IOBinding{Name: DefaultBindingName, Type: s}
 	}
-	return IoBinding{Name: name, Type: typ}
+	return IOBinding{Name: name, Type: typ}
 }
 
 // typeFullName produces a stable identifier for a Go type. Pointers unwrap;
@@ -91,8 +91,8 @@ func typeFullName(rt reflect.Type) string {
 }
 
 // TypeFullName exposes the same type-naming rule used internally so
-// callers building IoBindings outside the [NewIoBinding]/[TypeFullNameOf]
-// generics path produce identifiers that match [IoBinding.Type] exactly.
+// callers building IOBindings outside the [NewIOBinding]/[TypeFullNameOf]
+// generics path produce identifiers that match [IOBinding.Type] exactly.
 func TypeFullName(rt reflect.Type) string { return typeFullName(rt) }
 
 // TypeFullNameOf returns the stable type name for the generic parameter T.

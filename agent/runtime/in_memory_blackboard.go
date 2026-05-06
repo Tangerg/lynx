@@ -238,7 +238,7 @@ func (b *inMemoryBlackboard) InfoString(verbose bool) string {
 }
 
 // typeMatches checks whether v matches typeName by walking the same rules
-// IoBinding uses. Pointer types unwrap; sealed-interface hierarchies
+// IOBinding uses. Pointer types unwrap; sealed-interface hierarchies
 // require explicit DomainType registration (handled by the determiner).
 func typeMatches(v any, typeName string) bool {
 	if typeName == "" {

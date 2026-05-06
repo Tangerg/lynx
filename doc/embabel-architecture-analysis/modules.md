@@ -56,7 +56,7 @@ Bill of Materials。统一管理所有 `embabel-agent-*` 模块、Spring AI、Op
 | `api.reference` | `LlmReference`(可被 LLM 引用的外部能力) |
 | `api.validation` | 验证 SPI / Guardrail(`UserInputGuardRail` / `AssistantMessageGuardRail`) |
 | `api.termination` | 终止策略 `TerminationScope` / `TerminationSignal` / `TerminationSignalPolicy` |
-| `core` | 核心领域模型:`Agent` / `Action` / `Goal` / `Condition` / `Blackboard` / `AgentProcess` / `ProcessContext` / `ProcessOptions` / `ActionQos` / `IoBinding` |
+| `core` | 核心领域模型:`Agent` / `Action` / `Goal` / `Condition` / `Blackboard` / `AgentProcess` / `ProcessContext` / `ProcessOptions` / `ActionQos` / `IOBinding` |
 | `core.support` | `AbstractAgentProcess` / `SimpleAgentProcess` / `ConcurrentAgentProcess` / `InMemoryBlackboard` / `BlackboardWorldStateDeterminer` |
 | `core.hitl` | Human-In-The-Loop 支持(`AwaitableResponseException` 等) |
 | `core.deployment` | 部署工具 |

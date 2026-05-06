@@ -175,7 +175,7 @@ Tick 开始
 | 类型 | 不变式 |
 |------|--------|
 | `Determination` | 值 ∈ {Unknown=0, True=1, False=2}，零值即 Unknown（关键，A* 依赖此） |
-| `IoBinding` | `Type` 非空；`Name == ""` 视同 `"it"` |
+| `IOBinding` | `Type` 非空；`Name == ""` 视同 `"it"` |
 | `EffectSpec(nil)` | 等价空 map，所有 helper 容忍 nil |
 | `WorldState` | **完全不可变** —— Apply 返回新实例，从不修改 receiver |
 | `Plan.Actions` | 不含 nil；顺序有意义 |
@@ -209,10 +209,10 @@ True.Or(Unknown)    // = True
 Unknown.Not()       // = Unknown
 ```
 
-### 4.2 IoBinding —— 输入/输出绑定
+### 4.2 IOBinding —— 输入/输出绑定
 
 ```go
-type IoBinding struct {
+type IOBinding struct {
     Name string  // 变量名，"" 等同于 "it"
     Type string  // 全限定类型名 "pkg/path.TypeName"
 }
@@ -222,11 +222,11 @@ type IoBinding struct {
 1. **按变量名**（"topic"、"outline"）—— 用户显式指定
 2. **按类型**（"github.com/foo.Topic"）—— 默认 "it" 模式下找最新同类型对象
 
-`IoBinding.String()` 序列化为 `"name:Type"`，这是规划器条件键的统一格式。
+`IOBinding.String()` 序列化为 `"name:Type"`，这是规划器条件键的统一格式。
 
 ```go
-NewIoBinding[Topic]("")  // → "it:github.com/myapp.Topic"
-NewIoBinding[Topic]("input")  // → "input:github.com/myapp.Topic"
+NewIOBinding[Topic]("")  // → "it:github.com/myapp.Topic"
+NewIOBinding[Topic]("input")  // → "input:github.com/myapp.Topic"
 ```
 
 ### 4.3 EffectSpec —— 条件规格
@@ -300,7 +300,7 @@ agent.NewAction("research",
 ```
 
 框架内部 `NewAction[In, Out]` 做的事：
-1. 用 `reflect.TypeFor[In/Out]()` 算出默认 IoBinding
+1. 用 `reflect.TypeFor[In/Out]()` 算出默认 IOBinding
 2. 闭包捕获用户函数，包装成内部 `*typedAction[In, Out]`（实现 Action 接口）
 3. `computePreconditionsAndEffects` 自动算出规划用的 EffectSpec
 
@@ -338,7 +338,7 @@ func (a *TypedAction[In, Out]) Execute(ctx context.Context, pc *ProcessContext) 
 type Goal struct {
     Name        string
     Pre         []string       // 显式前提
-    Inputs      []IoBinding    // 类型化前提（→ "name:Type")
+    Inputs      []IOBinding    // 类型化前提（→ "name:Type")
     OutputType  *string        // 期望产出类型
     ValueStatic float64        // 价值（0-1）
     ValueFn     CostFunc       // 动态价值（覆盖静态）
@@ -355,7 +355,7 @@ agent.GoalProducing[BlogPost]("blog post produced")
 // 等价于：
 Goal{
     Name:        "produce_pkg.BlogPost",
-    Inputs:      []IoBinding{{Name: "it", Type: "pkg.BlogPost"}},
+    Inputs:      []IOBinding{{Name: "it", Type: "pkg.BlogPost"}},
     OutputType:  ptrOf("pkg.BlogPost"),
     ValueStatic: 1.0,
 }
