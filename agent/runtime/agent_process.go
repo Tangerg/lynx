@@ -17,17 +17,18 @@ import (
 // core.Process (read surface) plus mutation methods (TerminateAgent,
 // AwaitInput, ...) that only the runtime should call.
 //
-// Internal layout — three concerns embedded as sub-structs so related
-// fields & methods cluster together:
+// Internal layout — three concerns kept as named sub-struct fields so
+// related fields & methods cluster together while the access path stays
+// explicit at every call site:
 //
-//   - processState   mu-protected status / goal / history / failure /
-//                    exclusions. Owns the main mutex; processBudget
-//                    shares it via a pointer.
-//   - processBudget  subtree cost / token / action aggregation; mu
-//                    pointer points at processState.mu.
-//   - processSignals channel + atomic-based signalling primitives
-//                    (terminate / awaitable slot / toolCallCancel) —
-//                    no shared lock, all built on lock-free primitives.
+//   - state    mu-protected status / goal / history / failure /
+//              exclusions. Owns the main mutex; budget shares it via
+//              a pointer.
+//   - budget   subtree cost / token / action aggregation; lock pointer
+//              points at state.mu.
+//   - signals  channel + atomic-based signalling primitives
+//              (terminate / awaitable slot / toolCallCancel) — no
+//              shared lock, all built on lock-free primitives.
 //
 // The remaining top-level fields are construction-time wiring (id /
 // agent / options / blackboard / determiner / planner / system /
@@ -39,9 +40,9 @@ type AgentProcess struct {
 	options   *core.ProcessOptions
 	startedAt time.Time
 
-	processState   // mu + status + goal + lastWorld + history + failure + exclusions
-	processBudget  // children + ownCost + ownTokens (mu shared with processState)
-	processSignals // terminate channel + awaitable slot + toolCallCancel
+	state   processState
+	budget  processBudget
+	signals processSignals
 
 	blackboard core.Blackboard
 	determiner worldStateDeterminer
@@ -72,26 +73,23 @@ func newAgentProcess(
 	platform *Platform,
 ) *AgentProcess {
 	p := &AgentProcess{
-		id:             id,
-		agent:          agentDef,
-		options:        opts,
-		startedAt:      core.Now(),
-		processState:   newProcessState(),
-		processSignals: newProcessSignals(),
-		blackboard:     bb,
-		determiner:     determiner,
-		planner:        planner,
-		system:         system,
-		platform:       platform,
+		id:         id,
+		agent:      agentDef,
+		options:    opts,
+		startedAt:  core.Now(),
+		state:      newProcessState(),
+		signals:    newProcessSignals(),
+		blackboard: bb,
+		determiner: determiner,
+		planner:    planner,
+		system:     system,
+		platform:   platform,
 	}
-	p.processBudget.lock = &p.processState.mu // budget shares state's mutex
+	p.budget.lock = &p.state.mu // budget shares state's mutex
 	return p
 }
 
 // --- core.Process read surface --------------------------------------------
-//
-// Status / Goal / LastWorldState / Failure / History come from the embedded
-// processState; the immutable identity getters live here.
 
 func (p *AgentProcess) ID() string                    { return p.id }
 func (p *AgentProcess) ParentID() string              { return p.parentID }
@@ -99,6 +97,14 @@ func (p *AgentProcess) StartedAt() time.Time          { return p.startedAt }
 func (p *AgentProcess) Blackboard() core.Blackboard   { return p.blackboard }
 func (p *AgentProcess) Options() *core.ProcessOptions { return p.options }
 func (p *AgentProcess) AgentDef() *core.Agent         { return p.agent }
+
+// Status / Goal / LastWorldState / Failure / History delegate to the
+// state sub-struct.
+func (p *AgentProcess) Status() core.AgentProcessStatus { return p.state.Status() }
+func (p *AgentProcess) Goal() *core.Goal                { return p.state.Goal() }
+func (p *AgentProcess) LastWorldState() core.WorldState { return p.state.LastWorldState() }
+func (p *AgentProcess) Failure() error                  { return p.state.Failure() }
+func (p *AgentProcess) History() []ActionInvocation     { return p.state.History() }
 
 // Usage returns the subtree-aggregated cost / token / action totals.
 // Cost and tokens come from [AgentProcess.RecordUsage] calls (zero
@@ -109,11 +115,11 @@ func (p *AgentProcess) AgentDef() *core.Agent         { return p.agent }
 // tree.
 func (p *AgentProcess) Usage() (cost float64, tokens int, actions int) {
 	// Snapshot history length under the shared mutex, then delegate to
-	// the embedded processBudget which walks children.
-	p.mu.RLock()
-	ownActions := len(p.history)
-	p.mu.RUnlock()
-	return p.usage(ownActions)
+	// budget which walks children.
+	p.state.mu.RLock()
+	ownActions := len(p.state.history)
+	p.state.mu.RUnlock()
+	return p.budget.usage(ownActions)
 }
 
 // RecordUsage adds a single LLM call's cost (USD) and token count to
@@ -121,25 +127,20 @@ func (p *AgentProcess) Usage() (cost float64, tokens int, actions int) {
 // LLM-client adapter that knows the per-model rate. The framework
 // itself never invents numbers here.
 func (p *AgentProcess) RecordUsage(cost float64, tokens int) {
-	p.recordUsage(cost, tokens)
+	p.budget.recordUsage(cost, tokens)
 }
 
 // --- core.Process mutation surface ----------------------------------------
-//
-// Terminate*, AwaitInput, and the internal helpers (registerToolCallCancel,
-// deliverResponse, drainTerminate) are inherited via the embedded
-// processSignals; the methods below add the AgentProcess-specific bits
-// (events, scope wiring) on top.
 
 // TerminateAgent queues a "stop the whole process" signal. Tick consumes
 // the channel at the next boundary.
 func (p *AgentProcess) TerminateAgent(reason string) {
-	p.queueTermination(core.TerminationScopeAgent, reason)
+	p.signals.queueTermination(core.TerminationScopeAgent, reason)
 }
 
 // TerminateAction queues a "skip the current action and re-plan" signal.
 func (p *AgentProcess) TerminateAction(reason string) {
-	p.queueTermination(core.TerminationScopeAction, reason)
+	p.signals.queueTermination(core.TerminationScopeAction, reason)
 }
 
 // TerminateToolCall fires the cancel func of the most recently derived
@@ -148,7 +149,7 @@ func (p *AgentProcess) TerminateAction(reason string) {
 // ctx.Done() at this point and abort. No-op when no tool-call context
 // is currently registered.
 func (p *AgentProcess) TerminateToolCall(reason string) {
-	p.fireToolCallCancel()
+	p.signals.fireToolCallCancel()
 	_ = reason // reserved for future event publishing
 }
 
@@ -160,9 +161,9 @@ func (p *AgentProcess) TerminateToolCall(reason string) {
 // awaitable.OnResponseAny — typically mutating the blackboard so the
 // next planning tick sees fresh state.
 func (p *AgentProcess) AwaitInput(req core.Awaitable) core.ActionStatus {
-	status := p.parkAwaitable(req)
+	status := p.signals.parkAwaitable(req)
 	if status == core.ActionWaiting {
-		p.publishEvent(p.buildWaitingEvent(p.id, req))
+		p.publishEvent(p.signals.buildWaitingEvent(p.id, req))
 	}
 	return status
 }

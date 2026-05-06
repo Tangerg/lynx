@@ -26,7 +26,7 @@ func (p *AgentProcess) tickConcurrent(ctx context.Context, ws core.WorldState) e
 		return nil
 	}
 
-	p.setGoal(planResult.Goal)
+	p.state.setGoal(planResult.Goal)
 	p.publishEvent(event.PlanFormulatedEvent{
 		BaseEvent: event.NewBaseEvent(p.id),
 		Plan:      planResult,
@@ -46,7 +46,7 @@ func (p *AgentProcess) tickConcurrent(ctx context.Context, ws core.WorldState) e
 		return nil
 	}
 
-	p.setStatus(mergeStatuses(results))
+	p.state.setStatus(mergeStatuses(results))
 	return nil
 }
 

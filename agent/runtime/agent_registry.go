@@ -11,9 +11,9 @@ import (
 // Re-deploying with the same name replaces the previous registration.
 //
 // Concurrency: a single RWMutex protects the map; deploys / undeploys
-// are exclusive, lookups are shared. Used as an embedded field on
-// Platform — the methods below promote and become Platform.Deploy /
-// Undeploy / Agents / FindAgent.
+// are exclusive, lookups are shared. Used as a named field on Platform;
+// methods are lowercase since the public API lives on Platform itself
+// (Platform.Agents / Platform.FindAgent forward to list / find here).
 type agentRegistry struct {
 	mu     sync.RWMutex
 	agents map[string]*core.Agent
@@ -44,8 +44,8 @@ func (r *agentRegistry) unregister(name string) error {
 	return nil
 }
 
-// Agents returns a snapshot of registered agents.
-func (r *agentRegistry) Agents() []*core.Agent {
+// list returns a snapshot of registered agents.
+func (r *agentRegistry) list() []*core.Agent {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
@@ -56,8 +56,8 @@ func (r *agentRegistry) Agents() []*core.Agent {
 	return out
 }
 
-// FindAgent does a name lookup.
-func (r *agentRegistry) FindAgent(name string) (*core.Agent, bool) {
+// find does a name lookup.
+func (r *agentRegistry) find(name string) (*core.Agent, bool) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
