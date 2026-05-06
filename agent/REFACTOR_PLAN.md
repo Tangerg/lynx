@@ -691,7 +691,7 @@ type ProcessOptions struct {
 |---|---|
 | 把 `Action.Execute` 改成 `(any, error)` 而非 `ActionStatus` | ActionStatus 三态（Succeeded/Failed/Waiting/Paused）非 error/result 二态能表达。信息丢失 |
 | 用 channel 重写 OODA 循环 | 当前 for-loop tick 简单清晰；channel 反而引入调度复杂度 |
-| 把 `Goal` / `Action` / `Condition` 抽到 sub-package | 它们互相紧密引用（Goal.Inputs 是 IoBinding；Condition 用 Determination）；分包要循环引用 |
+| 把 `Goal` / `Action` / `Condition` 抽到 sub-package | 它们互相紧密引用（Goal.Inputs 是 IOBinding；Condition 用 Determination）；分包要循环引用 |
 | 引入 reflection-based action 注册 | 上次 commit `53ea5a3` 已删，是正确的 Go 取舍 |
 | 把 GOAP planner 抽成独立 module | 没必要：`planner/goap` 已是独立 sub-package，外部不会单独 import |
 | 拆 `astar.go` (491 LOC) 为多文件 | 单一职责（A* 算法），函数已分（`PlanToGoal / searchForGoal / expandNeighbors / backwardOptimize / forwardOptimize`），再拆反而散 |

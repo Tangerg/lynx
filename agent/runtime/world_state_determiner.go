@@ -86,7 +86,7 @@ func (d *blackboardDeterminer) evaluateCondition(ctx context.Context, key string
 }
 
 func (d *blackboardDeterminer) evaluateTypeBinding(key string) core.Determination {
-	binding := core.ParseIoBinding(key)
+	binding := core.ParseIOBinding(key)
 	return core.FromBool(d.blackboard.HasValue(binding.Name, binding.Type))
 }
 

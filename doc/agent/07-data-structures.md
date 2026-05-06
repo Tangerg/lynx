@@ -27,7 +27,7 @@
 │   ActionMetadata / EffectSpec                                    │
 ├─────────────────────────────────────────────────────────────────┤
 │ Layer 1: Primitives（原语）                                        │
-│   Determination (3-valued) / IoBinding / DomainType              │
+│   Determination (3-valued) / IOBinding / DomainType              │
 │   ActionStatus / AgentProcessStatus / PlannerType                │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -66,7 +66,7 @@ func (d Determination) Not() Determination
 
 ---
 
-### 1.2 `IoBinding` — 输入/输出绑定
+### 1.2 `IOBinding` — 输入/输出绑定
 
 ```go
 package core
@@ -76,23 +76,23 @@ const (
     LastResultBinding = "lastResult" // @Trigger 专用
 )
 
-type IoBinding struct {
+type IOBinding struct {
     Name string // 变量名，空即 "it"
     Type string // Go 类型全名："pkg/path.TypeName"
 }
 
 // 构造
-func NewIoBinding[T any](name string) IoBinding
-func ParseIoBinding(s string) IoBinding   // 从 "name:Type" 字符串解析
-func (b IoBinding) String() string         // 反序列化成 "name:Type"
+func NewIOBinding[T any](name string) IOBinding
+func ParseIOBinding(s string) IOBinding   // 从 "name:Type" 字符串解析
+func (b IOBinding) String() string         // 反序列化成 "name:Type"
 
 // 查询
-func (b IoBinding) IsDefault() bool        // Name == "it"
-func (b IoBinding) ResolveReflectType() reflect.Type
+func (b IOBinding) IsDefault() bool        // Name == "it"
+func (b IOBinding) ResolveReflectType() reflect.Type
 ```
 
 - **不变式**：`Type` 非空；`Name == ""` 视同 `DefaultBinding`
-- **比较**：`IoBinding` 可作 map key（需 `comparable`）
+- **比较**：`IOBinding` 可作 map key（需 `comparable`）
 
 ---
 
@@ -275,8 +275,8 @@ type Action interface {
 type ActionMetadata struct {
     Name          string
     Description   string
-    Inputs        []IoBinding
-    Outputs       []IoBinding
+    Inputs        []IOBinding
+    Outputs       []IOBinding
     Preconditions EffectSpec       // 自动计算 + 用户显式 pre
     Effects       EffectSpec       // 自动计算 + 用户显式 post
     CanRerun      bool
@@ -341,7 +341,7 @@ type Goal struct {
     Name        string
     Description string
     Pre         []string        // 显式前置（字符串形式的条件）
-    Inputs      []IoBinding     // 类型要求（等价于 pre 里的绑定形式）
+    Inputs      []IOBinding     // 类型要求（等价于 pre 里的绑定形式）
     OutputType  *string         // 目标期望产出类型（可选）
     ValueStatic float64         // 静态价值 [0, 1]
     ValueFn     CostFunc        // 动态价值（优先于 ValueStatic）
@@ -364,7 +364,7 @@ func NewGoal(name, description string) *Goal
 
 // 变更器（不可变风格）
 func (g *Goal) WithPre(conditions ...string) *Goal
-func (g *Goal) WithInputs(bindings ...IoBinding) *Goal
+func (g *Goal) WithInputs(bindings ...IOBinding) *Goal
 func (g *Goal) WithValue(v float64) *Goal
 func (g *Goal) WithValueFn(fn CostFunc) *Goal
 func (g *Goal) WithTags(tags ...string) *Goal
@@ -1003,8 +1003,8 @@ Platform ⇒ Agent, ServiceProvider, PlannerFactory, event.Multicast
 AgentProcess ⇒ Agent, ProcessOptions, Blackboard, Planner, WorldStateDeterminer, Platform
 ProcessContext ⇒ AgentProcess, Blackboard, ProcessOptions, ServiceProvider
 Agent ⇒ Action, Goal, Condition, DomainType, StuckHandler
-Action ⇒ ActionMetadata（⇒ IoBinding, EffectSpec, ActionQos, ToolGroupRequirement）
-Goal ⇒ IoBinding, ExportConfig, CostFunc
+Action ⇒ ActionMetadata（⇒ IOBinding, EffectSpec, ActionQos, ToolGroupRequirement）
+Goal ⇒ IOBinding, ExportConfig, CostFunc
 Condition ⇒ OperationContext
 Blackboard ⇒ （leaf）
 Plan ⇒ Action, Goal
@@ -1012,11 +1012,11 @@ PlanningSystem ⇒ Action, Goal, Condition
 WorldState ⇒ Determination
 Planner ⇒ PlanningSystem, WorldState, Plan
 EffectSpec ⇒ Determination
-IoBinding ⇒ （primitive）
+IOBinding ⇒ （primitive）
 ```
 
 **关键隔离**：
-- `Blackboard`、`Determination`、`IoBinding` 是**无依赖的叶子类型**——规划器与运行时都在这之上构建
+- `Blackboard`、`Determination`、`IOBinding` 是**无依赖的叶子类型**——规划器与运行时都在这之上构建
 - `Agent` 是**只读聚合**——创建后通过 `WithXxx` 返回副本
 - `AgentProcess` 是**唯一的可变状态载体**——所有状态集中在此，方便审计
 
@@ -1028,7 +1028,7 @@ IoBinding ⇒ （primitive）
 agent/
 ├── core/                            (Layer 1-2)
 │   ├── determination.go             Determination + 方法
-│   ├── iobinding.go                 IoBinding + NewIoBinding[T]
+│   ├── iobinding.go                 IOBinding + NewIOBinding[T]
 │   ├── semver.go                    Semver
 │   ├── domain_type.go               DomainType
 │   ├── effect_spec.go               EffectSpec + 操作
@@ -1109,7 +1109,7 @@ agent/
 | 类型 | 关键不变式 |
 |-----|----------|
 | `Determination` | 值 ∈ {0, 1, 2}；零值 = Unknown |
-| `IoBinding` | `Type` 非空；`Name == ""` 视同 `"it"` |
+| `IOBinding` | `Type` 非空；`Name == ""` 视同 `"it"` |
 | `EffectSpec` | `nil` 等价空 map |
 | `Agent.Name` | 创建后不变 |
 | `Action.Metadata()` | 返回值只读（指针指向常量结构） |
@@ -1127,7 +1127,7 @@ agent/
 
 | 级别 | 类型 | 说明 |
 |-----|------|-----|
-| **完全不可变** | `Determination`, `IoBinding`, `ActionMetadata`, `ActionQos`, `Goal`, `Plan`, `WorldState`, Event 类 | 可在多 goroutine 自由共享 |
+| **完全不可变** | `Determination`, `IOBinding`, `ActionMetadata`, `ActionQos`, `Goal`, `Plan`, `WorldState`, Event 类 | 可在多 goroutine 自由共享 |
 | **构造后不可变** | `Agent`, `PlanningSystem` | 创建期单线程；之后只读共享 |
 | **读并发安全** | `AgentProcess`（Status/History/...）, `InMemoryBlackboard`, `event.Multicast` | 用 RWMutex 保护 |
 | **单线程调用** | `AgentProcess.Run`/`Tick`, `Builder` | 只能由一个 goroutine 调用 |
@@ -1142,7 +1142,7 @@ agent/
 | 类型 | 零值行为 |
 |-----|---------|
 | `Determination{}` | = `Unknown` |
-| `IoBinding{}` | = `"it:"`（类型空，仅用作 placeholder） |
+| `IOBinding{}` | = `"it:"`（类型空，仅用作 placeholder） |
 | `EffectSpec(nil)` | 作空 map 使用，不 panic |
 | `ActionQos{}` | 所有重试字段 = 0，需构造器 `DefaultActionQos()` 填默认 |
 | `ProcessOptions{}` | 所有默认；Verbosity/Budget 内嵌零值也是合理默认 |
@@ -1157,7 +1157,7 @@ agent/
 | embabel (Kotlin) | Lynx (Go) |
 |-----------------|-----------|
 | `ConditionDetermination` enum | `core.Determination` |
-| `data class IoBinding` | `core.IoBinding` |
+| `data class IOBinding` | `core.IOBinding` |
 | `interface Condition` | `core.Condition` |
 | `interface Action` | `core.Action` + `ActionMetadata` |
 | `data class Goal` | `core.Goal` |

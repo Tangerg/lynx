@@ -9,8 +9,8 @@ import (
 
 type sample struct{ V int }
 
-func TestNewIoBindingPackagePath(t *testing.T) {
-	b := core.NewIoBinding[sample]("input")
+func TestNewIOBindingPackagePath(t *testing.T) {
+	b := core.NewIOBinding[sample]("input")
 	if b.Name != "input" {
 		t.Fatalf("name: got %q want %q", b.Name, "input")
 	}
@@ -21,8 +21,8 @@ func TestNewIoBindingPackagePath(t *testing.T) {
 	}
 }
 
-func TestIoBindingDefaultName(t *testing.T) {
-	b := core.NewIoBinding[sample]("")
+func TestIOBindingDefaultName(t *testing.T) {
+	b := core.NewIOBinding[sample]("")
 	if !b.IsDefault() {
 		t.Fatalf("empty name should be default")
 	}
@@ -31,8 +31,8 @@ func TestIoBindingDefaultName(t *testing.T) {
 	}
 }
 
-func TestParseIoBinding(t *testing.T) {
-	parsed := core.ParseIoBinding("topic:foo.Topic")
+func TestParseIOBinding(t *testing.T) {
+	parsed := core.ParseIOBinding("topic:foo.Topic")
 	if parsed.Name != "topic" || parsed.Type != "foo.Topic" {
 		t.Fatalf("parsed: %+v", parsed)
 	}

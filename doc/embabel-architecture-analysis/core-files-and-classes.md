@@ -19,7 +19,7 @@ com/embabel/agent/
 │   ├── Goal.kt                                  ★★★ Goal 数据类
 │   ├── Condition.kt                             ★★  条件与三值逻辑运算符
 │   ├── Blackboard.kt                            ★★★ 黑板接口
-│   ├── IoBinding.kt                             ★★  输入 / 输出绑定
+│   ├── IOBinding.kt                             ★★  输入 / 输出绑定
 │   ├── ProcessContext.kt                        ★★  执行上下文
 │   ├── ProcessOptions.kt                        ★   进程配置
 │   ├── ActionQos.kt                             ★   重试 / 超时 / 退避
@@ -141,7 +141,7 @@ com/embabel/plan/                                 ← 通用规划抽象
 | 类 | 文件 | 关键字段 / 方法 |
 |----|------|----------------|
 | **Agent** | `core/Agent.kt` | `actions: List<Action>` · `goals: Set<Goal>` · `conditions: Set<Condition>` · `planningSystem: PlanningSystem`(getter) |
-| **Action** | `core/Action.kt` | `inputs/outputs: Set<IoBinding>` · `preconditions/effects: EffectSpec` · `qos: ActionQos` · `execute(ctx): ActionStatus` · `canRerun: Boolean` |
+| **Action** | `core/Action.kt` | `inputs/outputs: Set<IOBinding>` · `preconditions/effects: EffectSpec` · `qos: ActionQos` · `execute(ctx): ActionStatus` · `canRerun: Boolean` |
 | **Goal** | `core/Goal.kt` | `pre: Set<String>` · `inputs` · `outputType` · `value: CostComputation` · `preconditions` 自动由 `pre + inputs` 合成 |
 | **Condition** | `core/Condition.kt` | `evaluate(OperationContext): ConditionDetermination` · 重载 `not/or/and/inv` |
 | **Blackboard** | `core/Blackboard.kt` | `objects: List<Any>` · `bind/bindProtected` · `getValue(var, type, dd)` · `setCondition/getCondition` · `spawn()` · `hide(obj)` |

@@ -279,8 +279,8 @@ Goals(core.GoalProducing[Result]("Done").WithValue(1.0))
 core.NewAction("ship",
     func(ctx context.Context, pc *core.ProcessContext, ...) (...) { ... },
 ).WithInputs(
-    core.IoBinding{Name: "from", Type: "Address"},
-    core.IoBinding{Name: "to",   Type: "Address"},
+    core.IOBinding{Name: "from", Type: "Address"},
+    core.IOBinding{Name: "to",   Type: "Address"},
 )
 ```
 

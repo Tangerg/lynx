@@ -8,13 +8,13 @@ import (
 )
 
 // goalSummary is the wire shape for a *core.Goal — lossy on the
-// non-serializable fields ([core.IoBinding].Type already strings, but
+// non-serializable fields ([core.IOBinding].Type already strings, but
 // [core.CostFunc] callbacks can't round-trip).
 type goalSummary struct {
 	Name        string           `json:"name,omitempty"`
 	Description string           `json:"description,omitempty"`
 	Pre         []string         `json:"pre,omitempty"`
-	Inputs      []core.IoBinding `json:"inputs,omitempty"`
+	Inputs      []core.IOBinding `json:"inputs,omitempty"`
 	OutputType  string           `json:"output_type,omitempty"`
 	Tags        []string         `json:"tags,omitempty"`
 	Examples    []string         `json:"examples,omitempty"`

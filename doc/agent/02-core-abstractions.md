@@ -47,9 +47,9 @@ func (d Determination) Not() Determination {
 
 ---
 
-## 2. IoBinding — 输入/输出绑定
+## 2. IOBinding — 输入/输出绑定
 
-Kotlin 用 `@JvmInline value class IoBinding(val value: String)` 包装字符串 `"varName:TypeName"`。
+Kotlin 用 `@JvmInline value class IOBinding(val value: String)` 包装字符串 `"varName:TypeName"`。
 
 Go 版本：
 
@@ -64,34 +64,34 @@ const (
     LastResultBinding = "lastResult"  // @Trigger 专用
 )
 
-// IoBinding 描述一个输入或输出绑定："varName:com.example.Type"
-type IoBinding struct {
+// IOBinding 描述一个输入或输出绑定："varName:com.example.Type"
+type IOBinding struct {
     Name string  // 变量名，默认 "it"
     Type string  // Go 类型全名（带 package 路径）
 }
 
-func (b IoBinding) String() string {
+func (b IOBinding) String() string {
     if b.Name == "" {
         b.Name = DefaultBinding
     }
     return b.Name + ":" + b.Type
 }
 
-// NewIoBinding 从 Go 反射类型构造
-func NewIoBinding[T any](name string) IoBinding {
+// NewIOBinding 从 Go 反射类型构造
+func NewIOBinding[T any](name string) IOBinding {
     var zero T
     rt := reflect.TypeOf(zero)
     if rt == nil {
         // T 是 interface，需要 runtime 解析
         rt = reflect.TypeOf((*T)(nil)).Elem()
     }
-    return IoBinding{
+    return IOBinding{
         Name: stringOrDefault(name, DefaultBinding),
         Type: rt.PkgPath() + "." + rt.Name(),
     }
 }
 
-func ParseIoBinding(s string) IoBinding { /* 解析 "name:Type" */ }
+func ParseIOBinding(s string) IOBinding { /* 解析 "name:Type" */ }
 ```
 
 Go 的类型名比 Java FQN 略繁琐（`pkg/path.TypeName`），但仍然是字符串可比较的——规划器需要这一点。
@@ -312,7 +312,7 @@ func (b *InMemoryBlackboard) Spawn() Blackboard {
 ## 5. Action — 行动接口
 
 ### Kotlin 要点
-- `inputs: Set<IoBinding>` / `outputs: Set<IoBinding>`
+- `inputs: Set<IOBinding>` / `outputs: Set<IOBinding>`
 - `preconditions: EffectSpec` / `effects: EffectSpec`（自动从 inputs/outputs 推断）
 - `canRerun: Boolean`
 - `qos: ActionQos`（重试策略）
@@ -331,8 +331,8 @@ type Action interface {
     // 元数据
     Name() string
     Description() string
-    Inputs() []IoBinding
-    Outputs() []IoBinding
+    Inputs() []IOBinding
+    Outputs() []IOBinding
     Preconditions() EffectSpec
     Effects() EffectSpec
     CanRerun() bool
@@ -392,13 +392,13 @@ func NewAction[In, Out any](
     fn TypedAction[In, Out],
     cfg ActionConfig,
 ) Action {
-    inputBinding  := NewIoBinding[In](DefaultBinding)
-    outputBinding := NewIoBinding[Out](DefaultBinding)
+    inputBinding  := NewIOBinding[In](DefaultBinding)
+    outputBinding := NewIOBinding[Out](DefaultBinding)
 
     a := &typedActionImpl[In, Out]{
         name:    name,
-        inputs:  []IoBinding{inputBinding},
-        outputs: []IoBinding{outputBinding},
+        inputs:  []IOBinding{inputBinding},
+        outputs: []IOBinding{outputBinding},
         fn:      fn,
         qos:     DefaultActionQos(),
     }
@@ -411,8 +411,8 @@ func NewAction[In, Out any](
 
 type typedActionImpl[In, Out any] struct {
     name    string
-    inputs  []IoBinding
-    outputs []IoBinding
+    inputs  []IOBinding
+    outputs []IOBinding
     fn      TypedAction[In, Out]
     qos     ActionQos
     pre     []string
@@ -450,7 +450,7 @@ func (a *typedActionImpl[In, Out]) Execute(ctx context.Context, pc *ProcessConte
 }
 ```
 
-**关键**：用户写的是 `func(ctx, pc, UserInput) (Intent, error)`，**类型完全保留到编译期**。框架内部用 `reflect.TypeOf` 一次性算出 `IoBinding`，之后运行时无反射。
+**关键**：用户写的是 `func(ctx, pc, UserInput) (Intent, error)`，**类型完全保留到编译期**。框架内部用 `reflect.TypeOf` 一次性算出 `IOBinding`，之后运行时无反射。
 
 ### Preconditions/Effects 自动计算
 
@@ -511,7 +511,7 @@ type Goal struct {
     Name        string
     Description string
     Pre         []string       // 显式前提条件
-    Inputs      []IoBinding    // 输入类型要求
+    Inputs      []IOBinding    // 输入类型要求
     OutputType  *string        // 目标产出类型（可选）
     Value       float64        // 静态价值（0-1）；动态用 ValueFn
     ValueFn     ValueFunc      // 动态价值计算
@@ -548,7 +548,7 @@ func GoalProducing[T any](description string) *Goal {
     return &Goal{
         Name:        "produce_" + typeName,
         Description: description,
-        Inputs:      []IoBinding{NewIoBinding[T](DefaultBinding)},
+        Inputs:      []IOBinding{NewIOBinding[T](DefaultBinding)},
         OutputType:  &typeName,
     }
 }

@@ -283,7 +283,7 @@ func (d *BlackboardDeterminer) determineCondition(ctx context.Context, cond stri
 
     // 2. 数据绑定？（含 ":"）
     if strings.Contains(cond, ":") {
-        ib := core.ParseIoBinding(cond)
+        ib := core.ParseIOBinding(cond)
         if d.blackboard.HasValue(ib.Name, ib.Type) {
             return core.True
         }

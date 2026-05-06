@@ -34,7 +34,7 @@ _, err := platform.RunAgent(ctx, a, nil)
 
 ### 交付物
 - [ ] `core.Determination` 三值逻辑 + 完整单测
-- [ ] `core.IoBinding` 结构 + `NewIoBinding[T]` 泛型工厂
+- [ ] `core.IOBinding` 结构 + `NewIOBinding[T]` 泛型工厂
 - [ ] `core.Blackboard` 接口
 - [ ] `runtime.InMemoryBlackboard` 实现（线程安全、类型匹配）
 - [ ] `core.NewAction[In, Out]` 泛型构造器

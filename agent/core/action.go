@@ -28,8 +28,8 @@ type Action interface {
 type ActionMetadata struct {
 	Name          string
 	Description   string
-	Inputs        []IoBinding
-	Outputs       []IoBinding
+	Inputs        []IOBinding
+	Outputs       []IOBinding
 	Preconditions EffectSpec
 	Effects       EffectSpec
 	CanRerun      bool

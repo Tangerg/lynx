@@ -86,7 +86,7 @@
 |------|------|
 | **关注点分离** | 核心 / SPI / 注解 / DSL / 集成层都有独立边界,几乎没有循环依赖 |
 | **可扩展性** | **30+** SPI 覆盖规划、持久化、调度、工具循环、守护、嵌入、脚本执行;默认实现全部可替换 |
-| **类型安全** | 从 `IoBinding` 到 `Transformation<I, O>` 全链路强类型;Kotlin 数据类 + 密封接口让状态建模可穷举 |
+| **类型安全** | 从 `IOBinding` 到 `Transformation<I, O>` 全链路强类型;Kotlin 数据类 + 密封接口让状态建模可穷举 |
 | **平台中立** | **13** 个 LLM provider 并存;一套 `LlmOptions` 可移植;本地(ONNX / Ollama / LM Studio / Docker)和云端对等 |
 | **Spring 原生** | 利用 `@AutoConfiguration` / `@ConditionalOnMissingBean` / `@ConfigurationProperties`,零侵入融入任何 Spring Boot 应用 |
 | **测试优先** | 三层测试支持模块;Mock LLM 基类;IT 集成测试针对 parallel tool loop / guardrail;ArchUnit 自动化 |
