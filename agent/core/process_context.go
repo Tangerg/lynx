@@ -33,11 +33,11 @@ type EventPublisher func(event any)
 // the parent ctx unchanged.
 type ToolCallCanceller func(cancel context.CancelFunc) (release func())
 
-// ProcessContextDeps bundles every dependency [NewProcessContext] needs.
-// The runtime fills it once per tick and calls NewProcessContext — that
-// keeps the field-injection plumbing inside one constructor instead of
-// scattered setter methods on the public surface.
-type ProcessContextDeps struct {
+// ProcessContextConfig is the runtime-internal input bundle for
+// [NewProcessContext]. The runtime fills it once per tick and calls
+// NewProcessContext — keeping the field-injection plumbing inside one
+// constructor instead of scattered setter methods on the public surface.
+type ProcessContextConfig struct {
 	Process       Process
 	Blackboard    Blackboard
 	Options       *ProcessOptions
@@ -81,18 +81,18 @@ type ProcessContext struct {
 	lastErr error
 }
 
-// NewProcessContext assembles a ProcessContext from deps. Used by the
+// NewProcessContext assembles a ProcessContext from cfg. Used by the
 // runtime once per tick; users don't construct ProcessContexts themselves.
-func NewProcessContext(deps ProcessContextDeps) *ProcessContext {
+func NewProcessContext(cfg ProcessContextConfig) *ProcessContext {
 	return &ProcessContext{
-		Process:        deps.Process,
-		Blackboard:     deps.Blackboard,
-		Options:        deps.Options,
-		OutputChannel:  deps.OutputChannel,
-		Services:       deps.Services,
-		publishEvent:   deps.Publish,
-		resolveTools:   deps.ResolveTools,
-		toolCallCancel: deps.ToolCallCancel,
+		Process:        cfg.Process,
+		Blackboard:     cfg.Blackboard,
+		Options:        cfg.Options,
+		OutputChannel:  cfg.OutputChannel,
+		Services:       cfg.Services,
+		publishEvent:   cfg.Publish,
+		resolveTools:   cfg.ResolveTools,
+		toolCallCancel: cfg.ToolCallCancel,
 	}
 }
 

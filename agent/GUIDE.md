@@ -290,7 +290,7 @@ pc.AwaitInput(req)                 // 委托给 Process
 pc.RecordUsage(cost, tokens)       // 委托给 Process
 ```
 
-构造通过 `ProcessContextDeps`（runtime 填好后调 `core.NewProcessContext(deps)`）——这避免在公共 API 上散布 setter。
+构造通过 `ProcessContextConfig`（runtime 填好后调 `core.NewProcessContext(deps)`）——这避免在公共 API 上散布 setter。
 
 ## II.9 HITL 三件套
 

@@ -173,7 +173,7 @@ func (p *AgentProcess) recordActionFailure(actionName string, err error) {
 // fields all live on AgentProcess; we re-create the context every tick so
 // per-action state (lastErr, etc.) doesn't leak.
 func (p *AgentProcess) buildProcessContext() *core.ProcessContext {
-	deps := core.ProcessContextDeps{
+	cfg := core.ProcessContextConfig{
 		Process:        p,
 		Blackboard:     p.blackboard,
 		Options:        p.options,
@@ -183,9 +183,9 @@ func (p *AgentProcess) buildProcessContext() *core.ProcessContext {
 		ToolCallCancel: p.registerToolCallCancel,
 	}
 	if resolver := p.platformToolResolver(); resolver != nil {
-		deps.ResolveTools = resolveToolsFor(resolver)
+		cfg.ResolveTools = resolveToolsFor(resolver)
 	}
-	return core.NewProcessContext(deps)
+	return core.NewProcessContext(cfg)
 }
 
 func (p *AgentProcess) platformServices() *core.ServiceProvider {
