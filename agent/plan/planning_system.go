@@ -44,7 +44,7 @@ func (s *PlanningSystem) KnownConditions() map[string]struct{} {
 	}
 
 	s.knownConditionsOnce.Do(func() {
-		computed := core.ComputeKnownConditions(s.Actions, s.Goals, s.Conditions)
+		computed := core.KnownConditions(s.Actions, s.Goals, s.Conditions)
 		s.knownConditions.Store(&computed)
 	})
 	return *s.knownConditions.Load()

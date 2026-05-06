@@ -445,7 +445,7 @@ func main() {
     topic := blog.Topic{Title: "GOAP in Go agent frameworks", Audience: "Go developers"}
     proc, err := platform.RunAgent(ctx, blogAgent, map[string]any{
         "it": topic,  // 绑定到默认 "it"
-    }, core.ProcessOptions{ProcessType: core.ProcessSimple})  // 先用顺序模式
+    }, core.ProcessOptions{ProcessType: core.ProcessSequential})  // 先用顺序模式
     if err != nil { log.Fatal(err) }
 
     // 5. 取结果

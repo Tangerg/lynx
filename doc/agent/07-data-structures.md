@@ -12,7 +12,7 @@
 ┌─────────────────────────────────────────────────────────────────┐
 │ Layer 5: Event / Error（事件与错误信号）                          │
 │   Event 接口 + 15 个具体事件类型                                   │
-│   ReplanRequest / StuckHandlingResult / EarlyTermination         │
+│   ReplanRequest / StuckResult / EarlyTermination         │
 ├─────────────────────────────────────────────────────────────────┤
 │ Layer 4: Runtime State（运行时状态）                              │
 │   AgentProcess / ProcessContext / ProcessOptions                 │
@@ -195,7 +195,7 @@ const (
 // ProcessType 执行模式
 type ProcessType int8
 const (
-    ProcessSimple ProcessType = iota  // 每 tick 1 个 action
+    ProcessSequential ProcessType = iota  // 每 tick 1 个 action
     ProcessConcurrent                 // 每 tick 所有可达 action 并发
 )
 ```
@@ -958,8 +958,8 @@ type ReplanRequest struct {
 
 func (r *ReplanRequest) Error() string { return "replan requested: " + r.Reason }
 
-// StuckHandlingResult 卡住处理器的返回
-type StuckHandlingResult struct {
+// StuckResult 卡住处理器的返回
+type StuckResult struct {
     Code   StuckHandlingCode
     Reason string
 }
@@ -971,7 +971,7 @@ const (
 )
 
 type StuckHandler interface {
-    HandleStuck(ctx context.Context, p *AgentProcess) StuckHandlingResult
+    HandleStuck(ctx context.Context, p *AgentProcess) StuckResult
 }
 
 // EarlyTerminationPolicy 早终止策略
@@ -1047,7 +1047,7 @@ agent/
 │   ├── process_options.go           ProcessOptions + Verbosity + Budget + ProcessControl + Identities
 │   ├── output_channel.go            OutputChannel + 内置实现
 │   ├── replan.go                    ReplanRequest
-│   ├── stuck.go                     StuckHandler + StuckHandlingResult
+│   ├── stuck.go                     StuckHandler + StuckResult
 │   ├── early_termination.go         EarlyTerminationPolicy + 内置策略
 │   └── tool_group.go                ToolGroupRequirement + ToolGroupResolver
 │

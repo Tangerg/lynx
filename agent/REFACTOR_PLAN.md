@@ -82,7 +82,7 @@ type AgentProcess struct {
     ownTokens int
 
     // ④ 信号 / 等待原子位
-    terminate         chan core.TerminationScopeSignal
+    terminate         chan core.TerminationSignal
     pendingAwaitable  atomic.Pointer[awaitSlot]
     toolCallCancel    atomic.Pointer[context.CancelFunc]
 
@@ -134,7 +134,7 @@ type processBudget struct {
 
 // runtime/process_signals.go
 type processSignals struct {
-    terminate        chan core.TerminationScopeSignal
+    terminate        chan core.TerminationSignal
     pendingAwaitable atomic.Pointer[awaitSlot]
     toolCallCancel   atomic.Pointer[context.CancelFunc]
 }

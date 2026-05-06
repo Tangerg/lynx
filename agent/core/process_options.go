@@ -48,7 +48,7 @@ type ProcessOptions struct {
 // users normally don't need to call it themselves.
 //
 // PlannerType and ProcessType are int8 enums whose zero value already
-// matches the desired default ([PlannerGOAP] / [ProcessSimple]), so they
+// matches the desired default ([PlannerGOAP] / [ProcessSequential]), so they
 // need no explicit handling.
 func (o *ProcessOptions) ApplyDefaults() {
 	if o.Budget == (Budget{}) {
