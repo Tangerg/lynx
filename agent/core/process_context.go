@@ -61,19 +61,14 @@ type ProcessContextDeps struct {
 }
 
 // ProcessContext is the only thing handed to an [Action.Execute] call.
-// Every dependency the action body might need is reachable through a
-// read-only accessor (Process / Blackboard / Options / OutputChannel /
-// Services) so future refactors don't ripple through every action.
-//
-// Fields are intentionally private: ProcessContext is built once per
-// tick by the runtime, immutable for the duration of the action call,
-// and discarded — user code reads, never writes.
+// Every service the action might need lives behind a method here so future
+// refactors don't ripple through every action body.
 type ProcessContext struct {
-	process       Process
-	blackboard    Blackboard
-	options       *ProcessOptions
-	outputChannel OutputChannel
-	services      *ServiceProvider
+	Process       Process
+	Blackboard    Blackboard
+	Options       *ProcessOptions
+	OutputChannel OutputChannel
+	Services      *ServiceProvider
 
 	publishEvent   EventPublisher
 	resolveTools   ToolResolver
@@ -90,36 +85,16 @@ type ProcessContext struct {
 // runtime once per tick; users don't construct ProcessContexts themselves.
 func NewProcessContext(deps ProcessContextDeps) *ProcessContext {
 	return &ProcessContext{
-		process:        deps.Process,
-		blackboard:     deps.Blackboard,
-		options:        deps.Options,
-		outputChannel:  deps.OutputChannel,
-		services:       deps.Services,
+		Process:        deps.Process,
+		Blackboard:     deps.Blackboard,
+		Options:        deps.Options,
+		OutputChannel:  deps.OutputChannel,
+		Services:       deps.Services,
 		publishEvent:   deps.Publish,
 		resolveTools:   deps.ResolveTools,
 		toolCallCancel: deps.ToolCallCancel,
 	}
 }
-
-// --- Read-only accessors -------------------------------------------------
-
-// Process returns the running process this context belongs to.
-func (pc *ProcessContext) Process() Process { return pc.process }
-
-// Blackboard returns the runtime blackboard. Action code reads from /
-// writes to it via the [Blackboard] interface methods.
-func (pc *ProcessContext) Blackboard() Blackboard { return pc.blackboard }
-
-// Options returns the per-process configuration the runtime is using.
-func (pc *ProcessContext) Options() *ProcessOptions { return pc.options }
-
-// OutputChannel returns the action-level "say something to the user"
-// sink. Defaults to [DevNullOutputChannel] when none is configured.
-func (pc *ProcessContext) OutputChannel() OutputChannel { return pc.outputChannel }
-
-// Services returns the open-ended service registry — see [ServiceOf]
-// for typed lookups.
-func (pc *ProcessContext) Services() *ServiceProvider { return pc.services }
 
 // Tracer returns the framework's OTel tracer so actions can mint custom
 // spans without importing otel themselves.
@@ -174,21 +149,21 @@ func (pc *ProcessContext) ToolCallContext(parent context.Context) (context.Conte
 // AwaitInput delegates to the underlying Process.AwaitInput. Convenience
 // because action code already has pc, not the bare process.
 func (pc *ProcessContext) AwaitInput(req Awaitable) ActionStatus {
-	if pc == nil || pc.process == nil {
+	if pc == nil || pc.Process == nil {
 		return ActionFailed
 	}
-	return pc.process.AwaitInput(req)
+	return pc.Process.AwaitInput(req)
 }
 
 // RecordUsage attributes an LLM call's cost (USD) and token count to the
 // running process. Convenience wrapper around [Process.RecordUsage] so
 // action code that's already holding pc doesn't need to reach for the
-// bare process. No-op when pc or its process is nil.
+// bare process. No-op when pc or its Process is nil.
 func (pc *ProcessContext) RecordUsage(cost float64, tokens int) {
-	if pc == nil || pc.process == nil {
+	if pc == nil || pc.Process == nil {
 		return
 	}
-	pc.process.RecordUsage(cost, tokens)
+	pc.Process.RecordUsage(cost, tokens)
 }
 
 // ExecuteSafely runs a.Execute(ctx, pc) under a panic guard, recording

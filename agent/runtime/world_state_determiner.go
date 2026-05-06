@@ -29,7 +29,7 @@ type blackboardDeterminer struct {
 	blackboard core.Blackboard
 	process    core.Process
 
-	// namedConditions indexes system.Conditions() by Name() so the per-tick
+	// namedConditions indexes system.Conditions by Name() so the per-tick
 	// dispatch is a map lookup rather than a linear scan.
 	namedConditions map[string]core.Condition
 }
@@ -37,8 +37,8 @@ type blackboardDeterminer struct {
 // newBlackboardDeterminer wires the determiner. The Process pointer is
 // what gets handed to user-defined Conditions during Evaluate.
 func newBlackboardDeterminer(system *plan.PlanningSystem, bb core.Blackboard, proc core.Process) *blackboardDeterminer {
-	named := make(map[string]core.Condition, len(system.Conditions()))
-	for _, cond := range system.Conditions() {
+	named := make(map[string]core.Condition, len(system.Conditions))
+	for _, cond := range system.Conditions {
 		named[cond.Name()] = cond
 	}
 	return &blackboardDeterminer{
