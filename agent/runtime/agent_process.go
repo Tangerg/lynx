@@ -2,9 +2,6 @@ package runtime
 
 import (
 	"context"
-	"maps"
-	"slices"
-	"sync"
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -20,10 +17,21 @@ import (
 // core.Process (read surface) plus mutation methods (TerminateAgent,
 // AwaitInput, ...) that only the runtime should call.
 //
-// Internal layout: identity / wiring fields sit on the struct directly;
-// channel + atomic-based signalling (terminate / pendingAwaitable /
-// toolCallCancel) is encapsulated in the embedded processSignals so
-// related primitives stay together.
+// Internal layout — three concerns embedded as sub-structs so related
+// fields & methods cluster together:
+//
+//   - processState   mu-protected status / goal / history / failure /
+//                    exclusions. Owns the main mutex; processBudget
+//                    shares it via a pointer.
+//   - processBudget  subtree cost / token / action aggregation; mu
+//                    pointer points at processState.mu.
+//   - processSignals channel + atomic-based signalling primitives
+//                    (terminate / awaitable slot / toolCallCancel) —
+//                    no shared lock, all built on lock-free primitives.
+//
+// The remaining top-level fields are construction-time wiring (id /
+// agent / options / blackboard / determiner / planner / system /
+// platform) — immutable after newAgentProcess returns.
 type AgentProcess struct {
 	id        string
 	parentID  string
@@ -31,15 +39,8 @@ type AgentProcess struct {
 	options   *core.ProcessOptions
 	startedAt time.Time
 
-	mu              sync.RWMutex
-	status          core.AgentProcessStatus
-	goal            *core.Goal
-	lastWorld       core.WorldState
-	history         []ActionInvocation
-	failure         error
-	excludedActions map[string]struct{}
-
-	processBudget  // children + ownCost + ownTokens (mu shared with AgentProcess)
+	processState   // mu + status + goal + lastWorld + history + failure + exclusions
+	processBudget  // children + ownCost + ownTokens (mu shared with processState)
 	processSignals // terminate channel + awaitable slot + toolCallCancel
 
 	blackboard core.Blackboard
@@ -71,62 +72,33 @@ func newAgentProcess(
 	platform *Platform,
 ) *AgentProcess {
 	p := &AgentProcess{
-		id:              id,
-		agent:           agentDef,
-		options:         opts,
-		startedAt:       core.Now(),
-		status:          core.StatusNotStarted,
-		excludedActions: map[string]struct{}{},
-		processSignals:  newProcessSignals(),
-		blackboard:      bb,
-		determiner:      determiner,
-		planner:         planner,
-		system:          system,
-		platform:        platform,
+		id:             id,
+		agent:          agentDef,
+		options:        opts,
+		startedAt:      core.Now(),
+		processState:   newProcessState(),
+		processSignals: newProcessSignals(),
+		blackboard:     bb,
+		determiner:     determiner,
+		planner:        planner,
+		system:         system,
+		platform:       platform,
 	}
-	p.processBudget.mu = &p.mu // share mutex — budget writes live alongside state writes
+	p.processBudget.lock = &p.processState.mu // budget shares state's mutex
 	return p
 }
 
 // --- core.Process read surface --------------------------------------------
+//
+// Status / Goal / LastWorldState / Failure / History come from the embedded
+// processState; the immutable identity getters live here.
 
-func (p *AgentProcess) ID() string              { return p.id }
-func (p *AgentProcess) ParentID() string        { return p.parentID }
-func (p *AgentProcess) StartedAt() time.Time    { return p.startedAt }
+func (p *AgentProcess) ID() string                    { return p.id }
+func (p *AgentProcess) ParentID() string              { return p.parentID }
+func (p *AgentProcess) StartedAt() time.Time          { return p.startedAt }
 func (p *AgentProcess) Blackboard() core.Blackboard   { return p.blackboard }
 func (p *AgentProcess) Options() *core.ProcessOptions { return p.options }
 func (p *AgentProcess) AgentDef() *core.Agent         { return p.agent }
-
-func (p *AgentProcess) Status() core.AgentProcessStatus {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
-	return p.status
-}
-
-func (p *AgentProcess) Goal() *core.Goal {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
-	return p.goal
-}
-
-func (p *AgentProcess) LastWorldState() core.WorldState {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
-	return p.lastWorld
-}
-
-func (p *AgentProcess) Failure() error {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
-	return p.failure
-}
-
-// History returns a snapshot of completed action invocations.
-func (p *AgentProcess) History() []ActionInvocation {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
-	return slices.Clone(p.history)
-}
 
 // Usage returns the subtree-aggregated cost / token / action totals.
 // Cost and tokens come from [AgentProcess.RecordUsage] calls (zero
@@ -136,8 +108,8 @@ func (p *AgentProcess) History() []ActionInvocation {
 // uses the result so a parent's budget governs its entire delegation
 // tree.
 func (p *AgentProcess) Usage() (cost float64, tokens int, actions int) {
-	// Snapshot history length under main mu, then delegate to the
-	// embedded processBudget which walks children.
+	// Snapshot history length under the shared mutex, then delegate to
+	// the embedded processBudget which walks children.
 	p.mu.RLock()
 	ownActions := len(p.history)
 	p.mu.RUnlock()
@@ -195,55 +167,7 @@ func (p *AgentProcess) AwaitInput(req core.Awaitable) core.ActionStatus {
 	return status
 }
 
-// --- internal mutators (used by tick / executeAction) ---------------------
-
-func (p *AgentProcess) setStatus(s core.AgentProcessStatus) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	p.status = s
-}
-
-func (p *AgentProcess) setGoal(g *core.Goal) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	p.goal = g
-}
-
-func (p *AgentProcess) setLastWorld(ws core.WorldState) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	p.lastWorld = ws
-}
-
-func (p *AgentProcess) setFailure(err error) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	p.failure = err
-}
-
-func (p *AgentProcess) recordInvocation(inv ActionInvocation) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	p.history = append(p.history, inv)
-}
-
-func (p *AgentProcess) excludeAction(name string) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	p.excludedActions[name] = struct{}{}
-}
-
-func (p *AgentProcess) clearExclusions() {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	clear(p.excludedActions)
-}
-
-func (p *AgentProcess) snapshotExclusions() map[string]struct{} {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
-	return maps.Clone(p.excludedActions)
-}
+// --- event plumbing -------------------------------------------------------
 
 // publishEvent dispatches via the platform's multicast listener (if wired).
 func (p *AgentProcess) publishEvent(e event.Event) {
@@ -262,19 +186,7 @@ func (p *AgentProcess) publishAny(e any) {
 	p.publishEvent(ev)
 }
 
-// makeRunning is the idempotent transition from NotStarted to Running. It
-// returns true on the first transition (so the caller knows to start the
-// loop) and false thereafter.
-func (p *AgentProcess) makeRunning() bool {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
-	if p.status != core.StatusNotStarted {
-		return false
-	}
-	p.status = core.StatusRunning
-	return true
-}
+// --- tracing helpers ------------------------------------------------------
 
 // startTickSpan creates a span scoped to one tick.
 func (p *AgentProcess) startTickSpan(ctx context.Context, name string) (context.Context, trace.Span) {

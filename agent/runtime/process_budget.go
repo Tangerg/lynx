@@ -17,7 +17,7 @@ import "sync"
 // recursively under RLock — the lock graph is a tree (parent →
 // children, never the reverse) so no deadlock is possible.
 type processBudget struct {
-	mu        *sync.RWMutex // shared with AgentProcess.mu — set by AgentProcess constructor
+	lock      *sync.RWMutex // points at processState.mu — set by AgentProcess constructor
 	children  []*AgentProcess
 	ownCost   float64
 	ownTokens int
@@ -26,16 +26,16 @@ type processBudget struct {
 // recordUsage adds a single LLM call's cost (USD) and token count to
 // this process's running totals.
 func (b *processBudget) recordUsage(cost float64, tokens int) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
+	b.lock.Lock()
+	defer b.lock.Unlock()
 	b.ownCost += cost
 	b.ownTokens += tokens
 }
 
 // addChild registers a child process so its Usage() rolls up.
 func (b *processBudget) addChild(child *AgentProcess) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
+	b.lock.Lock()
+	defer b.lock.Unlock()
 	b.children = append(b.children, child)
 }
 
@@ -47,8 +47,8 @@ func (b *processBudget) addChild(child *AgentProcess) {
 // is acyclic (a child can't reach back to mutate parent under its own
 // lock).
 func (b *processBudget) usage(ownActions int) (cost float64, tokens int, actions int) {
-	b.mu.RLock()
-	defer b.mu.RUnlock()
+	b.lock.RLock()
+	defer b.lock.RUnlock()
 
 	cost = b.ownCost
 	tokens = b.ownTokens
