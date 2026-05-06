@@ -33,13 +33,12 @@ func (a *typedAction[In, Out]) Execute(ctx context.Context, pc *ProcessContext) 
 	if pc == nil {
 		return ActionFailed
 	}
-	bb := pc.Blackboard()
-	if bb == nil {
+	if pc.Blackboard == nil {
 		pc.recordError(errors.New("typed action requires a non-nil Blackboard on ProcessContext"))
 		return ActionFailed
 	}
 
-	input, ok := loadTypedInput[In](bb, a.metadata.Inputs)
+	input, ok := loadTypedInput[In](pc.Blackboard, a.metadata.Inputs)
 	if !ok {
 		pc.recordError(fmt.Errorf(
 			"action %q: required input not on blackboard (binding=%s)",
@@ -54,7 +53,7 @@ func (a *typedAction[In, Out]) Execute(ctx context.Context, pc *ProcessContext) 
 		return ActionFailed
 	}
 
-	a.writeOutput(bb, output)
+	a.writeOutput(pc.Blackboard, output)
 	return ActionSucceeded
 }
 
