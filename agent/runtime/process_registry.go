@@ -6,9 +6,9 @@ import (
 )
 
 // processRegistry tracks the AgentProcesses the Platform has created.
-// Used as an embedded field on Platform — methods promote and become
-// Platform.GetProcess / ActiveProcesses (plus internal register/remove
-// for the runtime).
+// Used as a named field on Platform; methods are lowercase since the
+// public API lives on Platform (Platform.GetProcess / ActiveProcesses
+// forward to get / list here).
 //
 // Concurrency: a single RWMutex protects the map; registration is
 // exclusive, lookups are shared.
@@ -30,9 +30,8 @@ func (r *processRegistry) register(p *AgentProcess) {
 	r.procs[p.id] = p
 }
 
-// GetProcess looks up a process by id (used by the HITL resume API and
-// by debug tools).
-func (r *processRegistry) GetProcess(id string) (*AgentProcess, bool) {
+// get looks up a process by id.
+func (r *processRegistry) get(id string) (*AgentProcess, bool) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
@@ -40,9 +39,8 @@ func (r *processRegistry) GetProcess(id string) (*AgentProcess, bool) {
 	return p, ok
 }
 
-// ActiveProcesses returns a snapshot of all currently registered
-// processes.
-func (r *processRegistry) ActiveProcesses() []*AgentProcess {
+// list returns a snapshot of all currently registered processes.
+func (r *processRegistry) list() []*AgentProcess {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 

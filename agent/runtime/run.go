@@ -15,7 +15,7 @@ import (
 // run drives the OODA loop until the process terminates. Internal — the
 // only caller is Platform.RunAgent / StartAgent, which Platform exposes.
 func (p *AgentProcess) run(ctx context.Context) error {
-	if !p.makeRunning() {
+	if !p.state.makeRunning() {
 		return nil
 	}
 
@@ -57,8 +57,8 @@ func (p *AgentProcess) validateAgentForRun() error {
 
 // failProcess transitions to StatusFailed and publishes the failure event.
 func (p *AgentProcess) failProcess(err error) {
-	p.setFailure(err)
-	p.setStatus(core.StatusFailed)
+	p.state.setFailure(err)
+	p.state.setStatus(core.StatusFailed)
 	p.publishEvent(event.ProcessFailedEvent{
 		BaseEvent: event.NewBaseEvent(p.id),
 		Err:       err,
@@ -67,8 +67,8 @@ func (p *AgentProcess) failProcess(err error) {
 
 // markCancelled records context cancellation as a kill.
 func (p *AgentProcess) markCancelled(err error) {
-	p.setFailure(err)
-	p.setStatus(core.StatusKilled)
+	p.state.setFailure(err)
+	p.state.setStatus(core.StatusKilled)
 	p.publishEvent(event.ProcessKilledEvent{
 		BaseEvent: event.NewBaseEvent(p.id),
 		Reason:    err.Error(),
@@ -89,7 +89,7 @@ func (p *AgentProcess) checkEarlyTermination() bool {
 		return false
 	}
 
-	p.setStatus(core.StatusTerminated)
+	p.state.setStatus(core.StatusTerminated)
 	p.publishEvent(event.ProcessTerminatedEvent{
 		BaseEvent: event.NewBaseEvent(p.id),
 		Reason:    reason,
@@ -124,7 +124,7 @@ func (p *AgentProcess) publishTerminalEvent() {
 func (p *AgentProcess) Tick(ctx context.Context) error {
 	ctx = core.WithProcess(ctx, p)
 
-	if signal := p.drainTerminate(); signal != nil {
+	if signal := p.signals.drainTerminate(); signal != nil {
 		return p.handleTerminationSignal(*signal)
 	}
 
@@ -142,7 +142,7 @@ func (p *AgentProcess) Tick(ctx context.Context) error {
 // observe runs the determiner and publishes the ReadyToPlan event.
 func (p *AgentProcess) observe(ctx context.Context, span attributeAdder) core.WorldState {
 	worldState := p.determiner.DetermineWorldState(ctx)
-	p.setLastWorld(worldState)
+	p.state.setLastWorld(worldState)
 	p.publishEvent(event.ReadyToPlanEvent{
 		BaseEvent: event.NewBaseEvent(p.id),
 		World:     worldState,
@@ -164,7 +164,7 @@ type attributeAdder interface {
 func (p *AgentProcess) handleTerminationSignal(sig core.TerminationSignal) error {
 	switch sig.Scope {
 	case core.TerminationScopeAgent:
-		p.setStatus(core.StatusTerminated)
+		p.state.setStatus(core.StatusTerminated)
 		p.publishEvent(event.ProcessTerminatedEvent{
 			BaseEvent: event.NewBaseEvent(p.id),
 			Reason:    sig.Reason,
@@ -195,7 +195,7 @@ func (p *AgentProcess) tickSimple(ctx context.Context, ws core.WorldState) error
 		return nil
 	}
 
-	p.setGoal(planResult.Goal)
+	p.state.setGoal(planResult.Goal)
 	p.publishEvent(event.PlanFormulatedEvent{
 		BaseEvent: event.NewBaseEvent(p.id),
 		Plan:      planResult,
@@ -219,15 +219,15 @@ func (p *AgentProcess) tickSimple(ctx context.Context, ws core.WorldState) error
 func (p *AgentProcess) formulatePlan(ctx context.Context, ws core.WorldState) (*plan.Plan, error) {
 	return p.planner.BestValuePlan(
 		ctx, ws, p.system,
-		plan.PlanOptions{ExcludedActions: p.snapshotExclusions()},
+		plan.PlanOptions{ExcludedActions: p.state.snapshotExclusions()},
 	)
 }
 
 // completeForGoal flips the process to Completed and publishes the goal
 // achievement event.
 func (p *AgentProcess) completeForGoal(g *core.Goal) {
-	p.setStatus(core.StatusCompleted)
-	p.setGoal(g)
+	p.state.setStatus(core.StatusCompleted)
+	p.state.setGoal(g)
 	p.publishEvent(event.GoalAchievedEvent{
 		BaseEvent: event.NewBaseEvent(p.id),
 		Goal:      g,
@@ -238,7 +238,7 @@ func (p *AgentProcess) completeForGoal(g *core.Goal) {
 // update, exclude the action, publish the event. Status stays Running so
 // the next tick reformulates the plan.
 func (p *AgentProcess) applyReplan(action core.Action, request *core.ReplanRequest) {
-	p.excludeAction(action.Metadata().Name)
+	p.state.excludeAction(action.Metadata().Name)
 	if request.Update != nil {
 		request.Update(p.blackboard)
 	}
@@ -257,14 +257,14 @@ func (p *AgentProcess) translateActionStatus(action core.Action, status core.Act
 	case core.ActionSucceeded:
 		// Stay running — the next tick re-plans.
 	case core.ActionFailed:
-		p.setStatus(core.StatusFailed)
+		p.state.setStatus(core.StatusFailed)
 		if p.Failure() == nil {
-			p.setFailure(actionFailureError(action.Metadata().Name))
+			p.state.setFailure(actionFailureError(action.Metadata().Name))
 		}
 	case core.ActionWaiting:
-		p.setStatus(core.StatusWaiting)
+		p.state.setStatus(core.StatusWaiting)
 	case core.ActionPaused:
-		p.setStatus(core.StatusPaused)
+		p.state.setStatus(core.StatusPaused)
 	}
 }
 
@@ -282,12 +282,12 @@ func (p *AgentProcess) handleStuck(ctx context.Context, ws core.WorldState) erro
 	if p.agent.StuckHandler != nil {
 		result := p.agent.StuckHandler.HandleStuck(ctx, p)
 		if result.Code == core.StuckReplan {
-			p.clearExclusions()
+			p.state.clearExclusions()
 			return nil
 		}
 	}
 
-	p.setStatus(core.StatusStuck)
+	p.state.setStatus(core.StatusStuck)
 	p.publishEvent(event.ProcessStuckEvent{
 		BaseEvent: event.NewBaseEvent(p.id),
 		LastWorld: ws,

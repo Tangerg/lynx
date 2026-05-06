@@ -42,7 +42,7 @@ func (p *AgentProcess) executeAction(ctx context.Context, action core.Action) (c
 	status, replan, attempts, lastErr := p.runWithRetry(ctx, action, pc, meta.QoS)
 	duration := time.Since(startedAt)
 
-	p.recordInvocation(ActionInvocation{
+	p.state.recordInvocation(ActionInvocation{
 		ActionName: meta.Name,
 		Timestamp:  startedAt,
 		Duration:   duration,
@@ -160,12 +160,12 @@ func shouldRetryAction(err error) bool {
 // callers can read it from p.Failure() once the process terminates.
 func (p *AgentProcess) recordActionFailure(actionName string, err error) {
 	if err != nil {
-		p.setFailure(err)
+		p.state.setFailure(err)
 		return
 	}
 
 	if p.Failure() == nil {
-		p.setFailure(actionFailureError(actionName))
+		p.state.setFailure(actionFailureError(actionName))
 	}
 }
 
@@ -180,7 +180,7 @@ func (p *AgentProcess) buildProcessContext() *core.ProcessContext {
 		OutputChannel:  p.options.OutputChannel,
 		Services:       p.platformServices(),
 		Publish:        p.publishAny,
-		ToolCallCancel: p.registerToolCallCancel,
+		ToolCallCancel: p.signals.registerToolCallCancel,
 	}
 	if resolver := p.platformToolResolver(); resolver != nil {
 		cfg.ResolveTools = resolveToolsFor(resolver)

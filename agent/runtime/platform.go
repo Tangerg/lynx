@@ -30,14 +30,14 @@ func DefaultPlannerFactory() PlannerFactory {
 // agents, builds processes, dispatches events, and exposes the resume
 // API for HITL.
 //
-// Internal layout: the agent / process registries are embedded
-// sub-structs so their methods (Deploy / Undeploy / Agents / FindAgent
-// / GetProcess / ActiveProcesses) promote onto Platform. Platform
-// itself coordinates the cross-cutting concerns: deploy validation,
-// process construction, event publishing.
+// Internal layout: agents and procs are named sub-struct fields rather
+// than embedded promotions, so every access path is explicit at call
+// sites. Platform exposes the public registry surface (Agents /
+// FindAgent / GetProcess / ActiveProcesses) as thin wrappers that
+// forward into the internal helpers (agents.list / find / etc.).
 type Platform struct {
-	agentRegistry   // Deploy-time registry of *core.Agent
-	processRegistry // Runtime registry of *AgentProcess
+	agents agentRegistry   // Deploy-time registry of *core.Agent
+	procs  processRegistry // Runtime registry of *AgentProcess
 
 	plannerFactory PlannerFactory
 	events         *event.Multicast
@@ -96,13 +96,13 @@ func NewPlatform(cfg PlatformConfig) *Platform {
 	}
 
 	p := &Platform{
-		agentRegistry:   newAgentRegistry(),
-		processRegistry: newProcessRegistry(),
-		plannerFactory:  plannerFactory,
-		events:          event.NewMulticast(),
-		idGen:           idGen,
-		services:        services,
-		tools:           cfg.Tools,
+		agents:         newAgentRegistry(),
+		procs:          newProcessRegistry(),
+		plannerFactory: plannerFactory,
+		events:         event.NewMulticast(),
+		idGen:          idGen,
+		services:       services,
+		tools:          cfg.Tools,
 	}
 	for _, l := range cfg.Listeners {
 		p.events.Add(l)
@@ -130,6 +130,20 @@ func (p *Platform) publish(e event.Event) {
 // the host application that wants to inspect what the platform sees.
 func (p *Platform) Services() *core.ServiceProvider { return p.services }
 
+// --- Registry surface (thin wrappers over agents / procs) ----------------
+
+// Agents returns a snapshot of registered agents.
+func (p *Platform) Agents() []*core.Agent { return p.agents.list() }
+
+// FindAgent does a name lookup.
+func (p *Platform) FindAgent(name string) (*core.Agent, bool) { return p.agents.find(name) }
+
+// GetProcess looks up a process by id.
+func (p *Platform) GetProcess(id string) (*AgentProcess, bool) { return p.procs.get(id) }
+
+// ActiveProcesses returns a snapshot of all currently registered processes.
+func (p *Platform) ActiveProcesses() []*AgentProcess { return p.procs.list() }
+
 // Deploy registers an agent after validating it. Re-deploying with the
 // same name replaces the previous registration — convenient when
 // iterating during development.
@@ -150,7 +164,7 @@ func (p *Platform) Deploy(a *core.Agent) error {
 		return fmt.Errorf("Deploy: %w", err)
 	}
 
-	p.agentRegistry.register(a)
+	p.agents.register(a)
 	p.publish(event.AgentDeployedEvent{
 		BaseEvent: event.NewBaseEvent(""),
 		AgentName: a.Name,
@@ -206,7 +220,7 @@ func checkGoalsReachable(a *core.Agent) error {
 // Undeploy removes an agent. Returns an error when the name is unknown
 // so callers don't silently miss typos.
 func (p *Platform) Undeploy(name string) error {
-	if err := p.unregister(name); err != nil {
+	if err := p.agents.unregister(name); err != nil {
 		return fmt.Errorf("Undeploy: %w", err)
 	}
 	p.publish(event.AgentUndeployedEvent{
@@ -224,7 +238,7 @@ func (p *Platform) KillProcess(id string) error {
 		return fmt.Errorf("KillProcess: process id %q not found", id)
 	}
 
-	proc.setStatus(core.StatusKilled)
+	proc.state.setStatus(core.StatusKilled)
 	p.publish(event.ProcessKilledEvent{
 		BaseEvent: event.NewBaseEvent(id),
 		Reason:    "kill requested",
@@ -258,11 +272,11 @@ func (p *Platform) ResumeProcess(id string, response any) (core.ResponseImpact, 
 	// deliverResponse atomically swaps the parked awaitable; that single
 	// source of truth handles the "no awaitable pending" case so we
 	// don't pre-check separately and race a concurrent resume.
-	impact, err := proc.deliverResponse(response)
+	impact, err := proc.signals.deliverResponse(response)
 	if err != nil {
 		return core.ResponseImpactUnchanged, fmt.Errorf("ResumeProcess: %w", err)
 	}
-	proc.setStatus(core.StatusRunning)
+	proc.state.setStatus(core.StatusRunning)
 	return impact, nil
 }
 
@@ -293,7 +307,7 @@ func (p *Platform) createProcess(
 	proc := newAgentProcess(id, agentDef, &opts, bb, nil, planner, system, p)
 	proc.determiner = newBlackboardDeterminer(system, bb, proc)
 
-	p.processRegistry.register(proc)
+	p.procs.register(proc)
 
 	p.publish(event.ProcessCreatedEvent{
 		BaseEvent: event.NewBaseEvent(id),
@@ -383,7 +397,7 @@ func (p *Platform) CreateChildProcess(
 
 	// Register the child on the parent so Usage() can recursively roll
 	// up cost / tokens / actions across the whole delegation tree.
-	parent.addChild(child)
+	parent.budget.addChild(child)
 
 	return child, nil
 }
