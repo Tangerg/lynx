@@ -39,14 +39,7 @@ type AgentProcess struct {
 	failure         error
 	excludedActions map[string]struct{}
 
-	// Subtree budget plumbing — children are spawned via
-	// Platform.CreateChildProcess; ownCost/ownTokens accumulate via
-	// RecordUsage, called by integration code that hears LLM events.
-	// Usage() walks children recursively to produce subtree totals.
-	children  []*AgentProcess
-	ownCost   float64
-	ownTokens int
-
+	processBudget  // children + ownCost + ownTokens (mu shared with AgentProcess)
 	processSignals // terminate channel + awaitable slot + toolCallCancel
 
 	blackboard core.Blackboard
@@ -77,7 +70,7 @@ func newAgentProcess(
 	system *plan.PlanningSystem,
 	platform *Platform,
 ) *AgentProcess {
-	return &AgentProcess{
+	p := &AgentProcess{
 		id:              id,
 		agent:           agentDef,
 		options:         opts,
@@ -91,6 +84,8 @@ func newAgentProcess(
 		system:          system,
 		platform:        platform,
 	}
+	p.processBudget.mu = &p.mu // share mutex — budget writes live alongside state writes
+	return p
 }
 
 // --- core.Process read surface --------------------------------------------
@@ -137,36 +132,24 @@ func (p *AgentProcess) History() []ActionInvocation {
 // Cost and tokens come from [AgentProcess.RecordUsage] calls (zero
 // unless integration code wires them up). The action count is the
 // recursive sum of every History across this process and all child
-// processes spawned via [Platform.CreateChildProcess]. [BudgetPolicy]
+// processes spawned via [Platform.CreateChildProcess]. [core.BudgetPolicy]
 // uses the result so a parent's budget governs its entire delegation
 // tree.
 func (p *AgentProcess) Usage() (cost float64, tokens int, actions int) {
+	// Snapshot history length under main mu, then delegate to the
+	// embedded processBudget which walks children.
 	p.mu.RLock()
-	defer p.mu.RUnlock()
-
-	cost = p.ownCost
-	tokens = p.ownTokens
-	actions = len(p.history)
-
-	for _, child := range p.children {
-		c, t, a := child.Usage()
-		cost += c
-		tokens += t
-		actions += a
-	}
-	return
+	ownActions := len(p.history)
+	p.mu.RUnlock()
+	return p.usage(ownActions)
 }
 
 // RecordUsage adds a single LLM call's cost (USD) and token count to
-// this process's running totals. Integration code calls this — typically
-// from a listener wired to LLMResponseEvent or an LLM-client adapter
-// that knows the per-model rate. The framework itself never invents
-// numbers here.
+// this process's running totals. Integration code calls this from an
+// LLM-client adapter that knows the per-model rate. The framework
+// itself never invents numbers here.
 func (p *AgentProcess) RecordUsage(cost float64, tokens int) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	p.ownCost += cost
-	p.ownTokens += tokens
+	p.recordUsage(cost, tokens)
 }
 
 // --- core.Process mutation surface ----------------------------------------
