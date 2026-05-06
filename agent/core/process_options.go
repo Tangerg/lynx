@@ -13,15 +13,33 @@ import "time"
 // package namespace with ~10 `With…` constructors. Direct struct-
 // literal init is the intended ergonomics.
 type ProcessOptions struct {
-	Identities     Identities
-	Blackboard     Blackboard
-	Verbosity      Verbosity
+	// Identities: TODO(future) — wire into audit logs and RBAC checks
+	// via a future authorization Extension. Today the framework just
+	// stores them; integration code may consume.
+	Identities Identities
+
+	Blackboard Blackboard
+
+	// Verbosity: TODO(future) — currently observational hints stored
+	// for integration LLM listeners; no framework branching today.
+	Verbosity Verbosity
+
 	Budget         Budget
 	ProcessControl ProcessControl
-	Prune          bool
-	OutputChannel  OutputChannel
-	PlannerType    PlannerType
-	ProcessType    ProcessType
+
+	// Prune: TODO(future) — referenced by plan.Planner.Prune doc but no
+	// runtime path consumes it today. Reserved for "drop unreachable
+	// actions on cold start" mode.
+	Prune bool
+
+	OutputChannel OutputChannel
+
+	// PlannerType: TODO(future) — only [PlannerGOAP] is wired in the
+	// default factory. [PlannerUtility] is reserved for a reward-based
+	// planner.
+	PlannerType PlannerType
+
+	ProcessType ProcessType
 }
 
 // ApplyDefaults fills in zero-valued fields whose conceptual default is
@@ -41,8 +59,13 @@ func (o *ProcessOptions) ApplyDefaults() {
 	}
 }
 
-// Verbosity controls instrumentation visible to humans. None of these fields
-// affect program behavior — they're hints to listeners and the LLM-debug UI.
+// Verbosity controls instrumentation visible to humans. None of these
+// fields affect program behavior — they're hints to listeners and the
+// LLM-debug UI.
+//
+// TODO(future): consumed by integration LLM listeners (e.g. a slog
+// adapter that gates DEBUG-level prompt dumps on ShowPrompts). Framework
+// itself never reads these fields.
 type Verbosity struct {
 	ShowPrompts      bool
 	ShowLLMResponses bool
@@ -69,12 +92,20 @@ func DefaultBudget() Budget {
 // ProcessControl carries throttling knobs and the early-termination policy.
 type ProcessControl struct {
 	EarlyTerminationPolicy EarlyTerminationPolicy
-	ToolDelay              time.Duration
-	OperationDelay         time.Duration
+
+	// ToolDelay / OperationDelay: TODO(future) — placeholder for global
+	// throttling between tool invocations / between tick operations.
+	// Not consumed by the framework today; integration code can read
+	// them but the runtime doesn't sleep on them.
+	ToolDelay      time.Duration
+	OperationDelay time.Duration
 }
 
 // Identities pairs the user this process is acting on behalf of with the
 // identity used for impersonation/audit. Both are optional.
+//
+// TODO(future): wire into audit log + RBAC checks via an Extension.
+// Today the framework just stores; nothing reads.
 type Identities struct {
 	ForUser *User
 	RunAs   *User

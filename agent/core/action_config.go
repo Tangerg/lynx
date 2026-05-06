@@ -32,6 +32,10 @@ type ActionConfig struct {
 
 	// ReadOnly marks an action as side-effect-free; the planner is free
 	// to reorder or repeat it without worrying about state changes.
+	//
+	// TODO(future): not consumed by the planner today (the heuristic
+	// doesn't exploit reordering). Reserved for a future planner
+	// optimisation pass.
 	ReadOnly bool
 
 	// QoS overrides the default retry/back-off policy. Zero value falls
@@ -49,12 +53,20 @@ type ActionConfig struct {
 	// ToolGroups declares the abstract tool requirements (role names) —
 	// the resolver translates these to concrete tools at execution
 	// time.
+	//
+	// TODO(future): stored as metadata only today. The runtime does NOT
+	// auto-resolve these; action bodies pull tools via
+	// pc.ResolveTools(ctx, role). A future ToolLoop runner (see
+	// EMBABEL_GAP_ANALYSIS.md P0-2) will consume this field.
 	ToolGroups []ToolGroupRequirement
 
 	// Trigger registers a "fire when this type appears" auto-action: if
 	// the trigger type lands on the blackboard, the planner pulls this
 	// action in regardless of whether it's on the current plan. Use
 	// [TriggerType] to populate this from a Go type parameter.
+	//
+	// TODO(future): stored on ActionMetadata.Trigger but the planner
+	// does NOT scan for matching types today. Reserved.
 	Trigger reflect.Type
 
 	// OutputBinding overrides the default "it" output variable name.
@@ -76,6 +88,9 @@ type ActionConfig struct {
 
 	// ClearBlackboard marks the action as destructive — after it runs,
 	// the blackboard is wiped (preserving "protected" entries).
+	//
+	// TODO(future): not honoured by the runtime today. Reserved for a
+	// "checkpoint / reset" semantic.
 	ClearBlackboard bool
 }
 
