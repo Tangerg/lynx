@@ -49,7 +49,7 @@ func (p *AgentProcess) run(ctx context.Context) error {
 // planner. GOAP needs at least one goal to plan toward; without one we'd
 // loop forever returning empty plans.
 func (p *AgentProcess) validateAgentForRun() error {
-	if p.options.PlannerType == core.PlannerGOAP && len(p.agent.Goals) == 0 {
+	if p.options.PlannerType == core.PlannerGOAP && len(p.agent.Goals()) == 0 {
 		return errors.New("agent has no goals — GOAP planner requires at least one Goal")
 	}
 	return nil
@@ -279,8 +279,8 @@ func actionFailureError(name string) error {
 // supplied a StuckHandler that resolves the situation we re-loop;
 // otherwise we transition to Stuck.
 func (p *AgentProcess) handleStuck(ctx context.Context, ws core.WorldState) error {
-	if p.agent.StuckHandler != nil {
-		result := p.agent.StuckHandler.HandleStuck(ctx, p)
+	if h := p.agent.StuckHandler(); h != nil {
+		result := h.HandleStuck(ctx, p)
 		if result.Code == core.StuckReplan {
 			p.clearExclusions()
 			return nil

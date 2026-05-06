@@ -32,7 +32,7 @@ func FromAgent(a *core.Agent) *PlanningSystem {
 	if a == nil {
 		return &PlanningSystem{}
 	}
-	return &PlanningSystem{Actions: a.Actions, Goals: a.Goals, Conditions: a.Conditions}
+	return &PlanningSystem{Actions: a.Actions(), Goals: a.Goals(), Conditions: a.Conditions()}
 }
 
 // KnownConditions enumerates all condition keys reachable via the system —

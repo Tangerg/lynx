@@ -192,7 +192,7 @@ func (p *AgentProcess) publishAny(e any) {
 func (p *AgentProcess) startTickSpan(ctx context.Context, name string) (context.Context, trace.Span) {
 	return core.AgentTracer().Start(ctx, name,
 		trace.WithAttributes(
-			attribute.String("lynx.agent.name", p.agent.Name),
+			attribute.String("lynx.agent.name", p.agent.Name()),
 			attribute.String("lynx.agent.process_id", p.id),
 		),
 	)
