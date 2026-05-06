@@ -2,11 +2,9 @@ package runtime
 
 import (
 	"context"
-	"errors"
 	"maps"
 	"slices"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -21,6 +19,11 @@ import (
 // AgentProcess is the runtime's mutable per-execution state. It implements
 // core.Process (read surface) plus mutation methods (TerminateAgent,
 // AwaitInput, ...) that only the runtime should call.
+//
+// Internal layout: identity / wiring fields sit on the struct directly;
+// channel + atomic-based signalling (terminate / pendingAwaitable /
+// toolCallCancel) is encapsulated in the embedded processSignals so
+// related primitives stay together.
 type AgentProcess struct {
 	id        string
 	parentID  string
@@ -44,27 +47,13 @@ type AgentProcess struct {
 	ownCost   float64
 	ownTokens int
 
-	terminate        chan core.TerminationScopeSignal
-	pendingAwaitable atomic.Pointer[awaitSlot]
-	toolCallCancel   atomic.Pointer[context.CancelFunc]
+	processSignals // terminate channel + awaitable slot + toolCallCancel
 
 	blackboard core.Blackboard
 	determiner worldStateDeterminer
 	planner    plan.Planner
 	system     *plan.PlanningSystem
 	platform   *Platform
-}
-
-// awaitSlot is the parking spot used by the AwaitInput / ResumeProcess
-// pair: AwaitInput stores the awaitable here and flips the process to
-// StatusWaiting; ResumeProcess swaps the slot out and routes the
-// response through awaitable.OnResponseAny so the user-supplied
-// handler runs (typically mutating the blackboard). The single-field
-// wrapper exists so atomic.Pointer can park an interface value
-// (Go won't let us use atomic.Pointer[core.Awaitable] directly with
-// concrete-typed Stores).
-type awaitSlot struct {
-	awaitable core.Awaitable
 }
 
 // ActionInvocation is one row of the per-process history.
@@ -95,7 +84,7 @@ func newAgentProcess(
 		startedAt:       core.Now(),
 		status:          core.StatusNotStarted,
 		excludedActions: map[string]struct{}{},
-		terminate:       make(chan core.TerminationScopeSignal, 1),
+		processSignals:  newProcessSignals(),
 		blackboard:      bb,
 		determiner:      determiner,
 		planner:         planner,
@@ -181,6 +170,11 @@ func (p *AgentProcess) RecordUsage(cost float64, tokens int) {
 }
 
 // --- core.Process mutation surface ----------------------------------------
+//
+// Terminate*, AwaitInput, and the internal helpers (registerToolCallCancel,
+// deliverResponse, drainTerminate) are inherited via the embedded
+// processSignals; the methods below add the AgentProcess-specific bits
+// (events, scope wiring) on top.
 
 // TerminateAgent queues a "stop the whole process" signal. Tick consumes
 // the channel at the next boundary.
@@ -199,38 +193,8 @@ func (p *AgentProcess) TerminateAction(reason string) {
 // ctx.Done() at this point and abort. No-op when no tool-call context
 // is currently registered.
 func (p *AgentProcess) TerminateToolCall(reason string) {
-	cancel := p.toolCallCancel.Load()
-	if cancel == nil || *cancel == nil {
-		return
-	}
-	(*cancel)()
+	p.fireToolCallCancel()
 	_ = reason // reserved for future event publishing
-}
-
-// registerToolCallCancel installs a fresh cancel func and returns a
-// release closure that detaches it. Used by
-// [core.ProcessContext.ToolCallContext]. A new registration replaces any
-// previously-stored one (the old context becomes orphaned — its owning
-// action body should already be done by the time a new tool call
-// starts).
-func (p *AgentProcess) registerToolCallCancel(cancel context.CancelFunc) (release func()) {
-	cell := &cancel
-	p.toolCallCancel.Store(cell)
-	return func() {
-		// Only clear if we still own the slot — a newer registration
-		// would have replaced us, and we mustn't stomp it.
-		p.toolCallCancel.CompareAndSwap(cell, nil)
-	}
-}
-
-func (p *AgentProcess) queueTermination(scope core.TerminationScope, reason string) {
-	signal := core.TerminationScopeSignal{Scope: scope, Reason: reason}
-	select {
-	case p.terminate <- signal:
-	default:
-		// A signal is already pending — drop the duplicate; the existing
-		// signal will be picked up at the next tick boundary.
-	}
 }
 
 // AwaitInput parks the supplied awaitable on the process and returns
@@ -241,33 +205,11 @@ func (p *AgentProcess) queueTermination(scope core.TerminationScope, reason stri
 // awaitable.OnResponseAny — typically mutating the blackboard so the
 // next planning tick sees fresh state.
 func (p *AgentProcess) AwaitInput(req core.Awaitable) core.ActionStatus {
-	if req == nil {
-		return core.ActionFailed
+	status := p.parkAwaitable(req)
+	if status == core.ActionWaiting {
+		p.publishEvent(p.buildWaitingEvent(p.id, req))
 	}
-
-	p.pendingAwaitable.Store(&awaitSlot{awaitable: req})
-	p.publishEvent(event.ProcessWaitingEvent{
-		BaseEvent: event.NewBaseEvent(p.id),
-		Awaitable: req,
-	})
-	return core.ActionWaiting
-}
-
-// deliverResponse is the runtime's hook for resuming a waiting process.
-// It atomically claims the parked slot and forwards the response to the
-// awaitable's typed handler via [core.Awaitable.OnResponseAny]. Returns
-// the handler's [core.ResponseImpact] (so [Platform.ResumeProcess] can
-// surface it to the caller — Updated typically means the caller should
-// re-run the process to pick up the new state).
-//
-// Returns an error when no slot is parked or the response value doesn't
-// match the awaitable's expected type.
-func (p *AgentProcess) deliverResponse(response any) (core.ResponseImpact, error) {
-	slot := p.pendingAwaitable.Swap(nil)
-	if slot == nil {
-		return core.ResponseImpactUnchanged, errors.New("no awaitable pending")
-	}
-	return slot.awaitable.OnResponseAny(response)
+	return status
 }
 
 // --- internal mutators (used by tick / executeAction) ---------------------
@@ -349,17 +291,6 @@ func (p *AgentProcess) makeRunning() bool {
 	}
 	p.status = core.StatusRunning
 	return true
-}
-
-// drainTerminate pulls a signal off the channel without blocking. nil
-// result means no signal pending.
-func (p *AgentProcess) drainTerminate() *core.TerminationScopeSignal {
-	select {
-	case sig := <-p.terminate:
-		return &sig
-	default:
-		return nil
-	}
 }
 
 // startTickSpan creates a span scoped to one tick.
