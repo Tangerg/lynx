@@ -59,7 +59,7 @@ func (p *AStarPlanner) PlanToGoal(
 	ctx, span := plannerTracer.Start(ctx, "lynx.agent.planner.astar",
 		trace.WithAttributes(
 			attribute.String("lynx.agent.goal.name", goal.Name),
-			attribute.Int("lynx.agent.actions.count", len(system.Actions)),
+			attribute.Int("lynx.agent.actions.count", len(system.Actions())),
 		),
 	)
 	defer span.End()
@@ -69,7 +69,7 @@ func (p *AStarPlanner) PlanToGoal(
 		return &plan.Plan{Actions: nil, Goal: goal}, nil
 	}
 
-	candidates := candidateActions(system.Actions, opts.ExcludedActions)
+	candidates := candidateActions(system.Actions(), opts.ExcludedActions)
 
 	// Reachability pre-check — short-circuits before A* burns 10k iterations
 	// chasing a goal whose required conditions no action can establish.
@@ -246,8 +246,8 @@ func (p *AStarPlanner) PlansToGoals(
 		return nil, errors.New("PlansToGoals: PlanningSystem is nil")
 	}
 
-	out := make([]*plan.Plan, 0, len(system.Goals))
-	for _, goal := range system.Goals {
+	out := make([]*plan.Plan, 0, len(system.Goals()))
+	for _, goal := range system.Goals() {
 		pl, err := p.PlanToGoal(ctx, start, system, goal, opts)
 		if err != nil {
 			return nil, err
