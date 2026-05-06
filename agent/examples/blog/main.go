@@ -56,8 +56,8 @@ func main() {
 			// from inside the action — the Pre below tells the planner it
 			// must also be present before this action becomes applicable.
 			func(ctx context.Context, pc *agent.ProcessContext, outline Outline) (BlogPost, error) {
-				topic, _ := agent.Get[Topic](pc.Blackboard, agent.DefaultBinding)
-				research, _ := agent.Get[Research](pc.Blackboard, agent.DefaultBinding)
+				topic, _ := agent.Get[Topic](pc.Blackboard(), agent.DefaultBinding)
+				research, _ := agent.Get[Research](pc.Blackboard(), agent.DefaultBinding)
 				return BlogPost{
 					Topic:    topic,
 					Outline:  outline,
