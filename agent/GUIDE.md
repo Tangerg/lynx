@@ -1120,7 +1120,7 @@ core.ProcessOptions{
     Prune           bool                   // (待实现) planner 启动 pruning
     OutputChannel   core.OutputChannel    // 默认 DevNullOutputChannel
     PlannerType     core.PlannerType      // PlannerGOAP（默认）
-    ProcessType     core.ProcessType      // ProcessSimple（默认）/ ProcessConcurrent
+    ProcessType     core.ProcessType      // ProcessSequential（默认）/ ProcessConcurrent
 }
 ```
 
@@ -1144,7 +1144,7 @@ core.ResponseImpactUnchanged / ResponseImpactUpdated
 core.StuckGiveUp / StuckReplan
 core.TerminationScopeAgent / Action / ToolCall
 core.PlannerGOAP / PlannerUtility
-core.ProcessSimple / ProcessConcurrent
+core.ProcessSequential / ProcessConcurrent
 core.StatusNotStarted / Running / Waiting / Paused / Completed /
      Failed / Stuck / Killed / Terminated
 core.ActionSucceeded / Failed / Waiting / Paused

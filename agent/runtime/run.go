@@ -161,7 +161,7 @@ type attributeAdder interface {
 // handleTerminationSignal processes a queued termination request. AGENT-
 // scope signals stop the process; ACTION-scope signals trigger a re-plan
 // without running an action this tick.
-func (p *AgentProcess) handleTerminationSignal(sig core.TerminationScopeSignal) error {
+func (p *AgentProcess) handleTerminationSignal(sig core.TerminationSignal) error {
 	switch sig.Scope {
 	case core.TerminationScopeAgent:
 		p.setStatus(core.StatusTerminated)

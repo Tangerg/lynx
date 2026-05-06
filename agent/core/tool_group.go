@@ -88,10 +88,10 @@ func (t TerminationScope) String() string {
 	}
 }
 
-// TerminationScopeSignal is the per-instance termination payload. Agents
+// TerminationSignal is the per-instance termination payload. Agents
 // expose TerminateAgent/TerminateAction methods that enqueue one of these
 // for the runtime to pick up at the next tick boundary.
-type TerminationScopeSignal struct {
+type TerminationSignal struct {
 	Scope  TerminationScope
 	Reason string
 }

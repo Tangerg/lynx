@@ -1297,10 +1297,10 @@ platform := agent.NewPlatform(runtime.PlatformConfig{
 
 ```go
 agent.New("...").
-    StuckHandler(core.StuckHandlerFunc(func(ctx context.Context, p core.Process) core.StuckHandlingResult {
+    StuckHandler(core.StuckHandlerFunc(func(ctx context.Context, p core.Process) core.StuckResult {
         // 例如：移除某个 protected condition
         p.Blackboard().SetCondition("strict_mode", false)
-        return core.StuckHandlingResult{Code: core.StuckReplan, Reason: "relaxed strict_mode"}
+        return core.StuckResult{Code: core.StuckReplan, Reason: "relaxed strict_mode"}
     })).
     /* ... */ .Build()
 ```

@@ -87,7 +87,7 @@ func main() {
 		map[string]any{core.DefaultBindingName: Topic{Title: "agent-frameworks"}},
 		// Switch to ProcessConcurrent to run independent actions in parallel
 		// (research + outline on tick 1, write on tick 2).
-		core.ProcessOptions{ProcessType: core.ProcessSimple},
+		core.ProcessOptions{ProcessType: core.ProcessSequential},
 	)
 	if err != nil {
 		log.Fatal(err)

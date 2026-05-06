@@ -12,7 +12,7 @@ import (
 // processSignals owns the three channels / atomic slots an AgentProcess
 // uses to coordinate with the outside world:
 //
-//   - terminate         buffered channel of TerminationScopeSignal —
+//   - terminate         buffered channel of TerminationSignal —
 //                       Tick consumes one at the next boundary. Scope
 //                       Agent stops the process; Action triggers a
 //                       re-plan; ToolCall is fired immediately (see
@@ -30,7 +30,7 @@ import (
 // everything is built on channel + atomic primitives so signalling can
 // race with state-machine reads without contending the main mutex.
 type processSignals struct {
-	terminate        chan core.TerminationScopeSignal
+	terminate        chan core.TerminationSignal
 	pendingAwaitable atomic.Pointer[awaitSlot]
 	toolCallCancel   atomic.Pointer[context.CancelFunc]
 }
@@ -51,7 +51,7 @@ type awaitSlot struct {
 // terminate channel.
 func newProcessSignals() processSignals {
 	return processSignals{
-		terminate: make(chan core.TerminationScopeSignal, 1),
+		terminate: make(chan core.TerminationSignal, 1),
 	}
 }
 
@@ -59,7 +59,7 @@ func newProcessSignals() processSignals {
 // blocking. A duplicate while one is already pending is silently
 // dropped — Tick will see the pending one at the next boundary.
 func (s *processSignals) queueTermination(scope core.TerminationScope, reason string) {
-	signal := core.TerminationScopeSignal{Scope: scope, Reason: reason}
+	signal := core.TerminationSignal{Scope: scope, Reason: reason}
 	select {
 	case s.terminate <- signal:
 	default:
@@ -68,7 +68,7 @@ func (s *processSignals) queueTermination(scope core.TerminationScope, reason st
 
 // drainTerminate pulls a signal off the channel without blocking. nil
 // result means no signal pending.
-func (s *processSignals) drainTerminate() *core.TerminationScopeSignal {
+func (s *processSignals) drainTerminate() *core.TerminationSignal {
 	select {
 	case sig := <-s.terminate:
 		return &sig

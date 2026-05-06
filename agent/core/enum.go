@@ -90,7 +90,7 @@ const (
 type ProcessType int8
 
 const (
-	ProcessSimple     ProcessType = iota // One action per tick.
+	ProcessSequential     ProcessType = iota // One action per tick.
 	ProcessConcurrent                    // Every applicable action of the plan in parallel.
 )
 
