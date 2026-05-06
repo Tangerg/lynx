@@ -29,7 +29,7 @@ func newAgentRegistry() agentRegistry {
 func (r *agentRegistry) register(a *core.Agent) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.agents[a.Name] = a
+	r.agents[a.Name()] = a
 }
 
 // unregister removes the agent at name. Returns an error when the name

@@ -9,12 +9,10 @@ import (
 	"github.com/Masterminds/semver/v3"
 )
 
-// AgentConfig is the single input to [NewAgent] — it bundles every piece
-// of state the constructor needs (scalar attributes plus the action / goal
-// / condition / domain-type / tool-group slices). The DSL [Builder] is a
-// thin façade that accumulates fields here and calls [NewAgent] at
-// [Builder.Build] time, so callers who already have an AgentConfig in hand
-// can skip the Builder entirely.
+// AgentConfig is the input bundle passed to [NewAgent]. Public fields
+// because callers fill them; once handed to NewAgent the config is
+// snapshotted into an immutable [Agent] so subsequent caller mutations
+// don't reach the runtime.
 type AgentConfig struct {
 	// Name is the agent's identifier — required, must be unique within
 	// a Platform.
@@ -72,26 +70,46 @@ func (c *AgentConfig) applyDefaults() {
 	}
 }
 
-// Agent is the deployable bundle the planner reasons over. The configured
-// state is held verbatim via the embedded [AgentConfig]; the trailing
-// fields are runtime-only caches that [NewAgent] zero-initialises.
+// Agent is the deployable bundle the planner reasons over. It is
+// created by [NewAgent] from an [AgentConfig] snapshot and is
+// immutable thereafter — callers reach the underlying data via the
+// read-only accessor methods (Name / Actions / Goals / ...).
 //
 // Agent is deliberately small — orchestration knobs live in
-// [ProcessOptions], runtime state lives in [AgentProcess].
+// [ProcessOptions], runtime state lives in the runtime's AgentProcess.
 type Agent struct {
-	AgentConfig
+	cfg AgentConfig
 
 	knownConditions     atomic.Pointer[map[string]struct{}]
 	knownConditionsOnce sync.Once
 }
 
-// NewAgent assembles a fresh agent from cfg. Slice fields are stored by
-// reference; callers shouldn't mutate them afterwards. Zero-valued
-// scalars are filled by [AgentConfig.applyDefaults].
+// NewAgent assembles a fresh agent from cfg. Slice fields in cfg are
+// stored by reference; the caller shouldn't mutate them afterwards.
+// Zero-valued scalars are filled by [AgentConfig.applyDefaults].
 func NewAgent(cfg AgentConfig) *Agent {
 	cfg.applyDefaults()
-	return &Agent{AgentConfig: cfg}
+	return &Agent{cfg: cfg}
 }
+
+// --- Read-only accessors --------------------------------------------------
+
+// Config returns a value copy of the underlying config. Slice / pointer
+// fields inside still alias the agent's internal state, so callers
+// MUST NOT mutate slice contents.
+func (a *Agent) Config() AgentConfig { return a.cfg }
+
+func (a *Agent) Name() string                                   { return a.cfg.Name }
+func (a *Agent) Provider() string                               { return a.cfg.Provider }
+func (a *Agent) Description() string                            { return a.cfg.Description }
+func (a *Agent) Version() *semver.Version                       { return a.cfg.Version }
+func (a *Agent) Opaque() bool                                   { return a.cfg.Opaque }
+func (a *Agent) StuckHandler() StuckHandler                     { return a.cfg.StuckHandler }
+func (a *Agent) Actions() []Action                              { return a.cfg.Actions }
+func (a *Agent) Goals() []*Goal                                 { return a.cfg.Goals }
+func (a *Agent) Conditions() []Condition                        { return a.cfg.Conditions }
+func (a *Agent) DomainTypes() []DomainType                      { return a.cfg.DomainTypes }
+func (a *Agent) ToolGroupRequirements() []ToolGroupRequirement  { return a.cfg.ToolGroupRequirements }
 
 // KnownConditions enumerates every condition key this agent can refer to —
 // the union of action.preconditions/effects keys, goal preconditions, and
@@ -105,7 +123,7 @@ func (a *Agent) KnownConditions() map[string]struct{} {
 	}
 
 	a.knownConditionsOnce.Do(func() {
-		computed := KnownConditions(a.Actions, a.Goals, a.Conditions)
+		computed := KnownConditions(a.cfg.Actions, a.cfg.Goals, a.cfg.Conditions)
 		a.knownConditions.Store(&computed)
 	})
 	return *a.knownConditions.Load()
@@ -124,38 +142,38 @@ func ValidateAgent(a *Agent) error {
 	if a == nil {
 		return errors.New("core.ValidateAgent: agent is nil")
 	}
-	if a.Name == "" {
+	if a.cfg.Name == "" {
 		return errors.New("core.ValidateAgent: agent must have a non-empty Name")
 	}
-	if len(a.Actions) == 0 {
-		return fmt.Errorf("core.ValidateAgent: agent %q has no actions", a.Name)
+	if len(a.cfg.Actions) == 0 {
+		return fmt.Errorf("core.ValidateAgent: agent %q has no actions", a.cfg.Name)
 	}
-	if len(a.Goals) == 0 {
-		return fmt.Errorf("core.ValidateAgent: agent %q has no goals", a.Name)
+	if len(a.cfg.Goals) == 0 {
+		return fmt.Errorf("core.ValidateAgent: agent %q has no goals", a.cfg.Name)
 	}
 
-	seenActions := make(map[string]struct{}, len(a.Actions))
-	for _, action := range a.Actions {
+	seenActions := make(map[string]struct{}, len(a.cfg.Actions))
+	for _, action := range a.cfg.Actions {
 		name := action.Metadata().Name
 		if name == "" {
-			return fmt.Errorf("core.ValidateAgent: agent %q has an action with empty Name", a.Name)
+			return fmt.Errorf("core.ValidateAgent: agent %q has an action with empty Name", a.cfg.Name)
 		}
 		if _, dup := seenActions[name]; dup {
-			return fmt.Errorf("core.ValidateAgent: agent %q has duplicate action name %q", a.Name, name)
+			return fmt.Errorf("core.ValidateAgent: agent %q has duplicate action name %q", a.cfg.Name, name)
 		}
 		seenActions[name] = struct{}{}
 	}
 
-	seenGoals := make(map[string]struct{}, len(a.Goals))
-	for _, goal := range a.Goals {
+	seenGoals := make(map[string]struct{}, len(a.cfg.Goals))
+	for _, goal := range a.cfg.Goals {
 		if goal == nil {
-			return fmt.Errorf("core.ValidateAgent: agent %q has a nil goal", a.Name)
+			return fmt.Errorf("core.ValidateAgent: agent %q has a nil goal", a.cfg.Name)
 		}
 		if goal.Name == "" {
-			return fmt.Errorf("core.ValidateAgent: agent %q has a goal with empty Name", a.Name)
+			return fmt.Errorf("core.ValidateAgent: agent %q has a goal with empty Name", a.cfg.Name)
 		}
 		if _, dup := seenGoals[goal.Name]; dup {
-			return fmt.Errorf("core.ValidateAgent: agent %q has duplicate goal name %q", a.Name, goal.Name)
+			return fmt.Errorf("core.ValidateAgent: agent %q has duplicate goal name %q", a.cfg.Name, goal.Name)
 		}
 		seenGoals[goal.Name] = struct{}{}
 	}
@@ -190,4 +208,3 @@ func KnownConditions(actions []Action, goals []*Goal, conditions []Condition) ma
 	}
 	return out
 }
-

@@ -153,7 +153,7 @@ func (p *Platform) Deploy(a *core.Agent) error {
 	p.agentRegistry.register(a)
 	p.publish(event.AgentDeployedEvent{
 		BaseEvent: event.NewBaseEvent(""),
-		AgentName: a.Name,
+		AgentName: a.Name(),
 	})
 	return nil
 }
@@ -175,7 +175,7 @@ func checkGoalsReachable(a *core.Agent) error {
 	// every action's Effects keys whose Determination is True, plus
 	// every action's input bindings (those are externally-supplied).
 	producible := map[string]struct{}{}
-	for _, action := range a.Actions {
+	for _, action := range a.Actions() {
 		meta := action.Metadata()
 		for key, value := range meta.Effects {
 			if value == core.True {
@@ -187,7 +187,7 @@ func checkGoalsReachable(a *core.Agent) error {
 		}
 	}
 
-	for _, goal := range a.Goals {
+	for _, goal := range a.Goals() {
 		for key, required := range goal.Preconditions() {
 			if required != core.True {
 				continue // we only flag missing producers for True-required conditions
@@ -195,7 +195,7 @@ func checkGoalsReachable(a *core.Agent) error {
 			if _, ok := producible[key]; !ok {
 				return fmt.Errorf(
 					"agent %q: goal %q requires condition %q but no action produces it",
-					a.Name, goal.Name, key,
+					a.Name(), goal.Name, key,
 				)
 			}
 		}
