@@ -6,31 +6,16 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/Tangerg/lynx/agent/core"
-	"github.com/Tangerg/lynx/agent/event"
 )
 
 // tickConcurrent runs every applicable action of the best plan in parallel.
 // "Applicable" here means "preconditions are satisfied at the start of the
 // tick" — actions whose inputs depend on a sibling's output stay sequential.
 func (p *AgentProcess) tickConcurrent(ctx context.Context, worldState core.WorldState) error {
-	planResult, err := p.formulatePlan(ctx, worldState)
-	if err != nil {
-		p.failProcess(err)
-		return nil
+	planResult, done, err := p.planForTick(ctx, worldState)
+	if err != nil || done {
+		return err
 	}
-	if planResult == nil {
-		return p.handleStuck(ctx, worldState)
-	}
-	if planResult.IsComplete() {
-		p.completeForGoal(planResult.Goal)
-		return nil
-	}
-
-	p.state.setGoal(planResult.Goal)
-	p.publishEvent(event.PlanFormulatedEvent{
-		BaseEvent: p.baseEvent(),
-		Plan:      planResult,
-	})
 
 	achievable := filterAchievable(planResult.Actions, worldState)
 	if len(achievable) == 0 {

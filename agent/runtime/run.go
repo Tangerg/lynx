@@ -192,24 +192,10 @@ func (p *AgentProcess) handleTerminationSignal(sig core.TerminationSignal) error
 
 // tickSimple runs the first applicable action of the best plan.
 func (p *AgentProcess) tickSimple(ctx context.Context, worldState core.WorldState) error {
-	planResult, err := p.formulatePlan(ctx, worldState)
-	if err != nil {
-		p.failProcess(err)
-		return nil
+	planResult, done, err := p.planForTick(ctx, worldState)
+	if err != nil || done {
+		return err
 	}
-	if planResult == nil {
-		return p.handleStuck(ctx, worldState)
-	}
-	if planResult.IsComplete() {
-		p.completeForGoal(planResult.Goal)
-		return nil
-	}
-
-	p.state.setGoal(planResult.Goal)
-	p.publishEvent(event.PlanFormulatedEvent{
-		BaseEvent: p.baseEvent(),
-		Plan:      planResult,
-	})
 
 	action := planResult.Actions[0]
 	status, replan := p.executeAction(ctx, action)
@@ -224,6 +210,41 @@ func (p *AgentProcess) tickSimple(ctx context.Context, worldState core.WorldStat
 
 	p.translateActionStatus(action, status)
 	return nil
+}
+
+// planForTick is the shared prelude both tickSimple and tickConcurrent
+// run before they decide which action(s) to execute. It plans, handles
+// the three "no action this tick" outcomes (planner error → fail,
+// no plan → stuck, plan complete → goal achieved), and on success sets
+// the process goal and publishes [event.PlanFormulatedEvent].
+//
+// Return shape:
+//
+//   - planResult, false, nil  — caller should proceed to execute the plan
+//   - nil,        true,  nil  — caller should return immediately (process
+//     transitioned via failProcess / handleStuck / completeForGoal)
+//   - nil,        true,  err  — Tick should propagate err (handleStuck
+//     can't currently produce one but the contract leaves room)
+func (p *AgentProcess) planForTick(ctx context.Context, worldState core.WorldState) (*plan.Plan, bool, error) {
+	planResult, err := p.formulatePlan(ctx, worldState)
+	if err != nil {
+		p.failProcess(err)
+		return nil, true, nil
+	}
+	if planResult == nil {
+		return nil, true, p.handleStuck(ctx, worldState)
+	}
+	if planResult.IsComplete() {
+		p.completeForGoal(planResult.Goal)
+		return nil, true, nil
+	}
+
+	p.state.setGoal(planResult.Goal)
+	p.publishEvent(event.PlanFormulatedEvent{
+		BaseEvent: p.baseEvent(),
+		Plan:      planResult,
+	})
+	return planResult, false, nil
 }
 
 // formulatePlan runs the configured planner against the current world

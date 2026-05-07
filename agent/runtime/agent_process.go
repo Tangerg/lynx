@@ -68,13 +68,16 @@ type ActionInvocation struct {
 }
 
 // newAgentProcess assembles a process from its inputs. Internal — users
-// invoke Platform.RunAgent which assembles every dependency.
+// invoke Platform.RunAgent which assembles every dependency. The
+// determiner and processEvents are populated by the caller after
+// construction because both need the *AgentProcess pointer (the
+// determiner wires it as the [core.Process] for user conditions; the
+// multicast subscribes to per-process EventListener extensions).
 func newAgentProcess(
 	id string,
 	agentDef *core.Agent,
 	options *core.ProcessOptions,
 	blackboard core.Blackboard,
-	determiner worldStateDeterminer,
 	planner plan.Planner,
 	system *plan.PlanningSystem,
 	platform *Platform,
@@ -87,7 +90,6 @@ func newAgentProcess(
 		state:      newProcessState(),
 		signals:    newProcessSignals(),
 		blackboard: blackboard,
-		determiner: determiner,
 		planner:    planner,
 		system:     system,
 		platform:   platform,
@@ -228,4 +230,68 @@ func finishSpanWithError(span trace.Span, err error) {
 	}
 	span.RecordError(err)
 	span.SetStatus(codes.Error, err.Error())
+}
+
+// --- extension accessors -------------------------------------------------
+//
+// platformExtensions / processExtensions return the two raw lists;
+// combinedExtensions / combinedExtensionsResolverFirst pre-merge them in
+// the orders the dispatch helpers expect. Kept on AgentProcess (not
+// Platform) so process-scope and platform-scope concerns are visible
+// from one place.
+
+// platformServices returns the platform's open service registry, or a
+// fresh empty one when there's no platform attached (test fixtures).
+func (p *AgentProcess) platformServices() *core.ServiceProvider {
+	if p.platform == nil {
+		return core.NewServiceProvider()
+	}
+	return p.platform.services
+}
+
+// platformExtensions exposes the platform-scoped extension list.
+func (p *AgentProcess) platformExtensions() []core.Extension {
+	if p.platform == nil {
+		return nil
+	}
+	return p.platform.extensions.list
+}
+
+// processExtensions exposes the per-process extension list (from
+// [core.ProcessOptions.Extensions]).
+func (p *AgentProcess) processExtensions() []core.Extension {
+	if p.options == nil {
+		return nil
+	}
+	return p.options.Extensions
+}
+
+// combinedExtensions returns platform extensions followed by process
+// extensions — the natural ordering for onion / wrap chains where
+// platform sits outermost (registered earliest) and process sits
+// innermost (registered last). Goal-approver dispatch reads this list.
+func (p *AgentProcess) combinedExtensions() []core.Extension {
+	return mergeExtensions(p.platformExtensions(), p.processExtensions())
+}
+
+// combinedExtensionsResolverFirst returns process extensions BEFORE
+// platform extensions — the order used for first-hit resolvers so a
+// process-scope override is consulted first.
+func (p *AgentProcess) combinedExtensionsResolverFirst() []core.Extension {
+	return mergeExtensions(p.processExtensions(), p.platformExtensions())
+}
+
+// mergeExtensions concatenates first then second, returning the input
+// directly (no allocation) when either side is empty.
+func mergeExtensions(first, second []core.Extension) []core.Extension {
+	if len(second) == 0 {
+		return first
+	}
+	if len(first) == 0 {
+		return second
+	}
+	out := make([]core.Extension, 0, len(first)+len(second))
+	out = append(out, first...)
+	out = append(out, second...)
+	return out
 }

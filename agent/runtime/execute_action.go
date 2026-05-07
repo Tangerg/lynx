@@ -217,64 +217,6 @@ func (p *AgentProcess) buildProcessContext(actionToolGroups []core.ToolGroupRequ
 	return core.NewProcessContext(config)
 }
 
-func (p *AgentProcess) platformServices() *core.ServiceProvider {
-	if p.platform == nil {
-		return core.NewServiceProvider()
-	}
-	return p.platform.services
-}
-
-// platformExtensions exposes the platform-scoped extension list.
-func (p *AgentProcess) platformExtensions() []core.Extension {
-	if p.platform == nil {
-		return nil
-	}
-	return p.platform.extensions.list
-}
-
-// processExtensions exposes the per-process extension list (from
-// [core.ProcessOptions.Extensions]). Independent of platform extensions
-// — combine via [combinedExtensions] / [combinedExtensionsResolverFirst]
-// when an extension point needs both layers.
-func (p *AgentProcess) processExtensions() []core.Extension {
-	if p.options == nil {
-		return nil
-	}
-	return p.options.Extensions
-}
-
-// combinedExtensions returns platform extensions followed by process
-// extensions — the natural ordering for onion / wrap chains where
-// platform sits outermost (registered earliest) and process sits
-// innermost (registered last). Goal-approver dispatch and the
-// last-wins singleton scans (rare for combined-scope) read this list.
-func (p *AgentProcess) combinedExtensions() []core.Extension {
-	platform := p.platformExtensions()
-	process := p.processExtensions()
-	if len(process) == 0 {
-		return platform
-	}
-	out := make([]core.Extension, 0, len(platform)+len(process))
-	out = append(out, platform...)
-	out = append(out, process...)
-	return out
-}
-
-// combinedExtensionsResolverFirst returns process extensions BEFORE
-// platform extensions — the order used for first-hit resolvers so a
-// process-scope override is consulted first.
-func (p *AgentProcess) combinedExtensionsResolverFirst() []core.Extension {
-	platform := p.platformExtensions()
-	process := p.processExtensions()
-	if len(process) == 0 {
-		return platform
-	}
-	out := make([]core.Extension, 0, len(platform)+len(process))
-	out = append(out, process...)
-	out = append(out, platform...)
-	return out
-}
-
 // toolResolverFor returns the ResolveTools closure used by ProcessContext.
 // nil action is allowed (the resolver still works; ToolDecorators receive
 // nil action — they should treat it as "outside an action body").

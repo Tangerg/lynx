@@ -354,25 +354,22 @@ func (p *Platform) createProcess(
 	}
 	options.ApplyDefaults()
 
-	blackboard := options.Blackboard
-	if blackboard == nil {
-		if factory := p.blackboardFactory(); factory != nil {
-			blackboard = factory.NewBlackboard()
-		}
-		if blackboard == nil {
-			blackboard = newInMemoryBlackboard()
-		}
-	}
+	blackboard := p.resolveBlackboard(options.Blackboard)
 	bindBlackboardSeed(blackboard, bindings)
 
 	planner := p.plannerFactory().NewPlanner(options.PlannerType)
 	if planner == nil {
 		return nil, fmt.Errorf("create process for agent %q: planner factory returned nil for %s planner", agentDef.Name, options.PlannerType)
 	}
+
 	system := plan.FromAgent(agentDef)
 	id := p.idGenerator().Next()
+	proc := newAgentProcess(id, agentDef, &options, blackboard, planner, system, p)
 
-	proc := newAgentProcess(id, agentDef, &options, blackboard, nil, planner, system, p)
+	// Both fields below need the *AgentProcess pointer — set them after
+	// construction. determiner uses it as the [core.Process] handed to
+	// user-defined conditions; processEvents subscribes process-scope
+	// EventListener extensions so they only see this process's events.
 	proc.determiner = newBlackboardDeterminer(system, blackboard, proc)
 	proc.processEvents = event.NewMulticast()
 	addEventListenerExtensions(proc.processEvents, options.Extensions)
@@ -384,6 +381,21 @@ func (p *Platform) createProcess(
 		Bindings:  bindings,
 	})
 	return proc, nil
+}
+
+// resolveBlackboard picks the [core.Blackboard] for a fresh process —
+// per-call value wins; otherwise the registered [core.BlackboardFactory]
+// extension; otherwise the built-in in-memory implementation.
+func (p *Platform) resolveBlackboard(supplied core.Blackboard) core.Blackboard {
+	if supplied != nil {
+		return supplied
+	}
+	if factory := p.blackboardFactory(); factory != nil {
+		if bb := factory.NewBlackboard(); bb != nil {
+			return bb
+		}
+	}
+	return newInMemoryBlackboard()
 }
 
 // validateProcessExtensions enforces the per-process invariants — nil
