@@ -2,14 +2,14 @@ package core
 
 import "time"
 
-// ActionQos governs retry behavior for a single action. Retry math itself
+// ActionQoS governs retry behavior for a single action. Retry math itself
 // (exponential backoff, jitter, overflow protection) is delegated to
 // [github.com/Tangerg/lynx/pkg/retry]; this struct is just the policy
 // surface the runtime translates into [retry.Option] values.
 //
 // Defaults are taken from embabel — aggressive (5 attempts) because LLM
 // calls fail transiently more often than typical RPC.
-type ActionQos struct {
+type ActionQoS struct {
 	// MaxAttempts caps total tries (initial + retries). 0 falls back to
 	// the package default; the runtime treats anything < 1 as 1.
 	MaxAttempts int
@@ -23,21 +23,12 @@ type ActionQos struct {
 	MaxDelay time.Duration
 }
 
-// ActionQoS is the idiomatic Go spelling for action quality-of-service
-// settings. ActionQos remains as the original name for compatibility.
-type ActionQoS = ActionQos
-
-// DefaultActionQos returns sensible production defaults: 5 attempts, 10s
+// DefaultActionQoS returns sensible production defaults: 5 attempts, 10s
 // initial backoff, 60s cap.
-func DefaultActionQos() ActionQos {
-	return ActionQos{
+func DefaultActionQoS() ActionQoS {
+	return ActionQoS{
 		MaxAttempts: 5,
 		BaseDelay:   10 * time.Second,
 		MaxDelay:    60 * time.Second,
 	}
-}
-
-// DefaultActionQoS is the idiomatic Go spelling of [DefaultActionQos].
-func DefaultActionQoS() ActionQoS {
-	return DefaultActionQos()
 }

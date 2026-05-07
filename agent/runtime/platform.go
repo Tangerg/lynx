@@ -8,7 +8,7 @@ import (
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/event"
 	"github.com/Tangerg/lynx/agent/plan"
-	"github.com/Tangerg/lynx/agent/planner/goap"
+	"github.com/Tangerg/lynx/agent/plan/planner/goap"
 )
 
 // PlannerFactory is the abstraction that lets callers swap planners (A*

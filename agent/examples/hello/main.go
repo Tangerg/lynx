@@ -10,6 +10,8 @@ import (
 	"strings"
 
 	"github.com/Tangerg/lynx/agent"
+	"github.com/Tangerg/lynx/agent/core"
+	"github.com/Tangerg/lynx/agent/runtime"
 )
 
 // CountResult is what the agent ultimately produces — the goal references it
@@ -22,16 +24,16 @@ func main() {
 	a := agent.New("Hello").
 		Description("count uppercase characters of a phrase").
 		Actions(agent.NewAction("count_upper",
-			func(ctx context.Context, pc *agent.ProcessContext, in string) (CountResult, error) {
+			func(ctx context.Context, pc *core.ProcessContext, in string) (CountResult, error) {
 				upper := strings.ToUpper(in)
 				return CountResult{Length: len(upper)}, nil
 			},
-			agent.ActionConfig{},
+			core.ActionConfig{},
 		)).
-		Goals(agent.GoalProducing[CountResult](agent.Goal{Description: "uppercase length determined"})).
+		Goals(agent.GoalProducing[CountResult](core.Goal{Description: "uppercase length determined"})).
 		Build()
 
-	platform := agent.NewPlatform(agent.PlatformConfig{})
+	platform := agent.NewPlatform(runtime.PlatformConfig{})
 	if err := platform.Deploy(a); err != nil {
 		log.Fatal(err)
 	}
@@ -39,14 +41,14 @@ func main() {
 	proc, err := platform.RunAgent(
 		context.Background(),
 		a,
-		map[string]any{agent.DefaultBinding: "hello"},
-		agent.ProcessOptions{},
+		map[string]any{core.DefaultBindingName: "hello"},
+		core.ProcessOptions{},
 	)
 	if err != nil {
 		log.Fatalf("RunAgent failed: %v", err)
 	}
 
-	result, ok := agent.ResultOfType[CountResult](proc)
+	result, ok := core.ResultOfType[CountResult](proc)
 	if !ok {
 		log.Fatalf("agent produced no CountResult; status=%s", proc.Status())
 	}
