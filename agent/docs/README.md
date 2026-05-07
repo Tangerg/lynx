@@ -4,7 +4,7 @@ GOAP (Goal-Oriented Action Planning) agent runtime for Go — a port of
 [`embabel-agent`](https://github.com/embabel/embabel-agent)'s core ideas
 (GOAP + blackboard + OODA loop) shaped to Go idioms.
 
-Status: M0–M5 of [`doc/agent/06-rollout.md`](../doc/agent/06-rollout.md)
+Status: M0–M5 of [`notes/06-rollout.md`](./notes/06-rollout.md)
 implemented. `go test -race ./...` is green.
 
 ## Structure

@@ -1,7 +1,7 @@
 # lynx/agent vs embabel-agent — 深度对比与缺口分析
 
 > 第三轮深度对比。基线：embabel-agent (Kotlin/Spring) v0.4 / lynx/agent (Go) HEAD。
-> 配套文档：[`doc/agent/08-vs-embabel.md`](../doc/agent/08-vs-embabel.md)（首轮架构对比），本文档聚焦**缺口与下一步**。
+> 配套文档：[`./notes/08-vs-embabel.md`](./notes/08-vs-embabel.md)（首轮架构对比），本文档聚焦**缺口与下一步**。
 
 ---
 

@@ -1190,4 +1190,4 @@ event.NewBaseEvent(processID) event.BaseEvent
 - [`EMBABEL_GAP_ANALYSIS.md`](./EMBABEL_GAP_ANALYSIS.md) — 与 embabel-agent 对比、缺口、roadmap
 - [`README.md`](./README.md) — 5 行 quick-start
 - [`examples/`](./examples/) — 可跑的 hello / blog 示例
-- [`../doc/agent/`](../../doc/agent/) — 设计文档系列（架构、规划器、用户 API、集成示例、数据结构）
+- [`./notes/`](./notes/) — 设计文档系列（架构、规划器、用户 API、集成示例、数据结构）

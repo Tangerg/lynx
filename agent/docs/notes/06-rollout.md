@@ -202,7 +202,7 @@ agent.tick {agent.name=IntentReceptionAgent}
 
 ### 文档
 - [ ] 每个公开类型有 godoc 注释
-- [ ] `agent/README.md` 有快速上手指南
+- [ ] `agent/docs/README.md` 有快速上手指南
 - [ ] `examples/` 目录有至少 3 个能跑的示例
 
 ### 依赖
