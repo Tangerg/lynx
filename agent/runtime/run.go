@@ -259,7 +259,7 @@ func (p *AgentProcess) planForTick(ctx context.Context, worldState core.WorldSta
 func (p *AgentProcess) formulatePlan(ctx context.Context, worldState core.WorldState) (*plan.Plan, error) {
 	system := p.system
 
-	approvers := collectGoalApprovers(p.combinedExtensions())
+	approvers := collectExtensions[core.GoalApprover](p.combinedExtensions())
 	if len(approvers) > 0 {
 		var approved []*core.Goal
 		for _, goal := range system.Goals {

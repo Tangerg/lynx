@@ -141,7 +141,7 @@ func (p *Platform) Deploy(a *core.Agent) error {
 	if err := checkGoalsReachable(a); err != nil {
 		return fmt.Errorf("deploy agent %q: %w", a.Name, err)
 	}
-	if err := runAgentValidators(collectAgentValidators(p.extensions.list), a); err != nil {
+	if err := runAgentValidators(collectExtensions[core.AgentValidator](p.extensions.list), a); err != nil {
 		return fmt.Errorf("deploy agent %q: %w", a.Name, err)
 	}
 
@@ -305,7 +305,7 @@ func (p *Platform) ContinueProcessAsync(ctx context.Context, id string) <-chan e
 // idGenerator returns the most-recently-registered IDGenerator
 // extension, falling back to a UUID-v4 generator when none is registered.
 func (p *Platform) idGenerator() core.IDGenerator {
-	if g := lastIDGenerator(p.extensions.list); g != nil {
+	if g := lastExtension[core.IDGenerator](p.extensions.list); g != nil {
 		return g
 	}
 	return defaultIDGenerator
@@ -313,7 +313,7 @@ func (p *Platform) idGenerator() core.IDGenerator {
 
 // plannerFactory mirrors idGenerator for PlannerFactory.
 func (p *Platform) plannerFactory() PlannerFactory {
-	if f := lastPlannerFactory(p.extensions.list); f != nil {
+	if f := lastExtension[PlannerFactory](p.extensions.list); f != nil {
 		return f
 	}
 	return defaultPlannerFactoryInstance
@@ -322,7 +322,7 @@ func (p *Platform) plannerFactory() PlannerFactory {
 // blackboardFactory returns the most-recently-registered BlackboardFactory
 // extension or nil — callers fall back to the in-memory blackboard.
 func (p *Platform) blackboardFactory() core.BlackboardFactory {
-	return lastBlackboardFactory(p.extensions.list)
+	return lastExtension[core.BlackboardFactory](p.extensions.list)
 }
 
 // Built-in fallbacks for last-wins singletons. Lazily initialised once.

@@ -41,91 +41,39 @@ func (r *extensionRegistry) register(scope string, ext core.Extension) {
 }
 
 // ============================================================================
-// Capability collectors — return the slice of extensions implementing a
-// specific capability, in registration order. Cheap (linear scan over
-// a small slice) and called at most once per dispatch site.
+// Capability collectors — generic helpers that filter the registered
+// extension list by capability interface. T is the capability interface
+// (core.ActionInterceptor, core.ToolDecorator, …); the type assertion
+// at runtime picks out only those extensions that satisfy it.
 // ============================================================================
 
-func collectActionInterceptors(extensions []core.Extension) []core.ActionInterceptor {
-	var out []core.ActionInterceptor
+// collectExtensions returns every extension that implements T, in
+// registration order. Used for fan-out / chain capabilities (interceptor,
+// decorator, validator, approver, resolver).
+func collectExtensions[T any](extensions []core.Extension) []T {
+	var out []T
 	for _, ext := range extensions {
-		if h, ok := ext.(core.ActionInterceptor); ok {
-			out = append(out, h)
-		}
-	}
-	return out
-}
-
-func collectToolDecorators(extensions []core.Extension) []core.ToolDecorator {
-	var out []core.ToolDecorator
-	for _, ext := range extensions {
-		if d, ok := ext.(core.ToolDecorator); ok {
-			out = append(out, d)
-		}
-	}
-	return out
-}
-
-func collectAgentValidators(extensions []core.Extension) []core.AgentValidator {
-	var out []core.AgentValidator
-	for _, ext := range extensions {
-		if v, ok := ext.(core.AgentValidator); ok {
+		if v, ok := ext.(T); ok {
 			out = append(out, v)
 		}
 	}
 	return out
 }
 
-func collectGoalApprovers(extensions []core.Extension) []core.GoalApprover {
-	var out []core.GoalApprover
-	for _, ext := range extensions {
-		if a, ok := ext.(core.GoalApprover); ok {
-			out = append(out, a)
-		}
-	}
-	return out
-}
-
-func collectToolGroupResolvers(extensions []core.Extension) []core.ToolGroupResolver {
-	var out []core.ToolGroupResolver
-	for _, ext := range extensions {
-		if r, ok := ext.(core.ToolGroupResolver); ok {
-			out = append(out, r)
-		}
-	}
-	return out
-}
-
-// lastIDGenerator returns the most-recently-registered IDGenerator (so a
-// process-scope override beats a platform-scope baseline). Returns nil
-// when none is registered — callers fall back to the runtime default.
-func lastIDGenerator(extensions []core.Extension) core.IDGenerator {
+// lastExtension returns the most-recently-registered extension that
+// implements T, or the zero value of T (nil for interface types) when
+// none is registered. Used for last-wins singletons (IDGenerator,
+// PlannerFactory, BlackboardFactory) so a process-scope override beats
+// a platform-scope baseline; callers fall back to the runtime default
+// when the result is nil.
+func lastExtension[T any](extensions []core.Extension) T {
 	for i := len(extensions) - 1; i >= 0; i-- {
-		if g, ok := extensions[i].(core.IDGenerator); ok {
-			return g
+		if v, ok := extensions[i].(T); ok {
+			return v
 		}
 	}
-	return nil
-}
-
-// lastPlannerFactory mirrors lastIDGenerator for PlannerFactory.
-func lastPlannerFactory(extensions []core.Extension) PlannerFactory {
-	for i := len(extensions) - 1; i >= 0; i-- {
-		if f, ok := extensions[i].(PlannerFactory); ok {
-			return f
-		}
-	}
-	return nil
-}
-
-// lastBlackboardFactory mirrors lastIDGenerator for BlackboardFactory.
-func lastBlackboardFactory(extensions []core.Extension) core.BlackboardFactory {
-	for i := len(extensions) - 1; i >= 0; i-- {
-		if f, ok := extensions[i].(core.BlackboardFactory); ok {
-			return f
-		}
-	}
-	return nil
+	var zero T
+	return zero
 }
 
 // ============================================================================
