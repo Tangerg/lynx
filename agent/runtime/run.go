@@ -2,7 +2,6 @@ package runtime
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -54,7 +53,7 @@ func (p *AgentProcess) run(ctx context.Context) error {
 // loop forever returning empty plans.
 func (p *AgentProcess) validateAgentForRun() error {
 	if p.options.PlannerType == core.PlannerGOAP && len(p.agent.Goals) == 0 {
-		return errors.New("agent has no goals — GOAP planner requires at least one Goal")
+		return fmt.Errorf("runtime.AgentProcess.run: agent %q has no goals (GOAP planner requires at least one)", p.agent.Name)
 	}
 	return nil
 }
@@ -123,8 +122,10 @@ func (p *AgentProcess) publishTerminalEvent() {
 	}
 }
 
-// Tick performs one OODA iteration. Public for tests that want to step
-// frame-by-frame; production code calls Run.
+// Tick performs one OODA iteration. Exported for tests that want to
+// step frame-by-frame; production callers go through
+// [Platform.RunAgent] / [Platform.StartAgent] / [Platform.ContinueProcess]
+// which drive the full loop.
 func (p *AgentProcess) Tick(ctx context.Context) error {
 	ctx = core.WithProcess(ctx, p)
 
@@ -132,7 +133,7 @@ func (p *AgentProcess) Tick(ctx context.Context) error {
 		return p.handleTerminationSignal(*signal)
 	}
 
-	ctx, span := p.startTickSpan(ctx, "lynx.agent.tick")
+	ctx, span := p.startTickSpan(ctx, spanTick)
 	defer span.End()
 
 	worldState := p.observe(ctx, span)
@@ -144,21 +145,22 @@ func (p *AgentProcess) Tick(ctx context.Context) error {
 }
 
 // observe runs the determiner and publishes the ReadyToPlan event.
-func (p *AgentProcess) observe(ctx context.Context, span attributeAdder) core.WorldState {
+func (p *AgentProcess) observe(ctx context.Context, span spanAttributer) core.WorldState {
 	worldState := p.determiner.determineWorldState(ctx)
 	p.state.setLastWorld(worldState)
+
 	p.publishEvent(event.ReadyToPlanEvent{
 		BaseEvent: event.NewBaseEvent(p.id),
 		World:     worldState,
 	})
-	span.SetAttributes(attribute.Int("lynx.agent.world_state.size", len(worldState.State())))
+	span.SetAttributes(attribute.Int(attrWorldStateSize, len(worldState.State())))
 	return worldState
 }
 
-// attributeAdder is the tiny subset of trace.Span we actually need. Local
-// type alias keeps observe's signature concise without dragging the full
-// span type into the helper.
-type attributeAdder interface {
+// spanAttributer is the tiny subset of trace.Span observe needs — keeps
+// the helper's signature decoupled from the full OTel span type so a
+// future test stub doesn't need to implement everything.
+type spanAttributer interface {
 	SetAttributes(...attribute.KeyValue)
 }
 
@@ -276,16 +278,15 @@ func (p *AgentProcess) translateActionStatus(action core.Action, status core.Act
 // returned ActionFailed without recording an explicit error on the
 // ProcessContext (rare, but possible).
 func actionFailureError(name string) error {
-	return fmt.Errorf("action %q failed without an explicit error", name)
+	return fmt.Errorf("runtime.executeAction: action %q failed without recording an error", name)
 }
 
 // handleStuck is invoked when the planner returned no plan. If the agent
 // supplied a StuckHandler that resolves the situation we re-loop;
 // otherwise we transition to Stuck.
 func (p *AgentProcess) handleStuck(ctx context.Context, ws core.WorldState) error {
-	if p.agent.StuckHandler != nil {
-		result := p.agent.StuckHandler.HandleStuck(ctx, p)
-		if result.Code == core.StuckReplan {
+	if handler := p.agent.StuckHandler; handler != nil {
+		if result := handler.HandleStuck(ctx, p); result.Code == core.StuckReplan {
 			p.state.clearExclusions()
 			return nil
 		}

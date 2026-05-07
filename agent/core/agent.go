@@ -125,7 +125,7 @@ func ValidateAgent(a *Agent) error {
 		return errors.New("core.ValidateAgent: agent is nil")
 	}
 	if a.Name == "" {
-		return errors.New("core.ValidateAgent: agent must have a non-empty Name")
+		return errors.New("core.ValidateAgent: agent.Name is empty")
 	}
 	if len(a.Actions) == 0 {
 		return fmt.Errorf("core.ValidateAgent: agent %q has no actions", a.Name)
@@ -159,7 +159,6 @@ func ValidateAgent(a *Agent) error {
 		}
 		seenGoals[goal.Name] = struct{}{}
 	}
-
 	return nil
 }
 

@@ -229,7 +229,7 @@ func (pc *ProcessContext) recordPanic(panicValue any) {
 
 	err, ok := panicValue.(error)
 	if !ok {
-		err = fmt.Errorf("action panicked: %v", panicValue)
+		err = fmt.Errorf("core.ProcessContext.ExecuteSafely: action panicked: %v", panicValue)
 	}
 	pc.recordError(err)
 }

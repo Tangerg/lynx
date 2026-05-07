@@ -120,13 +120,14 @@ func (s *processSignals) parkAwaitable(req core.Awaitable) core.ActionStatus {
 func (s *processSignals) deliverResponse(response any) (core.ResponseImpact, error) {
 	slot := s.pendingAwaitable.Swap(nil)
 	if slot == nil {
-		return core.ResponseImpactUnchanged, errors.New("no awaitable pending")
+		return core.ResponseImpactUnchanged, errors.New("runtime.processSignals.deliverResponse: no awaitable pending")
 	}
 	return slot.awaitable.OnResponseAny(response)
 }
 
-// publishWaitingEvent is a small helper so AgentProcess.AwaitInput can
-// stay short and not touch the platform directly.
+// buildWaitingEvent constructs the ProcessWaitingEvent published by
+// AgentProcess.AwaitInput. Kept on processSignals so AwaitInput stays
+// short and doesn't reach into the event package directly.
 func (s *processSignals) buildWaitingEvent(processID string, req core.Awaitable) event.ProcessWaitingEvent {
 	return event.ProcessWaitingEvent{
 		BaseEvent: event.NewBaseEvent(processID),

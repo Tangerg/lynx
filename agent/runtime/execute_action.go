@@ -30,10 +30,10 @@ func (p *AgentProcess) executeAction(ctx context.Context, action core.Action) (c
 		StartedAt: startedAt,
 	})
 
-	ctx, span := core.AgentTracer().Start(ctx, "lynx.agent.action")
+	ctx, span := core.AgentTracer().Start(ctx, spanAction)
 	span.SetAttributes(
-		attribute.String("lynx.agent.action.name", meta.Name),
-		attribute.String("lynx.agent.process_id", p.id),
+		attribute.String(attrActionName, meta.Name),
+		attribute.String(attrProcessID, p.id),
 	)
 	defer span.End()
 
@@ -57,8 +57,8 @@ func (p *AgentProcess) executeAction(ctx context.Context, action core.Action) (c
 	}
 
 	span.SetAttributes(
-		attribute.String("lynx.agent.action.status", status.String()),
-		attribute.Int("lynx.agent.action.attempts", attempts),
+		attribute.String(attrActionStatus, status.String()),
+		attribute.Int(attrActionAttempts, attempts),
 	)
 	finishSpanWithError(span, lastErr)
 
@@ -215,7 +215,7 @@ func resolveToolsFor(resolver core.ToolGroupResolver) core.ToolResolver {
 		for _, role := range roles {
 			group, err := resolver.Resolve(ctx, core.ToolGroupRequirement{Role: role})
 			if err != nil {
-				return nil, fmt.Errorf("resolve tool group %q: %w", role, err)
+				return nil, fmt.Errorf("runtime.resolveToolsFor: resolve role %q: %w", role, err)
 			}
 			if group == nil {
 				continue
@@ -223,7 +223,7 @@ func resolveToolsFor(resolver core.ToolGroupResolver) core.ToolResolver {
 
 			tools, err := group.Tools(ctx)
 			if err != nil {
-				return nil, fmt.Errorf("load tools for group %q: %w", role, err)
+				return nil, fmt.Errorf("runtime.resolveToolsFor: load tools for role %q: %w", role, err)
 			}
 			collected = append(collected, tools...)
 		}
