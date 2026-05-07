@@ -18,7 +18,7 @@ import (
 // returns the final ActionStatus plus an optional ReplanRequest the action
 // raised.
 //
-// The retry loop respects ActionQos: ActionFailed retries up to MaxAttempts
+// The retry loop respects ActionQoS: ActionFailed retries up to MaxAttempts
 // with back-off; ActionWaiting/Paused/Succeeded short-circuit immediately.
 func (p *AgentProcess) executeAction(ctx context.Context, action core.Action) (core.ActionStatus, *core.ReplanRequest) {
 	meta := action.Metadata()
@@ -96,7 +96,7 @@ func (p *AgentProcess) runWithRetry(
 	ctx context.Context,
 	action core.Action,
 	processContext *core.ProcessContext,
-	qos core.ActionQos,
+	qos core.ActionQoS,
 ) (status core.ActionStatus, replan *core.ReplanRequest, attempts int, lastErr error) {
 	op := func() error {
 		attempts++

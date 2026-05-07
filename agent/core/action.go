@@ -34,7 +34,7 @@ type ActionMetadata struct {
 	Effects       EffectSpec
 	CanRerun      bool
 	ReadOnly      bool
-	QoS           ActionQos
+	QoS           ActionQoS
 	ToolGroups    []ToolGroupRequirement
 
 	// Cost is the planner's per-tick cost probe; defaults to

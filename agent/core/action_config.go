@@ -39,8 +39,8 @@ type ActionConfig struct {
 	ReadOnly bool
 
 	// QoS overrides the default retry/back-off policy. Zero value falls
-	// back to [DefaultActionQos].
-	QoS ActionQos
+	// back to [DefaultActionQoS].
+	QoS ActionQoS
 
 	// Cost is the per-tick planning cost probe. Nil falls back to
 	// [Static](1.0).
@@ -99,8 +99,8 @@ func (c *ActionConfig) applyDefaults() {
 	if c.Value == nil {
 		c.Value = Static(0)
 	}
-	if c.QoS == (ActionQos{}) {
-		c.QoS = DefaultActionQos()
+	if c.QoS == (ActionQoS{}) {
+		c.QoS = DefaultActionQoS()
 	}
 }
 
