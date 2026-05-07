@@ -224,9 +224,29 @@ func (p *AgentProcess) tickSimple(ctx context.Context, worldState core.WorldStat
 // state, honoring the running exclusion list. The PlanningSystem is
 // allocated once per process at createProcess time so its KnownConditions
 // cache survives across ticks.
+//
+// Registered [core.GoalApprover] extensions filter the goal set before
+// the planner sees it — an unanimous "yes" is required for a goal to
+// remain plannable for this tick. With no approvers registered the
+// fast path reuses the cached PlanningSystem.
 func (p *AgentProcess) formulatePlan(ctx context.Context, worldState core.WorldState) (*plan.Plan, error) {
+	system := p.system
+
+	approvers := collectGoalApprovers(p.combinedExtensions())
+	if len(approvers) > 0 {
+		var approved []*core.Goal
+		for _, goal := range system.Goals {
+			if runGoalApprovers(approvers, p, goal) {
+				approved = append(approved, goal)
+			}
+		}
+		if len(approved) != len(system.Goals) {
+			system = plan.NewPlanningSystem(system.Actions, approved, system.Conditions)
+		}
+	}
+
 	return p.planner.BestValuePlan(
-		ctx, worldState, p.system,
+		ctx, worldState, system,
 		plan.PlanOptions{ExcludedActions: p.state.snapshotExclusions()},
 	)
 }

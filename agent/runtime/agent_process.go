@@ -49,6 +49,13 @@ type AgentProcess struct {
 	planner    plan.Planner
 	system     *plan.PlanningSystem
 	platform   *Platform
+
+	// processEvents is the per-process multicast populated from
+	// EventListener extensions on ProcessOptions.Extensions. Created at
+	// createProcess time; nil for processes that don't go through the
+	// regular factory path (e.g. test fixtures that build AgentProcess
+	// directly, though no such path exists today).
+	processEvents *event.Multicast
 }
 
 // ActionInvocation is one row of the per-process history.
@@ -165,12 +172,16 @@ func (p *AgentProcess) AwaitInput(req core.Awaitable) core.ActionStatus {
 
 // --- event plumbing -------------------------------------------------------
 
-// publishEvent dispatches via the platform's multicast listener (if wired).
+// publishEvent dispatches via the platform's multicast listener and
+// the per-process multicast (populated from process-scope EventListener
+// extensions). Either may be nil — the function tolerates that.
 func (p *AgentProcess) publishEvent(e event.Event) {
-	if p.platform == nil {
-		return
+	if p.platform != nil {
+		p.platform.publish(e)
 	}
-	p.platform.publish(e)
+	if p.processEvents != nil && e != nil {
+		p.processEvents.OnEvent(e)
+	}
 }
 
 // baseEvent stamps a fresh [event.BaseEvent] tagged with this process's

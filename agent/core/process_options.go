@@ -40,6 +40,18 @@ type ProcessOptions struct {
 	PlannerType PlannerType
 
 	ProcessType ProcessType
+
+	// Extensions are session-scoped plug-ins active for the lifetime of
+	// this single process. They merge with platform-scoped extensions at
+	// dispatch time — process extensions take inner / higher priority
+	// (e.g. a process-scope IDGenerator overrides the platform default;
+	// a process-scope ActionInterceptor sits inside any platform-scope
+	// interceptor in the onion chain). Within Extensions, each
+	// [Extension.Name] must be unique; the runtime returns an error
+	// from RunAgent / StartAgent / ContinueProcess when this constraint
+	// is violated. Process-scope Names may collide with platform-scope
+	// Names — that's the explicit override mechanism.
+	Extensions []Extension
 }
 
 // ApplyDefaults fills in zero-valued fields whose conceptual default is

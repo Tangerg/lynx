@@ -8,114 +8,66 @@ import (
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/event"
 	"github.com/Tangerg/lynx/agent/plan"
-	"github.com/Tangerg/lynx/agent/plan/planner/goap"
 )
-
-// PlannerFactory is the abstraction that lets callers swap planners (A*
-// vs. utility vs. mock) without touching the rest of the runtime. The
-// default returns a fresh A* planner per call so planners aren't
-// accidentally shared across processes that tune them independently.
-type PlannerFactory func(t core.PlannerType) plan.Planner
-
-// DefaultPlannerFactory returns the framework's default factory. Today
-// it returns the A* GOAP planner regardless of t (utility planner not
-// yet implemented).
-func DefaultPlannerFactory() PlannerFactory {
-	return func(_ core.PlannerType) plan.Planner {
-		return goap.NewAStarPlanner()
-	}
-}
 
 // Platform is the agent runtime's top-level container. It registers
 // agents, builds processes, dispatches events, and exposes the resume
 // API for HITL.
 //
-// Internal layout: agents and procs are named sub-struct fields rather
-// than embedded promotions, so every access path is explicit at call
-// sites. Platform exposes the public registry surface (Agents /
-// FindAgent / GetProcess / ActiveProcesses) as thin wrappers that
-// forward into the internal helpers (agents.list / find / etc.).
+// All pluggable behaviour (event listeners, action interceptors, tool
+// decorators, agent validators, goal approvers, tool-group resolvers,
+// id generators, planner factories, blackboard factories) flows
+// through one mechanism: registered [core.Extension]s. Platform-scoped
+// extensions are passed via [PlatformConfig.Extensions] at construction;
+// per-process extensions live on [core.ProcessOptions.Extensions] and
+// merge with platform extensions when the runtime walks dispatch chains
+// for a specific [AgentProcess].
 type Platform struct {
 	agents agentRegistry   // Deploy-time registry of *core.Agent
 	procs  processRegistry // Runtime registry of *AgentProcess
 
-	plannerFactory PlannerFactory
-	events         *event.Multicast
-	idGen          IDGenerator
+	extensions extensionRegistry // platform-scoped extensions
 
-	services *core.ServiceProvider
-	tools    core.ToolGroupResolver
+	events   *event.Multicast       // populated from EventListener extensions
+	services *core.ServiceProvider  // open registry exposed via Platform.Services()
 }
 
 // PlatformConfig is the construction-time configuration for [NewPlatform].
-// All fields are optional — pass a zero PlatformConfig{} for a default
-// platform with no services registered.
+// Pass a zero PlatformConfig{} to get a platform with framework defaults
+// — built-in UUID id generator, GOAP A* planner factory, in-memory
+// blackboard factory, no listeners, no tool resolvers, empty service
+// registry. Add extensions to override / extend any of those.
 type PlatformConfig struct {
-	// Services is the open-ended service registry handed to actions via
-	// [core.ProcessContext.Services]. Pre-populate it with whatever LLM
-	// clients, RAG engines, vector stores, or custom domain services
-	// your actions need to look up. Nil means "start empty"; the
-	// platform allocates a fresh provider.
-	Services *core.ServiceProvider
-
-	// Tools resolves agent-level [core.ToolGroupRequirement]s into
-	// runnable tools at action-execution time. It's a separate field —
-	// not a service registered under a magic key — because the runtime
-	// itself reads from it during [core.ProcessContext.ResolveTools].
-	Tools core.ToolGroupResolver
-
-	// PlannerFactory overrides the default A* GOAP planner factory.
-	PlannerFactory PlannerFactory
-
-	// IDGenerator overrides the default UUID-v4 process ID generator —
-	// useful for tests that want deterministic IDs.
-	IDGenerator IDGenerator
-
-	// Listeners are attached to the platform's event multicast at
-	// construction time. [Platform.AddListener] adds more later.
-	Listeners []event.Listener
+	// Extensions are the platform-scoped plug-ins. Each value must
+	// implement [core.Extension] and may additionally implement any
+	// subset of the capability interfaces (EventListener,
+	// ActionInterceptor, ToolDecorator, AgentValidator, GoalApprover,
+	// ToolGroupResolver, IDGenerator, PlannerFactory, BlackboardFactory)
+	// — the runtime detects each capability via type assertion at
+	// dispatch time.
+	//
+	// Within Extensions, [core.Extension.Name] must be unique; an empty
+	// or duplicate Name causes [NewPlatform] to panic so boot-time
+	// configuration errors fail fast.
+	Extensions []core.Extension
 }
 
-// NewPlatform returns a fresh Platform from config. Zero-valued config fields
-// fall back to defaults: A* planner factory, empty service registry,
-// UUID-v4 id generator, no pre-attached listeners.
+// NewPlatform returns a fresh Platform from config. Panics on invalid
+// extension registration (nil extension, empty Name, duplicate Name).
 func NewPlatform(config PlatformConfig) *Platform {
-	services := config.Services
-	if services == nil {
-		services = core.NewServiceProvider()
-	}
-
-	plannerFactory := config.PlannerFactory
-	if plannerFactory == nil {
-		plannerFactory = DefaultPlannerFactory()
-	}
-
-	idGen := config.IDGenerator
-	if idGen == nil {
-		idGen = NewUUIDIDGenerator()
-	}
-
 	p := &Platform{
-		agents:         newAgentRegistry(),
-		procs:          newProcessRegistry(),
-		plannerFactory: plannerFactory,
-		events:         event.NewMulticast(),
-		idGen:          idGen,
-		services:       services,
-		tools:          config.Tools,
+		agents:     newAgentRegistry(),
+		procs:      newProcessRegistry(),
+		extensions: newExtensionRegistry(),
+		events:     event.NewMulticast(),
+		services:   core.NewServiceProvider(),
 	}
-	for _, listener := range config.Listeners {
-		p.events.Add(listener)
+	for _, ext := range config.Extensions {
+		p.extensions.register("PlatformConfig.Extensions", ext)
 	}
+	addEventListenerExtensions(p.events, p.extensions.list)
 	return p
 }
-
-// AddListener registers an event listener. Listeners are delivered in
-// registration order; non-blocking by convention.
-func (p *Platform) AddListener(l event.Listener) { p.events.Add(l) }
-
-// RemoveListener detaches a listener.
-func (p *Platform) RemoveListener(l event.Listener) { p.events.Remove(l) }
 
 // publish is the runtime's event entry point. Used by AgentProcess and
 // executeAction.
@@ -126,8 +78,9 @@ func (p *Platform) publish(e event.Event) {
 	p.events.OnEvent(e)
 }
 
-// Services exposes the configured service provider — used by tests and
-// the host application that wants to inspect what the platform sees.
+// Services exposes the platform-internal service registry — used by
+// the host application to register LLM clients, RAG engines, vector
+// stores, or other domain services that actions look up by key.
 func (p *Platform) Services() *core.ServiceProvider { return p.services }
 
 // --- Registry surface (thin wrappers over agents / procs) ----------------
@@ -170,19 +123,25 @@ func (p *Platform) PruneTerminalProcesses() []string {
 // same name replaces the previous registration — convenient when
 // iterating during development.
 //
-// Validation runs in two layers:
+// Validation runs in three layers:
+//
 //   - [core.ValidateAgent] checks structural invariants (name non-empty,
 //     ≥1 action, ≥1 goal, unique action/goal names).
 //   - For agents using [core.PlannerGOAP], each goal is then probed via
 //     a one-step producer scan. Goals whose required True conditions no
 //     action can establish are rejected with a clear error so
-//     unreachable definitions (typo'd effect key, missing producing
-//     action, etc.) fail at deploy time rather than at first tick.
+//     unreachable definitions fail at deploy time rather than at first tick.
+//   - Every registered [core.AgentValidator] extension runs in
+//     registration order — the first to return an error rejects the
+//     deployment, with the validator's Name attached for attribution.
 func (p *Platform) Deploy(a *core.Agent) error {
 	if err := core.ValidateAgent(a); err != nil {
 		return fmt.Errorf("deploy agent: %w", err)
 	}
 	if err := checkGoalsReachable(a); err != nil {
+		return fmt.Errorf("deploy agent %q: %w", a.Name, err)
+	}
+	if err := runAgentValidators(collectAgentValidators(p.extensions.list), a); err != nil {
 		return fmt.Errorf("deploy agent %q: %w", a.Name, err)
 	}
 
@@ -343,10 +302,42 @@ func (p *Platform) ContinueProcessAsync(ctx context.Context, id string) <-chan e
 	return done
 }
 
+// idGenerator returns the most-recently-registered IDGenerator
+// extension, falling back to a UUID-v4 generator when none is registered.
+func (p *Platform) idGenerator() core.IDGenerator {
+	if g := lastIDGenerator(p.extensions.list); g != nil {
+		return g
+	}
+	return defaultIDGenerator
+}
+
+// plannerFactory mirrors idGenerator for PlannerFactory.
+func (p *Platform) plannerFactory() PlannerFactory {
+	if f := lastPlannerFactory(p.extensions.list); f != nil {
+		return f
+	}
+	return defaultPlannerFactoryInstance
+}
+
+// blackboardFactory returns the most-recently-registered BlackboardFactory
+// extension or nil — callers fall back to the in-memory blackboard.
+func (p *Platform) blackboardFactory() core.BlackboardFactory {
+	return lastBlackboardFactory(p.extensions.list)
+}
+
+// Built-in fallbacks for last-wins singletons. Lazily initialised once.
+var (
+	defaultIDGenerator            = core.NewUUIDIDGenerator("")
+	defaultPlannerFactoryInstance = DefaultPlannerFactory()
+)
+
 // createProcess assembles an AgentProcess and its dependencies (blackboard,
 // determiner, planner). The process is registered in the platform's map
 // before being returned so concurrent ResumeProcess / KillProcess calls
-// can find it.
+// can find it. Process-scope extensions on options are validated for
+// dedup / nil / empty-Name before any work happens — invalid extensions
+// turn the call into an error rather than letting the process start
+// and panic later.
 func (p *Platform) createProcess(
 	agentDef *core.Agent,
 	bindings map[string]any,
@@ -358,28 +349,33 @@ func (p *Platform) createProcess(
 	if err := core.ValidateAgent(agentDef); err != nil {
 		return nil, fmt.Errorf("create process: %w", err)
 	}
+	if err := validateProcessExtensions(options.Extensions); err != nil {
+		return nil, fmt.Errorf("create process: %w", err)
+	}
 	options.ApplyDefaults()
 
 	blackboard := options.Blackboard
 	if blackboard == nil {
-		blackboard = newInMemoryBlackboard()
+		if factory := p.blackboardFactory(); factory != nil {
+			blackboard = factory.NewBlackboard()
+		}
+		if blackboard == nil {
+			blackboard = newInMemoryBlackboard()
+		}
 	}
 	bindBlackboardSeed(blackboard, bindings)
 
-	plannerFactory := p.plannerFactory
-	if plannerFactory == nil {
-		plannerFactory = DefaultPlannerFactory()
-	}
-
-	planner := plannerFactory(options.PlannerType)
+	planner := p.plannerFactory().NewPlanner(options.PlannerType)
 	if planner == nil {
 		return nil, fmt.Errorf("create process for agent %q: planner factory returned nil for %s planner", agentDef.Name, options.PlannerType)
 	}
 	system := plan.FromAgent(agentDef)
-	id := p.idGen.Next()
+	id := p.idGenerator().Next()
 
 	proc := newAgentProcess(id, agentDef, &options, blackboard, nil, planner, system, p)
 	proc.determiner = newBlackboardDeterminer(system, blackboard, proc)
+	proc.processEvents = event.NewMulticast()
+	addEventListenerExtensions(proc.processEvents, options.Extensions)
 
 	p.procs.register(proc)
 
@@ -388,6 +384,31 @@ func (p *Platform) createProcess(
 		Bindings:  bindings,
 	})
 	return proc, nil
+}
+
+// validateProcessExtensions enforces the per-process invariants — nil
+// entries are rejected, empty Names are rejected, duplicate Names within
+// the slice are rejected. Process-scope Names are allowed to collide with
+// platform-scope Names (that's the explicit override mechanism).
+func validateProcessExtensions(extensions []core.Extension) error {
+	if len(extensions) == 0 {
+		return nil
+	}
+	seen := make(map[string]struct{}, len(extensions))
+	for i, ext := range extensions {
+		if ext == nil {
+			return fmt.Errorf("ProcessOptions.Extensions[%d] is nil", i)
+		}
+		name := ext.Name()
+		if name == "" {
+			return fmt.Errorf("ProcessOptions.Extensions[%d] (%T) returned empty Name()", i, ext)
+		}
+		if _, dup := seen[name]; dup {
+			return fmt.Errorf("ProcessOptions.Extensions: duplicate name %q", name)
+		}
+		seen[name] = struct{}{}
+	}
+	return nil
 }
 
 // bindBlackboardSeed applies the caller's initial bindings. The DefaultBinding

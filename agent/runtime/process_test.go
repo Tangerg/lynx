@@ -16,6 +16,24 @@ import (
 type word struct{ Text string }
 type wordCount struct{ Count int }
 
+// nilPlannerFactory is an extension that always returns a nil planner —
+// used to verify createProcess rejects that condition.
+type nilPlannerFactory struct{}
+
+func (nilPlannerFactory) Name() string                                    { return "nil-planner-factory" }
+func (nilPlannerFactory) NewPlanner(core.PlannerType) plan.Planner        { return nil }
+
+// stuckCounter is an EventListener extension that counts ProcessStuckEvent
+// occurrences via the supplied pointer.
+type stuckCounter struct{ count *int }
+
+func (stuckCounter) Name() string { return "stuck-counter" }
+func (s stuckCounter) OnEvent(e event.Event) {
+	if _, ok := e.(event.ProcessStuckEvent); ok {
+		*s.count++
+	}
+}
+
 // TestRunSingleAction verifies the smallest end-to-end loop: one input, one
 // action, one goal. Ensures the planner finds the (single) action and the
 // runtime executes it to completion.
@@ -137,7 +155,7 @@ func TestRunAgentRejectsNilPlannerFactoryResult(t *testing.T) {
 		Build()
 
 	platform := agent.NewPlatform(runtime.PlatformConfig{
-		PlannerFactory: func(core.PlannerType) plan.Planner { return nil },
+		Extensions: []core.Extension{nilPlannerFactory{}},
 	})
 
 	proc, err := platform.RunAgent(
@@ -175,11 +193,9 @@ func TestRunAgentPublishesSingleStuckEvent(t *testing.T) {
 
 	stuckEvents := 0
 	platform := agent.NewPlatform(runtime.PlatformConfig{
-		Listeners: []event.Listener{event.ListenerFunc(func(e event.Event) {
-			if _, ok := e.(event.ProcessStuckEvent); ok {
-				stuckEvents++
-			}
-		})},
+		Extensions: []core.Extension{
+			stuckCounter{count: &stuckEvents},
+		},
 	})
 
 	proc, err := platform.RunAgent(context.Background(), a, nil, core.ProcessOptions{})

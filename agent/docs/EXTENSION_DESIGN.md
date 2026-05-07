@@ -1,6 +1,7 @@
 # Lynx Agent Extension System Design
 
-> 设计稿，**未落地**。锁定方向后再开工。
+> **状态：已落地**。代码见 `agent/core/extension.go`、`agent/runtime/extension.go`、`agent/runtime/dispatch.go`、`agent/runtime/platform.go`、`agent/core/process_options.go`，测试见 `agent/runtime/extension_test.go`。
+>
 > 配套文档：[`./README.md`](./README.md) / [`./GUIDE.md`](./GUIDE.md) / [`./DESIGN.md`](./DESIGN.md) / [`./EMBABEL_GAP_ANALYSIS.md`](./EMBABEL_GAP_ANALYSIS.md)
 
 ---
@@ -527,15 +528,18 @@ platform := agent.NewPlatform(runtime.PlatformConfig{
 
 ---
 
-## 10. 决策点（开工前最后核对）
+## 10. 决策点（已锁定）
 
-| 问题 | 倾向 | 状态 |
+| 问题 | 决策 | 落地位置 |
 |---|---|---|
-| `Extension` 接口定义在 `core` 还是 `runtime`？ | **`core`** —— 跟 StuckHandler 同位置；不破坏依赖方向 | 待确认 |
-| `Name()` 还是 `ID()`？ | **`Name()`** —— 友好、跟 Spring/embabel 对齐 | 待确认 |
-| 重复 Name 行为？ | **panic**（boot-time fail-fast） | 待确认 |
-| `PlannerFactory` 接口归属？ | **留 `runtime`** —— 避免 core → plan 反向依赖 | 待确认 |
-| EventListener 接口归属？ | **`core`**（跟 Extension 同位置）—— `event.Listener` 保留为内部 Multicast 用的窄接口；core.EventListener 是外部扩展接口 | 待确认 |
+| `Extension` 接口定义在 `core` 还是 `runtime`？ | **`core`** | `agent/core/extension.go` |
+| `Name()` 还是 `ID()`？ | **`Name()`** | `core.Extension.Name() string` |
+| 重复 Name 行为？ | platform 层 **panic**（boot-time fail-fast）；process 层**返回 error**（runtime configurations） | `runtime.extensionRegistry.register` panics; `Platform.createProcess` validates and returns error |
+| `PlannerFactory` 接口归属？ | **`runtime`**（避免 `core → plan` 反向依赖） | `agent/runtime/extension.go` |
+| EventListener 接口归属？ | **`runtime`**（依赖 `event.Event`；core 不感知 event 包） | `agent/runtime/extension.go`，satisfies `event.Listener` so it slots into `event.Multicast` directly |
+| Per-process EventListener 范围？ | 仅看本 process 的事件（`AgentProcess.processEvents` 多播）；不看跨 process / platform 级事件 | `runtime/agent_process.go::publishEvent` 双写两 multicast |
+| Per-process Factory（IDGen / PlannerFactory / BlackboardFactory）？ | **不支持** —— 这些是平台单例，在 `createProcess` 时已读取 platform 层 | `Platform.idGenerator()` etc. read `p.extensions` only |
+| Per-process AgentValidator？ | **不支持** —— validator 在 Deploy 期触发，process 不存在 | `Platform.Deploy` reads `p.extensions` only |
 
 ---
 
