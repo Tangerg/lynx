@@ -13,13 +13,10 @@ import (
 // recent observed world, the action history, the latest failure (if
 // any), and the per-process exclusion set used by the planner.
 //
-// All access is mediated by mu, which is also shared with the embedded
-// [processBudget] so RecordUsage / history appends don't need a second
-// mutex (they often happen in the same tick).
-//
-// processState is embedded in AgentProcess; its non-exported fields
-// surface as AgentProcess fields for the rest of runtime to read
-// directly (e.g. run.go references p.status / p.goal under p.mu).
+// All access goes through the get*/set* methods, which take mu
+// internally so callers (AgentProcess and friends) never see the
+// lock. processBudget shares mu via a pointer so RecordUsage and
+// history appends don't need a second mutex.
 type processState struct {
 	mu              sync.RWMutex
 	status          core.AgentProcessStatus
@@ -39,40 +36,46 @@ func newProcessState() processState {
 	}
 }
 
-// --- read-side ------------------------------------------------------------
-
-func (s *processState) Status() core.AgentProcessStatus {
+func (s *processState) getStatus() core.AgentProcessStatus {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.status
 }
 
-func (s *processState) Goal() *core.Goal {
+func (s *processState) getGoal() *core.Goal {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.goal
 }
 
-func (s *processState) LastWorldState() core.WorldState {
+func (s *processState) getLastWorld() core.WorldState {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.lastWorld
 }
 
-func (s *processState) Failure() error {
+func (s *processState) getFailure() error {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.failure
 }
 
-// History returns a snapshot of completed action invocations.
-func (s *processState) History() []ActionInvocation {
+// getHistory returns a clone so callers can iterate without racing
+// the next recordInvocation.
+func (s *processState) getHistory() []ActionInvocation {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return slices.Clone(s.history)
 }
 
-// --- write-side -----------------------------------------------------------
+// historyLen reports the action-history length without copying. Used by
+// AgentProcess.Usage to avoid materialising the slice when only the
+// count is needed.
+func (s *processState) historyLen() int {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return len(s.history)
+}
 
 func (s *processState) setStatus(st core.AgentProcessStatus) {
 	s.mu.Lock()
@@ -122,14 +125,20 @@ func (s *processState) snapshotExclusions() map[string]struct{} {
 	return maps.Clone(s.excludedActions)
 }
 
-// makeRunning is the idempotent transition from NotStarted to Running.
-// Returns true on the first transition (so the caller knows to start the
-// loop) and false thereafter.
+// makeRunning attempts to transition into StatusRunning. Mirrors
+// embabel's AbstractAgentProcess.makeRunning(): NotStarted / Waiting /
+// Paused all advance into Running, terminal states refuse, and an
+// already-running process refuses too so concurrent ContinueProcess
+// calls don't spawn parallel run loops over the same process. Returns
+// true when the caller now owns the run loop.
 func (s *processState) makeRunning() bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if s.status != core.StatusNotStarted {
+	switch s.status {
+	case core.StatusRunning,
+		core.StatusCompleted, core.StatusFailed, core.StatusStuck,
+		core.StatusKilled, core.StatusTerminated:
 		return false
 	}
 	s.status = core.StatusRunning

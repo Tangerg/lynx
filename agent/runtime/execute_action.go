@@ -37,7 +37,7 @@ func (p *AgentProcess) executeAction(ctx context.Context, action core.Action) (c
 	)
 	defer span.End()
 
-	pc := p.buildProcessContext()
+	pc := p.buildProcessContext(meta.ToolGroups)
 
 	status, replan, attempts, lastErr := p.runWithRetry(ctx, action, pc, meta.QoS)
 	duration := time.Since(startedAt)
@@ -171,16 +171,19 @@ func (p *AgentProcess) recordActionFailure(actionName string, err error) {
 
 // buildProcessContext assembles a fresh ProcessContext for one tick. The
 // fields all live on AgentProcess; we re-create the context every tick so
-// per-action state (lastErr, etc.) doesn't leak.
-func (p *AgentProcess) buildProcessContext() *core.ProcessContext {
+// per-action state (lastErr, etc.) doesn't leak. actionToolGroups is
+// the currently-executing action's declared requirements; threading it
+// in so [core.ProcessContext.ActionTools] can resolve them lazily.
+func (p *AgentProcess) buildProcessContext(actionToolGroups []core.ToolGroupRequirement) *core.ProcessContext {
 	cfg := core.ProcessContextConfig{
-		Process:        p,
-		Blackboard:     p.blackboard,
-		Options:        p.options,
-		OutputChannel:  p.options.OutputChannel,
-		Services:       p.platformServices(),
-		Publish:        p.publishAny,
-		ToolCallCancel: p.signals.registerToolCallCancel,
+		Process:          p,
+		Blackboard:       p.blackboard,
+		Options:          p.options,
+		OutputChannel:    p.options.OutputChannel,
+		Services:         p.platformServices(),
+		ActionToolGroups: actionToolGroups,
+		Publish:          p.publishAny,
+		ToolCallCancel:   p.signals.registerToolCallCancel,
 	}
 	if resolver := p.platformToolResolver(); resolver != nil {
 		cfg.ResolveTools = resolveToolsFor(resolver)
