@@ -22,6 +22,22 @@ import (
 
 const defaultMaxIterations = 10_000
 
+// Tracing span / attribute keys for the A* planner. Centralised so a
+// typo at one call site is impossible and listeners have one schema to
+// key off; treat as stable across releases.
+const (
+	spanAstar = "lynx.agent.planner.astar"
+
+	attrGoalName            = "lynx.agent.goal.name"
+	attrActionsCount        = "lynx.agent.actions.count"
+	attrAstarAlreadySat     = "lynx.agent.astar.already_satisfied"
+	attrAstarReachable      = "lynx.agent.astar.reachable"
+	attrAstarIterations     = "lynx.agent.astar.iterations"
+	attrAstarFound          = "lynx.agent.astar.found"
+	attrAstarPlanLength     = "lynx.agent.astar.plan_length"
+	attrAstarPlanLengthRaw  = "lynx.agent.astar.plan_length_raw"
+)
+
 var plannerTracer = otel.Tracer("lynx/agent/planner")
 
 // AStarPlanner is the concrete planner. It's stateless across PlanToGoal
@@ -47,25 +63,25 @@ func (p *AStarPlanner) PlanToGoal(
 	opts plan.PlanOptions,
 ) (*plan.Plan, error) {
 	if start == nil {
-		return nil, errors.New("PlanToGoal: start WorldState is nil")
+		return nil, errors.New("goap.AStarPlanner.PlanToGoal: start WorldState is nil")
 	}
 	if goal == nil {
-		return nil, errors.New("PlanToGoal: goal is nil")
+		return nil, errors.New("goap.AStarPlanner.PlanToGoal: goal is nil")
 	}
 	if system == nil {
-		return nil, errors.New("PlanToGoal: PlanningSystem is nil")
+		return nil, errors.New("goap.AStarPlanner.PlanToGoal: PlanningSystem is nil")
 	}
 
-	ctx, span := plannerTracer.Start(ctx, "lynx.agent.planner.astar",
+	ctx, span := plannerTracer.Start(ctx, spanAstar,
 		trace.WithAttributes(
-			attribute.String("lynx.agent.goal.name", goal.Name),
-			attribute.Int("lynx.agent.actions.count", len(system.Actions)),
+			attribute.String(attrGoalName, goal.Name),
+			attribute.Int(attrActionsCount, len(system.Actions)),
 		),
 	)
 	defer span.End()
 
 	if isGoalSatisfied(start, goal) {
-		span.SetAttributes(attribute.Bool("lynx.agent.astar.already_satisfied", true))
+		span.SetAttributes(attribute.Bool(attrAstarAlreadySat, true))
 		return &plan.Plan{Actions: nil, Goal: goal}, nil
 	}
 
@@ -74,7 +90,7 @@ func (p *AStarPlanner) PlanToGoal(
 	// Reachability pre-check — short-circuits before A* burns 10k iterations
 	// chasing a goal whose required conditions no action can establish.
 	if !goalReachable(start, candidates, goal) {
-		span.SetAttributes(attribute.Bool("lynx.agent.astar.reachable", false))
+		span.SetAttributes(attribute.Bool(attrAstarReachable, false))
 		return nil, nil
 	}
 
@@ -83,10 +99,10 @@ func (p *AStarPlanner) PlanToGoal(
 		return nil, err
 	}
 
-	span.SetAttributes(attribute.Int("lynx.agent.astar.iterations", iterations))
+	span.SetAttributes(attribute.Int(attrAstarIterations, iterations))
 
 	if bestGoalNode == nil {
-		span.SetAttributes(attribute.Bool("lynx.agent.astar.found", false))
+		span.SetAttributes(attribute.Bool(attrAstarFound, false))
 		return nil, nil
 	}
 
@@ -96,9 +112,9 @@ func (p *AStarPlanner) PlanToGoal(
 	path = forwardOptimize(path, start)
 
 	span.SetAttributes(
-		attribute.Bool("lynx.agent.astar.found", true),
-		attribute.Int("lynx.agent.astar.plan_length_raw", rawLen),
-		attribute.Int("lynx.agent.astar.plan_length", len(path)),
+		attribute.Bool(attrAstarFound, true),
+		attribute.Int(attrAstarPlanLengthRaw, rawLen),
+		attribute.Int(attrAstarPlanLength, len(path)),
 	)
 	return &plan.Plan{Actions: path, Goal: goal}, nil
 }
@@ -243,7 +259,7 @@ func (p *AStarPlanner) PlansToGoals(
 	opts plan.PlanOptions,
 ) ([]*plan.Plan, error) {
 	if system == nil {
-		return nil, errors.New("PlansToGoals: PlanningSystem is nil")
+		return nil, errors.New("goap.AStarPlanner.PlansToGoals: PlanningSystem is nil")
 	}
 
 	out := make([]*plan.Plan, 0, len(system.Goals))

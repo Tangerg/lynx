@@ -2,7 +2,6 @@ package core
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 )
@@ -34,14 +33,14 @@ func (a *typedAction[In, Out]) Execute(ctx context.Context, pc *ProcessContext) 
 		return ActionFailed
 	}
 	if pc.Blackboard == nil {
-		pc.recordError(errors.New("typed action requires a non-nil Blackboard on ProcessContext"))
+		pc.recordError(fmt.Errorf("core.typedAction.Execute: action %q has nil Blackboard on ProcessContext", a.metadata.Name))
 		return ActionFailed
 	}
 
 	input, ok := loadTypedInput[In](pc.Blackboard, a.metadata.Inputs)
 	if !ok {
 		pc.recordError(fmt.Errorf(
-			"action %q: required input not on blackboard (binding=%s)",
+			"core.typedAction.Execute: action %q missing required input on blackboard (bindings: %s)",
 			a.metadata.Name, formatBindings(a.metadata.Inputs),
 		))
 		return ActionFailed

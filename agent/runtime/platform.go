@@ -151,7 +151,7 @@ func (p *Platform) ActiveProcesses() []*AgentProcess { return p.procs.list() }
 // is unknown so callers can detect typos.
 func (p *Platform) RemoveProcess(id string) error {
 	if !p.procs.unregister(id) {
-		return fmt.Errorf("RemoveProcess: process id %q not found", id)
+		return fmt.Errorf("runtime.Platform.RemoveProcess: process %q not found", id)
 	}
 	return nil
 }
@@ -180,10 +180,10 @@ func (p *Platform) PruneTerminalProcesses() []string {
 //     action, etc.) fail at deploy time rather than at first tick.
 func (p *Platform) Deploy(a *core.Agent) error {
 	if err := core.ValidateAgent(a); err != nil {
-		return fmt.Errorf("Deploy: %w", err)
+		return fmt.Errorf("runtime.Platform.Deploy: %w", err)
 	}
 	if err := checkGoalsReachable(a); err != nil {
-		return fmt.Errorf("Deploy: %w", err)
+		return fmt.Errorf("runtime.Platform.Deploy: %w", err)
 	}
 
 	p.agents.register(a)
@@ -230,7 +230,7 @@ func checkGoalsReachable(a *core.Agent) error {
 			}
 			if _, ok := producible[key]; !ok {
 				return fmt.Errorf(
-					"agent %q: goal %q requires condition %q but no action produces it",
+					"runtime.checkGoalsReachable: agent %q goal %q requires condition %q but no action produces it",
 					a.Name, goal.Name, key,
 				)
 			}
@@ -243,7 +243,7 @@ func checkGoalsReachable(a *core.Agent) error {
 // so callers don't silently miss typos.
 func (p *Platform) Undeploy(name string) error {
 	if err := p.agents.unregister(name); err != nil {
-		return fmt.Errorf("Undeploy: %w", err)
+		return fmt.Errorf("runtime.Platform.Undeploy: %w", err)
 	}
 	p.publish(event.AgentUndeployedEvent{
 		BaseEvent: event.NewBaseEvent(""),
@@ -257,7 +257,7 @@ func (p *Platform) Undeploy(name string) error {
 func (p *Platform) KillProcess(id string) error {
 	proc, ok := p.GetProcess(id)
 	if !ok {
-		return fmt.Errorf("KillProcess: process id %q not found", id)
+		return fmt.Errorf("runtime.Platform.KillProcess: process %q not found", id)
 	}
 
 	proc.state.setStatus(core.StatusKilled)
@@ -287,7 +287,7 @@ func (p *Platform) ResumeProcess(id string, response any) (core.ResponseImpact, 
 	proc, ok := p.GetProcess(id)
 	if !ok {
 		return core.ResponseImpactUnchanged,
-			fmt.Errorf("ResumeProcess: process id %q not found", id)
+			fmt.Errorf("runtime.Platform.ResumeProcess: process %q not found", id)
 	}
 
 	// deliverResponse atomically swaps the parked awaitable; that single
@@ -295,7 +295,7 @@ func (p *Platform) ResumeProcess(id string, response any) (core.ResponseImpact, 
 	// don't pre-check separately and race a concurrent resume.
 	impact, err := proc.signals.deliverResponse(response)
 	if err != nil {
-		return core.ResponseImpactUnchanged, fmt.Errorf("ResumeProcess: %w", err)
+		return core.ResponseImpactUnchanged, fmt.Errorf("runtime.Platform.ResumeProcess: %w", err)
 	}
 	return impact, nil
 }
@@ -314,7 +314,7 @@ func (p *Platform) ResumeProcess(id string, response any) (core.ResponseImpact, 
 func (p *Platform) ContinueProcess(ctx context.Context, id string) error {
 	proc, ok := p.GetProcess(id)
 	if !ok {
-		return fmt.Errorf("ContinueProcess: process id %q not found", id)
+		return fmt.Errorf("runtime.Platform.ContinueProcess: process %q not found", id)
 	}
 	return proc.run(ctx)
 }
@@ -328,7 +328,7 @@ func (p *Platform) ContinueProcessAsync(ctx context.Context, id string) <-chan e
 
 	proc, ok := p.GetProcess(id)
 	if !ok {
-		done <- fmt.Errorf("ContinueProcessAsync: process id %q not found", id)
+		done <- fmt.Errorf("runtime.Platform.ContinueProcessAsync: process %q not found", id)
 		close(done)
 		return done
 	}
@@ -350,7 +350,7 @@ func (p *Platform) createProcess(
 	opts core.ProcessOptions,
 ) (*AgentProcess, error) {
 	if agentDef == nil {
-		return nil, errors.New("createProcess: agent definition is nil")
+		return nil, errors.New("runtime.Platform.createProcess: agent definition is nil")
 	}
 	opts.ApplyDefaults()
 
@@ -441,7 +441,7 @@ func (p *Platform) CreateChildProcess(
 	opts core.ProcessOptions,
 ) (*AgentProcess, error) {
 	if parent == nil {
-		return nil, errors.New("CreateChildProcess: parent process is nil")
+		return nil, errors.New("runtime.Platform.CreateChildProcess: parent process is nil")
 	}
 
 	// Inherit the parent's blackboard unless the caller supplied one.

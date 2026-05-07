@@ -43,23 +43,23 @@ func NewWriterOutputChannel(w io.Writer) *WriterOutputChannel {
 	return &WriterOutputChannel{w: w}
 }
 
-func (c *WriterOutputChannel) Write(msg string) error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	_, err := fmt.Fprintln(c.w, msg)
+func (w *WriterOutputChannel) Write(msg string) error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	_, err := fmt.Fprintln(w.w, msg)
 	return err
 }
 
-func (c *WriterOutputChannel) WriteTyped(topic string, payload any) error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	_, err := fmt.Fprintf(c.w, "[%s] %+v\n", topic, payload)
+func (w *WriterOutputChannel) WriteTyped(topic string, payload any) error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	_, err := fmt.Fprintf(w.w, "[%s] %+v\n", topic, payload)
 	return err
 }
 
-func (c *WriterOutputChannel) Close() error {
-	if cl, ok := c.w.(io.Closer); ok {
-		return cl.Close()
+func (w *WriterOutputChannel) Close() error {
+	if closer, ok := w.w.(io.Closer); ok {
+		return closer.Close()
 	}
 	return nil
 }
@@ -90,13 +90,14 @@ func (c *ChannelOutputChannel) Write(msg string) error {
 	return c.send(msg)
 }
 
-func (c *ChannelOutputChannel) WriteTyped(topic string, p any) error {
-	return c.send(fmt.Sprintf("[%s] %v", topic, p))
+func (c *ChannelOutputChannel) WriteTyped(topic string, payload any) error {
+	return c.send(fmt.Sprintf("[%s] %v", topic, payload))
 }
 
 func (c *ChannelOutputChannel) Close() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+
 	if c.closed {
 		return nil
 	}
@@ -110,6 +111,7 @@ func (c *ChannelOutputChannel) Close() error {
 func (c *ChannelOutputChannel) send(msg string) (err error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+
 	if c.closed {
 		return errOutputChannelClosed
 	}
