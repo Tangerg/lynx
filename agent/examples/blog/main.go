@@ -30,9 +30,11 @@ type (
 )
 
 // stubLogger turns every event into one log line — enough to see the OODA
-// progression on a real run.
+// progression on a real run. Implements [runtime.EventListener] so the
+// platform can pick it up via PlatformConfig.Extensions.
 type stubLogger struct{}
 
+func (stubLogger) Name() string { return "stub-logger" }
 func (stubLogger) OnEvent(e event.Event) {
 	fmt.Printf("event: %-26s %s\n", e.EventName(), e.ProcessID())
 }
@@ -75,7 +77,7 @@ func main() {
 		Build()
 
 	platform := agent.NewPlatform(runtime.PlatformConfig{
-		Listeners: []event.Listener{event.ListenerFunc(stubLogger{}.OnEvent)},
+		Extensions: []core.Extension{stubLogger{}},
 	})
 	if err := platform.Deploy(a); err != nil {
 		log.Fatal(err)

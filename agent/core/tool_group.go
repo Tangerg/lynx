@@ -152,9 +152,14 @@ func (l *LazyToolGroup) Tools(ctx context.Context) ([]AgentTool, error) {
 	return l.tools, l.loadErr
 }
 
-// ToolGroupResolver maps a requirement to a concrete group. The platform
-// holds one; tests inject a stub.
+// ToolGroupResolver maps a requirement to a concrete group. Registered
+// as a platform extension; the runtime walks every registered resolver
+// in registration order and the first one returning a non-nil group
+// wins. Resolvers double as [Extension] so the dispatch site can
+// attribute hits / errors by Name.
 type ToolGroupResolver interface {
+	Extension
+
 	Resolve(ctx context.Context, req ToolGroupRequirement) (ToolGroup, error)
 }
 
@@ -162,15 +167,23 @@ type ToolGroupResolver interface {
 // ToolGroup. It is sufficient for unit tests and small deployments; larger
 // fleets supply a custom resolver that talks to a registry.
 type StaticToolGroupResolver struct {
+	name   string
 	mu     sync.RWMutex
 	groups map[string]ToolGroup
 }
 
-// NewStaticToolGroupResolver returns an empty resolver. Use Register to
-// populate it.
-func NewStaticToolGroupResolver() *StaticToolGroupResolver {
-	return &StaticToolGroupResolver{groups: map[string]ToolGroup{}}
+// NewStaticToolGroupResolver returns an empty resolver with the supplied
+// extension Name (used by the runtime for dedup / logging — defaults to
+// "static-tool-group-resolver" when blank). Use Register to populate.
+func NewStaticToolGroupResolver(name string) *StaticToolGroupResolver {
+	if name == "" {
+		name = "static-tool-group-resolver"
+	}
+	return &StaticToolGroupResolver{name: name, groups: map[string]ToolGroup{}}
 }
+
+// Name implements [Extension].
+func (r *StaticToolGroupResolver) Name() string { return r.name }
 
 // Register adds (or replaces) the tool group bound to a role.
 func (r *StaticToolGroupResolver) Register(role string, group ToolGroup) {

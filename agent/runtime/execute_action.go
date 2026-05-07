@@ -20,6 +20,9 @@ import (
 //
 // The retry loop respects ActionQoS: ActionFailed retries up to MaxAttempts
 // with back-off; ActionWaiting/Paused/Succeeded short-circuit immediately.
+// The full retry loop (not each attempt) is wrapped by every registered
+// [core.ActionInterceptor] — interceptors fire once per action, not per
+// retry, matching embabel's AgentProcessCallback semantics.
 func (p *AgentProcess) executeAction(ctx context.Context, action core.Action) (core.ActionStatus, *core.ReplanRequest) {
 	meta := action.Metadata()
 	startedAt := core.Now()
@@ -37,9 +40,21 @@ func (p *AgentProcess) executeAction(ctx context.Context, action core.Action) (c
 	)
 	defer span.End()
 
-	processContext := p.buildProcessContext(meta.ToolGroups)
+	processContext := p.buildProcessContext(meta.ToolGroups, action)
 
-	status, replan, attempts, lastErr := p.runWithRetry(ctx, action, processContext, meta.QoS)
+	var (
+		status   core.ActionStatus
+		replan   *core.ReplanRequest
+		attempts int
+		lastErr  error
+	)
+	interceptors := collectActionInterceptors(p.combinedExtensions())
+	status = runActionInterceptors(interceptors, ctx, p, action, func() core.ActionStatus {
+		s, r, a, err := p.runWithRetry(ctx, action, processContext, meta.QoS)
+		replan, attempts, lastErr = r, a, err
+		return s
+	})
+
 	duration := time.Since(startedAt)
 
 	p.state.recordInvocation(ActionInvocation{
@@ -174,7 +189,12 @@ func (p *AgentProcess) recordActionFailure(actionName string, err error) {
 // per-action state (lastErr, etc.) doesn't leak. actionToolGroups is
 // the currently-executing action's declared requirements; threading it
 // in so [core.ProcessContext.ActionTools] can resolve them lazily.
-func (p *AgentProcess) buildProcessContext(actionToolGroups []core.ToolGroupRequirement) *core.ProcessContext {
+//
+// The action argument lets the runtime build a ResolveTools closure that
+// runs every registered [core.ToolGroupResolver] in chain and decorates
+// the produced tools with every registered [core.ToolDecorator] —
+// without exposing those types to ProcessContext consumers.
+func (p *AgentProcess) buildProcessContext(actionToolGroups []core.ToolGroupRequirement, action core.Action) *core.ProcessContext {
 	config := core.ProcessContextConfig{
 		Process:          p,
 		Blackboard:       p.blackboard,
@@ -182,11 +202,9 @@ func (p *AgentProcess) buildProcessContext(actionToolGroups []core.ToolGroupRequ
 		OutputChannel:    p.options.OutputChannel,
 		Services:         p.platformServices(),
 		ActionToolGroups: actionToolGroups,
-		Publish:          p.publishAny,
-		ToolCallCancel:   p.signals.registerToolCallCancel,
-	}
-	if resolver := p.platformToolResolver(); resolver != nil {
-		config.ResolveTools = resolveToolsFor(resolver)
+		Publish:           p.publishAny,
+		ToolCallCancel:    p.signals.registerToolCallCancel,
+		ResolveTools:      p.toolResolverFor(action),
 	}
 	return core.NewProcessContext(config)
 }
@@ -198,22 +216,76 @@ func (p *AgentProcess) platformServices() *core.ServiceProvider {
 	return p.platform.services
 }
 
-func (p *AgentProcess) platformToolResolver() core.ToolGroupResolver {
+// platformExtensions exposes the platform-scoped extension list.
+func (p *AgentProcess) platformExtensions() []core.Extension {
 	if p.platform == nil {
 		return nil
 	}
-	return p.platform.tools
+	return p.platform.extensions.list
 }
 
-// resolveToolsFor builds the closure handed to ProcessContext for lazy
-// tool resolution. Roles that don't resolve are skipped silently — the
-// action decides whether the missing tools are fatal.
-func resolveToolsFor(resolver core.ToolGroupResolver) core.ToolResolver {
+// processExtensions exposes the per-process extension list (from
+// [core.ProcessOptions.Extensions]). Independent of platform extensions
+// — combine via [combinedExtensions] / [combinedExtensionsResolverFirst]
+// when an extension point needs both layers.
+func (p *AgentProcess) processExtensions() []core.Extension {
+	if p.options == nil {
+		return nil
+	}
+	return p.options.Extensions
+}
+
+// combinedExtensions returns platform extensions followed by process
+// extensions — the natural ordering for onion / wrap chains where
+// platform sits outermost (registered earliest) and process sits
+// innermost (registered last). Goal-approver dispatch and the
+// last-wins singleton scans (rare for combined-scope) read this list.
+func (p *AgentProcess) combinedExtensions() []core.Extension {
+	platform := p.platformExtensions()
+	process := p.processExtensions()
+	if len(process) == 0 {
+		return platform
+	}
+	out := make([]core.Extension, 0, len(platform)+len(process))
+	out = append(out, platform...)
+	out = append(out, process...)
+	return out
+}
+
+// combinedExtensionsResolverFirst returns process extensions BEFORE
+// platform extensions — the order used for first-hit resolvers so a
+// process-scope override is consulted first.
+func (p *AgentProcess) combinedExtensionsResolverFirst() []core.Extension {
+	platform := p.platformExtensions()
+	process := p.processExtensions()
+	if len(process) == 0 {
+		return platform
+	}
+	out := make([]core.Extension, 0, len(platform)+len(process))
+	out = append(out, process...)
+	out = append(out, platform...)
+	return out
+}
+
+// toolResolverFor returns the ResolveTools closure used by ProcessContext.
+// nil action is allowed (the resolver still works; ToolDecorators receive
+// nil action — they should treat it as "outside an action body").
+//
+// Resolvers are walked process-first (so a process-scope override beats
+// the platform default); decorators wrap platform-first then
+// process-last (so a process-scope decorator is the outermost wrap and
+// runs after platform decorators).
+func (p *AgentProcess) toolResolverFor(action core.Action) core.ToolResolver {
+	resolvers := collectToolGroupResolvers(p.combinedExtensionsResolverFirst())
+	decorators := collectToolDecorators(p.combinedExtensions())
+	if len(resolvers) == 0 {
+		return nil
+	}
 	return func(ctx context.Context, roles []string) ([]core.AgentTool, error) {
 		var collected []core.AgentTool
 
 		for _, role := range roles {
-			group, err := resolver.Resolve(ctx, core.ToolGroupRequirement{Role: role})
+			group, err := runToolGroupResolvers(resolvers, ctx, core.ToolGroupRequirement{Role: role})
 			if err != nil {
 				return nil, fmt.Errorf("resolve tools for role %q: %w", role, err)
 			}
@@ -225,7 +297,9 @@ func resolveToolsFor(resolver core.ToolGroupResolver) core.ToolResolver {
 			if err != nil {
 				return nil, fmt.Errorf("load tools for role %q: %w", role, err)
 			}
-			collected = append(collected, tools...)
+			for _, tool := range tools {
+				collected = append(collected, runToolDecorators(decorators, p, action, tool))
+			}
 		}
 		return collected, nil
 	}
