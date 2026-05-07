@@ -1,42 +1,27 @@
 package core
 
-import "time"
-
 // ProcessOptions is the per-process configuration bundle. Pass a zero
 // ProcessOptions{} when defaults suffice — the runtime calls
 // [ProcessOptions.ApplyDefaults] before use, so unset fields receive
-// their conceptual defaults (Budget, PlannerType, ProcessType,
-// OutputChannel).
+// their conceptual defaults.
 //
 // Choosing a struct over the functional-options pattern keeps defaults
 // + validation in one place ([ApplyDefaults]) and avoids polluting the
 // package namespace with ~10 `With…` constructors. Direct struct-
-// literal init is the intended ergonomics.
+// literal init is the intended ergonomics. Cross-cutting concerns
+// (audit, verbosity, throttling, RBAC) belong on extensions registered
+// via [Extensions]; ProcessOptions itself stays minimal.
 type ProcessOptions struct {
-	// Identities: TODO(future) — wire into audit logs and RBAC checks
-	// via a future authorization Extension. Today the framework just
-	// stores them; integration code may consume.
-	Identities Identities
-
 	Blackboard Blackboard
-
-	// Verbosity: TODO(future) — currently observational hints stored
-	// for integration LLM listeners; no framework branching today.
-	Verbosity Verbosity
 
 	Budget         Budget
 	ProcessControl ProcessControl
 
-	// Prune: TODO(future) — referenced by plan.Planner.Prune doc but no
-	// runtime path consumes it today. Reserved for "drop unreachable
-	// actions on cold start" mode.
-	Prune bool
-
 	OutputChannel OutputChannel
 
-	// PlannerType: TODO(future) — only [PlannerGOAP] is wired in the
-	// default factory. [PlannerUtility] is reserved for a reward-based
-	// planner.
+	// PlannerType selects which planner the runtime requests from the
+	// platform's PlannerFactory. Only [PlannerGOAP] is wired today;
+	// [PlannerUtility] is reserved for a future reward-based planner.
 	PlannerType PlannerType
 
 	ProcessType ProcessType
@@ -79,20 +64,6 @@ func (o *ProcessOptions) ApplyDefaults() {
 	}
 }
 
-// Verbosity controls instrumentation visible to humans. None of these
-// fields affect program behavior — they're hints to listeners and the
-// LLM-debug UI.
-//
-// TODO(future): consumed by integration LLM listeners (e.g. a slog
-// adapter that gates DEBUG-level prompt dumps on ShowPrompts). Framework
-// itself never reads these fields.
-type Verbosity struct {
-	ShowPrompts      bool
-	ShowLLMResponses bool
-	Debug            bool
-	ShowPlanning     bool
-}
-
 // Budget caps cumulative LLM spend (USD), action invocations, and total
 // tokens for one process. Budget is enforced via [BudgetPolicy], which
 // [ProcessOptions.ApplyDefaults] installs as the default
@@ -121,32 +92,9 @@ func (b Budget) EarlyTerminationPolicy() EarlyTerminationPolicy {
 	return BudgetPolicy{Budget: b}
 }
 
-// ProcessControl carries throttling knobs and the early-termination policy.
+// ProcessControl wraps the early-termination policy. Wrapper kept (not
+// lifted to ProcessOptions top level) so future tick-control knobs can
+// be added without churning the ProcessOptions field set.
 type ProcessControl struct {
 	EarlyTerminationPolicy EarlyTerminationPolicy
-
-	// ToolDelay / OperationDelay: TODO(future) — placeholder for global
-	// throttling between tool invocations / between tick operations.
-	// Not consumed by the framework today; integration code can read
-	// them but the runtime doesn't sleep on them.
-	ToolDelay      time.Duration
-	OperationDelay time.Duration
-}
-
-// Identities pairs the user this process is acting on behalf of with the
-// identity used for impersonation/audit. Both are optional.
-//
-// TODO(future): wire into audit log + RBAC checks via an Extension.
-// Today the framework just stores; nothing reads.
-type Identities struct {
-	ForUser *User
-	RunAs   *User
-}
-
-// User is the lightweight identity model — just enough to attach to events
-// and audit logs.
-type User struct {
-	ID       string
-	Name     string
-	Metadata map[string]any
 }

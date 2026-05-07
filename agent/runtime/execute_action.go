@@ -13,6 +13,14 @@ import (
 	"github.com/Tangerg/lynx/pkg/retry"
 )
 
+// Tracing attribute / span keys local to action execution.
+const (
+	spanAction         = "lynx.agent.action"
+	attrActionName     = "lynx.agent.action.name"
+	attrActionStatus   = "lynx.agent.action.status"
+	attrActionAttempts = "lynx.agent.action.attempts"
+)
+
 // executeAction runs a single Action with retry, panic recovery, and
 // post-action bookkeeping (history record, hasRun condition, events). It
 // returns the final ActionStatus plus an optional ReplanRequest the action

@@ -119,6 +119,12 @@ func (p *AgentProcess) publishTerminalEvent() {
 	}
 }
 
+// Tracing attribute / span keys local to the tick loop.
+const (
+	spanTick           = "lynx.agent.tick"
+	attrWorldStateSize = "lynx.agent.world_state.size"
+)
+
 // Tick performs one OODA iteration. Exported for tests that want to
 // step frame-by-frame; production callers go through
 // [Platform.RunAgent] / [Platform.StartAgent] / [Platform.ContinueProcess]
