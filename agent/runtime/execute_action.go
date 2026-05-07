@@ -56,7 +56,7 @@ func (p *AgentProcess) executeAction(ctx context.Context, action core.Action) (c
 		attempts int
 		lastErr  error
 	)
-	interceptors := collectActionInterceptors(p.combinedExtensions())
+	interceptors := collectExtensions[core.ActionInterceptor](p.combinedExtensions())
 	status = runActionInterceptors(interceptors, ctx, p, action, func() core.ActionStatus {
 		s, r, a, err := p.runWithRetry(ctx, action, processContext, meta.QoS)
 		replan, attempts, lastErr = r, a, err
@@ -226,8 +226,8 @@ func (p *AgentProcess) buildProcessContext(actionToolGroups []core.ToolGroupRequ
 // process-last (so a process-scope decorator is the outermost wrap and
 // runs after platform decorators).
 func (p *AgentProcess) toolResolverFor(action core.Action) core.ToolResolver {
-	resolvers := collectToolGroupResolvers(p.combinedExtensionsResolverFirst())
-	decorators := collectToolDecorators(p.combinedExtensions())
+	resolvers := collectExtensions[core.ToolGroupResolver](p.combinedExtensionsResolverFirst())
+	decorators := collectExtensions[core.ToolDecorator](p.combinedExtensions())
 	if len(resolvers) == 0 {
 		return nil
 	}
