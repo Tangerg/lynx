@@ -173,14 +173,14 @@ func InspectInfoString(bb BlackboardReader, verbose bool) string {
 		return "<nil blackboard>"
 	}
 
-	var b strings.Builder
-	fmt.Fprintf(&b, "Blackboard{id=%s objects=%d}", bb.ID(), len(bb.Objects()))
+	var out strings.Builder
+	fmt.Fprintf(&out, "Blackboard{id=%s objects=%d}", bb.ID(), len(bb.Objects()))
 	if !verbose {
-		return b.String()
+		return out.String()
 	}
 
 	for i, obj := range bb.Objects() {
-		fmt.Fprintf(&b, "\n  [%d] %T = %+v", i, obj, obj)
+		fmt.Fprintf(&out, "\n  [%d] %T = %+v", i, obj, obj)
 	}
-	return b.String()
+	return out.String()
 }

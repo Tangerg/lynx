@@ -23,6 +23,10 @@ type ActionQos struct {
 	MaxDelay time.Duration
 }
 
+// ActionQoS is the idiomatic Go spelling for action quality-of-service
+// settings. ActionQos remains as the original name for compatibility.
+type ActionQoS = ActionQos
+
 // DefaultActionQos returns sensible production defaults: 5 attempts, 10s
 // initial backoff, 60s cap.
 func DefaultActionQos() ActionQos {
@@ -31,4 +35,9 @@ func DefaultActionQos() ActionQos {
 		BaseDelay:   10 * time.Second,
 		MaxDelay:    60 * time.Second,
 	}
+}
+
+// DefaultActionQoS is the idiomatic Go spelling of [DefaultActionQos].
+func DefaultActionQoS() ActionQoS {
+	return DefaultActionQos()
 }

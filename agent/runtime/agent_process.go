@@ -22,13 +22,13 @@ import (
 // explicit at every call site:
 //
 //   - state    mu-protected status / goal / history / failure /
-//              exclusions. Owns the main mutex; budget shares it via
-//              a pointer.
+//     exclusions. Owns the main mutex; budget shares it via
+//     a pointer.
 //   - budget   subtree cost / token / action aggregation; lock pointer
-//              points at state.mu.
+//     points at state.mu.
 //   - signals  channel + atomic-based signalling primitives
-//              (terminate / awaitable slot / toolCallCancel) — no
-//              shared lock, all built on lock-free primitives.
+//     (terminate / awaitable slot / toolCallCancel) — no
+//     shared lock, all built on lock-free primitives.
 //
 // The remaining top-level fields are construction-time wiring (id /
 // agent / options / blackboard / determiner / planner / system /
@@ -65,8 +65,8 @@ type ActionInvocation struct {
 func newAgentProcess(
 	id string,
 	agentDef *core.Agent,
-	opts *core.ProcessOptions,
-	bb core.Blackboard,
+	options *core.ProcessOptions,
+	blackboard core.Blackboard,
 	determiner worldStateDeterminer,
 	planner plan.Planner,
 	system *plan.PlanningSystem,
@@ -75,11 +75,11 @@ func newAgentProcess(
 	p := &AgentProcess{
 		id:         id,
 		agent:      agentDef,
-		options:    opts,
+		options:    options,
 		startedAt:  core.Now(),
 		state:      newProcessState(),
 		signals:    newProcessSignals(),
-		blackboard: bb,
+		blackboard: blackboard,
 		determiner: determiner,
 		planner:    planner,
 		system:     system,
@@ -171,6 +171,13 @@ func (p *AgentProcess) publishEvent(e event.Event) {
 		return
 	}
 	p.platform.publish(e)
+}
+
+// baseEvent stamps a fresh [event.BaseEvent] tagged with this process's
+// id. Convenience used by every event the runtime emits — keeps the
+// per-event struct literals one liner short.
+func (p *AgentProcess) baseEvent() event.BaseEvent {
+	return event.NewBaseEvent(p.id)
 }
 
 // publishAny accepts the type-erased event used by ProcessContext.Publish.

@@ -23,16 +23,16 @@ type Planner interface {
 	// PlanToGoal targets one specific goal. Returns (nil plan, nil error)
 	// when no plan exists (genuinely unreachable); error only on internal
 	// failure.
-	PlanToGoal(ctx context.Context, start core.WorldState, system *PlanningSystem, goal *core.Goal, opts PlanOptions) (*Plan, error)
+	PlanToGoal(ctx context.Context, start core.WorldState, system *PlanningSystem, goal *core.Goal, options PlanOptions) (*Plan, error)
 
 	// PlansToGoals enumerates plans for every goal in the system, sorted
 	// by NetValue descending. Used by debugging and by the embabel-style
 	// "let me see all my options" UI.
-	PlansToGoals(ctx context.Context, start core.WorldState, system *PlanningSystem, opts PlanOptions) ([]*Plan, error)
+	PlansToGoals(ctx context.Context, start core.WorldState, system *PlanningSystem, options PlanOptions) ([]*Plan, error)
 
 	// BestValuePlan is the runtime's tick-time entry: pick the single best
 	// plan across all goals, honoring the exclusion list.
-	BestValuePlan(ctx context.Context, start core.WorldState, system *PlanningSystem, opts PlanOptions) (*Plan, error)
+	BestValuePlan(ctx context.Context, start core.WorldState, system *PlanningSystem, options PlanOptions) (*Plan, error)
 
 	// Prune drops actions that cannot contribute to any goal. Optional —
 	// the runtime calls it once at startup if Options.Prune is true.

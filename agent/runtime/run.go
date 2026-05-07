@@ -14,6 +14,8 @@ import (
 // run drives the OODA loop until the process terminates. Internal — the
 // only caller is Platform.RunAgent / StartAgent, which Platform exposes.
 func (p *AgentProcess) run(ctx context.Context) error {
+	ctx = normalizeContext(ctx)
+
 	if !p.state.makeRunning() {
 		return nil
 	}
@@ -53,7 +55,7 @@ func (p *AgentProcess) run(ctx context.Context) error {
 // loop forever returning empty plans.
 func (p *AgentProcess) validateAgentForRun() error {
 	if p.options.PlannerType == core.PlannerGOAP && len(p.agent.Goals) == 0 {
-		return fmt.Errorf("runtime.AgentProcess.run: agent %q has no goals (GOAP planner requires at least one)", p.agent.Name)
+		return fmt.Errorf("run agent %q: GOAP planner requires at least one goal", p.agent.Name)
 	}
 	return nil
 }
@@ -63,7 +65,7 @@ func (p *AgentProcess) failProcess(err error) {
 	p.state.setFailure(err)
 	p.state.setStatus(core.StatusFailed)
 	p.publishEvent(event.ProcessFailedEvent{
-		BaseEvent: event.NewBaseEvent(p.id),
+		BaseEvent: p.baseEvent(),
 		Err:       err,
 	})
 }
@@ -73,7 +75,7 @@ func (p *AgentProcess) markCancelled(err error) {
 	p.state.setFailure(err)
 	p.state.setStatus(core.StatusKilled)
 	p.publishEvent(event.ProcessKilledEvent{
-		BaseEvent: event.NewBaseEvent(p.id),
+		BaseEvent: p.baseEvent(),
 		Reason:    err.Error(),
 	})
 }
@@ -94,7 +96,7 @@ func (p *AgentProcess) checkEarlyTermination() bool {
 
 	p.state.setStatus(core.StatusTerminated)
 	p.publishEvent(event.ProcessTerminatedEvent{
-		BaseEvent: event.NewBaseEvent(p.id),
+		BaseEvent: p.baseEvent(),
 		Reason:    reason,
 	})
 	return true
@@ -106,18 +108,13 @@ func (p *AgentProcess) publishTerminalEvent() {
 	switch p.Status() {
 	case core.StatusCompleted:
 		p.publishEvent(event.ProcessCompletedEvent{
-			BaseEvent: event.NewBaseEvent(p.id),
+			BaseEvent: p.baseEvent(),
 			Goal:      p.Goal(),
 		})
 	case core.StatusFailed:
 		p.publishEvent(event.ProcessFailedEvent{
-			BaseEvent: event.NewBaseEvent(p.id),
+			BaseEvent: p.baseEvent(),
 			Err:       p.Failure(),
-		})
-	case core.StatusStuck:
-		p.publishEvent(event.ProcessStuckEvent{
-			BaseEvent: event.NewBaseEvent(p.id),
-			LastWorld: p.LastWorldState(),
 		})
 	}
 }
@@ -127,6 +124,7 @@ func (p *AgentProcess) publishTerminalEvent() {
 // [Platform.RunAgent] / [Platform.StartAgent] / [Platform.ContinueProcess]
 // which drive the full loop.
 func (p *AgentProcess) Tick(ctx context.Context) error {
+	ctx = normalizeContext(ctx)
 	ctx = core.WithProcess(ctx, p)
 
 	if signal := p.signals.drainTerminate(); signal != nil {
@@ -150,7 +148,7 @@ func (p *AgentProcess) observe(ctx context.Context, span spanAttributer) core.Wo
 	p.state.setLastWorld(worldState)
 
 	p.publishEvent(event.ReadyToPlanEvent{
-		BaseEvent: event.NewBaseEvent(p.id),
+		BaseEvent: p.baseEvent(),
 		World:     worldState,
 	})
 	span.SetAttributes(attribute.Int(attrWorldStateSize, len(worldState.State())))
@@ -172,14 +170,14 @@ func (p *AgentProcess) handleTerminationSignal(sig core.TerminationSignal) error
 	case core.TerminationScopeAgent:
 		p.state.setStatus(core.StatusTerminated)
 		p.publishEvent(event.ProcessTerminatedEvent{
-			BaseEvent: event.NewBaseEvent(p.id),
+			BaseEvent: p.baseEvent(),
 			Reason:    sig.Reason,
 			Scope:     core.TerminationScopeAgent,
 		})
 
 	case core.TerminationScopeAction:
 		p.publishEvent(event.ReplanRequestedEvent{
-			BaseEvent: event.NewBaseEvent(p.id),
+			BaseEvent: p.baseEvent(),
 			Reason:    sig.Reason,
 		})
 	}
@@ -187,14 +185,14 @@ func (p *AgentProcess) handleTerminationSignal(sig core.TerminationSignal) error
 }
 
 // tickSimple runs the first applicable action of the best plan.
-func (p *AgentProcess) tickSimple(ctx context.Context, ws core.WorldState) error {
-	planResult, err := p.formulatePlan(ctx, ws)
+func (p *AgentProcess) tickSimple(ctx context.Context, worldState core.WorldState) error {
+	planResult, err := p.formulatePlan(ctx, worldState)
 	if err != nil {
 		p.failProcess(err)
 		return nil
 	}
 	if planResult == nil {
-		return p.handleStuck(ctx, ws)
+		return p.handleStuck(ctx, worldState)
 	}
 	if planResult.IsComplete() {
 		p.completeForGoal(planResult.Goal)
@@ -203,12 +201,16 @@ func (p *AgentProcess) tickSimple(ctx context.Context, ws core.WorldState) error
 
 	p.state.setGoal(planResult.Goal)
 	p.publishEvent(event.PlanFormulatedEvent{
-		BaseEvent: event.NewBaseEvent(p.id),
+		BaseEvent: p.baseEvent(),
 		Plan:      planResult,
 	})
 
 	action := planResult.Actions[0]
 	status, replan := p.executeAction(ctx, action)
+	if err := ctx.Err(); err != nil {
+		p.markCancelled(err)
+		return nil
+	}
 	if replan != nil {
 		p.applyReplan(action, replan)
 		return nil
@@ -222,9 +224,9 @@ func (p *AgentProcess) tickSimple(ctx context.Context, ws core.WorldState) error
 // state, honoring the running exclusion list. The PlanningSystem is
 // allocated once per process at createProcess time so its KnownConditions
 // cache survives across ticks.
-func (p *AgentProcess) formulatePlan(ctx context.Context, ws core.WorldState) (*plan.Plan, error) {
+func (p *AgentProcess) formulatePlan(ctx context.Context, worldState core.WorldState) (*plan.Plan, error) {
 	return p.planner.BestValuePlan(
-		ctx, ws, p.system,
+		ctx, worldState, p.system,
 		plan.PlanOptions{ExcludedActions: p.state.snapshotExclusions()},
 	)
 }
@@ -235,7 +237,7 @@ func (p *AgentProcess) completeForGoal(g *core.Goal) {
 	p.state.setStatus(core.StatusCompleted)
 	p.state.setGoal(g)
 	p.publishEvent(event.GoalAchievedEvent{
-		BaseEvent: event.NewBaseEvent(p.id),
+		BaseEvent: p.baseEvent(),
 		Goal:      g,
 	})
 }
@@ -249,7 +251,7 @@ func (p *AgentProcess) applyReplan(action core.Action, request *core.ReplanReque
 		request.Update(p.blackboard)
 	}
 	p.publishEvent(event.ReplanRequestedEvent{
-		BaseEvent: event.NewBaseEvent(p.id),
+		BaseEvent: p.baseEvent(),
 		Action:    action.Metadata().Name,
 		Reason:    request.Reason,
 	})
@@ -278,13 +280,13 @@ func (p *AgentProcess) translateActionStatus(action core.Action, status core.Act
 // returned ActionFailed without recording an explicit error on the
 // ProcessContext (rare, but possible).
 func actionFailureError(name string) error {
-	return fmt.Errorf("runtime.executeAction: action %q failed without recording an error", name)
+	return fmt.Errorf("action %q failed without recording an error", name)
 }
 
 // handleStuck is invoked when the planner returned no plan. If the agent
 // supplied a StuckHandler that resolves the situation we re-loop;
 // otherwise we transition to Stuck.
-func (p *AgentProcess) handleStuck(ctx context.Context, ws core.WorldState) error {
+func (p *AgentProcess) handleStuck(ctx context.Context, worldState core.WorldState) error {
 	if handler := p.agent.StuckHandler; handler != nil {
 		if result := handler.HandleStuck(ctx, p); result.Code == core.StuckReplan {
 			p.state.clearExclusions()
@@ -294,8 +296,8 @@ func (p *AgentProcess) handleStuck(ctx context.Context, ws core.WorldState) erro
 
 	p.state.setStatus(core.StatusStuck)
 	p.publishEvent(event.ProcessStuckEvent{
-		BaseEvent: event.NewBaseEvent(p.id),
-		LastWorld: ws,
+		BaseEvent: p.baseEvent(),
+		LastWorld: worldState,
 	})
 	return nil
 }

@@ -2,10 +2,14 @@ package runtime_test
 
 import (
 	"context"
+	"errors"
+	"strings"
 	"testing"
 
 	"github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/core"
+	"github.com/Tangerg/lynx/agent/event"
+	"github.com/Tangerg/lynx/agent/plan"
 	"github.com/Tangerg/lynx/agent/runtime"
 )
 
@@ -98,5 +102,127 @@ func TestRunMultiStepPlanning(t *testing.T) {
 	// Three actions, three ticks.
 	if len(proc.History()) != 3 {
 		t.Fatalf("history length %d, want 3", len(proc.History()))
+	}
+}
+
+func TestRunAgentValidatesBeforeCreatingProcess(t *testing.T) {
+	a := core.NewAgent(core.AgentConfig{
+		Name:    "bad",
+		Actions: []core.Action{nil},
+		Goals:   []*core.Goal{{Name: "goal"}},
+	})
+
+	platform := agent.NewPlatform(runtime.PlatformConfig{})
+	proc, err := platform.RunAgent(context.Background(), a, nil, core.ProcessOptions{})
+	if err == nil {
+		t.Fatal("RunAgent should reject invalid agent")
+	}
+	if proc != nil {
+		t.Fatalf("process = %v, want nil", proc)
+	}
+	if !strings.Contains(err.Error(), "action at index 0 is nil") {
+		t.Fatalf("RunAgent error = %v, want validation detail", err)
+	}
+}
+
+func TestRunAgentRejectsNilPlannerFactoryResult(t *testing.T) {
+	a := agent.New("nil-planner").
+		Actions(agent.NewAction("count",
+			func(ctx context.Context, pc *core.ProcessContext, in word) (wordCount, error) {
+				return wordCount{Count: len(in.Text)}, nil
+			},
+			core.ActionConfig{},
+		)).
+		Goals(agent.GoalProducing[wordCount](core.Goal{Description: "word counted"})).
+		Build()
+
+	platform := agent.NewPlatform(runtime.PlatformConfig{
+		PlannerFactory: func(core.PlannerType) plan.Planner { return nil },
+	})
+
+	proc, err := platform.RunAgent(
+		context.Background(), a,
+		map[string]any{core.DefaultBinding: word{Text: "lynx"}},
+		core.ProcessOptions{},
+	)
+	if err == nil {
+		t.Fatal("RunAgent should reject nil planner")
+	}
+	if proc != nil {
+		t.Fatalf("process = %v, want nil", proc)
+	}
+	if !strings.Contains(err.Error(), "planner factory returned nil") {
+		t.Fatalf("RunAgent error = %v, want nil planner detail", err)
+	}
+}
+
+func TestRunAgentPublishesSingleStuckEvent(t *testing.T) {
+	type unusedIn struct{}
+	type unusedOut struct{}
+
+	a := core.NewAgent(core.AgentConfig{
+		Name: "stuck",
+		Actions: []core.Action{
+			core.NewAction("unused",
+				func(ctx context.Context, pc *core.ProcessContext, in unusedIn) (unusedOut, error) {
+					return unusedOut{}, nil
+				},
+				core.ActionConfig{},
+			),
+		},
+		Goals: []*core.Goal{{Name: "never", Pre: []string{"never"}}},
+	})
+
+	stuckEvents := 0
+	platform := agent.NewPlatform(runtime.PlatformConfig{
+		Listeners: []event.Listener{event.ListenerFunc(func(e event.Event) {
+			if _, ok := e.(event.ProcessStuckEvent); ok {
+				stuckEvents++
+			}
+		})},
+	})
+
+	proc, err := platform.RunAgent(context.Background(), a, nil, core.ProcessOptions{})
+	if err != nil {
+		t.Fatalf("RunAgent: %v", err)
+	}
+	if proc.Status() != core.StatusStuck {
+		t.Fatalf("status = %s, want stuck", proc.Status())
+	}
+	if stuckEvents != 1 {
+		t.Fatalf("stuck events = %d, want 1", stuckEvents)
+	}
+}
+
+func TestRunAgentMarksCancelledDuringActionAsKilled(t *testing.T) {
+	type out struct{}
+	ctx, cancel := context.WithCancel(context.Background())
+	actionErr := errors.New("transient")
+
+	a := agent.New("cancel").
+		Actions(agent.NewAction("cancel",
+			func(ctx context.Context, pc *core.ProcessContext, in word) (out, error) {
+				cancel()
+				return out{}, actionErr
+			},
+			core.ActionConfig{},
+		)).
+		Goals(agent.GoalProducing[out](core.Goal{Description: "cancelled"})).
+		Build()
+
+	platform := agent.NewPlatform(runtime.PlatformConfig{})
+	proc, err := platform.RunAgent(
+		ctx, a,
+		map[string]any{core.DefaultBinding: word{Text: "lynx"}},
+		core.ProcessOptions{},
+	)
+	if err != nil {
+		t.Fatalf("RunAgent: %v", err)
+	}
+	if proc.Status() != core.StatusKilled {
+		t.Fatalf("status = %s, want killed; failure=%v", proc.Status(), proc.Failure())
+	}
+	if !errors.Is(proc.Failure(), context.Canceled) {
+		t.Fatalf("failure = %v, want context.Canceled", proc.Failure())
 	}
 }

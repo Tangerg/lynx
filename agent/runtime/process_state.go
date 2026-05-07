@@ -89,10 +89,10 @@ func (s *processState) setGoal(g *core.Goal) {
 	s.goal = g
 }
 
-func (s *processState) setLastWorld(ws core.WorldState) {
+func (s *processState) setLastWorld(worldState core.WorldState) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.lastWorld = ws
+	s.lastWorld = worldState
 }
 
 func (s *processState) setFailure(err error) {

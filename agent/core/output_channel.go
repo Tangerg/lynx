@@ -67,7 +67,7 @@ func (w *WriterOutputChannel) Close() error {
 // errOutputChannelClosed is returned by [ChannelOutputChannel] writes after
 // the channel has been closed. Callers can [errors.Is] against it to
 // distinguish "downstream gone away" from other I/O failures.
-var errOutputChannelClosed = errors.New("core.OutputChannel: channel is closed")
+var errOutputChannelClosed = errors.New("output channel is closed")
 
 // ChannelOutputChannel forwards plain-text writes onto a Go channel — useful
 // when the caller wants backpressure or selective consumption. Typed writes

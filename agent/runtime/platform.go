@@ -76,21 +76,21 @@ type PlatformConfig struct {
 	Listeners []event.Listener
 }
 
-// NewPlatform returns a fresh Platform from cfg. Zero-valued cfg fields
+// NewPlatform returns a fresh Platform from config. Zero-valued config fields
 // fall back to defaults: A* planner factory, empty service registry,
 // UUID-v4 id generator, no pre-attached listeners.
-func NewPlatform(cfg PlatformConfig) *Platform {
-	services := cfg.Services
+func NewPlatform(config PlatformConfig) *Platform {
+	services := config.Services
 	if services == nil {
 		services = core.NewServiceProvider()
 	}
 
-	plannerFactory := cfg.PlannerFactory
+	plannerFactory := config.PlannerFactory
 	if plannerFactory == nil {
 		plannerFactory = DefaultPlannerFactory()
 	}
 
-	idGen := cfg.IDGenerator
+	idGen := config.IDGenerator
 	if idGen == nil {
 		idGen = NewUUIDIDGenerator()
 	}
@@ -102,10 +102,10 @@ func NewPlatform(cfg PlatformConfig) *Platform {
 		events:         event.NewMulticast(),
 		idGen:          idGen,
 		services:       services,
-		tools:          cfg.Tools,
+		tools:          config.Tools,
 	}
-	for _, l := range cfg.Listeners {
-		p.events.Add(l)
+	for _, listener := range config.Listeners {
+		p.events.Add(listener)
 	}
 	return p
 }
@@ -151,7 +151,7 @@ func (p *Platform) ActiveProcesses() []*AgentProcess { return p.procs.list() }
 // is unknown so callers can detect typos.
 func (p *Platform) RemoveProcess(id string) error {
 	if !p.procs.unregister(id) {
-		return fmt.Errorf("runtime.Platform.RemoveProcess: process %q not found", id)
+		return processNotFoundError("remove process", id)
 	}
 	return nil
 }
@@ -180,10 +180,10 @@ func (p *Platform) PruneTerminalProcesses() []string {
 //     action, etc.) fail at deploy time rather than at first tick.
 func (p *Platform) Deploy(a *core.Agent) error {
 	if err := core.ValidateAgent(a); err != nil {
-		return fmt.Errorf("runtime.Platform.Deploy: %w", err)
+		return fmt.Errorf("deploy agent: %w", err)
 	}
 	if err := checkGoalsReachable(a); err != nil {
-		return fmt.Errorf("runtime.Platform.Deploy: %w", err)
+		return fmt.Errorf("deploy agent %q: %w", a.Name, err)
 	}
 
 	p.agents.register(a)
@@ -212,6 +212,9 @@ func checkGoalsReachable(a *core.Agent) error {
 	// every action's input bindings (those are externally-supplied).
 	producible := map[string]struct{}{}
 	for _, action := range a.Actions {
+		if action == nil {
+			return fmt.Errorf("action list contains a nil action")
+		}
 		meta := action.Metadata()
 		for key, value := range meta.Effects {
 			if value == core.True {
@@ -230,8 +233,8 @@ func checkGoalsReachable(a *core.Agent) error {
 			}
 			if _, ok := producible[key]; !ok {
 				return fmt.Errorf(
-					"runtime.checkGoalsReachable: agent %q goal %q requires condition %q but no action produces it",
-					a.Name, goal.Name, key,
+					"goal %q requires condition %q, but no action produces it",
+					goal.Name, key,
 				)
 			}
 		}
@@ -243,7 +246,7 @@ func checkGoalsReachable(a *core.Agent) error {
 // so callers don't silently miss typos.
 func (p *Platform) Undeploy(name string) error {
 	if err := p.agents.unregister(name); err != nil {
-		return fmt.Errorf("runtime.Platform.Undeploy: %w", err)
+		return fmt.Errorf("undeploy agent %q: %w", name, err)
 	}
 	p.publish(event.AgentUndeployedEvent{
 		BaseEvent: event.NewBaseEvent(""),
@@ -257,7 +260,7 @@ func (p *Platform) Undeploy(name string) error {
 func (p *Platform) KillProcess(id string) error {
 	proc, ok := p.GetProcess(id)
 	if !ok {
-		return fmt.Errorf("runtime.Platform.KillProcess: process %q not found", id)
+		return processNotFoundError("kill process", id)
 	}
 
 	proc.state.setStatus(core.StatusKilled)
@@ -287,7 +290,7 @@ func (p *Platform) ResumeProcess(id string, response any) (core.ResponseImpact, 
 	proc, ok := p.GetProcess(id)
 	if !ok {
 		return core.ResponseImpactUnchanged,
-			fmt.Errorf("runtime.Platform.ResumeProcess: process %q not found", id)
+			processNotFoundError("resume process", id)
 	}
 
 	// deliverResponse atomically swaps the parked awaitable; that single
@@ -295,7 +298,7 @@ func (p *Platform) ResumeProcess(id string, response any) (core.ResponseImpact, 
 	// don't pre-check separately and race a concurrent resume.
 	impact, err := proc.signals.deliverResponse(response)
 	if err != nil {
-		return core.ResponseImpactUnchanged, fmt.Errorf("runtime.Platform.ResumeProcess: %w", err)
+		return core.ResponseImpactUnchanged, fmt.Errorf("resume process %q: %w", id, err)
 	}
 	return impact, nil
 }
@@ -314,9 +317,9 @@ func (p *Platform) ResumeProcess(id string, response any) (core.ResponseImpact, 
 func (p *Platform) ContinueProcess(ctx context.Context, id string) error {
 	proc, ok := p.GetProcess(id)
 	if !ok {
-		return fmt.Errorf("runtime.Platform.ContinueProcess: process %q not found", id)
+		return processNotFoundError("continue process", id)
 	}
-	return proc.run(ctx)
+	return proc.run(normalizeContext(ctx))
 }
 
 // ContinueProcessAsync is the background variant of [ContinueProcess].
@@ -328,13 +331,13 @@ func (p *Platform) ContinueProcessAsync(ctx context.Context, id string) <-chan e
 
 	proc, ok := p.GetProcess(id)
 	if !ok {
-		done <- fmt.Errorf("runtime.Platform.ContinueProcessAsync: process %q not found", id)
+		done <- processNotFoundError("continue process asynchronously", id)
 		close(done)
 		return done
 	}
 
 	go func() {
-		done <- proc.run(ctx)
+		done <- proc.run(normalizeContext(ctx))
 		close(done)
 	}()
 	return done
@@ -347,25 +350,36 @@ func (p *Platform) ContinueProcessAsync(ctx context.Context, id string) <-chan e
 func (p *Platform) createProcess(
 	agentDef *core.Agent,
 	bindings map[string]any,
-	opts core.ProcessOptions,
+	options core.ProcessOptions,
 ) (*AgentProcess, error) {
 	if agentDef == nil {
-		return nil, errors.New("runtime.Platform.createProcess: agent definition is nil")
+		return nil, errors.New("create process: agent definition is nil")
 	}
-	opts.ApplyDefaults()
-
-	bb := opts.Blackboard
-	if bb == nil {
-		bb = newInMemoryBlackboard()
+	if err := core.ValidateAgent(agentDef); err != nil {
+		return nil, fmt.Errorf("create process: %w", err)
 	}
-	bindBlackboardSeed(bb, bindings)
+	options.ApplyDefaults()
 
-	planner := p.plannerFactory(opts.PlannerType)
+	blackboard := options.Blackboard
+	if blackboard == nil {
+		blackboard = newInMemoryBlackboard()
+	}
+	bindBlackboardSeed(blackboard, bindings)
+
+	plannerFactory := p.plannerFactory
+	if plannerFactory == nil {
+		plannerFactory = DefaultPlannerFactory()
+	}
+
+	planner := plannerFactory(options.PlannerType)
+	if planner == nil {
+		return nil, fmt.Errorf("create process for agent %q: planner factory returned nil for %s planner", agentDef.Name, options.PlannerType)
+	}
 	system := plan.FromAgent(agentDef)
 	id := p.idGen.Next()
 
-	proc := newAgentProcess(id, agentDef, &opts, bb, nil, planner, system, p)
-	proc.determiner = newBlackboardDeterminer(system, bb, proc)
+	proc := newAgentProcess(id, agentDef, &options, blackboard, nil, planner, system, p)
+	proc.determiner = newBlackboardDeterminer(system, blackboard, proc)
 
 	p.procs.register(proc)
 
@@ -379,13 +393,13 @@ func (p *Platform) createProcess(
 // bindBlackboardSeed applies the caller's initial bindings. The DefaultBinding
 // key uses Bind() so the dual-binding behavior kicks in; other keys go
 // through Set so their explicit name wins.
-func bindBlackboardSeed(bb core.Blackboard, bindings map[string]any) {
+func bindBlackboardSeed(blackboard core.Blackboard, bindings map[string]any) {
 	for key, value := range bindings {
 		if key == core.DefaultBindingName {
-			bb.Bind(value)
+			blackboard.Bind(value)
 			continue
 		}
-		bb.Set(key, value)
+		blackboard.Set(key, value)
 	}
 }
 
@@ -396,14 +410,14 @@ func (p *Platform) RunAgent(
 	ctx context.Context,
 	agentDef *core.Agent,
 	bindings map[string]any,
-	opts core.ProcessOptions,
+	options core.ProcessOptions,
 ) (*AgentProcess, error) {
-	proc, err := p.createProcess(agentDef, bindings, opts)
+	proc, err := p.createProcess(agentDef, bindings, options)
 	if err != nil {
 		return nil, err
 	}
 
-	if err := proc.run(ctx); err != nil {
+	if err := proc.run(normalizeContext(ctx)); err != nil {
 		return proc, err
 	}
 	return proc, nil
@@ -415,11 +429,11 @@ func (p *Platform) StartAgent(
 	ctx context.Context,
 	agentDef *core.Agent,
 	bindings map[string]any,
-	opts core.ProcessOptions,
+	options core.ProcessOptions,
 ) (*AgentProcess, <-chan error) {
 	done := make(chan error, 1)
 
-	proc, err := p.createProcess(agentDef, bindings, opts)
+	proc, err := p.createProcess(agentDef, bindings, options)
 	if err != nil {
 		done <- err
 		close(done)
@@ -427,10 +441,17 @@ func (p *Platform) StartAgent(
 	}
 
 	go func() {
-		done <- proc.run(ctx)
+		done <- proc.run(normalizeContext(ctx))
 		close(done)
 	}()
 	return proc, done
+}
+
+func normalizeContext(ctx context.Context) context.Context {
+	if ctx == nil {
+		return context.Background()
+	}
+	return ctx
 }
 
 // CreateChildProcess spawns a sub-agent process whose blackboard inherits
@@ -438,18 +459,18 @@ func (p *Platform) StartAgent(
 func (p *Platform) CreateChildProcess(
 	agentDef *core.Agent,
 	parent *AgentProcess,
-	opts core.ProcessOptions,
+	options core.ProcessOptions,
 ) (*AgentProcess, error) {
 	if parent == nil {
-		return nil, errors.New("runtime.Platform.CreateChildProcess: parent process is nil")
+		return nil, errors.New("create child process: parent process is nil")
 	}
 
 	// Inherit the parent's blackboard unless the caller supplied one.
-	if opts.Blackboard == nil {
-		opts.Blackboard = parent.Blackboard().Spawn()
+	if options.Blackboard == nil {
+		options.Blackboard = parent.Blackboard().Spawn()
 	}
 
-	child, err := p.createProcess(agentDef, nil, opts)
+	child, err := p.createProcess(agentDef, nil, options)
 	if err != nil {
 		return nil, err
 	}
@@ -460,4 +481,8 @@ func (p *Platform) CreateChildProcess(
 	parent.budget.addChild(child)
 
 	return child, nil
+}
+
+func processNotFoundError(operation, id string) error {
+	return fmt.Errorf("%s: process %q not found", operation, id)
 }

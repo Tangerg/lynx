@@ -25,7 +25,7 @@ func (p *AgentProcess) executeAction(ctx context.Context, action core.Action) (c
 	startedAt := core.Now()
 
 	p.publishEvent(event.ActionExecutionStartEvent{
-		BaseEvent: event.NewBaseEvent(p.id),
+		BaseEvent: p.baseEvent(),
 		Action:    action,
 		StartedAt: startedAt,
 	})
@@ -37,9 +37,9 @@ func (p *AgentProcess) executeAction(ctx context.Context, action core.Action) (c
 	)
 	defer span.End()
 
-	pc := p.buildProcessContext(meta.ToolGroups)
+	processContext := p.buildProcessContext(meta.ToolGroups)
 
-	status, replan, attempts, lastErr := p.runWithRetry(ctx, action, pc, meta.QoS)
+	status, replan, attempts, lastErr := p.runWithRetry(ctx, action, processContext, meta.QoS)
 	duration := time.Since(startedAt)
 
 	p.state.recordInvocation(ActionInvocation{
@@ -63,7 +63,7 @@ func (p *AgentProcess) executeAction(ctx context.Context, action core.Action) (c
 	finishSpanWithError(span, lastErr)
 
 	p.publishEvent(event.ActionExecutionResultEvent{
-		BaseEvent: event.NewBaseEvent(p.id),
+		BaseEvent: p.baseEvent(),
 		Action:    action,
 		Status:    status,
 		Duration:  duration,
@@ -95,15 +95,15 @@ func (h haltSignal) Error() string {
 func (p *AgentProcess) runWithRetry(
 	ctx context.Context,
 	action core.Action,
-	pc *core.ProcessContext,
+	processContext *core.ProcessContext,
 	qos core.ActionQos,
 ) (status core.ActionStatus, replan *core.ReplanRequest, attempts int, lastErr error) {
 	op := func() error {
 		attempts++
-		pc.ResetError()
+		processContext.ResetError()
 
-		status = pc.ExecuteSafely(ctx, action)
-		lastErr = pc.LastError()
+		status = processContext.ExecuteSafely(ctx, action)
+		lastErr = processContext.LastError()
 
 		if rr := core.AsReplanRequest(lastErr); rr != nil {
 			replan = rr
@@ -175,7 +175,7 @@ func (p *AgentProcess) recordActionFailure(actionName string, err error) {
 // the currently-executing action's declared requirements; threading it
 // in so [core.ProcessContext.ActionTools] can resolve them lazily.
 func (p *AgentProcess) buildProcessContext(actionToolGroups []core.ToolGroupRequirement) *core.ProcessContext {
-	cfg := core.ProcessContextConfig{
+	config := core.ProcessContextConfig{
 		Process:          p,
 		Blackboard:       p.blackboard,
 		Options:          p.options,
@@ -186,9 +186,9 @@ func (p *AgentProcess) buildProcessContext(actionToolGroups []core.ToolGroupRequ
 		ToolCallCancel:   p.signals.registerToolCallCancel,
 	}
 	if resolver := p.platformToolResolver(); resolver != nil {
-		cfg.ResolveTools = resolveToolsFor(resolver)
+		config.ResolveTools = resolveToolsFor(resolver)
 	}
-	return core.NewProcessContext(cfg)
+	return core.NewProcessContext(config)
 }
 
 func (p *AgentProcess) platformServices() *core.ServiceProvider {
@@ -215,7 +215,7 @@ func resolveToolsFor(resolver core.ToolGroupResolver) core.ToolResolver {
 		for _, role := range roles {
 			group, err := resolver.Resolve(ctx, core.ToolGroupRequirement{Role: role})
 			if err != nil {
-				return nil, fmt.Errorf("runtime.resolveToolsFor: resolve role %q: %w", role, err)
+				return nil, fmt.Errorf("resolve tools for role %q: %w", role, err)
 			}
 			if group == nil {
 				continue
@@ -223,11 +223,10 @@ func resolveToolsFor(resolver core.ToolGroupResolver) core.ToolResolver {
 
 			tools, err := group.Tools(ctx)
 			if err != nil {
-				return nil, fmt.Errorf("runtime.resolveToolsFor: load tools for role %q: %w", role, err)
+				return nil, fmt.Errorf("load tools for role %q: %w", role, err)
 			}
 			collected = append(collected, tools...)
 		}
 		return collected, nil
 	}
 }
-

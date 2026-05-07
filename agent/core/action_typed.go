@@ -3,7 +3,6 @@ package core
 import (
 	"context"
 	"fmt"
-	"strings"
 )
 
 // TypedActionFunc is the user-supplied Action body. The framework keeps In/Out
@@ -33,16 +32,17 @@ func (a *typedAction[In, Out]) Execute(ctx context.Context, pc *ProcessContext) 
 		return ActionFailed
 	}
 	if pc.Blackboard == nil {
-		pc.recordError(fmt.Errorf("core.typedAction.Execute: action %q has nil Blackboard on ProcessContext", a.metadata.Name))
+		pc.recordError(fmt.Errorf("action %q cannot run: process context has no blackboard", a.metadata.Name))
+		return ActionFailed
+	}
+	if a.fn == nil {
+		pc.recordError(fmt.Errorf("action %q cannot run: action function is nil", a.metadata.Name))
 		return ActionFailed
 	}
 
-	input, ok := loadTypedInput[In](pc.Blackboard, a.metadata.Inputs)
-	if !ok {
-		pc.recordError(fmt.Errorf(
-			"core.typedAction.Execute: action %q missing required input on blackboard (bindings: %s)",
-			a.metadata.Name, formatBindings(a.metadata.Inputs),
-		))
+	input, err := loadTypedInput[In](pc.Blackboard, a.metadata.Inputs)
+	if err != nil {
+		pc.recordError(fmt.Errorf("action %q cannot run: %w", a.metadata.Name, err))
 		return ActionFailed
 	}
 
@@ -70,23 +70,26 @@ func (a *typedAction[In, Out]) Execute(ctx context.Context, pc *ProcessContext) 
 // generic In — additional inputs must be fetched via Get[T] from inside the
 // action body. Go generics carry a single type parameter cleanly, so
 // multi-input actions inevitably resort to manual lookup.
-func loadTypedInput[In any](bb Blackboard, inputs []IOBinding) (In, bool) {
+func loadTypedInput[In any](bb Blackboard, inputs []IOBinding) (In, error) {
 	var zero In
 	if len(inputs) == 0 {
-		return zero, true
+		return zero, nil
 	}
 
 	binding := inputs[0]
 	value, ok := bb.GetValue(binding.Name, binding.Type)
 	if !ok {
-		return zero, false
+		return zero, fmt.Errorf("blackboard is missing required input %s", binding)
 	}
 
 	typed, ok := value.(In)
 	if !ok {
-		return zero, false
+		return zero, fmt.Errorf(
+			"blackboard value %s has type %T, expected %s",
+			binding, value, TypeFullNameOf[In](),
+		)
 	}
-	return typed, true
+	return typed, nil
 }
 
 // writeOutput stores the produced value on the blackboard. The first declared
@@ -113,36 +116,36 @@ func (a *typedAction[In, Out]) writeOutput(bb Blackboard, output Out) {
 func NewAction[In, Out any](
 	name string,
 	fn TypedActionFunc[In, Out],
-	cfg ActionConfig,
+	config ActionConfig,
 ) Action {
-	cfg.applyDefaults()
+	config.applyDefaults()
 
-	inputs := cfg.Inputs
+	inputs := config.Inputs
 	if len(inputs) == 0 {
-		inputs = []IOBinding{NewIOBinding[In](resolveBindingName(cfg.InputBinding))}
+		inputs = []IOBinding{NewIOBinding[In](resolveBindingName(config.InputBinding))}
 	}
 
-	outputs := cfg.Outputs
+	outputs := config.Outputs
 	if len(outputs) == 0 {
-		outputs = []IOBinding{NewIOBinding[Out](resolveBindingName(cfg.OutputBinding))}
+		outputs = []IOBinding{NewIOBinding[Out](resolveBindingName(config.OutputBinding))}
 	}
 
 	meta := ActionMetadata{
 		Name:            name,
-		Description:     cfg.Description,
+		Description:     config.Description,
 		Inputs:          inputs,
 		Outputs:         outputs,
-		CanRerun:        cfg.CanRerun,
-		ReadOnly:        cfg.ReadOnly,
-		QoS:             cfg.QoS,
-		ToolGroups:      cfg.ToolGroups,
-		Cost:            cfg.Cost,
-		Value:           cfg.Value,
-		Trigger:         cfg.Trigger,
-		OutputBinding:   cfg.OutputBinding,
-		ClearBlackboard: cfg.ClearBlackboard,
+		CanRerun:        config.CanRerun,
+		ReadOnly:        config.ReadOnly,
+		QoS:             config.QoS,
+		ToolGroups:      config.ToolGroups,
+		Cost:            config.Cost,
+		Value:           config.Value,
+		Trigger:         config.Trigger,
+		OutputBinding:   config.OutputBinding,
+		ClearBlackboard: config.ClearBlackboard,
 	}
-	meta.Preconditions, meta.Effects = computePreconditionsAndEffects(meta, cfg.Pre, cfg.Post)
+	meta.Preconditions, meta.Effects = computePreconditionsAndEffects(meta, config.Pre, config.Post)
 
 	return &typedAction[In, Out]{metadata: meta, fn: fn}
 }
@@ -188,17 +191,3 @@ func computePreconditionsAndEffects(meta ActionMetadata, extraPre, extraPost []s
 
 	return pre, eff
 }
-
-// formatBindings renders a slice of bindings for inclusion in error
-// messages — small helper kept here to keep Execute's error path tidy.
-func formatBindings(bindings []IOBinding) string {
-	if len(bindings) == 0 {
-		return "<none>"
-	}
-	formatted := make([]string, 0, len(bindings))
-	for _, b := range bindings {
-		formatted = append(formatted, b.String())
-	}
-	return strings.Join(formatted, ", ")
-}
-

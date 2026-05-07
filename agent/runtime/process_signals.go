@@ -13,18 +13,18 @@ import (
 // uses to coordinate with the outside world:
 //
 //   - terminate         buffered channel of TerminationSignal —
-//                       Tick consumes one at the next boundary. Scope
-//                       Agent stops the process; Action triggers a
-//                       re-plan; ToolCall is fired immediately (see
-//                       toolCallCancel below) rather than queued.
+//     Tick consumes one at the next boundary. Scope
+//     Agent stops the process; Action triggers a
+//     re-plan; ToolCall is fired immediately (see
+//     toolCallCancel below) rather than queued.
 //   - pendingAwaitable  atomic.Pointer parking spot for the typed-action
-//                       AwaitInput / Platform.ResumeProcess handshake.
-//                       Swap-based ownership: ResumeProcess atomically
-//                       claims the slot before invoking the handler.
+//     AwaitInput / Platform.ResumeProcess handshake.
+//     Swap-based ownership: ResumeProcess atomically
+//     claims the slot before invoking the handler.
 //   - toolCallCancel    atomic.Pointer storing the cancel func of the
-//                       most recently derived tool-call context.
-//                       TerminateToolCall fires it; the in-flight tool
-//                       observes ctx.Done() and aborts.
+//     most recently derived tool-call context.
+//     TerminateToolCall fires it; the in-flight tool
+//     observes ctx.Done() and aborts.
 //
 // The struct intentionally has no methods that need an outer lock —
 // everything is built on channel + atomic primitives so signalling can
@@ -120,7 +120,7 @@ func (s *processSignals) parkAwaitable(req core.Awaitable) core.ActionStatus {
 func (s *processSignals) deliverResponse(response any) (core.ResponseImpact, error) {
 	slot := s.pendingAwaitable.Swap(nil)
 	if slot == nil {
-		return core.ResponseImpactUnchanged, errors.New("runtime.processSignals.deliverResponse: no awaitable pending")
+		return core.ResponseImpactUnchanged, errors.New("no awaitable response is pending")
 	}
 	return slot.awaitable.OnResponseAny(response)
 }
