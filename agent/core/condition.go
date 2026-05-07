@@ -53,39 +53,73 @@ type andCondition struct{ left, right Condition }
 
 func And(left, right Condition) Condition { return &andCondition{left, right} }
 
-func (c *andCondition) Name() string  { return "(" + c.left.Name() + " AND " + c.right.Name() + ")" }
-func (c *andCondition) Cost() float64 { return c.left.Cost() + c.right.Cost() }
+func (c *andCondition) Name() string {
+	return "(" + conditionName(c.left) + " AND " + conditionName(c.right) + ")"
+}
+
+func (c *andCondition) Cost() float64 {
+	return conditionCost(c.left) + conditionCost(c.right)
+}
 
 func (c *andCondition) Evaluate(ctx context.Context, oc *OperationContext) Determination {
-	leftResult := c.left.Evaluate(ctx, oc)
+	leftResult := evaluateCondition(ctx, c.left, oc)
 	if leftResult == False {
 		return False
 	}
-	return leftResult.And(c.right.Evaluate(ctx, oc))
+	return leftResult.And(evaluateCondition(ctx, c.right, oc))
 }
 
 type orCondition struct{ left, right Condition }
 
 func Or(left, right Condition) Condition { return &orCondition{left, right} }
 
-func (c *orCondition) Name() string  { return "(" + c.left.Name() + " OR " + c.right.Name() + ")" }
-func (c *orCondition) Cost() float64 { return c.left.Cost() + c.right.Cost() }
+func (c *orCondition) Name() string {
+	return "(" + conditionName(c.left) + " OR " + conditionName(c.right) + ")"
+}
+
+func (c *orCondition) Cost() float64 {
+	return conditionCost(c.left) + conditionCost(c.right)
+}
 
 func (c *orCondition) Evaluate(ctx context.Context, oc *OperationContext) Determination {
-	leftResult := c.left.Evaluate(ctx, oc)
+	leftResult := evaluateCondition(ctx, c.left, oc)
 	if leftResult == True {
 		return True
 	}
-	return leftResult.Or(c.right.Evaluate(ctx, oc))
+	return leftResult.Or(evaluateCondition(ctx, c.right, oc))
 }
 
 type notCondition struct{ inner Condition }
 
 func Not(inner Condition) Condition { return &notCondition{inner} }
 
-func (c *notCondition) Name() string  { return "(NOT " + c.inner.Name() + ")" }
-func (c *notCondition) Cost() float64 { return c.inner.Cost() }
+func (c *notCondition) Name() string  { return "(NOT " + conditionName(c.inner) + ")" }
+func (c *notCondition) Cost() float64 { return conditionCost(c.inner) }
 
 func (c *notCondition) Evaluate(ctx context.Context, oc *OperationContext) Determination {
-	return c.inner.Evaluate(ctx, oc).Not()
+	return evaluateCondition(ctx, c.inner, oc).Not()
+}
+
+func conditionName(condition Condition) string {
+	if condition == nil {
+		return "<nil>"
+	}
+	if name := condition.Name(); name != "" {
+		return name
+	}
+	return "<unnamed>"
+}
+
+func conditionCost(condition Condition) float64 {
+	if condition == nil {
+		return 0
+	}
+	return condition.Cost()
+}
+
+func evaluateCondition(ctx context.Context, condition Condition, oc *OperationContext) Determination {
+	if condition == nil {
+		return Unknown
+	}
+	return condition.Evaluate(ctx, oc)
 }

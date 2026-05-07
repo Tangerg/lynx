@@ -1,7 +1,6 @@
 package core
 
 import (
-	"errors"
 	"fmt"
 	"sync"
 	"sync/atomic"
@@ -85,12 +84,12 @@ type Agent struct {
 	knownConditionsOnce sync.Once
 }
 
-// NewAgent assembles a fresh agent from cfg. Slice fields are stored by
+// NewAgent assembles a fresh agent from config. Slice fields are stored by
 // reference; callers shouldn't mutate them afterwards. Zero-valued
 // scalars are filled by [AgentConfig.applyDefaults].
-func NewAgent(cfg AgentConfig) *Agent {
-	cfg.applyDefaults()
-	return &Agent{AgentConfig: cfg}
+func NewAgent(config AgentConfig) *Agent {
+	config.applyDefaults()
+	return &Agent{AgentConfig: config}
 }
 
 // KnownConditions enumerates every condition key this agent can refer to —
@@ -122,42 +121,83 @@ func (a *Agent) KnownConditions() map[string]struct{} {
 // The intent is fail-fast at deploy time rather than at first tick.
 func ValidateAgent(a *Agent) error {
 	if a == nil {
-		return errors.New("core.ValidateAgent: agent is nil")
+		return fmt.Errorf("invalid agent: agent is nil")
 	}
 	if a.Name == "" {
-		return errors.New("core.ValidateAgent: agent.Name is empty")
-	}
-	if len(a.Actions) == 0 {
-		return fmt.Errorf("core.ValidateAgent: agent %q has no actions", a.Name)
-	}
-	if len(a.Goals) == 0 {
-		return fmt.Errorf("core.ValidateAgent: agent %q has no goals", a.Name)
+		return fmt.Errorf("invalid agent: name is empty")
 	}
 
-	seenActions := make(map[string]struct{}, len(a.Actions))
-	for _, action := range a.Actions {
+	if err := validateActions(a.Name, a.Actions); err != nil {
+		return err
+	}
+	if err := validateGoals(a.Name, a.Goals); err != nil {
+		return err
+	}
+	if err := validateConditions(a.Name, a.Conditions); err != nil {
+		return err
+	}
+	return nil
+}
+
+func validateActions(agentName string, actions []Action) error {
+	if len(actions) == 0 {
+		return fmt.Errorf("invalid agent %q: at least one action is required", agentName)
+	}
+
+	seen := make(map[string]struct{}, len(actions))
+	for i, action := range actions {
+		if action == nil {
+			return fmt.Errorf("invalid agent %q: action at index %d is nil", agentName, i)
+		}
+
 		name := action.Metadata().Name
 		if name == "" {
-			return fmt.Errorf("core.ValidateAgent: agent %q has an action with empty Name", a.Name)
+			return fmt.Errorf("invalid agent %q: action at index %d has empty name", agentName, i)
 		}
-		if _, dup := seenActions[name]; dup {
-			return fmt.Errorf("core.ValidateAgent: agent %q has duplicate action name %q", a.Name, name)
+		if _, duplicate := seen[name]; duplicate {
+			return fmt.Errorf("invalid agent %q: duplicate action name %q", agentName, name)
 		}
-		seenActions[name] = struct{}{}
+		seen[name] = struct{}{}
+	}
+	return nil
+}
+
+func validateGoals(agentName string, goals []*Goal) error {
+	if len(goals) == 0 {
+		return fmt.Errorf("invalid agent %q: at least one goal is required", agentName)
 	}
 
-	seenGoals := make(map[string]struct{}, len(a.Goals))
-	for _, goal := range a.Goals {
+	seen := make(map[string]struct{}, len(goals))
+	for i, goal := range goals {
 		if goal == nil {
-			return fmt.Errorf("core.ValidateAgent: agent %q has a nil goal", a.Name)
+			return fmt.Errorf("invalid agent %q: goal at index %d is nil", agentName, i)
 		}
 		if goal.Name == "" {
-			return fmt.Errorf("core.ValidateAgent: agent %q has a goal with empty Name", a.Name)
+			return fmt.Errorf("invalid agent %q: goal at index %d has empty name", agentName, i)
 		}
-		if _, dup := seenGoals[goal.Name]; dup {
-			return fmt.Errorf("core.ValidateAgent: agent %q has duplicate goal name %q", a.Name, goal.Name)
+		if _, duplicate := seen[goal.Name]; duplicate {
+			return fmt.Errorf("invalid agent %q: duplicate goal name %q", agentName, goal.Name)
 		}
-		seenGoals[goal.Name] = struct{}{}
+		seen[goal.Name] = struct{}{}
+	}
+	return nil
+}
+
+func validateConditions(agentName string, conditions []Condition) error {
+	seen := make(map[string]struct{}, len(conditions))
+	for i, condition := range conditions {
+		if condition == nil {
+			return fmt.Errorf("invalid agent %q: condition at index %d is nil", agentName, i)
+		}
+
+		name := condition.Name()
+		if name == "" {
+			return fmt.Errorf("invalid agent %q: condition at index %d has empty name", agentName, i)
+		}
+		if _, duplicate := seen[name]; duplicate {
+			return fmt.Errorf("invalid agent %q: duplicate condition name %q", agentName, name)
+		}
+		seen[name] = struct{}{}
 	}
 	return nil
 }
@@ -169,6 +209,9 @@ func KnownConditions(actions []Action, goals []*Goal, conditions []Condition) ma
 	out := map[string]struct{}{}
 
 	for _, action := range actions {
+		if action == nil {
+			continue
+		}
 		meta := action.Metadata()
 		for key := range meta.Preconditions {
 			out[key] = struct{}{}
@@ -179,14 +222,19 @@ func KnownConditions(actions []Action, goals []*Goal, conditions []Condition) ma
 	}
 
 	for _, goal := range goals {
+		if goal == nil {
+			continue
+		}
 		for key := range goal.Preconditions() {
 			out[key] = struct{}{}
 		}
 	}
 
-	for _, cond := range conditions {
-		out[cond.Name()] = struct{}{}
+	for _, condition := range conditions {
+		if condition == nil {
+			continue
+		}
+		out[condition.Name()] = struct{}{}
 	}
 	return out
 }
-

@@ -32,8 +32,8 @@ func New(name string) *dsl.Builder { return dsl.New(name) }
 
 // NewAction is the typed action constructor — see [core.NewAction]. Pass
 // [ActionConfig]{} when defaults suffice.
-func NewAction[In, Out any](name string, fn core.TypedActionFunc[In, Out], cfg ActionConfig) core.Action {
-	return core.NewAction[In, Out](name, fn, cfg)
+func NewAction[In, Out any](name string, fn core.TypedActionFunc[In, Out], config ActionConfig) core.Action {
+	return core.NewAction[In, Out](name, fn, config)
 }
 
 // NewCondition wraps a function as a [*ComputedCondition]. Returning
@@ -49,11 +49,14 @@ func NewCondition(name string, fn func(ctx context.Context, oc *OperationContext
 // type T exists on the blackboard". See [core.GoalProducing].
 func GoalProducing[T any](g Goal) *Goal { return core.GoalProducing[T](g) }
 
-// NewPlatform constructs a runtime Platform from cfg.
-func NewPlatform(cfg PlatformConfig) *Platform { return runtime.NewPlatform(cfg) }
+// NewPlatform constructs a runtime Platform from config.
+func NewPlatform(config PlatformConfig) *Platform { return runtime.NewPlatform(config) }
 
 // Static lifts a constant float into a [CostFunc] — `Cost: agent.Static(1.5)`.
 func Static(v float64) CostFunc { return core.Static(v) }
+
+// DefaultActionQoS returns the default retry/back-off policy for actions.
+func DefaultActionQoS() ActionQoS { return core.DefaultActionQoS() }
 
 // And / Or / Not compose [Condition]s with short-circuit semantics.
 func And(left, right Condition) Condition { return core.And(left, right) }
@@ -84,21 +87,22 @@ func ServiceOf[T any](p *ServiceProvider, key string) (T, bool) {
 
 // --- Top-level domain objects ---
 type (
-	Agent          = core.Agent
-	AgentConfig    = core.AgentConfig
-	Goal           = core.Goal
-	Action         = core.Action
-	ActionMetadata = core.ActionMetadata
-	ActionConfig   = core.ActionConfig
-	ActionStatus   = core.ActionStatus
-	ActionQos      = core.ActionQos
+	Agent             = core.Agent
+	AgentConfig       = core.AgentConfig
+	Goal              = core.Goal
+	Action            = core.Action
+	ActionMetadata    = core.ActionMetadata
+	ActionConfig      = core.ActionConfig
+	ActionStatus      = core.ActionStatus
+	ActionQos         = core.ActionQos
+	ActionQoS         = core.ActionQoS
 	Condition         = core.Condition
 	ComputedCondition = core.ComputedCondition
 	Determination     = core.Determination
-	IOBinding      = core.IOBinding
-	WorldState     = core.WorldState
-	CostFunc       = core.CostFunc
-	EffectSpec     = core.EffectSpec
+	IOBinding         = core.IOBinding
+	WorldState        = core.WorldState
+	CostFunc          = core.CostFunc
+	EffectSpec        = core.EffectSpec
 )
 
 // --- Process surface ---
@@ -141,13 +145,13 @@ type (
 
 // --- Tools ---
 type (
-	AgentTool             = core.AgentTool
-	ToolGroup             = core.ToolGroup
-	ToolGroupResolver     = core.ToolGroupResolver
-	ToolGroupRequirement  = core.ToolGroupRequirement
-	ToolGroupMetadata     = core.ToolGroupMetadata
-	TerminationScope      = core.TerminationScope
-	TerminationSignal     = core.TerminationSignal
+	AgentTool            = core.AgentTool
+	ToolGroup            = core.ToolGroup
+	ToolGroupResolver    = core.ToolGroupResolver
+	ToolGroupRequirement = core.ToolGroupRequirement
+	ToolGroupMetadata    = core.ToolGroupMetadata
+	TerminationScope     = core.TerminationScope
+	TerminationSignal    = core.TerminationSignal
 )
 
 // --- Replan / errors ---

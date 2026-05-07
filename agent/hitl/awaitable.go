@@ -69,7 +69,7 @@ func (r *TypedRequest[P, R]) OnResponseAny(response any) (core.ResponseImpact, e
 	if !ok {
 		var zero R
 		return core.ResponseImpactUnchanged,
-			fmt.Errorf("hitl.TypedRequest.OnResponseAny: expected %T, got %T", zero, response)
+			fmt.Errorf("deliver response: expected %T, got %T", zero, response)
 	}
 	return r.OnResponse(typed), nil
 }

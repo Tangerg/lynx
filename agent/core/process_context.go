@@ -89,19 +89,19 @@ type ProcessContext struct {
 	lastErr error
 }
 
-// NewProcessContext assembles a ProcessContext from cfg. Used by the
+// NewProcessContext assembles a ProcessContext from config. Used by the
 // runtime once per tick; users don't construct ProcessContexts themselves.
-func NewProcessContext(cfg ProcessContextConfig) *ProcessContext {
+func NewProcessContext(config ProcessContextConfig) *ProcessContext {
 	return &ProcessContext{
-		Process:          cfg.Process,
-		Blackboard:       cfg.Blackboard,
-		Options:          cfg.Options,
-		OutputChannel:    cfg.OutputChannel,
-		Services:         cfg.Services,
-		actionToolGroups: cfg.ActionToolGroups,
-		publishEvent:     cfg.Publish,
-		resolveTools:     cfg.ResolveTools,
-		toolCallCancel:   cfg.ToolCallCancel,
+		Process:          config.Process,
+		Blackboard:       config.Blackboard,
+		Options:          config.Options,
+		OutputChannel:    config.OutputChannel,
+		Services:         config.Services,
+		actionToolGroups: config.ActionToolGroups,
+		publishEvent:     config.Publish,
+		resolveTools:     config.ResolveTools,
+		toolCallCancel:   config.ToolCallCancel,
 	}
 }
 
@@ -202,6 +202,11 @@ func (pc *ProcessContext) RecordUsage(cost float64, tokens int) {
 // The runtime calls this instead of action.Execute directly so framework
 // code never trusts user action bodies to be panic-clean.
 func (pc *ProcessContext) ExecuteSafely(ctx context.Context, a Action) (status ActionStatus) {
+	if a == nil {
+		pc.recordError(fmt.Errorf("action cannot run: action is nil"))
+		return ActionFailed
+	}
+
 	defer func() {
 		if r := recover(); r != nil {
 			pc.recordPanic(r)
@@ -229,7 +234,7 @@ func (pc *ProcessContext) recordPanic(panicValue any) {
 
 	err, ok := panicValue.(error)
 	if !ok {
-		err = fmt.Errorf("core.ProcessContext.ExecuteSafely: action panicked: %v", panicValue)
+		err = fmt.Errorf("action panicked: %v", panicValue)
 	}
 	pc.recordError(err)
 }

@@ -12,14 +12,14 @@ import (
 // tickConcurrent runs every applicable action of the best plan in parallel.
 // "Applicable" here means "preconditions are satisfied at the start of the
 // tick" — actions whose inputs depend on a sibling's output stay sequential.
-func (p *AgentProcess) tickConcurrent(ctx context.Context, ws core.WorldState) error {
-	planResult, err := p.formulatePlan(ctx, ws)
+func (p *AgentProcess) tickConcurrent(ctx context.Context, worldState core.WorldState) error {
+	planResult, err := p.formulatePlan(ctx, worldState)
 	if err != nil {
 		p.failProcess(err)
 		return nil
 	}
 	if planResult == nil {
-		return p.handleStuck(ctx, ws)
+		return p.handleStuck(ctx, worldState)
 	}
 	if planResult.IsComplete() {
 		p.completeForGoal(planResult.Goal)
@@ -28,19 +28,23 @@ func (p *AgentProcess) tickConcurrent(ctx context.Context, ws core.WorldState) e
 
 	p.state.setGoal(planResult.Goal)
 	p.publishEvent(event.PlanFormulatedEvent{
-		BaseEvent: event.NewBaseEvent(p.id),
+		BaseEvent: p.baseEvent(),
 		Plan:      planResult,
 	})
 
-	achievable := filterAchievable(planResult.Actions, ws)
+	achievable := filterAchievable(planResult.Actions, worldState)
 	if len(achievable) == 0 {
 		// Plan exists but nothing is currently runnable — fall back to
 		// sequential mode for this tick (let the planner pick the best
 		// candidate next iteration).
-		return p.tickSimple(ctx, ws)
+		return p.tickSimple(ctx, worldState)
 	}
 
 	results, replans := p.runActionsInParallel(ctx, achievable)
+	if err := ctx.Err(); err != nil {
+		p.markCancelled(err)
+		return nil
+	}
 
 	if p.applyReplansFromParallel(achievable, replans) {
 		return nil
@@ -91,8 +95,8 @@ func (p *AgentProcess) applyReplansFromParallel(actions []core.Action, replans [
 // filterAchievable keeps only actions whose preconditions hold under the
 // supplied world state. Order is preserved so the concurrent runner can
 // correlate result indices with the plan's ordering.
-func filterAchievable(actions []core.Action, ws core.WorldState) []core.Action {
-	state := ws.State()
+func filterAchievable(actions []core.Action, worldState core.WorldState) []core.Action {
+	state := worldState.State()
 	out := make([]core.Action, 0, len(actions))
 	for _, action := range actions {
 		if action.Metadata().IsApplicableIn(state) {

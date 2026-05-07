@@ -1,6 +1,9 @@
 package core
 
-import "time"
+import (
+	"fmt"
+	"time"
+)
 
 // ActionStatus is the outcome of a single Action.Execute call.
 type ActionStatus int8
@@ -23,7 +26,7 @@ func (s ActionStatus) String() string {
 	case ActionPaused:
 		return "paused"
 	default:
-		return "unknown"
+		return fmt.Sprintf("unknown_action_status(%d)", s)
 	}
 }
 
@@ -63,7 +66,7 @@ func (s AgentProcessStatus) String() string {
 	case StatusKilled:
 		return "killed"
 	default:
-		return "unknown"
+		return fmt.Sprintf("unknown_process_status(%d)", s)
 	}
 }
 
@@ -86,13 +89,35 @@ const (
 	PlannerUtility                    // Utility scoring — open-ended exploration; not yet implemented.
 )
 
+func (t PlannerType) String() string {
+	switch t {
+	case PlannerGOAP:
+		return "goap"
+	case PlannerUtility:
+		return "utility"
+	default:
+		return fmt.Sprintf("unknown_planner_type(%d)", t)
+	}
+}
+
 // ProcessType chooses sequential vs. parallel action execution per tick.
 type ProcessType int8
 
 const (
-	ProcessSequential     ProcessType = iota // One action per tick.
+	ProcessSequential ProcessType = iota // One action per tick.
 	ProcessConcurrent                    // Every applicable action of the plan in parallel.
 )
+
+func (t ProcessType) String() string {
+	switch t {
+	case ProcessSequential:
+		return "sequential"
+	case ProcessConcurrent:
+		return "concurrent"
+	default:
+		return fmt.Sprintf("unknown_process_type(%d)", t)
+	}
+}
 
 // Now is the framework's time source — production code uses this so a
 // future override (e.g. for deterministic tests) lives in one place.

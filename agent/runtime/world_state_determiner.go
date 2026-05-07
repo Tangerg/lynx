@@ -36,16 +36,19 @@ type blackboardDeterminer struct {
 
 // newBlackboardDeterminer wires the determiner. The Process pointer is
 // what gets handed to user-defined Conditions during Evaluate.
-func newBlackboardDeterminer(system *plan.PlanningSystem, bb core.Blackboard, proc core.Process) *blackboardDeterminer {
-	named := make(map[string]core.Condition, len(system.Conditions))
-	for _, cond := range system.Conditions {
-		named[cond.Name()] = cond
+func newBlackboardDeterminer(system *plan.PlanningSystem, blackboard core.Blackboard, process core.Process) *blackboardDeterminer {
+	namedConditions := make(map[string]core.Condition, len(system.Conditions))
+	for _, condition := range system.Conditions {
+		if condition == nil {
+			continue
+		}
+		namedConditions[condition.Name()] = condition
 	}
 	return &blackboardDeterminer{
 		system:          system,
-		blackboard:      bb,
-		process:         proc,
-		namedConditions: named,
+		blackboard:      blackboard,
+		process:         process,
+		namedConditions: namedConditions,
 	}
 }
 
@@ -54,10 +57,10 @@ func newBlackboardDeterminer(system *plan.PlanningSystem, bb core.Blackboard, pr
 // every tick.
 func (d *blackboardDeterminer) determineWorldState(ctx context.Context) core.WorldState {
 	state := map[string]core.Determination{}
-	oc := &core.OperationContext{Process: d.process, Blackboard: d.blackboard}
+	operationContext := &core.OperationContext{Process: d.process, Blackboard: d.blackboard}
 
-	for cond := range d.system.KnownConditions() {
-		state[cond] = d.evaluateCondition(ctx, cond, oc)
+	for condition := range d.system.KnownConditions() {
+		state[condition] = d.evaluateCondition(ctx, condition, operationContext)
 	}
 	return plan.NewConditionWorldState(state)
 }
@@ -94,13 +97,13 @@ func (d *blackboardDeterminer) evaluateCondition(ctx context.Context, key string
 // panicking user condition becomes [core.Unknown] — A* treats Unknown
 // as "doesn't satisfy", so a misbehaving condition fails its actions
 // closed (planner picks something else) rather than crashing the tick.
-func safeEvaluateCondition(ctx context.Context, cond core.Condition, oc *core.OperationContext) (result core.Determination) {
+func safeEvaluateCondition(ctx context.Context, condition core.Condition, operationContext *core.OperationContext) (result core.Determination) {
 	defer func() {
 		if r := recover(); r != nil {
 			result = core.Unknown
 		}
 	}()
-	return cond.Evaluate(ctx, oc)
+	return condition.Evaluate(ctx, operationContext)
 }
 
 func (d *blackboardDeterminer) evaluateTypeBinding(key string) core.Determination {
@@ -112,4 +115,3 @@ func (d *blackboardDeterminer) evaluateHasRun(key string) core.Determination {
 	value, _ := d.blackboard.GetCondition(key)
 	return core.FromBool(value)
 }
-

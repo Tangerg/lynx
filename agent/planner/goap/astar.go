@@ -28,14 +28,14 @@ const defaultMaxIterations = 10_000
 const (
 	spanAstar = "lynx.agent.planner.astar"
 
-	attrGoalName            = "lynx.agent.goal.name"
-	attrActionsCount        = "lynx.agent.actions.count"
-	attrAstarAlreadySat     = "lynx.agent.astar.already_satisfied"
-	attrAstarReachable      = "lynx.agent.astar.reachable"
-	attrAstarIterations     = "lynx.agent.astar.iterations"
-	attrAstarFound          = "lynx.agent.astar.found"
-	attrAstarPlanLength     = "lynx.agent.astar.plan_length"
-	attrAstarPlanLengthRaw  = "lynx.agent.astar.plan_length_raw"
+	attrGoalName           = "lynx.agent.goal.name"
+	attrActionsCount       = "lynx.agent.actions.count"
+	attrAstarAlreadySat    = "lynx.agent.astar.already_satisfied"
+	attrAstarReachable     = "lynx.agent.astar.reachable"
+	attrAstarIterations    = "lynx.agent.astar.iterations"
+	attrAstarFound         = "lynx.agent.astar.found"
+	attrAstarPlanLength    = "lynx.agent.astar.plan_length"
+	attrAstarPlanLengthRaw = "lynx.agent.astar.plan_length_raw"
 )
 
 var plannerTracer = otel.Tracer("lynx/agent/planner")
@@ -60,16 +60,16 @@ func (p *AStarPlanner) PlanToGoal(
 	start core.WorldState,
 	system *plan.PlanningSystem,
 	goal *core.Goal,
-	opts plan.PlanOptions,
+	options plan.PlanOptions,
 ) (*plan.Plan, error) {
 	if start == nil {
-		return nil, errors.New("goap.AStarPlanner.PlanToGoal: start WorldState is nil")
+		return nil, errors.New("plan to goal: start world state is nil")
 	}
 	if goal == nil {
-		return nil, errors.New("goap.AStarPlanner.PlanToGoal: goal is nil")
+		return nil, errors.New("plan to goal: goal is nil")
 	}
 	if system == nil {
-		return nil, errors.New("goap.AStarPlanner.PlanToGoal: PlanningSystem is nil")
+		return nil, errors.New("plan to goal: planning system is nil")
 	}
 
 	ctx, span := plannerTracer.Start(ctx, spanAstar,
@@ -85,7 +85,7 @@ func (p *AStarPlanner) PlanToGoal(
 		return &plan.Plan{Actions: nil, Goal: goal}, nil
 	}
 
-	candidates := candidateActions(system.Actions, opts.ExcludedActions)
+	candidates := candidateActions(system.Actions, options.ExcludedActions)
 
 	// Reachability pre-check — short-circuits before A* burns 10k iterations
 	// chasing a goal whose required conditions no action can establish.
@@ -94,7 +94,7 @@ func (p *AStarPlanner) PlanToGoal(
 		return nil, nil
 	}
 
-	bestGoalNode, cameFrom, iterations, err := p.searchForGoal(ctx, start, candidates, goal, p.iterationCap(opts))
+	bestGoalNode, cameFrom, iterations, err := p.searchForGoal(ctx, start, candidates, goal, p.iterationCap(options))
 	if err != nil {
 		return nil, err
 	}
@@ -121,9 +121,9 @@ func (p *AStarPlanner) PlanToGoal(
 
 // iterationCap honors per-call MaxIterations when supplied, otherwise
 // returns the planner-default.
-func (p *AStarPlanner) iterationCap(opts plan.PlanOptions) int {
-	if opts.MaxIterations > 0 {
-		return opts.MaxIterations
+func (p *AStarPlanner) iterationCap(options plan.PlanOptions) int {
+	if options.MaxIterations > 0 {
+		return options.MaxIterations
 	}
 	return p.maxIterations
 }
@@ -134,11 +134,14 @@ func (p *AStarPlanner) iterationCap(opts plan.PlanOptions) int {
 // behavior and keeps the search frontier focused.
 func candidateActions(actions []core.Action, excluded map[string]struct{}) []core.Action {
 	out := make([]core.Action, 0, len(actions))
-	for _, a := range actions {
-		if _, skip := excluded[a.Metadata().Name]; skip {
+	for _, action := range actions {
+		if action == nil {
 			continue
 		}
-		out = append(out, a)
+		if _, skip := excluded[action.Metadata().Name]; skip {
+			continue
+		}
+		out = append(out, action)
 	}
 
 	slices.SortStableFunc(out, func(a, b core.Action) int {
@@ -256,15 +259,15 @@ func (p *AStarPlanner) PlansToGoals(
 	ctx context.Context,
 	start core.WorldState,
 	system *plan.PlanningSystem,
-	opts plan.PlanOptions,
+	options plan.PlanOptions,
 ) ([]*plan.Plan, error) {
 	if system == nil {
-		return nil, errors.New("goap.AStarPlanner.PlansToGoals: PlanningSystem is nil")
+		return nil, errors.New("plans to goals: planning system is nil")
 	}
 
 	out := make([]*plan.Plan, 0, len(system.Goals))
 	for _, goal := range system.Goals {
-		pl, err := p.PlanToGoal(ctx, start, system, goal, opts)
+		pl, err := p.PlanToGoal(ctx, start, system, goal, options)
 		if err != nil {
 			return nil, err
 		}
@@ -292,9 +295,9 @@ func (p *AStarPlanner) BestValuePlan(
 	ctx context.Context,
 	start core.WorldState,
 	system *plan.PlanningSystem,
-	opts plan.PlanOptions,
+	options plan.PlanOptions,
 ) (*plan.Plan, error) {
-	plans, err := p.PlansToGoals(ctx, start, system, opts)
+	plans, err := p.PlansToGoals(ctx, start, system, options)
 	if err != nil {
 		return nil, err
 	}
@@ -346,8 +349,8 @@ type edge struct {
 // heuristic counts unsatisfied goal preconditions. It's admissible (never
 // overestimates) — every still-unsatisfied condition needs at least one
 // more action to fix. That guarantees A* finds an optimal plan.
-func heuristic(ws core.WorldState, goal *core.Goal) float64 {
-	state := ws.State()
+func heuristic(worldState core.WorldState, goal *core.Goal) float64 {
+	state := worldState.State()
 	unsatisfied := 0
 	for key, required := range goal.Preconditions() {
 		if state[key] != required {
@@ -359,8 +362,8 @@ func heuristic(ws core.WorldState, goal *core.Goal) float64 {
 
 // isGoalSatisfied returns true when every goal precondition matches the
 // current state's value at that key.
-func isGoalSatisfied(ws core.WorldState, goal *core.Goal) bool {
-	state := ws.State()
+func isGoalSatisfied(worldState core.WorldState, goal *core.Goal) bool {
+	state := worldState.State()
 	for key, required := range goal.Preconditions() {
 		if state[key] != required {
 			return false
