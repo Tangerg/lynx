@@ -99,12 +99,12 @@ func (p *AgentProcess) Options() *core.ProcessOptions { return p.options }
 func (p *AgentProcess) AgentDef() *core.Agent         { return p.agent }
 
 // Status / Goal / LastWorldState / Failure / History delegate to the
-// state sub-struct.
-func (p *AgentProcess) Status() core.AgentProcessStatus { return p.state.Status() }
-func (p *AgentProcess) Goal() *core.Goal                { return p.state.Goal() }
-func (p *AgentProcess) LastWorldState() core.WorldState { return p.state.LastWorldState() }
-func (p *AgentProcess) Failure() error                  { return p.state.Failure() }
-func (p *AgentProcess) History() []ActionInvocation     { return p.state.History() }
+// state sub-struct, which owns the lock.
+func (p *AgentProcess) Status() core.AgentProcessStatus { return p.state.getStatus() }
+func (p *AgentProcess) Goal() *core.Goal                { return p.state.getGoal() }
+func (p *AgentProcess) LastWorldState() core.WorldState { return p.state.getLastWorld() }
+func (p *AgentProcess) Failure() error                  { return p.state.getFailure() }
+func (p *AgentProcess) History() []ActionInvocation     { return p.state.getHistory() }
 
 // Usage returns the subtree-aggregated cost / token / action totals.
 // Cost and tokens come from [AgentProcess.RecordUsage] calls (zero
@@ -114,12 +114,7 @@ func (p *AgentProcess) History() []ActionInvocation     { return p.state.History
 // uses the result so a parent's budget governs its entire delegation
 // tree.
 func (p *AgentProcess) Usage() (cost float64, tokens int, actions int) {
-	// Snapshot history length under the shared mutex, then delegate to
-	// budget which walks children.
-	p.state.mu.RLock()
-	ownActions := len(p.state.history)
-	p.state.mu.RUnlock()
-	return p.budget.usage(ownActions)
+	return p.budget.usage(p.state.historyLen())
 }
 
 // RecordUsage adds a single LLM call's cost (USD) and token count to

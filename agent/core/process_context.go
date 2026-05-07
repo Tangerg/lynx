@@ -44,6 +44,13 @@ type ProcessContextConfig struct {
 	OutputChannel OutputChannel
 	Services      *ServiceProvider
 
+	// ActionToolGroups carries the currently-executing action's declared
+	// [ToolGroupRequirement]s, so [ProcessContext.ActionTools] can
+	// resolve them without the action body having to re-state role
+	// names. Mirrors embabel's OperationContext.toolGroups, which reads
+	// action.toolGroups for the LLM ops layer.
+	ActionToolGroups []ToolGroupRequirement
+
 	// Publish is invoked by [ProcessContext.Publish]; nil makes Publish
 	// a no-op. The runtime supplies a closure that fans the event out
 	// to the platform's multicast listener.
@@ -70,9 +77,10 @@ type ProcessContext struct {
 	OutputChannel OutputChannel
 	Services      *ServiceProvider
 
-	publishEvent   EventPublisher
-	resolveTools   ToolResolver
-	toolCallCancel ToolCallCanceller
+	actionToolGroups []ToolGroupRequirement
+	publishEvent     EventPublisher
+	resolveTools     ToolResolver
+	toolCallCancel   ToolCallCanceller
 
 	// lastErr captures the most recent error from a typed-action body so
 	// the runtime can extract a ReplanRequest. ProcessContext is built
@@ -85,14 +93,15 @@ type ProcessContext struct {
 // runtime once per tick; users don't construct ProcessContexts themselves.
 func NewProcessContext(cfg ProcessContextConfig) *ProcessContext {
 	return &ProcessContext{
-		Process:        cfg.Process,
-		Blackboard:     cfg.Blackboard,
-		Options:        cfg.Options,
-		OutputChannel:  cfg.OutputChannel,
-		Services:       cfg.Services,
-		publishEvent:   cfg.Publish,
-		resolveTools:   cfg.ResolveTools,
-		toolCallCancel: cfg.ToolCallCancel,
+		Process:          cfg.Process,
+		Blackboard:       cfg.Blackboard,
+		Options:          cfg.Options,
+		OutputChannel:    cfg.OutputChannel,
+		Services:         cfg.Services,
+		actionToolGroups: cfg.ActionToolGroups,
+		publishEvent:     cfg.Publish,
+		resolveTools:     cfg.ResolveTools,
+		toolCallCancel:   cfg.ToolCallCancel,
 	}
 }
 
@@ -116,6 +125,25 @@ func (pc *ProcessContext) Publish(event any) {
 func (pc *ProcessContext) ResolveTools(ctx context.Context, roles ...string) ([]AgentTool, error) {
 	if pc == nil || pc.resolveTools == nil {
 		return nil, nil
+	}
+	return pc.resolveTools(ctx, roles)
+}
+
+// ActionTools resolves the tools declared on the currently-executing
+// action's [ActionConfig.ToolGroups]. Convenience for action bodies
+// (and LLM-client adapters) that want exactly the toolset the action
+// promised the planner — no need to re-state role names. Mirrors
+// embabel's OperationContext.toolGroups → action.toolGroups property.
+//
+// Returns nil, nil when the action declared no ToolGroups or the
+// runtime didn't wire a resolver.
+func (pc *ProcessContext) ActionTools(ctx context.Context) ([]AgentTool, error) {
+	if pc == nil || pc.resolveTools == nil || len(pc.actionToolGroups) == 0 {
+		return nil, nil
+	}
+	roles := make([]string, 0, len(pc.actionToolGroups))
+	for _, req := range pc.actionToolGroups {
+		roles = append(roles, req.Role)
 	}
 	return pc.resolveTools(ctx, roles)
 }

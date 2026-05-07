@@ -30,6 +30,35 @@ func (r *processRegistry) register(p *AgentProcess) {
 	r.procs[p.id] = p
 }
 
+// unregister removes the process at id. Returns false when the id is
+// unknown so Platform.RemoveProcess can surface a clear error.
+func (r *processRegistry) unregister(id string) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, ok := r.procs[id]; !ok {
+		return false
+	}
+	delete(r.procs, id)
+	return true
+}
+
+// pruneWhere deletes every process matching predicate and returns the
+// removed ids. Holds the write lock across the sweep so a concurrent
+// register doesn't race; predicate must be cheap and side-effect-free.
+func (r *processRegistry) pruneWhere(predicate func(*AgentProcess) bool) []string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	var removed []string
+	for id, p := range r.procs {
+		if predicate(p) {
+			delete(r.procs, id)
+			removed = append(removed, id)
+		}
+	}
+	return removed
+}
+
 // get looks up a process by id.
 func (r *processRegistry) get(id string) (*AgentProcess, bool) {
 	r.mu.RLock()

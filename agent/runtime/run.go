@@ -38,7 +38,11 @@ func (p *AgentProcess) run(ctx context.Context) error {
 			return err
 		}
 
-		if p.Status().IsTerminal() {
+		// Mirror embabel's AbstractAgentProcess.run loop: keep ticking
+		// only while Running. Waiting / Paused / Stuck / terminal all
+		// release the loop so the host (HITL resume, stuck-handler,
+		// terminal cleanup) can drive next.
+		if p.Status() != core.StatusRunning {
 			p.publishTerminalEvent()
 			return nil
 		}
@@ -141,7 +145,7 @@ func (p *AgentProcess) Tick(ctx context.Context) error {
 
 // observe runs the determiner and publishes the ReadyToPlan event.
 func (p *AgentProcess) observe(ctx context.Context, span attributeAdder) core.WorldState {
-	worldState := p.determiner.DetermineWorldState(ctx)
+	worldState := p.determiner.determineWorldState(ctx)
 	p.state.setLastWorld(worldState)
 	p.publishEvent(event.ReadyToPlanEvent{
 		BaseEvent: event.NewBaseEvent(p.id),

@@ -48,7 +48,7 @@ type ActionMetadata struct {
 
 	Trigger         reflect.Type // Optional — autostart this action when the trigger type appears.
 	OutputBinding   string       // Override the variable name written to the blackboard.
-	ClearBlackboard bool         // Destructive; planner treats as terminal.
+	ClearBlackboard bool         // On success, clear blackboard before binding output.
 }
 
 // HasRunKey is the conventional condition key recording that this

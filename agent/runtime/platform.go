@@ -144,6 +144,28 @@ func (p *Platform) GetProcess(id string) (*AgentProcess, bool) { return p.procs.
 // ActiveProcesses returns a snapshot of all currently registered processes.
 func (p *Platform) ActiveProcesses() []*AgentProcess { return p.procs.list() }
 
+// RemoveProcess deletes a process from the registry. Mirrors embabel's
+// AgentProcessRepository.delete: lets long-running services free
+// terminal-state processes that the host has already drained
+// (Status / Failure / Goal already read). Returns an error when the id
+// is unknown so callers can detect typos.
+func (p *Platform) RemoveProcess(id string) error {
+	if !p.procs.unregister(id) {
+		return fmt.Errorf("RemoveProcess: process id %q not found", id)
+	}
+	return nil
+}
+
+// PruneTerminalProcesses removes every registered process whose status
+// satisfies [core.AgentProcessStatus.IsTerminal] and returns the
+// removed ids. Convenient cleanup for long-lived hosts that don't want
+// to track ids individually — call periodically or after a batch run.
+func (p *Platform) PruneTerminalProcesses() []string {
+	return p.procs.pruneWhere(func(proc *AgentProcess) bool {
+		return proc.Status().IsTerminal()
+	})
+}
+
 // Deploy registers an agent after validating it. Re-deploying with the
 // same name replaces the previous registration — convenient when
 // iterating during development.
@@ -248,16 +270,15 @@ func (p *Platform) KillProcess(id string) error {
 
 // ResumeProcess delivers a response to a process parked on
 // [AgentProcess.AwaitInput]. The awaitable's typed handler runs
-// synchronously (typically mutating the blackboard), the process is
-// flipped from StatusWaiting back to StatusRunning, and the
-// [core.ResponseImpact] the handler decided is surfaced to the caller.
+// synchronously (typically mutating the blackboard) and returns the
+// [core.ResponseImpact] decision. The process status stays
+// [core.StatusWaiting] — call [Platform.ContinueProcess] /
+// [Platform.ContinueProcessAsync] next to actually drive the run loop
+// against the now-mutated blackboard.
 //
-// ResumeProcess does NOT itself drive the process loop — it just
-// delivers the response and transitions status. The caller is expected
-// to re-run the process via [Platform.RunAgent] / [Platform.StartAgent]
-// (or some equivalent) so the planner sees the new world state. This
-// keeps Resume cheap, synchronous, and ctx-free; the run loop's
-// lifetime stays the caller's concern.
+// Splitting "deliver response" from "drive the loop" keeps ResumeProcess
+// cheap, synchronous, and ctx-free, and lets the host control the
+// continuation (sync vs background, fresh ctx vs the original).
 //
 // Returns an error when the id is unknown, the process isn't actually
 // waiting, or the response value doesn't match the awaitable's expected
@@ -276,8 +297,47 @@ func (p *Platform) ResumeProcess(id string, response any) (core.ResponseImpact, 
 	if err != nil {
 		return core.ResponseImpactUnchanged, fmt.Errorf("ResumeProcess: %w", err)
 	}
-	proc.state.setStatus(core.StatusRunning)
 	return impact, nil
+}
+
+// ContinueProcess re-enters the run loop on an already-created process.
+// Mirrors embabel's pattern of calling AgentProcess.run() repeatedly:
+// after [Platform.ResumeProcess] delivers an awaitable response, or
+// after a stuck-handler stages new blackboard state, ContinueProcess
+// drives the OODA loop until the process exits Running again
+// (terminal, waiting, or paused). Returns nil when the process exits
+// normally; ctx-cancel and run errors propagate.
+//
+// Concurrent ContinueProcess calls on the same id are safe: the
+// underlying makeRunning rejects when the process is already running,
+// so only one call drives the loop.
+func (p *Platform) ContinueProcess(ctx context.Context, id string) error {
+	proc, ok := p.GetProcess(id)
+	if !ok {
+		return fmt.Errorf("ContinueProcess: process id %q not found", id)
+	}
+	return proc.run(ctx)
+}
+
+// ContinueProcessAsync is the background variant of [ContinueProcess].
+// Returns a buffered channel that receives the run's final error (nil
+// on clean exit) so callers can fire-and-forget while still being able
+// to wait on completion.
+func (p *Platform) ContinueProcessAsync(ctx context.Context, id string) <-chan error {
+	done := make(chan error, 1)
+
+	proc, ok := p.GetProcess(id)
+	if !ok {
+		done <- fmt.Errorf("ContinueProcessAsync: process id %q not found", id)
+		close(done)
+		return done
+	}
+
+	go func() {
+		done <- proc.run(ctx)
+		close(done)
+	}()
+	return done
 }
 
 // createProcess assembles an AgentProcess and its dependencies (blackboard,

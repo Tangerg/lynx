@@ -13,7 +13,7 @@ const hasRunPrefix = "hasRun_"
 // worldStateDeterminer is the OBSERVE stage of the OODA loop: read the
 // blackboard, return what the planner needs to know about the world.
 type worldStateDeterminer interface {
-	DetermineWorldState(ctx context.Context) core.WorldState
+	determineWorldState(ctx context.Context) core.WorldState
 }
 
 // blackboardDeterminer is the canonical implementation. It walks the
@@ -49,10 +49,10 @@ func newBlackboardDeterminer(system *plan.PlanningSystem, bb core.Blackboard, pr
 	}
 }
 
-// DetermineWorldState produces a fresh ConditionWorldState reflecting the
+// determineWorldState produces a fresh ConditionWorldState reflecting the
 // blackboard's current contents. The runtime calls this at the start of
 // every tick.
-func (d *blackboardDeterminer) DetermineWorldState(ctx context.Context) core.WorldState {
+func (d *blackboardDeterminer) determineWorldState(ctx context.Context) core.WorldState {
 	state := map[string]core.Determination{}
 	oc := &core.OperationContext{Process: d.process, Blackboard: d.blackboard}
 
@@ -66,6 +66,11 @@ func (d *blackboardDeterminer) DetermineWorldState(ctx context.Context) core.Wor
 // the condition key's shape. Returns Unknown for anything that doesn't
 // match a known pattern — A* treats Unknown as "doesn't satisfy" so missing
 // state safely defers planning rather than producing a wrong plan.
+//
+// User-supplied Conditions run inside [safeEvaluateCondition] so a
+// panicking implementation degrades to Unknown rather than tearing down
+// the whole tick — mirrors [core.ProcessContext.ExecuteSafely]'s guard
+// for action bodies.
 func (d *blackboardDeterminer) evaluateCondition(ctx context.Context, key string, oc *core.OperationContext) core.Determination {
 	if strings.Contains(key, ":") {
 		return d.evaluateTypeBinding(key)
@@ -76,13 +81,26 @@ func (d *blackboardDeterminer) evaluateCondition(ctx context.Context, key string
 	}
 
 	if cond, ok := d.namedConditions[key]; ok {
-		return cond.Evaluate(ctx, oc)
+		return safeEvaluateCondition(ctx, cond, oc)
 	}
 
 	if value, ok := d.blackboard.GetCondition(key); ok {
 		return core.FromBool(value)
 	}
 	return core.Unknown
+}
+
+// safeEvaluateCondition runs cond.Evaluate under a panic guard. A
+// panicking user condition becomes [core.Unknown] — A* treats Unknown
+// as "doesn't satisfy", so a misbehaving condition fails its actions
+// closed (planner picks something else) rather than crashing the tick.
+func safeEvaluateCondition(ctx context.Context, cond core.Condition, oc *core.OperationContext) (result core.Determination) {
+	defer func() {
+		if r := recover(); r != nil {
+			result = core.Unknown
+		}
+	}()
+	return cond.Evaluate(ctx, oc)
 }
 
 func (d *blackboardDeterminer) evaluateTypeBinding(key string) core.Determination {

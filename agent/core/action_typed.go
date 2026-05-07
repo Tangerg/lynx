@@ -53,6 +53,15 @@ func (a *typedAction[In, Out]) Execute(ctx context.Context, pc *ProcessContext) 
 		return ActionFailed
 	}
 
+	// Mirror embabel's MultiTransformationAction: when the action is
+	// flagged ClearBlackboard, wipe (preserving Protected entries)
+	// before binding the output so only the just-produced value
+	// survives. Used for state-machine transitions and looping flows
+	// that want a clean slate on success.
+	if a.metadata.ClearBlackboard {
+		pc.Blackboard.Clear()
+	}
+
 	a.writeOutput(pc.Blackboard, output)
 	return ActionSucceeded
 }

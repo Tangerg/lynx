@@ -52,12 +52,8 @@ type ActionConfig struct {
 
 	// ToolGroups declares the abstract tool requirements (role names) —
 	// the resolver translates these to concrete tools at execution
-	// time.
-	//
-	// TODO(future): stored as metadata only today. The runtime does NOT
-	// auto-resolve these; action bodies pull tools via
-	// pc.ResolveTools(ctx, role). A future ToolLoop runner (see
-	// EMBABEL_GAP_ANALYSIS.md P0-2) will consume this field.
+	// time. Action bodies can call [ProcessContext.ActionTools] to
+	// fetch the resolved tools without re-stating the role names.
 	ToolGroups []ToolGroupRequirement
 
 	// Trigger registers a "fire when this type appears" auto-action: if
@@ -86,11 +82,11 @@ type ActionConfig struct {
 	// most actions produce a single canonical artifact.
 	Outputs []IOBinding
 
-	// ClearBlackboard marks the action as destructive — after it runs,
-	// the blackboard is wiped (preserving "protected" entries).
-	//
-	// TODO(future): not honoured by the runtime today. Reserved for a
-	// "checkpoint / reset" semantic.
+	// ClearBlackboard wipes the blackboard (preserving protected
+	// entries) on action success, before the output is bound. Useful
+	// for state-machine transitions and looping flows where stale named
+	// values would confuse the next planning tick. Mirrors embabel's
+	// @Action(clearBlackboard = true).
 	ClearBlackboard bool
 }
 

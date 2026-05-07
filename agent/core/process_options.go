@@ -57,6 +57,14 @@ func (o *ProcessOptions) ApplyDefaults() {
 	if o.OutputChannel == nil {
 		o.OutputChannel = DevNullOutputChannel
 	}
+	// Wire Budget into the early-termination check by default — mirrors
+	// embabel's ProcessOptions(processControl = ProcessControl(... =
+	// budget.earlyTerminationPolicy())). A zero ProcessOptions{} now
+	// actually enforces DefaultBudget; callers who want unlimited can
+	// pass a custom EarlyTerminationPolicy that ignores Budget.
+	if o.ProcessControl.EarlyTerminationPolicy == nil {
+		o.ProcessControl.EarlyTerminationPolicy = o.Budget.EarlyTerminationPolicy()
+	}
 }
 
 // Verbosity controls instrumentation visible to humans. None of these
@@ -74,8 +82,11 @@ type Verbosity struct {
 }
 
 // Budget caps cumulative LLM spend (USD), action invocations, and total
-// tokens for one process. The runtime checks Budget at tick boundaries and
-// transitions to StatusTerminated when exceeded.
+// tokens for one process. Budget is enforced via [BudgetPolicy], which
+// [ProcessOptions.ApplyDefaults] installs as the default
+// [ProcessControl.EarlyTerminationPolicy] when none is supplied — so a
+// zero-options caller gets the [DefaultBudget] limits automatically. To
+// disable, set a custom EarlyTerminationPolicy.
 type Budget struct {
 	CostLimit   float64
 	ActionLimit int
@@ -87,6 +98,15 @@ type Budget struct {
 // production deployments tune them per-tenant.
 func DefaultBudget() Budget {
 	return Budget{CostLimit: 2.0, ActionLimit: 50, TokenLimit: 1_000_000}
+}
+
+// EarlyTerminationPolicy returns the policy that enforces this Budget.
+// Mirrors embabel's Budget.earlyTerminationPolicy(): a single composite
+// check on cost / tokens / actions. [ProcessOptions.ApplyDefaults] uses
+// this to wire Budget into ProcessControl when the caller didn't supply
+// an explicit policy.
+func (b Budget) EarlyTerminationPolicy() EarlyTerminationPolicy {
+	return BudgetPolicy{Budget: b}
 }
 
 // ProcessControl carries throttling knobs and the early-termination policy.
