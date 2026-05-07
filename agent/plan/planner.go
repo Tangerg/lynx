@@ -35,6 +35,7 @@ type Planner interface {
 	BestValuePlan(ctx context.Context, start core.WorldState, system *PlanningSystem, options PlanOptions) (*Plan, error)
 
 	// Prune drops actions that cannot contribute to any goal. Optional —
-	// the runtime calls it once at startup if Options.Prune is true.
+	// hosts that want unreachable-action elimination call this themselves
+	// before deploying an agent.
 	Prune(system *PlanningSystem) *PlanningSystem
 }

@@ -202,6 +202,15 @@ func (p *AgentProcess) publishAny(e any) {
 
 // --- tracing helpers ------------------------------------------------------
 
+// Tracing attribute keys shared between process- and action-level
+// spans. Centralised at the AgentProcess scope (where they originate)
+// because external listeners — dashboards, exporters — key off the
+// stable string values. Treat as schema; renaming breaks consumers.
+const (
+	attrAgentName = "lynx.agent.name"
+	attrProcessID = "lynx.agent.process_id"
+)
+
 // startTickSpan creates a span scoped to one tick.
 func (p *AgentProcess) startTickSpan(ctx context.Context, name string) (context.Context, trace.Span) {
 	return core.AgentTracer().Start(ctx, name,

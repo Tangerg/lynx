@@ -32,10 +32,8 @@ type ActionConfig struct {
 
 	// ReadOnly marks an action as side-effect-free; the planner is free
 	// to reorder or repeat it without worrying about state changes.
-	//
-	// TODO(future): not consumed by the planner today (the heuristic
-	// doesn't exploit reordering). Reserved for a future planner
-	// optimisation pass.
+	// Reserved for a future planner optimisation pass — the current A*
+	// heuristic doesn't exploit reordering.
 	ReadOnly bool
 
 	// QoS overrides the default retry/back-off policy. Zero value falls
@@ -59,10 +57,8 @@ type ActionConfig struct {
 	// Trigger registers a "fire when this type appears" auto-action: if
 	// the trigger type lands on the blackboard, the planner pulls this
 	// action in regardless of whether it's on the current plan. Use
-	// [TriggerType] to populate this from a Go type parameter.
-	//
-	// TODO(future): stored on ActionMetadata.Trigger but the planner
-	// does NOT scan for matching types today. Reserved.
+	// [TriggerType] to populate this from a Go type parameter. Stored on
+	// ActionMetadata.Trigger; the current planner doesn't scan it yet.
 	Trigger reflect.Type
 
 	// OutputBinding overrides the default "it" output variable name.

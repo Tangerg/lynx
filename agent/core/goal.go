@@ -18,10 +18,9 @@ type Goal struct {
 	// [Static](1.0) default when left nil.
 	Value CostFunc
 
-	// Tags / Examples / Export: TODO(future, P0-1 in
-	// EMBABEL_GAP_ANALYSIS.md) — consumed by the (not-yet-implemented)
-	// MCP server adapter when exposing a goal externally. Today the
-	// framework just stores them.
+	// Tags / Examples / Export are stored as metadata for the
+	// (not-yet-implemented) MCP server adapter; see EMBABEL_GAP_ANALYSIS
+	// P0-1. The runtime itself doesn't read them.
 	Tags     []string
 	Examples []string
 	Export   ExportConfig
@@ -29,9 +28,8 @@ type Goal struct {
 
 // ExportConfig advertises a goal as an externally callable surface —
 // used by MCP / A2A integrations to expose "agent capabilities" to
-// other systems.
-//
-// TODO(future, P0-1): consumed by the MCP server adapter when it lands.
+// other systems. Consumed by the MCP server adapter (EMBABEL_GAP_ANALYSIS
+// P0-1) once it lands.
 type ExportConfig struct {
 	Name          string
 	Remote        bool
