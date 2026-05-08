@@ -5,6 +5,8 @@ import (
 	"sync"
 
 	"github.com/Masterminds/semver/v3"
+
+	"github.com/Tangerg/lynx/core/model/chat"
 )
 
 // ToolGroupPermission is the security/sensitivity flag on a ToolGroup —
@@ -96,23 +98,15 @@ type TerminationSignal struct {
 	Reason string
 }
 
-// AgentTool is the framework-internal alias for a tool the agent can invoke.
-// We don't directly import lynx/core/model/chat here so the agent module
-// remains buildable standalone; concrete adapters convert chat.Tool ↔
-// AgentTool. The fields mirror chat.ToolDefinition exactly.
-type AgentTool struct {
-	Name        string
-	Description string
-	InputSchema string
-
-	// Call is the optional invocation hook. nil signals an "external" tool —
-	// the runtime collects the call and lets the host application perform it.
-	Call func(ctx context.Context, arguments string) (string, error)
-
-	// ReturnDirect mirrors chat.ToolMetadata.ReturnDirect — when true, the
-	// LLM should not be re-prompted with the result.
-	ReturnDirect bool
-}
+// AgentTool is an alias of [chat.Tool] — the agent runtime and the
+// chat package share one tool model. Both delegated tools (no Call
+// implementation, [chat.Tool] only) and inline tools ([chat.CallableTool])
+// flow through the same [ToolGroup] / [ToolGroupResolver] / [ToolDecorator]
+// machinery.
+//
+// Construct concrete tools via [chat.NewTool]; the runtime never builds
+// AgentTool literals itself.
+type AgentTool = chat.Tool
 
 // ToolGroup is the lazy provider — Tools(ctx) is the entry point that
 // performs the (potentially expensive) MCP handshake / plugin load on first

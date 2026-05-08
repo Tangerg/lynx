@@ -11,6 +11,7 @@ import (
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/event"
 	"github.com/Tangerg/lynx/agent/plan"
+	"github.com/Tangerg/lynx/core/model/chat"
 )
 
 // AgentProcess is the runtime's mutable per-execution state. It implements
@@ -247,6 +248,17 @@ func (p *AgentProcess) platformServices() *core.ServiceProvider {
 		return core.NewServiceProvider()
 	}
 	return p.platform.services
+}
+
+// platformChatClient returns the platform's shared [chat.Client], or
+// nil when the platform was constructed without one (or when there's
+// no platform attached — test fixtures). Action code reaches this via
+// ProcessContext.Chat / ChatWithActionTools.
+func (p *AgentProcess) platformChatClient() *chat.Client {
+	if p.platform == nil {
+		return nil
+	}
+	return p.platform.chatClient
 }
 
 // platformExtensions exposes the platform-scoped extension list.
