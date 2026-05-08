@@ -7,7 +7,7 @@ import (
 
 	"github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/core"
-	"github.com/Tangerg/lynx/agent/dsl/workflow"
+	"github.com/Tangerg/lynx/agent/workflow"
 	"github.com/Tangerg/lynx/agent/runtime"
 )
 

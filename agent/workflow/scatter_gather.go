@@ -7,7 +7,6 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/Tangerg/lynx/agent/core"
-	"github.com/Tangerg/lynx/agent/dsl"
 )
 
 // ScatterGatherSpec configures a scatter-gather workflow: every
@@ -109,12 +108,13 @@ func ScatterGatherAgent[In, Element, Result any](spec ScatterGatherSpec[In, Elem
 		},
 	)
 
-	return dsl.New(spec.Name).
-		Description(spec.Description).
-		Actions(scatter, gather).
-		Goals(core.GoalProducing[Result](core.Goal{
+	return core.NewAgent(core.AgentConfig{
+		Name:        spec.Name,
+		Description: spec.Description,
+		Actions:     []core.Action{scatter, gather},
+		Goals: []*core.Goal{core.GoalProducing[Result](core.Goal{
 			Name:        spec.Name,
 			Description: "produce " + core.TypeFullNameOf[Result](),
-		})).
-		Build()
+		})},
+	})
 }
