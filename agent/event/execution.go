@@ -43,21 +43,6 @@ func (e ActionExecutionResultEvent) MarshalJSON() ([]byte, error) {
 	})
 }
 
-// ObjectBoundEvent is reserved for integration code that wants to
-// observe blackboard mutations. The framework's in-memory blackboard
-// doesn't emit it today; user-supplied implementations may.
-type ObjectBoundEvent struct {
-	BaseEvent
-	Key  string `json:"key,omitempty"`
-	Type string `json:"type,omitempty"`
-}
-
-func (ObjectBoundEvent) EventName() string { return "object_bound" }
-
-func (e ObjectBoundEvent) MarshalJSON() ([]byte, error) {
-	return emit(e, map[string]any{"key": e.Key, "type": e.Type})
-}
-
 // GoalAchievedEvent fires when the planner returns an empty plan for a
 // non-nil goal (i.e. preconditions are already satisfied).
 type GoalAchievedEvent struct {

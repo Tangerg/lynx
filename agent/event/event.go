@@ -21,7 +21,6 @@
 //   - process.go     — Process lifecycle events
 //   - planning.go    — Planner-related events
 //   - execution.go   — Action execution + goal achievement events
-//   - llm.go         — LLM request/response events (integration-emitted)
 //   - summaries.go   — Internal wire-shape structs for Goal/Plan/WorldState/Awaitable
 package event
 

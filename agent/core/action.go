@@ -2,9 +2,6 @@ package core
 
 import (
 	"context"
-	"maps"
-	"reflect"
-	"slices"
 	"time"
 )
 
@@ -36,22 +33,18 @@ type ActionMetadata struct {
 	Preconditions EffectSpec
 	Effects       EffectSpec
 	CanRerun      bool
-	ReadOnly      bool
 	QoS           ActionQoS
 	ToolGroups    []ToolGroupRequirement
 
-	// Cost is the planner's per-tick cost probe; defaults to
-	// [Static](1.0) so the planner doesn't accidentally pick "free"
-	// actions in preference to ones with real work to do.
+	// Cost defaults to [Static](1.0) so the planner doesn't pick
+	// "free" actions over ones with real work.
 	Cost CostFunc
 
-	// Value is the planner's per-tick value probe; defaults to
-	// [Static](0).
+	// Value defaults to [Static](0).
 	Value CostFunc
 
-	Trigger         reflect.Type // Optional — autostart this action when the trigger type appears.
-	OutputBinding   string       // Override the variable name written to the blackboard.
-	ClearBlackboard bool         // On success, clear blackboard before binding output.
+	OutputBinding   string // Override the variable name written to the blackboard.
+	ClearBlackboard bool   // On success, clear blackboard before binding output.
 }
 
 // HasRunKey is the conventional condition key recording that this
@@ -74,29 +67,22 @@ func (m ActionMetadata) IsApplicableIn(state map[string]Determination) bool {
 	return true
 }
 
-// ActionQoS governs retry behavior for a single action. Retry math itself
-// (exponential backoff, jitter, overflow protection) is delegated to
-// [github.com/Tangerg/lynx/pkg/retry]; this struct is just the policy
-// surface the runtime translates into [retry.Option] values.
-//
-// Defaults are taken from embabel — aggressive (5 attempts) because LLM
-// calls fail transiently more often than typical RPC.
+// ActionQoS governs retry behavior for a single action. Retry math
+// (exponential backoff, jitter) is delegated to
+// [github.com/Tangerg/lynx/pkg/retry].
 type ActionQoS struct {
-	// MaxAttempts caps total tries (initial + retries). 0 falls back to
-	// the package default; the runtime treats anything < 1 as 1.
+	// MaxAttempts caps total tries (initial + retries). 0 → default.
 	MaxAttempts int
-
-	// BaseDelay is the initial wait between attempts. Successive
-	// attempts grow this exponentially (×2 per step) up to MaxDelay,
-	// with random jitter added on each attempt.
+	// BaseDelay is the initial wait; successive attempts grow ×2 up
+	// to MaxDelay with jitter.
 	BaseDelay time.Duration
-
 	// MaxDelay caps the per-attempt wait. 0 means uncapped.
 	MaxDelay time.Duration
 }
 
-// DefaultActionQoS returns sensible production defaults: 5 attempts, 10s
-// initial backoff, 60s cap.
+// DefaultActionQoS returns sensible production defaults: 5 attempts,
+// 10s initial backoff, 60s cap — aggressive because LLM calls fail
+// transiently more often than typical RPC.
 func DefaultActionQoS() ActionQoS {
 	return ActionQoS{
 		MaxAttempts: 5,
@@ -105,48 +91,8 @@ func DefaultActionQoS() ActionQoS {
 	}
 }
 
-// EffectSpec maps condition keys to required (or produced) Determinations.
-// It represents both Action.Preconditions ("what must hold before I can run")
-// and Action.Effects ("what becomes true after I run"). The same shape is
-// reused for Goal.Preconditions.
-//
-// A nil EffectSpec is a valid, read-only empty value; all helpers accept it
-// without panicking.
+// EffectSpec maps condition keys to required (or produced)
+// Determinations. Used for both [ActionMetadata.Preconditions] /
+// [ActionMetadata.Effects] and [Goal] preconditions. A nil EffectSpec
+// is a valid empty value.
 type EffectSpec map[string]Determination
-
-// Clone returns a deep copy. A nil receiver yields nil so callers can chain
-// "spec.Clone()" without a guard.
-func (s EffectSpec) Clone() EffectSpec {
-	if s == nil {
-		return nil
-	}
-	return maps.Clone(s)
-}
-
-// Merge layers other on top of s — keys in other win. Returns a new map;
-// neither input is modified.
-func (s EffectSpec) Merge(other EffectSpec) EffectSpec {
-	out := make(EffectSpec, len(s)+len(other))
-	maps.Copy(out, s)
-	maps.Copy(out, other)
-	return out
-}
-
-// Keys returns sorted condition keys for stable iteration (used by HashKey
-// computations and debug printing).
-func (s EffectSpec) Keys() []string {
-	out := slices.Collect(maps.Keys(s))
-	slices.Sort(out)
-	return out
-}
-
-// Set returns a copy with key=value applied — intended for fluent
-// construction, not for mutating an existing spec in place.
-func (s EffectSpec) Set(key string, value Determination) EffectSpec {
-	out := s.Clone()
-	if out == nil {
-		out = EffectSpec{}
-	}
-	out[key] = value
-	return out
-}

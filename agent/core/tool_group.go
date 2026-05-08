@@ -30,51 +30,35 @@ type AssetCoordinates struct {
 	Version  *semver.Version
 }
 
-// ToolGroupDescription carries human-facing prose. Separated from metadata
-// because some lightweight integrations only need the description.
-type ToolGroupDescription interface {
-	Description() string
-	Role() string
-	ChildToolUsageNotes() string
-}
-
-// ToolGroupMetadata is what a resolver returns from a registry lookup.
+// ToolGroupMetadata is what a resolver returns from a registry
+// lookup. Carries the role + the (optional) versioned coordinates so
+// observability surfaces can display "which provider's tool group
+// satisfied this role".
 type ToolGroupMetadata interface {
-	ToolGroupDescription
+	Role() string
 	AssetCoordinates() AssetCoordinates
-	Permissions() []ToolGroupPermission
 }
 
-// ToolGroupRequirement is what an agent declares ("I need a search-shaped
-// tool group") without binding to a specific provider. The planner consults
-// the resolver to translate role → concrete tool list at execution time.
+// ToolGroupRequirement is what an agent declares ("I need a
+// search-shaped tool group") without binding to a specific provider.
+// The planner consults the resolver to translate role → concrete
+// tool list at execution time.
 type ToolGroupRequirement struct {
-	Role              string
-	RequiredToolNames []string
-	TerminationScope  TerminationScope
+	Role             string
+	TerminationScope TerminationScope
 }
 
-// TerminationScope is embabel 0.4's structured-termination enum: AGENT means
-// missing tooling kills the process, ACTION means the planner should skip
-// the affected action and re-plan.
+// TerminationScope is the structured-termination enum: AGENT stops
+// the whole process; ACTION skips the current action and re-plans.
 type TerminationScope int
 
 const (
-	// TerminationScopeAgent stops the entire process when the trigger
-	// fires. The strongest guarantee: no further actions, no replanning.
+	// TerminationScopeAgent stops the entire process when the
+	// trigger fires.
 	TerminationScopeAgent TerminationScope = iota
 
-	// TerminationScopeAction skips the current action and re-plans. Use
-	// when a missing tool / unmet precondition makes this action unable
-	// to proceed but the agent as a whole can still pursue the goal via
-	// a different path.
+	// TerminationScopeAction skips the current action and re-plans.
 	TerminationScopeAction
-
-	// TerminationScopeToolCall aborts the in-flight tool invocation but
-	// lets the action body continue (typically retrying with a different
-	// tool or a degraded mode). Mirrors embabel's TOOLCALL granularity —
-	// the finest-grained scope.
-	TerminationScopeToolCall
 )
 
 func (t TerminationScope) String() string {
@@ -83,8 +67,6 @@ func (t TerminationScope) String() string {
 		return "agent"
 	case TerminationScopeAction:
 		return "action"
-	case TerminationScopeToolCall:
-		return "tool_call"
 	default:
 		return "unknown"
 	}
@@ -194,18 +176,13 @@ func (r *StaticToolGroupResolver) Resolve(_ context.Context, req ToolGroupRequir
 	return r.groups[req.Role], nil
 }
 
-// SimpleToolGroupMetadata is the minimal metadata struct used by the static
-// resolver and by tests when they don't need richer descriptions.
+// SimpleToolGroupMetadata is the minimal metadata struct — used by
+// the static resolver and by adapters (mcp, subagent) that don't
+// version their tool groups.
 type SimpleToolGroupMetadata struct {
-	DescriptionText    string
-	RoleText           string
-	ChildToolUsageText string
-	Coordinates        AssetCoordinates
-	PermissionList     []ToolGroupPermission
+	RoleText    string
+	Coordinates AssetCoordinates
 }
 
-func (m SimpleToolGroupMetadata) Description() string                { return m.DescriptionText }
 func (m SimpleToolGroupMetadata) Role() string                       { return m.RoleText }
-func (m SimpleToolGroupMetadata) ChildToolUsageNotes() string        { return m.ChildToolUsageText }
 func (m SimpleToolGroupMetadata) AssetCoordinates() AssetCoordinates { return m.Coordinates }
-func (m SimpleToolGroupMetadata) Permissions() []ToolGroupPermission { return m.PermissionList }

@@ -2,40 +2,93 @@ package plan
 
 import (
 	"context"
+	"errors"
 
 	"github.com/Tangerg/lynx/agent/core"
 )
 
-// PlanOptions carries per-call planner knobs. The most important field is
-// ExcludedActions — that's how the runtime asks the planner to ignore a
-// recently-replanned action so a misbehaving action doesn't cause an
-// infinite loop.
+// PlanOptions carries per-call planner knobs. ExcludedActions is the
+// runtime's "ignore this recently-replanned action so we don't loop"
+// signal; MaxIterations caps internal search iteration count.
 type PlanOptions struct {
 	ExcludedActions map[string]struct{}
 	MaxIterations   int
 }
 
-// Planner is the abstract planner surface. The runtime uses BestValuePlan
-// as its main entry point — pick the highest-(value − cost) plan across
-// all goals — and falls back to the more granular methods when it needs
-// them.
+// Planner is a pure strategy: given a goal, return the action
+// sequence whose effects satisfy it (or nil when unreachable).
+// PlansToGoals + BestValuePlan are derived templates exposed as
+// package-level functions, not interface methods, so each planner
+// implementation only writes the algorithm-specific part.
 type Planner interface {
-	// PlanToGoal targets one specific goal. Returns (nil plan, nil error)
-	// when no plan exists (genuinely unreachable); error only on internal
+	// PlanToGoal targets one specific goal. Returns (nil, nil) when
+	// no plan exists (genuinely unreachable); error only on internal
 	// failure.
-	PlanToGoal(ctx context.Context, start core.WorldState, system *PlanningSystem, goal *core.Goal, options PlanOptions) (*Plan, error)
+	PlanToGoal(
+		ctx context.Context,
+		start core.WorldState,
+		system *PlanningSystem,
+		goal *core.Goal,
+		options PlanOptions,
+	) (*Plan, error)
+}
 
-	// PlansToGoals enumerates plans for every goal in the system, sorted
-	// by NetValue descending. Used by debugging and by the embabel-style
-	// "let me see all my options" UI.
-	PlansToGoals(ctx context.Context, start core.WorldState, system *PlanningSystem, options PlanOptions) ([]*Plan, error)
+// CheckPlanInputs validates the trio of pointers every PlanToGoal
+// implementation needs. Lift the boilerplate so each strategy
+// doesn't paste its own version.
+func CheckPlanInputs(start core.WorldState, system *PlanningSystem, goal *core.Goal) error {
+	switch {
+	case start == nil:
+		return errors.New("plan: start world state is nil")
+	case system == nil:
+		return errors.New("plan: planning system is nil")
+	case goal == nil:
+		return errors.New("plan: goal is nil")
+	}
+	return nil
+}
 
-	// BestValuePlan is the runtime's tick-time entry: pick the single best
-	// plan across all goals, honoring the exclusion list.
-	BestValuePlan(ctx context.Context, start core.WorldState, system *PlanningSystem, options PlanOptions) (*Plan, error)
+// PlansToGoals enumerates plans for every goal in system, sorted by
+// NetValue descending. Goals returning (nil, nil) from PlanToGoal
+// are dropped silently; any error short-circuits.
+func PlansToGoals(
+	ctx context.Context,
+	p Planner,
+	start core.WorldState,
+	system *PlanningSystem,
+	options PlanOptions,
+) ([]*Plan, error) {
+	if system == nil {
+		return nil, errors.New("plans to goals: planning system is nil")
+	}
+	out := make([]*Plan, 0, len(system.Goals))
+	for _, goal := range system.Goals {
+		pl, err := p.PlanToGoal(ctx, start, system, goal, options)
+		if err != nil {
+			return nil, err
+		}
+		if pl == nil {
+			continue
+		}
+		out = append(out, pl)
+	}
+	SortByNetValueDesc(out, start)
+	return out, nil
+}
 
-	// Prune drops actions that cannot contribute to any goal. Optional —
-	// hosts that want unreachable-action elimination call this themselves
-	// before deploying an agent.
-	Prune(system *PlanningSystem) *PlanningSystem
+// BestValuePlan is the runtime's tick-time entry: the highest-
+// NetValue plan across all goals, honoring the exclusion list.
+// Returns (nil, nil) when no goal is reachable.
+func BestValuePlan(
+	ctx context.Context,
+	p Planner,
+	start core.WorldState,
+	system *PlanningSystem,
+	options PlanOptions,
+) (*Plan, error) {
+	plans, err := PlansToGoals(ctx, p, start, system, options)
+	if err != nil || len(plans) == 0 {
+		return nil, err
+	}
+	return plans[0], nil
 }

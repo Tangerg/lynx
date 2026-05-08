@@ -2,7 +2,6 @@ package runtime
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/mcp"
@@ -40,10 +39,7 @@ func NewMCPToolGroupResolver(role string, provider *mcp.Provider) *MCPToolGroupR
 		name:     "mcp-tool-resolver:" + role,
 		role:     role,
 		provider: provider,
-		metadata: core.SimpleToolGroupMetadata{
-			DescriptionText: fmt.Sprintf("MCP-backed tools (role %q)", role),
-			RoleText:        role,
-		},
+		metadata: core.SimpleToolGroupMetadata{RoleText: role},
 	}
 }
 

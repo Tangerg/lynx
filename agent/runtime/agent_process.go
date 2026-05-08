@@ -46,7 +46,7 @@ type AgentProcess struct {
 	signals processSignals
 
 	blackboard core.Blackboard
-	determiner worldStateDeterminer
+	determiner *blackboardDeterminer
 	planner    plan.Planner
 	system     *plan.PlanningSystem
 	platform   *Platform
@@ -106,7 +106,6 @@ func (p *AgentProcess) ParentID() string              { return p.parentID }
 func (p *AgentProcess) StartedAt() time.Time          { return p.startedAt }
 func (p *AgentProcess) Blackboard() core.Blackboard   { return p.blackboard }
 func (p *AgentProcess) Options() *core.ProcessOptions { return p.options }
-func (p *AgentProcess) AgentDef() *core.Agent         { return p.agent }
 
 // Status / Goal / LastWorldState / Failure / History delegate to the
 // state sub-struct, which owns the lock.

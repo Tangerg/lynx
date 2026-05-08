@@ -26,7 +26,7 @@ func TestIOBindingDefaultName(t *testing.T) {
 	if !b.IsDefault() {
 		t.Fatalf("empty name should be default")
 	}
-	if b.String() != core.DefaultBinding+":"+b.Type {
+	if b.String() != core.DefaultBindingName+":"+b.Type {
 		t.Fatalf("string: %q", b.String())
 	}
 }

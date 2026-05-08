@@ -8,11 +8,11 @@ import (
 	"github.com/Tangerg/lynx/agent/event"
 )
 
-// extensionRegistry is the dedup-aware container the platform uses to
-// hold registered extensions. Insertion order is preserved (drives
-// onion / wrap chain ordering); empty Name and duplicate Name both
-// panic at registration time — boot-time misconfiguration must fail
-// fast.
+// extensionRegistry is the dedup-aware container the platform uses
+// to hold registered extensions. Insertion order is preserved
+// (drives onion / wrap chain ordering); empty Name and duplicate
+// Name both panic at registration time — boot-time misconfiguration
+// must fail fast.
 type extensionRegistry struct {
 	list   []core.Extension
 	byName map[string]core.Extension
@@ -22,9 +22,8 @@ func newExtensionRegistry() extensionRegistry {
 	return extensionRegistry{byName: map[string]core.Extension{}}
 }
 
-// register adds ext to the registry. Panics on nil ext, empty Name, or
-// duplicate Name within this registry — boot-time errors must surface
-// loudly so they can't ride into production silently.
+// register adds ext to the registry. Panics on nil ext, empty Name,
+// or duplicate Name.
 func (r *extensionRegistry) register(scope string, ext core.Extension) {
 	if ext == nil {
 		panic(fmt.Sprintf("runtime: nil extension in %s", scope))
@@ -40,16 +39,9 @@ func (r *extensionRegistry) register(scope string, ext core.Extension) {
 	r.list = append(r.list, ext)
 }
 
-// ============================================================================
-// Capability collectors — generic helpers that filter the registered
-// extension list by capability interface. T is the capability interface
-// (core.ActionInterceptor, core.ToolDecorator, …); the type assertion
-// at runtime picks out only those extensions that satisfy it.
-// ============================================================================
-
 // collectExtensions returns every extension that implements T, in
-// registration order. Used for fan-out / chain capabilities (interceptor,
-// decorator, validator, approver, resolver).
+// registration order. Used for fan-out / chain capabilities
+// (interceptor, decorator, validator, approver, resolver).
 func collectExtensions[T any](extensions []core.Extension) []T {
 	var out []T
 	for _, ext := range extensions {
@@ -60,12 +52,11 @@ func collectExtensions[T any](extensions []core.Extension) []T {
 	return out
 }
 
-// lastExtension returns the most-recently-registered extension that
-// implements T, or the zero value of T (nil for interface types) when
-// none is registered. Used for last-wins singletons (IDGenerator,
-// PlannerFactory, BlackboardFactory) so a process-scope override beats
-// a platform-scope baseline; callers fall back to the runtime default
-// when the result is nil.
+// lastExtension returns the most-recently-registered extension
+// implementing T, or T's zero value when none is registered. Used
+// for last-wins singletons (IDGenerator, PlannerFactory,
+// BlackboardFactory) where a process-scope override beats a
+// platform-scope baseline.
 func lastExtension[T any](extensions []core.Extension) T {
 	for i := len(extensions) - 1; i >= 0; i-- {
 		if v, ok := extensions[i].(T); ok {
@@ -76,15 +67,10 @@ func lastExtension[T any](extensions []core.Extension) T {
 	return zero
 }
 
-// ============================================================================
-// Chain runners
-// ============================================================================
-
-// runActionInterceptors executes the onion chain. The first registered
-// interceptor is the outermost — its InterceptAction wraps everything
-// after it (matches net/http middleware ordering). base is the inner
-// "actually run the action" closure invoked when every interceptor has
-// called next().
+// runActionInterceptors executes the onion chain. The first
+// registered interceptor is the outermost (matches net/http
+// middleware ordering). base is the inner "actually run the action"
+// closure invoked once every interceptor has called next().
 func runActionInterceptors(
 	interceptors []core.ActionInterceptor,
 	ctx context.Context,
@@ -107,9 +93,8 @@ func runActionInterceptors(
 	return run(0)
 }
 
-// runToolDecorators wraps the supplied tool through every decorator in
-// registration order. First decorator is the innermost wrap; later
-// decorators see the result of earlier decorators. A decorator may
+// runToolDecorators wraps tool through every decorator in
+// registration order. First decorator is innermost; a decorator may
 // return its input unchanged to no-op.
 func runToolDecorators(
 	decorators []core.ToolDecorator,
@@ -124,8 +109,8 @@ func runToolDecorators(
 }
 
 // runAgentValidators runs every validator in order; the first error
-// wins (fail-fast). The error is wrapped with the validator's Name so
-// the failure is attributable.
+// vetoes (fail-fast), wrapped with the validator's Name for
+// attribution.
 func runAgentValidators(validators []core.AgentValidator, agent *core.Agent) error {
 	for _, v := range validators {
 		if err := v.ValidateAgent(agent); err != nil {
@@ -135,9 +120,9 @@ func runAgentValidators(validators []core.AgentValidator, agent *core.Agent) err
 	return nil
 }
 
-// runGoalApprovers returns true only when every approver returns true
-// (conjunction — any false vetoes). Empty approver list trivially
-// approves.
+// runGoalApprovers returns true only when every approver returns
+// true (conjunction — any false vetoes). Empty approver list
+// trivially approves.
 func runGoalApprovers(approvers []core.GoalApprover, process core.Process, goal *core.Goal) bool {
 	for _, a := range approvers {
 		if !a.ApproveGoal(process, goal) {
@@ -148,9 +133,8 @@ func runGoalApprovers(approvers []core.GoalApprover, process core.Process, goal 
 }
 
 // runToolGroupResolvers walks resolvers in order; the first non-nil
-// group returned wins (a resolver returning a nil group + nil error
-// means "I don't know this role, ask the next one"). Any resolver
-// error short-circuits the chain.
+// group wins. A resolver returning (nil, nil) means "I don't know
+// this role, ask the next one"; any error short-circuits.
 func runToolGroupResolvers(
 	resolvers []core.ToolGroupResolver,
 	ctx context.Context,
@@ -168,13 +152,9 @@ func runToolGroupResolvers(
 	return nil, nil
 }
 
-// ============================================================================
-// EventListener helper
-// ============================================================================
-
-// addEventListenerExtensions walks the supplied extensions, adding any
-// that implement EventListener to the multicast. EventListener
-// satisfies event.Listener so it can plug straight in.
+// addEventListenerExtensions adds every extension implementing
+// EventListener to the multicast. EventListener satisfies
+// [event.Listener] directly.
 func addEventListenerExtensions(multicast *event.Multicast, extensions []core.Extension) {
 	for _, ext := range extensions {
 		if l, ok := ext.(EventListener); ok {

@@ -52,7 +52,7 @@ func TestDeterminationNot(t *testing.T) {
 
 func TestDeterminationZeroValueIsUnknown(t *testing.T) {
 	var d core.Determination
-	if !d.IsUnknown() {
+	if d != core.Unknown {
 		t.Fatalf("zero-value Determination should be Unknown, got %s", d)
 	}
 }
