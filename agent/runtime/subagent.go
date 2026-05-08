@@ -51,6 +51,26 @@ func AsChatTool[In, Out any](platform *Platform, agentName string) chat.Callable
 	if !ok {
 		panic(fmt.Sprintf("runtime.AsChatTool: agent %q not registered on platform", agentName))
 	}
+	return AsChatToolFromAgent[In, Out](platform, agentDef)
+}
+
+// AsChatToolFromAgent is the [AsChatTool] sibling that takes a
+// *core.Agent directly instead of looking up by name on the
+// platform. Use when the caller already holds the agent struct (e.g.
+// constructed via [agent.New(...).Build()] but not yet deployed) and
+// wants to skip the registry lookup, or when the agent is in flight
+// across registration races. The agent need NOT be deployed on
+// platform — child processes spawned from it land on platform.procs
+// the same way [AsChatTool] does.
+//
+// Panics on nil platform or nil agent.
+func AsChatToolFromAgent[In, Out any](platform *Platform, agentDef *core.Agent) chat.CallableTool {
+	if platform == nil {
+		panic("runtime.AsChatToolFromAgent: platform must not be nil")
+	}
+	if agentDef == nil {
+		panic("runtime.AsChatToolFromAgent: agent must not be nil")
+	}
 
 	var inSample In
 	schema := pkgjson.MustStringDefSchemaOf(inSample)

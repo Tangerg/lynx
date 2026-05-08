@@ -217,6 +217,72 @@ func TestAsMCPTool_DefinitionUsesAgentMetadata(t *testing.T) {
 	}
 }
 
+// TestAsChatToolFromAgent_AcceptsAgentDirectly exercises the
+// platform-bypass factory: the *core.Agent is passed in directly,
+// no platform.FindAgent lookup. Useful when the caller has the
+// agent struct in hand but hasn't deployed it.
+func TestAsChatToolFromAgent_AcceptsAgentDirectly(t *testing.T) {
+	platform := agent.NewPlatform(runtime.PlatformConfig{})
+	child := childAgent()
+	if err := platform.Deploy(child); err != nil {
+		t.Fatalf("deploy: %v", err)
+	}
+
+	// Pass *core.Agent directly — no name lookup needed.
+	tool := runtime.AsChatToolFromAgent[subInput, subOutput](platform, child)
+	if def := tool.Definition(); def.Name != "child-agent" {
+		t.Fatalf("Name = %q, want child-agent", def.Name)
+	}
+
+	parent := agent.New("parent-direct").
+		Description("calls a child via AsChatToolFromAgent").
+		Actions(agent.NewAction("invoke",
+			func(ctx context.Context, _ *core.ProcessContext, in subInput) (parentOutput, error) {
+				args, _ := json.Marshal(in)
+				out, err := tool.Call(ctx, string(args))
+				if err != nil {
+					return parentOutput{}, err
+				}
+				var decoded subOutput
+				_ = json.Unmarshal([]byte(out), &decoded)
+				return parentOutput{Final: decoded.Doubled}, nil
+			},
+			core.ActionConfig{},
+		)).
+		Goals(agent.GoalProducing[parentOutput](core.Goal{Description: "final"})).
+		Build()
+	if err := platform.Deploy(parent); err != nil {
+		t.Fatalf("deploy parent: %v", err)
+	}
+
+	proc, _ := platform.RunAgent(context.Background(), parent,
+		map[string]any{core.DefaultBindingName: subInput{Value: 11}}, core.ProcessOptions{})
+	got, _ := core.ResultOfType[parentOutput](proc)
+	if got.Final != 22 {
+		t.Fatalf("Final = %d, want 22", got.Final)
+	}
+}
+
+func TestAsChatToolFromAgent_PanicsOnNilArgs(t *testing.T) {
+	platform := agent.NewPlatform(runtime.PlatformConfig{})
+	for _, tc := range []struct {
+		name string
+		fn   func()
+	}{
+		{"nil platform", func() { runtime.AsChatToolFromAgent[subInput, subOutput](nil, childAgent()) }},
+		{"nil agent", func() { runtime.AsChatToolFromAgent[subInput, subOutput](platform, nil) }},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			defer func() {
+				if r := recover(); r == nil {
+					t.Fatal("expected panic")
+				}
+			}()
+			tc.fn()
+		})
+	}
+}
+
 // TestAsMCPTool_PanicsOnUnknownAgent matches AsChatTool's fail-fast
 // boot-time behaviour.
 func TestAsMCPTool_PanicsOnUnknownAgent(t *testing.T) {
