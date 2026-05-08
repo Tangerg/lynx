@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/Tangerg/lynx/agent/core"
-	"github.com/Tangerg/lynx/agent/dsl"
 )
 
 // RepeatUntilSpec configures a "loop a task until the result is
@@ -71,8 +70,8 @@ func RepeatUntilAgent[In, Out any](spec RepeatUntilSpec[In, Out]) *core.Agent {
 	}
 
 	// Condition keys must not contain ':' — the determiner reserves
-// that for type-binding keys. Use '_' as the separator.
-acceptKey := spec.Name + "_acceptable"
+	// that for type-binding keys. Use '_' as the separator.
+	acceptKey := spec.Name + "_acceptable"
 
 	acceptCondition := core.NewCondition(acceptKey, func(ctx context.Context, oc *core.OperationContext) core.Determination {
 		history, ok := core.Last[*History[Out]](oc.Blackboard)
@@ -117,14 +116,15 @@ acceptKey := spec.Name + "_acceptable"
 		},
 	)
 
-	return dsl.New(spec.Name).
-		Description(spec.Description).
-		Conditions(acceptCondition).
-		Actions(task).
-		Goals(core.GoalProducing[Out](core.Goal{
+	return core.NewAgent(core.AgentConfig{
+		Name:        spec.Name,
+		Description: spec.Description,
+		Actions:     []core.Action{task},
+		Conditions:  []core.Condition{acceptCondition},
+		Goals: []*core.Goal{core.GoalProducing[Out](core.Goal{
 			Name:        spec.Name,
 			Description: "produce acceptable " + core.TypeFullNameOf[Out](),
 			Pre:         []string{acceptKey},
-		})).
-		Build()
+		})},
+	})
 }

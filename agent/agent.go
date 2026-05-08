@@ -1,30 +1,30 @@
 // Package agent is the convenience surface for the Lynx agent framework.
-// It exposes only the five constructors a typical caller reaches for —
-// everything else (types, constants, helpers) lives in the sub-packages
-// and must be imported explicitly. This keeps the top-level surface
-// minimal and the boundary between "common entry points" and "everything
-// else" sharp.
+// It exposes the fluent [Builder] plus the small set of constructors a
+// typical caller reaches for — everything else (types, constants,
+// helpers) lives in the sub-packages and must be imported explicitly.
 //
 // Sub-package map:
 //
-//	github.com/Tangerg/lynx/agent/core      — primitives (Action / Goal / Condition / Agent / Blackboard / status enums)
-//	github.com/Tangerg/lynx/agent/plan      — Plan / Planner interface / PlanningSystem / concrete planners (goap, …)
-//	github.com/Tangerg/lynx/agent/runtime   — Platform / AgentProcess
-//	github.com/Tangerg/lynx/agent/event     — event types + listener
-//	github.com/Tangerg/lynx/agent/dsl       — fluent agent builder
-//	github.com/Tangerg/lynx/agent/hitl      — typed Awaitable / NewConfirmation
+//	github.com/Tangerg/lynx/agent/core        — primitives (Action / Goal / Condition / Agent / Blackboard / status enums)
+//	github.com/Tangerg/lynx/agent/plan        — Plan / Planner interface / PlanningSystem / concrete planners (goap, …)
+//	github.com/Tangerg/lynx/agent/runtime     — Platform / AgentProcess
+//	github.com/Tangerg/lynx/agent/event       — event types + listener
+//	github.com/Tangerg/lynx/agent/workflow    — scatter-gather / repeat-until agent builders
+//	github.com/Tangerg/lynx/agent/toolpolicy  — chat-tool decorators (once-only / unlock)
+//	github.com/Tangerg/lynx/agent/hitl        — typed Awaitable / NewConfirmation
 package agent
 
 import (
 	"context"
 
 	"github.com/Tangerg/lynx/agent/core"
-	"github.com/Tangerg/lynx/agent/dsl"
 	"github.com/Tangerg/lynx/agent/runtime"
 )
 
-// New starts a [dsl.Builder] for a fluently-defined agent.
-func New(name string) *dsl.Builder { return dsl.New(name) }
+// New starts a [Builder] for a fluently-defined agent.
+func New(name string) *Builder {
+	return &Builder{config: core.AgentConfig{Name: name}}
+}
 
 // NewAction is the typed action constructor — see [core.NewAction]. Pass
 // [core.ActionConfig]{} when defaults suffice.

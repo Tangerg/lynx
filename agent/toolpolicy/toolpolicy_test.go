@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/Tangerg/lynx/agent/dsl/toolpolicy"
+	"github.com/Tangerg/lynx/agent/toolpolicy"
 	"github.com/Tangerg/lynx/core/model/chat"
 )
 

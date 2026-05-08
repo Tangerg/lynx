@@ -1,14 +1,4 @@
-// Package dsl is the user-facing fluent builder for assembling agents.
-// Explicit, type-safe, no reflection — chosen over reflect-based
-// registration so signature errors surface at compile time and IDE
-// refactoring tools stay accurate.
-//
-// The split with [core.NewAgent]: the bare-metal constructor takes a
-// [core.AgentConfig] directly; [Builder] is a fluent layer that
-// accumulates the same fields and calls [core.NewAgent] on
-// [Builder.Build]. Use the bare constructor for config-driven /
-// deserialised definitions; the Builder for hand-written code.
-package dsl
+package agent
 
 import (
 	"github.com/Masterminds/semver/v3"
@@ -21,11 +11,6 @@ import (
 // Partial builders are not safe to share across goroutines.
 type Builder struct {
 	config core.AgentConfig
-}
-
-// New starts a Builder with the given agent name.
-func New(name string) *Builder {
-	return &Builder{config: core.AgentConfig{Name: name}}
 }
 
 func (b *Builder) Description(description string) *Builder {
