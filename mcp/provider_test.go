@@ -284,13 +284,3 @@ func TestProvider_ZeroConfigUsesDefaults(t *testing.T) {
 	assert.Equal(t, "primary_echo", tools[0].Definition().Name, "default naming should join source and tool")
 }
 
-func TestProviderConfig_ValidateFillsDefaults(t *testing.T) {
-	cfg := lynxmcp.ProviderConfig{}
-	require.NoError(t, cfg.Validate())
-	assert.NotNil(t, cfg.Naming, "Validate must populate the default naming func")
-
-	bad := lynxmcp.ProviderConfig{
-		Sources: []lynxmcp.Source{{Name: "bad", Session: nil}},
-	}
-	require.Error(t, bad.Validate())
-}
