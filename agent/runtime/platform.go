@@ -374,7 +374,11 @@ func (p *Platform) createProcess(
 
 	planner := p.plannerFactory().NewPlanner(options.PlannerType)
 	if planner == nil {
-		return nil, fmt.Errorf("create process for agent %q: planner factory returned nil for %s planner", agentDef.Name, options.PlannerType)
+		hint := ""
+		if options.PlannerType == core.PlannerHTN {
+			hint = " — register a PlannerFactory extension that returns a configured *htn.Planner with your task library"
+		}
+		return nil, fmt.Errorf("create process for agent %q: planner factory returned nil for %s planner%s", agentDef.Name, options.PlannerType, hint)
 	}
 
 	system := plan.FromAgent(agentDef)

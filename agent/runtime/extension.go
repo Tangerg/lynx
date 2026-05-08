@@ -5,6 +5,7 @@ import (
 	"github.com/Tangerg/lynx/agent/event"
 	"github.com/Tangerg/lynx/agent/plan"
 	"github.com/Tangerg/lynx/agent/plan/planner/goap"
+	"github.com/Tangerg/lynx/agent/plan/planner/reactive"
 )
 
 // EventListener is the [event.Event] subscriber capability — runtime
@@ -33,13 +34,28 @@ type PlannerFactory interface {
 	NewPlanner(plannerType core.PlannerType) plan.Planner
 }
 
-// defaultPlannerFactory is the built-in fallback. Returns the A* GOAP
-// planner regardless of plannerType (utility planner not yet
-// implemented). Used when no PlannerFactory extension is registered.
+// defaultPlannerFactory is the built-in fallback. Dispatches on
+// PlannerType:
+//
+//   - PlannerGOAP / unknown → A* GOAP planner.
+//   - PlannerReactive       → reactive (greedy one-step) planner.
+//   - PlannerHTN            → nil. HTN needs a user-supplied task
+//     library; callers wanting HTN must register their own
+//     PlannerFactory extension that returns a configured *htn.Planner.
 type defaultPlannerFactory struct{}
 
-func (defaultPlannerFactory) Name() string                                          { return "goap-astar" }
-func (defaultPlannerFactory) NewPlanner(_ core.PlannerType) plan.Planner            { return goap.NewAStarPlanner() }
+func (defaultPlannerFactory) Name() string { return "default-planner-factory" }
+
+func (defaultPlannerFactory) NewPlanner(t core.PlannerType) plan.Planner {
+	switch t {
+	case core.PlannerReactive:
+		return reactive.NewPlanner()
+	case core.PlannerHTN:
+		return nil
+	default:
+		return goap.NewAStarPlanner()
+	}
+}
 
 // DefaultPlannerFactory returns the framework's fallback PlannerFactory.
 // Exported so tests / advanced configurations can pass it through

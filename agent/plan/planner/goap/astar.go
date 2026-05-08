@@ -80,7 +80,7 @@ func (p *AStarPlanner) PlanToGoal(
 	)
 	defer span.End()
 
-	if isGoalSatisfied(start, goal) {
+	if goal.IsSatisfiedBy(start) {
 		span.SetAttributes(attribute.Bool(attrAstarAlreadySat, true))
 		return &plan.Plan{Actions: nil, Goal: goal}, nil
 	}
@@ -192,7 +192,7 @@ func (p *AStarPlanner) searchForGoal(
 		}
 		closed[key] = struct{}{}
 
-		if isGoalSatisfied(current.state, goal) {
+		if goal.IsSatisfiedBy(current.state) {
 			if current.gScore < bestGoalCost {
 				bestGoalNode = current
 				bestGoalCost = current.gScore
@@ -277,16 +277,7 @@ func (p *AStarPlanner) PlansToGoals(
 		out = append(out, pl)
 	}
 
-	slices.SortStableFunc(out, func(a, b *plan.Plan) int {
-		va, vb := a.NetValue(start), b.NetValue(start)
-		switch {
-		case va > vb:
-			return -1
-		case va < vb:
-			return 1
-		}
-		return 0
-	})
+	plan.SortByNetValueDesc(out, start)
 	return out, nil
 }
 
@@ -297,14 +288,7 @@ func (p *AStarPlanner) BestValuePlan(
 	system *plan.PlanningSystem,
 	options plan.PlanOptions,
 ) (*plan.Plan, error) {
-	plans, err := p.PlansToGoals(ctx, start, system, options)
-	if err != nil {
-		return nil, err
-	}
-	if len(plans) == 0 {
-		return nil, nil
-	}
-	return plans[0], nil
+	return plan.BestOf(p.PlansToGoals(ctx, start, system, options))
 }
 
 // Prune is currently a no-op — embabel's pruning is small wins on cold-
@@ -358,18 +342,6 @@ func heuristic(worldState core.WorldState, goal *core.Goal) float64 {
 		}
 	}
 	return float64(unsatisfied)
-}
-
-// isGoalSatisfied returns true when every goal precondition matches the
-// current state's value at that key.
-func isGoalSatisfied(worldState core.WorldState, goal *core.Goal) bool {
-	state := worldState.State()
-	for key, required := range goal.Preconditions() {
-		if state[key] != required {
-			return false
-		}
-	}
-	return true
 }
 
 // reconstructPath walks the cameFrom map from goal back to start,

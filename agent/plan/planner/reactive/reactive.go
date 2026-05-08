@@ -1,0 +1,202 @@
+// Package reactive implements a one-step utility-scoring planner.
+//
+// Where GOAP searches for an optimal action sequence, the reactive
+// planner picks just the *next* action — the one whose effects close
+// the most goal preconditions, with low cost as a tie-breaker. The
+// resulting [plan.Plan] always has at most one action; the runtime
+// drives the agent toward the goal by replanning every tick.
+//
+// This is the right planner when:
+//
+//   - the world changes between ticks (event-driven domains where
+//     a multi-step plan would be stale by the time the second action
+//     runs)
+//   - actions are inherently incremental (chat agents, monitoring
+//     loops) and the goal is "make progress, then re-evaluate"
+//   - the action space is too large for A* but you still want goal-
+//     directed behaviour
+//
+// Mirrors embabel's UtilityPlanner — same shape, different name.
+package reactive
+
+import (
+	"context"
+	"errors"
+	"math"
+
+	"github.com/Tangerg/lynx/agent/core"
+	"github.com/Tangerg/lynx/agent/plan"
+)
+
+// Planner is the concrete reactive planner. Stateless across calls;
+// safe to share across goroutines.
+type Planner struct{}
+
+// NewPlanner returns a reactive planner with default settings. There
+// are no knobs today — all per-call options come through
+// [plan.PlanOptions].
+func NewPlanner() *Planner { return &Planner{} }
+
+// PlanToGoal scores each applicable action by how many still-
+// unsatisfied goal preconditions its effects would close, picks the
+// best one (ties broken by lower cost), and returns it as a one-action
+// plan. Actions that would not close any precondition are rejected —
+// this guards against the planner repeatedly choosing a "do
+// something useless" action whose effects don't move the world toward
+// the goal.
+//
+// Returns:
+//   - empty plan when start already satisfies the goal,
+//   - one-action plan when an applicable action makes progress,
+//   - (nil, nil) when no applicable action makes progress (the runtime
+//     interprets this as "stuck" and may drive a stuck-handler).
+func (p *Planner) PlanToGoal(
+	_ context.Context,
+	start core.WorldState,
+	system *plan.PlanningSystem,
+	goal *core.Goal,
+	options plan.PlanOptions,
+) (*plan.Plan, error) {
+	if start == nil {
+		return nil, errors.New("plan to goal: start world state is nil")
+	}
+	if goal == nil {
+		return nil, errors.New("plan to goal: goal is nil")
+	}
+	if system == nil {
+		return nil, errors.New("plan to goal: planning system is nil")
+	}
+
+	if goal.IsSatisfiedBy(start) {
+		return &plan.Plan{Goal: goal}, nil
+	}
+
+	best := p.bestApplicable(start, system.Actions, goal, options.ExcludedActions)
+	if best == nil {
+		return nil, nil
+	}
+	return &plan.Plan{Actions: []core.Action{best}, Goal: goal}, nil
+}
+
+// PlansToGoals returns one-action plans per goal, sorted by NetValue
+// descending. Goals that already match start, or for which no
+// applicable action makes progress, are dropped.
+func (p *Planner) PlansToGoals(
+	ctx context.Context,
+	start core.WorldState,
+	system *plan.PlanningSystem,
+	options plan.PlanOptions,
+) ([]*plan.Plan, error) {
+	if system == nil {
+		return nil, errors.New("plans to goals: planning system is nil")
+	}
+	out := make([]*plan.Plan, 0, len(system.Goals))
+	for _, goal := range system.Goals {
+		pl, err := p.PlanToGoal(ctx, start, system, goal, options)
+		if err != nil {
+			return nil, err
+		}
+		if pl == nil {
+			continue
+		}
+		out = append(out, pl)
+	}
+	plan.SortByNetValueDesc(out, start)
+	return out, nil
+}
+
+// BestValuePlan returns the highest-NetValue one-action plan across
+// every goal.
+func (p *Planner) BestValuePlan(
+	ctx context.Context,
+	start core.WorldState,
+	system *plan.PlanningSystem,
+	options plan.PlanOptions,
+) (*plan.Plan, error) {
+	return plan.BestOf(p.PlansToGoals(ctx, start, system, options))
+}
+
+// Prune is a no-op — reactive planning doesn't benefit from action
+// pre-pruning since each tick re-scans the action set anyway.
+func (p *Planner) Prune(system *plan.PlanningSystem) *plan.PlanningSystem {
+	return system
+}
+
+// bestApplicable picks the action whose effects close the most
+// still-unsatisfied goal preconditions; ties broken by lower cost.
+// Actions whose progress score is 0 (would not close any
+// precondition) are rejected — the planner returns nil rather than
+// picking a "do something useless" action.
+//
+// Cost policy: actions with a nil [core.ActionMetadata.Cost] score at
+// +Inf, so any cost-attached competitor with equal progress wins the
+// tie. Use [core.Static](v) to attach a constant cost; the canonical
+// [core.NewAction] constructor fills in [core.Static](1.0) when none
+// is supplied.
+func (p *Planner) bestApplicable(
+	start core.WorldState,
+	actions []core.Action,
+	goal *core.Goal,
+	excluded map[string]struct{},
+) core.Action {
+	state := start.State()
+	unsat := unsatisfiedPreconditions(state, goal)
+
+	var best core.Action
+	bestProgress := 0
+	bestCost := math.Inf(1)
+
+	for _, action := range actions {
+		if action == nil {
+			continue
+		}
+		meta := action.Metadata()
+		if _, skip := excluded[meta.Name]; skip {
+			continue
+		}
+		if !meta.IsApplicableIn(state) {
+			continue
+		}
+
+		progress := progressTowardsGoal(meta.Effects, unsat)
+		if progress == 0 {
+			continue
+		}
+
+		cost := math.Inf(1)
+		if meta.Cost != nil {
+			cost = meta.Cost(start)
+		}
+
+		if progress > bestProgress || (progress == bestProgress && cost < bestCost) {
+			best = action
+			bestProgress = progress
+			bestCost = cost
+		}
+	}
+	return best
+}
+
+// progressTowardsGoal counts how many still-unsatisfied goal
+// preconditions this effect map would establish.
+func progressTowardsGoal(effects core.EffectSpec, unsatisfied map[string]core.Determination) int {
+	progress := 0
+	for key, required := range unsatisfied {
+		if effects[key] == required {
+			progress++
+		}
+	}
+	return progress
+}
+
+// unsatisfiedPreconditions returns the subset of goal preconditions
+// not yet matched by state.
+func unsatisfiedPreconditions(state map[string]core.Determination, goal *core.Goal) map[string]core.Determination {
+	out := make(map[string]core.Determination, len(goal.Preconditions()))
+	for key, required := range goal.Preconditions() {
+		if state[key] != required {
+			out[key] = required
+		}
+	}
+	return out
+}
