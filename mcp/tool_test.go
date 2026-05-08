@@ -180,11 +180,11 @@ func TestNewTool_RejectsBadInputs(t *testing.T) {
 	}
 }
 
-func TestToolConfig_ValidateFillsPrefixedName(t *testing.T) {
-	cfg := lynxmcp.ToolConfig{
+func TestNewTool_DefaultsPrefixedNameToDescriptorName(t *testing.T) {
+	tool, err := lynxmcp.NewTool(lynxmcp.ToolConfig{
 		Session:    &sdkmcp.ClientSession{},
 		Descriptor: &sdkmcp.Tool{Name: "calc"},
-	}
-	require.NoError(t, cfg.Validate())
-	assert.Equal(t, "calc", cfg.PrefixedName, "Validate should default PrefixedName to descriptor.Name")
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "calc", tool.Definition().Name)
 }

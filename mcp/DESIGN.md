@@ -29,15 +29,19 @@
 mcp/
 ├── doc.go        // 包注释 + import alias 约定
 ├── errors.go     // ToolCallError
+├── meta.go       // MetaFunc + WithMeta + MetaFromContext
+├── content.go    // 包内私有 helper：textOfContent / flattenContent /
+│                 //   schemaToString / decodeArguments / firstTextOrFallback /
+│                 //   stringSchemaToAny / emptyObjectSchema
 ├── tool.go       // Tool + ToolConfig + NewTool
-│                 //   + NamingFunc / DefaultNaming
-│                 //   + MetaFunc / WithMeta / MetaFromContext
-│                 //   + 内部 helpers (content / schema / decode)
 ├── provider.go   // Provider + Source + ProviderConfig + NewProvider
-└── server.go     // RegisterTools (+ 内部 handler / schema helpers)
+│                 //   + NamingFunc + DefaultNaming
+├── prompt.go     // PromptMessagesToChat — MCP PromptMessage → chat.Message
+├── sampling.go   // SamplingHandler + SamplingViaChatClient
+└── server.go     // RegisterTools
 ```
 
-合并原则：纯客户端用的小 helper 都聚拢到 `tool.go`（`Tool` 用什么就放哪里），`server.go` 自闭包，`errors.go` 因为是 public API 单独留。
+切分原则：一文件 = 一概念。Meta / Naming / Content 三个独立的小子系统各占一个 file；`tool.go` 仅描述 `Tool` 本身；`prompt.go` / `sampling.go` 各只暴露一个公共函数，不引入 wrapper 类型，直接吃 SDK 原型 → 吐 lynx 类型。
 
 ### Import 约定
 
@@ -74,20 +78,23 @@ import (
 | `lynxmcp.NamingFunc` | 函数类型；定制工具公开名 |
 | `lynxmcp.MetaFunc` | 函数类型；从 `context.Context` 抽取 `_meta` 透传给远端 |
 | `lynxmcp.ToolCallError` | 结构化错误；`errors.As(err, &tcErr)` 同时判别远端工具失败并取出 `ToolName` / `Message` |
+| `lynxmcp.SamplingHandler` | `mcp.ClientOptions.CreateMessageHandler` 的别名；让 server 端发起 LLM 调用 |
 
 ### 函数
 
 | 函数 | 说明 |
 |-----|-----|
-| `NewTool(ToolConfig)` | 单 tool 包装（一般由 Provider 内部调用）；config 用值传递 |
+| `NewTool(ToolConfig)` | 单 tool 包装（一般由 Provider 内部调用）；config 校验在内部完成，不外暴 `Validate` |
 | `NewProvider(ProviderConfig)` | 创建 Provider；sources 是 config 的字段 |
-| `(*ToolConfig).Validate()` / `(*ProviderConfig).Validate()` | 校验必填字段 + 就地填充默认值；NewXxx 内部会调用 |
+| `DefaultNaming(src, tool)` | 默认命名策略（普通 func，不可重新赋值）；Naming 留 nil 时使用 |
 | `(*Provider).Tools(ctx)` | 取缓存的工具列表（首次或失效后会拉取） |
 | `(*Provider).Invalidate()` | 标记缓存过期；下次 `Tools` 自动重拉 |
 | `(*Provider).OnToolListChanged(ctx, req)` | 用作 `mcp.ClientOptions.ToolListChangedHandler` |
 | `RegisterTools(server, tools...)` | 把若干 `chat.CallableTool` 暴露到 MCP server |
 | `WithMeta(ctx, meta)` | 把 `mcp.Meta` 塞进 ctx，配合 `MetaFromContext` 使用 |
 | `MetaFromContext(ctx)` | 从 ctx 读取由 `WithMeta` 注入的元数据；签名匹配 `MetaFunc` |
+| `PromptMessagesToChat(msgs)` | 把 `*mcp.GetPromptResult.Messages` 转成 `[]chat.Message`，方便喂给 `chat.Client.ChatWith*` |
+| `SamplingViaChatClient(c)` | 用 `*chat.Client` 实现的 `SamplingHandler`，装到 `mcp.ClientOptions.CreateMessageHandler` 让 server 端可以"借"本地 LLM |
 
 ---
 
@@ -445,8 +452,9 @@ defer cs.Close()
 ## 8. 路线图（未做）
 
 - **富内容回灌**：当前 `Tool.Call` 把 image/audio/embedded resource 序列化为 JSON 字符串。若要把 ImageContent 真正注入下一轮 LLM 输入，需要扩展 `chat.ToolReturn` / `chat.ToolMessage` 的 schema（影响 `core/`），延后到 v2。
-- **反向能力**：`sampling/createMessage`、`elicitation`、`roots`、`logging`、`progress` 等 server-to-client 调用尚未抽象——这些不走 `Tool` 通道，是独立工程。
-- **OTel 埋点**：在 `Tool.Call` 与 `makeServerHandler` 包一层 span，关联到 `doc/OBSERVABILITY_DESIGN.md` 的 GenAI 语义规范。
+- **其余反向能力**：`elicitation`、`roots`、`logging`、`progress` 这几条 server-to-client 通道仍未抽象——单独一条 `SamplingViaChatClient` 已落地（chat 集成够用），其余等真有用例再做。
+- **Resources / Prompts / Complete 客户端 wrapper**：刻意不做。SDK 直接调（`session.Resources` / `session.GetPrompt` / `session.Complete`）已足够，再包一层只是协议层重复。需要把 prompt 喂给 chat 时用 `PromptMessagesToChat` 即可。
+- **OTel 埋点**：在 `Tool.Call` 与 `serverHandler` 包一层 span，关联到 `doc/OBSERVABILITY_DESIGN.md` 的 GenAI 语义规范。
 - **`chat.Client.WithToolProvider(p)`**：给 `core/model/chat` 加一个动态拉取的语法糖，目前需要用户手动 `provider.Tools(ctx)` 后 `WithTools(...)`。等 MCP 生态在 lynx 内有更多用户后再决定。
 
 ---
