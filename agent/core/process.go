@@ -46,9 +46,9 @@ type Process interface {
 	AwaitInput(req Awaitable) ActionStatus
 
 	// RecordUsage attributes LLM cost (USD) and token count to this
-	// process, contributing to subtree budget aggregation. The framework
-	// itself doesn't know LLM rates — integration code (listeners,
-	// chat-client adapters) calls this when LLMResponseEvent fires.
+	// process, contributing to subtree budget aggregation. Integration
+	// code (listeners, chat-client adapters) calls this on each LLM
+	// response.
 	RecordUsage(cost float64, tokens int)
 
 	// Usage returns the subtree-aggregated cost / token / action totals.

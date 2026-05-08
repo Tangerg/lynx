@@ -66,20 +66,6 @@ func (e ProcessWaitingEvent) MarshalJSON() ([]byte, error) {
 	return emit(e, map[string]any{"awaitable": summarizeAwaitable(e.Awaitable)})
 }
 
-// ProcessPausedEvent is reserved for integration code that wants to flag
-// non-suspending pauses (rate limits, cooldowns). Framework doesn't emit
-// it directly today.
-type ProcessPausedEvent struct {
-	BaseEvent
-	Reason string `json:"reason,omitempty"`
-}
-
-func (ProcessPausedEvent) EventName() string { return "process_paused" }
-
-func (e ProcessPausedEvent) MarshalJSON() ([]byte, error) {
-	return emit(e, map[string]any{"reason": e.Reason})
-}
-
 // ProcessKilledEvent fires from Platform.KillProcess or when ctx is
 // cancelled mid-run.
 type ProcessKilledEvent struct {

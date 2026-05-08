@@ -10,15 +10,11 @@ import (
 
 const hasRunPrefix = "hasRun_"
 
-// worldStateDeterminer is the OBSERVE stage of the OODA loop: read the
-// blackboard, return what the planner needs to know about the world.
-type worldStateDeterminer interface {
-	determineWorldState(ctx context.Context) core.WorldState
-}
-
-// blackboardDeterminer is the canonical implementation. It walks the
-// agent's PlanningSystem.KnownConditions(), classifies each condition into
-// one of four buckets, and resolves accordingly:
+// blackboardDeterminer is the OBSERVE stage of the OODA loop: read
+// the blackboard and return the [core.WorldState] the planner needs.
+// It walks the agent's PlanningSystem.KnownConditions(), classifies
+// each condition into one of four buckets, and resolves
+// accordingly:
 //
 //  1. type-binding key ("name:Type") — true iff the blackboard has that value
 //  2. hasRun_<action>                — true iff the blackboard's condition map says so

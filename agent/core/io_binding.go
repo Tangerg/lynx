@@ -6,21 +6,15 @@ import (
 )
 
 const (
-	// DefaultBindingName is the implicit variable name when callers don't
-	// supply one; the planner falls back to "the most recent value of this
-	// type" when it sees this name.
+	// DefaultBindingName is the implicit variable name when callers
+	// don't supply one; the planner falls back to "the most recent
+	// value of this type" when it sees this name.
 	DefaultBindingName = "it"
 
-	// LastResultBindingName addresses the single most-recently-added object
-	// regardless of type — mirrors embabel's @Trigger(lastResult=true) idiom.
+	// LastResultBindingName addresses the single most-recently-added
+	// object regardless of type — mirrors embabel's
+	// @Trigger(lastResult=true) idiom.
 	LastResultBindingName = "lastResult"
-
-	// DefaultBinding is the legacy alias kept for backward compatibility with
-	// the design docs and earlier example code.
-	DefaultBinding = DefaultBindingName
-
-	// LastResultBinding is the legacy alias for LastResultBindingName.
-	LastResultBinding = LastResultBindingName
 )
 
 // IOBinding identifies a typed slot on the blackboard: a variable name plus

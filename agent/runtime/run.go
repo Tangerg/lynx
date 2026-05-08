@@ -272,8 +272,8 @@ func (p *AgentProcess) formulatePlan(ctx context.Context, worldState core.WorldS
 		}
 	}
 
-	return p.planner.BestValuePlan(
-		ctx, worldState, system,
+	return plan.BestValuePlan(
+		ctx, p.planner, worldState, system,
 		plan.PlanOptions{ExcludedActions: p.state.snapshotExclusions()},
 	)
 }

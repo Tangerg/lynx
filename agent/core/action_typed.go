@@ -136,12 +136,10 @@ func NewAction[In, Out any](
 		Inputs:          inputs,
 		Outputs:         outputs,
 		CanRerun:        config.CanRerun,
-		ReadOnly:        config.ReadOnly,
 		QoS:             config.QoS,
 		ToolGroups:      config.ToolGroups,
 		Cost:            config.Cost,
 		Value:           config.Value,
-		Trigger:         config.Trigger,
 		OutputBinding:   config.OutputBinding,
 		ClearBlackboard: config.ClearBlackboard,
 	}

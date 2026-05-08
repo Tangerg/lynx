@@ -66,11 +66,23 @@ func TestLLMRanker_ParsesScoresAndRoutesToTopAgent(t *testing.T) {
 		t.Fatalf("expected 2 candidates, got %d", len(candidates))
 	}
 
+	// Map.Iteration order is unspecified, so look up alpha/beta by
+	// name rather than positional index when building the reply.
+	var alphaCand, betaCand autonomy.Candidate
+	for _, c := range candidates {
+		switch c.Agent.Name {
+		case "alpha":
+			alphaCand = c
+		case "beta":
+			betaCand = c
+		}
+	}
+
 	// Build a reply that scores beta higher.
 	reply := `Here is the verdict:
 {"choices":[
-  {"id":"` + candidates[0].String() + `","confidence":0.2,"rationale":"weak"},
-  {"id":"` + candidates[1].String() + `","confidence":0.85,"rationale":"strong"}
+  {"id":"` + alphaCand.String() + `","confidence":0.2,"rationale":"weak"},
+  {"id":"` + betaCand.String() + `","confidence":0.85,"rationale":"strong"}
 ]}
 trailing prose ignored.`
 	model := newStubModel(reply)
@@ -87,12 +99,17 @@ trailing prose ignored.`
 	if len(choices) != 2 {
 		t.Fatalf("expected 2 choices, got %d", len(choices))
 	}
-	// Choices must be positionally aligned with input candidates.
-	if choices[0].Agent.Name != "alpha" || choices[0].Confidence != 0.2 {
-		t.Fatalf("alpha choice = %+v", choices[0])
+	// Choices are positionally aligned with input candidates — find
+	// alpha/beta by name regardless of input order.
+	confidenceFor := map[string]float64{}
+	for _, c := range choices {
+		confidenceFor[c.Agent.Name] = c.Confidence
 	}
-	if choices[1].Agent.Name != "beta" || choices[1].Confidence != 0.85 {
-		t.Fatalf("beta choice = %+v", choices[1])
+	if confidenceFor["alpha"] != 0.2 {
+		t.Fatalf("alpha confidence = %f, want 0.2", confidenceFor["alpha"])
+	}
+	if confidenceFor["beta"] != 0.85 {
+		t.Fatalf("beta confidence = %f, want 0.85", confidenceFor["beta"])
 	}
 
 	// Prompt should mention candidate IDs and the user input.

@@ -2,38 +2,25 @@ package core
 
 import "context"
 
-// Extension is the marker every plug-in capability shares. The Name
-// gives each registration a stable identity used for:
+// Extension is the marker every plug-in capability shares. Name is
+// used for dedup (panic on duplicate within a registration scope),
+// logging / tracing attribution, and introspection. An empty Name is
+// rejected.
 //
-//   - de-duplication: the runtime panics on a duplicate Name within a
-//     single registration scope (PlatformConfig or ProcessOptions),
-//     turning boot-time misconfiguration into a fast failure.
-//   - logging / tracing: dispatch sites can attribute timings and
-//     failures to a specific extension by Name.
-//   - introspection: tests and ops tools list registered extensions
-//     by Name without needing reflection.
-//
-// An empty Name is rejected. A type that wants to be plugged in
-// implements Extension plus any subset of the capability interfaces
-// declared below — the runtime detects each capability via a type
-// assertion (mirrors net/http.ResponseWriter ↔ http.Pusher).
+// A type that wants to be plugged in implements Extension plus any
+// subset of the capability interfaces below — the runtime detects
+// each capability via type assertion (mirrors
+// net/http.ResponseWriter ↔ http.Pusher).
 type Extension interface {
 	Name() string
 }
 
-// ActionInterceptor wraps a single [Action] execution. The most general
-// extension shape — subsumes "before-action" and "after-action" hooks
-// into one around-the-call form so cross-call state lives in plain
-// function locals instead of a side-channel map.
-//
-// Use cases: timing and metrics, audit logging with start/end
-// correlation, propagation of ambient context (auth, tenancy, OTel
-// baggage) into an action's goroutine, circuit-breaker / rate-limit
-// (skip next() to short-circuit). Composition is onion-style: the
-// first registered interceptor is the outermost layer.
-//
-// The runtime calls each interceptor under a panic guard; a panic
-// becomes [ActionFailed] with the panic value attached.
+// ActionInterceptor wraps a single [Action] execution — the
+// canonical around-call hook for timing, audit logging, ambient
+// context propagation (auth / tenancy / OTel baggage),
+// circuit-breaker / rate-limit (skip next to short-circuit).
+// Composition is onion-style: the first registered interceptor is
+// the outermost layer. Panics in next become [ActionFailed].
 type ActionInterceptor interface {
 	Extension
 
@@ -45,17 +32,12 @@ type ActionInterceptor interface {
 	) ActionStatus
 }
 
-// ToolDecorator wraps an [AgentTool] resolved by an action. Triggered
-// when [ProcessContext.ActionTools] (or [ProcessContext.ResolveTools])
-// turns a [ToolGroupRequirement] into concrete tools — every tool in
-// the result passes through every registered decorator before reaching
-// the action.
+// ToolDecorator wraps every [AgentTool] resolved by
+// [ProcessContext.ActionTools] / [ProcessContext.ResolveTools].
+// Composition is wrap-style: first registered is innermost.
 //
-// Use cases: per-call tracing spans, auth / scope checks before the
-// tool's underlying Call, input redaction / output filtering, retry
-// on tool-level transient errors. Composition is wrap-style: the
-// first registered decorator is the innermost wrap (each successive
-// decorator wraps the prior result).
+// Typical uses: per-call tracing, auth / scope checks, redaction,
+// transient-error retry.
 type ToolDecorator interface {
 	Extension
 
@@ -66,47 +48,30 @@ type ToolDecorator interface {
 	) AgentTool
 }
 
-// AgentValidator runs as the last step of [Platform.Deploy], after
-// the structural [ValidateAgent] check and the goal-reachability
-// scan. Returning a non-nil error rejects the deployment; the
-// runtime wraps the error with the validator's Name so the failure
-// is attributable.
-//
-// Use cases: business-rule checks ("description required",
-// "name must be snake_case"), cross-agent uniqueness invariants,
-// dependency policy ("can't deploy without an audit listener
-// registered"). Multiple validators run in registration order;
-// the first error wins (fail-fast).
+// AgentValidator runs as the last [Platform.Deploy] step (after
+// [ValidateAgent] and the goal-reachability scan). A non-nil return
+// rejects the deployment, attributed to the validator's Name.
 type AgentValidator interface {
 	Extension
 
 	ValidateAgent(agent *Agent) error
 }
 
-// GoalApprover gates the planner's goal-selection per process. The
-// runtime calls every approver before each [Plan] call; a goal
-// survives only when every approver returns true (conjunction —
-// any false vetoes).
-//
-// Use cases: multi-tenant goal scoping (a user can only pursue
-// goals their tenant licenses), A/B experiments, emergency
-// kill-switch ("circuit-broken goals temporarily disabled").
+// GoalApprover gates the planner's goal-selection: every approver
+// must return true for the goal to survive (any false vetoes). Used
+// for multi-tenant scoping, A/B experiments, kill-switch.
 type GoalApprover interface {
 	Extension
 
 	ApproveGoal(process Process, goal *Goal) bool
 }
 
-// BlackboardFactory supplies the [Blackboard] used by a fresh
-// process. The runtime calls the last-registered factory (extensions
-// override defaults). When no factory is registered, the runtime
-// falls back to the built-in in-memory implementation.
+// BlackboardFactory supplies the [Blackboard] for a fresh process.
+// The runtime uses the last-registered factory; without one, falls
+// back to the in-memory default. [ProcessOptions.Blackboard] still
+// wins when set per-call.
 //
-// [ProcessOptions.Blackboard] still wins when set per-call — the
-// factory only fires when the caller didn't pre-supply one.
-//
-// Use cases: Redis-backed blackboards for cross-process visibility,
-// blackboards with audit-log mirroring, mock blackboards in tests.
+// See PERSISTENCE.md for plugging Redis / SQL / WAL backends.
 type BlackboardFactory interface {
 	Extension
 

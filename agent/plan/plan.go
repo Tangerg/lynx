@@ -94,19 +94,3 @@ func SortByNetValueDesc(plans []*Plan, ws core.WorldState) {
 	copy(plans, out)
 }
 
-// BestOf collapses the canonical [Planner.BestValuePlan] tail:
-// propagate err, return nil on empty, otherwise the highest-ranked
-// plan. Each concrete planner can write
-//
-//	return plan.BestOf(p.PlansToGoals(ctx, start, system, options))
-//
-// without re-stating the four-line err / len check / index-zero pick.
-func BestOf(plans []*Plan, err error) (*Plan, error) {
-	if err != nil {
-		return nil, err
-	}
-	if len(plans) == 0 {
-		return nil, nil
-	}
-	return plans[0], nil
-}

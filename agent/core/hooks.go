@@ -27,13 +27,6 @@ type StuckResult struct {
 	Reason string
 }
 
-// StuckHandlerFunc adapts a plain function into the StuckHandler interface.
-type StuckHandlerFunc func(ctx context.Context, p Process) StuckResult
-
-func (f StuckHandlerFunc) HandleStuck(ctx context.Context, p Process) StuckResult {
-	return f(ctx, p)
-}
-
 // ReplanRequest is the Go-flavored replacement for embabel's
 // ReplanRequestedException. An action that decides "what I just learned
 // invalidates the current plan" returns one as an error; the runtime catches

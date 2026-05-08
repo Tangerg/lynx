@@ -8,7 +8,6 @@ package goap
 import (
 	"container/heap"
 	"context"
-	"errors"
 	"math"
 	"slices"
 
@@ -62,14 +61,8 @@ func (p *AStarPlanner) PlanToGoal(
 	goal *core.Goal,
 	options plan.PlanOptions,
 ) (*plan.Plan, error) {
-	if start == nil {
-		return nil, errors.New("plan to goal: start world state is nil")
-	}
-	if goal == nil {
-		return nil, errors.New("plan to goal: goal is nil")
-	}
-	if system == nil {
-		return nil, errors.New("plan to goal: planning system is nil")
+	if err := plan.CheckPlanInputs(start, system, goal); err != nil {
+		return nil, err
 	}
 
 	ctx, span := plannerTracer.Start(ctx, spanAstar,
@@ -252,50 +245,6 @@ func expandNeighbors(
 			fScore: tentativeG + h,
 		})
 	}
-}
-
-// PlansToGoals generates a plan per goal and orders by NetValue desc.
-func (p *AStarPlanner) PlansToGoals(
-	ctx context.Context,
-	start core.WorldState,
-	system *plan.PlanningSystem,
-	options plan.PlanOptions,
-) ([]*plan.Plan, error) {
-	if system == nil {
-		return nil, errors.New("plans to goals: planning system is nil")
-	}
-
-	out := make([]*plan.Plan, 0, len(system.Goals))
-	for _, goal := range system.Goals {
-		pl, err := p.PlanToGoal(ctx, start, system, goal, options)
-		if err != nil {
-			return nil, err
-		}
-		if pl == nil {
-			continue
-		}
-		out = append(out, pl)
-	}
-
-	plan.SortByNetValueDesc(out, start)
-	return out, nil
-}
-
-// BestValuePlan is the tick-time entry — return the highest-value plan.
-func (p *AStarPlanner) BestValuePlan(
-	ctx context.Context,
-	start core.WorldState,
-	system *plan.PlanningSystem,
-	options plan.PlanOptions,
-) (*plan.Plan, error) {
-	return plan.BestOf(p.PlansToGoals(ctx, start, system, options))
-}
-
-// Prune is currently a no-op — embabel's pruning is small wins on cold-
-// start and not yet worth the complexity here. Returns the input unchanged
-// so the runtime can call it unconditionally.
-func (p *AStarPlanner) Prune(system *plan.PlanningSystem) *plan.PlanningSystem {
-	return system
 }
 
 // --- A* internals ---------------------------------------------------------

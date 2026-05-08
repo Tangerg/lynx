@@ -121,81 +121,63 @@ func NewProcessContext(config ProcessContextConfig) *ProcessContext {
 func (pc *ProcessContext) Tracer() trace.Tracer { return agentTracer }
 
 // Publish delivers an event to the runtime's listeners. The `any`-typed
-// signature lets us avoid a hard dep on the event package from core.
+// signature avoids a hard dep on the event package from core.
 func (pc *ProcessContext) Publish(event any) {
-	if pc == nil || pc.publishEvent == nil {
+	if pc.publishEvent == nil {
 		return
 	}
 	pc.publishEvent(event)
 }
 
 // ResolveTools turns a list of role names into concrete tools via the
-// platform-configured resolver. Roles that don't resolve are skipped
-// silently — the action is responsible for deciding whether the missing
-// tools are fatal.
+// platform-configured resolver. Returns (nil, nil) when no resolver
+// is wired or no roles are supplied; the caller decides whether
+// missing tools are fatal.
 func (pc *ProcessContext) ResolveTools(ctx context.Context, roles ...string) ([]AgentTool, error) {
-	if pc == nil || pc.resolveTools == nil {
+	if pc.resolveTools == nil {
 		return nil, nil
 	}
 	return pc.resolveTools(ctx, roles)
 }
 
 // Chat returns a fresh [chat.ClientRequest] cloned from the platform's
-// shared [chat.Client]. Returns nil when the platform was constructed
-// without a ChatClient — actions that expect LLM access should
-// nil-check (or use [ChatWithActionTools] which surfaces a clear error).
-//
-// Each call returns an independent clone, so per-request configuration
-// (model override, system prompt, middleware, …) can't leak into the
-// platform default.
+// shared [chat.Client], or nil when the platform was constructed
+// without one — actions that expect LLM access should nil-check (or
+// use [ChatWithActionTools] which surfaces a clear error).
 func (pc *ProcessContext) Chat() *chat.ClientRequest {
-	if pc == nil || pc.chatClient == nil {
+	if pc.chatClient == nil {
 		return nil
 	}
 	return pc.chatClient.Chat()
 }
 
 // ChatWithActionTools is the "ask the LLM with my action's tools"
-// shortcut: returns a [chat.ClientRequest] pre-loaded with the
-// currently-executing action's resolved tools and the LLM-driven
-// tool-call middleware ([chat.NewToolMiddleware]). The returned
-// request still needs WithText / WithSystemPrompt / Call / Stream to
-// fire the call.
+// shortcut: a [chat.ClientRequest] pre-loaded with the action's
+// resolved tools and [chat.NewToolMiddleware]. When the action
+// declares no ToolGroups, returns the bare client clone.
 //
-// Errors:
-//   - no ChatClient configured on the platform
-//   - tool resolution failed
-//
-// When the action declares no ToolGroups, the returned request has no
-// tools and no tool middleware — just a plain client clone.
+// Errors when no ChatClient is configured or tool resolution fails.
 func (pc *ProcessContext) ChatWithActionTools(ctx context.Context) (*chat.ClientRequest, error) {
 	req := pc.Chat()
 	if req == nil {
-		return nil, errors.New("core.ProcessContext.ChatWithActionTools: no ChatClient configured on the platform")
+		return nil, errors.New("chat with action tools: no ChatClient configured on the platform")
 	}
-
 	tools, err := pc.ActionTools(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("core.ProcessContext.ChatWithActionTools: %w", err)
+		return nil, fmt.Errorf("chat with action tools: %w", err)
 	}
 	if len(tools) == 0 {
 		return req, nil
 	}
-
 	callMW, streamMW := chat.NewToolMiddleware()
 	return req.WithMiddlewares(callMW, streamMW).WithTools(tools...), nil
 }
 
 // ActionTools resolves the tools declared on the currently-executing
-// action's [ActionConfig.ToolGroups]. Convenience for action bodies
-// (and LLM-client adapters) that want exactly the toolset the action
-// promised the planner — no need to re-state role names. Mirrors
-// embabel's OperationContext.toolGroups → action.toolGroups property.
-//
-// Returns nil, nil when the action declared no ToolGroups or the
-// runtime didn't wire a resolver.
+// action's [ActionConfig.ToolGroups]. Returns (nil, nil) when the
+// action declared no ToolGroups or no resolver is wired.
 func (pc *ProcessContext) ActionTools(ctx context.Context) ([]AgentTool, error) {
-	if pc == nil || pc.resolveTools == nil || len(pc.actionToolGroups) == 0 {
+	if pc.resolveTools == nil || len(pc.actionToolGroups) == 0 {
 		return nil, nil
 	}
 	roles := make([]string, 0, len(pc.actionToolGroups))
@@ -206,22 +188,16 @@ func (pc *ProcessContext) ActionTools(ctx context.Context) ([]AgentTool, error) 
 }
 
 // ToolCallContext derives a child context the runtime can cancel via
-// [Process.TerminateToolCall]. Action code passes the returned ctx to
-// chat clients / tool invocations; the returned cancel func MUST be
-// deferred by the caller — it both cancels the ctx (releasing
-// resources) and detaches the runtime's pointer to it so a later
-// TerminateToolCall doesn't fire on a stale ctx.
-//
-// When pc has no registered canceller (e.g. tests building a bare
-// ProcessContext), behaviour falls back to plain [context.WithCancel] —
-// TerminateToolCall becomes a no-op.
+// [Process.TerminateToolCall]. The returned cancel func MUST be
+// deferred — it both cancels the ctx and detaches the runtime's
+// pointer so a later TerminateToolCall doesn't fire on a stale ctx.
+// Without a registered canceller, behaviour falls back to plain
+// [context.WithCancel] (TerminateToolCall becomes a no-op).
 func (pc *ProcessContext) ToolCallContext(parent context.Context) (context.Context, context.CancelFunc) {
 	ctx, cancel := context.WithCancel(parent)
-
-	if pc == nil || pc.toolCallCancel == nil {
+	if pc.toolCallCancel == nil {
 		return ctx, cancel
 	}
-
 	release := pc.toolCallCancel(cancel)
 	return ctx, func() {
 		cancel()
@@ -231,39 +207,32 @@ func (pc *ProcessContext) ToolCallContext(parent context.Context) (context.Conte
 	}
 }
 
-// AwaitInput delegates to the underlying Process.AwaitInput. Convenience
-// because action code already has pc, not the bare process.
+// AwaitInput delegates to [Process.AwaitInput] — convenience because
+// action code already has pc.
 func (pc *ProcessContext) AwaitInput(req Awaitable) ActionStatus {
-	if pc == nil || pc.Process == nil {
+	if pc.Process == nil {
 		return ActionFailed
 	}
 	return pc.Process.AwaitInput(req)
 }
 
-// RecordUsage attributes an LLM call's cost (USD) and token count to the
-// running process. Convenience wrapper around [Process.RecordUsage] so
-// action code that's already holding pc doesn't need to reach for the
-// bare process. No-op when pc or its Process is nil.
+// RecordUsage attributes an LLM call's cost / tokens to the running
+// process. No-op when no Process is wired.
 func (pc *ProcessContext) RecordUsage(cost float64, tokens int) {
-	if pc == nil || pc.Process == nil {
+	if pc.Process == nil {
 		return
 	}
 	pc.Process.RecordUsage(cost, tokens)
 }
 
-// ExecuteSafely runs a.Execute(ctx, pc) under a panic guard, recording
-// any recovered panic on the context so callers can inspect it via
-// [ProcessContext.LastError]. A panic forces the returned status to
-// [ActionFailed].
-//
-// The runtime calls this instead of action.Execute directly so framework
-// code never trusts user action bodies to be panic-clean.
+// ExecuteSafely runs a.Execute(ctx, pc) under a panic guard,
+// recording any recovered panic on the context (inspect via
+// [ProcessContext.LastError]). A panic forces [ActionFailed].
 func (pc *ProcessContext) ExecuteSafely(ctx context.Context, a Action) (status ActionStatus) {
 	if a == nil {
-		pc.recordError(fmt.Errorf("action cannot run: action is nil"))
+		pc.recordError(errors.New("execute action: action is nil"))
 		return ActionFailed
 	}
-
 	defer func() {
 		if r := recover(); r != nil {
 			pc.recordPanic(r)
@@ -273,22 +242,12 @@ func (pc *ProcessContext) ExecuteSafely(ctx context.Context, a Action) (status A
 	return a.Execute(ctx, pc)
 }
 
-// recordError lets the typed-action wrapper stash the underlying error
-// so the runtime can detect ReplanRequest later.
-func (pc *ProcessContext) recordError(err error) {
-	if pc == nil {
-		return
-	}
-	pc.lastErr = err
-}
+// recordError stashes err for the runtime to detect [ReplanRequest].
+func (pc *ProcessContext) recordError(err error) { pc.lastErr = err }
 
-// recordPanic converts a recovered panic value into an error and stashes
-// it. Used by [ExecuteSafely].
+// recordPanic converts a recovered panic value into an error and
+// stashes it. Used by [ExecuteSafely].
 func (pc *ProcessContext) recordPanic(panicValue any) {
-	if pc == nil {
-		return
-	}
-
 	err, ok := panicValue.(error)
 	if !ok {
 		err = fmt.Errorf("action panicked: %v", panicValue)
@@ -297,19 +256,8 @@ func (pc *ProcessContext) recordPanic(panicValue any) {
 }
 
 // LastError returns the last error recorded via recordError (or nil).
-func (pc *ProcessContext) LastError() error {
-	if pc == nil {
-		return nil
-	}
-	return pc.lastErr
-}
+func (pc *ProcessContext) LastError() error { return pc.lastErr }
 
 // ResetError clears the per-call error slot. The runtime calls this
-// between retries so a stale error from attempt N doesn't leak into
-// the diagnosis of attempt N+1's status.
-func (pc *ProcessContext) ResetError() {
-	if pc == nil {
-		return
-	}
-	pc.lastErr = nil
-}
+// between retries.
+func (pc *ProcessContext) ResetError() { pc.lastErr = nil }

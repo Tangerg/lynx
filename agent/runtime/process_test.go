@@ -55,7 +55,7 @@ func TestRunSingleAction(t *testing.T) {
 
 	proc, err := platform.RunAgent(
 		context.Background(), a,
-		map[string]any{core.DefaultBinding: word{Text: "lynx"}},
+		map[string]any{core.DefaultBindingName: word{Text: "lynx"}},
 		core.ProcessOptions{},
 	)
 	if err != nil {
@@ -104,7 +104,7 @@ func TestRunMultiStepPlanning(t *testing.T) {
 
 	proc, err := platform.RunAgent(
 		context.Background(), a,
-		map[string]any{core.DefaultBinding: word{Text: "abcd"}}, // len=4 → 4*2+1=9
+		map[string]any{core.DefaultBindingName: word{Text: "abcd"}}, // len=4 → 4*2+1=9
 		core.ProcessOptions{},
 	)
 	if err != nil {
@@ -160,7 +160,7 @@ func TestRunAgentRejectsNilPlannerFactoryResult(t *testing.T) {
 
 	proc, err := platform.RunAgent(
 		context.Background(), a,
-		map[string]any{core.DefaultBinding: word{Text: "lynx"}},
+		map[string]any{core.DefaultBindingName: word{Text: "lynx"}},
 		core.ProcessOptions{},
 	)
 	if err == nil {
@@ -229,7 +229,7 @@ func TestRunAgentMarksCancelledDuringActionAsKilled(t *testing.T) {
 	platform := agent.NewPlatform(runtime.PlatformConfig{})
 	proc, err := platform.RunAgent(
 		ctx, a,
-		map[string]any{core.DefaultBinding: word{Text: "lynx"}},
+		map[string]any{core.DefaultBindingName: word{Text: "lynx"}},
 		core.ProcessOptions{},
 	)
 	if err != nil {

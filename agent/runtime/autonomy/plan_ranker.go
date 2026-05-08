@@ -1,8 +1,10 @@
 package autonomy
 
 import (
+	"cmp"
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/Tangerg/lynx/agent/core"
@@ -81,29 +83,19 @@ func (r *LLMPlanRanker) Rank(ctx context.Context, plans []*plan.Plan, ws core.Wo
 	type ranked struct {
 		plan  *plan.Plan
 		score float64
-		ord   int // original index — stable tiebreak
 	}
 	scoredPlans := make([]ranked, len(plans))
 	for i, p := range plans {
-		key := planID(i, p)
 		s := 0.0
-		if entry, ok := scored[key]; ok {
+		if entry, ok := scored[planID(i, p)]; ok {
 			s = clamp01(entry.Confidence)
 		}
-		scoredPlans[i] = ranked{plan: p, score: s, ord: i}
+		scoredPlans[i] = ranked{plan: p, score: s}
 	}
 
-	// Stable sort by score desc, then by original index asc.
-	for i := 1; i < len(scoredPlans); i++ {
-		for j := i; j > 0; j-- {
-			a, b := scoredPlans[j], scoredPlans[j-1]
-			if a.score > b.score || (a.score == b.score && a.ord < b.ord) {
-				scoredPlans[j], scoredPlans[j-1] = b, a
-				continue
-			}
-			break
-		}
-	}
+	slices.SortStableFunc(scoredPlans, func(a, b ranked) int {
+		return cmp.Compare(b.score, a.score) // desc
+	})
 
 	out := make([]*plan.Plan, len(scoredPlans))
 	for i, sp := range scoredPlans {

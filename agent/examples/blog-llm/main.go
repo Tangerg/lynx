@@ -221,10 +221,7 @@ func newResearchToolGroup() *researchToolGroup {
 }
 
 func (g *researchToolGroup) Metadata() core.ToolGroupMetadata {
-	return core.SimpleToolGroupMetadata{
-		DescriptionText: "Web research tools",
-		RoleText:        "research",
-	}
+	return core.SimpleToolGroupMetadata{RoleText: "research"}
 }
 
 func (g *researchToolGroup) Tools(_ context.Context) ([]core.AgentTool, error) {

@@ -156,21 +156,13 @@ func (p *Planner) PlanToGoal(
 	goal *core.Goal,
 	options plan.PlanOptions,
 ) (*plan.Plan, error) {
-	if start == nil {
-		return nil, errors.New("plan to goal: start world state is nil")
+	if err := plan.CheckPlanInputs(start, system, goal); err != nil {
+		return nil, err
 	}
-	if goal == nil {
-		return nil, errors.New("plan to goal: goal is nil")
-	}
-	if system == nil {
-		return nil, errors.New("plan to goal: planning system is nil")
-	}
-
 	root, ok := p.library.Lookup(goal.Name)
 	if !ok {
 		return nil, nil
 	}
-
 	actions, _, ok, err := p.decompose(ctx, root, start, options.ExcludedActions, 0)
 	if err != nil {
 		return nil, err
@@ -179,49 +171,6 @@ func (p *Planner) PlanToGoal(
 		return nil, nil
 	}
 	return &plan.Plan{Actions: actions, Goal: goal}, nil
-}
-
-// PlansToGoals enumerates plans for every goal in the system, sorted
-// by NetValue descending. Goals without a matching task in the
-// library are silently skipped.
-func (p *Planner) PlansToGoals(
-	ctx context.Context,
-	start core.WorldState,
-	system *plan.PlanningSystem,
-	options plan.PlanOptions,
-) ([]*plan.Plan, error) {
-	if system == nil {
-		return nil, errors.New("plans to goals: planning system is nil")
-	}
-	out := make([]*plan.Plan, 0, len(system.Goals))
-	for _, goal := range system.Goals {
-		pl, err := p.PlanToGoal(ctx, start, system, goal, options)
-		if err != nil {
-			return nil, err
-		}
-		if pl == nil {
-			continue
-		}
-		out = append(out, pl)
-	}
-	plan.SortByNetValueDesc(out, start)
-	return out, nil
-}
-
-// BestValuePlan returns the highest-NetValue plan across every goal.
-func (p *Planner) BestValuePlan(
-	ctx context.Context,
-	start core.WorldState,
-	system *plan.PlanningSystem,
-	options plan.PlanOptions,
-) (*plan.Plan, error) {
-	return plan.BestOf(p.PlansToGoals(ctx, start, system, options))
-}
-
-// Prune is a no-op — HTN's library is already pre-curated; pruning
-// at planner level would invalidate user-supplied tasks.
-func (p *Planner) Prune(system *plan.PlanningSystem) *plan.PlanningSystem {
-	return system
 }
 
 // decompose recursively expands task into a flat action list,

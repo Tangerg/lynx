@@ -6,7 +6,7 @@ package plan
 
 import (
 	"maps"
-	"sort"
+	"slices"
 	"strings"
 	"time"
 
@@ -79,18 +79,12 @@ func (w *ConditionWorldState) Apply(effects core.EffectSpec) core.WorldState {
 	}
 }
 
-// computeHashKey produces a stable string identifier from a state map:
-// sorted "key=det|" pairs, with Unknown entries elided so explicit
-// Unknown and absent entries hash identically.
+// computeHashKey produces a stable string identifier from a state
+// map: sorted "key=det|" pairs, with Unknown entries elided so
+// explicit Unknown and absent entries hash identically.
 func computeHashKey(state map[string]core.Determination) string {
-	keys := make([]string, 0, len(state))
-	for k := range state {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-
 	var b strings.Builder
-	for _, k := range keys {
+	for _, k := range slices.Sorted(maps.Keys(state)) {
 		v := state[k]
 		if v == core.Unknown {
 			continue

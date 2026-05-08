@@ -15,10 +15,6 @@ const (
 	False   Determination = 2
 )
 
-func (d Determination) IsTrue() bool    { return d == True }
-func (d Determination) IsFalse() bool   { return d == False }
-func (d Determination) IsUnknown() bool { return d == Unknown }
-
 func (d Determination) String() string {
 	switch d {
 	case True:

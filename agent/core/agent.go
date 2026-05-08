@@ -8,37 +8,27 @@ import (
 	"github.com/Masterminds/semver/v3"
 )
 
-// AgentConfig is the single input to [NewAgent] — it bundles every piece
-// of state the constructor needs (scalar attributes plus the action / goal
-// / condition / domain-type / tool-group slices). The DSL [Builder] is a
-// thin façade that accumulates fields here and calls [NewAgent] at
-// [Builder.Build] time, so callers who already have an AgentConfig in hand
-// can skip the Builder entirely.
+// AgentConfig is the input to [NewAgent]: the scalar attributes plus
+// the action / goal / condition slices. The DSL [Builder] is a thin
+// façade that accumulates fields here and calls [NewAgent] on
+// [Builder.Build].
 type AgentConfig struct {
-	// Name is the agent's identifier — required, must be unique within
-	// a Platform.
+	// Name is the agent's identifier — required, unique within a
+	// Platform.
 	Name string
-
-	// Provider stamps the publisher / vendor.
-	Provider string
 
 	// Description is the human-readable summary surfaced in tracing
 	// and (when the agent is exposed externally) the LLM prompt.
 	Description string
 
-	// Version is the semver tag. Nil falls back to 1.0.0 in
-	// [AgentConfig.applyDefaults].
+	// Version is the semver tag. Nil → 1.0.0.
 	Version *semver.Version
 
-	// Opaque flags the agent as not-introspectable from the outside.
-	Opaque bool
-
-	// StuckHandler is the recovery hook fired when the planner returns
-	// no plan. Optional — the default is "transition to StatusStuck".
+	// StuckHandler is the recovery hook fired when the planner
+	// returns no plan. Nil → transition to StatusStuck.
 	StuckHandler StuckHandler
 
-	// Actions are the GOAP-planner-visible actions. At least one
-	// action is required for the planner to be useful.
+	// Actions are the GOAP-planner-visible actions. ≥1 required.
 	Actions []Action
 
 	// Goals are the success criteria the planner picks among.
@@ -47,29 +37,11 @@ type AgentConfig struct {
 	// Conditions are user-supplied named predicates the world-state
 	// determiner can evaluate alongside the auto-derived ones.
 	Conditions []Condition
-
-	// DomainTypes registers planning-relevant types — used when the
-	// agent has sealed-style interfaces and the planner needs the
-	// parent hierarchy for type-binding lookups.
-	DomainTypes []DomainType
-
-	// ToolGroupRequirements declared at agent scope. Per-action
-	// requirements live on [ActionMetadata]; the resolver consults
-	// both.
-	ToolGroupRequirements []ToolGroupRequirement
 }
 
-// defaultVersion is the implicit Agent version when AgentConfig.Version is
-// nil. Parsed once at package init via [semver.MustParse].
+// defaultVersion is the implicit Agent version when
+// AgentConfig.Version is nil.
 var defaultVersion = semver.MustParse("1.0.0")
-
-// applyDefaults fills in zero-valued fields whose conceptual default is
-// non-zero. Mutates the receiver. Idempotent.
-func (c *AgentConfig) applyDefaults() {
-	if c.Version == nil {
-		c.Version = defaultVersion
-	}
-}
 
 // Agent is the deployable bundle the planner reasons over. The configured
 // state is held verbatim via the embedded [AgentConfig]; the trailing
@@ -84,11 +56,12 @@ type Agent struct {
 	knownConditionsOnce sync.Once
 }
 
-// NewAgent assembles a fresh agent from config. Slice fields are stored by
-// reference; callers shouldn't mutate them afterwards. Zero-valued
-// scalars are filled by [AgentConfig.applyDefaults].
+// NewAgent assembles a fresh agent from config. Slice fields are
+// stored by reference; callers shouldn't mutate them afterwards.
 func NewAgent(config AgentConfig) *Agent {
-	config.applyDefaults()
+	if config.Version == nil {
+		config.Version = defaultVersion
+	}
 	return &Agent{AgentConfig: config}
 }
 
@@ -127,75 +100,63 @@ func ValidateAgent(a *Agent) error {
 		return fmt.Errorf("invalid agent: name is empty")
 	}
 
-	if err := validateActions(a.Name, a.Actions); err != nil {
-		return err
+	type item struct {
+		kind    string
+		name    func(int) (string, bool) // (name, isNil)
+		count   int
+		require bool
 	}
-	if err := validateGoals(a.Name, a.Goals); err != nil {
-		return err
-	}
-	if err := validateConditions(a.Name, a.Conditions); err != nil {
-		return err
-	}
-	return nil
-}
-
-func validateActions(agentName string, actions []Action) error {
-	if len(actions) == 0 {
-		return fmt.Errorf("invalid agent %q: at least one action is required", agentName)
-	}
-
-	seen := make(map[string]struct{}, len(actions))
-	for i, action := range actions {
-		if action == nil {
-			return fmt.Errorf("invalid agent %q: action at index %d is nil", agentName, i)
+	for _, it := range []item{
+		{"action", func(i int) (string, bool) {
+			if a.Actions[i] == nil {
+				return "", true
+			}
+			return a.Actions[i].Metadata().Name, false
+		}, len(a.Actions), true},
+		{"goal", func(i int) (string, bool) {
+			if a.Goals[i] == nil {
+				return "", true
+			}
+			return a.Goals[i].Name, false
+		}, len(a.Goals), true},
+		{"condition", func(i int) (string, bool) {
+			if a.Conditions[i] == nil {
+				return "", true
+			}
+			return a.Conditions[i].Name(), false
+		}, len(a.Conditions), false},
+	} {
+		if err := validateUniqueNamed(a.Name, it.kind, it.count, it.name, it.require); err != nil {
+			return err
 		}
-
-		name := action.Metadata().Name
-		if name == "" {
-			return fmt.Errorf("invalid agent %q: action at index %d has empty name", agentName, i)
-		}
-		if _, duplicate := seen[name]; duplicate {
-			return fmt.Errorf("invalid agent %q: duplicate action name %q", agentName, name)
-		}
-		seen[name] = struct{}{}
 	}
 	return nil
 }
 
-func validateGoals(agentName string, goals []*Goal) error {
-	if len(goals) == 0 {
-		return fmt.Errorf("invalid agent %q: at least one goal is required", agentName)
+// validateUniqueNamed checks one named-element slice for "≥1 entry
+// when require, no nils, no empty names, no duplicate names". Lifts
+// the dedup loop the three (action / goal / condition) callsites used
+// to copy-paste.
+func validateUniqueNamed(
+	agentName, kind string,
+	count int,
+	nameAt func(int) (name string, isNil bool),
+	require bool,
+) error {
+	if require && count == 0 {
+		return fmt.Errorf("invalid agent %q: at least one %s is required", agentName, kind)
 	}
-
-	seen := make(map[string]struct{}, len(goals))
-	for i, goal := range goals {
-		if goal == nil {
-			return fmt.Errorf("invalid agent %q: goal at index %d is nil", agentName, i)
+	seen := make(map[string]struct{}, count)
+	for i := 0; i < count; i++ {
+		name, isNil := nameAt(i)
+		switch {
+		case isNil:
+			return fmt.Errorf("invalid agent %q: %s at index %d is nil", agentName, kind, i)
+		case name == "":
+			return fmt.Errorf("invalid agent %q: %s at index %d has empty name", agentName, kind, i)
 		}
-		if goal.Name == "" {
-			return fmt.Errorf("invalid agent %q: goal at index %d has empty name", agentName, i)
-		}
-		if _, duplicate := seen[goal.Name]; duplicate {
-			return fmt.Errorf("invalid agent %q: duplicate goal name %q", agentName, goal.Name)
-		}
-		seen[goal.Name] = struct{}{}
-	}
-	return nil
-}
-
-func validateConditions(agentName string, conditions []Condition) error {
-	seen := make(map[string]struct{}, len(conditions))
-	for i, condition := range conditions {
-		if condition == nil {
-			return fmt.Errorf("invalid agent %q: condition at index %d is nil", agentName, i)
-		}
-
-		name := condition.Name()
-		if name == "" {
-			return fmt.Errorf("invalid agent %q: condition at index %d has empty name", agentName, i)
-		}
-		if _, duplicate := seen[name]; duplicate {
-			return fmt.Errorf("invalid agent %q: duplicate condition name %q", agentName, name)
+		if _, dup := seen[name]; dup {
+			return fmt.Errorf("invalid agent %q: duplicate %s name %q", agentName, kind, name)
 		}
 		seen[name] = struct{}{}
 	}

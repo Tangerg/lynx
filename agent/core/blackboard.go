@@ -140,9 +140,6 @@ func Last[T any](bb BlackboardReader) (T, bool) {
 	return matches[len(matches)-1], true
 }
 
-// Count reports how many T-typed objects are on the blackboard.
-func Count[T any](bb BlackboardReader) int { return len(ObjectsOfType[T](bb)) }
-
 // DerivedTypeKey converts a Go reflect type into the variable name used by
 // Bind() for dual-binding. UserInput → "userInput", *Quote → "quote".
 // Empty names (anonymous types) yield the empty string so callers can skip.

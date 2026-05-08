@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/Tangerg/lynx/core/model/chat"
@@ -95,7 +96,7 @@ func (r *LLMRanker) buildUserPrompt(userInput string, candidates []Candidate) st
 		b.WriteString("\n\n")
 	}
 	b.WriteString("User said: ")
-	b.WriteString(strconvQuote(userInput))
+	b.WriteString(strconv.Quote(userInput))
 	b.WriteString("\n\nCandidates:\n")
 	for _, cand := range candidates {
 		fmt.Fprintf(&b, "- %s — %s\n", cand.String(), goalDescription(cand))
@@ -187,31 +188,6 @@ func clamp01(v float64) float64 {
 	return v
 }
 
-// strconvQuote is a tiny inline replacement for strconv.Quote that
-// keeps the import surface minimal. It's only used to render
-// userInput inside the prompt.
-func strconvQuote(s string) string {
-	var b strings.Builder
-	b.Grow(len(s) + 2)
-	b.WriteByte('"')
-	for _, r := range s {
-		switch r {
-		case '"', '\\':
-			b.WriteByte('\\')
-			b.WriteRune(r)
-		case '\n':
-			b.WriteString(`\n`)
-		case '\r':
-			b.WriteString(`\r`)
-		case '\t':
-			b.WriteString(`\t`)
-		default:
-			b.WriteRune(r)
-		}
-	}
-	b.WriteByte('"')
-	return b.String()
-}
 
 const defaultRankerSystemPrompt = `You are a routing classifier. Given a user request and a list of
 named candidate goals (each "agent:goal — description"), score how

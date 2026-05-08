@@ -21,7 +21,6 @@ package reactive
 
 import (
 	"context"
-	"errors"
 	"math"
 
 	"github.com/Tangerg/lynx/agent/core"
@@ -57,69 +56,17 @@ func (p *Planner) PlanToGoal(
 	goal *core.Goal,
 	options plan.PlanOptions,
 ) (*plan.Plan, error) {
-	if start == nil {
-		return nil, errors.New("plan to goal: start world state is nil")
+	if err := plan.CheckPlanInputs(start, system, goal); err != nil {
+		return nil, err
 	}
-	if goal == nil {
-		return nil, errors.New("plan to goal: goal is nil")
-	}
-	if system == nil {
-		return nil, errors.New("plan to goal: planning system is nil")
-	}
-
 	if goal.IsSatisfiedBy(start) {
 		return &plan.Plan{Goal: goal}, nil
 	}
-
 	best := p.bestApplicable(start, system.Actions, goal, options.ExcludedActions)
 	if best == nil {
 		return nil, nil
 	}
 	return &plan.Plan{Actions: []core.Action{best}, Goal: goal}, nil
-}
-
-// PlansToGoals returns one-action plans per goal, sorted by NetValue
-// descending. Goals that already match start, or for which no
-// applicable action makes progress, are dropped.
-func (p *Planner) PlansToGoals(
-	ctx context.Context,
-	start core.WorldState,
-	system *plan.PlanningSystem,
-	options plan.PlanOptions,
-) ([]*plan.Plan, error) {
-	if system == nil {
-		return nil, errors.New("plans to goals: planning system is nil")
-	}
-	out := make([]*plan.Plan, 0, len(system.Goals))
-	for _, goal := range system.Goals {
-		pl, err := p.PlanToGoal(ctx, start, system, goal, options)
-		if err != nil {
-			return nil, err
-		}
-		if pl == nil {
-			continue
-		}
-		out = append(out, pl)
-	}
-	plan.SortByNetValueDesc(out, start)
-	return out, nil
-}
-
-// BestValuePlan returns the highest-NetValue one-action plan across
-// every goal.
-func (p *Planner) BestValuePlan(
-	ctx context.Context,
-	start core.WorldState,
-	system *plan.PlanningSystem,
-	options plan.PlanOptions,
-) (*plan.Plan, error) {
-	return plan.BestOf(p.PlansToGoals(ctx, start, system, options))
-}
-
-// Prune is a no-op — reactive planning doesn't benefit from action
-// pre-pruning since each tick re-scans the action set anyway.
-func (p *Planner) Prune(system *plan.PlanningSystem) *plan.PlanningSystem {
-	return system
 }
 
 // bestApplicable picks the action whose effects close the most
