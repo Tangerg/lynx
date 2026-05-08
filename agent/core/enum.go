@@ -85,16 +85,31 @@ func (s AgentProcessStatus) IsTerminal() bool {
 type PlannerType int8
 
 const (
-	PlannerGOAP    PlannerType = iota // A* GOAP — default; strong guarantees on action sequencing.
-	PlannerUtility                    // Utility scoring — open-ended exploration; not yet implemented.
+	// PlannerGOAP — A* GOAP. Default; strong guarantees on action
+	// sequencing; finds an optimal plan when one exists.
+	PlannerGOAP PlannerType = iota
+
+	// PlannerHTN — hierarchical task network. The runtime's default
+	// PlannerFactory does not build one (HTN needs a user-supplied
+	// task library); register a custom PlannerFactory extension that
+	// returns *htn.Planner.
+	PlannerHTN
+
+	// PlannerReactive — greedy one-step utility scoring. Picks the
+	// action whose effects close the most goal preconditions, ties
+	// broken by lower cost. Suited to event-driven loops where the
+	// world changes between ticks. Mirrors embabel's UtilityPlanner.
+	PlannerReactive
 )
 
 func (t PlannerType) String() string {
 	switch t {
 	case PlannerGOAP:
 		return "goap"
-	case PlannerUtility:
-		return "utility"
+	case PlannerHTN:
+		return "htn"
+	case PlannerReactive:
+		return "reactive"
 	default:
 		return fmt.Sprintf("unknown_planner_type(%d)", t)
 	}

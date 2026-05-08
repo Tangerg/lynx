@@ -10,8 +10,11 @@ func TestPlannerTypeString(t *testing.T) {
 	if got := core.PlannerGOAP.String(); got != "goap" {
 		t.Fatalf("PlannerGOAP.String() = %q, want goap", got)
 	}
-	if got := core.PlannerUtility.String(); got != "utility" {
-		t.Fatalf("PlannerUtility.String() = %q, want utility", got)
+	if got := core.PlannerHTN.String(); got != "htn" {
+		t.Fatalf("PlannerHTN.String() = %q, want htn", got)
+	}
+	if got := core.PlannerReactive.String(); got != "reactive" {
+		t.Fatalf("PlannerReactive.String() = %q, want reactive", got)
 	}
 	if got := core.PlannerType(99).String(); got != "unknown_planner_type(99)" {
 		t.Fatalf("unknown planner string = %q", got)

@@ -113,6 +113,18 @@ func (s *processSignals) parkAwaitable(req core.Awaitable) core.ActionStatus {
 	return core.ActionWaiting
 }
 
+// peekAwaitable returns the parked awaitable without consuming it, or
+// nil when nothing is parked. Used by callers that need to inspect a
+// suspended process (e.g. supervisor patterns wanting to surface the
+// child's pending request back to the LLM).
+func (s *processSignals) peekAwaitable() core.Awaitable {
+	slot := s.pendingAwaitable.Load()
+	if slot == nil {
+		return nil
+	}
+	return slot.awaitable
+}
+
 // deliverResponse atomically claims the parked slot and forwards the
 // response to the awaitable's typed handler. Returns an error when no
 // slot is parked or the response value doesn't match the awaitable's

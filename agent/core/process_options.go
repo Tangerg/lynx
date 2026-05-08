@@ -20,8 +20,10 @@ type ProcessOptions struct {
 	OutputChannel OutputChannel
 
 	// PlannerType selects which planner the runtime requests from the
-	// platform's PlannerFactory. Only [PlannerGOAP] is wired today;
-	// [PlannerUtility] is reserved for a future reward-based planner.
+	// platform's PlannerFactory. The default factory wires
+	// [PlannerGOAP] and [PlannerReactive]; [PlannerHTN] requires a
+	// user-supplied task library and a custom PlannerFactory
+	// extension.
 	PlannerType PlannerType
 
 	ProcessType ProcessType

@@ -158,6 +158,15 @@ func (p *AgentProcess) TerminateToolCall(reason string) {
 	_ = reason // reserved for future event publishing
 }
 
+// PendingAwaitable returns the awaitable currently parked by an
+// in-flight [AgentProcess.AwaitInput], or nil when nothing is parked.
+// Used by supervisor patterns that want to surface a suspended
+// child's pending request back to the parent LLM as tool-result text
+// rather than failing the parent.
+func (p *AgentProcess) PendingAwaitable() core.Awaitable {
+	return p.signals.peekAwaitable()
+}
+
 // AwaitInput parks the supplied awaitable on the process and returns
 // [core.ActionWaiting] so the calling action's typed-action wrapper
 // transitions the process to [core.StatusWaiting]. The action's tick

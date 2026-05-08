@@ -1,6 +1,10 @@
 package plan
 
-import "github.com/Tangerg/lynx/agent/core"
+import (
+	"slices"
+
+	"github.com/Tangerg/lynx/agent/core"
+)
 
 // Plan is the planner's output: an ordered list of actions whose
 // accumulated effects achieve Goal.Preconditions. An empty action list with
@@ -51,4 +55,58 @@ func (p *Plan) Value(worldState core.WorldState) float64 {
 // NetValue is goal value minus plan cost — the embabel ranking heuristic.
 func (p *Plan) NetValue(worldState core.WorldState) float64 {
 	return p.Value(worldState) - p.Cost(worldState)
+}
+
+// SortByNetValueDesc sorts plans in place by NetValue descending.
+// NetValue is computed once per plan against ws (the standard
+// "evaluate at plan-selection time" snapshot) and the cached keys
+// drive a stable sort — so each plan's NetValue is touched once
+// instead of O(n log n) times.
+//
+// Used by every planner's [Planner.PlansToGoals] to rank candidates;
+// hoisted here so the three implementations don't drift on the
+// (subtle) ranking semantics.
+func SortByNetValueDesc(plans []*Plan, ws core.WorldState) {
+	if len(plans) < 2 {
+		return
+	}
+	keys := make([]float64, len(plans))
+	for i, pl := range plans {
+		keys[i] = pl.NetValue(ws)
+	}
+	indices := make([]int, len(plans))
+	for i := range indices {
+		indices[i] = i
+	}
+	slices.SortStableFunc(indices, func(a, b int) int {
+		switch {
+		case keys[a] > keys[b]:
+			return -1
+		case keys[a] < keys[b]:
+			return 1
+		}
+		return 0
+	})
+	out := make([]*Plan, len(plans))
+	for newIdx, oldIdx := range indices {
+		out[newIdx] = plans[oldIdx]
+	}
+	copy(plans, out)
+}
+
+// BestOf collapses the canonical [Planner.BestValuePlan] tail:
+// propagate err, return nil on empty, otherwise the highest-ranked
+// plan. Each concrete planner can write
+//
+//	return plan.BestOf(p.PlansToGoals(ctx, start, system, options))
+//
+// without re-stating the four-line err / len check / index-zero pick.
+func BestOf(plans []*Plan, err error) (*Plan, error) {
+	if err != nil {
+		return nil, err
+	}
+	if len(plans) == 0 {
+		return nil, nil
+	}
+	return plans[0], nil
 }

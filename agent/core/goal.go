@@ -53,6 +53,22 @@ func (g *Goal) Preconditions() EffectSpec {
 	return out
 }
 
+// IsSatisfiedBy reports whether ws meets every goal precondition. Used
+// by planners as the "are we done?" check; lifted onto Goal so each
+// planner doesn't paste its own copy.
+func (g *Goal) IsSatisfiedBy(ws WorldState) bool {
+	if g == nil || ws == nil {
+		return false
+	}
+	state := ws.State()
+	for key, required := range g.Preconditions() {
+		if state[key] != required {
+			return false
+		}
+	}
+	return true
+}
+
 // GoalProducing builds a Goal whose precondition is "an artifact of type T
 // exists on the blackboard". This is by far the most common shape — it's
 // what "produce a BlogPost" looks like in DSL form. The supplied template's
