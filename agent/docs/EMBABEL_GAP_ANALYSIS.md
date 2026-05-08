@@ -16,7 +16,7 @@
 | GOAP planner（A* + reachability） | ✅ `plan/planner/goap` | ✅ DefaultPlannerFactory | **无差距** |
 | HTN planner | ✅ `plan/planner/htn`（`Library` + `Task` + `Method`，ctx-cancellable，8 单测） | ✅ | **追平** |
 | Reactive / Utility planner | ✅ `plan/planner/reactive`（greedy 1-step，progress × cost-tie，7 单测） | ✅ `UtilityPlanner.kt` | **追平** |
-| Plan 后处理 / 多 plan 排序 | ✅ `plan.BestOf` + `plan.SortByNetValueDesc` 公共 helper | ✅ + `LlmRanker` | 小差距：LLM 排序 |
+| Plan 后处理 / 多 plan 排序 | ✅ `plan.BestOf` + `plan.SortByNetValueDesc`；**+ `autonomy.LLMPlanRanker`** | ✅ + `LlmRanker` | **追平** |
 | OODA tick loop（Sequential + Concurrent） | ✅ `runtime/run.go` + `runtime/concurrent.go` | ✅ | **无差距** |
 | Retry / QoS（per-action） | ✅ 委托 `pkg/retry` | ✅ ActionRetryPolicy | **等价** |
 | HITL: process 级 Awaitable<P, R> | ✅ `hitl.TypedRequest` | ✅ `Awaitable<P, R>` | **追平** |
@@ -25,12 +25,12 @@
 | 事件 / 可观测 | ✅ `event.Multicast` + 16+ 事件类型 + JSON marshaler + OTel tracer | ✅ `AgenticEventListener` + Micrometer | **等价** |
 | Tool 模型（Tool / Group / Resolver / Decorator / TerminationScope） | ✅ `core/tool_group.go`（与 `chat.Tool` 共用类型） | ✅ Tool / ToolObject | **追平** |
 | ToolLoop runner | ✅ `chat.NewToolMiddleware` + `pc.ChatWithActionTools(ctx)` | ✅ `ToolLoop` + `ToolInjectionStrategy` | **追平**（路径不同） |
-| Tool advanced policies（Matryoshka / OneShotPerLoop / Playbook / StateMachine） | ❌ | ✅ `MatryoshkaTool.kt` / `OneShotPerLoopTool.kt` / `agentic/playbook` / `agentic/state` | 真小缺口（P3）|
+| Tool advanced policies | ✅ `dsl/toolpolicy.WithOnceOnly`（loop-scope 去重）+ `WithUnlock`（条件门控）+ `WithLoopScope` ctx 助手 | ✅ `OneShotPerLoopTool.kt` / `agentic/playbook` `UnlockCondition` / `MatryoshkaTool.kt` / `agentic/state` | **基线追平**；Matryoshka / StateMachine 仍欠（niche，P3 备查） |
 | **MCP 客户端 / 服务端** | ✅ `lynx/mcp` 全功能 + `runtime.MCPToolGroupResolver` | ✅ `SpringAiMcpToolFactory` + `McpToolExport` | **已闭合** |
 | MCP per-agent 自动暴露（agent → MCP tool） | ✅ `runtime.AsMCPTool[In, Out]` | ✅ `PerGoalMcpExportToolCallbackPublisher` | **追平基线**（多 goal 自动切分仍欠，P3） |
 | **Supervisor 模式（子 agent → chat tool）** | ✅ `runtime.AsChatTool[In, Out]`（4 集成测 + supervisor 示例） | ✅ `Subagent.kt`（4 工厂路径 + `RunSubagent` 注解） | **追平基线**；4 工厂细差见 §10 |
-| WorkflowBuilder（ScatterGather / RepeatUntil / Feedback） | ✅ `dsl/workflow`（`ScatterGatherAgent` 并行 fan-out + `RepeatUntilAgent` 循环到 Accept；`Feedback` 数据类型；7 单测）| ✅ `api/common/workflow/` 完整 DSL | **基线追平**；Consensus 多模型投票 + RepeatUntilAcceptable 内置 LLM 评判仍欠 |
-| Autonomy / Goal Ranker（LLM 选 goal） | 部分（`GoalApprover` capability） | ✅ `Autonomy` + `Ranker` + `GoalChoiceApprover` | 中差距（P2） |
+| WorkflowBuilder（ScatterGather / RepeatUntil / RepeatUntilAcceptable / Consensus / Feedback）| ✅ `dsl/workflow` 全套（5 个 builder + 14 单测）| ✅ `api/common/workflow/` 完整 DSL | **追平** |
+| Autonomy / Goal Ranker（LLM 选 goal） | ✅ `runtime/autonomy` 包：`Autonomy.Choose/Run` + `Ranker` SPI + `LLMRanker` 实现 + confidence cutoff + AgentFilter / GoalFilter（14 单测） | ✅ `Autonomy` + `Ranker` + `GoalChoiceApprover` | **追平** |
 | A2A / RAG / Skills / Shell | ❌ | ✅ 4 独立模块 | 真缺口（P3，独立子模块路线） |
 | 持久化（Blackboard / process / context） | ⚙️ `BlackboardFactory` 扩展点已开放，开箱仍 in-memory；用户接 Redis/SQL/WAL 见 [`PERSISTENCE.md`](./PERSISTENCE.md) | ✅ Spring Data + 现成 in-memory 仓 | **抽象等价**；开箱实现仍欠（按设计不在 framework 内做） |
 | 多 LLM provider 内置 | ❌（BYO `chat.Model`） | ✅ Spring AI 全套 + ONNX | **故意分歧** |
@@ -106,14 +106,14 @@
 | TerminationScope（agent / action / tool_call） | ✅ | ✅ |
 | ToolDecorator（包装 tool） | ✅ extension capability ([core/extension.go:59](../core/extension.go)) | ✅ `ToolDecorator` SPI |
 | ToolLoop runner | ✅ `chat.NewToolMiddleware()` + [core/process_context.go](../core/process_context.go) `ChatWithActionTools` | ✅ `ToolLoop.kt` + 多策略 |
-| 动态 tool injection / Matryoshka | ❌ | ✅ `MatryoshkaTool.kt` / `UnfoldingToolInjectionStrategy` |
-| One-shot-per-loop（避免 LLM 重复调用同 tool） | ❌ | ✅ `OneShotPerLoopTool.kt` |
-| Playbook tool（条件解锁） | ❌ | ✅ `agentic/playbook/PlaybookTool.kt` + `UnlockCondition.kt` |
-| StateMachine tool | ❌ | ✅ `agentic/state/StateMachineTool.kt` |
-| Replanning tool | ❌ | ✅ `ReplanningToolFactory.kt` |
+| 动态 tool injection / Matryoshka | ❌（niche，P3 备查） | ✅ `MatryoshkaTool.kt` / `UnfoldingToolInjectionStrategy` |
+| **One-shot-per-loop**（避免 LLM 重复调 tool） | ✅ `dsl/toolpolicy.WithOnceOnly` + `WithLoopScope` ctx | ✅ `OneShotPerLoopTool.kt` |
+| **Playbook tool**（条件解锁） | ✅ `dsl/toolpolicy.WithUnlock(tool, cond)`（含 reason 文本回写 LLM） | ✅ `agentic/playbook/PlaybookTool.kt` + `UnlockCondition.kt` |
+| StateMachine tool | ❌（niche，可由 WithUnlock + 状态字段手写） | ✅ `agentic/state/StateMachineTool.kt` |
+| Replanning tool | ❌（用 RepeatUntilAcceptable + 评判替代） | ✅ `ReplanningToolFactory.kt` |
 | EmptyResponsePolicy / ToolNotFoundPolicy / RequiredToolGroupException | 等价语义在 chat 包外侧（middleware） | ✅ `spi/loop/*Policy.kt` |
 
-**新发现（第五轮没单列）**：embabel 在 `agentic/` 下放了一整套 LLM-tool-loop 高级模式——Playbook（按条件解锁工具）、StateMachine（工具状态机驱动多步对话）、Replanning（一次工具调用后用 LLM 重排 plan）。lynx 把这些都视为 **应用层模式**（用户在 action body 里组合 ToolDecorator + blackboard 写出来），不在 framework 层做。**P3 小缺口，存档备查**。
+**追平：基础两件**——`WithOnceOnly`（防 LLM 死循环重复调同一 tool）和 `WithUnlock`（按条件 + reason 锁工具）。两者皆是 `chat.CallableTool` decorator，可与 `hitl/tool.go` 的 HITL decorator 自由组合（嵌套），共享同一种 ctx-driven scope 机制。Matryoshka / StateMachine / Replanning 仍故意不做——属于 niche 的 LLM 优化技巧，写入 P3 备查。
 
 ---
 
@@ -188,14 +188,14 @@
 | 创建子 process | ✅ `Platform.CreateChildProcess` ([runtime/platform.go:511](../runtime/platform.go)) | ✅ |
 | Budget 跨子 process 聚合 | ✅ `(*AgentProcess).Usage` 递归 ([runtime/agent_process.go](../runtime/agent_process.go)) | ✅ Hierarchy-aware |
 | **子 agent → chat tool**（LLM 自由编排） | ✅ `runtime.AsChatTool[In, Out](platform, agentName)` | ✅ `Subagent.byName(...).consuming<I>()` |
-| 工厂路径数 | **1**：`byName` 风格（`agentName` + 泛型 In/Out） | **4**：`ofClass` / `byName` / `ofInstance` / `ofAnnotatedInstance` |
+| 工厂路径数 | **2**：`AsChatTool[In, Out](platform, agentName)` 按名查找 + `AsChatToolFromAgent[In, Out](platform, *core.Agent)` 直接传 agent struct | **4**：`ofClass` / `byName` / `ofInstance` / `ofAnnotatedInstance` |
 | Awaitable 子 agent（child 暂停时优雅回报 LLM） | ✅ child Waiting 时返回 JSON `{status:"waiting", agent, processId, awaitableId, prompt}`（[runtime/subagent.go:114](../runtime/subagent.go) + `waitingResultText`） | ✅ `ProcessWaitingException` → `textCommunicator.communicateAwaitable` 回报 tool result |
 | Megazord（多 agent 反射合体 helper） | ❌（不打算做） | ✅ |
 | `RunSubagent` 注解 | ❌（DSL 路线无注解） | ✅ |
 | 集成测 + 示例 | ✅ 4 测 + [`examples/supervisor`](../examples/supervisor) | ✅ |
 
 **一点小差**：
-1. **4 工厂路径**：embabel 因为支持注解类，需要 `ofClass` / `ofAnnotatedInstance` 两条额外构建路径；lynx DSL 路线下 agent 都是 `*core.Agent` 实例，统一走 `agentName`，**单一工厂就够**——分歧符合各自语言哲学。如果未来 lynx 想暴露"传 `*core.Agent` 实例直接构造，跳过 platform 注册"的便利构造，可以追加 `runtime.AsChatToolFromAgent(agent)`，但当前 ROI 低。
+1. **4 工厂路径 vs 2**：embabel 因为支持注解类，需要 `ofClass` / `ofAnnotatedInstance` 两条额外构建路径；lynx DSL 路线下 agent 都是 `*core.Agent` 实例，两条工厂（按名查找 / 直接传实例）即可覆盖。`AsChatToolFromAgent` 已在 P3-10 落地（[runtime/subagent.go](../runtime/subagent.go)）。
 2. ~~**Awaitable 子 agent 优雅退化**~~ —— ✅ **第六轮 P1-1 已闭合**：child Waiting 时返回结构化 JSON（`status / agent / processId / awaitableId / prompt`，[runtime/subagent.go:114](../runtime/subagent.go) + `waitingResultText`），父 LLM 可基于此换 plan；host 仍可用 `Platform.ResumeProcess + ContinueProcess` 续跑该 process。
 
 **新增**：`runtime.AsMCPTool[In, Out](platform, agentName)` 是 `AsChatTool` 的顶层 MCP-host 版本——独立 process（无父 ctx 要求），同样支持 waiting graceful-degrade，搭配 `lynxmcp.RegisterTools` 一行把 agent 暴露给 MCP host：
@@ -206,33 +206,63 @@ mcp.RegisterTools(server, runtime.AsMCPTool[Topic, Brief](platform, "BriefingAge
 
 ---
 
-## 10. Autonomy / Goal Ranking — embabel 走得更远
+## 10. Autonomy / Goal Ranking — 已追平
+
+第六轮 P2 落地：[`runtime/autonomy`](../runtime/autonomy) 包提供完整 LLM-driven 选 goal/agent 路径 + 配套 plan 排序。
 
 | 维度 | lynx | embabel |
 |---|---|---|
-| GoalApprover（拒掉特定 goal） | ✅ `core.GoalApprover` extension ([core/extension.go:94](../core/extension.go)) | ✅ `GoalChoiceApprover.kt` |
+| GoalApprover（拒掉特定 goal） | ✅ `core.GoalApprover` extension ([core/extension.go](../core/extension.go)) | ✅ `GoalChoiceApprover.kt` |
 | 多 goal 同 process 选优（按 NetValue） | ✅ planner 默认行为（`SortByNetValueDesc`） | ✅ `Autonomy` |
-| **基于用户输入 LLM 选 goal/agent** | ❌ | ✅ `Autonomy.choose(goalConfidenceCutOff, ranker)` + `Ranker` SPI（[Autonomy.kt:71](#)） |
-| **Confidence cutoff**（"LLM 信心 < 0.7 就别跑这个 agent"） | ❌ | ✅ `AutonomyProperties.goalConfidenceCutOff` / `agentConfidenceCutOff` |
-| **Multi-goal 模式**（同 process 顺序追求多个 goal） | ❌ | ✅ `GoalSelectionOptions.multiGoal` |
-| `ProcessWaitingException` → 回写到 tool 结果 | ❌ | ✅ |
+| **基于用户输入 LLM 选 goal/agent** | ✅ `autonomy.Autonomy.Choose(ctx, userInput) (Choice, error)` + `Ranker` SPI + `LLMRanker` 实现（[runtime/autonomy](../runtime/autonomy)） | ✅ `Autonomy.choose` + `Ranker` SPI |
+| **Confidence cutoff** | ✅ `AutonomyConfig.GoalConfidenceCutOff` → `ErrNoConfidentChoice` | ✅ `AutonomyProperties.goalConfidenceCutOff` |
+| **AgentFilter / GoalFilter**（租户隔离 / 角色过滤） | ✅ `AutonomyConfig.AgentFilter` / `GoalFilter` 闭包 | ✅ Spring profile / role 装饰 |
+| **一键执行**（选定后直接 RunAgent）| ✅ `Autonomy.Run(ctx, userInput, bindings, opts)` —— 内部装一个 per-process `targetGoalApprover` 把 planner 锁定到选中 goal | ✅ `Autonomy.runWithChoice` |
+| **Plan-级 LLM 排序**（多个 plan → LLM 选优） | ✅ `autonomy.LLMPlanRanker` + `PlanRanker` 接口（[plan_ranker.go](../runtime/autonomy/plan_ranker.go)）| ✅ `LlmRanker` |
+| **Multi-goal 模式**（同 process 顺序追求多个 goal） | ❌ —— GOAP 一次一 goal；多 goal 串行可上层手写 `Autonomy.Run` 多次 | ✅ `GoalSelectionOptions.multiGoal` |
 
-**新发现**：embabel 的 `Autonomy` 服务对 lynx 是 **整块缺口**——它把"用户给一段自然语言 → 选哪个 goal/agent → 用什么 confidence 决定"形式化成了一组 SPI 加 `Ranker`。lynx 的 `GoalApprover` capability 只能做硬规则过滤（"租户没买这个 goal"），做不到 LLM 排序 + 信心阈值的软选择。**P2 中等缺口**——可以做成 `runtime.AutonomyExtension`，复用 `*chat.Client` 投票。
+**接入示例**（pure-Go，无 Spring）：
+
+```go
+import (
+    "github.com/Tangerg/lynx/agent/runtime/autonomy"
+    "github.com/Tangerg/lynx/core/model/chat"
+)
+
+// 1. 把 chat.Client 包成 Ranker
+ranker := autonomy.NewLLMRanker(chatClient, autonomy.LLMRankerConfig{})
+
+// 2. 装上 platform + 阈值
+auto := autonomy.NewAutonomy(platform, ranker, autonomy.AutonomyConfig{
+    GoalConfidenceCutOff: 0.6,
+    AgentFilter: func(a *core.Agent) bool { return !strings.HasPrefix(a.Name, "internal-") },
+})
+
+// 3. 用户来一段话，自动选 + 跑
+choice, proc, err := auto.Run(ctx, "summarize my last quarter results", bindings, options)
+if errors.Is(err, autonomy.ErrNoConfidentChoice) {
+    // 没有 agent 自信能干，回退到默认或拒绝
+}
+```
+
+**故意不做的**：
+- **Multi-goal 顺序模式**：极少用例；上层多次 `Autonomy.Run` 已覆盖。
+- **`GoalChoiceApprover` 单独 SPI**：用 `AgentFilter`/`GoalFilter` 闭包替代，更轻。
 
 ---
 
-## 11. WorkflowBuilder / 多步组合模式 — 基线追平
+## 11. WorkflowBuilder / 多步组合模式 — 全档追平
 
-第六轮 P2 落地：[`agent/dsl/workflow`](../dsl/workflow) 提供两条通用模式 + `Feedback` 数据类型，每个都生成普通的 `*core.Agent` 走标准 GOAP 路径；用户可 `platform.Deploy(workflowAgent)` 直接跑，或用 `runtime.AsChatTool` / `AsMCPTool` 嵌套到上层 LLM 编排。
+第六轮 P2 + P3 累计落地：[`agent/dsl/workflow`](../dsl/workflow) 现在是完整 5 个 builder + 配套类型，每个都生成普通的 `*core.Agent` 走标准 GOAP 路径；用户可 `platform.Deploy(workflowAgent)` 直接跑，或用 `runtime.AsChatTool` / `AsMCPTool` 嵌套到上层 LLM 编排。
 
 | 维度 | lynx | embabel |
 |---|---|---|
-| Scatter-Gather（多分支并发 → 汇总） | ✅ `workflow.ScatterGatherAgent[In, Element, Result]`（`errgroup` 并行 + `MaxConcurrency`，3 单测）| ✅ `ScatterGather.kt` |
-| RepeatUntil（条件循环至成立） | ✅ `workflow.RepeatUntilAgent[In, Out]`（`CanRerun=true` + `ComputedCondition` + `History[Out]` + `MaxIterations` 兜底，4 单测）| ✅ `RepeatUntil.kt` |
-| Feedback 数据类型（Score + Text） | ✅ `workflow.Feedback`（含 `Acceptable(threshold)` 助手）| ✅ `Feedback.kt` |
-| RepeatUntilAcceptable（内置 LLM 评判循环） | ❌ —— 用户可在 `RepeatUntilAgent.Accept` 里手写 LLM 调用 + `Feedback`；framework 不预制 | ✅ `RepeatUntilAcceptable.kt` |
-| Consensus（多 LLM 多模型投票汇合） | ❌ —— 是 ScatterGather 的特化，用户在 `Joiner` 里实现 majority/score 投票 | ✅ `multimodel/ConsensusBuilder.kt` |
-| SimpleAgentBuilder（单 action 一行 agent） | 已够简（`agent.New(...).Actions(...).Build()`）| ✅ `SimpleAgentBuilder.kt` |
+| Scatter-Gather | ✅ `workflow.ScatterGatherAgent[In, Element, Result]`（errgroup 并行 + `MaxConcurrency`，3 单测）| ✅ `ScatterGather.kt` |
+| RepeatUntil | ✅ `workflow.RepeatUntilAgent[In, Out]`（`CanRerun` + ComputedCondition + `History[Out]` + `MaxIterations` 兜底，4 单测）| ✅ `RepeatUntil.kt` |
+| **RepeatUntilAcceptable**（LLM 评判 + Feedback 循环） | ✅ `workflow.RepeatUntilAcceptableAgent[In, Out]`（薄壳套在 RepeatUntil 上：`Evaluator` 返回 `Feedback`，`AcceptableScore` 阈值默认 0.7；evaluator 失败回退为 false → 下一轮重评；最新 Feedback 也 Bind 到 blackboard 供下一轮 Task 检查，3 单测）| ✅ `RepeatUntilAcceptable.kt` |
+| **Consensus**（多投票汇合） | ✅ `workflow.ConsensusAgent[In, Element]`（ScatterGather 特化 + `Key` 投影 + 多数票 + 平局按投票顺序前者优先，3 单测）| ✅ `multimodel/ConsensusBuilder.kt` |
+| Feedback 数据类型 | ✅ `workflow.Feedback`（含 `Acceptable(threshold)` 助手）| ✅ `Feedback.kt` |
+| SimpleAgentBuilder | 已够简（`agent.New(...).Actions(...).Build()`）| ✅ `SimpleAgentBuilder.kt` |
 | `WorkflowBuilder` 通用基类 | 不需要 —— builder 函数返回 `*core.Agent`，与普通 agent 同形 | ✅ `WorkflowBuilder.kt`（含 `asSubProcess`） |
 
 **API 速查**：
@@ -257,8 +287,7 @@ agent := workflow.RepeatUntilAgent(workflow.RepeatUntilSpec[Topic, Draft]{
 })
 ```
 
-**故意不做的两件**（同 §17 哲学）：
-- **RepeatUntilAcceptable / Consensus 一等公民 builder**：embabel 因为用 Spring DI 把"评判员"作为 bean 拿到，所以要专门 builder。lynx 用户在 `Accept` 闭包里直接调 `pc.Chat()` 或自己的评判函数即可，加专项 builder 反而是抽象税。
+**仍未做的一件**：
 - **`asSubProcess` 显式同步嵌套**：lynx 用 `runtime.AsChatTool[In, Out](platform, agentName)` 已覆盖（让上层 LLM 编排子 workflow），不再开新通道。
 
 ---
@@ -316,17 +345,12 @@ lynx：DSL Builder ([dsl/builder.go](../dsl/builder.go))，编译期类型安全
 
 | 优先级 | 项目 | 改动量 | 说明 |
 |---|---|---|---|
-| ~~已闭合~~ | ~~ToolLoop / MCP client+server / HTN / Reactive / Tool-级 HITL / Supervisor / Subagent waiting graceful-degrade / per-agent MCP 自动暴露 / WorkflowBuilder DSL（ScatterGather + RepeatUntil + Feedback）/ 持久化接入指南~~ | — | ✅ 全部落地 |
-| **P2-4** | **Autonomy + LLM Goal Ranker**：自然语言 → 选 goal/agent + confidence cutoff | 中（新 `runtime.AutonomyExtension`） | 多 agent 部署后绕不开的问题 |
-| **P2-6** | **LlmRanker（plan 排序）** | 小（`plan` 包内一个新 helper） | 让 plan 排序可被 LLM 干预 |
-| **P3-7** | A2A 协议 | 大（独立子模块） | agent 间互联，等用例 |
-| **P3-8** | RAG 子模块（独立 `lynx/rag` 仓） | 大 | 不挤进 agent 框架 |
-| **P3-9** | Tool advanced policies：Matryoshka / OneShotPerLoop / Playbook / StateMachine | 中（`hitl/tool.go` 同形态特化） | 应用层模式特化 |
-| **P3-10** | `runtime.AsChatToolFromAgent(agent *core.Agent)` 便利工厂 | 极小 | 配合用户尚未注册到 platform 的子 agent；目前可以等需求驱动 |
-| **P3-11** | `runtime.ProcessRepository` + `AwaitableRepository` 抽象（跨重启 HITL） | 中 | 有用例后再做；当前可走 Blackboard 软持久化 |
-| **P3-12** | RepeatUntilAcceptable / Consensus 一等公民 builder | 小（`workflow` 包加两个 helper） | 用户在 RepeatUntilAgent.Accept 闭包里手写 LLM 评判已足够 |
-
-**P2 阶段已落地 WorkflowBuilder DSL + 持久化接入指南**。下一阶段聚焦 **P2-4 Autonomy + LLM Goal Ranker** —— 多 agent 部署后选 goal/agent 是绕不开的问题。
+| ~~已闭合~~ | ~~ToolLoop / MCP client+server / HTN / Reactive / Tool-级 HITL / Supervisor / Subagent waiting graceful-degrade / per-agent MCP 自动暴露 / WorkflowBuilder DSL 全套 / 持久化接入指南 / Autonomy + LLMRanker / LLMPlanRanker / Tool advanced policies (OnceOnly + Unlock) / AsChatToolFromAgent / RepeatUntilAcceptable + Consensus~~ | — | ✅ **P0–P3 主体全部落地** |
+| ~~P3-7~~ | ~~A2A 协议~~ | 大（独立子模块） | **不做** —— 工程量太大 / 等用例驱动 |
+| ~~P3-8~~ | ~~RAG 子模块~~ | 大 | **不做** —— `lynx/rag` 已作 chat.Client 中间件存在；不挤进 agent 框架 |
+| ~~P3-11~~ | ~~`runtime.ProcessRepository` + `AwaitableRepository`~~ | 中 | **不做** —— 接口无 runtime hook 是 wallpaper；走 Blackboard 软持久化即可 |
+| ~~P3-13~~ | ~~Multi-goal 顺序模式~~ | 中 | **不做** —— 极少用例；上层多次 `Autonomy.Run` 覆盖 |
+| 备查 | Matryoshka / StateMachine / Replanning Tool | 中 | niche LLM 优化，等具体用例 |
 
 ---
 
@@ -346,4 +370,4 @@ lynx：DSL Builder ([dsl/builder.go](../dsl/builder.go))，编译期类型安全
 
 ## 18. 一句话总结
 
-第五轮 4 条 P0–P1（HTN / Reactive / tool-级 HITL / Supervisor）+ 第六轮 2 条 P1（Subagent waiting graceful-degrade / per-agent MCP 自动暴露）+ 第六轮 P2 三件（WorkflowBuilder DSL / 持久化接入指南 / 配套优化）全部闭合。lynx 当前的 agent 内核 + 工具生态接通能力 + 多步组合模式跟 embabel **基线全档对齐**，剩下真缺口收敛到 **Autonomy + LLM Goal Ranker（P2）+ Tool advanced policies / A2A / RAG / 持久化参考实现（P3）**——都是 P2/P3 中等量级或独立子模块路线。下一阶段聚焦 **P2-4 Autonomy + LLM Goal Ranker**——多 agent 部署后"自然语言 → 选哪个 goal/agent + confidence 阈值"是绕不开的工程问题。
+**P0–P3 主体全部闭合**：5 轮 P0–P1（HTN / Reactive / tool-级 HITL / Supervisor / Subagent graceful / MCP 自动暴露）+ P2 五件（WorkflowBuilder DSL 基础 / 持久化指南 / Autonomy + LLMRanker / LLMPlanRanker / 配套优化）+ P3 三件（Tool advanced policies — OneShotPerLoop + Unlock / `AsChatToolFromAgent` / RepeatUntilAcceptable + Consensus）。lynx agent **内核 + 工具生态接通 + 多步组合 + 多 agent 编排 + LLM 路由 + LLM 自评估循环 + tool 高级控制** 跟 embabel **基线全档对齐**。明确不做：A2A（工程量太大）、独立 RAG 子模块（已在 `lynx/rag` 作 chat 中间件存在，不挤入 agent 框架）、`ProcessRepository` 接口（无 runtime hook 是 wallpaper）、Matryoshka / StateMachine / Replanning Tool（niche LLM 优化，等具体用例）。框架已稳定可用，下一阶段按业务需求驱动迭代。
