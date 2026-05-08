@@ -2,10 +2,13 @@ package core
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
+
+	"github.com/Tangerg/lynx/core/model/chat"
 )
 
 // agentTracer is the framework-wide OTel tracer. We deliberately don't
@@ -44,6 +47,12 @@ type ProcessContextConfig struct {
 	OutputChannel OutputChannel
 	Services      *ServiceProvider
 
+	// ChatClient is the shared LLM client surfaced to action bodies
+	// via [ProcessContext.Chat] and [ProcessContext.ChatWithActionTools].
+	// nil when the platform was constructed without one — pc.Chat()
+	// then returns nil and the action body must handle that case.
+	ChatClient *chat.Client
+
 	// ActionToolGroups carries the currently-executing action's declared
 	// [ToolGroupRequirement]s, so [ProcessContext.ActionTools] can
 	// resolve them without the action body having to re-state role
@@ -77,6 +86,7 @@ type ProcessContext struct {
 	OutputChannel OutputChannel
 	Services      *ServiceProvider
 
+	chatClient       *chat.Client
 	actionToolGroups []ToolGroupRequirement
 	publishEvent     EventPublisher
 	resolveTools     ToolResolver
@@ -98,6 +108,7 @@ func NewProcessContext(config ProcessContextConfig) *ProcessContext {
 		Options:          config.Options,
 		OutputChannel:    config.OutputChannel,
 		Services:         config.Services,
+		chatClient:       config.ChatClient,
 		actionToolGroups: config.ActionToolGroups,
 		publishEvent:     config.Publish,
 		resolveTools:     config.ResolveTools,
@@ -127,6 +138,52 @@ func (pc *ProcessContext) ResolveTools(ctx context.Context, roles ...string) ([]
 		return nil, nil
 	}
 	return pc.resolveTools(ctx, roles)
+}
+
+// Chat returns a fresh [chat.ClientRequest] cloned from the platform's
+// shared [chat.Client]. Returns nil when the platform was constructed
+// without a ChatClient — actions that expect LLM access should
+// nil-check (or use [ChatWithActionTools] which surfaces a clear error).
+//
+// Each call returns an independent clone, so per-request configuration
+// (model override, system prompt, middleware, …) can't leak into the
+// platform default.
+func (pc *ProcessContext) Chat() *chat.ClientRequest {
+	if pc == nil || pc.chatClient == nil {
+		return nil
+	}
+	return pc.chatClient.Chat()
+}
+
+// ChatWithActionTools is the "ask the LLM with my action's tools"
+// shortcut: returns a [chat.ClientRequest] pre-loaded with the
+// currently-executing action's resolved tools and the LLM-driven
+// tool-call middleware ([chat.NewToolMiddleware]). The returned
+// request still needs WithText / WithSystemPrompt / Call / Stream to
+// fire the call.
+//
+// Errors:
+//   - no ChatClient configured on the platform
+//   - tool resolution failed
+//
+// When the action declares no ToolGroups, the returned request has no
+// tools and no tool middleware — just a plain client clone.
+func (pc *ProcessContext) ChatWithActionTools(ctx context.Context) (*chat.ClientRequest, error) {
+	req := pc.Chat()
+	if req == nil {
+		return nil, errors.New("core.ProcessContext.ChatWithActionTools: no ChatClient configured on the platform")
+	}
+
+	tools, err := pc.ActionTools(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("core.ProcessContext.ChatWithActionTools: %w", err)
+	}
+	if len(tools) == 0 {
+		return req, nil
+	}
+
+	callMW, streamMW := chat.NewToolMiddleware()
+	return req.WithMiddlewares(callMW, streamMW).WithTools(tools...), nil
 }
 
 // ActionTools resolves the tools declared on the currently-executing

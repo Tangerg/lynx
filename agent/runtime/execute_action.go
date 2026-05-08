@@ -209,10 +209,11 @@ func (p *AgentProcess) buildProcessContext(actionToolGroups []core.ToolGroupRequ
 		Options:          p.options,
 		OutputChannel:    p.options.OutputChannel,
 		Services:         p.platformServices(),
+		ChatClient:       p.platformChatClient(),
 		ActionToolGroups: actionToolGroups,
-		Publish:           p.publishAny,
-		ToolCallCancel:    p.signals.registerToolCallCancel,
-		ResolveTools:      p.toolResolverFor(action),
+		Publish:          p.publishAny,
+		ToolCallCancel:   p.signals.registerToolCallCancel,
+		ResolveTools:     p.toolResolverFor(action),
 	}
 	return core.NewProcessContext(config)
 }

@@ -19,8 +19,8 @@
 | **HITL** | ✅ TypedRequest + ResumeProcess + ContinueProcess | ✅ Awaitable<P,R> + AwaitableFactory + AwaitDecider | 路径对齐；embabel 多 AwaitDecider 自动决策 |
 | **Extension 模型** | ✅ http.Pusher 风格，9 capability + 单一 PlatformConfig.Extensions | ✅ 13+ `fun interface` SPI（散在 spi/ 多处）| **lynx 更整洁**；embabel 更广（含 LLM ops 相关）|
 | **事件 / 可观测** | ✅ event.Multicast + 16 event 类型 + JSON marshaler + OTel | ✅ AgenticEventListener + Micrometer | **无差距** |
-| **Tool 模型** | ✅ AgentTool / ToolGroup / Resolver / Decorator | ✅ Tool / ToolObject / ToolDecorator + ToolLoop | **lynx 缺 ToolLoop**（LLM 驱动循环） |
-| **LLM ops** | ❌ 完全没做（设计上不在 agent 层托管，靠 ServiceProvider 注入） | ✅ LlmService + LlmMessageSender + Streaming + 多 provider | **故意分层**——不算缺口，但 embabel 自带 |
+| **Tool 模型** | ✅ chat.Tool（与 core/model/chat 共享）/ ToolGroup / Resolver / Decorator + **ToolLoop（来自 chat.ToolMiddleware）** | ✅ Tool / ToolObject / ToolDecorator + ToolLoop | **已追平**——lynx 通过 chat.Client 绑定继承了 ToolLoop |
+| **LLM ops** | ✅ 通过 `PlatformConfig.ChatClient` + `ProcessContext.Chat()` / `ChatWithActionTools()` 绑定 lynx/core/model/chat | ✅ LlmService + LlmMessageSender + Streaming + 多 provider | **路径不同但能力对齐**——lynx 用 sibling chat 包，embabel 用 Spring AI |
 | **MCP server-side**（导出 goal 为 tool）| ❌ 未做 | ✅ McpToolExport + Per-Goal Tool Publisher | **真缺口** |
 | **A2A 协议** | ❌ 未做 | ✅ JSON-RPC server | **真缺口** |
 | **RAG** | ❌ 未做 | ✅ 独立 module（pipeline + Lucene/Neo4j）| **真缺口** |
@@ -73,24 +73,33 @@
 
 ---
 
-## 3. Tool 模型 — 缺 ToolLoop
+## 3. Tool 模型 — 已追平（含 ToolLoop）
 
 | 维度 | lynx | embabel |
 |---|---|---|
-| Tool 定义（name / description / schema / call） | ✅ `core.AgentTool` | ✅ `Tool.Definition` |
+| Tool 定义（name / description / schema / call） | ✅ `chat.Tool` / `chat.CallableTool`（与 core/model/chat 统一） | ✅ `Tool.Definition` |
 | ToolGroup（按 role 聚合） | ✅ `core.ToolGroup` + `LazyToolGroup` | ✅ `ToolObject` |
 | ToolGroupResolver（role → ToolGroup） | ✅ Extension 接口 | ✅ `ToolGroupResolver` |
 | ToolGroupRequirement（声明依赖） | ✅ 含 `TerminationScope` | ✅ |
 | TerminationScope（agent / action / tool_call 三粒度） | ✅ | ✅ |
 | ToolDecorator（包装 tool）| ✅ Extension capability | ✅ `ToolDecorator` SPI |
-| **ToolLoop runner（LLM 驱动 tool-call 循环）** | ❌ **未做** | ✅ `ToolLoop` interface + `ToolInjectionStrategy` + `LlmMessageSender` |
-| MCP tool integration | ❌ | ✅ |
+| **ToolLoop runner（LLM 驱动 tool-call 循环）** | ✅ 通过 `chat.NewToolMiddleware()`，`pc.ChatWithActionTools(ctx)` 一行接通 | ✅ `ToolLoop` interface + `ToolInjectionStrategy` + `LlmMessageSender` |
+| MCP tool integration | ❌ 路线图（client / server 两端） | ✅ |
 
-**ToolLoop 是 lynx 最大的功能缺口**。它的语义：在一个 action 里，让 LLM 反复 call tool → 看 result → 再 call tool... 直到 LLM 决定输出最终结果。这是现代 agent framework 的核心循环。
+**ToolLoop 缺口已闭合**。绑定 chat.Client 后，action body 写法：
 
-lynx 现在的设计：把这个责任推给用户的 action body（用户自己拿 ServiceProvider 里的 ChatClient + 调 `pc.ActionTools()` 然后写循环）。**最小内核**哲学下这是合理的，但意味着每个 lynx 用户都要重新发明 ToolLoop。
+```go
+req, _ := pc.ChatWithActionTools(ctx)
+// req 已经预装了：
+//   - 当前 action 声明的 ToolGroups → resolved → []chat.Tool
+//   - chat.NewToolMiddleware()（call + stream 两个 MW）
+text, _, err := req.WithSystemPrompt("...").WithUserPrompt("...").Call().Text(ctx)
+// LLM call → tool → re-prompt 由 middleware 自动循环
+```
 
-**建议**：在 lynx 提供一个 **可选的** ToolLoop runner（位于一个新子包 `agent/loop/` 或 `agent/runner/llm/`），不进 agent 内核；用户主动拿来用。embabel 的 `ToolInjectionStrategy` / `ToolLoopFactory` 是好参考。
+参见 `agent/examples/blog-llm/main.go` 完整示例。
+
+**lynx 的 chat.Tool / chat.CallableTool** 直接是 core/model/chat 的类型，不再有 lynx-内部的 AgentTool 平行宇宙。`core.AgentTool = chat.Tool` 类型别名保留作命名连续性。
 
 ---
 
@@ -198,10 +207,10 @@ lynx 现在的设计：把这个责任推给用户的 action body（用户自己
 
 | 优先级 | 项目 | 理由 | 改动量 |
 |---|---|---|---|
+| ~~P1-3~~ | ~~ToolLoop runner~~ | **已闭合**：绑定 chat.Client 后 `chat.NewToolMiddleware()` 直接生效；`pc.ChatWithActionTools(ctx)` 一行接通 | ✅ 已落地 |
 | **P0-1** | **MCP server-side**：暴露 agent goals 为 MCP tools | 让 lynx agent 在 Claude/Cursor 等 LLM 客户端中可用——立刻接通生态 | 中（新子包 `agent/mcp/server/`） |
 | **P0-2** | **Supervisor agent 示例 + helper**：单个 agent 调度多个子 agent | embabel 的多 agent 模式已经成熟；lynx `Platform.CreateChildProcess` 已有底座，缺一个 supervisor 模式的 sample + helper | 小（example + 一个文件级 helper） |
-| **P1-3** | **ToolLoop runner**：可选的 LLM-driven 循环 | 用户愿意把 LLM ops 入框架时有 standard answer | 中（新子包 `agent/loop/`） |
-| **P1-4** | **MCP client-side ToolGroupResolver**：消费外部 MCP server | 配合 ToolGroupResolver 已有抽象，只缺具体 impl | 中（新子包 `agent/mcp/client/`） |
+| **P1-4** | **MCP client-side ToolGroupResolver**：消费外部 MCP server | 配合 ToolGroupResolver 已有抽象，只缺具体 impl；用户写 action 时 `pc.ChatWithActionTools` 就能拿到 MCP tools | 中（新子包 `agent/mcp/client/`） |
 | **P2-5** | **AwaitDecider** capability | 自动决定"要不要 HITL"的 hook | 小（多一个 Extension capability） |
 | **P2-6** | **持久化 BlackboardFactory** 参考实现（Redis） | 让企业级用户开箱即用 | 中（新子包 `agent/blackboard/redis/`） |
 | **P3-7** | **HTN planner** | 增加 PlannerType 选项；对复杂任务有用 | 大（新 planner 实现） |
@@ -223,4 +232,4 @@ lynx 现在的设计：把这个责任推给用户的 action body（用户自己
 
 ## 12. 一句话总结
 
-lynx 把 agent **内核**做到了和 embabel 等价（甚至 Extension 模型更整洁），但选择了"**生态留给用户**"路线。要让 lynx 真正可用于生产，下一步重点是 **MCP server 和 supervisor 模式**——这两个落地后，lynx 就从"框架库"变成"可部署的 agent runtime"。
+lynx 把 agent **内核**做到了和 embabel 等价（甚至 Extension 模型更整洁），并通过 `PlatformConfig.ChatClient` 绑定 lynx/core/model/chat 继承了 LLM ops + ToolLoop 能力。剩下的差距集中在**生态集成**（MCP / 多 agent 模式 / 持久化）。下一步重点是 **MCP server 和 supervisor 模式**——这两个落地后，lynx 就从"框架库"变成"可部署的 agent runtime"。

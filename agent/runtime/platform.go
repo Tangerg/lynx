@@ -8,6 +8,7 @@ import (
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/event"
 	"github.com/Tangerg/lynx/agent/plan"
+	"github.com/Tangerg/lynx/core/model/chat"
 )
 
 // Platform is the agent runtime's top-level container. It registers
@@ -28,8 +29,9 @@ type Platform struct {
 
 	extensions extensionRegistry // platform-scoped extensions
 
-	events   *event.Multicast       // populated from EventListener extensions
-	services *core.ServiceProvider  // open registry exposed via Platform.Services()
+	events     *event.Multicast      // populated from EventListener extensions
+	services   *core.ServiceProvider // open registry exposed via Platform.Services()
+	chatClient *chat.Client          // optional shared LLM client; nil when no LLM is wired
 }
 
 // PlatformConfig is the construction-time configuration for [NewPlatform].
@@ -38,6 +40,18 @@ type Platform struct {
 // blackboard factory, no listeners, no tool resolvers, empty service
 // registry. Add extensions to override / extend any of those.
 type PlatformConfig struct {
+	// ChatClient is the shared [chat.Client] every action body reaches
+	// via [core.ProcessContext.Chat] / [core.ProcessContext.ChatWithActionTools].
+	// Optional — agents that don't talk to an LLM (pure-Go computation,
+	// pure RPC orchestration) leave it nil and never invoke pc.Chat.
+	//
+	// The same Client is shared across every process and every action;
+	// per-call configuration (system prompt, model override, middleware
+	// stack) flows through the fluent [chat.ClientRequest] each pc.Chat()
+	// returns — clones, so requests don't leak state into the shared
+	// default.
+	ChatClient *chat.Client
+
 	// Extensions are the platform-scoped plug-ins. Each value must
 	// implement [core.Extension] and may additionally implement any
 	// subset of the capability interfaces (EventListener,
@@ -61,6 +75,7 @@ func NewPlatform(config PlatformConfig) *Platform {
 		extensions: newExtensionRegistry(),
 		events:     event.NewMulticast(),
 		services:   core.NewServiceProvider(),
+		chatClient: config.ChatClient,
 	}
 	for _, ext := range config.Extensions {
 		p.extensions.register("PlatformConfig.Extensions", ext)
