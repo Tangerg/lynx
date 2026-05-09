@@ -39,7 +39,7 @@ func TestRepeatUntilAcceptable_StopsWhenScoreCrossesThreshold(t *testing.T) {
 	if err := platform.Deploy(a); err != nil {
 		t.Fatalf("deploy: %v", err)
 	}
-	proc, err := platform.RunAgent(context.Background(), a,
+	proc, err := platform.RunAgent(t.Context(), a,
 		map[string]any{core.DefaultBindingName: ruaIn{Topic: "test"}},
 		core.ProcessOptions{})
 	if err != nil {
@@ -79,7 +79,7 @@ func TestRepeatUntilAcceptable_DefaultsThresholdToZeroPointSeven(t *testing.T) {
 
 	platform := agent.NewPlatform(runtime.PlatformConfig{})
 	platform.Deploy(a)
-	proc, _ := platform.RunAgent(context.Background(), a,
+	proc, _ := platform.RunAgent(t.Context(), a,
 		map[string]any{core.DefaultBindingName: ruaIn{Topic: "x"}},
 		core.ProcessOptions{})
 	if proc.Status() != core.StatusCompleted {

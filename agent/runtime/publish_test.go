@@ -92,7 +92,7 @@ func TestPublishAll_RunsAgentEndToEnd(t *testing.T) {
 	}
 
 	args, _ := json.Marshal(pubTopic{Title: "agents"})
-	out, err := tools[0].Call(context.Background(), string(args))
+	out, err := tools[0].Call(t.Context(), string(args))
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}
@@ -145,7 +145,7 @@ func TestAllAchievableTools_RequiresParentInCtx(t *testing.T) {
 
 	args, _ := json.Marshal(pubTopic{Title: "x"})
 	// No parent process in ctx → expect supervisor flow to error.
-	_, err := tools[0].Call(context.Background(), string(args))
+	_, err := tools[0].Call(t.Context(), string(args))
 	if err == nil {
 		t.Fatal("expected error: supervisor flow needs parent in ctx")
 	}

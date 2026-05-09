@@ -50,7 +50,7 @@ func TestScatterGather_RunsAllGeneratorsAndJoins(t *testing.T) {
 	if err := platform.Deploy(a); err != nil {
 		t.Fatalf("deploy: %v", err)
 	}
-	proc, err := platform.RunAgent(context.Background(), a,
+	proc, err := platform.RunAgent(t.Context(), a,
 		map[string]any{core.DefaultBindingName: sgIn{Topic: "test"}},
 		core.ProcessOptions{},
 	)
@@ -88,7 +88,7 @@ func TestScatterGather_GeneratorErrorPropagates(t *testing.T) {
 	if err := platform.Deploy(a); err != nil {
 		t.Fatalf("deploy: %v", err)
 	}
-	proc, _ := platform.RunAgent(context.Background(), a,
+	proc, _ := platform.RunAgent(t.Context(), a,
 		map[string]any{core.DefaultBindingName: sgIn{Topic: "x"}},
 		core.ProcessOptions{},
 	)

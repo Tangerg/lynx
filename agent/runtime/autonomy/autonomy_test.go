@@ -58,7 +58,7 @@ func TestAutonomy_PicksHighestConfidence(t *testing.T) {
 		},
 	}, autonomy.AutonomyConfig{})
 
-	choice, err := auto.Choose(context.Background(), "anything")
+	choice, err := auto.Choose(t.Context(), "anything")
 	if err != nil {
 		t.Fatalf("Choose: %v", err)
 	}
@@ -84,7 +84,7 @@ func TestAutonomy_LowConfidenceReturnsError(t *testing.T) {
 		GoalConfidenceCutOff: 0.5,
 	})
 
-	_, err := auto.Choose(context.Background(), "anything")
+	_, err := auto.Choose(t.Context(), "anything")
 	if !errors.Is(err, autonomy.ErrNoConfidentChoice) {
 		t.Fatalf("expected ErrNoConfidentChoice, got %v", err)
 	}
@@ -102,7 +102,7 @@ func TestAutonomy_RunInstallsTargetGoalApprover(t *testing.T) {
 		},
 	}, autonomy.AutonomyConfig{})
 
-	choice, proc, err := auto.Run(context.Background(), "anything",
+	choice, proc, err := auto.Run(t.Context(), "anything",
 		map[string]any{core.DefaultBindingName: chooseIn{Topic: "x"}},
 		core.ProcessOptions{},
 	)
@@ -140,7 +140,7 @@ func TestAutonomy_AgentFilter(t *testing.T) {
 		t.Fatalf("AgentFilter not respected; candidates=%v", candidates)
 	}
 
-	choice, err := auto.Choose(context.Background(), "x")
+	choice, err := auto.Choose(t.Context(), "x")
 	if err != nil {
 		t.Fatalf("Choose: %v", err)
 	}
@@ -153,7 +153,7 @@ func TestAutonomy_NoCandidatesError(t *testing.T) {
 	platform := agent.NewPlatform(runtime.PlatformConfig{})
 	auto := autonomy.NewAutonomy(platform, &stubRanker{}, autonomy.AutonomyConfig{})
 
-	_, err := auto.Choose(context.Background(), "x")
+	_, err := auto.Choose(t.Context(), "x")
 	if err == nil {
 		t.Fatal("expected error on empty candidate pool")
 	}

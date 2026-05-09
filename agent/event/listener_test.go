@@ -57,12 +57,10 @@ func TestNamedListener_ConcurrentDelivery(t *testing.T) {
 
 	const N = 100
 	var wg sync.WaitGroup
-	for i := 0; i < N; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+	for range N {
+		wg.Go(func() {
 			mc.OnEvent(event.AgentDeployedEvent{BaseEvent: event.NewBaseEvent(""), AgentName: "x"})
-		}()
+		})
 	}
 	wg.Wait()
 

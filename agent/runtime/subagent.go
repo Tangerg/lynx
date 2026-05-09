@@ -42,7 +42,7 @@ import (
 //	req, _ := pc.Chat().WithTools(tools...).Call().Text(ctx)
 func AsChatTool[In, Out any](platform *Platform, agentName string) chat.CallableTool {
 	agentDef := mustFindAgent("AsChatTool", platform, agentName)
-	return newAgentTool[In, Out]("subagent", platform, agentDef, runAsChild[In])
+	return newTypedAgentTool[In, Out]("subagent", platform, agentDef, SpawnChild)
 }
 
 // AsChatToolFromAgent is the [AsChatTool] sibling that takes a
@@ -56,8 +56,8 @@ func AsChatTool[In, Out any](platform *Platform, agentName string) chat.Callable
 //
 // Panics on nil platform or nil agent.
 func AsChatToolFromAgent[In, Out any](platform *Platform, agentDef *core.Agent) chat.CallableTool {
-	mustValidate("AsChatToolFromAgent", platform, agentDef)
-	return newAgentTool[In, Out]("subagent", platform, agentDef, runAsChild[In])
+	mustValidateAgent("AsChatToolFromAgent", platform, agentDef)
+	return newTypedAgentTool[In, Out]("subagent", platform, agentDef, SpawnChild)
 }
 
 // AsMCPTool is the top-level companion to [AsChatTool]: it wraps a
@@ -81,101 +81,67 @@ func AsChatToolFromAgent[In, Out any](platform *Platform, agentDef *core.Agent) 
 // process via [Platform.ResumeProcess] out of band.
 func AsMCPTool[In, Out any](platform *Platform, agentName string) chat.CallableTool {
 	agentDef := mustFindAgent("AsMCPTool", platform, agentName)
-	return newAgentTool[In, Out]("publish agent", platform, agentDef, runAsTopLevel[In])
+	return newTypedAgentTool[In, Out]("publish agent", platform, agentDef, RunFresh)
 }
 
-// runProcessFunc starts (or resumes) an [*AgentProcess] for one
-// agent-as-tool invocation. The strategy varies by call site:
-//
-//   - [runAsChild]    — supervisor flow: requires parent process in
-//     ctx, spawns a child via [Platform.CreateChildProcess], binds
-//     the typed In, then drives the loop via
-//     [Platform.ContinueProcess].
-//   - [runAsTopLevel] — MCP-publish flow: no parent expected,
-//     [Platform.RunAgent] starts a fresh process with In bound under
-//     [core.DefaultBindingName].
-type runProcessFunc[In any] func(ctx context.Context, platform *Platform, agentDef *core.Agent, in In) (*AgentProcess, error)
+// processStarter is the shape both [SpawnChild] and [RunFresh]
+// already implement: ctx + platform + agent + in → terminal
+// *AgentProcess. Used by [newTypedAgentTool] / [newDynamicAgentTool]
+// to swap supervisor vs top-level start strategies without
+// duplicating wiring.
+type processStarter func(
+	ctx context.Context,
+	platform *Platform,
+	agentDef *core.Agent,
+	in any,
+) (*AgentProcess, error)
 
-// agentTool is the common chat-tool wrapper for "run an agent and
-// surface its typed output as a JSON tool result". The runProc
-// strategy is the only thing that varies between supervisor /
-// MCP-publish callsites.
-type agentTool[In, Out any] struct {
-	label    string // surfaces in error messages — "subagent" / "publish agent"
-	platform *Platform
-	agent    *core.Agent
-	def      chat.ToolDefinition
-	runProc  runProcessFunc[In]
-}
-
-func (t *agentTool[In, Out]) Definition() chat.ToolDefinition { return t.def }
-func (t *agentTool[In, Out]) Metadata() chat.ToolMetadata     { return chat.ToolMetadata{} }
-
-func (t *agentTool[In, Out]) Call(ctx context.Context, arguments string) (string, error) {
-	var in In
-	if arguments != "" {
-		if err := json.Unmarshal([]byte(arguments), &in); err != nil {
-			return "", fmt.Errorf("%s %q: parse input: %w", t.label, t.agent.Name, err)
-		}
-	}
-
-	proc, err := t.runProc(ctx, t.platform, t.agent, in)
-	if err != nil {
-		return "", fmt.Errorf("%s %q: %w", t.label, t.agent.Name, err)
-	}
-
-	switch status := proc.Status(); status {
-	case core.StatusCompleted:
-		// fall through to result extraction
-	case core.StatusWaiting:
-		return waitingResultText(t.agent.Name, proc), nil
-	default:
-		if failure := proc.Failure(); failure != nil {
-			return "", fmt.Errorf("%s %q (process %q) ended in %s: %w", t.label, t.agent.Name, proc.ID(), status, failure)
-		}
-		return "", fmt.Errorf("%s %q (process %q) ended in %s", t.label, t.agent.Name, proc.ID(), status)
-	}
-
-	out, ok := core.ResultOfType[Out](proc)
-	if !ok {
-		var zero Out
-		return "", fmt.Errorf("%s %q completed but produced no %T", t.label, t.agent.Name, zero)
-	}
-	encoded, err := json.Marshal(out)
-	if err != nil {
-		return "", fmt.Errorf("%s %q: marshal output: %w", t.label, t.agent.Name, err)
-	}
-	return string(encoded), nil
-}
-
-// newAgentTool packages the strategy into a [chat.CallableTool]. The
-// JSON schema for In is derived once at construction time so the
-// LLM sees a stable shape across calls.
-func newAgentTool[In, Out any](
+// newTypedAgentTool builds the typed flavour of [agentTool]: input
+// schema derived from a zero In sample at construction; decode does a
+// strict json.Unmarshal into a typed In; extract uses
+// [core.ResultOfType[Out]].
+func newTypedAgentTool[In, Out any](
 	label string,
 	platform *Platform,
 	agentDef *core.Agent,
-	runProc runProcessFunc[In],
+	start processStarter,
 ) chat.CallableTool {
 	var inSample In
-	schema := pkgjson.MustStringDefSchemaOf(inSample)
-
-	return &agentTool[In, Out]{
-		label:    label,
-		platform: platform,
-		agent:    agentDef,
+	return &agentTool{
 		def: chat.ToolDefinition{
 			Name:        agentDef.Name,
 			Description: agentDef.Description,
-			InputSchema: schema,
+			InputSchema: pkgjson.MustStringDefSchemaOf(inSample),
 		},
-		runProc: runProc,
+		label: label,
+		agent: agentDef,
+		decode: func(arguments string) (any, error) {
+			var in In
+			if arguments == "" {
+				return in, nil
+			}
+			if err := json.Unmarshal([]byte(arguments), &in); err != nil {
+				return nil, fmt.Errorf("parse input: %w", err)
+			}
+			return in, nil
+		},
+		run: func(ctx context.Context, in any) (*AgentProcess, error) {
+			return start(ctx, platform, agentDef, in)
+		},
+		extract: func(child *AgentProcess) (any, error) {
+			out, ok := core.ResultOfType[Out](child)
+			if !ok {
+				var zero Out
+				return nil, fmt.Errorf("completed but produced no %T", zero)
+			}
+			return out, nil
+		},
 	}
 }
 
 // mustFindAgent looks the agent up by name and panics — at construction
 // time, not on the first LLM tool call — when the registration is
-// missing. Shared between AsChatTool / AsMCPTool.
+// missing. Shared between [AsChatTool] / [AsMCPTool].
 func mustFindAgent(label string, platform *Platform, name string) *core.Agent {
 	if platform == nil {
 		panic(fmt.Sprintf("runtime.%s: platform must not be nil", label))
@@ -190,83 +156,13 @@ func mustFindAgent(label string, platform *Platform, name string) *core.Agent {
 	return agentDef
 }
 
-// mustValidate is the [AsChatToolFromAgent] companion: same nil
+// mustValidateAgent is the [AsChatToolFromAgent] companion: same nil
 // checks as [mustFindAgent] minus the registry lookup.
-func mustValidate(label string, platform *Platform, agentDef *core.Agent) {
+func mustValidateAgent(label string, platform *Platform, agentDef *core.Agent) {
 	if platform == nil {
 		panic(fmt.Sprintf("runtime.%s: platform must not be nil", label))
 	}
 	if agentDef == nil {
 		panic(fmt.Sprintf("runtime.%s: agent must not be nil", label))
 	}
-}
-
-// runAsChild is the supervisor strategy: requires a parent process in
-// ctx, spawns a child via [Platform.CreateChildProcess], binds the
-// typed input on the child blackboard, and drives the loop via
-// [Platform.ContinueProcess].
-func runAsChild[In any](ctx context.Context, platform *Platform, agentDef *core.Agent, in In) (*AgentProcess, error) {
-	parent := core.ProcessFrom(ctx)
-	if parent == nil {
-		return nil, fmt.Errorf("no parent process in ctx (use core.WithProcess to inject one)")
-	}
-	parentProc, ok := platform.GetProcess(parent.ID())
-	if !ok {
-		return nil, fmt.Errorf("parent process %q not registered on platform", parent.ID())
-	}
-
-	child, err := platform.CreateChildProcess(agentDef, parentProc, core.ProcessOptions{})
-	if err != nil {
-		return nil, fmt.Errorf("create child: %w", err)
-	}
-	child.Blackboard().Bind(in)
-
-	if err := platform.ContinueProcess(ctx, child.ID()); err != nil {
-		return nil, fmt.Errorf("run child %q: %w", child.ID(), err)
-	}
-	return child, nil
-}
-
-// runAsTopLevel is the MCP-publish strategy: a fresh process per
-// call, the typed input flows in as the [core.DefaultBindingName].
-func runAsTopLevel[In any](ctx context.Context, platform *Platform, agentDef *core.Agent, in In) (*AgentProcess, error) {
-	proc, err := platform.RunAgent(ctx, agentDef,
-		map[string]any{core.DefaultBindingName: in},
-		core.ProcessOptions{},
-	)
-	if err != nil {
-		return nil, fmt.Errorf("run: %w", err)
-	}
-	return proc, nil
-}
-
-// waitingResultText renders a JSON description of a sub-agent's
-// pending await as a tool-result string. The parent LLM sees:
-//
-//	{"status":"waiting", "agent":"…", "processId":"…",
-//	 "awaitableId":"…", "prompt":<payload>}
-//
-// "prompt" is whatever [core.Awaitable.PromptAny] returns — typically
-// the human-facing payload of a [hitl.TypedRequest]. Hosts can drive
-// the child to completion via [Platform.ResumeProcess] +
-// [Platform.ContinueProcess] using the returned processId; the
-// returned text is informational, suited for the LLM's next-turn
-// reasoning.
-func waitingResultText(agentName string, child *AgentProcess) string {
-	payload := map[string]any{
-		"status":    "waiting",
-		"agent":     agentName,
-		"processId": child.ID(),
-	}
-	if a := child.PendingAwaitable(); a != nil {
-		payload["awaitableId"] = a.ID()
-		payload["prompt"] = a.PromptAny()
-	}
-	encoded, err := json.Marshal(payload)
-	if err != nil {
-		// Fallback to a plain sentence if marshal somehow fails — keeps
-		// the LLM-visible result useful even in degenerate cases.
-		return fmt.Sprintf(`{"status":"waiting","agent":%q,"processId":%q}`, agentName, child.ID())
-	}
-	return string(encoded)
 }

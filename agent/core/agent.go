@@ -147,7 +147,7 @@ func validateUniqueNamed(
 		return fmt.Errorf("invalid agent %q: at least one %s is required", agentName, kind)
 	}
 	seen := make(map[string]struct{}, count)
-	for i := 0; i < count; i++ {
+	for i := range count {
 		name, isNil := nameAt(i)
 		switch {
 		case isNil:

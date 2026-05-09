@@ -93,7 +93,7 @@ trailing prose ignored.`
 	}
 
 	ranker := autonomy.NewLLMRanker(client, autonomy.LLMRankerConfig{})
-	choices, err := ranker.Rank(context.Background(), "user wants beta", candidates)
+	choices, err := ranker.Rank(t.Context(), "user wants beta", candidates)
 	if err != nil {
 		t.Fatalf("Rank: %v", err)
 	}
@@ -132,7 +132,7 @@ func TestLLMRanker_ClampsConfidence(t *testing.T) {
 	client, _ := chat.NewClientWithModel(model)
 
 	ranker := autonomy.NewLLMRanker(client, autonomy.LLMRankerConfig{})
-	choices, err := ranker.Rank(context.Background(), "x", candidates)
+	choices, err := ranker.Rank(t.Context(), "x", candidates)
 	if err != nil {
 		t.Fatalf("Rank: %v", err)
 	}
@@ -153,7 +153,7 @@ func TestLLMRanker_MissingScoreDefaultsToZero(t *testing.T) {
 	client, _ := chat.NewClientWithModel(model)
 
 	ranker := autonomy.NewLLMRanker(client, autonomy.LLMRankerConfig{})
-	choices, err := ranker.Rank(context.Background(), "x", candidates)
+	choices, err := ranker.Rank(t.Context(), "x", candidates)
 	if err != nil {
 		t.Fatalf("Rank: %v", err)
 	}
@@ -171,7 +171,7 @@ func TestLLMRanker_RejectsNonJSONReply(t *testing.T) {
 	client, _ := chat.NewClientWithModel(model)
 
 	ranker := autonomy.NewLLMRanker(client, autonomy.LLMRankerConfig{})
-	_, err := ranker.Rank(context.Background(), "x", candidates)
+	_, err := ranker.Rank(t.Context(), "x", candidates)
 	if err == nil {
 		t.Fatal("expected error on non-JSON reply")
 	}
@@ -205,7 +205,7 @@ func TestLLMRanker_PromptIncludesGoalTagsAndExamples(t *testing.T) {
 	client, _ := chat.NewClientWithModel(model)
 
 	ranker := autonomy.NewLLMRanker(client, autonomy.LLMRankerConfig{})
-	if _, err := ranker.Rank(context.Background(), "x", candidates); err != nil {
+	if _, err := ranker.Rank(t.Context(), "x", candidates); err != nil {
 		t.Fatalf("Rank: %v", err)
 	}
 

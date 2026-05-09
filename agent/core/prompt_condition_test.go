@@ -78,7 +78,7 @@ func TestPromptCondition_YesReplyIsTrue(t *testing.T) {
 		core.ParseYesNoDetermination,
 	)
 
-	got := cond.Evaluate(context.Background(), &core.OperationContext{})
+	got := cond.Evaluate(t.Context(), &core.OperationContext{})
 	if got != core.True {
 		t.Fatalf("Determination = %s, want True", got)
 	}
@@ -96,7 +96,7 @@ func TestPromptCondition_NoReplyIsFalse(t *testing.T) {
 		core.ParseYesNoDetermination,
 	)
 
-	if got := cond.Evaluate(context.Background(), &core.OperationContext{}); got != core.False {
+	if got := cond.Evaluate(t.Context(), &core.OperationContext{}); got != core.False {
 		t.Fatalf("Determination = %s, want False", got)
 	}
 }
@@ -110,7 +110,7 @@ func TestPromptCondition_AmbiguousReplyIsUnknown(t *testing.T) {
 		core.ParseYesNoDetermination,
 	)
 
-	if got := cond.Evaluate(context.Background(), &core.OperationContext{}); got != core.Unknown {
+	if got := cond.Evaluate(t.Context(), &core.OperationContext{}); got != core.Unknown {
 		t.Fatalf("Determination = %s, want Unknown", got)
 	}
 }
@@ -124,7 +124,7 @@ func TestPromptCondition_LLMErrorDegradesToUnknown(t *testing.T) {
 		core.ParseYesNoDetermination,
 	)
 
-	if got := cond.Evaluate(context.Background(), &core.OperationContext{}); got != core.Unknown {
+	if got := cond.Evaluate(t.Context(), &core.OperationContext{}); got != core.Unknown {
 		t.Fatalf("LLM error → Determination = %s, want Unknown", got)
 	}
 }

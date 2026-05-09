@@ -66,7 +66,7 @@ func TestAsChatTool_RunsChildAndReturnsResult(t *testing.T) {
 	}
 
 	proc, err := platform.RunAgent(
-		context.Background(), parent,
+		t.Context(), parent,
 		map[string]any{core.DefaultBindingName: subInput{Value: 21}},
 		core.ProcessOptions{},
 	)
@@ -94,7 +94,7 @@ func TestAsChatTool_NoParentProcessInCtx(t *testing.T) {
 	}
 
 	tool := runtime.AsChatTool[subInput, subOutput](platform, "child-agent")
-	_, err := tool.Call(context.Background(), `{"Value":1}`)
+	_, err := tool.Call(t.Context(), `{"Value":1}`)
 	if err == nil || !strings.Contains(err.Error(), "no parent process in ctx") {
 		t.Fatalf("expected no-parent-process error, got %v", err)
 	}
@@ -161,7 +161,7 @@ func TestAsChatTool_WaitingChildSurfacesPendingAwaitableAsToolResult(t *testing.
 	}
 
 	proc, err := platform.RunAgent(
-		context.Background(), parent,
+		t.Context(), parent,
 		map[string]any{core.DefaultBindingName: subInput{Value: 5}},
 		core.ProcessOptions{},
 	)
@@ -183,7 +183,7 @@ func TestAsMCPTool_RunsAgentWithoutParentProcess(t *testing.T) {
 	}
 
 	tool := runtime.AsMCPTool[subInput, subOutput](platform, "child-agent")
-	out, err := tool.Call(context.Background(), `{"Value":21}`)
+	out, err := tool.Call(t.Context(), `{"Value":21}`)
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}
@@ -255,7 +255,7 @@ func TestAsChatToolFromAgent_AcceptsAgentDirectly(t *testing.T) {
 		t.Fatalf("deploy parent: %v", err)
 	}
 
-	proc, _ := platform.RunAgent(context.Background(), parent,
+	proc, _ := platform.RunAgent(t.Context(), parent,
 		map[string]any{core.DefaultBindingName: subInput{Value: 11}}, core.ProcessOptions{})
 	got, _ := core.ResultOfType[parentOutput](proc)
 	if got.Final != 22 {

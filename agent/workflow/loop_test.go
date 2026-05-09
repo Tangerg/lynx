@@ -61,7 +61,7 @@ func TestLoopAgent_LoopsUntilUntilTrue(t *testing.T) {
 		t.Fatalf("deploy wf: %v", err)
 	}
 
-	proc, err := platform.RunAgent(context.Background(), wf,
+	proc, err := platform.RunAgent(t.Context(), wf,
 		map[string]any{core.DefaultBindingName: loopIn{Target: 4}},
 		core.ProcessOptions{},
 	)
@@ -101,7 +101,7 @@ func TestLoopAgent_MaxIterationsCapsTheLoop(t *testing.T) {
 	)
 	platform.Deploy(wf)
 
-	proc, _ := platform.RunAgent(context.Background(), wf,
+	proc, _ := platform.RunAgent(t.Context(), wf,
 		map[string]any{core.DefaultBindingName: loopIn{Target: 100}},
 		core.ProcessOptions{},
 	)
@@ -150,7 +150,7 @@ func TestLoopAgent_BranchIsolation(t *testing.T) {
 	)
 	platform.Deploy(wf)
 
-	platform.RunAgent(context.Background(), wf,
+	platform.RunAgent(t.Context(), wf,
 		map[string]any{core.DefaultBindingName: loopIn{Target: 100}},
 		core.ProcessOptions{},
 	)

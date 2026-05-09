@@ -72,7 +72,7 @@ func TestParallelAgents_RunsAllAndJoins(t *testing.T) {
 		t.Fatalf("deploy wf: %v", err)
 	}
 
-	proc, err := platform.RunAgent(context.Background(), wf,
+	proc, err := platform.RunAgent(t.Context(), wf,
 		map[string]any{core.DefaultBindingName: paIn{Topic: "x"}},
 		core.ProcessOptions{},
 	)
@@ -120,7 +120,7 @@ func TestParallelAgents_SubAgentFailureCancels(t *testing.T) {
 	)
 	platform.Deploy(wf)
 
-	proc, _ := platform.RunAgent(context.Background(), wf,
+	proc, _ := platform.RunAgent(t.Context(), wf,
 		map[string]any{core.DefaultBindingName: paIn{Topic: "x"}},
 		core.ProcessOptions{},
 	)
@@ -179,7 +179,7 @@ func TestParallelAgents_MaxConcurrencyCaps(t *testing.T) {
 	)
 	platform.Deploy(wf)
 
-	proc, err := platform.RunAgent(context.Background(), wf,
+	proc, err := platform.RunAgent(t.Context(), wf,
 		map[string]any{core.DefaultBindingName: paIn{Topic: "x"}},
 		core.ProcessOptions{},
 	)
