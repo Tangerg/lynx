@@ -87,7 +87,8 @@ func (r *LLMRanker) Rank(ctx context.Context, userInput string, candidates []Can
 }
 
 // buildUserPrompt composes the candidate listing the LLM sees. Each
-// row is "<agent>:<goal> — <description>"; the trailing instruction
+// row is "<agent>:<goal> — <description>" plus optional Tags /
+// Examples blocks pulled from [core.Goal]; the trailing instruction
 // pins the JSON format we'll parse.
 func (r *LLMRanker) buildUserPrompt(userInput string, candidates []Candidate) string {
 	var b strings.Builder
@@ -100,6 +101,7 @@ func (r *LLMRanker) buildUserPrompt(userInput string, candidates []Candidate) st
 	b.WriteString("\n\nCandidates:\n")
 	for _, cand := range candidates {
 		fmt.Fprintf(&b, "- %s — %s\n", cand.String(), goalDescription(cand))
+		writeGoalHints(&b, cand)
 	}
 	b.WriteString(`
 Score each candidate's relevance to the user input on [0.0, 1.0]
@@ -114,6 +116,24 @@ object, no surrounding prose, in this exact shape:
 Include every candidate exactly once. confidence must be a number.
 `)
 	return b.String()
+}
+
+// writeGoalHints emits the optional Tags / Examples blocks on
+// indented continuation lines so the LLM has a richer match signal
+// than Name+Description alone. No-op when both are empty.
+func writeGoalHints(b *strings.Builder, cand Candidate) {
+	if cand.Goal == nil {
+		return
+	}
+	if len(cand.Goal.Tags) > 0 {
+		fmt.Fprintf(b, "    tags: %s\n", strings.Join(cand.Goal.Tags, ", "))
+	}
+	if len(cand.Goal.Examples) > 0 {
+		b.WriteString("    examples:\n")
+		for _, ex := range cand.Goal.Examples {
+			fmt.Fprintf(b, "      - %s\n", strconv.Quote(ex))
+		}
+	}
 }
 
 // goalDescription returns the goal's Description, falling back to
