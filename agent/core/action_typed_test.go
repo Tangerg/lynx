@@ -17,7 +17,7 @@ func TestTypedActionRejectsNilFunction(t *testing.T) {
 		},
 	})
 
-	if got := action.Execute(context.Background(), processContext); got != core.ActionFailed {
+	if got := action.Execute(t.Context(), processContext); got != core.ActionFailed {
 		t.Fatalf("Execute status = %s, want failed", got)
 	}
 	if err := processContext.LastError(); err == nil || !strings.Contains(err.Error(), "action function is nil") {
@@ -34,7 +34,7 @@ func TestTypedActionReportsMissingInput(t *testing.T) {
 		Blackboard: fakeBlackboard{},
 	})
 
-	if got := action.Execute(context.Background(), processContext); got != core.ActionFailed {
+	if got := action.Execute(t.Context(), processContext); got != core.ActionFailed {
 		t.Fatalf("Execute status = %s, want failed", got)
 	}
 	if err := processContext.LastError(); err == nil || !strings.Contains(err.Error(), "blackboard is missing required input") {
@@ -54,7 +54,7 @@ func TestTypedActionReportsInputTypeMismatch(t *testing.T) {
 		},
 	})
 
-	if got := action.Execute(context.Background(), processContext); got != core.ActionFailed {
+	if got := action.Execute(t.Context(), processContext); got != core.ActionFailed {
 		t.Fatalf("Execute status = %s, want failed", got)
 	}
 	if err := processContext.LastError(); err == nil || !strings.Contains(err.Error(), "has type int") {
@@ -65,7 +65,7 @@ func TestTypedActionReportsInputTypeMismatch(t *testing.T) {
 func TestExecuteSafelyRejectsNilAction(t *testing.T) {
 	processContext := core.NewProcessContext(core.ProcessContextConfig{})
 
-	if got := processContext.ExecuteSafely(context.Background(), nil); got != core.ActionFailed {
+	if got := processContext.ExecuteSafely(t.Context(), nil); got != core.ActionFailed {
 		t.Fatalf("ExecuteSafely status = %s, want failed", got)
 	}
 	if err := processContext.LastError(); err == nil || !strings.Contains(err.Error(), "action is nil") {

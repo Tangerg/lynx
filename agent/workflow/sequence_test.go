@@ -66,7 +66,7 @@ func TestSequenceAgents_TwoStepChain(t *testing.T) {
 		t.Fatalf("deploy pipeline: %v", err)
 	}
 
-	proc, err := platform.RunAgent(context.Background(), pipeline,
+	proc, err := platform.RunAgent(t.Context(), pipeline,
 		map[string]any{core.DefaultBindingName: seqTopic{Word: "agents"}},
 		core.ProcessOptions{},
 	)
@@ -112,7 +112,7 @@ func TestSequenceAgents_StepFailurePropagates(t *testing.T) {
 	)
 	platform.Deploy(pipeline)
 
-	proc, _ := platform.RunAgent(context.Background(), pipeline,
+	proc, _ := platform.RunAgent(t.Context(), pipeline,
 		map[string]any{core.DefaultBindingName: seqTopic{Word: "x"}},
 		core.ProcessOptions{},
 	)

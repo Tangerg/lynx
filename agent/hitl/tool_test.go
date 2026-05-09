@@ -39,7 +39,7 @@ func TestWithAwaiting_NilDeciderResultDelegates(t *testing.T) {
 	inner := newFake("search", "result")
 	wrapped := hitl.WithAwaiting(inner, func(context.Context, string) core.Awaitable { return nil })
 
-	out, err := wrapped.Call(context.Background(), `{"q":"foo"}`)
+	out, err := wrapped.Call(t.Context(), `{"q":"foo"}`)
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}
@@ -59,7 +59,7 @@ func TestWithAwaiting_NonNilDeciderReturnsPauseError(t *testing.T) {
 
 	wrapped := hitl.WithAwaiting(inner, func(context.Context, string) core.Awaitable { return awaitable })
 
-	_, err := wrapped.Call(context.Background(), `{"q":"foo"}`)
+	_, err := wrapped.Call(t.Context(), `{"q":"foo"}`)
 	if err == nil {
 		t.Fatal("expected PauseError, got nil")
 	}
@@ -92,7 +92,7 @@ func TestWithConfirmation_PromptsAndOnResponseFires(t *testing.T) {
 		},
 	)
 
-	_, err := wrapped.Call(context.Background(), `{"id":42}`)
+	_, err := wrapped.Call(t.Context(), `{"id":42}`)
 	var pe *hitl.PauseError
 	if !errors.As(err, &pe) {
 		t.Fatalf("expected PauseError, got %v", err)
@@ -135,7 +135,7 @@ func TestRequireType_DeliversTypedValue(t *testing.T) {
 		},
 	)
 
-	_, err := wrapped.Call(context.Background(), `{"orderId":7}`)
+	_, err := wrapped.Call(t.Context(), `{"orderId":7}`)
 	var pe *hitl.PauseError
 	if !errors.As(err, &pe) {
 		t.Fatalf("expected PauseError, got %v", err)

@@ -87,17 +87,13 @@ func ParallelAgents[In, Element, Result any](
 				g.SetLimit(spec.MaxConcurrency)
 			}
 			for i, sub := range spec.Agents {
-				i, sub := i, sub
 				g.Go(func() error {
 					child, err := runtime.SpawnChildFresh(gctx, platform, sub, in)
 					if err != nil {
 						return fmt.Errorf("agent %d (%s): %w", i, sub.Name, err)
 					}
-					if status := child.Status(); status != core.StatusCompleted {
-						if failure := child.Failure(); failure != nil {
-							return fmt.Errorf("agent %d (%s) ended in %s: %w", i, sub.Name, status, failure)
-						}
-						return fmt.Errorf("agent %d (%s) ended in %s", i, sub.Name, status)
+					if err := runtime.ChildError(child); err != nil {
+						return fmt.Errorf("agent %d (%s): %w", i, sub.Name, err)
 					}
 					out, ok := core.ResultOfType[Element](child)
 					if !ok {

@@ -37,7 +37,7 @@ func TestReactive_AlreadySatisfiedReturnsEmptyPlan(t *testing.T) {
 	g := &core.Goal{Name: "g", Pre: []string{"goalKey"}}
 	system := plan.NewPlanningSystem(nil, []*core.Goal{g}, nil)
 
-	pl, err := reactive.NewPlanner().PlanToGoal(context.Background(), start, system, g, plan.PlanOptions{})
+	pl, err := reactive.NewPlanner().PlanToGoal(t.Context(), start, system, g, plan.PlanOptions{})
 	if err != nil {
 		t.Fatalf("PlanToGoal: %v", err)
 	}
@@ -54,7 +54,7 @@ func TestReactive_PicksHighestProgressAction(t *testing.T) {
 	strong := newAction("strong", nil, core.EffectSpec{"a": core.True, "b": core.True}, 5)
 
 	system := plan.NewPlanningSystem([]core.Action{weak, strong}, []*core.Goal{g}, nil)
-	pl, err := reactive.NewPlanner().PlanToGoal(context.Background(), start, system, g, plan.PlanOptions{})
+	pl, err := reactive.NewPlanner().PlanToGoal(t.Context(), start, system, g, plan.PlanOptions{})
 	if err != nil {
 		t.Fatalf("PlanToGoal: %v", err)
 	}
@@ -74,7 +74,7 @@ func TestReactive_TieBreaksByLowerCost(t *testing.T) {
 	expensive := newAction("expensive", nil, core.EffectSpec{"a": core.True}, 5)
 
 	system := plan.NewPlanningSystem([]core.Action{expensive, cheap}, []*core.Goal{g}, nil)
-	pl, _ := reactive.NewPlanner().PlanToGoal(context.Background(), start, system, g, plan.PlanOptions{})
+	pl, _ := reactive.NewPlanner().PlanToGoal(t.Context(), start, system, g, plan.PlanOptions{})
 	if pl.Actions[0].Metadata().Name != "cheap" {
 		t.Fatalf("expected tie-break to cheaper action, got %q", pl.Actions[0].Metadata().Name)
 	}
@@ -90,7 +90,7 @@ func TestReactive_SkipsInapplicable(t *testing.T) {
 	open := newAction("open", nil, core.EffectSpec{"a": core.True}, 2)
 
 	system := plan.NewPlanningSystem([]core.Action{blocked, open}, []*core.Goal{g}, nil)
-	pl, _ := reactive.NewPlanner().PlanToGoal(context.Background(), start, system, g, plan.PlanOptions{})
+	pl, _ := reactive.NewPlanner().PlanToGoal(t.Context(), start, system, g, plan.PlanOptions{})
 	if pl == nil || pl.Actions[0].Metadata().Name != "open" {
 		t.Fatalf("expected applicable action 'open', got %#v", pl)
 	}
@@ -102,7 +102,7 @@ func TestReactive_NoApplicableActionReturnsNil(t *testing.T) {
 	junk := newAction("junk", nil, core.EffectSpec{"unrelated": core.True}, 1)
 
 	system := plan.NewPlanningSystem([]core.Action{junk}, []*core.Goal{g}, nil)
-	pl, err := reactive.NewPlanner().PlanToGoal(context.Background(), start, system, g, plan.PlanOptions{})
+	pl, err := reactive.NewPlanner().PlanToGoal(t.Context(), start, system, g, plan.PlanOptions{})
 	if err != nil {
 		t.Fatalf("PlanToGoal: %v", err)
 	}
@@ -119,7 +119,7 @@ func TestReactive_RespectsExclusion(t *testing.T) {
 	fallback := newAction("fallback", nil, core.EffectSpec{"a": core.True}, 5)
 
 	system := plan.NewPlanningSystem([]core.Action{preferred, fallback}, []*core.Goal{g}, nil)
-	pl, _ := reactive.NewPlanner().PlanToGoal(context.Background(), start, system, g, plan.PlanOptions{
+	pl, _ := reactive.NewPlanner().PlanToGoal(t.Context(), start, system, g, plan.PlanOptions{
 		ExcludedActions: map[string]struct{}{"preferred": {}},
 	})
 	if pl.Actions[0].Metadata().Name != "fallback" {
@@ -137,7 +137,7 @@ func TestReactive_BestValuePlanRanksByNetValue(t *testing.T) {
 	high := &core.Goal{Name: "high", Pre: []string{"y"}, Value: core.Static(10)}
 
 	system := plan.NewPlanningSystem([]core.Action{a, b}, []*core.Goal{low, high}, nil)
-	pl, _ := plan.BestValuePlan(context.Background(), reactive.NewPlanner(), start, system, plan.PlanOptions{})
+	pl, _ := plan.BestValuePlan(t.Context(), reactive.NewPlanner(), start, system, plan.PlanOptions{})
 	if pl == nil || pl.Goal.Name != "high" {
 		t.Fatalf("expected high-value goal, got %#v", pl)
 	}

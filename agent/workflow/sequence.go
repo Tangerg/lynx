@@ -71,11 +71,8 @@ func SequenceAgents[In, Out any](
 				if err != nil {
 					return zero, fmt.Errorf("step %d (%s): %w", i, sub.Name, err)
 				}
-				if status := child.Status(); status != core.StatusCompleted {
-					if failure := child.Failure(); failure != nil {
-						return zero, fmt.Errorf("step %d (%s) ended in %s: %w", i, sub.Name, status, failure)
-					}
-					return zero, fmt.Errorf("step %d (%s) ended in %s", i, sub.Name, status)
+				if err := runtime.ChildError(child); err != nil {
+					return zero, fmt.Errorf("step %d (%s): %w", i, sub.Name, err)
 				}
 
 				// For non-final steps, take the most-recently-bound visible

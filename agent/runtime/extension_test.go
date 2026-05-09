@@ -117,7 +117,7 @@ func TestActionInterceptorOnionOrdering(t *testing.T) {
 	}
 
 	proc, err := platform.RunAgent(
-		context.Background(), a,
+		t.Context(), a,
 		map[string]any{core.DefaultBindingName: runIn{V: 1}},
 		core.ProcessOptions{
 			Extensions: []core.Extension{
@@ -217,7 +217,7 @@ func TestGoalApproverVetoesPlan(t *testing.T) {
 	if err := platform.Deploy(a); err != nil {
 		t.Fatalf("Deploy: %v", err)
 	}
-	proc, err := platform.RunAgent(context.Background(), a, nil, core.ProcessOptions{})
+	proc, err := platform.RunAgent(t.Context(), a, nil, core.ProcessOptions{})
 	if err != nil {
 		t.Fatalf("RunAgent: %v", err)
 	}
@@ -245,7 +245,7 @@ func TestProcessExtensionDedupErrors(t *testing.T) {
 		t.Fatal(err)
 	}
 	rec := &orderRecorder{}
-	_, err := platform.RunAgent(context.Background(), a, nil, core.ProcessOptions{
+	_, err := platform.RunAgent(t.Context(), a, nil, core.ProcessOptions{
 		Extensions: []core.Extension{
 			orderedInterceptor{name: "same", recorder: rec},
 			orderedInterceptor{name: "same", recorder: rec},
@@ -295,7 +295,7 @@ func TestProcessScopedListenerFires(t *testing.T) {
 	}
 	count := 0
 	proc, err := platform.RunAgent(
-		context.Background(), a,
+		t.Context(), a,
 		map[string]any{core.DefaultBindingName: "hello"},
 		core.ProcessOptions{
 			Extensions: []core.Extension{

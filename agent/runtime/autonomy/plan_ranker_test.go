@@ -58,7 +58,7 @@ func TestLLMPlanRanker_ReordersByLLMConfidence(t *testing.T) {
 	client, _ := chat.NewClientWithModel(model)
 
 	ranker := autonomy.NewLLMPlanRanker(client, autonomy.LLMPlanRankerConfig{})
-	out, err := ranker.Rank(context.Background(), plans, plan.EmptyWorldState())
+	out, err := ranker.Rank(t.Context(), plans, plan.EmptyWorldState())
 	if err != nil {
 		t.Fatalf("Rank: %v", err)
 	}
@@ -82,7 +82,7 @@ func TestLLMPlanRanker_PreservesOrderForSinglePlan(t *testing.T) {
 	client, _ := chat.NewClientWithModel(model)
 	ranker := autonomy.NewLLMPlanRanker(client, autonomy.LLMPlanRankerConfig{})
 
-	out, err := ranker.Rank(context.Background(), plans, plan.EmptyWorldState())
+	out, err := ranker.Rank(t.Context(), plans, plan.EmptyWorldState())
 	if err != nil {
 		t.Fatalf("Rank: %v", err)
 	}
@@ -103,7 +103,7 @@ func TestLLMPlanRanker_PromptContainsPlanSummaries(t *testing.T) {
 	client, _ := chat.NewClientWithModel(model)
 
 	ranker := autonomy.NewLLMPlanRanker(client, autonomy.LLMPlanRankerConfig{})
-	if _, err := ranker.Rank(context.Background(), plans, plan.EmptyWorldState()); err != nil {
+	if _, err := ranker.Rank(t.Context(), plans, plan.EmptyWorldState()); err != nil {
 		t.Fatalf("Rank: %v", err)
 	}
 

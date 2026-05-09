@@ -212,7 +212,7 @@ func TestRunAgentPublishesSingleStuckEvent(t *testing.T) {
 
 func TestRunAgentMarksCancelledDuringActionAsKilled(t *testing.T) {
 	type out struct{}
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	actionErr := errors.New("transient")
 
 	a := agent.New("cancel").

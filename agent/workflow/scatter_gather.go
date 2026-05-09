@@ -76,7 +76,6 @@ func ScatterGatherAgent[In, Element, Result any](spec ScatterGatherSpec[In, Elem
 				g.SetLimit(spec.MaxConcurrency)
 			}
 			for i, gen := range spec.Generators {
-				i, gen := i, gen
 				g.Go(func() error {
 					out, err := gen(gctx, pc, in)
 					if err != nil {

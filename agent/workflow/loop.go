@@ -126,11 +126,8 @@ func LoopAgent[In, Out any](
 			if err != nil {
 				return zero, fmt.Errorf("iteration %d: %w", history.Count(), err)
 			}
-			if status := child.Status(); status != core.StatusCompleted {
-				if failure := child.Failure(); failure != nil {
-					return zero, fmt.Errorf("iteration %d (%s) ended in %s: %w", history.Count(), spec.Body.Name, status, failure)
-				}
-				return zero, fmt.Errorf("iteration %d (%s) ended in %s", history.Count(), spec.Body.Name, status)
+			if err := runtime.ChildError(child); err != nil {
+				return zero, fmt.Errorf("iteration %d (%s): %w", history.Count(), spec.Body.Name, err)
 			}
 
 			out, ok := core.ResultOfType[Out](child)
