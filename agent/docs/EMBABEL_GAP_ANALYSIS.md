@@ -29,8 +29,8 @@
 | **自动批量发布**（按 Goal.Export 收集） | ✅ `runtime.AllAchievableTools(platform)` + `runtime.PublishAll(platform)` | ✅ `PerGoalMcpExportToolCallbackPublisher` | **追平** |
 | **MCP 集成**（client + server） | ✅ `lynx/mcp` 全功能 + `runtime.MCPToolGroupResolver` + `runtime.AsMCPTool` | ✅ `embabel-agent-mcp` | **追平** |
 | **Tool advanced policies** | ✅ `toolpolicy/{WithOnceOnly, WithUnlock, WithLoopScope}` | ✅ `OneShotPerLoopTool` + `PlaybookTool` + `UnfoldingTool`（前 Matryoshka） | **基线追平**；UnfoldingTool 未做（见 §16） |
-| **Workflow（action 级）** | ✅ `workflow.{ScatterGatherAgent, RepeatUntilAgent, RepeatUntilAcceptableAgent, ConsensusAgent}` | ✅ `api/common/workflow/` 同款 | **追平** |
-| **Workflow（agent 级）** | ✅ `workflow.{SequenceAgents, ParallelAgents, LoopAgent}`（基于 `runtime.SpawnChildFresh` 的 branch isolation） | ❌（embabel 没有 agent 级 workflow，全 LLM-driven） | **lynx 更强** |
+| **Workflow（action 级）** | ✅ `workflow.{ScatterGather, RepeatUntil, RepeatUntilAcceptable, Consensus}` | ✅ `api/common/workflow/` 同款 | **追平** |
+| **Workflow（agent 级）** | ✅ `workflow.{Sequence, Parallel, Loop}`（基于 `runtime.SpawnChildFresh` 的 branch isolation） | ❌（embabel 没有 agent 级 workflow，全 LLM-driven） | **lynx 更强** |
 | **Autonomy / Goal Ranking** | ✅ `runtime/autonomy/{Choose, Run}` + `LLMRanker`（含 Tags/Examples）+ `LLMPlanRanker` + `GoalConfidenceCutOff` + filters | ✅ `Autonomy.chooseAndAccomplishGoal` + `Ranker` + `GoalChoiceApprover` | **追平** |
 | **Extension 模型** | ✅ 单注册入口 `PlatformConfig.Extensions` / `ProcessOptions.Extensions` + 9 capability 类型断言检测 | ✅ Spring DI 多 SPI 注入点 | **lynx 更整洁** |
 | **事件系统** | ✅ 14 个事件类型 + `event.Multicast` + JSON marshaler + `event.NewNamedListener` 单一注册路径 | ✅ `AgenticEventListener` + Micrometer | **追平** |
@@ -236,10 +236,10 @@
 
 | 维度 | lynx | embabel |
 |---|---|---|
-| Scatter-Gather | ✅ `workflow.ScatterGatherAgent[In, Element, Result]`（errgroup 并行 + `MaxConcurrency`） | ✅ `ScatterGather.kt` |
-| RepeatUntil | ✅ `workflow.RepeatUntilAgent[In, Out]`（`CanRerun` + ComputedCondition + `History[Out]` + `MaxIterations`） | ✅ `RepeatUntil.kt` |
-| RepeatUntilAcceptable | ✅ `workflow.RepeatUntilAcceptableAgent[In, Out]`（`Evaluator` 返回 `Feedback`，`AcceptableScore` 阈值默认 0.7） | ✅ `RepeatUntilAcceptable.kt` |
-| Consensus | ✅ `workflow.ConsensusAgent[In, Element]`（ScatterGather 特化 + Key 投影 + 多数票） | ✅ `multimodel/ConsensusBuilder.kt` |
+| Scatter-Gather | ✅ `workflow.ScatterGather[In, Element, Result]`（errgroup 并行 + `MaxConcurrency`） | ✅ `ScatterGather.kt` |
+| RepeatUntil | ✅ `workflow.RepeatUntil[In, Out]`（`CanRerun` + ComputedCondition + `History[Out]` + `MaxIterations`） | ✅ `RepeatUntil.kt` |
+| RepeatUntilAcceptable | ✅ `workflow.RepeatUntilAcceptable[In, Out]`（`Evaluator` 返回 `Feedback`，`AcceptableScore` 阈值默认 0.7） | ✅ `RepeatUntilAcceptable.kt` |
+| Consensus | ✅ `workflow.Consensus[In, Element]`（ScatterGather 特化 + Key 投影 + 多数票） | ✅ `multimodel/ConsensusBuilder.kt` |
 | Feedback 数据类型 | ✅ `workflow.Feedback`（含 `Acceptable(threshold)` 助手） | ✅ `Feedback.kt` |
 | `WorkflowBuilder` 通用基类 | 不需要 —— builder 函数返回 `*core.Agent`，与普通 agent 同形 | ✅ `WorkflowBuilder.kt` |
 
@@ -247,11 +247,11 @@
 
 | 维度 | lynx | embabel |
 |---|---|---|
-| **`SequenceAgents`**（确定性 a₁ → a₂ → ... → aₙ） | ✅ ([workflow/sequence.go](../workflow/sequence.go))，基于 `runtime.SpawnChildFresh` | ❌ 全 LLM-driven，无此层 |
-| **`ParallelAgents`**（fan-out 多 sub-agent + Joiner） | ✅ ([workflow/parallel.go](../workflow/parallel.go))，**branch isolation** via Spawn() | ❌ |
-| **`LoopAgent`**（重复跑 sub-agent 直到 Until） | ✅ ([workflow/loop.go](../workflow/loop.go))，**fresh blackboard 每轮**（避免 orchestrator 累积 Out 短路 sub-agent goal） | ❌ |
+| **`Sequence`**（确定性 a₁ → a₂ → ... → aₙ） | ✅ ([workflow/sequence.go](../workflow/sequence.go))，基于 `runtime.SpawnChildFresh` | ❌ 全 LLM-driven，无此层 |
+| **`Parallel`**（fan-out 多 sub-agent + Joiner） | ✅ ([workflow/parallel.go](../workflow/parallel.go))，**branch isolation** via Spawn() | ❌ |
+| **`Loop`**（重复跑 sub-agent 直到 Until） | ✅ ([workflow/loop.go](../workflow/loop.go))，**fresh blackboard 每轮**（避免 orchestrator 累积 Out 短路 sub-agent goal） | ❌ |
 
-**关键设计**：agent 级 workflow **必须** 用 `SpawnChildFresh`（每轮独立 blackboard）—— 用默认的 `Spawn()` 继承会让 orchestrator 累积的 typed Out 泄漏到 child blackboard，导致 sub-agent 的 "produce Out" goal 被判定为已满足，body 短路不执行。这是第 8/9 轮在实现 LoopAgent 时发现并解决的设计要点。
+**关键设计**：agent 级 workflow **必须** 用 `SpawnChildFresh`（每轮独立 blackboard）—— 用默认的 `Spawn()` 继承会让 orchestrator 累积的 typed Out 泄漏到 child blackboard，导致 sub-agent 的 "produce Out" goal 被判定为已满足，body 短路不执行。这是第 8/9 轮在实现 Loop 时发现并解决的设计要点。
 
 ---
 
@@ -265,7 +265,7 @@
 | 多 goal 同 process 选优（按 NetValue） | ✅ planner 默认行为（`SortByNetValueDesc`） | ✅ `Autonomy` |
 | LLM 选 goal/agent | ✅ `autonomy.Autonomy.Choose / Run`（[autonomy.go](../runtime/autonomy/autonomy.go)） + `Ranker` SPI + `LLMRanker` 实现 | ✅ `Autonomy.choose` + `Ranker` SPI |
 | **LLMRanker prompt 包含 Goal.Tags + Examples** | ✅ ([llm_ranker.go](../runtime/autonomy/llm_ranker.go)) `buildUserPrompt` 在每 candidate 行下追加 `tags: ...` / `examples:` 块 | ✅ |
-| Confidence cutoff | ✅ `AutonomyConfig.GoalConfidenceCutOff` → `ErrNoConfidentChoice` | ✅ `AutonomyProperties.goalConfidenceCutOff` |
+| Confidence cutoff | ✅ `Config.GoalConfidenceCutOff` → `ErrNoConfidentChoice` | ✅ `AutonomyProperties.goalConfidenceCutOff` |
 | `approveWithScoreOver(threshold)` 工厂 | ✅ `GoalConfidenceCutOff` 同款 | ✅ |
 | AgentFilter / GoalFilter | ✅ ([autonomy.go](../runtime/autonomy/autonomy.go)) | ✅ Spring profile / role |
 | 一键执行 | ✅ `Autonomy.Run` —— 装一个 per-process `targetGoalApprover` 把 planner 锁定到选中 goal | ✅ `Autonomy.runWithChoice` |

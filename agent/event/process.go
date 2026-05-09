@@ -2,93 +2,93 @@ package event
 
 import "github.com/Tangerg/lynx/agent/core"
 
-// ProcessCreatedEvent fires when a new AgentProcess is registered on the
+// ProcessCreated fires when a new AgentProcess is registered on the
 // platform — captures the initial bindings the caller seeded.
-type ProcessCreatedEvent struct {
+type ProcessCreated struct {
 	BaseEvent
 	Bindings map[string]any `json:"bindings,omitempty"`
 }
 
-func (ProcessCreatedEvent) EventName() string { return "process_created" }
+func (ProcessCreated) EventName() string { return "process_created" }
 
-func (e ProcessCreatedEvent) MarshalJSON() ([]byte, error) {
+func (e ProcessCreated) MarshalJSON() ([]byte, error) {
 	return emit(e, map[string]any{"bindings": e.Bindings})
 }
 
-// ProcessCompletedEvent fires when the process reaches its goal
+// ProcessCompleted fires when the process reaches its goal
 // successfully.
-type ProcessCompletedEvent struct {
+type ProcessCompleted struct {
 	BaseEvent
 	Goal *core.Goal `json:"-"`
 }
 
-func (ProcessCompletedEvent) EventName() string { return "process_completed" }
+func (ProcessCompleted) EventName() string { return "process_completed" }
 
-func (e ProcessCompletedEvent) MarshalJSON() ([]byte, error) {
+func (e ProcessCompleted) MarshalJSON() ([]byte, error) {
 	return emit(e, map[string]any{"goal": summarizeGoal(e.Goal)})
 }
 
-// ProcessFailedEvent fires when the process terminates with an error.
-type ProcessFailedEvent struct {
+// ProcessFailed fires when the process terminates with an error.
+type ProcessFailed struct {
 	BaseEvent
 	Err error `json:"-"`
 }
 
-func (ProcessFailedEvent) EventName() string { return "process_failed" }
+func (ProcessFailed) EventName() string { return "process_failed" }
 
-func (e ProcessFailedEvent) MarshalJSON() ([]byte, error) {
+func (e ProcessFailed) MarshalJSON() ([]byte, error) {
 	return emit(e, map[string]any{"error": errString(e.Err)})
 }
 
-// ProcessStuckEvent fires when the planner returns no plan and no
+// ProcessStuck fires when the planner returns no plan and no
 // StuckHandler resolves it.
-type ProcessStuckEvent struct {
+type ProcessStuck struct {
 	BaseEvent
 	LastWorld core.WorldState `json:"-"`
 }
 
-func (ProcessStuckEvent) EventName() string { return "process_stuck" }
+func (ProcessStuck) EventName() string { return "process_stuck" }
 
-func (e ProcessStuckEvent) MarshalJSON() ([]byte, error) {
+func (e ProcessStuck) MarshalJSON() ([]byte, error) {
 	return emit(e, map[string]any{"world": snapshotWorld(e.LastWorld)})
 }
 
-// ProcessWaitingEvent fires when a typed action calls AwaitInput and the
+// ProcessWaiting fires when a typed action calls AwaitInput and the
 // process suspends pending external input.
-type ProcessWaitingEvent struct {
+type ProcessWaiting struct {
 	BaseEvent
 	Awaitable core.Awaitable `json:"-"`
 }
 
-func (ProcessWaitingEvent) EventName() string { return "process_waiting" }
+func (ProcessWaiting) EventName() string { return "process_waiting" }
 
-func (e ProcessWaitingEvent) MarshalJSON() ([]byte, error) {
+func (e ProcessWaiting) MarshalJSON() ([]byte, error) {
 	return emit(e, map[string]any{"awaitable": summarizeAwaitable(e.Awaitable)})
 }
 
-// ProcessKilledEvent fires from Platform.KillProcess or when ctx is
+// ProcessKilled fires from Platform.KillProcess or when ctx is
 // cancelled mid-run.
-type ProcessKilledEvent struct {
+type ProcessKilled struct {
 	BaseEvent
 	Reason string `json:"reason,omitempty"`
 }
 
-func (ProcessKilledEvent) EventName() string { return "process_killed" }
+func (ProcessKilled) EventName() string { return "process_killed" }
 
-func (e ProcessKilledEvent) MarshalJSON() ([]byte, error) {
+func (e ProcessKilled) MarshalJSON() ([]byte, error) {
 	return emit(e, map[string]any{"reason": e.Reason})
 }
 
-// ProcessTerminatedEvent fires when an EarlyTerminationPolicy or a
+// ProcessTerminated fires when an EarlyTerminationPolicy or a
 // queued [core.TerminationScopeAgent] signal stops the process.
-type ProcessTerminatedEvent struct {
+type ProcessTerminated struct {
 	BaseEvent
 	Reason string                `json:"reason,omitempty"`
 	Scope  core.TerminationScope `json:"-"`
 }
 
-func (ProcessTerminatedEvent) EventName() string { return "process_terminated" }
+func (ProcessTerminated) EventName() string { return "process_terminated" }
 
-func (e ProcessTerminatedEvent) MarshalJSON() ([]byte, error) {
+func (e ProcessTerminated) MarshalJSON() ([]byte, error) {
 	return emit(e, map[string]any{"reason": e.Reason, "scope": e.Scope.String()})
 }

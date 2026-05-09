@@ -38,7 +38,7 @@ type RepeatUntilSpec[In, Out any] struct {
 	Accept func(ctx context.Context, in In, last Out, history *History[Out]) bool
 }
 
-// RepeatUntilAgent compiles spec into a deployable [*core.Agent].
+// RepeatUntil compiles spec into a deployable [*core.Agent].
 //
 // The agent has one action — "{Name}-task" — that produces Out and
 // is flagged [ActionConfig.CanRerun] so the planner can pick it
@@ -54,15 +54,15 @@ type RepeatUntilSpec[In, Out any] struct {
 // Task / Accept callbacks always see the running record.
 //
 // Panics on missing Name, nil Task, or nil Accept.
-func RepeatUntilAgent[In, Out any](spec RepeatUntilSpec[In, Out]) *core.Agent {
+func RepeatUntil[In, Out any](spec RepeatUntilSpec[In, Out]) *core.Agent {
 	if spec.Name == "" {
-		panic("workflow.RepeatUntilAgent: Name must not be empty")
+		panic("workflow.RepeatUntil: Name must not be empty")
 	}
 	if spec.Task == nil {
-		panic("workflow.RepeatUntilAgent: Task must not be nil")
+		panic("workflow.RepeatUntil: Task must not be nil")
 	}
 	if spec.Accept == nil {
-		panic("workflow.RepeatUntilAgent: Accept must not be nil")
+		panic("workflow.RepeatUntil: Accept must not be nil")
 	}
 	maxIter := spec.MaxIterations
 	if maxIter <= 0 {

@@ -21,7 +21,7 @@ func voter(label consensusVote) func(context.Context, *core.ProcessContext, cons
 
 func TestConsensus_PicksMajorityVote(t *testing.T) {
 	// 5 voters: 3 say "yes", 2 say "no". Consensus = "yes".
-	a := workflow.ConsensusAgent(workflow.ConsensusSpec[consensusIn, consensusVote]{
+	a := workflow.Consensus(workflow.ConsensusSpec[consensusIn, consensusVote]{
 		Name: "majority",
 		Voters: []func(context.Context, *core.ProcessContext, consensusIn) (consensusVote, error){
 			voter("yes"), voter("no"), voter("yes"), voter("yes"), voter("no"),
@@ -53,7 +53,7 @@ func TestConsensus_PicksMajorityVote(t *testing.T) {
 
 func TestConsensus_TieBreakByVoterOrder(t *testing.T) {
 	// 2 vs 2 tie; expect the first-seen winner (which was "yes" at idx 0).
-	a := workflow.ConsensusAgent(workflow.ConsensusSpec[consensusIn, consensusVote]{
+	a := workflow.Consensus(workflow.ConsensusSpec[consensusIn, consensusVote]{
 		Name: "tie",
 		Voters: []func(context.Context, *core.ProcessContext, consensusIn) (consensusVote, error){
 			voter("yes"), voter("no"), voter("yes"), voter("no"),
@@ -77,18 +77,18 @@ func TestConsensus_PanicsOnInvalidSpec(t *testing.T) {
 		fn   func()
 	}{
 		{"empty name", func() {
-			workflow.ConsensusAgent(workflow.ConsensusSpec[consensusIn, consensusVote]{
+			workflow.Consensus(workflow.ConsensusSpec[consensusIn, consensusVote]{
 				Voters: []func(context.Context, *core.ProcessContext, consensusIn) (consensusVote, error){voter("y")},
 				Key:    workflow.DefaultKey[consensusVote],
 			})
 		}},
 		{"empty voters", func() {
-			workflow.ConsensusAgent(workflow.ConsensusSpec[consensusIn, consensusVote]{
+			workflow.Consensus(workflow.ConsensusSpec[consensusIn, consensusVote]{
 				Name: "x", Key: workflow.DefaultKey[consensusVote],
 			})
 		}},
 		{"nil key", func() {
-			workflow.ConsensusAgent(workflow.ConsensusSpec[consensusIn, consensusVote]{
+			workflow.Consensus(workflow.ConsensusSpec[consensusIn, consensusVote]{
 				Name:   "x",
 				Voters: []func(context.Context, *core.ProcessContext, consensusIn) (consensusVote, error){voter("y")},
 			})

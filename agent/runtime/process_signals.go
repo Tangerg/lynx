@@ -104,7 +104,7 @@ func (s *processSignals) registerToolCallCancel(cancel context.CancelFunc) (rele
 // parkAwaitable stores the request as the pending awaitable. Returns
 // [core.ActionWaiting] on success or [core.ActionFailed] for nil
 // requests. The caller is responsible for publishing
-// [event.ProcessWaitingEvent].
+// [event.ProcessWaiting].
 func (s *processSignals) parkAwaitable(req core.Awaitable) core.ActionStatus {
 	if req == nil {
 		return core.ActionFailed
@@ -137,11 +137,11 @@ func (s *processSignals) deliverResponse(response any) (core.ResponseImpact, err
 	return slot.awaitable.OnResponseAny(response)
 }
 
-// buildWaitingEvent constructs the ProcessWaitingEvent published by
+// buildWaitingEvent constructs the ProcessWaiting published by
 // AgentProcess.AwaitInput. Kept on processSignals so AwaitInput stays
 // short and doesn't reach into the event package directly.
-func (s *processSignals) buildWaitingEvent(processID string, req core.Awaitable) event.ProcessWaitingEvent {
-	return event.ProcessWaitingEvent{
+func (s *processSignals) buildWaitingEvent(processID string, req core.Awaitable) event.ProcessWaiting {
+	return event.ProcessWaiting{
 		BaseEvent: event.NewBaseEvent(processID),
 		Awaitable: req,
 	}

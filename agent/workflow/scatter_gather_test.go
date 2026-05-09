@@ -31,7 +31,7 @@ func TestScatterGather_RunsAllGeneratorsAndJoins(t *testing.T) {
 		}
 	}
 
-	a := workflow.ScatterGatherAgent(workflow.ScatterGatherSpec[sgIn, sgElement, sgResult]{
+	a := workflow.ScatterGather(workflow.ScatterGatherSpec[sgIn, sgElement, sgResult]{
 		Name:        "fanout",
 		Description: "score-fanout test",
 		Generators: []func(context.Context, *core.ProcessContext, sgIn) (sgElement, error){
@@ -70,7 +70,7 @@ func TestScatterGather_RunsAllGeneratorsAndJoins(t *testing.T) {
 }
 
 func TestScatterGather_GeneratorErrorPropagates(t *testing.T) {
-	a := workflow.ScatterGatherAgent(workflow.ScatterGatherSpec[sgIn, sgElement, sgResult]{
+	a := workflow.ScatterGather(workflow.ScatterGatherSpec[sgIn, sgElement, sgResult]{
 		Name: "fanout-err",
 		Generators: []func(context.Context, *core.ProcessContext, sgIn) (sgElement, error){
 			func(context.Context, *core.ProcessContext, sgIn) (sgElement, error) {
@@ -106,7 +106,7 @@ func TestScatterGather_PanicsOnInvalidSpec(t *testing.T) {
 		fn   func()
 	}{
 		{"empty name", func() {
-			workflow.ScatterGatherAgent(workflow.ScatterGatherSpec[sgIn, sgElement, sgResult]{
+			workflow.ScatterGather(workflow.ScatterGatherSpec[sgIn, sgElement, sgResult]{
 				Generators: []func(context.Context, *core.ProcessContext, sgIn) (sgElement, error){
 					func(context.Context, *core.ProcessContext, sgIn) (sgElement, error) { return sgElement{}, nil },
 				},
@@ -114,13 +114,13 @@ func TestScatterGather_PanicsOnInvalidSpec(t *testing.T) {
 			})
 		}},
 		{"empty generators", func() {
-			workflow.ScatterGatherAgent(workflow.ScatterGatherSpec[sgIn, sgElement, sgResult]{
+			workflow.ScatterGather(workflow.ScatterGatherSpec[sgIn, sgElement, sgResult]{
 				Name:   "x",
 				Joiner: func(context.Context, *core.ProcessContext, []sgElement) (sgResult, error) { return sgResult{}, nil },
 			})
 		}},
 		{"nil joiner", func() {
-			workflow.ScatterGatherAgent(workflow.ScatterGatherSpec[sgIn, sgElement, sgResult]{
+			workflow.ScatterGather(workflow.ScatterGatherSpec[sgIn, sgElement, sgResult]{
 				Name: "x",
 				Generators: []func(context.Context, *core.ProcessContext, sgIn) (sgElement, error){
 					func(context.Context, *core.ProcessContext, sgIn) (sgElement, error) { return sgElement{}, nil },

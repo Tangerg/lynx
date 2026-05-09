@@ -30,7 +30,7 @@ func (p *Platform) Deploy(a *core.Agent) error {
 	}
 
 	p.agents.register(a)
-	p.publish(event.AgentDeployedEvent{
+	p.publish(event.AgentDeployed{
 		BaseEvent: event.NewBaseEvent(""),
 		AgentName: a.Name,
 	})
@@ -43,7 +43,7 @@ func (p *Platform) Undeploy(name string) error {
 	if err := p.agents.unregister(name); err != nil {
 		return fmt.Errorf("undeploy agent %q: %w", name, err)
 	}
-	p.publish(event.AgentUndeployedEvent{
+	p.publish(event.AgentUndeployed{
 		BaseEvent: event.NewBaseEvent(""),
 		AgentName: name,
 	})

@@ -62,7 +62,7 @@ func TestLLMRanker_ParsesScoresAndRoutesToTopAgent(t *testing.T) {
 		}
 	}
 
-	candidates := autonomy.NewAutonomy(platform, &stubRanker{}, autonomy.AutonomyConfig{}).Candidates()
+	candidates := autonomy.New(platform, &stubRanker{}, autonomy.Config{}).Candidates()
 	if len(candidates) != 2 {
 		t.Fatalf("expected 2 candidates, got %d", len(candidates))
 	}
@@ -126,7 +126,7 @@ func TestLLMRanker_ClampsConfidence(t *testing.T) {
 	platform := agent.NewPlatform(runtime.PlatformConfig{})
 	mustDeploy(t, platform, newAgent("alpha"))
 
-	candidates := autonomy.NewAutonomy(platform, &stubRanker{}, autonomy.AutonomyConfig{}).Candidates()
+	candidates := autonomy.New(platform, &stubRanker{}, autonomy.Config{}).Candidates()
 	reply := `{"choices":[{"id":"` + candidates[0].String() + `","confidence":1.7,"rationale":"x"}]}`
 	model := newStubModel(reply)
 	client, _ := chat.NewClientWithModel(model)
@@ -145,7 +145,7 @@ func TestLLMRanker_MissingScoreDefaultsToZero(t *testing.T) {
 	platform := agent.NewPlatform(runtime.PlatformConfig{})
 	mustDeploy(t, platform, newAgent("alpha"), newAgent("beta"))
 
-	candidates := autonomy.NewAutonomy(platform, &stubRanker{}, autonomy.AutonomyConfig{}).Candidates()
+	candidates := autonomy.New(platform, &stubRanker{}, autonomy.Config{}).Candidates()
 	// Reply scores only the first candidate; beta is omitted.
 	reply := `{"choices":[{"id":"` + candidates[0].String() + `","confidence":0.6,"rationale":""}]}`
 	model := newStubModel(reply)
@@ -164,7 +164,7 @@ func TestLLMRanker_MissingScoreDefaultsToZero(t *testing.T) {
 func TestLLMRanker_RejectsNonJSONReply(t *testing.T) {
 	platform := agent.NewPlatform(runtime.PlatformConfig{})
 	mustDeploy(t, platform, newAgent("alpha"))
-	candidates := autonomy.NewAutonomy(platform, &stubRanker{}, autonomy.AutonomyConfig{}).Candidates()
+	candidates := autonomy.New(platform, &stubRanker{}, autonomy.Config{}).Candidates()
 
 	model := newStubModel("nope, no JSON at all here")
 	client, _ := chat.NewClientWithModel(model)
@@ -198,7 +198,7 @@ func TestLLMRanker_PromptIncludesGoalTagsAndExamples(t *testing.T) {
 		t.Fatalf("deploy: %v", err)
 	}
 
-	candidates := autonomy.NewAutonomy(platform, &stubRanker{}, autonomy.AutonomyConfig{}).Candidates()
+	candidates := autonomy.New(platform, &stubRanker{}, autonomy.Config{}).Candidates()
 	reply := `{"choices":[{"id":"` + candidates[0].String() + `","confidence":1.0,"rationale":""}]}`
 	model := newStubModel(reply)
 	client, _ := chat.NewClientWithModel(model)

@@ -63,15 +63,15 @@ type Ranker interface {
 
 // ErrNoConfidentChoice is returned by [Autonomy.Choose] / [Autonomy.Run]
 // when the highest-scored candidate falls below
-// [AutonomyConfig.GoalConfidenceCutOff]. Callers typically translate
+// [Config.GoalConfidenceCutOff]. Callers typically translate
 // this into a "I don't know how to help with that" response or fall
 // back to a default agent.
 var ErrNoConfidentChoice = errors.New("autonomy: no candidate cleared the confidence cutoff")
 
-// AutonomyConfig knobs the orchestrator. Zero value is usable: cutoff
+// Config knobs the orchestrator. Zero value is usable: cutoff
 // 0 (always pick the top score regardless of confidence), no agent
 // filter, no extra approvers.
-type AutonomyConfig struct {
+type Config struct {
 	// GoalConfidenceCutOff is the minimum Confidence the top choice
 	// must clear; otherwise [Autonomy.Choose] returns
 	// [ErrNoConfidentChoice]. 0 disables the gate.
@@ -87,22 +87,21 @@ type AutonomyConfig struct {
 	GoalFilter func(*core.Agent, *core.Goal) bool
 }
 
-// Autonomy is the orchestrator. Construct with [NewAutonomy].
+// Autonomy is the orchestrator. Construct with [New].
 type Autonomy struct {
 	platform *runtime.Platform
 	ranker   Ranker
-	cfg      AutonomyConfig
+	cfg      Config
 }
 
-// NewAutonomy returns an orchestrator backed by ranker. Both
-// platform and ranker are required; nil panics — programming errors
-// at boot.
-func NewAutonomy(platform *runtime.Platform, ranker Ranker, cfg AutonomyConfig) *Autonomy {
+// New returns an orchestrator backed by ranker. Both platform and
+// ranker are required; nil panics — programming errors at boot.
+func New(platform *runtime.Platform, ranker Ranker, cfg Config) *Autonomy {
 	if platform == nil {
-		panic("autonomy.NewAutonomy: platform must not be nil")
+		panic("autonomy.New: platform must not be nil")
 	}
 	if ranker == nil {
-		panic("autonomy.NewAutonomy: ranker must not be nil")
+		panic("autonomy.New: ranker must not be nil")
 	}
 	return &Autonomy{platform: platform, ranker: ranker, cfg: cfg}
 }

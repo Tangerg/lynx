@@ -8,7 +8,7 @@ import (
 	"github.com/Tangerg/lynx/agent/runtime"
 )
 
-// LoopAgentSpec configures a "run a sub-agent body repeatedly until
+// LoopSpec configures a "run a sub-agent body repeatedly until
 // Until returns true (or MaxIterations expires)" workflow. Each
 // iteration runs Body via [runtime.SpawnChildFresh] — a child process
 // with a CLEAN blackboard seeded only with the typed input. This
@@ -27,11 +27,11 @@ import (
 // wrapper).
 //
 // Compare to [RepeatUntilSpec]: that one's Task is an inline closure
-// (action level); LoopAgentSpec.Body is a full sub-agent (agent
+// (action level); LoopSpec.Body is a full sub-agent (agent
 // level), so Body can have its own LLM tool loop, sub-actions, etc.
-// Use [RepeatUntilSpec] for "loop a single function"; use LoopAgent
+// Use [RepeatUntilSpec] for "loop a single function"; use Loop
 // for "loop a whole agent".
-type LoopAgentSpec[In, Out any] struct {
+type LoopSpec[In, Out any] struct {
 	// Name names the produced agent + its goal + the iteration's
 	// computed condition. Required.
 	Name string
@@ -54,7 +54,7 @@ type LoopAgentSpec[In, Out any] struct {
 	Until func(ctx context.Context, in In, last Out) bool
 }
 
-// LoopAgent compiles spec into a deployable agent. The compiled agent
+// Loop compiles spec into a deployable agent. The compiled agent
 // has one CanRerun=true action ("{Name}-iter") that runs Body once and
 // records the result on the parent blackboard via [History][Out];
 // after each run the runtime re-evaluates the "{Name}_done" computed
@@ -62,26 +62,26 @@ type LoopAgentSpec[In, Out any] struct {
 // preconditions on it) is satisfied and the loop terminates; otherwise
 // GOAP re-plans and runs the action again.
 //
-// Mirrors [RepeatUntilAgent]'s mechanics — same single-action +
+// Mirrors [RepeatUntil]'s mechanics — same single-action +
 // computed-condition + History pattern — substituting "run a sub-agent"
 // for "call a closure".
 //
 // Panics on missing Name, nil Body, or nil Until.
-func LoopAgent[In, Out any](
+func Loop[In, Out any](
 	platform *runtime.Platform,
-	spec LoopAgentSpec[In, Out],
+	spec LoopSpec[In, Out],
 ) *core.Agent {
 	if platform == nil {
-		panic("workflow.LoopAgent: platform must not be nil")
+		panic("workflow.Loop: platform must not be nil")
 	}
 	if spec.Name == "" {
-		panic("workflow.LoopAgent: Name must not be empty")
+		panic("workflow.Loop: Name must not be empty")
 	}
 	if spec.Body == nil {
-		panic("workflow.LoopAgent: Body must not be nil")
+		panic("workflow.Loop: Body must not be nil")
 	}
 	if spec.Until == nil {
-		panic("workflow.LoopAgent: Until must not be nil")
+		panic("workflow.Loop: Until must not be nil")
 	}
 	maxIter := spec.MaxIterations
 	if maxIter <= 0 {

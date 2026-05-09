@@ -50,7 +50,7 @@ func (p *Platform) createProcess(
 	addEventListenerExtensions(proc.processEvents, options.Extensions)
 
 	p.procs.register(proc)
-	p.publish(event.ProcessCreatedEvent{
+	p.publish(event.ProcessCreated{
 		BaseEvent: event.NewBaseEvent(id),
 		Bindings:  bindings,
 	})

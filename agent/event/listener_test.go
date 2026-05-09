@@ -19,8 +19,8 @@ func TestNamedListener_NameAndOnEvent(t *testing.T) {
 
 	mc := event.NewMulticast()
 	mc.Add(listener)
-	mc.OnEvent(event.AgentDeployedEvent{BaseEvent: event.NewBaseEvent(""), AgentName: "x"})
-	mc.OnEvent(event.AgentUndeployedEvent{BaseEvent: event.NewBaseEvent(""), AgentName: "x"})
+	mc.OnEvent(event.AgentDeployed{BaseEvent: event.NewBaseEvent(""), AgentName: "x"})
+	mc.OnEvent(event.AgentUndeployed{BaseEvent: event.NewBaseEvent(""), AgentName: "x"})
 
 	if len(got) != 2 {
 		t.Fatalf("captured %d events, want 2: %v", len(got), got)
@@ -34,7 +34,7 @@ func TestNamedListener_NilFnIsNoop(t *testing.T) {
 	listener := event.NewNamedListener("noop", nil)
 
 	// Should not panic.
-	listener.OnEvent(event.AgentDeployedEvent{BaseEvent: event.NewBaseEvent(""), AgentName: "x"})
+	listener.OnEvent(event.AgentDeployed{BaseEvent: event.NewBaseEvent(""), AgentName: "x"})
 }
 
 func TestNamedListener_ConcurrentDelivery(t *testing.T) {
@@ -59,7 +59,7 @@ func TestNamedListener_ConcurrentDelivery(t *testing.T) {
 	var wg sync.WaitGroup
 	for range N {
 		wg.Go(func() {
-			mc.OnEvent(event.AgentDeployedEvent{BaseEvent: event.NewBaseEvent(""), AgentName: "x"})
+			mc.OnEvent(event.AgentDeployed{BaseEvent: event.NewBaseEvent(""), AgentName: "x"})
 		})
 	}
 	wg.Wait()

@@ -39,16 +39,16 @@ func makeIncrementingBody() (*core.Agent, *int32) {
 	return body, &iterCount
 }
 
-func TestLoopAgent_LoopsUntilUntilTrue(t *testing.T) {
+func TestLoop_LoopsUntilUntilTrue(t *testing.T) {
 	platform := agent.NewPlatform(runtime.PlatformConfig{})
 	body, iterCount := makeIncrementingBody()
 	if err := platform.Deploy(body); err != nil {
 		t.Fatalf("deploy body: %v", err)
 	}
 
-	wf := workflow.LoopAgent[loopIn, loopOut](
+	wf := workflow.Loop[loopIn, loopOut](
 		platform,
-		workflow.LoopAgentSpec[loopIn, loopOut]{
+		workflow.LoopSpec[loopIn, loopOut]{
 			Name:          "incr-loop",
 			MaxIterations: 10,
 			Body:          body,
@@ -83,14 +83,14 @@ func TestLoopAgent_LoopsUntilUntilTrue(t *testing.T) {
 	}
 }
 
-func TestLoopAgent_MaxIterationsCapsTheLoop(t *testing.T) {
+func TestLoop_MaxIterationsCapsTheLoop(t *testing.T) {
 	platform := agent.NewPlatform(runtime.PlatformConfig{})
 	body, iterCount := makeIncrementingBody()
 	mustDeploy(t, platform, body)
 
-	wf := workflow.LoopAgent[loopIn, loopOut](
+	wf := workflow.Loop[loopIn, loopOut](
 		platform,
-		workflow.LoopAgentSpec[loopIn, loopOut]{
+		workflow.LoopSpec[loopIn, loopOut]{
 			Name:          "capped-loop",
 			MaxIterations: 3, // cap kicks in before Target=100
 			Body:          body,
@@ -117,10 +117,10 @@ func TestLoopAgent_MaxIterationsCapsTheLoop(t *testing.T) {
 	}
 }
 
-func TestLoopAgent_BranchIsolation(t *testing.T) {
+func TestLoop_BranchIsolation(t *testing.T) {
 	// Verify the body sub-agent runs with a FRESH blackboard each
 	// iteration: it should NOT see prior iterations' loopOut bindings
-	// from the LoopAgent's own blackboard. We check this by having the
+	// from the Loop's own blackboard. We check this by having the
 	// body assert the absence of any prior loopOut on its blackboard.
 	platform := agent.NewPlatform(runtime.PlatformConfig{})
 
@@ -139,9 +139,9 @@ func TestLoopAgent_BranchIsolation(t *testing.T) {
 		Build()
 	mustDeploy(t, platform, body)
 
-	wf := workflow.LoopAgent[loopIn, loopOut](
+	wf := workflow.Loop[loopIn, loopOut](
 		platform,
-		workflow.LoopAgentSpec[loopIn, loopOut]{
+		workflow.LoopSpec[loopIn, loopOut]{
 			Name:          "isolation-loop",
 			MaxIterations: 3,
 			Body:          body,
@@ -159,20 +159,20 @@ func TestLoopAgent_BranchIsolation(t *testing.T) {
 	}
 }
 
-func TestLoopAgent_PanicsOnNilBody(t *testing.T) {
+func TestLoop_PanicsOnNilBody(t *testing.T) {
 	platform := agent.NewPlatform(runtime.PlatformConfig{})
 	defer func() {
 		if r := recover(); r == nil {
 			t.Fatal("expected panic")
 		}
 	}()
-	workflow.LoopAgent[loopIn, loopOut](platform, workflow.LoopAgentSpec[loopIn, loopOut]{
+	workflow.Loop[loopIn, loopOut](platform, workflow.LoopSpec[loopIn, loopOut]{
 		Name:  "no-body",
 		Until: func(_ context.Context, _ loopIn, _ loopOut) bool { return true },
 	})
 }
 
-func TestLoopAgent_PanicsOnNilUntil(t *testing.T) {
+func TestLoop_PanicsOnNilUntil(t *testing.T) {
 	platform := agent.NewPlatform(runtime.PlatformConfig{})
 	body, _ := makeIncrementingBody()
 	defer func() {
@@ -180,7 +180,7 @@ func TestLoopAgent_PanicsOnNilUntil(t *testing.T) {
 			t.Fatal("expected panic")
 		}
 	}()
-	workflow.LoopAgent[loopIn, loopOut](platform, workflow.LoopAgentSpec[loopIn, loopOut]{
+	workflow.Loop[loopIn, loopOut](platform, workflow.LoopSpec[loopIn, loopOut]{
 		Name: "no-until",
 		Body: body,
 	})

@@ -55,30 +55,30 @@ type RepeatUntilAcceptableSpec[In, Out any] struct {
 	Evaluator Evaluator[In, Out]
 }
 
-// RepeatUntilAcceptableAgent compiles spec into a deployable agent.
-// Implementation delegates to [RepeatUntilAgent] — the same single
+// RepeatUntilAcceptable compiles spec into a deployable agent.
+// Implementation delegates to [RepeatUntil] — the same single
 // CanRerun action + computed Accept condition machinery. The only
 // special sauce is wrapping the user's Evaluator into a
 // [RepeatUntilSpec.Accept] and binding the latest [Feedback] on the
 // blackboard each iteration.
 //
 // Panics on missing Name / nil Task / nil Evaluator.
-func RepeatUntilAcceptableAgent[In, Out any](spec RepeatUntilAcceptableSpec[In, Out]) *core.Agent {
+func RepeatUntilAcceptable[In, Out any](spec RepeatUntilAcceptableSpec[In, Out]) *core.Agent {
 	if spec.Name == "" {
-		panic("workflow.RepeatUntilAcceptableAgent: Name must not be empty")
+		panic("workflow.RepeatUntilAcceptable: Name must not be empty")
 	}
 	if spec.Task == nil {
-		panic("workflow.RepeatUntilAcceptableAgent: Task must not be nil")
+		panic("workflow.RepeatUntilAcceptable: Task must not be nil")
 	}
 	if spec.Evaluator == nil {
-		panic("workflow.RepeatUntilAcceptableAgent: Evaluator must not be nil")
+		panic("workflow.RepeatUntilAcceptable: Evaluator must not be nil")
 	}
 	threshold := spec.AcceptableScore
 	if threshold <= 0 {
 		threshold = 0.7
 	}
 
-	return RepeatUntilAgent(RepeatUntilSpec[In, Out]{
+	return RepeatUntil(RepeatUntilSpec[In, Out]{
 		Name:          spec.Name,
 		Description:   spec.Description,
 		MaxIterations: spec.MaxIterations,

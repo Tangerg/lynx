@@ -42,7 +42,7 @@ type ScatterGatherSpec[In, Element, Result any] struct {
 	Joiner func(ctx context.Context, pc *core.ProcessContext, results []Element) (Result, error)
 }
 
-// ScatterGatherAgent compiles spec into a deployable [*core.Agent].
+// ScatterGather compiles spec into a deployable [*core.Agent].
 //
 // The agent has two actions:
 //
@@ -56,15 +56,15 @@ type ScatterGatherSpec[In, Element, Result any] struct {
 //
 // Panics on missing Name, empty Generators, or nil Joiner —
 // programming errors that should surface at agent construction.
-func ScatterGatherAgent[In, Element, Result any](spec ScatterGatherSpec[In, Element, Result]) *core.Agent {
+func ScatterGather[In, Element, Result any](spec ScatterGatherSpec[In, Element, Result]) *core.Agent {
 	if spec.Name == "" {
-		panic("workflow.ScatterGatherAgent: Name must not be empty")
+		panic("workflow.ScatterGather: Name must not be empty")
 	}
 	if len(spec.Generators) == 0 {
-		panic("workflow.ScatterGatherAgent: Generators must not be empty")
+		panic("workflow.ScatterGather: Generators must not be empty")
 	}
 	if spec.Joiner == nil {
-		panic("workflow.ScatterGatherAgent: Joiner must not be nil")
+		panic("workflow.ScatterGather: Joiner must not be nil")
 	}
 
 	scatter := core.NewAction[In, ResultList[Element]](

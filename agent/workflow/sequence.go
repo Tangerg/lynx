@@ -8,7 +8,7 @@ import (
 	"github.com/Tangerg/lynx/agent/runtime"
 )
 
-// SequenceAgents compiles a deterministic chain a₁ → a₂ → ... → aₙ as a
+// Sequence compiles a deterministic chain a₁ → a₂ → ... → aₙ as a
 // single deployable agent. Each sub-agent runs as a child process via
 // [runtime.SpawnChild] in declared order; the typed output of step i
 // flows onto step (i+1)'s child blackboard via [core.Blackboard.Bind],
@@ -39,23 +39,23 @@ import (
 //
 // Panics on missing name, fewer than 2 agents, or any nil agent —
 // programming errors that should fail at agent construction.
-func SequenceAgents[In, Out any](
+func Sequence[In, Out any](
 	platform *runtime.Platform,
 	name string,
 	agents ...*core.Agent,
 ) *core.Agent {
 	if platform == nil {
-		panic("workflow.SequenceAgents: platform must not be nil")
+		panic("workflow.Sequence: platform must not be nil")
 	}
 	if name == "" {
-		panic("workflow.SequenceAgents: name must not be empty")
+		panic("workflow.Sequence: name must not be empty")
 	}
 	if len(agents) < 2 {
-		panic("workflow.SequenceAgents: at least 2 agents required")
+		panic("workflow.Sequence: at least 2 agents required")
 	}
 	for i, a := range agents {
 		if a == nil {
-			panic(fmt.Sprintf("workflow.SequenceAgents: agents[%d] is nil", i))
+			panic(fmt.Sprintf("workflow.Sequence: agents[%d] is nil", i))
 		}
 	}
 

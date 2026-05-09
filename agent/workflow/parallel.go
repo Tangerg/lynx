@@ -10,7 +10,7 @@ import (
 	"github.com/Tangerg/lynx/agent/runtime"
 )
 
-// ParallelAgentsSpec configures a fan-out across N sub-agents that all
+// ParallelSpec configures a fan-out across N sub-agents that all
 // consume the same In type and produce the same Element type, then a
 // single Joiner consolidates the per-agent outputs into Result.
 //
@@ -21,7 +21,7 @@ import (
 // parallel phase. This mirrors ADK's ParallelAgent branch-isolation
 // design (avoids LLM context cross-pollination when each sub-agent
 // drives its own LLM tool loop).
-type ParallelAgentsSpec[In, Element, Result any] struct {
+type ParallelSpec[In, Element, Result any] struct {
 	// Name names the produced agent + its goal + the action names. Required.
 	Name string
 
@@ -41,7 +41,7 @@ type ParallelAgentsSpec[In, Element, Result any] struct {
 	Joiner func(ctx context.Context, pc *core.ProcessContext, results []Element) (Result, error)
 }
 
-// ParallelAgents compiles spec into a deployable agent. The compiled
+// Parallel compiles spec into a deployable agent. The compiled
 // agent has two actions:
 //
 //  1. "{Name}-fanout" — runs every sub-agent in parallel under errgroup,
@@ -56,25 +56,25 @@ type ParallelAgentsSpec[In, Element, Result any] struct {
 //
 // Panics on missing Name, empty Agents, or nil Joiner — programming
 // errors that should fail at agent construction.
-func ParallelAgents[In, Element, Result any](
+func Parallel[In, Element, Result any](
 	platform *runtime.Platform,
-	spec ParallelAgentsSpec[In, Element, Result],
+	spec ParallelSpec[In, Element, Result],
 ) *core.Agent {
 	if platform == nil {
-		panic("workflow.ParallelAgents: platform must not be nil")
+		panic("workflow.Parallel: platform must not be nil")
 	}
 	if spec.Name == "" {
-		panic("workflow.ParallelAgents: Name must not be empty")
+		panic("workflow.Parallel: Name must not be empty")
 	}
 	if len(spec.Agents) == 0 {
-		panic("workflow.ParallelAgents: Agents must not be empty")
+		panic("workflow.Parallel: Agents must not be empty")
 	}
 	if spec.Joiner == nil {
-		panic("workflow.ParallelAgents: Joiner must not be nil")
+		panic("workflow.Parallel: Joiner must not be nil")
 	}
 	for i, a := range spec.Agents {
 		if a == nil {
-			panic(fmt.Sprintf("workflow.ParallelAgents: Agents[%d] is nil", i))
+			panic(fmt.Sprintf("workflow.Parallel: Agents[%d] is nil", i))
 		}
 	}
 

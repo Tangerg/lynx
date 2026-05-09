@@ -51,12 +51,12 @@ func TestAutonomy_PicksHighestConfidence(t *testing.T) {
 		}
 	}
 
-	auto := autonomy.NewAutonomy(platform, &stubRanker{
+	auto := autonomy.New(platform, &stubRanker{
 		scores: map[string]float64{
 			"alpha:produce_github.com/Tangerg/lynx/agent/runtime/autonomy_test.chooseOut": 0.3,
 			"beta:produce_github.com/Tangerg/lynx/agent/runtime/autonomy_test.chooseOut":  0.9,
 		},
-	}, autonomy.AutonomyConfig{})
+	}, autonomy.Config{})
 
 	choice, err := auto.Choose(t.Context(), "anything")
 	if err != nil {
@@ -76,11 +76,11 @@ func TestAutonomy_LowConfidenceReturnsError(t *testing.T) {
 		t.Fatalf("deploy: %v", err)
 	}
 
-	auto := autonomy.NewAutonomy(platform, &stubRanker{
+	auto := autonomy.New(platform, &stubRanker{
 		scores: map[string]float64{
 			"alpha:produce_github.com/Tangerg/lynx/agent/runtime/autonomy_test.chooseOut": 0.3,
 		},
-	}, autonomy.AutonomyConfig{
+	}, autonomy.Config{
 		GoalConfidenceCutOff: 0.5,
 	})
 
@@ -96,11 +96,11 @@ func TestAutonomy_RunInstallsTargetGoalApprover(t *testing.T) {
 		t.Fatalf("deploy: %v", err)
 	}
 
-	auto := autonomy.NewAutonomy(platform, &stubRanker{
+	auto := autonomy.New(platform, &stubRanker{
 		scores: map[string]float64{
 			"alpha:produce_github.com/Tangerg/lynx/agent/runtime/autonomy_test.chooseOut": 0.9,
 		},
-	}, autonomy.AutonomyConfig{})
+	}, autonomy.Config{})
 
 	choice, proc, err := auto.Run(t.Context(), "anything",
 		map[string]any{core.DefaultBindingName: chooseIn{Topic: "x"}},
@@ -125,12 +125,12 @@ func TestAutonomy_AgentFilter(t *testing.T) {
 	platform := agent.NewPlatform(runtime.PlatformConfig{})
 	mustDeploy(t, platform, newAgent("public"), newAgent("internal"))
 
-	auto := autonomy.NewAutonomy(platform, &stubRanker{
+	auto := autonomy.New(platform, &stubRanker{
 		scores: map[string]float64{
 			"public:produce_github.com/Tangerg/lynx/agent/runtime/autonomy_test.chooseOut":   0.5,
 			"internal:produce_github.com/Tangerg/lynx/agent/runtime/autonomy_test.chooseOut": 0.99,
 		},
-	}, autonomy.AutonomyConfig{
+	}, autonomy.Config{
 		AgentFilter: func(a *core.Agent) bool { return a.Name != "internal" },
 	})
 
@@ -150,7 +150,7 @@ func TestAutonomy_AgentFilter(t *testing.T) {
 
 func TestAutonomy_NoCandidatesError(t *testing.T) {
 	platform := agent.NewPlatform(runtime.PlatformConfig{})
-	auto := autonomy.NewAutonomy(platform, &stubRanker{}, autonomy.AutonomyConfig{})
+	auto := autonomy.New(platform, &stubRanker{}, autonomy.Config{})
 
 	_, err := auto.Choose(t.Context(), "x")
 	if err == nil {
@@ -164,8 +164,8 @@ func TestAutonomy_PanicsOnNilArgs(t *testing.T) {
 		name string
 		fn   func()
 	}{
-		{"nil platform", func() { autonomy.NewAutonomy(nil, &stubRanker{}, autonomy.AutonomyConfig{}) }},
-		{"nil ranker", func() { autonomy.NewAutonomy(platform, nil, autonomy.AutonomyConfig{}) }},
+		{"nil platform", func() { autonomy.New(nil, &stubRanker{}, autonomy.Config{}) }},
+		{"nil ranker", func() { autonomy.New(platform, nil, autonomy.Config{}) }},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			defer func() {

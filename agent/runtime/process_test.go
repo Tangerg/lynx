@@ -23,13 +23,13 @@ type nilPlannerFactory struct{}
 func (nilPlannerFactory) Name() string                                    { return "nil-planner-factory" }
 func (nilPlannerFactory) NewPlanner(core.PlannerType) plan.Planner        { return nil }
 
-// stuckCounter is an EventListener extension that counts ProcessStuckEvent
+// stuckCounter is an EventListener extension that counts ProcessStuck
 // occurrences via the supplied pointer.
 type stuckCounter struct{ count *int }
 
 func (stuckCounter) Name() string { return "stuck-counter" }
 func (s stuckCounter) OnEvent(e event.Event) {
-	if _, ok := e.(event.ProcessStuckEvent); ok {
+	if _, ok := e.(event.ProcessStuck); ok {
 		*s.count++
 	}
 }
