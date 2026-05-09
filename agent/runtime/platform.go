@@ -89,6 +89,15 @@ func NewPlatform(config PlatformConfig) *Platform {
 // stores, or other domain services that actions look up by key.
 func (p *Platform) Services() *core.ServiceProvider { return p.services }
 
+// NewBlackboard constructs a fresh [core.Blackboard] using the
+// configured [core.BlackboardFactory] extension (or the built-in
+// in-memory implementation when none is registered). Public so
+// orchestration helpers — most notably the workflow agent-level
+// builders — can hand a child process a clean blackboard rather than
+// inheriting the parent's accumulated state via
+// [core.Blackboard.Spawn].
+func (p *Platform) NewBlackboard() core.Blackboard { return p.resolveBlackboard(nil) }
+
 // Agents returns a snapshot of registered agents.
 func (p *Platform) Agents() []*core.Agent { return p.agents.list() }
 
