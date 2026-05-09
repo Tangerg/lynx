@@ -78,7 +78,7 @@ func TestRepeatUntilAcceptable_DefaultsThresholdToZeroPointSeven(t *testing.T) {
 	})
 
 	platform := agent.NewPlatform(runtime.PlatformConfig{})
-	platform.Deploy(a)
+	mustDeploy(t, platform, a)
 	proc, _ := platform.RunAgent(t.Context(), a,
 		map[string]any{core.DefaultBindingName: ruaIn{Topic: "x"}},
 		core.ProcessOptions{})

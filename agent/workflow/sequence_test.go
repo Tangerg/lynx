@@ -104,13 +104,12 @@ func TestSequenceAgents_StepFailurePropagates(t *testing.T) {
 	platform := agent.NewPlatform(runtime.PlatformConfig{})
 	failing := makeFailingAgent("failing-step", "step blew up")
 	drafter := makeDraftAgent()
-	platform.Deploy(failing)
-	platform.Deploy(drafter)
+	mustDeploy(t, platform, failing, drafter)
 
 	pipeline := workflow.SequenceAgents[seqTopic, seqDraft](
 		platform, "fail-pipeline", failing, drafter,
 	)
-	platform.Deploy(pipeline)
+	mustDeploy(t, platform, pipeline)
 
 	proc, _ := platform.RunAgent(t.Context(), pipeline,
 		map[string]any{core.DefaultBindingName: seqTopic{Word: "x"}},
