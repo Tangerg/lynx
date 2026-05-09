@@ -15,6 +15,69 @@ type Goal struct {
 	// Value is the planner's per-tick value probe. [GoalProducing]
 	// fills [Static](1.0) when left nil.
 	Value CostFunc
+
+	// Export, when non-nil, marks this goal as externally invokable —
+	// runtime helpers walk every deployed agent's goals and auto-build
+	// [chat.CallableTool] wrappers for the ones whose Export is set.
+	// Nil means "internal only; not auto-exposed". The framework's
+	// reader is on the runtime side (`runtime.AllAchievableTools` /
+	// `runtime.PublishAll`); leaving Export non-nil without those
+	// callers wired is harmless but also means nothing happens — the
+	// field exists to drive user-facing fan-out, not to gate planner
+	// behaviour.
+	Export *GoalExport
+}
+
+// GoalExport carries the metadata `runtime.AllAchievableTools` and
+// `runtime.PublishAll` need to compile a goal into a
+// [chat.CallableTool]. Build via [GoalExportFor] so the input type's
+// schema is captured for the LLM tool definition.
+type GoalExport struct {
+	// Remote, when true, makes the goal eligible for top-level
+	// publishing (no parent process required) — typically MCP server
+	// export. When false, only the in-process supervisor variant
+	// (parent's LLM tool loop) picks it up.
+	Remote bool
+
+	// Description overrides Goal.Description when surfacing the goal
+	// as an externally-facing tool. Useful when the internal
+	// description is too implementation-flavoured for an LLM caller.
+	// Empty falls back to Goal.Description.
+	Description string
+
+	// InputSample is a zero-value of the agent's logical input type
+	// (the type the agent's first action consumes / the value the
+	// caller binds to start the run). Used at tool-build time to
+	// derive the JSON Schema and at tool-call time to drive a typed
+	// json.Unmarshal so the agent receives a properly-typed binding
+	// rather than `map[string]any`.
+	//
+	// Build via [GoalExportFor] which captures this from a generic
+	// parameter; manual construction is allowed but typo-prone.
+	InputSample any
+}
+
+// GoalExportFor is the typed builder for [GoalExport]: captures a
+// zero-value of In so tooling can derive the tool's JSON schema and
+// drive a typed unmarshal at call time without the user passing a
+// loose `any` value.
+//
+// Example:
+//
+//	core.GoalProducing[BlogPost](core.Goal{
+//	    Description: "Produce a blog post about a topic",
+//	    Export: core.GoalExportFor[Topic](true), // Remote=true
+//	})
+//
+// In is the agent's logical input type (the type the first action
+// consumes), NOT the goal's output type — the goal already encodes
+// its output type via [GoalProducing].
+func GoalExportFor[In any](remote bool) *GoalExport {
+	var sample In
+	return &GoalExport{
+		Remote:      remote,
+		InputSample: sample,
+	}
 }
 
 // Preconditions merges Pre + Inputs into a single [EffectSpec]: each
