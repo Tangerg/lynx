@@ -484,12 +484,27 @@ tools:
 
 ## 11. 综合启发：lynx 的下一步
 
-ADK 的大部分功能面是**它作为 chat backend runtime 的产品形态**，lynx 作为**库**主动放弃，由 chat 中间件层 / sibling repo / 用户应用代码各自承担。真正可落地到 lynx framework 的 ADK 启发**只有两项**：
+ADK 的大部分功能面是**它作为 chat backend runtime 的产品形态**，lynx 作为**库**主动放弃，由 chat 中间件层 / sibling repo / 用户应用代码各自承担。真正可落地到 lynx framework 的 ADK 启发**只有两项**——**两项都已落地**：
 
-| 优先级 | 项目 | 借鉴自 ADK | 改动量 | 备注 |
+| 优先级 | 项目 | 借鉴自 ADK | 改动量 | 状态 |
 |---|---|---|---|---|
-| **P1** | **Agent 级 workflow agents** —— `workflow.SequenceAgents` / `ParallelAgents[In, Element, Result]` / `LoopAgent[In, Out]` | `agent/workflowagents/` | ~250 LOC + 测试 | 见 §5；与现有 action 级 workflow 严格互补；零核心改动 |
-| **P2** | **`event.NewNamedListener(name, fn)`** —— 让用户能用 channel-style 消费 event，仍走 `Extensions` 单一注册路径 | runner.Run iterator 形态的简化替代 | ~30 LOC + 文档 | 见 §6；不引入 `RunAgentStream` 黑盒 |
+| **P1** | **Agent 级 workflow agents** —— `workflow.SequenceAgents` / `ParallelAgents[In, Element, Result]` / `LoopAgent[In, Out]` + 配套 `runtime.SpawnChildFresh` 与 `Platform.NewBlackboard()` | `agent/workflowagents/` | ~600 LOC（含三件 builder + 一对 runtime helper + 测试） | ✅ 已落地 |
+| **P2** | **`event.NewNamedListener(name, fn)`** —— 让用户能用 channel-style 消费 event，仍走 `Extensions` 单一注册路径 | runner.Run iterator 形态的简化替代 | ~50 LOC（含测试） | ✅ 已落地 |
+
+### 落地中发现的设计点：fresh blackboard
+
+实现 `LoopAgent` 时发现一个关键设计决策——**agent 级 workflow 不能用默认的 `Blackboard.Spawn()` 继承**：
+
+> 如果 LoopAgent 的 iter action 用 `runtime.SpawnChild`（继承父 blackboard）跑 body 子 agent，那么 iter 1 产 `Out` 后由 typed wrapper 回写到父 blackboard；iter 2 调 SpawnChild 时，子 blackboard 通过 Spawn 拿到这个 Out → 子 agent 的 goal `produce Out` **判定已满足** → body 短路不跑。
+>
+> 同样，ParallelAgents 的 peer 之间需要 branch isolation（避免 LLM 上下文交叉污染——ADK ParallelAgent 的核心设计）；SequenceAgents 也想要每步只看到上一步的 typed output、不看到 orchestrator 的累积写入。
+
+**解决**：新增 `runtime.SpawnChildFresh` 与 `runtime.SpawnChild` 并列：
+
+- `SpawnChild`（保留）—— 子 blackboard 通过 `Spawn()` 继承父，**supervisor 流**用（`AsChatTool` 的语义）；子 agent 看得到父已 staged 的 artifacts
+- `SpawnChildFresh`（新增）—— 子 blackboard 通过 `Platform.NewBlackboard()` 完全干净开局，仅 Bind 输入；**orchestration 流**用（`SequenceAgents` / `ParallelAgents` / `LoopAgent` 都走这条）
+
+两条 plumbing 实质区别只在 `core.ProcessOptions{Blackboard}` 一个 slot；budget 聚合 / 父子 process 关系都一样。
 
 ### 明确不做（按职责边界）
 
