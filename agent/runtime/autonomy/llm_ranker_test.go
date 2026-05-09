@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/agent"
+	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/runtime"
 	"github.com/Tangerg/lynx/agent/runtime/autonomy"
 	"github.com/Tangerg/lynx/core/model/chat"
@@ -173,6 +174,52 @@ func TestLLMRanker_RejectsNonJSONReply(t *testing.T) {
 	_, err := ranker.Rank(context.Background(), "x", candidates)
 	if err == nil {
 		t.Fatal("expected error on non-JSON reply")
+	}
+}
+
+func TestLLMRanker_PromptIncludesGoalTagsAndExamples(t *testing.T) {
+	platform := agent.NewPlatform(runtime.PlatformConfig{})
+
+	// Build an agent whose goal carries Tags + Examples.
+	taggedAgent := agent.New("tagged").
+		Description("an agent for testing goal hints").
+		Actions(agent.NewAction("act",
+			func(_ context.Context, _ *core.ProcessContext, in chooseIn) (chooseOut, error) {
+				return chooseOut{Done: true}, nil
+			},
+			core.ActionConfig{},
+		)).
+		Goals(agent.GoalProducing[chooseOut](core.Goal{
+			Description: "categorise sentiment",
+			Tags:        []string{"sentiment", "classifier"},
+			Examples:    []string{"how do I feel about this?", "rate this review"},
+		})).
+		Build()
+	if err := platform.Deploy(taggedAgent); err != nil {
+		t.Fatalf("deploy: %v", err)
+	}
+
+	candidates := autonomy.NewAutonomy(platform, &stubRanker{}, autonomy.AutonomyConfig{}).Candidates()
+	reply := `{"choices":[{"id":"` + candidates[0].String() + `","confidence":1.0,"rationale":""}]}`
+	model := newStubModel(reply)
+	client, _ := chat.NewClientWithModel(model)
+
+	ranker := autonomy.NewLLMRanker(client, autonomy.LLMRankerConfig{})
+	if _, err := ranker.Rank(context.Background(), "x", candidates); err != nil {
+		t.Fatalf("Rank: %v", err)
+	}
+
+	// Verify the prompt surfaces tags + examples so an LLM ranker has the
+	// fuller match signal.
+	for _, want := range []string{
+		"tags: sentiment, classifier",
+		"examples:",
+		`"how do I feel about this?"`,
+		`"rate this review"`,
+	} {
+		if !strings.Contains(model.gotPrompt, want) {
+			t.Fatalf("prompt missing %q in:\n%s", want, model.gotPrompt)
+		}
 	}
 }
 

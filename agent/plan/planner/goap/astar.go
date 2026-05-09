@@ -80,8 +80,20 @@ func (p *AStarPlanner) PlanToGoal(
 
 	candidates := candidateActions(system.Actions, options.ExcludedActions)
 
+	// Backward relevance pruning: keep only actions in the goal's
+	// transitive requirement graph. STRIPS regression — provably safe
+	// (an excluded action's effects don't appear in any condition
+	// reachable backward from the goal) and shrinks A*'s expansion
+	// frontier substantially on agents with many domain-specific
+	// actions whose effects don't interact with the current goal.
+	candidates = relevantActions(candidates, goal)
+
 	// Reachability pre-check — short-circuits before A* burns 10k iterations
 	// chasing a goal whose required conditions no action can establish.
+	// After pruning the check operates on the regression set, so a goal
+	// precondition with no producer in the relevant closure is caught here
+	// even when the unpruned action set had a "producer" whose own
+	// preconditions can never be met.
 	if !goalReachable(start, candidates, goal) {
 		span.SetAttributes(attribute.Bool(attrAstarReachable, false))
 		return nil, nil

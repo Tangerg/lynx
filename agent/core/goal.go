@@ -16,6 +16,17 @@ type Goal struct {
 	// fills [Static](1.0) when left nil.
 	Value CostFunc
 
+	// Tags are short keywords surfaced to LLM-driven goal selectors
+	// (autonomy.LLMRanker, etc.) so the model has a richer signal
+	// than just Name + Description. Typical: ["coding", "refactor"]
+	// or ["sentiment", "review"]. Optional; planner ignores them.
+	Tags []string
+
+	// Examples are sample user inputs that should match this goal —
+	// few-shot anchors for LLM rankers. Optional; planner ignores
+	// them. Typical: ["Refactor this Go file", "Rename the Foo type"].
+	Examples []string
+
 	// Export, when non-nil, marks this goal as externally invokable —
 	// runtime helpers walk every deployed agent's goals and auto-build
 	// [chat.CallableTool] wrappers for the ones whose Export is set.

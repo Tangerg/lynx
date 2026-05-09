@@ -350,39 +350,51 @@ lynx：`agent.Builder`（[builder.go](../builder.go)，第八轮从 `dsl/builder
 
 ### P1 — SPI 缺口
 
-4. **`OperationScheduler` / 异步调度** —— embabel 暴露给 action body：`scheduleAt(t)`、`scheduleEvery(d)`、cancel。lynx 完全无此能力，长时间等待场景必须靠 `AwaitInput` + 外部唤醒。建议：[`core/process_context.go`](../core/process_context.go) 加 `Schedule(at time.Time, fn func())`，runtime 用 `time.AfterFunc` 实现。约 120 LOC + 测试。
+4. ❌ **`OperationScheduler` / 异步调度** —— **明确不做**。embabel 暴露给 action body：`scheduleAt(t)`、`scheduleEvery(d)`、cancel。lynx 现有原语已经能拼出所有真实用例：
+   - "等 5 分钟再继续" → `time.AfterFunc(d, func() { platform.ResumeProcess(id, ...) })` 用户应用代码 3 行
+   - "每 5 分钟轮询" → 应用层外层循环调 `Platform.RunAgent`
+   - "noon tomorrow 跑" → cron-style，是应用调度器的活
+   - retry-with-backoff → 已在 `ActionQoS.MaxAttempts/BaseDelay`
+   
+   加进 framework 要么是 `time.AfterFunc` 的薄封装（trivial / 不值），要么是真做调度器（cron / persistence，超出库的定位）。**SKIP**.
 
-5. **`ModelProvider` / 多模型** —— embabel `PlatformServices.modelProvider()` 返回所有可用 LLM；action 可按任务挑模型。lynx 假设单 `ChatClient`，多模型靠 `ServiceProvider.Get("model:gpt-4")` 走字符串约定。建议：[`runtime/platform.go`](../runtime/platform.go) `PlatformConfig` 加 `Models map[string]*chat.Client`，`ProcessContext.Model(name string)` 索取。约 60 LOC。
+5. ❌ **`ModelProvider` / 多模型** —— **明确不做**。多模型抽象是 chat 包职责（`core/model/chat.Client` 是开放接口）；agent framework 不预设 LLM provider 槽位。多模型用例靠用户挂多个 `*chat.Client` + `core.ServiceProvider.Set("model:gpt-4", clientA)` 走字符串约定即可。**SKIP**.
 
-6. **`OptimizingGoapPlanner`（剪枝 GOAP）** —— embabel 在 `OptimizingGoapPlanner.kt` 做了启发式剪枝。lynx [`plan/planner/goap/astar.go`](../plan/planner/goap/astar.go) 是纯 A*，大状态空间（>20 conditions）会慢。建议：给 `goap` 加可选 `WithReachabilityPruning()` flag。约 60 LOC。
+6. ✅ **`OptimizingGoapPlanner`（剪枝 GOAP）** —— [`plan/planner/goap/relevance.go`](../plan/planner/goap/relevance.go) 新增 `relevantActions(actions, goal)`：STRIPS 回归 / 后向链式推理。从 goal 出发，递归收集"effects 命中需要集"的 action（包括其 preconditions 加入需要集再扩展），不动点扩展直到稳定。**永远开**——可证明安全（被排除的 action 在目标的 transitive 需要图里没有作用）。在 [`plan/planner/goap/astar.go`](../plan/planner/goap/astar.go) `PlanToGoal` 里 `goalReachable` 检查之前先调用，A* 搜的就是裁剪后的 action 集。
 
 ### P2 — DX/便捷性
 
-7. **`TemplateRenderer`** —— embabel 有 `templateRenderer.render("greeting", ctx)` 走 Mustache/Velocity。lynx 用户拼 `fmt.Sprintf` 或自带 `text/template`。建议：薄包装 `core.PromptTemplate(template).Render(map[string]any)`，可选。约 40 LOC。
+7. ❌ **`TemplateRenderer`** —— **明确不做**。`core/model/chat` 已有 `PromptTemplate`，agent framework 不再包一层。**SKIP**.
 
-8. **`Goal.Tags` + `Goal.Examples`** —— embabel goal 有 tags/examples 给 LLM-ranker 看。lynx Ranker 只能看 Name+Description。建议：`core.Goal` 加 `Tags []string`、`Examples []string`，`autonomy.LLMRanker` prompt 拼上去。约 30 LOC。
-   > 同样的死字段警告：第七轮 Wave B 已删过这俩；本轮重新加要**同时**接通 `LLMRanker` reader。
+8. ✅ **`Goal.Tags` + `Goal.Examples`** —— [`core/goal.go`](../core/goal.go) 加 `Tags []string` + `Examples []string` 字段；[`runtime/autonomy/llm_ranker.go`](../runtime/autonomy/llm_ranker.go) `buildUserPrompt` 现在在每个 candidate 行下追加缩进的 `tags: ...` / `examples:` 块（仅在非空时）。**字段 + reader 同时落**。
 
-9. **`MatryoshkaTools` / 工具递归展开** —— embabel：调用 `listFiles` 后返回的每个文件自动变成可调 `readFile`。lynx 没有，子 agent 是平的。**复杂特性，先记下，YAGNI 看是否有真实 use case 再加**。
+9. ❌ **`MatryoshkaTools` / 工具递归展开** —— **明确不做**。要么改 `chat.ToolMiddleware` 加 dynamic-tool-injection 钩子（跨包改动，需要 chat 团队拍板），要么做"伪 Matryoshka"（result JSON 里提工具名，LLM 看不到真工具）。前者复杂度高 / 真实用户少；后者不是真 Matryoshka。**真有用例时再走改 chat 的路径**。
 
 ### 已明确不做
 
 - **注解驱动的 `@Action / @Agentic`** —— 永久分歧，第 13 节。
 - **`OperationContext` 巨型 service surface** —— embabel 把 12+ 服务挂到 `OperationContext`（llmOps / asyncer / templateRenderer / conversationFactoryProvider …）；lynx `ProcessContext` 5 字段 + 4 hook 已够 ISP，多出来的服务走 `core.ServiceProvider`。
 - **三值逻辑 / Condition 组合子 / `BindProtected`** —— 之前以为缺，本轮 fresh 对照确认 lynx 都已对齐（`core.Determination.Unknown` ✓ / `core.Not/Or/And` ✓ / `Blackboard.BindProtected` ✓）。
+- **`OperationScheduler`（P1 #4）** —— 见上。
+- **`ModelProvider` / 多模型（P1 #5）** —— 见上；chat 包职责。
+- **`TemplateRenderer`（P2 #7）** —— chat 包已有。
+- **`MatryoshkaTools`（P2 #9）** —— 见上。
 
-### 落地顺序（剩余项）
+### 落地状态
 
-P0 已全部闭合（2026-05-09）。剩余按 ROI：
+**P0**（2026-05-09）✅ 全部闭合 —— `Goal.Export` + `PromptCondition` + `AllAchievableTools/PublishAll`。约 700 LOC（含 reflection-based dynamic agent tool wrapper + 三套测试）。
 
-4. P1 `OperationScheduler`（异步调度，~120 LOC + 测试）
-5. P1 `ModelProvider` / 多模型（~60 LOC）
-6. P1 `OptimizingGoapPlanner`（剪枝 GOAP，~60 LOC）
-7. P2 `Goal.Tags` + `Goal.Examples` + `LLMRanker` prompt 用上（~30 LOC）
-8. P2 `TemplateRenderer`（薄包装，~40 LOC）—— 实际 chat 包已有 `PromptTemplate`，可能不需要新增
-9. P3 `MatryoshkaTools` —— 复杂 LLM 优化技巧，等真实用例再做
+**P1**（2026-05-09）：
+- ✅ #6 `OptimizingGoapPlanner` —— STRIPS 回归剪枝，永远开
+- ❌ #4 `OperationScheduler` —— 已有原语足够
+- ❌ #5 `ModelProvider` —— chat 包职责
 
-**P0 实际落地量**：~700 LOC（含 GoalExport + GoalExportFor / PromptCondition + ParseYesNoDetermination / dynamicAgentTool + AllAchievableTools + PublishAll + Platform 改动 + 三套测试）。比预估略大，因为 dynamic-typed agent tool wrapper 用 reflection 处理 schema/unmarshal/output 的代码量超出最初估计。
+**P2**（2026-05-09）：
+- ✅ #8 `Goal.Tags` + `Goal.Examples` + `LLMRanker` prompt 接通
+- ❌ #7 `TemplateRenderer` —— chat 包已有
+- ❌ #9 `MatryoshkaTools` —— 跨 chat 包边界，等真实用例
+
+**总落地量**：约 850 LOC（含 P0 + P1 #6 + P2 #8 + 测试）。
 
 ---
 
