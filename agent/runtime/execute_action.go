@@ -128,7 +128,7 @@ func (p *AgentProcess) runWithRetry(
 		status = processContext.ExecuteSafely(ctx, action)
 		lastErr = processContext.LastError()
 
-		if rr := core.AsReplanRequest(lastErr); rr != nil {
+		if rr, ok := errors.AsType[*core.ReplanRequest](lastErr); ok {
 			replan = rr
 			return lastErr
 		}
@@ -169,11 +169,10 @@ func (p *AgentProcess) runWithRetry(
 // halt sentinels (the action paused or is awaiting input). Anything else
 // — including a plain failure — is retryable.
 func shouldRetryAction(err error) bool {
-	if core.AsReplanRequest(err) != nil {
+	if _, ok := errors.AsType[*core.ReplanRequest](err); ok {
 		return false
 	}
-	var halt haltSignal
-	if errors.As(err, &halt) {
+	if _, ok := errors.AsType[haltSignal](err); ok {
 		return false
 	}
 	return true

@@ -64,8 +64,8 @@ func TestWithAwaiting_NonNilDeciderReturnsPauseError(t *testing.T) {
 		t.Fatal("expected PauseError, got nil")
 	}
 
-	var pe *hitl.PauseError
-	if !errors.As(err, &pe) {
+	pe, ok := errors.AsType[*hitl.PauseError](err)
+	if !ok {
 		t.Fatalf("expected *hitl.PauseError, got %T", err)
 	}
 	if pe.Request.ID() != awaitable.ID() {
@@ -93,8 +93,8 @@ func TestWithConfirmation_PromptsAndOnResponseFires(t *testing.T) {
 	)
 
 	_, err := wrapped.Call(t.Context(), `{"id":42}`)
-	var pe *hitl.PauseError
-	if !errors.As(err, &pe) {
+	pe, ok := errors.AsType[*hitl.PauseError](err)
+	if !ok {
 		t.Fatalf("expected PauseError, got %v", err)
 	}
 
@@ -136,8 +136,8 @@ func TestRequireType_DeliversTypedValue(t *testing.T) {
 	)
 
 	_, err := wrapped.Call(t.Context(), `{"orderId":7}`)
-	var pe *hitl.PauseError
-	if !errors.As(err, &pe) {
+	pe, ok := errors.AsType[*hitl.PauseError](err)
+	if !ok {
 		t.Fatalf("expected PauseError, got %v", err)
 	}
 

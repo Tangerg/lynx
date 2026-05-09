@@ -45,8 +45,8 @@ func (e *PauseError) Error() string {
 //	    return core.ActionFailed
 //	}
 func HandlePause(pc *core.ProcessContext, err error) (core.ActionStatus, bool) {
-	var pe *PauseError
-	if !errors.As(err, &pe) {
+	pe, ok := errors.AsType[*PauseError](err)
+	if !ok {
 		return 0, false
 	}
 	return pc.AwaitInput(pe.Request), true

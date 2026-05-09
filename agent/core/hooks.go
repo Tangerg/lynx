@@ -1,9 +1,6 @@
 package core
 
-import (
-	"context"
-	"errors"
-)
+import "context"
 
 // StuckHandler is invoked when the planner returns no plan. The default is
 // "give up and transition to StatusStuck"; agents that want graceful
@@ -29,9 +26,9 @@ type StuckResult struct {
 
 // ReplanRequest is the Go-flavored replacement for embabel's
 // ReplanRequestedException. An action that decides "what I just learned
-// invalidates the current plan" returns one as an error; the runtime catches
-// it via errors.As, blacklists the offending action for one tick, and
-// reformulates the plan.
+// invalidates the current plan" returns one as an error; the runtime
+// extracts it via [errors.AsType], blacklists the offending action for
+// one tick, and reformulates the plan.
 type ReplanRequest struct {
 	Reason string
 
@@ -45,19 +42,4 @@ func (r *ReplanRequest) Error() string {
 		return "replan requested"
 	}
 	return "replan requested: " + r.Reason
-}
-
-// AsReplanRequest returns the embedded *ReplanRequest if err carries one,
-// nil otherwise. Mirrors errors.As ergonomics without forcing callers to
-// pass a typed pointer.
-func AsReplanRequest(err error) *ReplanRequest {
-	if err == nil {
-		return nil
-	}
-
-	var rr *ReplanRequest
-	if errors.As(err, &rr) {
-		return rr
-	}
-	return nil
 }
