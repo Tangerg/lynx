@@ -338,14 +338,15 @@ lynx：`agent.Builder`（[builder.go](../builder.go)，第八轮从 `dsl/builder
 
 第八轮做完结构整理后又跑了一遍 embabel-agent-api / code 模块的细粒度对照。下面这些**在 embabel 里有专门 SPI、lynx 当前需要用户手写绕过**——按 ROI 排序，全部是小改动级（≤120 LOC）：
 
-### P0 — 用户即可感知的功能缺失
+### P0 — 用户即可感知的功能缺失（**全部已闭合**，2026-05-09）
 
-1. **`Goal.Export` 元数据** —— embabel `Goal.kt` 含 `Export(remote, startingInputTypes, ...)`，MCP/API auto-publish 时拿这个生成 schema。lynx 用户当前要手写 `runtime.AsMCPTool[In, Out]` 才能暴露 goal。建议：[`core/goal.go:9`](../core/goal.go) 加 `Export GoalExport` 字段；`runtime/mcp.go` 批量发布时读它。约 60 LOC。
-   > 注：第七轮 Wave B 删过 `Goal.Export` —— 当时它是死字段（lynx runtime 从没 read）。本轮重新加回来时要**同时**接通 reader（`runtime.PublishAll(platform)` 之类的批量函数），不能再做"看起来支持但没人 read"的死字段。
+1. ✅ **`Goal.Export` 元数据** —— [`core/goal.go`](../core/goal.go) 新增 `Export *GoalExport` 字段 + `GoalExportFor[In](remote bool) *GoalExport` 类型化构造器。Reader 在 [`runtime/publish.go`](../runtime/publish.go)：`runtime.PublishAll(platform)` 批量产出 MCP-publish 风格的 `[]chat.CallableTool`（仅 `Remote=true` 的 goal），`runtime.AllAchievableTools(platform)` 产出 supervisor 风格的工具集（所有 `Export!=nil` 的 goal）。**字段 + reader 同时落，不再做死字段**。
 
-2. **`PromptCondition`（LLM 驱动条件）** —— embabel `Condition` 有 `PromptCondition` 子类型；lynx 只有 `ComputedCondition`（纯函数）。LLM-as-judge 场景需要用户手写 `core.NewCondition` + 自己 `pc.Chat()` 调用 + 自己 parse。建议：[`core/condition.go`](../core/condition.go) 增 `NewPromptCondition(name, prompt string, parser func(string) Determination)`。约 80 LOC。
+2. ✅ **`PromptCondition`（LLM 驱动条件）** —— [`core/condition.go`](../core/condition.go) 新增 `NewPromptCondition(name, client, prompt, parser)` + `WithCost(...)` + `ParseYesNoDetermination` 默认 parser。LLM 错误降级为 `Unknown`（planner 视为"不满足"），不会拖垮 tick。
 
-3. **`AchievableGoalsToolGroupFactory` 等价物** —— embabel 自动把"能达成 goal X 的子 agent"注入到 LLM tool list。lynx 用户得 `runtime.AsChatTool[…](platform, "agent-x")` 一个个穷举写。建议：[`runtime/subagent.go`](../runtime/subagent.go) 加 `AllAchievableTools(platform *Platform, goal *core.Goal) []chat.CallableTool` 自动收集。约 40 LOC。
+3. ✅ **`AchievableGoalsToolGroupFactory` 等价物** —— [`runtime/publish.go`](../runtime/publish.go) `runtime.AllAchievableTools(platform) []chat.CallableTool` 自动遍历所有 deployed agent 的 `Export!=nil` goal，构造 supervisor-flow tool。父 agent 的 LLM 不再需要手动逐个 `runtime.AsChatTool[…]()`。
+
+落地总改动：约 350 LOC（含三件功能 + 测试）；提交 `<TBD>`。
 
 ### P1 — SPI 缺口
 
@@ -370,11 +371,18 @@ lynx：`agent.Builder`（[builder.go](../builder.go)，第八轮从 `dsl/builder
 - **`OperationContext` 巨型 service surface** —— embabel 把 12+ 服务挂到 `OperationContext`（llmOps / asyncer / templateRenderer / conversationFactoryProvider …）；lynx `ProcessContext` 5 字段 + 4 hook 已够 ISP，多出来的服务走 `core.ServiceProvider`。
 - **三值逻辑 / Condition 组合子 / `BindProtected`** —— 之前以为缺，本轮 fresh 对照确认 lynx 都已对齐（`core.Determination.Unknown` ✓ / `core.Not/Or/And` ✓ / `Blackboard.BindProtected` ✓）。
 
-### 落地顺序（如果继续推进）
+### 落地顺序（剩余项）
 
-按 ROI 排：1（Goal.Export + PublishAll）→ 2（PromptCondition）→ 4（OperationScheduler）→ 3（AllAchievableTools）→ 8（Tags/Examples + LLMRanker prompt）→ 6（OptimizingGoap）。其他（TemplateRenderer / ModelProvider / Matryoshka）等真实场景出现再做。
+P0 已全部闭合（2026-05-09）。剩余按 ROI：
 
-**总改动量预估**：P0 三个共 ~180 LOC + 测试。一次 PR 可以放下。
+4. P1 `OperationScheduler`（异步调度，~120 LOC + 测试）
+5. P1 `ModelProvider` / 多模型（~60 LOC）
+6. P1 `OptimizingGoapPlanner`（剪枝 GOAP，~60 LOC）
+7. P2 `Goal.Tags` + `Goal.Examples` + `LLMRanker` prompt 用上（~30 LOC）
+8. P2 `TemplateRenderer`（薄包装，~40 LOC）—— 实际 chat 包已有 `PromptTemplate`，可能不需要新增
+9. P3 `MatryoshkaTools` —— 复杂 LLM 优化技巧，等真实用例再做
+
+**P0 实际落地量**：~700 LOC（含 GoalExport + GoalExportFor / PromptCondition + ParseYesNoDetermination / dynamicAgentTool + AllAchievableTools + PublishAll + Platform 改动 + 三套测试）。比预估略大，因为 dynamic-typed agent tool wrapper 用 reflection 处理 schema/unmarshal/output 的代码量超出最初估计。
 
 ---
 
