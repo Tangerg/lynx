@@ -421,7 +421,7 @@ func (p *AgentProcess) tickSimple(ctx context.Context, ws core.WorldState) error
     if plan.IsComplete() { p.completeForGoal(plan.Goal); return nil }
     
     p.setGoal(plan.Goal)
-    p.publishEvent(event.PlanFormulatedEvent{...})
+    p.publishEvent(event.PlanFormulated{...})
     
     action := plan.Actions[0]
     status, replan := p.executeAction(ctx, action)       // ACT (with retry)
@@ -461,7 +461,7 @@ PlanToGoal(ctx, start, system, goal, opts):
 | 信号 | 触发 | 处理点 |
 |---|---|---|
 | `TerminationScopeAgent` | `proc.TerminateAgent(reason)` | `handleTerminationSignal` → `StatusTerminated` + 事件 |
-| `TerminationScopeAction` | `proc.TerminateAction(reason)` | `handleTerminationSignal` → 跳过当前 tick，直接发 `ReplanRequestedEvent` |
+| `TerminationScopeAction` | `proc.TerminateAction(reason)` | `handleTerminationSignal` → 跳过当前 tick，直接发 `ReplanRequested` |
 | `TerminationScopeToolCall` | `proc.TerminateToolCall(reason)` | `atomic.Pointer[CancelFunc]` 触发：之前从 `pc.ToolCallContext()` 拿到的 ctx 收到 cancel |
 
 前两个是**信号 channel**异步传递，下一个 tick 边界处理；第三个是**立即原子触发**，因为 tool 调用通常在 action body 内同步等待，必须立刻打断。
@@ -478,7 +478,7 @@ func handleStuck(ctx, ws):
             p.clearExclusions()  // 重置排除列表
             return nil           // 下一个 tick 重新 plan
     p.setStatus(StatusStuck)     // 没有 handler → 终止
-    p.publishEvent(ProcessStuckEvent{...})
+    p.publishEvent(ProcessStuck{...})
 ```
 
 `StuckHandler` 通常会在 blackboard 上做点改动（放松 condition、改 goal、添加缺失输入）然后返回 `StuckReplan` 让 planner 再试。
@@ -518,10 +518,10 @@ func (m *Multicast) OnEvent(e Event) {
 `safeDeliver` 用 `defer recover()` 隔离 panic — 一个 listener 崩溃不影响其他。
 
 事件类型（17 种，全部实现 `json.Marshaler` envelope 模式）：
-- 平台：`AgentDeployedEvent` / `AgentUndeployedEvent`
-- 进程：`ProcessCreatedEvent` / `ProcessCompletedEvent` / `ProcessFailedEvent` / `ProcessStuckEvent` / `ProcessKilledEvent` / `ProcessTerminatedEvent` / `ProcessWaitingEvent`
-- 规划：`ReadyToPlanEvent` / `PlanFormulatedEvent` / `ReplanRequestedEvent`
-- 执行：`ActionExecutionStartEvent` / `ActionExecutionResultEvent` / `GoalAchievedEvent`
+- 平台：`AgentDeployed` / `AgentUndeployed`
+- 进程：`ProcessCreated` / `ProcessCompleted` / `ProcessFailed` / `ProcessStuck` / `ProcessKilled` / `ProcessTerminated` / `ProcessWaiting`
+- 规划：`ReadyToPlan` / `PlanFormulated` / `ReplanRequested`
+- 执行：`ActionExecutionStart` / `ActionExecutionResult` / `GoalAchieved`
 - LLM/RAG：`LLMRequestEvent` / `LLMResponseEvent` / `ObjectBoundEvent` / `ProcessPausedEvent`（保留为集成扩展点；框架不主动发射）
 
 ---
@@ -727,7 +727,7 @@ core.ProcessOptions{
 }
 ```
 
-每个 tick 边界检查；任意 policy 返回 true → `StatusTerminated` + `ProcessTerminatedEvent`。
+每个 tick 边界检查；任意 policy 返回 true → `StatusTerminated` + `ProcessTerminated`。
 
 ## IV.8 事件监听
 
@@ -743,7 +743,7 @@ p := agent.NewPlatform(runtime.PlatformConfig{
 
 // 或者用闭包：
 p.AddListener(event.ListenerFunc(func(e event.Event) {
-    if r, ok := e.(event.ActionExecutionResultEvent); ok && r.Err != nil {
+    if r, ok := e.(event.ActionExecutionResult); ok && r.Err != nil {
         metrics.Counter("action.failed").Inc()
     }
 }))

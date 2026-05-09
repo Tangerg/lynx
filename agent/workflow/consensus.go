@@ -41,24 +41,24 @@ type ConsensusSpec[In, Element any] struct {
 	Key func(Element) string
 }
 
-// ConsensusAgent compiles spec into an agent that runs every voter,
+// Consensus compiles spec into an agent that runs every voter,
 // tallies via Key, and returns the Element whose Key occurs most
 // often. Ties are broken by voter order (the earliest voter whose
 // Key tied for the lead wins).
 //
 // Panics on missing Name / empty Voters / nil Key.
-func ConsensusAgent[In, Element any](spec ConsensusSpec[In, Element]) *core.Agent {
+func Consensus[In, Element any](spec ConsensusSpec[In, Element]) *core.Agent {
 	if spec.Name == "" {
-		panic("workflow.ConsensusAgent: Name must not be empty")
+		panic("workflow.Consensus: Name must not be empty")
 	}
 	if len(spec.Voters) == 0 {
-		panic("workflow.ConsensusAgent: Voters must not be empty")
+		panic("workflow.Consensus: Voters must not be empty")
 	}
 	if spec.Key == nil {
-		panic("workflow.ConsensusAgent: Key must not be nil")
+		panic("workflow.Consensus: Key must not be nil")
 	}
 
-	return ScatterGatherAgent(ScatterGatherSpec[In, Element, Element]{
+	return ScatterGather(ScatterGatherSpec[In, Element, Element]{
 		Name:           spec.Name,
 		Description:    spec.Description,
 		MaxConcurrency: spec.MaxConcurrency,

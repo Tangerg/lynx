@@ -270,7 +270,7 @@ type Platform struct {
 - 三个职责文件分明
 - 单测：`agent_registry_test.go` 可独立验证注册逻辑（无需启 Platform）
 - 未来想做"远程 process 注册表"（Redis-backed）只换 `processRegistry` 即可
-- `Deploy → publish AgentDeployedEvent` 这种"注册 + 发事件"的耦合仍然在 Platform 上协调，因为它跨 registry + events 两个职责
+- `Deploy → publish AgentDeployed` 这种"注册 + 发事件"的耦合仍然在 Platform 上协调，因为它跨 registry + events 两个职责
 
 #### 风险
 
@@ -391,13 +391,13 @@ embabel 在 `core/events/` 下分多文件：
 event/
 ├── event.go        Event interface + BaseEvent + envelope/emit + errString
 ├── multicast.go    Listener + ListenerFunc + Multicast (snapshot pattern)
-├── platform.go     AgentDeployedEvent / AgentUndeployedEvent
-├── process.go      ProcessCreatedEvent / ProcessCompletedEvent / ProcessFailedEvent /
-│                   ProcessStuckEvent / ProcessKilledEvent / ProcessTerminatedEvent /
-│                   ProcessWaitingEvent / ProcessPausedEvent
-├── planning.go     ReadyToPlanEvent / PlanFormulatedEvent / ReplanRequestedEvent
-├── execution.go    ActionExecutionStartEvent / ActionExecutionResultEvent /
-│                   GoalAchievedEvent / ObjectBoundEvent
+├── platform.go     AgentDeployed / AgentUndeployed
+├── process.go      ProcessCreated / ProcessCompleted / ProcessFailed /
+│                   ProcessStuck / ProcessKilled / ProcessTerminated /
+│                   ProcessWaiting / ProcessPausedEvent
+├── planning.go     ReadyToPlan / PlanFormulated / ReplanRequested
+├── execution.go    ActionExecutionStart / ActionExecutionResult /
+│                   GoalAchieved / ObjectBoundEvent
 ├── llm.go          LLMRequestEvent / LLMResponseEvent
 └── summaries.go    goalSummary / planSummary / worldSnapshot / awaitableSummary
                     + summarizeGoal / summarizePlan / snapshotWorld / summarizeAwaitable

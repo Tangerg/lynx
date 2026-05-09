@@ -41,7 +41,7 @@ func makeScoringAgent(name string, score int, inFlight *int32) *core.Agent {
 		Build()
 }
 
-func TestParallelAgents_RunsAllAndJoins(t *testing.T) {
+func TestParallel_RunsAllAndJoins(t *testing.T) {
 	platform := agent.NewPlatform(runtime.PlatformConfig{})
 
 	var inFlight int32
@@ -54,9 +54,9 @@ func TestParallelAgents_RunsAllAndJoins(t *testing.T) {
 		}
 	}
 
-	wf := workflow.ParallelAgents[paIn, paScore, paSummary](
+	wf := workflow.Parallel[paIn, paScore, paSummary](
 		platform,
-		workflow.ParallelAgentsSpec[paIn, paScore, paSummary]{
+		workflow.ParallelSpec[paIn, paScore, paSummary]{
 			Name:   "parallel-scoring",
 			Agents: []*core.Agent{a1, a2, a3},
 			Joiner: func(_ context.Context, _ *core.ProcessContext, items []paScore) (paSummary, error) {
@@ -92,7 +92,7 @@ func TestParallelAgents_RunsAllAndJoins(t *testing.T) {
 	}
 }
 
-func TestParallelAgents_SubAgentFailureCancels(t *testing.T) {
+func TestParallel_SubAgentFailureCancels(t *testing.T) {
 	platform := agent.NewPlatform(runtime.PlatformConfig{})
 
 	good := makeScoringAgent("good", 5, nil)
@@ -107,9 +107,9 @@ func TestParallelAgents_SubAgentFailureCancels(t *testing.T) {
 		Build()
 	mustDeploy(t, platform, good, bad)
 
-	wf := workflow.ParallelAgents[paIn, paScore, paSummary](
+	wf := workflow.Parallel[paIn, paScore, paSummary](
 		platform,
-		workflow.ParallelAgentsSpec[paIn, paScore, paSummary]{
+		workflow.ParallelSpec[paIn, paScore, paSummary]{
 			Name:   "parallel-fail",
 			Agents: []*core.Agent{good, bad},
 			Joiner: func(_ context.Context, _ *core.ProcessContext, items []paScore) (paSummary, error) {
@@ -131,7 +131,7 @@ func TestParallelAgents_SubAgentFailureCancels(t *testing.T) {
 	}
 }
 
-func TestParallelAgents_MaxConcurrencyCaps(t *testing.T) {
+func TestParallel_MaxConcurrencyCaps(t *testing.T) {
 	platform := agent.NewPlatform(runtime.PlatformConfig{})
 
 	var inFlight int32
@@ -165,9 +165,9 @@ func TestParallelAgents_MaxConcurrencyCaps(t *testing.T) {
 	}
 	mustDeploy(t, platform, subs...)
 
-	wf := workflow.ParallelAgents[paIn, paScore, paSummary](
+	wf := workflow.Parallel[paIn, paScore, paSummary](
 		platform,
-		workflow.ParallelAgentsSpec[paIn, paScore, paSummary]{
+		workflow.ParallelSpec[paIn, paScore, paSummary]{
 			Name:           "capped",
 			MaxConcurrency: 2,
 			Agents:         subs,
@@ -193,16 +193,16 @@ func TestParallelAgents_MaxConcurrencyCaps(t *testing.T) {
 	}
 }
 
-func TestParallelAgents_PanicsOnEmptyAgents(t *testing.T) {
+func TestParallel_PanicsOnEmptyAgents(t *testing.T) {
 	platform := agent.NewPlatform(runtime.PlatformConfig{})
 	defer func() {
 		if r := recover(); r == nil {
 			t.Fatal("expected panic")
 		}
 	}()
-	workflow.ParallelAgents[paIn, paScore, paSummary](
+	workflow.Parallel[paIn, paScore, paSummary](
 		platform,
-		workflow.ParallelAgentsSpec[paIn, paScore, paSummary]{
+		workflow.ParallelSpec[paIn, paScore, paSummary]{
 			Name: "empty",
 			Joiner: func(_ context.Context, _ *core.ProcessContext, _ []paScore) (paSummary, error) {
 				return paSummary{}, nil
@@ -211,16 +211,16 @@ func TestParallelAgents_PanicsOnEmptyAgents(t *testing.T) {
 	)
 }
 
-func TestParallelAgents_PanicsOnNilJoiner(t *testing.T) {
+func TestParallel_PanicsOnNilJoiner(t *testing.T) {
 	platform := agent.NewPlatform(runtime.PlatformConfig{})
 	defer func() {
 		if r := recover(); r == nil {
 			t.Fatal("expected panic")
 		}
 	}()
-	workflow.ParallelAgents[paIn, paScore, paSummary](
+	workflow.Parallel[paIn, paScore, paSummary](
 		platform,
-		workflow.ParallelAgentsSpec[paIn, paScore, paSummary]{
+		workflow.ParallelSpec[paIn, paScore, paSummary]{
 			Name:   "no-joiner",
 			Agents: []*core.Agent{makeScoringAgent("a", 1, nil)},
 		},

@@ -119,7 +119,7 @@ Tick 开始
   │      ┌─ buildProcessContext (services + publish + tool resolver)
   │      ├─ runWithRetry (QoS-aware 指数退避 + panic recovery)
   │      ├─ 写回 hasRun_<name> 条件（如果成功）
-  │      └─ 发布 ActionExecutionResultEvent
+  │      └─ 发布 ActionExecutionResult
   │
   └─ Tick 结束 → 决定是否继续下一 tick（看 status 是否 terminal）
 ```
@@ -726,7 +726,7 @@ func (p *AgentProcess) tickSimple(ctx, ws) error {
     }
 
     p.setGoal(planResult.Goal)
-    p.publishEvent(event.PlanFormulatedEvent{...})
+    p.publishEvent(event.PlanFormulated{...})
 
     action := planResult.Actions[0]                    // DECIDE: 只取第一个
     status, replan := p.executeAction(ctx, action)    // ACT
@@ -746,7 +746,7 @@ func (p *AgentProcess) executeAction(ctx, action) (ActionStatus, *ReplanRequest)
     meta := action.Metadata()
     startedAt := core.Now()
 
-    p.publishEvent(event.ActionExecutionStartEvent{...})
+    p.publishEvent(event.ActionExecutionStart{...})
 
     ctx, span := core.AgentTracer().Start(ctx, "lynx.agent.action")
     defer span.End()
@@ -767,7 +767,7 @@ func (p *AgentProcess) executeAction(ctx, action) (ActionStatus, *ReplanRequest)
     span.SetAttributes(...)
     finishSpanWithError(span, lastErr)
 
-    p.publishEvent(event.ActionExecutionResultEvent{...})
+    p.publishEvent(event.ActionExecutionResult{...})
 
     if status == core.ActionFailed && replan == nil {
         p.recordActionFailure(meta.Name, lastErr)
@@ -956,10 +956,10 @@ func mergeStatuses(statuses []ActionStatus) AgentProcessStatus {
 
 | 分组 | 事件 |
 |------|------|
-| 平台 | `AgentDeployedEvent` / `AgentUndeployedEvent` |
-| 进程生命周期 | `ProcessCreatedEvent` / `ProcessCompletedEvent` / `ProcessFailedEvent` / `ProcessStuckEvent` / `ProcessWaitingEvent` / `ProcessPausedEvent` / `ProcessKilledEvent` / `ProcessTerminatedEvent` |
-| 规划 | `ReadyToPlanEvent` / `PlanFormulatedEvent` / `ReplanRequestedEvent` |
-| 执行 | `ActionExecutionStartEvent` / `ActionExecutionResultEvent` / `ObjectBoundEvent` / `GoalAchievedEvent` |
+| 平台 | `AgentDeployed` / `AgentUndeployed` |
+| 进程生命周期 | `ProcessCreated` / `ProcessCompleted` / `ProcessFailed` / `ProcessStuck` / `ProcessWaiting` / `ProcessPausedEvent` / `ProcessKilled` / `ProcessTerminated` |
+| 规划 | `ReadyToPlan` / `PlanFormulated` / `ReplanRequested` |
+| 执行 | `ActionExecutionStart` / `ActionExecutionResult` / `ObjectBoundEvent` / `GoalAchieved` |
 | LLM | `LLMRequestEvent` / `LLMResponseEvent`（埋点接入时使用） |
 
 每个都嵌入 `BaseEvent { At time.Time; PID string }`，并实现 `Event` 接口。
@@ -992,9 +992,9 @@ func (m *Multicast) OnEvent(e Event) {
 ```go
 platform.AddListener(event.ListenerFunc(func(e event.Event) {
     switch ev := e.(type) {
-    case event.ActionExecutionResultEvent:
+    case event.ActionExecutionResult:
         log.Printf("action %s done in %v", ev.Action.Metadata().Name, ev.Duration)
-    case event.GoalAchievedEvent:
+    case event.GoalAchieved:
         log.Printf("goal achieved: %s", ev.Goal.Name)
     }
 }))
@@ -1057,7 +1057,7 @@ type AgentProcess struct {
 func (p *AgentProcess) AwaitInput(req core.Awaitable) core.ActionStatus {
     slot := &awaitSlot{awaitable: req, respond: make(chan any, 1)}
     p.pendingAwaitable.Store(slot)
-    p.publishEvent(event.ProcessWaitingEvent{...})
+    p.publishEvent(event.ProcessWaiting{...})
     return core.ActionWaiting
 }
 

@@ -119,7 +119,7 @@ func (p *Platform) KillProcess(id string) error {
 		return processNotFoundError("kill process", id)
 	}
 	proc.state.setStatus(core.StatusKilled)
-	p.publish(event.ProcessKilledEvent{
+	p.publish(event.ProcessKilled{
 		BaseEvent: event.NewBaseEvent(id),
 		Reason:    "kill requested",
 	})

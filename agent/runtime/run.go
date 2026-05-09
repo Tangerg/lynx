@@ -64,7 +64,7 @@ func (p *AgentProcess) validateAgentForRun() error {
 func (p *AgentProcess) failProcess(err error) {
 	p.state.setFailure(err)
 	p.state.setStatus(core.StatusFailed)
-	p.publishEvent(event.ProcessFailedEvent{
+	p.publishEvent(event.ProcessFailed{
 		BaseEvent: p.baseEvent(),
 		Err:       err,
 	})
@@ -74,7 +74,7 @@ func (p *AgentProcess) failProcess(err error) {
 func (p *AgentProcess) markCancelled(err error) {
 	p.state.setFailure(err)
 	p.state.setStatus(core.StatusKilled)
-	p.publishEvent(event.ProcessKilledEvent{
+	p.publishEvent(event.ProcessKilled{
 		BaseEvent: p.baseEvent(),
 		Reason:    err.Error(),
 	})
@@ -95,7 +95,7 @@ func (p *AgentProcess) checkEarlyTermination() bool {
 	}
 
 	p.state.setStatus(core.StatusTerminated)
-	p.publishEvent(event.ProcessTerminatedEvent{
+	p.publishEvent(event.ProcessTerminated{
 		BaseEvent: p.baseEvent(),
 		Reason:    reason,
 	})
@@ -107,12 +107,12 @@ func (p *AgentProcess) checkEarlyTermination() bool {
 func (p *AgentProcess) publishTerminalEvent() {
 	switch p.Status() {
 	case core.StatusCompleted:
-		p.publishEvent(event.ProcessCompletedEvent{
+		p.publishEvent(event.ProcessCompleted{
 			BaseEvent: p.baseEvent(),
 			Goal:      p.Goal(),
 		})
 	case core.StatusFailed:
-		p.publishEvent(event.ProcessFailedEvent{
+		p.publishEvent(event.ProcessFailed{
 			BaseEvent: p.baseEvent(),
 			Err:       p.Failure(),
 		})
@@ -153,7 +153,7 @@ func (p *AgentProcess) observe(ctx context.Context, span spanAttributer) core.Wo
 	worldState := p.determiner.determineWorldState(ctx)
 	p.state.setLastWorld(worldState)
 
-	p.publishEvent(event.ReadyToPlanEvent{
+	p.publishEvent(event.ReadyToPlan{
 		BaseEvent: p.baseEvent(),
 		World:     worldState,
 	})
@@ -175,14 +175,14 @@ func (p *AgentProcess) handleTerminationSignal(sig core.TerminationSignal) error
 	switch sig.Scope {
 	case core.TerminationScopeAgent:
 		p.state.setStatus(core.StatusTerminated)
-		p.publishEvent(event.ProcessTerminatedEvent{
+		p.publishEvent(event.ProcessTerminated{
 			BaseEvent: p.baseEvent(),
 			Reason:    sig.Reason,
 			Scope:     core.TerminationScopeAgent,
 		})
 
 	case core.TerminationScopeAction:
-		p.publishEvent(event.ReplanRequestedEvent{
+		p.publishEvent(event.ReplanRequested{
 			BaseEvent: p.baseEvent(),
 			Reason:    sig.Reason,
 		})
@@ -216,7 +216,7 @@ func (p *AgentProcess) tickSimple(ctx context.Context, worldState core.WorldStat
 // run before they decide which action(s) to execute. It plans, handles
 // the three "no action this tick" outcomes (planner error → fail,
 // no plan → stuck, plan complete → goal achieved), and on success sets
-// the process goal and publishes [event.PlanFormulatedEvent].
+// the process goal and publishes [event.PlanFormulated].
 //
 // Return shape:
 //
@@ -240,7 +240,7 @@ func (p *AgentProcess) planForTick(ctx context.Context, worldState core.WorldSta
 	}
 
 	p.state.setGoal(planResult.Goal)
-	p.publishEvent(event.PlanFormulatedEvent{
+	p.publishEvent(event.PlanFormulated{
 		BaseEvent: p.baseEvent(),
 		Plan:      planResult,
 	})
@@ -283,7 +283,7 @@ func (p *AgentProcess) formulatePlan(ctx context.Context, worldState core.WorldS
 func (p *AgentProcess) completeForGoal(g *core.Goal) {
 	p.state.setStatus(core.StatusCompleted)
 	p.state.setGoal(g)
-	p.publishEvent(event.GoalAchievedEvent{
+	p.publishEvent(event.GoalAchieved{
 		BaseEvent: p.baseEvent(),
 		Goal:      g,
 	})
@@ -297,7 +297,7 @@ func (p *AgentProcess) applyReplan(action core.Action, request *core.ReplanReque
 	if request.Update != nil {
 		request.Update(p.blackboard)
 	}
-	p.publishEvent(event.ReplanRequestedEvent{
+	p.publishEvent(event.ReplanRequested{
 		BaseEvent: p.baseEvent(),
 		Action:    action.Metadata().Name,
 		Reason:    request.Reason,
@@ -342,7 +342,7 @@ func (p *AgentProcess) handleStuck(ctx context.Context, worldState core.WorldSta
 	}
 
 	p.state.setStatus(core.StatusStuck)
-	p.publishEvent(event.ProcessStuckEvent{
+	p.publishEvent(event.ProcessStuck{
 		BaseEvent: p.baseEvent(),
 		LastWorld: worldState,
 	})
