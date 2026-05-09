@@ -1,15 +1,18 @@
 # lynx/agent vs embabel-agent — 深度对比与缺口分析
 
-> **第八轮重写**（2026-05-09）。基线：embabel-agent (Kotlin/Spring) v0.4 / lynx/agent (Go) HEAD `6a1e7a1`。
+> **第九轮重写**（2026-05-09）。基线：embabel-agent (Kotlin/Spring) v0.4 / lynx/agent (Go) HEAD `fa6f9a6`。
 >
-> 本轮相对第七轮的关键变动（仅做了两件事 + 一次 fresh 对照）：
-> - **Wave A**：拍平包布局 —— 删 `dsl/` 子包；`dsl/builder.go` → `agent/builder.go`（Builder 直接住在根包）；`dsl/workflow/` → `workflow/`；`dsl/toolpolicy/` → `toolpolicy/`。`workflow` 内部从原来"穿透 dsl.Builder 再 Build()"改为直接 `core.NewAgent(core.AgentConfig{...})`，少一层封装。
-> - **Wave B**：合并 `runtime/subagent.go` 中的 `subagentTool` 与 `mcpTool` —— 两个只差"启动进程的策略"的 `[In, Out]` wrapper 合成一个 `agentTool[In, Out]` + `runProcessFunc[In]` 策略函数（`runAsChild` for `AsChatTool` / `runAsTopLevel` for `AsMCPTool`）。Definition / Metadata / Call / status-switch / output-extract 不再各写一遍。
-> - **新一轮 fresh 对照**：见 §15.5 —— 以 P0/P1/P2 优先级列出 embabel 有而 lynx 仍缺的具体能力（`Goal.Export` 元数据 / `PromptCondition` / `AchievableGoalsToolGroupFactory` / `OperationScheduler` / `ModelProvider` / `OptimizingGoapPlanner` …）。
+> 本轮的核心结论：**framework 层 gap 已结论性闭合**。第八轮列出的 P0/P1/P2 候选已按用户决策落地（详见 §15.5）；本轮额外做了一次 fresh 对照（§15.6），重点考察**前 8 轮没仔细看过的 dimension**（streaming / DataDictionary / GoalChoiceApprover / UnfoldingTools / Micrometer ...），结论是：fresh 对照里 5/11 是误报（agent 不知道我们最近的落地、不识别同义词、不查 lynx 现有能力清单），1/11 是真新 dimension（DataDictionary）但经 critical review 也是 YAGNI。
 >
-> 第七轮"减负"的成果保留；第八轮**只做结构整理**，没有删字段。**非测试代码 8715 LOC**（第七轮 8853 → 第八轮 8715，-138 LOC 来自 dsl 包消除 + subagent 合并），所有 examples + 测试包仍绿。
+> 本轮（相对第八轮）实际落地的代码：
+> - **P0 三件**（提交 `17f4f62`）：`Goal.Export` + `GoalExportFor[In]` 类型化构造器；`PromptCondition` + `WithCost` + `ParseYesNoDetermination` 默认 parser；`runtime.AllAchievableTools` + `runtime.PublishAll` + 内部 `dynamicAgentTool`（reflection 驱动 schema/unmarshal）
+> - **P1 #6 STRIPS regression 剪枝**（提交 `fa6f9a6`）：[`plan/planner/goap/relevance.go`](../plan/planner/goap/relevance.go) `relevantActions(actions, goal)`，永远开
+> - **P2 #8 Goal.Tags + Goal.Examples + LLMRanker**（提交 `fa6f9a6`）：autonomy ranker prompt 现在拼上 tags / examples
+> - **P1 #4 / #5 / P2 #7 / #9 明确不做**（见 §15.5），理由记录在文档里
 >
-> 配套文档：[`./EXTENSION_DESIGN.md`](./EXTENSION_DESIGN.md) / [`./PERSISTENCE.md`](./PERSISTENCE.md) / [`/Users/tangerg/Desktop/lynx/mcp/DESIGN.md`](../../mcp/DESIGN.md)。
+> **非测试代码 8715 LOC（第八轮）→ 9888 LOC（第九轮）**，+1173 LOC 全部来自新功能 + 测试。所有 examples + 测试包仍绿。
+>
+> 配套文档：[`./ADK_COMPARISON.md`](./ADK_COMPARISON.md)（vs Google ADK 异范式比较） / [`./EXTENSION_DESIGN.md`](./EXTENSION_DESIGN.md) / [`./PERSISTENCE.md`](./PERSISTENCE.md) / [`/Users/tangerg/Desktop/lynx/mcp/DESIGN.md`](../../mcp/DESIGN.md)。
 
 ---
 
@@ -17,24 +20,26 @@
 
 | 维度 | lynx/agent | embabel-agent | 差距 |
 |---|---|---|---|
-| 核心抽象（Agent / Goal / Action / Condition / Blackboard / WorldState） | ✅ 完整、本轮再瘦身（去 `Tags`/`Examples`/`Export`/`OutputType` 等） | ✅ 完整 | **lynx 更精简** |
-| GOAP planner（A* + reachability） | ✅ `plan/planner/goap` | ✅ `DefaultPlannerFactory.kt` | **无差距** |
+| 核心抽象（Agent / Goal / Action / Condition / Blackboard / WorldState） | ✅ 完整；第九轮重新加回 `Goal.Export` / `Tags` / `Examples`（这次**字段 + reader 同时落**） | ✅ 完整 | **追平** |
+| GOAP planner（A* + reachability + STRIPS regression 剪枝） | ✅ `plan/planner/goap`；第九轮加 `relevantActions` 后向链式推理 | ✅ `DefaultPlannerFactory.kt` + `OptimizingGoapPlanner.kt` | **追平** |
 | HTN planner | ✅ `plan/planner/htn` | ✅ | **追平** |
 | Reactive / Utility planner | ✅ `plan/planner/reactive`（progress × cost-tie，强于 embabel） | ✅ `UtilityPlanner.kt` | **lynx 更强** |
-| Plan 后处理 / 多 plan 排序 | ✅ `plan.BestOf` + `plan.SortByNetValueDesc`（`slices.SortStableFunc`） + `autonomy.LLMPlanRanker` | ✅ + `LlmRanker` | **追平** |
+| Plan 后处理 / 多 plan 排序 | ✅ `plan.BestOf` + `plan.SortByNetValueDesc` + `autonomy.LLMPlanRanker` | ✅ + `LlmRanker` | **追平** |
 | OODA tick loop（Sequential + Concurrent） | ✅ `runtime/run.go` + `runtime/concurrent.go` | ✅ | **无差距** |
 | HITL: process + tool 双层 | ✅ `hitl.TypedRequest` + `hitl/tool.go`（WithAwaiting / WithConfirmation / RequireType） | ✅ `Awaitable<P,R>` + `AwaitingTools.kt` | **追平** |
+| **LLM-as-judge condition** | ✅ 第九轮新增 `core.PromptCondition` + `ParseYesNoDetermination` | ✅ `experimental.PromptCondition` | **追平** |
 | Extension 模型 | ✅ 1 注册入口 + **5** core capability + 4 runtime/extension capability + type-assertion 检测 | 多 SPI + Spring DI | **lynx 更整洁** |
-| 事件 / 可观测 | ✅ **14** 个事件类型 + JSON marshaler + OTel tracer + `event.Multicast` | ✅ `AgenticEventListener` + Micrometer | **等价** |
+| 事件 / 可观测 | ✅ **14** 个事件类型 + JSON marshaler + OTel tracer + `event.Multicast` + `event.NewNamedListener` | ✅ `AgenticEventListener` + Micrometer | **等价** |
 | Tool 模型 / advanced policies | ✅ `core/tool_group.go`（与 `chat.Tool` 共用类型） + `toolpolicy/`（OnceOnly + Unlock） | ✅ Tool / ToolObject + `OneShotPerLoopTool` / `PlaybookTool` | **基线追平** |
-| MCP 客户端 / 服务端 | ✅ `lynx/mcp` 全功能 + `runtime.MCPToolGroupResolver` + `runtime.AsMCPTool[In,Out]` | ✅ `SpringAiMcpToolFactory` + `McpToolExport` + `PerGoalMcpExportToolCallbackPublisher` | **闭合** |
-| Supervisor / Subagent | ✅ `runtime.AsChatTool` + `AsChatToolFromAgent` + waiting graceful-degrade | ✅ `Subagent.kt`（4 工厂路径 + `RunSubagent` 注解） | **追平**；细差见 §10 |
-| WorkflowBuilder | ✅ ScatterGather / RepeatUntil / RepeatUntilAcceptable / Consensus / Feedback 全套 | ✅ `api/common/workflow/` | **追平** |
-| Autonomy / Goal Ranking | ✅ `runtime/autonomy`：`Choose`/`Run` + `LLMRanker` + `LLMPlanRanker` + cutoff + filter | ✅ `Autonomy` + `Ranker` | **追平** |
+| MCP 客户端 / 服务端 / 自动批量发布 | ✅ `lynx/mcp` 全功能 + `runtime.MCPToolGroupResolver` + `runtime.AsMCPTool[In,Out]` + `runtime.PublishAll(platform)` | ✅ `SpringAiMcpToolFactory` + `McpToolExport` + `PerGoalMcpExportToolCallbackPublisher` | **闭合** |
+| Supervisor / Subagent | ✅ `runtime.AsChatTool` + `AsChatToolFromAgent` + `runtime.AllAchievableTools(platform)` 自动收集 + waiting graceful-degrade | ✅ `Subagent.kt`（4 工厂路径 + `RunSubagent` 注解） | **追平**；细差见 §10 |
+| WorkflowBuilder（action 级） | ✅ ScatterGather / RepeatUntil / RepeatUntilAcceptable / Consensus / Feedback 全套 | ✅ `api/common/workflow/` | **追平** |
+| **Workflow（agent 级）** | ✅ `workflow.SequenceAgents` / `ParallelAgents` / `LoopAgent`（基于 `runtime.SpawnChildFresh`，branch isolation） | ✅ —— ADK 同款 | **追平** |
+| Autonomy / Goal Ranking | ✅ `runtime/autonomy`：`Choose`/`Run` + `LLMRanker`（含 Tags/Examples）+ `LLMPlanRanker` + cutoff + filter | ✅ `Autonomy` + `Ranker` | **追平** |
 | 持久化 | ⚙️ `BlackboardFactory` 扩展点 + [`PERSISTENCE.md`](./PERSISTENCE.md)；开箱仍 in-memory | ✅ Spring Data + `InMemoryAgentProcessRepository` | **抽象等价**；开箱实现欠（按设计） |
 | 多 LLM provider 内置 / 注解 / classpath scan / Shell / RAG / A2A / Skills / Onnx | ❌ | ✅ 7 独立模块 | **故意分歧** |
 
-**一句话**：第七轮没有新增功能，纯做了一轮"减负"——把上一轮发布后两个月里收集到的死字段、防御式重复检查、单实现虚接口、过度文字化的 docstring 一口气拔掉。**lynx 的功能面没有缩水，体积反而下降 ~7%**。基线对齐已稳定一轮以上，下一阶段路线由用例驱动，不再靠 framework 内推。
+**一句话**：第九轮把第八轮的 P0/P1/P2 候选按用户决策落地（5 项做、4 项不做），又跑了一次 fresh 对照确认 framework 层 gap **结论性闭合**。**lynx 在 framework 抽象层面已与 embabel 持平**；体积仍只是 embabel 的 1/3，密度差距来自 Spring 工程基础设施 + 独立子模块——这是哲学差异不是缺口。下一阶段不再靠 framework 内对照推动；改动应该用例驱动。
 
 ---
 
@@ -398,22 +403,105 @@ lynx：`agent.Builder`（[builder.go](../builder.go)，第八轮从 `dsl/builder
 
 ---
 
+## 15.6. 第九轮 fresh 对照（2026-05-09）—— 收口
+
+第八轮的 P0/P1/P2 决策落地后，又跑了一轮 fresh 对照，重点考察**前 8 轮可能没仔细看过的 dimension**：streaming 形态、DataDictionary / DomainType、GoalChoiceApprover、UnfoldingTools / 渐进披露、Micrometer 集成、ConditionAction 特化、ConversationFactoryProvider、SpEL 表达式语言、PromptCondition、Plan caching、Agent versioning。
+
+### 误报清单（5/11）—— fresh 对照 agent 不知道我们最近的状态
+
+| Agent 报告"lynx 缺" | 真实情况 |
+|---|---|
+| **`PromptCondition`（LLM-backed condition）** | ❌ 误报。**P0 #2 已落地** ([core/condition.go](../core/condition.go) `core.NewPromptCondition` + `WithCost` + `ParseYesNoDetermination`) |
+| **Streaming（Flux-based）** | ❌ 误报。**ADK comparison §6 已明确不做** —— 理由：避免"new 时显式 + RunStream 时偷偷注入"双注册路径黑盒；改用 [`event.NewNamedListener`](../event/listener.go) 走单一 Extensions 路径 |
+| **UnfoldingTools / 渐进披露** | ❌ 误报。embabel 自己注释 "deprecated, formerly @MatryoshkaTools" —— 与 P2 #9 是同一概念，**已明确不做** |
+| **Micrometer 可观测性集成** | ❌ 误报。lynx 有 OpenTelemetry：[`core.AgentTracer()`](../core/process_context.go) + 标准 attrs（`lynx.agent.tick` / `lynx.agent.action` / `lynx.agent.planner.astar` / `lynx.agent.world_state.size` ...） |
+| **`GoalChoiceApprover` autonomy gating** | ❌ 误报。lynx 已有：[`core.GoalApprover`](../core/extension.go) extension capability（planner formulatePlan 时 filter goals）+ [`autonomy.AutonomyConfig.GoalConfidenceCutOff`](../runtime/autonomy/autonomy.go)。embabel 的 `approveWithScoreOver(threshold)` 工厂 = lynx 的 `GoalConfidenceCutOff`，1:1 |
+
+### 真新 dimension（1/11）—— 但 critical review 后是 YAGNI
+
+**`DataDictionary` / `DomainType` / `DynamicType`**（embabel-agent-api/src/main/kotlin/com/embabel/agent/core/）：
+- 全局类型注册表（"系统认识哪些类型"）+ 类型间继承层级 + 关系 cardinality（@Semantics 注解）+ `DynamicType`（运行时声明的非 JVM schema）
+
+**为什么 lynx 不需要做**：
+- 用例 1（Spring Knowledge Graph / KB 增强）—— application-level RAG 范畴，不在 agent framework 范围
+- 用例 2（跨 agent schema 共享）—— Go 强静态类型 + `core.NewIOBinding[T]` 已经在编译期保证类型一致；运行时反射拿 type info 也够（[`runtime/publish.go`](../runtime/publish.go) 的 dynamic agent tool 已经在用反射拿 schema）
+- **Go 强类型 + 反射 + IOBinding 三件足以覆盖 embabel 用 DataDictionary 解决的问题**
+
+**结论**：DataDictionary 是 Spring 生态特化，不是 Go 库的需求。**SKIP**。
+
+### 其它 Spring-only 项（确认 SKIP）
+
+- `SpEL` 表达式条件 —— Spring Expression Language，与 Go 心智不符，永久 SKIP
+- `ConversationFactoryProvider` —— Spring DI factory pattern；Go 用户自己注册即可
+- `ConditionAction` 特化 —— GOAP 已涵盖；不需要单独的 Action 子类型
+
+### 收口结论
+
+经第九轮 fresh 对照确认：
+
+1. **embabel-vs-lynx 的 framework-level gap 已结论性闭合**
+2. 第八轮的 P0/P1/P2 决策（已落地的全做了，明确不做的都有合理依据）经得起 fresh check —— **无需 revisit 任何已不做项**
+3. 之前未仔细看过的角落经一轮深查也没暴露新的 actionable gap
+4. **接下来的 framework 改动应该用例驱动**（真实用户使用后发现具体痛点 → 针对性加），不再靠 framework 内部对照推动
+
+---
+
 ## 16. 故意不要做的事（不是缺口）
 
+**永久分歧 / 哲学差异**：
 - **注解 / classpath scan agent 注册** —— Go 心智模型不支持 magic
-- **Spring DI 容器** —— `ServiceProvider` 已够；不再加重 DI
+- **Spring DI 容器** —— `core.ServiceProvider` 已够；不再加重 DI
 - **Sync / Async 双套 API** —— Go 的 `context.Context` + goroutine 已经覆盖；embabel 二分是 Spring artifact
-- **AOT 模型分类 / SpEL 表达式条件** —— 过度工程
+- **SpEL 表达式条件** —— Spring Expression Language，与 Go 心智不符
 - **Megazord 注解（多 agent 合体）** —— 反射特化，做了也没人用
 - **Personality / Shell 装饰** —— lynx 没这文化
-- **MCP server-side resources/prompts 暴露** —— SDK 直接用，不再包一层
-- **多 LLM provider 内置整合** —— `chat.Model` 是开放接口，用户自己挂
-- **HTN 默认 task library** —— HTN 本来就需要领域知识；framework 不替用户假设
 - **死字段 / 谓词糖** —— Wave B 已删；保留接口面最小，靠 caller 写 `d == core.True` / `_, ok := provider.Get(key)` 这类直白表达
+
+**职责边界外（chat 中间件层 / sibling repo / 用户应用代码）**：
+- **多 LLM provider 内置整合 / `ModelProvider`** —— `chat.Model` 是开放接口，用户自己挂
+- **`TemplateRenderer`** —— `core/model/chat` 已有 `PromptTemplate`
+- **Session / Memory / Artifact 三件套** —— chat 中间件层 / `lynx/rag` sibling
+- **TUI / SSE / HTTP / A2A server frontend** —— lynx 是库不是 framework
+- **YAML agent 定义** —— typed DSL 是 lynx 核心价值
+- **MCP server-side resources/prompts 暴露** —— SDK 直接用，不再包一层
+
+**用例驱动 / 暂不做**：
+- **HTN 默认 task library** —— HTN 本来就需要领域知识；framework 不替用户假设
+- **`OperationScheduler` / 异步调度** —— 现有原语（`AwaitInput` + 外部 `ResumeProcess` + `ActionQoS` retry）已能拼出所有真实用例
+- **`MatryoshkaTools` / `UnfoldingTools` 渐进披露** —— 跨 chat 包边界，等真实用例
+- **`DataDictionary` / `DomainType` / `DynamicType`** —— Go 强类型 + 反射 + IOBinding 三件已足够；embabel 这套是 Spring KB / 多 agent schema 共享的特化
+- **Plan caching / Agent versioning / hot-reload** —— 双方都没做；不是竞争点
 
 ---
 
 ## 17. 重构历史
+
+### 第九轮（2026-05-09）的具体落地
+
+**功能落地**：
+
+| 项 | 提交 | 内容 |
+|---|---|---|
+| **P0 #1** Goal.Export + GoalExportFor[In] | `17f4f62` | [`core/goal.go`](../core/goal.go) 加 `Export *GoalExport` 字段 + 类型化构造器；reader 在 `runtime.AllAchievableTools` / `runtime.PublishAll`，**字段 + reader 同时落** |
+| **P0 #2** PromptCondition (LLM-as-judge) | `17f4f62` | [`core/condition.go`](../core/condition.go) `NewPromptCondition` + `WithCost` 链式 + `ParseYesNoDetermination` 默认 parser；LLM 错误降级 `Unknown` 不崩 tick |
+| **P0 #3** AllAchievableTools + PublishAll | `17f4f62` | [`runtime/publish.go`](../runtime/publish.go) 内部 `dynamicAgentTool`（reflection 驱动 schema 推导 + typed unmarshal） |
+| **P1 #6** OptimizingGoap (STRIPS regression) | `fa6f9a6` | [`plan/planner/goap/relevance.go`](../plan/planner/goap/relevance.go) `relevantActions(actions, goal)` 后向链式推理 / 不动点扩展，**永远开**（可证安全） |
+| **P2 #8** Goal.Tags + Goal.Examples | `fa6f9a6` | [`core/goal.go`](../core/goal.go) 加字段 + [`runtime/autonomy/llm_ranker.go`](../runtime/autonomy/llm_ranker.go) prompt 接通 |
+
+**明确不做**（理由记录在 §15.5 / §15.6）：
+- P1 #4 `OperationScheduler` —— 现有原语足够
+- P1 #5 `ModelProvider` —— chat 包职责
+- P2 #7 `TemplateRenderer` —— chat 包已有 `PromptTemplate`
+- P2 #9 `MatryoshkaTools` / `UnfoldingTools` —— 跨 chat 包边界
+- `DataDictionary` / `DomainType` / `DynamicType` —— Spring KB / 多 agent schema 共享特化，Go 强类型 + IOBinding 已足
+
+**净影响**：non-test 代码 8715 → **9888 LOC**（+1173 LOC，全部来自新功能 + 测试），所有 examples + 测试包仍绿。
+
+**第九轮的核心结论**：embabel-vs-lynx 在 framework 抽象层面**结论性闭合**；fresh 对照（§15.6）经一轮深查也没暴露新的 actionable gap。下一阶段 framework 改动应该用例驱动，不再靠 framework 内对照推动。
+
+提交：`17f4f62` (P0 三件) + `fa6f9a6` (P1 #6 + P2 #8)。
+
+---
 
 ### 第八轮（2026-05-09）的具体改动
 
@@ -442,8 +530,8 @@ lynx：`agent.Builder`（[builder.go](../builder.go)，第八轮从 `dsl/builder
 
 ## 18. 一句话总结
 
-第八轮没有新增功能、也没有进一步删字段。**纯做结构整理**：消除 `dsl/` 子包（`Builder` 升根 + `workflow` / `toolpolicy` 升 sibling），合并 `subagentTool` / `mcpTool` 两份近似 wrapper 为一个 `agentTool[In, Out]` + 策略函数。non-test 代码 8853 → **8715 LOC**（-138）。
+第九轮把第八轮列出的 P0/P1/P2 候选按用户决策落地（5 项做、4 项不做，每项都有理由），随后又做了一次 fresh 对照确认 framework 层 gap **结论性闭合**：之前可能漏看的角落（streaming / DataDictionary / GoalChoiceApprover / UnfoldingTools / Micrometer ...）经 critical review 全部是"已实现 / 已明确不做 / Spring-only / Go 已有等价"四类，无新 actionable gap。
 
-同时跑了一次 fresh 对照（§15.5），列出了 9 个 embabel 有而 lynx 仍缺的小级别能力（`Goal.Export` / `PromptCondition` / `AchievableGoalsToolGroupFactory` / `OperationScheduler` / `ModelProvider` / `OptimizingGoapPlanner` / `TemplateRenderer` / `Goal.Tags+Examples` / `MatryoshkaTools`），全部 ≤120 LOC 级，按 ROI 列了落地顺序——**没有 P0/P1/P2 的硬缺口**，全部为"用户可手写绕过 + 加上后体验更好"级别。
+代码量 8715 → **9888 LOC**（+1173，全部来自新功能 + 测试），仍只是 embabel **~30k+ LOC** 的 1/3。同样的领域模型，3-4 倍密度差距来自 Spring 工程基础设施 + 内置 RAG/Onnx/Shell 等独立模块——这是哲学差异，不是缺口。
 
-代码量 **8715 LOC** vs embabel 的 **~30k+ LOC**，同样的领域模型，3-4 倍的密度差距来自 Spring 工程基础设施 + 内置 RAG/Onnx/Shell 等独立模块。两个项目都正确——只是站在 Go 与 Kotlin/Spring 哲学的两端。
+**结论**：lynx-vs-embabel 在 framework 抽象层面 done。下一阶段不再靠 framework 内对照推动；改动应该用例驱动——真有用户跑起来后发现具体痛点 → 针对性加。两个项目都正确，只是站在 Go 与 Kotlin/Spring 哲学的两端。
