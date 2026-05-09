@@ -124,7 +124,7 @@ trailing prose ignored.`
 
 func TestLLMRanker_ClampsConfidence(t *testing.T) {
 	platform := agent.NewPlatform(runtime.PlatformConfig{})
-	platform.Deploy(newAgent("alpha"))
+	mustDeploy(t, platform, newAgent("alpha"))
 
 	candidates := autonomy.NewAutonomy(platform, &stubRanker{}, autonomy.AutonomyConfig{}).Candidates()
 	reply := `{"choices":[{"id":"` + candidates[0].String() + `","confidence":1.7,"rationale":"x"}]}`
@@ -143,8 +143,7 @@ func TestLLMRanker_ClampsConfidence(t *testing.T) {
 
 func TestLLMRanker_MissingScoreDefaultsToZero(t *testing.T) {
 	platform := agent.NewPlatform(runtime.PlatformConfig{})
-	platform.Deploy(newAgent("alpha"))
-	platform.Deploy(newAgent("beta"))
+	mustDeploy(t, platform, newAgent("alpha"), newAgent("beta"))
 
 	candidates := autonomy.NewAutonomy(platform, &stubRanker{}, autonomy.AutonomyConfig{}).Candidates()
 	// Reply scores only the first candidate; beta is omitted.
@@ -164,7 +163,7 @@ func TestLLMRanker_MissingScoreDefaultsToZero(t *testing.T) {
 
 func TestLLMRanker_RejectsNonJSONReply(t *testing.T) {
 	platform := agent.NewPlatform(runtime.PlatformConfig{})
-	platform.Deploy(newAgent("alpha"))
+	mustDeploy(t, platform, newAgent("alpha"))
 	candidates := autonomy.NewAutonomy(platform, &stubRanker{}, autonomy.AutonomyConfig{}).Candidates()
 
 	model := newStubModel("nope, no JSON at all here")

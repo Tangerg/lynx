@@ -105,8 +105,7 @@ func TestParallelAgents_SubAgentFailureCancels(t *testing.T) {
 		)).
 		Goals(agent.GoalProducing[paScore](core.Goal{Description: "score (will fail)"})).
 		Build()
-	platform.Deploy(good)
-	platform.Deploy(bad)
+	mustDeploy(t, platform, good, bad)
 
 	wf := workflow.ParallelAgents[paIn, paScore, paSummary](
 		platform,
@@ -118,7 +117,7 @@ func TestParallelAgents_SubAgentFailureCancels(t *testing.T) {
 			},
 		},
 	)
-	platform.Deploy(wf)
+	mustDeploy(t, platform, wf)
 
 	proc, _ := platform.RunAgent(t.Context(), wf,
 		map[string]any{core.DefaultBindingName: paIn{Topic: "x"}},
@@ -163,8 +162,8 @@ func TestParallelAgents_MaxConcurrencyCaps(t *testing.T) {
 	subs := make([]*core.Agent, 4)
 	for i := range subs {
 		subs[i] = mkProbed(fmt.Sprintf("probed-%d", i), i+1)
-		platform.Deploy(subs[i])
 	}
+	mustDeploy(t, platform, subs...)
 
 	wf := workflow.ParallelAgents[paIn, paScore, paSummary](
 		platform,
@@ -177,7 +176,7 @@ func TestParallelAgents_MaxConcurrencyCaps(t *testing.T) {
 			},
 		},
 	)
-	platform.Deploy(wf)
+	mustDeploy(t, platform, wf)
 
 	proc, err := platform.RunAgent(t.Context(), wf,
 		map[string]any{core.DefaultBindingName: paIn{Topic: "x"}},

@@ -86,7 +86,7 @@ func TestLoopAgent_LoopsUntilUntilTrue(t *testing.T) {
 func TestLoopAgent_MaxIterationsCapsTheLoop(t *testing.T) {
 	platform := agent.NewPlatform(runtime.PlatformConfig{})
 	body, iterCount := makeIncrementingBody()
-	platform.Deploy(body)
+	mustDeploy(t, platform, body)
 
 	wf := workflow.LoopAgent[loopIn, loopOut](
 		platform,
@@ -99,7 +99,7 @@ func TestLoopAgent_MaxIterationsCapsTheLoop(t *testing.T) {
 			},
 		},
 	)
-	platform.Deploy(wf)
+	mustDeploy(t, platform, wf)
 
 	proc, _ := platform.RunAgent(t.Context(), wf,
 		map[string]any{core.DefaultBindingName: loopIn{Target: 100}},
@@ -137,7 +137,7 @@ func TestLoopAgent_BranchIsolation(t *testing.T) {
 		)).
 		Goals(agent.GoalProducing[loopOut](core.Goal{Description: "loopOut"})).
 		Build()
-	platform.Deploy(body)
+	mustDeploy(t, platform, body)
 
 	wf := workflow.LoopAgent[loopIn, loopOut](
 		platform,
@@ -148,7 +148,7 @@ func TestLoopAgent_BranchIsolation(t *testing.T) {
 			Until:         func(context.Context, loopIn, loopOut) bool { return false },
 		},
 	)
-	platform.Deploy(wf)
+	mustDeploy(t, platform, wf)
 
 	platform.RunAgent(t.Context(), wf,
 		map[string]any{core.DefaultBindingName: loopIn{Target: 100}},

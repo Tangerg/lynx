@@ -2,8 +2,7 @@ package runtime
 
 import (
 	"context"
-
-	"golang.org/x/sync/errgroup"
+	"sync"
 
 	"github.com/Tangerg/lynx/agent/core"
 )
@@ -42,21 +41,25 @@ func (p *AgentProcess) tickConcurrent(ctx context.Context, worldState core.World
 // runActionsInParallel dispatches every achievable action onto its own
 // goroutine and waits for completion. Result indices align with the input
 // slice so the caller can correlate per-action outcomes. Each goroutine
-// writes a unique pre-allocated slot, and g.Wait synchronises the writes
+// writes a unique pre-allocated slot, and Wait synchronises the writes
 // with the post-Wait reads — so no explicit mutex is required.
+//
+// We use plain [sync.WaitGroup] (rather than [errgroup.Group]) because
+// per-action failure is captured in the structured replans / results
+// slices, not bubbled as an error — there's nothing for errgroup to
+// fan in. Cancellation is honoured by [executeAction] via the supplied
+// ctx, so we don't need errgroup's auto-cancel-on-error either.
 func (p *AgentProcess) runActionsInParallel(ctx context.Context, actions []core.Action) ([]core.ActionStatus, []*core.ReplanRequest) {
 	results := make([]core.ActionStatus, len(actions))
 	replans := make([]*core.ReplanRequest, len(actions))
 
-	g, egCtx := errgroup.WithContext(ctx)
+	var wg sync.WaitGroup
 	for index, action := range actions {
-		index, action := index, action
-		g.Go(func() error {
-			results[index], replans[index] = p.executeAction(egCtx, action)
-			return nil
+		wg.Go(func() {
+			results[index], replans[index] = p.executeAction(ctx, action)
 		})
 	}
-	_ = g.Wait()
+	wg.Wait()
 
 	return results, replans
 }

@@ -63,8 +63,7 @@ func makeInternalAgent() *core.Agent {
 
 func TestPublishAll_ReturnsTypedSchemaForRemoteGoals(t *testing.T) {
 	platform := agent.NewPlatform(runtime.PlatformConfig{})
-	platform.Deploy(makeBriefingAgent(true))
-	platform.Deploy(makeInternalAgent())
+	mustDeploy(t, platform, makeBriefingAgent(true), makeInternalAgent())
 
 	tools := runtime.PublishAll(platform)
 	if len(tools) != 1 {
@@ -84,7 +83,7 @@ func TestPublishAll_ReturnsTypedSchemaForRemoteGoals(t *testing.T) {
 
 func TestPublishAll_RunsAgentEndToEnd(t *testing.T) {
 	platform := agent.NewPlatform(runtime.PlatformConfig{})
-	platform.Deploy(makeBriefingAgent(true))
+	mustDeploy(t, platform, makeBriefingAgent(true))
 
 	tools := runtime.PublishAll(platform)
 	if len(tools) != 1 {
@@ -111,8 +110,10 @@ func TestPublishAll_RunsAgentEndToEnd(t *testing.T) {
 
 func TestPublishAll_ExcludesNonRemoteGoals(t *testing.T) {
 	platform := agent.NewPlatform(runtime.PlatformConfig{})
-	platform.Deploy(makeBriefingAgent(false)) // Remote=false
-	platform.Deploy(makeInternalAgent())      // no Export
+	mustDeploy(t, platform,
+		makeBriefingAgent(false), // Remote=false
+		makeInternalAgent(),      // no Export
+	)
 
 	tools := runtime.PublishAll(platform)
 	if len(tools) != 0 {
@@ -122,8 +123,10 @@ func TestPublishAll_ExcludesNonRemoteGoals(t *testing.T) {
 
 func TestAllAchievableTools_IncludesAllExportedRegardlessOfRemote(t *testing.T) {
 	platform := agent.NewPlatform(runtime.PlatformConfig{})
-	platform.Deploy(makeBriefingAgent(false)) // Export.Remote=false but Export!=nil
-	platform.Deploy(makeInternalAgent())      // Export=nil
+	mustDeploy(t, platform,
+		makeBriefingAgent(false), // Export.Remote=false but Export!=nil
+		makeInternalAgent(),      // Export=nil
+	)
 
 	tools := runtime.AllAchievableTools(platform)
 	if len(tools) != 1 {
@@ -136,7 +139,7 @@ func TestAllAchievableTools_IncludesAllExportedRegardlessOfRemote(t *testing.T) 
 
 func TestAllAchievableTools_RequiresParentInCtx(t *testing.T) {
 	platform := agent.NewPlatform(runtime.PlatformConfig{})
-	platform.Deploy(makeBriefingAgent(true))
+	mustDeploy(t, platform, makeBriefingAgent(true))
 
 	tools := runtime.AllAchievableTools(platform)
 	if len(tools) != 1 {

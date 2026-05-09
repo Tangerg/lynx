@@ -61,7 +61,7 @@ func TestConsensus_TieBreakByVoterOrder(t *testing.T) {
 		Key: workflow.DefaultKey[consensusVote],
 	})
 	platform := agent.NewPlatform(runtime.PlatformConfig{})
-	platform.Deploy(a)
+	mustDeploy(t, platform, a)
 	proc, _ := platform.RunAgent(t.Context(), a,
 		map[string]any{core.DefaultBindingName: consensusIn{}},
 		core.ProcessOptions{})

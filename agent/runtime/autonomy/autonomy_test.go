@@ -123,8 +123,7 @@ func TestAutonomy_RunInstallsTargetGoalApprover(t *testing.T) {
 
 func TestAutonomy_AgentFilter(t *testing.T) {
 	platform := agent.NewPlatform(runtime.PlatformConfig{})
-	platform.Deploy(newAgent("public"))
-	platform.Deploy(newAgent("internal"))
+	mustDeploy(t, platform, newAgent("public"), newAgent("internal"))
 
 	auto := autonomy.NewAutonomy(platform, &stubRanker{
 		scores: map[string]float64{
