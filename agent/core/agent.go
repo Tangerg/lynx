@@ -3,7 +3,6 @@ package core
 import (
 	"fmt"
 	"sync"
-	"sync/atomic"
 
 	"github.com/Masterminds/semver/v3"
 )
@@ -45,15 +44,17 @@ var defaultVersion = semver.MustParse("1.0.0")
 
 // Agent is the deployable bundle the planner reasons over. The configured
 // state is held verbatim via the embedded [AgentConfig]; the trailing
-// fields are runtime-only caches that [NewAgent] zero-initialises.
+// field is a runtime-only cache populated lazily on first use.
 //
 // Agent is deliberately small — orchestration knobs live in
 // [ProcessOptions], runtime state lives in [AgentProcess].
 type Agent struct {
 	AgentConfig
 
-	knownConditions     atomic.Pointer[map[string]struct{}]
-	knownConditionsOnce sync.Once
+	// knownConditions is the lazily-computed condition-key cache.
+	// Initialised by [NewAgent] via [sync.OnceValue]; subsequent
+	// [Agent.KnownConditions] calls are a single function call.
+	knownConditions func() map[string]struct{}
 }
 
 // NewAgent assembles a fresh agent from config. Slice fields are
@@ -62,7 +63,11 @@ func NewAgent(config AgentConfig) *Agent {
 	if config.Version == nil {
 		config.Version = defaultVersion
 	}
-	return &Agent{AgentConfig: config}
+	a := &Agent{AgentConfig: config}
+	a.knownConditions = sync.OnceValue(func() map[string]struct{} {
+		return KnownConditions(a.Actions, a.Goals, a.Conditions)
+	})
+	return a
 }
 
 // KnownConditions enumerates every condition key this agent can refer to —
@@ -72,15 +77,7 @@ func NewAgent(config AgentConfig) *Agent {
 //
 // Result is cached after first call (Agent is immutable post-construction).
 func (a *Agent) KnownConditions() map[string]struct{} {
-	if cached := a.knownConditions.Load(); cached != nil {
-		return *cached
-	}
-
-	a.knownConditionsOnce.Do(func() {
-		computed := KnownConditions(a.Actions, a.Goals, a.Conditions)
-		a.knownConditions.Store(&computed)
-	})
-	return *a.knownConditions.Load()
+	return a.knownConditions()
 }
 
 // ValidateAgent checks structural invariants that must hold for any
