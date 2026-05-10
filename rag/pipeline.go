@@ -61,7 +61,8 @@ func (c *PipelineConfig) validate() error {
 //	    DocumentRetrievers: []rag.DocumentRetriever{retriever},
 //	    QueryAugmenter:     contextual,
 //	})
-//	augmented, docs, err := pipe.Run(ctx, "what is GOAP?")
+//	q, _ := rag.NewQuery("what is GOAP?")
+//	augmented, docs, err := pipe.Execute(ctx, q)
 type Pipeline struct {
 	queryTransformers  []QueryTransformer
 	queryExpander      QueryExpander
@@ -88,8 +89,12 @@ func NewPipeline(config PipelineConfig) (*Pipeline, error) {
 
 // Execute runs every stage and returns the final augmented query
 // together with the refined document list. An error from any stage
-// short-circuits the pipeline.
+// short-circuits the pipeline. Returns an error when query is nil so
+// downstream stages can assume non-nil input.
 func (p *Pipeline) Execute(ctx context.Context, query *Query) (*Query, []*document.Document, error) {
+	if query == nil {
+		return nil, nil, ErrNilQuery
+	}
 	transformed, err := p.transformQuery(ctx, query)
 	if err != nil {
 		return nil, nil, fmt.Errorf("rag.Pipeline: transform stage: %w", err)
@@ -117,16 +122,6 @@ func (p *Pipeline) Execute(ctx context.Context, query *Query) (*Query, []*docume
 	return augmented, refined, nil
 }
 
-// Run is a convenience wrapper that constructs a [Query] from text and
-// invokes [Pipeline.Execute].
-func (p *Pipeline) Run(ctx context.Context, text string) (*Query, []*document.Document, error) {
-	query, err := NewQuery(text)
-	if err != nil {
-		return nil, nil, fmt.Errorf("rag.Pipeline.Run: %w", err)
-	}
-	return p.Execute(ctx, query)
-}
-
 // transformQuery applies each registered [QueryTransformer] in order.
 func (p *Pipeline) transformQuery(ctx context.Context, query *Query) (*Query, error) {
 	current := query
@@ -146,72 +141,58 @@ func (p *Pipeline) expandQuery(ctx context.Context, query *Query) ([]*Query, err
 	return p.queryExpander.Expand(ctx, query)
 }
 
-// retrieveByQuery runs every retriever in parallel and unions the
-// results. A partial failure (some retrievers fail, others return
-// docs) returns the docs we have rather than failing the whole
-// retrieval.
-func (p *Pipeline) retrieveByQuery(ctx context.Context, query *Query) ([]*document.Document, error) {
+// parallelCollect runs fn against each item in parallel and unions
+// the per-item slices. Partial failures keep the partial results;
+// the wrapped error surfaces only when every item failed.
+func parallelCollect[Item, Out any](
+	ctx context.Context,
+	items []Item,
+	itemLabel string,
+	fn func(ctx context.Context, idx int, item Item) ([]Out, error),
+) ([]Out, error) {
 	var (
-		mu   sync.Mutex
-		docs []*document.Document
+		mu  sync.Mutex
+		out []Out
 	)
 
 	g, gctx := errgroup.WithContext(ctx)
-	g.SetLimit(len(p.documentRetrievers))
+	g.SetLimit(len(items))
 
-	for index, retriever := range p.documentRetrievers {
+	for index, item := range items {
 		g.Go(func() error {
-			retrieved, err := retriever.Retrieve(gctx, query)
+			result, err := fn(gctx, index, item)
 			if err != nil {
-				return fmt.Errorf("retriever #%d: %w", index, err)
+				return fmt.Errorf("%s #%d: %w", itemLabel, index, err)
 			}
 			mu.Lock()
-			docs = append(docs, retrieved...)
+			out = append(out, result...)
 			mu.Unlock()
 			return nil
 		})
 	}
 
-	if err := g.Wait(); err != nil {
-		if len(docs) == 0 {
-			return nil, fmt.Errorf("all retrievers failed: %w", err)
-		}
-		return docs, nil
+	if err := g.Wait(); err != nil && len(out) == 0 {
+		return nil, fmt.Errorf("all %ss failed: %w", itemLabel, err)
 	}
-	return docs, nil
+	return out, nil
+}
+
+// retrieveByQuery runs every retriever in parallel and unions the
+// results. Partial failures keep the docs already collected.
+func (p *Pipeline) retrieveByQuery(ctx context.Context, query *Query) ([]*document.Document, error) {
+	return parallelCollect(ctx, p.documentRetrievers, "retriever",
+		func(ctx context.Context, _ int, retriever DocumentRetriever) ([]*document.Document, error) {
+			return retriever.Retrieve(ctx, query)
+		})
 }
 
 // retrieveByQueries runs the per-query retrieval fan-in for every
 // expanded query in parallel.
 func (p *Pipeline) retrieveByQueries(ctx context.Context, queries []*Query) ([]*document.Document, error) {
-	var (
-		mu   sync.Mutex
-		docs []*document.Document
-	)
-
-	g, _ := errgroup.WithContext(ctx)
-	g.SetLimit(len(queries))
-
-	for index, query := range queries {
-		g.Go(func() error {
-			retrieved, err := p.retrieveByQuery(ctx, query)
-			if err != nil {
-				return fmt.Errorf("query #%d: %w", index, err)
-			}
-			mu.Lock()
-			docs = append(docs, retrieved...)
-			mu.Unlock()
-			return nil
+	return parallelCollect(ctx, queries, "query",
+		func(ctx context.Context, _ int, query *Query) ([]*document.Document, error) {
+			return p.retrieveByQuery(ctx, query)
 		})
-	}
-
-	if err := g.Wait(); err != nil {
-		if len(docs) == 0 {
-			return nil, fmt.Errorf("all query retrievals failed: %w", err)
-		}
-		return docs, nil
-	}
-	return docs, nil
 }
 
 // refineDocuments applies each registered [DocumentRefiner] in order.

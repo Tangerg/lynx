@@ -15,8 +15,7 @@ import (
 //
 // Example:
 //
-//	tmpl := chat.NewPromptTemplate().
-//	    WithTemplate("Hello {{.name}}, please analyze this image.").
+//	tmpl := chat.NewPromptTemplate("Hello {{.name}}, please analyze this image.").
 //	    WithVariable("name", "user").
 //	    WithMedia(image)
 //
@@ -26,17 +25,21 @@ type PromptTemplate struct {
 	media    []*media.Media
 }
 
-// NewPromptTemplate returns an empty [PromptTemplate] ready for fluent
-// configuration.
-func NewPromptTemplate() *PromptTemplate {
-	return &PromptTemplate{
+// NewPromptTemplate returns a [PromptTemplate] seeded with template.
+// Pass "" to defer the template (set later via [PromptTemplate.WithTemplate]).
+// Use Go template syntax — variables look like `{{.name}}` by default.
+func NewPromptTemplate(template string) *PromptTemplate {
+	p := &PromptTemplate{
 		renderer: text.NewRenderer(),
 		media:    make([]*media.Media, 0),
 	}
+	if template != "" {
+		p.renderer.WithTemplate(template)
+	}
+	return p
 }
 
-// WithTemplate sets the underlying template string. Use Go template
-// syntax — variables look like `{{.name}}` by default.
+// WithTemplate replaces the underlying template string.
 func (p *PromptTemplate) WithTemplate(template string) *PromptTemplate {
 	p.renderer.WithTemplate(template)
 	return p

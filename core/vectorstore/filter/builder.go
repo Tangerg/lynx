@@ -11,7 +11,7 @@ import (
 // [ExprBuilder.And] / [ExprBuilder.Or] / [ExprBuilder.Not] take a
 // callback that builds a sub-expression. The first error encountered
 // is captured and short-circuits subsequent calls — call sites can
-// keep chaining and check the error once at [Builder.Build].
+// keep chaining and check the error once at [ExprBuilder.Build].
 type ExprBuilder struct {
 	err  error
 	expr ast.ComputedExpr
@@ -123,41 +123,37 @@ func (b *ExprBuilder) In(l, r any) *ExprBuilder {
 	return b
 }
 
+// subExpr runs fn against a fresh sub-builder and returns the result,
+// propagating any sub-error to b. The bool reports whether the caller
+// should proceed (false on prior error or sub-error).
+func (b *ExprBuilder) subExpr(fn func(*ExprBuilder)) (ast.ComputedExpr, bool) {
+	if b.err != nil {
+		return nil, false
+	}
+	sub := NewExprBuilder()
+	fn(sub)
+	if sub.err != nil {
+		b.err = sub.err
+		return nil, false
+	}
+	return sub.expr, true
+}
+
 // And runs fn against a fresh sub-builder and joins the resulting
 // expression with AND. Sub-builder errors propagate.
 func (b *ExprBuilder) And(fn func(*ExprBuilder)) *ExprBuilder {
-	if b.err != nil {
-		return b
+	if expr, ok := b.subExpr(fn); ok {
+		b.and(expr)
 	}
-
-	sub := NewExprBuilder()
-	fn(sub)
-
-	if sub.err != nil {
-		b.err = sub.err
-		return b
-	}
-
-	b.and(sub.expr)
 	return b
 }
 
 // Or runs fn against a fresh sub-builder and joins the resulting
 // expression with OR. Sub-builder errors propagate.
 func (b *ExprBuilder) Or(fn func(*ExprBuilder)) *ExprBuilder {
-	if b.err != nil {
-		return b
+	if expr, ok := b.subExpr(fn); ok {
+		b.or(expr)
 	}
-
-	sub := NewExprBuilder()
-	fn(sub)
-
-	if sub.err != nil {
-		b.err = sub.err
-		return b
-	}
-
-	b.or(sub.expr)
 	return b
 }
 
@@ -165,111 +161,18 @@ func (b *ExprBuilder) Or(fn func(*ExprBuilder)) *ExprBuilder {
 // expression in NOT, and joins it with AND. An empty sub-builder
 // (nil expression) is silently skipped.
 func (b *ExprBuilder) Not(fn func(*ExprBuilder)) *ExprBuilder {
-	if b.err != nil {
-		return b
+	if expr, ok := b.subExpr(fn); ok && any(expr) != nil {
+		b.and(Not(expr))
 	}
-
-	sub := NewExprBuilder()
-	fn(sub)
-
-	if sub.err != nil {
-		b.err = sub.err
-		return b
-	}
-	if any(sub.expr) == nil {
-		return b
-	}
-
-	b.and(Not(sub.expr))
-	return b
-}
-
-// Builder is the public entry point for fluent construction of filter
-// expressions. It thinly wraps [ExprBuilder] and exposes
-// [Builder.Build] to collect the final AST plus the first deferred
-// error.
-type Builder struct {
-	exprBuilder *ExprBuilder
-}
-
-// NewBuilder returns a fresh [Builder] backed by an empty
-// [ExprBuilder].
-func NewBuilder() *Builder {
-	return &Builder{exprBuilder: NewExprBuilder()}
-}
-
-// EQ — see [ExprBuilder.EQ].
-func (b *Builder) EQ(l, r any) *Builder {
-	b.exprBuilder.EQ(l, r)
-	return b
-}
-
-// NE — see [ExprBuilder.NE].
-func (b *Builder) NE(l, r any) *Builder {
-	b.exprBuilder.NE(l, r)
-	return b
-}
-
-// LT — see [ExprBuilder.LT].
-func (b *Builder) LT(l, r any) *Builder {
-	b.exprBuilder.LT(l, r)
-	return b
-}
-
-// LE — see [ExprBuilder.LE].
-func (b *Builder) LE(l, r any) *Builder {
-	b.exprBuilder.LE(l, r)
-	return b
-}
-
-// GT — see [ExprBuilder.GT].
-func (b *Builder) GT(l, r any) *Builder {
-	b.exprBuilder.GT(l, r)
-	return b
-}
-
-// GE — see [ExprBuilder.GE].
-func (b *Builder) GE(l, r any) *Builder {
-	b.exprBuilder.GE(l, r)
-	return b
-}
-
-// In — see [ExprBuilder.In].
-func (b *Builder) In(l, r any) *Builder {
-	b.exprBuilder.In(l, r)
-	return b
-}
-
-// Like — see [ExprBuilder.Like].
-func (b *Builder) Like(l, r any) *Builder {
-	b.exprBuilder.Like(l, r)
-	return b
-}
-
-// And — see [ExprBuilder.And].
-func (b *Builder) And(fn func(*ExprBuilder)) *Builder {
-	b.exprBuilder.And(fn)
-	return b
-}
-
-// Or — see [ExprBuilder.Or].
-func (b *Builder) Or(fn func(*ExprBuilder)) *Builder {
-	b.exprBuilder.Or(fn)
-	return b
-}
-
-// Not — see [ExprBuilder.Not].
-func (b *Builder) Not(fn func(*ExprBuilder)) *Builder {
-	b.exprBuilder.Not(fn)
 	return b
 }
 
 // Build returns the constructed AST and the first error captured
 // during the chain. A nil expression with a nil error means no
 // predicate was added.
-func (b *Builder) Build() (ast.Expr, error) {
-	if b.exprBuilder.err != nil {
-		return nil, b.exprBuilder.err
+func (b *ExprBuilder) Build() (ast.Expr, error) {
+	if b.err != nil {
+		return nil, b.err
 	}
-	return b.exprBuilder.expr, nil
+	return b.expr, nil
 }

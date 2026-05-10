@@ -77,9 +77,12 @@ func (o *Options) ensureExtra() {
 	}
 }
 
-// Get returns the Extra value for key plus an existence flag.
+// Get returns the Extra value for key plus an existence flag. See
+// [chat.Options.Get] for the concurrency contract.
 func (o *Options) Get(key string) (any, bool) {
-	o.ensureExtra()
+	if o.Extra == nil {
+		return nil, false
+	}
 	value, exists := o.Extra[key]
 	return value, exists
 }
@@ -188,9 +191,12 @@ func (r *Request) ensureParams() {
 	}
 }
 
-// Get returns the Params value for key plus an existence flag.
+// Get returns the Params value for key plus an existence flag. See
+// [chat.Options.Get] for the concurrency contract.
 func (r *Request) Get(key string) (any, bool) {
-	r.ensureParams()
+	if r.Params == nil {
+		return nil, false
+	}
 	value, exists := r.Params[key]
 	return value, exists
 }

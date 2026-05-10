@@ -75,7 +75,7 @@ func TestPipelineMiddleware_AugmentsRequestAndAttachesDocs(t *testing.T) {
 	}
 
 	model := newEchoChatModel(t)
-	client, _ := chat.NewClientWithModel(model)
+	client, _ := chat.NewClient(model)
 
 	resp, err := client.Chat().
 		WithMiddlewares(callMW).
@@ -113,7 +113,7 @@ func TestPipelineMiddleware_PropagatesPipelineError(t *testing.T) {
 	}
 
 	model := newEchoChatModel(t)
-	client, _ := chat.NewClientWithModel(model)
+	client, _ := chat.NewClient(model)
 
 	_, err = client.Chat().
 		WithMiddlewares(callMW).

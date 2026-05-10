@@ -64,7 +64,7 @@ func TestToolRegistry_Lifecycle(t *testing.T) {
 
 	a := mustNewTool(t, "alpha")
 	b := mustNewTool(t, "beta")
-	support.RegisterTools(a, b, nil) // nil silently dropped
+	support.Register(a, b, nil) // nil silently dropped
 
 	if support.Registry().Size() != 2 {
 		t.Fatalf("Size = %d, want 2", support.Registry().Size())
@@ -82,7 +82,7 @@ func TestToolRegistry_Lifecycle(t *testing.T) {
 		t.Fatalf("All len = %d", len(all))
 	}
 
-	support.UnregisterTools("alpha")
+	support.Unregister("alpha")
 	if support.Registry().Exists("alpha") {
 		t.Fatal("alpha should have been unregistered")
 	}
@@ -98,7 +98,7 @@ func TestToolRegistry_Register_DuplicatesIgnored(t *testing.T) {
 	a := mustNewTool(t, "alpha")
 	b := mustNewTool(t, "alpha") // same name
 
-	support.RegisterTools(a, b)
+	support.Register(a, b)
 	if support.Registry().Size() != 1 {
 		t.Fatalf("Size = %d, want 1 (duplicate names silently dropped)", support.Registry().Size())
 	}
@@ -109,7 +109,7 @@ func TestToolRegistry_Register_DuplicatesIgnored(t *testing.T) {
 // the runtime can re-prompt the LLM.
 func TestToolSupport_InvokeToolCalls_InternalReturnsForLLM(t *testing.T) {
 	support := chat.NewToolSupport()
-	support.RegisterTools(mustNewCallable(t, "echo", false, func(_ context.Context, args string) (string, error) {
+	support.Register(mustNewCallable(t, "echo", false, func(_ context.Context, args string) (string, error) {
 		return "echoed:" + args, nil
 	}))
 
@@ -142,7 +142,7 @@ func TestToolSupport_InvokeToolCalls_InternalReturnsForLLM(t *testing.T) {
 // LLM follow-up.
 func TestToolSupport_InvokeToolCalls_ReturnDirectShortCircuits(t *testing.T) {
 	support := chat.NewToolSupport()
-	support.RegisterTools(mustNewCallable(t, "direct", true, func(context.Context, string) (string, error) {
+	support.Register(mustNewCallable(t, "direct", true, func(context.Context, string) (string, error) {
 		return "ok", nil
 	}))
 
@@ -175,7 +175,7 @@ func TestToolSupport_InvokeToolCalls_ExternalForcesReturn(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	support.RegisterTools(tool)
+	support.Register(tool)
 
 	resp := responseWithToolCall(t, "external", "args")
 	req := mustNewRequest(t)
@@ -206,7 +206,7 @@ func TestToolSupport_InvokeToolCalls_ToolFailurePropagates(t *testing.T) {
 	wantErr := errors.New("tool blew up")
 
 	support := chat.NewToolSupport()
-	support.RegisterTools(mustNewCallable(t, "fail", false, func(context.Context, string) (string, error) {
+	support.Register(mustNewCallable(t, "fail", false, func(context.Context, string) (string, error) {
 		return "", wantErr
 	}))
 
@@ -221,7 +221,7 @@ func TestToolSupport_InvokeToolCalls_ToolFailurePropagates(t *testing.T) {
 
 func TestToolSupport_ShouldReturnDirect_RequiresAllReturnDirect(t *testing.T) {
 	support := chat.NewToolSupport()
-	support.RegisterTools(
+	support.Register(
 		mustNewCallable(t, "a", true, nil),
 		mustNewCallable(t, "b", false, nil),
 	)
@@ -240,7 +240,7 @@ func TestToolSupport_ShouldReturnDirect_RequiresAllReturnDirect(t *testing.T) {
 
 func TestToolSupport_ShouldReturnDirect_AllDirect(t *testing.T) {
 	support := chat.NewToolSupport()
-	support.RegisterTools(mustNewCallable(t, "a", true, nil))
+	support.Register(mustNewCallable(t, "a", true, nil))
 
 	tm, err := chat.NewToolMessage([]*chat.ToolReturn{{ID: "1", Name: "a", Result: "ok"}})
 	if err != nil {

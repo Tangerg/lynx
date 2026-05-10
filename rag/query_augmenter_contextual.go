@@ -57,10 +57,10 @@ type ContextualQueryAugmenterConfig struct {
 // validate fills the default templates and rejects invalid configs.
 func (c *ContextualQueryAugmenterConfig) validate() error {
 	if c.PromptTemplate == nil {
-		c.PromptTemplate = chat.NewPromptTemplate().WithTemplate(contextualDefaultTemplate)
+		c.PromptTemplate = chat.NewPromptTemplate(contextualDefaultTemplate)
 	}
 	if c.EmptyContextPromptTemplate == nil {
-		c.EmptyContextPromptTemplate = chat.NewPromptTemplate().WithTemplate(contextualEmptyContextTemplate)
+		c.EmptyContextPromptTemplate = chat.NewPromptTemplate(contextualEmptyContextTemplate)
 	}
 	return c.PromptTemplate.RequireVariables("Context", "Query")
 }
@@ -106,7 +106,7 @@ func (c *ContextualQueryAugmenter) Augment(ctx context.Context, query *Query, do
 		return nil, err
 	}
 	if query == nil {
-		return nil, errors.New("rag.ContextualQueryAugmenter.Augment: query must not be nil")
+		return nil, ErrNilQuery
 	}
 
 	if len(documents) == 0 {

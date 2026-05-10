@@ -38,23 +38,23 @@ type chatMemoryMiddleware struct {
 	store Store
 }
 
-// NewMemoryMiddleware constructs a memory-management middleware backed
-// by store. Returns the call/stream middleware pair plus an error when
+// NewMiddleware constructs a memory-management middleware backed by
+// store. Returns the call/stream middleware pair plus an error when
 // store is nil.
 //
 // Example:
 //
-//	store := memory.NewInMemoryMemory()
-//	callMW, streamMW, err := memory.NewMemoryMiddleware(store)
+//	store := memory.NewInMemoryStore()
+//	callMW, streamMW, err := memory.NewMiddleware(store)
 //	if err != nil { return err }
 //	resp, err := client.Chat().
 //	    WithParams(map[string]any{memory.ConversationIDKey: "user-1"}).
 //	    WithMiddlewares(callMW, streamMW).
 //	    WithText("hi").
 //	    Call().Response(ctx)
-func NewMemoryMiddleware(store Store) (chat.CallMiddleware, chat.StreamMiddleware, error) {
+func NewMiddleware(store Store) (chat.CallMiddleware, chat.StreamMiddleware, error) {
 	if store == nil {
-		return nil, nil, errors.New("memory.NewMemoryMiddleware: store must not be nil")
+		return nil, nil, errors.New("memory.NewMiddleware: store must not be nil")
 	}
 	mw := &chatMemoryMiddleware{store: store}
 	return mw.wrapCallHandler, mw.wrapStreamHandler, nil

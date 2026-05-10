@@ -73,15 +73,15 @@ func TestNewResult_AllowsEmptyText(t *testing.T) {
 	}
 }
 
-func TestNewClient_RejectsNilRequest(t *testing.T) {
+func TestNewClient_RejectsNilModel(t *testing.T) {
 	if _, err := transcription.NewClient(nil); err == nil {
-		t.Fatal("nil request must error")
+		t.Fatal("nil model must error")
 	}
 }
 
 func TestClient_TranscribeWithAudio_ReturnsText(t *testing.T) {
 	model := newFakeTranscriptionModel(t)
-	client, err := transcription.NewClientWithModel(model)
+	client, err := transcription.NewClient(model)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -100,7 +100,7 @@ func TestClient_PropagatesError(t *testing.T) {
 	model := newFakeTranscriptionModel(t)
 	model.respond = func(*transcription.Request) (*transcription.Response, error) { return nil, want }
 
-	client, _ := transcription.NewClientWithModel(model)
+	client, _ := transcription.NewClient(model)
 	if _, err := client.TranscribeWithAudio(mustAudio(t)).Call().Response(context.Background()); !errors.Is(err, want) {
 		t.Fatal(err)
 	}

@@ -61,7 +61,7 @@ func NewPipelineMiddleware(config PipelineConfig) (chat.CallMiddleware, chat.Str
 func (m *pipelineMiddleware) runPipeline(ctx context.Context, req *chat.Request) (*Query, []*document.Document, error) {
 	query, err := NewQuery(req.UserMessage().Text)
 	if err != nil {
-		return nil, nil, fmt.Errorf("rag.pipelineMiddleware: %w", err)
+		return nil, nil, fmt.Errorf("rag.pipelineMiddleware.runPipeline: build query: %w", err)
 	}
 
 	for key, value := range req.Params {

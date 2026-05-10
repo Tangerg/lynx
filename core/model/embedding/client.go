@@ -16,13 +16,14 @@ type (
 	Handler           = model.CallHandler[*Request, *Response]
 	HandlerFunc       = model.CallHandlerFunc[*Request, *Response]
 	Middleware        = model.CallMiddleware[*Request, *Response]
-	MiddlewareManager = model.CallMiddlewareManager[*Request, *Response]
+	MiddlewareManager = model.MiddlewareManager[*Request, *Response]
 )
 
 // NewMiddlewareManager returns an empty [MiddlewareManager] keyed to
-// embedding's *Request / *Response pair.
+// embedding's *Request / *Response pair. The stream side is unused
+// (embedding has no stream endpoint).
 func NewMiddlewareManager() *MiddlewareManager {
-	return model.NewCallMiddlewareManager[*Request, *Response]()
+	return model.NewMiddlewareManager[*Request, *Response]()
 }
 
 // ClientRequest is the fluent builder that turns a [Model] plus inputs
@@ -50,16 +51,7 @@ func NewClientRequest(model Model) (*ClientRequest, error) {
 // WithMiddlewares replaces the entire middleware chain.
 func (r *ClientRequest) WithMiddlewares(middlewares ...Middleware) *ClientRequest {
 	if len(middlewares) > 0 {
-		r.middlewareManager = NewMiddlewareManager().UseMiddlewares(middlewares...)
-	}
-	return r
-}
-
-// WithMiddlewareManager replaces the underlying [MiddlewareManager].
-// nil is ignored.
-func (r *ClientRequest) WithMiddlewareManager(mgr *MiddlewareManager) *ClientRequest {
-	if mgr != nil {
-		r.middlewareManager = mgr
+		r.middlewareManager = NewMiddlewareManager().UseCallMiddlewares(middlewares...)
 	}
 	return r
 }
@@ -72,18 +64,20 @@ func (r *ClientRequest) WithOptions(options *Options) *ClientRequest {
 	return r
 }
 
-// WithTexts replaces the input list. Empty input is ignored.
+// WithTexts replaces the input list. Empty input is ignored. The
+// slice is cloned so caller mutations don't leak into the request.
 func (r *ClientRequest) WithTexts(texts []string) *ClientRequest {
 	if len(texts) > 0 {
-		r.texts = texts
+		r.texts = slices.Clone(texts)
 	}
 	return r
 }
 
-// WithParams replaces the side-channel params map. Empty input is ignored.
+// WithParams replaces the side-channel params map. Empty input is
+// ignored. The map is cloned so caller mutations don't leak.
 func (r *ClientRequest) WithParams(params map[string]any) *ClientRequest {
 	if len(params) > 0 {
-		r.params = params
+		r.params = maps.Clone(params)
 	}
 	return r
 }
@@ -156,7 +150,7 @@ func (c *ClientCaller) Response(ctx context.Context) (*Response, error) {
 	}
 	return c.request.
 		MiddlewareManager().
-		BuildHandler(c.request.model).
+		BuildCallHandler(c.request.model).
 		Call(ctx, req)
 }
 
@@ -190,29 +184,30 @@ func (c *ClientCaller) Embeddings(ctx context.Context) ([][]float64, *Response, 
 //
 // Example:
 //
-//	client, err := embedding.NewClientWithModel(model)
+//	client, err := embedding.NewClient(model)
 //	v, _, err := client.EmbedWithText("hello").Call().Embedding(ctx)
 type Client struct {
 	defaultRequest *ClientRequest
 }
 
-// NewClient wraps an existing [ClientRequest] as a sticky default.
-// Returns an error when request is nil.
-func NewClient(request *ClientRequest) (*Client, error) {
-	if request == nil {
-		return nil, errors.New("embedding.NewClient: request must not be nil")
-	}
-	return &Client{defaultRequest: request}, nil
-}
-
-// NewClientWithModel is a one-step constructor: build a default
-// [ClientRequest] for model, then wrap it as a [Client].
-func NewClientWithModel(model Model) (*Client, error) {
+// NewClient is a one-step constructor: build a default [ClientRequest]
+// for model, then wrap it as a [Client]. The common path.
+func NewClient(model Model) (*Client, error) {
 	req, err := NewClientRequest(model)
 	if err != nil {
 		return nil, err
 	}
-	return NewClient(req)
+	return NewClientFromRequest(req)
+}
+
+// NewClientFromRequest wraps an existing [ClientRequest] as a sticky
+// default — use this when the request already carries default
+// middlewares / options the [Client] should keep applying.
+func NewClientFromRequest(request *ClientRequest) (*Client, error) {
+	if request == nil {
+		return nil, errors.New("embedding.NewClientFromRequest: request must not be nil")
+	}
+	return &Client{defaultRequest: request}, nil
 }
 
 // Embed returns a fresh clone of the default request, ready for fluent

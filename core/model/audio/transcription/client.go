@@ -15,13 +15,14 @@ type (
 	Handler           = model.CallHandler[*Request, *Response]
 	HandlerFunc       = model.CallHandlerFunc[*Request, *Response]
 	Middleware        = model.CallMiddleware[*Request, *Response]
-	MiddlewareManager = model.CallMiddlewareManager[*Request, *Response]
+	MiddlewareManager = model.MiddlewareManager[*Request, *Response]
 )
 
 // NewMiddlewareManager returns an empty [MiddlewareManager] keyed to
-// transcription's *Request / *Response pair.
+// transcription's *Request / *Response pair. The stream side is unused
+// (transcription has no stream endpoint).
 func NewMiddlewareManager() *MiddlewareManager {
-	return model.NewCallMiddlewareManager[*Request, *Response]()
+	return model.NewMiddlewareManager[*Request, *Response]()
 }
 
 // ClientRequest is the fluent builder that turns a [Model] plus an
@@ -46,16 +47,7 @@ func NewClientRequest(model Model) (*ClientRequest, error) {
 // WithMiddlewares replaces the entire middleware chain.
 func (r *ClientRequest) WithMiddlewares(middlewares ...Middleware) *ClientRequest {
 	if len(middlewares) > 0 {
-		r.middlewareManager = NewMiddlewareManager().UseMiddlewares(middlewares...)
-	}
-	return r
-}
-
-// WithMiddlewareManager replaces the underlying [MiddlewareManager].
-// nil is ignored.
-func (r *ClientRequest) WithMiddlewareManager(mgr *MiddlewareManager) *ClientRequest {
-	if mgr != nil {
-		r.middlewareManager = mgr
+		r.middlewareManager = NewMiddlewareManager().UseCallMiddlewares(middlewares...)
 	}
 	return r
 }
@@ -76,10 +68,11 @@ func (r *ClientRequest) WithAudio(audio *media.Media) *ClientRequest {
 	return r
 }
 
-// WithParams replaces the side-channel params map. Empty input is ignored.
+// WithParams replaces the side-channel params map. Empty input is
+// ignored. The map is cloned so caller mutations don't leak.
 func (r *ClientRequest) WithParams(params map[string]any) *ClientRequest {
 	if len(params) > 0 {
-		r.params = params
+		r.params = maps.Clone(params)
 	}
 	return r
 }
@@ -151,7 +144,7 @@ func (c *ClientCaller) Response(ctx context.Context) (*Response, error) {
 	}
 	return c.request.
 		MiddlewareManager().
-		BuildHandler(c.request.model).
+		BuildCallHandler(c.request.model).
 		Call(ctx, req)
 }
 
@@ -170,22 +163,24 @@ type Client struct {
 	defaultRequest *ClientRequest
 }
 
-// NewClient wraps an existing [ClientRequest] as a sticky default.
-// Returns an error when request is nil.
-func NewClient(request *ClientRequest) (*Client, error) {
-	if request == nil {
-		return nil, errors.New("transcription.NewClient: request must not be nil")
-	}
-	return &Client{defaultRequest: request}, nil
-}
-
-// NewClientWithModel is a one-step constructor.
-func NewClientWithModel(model Model) (*Client, error) {
+// NewClient is a one-step constructor: build a default [ClientRequest]
+// for model, then wrap it as a [Client]. The common path.
+func NewClient(model Model) (*Client, error) {
 	req, err := NewClientRequest(model)
 	if err != nil {
 		return nil, err
 	}
-	return NewClient(req)
+	return NewClientFromRequest(req)
+}
+
+// NewClientFromRequest wraps an existing [ClientRequest] as a sticky
+// default — use this when the request already carries default
+// middlewares / options the [Client] should keep applying.
+func NewClientFromRequest(request *ClientRequest) (*Client, error) {
+	if request == nil {
+		return nil, errors.New("transcription.NewClientFromRequest: request must not be nil")
+	}
+	return &Client{defaultRequest: request}, nil
 }
 
 // Transcribe returns a fresh clone of the default request.

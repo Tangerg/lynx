@@ -106,7 +106,7 @@ func NewVectorStore(config *VectorStoreConfig) (*VectorStore, error) {
 		return nil, err
 	}
 
-	embeddingClient, err := embedding.NewClientWithModel(config.EmbeddingModel)
+	embeddingClient, err := embedding.NewClient(config.EmbeddingModel)
 	if err != nil {
 		return nil, fmt.Errorf("qdrant: failed to create embedding client: %w", err)
 	}

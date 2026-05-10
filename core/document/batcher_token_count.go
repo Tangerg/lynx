@@ -115,6 +115,9 @@ func (b *TokenCountBatcher) Batch(ctx context.Context, docs []*Document) ([][]*D
 
 	scored := make([]sized, 0, len(docs))
 	for _, doc := range docs {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		rendered := doc.FormatByMetadataModeWithFormatter(b.metadataMode, b.formatter)
 
 		count, err := b.tokenCountEstimator.EstimateText(ctx, rendered)

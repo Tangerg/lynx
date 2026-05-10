@@ -8,7 +8,6 @@ import (
 	"github.com/pkoukk/tiktoken-go"
 
 	"github.com/Tangerg/lynx/core/media"
-	"github.com/Tangerg/lynx/pkg/mime"
 )
 
 var (
@@ -23,18 +22,17 @@ var (
 //
 // Example:
 //
-//	tk := tokenizer.NewTiktokenWithCL100KBase()
+//	tk := tokenizer.NewDefaultTiktoken()
 //	n, _ := tk.EstimateText(ctx, "hello world") // ≈ 2 tokens
 type Tiktoken struct {
-	encodingName string
-	encoding     *tiktoken.Tiktoken
+	encoding *tiktoken.Tiktoken
 }
 
-// NewTiktokenWithCL100KBase returns a [Tiktoken] preset to the
-// CL100K_BASE encoding (gpt-3.5-turbo and gpt-4 family). Panics if the
-// encoding cannot be loaded — that would indicate a corrupt build, not
-// a runtime fault.
-func NewTiktokenWithCL100KBase() *Tiktoken {
+// NewDefaultTiktoken returns a [Tiktoken] preset to the CL100K_BASE
+// encoding (gpt-3.5-turbo and gpt-4 family). Panics if the encoding
+// cannot be loaded — that would indicate a corrupt build, not a
+// runtime fault.
+func NewDefaultTiktoken() *Tiktoken {
 	tk, err := NewTiktoken(tiktoken.MODEL_CL100K_BASE)
 	if err != nil {
 		panic(err)
@@ -49,17 +47,13 @@ func NewTiktoken(encodingName string) (*Tiktoken, error) {
 	if err != nil {
 		return nil, fmt.Errorf("tokenizer.NewTiktoken: load %q: %w", encodingName, err)
 	}
-	return &Tiktoken{encodingName: encodingName, encoding: encoding}, nil
+	return &Tiktoken{encoding: encoding}, nil
 }
 
-// EstimateText counts tokens by routing through [Tiktoken.EstimateMedia]
-// with a synthetic text/plain wrapper — keeps the two paths consistent.
-func (t *Tiktoken) EstimateText(ctx context.Context, text string) (int, error) {
-	mt, err := mime.New("text", "plain")
-	if err != nil {
-		return 0, err
-	}
-	return t.EstimateMedia(ctx, &media.Media{Data: text, MimeType: mt})
+// EstimateText counts tokens for a plain text string. Faster than
+// [Tiktoken.EstimateMedia] for the common no-MIME, no-JSON case.
+func (t *Tiktoken) EstimateText(_ context.Context, text string) (int, error) {
+	return len(t.encoding.Encode(text, nil, nil)), nil
 }
 
 // EstimateMedia sums per-item token estimates. Empty input returns 0.

@@ -64,15 +64,20 @@ func NewOptions(model string) (*Options, error) {
 	return &Options{Model: model}, nil
 }
 
+// ensureExtra lazily allocates Extra. Used by [Options.Set] only —
+// reads must not mutate state since Get is concurrency-safe.
 func (o *Options) ensureExtra() {
 	if o.Extra == nil {
 		o.Extra = make(map[string]any)
 	}
 }
 
-// Get returns the Extra value for key plus an existence flag.
+// Get returns the Extra value for key plus an existence flag. See
+// [chat.Options.Get] for the concurrency contract.
 func (o *Options) Get(key string) (any, bool) {
-	o.ensureExtra()
+	if o.Extra == nil {
+		return nil, false
+	}
 	value, exists := o.Extra[key]
 	return value, exists
 }
@@ -162,15 +167,19 @@ func NewRequest(texts []string) (*Request, error) {
 	}, nil
 }
 
+// ensureParams lazily allocates Params. Used by [Request.Set] only.
 func (r *Request) ensureParams() {
 	if r.Params == nil {
 		r.Params = make(map[string]any)
 	}
 }
 
-// Get returns the Params value for key plus an existence flag.
+// Get returns the Params value for key plus an existence flag. See
+// [chat.Options.Get] for the concurrency contract.
 func (r *Request) Get(key string) (any, bool) {
-	r.ensureParams()
+	if r.Params == nil {
+		return nil, false
+	}
 	value, exists := r.Params[key]
 	return value, exists
 }

@@ -251,7 +251,7 @@ func TestClientStreamer_Text_StreamsChunks(t *testing.T) {
 
 func TestClient_ChatWithTextBuildsUserMessage(t *testing.T) {
 	model := newFakeChatModel(t)
-	client, err := chat.NewClientWithModel(model)
+	client, err := chat.NewClient(model)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -264,8 +264,14 @@ func TestClient_ChatWithTextBuildsUserMessage(t *testing.T) {
 	}
 }
 
-func TestNewClient_RejectsNilRequest(t *testing.T) {
+func TestNewClient_RejectsNilModel(t *testing.T) {
 	if _, err := chat.NewClient(nil); err == nil {
+		t.Fatal("nil model must error")
+	}
+}
+
+func TestNewClientFromRequest_RejectsNil(t *testing.T) {
+	if _, err := chat.NewClientFromRequest(nil); err == nil {
 		t.Fatal("nil request must error")
 	}
 }
@@ -275,7 +281,7 @@ func TestClient_ChatClonesDefaults(t *testing.T) {
 	defaultReq, _ := chat.NewClientRequest(model)
 	defaultReq.WithMessages(chat.NewUserMessage("default"))
 
-	client, _ := chat.NewClient(defaultReq)
+	client, _ := chat.NewClientFromRequest(defaultReq)
 
 	a := client.Chat()
 	b := client.Chat()
@@ -292,7 +298,7 @@ func TestClient_ChatClonesDefaults(t *testing.T) {
 
 func TestClient_ChatWithRequest_CopiesMessagesOptionsParams(t *testing.T) {
 	model := newFakeChatModel(t)
-	client, _ := chat.NewClientWithModel(model)
+	client, _ := chat.NewClient(model)
 
 	src, _ := chat.NewRequest([]chat.Message{chat.NewUserMessage("src")})
 	src.Options, _ = chat.NewOptions("override-model")

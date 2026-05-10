@@ -42,7 +42,7 @@ func (c *CompressionQueryTransformerConfig) validate() error {
 		return errors.New("rag.CompressionQueryTransformerConfig: ChatModel is required")
 	}
 	if c.PromptTemplate == nil {
-		c.PromptTemplate = chat.NewPromptTemplate().WithTemplate(compressionDefaultTemplate)
+		c.PromptTemplate = chat.NewPromptTemplate(compressionDefaultTemplate)
 	}
 	return c.PromptTemplate.RequireVariables("History", "Query")
 }
@@ -71,7 +71,7 @@ func NewCompressionQueryTransformer(cfg CompressionQueryTransformerConfig) (*Com
 		return nil, err
 	}
 
-	client, err := chat.NewClientWithModel(cfg.ChatModel)
+	client, err := chat.NewClient(cfg.ChatModel)
 	if err != nil {
 		return nil, err
 	}
@@ -87,7 +87,7 @@ func NewCompressionQueryTransformer(cfg CompressionQueryTransformerConfig) (*Com
 // when the LLM returns empty text the original Text is preserved.
 func (c *CompressionQueryTransformer) Transform(ctx context.Context, query *Query) (*Query, error) {
 	if query == nil {
-		return nil, errors.New("rag.CompressionQueryTransformer.Transform: query must not be nil")
+		return nil, ErrNilQuery
 	}
 
 	history := c.extractHistory(query)

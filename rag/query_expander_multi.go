@@ -3,9 +3,8 @@ package rag
 import (
 	"context"
 	"errors"
+	"slices"
 	"strings"
-
-	"github.com/samber/lo"
 
 	"github.com/Tangerg/lynx/core/model/chat"
 )
@@ -62,7 +61,7 @@ func (c *MultiQueryExpanderConfig) validate() error {
 		c.NumberOfQueries = defaultMultiQueryCount
 	}
 	if c.PromptTemplate == nil {
-		c.PromptTemplate = chat.NewPromptTemplate().WithTemplate(multiExpanderDefaultTemplate)
+		c.PromptTemplate = chat.NewPromptTemplate(multiExpanderDefaultTemplate)
 	}
 	return c.PromptTemplate.RequireVariables("Number", "Query")
 }
@@ -95,7 +94,7 @@ func NewMultiQueryExpander(cfg MultiQueryExpanderConfig) (*MultiQueryExpander, e
 		return nil, err
 	}
 
-	client, err := chat.NewClientWithModel(cfg.ChatModel)
+	client, err := chat.NewClient(cfg.ChatModel)
 	if err != nil {
 		return nil, err
 	}
@@ -114,7 +113,7 @@ func NewMultiQueryExpander(cfg MultiQueryExpanderConfig) (*MultiQueryExpander, e
 // has at least one query to run.
 func (m *MultiQueryExpander) Expand(ctx context.Context, query *Query) ([]*Query, error) {
 	if query == nil {
-		return nil, errors.New("rag.MultiQueryExpander.Expand: query must not be nil")
+		return nil, ErrNilQuery
 	}
 
 	expanded, _, err := m.chatClient.
@@ -133,8 +132,8 @@ func (m *MultiQueryExpander) Expand(ctx context.Context, query *Query) ([]*Query
 		return []*Query{query}, nil
 	}
 
-	variants := lo.Filter(strings.Split(expanded, "\n"), func(s string, _ int) bool {
-		return s != ""
+	variants := slices.DeleteFunc(strings.Split(expanded, "\n"), func(s string) bool {
+		return s == ""
 	})
 
 	queries := make([]*Query, 0, len(variants)+1)

@@ -87,7 +87,7 @@ func NewVectorStore(cfg *VectorStoreConfig) (*VectorStore, error) {
 		return nil, err
 	}
 
-	embeddingClient, err := embedding.NewClientWithModel(cfg.EmbeddingModel)
+	embeddingClient, err := embedding.NewClient(cfg.EmbeddingModel)
 	if err != nil {
 		return nil, fmt.Errorf("pinecone: failed to create embedding client: %w", err)
 	}

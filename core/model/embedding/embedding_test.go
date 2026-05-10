@@ -106,15 +106,15 @@ func TestNewRequest_RequiresTexts(t *testing.T) {
 	}
 }
 
-func TestNewClient_RejectsNilRequest(t *testing.T) {
+func TestNewClient_RejectsNilModel(t *testing.T) {
 	if _, err := embedding.NewClient(nil); err == nil {
-		t.Fatal("nil request must error")
+		t.Fatal("nil model must error")
 	}
 }
 
 func TestClient_EmbedWithText_BuildsSingleEntryRequest(t *testing.T) {
 	model := newFakeEmbeddingModel(t)
-	client, err := embedding.NewClientWithModel(model)
+	client, err := embedding.NewClient(model)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -133,7 +133,7 @@ func TestClient_EmbedWithText_BuildsSingleEntryRequest(t *testing.T) {
 
 func TestClient_Embeddings_ReturnsAll(t *testing.T) {
 	model := newFakeEmbeddingModel(t)
-	client, _ := embedding.NewClientWithModel(model)
+	client, _ := embedding.NewClient(model)
 
 	got, _, err := client.EmbedWithTexts([]string{"a", "b", "c"}).Call().Embeddings(context.Background())
 	if err != nil {
@@ -146,7 +146,7 @@ func TestClient_Embeddings_ReturnsAll(t *testing.T) {
 
 func TestClient_EmbedWithDocument(t *testing.T) {
 	model := newFakeEmbeddingModel(t)
-	client, _ := embedding.NewClientWithModel(model)
+	client, _ := embedding.NewClient(model)
 
 	doc := &document.Document{Text: "doc-text"}
 	if _, err := client.EmbedWithDocument(doc).Call().Response(context.Background()); err != nil {
@@ -162,7 +162,7 @@ func TestClient_PropagatesError(t *testing.T) {
 	model := newFakeEmbeddingModel(t)
 	model.respond = func(*embedding.Request) (*embedding.Response, error) { return nil, want }
 
-	client, _ := embedding.NewClientWithModel(model)
+	client, _ := embedding.NewClient(model)
 	if _, err := client.EmbedWithText("x").Call().Response(context.Background()); !errors.Is(err, want) {
 		t.Fatalf("err = %v, want %v", err, want)
 	}
@@ -170,7 +170,7 @@ func TestClient_PropagatesError(t *testing.T) {
 
 func TestClient_MiddlewareApplied(t *testing.T) {
 	model := newFakeEmbeddingModel(t)
-	client, _ := embedding.NewClientWithModel(model)
+	client, _ := embedding.NewClient(model)
 
 	calls := 0
 	mw := embedding.Middleware(func(next embedding.Handler) embedding.Handler {

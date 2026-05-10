@@ -48,7 +48,7 @@ func (c *RewriteQueryTransformerConfig) validate() error {
 		c.TargetSearchSystem = defaultRewriteTarget
 	}
 	if c.PromptTemplate == nil {
-		c.PromptTemplate = chat.NewPromptTemplate().WithTemplate(rewriteDefaultTemplate)
+		c.PromptTemplate = chat.NewPromptTemplate(rewriteDefaultTemplate)
 	}
 	return c.PromptTemplate.RequireVariables("Target", "Query")
 }
@@ -74,7 +74,7 @@ func NewRewriteQueryTransformer(cfg RewriteQueryTransformerConfig) (*RewriteQuer
 		return nil, err
 	}
 
-	client, err := chat.NewClientWithModel(cfg.ChatModel)
+	client, err := chat.NewClient(cfg.ChatModel)
 	if err != nil {
 		return nil, err
 	}
@@ -91,7 +91,7 @@ func NewRewriteQueryTransformer(cfg RewriteQueryTransformerConfig) (*RewriteQuer
 // unchanged.
 func (r *RewriteQueryTransformer) Transform(ctx context.Context, query *Query) (*Query, error) {
 	if query == nil {
-		return nil, errors.New("rag.RewriteQueryTransformer.Transform: query must not be nil")
+		return nil, ErrNilQuery
 	}
 
 	rewritten, _, err := r.chatClient.

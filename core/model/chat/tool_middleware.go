@@ -54,7 +54,7 @@ func (m *ToolMiddleware) executeCall(ctx context.Context, req *Request, next Cal
 		return support.BuildReturnDirectResponse(req.Messages)
 	}
 
-	support.RegisterTools(req.Options.Tools...)
+	support.Register(req.Options.Tools...)
 	return m.executeCallRecursively(ctx, req, next, support)
 }
 
@@ -104,7 +104,7 @@ func (m *ToolMiddleware) executeStream(ctx context.Context, req *Request, next S
 			return
 		}
 
-		support.RegisterTools(req.Options.Tools...)
+		support.Register(req.Options.Tools...)
 		m.executeStreamRecursively(ctx, req, next, support, yield)
 	}
 }

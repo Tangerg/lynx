@@ -35,17 +35,9 @@ type ToolMetadata struct {
 	ReturnDirect bool
 }
 
-// Tool is the static surface every tool exposes. There are two
-// execution patterns:
-//
-//   - External tools (delegation): the implementation only satisfies
-//     [Tool], so the framework collects the LLM's call request and
-//     hands it back to the host application — typical for actions that
-//     must run on the client (file pickers, user prompts).
-//
-//   - Internal tools (direct execution): the implementation also
-//     satisfies [CallableTool], so the framework runs it inline and
-//     feeds the result back into the conversation.
+// Tool is the static surface every tool exposes. Implementations that
+// also satisfy [CallableTool] run inline; bare-Tool implementations
+// are delegated back to the caller — see [NewTool].
 type Tool interface {
 	// Definition returns the static description shown to the LLM.
 	Definition() ToolDefinition
@@ -93,22 +85,15 @@ func (t *callableTool) Call(ctx context.Context, arguments string) (string, erro
 // (external) tool that satisfies [Tool] only; otherwise it is an inline
 // (internal) tool that also satisfies [CallableTool].
 //
+// Pass nil for execFunc to build a delegated tool — the framework
+// will surface the call request to the host instead of running it.
+//
 // Example:
 //
-//	// inline calculator
 //	tool, err := chat.NewTool(
 //	    chat.ToolDefinition{Name: "add", InputSchema: addSchema},
 //	    chat.ToolMetadata{},
-//	    func(ctx context.Context, args string) (string, error) {
-//	        // parse args, compute, return result
-//	    },
-//	)
-//
-//	// delegated UI prompt
-//	tool, err := chat.NewTool(
-//	    chat.ToolDefinition{Name: "ask_user", InputSchema: askSchema},
-//	    chat.ToolMetadata{ReturnDirect: true},
-//	    nil,
+//	    func(ctx context.Context, args string) (string, error) { ... },
 //	)
 func NewTool(definition ToolDefinition, metadata ToolMetadata, execFunc func(ctx context.Context, arguments string) (string, error)) (Tool, error) {
 	if definition.Name == "" {
@@ -451,19 +436,9 @@ func (i *toolCallInvoker) invoke(ctx context.Context, req *Request, resp *Respon
 	return result, result.validate()
 }
 
-// ToolSupport bundles a [ToolRegistry] with a tool-call invoker. It is
-// the integration point the [NewToolMiddleware] middleware uses to drive
-// the tool-calling loop.
-//
-// Example:
-//
-//	support := chat.NewToolSupport()
-//	support.RegisterTools(myTool)
-//	mw := chat.NewToolMiddleware()
-//	resp, err := client.Chat().
-//	    WithMiddlewares(mw).
-//	    WithTools(support.Registry().All()...).
-//	    Call().Response(ctx)
+// ToolSupport bundles a [ToolRegistry] with a tool-call invoker — the
+// integration point the [NewToolMiddleware] middleware uses to drive
+// the tool-calling loop. See [NewToolMiddleware] for end-to-end wiring.
 type ToolSupport struct {
 	registry *ToolRegistry
 	invoker  *toolCallInvoker
@@ -482,13 +457,13 @@ func NewToolSupport(capacityHint ...int) *ToolSupport {
 // Registry exposes the underlying [ToolRegistry] for direct access.
 func (s *ToolSupport) Registry() *ToolRegistry { return s.registry }
 
-// RegisterTools is a shorthand for [ToolRegistry.Register].
-func (s *ToolSupport) RegisterTools(tools ...Tool) {
+// Register is a shorthand for [ToolRegistry.Register].
+func (s *ToolSupport) Register(tools ...Tool) {
 	s.registry.Register(tools...)
 }
 
-// UnregisterTools is a shorthand for [ToolRegistry.Unregister].
-func (s *ToolSupport) UnregisterTools(names ...string) {
+// Unregister is a shorthand for [ToolRegistry.Unregister].
+func (s *ToolSupport) Unregister(names ...string) {
 	s.registry.Unregister(names...)
 }
 

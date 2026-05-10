@@ -11,10 +11,8 @@ import (
 	"github.com/spf13/cast"
 )
 
-// fileWriterBatchSize controls how many documents are buffered before
-// each [os.File].WriteString call. The number is small on purpose —
-// big enough to amortize syscall overhead, small enough to bound peak
-// memory usage on extra-large document sets.
+// fileWriterBatchSize is the number of documents buffered between
+// [os.File].WriteString flushes — small enough to bound peak memory.
 const fileWriterBatchSize = 5
 
 // Metadata keys recognized by [FileWriter] when writing document
@@ -82,16 +80,22 @@ func NewFileWriter(config FileWriterConfig) (*FileWriter, error) {
 	}, nil
 }
 
-// Write persists docs to the configured file.
-func (f *FileWriter) Write(_ context.Context, docs []*Document) error {
+// Write persists docs to the configured file. Close errors after a
+// successful write are surfaced (joined with any earlier error) so
+// callers can detect partial flushes that fail at close time.
+func (f *FileWriter) Write(_ context.Context, docs []*Document) (err error) {
 	file, err := os.OpenFile(f.path, f.openFlags(), 0o666)
 	if err != nil {
 		return fmt.Errorf("document.FileWriter.Write: open %s: %w", f.path, err)
 	}
-	defer file.Close()
+	defer func() {
+		if closeErr := file.Close(); closeErr != nil {
+			err = errors.Join(err, fmt.Errorf("document.FileWriter.Write: close: %w", closeErr))
+		}
+	}()
 
-	if err := f.writeBatched(docs, file); err != nil {
-		return fmt.Errorf("document.FileWriter.Write: %w", err)
+	if writeErr := f.writeBatched(docs, file); writeErr != nil {
+		return fmt.Errorf("document.FileWriter.Write: %w", writeErr)
 	}
 	return nil
 }

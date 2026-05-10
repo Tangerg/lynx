@@ -95,7 +95,7 @@ func NewVectorStoreDocumentRetriever(cfg VectorStoreDocumentRetrieverConfig) (*V
 // Retrieve issues a similarity search via the underlying vector store.
 func (v *VectorStoreDocumentRetriever) Retrieve(ctx context.Context, query *Query) ([]*document.Document, error) {
 	if query == nil {
-		return nil, errors.New("rag.VectorStoreDocumentRetriever.Retrieve: query must not be nil")
+		return nil, ErrNilQuery
 	}
 
 	request, err := vectorstore.NewRetrievalRequest(query.Text)

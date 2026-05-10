@@ -31,15 +31,7 @@ type CallHandler[Request any, Response any] interface {
 }
 
 // CallHandlerFunc adapts an ordinary function value to the [CallHandler]
-// interface, mirroring [http.HandlerFunc].
-//
-// Example:
-//
-//	handler := CallHandlerFunc[*Request, *Response](
-//	    func(ctx context.Context, req *Request) (*Response, error) {
-//	        return doCall(ctx, req)
-//	    },
-//	)
+// interface, mirroring [net/http.HandlerFunc].
 type CallHandlerFunc[Request any, Response any] func(ctx context.Context, req Request) (Response, error)
 
 // Call implements [CallHandler] by invoking the underlying function.
