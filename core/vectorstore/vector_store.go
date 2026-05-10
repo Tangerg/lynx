@@ -14,6 +14,23 @@ import (
 	"github.com/Tangerg/lynx/core/vectorstore/filter/ast"
 )
 
+// Sentinel errors for the request-shape validators. Callers can match
+// these with [errors.Is] to distinguish "caller didn't fill the
+// struct" from store-side failures.
+var (
+	// ErrNilRequest is returned by every Validate when the request
+	// pointer is nil.
+	ErrNilRequest = errors.New("vectorstore: request must not be nil")
+
+	// ErrEmptyDocuments is returned by [CreateRequest.Validate] on an
+	// empty document slice.
+	ErrEmptyDocuments = errors.New("vectorstore: Documents must not be empty")
+
+	// ErrMissingFilter is returned by [DeleteRequest.Validate] when no
+	// filter expression has been supplied.
+	ErrMissingFilter = errors.New("vectorstore: Filter is required")
+)
+
 // Similarity-score range for [RetrievalRequest.MinScore] and search
 // defaults. Most providers normalize their scores to [0, 1]; the
 // constants make that contract explicit.
@@ -98,22 +115,22 @@ func (r *RetrievalRequest) WithFilter(filter ast.Expr) *RetrievalRequest {
 // the filter expression. The first failure is returned.
 func (r *RetrievalRequest) Validate() error {
 	if r == nil {
-		return errors.New("vectorstore.RetrievalRequest: request must not be nil")
+		return ErrNilRequest
 	}
 	if r.Query == "" {
 		return errors.New("vectorstore.RetrievalRequest: Query must not be empty")
 	}
 	if r.TopK <= 0 {
-		return errors.New("vectorstore.RetrievalRequest: TopK must be > 0")
+		return fmt.Errorf("vectorstore.RetrievalRequest: TopK must be > 0, got %d", r.TopK)
 	}
 	if r.MinScore < MinSimilarityScore || r.MinScore > MaxSimilarityScore {
-		return fmt.Errorf("vectorstore.RetrievalRequest: MinScore must be in [%.1f, %.1f]",
-			MinSimilarityScore, MaxSimilarityScore)
+		return fmt.Errorf("vectorstore.RetrievalRequest: MinScore must be in [%.1f, %.1f], got %f",
+			MinSimilarityScore, MaxSimilarityScore, r.MinScore)
 	}
 
 	if r.Filter != nil {
 		if err := filter.Analyze(r.Filter); err != nil {
-			return fmt.Errorf("vectorstore.RetrievalRequest: %w", err)
+			return fmt.Errorf("vectorstore.RetrievalRequest: filter analysis: %w", err)
 		}
 	}
 	return nil
@@ -148,10 +165,10 @@ func NewCreateRequest(docs []*document.Document) (*CreateRequest, error) {
 // Validate enforces the request invariants.
 func (r *CreateRequest) Validate() error {
 	if r == nil {
-		return errors.New("vectorstore.CreateRequest: request must not be nil")
+		return ErrNilRequest
 	}
 	if len(r.Documents) == 0 {
-		return errors.New("vectorstore.CreateRequest: Documents must not be empty")
+		return ErrEmptyDocuments
 	}
 	return nil
 }
@@ -185,14 +202,14 @@ func NewDeleteRequest(filter ast.Expr) (*DeleteRequest, error) {
 // the filter expression.
 func (r *DeleteRequest) Validate() error {
 	if r == nil {
-		return errors.New("vectorstore.DeleteRequest: request must not be nil")
+		return ErrNilRequest
 	}
 	if r.Filter == nil {
-		return errors.New("vectorstore.DeleteRequest: Filter is required — provide a filter expression to select deletion targets")
+		return ErrMissingFilter
 	}
 
 	if err := filter.Analyze(r.Filter); err != nil {
-		return fmt.Errorf("vectorstore.DeleteRequest: %w", err)
+		return fmt.Errorf("vectorstore.DeleteRequest: filter analysis: %w", err)
 	}
 	return nil
 }

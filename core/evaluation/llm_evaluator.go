@@ -3,9 +3,15 @@ package evaluation
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/Tangerg/lynx/core/model/chat"
 )
+
+// ErrNilRequest is returned by every evaluator when the request
+// pointer is nil. Callers can match with [errors.Is] to distinguish
+// caller-side input errors from chat-model failures.
+var ErrNilRequest = errors.New("evaluation: request must not be nil")
 
 // llmEvaluator is the YES/NO LLM-driven evaluator shared by
 // [RelevancyEvaluator] and [FactCheckingEvaluator]. Concrete evaluators
@@ -39,7 +45,7 @@ func newLLMEvaluator(
 // the chat client, and maps the YES/NO answer to a [*Response].
 func (e *llmEvaluator) Evaluate(ctx context.Context, req *Request) (*Response, error) {
 	if req == nil {
-		return nil, errors.New("evaluation: request must not be nil")
+		return nil, ErrNilRequest
 	}
 	rendered := e.promptTemplate.Clone()
 	for key, value := range e.bindVariables(req) {
@@ -50,7 +56,7 @@ func (e *llmEvaluator) Evaluate(ctx context.Context, req *Request) (*Response, e
 		Call().
 		Text(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("evaluation.llmEvaluator.Evaluate: chat call: %w", err)
 	}
 	return buildResponse(text)
 }

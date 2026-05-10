@@ -90,7 +90,7 @@ func NewCompressionQueryTransformer(cfg *CompressionQueryTransformerConfig) (*Co
 // when the LLM returns empty text the original Text is preserved.
 func (c *CompressionQueryTransformer) Transform(ctx context.Context, query *Query) (*Query, error) {
 	if query == nil {
-		return nil, errors.New("rag.CompressionQueryTransformer.Transform: query must not be nil")
+		return nil, ErrNilQuery
 	}
 
 	history := c.extractHistory(query)

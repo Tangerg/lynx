@@ -96,7 +96,7 @@ func NewPipeline(config *PipelineConfig) (*Pipeline, error) {
 // downstream stages can assume non-nil input.
 func (p *Pipeline) Execute(ctx context.Context, query *Query) (*Query, []*document.Document, error) {
 	if query == nil {
-		return nil, nil, errors.New("rag.Pipeline.Execute: query must not be nil")
+		return nil, nil, ErrNilQuery
 	}
 	transformed, err := p.transformQuery(ctx, query)
 	if err != nil {

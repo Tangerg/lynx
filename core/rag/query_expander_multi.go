@@ -116,7 +116,7 @@ func NewMultiQueryExpander(cfg *MultiQueryExpanderConfig) (*MultiQueryExpander, 
 // has at least one query to run.
 func (m *MultiQueryExpander) Expand(ctx context.Context, query *Query) ([]*Query, error) {
 	if query == nil {
-		return nil, errors.New("rag.MultiQueryExpander.Expand: query must not be nil")
+		return nil, ErrNilQuery
 	}
 
 	expanded, _, err := m.chatClient.
