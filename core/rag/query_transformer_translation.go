@@ -92,7 +92,7 @@ func NewTranslationQueryTransformer(cfg *TranslationQueryTransformerConfig) (*Tr
 // unchanged.
 func (t *TranslationQueryTransformer) Transform(ctx context.Context, query *Query) (*Query, error) {
 	if query == nil {
-		return nil, errors.New("rag.TranslationQueryTransformer.Transform: query must not be nil")
+		return nil, ErrNilQuery
 	}
 
 	translated, _, err := t.chatClient.

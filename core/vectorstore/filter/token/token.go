@@ -56,7 +56,7 @@ func OfEOF(pos Position) Token {
 // [NoPosition] — errors are point events.
 func OfError(err error, pos Position) Token {
 	if err == nil {
-		err = errors.New("unexpected error")
+		err = errors.New("token.OfError: nil error supplied")
 	}
 	return Of(ERROR, err.Error(), pos, NoPosition)
 }
@@ -64,7 +64,7 @@ func OfError(err error, pos Position) Token {
 // OfIllegal returns an ERROR token for an illegal character. The
 // embedded message names the character and its location.
 func OfIllegal(char rune, pos Position) Token {
-	return OfError(fmt.Errorf("illegal character '%c' at %s", char, pos.String()), pos)
+	return OfError(fmt.Errorf("token.OfIllegal: illegal character %q at %s", char, pos.String()), pos)
 }
 
 // OfIdent returns an IDENT token. For keywords and operators use
@@ -88,7 +88,7 @@ func OfLiteral(kind Kind, literal string, start, end Position) Token {
 	case FALSE:
 		return OfKind(FALSE, start, end)
 	default:
-		return OfError(errors.New("token.OfLiteral: unsupported kind: "+kind.Name()), start)
+		return OfError(fmt.Errorf("token.OfLiteral: unsupported kind %s", kind.Name()), start)
 	}
 }
 

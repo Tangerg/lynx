@@ -94,7 +94,7 @@ func NewRewriteQueryTransformer(cfg *RewriteQueryTransformerConfig) (*RewriteQue
 // unchanged.
 func (r *RewriteQueryTransformer) Transform(ctx context.Context, query *Query) (*Query, error) {
 	if query == nil {
-		return nil, errors.New("rag.RewriteQueryTransformer.Transform: query must not be nil")
+		return nil, ErrNilQuery
 	}
 
 	rewritten, _, err := r.chatClient.

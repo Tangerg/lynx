@@ -109,7 +109,7 @@ func (c *ContextualQueryAugmenter) Augment(ctx context.Context, query *Query, do
 		return nil, err
 	}
 	if query == nil {
-		return nil, errors.New("rag.ContextualQueryAugmenter.Augment: query must not be nil")
+		return nil, ErrNilQuery
 	}
 
 	if len(documents) == 0 {
