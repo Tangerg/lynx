@@ -65,16 +65,16 @@ func HandlePause(pc *core.ProcessContext, err error) (core.ActionStatus, bool) {
 // blackboard.
 type AwaitDecider func(ctx context.Context, arguments string) core.Awaitable
 
-// WithAwaiting wraps tool with an [AwaitDecider]. Whenever the decider
+// RequireAwait wraps tool with an [AwaitDecider]. Whenever the decider
 // returns a non-nil Awaitable, the wrapped Call returns a *PauseError
 // carrying it; otherwise the underlying tool runs normally. Mirrors
 // embabel's `Tool.withAwaiting(decider)`.
-func WithAwaiting(tool chat.CallableTool, decider AwaitDecider) chat.CallableTool {
+func RequireAwait(tool chat.CallableTool, decider AwaitDecider) chat.CallableTool {
 	if tool == nil {
-		panic("hitl.WithAwaiting: tool must not be nil")
+		panic("hitl.RequireAwait: tool must not be nil")
 	}
 	if decider == nil {
-		panic("hitl.WithAwaiting: decider must not be nil")
+		panic("hitl.RequireAwait: decider must not be nil")
 	}
 	return &awaitingTool{delegate: tool, decider: decider}
 }
@@ -98,7 +98,7 @@ func (t *awaitingTool) Call(ctx context.Context, arguments string) (string, erro
 // JSON arguments the LLM constructed for the tool call.
 type ConfirmationPrompter func(arguments string) string
 
-// WithConfirmation wraps tool to demand a yes/no from the user
+// RequireConfirmation wraps tool to demand a yes/no from the user
 // before each invocation. prompter renders the confirmation message
 // from the call arguments; onResponse receives the user's bool reply
 // and returns the resulting [core.ResponseImpact] (typically
@@ -110,19 +110,19 @@ type ConfirmationPrompter func(arguments string) string
 // as Unchanged.
 //
 // Mirrors embabel's `Tool.withConfirmation { msg }`.
-func WithConfirmation(
+func RequireConfirmation(
 	tool chat.CallableTool,
 	prompter ConfirmationPrompter,
 	onResponse func(approved bool) core.ResponseImpact,
 ) chat.CallableTool {
 	if prompter == nil {
-		panic("hitl.WithConfirmation: prompter must not be nil")
+		panic("hitl.RequireConfirmation: prompter must not be nil")
 	}
 	handler := onResponse
 	if handler == nil {
 		handler = func(bool) core.ResponseImpact { return core.ResponseImpactUnchanged }
 	}
-	return WithAwaiting(tool, func(_ context.Context, arguments string) core.Awaitable {
+	return RequireAwait(tool, func(_ context.Context, arguments string) core.Awaitable {
 		return NewConfirmation(prompter(arguments), handler)
 	})
 }
@@ -147,7 +147,7 @@ func RequireType[T any](
 	if handler == nil {
 		handler = func(T) core.ResponseImpact { return core.ResponseImpactUnchanged }
 	}
-	return WithAwaiting(tool, func(_ context.Context, arguments string) core.Awaitable {
+	return RequireAwait(tool, func(_ context.Context, arguments string) core.Awaitable {
 		return NewTypedRequest[string, T](prompter(arguments), handler)
 	})
 }

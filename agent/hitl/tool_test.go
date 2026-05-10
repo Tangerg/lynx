@@ -35,9 +35,9 @@ func newFake(name, resp string) *fakeTool {
 	}
 }
 
-func TestWithAwaiting_NilDeciderResultDelegates(t *testing.T) {
+func TestRequireAwait_NilDeciderResultDelegates(t *testing.T) {
 	inner := newFake("search", "result")
-	wrapped := hitl.WithAwaiting(inner, func(context.Context, string) core.Awaitable { return nil })
+	wrapped := hitl.RequireAwait(inner, func(context.Context, string) core.Awaitable { return nil })
 
 	out, err := wrapped.Call(t.Context(), `{"q":"foo"}`)
 	if err != nil {
@@ -51,13 +51,13 @@ func TestWithAwaiting_NilDeciderResultDelegates(t *testing.T) {
 	}
 }
 
-func TestWithAwaiting_NonNilDeciderReturnsPauseError(t *testing.T) {
+func TestRequireAwait_NonNilDeciderReturnsPauseError(t *testing.T) {
 	inner := newFake("search", "result")
 	awaitable := hitl.NewConfirmation("approve search?", func(bool) core.ResponseImpact {
 		return core.ResponseImpactUnchanged
 	})
 
-	wrapped := hitl.WithAwaiting(inner, func(context.Context, string) core.Awaitable { return awaitable })
+	wrapped := hitl.RequireAwait(inner, func(context.Context, string) core.Awaitable { return awaitable })
 
 	_, err := wrapped.Call(t.Context(), `{"q":"foo"}`)
 	if err == nil {
@@ -76,12 +76,12 @@ func TestWithAwaiting_NonNilDeciderReturnsPauseError(t *testing.T) {
 	}
 }
 
-func TestWithConfirmation_PromptsAndOnResponseFires(t *testing.T) {
+func TestRequireConfirmation_PromptsAndOnResponseFires(t *testing.T) {
 	inner := newFake("delete", "deleted")
 
 	var capturedMsg string
 	var captured bool
-	wrapped := hitl.WithConfirmation(
+	wrapped := hitl.RequireConfirmation(
 		inner,
 		func(args string) string {
 			return "confirm delete: " + args
@@ -228,22 +228,22 @@ func contains(haystack, needle string) bool {
 	return false
 }
 
-// Sanity: WithAwaiting should panic on nil tool / nil decider —
+// Sanity: RequireAwait should panic on nil tool / nil decider —
 // programming errors should surface at boot.
-func TestWithAwaiting_PanicsOnNilArgs(t *testing.T) {
+func TestRequireAwait_PanicsOnNilArgs(t *testing.T) {
 	defer func() {
 		if r := recover(); r == nil {
 			t.Fatal("expected panic on nil tool")
 		}
 	}()
-	hitl.WithAwaiting(nil, func(context.Context, string) core.Awaitable { return nil })
+	hitl.RequireAwait(nil, func(context.Context, string) core.Awaitable { return nil })
 }
 
-func TestWithAwaiting_PanicsOnNilDecider(t *testing.T) {
+func TestRequireAwait_PanicsOnNilDecider(t *testing.T) {
 	defer func() {
 		if r := recover(); r == nil {
 			t.Fatal("expected panic on nil decider")
 		}
 	}()
-	hitl.WithAwaiting(newFake("x", ""), nil)
+	hitl.RequireAwait(newFake("x", ""), nil)
 }

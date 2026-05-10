@@ -24,11 +24,11 @@
 | **Reactive / Utility planner** | ✅ `plan/planner/reactive/`（progress × cost-tie 严格优于 utility） | ✅ `UtilityPlanner.kt`（仅 net-value） | **lynx 更强** |
 | **OODA tick loop** | ✅ `runtime/run.go` + `runtime/concurrent.go`（Sequential + Concurrent） | ✅ `AbstractAgentProcess.run()` | **追平** |
 | **并发执行原语** | ✅ `sync.WaitGroup` + Go 1.25 `wg.Go(fn)`（结构化结果槽，无需 errgroup 误用） | ✅ Reactor `Flux` / errgroup 类似 | **lynx 更轻** |
-| **HITL（process-级 + tool-级双层）** | ✅ `hitl.TypedRequest[P,R]` + `WithAwaiting / WithConfirmation / RequireType[T]` + `HandlePause` (`errors.AsType[*PauseError]`) | ✅ `Awaitable<P,R>` + `AwaitingTools.kt` | **追平** |
+| **HITL（process-级 + tool-级双层）** | ✅ `hitl.TypedRequest[P,R]` + `RequireAwait / RequireConfirmation / RequireType[T]` + `HandlePause` (`errors.AsType[*PauseError]`) | ✅ `Awaitable<P,R>` + `AwaitingTools.kt` | **追平** |
 | **Subagent typed wrapper** | ✅ `runtime.AsChatTool[In, Out]` + `AsChatToolFromAgent[In, Out]` + `AsMCPTool[In, Out]`（**3 个工厂走同一 `agentTool` strategy 内核**） | ✅ `Subagent.byName/ofClass/ofInstance/ofAnnotatedInstance` 4 路 | **追平**；细差见 §6 |
 | **自动批量发布**（按 Goal.Export 收集） | ✅ `runtime.AllAchievableTools(platform)` + `runtime.PublishAll(platform)` | ✅ `PerGoalMcpExportToolCallbackPublisher` | **追平** |
 | **MCP 集成**（client + server） | ✅ `lynx/mcp` 全功能 + `runtime.MCPToolGroupResolver` + `runtime.AsMCPTool` | ✅ `embabel-agent-mcp` | **追平** |
-| **Tool advanced policies** | ✅ `toolpolicy/{WithOnceOnly, WithUnlock, WithLoopScope}` | ✅ `OneShotPerLoopTool` + `PlaybookTool` + `UnfoldingTool`（前 Matryoshka） | **基线追平**；UnfoldingTool 未做（见 §16） |
+| **Tool advanced policies** | ✅ `toolpolicy/{OnceOnly, Unlocked, LoopScope}` | ✅ `OneShotPerLoopTool` + `PlaybookTool` + `UnfoldingTool`（前 Matryoshka） | **基线追平**；UnfoldingTool 未做（见 §16） |
 | **Workflow（action 级）** | ✅ `workflow.{ScatterGather, RepeatUntil, RepeatUntilAcceptable, Consensus}` | ✅ `api/common/workflow/` 同款 | **追平** |
 | **Workflow（agent 级）** | ✅ `workflow.{Sequence, Parallel, Loop}`（基于 `runtime.SpawnChildFresh` 的 branch isolation） | ❌（embabel 没有 agent 级 workflow，全 LLM-driven） | **lynx 更强** |
 | **Autonomy / Goal Ranking** | ✅ `runtime/autonomy/{Choose, Run}` + `LLMRanker`（含 Tags/Examples）+ `LLMPlanRanker` + `GoalConfidenceCutOff` + filters | ✅ `Autonomy.chooseAndAccomplishGoal` + `Ranker` + `GoalChoiceApprover` | **追平** |
@@ -176,8 +176,8 @@
 | **TerminationScope** | ✅ `agent / action` 二元 | ✅ |
 | **ToolDecorator** | ✅ extension capability ([core/extension.go:41](../core/extension.go)) | ✅ `ToolDecorator` SPI |
 | **ToolLoop runner** | ✅ `chat.NewToolMiddleware()` + [core/process_context.go](../core/process_context.go) `ChatWithActionTools` —— **一处实现覆盖所有调用点** | ✅ `ToolLoop.kt` + 多个 `ToolInjectionStrategy` |
-| **One-shot-per-loop** | ✅ `toolpolicy.WithOnceOnly` + `WithLoopScope` ctx | ✅ `OneShotPerLoopTool.kt` |
-| **Playbook tool（条件解锁）** | ✅ `toolpolicy.WithUnlock(tool, cond)`（含 reason 文本回写 LLM） | ✅ `agentic/playbook/PlaybookTool.kt` |
+| **One-shot-per-loop** | ✅ `toolpolicy.OnceOnly` + `LoopScope` ctx | ✅ `OneShotPerLoopTool.kt` |
+| **Playbook tool（条件解锁）** | ✅ `toolpolicy.Unlocked(tool, cond)`（含 reason 文本回写 LLM） | ✅ `agentic/playbook/PlaybookTool.kt` |
 | **Matryoshka / Unfolding（递归工具树）** | ❌ **明确不做** —— 跨 chat 包边界，niche 用例 | ✅ `progressive/UnfoldingTool.kt`（`@MatryoshkaTools` 已 deprecated） |
 | **Replanning Tool** | 走 `core.ReplanRequest` 错误返回机制（action body return ReplanRequest as error） | `Tool.replanAlways/conditionalReplan` 装饰器 |
 
@@ -195,7 +195,7 @@
 | Confirmation 特化 | ✅ `hitl.NewConfirmation[P]` | ✅ `ConfirmationRequest` |
 | Suspend → Resume → Continue 闭环 | ✅ ([runtime/platform_run.go](../runtime/platform_run.go)) | ✅ |
 | `AwaitDecider` 钩子 | ✅ ([hitl/tool.go](../hitl/tool.go)) | ✅ `AwaitingTools.AwaitDecider` |
-| `WithAwaiting / WithConfirmation / RequireType[T]` | ✅ ([hitl/tool.go](../hitl/tool.go)) | ✅ `Tool.withAwaiting / withConfirmation / requireType<T>` |
+| `RequireAwait / RequireConfirmation / RequireType[T]` | ✅ ([hitl/tool.go](../hitl/tool.go)) | ✅ `Tool.withAwaiting / withConfirmation / requireType<T>` |
 | `PauseError` sentinel + `HandlePause(pc, err)` | ✅ Go 1.26 `errors.AsType[*PauseError](err)` | ✅ `AwaitableResponseException` |
 | ResponseImpact 枚举 | ✅ `Unchanged / Updated` | ✅ `UPDATED / UNCHANGED` |
 | 持久化 awaitable | ❌ in-memory only（按设计） | ✅ context repository（前提：用持久化 backend） |

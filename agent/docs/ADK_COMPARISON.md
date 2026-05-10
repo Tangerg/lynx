@@ -468,7 +468,7 @@ tools:
 | Tool 定义 | `core.AgentTool = chat.Tool`（typed） | `tool.Tool` interface（动态 args） |
 | Tool 解析 | `ToolGroup` + `ToolGroupResolver` 按 role | `LlmAgent.Tools` + `Toolsets`（动态 list） |
 | Tool 装饰 | `ToolDecorator` extension（onion wrap） | Plugin `BeforeTool` / `AfterTool` callback |
-| Tool 级 HITL | ✅ `hitl.WithAwaiting / WithConfirmation / RequireType[T]`（typed） | ✅ `tool.RequestConfirmation()` → adk_request_confirmation event（dynamic） |
+| Tool 级 HITL | ✅ `hitl.RequireAwait / RequireConfirmation / RequireType[T]`（typed） | ✅ `tool.RequestConfirmation()` → adk_request_confirmation event（dynamic） |
 | Long-running tool | 通过 `ActionWaiting` + Awaitable | `Tool.IsLongRunning() bool` 标志 + 内部 ReAct loop 等 |
 | OpenAPI tool | 走 chat package | `OpenAPITool` 内置 |
 | MCP tool | ✅ `MCPToolGroupResolver`（[`runtime/mcp.go`](../runtime/mcp.go)） | ✅ `examples/mcp/` 支持 |
