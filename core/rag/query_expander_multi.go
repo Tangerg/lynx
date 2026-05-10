@@ -3,9 +3,8 @@ package rag
 import (
 	"context"
 	"errors"
+	"slices"
 	"strings"
-
-	"github.com/samber/lo"
 
 	"github.com/Tangerg/lynx/core/model/chat"
 )
@@ -136,8 +135,8 @@ func (m *MultiQueryExpander) Expand(ctx context.Context, query *Query) ([]*Query
 		return []*Query{query}, nil
 	}
 
-	variants := lo.Filter(strings.Split(expanded, "\n"), func(s string, _ int) bool {
-		return s != ""
+	variants := slices.DeleteFunc(strings.Split(expanded, "\n"), func(s string) bool {
+		return s == ""
 	})
 
 	queries := make([]*Query, 0, len(variants)+1)

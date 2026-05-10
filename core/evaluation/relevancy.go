@@ -1,7 +1,6 @@
 package evaluation
 
 import (
-	"context"
 	"errors"
 
 	"github.com/Tangerg/lynx/core/model/chat"
@@ -68,8 +67,7 @@ func (c *RelevancyEvaluatorConfig) validate() error {
 //   - Pass: true when the LLM answers "YES",
 //   - Score: 1.0 for YES, 0.0 otherwise.
 type RelevancyEvaluator struct {
-	chatClient     *chat.Client
-	promptTemplate *chat.PromptTemplate
+	*llmEvaluator
 }
 
 // NewRelevancyEvaluator builds a [RelevancyEvaluator] from config.
@@ -77,34 +75,19 @@ func NewRelevancyEvaluator(config *RelevancyEvaluatorConfig) (*RelevancyEvaluato
 	if err := config.validate(); err != nil {
 		return nil, err
 	}
-	client, err := chat.NewClientWithModel(config.ChatModel)
+	base, err := newLLMEvaluator(
+		config.ChatModel,
+		config.PromptTemplate,
+		func(req *Request) map[string]any {
+			return map[string]any{
+				"Query":    req.Prompt,
+				"Response": req.Generation,
+				"Context":  extractDocuments(req),
+			}
+		},
+	)
 	if err != nil {
 		return nil, err
 	}
-	return &RelevancyEvaluator{
-		chatClient:     client,
-		promptTemplate: config.PromptTemplate,
-	}, nil
-}
-
-// Evaluate asks the LLM whether req.Generation aligns with the
-// retrieved context, then returns a YES/NO-shaped [*Response].
-func (r *RelevancyEvaluator) Evaluate(ctx context.Context, req *Request) (*Response, error) {
-	if req == nil {
-		return nil, errors.New("evaluation.RelevancyEvaluator.Evaluate: request must not be nil")
-	}
-
-	text, _, err := r.chatClient.
-		ChatWithPromptTemplate(
-			r.promptTemplate.Clone().
-				WithVariable("Query", req.Prompt).
-				WithVariable("Response", req.Generation).
-				WithVariable("Context", extractDocuments(req)),
-		).
-		Call().
-		Text(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return buildResponse(text)
+	return &RelevancyEvaluator{llmEvaluator: base}, nil
 }
