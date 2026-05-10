@@ -87,7 +87,7 @@ func TestLLMRanker_ParsesScoresAndRoutesToTopAgent(t *testing.T) {
 ]}
 trailing prose ignored.`
 	model := newStubModel(reply)
-	client, err := chat.NewClientWithModel(model)
+	client, err := chat.NewClient(model)
 	if err != nil {
 		t.Fatalf("NewClientWithModel: %v", err)
 	}
@@ -129,7 +129,7 @@ func TestLLMRanker_ClampsConfidence(t *testing.T) {
 	candidates := autonomy.New(platform, &stubRanker{}, autonomy.Config{}).Candidates()
 	reply := `{"choices":[{"id":"` + candidates[0].String() + `","confidence":1.7,"rationale":"x"}]}`
 	model := newStubModel(reply)
-	client, _ := chat.NewClientWithModel(model)
+	client, _ := chat.NewClient(model)
 
 	ranker := autonomy.NewLLMRanker(client, autonomy.LLMRankerConfig{})
 	choices, err := ranker.Rank(t.Context(), "x", candidates)
@@ -149,7 +149,7 @@ func TestLLMRanker_MissingScoreDefaultsToZero(t *testing.T) {
 	// Reply scores only the first candidate; beta is omitted.
 	reply := `{"choices":[{"id":"` + candidates[0].String() + `","confidence":0.6,"rationale":""}]}`
 	model := newStubModel(reply)
-	client, _ := chat.NewClientWithModel(model)
+	client, _ := chat.NewClient(model)
 
 	ranker := autonomy.NewLLMRanker(client, autonomy.LLMRankerConfig{})
 	choices, err := ranker.Rank(t.Context(), "x", candidates)
@@ -167,7 +167,7 @@ func TestLLMRanker_RejectsNonJSONReply(t *testing.T) {
 	candidates := autonomy.New(platform, &stubRanker{}, autonomy.Config{}).Candidates()
 
 	model := newStubModel("nope, no JSON at all here")
-	client, _ := chat.NewClientWithModel(model)
+	client, _ := chat.NewClient(model)
 
 	ranker := autonomy.NewLLMRanker(client, autonomy.LLMRankerConfig{})
 	_, err := ranker.Rank(t.Context(), "x", candidates)
@@ -201,7 +201,7 @@ func TestLLMRanker_PromptIncludesGoalTagsAndExamples(t *testing.T) {
 	candidates := autonomy.New(platform, &stubRanker{}, autonomy.Config{}).Candidates()
 	reply := `{"choices":[{"id":"` + candidates[0].String() + `","confidence":1.0,"rationale":""}]}`
 	model := newStubModel(reply)
-	client, _ := chat.NewClientWithModel(model)
+	client, _ := chat.NewClient(model)
 
 	ranker := autonomy.NewLLMRanker(client, autonomy.LLMRankerConfig{})
 	if _, err := ranker.Rank(t.Context(), "x", candidates); err != nil {

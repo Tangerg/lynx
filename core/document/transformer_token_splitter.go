@@ -104,7 +104,7 @@ func NewTokenSplitter(config TokenSplitterConfig) (*TokenSplitter, error) {
 		keepSeparator:  config.KeepSeparator,
 		copyFormatter:  config.CopyFormatter,
 	}
-	ts.splitter, _ = NewSplitter(SplitterConfig{
+	ts.splitter, _ = NewSplitter(&SplitterConfig{
 		CopyFormatter: config.CopyFormatter,
 		SplitFunc:     ts.splitByTokens,
 	})

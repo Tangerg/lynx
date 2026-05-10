@@ -51,6 +51,9 @@ type MultiQueryExpanderConfig struct {
 
 // validate fills defaults and rejects invalid configs.
 func (c *MultiQueryExpanderConfig) validate() error {
+	if c == nil {
+		return errors.New("rag.MultiQueryExpanderConfig: config must not be nil")
+	}
 	if c.ChatModel == nil {
 		return errors.New("rag.MultiQueryExpanderConfig: ChatModel is required")
 	}
@@ -75,7 +78,7 @@ var _ QueryExpander = (*MultiQueryExpander)(nil)
 //
 // Example:
 //
-//	exp, err := rag.NewMultiQueryExpander(rag.MultiQueryExpanderConfig{
+//	exp, err := rag.NewMultiQueryExpander(&rag.MultiQueryExpanderConfig{
 //	    ChatModel: model, NumberOfQueries: 5,
 //	})
 //	queries, err := exp.Expand(ctx, q)
@@ -89,7 +92,7 @@ type MultiQueryExpander struct {
 // NewMultiQueryExpander builds a [MultiQueryExpander]. Returns an error
 // when the configuration fails validation or the chat client cannot be
 // constructed.
-func NewMultiQueryExpander(cfg MultiQueryExpanderConfig) (*MultiQueryExpander, error) {
+func NewMultiQueryExpander(cfg *MultiQueryExpanderConfig) (*MultiQueryExpander, error) {
 	if err := cfg.validate(); err != nil {
 		return nil, err
 	}

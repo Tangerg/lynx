@@ -23,6 +23,9 @@ type SplitterConfig struct {
 
 // validate returns a descriptive error when required fields are missing.
 func (c *SplitterConfig) validate() error {
+	if c == nil {
+		return errors.New("document.SplitterConfig: config must not be nil")
+	}
 	if c.SplitFunc == nil {
 		return errors.New("document.SplitterConfig: SplitFunc is required")
 	}
@@ -42,7 +45,7 @@ type Splitter struct {
 
 // NewSplitter builds a [Splitter] from config. Returns an error when
 // the configuration is invalid.
-func NewSplitter(config SplitterConfig) (*Splitter, error) {
+func NewSplitter(config *SplitterConfig) (*Splitter, error) {
 	if err := config.validate(); err != nil {
 		return nil, err
 	}

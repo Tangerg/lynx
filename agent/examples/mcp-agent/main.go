@@ -44,7 +44,7 @@ type (
 func main() {
 	ctx := context.Background()
 
-	chatClient, err := chat.NewClientWithModel(newStubModel())
+	chatClient, err := chat.NewClient(newStubModel())
 	if err != nil {
 		log.Fatal(err)
 	}

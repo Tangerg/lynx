@@ -37,6 +37,9 @@ type FactCheckingEvaluatorConfig struct {
 // required fields are missing or the template lacks the expected
 // variables.
 func (c *FactCheckingEvaluatorConfig) validate() error {
+	if c == nil {
+		return errors.New("evaluation.FactCheckingEvaluatorConfig: config must not be nil")
+	}
 	if c.ChatModel == nil {
 		return errors.New("evaluation.FactCheckingEvaluatorConfig: ChatModel is required")
 	}
@@ -60,7 +63,7 @@ type FactCheckingEvaluator struct {
 // NewFactCheckingEvaluator builds a [FactCheckingEvaluator] from
 // config. Returns an error when the configuration fails validation or
 // the chat client can't be constructed.
-func NewFactCheckingEvaluator(config FactCheckingEvaluatorConfig) (*FactCheckingEvaluator, error) {
+func NewFactCheckingEvaluator(config *FactCheckingEvaluatorConfig) (*FactCheckingEvaluator, error) {
 	if err := config.validate(); err != nil {
 		return nil, err
 	}
