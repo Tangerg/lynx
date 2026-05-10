@@ -9,7 +9,7 @@ import (
 )
 
 func TestInMemoryStore_WriteRead(t *testing.T) {
-	store := memory.NewInMemoryMemory()
+	store := memory.NewInMemoryStore()
 	ctx := context.Background()
 
 	if err := store.Write(ctx, "c1", chat.NewUserMessage("hi")); err != nil {
@@ -25,7 +25,7 @@ func TestInMemoryStore_WriteRead(t *testing.T) {
 }
 
 func TestInMemoryStore_Read_UnknownIDReturnsEmptySlice(t *testing.T) {
-	store := memory.NewInMemoryMemory()
+	store := memory.NewInMemoryStore()
 	got, err := store.Read(context.Background(), "missing")
 	if err != nil {
 		t.Fatal(err)
@@ -39,7 +39,7 @@ func TestInMemoryStore_Read_UnknownIDReturnsEmptySlice(t *testing.T) {
 }
 
 func TestInMemoryStore_Read_ReturnsCopy(t *testing.T) {
-	store := memory.NewInMemoryMemory()
+	store := memory.NewInMemoryStore()
 	ctx := context.Background()
 	_ = store.Write(ctx, "c", chat.NewUserMessage("hi"))
 
@@ -53,7 +53,7 @@ func TestInMemoryStore_Read_ReturnsCopy(t *testing.T) {
 }
 
 func TestInMemoryStore_Clear(t *testing.T) {
-	store := memory.NewInMemoryMemory()
+	store := memory.NewInMemoryStore()
 	ctx := context.Background()
 	_ = store.Write(ctx, "c", chat.NewUserMessage("hi"))
 
@@ -67,7 +67,7 @@ func TestInMemoryStore_Clear(t *testing.T) {
 }
 
 func TestInMemoryStore_RespectsCancelledContext(t *testing.T) {
-	store := memory.NewInMemoryMemory()
+	store := memory.NewInMemoryStore()
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
@@ -82,17 +82,17 @@ func TestInMemoryStore_RespectsCancelledContext(t *testing.T) {
 	}
 }
 
-func TestNewMessageWindowMemory_RejectsNilStorage(t *testing.T) {
-	if _, err := memory.NewMessageWindowMemory(nil); err == nil {
+func TestNewMessageWindowStore_RejectsNilStorage(t *testing.T) {
+	if _, err := memory.NewMessageWindowStore(nil); err == nil {
 		t.Fatal("nil storage must error")
 	}
 }
 
-func TestNewMessageWindowMemory_AvoidsDoubleWrap(t *testing.T) {
-	store := memory.NewInMemoryMemory()
-	wrapped, _ := memory.NewMessageWindowMemory(store, 20)
+func TestNewMessageWindowStore_AvoidsDoubleWrap(t *testing.T) {
+	store := memory.NewInMemoryStore()
+	wrapped, _ := memory.NewMessageWindowStore(store, 20)
 
-	again, err := memory.NewMessageWindowMemory(wrapped)
+	again, err := memory.NewMessageWindowStore(wrapped)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -102,8 +102,8 @@ func TestNewMessageWindowMemory_AvoidsDoubleWrap(t *testing.T) {
 }
 
 func TestMessageWindowStore_Read_KeepsRecentNonSystem(t *testing.T) {
-	base := memory.NewInMemoryMemory()
-	windowed, _ := memory.NewMessageWindowMemory(base, 10)
+	base := memory.NewInMemoryStore()
+	windowed, _ := memory.NewMessageWindowStore(base, 10)
 	ctx := context.Background()
 
 	// Write 15 user messages — only the most-recent 10 should come back.
@@ -120,8 +120,8 @@ func TestMessageWindowStore_Read_KeepsRecentNonSystem(t *testing.T) {
 }
 
 func TestMessageWindowStore_Read_PrependsMergedSystemMessage(t *testing.T) {
-	base := memory.NewInMemoryMemory()
-	windowed, _ := memory.NewMessageWindowMemory(base, 10)
+	base := memory.NewInMemoryStore()
+	windowed, _ := memory.NewMessageWindowStore(base, 10)
 	ctx := context.Background()
 
 	_ = base.Write(ctx, "c",
@@ -137,7 +137,7 @@ func TestMessageWindowStore_Read_PrependsMergedSystemMessage(t *testing.T) {
 }
 
 func TestMemoryMiddleware_RejectsNilStore(t *testing.T) {
-	if _, _, err := memory.NewMemoryMiddleware(nil); err == nil {
+	if _, _, err := memory.NewMiddleware(nil); err == nil {
 		t.Fatal("nil store must error")
 	}
 }

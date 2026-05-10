@@ -135,18 +135,6 @@ func TestWrapParserAsAny_DelegatesParse(t *testing.T) {
 	}
 }
 
-func TestListParserAsAny_MapParserAsAny_JSONParserAsAnyOf(t *testing.T) {
-	if list := chat.ListParserAsAny(); list.FormatInstructions == "" {
-		t.Fatal("ListParserAsAny instructions empty")
-	}
-	if m := chat.MapParserAsAny(); m.FormatInstructions == "" {
-		t.Fatal("MapParserAsAny instructions empty")
-	}
-	if j := chat.JSONParserAsAnyOf[recipe](); j.FormatInstructions == "" {
-		t.Fatal("JSONParserAsAnyOf instructions empty")
-	}
-}
-
 func TestRemoveMarkdownCodeBlock_NotPanicOnShort(t *testing.T) {
 	// indirect test via MapParser — short inputs go through unchanged.
 	p := chat.NewMapParser()

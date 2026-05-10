@@ -19,13 +19,13 @@ type (
 	StreamHandlerFunc = model.StreamHandlerFunc[*Request, *Response]
 	CallMiddleware    = model.CallMiddleware[*Request, *Response]
 	StreamMiddleware  = model.StreamMiddleware[*Request, *Response]
-	MiddlewareManager = model.MiddlewareManager[*Request, *Response, *Request, *Response]
+	MiddlewareManager = model.MiddlewareManager[*Request, *Response]
 )
 
 // NewMiddlewareManager returns an empty [MiddlewareManager] keyed to
 // chat's *Request / *Response pair.
 func NewMiddlewareManager() *MiddlewareManager {
-	return model.NewMiddlewareManager[*Request, *Response, *Request, *Response]()
+	return model.NewMiddlewareManager[*Request, *Response]()
 }
 
 // ClientRequest is the fluent builder that turns a [Model] plus a
@@ -70,15 +70,6 @@ func (r *ClientRequest) WithMiddlewares(middlewares ...any) *ClientRequest {
 	return r
 }
 
-// WithMiddlewareManager replaces the underlying [MiddlewareManager]. nil
-// is ignored to preserve the current chain.
-func (r *ClientRequest) WithMiddlewareManager(mgr *MiddlewareManager) *ClientRequest {
-	if mgr != nil {
-		r.middlewareManager = mgr
-	}
-	return r
-}
-
 // WithOptions sets the per-request [Options]. nil is ignored — the model
 // default still applies.
 func (r *ClientRequest) WithOptions(options *Options) *ClientRequest {
@@ -92,7 +83,7 @@ func (r *ClientRequest) WithOptions(options *Options) *ClientRequest {
 // from a raw template string. Empty input is ignored.
 func (r *ClientRequest) WithUserPrompt(prompt string) *ClientRequest {
 	if prompt != "" {
-		r.userPromptTemplate = NewPromptTemplate().WithTemplate(prompt)
+		r.userPromptTemplate = NewPromptTemplate(prompt)
 	}
 	return r
 }
@@ -110,7 +101,7 @@ func (r *ClientRequest) WithUserPromptTemplate(template *PromptTemplate) *Client
 // message from a raw template string. Empty input is ignored.
 func (r *ClientRequest) WithSystemPrompt(prompt string) *ClientRequest {
 	if prompt != "" {
-		r.systemPromptTemplate = NewPromptTemplate().WithTemplate(prompt)
+		r.systemPromptTemplate = NewPromptTemplate(prompt)
 	}
 	return r
 }
@@ -125,35 +116,37 @@ func (r *ClientRequest) WithSystemPromptTemplate(template *PromptTemplate) *Clie
 }
 
 // WithMessages replaces the conversation with the given messages.
-// Empty input is ignored.
+// Empty input is ignored. The slice is cloned so caller mutations
+// don't leak into the request.
 func (r *ClientRequest) WithMessages(messages ...Message) *ClientRequest {
 	if len(messages) > 0 {
-		r.messages = messages
+		r.messages = slices.Clone(messages)
 	}
 	return r
 }
 
 // WithParams replaces the side-channel params map. Use it to thread
 // trace ids, user ids, and other middleware-readable values. Empty
-// input is ignored.
+// input is ignored. The map is cloned so caller mutations don't leak.
 func (r *ClientRequest) WithParams(params map[string]any) *ClientRequest {
 	if len(params) > 0 {
-		r.params = params
+		r.params = maps.Clone(params)
 	}
 	return r
 }
 
 // WithTools attaches the given tools for this request. Replaces any
-// previously-attached tools.
+// previously-attached tools. The slice is cloned so caller mutations
+// don't leak.
 func (r *ClientRequest) WithTools(tools ...Tool) *ClientRequest {
 	if len(tools) > 0 {
-		r.tools = tools
+		r.tools = slices.Clone(tools)
 	}
 	return r
 }
 
 // MiddlewareManager returns the active manager, lazily allocating one
-// if [WithMiddlewares] / [WithMiddlewareManager] has not run yet.
+// if [WithMiddlewares] has not run yet.
 func (r *ClientRequest) MiddlewareManager() *MiddlewareManager {
 	if r.middlewareManager == nil {
 		r.middlewareManager = NewMiddlewareManager()
@@ -187,17 +180,10 @@ func (r *ClientRequest) resolveOptions() *Options {
 	return r.model.DefaultOptions().Clone()
 }
 
-// resolveMessages produces the final, normalized message list for the
-// model. The flow is:
-//
-//  1. If messages is empty, seed with the user-prompt template (or a
-//     fallback "Hi!" so the conversation has something to say).
-//  2. Pull system messages: existing ones merge first; otherwise render
-//     the system-prompt template.
-//  3. Append the non-system messages (user / assistant / tool) in
-//     original order.
-//  4. Fold runs of adjacent same-type messages into single merged
-//     messages — the planner's preferred shape.
+// resolveMessages produces the final, normalized message list — seed
+// from the user-prompt template if empty, render the system-prompt
+// template into a leading system message, then merge adjacent
+// same-type runs (the planner's preferred shape).
 func (r *ClientRequest) resolveMessages() ([]Message, error) {
 	msgs := slices.Clone(r.messages)
 
@@ -407,35 +393,36 @@ func (c *ClientCaller) Structured(ctx context.Context, parser StructuredParser[a
 
 // Client wraps a [Model] with a sticky default [ClientRequest], so each
 // [Client.Chat] call clones a pre-configured starting point. Construct
-// one with [NewClientWithModel] for the simple case, or [NewClient] when
-// you want to install default middlewares / options on the underlying
-// request.
+// one with [NewClient] for the simple case, or [NewClientFromRequest]
+// when you want to install default middlewares / options on the
+// underlying request.
 //
 // Example:
 //
-//	client, err := chat.NewClientWithModel(model)
+//	client, err := chat.NewClient(model)
 //	resp, err := client.Chat().WithText("hi").Call().Response(ctx)
 type Client struct {
 	defaultRequest *ClientRequest
 }
 
-// NewClient wraps an existing [ClientRequest] as a sticky default.
-// Returns an error when request is nil.
-func NewClient(request *ClientRequest) (*Client, error) {
-	if request == nil {
-		return nil, errors.New("chat.NewClient: request must not be nil")
-	}
-	return &Client{defaultRequest: request}, nil
-}
-
-// NewClientWithModel is a one-step constructor: build a default
-// [ClientRequest] for model, then wrap it as a [Client].
-func NewClientWithModel(model Model) (*Client, error) {
+// NewClient is a one-step constructor: build a default [ClientRequest]
+// for model, then wrap it as a [Client]. The common path.
+func NewClient(model Model) (*Client, error) {
 	req, err := NewClientRequest(model)
 	if err != nil {
 		return nil, err
 	}
-	return NewClient(req)
+	return NewClientFromRequest(req)
+}
+
+// NewClientFromRequest wraps an existing [ClientRequest] as a sticky
+// default — use this when the request already carries default
+// middlewares / options the [Client] should keep applying.
+func NewClientFromRequest(request *ClientRequest) (*Client, error) {
+	if request == nil {
+		return nil, errors.New("chat.NewClientFromRequest: request must not be nil")
+	}
+	return &Client{defaultRequest: request}, nil
 }
 
 // Chat returns a fresh clone of the default request, ready for fluent
@@ -457,11 +444,6 @@ func (c *Client) ChatWithRequest(req *Request) *ClientRequest {
 // ChatWithText is the most common shortcut: a single user-message turn.
 func (c *Client) ChatWithText(text string) *ClientRequest {
 	return c.Chat().WithMessages(NewUserMessage(text))
-}
-
-// ChatWithPrompt is an alias for [Client.ChatWithText].
-func (c *Client) ChatWithPrompt(prompt string) *ClientRequest {
-	return c.ChatWithText(prompt)
 }
 
 // ChatWithPromptTemplate seeds a clone with the given user-prompt

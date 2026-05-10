@@ -27,18 +27,10 @@ type Token struct {
 	Literal string
 }
 
-// String renders the token in a multi-line debug-friendly form.
+// String renders the token as `KIND(literal)@start-end` — single-line
+// debug summary suitable for logs and %v output.
 func (t *Token) String() string {
-	return fmt.Sprintf(
-		`
-Token {
-  kind: %s,
-  start: %s,
-  end: %s,
-  literal: %s
-}`,
-		t.Kind.Name(), t.Start.String(), t.End.String(), t.Literal,
-	)
+	return fmt.Sprintf("%s(%q)@%s-%s", t.Kind.Name(), t.Literal, t.Start, t.End)
 }
 
 // Of returns a token with explicit kind, literal, and span.
@@ -64,7 +56,7 @@ func OfEOF(pos Position) Token {
 // [NoPosition] — errors are point events.
 func OfError(err error, pos Position) Token {
 	if err == nil {
-		err = errors.New("unexpected error")
+		err = errors.New("token.OfError: nil error supplied")
 	}
 	return Of(ERROR, err.Error(), pos, NoPosition)
 }
@@ -72,7 +64,7 @@ func OfError(err error, pos Position) Token {
 // OfIllegal returns an ERROR token for an illegal character. The
 // embedded message names the character and its location.
 func OfIllegal(char rune, pos Position) Token {
-	return OfError(fmt.Errorf("illegal character '%c' at %s", char, pos.String()), pos)
+	return OfError(fmt.Errorf("token.OfIllegal: illegal character %q at %s", char, pos.String()), pos)
 }
 
 // OfIdent returns an IDENT token. For keywords and operators use
@@ -96,7 +88,7 @@ func OfLiteral(kind Kind, literal string, start, end Position) Token {
 	case FALSE:
 		return OfKind(FALSE, start, end)
 	default:
-		return OfError(errors.New("token.OfLiteral: unsupported kind: "+kind.Name()), start)
+		return OfError(fmt.Errorf("token.OfLiteral: unsupported kind %s", kind.Name()), start)
 	}
 }
 

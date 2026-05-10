@@ -5,6 +5,17 @@ import (
 	"maps"
 )
 
+// Sentinel errors for the rag stages. Callers can match these with
+// [errors.Is] to distinguish caller-side input errors (nil query,
+// nil request) from store/model failures returned by downstream
+// retrievers, transformers, augmenters.
+var (
+	// ErrNilQuery is returned by every pipeline stage on a nil
+	// [*Query] argument — pipeline.Execute validates this once at
+	// the top, so individual stage errors normally don't surface.
+	ErrNilQuery = errors.New("rag: query must not be nil")
+)
+
 // Query is the canonical user-input shape that flows through the RAG
 // pipeline. [Query.Text] is required; [Query.Extra] holds per-call
 // metadata that pipeline stages may read or write (filters, user ids,
@@ -25,16 +36,20 @@ func NewQuery(text string) (*Query, error) {
 	return &Query{Text: text}, nil
 }
 
-// ensureExtra lazily allocates Extra so callers don't have to nil-check.
+// ensureExtra lazily allocates Extra. Used by [Query.Set] only — Get
+// must not mutate state since concurrent reads are valid.
 func (q *Query) ensureExtra() {
 	if q.Extra == nil {
 		q.Extra = make(map[string]any)
 	}
 }
 
-// Get returns the Extra value for key plus an existence flag.
+// Get returns the Extra value for key plus an existence flag. Safe to
+// call concurrently with other Get calls; concurrent with Set is not.
 func (q *Query) Get(key string) (any, bool) {
-	q.ensureExtra()
+	if q.Extra == nil {
+		return nil, false
+	}
 	value, exists := q.Extra[key]
 	return value, exists
 }

@@ -36,7 +36,7 @@ var _ Formatter = (*SimpleFormatter)(nil)
 //
 // Example:
 //
-//	f := document.NewSimpleFormatter(document.SimpleFormatterConfig{
+//	f := document.NewSimpleFormatter(&document.SimpleFormatterConfig{
 //	    ExcludedEmbedMetadataKeys: []string{"row_id", "internal"},
 //	})
 type SimpleFormatter struct {
@@ -44,50 +44,42 @@ type SimpleFormatter struct {
 	excludedEmbedMetadataKeys     []string
 }
 
-// NewSimpleFormatter builds a [SimpleFormatter]. A zero config produces
-// an unrestricted formatter that emits every metadata key in every
-// mode.
-func NewSimpleFormatter(config SimpleFormatterConfig) *SimpleFormatter {
-	if config.ExcludedInferenceMetadataKeys == nil {
-		config.ExcludedInferenceMetadataKeys = []string{}
+// NewSimpleFormatter builds a [SimpleFormatter]. nil config produces an
+// unrestricted formatter that emits every metadata key in every mode.
+func NewSimpleFormatter(config *SimpleFormatterConfig) *SimpleFormatter {
+	if config == nil {
+		config = &SimpleFormatterConfig{}
 	}
-	if config.ExcludedEmbedMetadataKeys == nil {
-		config.ExcludedEmbedMetadataKeys = []string{}
-	}
-
 	return &SimpleFormatter{
 		excludedInferenceMetadataKeys: config.ExcludedInferenceMetadataKeys,
 		excludedEmbedMetadataKeys:     config.ExcludedEmbedMetadataKeys,
 	}
 }
 
-// NewDefaultSimpleFormatter returns an unrestricted [SimpleFormatter].
-func NewDefaultSimpleFormatter() *SimpleFormatter {
-	return NewSimpleFormatter(SimpleFormatterConfig{})
-}
-
 // Format renders doc by emitting filtered metadata as `key: value` lines
-// followed by a blank line and the document text.
+// followed by a blank line and the document text. With no metadata
+// (filtered empty), the output is just doc.Text — no leading newlines.
 func (s *SimpleFormatter) Format(doc *Document, mode MetadataMode) string {
 	filtered := s.filterMetadataByMode(doc.Metadata, mode)
+	if len(filtered) == 0 {
+		return doc.Text
+	}
 
 	entries := make([]string, 0, len(filtered))
 	for key, value := range filtered {
 		entries = append(entries, key+": "+cast.ToString(value))
 	}
-
-	metadataBlock := strings.Join(entries, "\n")
-	return metadataBlock + "\n\n" + doc.Text
+	return strings.Join(entries, "\n") + "\n\n" + doc.Text
 }
 
-// filterMetadataByMode returns a copy of metadata with the appropriate
-// keys removed for the supplied mode. Modes that don't filter return
-// the live map directly (when [MetadataModeAll]) or an empty map
-// (when [MetadataModeNone]).
+// filterMetadataByMode returns a defensively-cloned copy of metadata
+// with the appropriate keys removed for the supplied mode. Always
+// returns a fresh map so caller-side mutations cannot corrupt the
+// document.
 func (s *SimpleFormatter) filterMetadataByMode(metadata map[string]any, mode MetadataMode) map[string]any {
 	switch mode {
 	case MetadataModeAll:
-		return metadata
+		return maps.Clone(metadata)
 	case MetadataModeNone:
 		return make(map[string]any)
 	}

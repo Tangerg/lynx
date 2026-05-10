@@ -111,14 +111,8 @@ type MessageParams struct {
 	ToolReturns []*ToolReturn `json:"tool_returns"`
 }
 
-// NewMessage dispatches to the matching message-type constructor.
-//
-// Example:
-//
-//	msg, err := chat.NewMessage(chat.MessageParams{
-//	    Type: chat.MessageTypeUser,
-//	    Text: "hi",
-//	})
+// NewMessage dispatches to the matching message-type constructor based
+// on params.Type.
 func NewMessage(params MessageParams) (Message, error) {
 	switch params.Type {
 	case MessageTypeSystem:
@@ -178,16 +172,8 @@ func (a *AssistantMessage) HasToolCalls() bool { return len(a.ToolCalls) > 0 }
 func (a *AssistantMessage) HasReasoning() bool { return a != nil && a.Reasoning != "" }
 
 // NewAssistantMessage builds an [AssistantMessage] from one of the
-// supported parameter shapes.
-//
-// Example:
-//
-//	chat.NewAssistantMessage("Hello world")
-//	chat.NewAssistantMessage(toolCalls)
-//	chat.NewAssistantMessage(chat.MessageParams{
-//	    Text:      "...",
-//	    Reasoning: "...",
-//	})
+// supported parameter shapes — the type-set on T documents the
+// accepted forms (text, media, tool calls, metadata, or full params).
 func NewAssistantMessage[T string | []*media.Media | []*ToolCall | map[string]any | MessageParams](param T) *AssistantMessage {
 	params := paramsFromAssistantInput(param)
 
@@ -250,15 +236,8 @@ func (s *SystemMessage) Meta() map[string]any {
 	return s.Metadata
 }
 
-// NewSystemMessage builds a [SystemMessage].
-//
-// Example:
-//
-//	chat.NewSystemMessage("Be concise.")
-//	chat.NewSystemMessage(chat.MessageParams{
-//	    Text:     "...",
-//	    Metadata: map[string]any{"priority": "high"},
-//	})
+// NewSystemMessage builds a [SystemMessage] from a raw text string or
+// full [MessageParams].
 func NewSystemMessage[T string | MessageParams](param T) *SystemMessage {
 	var params MessageParams
 	switch typed := any(param).(type) {
@@ -301,16 +280,8 @@ func (u *UserMessage) Meta() map[string]any {
 // HasMedia reports whether any attachments are present.
 func (u *UserMessage) HasMedia() bool { return len(u.Media) > 0 }
 
-// NewUserMessage builds a [UserMessage].
-//
-// Example:
-//
-//	chat.NewUserMessage("Hello?")
-//	chat.NewUserMessage(mediaSlice)
-//	chat.NewUserMessage(chat.MessageParams{
-//	    Text:  "what is this?",
-//	    Media: mediaSlice,
-//	})
+// NewUserMessage builds a [UserMessage] from a raw text string,
+// media slice, or full [MessageParams].
 func NewUserMessage[T string | []*media.Media | MessageParams](param T) *UserMessage {
 	var params MessageParams
 	switch typed := any(param).(type) {
@@ -356,16 +327,9 @@ func (t *ToolMessage) Meta() map[string]any {
 	return t.Metadata
 }
 
-// NewToolMessage builds a [ToolMessage]. Returns an error when no tool
-// returns are supplied — a tool message with no results is meaningless.
-//
-// Example:
-//
-//	msg, err := chat.NewToolMessage(toolReturns)
-//	msg, err := chat.NewToolMessage(chat.MessageParams{
-//	    ToolReturns: toolReturns,
-//	    Metadata:    map[string]any{"latency_ms": 12},
-//	})
+// NewToolMessage builds a [ToolMessage] from a tool-return slice or
+// full [MessageParams]. Returns an error when no tool returns are
+// supplied — a tool message with no results is meaningless.
 func NewToolMessage[T []*ToolReturn | MessageParams](param T) (*ToolMessage, error) {
 	var params MessageParams
 	switch typed := any(param).(type) {
@@ -553,49 +517,6 @@ func MergeMessages(messages []Message, messageType MessageType) (Message, error)
 	}
 }
 
-// adjacentSameTypeMessageMerger walks a message slice and folds every
-// run of same-typed neighbours into a single merged message.
-type adjacentSameTypeMessageMerger struct {
-	source     []Message
-	result     []Message
-	groupStart int
-}
-
-func (m *adjacentSameTypeMessageMerger) merge() []Message {
-	for i := 1; i <= len(m.source); i++ {
-		if m.shouldEndGroupAt(i) {
-			m.flushGroup(i)
-			m.groupStart = i
-		}
-	}
-	return m.result
-}
-
-func (m *adjacentSameTypeMessageMerger) shouldEndGroupAt(idx int) bool {
-	if idx == len(m.source) {
-		return true
-	}
-	return m.source[idx].Type() != m.source[m.groupStart].Type()
-}
-
-func (m *adjacentSameTypeMessageMerger) flushGroup(end int) {
-	group := m.source[m.groupStart:end]
-
-	if len(group) == 1 {
-		m.result = append(m.result, group[0])
-		return
-	}
-
-	merged, err := MergeMessages(group, group[0].Type())
-	if err != nil {
-		// Merging failed (typically: assistant runs aren't mergeable) —
-		// keep the originals so no information is lost.
-		m.result = append(m.result, group...)
-		return
-	}
-	m.result = append(m.result, merged)
-}
-
 // MergeAdjacentSameTypeMessages folds each run of consecutive same-type
 // messages into one merged message. Non-adjacent runs and runs of size 1
 // are passed through unchanged. Nil entries are filtered out first.
@@ -605,16 +526,30 @@ func (m *adjacentSameTypeMessageMerger) flushGroup(end int) {
 //	in:  [user, user, system, user, tool, tool]
 //	out: [merged-user, system, user, merged-tool]
 func MergeAdjacentSameTypeMessages(messages []Message) []Message {
-	nonNil := filterOutNilMessages(messages)
-	if len(nonNil) <= 1 {
-		return nonNil
+	source := filterOutNilMessages(messages)
+	if len(source) <= 1 {
+		return source
 	}
 
-	m := &adjacentSameTypeMessageMerger{
-		source: nonNil,
-		result: make([]Message, 0, len(nonNil)),
+	result := make([]Message, 0, len(source))
+	groupStart := 0
+	for i := 1; i <= len(source); i++ {
+		if i < len(source) && source[i].Type() == source[groupStart].Type() {
+			continue
+		}
+		group := source[groupStart:i]
+		if len(group) == 1 {
+			result = append(result, group[0])
+		} else if merged, err := MergeMessages(group, group[0].Type()); err == nil {
+			result = append(result, merged)
+		} else {
+			// Merging failed (typically: assistant runs aren't mergeable) —
+			// keep the originals so no information is lost.
+			result = append(result, group...)
+		}
+		groupStart = i
 	}
-	return m.merge()
+	return result
 }
 
 // findLastMessageIndexOfType returns the (index, message) of the last

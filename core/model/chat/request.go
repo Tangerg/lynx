@@ -65,16 +65,20 @@ func NewOptions(model string) (*Options, error) {
 	}, nil
 }
 
-// ensureExtra lazily allocates Extra so callers don't have to nil-check.
+// ensureExtra lazily allocates Extra. Used by [Options.Set] only —
+// reads must NOT mutate state since Get can be invoked concurrently.
 func (o *Options) ensureExtra() {
 	if o.Extra == nil {
 		o.Extra = make(map[string]any)
 	}
 }
 
-// Get returns the Extra value for key plus an existence flag.
+// Get returns the Extra value for key plus an existence flag. Safe to
+// call concurrently with other Get calls; concurrent with Set is not.
 func (o *Options) Get(key string) (any, bool) {
-	o.ensureExtra()
+	if o.Extra == nil {
+		return nil, false
+	}
 	value, exists := o.Extra[key]
 	return value, exists
 }
@@ -215,16 +219,20 @@ func NewRequest(messages []Message) (*Request, error) {
 	}, nil
 }
 
-// ensureParams lazily allocates Params so callers don't have to nil-check.
+// ensureParams lazily allocates Params. Used by [Request.Set] only —
+// reads must NOT mutate state since Get can be invoked concurrently.
 func (r *Request) ensureParams() {
 	if r.Params == nil {
 		r.Params = make(map[string]any)
 	}
 }
 
-// Get returns the Params value for key plus an existence flag.
+// Get returns the Params value for key plus an existence flag. Safe
+// to call concurrently with other Get calls; concurrent with Set is not.
 func (r *Request) Get(key string) (any, bool) {
-	r.ensureParams()
+	if r.Params == nil {
+		return nil, false
+	}
 	value, exists := r.Params[key]
 	return value, exists
 }

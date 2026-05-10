@@ -60,15 +60,15 @@ func TestModeration_FlaggedAggregates(t *testing.T) {
 	}
 }
 
-func TestNewClient_RejectsNilRequest(t *testing.T) {
+func TestNewClient_RejectsNilModel(t *testing.T) {
 	if _, err := moderation.NewClient(nil); err == nil {
-		t.Fatal("nil request must error")
+		t.Fatal("nil model must error")
 	}
 }
 
 func TestClient_ModerateWithText_ReturnsModeration(t *testing.T) {
 	model := newFakeModerationModel(t)
-	client, err := moderation.NewClientWithModel(model)
+	client, err := moderation.NewClient(model)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -95,7 +95,7 @@ func TestClient_Moderations_ReturnsAll(t *testing.T) {
 		}
 		return moderation.NewResponse(results, &moderation.ResponseMetadata{})
 	}
-	client, _ := moderation.NewClientWithModel(model)
+	client, _ := moderation.NewClient(model)
 
 	got, _, err := client.ModerateWithTexts([]string{"a", "b", "c"}).Call().Moderations(context.Background())
 	if err != nil {
@@ -111,7 +111,7 @@ func TestClient_PropagatesError(t *testing.T) {
 	model := newFakeModerationModel(t)
 	model.respond = func(*moderation.Request) (*moderation.Response, error) { return nil, want }
 
-	client, _ := moderation.NewClientWithModel(model)
+	client, _ := moderation.NewClient(model)
 	if _, err := client.ModerateWithText("x").Call().Response(context.Background()); !errors.Is(err, want) {
 		t.Fatal(err)
 	}

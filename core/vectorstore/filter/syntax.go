@@ -2,7 +2,6 @@ package filter
 
 import (
 	"fmt"
-	"strconv"
 
 	"github.com/Tangerg/lynx/core/vectorstore/filter/ast"
 	"github.com/Tangerg/lynx/core/vectorstore/filter/token"
@@ -14,40 +13,6 @@ import (
 // detached from any source text.
 func newKindToken(kind token.Kind) token.Token {
 	return token.OfKind(kind, token.NoPosition, token.NoPosition)
-}
-
-// formatNumber stringifies any supported numeric Go value using the
-// canonical decimal form expected by [token.OfNumericLiteral]. Any
-// type outside [math.NumericType] yields "0" — unreachable while the
-// generic constraint is honored.
-func formatNumber(value any) string {
-	switch v := value.(type) {
-	case int:
-		return strconv.FormatInt(int64(v), 10)
-	case int8:
-		return strconv.FormatInt(int64(v), 10)
-	case int16:
-		return strconv.FormatInt(int64(v), 10)
-	case int32:
-		return strconv.FormatInt(int64(v), 10)
-	case int64:
-		return strconv.FormatInt(v, 10)
-	case uint:
-		return strconv.FormatUint(uint64(v), 10)
-	case uint8:
-		return strconv.FormatUint(uint64(v), 10)
-	case uint16:
-		return strconv.FormatUint(uint64(v), 10)
-	case uint32:
-		return strconv.FormatUint(uint64(v), 10)
-	case uint64:
-		return strconv.FormatUint(v, 10)
-	case float32:
-		return strconv.FormatFloat(float64(v), 'g', -1, 32)
-	case float64:
-		return strconv.FormatFloat(v, 'g', -1, 64)
-	}
-	return "0"
 }
 
 // identType is the input constraint for [NewIdent]: a raw string is
@@ -101,8 +66,10 @@ func newLiteral(value any) (*ast.Literal, error) {
 	case int, int8, int16, int32, int64,
 		uint, uint8, uint16, uint32, uint64,
 		float32, float64:
-		number := formatNumber(value)
-		tk := token.OfNumericLiteral(number, token.NoPosition, token.NoPosition)
+		// %v prints decimal form for ints and 'g'-format for floats —
+		// OfNumericLiteral re-parses to float64 and re-formats anyway,
+		// so any decimal/scientific representation works here.
+		tk := token.OfNumericLiteral(fmt.Sprintf("%v", value), token.NoPosition, token.NoPosition)
 		return &ast.Literal{Token: tk, Value: tk.Literal}, nil
 
 	case string:
@@ -227,8 +194,8 @@ func NewListLiteral[T listLiteralType](value T) *ast.ListLiteral {
 
 // identOrIndex resolves an `any` left operand to either an
 // [*ast.IndexExpr] (passed through) or a freshly built [*ast.Ident].
-// Used by [ExprBuilder] for the `any`-typed entry points; the
-// generic helpers below use [leftOperand] instead.
+// Used by both the `any`-typed [ExprBuilder] entry points and (via
+// [leftOperand]) the generic helpers in this file.
 func identOrIndex(l any) (ast.Expr, error) {
 	if ix, ok := l.(*ast.IndexExpr); ok {
 		return ix, nil
@@ -236,15 +203,12 @@ func identOrIndex(l any) (ast.Expr, error) {
 	return newIdent(l)
 }
 
-// leftOperand resolves a generic left operand to an [ast.Expr] —
-// shared by [compare], [In], and [Like]. Returns the index expression
-// directly or builds an identifier from a string / [*ast.Ident].
+// leftOperand is the generic shim around [identOrIndex] for [compare],
+// [In], and [Like]. The constraint guarantees the input is always
+// resolvable, so the error is unreachable.
 func leftOperand[L identType | *ast.IndexExpr](l L) ast.Expr {
-	if ix, ok := any(l).(*ast.IndexExpr); ok {
-		return ix
-	}
-	ident, _ := newIdent(l)
-	return ident
+	expr, _ := identOrIndex(l)
+	return expr
 }
 
 // compare is the shared body of [EQ] / [NE] / [LT] / [LE] / [GT] /

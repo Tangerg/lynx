@@ -53,7 +53,7 @@ func TestSimpleFormatter_AllAndNone(t *testing.T) {
 	doc, _ := document.NewDocument("body", nil)
 	doc.Metadata["k"] = "v"
 
-	f := document.NewDefaultSimpleFormatter()
+	f := document.NewSimpleFormatter(nil)
 
 	all := f.Format(doc, document.MetadataModeAll)
 	if !strings.Contains(all, "k: v") || !strings.Contains(all, "body") {
@@ -85,7 +85,7 @@ func TestSimpleFormatter_ExcludeKeys(t *testing.T) {
 }
 
 func TestTextSplitter_DefaultSeparatorIsNewline(t *testing.T) {
-	s := document.NewDefaultTextSplitter()
+	s := document.NewTextSplitter(nil)
 
 	doc, _ := document.NewDocument("a\nb\nc", nil)
 	got, err := s.Transform(context.Background(), []*document.Document{doc})

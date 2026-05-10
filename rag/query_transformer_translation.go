@@ -45,7 +45,7 @@ func (c *TranslationQueryTransformerConfig) validate() error {
 		return errors.New("rag.TranslationQueryTransformerConfig: TargetLanguage is required")
 	}
 	if c.PromptTemplate == nil {
-		c.PromptTemplate = chat.NewPromptTemplate().WithTemplate(translationDefaultTemplate)
+		c.PromptTemplate = chat.NewPromptTemplate(translationDefaultTemplate)
 	}
 	return c.PromptTemplate.RequireVariables("Target", "Query")
 }
@@ -72,7 +72,7 @@ func NewTranslationQueryTransformer(cfg TranslationQueryTransformerConfig) (*Tra
 		return nil, err
 	}
 
-	client, err := chat.NewClientWithModel(cfg.ChatModel)
+	client, err := chat.NewClient(cfg.ChatModel)
 	if err != nil {
 		return nil, err
 	}
@@ -89,7 +89,7 @@ func NewTranslationQueryTransformer(cfg TranslationQueryTransformerConfig) (*Tra
 // unchanged.
 func (t *TranslationQueryTransformer) Transform(ctx context.Context, query *Query) (*Query, error) {
 	if query == nil {
-		return nil, errors.New("rag.TranslationQueryTransformer.Transform: query must not be nil")
+		return nil, ErrNilQuery
 	}
 
 	translated, _, err := t.chatClient.

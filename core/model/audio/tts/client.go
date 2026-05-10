@@ -19,13 +19,13 @@ type (
 	StreamHandlerFunc = model.StreamHandlerFunc[*Request, *Response]
 	CallMiddleware    = model.CallMiddleware[*Request, *Response]
 	StreamMiddleware  = model.StreamMiddleware[*Request, *Response]
-	MiddlewareManager = model.MiddlewareManager[*Request, *Response, *Request, *Response]
+	MiddlewareManager = model.MiddlewareManager[*Request, *Response]
 )
 
 // NewMiddlewareManager returns an empty [MiddlewareManager] keyed to
 // TTS's *Request / *Response pair.
 func NewMiddlewareManager() *MiddlewareManager {
-	return model.NewMiddlewareManager[*Request, *Response, *Request, *Response]()
+	return model.NewMiddlewareManager[*Request, *Response]()
 }
 
 // ClientRequest is the fluent builder that turns a [Model] plus text and
@@ -58,15 +58,6 @@ func (r *ClientRequest) WithMiddlewares(middlewares ...any) *ClientRequest {
 	return r
 }
 
-// WithMiddlewareManager replaces the underlying [MiddlewareManager].
-// nil is ignored.
-func (r *ClientRequest) WithMiddlewareManager(mgr *MiddlewareManager) *ClientRequest {
-	if mgr != nil {
-		r.middlewareManager = mgr
-	}
-	return r
-}
-
 // WithOptions sets the per-request [Options]. nil is ignored.
 func (r *ClientRequest) WithOptions(options *Options) *ClientRequest {
 	if options != nil {
@@ -83,10 +74,11 @@ func (r *ClientRequest) WithText(text string) *ClientRequest {
 	return r
 }
 
-// WithParams replaces the side-channel params map. Empty input is ignored.
+// WithParams replaces the side-channel params map. Empty input is
+// ignored. The map is cloned so caller mutations don't leak.
 func (r *ClientRequest) WithParams(params map[string]any) *ClientRequest {
 	if len(params) > 0 {
-		r.params = params
+		r.params = maps.Clone(params)
 	}
 	return r
 }
@@ -238,22 +230,24 @@ type Client struct {
 	defaultRequest *ClientRequest
 }
 
-// NewClient wraps an existing [ClientRequest] as a sticky default.
-// Returns an error when request is nil.
-func NewClient(request *ClientRequest) (*Client, error) {
-	if request == nil {
-		return nil, errors.New("tts.NewClient: request must not be nil")
-	}
-	return &Client{defaultRequest: request}, nil
-}
-
-// NewClientWithModel is a one-step constructor.
-func NewClientWithModel(model Model) (*Client, error) {
+// NewClient is a one-step constructor: build a default [ClientRequest]
+// for model, then wrap it as a [Client]. The common path.
+func NewClient(model Model) (*Client, error) {
 	req, err := NewClientRequest(model)
 	if err != nil {
 		return nil, err
 	}
-	return NewClient(req)
+	return NewClientFromRequest(req)
+}
+
+// NewClientFromRequest wraps an existing [ClientRequest] as a sticky
+// default — use this when the request already carries default
+// middlewares / options the [Client] should keep applying.
+func NewClientFromRequest(request *ClientRequest) (*Client, error) {
+	if request == nil {
+		return nil, errors.New("tts.NewClientFromRequest: request must not be nil")
+	}
+	return &Client{defaultRequest: request}, nil
 }
 
 // Synthesize returns a fresh clone of the default request.
