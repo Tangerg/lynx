@@ -72,14 +72,14 @@ func (s *SimpleFormatter) Format(doc *Document, mode MetadataMode) string {
 	return strings.Join(entries, "\n") + "\n\n" + doc.Text
 }
 
-// filterMetadataByMode returns a copy of metadata with the appropriate
-// keys removed for the supplied mode. Modes that don't filter return
-// the live map directly (when [MetadataModeAll]) or an empty map
-// (when [MetadataModeNone]).
+// filterMetadataByMode returns a defensively-cloned copy of metadata
+// with the appropriate keys removed for the supplied mode. Always
+// returns a fresh map so caller-side mutations cannot corrupt the
+// document.
 func (s *SimpleFormatter) filterMetadataByMode(metadata map[string]any, mode MetadataMode) map[string]any {
 	switch mode {
 	case MetadataModeAll:
-		return metadata
+		return maps.Clone(metadata)
 	case MetadataModeNone:
 		return make(map[string]any)
 	}

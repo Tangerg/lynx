@@ -69,10 +69,11 @@ func (r *ClientRequest) WithPrompt(prompt string) *ClientRequest {
 	return r
 }
 
-// WithParams replaces the side-channel params map. Empty input is ignored.
+// WithParams replaces the side-channel params map. Empty input is
+// ignored. The map is cloned so caller mutations don't leak.
 func (r *ClientRequest) WithParams(params map[string]any) *ClientRequest {
 	if len(params) > 0 {
-		r.params = params
+		r.params = maps.Clone(params)
 	}
 	return r
 }

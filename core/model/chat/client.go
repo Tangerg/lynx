@@ -116,29 +116,31 @@ func (r *ClientRequest) WithSystemPromptTemplate(template *PromptTemplate) *Clie
 }
 
 // WithMessages replaces the conversation with the given messages.
-// Empty input is ignored.
+// Empty input is ignored. The slice is cloned so caller mutations
+// don't leak into the request.
 func (r *ClientRequest) WithMessages(messages ...Message) *ClientRequest {
 	if len(messages) > 0 {
-		r.messages = messages
+		r.messages = slices.Clone(messages)
 	}
 	return r
 }
 
 // WithParams replaces the side-channel params map. Use it to thread
 // trace ids, user ids, and other middleware-readable values. Empty
-// input is ignored.
+// input is ignored. The map is cloned so caller mutations don't leak.
 func (r *ClientRequest) WithParams(params map[string]any) *ClientRequest {
 	if len(params) > 0 {
-		r.params = params
+		r.params = maps.Clone(params)
 	}
 	return r
 }
 
 // WithTools attaches the given tools for this request. Replaces any
-// previously-attached tools.
+// previously-attached tools. The slice is cloned so caller mutations
+// don't leak.
 func (r *ClientRequest) WithTools(tools ...Tool) *ClientRequest {
 	if len(tools) > 0 {
-		r.tools = tools
+		r.tools = slices.Clone(tools)
 	}
 	return r
 }

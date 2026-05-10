@@ -136,6 +136,9 @@ func (t *TokenSplitter) splitByTokens(ctx context.Context, text string) ([]strin
 	processed := 0
 
 	for len(tokens) > 0 && processed < t.maxChunkCount {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		end := min(t.chunkSize, len(tokens))
 		windowTokens := tokens[:end]
 

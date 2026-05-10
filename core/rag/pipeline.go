@@ -92,8 +92,12 @@ func NewPipeline(config *PipelineConfig) (*Pipeline, error) {
 
 // Execute runs every stage and returns the final augmented query
 // together with the refined document list. An error from any stage
-// short-circuits the pipeline.
+// short-circuits the pipeline. Returns an error when query is nil so
+// downstream stages can assume non-nil input.
 func (p *Pipeline) Execute(ctx context.Context, query *Query) (*Query, []*document.Document, error) {
+	if query == nil {
+		return nil, nil, errors.New("rag.Pipeline.Execute: query must not be nil")
+	}
 	transformed, err := p.transformQuery(ctx, query)
 	if err != nil {
 		return nil, nil, fmt.Errorf("rag.Pipeline: transform stage: %w", err)
