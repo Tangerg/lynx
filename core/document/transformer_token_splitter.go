@@ -78,15 +78,8 @@ var _ Transformer = (*TokenSplitter)(nil)
 
 // TokenSplitter is a token-aware [Transformer] that splits documents
 // into chunks bounded by the configured token count, preferring
-// sentence-boundary cuts when possible.
-//
-// Algorithm:
-//   1. Encode the document, take the first ChunkSize tokens, decode
-//      them back into text.
-//   2. If that text is longer than MinChunkSize, find the last
-//      ".", "?", "!" or newline and trim the chunk to end there.
-//   3. Filter chunks whose text is shorter than MinEmbedLength.
-//   4. Cap the iteration at MaxChunkCount to prevent runaways.
+// sentence-boundary cuts when possible. See [TokenSplitter.splitByTokens]
+// for the per-chunk algorithm.
 type TokenSplitter struct {
 	tokenizer      tokenizer.Tokenizer
 	chunkSize      int

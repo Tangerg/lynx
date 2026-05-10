@@ -11,10 +11,8 @@ import (
 	"github.com/spf13/cast"
 )
 
-// fileWriterBatchSize controls how many documents are buffered before
-// each [os.File].WriteString call. The number is small on purpose —
-// big enough to amortize syscall overhead, small enough to bound peak
-// memory usage on extra-large document sets.
+// fileWriterBatchSize is the number of documents buffered between
+// [os.File].WriteString flushes — small enough to bound peak memory.
 const fileWriterBatchSize = 5
 
 // Metadata keys recognized by [FileWriter] when writing document

@@ -180,17 +180,10 @@ func (r *ClientRequest) resolveOptions() *Options {
 	return r.model.DefaultOptions().Clone()
 }
 
-// resolveMessages produces the final, normalized message list for the
-// model. The flow is:
-//
-//  1. If messages is empty, seed with the user-prompt template (or a
-//     fallback "Hi!" so the conversation has something to say).
-//  2. Pull system messages: existing ones merge first; otherwise render
-//     the system-prompt template.
-//  3. Append the non-system messages (user / assistant / tool) in
-//     original order.
-//  4. Fold runs of adjacent same-type messages into single merged
-//     messages — the planner's preferred shape.
+// resolveMessages produces the final, normalized message list — seed
+// from the user-prompt template if empty, render the system-prompt
+// template into a leading system message, then merge adjacent
+// same-type runs (the planner's preferred shape).
 func (r *ClientRequest) resolveMessages() ([]Message, error) {
 	msgs := slices.Clone(r.messages)
 

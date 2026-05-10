@@ -111,14 +111,8 @@ type MessageParams struct {
 	ToolReturns []*ToolReturn `json:"tool_returns"`
 }
 
-// NewMessage dispatches to the matching message-type constructor.
-//
-// Example:
-//
-//	msg, err := chat.NewMessage(chat.MessageParams{
-//	    Type: chat.MessageTypeUser,
-//	    Text: "hi",
-//	})
+// NewMessage dispatches to the matching message-type constructor based
+// on params.Type.
 func NewMessage(params MessageParams) (Message, error) {
 	switch params.Type {
 	case MessageTypeSystem:
@@ -178,16 +172,8 @@ func (a *AssistantMessage) HasToolCalls() bool { return len(a.ToolCalls) > 0 }
 func (a *AssistantMessage) HasReasoning() bool { return a != nil && a.Reasoning != "" }
 
 // NewAssistantMessage builds an [AssistantMessage] from one of the
-// supported parameter shapes.
-//
-// Example:
-//
-//	chat.NewAssistantMessage("Hello world")
-//	chat.NewAssistantMessage(toolCalls)
-//	chat.NewAssistantMessage(chat.MessageParams{
-//	    Text:      "...",
-//	    Reasoning: "...",
-//	})
+// supported parameter shapes — the type-set on T documents the
+// accepted forms (text, media, tool calls, metadata, or full params).
 func NewAssistantMessage[T string | []*media.Media | []*ToolCall | map[string]any | MessageParams](param T) *AssistantMessage {
 	params := paramsFromAssistantInput(param)
 
@@ -250,15 +236,8 @@ func (s *SystemMessage) Meta() map[string]any {
 	return s.Metadata
 }
 
-// NewSystemMessage builds a [SystemMessage].
-//
-// Example:
-//
-//	chat.NewSystemMessage("Be concise.")
-//	chat.NewSystemMessage(chat.MessageParams{
-//	    Text:     "...",
-//	    Metadata: map[string]any{"priority": "high"},
-//	})
+// NewSystemMessage builds a [SystemMessage] from a raw text string or
+// full [MessageParams].
 func NewSystemMessage[T string | MessageParams](param T) *SystemMessage {
 	var params MessageParams
 	switch typed := any(param).(type) {
@@ -301,16 +280,8 @@ func (u *UserMessage) Meta() map[string]any {
 // HasMedia reports whether any attachments are present.
 func (u *UserMessage) HasMedia() bool { return len(u.Media) > 0 }
 
-// NewUserMessage builds a [UserMessage].
-//
-// Example:
-//
-//	chat.NewUserMessage("Hello?")
-//	chat.NewUserMessage(mediaSlice)
-//	chat.NewUserMessage(chat.MessageParams{
-//	    Text:  "what is this?",
-//	    Media: mediaSlice,
-//	})
+// NewUserMessage builds a [UserMessage] from a raw text string,
+// media slice, or full [MessageParams].
 func NewUserMessage[T string | []*media.Media | MessageParams](param T) *UserMessage {
 	var params MessageParams
 	switch typed := any(param).(type) {
@@ -356,16 +327,9 @@ func (t *ToolMessage) Meta() map[string]any {
 	return t.Metadata
 }
 
-// NewToolMessage builds a [ToolMessage]. Returns an error when no tool
-// returns are supplied — a tool message with no results is meaningless.
-//
-// Example:
-//
-//	msg, err := chat.NewToolMessage(toolReturns)
-//	msg, err := chat.NewToolMessage(chat.MessageParams{
-//	    ToolReturns: toolReturns,
-//	    Metadata:    map[string]any{"latency_ms": 12},
-//	})
+// NewToolMessage builds a [ToolMessage] from a tool-return slice or
+// full [MessageParams]. Returns an error when no tool returns are
+// supplied — a tool message with no results is meaningless.
 func NewToolMessage[T []*ToolReturn | MessageParams](param T) (*ToolMessage, error) {
 	var params MessageParams
 	switch typed := any(param).(type) {
