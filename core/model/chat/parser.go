@@ -267,13 +267,3 @@ func WrapParserAsAny[T any](parser StructuredParser[T]) *AnyParser {
 	}
 }
 
-// ListParserAsAny is a shorthand for WrapParserAsAny(NewListParser()).
-func ListParserAsAny() *AnyParser { return WrapParserAsAny(NewListParser()) }
-
-// MapParserAsAny is a shorthand for WrapParserAsAny(NewMapParser()).
-func MapParserAsAny() *AnyParser { return WrapParserAsAny(NewMapParser()) }
-
-// JSONParserAsAnyOf is a shorthand for WrapParserAsAny(NewJSONParser[T]()).
-func JSONParserAsAnyOf[T any]() *AnyParser {
-	return WrapParserAsAny(NewJSONParser[T]())
-}

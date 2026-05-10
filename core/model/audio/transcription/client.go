@@ -15,13 +15,14 @@ type (
 	Handler           = model.CallHandler[*Request, *Response]
 	HandlerFunc       = model.CallHandlerFunc[*Request, *Response]
 	Middleware        = model.CallMiddleware[*Request, *Response]
-	MiddlewareManager = model.CallMiddlewareManager[*Request, *Response]
+	MiddlewareManager = model.MiddlewareManager[*Request, *Response, any, any]
 )
 
 // NewMiddlewareManager returns an empty [MiddlewareManager] keyed to
-// transcription's *Request / *Response pair.
+// transcription's *Request / *Response pair. The stream side is unused
+// (transcription has no stream endpoint).
 func NewMiddlewareManager() *MiddlewareManager {
-	return model.NewCallMiddlewareManager[*Request, *Response]()
+	return model.NewMiddlewareManager[*Request, *Response, any, any]()
 }
 
 // ClientRequest is the fluent builder that turns a [Model] plus an
@@ -46,16 +47,7 @@ func NewClientRequest(model Model) (*ClientRequest, error) {
 // WithMiddlewares replaces the entire middleware chain.
 func (r *ClientRequest) WithMiddlewares(middlewares ...Middleware) *ClientRequest {
 	if len(middlewares) > 0 {
-		r.middlewareManager = NewMiddlewareManager().UseMiddlewares(middlewares...)
-	}
-	return r
-}
-
-// WithMiddlewareManager replaces the underlying [MiddlewareManager].
-// nil is ignored.
-func (r *ClientRequest) WithMiddlewareManager(mgr *MiddlewareManager) *ClientRequest {
-	if mgr != nil {
-		r.middlewareManager = mgr
+		r.middlewareManager = NewMiddlewareManager().UseCallMiddlewares(middlewares...)
 	}
 	return r
 }
@@ -151,7 +143,7 @@ func (c *ClientCaller) Response(ctx context.Context) (*Response, error) {
 	}
 	return c.request.
 		MiddlewareManager().
-		BuildHandler(c.request.model).
+		BuildCallHandler(c.request.model).
 		Call(ctx, req)
 }
 

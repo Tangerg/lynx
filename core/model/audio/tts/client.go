@@ -58,15 +58,6 @@ func (r *ClientRequest) WithMiddlewares(middlewares ...any) *ClientRequest {
 	return r
 }
 
-// WithMiddlewareManager replaces the underlying [MiddlewareManager].
-// nil is ignored.
-func (r *ClientRequest) WithMiddlewareManager(mgr *MiddlewareManager) *ClientRequest {
-	if mgr != nil {
-		r.middlewareManager = mgr
-	}
-	return r
-}
-
 // WithOptions sets the per-request [Options]. nil is ignored.
 func (r *ClientRequest) WithOptions(options *Options) *ClientRequest {
 	if options != nil {

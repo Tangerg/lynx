@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"iter"
-	"strings"
 	"sync"
 	"testing"
 
@@ -259,90 +258,10 @@ func TestMiddlewareManager_PropagatesEndpointError(t *testing.T) {
 	}
 }
 
-func TestCallMiddlewareManager_Compose(t *testing.T) {
-	rec := &recorder{}
-	mw := func(label string) model.CallMiddleware[*fakeRequest, *fakeResponse] {
-		return func(next model.CallHandler[*fakeRequest, *fakeResponse]) model.CallHandler[*fakeRequest, *fakeResponse] {
-			return model.CallHandlerFunc[*fakeRequest, *fakeResponse](
-				func(ctx context.Context, req *fakeRequest) (*fakeResponse, error) {
-					rec.record(label)
-					return next.Call(ctx, req)
-				},
-			)
-		}
-	}
-
-	mm := model.NewCallMiddlewareManager[*fakeRequest, *fakeResponse]()
-	mm.UseMiddlewares(mw("a"), mw("b"))
-
-	endpoint := model.CallHandlerFunc[*fakeRequest, *fakeResponse](
-		func(ctx context.Context, req *fakeRequest) (*fakeResponse, error) {
-			rec.record("endpoint")
-			return &fakeResponse{}, nil
-		},
-	)
-
-	if _, err := mm.BuildHandler(endpoint).Call(context.Background(), &fakeRequest{}); err != nil {
-		t.Fatal(err)
-	}
-
-	got := strings.Join(rec.snapshot(), ",")
-	if got != "a,b,endpoint" {
-		t.Fatalf("got %q, want %q", got, "a,b,endpoint")
-	}
-}
-
-func TestCallMiddlewareManager_CloneNil(t *testing.T) {
-	var mm *model.CallMiddlewareManager[*fakeRequest, *fakeResponse]
-	if got := mm.Clone(); got != nil {
-		t.Fatalf("nil receiver Clone = %v, want nil", got)
-	}
-}
-
-func TestStreamMiddlewareManager_Compose(t *testing.T) {
-	mm := model.NewStreamMiddlewareManager[*fakeRequest, *fakeResponse]()
-	mm.UseMiddlewares(passThroughStreamMW(), passThroughStreamMW())
-
-	endpoint := model.StreamHandlerFunc[*fakeRequest, *fakeResponse](
-		func(ctx context.Context, req *fakeRequest) iter.Seq2[*fakeResponse, error] {
-			return func(yield func(*fakeResponse, error) bool) {
-				yield(&fakeResponse{A: "x"}, nil)
-			}
-		},
-	)
-
-	count := 0
-	for chunk, err := range mm.BuildHandler(endpoint).Stream(context.Background(), &fakeRequest{}) {
-		if err != nil {
-			t.Fatal(err)
-		}
-		if chunk.A != "x" {
-			t.Fatalf("chunk = %q, want %q", chunk.A, "x")
-		}
-		count++
-	}
-	if count != 1 {
-		t.Fatalf("got %d chunks, want 1", count)
-	}
-}
-
-func TestStreamMiddlewareManager_CloneNil(t *testing.T) {
-	var mm *model.StreamMiddlewareManager[*fakeRequest, *fakeResponse]
-	if got := mm.Clone(); got != nil {
-		t.Fatalf("nil receiver Clone = %v, want nil", got)
-	}
-}
-
 // --- helpers --------------------------------------------------------------
 
 func passThroughCallMW() model.CallMiddleware[*fakeRequest, *fakeResponse] {
 	return func(next model.CallHandler[*fakeRequest, *fakeResponse]) model.CallHandler[*fakeRequest, *fakeResponse] {
-		return next
-	}
-}
-
-func passThroughStreamMW() model.StreamMiddleware[*fakeRequest, *fakeResponse] {
-	return func(next model.StreamHandler[*fakeRequest, *fakeResponse]) model.StreamHandler[*fakeRequest, *fakeResponse] {
 		return next
 	}
 }
