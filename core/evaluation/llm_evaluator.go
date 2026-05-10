@@ -24,7 +24,7 @@ func newLLMEvaluator(
 	template *chat.PromptTemplate,
 	bind func(*Request) map[string]any,
 ) (*llmEvaluator, error) {
-	client, err := chat.NewClientWithModel(model)
+	client, err := chat.NewClient(model)
 	if err != nil {
 		return nil, err
 	}

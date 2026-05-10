@@ -67,15 +67,15 @@ func TestMergeOptions_RejectsNilBase(t *testing.T) {
 	}
 }
 
-func TestNewClient_RejectsNilRequest(t *testing.T) {
+func TestNewClient_RejectsNilModel(t *testing.T) {
 	if _, err := image.NewClient(nil); err == nil {
-		t.Fatal("nil request must error")
+		t.Fatal("nil model must error")
 	}
 }
 
 func TestClient_GenerateWithPrompt_ReturnsImage(t *testing.T) {
 	model := newFakeImageModel(t)
-	client, err := image.NewClientWithModel(model)
+	client, err := image.NewClient(model)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -104,7 +104,7 @@ func TestClient_Images_ReturnsAll(t *testing.T) {
 		return image.NewResponse(results, &image.ResponseMetadata{})
 	}
 
-	client, _ := image.NewClientWithModel(model)
+	client, _ := image.NewClient(model)
 	got, _, err := client.GenerateWithPrompt("x").Call().Images(context.Background())
 	if err != nil {
 		t.Fatal(err)
@@ -119,7 +119,7 @@ func TestClient_PropagatesError(t *testing.T) {
 	model := newFakeImageModel(t)
 	model.respond = func(*image.Request) (*image.Response, error) { return nil, want }
 
-	client, _ := image.NewClientWithModel(model)
+	client, _ := image.NewClient(model)
 	if _, err := client.GenerateWithPrompt("x").Call().Response(context.Background()); !errors.Is(err, want) {
 		t.Fatalf("err = %v", err)
 	}
@@ -127,7 +127,7 @@ func TestClient_PropagatesError(t *testing.T) {
 
 func TestClient_GenerateWithRequest_CopiesFields(t *testing.T) {
 	model := newFakeImageModel(t)
-	client, _ := image.NewClientWithModel(model)
+	client, _ := image.NewClient(model)
 
 	src, _ := image.NewRequest("from-src")
 	if _, err := client.GenerateWithRequest(src).Call().Response(context.Background()); err != nil {

@@ -77,7 +77,7 @@ func NewRewriteQueryTransformer(cfg *RewriteQueryTransformerConfig) (*RewriteQue
 		return nil, err
 	}
 
-	client, err := chat.NewClientWithModel(cfg.ChatModel)
+	client, err := chat.NewClient(cfg.ChatModel)
 	if err != nil {
 		return nil, err
 	}
