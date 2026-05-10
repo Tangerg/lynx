@@ -19,13 +19,13 @@ type (
 	StreamHandlerFunc = model.StreamHandlerFunc[*Request, *Response]
 	CallMiddleware    = model.CallMiddleware[*Request, *Response]
 	StreamMiddleware  = model.StreamMiddleware[*Request, *Response]
-	MiddlewareManager = model.MiddlewareManager[*Request, *Response, *Request, *Response]
+	MiddlewareManager = model.MiddlewareManager[*Request, *Response]
 )
 
 // NewMiddlewareManager returns an empty [MiddlewareManager] keyed to
 // chat's *Request / *Response pair.
 func NewMiddlewareManager() *MiddlewareManager {
-	return model.NewMiddlewareManager[*Request, *Response, *Request, *Response]()
+	return model.NewMiddlewareManager[*Request, *Response]()
 }
 
 // ClientRequest is the fluent builder that turns a [Model] plus a

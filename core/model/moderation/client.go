@@ -15,14 +15,14 @@ type (
 	Handler           = model.CallHandler[*Request, *Response]
 	HandlerFunc       = model.CallHandlerFunc[*Request, *Response]
 	Middleware        = model.CallMiddleware[*Request, *Response]
-	MiddlewareManager = model.MiddlewareManager[*Request, *Response, any, any]
+	MiddlewareManager = model.MiddlewareManager[*Request, *Response]
 )
 
 // NewMiddlewareManager returns an empty [MiddlewareManager] keyed to
 // moderation's *Request / *Response pair. The stream side is unused
 // (moderation has no stream endpoint).
 func NewMiddlewareManager() *MiddlewareManager {
-	return model.NewMiddlewareManager[*Request, *Response, any, any]()
+	return model.NewMiddlewareManager[*Request, *Response]()
 }
 
 // ClientRequest is the fluent builder that turns a [Model] plus inputs

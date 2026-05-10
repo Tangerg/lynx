@@ -51,7 +51,7 @@ func TestMiddlewareManager_BuildCallHandlerOrdering(t *testing.T) {
 		},
 	)
 
-	mm := model.NewMiddlewareManager[*fakeRequest, *fakeResponse, *fakeRequest, *fakeResponse]()
+	mm := model.NewMiddlewareManager[*fakeRequest, *fakeResponse]()
 	mm.UseCallMiddlewares(mw("outer"), mw("inner"))
 
 	wrapped := mm.BuildCallHandler(endpoint)
@@ -79,7 +79,7 @@ func TestMiddlewareManager_BuildCallHandler_NoMiddlewaresReturnsEndpoint(t *test
 		},
 	)
 
-	mm := model.NewMiddlewareManager[*fakeRequest, *fakeResponse, *fakeRequest, *fakeResponse]()
+	mm := model.NewMiddlewareManager[*fakeRequest, *fakeResponse]()
 	wrapped := mm.BuildCallHandler(endpoint)
 
 	got, err := wrapped.Call(context.Background(), &fakeRequest{Q: "echo"})
@@ -92,7 +92,7 @@ func TestMiddlewareManager_BuildCallHandler_NoMiddlewaresReturnsEndpoint(t *test
 }
 
 func TestMiddlewareManager_UseCallMiddlewaresIgnoresNil(t *testing.T) {
-	mm := model.NewMiddlewareManager[*fakeRequest, *fakeResponse, *fakeRequest, *fakeResponse]()
+	mm := model.NewMiddlewareManager[*fakeRequest, *fakeResponse]()
 	mw := model.CallMiddleware[*fakeRequest, *fakeResponse](
 		func(next model.CallHandler[*fakeRequest, *fakeResponse]) model.CallHandler[*fakeRequest, *fakeResponse] {
 			return next
@@ -141,7 +141,7 @@ func TestMiddlewareManager_BuildStreamHandlerOrdering(t *testing.T) {
 		},
 	)
 
-	mm := model.NewMiddlewareManager[*fakeRequest, *fakeResponse, *fakeRequest, *fakeResponse]()
+	mm := model.NewMiddlewareManager[*fakeRequest, *fakeResponse]()
 	mm.UseStreamMiddlewares(streamMW("outer"), streamMW("inner"))
 
 	for chunk, err := range mm.BuildStreamHandler(endpoint).Stream(context.Background(), &fakeRequest{}) {
@@ -182,7 +182,7 @@ func TestMiddlewareManager_UseMiddlewaresRoutesByType(t *testing.T) {
 		},
 	)
 
-	mm := model.NewMiddlewareManager[*fakeRequest, *fakeResponse, *fakeRequest, *fakeResponse]()
+	mm := model.NewMiddlewareManager[*fakeRequest, *fakeResponse]()
 	mm.UseMiddlewares(callMW, streamMW, nil, "garbage value")
 
 	callEndpoint := model.CallHandlerFunc[*fakeRequest, *fakeResponse](
@@ -211,7 +211,7 @@ func TestMiddlewareManager_UseMiddlewaresRoutesByType(t *testing.T) {
 }
 
 func TestMiddlewareManager_CloneIsolation(t *testing.T) {
-	original := model.NewMiddlewareManager[*fakeRequest, *fakeResponse, *fakeRequest, *fakeResponse]()
+	original := model.NewMiddlewareManager[*fakeRequest, *fakeResponse]()
 	original.UseCallMiddlewares(passThroughCallMW())
 
 	clone := original.Clone()
@@ -235,7 +235,7 @@ func TestMiddlewareManager_CloneIsolation(t *testing.T) {
 }
 
 func TestMiddlewareManager_CloneNil(t *testing.T) {
-	var mm *model.MiddlewareManager[*fakeRequest, *fakeResponse, *fakeRequest, *fakeResponse]
+	var mm *model.MiddlewareManager[*fakeRequest, *fakeResponse]
 	if got := mm.Clone(); got != nil {
 		t.Fatalf("nil receiver Clone = %v, want nil", got)
 	}
@@ -249,7 +249,7 @@ func TestMiddlewareManager_PropagatesEndpointError(t *testing.T) {
 		},
 	)
 
-	mm := model.NewMiddlewareManager[*fakeRequest, *fakeResponse, *fakeRequest, *fakeResponse]()
+	mm := model.NewMiddlewareManager[*fakeRequest, *fakeResponse]()
 	mm.UseCallMiddlewares(passThroughCallMW())
 
 	_, err := mm.BuildCallHandler(endpoint).Call(context.Background(), &fakeRequest{})
