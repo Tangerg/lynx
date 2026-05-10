@@ -2,7 +2,7 @@
 // [github.com/Tangerg/lynx/core/vectorstore]. The language is a small
 // boolean DSL (see filter.ebnf / filter.g4 for the grammar); the
 // public surface is the three top-level helpers in this file plus the
-// programmatic [Builder] and the [ast] / [token] / [lexer] / [parser] /
+// programmatic [ExprBuilder] and the [ast] / [token] / [lexer] / [parser] /
 // [visitors] subpackages.
 package filter
 

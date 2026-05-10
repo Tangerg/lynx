@@ -27,18 +27,10 @@ type Token struct {
 	Literal string
 }
 
-// String renders the token in a multi-line debug-friendly form.
+// String renders the token as `KIND(literal)@start-end` — single-line
+// debug summary suitable for logs and %v output.
 func (t *Token) String() string {
-	return fmt.Sprintf(
-		`
-Token {
-  kind: %s,
-  start: %s,
-  end: %s,
-  literal: %s
-}`,
-		t.Kind.Name(), t.Start.String(), t.End.String(), t.Literal,
-	)
+	return fmt.Sprintf("%s(%q)@%s-%s", t.Kind.Name(), t.Literal, t.Start, t.End)
 }
 
 // Of returns a token with explicit kind, literal, and span.
