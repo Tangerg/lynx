@@ -24,6 +24,8 @@ type Response struct {
 	Metadata map[string]any
 }
 
+// ensureMetadata lazily allocates Metadata. Used by [Response.Set]
+// only — Get must not mutate state.
 func (r *Response) ensureMetadata() {
 	if r.Metadata == nil {
 		r.Metadata = make(map[string]any)
@@ -31,8 +33,12 @@ func (r *Response) ensureMetadata() {
 }
 
 // Get returns the Metadata value for key plus an existence flag.
+// Safe to call concurrently with other Get calls; concurrent with
+// Set is not.
 func (r *Response) Get(key string) (any, bool) {
-	r.ensureMetadata()
+	if r.Metadata == nil {
+		return nil, false
+	}
 	v, ok := r.Metadata[key]
 	return v, ok
 }

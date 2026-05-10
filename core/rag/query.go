@@ -25,16 +25,20 @@ func NewQuery(text string) (*Query, error) {
 	return &Query{Text: text}, nil
 }
 
-// ensureExtra lazily allocates Extra so callers don't have to nil-check.
+// ensureExtra lazily allocates Extra. Used by [Query.Set] only — Get
+// must not mutate state since concurrent reads are valid.
 func (q *Query) ensureExtra() {
 	if q.Extra == nil {
 		q.Extra = make(map[string]any)
 	}
 }
 
-// Get returns the Extra value for key plus an existence flag.
+// Get returns the Extra value for key plus an existence flag. Safe to
+// call concurrently with other Get calls; concurrent with Set is not.
 func (q *Query) Get(key string) (any, bool) {
-	q.ensureExtra()
+	if q.Extra == nil {
+		return nil, false
+	}
 	value, exists := q.Extra[key]
 	return value, exists
 }

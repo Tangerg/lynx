@@ -50,16 +50,20 @@ type ResultMetadata struct {
 	Extra map[string]any `json:"extra"`
 }
 
-// ensureExtra lazily allocates Extra.
+// ensureExtra lazily allocates Extra. Used by [ResultMetadata.Set]
+// only — Get must not mutate state.
 func (m *ResultMetadata) ensureExtra() {
 	if m.Extra == nil {
 		m.Extra = make(map[string]any)
 	}
 }
 
-// Get returns the Extra value for key plus an existence flag.
+// Get returns the Extra value for key plus an existence flag. Safe
+// to call concurrently with other Get calls; concurrent with Set is not.
 func (m *ResultMetadata) Get(key string) (any, bool) {
-	m.ensureExtra()
+	if m.Extra == nil {
+		return nil, false
+	}
 	value, exists := m.Extra[key]
 	return value, exists
 }
@@ -132,15 +136,20 @@ type ResponseMetadata struct {
 	Extra map[string]any `json:"extra"`
 }
 
+// ensureExtra lazily allocates Extra. Used by [ResponseMetadata.Set]
+// only — Get must not mutate state.
 func (m *ResponseMetadata) ensureExtra() {
 	if m.Extra == nil {
 		m.Extra = make(map[string]any)
 	}
 }
 
-// Get returns the Extra value for key plus an existence flag.
+// Get returns the Extra value for key plus an existence flag. Safe
+// to call concurrently with other Get calls; concurrent with Set is not.
 func (m *ResponseMetadata) Get(key string) (any, bool) {
-	m.ensureExtra()
+	if m.Extra == nil {
+		return nil, false
+	}
 	value, exists := m.Extra[key]
 	return value, exists
 }
