@@ -270,7 +270,7 @@
 //	})
 //
 //	// Create chat client with existing model
-//	chatClient, err := chat.NewClientWithModel(openaiModel)
+//	chatClient, err := chat.NewClient(openaiModel)
 //
 //	// Create request as usual
 //	request, err := chat.NewRequest([]chat.Message{
@@ -552,7 +552,7 @@
 //	})
 //
 //	// Create chat client
-//	chatClient, _ := chat.NewClientWithModel(chatModel)
+//	chatClient, _ := chat.NewClient(chatModel)
 //
 //	// Create request
 //	request, _ := chat.NewRequest([]chat.Message{

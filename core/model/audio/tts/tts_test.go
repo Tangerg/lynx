@@ -76,7 +76,7 @@ func TestNewResult_RequiresSpeechAndMetadata(t *testing.T) {
 
 func TestClient_SynthesizeWithText_CallReturnsBytes(t *testing.T) {
 	model := newFakeTTSModel(t)
-	client, err := tts.NewClientWithModel(model)
+	client, err := tts.NewClient(model)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -100,7 +100,7 @@ func TestClient_StreamSpeech_YieldsChunks(t *testing.T) {
 	}
 	model.streamYield = []*tts.Response{chunk("a"), chunk("b"), chunk("c")}
 
-	client, _ := tts.NewClientWithModel(model)
+	client, _ := tts.NewClient(model)
 
 	count := 0
 	for chunk, err := range client.SynthesizeWithText("hi").Stream().Speech(context.Background()) {
@@ -119,7 +119,7 @@ func TestClient_StreamSpeech_PropagatesError(t *testing.T) {
 	want := errors.New("boom")
 	model := newFakeTTSModel(t)
 	model.streamErr = want
-	client, _ := tts.NewClientWithModel(model)
+	client, _ := tts.NewClient(model)
 
 	gotErr := error(nil)
 	for _, err := range client.SynthesizeWithText("hi").Stream().Response(context.Background()) {
@@ -131,9 +131,9 @@ func TestClient_StreamSpeech_PropagatesError(t *testing.T) {
 	}
 }
 
-func TestNewClient_RejectsNilRequest(t *testing.T) {
+func TestNewClient_RejectsNilModel(t *testing.T) {
 	if _, err := tts.NewClient(nil); err == nil {
-		t.Fatal("nil request must error")
+		t.Fatal("nil model must error")
 	}
 }
 

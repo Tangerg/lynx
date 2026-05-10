@@ -182,29 +182,30 @@ func (c *ClientCaller) Embeddings(ctx context.Context) ([][]float64, *Response, 
 //
 // Example:
 //
-//	client, err := embedding.NewClientWithModel(model)
+//	client, err := embedding.NewClient(model)
 //	v, _, err := client.EmbedWithText("hello").Call().Embedding(ctx)
 type Client struct {
 	defaultRequest *ClientRequest
 }
 
-// NewClient wraps an existing [ClientRequest] as a sticky default.
-// Returns an error when request is nil.
-func NewClient(request *ClientRequest) (*Client, error) {
-	if request == nil {
-		return nil, errors.New("embedding.NewClient: request must not be nil")
-	}
-	return &Client{defaultRequest: request}, nil
-}
-
-// NewClientWithModel is a one-step constructor: build a default
-// [ClientRequest] for model, then wrap it as a [Client].
-func NewClientWithModel(model Model) (*Client, error) {
+// NewClient is a one-step constructor: build a default [ClientRequest]
+// for model, then wrap it as a [Client]. The common path.
+func NewClient(model Model) (*Client, error) {
 	req, err := NewClientRequest(model)
 	if err != nil {
 		return nil, err
 	}
-	return NewClient(req)
+	return NewClientFromRequest(req)
+}
+
+// NewClientFromRequest wraps an existing [ClientRequest] as a sticky
+// default — use this when the request already carries default
+// middlewares / options the [Client] should keep applying.
+func NewClientFromRequest(request *ClientRequest) (*Client, error) {
+	if request == nil {
+		return nil, errors.New("embedding.NewClientFromRequest: request must not be nil")
+	}
+	return &Client{defaultRequest: request}, nil
 }
 
 // Embed returns a fresh clone of the default request, ready for fluent

@@ -398,35 +398,36 @@ func (c *ClientCaller) Structured(ctx context.Context, parser StructuredParser[a
 
 // Client wraps a [Model] with a sticky default [ClientRequest], so each
 // [Client.Chat] call clones a pre-configured starting point. Construct
-// one with [NewClientWithModel] for the simple case, or [NewClient] when
-// you want to install default middlewares / options on the underlying
-// request.
+// one with [NewClient] for the simple case, or [NewClientFromRequest]
+// when you want to install default middlewares / options on the
+// underlying request.
 //
 // Example:
 //
-//	client, err := chat.NewClientWithModel(model)
+//	client, err := chat.NewClient(model)
 //	resp, err := client.Chat().WithText("hi").Call().Response(ctx)
 type Client struct {
 	defaultRequest *ClientRequest
 }
 
-// NewClient wraps an existing [ClientRequest] as a sticky default.
-// Returns an error when request is nil.
-func NewClient(request *ClientRequest) (*Client, error) {
-	if request == nil {
-		return nil, errors.New("chat.NewClient: request must not be nil")
-	}
-	return &Client{defaultRequest: request}, nil
-}
-
-// NewClientWithModel is a one-step constructor: build a default
-// [ClientRequest] for model, then wrap it as a [Client].
-func NewClientWithModel(model Model) (*Client, error) {
+// NewClient is a one-step constructor: build a default [ClientRequest]
+// for model, then wrap it as a [Client]. The common path.
+func NewClient(model Model) (*Client, error) {
 	req, err := NewClientRequest(model)
 	if err != nil {
 		return nil, err
 	}
-	return NewClient(req)
+	return NewClientFromRequest(req)
+}
+
+// NewClientFromRequest wraps an existing [ClientRequest] as a sticky
+// default — use this when the request already carries default
+// middlewares / options the [Client] should keep applying.
+func NewClientFromRequest(request *ClientRequest) (*Client, error) {
+	if request == nil {
+		return nil, errors.New("chat.NewClientFromRequest: request must not be nil")
+	}
+	return &Client{defaultRequest: request}, nil
 }
 
 // Chat returns a fresh clone of the default request, ready for fluent

@@ -74,7 +74,7 @@ func NewCompressionQueryTransformer(cfg *CompressionQueryTransformerConfig) (*Co
 		return nil, err
 	}
 
-	client, err := chat.NewClientWithModel(cfg.ChatModel)
+	client, err := chat.NewClient(cfg.ChatModel)
 	if err != nil {
 		return nil, err
 	}
