@@ -6,8 +6,8 @@
 // Each helper wraps an existing tool and returns a new
 // [chat.CallableTool]. Compose freely:
 //
-//	tool := toolpolicy.WithUnlock(
-//	    toolpolicy.WithOnceOnly(rawSearch),
+//	tool := toolpolicy.Unlocked(
+//	    toolpolicy.OnceOnly(rawSearch),
 //	    func(ctx context.Context) bool {
 //	        p := core.ProcessFrom(ctx); return p != nil && approved(p)
 //	    },
@@ -15,7 +15,7 @@
 //
 // The decorators rely only on [context.Context] for state; they do not
 // require a parent process to function (though
-// [WithUnlock]'s condition typically inspects [core.ProcessFrom] for
+// [Unlocked]'s condition typically inspects [core.ProcessFrom] for
 // blackboard access). Both are goroutine-safe.
 package toolpolicy
 
@@ -28,7 +28,7 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat"
 )
 
-// ErrToolAlreadyCalled is returned by a [WithOnceOnly]-wrapped tool
+// ErrToolAlreadyCalled is returned by a [OnceOnly]-wrapped tool
 // when the LLM tries to invoke it twice within the same scope. The
 // error is informative — the chat ToolMiddleware feeds it back to
 // the LLM, which is supposed to pick a different tool next turn.
@@ -37,27 +37,27 @@ import (
 // tool retry for a different recovery strategy.
 var ErrToolAlreadyCalled = errors.New("toolpolicy: tool has already been called once in this scope")
 
-// ErrToolLocked is returned by a [WithUnlock]-wrapped tool when the
+// ErrToolLocked is returned by a [Unlocked]-wrapped tool when the
 // unlock condition returns false. The accompanying message
 // (formatted as "tool %q locked: %s") gives the LLM enough context
 // to pick a different action.
 var ErrToolLocked = errors.New("toolpolicy: tool is locked by an unlock condition")
 
-// WithOnceOnly wraps tool so a second call within the same scope
+// OnceOnly wraps tool so a second call within the same scope
 // returns [ErrToolAlreadyCalled] instead of running the underlying
 // tool. Each unique scope (see [Scope]) maintains its own
 // already-called set.
 //
 // Default scope is per-[chat.NewToolMiddleware]-loop: callers wrap
-// the action ctx with [WithLoopScope] before driving the tool loop;
+// the action ctx with [LoopScope] before driving the tool loop;
 // each tool's first call within that scope succeeds, subsequent
 // calls reject. Without an explicit scope the tool effectively
 // becomes "once per process lifetime".
 //
 // Mirrors embabel's `OneShotPerLoopTool` semantics.
-func WithOnceOnly(tool chat.CallableTool) chat.CallableTool {
+func OnceOnly(tool chat.CallableTool) chat.CallableTool {
 	if tool == nil {
-		panic("toolpolicy.WithOnceOnly: tool must not be nil")
+		panic("toolpolicy.OnceOnly: tool must not be nil")
 	}
 	return &onceOnlyTool{delegate: tool}
 }
@@ -66,7 +66,7 @@ type onceOnlyTool struct {
 	delegate chat.CallableTool
 
 	// processWideMu guards processWideCalled — the fallback set
-	// used when no [WithLoopScope] is in ctx.
+	// used when no [LoopScope] is in ctx.
 	processWideMu      sync.Mutex
 	processWideCalled  map[string]struct{}
 }
@@ -103,7 +103,7 @@ func (t *onceOnlyTool) Call(ctx context.Context, arguments string) (string, erro
 // "locked" message.
 type UnlockCondition func(ctx context.Context, arguments string) (allowed bool, reason string)
 
-// WithUnlock wraps tool to gate every Call behind condition. When
+// Unlocked wraps tool to gate every Call behind condition. When
 // condition returns false, the wrapped Call returns [ErrToolLocked]
 // (wrapping the supplied reason). When true, the underlying tool
 // runs normally.
@@ -117,12 +117,12 @@ type UnlockCondition func(ctx context.Context, arguments string) (allowed bool, 
 //   - tools that are part of a playbook step-machine
 //
 // Mirrors embabel's `PlaybookTool` + `UnlockCondition` semantics.
-func WithUnlock(tool chat.CallableTool, condition UnlockCondition) chat.CallableTool {
+func Unlocked(tool chat.CallableTool, condition UnlockCondition) chat.CallableTool {
 	if tool == nil {
-		panic("toolpolicy.WithUnlock: tool must not be nil")
+		panic("toolpolicy.Unlocked: tool must not be nil")
 	}
 	if condition == nil {
-		panic("toolpolicy.WithUnlock: condition must not be nil")
+		panic("toolpolicy.Unlocked: condition must not be nil")
 	}
 	return &unlockTool{delegate: tool, condition: condition}
 }
@@ -148,8 +148,8 @@ func (t *unlockTool) Call(ctx context.Context, arguments string) (string, error)
 }
 
 // loopScope tracks the set of tools called within a particular
-// LLM-tool-loop scope. Created by [WithLoopScope] and read by
-// [WithOnceOnly].
+// LLM-tool-loop scope. Created by [LoopScope] and read by
+// [OnceOnly].
 type loopScope struct {
 	mu     sync.Mutex
 	called map[string]struct{}
@@ -170,26 +170,26 @@ func (s *loopScope) markCalled(name string) bool {
 	return true
 }
 
-// scopeKey is the unexported context key under which [WithLoopScope]
+// scopeKey is the unexported context key under which [LoopScope]
 // stashes a *loopScope.
 type scopeKey struct{}
 
-// WithLoopScope returns a child ctx carrying a fresh per-loop scope
-// the [WithOnceOnly] decorator uses to track which tools have run.
+// LoopScope returns a child ctx carrying a fresh per-loop scope
+// the [OnceOnly] decorator uses to track which tools have run.
 // Action bodies wrap ctx with this before driving a chat tool loop:
 //
-//	ctx = toolpolicy.WithLoopScope(ctx)
+//	ctx = toolpolicy.LoopScope(ctx)
 //	text, _, err := req.Call().Text(ctx)
 //
-// Each WithLoopScope returns an isolated scope, so two tool loops
+// Each LoopScope returns an isolated scope, so two tool loops
 // running concurrently in the same goroutine tree don't share
 // already-called state.
 //
-// Calls without an enclosing WithLoopScope fall back to a
+// Calls without an enclosing LoopScope fall back to a
 // process-wide already-called set on the wrapping decorator
 // instance — useful when the tool should genuinely fire only once
 // per process.
-func WithLoopScope(ctx context.Context) context.Context {
+func LoopScope(ctx context.Context) context.Context {
 	return context.WithValue(ctx, scopeKey{}, &loopScope{})
 }
 
