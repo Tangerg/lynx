@@ -44,10 +44,12 @@ const (
 )
 
 // kindMetadata is the per-kind data table. Indexed by Kind.
+// Precedence defaults to [PrecedenceLowest] — only operators set it.
 var kindMetadata = [...]*struct {
-	Name      string
-	Literal   string
-	IsKeyword bool
+	Name       string
+	Literal    string
+	IsKeyword  bool
+	Precedence int
 }{
 	ERROR:  {Name: "ERROR"},
 	EOF:    {Name: "EOF"},
@@ -56,20 +58,20 @@ var kindMetadata = [...]*struct {
 	STRING: {Name: "STRING"},
 	TRUE:   {Name: "BOOL", Literal: "true", IsKeyword: true},
 	FALSE:  {Name: "BOOL", Literal: "false", IsKeyword: true},
-	EQ:     {Name: "EQ", Literal: "=="},
-	NE:     {Name: "NE", Literal: "!="},
-	LT:     {Name: "LT", Literal: "<"},
-	LE:     {Name: "LE", Literal: "<="},
-	GT:     {Name: "GT", Literal: ">"},
-	GE:     {Name: "GE", Literal: ">="},
-	AND:    {Name: "AND", Literal: "and", IsKeyword: true},
-	OR:     {Name: "OR", Literal: "or", IsKeyword: true},
-	NOT:    {Name: "NOT", Literal: "not", IsKeyword: true},
-	IN:     {Name: "IN", Literal: "in", IsKeyword: true},
-	LIKE:   {Name: "LIKE", Literal: "like", IsKeyword: true},
+	EQ:     {Name: "EQ", Literal: "==", Precedence: PrecedenceCMP},
+	NE:     {Name: "NE", Literal: "!=", Precedence: PrecedenceCMP},
+	LT:     {Name: "LT", Literal: "<", Precedence: PrecedenceCMP},
+	LE:     {Name: "LE", Literal: "<=", Precedence: PrecedenceCMP},
+	GT:     {Name: "GT", Literal: ">", Precedence: PrecedenceCMP},
+	GE:     {Name: "GE", Literal: ">=", Precedence: PrecedenceCMP},
+	AND:    {Name: "AND", Literal: "and", IsKeyword: true, Precedence: PrecedenceAND},
+	OR:     {Name: "OR", Literal: "or", IsKeyword: true, Precedence: PrecedenceOR},
+	NOT:    {Name: "NOT", Literal: "not", IsKeyword: true, Precedence: PrecedenceNOT},
+	IN:     {Name: "IN", Literal: "in", IsKeyword: true, Precedence: PrecedenceMatch},
+	LIKE:   {Name: "LIKE", Literal: "like", IsKeyword: true, Precedence: PrecedenceMatch},
 	LPAREN: {Name: "LPAREN", Literal: "("},
 	RPAREN: {Name: "RPAREN", Literal: ")"},
-	LBRACK: {Name: "LBRACK", Literal: "["},
+	LBRACK: {Name: "LBRACK", Literal: "[", Precedence: PrecedenceIndex},
 	RBRACK: {Name: "RBRACK", Literal: "]"},
 	COMMA:  {Name: "COMMA", Literal: ","},
 }
@@ -238,25 +240,13 @@ const (
 )
 
 // Precedence returns the operator's precedence level. Non-operators
-// return [PrecedenceLowest] so the parser can use Precedence as a
-// uniform priority key.
+// (and invalid kinds) return [PrecedenceLowest] so callers can use
+// Precedence as a uniform priority key.
 func (k Kind) Precedence() int {
-	switch k {
-	case OR:
-		return PrecedenceOR
-	case AND:
-		return PrecedenceAND
-	case NOT:
-		return PrecedenceNOT
-	case EQ, NE, LT, LE, GT, GE:
-		return PrecedenceCMP
-	case LIKE, IN:
-		return PrecedenceMatch
-	case LBRACK:
-		return PrecedenceIndex
-	default:
+	if !k.IsValid() {
 		return PrecedenceLowest
 	}
+	return kindMetadata[k].Precedence
 }
 
 // KindOf maps an identifier string onto its Kind — keywords match

@@ -104,20 +104,20 @@ func TestCompositeEvaluator_PropagatesError(t *testing.T) {
 // --- Relevancy ------------------------------------------------------------
 
 func TestRelevancyEvaluator_RejectsNilConfig(t *testing.T) {
-	if _, err := evaluation.NewRelevancyEvaluatorConfig(nil); err == nil {
+	if _, err := evaluation.NewRelevancyEvaluator(nil); err == nil {
 		t.Fatal("nil config must error")
 	}
 }
 
 func TestRelevancyEvaluator_RejectsMissingChatModel(t *testing.T) {
-	if _, err := evaluation.NewRelevancyEvaluatorConfig(&evaluation.RelevancyEvaluatorConfig{}); err == nil {
+	if _, err := evaluation.NewRelevancyEvaluator(&evaluation.RelevancyEvaluatorConfig{}); err == nil {
 		t.Fatal("missing ChatModel must error")
 	}
 }
 
 func TestRelevancyEvaluator_PassOnYes(t *testing.T) {
 	model := newFakeChatModel(t, "YES")
-	eval, err := evaluation.NewRelevancyEvaluatorConfig(&evaluation.RelevancyEvaluatorConfig{ChatModel: model})
+	eval, err := evaluation.NewRelevancyEvaluator(&evaluation.RelevancyEvaluatorConfig{ChatModel: model})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -138,7 +138,7 @@ func TestRelevancyEvaluator_PassOnYes(t *testing.T) {
 
 func TestRelevancyEvaluator_FailOnNo(t *testing.T) {
 	model := newFakeChatModel(t, "NO")
-	eval, _ := evaluation.NewRelevancyEvaluatorConfig(&evaluation.RelevancyEvaluatorConfig{ChatModel: model})
+	eval, _ := evaluation.NewRelevancyEvaluator(&evaluation.RelevancyEvaluatorConfig{ChatModel: model})
 
 	got, err := eval.Evaluate(context.Background(), &evaluation.Request{Prompt: "q", Generation: "g"})
 	if err != nil {
@@ -151,7 +151,7 @@ func TestRelevancyEvaluator_FailOnNo(t *testing.T) {
 
 func TestRelevancyEvaluator_RejectsNilRequest(t *testing.T) {
 	model := newFakeChatModel(t, "YES")
-	eval, _ := evaluation.NewRelevancyEvaluatorConfig(&evaluation.RelevancyEvaluatorConfig{ChatModel: model})
+	eval, _ := evaluation.NewRelevancyEvaluator(&evaluation.RelevancyEvaluatorConfig{ChatModel: model})
 
 	if _, err := eval.Evaluate(context.Background(), nil); err == nil {
 		t.Fatal("nil request must error")

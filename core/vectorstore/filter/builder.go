@@ -123,41 +123,37 @@ func (b *ExprBuilder) In(l, r any) *ExprBuilder {
 	return b
 }
 
+// subExpr runs fn against a fresh sub-builder and returns the result,
+// propagating any sub-error to b. The bool reports whether the caller
+// should proceed (false on prior error or sub-error).
+func (b *ExprBuilder) subExpr(fn func(*ExprBuilder)) (ast.ComputedExpr, bool) {
+	if b.err != nil {
+		return nil, false
+	}
+	sub := NewExprBuilder()
+	fn(sub)
+	if sub.err != nil {
+		b.err = sub.err
+		return nil, false
+	}
+	return sub.expr, true
+}
+
 // And runs fn against a fresh sub-builder and joins the resulting
 // expression with AND. Sub-builder errors propagate.
 func (b *ExprBuilder) And(fn func(*ExprBuilder)) *ExprBuilder {
-	if b.err != nil {
-		return b
+	if expr, ok := b.subExpr(fn); ok {
+		b.and(expr)
 	}
-
-	sub := NewExprBuilder()
-	fn(sub)
-
-	if sub.err != nil {
-		b.err = sub.err
-		return b
-	}
-
-	b.and(sub.expr)
 	return b
 }
 
 // Or runs fn against a fresh sub-builder and joins the resulting
 // expression with OR. Sub-builder errors propagate.
 func (b *ExprBuilder) Or(fn func(*ExprBuilder)) *ExprBuilder {
-	if b.err != nil {
-		return b
+	if expr, ok := b.subExpr(fn); ok {
+		b.or(expr)
 	}
-
-	sub := NewExprBuilder()
-	fn(sub)
-
-	if sub.err != nil {
-		b.err = sub.err
-		return b
-	}
-
-	b.or(sub.expr)
 	return b
 }
 
@@ -165,22 +161,9 @@ func (b *ExprBuilder) Or(fn func(*ExprBuilder)) *ExprBuilder {
 // expression in NOT, and joins it with AND. An empty sub-builder
 // (nil expression) is silently skipped.
 func (b *ExprBuilder) Not(fn func(*ExprBuilder)) *ExprBuilder {
-	if b.err != nil {
-		return b
+	if expr, ok := b.subExpr(fn); ok && any(expr) != nil {
+		b.and(Not(expr))
 	}
-
-	sub := NewExprBuilder()
-	fn(sub)
-
-	if sub.err != nil {
-		b.err = sub.err
-		return b
-	}
-	if any(sub.expr) == nil {
-		return b
-	}
-
-	b.and(Not(sub.expr))
 	return b
 }
 
