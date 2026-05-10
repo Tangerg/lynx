@@ -553,49 +553,6 @@ func MergeMessages(messages []Message, messageType MessageType) (Message, error)
 	}
 }
 
-// adjacentSameTypeMessageMerger walks a message slice and folds every
-// run of same-typed neighbours into a single merged message.
-type adjacentSameTypeMessageMerger struct {
-	source     []Message
-	result     []Message
-	groupStart int
-}
-
-func (m *adjacentSameTypeMessageMerger) merge() []Message {
-	for i := 1; i <= len(m.source); i++ {
-		if m.shouldEndGroupAt(i) {
-			m.flushGroup(i)
-			m.groupStart = i
-		}
-	}
-	return m.result
-}
-
-func (m *adjacentSameTypeMessageMerger) shouldEndGroupAt(idx int) bool {
-	if idx == len(m.source) {
-		return true
-	}
-	return m.source[idx].Type() != m.source[m.groupStart].Type()
-}
-
-func (m *adjacentSameTypeMessageMerger) flushGroup(end int) {
-	group := m.source[m.groupStart:end]
-
-	if len(group) == 1 {
-		m.result = append(m.result, group[0])
-		return
-	}
-
-	merged, err := MergeMessages(group, group[0].Type())
-	if err != nil {
-		// Merging failed (typically: assistant runs aren't mergeable) —
-		// keep the originals so no information is lost.
-		m.result = append(m.result, group...)
-		return
-	}
-	m.result = append(m.result, merged)
-}
-
 // MergeAdjacentSameTypeMessages folds each run of consecutive same-type
 // messages into one merged message. Non-adjacent runs and runs of size 1
 // are passed through unchanged. Nil entries are filtered out first.
@@ -605,16 +562,30 @@ func (m *adjacentSameTypeMessageMerger) flushGroup(end int) {
 //	in:  [user, user, system, user, tool, tool]
 //	out: [merged-user, system, user, merged-tool]
 func MergeAdjacentSameTypeMessages(messages []Message) []Message {
-	nonNil := filterOutNilMessages(messages)
-	if len(nonNil) <= 1 {
-		return nonNil
+	source := filterOutNilMessages(messages)
+	if len(source) <= 1 {
+		return source
 	}
 
-	m := &adjacentSameTypeMessageMerger{
-		source: nonNil,
-		result: make([]Message, 0, len(nonNil)),
+	result := make([]Message, 0, len(source))
+	groupStart := 0
+	for i := 1; i <= len(source); i++ {
+		if i < len(source) && source[i].Type() == source[groupStart].Type() {
+			continue
+		}
+		group := source[groupStart:i]
+		if len(group) == 1 {
+			result = append(result, group[0])
+		} else if merged, err := MergeMessages(group, group[0].Type()); err == nil {
+			result = append(result, merged)
+		} else {
+			// Merging failed (typically: assistant runs aren't mergeable) —
+			// keep the originals so no information is lost.
+			result = append(result, group...)
+		}
+		groupStart = i
 	}
-	return m.merge()
+	return result
 }
 
 // findLastMessageIndexOfType returns the (index, message) of the last

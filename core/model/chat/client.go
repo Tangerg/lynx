@@ -70,15 +70,6 @@ func (r *ClientRequest) WithMiddlewares(middlewares ...any) *ClientRequest {
 	return r
 }
 
-// WithMiddlewareManager replaces the underlying [MiddlewareManager]. nil
-// is ignored to preserve the current chain.
-func (r *ClientRequest) WithMiddlewareManager(mgr *MiddlewareManager) *ClientRequest {
-	if mgr != nil {
-		r.middlewareManager = mgr
-	}
-	return r
-}
-
 // WithOptions sets the per-request [Options]. nil is ignored — the model
 // default still applies.
 func (r *ClientRequest) WithOptions(options *Options) *ClientRequest {
@@ -153,7 +144,7 @@ func (r *ClientRequest) WithTools(tools ...Tool) *ClientRequest {
 }
 
 // MiddlewareManager returns the active manager, lazily allocating one
-// if [WithMiddlewares] / [WithMiddlewareManager] has not run yet.
+// if [WithMiddlewares] has not run yet.
 func (r *ClientRequest) MiddlewareManager() *MiddlewareManager {
 	if r.middlewareManager == nil {
 		r.middlewareManager = NewMiddlewareManager()
@@ -457,11 +448,6 @@ func (c *Client) ChatWithRequest(req *Request) *ClientRequest {
 // ChatWithText is the most common shortcut: a single user-message turn.
 func (c *Client) ChatWithText(text string) *ClientRequest {
 	return c.Chat().WithMessages(NewUserMessage(text))
-}
-
-// ChatWithPrompt is an alias for [Client.ChatWithText].
-func (c *Client) ChatWithPrompt(prompt string) *ClientRequest {
-	return c.ChatWithText(prompt)
 }
 
 // ChatWithPromptTemplate seeds a clone with the given user-prompt
