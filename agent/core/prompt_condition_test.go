@@ -60,7 +60,7 @@ func (m *stubModel) Stream(ctx context.Context, req *chat.Request) iter.Seq2[*ch
 
 func newStubChatClient(t *testing.T, model chat.Model) *chat.Client {
 	t.Helper()
-	client, err := chat.NewClientWithModel(model)
+	client, err := chat.NewClient(model)
 	if err != nil {
 		t.Fatalf("NewClientWithModel: %v", err)
 	}

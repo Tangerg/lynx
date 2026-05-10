@@ -55,7 +55,7 @@ func TestLLMPlanRanker_ReordersByLLMConfidence(t *testing.T) {
   {"id":"plan_2","confidence":0.4,"rationale":"too costly"}
 ]}`
 	model := newStubModel(reply)
-	client, _ := chat.NewClientWithModel(model)
+	client, _ := chat.NewClient(model)
 
 	ranker := autonomy.NewLLMPlanRanker(client, autonomy.LLMPlanRankerConfig{})
 	out, err := ranker.Rank(t.Context(), plans, plan.EmptyWorldState())
@@ -79,7 +79,7 @@ func TestLLMPlanRanker_ReordersByLLMConfidence(t *testing.T) {
 func TestLLMPlanRanker_PreservesOrderForSinglePlan(t *testing.T) {
 	plans := []*plan.Plan{newPlan("only", 1, 1)}
 	model := newStubModel("ignored — never called")
-	client, _ := chat.NewClientWithModel(model)
+	client, _ := chat.NewClient(model)
 	ranker := autonomy.NewLLMPlanRanker(client, autonomy.LLMPlanRankerConfig{})
 
 	out, err := ranker.Rank(t.Context(), plans, plan.EmptyWorldState())
@@ -100,7 +100,7 @@ func TestLLMPlanRanker_PromptContainsPlanSummaries(t *testing.T) {
   {"id":"plan_0","confidence":0.5,"rationale":""},
   {"id":"plan_1","confidence":0.6,"rationale":""}
 ]}`)
-	client, _ := chat.NewClientWithModel(model)
+	client, _ := chat.NewClient(model)
 
 	ranker := autonomy.NewLLMPlanRanker(client, autonomy.LLMPlanRankerConfig{})
 	if _, err := ranker.Rank(t.Context(), plans, plan.EmptyWorldState()); err != nil {

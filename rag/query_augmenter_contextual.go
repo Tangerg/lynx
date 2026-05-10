@@ -56,6 +56,9 @@ type ContextualQueryAugmenterConfig struct {
 
 // validate fills the default templates and rejects invalid configs.
 func (c *ContextualQueryAugmenterConfig) validate() error {
+	if c == nil {
+		return errors.New("rag.ContextualQueryAugmenterConfig: config must not be nil")
+	}
 	if c.PromptTemplate == nil {
 		c.PromptTemplate = chat.NewPromptTemplate(contextualDefaultTemplate)
 	}
@@ -76,7 +79,7 @@ var _ QueryAugmenter = (*ContextualQueryAugmenter)(nil)
 //
 // Example:
 //
-//	aug, _ := rag.NewContextualQueryAugmenter(rag.ContextualQueryAugmenterConfig{})
+//	aug, _ := rag.NewContextualQueryAugmenter(&rag.ContextualQueryAugmenterConfig{})
 //	finalQ, err := aug.Augment(ctx, q, retrievedDocs)
 type ContextualQueryAugmenter struct {
 	promptTemplate             *chat.PromptTemplate
@@ -86,7 +89,7 @@ type ContextualQueryAugmenter struct {
 
 // NewContextualQueryAugmenter builds a [ContextualQueryAugmenter] from
 // cfg. Returns an error when the configuration fails validation.
-func NewContextualQueryAugmenter(cfg ContextualQueryAugmenterConfig) (*ContextualQueryAugmenter, error) {
+func NewContextualQueryAugmenter(cfg *ContextualQueryAugmenterConfig) (*ContextualQueryAugmenter, error) {
 	if err := cfg.validate(); err != nil {
 		return nil, err
 	}

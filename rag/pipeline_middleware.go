@@ -35,7 +35,7 @@ type pipelineMiddleware struct {
 //
 // Example:
 //
-//	callMW, streamMW, err := rag.NewPipelineMiddleware(rag.PipelineConfig{
+//	callMW, streamMW, err := rag.NewPipelineMiddleware(&rag.PipelineConfig{
 //	    DocumentRetrievers: []rag.DocumentRetriever{vsRetriever},
 //	    QueryAugmenter:     contextual,
 //	})
@@ -43,7 +43,7 @@ type pipelineMiddleware struct {
 //	    WithMiddlewares(callMW, streamMW).
 //	    WithText("hi").
 //	    Call().Response(ctx)
-func NewPipelineMiddleware(config PipelineConfig) (chat.CallMiddleware, chat.StreamMiddleware, error) {
+func NewPipelineMiddleware(config *PipelineConfig) (chat.CallMiddleware, chat.StreamMiddleware, error) {
 	pipeline, err := NewPipeline(config)
 	if err != nil {
 		return nil, nil, fmt.Errorf("rag.NewPipelineMiddleware: %w", err)
