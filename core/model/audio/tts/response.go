@@ -14,9 +14,12 @@ func (r *ResultMetadata) ensureExtra() {
 	}
 }
 
-// Get returns the Extra value for key plus an existence flag.
+// Get returns the Extra value for key plus an existence flag. See
+// [chat.Options.Get] for the concurrency contract.
 func (r *ResultMetadata) Get(key string) (any, bool) {
-	r.ensureExtra()
+	if r.Extra == nil {
+		return nil, false
+	}
 	value, exists := r.Extra[key]
 	return value, exists
 }
@@ -69,9 +72,12 @@ func (r *ResponseMetadata) ensureExtra() {
 	}
 }
 
-// Get returns the Extra value for key plus an existence flag.
+// Get returns the Extra value for key plus an existence flag. See
+// [chat.Options.Get] for the concurrency contract.
 func (r *ResponseMetadata) Get(key string) (any, bool) {
-	r.ensureExtra()
+	if r.Extra == nil {
+		return nil, false
+	}
 	value, exists := r.Extra[key]
 	return value, exists
 }
