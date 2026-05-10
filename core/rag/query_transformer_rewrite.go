@@ -51,7 +51,7 @@ func (c *RewriteQueryTransformerConfig) validate() error {
 		c.TargetSearchSystem = defaultRewriteTarget
 	}
 	if c.PromptTemplate == nil {
-		c.PromptTemplate = chat.NewPromptTemplate().WithTemplate(rewriteDefaultTemplate)
+		c.PromptTemplate = chat.NewPromptTemplate(rewriteDefaultTemplate)
 	}
 	return c.PromptTemplate.RequireVariables("Target", "Query")
 }

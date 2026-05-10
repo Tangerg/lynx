@@ -45,7 +45,7 @@ func (c *CompressionQueryTransformerConfig) validate() error {
 		return errors.New("rag.CompressionQueryTransformerConfig: ChatModel is required")
 	}
 	if c.PromptTemplate == nil {
-		c.PromptTemplate = chat.NewPromptTemplate().WithTemplate(compressionDefaultTemplate)
+		c.PromptTemplate = chat.NewPromptTemplate(compressionDefaultTemplate)
 	}
 	return c.PromptTemplate.RequireVariables("History", "Query")
 }

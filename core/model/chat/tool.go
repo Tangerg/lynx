@@ -458,7 +458,7 @@ func (i *toolCallInvoker) invoke(ctx context.Context, req *Request, resp *Respon
 // Example:
 //
 //	support := chat.NewToolSupport()
-//	support.RegisterTools(myTool)
+//	support.Register(myTool)
 //	mw := chat.NewToolMiddleware()
 //	resp, err := client.Chat().
 //	    WithMiddlewares(mw).
@@ -482,13 +482,13 @@ func NewToolSupport(capacityHint ...int) *ToolSupport {
 // Registry exposes the underlying [ToolRegistry] for direct access.
 func (s *ToolSupport) Registry() *ToolRegistry { return s.registry }
 
-// RegisterTools is a shorthand for [ToolRegistry.Register].
-func (s *ToolSupport) RegisterTools(tools ...Tool) {
+// Register is a shorthand for [ToolRegistry.Register].
+func (s *ToolSupport) Register(tools ...Tool) {
 	s.registry.Register(tools...)
 }
 
-// UnregisterTools is a shorthand for [ToolRegistry.Unregister].
-func (s *ToolSupport) UnregisterTools(names ...string) {
+// Unregister is a shorthand for [ToolRegistry.Unregister].
+func (s *ToolSupport) Unregister(names ...string) {
 	s.registry.Unregister(names...)
 }
 

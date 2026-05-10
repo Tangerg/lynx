@@ -64,7 +64,8 @@ func (c *PipelineConfig) validate() error {
 //	    DocumentRetrievers: []rag.DocumentRetriever{retriever},
 //	    QueryAugmenter:     contextual,
 //	})
-//	augmented, docs, err := pipe.Run(ctx, "what is GOAP?")
+//	q, _ := rag.NewQuery("what is GOAP?")
+//	augmented, docs, err := pipe.Execute(ctx, q)
 type Pipeline struct {
 	queryTransformers  []QueryTransformer
 	queryExpander      QueryExpander
@@ -118,16 +119,6 @@ func (p *Pipeline) Execute(ctx context.Context, query *Query) (*Query, []*docume
 		return nil, nil, fmt.Errorf("rag.Pipeline: augment stage: %w", err)
 	}
 	return augmented, refined, nil
-}
-
-// Run is a convenience wrapper that constructs a [Query] from text and
-// invokes [Pipeline.Execute].
-func (p *Pipeline) Run(ctx context.Context, text string) (*Query, []*document.Document, error) {
-	query, err := NewQuery(text)
-	if err != nil {
-		return nil, nil, fmt.Errorf("rag.Pipeline.Run: %w", err)
-	}
-	return p.Execute(ctx, query)
 }
 
 // transformQuery applies each registered [QueryTransformer] in order.

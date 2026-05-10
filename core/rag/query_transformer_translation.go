@@ -48,7 +48,7 @@ func (c *TranslationQueryTransformerConfig) validate() error {
 		return errors.New("rag.TranslationQueryTransformerConfig: TargetLanguage is required")
 	}
 	if c.PromptTemplate == nil {
-		c.PromptTemplate = chat.NewPromptTemplate().WithTemplate(translationDefaultTemplate)
+		c.PromptTemplate = chat.NewPromptTemplate(translationDefaultTemplate)
 	}
 	return c.PromptTemplate.RequireVariables("Target", "Query")
 }

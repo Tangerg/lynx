@@ -8,7 +8,7 @@ import (
 	pkgSlices "github.com/Tangerg/lynx/pkg/slices"
 )
 
-// Default and clamp boundaries for [NewMessageWindowMemory]. The lower
+// Default and clamp boundaries for [NewMessageWindowStore]. The lower
 // bound keeps short windows from completely dropping useful context;
 // the upper bound prevents one runaway caller from starving budget /
 // memory.
@@ -29,18 +29,18 @@ type MessageWindowStore struct {
 	store           Store
 }
 
-// NewMessageWindowMemory wraps storage in a sliding-window decorator.
+// NewMessageWindowStore wraps storage in a sliding-window decorator.
 // limit (optional, default 10) is clamped to [10, 100] to avoid
 // pathological windows. Wrapping a [MessageWindowStore] is a no-op —
 // the existing instance is returned as-is.
 //
 // Example:
 //
-//	base := memory.NewInMemoryMemory()
-//	windowed, err := memory.NewMessageWindowMemory(base, 20)
-func NewMessageWindowMemory(storage Store, limit ...int) (*MessageWindowStore, error) {
+//	base := memory.NewInMemoryStore()
+//	windowed, err := memory.NewMessageWindowStore(base, 20)
+func NewMessageWindowStore(storage Store, limit ...int) (*MessageWindowStore, error) {
 	if storage == nil {
-		return nil, errors.New("memory.NewMessageWindowMemory: storage must not be nil")
+		return nil, errors.New("memory.NewMessageWindowStore: storage must not be nil")
 	}
 
 	// Don't double-wrap.

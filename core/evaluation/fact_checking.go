@@ -44,7 +44,7 @@ func (c *FactCheckingEvaluatorConfig) validate() error {
 		return errors.New("evaluation.FactCheckingEvaluatorConfig: ChatModel is required")
 	}
 	if c.PromptTemplate == nil {
-		c.PromptTemplate = chat.NewPromptTemplate().WithTemplate(factCheckingDefaultTemplate)
+		c.PromptTemplate = chat.NewPromptTemplate(factCheckingDefaultTemplate)
 	}
 	return c.PromptTemplate.RequireVariables("Document", "Claim")
 }

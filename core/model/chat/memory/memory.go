@@ -6,8 +6,8 @@
 //
 // Example:
 //
-//	store := memory.NewInMemoryMemory()
-//	mw, _, err := memory.NewMemoryMiddleware(store)
+//	store := memory.NewInMemoryStore()
+//	mw, _, err := memory.NewMiddleware(store)
 //	resp, err := client.Chat().
 //	    WithParams(map[string]any{memory.ConversationIDKey: "session-123"}).
 //	    WithMiddlewares(mw).
