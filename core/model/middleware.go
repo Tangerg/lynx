@@ -5,20 +5,9 @@ import (
 	"sync"
 )
 
-// CallMiddleware wraps a [CallHandler] with cross-cutting behavior such as
-// logging, retry, caching, or authentication. The signature mirrors common
-// HTTP middleware patterns: take next, return a new handler that delegates.
-//
-// Example:
-//
-//	func loggingMW[Req, Resp any](next CallHandler[Req, Resp]) CallHandler[Req, Resp] {
-//	    return CallHandlerFunc[Req, Resp](func(ctx context.Context, req Req) (Resp, error) {
-//	        log.Printf("call begin: %T", req)
-//	        resp, err := next.Call(ctx, req)
-//	        log.Printf("call end: err=%v", err)
-//	        return resp, err
-//	    })
-//	}
+// CallMiddleware wraps a [CallHandler] with cross-cutting behavior
+// (logging, retry, caching, auth). Standard HTTP-middleware shape:
+// take next, return a wrapping handler that delegates.
 type CallMiddleware[Request any, Response any] func(next CallHandler[Request, Response]) CallHandler[Request, Response]
 
 // StreamMiddleware wraps a [StreamHandler] with cross-cutting behavior.

@@ -144,12 +144,9 @@ func (p *Pipeline) expandQuery(ctx context.Context, query *Query) ([]*Query, err
 	return p.queryExpander.Expand(ctx, query)
 }
 
-// parallelCollect runs fn against each item in parallel, unions the
-// per-item slices into one, and returns it. A partial failure (some
-// items fail, others return slices) returns the partial results
-// rather than the error — the caller chose tolerance by design.
-// The error from g.Wait() is wrapped with errPrefix only when every
-// item failed.
+// parallelCollect runs fn against each item in parallel and unions
+// the per-item slices. Partial failures keep the partial results;
+// the wrapped error surfaces only when every item failed.
 func parallelCollect[Item, Out any](
 	ctx context.Context,
 	items []Item,
