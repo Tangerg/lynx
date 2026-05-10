@@ -72,10 +72,8 @@ type RelevancyEvaluator struct {
 	promptTemplate *chat.PromptTemplate
 }
 
-// NewRelevancyEvaluatorConfig (legacy name for backward compatibility)
-// builds a [RelevancyEvaluator] from config. The naming mismatch is a
-// historical artifact of the original implementation.
-func NewRelevancyEvaluatorConfig(config *RelevancyEvaluatorConfig) (*RelevancyEvaluator, error) {
+// NewRelevancyEvaluator builds a [RelevancyEvaluator] from config.
+func NewRelevancyEvaluator(config *RelevancyEvaluatorConfig) (*RelevancyEvaluator, error) {
 	if err := config.validate(); err != nil {
 		return nil, err
 	}
