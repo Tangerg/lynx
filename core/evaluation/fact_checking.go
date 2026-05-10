@@ -1,7 +1,6 @@
 package evaluation
 
 import (
-	"context"
 	"errors"
 
 	"github.com/Tangerg/lynx/core/model/chat"
@@ -58,8 +57,7 @@ func (c *FactCheckingEvaluatorConfig) validate() error {
 //   - Pass: true when the LLM answers "YES",
 //   - Score: 1.0 for YES, 0.0 otherwise.
 type FactCheckingEvaluator struct {
-	chatClient     *chat.Client
-	promptTemplate *chat.PromptTemplate
+	*llmEvaluator
 }
 
 // NewFactCheckingEvaluator builds a [FactCheckingEvaluator] from
@@ -69,33 +67,18 @@ func NewFactCheckingEvaluator(config *FactCheckingEvaluatorConfig) (*FactCheckin
 	if err := config.validate(); err != nil {
 		return nil, err
 	}
-	client, err := chat.NewClientWithModel(config.ChatModel)
+	base, err := newLLMEvaluator(
+		config.ChatModel,
+		config.PromptTemplate,
+		func(req *Request) map[string]any {
+			return map[string]any{
+				"Document": extractDocuments(req),
+				"Claim":    req.Generation,
+			}
+		},
+	)
 	if err != nil {
 		return nil, err
 	}
-	return &FactCheckingEvaluator{
-		chatClient:     client,
-		promptTemplate: config.PromptTemplate,
-	}, nil
-}
-
-// Evaluate asks the LLM whether req.Generation is supported by the
-// retrieved documents, then returns a YES/NO-shaped [*Response].
-func (f *FactCheckingEvaluator) Evaluate(ctx context.Context, req *Request) (*Response, error) {
-	if req == nil {
-		return nil, errors.New("evaluation.FactCheckingEvaluator.Evaluate: request must not be nil")
-	}
-
-	text, _, err := f.chatClient.
-		ChatWithPromptTemplate(
-			f.promptTemplate.Clone().
-				WithVariable("Document", extractDocuments(req)).
-				WithVariable("Claim", req.Generation),
-		).
-		Call().
-		Text(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return buildResponse(text)
+	return &FactCheckingEvaluator{llmEvaluator: base}, nil
 }

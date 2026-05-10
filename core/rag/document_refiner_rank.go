@@ -1,8 +1,9 @@
 package rag
 
 import (
+	"cmp"
 	"context"
-	"sort"
+	"slices"
 
 	"github.com/Tangerg/lynx/core/document"
 )
@@ -33,11 +34,9 @@ func (r *RankDocumentRefiner) Refine(ctx context.Context, _ *Query, documents []
 		return nil, err
 	}
 
-	sorted := make([]*document.Document, len(documents))
-	copy(sorted, documents)
-
-	sort.Slice(sorted, func(i, j int) bool {
-		return sorted[i].Score > sorted[j].Score
+	sorted := slices.Clone(documents)
+	slices.SortFunc(sorted, func(a, b *document.Document) int {
+		return cmp.Compare(b.Score, a.Score) // descending
 	})
 
 	if len(sorted) > r.topK {

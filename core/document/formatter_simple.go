@@ -50,14 +50,6 @@ func NewSimpleFormatter(config *SimpleFormatterConfig) *SimpleFormatter {
 	if config == nil {
 		config = &SimpleFormatterConfig{}
 	}
-
-	if config.ExcludedInferenceMetadataKeys == nil {
-		config.ExcludedInferenceMetadataKeys = []string{}
-	}
-	if config.ExcludedEmbedMetadataKeys == nil {
-		config.ExcludedEmbedMetadataKeys = []string{}
-	}
-
 	return &SimpleFormatter{
 		excludedInferenceMetadataKeys: config.ExcludedInferenceMetadataKeys,
 		excludedEmbedMetadataKeys:     config.ExcludedEmbedMetadataKeys,
@@ -70,17 +62,19 @@ func NewDefaultSimpleFormatter() *SimpleFormatter {
 }
 
 // Format renders doc by emitting filtered metadata as `key: value` lines
-// followed by a blank line and the document text.
+// followed by a blank line and the document text. With no metadata
+// (filtered empty), the output is just doc.Text — no leading newlines.
 func (s *SimpleFormatter) Format(doc *Document, mode MetadataMode) string {
 	filtered := s.filterMetadataByMode(doc.Metadata, mode)
+	if len(filtered) == 0 {
+		return doc.Text
+	}
 
 	entries := make([]string, 0, len(filtered))
 	for key, value := range filtered {
 		entries = append(entries, key+": "+cast.ToString(value))
 	}
-
-	metadataBlock := strings.Join(entries, "\n")
-	return metadataBlock + "\n\n" + doc.Text
+	return strings.Join(entries, "\n") + "\n\n" + doc.Text
 }
 
 // filterMetadataByMode returns a copy of metadata with the appropriate
