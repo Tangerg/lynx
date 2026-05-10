@@ -83,7 +83,7 @@ func (r *ClientRequest) WithOptions(options *Options) *ClientRequest {
 // from a raw template string. Empty input is ignored.
 func (r *ClientRequest) WithUserPrompt(prompt string) *ClientRequest {
 	if prompt != "" {
-		r.userPromptTemplate = NewPromptTemplate().WithTemplate(prompt)
+		r.userPromptTemplate = NewPromptTemplate(prompt)
 	}
 	return r
 }
@@ -101,7 +101,7 @@ func (r *ClientRequest) WithUserPromptTemplate(template *PromptTemplate) *Client
 // message from a raw template string. Empty input is ignored.
 func (r *ClientRequest) WithSystemPrompt(prompt string) *ClientRequest {
 	if prompt != "" {
-		r.systemPromptTemplate = NewPromptTemplate().WithTemplate(prompt)
+		r.systemPromptTemplate = NewPromptTemplate(prompt)
 	}
 	return r
 }

@@ -60,10 +60,10 @@ func (c *ContextualQueryAugmenterConfig) validate() error {
 		return errors.New("rag.ContextualQueryAugmenterConfig: config must not be nil")
 	}
 	if c.PromptTemplate == nil {
-		c.PromptTemplate = chat.NewPromptTemplate().WithTemplate(contextualDefaultTemplate)
+		c.PromptTemplate = chat.NewPromptTemplate(contextualDefaultTemplate)
 	}
 	if c.EmptyContextPromptTemplate == nil {
-		c.EmptyContextPromptTemplate = chat.NewPromptTemplate().WithTemplate(contextualEmptyContextTemplate)
+		c.EmptyContextPromptTemplate = chat.NewPromptTemplate(contextualEmptyContextTemplate)
 	}
 	return c.PromptTemplate.RequireVariables("Context", "Query")
 }

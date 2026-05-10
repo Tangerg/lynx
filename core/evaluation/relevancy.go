@@ -54,7 +54,7 @@ func (c *RelevancyEvaluatorConfig) validate() error {
 		return errors.New("evaluation.RelevancyEvaluatorConfig: ChatModel is required")
 	}
 	if c.PromptTemplate == nil {
-		c.PromptTemplate = chat.NewPromptTemplate().WithTemplate(relevancyDefaultTemplate)
+		c.PromptTemplate = chat.NewPromptTemplate(relevancyDefaultTemplate)
 	}
 	return c.PromptTemplate.RequireVariables("Query", "Response", "Context")
 }

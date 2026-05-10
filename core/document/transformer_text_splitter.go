@@ -49,9 +49,6 @@ func NewTextSplitter(config *TextSplitterConfig) *TextSplitter {
 	return &TextSplitter{config: config, splitter: splitter}
 }
 
-// NewDefaultTextSplitter is a shorthand for NewTextSplitter(nil).
-func NewDefaultTextSplitter() *TextSplitter { return NewTextSplitter(nil) }
-
 // Transform delegates to the wrapped [Splitter].
 func (t *TextSplitter) Transform(ctx context.Context, docs []*Document) ([]*Document, error) {
 	return t.splitter.Transform(ctx, docs)

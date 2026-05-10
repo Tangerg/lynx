@@ -56,11 +56,6 @@ func NewSimpleFormatter(config *SimpleFormatterConfig) *SimpleFormatter {
 	}
 }
 
-// NewDefaultSimpleFormatter is a shorthand for NewSimpleFormatter(nil).
-func NewDefaultSimpleFormatter() *SimpleFormatter {
-	return NewSimpleFormatter(nil)
-}
-
 // Format renders doc by emitting filtered metadata as `key: value` lines
 // followed by a blank line and the document text. With no metadata
 // (filtered empty), the output is just doc.Text — no leading newlines.

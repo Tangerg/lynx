@@ -8,8 +8,7 @@ import (
 )
 
 func TestPromptTemplate_RenderWithVariable(t *testing.T) {
-	tmpl := chat.NewPromptTemplate().
-		WithTemplate("Hello {{.name}}").
+	tmpl := chat.NewPromptTemplate("Hello {{.name}}").
 		WithVariable("name", "world")
 
 	got, err := tmpl.Render()
@@ -22,8 +21,7 @@ func TestPromptTemplate_RenderWithVariable(t *testing.T) {
 }
 
 func TestPromptTemplate_RenderWithVariables_BulkPlusOverride(t *testing.T) {
-	tmpl := chat.NewPromptTemplate().
-		WithTemplate("{{.a}} {{.b}}").
+	tmpl := chat.NewPromptTemplate("{{.a}} {{.b}}").
 		WithVariables(map[string]any{"a": "1", "b": "2"})
 
 	got, err := tmpl.Render()
@@ -49,7 +47,7 @@ func TestPromptTemplate_RenderWithVariables_BulkPlusOverride(t *testing.T) {
 }
 
 func TestPromptTemplate_RequireVariables(t *testing.T) {
-	tmpl := chat.NewPromptTemplate().WithTemplate("Hello {{.name}}")
+	tmpl := chat.NewPromptTemplate("Hello {{.name}}")
 
 	if err := tmpl.RequireVariables("name"); err != nil {
 		t.Fatalf("present variable should not error: %v", err)
@@ -60,8 +58,7 @@ func TestPromptTemplate_RequireVariables(t *testing.T) {
 }
 
 func TestPromptTemplate_Clone_Isolation(t *testing.T) {
-	a := chat.NewPromptTemplate().
-		WithTemplate("Hello {{.name}}").
+	a := chat.NewPromptTemplate("Hello {{.name}}").
 		WithVariable("name", "alice")
 
 	b := a.Clone()
@@ -87,7 +84,7 @@ func TestPromptTemplate_Clone_NilReceiver(t *testing.T) {
 }
 
 func TestPromptTemplate_CreateUserMessage_IncludesText(t *testing.T) {
-	tmpl := chat.NewPromptTemplate().WithTemplate("Hi")
+	tmpl := chat.NewPromptTemplate("Hi")
 	msg, err := tmpl.CreateUserMessage()
 	if err != nil {
 		t.Fatal(err)
@@ -98,7 +95,7 @@ func TestPromptTemplate_CreateUserMessage_IncludesText(t *testing.T) {
 }
 
 func TestPromptTemplate_CreateSystemMessage_IncludesText(t *testing.T) {
-	tmpl := chat.NewPromptTemplate().WithTemplate("Be brief")
+	tmpl := chat.NewPromptTemplate("Be brief")
 	msg, err := tmpl.CreateSystemMessage()
 	if err != nil {
 		t.Fatal(err)
@@ -110,7 +107,7 @@ func TestPromptTemplate_CreateSystemMessage_IncludesText(t *testing.T) {
 
 func TestPromptTemplate_Render_ErrorWrapping(t *testing.T) {
 	// Empty template body errors at render time.
-	tmpl := chat.NewPromptTemplate()
+	tmpl := chat.NewPromptTemplate("")
 
 	_, err := tmpl.Render()
 	if err == nil {

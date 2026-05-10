@@ -64,7 +64,7 @@ func (c *MultiQueryExpanderConfig) validate() error {
 		c.NumberOfQueries = defaultMultiQueryCount
 	}
 	if c.PromptTemplate == nil {
-		c.PromptTemplate = chat.NewPromptTemplate().WithTemplate(multiExpanderDefaultTemplate)
+		c.PromptTemplate = chat.NewPromptTemplate(multiExpanderDefaultTemplate)
 	}
 	return c.PromptTemplate.RequireVariables("Number", "Query")
 }

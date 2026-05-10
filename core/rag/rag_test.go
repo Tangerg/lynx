@@ -97,7 +97,7 @@ func TestPipeline_HappyPath(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	q, docs, err := pipe.Run(context.Background(), "hi")
+	q, docs, err := pipe.Execute(context.Background(), mustQuery(t, "hi"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -123,7 +123,7 @@ func TestPipeline_TransformerErrorShortCircuits(t *testing.T) {
 		DocumentRetrievers: []rag.DocumentRetriever{retriever},
 	})
 
-	if _, _, err := pipe.Run(context.Background(), "hi"); !errors.Is(err, want) {
+	if _, _, err := pipe.Execute(context.Background(), mustQuery(t, "hi")); !errors.Is(err, want) {
 		t.Fatalf("err = %v", err)
 	}
 	if retriever.hits != 0 {
@@ -141,7 +141,7 @@ func TestPipeline_RetrieverFanInUnionsResults(t *testing.T) {
 		DocumentRetrievers: []rag.DocumentRetriever{r1, r2},
 	})
 
-	_, docs, err := pipe.Run(context.Background(), "hi")
+	_, docs, err := pipe.Execute(context.Background(), mustQuery(t, "hi"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -159,7 +159,7 @@ func TestPipeline_PartialRetrieverFailureReturnsAvailableDocs(t *testing.T) {
 		DocumentRetrievers: []rag.DocumentRetriever{r1, r2},
 	})
 
-	_, docs, err := pipe.Run(context.Background(), "hi")
+	_, docs, err := pipe.Execute(context.Background(), mustQuery(t, "hi"))
 	if err != nil {
 		t.Fatalf("partial failure should not fail the whole pipeline: %v", err)
 	}
@@ -194,4 +194,13 @@ func mustErr[T any](_ T, err error) error {
 		panic("expected an error")
 	}
 	return err
+}
+
+func mustQuery(t *testing.T, text string) *rag.Query {
+	t.Helper()
+	q, err := rag.NewQuery(text)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return q
 }
