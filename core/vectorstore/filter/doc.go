@@ -152,13 +152,13 @@
 // ideal for constructing complex conditions dynamically:
 //
 //	// Simple chain
-//	expr, err := filter.NewBuilder().
+//	expr, err := filter.NewExprBuilder().
 //	    GT("age", 18).
 //	    EQ("status", "active").
 //	    Build()
 //
 //	// Nested conditions with OR
-//	expr, err := filter.NewBuilder().
+//	expr, err := filter.NewExprBuilder().
 //	    GT("age", 18).
 //	    EQ("status", "active").
 //	    Or(func(sub *filter.ExprBuilder) {
@@ -167,7 +167,7 @@
 //	    Build()
 //
 //	// Complex nesting with AND and NOT
-//	expr, err := filter.NewBuilder().
+//	expr, err := filter.NewExprBuilder().
 //	    GT("age", 18).
 //	    And(func(sub *filter.ExprBuilder) {
 //	        sub.EQ("verified", true).
@@ -179,7 +179,7 @@
 //
 //	// Dynamic condition building
 //	func BuildUserFilter(params FilterParams) (ast.Expr, error) {
-//	    builder := filter.NewBuilder()
+//	    builder := filter.NewExprBuilder()
 //
 //	    if params.MinAge > 0 {
 //	        builder.GT("age", params.MinAge)

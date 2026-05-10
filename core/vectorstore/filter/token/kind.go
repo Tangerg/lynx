@@ -43,37 +43,63 @@ const (
 	kindEnd
 )
 
+// category is a bitmask of the structural categories a Kind belongs
+// to. The classification is mostly disjoint, but the helpers
+// [Kind.IsBinaryOperator], [Kind.IsComparisonOperator], and
+// [Kind.IsOperator] are unions over multiple categories below.
+type category uint16
+
+const (
+	catLiteral    category = 1 << iota // STRING / NUMBER / TRUE / FALSE.
+	catEqualityOp                      // ==, !=.
+	catOrderingOp                      // <, <=, >, >=.
+	catLogicalOp                       // AND, OR.
+	catMatchingOp                      // IN, LIKE.
+	catUnaryOp                         // NOT.
+	catDelimiter                       // (, ), [, ], comma.
+)
+
 // kindMetadata is the per-kind data table. Indexed by Kind.
-// Precedence defaults to [PrecedenceLowest] — only operators set it.
+// Precedence defaults to [PrecedenceLowest]; Categories defaults to 0.
 var kindMetadata = [...]*struct {
 	Name       string
 	Literal    string
 	IsKeyword  bool
 	Precedence int
+	Categories category
 }{
 	ERROR:  {Name: "ERROR"},
 	EOF:    {Name: "EOF"},
 	IDENT:  {Name: "IDENT"},
-	NUMBER: {Name: "NUMBER"},
-	STRING: {Name: "STRING"},
-	TRUE:   {Name: "BOOL", Literal: "true", IsKeyword: true},
-	FALSE:  {Name: "BOOL", Literal: "false", IsKeyword: true},
-	EQ:     {Name: "EQ", Literal: "==", Precedence: PrecedenceCMP},
-	NE:     {Name: "NE", Literal: "!=", Precedence: PrecedenceCMP},
-	LT:     {Name: "LT", Literal: "<", Precedence: PrecedenceCMP},
-	LE:     {Name: "LE", Literal: "<=", Precedence: PrecedenceCMP},
-	GT:     {Name: "GT", Literal: ">", Precedence: PrecedenceCMP},
-	GE:     {Name: "GE", Literal: ">=", Precedence: PrecedenceCMP},
-	AND:    {Name: "AND", Literal: "and", IsKeyword: true, Precedence: PrecedenceAND},
-	OR:     {Name: "OR", Literal: "or", IsKeyword: true, Precedence: PrecedenceOR},
-	NOT:    {Name: "NOT", Literal: "not", IsKeyword: true, Precedence: PrecedenceNOT},
-	IN:     {Name: "IN", Literal: "in", IsKeyword: true, Precedence: PrecedenceMatch},
-	LIKE:   {Name: "LIKE", Literal: "like", IsKeyword: true, Precedence: PrecedenceMatch},
-	LPAREN: {Name: "LPAREN", Literal: "("},
-	RPAREN: {Name: "RPAREN", Literal: ")"},
-	LBRACK: {Name: "LBRACK", Literal: "[", Precedence: PrecedenceIndex},
-	RBRACK: {Name: "RBRACK", Literal: "]"},
-	COMMA:  {Name: "COMMA", Literal: ","},
+	NUMBER: {Name: "NUMBER", Categories: catLiteral},
+	STRING: {Name: "STRING", Categories: catLiteral},
+	TRUE:   {Name: "BOOL", Literal: "true", IsKeyword: true, Categories: catLiteral},
+	FALSE:  {Name: "BOOL", Literal: "false", IsKeyword: true, Categories: catLiteral},
+	EQ:     {Name: "EQ", Literal: "==", Precedence: PrecedenceCMP, Categories: catEqualityOp},
+	NE:     {Name: "NE", Literal: "!=", Precedence: PrecedenceCMP, Categories: catEqualityOp},
+	LT:     {Name: "LT", Literal: "<", Precedence: PrecedenceCMP, Categories: catOrderingOp},
+	LE:     {Name: "LE", Literal: "<=", Precedence: PrecedenceCMP, Categories: catOrderingOp},
+	GT:     {Name: "GT", Literal: ">", Precedence: PrecedenceCMP, Categories: catOrderingOp},
+	GE:     {Name: "GE", Literal: ">=", Precedence: PrecedenceCMP, Categories: catOrderingOp},
+	AND:    {Name: "AND", Literal: "and", IsKeyword: true, Precedence: PrecedenceAND, Categories: catLogicalOp},
+	OR:     {Name: "OR", Literal: "or", IsKeyword: true, Precedence: PrecedenceOR, Categories: catLogicalOp},
+	NOT:    {Name: "NOT", Literal: "not", IsKeyword: true, Precedence: PrecedenceNOT, Categories: catUnaryOp},
+	IN:     {Name: "IN", Literal: "in", IsKeyword: true, Precedence: PrecedenceMatch, Categories: catMatchingOp},
+	LIKE:   {Name: "LIKE", Literal: "like", IsKeyword: true, Precedence: PrecedenceMatch, Categories: catMatchingOp},
+	LPAREN: {Name: "LPAREN", Literal: "(", Categories: catDelimiter},
+	RPAREN: {Name: "RPAREN", Literal: ")", Categories: catDelimiter},
+	LBRACK: {Name: "LBRACK", Literal: "[", Precedence: PrecedenceIndex, Categories: catDelimiter},
+	RBRACK: {Name: "RBRACK", Literal: "]", Categories: catDelimiter},
+	COMMA:  {Name: "COMMA", Literal: ",", Categories: catDelimiter},
+}
+
+// hasCategory reports whether k belongs to any of the supplied
+// categories. Invalid kinds belong to none.
+func (k Kind) hasCategory(mask category) bool {
+	if !k.IsValid() {
+		return false
+	}
+	return kindMetadata[k].Categories&mask != 0
 }
 
 // keywordKinds maps lowercase keyword text to its Kind. Built once at
@@ -118,19 +144,9 @@ func (k Kind) Literal() string {
 	return kindMetadata[k].Literal
 }
 
-// String renders the kind as a multi-line debug record.
-func (k Kind) String() string {
-	k.ensureValid()
-	meta := kindMetadata[k]
-	return fmt.Sprintf(
-		`
-Kind {
-  name: %s,
-  literal: %s
-}`,
-		meta.Name, meta.Literal,
-	)
-}
+// String returns the kind's name — same as [Kind.Name], provided so
+// kinds format reasonably in %v / log output.
+func (k Kind) String() string { return k.Name() }
 
 // Is reports whether k equals other — sugar for `k == other` that
 // reads better in switch-style chains.
@@ -138,14 +154,7 @@ func (k Kind) Is(other Kind) bool { return k == other }
 
 // IsLiteral reports whether the kind is a literal value (string,
 // number, true, false).
-func (k Kind) IsLiteral() bool {
-	switch k {
-	case STRING, NUMBER, TRUE, FALSE:
-		return true
-	default:
-		return false
-	}
-}
+func (k Kind) IsLiteral() bool { return k.hasCategory(catLiteral) }
 
 // IsKeyword reports whether the kind is a reserved keyword (cannot
 // be used as an identifier).
@@ -155,77 +164,40 @@ func (k Kind) IsKeyword() bool {
 }
 
 // IsEqualityOperator reports whether the kind is == or !=.
-func (k Kind) IsEqualityOperator() bool {
-	switch k {
-	case EQ, NE:
-		return true
-	default:
-		return false
-	}
-}
+func (k Kind) IsEqualityOperator() bool { return k.hasCategory(catEqualityOp) }
 
 // IsOrderingOperator reports whether the kind is <, <=, >, or >=.
-func (k Kind) IsOrderingOperator() bool {
-	switch k {
-	case LT, LE, GT, GE:
-		return true
-	default:
-		return false
-	}
-}
+func (k Kind) IsOrderingOperator() bool { return k.hasCategory(catOrderingOp) }
 
 // IsComparisonOperator is the union of equality and ordering — every
 // operator that compares two values and yields a boolean.
-func (k Kind) IsComparisonOperator() bool {
-	return k.IsEqualityOperator() || k.IsOrderingOperator()
-}
+func (k Kind) IsComparisonOperator() bool { return k.hasCategory(catEqualityOp | catOrderingOp) }
 
 // IsLogicalOperator reports whether the kind is AND or OR.
-func (k Kind) IsLogicalOperator() bool {
-	switch k {
-	case AND, OR:
-		return true
-	default:
-		return false
-	}
-}
+func (k Kind) IsLogicalOperator() bool { return k.hasCategory(catLogicalOp) }
 
 // IsMatchingOperator reports whether the kind is IN or LIKE.
-func (k Kind) IsMatchingOperator() bool {
-	switch k {
-	case IN, LIKE:
-		return true
-	default:
-		return false
-	}
-}
+func (k Kind) IsMatchingOperator() bool { return k.hasCategory(catMatchingOp) }
 
 // IsBinaryOperator reports whether the kind takes two operands —
 // comparison, logical, or matching.
 func (k Kind) IsBinaryOperator() bool {
-	return k.IsComparisonOperator() || k.IsLogicalOperator() || k.IsMatchingOperator()
+	return k.hasCategory(catEqualityOp | catOrderingOp | catLogicalOp | catMatchingOp)
 }
 
 // IsUnaryOperator reports whether the kind takes one operand — only
 // NOT today.
-func (k Kind) IsUnaryOperator() bool { return k == NOT }
+func (k Kind) IsUnaryOperator() bool { return k.hasCategory(catUnaryOp) }
 
 // IsOperator reports whether the kind is any operator (unary or
 // binary).
 func (k Kind) IsOperator() bool {
-	return k.IsBinaryOperator() || k.IsUnaryOperator()
+	return k.hasCategory(catEqualityOp | catOrderingOp | catLogicalOp | catMatchingOp | catUnaryOp)
 }
 
 // IsDelimiter reports whether the kind is structural punctuation —
 // parens, brackets, commas.
-func (k Kind) IsDelimiter() bool {
-	switch k {
-	case LPAREN, RPAREN, LBRACK, RBRACK, COMMA:
-		return true
-	default:
-		return false
-	}
-}
+func (k Kind) IsDelimiter() bool { return k.hasCategory(catDelimiter) }
 
 // Operator-precedence levels, modeled on PostgreSQL's lexical-syntax
 // table — higher values bind tighter.
@@ -270,7 +242,7 @@ func KindOf(ident string) Kind {
 // hasUpperASCII reports whether s contains any A–Z byte. Cheap test
 // for the all-lowercase fast path in [KindOf].
 func hasUpperASCII(s string) bool {
-	for i := 0; i < len(s); i++ {
+	for i := range len(s) {
 		if c := s[i]; c >= 'A' && c <= 'Z' {
 			return true
 		}
