@@ -432,7 +432,7 @@ func main() {
     defer tp.Shutdown(ctx)
 
     // 2. Agent Platform
-    platform := agent.NewPlatform(runtime.PlatformConfig{
+    platform := agent.NewPlatform(&runtime.PlatformConfig{
         Chat:            chatClient,
         ServiceProvider: &core.ServiceProvider{RAG: ragPipeline},
     })

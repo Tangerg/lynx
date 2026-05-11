@@ -448,7 +448,7 @@ func TestRegisterExtensions(t *testing.T) {
 				}
 
 				// Verify all registrations
-				for ext, _ := range tt.mappings {
+				for ext := range tt.mappings {
 					result := StringTypeByExtension("test" + ext)
 					if result == "" {
 						t.Errorf("Extension %q was not registered", ext)

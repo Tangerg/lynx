@@ -48,9 +48,21 @@ func (b *Builder) Conditions(conditions ...core.Condition) *Builder {
 	return b
 }
 
+// PlannerName selects which [plan.Planner] the runtime will use for
+// this agent — must match the [core.Extension.Name] of a planner
+// registered on the platform (or via process-scope extensions). An
+// empty / unset value resolves to "goap". Built-in names: "goap",
+// "htn", "reactive".
+func (b *Builder) PlannerName(name string) *Builder {
+	b.config.PlannerName = name
+	return b
+}
+
 // Build seals the builder into an immutable *core.Agent. Callers may
-// keep using the builder to construct further agents; each Build()
-// produces a fresh value with its own slices.
+// keep using the builder to construct further agents — Build() copies
+// the accumulated config first so [core.NewAgent]'s default-filling
+// (e.g. Version) doesn't leak back into the builder.
 func (b *Builder) Build() *core.Agent {
-	return core.NewAgent(b.config)
+	cfg := b.config
+	return core.NewAgent(&cfg)
 }

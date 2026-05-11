@@ -1,17 +1,37 @@
 package mcp
 
-import "fmt"
+import (
+	"errors"
+	"fmt"
+)
+
+// Sentinel errors for the input-shape validators. Callers can match
+// these with [errors.Is] to distinguish caller-side input errors from
+// transport, protocol, or remote-tool failures.
+var (
+	// ErrNilConfig is returned when a *Config validator receives nil.
+	ErrNilConfig = errors.New("mcp: config must not be nil")
+
+	// ErrNilServer is returned by [RegisterTools] when server is nil.
+	ErrNilServer = errors.New("mcp: server must not be nil")
+
+	// ErrNilSession is returned when a [Source] or [ToolConfig]
+	// supplies a nil session.
+	ErrNilSession = errors.New("mcp: session must not be nil")
+
+	// ErrNilDescriptor is returned when [ToolConfig] supplies a nil
+	// tool descriptor.
+	ErrNilDescriptor = errors.New("mcp: descriptor must not be nil")
+)
 
 // ToolCallError is returned by [Tool.Call] when a remote MCP tool
-// reports IsError=true. Use errors.As to distinguish a tool-side
+// reports IsError=true. Use [errors.As] to distinguish a tool-side
 // failure from transport, protocol, or argument-decoding errors:
 //
 //	out, err := tool.Call(ctx, args)
-//	var tcErr *mcp.ToolCallError
-//	switch {
-//	case errors.As(err, &tcErr):
+//	if tcErr, ok := errors.AsType[*mcp.ToolCallError](err); ok {
 //	    // remote tool itself failed; surface tcErr.Message
-//	case err != nil:
+//	} else if err != nil {
 //	    // transport / argument failure; retry or alert
 //	}
 type ToolCallError struct {

@@ -52,16 +52,16 @@ type ToolConfig struct {
 
 func (c *ToolConfig) validate() error {
 	if c == nil {
-		return errors.New("tool config must not be nil")
+		return ErrNilConfig
 	}
 	if c.Session == nil {
-		return errors.New("tool config: session must not be nil")
+		return ErrNilSession
 	}
 	if c.Descriptor == nil {
-		return errors.New("tool config: descriptor must not be nil")
+		return ErrNilDescriptor
 	}
 	if c.Descriptor.Name == "" {
-		return errors.New("tool config: descriptor has empty name")
+		return errors.New("mcp.ToolConfig: descriptor has empty name")
 	}
 	if c.PrefixedName == "" {
 		c.PrefixedName = c.Descriptor.Name
@@ -69,17 +69,17 @@ func (c *ToolConfig) validate() error {
 	return nil
 }
 
-// NewTool builds a chat.CallableTool from cfg. cfg.Session must be
+// NewTool builds a [chat.CallableTool] from cfg. cfg.Session must be
 // initialized (returned from (*sdkmcp.Client).Connect) and must outlive
 // the returned Tool.
-func NewTool(cfg ToolConfig) (*Tool, error) {
+func NewTool(cfg *ToolConfig) (*Tool, error) {
 	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
 
 	schema, err := schemaToString(cfg.Descriptor.InputSchema)
 	if err != nil {
-		return nil, fmt.Errorf("convert input schema for tool %q: %w", cfg.Descriptor.Name, err)
+		return nil, fmt.Errorf("mcp.NewTool: convert input schema for tool %q: %w", cfg.Descriptor.Name, err)
 	}
 
 	return &Tool{
@@ -103,13 +103,13 @@ func (t *Tool) Metadata() chat.ToolMetadata     { return t.metadata }
 // schema, icons, …).
 func (t *Tool) Descriptor() *sdkmcp.Tool { return t.descriptor }
 
-// Call implements chat.CallableTool. IsError=true on the remote result
-// is mapped to *ToolCallError so a tool failure is not silently fed
-// back to the model as a successful result.
+// Call implements [chat.CallableTool]. IsError=true on the remote
+// result is mapped to [*ToolCallError] so a tool failure is not
+// silently fed back to the model as a successful result.
 func (t *Tool) Call(ctx context.Context, arguments string) (string, error) {
 	args, err := decodeArguments(arguments)
 	if err != nil {
-		return "", fmt.Errorf("decode arguments for tool %q: %w", t.descriptor.Name, err)
+		return "", fmt.Errorf("mcp.Tool.Call: decode arguments for %q: %w", t.descriptor.Name, err)
 	}
 
 	params := &sdkmcp.CallToolParams{
@@ -124,7 +124,7 @@ func (t *Tool) Call(ctx context.Context, arguments string) (string, error) {
 
 	result, err := t.session.CallTool(ctx, params)
 	if err != nil {
-		return "", fmt.Errorf("call tool %q: %w", t.descriptor.Name, err)
+		return "", fmt.Errorf("mcp.Tool.Call: %q: %w", t.descriptor.Name, err)
 	}
 	if result.IsError {
 		return "", &ToolCallError{

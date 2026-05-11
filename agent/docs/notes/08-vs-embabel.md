@@ -1,5 +1,7 @@
 # 08. 架构对比：lynx/agent vs embabel-agent
 
+> ⚠️ **第二轮对比的快照**——后续 SPI flattening（去 factory 层）让本文部分行项过时。**最新对比看 [`../EMBABEL_GAP_ANALYSIS.md`](../EMBABEL_GAP_ANALYSIS.md)**；本笔记保留作早期分析记录。
+>
 > **对照对象**：embabel-agent v0.4.0-SNAPSHOT (HEAD `da1f1522`)，定位为 Kotlin/JVM、Spring Boot 生态的 GOAP-based agent 框架。
 >
 > 本文档不是「谁更好」的论战，而是把两边在**同一个架构问题上的不同选择**显式列出来。这是第二次深度刷新，重点更新了：

@@ -78,7 +78,8 @@ type fakeBlackboard struct {
 	ok    bool
 }
 
-func (f fakeBlackboard) ID() string { return "fake" }
+func (f fakeBlackboard) Name() string { return "fake-blackboard" }
+func (f fakeBlackboard) ID() string   { return "fake" }
 func (f fakeBlackboard) Get(string) (any, bool) {
 	return f.value, f.ok
 }

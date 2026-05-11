@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+
+	pkgstrings "github.com/Tangerg/lynx/pkg/strings"
 )
 
 // BlackboardReader is the read-only slice of [Blackboard] — passed to
@@ -52,7 +54,7 @@ type BlackboardWriter interface {
 	AddObject(value any)
 
 	// Bind stores under "it" AND derives a second key from the value's type
-	// (e.g. UserInput → "userInput"). Implements embabel 0.4's autonomy
+	// (e.g. UserInput → "user_input"). Implements embabel 0.4's autonomy
 	// dual-binding so YAML/prompt actions can reference inputs by
 	// type-derived names without coupling to the actual variable name.
 	Bind(value any)
@@ -80,12 +82,21 @@ type BlackboardWriter interface {
 // mirrors that: named keys for explicit lookups, an ordered tail for
 // "give me the latest thing of type T" semantics, plus a separate set of
 // explicit conditions.
+//
+// A Blackboard is also a platform [Extension]: register one and the
+// runtime uses [Blackboard.Spawn] to produce a fresh, isolated
+// instance for every new process. The registered value itself is the
+// prototype — it is never read from or written to directly. See
+// PERSISTENCE.md for plugging Redis / SQL / WAL backends.
 type Blackboard interface {
+	Extension
 	BlackboardReader
 	BlackboardWriter
 
 	// Spawn creates a child that starts with a copy of the parent's state.
-	// Mutations on the child do not propagate back. Used by sub-agents.
+	// Mutations on the child do not propagate back. Used by sub-agents
+	// and (since the prototype pattern replaced BlackboardFactory) to
+	// produce the per-process Blackboard at process start.
 	Spawn() Blackboard
 
 	Clear()
@@ -140,9 +151,10 @@ func Last[T any](bb BlackboardReader) (T, bool) {
 	return matches[len(matches)-1], true
 }
 
-// DerivedTypeKey converts a Go reflect type into the variable name used by
-// Bind() for dual-binding. UserInput → "userInput", *Quote → "quote".
-// Empty names (anonymous types) yield the empty string so callers can skip.
+// DerivedTypeKey converts a Go reflect type into the variable name used
+// by Bind() for dual-binding. UserInput → "user_input",
+// *Quote → "quote", HTTPResponse → "http_response". Empty names
+// (anonymous types) yield the empty string so callers can skip.
 func DerivedTypeKey(v any) string {
 	if v == nil {
 		return ""
@@ -160,7 +172,7 @@ func DerivedTypeKey(v any) string {
 	if name == "" {
 		return ""
 	}
-	return strings.ToLower(name[:1]) + name[1:]
+	return string(pkgstrings.AsCamelCase(name).ToSnakeCase())
 }
 
 // InspectInfoString helps custom Blackboard implementations format consistent

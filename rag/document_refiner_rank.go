@@ -8,28 +8,28 @@ import (
 	"github.com/Tangerg/lynx/core/document"
 )
 
-var _ DocumentRefiner = (*RankDocumentRefiner)(nil)
+var _ DocumentRefiner = (*RankRefiner)(nil)
 
-// RankDocumentRefiner sorts documents by [document.Document.Score]
+// RankRefiner sorts documents by [document.Document.Score]
 // descending and keeps the top-K. Use it after retrieval to focus on
 // the strongest matches and bound the prompt budget.
-type RankDocumentRefiner struct {
+type RankRefiner struct {
 	topK int
 }
 
-// NewRankDocumentRefiner builds a [RankDocumentRefiner]. Non-positive
+// NewRankRefiner builds a [RankRefiner]. Non-positive
 // topK falls back to 1 — every retrieval should yield at least one
 // document, never an empty result purely due to a misconfigured cap.
-func NewRankDocumentRefiner(topK int) *RankDocumentRefiner {
+func NewRankRefiner(topK int) *RankRefiner {
 	if topK < 1 {
 		topK = 1
 	}
-	return &RankDocumentRefiner{topK: topK}
+	return &RankRefiner{topK: topK}
 }
 
 // Refine sorts documents by score (descending) and returns at most
 // topK entries. The input slice is not mutated. Honors ctx cancellation.
-func (r *RankDocumentRefiner) Refine(ctx context.Context, _ *Query, documents []*document.Document) ([]*document.Document, error) {
+func (r *RankRefiner) Refine(ctx context.Context, _ *Query, documents []*document.Document) ([]*document.Document, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}

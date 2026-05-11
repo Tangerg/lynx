@@ -99,7 +99,7 @@ func TestDo_Unlimited(t *testing.T) {
 }
 
 func TestDo_ContextCancelled(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	calls := 0
 	err := Do(func() error {
 		calls++
@@ -127,7 +127,7 @@ func TestDo_ContextDeadlineExceeded(t *testing.T) {
 }
 
 func TestDo_PreCancelledContext(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	calls := 0
 	err := Do(func() error { calls++; return nil },

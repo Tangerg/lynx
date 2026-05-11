@@ -93,4 +93,3 @@ func SortByNetValueDesc(plans []*Plan, ws core.WorldState) {
 	}
 	copy(plans, out)
 }
-

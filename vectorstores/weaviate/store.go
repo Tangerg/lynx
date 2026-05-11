@@ -3,7 +3,6 @@ package weaviate
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 
 	"github.com/go-openapi/strfmt"
@@ -31,8 +30,8 @@ const (
 	additionalDistance  = "distance"
 )
 
-// VectorStoreConfig contains configuration options for Weaviate vector store.
-type VectorStoreConfig struct {
+// StoreConfig contains configuration options for Weaviate vector store.
+type StoreConfig struct {
 	// Context is the context for all operations.
 	// Optional: defaults to context.Background() if nil.
 	Context context.Context
@@ -70,24 +69,24 @@ type VectorStoreConfig struct {
 	DistanceMetric string
 }
 
-func (c *VectorStoreConfig) validate() error {
+func (c *StoreConfig) validate() error {
 	if c == nil {
-		return errors.New("weaviate: config is nil")
+		return ErrNilConfig
 	}
 	if c.Context == nil {
 		c.Context = context.Background()
 	}
 	if c.Client == nil {
-		return errors.New("weaviate: client is required")
+		return ErrMissingClient
 	}
 	if c.ClassName == "" {
-		return errors.New("weaviate: class name is required")
+		return ErrMissingClassName
 	}
 	if c.EmbeddingModel == nil {
-		return errors.New("weaviate: embedding model is required")
+		return ErrMissingEmbeddingModel
 	}
 	if c.DocumentBatcher == nil {
-		return errors.New("weaviate: document batcher is required")
+		return ErrMissingDocumentBatcher
 	}
 	if c.DistanceMetric == "" {
 		c.DistanceMetric = "cosine"
@@ -95,11 +94,10 @@ func (c *VectorStoreConfig) validate() error {
 	return nil
 }
 
-var _ vectorstore.VectorStore = (*VectorStore)(nil)
+var _ vectorstore.Store = (*Store)(nil)
 
-type VectorStore struct {
+type Store struct {
 	client               *weaviate.Client
-	embeddingModel       embedding.Model
 	embeddingClient      *embedding.Client
 	documentBatcher      document.Batcher
 	className            string
@@ -108,7 +106,7 @@ type VectorStore struct {
 	storeDocumentContent bool
 }
 
-func NewVectorStore(config *VectorStoreConfig) (*VectorStore, error) {
+func NewStore(config *StoreConfig) (*Store, error) {
 	if err := config.validate(); err != nil {
 		return nil, err
 	}
@@ -118,9 +116,8 @@ func NewVectorStore(config *VectorStoreConfig) (*VectorStore, error) {
 		return nil, fmt.Errorf("weaviate: failed to create embedding client: %w", err)
 	}
 
-	store := &VectorStore{
+	store := &Store{
 		client:               config.Client,
-		embeddingModel:       config.EmbeddingModel,
 		embeddingClient:      embeddingClient,
 		documentBatcher:      config.DocumentBatcher,
 		className:            config.ClassName,
@@ -136,7 +133,7 @@ func NewVectorStore(config *VectorStoreConfig) (*VectorStore, error) {
 	return store, nil
 }
 
-func (v *VectorStore) initialize(ctx context.Context) error {
+func (v *Store) initialize(ctx context.Context) error {
 	if !v.initializeSchema {
 		return nil
 	}
@@ -177,7 +174,7 @@ func (v *VectorStore) initialize(ctx context.Context) error {
 	return nil
 }
 
-func (v *VectorStore) buildObjects(docs []*document.Document, vectors [][]float64) ([]*models.Object, error) {
+func (v *Store) buildObjects(docs []*document.Document, vectors [][]float64) ([]*models.Object, error) {
 	objects := make([]*models.Object, 0, len(docs))
 
 	for i, doc := range docs {
@@ -206,7 +203,7 @@ func (v *VectorStore) buildObjects(docs []*document.Document, vectors [][]float6
 	return objects, nil
 }
 
-func (v *VectorStore) Create(ctx context.Context, req *vectorstore.CreateRequest) error {
+func (v *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) error {
 	if err := req.Validate(); err != nil {
 		return fmt.Errorf("weaviate: invalid create request: %w", err)
 	}
@@ -250,7 +247,7 @@ func (v *VectorStore) Create(ctx context.Context, req *vectorstore.CreateRequest
 	return nil
 }
 
-func (v *VectorStore) buildNearVector(vector []float64, minScore float64) *graphql.NearVectorArgumentBuilder {
+func (v *Store) buildNearVector(vector []float64, minScore float64) *graphql.NearVectorArgumentBuilder {
 	builder := v.client.GraphQL().NearVectorArgBuilder().
 		WithVector(models.C11yVector(math.ConvertSlice[float64, float32](vector)))
 
@@ -262,7 +259,7 @@ func (v *VectorStore) buildNearVector(vector []float64, minScore float64) *graph
 	return builder
 }
 
-func (v *VectorStore) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) ([]*document.Document, error) {
+func (v *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) ([]*document.Document, error) {
 	if err := req.Validate(); err != nil {
 		return nil, fmt.Errorf("weaviate: invalid retrieval request: %w", err)
 	}
@@ -319,7 +316,7 @@ func (v *VectorStore) Retrieve(ctx context.Context, req *vectorstore.RetrievalRe
 	return docs, nil
 }
 
-func (v *VectorStore) buildDocumentsFromResult(result *models.GraphQLResponse) ([]*document.Document, error) {
+func (v *Store) buildDocumentsFromResult(result *models.GraphQLResponse) ([]*document.Document, error) {
 	getData, ok := result.Data["Get"]
 	if !ok {
 		return nil, nil
@@ -381,7 +378,7 @@ func (v *VectorStore) buildDocumentsFromResult(result *models.GraphQLResponse) (
 	return docs, nil
 }
 
-func (v *VectorStore) Delete(ctx context.Context, req *vectorstore.DeleteRequest) error {
+func (v *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) error {
 	if err := req.Validate(); err != nil {
 		return fmt.Errorf("weaviate: invalid delete request: %w", err)
 	}
@@ -402,14 +399,14 @@ func (v *VectorStore) Delete(ctx context.Context, req *vectorstore.DeleteRequest
 	return nil
 }
 
-func (v *VectorStore) Info() vectorstore.StoreInfo {
+func (v *Store) Info() vectorstore.StoreInfo {
 	return vectorstore.StoreInfo{
 		NativeClient: v.client,
 		Provider:     Provider,
 	}
 }
 
-func (v *VectorStore) Close() error {
+func (v *Store) Close() error {
 	// Weaviate HTTP client does not require explicit closing.
 	return nil
 }

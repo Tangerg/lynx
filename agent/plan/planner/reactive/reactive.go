@@ -36,6 +36,10 @@ type Planner struct{}
 // [plan.PlanOptions].
 func NewPlanner() *Planner { return &Planner{} }
 
+// Name is the planner's extension identifier — the value an agent's
+// [core.AgentConfig.PlannerName] must match to select this planner.
+func (p *Planner) Name() string { return "reactive" }
+
 // PlanToGoal scores each applicable action by how many still-
 // unsatisfied goal preconditions its effects would close, picks the
 // best one (ties broken by lower cost), and returns it as a one-action

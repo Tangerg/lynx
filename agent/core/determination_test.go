@@ -8,10 +8,10 @@ import (
 
 func TestDeterminationLogic(t *testing.T) {
 	tests := []struct {
-		name          string
-		a, b          core.Determination
-		want          core.Determination
-		op            string
+		name string
+		a, b core.Determination
+		want core.Determination
+		op   string
 	}{
 		{"true and true", core.True, core.True, core.True, "and"},
 		{"true and false", core.True, core.False, core.False, "and"},

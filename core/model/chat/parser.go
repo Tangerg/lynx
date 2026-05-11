@@ -249,4 +249,3 @@ func WrapParserAsAny[T any](parser StructuredParser[T]) *AnyParser {
 		},
 	}
 }
-

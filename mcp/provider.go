@@ -2,8 +2,8 @@ package mcp
 
 import (
 	"context"
-	"errors"
 	"fmt"
+	"slices"
 	"sync"
 	"sync/atomic"
 
@@ -58,11 +58,11 @@ type ProviderConfig struct {
 
 func (c *ProviderConfig) validate() error {
 	if c == nil {
-		return errors.New("provider config must not be nil")
+		return ErrNilConfig
 	}
 	for i, src := range c.Sources {
 		if src.Session == nil {
-			return fmt.Errorf("provider config: source[%d] %q: session must not be nil", i, src.Name)
+			return fmt.Errorf("mcp.ProviderConfig: source[%d] %q: %w", i, src.Name, ErrNilSession)
 		}
 	}
 	if c.Naming == nil {
@@ -90,14 +90,17 @@ type Provider struct {
 
 // NewProvider creates a Provider from cfg. cfg.Sources may be empty;
 // the returned Provider then exposes an empty tool list.
-func NewProvider(cfg ProviderConfig) (*Provider, error) {
+func NewProvider(cfg *ProviderConfig) (*Provider, error) {
 	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
 	// Defensive copy so post-construction mutation by the caller cannot
 	// affect the Provider.
-	cfg.Sources = append([]Source(nil), cfg.Sources...)
-	return &Provider{cfg: cfg}, nil
+	return &Provider{cfg: ProviderConfig{
+		Sources:  slices.Clone(cfg.Sources),
+		Naming:   cfg.Naming,
+		MetaFunc: cfg.MetaFunc,
+	}}, nil
 }
 
 // Tools returns the cached tool list, fetching it on first use.
@@ -146,22 +149,22 @@ func (p *Provider) refresh(ctx context.Context) ([]chat.Tool, error) {
 	for _, src := range p.cfg.Sources {
 		for descriptor, err := range src.Session.Tools(ctx, nil) {
 			if err != nil {
-				return nil, fmt.Errorf("list tools from source %q: %w", src.Name, err)
+				return nil, fmt.Errorf("mcp.Provider.refresh: list tools from source %q: %w", src.Name, err)
 			}
 
-			tool, err := NewTool(ToolConfig{
+			tool, err := NewTool(&ToolConfig{
 				Session:      src.Session,
 				Descriptor:   descriptor,
 				PrefixedName: p.cfg.Naming(src.Name, descriptor),
 				MetaFunc:     p.cfg.MetaFunc,
 			})
 			if err != nil {
-				return nil, fmt.Errorf("wrap tool %q from source %q: %w", descriptor.Name, src.Name, err)
+				return nil, fmt.Errorf("mcp.Provider.refresh: wrap tool %q from source %q: %w", descriptor.Name, src.Name, err)
 			}
 
 			name := tool.Definition().Name
 			if _, dup := seen[name]; dup {
-				return nil, fmt.Errorf("duplicate tool name after prefixing: %q", name)
+				return nil, fmt.Errorf("mcp.Provider.refresh: duplicate tool name after prefixing: %q", name)
 			}
 			seen[name] = struct{}{}
 			all = append(all, tool)

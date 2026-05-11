@@ -53,7 +53,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	platform := agent.NewPlatform(runtime.PlatformConfig{ChatClient: chatClient})
+	platform := agent.NewPlatform(&runtime.PlatformConfig{ChatClient: chatClient})
 
 	// ---- sub-agents ---------------------------------------------------
 	research := agent.New("research-agent").
@@ -92,8 +92,8 @@ func main() {
 		Description("orchestrates research + summarize via the LLM").
 		Actions(agent.NewAction("brief",
 			func(ctx context.Context, pc *core.ProcessContext, in Topic) (Brief, error) {
-				researchTool := runtime.AsChatTool[Topic, Sources](platform, "research-agent")
-				summarizeTool := runtime.AsChatTool[Sources, Summary](platform, "summarize-agent")
+				researchTool, _ := runtime.AsChatTool[Topic, Sources](platform, "research-agent")
+				summarizeTool, _ := runtime.AsChatTool[Sources, Summary](platform, "summarize-agent")
 
 				callMW, streamMW := chat.NewToolMiddleware()
 				req := pc.Chat().

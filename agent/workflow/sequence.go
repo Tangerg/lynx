@@ -37,25 +37,25 @@ import (
 // via [Platform.CreateChildProcess]; cumulative cost / tokens / action
 // count surface on the parent's [core.Process.Usage].
 //
-// Panics on missing name, fewer than 2 agents, or any nil agent —
-// programming errors that should fail at agent construction.
+// Returns an error on missing name, fewer than 2 agents, or any nil
+// agent — caller decides whether to surface, retry, or panic.
 func Sequence[In, Out any](
 	platform *runtime.Platform,
 	name string,
 	agents ...*core.Agent,
-) *core.Agent {
+) (*core.Agent, error) {
 	if platform == nil {
-		panic("workflow.Sequence: platform must not be nil")
+		return nil, fmt.Errorf("workflow.Sequence: platform must not be nil")
 	}
 	if name == "" {
-		panic("workflow.Sequence: name must not be empty")
+		return nil, fmt.Errorf("workflow.Sequence: name must not be empty")
 	}
 	if len(agents) < 2 {
-		panic("workflow.Sequence: at least 2 agents required")
+		return nil, fmt.Errorf("workflow.Sequence: at least 2 agents required, got %d", len(agents))
 	}
 	for i, a := range agents {
 		if a == nil {
-			panic(fmt.Sprintf("workflow.Sequence: agents[%d] is nil", i))
+			return nil, fmt.Errorf("workflow.Sequence: agents[%d] is nil", i)
 		}
 	}
 
@@ -101,12 +101,12 @@ func Sequence[In, Out any](
 		},
 	)
 
-	return core.NewAgent(core.AgentConfig{
+	return core.NewAgent(&core.AgentConfig{
 		Name:    name,
 		Actions: []core.Action{pipeline},
 		Goals: []*core.Goal{core.GoalProducing[Out](core.Goal{
 			Name:        name,
 			Description: "produce " + core.TypeFullNameOf[Out](),
 		})},
-	})
+	}), nil
 }

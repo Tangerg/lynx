@@ -9,6 +9,17 @@ import (
 	"github.com/Tangerg/lynx/agent/plan/planner/htn"
 )
 
+// mustHTNPlanner is a tiny test helper for the (*Planner, error)
+// shape of htn.NewPlanner — fail the test on a non-nil error.
+func mustHTNPlanner(t *testing.T, lib *htn.Library) *htn.Planner {
+	t.Helper()
+	p, err := htn.NewPlanner(lib)
+	if err != nil {
+		t.Fatalf("htn.NewPlanner: %v", err)
+	}
+	return p
+}
+
 type fakeAction struct {
 	meta core.ActionMetadata
 }
@@ -42,7 +53,7 @@ func TestHTN_PrimitiveTaskEmitsAction(t *testing.T) {
 	g := &core.Goal{Name: "do_thing", Pre: []string{"done"}}
 	system := plan.NewPlanningSystem(nil, []*core.Goal{g}, nil)
 
-	pl, err := htn.NewPlanner(lib).PlanToGoal(t.Context(), plan.EmptyWorldState(), system, g, plan.PlanOptions{})
+	pl, err := mustHTNPlanner(t, lib).PlanToGoal(t.Context(), plan.EmptyWorldState(), system, g, plan.PlanOptions{})
 	if err != nil {
 		t.Fatalf("PlanToGoal: %v", err)
 	}
@@ -64,7 +75,7 @@ func TestHTN_CompoundTaskDecomposesIntoSubtaskOrder(t *testing.T) {
 
 	g := &core.Goal{Name: "build_thing", Pre: []string{"b_done"}}
 	system := plan.NewPlanningSystem(nil, []*core.Goal{g}, nil)
-	pl, _ := htn.NewPlanner(lib).PlanToGoal(t.Context(), plan.EmptyWorldState(), system, g, plan.PlanOptions{})
+	pl, _ := mustHTNPlanner(t, lib).PlanToGoal(t.Context(), plan.EmptyWorldState(), system, g, plan.PlanOptions{})
 	if got := names(pl.Actions); len(got) != 2 || got[0] != "a" || got[1] != "b" {
 		t.Fatalf("expected [a b], got %v", got)
 	}
@@ -82,7 +93,7 @@ func TestHTN_MethodPreconditionGate(t *testing.T) {
 
 	g := &core.Goal{Name: "serve", Pre: []string{"served"}}
 	system := plan.NewPlanningSystem(nil, []*core.Goal{g}, nil)
-	planner := htn.NewPlanner(lib)
+	planner := mustHTNPlanner(t, lib)
 
 	// Without "ready" → falls back to slow.
 	pl, _ := planner.PlanToGoal(t.Context(), plan.EmptyWorldState(), system, g, plan.PlanOptions{})
@@ -105,7 +116,7 @@ func TestHTN_GoalWithoutMatchingTaskReturnsNil(t *testing.T) {
 	g := &core.Goal{Name: "unregistered", Pre: []string{"x"}}
 	system := plan.NewPlanningSystem(nil, []*core.Goal{g}, nil)
 
-	pl, err := htn.NewPlanner(lib).PlanToGoal(t.Context(), plan.EmptyWorldState(), system, g, plan.PlanOptions{})
+	pl, err := mustHTNPlanner(t, lib).PlanToGoal(t.Context(), plan.EmptyWorldState(), system, g, plan.PlanOptions{})
 	if err != nil {
 		t.Fatalf("PlanToGoal: %v", err)
 	}
@@ -151,7 +162,7 @@ func TestHTN_BacktracksWhenFirstMethodSubtaskMissing(t *testing.T) {
 
 	g := &core.Goal{Name: "do", Pre: []string{"done"}}
 	system := plan.NewPlanningSystem(nil, []*core.Goal{g}, nil)
-	_, err := htn.NewPlanner(lib).PlanToGoal(t.Context(), plan.EmptyWorldState(), system, g, plan.PlanOptions{})
+	_, err := mustHTNPlanner(t, lib).PlanToGoal(t.Context(), plan.EmptyWorldState(), system, g, plan.PlanOptions{})
 	if err == nil {
 		t.Fatal("expected error when method references unknown subtask (no silent backtrack on missing names)")
 	}
@@ -168,7 +179,7 @@ func TestHTN_RespectsExclusion(t *testing.T) {
 
 	g := &core.Goal{Name: "do", Pre: []string{"done"}}
 	system := plan.NewPlanningSystem(nil, []*core.Goal{g}, nil)
-	pl, _ := htn.NewPlanner(lib).PlanToGoal(t.Context(), plan.EmptyWorldState(), system, g, plan.PlanOptions{
+	pl, _ := mustHTNPlanner(t, lib).PlanToGoal(t.Context(), plan.EmptyWorldState(), system, g, plan.PlanOptions{
 		ExcludedActions: map[string]struct{}{"primary": {}},
 	})
 	if names(pl.Actions)[0] != "fallback" {
@@ -185,7 +196,7 @@ func TestHTN_BestValuePlanRanksByGoalValue(t *testing.T) {
 	high := &core.Goal{Name: "high_goal", Pre: []string{"y"}, Value: core.Static(10)}
 
 	system := plan.NewPlanningSystem(nil, []*core.Goal{low, high}, nil)
-	pl, _ := plan.BestValuePlan(t.Context(), htn.NewPlanner(lib), plan.EmptyWorldState(), system, plan.PlanOptions{})
+	pl, _ := plan.BestValuePlan(t.Context(), mustHTNPlanner(t, lib), plan.EmptyWorldState(), system, plan.PlanOptions{})
 	if pl.Goal.Name != "high_goal" {
 		t.Fatalf("expected high_goal, got %q", pl.Goal.Name)
 	}

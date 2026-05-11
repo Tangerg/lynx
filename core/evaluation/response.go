@@ -49,10 +49,10 @@ func (r *Response) Set(key string, value any) {
 	r.Metadata[key] = value
 }
 
-// buildResponse maps an LLM YES/NO answer into a [*Response]:
+// parseYesNoResponse maps an LLM YES/NO answer into a [*Response]:
 // pass=true + score=1.0 for "YES" (case-insensitive, whitespace-
 // trimmed), pass=false + score=0.0 otherwise.
-func buildResponse(text string) (*Response, error) {
+func parseYesNoResponse(text string) (*Response, error) {
 	pass := strings.EqualFold(strings.TrimSpace(text), "YES")
 	score := 0.0
 	if pass {

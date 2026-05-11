@@ -36,10 +36,10 @@ var _ ast.Visitor = (*Visitor)(nil)
 //   - Whole-number float64 literals are treated as int for Chroma's typed API
 //   - Fractional values are cast to float32
 type Visitor struct {
-	err               error        // last error encountered during conversion
+	err               error          // last error encountered during conversion
 	result            v2.WhereClause // the Chroma filter clause being built
-	currentFieldKey   string       // temporary storage for field key extraction
-	currentFieldValue any          // temporary storage for field value extraction
+	currentFieldKey   string         // temporary storage for field key extraction
+	currentFieldValue any            // temporary storage for field value extraction
 }
 
 // NewVisitor creates a new Visitor ready to process AST expressions.

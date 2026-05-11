@@ -2,7 +2,7 @@ package anthropic
 
 import (
 	"context"
-	"errors"
+	"slices"
 
 	anthropicsdk "github.com/anthropics/anthropic-sdk-go"
 	"github.com/anthropics/anthropic-sdk-go/option"
@@ -18,16 +18,15 @@ type ApiConfig struct {
 
 func (c *ApiConfig) validate() error {
 	if c == nil {
-		return errors.New("anthropic: config is nil")
+		return ErrNilConfig
 	}
 	if c.ApiKey == nil {
-		return errors.New("anthropic: api key is required")
+		return ErrMissingApiKey
 	}
 	return nil
 }
 
 type Api struct {
-	apiKey model.ApiKey
 	client *anthropicsdk.Client
 }
 
@@ -36,19 +35,18 @@ func NewApi(cfg *ApiConfig) (*Api, error) {
 		return nil, err
 	}
 
-	// ensure apikey at last
-	options := append(cfg.RequestOptions, option.WithAPIKey(cfg.ApiKey.Get()))
-	client := anthropicsdk.NewClient(options...)
+	// Clone caller's slice and append the API-key option last so it
+	// can't be overridden by an earlier WithAPIKey on the original
+	// slice. Cloning prevents append from mutating the caller's
+	// backing array when capacity allows.
+	options := append(slices.Clone(cfg.RequestOptions), option.WithAPIKey(cfg.ApiKey.Get()))
 
-	return &Api{
-		apiKey: cfg.ApiKey,
-		client: &client,
-	}, nil
+	return &Api{client: new(anthropicsdk.NewClient(options...))}, nil
 }
 
 func (a *Api) ChatCompletion(ctx context.Context, req *anthropicsdk.MessageNewParams, opts ...option.RequestOption) (*anthropicsdk.Message, error) {
 	if req == nil {
-		return nil, errors.New("anthropic: request is nil")
+		return nil, ErrNilRequest
 	}
 	return a.client.Messages.New(ctx, *req, opts...)
 }

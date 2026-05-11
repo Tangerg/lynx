@@ -34,9 +34,9 @@ import (
 type (
 	Topic struct{ Title string }
 	Brief struct {
-		Topic     string
-		Sources   []string
-		Summary   string
+		Topic   string
+		Sources []string
+		Summary string
 	}
 )
 
@@ -96,7 +96,7 @@ func main() {
 		Goals(agent.GoalProducing[Brief](core.Goal{Description: "topic brief produced"})).
 		Build()
 
-	platform := agent.NewPlatform(runtime.PlatformConfig{
+	platform := agent.NewPlatform(&runtime.PlatformConfig{
 		ChatClient: chatClient,
 		Extensions: []core.Extension{resolver, &eventLogger{}},
 	})
@@ -247,7 +247,7 @@ func extractJSON(text string) string {
 // eventLogger prints each event one-liner — illustrative only.
 type eventLogger struct{}
 
-func (eventLogger) Name() string                { return "event-logger" }
+func (eventLogger) Name() string { return "event-logger" }
 func (eventLogger) OnEvent(e event.Event) {
 	fmt.Printf("event: %-26s %s\n", e.EventName(), e.ProcessID())
 }

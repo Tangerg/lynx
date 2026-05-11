@@ -38,6 +38,12 @@ func newInMemoryBlackboard() *inMemoryBlackboard {
 	}
 }
 
+// Name identifies the in-memory blackboard implementation. The
+// runtime treats Blackboard as an Extension; the registered prototype's
+// Name() shows up in extension lists / debug output but is otherwise
+// not load-bearing.
+func (b *inMemoryBlackboard) Name() string { return "in-memory-blackboard" }
+
 func (b *inMemoryBlackboard) ID() string { return b.id }
 
 // Set stores under key AND appends to the ordered objects list. The
@@ -62,7 +68,7 @@ func (b *inMemoryBlackboard) Get(key string) (any, bool) {
 // GetValue resolves typed lookups:
 //
 //   - variable == "it" / empty: newest object whose stored type matches typeName.
-//   - variable == "lastResult":  newest object regardless of type.
+//   - variable == "last_result":  newest object regardless of type.
 //   - explicit name:             the value stored at that name, only if its type matches.
 func (b *inMemoryBlackboard) GetValue(variable, typeName string) (any, bool) {
 	b.mu.RLock()
@@ -142,7 +148,7 @@ func (b *inMemoryBlackboard) Objects() []any {
 }
 
 // Bind implements the embabel 0.4 dual-binding behavior: the value lands at
-// "it" AND at a type-derived key (UserInput → "userInput") so prompt
+// "it" AND at a type-derived key (UserInput → "user_input") so prompt
 // templates can refer to it by either name.
 func (b *inMemoryBlackboard) Bind(value any) {
 	b.mu.Lock()

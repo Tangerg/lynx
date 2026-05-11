@@ -16,7 +16,7 @@
 | **组合模型** | **inline 嵌套**：`AsChatTool[In, Out]` 把子 agent 包成 LLM 工具，父 LLM 在一次 tool call 里拿到子 agent 的 typed Out | **explicit transfer**：LLM 调 `transfer_to_agent(name)`，**下一条** user message 路由到目标 agent；不能在一次 turn 内 inline 嵌套 |
 | **Workflow** | **action 级**：`ScatterGather` / `RepeatUntil` / `Consensus` 编织 actions | **agent 级**：`SequentialAgent` / `ParallelAgent` / `LoopAgent` 编织 sub-agents（不走 LLM） |
 | **Streaming** | event 走 `event.Multicast`（fire-and-forget）；调用方 `RunAgent` 同步阻塞 | 顶层 API 直接返回 `iter.Seq2[*Event, error]`；token-by-token streaming + `Partial=true` 标记；client 直接 range |
-| **持久化** | 仅 `BlackboardFactory` 扩展点（按设计不在 framework 内做） | **三个一等服务**：`SessionService` / `MemoryService` / `ArtifactService`，runner 直接依赖 |
+| **持久化** | 仅 `core.Blackboard` extension（prototype + `Spawn()`）（按设计不在 framework 内做） | **三个一等服务**：`SessionService` / `MemoryService` / `ArtifactService`，runner 直接依赖 |
 | **部署形态** | 纯库 | 三个 server frontend：`adkrest`（HTTP）/ `adka2a`（A2A 协议）/ `agentengine`（Vertex AI managed） |
 | **配置** | 纯 typed DSL（`agent.New("x").Actions(...).Build()`） | typed DSL **和** YAML（`internal/configurable`，给 no-code / ops 路径） |
 
@@ -90,7 +90,7 @@ func (p *Platform) RunAgentStream(ctx, agent, bindings, opts) iter.Seq2[event.Ev
 
 ### lynx
 - **Blackboard**（per-process）：typed 对象 + named keys + protected keys + hidden + conditions（[`runtime/in_memory_blackboard.go`](../runtime/in_memory_blackboard.go)）。
-- 跨 process / 跨 session：**没有**。Blackboard 随 process 终止释放。`BlackboardFactory` 扩展点允许换持久化后端，但默认 in-memory。
+- 跨 process / 跨 session：**没有**。Blackboard 随 process 终止释放。注册 `core.Blackboard` extension（prototype + `Spawn()`）可换持久化后端，但默认 in-memory。
 
 ### ADK
 三个独立服务：
@@ -371,7 +371,7 @@ func (n *NamedListener) OnEvent(e Event)
 ### lynx
 [`core/extension.go`](../core/extension.go) + [`runtime/extension.go`](../runtime/extension.go)：
 - 一个 `Extension` 接口（仅 `Name() string`）
-- 9 个 capability 接口：`ActionInterceptor / ToolDecorator / AgentValidator / GoalApprover / BlackboardFactory / EventListener / PlannerFactory / IDGenerator / ToolGroupResolver`
+- 10 个 capability 接口直接嵌它：`ActionInterceptor / ToolDecorator / AgentValidator / GoalApprover / EarlyTerminationPolicy / IDGenerator / ToolGroupResolver`（core）+ `runtime.EventListener` + `plan.Planner`（按 `AgentConfig.PlannerName` 选）+ `core.Blackboard`（prototype + `Spawn()`）
 - 用户实现一个 struct 同时满足多个 capability，runtime 用 type assertion 检测
 - 一个注册入口（`PlatformConfig.Extensions`）
 

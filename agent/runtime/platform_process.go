@@ -7,6 +7,8 @@ import (
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/event"
 	"github.com/Tangerg/lynx/agent/plan"
+	"github.com/Tangerg/lynx/agent/plan/planner/goap"
+	"github.com/Tangerg/lynx/agent/plan/planner/reactive"
 )
 
 // createProcess assembles an AgentProcess and its dependencies
@@ -32,7 +34,7 @@ func (p *Platform) createProcess(
 	blackboard := p.resolveBlackboard(options.Blackboard)
 	bindBlackboardSeed(blackboard, bindings)
 
-	planner, err := p.buildPlanner(agentDef.Name, options.PlannerType)
+	planner, err := p.resolvePlanner(agentDef, options.Extensions)
 	if err != nil {
 		return nil, err
 	}
@@ -82,31 +84,72 @@ func (p *Platform) CreateChildProcess(
 	return child, nil
 }
 
-// buildPlanner asks the configured factory for a planner of the
-// requested type. A nil result is wrapped with an actionable hint
-// instead of nil-deref'ing later.
-func (p *Platform) buildPlanner(agentName string, t core.PlannerType) (plan.Planner, error) {
-	planner := p.plannerFactory().NewPlanner(t)
-	if planner != nil {
+// resolvePlanner finds the [plan.Planner] for agentDef by matching
+// [core.AgentConfig.PlannerName] against registered Planner extensions
+// (process-scope extensions take priority over platform-scope, then
+// the framework default). An empty PlannerName resolves to "goap".
+func (p *Platform) resolvePlanner(agentDef *core.Agent, processExts []core.Extension) (plan.Planner, error) {
+	name := agentDef.PlannerName
+	if name == "" {
+		name = "goap"
+	}
+
+	if planner := findPlannerByName(processExts, name); planner != nil {
 		return planner, nil
 	}
-	hint := ""
-	if t == core.PlannerHTN {
-		hint = " — register a PlannerFactory extension that returns a configured *htn.Planner with your task library"
+	if planner := findPlannerByName(p.extensions.list, name); planner != nil {
+		return planner, nil
 	}
-	return nil, fmt.Errorf("create process for agent %q: planner factory returned nil for %s planner%s", agentName, t, hint)
+	if planner := defaultPlanner(name); planner != nil {
+		return planner, nil
+	}
+
+	hint := ""
+	if name == "htn" {
+		hint = " — register an *htn.Planner extension built with your task library"
+	}
+	return nil, fmt.Errorf("runtime.Platform.resolvePlanner: agent %q requests planner %q which is not registered%s", agentDef.Name, name, hint)
+}
+
+// findPlannerByName walks extensions for a [plan.Planner] whose
+// Name() matches. Returns nil when none matches.
+func findPlannerByName(extensions []core.Extension, name string) plan.Planner {
+	for _, ext := range extensions {
+		planner, ok := ext.(plan.Planner)
+		if !ok {
+			continue
+		}
+		if planner.Name() == name {
+			return planner
+		}
+	}
+	return nil
+}
+
+// defaultPlanner returns the framework's built-in planner for name,
+// or nil if name does not match a framework default. "htn" is not
+// here because it needs a user-supplied task library.
+func defaultPlanner(name string) plan.Planner {
+	switch name {
+	case "goap":
+		return goap.NewAStarPlanner()
+	case "reactive":
+		return reactive.NewPlanner()
+	}
+	return nil
 }
 
 // resolveBlackboard picks the [core.Blackboard] for a fresh process —
-// per-call value wins; otherwise the registered
-// [core.BlackboardFactory] extension; otherwise the built-in
-// in-memory implementation.
+// per-call value wins; otherwise the most-recently-registered
+// [core.Blackboard] extension is used as a prototype, with [Spawn]
+// producing the isolated per-process instance; otherwise the built-in
+// in-memory implementation is constructed fresh.
 func (p *Platform) resolveBlackboard(supplied core.Blackboard) core.Blackboard {
 	if supplied != nil {
 		return supplied
 	}
-	if factory := p.blackboardFactory(); factory != nil {
-		if bb := factory.NewBlackboard(); bb != nil {
+	if prototype := p.blackboardPrototype(); prototype != nil {
+		if bb := prototype.Spawn(); bb != nil {
 			return bb
 		}
 	}

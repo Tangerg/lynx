@@ -1,5 +1,7 @@
 # 01. 整体架构 & Java→Go 差异分析
 
+> ⚠️ **历史设计笔记**——成稿于实现前期，部分 SPI 名称（`PlannerFactory` / `BlackboardProvider`）和签名后被简化（直接嵌入 `core.Extension`）。**当前实现以 [`../EXTENSION_DESIGN.md`](../EXTENSION_DESIGN.md) 和 [`../GUIDE.md`](../GUIDE.md) 为准**。本笔记保留是为了说明设计动机。
+
 ## 1. embabel-agent 架构速览
 
 ```

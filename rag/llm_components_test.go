@@ -56,10 +56,10 @@ func (m *fakeChatModel) Stream(_ context.Context, _ *chat.Request) iter.Seq2[*ch
 	return func(yield func(*chat.Response, error) bool) {}
 }
 
-// --- ContextualQueryAugmenter -------------------------------------------
+// --- ContextualAugmenter -------------------------------------------
 
 func TestContextualAugmenter_RendersDocsAsContext(t *testing.T) {
-	aug, err := rag.NewContextualQueryAugmenter(&rag.ContextualQueryAugmenterConfig{})
+	aug, err := rag.NewContextualAugmenter(&rag.ContextualAugmenterConfig{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -80,7 +80,7 @@ func TestContextualAugmenter_RendersDocsAsContext(t *testing.T) {
 }
 
 func TestContextualAugmenter_EmptyDocs_DefaultRefusal(t *testing.T) {
-	aug, _ := rag.NewContextualQueryAugmenter(&rag.ContextualQueryAugmenterConfig{})
+	aug, _ := rag.NewContextualAugmenter(&rag.ContextualAugmenterConfig{})
 
 	q, _ := rag.NewQuery("hi")
 	got, err := aug.Augment(context.Background(), q, nil)
@@ -93,7 +93,7 @@ func TestContextualAugmenter_EmptyDocs_DefaultRefusal(t *testing.T) {
 }
 
 func TestContextualAugmenter_EmptyDocs_AllowEmptyPassesThrough(t *testing.T) {
-	aug, _ := rag.NewContextualQueryAugmenter(&rag.ContextualQueryAugmenterConfig{
+	aug, _ := rag.NewContextualAugmenter(&rag.ContextualAugmenterConfig{
 		AllowEmptyContext: true,
 	})
 
@@ -108,7 +108,7 @@ func TestContextualAugmenter_EmptyDocs_AllowEmptyPassesThrough(t *testing.T) {
 }
 
 func TestContextualAugmenter_NilQuery(t *testing.T) {
-	aug, _ := rag.NewContextualQueryAugmenter(&rag.ContextualQueryAugmenterConfig{})
+	aug, _ := rag.NewContextualAugmenter(&rag.ContextualAugmenterConfig{})
 	if _, err := aug.Augment(context.Background(), nil, nil); err == nil {
 		t.Fatal("nil query must error")
 	}
@@ -174,11 +174,11 @@ func TestMultiQueryExpanderConfig_RejectsMissingChatModel(t *testing.T) {
 	}
 }
 
-// --- CompressionQueryTransformer ----------------------------------------
+// --- CompressionTransformer ----------------------------------------
 
 func TestCompressionTransformer_UsesChatHistory(t *testing.T) {
 	model := newFakeChatModel(t, "compressed query")
-	tr, err := rag.NewCompressionQueryTransformer(&rag.CompressionQueryTransformerConfig{ChatModel: model})
+	tr, err := rag.NewCompressionTransformer(&rag.CompressionTransformerConfig{ChatModel: model})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -203,7 +203,7 @@ func TestCompressionTransformer_UsesChatHistory(t *testing.T) {
 
 func TestCompressionTransformer_EmptyOutputPreservesOriginal(t *testing.T) {
 	model := newFakeChatModel(t, "")
-	tr, _ := rag.NewCompressionQueryTransformer(&rag.CompressionQueryTransformerConfig{ChatModel: model})
+	tr, _ := rag.NewCompressionTransformer(&rag.CompressionTransformerConfig{ChatModel: model})
 
 	q, _ := rag.NewQuery("orig")
 	got, _ := tr.Transform(context.Background(), q)
@@ -212,11 +212,11 @@ func TestCompressionTransformer_EmptyOutputPreservesOriginal(t *testing.T) {
 	}
 }
 
-// --- RewriteQueryTransformer --------------------------------------------
+// --- RewriteTransformer --------------------------------------------
 
 func TestRewriteTransformer_DefaultsToVectorStoreTarget(t *testing.T) {
 	model := newFakeChatModel(t, "tightened query")
-	tr, _ := rag.NewRewriteQueryTransformer(&rag.RewriteQueryTransformerConfig{ChatModel: model})
+	tr, _ := rag.NewRewriteTransformer(&rag.RewriteTransformerConfig{ChatModel: model})
 
 	q, _ := rag.NewQuery("user input")
 	if _, err := tr.Transform(context.Background(), q); err != nil {
@@ -229,7 +229,7 @@ func TestRewriteTransformer_DefaultsToVectorStoreTarget(t *testing.T) {
 
 func TestRewriteTransformer_HonorsCustomTarget(t *testing.T) {
 	model := newFakeChatModel(t, "tightened")
-	tr, _ := rag.NewRewriteQueryTransformer(&rag.RewriteQueryTransformerConfig{
+	tr, _ := rag.NewRewriteTransformer(&rag.RewriteTransformerConfig{
 		ChatModel:          model,
 		TargetSearchSystem: "elasticsearch",
 	})
@@ -241,11 +241,11 @@ func TestRewriteTransformer_HonorsCustomTarget(t *testing.T) {
 	}
 }
 
-// --- TranslationQueryTransformer ----------------------------------------
+// --- TranslationTransformer ----------------------------------------
 
 func TestTranslationTransformer_RequiresTargetLanguage(t *testing.T) {
 	model := newFakeChatModel(t, "")
-	if _, err := rag.NewTranslationQueryTransformer(&rag.TranslationQueryTransformerConfig{
+	if _, err := rag.NewTranslationTransformer(&rag.TranslationTransformerConfig{
 		ChatModel: model,
 	}); err == nil {
 		t.Fatal("missing TargetLanguage must error")
@@ -254,7 +254,7 @@ func TestTranslationTransformer_RequiresTargetLanguage(t *testing.T) {
 
 func TestTranslationTransformer_TranslatesText(t *testing.T) {
 	model := newFakeChatModel(t, "你好")
-	tr, _ := rag.NewTranslationQueryTransformer(&rag.TranslationQueryTransformerConfig{
+	tr, _ := rag.NewTranslationTransformer(&rag.TranslationTransformerConfig{
 		ChatModel:      model,
 		TargetLanguage: "Chinese",
 	})
@@ -273,7 +273,7 @@ func TestTranslationTransformer_PropagatesError(t *testing.T) {
 	model := newFakeChatModel(t, "")
 	model.err = errors.New("boom")
 
-	tr, _ := rag.NewTranslationQueryTransformer(&rag.TranslationQueryTransformerConfig{
+	tr, _ := rag.NewTranslationTransformer(&rag.TranslationTransformerConfig{
 		ChatModel:      model,
 		TargetLanguage: "English",
 	})

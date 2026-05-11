@@ -2,6 +2,7 @@ package workflow
 
 import (
 	"context"
+	"fmt"
 	"sort"
 
 	"github.com/Tangerg/lynx/agent/core"
@@ -46,16 +47,16 @@ type ConsensusSpec[In, Element any] struct {
 // often. Ties are broken by voter order (the earliest voter whose
 // Key tied for the lead wins).
 //
-// Panics on missing Name / empty Voters / nil Key.
-func Consensus[In, Element any](spec ConsensusSpec[In, Element]) *core.Agent {
+// Returns an error on missing Name / empty Voters / nil Key.
+func Consensus[In, Element any](spec ConsensusSpec[In, Element]) (*core.Agent, error) {
 	if spec.Name == "" {
-		panic("workflow.Consensus: Name must not be empty")
+		return nil, fmt.Errorf("workflow.Consensus: Name must not be empty")
 	}
 	if len(spec.Voters) == 0 {
-		panic("workflow.Consensus: Voters must not be empty")
+		return nil, fmt.Errorf("workflow.Consensus: Voters must not be empty")
 	}
 	if spec.Key == nil {
-		panic("workflow.Consensus: Key must not be nil")
+		return nil, fmt.Errorf("workflow.Consensus: Key must not be nil")
 	}
 
 	return ScatterGather(ScatterGatherSpec[In, Element, Element]{

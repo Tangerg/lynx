@@ -1,5 +1,7 @@
 # 03. 规划引擎 & 执行运行时
 
+> ⚠️ **历史设计笔记**——`PlannerFactory` / `PlannerType` enum / `ProcessControl` 等已在后续重构中移除（详见 [`../EXTENSION_DESIGN.md`](../EXTENSION_DESIGN.md)）。当前 API：`plan.Planner` 直接嵌入 `core.Extension`，agent 通过 `AgentConfig.PlannerName string` 选；`EarlyTerminationPolicy` 也是 `Extension` 子接口（OR-composable）。本笔记保留只为说明初版设计动机。
+>
 > 本文件描述 `AStarGoapPlanner` 和 `AgentProcess` 的 Go 等价实现。
 
 ---

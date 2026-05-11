@@ -14,7 +14,7 @@ const (
 	// LastResultBindingName addresses the single most-recently-added
 	// object regardless of type — mirrors embabel's
 	// @Trigger(lastResult=true) idiom.
-	LastResultBindingName = "lastResult"
+	LastResultBindingName = "last_result"
 )
 
 // IOBinding identifies a typed slot on the blackboard: a variable name plus

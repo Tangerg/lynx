@@ -13,7 +13,7 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 
-	"github.com/Tangerg/lynx/observation/log"
+	"github.com/Tangerg/lynx/otel/log"
 )
 
 // safeBuffer wraps bytes.Buffer with a mutex so concurrent log writes don't race.

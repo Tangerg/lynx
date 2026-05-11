@@ -51,11 +51,13 @@ func (p *AgentProcess) run(ctx context.Context) error {
 }
 
 // validateAgentForRun checks the agent definition against the configured
-// planner. GOAP needs at least one goal to plan toward; without one we'd
-// loop forever returning empty plans.
+// planner. The goap planner needs at least one goal to plan toward;
+// without one we'd loop forever returning empty plans. Other planners
+// (htn, reactive) may have stricter rules of their own — those are
+// reported by PlanToGoal at tick time.
 func (p *AgentProcess) validateAgentForRun() error {
-	if p.options.PlannerType == core.PlannerGOAP && len(p.agent.Goals) == 0 {
-		return fmt.Errorf("run agent %q: GOAP planner requires at least one goal", p.agent.Name)
+	if p.planner.Name() == "goap" && len(p.agent.Goals) == 0 {
+		return fmt.Errorf("run agent %q: goap planner requires at least one goal", p.agent.Name)
 	}
 	return nil
 }
@@ -80,26 +82,29 @@ func (p *AgentProcess) markCancelled(err error) {
 	})
 }
 
-// checkEarlyTermination consults the configured policy and, if it fires,
-// flips the process to StatusTerminated. Returns true when the run loop
-// should exit.
+// checkEarlyTermination asks every applicable [core.EarlyTerminationPolicy]
+// — the implicit Budget-derived policy plus any policy extensions
+// registered at platform or process scope — and terminates the
+// process at the first "yes". Returns true when the run loop should
+// exit.
 func (p *AgentProcess) checkEarlyTermination() bool {
-	policy := p.options.ProcessControl.EarlyTerminationPolicy
-	if policy == nil {
-		return false
+	policies := append(
+		[]core.EarlyTerminationPolicy{core.BudgetPolicy{Budget: p.options.Budget}},
+		collectExtensions[core.EarlyTerminationPolicy](p.combinedExtensions())...,
+	)
+	for _, policy := range policies {
+		stop, reason := policy.ShouldTerminate(p)
+		if !stop {
+			continue
+		}
+		p.state.setStatus(core.StatusTerminated)
+		p.publishEvent(event.ProcessTerminated{
+			BaseEvent: p.baseEvent(),
+			Reason:    reason,
+		})
+		return true
 	}
-
-	stop, reason := policy.ShouldTerminate(p)
-	if !stop {
-		return false
-	}
-
-	p.state.setStatus(core.StatusTerminated)
-	p.publishEvent(event.ProcessTerminated{
-		BaseEvent: p.baseEvent(),
-		Reason:    reason,
-	})
-	return true
+	return false
 }
 
 // publishTerminalEvent dispatches the terminal-state event matching the

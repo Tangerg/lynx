@@ -66,22 +66,22 @@ type LoopSpec[In, Out any] struct {
 // computed-condition + History pattern — substituting "run a sub-agent"
 // for "call a closure".
 //
-// Panics on missing Name, nil Body, or nil Until.
+// Returns an error on missing Name, nil Body, or nil Until.
 func Loop[In, Out any](
 	platform *runtime.Platform,
 	spec LoopSpec[In, Out],
-) *core.Agent {
+) (*core.Agent, error) {
 	if platform == nil {
-		panic("workflow.Loop: platform must not be nil")
+		return nil, fmt.Errorf("workflow.Loop: platform must not be nil")
 	}
 	if spec.Name == "" {
-		panic("workflow.Loop: Name must not be empty")
+		return nil, fmt.Errorf("workflow.Loop: Name must not be empty")
 	}
 	if spec.Body == nil {
-		panic("workflow.Loop: Body must not be nil")
+		return nil, fmt.Errorf("workflow.Loop: Body must not be nil")
 	}
 	if spec.Until == nil {
-		panic("workflow.Loop: Until must not be nil")
+		return nil, fmt.Errorf("workflow.Loop: Until must not be nil")
 	}
 	maxIter := spec.MaxIterations
 	if maxIter <= 0 {
@@ -145,7 +145,7 @@ func Loop[In, Out any](
 		},
 	)
 
-	return core.NewAgent(core.AgentConfig{
+	return core.NewAgent(&core.AgentConfig{
 		Name:        spec.Name,
 		Description: spec.Description,
 		Actions:     []core.Action{iter},
@@ -155,5 +155,5 @@ func Loop[In, Out any](
 			Description: "produce acceptable " + core.TypeFullNameOf[Out](),
 			Pre:         []string{doneKey},
 		})},
-	})
+	}), nil
 }

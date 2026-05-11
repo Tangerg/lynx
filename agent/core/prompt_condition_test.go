@@ -69,7 +69,7 @@ func newStubChatClient(t *testing.T, model chat.Model) *chat.Client {
 
 func TestPromptCondition_YesReplyIsTrue(t *testing.T) {
 	model := newStubModel("Yes, the draft is acceptable.")
-	cond := core.NewPromptCondition(
+	cond, _ := core.NewPromptCondition(
 		"draft_acceptable",
 		newStubChatClient(t, model),
 		func(_ context.Context, _ *core.OperationContext) string {
@@ -89,7 +89,7 @@ func TestPromptCondition_YesReplyIsTrue(t *testing.T) {
 
 func TestPromptCondition_NoReplyIsFalse(t *testing.T) {
 	model := newStubModel("No.")
-	cond := core.NewPromptCondition(
+	cond, _ := core.NewPromptCondition(
 		"x",
 		newStubChatClient(t, model),
 		func(_ context.Context, _ *core.OperationContext) string { return "ok?" },
@@ -103,7 +103,7 @@ func TestPromptCondition_NoReplyIsFalse(t *testing.T) {
 
 func TestPromptCondition_AmbiguousReplyIsUnknown(t *testing.T) {
 	model := newStubModel("Maybe, it depends.")
-	cond := core.NewPromptCondition(
+	cond, _ := core.NewPromptCondition(
 		"x",
 		newStubChatClient(t, model),
 		func(_ context.Context, _ *core.OperationContext) string { return "ok?" },
@@ -117,7 +117,7 @@ func TestPromptCondition_AmbiguousReplyIsUnknown(t *testing.T) {
 
 func TestPromptCondition_LLMErrorDegradesToUnknown(t *testing.T) {
 	model := newStubErrModel(errors.New("transient"))
-	cond := core.NewPromptCondition(
+	cond, _ := core.NewPromptCondition(
 		"x",
 		newStubChatClient(t, model),
 		func(_ context.Context, _ *core.OperationContext) string { return "ok?" },
@@ -130,7 +130,7 @@ func TestPromptCondition_LLMErrorDegradesToUnknown(t *testing.T) {
 }
 
 func TestPromptCondition_CostDefaultsToOne(t *testing.T) {
-	cond := core.NewPromptCondition(
+	cond, _ := core.NewPromptCondition(
 		"x",
 		newStubChatClient(t, newStubModel("yes")),
 		func(_ context.Context, _ *core.OperationContext) string { return "ok?" },
@@ -145,33 +145,33 @@ func TestPromptCondition_CostDefaultsToOne(t *testing.T) {
 	}
 }
 
-func TestPromptCondition_PanicsOnInvalidArgs(t *testing.T) {
+func TestPromptCondition_RejectsInvalidArgs(t *testing.T) {
 	cases := []struct {
 		name string
-		fn   func()
+		fn   func() error
 	}{
-		{"nil client", func() {
-			core.NewPromptCondition("x", nil,
+		{"nil client", func() error {
+			_, err := core.NewPromptCondition("x", nil,
 				func(_ context.Context, _ *core.OperationContext) string { return "" },
 				core.ParseYesNoDetermination)
+			return err
 		}},
-		{"nil prompt", func() {
-			core.NewPromptCondition("x", newStubChatClient(t, newStubModel("yes")),
+		{"nil prompt", func() error {
+			_, err := core.NewPromptCondition("x", newStubChatClient(t, newStubModel("yes")),
 				nil, core.ParseYesNoDetermination)
+			return err
 		}},
-		{"nil parser", func() {
-			core.NewPromptCondition("x", newStubChatClient(t, newStubModel("yes")),
+		{"nil parser", func() error {
+			_, err := core.NewPromptCondition("x", newStubChatClient(t, newStubModel("yes")),
 				func(_ context.Context, _ *core.OperationContext) string { return "" }, nil)
+			return err
 		}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			defer func() {
-				if r := recover(); r == nil {
-					t.Fatal("expected panic")
-				}
-			}()
-			tc.fn()
+			if err := tc.fn(); err == nil {
+				t.Fatal("expected error")
+			}
 		})
 	}
 }

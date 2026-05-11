@@ -52,6 +52,10 @@ func NewAStarPlanner() *AStarPlanner {
 	return &AStarPlanner{maxIterations: defaultMaxIterations}
 }
 
+// Name is the planner's extension identifier — the value an agent's
+// [core.AgentConfig.PlannerName] must match to select this planner.
+func (p *AStarPlanner) Name() string { return "goap" }
+
 // PlanToGoal is the workhorse. It does a forward A* search over world
 // states.
 func (p *AStarPlanner) PlanToGoal(

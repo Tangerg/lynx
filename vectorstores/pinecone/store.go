@@ -2,7 +2,6 @@ package pinecone
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/google/uuid"
@@ -24,8 +23,8 @@ const (
 	payloadDocumentContentKey = "lynx:ai:vectorstore:pinecone:payload_document_content"
 )
 
-// VectorStoreConfig contains configuration options for Pinecone vector store.
-type VectorStoreConfig struct {
+// StoreConfig contains configuration options for Pinecone vector store.
+type StoreConfig struct {
 	// Client is the Pinecone client instance.
 	// Required: must be provided, otherwise initialization will fail.
 	Client *pinecone.Client
@@ -53,36 +52,35 @@ type VectorStoreConfig struct {
 	StoreDocumentContent bool
 }
 
-func (c *VectorStoreConfig) validate() error {
+func (c *StoreConfig) validate() error {
 	if c == nil {
-		return errors.New("pinecone: config is nil")
+		return ErrNilConfig
 	}
 	if c.Client == nil {
-		return errors.New("pinecone: client is required")
+		return ErrMissingClient
 	}
 	if c.IndexHost == "" {
-		return errors.New("pinecone: index host is required")
+		return ErrMissingIndexHost
 	}
 	if c.EmbeddingModel == nil {
-		return errors.New("pinecone: embedding model is required")
+		return ErrMissingEmbeddingModel
 	}
 	if c.DocumentBatcher == nil {
-		return errors.New("pinecone: document batcher is required")
+		return ErrMissingDocumentBatcher
 	}
 	return nil
 }
 
-var _ vectorstore.VectorStore = (*VectorStore)(nil)
+var _ vectorstore.Store = (*Store)(nil)
 
-type VectorStore struct {
+type Store struct {
 	index                *pinecone.IndexConnection
-	embeddingModel       embedding.Model
 	embeddingClient      *embedding.Client
 	documentBatcher      document.Batcher
 	storeDocumentContent bool
 }
 
-func NewVectorStore(cfg *VectorStoreConfig) (*VectorStore, error) {
+func NewStore(cfg *StoreConfig) (*Store, error) {
 	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
@@ -100,16 +98,15 @@ func NewVectorStore(cfg *VectorStoreConfig) (*VectorStore, error) {
 		return nil, fmt.Errorf("pinecone: failed to connect to index at %s: %w", cfg.IndexHost, err)
 	}
 
-	return &VectorStore{
+	return &Store{
 		index:                idx,
-		embeddingModel:       cfg.EmbeddingModel,
 		embeddingClient:      embeddingClient,
 		documentBatcher:      cfg.DocumentBatcher,
 		storeDocumentContent: cfg.StoreDocumentContent,
 	}, nil
 }
 
-func (v *VectorStore) buildVectors(docs []*document.Document, vectors [][]float64) ([]*pinecone.Vector, error) {
+func (v *Store) buildVectors(docs []*document.Document, vectors [][]float64) ([]*pinecone.Vector, error) {
 	result := make([]*pinecone.Vector, len(docs))
 
 	for i, doc := range docs {
@@ -140,7 +137,7 @@ func (v *VectorStore) buildVectors(docs []*document.Document, vectors [][]float6
 	return result, nil
 }
 
-func (v *VectorStore) Create(ctx context.Context, req *vectorstore.CreateRequest) error {
+func (v *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) error {
 	if err := req.Validate(); err != nil {
 		return fmt.Errorf("pinecone: invalid create request: %w", err)
 	}
@@ -173,7 +170,7 @@ func (v *VectorStore) Create(ctx context.Context, req *vectorstore.CreateRequest
 	return nil
 }
 
-func (v *VectorStore) buildDocumentsFromScoredVectors(svs []*pinecone.ScoredVector, minScore float64) ([]*document.Document, error) {
+func (v *Store) buildDocumentsFromScoredVectors(svs []*pinecone.ScoredVector, minScore float64) ([]*document.Document, error) {
 	docs := make([]*document.Document, 0, len(svs))
 
 	for _, sv := range svs {
@@ -207,7 +204,7 @@ func (v *VectorStore) buildDocumentsFromScoredVectors(svs []*pinecone.ScoredVect
 	return docs, nil
 }
 
-func (v *VectorStore) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) ([]*document.Document, error) {
+func (v *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) ([]*document.Document, error) {
 	if err := req.Validate(); err != nil {
 		return nil, fmt.Errorf("pinecone: invalid retrieval request: %w", err)
 	}
@@ -251,7 +248,7 @@ func (v *VectorStore) Retrieve(ctx context.Context, req *vectorstore.RetrievalRe
 	return docs, nil
 }
 
-func (v *VectorStore) Delete(ctx context.Context, req *vectorstore.DeleteRequest) error {
+func (v *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) error {
 	if err := req.Validate(); err != nil {
 		return fmt.Errorf("pinecone: invalid delete request: %w", err)
 	}
@@ -268,13 +265,13 @@ func (v *VectorStore) Delete(ctx context.Context, req *vectorstore.DeleteRequest
 	return nil
 }
 
-func (v *VectorStore) Info() vectorstore.StoreInfo {
+func (v *Store) Info() vectorstore.StoreInfo {
 	return vectorstore.StoreInfo{
 		NativeClient: v.index,
 		Provider:     Provider,
 	}
 }
 
-func (v *VectorStore) Close() error {
+func (v *Store) Close() error {
 	return v.index.Close()
 }

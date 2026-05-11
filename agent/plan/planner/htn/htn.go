@@ -90,26 +90,27 @@ func NewLibrary() *Library { return &Library{tasks: map[string]*Task{}} }
 // name, or both Action and Methods set / both unset.
 func (l *Library) Add(t *Task) error {
 	if t == nil {
-		return errors.New("htn library: task must not be nil")
+		return errors.New("htn.Library.Add: task must not be nil")
 	}
 	if t.Name == "" {
-		return errors.New("htn library: task name must not be empty")
+		return errors.New("htn.Library.Add: task name must not be empty")
 	}
 	if t.Action != nil && len(t.Methods) > 0 {
-		return fmt.Errorf("htn library: task %q has both Action and Methods", t.Name)
+		return fmt.Errorf("htn.Library.Add: task %q has both Action and Methods", t.Name)
 	}
 	if t.Action == nil && len(t.Methods) == 0 {
-		return fmt.Errorf("htn library: task %q has neither Action nor Methods", t.Name)
+		return fmt.Errorf("htn.Library.Add: task %q has neither Action nor Methods", t.Name)
 	}
 	if _, dup := l.tasks[t.Name]; dup {
-		return fmt.Errorf("htn library: duplicate task name %q", t.Name)
+		return fmt.Errorf("htn.Library.Add: duplicate task name %q", t.Name)
 	}
 	l.tasks[t.Name] = t
 	return nil
 }
 
 // MustAdd is the panicking variant of [Library.Add] — convenient at
-// platform-init time where any error is a programming bug.
+// platform-init time where any error is a programming bug. Panic is
+// intentional here (the "Must" prefix is the Go convention for that).
 func (l *Library) MustAdd(t *Task) {
 	if err := l.Add(t); err != nil {
 		panic(err)
@@ -132,12 +133,17 @@ type Planner struct {
 
 // NewPlanner returns an HTN planner backed by library. maxRecursion
 // caps the decomposition depth to guard against cyclic task graphs.
-func NewPlanner(library *Library) *Planner {
+// Returns an error when library is nil.
+func NewPlanner(library *Library) (*Planner, error) {
 	if library == nil {
-		panic("htn.NewPlanner: library must not be nil")
+		return nil, fmt.Errorf("htn.NewPlanner: library must not be nil")
 	}
-	return &Planner{library: library, maxRecursion: defaultMaxRecursion}
+	return &Planner{library: library, maxRecursion: defaultMaxRecursion}, nil
 }
+
+// Name is the planner's extension identifier — the value an agent's
+// [core.AgentConfig.PlannerName] must match to select this planner.
+func (p *Planner) Name() string { return "htn" }
 
 // PlanToGoal decomposes the task whose name matches goal.Name. Goals
 // without a matching task return (nil, nil) so the runtime can fall
@@ -195,7 +201,7 @@ func (p *Planner) decompose(
 		return nil, state, false, err
 	}
 	if depth > p.maxRecursion {
-		return nil, state, false, fmt.Errorf("htn: exceeded max recursion depth %d at task %q", p.maxRecursion, task.Name)
+		return nil, state, false, fmt.Errorf("htn.Planner.decompose: exceeded max recursion depth %d at task %q", p.maxRecursion, task.Name)
 	}
 
 	if task.IsPrimitive() {
@@ -240,7 +246,7 @@ func (p *Planner) tryMethod(
 	for _, subtaskName := range method.Subtasks {
 		sub, ok := p.library.Lookup(subtaskName)
 		if !ok {
-			return nil, state, false, fmt.Errorf("htn: method %q references unknown subtask %q", method.Name, subtaskName)
+			return nil, state, false, fmt.Errorf("htn.Planner.tryMethod: method %q references unknown subtask %q", method.Name, subtaskName)
 		}
 		subActions, next, ok, err := p.decompose(ctx, sub, cur, excluded, depth+1)
 		if err != nil {

@@ -1,5 +1,7 @@
 # 07. 核心数据结构目录（Data Structure Catalog）
 
+> ⚠️ **历史设计笔记**——字段表反映实现前期的设计（`PlannerFactory` / `PlannerType` 等已移除）。**当前结构以代码为准**；如需对照 API，参考 [`../GUIDE.md`](../GUIDE.md) 的 ProcessOptions / AgentConfig 章节。本笔记保留作设计参照。
+>
 > 本文件是 `agent/` module 所有核心类型的**结构化目录**，为实现阶段直接作为参考。
 > 约定：每个类型都列出 **字段 / 不变式 / 线程安全性 / 关键方法签名**。
 > 与 `02-core-abstractions.md` 的关系：那一份侧重「为什么这样设计」，本份侧重「结构长什么样」。

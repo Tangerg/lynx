@@ -10,7 +10,10 @@ import (
 )
 
 func TestTiktoken_EncodeDecode_RoundTrip(t *testing.T) {
-	tk := tokenizer.NewDefaultTiktoken()
+	tk, err := tokenizer.NewDefaultTiktoken()
+	if err != nil {
+		t.Fatal(err)
+	}
 	ctx := context.Background()
 
 	want := "hello world"
@@ -32,7 +35,10 @@ func TestTiktoken_EncodeDecode_RoundTrip(t *testing.T) {
 }
 
 func TestTiktoken_EstimateText(t *testing.T) {
-	tk := tokenizer.NewDefaultTiktoken()
+	tk, err := tokenizer.NewDefaultTiktoken()
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	got, err := tk.EstimateText(context.Background(), "hello world")
 	if err != nil {
@@ -44,7 +50,10 @@ func TestTiktoken_EstimateText(t *testing.T) {
 }
 
 func TestTiktoken_EstimateMedia_Empty(t *testing.T) {
-	tk := tokenizer.NewDefaultTiktoken()
+	tk, err := tokenizer.NewDefaultTiktoken()
+	if err != nil {
+		t.Fatal(err)
+	}
 	got, err := tk.EstimateMedia(context.Background())
 	if err != nil {
 		t.Fatal(err)
@@ -55,7 +64,10 @@ func TestTiktoken_EstimateMedia_Empty(t *testing.T) {
 }
 
 func TestTiktoken_EstimateMedia_String(t *testing.T) {
-	tk := tokenizer.NewDefaultTiktoken()
+	tk, err := tokenizer.NewDefaultTiktoken()
+	if err != nil {
+		t.Fatal(err)
+	}
 	mt, _ := mime.New("text", "plain")
 	m := &media.Media{Data: "hello world", MimeType: mt}
 
@@ -69,7 +81,10 @@ func TestTiktoken_EstimateMedia_String(t *testing.T) {
 }
 
 func TestTiktoken_EstimateMedia_Bytes(t *testing.T) {
-	tk := tokenizer.NewDefaultTiktoken()
+	tk, err := tokenizer.NewDefaultTiktoken()
+	if err != nil {
+		t.Fatal(err)
+	}
 	mt, _ := mime.New("application", "octet-stream")
 	m := &media.Media{Data: []byte("payload"), MimeType: mt}
 
@@ -83,7 +98,10 @@ func TestTiktoken_EstimateMedia_Bytes(t *testing.T) {
 }
 
 func TestTiktoken_EstimateMedia_JSONFallback(t *testing.T) {
-	tk := tokenizer.NewDefaultTiktoken()
+	tk, err := tokenizer.NewDefaultTiktoken()
+	if err != nil {
+		t.Fatal(err)
+	}
 	mt, _ := mime.New("application", "json")
 
 	type payload struct{ V int }

@@ -31,7 +31,7 @@ func (t *fakeTool) Call(_ context.Context, args string) (string, error) {
 
 func TestOnceOnly_FirstCallSucceedsSecondRejects_LoopScope(t *testing.T) {
 	inner := &fakeTool{name: "search", resp: "ok"}
-	wrapped := toolpolicy.OnceOnly(inner)
+	wrapped, _ := toolpolicy.OnceOnly(inner)
 
 	ctx := toolpolicy.LoopScope(context.Background())
 	if _, err := wrapped.Call(ctx, `{"q":"a"}`); err != nil {
@@ -55,7 +55,7 @@ func TestOnceOnly_FirstCallSucceedsSecondRejects_LoopScope(t *testing.T) {
 
 func TestOnceOnly_DifferentScopesAreIndependent(t *testing.T) {
 	inner := &fakeTool{name: "search", resp: "ok"}
-	wrapped := toolpolicy.OnceOnly(inner)
+	wrapped, _ := toolpolicy.OnceOnly(inner)
 
 	ctx1 := toolpolicy.LoopScope(context.Background())
 	ctx2 := toolpolicy.LoopScope(context.Background())
@@ -74,7 +74,7 @@ func TestOnceOnly_DifferentScopesAreIndependent(t *testing.T) {
 
 func TestOnceOnly_FallbackToProcessWideWithoutScope(t *testing.T) {
 	inner := &fakeTool{name: "x", resp: "ok"}
-	wrapped := toolpolicy.OnceOnly(inner)
+	wrapped, _ := toolpolicy.OnceOnly(inner)
 
 	if _, err := wrapped.Call(context.Background(), `{}`); err != nil {
 		t.Fatalf("first call: %v", err)
@@ -85,20 +85,17 @@ func TestOnceOnly_FallbackToProcessWideWithoutScope(t *testing.T) {
 	}
 }
 
-func TestOnceOnly_PanicsOnNilTool(t *testing.T) {
-	defer func() {
-		if r := recover(); r == nil {
-			t.Fatal("expected panic")
-		}
-	}()
-	toolpolicy.OnceOnly(nil)
+func TestOnceOnly_RejectsNilTool(t *testing.T) {
+	if _, err := toolpolicy.OnceOnly(nil); err == nil {
+		t.Fatal("expected error")
+	}
 }
 
 // ---------- Unlocked ----------------------------------------------------
 
 func TestUnlocked_LockedReturnsErr(t *testing.T) {
 	inner := &fakeTool{name: "delete", resp: "deleted"}
-	wrapped := toolpolicy.Unlocked(inner, func(context.Context, string) (bool, string) {
+	wrapped, _ := toolpolicy.Unlocked(inner, func(context.Context, string) (bool, string) {
 		return false, "needs admin auth"
 	})
 
@@ -116,7 +113,7 @@ func TestUnlocked_LockedReturnsErr(t *testing.T) {
 
 func TestUnlocked_UnlockedDelegatesNormally(t *testing.T) {
 	inner := &fakeTool{name: "delete", resp: "deleted"}
-	wrapped := toolpolicy.Unlocked(inner, func(context.Context, string) (bool, string) {
+	wrapped, _ := toolpolicy.Unlocked(inner, func(context.Context, string) (bool, string) {
 		return true, ""
 	})
 
@@ -135,7 +132,7 @@ func TestUnlocked_UnlockedDelegatesNormally(t *testing.T) {
 func TestUnlocked_ConditionSeesArguments(t *testing.T) {
 	var seen string
 	inner := &fakeTool{name: "x", resp: "ok"}
-	wrapped := toolpolicy.Unlocked(inner, func(_ context.Context, args string) (bool, string) {
+	wrapped, _ := toolpolicy.Unlocked(inner, func(_ context.Context, args string) (bool, string) {
 		seen = args
 		return true, ""
 	})
@@ -145,25 +142,24 @@ func TestUnlocked_ConditionSeesArguments(t *testing.T) {
 	}
 }
 
-func TestUnlocked_PanicsOnNilArgs(t *testing.T) {
+func TestUnlocked_RejectsNilArgs(t *testing.T) {
 	for _, tc := range []struct {
 		name string
-		fn   func()
+		fn   func() error
 	}{
-		{"nil tool", func() {
-			toolpolicy.Unlocked(nil, func(context.Context, string) (bool, string) { return true, "" })
+		{"nil tool", func() error {
+			_, err := toolpolicy.Unlocked(nil, func(context.Context, string) (bool, string) { return true, "" })
+			return err
 		}},
-		{"nil condition", func() {
-			toolpolicy.Unlocked(&fakeTool{name: "x"}, nil)
+		{"nil condition", func() error {
+			_, err := toolpolicy.Unlocked(&fakeTool{name: "x"}, nil)
+			return err
 		}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			defer func() {
-				if r := recover(); r == nil {
-					t.Fatal("expected panic")
-				}
-			}()
-			tc.fn()
+			if err := tc.fn(); err == nil {
+				t.Fatal("expected error")
+			}
 		})
 	}
 }
@@ -172,10 +168,15 @@ func TestUnlocked_PanicsOnNilArgs(t *testing.T) {
 
 func TestCompose_OnceOnly_AndUnlock(t *testing.T) {
 	inner := &fakeTool{name: "search", resp: "ok"}
-	gated := toolpolicy.Unlocked(
-		toolpolicy.OnceOnly(inner),
-		func(context.Context, string) (bool, string) { return true, "" },
-	)
+	once, err := toolpolicy.OnceOnly(inner)
+	if err != nil {
+		t.Fatalf("OnceOnly: %v", err)
+	}
+	gated, err := toolpolicy.Unlocked(once,
+		func(context.Context, string) (bool, string) { return true, "" })
+	if err != nil {
+		t.Fatalf("Unlocked: %v", err)
+	}
 
 	ctx := toolpolicy.LoopScope(context.Background())
 	if _, err := gated.Call(ctx, `{}`); err != nil {

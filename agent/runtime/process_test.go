@@ -9,19 +9,11 @@ import (
 	"github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/event"
-	"github.com/Tangerg/lynx/agent/plan"
 	"github.com/Tangerg/lynx/agent/runtime"
 )
 
 type word struct{ Text string }
 type wordCount struct{ Count int }
-
-// nilPlannerFactory is an extension that always returns a nil planner —
-// used to verify createProcess rejects that condition.
-type nilPlannerFactory struct{}
-
-func (nilPlannerFactory) Name() string                                    { return "nil-planner-factory" }
-func (nilPlannerFactory) NewPlanner(core.PlannerType) plan.Planner        { return nil }
 
 // stuckCounter is an EventListener extension that counts ProcessStuck
 // occurrences via the supplied pointer.
@@ -48,7 +40,7 @@ func TestRunSingleAction(t *testing.T) {
 		Goals(agent.GoalProducing[wordCount](core.Goal{Description: "word counted"})).
 		Build()
 
-	platform := agent.NewPlatform(runtime.PlatformConfig{})
+	platform := agent.NewPlatform(&runtime.PlatformConfig{})
 	if err := platform.Deploy(a); err != nil {
 		t.Fatal(err)
 	}
@@ -97,7 +89,7 @@ func TestRunMultiStepPlanning(t *testing.T) {
 		Goals(agent.GoalProducing[stage3](core.Goal{Description: "stage3 produced"})).
 		Build()
 
-	platform := agent.NewPlatform(runtime.PlatformConfig{})
+	platform := agent.NewPlatform(&runtime.PlatformConfig{})
 	if err := platform.Deploy(a); err != nil {
 		t.Fatal(err)
 	}
@@ -124,13 +116,13 @@ func TestRunMultiStepPlanning(t *testing.T) {
 }
 
 func TestRunAgentValidatesBeforeCreatingProcess(t *testing.T) {
-	a := core.NewAgent(core.AgentConfig{
+	a := core.NewAgent(&core.AgentConfig{
 		Name:    "bad",
 		Actions: []core.Action{nil},
 		Goals:   []*core.Goal{{Name: "goal"}},
 	})
 
-	platform := agent.NewPlatform(runtime.PlatformConfig{})
+	platform := agent.NewPlatform(&runtime.PlatformConfig{})
 	proc, err := platform.RunAgent(context.Background(), a, nil, core.ProcessOptions{})
 	if err == nil {
 		t.Fatal("RunAgent should reject invalid agent")
@@ -143,8 +135,9 @@ func TestRunAgentValidatesBeforeCreatingProcess(t *testing.T) {
 	}
 }
 
-func TestRunAgentRejectsNilPlannerFactoryResult(t *testing.T) {
-	a := agent.New("nil-planner").
+func TestRunAgentRejectsUnknownPlannerName(t *testing.T) {
+	a := agent.New("unknown-planner").
+		PlannerName("nonexistent").
 		Actions(agent.NewAction("count",
 			func(ctx context.Context, pc *core.ProcessContext, in word) (wordCount, error) {
 				return wordCount{Count: len(in.Text)}, nil
@@ -154,9 +147,7 @@ func TestRunAgentRejectsNilPlannerFactoryResult(t *testing.T) {
 		Goals(agent.GoalProducing[wordCount](core.Goal{Description: "word counted"})).
 		Build()
 
-	platform := agent.NewPlatform(runtime.PlatformConfig{
-		Extensions: []core.Extension{nilPlannerFactory{}},
-	})
+	platform := agent.NewPlatform(&runtime.PlatformConfig{})
 
 	proc, err := platform.RunAgent(
 		context.Background(), a,
@@ -164,13 +155,13 @@ func TestRunAgentRejectsNilPlannerFactoryResult(t *testing.T) {
 		core.ProcessOptions{},
 	)
 	if err == nil {
-		t.Fatal("RunAgent should reject nil planner")
+		t.Fatal("RunAgent should reject unknown planner name")
 	}
 	if proc != nil {
 		t.Fatalf("process = %v, want nil", proc)
 	}
-	if !strings.Contains(err.Error(), "planner factory returned nil") {
-		t.Fatalf("RunAgent error = %v, want nil planner detail", err)
+	if !strings.Contains(err.Error(), `planner "nonexistent" which is not registered`) {
+		t.Fatalf("RunAgent error = %v, want unregistered-planner detail", err)
 	}
 }
 
@@ -178,7 +169,7 @@ func TestRunAgentPublishesSingleStuckEvent(t *testing.T) {
 	type unusedIn struct{}
 	type unusedOut struct{}
 
-	a := core.NewAgent(core.AgentConfig{
+	a := core.NewAgent(&core.AgentConfig{
 		Name: "stuck",
 		Actions: []core.Action{
 			core.NewAction("unused",
@@ -192,7 +183,7 @@ func TestRunAgentPublishesSingleStuckEvent(t *testing.T) {
 	})
 
 	stuckEvents := 0
-	platform := agent.NewPlatform(runtime.PlatformConfig{
+	platform := agent.NewPlatform(&runtime.PlatformConfig{
 		Extensions: []core.Extension{
 			stuckCounter{count: &stuckEvents},
 		},
@@ -226,7 +217,7 @@ func TestRunAgentMarksCancelledDuringActionAsKilled(t *testing.T) {
 		Goals(agent.GoalProducing[out](core.Goal{Description: "cancelled"})).
 		Build()
 
-	platform := agent.NewPlatform(runtime.PlatformConfig{})
+	platform := agent.NewPlatform(&runtime.PlatformConfig{})
 	proc, err := platform.RunAgent(
 		ctx, a,
 		map[string]any{core.DefaultBindingName: word{Text: "lynx"}},

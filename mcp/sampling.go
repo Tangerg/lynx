@@ -31,14 +31,15 @@ type SamplingHandler = func(context.Context, *sdkmcp.CreateMessageRequest) (*sdk
 // and lynx defers to the chat.Client's configured defaults.
 //
 // Concurrency is not bounded — wrap the returned handler with your own
-// semaphore if your model quota requires it. Panics if client is nil.
-func SamplingViaChatClient(client *chat.Client) SamplingHandler {
+// semaphore if your model quota requires it. Returns an error when
+// client is nil — caller decides whether to surface or panic.
+func SamplingViaChatClient(client *chat.Client) (SamplingHandler, error) {
 	if client == nil {
-		panic("mcp: nil chat.Client")
+		return nil, fmt.Errorf("mcp.SamplingViaChatClient: chat.Client must not be nil")
 	}
 	return func(ctx context.Context, req *sdkmcp.CreateMessageRequest) (*sdkmcp.CreateMessageResult, error) {
 		if req == nil || req.Params == nil {
-			return nil, fmt.Errorf("sampling request: params must not be nil")
+			return nil, fmt.Errorf("mcp.SamplingViaChatClient: sampling request params must not be nil")
 		}
 
 		chatReq := client.Chat().WithMessages(samplingMessagesToChat(req.Params.Messages)...)
@@ -48,10 +49,10 @@ func SamplingViaChatClient(client *chat.Client) SamplingHandler {
 
 		resp, err := chatReq.Call().Response(ctx)
 		if err != nil {
-			return nil, fmt.Errorf("sample via chat: %w", err)
+			return nil, fmt.Errorf("mcp.SamplingViaChatClient: sample via chat: %w", err)
 		}
 		return chatResponseToSamplingResult(resp), nil
-	}
+	}, nil
 }
 
 func samplingMessagesToChat(messages []*sdkmcp.SamplingMessage) []chat.Message {
@@ -60,21 +61,15 @@ func samplingMessagesToChat(messages []*sdkmcp.SamplingMessage) []chat.Message {
 		if msg == nil {
 			continue
 		}
-		text := textOfContent(msg.Content)
-		if text == "" {
-			continue
-		}
-		if string(msg.Role) == "assistant" {
-			out = append(out, chat.NewAssistantMessage(text))
-		} else {
-			out = append(out, chat.NewUserMessage(text))
+		if converted := chatMessageFromContent(msg.Role, msg.Content); converted != nil {
+			out = append(out, converted)
 		}
 	}
 	return out
 }
 
 func chatResponseToSamplingResult(resp *chat.Response) *sdkmcp.CreateMessageResult {
-	text, stop := "", "endTurn"
+	text, stop := "", "end_turn"
 	if resp != nil {
 		if r := resp.Result(); r != nil {
 			if r.AssistantMessage != nil {
@@ -95,11 +90,11 @@ func chatResponseToSamplingResult(resp *chat.Response) *sdkmcp.CreateMessageResu
 func mapStopReason(r chat.FinishReason) string {
 	switch r {
 	case chat.FinishReasonStop:
-		return "endTurn"
+		return "end_turn"
 	case chat.FinishReasonLength:
-		return "maxTokens"
+		return "max_tokens"
 	case chat.FinishReasonToolCalls:
-		return "toolUse"
+		return "tool_use"
 	default:
 		return string(r)
 	}

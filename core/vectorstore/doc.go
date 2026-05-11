@@ -6,7 +6,7 @@
 //   - [Retriever] finds similar documents by query + metadata filter.
 //   - [Deleter] removes documents matching a metadata filter.
 //
-// The full [VectorStore] interface composes all three. Provider
+// The full [Store] interface composes all three. Provider
 // packages live under github.com/Tangerg/lynx/vectorstores/<name>.
 //
 // Request shapes:

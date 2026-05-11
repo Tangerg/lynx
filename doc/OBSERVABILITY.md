@@ -2,7 +2,7 @@
 
 > Lynx **直接使用 OpenTelemetry API**，不自造观测抽象。OTel 本身就是厂商中立层，再加一层是重复建设。
 >
-> **当前状态**：`observation/slog` + `observation/log` 两个 SpanExporter 已实现；**核心代码尚未挂上任何 `otel.Tracer(...)` 埋点**——即「接收器就绪、源头未启动」。
+> **当前状态**：`otel/slog` + `otel/log` 两个 SpanExporter 已实现；**核心代码尚未挂上任何 `otel.Tracer(...)` 埋点**——即「接收器就绪、源头未启动」。
 
 ---
 
@@ -18,7 +18,7 @@
 | 依赖成本 | API 包（`go.opentelemetry.io/otel/trace`）只含接口 + noop，不拉 gRPC；SDK 包才是重的，但只在用户 app 引入 |
 | 零配置行为 | 不调 `otel.SetTracerProvider(...)` = 自动 noop，真·零开销 |
 
-**结论**：`core/` 直接 import OTel API 包，不建 `core/observation/` 自造抽象，不建 `observations/` 外部 module。
+**结论**：`core/` 直接 import OTel API 包，不建 `core/observation/` 自造抽象，不建 `otel/` 外部 module。
 
 ### 1.2 设计原则
 
@@ -45,7 +45,7 @@
 | 档位 | 装什么 | `go.sum` 影响 |
 |-----|-------|-------------|
 | 纯用 Lynx 库，不观测 | 只装 `core/` 等 | `go.opentelemetry.io/otel`（API 包，仅接口 + noop，~10KB）|
-| 开发态看 span（slog）| + `observation/slog` | 拉入 OTel SDK 依赖（仅此 module 的 go.sum）|
+| 开发态看 span（slog）| + `otel/slog` | 拉入 OTel SDK 依赖（仅此 module 的 go.sum）|
 | 生产 OTel + Jaeger/Tempo | + `go.opentelemetry.io/otel/sdk` + OTLP exporter | OTel 全家桶（gRPC、protobuf）|
 
 **关键**：
@@ -289,7 +289,7 @@ func main() {
 
 > 独立外部 module，不污染 core。两个 exporter 都已实现并有单测。
 
-### 6.1 `observation/slog`：开发态看 span
+### 6.1 `otel/slog`：开发态看 span
 
 把 OTel span 写进 `log/slog`：
 
@@ -298,7 +298,7 @@ import (
     stdslog "log/slog"
     "go.opentelemetry.io/otel"
     sdktrace "go.opentelemetry.io/otel/sdk/trace"
-    "github.com/Tangerg/lynx/observation/slog"
+    "github.com/Tangerg/lynx/otel/slog"
 )
 
 func main() {
@@ -330,7 +330,7 @@ time=... level=ERROR msg="span (error): timeout after 30s" trace_id=...
 
 父子 span 通过 `parent_span_id` 关联，重建调用链。
 
-### 6.2 `observation/log`：stdlib log 版
+### 6.2 `otel/log`：stdlib log 版
 
 logfmt 风格单行输出，依赖更少（不需要 slog）。
 
@@ -338,7 +338,7 @@ logfmt 风格单行输出，依赖更少（不需要 slog）。
 
 | 场景 | 推荐 |
 |-----|-----|
-| 单机开发、快速看调用 | `observation/slog`（与业务日志同一路径）|
+| 单机开发、快速看调用 | `otel/slog`（与业务日志同一路径）|
 | 看官方格式、不与业务日志融合 | OTel 官方 `stdouttrace` |
 | 生产保留 trace 结构 | OTLP → Jaeger / Tempo |
 | 生产按指标监控 | Prometheus pull（metric exporter，不是 span）|
@@ -381,8 +381,8 @@ otel.SetTracerProvider(tp)
 
 ### 8.1 已就绪（接收侧）
 
-- [x] `observation/slog/`：5 项单测
-- [x] `observation/log/`：6 项单测（logfmt 风格）
+- [x] `otel/slog/`：5 项单测
+- [x] `otel/log/`：6 项单测（logfmt 风格）
 
 ### 8.2 待动工（发射侧）
 
@@ -403,7 +403,7 @@ otel.SetTracerProvider(tp)
 ### 8.4 不做的事
 
 - ❌ 不写 `observation.Registry` 接口
-- ❌ 不建 `observations/` 外部 module
+- ❌ 不建 `otel/` 外部 module
 - ❌ 不自己写 `Convention` / `Adapter` 抽象
 - ❌ 不提供 Prometheus metrics exporter（生产用户自己配 OTel metric SDK + prom exporter）
 

@@ -12,7 +12,7 @@
 //	    stdslog "log/slog"
 //	    "go.opentelemetry.io/otel"
 //	    sdktrace "go.opentelemetry.io/otel/sdk/trace"
-//	    "github.com/Tangerg/lynx/observation/slog"
+//	    "github.com/Tangerg/lynx/otel/slog"
 //	)
 //
 //	tp := sdktrace.NewTracerProvider(
@@ -21,7 +21,7 @@
 //	otel.SetTracerProvider(tp)
 //	defer tp.Shutdown(context.Background())
 //
-// Note: this package is named `slog` to match the otelbridge/<backend>
+// Note: this package is named `slog` to match the otel/<backend>
 // convention. Callers that also import the standard library's `log/slog`
 // must alias one of them (commonly `stdslog "log/slog"`) to avoid the
 // name collision.

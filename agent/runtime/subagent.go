@@ -35,14 +35,18 @@ import (
 //
 // Example:
 //
-//	tools := []chat.Tool{
-//	    runtime.AsChatTool[Topic, Brief](platform, "research-agent"),
-//	    runtime.AsChatTool[Brief, BlogPost](platform, "writer-agent"),
-//	}
+//	tool, _ := runtime.AsChatTool[Topic, Brief](platform, "research-agent")
+//	tools := []chat.Tool{tool}
 //	req, _ := pc.Chat().WithTools(tools...).Call().Text(ctx)
-func AsChatTool[In, Out any](platform *Platform, agentName string) chat.CallableTool {
-	agentDef := mustFindAgent("AsChatTool", platform, agentName)
-	return newTypedAgentTool[In, Out]("subagent", platform, agentDef, SpawnChild)
+//
+// Returns an error when platform is nil, agentName is empty, or the
+// agent is not registered.
+func AsChatTool[In, Out any](platform *Platform, agentName string) (chat.CallableTool, error) {
+	agentDef, err := findAgent("AsChatTool", platform, agentName)
+	if err != nil {
+		return nil, err
+	}
+	return newTypedAgentTool[In, Out]("subagent", platform, agentDef, SpawnChild), nil
 }
 
 // AsChatToolFromAgent is the [AsChatTool] sibling that takes a
@@ -54,10 +58,12 @@ func AsChatTool[In, Out any](platform *Platform, agentName string) chat.Callable
 // platform — child processes spawned from it land on platform.procs
 // the same way [AsChatTool] does.
 //
-// Panics on nil platform or nil agent.
-func AsChatToolFromAgent[In, Out any](platform *Platform, agentDef *core.Agent) chat.CallableTool {
-	mustValidateAgent("AsChatToolFromAgent", platform, agentDef)
-	return newTypedAgentTool[In, Out]("subagent", platform, agentDef, SpawnChild)
+// Returns an error when platform or agent is nil.
+func AsChatToolFromAgent[In, Out any](platform *Platform, agentDef *core.Agent) (chat.CallableTool, error) {
+	if err := validateAgent("AsChatToolFromAgent", platform, agentDef); err != nil {
+		return nil, err
+	}
+	return newTypedAgentTool[In, Out]("subagent", platform, agentDef, SpawnChild), nil
 }
 
 // AsMCPTool is the top-level companion to [AsChatTool]: it wraps a
@@ -79,9 +85,12 @@ func AsChatToolFromAgent[In, Out any](platform *Platform, agentDef *core.Agent) 
 // Suspended (HITL) runs surface the same JSON "status: waiting"
 // payload [AsChatTool] uses, so an MCP host can decide to drive the
 // process via [Platform.ResumeProcess] out of band.
-func AsMCPTool[In, Out any](platform *Platform, agentName string) chat.CallableTool {
-	agentDef := mustFindAgent("AsMCPTool", platform, agentName)
-	return newTypedAgentTool[In, Out]("publish agent", platform, agentDef, RunFresh)
+func AsMCPTool[In, Out any](platform *Platform, agentName string) (chat.CallableTool, error) {
+	agentDef, err := findAgent("AsMCPTool", platform, agentName)
+	if err != nil {
+		return nil, err
+	}
+	return newTypedAgentTool[In, Out]("publish agent", platform, agentDef, RunFresh), nil
 }
 
 // processStarter is the shape both [SpawnChild] and [RunFresh]
@@ -139,30 +148,31 @@ func newTypedAgentTool[In, Out any](
 	}
 }
 
-// mustFindAgent looks the agent up by name and panics — at construction
-// time, not on the first LLM tool call — when the registration is
-// missing. Shared between [AsChatTool] / [AsMCPTool].
-func mustFindAgent(label string, platform *Platform, name string) *core.Agent {
+// findAgent looks the agent up by name. Used by [AsChatTool] /
+// [AsMCPTool] — returns an error when the platform is nil, name is
+// empty, or the agent isn't registered.
+func findAgent(label string, platform *Platform, name string) (*core.Agent, error) {
 	if platform == nil {
-		panic(fmt.Sprintf("runtime.%s: platform must not be nil", label))
+		return nil, fmt.Errorf("runtime.%s: platform must not be nil", label)
 	}
 	if name == "" {
-		panic(fmt.Sprintf("runtime.%s: agentName must not be empty", label))
+		return nil, fmt.Errorf("runtime.%s: agentName must not be empty", label)
 	}
 	agentDef, ok := platform.FindAgent(name)
 	if !ok {
-		panic(fmt.Sprintf("runtime.%s: agent %q not registered on platform", label, name))
+		return nil, fmt.Errorf("runtime.%s: agent %q not registered on platform", label, name)
 	}
-	return agentDef
+	return agentDef, nil
 }
 
-// mustValidateAgent is the [AsChatToolFromAgent] companion: same nil
-// checks as [mustFindAgent] minus the registry lookup.
-func mustValidateAgent(label string, platform *Platform, agentDef *core.Agent) {
+// validateAgent is the [AsChatToolFromAgent] companion: same nil
+// checks as [findAgent] minus the registry lookup.
+func validateAgent(label string, platform *Platform, agentDef *core.Agent) error {
 	if platform == nil {
-		panic(fmt.Sprintf("runtime.%s: platform must not be nil", label))
+		return fmt.Errorf("runtime.%s: platform must not be nil", label)
 	}
 	if agentDef == nil {
-		panic(fmt.Sprintf("runtime.%s: agent must not be nil", label))
+		return fmt.Errorf("runtime.%s: agent must not be nil", label)
 	}
+	return nil
 }

@@ -35,14 +35,13 @@ type LLMRankerConfig struct {
 	PromptHeader string
 }
 
-// NewLLMRanker constructs a ranker backed by client. Panics on a nil
-// client — the panic surface mirrors the rest of the runtime
-// (subagent / autonomy constructors).
-func NewLLMRanker(client *chat.Client, cfg LLMRankerConfig) *LLMRanker {
+// NewLLMRanker constructs a ranker backed by client. Returns an error
+// on a nil client — caller decides whether to surface or panic.
+func NewLLMRanker(client *chat.Client, cfg LLMRankerConfig) (*LLMRanker, error) {
 	if client == nil {
-		panic("autonomy.NewLLMRanker: chat.Client must not be nil")
+		return nil, fmt.Errorf("autonomy.NewLLMRanker: chat.Client must not be nil")
 	}
-	return &LLMRanker{client: client, cfg: cfg}
+	return &LLMRanker{client: client, cfg: cfg}, nil
 }
 
 // Rank implements [Ranker]. Returns one [Choice] per input
@@ -66,12 +65,12 @@ func (r *LLMRanker) Rank(ctx context.Context, userInput string, candidates []Can
 		Call().
 		Text(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("rank via chat: %w", err)
+		return nil, fmt.Errorf("autonomy.LLMRanker.Rank: %w", err)
 	}
 
 	scored, err := parseRankerReply(text)
 	if err != nil {
-		return nil, fmt.Errorf("parse ranker reply: %w (raw=%q)", err, text)
+		return nil, fmt.Errorf("autonomy.LLMRanker.Rank: parse reply: %w (raw=%q)", err, text)
 	}
 
 	out := make([]Choice, len(candidates))
@@ -170,7 +169,7 @@ type rankerReply struct {
 func parseRankerReply(text string) (map[string]rankerEntry, error) {
 	jsonStr := extractJSON(text)
 	if jsonStr == "" {
-		return nil, fmt.Errorf("no JSON object in reply")
+		return nil, fmt.Errorf("autonomy.parseRankerReply: no JSON object in reply")
 	}
 	var reply rankerReply
 	if err := json.Unmarshal([]byte(jsonStr), &reply); err != nil {
@@ -207,7 +206,6 @@ func clamp01(v float64) float64 {
 	}
 	return v
 }
-
 
 const defaultRankerSystemPrompt = `You are a routing classifier. Given a user request and a list of
 named candidate goals (each "agent:goal — description"), score how

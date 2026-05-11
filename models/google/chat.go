@@ -41,7 +41,7 @@ func (r *requestHelper) buildToolParams(tools []chat.Tool) ([]*genai.Tool, error
 	return []*genai.Tool{{FunctionDeclarations: declarations}}, nil
 }
 
-func (r *requestHelper) buildConfig(opts *chat.Options) (*genai.GenerateContentConfig, error) {
+func (r *requestHelper) buildParams(opts *chat.Options) (*genai.GenerateContentConfig, error) {
 	mergedOpts, err := chat.MergeOptions(r.defaultOptions, opts)
 	if err != nil {
 		return nil, err
@@ -76,7 +76,7 @@ func (r *requestHelper) buildConfig(opts *chat.Options) (*genai.GenerateContentC
 	return cfg, nil
 }
 
-func (r *requestHelper) buildSystemInstruction(msgs []chat.Message) *genai.Content {
+func (r *requestHelper) buildSystem(msgs []chat.Message) *genai.Content {
 	systemMsg := chat.MergeSystemMessages(msgs)
 	if systemMsg == nil || systemMsg.Text == "" {
 		return nil
@@ -84,7 +84,7 @@ func (r *requestHelper) buildSystemInstruction(msgs []chat.Message) *genai.Conte
 	return genai.NewContentFromText(systemMsg.Text, "")
 }
 
-func (r *requestHelper) buildUserContent(msg *chat.UserMessage) *genai.Content {
+func (r *requestHelper) buildUserMsg(msg *chat.UserMessage) *genai.Content {
 	parts := make([]*genai.Part, 0, 1+len(msg.Media))
 
 	if msg.Text != "" {
@@ -102,7 +102,7 @@ func (r *requestHelper) buildUserContent(msg *chat.UserMessage) *genai.Content {
 	return genai.NewContentFromParts(parts, genai.RoleUser)
 }
 
-func (r *requestHelper) buildAssistantContent(msg *chat.AssistantMessage) *genai.Content {
+func (r *requestHelper) buildAssistantMsg(msg *chat.AssistantMessage) *genai.Content {
 	parts := make([]*genai.Part, 0, 1+len(msg.ToolCalls))
 
 	if msg.Text != "" {
@@ -120,7 +120,7 @@ func (r *requestHelper) buildAssistantContent(msg *chat.AssistantMessage) *genai
 	return genai.NewContentFromParts(parts, genai.RoleModel)
 }
 
-func (r *requestHelper) buildToolContent(msg *chat.ToolMessage) *genai.Content {
+func (r *requestHelper) buildToolMsg(msg *chat.ToolMessage) *genai.Content {
 	parts := make([]*genai.Part, 0, len(msg.ToolReturns))
 
 	for _, ret := range msg.ToolReturns {
@@ -132,31 +132,31 @@ func (r *requestHelper) buildToolContent(msg *chat.ToolMessage) *genai.Content {
 	return genai.NewContentFromParts(parts, genai.RoleUser)
 }
 
-func (r *requestHelper) buildContents(msgs []chat.Message) []*genai.Content {
+func (r *requestHelper) buildMsgs(msgs []chat.Message) []*genai.Content {
 	nonSystem := chat.FilterMessagesByMessageTypes(msgs, chat.MessageTypeUser, chat.MessageTypeAssistant, chat.MessageTypeTool)
 
 	contents := make([]*genai.Content, 0, len(nonSystem))
 	for _, msg := range nonSystem {
 		switch msg.Type() {
 		case chat.MessageTypeUser:
-			contents = append(contents, r.buildUserContent(msg.(*chat.UserMessage)))
+			contents = append(contents, r.buildUserMsg(msg.(*chat.UserMessage)))
 		case chat.MessageTypeAssistant:
-			contents = append(contents, r.buildAssistantContent(msg.(*chat.AssistantMessage)))
+			contents = append(contents, r.buildAssistantMsg(msg.(*chat.AssistantMessage)))
 		case chat.MessageTypeTool:
-			contents = append(contents, r.buildToolContent(msg.(*chat.ToolMessage)))
+			contents = append(contents, r.buildToolMsg(msg.(*chat.ToolMessage)))
 		}
 	}
 	return contents
 }
 
 func (r *requestHelper) buildApiChatRequest(req *chat.Request) (string, []*genai.Content, *genai.GenerateContentConfig, error) {
-	cfg, err := r.buildConfig(req.Options)
+	cfg, err := r.buildParams(req.Options)
 	if err != nil {
 		return "", nil, nil, err
 	}
 
-	cfg.SystemInstruction = r.buildSystemInstruction(req.Messages)
-	contents := r.buildContents(req.Messages)
+	cfg.SystemInstruction = r.buildSystem(req.Messages)
+	contents := r.buildMsgs(req.Messages)
 	modelName := r.defaultOptions.Model
 	if req.Options != nil && req.Options.Model != "" {
 		modelName = req.Options.Model
@@ -265,13 +265,13 @@ type ChatModelConfig struct {
 
 func (c *ChatModelConfig) validate() error {
 	if c == nil {
-		return errors.New("google: config is nil")
+		return ErrNilConfig
 	}
 	if c.ApiKey == nil {
-		return errors.New("google: api key is required")
+		return ErrMissingApiKey
 	}
 	if c.DefaultOptions == nil {
-		return errors.New("google: default options are required")
+		return ErrMissingDefaultOptions
 	}
 	return nil
 }

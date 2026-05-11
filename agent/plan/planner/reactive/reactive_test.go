@@ -85,7 +85,7 @@ func TestReactive_SkipsInapplicable(t *testing.T) {
 	g := &core.Goal{Name: "g", Pre: []string{"a"}}
 
 	blocked := newAction("blocked",
-		core.EffectSpec{"setup": core.True},   // precondition not met in start
+		core.EffectSpec{"setup": core.True}, // precondition not met in start
 		core.EffectSpec{"a": core.True}, 1)
 	open := newAction("open", nil, core.EffectSpec{"a": core.True}, 2)
 

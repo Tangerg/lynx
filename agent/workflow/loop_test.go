@@ -40,13 +40,13 @@ func makeIncrementingBody() (*core.Agent, *int32) {
 }
 
 func TestLoop_LoopsUntilUntilTrue(t *testing.T) {
-	platform := agent.NewPlatform(runtime.PlatformConfig{})
+	platform := agent.NewPlatform(&runtime.PlatformConfig{})
 	body, iterCount := makeIncrementingBody()
 	if err := platform.Deploy(body); err != nil {
 		t.Fatalf("deploy body: %v", err)
 	}
 
-	wf := workflow.Loop[loopIn, loopOut](
+	wf, err := workflow.Loop[loopIn, loopOut](
 		platform,
 		workflow.LoopSpec[loopIn, loopOut]{
 			Name:          "incr-loop",
@@ -57,16 +57,19 @@ func TestLoop_LoopsUntilUntilTrue(t *testing.T) {
 			},
 		},
 	)
+	if err != nil {
+		t.Fatalf("Loop: %v", err)
+	}
 	if err := platform.Deploy(wf); err != nil {
 		t.Fatalf("deploy wf: %v", err)
 	}
 
-	proc, err := platform.RunAgent(t.Context(), wf,
+	proc, runErr := platform.RunAgent(t.Context(), wf,
 		map[string]any{core.DefaultBindingName: loopIn{Target: 4}},
 		core.ProcessOptions{},
 	)
-	if err != nil {
-		t.Fatalf("RunAgent: %v", err)
+	if runErr != nil {
+		t.Fatalf("RunAgent: %v", runErr)
 	}
 	if proc.Status() != core.StatusCompleted {
 		t.Fatalf("status = %s; failure = %v", proc.Status(), proc.Failure())
@@ -84,11 +87,11 @@ func TestLoop_LoopsUntilUntilTrue(t *testing.T) {
 }
 
 func TestLoop_MaxIterationsCapsTheLoop(t *testing.T) {
-	platform := agent.NewPlatform(runtime.PlatformConfig{})
+	platform := agent.NewPlatform(&runtime.PlatformConfig{})
 	body, iterCount := makeIncrementingBody()
 	mustDeploy(t, platform, body)
 
-	wf := workflow.Loop[loopIn, loopOut](
+	wf, err := workflow.Loop[loopIn, loopOut](
 		platform,
 		workflow.LoopSpec[loopIn, loopOut]{
 			Name:          "capped-loop",
@@ -99,6 +102,9 @@ func TestLoop_MaxIterationsCapsTheLoop(t *testing.T) {
 			},
 		},
 	)
+	if err != nil {
+		t.Fatalf("Loop: %v", err)
+	}
 	mustDeploy(t, platform, wf)
 
 	proc, _ := platform.RunAgent(t.Context(), wf,
@@ -122,7 +128,7 @@ func TestLoop_BranchIsolation(t *testing.T) {
 	// iteration: it should NOT see prior iterations' loopOut bindings
 	// from the Loop's own blackboard. We check this by having the
 	// body assert the absence of any prior loopOut on its blackboard.
-	platform := agent.NewPlatform(runtime.PlatformConfig{})
+	platform := agent.NewPlatform(&runtime.PlatformConfig{})
 
 	var sawPriorOut atomic.Bool
 	body := agent.New("isolation-body").
@@ -139,7 +145,7 @@ func TestLoop_BranchIsolation(t *testing.T) {
 		Build()
 	mustDeploy(t, platform, body)
 
-	wf := workflow.Loop[loopIn, loopOut](
+	wf, err := workflow.Loop[loopIn, loopOut](
 		platform,
 		workflow.LoopSpec[loopIn, loopOut]{
 			Name:          "isolation-loop",
@@ -148,6 +154,9 @@ func TestLoop_BranchIsolation(t *testing.T) {
 			Until:         func(context.Context, loopIn, loopOut) bool { return false },
 		},
 	)
+	if err != nil {
+		t.Fatalf("Loop: %v", err)
+	}
 	mustDeploy(t, platform, wf)
 
 	platform.RunAgent(t.Context(), wf,
@@ -159,29 +168,23 @@ func TestLoop_BranchIsolation(t *testing.T) {
 	}
 }
 
-func TestLoop_PanicsOnNilBody(t *testing.T) {
-	platform := agent.NewPlatform(runtime.PlatformConfig{})
-	defer func() {
-		if r := recover(); r == nil {
-			t.Fatal("expected panic")
-		}
-	}()
-	workflow.Loop[loopIn, loopOut](platform, workflow.LoopSpec[loopIn, loopOut]{
+func TestLoop_RejectsNilBody(t *testing.T) {
+	platform := agent.NewPlatform(&runtime.PlatformConfig{})
+	if _, err := workflow.Loop[loopIn, loopOut](platform, workflow.LoopSpec[loopIn, loopOut]{
 		Name:  "no-body",
 		Until: func(_ context.Context, _ loopIn, _ loopOut) bool { return true },
-	})
+	}); err == nil {
+		t.Fatal("expected error")
+	}
 }
 
-func TestLoop_PanicsOnNilUntil(t *testing.T) {
-	platform := agent.NewPlatform(runtime.PlatformConfig{})
+func TestLoop_RejectsNilUntil(t *testing.T) {
+	platform := agent.NewPlatform(&runtime.PlatformConfig{})
 	body, _ := makeIncrementingBody()
-	defer func() {
-		if r := recover(); r == nil {
-			t.Fatal("expected panic")
-		}
-	}()
-	workflow.Loop[loopIn, loopOut](platform, workflow.LoopSpec[loopIn, loopOut]{
+	if _, err := workflow.Loop[loopIn, loopOut](platform, workflow.LoopSpec[loopIn, loopOut]{
 		Name: "no-until",
 		Body: body,
-	})
+	}); err == nil {
+		t.Fatal("expected error")
+	}
 }

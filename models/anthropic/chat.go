@@ -3,7 +3,6 @@ package anthropic
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"iter"
 	"strings"
 	"time"
@@ -338,13 +337,13 @@ type ChatModelConfig struct {
 
 func (c *ChatModelConfig) validate() error {
 	if c == nil {
-		return errors.New("anthropic: config is nil")
+		return ErrNilConfig
 	}
 	if c.ApiKey == nil {
-		return errors.New("anthropic: api key is required")
+		return ErrMissingApiKey
 	}
 	if c.DefaultOptions == nil {
-		return errors.New("anthropic: default options are required")
+		return ErrMissingDefaultOptions
 	}
 	return nil
 }

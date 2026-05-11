@@ -30,7 +30,9 @@ func newFakeEmbeddingModel(t *testing.T) *fakeEmbeddingModel {
 }
 
 func (m *fakeEmbeddingModel) DefaultOptions() *embedding.Options { return m.defaultOpts }
-func (m *fakeEmbeddingModel) Info() embedding.ModelInfo          { return embedding.ModelInfo{Provider: m.provider} }
+func (m *fakeEmbeddingModel) Info() embedding.ModelInfo {
+	return embedding.ModelInfo{Provider: m.provider}
+}
 func (m *fakeEmbeddingModel) Dimensions(_ context.Context) int64 { return 4 }
 
 func (m *fakeEmbeddingModel) Call(ctx context.Context, req *embedding.Request) (*embedding.Response, error) {

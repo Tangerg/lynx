@@ -120,8 +120,7 @@ func TestParse_BooleanIndexRejected(t *testing.T) {
 	if err == nil {
 		t.Fatal("boolean index must error")
 	}
-	var pe *parser.ParseError
-	if !errors.As(err, &pe) {
+	if _, ok := errors.AsType[*parser.ParseError](err); !ok {
 		t.Fatalf("err type = %T, want *ParseError (wrapped)", err)
 	}
 }

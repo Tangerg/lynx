@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"github.com/Tangerg/lynx/core/model/chat"
@@ -111,15 +112,15 @@ func NewPromptCondition(
 	client *chat.Client,
 	prompt PromptBuilder,
 	parser ConditionParser,
-) *PromptCondition {
+) (*PromptCondition, error) {
 	if client == nil {
-		panic("core.NewPromptCondition: client must not be nil")
+		return nil, fmt.Errorf("core.NewPromptCondition: client must not be nil")
 	}
 	if prompt == nil {
-		panic("core.NewPromptCondition: prompt builder must not be nil")
+		return nil, fmt.Errorf("core.NewPromptCondition: prompt builder must not be nil")
 	}
 	if parser == nil {
-		panic("core.NewPromptCondition: parser must not be nil")
+		return nil, fmt.Errorf("core.NewPromptCondition: parser must not be nil")
 	}
 	return &PromptCondition{
 		name:   name,
@@ -127,7 +128,7 @@ func NewPromptCondition(
 		client: client,
 		prompt: prompt,
 		parser: parser,
-	}
+	}, nil
 }
 
 // WithCost overrides the planner cost hint (default 1.0).
