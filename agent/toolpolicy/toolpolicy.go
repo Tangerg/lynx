@@ -54,12 +54,13 @@ var ErrToolLocked = errors.New("toolpolicy: tool is locked by an unlock conditio
 // calls reject. Without an explicit scope the tool effectively
 // becomes "once per process lifetime".
 //
-// Mirrors embabel's `OneShotPerLoopTool` semantics.
-func OnceOnly(tool chat.CallableTool) chat.CallableTool {
+// Mirrors embabel's `OneShotPerLoopTool` semantics. Returns an error
+// when tool is nil — caller decides whether to surface or panic.
+func OnceOnly(tool chat.CallableTool) (chat.CallableTool, error) {
 	if tool == nil {
-		panic("toolpolicy.OnceOnly: tool must not be nil")
+		return nil, fmt.Errorf("toolpolicy.OnceOnly: tool must not be nil")
 	}
-	return &onceOnlyTool{delegate: tool}
+	return &onceOnlyTool{delegate: tool}, nil
 }
 
 type onceOnlyTool struct {
@@ -67,8 +68,8 @@ type onceOnlyTool struct {
 
 	// processWideMu guards processWideCalled — the fallback set
 	// used when no [LoopScope] is in ctx.
-	processWideMu      sync.Mutex
-	processWideCalled  map[string]struct{}
+	processWideMu     sync.Mutex
+	processWideCalled map[string]struct{}
 }
 
 func (t *onceOnlyTool) Definition() chat.ToolDefinition { return t.delegate.Definition() }
@@ -117,14 +118,16 @@ type UnlockCondition func(ctx context.Context, arguments string) (allowed bool, 
 //   - tools that are part of a playbook step-machine
 //
 // Mirrors embabel's `PlaybookTool` + `UnlockCondition` semantics.
-func Unlocked(tool chat.CallableTool, condition UnlockCondition) chat.CallableTool {
+// Returns an error when tool or condition is nil — caller decides
+// whether to surface or panic.
+func Unlocked(tool chat.CallableTool, condition UnlockCondition) (chat.CallableTool, error) {
 	if tool == nil {
-		panic("toolpolicy.Unlocked: tool must not be nil")
+		return nil, fmt.Errorf("toolpolicy.Unlocked: tool must not be nil")
 	}
 	if condition == nil {
-		panic("toolpolicy.Unlocked: condition must not be nil")
+		return nil, fmt.Errorf("toolpolicy.Unlocked: condition must not be nil")
 	}
-	return &unlockTool{delegate: tool, condition: condition}
+	return &unlockTool{delegate: tool, condition: condition}, nil
 }
 
 type unlockTool struct {

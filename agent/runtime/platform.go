@@ -55,9 +55,8 @@ type PlatformConfig struct {
 	// implement [core.Extension] and may additionally implement any
 	// subset of capability interfaces (EventListener,
 	// ActionInterceptor, ToolDecorator, AgentValidator, GoalApprover,
-	// ToolGroupResolver, IDGenerator, PlannerFactory,
-	// BlackboardFactory) — the runtime detects each via type
-	// assertion at dispatch time.
+	// ToolGroupResolver, IDGenerator, Blackboard, plan.Planner) —
+	// the runtime detects each via type assertion at dispatch time.
 	//
 	// [core.Extension.Name] must be unique within Extensions; an
 	// empty or duplicate Name causes [NewPlatform] to panic so
@@ -65,10 +64,15 @@ type PlatformConfig struct {
 	Extensions []core.Extension
 }
 
-// NewPlatform returns a fresh Platform from config. Panics on
-// invalid extension registration (nil extension, empty Name,
-// duplicate Name).
-func NewPlatform(config PlatformConfig) *Platform {
+// NewPlatform returns a fresh Platform from config. nil config is
+// treated as a zero-value config (no extensions, no chat client).
+// Panics on invalid extension registration (nil extension, empty
+// Name, duplicate Name) — this is a deploy-time programmer error;
+// callers should wire extensions correctly at boot.
+func NewPlatform(config *PlatformConfig) *Platform {
+	if config == nil {
+		config = &PlatformConfig{}
+	}
 	p := &Platform{
 		agents:     newAgentRegistry(),
 		procs:      newProcessRegistry(),
@@ -89,12 +93,13 @@ func NewPlatform(config PlatformConfig) *Platform {
 // stores, or other domain services that actions look up by key.
 func (p *Platform) Services() *core.ServiceProvider { return p.services }
 
-// NewBlackboard constructs a fresh [core.Blackboard] using the
-// configured [core.BlackboardFactory] extension (or the built-in
-// in-memory implementation when none is registered). Public so
-// orchestration helpers — most notably the workflow agent-level
-// builders — can hand a child process a clean blackboard rather than
-// inheriting the parent's accumulated state via
+// NewBlackboard constructs a fresh [core.Blackboard] for a new
+// process. Resolution order: a registered [core.Blackboard]
+// extension (used as a prototype — Spawn() yields the isolated
+// per-process instance), else the built-in in-memory implementation.
+// Public so orchestration helpers — most notably the workflow
+// agent-level builders — can hand a child process a clean blackboard
+// rather than inheriting the parent's accumulated state via
 // [core.Blackboard.Spawn].
 func (p *Platform) NewBlackboard() core.Blackboard { return p.resolveBlackboard(nil) }
 

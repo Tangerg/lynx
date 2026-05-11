@@ -143,4 +143,3 @@ func (p *PromptTemplate) CreateUserMessage() (*UserMessage, error) {
 		Media: p.media,
 	}), nil
 }
-

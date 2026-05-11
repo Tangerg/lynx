@@ -11,7 +11,7 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 
-	"github.com/Tangerg/lynx/observation/slog"
+	"github.com/Tangerg/lynx/otel/slog"
 )
 
 // captureHandler records every slog.Record passed to it, for test assertions.

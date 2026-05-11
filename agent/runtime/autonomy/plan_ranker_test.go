@@ -57,7 +57,7 @@ func TestLLMPlanRanker_ReordersByLLMConfidence(t *testing.T) {
 	model := newStubModel(reply)
 	client, _ := chat.NewClient(model)
 
-	ranker := autonomy.NewLLMPlanRanker(client, autonomy.LLMPlanRankerConfig{})
+	ranker, _ := autonomy.NewLLMPlanRanker(client, autonomy.LLMPlanRankerConfig{})
 	out, err := ranker.Rank(t.Context(), plans, plan.EmptyWorldState())
 	if err != nil {
 		t.Fatalf("Rank: %v", err)
@@ -80,7 +80,7 @@ func TestLLMPlanRanker_PreservesOrderForSinglePlan(t *testing.T) {
 	plans := []*plan.Plan{newPlan("only", 1, 1)}
 	model := newStubModel("ignored — never called")
 	client, _ := chat.NewClient(model)
-	ranker := autonomy.NewLLMPlanRanker(client, autonomy.LLMPlanRankerConfig{})
+	ranker, _ := autonomy.NewLLMPlanRanker(client, autonomy.LLMPlanRankerConfig{})
 
 	out, err := ranker.Rank(t.Context(), plans, plan.EmptyWorldState())
 	if err != nil {
@@ -102,7 +102,7 @@ func TestLLMPlanRanker_PromptContainsPlanSummaries(t *testing.T) {
 ]}`)
 	client, _ := chat.NewClient(model)
 
-	ranker := autonomy.NewLLMPlanRanker(client, autonomy.LLMPlanRankerConfig{})
+	ranker, _ := autonomy.NewLLMPlanRanker(client, autonomy.LLMPlanRankerConfig{})
 	if _, err := ranker.Rank(t.Context(), plans, plan.EmptyWorldState()); err != nil {
 		t.Fatalf("Rank: %v", err)
 	}
@@ -116,11 +116,8 @@ func TestLLMPlanRanker_PromptContainsPlanSummaries(t *testing.T) {
 	}
 }
 
-func TestLLMPlanRanker_PanicsOnNilClient(t *testing.T) {
-	defer func() {
-		if r := recover(); r == nil {
-			t.Fatal("expected panic")
-		}
-	}()
-	autonomy.NewLLMPlanRanker(nil, autonomy.LLMPlanRankerConfig{})
+func TestLLMPlanRanker_RejectsNilClient(t *testing.T) {
+	if _, err := autonomy.NewLLMPlanRanker(nil, autonomy.LLMPlanRankerConfig{}); err == nil {
+		t.Fatal("expected error")
+	}
 }

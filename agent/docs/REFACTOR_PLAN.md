@@ -1,5 +1,7 @@
 # lynx/agent 重构计划
 
+> ⚠️ **历史文档**——本计划成稿于 2026-04 第 4 轮重构时；后续多轮 polish + SPI flattening（`BlackboardFactory` / `PlannerFactory` 已被 `Blackboard` / `Planner` 直接嵌入 `Extension` 取代）已经把里面提到的多数项落地或推翻。**当前 SPI 形态以 [`EXTENSION_DESIGN.md`](./EXTENSION_DESIGN.md) 为准**。保留本文做历史参考。
+>
 > 配套文档：[`README.md`](./README.md) / [`GUIDE.md`](./GUIDE.md) / [`DESIGN.md`](./DESIGN.md) / [`EMBABEL_GAP_ANALYSIS.md`](./EMBABEL_GAP_ANALYSIS.md)
 >
 > 本文档：**第 4 轮重构**——在前三轮（embabel-parity / simplify-skill polish / static-fn collapse）之后，对剩余架构清晰度问题做一次系统化梳理。**不立即落地**，先成稿、对齐方向。

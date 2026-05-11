@@ -104,23 +104,17 @@ func (p *Platform) idGenerator() core.IDGenerator {
 	return defaultIDGenerator
 }
 
-// plannerFactory mirrors idGenerator for PlannerFactory.
-func (p *Platform) plannerFactory() PlannerFactory {
-	if f := lastExtension[PlannerFactory](p.extensions.list); f != nil {
-		return f
-	}
-	return defaultPlannerFactoryInstance
+// blackboardPrototype returns the most-recently-registered
+// [core.Blackboard] extension or nil. The runtime treats it as a
+// prototype: every new process gets its own instance via
+// [core.Blackboard.Spawn] so per-process state stays isolated. Callers
+// fall back to the in-memory implementation when nil.
+func (p *Platform) blackboardPrototype() core.Blackboard {
+	return lastExtension[core.Blackboard](p.extensions.list)
 }
 
-// blackboardFactory returns the most-recently-registered
-// BlackboardFactory extension or nil — callers fall back to the
-// in-memory blackboard.
-func (p *Platform) blackboardFactory() core.BlackboardFactory {
-	return lastExtension[core.BlackboardFactory](p.extensions.list)
-}
-
-// Built-in fallbacks for last-wins singletons.
-var (
-	defaultIDGenerator            = core.NewUUIDIDGenerator("")
-	defaultPlannerFactoryInstance = DefaultPlannerFactory()
-)
+// Built-in fallback for the IDGenerator singleton. Planner resolution
+// uses [Platform.resolvePlanner] (name-based dispatch over registered
+// extensions, with goap / reactive built-in defaults); Blackboard
+// resolution uses [Platform.blackboardPrototype] + Spawn().
+var defaultIDGenerator = core.NewUUIDIDGenerator("")

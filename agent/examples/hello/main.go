@@ -33,7 +33,7 @@ func main() {
 		Goals(agent.GoalProducing[CountResult](core.Goal{Description: "uppercase length determined"})).
 		Build()
 
-	platform := agent.NewPlatform(runtime.PlatformConfig{})
+	platform := agent.NewPlatform(&runtime.PlatformConfig{})
 	if err := platform.Deploy(a); err != nil {
 		log.Fatal(err)
 	}

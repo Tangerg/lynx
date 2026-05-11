@@ -13,11 +13,11 @@ import (
 // fakeTool is a chat.CallableTool stub. Its Call records the
 // arguments it received and returns a configured (text, err) pair.
 type fakeTool struct {
-	def      chat.ToolDefinition
-	called   bool
-	gotArgs  string
-	resp     string
-	respErr  error
+	def     chat.ToolDefinition
+	called  bool
+	gotArgs string
+	resp    string
+	respErr error
 }
 
 func (t *fakeTool) Definition() chat.ToolDefinition { return t.def }
@@ -37,7 +37,7 @@ func newFake(name, resp string) *fakeTool {
 
 func TestRequireAwait_NilDeciderResultDelegates(t *testing.T) {
 	inner := newFake("search", "result")
-	wrapped := hitl.RequireAwait(inner, func(context.Context, string) core.Awaitable { return nil })
+	wrapped, _ := hitl.RequireAwait(inner, func(context.Context, string) core.Awaitable { return nil })
 
 	out, err := wrapped.Call(t.Context(), `{"q":"foo"}`)
 	if err != nil {
@@ -57,7 +57,7 @@ func TestRequireAwait_NonNilDeciderReturnsPauseError(t *testing.T) {
 		return core.ResponseImpactUnchanged
 	})
 
-	wrapped := hitl.RequireAwait(inner, func(context.Context, string) core.Awaitable { return awaitable })
+	wrapped, _ := hitl.RequireAwait(inner, func(context.Context, string) core.Awaitable { return awaitable })
 
 	_, err := wrapped.Call(t.Context(), `{"q":"foo"}`)
 	if err == nil {
@@ -81,7 +81,7 @@ func TestRequireConfirmation_PromptsAndOnResponseFires(t *testing.T) {
 
 	var capturedMsg string
 	var captured bool
-	wrapped := hitl.RequireConfirmation(
+	wrapped, _ := hitl.RequireConfirmation(
 		inner,
 		func(args string) string {
 			return "confirm delete: " + args
@@ -126,7 +126,7 @@ func TestRequireType_DeliversTypedValue(t *testing.T) {
 	inner := newFake("ship", "shipped")
 
 	var got Address
-	wrapped := hitl.RequireType[Address](
+	wrapped, _ := hitl.RequireType[Address](
 		inner,
 		func(args string) string { return "need shipping address for: " + args },
 		func(v Address) core.ResponseImpact {
@@ -228,22 +228,17 @@ func contains(haystack, needle string) bool {
 	return false
 }
 
-// Sanity: RequireAwait should panic on nil tool / nil decider —
-// programming errors should surface at boot.
-func TestRequireAwait_PanicsOnNilArgs(t *testing.T) {
-	defer func() {
-		if r := recover(); r == nil {
-			t.Fatal("expected panic on nil tool")
-		}
-	}()
-	hitl.RequireAwait(nil, func(context.Context, string) core.Awaitable { return nil })
+// Sanity: RequireAwait should error on nil tool / nil decider —
+// programming errors should surface at boot, but the caller decides
+// whether to surface or panic.
+func TestRequireAwait_RejectsNilArgs(t *testing.T) {
+	if _, err := hitl.RequireAwait(nil, func(context.Context, string) core.Awaitable { return nil }); err == nil {
+		t.Fatal("expected error on nil tool")
+	}
 }
 
-func TestRequireAwait_PanicsOnNilDecider(t *testing.T) {
-	defer func() {
-		if r := recover(); r == nil {
-			t.Fatal("expected panic on nil decider")
-		}
-	}()
-	hitl.RequireAwait(newFake("x", ""), nil)
+func TestRequireAwait_RejectsNilDecider(t *testing.T) {
+	if _, err := hitl.RequireAwait(newFake("x", ""), nil); err == nil {
+		t.Fatal("expected error on nil decider")
+	}
 }

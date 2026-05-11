@@ -27,7 +27,7 @@ type AgentConfig struct {
 	// returns no plan. Nil → transition to StatusStuck.
 	StuckHandler StuckHandler
 
-	// Actions are the GOAP-planner-visible actions. ≥1 required.
+	// Actions are the planner-visible actions. ≥1 required.
 	Actions []Action
 
 	// Goals are the success criteria the planner picks among.
@@ -36,6 +36,13 @@ type AgentConfig struct {
 	// Conditions are user-supplied named predicates the world-state
 	// determiner can evaluate alongside the auto-derived ones.
 	Conditions []Condition
+
+	// PlannerName selects which planner the runtime uses for this
+	// agent. It must match the [Extension.Name] of a planner
+	// registered on the platform (or via process-scope
+	// [ProcessOptions.Extensions]). Empty → framework default
+	// ("goap"). Built-in names: "goap", "htn", "reactive".
+	PlannerName string
 }
 
 // defaultVersion is the implicit Agent version when
@@ -59,11 +66,15 @@ type Agent struct {
 
 // NewAgent assembles a fresh agent from config. Slice fields are
 // stored by reference; callers shouldn't mutate them afterwards.
-func NewAgent(config AgentConfig) *Agent {
+// nil config is treated as a zero-value config (no actions / goals).
+func NewAgent(config *AgentConfig) *Agent {
+	if config == nil {
+		config = &AgentConfig{}
+	}
 	if config.Version == nil {
 		config.Version = defaultVersion
 	}
-	a := &Agent{AgentConfig: config}
+	a := &Agent{AgentConfig: *config}
 	a.knownConditions = sync.OnceValue(func() map[string]struct{} {
 		return KnownConditions(a.Actions, a.Goals, a.Conditions)
 	})

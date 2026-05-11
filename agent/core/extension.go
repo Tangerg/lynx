@@ -65,15 +65,3 @@ type GoalApprover interface {
 
 	ApproveGoal(process Process, goal *Goal) bool
 }
-
-// BlackboardFactory supplies the [Blackboard] for a fresh process.
-// The runtime uses the last-registered factory; without one, falls
-// back to the in-memory default. [ProcessOptions.Blackboard] still
-// wins when set per-call.
-//
-// See PERSISTENCE.md for plugging Redis / SQL / WAL backends.
-type BlackboardFactory interface {
-	Extension
-
-	NewBlackboard() Blackboard
-}

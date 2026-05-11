@@ -49,7 +49,7 @@ func makeDraftAgent() *core.Agent {
 }
 
 func TestSequence_TwoStepChain(t *testing.T) {
-	platform := agent.NewPlatform(runtime.PlatformConfig{})
+	platform := agent.NewPlatform(&runtime.PlatformConfig{})
 	outliner := makeOutlineAgent()
 	drafter := makeDraftAgent()
 	if err := platform.Deploy(outliner); err != nil {
@@ -59,9 +59,12 @@ func TestSequence_TwoStepChain(t *testing.T) {
 		t.Fatalf("deploy drafter: %v", err)
 	}
 
-	pipeline := workflow.Sequence[seqTopic, seqDraft](
+	pipeline, err := workflow.Sequence[seqTopic, seqDraft](
 		platform, "topic-to-draft", outliner, drafter,
 	)
+	if err != nil {
+		t.Fatalf("Sequence: %v", err)
+	}
 	if err := platform.Deploy(pipeline); err != nil {
 		t.Fatalf("deploy pipeline: %v", err)
 	}
@@ -101,14 +104,17 @@ func makeFailingAgent(name string, errMsg string) *core.Agent {
 }
 
 func TestSequence_StepFailurePropagates(t *testing.T) {
-	platform := agent.NewPlatform(runtime.PlatformConfig{})
+	platform := agent.NewPlatform(&runtime.PlatformConfig{})
 	failing := makeFailingAgent("failing-step", "step blew up")
 	drafter := makeDraftAgent()
 	mustDeploy(t, platform, failing, drafter)
 
-	pipeline := workflow.Sequence[seqTopic, seqDraft](
+	pipeline, err := workflow.Sequence[seqTopic, seqDraft](
 		platform, "fail-pipeline", failing, drafter,
 	)
+	if err != nil {
+		t.Fatalf("Sequence: %v", err)
+	}
 	mustDeploy(t, platform, pipeline)
 
 	proc, _ := platform.RunAgent(t.Context(), pipeline,
@@ -123,31 +129,22 @@ func TestSequence_StepFailurePropagates(t *testing.T) {
 	}
 }
 
-func TestSequence_PanicsOnTooFewAgents(t *testing.T) {
-	platform := agent.NewPlatform(runtime.PlatformConfig{})
-	defer func() {
-		if r := recover(); r == nil {
-			t.Fatal("expected panic")
-		}
-	}()
-	workflow.Sequence[seqTopic, seqDraft](platform, "single", makeOutlineAgent())
+func TestSequence_RejectsTooFewAgents(t *testing.T) {
+	platform := agent.NewPlatform(&runtime.PlatformConfig{})
+	if _, err := workflow.Sequence[seqTopic, seqDraft](platform, "single", makeOutlineAgent()); err == nil {
+		t.Fatal("expected error")
+	}
 }
 
-func TestSequence_PanicsOnNilAgent(t *testing.T) {
-	platform := agent.NewPlatform(runtime.PlatformConfig{})
-	defer func() {
-		if r := recover(); r == nil {
-			t.Fatal("expected panic")
-		}
-	}()
-	workflow.Sequence[seqTopic, seqDraft](platform, "with-nil", makeOutlineAgent(), nil)
+func TestSequence_RejectsNilAgent(t *testing.T) {
+	platform := agent.NewPlatform(&runtime.PlatformConfig{})
+	if _, err := workflow.Sequence[seqTopic, seqDraft](platform, "with-nil", makeOutlineAgent(), nil); err == nil {
+		t.Fatal("expected error")
+	}
 }
 
-func TestSequence_PanicsOnNilPlatform(t *testing.T) {
-	defer func() {
-		if r := recover(); r == nil {
-			t.Fatal("expected panic")
-		}
-	}()
-	workflow.Sequence[seqTopic, seqDraft](nil, "x", makeOutlineAgent(), makeDraftAgent())
+func TestSequence_RejectsNilPlatform(t *testing.T) {
+	if _, err := workflow.Sequence[seqTopic, seqDraft](nil, "x", makeOutlineAgent(), makeDraftAgent()); err == nil {
+		t.Fatal("expected error")
+	}
 }

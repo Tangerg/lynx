@@ -17,9 +17,9 @@ import (
 // this slot before falling back to the configured FilterFunc.
 const FilterExprKey = "lynx:ai:rag:retriever:filter_expr"
 
-// VectorStoreDocumentRetrieverConfig configures a
-// [VectorStoreDocumentRetriever].
-type VectorStoreDocumentRetrieverConfig struct {
+// VectorStoreRetrieverConfig configures a
+// [VectorStoreRetriever].
+type VectorStoreRetrieverConfig struct {
 	// VectorStore performs the actual similarity search. Required.
 	VectorStore vectorstore.Retriever
 
@@ -38,29 +38,29 @@ type VectorStoreDocumentRetrieverConfig struct {
 }
 
 // validate fills defaults and rejects invalid configurations.
-func (c *VectorStoreDocumentRetrieverConfig) validate() error {
+func (c *VectorStoreRetrieverConfig) validate() error {
 	if c == nil {
-		return errors.New("rag.VectorStoreDocumentRetrieverConfig: config must not be nil")
+		return errors.New("rag.VectorStoreRetrieverConfig: config must not be nil")
 	}
 	if c.VectorStore == nil {
-		return errors.New("rag.VectorStoreDocumentRetrieverConfig: VectorStore is required")
+		return errors.New("rag.VectorStoreRetrieverConfig: VectorStore is required")
 	}
 	if c.TopK < 0 {
-		return errors.New("rag.VectorStoreDocumentRetrieverConfig: TopK must be ≥ 0")
+		return errors.New("rag.VectorStoreRetrieverConfig: TopK must be ≥ 0")
 	}
 	if c.TopK == 0 {
 		c.TopK = vectorstore.DefaultTopK
 	}
 	if c.MinScore < vectorstore.MinSimilarityScore || c.MinScore > vectorstore.MaxSimilarityScore {
-		return fmt.Errorf("rag.VectorStoreDocumentRetrieverConfig: MinScore must be in [%.1f, %.1f]",
+		return fmt.Errorf("rag.VectorStoreRetrieverConfig: MinScore must be in [%.1f, %.1f]",
 			vectorstore.MinSimilarityScore, vectorstore.MaxSimilarityScore)
 	}
 	return nil
 }
 
-var _ DocumentRetriever = (*VectorStoreDocumentRetriever)(nil)
+var _ DocumentRetriever = (*VectorStoreRetriever)(nil)
 
-// VectorStoreDocumentRetriever bridges the RAG retrieval interface and
+// VectorStoreRetriever bridges the RAG retrieval interface and
 // a [vectorstore.Retriever]. It supports per-call metadata filters
 // (either parsed expressions stashed under [FilterExprKey] or built
 // dynamically via FilterFunc), top-K capping, and similarity
@@ -68,26 +68,26 @@ var _ DocumentRetriever = (*VectorStoreDocumentRetriever)(nil)
 //
 // Example:
 //
-//	r, err := rag.NewVectorStoreDocumentRetriever(&rag.VectorStoreDocumentRetrieverConfig{
+//	r, err := rag.NewVectorStoreRetriever(&rag.VectorStoreRetrieverConfig{
 //	    VectorStore: store,
 //	    TopK:        10,
 //	    MinScore:    0.7,
 //	})
-type VectorStoreDocumentRetriever struct {
+type VectorStoreRetriever struct {
 	vectorStore vectorstore.Retriever
 	topK        int
 	minScore    float64
 	filterFunc  func(ctx context.Context, params map[string]any) (ast.Expr, error)
 }
 
-// NewVectorStoreDocumentRetriever builds a
-// [VectorStoreDocumentRetriever]. Returns an error when the
-// configuration fails [VectorStoreDocumentRetrieverConfig.validate].
-func NewVectorStoreDocumentRetriever(cfg *VectorStoreDocumentRetrieverConfig) (*VectorStoreDocumentRetriever, error) {
+// NewVectorStoreRetriever builds a
+// [VectorStoreRetriever]. Returns an error when the
+// configuration fails [VectorStoreRetrieverConfig.validate].
+func NewVectorStoreRetriever(cfg *VectorStoreRetrieverConfig) (*VectorStoreRetriever, error) {
 	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
-	return &VectorStoreDocumentRetriever{
+	return &VectorStoreRetriever{
 		vectorStore: cfg.VectorStore,
 		topK:        cfg.TopK,
 		minScore:    cfg.MinScore,
@@ -96,7 +96,7 @@ func NewVectorStoreDocumentRetriever(cfg *VectorStoreDocumentRetrieverConfig) (*
 }
 
 // Retrieve issues a similarity search via the underlying vector store.
-func (v *VectorStoreDocumentRetriever) Retrieve(ctx context.Context, query *Query) ([]*document.Document, error) {
+func (v *VectorStoreRetriever) Retrieve(ctx context.Context, query *Query) ([]*document.Document, error) {
 	if query == nil {
 		return nil, ErrNilQuery
 	}
@@ -119,7 +119,7 @@ func (v *VectorStoreDocumentRetriever) Retrieve(ctx context.Context, query *Quer
 // resolveFilter picks the filter expression to use for this call,
 // preferring the per-query [FilterExprKey] slot over the configured
 // FilterFunc. Returns nil, nil when no filter applies.
-func (v *VectorStoreDocumentRetriever) resolveFilter(ctx context.Context, query *Query) (ast.Expr, error) {
+func (v *VectorStoreRetriever) resolveFilter(ctx context.Context, query *Query) (ast.Expr, error) {
 	if value, exists := query.Get(FilterExprKey); exists {
 		switch typed := value.(type) {
 		case string:

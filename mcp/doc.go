@@ -1,7 +1,7 @@
 // Package mcp bridges the Model Context Protocol (https://modelcontextprotocol.io/)
 // into the lynx chat tool system in both directions.
 //
-// Client side
+// # Client side
 //
 // A Provider aggregates one or more *sdkmcp.ClientSession sources, fans
 // listTools across them, and exposes the result as a list of chat.Tool. Each
@@ -11,7 +11,7 @@
 // a tools/list_changed notification, provided the caller wires
 // (*Provider).OnToolListChanged into mcp.ClientOptions.
 //
-// Server side
+// # Server side
 //
 // RegisterTools installs lynx chat.CallableTool implementations onto an
 // *sdkmcp.Server using the low-level AddTool API. The handler converts a
@@ -19,7 +19,7 @@
 // protocol: a successful tool call yields a TextContent body; a failing
 // tool yields IsError=true, never a JSON-RPC protocol error.
 //
-// Naming
+// # Naming
 //
 // The package shares its name with the official Go SDK
 // (github.com/modelcontextprotocol/go-sdk/mcp). Consumers will normally

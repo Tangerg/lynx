@@ -5,7 +5,7 @@ use (
 	./core
 	./mcp
 	./models
-	./observation
+	./otel
 	./pkg
 	./rag
 	./tools

@@ -2,7 +2,6 @@ package openai
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/openai/openai-go/v3"
@@ -21,13 +20,13 @@ type ImageModelConfig struct {
 
 func (c *ImageModelConfig) validate() error {
 	if c == nil {
-		return errors.New("openai: config is nil")
+		return ErrNilConfig
 	}
 	if c.ApiKey == nil {
-		return errors.New("openai: api key is required")
+		return ErrMissingApiKey
 	}
 	if c.DefaultOptions == nil {
-		return errors.New("openai: default options are required")
+		return ErrMissingDefaultOptions
 	}
 	return nil
 }

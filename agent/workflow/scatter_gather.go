@@ -54,17 +54,16 @@ type ScatterGatherSpec[In, Element, Result any] struct {
 // The single goal targets Result, so [Platform.RunAgent] terminates
 // when Joiner has bound it.
 //
-// Panics on missing Name, empty Generators, or nil Joiner —
-// programming errors that should surface at agent construction.
-func ScatterGather[In, Element, Result any](spec ScatterGatherSpec[In, Element, Result]) *core.Agent {
+// Returns an error on missing Name, empty Generators, or nil Joiner.
+func ScatterGather[In, Element, Result any](spec ScatterGatherSpec[In, Element, Result]) (*core.Agent, error) {
 	if spec.Name == "" {
-		panic("workflow.ScatterGather: Name must not be empty")
+		return nil, fmt.Errorf("workflow.ScatterGather: Name must not be empty")
 	}
 	if len(spec.Generators) == 0 {
-		panic("workflow.ScatterGather: Generators must not be empty")
+		return nil, fmt.Errorf("workflow.ScatterGather: Generators must not be empty")
 	}
 	if spec.Joiner == nil {
-		panic("workflow.ScatterGather: Joiner must not be nil")
+		return nil, fmt.Errorf("workflow.ScatterGather: Joiner must not be nil")
 	}
 
 	scatter := core.NewAction[In, ResultList[Element]](
@@ -107,7 +106,7 @@ func ScatterGather[In, Element, Result any](spec ScatterGatherSpec[In, Element, 
 		},
 	)
 
-	return core.NewAgent(core.AgentConfig{
+	return core.NewAgent(&core.AgentConfig{
 		Name:        spec.Name,
 		Description: spec.Description,
 		Actions:     []core.Action{scatter, gather},
@@ -115,5 +114,5 @@ func ScatterGather[In, Element, Result any](spec ScatterGatherSpec[In, Element, 
 			Name:        spec.Name,
 			Description: "produce " + core.TypeFullNameOf[Result](),
 		})},
-	})
+	}), nil
 }

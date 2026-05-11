@@ -2,7 +2,6 @@ package google
 
 import (
 	"context"
-	"errors"
 	"iter"
 
 	"google.golang.org/genai"
@@ -16,10 +15,10 @@ type ApiConfig struct {
 
 func (c *ApiConfig) validate() error {
 	if c == nil {
-		return errors.New("google: config is nil")
+		return ErrNilConfig
 	}
 	if c.ApiKey == nil {
-		return errors.New("google: api key is required")
+		return ErrMissingApiKey
 	}
 	return nil
 }

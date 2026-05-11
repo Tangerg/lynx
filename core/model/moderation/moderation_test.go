@@ -24,7 +24,9 @@ func newFakeModerationModel(t *testing.T) *fakeModerationModel {
 }
 
 func (m *fakeModerationModel) DefaultOptions() *moderation.Options { return m.defaults }
-func (m *fakeModerationModel) Info() moderation.ModelInfo          { return moderation.ModelInfo{Provider: "fake"} }
+func (m *fakeModerationModel) Info() moderation.ModelInfo {
+	return moderation.ModelInfo{Provider: "fake"}
+}
 
 func (m *fakeModerationModel) Call(ctx context.Context, req *moderation.Request) (*moderation.Response, error) {
 	m.lastReq = req

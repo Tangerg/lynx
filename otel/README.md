@@ -1,8 +1,8 @@
-# observation
+# otel
 
 > OpenTelemetry bridge utilities for Lynx (external module).
 > Connects OTel spans/metrics to non-standard backends (slog, stdlib log,
-> custom handlers) without dragging OTel SDK dependencies into `core/`.
+> custom handlers) without dragging the OTel SDK into `core/`.
 
 ---
 
@@ -19,7 +19,7 @@ Keeping the SDK dependency isolated here means:
 - **Users who use OTel SDK + official exporters (OTLP / stdout / Jaeger)**:
   no need to depend on this module at all
 - **Users who want spans forwarded to their business log stream**:
-  `go get github.com/Tangerg/lynx/observation/slog` (or `/log`)
+  `go get github.com/Tangerg/lynx/otel/slog` (or `/log`)
 
 This follows the same architectural rule as `models/` and `vectorstores/`:
 **any adapter that pulls in third-party SDKs lives in an external module**,
@@ -38,7 +38,7 @@ Both sub-packages provide the same span fields (trace/span IDs, parent, name,
 duration, attributes, events) — they only differ in how each record is rendered.
 
 > **Naming note**: sub-packages use the short names `slog` and `log` to match
-> the `observation/<backend>` convention. They collide with the stdlib packages
+> the `otel/<backend>` convention. They collide with the stdlib packages
 > of the same name, so callers that import both must alias one side, e.g.
 > `stdslog "log/slog"` or `stdlog "log"`. See the examples below.
 
@@ -61,7 +61,7 @@ import (
     "go.opentelemetry.io/otel"
     sdktrace "go.opentelemetry.io/otel/sdk/trace"
 
-    "github.com/Tangerg/lynx/observation/slog"
+    "github.com/Tangerg/lynx/otel/slog"
 )
 
 func main() {
@@ -86,7 +86,7 @@ import (
     "go.opentelemetry.io/otel"
     sdktrace "go.opentelemetry.io/otel/sdk/trace"
 
-    "github.com/Tangerg/lynx/observation/log"
+    "github.com/Tangerg/lynx/otel/log"
 )
 
 func main() {
@@ -109,10 +109,10 @@ func main() {
 core/             imports go.opentelemetry.io/otel (API only)
 models/           same
 vectorstores/     same
-observation/       ← the only module that depends on go.opentelemetry.io/otel/sdk
+otel/             ← the only module that depends on go.opentelemetry.io/otel/sdk
     ├─ slog/
     └─ log/
 ```
 
-Users who do not import any sub-package under `observation/` never see the
+Users who do not import any sub-package under `otel/` never see the
 OTel SDK dependency.

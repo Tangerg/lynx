@@ -42,7 +42,7 @@ func newAgent(name string) *core.Agent {
 }
 
 func TestAutonomy_PicksHighestConfidence(t *testing.T) {
-	platform := agent.NewPlatform(runtime.PlatformConfig{})
+	platform := agent.NewPlatform(&runtime.PlatformConfig{})
 	a1 := newAgent("alpha")
 	a2 := newAgent("beta")
 	for _, a := range []*core.Agent{a1, a2} {
@@ -51,7 +51,7 @@ func TestAutonomy_PicksHighestConfidence(t *testing.T) {
 		}
 	}
 
-	auto := autonomy.New(platform, &stubRanker{
+	auto, _ := autonomy.New(platform, &stubRanker{
 		scores: map[string]float64{
 			"alpha:produce_github.com/Tangerg/lynx/agent/runtime/autonomy_test.chooseOut": 0.3,
 			"beta:produce_github.com/Tangerg/lynx/agent/runtime/autonomy_test.chooseOut":  0.9,
@@ -71,12 +71,12 @@ func TestAutonomy_PicksHighestConfidence(t *testing.T) {
 }
 
 func TestAutonomy_LowConfidenceReturnsError(t *testing.T) {
-	platform := agent.NewPlatform(runtime.PlatformConfig{})
+	platform := agent.NewPlatform(&runtime.PlatformConfig{})
 	if err := platform.Deploy(newAgent("alpha")); err != nil {
 		t.Fatalf("deploy: %v", err)
 	}
 
-	auto := autonomy.New(platform, &stubRanker{
+	auto, _ := autonomy.New(platform, &stubRanker{
 		scores: map[string]float64{
 			"alpha:produce_github.com/Tangerg/lynx/agent/runtime/autonomy_test.chooseOut": 0.3,
 		},
@@ -91,12 +91,12 @@ func TestAutonomy_LowConfidenceReturnsError(t *testing.T) {
 }
 
 func TestAutonomy_RunInstallsTargetGoalApprover(t *testing.T) {
-	platform := agent.NewPlatform(runtime.PlatformConfig{})
+	platform := agent.NewPlatform(&runtime.PlatformConfig{})
 	if err := platform.Deploy(newAgent("alpha")); err != nil {
 		t.Fatalf("deploy: %v", err)
 	}
 
-	auto := autonomy.New(platform, &stubRanker{
+	auto, _ := autonomy.New(platform, &stubRanker{
 		scores: map[string]float64{
 			"alpha:produce_github.com/Tangerg/lynx/agent/runtime/autonomy_test.chooseOut": 0.9,
 		},
@@ -122,10 +122,10 @@ func TestAutonomy_RunInstallsTargetGoalApprover(t *testing.T) {
 }
 
 func TestAutonomy_AgentFilter(t *testing.T) {
-	platform := agent.NewPlatform(runtime.PlatformConfig{})
+	platform := agent.NewPlatform(&runtime.PlatformConfig{})
 	mustDeploy(t, platform, newAgent("public"), newAgent("internal"))
 
-	auto := autonomy.New(platform, &stubRanker{
+	auto, _ := autonomy.New(platform, &stubRanker{
 		scores: map[string]float64{
 			"public:produce_github.com/Tangerg/lynx/agent/runtime/autonomy_test.chooseOut":   0.5,
 			"internal:produce_github.com/Tangerg/lynx/agent/runtime/autonomy_test.chooseOut": 0.99,
@@ -149,8 +149,8 @@ func TestAutonomy_AgentFilter(t *testing.T) {
 }
 
 func TestAutonomy_NoCandidatesError(t *testing.T) {
-	platform := agent.NewPlatform(runtime.PlatformConfig{})
-	auto := autonomy.New(platform, &stubRanker{}, autonomy.Config{})
+	platform := agent.NewPlatform(&runtime.PlatformConfig{})
+	auto, _ := autonomy.New(platform, &stubRanker{}, autonomy.Config{})
 
 	_, err := auto.Choose(t.Context(), "x")
 	if err == nil {
@@ -158,22 +158,25 @@ func TestAutonomy_NoCandidatesError(t *testing.T) {
 	}
 }
 
-func TestAutonomy_PanicsOnNilArgs(t *testing.T) {
-	platform := agent.NewPlatform(runtime.PlatformConfig{})
+func TestAutonomy_RejectsNilArgs(t *testing.T) {
+	platform := agent.NewPlatform(&runtime.PlatformConfig{})
 	for _, tc := range []struct {
 		name string
-		fn   func()
+		fn   func() error
 	}{
-		{"nil platform", func() { autonomy.New(nil, &stubRanker{}, autonomy.Config{}) }},
-		{"nil ranker", func() { autonomy.New(platform, nil, autonomy.Config{}) }},
+		{"nil platform", func() error {
+			_, err := autonomy.New(nil, &stubRanker{}, autonomy.Config{})
+			return err
+		}},
+		{"nil ranker", func() error {
+			_, err := autonomy.New(platform, nil, autonomy.Config{})
+			return err
+		}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			defer func() {
-				if r := recover(); r == nil {
-					t.Fatal("expected panic")
-				}
-			}()
-			tc.fn()
+			if err := tc.fn(); err == nil {
+				t.Fatal("expected error")
+			}
 		})
 	}
 }

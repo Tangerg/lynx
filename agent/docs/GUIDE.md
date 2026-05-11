@@ -346,12 +346,15 @@ core.NewStaticToolGroupResolver()          // map[role]ToolGroup
 ## III.1 Platform 生命周期
 
 ```go
-p := agent.NewPlatform(runtime.PlatformConfig{
-    Services:       svcs,        // optional, 注入 LLM/RAG/...
-    Tools:          toolResolver, // optional
-    PlannerFactory: factory,     // optional, 默认 GOAP
-    IDGenerator:    idGen,       // optional, 默认 UUIDv4
-    Listeners:      []event.Listener{...},
+p := agent.NewPlatform(&runtime.PlatformConfig{
+    ChatClient: chatClient,       // optional, 共享 LLM 客户端
+    Extensions: []core.Extension{ // 所有 pluggable 都走这里
+        toolResolver,             // 实现 core.ToolGroupResolver
+        idGen,                    // 实现 core.IDGenerator (默认 UUIDv4)
+        myPlanner,                // 实现 plan.Planner (默认 goap)
+        myBlackboard,             // 实现 core.Blackboard (默认 in-memory)
+        debugLogger{},            // 实现 runtime.EventListener
+    },
 })
 
 p.Deploy(agent)                  // 校验 + 注册（重复 deploy 同名会替换）
@@ -557,7 +560,7 @@ func main() {
         Goals(agent.GoalProducing[Post](core.Goal{Description: "post produced"})).
         Build()
 
-    p := agent.NewPlatform(runtime.PlatformConfig{})
+    p := agent.NewPlatform(&runtime.PlatformConfig{})
     if err := p.Deploy(a); err != nil { panic(err) }
 
     proc, _ := p.RunAgent(context.Background(), a,
@@ -676,7 +679,7 @@ toolResolver.Register("web_search", core.NewLazyToolGroup(meta, func(ctx) ([]cor
     }, nil
 }))
 
-p := agent.NewPlatform(runtime.PlatformConfig{Tools: toolResolver})
+p := agent.NewPlatform(&runtime.PlatformConfig{Tools: toolResolver})
 
 // 在 action body 中按 role 拉取：
 tools, err := pc.ResolveTools(ctx, "web_search")
@@ -709,25 +712,24 @@ parentAction := agent.NewAction[Task, Result]("delegate", func(ctx context.Conte
 
 ## IV.7 早期终止策略
 
+每个 tick 边界，runtime 会问每一个生效的 `core.EarlyTerminationPolicy`——任意 policy 返回 `true` → `StatusTerminated` + `ProcessTerminated`。Budget 永远隐式参与（从 `ProcessOptions.Budget` 派生），额外 policy 通过 extension 注册：
+
 ```go
+// Budget 之外再加一道 step-level guardrail 和一个自定义规则
 core.ProcessOptions{
-    ProcessControl: core.ProcessControl{
-        EarlyTerminationPolicy: core.CompositePolicy{
-            Policies: []core.EarlyTerminationPolicy{
-                core.MaxActionsPolicy{Max: 50},
-                core.BudgetPolicy{Budget: core.Budget{
-                    CostLimit:   2.00,        // USD
-                    TokenLimit:  100_000,
-                    ActionLimit: 30,
-                }},
-                myCustomPolicy,                // 实现 ShouldTerminate(p) → (bool, reason)
-            },
-        },
+    Budget: core.Budget{
+        CostLimit:   2.00,   // USD
+        TokenLimit:  100_000,
+        ActionLimit: 30,
+    },
+    Extensions: []core.Extension{
+        myStepBudget,    // 实现 core.EarlyTerminationPolicy，名字别和 "budget-policy" 重
+        myCustomPolicy,  // 同上
     },
 }
 ```
 
-每个 tick 边界检查；任意 policy 返回 true → `StatusTerminated` + `ProcessTerminated`。
+`core.EarlyTerminationPolicy` 已经嵌入 `core.Extension`，所以实现里得提供 `Name() string`。Budget 检查永远先跑（其他 policy 是叠加而非替代）；想完全禁用 Budget 就把 `Budget` 字段置零或传宽松值。
 
 ## IV.8 事件监听
 
@@ -737,7 +739,7 @@ func (debugLogger) OnEvent(e event.Event) {
     fmt.Printf("[%s] %s\n", e.EventName(), e.ProcessID())
 }
 
-p := agent.NewPlatform(runtime.PlatformConfig{
+p := agent.NewPlatform(&runtime.PlatformConfig{
     Listeners: []event.Listener{debugLogger{}},
 })
 
@@ -764,7 +766,7 @@ svcs.Set("embedder", embeddingClient)
 svcs.Set("rag",      ragPipeline)
 svcs.Set("logger",   slog.Default())
 
-p := agent.NewPlatform(runtime.PlatformConfig{Services: svcs})
+p := agent.NewPlatform(&runtime.PlatformConfig{Services: svcs})
 
 // 在 action body 中类型安全取：
 chat, ok := core.ServiceOf[*openai.Client](pc.Services, "chat")
@@ -778,15 +780,20 @@ if !ok { return Result{}, errors.New("chat service not configured") }
 通过 `runtime.PlatformConfig` 或 `core.ProcessOptions` 注入：
 
 ```go
-p := agent.NewPlatform(runtime.PlatformConfig{
-    PlannerFactory: func(t core.PlannerType) plan.Planner {
-        return myCustomPlanner  // 实现 plan.Planner 接口
+// 注册自定义 planner 和 ID 生成器作为 extension
+p := agent.NewPlatform(&runtime.PlatformConfig{
+    Extensions: []core.Extension{
+        myCustomPlanner,  // 实现 plan.Planner，Name() 例如 "my-planner"
+        myCounterGen,     // 实现 core.IDGenerator
     },
-    IDGenerator: myCounterGen,  // 实现 runtime.IDGenerator
 })
 
-// 单个 process 用持久化 blackboard：
-p.RunAgent(ctx, agent, bindings, core.ProcessOptions{
+// 让 agent 选用自定义 planner（按 Name() 匹配）：
+a := agent.New("agentX").PlannerName("my-planner").
+    Actions(...).Goals(...).Build()
+
+// 单个 process 用持久化 blackboard（per-call 直接传实例）：
+p.RunAgent(ctx, a, bindings, core.ProcessOptions{
     Blackboard: redisBackedBlackboard,  // 实现 core.Blackboard
 })
 ```
@@ -1112,17 +1119,15 @@ core.ActionConfig{
 
 ```go
 core.ProcessOptions{
-    Identities      core.Identities      // ForUser / RunAs
-    Blackboard      core.Blackboard       // override 默认
-    Verbosity       core.Verbosity        // ShowPrompts/ShowLLMResponses/Debug/ShowPlanning
-    Budget          core.Budget           // CostLimit/ActionLimit/TokenLimit
-    ProcessControl  core.ProcessControl   // EarlyTerminationPolicy/ToolDelay/OperationDelay
-    Prune           bool                   // (待实现) planner 启动 pruning
-    OutputChannel   core.OutputChannel    // 默认 DevNullOutputChannel
-    PlannerType     core.PlannerType      // PlannerGOAP（默认）
-    ProcessType     core.ProcessType      // ProcessSequential（默认）/ ProcessConcurrent
+    Blackboard    core.Blackboard      // override 默认（per-call 直接传实例）
+    Budget        core.Budget          // CostLimit/ActionLimit/TokenLimit；隐式参与 early termination
+    OutputChannel core.OutputChannel   // 默认 DevNullOutputChannel
+    ProcessType   core.ProcessType     // ProcessSequential（默认）/ ProcessConcurrent
+    Extensions    []core.Extension     // per-process 扩展（IDGenerator / Planner / Policy / ...）
 }
 ```
+
+> 选 planner 不在 ProcessOptions 上 —— 走 `AgentConfig.PlannerName` / `Builder.PlannerName(name)`，agent build 时决定。EarlyTerminationPolicy 也不是单值字段，而是 OR-composable 的 extension 集合（Budget 隐式参与）。
 
 ## Blackboard 类型化助手
 
@@ -1143,7 +1148,6 @@ core.Unknown / True / False                 // Determination
 core.ResponseImpactUnchanged / ResponseImpactUpdated
 core.StuckGiveUp / StuckReplan
 core.TerminationScopeAgent / Action / ToolCall
-core.PlannerGOAP / PlannerUtility
 core.ProcessSequential / ProcessConcurrent
 core.StatusNotStarted / Running / Waiting / Paused / Completed /
      Failed / Stuck / Killed / Terminated

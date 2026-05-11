@@ -14,12 +14,12 @@ import (
 // client test suite. Each call captures the request so tests can assert
 // what reached the model layer.
 type fakeChatModel struct {
-	provider     string
-	defaultOpts  *chat.Options
-	lastReq      *chat.Request
-	respond      func(req *chat.Request) (*chat.Response, error)
-	streamYield  []*chat.Response
-	streamErr    error
+	provider    string
+	defaultOpts *chat.Options
+	lastReq     *chat.Request
+	respond     func(req *chat.Request) (*chat.Response, error)
+	streamYield []*chat.Response
+	streamErr   error
 }
 
 func newFakeChatModel(t *testing.T) *fakeChatModel {

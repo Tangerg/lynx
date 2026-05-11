@@ -26,8 +26,8 @@ func TestNewPanicError(t *testing.T) {
 			err := NewPanicError(tt.info, []byte("fake stack"))
 			after := time.Now()
 
-			var pe *PanicError
-			if !errors.As(err, &pe) {
+			pe, ok := errors.AsType[*PanicError](err)
+			if !ok {
 				t.Fatalf("type = %T, want *PanicError", err)
 			}
 			if pe.time.Before(before) || pe.time.After(after) {

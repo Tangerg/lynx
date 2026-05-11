@@ -3,7 +3,6 @@ package openai
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"iter"
 
 	"github.com/openai/openai-go/v3"
@@ -359,13 +358,13 @@ type ChatModelConfig struct {
 
 func (c *ChatModelConfig) validate() error {
 	if c == nil {
-		return errors.New("openai: config is nil")
+		return ErrNilConfig
 	}
 	if c.ApiKey == nil {
-		return errors.New("openai: api key is required")
+		return ErrMissingApiKey
 	}
 	if c.DefaultOptions == nil {
-		return errors.New("openai: default options are required")
+		return ErrMissingDefaultOptions
 	}
 	return nil
 }
@@ -430,17 +429,18 @@ func (c *ChatModel) Stream(ctx context.Context, req *chat.Request) iter.Seq2[*ch
 		}
 		defer apiStream.Close()
 
+		// One accumulator across the whole stream — each chunk
+		// contributes to the cumulative ChatCompletion, mirroring
+		// anthropic.ChatModel.Stream's per-stream Message{}.
+		accumulator := openai.ChatCompletionAccumulator{}
+
 		for apiStream.Next() {
-			err = apiStream.Err()
-			if err != nil {
+			if err := apiStream.Err(); err != nil {
 				yield(nil, err)
 				return
 			}
 
-			chunk := apiStream.Current()
-
-			accumulator := openai.ChatCompletionAccumulator{}
-			accumulator.AddChunk(chunk)
+			accumulator.AddChunk(apiStream.Current())
 
 			resp, err := c.respHelper.buildChatResponse(apiReq, &accumulator.ChatCompletion)
 			if err != nil {
@@ -451,6 +451,10 @@ func (c *ChatModel) Stream(ctx context.Context, req *chat.Request) iter.Seq2[*ch
 			if !yield(resp, nil) {
 				return
 			}
+		}
+
+		if err := apiStream.Err(); err != nil {
+			yield(nil, err)
 		}
 	}
 }

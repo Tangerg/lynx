@@ -6,8 +6,8 @@ import (
 
 	"github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/core"
-	"github.com/Tangerg/lynx/agent/workflow"
 	"github.com/Tangerg/lynx/agent/runtime"
+	"github.com/Tangerg/lynx/agent/workflow"
 )
 
 type ruIn struct{ Target int }
@@ -15,7 +15,7 @@ type ruOut struct{ Value int }
 
 func TestRepeatUntil_LoopsUntilAccept(t *testing.T) {
 	// Task increments by 1 each call. Accept stops once value ≥ Target.
-	a := workflow.RepeatUntil(workflow.RepeatUntilSpec[ruIn, ruOut]{
+	a, err := workflow.RepeatUntil(workflow.RepeatUntilSpec[ruIn, ruOut]{
 		Name:          "increment-loop",
 		Description:   "increments until target",
 		MaxIterations: 10,
@@ -30,8 +30,11 @@ func TestRepeatUntil_LoopsUntilAccept(t *testing.T) {
 			return last.Value >= in.Target
 		},
 	})
+	if err != nil {
+		t.Fatalf("RepeatUntil: %v", err)
+	}
 
-	platform := agent.NewPlatform(runtime.PlatformConfig{})
+	platform := agent.NewPlatform(&runtime.PlatformConfig{})
 	if err := platform.Deploy(a); err != nil {
 		t.Fatalf("deploy: %v", err)
 	}
@@ -56,7 +59,7 @@ func TestRepeatUntil_LoopsUntilAccept(t *testing.T) {
 
 func TestRepeatUntil_MaxIterationsCap(t *testing.T) {
 	// Accept never returns true; MaxIterations forces termination at 3.
-	a := workflow.RepeatUntil(workflow.RepeatUntilSpec[ruIn, ruOut]{
+	a, err := workflow.RepeatUntil(workflow.RepeatUntilSpec[ruIn, ruOut]{
 		Name:          "capped-loop",
 		MaxIterations: 3,
 		Task: func(_ context.Context, _ *core.ProcessContext, _ ruIn, h *workflow.History[ruOut]) (ruOut, error) {
@@ -64,7 +67,10 @@ func TestRepeatUntil_MaxIterationsCap(t *testing.T) {
 		},
 		Accept: func(context.Context, ruIn, ruOut, *workflow.History[ruOut]) bool { return false },
 	})
-	platform := agent.NewPlatform(runtime.PlatformConfig{})
+	if err != nil {
+		t.Fatalf("RepeatUntil: %v", err)
+	}
+	platform := agent.NewPlatform(&runtime.PlatformConfig{})
 	if err := platform.Deploy(a); err != nil {
 		t.Fatalf("deploy: %v", err)
 	}
@@ -83,7 +89,7 @@ func TestRepeatUntil_MaxIterationsCap(t *testing.T) {
 
 func TestRepeatUntil_HistoryPassedToTaskAndAccept(t *testing.T) {
 	var seenInTask []int
-	a := workflow.RepeatUntil(workflow.RepeatUntilSpec[ruIn, ruOut]{
+	a, err := workflow.RepeatUntil(workflow.RepeatUntilSpec[ruIn, ruOut]{
 		Name:          "history-witness",
 		MaxIterations: 5,
 		Task: func(_ context.Context, _ *core.ProcessContext, _ ruIn, h *workflow.History[ruOut]) (ruOut, error) {
@@ -98,7 +104,10 @@ func TestRepeatUntil_HistoryPassedToTaskAndAccept(t *testing.T) {
 			return last.Value >= 3 && h.Count() >= 3
 		},
 	})
-	platform := agent.NewPlatform(runtime.PlatformConfig{})
+	if err != nil {
+		t.Fatalf("RepeatUntil: %v", err)
+	}
+	platform := agent.NewPlatform(&runtime.PlatformConfig{})
 	if err := platform.Deploy(a); err != nil {
 		t.Fatalf("deploy: %v", err)
 	}
@@ -121,42 +130,33 @@ func TestRepeatUntil_HistoryPassedToTaskAndAccept(t *testing.T) {
 	}
 }
 
-func TestRepeatUntil_PanicsOnInvalidSpec(t *testing.T) {
+func TestRepeatUntil_RejectsInvalidSpec(t *testing.T) {
 	cases := []struct {
 		name string
-		fn   func()
+		spec workflow.RepeatUntilSpec[ruIn, ruOut]
 	}{
-		{"empty name", func() {
-			workflow.RepeatUntil(workflow.RepeatUntilSpec[ruIn, ruOut]{
-				Task: func(context.Context, *core.ProcessContext, ruIn, *workflow.History[ruOut]) (ruOut, error) {
-					return ruOut{}, nil
-				},
-				Accept: func(context.Context, ruIn, ruOut, *workflow.History[ruOut]) bool { return true },
-			})
+		{"empty name", workflow.RepeatUntilSpec[ruIn, ruOut]{
+			Task: func(context.Context, *core.ProcessContext, ruIn, *workflow.History[ruOut]) (ruOut, error) {
+				return ruOut{}, nil
+			},
+			Accept: func(context.Context, ruIn, ruOut, *workflow.History[ruOut]) bool { return true },
 		}},
-		{"nil task", func() {
-			workflow.RepeatUntil(workflow.RepeatUntilSpec[ruIn, ruOut]{
-				Name:   "x",
-				Accept: func(context.Context, ruIn, ruOut, *workflow.History[ruOut]) bool { return true },
-			})
+		{"nil task", workflow.RepeatUntilSpec[ruIn, ruOut]{
+			Name:   "x",
+			Accept: func(context.Context, ruIn, ruOut, *workflow.History[ruOut]) bool { return true },
 		}},
-		{"nil accept", func() {
-			workflow.RepeatUntil(workflow.RepeatUntilSpec[ruIn, ruOut]{
-				Name: "x",
-				Task: func(context.Context, *core.ProcessContext, ruIn, *workflow.History[ruOut]) (ruOut, error) {
-					return ruOut{}, nil
-				},
-			})
+		{"nil accept", workflow.RepeatUntilSpec[ruIn, ruOut]{
+			Name: "x",
+			Task: func(context.Context, *core.ProcessContext, ruIn, *workflow.History[ruOut]) (ruOut, error) {
+				return ruOut{}, nil
+			},
 		}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			defer func() {
-				if r := recover(); r == nil {
-					t.Fatal("expected panic")
-				}
-			}()
-			tc.fn()
+			if _, err := workflow.RepeatUntil(tc.spec); err == nil {
+				t.Fatal("expected error")
+			}
 		})
 	}
 }

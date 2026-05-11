@@ -9,7 +9,7 @@ import (
 )
 
 func TestDeduplicationRefiner_DropsDuplicateIDs(t *testing.T) {
-	r := rag.NewDeduplicationDocumentRefiner()
+	r := rag.NewDeduplicationRefiner()
 
 	a, _ := document.NewDocument("a", nil)
 	a.ID = "1"
@@ -31,8 +31,8 @@ func TestDeduplicationRefiner_DropsDuplicateIDs(t *testing.T) {
 }
 
 func TestDeduplicationRefiner_HonorsContextCancel(t *testing.T) {
-	r := rag.NewDeduplicationDocumentRefiner()
-	ctx, cancel := context.WithCancel(context.Background())
+	r := rag.NewDeduplicationRefiner()
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
 	if _, err := r.Refine(ctx, nil, nil); err == nil {
@@ -41,7 +41,7 @@ func TestDeduplicationRefiner_HonorsContextCancel(t *testing.T) {
 }
 
 func TestRankRefiner_SortsAndCaps(t *testing.T) {
-	r := rag.NewRankDocumentRefiner(2)
+	r := rag.NewRankRefiner(2)
 
 	a, _ := document.NewDocument("a", nil)
 	a.Score = 0.3
@@ -64,7 +64,7 @@ func TestRankRefiner_SortsAndCaps(t *testing.T) {
 
 func TestNewRankRefiner_NormalizesNonPositiveTopK(t *testing.T) {
 	// topK 0 / negative should fall back to 1, not panic / not return empty.
-	r := rag.NewRankDocumentRefiner(0)
+	r := rag.NewRankRefiner(0)
 	a, _ := document.NewDocument("a", nil)
 	got, err := r.Refine(context.Background(), nil, []*document.Document{a})
 	if err != nil {
@@ -76,7 +76,7 @@ func TestNewRankRefiner_NormalizesNonPositiveTopK(t *testing.T) {
 }
 
 func TestRankRefiner_DoesNotMutateInput(t *testing.T) {
-	r := rag.NewRankDocumentRefiner(10)
+	r := rag.NewRankRefiner(10)
 
 	a, _ := document.NewDocument("a", nil)
 	a.Score = 0.1

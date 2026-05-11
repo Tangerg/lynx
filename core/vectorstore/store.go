@@ -221,10 +221,10 @@ type Deleter interface {
 	Delete(ctx context.Context, request *DeleteRequest) error
 }
 
-// VectorStore is the union of [Creator], [Retriever], and [Deleter]
-// plus an [VectorStore.Info] accessor for provider identity. Concrete
+// Store is the union of [Creator], [Retriever], and [Deleter]
+// plus a [Store.Info] accessor for provider identity. Concrete
 // providers live in /vectorstores/<provider>.
-type VectorStore interface {
+type Store interface {
 	Creator
 	Retriever
 	Deleter
@@ -233,7 +233,7 @@ type VectorStore interface {
 	Info() StoreInfo
 }
 
-// StoreInfo holds identity metadata for a [VectorStore]. NativeClient
+// StoreInfo holds identity metadata for a [Store]. NativeClient
 // gives callers access to provider-specific operations the framework
 // doesn't surface.
 type StoreInfo struct {

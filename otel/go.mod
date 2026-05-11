@@ -1,4 +1,4 @@
-module github.com/Tangerg/lynx/observation
+module github.com/Tangerg/lynx/otel
 
 go 1.26.3
 

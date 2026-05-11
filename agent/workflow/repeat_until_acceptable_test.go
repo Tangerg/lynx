@@ -7,8 +7,8 @@ import (
 
 	"github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/core"
-	"github.com/Tangerg/lynx/agent/workflow"
 	"github.com/Tangerg/lynx/agent/runtime"
+	"github.com/Tangerg/lynx/agent/workflow"
 )
 
 type ruaIn struct{ Topic string }
@@ -17,7 +17,7 @@ type ruaOut struct{ Draft string }
 func TestRepeatUntilAcceptable_StopsWhenScoreCrossesThreshold(t *testing.T) {
 	var iterations atomic.Int32
 
-	a := workflow.RepeatUntilAcceptable(workflow.RepeatUntilAcceptableSpec[ruaIn, ruaOut]{
+	a, err := workflow.RepeatUntilAcceptable(workflow.RepeatUntilAcceptableSpec[ruaIn, ruaOut]{
 		Name:            "iterate-draft",
 		MaxIterations:   5,
 		AcceptableScore: 0.7,
@@ -34,8 +34,11 @@ func TestRepeatUntilAcceptable_StopsWhenScoreCrossesThreshold(t *testing.T) {
 			return workflow.Feedback{Score: score, Text: "feedback for " + last.Draft}, nil
 		},
 	})
+	if err != nil {
+		t.Fatalf("RepeatUntilAcceptable: %v", err)
+	}
 
-	platform := agent.NewPlatform(runtime.PlatformConfig{})
+	platform := agent.NewPlatform(&runtime.PlatformConfig{})
 	if err := platform.Deploy(a); err != nil {
 		t.Fatalf("deploy: %v", err)
 	}
@@ -65,7 +68,7 @@ func TestRepeatUntilAcceptable_StopsWhenScoreCrossesThreshold(t *testing.T) {
 }
 
 func TestRepeatUntilAcceptable_DefaultsThresholdToZeroPointSeven(t *testing.T) {
-	a := workflow.RepeatUntilAcceptable(workflow.RepeatUntilAcceptableSpec[ruaIn, ruaOut]{
+	a, err := workflow.RepeatUntilAcceptable(workflow.RepeatUntilAcceptableSpec[ruaIn, ruaOut]{
 		Name:          "iterate",
 		MaxIterations: 3,
 		// AcceptableScore zero → should default to 0.7
@@ -76,8 +79,11 @@ func TestRepeatUntilAcceptable_DefaultsThresholdToZeroPointSeven(t *testing.T) {
 			return workflow.Feedback{Score: 0.69, Text: "borderline"}, nil
 		},
 	})
+	if err != nil {
+		t.Fatalf("RepeatUntilAcceptable: %v", err)
+	}
 
-	platform := agent.NewPlatform(runtime.PlatformConfig{})
+	platform := agent.NewPlatform(&runtime.PlatformConfig{})
 	mustDeploy(t, platform, a)
 	proc, _ := platform.RunAgent(t.Context(), a,
 		map[string]any{core.DefaultBindingName: ruaIn{Topic: "x"}},
@@ -92,46 +98,37 @@ func TestRepeatUntilAcceptable_DefaultsThresholdToZeroPointSeven(t *testing.T) {
 	}
 }
 
-func TestRepeatUntilAcceptable_PanicsOnInvalidSpec(t *testing.T) {
+func TestRepeatUntilAcceptable_RejectsInvalidSpec(t *testing.T) {
 	cases := []struct {
 		name string
-		fn   func()
+		spec workflow.RepeatUntilAcceptableSpec[ruaIn, ruaOut]
 	}{
-		{"empty name", func() {
-			workflow.RepeatUntilAcceptable(workflow.RepeatUntilAcceptableSpec[ruaIn, ruaOut]{
-				Task: func(context.Context, *core.ProcessContext, ruaIn, *workflow.History[ruaOut]) (ruaOut, error) {
-					return ruaOut{}, nil
-				},
-				Evaluator: func(context.Context, *core.ProcessContext, ruaIn, ruaOut) (workflow.Feedback, error) {
-					return workflow.Feedback{}, nil
-				},
-			})
+		{"empty name", workflow.RepeatUntilAcceptableSpec[ruaIn, ruaOut]{
+			Task: func(context.Context, *core.ProcessContext, ruaIn, *workflow.History[ruaOut]) (ruaOut, error) {
+				return ruaOut{}, nil
+			},
+			Evaluator: func(context.Context, *core.ProcessContext, ruaIn, ruaOut) (workflow.Feedback, error) {
+				return workflow.Feedback{}, nil
+			},
 		}},
-		{"nil task", func() {
-			workflow.RepeatUntilAcceptable(workflow.RepeatUntilAcceptableSpec[ruaIn, ruaOut]{
-				Name: "x",
-				Evaluator: func(context.Context, *core.ProcessContext, ruaIn, ruaOut) (workflow.Feedback, error) {
-					return workflow.Feedback{}, nil
-				},
-			})
+		{"nil task", workflow.RepeatUntilAcceptableSpec[ruaIn, ruaOut]{
+			Name: "x",
+			Evaluator: func(context.Context, *core.ProcessContext, ruaIn, ruaOut) (workflow.Feedback, error) {
+				return workflow.Feedback{}, nil
+			},
 		}},
-		{"nil evaluator", func() {
-			workflow.RepeatUntilAcceptable(workflow.RepeatUntilAcceptableSpec[ruaIn, ruaOut]{
-				Name: "x",
-				Task: func(context.Context, *core.ProcessContext, ruaIn, *workflow.History[ruaOut]) (ruaOut, error) {
-					return ruaOut{}, nil
-				},
-			})
+		{"nil evaluator", workflow.RepeatUntilAcceptableSpec[ruaIn, ruaOut]{
+			Name: "x",
+			Task: func(context.Context, *core.ProcessContext, ruaIn, *workflow.History[ruaOut]) (ruaOut, error) {
+				return ruaOut{}, nil
+			},
 		}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			defer func() {
-				if r := recover(); r == nil {
-					t.Fatal("expected panic")
-				}
-			}()
-			tc.fn()
+			if _, err := workflow.RepeatUntilAcceptable(tc.spec); err == nil {
+				t.Fatal("expected error")
+			}
 		})
 	}
 }

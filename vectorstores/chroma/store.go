@@ -2,7 +2,6 @@ package chroma
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	v2 "github.com/amikos-tech/chroma-go/pkg/api/v2"
@@ -32,8 +31,8 @@ const (
 	DistanceIP DistanceMetric = "ip"
 )
 
-// VectorStoreConfig contains configuration options for the Chroma vector store.
-type VectorStoreConfig struct {
+// StoreConfig contains configuration options for the Chroma vector store.
+type StoreConfig struct {
 	// Context is the context for initialization operations.
 	// Optional: defaults to context.Background() if nil.
 	Context context.Context
@@ -71,24 +70,24 @@ type VectorStoreConfig struct {
 	StoreDocumentContent bool
 }
 
-func (c *VectorStoreConfig) Validate() error {
+func (c *StoreConfig) validate() error {
 	if c == nil {
-		return errors.New("chroma: config is nil")
+		return ErrNilConfig
 	}
 	if c.Context == nil {
 		c.Context = context.Background()
 	}
 	if c.Client == nil {
-		return errors.New("chroma: client is required")
+		return ErrMissingClient
 	}
 	if c.CollectionName == "" {
-		return errors.New("chroma: collection name is required")
+		return ErrMissingCollectionName
 	}
 	if c.EmbeddingModel == nil {
-		return errors.New("chroma: embedding model is required")
+		return ErrMissingEmbeddingModel
 	}
 	if c.DocumentBatcher == nil {
-		return errors.New("chroma: document batcher is required")
+		return ErrMissingDocumentBatcher
 	}
 	if c.DistanceMetric == "" {
 		c.DistanceMetric = DistanceCosine
@@ -96,23 +95,22 @@ func (c *VectorStoreConfig) Validate() error {
 	return nil
 }
 
-var _ vectorstore.VectorStore = (*VectorStore)(nil)
+var _ vectorstore.Store = (*Store)(nil)
 
-// VectorStore is a Chroma-backed implementation of vectorstore.VectorStore.
-type VectorStore struct {
+// Store is a Chroma-backed implementation of vectorstore.Store.
+type Store struct {
 	client               v2.Client
 	collection           v2.Collection
 	collectionName       string
-	embeddingModel       embedding.Model
 	embeddingClient      *embedding.Client
 	documentBatcher      document.Batcher
 	distanceMetric       DistanceMetric
 	storeDocumentContent bool
 }
 
-// NewVectorStore creates and initializes a Chroma VectorStore from config.
-func NewVectorStore(config *VectorStoreConfig) (*VectorStore, error) {
-	if err := config.Validate(); err != nil {
+// NewStore creates and initializes a Chroma Store from config.
+func NewStore(config *StoreConfig) (*Store, error) {
+	if err := config.validate(); err != nil {
 		return nil, err
 	}
 
@@ -121,10 +119,9 @@ func NewVectorStore(config *VectorStoreConfig) (*VectorStore, error) {
 		return nil, fmt.Errorf("chroma: failed to create embedding client: %w", err)
 	}
 
-	store := &VectorStore{
+	store := &Store{
 		client:               config.Client,
 		collectionName:       config.CollectionName,
-		embeddingModel:       config.EmbeddingModel,
 		embeddingClient:      embeddingClient,
 		documentBatcher:      config.DocumentBatcher,
 		distanceMetric:       config.DistanceMetric,
@@ -138,7 +135,7 @@ func NewVectorStore(config *VectorStoreConfig) (*VectorStore, error) {
 	return store, nil
 }
 
-func (v *VectorStore) initialize(ctx context.Context, initializeSchema bool) error {
+func (v *Store) initialize(ctx context.Context, initializeSchema bool) error {
 	var (
 		col v2.Collection
 		err error
@@ -166,7 +163,7 @@ func (v *VectorStore) initialize(ctx context.Context, initializeSchema bool) err
 //
 // Chroma returns distances (lower = more similar) for cosine and L2 metrics.
 // For IP it returns inner-product values (higher = more similar).
-func (v *VectorStore) distanceToScore(distance float64) float64 {
+func (v *Store) distanceToScore(distance float64) float64 {
 	switch v.distanceMetric {
 	case DistanceCosine:
 		// cosine distance ≈ 1 − cosine_similarity; maps [0, 2] → [1, -1]
@@ -222,7 +219,7 @@ func metadataToMap(meta v2.DocumentMetadata) map[string]any {
 
 // buildAddOptions assembles the Upsert options for a single document batch
 // together with their pre-computed embedding vectors.
-func (v *VectorStore) buildAddOptions(docs []*document.Document, vectors [][]float64) ([]v2.CollectionAddOption, error) {
+func (v *Store) buildAddOptions(docs []*document.Document, vectors [][]float64) ([]v2.CollectionAddOption, error) {
 	ids := make([]v2.DocumentID, 0, len(docs))
 	embs := make([]chromaEmbed.Embedding, 0, len(docs))
 	metadatas := make([]v2.DocumentMetadata, 0, len(docs))
@@ -258,7 +255,7 @@ func (v *VectorStore) buildAddOptions(docs []*document.Document, vectors [][]flo
 }
 
 // Create embeds the documents in req and upserts them into Chroma.
-func (v *VectorStore) Create(ctx context.Context, req *vectorstore.CreateRequest) error {
+func (v *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) error {
 	if err := req.Validate(); err != nil {
 		return fmt.Errorf("chroma: invalid create request: %w", err)
 	}
@@ -293,7 +290,7 @@ func (v *VectorStore) Create(ctx context.Context, req *vectorstore.CreateRequest
 
 // buildQueryOptions assembles the Query options for the given retrieval request
 // and the pre-computed query embedding vector.
-func (v *VectorStore) buildQueryOptions(req *vectorstore.RetrievalRequest, queryVector []float32) ([]v2.CollectionQueryOption, error) {
+func (v *Store) buildQueryOptions(req *vectorstore.RetrievalRequest, queryVector []float32) ([]v2.CollectionQueryOption, error) {
 	includes := []v2.Include{v2.IncludeMetadatas, v2.IncludeDistances}
 	if v.storeDocumentContent {
 		includes = append(includes, v2.IncludeDocuments)
@@ -322,7 +319,7 @@ func (v *VectorStore) buildQueryOptions(req *vectorstore.RetrievalRequest, query
 
 // buildDocumentsFromResult assembles Lynx Documents from the parallel slices
 // returned by the QueryResult interface, applying the MinScore threshold.
-func (v *VectorStore) buildDocumentsFromResult(result v2.QueryResult, minScore float64) []*document.Document {
+func (v *Store) buildDocumentsFromResult(result v2.QueryResult, minScore float64) []*document.Document {
 	idGroups := result.GetIDGroups()
 	if len(idGroups) == 0 {
 		return nil
@@ -377,7 +374,7 @@ func (v *VectorStore) buildDocumentsFromResult(result v2.QueryResult, minScore f
 }
 
 // Retrieve embeds the query in req, searches Chroma, and returns matching documents.
-func (v *VectorStore) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) ([]*document.Document, error) {
+func (v *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) ([]*document.Document, error) {
 	if err := req.Validate(); err != nil {
 		return nil, fmt.Errorf("chroma: invalid retrieval request: %w", err)
 	}
@@ -406,7 +403,7 @@ func (v *VectorStore) Retrieve(ctx context.Context, req *vectorstore.RetrievalRe
 }
 
 // Delete removes documents from the collection that match the filter in req.
-func (v *VectorStore) Delete(ctx context.Context, req *vectorstore.DeleteRequest) error {
+func (v *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) error {
 	if err := req.Validate(); err != nil {
 		return fmt.Errorf("chroma: invalid delete request: %w", err)
 	}
@@ -430,7 +427,7 @@ func (v *VectorStore) Delete(ctx context.Context, req *vectorstore.DeleteRequest
 }
 
 // Info returns metadata about this store instance.
-func (v *VectorStore) Info() vectorstore.StoreInfo {
+func (v *Store) Info() vectorstore.StoreInfo {
 	return vectorstore.StoreInfo{
 		NativeClient: v.client,
 		Provider:     Provider,
@@ -438,6 +435,6 @@ func (v *VectorStore) Info() vectorstore.StoreInfo {
 }
 
 // Close releases resources held by the underlying Chroma collection handle.
-func (v *VectorStore) Close() error {
+func (v *Store) Close() error {
 	return v.collection.Close()
 }

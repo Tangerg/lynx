@@ -178,8 +178,8 @@ func TestLexer_PositionTracking(t *testing.T) {
 		t.Errorf("first.Start.Line = %d, want 1", first.Start.Line)
 	}
 	// Skip ==, 1, then b.
-	l.Scan() // ==
-	l.Scan() // 1
+	l.Scan()           // ==
+	l.Scan()           // 1
 	second := l.Scan() // b on line 2
 	if second.Start.Line != 2 {
 		t.Errorf("b.Start.Line = %d, want 2", second.Start.Line)

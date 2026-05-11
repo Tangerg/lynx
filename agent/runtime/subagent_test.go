@@ -35,7 +35,7 @@ func childAgent() *core.Agent {
 // parent action body invokes the subagent tool directly, child agent
 // runs, output marshals back as JSON.
 func TestAsChatTool_RunsChildAndReturnsResult(t *testing.T) {
-	platform := agent.NewPlatform(runtime.PlatformConfig{})
+	platform := agent.NewPlatform(&runtime.PlatformConfig{})
 	if err := platform.Deploy(childAgent()); err != nil {
 		t.Fatalf("deploy child: %v", err)
 	}
@@ -44,7 +44,7 @@ func TestAsChatTool_RunsChildAndReturnsResult(t *testing.T) {
 		Description("calls the child").
 		Actions(agent.NewAction("invoke-child",
 			func(ctx context.Context, _ *core.ProcessContext, in subInput) (parentOutput, error) {
-				tool := runtime.AsChatTool[subInput, subOutput](platform, "child-agent")
+				tool, _ := runtime.AsChatTool[subInput, subOutput](platform, "child-agent")
 				args, _ := json.Marshal(in)
 				out, err := tool.Call(ctx, string(args))
 				if err != nil {
@@ -88,12 +88,12 @@ func TestAsChatTool_RunsChildAndReturnsResult(t *testing.T) {
 // TestAsChatTool_NoParentProcessInCtx verifies the helper rejects
 // callers without core.WithProcess in ctx.
 func TestAsChatTool_NoParentProcessInCtx(t *testing.T) {
-	platform := agent.NewPlatform(runtime.PlatformConfig{})
+	platform := agent.NewPlatform(&runtime.PlatformConfig{})
 	if err := platform.Deploy(childAgent()); err != nil {
 		t.Fatalf("deploy child: %v", err)
 	}
 
-	tool := runtime.AsChatTool[subInput, subOutput](platform, "child-agent")
+	tool, _ := runtime.AsChatTool[subInput, subOutput](platform, "child-agent")
 	_, err := tool.Call(t.Context(), `{"Value":1}`)
 	if err == nil || !strings.Contains(err.Error(), "no parent process in ctx") {
 		t.Fatalf("expected no-parent-process error, got %v", err)
@@ -106,7 +106,7 @@ func TestAsChatTool_NoParentProcessInCtx(t *testing.T) {
 // the pending request as the tool result (rather than erroring) so
 // the parent's LLM can decide to switch plans.
 func TestAsChatTool_WaitingChildSurfacesPendingAwaitableAsToolResult(t *testing.T) {
-	platform := agent.NewPlatform(runtime.PlatformConfig{})
+	platform := agent.NewPlatform(&runtime.PlatformConfig{})
 
 	// Child agent's only action immediately requests HITL confirmation.
 	// We use a raw core.Action (not the typed NewAction wrapper) so the
@@ -127,7 +127,7 @@ func TestAsChatTool_WaitingChildSurfacesPendingAwaitableAsToolResult(t *testing.
 		Description("calls a child that always suspends").
 		Actions(agent.NewAction("invoke",
 			func(ctx context.Context, _ *core.ProcessContext, in subInput) (parentOutput, error) {
-				tool := runtime.AsChatTool[subInput, subOutput](platform, "awaiting-child")
+				tool, _ := runtime.AsChatTool[subInput, subOutput](platform, "awaiting-child")
 				args, _ := json.Marshal(in)
 				out, err := tool.Call(ctx, string(args))
 				if err != nil {
@@ -144,8 +144,8 @@ func TestAsChatTool_WaitingChildSurfacesPendingAwaitableAsToolResult(t *testing.
 				if payload["agent"] != "awaiting-child" {
 					t.Fatalf("expected agent=awaiting-child, got %v", payload["agent"])
 				}
-				if payload["awaitableId"] == nil || payload["awaitableId"] == "" {
-					t.Fatalf("expected awaitableId, got %v", payload["awaitableId"])
+				if payload["awaitable_id"] == nil || payload["awaitable_id"] == "" {
+					t.Fatalf("expected awaitableId, got %v", payload["awaitable_id"])
 				}
 				if payload["prompt"] != "approve doubling?" {
 					t.Fatalf("expected prompt='approve doubling?', got %v", payload["prompt"])
@@ -177,12 +177,12 @@ func TestAsChatTool_WaitingChildSurfacesPendingAwaitableAsToolResult(t *testing.
 // MCP-host invocation: no parent process in ctx, AsMCPTool spins up
 // a fresh process per call, returns the JSON-encoded result.
 func TestAsMCPTool_RunsAgentWithoutParentProcess(t *testing.T) {
-	platform := agent.NewPlatform(runtime.PlatformConfig{})
+	platform := agent.NewPlatform(&runtime.PlatformConfig{})
 	if err := platform.Deploy(childAgent()); err != nil {
 		t.Fatalf("deploy child: %v", err)
 	}
 
-	tool := runtime.AsMCPTool[subInput, subOutput](platform, "child-agent")
+	tool, _ := runtime.AsMCPTool[subInput, subOutput](platform, "child-agent")
 	out, err := tool.Call(t.Context(), `{"Value":21}`)
 	if err != nil {
 		t.Fatalf("Call: %v", err)
@@ -200,11 +200,11 @@ func TestAsMCPTool_RunsAgentWithoutParentProcess(t *testing.T) {
 // equivalent so MCP hosts get the same agent name + description and
 // a JSON schema derived from In.
 func TestAsMCPTool_DefinitionUsesAgentMetadata(t *testing.T) {
-	platform := agent.NewPlatform(runtime.PlatformConfig{})
+	platform := agent.NewPlatform(&runtime.PlatformConfig{})
 	if err := platform.Deploy(childAgent()); err != nil {
 		t.Fatalf("deploy child: %v", err)
 	}
-	tool := runtime.AsMCPTool[subInput, subOutput](platform, "child-agent")
+	tool, _ := runtime.AsMCPTool[subInput, subOutput](platform, "child-agent")
 	def := tool.Definition()
 	if def.Name != "child-agent" {
 		t.Fatalf("Name = %q, want child-agent", def.Name)
@@ -222,14 +222,14 @@ func TestAsMCPTool_DefinitionUsesAgentMetadata(t *testing.T) {
 // no platform.FindAgent lookup. Useful when the caller has the
 // agent struct in hand but hasn't deployed it.
 func TestAsChatToolFromAgent_AcceptsAgentDirectly(t *testing.T) {
-	platform := agent.NewPlatform(runtime.PlatformConfig{})
+	platform := agent.NewPlatform(&runtime.PlatformConfig{})
 	child := childAgent()
 	if err := platform.Deploy(child); err != nil {
 		t.Fatalf("deploy: %v", err)
 	}
 
 	// Pass *core.Agent directly — no name lookup needed.
-	tool := runtime.AsChatToolFromAgent[subInput, subOutput](platform, child)
+	tool, _ := runtime.AsChatToolFromAgent[subInput, subOutput](platform, child)
 	if def := tool.Definition(); def.Name != "child-agent" {
 		t.Fatalf("Name = %q, want child-agent", def.Name)
 	}
@@ -263,60 +263,57 @@ func TestAsChatToolFromAgent_AcceptsAgentDirectly(t *testing.T) {
 	}
 }
 
-func TestAsChatToolFromAgent_PanicsOnNilArgs(t *testing.T) {
-	platform := agent.NewPlatform(runtime.PlatformConfig{})
+func TestAsChatToolFromAgent_RejectsNilArgs(t *testing.T) {
+	platform := agent.NewPlatform(&runtime.PlatformConfig{})
 	for _, tc := range []struct {
 		name string
-		fn   func()
+		fn   func() error
 	}{
-		{"nil platform", func() { runtime.AsChatToolFromAgent[subInput, subOutput](nil, childAgent()) }},
-		{"nil agent", func() { runtime.AsChatToolFromAgent[subInput, subOutput](platform, nil) }},
+		{"nil platform", func() error {
+			_, err := runtime.AsChatToolFromAgent[subInput, subOutput](nil, childAgent())
+			return err
+		}},
+		{"nil agent", func() error {
+			_, err := runtime.AsChatToolFromAgent[subInput, subOutput](platform, nil)
+			return err
+		}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			defer func() {
-				if r := recover(); r == nil {
-					t.Fatal("expected panic")
-				}
-			}()
-			tc.fn()
+			if err := tc.fn(); err == nil {
+				t.Fatal("expected error")
+			}
 		})
 	}
 }
 
-// TestAsMCPTool_PanicsOnUnknownAgent matches AsChatTool's fail-fast
-// boot-time behaviour.
-func TestAsMCPTool_PanicsOnUnknownAgent(t *testing.T) {
-	defer func() {
-		if r := recover(); r == nil {
-			t.Fatal("expected panic on unknown agent name")
-		}
-	}()
-	platform := agent.NewPlatform(runtime.PlatformConfig{})
-	runtime.AsMCPTool[subInput, subOutput](platform, "missing")
+// TestAsMCPTool_RejectsUnknownAgent matches AsChatTool's fail-fast
+// boot-time behaviour, surfaced as an error.
+func TestAsMCPTool_RejectsUnknownAgent(t *testing.T) {
+	platform := agent.NewPlatform(&runtime.PlatformConfig{})
+	if _, err := runtime.AsMCPTool[subInput, subOutput](platform, "missing"); err == nil {
+		t.Fatal("expected error on unknown agent name")
+	}
 }
 
-// TestAsChatTool_PanicsOnUnknownAgent ensures construction fails fast
+// TestAsChatTool_RejectsUnknownAgent ensures construction fails fast
 // when the named agent isn't registered — programming errors should
 // surface at boot, not on the first LLM tool call.
-func TestAsChatTool_PanicsOnUnknownAgent(t *testing.T) {
-	defer func() {
-		if r := recover(); r == nil {
-			t.Fatal("expected panic on unknown agent name")
-		}
-	}()
-	platform := agent.NewPlatform(runtime.PlatformConfig{})
-	runtime.AsChatTool[subInput, subOutput](platform, "missing")
+func TestAsChatTool_RejectsUnknownAgent(t *testing.T) {
+	platform := agent.NewPlatform(&runtime.PlatformConfig{})
+	if _, err := runtime.AsChatTool[subInput, subOutput](platform, "missing"); err == nil {
+		t.Fatal("expected error on unknown agent name")
+	}
 }
 
 // TestAsChatTool_DefinitionUsesAgentMetadata verifies the tool surface
 // reflects the wrapped agent's name + description and a JSON schema
 // derived from In.
 func TestAsChatTool_DefinitionUsesAgentMetadata(t *testing.T) {
-	platform := agent.NewPlatform(runtime.PlatformConfig{})
+	platform := agent.NewPlatform(&runtime.PlatformConfig{})
 	if err := platform.Deploy(childAgent()); err != nil {
 		t.Fatalf("deploy child: %v", err)
 	}
-	tool := runtime.AsChatTool[subInput, subOutput](platform, "child-agent")
+	tool, _ := runtime.AsChatTool[subInput, subOutput](platform, "child-agent")
 	def := tool.Definition()
 	if def.Name != "child-agent" {
 		t.Fatalf("Name = %q, want child-agent", def.Name)

@@ -40,14 +40,13 @@ type LLMPlanRankerConfig struct {
 	PromptHeader string
 }
 
-// NewLLMPlanRanker constructs a ranker backed by client. Panics on
-// nil — programming-error fast-fail consistent with the rest of the
-// package.
-func NewLLMPlanRanker(client *chat.Client, cfg LLMPlanRankerConfig) *LLMPlanRanker {
+// NewLLMPlanRanker constructs a ranker backed by client. Returns an
+// error on a nil client — caller decides whether to surface or panic.
+func NewLLMPlanRanker(client *chat.Client, cfg LLMPlanRankerConfig) (*LLMPlanRanker, error) {
 	if client == nil {
-		panic("autonomy.NewLLMPlanRanker: chat.Client must not be nil")
+		return nil, fmt.Errorf("autonomy.NewLLMPlanRanker: chat.Client must not be nil")
 	}
-	return &LLMPlanRanker{client: client, cfg: cfg}
+	return &LLMPlanRanker{client: client, cfg: cfg}, nil
 }
 
 // Rank implements [PlanRanker]. Plans the LLM didn't score keep
@@ -72,12 +71,12 @@ func (r *LLMPlanRanker) Rank(ctx context.Context, plans []*plan.Plan, ws core.Wo
 		Call().
 		Text(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("rank plans via chat: %w", err)
+		return nil, fmt.Errorf("autonomy.LLMPlanRanker.Rank: %w", err)
 	}
 
 	scored, err := parseRankerReply(text)
 	if err != nil {
-		return nil, fmt.Errorf("parse plan-ranker reply: %w (raw=%q)", err, text)
+		return nil, fmt.Errorf("autonomy.LLMPlanRanker.Rank: parse reply: %w (raw=%q)", err, text)
 	}
 
 	type ranked struct {

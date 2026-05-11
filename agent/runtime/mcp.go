@@ -2,6 +2,7 @@ package runtime
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/mcp"
@@ -26,21 +27,21 @@ type MCPToolGroupResolver struct {
 
 // NewMCPToolGroupResolver returns a resolver answering for role,
 // delegating tool discovery to provider. Both arguments are required;
-// nil/empty inputs panic — they're programming errors that should
-// surface at boot.
-func NewMCPToolGroupResolver(role string, provider *mcp.Provider) *MCPToolGroupResolver {
+// nil/empty inputs return an error — caller decides whether to
+// surface or panic.
+func NewMCPToolGroupResolver(role string, provider *mcp.Provider) (*MCPToolGroupResolver, error) {
 	if role == "" {
-		panic("runtime.NewMCPToolGroupResolver: role must not be empty")
+		return nil, fmt.Errorf("runtime.NewMCPToolGroupResolver: role must not be empty")
 	}
 	if provider == nil {
-		panic("runtime.NewMCPToolGroupResolver: provider must not be nil")
+		return nil, fmt.Errorf("runtime.NewMCPToolGroupResolver: provider must not be nil")
 	}
 	return &MCPToolGroupResolver{
 		name:     "mcp-tool-resolver:" + role,
 		role:     role,
 		provider: provider,
 		metadata: core.SimpleToolGroupMetadata{RoleText: role},
-	}
+	}, nil
 }
 
 func (r *MCPToolGroupResolver) Name() string { return r.name }

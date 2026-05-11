@@ -43,6 +43,9 @@ type TokenCountBatcherConfig struct {
 // validate fills defaults and returns an error when required fields
 // are missing or numerically out of range.
 func (c *TokenCountBatcherConfig) validate() error {
+	if c == nil {
+		return errors.New("document.TokenCountBatcherConfig: config must not be nil")
+	}
 	if c.TokenCountEstimator == nil {
 		return errors.New("document.TokenCountBatcherConfig: TokenCountEstimator is required")
 	}
@@ -92,7 +95,7 @@ type TokenCountBatcher struct {
 
 // NewTokenCountBatcher builds a [TokenCountBatcher]. The effective
 // per-batch budget is MaxInputTokenCount * (1 - ReservePercentage).
-func NewTokenCountBatcher(config TokenCountBatcherConfig) (*TokenCountBatcher, error) {
+func NewTokenCountBatcher(config *TokenCountBatcherConfig) (*TokenCountBatcher, error) {
 	if err := config.validate(); err != nil {
 		return nil, err
 	}
@@ -118,7 +121,7 @@ func (b *TokenCountBatcher) Batch(ctx context.Context, docs []*Document) ([][]*D
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		rendered := doc.FormatByMetadataModeWithFormatter(b.metadataMode, b.formatter)
+		rendered := doc.FormatWith(b.metadataMode, b.formatter)
 
 		count, err := b.tokenCountEstimator.EstimateText(ctx, rendered)
 		if err != nil {
@@ -142,7 +145,7 @@ func (b *TokenCountBatcher) Batch(ctx context.Context, docs []*Document) ([][]*D
 			if len(currentBatch) > 0 {
 				batches = append(batches, currentBatch)
 			}
-			currentBatch = make([]*Document, 0)
+			currentBatch = nil
 			currentSum = 0
 		}
 		currentBatch = append(currentBatch, item.document)

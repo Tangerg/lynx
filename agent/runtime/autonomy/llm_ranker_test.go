@@ -17,8 +17,8 @@ import (
 // supposed to be JSON the ranker parses; tests configure it
 // per-case.
 type stubModel struct {
-	defaults *chat.Options
-	reply    string
+	defaults  *chat.Options
+	reply     string
 	gotPrompt string
 }
 
@@ -55,14 +55,15 @@ func (m *stubModel) Stream(ctx context.Context, req *chat.Request) iter.Seq2[*ch
 }
 
 func TestLLMRanker_ParsesScoresAndRoutesToTopAgent(t *testing.T) {
-	platform := agent.NewPlatform(runtime.PlatformConfig{})
+	platform := agent.NewPlatform(&runtime.PlatformConfig{})
 	for _, name := range []string{"alpha", "beta"} {
 		if err := platform.Deploy(newAgent(name)); err != nil {
 			t.Fatalf("deploy %s: %v", name, err)
 		}
 	}
 
-	candidates := autonomy.New(platform, &stubRanker{}, autonomy.Config{}).Candidates()
+	_aut, _ := autonomy.New(platform, &stubRanker{}, autonomy.Config{})
+	candidates := _aut.Candidates()
 	if len(candidates) != 2 {
 		t.Fatalf("expected 2 candidates, got %d", len(candidates))
 	}
@@ -92,7 +93,7 @@ trailing prose ignored.`
 		t.Fatalf("NewClientWithModel: %v", err)
 	}
 
-	ranker := autonomy.NewLLMRanker(client, autonomy.LLMRankerConfig{})
+	ranker, _ := autonomy.NewLLMRanker(client, autonomy.LLMRankerConfig{})
 	choices, err := ranker.Rank(t.Context(), "user wants beta", candidates)
 	if err != nil {
 		t.Fatalf("Rank: %v", err)
@@ -123,15 +124,16 @@ trailing prose ignored.`
 }
 
 func TestLLMRanker_ClampsConfidence(t *testing.T) {
-	platform := agent.NewPlatform(runtime.PlatformConfig{})
+	platform := agent.NewPlatform(&runtime.PlatformConfig{})
 	mustDeploy(t, platform, newAgent("alpha"))
 
-	candidates := autonomy.New(platform, &stubRanker{}, autonomy.Config{}).Candidates()
+	_aut, _ := autonomy.New(platform, &stubRanker{}, autonomy.Config{})
+	candidates := _aut.Candidates()
 	reply := `{"choices":[{"id":"` + candidates[0].String() + `","confidence":1.7,"rationale":"x"}]}`
 	model := newStubModel(reply)
 	client, _ := chat.NewClient(model)
 
-	ranker := autonomy.NewLLMRanker(client, autonomy.LLMRankerConfig{})
+	ranker, _ := autonomy.NewLLMRanker(client, autonomy.LLMRankerConfig{})
 	choices, err := ranker.Rank(t.Context(), "x", candidates)
 	if err != nil {
 		t.Fatalf("Rank: %v", err)
@@ -142,16 +144,17 @@ func TestLLMRanker_ClampsConfidence(t *testing.T) {
 }
 
 func TestLLMRanker_MissingScoreDefaultsToZero(t *testing.T) {
-	platform := agent.NewPlatform(runtime.PlatformConfig{})
+	platform := agent.NewPlatform(&runtime.PlatformConfig{})
 	mustDeploy(t, platform, newAgent("alpha"), newAgent("beta"))
 
-	candidates := autonomy.New(platform, &stubRanker{}, autonomy.Config{}).Candidates()
+	_aut, _ := autonomy.New(platform, &stubRanker{}, autonomy.Config{})
+	candidates := _aut.Candidates()
 	// Reply scores only the first candidate; beta is omitted.
 	reply := `{"choices":[{"id":"` + candidates[0].String() + `","confidence":0.6,"rationale":""}]}`
 	model := newStubModel(reply)
 	client, _ := chat.NewClient(model)
 
-	ranker := autonomy.NewLLMRanker(client, autonomy.LLMRankerConfig{})
+	ranker, _ := autonomy.NewLLMRanker(client, autonomy.LLMRankerConfig{})
 	choices, err := ranker.Rank(t.Context(), "x", candidates)
 	if err != nil {
 		t.Fatalf("Rank: %v", err)
@@ -162,14 +165,15 @@ func TestLLMRanker_MissingScoreDefaultsToZero(t *testing.T) {
 }
 
 func TestLLMRanker_RejectsNonJSONReply(t *testing.T) {
-	platform := agent.NewPlatform(runtime.PlatformConfig{})
+	platform := agent.NewPlatform(&runtime.PlatformConfig{})
 	mustDeploy(t, platform, newAgent("alpha"))
-	candidates := autonomy.New(platform, &stubRanker{}, autonomy.Config{}).Candidates()
+	_aut, _ := autonomy.New(platform, &stubRanker{}, autonomy.Config{})
+	candidates := _aut.Candidates()
 
 	model := newStubModel("nope, no JSON at all here")
 	client, _ := chat.NewClient(model)
 
-	ranker := autonomy.NewLLMRanker(client, autonomy.LLMRankerConfig{})
+	ranker, _ := autonomy.NewLLMRanker(client, autonomy.LLMRankerConfig{})
 	_, err := ranker.Rank(t.Context(), "x", candidates)
 	if err == nil {
 		t.Fatal("expected error on non-JSON reply")
@@ -177,7 +181,7 @@ func TestLLMRanker_RejectsNonJSONReply(t *testing.T) {
 }
 
 func TestLLMRanker_PromptIncludesGoalTagsAndExamples(t *testing.T) {
-	platform := agent.NewPlatform(runtime.PlatformConfig{})
+	platform := agent.NewPlatform(&runtime.PlatformConfig{})
 
 	// Build an agent whose goal carries Tags + Examples.
 	taggedAgent := agent.New("tagged").
@@ -198,12 +202,13 @@ func TestLLMRanker_PromptIncludesGoalTagsAndExamples(t *testing.T) {
 		t.Fatalf("deploy: %v", err)
 	}
 
-	candidates := autonomy.New(platform, &stubRanker{}, autonomy.Config{}).Candidates()
+	_aut, _ := autonomy.New(platform, &stubRanker{}, autonomy.Config{})
+	candidates := _aut.Candidates()
 	reply := `{"choices":[{"id":"` + candidates[0].String() + `","confidence":1.0,"rationale":""}]}`
 	model := newStubModel(reply)
 	client, _ := chat.NewClient(model)
 
-	ranker := autonomy.NewLLMRanker(client, autonomy.LLMRankerConfig{})
+	ranker, _ := autonomy.NewLLMRanker(client, autonomy.LLMRankerConfig{})
 	if _, err := ranker.Rank(t.Context(), "x", candidates); err != nil {
 		t.Fatalf("Rank: %v", err)
 	}
@@ -222,11 +227,8 @@ func TestLLMRanker_PromptIncludesGoalTagsAndExamples(t *testing.T) {
 	}
 }
 
-func TestLLMRanker_PanicsOnNilClient(t *testing.T) {
-	defer func() {
-		if r := recover(); r == nil {
-			t.Fatal("expected panic")
-		}
-	}()
-	autonomy.NewLLMRanker(nil, autonomy.LLMRankerConfig{})
+func TestLLMRanker_RejectsNilClient(t *testing.T) {
+	if _, err := autonomy.NewLLMRanker(nil, autonomy.LLMRankerConfig{}); err == nil {
+		t.Fatal("expected error")
+	}
 }

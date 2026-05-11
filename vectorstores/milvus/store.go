@@ -32,8 +32,8 @@ const (
 	maxContentLength = int64(65535)
 )
 
-// VectorStoreConfig contains configuration options for Milvus vector store.
-type VectorStoreConfig struct {
+// StoreConfig contains configuration options for Milvus vector store.
+type StoreConfig struct {
 	// Client is the Milvus client instance.
 	// Required: must be provided, otherwise initialization will fail.
 	Client *milvusclient.Client
@@ -65,21 +65,21 @@ type VectorStoreConfig struct {
 	MetricType entity.MetricType
 }
 
-func (c *VectorStoreConfig) validate() error {
+func (c *StoreConfig) validate() error {
 	if c == nil {
-		return errors.New("milvus: config is nil")
+		return ErrNilConfig
 	}
 	if c.Client == nil {
-		return errors.New("milvus: client is required")
+		return ErrMissingClient
 	}
 	if c.CollectionName == "" {
-		return errors.New("milvus: collection name is required")
+		return ErrMissingCollectionName
 	}
 	if c.EmbeddingModel == nil {
-		return errors.New("milvus: embedding model is required")
+		return ErrMissingEmbeddingModel
 	}
 	if c.DocumentBatcher == nil {
-		return errors.New("milvus: document batcher is required")
+		return ErrMissingDocumentBatcher
 	}
 	if c.MetricType == "" {
 		c.MetricType = entity.COSINE
@@ -87,9 +87,9 @@ func (c *VectorStoreConfig) validate() error {
 	return nil
 }
 
-var _ vectorstore.VectorStore = (*VectorStore)(nil)
+var _ vectorstore.Store = (*Store)(nil)
 
-type VectorStore struct {
+type Store struct {
 	client               *milvusclient.Client
 	embeddingModel       embedding.Model
 	embeddingClient      *embedding.Client
@@ -100,7 +100,7 @@ type VectorStore struct {
 	storeDocumentContent bool
 }
 
-func NewVectorStore(cfg *VectorStoreConfig) (*VectorStore, error) {
+func NewStore(cfg *StoreConfig) (*Store, error) {
 	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
@@ -110,7 +110,7 @@ func NewVectorStore(cfg *VectorStoreConfig) (*VectorStore, error) {
 		return nil, fmt.Errorf("milvus: failed to create embedding client: %w", err)
 	}
 
-	store := &VectorStore{
+	store := &Store{
 		client:               cfg.Client,
 		embeddingModel:       cfg.EmbeddingModel,
 		embeddingClient:      embeddingClient,
@@ -128,7 +128,7 @@ func NewVectorStore(cfg *VectorStoreConfig) (*VectorStore, error) {
 	return store, nil
 }
 
-func (v *VectorStore) createSchema(dim int64) *entity.Schema {
+func (v *Store) createSchema(dim int64) *entity.Schema {
 	return entity.NewSchema().
 		WithField(entity.NewField().
 			WithName(fieldID).
@@ -148,7 +148,7 @@ func (v *VectorStore) createSchema(dim int64) *entity.Schema {
 			WithDataType(entity.FieldTypeJSON))
 }
 
-func (v *VectorStore) initialize(ctx context.Context) error {
+func (v *Store) initialize(ctx context.Context) error {
 	if !v.initializeSchema {
 		return nil
 	}
@@ -190,7 +190,7 @@ func (v *VectorStore) initialize(ctx context.Context) error {
 	return nil
 }
 
-func (v *VectorStore) buildInsertColumns(docs []*document.Document, vectors [][]float64) ([]column.Column, error) {
+func (v *Store) buildInsertColumns(docs []*document.Document, vectors [][]float64) ([]column.Column, error) {
 	n := len(docs)
 	ids := make([]string, n)
 	vecs := make([][]float32, n)
@@ -226,7 +226,7 @@ func (v *VectorStore) buildInsertColumns(docs []*document.Document, vectors [][]
 	}, nil
 }
 
-func (v *VectorStore) Create(ctx context.Context, req *vectorstore.CreateRequest) error {
+func (v *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) error {
 	if err := req.Validate(); err != nil {
 		return fmt.Errorf("milvus: invalid create request: %w", err)
 	}
@@ -260,7 +260,7 @@ func (v *VectorStore) Create(ctx context.Context, req *vectorstore.CreateRequest
 	return nil
 }
 
-func (v *VectorStore) buildDocumentsFromResults(rs milvusclient.ResultSet, minScore float64) ([]*document.Document, error) {
+func (v *Store) buildDocumentsFromResults(rs milvusclient.ResultSet, minScore float64) ([]*document.Document, error) {
 	docs := make([]*document.Document, 0, rs.Len())
 
 	idCol := rs.GetColumn(fieldID)
@@ -304,7 +304,7 @@ func (v *VectorStore) buildDocumentsFromResults(rs milvusclient.ResultSet, minSc
 	return docs, nil
 }
 
-func (v *VectorStore) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) ([]*document.Document, error) {
+func (v *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) ([]*document.Document, error) {
 	if err := req.Validate(); err != nil {
 		return nil, fmt.Errorf("milvus: invalid retrieval request: %w", err)
 	}
@@ -348,7 +348,7 @@ func (v *VectorStore) Retrieve(ctx context.Context, req *vectorstore.RetrievalRe
 	return docs, nil
 }
 
-func (v *VectorStore) Delete(ctx context.Context, req *vectorstore.DeleteRequest) error {
+func (v *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) error {
 	if err := req.Validate(); err != nil {
 		return fmt.Errorf("milvus: invalid delete request: %w", err)
 	}
@@ -366,13 +366,13 @@ func (v *VectorStore) Delete(ctx context.Context, req *vectorstore.DeleteRequest
 	return nil
 }
 
-func (v *VectorStore) Info() vectorstore.StoreInfo {
+func (v *Store) Info() vectorstore.StoreInfo {
 	return vectorstore.StoreInfo{
 		NativeClient: v.client,
 		Provider:     Provider,
 	}
 }
 
-func (v *VectorStore) Close() error {
+func (v *Store) Close() error {
 	return v.client.Close(context.Background())
 }

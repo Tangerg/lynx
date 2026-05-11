@@ -2,7 +2,6 @@ package openai
 
 import (
 	"context"
-	"errors"
 	"iter"
 
 	"github.com/openai/openai-go/v3"
@@ -22,13 +21,13 @@ type AudioTTSModelConfig struct {
 
 func (c *AudioTTSModelConfig) validate() error {
 	if c == nil {
-		return errors.New("openai: config is nil")
+		return ErrNilConfig
 	}
 	if c.ApiKey == nil {
-		return errors.New("openai: api key is required")
+		return ErrMissingApiKey
 	}
 	if c.DefaultOptions == nil {
-		return errors.New("openai: default options are required")
+		return ErrMissingDefaultOptions
 	}
 	return nil
 }
@@ -91,7 +90,7 @@ func (a *AudioTTSModel) Call(ctx context.Context, req *tts.Request) (*tts.Respon
 		return nil, err
 	}
 
-	apiResp, err := a.api.AudioTextToSpeech(ctx, apiReq)
+	apiResp, err := a.api.AudioTTS(ctx, apiReq)
 	if err != nil {
 		return nil, err
 	}
@@ -113,7 +112,7 @@ func (a *AudioTTSModel) Stream(ctx context.Context, req *tts.Request) iter.Seq2[
 			return
 		}
 
-		apiResp, err := a.api.AudioTextToSpeech(ctx, apiReq)
+		apiResp, err := a.api.AudioTTS(ctx, apiReq)
 		if err != nil {
 			yield(nil, err)
 			return

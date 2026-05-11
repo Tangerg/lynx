@@ -54,27 +54,27 @@ type ParallelSpec[In, Element, Result any] struct {
 // status) cancels the errgroup; the first failure is returned with the
 // failing agent's index for attribution.
 //
-// Panics on missing Name, empty Agents, or nil Joiner — programming
-// errors that should fail at agent construction.
+// Returns an error on missing Name, empty Agents, or nil Joiner —
+// caller decides whether to surface, retry, or panic.
 func Parallel[In, Element, Result any](
 	platform *runtime.Platform,
 	spec ParallelSpec[In, Element, Result],
-) *core.Agent {
+) (*core.Agent, error) {
 	if platform == nil {
-		panic("workflow.Parallel: platform must not be nil")
+		return nil, fmt.Errorf("workflow.Parallel: platform must not be nil")
 	}
 	if spec.Name == "" {
-		panic("workflow.Parallel: Name must not be empty")
+		return nil, fmt.Errorf("workflow.Parallel: Name must not be empty")
 	}
 	if len(spec.Agents) == 0 {
-		panic("workflow.Parallel: Agents must not be empty")
+		return nil, fmt.Errorf("workflow.Parallel: Agents must not be empty")
 	}
 	if spec.Joiner == nil {
-		panic("workflow.Parallel: Joiner must not be nil")
+		return nil, fmt.Errorf("workflow.Parallel: Joiner must not be nil")
 	}
 	for i, a := range spec.Agents {
 		if a == nil {
-			panic(fmt.Sprintf("workflow.Parallel: Agents[%d] is nil", i))
+			return nil, fmt.Errorf("workflow.Parallel: Agents[%d] is nil", i)
 		}
 	}
 
@@ -126,7 +126,7 @@ func Parallel[In, Element, Result any](
 		},
 	)
 
-	return core.NewAgent(core.AgentConfig{
+	return core.NewAgent(&core.AgentConfig{
 		Name:        spec.Name,
 		Description: spec.Description,
 		Actions:     []core.Action{fanout, join},
@@ -134,5 +134,5 @@ func Parallel[In, Element, Result any](
 			Name:        spec.Name,
 			Description: "produce " + core.TypeFullNameOf[Result](),
 		})},
-	})
+	}), nil
 }

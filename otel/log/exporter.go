@@ -52,21 +52,20 @@ func formatSpan(span sdktrace.ReadOnlySpan) string {
 	var b strings.Builder
 	b.Grow(256)
 
-	// Level marker
-	status := span.Status()
-	if status.Code == codes.Error {
+	// Level marker — error spans get a "[ERROR] " prefix and (if set)
+	// the status description appended as the leading message.
+	if status := span.Status(); status.Code == codes.Error {
+		b.WriteString("[ERROR] span (error)")
 		if status.Description != "" {
-			b.WriteString("[ERROR] span (error): ")
+			b.WriteString(": ")
 			b.WriteString(status.Description)
-		} else {
-			b.WriteString("[ERROR] span (error)")
 		}
 		b.WriteByte(' ')
 	} else {
 		b.WriteString("span ")
 	}
 
-	// Core identifiers
+	// Core identifiers.
 	sc := span.SpanContext()
 	fmt.Fprintf(&b, "trace_id=%s span_id=%s ", sc.TraceID(), sc.SpanID())
 	if parent := span.Parent(); parent.HasSpanID() {
@@ -75,7 +74,7 @@ func formatSpan(span sdktrace.ReadOnlySpan) string {
 	fmt.Fprintf(&b, "name=%q duration=%s",
 		span.Name(), span.EndTime().Sub(span.StartTime()))
 
-	// Attributes (gen_ai.*, db.*, lynx.*, etc.)
+	// Attributes (gen_ai.*, db.*, lynx.*, etc.).
 	for _, kv := range span.Attributes() {
 		b.WriteByte(' ')
 		b.WriteString(string(kv.Key))
@@ -83,15 +82,14 @@ func formatSpan(span sdktrace.ReadOnlySpan) string {
 		b.WriteString(kv.Value.Emit())
 	}
 
-	// Event names
+	// Event names — joined by comma to keep the line single-line.
 	if evs := span.Events(); len(evs) > 0 {
-		b.WriteString(" events=[")
+		names := make([]string, len(evs))
 		for i, ev := range evs {
-			if i > 0 {
-				b.WriteByte(',')
-			}
-			b.WriteString(ev.Name)
+			names[i] = ev.Name
 		}
+		b.WriteString(" events=[")
+		b.WriteString(strings.Join(names, ","))
 		b.WriteByte(']')
 	}
 

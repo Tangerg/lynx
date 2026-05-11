@@ -14,17 +14,14 @@ package core
 type ProcessOptions struct {
 	Blackboard Blackboard
 
-	Budget         Budget
-	ProcessControl ProcessControl
+	// Budget caps cumulative LLM spend (USD), action invocations, and
+	// total tokens for this process. The runtime always checks a
+	// Budget-derived [BudgetPolicy] implicitly each tick; additional
+	// [EarlyTerminationPolicy] extensions can be registered via
+	// Extensions (OR semantics — any policy triggers termination).
+	Budget Budget
 
 	OutputChannel OutputChannel
-
-	// PlannerType selects which planner the runtime requests from the
-	// platform's PlannerFactory. The default factory wires
-	// [PlannerGOAP] and [PlannerReactive]; [PlannerHTN] requires a
-	// user-supplied task library and a custom PlannerFactory
-	// extension.
-	PlannerType PlannerType
 
 	ProcessType ProcessType
 
@@ -46,9 +43,9 @@ type ProcessOptions struct {
 // The runtime invokes this on every [ProcessOptions] it receives, so
 // users normally don't need to call it themselves.
 //
-// PlannerType and ProcessType are int8 enums whose zero value already
-// matches the desired default ([PlannerGOAP] / [ProcessSequential]), so they
-// need no explicit handling.
+// ProcessType is an int8 enum whose zero value already matches the
+// desired default ([ProcessSequential]), so it needs no explicit
+// handling.
 func (o *ProcessOptions) ApplyDefaults() {
 	if o.Budget == (Budget{}) {
 		o.Budget = DefaultBudget()
@@ -56,22 +53,14 @@ func (o *ProcessOptions) ApplyDefaults() {
 	if o.OutputChannel == nil {
 		o.OutputChannel = DevNullOutputChannel
 	}
-	// Wire Budget into the early-termination check by default — mirrors
-	// embabel's ProcessOptions(processControl = ProcessControl(... =
-	// budget.earlyTerminationPolicy())). A zero ProcessOptions{} now
-	// actually enforces DefaultBudget; callers who want unlimited can
-	// pass a custom EarlyTerminationPolicy that ignores Budget.
-	if o.ProcessControl.EarlyTerminationPolicy == nil {
-		o.ProcessControl.EarlyTerminationPolicy = o.Budget.EarlyTerminationPolicy()
-	}
 }
 
 // Budget caps cumulative LLM spend (USD), action invocations, and total
 // tokens for one process. Budget is enforced via [BudgetPolicy], which
-// [ProcessOptions.ApplyDefaults] installs as the default
-// [ProcessControl.EarlyTerminationPolicy] when none is supplied — so a
-// zero-options caller gets the [DefaultBudget] limits automatically. To
-// disable, set a custom EarlyTerminationPolicy.
+// the runtime checks implicitly each tick — so a zero-options caller
+// gets the [DefaultBudget] limits automatically. Additional policies
+// (DLP, rate-limit, custom guardrails) can be registered as
+// [EarlyTerminationPolicy] extensions; all are OR-composed.
 type Budget struct {
 	CostLimit   float64
 	ActionLimit int
@@ -85,18 +74,10 @@ func DefaultBudget() Budget {
 	return Budget{CostLimit: 2.0, ActionLimit: 50, TokenLimit: 1_000_000}
 }
 
-// EarlyTerminationPolicy returns the policy that enforces this Budget.
-// Mirrors embabel's Budget.earlyTerminationPolicy(): a single composite
-// check on cost / tokens / actions. [ProcessOptions.ApplyDefaults] uses
-// this to wire Budget into ProcessControl when the caller didn't supply
-// an explicit policy.
+// EarlyTerminationPolicy returns a [BudgetPolicy] that enforces this
+// Budget. Useful when callers want to register the budget check as
+// an explicit extension alongside other policies, or to construct
+// the BudgetPolicy without typing the struct literal.
 func (b Budget) EarlyTerminationPolicy() EarlyTerminationPolicy {
 	return BudgetPolicy{Budget: b}
-}
-
-// ProcessControl wraps the early-termination policy. Wrapper kept (not
-// lifted to ProcessOptions top level) so future tick-control knobs can
-// be added without churning the ProcessOptions field set.
-type ProcessControl struct {
-	EarlyTerminationPolicy EarlyTerminationPolicy
 }

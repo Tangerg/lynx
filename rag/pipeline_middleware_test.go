@@ -64,7 +64,7 @@ func TestPipelineMiddleware_AugmentsRequestAndAttachesDocs(t *testing.T) {
 	doc, _ := document.NewDocument("retrieved info", nil)
 	retriever := &stubRetriever{docs: []*document.Document{doc}}
 
-	aug, _ := rag.NewContextualQueryAugmenter(&rag.ContextualQueryAugmenterConfig{})
+	aug, _ := rag.NewContextualAugmenter(&rag.ContextualAugmenterConfig{})
 
 	callMW, _, err := rag.NewPipelineMiddleware(&rag.PipelineConfig{
 		DocumentRetrievers: []rag.DocumentRetriever{retriever},

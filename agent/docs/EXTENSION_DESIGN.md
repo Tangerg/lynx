@@ -15,7 +15,7 @@
 | **生命周期** | platform-scoped（boot 期，永生）+ process-scoped（per-call，自动 GC），无显式 remove |
 | **去重** | 按 `Extension.Name() string` 唯一性约束，重复在 platform 层 panic |
 | **取消的方案** | ❌ functional options ❌ `Use(...)` 链式调用 ❌ `Drop(ext)` ❌ cancel func handle |
-| **现有取代项** | `PlatformConfig.{Listeners, Tools, IDGenerator, PlannerFactory, Services, Blackboard}` 全部下沉为 `Extensions` 中的 capability |
+| **现有取代项** | `PlatformConfig.{Listeners, Tools, IDGenerator, Planner, Services, Blackboard}` 全部下沉为 `Extensions` 中的 capability。`*Factory` 包装层全部去除——`plan.Planner` / `core.Blackboard` 自己嵌入 `core.Extension`。 |
 | **保留独立 API** | HITL `ResumeProcess(id, response any)`（类型化），命令式动作（`Deploy / RunAgent / KillProcess / ContinueProcess` 等），per-agent 策略（`core.Agent.StuckHandler`）|
 
 ---
@@ -85,8 +85,8 @@ type Extension interface {
 | 接口 | 触发位置 | 默认 fallback |
 |---|---|---|
 | `IDGenerator` | `Platform.createProcess` 生成 process id | UUID v4 |
-| `PlannerFactory` | `Platform.createProcess` 生成 planner | A* GOAP |
-| `BlackboardFactory` | `Platform.createProcess` 生成 blackboard | in-memory |
+| `plan.Planner`（按 `AgentConfig.PlannerName` dispatch） | `Platform.createProcess` 挑 planner | goap / reactive 内置 |
+| `core.Blackboard`（prototype 模式 + `Spawn()`） | `Platform.createProcess` 生成 blackboard | in-memory |
 
 ### 3.3 完整签名
 
@@ -150,21 +150,36 @@ type ToolGroupResolver interface {
 
 type IDGenerator interface {
     Extension
-    NextID() string
+    Next() string
 }
 
-type PlannerFactory interface {
-    Extension
-    NewPlanner(plannerType PlannerType) plan.Planner  // 注意 plan 包反向依赖问题，可能要把 PlannerFactory 留在 runtime
-}
+// plan.Planner（在 agent/plan 包）直接嵌入 core.Extension，无需 factory 包装。
+// runtime 按 AgentConfig.PlannerName 匹配 Name() 来挑：
+//
+//   type Planner interface {
+//       core.Extension
+//       PlanToGoal(ctx, start, system, goal, options) (*Plan, error)
+//   }
+//
+// 内置实现：goap.AStarPlanner ("goap")、reactive.Planner ("reactive")、
+// htn.Planner ("htn")。
 
-type BlackboardFactory interface {
-    Extension
-    NewBlackboard() Blackboard
-}
+// core.Blackboard 直接嵌入 core.Extension，用 prototype 模式而非 factory：
+//
+//   type Blackboard interface {
+//       Extension
+//       BlackboardReader; BlackboardWriter
+//       Spawn() Blackboard
+//       Clear()
+//   }
+//
+// runtime 在 createProcess 时调注册实例的 Spawn() 拿 per-process 实例；
+// 注册实例本身作模板使用，不读不写。
+
+// core.EarlyTerminationPolicy 也是 Extension 子接口（OR-composable）：
+// 注册多个，runtime 每 tick 全问一遍，任意 true 即终止。
+// Budget 从 ProcessOptions.Budget 隐式参与，无需显式注册。
 ```
-
-> **包归属待定**：`PlannerFactory.NewPlanner` 返回 `plan.Planner`，把 `PlannerFactory` 放 core 会让 core → plan 依赖。两个候选：(a) 把 PlannerFactory 留在 `runtime`（与现状一致）；(b) 把 plan.Planner 接口降到 core。倾向 (a)，因为 PlannerFactory 是平台级关注点。
 
 ---
 
@@ -216,7 +231,7 @@ type ProcessOptions struct {
   ```go
   exts := []core.Extension{baseExt}
   if debug { exts = append(exts, debugExt) }
-  platform := agent.NewPlatform(runtime.PlatformConfig{Extensions: exts})
+  platform := agent.NewPlatform(&runtime.PlatformConfig{Extensions: exts})
   ```
 
 ### 4.4 没有 Drop / 移除
@@ -404,7 +419,7 @@ func (o *ObservabilityExt) DecorateTool(p core.Process, a core.Action, t core.Ag
 }
 
 // 一行注册 → 三种能力同时启用
-platform := agent.NewPlatform(runtime.PlatformConfig{
+platform := agent.NewPlatform(&runtime.PlatformConfig{
     Extensions: []core.Extension{
         &ObservabilityExt{logger: slog.Default(), meter: meter},
     },
@@ -414,7 +429,7 @@ platform := agent.NewPlatform(runtime.PlatformConfig{
 ### 7.2 多扩展协作
 
 ```go
-platform := agent.NewPlatform(runtime.PlatformConfig{
+platform := agent.NewPlatform(&runtime.PlatformConfig{
     Extensions: []core.Extension{
         &ObservabilityExt{...},          // tracing + metrics + audit
         &SecurityExt{...},               // ActionInterceptor 包 SecurityContext
@@ -439,7 +454,7 @@ platform.RunAgent(ctx, myAgent, bindings, core.ProcessOptions{
 ### 7.3 同种扩展多实例（按 Name 区分）
 
 ```go
-platform := agent.NewPlatform(runtime.PlatformConfig{
+platform := agent.NewPlatform(&runtime.PlatformConfig{
     Extensions: []core.Extension{
         NewTimingDecorator("decorator:openai"),     // 一个 ToolDecorator 实例
         NewTimingDecorator("decorator:anthropic"),  // 同 struct，不同 Name → OK
@@ -510,7 +525,7 @@ platform := agent.NewPlatform(runtime.PlatformConfig{
 - `PlatformConfig.Listeners []event.Listener` → 用 EventListener 扩展替代
 - `PlatformConfig.Tools core.ToolGroupResolver` → 用 ToolGroupResolver 扩展替代
 - `PlatformConfig.IDGenerator core.IDGenerator` → 用 IDGenerator 扩展替代
-- `PlatformConfig.PlannerFactory PlannerFactory` → 用 PlannerFactory 扩展替代
+- `PlatformConfig.PlannerFactory PlannerFactory` → 直接注册 `plan.Planner` extension，按 name dispatch
 - `PlatformConfig.Services *core.ServiceProvider` → 内部自建，外露 `Platform.Services()` 直接使用
 - `Platform.AddListener / RemoveListener` → 用 EventListener 扩展替代
 
@@ -519,7 +534,7 @@ platform := agent.NewPlatform(runtime.PlatformConfig{
 - `Platform.Deploy / Undeploy / RunAgent / StartAgent / ContinueProcess / ContinueProcessAsync / KillProcess / ResumeProcess / RemoveProcess / PruneTerminalProcesses` — 命令式动作，不是扩展
 - `Platform.GetProcess / Agents / FindAgent / ActiveProcesses / Services()` — 查询/访问 API
 - `core.Agent.StuckHandler` — per-agent 策略，不是平台级扩展
-- `ProcessOptions.Blackboard` — per-call 覆盖比 BlackboardFactory 更高优先级（依然保留）
+- `ProcessOptions.Blackboard` — per-call 覆盖比 prototype 注册更高优先级（依然保留，直接传实例而非 Spawn）
 - `event.Multicast / event.Listener / event.ListenerFunc` — 内部加速 + 公开适配器，仍然存在
 
 ### 9.4 总改动
@@ -535,10 +550,10 @@ platform := agent.NewPlatform(runtime.PlatformConfig{
 | `Extension` 接口定义在 `core` 还是 `runtime`？ | **`core`** | `agent/core/extension.go` |
 | `Name()` 还是 `ID()`？ | **`Name()`** | `core.Extension.Name() string` |
 | 重复 Name 行为？ | platform 层 **panic**（boot-time fail-fast）；process 层**返回 error**（runtime configurations） | `runtime.extensionRegistry.register` panics; `Platform.createProcess` validates and returns error |
-| `PlannerFactory` 接口归属？ | **`runtime`**（避免 `core → plan` 反向依赖） | `agent/runtime/extension.go` |
+| `Planner` 怎么避免 core → plan 反向依赖？ | **Planner 接口留在 `plan` 包**，嵌入 `core.Extension`；agent 选 planner 用 `PlannerName string` 而非直接持有 planner 实例 | `agent/plan/planner.go` |
 | EventListener 接口归属？ | **`runtime`**（依赖 `event.Event`；core 不感知 event 包） | `agent/runtime/extension.go`，satisfies `event.Listener` so it slots into `event.Multicast` directly |
 | Per-process EventListener 范围？ | 仅看本 process 的事件（`AgentProcess.processEvents` 多播）；不看跨 process / platform 级事件 | `runtime/agent_process.go::publishEvent` 双写两 multicast |
-| Per-process Factory（IDGen / PlannerFactory / BlackboardFactory）？ | **不支持** —— 这些是平台单例，在 `createProcess` 时已读取 platform 层 | `Platform.idGenerator()` etc. read `p.extensions` only |
+| Per-process Singleton（IDGenerator / Planner / Blackboard）？ | **支持** —— 注册到 `ProcessOptions.Extensions` 即 override platform-scope。Planner 还按 Name() 分组（同名 process-scope 胜出） | `Platform.resolvePlanner` / `lastExtension[T]` |
 | Per-process AgentValidator？ | **不支持** —— validator 在 Deploy 期触发，process 不存在 | `Platform.Deploy` reads `p.extensions` only |
 
 ---
@@ -549,4 +564,4 @@ platform := agent.NewPlatform(runtime.PlatformConfig{
 - `core.AwaitDecider` —— HITL 自动批准/跳过（embabel `AwaitDecider` 对应物，等真实需求出现再加）
 - `Platform.Extensions() []core.Extension` 内省 API（按 Name 查询）
 - `Extension.Description() string`（可选）让 `/help` 之类的工具能列扩展能力
-- 单元测试中可注入 mock `IDGenerator` / `PlannerFactory` 时的便利封装
+- 单元测试中可注入 mock `IDGenerator` / `plan.Planner` 时的便利封装

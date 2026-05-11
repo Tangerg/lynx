@@ -68,7 +68,7 @@ func TestInMemoryStore_Clear(t *testing.T) {
 
 func TestInMemoryStore_RespectsCancelledContext(t *testing.T) {
 	store := memory.NewInMemoryStore()
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
 	if err := store.Write(ctx, "c", chat.NewUserMessage("hi")); err == nil {

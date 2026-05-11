@@ -25,7 +25,7 @@ type PauseError struct {
 }
 
 func (e *PauseError) Error() string {
-	return fmt.Sprintf("hitl: tool requested pause (awaitable %q)", e.Request.ID())
+	return fmt.Sprintf("hitl.PauseError: tool requested pause (awaitable %q)", e.Request.ID())
 }
 
 // HandlePause inspects err for a *PauseError. When found, it parks
@@ -68,15 +68,16 @@ type AwaitDecider func(ctx context.Context, arguments string) core.Awaitable
 // RequireAwait wraps tool with an [AwaitDecider]. Whenever the decider
 // returns a non-nil Awaitable, the wrapped Call returns a *PauseError
 // carrying it; otherwise the underlying tool runs normally. Mirrors
-// embabel's `Tool.withAwaiting(decider)`.
-func RequireAwait(tool chat.CallableTool, decider AwaitDecider) chat.CallableTool {
+// embabel's `Tool.withAwaiting(decider)`. Returns an error when tool
+// or decider is nil — caller decides whether to surface or panic.
+func RequireAwait(tool chat.CallableTool, decider AwaitDecider) (chat.CallableTool, error) {
 	if tool == nil {
-		panic("hitl.RequireAwait: tool must not be nil")
+		return nil, fmt.Errorf("hitl.RequireAwait: tool must not be nil")
 	}
 	if decider == nil {
-		panic("hitl.RequireAwait: decider must not be nil")
+		return nil, fmt.Errorf("hitl.RequireAwait: decider must not be nil")
 	}
-	return &awaitingTool{delegate: tool, decider: decider}
+	return &awaitingTool{delegate: tool, decider: decider}, nil
 }
 
 type awaitingTool struct {
@@ -114,9 +115,12 @@ func RequireConfirmation(
 	tool chat.CallableTool,
 	prompter ConfirmationPrompter,
 	onResponse func(approved bool) core.ResponseImpact,
-) chat.CallableTool {
+) (chat.CallableTool, error) {
+	if tool == nil {
+		return nil, fmt.Errorf("hitl.RequireConfirmation: tool must not be nil")
+	}
 	if prompter == nil {
-		panic("hitl.RequireConfirmation: prompter must not be nil")
+		return nil, fmt.Errorf("hitl.RequireConfirmation: prompter must not be nil")
 	}
 	handler := onResponse
 	if handler == nil {
@@ -139,9 +143,12 @@ func RequireType[T any](
 	tool chat.CallableTool,
 	prompter ConfirmationPrompter,
 	onResponse func(value T) core.ResponseImpact,
-) chat.CallableTool {
+) (chat.CallableTool, error) {
+	if tool == nil {
+		return nil, fmt.Errorf("hitl.RequireType: tool must not be nil")
+	}
 	if prompter == nil {
-		panic("hitl.RequireType: prompter must not be nil")
+		return nil, fmt.Errorf("hitl.RequireType: prompter must not be nil")
 	}
 	handler := onResponse
 	if handler == nil {
@@ -151,4 +158,3 @@ func RequireType[T any](
 		return NewTypedRequest[string, T](prompter(arguments), handler)
 	})
 }
-

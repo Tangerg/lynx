@@ -54,9 +54,9 @@ func collectExtensions[T any](extensions []core.Extension) []T {
 
 // lastExtension returns the most-recently-registered extension
 // implementing T, or T's zero value when none is registered. Used
-// for last-wins singletons (IDGenerator, PlannerFactory,
-// BlackboardFactory) where a process-scope override beats a
-// platform-scope baseline.
+// for last-wins singletons (IDGenerator, Blackboard prototype) where
+// a process-scope override beats a platform-scope baseline. Planners
+// have their own name-based dispatch in [Platform.resolvePlanner].
 func lastExtension[T any](extensions []core.Extension) T {
 	for i := len(extensions) - 1; i >= 0; i-- {
 		if v, ok := extensions[i].(T); ok {

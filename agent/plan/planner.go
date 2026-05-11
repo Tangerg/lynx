@@ -20,7 +20,14 @@ type PlanOptions struct {
 // PlansToGoals + BestValuePlan are derived templates exposed as
 // package-level functions, not interface methods, so each planner
 // implementation only writes the algorithm-specific part.
+//
+// Planner is also a platform [core.Extension]: register one (or
+// several) and the runtime resolves which one to use for a given
+// process by matching the agent's [core.AgentConfig.PlannerName]
+// against [core.Extension.Name].
 type Planner interface {
+	core.Extension
+
 	// PlanToGoal targets one specific goal. Returns (nil, nil) when
 	// no plan exists (genuinely unreachable); error only on internal
 	// failure.

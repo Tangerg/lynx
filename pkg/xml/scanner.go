@@ -344,8 +344,7 @@ func (p *StreamScanner) processChunk(data []byte) error {
 				return err
 			}
 			// if error is an interruptErr
-			var interruptErr *interruptError
-			if errors.As(err, &interruptErr) {
+			if _, ok := errors.AsType[*interruptError](err); ok {
 				return err
 			}
 			p.logError(err)

@@ -74,30 +74,30 @@ func (t *agentTool) Call(ctx context.Context, arguments string) (string, error) 
 // waitingResultText renders a JSON description of a sub-agent's
 // pending await as a tool-result string. The parent LLM sees:
 //
-//	{"status":"waiting", "agent":"…", "processId":"…",
-//	 "awaitableId":"…", "prompt":<payload>}
+//	{"status":"waiting", "agent":"…", "process_id":"…",
+//	 "awaitable_id":"…", "prompt":<payload>}
 //
 // "prompt" is whatever [core.Awaitable.PromptAny] returns — typically
 // the human-facing payload of a [hitl.TypedRequest]. Hosts can drive
 // the child to completion via [Platform.ResumeProcess] +
-// [Platform.ContinueProcess] using the returned processId; the
+// [Platform.ContinueProcess] using the returned process_id; the
 // returned text is informational, suited for the LLM's next-turn
 // reasoning.
 func waitingResultText(agentName string, child *AgentProcess) string {
 	payload := map[string]any{
-		"status":    "waiting",
-		"agent":     agentName,
-		"processId": child.ID(),
+		"status":     "waiting",
+		"agent":      agentName,
+		"process_id": child.ID(),
 	}
 	if a := child.PendingAwaitable(); a != nil {
-		payload["awaitableId"] = a.ID()
+		payload["awaitable_id"] = a.ID()
 		payload["prompt"] = a.PromptAny()
 	}
 	encoded, err := json.Marshal(payload)
 	if err != nil {
 		// Fallback to a plain sentence if marshal somehow fails — keeps
 		// the LLM-visible result useful even in degenerate cases.
-		return fmt.Sprintf(`{"status":"waiting","agent":%q,"processId":%q}`, agentName, child.ID())
+		return fmt.Sprintf(`{"status":"waiting","agent":%q,"process_id":%q}`, agentName, child.ID())
 	}
 	return string(encoded)
 }

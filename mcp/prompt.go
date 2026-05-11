@@ -7,7 +7,7 @@ import (
 )
 
 // PromptMessagesToChat converts the messages of an MCP GetPromptResult
-// into the []chat.Message form chat.ClientRequest.WithMessages expects.
+// into the []chat.Message form [chat.ClientRequest.WithMessages] expects.
 //
 // Roles outside "user" / "assistant" fall through to user. Messages
 // whose body has no text payload (image, audio, embedded resource) are
@@ -22,14 +22,8 @@ func PromptMessagesToChat(messages []*sdkmcp.PromptMessage) []chat.Message {
 		if msg == nil {
 			continue
 		}
-		text := textOfContent(msg.Content)
-		if text == "" {
-			continue
-		}
-		if string(msg.Role) == "assistant" {
-			out = append(out, chat.NewAssistantMessage(text))
-		} else {
-			out = append(out, chat.NewUserMessage(text))
+		if converted := chatMessageFromContent(msg.Role, msg.Content); converted != nil {
+			out = append(out, converted)
 		}
 	}
 	return out

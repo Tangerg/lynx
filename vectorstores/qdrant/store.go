@@ -24,8 +24,8 @@ const (
 	payloadDocumentContentKey = "lynx:ai:vectorstore:qdrant:payload_document_content"
 )
 
-// VectorStoreConfig contains configuration options for Qdrant vector store.
-type VectorStoreConfig struct {
+// StoreConfig contains configuration options for Qdrant vector store.
+type StoreConfig struct {
 	// Context is the context for all operations.
 	// Optional: defaults to context.Background() if nil.
 	Context context.Context
@@ -61,37 +61,31 @@ type VectorStoreConfig struct {
 	StoreDocumentContent bool
 }
 
-func (c *VectorStoreConfig) Validate() error {
+func (c *StoreConfig) validate() error {
 	if c == nil {
-		return errors.New("qdrant: config is nil")
+		return ErrNilConfig
 	}
-
 	if c.Context == nil {
 		c.Context = context.Background()
 	}
-
 	if c.Client == nil {
-		return errors.New("qdrant: client is required")
+		return ErrMissingClient
 	}
-
 	if c.CollectionName == "" {
-		return errors.New("qdrant: collection name is required")
+		return ErrMissingCollectionName
 	}
-
 	if c.EmbeddingModel == nil {
-		return errors.New("qdrant: embedding model is required")
+		return ErrMissingEmbeddingModel
 	}
-
 	if c.DocumentBatcher == nil {
-		return errors.New("qdrant: document batcher is required")
+		return ErrMissingDocumentBatcher
 	}
-
 	return nil
 }
 
-var _ vectorstore.VectorStore = (*VectorStore)(nil)
+var _ vectorstore.Store = (*Store)(nil)
 
-type VectorStore struct {
+type Store struct {
 	client               *qdrant.Client
 	embeddingModel       embedding.Model
 	embeddingClient      *embedding.Client
@@ -101,8 +95,8 @@ type VectorStore struct {
 	storeDocumentContent bool
 }
 
-func NewVectorStore(config *VectorStoreConfig) (*VectorStore, error) {
-	if err := config.Validate(); err != nil {
+func NewStore(config *StoreConfig) (*Store, error) {
+	if err := config.validate(); err != nil {
 		return nil, err
 	}
 
@@ -111,7 +105,7 @@ func NewVectorStore(config *VectorStoreConfig) (*VectorStore, error) {
 		return nil, fmt.Errorf("qdrant: failed to create embedding client: %w", err)
 	}
 
-	store := &VectorStore{
+	store := &Store{
 		client:               config.Client,
 		embeddingModel:       config.EmbeddingModel,
 		embeddingClient:      embeddingClient,
@@ -128,7 +122,7 @@ func NewVectorStore(config *VectorStoreConfig) (*VectorStore, error) {
 	return store, nil
 }
 
-func (v *VectorStore) initialize(ctx context.Context) error {
+func (v *Store) initialize(ctx context.Context) error {
 	if !v.initializeSchema {
 		return nil
 	}
@@ -161,7 +155,7 @@ func (v *VectorStore) initialize(ctx context.Context) error {
 	return nil
 }
 
-func (v *VectorStore) buildUpsertPoints(ctx context.Context, req *vectorstore.CreateRequest) (*qdrant.UpsertPoints, error) {
+func (v *Store) buildUpsertPoints(ctx context.Context, req *vectorstore.CreateRequest) (*qdrant.UpsertPoints, error) {
 	upsertPoints := &qdrant.UpsertPoints{
 		CollectionName: v.collectionName,
 		Wait:           ptr.To(true),
@@ -195,7 +189,7 @@ func (v *VectorStore) buildUpsertPoints(ctx context.Context, req *vectorstore.Cr
 	return upsertPoints, nil
 }
 
-func (v *VectorStore) buildPointStruct(doc *document.Document, vector []float64) (*qdrant.PointStruct, error) {
+func (v *Store) buildPointStruct(doc *document.Document, vector []float64) (*qdrant.PointStruct, error) {
 	id := uuid.NewString()
 
 	point := &qdrant.PointStruct{
@@ -220,7 +214,7 @@ func (v *VectorStore) buildPointStruct(doc *document.Document, vector []float64)
 	return point, nil
 }
 
-func (v *VectorStore) Create(ctx context.Context, req *vectorstore.CreateRequest) error {
+func (v *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) error {
 	if err := req.Validate(); err != nil {
 		return fmt.Errorf("qdrant: invalid create request: %w", err)
 	}
@@ -239,7 +233,7 @@ func (v *VectorStore) Create(ctx context.Context, req *vectorstore.CreateRequest
 	return nil
 }
 
-func (v *VectorStore) buildQueryPoints(ctx context.Context, req *vectorstore.RetrievalRequest) (*qdrant.QueryPoints, error) {
+func (v *Store) buildQueryPoints(ctx context.Context, req *vectorstore.RetrievalRequest) (*qdrant.QueryPoints, error) {
 	queryPoints := &qdrant.QueryPoints{
 		CollectionName: v.collectionName,
 		ScoreThreshold: ptr.To(float32(req.MinScore)),
@@ -268,7 +262,7 @@ func (v *VectorStore) buildQueryPoints(ctx context.Context, req *vectorstore.Ret
 	return queryPoints, nil
 }
 
-func (v *VectorStore) convertQdrantValue(value *qdrant.Value) any {
+func (v *Store) convertQdrantValue(value *qdrant.Value) any {
 	if value == nil {
 		return nil
 	}
@@ -293,7 +287,7 @@ func (v *VectorStore) convertQdrantValue(value *qdrant.Value) any {
 	}
 }
 
-func (v *VectorStore) convertQdrantStruct(s *qdrant.Struct) map[string]any {
+func (v *Store) convertQdrantStruct(s *qdrant.Struct) map[string]any {
 	if s == nil || s.Fields == nil {
 		return nil
 	}
@@ -306,7 +300,7 @@ func (v *VectorStore) convertQdrantStruct(s *qdrant.Struct) map[string]any {
 	return result
 }
 
-func (v *VectorStore) convertQdrantList(l *qdrant.ListValue) []any {
+func (v *Store) convertQdrantList(l *qdrant.ListValue) []any {
 	if l == nil || len(l.Values) == 0 {
 		return nil
 	}
@@ -319,7 +313,7 @@ func (v *VectorStore) convertQdrantList(l *qdrant.ListValue) []any {
 	return result
 }
 
-func (v *VectorStore) convertPayloadToMetadata(payload map[string]*qdrant.Value) map[string]any {
+func (v *Store) convertPayloadToMetadata(payload map[string]*qdrant.Value) map[string]any {
 	if payload == nil {
 		return nil
 	}
@@ -335,7 +329,7 @@ func (v *VectorStore) convertPayloadToMetadata(payload map[string]*qdrant.Value)
 	return metadata
 }
 
-func (v *VectorStore) buildDocumentsFromPoints(scoredPoints []*qdrant.ScoredPoint) ([]*document.Document, error) {
+func (v *Store) buildDocumentsFromPoints(scoredPoints []*qdrant.ScoredPoint) ([]*document.Document, error) {
 	docs := make([]*document.Document, 0, len(scoredPoints))
 
 	for _, point := range scoredPoints {
@@ -364,7 +358,7 @@ func (v *VectorStore) buildDocumentsFromPoints(scoredPoints []*qdrant.ScoredPoin
 	return docs, nil
 }
 
-func (v *VectorStore) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) ([]*document.Document, error) {
+func (v *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) ([]*document.Document, error) {
 	if err := req.Validate(); err != nil {
 		return nil, fmt.Errorf("qdrant: invalid retrieval request: %w", err)
 	}
@@ -387,7 +381,7 @@ func (v *VectorStore) Retrieve(ctx context.Context, req *vectorstore.RetrievalRe
 	return docs, nil
 }
 
-func (v *VectorStore) Delete(ctx context.Context, req *vectorstore.DeleteRequest) error {
+func (v *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) error {
 	if err := req.Validate(); err != nil {
 		return fmt.Errorf("qdrant: invalid delete request: %w", err)
 	}
@@ -408,13 +402,13 @@ func (v *VectorStore) Delete(ctx context.Context, req *vectorstore.DeleteRequest
 	return nil
 }
 
-func (v *VectorStore) Info() vectorstore.StoreInfo {
+func (v *Store) Info() vectorstore.StoreInfo {
 	return vectorstore.StoreInfo{
 		NativeClient: v.client,
 		Provider:     Provider,
 	}
 }
 
-func (v *VectorStore) Close() error {
+func (v *Store) Close() error {
 	return v.client.Close()
 }

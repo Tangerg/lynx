@@ -2,6 +2,7 @@ package workflow
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/Tangerg/lynx/agent/core"
 )
@@ -53,16 +54,16 @@ type RepeatUntilSpec[In, Out any] struct {
 // mutated (via Append) on each subsequent run, so user-supplied
 // Task / Accept callbacks always see the running record.
 //
-// Panics on missing Name, nil Task, or nil Accept.
-func RepeatUntil[In, Out any](spec RepeatUntilSpec[In, Out]) *core.Agent {
+// Returns an error on missing Name, nil Task, or nil Accept.
+func RepeatUntil[In, Out any](spec RepeatUntilSpec[In, Out]) (*core.Agent, error) {
 	if spec.Name == "" {
-		panic("workflow.RepeatUntil: Name must not be empty")
+		return nil, fmt.Errorf("workflow.RepeatUntil: Name must not be empty")
 	}
 	if spec.Task == nil {
-		panic("workflow.RepeatUntil: Task must not be nil")
+		return nil, fmt.Errorf("workflow.RepeatUntil: Task must not be nil")
 	}
 	if spec.Accept == nil {
-		panic("workflow.RepeatUntil: Accept must not be nil")
+		return nil, fmt.Errorf("workflow.RepeatUntil: Accept must not be nil")
 	}
 	maxIter := spec.MaxIterations
 	if maxIter <= 0 {
@@ -116,7 +117,7 @@ func RepeatUntil[In, Out any](spec RepeatUntilSpec[In, Out]) *core.Agent {
 		},
 	)
 
-	return core.NewAgent(core.AgentConfig{
+	return core.NewAgent(&core.AgentConfig{
 		Name:        spec.Name,
 		Description: spec.Description,
 		Actions:     []core.Action{task},
@@ -126,5 +127,5 @@ func RepeatUntil[In, Out any](spec RepeatUntilSpec[In, Out]) *core.Agent {
 			Description: "produce acceptable " + core.TypeFullNameOf[Out](),
 			Pre:         []string{acceptKey},
 		})},
-	})
+	}), nil
 }

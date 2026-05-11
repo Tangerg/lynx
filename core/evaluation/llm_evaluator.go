@@ -58,5 +58,5 @@ func (e *llmEvaluator) Evaluate(ctx context.Context, req *Request) (*Response, e
 	if err != nil {
 		return nil, fmt.Errorf("evaluation.llmEvaluator.Evaluate: chat call: %w", err)
 	}
-	return buildResponse(text)
+	return parseYesNoResponse(text)
 }

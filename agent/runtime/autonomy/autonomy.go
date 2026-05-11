@@ -95,15 +95,16 @@ type Autonomy struct {
 }
 
 // New returns an orchestrator backed by ranker. Both platform and
-// ranker are required; nil panics — programming errors at boot.
-func New(platform *runtime.Platform, ranker Ranker, cfg Config) *Autonomy {
+// ranker are required; nil returns an error — caller decides whether
+// to surface or panic.
+func New(platform *runtime.Platform, ranker Ranker, cfg Config) (*Autonomy, error) {
 	if platform == nil {
-		panic("autonomy.New: platform must not be nil")
+		return nil, fmt.Errorf("autonomy.New: platform must not be nil")
 	}
 	if ranker == nil {
-		panic("autonomy.New: ranker must not be nil")
+		return nil, fmt.Errorf("autonomy.New: ranker must not be nil")
 	}
-	return &Autonomy{platform: platform, ranker: ranker, cfg: cfg}
+	return &Autonomy{platform: platform, ranker: ranker, cfg: cfg}, nil
 }
 
 // Candidates enumerates the (agent, goal) pool currently visible to
@@ -139,15 +140,15 @@ func (a *Autonomy) Candidates() []Candidate {
 func (a *Autonomy) Choose(ctx context.Context, userInput string) (Choice, error) {
 	candidates := a.Candidates()
 	if len(candidates) == 0 {
-		return Choice{}, errors.New("autonomy: no candidates available — deploy at least one agent first")
+		return Choice{}, errors.New("autonomy.Autonomy.Choose: no candidates available — deploy at least one agent first")
 	}
 
 	choices, err := a.ranker.Rank(ctx, userInput, candidates)
 	if err != nil {
-		return Choice{}, fmt.Errorf("autonomy: rank: %w", err)
+		return Choice{}, fmt.Errorf("autonomy.Autonomy.Choose: %w", err)
 	}
 	if len(choices) == 0 {
-		return Choice{}, errors.New("autonomy: ranker returned no choices")
+		return Choice{}, errors.New("autonomy.Autonomy.Choose: ranker returned no choices")
 	}
 
 	best := choices[0]

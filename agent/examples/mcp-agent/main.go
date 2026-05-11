@@ -3,7 +3,7 @@
 //   - mcp.Provider over an in-memory MCP server (one tool + one prompt)
 //   - sampling.CreateMessageHandler wired to the platform's chat.Client
 //   - tools/list_changed handler invalidating the Provider cache
-//   - request-level metadata (processId) forwarded via mcp.WithMeta
+//   - request-level metadata (process_id) forwarded via mcp.WithMeta
 //   - action body that fetches a remote system prompt, then runs an
 //     LLM tool loop where the LLM picks a tool exposed by the MCP server
 //
@@ -63,13 +63,17 @@ func main() {
 	}
 	defer srvSession.Close()
 
+	samplingHandler, err := lynxmcp.SamplingViaChatClient(chatClient)
+	if err != nil {
+		log.Fatal(err)
+	}
 	cli := sdkmcp.NewClient(
 		&sdkmcp.Implementation{Name: "lynx-mcp-agent", Version: "v0.1.0"},
 		&sdkmcp.ClientOptions{
 			// Sampling: lets the MCP server "borrow" the platform LLM via
 			// createMessage. This particular example doesn't exercise it,
 			// but the wiring is part of a complete client.
-			CreateMessageHandler: lynxmcp.SamplingViaChatClient(chatClient),
+			CreateMessageHandler: samplingHandler,
 			// list_changed: server-driven cache invalidation.
 			ToolListChangedHandler: func(ctx context.Context, req *sdkmcp.ToolListChangedRequest) {
 				if provider != nil {
@@ -86,7 +90,7 @@ func main() {
 
 	// Provider aggregates one or more sessions. MetaFunc=MetaFromContext
 	// pulls per-request metadata installed via mcp.WithMeta.
-	provider, err = lynxmcp.NewProvider(lynxmcp.ProviderConfig{
+	provider, err = lynxmcp.NewProvider(&lynxmcp.ProviderConfig{
 		Sources:  []lynxmcp.Source{{Name: "research", Session: cliSession}},
 		MetaFunc: lynxmcp.MetaFromContext,
 	})
@@ -113,8 +117,8 @@ func main() {
 				// 2. Attach process metadata to ctx — the MCP server's
 				// tool handler reads it via req.Params.Meta.
 				ctx = lynxmcp.WithMeta(ctx, sdkmcp.Meta{
-					"lynx.processId": pc.Process.ID(),
-					"lynx.action":    "brief",
+					"lynx.process_id": pc.Process.ID(),
+					"lynx.action":     "brief",
 				})
 
 				// 3. ChatWithActionTools wires the LLM with the action's
@@ -152,11 +156,13 @@ func main() {
 		Goals(agent.GoalProducing[Brief](core.Goal{Description: "topic brief produced"})).
 		Build()
 
-	platform := agent.NewPlatform(runtime.PlatformConfig{
+	resolver, err := runtime.NewMCPToolGroupResolver("research", provider)
+	if err != nil {
+		log.Fatal(err)
+	}
+	platform := agent.NewPlatform(&runtime.PlatformConfig{
 		ChatClient: chatClient,
-		Extensions: []core.Extension{
-			runtime.NewMCPToolGroupResolver("research", provider),
-		},
+		Extensions: []core.Extension{resolver},
 	})
 	if err := platform.Deploy(a); err != nil {
 		log.Fatal(err)

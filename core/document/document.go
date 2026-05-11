@@ -66,12 +66,12 @@ func (d *Document) Format() string {
 // FormatByMetadataMode renders the document with the supplied metadata
 // mode using the document's installed [Formatter].
 func (d *Document) FormatByMetadataMode(mode MetadataMode) string {
-	return d.FormatByMetadataModeWithFormatter(mode, d.Formatter)
+	return d.FormatWith(mode, d.Formatter)
 }
 
-// FormatByMetadataModeWithFormatter renders the document with the
-// supplied formatter, falling back to a no-op when formatter is nil.
-func (d *Document) FormatByMetadataModeWithFormatter(mode MetadataMode, formatter Formatter) string {
+// FormatWith renders the document with the supplied metadata mode and
+// formatter, falling back to a no-op when formatter is nil.
+func (d *Document) FormatWith(mode MetadataMode, formatter Formatter) string {
 	if formatter == nil {
 		formatter = NewNop()
 	}

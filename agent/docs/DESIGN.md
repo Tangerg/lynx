@@ -1119,7 +1119,7 @@ func main() {
         })).
         Build()
 
-    platform := agent.NewPlatform(runtime.PlatformConfig{})
+    platform := agent.NewPlatform(&runtime.PlatformConfig{})
     if err := platform.Deploy(a); err != nil {
         log.Fatal(err)
     }
@@ -1160,7 +1160,7 @@ services.Set("chat", myLLMClient)         // 任意类型
 services.Set("rag",  ragPipeline)
 services.Set("vector", vstore)
 
-platform := agent.NewPlatform(runtime.PlatformConfig{
+platform := agent.NewPlatform(&runtime.PlatformConfig{
     Services:    services,
     Tools:       toolResolver,             // 工具解析器仍然是单独字段（runtime 内部用）
     IDGenerator: runtime.NewCounterIDGenerator("test"),
@@ -1182,9 +1182,10 @@ proc, _ := platform.RunAgent(ctx, a, bindings, core.ProcessOptions{
     },
     Verbosity:   core.Verbosity{ShowPlanning: true},
     ProcessType: core.ProcessConcurrent,
-    ProcessControl: core.ProcessControl{
-        EarlyTerminationPolicy: core.MaxActionsPolicy{Max: 50},
-        ToolDelay:              100 * time.Millisecond,
+    // 额外的 early-termination policy 通过 extension 注册（OR-composable）；
+    // Budget 隐式参与，不需要重复挂。
+    Extensions: []core.Extension{
+        myMaxActionsPolicy{Max: 50},  // 实现 core.EarlyTerminationPolicy
     },
 })
 ```
@@ -1257,11 +1258,14 @@ type Planner interface {
 注入：
 
 ```go
-platform := agent.NewPlatform(runtime.PlatformConfig{
-    PlannerFactory: func(t core.PlannerType) plan.Planner {
-        return myCustomPlanner
-    },
+// 注册自定义 planner 作为 extension（实现 plan.Planner，含 Name()）
+platform := agent.NewPlatform(&runtime.PlatformConfig{
+    Extensions: []core.Extension{myCustomPlanner},
 })
+
+// agent 通过 PlannerName 选用它
+a := agent.New("special").PlannerName("my-planner").
+    Actions(...).Goals(...).Build()
 ```
 
 ### 11.2 自定义 Blackboard
@@ -1286,7 +1290,7 @@ func (r *myResolver) Resolve(ctx context.Context, req core.ToolGroupRequirement)
     }), nil
 }
 
-platform := agent.NewPlatform(runtime.PlatformConfig{
+platform := agent.NewPlatform(&runtime.PlatformConfig{
     Tools: &myResolver{},
 })
 ```
@@ -1327,7 +1331,7 @@ services.Set("chat",   lynxChatClient)   // *chat.Client
 services.Set("rag",    myRAGPipeline)    // 任意 RAG 实现
 services.Set("oracle", domainOracle)     // 用户自己的领域服务
 
-platform := agent.NewPlatform(runtime.PlatformConfig{Services: services})
+platform := agent.NewPlatform(&runtime.PlatformConfig{Services: services})
 
 // action 里：
 chat,   _ := core.ServiceOf[*chat.Client](pc.Services, "chat")

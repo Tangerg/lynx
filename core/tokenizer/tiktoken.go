@@ -22,22 +22,18 @@ var (
 //
 // Example:
 //
-//	tk := tokenizer.NewDefaultTiktoken()
+//	tk, _ := tokenizer.NewDefaultTiktoken()
 //	n, _ := tk.EstimateText(ctx, "hello world") // ≈ 2 tokens
 type Tiktoken struct {
 	encoding *tiktoken.Tiktoken
 }
 
 // NewDefaultTiktoken returns a [Tiktoken] preset to the CL100K_BASE
-// encoding (gpt-3.5-turbo and gpt-4 family). Panics if the encoding
-// cannot be loaded — that would indicate a corrupt build, not a
-// runtime fault.
-func NewDefaultTiktoken() *Tiktoken {
-	tk, err := NewTiktoken(tiktoken.MODEL_CL100K_BASE)
-	if err != nil {
-		panic(err)
-	}
-	return tk
+// encoding (gpt-3.5-turbo and gpt-4 family). Returns an error if the
+// encoding cannot be loaded — that typically indicates a corrupt
+// build, not a runtime fault.
+func NewDefaultTiktoken() (*Tiktoken, error) {
+	return NewTiktoken(tiktoken.MODEL_CL100K_BASE)
 }
 
 // NewTiktoken loads encoder encodingName via tiktoken-go. Returns an

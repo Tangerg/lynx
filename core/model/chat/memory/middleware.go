@@ -30,11 +30,11 @@ const (
 // [SavedMarkerKey]. Using an empty struct keeps memory overhead at zero.
 type savedMarker struct{}
 
-// chatMemoryMiddleware loads conversation history before each request
+// middleware loads conversation history before each request
 // and saves new messages afterwards. It deduplicates via [SavedMarkerKey]
 // metadata so callers who pass history explicitly never trigger
 // duplicate writes.
-type chatMemoryMiddleware struct {
+type middleware struct {
 	store Store
 }
 
@@ -56,14 +56,14 @@ func NewMiddleware(store Store) (chat.CallMiddleware, chat.StreamMiddleware, err
 	if store == nil {
 		return nil, nil, errors.New("memory.NewMiddleware: store must not be nil")
 	}
-	mw := &chatMemoryMiddleware{store: store}
+	mw := &middleware{store: store}
 	return mw.wrapCallHandler, mw.wrapStreamHandler, nil
 }
 
 // extractConversationID returns the conversation id stashed under
 // [ConversationIDKey], or "" when the caller did not supply one.
 // Returns an error if the value exists but is the wrong type.
-func (m *chatMemoryMiddleware) extractConversationID(req *chat.Request) (string, error) {
+func (m *middleware) extractConversationID(req *chat.Request) (string, error) {
 	raw, exists := req.Get(ConversationIDKey)
 	if !exists {
 		return "", nil
@@ -77,7 +77,7 @@ func (m *chatMemoryMiddleware) extractConversationID(req *chat.Request) (string,
 }
 
 // isMessageSaved reports whether msg already carries [SavedMarkerKey].
-func (m *chatMemoryMiddleware) isMessageSaved(msg chat.Message) bool {
+func (m *middleware) isMessageSaved(msg chat.Message) bool {
 	meta := msg.Meta()
 	if meta == nil {
 		return false
@@ -88,7 +88,7 @@ func (m *chatMemoryMiddleware) isMessageSaved(msg chat.Message) bool {
 
 // markMessageAsSaved annotates msg with [SavedMarkerKey] so subsequent
 // turns recognize it as already-persisted history.
-func (m *chatMemoryMiddleware) markMessageAsSaved(msg chat.Message) {
+func (m *middleware) markMessageAsSaved(msg chat.Message) {
 	meta := msg.Meta()
 	if meta == nil {
 		return
@@ -98,7 +98,7 @@ func (m *chatMemoryMiddleware) markMessageAsSaved(msg chat.Message) {
 
 // filterUnsavedMessages returns only those messages that have not yet
 // been persisted.
-func (m *chatMemoryMiddleware) filterUnsavedMessages(msgs []chat.Message) []chat.Message {
+func (m *middleware) filterUnsavedMessages(msgs []chat.Message) []chat.Message {
 	out := make([]chat.Message, 0, len(msgs))
 	for _, msg := range msgs {
 		if !m.isMessageSaved(msg) {
@@ -110,9 +110,9 @@ func (m *chatMemoryMiddleware) filterUnsavedMessages(msgs []chat.Message) []chat
 
 // retrieveHistoryMessages loads stored history for the conversation
 // referenced by req. Returned messages are pre-marked saved so they are
-// not re-persisted by [chatMemoryMiddleware.persistMessages]. Returns
+// not re-persisted by [middleware.persistMessages]. Returns
 // nil history when the request carries no conversation id.
-func (m *chatMemoryMiddleware) retrieveHistoryMessages(ctx context.Context, req *chat.Request) ([]chat.Message, error) {
+func (m *middleware) retrieveHistoryMessages(ctx context.Context, req *chat.Request) ([]chat.Message, error) {
 	id, err := m.extractConversationID(req)
 	if err != nil {
 		return nil, err
@@ -134,7 +134,7 @@ func (m *chatMemoryMiddleware) retrieveHistoryMessages(ctx context.Context, req 
 
 // persistMessages writes msgs under the request's conversation id and
 // marks them saved on success. No-op when no id is set or msgs is empty.
-func (m *chatMemoryMiddleware) persistMessages(ctx context.Context, req *chat.Request, msgs ...chat.Message) error {
+func (m *middleware) persistMessages(ctx context.Context, req *chat.Request, msgs ...chat.Message) error {
 	id, err := m.extractConversationID(req)
 	if err != nil {
 		return err
@@ -160,7 +160,7 @@ func (m *chatMemoryMiddleware) persistMessages(ctx context.Context, req *chat.Re
 //
 // Options and Params from the original request are cloned onto the new
 // one so the underlying handler sees an equivalent request shape.
-func (m *chatMemoryMiddleware) prepareRequest(ctx context.Context, req *chat.Request) (*chat.Request, error) {
+func (m *middleware) prepareRequest(ctx context.Context, req *chat.Request) (*chat.Request, error) {
 	history, err := m.retrieveHistoryMessages(ctx, req)
 	if err != nil {
 		return nil, err
@@ -187,7 +187,7 @@ func (m *chatMemoryMiddleware) prepareRequest(ctx context.Context, req *chat.Req
 // saveResponseMessages persists the assistant + tool messages produced
 // by the model. AI-generated messages are always new, so no dedup is
 // needed.
-func (m *chatMemoryMiddleware) saveResponseMessages(ctx context.Context, req *chat.Request, resp *chat.Response) error {
+func (m *middleware) saveResponseMessages(ctx context.Context, req *chat.Request, resp *chat.Response) error {
 	var msgs []chat.Message
 	for _, result := range resp.Results {
 		msgs = append(msgs, result.AssistantMessage)
@@ -201,7 +201,7 @@ func (m *chatMemoryMiddleware) saveResponseMessages(ctx context.Context, req *ch
 }
 
 // executeCall is the synchronous flow: prepare → call → save.
-func (m *chatMemoryMiddleware) executeCall(ctx context.Context, req *chat.Request, next chat.CallHandler) (*chat.Response, error) {
+func (m *middleware) executeCall(ctx context.Context, req *chat.Request, next chat.CallHandler) (*chat.Response, error) {
 	prepared, err := m.prepareRequest(ctx, req)
 	if err != nil {
 		return nil, err
@@ -221,7 +221,7 @@ func (m *chatMemoryMiddleware) executeCall(ctx context.Context, req *chat.Reques
 // executeStream is the streaming flow: prepare → stream chunks while
 // accumulating → save the accumulated complete response after the
 // stream closes.
-func (m *chatMemoryMiddleware) executeStream(ctx context.Context, req *chat.Request, next chat.StreamHandler) iter.Seq2[*chat.Response, error] {
+func (m *middleware) executeStream(ctx context.Context, req *chat.Request, next chat.StreamHandler) iter.Seq2[*chat.Response, error] {
 	return func(yield func(*chat.Response, error) bool) {
 		prepared, err := m.prepareRequest(ctx, req)
 		if err != nil {
@@ -249,14 +249,14 @@ func (m *chatMemoryMiddleware) executeStream(ctx context.Context, req *chat.Requ
 }
 
 // wrapCallHandler is the call-side adapter.
-func (m *chatMemoryMiddleware) wrapCallHandler(next chat.CallHandler) chat.CallHandler {
+func (m *middleware) wrapCallHandler(next chat.CallHandler) chat.CallHandler {
 	return chat.CallHandlerFunc(func(ctx context.Context, req *chat.Request) (*chat.Response, error) {
 		return m.executeCall(ctx, req, next)
 	})
 }
 
 // wrapStreamHandler is the stream-side adapter.
-func (m *chatMemoryMiddleware) wrapStreamHandler(next chat.StreamHandler) chat.StreamHandler {
+func (m *middleware) wrapStreamHandler(next chat.StreamHandler) chat.StreamHandler {
 	return chat.StreamHandlerFunc(func(ctx context.Context, req *chat.Request) iter.Seq2[*chat.Response, error] {
 		return m.executeStream(ctx, req, next)
 	})
