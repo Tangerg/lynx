@@ -1,0 +1,96 @@
+package fs
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+
+	"github.com/Tangerg/lynx/core/model/chat"
+	pkgjson "github.com/Tangerg/lynx/pkg/json"
+)
+
+// ReadRequest is the LLM-facing argument shape for the read tool.
+// Offset is 1-based to match editor / grep / IDE conventions; pass
+// 0 or omit to start at the first line.
+type ReadRequest struct {
+	Path   string `json:"path" jsonschema:"required" jsonschema_description:"Absolute path to a text file."`
+	Offset int    `json:"offset,omitempty" jsonschema_description:"1-based line number to start at. 0 or omitted = start at line 1."`
+	Limit  int    `json:"limit,omitempty" jsonschema_description:"Maximum number of lines to return. 0 = read to end of file."`
+}
+
+// ReadResponse is the LLM-facing return shape. StartLine / EndLine
+// are 1-based inclusive.
+type ReadResponse struct {
+	Content    string `json:"content"`
+	StartLine  int    `json:"start_line"`
+	EndLine    int    `json:"end_line"`
+	TotalLines int    `json:"total_lines"`
+	Truncated  bool   `json:"truncated,omitempty"`
+}
+
+var readToolSchema, _ = pkgjson.StringDefSchemaOf(ReadRequest{})
+
+var _ chat.CallableTool = (*ReadTool)(nil)
+
+// ReadTool is the thin LLM-facing adapter for [Executor.Read].
+type ReadTool struct {
+	executor Executor
+}
+
+// NewReadTool builds a [ReadTool] backed by executor. Passing nil
+// wires up an unconfined [LocalExecutor] (workspace root "").
+func NewReadTool(executor Executor) *ReadTool {
+	if executor == nil {
+		executor = NewLocalExecutor("")
+	}
+	return &ReadTool{executor: executor}
+}
+
+func (t *ReadTool) Definition() chat.ToolDefinition {
+	return chat.ToolDefinition{
+		Name: "read",
+		Description: "Read a text file. Returns the requested line range plus total line count and a truncation flag. " +
+			"By default returns the whole file; for large files pass `offset` (1-based line) and `limit` to page through. " +
+			"Binary files are rejected — use the bash tool for non-text data.",
+		InputSchema: readToolSchema,
+	}
+}
+
+func (t *ReadTool) Metadata() chat.ToolMetadata { return chat.ToolMetadata{} }
+
+func (t *ReadTool) Call(ctx context.Context, arguments string) (string, error) {
+	var req ReadRequest
+	if err := json.Unmarshal([]byte(arguments), &req); err != nil {
+		return "", fmt.Errorf("fs.read: parse arguments: %w", err)
+	}
+	if req.Path == "" {
+		return "", fmt.Errorf("fs.read: %w", ErrEmptyPath)
+	}
+
+	// LLM speaks 1-based offset; the executor SPI is 0-based.
+	spiOffset := 0
+	if req.Offset > 0 {
+		spiOffset = req.Offset - 1
+	}
+
+	res, err := t.executor.Read(ctx, ReadInput{
+		Path:   req.Path,
+		Offset: spiOffset,
+		Limit:  req.Limit,
+	})
+	if err != nil {
+		return "", fmt.Errorf("fs.read: %w", err)
+	}
+
+	body, err := json.Marshal(ReadResponse{
+		Content:    res.Content,
+		StartLine:  res.StartLine + 1, // 0-based exclusive start → 1-based inclusive
+		EndLine:    res.EndLine,       // 0-based exclusive end → 1-based inclusive
+		TotalLines: res.TotalLines,
+		Truncated:  res.Truncated,
+	})
+	if err != nil {
+		return "", fmt.Errorf("fs.read: marshal: %w", err)
+	}
+	return string(body), nil
+}
