@@ -7,17 +7,9 @@ import (
 	"github.com/Tangerg/lynx/core/vectorstore/filter/token"
 )
 
-// matchesFilter evaluates a parsed filter [ast.Expr] against the
-// supplied metadata map. Returns true when the expression matches.
-// An evaluation error (type mismatch, unknown identifier, etc.) is
-// returned to the caller — in-memory stores treat malformed filters
-// as a programmer error worth surfacing.
-//
-// The supported subset matches the filter mini-language fully:
-// equality (== / !=), ordering (< / <= / > / >=), logical (AND / OR
-// / NOT), membership (IN), and pattern match (LIKE with % / _
-// wildcards). Nested index expressions (`meta["a"]["b"]`) resolve
-// against nested map[string]any structures.
+// matchesFilter returns whether metadata satisfies expr. Evaluation
+// errors (type mismatch, unsupported node, etc.) are surfaced rather
+// than swallowed — a malformed filter is a programmer bug.
 func matchesFilter(expr ast.Expr, metadata map[string]any) (bool, error) {
 	v, err := evalExpr(expr, metadata)
 	if err != nil {
@@ -30,10 +22,6 @@ func matchesFilter(expr ast.Expr, metadata map[string]any) (bool, error) {
 	return b, nil
 }
 
-// evalExpr is the recursive dispatcher; every node type maps to one
-// case. The return type is `any` because leaf nodes can be
-// string / float64 / bool / []any (lists). Callers that expect a
-// specific shape do the type assertion at the point of use.
 func evalExpr(expr ast.Expr, metadata map[string]any) (any, error) {
 	switch e := expr.(type) {
 	case *ast.Ident:
@@ -76,9 +64,9 @@ func listValue(list *ast.ListLiteral) (any, error) {
 	return out, nil
 }
 
-// evalIndex traverses an IndexExpr left-to-right against metadata.
-// metadata["a"]["b"][0] is a chain of IndexExpr; we collect the keys
-// and descend.
+// evalIndex resolves an `a["b"][0]`-style chain. Missing keys / OOB
+// indices return nil (matching SQL NULL semantics); only structural
+// type errors are reported.
 func evalIndex(idx *ast.IndexExpr, metadata map[string]any) (any, error) {
 	keys, err := collectIndexKeys(idx)
 	if err != nil {
@@ -110,9 +98,6 @@ func evalIndex(idx *ast.IndexExpr, metadata map[string]any) (any, error) {
 	return cur, nil
 }
 
-// collectIndexKeys walks down an IndexExpr chain and returns the
-// keys in outer-to-inner order. The bottom of the chain is an Ident
-// (the base metadata field name) which becomes the first key.
 func collectIndexKeys(idx *ast.IndexExpr) ([]any, error) {
 	var chain []any
 	cur := ast.Expr(idx)
@@ -292,10 +277,9 @@ func evalLike(b *ast.BinaryExpr, metadata map[string]any) (any, error) {
 	return likeMatch(s, pattern), nil
 }
 
-// likeMatch implements SQL LIKE: % is "any sequence" and _ is "any
-// single char". No anchoring — the pattern must match the whole
-// input. Greedy / backtracking; fine for filter metadata strings
-// (typically short).
+// likeMatch is SQL LIKE: % matches any run of characters, _ matches
+// one. The pattern must match the whole input. Greedy backtracking is
+// acceptable here because metadata strings are short.
 func likeMatch(s, pattern string) bool {
 	return likeMatchRunes([]rune(s), []rune(pattern))
 }
@@ -326,9 +310,8 @@ func likeMatchRunes(s, p []rune) bool {
 	return pi == len(p)
 }
 
-// lookupField fetches an identifier value from the metadata map.
-// Returns nil when absent — that matches the SQL three-valued logic
-// callers already expect from missing fields.
+// lookupField returns nil for absent fields — matching the SQL
+// three-valued logic the ordering and equality paths assume.
 func lookupField(metadata map[string]any, name string) any {
 	if metadata == nil {
 		return nil
@@ -336,9 +319,9 @@ func lookupField(metadata map[string]any, name string) any {
 	return metadata[name]
 }
 
-// toFloat converts numeric metadata values into float64 for the
-// ordering / equality paths. Bool is intentionally rejected — `b > 0`
-// against a bool is almost always a bug.
+// toFloat coerces numeric metadata into float64. Bool is rejected on
+// purpose: `flag > 0` against a bool is almost always a programmer
+// mistake.
 func toFloat(v any) (float64, bool) {
 	switch n := v.(type) {
 	case int:
@@ -365,11 +348,8 @@ func toFloat(v any) (float64, bool) {
 		return float64(n), true
 	case float64:
 		return n, true
-	case string:
-		// Numeric strings stay strings — explicit conversion avoids
-		// surprises like "12" < "9" comparing wrong.
-		_ = n
-		return 0, false
 	}
+	// Numeric strings stay strings — `"12" < "9"` should fail loudly,
+	// not silently coerce.
 	return 0, false
 }

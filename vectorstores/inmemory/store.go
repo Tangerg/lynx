@@ -1,21 +1,19 @@
 // Package inmemory is an in-process [vectorstore.Store] backed by a
 // `map[string]record` plus a configurable similarity function. It is
-// intended for demos, unit tests, and pipelines whose corpus fits in
-// memory — Spring AI's [SimpleVectorStore] occupies the same niche.
+// intended for demos, unit tests, and corpora that fit in RAM.
 //
 // Concurrency: every public method is safe for concurrent use; reads
-// take an RLock, writes take a Lock. The store carries no I/O —
-// errors come from the embedding client or the filter parser, never
-// from a network round-trip.
+// take an RLock, writes take a Lock. The store performs no I/O —
+// errors come from the embedding client or the filter parser.
 //
-// Persistence: out of scope. Wrap the store in a snapshot helper
-// (`json.Marshal(s.Documents())` etc.) if you need durability.
+// Persistence is out of scope: the store has no durability story.
 package inmemory
 
 import (
+	"cmp"
 	"context"
 	"fmt"
-	"sort"
+	"slices"
 	"sync"
 
 	"github.com/Tangerg/lynx/core/document"
@@ -81,8 +79,9 @@ func NewStore(cfg *StoreConfig) (*Store, error) {
 	}, nil
 }
 
-// Info satisfies [vectorstore.Store.Info]; NativeClient exposes the
-// underlying record map so callers can snapshot / inspect state.
+// Info satisfies [vectorstore.Store.Info]. NativeClient is the
+// *Store itself, so callers can reach in for things like [Store.Len]
+// or [Store.Clear].
 func (s *Store) Info() vectorstore.StoreInfo {
 	return vectorstore.StoreInfo{
 		Provider:     Provider,
@@ -182,8 +181,8 @@ func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 	}
 	s.mu.RUnlock()
 
-	sort.SliceStable(candidates, func(i, j int) bool {
-		return candidates[i].score > candidates[j].score
+	slices.SortStableFunc(candidates, func(a, b scored) int {
+		return cmp.Compare(b.score, a.score)
 	})
 
 	limit := min(req.TopK, len(candidates))
@@ -198,7 +197,7 @@ func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 // expression. The number of records actually removed is not reported
 // by the [vectorstore.Deleter] contract; call [Store.Len] before and
 // after if you need the delta.
-func (s *Store) Delete(_ context.Context, req *vectorstore.DeleteRequest) error {
+func (s *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) error {
 	if err := req.Validate(); err != nil {
 		return fmt.Errorf("inmemory.Store.Delete: %w", err)
 	}
@@ -206,6 +205,9 @@ func (s *Store) Delete(_ context.Context, req *vectorstore.DeleteRequest) error 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for id, rec := range s.records {
+		if err := ctx.Err(); err != nil {
+			return fmt.Errorf("inmemory.Store.Delete: %w", err)
+		}
 		match, err := matchesFilter(req.Filter, rec.doc.Metadata)
 		if err != nil {
 			return fmt.Errorf("inmemory.Store.Delete: filter: %w", err)

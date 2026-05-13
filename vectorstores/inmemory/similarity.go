@@ -2,14 +2,11 @@ package inmemory
 
 import "math"
 
-// Similarity is the signature every similarity function follows: given
-// two equal-length vectors, return a score in [0, 1] where higher
-// means more similar.
-//
-// Implementations must be deterministic and symmetric:
-// Similarity(a, b) == Similarity(b, a). Returning a value outside
-// [0, 1] is allowed but will be clamped before the MinScore filter
-// runs in [Store.Retrieve].
+// Similarity scores two equal-length vectors; higher means more
+// similar. Implementations must be deterministic and symmetric:
+// Similarity(a, b) == Similarity(b, a). The returned score is passed
+// straight through to [vectorstore.RetrievalRequest.MinScore]; callers
+// should pick a threshold appropriate to the function they choose.
 type Similarity func(a, b []float64) float64
 
 // CosineSimilarity is the default for [StoreConfig.Similarity] —
