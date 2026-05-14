@@ -86,8 +86,7 @@ type BlackboardWriter interface {
 // A Blackboard is also a platform [Extension]: register one and the
 // runtime uses [Blackboard.Spawn] to produce a fresh, isolated
 // instance for every new process. The registered value itself is the
-// prototype — it is never read from or written to directly. See
-// PERSISTENCE.md for plugging Redis / SQL / WAL backends.
+// prototype — it is never read from or written to directly.
 type Blackboard interface {
 	Extension
 	BlackboardReader
