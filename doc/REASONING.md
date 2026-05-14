@@ -365,5 +365,5 @@ API 模式：thinking 仍发生，响应只有 signature 没有 text。`Reasonin
 ---
 
 *配套阅读*：
-- [`SPRING_AI_GAPS.md`](./SPRING_AI_GAPS.md) — 把 reasoning 列在 "Lynx 反超 Spring AI" 清单第 1 条
+- [`SPRING_AI_COMPARISON.md`](./SPRING_AI_COMPARISON.md) — 把 reasoning 列在 "Lynx 反超 Spring AI" 章节
 - langchain4j 形态参照：https://github.com/langchain4j/langchain4j/blob/main/langchain4j-core/src/main/java/dev/langchain4j/data/message/AiMessage.java

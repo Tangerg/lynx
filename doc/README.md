@@ -34,7 +34,7 @@ lynx/
 | [REASONING.md](./REASONING.md) | Reasoning 一等公民设计、provider 映射、多轮回放 |
 | [MIDDLEWARE.md](./MIDDLEWARE.md) | 中间件框架现状、Call/Stream 双写痛点、AroundMiddleware 提案 |
 | [OBSERVABILITY.md](./OBSERVABILITY.md) | 可观测性设计（直接用 OTel）、语义规范、埋点清单、桥接 exporter |
-| [SPRING_AI_GAPS.md](./SPRING_AI_GAPS.md) | 与 Spring AI 2.0 的能力差距快照 |
+| [SPRING_AI_COMPARISON.md](./SPRING_AI_COMPARISON.md) | 与 Spring AI 的多角度对比（哲学 / 范式 / API / 生态 / 中间件 / 子系统深入 / 集成 / 可观测 / 战略 gap） |
 
 ### 子目录
 
@@ -52,5 +52,5 @@ lynx/
 - **关心 reasoning / thinking 模型支持** → `REASONING.md`
 - **想写自定义中间件** → `MIDDLEWARE.md`
 - **要做生产可观测性** → `OBSERVABILITY.md`
-- **评估与 Spring AI 的差距** → `SPRING_AI_GAPS.md`
+- **评估与 Spring AI 的对比 / gap** → `SPRING_AI_COMPARISON.md`
 - **关心未来 agent 框架** → `agent/README.md`
