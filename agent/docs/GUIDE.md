@@ -2,8 +2,8 @@
 
 > 配套文档：
 > - [`README.md`](./README.md) — 5 行 quick-start
-> - [`DESIGN.md`](./DESIGN.md) — 设计哲学与早期决策（部分细节已被后续重构覆盖）
-> - [`EMBABEL_GAP_ANALYSIS.md`](./EMBABEL_GAP_ANALYSIS.md) — 与 embabel-agent 的对比与 roadmap
+> - [`EXTENSION_DESIGN.md`](./EXTENSION_DESIGN.md) — Extension / SPI 系统当前形态
+> - [`EMBABEL_COMPARISON.md`](./EMBABEL_COMPARISON.md) — 与 embabel-agent 的多角度对比
 > - 本文档 — **架构 + 实现 + 使用 + 构建上层库**
 
 ---
@@ -337,7 +337,7 @@ core.NewStaticToolGroupResolver()          // map[role]ToolGroup
 |---|---|
 | `TerminationScopeAgent` | 整个 process 终止 |
 | `TerminationScopeAction` | 跳过当前 action，重新规划 |
-| `TerminationScopeToolCall` | 取消 in-flight tool 调用，action body 继续（**注意：lynx 把取消 ctx 铺好了，但 tool loop runner 还没实现**——参见 [`EMBABEL_GAP_ANALYSIS.md`](./EMBABEL_GAP_ANALYSIS.md) §5.P0-2） |
+| `TerminationScopeToolCall` | 取消 in-flight tool 调用，action body 继续（**注意：lynx 把取消 ctx 铺好了，但 tool loop runner 还没实现**——参见 [`EMBABEL_COMPARISON.md`](./EMBABEL_COMPARISON.md) gap 清单 ToolLoop） |
 
 ---
 
@@ -968,7 +968,7 @@ func RouterAction(specialists map[string]*core.Agent) core.Action {
 }
 ```
 
-> **未来更好的方案**：等 P0-3（参见 [`EMBABEL_GAP_ANALYSIS.md`](./EMBABEL_GAP_ANALYSIS.md)）落地后，把这个抽到 `agent/orchestration` 子包标准化。
+> **未来更好的方案**：等 SupervisorAgent 模式（参见 [`EMBABEL_COMPARISON.md`](./EMBABEL_COMPARISON.md)）落地后，把这个抽到 `agent/orchestration` 子包标准化。
 
 ## V.6 测试基础设施
 
@@ -1190,8 +1190,7 @@ event.NewBaseEvent(processID) event.BaseEvent
 
 ## 进一步阅读
 
-- [`DESIGN.md`](./DESIGN.md) — 早期设计决策与不变式（部分实现细节已过时但哲学仍有效）
-- [`EMBABEL_GAP_ANALYSIS.md`](./EMBABEL_GAP_ANALYSIS.md) — 与 embabel-agent 对比、缺口、roadmap
 - [`README.md`](./README.md) — 5 行 quick-start
-- [`examples/`](./examples/) — 可跑的 hello / blog 示例
-- [`./notes/`](./notes/) — 设计文档系列（架构、规划器、用户 API、集成示例、数据结构）
+- [`EXTENSION_DESIGN.md`](./EXTENSION_DESIGN.md) — Extension / SPI 系统当前形态
+- [`EMBABEL_COMPARISON.md`](./EMBABEL_COMPARISON.md) — 与 embabel-agent 多角度对比 + gap 清单
+- [`../examples/`](../examples/) — 可跑的 hello / blog 示例
