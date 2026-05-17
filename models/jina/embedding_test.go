@@ -1,4 +1,4 @@
-package voyage_test
+package jina_test
 
 import (
 	"testing"
@@ -6,32 +6,32 @@ import (
 	"github.com/Tangerg/lynx/core/model"
 	"github.com/Tangerg/lynx/core/model/embedding"
 	"github.com/Tangerg/lynx/models/internal/testutil"
-	"github.com/Tangerg/lynx/models/voyage"
+	"github.com/Tangerg/lynx/models/jina"
 )
 
-const voyageResponseJSON = `{
+const jinaResponseJSON = `{
   "object": "list",
+  "model": "jina-embeddings-v3",
   "data": [
-    {"object":"embedding","embedding":[0.1,0.2,0.3],"index":0},
-    {"object":"embedding","embedding":[0.4,0.5,0.6],"index":1}
+    {"object":"embedding","index":0,"embedding":[0.1,0.2,0.3]},
+    {"object":"embedding","index":1,"embedding":[0.4,0.5,0.6]}
   ],
-  "model": "voyage-3-large",
-  "usage": {"total_tokens": 6}
+  "usage": {"prompt_tokens": 6, "total_tokens": 6}
 }`
 
 func TestEmbeddingModel(t *testing.T) {
 	testutil.RunEmbeddingContract(t, testutil.EmbeddingContract{
-		ProviderName: voyage.Provider,
-		ModelID:      "voyage-3-large",
-		Response:     voyageResponseJSON,
+		ProviderName: jina.Provider,
+		ModelID:      jina.ModelEmbeddingsV3,
+		Response:     jinaResponseJSON,
 		ExpectedPath: "/embeddings",
 		Build: func(t *testing.T, baseURL string) embedding.Model {
 			t.Helper()
-			opts, err := embedding.NewOptions("voyage-3-large")
+			opts, err := embedding.NewOptions(jina.ModelEmbeddingsV3)
 			if err != nil {
 				t.Fatalf("NewOptions: %v", err)
 			}
-			m, err := voyage.NewEmbeddingModel(&voyage.EmbeddingModelConfig{
+			m, err := jina.NewEmbeddingModel(&jina.EmbeddingModelConfig{
 				ApiKey:         model.NewApiKey("test-key"),
 				DefaultOptions: opts,
 				BaseURL:        baseURL,
