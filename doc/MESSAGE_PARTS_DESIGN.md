@@ -1,4 +1,4 @@
-# Message Parts 设计 —— 7 家对比 + lynx 改造方案
+# Message Parts 设计 —— 8 家对比 + lynx 改造方案
 
 > **基线**
 > - lynx HEAD `5532f54`（branch `feat/message-parts-design`，2026-05-18）
@@ -9,9 +9,12 @@
 >   4. **trpc-agent-go**（Go，Tencent）
 >   5. **adk-go**（Go，Google Agent Development Kit）
 >   6. **Vercel AI SDK**（TypeScript，业界事实标准）
->   7. **lynx**（Go，本仓库）
+>   7. **TanStack AI**（TypeScript，TanStack 出品 + 采用 AG-UI 开放协议）
+>   8. **lynx**（Go，本仓库）
 >
-> **结论先行**：Vercel AI SDK 是 7 家里设计最完整的。lynx 已经在"vendor-neutral + 22 chat provider"这一轴占位，**只需补完 ordering 这一轴**，就能与 Vercel 同档并领先其余 5 家。
+> **结论先行**：Vercel AI SDK 在"单一 Message + 完整 ordering"路线上最完整；**TanStack AI 引入了 dual-tier Message（wire-level 与 UI-level 分层）+ AG-UI 跨框架开放协议**，是与 Vercel 不同的另一条同样可行的设计路线。
+>
+> **lynx 选择**：抄 Vercel 的单一 Message + Parts 模型（数据形态简单），但流式协议**采用 TanStack 的"in-process + AG-UI 可选 adapter"分层做法**——核心 API 保 Go-idiomatic、wire-format 走开放协议。
 >
 > **重要前提**：lynx 仍在开发迭代期，公开 API（包括 `chat.AssistantMessage` 数据结构）**可以做破坏性调整**。本文档的方案不考虑向后兼容旧字段。
 
@@ -21,13 +24,18 @@
 
 **问题**：现代 LLM 在单 turn 里可以产出"text → tool_use → text → tool_use → text"的有序混排（Claude content blocks / Gemini Parts / OpenAI Responses output items）。lynx 当前的 `AssistantMessage { Text string; Reasoning string; ToolCalls []ToolCall }` 把这三类内容**打平**，**ordering 信息丢失**。
 
-**7 家观察**：
+**8 家观察**：
 
 - **6 家把 Anthropic content blocks 按类型打平**（Spring AI / langchain4j / eino / trpc-agent-go / lynx 当前）—— 同样的 industry pattern
-- **2 家有完整的 Parts 模型**（adk-go via `genai.Part`、Vercel AI SDK via `ContentPart`）
-- **唯独 Vercel** 同时做到：vendor-neutral + tool-call/tool-result 入 Parts + tool-error/tool-approval 都是 first-class Part type + 每 Part 携带 providerMetadata
+- **3 家有完整的 Parts 模型**（adk-go via `genai.Part`、Vercel AI SDK via `ContentPart`、TanStack AI via `UIMessage.parts`）
+- **2 家做到 vendor-neutral + 完整 ordering**（Vercel + TanStack）—— TanStack 多出 **dual-tier Message** + **AG-UI 开放协议**两个独创设计
+- **adk-go** 的 ordering 是通过绑死 Google genai SDK 拿到的（牺牲多 vendor）
 
-**lynx 路线**：抄 Vercel 的 ContentPart 模型，落到 Go-idiomatic 接口上，agent 层借鉴 adk-go 的 `iter.Seq2[*Event, error]` + EventActions。
+**lynx 路线**（综合 8 家最佳实践）：
+1. **数据模型**：抄 Vercel 单一 Message + ContentPart 路线（简单、单一 source of truth）
+2. **流式协议**：核心 API Go-idiomatic（`iter.Seq2[StreamEvent, error]`），同时抽出独立 `wire/aguifmt` 子包做 AG-UI 协议 adapter（可选 wire format）
+3. **跨 turn API**：抄 Vercel 三视图（Steps + FinalStep + AggregatedContent）
+4. **Agent 层**：抄 adk-go 的 `iter.Seq2[*Event, error]` + 完整 EventActions（StateDelta / ArtifactDelta / TransferToAgent / Escalate / RequestedToolConfirmations）
 
 ---
 
@@ -73,28 +81,33 @@ Tool 循环跑 N 轮（assistant₁ → tool₁ → assistant₂ → tool₂ →
 
 ---
 
-## 2. 7 家对比矩阵
+## 2. 8 家对比矩阵
 
-| 维度 | Spring AI | langchain4j | eino | trpc-agent-go | adk-go | **Vercel AI** | **lynx 现状** |
-|---|---|---|---|---|---|---|---|
-| 单 Message Parts 有序 | ❌ | ❌ | ✅ multimodal only | ❌ | ✅ via `genai.Part` | ✅ **完整** | ❌ |
-| Reasoning 入 Parts | ❌ | ❌ | ✅ ReasoningPart | ❌ | ✅ Thought flag | ✅ ReasoningOutput | ⚠️ flat field |
-| Reasoning signature | ❓ | ✅ attributes | ✅ part 字段 | ⚠️ extensions | ✅ ThoughtSignature | ✅ providerMetadata | ⚠️ Metadata |
-| **text↔tool_call 有序交错** | ❌ | ❌ | ❌（承认） | ❌ | ✅ FunctionCall part | ✅ tool-call part | ❌ |
-| tool-result 入 Parts | ❌ | ❌ | ❌ | ❌ | ✅ FunctionResponse | ✅ | ❌ |
-| **tool-error 独立 Part 类型** | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ |
-| **human-in-the-loop 工具确认** | ❌ | ❌ | ❌ | ❌ | ⚠️ RequestedToolConfirmations action | ✅ approval-request/response part | ❌ |
-| 代码执行 part / grounding source | ❌ | ❌ | ❌ | ❌ | ✅ ExecutableCode + Grounding | ✅ source + file | ❌ |
-| 每 Part 携带 providerMetadata | ❌ | ✅ attributes | ✅ Extra | ❌ | ⚠️ | ✅ | ⚠️ message-level only |
-| 跨 turn intermediate 暴露 | ❌ | ✅ slice | ✅ event | ✅ channel | ✅ iter.Seq2 | ✅ **steps + content + finalStep 三视图** | ❌ |
-| 流式 typed event 数 | 1-2 | 2-3 | ~5 | ~3 | ~5 | **~25** | 2 |
-| 流式 start/delta/end 三段 | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ |
-| 嵌套 agent 调用链 | ❌ | ❌ | ✅ RunPath | ✅ ParentInvocationID + Branch | ✅ Branch 点分串 | ⚠️ | ⚠️ agent 内部 |
-| StateDelta / ArtifactDelta | ❌ | ❌ | ⚠️ checkpoint | ✅ StateDelta | ✅ both | ⚠️ | ❌ |
-| TransferToAgent / Escalate | ❌ | ❌ | ✅ action | ❌ | ✅ both | ⚠️ | ⚠️ agent 内部 |
-| Custom Part namespace | ⚠️ properties | ⚠️ attributes | ⚠️ Extra | ⚠️ Extensions | ❌ | ✅ `${prov}.${kind}` | ⚠️ Metadata |
-| Multi-vendor provider | ✅ 20+ | ✅ 30+ | ✅ 多家 | ✅ 多家 | ❌ **Google only** | ✅ 20+ | ✅ 22 chat |
-| 流式 API 风格 | Reactor Flux | callback | StreamReader | `<-chan *Event` | `iter.Seq2` | AsyncIterableStream | `iter.Seq2` |
+| 维度 | Spring AI | langchain4j | eino | trpc-agent-go | adk-go | **Vercel AI** | **TanStack AI** | **lynx 现状** |
+|---|---|---|---|---|---|---|---|---|
+| 单 Message Parts 有序 | ❌ | ❌ | ✅ multimodal only | ❌ | ✅ via `genai.Part` | ✅ **完整** | ✅ **UIMessage.parts** | ❌ |
+| **Dual-tier Message（wire vs UI）** | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ 单一 Message | ✅ **ModelMessage + UIMessage 分层** | ❌ |
+| Reasoning 入 Parts | ❌ | ❌ | ✅ ReasoningPart | ❌ | ✅ Thought flag | ✅ ReasoningOutput | ✅ ThinkingPart | ⚠️ flat field |
+| Reasoning signature | ❓ | ✅ attributes | ✅ part 字段 | ⚠️ extensions | ✅ ThoughtSignature | ✅ providerMetadata | ✅ ThinkingPart.signature + ReasoningEncryptedValue 事件 | ⚠️ Metadata |
+| **text↔tool_call 有序交错** | ❌ | ❌ | ❌（承认） | ❌ | ✅ FunctionCall part | ✅ tool-call part | ✅ ToolCallPart in UIMessage.parts | ❌ |
+| tool-result 入 Parts | ❌ | ❌ | ❌ | ❌ | ✅ FunctionResponse | ✅ | ✅ ToolResultPart | ❌ |
+| **tool-error 独立 Part 类型** | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ⚠️ ToolResultPart.state="error" | ❌ |
+| **ToolCall 状态机** | ❌ | ❌ | ❌ | ❌ | ❌ | ⚠️ 走多个 event | ✅ **ToolCallPart.state**（awaiting-input → input-streaming → input-complete → approval-requested → approval-responded） | ❌ |
+| **human-in-the-loop 工具确认** | ❌ | ❌ | ❌ | ❌ | ⚠️ RequestedToolConfirmations action | ✅ approval-request/response part | ✅ **`ToolCallPart.approval` 内嵌**（不是独立 part） | ❌ |
+| 代码执行 part / grounding source | ❌ | ❌ | ❌ | ❌ | ✅ ExecutableCode + Grounding | ✅ source + file | ⚠️ 走 Custom event | ❌ |
+| 每 Part 携带 providerMetadata | ❌ | ✅ attributes | ✅ Extra | ❌ | ⚠️ | ✅ | ✅ **泛型 `<TMetadata>`** | ⚠️ message-level only |
+| **Modality 类型约束** | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ **`ConstrainedModelMessage<TInputModalities>`**（编译期约束消息只用模型支持的模态） | ❌ |
+| 跨 turn intermediate 暴露 | ❌ | ✅ slice | ✅ event | ✅ channel | ✅ iter.Seq2 | ✅ **steps + content + finalStep 三视图** | ⚠️ AG-UI Step{Started,Finished} 事件 + MessagesSnapshot | ❌ |
+| 流式 typed event 数 | 1-2 | 2-3 | ~5 | ~3 | ~5 | **~25** | **~22**（AG-UI 标准事件集）| 2 |
+| 流式 start/delta/end 三段 | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ AG-UI（Start/Content/End）| ❌ |
+| **流式 wire 协议** | 内部 Reactor | 内部 callback | 内部 StreamReader | 内部 channel | 内部 iter.Seq2 | 自定义（UI Message Stream）| ✅ **AG-UI 开放协议**（@ag-ui/core）| 内部 iter.Seq2 |
+| MessagesSnapshot 事件 | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ 整条消息状态快照（client 复原用）| ❌ |
+| 嵌套 agent 调用链 | ❌ | ❌ | ✅ RunPath | ✅ ParentInvocationID + Branch | ✅ Branch 点分串 | ⚠️ | ⚠️ AG-UI runId + threadId | ⚠️ agent 内部 |
+| StateDelta / ArtifactDelta | ❌ | ❌ | ⚠️ checkpoint | ✅ StateDelta | ✅ both | ⚠️ | ✅ AG-UI StateSnapshot + StateDelta 事件 | ❌ |
+| TransferToAgent / Escalate | ❌ | ❌ | ✅ action | ❌ | ✅ both | ⚠️ | ⚠️ 走 Custom event | ⚠️ agent 内部 |
+| Custom Part / Event namespace | ⚠️ properties | ⚠️ attributes | ⚠️ Extra | ⚠️ Extensions | ❌ | ✅ `${prov}.${kind}` | ✅ AG-UI CustomEvent + ToolExecutionContext.emitCustomEvent | ⚠️ Metadata |
+| Multi-vendor provider | ✅ 20+ | ✅ 30+ | ✅ 多家 | ✅ 多家 | ❌ **Google only** | ✅ 20+ | ✅ 多家（OpenAI/Anthropic/Gemini/Ollama/Grok/Groq/OpenRouter/...）| ✅ 22 chat |
+| 流式 API 风格 | Reactor Flux | callback | StreamReader | `<-chan *Event` | `iter.Seq2` | AsyncIterableStream | AG-UI EventSource / AsyncIterable | `iter.Seq2` |
 
 ---
 
@@ -370,7 +383,178 @@ export interface GenerateTextResult<TOOLS, ...> {
 
 **评估**：**Vercel 同时占据 vendor-neutral + 完整 ordering 两个最优位置**。证明了"二者兼得"是单一可达点，不是技术不可能。
 
-### 3.7 lynx 现状
+### 3.7 TanStack AI（TypeScript，TanStack 出品）
+
+TanStack AI 走的是与 Vercel **不同的设计哲学**：把 Message 显式分成两层，并采用 **AG-UI**（[ag-ui.com](https://docs.ag-ui.com)）这个跨框架开放协议作为流式 wire format。
+
+#### 3.7.1 Dual-tier Message —— 最大的独创
+
+```typescript
+// packages/typescript/ai/src/types.ts
+
+// === Tier 1: ModelMessage（贴近 LLM wire 形态）===
+export interface ModelMessage<TContent = string | null | Array<ContentPart>> {
+  role: 'user' | 'assistant' | 'tool'
+  content: TContent                                        // flat text 或多模态 part 数组
+  name?: string
+  toolCalls?: Array<ToolCall>                              // ← 单独平铺
+  toolCallId?: string
+  thinking?: Array<{ content: string; signature?: string }> // ← 单独平铺
+}
+
+// ContentPart 只含多模态类型：
+export type ContentPart<...> =
+  | TextPart | ImagePart | AudioPart | VideoPart | DocumentPart
+
+
+// === Tier 2: UIMessage（UI 渲染 / agent 编排用）===
+export interface UIMessage {
+  id: string
+  role: 'system' | 'user' | 'assistant'
+  parts: Array<MessagePart>                                // ★ 完整有序 part 列表
+  createdAt?: Date
+}
+
+// MessagePart 是完整 union：
+export type MessagePart =
+  | TextPart | ImagePart | AudioPart | VideoPart | DocumentPart
+  | ToolCallPart                                            // ★ tool call 入 parts
+  | ToolResultPart                                          // ★ tool result 入 parts
+  | ThinkingPart                                            // ★ thinking 入 parts
+```
+
+**ModelMessage** 直接照搬 LLM wire 形态（OpenAI 平铺约定），用来发请求。**UIMessage** 是从 streaming events 累积出来的 UI-renderable 形态，含完整 ordered parts。**两套类型显式分离**——发出去的和展示给用户的不是同一个对象。
+
+**对比 Vercel**：Vercel 用单一 Message + 反向"扁平 view"派生（`text` / `toolCalls` 等都是 getter）；TanStack 把 wire 和 UI 显式拆开两个类型。**两条路都成立**——单一类型简单，双层类型语义更清晰（render 层不需要懂 wire 形态）。
+
+#### 3.7.2 ToolCallPart 上的状态机
+
+```typescript
+export type ToolCallState =
+  | 'awaiting-input'      // 收到 start 但还没有 arguments
+  | 'input-streaming'     // 部分 arguments 到达
+  | 'input-complete'      // arguments 完整
+  | 'approval-requested'  // 等用户确认
+  | 'approval-responded'  // 用户已批准/拒绝
+
+export type ToolResultState =
+  | 'streaming' | 'complete' | 'error'
+
+export interface ToolCallPart<TMetadata = unknown> {
+  type: 'tool-call'
+  id: string
+  name: string
+  arguments: string
+  state: ToolCallState                          // ★ 显式状态机
+  approval?: {
+    id: string
+    needsApproval: boolean
+    approved?: boolean
+  }                                              // ★ HITL 内嵌
+  output?: any                                   // ★ 工具结果可内嵌（client tools）
+  metadata?: TMetadata
+}
+```
+
+**亮点**：
+- **状态机显式**：part 自带 `state` 字段，UI 可以从单个 part 渲染完整 lifecycle（vs Vercel 走多个 event 类型）
+- **`approval` 字段内嵌**：HITL 工具确认是 ToolCallPart 的属性，不是单独的 part type（vs Vercel 的 `tool-approval-request/response` 独立 part）
+- **`output` 字段内嵌**：client-side tools 可以直接把结果回填到 ToolCallPart，不必走单独 ToolResultPart
+
+两种 HITL 设计取舍：
+- **Vercel 路线（独立 part）**：approval 流如同 message 历史的另一条记录，trace 友好
+- **TanStack 路线（内嵌字段）**：part 是 single source of truth，state 转换原子，UI 不需要做 part 配对
+
+#### 3.7.3 AG-UI 开放协议作为流式 wire format
+
+TanStack 没自创流式格式，**直接 import 自 `@ag-ui/core`**：
+
+```typescript
+import type {
+  RunStartedEvent, RunFinishedEvent, RunErrorEvent,
+  StepStartedEvent, StepFinishedEvent,
+  TextMessageStartEvent, TextMessageContentEvent, TextMessageEndEvent,
+  ToolCallStartEvent, ToolCallArgsEvent, ToolCallEndEvent, ToolCallResultEvent,
+  ReasoningStartEvent, ReasoningMessageStartEvent, ReasoningMessageContentEvent,
+  ReasoningMessageEndEvent, ReasoningEndEvent, ReasoningEncryptedValueEvent,
+  MessagesSnapshotEvent,
+  StateSnapshotEvent, StateDeltaEvent,
+  CustomEvent,
+} from '@ag-ui/core'
+
+export type AGUIEvent =
+  | RunStartedEvent | RunFinishedEvent | RunErrorEvent
+  | TextMessageStartEvent | TextMessageContentEvent | TextMessageEndEvent
+  | ToolCallStartEvent | ToolCallArgsEvent | ToolCallEndEvent | ToolCallResultEvent
+  | StepStartedEvent | StepFinishedEvent
+  | MessagesSnapshotEvent
+  | StateSnapshotEvent | StateDeltaEvent
+  | CustomEvent
+  | ReasoningStartEvent | ReasoningMessageStartEvent | ReasoningMessageContentEvent
+  | ReasoningMessageEndEvent | ReasoningEndEvent | ReasoningEncryptedValueEvent
+
+export type StreamChunk = AGUIEvent
+```
+
+**亮点**：
+- **跨框架兼容**：UI 写一次 AG-UI client（CopilotKit / 其他 AG-UI 兼容前端）就能消费 TanStack / 其它 AG-UI 后端
+- **不重造轮子**：协议、事件 schema、JSON 序列化、HTTP/SSE binding 都有现成 spec
+- **MessagesSnapshot 事件**：周期性 emit 整条消息列表的 snapshot，client 掉线重连后能瞬间复原状态（不依赖 delta 回放）
+- **StateSnapshot + StateDelta 事件**：session state 走专门的事件类型（vs Vercel 不在 stream 层做 state；vs adk-go 走 `EventActions.StateDelta`）
+
+**对比 Vercel**：Vercel 25 种 typed event 是**内部 / 私有协议**（只在 SDK 内消费），AG-UI 是**外部 / 跨框架协议**（任何遵守 spec 的 client 都能用）。两条路各自有受众——SDK 内部用户更关心 type-safety，跨框架场景更关心 wire 标准。
+
+#### 3.7.4 类型层面的 modality 约束
+
+```typescript
+// 模型支持的 input modalities 在编译期约束消息能用哪些 part：
+export type ConstrainedContent<TInputModalitiesTypes> =
+  | string | null
+  | Array<ContentPartForInputModalitiesTypes<TInputModalitiesTypes>>
+
+// 例：模型只支持 text + image，编译器拒绝传 AudioPart 进 content[]
+```
+
+**亮点**：modality 约束在 TypeScript 类型层直接表达，无效组合编译期就报错。**Go 类型系统做不到这种程度**——只能用 runtime validate 或反射。是 TS 独有的设计杠杆，**不属于 lynx 可以照搬的范围**。
+
+#### 3.7.5 ToolExecutionContext.emitCustomEvent
+
+```typescript
+export interface ToolExecutionContext {
+  toolCallId?: string
+  emitCustomEvent: (eventName: string, value: Record<string, any>) => void
+}
+
+// tool 执行中可以发自定义 progress 事件：
+const tool = toolDefinition({...}).server(async (args, ctx) => {
+  ctx?.emitCustomEvent('progress', { step: 1, total: 3 })
+  // ...
+})
+```
+
+**亮点**：工具执行内部可以**主动 emit AG-UI CustomEvent 到 stream**，前端看得见 "正在调用 ... 第 1/3 步"。**这点 Vercel / adk-go 都没有**——它们的 tool 是同步函数，无法从内部 stream 进度。
+
+#### 3.7.6 评估
+
+- **vendor-neutral**：✅（OpenAI / Anthropic / Gemini / Grok / Groq / Ollama / OpenRouter / Fal / ElevenLabs ...）
+- **单 Message ordering**：✅（在 UIMessage 上，不在 ModelMessage 上）
+- **dual-tier 设计**：✅ 独创——wire 形态和 UI 形态显式拆开
+- **AG-UI 开放协议**：✅ 独创——不自创流式格式
+- **ToolCall 状态机**：✅ part 自带 state 字段（vs Vercel 走 event 类型表达 state）
+- **HITL approval**：✅ 内嵌（vs Vercel 独立 part）
+- **类型层 modality 约束**：✅ TS 独有，Go 学不来
+
+**短板**：
+- TanStack AI **比 Vercel 文档少很多**，社区案例也少（项目较新）
+- 一些字段名比 Vercel 啰嗦（`ContentPartDataSource` / `ContentPartUrlSource` vs Vercel 的直接 inline）
+
+**对 lynx 的启发**：
+1. **AG-UI 协议值得作为可选 wire format**——核心 API 保 Go-idiomatic，单独包 `wire/aguifmt` 做协议 adapter（HTTP/SSE 场景下用 AG-UI 与 TanStack/CopilotKit 互通）
+2. **ToolCallPart.State 状态机**值得加——单个 part 自含 lifecycle，UI 渲染逻辑简化
+3. **dual-tier 的取舍**：lynx 当前已经是单一 Message 设计（chat.AssistantMessage 直接给业务），**不引入 dual-tier**——保持简单
+4. **类型 modality 约束**不抄——Go 类型系统不擅长
+
+### 3.8 lynx 现状
 
 ```go
 // core/model/chat/message.go
@@ -394,6 +578,8 @@ type AssistantMessage struct {
 
 ## 4. 取舍光谱
 
+### 4.1 vendor-neutral × ordering 二维定位
+
 ```
                   vendor-neutral                    vendor-locked
                   ←————————————————————————————————→
@@ -404,10 +590,38 @@ type AssistantMessage struct {
                  eino (一半)                       ❌ multi-vendor
                                                                   
    ✅ ordering    ★ Vercel AI ★                                    
+                 ★ TanStack AI ★                                  
                  ★ lynx 目标位置 ★                                  
 ```
 
-**Vercel 已经证明二者兼得是可行的。adk-go 选择放弃 multi-vendor 是 Google 的政治选择，不是技术必然。lynx 应该走 Vercel 路线。**
+**Vercel + TanStack 已经证明二者兼得是可行的。adk-go 选择放弃 multi-vendor 是 Google 的政治选择，不是技术必然。**
+
+### 4.2 单一 Message × 双层 Message 选型
+
+```
+                  单一 Message（render = wire）           dual-tier Message（wire ≠ render）
+                  ←——————————————————————————————————→
+                                                                                  
+                  Spring AI / langchain4j / eino /                                
+                  trpc-agent-go / adk-go / Vercel AI                              
+                  ★ lynx 目标位置 ★                  TanStack AI                  
+```
+
+**lynx 选择单一 Message**——TanStack 的双层切分语义更清晰，但增加调用方负担（要懂两种类型 + 知道何时用哪种）。lynx 选 Vercel 路线：单一 Message + Parts，渲染层和 wire 层共享数据；调用方只需要知道一种类型。
+
+### 4.3 流式协议私有 × 开放
+
+```
+                  私有 / SDK 内部协议                  开放 / 跨框架协议
+                  ←——————————————————————————————————→
+                                                                                  
+                  Spring AI (Flux) / langchain4j /                                
+                  eino / trpc-agent-go / adk-go /                                 
+                  Vercel AI / lynx                  TanStack AI（AG-UI）          
+                  ★ lynx 默认 ★                     ★ lynx 可选 wire adapter ★    
+```
+
+**lynx 双策略**：核心 `iter.Seq2[StreamEvent, error]` 是私有 Go-idiomatic API；单独的 `wire/aguifmt` 包做 AG-UI 协议 adapter，HTTP/SSE 场景下可以序列化 StreamEvent 为 AG-UI wire format，跟 CopilotKit / TanStack AI / 任何 AG-UI 兼容前端互通。**核心代码不依赖 AG-UI**，wire adapter 是可选组件。
 
 ---
 
@@ -427,8 +641,14 @@ type AssistantMessage struct {
 | Source / File / ReasoningFile 入 Part | ✅ | 引用、生成文件、redacted thinking 都有结构化场景 |
 | 跨 turn 暴露 | ✅ `steps + content + finalStep` 三视图 | 抄 Vercel；覆盖所有访问模式 |
 | 流式 typed event 数 | ~20 个（start/delta/end 三段）| 抄 Vercel；比 lynx 现在 2 个 event 丰富一个数量级 |
+| **ToolCall 状态机内嵌** | ✅ `ToolCallPart.State` 字段 | **抄 TanStack**——part 自含 lifecycle，UI 渲染逻辑简化（vs Vercel 走多个 event 表达 state） |
+| **dual-tier Message** | ❌ 不抄 | TanStack 路线增加调用方负担；单一 Message 更简单 |
+| **AG-UI 协议作为 wire format** | ✅ **可选 adapter** | 抄 TanStack；核心 API Go-idiomatic，`wire/aguifmt` 子包做 AG-UI 序列化，HTTP/SSE 场景下可以与任何 AG-UI 兼容前端互通；**核心不依赖 AG-UI** |
+| **MessagesSnapshot 事件** | ✅ 含 | TanStack 路线；client 重连后能瞬时复原状态（不依赖 delta 回放） |
+| **Tool 执行内 emitCustomEvent** | ✅ 含 | 抄 TanStack；tool 内部可发自定义 progress 事件（Vercel / adk-go 都没有） |
 | Agent.Run API | `iter.Seq2[*Event, error]` | 抄 adk-go；Go-idiomatic |
 | EventActions | StateDelta + ArtifactDelta + TransferToAgent + Escalate + SkipSummarization + RequestedToolConfirmations | 抄 adk-go 全集 |
+| HITL approval 表达方式 | ✅ **混合**：approval-request/response 作为独立 part（Vercel 路线）+ ToolCallPart.State 同步反映（TanStack 路线）| approval 是消息历史记录（独立 part）+ 实时渲染 lifecycle（state 字段），两面都覆盖 |
 
 ### 5.2 命名约定
 
@@ -502,12 +722,39 @@ type ReasoningPart struct {
     Metadata  map[string]any
 }
 
+// ToolCallState tracks the lifecycle of a single ToolCallPart. Read by
+// renderers to show "spinner / accepting arguments / waiting approval /
+// done" without inspecting separate events. Inspired by TanStack AI's
+// ToolCallState.
+type ToolCallState string
+
+const (
+    // ToolCallStateAwaitingInput — arguments JSON not yet started.
+    ToolCallStateAwaitingInput ToolCallState = "awaiting_input"
+    // ToolCallStateInputStreaming — arguments JSON being built up.
+    ToolCallStateInputStreaming ToolCallState = "input_streaming"
+    // ToolCallStateInputComplete — arguments JSON fully received,
+    // tool not yet executed.
+    ToolCallStateInputComplete ToolCallState = "input_complete"
+    // ToolCallStateApprovalRequested — human approval pending (HITL).
+    ToolCallStateApprovalRequested ToolCallState = "approval_requested"
+    // ToolCallStateApprovalResponded — user approved/denied; check the
+    // matching ToolApprovalResponsePart for the decision.
+    ToolCallStateApprovalResponded ToolCallState = "approval_responded"
+    // ToolCallStateExecuted — tool has been invoked and a result /
+    // error part follows in the Parts list.
+    ToolCallStateExecuted ToolCallState = "executed"
+)
+
 // ToolCallPart is one tool invocation request. The same ID flows into
 // the matching ToolResultPart / ToolErrorPart so callers can pair them.
+// State is mirrored from the event stream so static AssistantMessage
+// snapshots also expose lifecycle (TanStack-style).
 type ToolCallPart struct {
     ID        string
     Name      string
-    Arguments string  // JSON-encoded
+    Arguments string         // JSON-encoded
+    State     ToolCallState  // lifecycle marker
     Metadata  map[string]any
 }
 
@@ -718,11 +965,21 @@ const (
     StreamEventSource StreamEventKind = "source"
     StreamEventFile   StreamEventKind = "file"
 
+    // Snapshot — periodic / on-reconnect emit of the full message
+    // accumulated so far. Lets reconnecting clients sync state in one
+    // event instead of replaying every delta. (TanStack/AG-UI路线)
+    StreamEventMessagesSnapshot StreamEventKind = "messages_snapshot"
+
+    // Session state (multi-agent / persistent workflow).
+    StreamEventStateSnapshot StreamEventKind = "state_snapshot"
+    StreamEventStateDelta    StreamEventKind = "state_delta"
+
     // Anomalies.
     StreamEventAbort StreamEventKind = "abort"
     StreamEventError StreamEventKind = "error"
 
-    // Custom escape hatch.
+    // Custom escape hatch. Used by Tool.emitProgress (TanStack路线) and
+    // any vendor-specific extension.
     StreamEventCustom StreamEventKind = "custom"
 )
 ```
@@ -789,10 +1046,59 @@ func (a *Accumulator) Apply(ev StreamEvent) {
     case *ToolInputDeltaEvent:
         p := a.parts[e.PartIndex].(*ToolCallPart)
         p.Arguments += e.Delta
+        p.State = ToolCallStateInputStreaming
+    case *ToolInputEndEvent:
+        p := a.parts[e.PartIndex].(*ToolCallPart)
+        p.State = ToolCallStateInputComplete
+    case *ToolApprovalRequestEvent:
+        // 同时 mutate ToolCallPart.State 和 emit 独立的
+        // ToolApprovalRequestPart —— 双面覆盖（TanStack 内嵌 +
+        // Vercel 独立 part）。
+        ...
     // ... 等等
     }
 }
 ```
+
+### 7.4 AG-UI wire 协议 adapter（可选）
+
+核心 `chat.StreamEvent` 是 Go-idiomatic 内部 API。HTTP/SSE 暴露给浏览器 / CopilotKit / 第三方 AG-UI 兼容 client 时，引入独立 wire 子包：
+
+```go
+// core/model/chat/wire/aguifmt/aguifmt.go
+package aguifmt
+
+import (
+    "iter"
+
+    "github.com/Tangerg/lynx/core/model/chat"
+)
+
+// MarshalEvent maps a Go-native chat.StreamEvent to an AG-UI wire-format
+// event ([ag-ui.com](https://docs.ag-ui.com)). Used by HTTP/SSE
+// transport that talk to AG-UI compatible clients (TanStack, CopilotKit,
+// any future AG-UI-conformant frontend).
+//
+// The mapping is lossy in one direction only: the AG-UI envelope (id /
+// runId / threadId / timestamp) is filled in by this layer.
+func MarshalEvent(e chat.StreamEvent, ctx Context) ([]byte, error) { ... }
+
+// UnmarshalEvent reverses the mapping. Used when lynx is the AG-UI
+// CLIENT (e.g. consuming a remote agent's stream).
+func UnmarshalEvent(data []byte) (chat.StreamEvent, error) { ... }
+
+// EncodeSSE wraps MarshalEvent + iter.Seq2 in an SSE writer suitable
+// for HTTP handlers.
+func EncodeSSE(seq iter.Seq2[chat.StreamEvent, error], w io.Writer) error { ... }
+```
+
+**关键决策**：
+- `wire/aguifmt` 是**独立 sub-package**，core 不依赖 AG-UI
+- 业务想直接消费 lynx event，不必引入 AG-UI 依赖
+- 想跟 AG-UI 生态互通的业务，import `aguifmt` 就能转
+- 这跟 lynx vector store 的 visitor → vendor query 转换是同款分层
+
+**对照**：TanStack 把 AG-UI **作为唯一 wire format**（深度耦合），Vercel **自创 wire format**（与 AG-UI 不兼容）。lynx 的做法是 **AG-UI 可选 adapter** —— 默认走 Go API，需要时切到 AG-UI。
 
 ---
 
@@ -956,10 +1262,18 @@ func (e *Event) IsFinalResponse() bool { ... }
 | **P2** — 流式重构 | `StreamEvent` discriminated union 替换现有 `iter.Seq2[*Response, error]`；累加器按 PartIndex 重组 | 中（~300 LOC + 测试）| ✅ 破坏 |
 | **P3** — Response 三视图 | `Response { Steps, FinalStep, AggregatedContent, Metadata }`；ToolMiddleware 维护 Steps[] | 低（~150 LOC）| ✅ 破坏 |
 | **P4** — Agent Event 流 | `agent.Agent.Run iter.Seq2[*Event, error]`；`Event{Step, Actions{StateDelta, ArtifactDelta, TransferToAgent, Escalate, SkipSummarization, RequestedToolConfirmations}}`；保留 `Agent.Call` 同步入口 | 中-高（~500 LOC + 现有 agent 包重构）| ⚠️ 破坏 agent API |
-| **P5** — 文档 + 例子 | 改 `doc/REASONING.md` / `doc/MIDDLEWARE.md`；加 `doc/PARTS_RENDERING.md` 教 UI 怎么消费 Parts；加端到端例子（Claude 交错 thinking + tool）| 低 | — |
-| **P6** — 测试覆盖 | mock 测试覆盖 Anthropic 7 个 content block 类型的有序场景；Vercel-style approval flow 端到端测试 | 中 | — |
+| **P5** — AG-UI wire adapter | `core/model/chat/wire/aguifmt` 子包；`MarshalEvent` / `UnmarshalEvent` / `EncodeSSE`；与 [`@ag-ui/core`](https://docs.ag-ui.com) 双向映射 | 中（~400 LOC + AG-UI 依赖，仅子包）| ❌ 不破坏（独立 opt-in） |
+| **P6** — 文档 + 例子 | 改 `doc/REASONING.md` / `doc/MIDDLEWARE.md`；加 `doc/PARTS_RENDERING.md` 教 UI 怎么消费 Parts；加端到端例子（Claude 交错 thinking + tool；CopilotKit 接 lynx 通过 aguifmt）| 低 | — |
+| **P7** — 测试覆盖 | mock 测试覆盖 Anthropic 7 个 content block 类型的有序场景；Vercel-style approval flow 端到端测试；AG-UI wire 双向映射 round-trip 测试 | 中 | — |
 
-**总工作量估计**：~1500-2000 LOC 改动 + 测试，~2-3 周（一个人）。
+**总工作量估计**：~1800-2500 LOC 改动 + 测试，~3-4 周（一个人，含 P5 AG-UI adapter）。
+
+### 10.1 优先级
+
+- **P0 + P1 + P3** 是核心 —— 做完已经反超 Spring AI / langchain4j / eino / trpc-agent-go 四家
+- **P2 + P4** 持平 Vercel + adk-go
+- **P5（AG-UI adapter）** 持平 TanStack，并为 lynx 打开"接入 AG-UI 生态前端"的能力（CopilotKit / TanStack AI 等）
+- **P5 可以延后** —— 仅当有具体 HTTP/SSE 暴露场景时再做
 
 ---
 
@@ -1015,20 +1329,32 @@ func (e *Event) IsFinalResponse() bool { ... }
 
 ---
 
-## 13. 后续可扩展点（不在 P0-P6 范围）
+## 13. 后续可扩展点（不在 P0-P7 范围）
 
-- **Streaming over WebSocket / SSE 协议**：把 StreamEvent 标准化成 wire 格式，复用 Vercel UI Message Stream Protocol 让前端 SDK 通用
+- **AG-UI Server transport**：`server/aguifmt` 子包提供 HTTP handler，把 lynx agent 暴露成 AG-UI endpoint（CopilotKit React UI 直接接）
+- **AG-UI Client adapter**：作为 AG-UI client 消费 remote agent stream（lynx 充当 agent-of-agents 编排者）
+- **Vercel UI Message Stream Protocol** 互通：第二个 wire adapter（Vercel SDK 私有协议）—— 给 Next.js / `useChat` 用户用
 - **Trace 整合**：每个 StreamEvent / Event 自动产 OTel span attribute（`gen_ai.*`）
 - **Replay / time-travel**：Response.Steps 完整保留请求快照 → 可以 replay 单个 step
 - **Multi-modal output**（ImagePart inline）：当前 MediaPart 已经支持；OpenAI gpt-4o-audio / Gemini Imagen-via-chat 接入时直接复用
+- **MCP 协议事件桥接**：把 lynx StreamEvent 映射到 MCP 的 progress notification（与 `mcp/` 包整合）
 
 ---
 
 ## 14. 一句话定档
 
-**Vercel AI SDK 证明了"vendor-neutral + 完整 ordering"是单一可达点。lynx 已经在 vendor-neutral 这一轴占位（22 chat provider），只需把 ContentPart 模型抽到自己的 Go-native part type 上，配合 adk-go 风格的 iter.Seq2 event stream，就能与 Vercel 同档并领先其余 5 家。**
+**Vercel + TanStack 证明了"vendor-neutral + 完整 ordering"是单一可达点；adk-go 证明了 Go iter.Seq2 是 event 流最 idiomatic 的载体；TanStack 证明了 AG-UI 是 wire 协议跨框架互通的现实选择。**
 
-**优先级**：P0+P1（数据模型 + provider builder）→ P3（三视图）→ P2（流式重构）→ P4（agent event 流）。P0+P1+P3 做完已经反超 Spring AI / langchain4j / eino / trpc-agent-go 四家；P2+P4 持平 Vercel；P6 测试封口。
+**lynx 的合成方案**：
+- 单一 Message + Parts（Vercel 路线，简单）
+- ToolCallPart.State 内嵌状态机（TanStack 路线，UI 友好）
+- ToolApproval 走独立 part type（Vercel 路线，trace 友好）—— 同时 mirror 到 ToolCallPart.State
+- 流式 `iter.Seq2[StreamEvent, error]`（adk-go 路线，Go-idiomatic）
+- AG-UI 协议作为**可选 wire adapter**（TanStack 启发，但保持核心 vendor-neutral）
+- Response 三视图 + StepResult（Vercel 路线）
+- Agent.Run + 完整 EventActions（adk-go 路线）
+
+**优先级**：P0+P1（数据模型 + provider builder）→ P3（三视图）→ P2（流式重构）→ P4（agent event 流）。**P0+P1+P3 做完已经反超 Spring AI / langchain4j / eino / trpc-agent-go 四家**；**P2+P4 持平 Vercel + adk-go**；**P5 持平 TanStack**；P7 测试封口。
 
 ---
 
