@@ -108,7 +108,7 @@ type Store struct {
 	storeDocumentContent bool
 }
 
-// NewStore creates and initializes a Chroma Store from config.
+
 func NewStore(config *StoreConfig) (*Store, error) {
 	if err := config.validate(); err != nil {
 		return nil, err

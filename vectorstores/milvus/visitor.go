@@ -39,7 +39,7 @@ type Visitor struct {
 	currentFieldValue string // Temporary storage for encoded values during extraction
 }
 
-// NewVisitor creates a new converter instance ready to process AST expressions.
+
 func NewVisitor() *Visitor {
 	return &Visitor{}
 }
