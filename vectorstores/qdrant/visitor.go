@@ -43,8 +43,7 @@ type Visitor struct {
 	currentFieldKey   string         // Temporary storage for field keys during extraction
 }
 
-// NewVisitor creates a new converter instance with an empty filter.
-// The returned converter is ready to process AST expressions.
+
 func NewVisitor() *Visitor {
 	return &Visitor{
 		filter: &qdrant.Filter{},

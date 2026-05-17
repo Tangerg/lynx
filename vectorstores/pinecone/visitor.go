@@ -44,7 +44,7 @@ type Visitor struct {
 	currentFieldValue interface{}            // Temporary storage for field values during extraction
 }
 
-// NewVisitor creates a new visitor instance ready to process AST expressions.
+
 func NewVisitor() *Visitor {
 	return &Visitor{}
 }
