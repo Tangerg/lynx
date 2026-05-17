@@ -1148,13 +1148,13 @@ func TestMIME_MarshalJSON(t *testing.T) {
 		{
 			name:     "simple mime",
 			mime:     &MIME{_type: "text", subType: "html", params: maps.HashMap[string, string]{}},
-			expected: "text/html",
+			expected: `"text/html"`,
 			wantErr:  false,
 		},
 		{
 			name:     "nil mime",
 			mime:     nil,
-			expected: "",
+			expected: "null",
 			wantErr:  false,
 		},
 	}

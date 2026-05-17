@@ -1,6 +1,7 @@
 package chat_test
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -235,6 +236,82 @@ func TestMessageToString_Tool(t *testing.T) {
 	}
 	if !strings.Contains(got, `"result":"ok"`) {
 		t.Fatalf("ToolReturns JSON not embedded in %q", got)
+	}
+}
+
+func TestMessage_JSONRoundTrip(t *testing.T) {
+	cases := []struct {
+		name string
+		msg  chat.Message
+	}{
+		{"system", chat.NewSystemMessage("you are concise")},
+		{"user", chat.NewUserMessage("hi")},
+		{"assistant", chat.NewAssistantMessage(chat.MessageParams{
+			Text:      "answer",
+			Reasoning: "thinking out loud",
+			ToolCalls: []*chat.ToolCall{{ID: "c1", Name: "search", Arguments: `{"q":"x"}`}},
+		})},
+	}
+	tool, _ := chat.NewToolMessage([]*chat.ToolReturn{{ID: "c1", Name: "search", Result: "ok"}})
+	cases = append(cases, struct {
+		name string
+		msg  chat.Message
+	}{"tool", tool})
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			data, err := json.Marshal(tc.msg)
+			if err != nil {
+				t.Fatalf("Marshal: %v", err)
+			}
+			if !strings.Contains(string(data), `"type":"`+string(tc.msg.Type())+`"`) {
+				t.Fatalf("marshaled JSON missing type discriminator: %s", data)
+			}
+			got, err := chat.UnmarshalMessage(data)
+			if err != nil {
+				t.Fatalf("UnmarshalMessage: %v", err)
+			}
+			if got.Type() != tc.msg.Type() {
+				t.Fatalf("Type = %q, want %q", got.Type(), tc.msg.Type())
+			}
+		})
+	}
+}
+
+func TestRequest_JSONRoundTrip(t *testing.T) {
+	tool, _ := chat.NewToolMessage([]*chat.ToolReturn{{ID: "c1", Name: "search", Result: "ok"}})
+	req, err := chat.NewRequest([]chat.Message{
+		chat.NewSystemMessage("be concise"),
+		chat.NewUserMessage("hi"),
+		chat.NewAssistantMessage(chat.MessageParams{Text: "hello"}),
+		tool,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	data, err := json.Marshal(req)
+	if err != nil {
+		t.Fatalf("Marshal: %v", err)
+	}
+
+	var got chat.Request
+	if err := json.Unmarshal(data, &got); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
+	if len(got.Messages) != 4 {
+		t.Fatalf("Messages len = %d, want 4", len(got.Messages))
+	}
+	wantTypes := []chat.MessageType{
+		chat.MessageTypeSystem,
+		chat.MessageTypeUser,
+		chat.MessageTypeAssistant,
+		chat.MessageTypeTool,
+	}
+	for i, want := range wantTypes {
+		if got.Messages[i].Type() != want {
+			t.Fatalf("Messages[%d].Type() = %q, want %q", i, got.Messages[i].Type(), want)
+		}
 	}
 }
 

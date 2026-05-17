@@ -105,7 +105,7 @@ func (r *ClientRequest) resolveOptions() *Options {
 	if r.options != nil {
 		return r.options.Clone()
 	}
-	return r.model.DefaultOptions().Clone()
+	defaults := r.model.DefaultOptions(); return defaults.Clone()
 }
 
 // buildRequest assembles the [*Request] sent through the middleware
@@ -147,27 +147,14 @@ func (c *ClientCaller) Response(ctx context.Context) (*Response, error) {
 		Call(ctx, req)
 }
 
-// Image runs the call and returns the first generated image alongside
-// the full response.
+// Image runs the call and returns the generated image alongside the
+// full response.
 func (c *ClientCaller) Image(ctx context.Context) (*Image, *Response, error) {
 	resp, err := c.Response(ctx)
 	if err != nil {
 		return nil, nil, err
 	}
-	return resp.Result().Image, resp, nil
-}
-
-// Images runs the call and returns every generated image in order.
-func (c *ClientCaller) Images(ctx context.Context) ([]*Image, *Response, error) {
-	resp, err := c.Response(ctx)
-	if err != nil {
-		return nil, nil, err
-	}
-	out := make([]*Image, 0, len(resp.Results))
-	for _, result := range resp.Results {
-		out = append(out, result.Image)
-	}
-	return out, resp, nil
+	return resp.Result.Image, resp, nil
 }
 
 // Client wraps a [Model] with a sticky default [ClientRequest], so each

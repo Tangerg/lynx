@@ -2,6 +2,7 @@ package openai
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/openai/openai-go/v3"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/Tangerg/lynx/core/model"
 	"github.com/Tangerg/lynx/core/model/image"
+	"github.com/Tangerg/lynx/models/internal/options"
 	"github.com/Tangerg/lynx/pkg/mime"
 )
 
@@ -16,17 +18,21 @@ type ImageModelConfig struct {
 	ApiKey         model.ApiKey
 	DefaultOptions *image.Options
 	RequestOptions []option.RequestOption
+
+	// Metadata overrides the [image.ModelMetadata] returned by [ImageModel.Metadata].
+	// Facades pass their own Provider here. Zero falls back to [Provider].
+	Metadata *image.ModelMetadata
 }
 
 func (c *ImageModelConfig) validate() error {
 	if c == nil {
-		return ErrNilConfig
+		return errors.New("openai: config must not be nil")
 	}
 	if c.ApiKey == nil {
-		return ErrMissingApiKey
+		return errors.New("openai: ApiKey is required")
 	}
 	if c.DefaultOptions == nil {
-		return ErrMissingDefaultOptions
+		return errors.New("openai: DefaultOptions is required")
 	}
 	return nil
 }
@@ -36,6 +42,7 @@ var _ image.Model = (*ImageModel)(nil)
 type ImageModel struct {
 	api            *Api
 	defaultOptions *image.Options
+	metadata       image.ModelMetadata
 }
 
 func NewImageModel(cfg *ImageModelConfig) (*ImageModel, error) {
@@ -51,9 +58,14 @@ func NewImageModel(cfg *ImageModelConfig) (*ImageModel, error) {
 		return nil, err
 	}
 
+	info := image.ModelMetadata{Provider: Provider}
+	if cfg.Metadata != nil {
+		info = *cfg.Metadata
+	}
 	return &ImageModel{
 		api:            api,
 		defaultOptions: cfg.DefaultOptions,
+		metadata:           info,
 	}, nil
 }
 
@@ -63,7 +75,7 @@ func (i *ImageModel) buildApiImageRequest(req *image.Request) (*openai.ImageGene
 		return nil, err
 	}
 
-	params := getOptionsParams[openai.ImageGenerateParams](mergedOpts)
+	params := options.GetParams[openai.ImageGenerateParams](mergedOpts, OptionsKey)
 
 	params.Model = mergedOpts.Model
 	params.Prompt = req.Prompt
@@ -75,34 +87,40 @@ func (i *ImageModel) buildApiImageRequest(req *image.Request) (*openai.ImageGene
 		params.ResponseFormat = openai.ImageGenerateParamsResponseFormat(mergedOpts.ResponseFormat)
 	}
 	if mergedOpts.Width != nil && mergedOpts.Height != nil {
-		params.Size = openai.ImageGenerateParamsSize(fmt.Sprintf("%dx%d", mergedOpts.Width, mergedOpts.Height))
-	} else {
+		params.Size = openai.ImageGenerateParamsSize(fmt.Sprintf("%dx%d", *mergedOpts.Width, *mergedOpts.Height))
+	} else if params.Size == "" {
 		params.Size = openai.ImageGenerateParamsSizeAuto
 	}
 
-	params.Style = openai.ImageGenerateParamsStyle(mergedOpts.Style)
+	if mergedOpts.Style != "" {
+		params.Style = openai.ImageGenerateParamsStyle(mergedOpts.Style)
+	}
+
+	if mergedOpts.Quality != "" {
+		params.Quality = openai.ImageGenerateParamsQuality(mergedOpts.Quality)
+	}
 
 	return params, nil
 }
 
 func (i *ImageModel) buildImageResponse(resp *openai.ImagesResponse) (*image.Response, error) {
-	results := make([]*image.Result, 0, len(resp.Data))
-
-	for _, item := range resp.Data {
-		img, err := image.NewImage(item.URL, item.B64JSON)
-		if err != nil {
-			return nil, err
-		}
-
-		result, err := image.NewResult(img, &image.ResultMetadata{})
-		if err != nil {
-			return nil, err
-		}
-
-		results = append(results, result)
+	// The image surface is single-result by design (see image.Response);
+	// callers wanting N>1 drop down to the openai-go SDK directly.
+	if len(resp.Data) == 0 {
+		return nil, errors.New("openai: image response has no data")
 	}
 
-	return image.NewResponse(results, &image.ResponseMetadata{Created: resp.Created})
+	img, err := image.NewImage(resp.Data[0].URL, resp.Data[0].B64JSON)
+	if err != nil {
+		return nil, err
+	}
+
+	result, err := image.NewResult(img, &image.ResultMetadata{})
+	if err != nil {
+		return nil, err
+	}
+
+	return image.NewResponse(result, &image.ResponseMetadata{Created: resp.Created})
 }
 
 func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Response, error) {
@@ -119,12 +137,10 @@ func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Respo
 	return i.buildImageResponse(apiResp)
 }
 
-func (i *ImageModel) DefaultOptions() *image.Options {
-	return i.defaultOptions
+func (i *ImageModel) DefaultOptions() image.Options {
+	return *i.defaultOptions
 }
 
-func (i *ImageModel) Info() image.ModelInfo {
-	return image.ModelInfo{
-		Provider: Provider,
-	}
+func (i *ImageModel) Metadata() image.ModelMetadata {
+	return i.metadata
 }

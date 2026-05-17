@@ -23,7 +23,7 @@ var dimensionsStore sync.Map
 //
 //	d := embedding.GetDimensions(ctx, openaiEmbedding) // → 1536
 func GetDimensions(ctx context.Context, model Model) int64 {
-	cacheKey := model.Info().Provider + ":" + model.DefaultOptions().Model
+	cacheKey := model.Metadata().Provider + ":" + model.DefaultOptions().Model
 
 	if value, ok := dimensionsStore.Load(cacheKey); ok {
 		return value.(int64)

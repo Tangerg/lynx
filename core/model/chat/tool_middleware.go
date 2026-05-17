@@ -48,13 +48,13 @@ func (m *ToolMiddleware) wrapStreamHandler(next StreamHandler) StreamHandler {
 // messages already indicate a direct return; otherwise enter the
 // recursive call/tool loop.
 func (m *ToolMiddleware) executeCall(ctx context.Context, req *Request, next CallHandler) (*Response, error) {
-	support := NewToolSupport(len(req.Options.Tools))
+	support := NewToolSupport(len(req.Tools))
 
 	if support.ShouldReturnDirect(req.Messages) {
 		return support.BuildReturnDirectResponse(req.Messages)
 	}
 
-	support.Register(req.Options.Tools...)
+	support.Register(req.Tools...)
 	return m.executeCallRecursively(ctx, req, next, support)
 }
 
@@ -97,14 +97,14 @@ func (m *ToolMiddleware) executeCallRecursively(ctx context.Context, req *Reques
 // closes.
 func (m *ToolMiddleware) executeStream(ctx context.Context, req *Request, next StreamHandler) iter.Seq2[*Response, error] {
 	return func(yield func(*Response, error) bool) {
-		support := NewToolSupport(len(req.Options.Tools))
+		support := NewToolSupport(len(req.Tools))
 
 		if support.ShouldReturnDirect(req.Messages) {
 			yield(support.BuildReturnDirectResponse(req.Messages))
 			return
 		}
 
-		support.Register(req.Options.Tools...)
+		support.Register(req.Tools...)
 		m.executeStreamRecursively(ctx, req, next, support, yield)
 	}
 }

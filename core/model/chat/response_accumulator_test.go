@@ -16,7 +16,7 @@ func TestResponseAccumulator_TextDeltas(t *testing.T) {
 	acc.AddChunk(chunkWithText(", ", "", chat.FinishReasonNull))
 	acc.AddChunk(chunkWithText("world", "", chat.FinishReasonStop))
 
-	got := acc.Result()
+	got := acc.Result
 	if got == nil {
 		t.Fatal("accumulator produced no Result")
 	}
@@ -34,7 +34,7 @@ func TestResponseAccumulator_ReasoningDeltas(t *testing.T) {
 	acc.AddChunk(chunkWithText("", "Step 1: ", chat.FinishReasonNull))
 	acc.AddChunk(chunkWithText("", "Step 2", chat.FinishReasonNull))
 
-	got := acc.Result().AssistantMessage.Reasoning
+	got := acc.Result.AssistantMessage.Reasoning
 	if got != "Step 1: Step 2" {
 		t.Fatalf("Reasoning = %q, want %q", got, "Step 1: Step 2")
 	}
@@ -49,7 +49,7 @@ func TestResponseAccumulator_ToolCallChunks(t *testing.T) {
 	acc.AddChunk(toolCallChunk("call_1", "search", `{"q":"`))
 	acc.AddChunk(toolCallChunk("", "", `lynx"}`))
 
-	got := acc.Result().AssistantMessage.ToolCalls
+	got := acc.Result.AssistantMessage.ToolCalls
 	if len(got) != 1 {
 		t.Fatalf("ToolCalls len = %d, want 1", len(got))
 	}
@@ -85,8 +85,8 @@ func TestResponseAccumulator_NilChunkSafe(t *testing.T) {
 	// Empty Response{} should not panic.
 	acc.AddChunk(&chat.Response{})
 
-	if got := acc.Result(); got != nil {
-		t.Fatalf("empty AddChunk should not produce results, got %+v", got)
+	if got := acc.Result; got != nil {
+		t.Fatalf("empty AddChunk should not produce a Result, got %+v", got)
 	}
 }
 
@@ -94,33 +94,33 @@ func TestResponseAccumulator_NilChunkSafe(t *testing.T) {
 
 func chunkWithText(text, reasoning string, fr chat.FinishReason) *chat.Response {
 	return &chat.Response{
-		Results: []*chat.Result{{
+		Result: &chat.Result{
 			AssistantMessage: chat.NewAssistantMessage(chat.MessageParams{
 				Text:      text,
 				Reasoning: reasoning,
 			}),
 			Metadata: &chat.ResultMetadata{FinishReason: fr},
-		}},
+		},
 	}
 }
 
 func toolCallChunk(id, name, args string) *chat.Response {
 	return &chat.Response{
-		Results: []*chat.Result{{
+		Result: &chat.Result{
 			AssistantMessage: chat.NewAssistantMessage(chat.MessageParams{
 				ToolCalls: []*chat.ToolCall{{ID: id, Name: name, Arguments: args}},
 			}),
 			Metadata: &chat.ResultMetadata{},
-		}},
+		},
 	}
 }
 
 func chunkWithUsage(u *chat.Usage) *chat.Response {
 	return &chat.Response{
-		Results: []*chat.Result{{
+		Result: &chat.Result{
 			AssistantMessage: chat.NewAssistantMessage(chat.MessageParams{}),
 			Metadata:         &chat.ResultMetadata{},
-		}},
+		},
 		Metadata: &chat.ResponseMetadata{Usage: u},
 	}
 }

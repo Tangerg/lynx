@@ -20,7 +20,7 @@ type Options struct {
 	Speed float64 `json:"speed"`
 
 	// Extra carries provider-specific options unknown to this struct.
-	Extra map[string]any `json:"extra"`
+	Extra map[string]any `json:"extra,omitzero"`
 }
 
 // NewOptions builds Options for the given model id. Returns an error
@@ -110,10 +110,10 @@ type Request struct {
 	Text string `json:"text"`
 
 	// Options carries model-specific parameters.
-	Options *Options `json:"options"`
+	Options *Options `json:"options,omitempty"`
 
 	// Params is per-request metadata middlewares can read.
-	Params map[string]any `json:"params"`
+	Params map[string]any `json:"params,omitzero"`
 }
 
 // NewRequest builds a Request from text. Returns an error when text

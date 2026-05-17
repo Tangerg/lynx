@@ -1,5 +1,22 @@
 package slices
 
+// Map applies f to each element of s and returns a new slice with the
+// results. The returned slice is always non-nil and has len(s) entries
+// even when s is empty.
+//
+// Example:
+//
+//	slices.Map([]float32{1, 2, 3}, func(v float32) float64 {
+//	    return float64(v)
+//	}) // [1 2 3]
+func Map[S ~[]E, E any, R any](s S, f func(E) R) []R {
+	out := make([]R, len(s))
+	for i, v := range s {
+		out[i] = f(v)
+	}
+	return out
+}
+
 // EnsureIndex returns a slice whose length is at least i+1, so that
 // s[i] is safe to read or assign. If i is already addressable, s is
 // returned unchanged. If it fits within cap(s), the length is extended

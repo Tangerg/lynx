@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"slices"
 	"sync"
 
 	pkgSlices "github.com/Tangerg/lynx/pkg/slices"
@@ -259,17 +260,18 @@ func (r *ToolInvocationResult) BuildContinueRequest() (*Request, error) {
 		return nil, err
 	}
 
-	withCalls := r.response.findFirstResultWithToolCalls()
-	if withCalls == nil {
+	result := r.response.Result
+	if result == nil || !result.AssistantMessage.HasToolCalls() {
 		return nil, errors.New("chat.ToolInvocationResult.BuildContinueRequest: response has no tool calls")
 	}
 
-	msgs := append(r.request.Messages, withCalls.AssistantMessage, r.toolMessage)
+	msgs := append(r.request.Messages, result.AssistantMessage, r.toolMessage)
 	next, err := NewRequest(msgs)
 	if err != nil {
 		return nil, err
 	}
 	next.Options = r.request.Options.Clone()
+	next.Tools = slices.Clone(r.request.Tools)
 	next.Params = maps.Clone(r.request.Params)
 	return next, nil
 }
@@ -300,8 +302,8 @@ func (r *ToolInvocationResult) BuildReturnResponse() (*Response, error) {
 		return nil, errors.New("chat.ToolInvocationResult.BuildReturnResponse: LLM response is missing")
 	}
 
-	withCalls := r.response.findFirstResultWithToolCalls()
-	if withCalls == nil {
+	withCalls := r.response.Result
+	if withCalls == nil || !withCalls.AssistantMessage.HasToolCalls() {
 		return nil, errors.New("chat.ToolInvocationResult.BuildReturnResponse: response has no tool calls")
 	}
 	original := withCalls.AssistantMessage
@@ -319,7 +321,7 @@ func (r *ToolInvocationResult) BuildReturnResponse() (*Response, error) {
 	}
 	result.ToolMessage = r.toolMessage
 
-	return NewResponse([]*Result{result}, r.response.Metadata)
+	return NewResponse(result, r.response.Metadata)
 }
 
 // validate ensures the result has at least one result channel
@@ -353,12 +355,11 @@ func newToolCallInvoker(registry *ToolRegistry) *toolCallInvoker {
 // Returns (false, nil) when the response contains no tool calls at all.
 // Returns (false, err) when an unknown tool is requested.
 func (i *toolCallInvoker) canInvokeToolCalls(resp *Response) (bool, error) {
-	withCalls := resp.findFirstResultWithToolCalls()
-	if withCalls == nil {
+	if resp.Result == nil || !resp.Result.AssistantMessage.HasToolCalls() {
 		return false, nil
 	}
 
-	for _, call := range withCalls.AssistantMessage.ToolCalls {
+	for _, call := range resp.Result.AssistantMessage.ToolCalls {
 		if _, exists := i.registry.Find(call.Name); !exists {
 			return false, fmt.Errorf("chat.toolCallInvoker.canInvokeToolCalls: tool %q not registered", call.Name)
 		}
@@ -426,7 +427,7 @@ func (i *toolCallInvoker) invoke(ctx context.Context, req *Request, resp *Respon
 		return nil, errors.New("chat.toolCallInvoker.invoke: response has no valid tool calls")
 	}
 
-	result, err := i.invokeToolCalls(ctx, resp.findFirstResultWithToolCalls().AssistantMessage.ToolCalls)
+	result, err := i.invokeToolCalls(ctx, resp.Result.AssistantMessage.ToolCalls)
 	if err != nil {
 		return nil, err
 	}
@@ -518,7 +519,7 @@ func (s *ToolSupport) BuildReturnDirectResponse(msgs []Message) (*Response, erro
 	// ShouldReturnDirect already verified this is a *ToolMessage.
 	result.ToolMessage = last.(*ToolMessage)
 
-	return NewResponse([]*Result{result}, &ResponseMetadata{})
+	return NewResponse(result, &ResponseMetadata{})
 }
 
 // ShouldInvokeToolCalls reports whether the response contains tool

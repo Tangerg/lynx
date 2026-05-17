@@ -1,7 +1,5 @@
 package google
 
-import "github.com/Tangerg/lynx/models/internal/options"
-
 const (
 	Provider = "Google"
 )
@@ -10,10 +8,7 @@ const (
 	OptionsKey = "lynx:ai:model:google_options"
 )
 
-func getOptionsParams[T any](
-	opts interface {
-		Get(key string) (any, bool)
-	},
-) *T {
-	return options.GetParams[T](opts, OptionsKey)
-}
+// BaseURLOpenAI is Gemini's first-party OpenAI-compatible endpoint
+// (https://ai.google.dev/gemini-api/docs/openai). Use it via
+// [NewOpenAIChatModel] to reach Gemini models with the OpenAI SDK.
+const BaseURLOpenAI = "https://generativelanguage.googleapis.com/v1beta/openai"

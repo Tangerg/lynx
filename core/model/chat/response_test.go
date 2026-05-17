@@ -69,30 +69,23 @@ func TestNewResponse_Validates(t *testing.T) {
 	meta := &chat.ResponseMetadata{}
 
 	if _, err := chat.NewResponse(nil, meta); err == nil {
-		t.Fatal("empty results must error")
+		t.Fatal("nil result must error")
 	}
 
 	res, _ := chat.NewResult(
 		chat.NewAssistantMessage(chat.MessageParams{Text: "hi"}),
 		&chat.ResultMetadata{},
 	)
-	if _, err := chat.NewResponse([]*chat.Result{res}, nil); err == nil {
+	if _, err := chat.NewResponse(res, nil); err == nil {
 		t.Fatal("nil metadata must error")
 	}
 
-	resp, err := chat.NewResponse([]*chat.Result{res}, meta)
+	resp, err := chat.NewResponse(res, meta)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if resp.Result() != res {
-		t.Fatal("Result() must return the first result")
-	}
-}
-
-func TestResponse_Result_NilWhenEmpty(t *testing.T) {
-	r := &chat.Response{}
-	if got := r.Result(); got != nil {
-		t.Fatalf("empty Response.Result = %v, want nil", got)
+	if resp.Result != res {
+		t.Fatal("Response.Result must reference the supplied result")
 	}
 }
 
@@ -101,7 +94,7 @@ func TestNewResponse_ErrorMessageMentionsCause(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error")
 	}
-	if !strings.Contains(err.Error(), "Result") {
-		t.Fatalf("error %q should mention Result", err.Error())
+	if !strings.Contains(err.Error(), "result") {
+		t.Fatalf("error %q should mention result", err.Error())
 	}
 }

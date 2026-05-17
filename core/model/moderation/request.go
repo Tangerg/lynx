@@ -11,7 +11,7 @@ type Options struct {
 	Model string `json:"model"`
 
 	// Extra carries provider-specific options unknown to this struct.
-	Extra map[string]any `json:"extra"`
+	Extra map[string]any `json:"extra,omitzero"`
 }
 
 // NewOptions builds Options for the given model id. Returns an error
@@ -85,13 +85,13 @@ func MergeOptions(base *Options, overrides ...*Options) (*Options, error) {
 // caller-supplied side-channel params.
 type Request struct {
 	// Texts is the input list. Each entry is moderated independently.
-	Texts []string `json:"text"`
+	Texts []string `json:"text,omitzero"`
 
 	// Options carries model-specific parameters.
-	Options *Options `json:"options"`
+	Options *Options `json:"options,omitempty"`
 
 	// Params is per-request metadata middlewares can read.
-	Params map[string]any `json:"params"`
+	Params map[string]any `json:"params,omitzero"`
 }
 
 // NewRequest builds a Request from texts. Returns an error when texts

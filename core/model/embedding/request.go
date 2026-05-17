@@ -45,10 +45,10 @@ type Options struct {
 
 	// Dimensions requests an explicit output vector size. nil leaves it
 	// up to the provider's default.
-	Dimensions *int64 `json:"dimensions"`
+	Dimensions *int64 `json:"dimensions,omitempty"`
 
 	// Extra carries provider-specific options unknown to this struct.
-	Extra map[string]any `json:"extra"`
+	Extra map[string]any `json:"extra,omitzero"`
 }
 
 // NewOptions builds Options for the given model id. Returns an error
@@ -142,13 +142,13 @@ func applyOverride(dst, src *Options) {
 // caller-supplied side-channel params (user id, trace id, ...).
 type Request struct {
 	// Texts is the input list. Each entry produces one embedding.
-	Texts []string `json:"texts"`
+	Texts []string `json:"texts,omitzero"`
 
 	// Options carries model-specific parameters.
-	Options *Options `json:"options"`
+	Options *Options `json:"options,omitempty"`
 
 	// Params is per-request metadata middlewares can read.
-	Params map[string]any `json:"params"`
+	Params map[string]any `json:"params,omitzero"`
 }
 
 // NewRequest builds a Request from texts. Returns an error when texts

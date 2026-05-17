@@ -37,10 +37,10 @@ type ResultMetadata struct {
 
 	// MimeType identifies the MIME type of the original content. nil
 	// when the modality is plain text or the provider did not surface it.
-	MimeType *mime.MIME `json:"mime_type"`
+	MimeType *mime.MIME `json:"mime_type,omitempty"`
 
 	// Extra carries provider-specific metadata.
-	Extra map[string]any `json:"extra"`
+	Extra map[string]any `json:"extra,omitzero"`
 }
 
 func (r *ResultMetadata) ensureExtra() {
@@ -71,7 +71,7 @@ type Result struct {
 	Embedding []float64 `json:"embedding"`
 
 	// Metadata carries the source position, modality, and any extras.
-	Metadata *ResultMetadata `json:"metadata"`
+	Metadata *ResultMetadata `json:"metadata,omitempty"`
 }
 
 // NewResult builds a [Result]. Returns an error when the embedding is
@@ -94,16 +94,16 @@ type ResponseMetadata struct {
 	Model string `json:"model"`
 
 	// Usage breaks down token consumption.
-	Usage *model.Usage `json:"usage"`
+	Usage *model.Usage `json:"usage,omitempty"`
 
 	// RateLimit reports quota state at request time.
-	RateLimit *model.RateLimit `json:"rate_limit"`
+	RateLimit *model.RateLimit `json:"rate_limit,omitempty"`
 
 	// Created is the provider-reported creation time, Unix seconds.
 	Created int64 `json:"created"`
 
 	// Extra carries provider-specific metadata.
-	Extra map[string]any `json:"extra"`
+	Extra map[string]any `json:"extra,omitzero"`
 }
 
 func (r *ResponseMetadata) ensureExtra() {
@@ -132,10 +132,10 @@ func (r *ResponseMetadata) Set(key string, value any) {
 // shared response metadata.
 type Response struct {
 	// Results holds one entry per input text, in the same order.
-	Results []*Result `json:"results"`
+	Results []*Result `json:"results,omitzero"`
 
 	// Metadata carries shared response-level fields.
-	Metadata *ResponseMetadata `json:"metadata"`
+	Metadata *ResponseMetadata `json:"metadata,omitempty"`
 }
 
 // NewResponse builds a [Response] from at least one result and a

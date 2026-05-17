@@ -5,7 +5,7 @@ import "errors"
 // ResultMetadata holds per-segment metadata returned by the provider.
 type ResultMetadata struct {
 	// Extra carries provider-specific metadata.
-	Extra map[string]any `json:"extra"`
+	Extra map[string]any `json:"extra,omitzero"`
 }
 
 func (r *ResultMetadata) ensureExtra() {
@@ -36,10 +36,10 @@ func (r *ResultMetadata) Set(key string, value any) {
 type Result struct {
 	// Speech holds the encoded audio bytes (encoding determined by
 	// Request.Options.ResponseFormat).
-	Speech []byte `json:"speech"`
+	Speech []byte `json:"speech,omitzero"`
 
 	// Metadata carries per-chunk extras.
-	Metadata *ResultMetadata `json:"metadata"`
+	Metadata *ResultMetadata `json:"metadata,omitempty"`
 }
 
 // NewResult builds a [Result]. Returns an error when speech is empty
@@ -63,7 +63,7 @@ type ResponseMetadata struct {
 	Created int64 `json:"created"`
 
 	// Extra carries provider-specific metadata.
-	Extra map[string]any `json:"extra"`
+	Extra map[string]any `json:"extra,omitzero"`
 }
 
 func (r *ResponseMetadata) ensureExtra() {
@@ -88,34 +88,24 @@ func (r *ResponseMetadata) Set(key string, value any) {
 	r.Extra[key] = value
 }
 
-// Response is the full TTS result: every audio chunk plus shared
-// response metadata.
+// Response is one TTS call's audio output plus shared metadata. For
+// synchronous calls Result holds the entire audio; for streaming calls
+// each chunk yields a Response with the just-produced segment in Result.
 type Response struct {
-	// Results holds one entry per generated audio segment.
-	Results []*Result `json:"results"`
+	// Result holds the generated audio. Non-nil after [NewResponse].
+	Result *Result `json:"result,omitempty"`
 
 	// Metadata carries shared response-level fields.
-	Metadata *ResponseMetadata `json:"metadata"`
+	Metadata *ResponseMetadata `json:"metadata,omitempty"`
 }
 
-// NewResponse builds a [Response] from at least one result and a
-// non-nil metadata.
-func NewResponse(results []*Result, metadata *ResponseMetadata) (*Response, error) {
-	if len(results) == 0 {
-		return nil, errors.New("tts.NewResponse: at least one Result is required")
+// NewResponse builds a [Response] from a non-nil result and metadata.
+func NewResponse(result *Result, metadata *ResponseMetadata) (*Response, error) {
+	if result == nil {
+		return nil, errors.New("tts.NewResponse: result must not be nil")
 	}
 	if metadata == nil {
 		return nil, errors.New("tts.NewResponse: metadata must not be nil")
 	}
-	return &Response{Results: results, Metadata: metadata}, nil
-}
-
-// Result returns the first audio chunk — convenient for synchronous
-// calls that produce one continuous audio stream. Returns nil when
-// Results is empty.
-func (r *Response) Result() *Result {
-	if len(r.Results) == 0 {
-		return nil
-	}
-	return r.Results[0]
+	return &Response{Result: result, Metadata: metadata}, nil
 }

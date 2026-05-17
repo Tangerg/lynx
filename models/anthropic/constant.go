@@ -1,7 +1,5 @@
 package anthropic
 
-import "github.com/Tangerg/lynx/models/internal/options"
-
 const (
 	Provider = "Anthropic"
 )
@@ -10,10 +8,8 @@ const (
 	OptionsKey = "lynx:ai:model:anthropic_options"
 )
 
-func getOptionsParams[T any](
-	opts interface {
-		Get(key string) (any, bool)
-	},
-) *T {
-	return options.GetParams[T](opts, OptionsKey)
-}
+// BaseURLOpenAI is Anthropic's first-party OpenAI-compatible endpoint
+// (https://docs.claude.com/en/api/openai-sdk). Use it via
+// [NewOpenAIChatModel] to keep an OpenAI-SDK integration while
+// targeting Claude models.
+const BaseURLOpenAI = "https://api.anthropic.com/v1"

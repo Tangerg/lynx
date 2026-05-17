@@ -1,0 +1,164 @@
+package cohere
+
+import (
+	"context"
+	"errors"
+	"time"
+
+	cohere "github.com/cohere-ai/cohere-go/v2"
+
+	"github.com/Tangerg/lynx/core/model"
+	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/core/model/embedding"
+	"github.com/Tangerg/lynx/models/internal/options"
+	"github.com/Tangerg/lynx/pkg/mime"
+)
+
+type EmbeddingModelConfig struct {
+	ApiKey         model.ApiKey
+	DefaultOptions *embedding.Options
+}
+
+func (c *EmbeddingModelConfig) validate() error {
+	if c == nil {
+		return errors.New("cohere: config must not be nil")
+	}
+	if c.ApiKey == nil {
+		return errors.New("cohere: ApiKey is required")
+	}
+	if c.DefaultOptions == nil {
+		return errors.New("cohere: DefaultOptions is required")
+	}
+	return nil
+}
+
+var _ embedding.Model = (*EmbeddingModel)(nil)
+
+// EmbeddingModel wraps Cohere's v2 embed endpoint.
+//
+// Supported models: embed-english-v3.0, embed-multilingual-v3.0,
+// embed-english-light-v3.0, embed-multilingual-light-v3.0, embed-v4.0.
+// v4 is the only family that supports OutputDimension; older v3 models
+// have a fixed 1024-dim output.
+type EmbeddingModel struct {
+	api            *Api
+	defaultOptions *embedding.Options
+}
+
+func NewEmbeddingModel(cfg *EmbeddingModelConfig) (*EmbeddingModel, error) {
+	if err := cfg.validate(); err != nil {
+		return nil, err
+	}
+
+	api, err := NewApi(&ApiConfig{ApiKey: cfg.ApiKey})
+	if err != nil {
+		return nil, err
+	}
+
+	return &EmbeddingModel{
+		api:            api,
+		defaultOptions: cfg.DefaultOptions,
+	}, nil
+}
+
+func (e *EmbeddingModel) buildApiRequest(req *embedding.Request) (*cohere.V2EmbedRequest, error) {
+	mergedOpts, err := embedding.MergeOptions(e.defaultOptions, req.Options)
+	if err != nil {
+		return nil, err
+	}
+
+	apiReq := options.GetParams[cohere.V2EmbedRequest](mergedOpts, OptionsKey)
+
+	apiReq.Model = mergedOpts.Model
+	apiReq.Texts = req.Texts
+
+	// Cohere requires input_type. Default to search_document for the
+	// most common (RAG indexing) case when the caller didn't set one
+	// via Extra.
+	if apiReq.InputType == "" {
+		apiReq.InputType = cohere.EmbedInputTypeSearchDocument
+	}
+
+	// Cohere requires at least one embedding_type. Map our common
+	// EncodingFormat onto the matching Cohere EmbeddingType; default to
+	// "float" so downstream code always gets a populated Float field.
+	if len(apiReq.EmbeddingTypes) == 0 {
+		var t cohere.EmbeddingType
+		switch mergedOpts.EncodingFormat {
+		case embedding.EncodingFormatBase64:
+			t = cohere.EmbeddingTypeBase64
+		default:
+			t = cohere.EmbeddingTypeFloat
+		}
+		apiReq.EmbeddingTypes = []cohere.EmbeddingType{t}
+	}
+
+	if mergedOpts.Dimensions != nil {
+		v := int(*mergedOpts.Dimensions)
+		apiReq.OutputDimension = &v
+	}
+
+	return apiReq, nil
+}
+
+func (e *EmbeddingModel) buildResponse(apiResp *cohere.EmbedByTypeResponse) (*embedding.Response, error) {
+	if apiResp.Embeddings == nil || len(apiResp.Embeddings.Float) == 0 {
+		return nil, errors.New("cohere: embed response has no float embeddings")
+	}
+
+	results := make([]*embedding.Result, 0, len(apiResp.Embeddings.Float))
+	for index, vec := range apiResp.Embeddings.Float {
+		resultMeta := &embedding.ResultMetadata{
+			Index:        int64(index),
+			ModalityType: embedding.Text,
+			MimeType:     mime.MustNew("text", "plain"),
+		}
+
+		result, err := embedding.NewResult(vec, resultMeta)
+		if err != nil {
+			return nil, err
+		}
+		results = append(results, result)
+	}
+
+	meta := &embedding.ResponseMetadata{
+		Created: time.Now().Unix(),
+	}
+	if apiResp.Meta != nil && apiResp.Meta.BilledUnits != nil {
+		usage := &chat.Usage{OriginalUsage: apiResp.Meta}
+		if v := apiResp.Meta.BilledUnits.InputTokens; v != nil {
+			usage.PromptTokens = int64(*v)
+		}
+		meta.Usage = usage
+	}
+
+	return embedding.NewResponse(results, meta)
+}
+
+func (e *EmbeddingModel) Call(ctx context.Context, req *embedding.Request) (*embedding.Response, error) {
+	apiReq, err := e.buildApiRequest(req)
+	if err != nil {
+		return nil, err
+	}
+
+	apiResp, err := e.api.Embed(ctx, apiReq)
+	if err != nil {
+		return nil, err
+	}
+
+	return e.buildResponse(apiResp)
+}
+
+func (e *EmbeddingModel) Dimensions(ctx context.Context) int64 {
+	return embedding.GetDimensions(ctx, e)
+}
+
+func (e *EmbeddingModel) DefaultOptions() embedding.Options {
+	return *e.defaultOptions
+}
+
+func (e *EmbeddingModel) Metadata() embedding.ModelMetadata {
+	return embedding.ModelMetadata{
+		Provider: Provider,
+	}
+}

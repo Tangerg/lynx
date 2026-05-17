@@ -36,13 +36,13 @@ func (fakeEmbeddingModel) Stream(ctx context.Context, req *embedding.Request) it
 	return func(yield func(*embedding.Response, error) bool) { yield(resp, err) }
 }
 
-func (fakeEmbeddingModel) DefaultOptions() *embedding.Options {
+func (fakeEmbeddingModel) DefaultOptions() embedding.Options {
 	opts, _ := embedding.NewOptions("fake")
-	return opts
+	return *opts
 }
 
-func (fakeEmbeddingModel) Info() embedding.ModelInfo {
-	return embedding.ModelInfo{Provider: "fake"}
+func (fakeEmbeddingModel) Metadata() embedding.ModelMetadata {
+	return embedding.ModelMetadata{Provider: "fake"}
 }
 
 func (fakeEmbeddingModel) Dimensions(_ context.Context) int64 { return 4 }

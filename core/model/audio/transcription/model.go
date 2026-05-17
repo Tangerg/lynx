@@ -13,8 +13,8 @@ import "github.com/Tangerg/lynx/core/model"
 //
 //	type myWhisper struct{ /* ... */ }
 //	func (m *myWhisper) Call(ctx context.Context, req *transcription.Request) (*transcription.Response, error) { ... }
-//	func (m *myWhisper) DefaultOptions() *transcription.Options { ... }
-//	func (m *myWhisper) Info() transcription.ModelInfo          { return transcription.ModelInfo{Provider: "openai"} }
+//	func (m *myWhisper) DefaultOptions() transcription.Options { ... }
+//	func (m *myWhisper) Metadata() transcription.ModelMetadata          { return transcription.ModelMetadata{Provider: "openai"} }
 //
 //	var _ transcription.Model = (*myWhisper)(nil)
 type Model interface {
@@ -22,15 +22,15 @@ type Model interface {
 
 	// DefaultOptions returns the parameter set this provider uses when
 	// the caller does not override anything.
-	DefaultOptions() *Options
+	DefaultOptions() Options
 
-	// Info returns identity metadata used by logging, metrics, and any
+	// Metadata returns identity metadata used by logging, metrics, and any
 	// observability layer that needs to tag a span by provider.
-	Info() ModelInfo
+	Metadata() ModelMetadata
 }
 
-// ModelInfo holds identity metadata for a [Model] instance.
-type ModelInfo struct {
+// ModelMetadata holds identity metadata for a [Model] instance.
+type ModelMetadata struct {
 	// Provider names the transcription LLM vendor (lowercase by convention).
 	Provider string `json:"provider"`
 }

@@ -26,8 +26,8 @@ func newFakeTTSModel(t *testing.T) *fakeTTSModel {
 	return &fakeTTSModel{defaults: o}
 }
 
-func (m *fakeTTSModel) DefaultOptions() *tts.Options { return m.defaults }
-func (m *fakeTTSModel) Info() tts.ModelInfo          { return tts.ModelInfo{Provider: "fake"} }
+func (m *fakeTTSModel) DefaultOptions() tts.Options { return *m.defaults }
+func (m *fakeTTSModel) Metadata() tts.ModelMetadata          { return tts.ModelMetadata{Provider: "fake"} }
 
 func (m *fakeTTSModel) Call(ctx context.Context, req *tts.Request) (*tts.Response, error) {
 	m.lastReq = req
@@ -35,7 +35,7 @@ func (m *fakeTTSModel) Call(ctx context.Context, req *tts.Request) (*tts.Respons
 		return m.respond(req)
 	}
 	res, _ := tts.NewResult([]byte("audio"), &tts.ResultMetadata{})
-	return tts.NewResponse([]*tts.Result{res}, &tts.ResponseMetadata{})
+	return tts.NewResponse(res, &tts.ResponseMetadata{})
 }
 
 func (m *fakeTTSModel) Stream(ctx context.Context, req *tts.Request) iter.Seq2[*tts.Response, error] {
@@ -95,7 +95,7 @@ func TestClient_StreamSpeech_YieldsChunks(t *testing.T) {
 
 	chunk := func(b string) *tts.Response {
 		res, _ := tts.NewResult([]byte(b), &tts.ResultMetadata{})
-		resp, _ := tts.NewResponse([]*tts.Result{res}, &tts.ResponseMetadata{})
+		resp, _ := tts.NewResponse(res, &tts.ResponseMetadata{})
 		return resp
 	}
 	model.streamYield = []*tts.Response{chunk("a"), chunk("b"), chunk("c")}

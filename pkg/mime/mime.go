@@ -1,6 +1,7 @@
 package mime
 
 import (
+	"encoding/json"
 	"strings"
 
 	"github.com/Tangerg/lynx/pkg/maps"
@@ -24,17 +25,21 @@ type MIME struct {
 	cachedString string
 }
 
-// MarshalJSON encodes m as its canonical string form.
+// MarshalJSON encodes m as its canonical string form, JSON-quoted.
 func (m *MIME) MarshalJSON() ([]byte, error) {
 	if m == nil {
-		return nil, nil
+		return []byte("null"), nil
 	}
-	return []byte(m.String()), nil
+	return json.Marshal(m.String())
 }
 
-// UnmarshalJSON decodes a MIME type string into m.
+// UnmarshalJSON decodes a JSON-quoted MIME type string into m.
 func (m *MIME) UnmarshalJSON(data []byte) error {
-	parsed, err := Parse(string(data))
+	var s string
+	if err := json.Unmarshal(data, &s); err != nil {
+		return err
+	}
+	parsed, err := Parse(s)
 	if err != nil {
 		return err
 	}

@@ -106,7 +106,7 @@ func (r *ClientRequest) resolveOptions() *Options {
 	if r.options != nil {
 		return r.options.Clone()
 	}
-	return r.model.DefaultOptions().Clone()
+	defaults := r.model.DefaultOptions(); return defaults.Clone()
 }
 
 // buildRequest assembles the [*Request] sent through the middleware
@@ -155,7 +155,7 @@ func (c *ClientCaller) Text(ctx context.Context) (string, *Response, error) {
 	if err != nil {
 		return "", nil, err
 	}
-	return resp.Result().Text, resp, nil
+	return resp.Result.Text, resp, nil
 }
 
 // Client wraps a [Model] with a sticky default [ClientRequest].

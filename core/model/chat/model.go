@@ -4,7 +4,7 @@
 //
 // The package layers stay parallel to the rest of /core/model:
 //
-//	Model           — the provider surface (Call + Stream + DefaultOptions + Info)
+//	Model           — the provider surface (Call + Stream + DefaultOptions + Metadata)
 //	Request/Response— the in/out value types
 //	Message         — sealed message hierarchy (system / user / assistant / tool)
 //	Tool            — function/tool definitions and registry
@@ -19,7 +19,7 @@ import (
 // Model is the provider surface: a chat LLM that supports both synchronous
 // [model.Model.Call] and streaming [model.StreamingModel.Stream]. Implementations
 // expose model-specific defaults via [Model.DefaultOptions] and an identity
-// hint via [Model.Info] so callers and observability layers can branch on
+// hint via [Model.Metadata] so callers and observability layers can branch on
 // provider.
 //
 // Example:
@@ -27,8 +27,8 @@ import (
 //	type myModel struct{ /* ... */ }
 //	func (m *myModel) Call(ctx context.Context, req *chat.Request) (*chat.Response, error) { ... }
 //	func (m *myModel) Stream(ctx context.Context, req *chat.Request) iter.Seq2[*chat.Response, error] { ... }
-//	func (m *myModel) DefaultOptions() *chat.Options { return chat.NewOptionsOrPanic("gpt-4o") }
-//	func (m *myModel) Info() chat.ModelInfo          { return chat.ModelInfo{Provider: "openai"} }
+//	func (m *myModel) DefaultOptions() chat.Options { opts, _ := chat.NewOptions("gpt-4o"); return *opts }
+//	func (m *myModel) Metadata() chat.ModelMetadata          { return chat.ModelMetadata{Provider: "openai"} }
 //
 //	var _ chat.Model = (*myModel)(nil)
 type Model interface {
@@ -38,17 +38,17 @@ type Model interface {
 	// DefaultOptions returns the parameter set this provider uses when the
 	// caller does not override anything. The returned value is a fresh copy
 	// the caller may mutate.
-	DefaultOptions() *Options
+	DefaultOptions() Options
 
-	// Info returns identity metadata used by logging, metrics, and any
+	// Metadata returns identity metadata used by logging, metrics, and any
 	// observability layer that needs to tag a span by provider.
-	Info() ModelInfo
+	Metadata() ModelMetadata
 }
 
-// ModelInfo holds identity metadata for a [Model] instance. Provider names
+// ModelMetadata holds identity metadata for a [Model] instance. Provider names
 // are conventionally lowercase (e.g. "openai", "anthropic", "google") so
 // downstream filters can match without case folding.
-type ModelInfo struct {
+type ModelMetadata struct {
 	// Provider names the LLM vendor — "openai", "anthropic", "google", etc.
 	Provider string `json:"provider"`
 }

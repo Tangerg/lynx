@@ -11,13 +11,13 @@ import (
 // documents the response was supposed to draw on.
 type Request struct {
 	// Prompt is the user's original query.
-	Prompt string
+	Prompt string `json:"prompt,omitempty"`
 
 	// Generation is the AI-produced response to score.
-	Generation string
+	Generation string `json:"generation,omitempty"`
 
 	// Documents is the supporting context (typically RAG-retrieved).
-	Documents []*document.Document
+	Documents []*document.Document `json:"documents,omitzero"`
 }
 
 // extractDocuments concatenates non-empty document texts with newline

@@ -3,6 +3,7 @@ package openai
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"iter"
 
 	"github.com/openai/openai-go/v3"
@@ -12,6 +13,7 @@ import (
 	"github.com/Tangerg/lynx/core/media"
 	"github.com/Tangerg/lynx/core/model"
 	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/models/internal/options"
 	"github.com/Tangerg/lynx/pkg/mime"
 )
 
@@ -46,7 +48,7 @@ func (r *requestHelper) buildToolParams(tools []chat.Tool) ([]openai.ChatComplet
 }
 
 func (r *requestHelper) buildBaseParams(opts *chat.Options) *openai.ChatCompletionNewParams {
-	params := getOptionsParams[openai.ChatCompletionNewParams](opts)
+	params := options.GetParams[openai.ChatCompletionNewParams](opts, OptionsKey)
 
 	params.Model = opts.Model
 
@@ -54,7 +56,10 @@ func (r *requestHelper) buildBaseParams(opts *chat.Options) *openai.ChatCompleti
 		params.FrequencyPenalty = openai.Float(*opts.FrequencyPenalty)
 	}
 	if opts.MaxTokens != nil {
-		params.MaxTokens = openai.Int(*opts.MaxTokens)
+		// max_tokens is rejected by o-series and gpt-5 models; route to
+		// the replacement field. Callers needing the legacy field for a
+		// specific old model set it via Extra-threaded params.
+		params.MaxCompletionTokens = openai.Int(*opts.MaxTokens)
 	}
 	if opts.PresencePenalty != nil {
 		params.PresencePenalty = openai.Float(*opts.PresencePenalty)
@@ -72,7 +77,7 @@ func (r *requestHelper) buildBaseParams(opts *chat.Options) *openai.ChatCompleti
 	return params
 }
 
-func (r *requestHelper) buildParams(opts *chat.Options) (*openai.ChatCompletionNewParams, error) {
+func (r *requestHelper) buildParams(opts *chat.Options, tools []chat.Tool) (*openai.ChatCompletionNewParams, error) {
 	mergedOpts, err := chat.MergeOptions(r.defaultOptions, opts)
 	if err != nil {
 		return nil, err
@@ -80,7 +85,7 @@ func (r *requestHelper) buildParams(opts *chat.Options) (*openai.ChatCompletionN
 
 	params := r.buildBaseParams(mergedOpts)
 
-	params.Tools, err = r.buildToolParams(mergedOpts.Tools)
+	params.Tools, err = r.buildToolParams(tools)
 	if err != nil {
 		return nil, err
 	}
@@ -207,7 +212,7 @@ func (r *requestHelper) buildMsgs(msgs []chat.Message) []openai.ChatCompletionMe
 }
 
 func (r *requestHelper) buildApiChatRequest(req *chat.Request) (*openai.ChatCompletionNewParams, error) {
-	params, err := r.buildParams(req.Options)
+	params, err := r.buildParams(req.Options, req.Tools)
 	if err != nil {
 		return nil, err
 	}
@@ -292,20 +297,6 @@ func (r *responseHelper) buildResult(req *openai.ChatCompletionNewParams, choice
 	return chat.NewResult(assistantMsg, meta)
 }
 
-func (r *responseHelper) buildResults(req *openai.ChatCompletionNewParams, resp *openai.ChatCompletion) ([]*chat.Result, error) {
-	results := make([]*chat.Result, 0, len(resp.Choices))
-
-	for _, choice := range resp.Choices {
-		result, err := r.buildResult(req, &choice)
-		if err != nil {
-			return nil, err
-		}
-		results = append(results, result)
-	}
-
-	return results, nil
-}
-
 func (r *responseHelper) buildMeta(req *openai.ChatCompletionNewParams, resp *openai.ChatCompletion) *chat.ResponseMetadata {
 	usage := &chat.Usage{
 		PromptTokens:     resp.Usage.PromptTokens,
@@ -331,40 +322,52 @@ func (r *responseHelper) buildMeta(req *openai.ChatCompletionNewParams, resp *op
 		Created: resp.Created,
 		Usage:   usage,
 	}
-	meta.Set("original.request", req)
-	meta.Set("original.response", resp)
 	meta.Set("service_tier", resp.ServiceTier)
-	meta.Set("system_fingerprint", resp.SystemFingerprint)
 
 	return meta
 }
 
 func (r *responseHelper) buildChatResponse(req *openai.ChatCompletionNewParams, resp *openai.ChatCompletion) (*chat.Response, error) {
-	results, err := r.buildResults(req, resp)
+	// OpenAI returns Choices[] sized by params.N (default 1). The chat
+	// surface is single-completion by design — see chat.Response — so we
+	// take Choices[0] and ignore extras. Callers needing N>1 should drop
+	// down to the openai-go SDK directly.
+	if len(resp.Choices) == 0 {
+		return nil, errors.New("openai: response has no choices")
+	}
+
+	result, err := r.buildResult(req, &resp.Choices[0])
 	if err != nil {
 		return nil, err
 	}
 
 	meta := r.buildMeta(req, resp)
 
-	return chat.NewResponse(results, meta)
+	return chat.NewResponse(result, meta)
 }
 
 type ChatModelConfig struct {
 	ApiKey         model.ApiKey
 	DefaultOptions *chat.Options
 	RequestOptions []option.RequestOption
+
+	// Metadata overrides the [chat.ModelMetadata] returned by [ChatModel.Metadata].
+	// Facades over this package (deepseek, alibaba, zhipu, ...) pass
+	// their own Provider here so observability tags the call by the
+	// real upstream brand, not by "OpenAI". Zero Provider falls back
+	// to the package default [Provider].
+	Metadata *chat.ModelMetadata
 }
 
 func (c *ChatModelConfig) validate() error {
 	if c == nil {
-		return ErrNilConfig
+		return errors.New("openai: config must not be nil")
 	}
 	if c.ApiKey == nil {
-		return ErrMissingApiKey
+		return errors.New("openai: ApiKey is required")
 	}
 	if c.DefaultOptions == nil {
-		return ErrMissingDefaultOptions
+		return errors.New("openai: DefaultOptions is required")
 	}
 	return nil
 }
@@ -376,6 +379,7 @@ type ChatModel struct {
 	defaultOptions *chat.Options
 	reqHelper      requestHelper
 	respHelper     responseHelper
+	metadata       chat.ModelMetadata
 }
 
 func NewChatModel(cfg *ChatModelConfig) (*ChatModel, error) {
@@ -391,12 +395,17 @@ func NewChatModel(cfg *ChatModelConfig) (*ChatModel, error) {
 		return nil, err
 	}
 
+	info := chat.ModelMetadata{Provider: Provider}
+	if cfg.Metadata != nil {
+		info = *cfg.Metadata
+	}
 	return &ChatModel{
 		api:            api,
 		defaultOptions: cfg.DefaultOptions,
 		reqHelper: requestHelper{
 			cfg.DefaultOptions,
 		},
+		metadata: info,
 	}, nil
 }
 
@@ -429,20 +438,18 @@ func (c *ChatModel) Stream(ctx context.Context, req *chat.Request) iter.Seq2[*ch
 		}
 		defer apiStream.Close()
 
-		// One accumulator across the whole stream — each chunk
-		// contributes to the cumulative ChatCompletion, mirroring
-		// anthropic.ChatModel.Stream's per-stream Message{}.
-		accumulator := openai.ChatCompletionAccumulator{}
-
+		// Per-chunk accumulator: spin up a fresh one each iteration so
+		// the resulting ChatCompletion reflects ONLY this chunk's
+		// delta content. The SDK accumulator gives us a non-streaming
+		// ChatCompletion shape we can hand to the existing
+		// buildChatResponse, while delta semantics are preserved for
+		// the upstream chat.ResponseAccumulator (which does the
+		// stream-wide stitching).
 		for apiStream.Next() {
-			if err := apiStream.Err(); err != nil {
-				yield(nil, err)
-				return
-			}
+			acc := openai.ChatCompletionAccumulator{}
+			acc.AddChunk(apiStream.Current())
 
-			accumulator.AddChunk(apiStream.Current())
-
-			resp, err := c.respHelper.buildChatResponse(apiReq, &accumulator.ChatCompletion)
+			resp, err := c.respHelper.buildChatResponse(apiReq, &acc.ChatCompletion)
 			if err != nil {
 				yield(nil, err)
 				return
@@ -459,12 +466,10 @@ func (c *ChatModel) Stream(ctx context.Context, req *chat.Request) iter.Seq2[*ch
 	}
 }
 
-func (c *ChatModel) DefaultOptions() *chat.Options {
-	return c.defaultOptions
+func (c *ChatModel) DefaultOptions() chat.Options {
+	return *c.defaultOptions
 }
 
-func (c *ChatModel) Info() chat.ModelInfo {
-	return chat.ModelInfo{
-		Provider: Provider,
-	}
+func (c *ChatModel) Metadata() chat.ModelMetadata {
+	return c.metadata
 }

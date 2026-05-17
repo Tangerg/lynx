@@ -27,8 +27,8 @@ func newStubModel(reply string) *stubModel {
 	return &stubModel{defaults: opts, reply: reply}
 }
 
-func (m *stubModel) DefaultOptions() *chat.Options { return m.defaults }
-func (m *stubModel) Info() chat.ModelInfo          { return chat.ModelInfo{Provider: "stub"} }
+func (m *stubModel) DefaultOptions() chat.Options { return *m.defaults }
+func (m *stubModel) Metadata() chat.ModelMetadata          { return chat.ModelMetadata{Provider: "stub"} }
 
 func (m *stubModel) Call(_ context.Context, req *chat.Request) (*chat.Response, error) {
 	// Capture the user prompt so tests can assert on what reached the model.
@@ -40,10 +40,10 @@ func (m *stubModel) Call(_ context.Context, req *chat.Request) (*chat.Response, 
 		}
 	}
 	resp, _ := chat.NewResponse(
-		[]*chat.Result{{
+		&chat.Result{
 			AssistantMessage: chat.NewAssistantMessage(m.reply),
 			Metadata:         &chat.ResultMetadata{FinishReason: chat.FinishReasonStop},
-		}},
+		},
 		&chat.ResponseMetadata{},
 	)
 	return resp, nil

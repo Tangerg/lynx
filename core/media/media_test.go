@@ -1,6 +1,8 @@
 package media_test
 
 import (
+	"bytes"
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -69,5 +71,70 @@ func TestMedia_DataAsString_TypeMismatch(t *testing.T) {
 	m, _ := media.NewMedia(mustMime(t, "application/octet-stream"), []byte{1, 2})
 	if _, err := m.DataAsString(); err == nil {
 		t.Fatal("type mismatch must error")
+	}
+}
+
+func TestMedia_JSONRoundTrip_Bytes(t *testing.T) {
+	want := []byte{0x01, 0x02, 0x03, 0xff}
+	src, _ := media.NewMedia(mustMime(t, "image/png"), want)
+	src.ID = "m1"
+	src.Name = "tiny.png"
+
+	data, err := json.Marshal(src)
+	if err != nil {
+		t.Fatalf("Marshal: %v", err)
+	}
+	if !strings.Contains(string(data), `"data_encoding":"bytes"`) {
+		t.Fatalf("missing data_encoding discriminator: %s", data)
+	}
+
+	var got media.Media
+	if err := json.Unmarshal(data, &got); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
+	gotBytes, err := got.DataAsBytes()
+	if err != nil {
+		t.Fatalf("DataAsBytes after round-trip: %v", err)
+	}
+	if !bytes.Equal(gotBytes, want) {
+		t.Fatalf("Data = %v, want %v", gotBytes, want)
+	}
+	if got.ID != "m1" || got.Name != "tiny.png" {
+		t.Fatalf("ID/Name lost in round-trip: id=%q name=%q", got.ID, got.Name)
+	}
+}
+
+func TestMedia_JSONRoundTrip_String(t *testing.T) {
+	want := "https://example.com/a.png"
+	src, _ := media.NewMedia(mustMime(t, "image/png"), want)
+
+	data, err := json.Marshal(src)
+	if err != nil {
+		t.Fatalf("Marshal: %v", err)
+	}
+	if !strings.Contains(string(data), `"data_encoding":"text"`) {
+		t.Fatalf("missing data_encoding discriminator: %s", data)
+	}
+
+	var got media.Media
+	if err := json.Unmarshal(data, &got); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
+	gotStr, err := got.DataAsString()
+	if err != nil {
+		t.Fatalf("DataAsString after round-trip: %v", err)
+	}
+	if gotStr != want {
+		t.Fatalf("Data = %q, want %q", gotStr, want)
+	}
+}
+
+func TestMedia_MarshalJSON_RejectsUnsupportedData(t *testing.T) {
+	m := &media.Media{
+		MimeType: mustMime(t, "application/json"),
+		Data:     struct{ X int }{X: 1},
+	}
+	if _, err := json.Marshal(m); err == nil {
+		t.Fatal("MarshalJSON must reject non-string/non-bytes Data")
 	}
 }

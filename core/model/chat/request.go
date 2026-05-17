@@ -1,11 +1,11 @@
 package chat
 
 import (
+	"encoding/json"
 	"errors"
+	"fmt"
 	"maps"
 	"slices"
-
-	"github.com/samber/lo"
 
 	"github.com/Tangerg/lynx/pkg/ptr"
 )
@@ -19,32 +19,28 @@ type Options struct {
 	Model string `json:"model"`
 
 	// FrequencyPenalty discourages repeated tokens. Range -2.0 to 2.0.
-	FrequencyPenalty *float64 `json:"frequency_penalty"`
+	FrequencyPenalty *float64 `json:"frequency_penalty,omitempty"`
 
 	// MaxTokens caps the number of tokens the model may generate.
-	MaxTokens *int64 `json:"max_tokens"`
+	MaxTokens *int64 `json:"max_tokens,omitempty"`
 
 	// PresencePenalty discourages already-mentioned tokens. Range -2.0 to 2.0.
-	PresencePenalty *float64 `json:"presence_penalty"`
+	PresencePenalty *float64 `json:"presence_penalty,omitempty"`
 
 	// Stop terminates generation when any sequence is produced.
-	Stop []string `json:"stop"`
+	Stop []string `json:"stop,omitzero"`
 
 	// Temperature controls sampling randomness. Range 0.0 to 2.0.
-	Temperature *float64 `json:"temperature"`
+	Temperature *float64 `json:"temperature,omitempty"`
 
 	// TopK limits sampling to the K highest-probability tokens.
-	TopK *int64 `json:"top_k"`
+	TopK *int64 `json:"top_k,omitempty"`
 
 	// TopP enables nucleus sampling using the cumulative probability mass.
-	TopP *float64 `json:"top_p"`
+	TopP *float64 `json:"top_p,omitempty"`
 
 	// Extra carries provider-specific options unknown to this struct.
-	Extra map[string]any `json:"extra"`
-
-	// Tools that the model may invoke. Excluded from JSON to keep the wire
-	// format provider-agnostic; serialization is the provider's job.
-	Tools []Tool `json:"-"`
+	Extra map[string]any `json:"extra,omitzero"`
 }
 
 // NewOptions builds Options for the given model id. Returns an error if
@@ -106,17 +102,16 @@ func (o *Options) Clone() *Options {
 		Temperature:      ptr.Clone(o.Temperature),
 		TopK:             ptr.Clone(o.TopK),
 		TopP:             ptr.Clone(o.TopP),
-		Tools:            slices.Clone(o.Tools),
 		Extra:            maps.Clone(o.Extra),
 	}
 }
 
 // MergeOptions clones base then applies each override left-to-right.
 // Scalar non-empty values overwrite; slices append; the Extra map merges
-// last-write-wins. Tools are de-duplicated by definition name.
+// last-write-wins.
 //
 // Returns an error when base is nil so callers don't accidentally produce
-// an Options without a model id.
+// a Options without a model id.
 //
 // Example:
 //
@@ -140,10 +135,6 @@ func MergeOptions(base *Options, overrides ...*Options) (*Options, error) {
 		}
 		applyOverride(merged, override)
 	}
-
-	merged.Tools = lo.UniqBy(merged.Tools, func(tool Tool) string {
-		return tool.Definition().Name
-	})
 	return merged, nil
 }
 
@@ -175,27 +166,31 @@ func applyOverride(dst, src *Options) {
 	if src.TopP != nil {
 		dst.TopP = src.TopP
 	}
-	if len(src.Tools) > 0 {
-		dst.Tools = append(dst.Tools, src.Tools...)
-	}
 	if len(src.Extra) > 0 {
 		maps.Copy(dst.Extra, src.Extra)
 	}
 }
 
 // Request is a chat completion request: the conversation history, the
-// model options, and free-form per-request parameters (user id, session id,
-// etc. — whatever middleware wants to thread through).
+// tools the model may invoke, the model options, and free-form
+// per-request parameters (user id, session id, etc. — whatever
+// middleware wants to thread through).
 type Request struct {
 	// Messages is the conversation history sent to the model.
-	Messages []Message `json:"messages"`
+	Messages []Message `json:"messages,omitzero"`
+
+	// Tools the model may invoke during generation. Excluded from JSON
+	// to keep the wire format provider-agnostic — serialization is the
+	// provider's job. Sits at the Request level (not inside Options)
+	// because tools are capability, not sampling configuration.
+	Tools []Tool `json:"-,omitzero"`
 
 	// Options carries model-specific parameters.
-	Options *Options `json:"options"`
+	Options *Options `json:"options,omitempty"`
 
 	// Params holds caller-supplied side-channel data (user id, trace id,
 	// feature flags) that middlewares can read.
-	Params map[string]any `json:"params"`
+	Params map[string]any `json:"params,omitzero"`
 }
 
 // NewRequest builds a Request from the given messages. nil entries are
@@ -274,4 +269,39 @@ func (r *Request) SystemMessage() *SystemMessage {
 		return NewSystemMessage("")
 	}
 	return last.(*SystemMessage)
+}
+
+// UnmarshalJSON decodes a Request, dispatching each entry in the
+// "messages" array to the concrete [Message] type indicated by its
+// "type" discriminator. The standard library cannot decode into a
+// []Message interface slice by itself, so the polymorphism lives
+// here rather than scattered across every caller. Tools intentionally
+// don't round-trip — they hold runtime closures and are excluded from
+// JSON by design.
+func (r *Request) UnmarshalJSON(data []byte) error {
+	var raw struct {
+		Messages []json.RawMessage `json:"messages,omitzero"`
+		Options  *Options          `json:"options,omitempty"`
+		Params   map[string]any    `json:"params,omitzero"`
+	}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+
+	r.Options = raw.Options
+	r.Params = raw.Params
+	if len(raw.Messages) == 0 {
+		r.Messages = nil
+		return nil
+	}
+
+	r.Messages = make([]Message, 0, len(raw.Messages))
+	for i, m := range raw.Messages {
+		msg, err := UnmarshalMessage(m)
+		if err != nil {
+			return fmt.Errorf("chat.Request.UnmarshalJSON: messages[%d]: %w", i, err)
+		}
+		r.Messages = append(r.Messages, msg)
+	}
+	return nil
 }

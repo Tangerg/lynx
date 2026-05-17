@@ -84,31 +84,35 @@ type ToolReturn struct {
 }
 
 // MessageParams is the universal constructor input — the message-type
-// constructors below pick the fields they care about. Use it directly
-// when you need full control; otherwise the typed shortcuts (string,
-// []*media.Media, ...) are usually enough.
+// constructors below pick the fields they care about. It is ALSO the
+// canonical wire shape: every [Message] implementation marshals to
+// and unmarshals from MessageParams JSON, with [MessageParams.Type]
+// acting as the discriminator. Use it directly when you need full
+// control; otherwise the typed shortcuts (string, []*media.Media, ...)
+// are usually enough.
 type MessageParams struct {
-	// Type selects which message constructor [NewMessage] dispatches to.
+	// Type selects which message constructor [NewMessage] dispatches to,
+	// and discriminates the role on the wire.
 	Type MessageType `json:"type"`
 
 	// Text is the textual body.
-	Text string `json:"text"`
+	Text string `json:"text,omitempty"`
 
 	// Reasoning is the visible chain-of-thought, populated only by
 	// reasoning-style assistants.
-	Reasoning string `json:"reasoning"`
+	Reasoning string `json:"reasoning,omitempty"`
 
 	// Metadata holds arbitrary per-message extras.
-	Metadata map[string]any `json:"metadata"`
+	Metadata map[string]any `json:"metadata,omitzero"`
 
 	// Media holds attachments (images, documents, audio).
-	Media []*media.Media `json:"media"`
+	Media []*media.Media `json:"media,omitzero"`
 
 	// ToolCalls are tool-invocation requests on assistant messages.
-	ToolCalls []*ToolCall `json:"tool_calls"`
+	ToolCalls []*ToolCall `json:"tool_calls,omitzero"`
 
 	// ToolReturns are tool execution results on tool messages.
-	ToolReturns []*ToolReturn `json:"tool_returns"`
+	ToolReturns []*ToolReturn `json:"tool_returns,omitzero"`
 }
 
 // NewMessage dispatches to the matching message-type constructor based
@@ -143,9 +147,9 @@ func NewMessage(params MessageParams) (Message, error) {
 type AssistantMessage struct {
 	Text      string         `json:"text"`
 	Reasoning string         `json:"reasoning,omitempty"`
-	Media     []*media.Media `json:"media"`
-	ToolCalls []*ToolCall    `json:"tool_calls"`
-	Metadata  map[string]any `json:"metadata"`
+	Media     []*media.Media `json:"media,omitzero"`
+	ToolCalls []*ToolCall    `json:"tool_calls,omitzero"`
+	Metadata  map[string]any `json:"metadata,omitzero"`
 }
 
 func (a *AssistantMessage) message() {}
@@ -220,7 +224,7 @@ func paramsFromAssistantInput[T string | []*media.Media | []*ToolCall | map[stri
 // of the message list.
 type SystemMessage struct {
 	Text     string         `json:"text"`
-	Metadata map[string]any `json:"metadata"`
+	Metadata map[string]any `json:"metadata,omitzero"`
 }
 
 func (s *SystemMessage) message() {}
@@ -260,8 +264,8 @@ func NewSystemMessage[T string | MessageParams](param T) *SystemMessage {
 // UserMessage is one user turn — text, optional media, optional metadata.
 type UserMessage struct {
 	Text     string         `json:"text"`
-	Media    []*media.Media `json:"media"`
-	Metadata map[string]any `json:"metadata"`
+	Media    []*media.Media `json:"media,omitzero"`
+	Metadata map[string]any `json:"metadata,omitzero"`
 }
 
 func (u *UserMessage) message() {}
@@ -310,8 +314,8 @@ func NewUserMessage[T string | []*media.Media | MessageParams](param T) *UserMes
 // ToolMessage carries the results of executing tool calls the assistant
 // requested in the previous turn.
 type ToolMessage struct {
-	ToolReturns []*ToolReturn  `json:"tool_returns"`
-	Metadata    map[string]any `json:"metadata"`
+	ToolReturns []*ToolReturn  `json:"tool_returns,omitzero"`
+	Metadata    map[string]any `json:"metadata,omitzero"`
 }
 
 func (t *ToolMessage) message() {}
@@ -659,4 +663,112 @@ func MessagesToStrings(messages []Message) []string {
 		out = append(out, MessageToString(msg))
 	}
 	return out
+}
+
+// MarshalJSON encodes the message in the canonical [MessageParams]
+// shape — the Type field carries the role so a polymorphic decoder
+// can dispatch back to the right concrete type.
+func (s *SystemMessage) MarshalJSON() ([]byte, error) {
+	return json.Marshal(MessageParams{
+		Type:     MessageTypeSystem,
+		Text:     s.Text,
+		Metadata: s.Metadata,
+	})
+}
+
+// UnmarshalJSON decodes from the [MessageParams] wire shape and fills
+// the fields the system role uses. Fields irrelevant to this role
+// (Media / ToolCalls / ToolReturns / Reasoning) are silently ignored.
+func (s *SystemMessage) UnmarshalJSON(data []byte) error {
+	var p MessageParams
+	if err := json.Unmarshal(data, &p); err != nil {
+		return err
+	}
+	s.Text = p.Text
+	s.Metadata = p.Metadata
+	return nil
+}
+
+// MarshalJSON encodes the message in the canonical [MessageParams]
+// shape.
+func (u *UserMessage) MarshalJSON() ([]byte, error) {
+	return json.Marshal(MessageParams{
+		Type:     MessageTypeUser,
+		Text:     u.Text,
+		Media:    u.Media,
+		Metadata: u.Metadata,
+	})
+}
+
+// UnmarshalJSON decodes from the [MessageParams] wire shape.
+func (u *UserMessage) UnmarshalJSON(data []byte) error {
+	var p MessageParams
+	if err := json.Unmarshal(data, &p); err != nil {
+		return err
+	}
+	u.Text = p.Text
+	u.Media = p.Media
+	u.Metadata = p.Metadata
+	return nil
+}
+
+// MarshalJSON encodes the message in the canonical [MessageParams]
+// shape.
+func (a *AssistantMessage) MarshalJSON() ([]byte, error) {
+	return json.Marshal(MessageParams{
+		Type:      MessageTypeAssistant,
+		Text:      a.Text,
+		Reasoning: a.Reasoning,
+		Media:     a.Media,
+		ToolCalls: a.ToolCalls,
+		Metadata:  a.Metadata,
+	})
+}
+
+// UnmarshalJSON decodes from the [MessageParams] wire shape.
+func (a *AssistantMessage) UnmarshalJSON(data []byte) error {
+	var p MessageParams
+	if err := json.Unmarshal(data, &p); err != nil {
+		return err
+	}
+	a.Text = p.Text
+	a.Reasoning = p.Reasoning
+	a.Media = p.Media
+	a.ToolCalls = p.ToolCalls
+	a.Metadata = p.Metadata
+	return nil
+}
+
+// MarshalJSON encodes the message in the canonical [MessageParams]
+// shape.
+func (t *ToolMessage) MarshalJSON() ([]byte, error) {
+	return json.Marshal(MessageParams{
+		Type:        MessageTypeTool,
+		ToolReturns: t.ToolReturns,
+		Metadata:    t.Metadata,
+	})
+}
+
+// UnmarshalJSON decodes from the [MessageParams] wire shape.
+func (t *ToolMessage) UnmarshalJSON(data []byte) error {
+	var p MessageParams
+	if err := json.Unmarshal(data, &p); err != nil {
+		return err
+	}
+	t.ToolReturns = p.ToolReturns
+	t.Metadata = p.Metadata
+	return nil
+}
+
+// UnmarshalMessage decodes a JSON payload in the [MessageParams] wire
+// shape into a concrete [Message]. Use it when the caller holds a
+// generic message slot — the type discriminator in the JSON picks the
+// right concrete type. For decoding into a known concrete type, call
+// the type's UnmarshalJSON directly.
+func UnmarshalMessage(data []byte) (Message, error) {
+	var p MessageParams
+	if err := json.Unmarshal(data, &p); err != nil {
+		return nil, err
+	}
+	return NewMessage(p)
 }
