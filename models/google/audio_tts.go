@@ -23,6 +23,9 @@ type AudioTTSModelConfig struct {
 	Project  string
 	Location string
 
+	// BaseURL overrides the genai endpoint. Optional.
+	BaseURL string
+
 	// Metadata overrides the [tts.ModelMetadata] returned by [AudioTTSModel.Metadata].
 	// Zero Provider falls back to [Provider].
 	Metadata *tts.ModelMetadata
@@ -66,6 +69,7 @@ func NewAudioTTSModel(cfg *AudioTTSModelConfig) (*AudioTTSModel, error) {
 		Backend:  cfg.Backend,
 		Project:  cfg.Project,
 		Location: cfg.Location,
+		BaseURL:  cfg.BaseURL,
 	})
 	if err != nil {
 		return nil, err

@@ -28,6 +28,11 @@ type ApiConfig struct {
 	// Location is the GCP region (e.g. "us-central1"), required when
 	// Backend == BackendVertexAI. Ignored otherwise.
 	Location string
+
+	// BaseURL overrides the genai client endpoint. Optional —
+	// production users should leave it empty (the SDK picks the right
+	// host per Backend). Useful for mock servers / corporate proxies.
+	BaseURL string
 }
 
 func (c *ApiConfig) validate() error {
@@ -63,6 +68,9 @@ func NewApi(cfg *ApiConfig) (*Api, error) {
 	}
 	if cfg.Location != "" {
 		clientCfg.Location = cfg.Location
+	}
+	if cfg.BaseURL != "" {
+		clientCfg.HTTPOptions.BaseURL = cfg.BaseURL
 	}
 
 	client, err := genai.NewClient(context.Background(), clientCfg)
