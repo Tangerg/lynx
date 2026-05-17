@@ -67,7 +67,7 @@ type Store struct {
 	records map[string]record
 }
 
-// NewStore builds a [Store] from cfg. nil cfg is rejected.
+
 func NewStore(cfg *StoreConfig) (*Store, error) {
 	if err := cfg.validate(); err != nil {
 		return nil, err
@@ -79,9 +79,7 @@ func NewStore(cfg *StoreConfig) (*Store, error) {
 	}, nil
 }
 
-// Info satisfies [vectorstore.Store.Info]. NativeClient is the
-// *Store itself, so callers can reach in for things like [Store.Len]
-// or [Store.Clear].
+
 func (s *Store) Info() vectorstore.StoreInfo {
 	return vectorstore.StoreInfo{
 		Provider:     Provider,

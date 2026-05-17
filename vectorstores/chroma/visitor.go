@@ -42,14 +42,12 @@ type Visitor struct {
 	currentFieldValue any            // temporary storage for field value extraction
 }
 
-// NewVisitor creates a new Visitor ready to process AST expressions.
+
 func NewVisitor() *Visitor {
 	return &Visitor{}
 }
 
-// Result returns the constructed WhereClause.
-// Returns nil if an error occurred during conversion.
-// Should only be called after Visit() completes.
+
 func (v *Visitor) Result() v2.WhereClause {
 	if v.err != nil {
 		return nil
@@ -57,13 +55,12 @@ func (v *Visitor) Result() v2.WhereClause {
 	return v.result
 }
 
-// Error returns the last error encountered during conversion.
+
 func (v *Visitor) Error() error {
 	return v.err
 }
 
-// Visit implements ast.Visitor. It processes the expression in a single pass
-// and always returns nil to halt further automatic traversal.
+
 func (v *Visitor) Visit(expr ast.Expr) ast.Visitor {
 	v.err = v.visit(expr)
 	return nil
