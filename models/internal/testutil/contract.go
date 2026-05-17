@@ -136,6 +136,93 @@ func runOpenAICompatMetadata(t *testing.T, c OpenAICompatChatContract) {
 	}
 }
 
+// AnthropicCompatChatContract is the standard mock-test contract for
+// any Anthropic-compatible chat vendor (anthropic / moonshot /
+// openrouter / xiaomi / zhipu / minimax via NewAnthropicChatModel).
+// All these vendors share Anthropic's /v1/messages wire format.
+type AnthropicCompatChatContract struct {
+	ProviderName string
+	ModelID      string
+	Build        func(t *testing.T, baseURL string) chat.Model
+}
+
+// RunAnthropicCompatChat runs the Anthropic-shape mock contract.
+func RunAnthropicCompatChat(t *testing.T, c AnthropicCompatChatContract) {
+	t.Helper()
+	t.Run("Call_Mock", func(t *testing.T) { runAnthropicCompatCall(t, c) })
+	t.Run("Stream_Mock", func(t *testing.T) { runAnthropicCompatStream(t, c) })
+	t.Run("Metadata", func(t *testing.T) {
+		srv := JSONServer(http.StatusOK, "{}")
+		t.Cleanup(srv.Close)
+		m := c.Build(t, srv.URL)
+		if got := m.Metadata().Provider; got != c.ProviderName {
+			t.Errorf("provider = %q; want %q", got, c.ProviderName)
+		}
+	})
+}
+
+func runAnthropicCompatCall(t *testing.T, c AnthropicCompatChatContract) {
+	body := fmt.Sprintf(`{
+  "id": "msg_test",
+  "type": "message",
+  "role": "assistant",
+  "model": %q,
+  "content": [{"type":"text","text":"hello back"}],
+  "stop_reason": "end_turn",
+  "usage": {"input_tokens": 4, "output_tokens": 2}
+}`, c.ModelID)
+
+	srv := JSONServer(http.StatusOK, body)
+	t.Cleanup(srv.Close)
+
+	m := c.Build(t, srv.URL)
+	req, err := chat.NewRequest([]chat.Message{chat.NewUserMessage("hi")})
+	if err != nil {
+		t.Fatalf("NewRequest: %v", err)
+	}
+	resp, err := m.Call(t.Context(), req)
+	if err != nil {
+		t.Fatalf("Call: %v", err)
+	}
+	if resp.Result.AssistantMessage.Text != "hello back" {
+		t.Errorf("text = %q; want %q", resp.Result.AssistantMessage.Text, "hello back")
+	}
+}
+
+func runAnthropicCompatStream(t *testing.T, c AnthropicCompatChatContract) {
+	events := []AnthropicEvent{
+		{Event: "message_start", Data: fmt.Sprintf(`{"type":"message_start","message":{"id":"msg_x","type":"message","role":"assistant","model":%q,"content":[],"stop_reason":null,"usage":{"input_tokens":5,"output_tokens":0}}}`, c.ModelID)},
+		{Event: "content_block_start", Data: `{"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}`},
+		{Event: "content_block_delta", Data: `{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"hello"}}`},
+		{Event: "content_block_delta", Data: `{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" world"}}`},
+		{Event: "content_block_stop", Data: `{"type":"content_block_stop","index":0}`},
+		{Event: "message_delta", Data: `{"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":2}}`},
+		{Event: "message_stop", Data: `{"type":"message_stop"}`},
+	}
+	srv := AnthropicSSEServer(events)
+	t.Cleanup(srv.Close)
+
+	m := c.Build(t, srv.URL)
+	req, _ := chat.NewRequest([]chat.Message{chat.NewUserMessage("hi")})
+	resps, err := Collect(m.Stream(t.Context(), req))
+	if err != nil {
+		t.Fatalf("Stream: %v", err)
+	}
+	if len(resps) == 0 {
+		t.Fatal("got 0 chunks")
+	}
+
+	var pieces []string
+	for _, r := range resps {
+		if r.Result != nil && r.Result.AssistantMessage != nil {
+			pieces = append(pieces, r.Result.AssistantMessage.Text)
+		}
+	}
+	if !strings.Contains(strings.Join(pieces, ""), "hello world") {
+		t.Errorf("accumulated text = %q; want to contain 'hello world'", strings.Join(pieces, ""))
+	}
+}
+
 // IntegrationChatProbe is the standard real-API smoke probe for a chat
 // model: Call returns text + Usage, Stream returns at least 2 chunks.
 type IntegrationChatProbe struct {
