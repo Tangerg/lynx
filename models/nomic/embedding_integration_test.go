@@ -1,6 +1,6 @@
 //go:build integration
 
-package voyage_test
+package nomic_test
 
 import (
 	"testing"
@@ -8,23 +8,23 @@ import (
 	"github.com/Tangerg/lynx/core/model"
 	"github.com/Tangerg/lynx/core/model/embedding"
 	"github.com/Tangerg/lynx/models/internal/testutil"
-	"github.com/Tangerg/lynx/models/voyage"
+	"github.com/Tangerg/lynx/models/nomic"
 )
 
 func TestEmbeddingModel_Integration(t *testing.T) {
 	testutil.RunIntegrationEmbedding(t, testutil.IntegrationEmbeddingProbe{
-		Provider: "voyage",
+		Provider: "nomic",
 		Build: func(t *testing.T, key string) embedding.Model {
 			t.Helper()
-			modelID, _ := testutil.LookupEnv("LYNX_TEST_VOYAGE_MODEL")
+			modelID, _ := testutil.LookupEnv("LYNX_TEST_NOMIC_MODEL")
 			if modelID == "" {
-				modelID = "voyage-3-lite"
+				modelID = nomic.ModelEmbedTextV15
 			}
 			opts, err := embedding.NewOptions(modelID)
 			if err != nil {
 				t.Fatal(err)
 			}
-			m, err := voyage.NewEmbeddingModel(&voyage.EmbeddingModelConfig{
+			m, err := nomic.NewEmbeddingModel(&nomic.EmbeddingModelConfig{
 				ApiKey:         model.NewApiKey(key),
 				DefaultOptions: opts,
 			})

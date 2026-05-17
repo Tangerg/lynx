@@ -1,6 +1,6 @@
 //go:build integration
 
-package voyage_test
+package jina_test
 
 import (
 	"testing"
@@ -8,23 +8,23 @@ import (
 	"github.com/Tangerg/lynx/core/model"
 	"github.com/Tangerg/lynx/core/model/embedding"
 	"github.com/Tangerg/lynx/models/internal/testutil"
-	"github.com/Tangerg/lynx/models/voyage"
+	"github.com/Tangerg/lynx/models/jina"
 )
 
 func TestEmbeddingModel_Integration(t *testing.T) {
 	testutil.RunIntegrationEmbedding(t, testutil.IntegrationEmbeddingProbe{
-		Provider: "voyage",
+		Provider: "jina",
 		Build: func(t *testing.T, key string) embedding.Model {
 			t.Helper()
-			modelID, _ := testutil.LookupEnv("LYNX_TEST_VOYAGE_MODEL")
+			modelID, _ := testutil.LookupEnv("LYNX_TEST_JINA_MODEL")
 			if modelID == "" {
-				modelID = "voyage-3-lite"
+				modelID = jina.ModelEmbeddingsV3
 			}
 			opts, err := embedding.NewOptions(modelID)
 			if err != nil {
 				t.Fatal(err)
 			}
-			m, err := voyage.NewEmbeddingModel(&voyage.EmbeddingModelConfig{
+			m, err := jina.NewEmbeddingModel(&jina.EmbeddingModelConfig{
 				ApiKey:         model.NewApiKey(key),
 				DefaultOptions: opts,
 			})
