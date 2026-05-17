@@ -323,6 +323,10 @@ type ChatModelConfig struct {
 	// when Backend == [genai.BackendVertexAI].
 	Location string
 
+	// BaseURL overrides the genai endpoint. Optional — useful for
+	// mock servers / corporate proxies.
+	BaseURL string
+
 	// Metadata overrides the [chat.ModelMetadata] returned by [ChatModel.Metadata].
 	// The vertexai facade passes its own Provider here. Zero Provider
 	// falls back to the package default [Provider].
@@ -362,6 +366,7 @@ func NewChatModel(cfg *ChatModelConfig) (*ChatModel, error) {
 		Backend:  cfg.Backend,
 		Project:  cfg.Project,
 		Location: cfg.Location,
+		BaseURL:  cfg.BaseURL,
 	})
 	if err != nil {
 		return nil, err

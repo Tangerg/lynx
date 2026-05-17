@@ -23,6 +23,9 @@ type ImageModelConfig struct {
 	Project  string
 	Location string
 
+	// BaseURL overrides the genai endpoint. Optional.
+	BaseURL string
+
 	// Metadata overrides the [image.ModelMetadata] returned by [ImageModel.Metadata].
 	// Zero Provider falls back to [Provider].
 	Metadata *image.ModelMetadata
@@ -66,6 +69,7 @@ func NewImageModel(cfg *ImageModelConfig) (*ImageModel, error) {
 		Backend:  cfg.Backend,
 		Project:  cfg.Project,
 		Location: cfg.Location,
+		BaseURL:  cfg.BaseURL,
 	})
 	if err != nil {
 		return nil, err

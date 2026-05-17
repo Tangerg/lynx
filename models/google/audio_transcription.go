@@ -22,6 +22,9 @@ type AudioTranscriptionModelConfig struct {
 	Project  string
 	Location string
 
+	// BaseURL overrides the genai endpoint. Optional.
+	BaseURL string
+
 	// Metadata overrides the [transcription.ModelMetadata] returned by
 	// [AudioTranscriptionModel.Metadata]. Zero Provider falls back to [Provider].
 	Metadata *transcription.ModelMetadata
@@ -63,6 +66,7 @@ func NewAudioTranscriptionModel(cfg *AudioTranscriptionModelConfig) (*AudioTrans
 		Backend:  cfg.Backend,
 		Project:  cfg.Project,
 		Location: cfg.Location,
+		BaseURL:  cfg.BaseURL,
 	})
 	if err != nil {
 		return nil, err
