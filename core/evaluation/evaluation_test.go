@@ -29,18 +29,18 @@ func newFakeChatModel(t *testing.T, reply string) *fakeChatModel {
 	return &fakeChatModel{defaults: defaults, replyText: reply}
 }
 
-func (m *fakeChatModel) DefaultOptions() *chat.Options { return m.defaults }
-func (m *fakeChatModel) Info() chat.ModelInfo          { return chat.ModelInfo{Provider: "fake"} }
+func (m *fakeChatModel) DefaultOptions() chat.Options { return *m.defaults }
+func (m *fakeChatModel) Metadata() chat.ModelMetadata          { return chat.ModelMetadata{Provider: "fake"} }
 
 func (m *fakeChatModel) Call(_ context.Context, _ *chat.Request) (*chat.Response, error) {
 	if m.err != nil {
 		return nil, m.err
 	}
 	resp, _ := chat.NewResponse(
-		[]*chat.Result{{
+		&chat.Result{
 			AssistantMessage: chat.NewAssistantMessage(m.replyText),
 			Metadata:         &chat.ResultMetadata{FinishReason: chat.FinishReasonStop},
-		}},
+		},
 		&chat.ResponseMetadata{},
 	)
 	return resp, nil

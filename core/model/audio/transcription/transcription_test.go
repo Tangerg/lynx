@@ -25,9 +25,9 @@ func newFakeTranscriptionModel(t *testing.T) *fakeTranscriptionModel {
 	return &fakeTranscriptionModel{defaults: o}
 }
 
-func (m *fakeTranscriptionModel) DefaultOptions() *transcription.Options { return m.defaults }
-func (m *fakeTranscriptionModel) Info() transcription.ModelInfo {
-	return transcription.ModelInfo{Provider: "fake"}
+func (m *fakeTranscriptionModel) DefaultOptions() transcription.Options { return *m.defaults }
+func (m *fakeTranscriptionModel) Metadata() transcription.ModelMetadata {
+	return transcription.ModelMetadata{Provider: "fake"}
 }
 
 func (m *fakeTranscriptionModel) Call(ctx context.Context, req *transcription.Request) (*transcription.Response, error) {
@@ -36,7 +36,7 @@ func (m *fakeTranscriptionModel) Call(ctx context.Context, req *transcription.Re
 		return m.respond(req)
 	}
 	res, _ := transcription.NewResult("hi", &transcription.ResultMetadata{})
-	return transcription.NewResponse([]*transcription.Result{res}, &transcription.ResponseMetadata{})
+	return transcription.NewResponse(res, &transcription.ResponseMetadata{})
 }
 
 func mustAudio(t *testing.T) *media.Media {

@@ -43,8 +43,8 @@ func TestToolMiddleware_RecursiveLoop(t *testing.T) {
 	if calls != 2 {
 		t.Fatalf("model invoked %d times, want 2", calls)
 	}
-	if resp.Result().AssistantMessage.Text != "final answer" {
-		t.Fatalf("Text = %q, want final answer", resp.Result().AssistantMessage.Text)
+	if resp.Result.AssistantMessage.Text != "final answer" {
+		t.Fatalf("Text = %q, want final answer", resp.Result.AssistantMessage.Text)
 	}
 }
 
@@ -78,8 +78,8 @@ func TestToolMiddleware_DirectReturn(t *testing.T) {
 	if calls != 1 {
 		t.Fatalf("model invoked %d times, want 1 (direct return must short-circuit)", calls)
 	}
-	if resp.Result().Metadata.FinishReason != chat.FinishReasonToolCalls {
-		t.Fatalf("FinishReason = %q", resp.Result().Metadata.FinishReason)
+	if resp.Result.Metadata.FinishReason != chat.FinishReasonToolCalls {
+		t.Fatalf("FinishReason = %q", resp.Result.Metadata.FinishReason)
 	}
 }
 
@@ -101,7 +101,7 @@ func TestToolMiddleware_PassthroughWithoutToolCalls(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if resp.Result().AssistantMessage.Text != "plain reply" {
-		t.Fatalf("Text = %q", resp.Result().AssistantMessage.Text)
+	if resp.Result.AssistantMessage.Text != "plain reply" {
+		t.Fatalf("Text = %q", resp.Result.AssistantMessage.Text)
 	}
 }

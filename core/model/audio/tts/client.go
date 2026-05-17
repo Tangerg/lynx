@@ -110,7 +110,7 @@ func (r *ClientRequest) resolveOptions() *Options {
 	if r.options != nil {
 		return r.options.Clone()
 	}
-	return r.model.DefaultOptions().Clone()
+	defaults := r.model.DefaultOptions(); return defaults.Clone()
 }
 
 // buildRequest assembles the [*Request] sent through the middleware
@@ -171,7 +171,7 @@ func (c *ClientCaller) Speech(ctx context.Context) ([]byte, *Response, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	return resp.Result().Speech, resp, nil
+	return resp.Result.Speech, resp, nil
 }
 
 // ClientStreamer drives the streaming TTS path.
@@ -217,7 +217,7 @@ func (s *ClientStreamer) Speech(ctx context.Context) iter.Seq2[[]byte, error] {
 				yield(nil, err)
 				return
 			}
-			if !yield(resp.Result().Speech, nil) {
+			if !yield(resp.Result.Speech, nil) {
 				return
 			}
 		}

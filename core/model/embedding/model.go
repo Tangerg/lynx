@@ -16,8 +16,8 @@ import (
 //
 //	type myEmbedder struct{ /* ... */ }
 //	func (m *myEmbedder) Call(ctx context.Context, req *embedding.Request) (*embedding.Response, error) { ... }
-//	func (m *myEmbedder) DefaultOptions() *embedding.Options { return embedding.NewOptionsOrPanic("text-embedding-3-small") }
-//	func (m *myEmbedder) Info() embedding.ModelInfo          { return embedding.ModelInfo{Provider: "openai"} }
+//	func (m *myEmbedder) DefaultOptions() embedding.Options { opts, _ := embedding.NewOptions("text-embedding-3-small"); return *opts }
+//	func (m *myEmbedder) Metadata() embedding.ModelMetadata          { return embedding.ModelMetadata{Provider: "openai"} }
 //	func (m *myEmbedder) Dimensions(ctx context.Context) int64 { return 1536 }
 //
 //	var _ embedding.Model = (*myEmbedder)(nil)
@@ -31,16 +31,16 @@ type Model interface {
 
 	// DefaultOptions returns the parameter set this provider uses when
 	// the caller does not override anything.
-	DefaultOptions() *Options
+	DefaultOptions() Options
 
-	// Info returns identity metadata used by logging, metrics, and any
+	// Metadata returns identity metadata used by logging, metrics, and any
 	// observability layer that needs to tag a span by provider.
-	Info() ModelInfo
+	Metadata() ModelMetadata
 }
 
-// ModelInfo holds identity metadata for a [Model] instance. Provider
+// ModelMetadata holds identity metadata for a [Model] instance. Provider
 // names are conventionally lowercase ("openai", "cohere", ...).
-type ModelInfo struct {
+type ModelMetadata struct {
 	// Provider names the embedding LLM vendor.
 	Provider string `json:"provider"`
 }

@@ -2,6 +2,7 @@ package openai
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/openai/openai-go/v3"
@@ -10,6 +11,7 @@ import (
 	"github.com/Tangerg/lynx/core/model"
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/core/model/embedding"
+	"github.com/Tangerg/lynx/models/internal/options"
 	"github.com/Tangerg/lynx/pkg/mime"
 	"github.com/Tangerg/lynx/pkg/ptr"
 )
@@ -18,17 +20,23 @@ type EmbeddingModelConfig struct {
 	ApiKey         model.ApiKey
 	DefaultOptions *embedding.Options
 	RequestOptions []option.RequestOption
+
+	// Metadata overrides the [embedding.ModelMetadata] returned by [EmbeddingModel.Metadata].
+	// Facades pass their own Provider here so observability tags the
+	// call by the real upstream brand. Zero Provider falls back to
+	// the package default [Provider].
+	Metadata *embedding.ModelMetadata
 }
 
 func (c *EmbeddingModelConfig) validate() error {
 	if c == nil {
-		return ErrNilConfig
+		return errors.New("openai: config must not be nil")
 	}
 	if c.ApiKey == nil {
-		return ErrMissingApiKey
+		return errors.New("openai: ApiKey is required")
 	}
 	if c.DefaultOptions == nil {
-		return ErrMissingDefaultOptions
+		return errors.New("openai: DefaultOptions is required")
 	}
 	return nil
 }
@@ -38,6 +46,7 @@ var _ embedding.Model = (*EmbeddingModel)(nil)
 type EmbeddingModel struct {
 	api            *Api
 	defaultOptions *embedding.Options
+	metadata       embedding.ModelMetadata
 }
 
 func NewEmbeddingModel(cfg *EmbeddingModelConfig) (*EmbeddingModel, error) {
@@ -53,9 +62,14 @@ func NewEmbeddingModel(cfg *EmbeddingModelConfig) (*EmbeddingModel, error) {
 		return nil, err
 	}
 
+	info := embedding.ModelMetadata{Provider: Provider}
+	if cfg.Metadata != nil {
+		info = *cfg.Metadata
+	}
 	return &EmbeddingModel{
 		api:            api,
 		defaultOptions: cfg.DefaultOptions,
+		metadata:           info,
 	}, nil
 }
 
@@ -65,7 +79,7 @@ func (e *EmbeddingModel) buildApiEmbeddingRequest(req *embedding.Request) (*open
 		return nil, err
 	}
 
-	params := getOptionsParams[openai.EmbeddingNewParams](mergedOpts)
+	params := options.GetParams[openai.EmbeddingNewParams](mergedOpts, OptionsKey)
 
 	params.Model = mergedOpts.Model
 	params.Input = openai.EmbeddingNewParamsInputUnion{
@@ -129,12 +143,10 @@ func (e *EmbeddingModel) Dimensions(ctx context.Context) int64 {
 	return embedding.GetDimensions(ctx, e)
 }
 
-func (e *EmbeddingModel) DefaultOptions() *embedding.Options {
-	return e.defaultOptions
+func (e *EmbeddingModel) DefaultOptions() embedding.Options {
+	return *e.defaultOptions
 }
 
-func (e *EmbeddingModel) Info() embedding.ModelInfo {
-	return embedding.ModelInfo{
-		Provider: Provider,
-	}
+func (e *EmbeddingModel) Metadata() embedding.ModelMetadata {
+	return e.metadata
 }

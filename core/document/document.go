@@ -17,25 +17,28 @@ import (
 type Document struct {
 	// ID identifies the document within its source. Often a hash of the
 	// content; the [id] subpackage offers ready-made generators.
-	ID string
+	ID string `json:"id,omitempty"`
 
 	// Score is the retrieval relevance score. 0 when the document was
 	// not produced by a search.
-	Score float64
+	Score float64 `json:"score,omitempty"`
 
 	// Text is the textual content. May be empty if Media is set.
-	Text string
+	Text string `json:"text,omitempty"`
 
 	// Media is the optional non-text payload (image, audio, ...).
-	Media *media.Media
+	Media *media.Media `json:"media,omitempty"`
 
 	// Formatter renders the document for downstream consumers (LLM
 	// prompt, log line, ...). Defaults to a no-op that emits Text.
-	Formatter Formatter
+	// Excluded from JSON: the value holds runtime behavior that cannot
+	// meaningfully round-trip — consumers rehydrate Documents via
+	// [NewDocument] or set Formatter explicitly after Unmarshal.
+	Formatter Formatter `json:"-"`
 
 	// Metadata carries free-form annotations (source URL, page index,
 	// section heading, ...).
-	Metadata map[string]any
+	Metadata map[string]any `json:"metadata,omitzero"`
 }
 
 // NewDocument builds a [Document]. At least one of text or media is

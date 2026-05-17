@@ -23,7 +23,7 @@ import (
 //	if err != nil {
 //		return err
 //	}
-//	fmt.Println(resp.Result().AssistantMessage.Text)
+//	fmt.Println(resp.Result.AssistantMessage.Text)
 type CallHandler[Request any, Response any] interface {
 	// Call sends req to the underlying model and returns the complete
 	// response. The call blocks until the model finishes or ctx is cancelled.
@@ -54,7 +54,7 @@ func (f CallHandlerFunc[Request, Response]) Call(ctx context.Context, req Reques
 //	    if err != nil {
 //	        return err
 //	    }
-//	    fmt.Print(chunk.Result().AssistantMessage.Text)
+//	    fmt.Print(chunk.Result.AssistantMessage.Text)
 //	}
 type StreamHandler[Request any, Response any] interface {
 	// Stream sends req to the underlying model and returns an iterator over

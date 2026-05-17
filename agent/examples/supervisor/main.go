@@ -175,8 +175,8 @@ func newStubModel() *stubModel {
 	return &stubModel{defaults: opts}
 }
 
-func (m *stubModel) DefaultOptions() *chat.Options { return m.defaults }
-func (m *stubModel) Info() chat.ModelInfo          { return chat.ModelInfo{Provider: "stub"} }
+func (m *stubModel) DefaultOptions() chat.Options { return *m.defaults }
+func (m *stubModel) Metadata() chat.ModelMetadata          { return chat.ModelMetadata{Provider: "stub"} }
 
 // Call walks the conversation:
 //
@@ -236,10 +236,10 @@ func contains(m map[string]string, key string) bool {
 
 func responseWithText(text string) *chat.Response {
 	resp, _ := chat.NewResponse(
-		[]*chat.Result{{
+		&chat.Result{
 			AssistantMessage: chat.NewAssistantMessage(text),
 			Metadata:         &chat.ResultMetadata{FinishReason: chat.FinishReasonStop},
-		}},
+		},
 		&chat.ResponseMetadata{},
 	)
 	return resp
@@ -248,10 +248,10 @@ func responseWithText(text string) *chat.Response {
 func responseWithToolCall(name, args string) *chat.Response {
 	calls := []*chat.ToolCall{{ID: "call_" + name, Name: name, Arguments: args}}
 	resp, _ := chat.NewResponse(
-		[]*chat.Result{{
+		&chat.Result{
 			AssistantMessage: chat.NewAssistantMessage(calls),
 			Metadata:         &chat.ResultMetadata{FinishReason: chat.FinishReasonToolCalls},
-		}},
+		},
 		&chat.ResponseMetadata{},
 	)
 	return resp

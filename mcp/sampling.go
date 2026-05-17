@@ -70,14 +70,12 @@ func samplingMessagesToChat(messages []*sdkmcp.SamplingMessage) []chat.Message {
 
 func chatResponseToSamplingResult(resp *chat.Response) *sdkmcp.CreateMessageResult {
 	text, stop := "", "end_turn"
-	if resp != nil {
-		if r := resp.Result(); r != nil {
-			if r.AssistantMessage != nil {
-				text = r.AssistantMessage.Text
-			}
-			if r.Metadata != nil {
-				stop = mapStopReason(r.Metadata.FinishReason)
-			}
+	if resp != nil && resp.Result != nil {
+		if resp.Result.AssistantMessage != nil {
+			text = resp.Result.AssistantMessage.Text
+		}
+		if resp.Result.Metadata != nil {
+			stop = mapStopReason(resp.Result.Metadata.FinishReason)
 		}
 	}
 	return &sdkmcp.CreateMessageResult{

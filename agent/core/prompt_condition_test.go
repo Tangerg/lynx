@@ -29,8 +29,8 @@ func newStubErrModel(err error) *stubModel {
 	return &stubModel{defaults: opts, err: err}
 }
 
-func (m *stubModel) DefaultOptions() *chat.Options { return m.defaults }
-func (m *stubModel) Info() chat.ModelInfo          { return chat.ModelInfo{Provider: "stub"} }
+func (m *stubModel) DefaultOptions() chat.Options { return *m.defaults }
+func (m *stubModel) Metadata() chat.ModelMetadata          { return chat.ModelMetadata{Provider: "stub"} }
 
 func (m *stubModel) Call(_ context.Context, req *chat.Request) (*chat.Response, error) {
 	for _, msg := range req.Messages {
@@ -44,10 +44,10 @@ func (m *stubModel) Call(_ context.Context, req *chat.Request) (*chat.Response, 
 		return nil, m.err
 	}
 	resp, _ := chat.NewResponse(
-		[]*chat.Result{{
+		&chat.Result{
 			AssistantMessage: chat.NewAssistantMessage(m.reply),
 			Metadata:         &chat.ResultMetadata{FinishReason: chat.FinishReasonStop},
-		}},
+		},
 		&chat.ResponseMetadata{},
 	)
 	return resp, nil

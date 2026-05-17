@@ -2,6 +2,7 @@ package anthropic
 
 import (
 	"context"
+	"errors"
 	"slices"
 
 	anthropicsdk "github.com/anthropics/anthropic-sdk-go"
@@ -18,10 +19,10 @@ type ApiConfig struct {
 
 func (c *ApiConfig) validate() error {
 	if c == nil {
-		return ErrNilConfig
+		return errors.New("anthropic: config must not be nil")
 	}
 	if c.ApiKey == nil {
-		return ErrMissingApiKey
+		return errors.New("anthropic: ApiKey is required")
 	}
 	return nil
 }
@@ -46,7 +47,7 @@ func NewApi(cfg *ApiConfig) (*Api, error) {
 
 func (a *Api) ChatCompletion(ctx context.Context, req *anthropicsdk.MessageNewParams, opts ...option.RequestOption) (*anthropicsdk.Message, error) {
 	if req == nil {
-		return nil, ErrNilRequest
+		return nil, errors.New("anthropic: request must not be nil")
 	}
 	return a.client.Messages.New(ctx, *req, opts...)
 }
@@ -56,4 +57,11 @@ func (a *Api) ChatCompletionStream(ctx context.Context, req *anthropicsdk.Messag
 		return nil
 	}
 	return a.client.Messages.NewStreaming(ctx, *req, opts...)
+}
+
+func (a *Api) CountTokens(ctx context.Context, req *anthropicsdk.MessageCountTokensParams, opts ...option.RequestOption) (*anthropicsdk.MessageTokensCount, error) {
+	if req == nil {
+		return nil, errors.New("anthropic: request must not be nil")
+	}
+	return a.client.Messages.CountTokens(ctx, *req, opts...)
 }

@@ -43,23 +43,29 @@ type Options struct {
 	NegativePrompt string `json:"negative_prompt"`
 
 	// Width / Height set the output dimensions in pixels.
-	Width  *int64 `json:"width"`
-	Height *int64 `json:"height"`
+	Width  *int64 `json:"width,omitempty"`
+	Height *int64 `json:"height,omitempty"`
 
 	// Style selects the artistic style (provider-specific values).
 	Style string `json:"style"`
 
+	// Quality controls render quality (e.g. DALL-E 3 "standard" / "hd",
+	// gpt-image-1 "low" / "medium" / "high" / "auto", Stability
+	// "low" / "medium" / "high"). Provider-specific values; empty leaves
+	// the choice to the provider.
+	Quality string `json:"quality"`
+
 	// Seed pins the RNG so repeated calls produce the same image.
-	Seed *int64 `json:"seed"`
+	Seed *int64 `json:"seed,omitempty"`
 
 	// OutputFormat picks the MIME type of the rendered bytes.
-	OutputFormat *mime.MIME `json:"output_format"`
+	OutputFormat *mime.MIME `json:"output_format,omitempty"`
 
 	// ResponseFormat picks URL vs inline base64.
 	ResponseFormat ResponseFormat `json:"response_format"`
 
 	// Extra carries provider-specific options unknown to this struct.
-	Extra map[string]any `json:"extra"`
+	Extra map[string]any `json:"extra,omitzero"`
 }
 
 // NewOptions builds Options for the given model id. Returns an error
@@ -104,6 +110,7 @@ func (o *Options) Clone() *Options {
 		Width:          ptr.Clone(o.Width),
 		Height:         ptr.Clone(o.Height),
 		Style:          o.Style,
+		Quality:        o.Quality,
 		Seed:           ptr.Clone(o.Seed),
 		OutputFormat:   o.OutputFormat.Clone(),
 		ResponseFormat: o.ResponseFormat,
@@ -146,6 +153,9 @@ func applyOverride(dst, src *Options) {
 	if src.Style != "" {
 		dst.Style = src.Style
 	}
+	if src.Quality != "" {
+		dst.Quality = src.Quality
+	}
 	if src.Seed != nil {
 		dst.Seed = src.Seed
 	}
@@ -170,10 +180,10 @@ type Request struct {
 	Prompt string `json:"prompt"`
 
 	// Options carries model-specific parameters.
-	Options *Options `json:"options"`
+	Options *Options `json:"options,omitempty"`
 
 	// Params is per-request metadata middlewares can read.
-	Params map[string]any `json:"params"`
+	Params map[string]any `json:"params,omitzero"`
 }
 
 // NewRequest builds a Request from prompt. Returns an error when prompt

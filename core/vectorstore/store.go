@@ -59,18 +59,20 @@ const (
 //	req.WithTopK(20).WithMinScore(0.7).WithFilter(myFilter)
 type RetrievalRequest struct {
 	// Query is the search text. Required.
-	Query string
+	Query string `json:"query,omitempty"`
 
 	// TopK caps the number of results. Defaults to [DefaultTopK]; must
 	// be > 0.
-	TopK int
+	TopK int `json:"top_k,omitempty"`
 
 	// MinScore filters out results below this similarity threshold.
 	// Range [0.0, 1.0]. Use [AcceptAllScores] to disable.
-	MinScore float64
+	MinScore float64 `json:"min_score,omitempty"`
 
 	// Filter is an optional AST expression for metadata filtering.
-	Filter ast.Expr
+	// Excluded from JSON: the AST is a compiled tree; callers serialize
+	// the source text separately and re-Parse it after Unmarshal.
+	Filter ast.Expr `json:"-"`
 }
 
 // NewRetrievalRequest builds a [RetrievalRequest] with default top-k
@@ -152,7 +154,7 @@ type Retriever interface {
 // embed, index, and store.
 type CreateRequest struct {
 	// Documents is the list to ingest. Required, non-empty.
-	Documents []*document.Document
+	Documents []*document.Document `json:"documents,omitzero"`
 }
 
 // NewCreateRequest builds a [CreateRequest]. Returns an error when
@@ -188,7 +190,9 @@ type Creator interface {
 // expression selecting the documents to remove.
 type DeleteRequest struct {
 	// Filter selects the documents to delete. Required.
-	Filter ast.Expr
+	// Excluded from JSON for the same reason as
+	// [RetrievalRequest.Filter] — the AST is a compiled tree.
+	Filter ast.Expr `json:"-"`
 }
 
 // NewDeleteRequest builds a [DeleteRequest]. Returns an error when
@@ -238,12 +242,13 @@ type Store interface {
 // doesn't surface.
 type StoreInfo struct {
 	// NativeClient is the underlying provider client (e.g.
-	// *pinecone.Client, *weaviate.Client, *qdrant.Client).
-	NativeClient any
+	// *pinecone.Client, *weaviate.Client, *qdrant.Client). Excluded
+	// from JSON: opaque runtime handle that cannot round-trip.
+	NativeClient any `json:"-"`
 
 	// Provider names the backend ("pinecone", "qdrant", "weaviate", ...)
 	// — lowercase by convention.
-	Provider string
+	Provider string `json:"provider,omitempty"`
 }
 
 // writeFunc is the function-shaped adapter used by [NewDocumentWriter].

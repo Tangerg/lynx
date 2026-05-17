@@ -34,8 +34,8 @@ func newFakeChatModel(t *testing.T) *fakeChatModel {
 	}
 }
 
-func (m *fakeChatModel) DefaultOptions() *chat.Options { return m.defaultOpts }
-func (m *fakeChatModel) Info() chat.ModelInfo          { return chat.ModelInfo{Provider: m.provider} }
+func (m *fakeChatModel) DefaultOptions() chat.Options { return *m.defaultOpts }
+func (m *fakeChatModel) Metadata() chat.ModelMetadata          { return chat.ModelMetadata{Provider: m.provider} }
 
 func (m *fakeChatModel) Call(ctx context.Context, req *chat.Request) (*chat.Response, error) {
 	m.lastReq = req
@@ -62,10 +62,10 @@ func (m *fakeChatModel) Stream(ctx context.Context, req *chat.Request) iter.Seq2
 
 func responseWithText(text string) *chat.Response {
 	resp, _ := chat.NewResponse(
-		[]*chat.Result{{
+		&chat.Result{
 			AssistantMessage: chat.NewAssistantMessage(text),
 			Metadata:         &chat.ResultMetadata{FinishReason: chat.FinishReasonStop},
-		}},
+		},
 		&chat.ResponseMetadata{},
 	)
 	return resp

@@ -12,8 +12,8 @@ import "github.com/Tangerg/lynx/core/model"
 //
 //	type myImageModel struct{ /* ... */ }
 //	func (m *myImageModel) Call(ctx context.Context, req *image.Request) (*image.Response, error) { ... }
-//	func (m *myImageModel) DefaultOptions() *image.Options { return image.NewOptionsOrPanic("dall-e-3") }
-//	func (m *myImageModel) Info() image.ModelInfo         { return image.ModelInfo{Provider: "openai"} }
+//	func (m *myImageModel) DefaultOptions() image.Options { opts, _ := image.NewOptions("dall-e-3"); return *opts }
+//	func (m *myImageModel) Metadata() image.ModelMetadata         { return image.ModelMetadata{Provider: "openai"} }
 //
 //	var _ image.Model = (*myImageModel)(nil)
 type Model interface {
@@ -21,16 +21,16 @@ type Model interface {
 
 	// DefaultOptions returns the parameter set this provider uses when
 	// the caller does not override anything.
-	DefaultOptions() *Options
+	DefaultOptions() Options
 
-	// Info returns identity metadata used by logging, metrics, and any
+	// Metadata returns identity metadata used by logging, metrics, and any
 	// observability layer that needs to tag a span by provider.
-	Info() ModelInfo
+	Metadata() ModelMetadata
 }
 
-// ModelInfo holds identity metadata for a [Model] instance. Provider
+// ModelMetadata holds identity metadata for a [Model] instance. Provider
 // names are conventionally lowercase ("openai", "stability", ...).
-type ModelInfo struct {
+type ModelMetadata struct {
 	// Provider names the image-generation LLM vendor.
 	Provider string `json:"provider"`
 }

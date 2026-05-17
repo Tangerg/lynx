@@ -280,12 +280,12 @@ func mustNewRequest(t *testing.T) *chat.Request {
 func responseWithToolCall(t *testing.T, name, args string) *chat.Response {
 	t.Helper()
 	resp, err := chat.NewResponse(
-		[]*chat.Result{{
+		&chat.Result{
 			AssistantMessage: chat.NewAssistantMessage(chat.MessageParams{
 				ToolCalls: []*chat.ToolCall{{ID: "call_1", Name: name, Arguments: args}},
 			}),
 			Metadata: &chat.ResultMetadata{FinishReason: chat.FinishReasonToolCalls},
-		}},
+		},
 		&chat.ResponseMetadata{},
 	)
 	if err != nil {

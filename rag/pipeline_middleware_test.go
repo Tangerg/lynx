@@ -35,16 +35,16 @@ func newEchoChatModel(t *testing.T) *echoChatModel {
 	return &echoChatModel{defaults: defaults}
 }
 
-func (m *echoChatModel) DefaultOptions() *chat.Options { return m.defaults }
-func (m *echoChatModel) Info() chat.ModelInfo          { return chat.ModelInfo{Provider: "fake"} }
+func (m *echoChatModel) DefaultOptions() chat.Options { return *m.defaults }
+func (m *echoChatModel) Metadata() chat.ModelMetadata          { return chat.ModelMetadata{Provider: "fake"} }
 
 func (m *echoChatModel) Call(_ context.Context, req *chat.Request) (*chat.Response, error) {
 	m.captured = req.UserMessage().Text
 	resp, _ := chat.NewResponse(
-		[]*chat.Result{{
+		&chat.Result{
 			AssistantMessage: chat.NewAssistantMessage(m.captured),
 			Metadata:         &chat.ResultMetadata{FinishReason: chat.FinishReasonStop},
-		}},
+		},
 		&chat.ResponseMetadata{},
 	)
 	return resp, nil

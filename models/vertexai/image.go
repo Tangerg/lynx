@@ -1,0 +1,47 @@
+package vertexai
+
+import (
+	"errors"
+
+	"google.golang.org/genai"
+
+	"github.com/Tangerg/lynx/core/model/image"
+	"github.com/Tangerg/lynx/models/google"
+)
+
+type ImageModelConfig struct {
+	Project        string
+	Location       string
+	DefaultOptions *image.Options
+}
+
+func (c *ImageModelConfig) validate() error {
+	if c == nil {
+		return errors.New("vertexai: config must not be nil")
+	}
+	if c.Project == "" {
+		return errors.New("vertexai: Project is required")
+	}
+	if c.Location == "" {
+		return errors.New("vertexai: Location is required")
+	}
+	if c.DefaultOptions == nil {
+		return errors.New("vertexai: DefaultOptions is required")
+	}
+	return nil
+}
+
+// NewImageModel returns a [google.ImageModel] backed by Vertex AI.
+// Supported models: imagen-4.0-generate-001, imagen-3.0-generate-002.
+func NewImageModel(cfg *ImageModelConfig) (*google.ImageModel, error) {
+	if err := cfg.validate(); err != nil {
+		return nil, err
+	}
+	return google.NewImageModel(&google.ImageModelConfig{
+		Backend:        genai.BackendVertexAI,
+		Project:        cfg.Project,
+		Location:       cfg.Location,
+		DefaultOptions: cfg.DefaultOptions,
+		Metadata:       &image.ModelMetadata{Provider: Provider},
+	})
+}

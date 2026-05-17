@@ -13,8 +13,8 @@ import "github.com/Tangerg/lynx/core/model"
 //	type myTTS struct{ /* ... */ }
 //	func (m *myTTS) Call(ctx context.Context, req *tts.Request) (*tts.Response, error) { ... }
 //	func (m *myTTS) Stream(ctx context.Context, req *tts.Request) iter.Seq2[*tts.Response, error] { ... }
-//	func (m *myTTS) DefaultOptions() *tts.Options { ... }
-//	func (m *myTTS) Info() tts.ModelInfo          { return tts.ModelInfo{Provider: "openai"} }
+//	func (m *myTTS) DefaultOptions() tts.Options { ... }
+//	func (m *myTTS) Metadata() tts.ModelMetadata          { return tts.ModelMetadata{Provider: "openai"} }
 //
 //	var _ tts.Model = (*myTTS)(nil)
 type Model interface {
@@ -23,15 +23,15 @@ type Model interface {
 
 	// DefaultOptions returns the parameter set this provider uses when
 	// the caller does not override anything.
-	DefaultOptions() *Options
+	DefaultOptions() Options
 
-	// Info returns identity metadata used by logging, metrics, and any
+	// Metadata returns identity metadata used by logging, metrics, and any
 	// observability layer that needs to tag a span by provider.
-	Info() ModelInfo
+	Metadata() ModelMetadata
 }
 
-// ModelInfo holds identity metadata for a [Model] instance.
-type ModelInfo struct {
+// ModelMetadata holds identity metadata for a [Model] instance.
+type ModelMetadata struct {
 	// Provider names the TTS LLM vendor (lowercase by convention).
 	Provider string `json:"provider"`
 }

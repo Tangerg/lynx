@@ -2,6 +2,7 @@ package openai
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/openai/openai-go/v3"
@@ -9,23 +10,28 @@ import (
 
 	"github.com/Tangerg/lynx/core/model"
 	"github.com/Tangerg/lynx/core/model/moderation"
+	"github.com/Tangerg/lynx/models/internal/options"
 )
 
 type ModerationModelConfig struct {
 	ApiKey         model.ApiKey
 	DefaultOptions *moderation.Options
 	RequestOptions []option.RequestOption
+
+	// Metadata overrides the [moderation.ModelMetadata] returned by [ModerationModel.Metadata].
+	// Zero Provider falls back to [Provider].
+	Metadata *moderation.ModelMetadata
 }
 
 func (c *ModerationModelConfig) validate() error {
 	if c == nil {
-		return ErrNilConfig
+		return errors.New("openai: config must not be nil")
 	}
 	if c.ApiKey == nil {
-		return ErrMissingApiKey
+		return errors.New("openai: ApiKey is required")
 	}
 	if c.DefaultOptions == nil {
-		return ErrMissingDefaultOptions
+		return errors.New("openai: DefaultOptions is required")
 	}
 	return nil
 }
@@ -35,6 +41,7 @@ var _ moderation.Model = (*ModerationModel)(nil)
 type ModerationModel struct {
 	api            *Api
 	defaultOptions *moderation.Options
+	metadata       moderation.ModelMetadata
 }
 
 func NewModerationModel(cfg *ModerationModelConfig) (*ModerationModel, error) {
@@ -50,9 +57,14 @@ func NewModerationModel(cfg *ModerationModelConfig) (*ModerationModel, error) {
 		return nil, err
 	}
 
+	info := moderation.ModelMetadata{Provider: Provider}
+	if cfg.Metadata != nil {
+		info = *cfg.Metadata
+	}
 	return &ModerationModel{
 		api:            api,
 		defaultOptions: cfg.DefaultOptions,
+		metadata:           info,
 	}, nil
 }
 
@@ -62,7 +74,7 @@ func (m *ModerationModel) buildApiModerationRequest(req *moderation.Request) (*o
 		return nil, err
 	}
 
-	params := getOptionsParams[openai.ModerationNewParams](mergedOpts)
+	params := options.GetParams[openai.ModerationNewParams](mergedOpts, OptionsKey)
 
 	params.Model = mergedOpts.Model
 	params.Input = openai.ModerationNewParamsInputUnion{
@@ -162,12 +174,10 @@ func (m *ModerationModel) Call(ctx context.Context, req *moderation.Request) (*m
 	return m.buildModerationResponse(apiResp)
 }
 
-func (m *ModerationModel) DefaultOptions() *moderation.Options {
-	return m.defaultOptions
+func (m *ModerationModel) DefaultOptions() moderation.Options {
+	return *m.defaultOptions
 }
 
-func (m *ModerationModel) Info() moderation.ModelInfo {
-	return moderation.ModelInfo{
-		Provider: Provider,
-	}
+func (m *ModerationModel) Metadata() moderation.ModelMetadata {
+	return m.metadata
 }

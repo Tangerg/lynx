@@ -154,7 +154,7 @@ var _ StructuredParser[any] = (*JSONParser[any])(nil)
 //
 //	type Recipe struct {
 //	    Title string   `json:"title"`
-//	    Steps []string `json:"steps"`
+//	    Steps []string `json:"steps,omitzero"`
 //	}
 //	parser := chat.NewJSONParser[Recipe]()
 //	r, err := parser.Parse(`{"title":"pasta","steps":["boil","drain"]}`)

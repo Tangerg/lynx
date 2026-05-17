@@ -177,7 +177,7 @@ func (r *ClientRequest) resolveOptions() *Options {
 	if r.options != nil {
 		return r.options.Clone()
 	}
-	return r.model.DefaultOptions().Clone()
+	defaults := r.model.DefaultOptions(); return defaults.Clone()
 }
 
 // resolveMessages produces the final, normalized message list — seed
@@ -238,7 +238,7 @@ func (r *ClientRequest) buildRequest() (*Request, error) {
 	}
 
 	req.Options = r.resolveOptions()
-	req.Options.Tools = append(req.Options.Tools, r.tools...)
+	req.Tools = slices.Clone(r.tools)
 	req.Params = maps.Clone(r.params)
 
 	return req, nil
@@ -322,7 +322,7 @@ func (s *ClientStreamer) Text(ctx context.Context) iter.Seq2[string, error] {
 				yield("", err)
 				return
 			}
-			if !yield(resp.Result().AssistantMessage.Text, nil) {
+			if !yield(resp.Result.AssistantMessage.Text, nil) {
 				return
 			}
 		}
@@ -372,7 +372,7 @@ func (c *ClientCaller) Text(ctx context.Context) (string, *Response, error) {
 	if err != nil {
 		return "", nil, err
 	}
-	return resp.Result().AssistantMessage.Text, resp, nil
+	return resp.Result.AssistantMessage.Text, resp, nil
 }
 
 // Structured runs the call with parser-supplied prompt instructions
@@ -387,7 +387,7 @@ func (c *ClientCaller) Structured(ctx context.Context, parser StructuredParser[a
 	if err != nil {
 		return nil, nil, err
 	}
-	data, parseErr := parser.Parse(resp.Result().AssistantMessage.Text)
+	data, parseErr := parser.Parse(resp.Result.AssistantMessage.Text)
 	return data, resp, parseErr
 }
 

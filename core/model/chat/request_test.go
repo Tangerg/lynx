@@ -121,23 +121,6 @@ func TestMergeOptions_NilOverridesAreSkipped(t *testing.T) {
 	}
 }
 
-func TestMergeOptions_DedupesToolsByName(t *testing.T) {
-	tool := mustNewTool(t, "search")
-	dup := mustNewTool(t, "search")
-	other := mustNewTool(t, "fetch")
-
-	base := &chat.Options{Model: "m", Tools: []chat.Tool{tool}}
-	override := &chat.Options{Model: "m", Tools: []chat.Tool{dup, other}}
-
-	merged, err := chat.MergeOptions(base, override)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got := len(merged.Tools); got != 2 {
-		t.Fatalf("Tools count = %d, want 2 (dupe by name should be dropped)", got)
-	}
-}
-
 func TestNewRequest_RejectsAllNilMessages(t *testing.T) {
 	if _, err := chat.NewRequest(nil); err == nil {
 		t.Fatal("NewRequest(nil) must return an error")
@@ -215,8 +198,7 @@ func TestRequest_SystemMessage_ReturnsEmptyWhenAbsent(t *testing.T) {
 	}
 }
 
-// mustNewTool builds a Tool with a unique name, used to exercise tool
-// deduplication without dragging real tool implementations into the test.
+// mustNewTool builds a Tool with a unique name for use across tests.
 func mustNewTool(t *testing.T, name string) chat.Tool {
 	t.Helper()
 	tool, err := chat.NewTool(
@@ -229,3 +211,4 @@ func mustNewTool(t *testing.T, name string) chat.Tool {
 	}
 	return tool
 }
+

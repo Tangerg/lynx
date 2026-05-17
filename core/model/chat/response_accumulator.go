@@ -34,7 +34,7 @@ func NewResponseAccumulator() *ResponseAccumulator {
 // AddChunk merges chunk into the accumulator. Safe to call any number of
 // times in the order chunks arrive.
 func (r *ResponseAccumulator) AddChunk(chunk *Response) {
-	r.accumulateResults(chunk.Results)
+	r.accumulateResult(chunk.Result)
 	r.accumulateMetadata(chunk.Metadata)
 }
 
@@ -59,31 +59,19 @@ func (r *ResponseAccumulator) accumulateMetadata(other *ResponseMetadata) {
 	maps.Copy(r.Metadata.Extra, other.Extra)
 }
 
-// accumulateResults dispatches each incoming result to its matching
-// position in the accumulated slice, growing the slice as needed.
-func (r *ResponseAccumulator) accumulateResults(others []*Result) {
-	if len(others) == 0 {
+// accumulateResult merges one chunk's Result into the accumulated state —
+// assistant message, metadata, and tool message in turn.
+func (r *ResponseAccumulator) accumulateResult(other *Result) {
+	if other == nil {
 		return
 	}
-
-	r.Results = pkgSlices.EnsureIndex(r.Results, len(others)-1)
-	for index, other := range others {
-		r.accumulateResult(index, other)
-	}
-}
-
-// accumulateResult merges one chunk's Result at index — assistant message,
-// metadata, and tool message in turn.
-func (r *ResponseAccumulator) accumulateResult(index int, other *Result) {
-	result := r.Results[index]
-	if result == nil {
-		result = &Result{}
-		r.Results[index] = result
+	if r.Result == nil {
+		r.Result = &Result{}
 	}
 
-	result.AssistantMessage = r.accumulateAssistantMessage(result.AssistantMessage, other.AssistantMessage)
-	result.Metadata = r.accumulateResultMetadata(result.Metadata, other.Metadata)
-	result.ToolMessage = r.accumulateToolMessage(result.ToolMessage, other.ToolMessage)
+	r.Result.AssistantMessage = r.accumulateAssistantMessage(r.Result.AssistantMessage, other.AssistantMessage)
+	r.Result.Metadata = r.accumulateResultMetadata(r.Result.Metadata, other.Metadata)
+	r.Result.ToolMessage = r.accumulateToolMessage(r.Result.ToolMessage, other.ToolMessage)
 }
 
 // accumulateAssistantMessage merges streaming deltas:

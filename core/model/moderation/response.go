@@ -114,7 +114,7 @@ func (m *Moderation) Flagged() bool {
 // ResultMetadata holds per-input metadata returned by the provider.
 type ResultMetadata struct {
 	// Extra carries provider-specific metadata.
-	Extra map[string]any `json:"extra"`
+	Extra map[string]any `json:"extra,omitzero"`
 }
 
 func (r *ResultMetadata) ensureExtra() {
@@ -142,10 +142,10 @@ func (r *ResultMetadata) Set(key string, value any) {
 // Result is one input's moderation verdict plus metadata.
 type Result struct {
 	// Moderation holds the per-category verdict.
-	Moderation *Moderation `json:"categories"`
+	Moderation *Moderation `json:"categories,omitempty"`
 
 	// Metadata carries per-input extras.
-	Metadata *ResultMetadata `json:"metadata"`
+	Metadata *ResultMetadata `json:"metadata,omitempty"`
 }
 
 // NewResult builds a [Result]. Returns an error when moderation or
@@ -172,7 +172,7 @@ type ResponseMetadata struct {
 	Created int64 `json:"created"`
 
 	// Extra carries provider-specific metadata.
-	Extra map[string]any `json:"extra"`
+	Extra map[string]any `json:"extra,omitzero"`
 }
 
 func (r *ResponseMetadata) ensureExtra() {
@@ -201,10 +201,10 @@ func (r *ResponseMetadata) Set(key string, value any) {
 // shared response metadata.
 type Response struct {
 	// Results holds one entry per input, in the same order.
-	Results []*Result `json:"results"`
+	Results []*Result `json:"results,omitzero"`
 
 	// Metadata carries shared response-level fields.
-	Metadata *ResponseMetadata `json:"metadata"`
+	Metadata *ResponseMetadata `json:"metadata,omitempty"`
 }
 
 // NewResponse builds a [Response] from at least one result and a

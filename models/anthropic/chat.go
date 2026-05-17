@@ -3,6 +3,7 @@ package anthropic
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"iter"
 	"strings"
 	"time"
@@ -13,8 +14,13 @@ import (
 
 	"github.com/Tangerg/lynx/core/model"
 	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/models/internal/options"
 	"github.com/Tangerg/lynx/pkg/mime"
 )
+
+// defaultMaxTokens is sent when the caller leaves Options.MaxTokens
+// unset. Anthropic's Messages API requires max_tokens.
+const defaultMaxTokens int64 = 4096
 
 type requestHelper struct {
 	defaultOptions *chat.Options
@@ -55,15 +61,14 @@ func (r *requestHelper) buildSystem(msgs []chat.Message) []anthropicsdk.TextBloc
 }
 
 func (r *requestHelper) buildBaseParams(opts *chat.Options) *anthropicsdk.MessageNewParams {
-	params := getOptionsParams[anthropicsdk.MessageNewParams](opts)
+	params := options.GetParams[anthropicsdk.MessageNewParams](opts, OptionsKey)
 
 	params.Model = opts.Model
 
 	if opts.MaxTokens != nil {
 		params.MaxTokens = *opts.MaxTokens
-	} else {
-		// Anthropic requires max_tokens; default to a reasonable value
-		params.MaxTokens = 4096
+	} else if params.MaxTokens == 0 {
+		params.MaxTokens = defaultMaxTokens
 	}
 
 	if opts.Temperature != nil {
@@ -82,7 +87,7 @@ func (r *requestHelper) buildBaseParams(opts *chat.Options) *anthropicsdk.Messag
 	return params
 }
 
-func (r *requestHelper) buildParams(opts *chat.Options) (*anthropicsdk.MessageNewParams, error) {
+func (r *requestHelper) buildParams(opts *chat.Options, tools []chat.Tool) (*anthropicsdk.MessageNewParams, error) {
 	mergedOpts, err := chat.MergeOptions(r.defaultOptions, opts)
 	if err != nil {
 		return nil, err
@@ -90,7 +95,7 @@ func (r *requestHelper) buildParams(opts *chat.Options) (*anthropicsdk.MessageNe
 
 	params := r.buildBaseParams(mergedOpts)
 
-	params.Tools, err = r.buildToolParams(mergedOpts.Tools)
+	params.Tools, err = r.buildToolParams(tools)
 	if err != nil {
 		return nil, err
 	}
@@ -204,7 +209,7 @@ func (r *requestHelper) buildMsgs(msgs []chat.Message) []anthropicsdk.MessagePar
 }
 
 func (r *requestHelper) buildApiChatRequest(req *chat.Request) (*anthropicsdk.MessageNewParams, error) {
-	params, err := r.buildParams(req.Options)
+	params, err := r.buildParams(req.Options, req.Tools)
 	if err != nil {
 		return nil, err
 	}
@@ -243,14 +248,14 @@ func (r *responseHelper) buildAssistantMsg(resp *anthropicsdk.Message) *chat.Ass
 		Metadata: make(map[string]any),
 	}
 
-	var reasoningBuf strings.Builder
+	var textBuf, reasoningBuf strings.Builder
 	var firstSignature string
 	var redactedData string
 
 	for _, block := range resp.Content {
 		switch block.Type {
 		case "text":
-			msgParams.Text += block.Text
+			textBuf.WriteString(block.Text)
 		case "tool_use":
 			rawInput, _ := json.Marshal(block.Input)
 			msgParams.ToolCalls = append(msgParams.ToolCalls, &chat.ToolCall{
@@ -268,6 +273,7 @@ func (r *responseHelper) buildAssistantMsg(resp *anthropicsdk.Message) *chat.Ass
 		}
 	}
 
+	msgParams.Text = textBuf.String()
 	msgParams.Reasoning = reasoningBuf.String()
 	if firstSignature != "" {
 		msgParams.Metadata[MetaReasoningSignature] = firstSignature
@@ -311,9 +317,9 @@ func (r *responseHelper) buildMeta(req *anthropicsdk.MessageNewParams, resp *ant
 		Created: time.Now().Unix(),
 		Usage:   usage,
 	}
-	meta.Set("original.request", req)
-	meta.Set("original.response", resp)
-	meta.Set("stop_sequence", resp.StopSequence)
+	if resp.StopSequence != "" {
+		meta.Set("stop_sequence", resp.StopSequence)
+	}
 
 	return meta
 }
@@ -326,24 +332,178 @@ func (r *responseHelper) buildChatResponse(req *anthropicsdk.MessageNewParams, r
 
 	meta := r.buildMeta(req, resp)
 
-	return chat.NewResponse([]*chat.Result{result}, meta)
+	return chat.NewResponse(result, meta)
+}
+
+// chunkAccumulator is the anthropic counterpart of openai-go's
+// [openai.ChatCompletionAccumulator]: each [chunkAccumulator.AddChunk]
+// consumes one stream event and returns a [*chat.Response] carrying
+// ONLY that event's delta — Text fragment, tool-arg fragment,
+// reasoning fragment, stop_reason, or usage update. The upstream
+// [chat.ResponseAccumulator] stitches the deltas back together.
+//
+// We do not reuse the SDK's [anthropicsdk.Message].Accumulate because
+// it is stateful (a content_block_delta event requires a matching
+// prior content_block_start) — per-event reuse would error.
+// chunkAccumulator carries only the minimum cross-event state:
+//
+//   - msgID / msgModel: lifted from message_start and tagged on every
+//     subsequent yield so the response metadata stays stable;
+//   - blockToToolSlot: maps Anthropic's content_block_index → the
+//     dense [chat.AssistantMessage].ToolCalls slot expected by
+//     [chat.ResponseAccumulator]. Anthropic's content blocks
+//     interleave text / thinking / tool_use; only tool_use blocks
+//     consume a slot.
+type chunkAccumulator struct {
+	helper          *responseHelper
+	msgID           string
+	msgModel        string
+	blockToToolSlot map[int64]int
+	nextToolSlot    int
+}
+
+// newChunkAccumulator returns an empty accumulator. Call
+// [chunkAccumulator.AddChunk] for each event in order.
+func (r *responseHelper) newChunkAccumulator() *chunkAccumulator {
+	return &chunkAccumulator{helper: r, blockToToolSlot: map[int64]int{}}
+}
+
+// AddChunk converts one stream event into a per-event delta
+// [*chat.Response]. Returns (nil, false) for events that produced no
+// observable content (content_block_stop / message_stop).
+func (a *chunkAccumulator) AddChunk(event anthropicsdk.MessageStreamEventUnion) (*chat.Response, bool) {
+	msgParams := chat.MessageParams{Metadata: make(map[string]any)}
+	resultMeta := &chat.ResultMetadata{}
+	var metaUsage *chat.Usage
+	hasContent := false
+
+	switch e := event.AsAny().(type) {
+	case anthropicsdk.MessageStartEvent:
+		a.msgID = e.Message.ID
+		a.msgModel = string(e.Message.Model)
+		if e.Message.Usage.InputTokens > 0 || e.Message.Usage.OutputTokens > 0 {
+			metaUsage = &chat.Usage{
+				PromptTokens:     e.Message.Usage.InputTokens,
+				CompletionTokens: e.Message.Usage.OutputTokens,
+				OriginalUsage:    e.Message.Usage,
+			}
+			if v := e.Message.Usage.CacheReadInputTokens; v > 0 {
+				metaUsage.CacheReadInputTokens = &v
+			}
+			if v := e.Message.Usage.CacheCreationInputTokens; v > 0 {
+				metaUsage.CacheWriteInputTokens = &v
+			}
+			hasContent = true
+		}
+
+	case anthropicsdk.ContentBlockStartEvent:
+		if block, ok := e.ContentBlock.AsAny().(anthropicsdk.ToolUseBlock); ok {
+			slot := a.nextToolSlot
+			a.blockToToolSlot[e.Index] = slot
+			a.nextToolSlot++
+			tools := make([]*chat.ToolCall, slot+1)
+			tools[slot] = &chat.ToolCall{ID: block.ID, Name: block.Name}
+			msgParams.ToolCalls = tools
+			hasContent = true
+		}
+		// text / thinking / redacted_thinking blocks contribute no
+		// delta at start time — content arrives via subsequent
+		// content_block_delta events.
+
+	case anthropicsdk.ContentBlockDeltaEvent:
+		switch delta := e.Delta.AsAny().(type) {
+		case anthropicsdk.TextDelta:
+			if delta.Text != "" {
+				msgParams.Text = delta.Text
+				hasContent = true
+			}
+		case anthropicsdk.InputJSONDelta:
+			if delta.PartialJSON == "" {
+				break
+			}
+			slot, ok := a.blockToToolSlot[e.Index]
+			if !ok {
+				break
+			}
+			tools := make([]*chat.ToolCall, slot+1)
+			tools[slot] = &chat.ToolCall{Arguments: delta.PartialJSON}
+			msgParams.ToolCalls = tools
+			hasContent = true
+		case anthropicsdk.ThinkingDelta:
+			if delta.Thinking != "" {
+				msgParams.Reasoning = delta.Thinking
+				hasContent = true
+			}
+		case anthropicsdk.SignatureDelta:
+			if delta.Signature != "" {
+				msgParams.Metadata[MetaReasoningSignature] = delta.Signature
+				hasContent = true
+			}
+		}
+
+	case anthropicsdk.MessageDeltaEvent:
+		if e.Delta.StopReason != "" {
+			resultMeta.FinishReason = a.helper.mapFinishReason(e.Delta.StopReason)
+			hasContent = true
+		}
+		if e.Usage.OutputTokens > 0 {
+			metaUsage = &chat.Usage{
+				CompletionTokens: e.Usage.OutputTokens,
+				OriginalUsage:    e.Usage,
+			}
+			hasContent = true
+		}
+		if e.Delta.StopSequence != "" {
+			resultMeta.Set("stop_sequence", e.Delta.StopSequence)
+		}
+
+	case anthropicsdk.ContentBlockStopEvent, anthropicsdk.MessageStopEvent:
+		// no observable content
+	}
+
+	if !hasContent {
+		return nil, false
+	}
+
+	assistantMsg := chat.NewAssistantMessage(msgParams)
+	result, err := chat.NewResult(assistantMsg, resultMeta)
+	if err != nil {
+		return nil, false
+	}
+	meta := &chat.ResponseMetadata{
+		ID:      a.msgID,
+		Model:   a.msgModel,
+		Created: time.Now().Unix(),
+		Usage:   metaUsage,
+	}
+	resp, err := chat.NewResponse(result, meta)
+	if err != nil {
+		return nil, false
+	}
+	return resp, true
 }
 
 type ChatModelConfig struct {
 	ApiKey         model.ApiKey
 	DefaultOptions *chat.Options
 	RequestOptions []option.RequestOption
+
+	// Metadata overrides the [chat.ModelMetadata] returned by [ChatModel.Metadata].
+	// Facades over this package (zhipu, minimax, moonshot, openrouter,
+	// xiaomi, ...) pass their own Provider here. Zero Provider falls
+	// back to the package default [Provider].
+	Metadata *chat.ModelMetadata
 }
 
 func (c *ChatModelConfig) validate() error {
 	if c == nil {
-		return ErrNilConfig
+		return errors.New("anthropic: config must not be nil")
 	}
 	if c.ApiKey == nil {
-		return ErrMissingApiKey
+		return errors.New("anthropic: ApiKey is required")
 	}
 	if c.DefaultOptions == nil {
-		return ErrMissingDefaultOptions
+		return errors.New("anthropic: DefaultOptions is required")
 	}
 	return nil
 }
@@ -355,6 +515,7 @@ type ChatModel struct {
 	defaultOptions *chat.Options
 	reqHelper      requestHelper
 	respHelper     responseHelper
+	metadata       chat.ModelMetadata
 }
 
 func NewChatModel(cfg *ChatModelConfig) (*ChatModel, error) {
@@ -370,12 +531,17 @@ func NewChatModel(cfg *ChatModelConfig) (*ChatModel, error) {
 		return nil, err
 	}
 
+	info := chat.ModelMetadata{Provider: Provider}
+	if cfg.Metadata != nil {
+		info = *cfg.Metadata
+	}
 	return &ChatModel{
 		api:            api,
 		defaultOptions: cfg.DefaultOptions,
 		reqHelper: requestHelper{
 			cfg.DefaultOptions,
 		},
+		metadata: info,
 	}, nil
 }
 
@@ -404,26 +570,17 @@ func (c *ChatModel) Stream(ctx context.Context, req *chat.Request) iter.Seq2[*ch
 		apiStream := c.api.ChatCompletionStream(ctx, apiReq)
 		defer apiStream.Close()
 
-		acc := anthropicsdk.Message{}
+		// Per-stream chunk accumulator — mirrors OpenAI's per-chunk
+		// fresh [openai.ChatCompletionAccumulator] approach. Each
+		// AddChunk consumes one event and emits ONLY that event's
+		// delta. The upstream [chat.ResponseAccumulator] stitches.
+		acc := c.respHelper.newChunkAccumulator()
 
 		for apiStream.Next() {
-			event := apiStream.Current()
-
-			if err = acc.Accumulate(event); err != nil {
-				yield(nil, err)
-				return
-			}
-
-			if acc.ID == "" {
+			resp, ok := acc.AddChunk(apiStream.Current())
+			if !ok {
 				continue
 			}
-
-			resp, err := c.respHelper.buildChatResponse(apiReq, &acc)
-			if err != nil {
-				yield(nil, err)
-				return
-			}
-
 			if !yield(resp, nil) {
 				return
 			}
@@ -435,12 +592,10 @@ func (c *ChatModel) Stream(ctx context.Context, req *chat.Request) iter.Seq2[*ch
 	}
 }
 
-func (c *ChatModel) DefaultOptions() *chat.Options {
-	return c.defaultOptions
+func (c *ChatModel) DefaultOptions() chat.Options {
+	return *c.defaultOptions
 }
 
-func (c *ChatModel) Info() chat.ModelInfo {
-	return chat.ModelInfo{
-		Provider: Provider,
-	}
+func (c *ChatModel) Metadata() chat.ModelMetadata {
+	return c.metadata
 }

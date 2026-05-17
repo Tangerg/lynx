@@ -2,6 +2,7 @@ package openai
 
 import (
 	"context"
+	"errors"
 	"iter"
 
 	"github.com/openai/openai-go/v3"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/Tangerg/lynx/core/model"
 	"github.com/Tangerg/lynx/core/model/audio/tts"
+	"github.com/Tangerg/lynx/models/internal/options"
 	pkgio "github.com/Tangerg/lynx/pkg/io"
 )
 
@@ -17,17 +19,21 @@ type AudioTTSModelConfig struct {
 	ApiKey         model.ApiKey
 	DefaultOptions *tts.Options
 	RequestOptions []option.RequestOption
+
+	// Metadata overrides the [tts.ModelMetadata] returned by [AudioTTSModel.Metadata].
+	// Zero Provider falls back to [Provider].
+	Metadata *tts.ModelMetadata
 }
 
 func (c *AudioTTSModelConfig) validate() error {
 	if c == nil {
-		return ErrNilConfig
+		return errors.New("openai: config must not be nil")
 	}
 	if c.ApiKey == nil {
-		return ErrMissingApiKey
+		return errors.New("openai: ApiKey is required")
 	}
 	if c.DefaultOptions == nil {
-		return ErrMissingDefaultOptions
+		return errors.New("openai: DefaultOptions is required")
 	}
 	return nil
 }
@@ -37,6 +43,7 @@ var _ tts.Model = (*AudioTTSModel)(nil)
 type AudioTTSModel struct {
 	api            *Api
 	defaultOptions *tts.Options
+	metadata       tts.ModelMetadata
 }
 
 func NewAudioTTSModel(cfg *AudioTTSModelConfig) (*AudioTTSModel, error) {
@@ -52,9 +59,14 @@ func NewAudioTTSModel(cfg *AudioTTSModelConfig) (*AudioTTSModel, error) {
 		return nil, err
 	}
 
+	info := tts.ModelMetadata{Provider: Provider}
+	if cfg.Metadata != nil {
+		info = *cfg.Metadata
+	}
 	return &AudioTTSModel{
 		api:            api,
 		defaultOptions: cfg.DefaultOptions,
+		metadata:           info,
 	}, nil
 }
 
@@ -64,13 +76,22 @@ func (a *AudioTTSModel) buildApiTTSRequest(req *tts.Request) (*openai.AudioSpeec
 		return nil, err
 	}
 
-	params := getOptionsParams[openai.AudioSpeechNewParams](mergedOpts)
+	params := options.GetParams[openai.AudioSpeechNewParams](mergedOpts, OptionsKey)
 
 	params.Model = mergedOpts.Model
 	params.Input = req.Text
-	params.Voice = openai.AudioSpeechNewParamsVoiceUnion{OfString: param.NewOpt(mergedOpts.Voice)}
-	params.Speed = openai.Float(mergedOpts.Speed)
-	params.ResponseFormat = openai.AudioSpeechNewParamsResponseFormat(mergedOpts.ResponseFormat)
+	// Each typed option only overrides Extra-threaded params when set —
+	// empty strings / zero speed would clobber prior choices, and
+	// Speed=0 is outside the API's 0.25–4.0 range.
+	if mergedOpts.Voice != "" {
+		params.Voice = openai.AudioSpeechNewParamsVoiceUnion{OfString: param.NewOpt(mergedOpts.Voice)}
+	}
+	if mergedOpts.Speed != 0 {
+		params.Speed = openai.Float(mergedOpts.Speed)
+	}
+	if mergedOpts.ResponseFormat != "" {
+		params.ResponseFormat = openai.AudioSpeechNewParamsResponseFormat(mergedOpts.ResponseFormat)
+	}
 	params.StreamFormat = openai.AudioSpeechNewParamsStreamFormatAudio
 
 	return params, nil
@@ -81,7 +102,7 @@ func (a *AudioTTSModel) buildTTSResponse(data []byte) (*tts.Response, error) {
 	if err != nil {
 		return nil, err
 	}
-	return tts.NewResponse([]*tts.Result{result}, &tts.ResponseMetadata{})
+	return tts.NewResponse(result, &tts.ResponseMetadata{})
 }
 
 func (a *AudioTTSModel) Call(ctx context.Context, req *tts.Request) (*tts.Response, error) {
@@ -138,12 +159,10 @@ func (a *AudioTTSModel) Stream(ctx context.Context, req *tts.Request) iter.Seq2[
 	}
 }
 
-func (a *AudioTTSModel) DefaultOptions() *tts.Options {
-	return a.defaultOptions
+func (a *AudioTTSModel) DefaultOptions() tts.Options {
+	return *a.defaultOptions
 }
 
-func (a *AudioTTSModel) Info() tts.ModelInfo {
-	return tts.ModelInfo{
-		Provider: Provider,
-	}
+func (a *AudioTTSModel) Metadata() tts.ModelMetadata {
+	return a.metadata
 }

@@ -23,8 +23,8 @@ func newFakeImageModel(t *testing.T) *fakeImageModel {
 	return &fakeImageModel{defaults: o}
 }
 
-func (m *fakeImageModel) DefaultOptions() *image.Options { return m.defaults }
-func (m *fakeImageModel) Info() image.ModelInfo          { return image.ModelInfo{Provider: "fake"} }
+func (m *fakeImageModel) DefaultOptions() image.Options { return *m.defaults }
+func (m *fakeImageModel) Metadata() image.ModelMetadata          { return image.ModelMetadata{Provider: "fake"} }
 
 func (m *fakeImageModel) Call(ctx context.Context, req *image.Request) (*image.Response, error) {
 	m.lastReq = req
@@ -33,7 +33,7 @@ func (m *fakeImageModel) Call(ctx context.Context, req *image.Request) (*image.R
 	}
 	img, _ := image.NewImage("https://example.com/img.png", "")
 	res, _ := image.NewResult(img, &image.ResultMetadata{})
-	resp, _ := image.NewResponse([]*image.Result{res}, &image.ResponseMetadata{})
+	resp, _ := image.NewResponse(res, &image.ResponseMetadata{})
 	return resp, nil
 }
 
@@ -89,28 +89,6 @@ func TestClient_GenerateWithPrompt_ReturnsImage(t *testing.T) {
 	}
 	if model.lastReq.Prompt != "a duck" {
 		t.Fatalf("Prompt = %q", model.lastReq.Prompt)
-	}
-}
-
-func TestClient_Images_ReturnsAll(t *testing.T) {
-	model := newFakeImageModel(t)
-	model.respond = func(*image.Request) (*image.Response, error) {
-		results := []*image.Result{}
-		for range 3 {
-			img, _ := image.NewImage("https://x", "")
-			r, _ := image.NewResult(img, &image.ResultMetadata{})
-			results = append(results, r)
-		}
-		return image.NewResponse(results, &image.ResponseMetadata{})
-	}
-
-	client, _ := image.NewClient(model)
-	got, _, err := client.GenerateWithPrompt("x").Call().Images(context.Background())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(got) != 3 {
-		t.Fatalf("got %d, want 3", len(got))
 	}
 }
 

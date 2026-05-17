@@ -29,9 +29,9 @@ func newFakeEmbeddingModel(t *testing.T) *fakeEmbeddingModel {
 	return &fakeEmbeddingModel{provider: "fake", defaultOpts: defaults}
 }
 
-func (m *fakeEmbeddingModel) DefaultOptions() *embedding.Options { return m.defaultOpts }
-func (m *fakeEmbeddingModel) Info() embedding.ModelInfo {
-	return embedding.ModelInfo{Provider: m.provider}
+func (m *fakeEmbeddingModel) DefaultOptions() embedding.Options { return *m.defaultOpts }
+func (m *fakeEmbeddingModel) Metadata() embedding.ModelMetadata {
+	return embedding.ModelMetadata{Provider: m.provider}
 }
 func (m *fakeEmbeddingModel) Dimensions(_ context.Context) int64 { return 4 }
 

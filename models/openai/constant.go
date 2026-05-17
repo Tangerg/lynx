@@ -1,7 +1,5 @@
 package openai
 
-import "github.com/Tangerg/lynx/models/internal/options"
-
 const (
 	Provider = "OpenAI"
 )
@@ -9,11 +7,3 @@ const (
 const (
 	OptionsKey = "lynx:ai:model:openai_options"
 )
-
-func getOptionsParams[T any](
-	opts interface {
-		Get(key string) (any, bool)
-	},
-) *T {
-	return options.GetParams[T](opts, OptionsKey)
-}

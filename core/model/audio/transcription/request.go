@@ -3,17 +3,47 @@ package transcription
 import (
 	"errors"
 	"maps"
+	"slices"
 
 	"github.com/Tangerg/lynx/core/media"
+	"github.com/Tangerg/lynx/pkg/ptr"
 )
 
 // Options holds per-request configuration for a transcription call.
+// Pointer fields use nil to mean "not set" — providers fall back to
+// their own defaults.
 type Options struct {
 	// Model is the provider model identifier (e.g. "whisper-1").
 	Model string `json:"model"`
 
+	// Language is an ISO-639-1 language code (e.g. "en", "zh") hinting
+	// the spoken language. Empty leaves detection to the provider.
+	// OpenAI / Deepgram / AssemblyAI / Gladia / Rev AI / ElevenLabs all
+	// accept this.
+	Language string `json:"language"`
+
+	// Prompt biases the model toward expected vocabulary or formatting.
+	// On Whisper this is the "previous-context" string used for
+	// terminology hints; provider semantics vary but the field is
+	// almost always called "prompt" or maps onto a vocab-hint field.
+	Prompt string `json:"prompt"`
+
+	// Temperature controls sampling randomness (Whisper / Whisper-large
+	// variants). Range typically 0.0–1.0. nil leaves it to the provider.
+	Temperature *float64 `json:"temperature,omitempty"`
+
+	// ResponseFormat selects the transcript shape. Common values: "json",
+	// "verbose_json", "text", "srt", "vtt". Provider-specific values
+	// pass through verbatim.
+	ResponseFormat string `json:"response_format"`
+
+	// TimestampGranularity selects timestamp resolution. OpenAI accepts
+	// "word" and / or "segment"; other providers may accept "utterance"
+	// etc. Empty leaves the choice to the provider.
+	TimestampGranularity []string `json:"timestamp_granularity,omitzero"`
+
 	// Extra carries provider-specific options unknown to this struct.
-	Extra map[string]any `json:"extra"`
+	Extra map[string]any `json:"extra,omitzero"`
 }
 
 // NewOptions builds Options for the given model id. Returns an error
@@ -53,12 +83,18 @@ func (o *Options) Clone() *Options {
 		return nil
 	}
 	return &Options{
-		Model: o.Model,
-		Extra: maps.Clone(o.Extra),
+		Model:                o.Model,
+		Language:             o.Language,
+		Prompt:               o.Prompt,
+		Temperature:          ptr.Clone(o.Temperature),
+		ResponseFormat:       o.ResponseFormat,
+		TimestampGranularity: slices.Clone(o.TimestampGranularity),
+		Extra:                maps.Clone(o.Extra),
 	}
 }
 
 // MergeOptions clones base then applies each override left-to-right.
+// Scalar non-zero values overwrite; the Extra map merges last-write-wins.
 // Returns an error when base is nil.
 func MergeOptions(base *Options, overrides ...*Options) (*Options, error) {
 	if base == nil {
@@ -70,30 +106,50 @@ func MergeOptions(base *Options, overrides ...*Options) (*Options, error) {
 		if override == nil {
 			continue
 		}
-		if override.Model != "" {
-			merged.Model = override.Model
-		}
-		if len(override.Extra) > 0 {
-			if merged.Extra == nil {
-				merged.Extra = make(map[string]any, len(override.Extra))
-			}
-			maps.Copy(merged.Extra, override.Extra)
-		}
+		applyOverride(merged, override)
 	}
 	return merged, nil
+}
+
+// applyOverride mutates dst in place with the non-zero fields of src.
+func applyOverride(dst, src *Options) {
+	if src.Model != "" {
+		dst.Model = src.Model
+	}
+	if src.Language != "" {
+		dst.Language = src.Language
+	}
+	if src.Prompt != "" {
+		dst.Prompt = src.Prompt
+	}
+	if src.Temperature != nil {
+		dst.Temperature = src.Temperature
+	}
+	if src.ResponseFormat != "" {
+		dst.ResponseFormat = src.ResponseFormat
+	}
+	if len(src.TimestampGranularity) > 0 {
+		dst.TimestampGranularity = slices.Clone(src.TimestampGranularity)
+	}
+	if len(src.Extra) > 0 {
+		if dst.Extra == nil {
+			dst.Extra = make(map[string]any, len(src.Extra))
+		}
+		maps.Copy(dst.Extra, src.Extra)
+	}
 }
 
 // Request is one transcription call: the audio payload, options, and
 // caller-supplied side-channel params.
 type Request struct {
 	// Audio carries the audio bytes (or URL) to transcribe.
-	Audio *media.Media `json:"audio"`
+	Audio *media.Media `json:"audio,omitempty"`
 
 	// Options carries model-specific parameters.
-	Options *Options `json:"options"`
+	Options *Options `json:"options,omitempty"`
 
 	// Params is per-request metadata middlewares can read.
-	Params map[string]any `json:"params"`
+	Params map[string]any `json:"params,omitzero"`
 }
 
 // NewRequest builds a Request from an audio payload. Returns an error

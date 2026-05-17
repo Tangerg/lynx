@@ -188,14 +188,12 @@ func (m *middleware) prepareRequest(ctx context.Context, req *chat.Request) (*ch
 // by the model. AI-generated messages are always new, so no dedup is
 // needed.
 func (m *middleware) saveResponseMessages(ctx context.Context, req *chat.Request, resp *chat.Response) error {
-	var msgs []chat.Message
-	for _, result := range resp.Results {
-		msgs = append(msgs, result.AssistantMessage)
+	if resp.Result == nil {
+		return nil
 	}
-	for _, result := range resp.Results {
-		if result.ToolMessage != nil {
-			msgs = append(msgs, result.ToolMessage)
-		}
+	msgs := []chat.Message{resp.Result.AssistantMessage}
+	if resp.Result.ToolMessage != nil {
+		msgs = append(msgs, resp.Result.ToolMessage)
 	}
 	return m.persistMessages(ctx, req, msgs...)
 }

@@ -47,7 +47,7 @@ type ResultMetadata struct {
 	FinishReason FinishReason `json:"finish_reason"`
 
 	// Extra carries provider-specific metadata.
-	Extra map[string]any `json:"extra"`
+	Extra map[string]any `json:"extra,omitzero"`
 }
 
 // ensureExtra lazily allocates Extra. Used by [ResultMetadata.Set]
@@ -78,14 +78,14 @@ func (m *ResultMetadata) Set(key string, value any) {
 // and (when the assistant called tools) the tool execution results.
 type Result struct {
 	// AssistantMessage is the model's reply.
-	AssistantMessage *AssistantMessage `json:"assistant_message"`
+	AssistantMessage *AssistantMessage `json:"assistant_message,omitempty"`
 
 	// Metadata carries the finish reason and any per-result extras.
-	Metadata *ResultMetadata `json:"metadata"`
+	Metadata *ResultMetadata `json:"metadata,omitempty"`
 
 	// ToolMessage carries tool execution results when the assistant invoked
 	// tools. nil means no tool calls were made.
-	ToolMessage *ToolMessage `json:"tool_message"`
+	ToolMessage *ToolMessage `json:"tool_message,omitempty"`
 }
 
 // NewResult builds a [Result] from a non-nil assistant message and
@@ -123,17 +123,17 @@ type ResponseMetadata struct {
 	Model string `json:"model"`
 
 	// Usage breaks down token consumption.
-	Usage *Usage `json:"usage"`
+	Usage *Usage `json:"usage,omitempty"`
 
 	// RateLimit reports quota state at request time.
-	RateLimit *RateLimit `json:"rate_limit"`
+	RateLimit *RateLimit `json:"rate_limit,omitempty"`
 
 	// Created is the provider-reported response creation time, expressed
 	// as Unix seconds.
 	Created int64 `json:"created"`
 
 	// Extra carries provider-specific metadata.
-	Extra map[string]any `json:"extra"`
+	Extra map[string]any `json:"extra,omitzero"`
 }
 
 // ensureExtra lazily allocates Extra. Used by [ResponseMetadata.Set]
@@ -160,48 +160,34 @@ func (m *ResponseMetadata) Set(key string, value any) {
 	m.Extra[key] = value
 }
 
-// Response is the full chat completion result: every generated alternative
-// (typically one) plus shared response metadata.
+// Response is the full chat completion result: the single generation
+// plus shared response metadata.
+//
+// The chat surface is one-completion-per-call by design. Providers that
+// accept an `n` / `candidateCount` parameter (OpenAI, Google) still return
+// only the first choice through this surface; reach for the underlying SDK
+// when multiple completions are actually needed (see mature frameworks like
+// Spring AI / LangChain — `n` lives on provider-specific options, not the
+// generic chat interface).
 type Response struct {
-	// Results holds one entry per generated alternative.
-	Results []*Result `json:"results"`
+	// Result is the assistant's generation. Non-nil after [NewResponse].
+	Result *Result `json:"result,omitempty"`
 
 	// Metadata carries shared response-level fields (id, model, usage, ...).
-	Metadata *ResponseMetadata `json:"metadata"`
+	Metadata *ResponseMetadata `json:"metadata,omitempty"`
 }
 
-// NewResponse builds a [Response] from at least one result and a non-nil
-// metadata.
-func NewResponse(results []*Result, metadata *ResponseMetadata) (*Response, error) {
-	if len(results) == 0 {
-		return nil, errors.New("chat.NewResponse: at least one Result is required")
+// NewResponse builds a [Response] from a non-nil result and metadata.
+func NewResponse(result *Result, metadata *ResponseMetadata) (*Response, error) {
+	if result == nil {
+		return nil, errors.New("chat.NewResponse: result must not be nil")
 	}
 	if metadata == nil {
 		return nil, errors.New("chat.NewResponse: metadata must not be nil")
 	}
 
 	return &Response{
-		Results:  results,
+		Result:   result,
 		Metadata: metadata,
 	}, nil
-}
-
-// Result returns the first generation alternative — the common
-// "give me the answer" shortcut. Returns nil when Results is empty.
-func (r *Response) Result() *Result {
-	if len(r.Results) == 0 {
-		return nil
-	}
-	return r.Results[0]
-}
-
-// findFirstResultWithToolCalls returns the first Result whose assistant
-// message issued tool calls, or nil if none did.
-func (r *Response) findFirstResultWithToolCalls() *Result {
-	for _, result := range r.Results {
-		if result.AssistantMessage.HasToolCalls() {
-			return result
-		}
-	}
-	return nil
 }

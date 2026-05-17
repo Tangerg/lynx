@@ -12,16 +12,16 @@ import (
 type Response struct {
 	// Pass is the binary verdict: did the response satisfy this
 	// evaluator's criteria.
-	Pass bool
+	Pass bool `json:"pass"`
 
 	// Score is the continuous score, conventionally in [0, 1].
-	Score float64
+	Score float64 `json:"score"`
 
 	// Feedback is human-readable rationale.
-	Feedback string
+	Feedback string `json:"feedback,omitempty"`
 
 	// Metadata carries arbitrary per-evaluation extras.
-	Metadata map[string]any
+	Metadata map[string]any `json:"metadata,omitzero"`
 }
 
 // ensureMetadata lazily allocates Metadata. Used by [Response.Set]
