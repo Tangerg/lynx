@@ -13,7 +13,9 @@ import (
 )
 
 type ApiConfig struct {
-	ApiKey         model.ApiKey
+	ApiKey  model.ApiKey
+	BaseURL string
+
 	RequestOptions []cohereoption.RequestOption
 }
 
@@ -43,11 +45,11 @@ func NewApi(cfg *ApiConfig) (*Api, error) {
 	}
 
 	// v2 client takes a core.RequestOptions struct (not functional
-	// options). Build one with our token; callers wanting custom
-	// HTTPClient / BaseURL should reach for the [cohereclientv2.NewClient]
-	// directly in a follow-up.
+	// options). Build one with our token + caller-supplied BaseURL.
+	// Per-call options can still be passed at Embed time.
 	reqOpts := &core.RequestOptions{
-		Token: cfg.ApiKey.Get(),
+		Token:   cfg.ApiKey.Get(),
+		BaseURL: cfg.BaseURL,
 	}
 
 	return &Api{v2: cohereclientv2.NewClient(reqOpts)}, nil

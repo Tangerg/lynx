@@ -17,6 +17,7 @@ import (
 type EmbeddingModelConfig struct {
 	ApiKey         model.ApiKey
 	DefaultOptions *embedding.Options
+	BaseURL        string
 }
 
 func (c *EmbeddingModelConfig) validate() error {
@@ -50,7 +51,7 @@ func NewEmbeddingModel(cfg *EmbeddingModelConfig) (*EmbeddingModel, error) {
 		return nil, err
 	}
 
-	api, err := NewApi(&ApiConfig{ApiKey: cfg.ApiKey})
+	api, err := NewApi(&ApiConfig{ApiKey: cfg.ApiKey, BaseURL: cfg.BaseURL})
 	if err != nil {
 		return nil, err
 	}
