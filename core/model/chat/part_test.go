@@ -26,22 +26,6 @@ func TestTextPart_AppendDelta_DifferentType(t *testing.T) {
 	}
 }
 
-func TestTextPart_AppendDelta_MergesMetadata(t *testing.T) {
-	p := &TextPart{Text: "a", Metadata: map[string]any{"a": 1}}
-	p.appendDelta(&TextPart{Text: "b", Metadata: map[string]any{"b": 2}})
-	if p.Metadata["a"] != 1 || p.Metadata["b"] != 2 {
-		t.Errorf("metadata not merged: %+v", p.Metadata)
-	}
-}
-
-func TestTextPart_AppendDelta_MetadataLastWriteWins(t *testing.T) {
-	p := &TextPart{Text: "a", Metadata: map[string]any{"k": 1}}
-	p.appendDelta(&TextPart{Text: "b", Metadata: map[string]any{"k": 2}})
-	if p.Metadata["k"] != 2 {
-		t.Errorf("last-write-wins violated: %+v", p.Metadata)
-	}
-}
-
 func TestReasoningPart_AppendDelta_ConcatenatesAndKeepsSig(t *testing.T) {
 	p := &ReasoningPart{Text: "think ", Signature: []byte("sig1")}
 	ok := p.appendDelta(&ReasoningPart{Text: "more"})

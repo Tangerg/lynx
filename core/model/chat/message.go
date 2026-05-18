@@ -149,47 +149,28 @@ func (a *AssistantMessage) Meta() map[string]any {
 
 // TextParts iterates the [TextPart]s in this message, in order.
 func (a *AssistantMessage) TextParts() iter.Seq[*TextPart] {
-	return func(yield func(*TextPart) bool) {
-		if a == nil {
-			return
-		}
-		for _, p := range a.Parts {
-			if tp, ok := p.(*TextPart); ok {
-				if !yield(tp) {
-					return
-				}
-			}
-		}
-	}
+	return partsOf[*TextPart](a)
 }
 
 // ReasoningParts iterates the [ReasoningPart]s in this message, in order.
 func (a *AssistantMessage) ReasoningParts() iter.Seq[*ReasoningPart] {
-	return func(yield func(*ReasoningPart) bool) {
-		if a == nil {
-			return
-		}
-		for _, p := range a.Parts {
-			if rp, ok := p.(*ReasoningPart); ok {
-				if !yield(rp) {
-					return
-				}
-			}
-		}
-	}
+	return partsOf[*ReasoningPart](a)
 }
 
 // ToolCalls iterates the [ToolCallPart]s in this message, in order.
 func (a *AssistantMessage) ToolCalls() iter.Seq[*ToolCallPart] {
-	return func(yield func(*ToolCallPart) bool) {
+	return partsOf[*ToolCallPart](a)
+}
+
+// partsOf yields the parts assignable to T, in order. Nil-receiver safe.
+func partsOf[T OutputPart](a *AssistantMessage) iter.Seq[T] {
+	return func(yield func(T) bool) {
 		if a == nil {
 			return
 		}
 		for _, p := range a.Parts {
-			if tc, ok := p.(*ToolCallPart); ok {
-				if !yield(tc) {
-					return
-				}
+			if tp, ok := p.(T); ok && !yield(tp) {
+				return
 			}
 		}
 	}
@@ -206,25 +187,21 @@ func (a *AssistantMessage) CollectToolCalls() []*ToolCallPart {
 // separator). Use when downstream just needs "the final string the
 // user sees".
 func (a *AssistantMessage) JoinedText() string {
-	if a == nil {
-		return ""
-	}
-	var b strings.Builder
-	for tp := range a.TextParts() {
-		b.WriteString(tp.Text)
-	}
-	return b.String()
+	return joinTexts(a.TextParts(), func(p *TextPart) string { return p.Text })
 }
 
 // JoinedReasoning concatenates the text bodies of every
 // [ReasoningPart] (no separator).
 func (a *AssistantMessage) JoinedReasoning() string {
-	if a == nil {
-		return ""
-	}
+	return joinTexts(a.ReasoningParts(), func(p *ReasoningPart) string { return p.Text })
+}
+
+// joinTexts concatenates each part's text body (extracted by getText)
+// into a single string without separators.
+func joinTexts[T any](seq iter.Seq[T], getText func(T) string) string {
 	var b strings.Builder
-	for rp := range a.ReasoningParts() {
-		b.WriteString(rp.Text)
+	for p := range seq {
+		b.WriteString(getText(p))
 	}
 	return b.String()
 }
@@ -234,25 +211,21 @@ func (a *AssistantMessage) HasToolCalls() bool {
 	if a == nil {
 		return false
 	}
-	for _, p := range a.Parts {
-		if _, ok := p.(*ToolCallPart); ok {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(a.Parts, func(p OutputPart) bool {
+		_, ok := p.(*ToolCallPart)
+		return ok
+	})
 }
 
-// HasReasoning reports whether the message carries any reasoning text.
+// HasReasoning reports whether the message carries any non-empty reasoning text.
 func (a *AssistantMessage) HasReasoning() bool {
 	if a == nil {
 		return false
 	}
-	for _, p := range a.Parts {
-		if rp, ok := p.(*ReasoningPart); ok && rp.Text != "" {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(a.Parts, func(p OutputPart) bool {
+		rp, ok := p.(*ReasoningPart)
+		return ok && rp.Text != ""
+	})
 }
 
 // NewAssistantMessage builds an [AssistantMessage] from one of the
@@ -272,9 +245,6 @@ func NewAssistantMessage[T string | []OutputPart | []*ToolCallPart | map[string]
 	}
 
 	parts := params.Parts
-	if parts == nil {
-		parts = make([]OutputPart, 0)
-	}
 	// MessageParams.Text — when supplied alongside Parts, gets emitted
 	// as a trailing TextPart. When the only input is a string, the
 	// switch in paramsFromAssistantInput already set Parts directly.
@@ -300,11 +270,7 @@ func paramsFromAssistantInput[T string | []OutputPart | []*ToolCallPart | map[st
 	case []OutputPart:
 		out.Parts = typed
 	case []*ToolCallPart:
-		parts := make([]OutputPart, 0, len(typed))
-		for _, tc := range typed {
-			parts = append(parts, tc)
-		}
-		out.Parts = parts
+		out.Parts = pkgSlices.Map(typed, func(tc *ToolCallPart) OutputPart { return tc })
 	case map[string]any:
 		out.Metadata = typed
 	case MessageParams:
@@ -317,11 +283,12 @@ func paramsFromAssistantInput[T string | []OutputPart | []*ToolCallPart | map[st
 // Text and Parts are passed via MessageParams and Parts ends with the
 // same string.
 func textAlreadyInParts(parts []OutputPart, text string) bool {
-	if len(parts) == 0 {
+	last, ok := pkgSlices.Last(parts)
+	if !ok {
 		return false
 	}
-	last, ok := parts[len(parts)-1].(*TextPart)
-	return ok && last.Text == text
+	tp, isText := last.(*TextPart)
+	return isText && tp.Text == text
 }
 
 // SystemMessage shapes the model's behavior for the whole conversation —
@@ -355,11 +322,6 @@ func NewSystemMessage[T string | MessageParams](param T) *SystemMessage {
 	case MessageParams:
 		params = typed
 	}
-
-	if params.Metadata == nil {
-		params.Metadata = make(map[string]any)
-	}
-
 	return &SystemMessage{
 		Text:     params.Text,
 		Metadata: params.Metadata,
@@ -405,10 +367,6 @@ func NewUserMessage[T string | []*media.Media | MessageParams](param T) *UserMes
 	if params.Media == nil {
 		params.Media = make([]*media.Media, 0)
 	}
-	if params.Metadata == nil {
-		params.Metadata = make(map[string]any)
-	}
-
 	return &UserMessage{
 		Text:     params.Text,
 		Media:    params.Media,
@@ -451,11 +409,6 @@ func NewToolMessage[T []*ToolReturn | MessageParams](param T) (*ToolMessage, err
 	if len(params.ToolReturns) == 0 {
 		return nil, errors.New("chat.NewToolMessage: at least one ToolReturn is required")
 	}
-
-	if params.Metadata == nil {
-		params.Metadata = make(map[string]any)
-	}
-
 	return &ToolMessage{
 		ToolReturns: params.ToolReturns,
 		Metadata:    params.Metadata,
