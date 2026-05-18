@@ -77,7 +77,7 @@ func TestMergeOptions_RejectsNilBase(t *testing.T) {
 	}
 }
 
-func TestMergeOptions_OverridesScalarsAppendsSlices(t *testing.T) {
+func TestMergeOptions_OverridesScalarsAndStop(t *testing.T) {
 	t1 := 0.3
 	t2 := 0.9
 
@@ -94,8 +94,26 @@ func TestMergeOptions_OverridesScalarsAppendsSlices(t *testing.T) {
 	if *merged.Temperature != 0.9 {
 		t.Fatalf("Temperature = %v, want 0.9", *merged.Temperature)
 	}
-	if got := strings.Join(merged.Stop, ","); got != "a,b,c" {
-		t.Fatalf("Stop = %q, want a,b,c (slices append)", got)
+	// Stop is replaced, not appended — consistent with every other
+	// scalar field overriding on non-zero, and the only way to keep
+	// MergeOptions idempotent (see TestMergeOptions_StopIsIdempotent).
+	if got := strings.Join(merged.Stop, ","); got != "b,c" {
+		t.Fatalf("Stop = %q, want b,c (override replaces)", got)
+	}
+}
+
+// TestMergeOptions_StopIsIdempotent pins the contract that applying the
+// same override repeatedly never multiplies stop sequences. Catches the
+// historical append-instead-of-replace bug.
+func TestMergeOptions_StopIsIdempotent(t *testing.T) {
+	base := &chat.Options{Stop: []string{"a"}}
+	override := &chat.Options{Stop: []string{"b"}}
+
+	once, _ := chat.MergeOptions(base, override)
+	thrice, _ := chat.MergeOptions(base, override, override, override)
+
+	if strings.Join(once.Stop, ",") != strings.Join(thrice.Stop, ",") {
+		t.Fatalf("merge not idempotent: once=%v thrice=%v", once.Stop, thrice.Stop)
 	}
 }
 

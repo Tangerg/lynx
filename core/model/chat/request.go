@@ -155,7 +155,11 @@ func applyOverride(dst, src *Options) {
 		dst.PresencePenalty = src.PresencePenalty
 	}
 	if len(src.Stop) > 0 {
-		dst.Stop = append(dst.Stop, src.Stop...)
+		// Replace, not append: every other scalar field overrides on
+		// non-zero, and appending makes MergeOptions non-idempotent —
+		// merging the same override N times would multiply stop
+		// sequences. Clone so callers can mutate either slice safely.
+		dst.Stop = slices.Clone(src.Stop)
 	}
 	if src.Temperature != nil {
 		dst.Temperature = src.Temperature

@@ -43,6 +43,36 @@ func TestSha256Generator_SaltSeparatesStreams(t *testing.T) {
 	}
 }
 
+// TestSha256Generator_SaltMixedIntoDigest pins the salt-is-actually-mixed
+// contract: two different salts must produce digests that differ in
+// their hash bytes, not merely in a prefix appended to the hex output.
+// Catches the historical Sum(salt) bug.
+func TestSha256Generator_SaltMixedIntoDigest(t *testing.T) {
+	a := id.NewSha256Generator([]byte("tenant-A"))
+	b := id.NewSha256Generator([]byte("tenant-B"))
+
+	digestA, _ := a.Generate(context.Background(), "doc")
+	digestB, _ := b.Generate(context.Background(), "doc")
+
+	if digestA == digestB {
+		t.Fatal("different salts must produce different digests")
+	}
+	if len(digestA) != 64 || len(digestB) != 64 {
+		t.Fatalf("digest length = (%d, %d), want 64 each (SHA-256 hex)", len(digestA), len(digestB))
+	}
+}
+
+// TestSha256Generator_MarshalErrorPropagates ensures un-marshalable
+// inputs (channels / funcs) surface an error rather than being silently
+// skipped — silent skips would collide distinct inputs onto the same id.
+func TestSha256Generator_MarshalErrorPropagates(t *testing.T) {
+	gen := id.NewSha256Generator(nil)
+	_, err := gen.Generate(context.Background(), make(chan int))
+	if err == nil {
+		t.Fatal("expected error for un-marshalable input, got nil")
+	}
+}
+
 func TestSha256Generator_EmptyInput(t *testing.T) {
 	gen := id.NewSha256Generator(nil)
 	got, err := gen.Generate(context.Background())

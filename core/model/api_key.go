@@ -1,6 +1,7 @@
 package model
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 )
@@ -59,6 +60,14 @@ func (k *staticApiKey) Get() string {
 // "%v" or "%s" formatting.
 func (k *staticApiKey) String() string {
 	return k.maskedView
+}
+
+// MarshalJSON emits the masked representation so the secret cannot
+// leak through a structured logger / config dumper that JSON-encodes
+// a containing struct. Stringer alone is bypassed by json.Marshal,
+// which inspects unexported fields directly.
+func (k *staticApiKey) MarshalJSON() ([]byte, error) {
+	return json.Marshal(k.maskedView)
 }
 
 // maskApiKey renders a credential as "api_key=<masked>" without revealing
