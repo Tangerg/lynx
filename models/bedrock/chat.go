@@ -120,21 +120,32 @@ func buildMessages(msgs []chat.Message) ([]types.SystemContentBlock, []types.Mes
 			}
 		case *chat.AssistantMessage:
 			blocks := []types.ContentBlock{}
-			if m.Text != "" {
-				blocks = append(blocks, &types.ContentBlockMemberText{Value: m.Text})
-			}
-			for _, tc := range m.ToolCalls {
-				var input map[string]any
-				if tc.Arguments != "" {
-					_ = json.Unmarshal([]byte(tc.Arguments), &input)
+			// Bedrock Converse preserves ContentBlock ordering — map
+			// Parts 1:1 in emission order.
+			for _, p := range m.Parts {
+				switch tp := p.(type) {
+				case *chat.TextPart:
+					if tp.Text != "" {
+						blocks = append(blocks, &types.ContentBlockMemberText{Value: tp.Text})
+					}
+				case *chat.ToolCallPart:
+					var input map[string]any
+					if tp.Arguments != "" {
+						_ = json.Unmarshal([]byte(tp.Arguments), &input)
+					}
+					blocks = append(blocks, &types.ContentBlockMemberToolUse{
+						Value: types.ToolUseBlock{
+							ToolUseId: aws.String(tp.ID),
+							Name:      aws.String(tp.Name),
+							Input:     toDocument(input),
+						},
+					})
 				}
-				blocks = append(blocks, &types.ContentBlockMemberToolUse{
-					Value: types.ToolUseBlock{
-						ToolUseId: aws.String(tc.ID),
-						Name:      aws.String(tc.Name),
-						Input:     toDocument(input),
-					},
-				})
+				// ReasoningPart: Bedrock Converse exposes thinking via a
+				// separate "reasoning_content" block type that isn't
+				// surfaced by the current Go SDK types in use here. Skip
+				// for now — round-trip works via Metadata for the rare
+				// case where a vendor preserves reasoning continuation.
 			}
 			if len(blocks) > 0 {
 				out = append(out, types.Message{
@@ -191,10 +202,12 @@ func (c *ChatModel) buildResponse(out *bedrockruntime.ConverseOutput) (*chat.Res
 	}
 
 	msgParams := chat.MessageParams{Metadata: make(map[string]any)}
+	// Bedrock Converse preserves block order in the response — build
+	// Parts in the same order as the wire.
 	for _, block := range msgOut.Value.Content {
 		switch b := block.(type) {
 		case *types.ContentBlockMemberText:
-			msgParams.Text += b.Value
+			msgParams.Parts = append(msgParams.Parts, &chat.TextPart{Text: b.Value})
 		case *types.ContentBlockMemberToolUse:
 			argsBytes, _ := json.Marshal(b.Value.Input)
 			id := ""
@@ -205,10 +218,11 @@ func (c *ChatModel) buildResponse(out *bedrockruntime.ConverseOutput) (*chat.Res
 			if b.Value.Name != nil {
 				name = *b.Value.Name
 			}
-			msgParams.ToolCalls = append(msgParams.ToolCalls, &chat.ToolCall{
+			msgParams.Parts = append(msgParams.Parts, &chat.ToolCallPart{
 				ID:        id,
 				Name:      name,
 				Arguments: string(argsBytes),
+				State:     chat.ToolCallStateInputComplete,
 			})
 		}
 	}
@@ -274,21 +288,19 @@ func (c *ChatModel) Call(ctx context.Context, req *chat.Request) (*chat.Response
 // [chat.ResponseAccumulator] stitches deltas together.
 //
 // Bedrock doesn't ship an SDK accumulator, so we write our own. The
-// only cross-event state needed is the tool-slot routing:
+// only cross-event state needed is tool-call ID routing:
 //
-//   - blockToToolSlot: maps Bedrock's content_block_index → the dense
-//     [chat.AssistantMessage].ToolCalls slot expected by
-//     [chat.ResponseAccumulator]. Bedrock interleaves text / tool_use
-//     content blocks; only tool_use consumes a slot.
+//   - blockToToolID: maps Bedrock's content_block_index → the
+//     ToolCallPart.ID assigned at start time, so subsequent
+//     input-delta events can attach to the right tool call.
 type chunkAccumulator struct {
-	blockToToolSlot map[int64]int
-	nextToolSlot    int
+	blockToToolID map[int64]string
 }
 
 // newChunkAccumulator returns an empty accumulator. Call
 // [chunkAccumulator.AddChunk] for each event in order.
 func newChunkAccumulator() *chunkAccumulator {
-	return &chunkAccumulator{blockToToolSlot: map[int64]int{}}
+	return &chunkAccumulator{blockToToolID: map[int64]string{}}
 }
 
 // AddChunk converts one Converse stream event into a per-event delta
@@ -306,21 +318,21 @@ func (a *chunkAccumulator) AddChunk(evt types.ConverseStreamOutput) (*chat.Respo
 		if !ok {
 			break
 		}
-		slot := a.nextToolSlot
-		a.nextToolSlot++
-		if e.Value.ContentBlockIndex != nil {
-			a.blockToToolSlot[int64(*e.Value.ContentBlockIndex)] = slot
-		}
-		tc := &chat.ToolCall{}
+		id, name := "", ""
 		if tu.Value.ToolUseId != nil {
-			tc.ID = *tu.Value.ToolUseId
+			id = *tu.Value.ToolUseId
 		}
 		if tu.Value.Name != nil {
-			tc.Name = *tu.Value.Name
+			name = *tu.Value.Name
 		}
-		tools := make([]*chat.ToolCall, slot+1)
-		tools[slot] = tc
-		msgParams.ToolCalls = tools
+		if e.Value.ContentBlockIndex != nil {
+			a.blockToToolID[int64(*e.Value.ContentBlockIndex)] = id
+		}
+		msgParams.Parts = []chat.OutputPart{&chat.ToolCallPart{
+			ID:    id,
+			Name:  name,
+			State: chat.ToolCallStateInputStreaming,
+		}}
 		hasContent = true
 
 	case *types.ConverseStreamOutputMemberContentBlockDelta:
@@ -329,21 +341,21 @@ func (a *chunkAccumulator) AddChunk(evt types.ConverseStreamOutput) (*chat.Respo
 			if d.Value == "" {
 				break
 			}
-			msgParams.Text = d.Value
+			msgParams.Parts = []chat.OutputPart{&chat.TextPart{Text: d.Value}}
 			hasContent = true
 		case *types.ContentBlockDeltaMemberToolUse:
 			if d.Value.Input == nil || *d.Value.Input == "" {
 				break
 			}
-			slot := 0
+			id := ""
 			if e.Value.ContentBlockIndex != nil {
-				if s, ok := a.blockToToolSlot[int64(*e.Value.ContentBlockIndex)]; ok {
-					slot = s
-				}
+				id = a.blockToToolID[int64(*e.Value.ContentBlockIndex)]
 			}
-			tools := make([]*chat.ToolCall, slot+1)
-			tools[slot] = &chat.ToolCall{Arguments: *d.Value.Input}
-			msgParams.ToolCalls = tools
+			msgParams.Parts = []chat.OutputPart{&chat.ToolCallPart{
+				ID:        id,
+				Arguments: *d.Value.Input,
+				State:     chat.ToolCallStateInputStreaming,
+			}}
 			hasContent = true
 		}
 

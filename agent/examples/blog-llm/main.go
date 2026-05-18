@@ -180,7 +180,7 @@ func responseWithText(text string) *chat.Response {
 }
 
 func responseWithToolCall(args string) *chat.Response {
-	calls := []*chat.ToolCall{
+	calls := []*chat.ToolCallPart{
 		{ID: "call_1", Name: "research_search", Arguments: args},
 	}
 	resp, _ := chat.NewResponse(

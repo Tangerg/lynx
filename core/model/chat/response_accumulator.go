@@ -74,15 +74,12 @@ func (r *ResponseAccumulator) accumulateResult(other *Result) {
 	r.Result.ToolMessage = r.accumulateToolMessage(r.Result.ToolMessage, other.ToolMessage)
 }
 
-// accumulateAssistantMessage merges streaming deltas:
-//   - Text and Reasoning concatenate ("Hello" + " world" → "Hello world").
-//     Reasoning covers visible chain-of-thought (DeepSeek-R1, Anthropic
-//     thinking_delta, Gemini thoughts).
-//   - Each ToolCall's ID/Name/Arguments concatenate so providers can split
-//     long arguments across chunks.
-//   - Metadata merges last-write-wins. Provider continuation tokens
-//     (signature, redacted thinking) usually arrive in a single final
-//     chunk, so overwriting is correct.
+// accumulateAssistantMessage merges streaming deltas at the Part level.
+// Each incoming AssistantMessage carries one or more delta Parts; the
+// part-level Accumulator handles same-type runs (TextPart text
+// concatenates; ToolCallPart args concatenate when the ID matches) and
+// flushes on type or identity changes. Metadata merges last-write-wins
+// at the message level.
 func (r *ResponseAccumulator) accumulateAssistantMessage(msg, other *AssistantMessage) *AssistantMessage {
 	if other == nil {
 		return msg
@@ -91,21 +88,16 @@ func (r *ResponseAccumulator) accumulateAssistantMessage(msg, other *AssistantMe
 		msg = &AssistantMessage{}
 	}
 
-	msg.Text += other.Text
-	msg.Reasoning += other.Reasoning
-
-	if len(other.ToolCalls) > 0 {
-		msg.ToolCalls = pkgSlices.EnsureIndex(msg.ToolCalls, len(other.ToolCalls)-1)
-		for index, delta := range other.ToolCalls {
-			tc := msg.ToolCalls[index]
-			if tc == nil {
-				tc = &ToolCall{}
-				msg.ToolCalls[index] = tc
-			}
-			tc.ID += delta.ID
-			tc.Name += delta.Name
-			tc.Arguments += delta.Arguments
-		}
+	if len(other.Parts) > 0 {
+		// Seed a part-level Accumulator with the parts gathered so far,
+		// feed the new deltas through it, and rebuild Parts. Re-seeding
+		// keeps the contract that already-flushed parts remain stable
+		// (a finalized TextPart at index 3 does not grow when a NEW
+		// trailing TextPart arrives at index 4).
+		var acc Accumulator
+		acc.AddAll(msg.Parts)
+		acc.AddAll(other.Parts)
+		msg.Parts = acc.Build()
 	}
 
 	maps.Copy(msg.Meta(), other.Metadata)

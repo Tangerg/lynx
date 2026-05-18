@@ -282,7 +282,12 @@ func responseWithToolCall(t *testing.T, name, args string) *chat.Response {
 	resp, err := chat.NewResponse(
 		&chat.Result{
 			AssistantMessage: chat.NewAssistantMessage(chat.MessageParams{
-				ToolCalls: []*chat.ToolCall{{ID: "call_1", Name: name, Arguments: args}},
+				Parts: []chat.OutputPart{&chat.ToolCallPart{
+					ID:        "call_1",
+					Name:      name,
+					Arguments: args,
+					State:     chat.ToolCallStateInputComplete,
+				}},
 			}),
 			Metadata: &chat.ResultMetadata{FinishReason: chat.FinishReasonToolCalls},
 		},

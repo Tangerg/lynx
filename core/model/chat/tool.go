@@ -231,7 +231,7 @@ type ToolInvocationResult struct {
 	response          *Response
 	toolMessage       *ToolMessage
 	allReturnDirect   bool
-	externalToolCalls []*ToolCall
+	externalToolCalls []*ToolCallPart
 }
 
 // ShouldContinue reports whether the runtime should re-prompt the LLM
@@ -308,11 +308,20 @@ func (r *ToolInvocationResult) BuildReturnResponse() (*Response, error) {
 	}
 	original := withCalls.AssistantMessage
 
+	// Rebuild Parts: preserve original text/reasoning parts but
+	// replace tool-call parts with the externally-pending subset.
+	rebuilt := make([]OutputPart, 0, len(original.Parts))
+	for _, p := range original.Parts {
+		if _, isCall := p.(*ToolCallPart); !isCall {
+			rebuilt = append(rebuilt, p)
+		}
+	}
+	for _, ext := range r.externalToolCalls {
+		rebuilt = append(rebuilt, ext)
+	}
 	modified := NewAssistantMessage(MessageParams{
-		Text:      original.Text,
-		Media:     original.Media,
-		ToolCalls: r.externalToolCalls,
-		Metadata:  original.Metadata,
+		Parts:    rebuilt,
+		Metadata: original.Metadata,
 	})
 
 	result, err := NewResult(modified, withCalls.Metadata)
@@ -359,7 +368,7 @@ func (i *toolCallInvoker) canInvokeToolCalls(resp *Response) (bool, error) {
 		return false, nil
 	}
 
-	for _, call := range resp.Result.AssistantMessage.ToolCalls {
+	for call := range resp.Result.AssistantMessage.ToolCalls() {
 		if _, exists := i.registry.Find(call.Name); !exists {
 			return false, fmt.Errorf("chat.toolCallInvoker.canInvokeToolCalls: tool %q not registered", call.Name)
 		}
@@ -369,9 +378,9 @@ func (i *toolCallInvoker) canInvokeToolCalls(resp *Response) (bool, error) {
 
 // invokeToolCalls runs the inline tools in order and collects the
 // external ones into a separate slice for the host to handle.
-func (i *toolCallInvoker) invokeToolCalls(ctx context.Context, calls []*ToolCall) (*ToolInvocationResult, error) {
+func (i *toolCallInvoker) invokeToolCalls(ctx context.Context, calls []*ToolCallPart) (*ToolInvocationResult, error) {
 	var (
-		external        []*ToolCall
+		external        []*ToolCallPart
 		allReturnDirect = true
 		internal        []*ToolReturn
 	)
@@ -427,7 +436,7 @@ func (i *toolCallInvoker) invoke(ctx context.Context, req *Request, resp *Respon
 		return nil, errors.New("chat.toolCallInvoker.invoke: response has no valid tool calls")
 	}
 
-	result, err := i.invokeToolCalls(ctx, resp.Result.AssistantMessage.ToolCalls)
+	result, err := i.invokeToolCalls(ctx, resp.Result.AssistantMessage.CollectToolCalls())
 	if err != nil {
 		return nil, err
 	}

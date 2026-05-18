@@ -89,8 +89,8 @@ func TestChatModel_Call_Mock(t *testing.T) {
 	if seenBodyModel != "gpt-4o" {
 		t.Errorf("body model = %q; want gpt-4o", seenBodyModel)
 	}
-	if resp.Result.AssistantMessage.Text != "hello world" {
-		t.Errorf("assistant text = %q; want %q", resp.Result.AssistantMessage.Text, "hello world")
+	if resp.Result.AssistantMessage.JoinedText() != "hello world" {
+		t.Errorf("assistant text = %q; want %q", resp.Result.AssistantMessage.JoinedText(), "hello world")
 	}
 	if resp.Metadata.Usage.PromptTokens != 5 || resp.Metadata.Usage.CompletionTokens != 2 {
 		t.Errorf("usage = %+v; want 5/2", resp.Metadata.Usage)
@@ -124,7 +124,7 @@ func TestChatModel_Stream_Mock(t *testing.T) {
 	var pieces []string
 	for _, r := range resps {
 		if r.Result != nil && r.Result.AssistantMessage != nil {
-			pieces = append(pieces, r.Result.AssistantMessage.Text)
+			pieces = append(pieces, r.Result.AssistantMessage.JoinedText())
 		}
 	}
 	got := strings.Join(pieces, "")

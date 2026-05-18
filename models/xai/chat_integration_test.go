@@ -47,11 +47,11 @@ func TestChatModel_Call_Integration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}
-	if resp.Result.AssistantMessage.Text == "" {
+	if resp.Result.AssistantMessage.JoinedText() == "" {
 		t.Fatal("empty assistant text")
 	}
-	if !strings.Contains(strings.ToLower(resp.Result.AssistantMessage.Text), "pong") {
-		t.Logf("note: model returned %q", resp.Result.AssistantMessage.Text)
+	if !strings.Contains(strings.ToLower(resp.Result.AssistantMessage.JoinedText()), "pong") {
+		t.Logf("note: model returned %q", resp.Result.AssistantMessage.JoinedText())
 	}
 }
 

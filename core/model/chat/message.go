@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"iter"
 	"maps"
 	"slices"
 	"strings"
@@ -25,8 +26,8 @@ const (
 	// MessageTypeUser is one user turn — a question, prompt, or input.
 	MessageTypeUser MessageType = "user"
 
-	// MessageTypeAssistant is one model reply — text, optional media, and
-	// optional tool-call requests.
+	// MessageTypeAssistant is one model reply — text / reasoning / tool-call
+	// requests, all carried as ordered [OutputPart]s.
 	MessageTypeAssistant MessageType = "assistant"
 
 	// MessageTypeTool carries the results of executing tool calls the
@@ -57,26 +58,13 @@ type Message interface {
 	message()
 }
 
-// ToolCall is one function-call request the assistant emitted. The
-// JSON-encoded Arguments are passed through verbatim — the tool runtime
-// is responsible for parsing them against the tool's input schema.
-type ToolCall struct {
-	// ID uniquely identifies this call so a later ToolReturn can match.
-	ID string `json:"id"`
-
-	// Name selects which tool to invoke.
-	Name string `json:"name"`
-
-	// Arguments is the JSON-encoded argument object.
-	Arguments string `json:"arguments"`
-}
-
-// ToolReturn is the result of executing one [ToolCall], correlated by ID.
+// ToolReturn is the result of executing one tool call, correlated by ID
+// back to a [ToolCallPart] from the previous assistant turn.
 type ToolReturn struct {
-	// ID matches the originating ToolCall.ID.
+	// ID matches the originating ToolCallPart.ID.
 	ID string `json:"id"`
 
-	// Name is the executed tool's name (mirrors ToolCall.Name).
+	// Name is the executed tool's name (mirrors ToolCallPart.Name).
 	Name string `json:"name"`
 
 	// Result is the tool's textual output.
@@ -85,31 +73,31 @@ type ToolReturn struct {
 
 // MessageParams is the universal constructor input — the message-type
 // constructors below pick the fields they care about. It is ALSO the
-// canonical wire shape: every [Message] implementation marshals to
-// and unmarshals from MessageParams JSON, with [MessageParams.Type]
-// acting as the discriminator. Use it directly when you need full
-// control; otherwise the typed shortcuts (string, []*media.Media, ...)
-// are usually enough.
+// canonical wire shape: every [Message] implementation marshals to and
+// unmarshals from MessageParams JSON, with [MessageParams.Type] acting
+// as the discriminator. Use it directly when you need full control;
+// otherwise the typed shortcuts (string, []*media.Media, ...) are
+// usually enough.
 type MessageParams struct {
 	// Type selects which message constructor [NewMessage] dispatches to,
 	// and discriminates the role on the wire.
 	Type MessageType `json:"type"`
 
-	// Text is the textual body.
+	// Text is the textual body. Used by system / user messages; for
+	// assistant messages it is converted to a single [TextPart].
 	Text string `json:"text,omitempty"`
 
-	// Reasoning is the visible chain-of-thought, populated only by
-	// reasoning-style assistants.
-	Reasoning string `json:"reasoning,omitempty"`
+	// Parts is the ordered content list — used by assistant messages.
+	// When both Text and Parts are supplied for an assistant message,
+	// Text is appended after Parts as a trailing TextPart.
+	Parts []OutputPart `json:"parts,omitzero"`
 
 	// Metadata holds arbitrary per-message extras.
 	Metadata map[string]any `json:"metadata,omitzero"`
 
-	// Media holds attachments (images, documents, audio).
+	// Media holds attachments (images, documents, audio) — used by user
+	// messages.
 	Media []*media.Media `json:"media,omitzero"`
-
-	// ToolCalls are tool-invocation requests on assistant messages.
-	ToolCalls []*ToolCall `json:"tool_calls,omitzero"`
 
 	// ToolReturns are tool execution results on tool messages.
 	ToolReturns []*ToolReturn `json:"tool_returns,omitzero"`
@@ -132,24 +120,18 @@ func NewMessage(params MessageParams) (Message, error) {
 	}
 }
 
-// AssistantMessage is one model reply.
+// AssistantMessage is one model reply, carried as an ordered list of
+// [OutputPart]s. Text, reasoning, and tool calls live in [Parts] in
+// the order the model emitted them — text↔tool_use interleaving from
+// Claude / Gemini / OpenAI Responses API is preserved verbatim.
 //
-// Reasoning carries the visible chain-of-thought from reasoning-style
-// providers (Anthropic extended thinking, DeepSeek-R1 reasoning_content,
-// Gemini thoughts). It is independent of [AssistantMessage.Text]:
-// providers that expose reasoning publish it here; providers that do not
-// leave it empty.
-//
-// Provider-specific continuation tokens (Anthropic signature, Google
-// thoughtSignatures, redacted-thinking payloads) live in Metadata under
-// well-known keys following the "lynx:chat:<provider>:<concept>"
-// convention.
+// Helper accessors ([AssistantMessage.JoinedText],
+// [AssistantMessage.JoinedReasoning], [AssistantMessage.ToolCalls],
+// ...) derive flat views from Parts for code that just wants the
+// final string or tool-call list.
 type AssistantMessage struct {
-	Text      string         `json:"text"`
-	Reasoning string         `json:"reasoning,omitempty"`
-	Media     []*media.Media `json:"media,omitzero"`
-	ToolCalls []*ToolCall    `json:"tool_calls,omitzero"`
-	Metadata  map[string]any `json:"metadata,omitzero"`
+	Parts    []OutputPart   `json:"parts"`
+	Metadata map[string]any `json:"metadata,omitzero"`
 }
 
 func (a *AssistantMessage) message() {}
@@ -165,58 +147,181 @@ func (a *AssistantMessage) Meta() map[string]any {
 	return a.Metadata
 }
 
-// HasMedia reports whether the message carries any attachments.
-func (a *AssistantMessage) HasMedia() bool { return len(a.Media) > 0 }
+// TextParts iterates the [TextPart]s in this message, in order.
+func (a *AssistantMessage) TextParts() iter.Seq[*TextPart] {
+	return func(yield func(*TextPart) bool) {
+		if a == nil {
+			return
+		}
+		for _, p := range a.Parts {
+			if tp, ok := p.(*TextPart); ok {
+				if !yield(tp) {
+					return
+				}
+			}
+		}
+	}
+}
 
-// HasToolCalls reports whether the model requested any tool invocations.
-func (a *AssistantMessage) HasToolCalls() bool { return len(a.ToolCalls) > 0 }
+// ReasoningParts iterates the [ReasoningPart]s in this message, in order.
+func (a *AssistantMessage) ReasoningParts() iter.Seq[*ReasoningPart] {
+	return func(yield func(*ReasoningPart) bool) {
+		if a == nil {
+			return
+		}
+		for _, p := range a.Parts {
+			if rp, ok := p.(*ReasoningPart); ok {
+				if !yield(rp) {
+					return
+				}
+			}
+		}
+	}
+}
 
-// HasReasoning reports whether the message carries visible
-// chain-of-thought text. Returns false for nil receivers.
-func (a *AssistantMessage) HasReasoning() bool { return a != nil && a.Reasoning != "" }
+// ToolCalls iterates the [ToolCallPart]s in this message, in order.
+func (a *AssistantMessage) ToolCalls() iter.Seq[*ToolCallPart] {
+	return func(yield func(*ToolCallPart) bool) {
+		if a == nil {
+			return
+		}
+		for _, p := range a.Parts {
+			if tc, ok := p.(*ToolCallPart); ok {
+				if !yield(tc) {
+					return
+				}
+			}
+		}
+	}
+}
+
+// CollectToolCalls returns the [ToolCallPart]s as a slice — the
+// allocating counterpart of [AssistantMessage.ToolCalls] for sites
+// that need indexed access or len().
+func (a *AssistantMessage) CollectToolCalls() []*ToolCallPart {
+	return slices.Collect(a.ToolCalls())
+}
+
+// JoinedText concatenates the text bodies of every [TextPart] (no
+// separator). Use when downstream just needs "the final string the
+// user sees".
+func (a *AssistantMessage) JoinedText() string {
+	if a == nil {
+		return ""
+	}
+	var b strings.Builder
+	for tp := range a.TextParts() {
+		b.WriteString(tp.Text)
+	}
+	return b.String()
+}
+
+// JoinedReasoning concatenates the text bodies of every
+// [ReasoningPart] (no separator).
+func (a *AssistantMessage) JoinedReasoning() string {
+	if a == nil {
+		return ""
+	}
+	var b strings.Builder
+	for rp := range a.ReasoningParts() {
+		b.WriteString(rp.Text)
+	}
+	return b.String()
+}
+
+// HasToolCalls reports whether any [ToolCallPart] is present.
+func (a *AssistantMessage) HasToolCalls() bool {
+	if a == nil {
+		return false
+	}
+	for _, p := range a.Parts {
+		if _, ok := p.(*ToolCallPart); ok {
+			return true
+		}
+	}
+	return false
+}
+
+// HasReasoning reports whether the message carries any reasoning text.
+func (a *AssistantMessage) HasReasoning() bool {
+	if a == nil {
+		return false
+	}
+	for _, p := range a.Parts {
+		if rp, ok := p.(*ReasoningPart); ok && rp.Text != "" {
+			return true
+		}
+	}
+	return false
+}
 
 // NewAssistantMessage builds an [AssistantMessage] from one of the
 // supported parameter shapes — the type-set on T documents the
-// accepted forms (text, media, tool calls, metadata, or full params).
-func NewAssistantMessage[T string | []*media.Media | []*ToolCall | map[string]any | MessageParams](param T) *AssistantMessage {
+// accepted forms:
+//
+//   - string                → single [TextPart]
+//   - []OutputPart          → use Parts verbatim
+//   - []*ToolCallPart       → use as Parts (one per call)
+//   - map[string]any        → metadata only (empty Parts)
+//   - [MessageParams]       → full control
+func NewAssistantMessage[T string | []OutputPart | []*ToolCallPart | map[string]any | MessageParams](param T) *AssistantMessage {
 	params := paramsFromAssistantInput(param)
 
-	if params.Media == nil {
-		params.Media = make([]*media.Media, 0)
-	}
-	if params.ToolCalls == nil {
-		params.ToolCalls = make([]*ToolCall, 0)
-	}
 	if params.Metadata == nil {
 		params.Metadata = make(map[string]any)
 	}
 
+	parts := params.Parts
+	if parts == nil {
+		parts = make([]OutputPart, 0)
+	}
+	// MessageParams.Text — when supplied alongside Parts, gets emitted
+	// as a trailing TextPart. When the only input is a string, the
+	// switch in paramsFromAssistantInput already set Parts directly.
+	if params.Text != "" && !textAlreadyInParts(parts, params.Text) {
+		parts = append(parts, &TextPart{Text: params.Text})
+	}
+
 	return &AssistantMessage{
-		Text:      params.Text,
-		Reasoning: params.Reasoning,
-		Media:     params.Media,
-		ToolCalls: params.ToolCalls,
-		Metadata:  params.Metadata,
+		Parts:    parts,
+		Metadata: params.Metadata,
 	}
 }
 
 // paramsFromAssistantInput unpacks the polymorphic input into a single
 // MessageParams so NewAssistantMessage can stay focused on field setup.
-func paramsFromAssistantInput[T string | []*media.Media | []*ToolCall | map[string]any | MessageParams](param T) MessageParams {
+func paramsFromAssistantInput[T string | []OutputPart | []*ToolCallPart | map[string]any | MessageParams](param T) MessageParams {
 	var out MessageParams
 	switch typed := any(param).(type) {
 	case string:
-		out.Text = typed
-	case []*media.Media:
-		out.Media = typed
-	case []*ToolCall:
-		out.ToolCalls = typed
+		if typed != "" {
+			out.Parts = []OutputPart{&TextPart{Text: typed}}
+		}
+	case []OutputPart:
+		out.Parts = typed
+	case []*ToolCallPart:
+		parts := make([]OutputPart, 0, len(typed))
+		for _, tc := range typed {
+			parts = append(parts, tc)
+		}
+		out.Parts = parts
 	case map[string]any:
 		out.Metadata = typed
 	case MessageParams:
 		out = typed
 	}
 	return out
+}
+
+// textAlreadyInParts guards against double-appending Text when both
+// Text and Parts are passed via MessageParams and Parts ends with the
+// same string.
+func textAlreadyInParts(parts []OutputPart, text string) bool {
+	if len(parts) == 0 {
+		return false
+	}
+	last, ok := parts[len(parts)-1].(*TextPart)
+	return ok && last.Text == text
 }
 
 // SystemMessage shapes the model's behavior for the whole conversation —
@@ -284,8 +389,8 @@ func (u *UserMessage) Meta() map[string]any {
 // HasMedia reports whether any attachments are present.
 func (u *UserMessage) HasMedia() bool { return len(u.Media) > 0 }
 
-// NewUserMessage builds a [UserMessage] from a raw text string,
-// media slice, or full [MessageParams].
+// NewUserMessage builds a [UserMessage] from a raw text string, media
+// slice, or full [MessageParams].
 func NewUserMessage[T string | []*media.Media | MessageParams](param T) *UserMessage {
 	var params MessageParams
 	switch typed := any(param).(type) {
@@ -396,10 +501,6 @@ func FilterMessages(messages []Message, predicate func(message Message) bool) []
 // FilterMessagesByMessageTypes returns messages whose type matches any of
 // types. Nil entries are dropped. With no types supplied the input is
 // returned unchanged.
-//
-// Example:
-//
-//	users := chat.FilterMessagesByMessageTypes(history, chat.MessageTypeUser)
 func FilterMessagesByMessageTypes(messages []Message, types ...MessageType) []Message {
 	if len(types) == 0 {
 		return messages
@@ -445,9 +546,6 @@ func MergeSystemMessages(messages []Message) *SystemMessage {
 }
 
 // MergeUserMessages collapses every [UserMessage] in messages into one.
-// Text concatenates with double-newline separators, media concatenates,
-// metadata merges last-write-wins. Returns nil when no user message
-// exists.
 func MergeUserMessages(messages []Message) *UserMessage {
 	users := FilterMessagesByMessageTypes(messages, MessageTypeUser)
 
@@ -477,9 +575,7 @@ func MergeUserMessages(messages []Message) *UserMessage {
 	})
 }
 
-// MergeToolMessages collapses every [ToolMessage] in messages into one,
-// concatenating tool returns and merging metadata last-write-wins.
-// Returns (nil, nil) when no tool message exists.
+// MergeToolMessages collapses every [ToolMessage] in messages into one.
 func MergeToolMessages(messages []Message) (*ToolMessage, error) {
 	tools := FilterMessagesByMessageTypes(messages, MessageTypeTool)
 
@@ -506,8 +602,7 @@ func MergeToolMessages(messages []Message) (*ToolMessage, error) {
 }
 
 // MergeMessages dispatches to the right per-type merge helper. Assistant
-// messages cannot be merged — each represents a distinct model turn —
-// and that case returns an error.
+// messages cannot be merged — each represents a distinct model turn.
 func MergeMessages(messages []Message, messageType MessageType) (Message, error) {
 	switch {
 	case messageType.IsSystem():
@@ -523,12 +618,7 @@ func MergeMessages(messages []Message, messageType MessageType) (Message, error)
 
 // MergeAdjacentSameTypeMessages folds each run of consecutive same-type
 // messages into one merged message. Non-adjacent runs and runs of size 1
-// are passed through unchanged. Nil entries are filtered out first.
-//
-// Example:
-//
-//	in:  [user, user, system, user, tool, tool]
-//	out: [merged-user, system, user, merged-tool]
+// are passed through unchanged.
 func MergeAdjacentSameTypeMessages(messages []Message) []Message {
 	source := filterOutNilMessages(messages)
 	if len(source) <= 1 {
@@ -547,8 +637,6 @@ func MergeAdjacentSameTypeMessages(messages []Message) []Message {
 		} else if merged, err := MergeMessages(group, group[0].Type()); err == nil {
 			result = append(result, merged)
 		} else {
-			// Merging failed (typically: assistant runs aren't mergeable) —
-			// keep the originals so no information is lost.
 			result = append(result, group...)
 		}
 		groupStart = i
@@ -570,8 +658,7 @@ func findLastMessageIndexOfType(messages []Message, targetType MessageType) (int
 }
 
 // augmentLastMessageOfType finds the last message of targetType and
-// runs augmentFunc on it in place. Nothing happens when augmentFunc is
-// nil or no matching message exists.
+// runs augmentFunc on it in place.
 func augmentLastMessageOfType(messages []Message, targetType MessageType, augmentFunc func(message Message) Message) {
 	if augmentFunc == nil {
 		return
@@ -589,8 +676,7 @@ func augmentLastMessageOfType(messages []Message, targetType MessageType, augmen
 
 // appendTextToLastMessageOfType appends text to the last user or system
 // message, separated by a double newline. Other types are silently
-// ignored — the assistant and tool roles do not own a single editable
-// text channel.
+// ignored.
 func appendTextToLastMessageOfType(messages []Message, targetType MessageType, text string) {
 	augmentLastMessageOfType(messages, targetType, func(msg Message) Message {
 		switch typed := msg.(type) {
@@ -607,8 +693,7 @@ func appendTextToLastMessageOfType(messages []Message, targetType MessageType, t
 }
 
 // replaceTextOfLastMessageOfType overwrites the text of the last user or
-// system message. Other types are silently ignored, matching
-// [appendTextToLastMessageOfType].
+// system message.
 func replaceTextOfLastMessageOfType(messages []Message, targetType MessageType, text string) {
 	augmentLastMessageOfType(messages, targetType, func(msg Message) Message {
 		switch typed := msg.(type) {
@@ -624,14 +709,9 @@ func replaceTextOfLastMessageOfType(messages []Message, targetType MessageType, 
 	})
 }
 
-// MessageToString renders one message as "role: payload". Tool calls and
-// tool returns serialize as compact JSON; other content is emitted
-// verbatim.
-//
-// Example:
-//
-//	chat.MessageToString(chat.NewUserMessage("hi"))
-//	// "user: hi"
+// MessageToString renders one message as "role: payload". For assistant
+// messages, text parts are emitted verbatim followed by any tool calls
+// as compact JSON.
 func MessageToString(message Message) string {
 	var b strings.Builder
 	b.WriteString(message.Type().String())
@@ -643,11 +723,12 @@ func MessageToString(message Message) string {
 	case *SystemMessage:
 		b.WriteString(typed.Text)
 	case *AssistantMessage:
-		b.WriteString(typed.Text)
+		b.WriteString(typed.JoinedText())
 		if typed.HasToolCalls() {
 			b.WriteByte('\n')
-			calls, _ := json.Marshal(typed.ToolCalls)
-			b.Write(calls)
+			calls := typed.CollectToolCalls()
+			data, _ := json.Marshal(calls)
+			b.Write(data)
 		}
 	case *ToolMessage:
 		returns, _ := json.Marshal(typed.ToolReturns)
@@ -666,8 +747,7 @@ func MessagesToStrings(messages []Message) []string {
 }
 
 // MarshalJSON encodes the message in the canonical [MessageParams]
-// shape — the Type field carries the role so a polymorphic decoder
-// can dispatch back to the right concrete type.
+// shape.
 func (s *SystemMessage) MarshalJSON() ([]byte, error) {
 	return json.Marshal(MessageParams{
 		Type:     MessageTypeSystem,
@@ -676,9 +756,7 @@ func (s *SystemMessage) MarshalJSON() ([]byte, error) {
 	})
 }
 
-// UnmarshalJSON decodes from the [MessageParams] wire shape and fills
-// the fields the system role uses. Fields irrelevant to this role
-// (Media / ToolCalls / ToolReturns / Reasoning) are silently ignored.
+// UnmarshalJSON decodes from the [MessageParams] wire shape.
 func (s *SystemMessage) UnmarshalJSON(data []byte) error {
 	var p MessageParams
 	if err := json.Unmarshal(data, &p); err != nil {
@@ -712,30 +790,50 @@ func (u *UserMessage) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// MarshalJSON encodes the message in the canonical [MessageParams]
-// shape.
+// MarshalJSON encodes the assistant message as a kind-tagged Parts
+// array, preserving order verbatim. Each part renders as a flat JSON
+// object with a "kind" discriminator so generic decoders can dispatch
+// without per-message-type knowledge.
 func (a *AssistantMessage) MarshalJSON() ([]byte, error) {
-	return json.Marshal(MessageParams{
-		Type:      MessageTypeAssistant,
-		Text:      a.Text,
-		Reasoning: a.Reasoning,
-		Media:     a.Media,
-		ToolCalls: a.ToolCalls,
-		Metadata:  a.Metadata,
+	parts := make([]json.RawMessage, 0, len(a.Parts))
+	for _, p := range a.Parts {
+		raw, err := marshalOutputPart(p)
+		if err != nil {
+			return nil, err
+		}
+		parts = append(parts, raw)
+	}
+	return json.Marshal(struct {
+		Type     MessageType       `json:"type"`
+		Parts    []json.RawMessage `json:"parts"`
+		Metadata map[string]any    `json:"metadata,omitzero"`
+	}{
+		Type:     MessageTypeAssistant,
+		Parts:    parts,
+		Metadata: a.Metadata,
 	})
 }
 
-// UnmarshalJSON decodes from the [MessageParams] wire shape.
+// UnmarshalJSON decodes the kind-tagged Parts array back into a typed
+// []OutputPart, preserving order.
 func (a *AssistantMessage) UnmarshalJSON(data []byte) error {
-	var p MessageParams
-	if err := json.Unmarshal(data, &p); err != nil {
+	var w struct {
+		Parts    []json.RawMessage `json:"parts"`
+		Metadata map[string]any    `json:"metadata"`
+	}
+	if err := json.Unmarshal(data, &w); err != nil {
 		return err
 	}
-	a.Text = p.Text
-	a.Reasoning = p.Reasoning
-	a.Media = p.Media
-	a.ToolCalls = p.ToolCalls
-	a.Metadata = p.Metadata
+	parts := make([]OutputPart, 0, len(w.Parts))
+	for _, raw := range w.Parts {
+		p, err := unmarshalOutputPart(raw)
+		if err != nil {
+			return err
+		}
+		parts = append(parts, p)
+	}
+	a.Parts = parts
+	a.Metadata = w.Metadata
 	return nil
 }
 
@@ -761,14 +859,44 @@ func (t *ToolMessage) UnmarshalJSON(data []byte) error {
 }
 
 // UnmarshalMessage decodes a JSON payload in the [MessageParams] wire
-// shape into a concrete [Message]. Use it when the caller holds a
-// generic message slot — the type discriminator in the JSON picks the
-// right concrete type. For decoding into a known concrete type, call
-// the type's UnmarshalJSON directly.
+// shape into a concrete [Message]. The Type field acts as a
+// discriminator. For assistant messages the kind-tagged Parts array
+// is decoded into typed [OutputPart]s.
 func UnmarshalMessage(data []byte) (Message, error) {
-	var p MessageParams
-	if err := json.Unmarshal(data, &p); err != nil {
+	// Discriminator pass: read type only, then dispatch to the typed
+	// UnmarshalJSON of the concrete message.
+	var head struct {
+		Type MessageType `json:"type"`
+	}
+	if err := json.Unmarshal(data, &head); err != nil {
 		return nil, err
 	}
-	return NewMessage(p)
+	switch head.Type {
+	case MessageTypeSystem:
+		var m SystemMessage
+		if err := json.Unmarshal(data, &m); err != nil {
+			return nil, err
+		}
+		return &m, nil
+	case MessageTypeUser:
+		var m UserMessage
+		if err := json.Unmarshal(data, &m); err != nil {
+			return nil, err
+		}
+		return &m, nil
+	case MessageTypeAssistant:
+		var m AssistantMessage
+		if err := json.Unmarshal(data, &m); err != nil {
+			return nil, err
+		}
+		return &m, nil
+	case MessageTypeTool:
+		var m ToolMessage
+		if err := json.Unmarshal(data, &m); err != nil {
+			return nil, err
+		}
+		return &m, nil
+	default:
+		return nil, fmt.Errorf("chat.UnmarshalMessage: unsupported type %q", head.Type)
+	}
 }

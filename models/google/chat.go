@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"iter"
-	"strings"
 	"time"
 
 	"google.golang.org/genai"
@@ -99,20 +98,33 @@ func (r *requestHelper) buildUserMsg(msg *chat.UserMessage) *genai.Content {
 }
 
 func (r *requestHelper) buildAssistantMsg(msg *chat.AssistantMessage) (*genai.Content, error) {
-	parts := make([]*genai.Part, 0, 1+len(msg.ToolCalls))
+	// Gemini preserves Parts ordering 1:1 — map lynx Parts in emission
+	// order. Reasoning parts get a Thought=true flag; tool calls become
+	// FunctionCall parts; text becomes Text parts.
+	parts := make([]*genai.Part, 0, len(msg.Parts))
 
-	if msg.Text != "" {
-		parts = append(parts, genai.NewPartFromText(msg.Text))
-	}
-
-	for _, tc := range msg.ToolCalls {
-		var args map[string]any
-		if tc.Arguments != "" {
-			if err := json.Unmarshal([]byte(tc.Arguments), &args); err != nil {
-				return nil, fmt.Errorf("google: tool call %q arguments are not valid JSON: %w", tc.Name, err)
+	for _, p := range msg.Parts {
+		switch tp := p.(type) {
+		case *chat.TextPart:
+			if tp.Text != "" {
+				parts = append(parts, genai.NewPartFromText(tp.Text))
 			}
+		case *chat.ReasoningPart:
+			thought := genai.NewPartFromText(tp.Text)
+			thought.Thought = true
+			if len(tp.Signature) > 0 {
+				thought.ThoughtSignature = tp.Signature
+			}
+			parts = append(parts, thought)
+		case *chat.ToolCallPart:
+			var args map[string]any
+			if tp.Arguments != "" {
+				if err := json.Unmarshal([]byte(tp.Arguments), &args); err != nil {
+					return nil, fmt.Errorf("google: tool call %q arguments are not valid JSON: %w", tp.Name, err)
+				}
+			}
+			parts = append(parts, genai.NewPartFromFunctionCall(tp.Name, args))
 		}
-		parts = append(parts, genai.NewPartFromFunctionCall(tc.Name, args))
 	}
 
 	return genai.NewContentFromParts(parts, genai.RoleModel), nil
@@ -213,30 +225,31 @@ func (r *responseHelper) buildAssistantMsg(candidate *genai.Candidate) *chat.Ass
 		return chat.NewAssistantMessage(msgParams)
 	}
 
-	var textBuf, reasoningBuf strings.Builder
+	// Gemini Parts arrive in emission order — map 1:1 into lynx
+	// OutputParts. Thought=true parts route to ReasoningPart;
+	// FunctionCall parts route to ToolCallPart; text parts to TextPart.
+	parts := make([]chat.OutputPart, 0, len(candidate.Content.Parts))
 	for _, part := range candidate.Content.Parts {
 		switch {
 		case part.FunctionCall != nil:
 			rawArgs, _ := json.Marshal(part.FunctionCall.Args)
-			msgParams.ToolCalls = append(msgParams.ToolCalls, &chat.ToolCall{
+			parts = append(parts, &chat.ToolCallPart{
 				ID:        part.FunctionCall.ID,
 				Name:      part.FunctionCall.Name,
 				Arguments: string(rawArgs),
+				State:     chat.ToolCallStateInputComplete,
 			})
 		case part.Thought:
-			// Gemini 2.5 thinking: parts flagged Thought=true carry
-			// chain-of-thought text. Route into Reasoning rather than
-			// Text so they survive accumulation without polluting the
-			// visible reply.
-			reasoningBuf.WriteString(part.Text)
+			parts = append(parts, &chat.ReasoningPart{
+				Text:      part.Text,
+				Signature: part.ThoughtSignature,
+			})
 		case part.Text != "":
-			textBuf.WriteString(part.Text)
+			parts = append(parts, &chat.TextPart{Text: part.Text})
 		}
 	}
 
-	msgParams.Text = textBuf.String()
-	msgParams.Reasoning = reasoningBuf.String()
-
+	msgParams.Parts = parts
 	return chat.NewAssistantMessage(msgParams)
 }
 

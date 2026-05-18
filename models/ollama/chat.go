@@ -155,16 +155,23 @@ func (c *NativeChatModel) buildMessages(msgs []chat.Message) []ollamaapi.Message
 			}
 			out = append(out, ollamaapi.Message{Role: "user", Content: m.Text, Images: images})
 		case *chat.AssistantMessage:
-			am := ollamaapi.Message{Role: "assistant", Content: m.Text, Thinking: m.Reasoning}
-			for _, tc := range m.ToolCalls {
-				call := ollamaapi.ToolCall{
+			// Ollama's wire shape mirrors OpenAI Chat Completions —
+			// content (string) + thinking (string) + tool_calls (array)
+			// are separate fields; ordering is not preserved on the
+			// wire. Project Parts → flat.
+			am := ollamaapi.Message{
+				Role:     "assistant",
+				Content:  m.JoinedText(),
+				Thinking: m.JoinedReasoning(),
+			}
+			for tc := range m.ToolCalls() {
+				am.ToolCalls = append(am.ToolCalls, ollamaapi.ToolCall{
 					ID: tc.ID,
 					Function: ollamaapi.ToolCallFunction{
 						Name:      tc.Name,
 						Arguments: parseToolArgs(tc.Arguments),
 					},
-				}
-				am.ToolCalls = append(am.ToolCalls, call)
+				})
 			}
 			out = append(out, am)
 		case *chat.ToolMessage:
@@ -200,20 +207,29 @@ func parseToolArgs(args string) ollamaapi.ToolCallFunctionArguments {
 }
 
 func (c *NativeChatModel) buildResponse(apiResp ollamaapi.ChatResponse, apiReq *ollamaapi.ChatRequest) (*chat.Response, error) {
-	msgParams := chat.MessageParams{
-		Text:      apiResp.Message.Content,
-		Reasoning: apiResp.Message.Thinking,
-		Metadata:  make(map[string]any),
+	// Ollama emits content / thinking / tool_calls as separate fields —
+	// no on-wire ordering. Convention: reasoning first, then text,
+	// then tool_calls (same as OpenAI Chat Completions adapter).
+	var parts []chat.OutputPart
+	if apiResp.Message.Thinking != "" {
+		parts = append(parts, &chat.ReasoningPart{Text: apiResp.Message.Thinking})
+	}
+	if apiResp.Message.Content != "" {
+		parts = append(parts, &chat.TextPart{Text: apiResp.Message.Content})
 	}
 	for _, tc := range apiResp.Message.ToolCalls {
 		argsBytes, _ := json.Marshal(tc.Function.Arguments.ToMap())
-		msgParams.ToolCalls = append(msgParams.ToolCalls, &chat.ToolCall{
+		parts = append(parts, &chat.ToolCallPart{
 			ID:        tc.ID,
 			Name:      tc.Function.Name,
 			Arguments: string(argsBytes),
+			State:     chat.ToolCallStateInputComplete,
 		})
 	}
-	assistantMsg := chat.NewAssistantMessage(msgParams)
+	assistantMsg := chat.NewAssistantMessage(chat.MessageParams{
+		Parts:    parts,
+		Metadata: make(map[string]any),
+	})
 
 	resultMeta := &chat.ResultMetadata{
 		FinishReason: mapDoneReason(apiResp.DoneReason),

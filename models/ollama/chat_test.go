@@ -38,8 +38,8 @@ func TestNativeChatModel_Call_Mock(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}
-	if resp.Result.AssistantMessage.Text != "hello world" {
-		t.Errorf("text = %q; want %q", resp.Result.AssistantMessage.Text, "hello world")
+	if resp.Result.AssistantMessage.JoinedText() != "hello world" {
+		t.Errorf("text = %q; want %q", resp.Result.AssistantMessage.JoinedText(), "hello world")
 	}
 	if m.Metadata().Provider != ollama.Provider {
 		t.Errorf("provider = %q", m.Metadata().Provider)

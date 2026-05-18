@@ -67,8 +67,8 @@ func TestChatModel_Call_Mock(t *testing.T) {
 	if !strings.Contains(seenURL, "messages") {
 		t.Errorf("URL = %q; want /v1/messages", seenURL)
 	}
-	if resp.Result.AssistantMessage.Text != "hello back" {
-		t.Errorf("assistant text = %q; want %q", resp.Result.AssistantMessage.Text, "hello back")
+	if resp.Result.AssistantMessage.JoinedText() != "hello back" {
+		t.Errorf("assistant text = %q; want %q", resp.Result.AssistantMessage.JoinedText(), "hello back")
 	}
 	if resp.Metadata.Usage == nil || resp.Metadata.Usage.PromptTokens != 4 || resp.Metadata.Usage.CompletionTokens != 2 {
 		t.Errorf("usage = %+v; want PromptTokens=4 CompletionTokens=2", resp.Metadata.Usage)
@@ -102,7 +102,7 @@ func TestChatModel_Stream_Mock(t *testing.T) {
 	var pieces []string
 	for _, r := range resps {
 		if r.Result != nil && r.Result.AssistantMessage != nil {
-			pieces = append(pieces, r.Result.AssistantMessage.Text)
+			pieces = append(pieces, r.Result.AssistantMessage.JoinedText())
 		}
 	}
 	if !strings.Contains(strings.Join(pieces, ""), "hello world") {

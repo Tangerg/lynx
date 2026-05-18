@@ -322,7 +322,7 @@ func (s *ClientStreamer) Text(ctx context.Context) iter.Seq2[string, error] {
 				yield("", err)
 				return
 			}
-			if !yield(resp.Result.AssistantMessage.Text, nil) {
+			if !yield(resp.Result.AssistantMessage.JoinedText(), nil) {
 				return
 			}
 		}
@@ -372,7 +372,7 @@ func (c *ClientCaller) Text(ctx context.Context) (string, *Response, error) {
 	if err != nil {
 		return "", nil, err
 	}
-	return resp.Result.AssistantMessage.Text, resp, nil
+	return resp.Result.AssistantMessage.JoinedText(), resp, nil
 }
 
 // Structured runs the call with parser-supplied prompt instructions
@@ -387,7 +387,7 @@ func (c *ClientCaller) Structured(ctx context.Context, parser StructuredParser[a
 	if err != nil {
 		return nil, nil, err
 	}
-	data, parseErr := parser.Parse(resp.Result.AssistantMessage.Text)
+	data, parseErr := parser.Parse(resp.Result.AssistantMessage.JoinedText())
 	return data, resp, parseErr
 }
 

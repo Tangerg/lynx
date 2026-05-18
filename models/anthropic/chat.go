@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"iter"
-	"strings"
 	"time"
 
 	anthropicsdk "github.com/anthropics/anthropic-sdk-go"
@@ -138,35 +137,35 @@ func (r *requestHelper) buildUserMsg(msg *chat.UserMessage) anthropicsdk.Message
 }
 
 func (r *requestHelper) buildAssistantMsg(msg *chat.AssistantMessage) anthropicsdk.MessageParam {
-	blocks := make([]anthropicsdk.ContentBlockParamUnion, 0, 2+len(msg.ToolCalls))
+	blocks := make([]anthropicsdk.ContentBlockParamUnion, 0, len(msg.Parts)+1)
 
-	// Anthropic requires content blocks in order: thinking → text → tool_use.
-	// Redacted thinking and standard thinking can both appear before text;
-	// signatures (when present) must be echoed verbatim so the API can
-	// validate that prior reasoning has not been tampered with.
+	// Anthropic's content_block ordering is preserved verbatim — text /
+	// reasoning / tool_use blocks are mapped 1:1 from lynx Parts in
+	// emission order. Redacted thinking (a message-level metadata key)
+	// is prepended when present.
 	if data := redactedReasoning(msg); data != "" {
 		blocks = append(blocks, anthropicsdk.NewRedactedThinkingBlock(data))
 	}
-	sig := reasoningSignature(msg)
-	if msg.Reasoning != "" && sig != "" {
-		blocks = append(blocks, anthropicsdk.NewThinkingBlock(sig, msg.Reasoning))
-	} else if sig != "" {
-		// OMITTED display mode: signature only, no visible reasoning text.
-		// Anthropic accepts an empty thinking string with a non-empty
-		// signature in this mode.
-		blocks = append(blocks, anthropicsdk.NewThinkingBlock(sig, ""))
-	}
-	// If we have Reasoning text but no signature, drop it on replay — the
-	// signature is required for the API to accept the block, and a missing
-	// signature usually means the message arrived from an external source
-	// that did not preserve the continuation token.
 
-	if msg.Text != "" {
-		blocks = append(blocks, anthropicsdk.NewTextBlock(msg.Text))
-	}
-
-	for _, tc := range msg.ToolCalls {
-		blocks = append(blocks, anthropicsdk.NewToolUseBlock(tc.ID, json.RawMessage(tc.Arguments), tc.Name))
+	for _, p := range msg.Parts {
+		switch tp := p.(type) {
+		case *chat.TextPart:
+			if tp.Text != "" {
+				blocks = append(blocks, anthropicsdk.NewTextBlock(tp.Text))
+			}
+		case *chat.ReasoningPart:
+			// Anthropic requires a signature on every thinking block on
+			// replay. Drop reasoning parts without signatures — they
+			// usually mean the message came from a source that did not
+			// preserve the continuation token.
+			sig := string(tp.Signature)
+			if sig == "" {
+				continue
+			}
+			blocks = append(blocks, anthropicsdk.NewThinkingBlock(sig, tp.Text))
+		case *chat.ToolCallPart:
+			blocks = append(blocks, anthropicsdk.NewToolUseBlock(tp.ID, json.RawMessage(tp.Arguments), tp.Name))
+		}
 	}
 
 	return anthropicsdk.NewAssistantMessage(blocks...)
@@ -237,52 +236,46 @@ func (r *responseHelper) mapFinishReason(stopReason anthropicsdk.StopReason) cha
 	}
 }
 
-// buildAssistantMsg folds all ContentBlocks of an Anthropic response into
-// a single AssistantMessage. Thinking text accumulates into Reasoning;
-// the first non-empty signature is stored under MetaReasoningSignature
-// (sufficient for standard extended thinking — interleaved-thinking beta
-// is not supported in this initial implementation). Redacted thinking
-// data is stored under MetaRedactedReasoning. Tool uses become ToolCalls.
+// buildAssistantMsg maps Anthropic content blocks 1:1 into lynx Parts,
+// preserving original block ordering. Each thinking block carries its
+// own signature on the ReasoningPart. Redacted thinking data lives in
+// message-level Metadata under MetaRedactedReasoning (it has no
+// counterpart Part in v1).
 func (r *responseHelper) buildAssistantMsg(resp *anthropicsdk.Message) *chat.AssistantMessage {
-	msgParams := chat.MessageParams{
-		Metadata: make(map[string]any),
-	}
-
-	var textBuf, reasoningBuf strings.Builder
-	var firstSignature string
+	parts := make([]chat.OutputPart, 0, len(resp.Content))
+	metadata := make(map[string]any)
 	var redactedData string
 
 	for _, block := range resp.Content {
 		switch block.Type {
 		case "text":
-			textBuf.WriteString(block.Text)
+			parts = append(parts, &chat.TextPart{Text: block.Text})
 		case "tool_use":
 			rawInput, _ := json.Marshal(block.Input)
-			msgParams.ToolCalls = append(msgParams.ToolCalls, &chat.ToolCall{
+			parts = append(parts, &chat.ToolCallPart{
 				ID:        block.ID,
 				Name:      block.Name,
 				Arguments: string(rawInput),
+				State:     chat.ToolCallStateInputComplete,
 			})
 		case "thinking":
-			reasoningBuf.WriteString(block.Thinking)
-			if firstSignature == "" {
-				firstSignature = block.Signature
-			}
+			parts = append(parts, &chat.ReasoningPart{
+				Text:      block.Thinking,
+				Signature: []byte(block.Signature),
+			})
 		case "redacted_thinking":
 			redactedData = block.Data
 		}
 	}
 
-	msgParams.Text = textBuf.String()
-	msgParams.Reasoning = reasoningBuf.String()
-	if firstSignature != "" {
-		msgParams.Metadata[MetaReasoningSignature] = firstSignature
-	}
 	if redactedData != "" {
-		msgParams.Metadata[MetaRedactedReasoning] = redactedData
+		metadata[MetaRedactedReasoning] = redactedData
 	}
 
-	return chat.NewAssistantMessage(msgParams)
+	return chat.NewAssistantMessage(chat.MessageParams{
+		Parts:    parts,
+		Metadata: metadata,
+	})
 }
 
 func (r *responseHelper) buildResult(resp *anthropicsdk.Message) (*chat.Result, error) {
@@ -349,30 +342,29 @@ func (r *responseHelper) buildChatResponse(req *anthropicsdk.MessageNewParams, r
 //
 //   - msgID / msgModel: lifted from message_start and tagged on every
 //     subsequent yield so the response metadata stays stable;
-//   - blockToToolSlot: maps Anthropic's content_block_index → the
-//     dense [chat.AssistantMessage].ToolCalls slot expected by
-//     [chat.ResponseAccumulator]. Anthropic's content blocks
-//     interleave text / thinking / tool_use; only tool_use blocks
-//     consume a slot.
+//   - blockToToolID: maps Anthropic's content_block_index → the
+//     ToolCallPart.ID assigned at start time, so subsequent
+//     input_json_delta events can attach to the right tool call.
 type chunkAccumulator struct {
-	helper          *responseHelper
-	msgID           string
-	msgModel        string
-	blockToToolSlot map[int64]int
-	nextToolSlot    int
+	helper        *responseHelper
+	msgID         string
+	msgModel      string
+	blockToToolID map[int64]string
 }
 
 // newChunkAccumulator returns an empty accumulator. Call
 // [chunkAccumulator.AddChunk] for each event in order.
 func (r *responseHelper) newChunkAccumulator() *chunkAccumulator {
-	return &chunkAccumulator{helper: r, blockToToolSlot: map[int64]int{}}
+	return &chunkAccumulator{helper: r, blockToToolID: map[int64]string{}}
 }
 
 // AddChunk converts one stream event into a per-event delta
-// [*chat.Response]. Returns (nil, false) for events that produced no
+// [*chat.Response] whose AssistantMessage.Parts holds just the new
+// part deltas. Returns (nil, false) for events that produced no
 // observable content (content_block_stop / message_stop).
 func (a *chunkAccumulator) AddChunk(event anthropicsdk.MessageStreamEventUnion) (*chat.Response, bool) {
-	msgParams := chat.MessageParams{Metadata: make(map[string]any)}
+	var parts []chat.OutputPart
+	msgMetadata := make(map[string]any)
 	resultMeta := &chat.ResultMetadata{}
 	var metaUsage *chat.Usage
 	hasContent := false
@@ -398,12 +390,12 @@ func (a *chunkAccumulator) AddChunk(event anthropicsdk.MessageStreamEventUnion) 
 
 	case anthropicsdk.ContentBlockStartEvent:
 		if block, ok := e.ContentBlock.AsAny().(anthropicsdk.ToolUseBlock); ok {
-			slot := a.nextToolSlot
-			a.blockToToolSlot[e.Index] = slot
-			a.nextToolSlot++
-			tools := make([]*chat.ToolCall, slot+1)
-			tools[slot] = &chat.ToolCall{ID: block.ID, Name: block.Name}
-			msgParams.ToolCalls = tools
+			a.blockToToolID[e.Index] = block.ID
+			parts = []chat.OutputPart{&chat.ToolCallPart{
+				ID:    block.ID,
+				Name:  block.Name,
+				State: chat.ToolCallStateInputStreaming,
+			}}
 			hasContent = true
 		}
 		// text / thinking / redacted_thinking blocks contribute no
@@ -414,29 +406,31 @@ func (a *chunkAccumulator) AddChunk(event anthropicsdk.MessageStreamEventUnion) 
 		switch delta := e.Delta.AsAny().(type) {
 		case anthropicsdk.TextDelta:
 			if delta.Text != "" {
-				msgParams.Text = delta.Text
+				parts = []chat.OutputPart{&chat.TextPart{Text: delta.Text}}
 				hasContent = true
 			}
 		case anthropicsdk.InputJSONDelta:
 			if delta.PartialJSON == "" {
 				break
 			}
-			slot, ok := a.blockToToolSlot[e.Index]
+			id, ok := a.blockToToolID[e.Index]
 			if !ok {
 				break
 			}
-			tools := make([]*chat.ToolCall, slot+1)
-			tools[slot] = &chat.ToolCall{Arguments: delta.PartialJSON}
-			msgParams.ToolCalls = tools
+			parts = []chat.OutputPart{&chat.ToolCallPart{
+				ID:        id,
+				Arguments: delta.PartialJSON,
+				State:     chat.ToolCallStateInputStreaming,
+			}}
 			hasContent = true
 		case anthropicsdk.ThinkingDelta:
 			if delta.Thinking != "" {
-				msgParams.Reasoning = delta.Thinking
+				parts = []chat.OutputPart{&chat.ReasoningPart{Text: delta.Thinking}}
 				hasContent = true
 			}
 		case anthropicsdk.SignatureDelta:
 			if delta.Signature != "" {
-				msgParams.Metadata[MetaReasoningSignature] = delta.Signature
+				parts = []chat.OutputPart{&chat.ReasoningPart{Signature: []byte(delta.Signature)}}
 				hasContent = true
 			}
 		}
@@ -465,7 +459,10 @@ func (a *chunkAccumulator) AddChunk(event anthropicsdk.MessageStreamEventUnion) 
 		return nil, false
 	}
 
-	assistantMsg := chat.NewAssistantMessage(msgParams)
+	assistantMsg := chat.NewAssistantMessage(chat.MessageParams{
+		Parts:    parts,
+		Metadata: msgMetadata,
+	})
 	result, err := chat.NewResult(assistantMsg, resultMeta)
 	if err != nil {
 		return nil, false

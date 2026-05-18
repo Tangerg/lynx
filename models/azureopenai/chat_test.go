@@ -44,8 +44,8 @@ func TestChatModel_Call_Mock(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}
-	if resp.Result.AssistantMessage.Text != "azure says hi" {
-		t.Errorf("text = %q", resp.Result.AssistantMessage.Text)
+	if resp.Result.AssistantMessage.JoinedText() != "azure says hi" {
+		t.Errorf("text = %q", resp.Result.AssistantMessage.JoinedText())
 	}
 	if m.Metadata().Provider != azureopenai.Provider {
 		t.Errorf("provider = %q; want %q", m.Metadata().Provider, azureopenai.Provider)
