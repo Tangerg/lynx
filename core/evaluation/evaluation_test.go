@@ -115,8 +115,8 @@ func TestRelevancyEvaluator_RejectsMissingChatModel(t *testing.T) {
 	}
 }
 
-func TestRelevancyEvaluator_PassOnYes(t *testing.T) {
-	model := newFakeChatModel(t, "YES")
+func TestRelevancyEvaluator_PassOnHighScore(t *testing.T) {
+	model := newFakeChatModel(t, "0.92\nThe response cites every fact from the context.")
 	eval, err := evaluation.NewRelevancyEvaluator(&evaluation.RelevancyEvaluatorConfig{ChatModel: model})
 	if err != nil {
 		t.Fatal(err)
@@ -132,12 +132,18 @@ func TestRelevancyEvaluator_PassOnYes(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !got.Pass {
-		t.Fatal("YES reply must produce Pass=true")
+		t.Fatal("score above default threshold must Pass")
+	}
+	if got.Score != 0.92 {
+		t.Fatalf("Score = %v, want 0.92", got.Score)
+	}
+	if got.Feedback != "The response cites every fact from the context." {
+		t.Fatalf("Feedback = %q", got.Feedback)
 	}
 }
 
-func TestRelevancyEvaluator_FailOnNo(t *testing.T) {
-	model := newFakeChatModel(t, "NO")
+func TestRelevancyEvaluator_FailOnLowScore(t *testing.T) {
+	model := newFakeChatModel(t, "0.1\nMostly hallucinated.")
 	eval, _ := evaluation.NewRelevancyEvaluator(&evaluation.RelevancyEvaluatorConfig{ChatModel: model})
 
 	got, err := eval.Evaluate(context.Background(), &evaluation.Request{Prompt: "q", Generation: "g"})
@@ -145,7 +151,45 @@ func TestRelevancyEvaluator_FailOnNo(t *testing.T) {
 		t.Fatal(err)
 	}
 	if got.Pass {
-		t.Fatal("NO reply must produce Pass=false")
+		t.Fatal("score below default threshold must not Pass")
+	}
+	if got.Score != 0.1 {
+		t.Fatalf("Score = %v, want 0.1", got.Score)
+	}
+}
+
+// TestRelevancyEvaluator_CustomThreshold pins the contract that
+// callers can move the pass/fail boundary. A score of 0.6 should fail
+// at threshold=0.8 even though it would pass the default 0.5.
+func TestRelevancyEvaluator_CustomThreshold(t *testing.T) {
+	model := newFakeChatModel(t, "0.6")
+	eval, _ := evaluation.NewRelevancyEvaluator(&evaluation.RelevancyEvaluatorConfig{
+		ChatModel: model,
+		Threshold: 0.8,
+	})
+
+	got, err := eval.Evaluate(context.Background(), &evaluation.Request{Prompt: "q", Generation: "g"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Pass {
+		t.Fatal("0.6 must not pass at threshold 0.8")
+	}
+	if got.Score != 0.6 {
+		t.Fatalf("Score = %v, want 0.6", got.Score)
+	}
+}
+
+// TestRelevancyEvaluator_UnparseableReplyErrors covers the failure
+// path: an LLM that ignores the format spec (e.g., still says "YES")
+// must surface an error rather than silently default to zero. A
+// silent default would hide prompt-engineering regressions.
+func TestRelevancyEvaluator_UnparseableReplyErrors(t *testing.T) {
+	model := newFakeChatModel(t, "YES, very relevant")
+	eval, _ := evaluation.NewRelevancyEvaluator(&evaluation.RelevancyEvaluatorConfig{ChatModel: model})
+
+	if _, err := eval.Evaluate(context.Background(), &evaluation.Request{Prompt: "q"}); err == nil {
+		t.Fatal("reply without a [0,1] score must error")
 	}
 }
 
@@ -166,8 +210,8 @@ func TestFactCheckingEvaluator_RejectsMissingChatModel(t *testing.T) {
 	}
 }
 
-func TestFactCheckingEvaluator_PassOnYes(t *testing.T) {
-	model := newFakeChatModel(t, "YES")
+func TestFactCheckingEvaluator_PassOnHighScore(t *testing.T) {
+	model := newFakeChatModel(t, "SCORE: 0.95\nFully supported by every line in the document.")
 	eval, err := evaluation.NewFactCheckingEvaluator(&evaluation.FactCheckingEvaluatorConfig{ChatModel: model})
 	if err != nil {
 		t.Fatal(err)
@@ -181,8 +225,11 @@ func TestFactCheckingEvaluator_PassOnYes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !got.Pass || got.Score != 1.0 {
-		t.Fatalf("Pass=%v Score=%f, want true/1.0", got.Pass, got.Score)
+	if !got.Pass {
+		t.Fatal("score 0.95 must Pass at default threshold")
+	}
+	if got.Score != 0.95 {
+		t.Fatalf("Score = %v, want 0.95", got.Score)
 	}
 }
 

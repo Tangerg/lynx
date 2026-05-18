@@ -6,17 +6,19 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat"
 )
 
-// relevancyDefaultTemplate asks the model to answer YES/NO on whether
-// the response aligns with the supplied context. The variables
-// {{.Query}}, {{.Response}}, {{.Context}} are filled at evaluation
-// time.
-const relevancyDefaultTemplate = `Your task is to evaluate if the response for the query
-is in line with the context information provided.
+// relevancyDefaultTemplate asks the model for a continuous relevance
+// score in [0, 1] — 1.0 = fully grounded in the context, 0.0 = not
+// supported at all. The variables {{.Query}}, {{.Response}},
+// {{.Context}} are filled at evaluation time. The score sits on the
+// first non-empty line; everything after it is surfaced as feedback.
+const relevancyDefaultTemplate = `Your task is to evaluate how well the response for the query
+is grounded in the context information provided.
 
-You have two options to answer. Either "YES" or "NO".
-
-Answer "YES", if the response for the query
-is in line with context information otherwise "NO".
+Reply with a single number between 0.0 and 1.0 on the first line, where:
+  1.0 = the response is fully supported by the context
+  0.5 = the response is partially supported
+  0.0 = the response is not supported at all
+Then on the next line, briefly explain your reasoning.
 
 Query:
 {{.Query}}
@@ -27,20 +29,26 @@ Response:
 Context:
 {{.Context}}
 
-Answer:`
+Score:`
 
 var _ Evaluator = (*RelevancyEvaluator)(nil)
 
 // RelevancyEvaluatorConfig configures a [RelevancyEvaluator]. ChatModel
-// is required; PromptTemplate falls back to a default that asks YES/NO.
+// is required; PromptTemplate falls back to a scored default;
+// Threshold defaults to [DefaultPassThreshold].
 type RelevancyEvaluatorConfig struct {
 	// ChatModel scores the response against the context. Required.
 	ChatModel chat.Model
 
 	// PromptTemplate is the LLM prompt. Defaults to
 	// [relevancyDefaultTemplate]. Custom templates must declare the
-	// variables {{.Query}}, {{.Response}}, {{.Context}}.
+	// variables {{.Query}}, {{.Response}}, {{.Context}} and instruct
+	// the model to emit a number in [0, 1].
 	PromptTemplate *chat.PromptTemplate
+
+	// Threshold is the score boundary at which [Response.Pass] flips
+	// from false to true. Zero falls back to [DefaultPassThreshold].
+	Threshold float64
 }
 
 // validate fills the default prompt template and returns an error when
@@ -64,8 +72,9 @@ func (c *RelevancyEvaluatorConfig) validate() error {
 // pipelines.
 //
 // Verdicts:
-//   - Pass: true when the LLM answers "YES",
-//   - Score: 1.0 for YES, 0.0 otherwise.
+//   - Score: the LLM's continuous judgment, parsed from its reply, in [0, 1].
+//   - Pass:  true when Score >= the configured Threshold (default 0.5).
+//   - Feedback: the model's reasoning, taken from text after the score token.
 type RelevancyEvaluator struct {
 	*llmEvaluator
 }
@@ -85,6 +94,7 @@ func NewRelevancyEvaluator(config *RelevancyEvaluatorConfig) (*RelevancyEvaluato
 				"Context":  extractDocuments(req),
 			}
 		},
+		config.Threshold,
 	)
 	if err != nil {
 		return nil, err

@@ -6,31 +6,45 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat"
 )
 
-// factCheckingDefaultTemplate asks the LLM whether the supplied claim
-// is factually supported by the document. The variables {{.Document}}
-// and {{.Claim}} are filled at evaluation time.
-const factCheckingDefaultTemplate = `Evaluate whether or not the following claim is supported by the provided document.
-Respond with "YES" if the claim is supported, or "NO" if it is not.
+// factCheckingDefaultTemplate asks the LLM for a continuous
+// fact-support score in [0, 1] — 1.0 = fully supported by the
+// document, 0.0 = unsupported / contradicted. {{.Document}} and
+// {{.Claim}} are filled at evaluation time. The score must be on the
+// first non-empty line; reasoning follows after.
+const factCheckingDefaultTemplate = `Evaluate how well the claim is supported by the provided document.
+
+Reply with a single number between 0.0 and 1.0 on the first line, where:
+  1.0 = the claim is fully supported by the document
+  0.5 = the claim is partially supported
+  0.0 = the claim is not supported or contradicted
+Then on the next line, briefly explain your reasoning.
 
 Document:
 {{.Document}}
 
 Claim:
-{{.Claim}}`
+{{.Claim}}
+
+Score:`
 
 var _ Evaluator = (*FactCheckingEvaluator)(nil)
 
 // FactCheckingEvaluatorConfig configures a [FactCheckingEvaluator].
-// ChatModel is required; PromptTemplate falls back to a default that
-// asks YES/NO.
+// ChatModel is required; PromptTemplate falls back to a scored default;
+// Threshold defaults to [DefaultPassThreshold].
 type FactCheckingEvaluatorConfig struct {
 	// ChatModel scores the claim against the document. Required.
 	ChatModel chat.Model
 
 	// PromptTemplate is the LLM prompt. Defaults to
 	// [factCheckingDefaultTemplate]. Custom templates must declare
-	// {{.Document}} and {{.Claim}}.
+	// {{.Document}} and {{.Claim}} and instruct the model to emit a
+	// number in [0, 1].
 	PromptTemplate *chat.PromptTemplate
+
+	// Threshold is the score boundary at which [Response.Pass] flips
+	// from false to true. Zero falls back to [DefaultPassThreshold].
+	Threshold float64
 }
 
 // validate fills the default prompt template and returns an error when
@@ -54,8 +68,9 @@ func (c *FactCheckingEvaluatorConfig) validate() error {
 // fact-verification check for RAG outputs.
 //
 // Verdicts:
-//   - Pass: true when the LLM answers "YES",
-//   - Score: 1.0 for YES, 0.0 otherwise.
+//   - Score: the LLM's continuous judgment, parsed from its reply, in [0, 1].
+//   - Pass:  true when Score >= the configured Threshold (default 0.5).
+//   - Feedback: the model's reasoning, taken from text after the score token.
 type FactCheckingEvaluator struct {
 	*llmEvaluator
 }
@@ -76,6 +91,7 @@ func NewFactCheckingEvaluator(config *FactCheckingEvaluatorConfig) (*FactCheckin
 				"Claim":    req.Generation,
 			}
 		},
+		config.Threshold,
 	)
 	if err != nil {
 		return nil, err
