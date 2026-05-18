@@ -237,7 +237,6 @@ func (r *responseHelper) buildAssistantMsg(candidate *genai.Candidate) *chat.Ass
 				ID:        part.FunctionCall.ID,
 				Name:      part.FunctionCall.Name,
 				Arguments: string(rawArgs),
-				State:     chat.ToolCallStateInputComplete,
 			})
 		case part.Thought:
 			parts = append(parts, &chat.ReasoningPart{

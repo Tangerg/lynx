@@ -256,7 +256,6 @@ func (r *responseHelper) buildAssistantMsg(resp *anthropicsdk.Message) *chat.Ass
 				ID:        block.ID,
 				Name:      block.Name,
 				Arguments: string(rawInput),
-				State:     chat.ToolCallStateInputComplete,
 			})
 		case "thinking":
 			parts = append(parts, &chat.ReasoningPart{
@@ -392,9 +391,8 @@ func (a *chunkAccumulator) AddChunk(event anthropicsdk.MessageStreamEventUnion) 
 		if block, ok := e.ContentBlock.AsAny().(anthropicsdk.ToolUseBlock); ok {
 			a.blockToToolID[e.Index] = block.ID
 			parts = []chat.OutputPart{&chat.ToolCallPart{
-				ID:    block.ID,
-				Name:  block.Name,
-				State: chat.ToolCallStateInputStreaming,
+				ID:   block.ID,
+				Name: block.Name,
 			}}
 			hasContent = true
 		}
@@ -420,7 +418,6 @@ func (a *chunkAccumulator) AddChunk(event anthropicsdk.MessageStreamEventUnion) 
 			parts = []chat.OutputPart{&chat.ToolCallPart{
 				ID:        id,
 				Arguments: delta.PartialJSON,
-				State:     chat.ToolCallStateInputStreaming,
 			}}
 			hasContent = true
 		case anthropicsdk.ThinkingDelta:

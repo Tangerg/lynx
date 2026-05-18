@@ -223,7 +223,6 @@ func (c *NativeChatModel) buildResponse(apiResp ollamaapi.ChatResponse, apiReq *
 			ID:        tc.ID,
 			Name:      tc.Function.Name,
 			Arguments: string(argsBytes),
-			State:     chat.ToolCallStateInputComplete,
 		})
 	}
 	assistantMsg := chat.NewAssistantMessage(chat.MessageParams{

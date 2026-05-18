@@ -77,21 +77,16 @@ func TestToolCallPart_AppendDelta_SameID(t *testing.T) {
 		ID:        "tc_1",
 		Name:      "weather",
 		Arguments: "{\"c",
-		State:     ToolCallStateInputStreaming,
 	}
 	ok := p.appendDelta(&ToolCallPart{
 		ID:        "tc_1",
 		Arguments: "ity\":\"BJ\"}",
-		State:     ToolCallStateInputComplete,
 	})
 	if !ok {
 		t.Fatal("same-ID delta should merge")
 	}
 	if p.Arguments != "{\"city\":\"BJ\"}" {
 		t.Errorf("Arguments = %q", p.Arguments)
-	}
-	if p.State != ToolCallStateInputComplete {
-		t.Errorf("State should progress to InputComplete; got %s", p.State)
 	}
 }
 
@@ -129,15 +124,6 @@ func TestToolCallPart_AppendDelta_NameSetOnce(t *testing.T) {
 	p.appendDelta(&ToolCallPart{ID: "tc_1", Name: "ignored"})
 	if p.Name != "weather" {
 		t.Errorf("Name overwritten: %q", p.Name)
-	}
-}
-
-func TestToolCallPart_AppendDelta_StateMonotonic(t *testing.T) {
-	p := &ToolCallPart{ID: "tc_1", State: ToolCallStateInputComplete}
-	// Lower-rank state should NOT overwrite higher-rank.
-	p.appendDelta(&ToolCallPart{ID: "tc_1", State: ToolCallStateInputStreaming})
-	if p.State != ToolCallStateInputComplete {
-		t.Errorf("State regressed: %s", p.State)
 	}
 }
 
