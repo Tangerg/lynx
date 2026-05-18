@@ -112,6 +112,13 @@ func (m *ToolMiddleware) executeStream(ctx context.Context, req *Request, next S
 // executeStreamRecursively runs one streaming round: forward chunks to
 // the caller while accumulating them, then inspect the accumulated
 // response to decide whether to dispatch tool calls and re-stream.
+//
+// Between turns the middleware emits a synthetic Response carrying the
+// runtime-injected ToolMessage so external consumers see the same
+// "assistant delta → tool result → assistant delta" timeline as in
+// the request history. This is the discriminator established in §8.4
+// of MESSAGE_PARTS_DESIGN: each yielded Response has exactly one of
+// Result.AssistantMessage or Result.ToolMessage populated.
 func (m *ToolMiddleware) executeStreamRecursively(ctx context.Context, req *Request, next StreamHandler, support *ToolSupport, yield func(*Response, error) bool) {
 	accumulator := NewResponseAccumulator()
 
@@ -149,10 +156,33 @@ func (m *ToolMiddleware) executeStreamRecursively(ctx context.Context, req *Requ
 		return
 	}
 
+	// Tool round-trip is happening in the middle of the loop. Surface
+	// the ToolMessage to the stream consumer so the on-the-wire
+	// timeline matches the message history we will hand the next
+	// model turn.
+	if result.toolMessage != nil {
+		toolResp, err := newToolMessageResponse(result.toolMessage)
+		if err == nil && !yield(toolResp, nil) {
+			return
+		}
+	}
+
 	nextReq, err := result.BuildContinueRequest()
 	if err != nil {
 		yield(nil, err)
 		return
 	}
 	m.executeStreamRecursively(ctx, nextReq, next, support, yield)
+}
+
+// newToolMessageResponse wraps a [*ToolMessage] in a [*Response] whose
+// Result.ToolMessage is set and Result.AssistantMessage is nil — the
+// discriminator that distinguishes tool-injection deltas from model
+// output deltas on the stream.
+func newToolMessageResponse(tm *ToolMessage) (*Response, error) {
+	result := &Result{
+		ToolMessage: tm,
+		Metadata:    &ResultMetadata{FinishReason: FinishReasonStop},
+	}
+	return NewResponse(result, &ResponseMetadata{})
 }

@@ -20,6 +20,11 @@ type fakeChatModel struct {
 	respond     func(req *chat.Request) (*chat.Response, error)
 	streamYield []*chat.Response
 	streamErr   error
+
+	// streamRespond, when non-nil, generates the chunk sequence
+	// dynamically per Stream call — useful for tool-loop tests that
+	// need different streams across recursive model invocations.
+	streamRespond func(req *chat.Request) []*chat.Response
 }
 
 func newFakeChatModel(t *testing.T) *fakeChatModel {
@@ -52,7 +57,11 @@ func (m *fakeChatModel) Stream(ctx context.Context, req *chat.Request) iter.Seq2
 			yield(nil, m.streamErr)
 			return
 		}
-		for _, resp := range m.streamYield {
+		chunks := m.streamYield
+		if m.streamRespond != nil {
+			chunks = m.streamRespond(req)
+		}
+		for _, resp := range chunks {
 			if !yield(resp, nil) {
 				return
 			}

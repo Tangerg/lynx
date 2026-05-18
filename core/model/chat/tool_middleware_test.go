@@ -83,6 +83,68 @@ func TestToolMiddleware_DirectReturn(t *testing.T) {
 	}
 }
 
+// TestToolMiddleware_StreamEmitsToolMessageBetweenTurns checks the
+// streaming-path invariant from MESSAGE_PARTS_DESIGN §8.4: the
+// runtime-injected ToolMessage MUST be yielded to the external
+// consumer as its own delta between assistant turns, so the
+// downstream timeline matches the message history fed to the next
+// model call.
+func TestToolMiddleware_StreamEmitsToolMessageBetweenTurns(t *testing.T) {
+	model := newFakeChatModel(t)
+
+	streamCalls := 0
+	model.streamRespond = func(req *chat.Request) []*chat.Response {
+		streamCalls++
+		if streamCalls == 1 {
+			return []*chat.Response{responseWithToolCall(t, "echo", `{"x":1}`)}
+		}
+		return []*chat.Response{responseWithText("final answer")}
+	}
+
+	echoTool := mustNewCallable(t, "echo", false, func(_ context.Context, args string) (string, error) {
+		return "echoed:" + args, nil
+	})
+
+	_, streamMW := chat.NewToolMiddleware()
+	req, _ := chat.NewClientRequest(model)
+	req.
+		WithMiddlewares(streamMW).
+		WithMessages(chat.NewUserMessage("seed")).
+		WithTools(echoTool)
+
+	var assistantChunks, toolChunks int
+	for resp, err := range req.Stream().Response(context.Background()) {
+		if err != nil {
+			t.Fatal(err)
+		}
+		if resp == nil || resp.Result == nil {
+			continue
+		}
+		switch {
+		case resp.Result.AssistantMessage != nil:
+			assistantChunks++
+		case resp.Result.ToolMessage != nil:
+			toolChunks++
+			if len(resp.Result.ToolMessage.ToolReturns) != 1 {
+				t.Errorf("tool message returns = %d, want 1", len(resp.Result.ToolMessage.ToolReturns))
+			}
+			if resp.Result.ToolMessage.ToolReturns[0].Result != "echoed:{\"x\":1}" {
+				t.Errorf("tool result = %q", resp.Result.ToolMessage.ToolReturns[0].Result)
+			}
+		}
+	}
+
+	if streamCalls != 2 {
+		t.Fatalf("model stream invoked %d times, want 2", streamCalls)
+	}
+	if toolChunks != 1 {
+		t.Errorf("expected exactly 1 ToolMessage yield between turns, got %d", toolChunks)
+	}
+	if assistantChunks < 2 {
+		t.Errorf("expected at least 2 assistant deltas, got %d", assistantChunks)
+	}
+}
+
 // TestToolMiddleware_PassthroughWithoutToolCalls verifies the middleware
 // is invisible when the LLM doesn't request any tools.
 func TestToolMiddleware_PassthroughWithoutToolCalls(t *testing.T) {
