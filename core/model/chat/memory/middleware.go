@@ -218,7 +218,12 @@ func (m *middleware) executeCall(ctx context.Context, req *chat.Request, next ch
 
 // executeStream is the streaming flow: prepare → stream chunks while
 // accumulating → save the accumulated complete response after the
-// stream closes.
+// stream closes naturally.
+//
+// Early consumer cancellation (caller breaks out of the iter loop)
+// is treated as "abandon the turn": we do NOT persist the partial
+// AssistantMessage, because half-streamed content saved as history
+// would lie to the next turn about what the model actually said.
 func (m *middleware) executeStream(ctx context.Context, req *chat.Request, next chat.StreamHandler) iter.Seq2[*chat.Response, error] {
 	return func(yield func(*chat.Response, error) bool) {
 		prepared, err := m.prepareRequest(ctx, req)
@@ -236,7 +241,7 @@ func (m *middleware) executeStream(ctx context.Context, req *chat.Request, next 
 			}
 			acc.AddChunk(chunk)
 			if !yield(chunk, nil) {
-				break
+				return // consumer cancelled — skip persistence
 			}
 		}
 

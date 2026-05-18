@@ -1,6 +1,7 @@
 package model_test
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -61,5 +62,34 @@ func TestApiKey_EmptyKeyForNoAuth(t *testing.T) {
 	k := model.NewApiKey("")
 	if got := k.Get(); got != "" {
 		t.Fatalf("Get = %q, want empty for no-auth scenarios", got)
+	}
+}
+
+// TestApiKey_MarshalJSONNeverLeaksSecret pins the contract that
+// json-encoding a struct containing an ApiKey emits the masked form,
+// not the raw value. Without MarshalJSON, encoding/json reaches into
+// unexported fields via reflection and would print the secret in plain
+// text — Stringer alone does not protect this path.
+func TestApiKey_MarshalJSONNeverLeaksSecret(t *testing.T) {
+	const secret = "sk-very-sensitive-token"
+	k := model.NewApiKey(secret)
+
+	out, err := json.Marshal(k)
+	if err != nil {
+		t.Fatalf("Marshal: %v", err)
+	}
+	if strings.Contains(string(out), "very-sensitive-token") {
+		t.Fatalf("MarshalJSON leaked secret: %s", out)
+	}
+	// Sanity: containing struct passes through the masked form too.
+	type wrapper struct {
+		Key model.ApiKey `json:"key"`
+	}
+	wrap, err := json.Marshal(wrapper{Key: k})
+	if err != nil {
+		t.Fatalf("Marshal wrapper: %v", err)
+	}
+	if strings.Contains(string(wrap), "very-sensitive-token") {
+		t.Fatalf("wrapper MarshalJSON leaked secret: %s", wrap)
 	}
 }
