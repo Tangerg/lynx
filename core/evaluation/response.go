@@ -3,8 +3,21 @@ package evaluation
 import (
 	"errors"
 	"fmt"
+	"regexp"
+	"strconv"
 	"strings"
 )
+
+// DefaultPassThreshold is the score boundary at which an evaluator
+// flips its [Response.Pass] verdict from false to true. Evaluators
+// expose [Threshold] in their config to override.
+const DefaultPassThreshold = 0.5
+
+// scoreNumberPattern matches a non-negative number with an optional
+// decimal part — `0`, `1`, `0.5`, `.85`, `1.00`. Used by
+// [parseScoredResponse] to find the first numeric token an LLM emitted
+// regardless of surrounding noise ("SCORE: 0.85", "0.9 — solid", ...).
+var scoreNumberPattern = regexp.MustCompile(`\d*\.\d+|\d+`)
 
 // Response is one evaluator's verdict — a pass/fail flag, a numerical
 // score (typically 0..1), human-readable feedback, and free-form
@@ -49,16 +62,32 @@ func (r *Response) Set(key string, value any) {
 	r.Metadata[key] = value
 }
 
-// parseYesNoResponse maps an LLM YES/NO answer into a [*Response]:
-// pass=true + score=1.0 for "YES" (case-insensitive, whitespace-
-// trimmed), pass=false + score=0.0 otherwise.
-func parseYesNoResponse(text string) (*Response, error) {
-	pass := strings.EqualFold(strings.TrimSpace(text), "YES")
-	score := 0.0
-	if pass {
-		score = 1.0
+// parseScoredResponse extracts the first float in [0, 1] from an LLM
+// reply and builds a [*Response]:
+//
+//   - Score: the parsed value, clamped exactly to the matched float
+//     (out-of-range matches are skipped, not clamped — the parser tries
+//     the next match, so "5 out of 10 → 0.5" still works if 0.5 appears).
+//   - Pass:  Score >= threshold.
+//   - Feedback: trimmed text after the score token, so the LLM's
+//     reasoning surfaces without manual extraction.
+//
+// Returns an error if no number in [0, 1] is found — silent fallback
+// to zero would hide LLM format failures.
+func parseScoredResponse(text string, threshold float64) (*Response, error) {
+	for _, span := range scoreNumberPattern.FindAllStringIndex(text, -1) {
+		token := text[span[0]:span[1]]
+		score, err := strconv.ParseFloat(token, 64)
+		if err != nil || score < 0 || score > 1 {
+			continue
+		}
+		return &Response{
+			Pass:     score >= threshold,
+			Score:    score,
+			Feedback: strings.TrimSpace(text[span[1]:]),
+		}, nil
 	}
-	return &Response{Pass: pass, Score: score}, nil
+	return nil, fmt.Errorf("evaluation: no score in [0, 1] found in response: %q", text)
 }
 
 // mergeResponses combines multiple sub-evaluations into one verdict —
