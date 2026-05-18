@@ -22,23 +22,23 @@
 
 ## 0. TL;DR
 
-**问题**：现代 LLM 在单 turn 内产出"text → tool_use → text → tool_use → text"有序混排（Claude / Gemini / OpenAI Responses）。lynx 现在的 `AssistantMessage { Text; Reasoning; ToolCalls[] }` 把这三类内容打平，ordering 丢失。
+**问题**：现代 LLM 在单 turn 内产出"text → tool_use → text → tool_use → text"有序混排（Claude / Gemini / OpenAI Responses）。重构前 lynx 的 `AssistantMessage { Text; Reasoning; ToolCalls[] }` 把这三类内容打平，ordering 丢失。
 
 **8 家观察**：
 
-- 6 家把 Anthropic content blocks 按类型打平（Spring AI / langchain4j / eino / trpc-agent-go / lynx 当前）—— industry pattern
-- 3 家有完整 Parts 模型（adk-go via `genai.Part`、Vercel via `ContentPart`、TanStack via `UIMessage.parts`）
-- 2 家做到 vendor-neutral + 完整 ordering（Vercel + TanStack）
+- 4 家把 Anthropic content blocks 按类型打平（Spring AI / langchain4j / eino / trpc-agent-go）—— industry pattern；lynx 在 v1 之前也是这一档
+- 4 家有完整 Parts 模型（adk-go via `genai.Part`、Vercel via `ContentPart`、TanStack via `UIMessage.parts`、**lynx v1** via `OutputPart`）
+- 3 家做到 vendor-neutral + 完整 ordering（Vercel + TanStack + **lynx v1**）
 - adk-go 的 ordering 是绑死 Google genai SDK 拿到的（牺牲多 vendor）
 
-**lynx 路线（4 步）**：
+**lynx v1（已落地）**：
 
 | 步骤 | 内容 |
 |---|---|
 | 1 | `AssistantMessage` 内部从 flat fields 改为 `Parts []OutputPart`；其它 message 类型保持简单 struct |
 | 2 | OutputPart **第一版仅 3 种**：TextPart / ReasoningPart / ToolCallPart |
 | 3 | `Model.Stream` 签名不变（`iter.Seq2[*Response, error]`），但语义改为 **delta**：每次 yield 携带刚到的增量 part |
-| 4 | 每个 Part 自实现 `appendDelta`；部件级累加 `partAccumulator` 仅 ~30 行（内部 helper，不导出）；多 turn 由 ToolMiddleware 完全封装 |
+| 4 | 每个 Part 自实现 `appendDelta`；部件级累加 `partAccumulator`（不导出，~20 行）；多 turn 由 ToolMiddleware 完全封装 |
 
 ---
 
@@ -61,7 +61,7 @@ Anthropic Claude（thinking + tool_use 交错）的 wire 形态：
 }
 ```
 
-lynx 当前接收形态：
+lynx 重构前的接收形态（已迁出，仅作背景说明）：
 
 ```go
 type AssistantMessage struct {
@@ -101,22 +101,24 @@ lynx 当前 ToolMiddleware 跑 N 轮只返回最后一轮 Response，中间 turn
 
 ## 2. 8 家对比矩阵
 
-| 维度 | Spring AI | langchain4j | eino | trpc-agent-go | adk-go | **Vercel AI** | **TanStack AI** | **lynx 现状** | **lynx 目标 (v1)** |
-|---|---|---|---|---|---|---|---|---|---|
-| 单 Message Parts 有序 | ❌ | ❌ | ✅ multimodal only | ❌ | ✅ via `genai.Part` | ✅ 完整 | ✅ UIMessage.parts | ❌ | ✅ 3 种 part |
-| Reasoning 入 Parts | ❌ | ❌ | ✅ | ❌ | ✅ Thought flag | ✅ | ✅ ThinkingPart | ⚠️ flat | ✅ ReasoningPart |
-| Reasoning signature | ❓ | ✅ attributes | ✅ part 字段 | ⚠️ extensions | ✅ ThoughtSignature | ✅ providerMetadata | ✅ ThinkingPart.signature | ⚠️ Metadata | ✅ ReasoningPart.Signature |
-| **text↔tool_call 有序交错** | ❌ | ❌ | ❌（承认）| ❌ | ✅ | ✅ | ✅ | ❌ | ✅ |
-| tool-result 入 Parts | ❌ | ❌ | ❌ | ❌ | ✅ FunctionResponse | ✅ | ✅ | ❌ | ❌ 在 ToolMessage |
-| tool-error 独立 Part | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ⚠️ state="error" | ❌ | ⏳ P1+ |
-| **流式形态** | snapshot (Flux) | delta callback | snapshot + Index | 混合 | delta + Partial | event stream | event stream | delta + accumulator | **delta + Accumulator helper** |
-| **流式 API 类型数** | 1 | 1 | 1 | 1 + Delta | 1 + flag | ~25 events | ~22 events | 1 | **1（Response 复用）** |
-| HITL 工具确认 | ❌ | ❌ | ❌ | ❌ | ⚠️ Actions | ✅ 独立 part | ✅ 内嵌 | ❌ | ⏳ P1+ |
-| Media / Source / File Part | ❌ | ❌ | ✅ Media | ⚠️ user only | ✅ all | ✅ all | ✅ all | ⚠️ Media flat | ⏳ P1+ |
-| Custom Part namespace | ⚠️ | ⚠️ | ⚠️ Extra | ⚠️ | ❌ | ✅ `${prov}.${kind}` | ✅ AG-UI Custom | ⚠️ Metadata | ⏳ P1+ |
-| 跨 turn intermediate 暴露 | ❌ | ✅ slice | ✅ event | ✅ channel | ✅ iter.Seq2 | ✅ 三视图 | ⚠️ AG-UI Step | ❌ | ✅ 通过 ToolMW 流 |
-| 流式 wire 协议 | 内部 Reactor | 内部 callback | 内部 StreamReader | 内部 channel | 内部 iter.Seq2 | 自定义 | ✅ AG-UI 开放协议 | 内部 iter.Seq2 | 默认内部；可选 AG-UI |
-| Multi-vendor provider | ✅ 20+ | ✅ 30+ | ✅ 多家 | ✅ 多家 | ❌ **Google only** | ✅ 20+ | ✅ 多家 | ✅ 22 chat | ✅ 22 chat |
+| 维度 | Spring AI | langchain4j | eino | trpc-agent-go | adk-go | **Vercel AI** | **TanStack AI** | **lynx v1** |
+|---|---|---|---|---|---|---|---|---|
+| 单 Message Parts 有序 | ❌ | ❌ | ✅ multimodal only | ❌ | ✅ via `genai.Part` | ✅ 完整 | ✅ UIMessage.parts | ✅ 3 种 part |
+| Reasoning 入 Parts | ❌ | ❌ | ✅ | ❌ | ✅ Thought flag | ✅ | ✅ ThinkingPart | ✅ ReasoningPart |
+| Reasoning signature | ❓ | ✅ attributes | ✅ part 字段 | ⚠️ extensions | ✅ ThoughtSignature | ✅ providerMetadata | ✅ ThinkingPart.signature | ✅ ReasoningPart.Signature |
+| **text↔tool_call 有序交错** | ❌ | ❌ | ❌（承认）| ❌ | ✅ | ✅ | ✅ | ✅ |
+| tool-result 入 Parts | ❌ | ❌ | ❌ | ❌ | ✅ FunctionResponse | ✅ | ✅ | ❌ 在 ToolMessage |
+| tool-error 独立 Part | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ⚠️ state="error" | ⏳ P1+ |
+| **流式形态** | snapshot (Flux) | delta callback | snapshot + Index | 混合 | delta + Partial | event stream | event stream | **delta + ResponseAccumulator** |
+| **流式 API 类型数** | 1 | 1 | 1 | 1 + Delta | 1 + flag | ~25 events | ~22 events | **1（Response 复用）** |
+| Tool-call 状态机 | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ 5 态 | ✅ 5 态内嵌 | ❌ 由流位置推导 |
+| HITL 工具确认 | ❌ | ❌ | ❌ | ❌ | ⚠️ Actions | ✅ 独立 part | ✅ 内嵌 | ⏳ P1+ |
+| Media / Source / File Part | ❌ | ❌ | ✅ Media | ⚠️ user only | ✅ all | ✅ all | ✅ all | ⏳ P1+ |
+| Custom Part namespace | ⚠️ | ⚠️ | ⚠️ Extra | ⚠️ | ❌ | ✅ `${prov}.${kind}` | ✅ AG-UI Custom | ⏳ P1+ |
+| 跨 turn intermediate 暴露 | ❌ | ✅ slice | ✅ event | ✅ channel | ✅ iter.Seq2 | ✅ 三视图 | ⚠️ AG-UI Step | ✅ 通过 ToolMW 流 |
+| 流式 wire 协议 | 内部 Reactor | 内部 callback | 内部 StreamReader | 内部 channel | 内部 iter.Seq2 | 自定义 | ✅ AG-UI 开放协议 | 默认内部；可选 AG-UI |
+| Sealed-union 机制 | abstract class | abstract class | 字段约定 | 字段约定 | struct 字段联合 | TS discriminated union | TS discriminated union | **unexported `appendDelta` 兼任 marker** |
+| Multi-vendor provider | ✅ 20+ | ✅ 30+ | ✅ 多家 | ✅ 多家 | ❌ **Google only** | ✅ 20+ | ✅ 多家 | ✅ 22 chat |
 
 **⏳ P1+** = 不在 v1 范围；未来有真实需求再加（章节 §10.2 会说明扩展策略）。
 
@@ -135,7 +137,7 @@ public class AssistantMessage {
 }
 ```
 
-Anthropic 适配器（`AnthropicChatModel.buildGenerations`）按类型打平：text → StringBuilder，tool_use → List<ToolCall>，thinking 单独 emit 成多 Generation。Tool 循环递归累计 conversationHistory 但只返回最后一个 ChatResponse。**评估**：跟 lynx 现状几乎一样的取舍。
+Anthropic 适配器（`AnthropicChatModel.buildGenerations`）按类型打平：text → StringBuilder，tool_use → List<ToolCall>，thinking 单独 emit 成多 Generation。Tool 循环递归累计 conversationHistory 但只返回最后一个 ChatResponse。**评估**：跟 lynx 重构前的 flat-fields 模型几乎一样的取舍；lynx v1 已迁出。
 
 ### 3.2 langchain4j（Java）
 
@@ -234,23 +236,221 @@ interface UIMessage { id; role; parts: Array<MessagePart>; }
 
 **ToolExecutionContext.emitCustomEvent**：tool 内部可发自定义 progress 事件。
 
-### 3.8 lynx 现状
+### 3.8 lynx v1（已实现）
 
 ```go
 type AssistantMessage struct {
-    Text      string
-    Reasoning string
-    Media     []*media.Media
-    ToolCalls []ToolCall
-    Metadata  map[string]any
+    Parts    []OutputPart    // 唯一内容字段，保留顺序
+    Metadata map[string]any  // 消息级 metadata（Anthropic redacted thinking 等走这里）
 }
+
+// OutputPart 是 sealed interface：unexported appendDelta 同时充当
+// 合并入口和 sealing marker。外部包既不能实现 OutputPart，也不能注入新 part 类型。
+type OutputPart interface {
+    Kind() PartKind
+    appendDelta(OutputPart) bool
+}
+
+// v1 共 3 种：
+type TextPart      struct { Text string }
+type ReasoningPart struct { Text string; Signature []byte }
+type ToolCallPart  struct { ID, Name, Arguments string }
 ```
 
-- ✅ Reasoning 是 first-class 字段
-- ❌ Parts 模型缺失，ordering 丢
-- ❌ 跨 turn intermediate 没暴露
+- ✅ Parts 模型 + text↔tool↔reasoning 完整 ordering
+- ✅ Reasoning 独立 part，Signature 字段直接 `[]byte`（覆盖 Anthropic/Google/OpenAI 三家 round-trip token）
 - ✅ vendor-neutral（22 chat provider）
-- ✅ Stream 已是 `iter.Seq2[*Response, error]` —— 现成 Go-idiomatic 形态
+- ✅ `Stream`/`Call` 共用 `iter.Seq2[*Response, error]`；snapshot 由 `ResponseAccumulator` 派生
+- ✅ Delta 合并下沉到每个 Part 的 `appendDelta` 自治；`partAccumulator`（unexported）~20 行、类型无关
+- ✅ ToolMessage 独立 role（贴 wire 协议）；ToolReturn 用 ID 与 ToolCallPart 配对
+- ⏳ tool-error / media / source / file / custom / HITL approval part 全 P1+ 再加
+
+### 3.9 按维度交叉分析（深度）
+
+§3.1–§3.8 是按库切片的横截面。这一节反向切——按 **message 处理的关键维度**对照 8 家做法，并标出 lynx 落点。
+
+#### 3.9.1 AssistantMessage 顶层结构
+
+| 库 | 顶层字段 | Parts/Block 模型 |
+|---|---|---|
+| Spring AI | `content / toolCalls / media / properties`（4 个 flat 字段） | 无 — 全 flat |
+| langchain4j | `text / thinking / toolExecutionRequests / attributes`（4 个 flat 字段） | 无 |
+| eino | `Content / AssistantGenMultiContent / ToolCalls / ReasoningContent`（4 个，Parts 只装 multimodal） | 半 — Parts 不含 ToolCalls/Reasoning |
+| trpc-agent-go | `Content / ToolCalls / ReasoningContent`（无 assistant 侧 Parts） | 无 |
+| adk-go | `genai.Content { Parts []Part }`（单字段） | **完整** — `Part` 是 sum type 内嵌一切 |
+| Vercel AI | `content: ContentPart[]`（单字段） | **完整** — ContentPart 是 11 种 union |
+| TanStack AI | `UIMessage.parts: MessagePart[]`（单字段） | **完整** — MessagePart 是 union，且与 `ModelMessage` 双层并存 |
+| **lynx v1** | `Parts []OutputPart + Metadata`（2 个字段） | **完整** — 3 种实现 |
+
+Spring AI / langchain4j / eino / trpc-agent-go 都是 **flat fields 并列**，设计上无法表达 "text → tool_call → text" 的顺序。lynx 站到 adk-go / Vercel / TanStack 一边，但 **比它们少 8 种 Part 类型**（v1 只有 3 种）。
+
+#### 3.9.2 text ↔ tool_call 有序交错
+
+这是 Claude / Gemini / GPT-5 普遍存在的真实场景。
+
+- **不支持（4 家）**：Spring AI、langchain4j、eino（自己承认）、trpc-agent-go。Adapter 把 "thinking + text + 2 tool_calls + text" 这种序列 **拍平成并列字段**：`text="..."(拼接) reasoning="..." toolCalls=[t1, t2]`。重放到下一轮时 **顺序信息丢失**，模型可能误以为 tools 是先于 text 调用的。
+- **支持（4 家）**：adk-go（单 vendor）、Vercel（vendor-neutral）、TanStack（vendor-neutral）、**lynx**（vendor-neutral）。
+
+lynx 在 anthropic / bedrock / google 三家 adapter 里做 **严格 1:1 保序**：`content_blocks` 按到达 index 直接翻译成 OutputPart。OpenAI Chat Completions 因为 wire 协议把 content / tool_calls 拆成两个并列字段，**adapter 内部按 `reasoning → text → tool_calls` 的约定重建**——这是一个会丢序的退化，Vercel / TanStack 处理 OpenAI 也同款。
+
+#### 3.9.3 Reasoning 表达 + Signature
+
+| 库 | Reasoning 位置 | Signature 保存 |
+|---|---|---|
+| Spring AI | 单独 Generation（与正文并列） | 不明确 |
+| langchain4j | `AiMessage.thinking`（并列字段） | `attributes` map |
+| eino | `ReasoningContent`（并列字段） | Part 级字段 |
+| trpc-agent-go | `ReasoningContent`（并列字段） | `extensions` map |
+| adk-go | `Part.Text + Part.Thought=true 标志位` | `ThoughtSignature []byte` |
+| Vercel | `{type:'reasoning'}` Part | `providerMetadata` |
+| TanStack | `ThinkingPart` | `ThinkingPart.signature` |
+| **lynx** | `ReasoningPart`（独立 part 类型） | `ReasoningPart.Signature []byte` |
+
+adk-go 用 "Text Part + Thought 标志位" 把 reasoning 和 text 混在同一 Part，得每次 type-switch 后再看 flag。lynx 把 ReasoningPart **做成独立类型**，type-switch 即得意图，代码对称——与 Vercel / TanStack 一致。Signature 直接 `[]byte` 兜底，不假设 base64 / hex 编码——KISS。
+
+#### 3.9.4 ToolCall 位置（Parts-inside vs 顶层并列）
+
+| 库 | ToolCall 在哪 |
+|---|---|
+| Spring AI / langchain4j / eino / trpc-agent-go | **顶层并列字段**（跟 text 同级） |
+| adk-go | **Part 之一**（`FunctionCall *FunctionCall`） |
+| Vercel / TanStack | **Part 之一** |
+| **lynx** | **Part 之一**（`ToolCallPart`） |
+
+放进 Parts vs 并列字段看似是位置差，实际影响 **整个 ordering 故事**——只要 ToolCall 在 Parts 里，text 和 tool 的相对顺序就被结构保留；放并列字段就丢了。lynx 这一轮重构的核心就是把 ToolCall 从并列字段迁入 Parts。
+
+#### 3.9.5 ToolResult / ToolMessage 表达
+
+这是 lynx 跟 adk-go / Vercel **明确不同**的地方：
+
+- **adk-go**：tool result 也是 `Part`，与 FunctionCall 在同一条 `Content` 内。**没有独立 ToolMessage**——用 `Role:"user"` + FunctionResponse Part 的约定混搭。
+- **Vercel**：tool result 在同一条 message 的 `content` 数组里，跟 tool-call 共生。**也没独立 ToolMessage**。
+- **TanStack**：tool result 嵌入到对应 ToolCallPart 的 state 里（input-complete → output-available），**单 Part 同时承载 call + result**。
+- **lynx**：**独立 ToolMessage 类型**，`ToolReturns []*ToolReturn`，通过 `ToolReturn.ID` 与上一条 AssistantMessage 里的 `ToolCallPart.ID` 配对。
+
+**选择根据**：OpenAI / Anthropic / Google 三家 wire 协议都把 tool result 作为 **新一轮的 input message**。lynx 跟 wire 一致——**ToolMessage 是独立 role**。代价：消费方要遍历两条 message 才能拿到一对 call+result。Vercel 那种 result-内嵌方便 UI 渲染，但跟所有 vendor wire 都不对齐，adapter 内部得做一次 "vendor message → UI message" 展开。lynx 决定 **让 message 模型贴近 wire**，UI 层自己投影。
+
+#### 3.9.6 Tool-call 状态机
+
+| 库 | 暴露状态机 |
+|---|---|
+| Spring AI / langchain4j / eino / trpc-agent-go / adk-go | **无** |
+| Vercel | **有**（5 种 state） |
+| TanStack | **有**（5 种 state，内嵌在 part 内） |
+| **lynx** | **无** |
+
+Vercel / TanStack 把 `input-streaming → input-complete → executed → ...` 显式建模在 Part 内，UI 可以按 state 切 spinner / 完成图标。
+
+lynx **明确选择不要**：状态可由 "流位置 + 历史里是否有匹配 ToolMessage" 完全推导。这也是 v1 ToolCallPart 只有 4 个字段的原因。代价：UI 想看 "is this call still streaming?" 需要自己跟踪流游标，不能直接读 `part.state`。
+
+#### 3.9.7 Sealed-union 实现
+
+把 Part 联合类型 "封死" 让外部包无法注入新 Part：
+
+| 库 | 机制 |
+|---|---|
+| Java 系（Spring AI / langchain4j） | 抽象类 + protected 构造（经典 sealed class） |
+| eino / trpc-agent-go | 字段约定，实际开放 |
+| adk-go | `genai.Part` 是 SDK 提供的 struct（字段联合，非接口），通过字段而非类型辨别 |
+| Vercel / TanStack（TS） | discriminated union（`type: 'text' \| 'tool-call' \| ...`），编译期穷尽 |
+| **lynx** | **unexported 方法 `appendDelta(OutputPart) bool`** 兼任 marker —— 外部包定义 `OutputPart` 的实现却无法实现这个方法 |
+
+lynx 这一招比 Java sealed class 更轻——**marker 方法本身就是 delta 合并入口**，不需要额外的 sealing marker。一个方法兼任两个职责，DRY 的极致。加新 Part 时如果忘记实现 `appendDelta`，编译期立刻报错。
+
+#### 3.9.8 Delta 合并机制（流式核心）
+
+各家把 "新 chunk 怎么并入累积态" 放在哪：
+
+| 库 | 合并逻辑位置 |
+|---|---|
+| Spring AI | Reactor Flux 内部 reduce + Anthropic adapter StringBuilder | 累积视图 |
+| langchain4j | Callback 模式（`onPartialThinking` 等），框架不维护累积态 | 调用方累计 |
+| eino | `MessageStreamingMeta.Index` + 框架 helper | Index-based |
+| adk-go | `Partial` 字段标记 + SDK 内部 | 框架内累积 |
+| Vercel | Event stream（25+ 事件）+ 框架内 stitcher | 框架累积 |
+| TanStack | AG-UI MessagesSnapshot | 框架累积 |
+| **lynx** | **每个 Part struct 自带 `appendDelta(OutputPart) bool`** + 类型无关的 `partAccumulator` | **Part 自治** |
+
+lynx 的做法独特：**合并语义沉到 Part 类型本身**。TextPart 实现 "两 TextPart 拼 Text 字段"，ToolCallPart 实现 "同 ID 拼 Arguments，不同 ID 拒绝合并"。`partAccumulator` 一共 ~20 行，**完全不做 type switch**，加新 Part 类型时 accumulator **一行不动**。Vercel 的 stitcher 是个 25+ 事件的 switch table，加一种 part 就得改 switch。这是 OCP 的具体落地。
+
+#### 3.9.9 流式形态
+
+| 库 | 形态 |
+|---|---|
+| Spring AI | `Flux<ChatResponse>`（snapshot — 每次 emission 是累积完整态） |
+| langchain4j | Callback，框架不返回流 |
+| eino | `StreamReader`（snapshot + Index） |
+| trpc-agent-go | `<-chan *event.Event`（混合） |
+| adk-go | `iter.Seq2[*Event, error]`（delta + Partial 标志） |
+| Vercel | `fullStream`（25+ typed event） |
+| TanStack | AG-UI event stream（22+ event） |
+| **lynx** | `iter.Seq2[*Response, error]`，每次 yield = **delta** |
+
+**lynx 选 delta 的实际后果**：
+
+- producer 端 vendor adapter **无状态**——拿到 chunk 就翻译，不维护 "截止到现在累积了多少"
+- consumer 要 snapshot 就喂 `ResponseAccumulator`；不要就直接消费 delta 渲染 token，**零组装代价**
+- `Stream` / `Call` **共享一份累加器代码**：Call 内部 = Stream 喂 `ResponseAccumulator`
+
+snapshot 派（Spring AI / eino）的问题：**每次 emission 都复制累积态**，1000 chunk × 50KB = 50MB 内存抖动。lynx 的 delta 模式只在调用方真正需要 snapshot 时才分配。
+
+#### 3.9.10 API 表面（consumer 要学的类型数）
+
+只数 message 相关：
+
+| 库 | Public 类型数（message 相关） |
+|---|---|
+| Spring AI | ~6（AssistantMessage / ToolCall / Media / Generation / ChatResponse / Choice） |
+| langchain4j | ~8 |
+| eino | ~10（Message + 6 Part 类型 + StreamingMeta + ToolCall + ...） |
+| adk-go | 2（`genai.Content` + `genai.Part`，但 `Part` 自身有 8+ 字段） |
+| Vercel | ~15（ContentPart union 11 alt + Message + ModelMessage + ...） |
+| TanStack | ~20（UIMessage + ModelMessage + 10+ MessagePart 类型 + state） |
+| **lynx** | **6**（AssistantMessage / OutputPart / TextPart / ReasoningPart / ToolCallPart / MessageParams）；`partAccumulator` unexported |
+
+lynx 比 Vercel / TanStack 的 API 表面 **少一个数量级**，与 Spring AI / langchain4j 持平，但拿到了 Parts 模型的所有好处。
+
+#### 3.9.11 Helper / 派生视图
+
+从 Parts 推导 flat 视图的便捷方法：
+
+- Spring AI：没必要（本来就是 flat）
+- adk-go / eino / trpc-agent-go：不提供——consumer 自己 walk Parts
+- Vercel：有 `text(content)` / `toolCalls(content)` 等 helper
+- TanStack：有 hook（`useChat` 自动派生）
+- **lynx**：7 个 helper —— `JoinedText() / JoinedReasoning() / HasToolCalls() / HasReasoning() / CollectToolCalls() / TextParts() / ReasoningParts() / ToolCalls()`，全部派生自 Parts，用 `iter.Seq + slices.ContainsFunc` 写成统一形态（DRY 后底层共用 `partsOf[T]` 泛型 + `joinTexts` 工具）
+
+这一层是 lynx 对 "data is sacred, views are cheap" 的具体落实。
+
+#### 3.9.12 跨 vendor 投影策略
+
+实际把 22 个 vendor 对接 Parts 模型的代码模式：
+
+**1:1 lossless 投影（Anthropic / Bedrock / Google）**：wire 本身就是 ordered content_blocks，adapter 直接 map(block ↔ part)。lynx / adk-go（google only）这一类。
+
+**Flat 投影（OpenAI Chat Completions / Ollama / 19 个 OpenAI-compatible）**：wire 把 reasoning / content / tool_calls 拆成三个并列字段。lynx 选择 **adapter 内部按约定重建** `[reasoning_parts...] → [text_parts...] → [tool_call_parts...]`。Vercel 走同样路线。代价：同一个 message 里 `text → tool_call → text` 这种穿插，经 OpenAI Chat Completions wire 一来一回被压扁——这不是 lynx 的问题，**全行业都做不到**。
+
+lynx 的双策略并存明确说明：Parts 是 source of truth，vendor adapter 各自负责保真度。Anthropic 跑长链 thinking + interleaved tool 拿到完整 ordering；OpenAI Chat Completions 接 GPT-4 老协议落到 "足够好"。
+
+#### 3.9.13 落点收敛
+
+| 维度 | lynx 位置 |
+|---|---|
+| Parts 模型完整 ordering | ✅ 与 Vercel / TanStack / adk-go 持平 |
+| Vendor-neutral（22 家） | ✅ 与 Spring AI / langchain4j 持平 |
+| **Vendor-neutral + ordering 双拿** | ✅ **只有 Vercel / TanStack / lynx 三家** |
+| Reasoning 独立 Part + Signature 字段 | ✅ 与 TanStack / Vercel / adk-go 持平 |
+| 单一 Message（无 dual-tier） | ✅ 与除 TanStack 外所有家持平 |
+| Delta 流（无 snapshot 复制） | ✅ 与 Vercel / TanStack / adk-go 持平 |
+| **API 表面 ≤ 6 类型** | ✅ **8 家最低**，与 Spring AI 同级但功能完整 |
+| **新 Part 类型扩展 0 修改 Accumulator** | ✅ **8 家独一**（其他家全是 switch table） |
+| Tool-call 状态机 | ❌ 不要（Vercel / TanStack 有） |
+| Tool result 内嵌在 message | ❌ 不要（lynx 独立 ToolMessage 贴 wire） |
+| Tool-error 独立 Part | ❌ v1 不要（Vercel 有） |
+| Media / Source / File Part | ❌ v1 不要 |
+| HITL approval Part | ❌ v1 不要 |
+
+**一句话归纳**：在 Parts 模型该有的能力上跟头部齐平，在 Parts 类型数 / API 表面 / Accumulator 复杂度上比所有家都更克制。3 种 Part 覆盖 LLM 主路径 99% 场景，加新 Part 类型时核心代码 0 修改；ToolResult 跟 wire 协议保持一致（独立 ToolMessage），消费方比 Vercel 多一跳但心智与 OpenAI / Anthropic 一致。
 
 ---
 
@@ -266,7 +466,7 @@ type AssistantMessage struct {
 
    ✅ ordering    ★ Vercel AI ★
                   ★ TanStack AI ★
-                  ★ lynx 目标位置 ★
+                  ★ lynx v1 ★
 ```
 
 ### 4.2 流式 snapshot × delta
@@ -276,7 +476,7 @@ type AssistantMessage struct {
    Spring AI (Flux)  eino                 langchain4j callback
                      trpc-agent-go        adk-go (Partial)
                                           Vercel / TanStack (event stream)
-                                          ★ lynx 目标 ★
+                                          ★ lynx v1 ★
 ```
 
 **lynx 选 delta**：
@@ -293,7 +493,7 @@ type AssistantMessage struct {
                   Spring AI / langchain4j /          TanStack AI
                   eino / trpc-agent-go /
                   adk-go / Vercel AI
-                  ★ lynx 目标 ★
+                  ★ lynx v1 ★
 ```
 
 **lynx 选单一 Message**：单一类型简单；TanStack 双层增加调用方负担。
