@@ -9,6 +9,7 @@ import (
 	"github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/option"
 	"github.com/openai/openai-go/v3/packages/ssestream"
+	"github.com/openai/openai-go/v3/responses"
 
 	"github.com/Tangerg/lynx/core/model"
 )
@@ -58,6 +59,20 @@ func (a *Api) ChatCompletionStream(ctx context.Context, req *openai.ChatCompleti
 		return nil, errors.New("openai: request must not be nil")
 	}
 	return a.client.Chat.Completions.NewStreaming(ctx, *req, opts...), nil
+}
+
+func (a *Api) ResponseNew(ctx context.Context, req *responses.ResponseNewParams, opts ...option.RequestOption) (*responses.Response, error) {
+	if req == nil {
+		return nil, errors.New("openai: request must not be nil")
+	}
+	return a.client.Responses.New(ctx, *req, opts...)
+}
+
+func (a *Api) ResponseNewStream(ctx context.Context, req *responses.ResponseNewParams, opts ...option.RequestOption) (*ssestream.Stream[responses.ResponseStreamEventUnion], error) {
+	if req == nil {
+		return nil, errors.New("openai: request must not be nil")
+	}
+	return a.client.Responses.NewStreaming(ctx, *req, opts...), nil
 }
 
 func (a *Api) Embedding(ctx context.Context, req *openai.EmbeddingNewParams, opts ...option.RequestOption) (*openai.CreateEmbeddingResponse, error) {
