@@ -42,8 +42,8 @@ func TestChatModel_Call_Mock(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}
-	if resp.Result.AssistantMessage.Text != "hello back" {
-		t.Errorf("text = %q; want 'hello back'", resp.Result.AssistantMessage.Text)
+	if resp.Result.AssistantMessage.JoinedText() != "hello back" {
+		t.Errorf("text = %q; want 'hello back'", resp.Result.AssistantMessage.JoinedText())
 	}
 	if m.Metadata().Provider != google.Provider {
 		t.Errorf("provider = %q", m.Metadata().Provider)

@@ -72,7 +72,7 @@ func chatResponseToSamplingResult(resp *chat.Response) *sdkmcp.CreateMessageResu
 	text, stop := "", "end_turn"
 	if resp != nil && resp.Result != nil {
 		if resp.Result.AssistantMessage != nil {
-			text = resp.Result.AssistantMessage.Text
+			text = resp.Result.AssistantMessage.JoinedText()
 		}
 		if resp.Result.Metadata != nil {
 			stop = mapStopReason(resp.Result.Metadata.FinishReason)

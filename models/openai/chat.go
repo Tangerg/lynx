@@ -10,7 +10,6 @@ import (
 	"github.com/openai/openai-go/v3/option"
 	"github.com/spf13/cast"
 
-	"github.com/Tangerg/lynx/core/media"
 	"github.com/Tangerg/lynx/core/model"
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/models/internal/options"
@@ -148,10 +147,15 @@ func (r *requestHelper) buildUserMsg(msg *chat.UserMessage) openai.ChatCompletio
 }
 
 func (r *requestHelper) buildAssistantMsg(msg *chat.AssistantMessage) openai.ChatCompletionMessageParamUnion {
-	message := openai.AssistantMessage(msg.Text)
+	// Parts → flat (content + tool_calls). The OpenAI Chat Completions
+	// API does not support interleaved text/tool_use blocks; we project
+	// all TextParts into a single content string (in order) and emit
+	// tool_calls as a separate array. ReasoningParts are dropped here —
+	// the API doesn't accept reasoning content on the request side.
+	message := openai.AssistantMessage(msg.JoinedText())
 	assistant := message.OfAssistant
 
-	for _, tc := range msg.ToolCalls {
+	for tc := range msg.ToolCalls() {
 		assistant.ToolCalls = append(assistant.ToolCalls, openai.ChatCompletionMessageToolCallUnionParam{
 			OfFunction: &openai.ChatCompletionMessageFunctionToolCallParam{
 				ID: tc.ID,
@@ -163,11 +167,8 @@ func (r *requestHelper) buildAssistantMsg(msg *chat.AssistantMessage) openai.Cha
 		})
 	}
 
-	for _, md := range msg.Media {
-		if mime.IsAudio(md.MimeType) {
-			assistant.Audio.ID = md.ID
-			break // only one is allowed
-		}
+	if audioID, ok := msg.Metadata["audio.id"].(string); ok && audioID != "" {
+		assistant.Audio.ID = audioID
 	}
 
 	if refusal, exists := msg.Metadata["refusal"]; exists {
@@ -224,36 +225,43 @@ func (r *requestHelper) buildApiChatRequest(req *chat.Request) (*openai.ChatComp
 type responseHelper struct{}
 
 func (r *responseHelper) buildAssistantMsg(req *openai.ChatCompletionNewParams, msg *openai.ChatCompletionMessage) *chat.AssistantMessage {
+	// OpenAI Chat Completions splits content (string) and tool_calls
+	// into separate fields — there's no interleaved ordering on the
+	// wire. We rebuild a Parts sequence by convention: reasoning first
+	// (if any), then text, then tool_calls. This is the canonical
+	// "first text then tools" ordering OpenAI emits in practice.
+	parts := make([]chat.OutputPart, 0, 2+len(msg.ToolCalls))
+
+	// DeepSeek-R1, vLLM with reasoning parsers, and other OpenAI-compatible
+	// servers expose chain-of-thought as a non-standard `reasoning_content`
+	// field on the message. The official openai-go types do not surface
+	// it, but the raw JSON is preserved under JSON.ExtraFields.
+	if reasoningField, ok := msg.JSON.ExtraFields["reasoning_content"]; ok && reasoningField.Valid() {
+		var reasoning string
+		if err := json.Unmarshal([]byte(reasoningField.Raw()), &reasoning); err == nil && reasoning != "" {
+			parts = append(parts, &chat.ReasoningPart{Text: reasoning})
+		}
+	}
+
+	if msg.Content != "" {
+		parts = append(parts, &chat.TextPart{Text: msg.Content})
+	}
+
+	for _, tc := range msg.ToolCalls {
+		parts = append(parts, &chat.ToolCallPart{
+			ID:        tc.ID,
+			Name:      tc.Function.Name,
+			Arguments: tc.Function.Arguments,
+			State:     chat.ToolCallStateInputComplete,
+		})
+	}
+
 	msgParams := chat.MessageParams{
-		Text:     msg.Content,
+		Parts:    parts,
 		Metadata: make(map[string]any),
 	}
 	msgParams.Metadata["refusal"] = msg.Refusal
 	msgParams.Metadata["annotations"] = msg.Annotations
-
-	// DeepSeek-R1, vLLM with reasoning parsers, and other OpenAI-compatible
-	// servers expose chain-of-thought as a non-standard `reasoning_content`
-	// field on the message. The official openai-go types do not surface it,
-	// but the raw JSON is preserved under JSON.ExtraFields. When present,
-	// route it directly to AssistantMessage.Reasoning. Official OpenAI
-	// Chat Completions (gpt-4o, o1, o3, gpt-5) do not expose reasoning
-	// text here — only via the Responses API — so this lookup is a silent
-	// no-op for them. DeepSeek's API rejects requests that echo
-	// reasoning_content back, so the request side never reads it.
-	if reasoningField, ok := msg.JSON.ExtraFields["reasoning_content"]; ok && reasoningField.Valid() {
-		var reasoning string
-		if err := json.Unmarshal([]byte(reasoningField.Raw()), &reasoning); err == nil {
-			msgParams.Reasoning = reasoning
-		}
-	}
-
-	for _, tc := range msg.ToolCalls {
-		msgParams.ToolCalls = append(msgParams.ToolCalls, &chat.ToolCall{
-			ID:        tc.ID,
-			Name:      tc.Function.Name,
-			Arguments: tc.Function.Arguments,
-		})
-	}
 
 	if msg.Audio.ID != "" {
 		msgParams.Metadata["audio.id"] = msg.Audio.ID
@@ -262,19 +270,31 @@ func (r *responseHelper) buildAssistantMsg(req *openai.ChatCompletionNewParams, 
 		mt, _ := mime.New("audio", string(req.Audio.Format))
 		msgParams.Metadata["audio.mimetype"] = mt.String()
 		msgParams.Metadata["audio.voice"] = req.Audio.Voice
+		msgParams.Metadata["audio.data"] = msg.Audio.Data
 
-		msgParams.Media = append(msgParams.Media, &media.Media{
-			ID:       msg.Audio.ID,
-			MimeType: mt,
-			Data:     msg.Audio.Data,
-		})
-
-		if msgParams.Text == "" {
-			msgParams.Text = msg.Audio.Transcript
+		// Audio-output mode: surface the transcript as a TextPart when
+		// no other text was produced, so callers reading JoinedText()
+		// still get the spoken content. Media is preserved on the
+		// AssistantMessage by routing through Metadata under
+		// "audio.data" / "audio.mimetype" — there is no top-level
+		// Media slice on the Parts-based AssistantMessage in v1.
+		if msg.Audio.Transcript != "" && !hasTextPart(msgParams.Parts) {
+			msgParams.Parts = append(msgParams.Parts, &chat.TextPart{Text: msg.Audio.Transcript})
 		}
 	}
 
 	return chat.NewAssistantMessage(msgParams)
+}
+
+// hasTextPart reports whether parts contains at least one TextPart with
+// non-empty text. Used by the audio-output fallback path.
+func hasTextPart(parts []chat.OutputPart) bool {
+	for _, p := range parts {
+		if tp, ok := p.(*chat.TextPart); ok && tp.Text != "" {
+			return true
+		}
+	}
+	return false
 }
 
 func (r *responseHelper) buildResultMeta(req *openai.ChatCompletionNewParams, choice *openai.ChatCompletionChoice) *chat.ResultMetadata {

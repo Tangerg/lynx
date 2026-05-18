@@ -38,7 +38,7 @@ func TestChatModel_Call_Integration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}
-	if resp.Result.AssistantMessage.Text == "" {
+	if resp.Result.AssistantMessage.JoinedText() == "" {
 		t.Fatal("empty text")
 	}
 }

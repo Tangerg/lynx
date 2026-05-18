@@ -296,7 +296,7 @@ func responseWithText(text string) *chat.Response {
 }
 
 func responseWithToolCall(name, args string) *chat.Response {
-	calls := []*chat.ToolCall{{ID: "call_1", Name: name, Arguments: args}}
+	calls := []*chat.ToolCallPart{{ID: "call_1", Name: name, Arguments: args}}
 	resp, _ := chat.NewResponse(
 		&chat.Result{
 			AssistantMessage: chat.NewAssistantMessage(calls),

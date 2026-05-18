@@ -69,19 +69,37 @@ func TestNewMessage_Dispatch(t *testing.T) {
 func TestNewAssistantMessage_Generic(t *testing.T) {
 	t.Run("string", func(t *testing.T) {
 		m := chat.NewAssistantMessage("answer")
-		if m.Text != "answer" || len(m.ToolCalls) != 0 || len(m.Media) != 0 {
-			t.Fatalf("unexpected: %+v", m)
+		if m.JoinedText() != "answer" {
+			t.Fatalf("JoinedText = %q, want answer", m.JoinedText())
+		}
+		if m.HasToolCalls() {
+			t.Fatal("no tool calls expected")
 		}
 		if m.Metadata == nil {
 			t.Fatal("Metadata must be allocated, never nil")
 		}
 	})
 
-	t.Run("tool calls", func(t *testing.T) {
-		calls := []*chat.ToolCall{{ID: "1", Name: "f", Arguments: "{}"}}
+	t.Run("tool calls slice", func(t *testing.T) {
+		calls := []*chat.ToolCallPart{{ID: "1", Name: "f", Arguments: "{}"}}
 		m := chat.NewAssistantMessage(calls)
 		if !m.HasToolCalls() {
 			t.Fatal("ToolCalls not threaded")
+		}
+	})
+
+	t.Run("output parts", func(t *testing.T) {
+		parts := []chat.OutputPart{
+			&chat.TextPart{Text: "hello "},
+			&chat.ToolCallPart{ID: "1", Name: "f", Arguments: "{}"},
+			&chat.TextPart{Text: "world"},
+		}
+		m := chat.NewAssistantMessage(parts)
+		if len(m.Parts) != 3 {
+			t.Fatalf("Parts len = %d, want 3", len(m.Parts))
+		}
+		if m.JoinedText() != "hello world" {
+			t.Fatalf("JoinedText = %q", m.JoinedText())
 		}
 	})
 
@@ -93,13 +111,15 @@ func TestNewAssistantMessage_Generic(t *testing.T) {
 		}
 	})
 
-	t.Run("full params", func(t *testing.T) {
+	t.Run("full params with reasoning", func(t *testing.T) {
 		m := chat.NewAssistantMessage(chat.MessageParams{
-			Text:      "t",
-			Reasoning: "thinking...",
+			Parts: []chat.OutputPart{
+				&chat.ReasoningPart{Text: "thinking..."},
+				&chat.TextPart{Text: "t"},
+			},
 		})
-		if m.Reasoning != "thinking..." {
-			t.Fatalf("Reasoning = %q", m.Reasoning)
+		if m.JoinedReasoning() != "thinking..." {
+			t.Fatalf("JoinedReasoning = %q", m.JoinedReasoning())
 		}
 		if !m.HasReasoning() {
 			t.Fatal("HasReasoning should be true")
@@ -210,8 +230,10 @@ func TestMergeAdjacentSameTypeMessages_FiltersNil(t *testing.T) {
 
 func TestMessageToString_AssistantWithToolCalls(t *testing.T) {
 	m := chat.NewAssistantMessage(chat.MessageParams{
-		Text:      "calling tool",
-		ToolCalls: []*chat.ToolCall{{ID: "1", Name: "f", Arguments: "{}"}},
+		Parts: []chat.OutputPart{
+			&chat.TextPart{Text: "calling tool"},
+			&chat.ToolCallPart{ID: "1", Name: "f", Arguments: "{}"},
+		},
 	})
 
 	got := chat.MessageToString(m)
@@ -247,9 +269,11 @@ func TestMessage_JSONRoundTrip(t *testing.T) {
 		{"system", chat.NewSystemMessage("you are concise")},
 		{"user", chat.NewUserMessage("hi")},
 		{"assistant", chat.NewAssistantMessage(chat.MessageParams{
-			Text:      "answer",
-			Reasoning: "thinking out loud",
-			ToolCalls: []*chat.ToolCall{{ID: "c1", Name: "search", Arguments: `{"q":"x"}`}},
+			Parts: []chat.OutputPart{
+				&chat.ReasoningPart{Text: "thinking out loud"},
+				&chat.TextPart{Text: "answer"},
+				&chat.ToolCallPart{ID: "c1", Name: "search", Arguments: `{"q":"x"}`, State: chat.ToolCallStateInputComplete},
+			},
 		})},
 	}
 	tool, _ := chat.NewToolMessage([]*chat.ToolReturn{{ID: "c1", Name: "search", Result: "ok"}})

@@ -43,8 +43,8 @@ func TestToolMiddleware_RecursiveLoop(t *testing.T) {
 	if calls != 2 {
 		t.Fatalf("model invoked %d times, want 2", calls)
 	}
-	if resp.Result.AssistantMessage.Text != "final answer" {
-		t.Fatalf("Text = %q, want final answer", resp.Result.AssistantMessage.Text)
+	if resp.Result.AssistantMessage.JoinedText() != "final answer" {
+		t.Fatalf("Text = %q, want final answer", resp.Result.AssistantMessage.JoinedText())
 	}
 }
 
@@ -101,7 +101,7 @@ func TestToolMiddleware_PassthroughWithoutToolCalls(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if resp.Result.AssistantMessage.Text != "plain reply" {
-		t.Fatalf("Text = %q", resp.Result.AssistantMessage.Text)
+	if resp.Result.AssistantMessage.JoinedText() != "plain reply" {
+		t.Fatalf("Text = %q", resp.Result.AssistantMessage.JoinedText())
 	}
 }

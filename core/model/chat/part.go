@@ -1,5 +1,10 @@
 package chat
 
+import (
+	"encoding/json"
+	"fmt"
+)
+
 // PartKind tags every [OutputPart] so consumers can do type-switch
 // style dispatch without reflection.
 type PartKind string
@@ -187,5 +192,73 @@ func mergeMeta(dst *map[string]any, src map[string]any) {
 	}
 	for k, v := range src {
 		(*dst)[k] = v
+	}
+}
+
+// marshalOutputPart renders an [OutputPart] as a kind-tagged JSON
+// object. Each part is encoded inline (no nested envelope) with a
+// leading "kind" discriminator so the message-level JSON stays flat
+// and decoders can dispatch in one pass.
+func marshalOutputPart(p OutputPart) ([]byte, error) {
+	switch tp := p.(type) {
+	case *TextPart:
+		return marshalKindedPart(PartKindText, tp)
+	case *ReasoningPart:
+		return marshalKindedPart(PartKindReasoning, tp)
+	case *ToolCallPart:
+		return marshalKindedPart(PartKindToolCall, tp)
+	default:
+		return nil, fmt.Errorf("chat: marshalOutputPart: unknown part type %T", p)
+	}
+}
+
+// marshalKindedPart marshals val and splices a leading "kind" field
+// into the resulting JSON object. Avoids a second pass through
+// map[string]any.
+func marshalKindedPart[T any](kind PartKind, val T) ([]byte, error) {
+	body, err := json.Marshal(val)
+	if err != nil {
+		return nil, err
+	}
+	if len(body) < 2 || body[0] != '{' {
+		return nil, fmt.Errorf("chat: marshalKindedPart: %s did not encode as an object", kind)
+	}
+	prefix := `{"kind":"` + string(kind) + `"`
+	if len(body) == 2 { // body == "{}"
+		return []byte(prefix + "}"), nil
+	}
+	return []byte(prefix + "," + string(body[1:])), nil
+}
+
+// unmarshalOutputPart decodes a kind-tagged JSON object back into the
+// matching concrete [OutputPart] implementation.
+func unmarshalOutputPart(data []byte) (OutputPart, error) {
+	var head struct {
+		Kind PartKind `json:"kind"`
+	}
+	if err := json.Unmarshal(data, &head); err != nil {
+		return nil, err
+	}
+	switch head.Kind {
+	case PartKindText:
+		var p TextPart
+		if err := json.Unmarshal(data, &p); err != nil {
+			return nil, err
+		}
+		return &p, nil
+	case PartKindReasoning:
+		var p ReasoningPart
+		if err := json.Unmarshal(data, &p); err != nil {
+			return nil, err
+		}
+		return &p, nil
+	case PartKindToolCall:
+		var p ToolCallPart
+		if err := json.Unmarshal(data, &p); err != nil {
+			return nil, err
+		}
+		return &p, nil
+	default:
+		return nil, fmt.Errorf("chat: unmarshalOutputPart: unknown kind %q", head.Kind)
 	}
 }

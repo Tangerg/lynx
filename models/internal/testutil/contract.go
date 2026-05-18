@@ -80,8 +80,8 @@ func runOpenAICompatCall(t *testing.T, c OpenAICompatChatContract) {
 	if !strings.HasSuffix(seenURL, "/chat/completions") {
 		t.Errorf("URL = %q; want suffix /chat/completions", seenURL)
 	}
-	if resp.Result.AssistantMessage.Text != "hello world" {
-		t.Errorf("text = %q; want %q", resp.Result.AssistantMessage.Text, "hello world")
+	if resp.Result.AssistantMessage.JoinedText() != "hello world" {
+		t.Errorf("text = %q; want %q", resp.Result.AssistantMessage.JoinedText(), "hello world")
 	}
 	if resp.Metadata.Usage == nil || resp.Metadata.Usage.PromptTokens != 5 {
 		t.Errorf("usage = %+v; want PromptTokens=5", resp.Metadata.Usage)
@@ -114,7 +114,7 @@ func runOpenAICompatStream(t *testing.T, c OpenAICompatChatContract) {
 	var pieces []string
 	for _, r := range resps {
 		if r.Result != nil && r.Result.AssistantMessage != nil {
-			pieces = append(pieces, r.Result.AssistantMessage.Text)
+			pieces = append(pieces, r.Result.AssistantMessage.JoinedText())
 		}
 	}
 	if !strings.Contains(strings.Join(pieces, ""), "hello world") {
@@ -184,8 +184,8 @@ func runAnthropicCompatCall(t *testing.T, c AnthropicCompatChatContract) {
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}
-	if resp.Result.AssistantMessage.Text != "hello back" {
-		t.Errorf("text = %q; want %q", resp.Result.AssistantMessage.Text, "hello back")
+	if resp.Result.AssistantMessage.JoinedText() != "hello back" {
+		t.Errorf("text = %q; want %q", resp.Result.AssistantMessage.JoinedText(), "hello back")
 	}
 }
 
@@ -215,7 +215,7 @@ func runAnthropicCompatStream(t *testing.T, c AnthropicCompatChatContract) {
 	var pieces []string
 	for _, r := range resps {
 		if r.Result != nil && r.Result.AssistantMessage != nil {
-			pieces = append(pieces, r.Result.AssistantMessage.Text)
+			pieces = append(pieces, r.Result.AssistantMessage.JoinedText())
 		}
 	}
 	if !strings.Contains(strings.Join(pieces, ""), "hello world") {
@@ -252,7 +252,7 @@ func RunIntegrationChat(t *testing.T, p IntegrationChatProbe) {
 		if err != nil {
 			t.Fatalf("Call: %v", err)
 		}
-		if resp.Result.AssistantMessage.Text == "" {
+		if resp.Result.AssistantMessage.JoinedText() == "" {
 			t.Fatal("empty assistant text")
 		}
 	})
