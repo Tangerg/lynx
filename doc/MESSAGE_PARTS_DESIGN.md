@@ -432,19 +432,6 @@ func (p *ReasoningPart) appendDelta(d OutputPart) bool {
 
 // =========================================================================
 
-// ToolCallState marks the lifecycle of a single ToolCallPart.
-// Streaming state is mirrored so static snapshots also expose it.
-//
-// v1 has 3 states. Approval-related states (approval_requested /
-// approval_responded) are deferred to P1+ along with HITL flow.
-type ToolCallState string
-
-const (
-    ToolCallStateInputStreaming ToolCallState = "input_streaming" // 部分 args 到达
-    ToolCallStateInputComplete  ToolCallState = "input_complete"  // args 已完整
-    ToolCallStateExecuted       ToolCallState = "executed"        // runtime 已执行
-)
-
 // ToolCallPart is one tool invocation request. The same ID flows into
 // the matching ToolResultPart / ToolErrorPart in the following
 // ToolMessage so callers can pair them by ID.
@@ -455,11 +442,15 @@ const (
 // streaming where multiple tool_calls grow in parallel — the
 // provider adapter buffers per-vendor-index and emits each tool_call
 // as a contiguous run of deltas with the same ID.
+//
+// "Are the arguments complete?" is encoded by stream position
+// (chunks = partial, accumulated final = complete) — no separate
+// state field. "Was the tool executed?" is encoded by the presence
+// of a matching ToolMessage in history.
 type ToolCallPart struct {
     ID        string
     Name      string
     Arguments string         // JSON-encoded; grows with deltas
-    State     ToolCallState
     Metadata  map[string]any
 }
 
@@ -477,10 +468,6 @@ func (p *ToolCallPart) appendDelta(d OutputPart) bool {
         p.Name = o.Name
     }
     p.Arguments += o.Arguments
-    if o.State > p.State {
-        // monotonic state progression
-        p.State = o.State
-    }
     mergeMeta(&p.Metadata, o.Metadata)
     return true
 }
@@ -810,7 +797,7 @@ for resp, err := range model.Stream(ctx, req) {
         case *chat.ReasoningPart:
             ui.PrintReasoning(p.Text)
         case *chat.ToolCallPart:
-            ui.ShowToolCallProgress(p.ID, p.Name, p.Arguments, p.State)
+            ui.ShowToolCallProgress(p.ID, p.Name, p.Arguments)
         }
     }
 }

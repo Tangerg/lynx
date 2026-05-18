@@ -222,7 +222,6 @@ func (c *ChatModel) buildResponse(out *bedrockruntime.ConverseOutput) (*chat.Res
 				ID:        id,
 				Name:      name,
 				Arguments: string(argsBytes),
-				State:     chat.ToolCallStateInputComplete,
 			})
 		}
 	}
@@ -329,9 +328,8 @@ func (a *chunkAccumulator) AddChunk(evt types.ConverseStreamOutput) (*chat.Respo
 			a.blockToToolID[int64(*e.Value.ContentBlockIndex)] = id
 		}
 		msgParams.Parts = []chat.OutputPart{&chat.ToolCallPart{
-			ID:    id,
-			Name:  name,
-			State: chat.ToolCallStateInputStreaming,
+			ID:   id,
+			Name: name,
 		}}
 		hasContent = true
 
@@ -354,7 +352,6 @@ func (a *chunkAccumulator) AddChunk(evt types.ConverseStreamOutput) (*chat.Respo
 			msgParams.Parts = []chat.OutputPart{&chat.ToolCallPart{
 				ID:        id,
 				Arguments: *d.Value.Input,
-				State:     chat.ToolCallStateInputStreaming,
 			}}
 			hasContent = true
 		}

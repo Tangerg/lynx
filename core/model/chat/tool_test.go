@@ -286,7 +286,6 @@ func responseWithToolCall(t *testing.T, name, args string) *chat.Response {
 					ID:        "call_1",
 					Name:      name,
 					Arguments: args,
-					State:     chat.ToolCallStateInputComplete,
 				}},
 			}),
 			Metadata: &chat.ResultMetadata{FinishReason: chat.FinishReasonToolCalls},

@@ -65,9 +65,9 @@ func TestAccumulator_InterleavedTextAndToolCalls(t *testing.T) {
 	// Simulates Claude's text → tool_use → text → tool_use → text pattern.
 	var acc Accumulator
 	acc.Add(&TextPart{Text: "查天气："})
-	acc.Add(&ToolCallPart{ID: "tu_1", Name: "weather", Arguments: "{\"city\":\"BJ\"}", State: ToolCallStateInputComplete})
+	acc.Add(&ToolCallPart{ID: "tu_1", Name: "weather", Arguments: "{\"city\":\"BJ\"}"})
 	acc.Add(&TextPart{Text: "查日历："})
-	acc.Add(&ToolCallPart{ID: "tu_2", Name: "calendar", Arguments: "{}", State: ToolCallStateInputComplete})
+	acc.Add(&ToolCallPart{ID: "tu_2", Name: "calendar", Arguments: "{}"})
 	acc.Add(&TextPart{Text: "等结果。"})
 	out := acc.Build()
 
@@ -86,8 +86,8 @@ func TestAccumulator_InterleavedTextAndToolCalls(t *testing.T) {
 
 func TestAccumulator_ToolCallDifferentIDFlushes(t *testing.T) {
 	var acc Accumulator
-	acc.Add(&ToolCallPart{ID: "tc_1", Name: "a", Arguments: "{}", State: ToolCallStateInputComplete})
-	acc.Add(&ToolCallPart{ID: "tc_2", Name: "b", Arguments: "{}", State: ToolCallStateInputComplete})
+	acc.Add(&ToolCallPart{ID: "tc_1", Name: "a", Arguments: "{}"})
+	acc.Add(&ToolCallPart{ID: "tc_2", Name: "b", Arguments: "{}"})
 	out := acc.Build()
 	if len(out) != 2 {
 		t.Fatalf("different-ID tool calls should remain 2 parts; got %d", len(out))
@@ -100,9 +100,9 @@ func TestAccumulator_ToolCallDifferentIDFlushes(t *testing.T) {
 func TestAccumulator_ToolCallSameIDArgsAccumulate(t *testing.T) {
 	// OpenAI Chat Completions style: arguments arrive in fragments.
 	var acc Accumulator
-	acc.Add(&ToolCallPart{ID: "tc_1", Name: "weather", Arguments: "{\"c", State: ToolCallStateInputStreaming})
+	acc.Add(&ToolCallPart{ID: "tc_1", Name: "weather", Arguments: "{\"c"})
 	acc.Add(&ToolCallPart{ID: "tc_1", Arguments: "ity\":"})
-	acc.Add(&ToolCallPart{ID: "tc_1", Arguments: "\"BJ\"}", State: ToolCallStateInputComplete})
+	acc.Add(&ToolCallPart{ID: "tc_1", Arguments: "\"BJ\"}"})
 	out := acc.Build()
 	if len(out) != 1 {
 		t.Fatalf("same-ID tool call deltas should merge to 1; got %d", len(out))
@@ -110,9 +110,6 @@ func TestAccumulator_ToolCallSameIDArgsAccumulate(t *testing.T) {
 	tcp := out[0].(*ToolCallPart)
 	if tcp.Arguments != "{\"city\":\"BJ\"}" {
 		t.Errorf("Arguments = %q", tcp.Arguments)
-	}
-	if tcp.State != ToolCallStateInputComplete {
-		t.Errorf("State = %s; want input_complete", tcp.State)
 	}
 }
 

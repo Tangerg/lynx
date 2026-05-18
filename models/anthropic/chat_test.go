@@ -283,7 +283,7 @@ func TestChatModel_RoundTrip_ParseAndReassemble(t *testing.T) {
 		Parts: []chat.OutputPart{
 			&chat.ReasoningPart{Text: "thinking step", Signature: []byte("sig_xyz")},
 			&chat.TextPart{Text: "Step 1: "},
-			&chat.ToolCallPart{ID: "tu_a", Name: "search", Arguments: `{"q":"x"}`, State: chat.ToolCallStateInputComplete},
+			&chat.ToolCallPart{ID: "tu_a", Name: "search", Arguments: `{"q":"x"}`},
 			&chat.TextPart{Text: "Step 2."},
 		},
 	})

@@ -100,40 +100,6 @@ func (p *ReasoningPart) appendDelta(d OutputPart) bool {
 	return true
 }
 
-// ToolCallState tracks the lifecycle of a single [ToolCallPart].
-// Streaming state mirrors here so static snapshots also expose where
-// a tool call is in its lifecycle. Approval-related states are
-// deferred to a future revision along with the HITL flow.
-type ToolCallState string
-
-const (
-	// ToolCallStateInputStreaming — partial arguments JSON is arriving.
-	ToolCallStateInputStreaming ToolCallState = "input_streaming"
-
-	// ToolCallStateInputComplete — arguments JSON is fully assembled,
-	// the runtime has not yet executed the tool.
-	ToolCallStateInputComplete ToolCallState = "input_complete"
-
-	// ToolCallStateExecuted — the runtime has invoked the tool; the
-	// matching result/error lives in the following ToolMessage.
-	ToolCallStateExecuted ToolCallState = "executed"
-)
-
-// rank returns a monotonic ordering for [ToolCallState] so accumulator
-// merges can keep the highest state seen so far.
-func (s ToolCallState) rank() int {
-	switch s {
-	case ToolCallStateInputStreaming:
-		return 1
-	case ToolCallStateInputComplete:
-		return 2
-	case ToolCallStateExecuted:
-		return 3
-	default:
-		return 0
-	}
-}
-
 // ToolCallPart is one tool invocation request. The ID flows through
 // to the matching tool result in the following ToolMessage so callers
 // can pair them by ID.
@@ -151,7 +117,6 @@ type ToolCallPart struct {
 	ID        string         `json:"id"`
 	Name      string         `json:"name"`
 	Arguments string         `json:"arguments,omitempty"` // JSON-encoded; grows with deltas
-	State     ToolCallState  `json:"state,omitempty"`
 	Metadata  map[string]any `json:"metadata,omitzero"`
 }
 
@@ -173,9 +138,6 @@ func (p *ToolCallPart) appendDelta(d OutputPart) bool {
 		p.Name = o.Name
 	}
 	p.Arguments += o.Arguments
-	if o.State.rank() > p.State.rank() {
-		p.State = o.State
-	}
 	mergeMeta(&p.Metadata, o.Metadata)
 	return true
 }

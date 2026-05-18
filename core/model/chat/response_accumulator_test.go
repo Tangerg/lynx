@@ -145,7 +145,6 @@ func toolCallChunk(id, name, args string) *chat.Response {
 					ID:        id,
 					Name:      name,
 					Arguments: args,
-					State:     chat.ToolCallStateInputStreaming,
 				}},
 			}),
 			Metadata: &chat.ResultMetadata{},

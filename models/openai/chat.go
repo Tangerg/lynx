@@ -252,7 +252,6 @@ func (r *responseHelper) buildAssistantMsg(req *openai.ChatCompletionNewParams, 
 			ID:        tc.ID,
 			Name:      tc.Function.Name,
 			Arguments: tc.Function.Arguments,
-			State:     chat.ToolCallStateInputComplete,
 		})
 	}
 

@@ -272,7 +272,7 @@ func TestMessage_JSONRoundTrip(t *testing.T) {
 			Parts: []chat.OutputPart{
 				&chat.ReasoningPart{Text: "thinking out loud"},
 				&chat.TextPart{Text: "answer"},
-				&chat.ToolCallPart{ID: "c1", Name: "search", Arguments: `{"q":"x"}`, State: chat.ToolCallStateInputComplete},
+				&chat.ToolCallPart{ID: "c1", Name: "search", Arguments: `{"q":"x"}`},
 			},
 		})},
 	}
