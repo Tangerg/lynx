@@ -26,8 +26,9 @@ const (
 // AssistantMessage. The v1 universe is closed: exactly three concrete
 // types — [TextPart], [ReasoningPart], [ToolCallPart]. Future part
 // kinds (media / source / file / approval / custom / tool-error) are
-// deferred until real use cases land; the [Accumulator] is fully
-// type-agnostic and does not need to change when new parts are added.
+// deferred until real use cases land; the part-level accumulator
+// inside [ResponseAccumulator] is fully type-agnostic and does not
+// need to change when new parts are added.
 //
 // Streaming semantics: providers emit one or more [OutputPart] deltas
 // per chunk. Same-type adjacent deltas merge in-place via

@@ -8,7 +8,7 @@
 >
 > 1. `AssistantMessage` 内部 flat fields 改为 `Parts []OutputPart`
 > 2. **第一版只 3 种 Part**：`TextPart` / `ReasoningPart` / `ToolCallPart`
-> 3. **流式 = delta**——`Model.Stream` 每次 yield 携带"刚到达的 part 增量"；consumer 需要 snapshot 时用 `chat.Accumulator` 自己组装
+> 3. **流式 = delta**——`Model.Stream` 每次 yield 携带"刚到达的 part 增量"；consumer 需要 snapshot 时用 `chat.ResponseAccumulator` 自己组装
 > 4. **每个 Part 自实现 `appendDelta`**——同类型+同 identity 即 in-place 合并；Accumulator 完全类型无关
 > 5. **UserMessage / SystemMessage / ToolMessage 是普通 struct**——只有 AssistantMessage 用 Part 抽象
 > 6. **ToolMiddleware 放中间件链最里层**——多 turn 完全封装在中间件内部，外层 consumer 只看到一条连续 delta 流
@@ -38,7 +38,7 @@
 | 1 | `AssistantMessage` 内部从 flat fields 改为 `Parts []OutputPart`；其它 message 类型保持简单 struct |
 | 2 | OutputPart **第一版仅 3 种**：TextPart / ReasoningPart / ToolCallPart |
 | 3 | `Model.Stream` 签名不变（`iter.Seq2[*Response, error]`），但语义改为 **delta**：每次 yield 携带刚到的增量 part |
-| 4 | 每个 Part 自实现 `appendDelta`；`chat.Accumulator` 仅 ~15 行；多 turn 由 ToolMiddleware 完全封装 |
+| 4 | 每个 Part 自实现 `appendDelta`；部件级累加 `partAccumulator` 仅 ~30 行（内部 helper，不导出）；多 turn 由 ToolMiddleware 完全封装 |
 
 ---
 
@@ -283,7 +283,7 @@ type AssistantMessage struct {
 
 - LLM wire 本来就是 delta；producer 无需维护"累积到当前"状态
 - consumer 不需要 snapshot 时不用付组装代价
-- snapshot 由 `chat.Accumulator` helper 派生（~15 行）；**严格更弱的原语用强原语派生很自然**
+- snapshot 由 `chat.ResponseAccumulator` 派生；**严格更弱的原语用强原语派生很自然**
 - consumer 想要 token-level UI（不需要 snapshot）的代码最短
 
 ### 4.3 单一 Message × dual-tier
@@ -322,7 +322,7 @@ type AssistantMessage struct {
 | **第一版 Part 种类** | **3 种**：`TextPart` / `ReasoningPart` / `ToolCallPart` | 覆盖 LLM 主路径 99% 场景；其它 part 类型有真实需求再加 |
 | **Stream 签名** | `iter.Seq2[*Response, error]` 不变 | Go-idiomatic 形态保留 |
 | **流式语义** | **delta**——每次 yield 是刚到的 part 增量 | LLM wire 本来就 delta；producer 无状态 |
-| **同步 Call 实现** | 内部 = Stream + Accumulator.Build() | 一份 accumulator 服务两条路径 |
+| **同步 Call 实现** | 内部 = Stream 喂入 ResponseAccumulator | 一份累加器服务两条路径 |
 | **delta 合并机制** | 每个 Part struct 自实现 `appendDelta(OutputPart) bool` | type-local 责任；Accumulator 类型无关 |
 | **`appendDelta` 同时充当 sealing** | unexported 方法 → 外部包无法实现 OutputPart | 不需要额外 sealing marker |
 | **Accumulator 行数** | ~15 行（只调 interface 方法）| 加新 Part 类型零修改 |
@@ -586,79 +586,53 @@ func (m *AssistantMessage) HasToolCalls() bool { ... }
 | `msg.Reasoning` | `msg.JoinedReasoning()` |
 | `for _, tc := range msg.ToolCalls` | `for tc := range msg.ToolCalls()` |
 
-### 6.5 Accumulator —— 完全类型无关
+### 6.5 ResponseAccumulator —— 公共 API，部件级累加内联
+
+公共面只有一个 `chat.ResponseAccumulator`。Caller 把每个 streaming chunk 喂给 `AddChunk`，最终从 `acc.Response` 取完整结果。**部件级 (Part-level) 累加是 ResponseAccumulator 的实现细节，类型未导出**——consumer 不需要直接接触它。
 
 ```go
-// core/model/chat/accumulator.go
+// core/model/chat/response_accumulator.go
 
-// Accumulator merges streaming part deltas into the final ordered
-// list. Same-type adjacent deltas are merged in-place via each part's
-// appendDelta; type changes (or identity changes for tool calls)
-// flush the in-flight part and start a new one.
-//
-// Implementation is completely type-agnostic: it never type-switches
-// on concrete Part types. Adding new Part types (P1+) requires no
-// change here.
-type Accumulator struct {
-    parts   []OutputPart
-    current OutputPart // in-flight
+// ResponseAccumulator stitches a streaming sequence of *Response
+// chunks back into one full Response. It encapsulates the per-field
+// merge rules so callers can stream a chat reply and consume it as if
+// it had arrived at once.
+type ResponseAccumulator struct {
+    Response
 }
 
-// Add applies one delta. Typically called once per Part in each
-// streaming Response.Result.AssistantMessage.Parts.
-func (a *Accumulator) Add(delta OutputPart) {
-    if a.current == nil {
-        a.current = delta
-        return
-    }
-    if a.current.appendDelta(delta) {
-        return
-    }
-    a.parts = append(a.parts, a.current)
-    a.current = delta
-}
+func NewResponseAccumulator() *ResponseAccumulator { ... }
 
-// Build flushes the in-flight part and returns the final slice.
-// Safe to call multiple times; idempotent once flushed.
-func (a *Accumulator) Build() []OutputPart {
-    if a.current != nil {
-        a.parts = append(a.parts, a.current)
-        a.current = nil
-    }
-    return a.parts
-}
-
-// AccumulateStream drains a streaming iter.Seq2 into one final
-// AssistantMessage. Used by Model.Call (internally) and by call
-// sites that want a snapshot rather than token-by-token deltas.
-func AccumulateStream(seq iter.Seq2[*Response, error]) (*Response, error) {
-    var acc Accumulator
-    var lastResp *Response
-    for resp, err := range seq {
-        if err != nil {
-            return nil, err
-        }
-        if resp != nil && resp.Result != nil && resp.Result.AssistantMessage != nil {
-            for _, p := range resp.Result.AssistantMessage.Parts {
-                acc.Add(p)
-            }
-        }
-        lastResp = resp
-    }
-    if lastResp == nil {
-        return nil, nil
-    }
-    // Replace the last response's parts with the accumulated parts.
-    final := *lastResp
-    final.Result = &Result{
-        AssistantMessage: &AssistantMessage{Parts: acc.Build()},
-        Metadata:         lastResp.Result.Metadata,
-    }
-    return &final, nil
-}
+// AddChunk merges chunk into the accumulator. Safe to call any
+// number of times in the order chunks arrive.
+func (r *ResponseAccumulator) AddChunk(chunk *Response) { ... }
 ```
 
-**~30 行**（含注释和 stream-drainer helper）。
+部件级累加 (`partAccumulator`) 与 ResponseAccumulator 同文件，**unexported**：
+
+```go
+// partAccumulator merges streaming OutputPart deltas into the final
+// ordered list. Same-type adjacent deltas are merged in-place via
+// each part's appendDelta; type changes (or identity changes for
+// tool calls) flush the in-flight part and start a new one.
+//
+// Type-agnostic by design: it never type-switches on concrete Part
+// types. Adding new Part types (P1+) requires no change here.
+type partAccumulator struct {
+    parts   []OutputPart
+    current OutputPart
+}
+
+func (a *partAccumulator) add(delta OutputPart)         { ... }
+func (a *partAccumulator) addAll(deltas []OutputPart)   { ... }
+func (a *partAccumulator) build() []OutputPart          { ... }
+```
+
+**两层职责分离**：
+- `ResponseAccumulator` 处理 message-level 字段合并（finish reason / usage / metadata 的覆盖规则；assistant / tool message 的拆分）
+- `partAccumulator` 只处理 `[]OutputPart` 的 delta 合并语义（同类相邻合并、type 边界 flush、tool-call ID 匹配）
+
+合起来不到 100 行实现，加新 Part 类型时 `partAccumulator` 零修改。
 
 ### 6.6 Vendor Wire Projection
 
@@ -754,7 +728,7 @@ type Model interface {
 
 **Stream 语义（delta）**：每次 yield 的 Response 携带"刚到达的 part 增量"。`Response.Result.AssistantMessage.Parts` 长度通常是 1（也可能 0 或 N，取决于 chunk 边界）。
 
-**Call 语义（snapshot）**：返回的 Response 里 Parts 是完整 final Parts。**实现上 Call 内部 = `chat.AccumulateStream(model.Stream(...))`**——一份累加器服务两条路径。
+**Call 语义（snapshot）**：返回的 Response 里 Parts 是完整 final Parts。**实现上 Call 内部 = `chat.NewResponseAccumulator()` 喂入 `model.Stream(...)` 的每个 chunk**——一份累加器服务两条路径。
 
 ### 7.2 Provider 内的累加器（producer 端可选）
 
@@ -802,20 +776,14 @@ for resp, err := range model.Stream(ctx, req) {
     }
 }
 
-// 用法 ② ── 想要 snapshot
-final, err := chat.AccumulateStream(model.Stream(ctx, req))
-// final.Result.AssistantMessage.Parts 是组装好的完整 Parts
-
-// 用法 ③ ── 想要 snapshot 也想要 token UI
-var acc chat.Accumulator
+// 用法 ② ── 想要 snapshot（或同时想要 token UI）
+acc := chat.NewResponseAccumulator()
 for resp, err := range model.Stream(ctx, req) {
     if err != nil { return err }
-    for _, p := range resp.Result.AssistantMessage.Parts {
-        acc.Add(p)
-        ui.RenderDelta(p)
-    }
+    acc.AddChunk(resp)
+    // 也可在此 inspect resp.Result.AssistantMessage.Parts 做 delta UI
 }
-finalParts := acc.Build()
+final := &acc.Response // 完整 Response，含组装好的 Parts
 ```
 
 ### 7.4 AG-UI wire adapter（可选）
@@ -865,8 +833,7 @@ func (m *ToolMiddleware) Stream(ctx context.Context, next Model, req *Request) i
 
         for step := 0; step < m.MaxSteps; step++ {
             // ① 跑当前 turn 的流，原样 yield delta 给上层
-            var turnAcc Accumulator
-            var turnMeta *ResultMetadata
+            turnAcc := chat.NewResponseAccumulator()
             for resp, err := range next.Stream(ctx, &Request{Messages: history, ...}) {
                 if err != nil {
                     yield(nil, err)
@@ -875,17 +842,12 @@ func (m *ToolMiddleware) Stream(ctx context.Context, next Model, req *Request) i
                 if !yield(resp, nil) {
                     return
                 }
-                for _, p := range resp.Result.AssistantMessage.Parts {
-                    turnAcc.Add(p)
-                }
-                if resp.Result.Metadata != nil {
-                    turnMeta = resp.Result.Metadata
-                }
+                turnAcc.AddChunk(resp)
             }
 
             // ② turn 结束。看是否要执行 tool。
-            turnParts := turnAcc.Build()
-            assistantMsg := &AssistantMessage{Parts: turnParts}
+            assistantMsg := turnAcc.Response.Result.AssistantMessage
+            turnMeta := turnAcc.Response.Result.Metadata
             history = append(history, assistantMsg)
 
             if turnMeta == nil || turnMeta.FinishReason != FinishReasonToolCalls {
@@ -914,11 +876,16 @@ func (m *ToolMiddleware) Stream(ctx context.Context, next Model, req *Request) i
 }
 ```
 
-### 8.3 Call 实现（复用 Stream + Accumulator）
+### 8.3 Call 实现（复用 ResponseAccumulator）
 
 ```go
 func (m *ToolMiddleware) Call(ctx context.Context, next Model, req *Request) (*Response, error) {
-    return chat.AccumulateStream(m.Stream(ctx, next.Stream, req))
+    acc := chat.NewResponseAccumulator()
+    for resp, err := range m.Stream(ctx, next, req) {
+        if err != nil { return nil, err }
+        acc.AddChunk(resp)
+    }
+    return &acc.Response, nil
 }
 ```
 
@@ -1011,9 +978,9 @@ func (e *Event) IsFinal() bool { ... }
 
 | 阶段 | 范围 | 工作量 | 是否破坏 API |
 |---|---|---|---|
-| **P0** — 3 种 Part + Accumulator | `core/model/chat/part.go`（3 个 struct + `appendDelta`）；`accumulator.go`（~30 行）；`message.go` 改造（AssistantMessage.Parts；UserMessage/SystemMessage/ToolMessage 简化）；helper（`JoinedText` / `ToolCalls()` iter）| 中（~250 LOC） | ✅ 破坏 |
+| **P0** — 3 种 Part + Accumulator | `core/model/chat/part.go`（3 个 struct + `appendDelta`）；`response_accumulator.go`（含部件级 `partAccumulator` helper，~30 行）；`message.go` 改造（AssistantMessage.Parts；UserMessage/SystemMessage/ToolMessage 简化）；helper（`JoinedText` / `ToolCalls()` iter）| 中（~250 LOC） | ✅ 破坏 |
 | **P1** — Provider builder 改造 | 22 个 chat provider 的 `buildChatResponse` 改产 delta Parts；anthropic / google / vertexai / bedrock 走 1:1 native；openai Chat Completions 走有损投影 + 内部 demux；17 个 OpenAI-compat shim 自动继承 | 中（每 vendor ~25 LOC，主要在 anthropic / google / openai）| ✅ 破坏 |
-| **P2** — Tool middleware 改造 | ToolMiddleware 改用 Parts；Stream 内部循环；Call = AccumulateStream(Stream) | 低（~150 LOC）| ✅ 破坏 |
+| **P2** — Tool middleware 改造 | ToolMiddleware 改用 Parts；Stream 内部循环；Call 喂 Stream 进 ResponseAccumulator | 低（~150 LOC）| ✅ 破坏 |
 | **P3** — Agent Event 流 | `agent.Agent.Run iter.Seq2[*Event, error]`；Event{Response, Actions}；保留 `Agent.Call` | 中（~400 LOC）| ⚠️ 破坏 agent API |
 | **P4** — AG-UI wire adapter | `core/model/chat/wire/aguifmt`；`StreamToAGUI` / `EncodeSSE` | 中（~300 LOC，opt-in）| ❌ 不破坏 |
 | **P5** — 文档 + 测试 | 改 `doc/REASONING.md` / `doc/MIDDLEWARE.md`；加 `doc/PARTS_RENDERING.md`；端到端 mock 测试 Claude 7 种 content block / OpenAI 流式 demux / 多 turn tool loop | 中 | — |
@@ -1074,7 +1041,7 @@ func (e *Event) IsFinal() bool { ... }
 | OpenAI Chat Completions（text + 2 tool calls 并行 streaming）| 适配器 demux 出非交错 delta；Accumulator 组装出 `[TextPart, ToolCallPart_tc1, ToolCallPart_tc2]` |
 | Gemini 2.0 Flash（thinking + functions）| Parts 含 ReasoningPart + ToolCallPart |
 | ToolMiddleware 3-turn 循环 | 外层 consumer 收到一连续 delta 流；history 中含 3 个 AssistantMessage + 2 个 ToolMessage |
-| `chat.AccumulateStream` | Call 内部用法 ≡ 外部 helper 调用结果 |
+| `chat.ResponseAccumulator` snapshot | Call 内部用法 ≡ 外部 helper 调用结果 |
 | token UI 直接消费 delta | 不调 Accumulator，逐 chunk 渲染 token |
 | 加新 Part 类型不破坏 Accumulator | mock 一个 `FuturePart`，与现有 3 种 Part 混合流，Accumulator 行为不变 |
 | Stream cancel mid-turn | iter.Seq2 提前 return，server-side 连接关闭 |
@@ -1109,7 +1076,7 @@ func (e *Event) IsFinal() bool { ... }
 
 **lynx v1 走最简 MVP：AssistantMessage 内部 flat fields 改为 `Parts []OutputPart`，只 3 种 Part（Text / Reasoning / ToolCall）；流式 = delta，每个 Part 自实现 `appendDelta`，Accumulator 完全类型无关；UserMessage / SystemMessage / ToolMessage 是普通 struct；ToolMiddleware 放中间件链最里层封装多 turn 复杂度。**
 
-**API 表面新增类型**：1 个 OutputPart interface + 3 个 Part struct（+ 1 个 Accumulator helper struct）。比 Vercel/TanStack 都简洁一个数量级。
+**API 表面新增类型**：1 个 OutputPart interface + 3 个 Part struct（+ `ResponseAccumulator` 一个 helper struct；部件级累加 unexported）。比 Vercel/TanStack 都简洁一个数量级。
 
 **8 家对比里 lynx 同时占据**：vendor-neutral（22 chat provider）+ 完整 ordering（Parts 模型）+ delta 流（in-process Go-idiomatic）+ 最简 API 表面（3 种 Part v1）+ Open/Closed（新 Part 类型扩展不动 Accumulator）。
 
