@@ -51,10 +51,9 @@ type OutputPart interface {
 }
 
 // TextPart is plain assistant-emitted text. Same-type deltas
-// concatenate their Text fields and merge metadata last-write-wins.
+// concatenate their Text fields.
 type TextPart struct {
-	Text     string         `json:"text"`
-	Metadata map[string]any `json:"metadata,omitzero"`
+	Text string `json:"text"`
 }
 
 // Kind reports [PartKindText].
@@ -66,7 +65,6 @@ func (p *TextPart) appendDelta(d OutputPart) bool {
 		return false
 	}
 	p.Text += o.Text
-	mergeMeta(&p.Metadata, o.Metadata)
 	return true
 }
 
@@ -75,14 +73,12 @@ func (p *TextPart) appendDelta(d OutputPart) bool {
 // Google thoughtSignatures, OpenAI encrypted reasoning) so the block
 // can round-trip in a follow-up request.
 //
-// Anthropic redacted thinking is represented by leaving Text as the
-// SDK-supplied placeholder and tagging Metadata["redacted"]=true; a
-// dedicated part type can be added later if call sites prove the
-// metadata approach is too thin.
+// Anthropic redacted thinking is carried on the message-level
+// [AssistantMessage.Metadata] (see anthropic.MetaRedactedReasoning),
+// not on the part itself.
 type ReasoningPart struct {
-	Text      string         `json:"text"`
-	Signature []byte         `json:"signature,omitempty"`
-	Metadata  map[string]any `json:"metadata,omitzero"`
+	Text      string `json:"text"`
+	Signature []byte `json:"signature,omitempty"`
 }
 
 // Kind reports [PartKindReasoning].
@@ -97,7 +93,6 @@ func (p *ReasoningPart) appendDelta(d OutputPart) bool {
 	if len(o.Signature) > 0 {
 		p.Signature = o.Signature
 	}
-	mergeMeta(&p.Metadata, o.Metadata)
 	return true
 }
 
@@ -115,10 +110,9 @@ func (p *ReasoningPart) appendDelta(d OutputPart) bool {
 // responsible for buffering by vendor index and emitting each call as
 // a contiguous run of deltas with the same ID.
 type ToolCallPart struct {
-	ID        string         `json:"id"`
-	Name      string         `json:"name"`
-	Arguments string         `json:"arguments,omitempty"` // JSON-encoded; grows with deltas
-	Metadata  map[string]any `json:"metadata,omitzero"`
+	ID        string `json:"id"`
+	Name      string `json:"name"`
+	Arguments string `json:"arguments,omitempty"` // JSON-encoded; grows with deltas
 }
 
 // Kind reports [PartKindToolCall].
@@ -139,23 +133,7 @@ func (p *ToolCallPart) appendDelta(d OutputPart) bool {
 		p.Name = o.Name
 	}
 	p.Arguments += o.Arguments
-	mergeMeta(&p.Metadata, o.Metadata)
 	return true
-}
-
-// mergeMeta copies src entries into *dst, allocating *dst lazily. Used
-// by every [OutputPart] implementation; last-write-wins for duplicate
-// keys.
-func mergeMeta(dst *map[string]any, src map[string]any) {
-	if len(src) == 0 {
-		return
-	}
-	if *dst == nil {
-		*dst = make(map[string]any, len(src))
-	}
-	for k, v := range src {
-		(*dst)[k] = v
-	}
 }
 
 // marshalOutputPart renders an [OutputPart] as a kind-tagged JSON

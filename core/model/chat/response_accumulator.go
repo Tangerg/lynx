@@ -23,6 +23,7 @@ import (
 //	full := &acc.Response
 type ResponseAccumulator struct {
 	Response
+	parts partAccumulator
 }
 
 // NewResponseAccumulator returns an empty accumulator ready to receive
@@ -74,11 +75,9 @@ func (r *ResponseAccumulator) accumulateResult(other *Result) {
 	r.Result.ToolMessage = r.accumulateToolMessage(r.Result.ToolMessage, other.ToolMessage)
 }
 
-// accumulateAssistantMessage merges streaming deltas at the Part level.
-// Each incoming AssistantMessage carries one or more delta Parts; the
-// part-level accumulator handles same-type runs (TextPart text
-// concatenates; ToolCallPart args concatenate when the ID matches) and
-// flushes on type or identity changes. Metadata merges last-write-wins
+// accumulateAssistantMessage merges streaming deltas at the Part level
+// by feeding them through r.parts — a stateful part-level accumulator
+// that owns the running Parts slice. Metadata merges last-write-wins
 // at the message level.
 func (r *ResponseAccumulator) accumulateAssistantMessage(msg, other *AssistantMessage) *AssistantMessage {
 	if other == nil {
@@ -89,39 +88,25 @@ func (r *ResponseAccumulator) accumulateAssistantMessage(msg, other *AssistantMe
 	}
 
 	if len(other.Parts) > 0 {
-		// Seed a part-level accumulator with the parts gathered so far,
-		// feed the new deltas through it, and rebuild Parts. Re-seeding
-		// keeps the contract that already-flushed parts remain stable
-		// (a finalized TextPart at index 3 does not grow when a NEW
-		// trailing TextPart arrives at index 4).
-		var acc partAccumulator
-		acc.addAll(msg.Parts)
-		acc.addAll(other.Parts)
-		msg.Parts = acc.build()
+		r.parts.addAll(other.Parts)
+		msg.Parts = r.parts.parts
 	}
 
 	maps.Copy(msg.Meta(), other.Metadata)
 	return msg
 }
 
-// partAccumulator merges streaming [OutputPart] deltas into the final
-// ordered list. Same-type adjacent deltas are merged in-place via
-// each part's appendDelta; type changes (or identity changes for tool
-// calls) flush the in-flight part and start a new one.
+// partAccumulator merges streaming [OutputPart] deltas into one
+// ordered slice. Same-type adjacent deltas are merged in-place via
+// each part's appendDelta; type changes (or identity changes for
+// tool calls) start a new entry. Type-agnostic — never type-switches
+// on concrete parts; adding new part kinds requires no change here.
 //
-// The implementation is completely type-agnostic: it never does a
-// concrete type switch on OutputPart. Adding new part kinds in the
-// future requires zero change here — they just need to satisfy
-// [OutputPart] and decide their own appendDelta semantics.
-//
-// partAccumulator is NOT safe for concurrent use; instantiate one per
-// stream. Lives as an unexported implementation detail of
-// [ResponseAccumulator] — callers stream by feeding chunks to
-// [ResponseAccumulator.AddChunk], not by driving the part-level
-// accumulator directly.
+// Implementation note: the in-flight part lives at parts[len-1] —
+// no separate "current" slot — so the accumulated slice IS the
+// authoritative Parts view at all times.
 type partAccumulator struct {
-	parts   []OutputPart // finalized parts
-	current OutputPart   // in-flight; nil between flushes
+	parts []OutputPart
 }
 
 // add applies one part delta. Nil deltas are ignored.
@@ -129,15 +114,10 @@ func (a *partAccumulator) add(delta OutputPart) {
 	if delta == nil {
 		return
 	}
-	if a.current == nil {
-		a.current = delta
+	if n := len(a.parts); n > 0 && a.parts[n-1].appendDelta(delta) {
 		return
 	}
-	if a.current.appendDelta(delta) {
-		return
-	}
-	a.parts = append(a.parts, a.current)
-	a.current = delta
+	a.parts = append(a.parts, delta)
 }
 
 // addAll is the batch form of [partAccumulator.add].
@@ -145,17 +125,6 @@ func (a *partAccumulator) addAll(deltas []OutputPart) {
 	for _, d := range deltas {
 		a.add(d)
 	}
-}
-
-// build flushes the in-flight part (if any) and returns the final
-// slice. Safe to call multiple times: subsequent calls return the
-// same slice without re-flushing.
-func (a *partAccumulator) build() []OutputPart {
-	if a.current != nil {
-		a.parts = append(a.parts, a.current)
-		a.current = nil
-	}
-	return a.parts
 }
 
 // accumulateToolMessage merges tool execution results. Tool returns are

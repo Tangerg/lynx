@@ -6,7 +6,7 @@ import (
 
 func TestPartAccumulator_Empty(t *testing.T) {
 	var acc partAccumulator
-	out := acc.build()
+	out := acc.parts
 	if len(out) != 0 {
 		t.Errorf("empty accumulator should produce no parts; got %d", len(out))
 	}
@@ -15,7 +15,7 @@ func TestPartAccumulator_Empty(t *testing.T) {
 func TestPartAccumulator_AddNilIgnored(t *testing.T) {
 	var acc partAccumulator
 	acc.add(nil)
-	out := acc.build()
+	out := acc.parts
 	if len(out) != 0 {
 		t.Errorf("nil delta should be ignored; got %d parts", len(out))
 	}
@@ -26,7 +26,7 @@ func TestPartAccumulator_SingleTextRun(t *testing.T) {
 	acc.add(&TextPart{Text: "Hel"})
 	acc.add(&TextPart{Text: "lo"})
 	acc.add(&TextPart{Text: " world"})
-	out := acc.build()
+	out := acc.parts
 	if len(out) != 1 {
 		t.Fatalf("3 same-type deltas should merge to 1 part; got %d", len(out))
 	}
@@ -44,7 +44,7 @@ func TestPartAccumulator_TypeBoundaryFlushes(t *testing.T) {
 	acc.add(&TextPart{Text: "a"})
 	acc.add(&ReasoningPart{Text: "thinking"})
 	acc.add(&TextPart{Text: "b"})
-	out := acc.build()
+	out := acc.parts
 	if len(out) != 3 {
 		t.Fatalf("type changes should flush; got %d parts", len(out))
 	}
@@ -69,7 +69,7 @@ func TestPartAccumulator_InterleavedTextAndToolCalls(t *testing.T) {
 	acc.add(&TextPart{Text: "查日历："})
 	acc.add(&ToolCallPart{ID: "tu_2", Name: "calendar", Arguments: "{}"})
 	acc.add(&TextPart{Text: "等结果。"})
-	out := acc.build()
+	out := acc.parts
 
 	if len(out) != 5 {
 		t.Fatalf("expected 5 parts, got %d", len(out))
@@ -88,7 +88,7 @@ func TestPartAccumulator_ToolCallDifferentIDFlushes(t *testing.T) {
 	var acc partAccumulator
 	acc.add(&ToolCallPart{ID: "tc_1", Name: "a", Arguments: "{}"})
 	acc.add(&ToolCallPart{ID: "tc_2", Name: "b", Arguments: "{}"})
-	out := acc.build()
+	out := acc.parts
 	if len(out) != 2 {
 		t.Fatalf("different-ID tool calls should remain 2 parts; got %d", len(out))
 	}
@@ -103,7 +103,7 @@ func TestPartAccumulator_ToolCallSameIDArgsAccumulate(t *testing.T) {
 	acc.add(&ToolCallPart{ID: "tc_1", Name: "weather", Arguments: "{\"c"})
 	acc.add(&ToolCallPart{ID: "tc_1", Arguments: "ity\":"})
 	acc.add(&ToolCallPart{ID: "tc_1", Arguments: "\"BJ\"}"})
-	out := acc.build()
+	out := acc.parts
 	if len(out) != 1 {
 		t.Fatalf("same-ID tool call deltas should merge to 1; got %d", len(out))
 	}
@@ -120,26 +120,12 @@ func TestPartAccumulator_AddAll(t *testing.T) {
 		&TextPart{Text: "b"},
 		&ReasoningPart{Text: "r"},
 	})
-	out := acc.build()
+	out := acc.parts
 	if len(out) != 2 {
 		t.Fatalf("expected 2 parts; got %d", len(out))
 	}
 	if out[0].(*TextPart).Text != "ab" {
 		t.Errorf("first part text = %q", out[0].(*TextPart).Text)
-	}
-}
-
-func TestPartAccumulator_BuildIdempotent(t *testing.T) {
-	var acc partAccumulator
-	acc.add(&TextPart{Text: "a"})
-	acc.add(&TextPart{Text: "b"})
-	first := acc.build()
-	second := acc.build()
-	if len(first) != 1 || len(second) != 1 {
-		t.Fatalf("idempotent build failed: first=%d second=%d", len(first), len(second))
-	}
-	if &first[0] != &second[0] && first[0] != second[0] {
-		t.Error("second build should return the same parts")
 	}
 }
 
@@ -161,7 +147,7 @@ func TestPartAccumulator_TypeAgnosticFlushSemantics(t *testing.T) {
 	acc.add(&ToolCallPart{ID: "tc", Arguments: "{"})
 	acc.add(&ToolCallPart{ID: "tc", Arguments: "}"})
 	acc.add(&TextPart{Text: "3"})
-	out := acc.build()
+	out := acc.parts
 
 	if len(out) != 4 {
 		t.Fatalf("expected 4 parts after merge; got %d", len(out))

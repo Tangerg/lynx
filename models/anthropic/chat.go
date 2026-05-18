@@ -363,7 +363,6 @@ func (r *responseHelper) newChunkAccumulator() *chunkAccumulator {
 // observable content (content_block_stop / message_stop).
 func (a *chunkAccumulator) AddChunk(event anthropicsdk.MessageStreamEventUnion) (*chat.Response, bool) {
 	var parts []chat.OutputPart
-	msgMetadata := make(map[string]any)
 	resultMeta := &chat.ResultMetadata{}
 	var metaUsage *chat.Usage
 	hasContent := false
@@ -456,10 +455,7 @@ func (a *chunkAccumulator) AddChunk(event anthropicsdk.MessageStreamEventUnion) 
 		return nil, false
 	}
 
-	assistantMsg := chat.NewAssistantMessage(chat.MessageParams{
-		Parts:    parts,
-		Metadata: msgMetadata,
-	})
+	assistantMsg := chat.NewAssistantMessage(chat.MessageParams{Parts: parts})
 	result, err := chat.NewResult(assistantMsg, resultMeta)
 	if err != nil {
 		return nil, false

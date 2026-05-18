@@ -306,7 +306,7 @@ func newChunkAccumulator() *chunkAccumulator {
 // [*chat.Response]. Returns (nil, false) for events that produced no
 // observable content.
 func (a *chunkAccumulator) AddChunk(evt types.ConverseStreamOutput) (*chat.Response, bool) {
-	msgParams := chat.MessageParams{Metadata: make(map[string]any)}
+	var msgParams chat.MessageParams
 	resultMeta := &chat.ResultMetadata{}
 	var metaUsage *chat.Usage
 	hasContent := false

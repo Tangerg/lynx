@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"iter"
+	"slices"
 
 	"github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/option"
@@ -277,23 +278,16 @@ func (r *responseHelper) buildAssistantMsg(req *openai.ChatCompletionNewParams, 
 		// AssistantMessage by routing through Metadata under
 		// "audio.data" / "audio.mimetype" — there is no top-level
 		// Media slice on the Parts-based AssistantMessage in v1.
-		if msg.Audio.Transcript != "" && !hasTextPart(msgParams.Parts) {
+		hasText := slices.ContainsFunc(msgParams.Parts, func(p chat.OutputPart) bool {
+			tp, ok := p.(*chat.TextPart)
+			return ok && tp.Text != ""
+		})
+		if msg.Audio.Transcript != "" && !hasText {
 			msgParams.Parts = append(msgParams.Parts, &chat.TextPart{Text: msg.Audio.Transcript})
 		}
 	}
 
 	return chat.NewAssistantMessage(msgParams)
-}
-
-// hasTextPart reports whether parts contains at least one TextPart with
-// non-empty text. Used by the audio-output fallback path.
-func hasTextPart(parts []chat.OutputPart) bool {
-	for _, p := range parts {
-		if tp, ok := p.(*chat.TextPart); ok && tp.Text != "" {
-			return true
-		}
-	}
-	return false
 }
 
 func (r *responseHelper) buildResultMeta(req *openai.ChatCompletionNewParams, choice *openai.ChatCompletionChoice) *chat.ResultMetadata {
