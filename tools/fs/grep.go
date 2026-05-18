@@ -46,7 +46,7 @@ type GrepResponse struct {
 
 var grepToolSchema, _ = pkgjson.StringDefSchemaOf(GrepRequest{})
 
-var _ chat.CallableTool = (*GrepTool)(nil)
+var _ chat.Tool = (*GrepTool)(nil)
 
 // GrepTool is the thin LLM-facing adapter for [Executor.Grep].
 type GrepTool struct {

@@ -10,7 +10,6 @@ import (
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/hitl"
 	"github.com/Tangerg/lynx/agent/runtime"
-	"github.com/Tangerg/lynx/core/model/chat"
 )
 
 type subInput struct{ Value int }
@@ -323,10 +322,6 @@ func TestAsChatTool_DefinitionUsesAgentMetadata(t *testing.T) {
 	}
 	if !strings.Contains(def.InputSchema, "Value") {
 		t.Fatalf("InputSchema should include In's field name; got %s", def.InputSchema)
-	}
-	// Tool also implements chat.CallableTool.
-	if _, ok := tool.(chat.CallableTool); !ok {
-		t.Fatal("AsChatTool result must implement chat.CallableTool")
 	}
 }
 

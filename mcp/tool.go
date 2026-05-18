@@ -10,7 +10,7 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat"
 )
 
-// Tool wraps a single remote MCP tool as a chat.CallableTool. Each Call
+// Tool wraps a single remote MCP tool as a chat.Tool. Each Call
 // dials the bound *sdkmcp.ClientSession's tools/call RPC, translates the
 // result, and returns a (string, error) pair compatible with
 // chat.ToolMiddleware. A remote IsError result is mapped to
@@ -69,7 +69,7 @@ func (c *ToolConfig) validate() error {
 	return nil
 }
 
-// NewTool builds a [chat.CallableTool] from cfg. cfg.Session must be
+// NewTool builds a [chat.Tool] from cfg. cfg.Session must be
 // initialized (returned from (*sdkmcp.Client).Connect) and must outlive
 // the returned Tool.
 func NewTool(cfg *ToolConfig) (*Tool, error) {
@@ -103,7 +103,7 @@ func (t *Tool) Metadata() chat.ToolMetadata     { return t.metadata }
 // schema, icons, …).
 func (t *Tool) Descriptor() *sdkmcp.Tool { return t.descriptor }
 
-// Call implements [chat.CallableTool]. IsError=true on the remote
+// Call implements [chat.Tool]. IsError=true on the remote
 // result is mapped to [*ToolCallError] so a tool failure is not
 // silently fed back to the model as a successful result.
 func (t *Tool) Call(ctx context.Context, arguments string) (string, error) {

@@ -9,7 +9,7 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat"
 )
 
-// agentTool is the shared [chat.CallableTool] wrapper used by every
+// agentTool is the shared [chat.Tool] wrapper used by every
 // "expose an agent as a tool" flow — typed [AsChatTool] /
 // [AsChatToolFromAgent] / [AsMCPTool] and dynamic
 // [AllAchievableTools] / [PublishAll]. The flow is identical across

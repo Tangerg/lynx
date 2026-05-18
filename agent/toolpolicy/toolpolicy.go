@@ -1,10 +1,10 @@
-// Package toolpolicy ships [chat.CallableTool] decorators that enforce
+// Package toolpolicy ships [chat.Tool] decorators that enforce
 // LLM-tool-loop policies — the runtime equivalent of embabel's
 // `agentic/` family (OneShotPerLoopTool / PlaybookTool with
 // UnlockCondition / …).
 //
 // Each helper wraps an existing tool and returns a new
-// [chat.CallableTool]. Compose freely:
+// [chat.Tool]. Compose freely:
 //
 //	tool := toolpolicy.Unlocked(
 //	    toolpolicy.OnceOnly(rawSearch),
@@ -56,7 +56,7 @@ var ErrToolLocked = errors.New("toolpolicy: tool is locked by an unlock conditio
 //
 // Mirrors embabel's `OneShotPerLoopTool` semantics. Returns an error
 // when tool is nil — caller decides whether to surface or panic.
-func OnceOnly(tool chat.CallableTool) (chat.CallableTool, error) {
+func OnceOnly(tool chat.Tool) (chat.Tool, error) {
 	if tool == nil {
 		return nil, fmt.Errorf("toolpolicy.OnceOnly: tool must not be nil")
 	}
@@ -64,7 +64,7 @@ func OnceOnly(tool chat.CallableTool) (chat.CallableTool, error) {
 }
 
 type onceOnlyTool struct {
-	delegate chat.CallableTool
+	delegate chat.Tool
 
 	// processWideMu guards processWideCalled — the fallback set
 	// used when no [LoopScope] is in ctx.
@@ -120,7 +120,7 @@ type UnlockCondition func(ctx context.Context, arguments string) (allowed bool, 
 // Mirrors embabel's `PlaybookTool` + `UnlockCondition` semantics.
 // Returns an error when tool or condition is nil — caller decides
 // whether to surface or panic.
-func Unlocked(tool chat.CallableTool, condition UnlockCondition) (chat.CallableTool, error) {
+func Unlocked(tool chat.Tool, condition UnlockCondition) (chat.Tool, error) {
 	if tool == nil {
 		return nil, fmt.Errorf("toolpolicy.Unlocked: tool must not be nil")
 	}
@@ -131,7 +131,7 @@ func Unlocked(tool chat.CallableTool, condition UnlockCondition) (chat.CallableT
 }
 
 type unlockTool struct {
-	delegate  chat.CallableTool
+	delegate  chat.Tool
 	condition UnlockCondition
 }
 

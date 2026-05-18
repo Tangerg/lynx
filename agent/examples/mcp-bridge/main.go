@@ -1,4 +1,4 @@
-// mcp-bridge shows the reverse direction: lynx exposes a chat.CallableTool
+// mcp-bridge shows the reverse direction: lynx exposes a chat.Tool
 // as an MCP server so external hosts (Claude Desktop, Cursor, …) can
 // drive a lynx agent's tools.
 //
@@ -27,7 +27,7 @@ import (
 func main() {
 	ctx := context.Background()
 
-	// 1. Build a chat.CallableTool — same shape an action body would
+	// 1. Build a chat.Tool — same shape an action body would
 	// register and the same shape RegisterTools accepts.
 	echo, err := chat.NewTool(
 		chat.ToolDefinition{

@@ -11,7 +11,7 @@ import (
 
 var toolSchema, _ = pkgjson.StringDefSchemaOf(Request{})
 
-var _ chat.CallableTool = (*Tool)(nil)
+var _ chat.Tool = (*Tool)(nil)
 
 // Tool is the LLM-facing adapter for a websearch [Provider]. Construct
 // with [NewTool] — there is no nil-default fallback because web search

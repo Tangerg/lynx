@@ -11,7 +11,7 @@ import (
 
 var toolSchema, _ = pkgjson.StringDefSchemaOf(Request{})
 
-var _ chat.CallableTool = (*Tool)(nil)
+var _ chat.Tool = (*Tool)(nil)
 
 // Tool is the LLM-facing adapter for [Client].
 type Tool struct {

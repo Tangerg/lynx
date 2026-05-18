@@ -1,4 +1,4 @@
-// Package fakeweather is a chat.CallableTool that returns synthesized
+// Package fakeweather is a chat.Tool that returns synthesized
 // weather data for a given (location, date). All values are
 // deterministic functions of the input — there is no real weather API
 // behind it.
@@ -148,9 +148,9 @@ type Alert struct {
 	EndTime     int64  `json:"end_time"`
 }
 
-var _ chat.CallableTool = (*Tool)(nil)
+var _ chat.Tool = (*Tool)(nil)
 
-// Tool is a chat.CallableTool that synthesizes weather reports.
+// Tool is a chat.Tool that synthesizes weather reports.
 // Construct with [New].
 type Tool struct {
 	writer io.Writer

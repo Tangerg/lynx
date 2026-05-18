@@ -24,7 +24,7 @@ type EditResponse struct {
 
 var editToolSchema, _ = pkgjson.StringDefSchemaOf(EditRequest{})
 
-var _ chat.CallableTool = (*EditTool)(nil)
+var _ chat.Tool = (*EditTool)(nil)
 
 // EditTool is the thin LLM-facing adapter for [Executor.Edit]. The
 // match-and-replace logic lives in the executor so a backend upgrade

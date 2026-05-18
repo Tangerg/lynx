@@ -23,7 +23,7 @@ type WriteResponse struct {
 
 var writeToolSchema, _ = pkgjson.StringDefSchemaOf(WriteRequest{})
 
-var _ chat.CallableTool = (*WriteTool)(nil)
+var _ chat.Tool = (*WriteTool)(nil)
 
 // WriteTool is the thin LLM-facing adapter for [Executor.Write].
 type WriteTool struct {

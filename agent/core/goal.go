@@ -29,7 +29,7 @@ type Goal struct {
 
 	// Export, when non-nil, marks this goal as externally invokable —
 	// runtime helpers walk every deployed agent's goals and auto-build
-	// [chat.CallableTool] wrappers for the ones whose Export is set.
+	// [chat.Tool] wrappers for the ones whose Export is set.
 	// Nil means "internal only; not auto-exposed". The framework's
 	// reader is on the runtime side (`runtime.AllAchievableTools` /
 	// `runtime.PublishAll`); leaving Export non-nil without those
@@ -41,7 +41,7 @@ type Goal struct {
 
 // GoalExport carries the metadata `runtime.AllAchievableTools` and
 // `runtime.PublishAll` need to compile a goal into a
-// [chat.CallableTool]. Build via [GoalExportFor] so the input type's
+// [chat.Tool]. Build via [GoalExportFor] so the input type's
 // schema is captured for the LLM tool definition.
 type GoalExport struct {
 	// Remote, when true, makes the goal eligible for top-level

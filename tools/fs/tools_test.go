@@ -10,7 +10,7 @@ import (
 )
 
 // Compile-time assertions that every tool constructor returns a value
-// satisfying chat.CallableTool. (We re-assert here for documentation
+// satisfying chat.Tool. (We re-assert here for documentation
 // and to catch refactors that break the interface.)
 func TestTools_Definitions(t *testing.T) {
 	cases := []struct {

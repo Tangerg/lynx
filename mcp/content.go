@@ -41,7 +41,7 @@ func chatMessageFromContent(role sdkmcp.Role, content sdkmcp.Content) chat.Messa
 }
 
 // flattenContent reduces a [sdkmcp.CallToolResult.Content] slice into
-// the single string shape [chat.CallableTool.Call] must return:
+// the single string shape [chat.Tool.Call] must return:
 //
 //   - empty slice      → ""
 //   - exactly one Text → its Text verbatim

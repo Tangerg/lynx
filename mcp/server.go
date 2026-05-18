@@ -11,17 +11,13 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat"
 )
 
-// RegisterTools installs every [chat.CallableTool] in tools onto
-// server using the low-level [(*sdkmcp.Server).AddTool] API.
+// RegisterTools installs every [chat.Tool] in tools onto server using
+// the low-level [(*sdkmcp.Server).AddTool] API.
 //
 // The generic sdkmcp.AddTool[In, Out] form is deliberately avoided:
 // lynx tools already supply a hand-authored JSON schema, and the
 // generic API would otherwise reflect over a Go In type and overwrite
 // it.
-//
-// Tools that only implement [chat.Tool] (delegation placeholders
-// without an execution function) are rejected — an MCP server cannot
-// serve an unrunnable tool.
 func RegisterTools(server *sdkmcp.Server, tools ...chat.Tool) error {
 	if server == nil {
 		return ErrNilServer
@@ -31,18 +27,14 @@ func RegisterTools(server *sdkmcp.Server, tools ...chat.Tool) error {
 		if tool == nil {
 			return fmt.Errorf("mcp.RegisterTools: tools[%d] must not be nil", i)
 		}
-		callable, ok := tool.(chat.CallableTool)
-		if !ok {
-			return fmt.Errorf("mcp.RegisterTools: tool %q is not a chat.CallableTool", tool.Definition().Name)
-		}
-		if err := registerOne(server, callable); err != nil {
+		if err := registerOne(server, tool); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func registerOne(server *sdkmcp.Server, tool chat.CallableTool) error {
+func registerOne(server *sdkmcp.Server, tool chat.Tool) error {
 	def := tool.Definition()
 	if def.Name == "" {
 		return errors.New("mcp.RegisterTools: tool has empty name")
@@ -64,12 +56,12 @@ func registerOne(server *sdkmcp.Server, tool chat.CallableTool) error {
 	return nil
 }
 
-// serverHandler routes a tools/call RPC into a [chat.CallableTool].
-// Errors from the lynx tool surface via [sdkmcp.CallToolResult.IsError]
-// plus a [*sdkmcp.TextContent] body — never as a Go error from the
-// handler — because the latter would be promoted to a JSON-RPC
-// protocol error and hide the failure from the LLM's view.
-func serverHandler(tool chat.CallableTool) sdkmcp.ToolHandler {
+// serverHandler routes a tools/call RPC into a [chat.Tool]. Errors
+// from the lynx tool surface via [sdkmcp.CallToolResult.IsError] plus
+// a [*sdkmcp.TextContent] body — never as a Go error from the handler
+// — because the latter would be promoted to a JSON-RPC protocol error
+// and hide the failure from the LLM's view.
+func serverHandler(tool chat.Tool) sdkmcp.ToolHandler {
 	return func(ctx context.Context, req *sdkmcp.CallToolRequest) (*sdkmcp.CallToolResult, error) {
 		args := cmp.Or(string(req.Params.Arguments), "{}")
 		out, err := tool.Call(ctx, args)
