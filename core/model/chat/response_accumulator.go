@@ -76,7 +76,7 @@ func (r *ResponseAccumulator) accumulateResult(other *Result) {
 
 // accumulateAssistantMessage merges streaming deltas at the Part level.
 // Each incoming AssistantMessage carries one or more delta Parts; the
-// part-level Accumulator handles same-type runs (TextPart text
+// part-level accumulator handles same-type runs (TextPart text
 // concatenates; ToolCallPart args concatenate when the ID matches) and
 // flushes on type or identity changes. Metadata merges last-write-wins
 // at the message level.
@@ -89,19 +89,73 @@ func (r *ResponseAccumulator) accumulateAssistantMessage(msg, other *AssistantMe
 	}
 
 	if len(other.Parts) > 0 {
-		// Seed a part-level Accumulator with the parts gathered so far,
+		// Seed a part-level accumulator with the parts gathered so far,
 		// feed the new deltas through it, and rebuild Parts. Re-seeding
 		// keeps the contract that already-flushed parts remain stable
 		// (a finalized TextPart at index 3 does not grow when a NEW
 		// trailing TextPart arrives at index 4).
-		var acc Accumulator
-		acc.AddAll(msg.Parts)
-		acc.AddAll(other.Parts)
-		msg.Parts = acc.Build()
+		var acc partAccumulator
+		acc.addAll(msg.Parts)
+		acc.addAll(other.Parts)
+		msg.Parts = acc.build()
 	}
 
 	maps.Copy(msg.Meta(), other.Metadata)
 	return msg
+}
+
+// partAccumulator merges streaming [OutputPart] deltas into the final
+// ordered list. Same-type adjacent deltas are merged in-place via
+// each part's appendDelta; type changes (or identity changes for tool
+// calls) flush the in-flight part and start a new one.
+//
+// The implementation is completely type-agnostic: it never does a
+// concrete type switch on OutputPart. Adding new part kinds in the
+// future requires zero change here — they just need to satisfy
+// [OutputPart] and decide their own appendDelta semantics.
+//
+// partAccumulator is NOT safe for concurrent use; instantiate one per
+// stream. Lives as an unexported implementation detail of
+// [ResponseAccumulator] — callers stream by feeding chunks to
+// [ResponseAccumulator.AddChunk], not by driving the part-level
+// accumulator directly.
+type partAccumulator struct {
+	parts   []OutputPart // finalized parts
+	current OutputPart   // in-flight; nil between flushes
+}
+
+// add applies one part delta. Nil deltas are ignored.
+func (a *partAccumulator) add(delta OutputPart) {
+	if delta == nil {
+		return
+	}
+	if a.current == nil {
+		a.current = delta
+		return
+	}
+	if a.current.appendDelta(delta) {
+		return
+	}
+	a.parts = append(a.parts, a.current)
+	a.current = delta
+}
+
+// addAll is the batch form of [partAccumulator.add].
+func (a *partAccumulator) addAll(deltas []OutputPart) {
+	for _, d := range deltas {
+		a.add(d)
+	}
+}
+
+// build flushes the in-flight part (if any) and returns the final
+// slice. Safe to call multiple times: subsequent calls return the
+// same slice without re-flushing.
+func (a *partAccumulator) build() []OutputPart {
+	if a.current != nil {
+		a.parts = append(a.parts, a.current)
+		a.current = nil
+	}
+	return a.parts
 }
 
 // accumulateToolMessage merges tool execution results. Tool returns are
