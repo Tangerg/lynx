@@ -70,7 +70,7 @@ type AwaitDecider func(ctx context.Context, arguments string) core.Awaitable
 // carrying it; otherwise the underlying tool runs normally. Mirrors
 // embabel's `Tool.withAwaiting(decider)`. Returns an error when tool
 // or decider is nil — caller decides whether to surface or panic.
-func RequireAwait(tool chat.CallableTool, decider AwaitDecider) (chat.CallableTool, error) {
+func RequireAwait(tool chat.Tool, decider AwaitDecider) (chat.Tool, error) {
 	if tool == nil {
 		return nil, fmt.Errorf("hitl.RequireAwait: tool must not be nil")
 	}
@@ -81,7 +81,7 @@ func RequireAwait(tool chat.CallableTool, decider AwaitDecider) (chat.CallableTo
 }
 
 type awaitingTool struct {
-	delegate chat.CallableTool
+	delegate chat.Tool
 	decider  AwaitDecider
 }
 
@@ -112,10 +112,10 @@ type ConfirmationPrompter func(arguments string) string
 //
 // Mirrors embabel's `Tool.withConfirmation { msg }`.
 func RequireConfirmation(
-	tool chat.CallableTool,
+	tool chat.Tool,
 	prompter ConfirmationPrompter,
 	onResponse func(approved bool) core.ResponseImpact,
-) (chat.CallableTool, error) {
+) (chat.Tool, error) {
 	if tool == nil {
 		return nil, fmt.Errorf("hitl.RequireConfirmation: tool must not be nil")
 	}
@@ -140,10 +140,10 @@ func RequireConfirmation(
 //
 // Mirrors embabel's `Tool.requireType<T>(message)`.
 func RequireType[T any](
-	tool chat.CallableTool,
+	tool chat.Tool,
 	prompter ConfirmationPrompter,
 	onResponse func(value T) core.ResponseImpact,
-) (chat.CallableTool, error) {
+) (chat.Tool, error) {
 	if tool == nil {
 		return nil, fmt.Errorf("hitl.RequireType: tool must not be nil")
 	}

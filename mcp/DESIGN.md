@@ -14,7 +14,7 @@
 | D1 | **单包合并**：客户端、服务端两侧都在 `package mcp` 下，沿用 SDK 与 `net/http` 的"按概念分文件、不分包"风格 |
 | D2 | **不引入新协议层**：直接复用 SDK 的 `*sdkmcp.ClientSession` / `*sdkmcp.Server`，本包只做 `chat.Tool` ↔ MCP tool 的双向适配 |
 | D3 | **Config 结构体**取代 functional options：`*ToolConfig` / `*ProviderConfig`，`nil` 等价 `&Config{}`，零值字段走包默认 |
-| D4 | **同步 API**：`chat.CallableTool.Call` 与 SDK `ClientSession.CallTool` 都是同步签名，无需 sync/async 双套接口 |
+| D4 | **同步 API**：`chat.Tool.Call` 与 SDK `ClientSession.CallTool` 都是同步签名，无需 sync/async 双套接口 |
 | D5 | **错误语义双向反转**：
 | | • Client 侧：MCP `IsError=true` → `*ToolCallError`（用 `errors.As(err, &tcErr)` 判别），区分远端工具失败 vs 协议/传输错误 |
 | | • Server 侧：lynx tool 的 Go `error` → `IsError=true` + TextContent（避免错误被升格为 JSON-RPC 协议错误） |
@@ -70,7 +70,7 @@ import (
 
 | 类型 | 用途 |
 |-----|-----|
-| `lynxmcp.Tool` | 把单个远端 MCP tool 包装成 `chat.CallableTool` |
+| `lynxmcp.Tool` | 把单个远端 MCP tool 包装成 `chat.Tool` |
 | `lynxmcp.ToolConfig` | `Tool` 配置（PrefixedName / Metadata / MetaFunc） |
 | `lynxmcp.Source` | 一条命名的 `*mcp.ClientSession`，喂给 Provider |
 | `lynxmcp.Provider` | 多源工具发现与缓存；产出 `[]chat.Tool` |
@@ -90,7 +90,7 @@ import (
 | `(*Provider).Tools(ctx)` | 取缓存的工具列表（首次或失效后会拉取） |
 | `(*Provider).Invalidate()` | 标记缓存过期；下次 `Tools` 自动重拉 |
 | `(*Provider).OnToolListChanged(ctx, req)` | 用作 `mcp.ClientOptions.ToolListChangedHandler` |
-| `RegisterTools(server, tools...)` | 把若干 `chat.CallableTool` 暴露到 MCP server |
+| `RegisterTools(server, tools...)` | 把若干 `chat.Tool` 暴露到 MCP server |
 | `WithMeta(ctx, meta)` | 把 `mcp.Meta` 塞进 ctx，配合 `MetaFromContext` 使用 |
 | `MetaFromContext(ctx)` | 从 ctx 读取由 `WithMeta` 注入的元数据；签名匹配 `MetaFunc` |
 | `PromptMessagesToChat(msgs)` | 把 `*mcp.GetPromptResult.Messages` 转成 `[]chat.Message`，方便喂给 `chat.Client.ChatWith*` |
@@ -155,7 +155,7 @@ func main() {
     }
 
     if len(tools) > 0 {
-        callable := tools[0].(chat.CallableTool)
+        callable := tools[0].(chat.Tool)
         out, err := callable.Call(ctx, `{"name":"world"}`)
         if err != nil {
             log.Fatal(err)
@@ -400,7 +400,7 @@ func main() {
 | Client → 远端 tool 失败 | `CallToolResult.IsError=true` | 返回 `*ToolCallError`（用 `errors.As` 判别） | `chat.ToolMiddleware` 把 error 上抛 |
 | Client → 协议/传输错误 | `session.CallTool` 返回 Go error | 套上 `"call tool %q: %w"` 上下文 | 同上 |
 | Client → 参数 unmarshal 失败 | `json.Unmarshal` 失败 | 套上 `"decode arguments for tool %q: %w"` | 同上 |
-| Server → lynx tool 返回 error | `chat.CallableTool.Call` 返回 error | 转成 `CallToolResult{IsError:true, Content:[TextContent{err.Error()}]}` | LLM 端能"看见"错误并自我纠正 |
+| Server → lynx tool 返回 error | `chat.Tool.Call` 返回 error | 转成 `CallToolResult{IsError:true, Content:[TextContent{err.Error()}]}` | LLM 端能"看见"错误并自我纠正 |
 | Server → 协议级故障 | （无对应路径，本包不主动产生协议错误） | — | — |
 
 **核心约定**：tool 失败永远以 `IsError=true` 形式跨过协议，不要触发 JSON-RPC `error` 字段——后者会被 SDK 当作"server 不支持这个工具"，破坏 LLM 端语义。

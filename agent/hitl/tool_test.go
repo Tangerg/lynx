@@ -10,7 +10,7 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat"
 )
 
-// fakeTool is a chat.CallableTool stub. Its Call records the
+// fakeTool is a chat.Tool stub. Its Call records the
 // arguments it received and returns a configured (text, err) pair.
 type fakeTool struct {
 	def     chat.ToolDefinition

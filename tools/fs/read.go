@@ -30,7 +30,7 @@ type ReadResponse struct {
 
 var readToolSchema, _ = pkgjson.StringDefSchemaOf(ReadRequest{})
 
-var _ chat.CallableTool = (*ReadTool)(nil)
+var _ chat.Tool = (*ReadTool)(nil)
 
 // ReadTool is the thin LLM-facing adapter for [Executor.Read].
 type ReadTool struct {

@@ -12,7 +12,7 @@ import (
 )
 
 // AllAchievableTools walks every deployed agent and returns a
-// [chat.CallableTool] for each goal whose [core.Goal.Export] is
+// [chat.Tool] for each goal whose [core.Goal.Export] is
 // non-nil. Each tool is a supervisor-flow wrapper (parent process
 // required in ctx — same contract as [AsChatTool]) that runs the
 // agent as a child process, binds the typed input on its blackboard,
@@ -32,7 +32,7 @@ import (
 //
 // Returned slice order is deterministic per registry-iteration order
 // for a fixed platform; not stable across registrations.
-func AllAchievableTools(platform *Platform) []chat.CallableTool {
+func AllAchievableTools(platform *Platform) []chat.Tool {
 	if platform == nil {
 		return nil
 	}
@@ -52,7 +52,7 @@ func AllAchievableTools(platform *Platform) []chat.CallableTool {
 //
 // Output extraction is dynamic (most-recent blackboard object) — see
 // [AllAchievableTools] for the type erasure caveat.
-func PublishAll(platform *Platform) []chat.CallableTool {
+func PublishAll(platform *Platform) []chat.Tool {
 	if platform == nil {
 		return nil
 	}
@@ -63,8 +63,8 @@ func PublishAll(platform *Platform) []chat.CallableTool {
 // [PublishAll]. For each deployed agent it walks goals, filters by
 // Export presence (and Export.Remote when remoteOnly), and packages
 // each into a [newDynamicAgentTool].
-func collectExportedTools(platform *Platform, remoteOnly bool, start processStarter) []chat.CallableTool {
-	var out []chat.CallableTool
+func collectExportedTools(platform *Platform, remoteOnly bool, start processStarter) []chat.Tool {
+	var out []chat.Tool
 	for _, agentDef := range platform.Agents() {
 		if agentDef == nil {
 			continue
@@ -94,7 +94,7 @@ func newDynamicAgentTool(
 	agentDef *core.Agent,
 	goal *core.Goal,
 	start processStarter,
-) chat.CallableTool {
+) chat.Tool {
 	description := goal.Description
 	if goal.Export.Description != "" {
 		description = goal.Export.Description

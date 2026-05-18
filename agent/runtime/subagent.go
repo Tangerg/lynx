@@ -10,7 +10,7 @@ import (
 	pkgjson "github.com/Tangerg/lynx/pkg/json"
 )
 
-// AsChatTool wraps a deployed agent as a [chat.CallableTool] the
+// AsChatTool wraps a deployed agent as a [chat.Tool] the
 // parent's LLM can invoke as just-another-tool. This is the
 // "supervisor" pattern: a parent agent's body uses
 // [core.ProcessContext.ChatWithActionTools] to ask the LLM, the LLM
@@ -41,7 +41,7 @@ import (
 //
 // Returns an error when platform is nil, agentName is empty, or the
 // agent is not registered.
-func AsChatTool[In, Out any](platform *Platform, agentName string) (chat.CallableTool, error) {
+func AsChatTool[In, Out any](platform *Platform, agentName string) (chat.Tool, error) {
 	agentDef, err := findAgent("AsChatTool", platform, agentName)
 	if err != nil {
 		return nil, err
@@ -59,7 +59,7 @@ func AsChatTool[In, Out any](platform *Platform, agentName string) (chat.Callabl
 // the same way [AsChatTool] does.
 //
 // Returns an error when platform or agent is nil.
-func AsChatToolFromAgent[In, Out any](platform *Platform, agentDef *core.Agent) (chat.CallableTool, error) {
+func AsChatToolFromAgent[In, Out any](platform *Platform, agentDef *core.Agent) (chat.Tool, error) {
 	if err := validateAgent("AsChatToolFromAgent", platform, agentDef); err != nil {
 		return nil, err
 	}
@@ -67,7 +67,7 @@ func AsChatToolFromAgent[In, Out any](platform *Platform, agentDef *core.Agent) 
 }
 
 // AsMCPTool is the top-level companion to [AsChatTool]: it wraps a
-// deployed agent as a [chat.CallableTool] that an external MCP host
+// deployed agent as a [chat.Tool] that an external MCP host
 // (Claude Desktop, Cursor, …) can drive. The returned tool spins up
 // a *fresh* process per call (no parent context required) so it's
 // suitable for the "agent.action(input) → output" RPC pattern.
@@ -85,7 +85,7 @@ func AsChatToolFromAgent[In, Out any](platform *Platform, agentDef *core.Agent) 
 // Suspended (HITL) runs surface the same JSON "status: waiting"
 // payload [AsChatTool] uses, so an MCP host can decide to drive the
 // process via [Platform.ResumeProcess] out of band.
-func AsMCPTool[In, Out any](platform *Platform, agentName string) (chat.CallableTool, error) {
+func AsMCPTool[In, Out any](platform *Platform, agentName string) (chat.Tool, error) {
 	agentDef, err := findAgent("AsMCPTool", platform, agentName)
 	if err != nil {
 		return nil, err
@@ -114,7 +114,7 @@ func newTypedAgentTool[In, Out any](
 	platform *Platform,
 	agentDef *core.Agent,
 	start processStarter,
-) chat.CallableTool {
+) chat.Tool {
 	var inSample In
 	return &agentTool{
 		def: chat.ToolDefinition{

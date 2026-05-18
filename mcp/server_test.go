@@ -17,7 +17,7 @@ import (
 
 const lynxEchoSchema = `{"type":"object","properties":{"text":{"type":"string"}},"required":["text"]}`
 
-// newEchoTool builds a minimal lynx CallableTool for tests.
+// newEchoTool builds a minimal lynx Tool for tests.
 func newEchoTool(t *testing.T) chat.Tool {
 	t.Helper()
 	tool, err := chat.NewTool(
@@ -119,24 +119,6 @@ func TestRegisterTools_ErrorBecomesIsError(t *testing.T) {
 	require.Len(t, res.Content, 1)
 	tc := res.Content[0].(*sdkmcp.TextContent)
 	assert.Contains(t, tc.Text, "kaboom from lynx tool")
-}
-
-func TestRegisterTools_RejectsNonCallable(t *testing.T) {
-	srv := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "x", Version: "v0"}, nil)
-	external, err := chat.NewTool(
-		chat.ToolDefinition{
-			Name:        "external",
-			Description: "external delegation tool",
-			InputSchema: `{"type":"object"}`,
-		},
-		chat.ToolMetadata{},
-		nil, // nil execFunc -> chat.Tool only, not chat.CallableTool
-	)
-	require.NoError(t, err)
-
-	err = lynxmcp.RegisterTools(srv, external)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "not a chat.CallableTool")
 }
 
 func TestRegisterTools_RejectsNilArgs(t *testing.T) {

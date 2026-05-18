@@ -14,7 +14,7 @@
 
 | # | 目标 |
 |---|-----|
-| G1 | **零侵入**：不改 `core/model/chat/tool.go` 任何一行；MCP 通过实现 `chat.CallableTool` 加入工具体系 |
+| G1 | **零侵入**：不改 `core/model/chat/tool.go` 任何一行；MCP 通过实现 `chat.Tool` 加入工具体系 |
 | G2 | **双向**：消费（client）+ 暴露（server）两条路径都支持 |
 | G3 | **依赖隔离**：MCP SDK 重依赖（`google/jsonschema-go`、`uritemplate`、`oauth2`...）走独立 module，不污染 `core/` |
 | G4 | **协议透明**：上层（`chat.Client`、`ToolMiddleware`）感知不到 MCP 存在，外部 MCP 工具与本地工具无差异 |
@@ -57,7 +57,7 @@ mcp/                            # 独立顶层 module
 ### 3.1 消费侧（client）
 
 ```go
-// 单个 MCP tool 的桥接：实现 chat.CallableTool
+// 单个 MCP tool 的桥接：实现 chat.Tool
 type Tool struct { /* unexported */ }
 
 type ToolConfig struct {
@@ -102,7 +102,7 @@ func (p *Provider) OnToolListChanged(context.Context, *sdkmcp.ToolListChangedReq
 ### 3.2 暴露侧（server）
 
 ```go
-// 把 lynx CallableTool 注册到 mcp.Server
+// 把 lynx Tool 注册到 mcp.Server
 func RegisterTools(server *sdkmcp.Server, tools ...chat.Tool) error
 ```
 
@@ -238,7 +238,7 @@ default:                      b, _ := json.Marshal(s); schema = string(b)
 
 ## 8. Content / Media 映射
 
-go-sdk `CallToolResult.Content` 是 `[]mcp.Content`，元素可能是 `*TextContent` / `*ImageContent` / `*AudioContent` / `*EmbeddedResource` / `*ResourceLink`。`CallableTool.Call` 只能返回 `(string, error)`。
+go-sdk `CallToolResult.Content` 是 `[]mcp.Content`，元素可能是 `*TextContent` / `*ImageContent` / `*AudioContent` / `*EmbeddedResource` / `*ResourceLink`。`Tool.Call` 只能返回 `(string, error)`。
 
 **默认扁平化**：
 - 纯一段 `TextContent` → 原样返回（最常见，LLM 可直接读）
@@ -279,7 +279,7 @@ srv := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "lynx-bridge", Version: "0.
 
 if err := mcp.RegisterTools(srv,
     fakeweatherquery.New(),
-    /* 其他 lynx CallableTool */
+    /* 其他 lynx Tool */
 ); err != nil {
     log.Fatal(err)
 }
@@ -425,7 +425,7 @@ public String doResearch(String query, ToolContext ctx) {
 | Logging | `exchange.log(...)` |
 | Ping | `exchange.ping()` |
 
-**Lynx 现状**：`mcp/server.go` 的 handler 完全没注入 server 句柄。`chat.CallableTool.Call(ctx, args)` 签名固定，没有 server session 通道。
+**Lynx 现状**：`mcp/server.go` 的 handler 完全没注入 server 句柄。`chat.Tool.Call(ctx, args)` 签名固定，没有 server session 通道。
 
 **v2 设计草图**（不需改 chat 抽象）：
 

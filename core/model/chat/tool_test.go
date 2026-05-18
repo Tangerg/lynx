@@ -9,46 +9,35 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat"
 )
 
-func TestNewTool_RequiresNameAndSchema(t *testing.T) {
-	_, err := chat.NewTool(chat.ToolDefinition{}, chat.ToolMetadata{}, nil)
+func TestNewTool_RequiresNameSchemaAndExec(t *testing.T) {
+	noop := func(context.Context, string) (string, error) { return "", nil }
+
+	_, err := chat.NewTool(chat.ToolDefinition{}, chat.ToolMetadata{}, noop)
 	if err == nil {
-		t.Fatal("missing name+schema must error")
+		t.Fatal("missing name must error")
 	}
 
-	_, err = chat.NewTool(chat.ToolDefinition{Name: "search"}, chat.ToolMetadata{}, nil)
+	_, err = chat.NewTool(chat.ToolDefinition{Name: "search"}, chat.ToolMetadata{}, noop)
 	if err == nil {
 		t.Fatal("missing schema must error")
 	}
-}
 
-func TestNewTool_External_SatisfiesToolOnly(t *testing.T) {
-	tool, err := chat.NewTool(
-		chat.ToolDefinition{Name: "external", InputSchema: "{}"},
-		chat.ToolMetadata{ReturnDirect: true},
-		nil,
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, ok := tool.(chat.CallableTool); ok {
-		t.Fatal("external tool must NOT satisfy CallableTool")
+	_, err = chat.NewTool(chat.ToolDefinition{Name: "search", InputSchema: "{}"}, chat.ToolMetadata{}, nil)
+	if err == nil {
+		t.Fatal("nil execFunc must error")
 	}
 }
 
-func TestNewTool_Internal_SatisfiesCallable(t *testing.T) {
+func TestNewTool_RunsExecFunc(t *testing.T) {
 	tool, err := chat.NewTool(
 		chat.ToolDefinition{Name: "echo", InputSchema: "{}"},
 		chat.ToolMetadata{},
-		func(ctx context.Context, args string) (string, error) { return args, nil },
+		func(_ context.Context, args string) (string, error) { return args, nil },
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	callable, ok := tool.(chat.CallableTool)
-	if !ok {
-		t.Fatal("internal tool must satisfy CallableTool")
-	}
-	got, err := callable.Call(context.Background(), "hi")
+	got, err := tool.Call(context.Background(), "hi")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -165,30 +154,6 @@ func TestToolSupport_InvokeToolCalls_ReturnDirectShortCircuits(t *testing.T) {
 	}
 }
 
-// TestToolSupport_InvokeToolCalls_ExternalForcesReturn verifies that an
-// unknown-call-able tool (delegated/external) routes the call to the
-// host instead of running it.
-func TestToolSupport_InvokeToolCalls_ExternalForcesReturn(t *testing.T) {
-	support := chat.NewToolSupport()
-	// External tool — no exec function.
-	tool, err := chat.NewTool(chat.ToolDefinition{Name: "external", InputSchema: "{}"}, chat.ToolMetadata{}, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	support.Register(tool)
-
-	resp := responseWithToolCall(t, "external", "args")
-	req := mustNewRequest(t)
-
-	result, err := support.InvokeToolCalls(context.Background(), req, resp)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if result.ShouldContinue() {
-		t.Fatal("external tool must force return-direct")
-	}
-}
-
 func TestToolSupport_ShouldInvokeToolCalls_UnknownToolErrors(t *testing.T) {
 	support := chat.NewToolSupport()
 	resp := responseWithToolCall(t, "missing", "")
@@ -255,6 +220,9 @@ func TestToolSupport_ShouldReturnDirect_AllDirect(t *testing.T) {
 
 func mustNewCallable(t *testing.T, name string, returnDirect bool, fn func(context.Context, string) (string, error)) chat.Tool {
 	t.Helper()
+	if fn == nil {
+		fn = func(context.Context, string) (string, error) { return "", nil }
+	}
 	tool, err := chat.NewTool(
 		chat.ToolDefinition{Name: name, InputSchema: `{"type":"object"}`},
 		chat.ToolMetadata{ReturnDirect: returnDirect},

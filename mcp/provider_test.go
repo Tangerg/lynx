@@ -81,8 +81,8 @@ func TestProvider_DiscoversAndCallsTool(t *testing.T) {
 	assert.Equal(t, "echo the input", def.Description)
 	assert.NotEmpty(t, def.InputSchema)
 
-	callable, ok := tools[0].(chat.CallableTool)
-	require.True(t, ok, "wrapped tool must implement chat.CallableTool")
+	callable, ok := tools[0].(chat.Tool)
+	require.True(t, ok, "wrapped tool must implement chat.Tool")
 
 	out, err := callable.Call(ctx, `{"text":"hello world"}`)
 	require.NoError(t, err)

@@ -81,10 +81,8 @@ type TerminationSignal struct {
 }
 
 // AgentTool is an alias of [chat.Tool] — the agent runtime and the
-// chat package share one tool model. Both delegated tools (no Call
-// implementation, [chat.Tool] only) and inline tools ([chat.CallableTool])
-// flow through the same [ToolGroup] / [ToolGroupResolver] / [ToolDecorator]
-// machinery.
+// chat package share one tool model. Tools flow through the same
+// [ToolGroup] / [ToolGroupResolver] / [ToolDecorator] machinery.
 //
 // Construct concrete tools via [chat.NewTool]; the runtime never builds
 // AgentTool literals itself.

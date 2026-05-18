@@ -30,7 +30,7 @@ type Response struct {
 
 var toolSchema, _ = pkgjson.StringDefSchemaOf(Request{})
 
-var _ chat.CallableTool = (*Tool)(nil)
+var _ chat.Tool = (*Tool)(nil)
 
 // Tool runs a shell command via the supplied [Executor].
 type Tool struct {

@@ -25,7 +25,7 @@ type GlobResponse struct {
 
 var globToolSchema, _ = pkgjson.StringDefSchemaOf(GlobRequest{})
 
-var _ chat.CallableTool = (*GlobTool)(nil)
+var _ chat.Tool = (*GlobTool)(nil)
 
 // GlobTool is the thin LLM-facing adapter for [Executor.Glob].
 type GlobTool struct {

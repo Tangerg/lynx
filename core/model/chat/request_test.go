@@ -1,6 +1,7 @@
 package chat_test
 
 import (
+	"context"
 	"strings"
 	"testing"
 
@@ -222,7 +223,7 @@ func mustNewTool(t *testing.T, name string) chat.Tool {
 	tool, err := chat.NewTool(
 		chat.ToolDefinition{Name: name, InputSchema: `{"type":"object"}`},
 		chat.ToolMetadata{},
-		nil,
+		func(context.Context, string) (string, error) { return "", nil },
 	)
 	if err != nil {
 		t.Fatalf("NewTool: %v", err)

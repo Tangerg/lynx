@@ -36,21 +36,20 @@ type ToolMetadata struct {
 	ReturnDirect bool
 }
 
-// Tool is the static surface every tool exposes. Implementations that
-// also satisfy [CallableTool] run inline; bare-Tool implementations
-// are delegated back to the caller — see [NewTool].
+// Tool is the executable contract every tool exposes — describable to
+// the LLM (Definition / Metadata) and runnable by the framework (Call).
+//
+// Tools that cannot run in-process — human approval gates, frontend
+// delegation, async dispatch — are not modeled as a separate type.
+// Instead, layers above (agent middleware, tool decorators) wrap a Tool
+// and surface control-flow signals via sentinel errors. See
+// agent/hitl and agent/toolpolicy for production examples.
 type Tool interface {
 	// Definition returns the static description shown to the LLM.
 	Definition() ToolDefinition
 
 	// Metadata returns the post-execution behavior (return-direct, ...).
 	Metadata() ToolMetadata
-}
-
-// CallableTool is the inline-execution flavor of [Tool]. The framework
-// invokes [CallableTool.Call] when the LLM requests this tool by name.
-type CallableTool interface {
-	Tool
 
 	// Call runs the tool's body. arguments is the JSON-encoded payload
 	// the LLM produced. The string result is fed back to the LLM (or
@@ -58,36 +57,29 @@ type CallableTool interface {
 	Call(ctx context.Context, arguments string) (string, error)
 }
 
-// baseTool is the shared backing for both delegated and inline tools.
-type baseTool struct {
+// tool is the concrete backing for tools built via [NewTool].
+type tool struct {
 	definition ToolDefinition
 	metadata   ToolMetadata
+	execFunc   func(ctx context.Context, arguments string) (string, error)
 }
 
-func (t *baseTool) Definition() ToolDefinition { return t.definition }
-func (t *baseTool) Metadata() ToolMetadata     { return t.metadata }
+func (t *tool) Definition() ToolDefinition { return t.definition }
+func (t *tool) Metadata() ToolMetadata     { return t.metadata }
 
-// callableTool wraps baseTool with an exec function for inline tools.
-type callableTool struct {
-	baseTool
-	execFunc func(ctx context.Context, arguments string) (string, error)
-}
-
-// Call runs the tool's exec function; returns an error when the tool was
-// constructed without one.
-func (t *callableTool) Call(ctx context.Context, arguments string) (string, error) {
-	if t.execFunc == nil {
-		return "", fmt.Errorf("chat.callableTool.Call: tool %q has no exec function", t.definition.Name)
-	}
+// Call runs the tool's exec function.
+func (t *tool) Call(ctx context.Context, arguments string) (string, error) {
 	return t.execFunc(ctx, arguments)
 }
 
-// NewTool builds a [Tool]. If execFunc is nil the result is a delegated
-// (external) tool that satisfies [Tool] only; otherwise it is an inline
-// (internal) tool that also satisfies [CallableTool].
+// NewTool builds a [Tool] backed by execFunc. All three components are
+// required: an empty name, an empty input schema, or a nil exec function
+// will return an error.
 //
-// Pass nil for execFunc to build a delegated tool — the framework
-// will surface the call request to the host instead of running it.
+// To gate execution on human approval or to delegate execution to an
+// external system, wrap the result with a decorator that returns a
+// sentinel error (e.g., agent/hitl.RequireAwait) — the chat layer
+// always treats a registered tool as runnable.
 //
 // Example:
 //
@@ -103,12 +95,15 @@ func NewTool(definition ToolDefinition, metadata ToolMetadata, execFunc func(ctx
 	if definition.InputSchema == "" {
 		return nil, errors.New("chat.NewTool: definition.InputSchema must not be empty")
 	}
-
-	base := baseTool{definition: definition, metadata: metadata}
 	if execFunc == nil {
-		return &base, nil
+		return nil, errors.New("chat.NewTool: execFunc must not be nil")
 	}
-	return &callableTool{baseTool: base, execFunc: execFunc}, nil
+
+	return &tool{
+		definition: definition,
+		metadata:   metadata,
+		execFunc:   execFunc,
+	}, nil
 }
 
 // ToolRegistry is a thread-safe map from tool name to [Tool] instance.
@@ -139,13 +134,13 @@ func (r *ToolRegistry) Register(tools ...Tool) *ToolRegistry {
 
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	for _, tool := range tools {
-		if tool == nil {
+	for _, t := range tools {
+		if t == nil {
 			continue
 		}
-		name := tool.Definition().Name
+		name := t.Definition().Name
 		if _, exists := r.tools[name]; !exists {
-			r.tools[name] = tool
+			r.tools[name] = t
 		}
 	}
 	return r
@@ -170,8 +165,8 @@ func (r *ToolRegistry) Unregister(names ...string) *ToolRegistry {
 func (r *ToolRegistry) Find(name string) (Tool, bool) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	tool, exists := r.tools[name]
-	return tool, exists
+	t, exists := r.tools[name]
+	return t, exists
 }
 
 // Exists reports whether a tool with the given name is registered.
@@ -187,8 +182,8 @@ func (r *ToolRegistry) All() []Tool {
 	defer r.mu.RUnlock()
 
 	out := make([]Tool, 0, len(r.tools))
-	for _, tool := range r.tools {
-		out = append(out, tool)
+	for _, t := range r.tools {
+		out = append(out, t)
 	}
 	return out
 }
@@ -221,27 +216,20 @@ func (r *ToolRegistry) Clear() *ToolRegistry {
 }
 
 // ToolInvocationResult is what the tool-calling middleware emits after
-// running the LLM-requested tool calls. It captures both the inline
-// results (toolMessage) and any external requests (externalToolCalls)
-// that the host needs to execute, plus the flow-control bit
-// (allReturnDirect) that decides whether to feed results back to the
-// LLM or return them to the caller.
+// running the LLM-requested tool calls. It captures the inline results
+// (toolMessage) plus the flow-control bit (allReturnDirect) that decides
+// whether to feed results back to the LLM or return them to the caller.
 type ToolInvocationResult struct {
-	request           *Request
-	response          *Response
-	toolMessage       *ToolMessage
-	allReturnDirect   bool
-	externalToolCalls []*ToolCallPart
+	request         *Request
+	response        *Response
+	toolMessage     *ToolMessage
+	allReturnDirect bool
 }
 
 // ShouldContinue reports whether the runtime should re-prompt the LLM
-// with the tool results. It is true only when:
-//   - no external tools are pending (those always force direct return), AND
-//   - at least one internal tool wants its result fed back to the LLM.
+// with the tool results. It is true when at least one internal tool
+// wants its result fed back to the LLM.
 func (r *ToolInvocationResult) ShouldContinue() bool {
-	if len(r.externalToolCalls) > 0 {
-		return false
-	}
 	return !r.allReturnDirect
 }
 
@@ -292,8 +280,7 @@ func (r *ToolInvocationResult) assertContinuableState() error {
 }
 
 // BuildReturnResponse assembles the final [*Response] when no further
-// LLM round is needed — either every internal tool was return-direct, or
-// external tool calls are pending and the host must execute them.
+// LLM round is needed — every internal tool was return-direct.
 func (r *ToolInvocationResult) BuildReturnResponse() (*Response, error) {
 	if !r.ShouldReturn() {
 		return nil, errors.New("chat.ToolInvocationResult.BuildReturnResponse: result is in continue state")
@@ -306,25 +293,8 @@ func (r *ToolInvocationResult) BuildReturnResponse() (*Response, error) {
 	if withCalls == nil || !withCalls.AssistantMessage.HasToolCalls() {
 		return nil, errors.New("chat.ToolInvocationResult.BuildReturnResponse: response has no tool calls")
 	}
-	original := withCalls.AssistantMessage
 
-	// Rebuild Parts: preserve original text/reasoning parts but
-	// replace tool-call parts with the externally-pending subset.
-	rebuilt := make([]OutputPart, 0, len(original.Parts))
-	for _, p := range original.Parts {
-		if _, isCall := p.(*ToolCallPart); !isCall {
-			rebuilt = append(rebuilt, p)
-		}
-	}
-	for _, ext := range r.externalToolCalls {
-		rebuilt = append(rebuilt, ext)
-	}
-	modified := NewAssistantMessage(MessageParams{
-		Parts:    rebuilt,
-		Metadata: original.Metadata,
-	})
-
-	result, err := NewResult(modified, withCalls.Metadata)
+	result, err := NewResult(withCalls.AssistantMessage, withCalls.Metadata)
 	if err != nil {
 		return nil, fmt.Errorf("chat.ToolInvocationResult.BuildReturnResponse: %w", err)
 	}
@@ -333,8 +303,7 @@ func (r *ToolInvocationResult) BuildReturnResponse() (*Response, error) {
 	return NewResponse(result, r.response.Metadata)
 }
 
-// validate ensures the result has at least one result channel
-// populated — either the inline tool message or the external call list.
+// validate ensures the result has the inline tool message populated.
 func (r *ToolInvocationResult) validate() error {
 	if r.request == nil {
 		return errors.New("chat.ToolInvocationResult: original request is missing")
@@ -342,15 +311,15 @@ func (r *ToolInvocationResult) validate() error {
 	if r.response == nil {
 		return errors.New("chat.ToolInvocationResult: LLM response is missing")
 	}
-	if r.toolMessage == nil && len(r.externalToolCalls) == 0 {
-		return errors.New("chat.ToolInvocationResult: at least one of internal-tools message or external tool calls is required")
+	if r.toolMessage == nil {
+		return errors.New("chat.ToolInvocationResult: internal-tools message is required")
 	}
 	return nil
 }
 
-// toolCallInvoker drives one round of tool invocations: identify which
-// tools need to run, execute the inline ones, collect the external ones,
-// and assemble the [*ToolInvocationResult].
+// toolCallInvoker drives one round of tool invocations: validate every
+// requested tool, execute each in order, and assemble the
+// [*ToolInvocationResult].
 type toolCallInvoker struct {
 	registry *ToolRegistry
 }
@@ -376,53 +345,37 @@ func (i *toolCallInvoker) canInvokeToolCalls(resp *Response) (bool, error) {
 	return true, nil
 }
 
-// invokeToolCalls runs the inline tools in order and collects the
-// external ones into a separate slice for the host to handle.
+// invokeToolCalls runs every requested tool in order and collects the
+// results into a single [*ToolMessage].
 func (i *toolCallInvoker) invokeToolCalls(ctx context.Context, calls []*ToolCallPart) (*ToolInvocationResult, error) {
-	var (
-		external        []*ToolCallPart
-		allReturnDirect = true
-		internal        []*ToolReturn
-	)
+	allReturnDirect := true
+	returns := make([]*ToolReturn, 0, len(calls))
 
 	for _, call := range calls {
 		// Existence is guaranteed by the canInvokeToolCalls precheck.
-		tool, _ := i.registry.Find(call.Name)
+		t, _ := i.registry.Find(call.Name)
 
-		callable, ok := tool.(CallableTool)
-		if !ok {
-			external = append(external, call)
-			continue
-		}
-
-		result, err := callable.Call(ctx, call.Arguments)
+		result, err := t.Call(ctx, call.Arguments)
 		if err != nil {
 			return nil, fmt.Errorf("chat.toolCallInvoker.invokeToolCalls: tool %q failed: %w", call.Name, err)
 		}
 
-		allReturnDirect = allReturnDirect && callable.Metadata().ReturnDirect
-		internal = append(internal, &ToolReturn{
+		allReturnDirect = allReturnDirect && t.Metadata().ReturnDirect
+		returns = append(returns, &ToolReturn{
 			ID:     call.ID,
 			Name:   call.Name,
 			Result: result,
 		})
 	}
 
-	var (
-		toolMsg *ToolMessage
-		err     error
-	)
-	if len(internal) > 0 {
-		toolMsg, err = NewToolMessage(internal)
-		if err != nil {
-			return nil, fmt.Errorf("chat.toolCallInvoker.invokeToolCalls: %w", err)
-		}
+	toolMsg, err := NewToolMessage(returns)
+	if err != nil {
+		return nil, fmt.Errorf("chat.toolCallInvoker.invokeToolCalls: %w", err)
 	}
 
 	return &ToolInvocationResult{
-		toolMessage:       toolMsg,
-		externalToolCalls: external,
-		allReturnDirect:   allReturnDirect,
+		toolMessage:     toolMsg,
+		allReturnDirect: allReturnDirect,
 	}, nil
 }
 
@@ -495,11 +448,11 @@ func (s *ToolSupport) ShouldReturnDirect(msgs []Message) bool {
 	}
 
 	for _, ret := range toolMsg.ToolReturns {
-		tool, exists := s.registry.Find(ret.Name)
+		t, exists := s.registry.Find(ret.Name)
 		if !exists {
 			return false
 		}
-		if !tool.Metadata().ReturnDirect {
+		if !t.Metadata().ReturnDirect {
 			return false
 		}
 	}
@@ -537,13 +490,12 @@ func (s *ToolSupport) ShouldInvokeToolCalls(resp *Response) (bool, error) {
 	return s.invoker.canInvokeToolCalls(resp)
 }
 
-// InvokeToolCalls runs one tool-calling round: validate, dispatch to
-// inline tools, collect external ones, and assemble the result.
+// InvokeToolCalls runs one tool-calling round: validate, dispatch every
+// tool, and assemble the result.
 //
-// Flow control:
-//   - any external tool forces a direct return,
-//   - among internal tools, any non-return-direct keeps the loop going,
-//   - only when every internal tool is return-direct does the loop end.
+// Flow control: when every invoked tool is return-direct the loop ends;
+// otherwise the caller is expected to re-prompt the LLM via
+// [ToolInvocationResult.BuildContinueRequest].
 func (s *ToolSupport) InvokeToolCalls(ctx context.Context, req *Request, resp *Response) (*ToolInvocationResult, error) {
 	return s.invoker.invoke(ctx, req, resp)
 }
