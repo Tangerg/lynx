@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Sonance · Agent</title>
+<link rel="stylesheet" href="assets/sonance.css" />
+<link rel="stylesheet" href="assets-calm/styles.css" />
+<style>
+  /* Streaming cursor */
+  .streaming .cursor {
+    display: inline-block;
+    width: 7px;
+    height: 14px;
+    background: var(--color-accent);
+    margin-left: 2px;
+    vertical-align: text-bottom;
+    animation: blink 1s steps(2) infinite;
+    transform: translateY(2px);
+  }
+  @keyframes blink { 50% { opacity: 0; } }
+</style>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel" src="assets/tweaks-panel.jsx"></script>
+<script type="text/babel" src="assets/data.jsx?v=3"></script>
+<script type="text/babel" src="assets/sidebar.jsx?v=3"></script>
+<script type="text/babel" src="assets/chat.jsx?v=3"></script>
+<script type="text/babel" src="assets/inspector.jsx?v=4"></script>
+<script type="text/babel" src="assets/runstrip.jsx?v=1"></script>
+<script type="text/babel" src="assets/app.jsx?v=5"></script>
+</body>
+</html>

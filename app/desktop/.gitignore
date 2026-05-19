@@ -1,0 +1,22 @@
+# Wails build output
+build/bin
+
+# Node + Vite
+node_modules
+frontend/dist
+
+# Compiled binaries (Wails leaves the dev binary at repo root)
+/lyra
+
+# macOS / editor noise
+.DS_Store
+*.log
+.idea/
+.vscode/
+
+# Local plugin sideload tree (loaded at runtime, not source)
+.lyra/
+
+# Test + tooling caches
+.cache/
+coverage/

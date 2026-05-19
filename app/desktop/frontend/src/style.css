@@ -1,0 +1,594 @@
+/* Design system tokens (Spotify-inspired — see DESIGN.md). */
+@import "./styles/tokens.css";
+/* App-shell + component styles. */
+@import "./styles/app.css";
+
+html,
+body,
+#root {
+  margin: 0;
+}
+
+/* Hard minimum viewport size. Below this, the composer (820px max-width)
+   and the three columns (sidebar + chat + inspector) start overlapping,
+   so we lock the page to scroll instead of squashing layout. */
+:root {
+  --app-min-width: 1280px;
+  --app-min-height: 720px;
+}
+
+html, body, #root {
+  min-width: var(--app-min-width);
+  min-height: var(--app-min-height);
+}
+html, body { height: 100%; }
+#root { height: 100vh; }
+
+body {
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-ui);
+  font-size: var(--fs-body);
+  overflow: auto;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Top-level shell honors the same minimum so the grid never collapses. */
+.app {
+  min-width: var(--app-min-width);
+  min-height: var(--app-min-height);
+}
+
+/* Chat column has a real floor — otherwise the composer (820px) overflows
+   the column once sidebar + inspector are both expanded. */
+.app:not(.rail):not(.insp-open) .app-main { grid-template-columns: 248px minmax(560px, 1fr) 44px; }
+.app.rail:not(.insp-open)       .app-main { grid-template-columns: 56px  minmax(560px, 1fr) 44px; }
+.app:not(.rail).insp-open       .app-main { grid-template-columns: 248px minmax(560px, 1fr) 460px; }
+.app.rail.insp-open             .app-main { grid-template-columns: 56px  minmax(560px, 1fr) 460px; }
+
+/* Default to dark theme. */
+html { color-scheme: dark; }
+html.theme-light { color-scheme: light; }
+
+/* ============================================================
+   macOS: native titlebar is hidden, traffic-light controls
+   overlap the top-left corner. Push the sidebar header down so
+   the brand isn't covered, and make the top zone draggable.
+   ============================================================ */
+.sidebar       { padding-top: 36px; }
+
+/* "Open in main" button rendered at the top of every inspector tab body.
+   Floats top-right inside the .insp-content container. */
+.insp-promote {
+  position: absolute;
+  top: 8px;
+  right: 14px;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  background: var(--color-surface);
+  border: 1px solid var(--hairline-2);
+  color: var(--color-text-muted);
+  font-size: 10.5px;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background 120ms, color 120ms;
+}
+.insp-promote:hover {
+  background: var(--color-surface-2);
+  color: var(--color-text);
+}
+.insp-content { position: relative; }
+.sidebar .brand{ padding-top: 0; }
+.sidebar.rail  { padding-top: 36px; }
+
+/* The top strip of the sidebar acts as the window-drag handle. */
+.sidebar::before,
+.sidebar.rail::before {
+  content: "";
+  position: absolute;
+  left: 0; right: 0; top: 0;
+  height: 32px;
+  --wails-draggable: drag;
+  -webkit-app-region: drag;
+  z-index: 10;
+  pointer-events: none;
+}
+.sidebar, .sidebar.rail { position: relative; }
+
+/* ============================================================
+   Plugin toaster — bottom-right stack of host.notify() messages.
+   ============================================================ */
+.plugin-toaster {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 100;
+  pointer-events: none;
+}
+.plugin-toast {
+  pointer-events: auto;
+  min-width: 220px;
+  max-width: 360px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: var(--color-surface);
+  border: 1px solid var(--hairline-3);
+  color: var(--color-text);
+  font-size: 13px;
+  line-height: 1.45;
+  box-shadow: var(--shadow-dialog);
+}
+.plugin-toast.warn  { border-color: rgba(255,164,43,0.36); }
+.plugin-toast.error { border-color: rgba(243,114,127,0.4); color: var(--color-negative); }
+
+/* "More settings…" link inside the small popover. */
+.sp-more {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: calc(100% + 24px);
+  margin: 4px -12px -12px -12px;
+  padding: 10px 12px;
+  background: transparent;
+  border: none;
+  border-top: 1px solid var(--hairline-2);
+  color: var(--color-text-muted);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  cursor: pointer;
+  border-radius: 0 0 12px 12px;
+  text-align: left;
+}
+.sp-more:hover {
+  background: var(--color-surface-2);
+  color: var(--color-text);
+}
+
+/* ============================================================
+   Settings modal — full-screen overlay, two-column layout
+   (rail of panes + active content).
+   ============================================================ */
+.settings-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(4px);
+}
+.settings-modal {
+  display: grid;
+  grid-template-columns: 200px 1fr;
+  width: min(880px, 92vw);
+  height: min(620px, 86vh);
+  background: var(--color-surface);
+  border: 1px solid var(--hairline-3);
+  border-radius: 14px;
+  box-shadow: var(--shadow-dialog);
+  overflow: hidden;
+}
+.settings-rail {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 14px 8px;
+  background: var(--color-bg);
+  border-right: 1px solid var(--hairline-2);
+}
+.settings-rail-title {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-text-faint);
+  padding: 4px 10px 8px 10px;
+}
+.settings-rail-btn {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 10px;
+  background: transparent;
+  border: none;
+  color: var(--color-text-muted);
+  text-align: left;
+  font-size: 13px;
+  border-radius: 7px;
+  cursor: pointer;
+  transition: background 120ms var(--ease-out), color 120ms var(--ease-out);
+}
+.settings-rail-btn:hover { background: var(--color-surface); color: var(--color-text); }
+.settings-rail-btn.active {
+  background: var(--color-surface-2);
+  color: var(--color-text);
+}
+.settings-content {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+.settings-content-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--hairline-2);
+}
+.settings-content-title {
+  font-size: 16px;
+  font-weight: 700;
+}
+.settings-close {
+  display: grid;
+  place-items: center;
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  background: transparent;
+  border: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+.settings-close:hover { background: var(--color-surface-2); color: var(--color-text); }
+.settings-content-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 18px 20px;
+}
+
+/* Reusable rows inside a settings pane. */
+.settings-row {
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  gap: 16px;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--hairline-1);
+}
+.settings-row:last-child { border-bottom: none; }
+.settings-row .settings-row-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+.settings-row .settings-row-sub {
+  font-size: 11.5px;
+  color: var(--color-text-faint);
+  margin-top: 2px;
+}
+
+/* Plugins pane list. */
+.plugin-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.plugin-list-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--color-bg);
+  border: 1px solid var(--hairline-2);
+}
+.plugin-list-row.has-errors { border-color: rgba(243,114,127,0.36); }
+.plugin-list-row .plugin-list-name {
+  font-size: 13px;
+  font-weight: 600;
+}
+.plugin-list-row .plugin-list-version {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--color-text-faint);
+}
+.plugin-list-row .plugin-list-errors {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--color-negative);
+  font-size: 11px;
+}
+
+/* Origin badge — "Built-in" vs "Sideload". */
+.plugin-origin-badge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 7px;
+  border-radius: 99px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  vertical-align: middle;
+}
+.plugin-origin-badge.plugin-origin-builtin {
+  background: var(--color-surface-2);
+  color: var(--color-text-muted);
+}
+.plugin-origin-badge.plugin-origin-sideload {
+  background: rgba(82, 157, 245, 0.14);
+  color: var(--color-info);
+}
+
+/* ============================================================
+   Plugin error boundary — inline notice when a plugin component
+   throws during render.
+   ============================================================ */
+.plugin-boundary-error {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 8px 0;
+  padding: 10px 12px;
+  border: 1px solid rgba(243, 114, 127, 0.32);
+  border-radius: 8px;
+  background: rgba(243, 114, 127, 0.06);
+  color: var(--color-negative);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.plugin-boundary-error code {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--color-text-muted);
+  background: transparent;
+  padding: 0;
+  border: none;
+}
+
+/* ============================================================
+   Settings popover polish — anchor on the user-card row instead
+   of the tiny gear-wrapper, so the popover can never overflow
+   past the sidebar's left edge.
+   ============================================================ */
+.user-card { position: relative; }
+.user-settings-wrap { position: static; }
+
+.settings-popover {
+  /* Span the full width of the user-card row, with 4px slack on each
+     side so the rounded edges don't kiss the sidebar inner padding. */
+  left: 4px;
+  right: 4px;
+  width: auto;
+  bottom: calc(100% + 10px);
+  padding: 12px;
+  border-radius: 12px;
+}
+.settings-popover .sp-section {
+  padding: 4px 6px 10px 6px;
+  font-size: 9.5px;
+  letter-spacing: 0.18em;
+}
+.settings-popover .sp-row {
+  grid-template-columns: 56px 1fr;
+  padding: 8px 6px;
+  gap: 14px;
+}
+.settings-popover .sp-row + .sp-row { padding-top: 6px; }
+.settings-popover .sp-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-text-soft);
+}
+.settings-popover .sp-segmented {
+  padding: 3px;
+  border-radius: 6px;
+}
+.settings-popover .sp-seg {
+  height: 26px;
+  padding: 0 12px;
+  font-size: 11.5px;
+  gap: 6px;
+  font-weight: 600;
+  border-radius: 4px;
+  transition: background 140ms var(--ease-out), color 140ms var(--ease-out);
+}
+.settings-popover .sp-seg.active {
+  background: var(--color-surface-3);
+  color: var(--color-text);
+  box-shadow: 0 1px 0 rgba(0,0,0,0.4), 0 0 0 0.5px rgba(255,255,255,0.04) inset;
+}
+
+/* Accent swatches — tighter selection ring with a subtle outer glow. */
+.settings-popover .accent-swatches { gap: 10px; }
+.accent-swatch {
+  width: 18px;
+  height: 18px;
+  border-width: 2px;
+  transition: transform 140ms var(--ease-out), box-shadow 140ms var(--ease-out);
+}
+.accent-swatch.active {
+  border-color: var(--color-surface);
+  box-shadow: 0 0 0 1.5px var(--color-text);
+}
+.accent-swatch:hover {
+  transform: scale(1.08);
+}
+
+/* ============================================================
+   Message lane — both agent and user content sit between the two
+   avatars (left for agent, right for user), so the content area
+   has the same width regardless of role.
+   ============================================================ */
+.msg.agent { padding: 0 46px 0 46px; }
+.msg.user  { padding: 0 46px 0 46px; }
+
+/* User bubble fills the lane instead of capping at 580px. Right-aligned
+   alignment is moot once the bubble is full-width, but we keep
+   align-items so anything inline still sits to the right. */
+.msg.user .msg-content { max-width: none; }
+
+/* ============================================================
+   Reasoning ("thinking") block — collapsible, muted, italic.
+   ============================================================ */
+.reasoning-block {
+  margin: 8px 0;
+  border-left: 2px solid var(--hairline-3);
+  padding-left: 12px;
+}
+.reasoning-head {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: transparent;
+  border: none;
+  padding: 2px 0;
+  color: var(--color-text-faint);
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+  max-width: 100%;
+}
+.reasoning-head:hover { color: var(--color-text-muted); }
+.reasoning-head .rb-label { flex-shrink: 0; }
+.reasoning-head .rb-preview {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--color-text-faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.reasoning-head .rb-pulse {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  box-shadow: 0 0 6px var(--color-accent);
+  animation: pulse 1.4s ease-in-out infinite;
+}
+.reasoning-body {
+  padding: 6px 0 4px 0;
+  color: var(--color-text-muted);
+  font-style: italic;
+  font-size: 13.5px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+.reasoning-body .cursor {
+  display: inline-block;
+  margin-left: 2px;
+  color: var(--color-accent);
+  animation: pulse 1s ease-in-out infinite;
+}
+
+/* Interactive elements must opt out of dragging. */
+.brand-toggle,
+.rail-btn,
+.rail-session,
+.rail-brand .brand-mark,
+.brand .brand-mark {
+  --wails-draggable: no-drag;
+  -webkit-app-region: no-drag;
+}
+
+
+/* ============================================================
+   Command palette (Cmd+K) — Phase 10.
+   ============================================================ */
+.cmdk-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 95;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 14vh;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(4px);
+}
+.cmdk {
+  width: min(620px, 92vw);
+  max-height: 60vh;
+  background: var(--color-surface);
+  border: 1px solid var(--hairline-3);
+  border-radius: 12px;
+  box-shadow: var(--shadow-dialog);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.cmdk-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--hairline-2);
+  color: var(--color-text-muted);
+}
+.cmdk-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--color-text);
+  font-size: 14px;
+}
+.cmdk-hint {
+  font-size: 10.5px;
+  color: var(--color-text-faint);
+  border: 1px solid var(--hairline-2);
+  padding: 2px 6px;
+  border-radius: 5px;
+}
+.cmdk-list {
+  overflow-y: auto;
+  padding: 6px;
+}
+.cmdk-empty {
+  padding: 24px 14px;
+  text-align: center;
+  color: var(--color-text-faint);
+  font-size: 13px;
+}
+.cmdk-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  background: transparent;
+  border: none;
+  border-radius: 7px;
+  color: var(--color-text-muted);
+  text-align: left;
+  cursor: pointer;
+}
+.cmdk-item.active,
+.cmdk-item:hover {
+  background: var(--color-surface-2);
+  color: var(--color-text);
+}
+.cmdk-item-body { flex: 1; min-width: 0; }
+.cmdk-item-label { font-size: 13px; line-height: 1.3; }
+.cmdk-item-sub   { font-size: 11px; color: var(--color-text-faint); margin-top: 2px; }
+.cmdk-item-group {
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-text-faint);
+}
+.cmdk-item-shortcut {
+  font-size: 10.5px;
+  color: var(--color-text-faint);
+  border: 1px solid var(--hairline-2);
+  padding: 1px 6px;
+  border-radius: 5px;
+}
