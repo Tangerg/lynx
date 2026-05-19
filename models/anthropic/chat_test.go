@@ -6,7 +6,9 @@ import (
 	"strings"
 	"testing"
 
+	anthropicsdk "github.com/anthropics/anthropic-sdk-go"
 	"github.com/anthropics/anthropic-sdk-go/option"
+	"github.com/anthropics/anthropic-sdk-go/packages/param"
 
 	"github.com/Tangerg/lynx/core/model"
 	"github.com/Tangerg/lynx/core/model/chat"
@@ -346,6 +348,92 @@ func TestChatModel_RoundTrip_ParseAndReassemble(t *testing.T) {
 	}
 	if idxThinking >= idxStep1 {
 		t.Errorf("thinking block (%d) should precede first text (%d)", idxThinking, idxStep1)
+	}
+}
+
+// TestChatModel_Call_PreservesPreStagedSystemForCaching verifies the
+// prompt-caching contract: when the caller pre-stages
+// anthropicsdk.MessageNewParams in Options.Extra (typically to attach
+// cache_control to a system block or trailing tool definition), the
+// adapter must NOT overwrite those pre-staged fields when building
+// the wire request. Lynx-derived blocks (from req.Messages /
+// req.Tools) are appended after the pre-staged content so the
+// caller's cache_control breakpoint keeps its leading position.
+func TestChatModel_Call_PreservesPreStagedSystemForCaching(t *testing.T) {
+	var seenBody []byte
+	srv := testutil.JSONServer(http.StatusOK, anthropicResponseJSON, func(r *http.Request) {
+		seenBody, _ = io.ReadAll(r.Body)
+	})
+	t.Cleanup(srv.Close)
+
+	m := newChatModel(t, srv.URL, "claude-3-5-sonnet-20241022")
+
+	// Pre-stage a system block carrying cache_control + a tool block
+	// also carrying cache_control. This is the canonical prompt-caching
+	// shape per https://docs.anthropic.com/en/docs/build-with-claude/prompt-caching.
+	staged := &anthropicsdk.MessageNewParams{
+		System: []anthropicsdk.TextBlockParam{
+			{
+				Text:         "static cached instructions",
+				CacheControl: anthropicsdk.NewCacheControlEphemeralParam(),
+			},
+		},
+		Tools: []anthropicsdk.ToolUnionParam{
+			{
+				OfTool: &anthropicsdk.ToolParam{
+					Name:        "search",
+					Description: param.NewOpt("static cached tool"),
+					InputSchema: anthropicsdk.ToolInputSchemaParam{
+						ExtraFields: map[string]any{
+							"properties": map[string]any{
+								"q": map[string]any{"type": "string"},
+							},
+						},
+					},
+					CacheControl: anthropicsdk.NewCacheControlEphemeralParam(),
+				},
+			},
+		},
+	}
+
+	opts, _ := chat.NewOptions("claude-3-5-sonnet-20241022")
+	opts.Set(anthropic.OptionsKey, staged)
+
+	req, _ := chat.NewRequest([]chat.Message{
+		chat.NewSystemMessage("runtime instructions"),
+		chat.NewUserMessage("hi"),
+	})
+	req.Options = opts
+
+	if _, err := m.Call(t.Context(), req); err != nil {
+		t.Fatalf("Call: %v", err)
+	}
+
+	body := string(seenBody)
+
+	// 1. Pre-staged cached system block must survive.
+	if !strings.Contains(body, "static cached instructions") {
+		t.Fatalf("pre-staged system text was dropped: %s", body)
+	}
+	if !strings.Contains(body, `"cache_control":{"type":"ephemeral"}`) {
+		t.Fatalf("cache_control was dropped: %s", body)
+	}
+
+	// 2. Lynx-derived runtime system text must also appear — appended
+	//    after the cached block.
+	if !strings.Contains(body, "runtime instructions") {
+		t.Fatalf("runtime system message missing: %s", body)
+	}
+	idxStatic := strings.Index(body, "static cached instructions")
+	idxRuntime := strings.Index(body, "runtime instructions")
+	if idxStatic >= idxRuntime {
+		t.Fatalf("pre-staged block must precede runtime block (static=%d, runtime=%d)", idxStatic, idxRuntime)
+	}
+
+	// 3. Pre-staged tool with cache_control must survive.
+	idxStaticTool := strings.Index(body, `"name":"search"`)
+	if idxStaticTool < 0 {
+		t.Fatalf("pre-staged tool missing: %s", body)
 	}
 }
 

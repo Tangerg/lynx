@@ -94,10 +94,16 @@ func (r *requestHelper) buildParams(opts *chat.Options, tools []chat.Tool) (*ant
 
 	params := r.buildBaseParams(mergedOpts)
 
-	params.Tools, err = r.buildToolParams(tools)
+	// User-pre-staged tools (from Options.Extra, typically carrying a
+	// cache_control breakpoint on the last entry) keep their position;
+	// lynx-derived tools land after. Anthropic's cache_control is a
+	// cumulative "everything before this point" marker, so appending
+	// preserves the caller's caching intent.
+	derivedTools, err := r.buildToolParams(tools)
 	if err != nil {
 		return nil, err
 	}
+	params.Tools = append(params.Tools, derivedTools...)
 
 	return params, nil
 }
@@ -213,8 +219,13 @@ func (r *requestHelper) buildApiChatRequest(req *chat.Request) (*anthropicsdk.Me
 		return nil, err
 	}
 
-	params.System = r.buildSystem(req.Messages)
-	params.Messages = r.buildMsgs(req.Messages)
+	// Append lynx-derived blocks AFTER any pre-staged blocks the caller
+	// shipped via Options.Extra. Anthropic prompt caching uses
+	// cache_control as a cumulative breakpoint ("everything before this
+	// point is cached"), so pre-staged System / Messages blocks must
+	// keep their leading position for the caching intent to survive.
+	params.System = append(params.System, r.buildSystem(req.Messages)...)
+	params.Messages = append(params.Messages, r.buildMsgs(req.Messages)...)
 
 	return params, nil
 }
