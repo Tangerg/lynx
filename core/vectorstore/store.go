@@ -226,15 +226,15 @@ type Deleter interface {
 }
 
 // Store is the union of [Creator], [Retriever], and [Deleter]
-// plus a [Store.Info] accessor for provider identity. Concrete
+// plus a [Store.Metadata] accessor for provider identity. Concrete
 // providers live in /vectorstores/<provider>.
 type Store interface {
 	Creator
 	Retriever
 	Deleter
 
-	// Info returns identity metadata about this store implementation.
-	Info() StoreInfo
+	// Metadata returns identity metadata about this store implementation.
+	Metadata() StoreInfo
 }
 
 // StoreInfo holds identity metadata for a [Store]. NativeClient

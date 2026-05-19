@@ -427,7 +427,7 @@ func (v *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) erro
 }
 
 // Info returns metadata about this store instance.
-func (v *Store) Info() vectorstore.StoreInfo {
+func (v *Store) Metadata() vectorstore.StoreInfo {
 	return vectorstore.StoreInfo{
 		NativeClient: v.client,
 		Provider:     Provider,

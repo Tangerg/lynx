@@ -80,7 +80,7 @@ func NewStore(cfg *StoreConfig) (*Store, error) {
 }
 
 
-func (s *Store) Info() vectorstore.StoreInfo {
+func (s *Store) Metadata() vectorstore.StoreInfo {
 	return vectorstore.StoreInfo{
 		Provider:     Provider,
 		NativeClient: s,

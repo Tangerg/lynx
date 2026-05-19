@@ -536,7 +536,7 @@ func (s *Store) toDocument(hit opensearchapi.SearchHit, score float64) (*documen
 	return doc, nil
 }
 
-func (s *Store) Info() vectorstore.StoreInfo {
+func (s *Store) Metadata() vectorstore.StoreInfo {
 	return vectorstore.StoreInfo{
 		NativeClient: s.client,
 		Provider:     Provider,

@@ -265,7 +265,7 @@ func (v *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) erro
 	return nil
 }
 
-func (v *Store) Info() vectorstore.StoreInfo {
+func (v *Store) Metadata() vectorstore.StoreInfo {
 	return vectorstore.StoreInfo{
 		NativeClient: v.index,
 		Provider:     Provider,

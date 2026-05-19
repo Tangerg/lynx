@@ -437,7 +437,7 @@ func (s *Store) do(ctx context.Context, method, path string, body any) ([]byte, 
 	return respBody, nil
 }
 
-func (s *Store) Info() vectorstore.StoreInfo {
+func (s *Store) Metadata() vectorstore.StoreInfo {
 	return vectorstore.StoreInfo{
 		NativeClient: s.httpClient,
 		Provider:     Provider,
