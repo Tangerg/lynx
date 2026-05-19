@@ -409,7 +409,7 @@ func (s *Store) buildFilter(filter ast.Expr) (string, []any, error) {
 	return predicate, args, nil
 }
 
-func (s *Store) Info() vectorstore.StoreInfo {
+func (s *Store) Metadata() vectorstore.StoreInfo {
 	return vectorstore.StoreInfo{
 		NativeClient: s.db,
 		Provider:     Provider,

@@ -489,7 +489,7 @@ func (s *Store) buildPredicate(filter ast.Expr) (string, map[string]any, error) 
 	return predicate, params, nil
 }
 
-func (s *Store) Info() vectorstore.StoreInfo {
+func (s *Store) Metadata() vectorstore.StoreInfo {
 	return vectorstore.StoreInfo{
 		NativeClient: s.driver,
 		Provider:     Provider,

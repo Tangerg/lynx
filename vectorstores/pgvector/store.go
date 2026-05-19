@@ -511,7 +511,7 @@ func (s *Store) buildWhereClause(filter ast.Expr) (string, []any, error) {
 	return " WHERE " + fragment, args, nil
 }
 
-func (s *Store) Info() vectorstore.StoreInfo {
+func (s *Store) Metadata() vectorstore.StoreInfo {
 	return vectorstore.StoreInfo{
 		NativeClient: s.pool,
 		Provider:     Provider,

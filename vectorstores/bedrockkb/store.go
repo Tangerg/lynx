@@ -184,7 +184,7 @@ func toDocument(r types.KnowledgeBaseRetrievalResult) (*document.Document, error
 	return doc, nil
 }
 
-func (s *Store) Info() vectorstore.StoreInfo {
+func (s *Store) Metadata() vectorstore.StoreInfo {
 	return vectorstore.StoreInfo{
 		NativeClient: s.client,
 		Provider:     Provider,

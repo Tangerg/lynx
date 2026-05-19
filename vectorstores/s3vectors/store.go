@@ -349,7 +349,7 @@ func (s *Store) distanceToScore(distance float64) float64 {
 	}
 }
 
-func (s *Store) Info() vectorstore.StoreInfo {
+func (s *Store) Metadata() vectorstore.StoreInfo {
 	return vectorstore.StoreInfo{
 		NativeClient: s.client,
 		Provider:     Provider,
