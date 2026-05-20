@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strconv"
 
 	"github.com/go-resty/resty/v2"
 
@@ -178,10 +179,10 @@ func buildSpeakQuery(p *SpeakParams) url.Values {
 		q.Set("container", p.Container)
 	}
 	if p.SampleRate > 0 {
-		q.Set("sample_rate", fmt.Sprintf("%d", p.SampleRate))
+		q.Set("sample_rate", strconv.Itoa(p.SampleRate))
 	}
 	if p.BitRate > 0 {
-		q.Set("bit_rate", fmt.Sprintf("%d", p.BitRate))
+		q.Set("bit_rate", strconv.Itoa(p.BitRate))
 	}
 	return q
 }

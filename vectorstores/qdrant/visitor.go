@@ -2,6 +2,7 @@ package qdrant
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/qdrant/go-client/qdrant"
@@ -687,7 +688,7 @@ func (c *Visitor) buildIndexedFieldKey(expr *ast.IndexExpr) (string, error) {
 			pathParts = append([]string{v}, pathParts...)
 		case float64:
 			// Numeric index: convert to string and prepend
-			pathParts = append([]string{fmt.Sprintf("%d", int(v))}, pathParts...)
+			pathParts = append([]string{strconv.Itoa(int(v))}, pathParts...)
 		default:
 			return "", fmt.Errorf("invalid index type %T, expected string or number", indexVal)
 		}

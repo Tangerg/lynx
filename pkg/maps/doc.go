@@ -133,7 +133,7 @@
 //
 //	// Safe concurrent access
 //	var wg sync.WaitGroup
-//	for i := 0; i < 100; i++ {
+//	for i := range 100 {
 //	    wg.Add(1)
 //	    go func(id int) {
 //	        defer wg.Done()
@@ -181,12 +181,12 @@
 //
 //	// Optimized for concurrent reads
 //	var wg sync.WaitGroup
-//	for i := 0; i < 1000; i++ {
+//	for i := range 1000 {
 //	    wg.Add(1)
 //	    go func(id int) {
 //	        defer wg.Done()
 //	        // Many concurrent reads
-//	        for j := 0; j < 1000; j++ {
+//	        for j := range 1000 {
 //	            m.Get(fmt.Sprintf("key%d", j))
 //	        }
 //	        // Occasional write

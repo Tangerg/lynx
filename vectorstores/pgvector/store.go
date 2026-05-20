@@ -391,7 +391,7 @@ func (s *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) erro
 // drainBatch consumes every queued statement's tag so the underlying
 // connection isn't left in an inconsistent state on close.
 func drainBatch(br pgx.BatchResults, n int) error {
-	for i := 0; i < n; i++ {
+	for range n {
 		if _, err := br.Exec(); err != nil {
 			return err
 		}

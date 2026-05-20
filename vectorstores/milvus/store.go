@@ -267,7 +267,7 @@ func (v *Store) buildDocumentsFromResults(rs milvusclient.ResultSet, minScore fl
 	contentCol := rs.GetColumn(fieldContent)
 	metaCol := rs.GetColumn(fieldMeta)
 
-	for i := 0; i < rs.Len(); i++ {
+	for i := range rs.Len() {
 		score := float64(rs.Scores[i])
 		if score < minScore {
 			continue

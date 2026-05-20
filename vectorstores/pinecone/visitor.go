@@ -2,6 +2,7 @@ package pinecone
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"google.golang.org/protobuf/types/known/structpb"
@@ -397,7 +398,7 @@ func (c *Visitor) buildIndexedFieldKey(expr *ast.IndexExpr) (string, error) {
 		case string:
 			parts = append([]string{v}, parts...)
 		case float64:
-			parts = append([]string{fmt.Sprintf("%d", int(v))}, parts...)
+			parts = append([]string{strconv.Itoa(int(v))}, parts...)
 		default:
 			return "", fmt.Errorf("pinecone: invalid index type %T, expected string or number", idxValue)
 		}

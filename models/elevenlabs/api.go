@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 
 	"github.com/go-resty/resty/v2"
 
@@ -198,5 +199,5 @@ func boolStr(v bool) string {
 }
 
 func intStr(v int) string {
-	return fmt.Sprintf("%d", v)
+	return strconv.Itoa(v)
 }
