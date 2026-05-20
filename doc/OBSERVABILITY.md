@@ -2,7 +2,7 @@
 
 > Lynx **直接使用 OpenTelemetry API**，不自造观测抽象。OTel 本身就是厂商中立层，再加一层是重复建设。
 >
-> **当前状态**：`otel/slog` + `otel/log` 两个 SpanExporter 已实现；**核心代码尚未挂上任何 `otel.Tracer(...)` 埋点**——即「接收器就绪、源头未启动」。
+> **当前状态（2026-05-20 更新）**：`otel/slog` + `otel/log` 两个 SpanExporter 已实现；**核心 hot path 埋点首批已落地**——chat client（`Call` + `Stream`）、embedding client、tool invocation 全部按 GenAI semconv 严格挂上。RAG / vectorstore / MCP / agent 埋点为后续提交。
 
 ---
 
@@ -386,13 +386,12 @@ otel.SetTracerProvider(tp)
 
 ### 8.2 待动工（发射侧）
 
-> 当前 `grep -r 'otel.Tracer' core/ models/ vectorstores/ mcp/` 零命中——核心埋点全部未挂。
-
-- [ ] `core/model/chat/client.go` Call/Stream 加 OTel span
+- [x] `core/model/chat/client.go` Call/Stream 加 OTel span（GenAI semconv 全套属性 + `gen_ai.stream.first_token_received` 事件 + 错误状态）
+- [x] `core/model/chat/tool.go::invokeOne` 单次 tool 调用加 `tool.invoke <name>` span（`lynx.tool.*` 属性 + `is_error` 标记）
+- [x] `core/model/embedding/client.go` Response 加 OTel span（GenAI semconv 子集 + `lynx.embeddings.input.count` 扩展）
 - [ ] `core/rag/pipeline.go` 五阶段加 span
 - [ ] `vectorstores/{qdrant,milvus,pinecone,weaviate,chroma}` 统一加 `db.vector.*` 埋点
 - [ ] `mcp/tool.go::Tool.Call` + `mcp/server.go::makeServerHandler` 加 span（与 v2 反向能力工作捆绑）
-- [ ] `core/model/chat/tool_middleware.go` 加 `lynx.tool.invoke` span
 - [ ] `doc/` 写一页「Lynx observability quickstart」示例
 
 ### 8.3 Agent 框架落地时
