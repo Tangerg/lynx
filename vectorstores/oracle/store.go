@@ -464,8 +464,8 @@ func renumberPlaceholders(fragment string, offset int) string {
 	return b.String()
 }
 
-func (s *Store) Metadata() vectorstore.StoreInfo {
-	return vectorstore.StoreInfo{
+func (s *Store) Metadata() vectorstore.StoreMetadata {
+	return vectorstore.StoreMetadata{
 		NativeClient: s.db,
 		Provider:     Provider,
 	}

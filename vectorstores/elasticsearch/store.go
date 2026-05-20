@@ -565,8 +565,8 @@ func (s *Store) toDocument(hit searchHit, score float64) *document.Document {
 	return doc
 }
 
-func (s *Store) Metadata() vectorstore.StoreInfo {
-	return vectorstore.StoreInfo{
+func (s *Store) Metadata() vectorstore.StoreMetadata {
+	return vectorstore.StoreMetadata{
 		NativeClient: s.client,
 		Provider:     Provider,
 	}

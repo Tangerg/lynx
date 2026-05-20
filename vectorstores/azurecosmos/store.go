@@ -387,8 +387,8 @@ func (s *Store) distanceToScore(distance float64) float64 {
 	}
 }
 
-func (s *Store) Metadata() vectorstore.StoreInfo {
-	return vectorstore.StoreInfo{
+func (s *Store) Metadata() vectorstore.StoreMetadata {
+	return vectorstore.StoreMetadata{
 		NativeClient: s.container,
 		Provider:     Provider,
 	}

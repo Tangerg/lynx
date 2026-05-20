@@ -458,8 +458,8 @@ func (s *Store) toDocument(raw bson.M) *document.Document {
 	return doc
 }
 
-func (s *Store) Metadata() vectorstore.StoreInfo {
-	return vectorstore.StoreInfo{
+func (s *Store) Metadata() vectorstore.StoreMetadata {
+	return vectorstore.StoreMetadata{
 		NativeClient: s.collection,
 		Provider:     Provider,
 	}

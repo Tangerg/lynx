@@ -81,8 +81,8 @@ func NewStore(cfg *StoreConfig) (*Store, error) {
 }
 
 
-func (s *Store) Metadata() vectorstore.StoreInfo {
-	return vectorstore.StoreInfo{
+func (s *Store) Metadata() vectorstore.StoreMetadata {
+	return vectorstore.StoreMetadata{
 		Provider:     Provider,
 		NativeClient: s,
 	}

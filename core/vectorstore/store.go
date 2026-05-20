@@ -234,13 +234,13 @@ type Store interface {
 	Deleter
 
 	// Metadata returns identity metadata about this store implementation.
-	Metadata() StoreInfo
+	Metadata() StoreMetadata
 }
 
-// StoreInfo holds identity metadata for a [Store]. NativeClient
+// StoreMetadata holds identity metadata for a [Store]. NativeClient
 // gives callers access to provider-specific operations the framework
 // doesn't surface.
-type StoreInfo struct {
+type StoreMetadata struct {
 	// NativeClient is the underlying provider client (e.g.
 	// *pinecone.Client, *weaviate.Client, *qdrant.Client). Excluded
 	// from JSON: opaque runtime handle that cannot round-trip.

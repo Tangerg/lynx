@@ -167,6 +167,6 @@ func (d *Decorator) Delete(ctx context.Context, req *vectorstore.DeleteRequest) 
 }
 
 // Metadata forwards to the wrapped store.
-func (d *Decorator) Metadata() vectorstore.StoreInfo {
+func (d *Decorator) Metadata() vectorstore.StoreMetadata {
 	return d.inner.Metadata()
 }
