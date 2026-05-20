@@ -6,6 +6,9 @@ import (
 	"fmt"
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/Tangerg/lynx/core/model/chat"
 )
@@ -106,7 +109,24 @@ func (t *Tool) Descriptor() *sdkmcp.Tool { return t.descriptor }
 // Call implements [chat.Tool]. IsError=true on the remote
 // result is mapped to [*ToolCallError] so a tool failure is not
 // silently fed back to the model as a successful result.
-func (t *Tool) Call(ctx context.Context, arguments string) (string, error) {
+//
+// One `mcp.tool.call <name>` span per call (kind=Client), carrying
+// `lynx.tool.name` and (on failure) `lynx.mcp.tool.is_error=true`.
+// Noop overhead when no TracerProvider is configured.
+func (t *Tool) Call(ctx context.Context, arguments string) (out string, err error) {
+	ctx, span := mcpTracer.Start(ctx, "mcp.tool.call "+t.descriptor.Name,
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(attribute.String(attrLynxMCPTool, t.descriptor.Name)),
+	)
+	defer func() {
+		if err != nil {
+			span.SetAttributes(attribute.Bool(attrLynxMCPIsError, true))
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+		}
+		span.End()
+	}()
+
 	args, err := decodeArguments(arguments)
 	if err != nil {
 		return "", fmt.Errorf("mcp.Tool.Call: decode arguments for %q: %w", t.descriptor.Name, err)
@@ -122,15 +142,16 @@ func (t *Tool) Call(ctx context.Context, arguments string) (string, error) {
 		}
 	}
 
-	result, err := t.session.CallTool(ctx, params)
+	res, err := t.session.CallTool(ctx, params)
 	if err != nil {
 		return "", fmt.Errorf("mcp.Tool.Call: %q: %w", t.descriptor.Name, err)
 	}
-	if result.IsError {
-		return "", &ToolCallError{
+	if res.IsError {
+		err = &ToolCallError{
 			ToolName: t.descriptor.Name,
-			Message:  firstTextOrFallback(result.Content, "tool returned isError=true with no text content"),
+			Message:  firstTextOrFallback(res.Content, "tool returned isError=true with no text content"),
 		}
+		return "", err
 	}
-	return flattenContent(result.Content)
+	return flattenContent(res.Content)
 }

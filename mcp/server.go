@@ -7,6 +7,9 @@ import (
 	"fmt"
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/Tangerg/lynx/core/model/chat"
 )
@@ -63,9 +66,19 @@ func registerOne(server *sdkmcp.Server, tool chat.Tool) error {
 // and hide the failure from the LLM's view.
 func serverHandler(tool chat.Tool) sdkmcp.ToolHandler {
 	return func(ctx context.Context, req *sdkmcp.CallToolRequest) (*sdkmcp.CallToolResult, error) {
+		toolName := tool.Definition().Name
+		ctx, span := mcpTracer.Start(ctx, "mcp.tool.serve "+toolName,
+			trace.WithSpanKind(trace.SpanKindServer),
+			trace.WithAttributes(attribute.String(attrLynxMCPTool, toolName)),
+		)
+		defer span.End()
+
 		args := cmp.Or(string(req.Params.Arguments), "{}")
 		out, err := tool.Call(ctx, args)
 		if err != nil {
+			span.SetAttributes(attribute.Bool(attrLynxMCPIsError, true))
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			return &sdkmcp.CallToolResult{
 				Content: []sdkmcp.Content{&sdkmcp.TextContent{Text: err.Error()}},
 				IsError: true,
