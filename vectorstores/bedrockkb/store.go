@@ -12,6 +12,7 @@ import (
 
 	"github.com/Tangerg/lynx/core/document"
 	"github.com/Tangerg/lynx/core/vectorstore"
+	"github.com/Tangerg/lynx/vectorstores/internal/tracing"
 )
 
 const Provider = "BedrockKnowledgeBase"
@@ -86,10 +87,13 @@ func (s *Store) Delete(_ context.Context, _ *vectorstore.DeleteRequest) error {
 }
 
 // Retrieve runs the Bedrock Knowledge Base Retrieve API.
-func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) ([]*document.Document, error) {
-	if err := req.Validate(); err != nil {
+func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) (docs []*document.Document, err error) {
+	if err = req.Validate(); err != nil {
 		return nil, fmt.Errorf("bedrockkb: invalid retrieval request: %w", err)
 	}
+
+	ctx, span := tracing.StartRetrieve(ctx, "bedrockkb", req.TopK, req.MinScore)
+	defer func() { tracing.RecordRetrieveResult(span, err, len(docs)) }()
 
 	vectorCfg := s.vectorSearchConfig(req)
 	retrievalCfg := &types.KnowledgeBaseRetrievalConfiguration{
@@ -102,12 +106,13 @@ func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 		RetrievalConfiguration: retrievalCfg,
 	}
 
-	resp, err := s.client.Retrieve(ctx, input)
+	var resp *bedrockagentruntime.RetrieveOutput
+	resp, err = s.client.Retrieve(ctx, input)
 	if err != nil {
 		return nil, fmt.Errorf("bedrockkb: retrieve: %w", err)
 	}
 
-	docs := make([]*document.Document, 0, len(resp.RetrievalResults))
+	docs = make([]*document.Document, 0, len(resp.RetrievalResults))
 	for _, r := range resp.RetrievalResults {
 		doc, err := toDocument(r)
 		if err != nil {

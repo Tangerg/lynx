@@ -20,6 +20,7 @@ import (
 	"github.com/Tangerg/lynx/core/vectorstore/filter/ast"
 	"github.com/Tangerg/lynx/pkg/math"
 	"github.com/Tangerg/lynx/vectorstores/internal/ident"
+	"github.com/Tangerg/lynx/vectorstores/internal/tracing"
 )
 
 const (
@@ -170,11 +171,16 @@ func NewStore(config *StoreConfig) (*Store, error) {
 
 // Create embeds documents and PUTs them through the Vespa Document
 // API. Each PUT is `POST /document/v1/<namespace>/<schema>/docid/<id>`.
-func (s *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) error {
-	if err := req.Validate(); err != nil {
+func (s *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) (err error) {
+	if err = req.Validate(); err != nil {
 		return fmt.Errorf("vespa: invalid create request: %w", err)
 	}
-	batchedDocs, err := s.documentBatcher.Batch(ctx, req.Documents)
+
+	ctx, span := tracing.StartCreate(ctx, "vespa", len(req.Documents))
+	defer func() { tracing.Finish(span, err) }()
+
+	var batchedDocs [][]*document.Document
+	batchedDocs, err = s.documentBatcher.Batch(ctx, req.Documents)
 	if err != nil {
 		return fmt.Errorf("vespa: failed to batch documents: %w", err)
 	}
@@ -212,11 +218,16 @@ func (s *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) erro
 }
 
 // Retrieve runs a nearestNeighbor YQL query.
-func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) ([]*document.Document, error) {
-	if err := req.Validate(); err != nil {
+func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) (docs []*document.Document, err error) {
+	if err = req.Validate(); err != nil {
 		return nil, fmt.Errorf("vespa: invalid retrieval request: %w", err)
 	}
-	vector, _, err := s.embeddingClient.
+
+	ctx, span := tracing.StartRetrieve(ctx, "vespa", req.TopK, req.MinScore)
+	defer func() { tracing.RecordRetrieveResult(span, err, len(docs)) }()
+
+	var vector []float64
+	vector, _, err = s.embeddingClient.
 		EmbedWithText(req.Query).
 		Call().
 		Embedding(ctx)
@@ -261,7 +272,7 @@ func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 		return nil, fmt.Errorf("vespa: decode search response: %w", err)
 	}
 
-	docs := make([]*document.Document, 0, len(parsed.Root.Children))
+	docs = make([]*document.Document, 0, len(parsed.Root.Children))
 	for _, hit := range parsed.Root.Children {
 		// Vespa relevance for nearestNeighbor is the configured
 		// distance metric's similarity directly (cosine: [0, 1]).
@@ -281,10 +292,14 @@ func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 // Vespa selection expressions live under their own mini language;
 // rather than translate the AST a second way, we route through a
 // YQL search to enumerate ids, then delete them.
-func (s *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) error {
-	if err := req.Validate(); err != nil {
+func (s *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) (err error) {
+	if err = req.Validate(); err != nil {
 		return fmt.Errorf("vespa: invalid delete request: %w", err)
 	}
+
+	ctx, span := tracing.StartDelete(ctx, "vespa")
+	defer func() { tracing.Finish(span, err) }()
+
 	filterFragment, err := s.buildFilter(req.Filter)
 	if err != nil {
 		return err
