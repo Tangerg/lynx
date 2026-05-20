@@ -2,6 +2,7 @@ package milvus
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/Tangerg/lynx/core/vectorstore/filter/ast"
@@ -460,9 +461,9 @@ func (c *Visitor) literalToString(lit *ast.Literal) (string, error) {
 				lit.Start().String(), err)
 		}
 		if n == float64(int64(n)) {
-			return fmt.Sprintf("%d", int64(n)), nil
+			return strconv.FormatInt(int64(n), 10), nil
 		}
-		return fmt.Sprintf("%g", n), nil
+		return strconv.FormatFloat(n, 'g', -1, 64), nil
 	}
 
 	if lit.IsBool() {

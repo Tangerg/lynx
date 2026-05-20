@@ -2,6 +2,7 @@ package chroma
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	v2 "github.com/amikos-tech/chroma-go/pkg/api/v2"
@@ -469,7 +470,7 @@ func (v *Visitor) buildIndexedFieldKey(expr *ast.IndexExpr) (string, error) {
 		case string:
 			pathParts = append([]string{val}, pathParts...)
 		case float64:
-			pathParts = append([]string{fmt.Sprintf("%d", int(val))}, pathParts...)
+			pathParts = append([]string{strconv.Itoa(int(val))}, pathParts...)
 		default:
 			return "", fmt.Errorf("invalid index type %T, expected string or number", v.currentFieldValue)
 		}

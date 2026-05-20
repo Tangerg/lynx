@@ -2,6 +2,7 @@ package weaviate
 
 import (
 	"fmt"
+	"strconv"
 
 	"github.com/spf13/cast"
 	"github.com/weaviate/weaviate-go-client/v5/weaviate/filters"
@@ -536,7 +537,7 @@ func (c *Visitor) buildIndexedFieldPath(expr *ast.IndexExpr) ([]string, error) {
 		case string:
 			segment = v
 		case float64:
-			segment = fmt.Sprintf("%d", int(v))
+			segment = strconv.Itoa(int(v))
 		default:
 			return nil, fmt.Errorf("weaviate: invalid index type %T, expected string or number", indexVal)
 		}
