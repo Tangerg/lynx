@@ -13,6 +13,7 @@ import (
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/pkg/math"
 	"github.com/Tangerg/lynx/pkg/ptr"
+	"github.com/Tangerg/lynx/vectorstores/internal/tracing"
 )
 
 const (
@@ -214,12 +215,16 @@ func (v *Store) buildPointStruct(doc *document.Document, vector []float64) (*qdr
 	return point, nil
 }
 
-func (v *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) error {
-	if err := req.Validate(); err != nil {
+func (v *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) (err error) {
+	if err = req.Validate(); err != nil {
 		return fmt.Errorf("qdrant: invalid create request: %w", err)
 	}
 
-	upsertPoints, err := v.buildUpsertPoints(ctx, req)
+	ctx, span := tracing.StartCreate(ctx, "qdrant", len(req.Documents))
+	defer func() { tracing.Finish(span, err) }()
+
+	var upsertPoints *qdrant.UpsertPoints
+	upsertPoints, err = v.buildUpsertPoints(ctx, req)
 	if err != nil {
 		return err
 	}
@@ -358,22 +363,27 @@ func (v *Store) buildDocumentsFromPoints(scoredPoints []*qdrant.ScoredPoint) ([]
 	return docs, nil
 }
 
-func (v *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) ([]*document.Document, error) {
-	if err := req.Validate(); err != nil {
+func (v *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) (docs []*document.Document, err error) {
+	if err = req.Validate(); err != nil {
 		return nil, fmt.Errorf("qdrant: invalid retrieval request: %w", err)
 	}
 
-	queryPoints, err := v.buildQueryPoints(ctx, req)
+	ctx, span := tracing.StartRetrieve(ctx, "qdrant", req.TopK, req.MinScore)
+	defer func() { tracing.RecordRetrieveResult(span, err, len(docs)) }()
+
+	var queryPoints *qdrant.QueryPoints
+	queryPoints, err = v.buildQueryPoints(ctx, req)
 	if err != nil {
 		return nil, err
 	}
 
-	scoredPoints, err := v.client.Query(ctx, queryPoints)
+	var scoredPoints []*qdrant.ScoredPoint
+	scoredPoints, err = v.client.Query(ctx, queryPoints)
 	if err != nil {
 		return nil, fmt.Errorf("qdrant: failed to query collection %s: %w", v.collectionName, err)
 	}
 
-	docs, err := v.buildDocumentsFromPoints(scoredPoints)
+	docs, err = v.buildDocumentsFromPoints(scoredPoints)
 	if err != nil {
 		return nil, fmt.Errorf("qdrant: failed to build documents from query results: %w", err)
 	}
@@ -381,12 +391,16 @@ func (v *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 	return docs, nil
 }
 
-func (v *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) error {
-	if err := req.Validate(); err != nil {
+func (v *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) (err error) {
+	if err = req.Validate(); err != nil {
 		return fmt.Errorf("qdrant: invalid delete request: %w", err)
 	}
 
-	filter, err := ToFilter(req.Filter)
+	ctx, span := tracing.StartDelete(ctx, "qdrant")
+	defer func() { tracing.Finish(span, err) }()
+
+	var filter *qdrant.Filter
+	filter, err = ToFilter(req.Filter)
 	if err != nil {
 		return fmt.Errorf("qdrant: failed to convert filter: %w", err)
 	}

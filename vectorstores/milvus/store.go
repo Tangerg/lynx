@@ -16,6 +16,7 @@ import (
 	"github.com/Tangerg/lynx/core/model/embedding"
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/pkg/math"
+	"github.com/Tangerg/lynx/vectorstores/internal/tracing"
 )
 
 const (
@@ -226,12 +227,16 @@ func (v *Store) buildInsertColumns(docs []*document.Document, vectors [][]float6
 	}, nil
 }
 
-func (v *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) error {
-	if err := req.Validate(); err != nil {
+func (v *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) (err error) {
+	if err = req.Validate(); err != nil {
 		return fmt.Errorf("milvus: invalid create request: %w", err)
 	}
 
-	batchedDocs, err := v.documentBatcher.Batch(ctx, req.Documents)
+	ctx, span := tracing.StartCreate(ctx, "milvus", len(req.Documents))
+	defer func() { tracing.Finish(span, err) }()
+
+	var batchedDocs [][]*document.Document
+	batchedDocs, err = v.documentBatcher.Batch(ctx, req.Documents)
 	if err != nil {
 		return fmt.Errorf("milvus: failed to batch documents: %w", err)
 	}
@@ -304,12 +309,16 @@ func (v *Store) buildDocumentsFromResults(rs milvusclient.ResultSet, minScore fl
 	return docs, nil
 }
 
-func (v *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) ([]*document.Document, error) {
-	if err := req.Validate(); err != nil {
+func (v *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) (docs []*document.Document, err error) {
+	if err = req.Validate(); err != nil {
 		return nil, fmt.Errorf("milvus: invalid retrieval request: %w", err)
 	}
 
-	vector, _, err := v.embeddingClient.
+	ctx, span := tracing.StartRetrieve(ctx, "milvus", req.TopK, req.MinScore)
+	defer func() { tracing.RecordRetrieveResult(span, err, len(docs)) }()
+
+	var vector []float64
+	vector, _, err = v.embeddingClient.
 		EmbedWithText(req.Query).
 		Call().
 		Embedding(ctx)
@@ -340,7 +349,7 @@ func (v *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 		return nil, nil
 	}
 
-	docs, err := v.buildDocumentsFromResults(results[0], float64(req.MinScore))
+	docs, err = v.buildDocumentsFromResults(results[0], float64(req.MinScore))
 	if err != nil {
 		return nil, fmt.Errorf("milvus: failed to build documents from results: %w", err)
 	}
@@ -348,12 +357,16 @@ func (v *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 	return docs, nil
 }
 
-func (v *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) error {
-	if err := req.Validate(); err != nil {
+func (v *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) (err error) {
+	if err = req.Validate(); err != nil {
 		return fmt.Errorf("milvus: invalid delete request: %w", err)
 	}
 
-	filterExpr, err := ToFilter(req.Filter)
+	ctx, span := tracing.StartDelete(ctx, "milvus")
+	defer func() { tracing.Finish(span, err) }()
+
+	var filterExpr string
+	filterExpr, err = ToFilter(req.Filter)
 	if err != nil {
 		return fmt.Errorf("milvus: failed to convert filter: %w", err)
 	}
