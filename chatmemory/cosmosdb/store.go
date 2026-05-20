@@ -34,6 +34,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
+	"github.com/Tangerg/lynx/chatmemory/internal/tracing"
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/core/model/chat/memory"
 )
@@ -87,13 +88,16 @@ type document struct {
 // Write upserts every message under conversationID. The synthesized
 // id (`<conversation_id>_<seq>`) is monotone so re-runs of a Write
 // with the same batch are idempotent at the document level.
-func (s *Store) Write(ctx context.Context, conversationID string, messages ...chat.Message) error {
-	if err := ctx.Err(); err != nil {
+func (s *Store) Write(ctx context.Context, conversationID string, messages ...chat.Message) (err error) {
+	if err = ctx.Err(); err != nil {
 		return err
 	}
 	if len(messages) == 0 {
 		return nil
 	}
+
+	ctx, span := tracing.StartWrite(ctx, "cosmosdb", conversationID, len(messages))
+	defer func() { tracing.Finish(span, err) }()
 
 	pk := azcosmos.NewPartitionKeyString(conversationID)
 	now := time.Now().UTC()
@@ -101,9 +105,10 @@ func (s *Store) Write(ctx context.Context, conversationID string, messages ...ch
 	createdAt := now.Format(time.RFC3339Nano)
 
 	for i, msg := range messages {
-		raw, err := encodeMessage(msg)
-		if err != nil {
-			return fmt.Errorf("cosmosdb.Store.Write: encode message: %w", err)
+		raw, encErr := encodeMessage(msg)
+		if encErr != nil {
+			err = fmt.Errorf("cosmosdb.Store.Write: encode message: %w", encErr)
+			return err
 		}
 		seq := seqBase + int64(i)
 		doc := document{
@@ -113,11 +118,12 @@ func (s *Store) Write(ctx context.Context, conversationID string, messages ...ch
 			Message:        string(raw),
 			CreatedAt:      createdAt,
 		}
-		body, err := json.Marshal(doc)
-		if err != nil {
-			return fmt.Errorf("cosmosdb.Store.Write: marshal doc: %w", err)
+		body, marshalErr := json.Marshal(doc)
+		if marshalErr != nil {
+			err = fmt.Errorf("cosmosdb.Store.Write: marshal doc: %w", marshalErr)
+			return err
 		}
-		if _, err := s.container.UpsertItem(ctx, pk, body, nil); err != nil {
+		if _, err = s.container.UpsertItem(ctx, pk, body, nil); err != nil {
 			return fmt.Errorf("cosmosdb.Store.Write: upsert: %w", err)
 		}
 	}
@@ -126,10 +132,13 @@ func (s *Store) Write(ctx context.Context, conversationID string, messages ...ch
 
 // Read returns every message stored under conversationID in
 // insertion order.
-func (s *Store) Read(ctx context.Context, conversationID string) ([]chat.Message, error) {
-	if err := ctx.Err(); err != nil {
+func (s *Store) Read(ctx context.Context, conversationID string) (out []chat.Message, err error) {
+	if err = ctx.Err(); err != nil {
 		return nil, err
 	}
+
+	ctx, span := tracing.StartRead(ctx, "cosmosdb", conversationID)
+	defer func() { tracing.RecordReadResult(span, err, len(out)) }()
 
 	pk := azcosmos.NewPartitionKeyString(conversationID)
 	query := "SELECT c.message FROM c WHERE c.conversation_id = @cid ORDER BY c.seq ASC"
@@ -139,7 +148,7 @@ func (s *Store) Read(ctx context.Context, conversationID string) ([]chat.Message
 		},
 	}
 
-	out := []chat.Message{}
+	out = []chat.Message{}
 	pager := s.container.NewQueryItemsPager(query, pk, opts)
 	for pager.More() {
 		resp, err := pager.NextPage(ctx)
@@ -166,10 +175,14 @@ func (s *Store) Read(ctx context.Context, conversationID string) ([]chat.Message
 // Clear deletes every document for conversationID. Cosmos has no
 // bulk-delete for a partition, so we enumerate ids and issue
 // individual DeleteItem calls — fine for chat-memory sizes.
-func (s *Store) Clear(ctx context.Context, conversationID string) error {
-	if err := ctx.Err(); err != nil {
+func (s *Store) Clear(ctx context.Context, conversationID string) (err error) {
+	if err = ctx.Err(); err != nil {
 		return err
 	}
+
+	ctx, span := tracing.StartClear(ctx, "cosmosdb", conversationID)
+	defer func() { tracing.Finish(span, err) }()
+
 	pk := azcosmos.NewPartitionKeyString(conversationID)
 	query := "SELECT c.id FROM c WHERE c.conversation_id = @cid"
 	opts := &azcosmos.QueryOptions{

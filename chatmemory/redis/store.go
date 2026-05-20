@@ -26,6 +26,7 @@ import (
 
 	goredis "github.com/redis/go-redis/v9"
 
+	"github.com/Tangerg/lynx/chatmemory/internal/tracing"
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/core/model/chat/memory"
 )
@@ -96,13 +97,16 @@ func (s *Store) key(conversationID string) string {
 // Write RPUSH'es every message under conversationID. When TTL is set
 // the key's expiry is refreshed in the same pipeline. No-op when
 // messages is empty.
-func (s *Store) Write(ctx context.Context, conversationID string, messages ...chat.Message) error {
-	if err := ctx.Err(); err != nil {
+func (s *Store) Write(ctx context.Context, conversationID string, messages ...chat.Message) (err error) {
+	if err = ctx.Err(); err != nil {
 		return err
 	}
 	if len(messages) == 0 {
 		return nil
 	}
+
+	ctx, span := tracing.StartWrite(ctx, "redis", conversationID, len(messages))
+	defer func() { tracing.Finish(span, err) }()
 
 	payloads := make([]any, 0, len(messages))
 	for _, msg := range messages {
@@ -119,7 +123,7 @@ func (s *Store) Write(ctx context.Context, conversationID string, messages ...ch
 	if s.ttl > 0 {
 		pipe.Expire(ctx, key, s.ttl)
 	}
-	if _, err := pipe.Exec(ctx); err != nil {
+	if _, err = pipe.Exec(ctx); err != nil {
 		return fmt.Errorf("redis.Store.Write: %w", err)
 	}
 	return nil
@@ -127,17 +131,21 @@ func (s *Store) Write(ctx context.Context, conversationID string, messages ...ch
 
 // Read returns every message stored under conversationID in
 // insertion order. An empty slice is returned for unknown ids.
-func (s *Store) Read(ctx context.Context, conversationID string) ([]chat.Message, error) {
-	if err := ctx.Err(); err != nil {
+func (s *Store) Read(ctx context.Context, conversationID string) (out []chat.Message, err error) {
+	if err = ctx.Err(); err != nil {
 		return nil, err
 	}
 
-	raws, err := s.client.LRange(ctx, s.key(conversationID), 0, -1).Result()
+	ctx, span := tracing.StartRead(ctx, "redis", conversationID)
+	defer func() { tracing.RecordReadResult(span, err, len(out)) }()
+
+	var raws []string
+	raws, err = s.client.LRange(ctx, s.key(conversationID), 0, -1).Result()
 	if err != nil {
 		return nil, fmt.Errorf("redis.Store.Read: %w", err)
 	}
 
-	out := make([]chat.Message, 0, len(raws))
+	out = make([]chat.Message, 0, len(raws))
 	for _, raw := range raws {
 		msg, err := chat.UnmarshalMessage([]byte(raw))
 		if err != nil {
@@ -150,11 +158,15 @@ func (s *Store) Read(ctx context.Context, conversationID string) ([]chat.Message
 
 // Clear drops the entire list for conversationID. Unknown ids are
 // silently ignored (DEL on a missing key is a no-op in Redis).
-func (s *Store) Clear(ctx context.Context, conversationID string) error {
-	if err := ctx.Err(); err != nil {
+func (s *Store) Clear(ctx context.Context, conversationID string) (err error) {
+	if err = ctx.Err(); err != nil {
 		return err
 	}
-	if err := s.client.Del(ctx, s.key(conversationID)).Err(); err != nil {
+
+	ctx, span := tracing.StartClear(ctx, "redis", conversationID)
+	defer func() { tracing.Finish(span, err) }()
+
+	if err = s.client.Del(ctx, s.key(conversationID)).Err(); err != nil {
 		return fmt.Errorf("redis.Store.Clear: %w", err)
 	}
 	return nil

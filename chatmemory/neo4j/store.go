@@ -36,6 +36,7 @@ import (
 
 	"github.com/neo4j/neo4j-go-driver/v5/neo4j"
 
+	"github.com/Tangerg/lynx/chatmemory/internal/tracing"
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/core/model/chat/memory"
 )
@@ -142,20 +143,24 @@ func (s *Store) initIndex(ctx context.Context) error {
 // Write creates a new node per message under conversationID. `seq`
 // is filled with `nowNanos + batchIndex` so all messages in one
 // Write call sort strictly even on nanosecond-clock collisions.
-func (s *Store) Write(ctx context.Context, conversationID string, messages ...chat.Message) error {
-	if err := ctx.Err(); err != nil {
+func (s *Store) Write(ctx context.Context, conversationID string, messages ...chat.Message) (err error) {
+	if err = ctx.Err(); err != nil {
 		return err
 	}
 	if len(messages) == 0 {
 		return nil
 	}
 
+	ctx, span := tracing.StartWrite(ctx, "neo4j", conversationID, len(messages))
+	defer func() { tracing.Finish(span, err) }()
+
 	now := time.Now().UnixNano()
 	rows := make([]map[string]any, 0, len(messages))
 	for i, msg := range messages {
-		raw, err := encodeMessage(msg)
-		if err != nil {
-			return fmt.Errorf("neo4j.Store.Write: encode message: %w", err)
+		raw, encErr := encodeMessage(msg)
+		if encErr != nil {
+			err = fmt.Errorf("neo4j.Store.Write: encode message: %w", encErr)
+			return err
 		}
 		rows = append(rows, map[string]any{
 			"conversation_id": conversationID,
@@ -173,7 +178,7 @@ func (s *Store) Write(ctx context.Context, conversationID string, messages ...ch
 			created_at:      datetime()
 		})`, s.label)
 
-	_, err := neo4j.ExecuteQuery(ctx, s.driver, cypher,
+	_, err = neo4j.ExecuteQuery(ctx, s.driver, cypher,
 		map[string]any{"rows": rows},
 		neo4j.EagerResultTransformer,
 		neo4j.ExecuteQueryWithDatabase(s.database),
@@ -186,16 +191,20 @@ func (s *Store) Write(ctx context.Context, conversationID string, messages ...ch
 
 // Read returns every message stored under conversationID in
 // insertion order (seq ascending).
-func (s *Store) Read(ctx context.Context, conversationID string) ([]chat.Message, error) {
-	if err := ctx.Err(); err != nil {
+func (s *Store) Read(ctx context.Context, conversationID string) (out []chat.Message, err error) {
+	if err = ctx.Err(); err != nil {
 		return nil, err
 	}
+
+	ctx, span := tracing.StartRead(ctx, "neo4j", conversationID)
+	defer func() { tracing.RecordReadResult(span, err, len(out)) }()
 
 	cypher := fmt.Sprintf(
 		"MATCH (m:%s {conversation_id: $conversation_id}) RETURN m.message AS message ORDER BY m.seq ASC",
 		s.label,
 	)
-	result, err := neo4j.ExecuteQuery(ctx, s.driver, cypher,
+	var result *neo4j.EagerResult
+	result, err = neo4j.ExecuteQuery(ctx, s.driver, cypher,
 		map[string]any{"conversation_id": conversationID},
 		neo4j.EagerResultTransformer,
 		neo4j.ExecuteQueryWithDatabase(s.database),
@@ -204,7 +213,7 @@ func (s *Store) Read(ctx context.Context, conversationID string) ([]chat.Message
 		return nil, fmt.Errorf("neo4j.Store.Read: %w", err)
 	}
 
-	out := make([]chat.Message, 0, len(result.Records))
+	out = make([]chat.Message, 0, len(result.Records))
 	for _, rec := range result.Records {
 		raw, ok := rec.Get("message")
 		if !ok {
@@ -225,15 +234,19 @@ func (s *Store) Read(ctx context.Context, conversationID string) ([]chat.Message
 
 // Clear deletes every node for conversationID under the configured
 // label. Unknown ids are a no-op.
-func (s *Store) Clear(ctx context.Context, conversationID string) error {
-	if err := ctx.Err(); err != nil {
+func (s *Store) Clear(ctx context.Context, conversationID string) (err error) {
+	if err = ctx.Err(); err != nil {
 		return err
 	}
+
+	ctx, span := tracing.StartClear(ctx, "neo4j", conversationID)
+	defer func() { tracing.Finish(span, err) }()
+
 	cypher := fmt.Sprintf(
 		"MATCH (m:%s {conversation_id: $conversation_id}) DELETE m",
 		s.label,
 	)
-	_, err := neo4j.ExecuteQuery(ctx, s.driver, cypher,
+	_, err = neo4j.ExecuteQuery(ctx, s.driver, cypher,
 		map[string]any{"conversation_id": conversationID},
 		neo4j.EagerResultTransformer,
 		neo4j.ExecuteQueryWithDatabase(s.database),

@@ -37,6 +37,7 @@ import (
 
 	"github.com/gocql/gocql"
 
+	"github.com/Tangerg/lynx/chatmemory/internal/tracing"
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/core/model/chat/memory"
 )
@@ -151,20 +152,24 @@ func NewStore(cfg *StoreConfig) (*Store, error) {
 // Write appends every message under conversationID. Each insert
 // stamps `seq = now()` server-side, yielding a globally-monotone
 // TIMEUUID clustering key.
-func (s *Store) Write(ctx context.Context, conversationID string, messages ...chat.Message) error {
-	if err := ctx.Err(); err != nil {
+func (s *Store) Write(ctx context.Context, conversationID string, messages ...chat.Message) (err error) {
+	if err = ctx.Err(); err != nil {
 		return err
 	}
 	if len(messages) == 0 {
 		return nil
 	}
 
+	ctx, span := tracing.StartWrite(ctx, "cassandra", conversationID, len(messages))
+	defer func() { tracing.Finish(span, err) }()
+
 	for _, msg := range messages {
-		raw, err := encodeMessage(msg)
-		if err != nil {
-			return fmt.Errorf("cassandra.Store.Write: encode message: %w", err)
+		raw, encErr := encodeMessage(msg)
+		if encErr != nil {
+			err = fmt.Errorf("cassandra.Store.Write: encode message: %w", encErr)
+			return err
 		}
-		if err := s.session.Query(s.writeCQL, conversationID, string(raw)).WithContext(ctx).Exec(); err != nil {
+		if err = s.session.Query(s.writeCQL, conversationID, string(raw)).WithContext(ctx).Exec(); err != nil {
 			return fmt.Errorf("cassandra.Store.Write: %w", err)
 		}
 	}
@@ -173,35 +178,43 @@ func (s *Store) Write(ctx context.Context, conversationID string, messages ...ch
 
 // Read returns every message stored under conversationID in
 // insertion order (TIMEUUID ascending).
-func (s *Store) Read(ctx context.Context, conversationID string) ([]chat.Message, error) {
-	if err := ctx.Err(); err != nil {
+func (s *Store) Read(ctx context.Context, conversationID string) (out []chat.Message, err error) {
+	if err = ctx.Err(); err != nil {
 		return nil, err
 	}
+
+	ctx, span := tracing.StartRead(ctx, "cassandra", conversationID)
+	defer func() { tracing.RecordReadResult(span, err, len(out)) }()
 
 	iter := s.session.Query(s.readCQL, conversationID).WithContext(ctx).Iter()
 	defer iter.Close()
 
-	out := []chat.Message{}
+	out = []chat.Message{}
 	var raw string
 	for iter.Scan(&raw) {
-		msg, err := chat.UnmarshalMessage([]byte(raw))
-		if err != nil {
-			return nil, fmt.Errorf("cassandra.Store.Read: decode message: %w", err)
+		msg, decErr := chat.UnmarshalMessage([]byte(raw))
+		if decErr != nil {
+			err = fmt.Errorf("cassandra.Store.Read: decode message: %w", decErr)
+			return nil, err
 		}
 		out = append(out, msg)
 	}
-	if err := iter.Close(); err != nil {
+	if err = iter.Close(); err != nil {
 		return nil, fmt.Errorf("cassandra.Store.Read: %w", err)
 	}
 	return out, nil
 }
 
 // Clear drops every row for conversationID. Unknown ids are a no-op.
-func (s *Store) Clear(ctx context.Context, conversationID string) error {
-	if err := ctx.Err(); err != nil {
+func (s *Store) Clear(ctx context.Context, conversationID string) (err error) {
+	if err = ctx.Err(); err != nil {
 		return err
 	}
-	if err := s.session.Query(s.clearCQL, conversationID).WithContext(ctx).Exec(); err != nil {
+
+	ctx, span := tracing.StartClear(ctx, "cassandra", conversationID)
+	defer func() { tracing.Finish(span, err) }()
+
+	if err = s.session.Query(s.clearCQL, conversationID).WithContext(ctx).Exec(); err != nil {
 		return fmt.Errorf("cassandra.Store.Clear: %w", err)
 	}
 	return nil
