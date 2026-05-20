@@ -24,15 +24,28 @@ export default definePlugin({
       order: 0,
       run: () => useUIStore.getState().toggleSidebar(),
     });
-    host.commands.register({
-      id: "view.toggle-inspector",
-      label: "Toggle inspector panel",
-      icon: "panel-r",
-      group: "View",
-      keywords: ["right", "drawer"],
-      order: 1,
-      run: () => useUIStore.getState().toggleInspector(),
-    });
+    // ---- View: <inspector tab> — open as a main-area tab ----
+    //
+    // Snapshot of inspector tabs at setup time. Loaded after the inspector
+    // tab builtins (see manifest ordering) so they're all registered when
+    // we read them. A tab registered later won't appear in the palette
+    // until reload; acceptable for built-ins.
+    const inspectorTabs = Array.from(usePluginStore.getState().inspectorTabs.values())
+      .map((o) => o.value)
+      .sort((a, b) => (a.order ?? 100) - (b.order ?? 100));
+    for (const tab of inspectorTabs) {
+      host.commands.register({
+        id: `view.open.${tab.id}`,
+        label: `View: ${tab.label}`,
+        icon: tab.icon,
+        group: "View",
+        order: 10,
+        keywords: ["open", "show", tab.id],
+        run: () => useUIStore.getState().openMainView({
+          id: tab.id, title: tab.label, icon: tab.icon,
+        }),
+      });
+    }
 
     // ---- Settings ----
     host.commands.register({

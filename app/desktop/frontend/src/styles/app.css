@@ -43,7 +43,8 @@ body {
 /* ---------- App shell ---------- */
 .app {
   display: grid;
-  grid-template-rows: 1fr;
+  /* main area + status bar. Inspector pane is gone — VS Code style. */
+  grid-template-rows: 1fr 24px;
   height: 100vh;
   background: #000;
   padding: 8px;
@@ -52,13 +53,76 @@ body {
 
 .app-main {
   display: grid;
-  grid-template-columns: 248px minmax(0, 1fr) 380px;
+  grid-template-columns: 248px minmax(0, 1fr);
   gap: 8px;
   min-height: 0;
 }
 
-.app.narrow .app-main { grid-template-columns: 248px minmax(0, 1fr); }
-.app.wide   .app-main { grid-template-columns: 268px minmax(0, 1fr) 440px; }
+.app.rail .app-main {
+  grid-template-columns: 56px minmax(0, 1fr);
+}
+
+/* Status bar — slim horizontal strip pinned to the bottom of the shell.
+   Hosts plugin-contributed status items (run pill, notifications,
+   MCP count, git branch). 24px tall to match the grid row. */
+.app-statusbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 12px;
+  min-height: 0;
+  font-size: 11px;
+  color: var(--color-text-muted);
+  background: var(--color-bg);
+  border-radius: 6px;
+}
+.sb-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+.sb-run.live { color: var(--color-accent); }
+.sb-sep { color: var(--color-text-faint); }
+.sb-activity { color: var(--color-text); }
+.sb-spacer { flex: 1 1 auto; }
+.sb-key { color: var(--color-text-faint); }
+.sb-stop {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: 4px;
+  padding: 1px 6px;
+  background: transparent;
+  border: 1px solid var(--hairline-2);
+  border-radius: 3px;
+  color: var(--color-text-muted);
+  font-size: 10px;
+  cursor: pointer;
+}
+.sb-stop:hover { color: var(--color-text); background: var(--color-surface-2); }
+.sb-ctx-bar {
+  width: 36px;
+  height: 4px;
+  background: var(--color-surface-2);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.sb-ctx-bar > div {
+  height: 100%;
+  background: var(--color-accent);
+}
+.sb-btn {
+  background: transparent;
+  border: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font: inherit;
+}
+.sb-btn:hover { background: var(--color-surface-2); color: var(--color-text); }
+.sb-btn.warn { color: var(--color-accent); }
 
 /* ---------- Panels (rounded surface columns) ---------- */
 .panel {
