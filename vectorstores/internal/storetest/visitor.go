@@ -11,7 +11,7 @@
 //	        if err != nil {
 //	            return err
 //	        }
-//	        v := redis.NewVisitor("metadata")
+//	        v := redis.NewVisitor(myFieldSchema)
 //	        v.Visit(expr)
 //	        return v.Error()
 //	    })
@@ -22,9 +22,32 @@
 // the vendor's own tests still own that responsibility. The suite
 // only guarantees "every valid AST shape visits without error; every
 // well-known invalid AST shape produces an error".
+//
+// # Field identifiers
+//
+// Every success case uses a disjoint field name per filter-value type
+// so schema-required backends (redis, elasticsearch, opensearch, …)
+// can declare each identifier with one fixed type:
+//
+//	author           — string-comparable
+//	year             — number-comparable
+//	published        — bool-comparable
+//	n, a, b, c, d    — number-comparable (used in ordering / AND / OR)
+//	tags             — string-list (IN)
+//	years            — number-list (IN)
+//	flags            — bool-list (IN)
+//	title            — string-pattern (LIKE)
+//	metadata['author'], metadata['a']['b'] — keyed access
+//
+// # Capability gaps
+//
+// A backend that genuinely doesn't support a shape (redis can't IN on
+// numeric fields, for example) can opt out via [Options.Skip]. Each
+// entry documents a real vendor capability gap; use sparingly.
 package storetest
 
 import (
+	"slices"
 	"strings"
 	"testing"
 )
@@ -35,6 +58,16 @@ import (
 // via [filter.ParseAndAnalyze]) and driving the vendor visitor.
 type BuildFn func(src string) error
 
+// Options tunes the conformance suite for vendors with genuine
+// capability gaps.
+type Options struct {
+	// Skip is the list of case names the vendor cannot support. Each
+	// matching case is recorded as [testing.T.Skip] rather than run.
+	// Use sparingly — every entry documents a real divergence from
+	// the common filter language.
+	Skip []string
+}
+
 // VisitorConformance runs the standard expression-coverage suite
 // against a vendor's visitor.
 //
@@ -44,8 +77,13 @@ type BuildFn func(src string) error
 // here exercises it across ALL vendors that opt into the suite — the
 // single best lever for "no more silent visitor regressions on the
 // 27th provider".
-func VisitorConformance(t *testing.T, build BuildFn) {
+func VisitorConformance(t *testing.T, build BuildFn, opts ...Options) {
 	t.Helper()
+
+	var opt Options
+	if len(opts) > 0 {
+		opt = opts[0]
+	}
 
 	success := []struct {
 		name string
@@ -62,16 +100,19 @@ func VisitorConformance(t *testing.T, build BuildFn) {
 		{"and", `a == 1 and b == 2`},
 		{"or", `a == 1 or b == 2`},
 		{"not", `not (a == 1)`},
-		{"in_strings", `t in ('a', 'b', 'c')`},
-		{"in_numbers", `n in (1, 2, 3)`},
-		{"in_bools", `b in (true, false)`},
-		{"like", `s like '%foo%'`},
+		{"in_strings", `tags in ('a', 'b', 'c')`},
+		{"in_numbers", `years in (2020, 2021, 2022)`},
+		{"in_bools", `flags in (true, false)`},
+		{"like", `title like '%foo%'`},
 		{"indexed_key", `metadata['author'] == 'Alice'`},
 		{"nested_index", `metadata['a']['b'] == 'x'`},
 		{"nested_logical", `(a == 1 and b == 2) or (c == 3 and not (d == 4))`},
 	}
 	for _, tc := range success {
 		t.Run("Success_"+tc.name, func(t *testing.T) {
+			if slices.Contains(opt.Skip, tc.name) {
+				t.Skip("vendor opted out of this conformance case")
+			}
 			if err := build(tc.src); err != nil {
 				t.Fatalf("expected success on %q, got error: %v", tc.src, err)
 			}
@@ -93,10 +134,13 @@ func VisitorConformance(t *testing.T, build BuildFn) {
 		{"in_scalar", `a in (1)`, "IN"},
 		// LIKE with a non-string right side hits every backend's pattern
 		// validation.
-		{"like_number", `a like 42`, ""},
+		{"like_number", `title like 42`, ""},
 	}
 	for _, tc := range failure {
 		t.Run("Failure_"+tc.name, func(t *testing.T) {
+			if slices.Contains(opt.Skip, tc.name) {
+				t.Skip("vendor opted out of this conformance case")
+			}
 			err := build(tc.src)
 			if err == nil {
 				t.Fatalf("expected error on %q, got nil", tc.src)
