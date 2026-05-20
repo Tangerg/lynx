@@ -20,6 +20,7 @@ import (
 	"github.com/Tangerg/lynx/core/vectorstore/filter/ast"
 	"github.com/Tangerg/lynx/pkg/math"
 	"github.com/Tangerg/lynx/vectorstores/internal/ident"
+	"github.com/Tangerg/lynx/vectorstores/internal/tracing"
 )
 
 const Provider = "PgVector"
@@ -331,12 +332,19 @@ func (s *Store) distanceToScore(distance float64) float64 {
 
 // Create embeds the documents in req and upserts them into the
 // pgvector table.
-func (s *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) error {
-	if err := req.Validate(); err != nil {
+//
+// One `db.vector.create pgvector` span per call carrying
+// `db.system` / `db.operation.name` / `lynx.rag.doc_count`.
+func (s *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) (err error) {
+	if err = req.Validate(); err != nil {
 		return fmt.Errorf("pgvector: invalid create request: %w", err)
 	}
 
-	batchedDocs, err := s.documentBatcher.Batch(ctx, req.Documents)
+	ctx, span := tracing.StartCreate(ctx, "pgvector", len(req.Documents))
+	defer func() { tracing.Finish(span, err) }()
+
+	var batchedDocs [][]*document.Document
+	batchedDocs, err = s.documentBatcher.Batch(ctx, req.Documents)
 	if err != nil {
 		return fmt.Errorf("pgvector: failed to batch documents: %w", err)
 	}
@@ -401,12 +409,20 @@ func drainBatch(br pgx.BatchResults, n int) error {
 
 // Retrieve embeds the query, runs an ANN search, and returns the
 // matching documents above the configured MinScore threshold.
-func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) ([]*document.Document, error) {
-	if err := req.Validate(); err != nil {
+//
+// One `db.vector.retrieve pgvector` span per call carrying
+// `db.vector.query.top_k` / `db.vector.query.similarity_threshold`
+// and (on success) `lynx.rag.doc_count`.
+func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) (docs []*document.Document, err error) {
+	if err = req.Validate(); err != nil {
 		return nil, fmt.Errorf("pgvector: invalid retrieval request: %w", err)
 	}
 
-	vector, _, err := s.embeddingClient.
+	ctx, span := tracing.StartRetrieve(ctx, "pgvector", req.TopK, req.MinScore)
+	defer func() { tracing.RecordRetrieveResult(span, err, len(docs)) }()
+
+	var vector []float64
+	vector, _, err = s.embeddingClient.
 		EmbedWithText(req.Query).
 		Call().
 		Embedding(ctx)
@@ -437,7 +453,7 @@ func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 	}
 	defer rows.Close()
 
-	docs := make([]*document.Document, 0, req.TopK)
+	docs = make([]*document.Document, 0, req.TopK)
 	for rows.Next() {
 		var (
 			id       string
@@ -472,12 +488,21 @@ func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 }
 
 // Delete removes every row whose metadata matches the request filter.
-func (s *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) error {
-	if err := req.Validate(); err != nil {
+//
+// One `db.vector.delete pgvector` span per call.
+func (s *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) (err error) {
+	if err = req.Validate(); err != nil {
 		return fmt.Errorf("pgvector: invalid delete request: %w", err)
 	}
 
-	fragment, args, err := s.buildWhereClause(req.Filter)
+	ctx, span := tracing.StartDelete(ctx, "pgvector")
+	defer func() { tracing.Finish(span, err) }()
+
+	var (
+		fragment string
+		args     []any
+	)
+	fragment, args, err = s.buildWhereClause(req.Filter)
 	if err != nil {
 		return err
 	}
