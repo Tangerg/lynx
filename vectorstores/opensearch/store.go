@@ -17,6 +17,7 @@ import (
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter/ast"
 	"github.com/Tangerg/lynx/pkg/math"
+	"github.com/Tangerg/lynx/vectorstores/internal/tracing"
 )
 
 const Provider = "OpenSearch"
@@ -298,12 +299,16 @@ func (s *Store) createIndex(ctx context.Context) error {
 }
 
 // Create embeds documents and bulk-indexes them.
-func (s *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) error {
-	if err := req.Validate(); err != nil {
+func (s *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) (err error) {
+	if err = req.Validate(); err != nil {
 		return fmt.Errorf("opensearch: invalid create request: %w", err)
 	}
 
-	batchedDocs, err := s.documentBatcher.Batch(ctx, req.Documents)
+	ctx, span := tracing.StartCreate(ctx, "opensearch", len(req.Documents))
+	defer func() { tracing.Finish(span, err) }()
+
+	var batchedDocs [][]*document.Document
+	batchedDocs, err = s.documentBatcher.Batch(ctx, req.Documents)
 	if err != nil {
 		return fmt.Errorf("opensearch: failed to batch documents: %w", err)
 	}
@@ -381,12 +386,16 @@ func (s *Store) bulkErrorReason(resp *opensearchapi.BulkResp) error {
 
 // Retrieve runs an approximate KNN query against the configured index
 // and returns the documents above MinScore.
-func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) ([]*document.Document, error) {
-	if err := req.Validate(); err != nil {
+func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) (docs []*document.Document, err error) {
+	if err = req.Validate(); err != nil {
 		return nil, fmt.Errorf("opensearch: invalid retrieval request: %w", err)
 	}
 
-	vector, _, err := s.embeddingClient.
+	ctx, span := tracing.StartRetrieve(ctx, "opensearch", req.TopK, req.MinScore)
+	defer func() { tracing.RecordRetrieveResult(span, err, len(docs)) }()
+
+	var vector []float64
+	vector, _, err = s.embeddingClient.
 		EmbedWithText(req.Query).
 		Call().
 		Embedding(ctx)
@@ -430,7 +439,7 @@ func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 		return nil, fmt.Errorf("opensearch: nil response for %s", s.indexName)
 	}
 
-	docs := make([]*document.Document, 0, len(resp.Hits.Hits))
+	docs = make([]*document.Document, 0, len(resp.Hits.Hits))
 	for _, hit := range resp.Hits.Hits {
 		score := float64(hit.Score)
 		if score < req.MinScore {
@@ -447,12 +456,16 @@ func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 
 // Delete removes documents matching the filter expression via
 // delete_by_query.
-func (s *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) error {
-	if err := req.Validate(); err != nil {
+func (s *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) (err error) {
+	if err = req.Validate(); err != nil {
 		return fmt.Errorf("opensearch: invalid delete request: %w", err)
 	}
 
-	filterQuery, err := s.buildFilterQuery(req.Filter)
+	ctx, span := tracing.StartDelete(ctx, "opensearch")
+	defer func() { tracing.Finish(span, err) }()
+
+	var filterQuery string
+	filterQuery, err = s.buildFilterQuery(req.Filter)
 	if err != nil {
 		return err
 	}

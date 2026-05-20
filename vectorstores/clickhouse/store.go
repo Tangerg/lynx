@@ -16,6 +16,7 @@ import (
 	"github.com/Tangerg/lynx/core/vectorstore/filter/ast"
 	"github.com/Tangerg/lynx/pkg/math"
 	"github.com/Tangerg/lynx/vectorstores/internal/ident"
+	"github.com/Tangerg/lynx/vectorstores/internal/tracing"
 )
 
 const Provider = "ClickHouse"
@@ -229,11 +230,16 @@ func distanceFunc(metric DistanceMetric) string {
 }
 
 // Create embeds documents and inserts them as a single batch.
-func (s *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) error {
-	if err := req.Validate(); err != nil {
+func (s *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) (err error) {
+	if err = req.Validate(); err != nil {
 		return fmt.Errorf("clickhouse: invalid create request: %w", err)
 	}
-	batchedDocs, err := s.documentBatcher.Batch(ctx, req.Documents)
+
+	ctx, span := tracing.StartCreate(ctx, "clickhouse", len(req.Documents))
+	defer func() { tracing.Finish(span, err) }()
+
+	var batchedDocs [][]*document.Document
+	batchedDocs, err = s.documentBatcher.Batch(ctx, req.Documents)
 	if err != nil {
 		return fmt.Errorf("clickhouse: failed to batch documents: %w", err)
 	}
@@ -279,11 +285,16 @@ func (s *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) erro
 }
 
 // Retrieve runs an ANN search using the configured distance function.
-func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) ([]*document.Document, error) {
-	if err := req.Validate(); err != nil {
+func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) (docs []*document.Document, err error) {
+	if err = req.Validate(); err != nil {
 		return nil, fmt.Errorf("clickhouse: invalid retrieval request: %w", err)
 	}
-	vector, _, err := s.embeddingClient.
+
+	ctx, span := tracing.StartRetrieve(ctx, "clickhouse", req.TopK, req.MinScore)
+	defer func() { tracing.RecordRetrieveResult(span, err, len(docs)) }()
+
+	var vector []float64
+	vector, _, err = s.embeddingClient.
 		EmbedWithText(req.Query).
 		Call().
 		Embedding(ctx)
@@ -319,7 +330,7 @@ func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 	}
 	defer rows.Close()
 
-	docs := make([]*document.Document, 0, req.TopK)
+	docs = make([]*document.Document, 0, req.TopK)
 	for rows.Next() {
 		var (
 			id       string
@@ -351,11 +362,19 @@ func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 //
 // ClickHouse mutations are asynchronous — callers should consider
 // MutationOptions for synchronous behaviour in their environment.
-func (s *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) error {
-	if err := req.Validate(); err != nil {
+func (s *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) (err error) {
+	if err = req.Validate(); err != nil {
 		return fmt.Errorf("clickhouse: invalid delete request: %w", err)
 	}
-	predicate, args, err := s.buildFilter(req.Filter)
+
+	ctx, span := tracing.StartDelete(ctx, "clickhouse")
+	defer func() { tracing.Finish(span, err) }()
+
+	var (
+		predicate string
+		args      []any
+	)
+	predicate, args, err = s.buildFilter(req.Filter)
 	if err != nil {
 		return err
 	}
