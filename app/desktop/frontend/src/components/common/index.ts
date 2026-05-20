@@ -10,4 +10,5 @@ export { StatusDot } from "./StatusDot";
 export { SectionLabel } from "./SectionLabel";
 export { Segmented } from "./Segmented";
 export { Kbd } from "./Kbd";
+export { Sparkline } from "./Sparkline";
 export { cn } from "./cn";

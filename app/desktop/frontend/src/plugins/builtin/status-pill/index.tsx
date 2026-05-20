@@ -1,12 +1,39 @@
-// Built-in plugin: the status-bar items (run state, tokens, cost) and
-// the flex spacer that pushes the right-hand items to the far edge.
-//
-// Previously a single fat pill above the composer; the VS Code-inspired
-// layout moved these into the slim 24px status bar at the bottom.
+// Built-in plugin: status-bar items. Direction 2 — Bloomberg-style data
+// density. Run state on the left with a ticking live dot; tokens / cost
+// pinned right with mono numbers + a token sparkline tracking how usage
+// has grown across the current run.
 
-import { Icon, StatusDot } from "@/components/common";
+import { useEffect, useRef, useState } from "react";
+import { Icon, Sparkline, StatusDot } from "@/components/common";
 import { definePlugin } from "@/plugins/sdk";
 import { useAgentStore } from "@/state/agentStore";
+
+// "1.2k" / "200k" / "1.5M" → number. Conservative; if we can't parse,
+// return NaN so the caller can fall back gracefully.
+function parseShorthand(input: string | undefined): number {
+  if (!input) return NaN;
+  const m = input.trim().match(/^([\d.]+)\s*([kmKM]?)$/);
+  if (!m) return NaN;
+  const n = parseFloat(m[1]);
+  const unit = m[2].toLowerCase();
+  if (unit === "k") return n * 1_000;
+  if (unit === "m") return n * 1_000_000;
+  return n;
+}
+
+// Push a fresh sample whenever the underlying value moves, capped at
+// MAX so the sparkline buffer doesn't grow forever during long runs.
+function useNumericHistory(current: number, max = 32): number[] {
+  const [history, setHistory] = useState<number[]>([]);
+  const lastRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (Number.isNaN(current)) return;
+    if (lastRef.current === current) return;
+    lastRef.current = current;
+    setHistory((h) => (h.length >= max ? [...h.slice(1), current] : [...h, current]));
+  }, [current, max]);
+  return history;
+}
 
 function RunState() {
   const run = useAgentStore((s) => s.run);
@@ -16,32 +43,34 @@ function RunState() {
       <StatusDot as="sb-dot" />
       {run.running ? (
         <>
-          <span>Step {run.step}/{run.totalSteps}</span>
+          <span className="mono">{run.step}/{run.totalSteps}</span>
           <span className="sb-sep">·</span>
-          <span className="sb-activity">{run.activity}</span>
+          <span className="sb-activity">{run.activity || "running"}</span>
           {stop && (
             <button className="sb-stop" onClick={stop} title="Stop (⌘.)">
-              <Icon name="stop" size={9} />Stop
+              <Icon name="stop" size={9} />stop
             </button>
           )}
         </>
       ) : (
-        <span>Idle</span>
+        <span>idle</span>
       )}
     </span>
   );
 }
 
-function Spacer() {
-  return <span className="sb-spacer" />;
-}
+function Spacer() { return <span className="sb-spacer" />; }
 
 function Tokens() {
   const run = useAgentStore((s) => s.run);
+  const usedNum = parseShorthand(run.tokens.used);
+  const history = useNumericHistory(usedNum);
   return (
-    <span className="sb-item" title="Context window">
-      <span className="sb-ctx-bar"><div style={{ width: `${run.ctxPct}%` }} /></span>
-      <span>{run.tokens.used} / {run.tokens.total}</span>
+    <span className="sb-item" title={`Context: ${run.ctxPct}% of ${run.tokens.total}`}>
+      <Sparkline values={history} width={42} height={12} fill />
+      <span className="mono">{run.tokens.used}</span>
+      <span className="sb-key mono">/{run.tokens.total}</span>
+      <span className="sb-key mono">{run.ctxPct}%</span>
     </span>
   );
 }
@@ -49,9 +78,9 @@ function Tokens() {
 function Cost() {
   const run = useAgentStore((s) => s.run);
   return (
-    <span className="sb-item" title="Session cost">
+    <span className="sb-item" title="Session cost (USD)">
       <span className="sb-key">$</span>
-      <span>{run.cost}</span>
+      <span className="mono">{run.cost}</span>
     </span>
   );
 }
@@ -60,9 +89,9 @@ export default definePlugin({
   name: "lyra.builtin.status-pill",
   version: "1.0.0",
   setup({ host }) {
-    host.layout.register("app.statusbar", { id: "run",     order: 0,   component: RunState });
-    host.layout.register("app.statusbar", { id: "spacer",  order: 100, component: Spacer });
-    host.layout.register("app.statusbar", { id: "tokens",  order: 200, component: Tokens });
-    host.layout.register("app.statusbar", { id: "cost",    order: 210, component: Cost });
+    host.layout.register("app.statusbar", { id: "run",    order: 0,   component: RunState });
+    host.layout.register("app.statusbar", { id: "spacer", order: 100, component: Spacer });
+    host.layout.register("app.statusbar", { id: "tokens", order: 200, component: Tokens });
+    host.layout.register("app.statusbar", { id: "cost",   order: 210, component: Cost });
   },
 });

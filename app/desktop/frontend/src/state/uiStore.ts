@@ -23,7 +23,6 @@ type UIState = {
   accent: string;
 
   sidebarRail: boolean;
-  inspectorOpen: boolean;
 
   activeSessionId: string;
   tabIds: string[];
@@ -33,9 +32,6 @@ type UIState = {
 
   selectedToolId: string;
   expandedToolIds: Set<string>;
-
-  // Phase 3 — settings modal. Ephemeral: always starts closed.
-  settingsModalOpen: boolean;
 
   /**
    * Heterogeneous chat-area tabs (Phase B).
@@ -55,8 +51,6 @@ type UIActions = {
   toggleTheme: () => void;
   setAccent: (accent: string) => void;
   toggleSidebar: () => void;
-  toggleInspector: () => void;
-  setInspectorOpen: (open: boolean) => void;
   setInspectorTab: (tab: InspectorTab) => void;
   setActiveFile: (path: string) => void;
   setSelectedToolId: (id: string) => void;
@@ -66,9 +60,6 @@ type UIActions = {
   selectTab: (id: string) => void;
   closeTab: (id: string) => void;
   openTab: (id: string) => void;
-
-  openSettings: () => void;
-  closeSettings: () => void;
 
   /** Add (if absent) and focus a workspace view in the chat-area tab strip. */
   openMainView: (tab: { id: string; title: string; icon?: string }) => void;
@@ -87,14 +78,12 @@ export const useUIStore = create<UIState & UIActions>()(
       theme: "dark",
       accent: "#1ed760",
       sidebarRail: false,
-      inspectorOpen: false,
       activeSessionId: "s1",
       tabIds: ["s1", "s2", "s3"],
       inspectorTab: "diff",
       activeFile: "src/api/auth.ts",
       selectedToolId: "",
       expandedToolIds: new Set<string>(),
-      settingsModalOpen: false,
       mainViewTabs: [],
       activeMainView: null,
 
@@ -104,10 +93,8 @@ export const useUIStore = create<UIState & UIActions>()(
       setAccent: (accent) => set({ accent }),
 
       toggleSidebar: () => set((s) => ({ sidebarRail: !s.sidebarRail })),
-      toggleInspector: () => set((s) => ({ inspectorOpen: !s.inspectorOpen })),
-      setInspectorOpen: (open) => set({ inspectorOpen: open }),
 
-      setInspectorTab: (tab) => set({ inspectorTab: tab, inspectorOpen: true }),
+      setInspectorTab: (tab) => set({ inspectorTab: tab }),
       setActiveFile: (path) => set({ activeFile: path }),
 
       setSelectedToolId: (id) => set({ selectedToolId: id }),
@@ -143,9 +130,6 @@ export const useUIStore = create<UIState & UIActions>()(
         if (!tabIds.includes(id)) set({ tabIds: [...tabIds, id] });
       },
 
-      openSettings: () => set({ settingsModalOpen: true }),
-      closeSettings: () => set({ settingsModalOpen: false }),
-
       openMainView: (tab) => {
         const cur = get().mainViewTabs;
         const exists = cur.some((t) => t.id === tab.id);
@@ -175,13 +159,12 @@ export const useUIStore = create<UIState & UIActions>()(
         theme: s.theme,
         accent: s.accent,
         sidebarRail: s.sidebarRail,
-        inspectorOpen: s.inspectorOpen,
         activeSessionId: s.activeSessionId,
         tabIds: s.tabIds,
       }),
       // Bump on any breaking shape change — wipes stale stored data so a
       // dev who upgraded mid-session doesn't get hit by mismatched fields.
-      version: 2,
+      version: 3,
     },
   ),
 );

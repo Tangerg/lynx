@@ -54,7 +54,11 @@ export default definePlugin({
       icon: "settings",
       group: "Settings",
       order: 0,
-      run: () => useUIStore.getState().openSettings(),
+      run: () => useUIStore.getState().openMainView({
+        id: "settings",
+        title: "Settings",
+        icon: "settings",
+      }),
     });
     host.commands.register({
       id: "settings.toggle-theme",

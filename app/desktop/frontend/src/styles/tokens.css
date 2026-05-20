@@ -34,6 +34,10 @@
   --color-border:         #4d4d4d;   /* Standard border on dark */
   --color-border-soft:    #7c7c7c;   /* Outlined buttons */
   --color-divider:        #b3b3b3;   /* Visible separator */
+  /* The colour that shows through the 1px gap between flush panels in
+     the app grid. Slightly lighter than --color-surface in dark mode so
+     the boundary is visible without being loud. Light mode overrides. */
+  --color-app-divider:    #262626;
 
   /* ---------- COLOR — Semantic ---------- */
   --color-negative:       #f3727f;   /* Errors */
@@ -48,11 +52,21 @@
     "Hiragino Sans", "Hiragino Kaku Gothic ProN", Meiryo, "MS Gothic",
     sans-serif;
   --font-ui:
-    "SpotifyMixUI", "CircularSp", "Manrope",
+    "Geist", "SpotifyMixUI", "CircularSp", "Manrope",
     "Helvetica Neue", helvetica, arial,
     "Hiragino Sans", "Hiragino Kaku Gothic ProN", Meiryo, "MS Gothic",
     sans-serif;
-  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  /* Direction 2 — JetBrains Mono drives all numeric / ID / timestamp /
+     code-adjacent UI text. System monos kept as fallback for offline boot. */
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  /* Primary CTA — defaults to the accent (dark mode), light mode overrides
+     to pure black (Vercel signature). Decoupled from --color-accent so the
+     accent can still drive "live state" colour without forcing CTA buttons
+     to be green. */
+  --color-cta:        var(--color-accent);
+  --color-cta-hover:  var(--color-accent-border);
+  --color-cta-text:   var(--color-text-on-accent);
 
   /* ---------- TYPE — Sizes (compact, app-not-magazine) ---------- */
   --fs-section:   1.50rem;   /* 24px — section title */

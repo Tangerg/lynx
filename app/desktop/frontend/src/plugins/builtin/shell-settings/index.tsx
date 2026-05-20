@@ -1,25 +1,22 @@
-// Built-in plugin: fills the "app.overlay" slot with the SettingsModal. The
-// modal is conditionally visible based on `useUIStore.settingsModalOpen` —
-// it always renders, mountAnimation handles open/close.
+// Built-in plugin: registers Settings as a workspace view, openable as a
+// main-area tab (Cmd+K → "View: Settings" or the user-card "More
+// settings…" link). Replaces the older modal version that lived on the
+// app.overlay slot.
 
-import { SettingsModal } from "@/components/settings/SettingsModal";
+import { SettingsPage } from "@/components/settings/SettingsPage";
 import { definePlugin } from "@/plugins/sdk";
-import { useUIStore } from "@/state/uiStore";
-
-function ShellSettings() {
-  const open = useUIStore((s) => s.settingsModalOpen);
-  const closeSettings = useUIStore((s) => s.closeSettings);
-  return <SettingsModal open={open} onClose={closeSettings} />;
-}
 
 export default definePlugin({
   name: "lyra.builtin.shell-settings",
   version: "1.0.0",
   setup({ host }) {
-    host.layout.register("app.overlay", {
+    host.workspace.registerView({
       id: "settings",
-      order: 0,
-      component: ShellSettings,
+      title: "Settings",
+      icon: "settings",
+      // Not auto-opened on first launch — only when the user invokes it.
+      openByDefault: false,
+      component: SettingsPage,
     });
   },
 });
