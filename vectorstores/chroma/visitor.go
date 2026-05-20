@@ -10,6 +10,7 @@ import (
 
 	"github.com/Tangerg/lynx/core/vectorstore/filter/ast"
 	"github.com/Tangerg/lynx/core/vectorstore/filter/token"
+	"github.com/Tangerg/lynx/vectorstores/internal/filterhelp"
 )
 
 var _ ast.Visitor = (*Visitor)(nil)
@@ -96,31 +97,36 @@ func (v *Visitor) visit(expr ast.Expr) error {
 
 // visitBinaryExpr routes to the correct handler based on the operator category.
 func (v *Visitor) visitBinaryExpr(expr *ast.BinaryExpr) error {
-	switch {
-	case expr.Op.Kind.IsLogicalOperator():
-		return v.visitLogicalExpr(expr)
-	case expr.Op.Kind.IsEqualityOperator():
-		return v.visitEqualityExpr(expr)
-	case expr.Op.Kind.IsOrderingOperator():
-		return v.visitOrderingExpr(expr)
-	case expr.Op.Kind.Is(token.IN):
-		return v.visitInExpr(expr)
-	case expr.Op.Kind.Is(token.LIKE):
-		return fmt.Errorf("chroma: LIKE operator is not supported on metadata fields")
-	default:
-		return fmt.Errorf("unsupported binary operator '%s' at %s",
-			expr.Op.Literal, expr.Start().String())
-	}
+	return filterhelp.DispatchBinaryErr(expr,
+		v.visitLogicalExpr,
+		v.visitComparisonExpr,
+		v.visitInExpr,
+		v.visitLikeExpr,
+	)
 }
 
-// visitUnaryExpr handles unary operators. Only NOT is defined by the AST;
-// Chroma does not expose a standalone logical NOT, so it always returns an error.
-func (v *Visitor) visitUnaryExpr(expr *ast.UnaryExpr) error {
-	if !expr.Op.Kind.IsUnaryOperator() {
-		return fmt.Errorf("'%s' is not a valid unary operator at %s",
-			expr.Op.Literal, expr.Start().String())
+// visitComparisonExpr splits equality vs ordering since chroma emits
+// distinct Where map shapes for the two families.
+func (v *Visitor) visitComparisonExpr(expr *ast.BinaryExpr) error {
+	if expr.Op.Kind.IsEqualityOperator() {
+		return v.visitEqualityExpr(expr)
 	}
-	return fmt.Errorf("chroma: NOT operator is not supported; rewrite using != or NIN")
+	return v.visitOrderingExpr(expr)
+}
+
+// visitLikeExpr — Chroma metadata filters do not support LIKE.
+func (v *Visitor) visitLikeExpr(expr *ast.BinaryExpr) error {
+	return fmt.Errorf("chroma: LIKE operator is not supported on metadata fields (at %s)",
+		expr.Start().String())
+}
+
+// visitUnaryExpr handles unary operators. Chroma does not expose a
+// standalone logical NOT, so even the only valid unary kind (NOT)
+// is rejected with a guidance message.
+func (v *Visitor) visitUnaryExpr(expr *ast.UnaryExpr) error {
+	return filterhelp.DispatchUnaryErr(expr, func(*ast.UnaryExpr) error {
+		return fmt.Errorf("chroma: NOT operator is not supported; rewrite using != or NIN")
+	})
 }
 
 // visitIdent stores the identifier name as the current field key.
@@ -326,14 +332,9 @@ func (v *Visitor) visitInExpr(expr *ast.BinaryExpr) error {
 			expr.Start().String(), err)
 	}
 
-	listLit, ok := expr.Right.(*ast.ListLiteral)
-	if !ok {
-		return fmt.Errorf("'IN' operator requires a list on the right side at %s, got %T",
-			expr.Start().String(), expr.Right)
-	}
-	if len(listLit.Values) == 0 {
-		return fmt.Errorf("'IN' operator requires a non-empty list at %s",
-			expr.Start().String())
+	listLit, err := filterhelp.RequireListLiteral(expr)
+	if err != nil {
+		return fmt.Errorf("chroma: %w", err)
 	}
 
 	if err = v.visitListLiteral(listLit); err != nil {
