@@ -34,9 +34,20 @@ import (
 	"errors"
 	"fmt"
 
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
+
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/plan"
 )
+
+// plannerTracer is the package-level tracer for the HTN planner.
+// Tracer name follows the `lynx/agent/planner` namespace shared with
+// the GOAP A* planner — backends can distinguish algorithms by the
+// span name (`htn.plan` vs `goap.astar`).
+var plannerTracer = otel.Tracer("lynx/agent/planner")
 
 const defaultMaxRecursion = 64
 
@@ -161,10 +172,27 @@ func (p *Planner) PlanToGoal(
 	system *plan.PlanningSystem,
 	goal *core.Goal,
 	options plan.PlanOptions,
-) (*plan.Plan, error) {
-	if err := plan.CheckPlanInputs(start, system, goal); err != nil {
+) (result *plan.Plan, err error) {
+	if err = plan.CheckPlanInputs(start, system, goal); err != nil {
 		return nil, err
 	}
+
+	ctx, span := plannerTracer.Start(ctx, "htn.plan",
+		trace.WithAttributes(
+			attribute.String("lynx.agent.planner", "htn"),
+			attribute.String("lynx.agent.goal.name", goal.Name),
+		),
+	)
+	defer func() {
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+		} else if result != nil {
+			span.SetAttributes(attribute.Int("lynx.agent.plan.length", len(result.Actions)))
+		}
+		span.End()
+	}()
+
 	root, ok := p.library.Lookup(goal.Name)
 	if !ok {
 		return nil, nil
@@ -176,7 +204,8 @@ func (p *Planner) PlanToGoal(
 	if !ok {
 		return nil, nil
 	}
-	return &plan.Plan{Actions: actions, Goal: goal}, nil
+	result = &plan.Plan{Actions: actions, Goal: goal}
+	return result, nil
 }
 
 // decompose recursively expands task into a flat action list,

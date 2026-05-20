@@ -4,6 +4,10 @@ import (
 	"context"
 	"fmt"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
+
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/event"
 )
@@ -11,6 +15,10 @@ import (
 // RunAgent runs the named agent synchronously and returns the
 // resulting process (whether completed or terminal-failed). Pass a
 // zero [core.ProcessOptions]{} for defaults.
+//
+// One `lynx.agent.run` span wraps the full invocation, parenting the
+// per-tick / per-action / per-plan child spans the runtime emits
+// during execution. See doc/OBSERVABILITY.md §3.3 / §4.7.
 func (p *Platform) RunAgent(
 	ctx context.Context,
 	agentDef *core.Agent,
@@ -21,9 +29,22 @@ func (p *Platform) RunAgent(
 	if err != nil {
 		return nil, err
 	}
-	if err := proc.run(normalizeContext(ctx)); err != nil {
+
+	ctx, span := core.AgentTracer().Start(normalizeContext(ctx), "lynx.agent.run",
+		trace.WithSpanKind(trace.SpanKindInternal),
+		trace.WithAttributes(
+			attribute.String("lynx.agent.name", agentDef.Name),
+			attribute.String("lynx.agent.process_id", proc.id),
+		),
+	)
+	defer span.End()
+
+	if err := proc.run(ctx); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return proc, err
 	}
+	span.SetAttributes(attribute.String("lynx.agent.status", proc.Status().String()))
 	return proc, nil
 }
 
