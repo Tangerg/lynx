@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"sync"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/Tangerg/lynx/core/document"
@@ -94,44 +96,67 @@ func NewPipeline(config *PipelineConfig) (*Pipeline, error) {
 // together with the refined document list. An error from any stage
 // short-circuits the pipeline. Returns an error when query is nil so
 // downstream stages can assume non-nil input.
+//
+// One parent `rag.pipeline` span wraps the call, with per-stage
+// children (`rag.transform`, `rag.expand`, `rag.retrieve`,
+// `rag.refine`, `rag.augment`). Each child carries `lynx.rag.stage`
+// plus stage-specific counts (`lynx.rag.query_count`,
+// `lynx.rag.doc_count`) — see doc/OBSERVABILITY.md §3.3.
 func (p *Pipeline) Execute(ctx context.Context, query *Query) (*Query, []*document.Document, error) {
 	if query == nil {
 		return nil, nil, ErrNilQuery
 	}
+
+	ctx, parent := ragTracer.Start(ctx, "rag.pipeline",
+		trace.WithSpanKind(trace.SpanKindInternal),
+	)
+	var execErr error
+	defer func() { finishSpan(parent, execErr) }()
+
 	transformed, err := p.transformQuery(ctx, query)
 	if err != nil {
-		return nil, nil, fmt.Errorf("rag.Pipeline: transform stage: %w", err)
+		execErr = fmt.Errorf("rag.Pipeline: transform stage: %w", err)
+		return nil, nil, execErr
 	}
 
 	expanded, err := p.expandQuery(ctx, transformed)
 	if err != nil {
-		return nil, nil, fmt.Errorf("rag.Pipeline: expand stage: %w", err)
+		execErr = fmt.Errorf("rag.Pipeline: expand stage: %w", err)
+		return nil, nil, execErr
 	}
 
 	retrieved, err := p.retrieveByQueries(ctx, expanded)
 	if err != nil {
-		return nil, nil, fmt.Errorf("rag.Pipeline: retrieve stage: %w", err)
+		execErr = fmt.Errorf("rag.Pipeline: retrieve stage: %w", err)
+		return nil, nil, execErr
 	}
 
 	refined, err := p.refineDocuments(ctx, query, retrieved)
 	if err != nil {
-		return nil, nil, fmt.Errorf("rag.Pipeline: refine stage: %w", err)
+		execErr = fmt.Errorf("rag.Pipeline: refine stage: %w", err)
+		return nil, nil, execErr
 	}
 
 	augmented, err := p.augmentQuery(ctx, query, refined)
 	if err != nil {
-		return nil, nil, fmt.Errorf("rag.Pipeline: augment stage: %w", err)
+		execErr = fmt.Errorf("rag.Pipeline: augment stage: %w", err)
+		return nil, nil, execErr
 	}
+	parent.SetAttributes(attribute.Int(attrLynxRAGDocCount, len(refined)))
 	return augmented, refined, nil
 }
 
 // transformQuery applies each registered [QueryTransformer] in order.
-func (p *Pipeline) transformQuery(ctx context.Context, query *Query) (*Query, error) {
+func (p *Pipeline) transformQuery(ctx context.Context, query *Query) (out *Query, err error) {
+	ctx, span := startStageSpan(ctx, "transform")
+	defer func() { finishSpan(span, err) }()
+
 	current := query
 	for i, transformer := range p.queryTransformers {
-		next, err := transformer.Transform(ctx, current)
-		if err != nil {
-			return nil, fmt.Errorf("transformer #%d: %w", i, err)
+		next, terr := transformer.Transform(ctx, current)
+		if terr != nil {
+			err = fmt.Errorf("transformer #%d: %w", i, terr)
+			return nil, err
 		}
 		current = next
 	}
@@ -140,8 +165,13 @@ func (p *Pipeline) transformQuery(ctx context.Context, query *Query) (*Query, er
 
 // expandQuery fans the query out to one-or-more queries via the
 // configured [QueryExpander].
-func (p *Pipeline) expandQuery(ctx context.Context, query *Query) ([]*Query, error) {
-	return p.queryExpander.Expand(ctx, query)
+func (p *Pipeline) expandQuery(ctx context.Context, query *Query) (out []*Query, err error) {
+	ctx, span := startStageSpan(ctx, "expand")
+	defer func() {
+		finishSpan(span, err, attribute.Int(attrLynxRAGQueryCount, len(out)))
+	}()
+	out, err = p.queryExpander.Expand(ctx, query)
+	return
 }
 
 // parallelCollect runs fn against each item in parallel and unions
@@ -191,27 +221,47 @@ func (p *Pipeline) retrieveByQuery(ctx context.Context, query *Query) ([]*docume
 
 // retrieveByQueries runs the per-query retrieval fan-in for every
 // expanded query in parallel.
-func (p *Pipeline) retrieveByQueries(ctx context.Context, queries []*Query) ([]*document.Document, error) {
-	return parallelCollect(ctx, queries, "query",
+func (p *Pipeline) retrieveByQueries(ctx context.Context, queries []*Query) (out []*document.Document, err error) {
+	ctx, span := startStageSpan(ctx, "retrieve")
+	defer func() {
+		finishSpan(span, err,
+			attribute.Int(attrLynxRAGQueryCount, len(queries)),
+			attribute.Int(attrLynxRAGDocCount, len(out)),
+		)
+	}()
+	out, err = parallelCollect(ctx, queries, "query",
 		func(ctx context.Context, _ int, query *Query) ([]*document.Document, error) {
 			return p.retrieveByQuery(ctx, query)
 		})
+	return
 }
 
 // refineDocuments applies each registered [DocumentRefiner] in order.
-func (p *Pipeline) refineDocuments(ctx context.Context, query *Query, docs []*document.Document) ([]*document.Document, error) {
+func (p *Pipeline) refineDocuments(ctx context.Context, query *Query, docs []*document.Document) (out []*document.Document, err error) {
+	ctx, span := startStageSpan(ctx, "refine")
+	defer func() {
+		finishSpan(span, err, attribute.Int(attrLynxRAGDocCount, len(out)))
+	}()
+
 	current := docs
 	for i, refiner := range p.documentRefiners {
-		next, err := refiner.Refine(ctx, query, current)
-		if err != nil {
-			return nil, fmt.Errorf("refiner #%d: %w", i, err)
+		next, rerr := refiner.Refine(ctx, query, current)
+		if rerr != nil {
+			err = fmt.Errorf("refiner #%d: %w", i, rerr)
+			return nil, err
 		}
 		current = next
 	}
-	return current, nil
+	out = current
+	return
 }
 
 // augmentQuery folds the refined documents into the final query.
-func (p *Pipeline) augmentQuery(ctx context.Context, query *Query, docs []*document.Document) (*Query, error) {
-	return p.queryAugmenter.Augment(ctx, query, docs)
+func (p *Pipeline) augmentQuery(ctx context.Context, query *Query, docs []*document.Document) (out *Query, err error) {
+	ctx, span := startStageSpan(ctx, "augment")
+	defer func() {
+		finishSpan(span, err, attribute.Int(attrLynxRAGDocCount, len(docs)))
+	}()
+	out, err = p.queryAugmenter.Augment(ctx, query, docs)
+	return
 }
