@@ -6,8 +6,25 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
+	"github.com/Tangerg/lynx/vectorstores/internal/storetest"
 	"github.com/Tangerg/lynx/vectorstores/pgvector"
 )
+
+// TestVisitor_Conformance exercises every AST shape the filter DSL
+// supports against the pgvector visitor via the shared
+// [storetest.VisitorConformance] suite. Output equivalence stays in
+// the per-test functions below; this is "no shape crashes" coverage.
+func TestVisitor_Conformance(t *testing.T) {
+	storetest.VisitorConformance(t, func(src string) error {
+		expr, err := filter.ParseAndAnalyze(src)
+		if err != nil {
+			return err
+		}
+		v := pgvector.NewVisitor("metadata")
+		v.Visit(expr)
+		return v.Error()
+	})
+}
 
 // build is the test driver — parse src, visit, return (sql, args, err).
 func build(t *testing.T, src string) (string, []any, error) {
