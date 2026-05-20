@@ -32,6 +32,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/Tangerg/lynx/chatmemory/internal/tracing"
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/core/model/chat/memory"
 )
@@ -215,13 +216,16 @@ func (s *Store) initSchema(ctx context.Context) error {
 // batch are inserted in order via [pgx.Batch] so ordering is
 // guaranteed even under concurrent writers on the same conversation.
 // No-op when messages is empty.
-func (s *Store) Write(ctx context.Context, conversationID string, messages ...chat.Message) error {
-	if err := ctx.Err(); err != nil {
+func (s *Store) Write(ctx context.Context, conversationID string, messages ...chat.Message) (err error) {
+	if err = ctx.Err(); err != nil {
 		return err
 	}
 	if len(messages) == 0 {
 		return nil
 	}
+
+	ctx, span := tracing.StartWrite(ctx, "postgres", conversationID, len(messages))
+	defer func() { tracing.Finish(span, err) }()
 
 	batch := &pgx.Batch{}
 	for _, msg := range messages {
@@ -244,10 +248,13 @@ func (s *Store) Write(ctx context.Context, conversationID string, messages ...ch
 
 // Read returns every message stored under conversationID in
 // insertion order. An empty slice is returned for unknown ids.
-func (s *Store) Read(ctx context.Context, conversationID string) ([]chat.Message, error) {
-	if err := ctx.Err(); err != nil {
+func (s *Store) Read(ctx context.Context, conversationID string) (out []chat.Message, err error) {
+	if err = ctx.Err(); err != nil {
 		return nil, err
 	}
+
+	ctx, span := tracing.StartRead(ctx, "postgres", conversationID)
+	defer func() { tracing.RecordReadResult(span, err, len(out)) }()
 
 	rows, err := s.pool.Query(ctx, s.readSQL, conversationID)
 	if err != nil {
@@ -255,7 +262,7 @@ func (s *Store) Read(ctx context.Context, conversationID string) ([]chat.Message
 	}
 	defer rows.Close()
 
-	out := []chat.Message{}
+	out = []chat.Message{}
 	for rows.Next() {
 		var raw []byte
 		if err := rows.Scan(&raw); err != nil {
@@ -275,11 +282,15 @@ func (s *Store) Read(ctx context.Context, conversationID string) ([]chat.Message
 
 // Clear drops every message stored under conversationID. Unknown ids
 // are silently ignored.
-func (s *Store) Clear(ctx context.Context, conversationID string) error {
-	if err := ctx.Err(); err != nil {
+func (s *Store) Clear(ctx context.Context, conversationID string) (err error) {
+	if err = ctx.Err(); err != nil {
 		return err
 	}
-	if _, err := s.pool.Exec(ctx, s.clearSQL, conversationID); err != nil {
+
+	ctx, span := tracing.StartClear(ctx, "postgres", conversationID)
+	defer func() { tracing.Finish(span, err) }()
+
+	if _, err = s.pool.Exec(ctx, s.clearSQL, conversationID); err != nil {
 		return fmt.Errorf("postgres.Store.Clear: %w", err)
 	}
 	return nil

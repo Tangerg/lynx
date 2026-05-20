@@ -33,6 +33,7 @@ import (
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 
+	"github.com/Tangerg/lynx/chatmemory/internal/tracing"
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/core/model/chat/memory"
 )
@@ -113,13 +114,16 @@ func (s *Store) initIndex(ctx context.Context) error {
 // Write inserts every message under conversationID via InsertMany.
 // ObjectIDs are assigned at the driver — strictly increasing within
 // a batch, so chronological order is preserved on Read.
-func (s *Store) Write(ctx context.Context, conversationID string, messages ...chat.Message) error {
-	if err := ctx.Err(); err != nil {
+func (s *Store) Write(ctx context.Context, conversationID string, messages ...chat.Message) (err error) {
+	if err = ctx.Err(); err != nil {
 		return err
 	}
 	if len(messages) == 0 {
 		return nil
 	}
+
+	ctx, span := tracing.StartWrite(ctx, "mongodb", conversationID, len(messages))
+	defer func() { tracing.Finish(span, err) }()
 
 	now := time.Now().UTC()
 	docs := make([]any, 0, len(messages))
@@ -135,7 +139,7 @@ func (s *Store) Write(ctx context.Context, conversationID string, messages ...ch
 		})
 	}
 
-	if _, err := s.collection.InsertMany(ctx, docs); err != nil {
+	if _, err = s.collection.InsertMany(ctx, docs); err != nil {
 		return fmt.Errorf("mongodb.Store.Write: %w", err)
 	}
 	return nil
@@ -143,12 +147,16 @@ func (s *Store) Write(ctx context.Context, conversationID string, messages ...ch
 
 // Read returns every message stored under conversationID in
 // insertion order.
-func (s *Store) Read(ctx context.Context, conversationID string) ([]chat.Message, error) {
-	if err := ctx.Err(); err != nil {
+func (s *Store) Read(ctx context.Context, conversationID string) (out []chat.Message, err error) {
+	if err = ctx.Err(); err != nil {
 		return nil, err
 	}
 
-	cursor, err := s.collection.Find(ctx,
+	ctx, span := tracing.StartRead(ctx, "mongodb", conversationID)
+	defer func() { tracing.RecordReadResult(span, err, len(out)) }()
+
+	var cursor *mongo.Cursor
+	cursor, err = s.collection.Find(ctx,
 		bson.M{fieldConversationID: conversationID},
 		options.Find().SetSort(bson.D{{Key: fieldID, Value: 1}}),
 	)
@@ -157,7 +165,7 @@ func (s *Store) Read(ctx context.Context, conversationID string) ([]chat.Message
 	}
 	defer cursor.Close(ctx)
 
-	out := []chat.Message{}
+	out = []chat.Message{}
 	for cursor.Next(ctx) {
 		var doc struct {
 			Message string `bson:"message"`
@@ -179,11 +187,15 @@ func (s *Store) Read(ctx context.Context, conversationID string) ([]chat.Message
 
 // Clear drops every document for conversationID. Unknown ids result
 // in a no-op (DeleteMany matches zero docs).
-func (s *Store) Clear(ctx context.Context, conversationID string) error {
-	if err := ctx.Err(); err != nil {
+func (s *Store) Clear(ctx context.Context, conversationID string) (err error) {
+	if err = ctx.Err(); err != nil {
 		return err
 	}
-	if _, err := s.collection.DeleteMany(ctx, bson.M{fieldConversationID: conversationID}); err != nil {
+
+	ctx, span := tracing.StartClear(ctx, "mongodb", conversationID)
+	defer func() { tracing.Finish(span, err) }()
+
+	if _, err = s.collection.DeleteMany(ctx, bson.M{fieldConversationID: conversationID}); err != nil {
 		return fmt.Errorf("mongodb.Store.Clear: %w", err)
 	}
 	return nil
