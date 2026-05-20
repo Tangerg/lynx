@@ -19,6 +19,7 @@ import (
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter/ast"
 	"github.com/Tangerg/lynx/pkg/math"
+	"github.com/Tangerg/lynx/vectorstores/internal/tracing"
 )
 
 const Provider = "Elasticsearch"
@@ -278,12 +279,16 @@ func (s *Store) createIndex(ctx context.Context) error {
 }
 
 // Create embeds the documents and bulk-indexes them.
-func (s *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) error {
-	if err := req.Validate(); err != nil {
+func (s *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) (err error) {
+	if err = req.Validate(); err != nil {
 		return fmt.Errorf("elasticsearch: invalid create request: %w", err)
 	}
 
-	batchedDocs, err := s.documentBatcher.Batch(ctx, req.Documents)
+	ctx, span := tracing.StartCreate(ctx, "elasticsearch", len(req.Documents))
+	defer func() { tracing.Finish(span, err) }()
+
+	var batchedDocs [][]*document.Document
+	batchedDocs, err = s.documentBatcher.Batch(ctx, req.Documents)
 	if err != nil {
 		return fmt.Errorf("elasticsearch: failed to batch documents: %w", err)
 	}
@@ -352,12 +357,16 @@ func (s *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) erro
 
 // Retrieve runs a KNN search over the embedding field. Optional
 // metadata filtering is expressed via a query_string clause.
-func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) ([]*document.Document, error) {
-	if err := req.Validate(); err != nil {
+func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) (docs []*document.Document, err error) {
+	if err = req.Validate(); err != nil {
 		return nil, fmt.Errorf("elasticsearch: invalid retrieval request: %w", err)
 	}
 
-	vector, _, err := s.embeddingClient.
+	ctx, span := tracing.StartRetrieve(ctx, "elasticsearch", req.TopK, req.MinScore)
+	defer func() { tracing.RecordRetrieveResult(span, err, len(docs)) }()
+
+	var vector []float64
+	vector, _, err = s.embeddingClient.
 		EmbedWithText(req.Query).
 		Call().
 		Embedding(ctx)
@@ -412,7 +421,7 @@ func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 		return nil, fmt.Errorf("elasticsearch: decode search response: %w", err)
 	}
 
-	docs := make([]*document.Document, 0, len(parsed.Hits.Hits))
+	docs = make([]*document.Document, 0, len(parsed.Hits.Hits))
 	for _, hit := range parsed.Hits.Hits {
 		score := s.normalizeScore(hit.Score)
 		if score < req.MinScore {
@@ -424,12 +433,16 @@ func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 }
 
 // Delete removes documents matching the filter via delete_by_query.
-func (s *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) error {
-	if err := req.Validate(); err != nil {
+func (s *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) (err error) {
+	if err = req.Validate(); err != nil {
 		return fmt.Errorf("elasticsearch: invalid delete request: %w", err)
 	}
 
-	filterQuery, err := s.buildFilterQuery(req.Filter)
+	ctx, span := tracing.StartDelete(ctx, "elasticsearch")
+	defer func() { tracing.Finish(span, err) }()
+
+	var filterQuery string
+	filterQuery, err = s.buildFilterQuery(req.Filter)
 	if err != nil {
 		return err
 	}

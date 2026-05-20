@@ -17,6 +17,7 @@ import (
 	"github.com/Tangerg/lynx/pkg/math"
 	"github.com/Tangerg/lynx/vectorstores/internal/docio"
 	"github.com/Tangerg/lynx/vectorstores/internal/ident"
+	"github.com/Tangerg/lynx/vectorstores/internal/tracing"
 )
 
 const Provider = "TiDB"
@@ -215,11 +216,16 @@ func distanceFunc(metric DistanceMetric) string {
 }
 
 // Create embeds documents and upserts them.
-func (s *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) error {
-	if err := req.Validate(); err != nil {
+func (s *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) (err error) {
+	if err = req.Validate(); err != nil {
 		return fmt.Errorf("tidb: invalid create request: %w", err)
 	}
-	batchedDocs, err := s.documentBatcher.Batch(ctx, req.Documents)
+
+	ctx, span := tracing.StartCreate(ctx, "tidb", len(req.Documents))
+	defer func() { tracing.Finish(span, err) }()
+
+	var batchedDocs [][]*document.Document
+	batchedDocs, err = s.documentBatcher.Batch(ctx, req.Documents)
 	if err != nil {
 		return fmt.Errorf("tidb: failed to batch documents: %w", err)
 	}
@@ -273,11 +279,16 @@ func (s *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) erro
 
 // Retrieve runs an ANN search ordered by the configured distance
 // function.
-func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) ([]*document.Document, error) {
-	if err := req.Validate(); err != nil {
+func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) (docs []*document.Document, err error) {
+	if err = req.Validate(); err != nil {
 		return nil, fmt.Errorf("tidb: invalid retrieval request: %w", err)
 	}
-	vector, _, err := s.embeddingClient.
+
+	ctx, span := tracing.StartRetrieve(ctx, "tidb", req.TopK, req.MinScore)
+	defer func() { tracing.RecordRetrieveResult(span, err, len(docs)) }()
+
+	var vector []float64
+	vector, _, err = s.embeddingClient.
 		EmbedWithText(req.Query).
 		Call().
 		Embedding(ctx)
@@ -314,7 +325,7 @@ func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 	}
 	defer rows.Close()
 
-	docs := make([]*document.Document, 0, req.TopK)
+	docs = make([]*document.Document, 0, req.TopK)
 	for rows.Next() {
 		var (
 			id       string
@@ -347,11 +358,19 @@ func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 }
 
 // Delete removes rows matching the filter expression.
-func (s *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) error {
-	if err := req.Validate(); err != nil {
+func (s *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) (err error) {
+	if err = req.Validate(); err != nil {
 		return fmt.Errorf("tidb: invalid delete request: %w", err)
 	}
-	predicate, args, err := s.buildFilter(req.Filter)
+
+	ctx, span := tracing.StartDelete(ctx, "tidb")
+	defer func() { tracing.Finish(span, err) }()
+
+	var (
+		predicate string
+		args      []any
+	)
+	predicate, args, err = s.buildFilter(req.Filter)
 	if err != nil {
 		return err
 	}
