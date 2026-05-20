@@ -1,6 +1,6 @@
 import { Icon, IconButton, ScrollArea } from "@/components/common";
 import { DiffView } from "@/components/inspector/DiffView";
-import { useInspector } from "@/components/inspector/InspectorPanel";
+import { useInspector } from "@/components/inspector/InspectorContext";
 import { useDiff } from "@/lib/queries";
 import { definePlugin } from "@/plugins/sdk";
 

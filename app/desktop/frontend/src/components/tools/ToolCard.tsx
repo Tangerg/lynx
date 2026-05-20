@@ -22,7 +22,7 @@ export function ToolCard({
   const actions = useToolActions().filter((a) => !a.predicate || a.predicate(tool));
 
   return (
-    <div className={`tool-card ${selected ? "selected" : ""} ${expanded ? "expanded" : ""}`}>
+    <div className={`tool-card ${selected ? "selected" : ""} ${expanded ? "expanded" : ""} ${tool.status === "running" ? "running" : ""}`}>
       <div className="tool-head" onClick={onToggleExpand}>
         <div className={`tool-icon ${statusClass}`}>
           <Icon name={toolIconFor(tool.fn)} size={14} />

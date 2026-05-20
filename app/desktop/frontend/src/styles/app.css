@@ -41,21 +41,25 @@ body {
 }
 
 /* ---------- App shell ---------- */
+/* Vercel-style flush layout: panels touch the window edges and each
+   other. The visual lines between sidebar/main/statusbar are produced
+   by 1px gaps that show the canvas colour underneath — no panel
+   borders, no rounded card chrome. */
 .app {
   display: grid;
-  /* main area + status bar. Inspector pane is gone — VS Code style. */
   grid-template-rows: 1fr 24px;
   height: 100vh;
-  background: #000;
-  padding: 8px;
-  gap: 8px;
+  background: var(--color-app-divider);
+  padding: 0;
+  gap: 1px;
 }
 
 .app-main {
   display: grid;
   grid-template-columns: 248px minmax(0, 1fr);
-  gap: 8px;
+  gap: 1px;
   min-height: 0;
+  background: var(--color-app-divider);
 }
 
 .app.rail .app-main {
@@ -74,8 +78,17 @@ body {
   font-size: 11px;
   color: var(--color-text-muted);
   background: var(--color-bg);
-  border-radius: 6px;
 }
+/* Direction 2 utility — inline mono runs (numbers, IDs, timestamps).
+   `font-feature-settings: "tnum"` keeps digits at equal width so a
+   ticking counter doesn't shimmy as values change. */
+.mono {
+  font-family: var(--font-mono);
+  font-feature-settings: "tnum";
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.005em;
+}
+
 .sb-item {
   display: inline-flex;
   align-items: center;
@@ -124,10 +137,49 @@ body {
 .sb-btn:hover { background: var(--color-surface-2); color: var(--color-text); }
 .sb-btn.warn { color: var(--color-accent); }
 
+/* Vercel-mode polish for status bar + sparkline + tool card running
+   border. Light is now flat-outlined, no shadows, no inner highlights. */
+html.theme-light .app-statusbar {
+  background: var(--color-surface);
+  border: none;
+  border-radius: 0;
+  color: var(--color-text-muted);
+  box-shadow: none;
+}
+html.theme-light .sb-stop { border-color: var(--color-border); }
+html.theme-light .sb-stop:hover {
+  background: var(--color-surface-2);
+  color: var(--color-text);
+}
+html.theme-light .sb-ctx-bar { background: var(--color-surface-3); }
+html.theme-light .sb-key { color: var(--color-text-faint); }
+html.theme-light .sb-sep { color: var(--color-text-faint); }
+html.theme-light .sb-activity { color: var(--color-text); }
+
+/* Sparkline reads as faint trace on light, fully-coloured on dark.
+   `currentColor` works in dark; in light we want a quieter line. */
+html.theme-light .sb-item svg polyline { stroke-opacity: 0.55; }
+html.theme-light .sb-item svg polygon { fill-opacity: 0.10; }
+
+/* Running tool card border — full accent gradient is too loud on white;
+   pull saturation down + tighten the visible arc. */
+html.theme-light .tool-card.running::before {
+  background: conic-gradient(
+    from var(--tc-angle),
+    var(--color-accent) 0deg,
+    rgba(21, 136, 62, 0.0) 70deg,
+    rgba(21, 136, 62, 0.0) 290deg,
+    var(--color-accent) 360deg
+  );
+}
+
 /* ---------- Panels (rounded surface columns) ---------- */
 .panel {
   background: var(--color-bg);
-  border-radius: 8px;
+  /* Edge-to-edge flush layout — no rounded card chrome. The 1px grid
+     gaps in .app/.app-main expose --color-border as a hairline between
+     regions, doing the divider work that border + radius used to do. */
+  border-radius: 0;
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -475,12 +527,15 @@ body {
 
 /* ---------- Message stream ---------- */
 .msg-stream {
-  padding: 24px 28px 220px 28px;
+  padding: 24px 32px 220px 32px;
   display: flex;
   flex-direction: column;
   gap: 28px;
-  max-width: 876px;
-  margin: 0 auto;
+  /* Was max-width 876 centered — that left a wide "abandoned" gutter
+     on the right of the chat panel. Let messages fill the full
+     available width; readability is still bounded by msg-content's
+     own inner max-width. */
+  width: 100%;
   position: relative;
 }
 
@@ -621,6 +676,44 @@ html.theme-light .msg.user .msg-content {
 .tool-card.selected {
   background: var(--hairline-1);
   border-color: var(--hairline-3);
+}
+
+/* Direction 2 — running tool cards get a rotating conic-gradient border.
+   `--mask` cuts the inside so only the rim shows; the rotation comes
+   from a single `--angle` CSS property animated via @property. */
+@property --tc-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+.tool-card.running {
+  position: relative;
+  isolation: isolate;
+  border-color: transparent;
+}
+.tool-card.running::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: conic-gradient(
+    from var(--tc-angle),
+    var(--color-accent) 0deg,
+    transparent 90deg,
+    transparent 270deg,
+    var(--color-accent) 360deg
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+          mask-composite: exclude;
+  pointer-events: none;
+  animation: tc-spin 2.4s linear infinite;
+}
+@keyframes tc-spin {
+  to { --tc-angle: 360deg; }
 }
 
 .tool-head {
@@ -1073,15 +1166,15 @@ html.theme-light .msg.user .msg-content {
   pointer-events: none;
 }
 .composer-inner {
-  max-width: 820px;
-  margin: 0 auto;
+  /* Stretches across the chat panel — was max-width 820 centered, which
+     left the right of the panel feeling abandoned. */
+  width: 100%;
   pointer-events: auto;
   position: relative;
   z-index: 2;
 }
 .composer-inner {
-  max-width: 820px;
-  margin: 0 auto;
+  width: 100%;
   pointer-events: auto;
   position: relative;
   z-index: 2;
@@ -1499,20 +1592,13 @@ html.theme-light .msg.user .msg-content {
    inline tool expansion
    ============================================================ */
 
-/* App grid that respects rail/inspector open state */
-.app-main {
-  display: grid;
-  gap: 8px;
-  min-height: 0;
-  padding: 8px;
-  transition: grid-template-columns 280ms cubic-bezier(0.3, 0, 0, 1);
-}
-.app:not(.rail):not(.insp-open) .app-main { grid-template-columns: 248px minmax(0, 1fr); }
-.app.rail:not(.insp-open) .app-main       { grid-template-columns: 56px minmax(0, 1fr); }
-.app:not(.rail).insp-open .app-main       { grid-template-columns: 248px minmax(0, 1fr) 460px; }
-.app.rail.insp-open .app-main             { grid-template-columns: 56px minmax(0, 1fr) 460px; }
+/* Stale block (pre-Phase-23) — kept only as marker for the diff. The
+   primary `.app-main` rule at the top of this file already drives the
+   grid for the current 2-column flush layout. The legacy 3-column /
+   padded variants below are no-ops in the new shell; left commented
+   out so removing them doesn't risk reviving any cascaded rule. */
+/* .app-main { padding: 8px; gap: 8px; } */
 .app { padding: 0 !important; }
-.app-main { padding: 8px; height: 100vh; }
 
 /* Sidebar — rail mode */
 .sidebar.rail {
@@ -2161,39 +2247,10 @@ html.theme-light .composer-model .cm-avatar {
 html.theme-light .cf-chip:hover { background: var(--color-surface-2); }
 html.theme-light .cf-chip.ghost .cf-dot { box-shadow: 0 0 6px rgba(22, 156, 70, 0.5); }
 
-/* ============================================================
-   Inspector — always-visible rail (Spotify-style)
-   Rail (44px) is permanent. Content area appears alongside when open.
-   ============================================================ */
-.inspector-sheet {
-  background: var(--color-surface);
-  border-radius: 10px;
-  border: 1px solid var(--hairline-2);
-  display: grid;
-  grid-template-rows: 1fr;
-  overflow: hidden;
-  min-width: 0;
-  box-shadow: var(--shadow-soft);
-  transition: width 240ms cubic-bezier(0.3, 0, 0, 1);
-}
-html:not(.theme-light) .inspector-sheet { background: var(--color-bg); border-color: var(--hairline-2); }
-
-/* Closed state: rail only (44px) */
-.inspector-sheet.closed { grid-template-columns: 44px; }
-/* Open state: rail + content */
-.inspector-sheet.open { grid-template-columns: 44px minmax(0, 1fr); }
-
-/* App grid widths must change with inspector state */
-.app:not(.rail):not(.insp-open) .app-main { grid-template-columns: 248px minmax(0, 1fr) 44px; }
-.app.rail:not(.insp-open)       .app-main { grid-template-columns: 56px  minmax(0, 1fr) 44px; }
-.app:not(.rail).insp-open       .app-main { grid-template-columns: 248px minmax(0, 1fr) 460px; }
-.app.rail.insp-open             .app-main { grid-template-columns: 56px  minmax(0, 1fr) 460px; }
-
-/* When closed, hide content area entirely so no flash */
-.inspector-sheet.closed .insp-content { display: none; }
-
-/* Force the sheet to NOT animate (was display:none before) */
-.app:not(.insp-open) .inspector-sheet { display: grid; }
+/* Inspector "sheet" wrapper removed in Phase 23 (right pane gone). The
+   tab body styles (.insp-head, .ftitle, etc.) still apply when an
+   inspector view is promoted to a main-area tab — see styles further
+   down for those. */
 
 .insp-handle {
   display: grid;
@@ -2339,43 +2396,58 @@ html:not(.theme-light) .inspector-sheet { background: var(--color-bg); border-co
 .file-preview .fp-line.muted .code { color: var(--color-text-faint); }
 
 /* ============================================================
-   LIGHT THEME — applied when html has class .theme-light
-   Elegant, minimal, paper-white. Inspired by Linear / Notion.
+   LIGHT THEME — Vercel dashboard inspired.
+   Single near-white surface, hairline-defined regions, no panel
+   elevation. Panels = same near-white as the canvas; the only
+   thing dividing them is a 1px border. CTAs go pure black/white.
    ============================================================ */
 .theme-light {
-  --color-bg:            #fafaf9;
+  --color-bg:            #ffffff;   /* panel face */
   --color-surface:       #ffffff;
-  --color-surface-2:     #f4f4f3;
-  --color-surface-3:     #ececeb;
-  --color-surface-4:     #e2e2e1;
-  --color-text:          #1a1a1a;
+  --color-surface-2:     #f4f4f5;   /* hover / row highlight */
+  --color-surface-3:     #ececed;   /* active / pressed */
+  --color-surface-4:     #dcdce0;
+  --color-text:          #0a0a0a;
   --color-text-bright:   #000000;
-  --color-text-soft:     #2d2d2d;
-  --color-text-muted:    #5a5a5a;
-  --color-text-faint:    #9a9a9a;
+  --color-text-soft:     #1f1f1f;
+  --color-text-muted:    #6f6f6f;
+  --color-text-faint:    #9f9fa3;
   --color-text-on-accent:#ffffff;
-  --color-border:        #e8e8e7;
-  --color-border-soft:   #c8c8c7;
-  --color-divider:       #ebebea;
-  --color-accent:        #169c46;
-  --color-accent-border: #138a3f;
-  --color-accent-press:  #0d7c34;
-  --color-negative:      #d63848;
-  --color-warning:       #d97706;
-  --color-info:          #2563eb;
-  --shadow-card:         rgba(15, 15, 15, 0.05) 0 1px 0, rgba(15, 15, 15, 0.05) 0 4px 12px;
-  --shadow-dialog:       rgba(15, 15, 15, 0.08) 0 1px 0, rgba(15, 15, 15, 0.1) 0 12px 32px;
+  --color-border:        #e7e7e9;   /* the Vercel hairline */
+  --color-border-soft:   #d4d4d6;
+  --color-app-divider:   #e7e7e9;   /* matches border — visible thin lines on light */
+  --color-divider:       #ececed;
+  --color-accent:        #15883e;
+  --color-accent-border: #117134;
+  --color-accent-press:  #0c5d2a;
+  /* CTAs in light are black-on-white. Set as a separate token so dark
+     mode keeps its accent CTA unchanged. */
+  --color-cta:           #000000;
+  --color-cta-hover:     #222222;
+  --color-cta-text:      #ffffff;
+  --color-negative:      #c8202b;
+  --color-warning:       #b25c0d;
+  --color-info:          #0064d0;
+  /* Vercel uses no card shadows in light. Borders carry all elevation. */
+  --shadow-card:         none;
+  --shadow-dialog:       0 1px 0 rgba(0, 0, 0, 0.04), 0 16px 40px -6px rgba(0, 0, 0, 0.14);
 }
 
-html.theme-light, html.theme-light body { background: #f0efed; }
+/* Body / canvas: pure off-white. Panels are the same colour — no raised
+   cards, just hairline-bordered regions. */
+html.theme-light, html.theme-light body { background: #fafafa; }
+html.theme-light .app { background: #fafafa; }
 
-/* App background gets a faint warm tint */
-html.theme-light .app { background: #ebeae7; }
-
-/* Panels: white surface with hairline borders */
-html.theme-light .panel { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 10px; }
+/* Panels: same near-white as the canvas — the 1px grid gap in .app /
+   .app-main does the dividing. No border, no radius, no shadow. */
+html.theme-light .panel {
+  background: var(--color-surface);
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+}
 html.theme-light .chat { background: var(--color-surface); }
-html.theme-light .inspector-sheet { background: var(--color-surface); border-color: var(--color-border); }
+/* `html.theme-light .inspector-sheet` removed — sheet itself is gone. */
 
 /* Hairline borders inside panels — was #1c1c1c (dark hairline) */
 html.theme-light .chat-tabs,
@@ -2565,7 +2637,15 @@ html.theme-light .composer-input { color: var(--color-text); }
 html.theme-light .composer-fade {
   background: linear-gradient(180deg, rgba(255,255,255,0) 0%, var(--color-surface) 50%);
 }
-html.theme-light .send-btn { background: var(--color-accent); color: #fff; }
+/* Vercel CTAs: pure black on white. The accent is reserved for live /
+   running indicators so the eye separates "agent is doing something"
+   from "this is the primary action". */
+html.theme-light .send-btn {
+  background: var(--color-cta);
+  color: var(--color-cta-text);
+}
+html.theme-light .send-btn:hover { background: var(--color-cta-hover); }
+html.theme-light .send-btn:active { background: var(--color-cta); }
 html.theme-light .send-btn:disabled { background: var(--color-surface-3); color: var(--color-text-faint); }
 
 /* Inspector */
@@ -2631,14 +2711,28 @@ html.theme-light .file-preview .fp-line .ln { color: var(--color-text-faint); }
    ============================================================ */
 .chat-topbar {
   display: flex;
-  align-items: end;
+  align-items: center;
   gap: 4px;
-  padding: 8px 16px 0 16px;
+  /* Was `8px 16px 0 16px` + min-height 44 — the top padding left a
+     visible empty band above the tab. Now zero top padding, the tab
+     row hugs the panel edge, and on macOS the strip doubles as the
+     window drag region. */
+  padding: 0 16px;
   background: var(--color-bg);
-  border-bottom: 1px solid #1c1c1c;
+  border-bottom: 1px solid var(--color-app-divider);
   flex-shrink: 0;
   z-index: 5;
-  min-height: 44px;
+  min-height: 36px;
+  -webkit-app-region: drag;
+  --wails-draggable: drag;
+}
+/* Tabs / buttons inside the drag region must opt out so clicks work. */
+.chat-topbar .chat-tab,
+.chat-topbar .topbar-tabs button,
+.chat-topbar .tab-close,
+.chat-topbar .tab-new {
+  -webkit-app-region: no-drag;
+  --wails-draggable: no-drag;
 }
 .topbar-divider { display: none; }
 .topbar-tabs {
@@ -2950,87 +3044,9 @@ html.theme-light .slash-panel { background: var(--color-surface); border-color: 
 html.theme-light .slash-row:hover, html.theme-light .slash-row:first-of-type { background: var(--color-surface-2); }
 html.theme-light .slash-hint { background: var(--color-surface-2); }
 
-/* ============================================================
-   Inspector — mini-rail (icon column on left of content)
-   ============================================================ */
-.inspector-sheet { display: grid; }
-.app.insp-open .inspector-sheet {
-  grid-template-columns: 44px minmax(0, 1fr);
-  grid-template-rows: 1fr;
-}
-
-.insp-rail {
-  background: var(--color-bg);
-  border-right: 1px solid var(--hairline-2);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 8px 0;
-  gap: 2px;
-  grid-row: 1 / -1;
-}
-.insp-rail-btn {
-  width: 36px; height: 36px;
-  background: transparent;
-  border: none;
-  color: var(--color-text-muted);
-  cursor: pointer;
-  display: grid; place-items: center;
-  border-radius: 8px;
-  position: relative;
-  transition: background 120ms, color 120ms;
-}
-.insp-rail-btn:hover { background: var(--color-surface); color: var(--color-text); }
-.insp-rail-btn.active {
-  background: var(--color-surface-2);
-  color: var(--color-text);
-}
-.insp-rail-btn.active::before {
-  content: "";
-  position: absolute;
-  left: -6px;
-  top: 8px;
-  bottom: 8px;
-  width: 3px;
-  background: var(--color-accent);
-  border-radius: 99px;
-}
-.insp-rail-btn .rail-badge {
-  position: absolute;
-  top: 4px;
-  right: 4px;
-  min-width: 14px;
-  height: 14px;
-  padding: 0 4px;
-  background: var(--color-accent);
-  color: #000;
-  font-family: var(--font-ui);
-  font-size: 9px;
-  font-weight: 800;
-  border-radius: 99px;
-  display: grid;
-  place-items: center;
-  border: 2px solid var(--color-bg);
-}
-.insp-rail-spacer { flex: 1; }
-.insp-rail-bottom {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-}
-
-/* The right side (content) — remove the old top tab bar since it's on the rail now */
-.insp-content {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  min-height: 0;
-}
-html.theme-light .insp-rail { background: var(--color-surface); border-right-color: var(--color-border); }
-html.theme-light .insp-rail-btn:hover { background: var(--color-surface-2); }
-html.theme-light .insp-rail-btn.active { background: var(--color-surface-2); color: var(--color-text); }
-html.theme-light .insp-rail-btn .rail-badge { background: var(--color-accent); color: #fff; border-color: var(--color-surface); }
+/* Inspector mini-rail removed in Phase 23 — the right pane is gone.
+   Tab body styles (.insp-head, .ftitle, etc.) live elsewhere and still
+   apply when an inspector view is opened as a main-area tab. */
 html.theme-light .panel-scroll { scrollbar-color: #cdcdcc transparent; }
 html.theme-light .panel-scroll::-webkit-scrollbar-thumb {
   background: #d4d4d3;

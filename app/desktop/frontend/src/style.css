@@ -40,12 +40,8 @@ body {
   min-height: var(--app-min-height);
 }
 
-/* Chat column has a real floor — otherwise the composer (820px) overflows
-   the column once sidebar + inspector are both expanded. */
-.app:not(.rail):not(.insp-open) .app-main { grid-template-columns: 248px minmax(560px, 1fr) 44px; }
-.app.rail:not(.insp-open)       .app-main { grid-template-columns: 56px  minmax(560px, 1fr) 44px; }
-.app:not(.rail).insp-open       .app-main { grid-template-columns: 248px minmax(560px, 1fr) 460px; }
-.app.rail.insp-open             .app-main { grid-template-columns: 56px  minmax(560px, 1fr) 460px; }
+/* Legacy 3-column grid (sidebar + chat + inspector) removed in Phase 23
+   — inspector is gone; only sidebar + chat remain, see styles/app.css. */
 
 /* Default to dark theme. */
 html { color-scheme: dark; }
@@ -58,30 +54,185 @@ html.theme-light { color-scheme: light; }
    ============================================================ */
 .sidebar       { padding-top: 36px; }
 
-/* "Open in main" button rendered at the top of every inspector tab body.
-   Floats top-right inside the .insp-content container. */
-.insp-promote {
+/* `.insp-promote` removed — the button lived inside InspectorPanel, and
+   InspectorPanel is gone now that inspector views always open as
+   main-area tabs. */
+
+/* ============================================================
+   Polish pass — refined motion, focus rings, ambient gradients,
+   pulse animations, gradient avatars, backdrop blurs. CSS-only.
+   ============================================================ */
+
+/* Smooth, consistent transitions everywhere. Variable rather than
+   inline so we can re-tune all interactive surfaces in one place. */
+:root {
+  --polish-fast: 120ms cubic-bezier(0.4, 0, 0.2, 1);
+  --polish-med:  220ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Pulse for "live" status indicators (sb-dot.live, etc.). Halo + tiny
+   scale — reads as a heartbeat without being a UI distraction. */
+@keyframes lyra-pulse {
+  0%, 100% { transform: scale(1);    box-shadow: 0 0 0 0 currentColor; }
+  50%      { transform: scale(1.18); box-shadow: 0 0 0 4px transparent; }
+}
+.sb-run.live .sb-dot,
+.sb-run.live .status-dot {
+  background: var(--color-accent);
+  color: var(--color-accent);
+  animation: lyra-pulse 1.6s ease-in-out infinite;
+}
+
+/* User avatar gets a subtle radial gradient (was flat solid). Mirrors
+   the message-block avatar treatment so the user-card reads as a
+   richer surface. */
+.user-avatar {
+  background: radial-gradient(
+    circle at 30% 30%,
+    color-mix(in srgb, var(--color-accent) 60%, transparent) 0%,
+    var(--color-accent) 70%
+  );
+  color: var(--color-text-on-accent);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+html.theme-light .user-avatar {
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.04);
+}
+
+/* Composer focus ring — stronger accent halo when the textarea is
+   active, so users can clearly see "I'm typing here". */
+.composer:focus-within {
+  border-color: color-mix(in srgb, var(--color-accent) 40%, var(--hairline-3)) !important;
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--color-accent) 14%, transparent),
+    0 1px 0 rgba(255, 255, 255, 0.02) inset,
+    0 6px 24px -8px rgba(0, 0, 0, 0.45) !important;
+  transition: border-color var(--polish-med), box-shadow var(--polish-med);
+}
+html.theme-light .composer:focus-within {
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--color-accent) 12%, transparent),
+    0 6px 22px -6px rgba(0, 0, 0, 0.1) !important;
+}
+
+/* Overlays get a real backdrop-blur. The settings modal is gone but
+   the command palette and toaster benefit from the same treatment. */
+.cmdk-backdrop {
+  backdrop-filter: blur(8px) saturate(140%);
+  -webkit-backdrop-filter: blur(8px) saturate(140%);
+  background: color-mix(in srgb, #000 35%, transparent);
+}
+html.theme-light .cmdk-backdrop {
+  background: color-mix(in srgb, #fff 55%, transparent);
+}
+
+/* Command palette card itself: slight inner highlight in dark mode so
+   it pops off the blurred backdrop. */
+.cmdk {
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.04) inset,
+    0 24px 60px -12px rgba(0, 0, 0, 0.55),
+    0 4px 12px -2px rgba(0, 0, 0, 0.35);
+}
+html.theme-light .cmdk {
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.7) inset,
+    0 24px 60px -16px rgba(0, 0, 0, 0.18),
+    0 4px 12px -2px rgba(0, 0, 0, 0.08);
+}
+
+/* Session row — active row gets a softer inset gradient instead of a
+   solid grey block. Reads more "premium app shelf" than "menu list". */
+.session-row {
+  transition: background var(--polish-fast), color var(--polish-fast);
+}
+.session-row.active {
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--color-accent) 10%, transparent) 0%,
+    transparent 60%
+  ),
+  var(--color-surface-2);
+}
+html.theme-light .session-row.active {
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--color-accent) 8%, transparent) 0%,
+    transparent 60%
+  ),
+  var(--color-surface-2);
+}
+
+/* Sidebar gets a barely-there gradient at the top — adds depth without
+   shouting. Layered behind the brand row. */
+.sidebar::before {
+  content: "";
   position: absolute;
-  top: 8px;
-  right: 14px;
-  z-index: 2;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 3px 8px;
-  background: var(--color-surface);
-  border: 1px solid var(--hairline-2);
-  color: var(--color-text-muted);
-  font-size: 10.5px;
-  border-radius: 5px;
-  cursor: pointer;
-  transition: background 120ms, color 120ms;
+  inset: 0 0 auto 0;
+  height: 120px;
+  background: radial-gradient(
+    ellipse at 50% 0%,
+    color-mix(in srgb, var(--color-accent) 8%, transparent) 0%,
+    transparent 70%
+  );
+  pointer-events: none;
+  z-index: 0;
 }
-.insp-promote:hover {
-  background: var(--color-surface-2);
-  color: var(--color-text);
+.sidebar > * { position: relative; z-index: 1; }
+html.theme-light .sidebar::before {
+  background: radial-gradient(
+    ellipse at 50% 0%,
+    color-mix(in srgb, var(--color-accent) 5%, transparent) 0%,
+    transparent 70%
+  );
 }
-.insp-content { position: relative; }
+
+/* Chat-tab active state — already has a 2px bottom underline. Add a
+   subtle gradient inside the tab body for a touch of dimensionality. */
+.chat-tab.active {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--color-accent) 6%, transparent),
+    transparent 70%
+  ),
+  var(--color-surface) !important;
+}
+html.theme-light .chat-tab.active {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--color-accent) 5%, transparent),
+    transparent 70%
+  ),
+  var(--color-surface) !important;
+}
+
+/* Tool cards — running state already has a rotating border. Give the
+   idle/selected card a slightly more refined hover lift. */
+.tool-card {
+  transition:
+    background var(--polish-fast),
+    border-color var(--polish-fast),
+    transform var(--polish-fast);
+}
+.tool-card:hover { transform: translateY(-1px); }
+.tool-card.selected { transform: none; }
+
+/* Buttons — IconButton and friends. Consistent radius + smooth
+   transitions. Picks up where the per-component styles don't. */
+.icon-btn,
+.pill-btn,
+.user-action,
+.tab-new,
+.add {
+  transition:
+    background var(--polish-fast),
+    color var(--polish-fast),
+    transform var(--polish-fast);
+}
+.icon-btn:active,
+.pill-btn:active,
+.tab-new:active,
+.user-action:active { transform: scale(0.96); }
 .sidebar .brand{ padding-top: 0; }
 .sidebar.rail  { padding-top: 36px; }
 
@@ -152,28 +303,15 @@ html.theme-light { color-scheme: light; }
 }
 
 /* ============================================================
-   Settings modal — full-screen overlay, two-column layout
-   (rail of panes + active content).
+   Settings page — opens as a main-area workspace tab. Two-column
+   layout: rail of panes on the left, active pane content on the right.
+   The chat-tab strip handles open/close so there's no modal chrome.
    ============================================================ */
-.settings-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 90;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(0, 0, 0, 0.55);
-  backdrop-filter: blur(4px);
-}
-.settings-modal {
+.settings-page {
   display: grid;
   grid-template-columns: 200px 1fr;
-  width: min(880px, 92vw);
-  height: min(620px, 86vh);
-  background: var(--color-surface);
-  border: 1px solid var(--hairline-3);
-  border-radius: 14px;
-  box-shadow: var(--shadow-dialog);
+  width: 100%;
+  height: 100%;
   overflow: hidden;
 }
 .settings-rail {
@@ -228,17 +366,7 @@ html.theme-light { color-scheme: light; }
   font-size: 16px;
   font-weight: 700;
 }
-.settings-close {
-  display: grid;
-  place-items: center;
-  width: 28px; height: 28px;
-  border-radius: 50%;
-  background: transparent;
-  border: none;
-  color: var(--color-text-muted);
-  cursor: pointer;
-}
-.settings-close:hover { background: var(--color-surface-2); color: var(--color-text); }
+/* .settings-close removed — the chat tab strip handles close now. */
 .settings-content-body {
   flex: 1;
   min-height: 0;

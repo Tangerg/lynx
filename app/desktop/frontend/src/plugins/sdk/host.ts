@@ -7,6 +7,7 @@
 
 import { api } from "@/lib/http";
 import type { ContentBlockKind } from "@/protocol/agui/viewState";
+import { useUIStore } from "@/state/uiStore";
 import {
   getConfig,
   hasConfig,
@@ -152,15 +153,10 @@ export function createHost(pluginName: string, sink: Disposable[]): Host {
         const tab = fromWorkspace
           ? { id, title: fromWorkspace.title, icon: fromWorkspace.icon }
           : { id, title: fromInspector!.label, icon: fromInspector!.icon };
-        // Lazy import to avoid a circular dependency between sdk → state.
-        import("@/state/uiStore").then(({ useUIStore }) => {
-          useUIStore.getState().openMainView(tab);
-        });
+        useUIStore.getState().openMainView(tab);
       },
       closeView(id: string): void {
-        import("@/state/uiStore").then(({ useUIStore }) => {
-          useUIStore.getState().closeMainView(id);
-        });
+        useUIStore.getState().closeMainView(id);
       },
     },
 

@@ -1,6 +1,6 @@
 import { Icon, IconButton, ScrollArea } from "@/components/common";
 import { FilesChanged } from "@/components/inspector/FilesChanged";
-import { useInspector } from "@/components/inspector/InspectorPanel";
+import { useInspector } from "@/components/inspector/InspectorContext";
 import { useFilesChanged } from "@/lib/queries";
 import { definePlugin } from "@/plugins/sdk";
 

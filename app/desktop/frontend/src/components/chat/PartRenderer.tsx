@@ -1,8 +1,15 @@
 import type { ContentBlock, PlanItem, ToolCall } from "@/protocol/agui/viewState";
 import { ToolCard } from "@/components/tools/ToolCard";
 import { PluginContentBlock } from "@/plugins/PluginContentBlock";
+import { openInspectorFromTool } from "@/state/inspectorRouting";
 import { renderInline } from "@/utils/inline";
 
+/**
+ * Per-render bag of data threaded into block renderers. Kept narrow —
+ * UI-state knobs (selected tool, expanded set, plan) flow through here.
+ * The "open inspector" action used to ride along too; it moved to
+ * `openInspectorFromTool` so the prop never has to be threaded down.
+ */
 export type PartCtx = {
   plan: PlanItem[];
   toolCalls: Record<string, ToolCall>;
@@ -10,7 +17,6 @@ export type PartCtx = {
   onSelectTool: (id: string) => void;
   expandedIds: Set<string>;
   onToggleExpand: (id: string) => void;
-  onOpenInspector: (id: string) => void;
 };
 
 /**
@@ -51,7 +57,7 @@ export function renderPart(block: ContentBlock, key: number, ctx: PartCtx) {
             ctx.onSelectTool(block.toolCallId);
             ctx.onToggleExpand(block.toolCallId);
           }}
-          onOpenInspector={() => ctx.onOpenInspector(block.toolCallId)}
+          onOpenInspector={() => openInspectorFromTool(block.toolCallId)}
         />
       );
     }
