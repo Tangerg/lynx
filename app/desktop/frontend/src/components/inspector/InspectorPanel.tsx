@@ -1,10 +1,10 @@
-import { createContext, useContext } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { Icon, Panel, type IconName } from "@/components/common";
 import { slideRight } from "@/lib/motion";
 import { PluginBoundary } from "@/plugins/PluginBoundary";
 import { useInspectorTabs } from "@/plugins/sdk";
 import { useUIStore } from "@/state/uiStore";
+import { InspectorProvider } from "./InspectorContext";
 import { InspectorRail, type RailBtn } from "./InspectorRail";
 
 type Props = {
@@ -67,7 +67,7 @@ export function InspectorPanel({
         onClose={onClose}
       />
 
-      <InspectorContext.Provider value={{ activeFile, onSelectFile, onSwitchTab: onTab }}>
+      <InspectorProvider value={{ activeFile, onSelectFile, onSwitchTab: onTab }}>
         <div className="insp-content">
           {active && (
             <button
@@ -91,26 +91,12 @@ export function InspectorPanel({
             )}
           </AnimatePresence>
         </div>
-      </InspectorContext.Provider>
+      </InspectorProvider>
     </Panel>
   );
 }
 
-// ---- Shared context for inspector tabs ------------------------------------
-//
-// Tabs that need the "currently-focused file" identifier (diff/files) read
-// it from here; tabs that don't simply ignore it.
-
-export type InspectorContextValue = {
-  activeFile: string;
-  onSelectFile: (path: string) => void;
-  onSwitchTab: (id: string) => void;
-};
-
-const InspectorContext = createContext<InspectorContextValue | null>(null);
-
-export function useInspector(): InspectorContextValue {
-  const ctx = useContext(InspectorContext);
-  if (!ctx) throw new Error("useInspector must be used inside an InspectorPanel");
-  return ctx;
-}
+// Re-export the hook so existing `from "@/components/inspector/InspectorPanel"`
+// imports inside inspector tabs keep working without churn.
+export { useInspector } from "./InspectorContext";
+export type { InspectorContextValue } from "./InspectorContext";
