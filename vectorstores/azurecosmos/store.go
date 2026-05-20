@@ -16,6 +16,7 @@ import (
 	"github.com/Tangerg/lynx/core/vectorstore/filter/ast"
 	"github.com/Tangerg/lynx/pkg/math"
 	"github.com/Tangerg/lynx/vectorstores/internal/ident"
+	"github.com/Tangerg/lynx/vectorstores/internal/tracing"
 )
 
 const Provider = "AzureCosmosDB"
@@ -155,12 +156,16 @@ func NewStore(config *StoreConfig) (*Store, error) {
 }
 
 // Create embeds documents and upserts them.
-func (s *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) error {
-	if err := req.Validate(); err != nil {
+func (s *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) (err error) {
+	if err = req.Validate(); err != nil {
 		return fmt.Errorf("azurecosmos: invalid create request: %w", err)
 	}
 
-	batchedDocs, err := s.documentBatcher.Batch(ctx, req.Documents)
+	ctx, span := tracing.StartCreate(ctx, "azurecosmos", len(req.Documents))
+	defer func() { tracing.Finish(span, err) }()
+
+	var batchedDocs [][]*document.Document
+	batchedDocs, err = s.documentBatcher.Batch(ctx, req.Documents)
 	if err != nil {
 		return fmt.Errorf("azurecosmos: failed to batch documents: %w", err)
 	}
@@ -198,12 +203,16 @@ func (s *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) erro
 }
 
 // Retrieve runs a VectorDistance-ordered query.
-func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) ([]*document.Document, error) {
-	if err := req.Validate(); err != nil {
+func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) (docs []*document.Document, err error) {
+	if err = req.Validate(); err != nil {
 		return nil, fmt.Errorf("azurecosmos: invalid retrieval request: %w", err)
 	}
 
-	vector, _, err := s.embeddingClient.
+	ctx, span := tracing.StartRetrieve(ctx, "azurecosmos", req.TopK, req.MinScore)
+	defer func() { tracing.RecordRetrieveResult(span, err, len(docs)) }()
+
+	var vector []float64
+	vector, _, err = s.embeddingClient.
 		EmbedWithText(req.Query).
 		Call().
 		Embedding(ctx)
@@ -243,7 +252,7 @@ func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 		QueryParameters: queryParams,
 	})
 
-	docs := make([]*document.Document, 0, req.TopK)
+	docs = make([]*document.Document, 0, req.TopK)
 	for pager.More() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
@@ -263,10 +272,13 @@ func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 }
 
 // Delete removes documents matching the filter expression.
-func (s *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) error {
-	if err := req.Validate(); err != nil {
+func (s *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) (err error) {
+	if err = req.Validate(); err != nil {
 		return fmt.Errorf("azurecosmos: invalid delete request: %w", err)
 	}
+
+	ctx, span := tracing.StartDelete(ctx, "azurecosmos")
+	defer func() { tracing.Finish(span, err) }()
 
 	predicate, params, err := s.buildFilter(req.Filter)
 	if err != nil {

@@ -19,6 +19,7 @@ import (
 	"github.com/Tangerg/lynx/core/vectorstore/filter/ast"
 	"github.com/Tangerg/lynx/pkg/math"
 	"github.com/Tangerg/lynx/vectorstores/internal/ident"
+	"github.com/Tangerg/lynx/vectorstores/internal/tracing"
 )
 
 const Provider = "Typesense"
@@ -171,12 +172,16 @@ func (s *Store) initialize(ctx context.Context, initSchema bool) error {
 }
 
 // Create embeds documents and imports them via the upsert action.
-func (s *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) error {
-	if err := req.Validate(); err != nil {
+func (s *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) (err error) {
+	if err = req.Validate(); err != nil {
 		return fmt.Errorf("typesense: invalid create request: %w", err)
 	}
 
-	batchedDocs, err := s.documentBatcher.Batch(ctx, req.Documents)
+	ctx, span := tracing.StartCreate(ctx, "typesense", len(req.Documents))
+	defer func() { tracing.Finish(span, err) }()
+
+	var batchedDocs [][]*document.Document
+	batchedDocs, err = s.documentBatcher.Batch(ctx, req.Documents)
 	if err != nil {
 		return fmt.Errorf("typesense: failed to batch documents: %w", err)
 	}
@@ -215,12 +220,16 @@ func (s *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) erro
 }
 
 // Retrieve runs a vector search via the documents.Search API.
-func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) ([]*document.Document, error) {
-	if err := req.Validate(); err != nil {
+func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) (docs []*document.Document, err error) {
+	if err = req.Validate(); err != nil {
 		return nil, fmt.Errorf("typesense: invalid retrieval request: %w", err)
 	}
 
-	vector, _, err := s.embeddingClient.
+	ctx, span := tracing.StartRetrieve(ctx, "typesense", req.TopK, req.MinScore)
+	defer func() { tracing.RecordRetrieveResult(span, err, len(docs)) }()
+
+	var vector []float64
+	vector, _, err = s.embeddingClient.
 		EmbedWithText(req.Query).
 		Call().
 		Embedding(ctx)
@@ -252,7 +261,7 @@ func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 		return nil, nil
 	}
 
-	docs := make([]*document.Document, 0, len(*result.Hits))
+	docs = make([]*document.Document, 0, len(*result.Hits))
 	for _, hit := range *result.Hits {
 		doc := toDocument(hit)
 		if doc.Score < req.MinScore {
@@ -264,10 +273,13 @@ func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 }
 
 // Delete removes documents matching the filter expression.
-func (s *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) error {
-	if err := req.Validate(); err != nil {
+func (s *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) (err error) {
+	if err = req.Validate(); err != nil {
 		return fmt.Errorf("typesense: invalid delete request: %w", err)
 	}
+
+	ctx, span := tracing.StartDelete(ctx, "typesense")
+	defer func() { tracing.Finish(span, err) }()
 
 	filterBy, err := s.buildFilter(req.Filter)
 	if err != nil {

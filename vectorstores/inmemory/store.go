@@ -19,6 +19,7 @@ import (
 	"github.com/Tangerg/lynx/core/document"
 	"github.com/Tangerg/lynx/core/model/embedding"
 	"github.com/Tangerg/lynx/core/vectorstore"
+	"github.com/Tangerg/lynx/vectorstores/internal/tracing"
 )
 
 // StoreConfig configures a [Store].
@@ -99,10 +100,13 @@ func (s *Store) Len() int {
 // document must have a non-empty ID (use [document.Document.ID] or
 // assign one before calling). Existing IDs are overwritten — this
 // mirrors the upsert semantics most vendor stores expose.
-func (s *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) error {
-	if err := req.Validate(); err != nil {
+func (s *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) (err error) {
+	if err = req.Validate(); err != nil {
 		return fmt.Errorf("inmemory.Store.Create: %w", err)
 	}
+
+	ctx, span := tracing.StartCreate(ctx, "inmemory", len(req.Documents))
+	defer func() { tracing.Finish(span, err) }()
 
 	texts := make([]string, 0, len(req.Documents))
 	for i, doc := range req.Documents {
@@ -115,7 +119,8 @@ func (s *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) erro
 		texts = append(texts, doc.Text)
 	}
 
-	embeddings, _, err := s.embedder.
+	var embeddings [][]float64
+	embeddings, _, err = s.embedder.
 		Embed().
 		WithTexts(texts).
 		Call().
@@ -139,12 +144,16 @@ func (s *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) erro
 // Retrieve embeds the query, scores every record by similarity, and
 // returns the top-K above MinScore. Filtering happens BEFORE scoring
 // to keep the cost O(filtered × dim) rather than O(all × dim).
-func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) ([]*document.Document, error) {
-	if err := req.Validate(); err != nil {
+func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) (out []*document.Document, err error) {
+	if err = req.Validate(); err != nil {
 		return nil, fmt.Errorf("inmemory.Store.Retrieve: %w", err)
 	}
 
-	query, _, err := s.embedder.
+	ctx, span := tracing.StartRetrieve(ctx, "inmemory", req.TopK, req.MinScore)
+	defer func() { tracing.RecordRetrieveResult(span, err, len(out)) }()
+
+	var query []float64
+	query, _, err = s.embedder.
 		Embed().
 		WithTexts([]string{req.Query}).
 		Call().
@@ -184,7 +193,7 @@ func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 	})
 
 	limit := min(req.TopK, len(candidates))
-	out := make([]*document.Document, 0, limit)
+	out = make([]*document.Document, 0, limit)
 	for i := range limit {
 		out = append(out, candidates[i].doc)
 	}
@@ -195,10 +204,13 @@ func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 // expression. The number of records actually removed is not reported
 // by the [vectorstore.Deleter] contract; call [Store.Len] before and
 // after if you need the delta.
-func (s *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) error {
-	if err := req.Validate(); err != nil {
+func (s *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) (err error) {
+	if err = req.Validate(); err != nil {
 		return fmt.Errorf("inmemory.Store.Delete: %w", err)
 	}
+
+	_, span := tracing.StartDelete(ctx, "inmemory")
+	defer func() { tracing.Finish(span, err) }()
 
 	s.mu.Lock()
 	defer s.mu.Unlock()

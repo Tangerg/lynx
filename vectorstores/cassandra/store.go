@@ -18,6 +18,7 @@ import (
 	"github.com/Tangerg/lynx/pkg/math"
 	"github.com/Tangerg/lynx/vectorstores/internal/docio"
 	"github.com/Tangerg/lynx/vectorstores/internal/ident"
+	"github.com/Tangerg/lynx/vectorstores/internal/tracing"
 )
 
 const Provider = "Cassandra"
@@ -293,12 +294,16 @@ func firstLine(s string) string {
 }
 
 // Create embeds documents and inserts them.
-func (s *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) error {
-	if err := req.Validate(); err != nil {
+func (s *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) (err error) {
+	if err = req.Validate(); err != nil {
 		return fmt.Errorf("cassandra: invalid create request: %w", err)
 	}
 
-	batchedDocs, err := s.documentBatcher.Batch(ctx, req.Documents)
+	ctx, span := tracing.StartCreate(ctx, "cassandra", len(req.Documents))
+	defer func() { tracing.Finish(span, err) }()
+
+	var batchedDocs [][]*document.Document
+	batchedDocs, err = s.documentBatcher.Batch(ctx, req.Documents)
 	if err != nil {
 		return fmt.Errorf("cassandra: failed to batch documents: %w", err)
 	}
@@ -352,12 +357,16 @@ func (s *Store) insertOne(ctx context.Context, id string, doc *document.Document
 }
 
 // Retrieve runs an ANN query using the configured similarity function.
-func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) ([]*document.Document, error) {
-	if err := req.Validate(); err != nil {
+func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) (docs []*document.Document, err error) {
+	if err = req.Validate(); err != nil {
 		return nil, fmt.Errorf("cassandra: invalid retrieval request: %w", err)
 	}
 
-	vector, _, err := s.embeddingClient.
+	ctx, span := tracing.StartRetrieve(ctx, "cassandra", req.TopK, req.MinScore)
+	defer func() { tracing.RecordRetrieveResult(span, err, len(docs)) }()
+
+	var vector []float64
+	vector, _, err = s.embeddingClient.
 		EmbedWithText(req.Query).
 		Call().
 		Embedding(ctx)
@@ -394,7 +403,7 @@ func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 	iter := s.session.Query(stmt, whereArgs...).WithContext(ctx).Iter()
 	defer iter.Close()
 
-	docs := make([]*document.Document, 0, req.TopK)
+	docs = make([]*document.Document, 0, req.TopK)
 	scanDest := s.makeScanDestinations()
 	for iter.Scan(scanDest...) {
 		doc, err := s.scanDestToDocument(scanDest, req.MinScore)
@@ -455,10 +464,13 @@ func (s *Store) scanDestToDocument(dest []any, minScore float64) (*document.Docu
 // equality clause; the SAI path supports it only via secondary
 // indexes. To stay portable we look up matching primary keys first,
 // then issue per-row DELETEs.
-func (s *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) error {
-	if err := req.Validate(); err != nil {
+func (s *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) (err error) {
+	if err = req.Validate(); err != nil {
 		return fmt.Errorf("cassandra: invalid delete request: %w", err)
 	}
+
+	ctx, span := tracing.StartDelete(ctx, "cassandra")
+	defer func() { tracing.Finish(span, err) }()
 
 	predicate, args, err := s.buildFilter(req.Filter)
 	if err != nil {

@@ -17,6 +17,7 @@ import (
 	"github.com/Tangerg/lynx/core/document"
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter/ast"
+	"github.com/Tangerg/lynx/vectorstores/internal/tracing"
 )
 
 const (
@@ -119,11 +120,16 @@ func NewStore(config *StoreConfig) (*Store, error) {
 // Create uploads documents to the corpus via Vectara's index API. The
 // service performs its own embedding internally, so no embedding
 // client is required here.
-func (s *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) error {
-	if err := req.Validate(); err != nil {
+func (s *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) (err error) {
+	if err = req.Validate(); err != nil {
 		return fmt.Errorf("vectara: invalid create request: %w", err)
 	}
-	batchedDocs, err := s.documentBatcher.Batch(ctx, req.Documents)
+
+	ctx, span := tracing.StartCreate(ctx, "vectara", len(req.Documents))
+	defer func() { tracing.Finish(span, err) }()
+
+	var batchedDocs [][]*document.Document
+	batchedDocs, err = s.documentBatcher.Batch(ctx, req.Documents)
 	if err != nil {
 		return fmt.Errorf("vectara: failed to batch documents: %w", err)
 	}
@@ -154,10 +160,13 @@ func (s *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) erro
 }
 
 // Retrieve runs a Vectara semantic search.
-func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) ([]*document.Document, error) {
-	if err := req.Validate(); err != nil {
+func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) (docs []*document.Document, err error) {
+	if err = req.Validate(); err != nil {
 		return nil, fmt.Errorf("vectara: invalid retrieval request: %w", err)
 	}
+
+	ctx, span := tracing.StartRetrieve(ctx, "vectara", req.TopK, req.MinScore)
+	defer func() { tracing.RecordRetrieveResult(span, err, len(docs)) }()
 
 	searchOpts := map[string]any{
 		"limit": req.TopK,
@@ -194,7 +203,7 @@ func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 		return nil, fmt.Errorf("vectara: decode query response: %w", err)
 	}
 
-	docs := make([]*document.Document, 0, len(parsed.SearchResults))
+	docs = make([]*document.Document, 0, len(parsed.SearchResults))
 	for _, hit := range parsed.SearchResults {
 		if hit.Score < req.MinScore {
 			continue
@@ -212,10 +221,14 @@ func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 // Delete removes documents matching the filter via Vectara's
 // document-level delete endpoint. Vectara has no bulk filter-delete,
 // so we enumerate ids first then DELETE one-by-one.
-func (s *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) error {
-	if err := req.Validate(); err != nil {
+func (s *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) (err error) {
+	if err = req.Validate(); err != nil {
 		return fmt.Errorf("vectara: invalid delete request: %w", err)
 	}
+
+	ctx, span := tracing.StartDelete(ctx, "vectara")
+	defer func() { tracing.Finish(span, err) }()
+
 	filterFragment, err := s.buildFilter(req.Filter)
 	if err != nil {
 		return err

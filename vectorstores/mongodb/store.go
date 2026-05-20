@@ -16,6 +16,7 @@ import (
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter/ast"
 	"github.com/Tangerg/lynx/pkg/math"
+	"github.com/Tangerg/lynx/vectorstores/internal/tracing"
 )
 
 const Provider = "MongoDB"
@@ -247,12 +248,16 @@ func (s *Store) createSearchIndex(ctx context.Context) error {
 }
 
 // Create embeds documents and bulk-upserts them by _id.
-func (s *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) error {
-	if err := req.Validate(); err != nil {
+func (s *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) (err error) {
+	if err = req.Validate(); err != nil {
 		return fmt.Errorf("mongodb: invalid create request: %w", err)
 	}
 
-	batchedDocs, err := s.documentBatcher.Batch(ctx, req.Documents)
+	ctx, span := tracing.StartCreate(ctx, "mongodb", len(req.Documents))
+	defer func() { tracing.Finish(span, err) }()
+
+	var batchedDocs [][]*document.Document
+	batchedDocs, err = s.documentBatcher.Batch(ctx, req.Documents)
 	if err != nil {
 		return fmt.Errorf("mongodb: failed to batch documents: %w", err)
 	}
@@ -306,12 +311,16 @@ func (s *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) erro
 
 // Retrieve runs the $vectorSearch aggregation and returns the matching
 // documents above the configured MinScore threshold.
-func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) ([]*document.Document, error) {
-	if err := req.Validate(); err != nil {
+func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) (docs []*document.Document, err error) {
+	if err = req.Validate(); err != nil {
 		return nil, fmt.Errorf("mongodb: invalid retrieval request: %w", err)
 	}
 
-	vector, _, err := s.embeddingClient.
+	ctx, span := tracing.StartRetrieve(ctx, "mongodb", req.TopK, req.MinScore)
+	defer func() { tracing.RecordRetrieveResult(span, err, len(docs)) }()
+
+	var vector []float64
+	vector, _, err = s.embeddingClient.
 		EmbedWithText(req.Query).
 		Call().
 		Embedding(ctx)
@@ -355,7 +364,7 @@ func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 	}
 	defer cursor.Close(ctx)
 
-	docs := make([]*document.Document, 0, req.TopK)
+	docs = make([]*document.Document, 0, req.TopK)
 	for cursor.Next(ctx) {
 		var raw bson.M
 		if err := cursor.Decode(&raw); err != nil {
@@ -370,12 +379,16 @@ func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 }
 
 // Delete removes documents matching the filter expression.
-func (s *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) error {
-	if err := req.Validate(); err != nil {
+func (s *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) (err error) {
+	if err = req.Validate(); err != nil {
 		return fmt.Errorf("mongodb: invalid delete request: %w", err)
 	}
 
-	filter, err := s.buildFilter(req.Filter)
+	ctx, span := tracing.StartDelete(ctx, "mongodb")
+	defer func() { tracing.Finish(span, err) }()
+
+	var filter bson.M
+	filter, err = s.buildFilter(req.Filter)
 	if err != nil {
 		return err
 	}

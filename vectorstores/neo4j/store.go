@@ -16,6 +16,7 @@ import (
 	"github.com/Tangerg/lynx/core/vectorstore/filter/ast"
 	"github.com/Tangerg/lynx/pkg/math"
 	"github.com/Tangerg/lynx/vectorstores/internal/ident"
+	"github.com/Tangerg/lynx/vectorstores/internal/tracing"
 )
 
 const Provider = "Neo4j"
@@ -255,12 +256,16 @@ func (s *Store) write(ctx context.Context, work neo4j.ManagedTransactionWork) er
 }
 
 // Create embeds documents and upserts them as nodes.
-func (s *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) error {
-	if err := req.Validate(); err != nil {
+func (s *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) (err error) {
+	if err = req.Validate(); err != nil {
 		return fmt.Errorf("neo4j: invalid create request: %w", err)
 	}
 
-	batchedDocs, err := s.documentBatcher.Batch(ctx, req.Documents)
+	ctx, span := tracing.StartCreate(ctx, "neo4j", len(req.Documents))
+	defer func() { tracing.Finish(span, err) }()
+
+	var batchedDocs [][]*document.Document
+	batchedDocs, err = s.documentBatcher.Batch(ctx, req.Documents)
 	if err != nil {
 		return fmt.Errorf("neo4j: failed to batch documents: %w", err)
 	}
@@ -328,12 +333,16 @@ func (s *Store) documentProperties(doc *document.Document) map[string]any {
 
 // Retrieve calls db.index.vector.queryNodes and returns matching
 // documents above MinScore.
-func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) ([]*document.Document, error) {
-	if err := req.Validate(); err != nil {
+func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) (docs []*document.Document, err error) {
+	if err = req.Validate(); err != nil {
 		return nil, fmt.Errorf("neo4j: invalid retrieval request: %w", err)
 	}
 
-	vector, _, err := s.embeddingClient.
+	ctx, span := tracing.StartRetrieve(ctx, "neo4j", req.TopK, req.MinScore)
+	defer func() { tracing.RecordRetrieveResult(span, err, len(docs)) }()
+
+	var vector []float64
+	vector, _, err = s.embeddingClient.
 		EmbedWithText(req.Query).
 		Call().
 		Embedding(ctx)
@@ -369,7 +378,8 @@ func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 	session := s.session(ctx, neo4j.AccessModeRead)
 	defer session.Close(ctx)
 
-	result, err := session.ExecuteRead(ctx, func(tx neo4j.ManagedTransaction) (any, error) {
+	var result any
+	result, err = session.ExecuteRead(ctx, func(tx neo4j.ManagedTransaction) (any, error) {
 		res, err := tx.Run(ctx, cypher, params)
 		if err != nil {
 			return nil, err
@@ -378,20 +388,21 @@ func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 		if err != nil {
 			return nil, err
 		}
-		docs := make([]*document.Document, 0, len(records))
+		out := make([]*document.Document, 0, len(records))
 		for _, rec := range records {
 			doc, err := s.recordToDocument(rec)
 			if err != nil {
 				return nil, err
 			}
-			docs = append(docs, doc)
+			out = append(out, doc)
 		}
-		return docs, nil
+		return out, nil
 	})
 	if err != nil {
 		return nil, fmt.Errorf("neo4j: vector query: %w", err)
 	}
-	return result.([]*document.Document), nil
+	docs = result.([]*document.Document)
+	return docs, nil
 }
 
 func (s *Store) recordToDocument(rec *neo4j.Record) (*document.Document, error) {
@@ -449,10 +460,13 @@ func (s *Store) recordToDocument(rec *neo4j.Record) (*document.Document, error) 
 }
 
 // Delete removes nodes matching the filter expression.
-func (s *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) error {
-	if err := req.Validate(); err != nil {
+func (s *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) (err error) {
+	if err = req.Validate(); err != nil {
 		return fmt.Errorf("neo4j: invalid delete request: %w", err)
 	}
+
+	ctx, span := tracing.StartDelete(ctx, "neo4j")
+	defer func() { tracing.Finish(span, err) }()
 
 	predicate, params, err := s.buildPredicate(req.Filter)
 	if err != nil {

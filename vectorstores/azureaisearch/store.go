@@ -19,6 +19,7 @@ import (
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter/ast"
 	"github.com/Tangerg/lynx/pkg/math"
+	"github.com/Tangerg/lynx/vectorstores/internal/tracing"
 )
 
 const (
@@ -167,12 +168,16 @@ func NewStore(config *StoreConfig) (*Store, error) {
 
 // Create embeds documents and uploads them via the
 // /indexes/<index>/docs/index endpoint.
-func (s *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) error {
-	if err := req.Validate(); err != nil {
+func (s *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) (err error) {
+	if err = req.Validate(); err != nil {
 		return fmt.Errorf("azureaisearch: invalid create request: %w", err)
 	}
 
-	batchedDocs, err := s.documentBatcher.Batch(ctx, req.Documents)
+	ctx, span := tracing.StartCreate(ctx, "azureaisearch", len(req.Documents))
+	defer func() { tracing.Finish(span, err) }()
+
+	var batchedDocs [][]*document.Document
+	batchedDocs, err = s.documentBatcher.Batch(ctx, req.Documents)
 	if err != nil {
 		return fmt.Errorf("azureaisearch: failed to batch documents: %w", err)
 	}
@@ -218,12 +223,16 @@ func (s *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) erro
 // Retrieve runs a hybrid vector query — the call is pure vector when
 // no filter is set, otherwise the filter rides along as the OData
 // `$filter` clause.
-func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) ([]*document.Document, error) {
-	if err := req.Validate(); err != nil {
+func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) (docs []*document.Document, err error) {
+	if err = req.Validate(); err != nil {
 		return nil, fmt.Errorf("azureaisearch: invalid retrieval request: %w", err)
 	}
 
-	vector, _, err := s.embeddingClient.
+	ctx, span := tracing.StartRetrieve(ctx, "azureaisearch", req.TopK, req.MinScore)
+	defer func() { tracing.RecordRetrieveResult(span, err, len(docs)) }()
+
+	var vector []float64
+	vector, _, err = s.embeddingClient.
 		EmbedWithText(req.Query).
 		Call().
 		Embedding(ctx)
@@ -265,7 +274,7 @@ func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 		return nil, fmt.Errorf("azureaisearch: decode search response: %w", err)
 	}
 
-	docs := make([]*document.Document, 0, len(parsed.Value))
+	docs = make([]*document.Document, 0, len(parsed.Value))
 	for _, row := range parsed.Value {
 		doc := s.toDocument(row)
 		if doc.Score < req.MinScore {
@@ -279,10 +288,13 @@ func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 // Delete removes documents matching the filter expression. The
 // service has no filter-based delete, so we enumerate matching ids
 // first and then issue a delete batch.
-func (s *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) error {
-	if err := req.Validate(); err != nil {
+func (s *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) (err error) {
+	if err = req.Validate(); err != nil {
 		return fmt.Errorf("azureaisearch: invalid delete request: %w", err)
 	}
+
+	ctx, span := tracing.StartDelete(ctx, "azureaisearch")
+	defer func() { tracing.Finish(span, err) }()
 
 	filterStr, err := s.buildFilter(req.Filter)
 	if err != nil {
