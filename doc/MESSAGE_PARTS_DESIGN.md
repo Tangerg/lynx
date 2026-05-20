@@ -1020,76 +1020,69 @@ user app → [logger MW] → [retry MW] → [ToolMW] → bare Model
 
 ### 8.2 ToolMiddleware Stream 实现（简化版）
 
+> 实际签名见 `core/model/chat/tool_middleware.go`。下面是化简版本——`ToolMiddleware`
+> 自身是空结构体，工具列表来自 `req.Tools`，循环改为递归形式以便错误短路。
+
 ```go
 // core/model/chat/tool_middleware.go
-type ToolMiddleware struct {
-    Tools    []CallableTool
-    MaxSteps int  // 默认 10
-}
+type ToolMiddleware struct{}
 
-func (m *ToolMiddleware) Stream(ctx context.Context, next Model, req *Request) iter.Seq2[*Response, error] {
+func (m *ToolMiddleware) executeStream(ctx context.Context, req *Request, next StreamHandler) iter.Seq2[*Response, error] {
     return func(yield func(*Response, error) bool) {
-        history := slices.Clone(req.Messages)
-
-        for step := 0; step < m.MaxSteps; step++ {
-            // ① 跑当前 turn 的流，原样 yield delta 给上层
-            turnAcc := chat.NewResponseAccumulator()
-            for resp, err := range next.Stream(ctx, &Request{Messages: history, ...}) {
-                if err != nil {
-                    yield(nil, err)
-                    return
-                }
-                if !yield(resp, nil) {
-                    return
-                }
-                turnAcc.AddChunk(resp)
-            }
-
-            // ② turn 结束。看是否要执行 tool。
-            assistantMsg := turnAcc.Response.Result.AssistantMessage
-            turnMeta := turnAcc.Response.Result.Metadata
-            history = append(history, assistantMsg)
-
-            if turnMeta == nil || turnMeta.FinishReason != FinishReasonToolCalls {
-                return // 最终答案，已 yield 过了
-            }
-
-            // ③ 执行 tools（可并行）
-            results, errs := m.executeAll(ctx, assistantMsg)
-            toolMsg := &ToolMessage{Results: results, Errors: errs}
-            history = append(history, toolMsg)
-
-            // ④ Yield tool 结果作为 delta（外层看到的就是连续流）
-            // ToolMessage 不是 AssistantMessage，但 Response 类型可以容纳：
-            toolResp := &Response{
-                Result: &Result{
-                    ToolMessage: toolMsg,
-                    Metadata:    &ResultMetadata{FinishReason: FinishReasonStop},
-                },
-            }
-            if !yield(toolResp, nil) {
-                return
-            }
+        support := NewToolSupport(len(req.Tools))
+        if support.ShouldReturnDirect(req.Messages) {
+            yield(support.BuildReturnDirectResponse(req.Messages))
+            return
         }
-        yield(nil, fmt.Errorf("tool loop exceeded MaxSteps=%d", m.MaxSteps))
+        support.Register(req.Tools...)
+        m.executeStreamRecursively(ctx, req, next, support, yield)
     }
+}
+
+func (m *ToolMiddleware) executeStreamRecursively(
+    ctx context.Context, req *Request, next StreamHandler,
+    support *ToolSupport, yield func(*Response, error) bool,
+) {
+    // ① 跑当前 turn 的流，原样 yield delta 给上层 + 累积成快照
+    acc := NewResponseAccumulator()
+    for chunk, err := range next.Stream(ctx, req) {
+        if err != nil { yield(chunk, err); return }
+        acc.AddChunk(chunk)
+        if !yield(chunk, nil) { return }
+    }
+
+    // ② turn 结束。看是否要执行 tool。
+    resp := &acc.Response
+    shouldInvoke, err := support.ShouldInvokeToolCalls(resp)
+    if err != nil { yield(nil, err); return }
+    if !shouldInvoke { return } // 最终答案，已 yield 过
+
+    // ③ 执行 tools
+    result, err := support.InvokeToolCalls(ctx, req, resp)
+    if err != nil { yield(nil, err); return }
+    if result.ShouldReturn() {
+        yield(result.BuildReturnResponse())
+        return
+    }
+
+    // ④ Yield tool 结果作为合成 Response（discriminator: Result.ToolMessage 非 nil）
+    if result.toolMessage != nil {
+        toolResp, _ := newToolMessageResponse(result.toolMessage)
+        if !yield(toolResp, nil) { return }
+    }
+
+    // ⑤ 递归再跑下一轮
+    nextReq, err := result.BuildContinueRequest()
+    if err != nil { yield(nil, err); return }
+    m.executeStreamRecursively(ctx, nextReq, next, support, yield)
 }
 ```
 
-### 8.3 Call 实现（复用 ResponseAccumulator）
+### 8.3 Call 实现
 
-```go
-func (m *ToolMiddleware) Call(ctx context.Context, next Model, req *Request) (*Response, error) {
-    acc := chat.NewResponseAccumulator()
-    for resp, err := range m.Stream(ctx, next, req) {
-        if err != nil { return nil, err }
-        acc.AddChunk(resp)
-    }
-    return &acc.Response, nil
-}
-```
-
-→ Call 是 Stream 的 trivial wrapper；**一份 ToolMiddleware 逻辑服务两条路径**。
+Call 不复用 Stream，单独走一条递归（同样的 ShouldInvoke / Invoke / Continue 三步），
+落到底层 `next.Call`，避免流式合并带来的额外开销。两条路径共用 `ToolSupport` 这套
+状态机，**逻辑一致 / 分支独立**。
 
 ### 8.4 Result 类型升级
 

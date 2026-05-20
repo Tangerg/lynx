@@ -40,7 +40,7 @@ lynx/
 
 | 目录 | 主题 |
 |-----|------|
-| [agent/](./agent/) | Agent 框架设计（embabel-agent 的 Go 移植，**未落地**） |
+| [agent/](./agent/) | Agent 框架设计文档（embabel-agent 的 Go 移植；运行时已落地在 `/agent/`，含 HTN / Reactive / GOAP 三套 planner） |
 | [embabel-architecture-analysis/](./embabel-architecture-analysis/) | 上游 embabel-agent 框架的架构分析（参考材料） |
 
 ---
@@ -53,4 +53,4 @@ lynx/
 - **想写自定义中间件** → `MIDDLEWARE.md`
 - **要做生产可观测性** → `OBSERVABILITY.md`
 - **评估与 Spring AI 的对比 / gap** → `SPRING_AI_COMPARISON.md`
-- **关心未来 agent 框架** → `agent/README.md`
+- **关心 agent 框架** → `agent/README.md`（设计文档）+ `/agent/`（运行时实现）

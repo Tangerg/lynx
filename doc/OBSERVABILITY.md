@@ -2,7 +2,7 @@
 
 > Lynx **直接使用 OpenTelemetry API**，不自造观测抽象。OTel 本身就是厂商中立层，再加一层是重复建设。
 >
-> **当前状态（2026-05-20 更新）**：`otel/slog` + `otel/log` 两个 SpanExporter 已实现；**核心 hot path 埋点首批已落地**——chat client（`Call` + `Stream`）、embedding client、tool invocation 全部按 GenAI semconv 严格挂上。RAG / vectorstore / MCP / agent 埋点为后续提交。
+> **当前状态（2026-05-20 更新）**：`otel/slog` + `otel/log` 两个 SpanExporter 已实现；**全模块埋点已落地**——chat client（`Call` + `Stream`）、embedding client、tool invocation、RAG 五阶段、MCP client+server、agent runtime（含 HTN/Reactive/GOAP planner）、24 个 vectorstore provider、6 个 chatmemory provider 全部按 GenAI / DB semconv 严格挂上。
 
 ---
 
@@ -104,7 +104,7 @@
 
 ---
 
-## 4. 埋点清单（待落地）
+## 4. 埋点清单（参考实现）
 
 ### 4.1 Chat / Embedding / Image / Audio Model
 
@@ -121,7 +121,7 @@ var chatTracer = otel.Tracer("lynx/chat")
 func (c *ClientCaller) call(ctx context.Context, req *Request) (*Response, error) {
     ctx, span := chatTracer.Start(ctx, "gen_ai.chat",
         trace.WithAttributes(
-            attribute.String("gen_ai.system", c.request.model.Info().Provider),
+            attribute.String("gen_ai.system", c.request.model.Metadata().Provider),
             attribute.String("gen_ai.operation.name", "chat"),
             attribute.String("gen_ai.request.model", req.Options.Model),
         ),
@@ -384,20 +384,21 @@ otel.SetTracerProvider(tp)
 - [x] `otel/slog/`：5 项单测
 - [x] `otel/log/`：6 项单测（logfmt 风格）
 
-### 8.2 待动工（发射侧）
+### 8.2 已就绪（发射侧）
 
 - [x] `core/model/chat/client.go` Call/Stream 加 OTel span（GenAI semconv 全套属性 + `gen_ai.stream.first_token_received` 事件 + 错误状态）
 - [x] `core/model/chat/tool.go::invokeOne` 单次 tool 调用加 `tool.invoke <name>` span（`lynx.tool.*` 属性 + `is_error` 标记）
 - [x] `core/model/embedding/client.go` Response 加 OTel span（GenAI semconv 子集 + `lynx.embeddings.input.count` 扩展）
-- [ ] `core/rag/pipeline.go` 五阶段加 span
-- [ ] `vectorstores/{qdrant,milvus,pinecone,weaviate,chroma}` 统一加 `db.vector.*` 埋点
-- [ ] `mcp/tool.go::Tool.Call` + `mcp/server.go::makeServerHandler` 加 span（与 v2 反向能力工作捆绑）
+- [x] `rag/pipeline.go` 五阶段加 span（`rag.pipeline` 父 span + Query/Retrieve/Augment/Generate/Stream 子 span）
+- [x] `vectorstores/{pgvector,qdrant,milvus,pinecone,weaviate,chroma,redis,mongodb,cassandra,neo4j,couchbase,typesense,vespa,vectara,bedrockkb,s3vectors,azureaisearch,azurecosmos,mariadb,oracle,tidb,clickhouse,opensearch,elasticsearch,inmemory}` 共 24 个 provider 统一加 `db.vector.*` 埋点（cockroachdb/supabase 通过 pgvector 类型别名继承）
+- [x] `mcp/tool.go::Tool.Call` + `mcp/server.go::makeServerHandler` 加 `mcp.tool.call` / `mcp.tool.serve` span
+- [x] `agent/runtime/` tick / action / plan 全套埋点（含 HTN / Reactive / GOAP planner）
+- [x] `chatmemory/{postgres,redis,mongodb,cassandra,neo4j,cosmosdb}` 6 个 provider Read/Write/Clear 加 DB-semconv span
+
+### 8.3 待动工
+
 - [ ] `doc/` 写一页「Lynx observability quickstart」示例
-
-### 8.3 Agent 框架落地时
-
-- [ ] `agent/runtime/` 所有 tick / action / plan 埋点
-- [ ] Plan / Goal / Action 的事件 → span 映射
+- [ ] vectorstore + chatmemory 的端到端 span 行为单测（仅 chat tracing_test 已覆盖）
 
 ### 8.4 不做的事
 

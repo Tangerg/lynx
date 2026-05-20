@@ -260,25 +260,25 @@
 
 | # | 项 | 工作量 | 价值 |
 |---|---|---|---|
-| 1 | **Retry `Transient` / `NonTransient` 分类** | 低（pkg/retry ~30 LOC + 各 vendor adapter ~20 LOC × ~10 vendor）| LLM 集成最常见痛点：429 / 503 自动重试，401 立刻报错 |
-| 2 | **Anthropic Extra 通道保护** | 极低（~30 LOC）| Anthropic prompt caching 1.25× 写入 / 0.1× 读取，省钱关键 |
-| 3 | **OTel hot path 埋点补完**（OBSERVABILITY.md §4 清单）| 低（每个 callsite ~10 LOC）| exporter 已就绪，缺埋点 |
+| ~~1~~ | ~~Retry `Transient` / `NonTransient` 分类~~ | — | **不做**：SDK 内部已自带重试，再加一层是重复建设 |
+| ~~2~~ | ~~Anthropic Extra 通道保护~~ | — | **已闭合**（`models/anthropic/extra.go`）|
+| ~~3~~ | ~~OTel hot path 埋点补完~~ | — | **已闭合**：chat / embedding / tool / RAG / MCP / agent / 24 vectorstore / 6 chatmemory 全量埋点 |
 
 ### 9.2 P1 — 生产硬刚需
 
 | # | 项 | 工作量 | 价值 |
 |---|---|---|---|
-| 4 | **持久化 Memory 后端**（基于 vector store 复用 redis / postgres / mongodb 后端）| 中（每个 ~100 LOC，可复用 vectorstores/ 的 driver）| 任何多用户场景必需 |
+| ~~4~~ | ~~持久化 Memory 后端~~ | — | **已闭合**：顶层 `chatmemory/` module 提供 postgres / redis / mongodb / cassandra / neo4j / cosmosdb 6 个 provider |
 | 5 | **PDF + Markdown document reader**（放 `document-readers/` sibling module）| 中（PDF 依赖 UniPDF 或 pdfcpu，~200 LOC + 测试）| RAG 场景最常见输入 |
 
 ### 9.3 P2 — 闭合 spring-ai 已有的设计
 
 | # | 项 | 工作量 | 价值 |
 |---|---|---|---|
-| 6 | **Structured output converter**（`core/model/chat/converter/`：JSONParser + MapParser + Markdown / thinking-tag cleaner + 解析失败回填 retry）| 低（~150 LOC + 测试）| LLM → typed Go struct 的开箱即用通道 |
+| ~~6~~ | ~~Structured output converter~~ | — | **已闭合**：`core/model/chat/parser.go`（JSONParser[T] / ListParser / MapParser / StructuredParser[T] / AnyParser）已与 spring-ai BeanOutputConverter 家族对齐 |
 | 7 | **`SafeGuardMiddleware` + `LoggerMiddleware`** | 低（~100 LOC 共） | 弥补 advisor 数量差距，可直接出货 |
 | 8 | **`DocumentJoiner`（多路检索合并）** + **`QueryRouter`** | 低（~80 LOC）| spring-ai RAG 4 阶段里 lynx 缺的那一块 |
-| 9 | **Vector store `BaseVisitor` 进一步抽象** | 中（~200 LOC，重构现有 27 个 vendor visitor）| 在已有 filterhelp 基础上再省 ~30% 代码量 |
+| ~~9~~ | ~~Vector store `BaseVisitor` 进一步抽象~~ | — | **已闭合**：`vectorstores/internal/filterhelp` 提供 dispatch helpers，10 个 visitor 已迁移 |
 
 ### 9.4 P3 — 长尾 / 大依赖
 
@@ -314,7 +314,7 @@
 
 对照 spring-ai 时**不照抄、照搬克制原则做薄壳**——这套打法在 reasoning / MCP / observability / cache tokens / vector-store 广度 / 多模态广度 6 条线上都已经验证成立。**本轮 vector store 6→27 和 model provider 3→39 的扩张证明：thin-library 路线下，扩 vendor 的边际成本远低于 framework 路线**——同样的工程预算下，lynx 比 spring-ai 能扩出更多覆盖。
 
-**下一阶段最高 ROI**：P0 三件套（Retry 错误分类 / Anthropic Extra 保护 / OTel 埋点补完）+ P1 两件套（持久化 Memory / PDF·Markdown reader）。**这五件做完，lynx 在"生产可用度"上就能彻底补齐对 spring-ai 的硬差距，同时保留 thin library 哲学不动摇**。
+**当前剩余 ROI**：PDF/Markdown reader（P1）+ SafeGuard/Logger middleware + DocumentJoiner/QueryRouter（P2）。**P0 三件套 + P1 持久化 Memory + P2 结构化输出 / BaseVisitor 都已闭合**，lynx 在"生产可用度"上对 spring-ai 的硬差距已基本补齐，同时保留 thin library 哲学不动摇。
 
 ---
 

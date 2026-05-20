@@ -548,9 +548,8 @@ sealed class Result {
 
 ```go
 // lynx tool 走 lynx/core/model/chat:
-type Tool interface { Definition() ToolDefinition }
-type CallableTool interface {
-    Tool
+type Tool interface {
+    Definition() ToolDefinition
     Metadata() ToolMetadata
     Call(ctx context.Context, arguments string) (string, error)
 }
@@ -558,7 +557,7 @@ type CallableTool interface {
 
 **形态差异**：embabel 的 `Tool.Result` 是 sealed class（Text / WithArtifact / Error 三种），lynx tool 直接返回 `(string, error)`——简洁，但当 tool 需要返回二进制 artifact（图像、PDF）时 lynx 需要走 base64 或 metadata 通道，embabel 一等公民。
 
-**真 gap**：lynx 如果要支持 artifact-bearing tool（生成图像 / 表格的工具），需要扩 `CallableTool.Call` 返回类型——但代价是 breaking change，目前权衡是"99% 场景用 string 够，artifact 走 metadata 通道"。
+**真 gap**：lynx 如果要支持 artifact-bearing tool（生成图像 / 表格的工具），需要扩 `Tool.Call` 返回类型——但代价是 breaking change，目前权衡是"99% 场景用 string 够，artifact 走 metadata 通道"。
 
 ### 6.2 Tool 实现矩阵
 

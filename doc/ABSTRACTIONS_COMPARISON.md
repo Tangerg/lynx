@@ -101,13 +101,13 @@ ChatModel / Embedding / Image / Audio / Moderation / Document / VectorStore / RA
 
 ## I.4 lynx 仍存在的真 gap
 
-按 ROI 排序：
+按 ROI 排序（已闭合项划线保留以便对照原列表）：
 
-1. **Retry `Transient` / `NonTransient` 分类**——LLM 集成最高频痛点（429 重试，401 立即报错）
-2. **Anthropic Extra 通道保护**——prompt caching 走不通
-3. **持久化 Memory 后端**——spring-ai 6 个（JDBC/Redis/Mongo/Neo4j/Cassandra/CosmosDB），lynx 仅 in-memory
+1. ~~**Retry `Transient` / `NonTransient` 分类**~~ —— 不做：SDK 内部已自带重试
+2. ~~**Anthropic Extra 通道保护**~~ —— 已闭合（`models/anthropic/extra.go`）
+3. ~~**持久化 Memory 后端**~~ —— 已闭合：顶层 `chatmemory/` 提供 postgres/redis/mongodb/cassandra/neo4j/cosmosdb 共 6 个 provider
 4. **PDF / Markdown reader**——spring-ai 4 个 reader，lynx 仅 text + JSON
-5. **Structured Output Converter**——spring-ai 整套 `BeanOutputConverter`，lynx 仅 `ListParser`
+5. ~~**Structured Output Converter**~~ —— 已闭合：`core/model/chat/parser.go`（JSONParser[T] / ListParser / MapParser / StructuredParser[T] / AnyParser）
 6. **SafeGuard / Logger middleware**
 7. **DocumentJoiner / QueryRouter**（RAG 多路检索合并 + query 路由）
 
@@ -794,12 +794,12 @@ interface ChatSession {
 |---|---|---|
 | Process 持久化 | **无**（in-memory only）| `AgentProcessRepository` interface + 多种 backend |
 | Blackboard 持久化 | 无 | 同上 |
-| Memory（chat memory）持久化 | 无（仅 in-memory store；vector store 倒是有 27 个）| `ChatMemoryRepository` 多 backend |
+| Memory（chat memory）持久化 | ✅ 顶层 `chatmemory/` module 提供 postgres / redis / mongodb / cassandra / neo4j / cosmosdb 共 6 个 provider | `ChatMemoryRepository` 多 backend |
 | Agent 定义持久化 | N/A（agent 是 compile-time）| 同上（agent 是 runtime 注册的 bean）|
 
-**这一项 embabel 反超**——任何要做"agent process 长期运行 + 中断恢复 + 跨节点迁移"的场景，lynx 当前都需要应用层从头实现。但讽刺的是，lynx 已经有 27 个 vector store 后端——任何一个改写成 `process.Store` 都只需要 ~150 LOC。
+**Process 持久化仍是 embabel 反超项**——任何要做"agent process 长期运行 + 中断恢复 + 跨节点迁移"的场景，lynx 当前都需要应用层从头实现。chatmemory 已闭合后，剩下 Process / Blackboard 持久化可以复用同一批 driver（每个 ~150 LOC）。
 
-> **路线图建议**：和 P1-4（Memory 持久化）合并做——同一批后端可以服务两种用例。
+> **路线图建议**：Process Store 沿用 chatmemory 已经验证的 6 backend 形态。
 
 ---
 
@@ -978,26 +978,26 @@ interface ChatSession {
 
 ### 🔴 P0 — 立刻见效（共计 ~350 LOC）
 
-1. **Retry `Transient` / `NonTransient` 分类**（Part I）——LLM 集成最高频痛点
-2. **`agent.PromptRunner`** ergonomics 包装（Part II）——action 内 LLM 调用立刻翻倍简洁
-3. **Anthropic Extra 通道保护**（Part I）——prompt caching 修复
-4. **OTel hot path 埋点补完**（Part I）
+1. ~~**Retry `Transient` / `NonTransient` 分类**~~ —— 不做：SDK 自带重试
+2. ~~**`agent.PromptRunner`** ergonomics 包装~~ —— 已闭合
+3. ~~**Anthropic Extra 通道保护**~~ —— 已闭合
+4. ~~**OTel hot path 埋点补完**~~ —— 已闭合：chat / embedding / tool / RAG / MCP / agent / 24 vectorstore / 6 chatmemory 全量
 
-### 🟡 P1 — 生产硬刚需（共计 ~1500 LOC）
+### 🟡 P1 — 生产硬刚需
 
-5. **持久化 Memory + Process 后端**（Part I + Part II 合并实现）——复用 vector store 27 个 driver
+5. ~~**持久化 Memory 后端**~~ —— 已闭合：顶层 `chatmemory/` 提供 6 个 provider
 6. **PDF + Markdown reader**（Part I）——RAG 必需
 7. **`Session` / 对话抽象**（Part II）——聊天机器人场景
-8. **Structured Output Converter**（Part I）——`BeanOutputConverter` 等价物
+8. ~~**Structured Output Converter**~~ —— 已闭合：`core/model/chat/parser.go`
 9. **`ToolCapability` 安全标签**（Part II）
 
-### 🟢 P2 — 架构补完（共计 ~2000 LOC）
+### 🟢 P2 — 架构补完
 
 10. **`SafeGuard` / `Logger` middleware**（Part I）
 11. **`DocumentJoiner` + `QueryRouter`**（Part I）——RAG 多路检索
 12. **`LlmInvocationHistory` 一等接口**（Part II）
 13. **`Blackboard.BindProtected`**（Part II）
-14. **VectorStore `BaseVisitor` 抽象**（Part I）
+14. ~~**VectorStore `BaseVisitor` 抽象**~~ —— 已闭合：`vectorstores/internal/filterhelp` + 10 visitor 迁移
 15. **Action 注解推导（go:generate）**（Part II）
 
 ### 🔵 P3 — 大依赖 / 长尾
@@ -1006,7 +1006,7 @@ interface ChatSession {
 
 ## III.5 一句话定档
 
-**lynx 用 *thin library + Go 语言原生能力 + OTel/MCP 标准对接* 三条腿，已经在 *广度* 上完成对 spring-ai 的反超（39 model / 27 vector / 多模态全栈）；在 *agent 范式* 上比 embabel 多两个 planner（HTN + Reactive）+ 类型安全工作流原语 + ToolPolicy + Extension 显式四角色。下一阶段最高 ROI 是补 ergonomics（PromptRunner / Session）+ 持久化（Memory/Process Store）+ 错误分类（Retry Transient）——这些做完，lynx 在 production readiness 上就能彻底闭合对 spring-ai + embabel 双重栈的硬差距，同时保留 thin library 哲学不动摇**。
+**lynx 用 *thin library + Go 语言原生能力 + OTel/MCP 标准对接* 三条腿，已经在 *广度* 上完成对 spring-ai 的反超（39 model / 24 vector / 多模态全栈）；在 *agent 范式* 上比 embabel 多两个 planner（HTN + Reactive）+ 类型安全工作流原语 + ToolPolicy + Extension 显式四角色。当前剩余 ROI 集中在 ergonomics（Session 对话抽象）+ RAG 输入（PDF/Markdown reader）+ middleware 长尾（SafeGuard/Logger/DocumentJoiner/QueryRouter）—— P0 + P1 + P2 主线已大部闭合，thin library 哲学不动摇**。
 
 ---
 
