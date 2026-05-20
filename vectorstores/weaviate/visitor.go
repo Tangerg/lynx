@@ -9,6 +9,7 @@ import (
 
 	"github.com/Tangerg/lynx/core/vectorstore/filter/ast"
 	"github.com/Tangerg/lynx/core/vectorstore/filter/token"
+	"github.com/Tangerg/lynx/vectorstores/internal/filterhelp"
 )
 
 var _ ast.Visitor = (*Visitor)(nil)
@@ -106,40 +107,26 @@ func (c *Visitor) visit(expr ast.Expr) error {
 
 // visitBinaryExpr routes binary expressions to appropriate handlers based on operator type.
 func (c *Visitor) visitBinaryExpr(expr *ast.BinaryExpr) error {
-	if expr.Op.Kind.IsLogicalOperator() {
-		return c.visitLogicalExpr(expr)
-	}
+	return filterhelp.DispatchBinaryErr(expr,
+		c.visitLogicalExpr,
+		c.visitComparisonExpr,
+		c.visitInExpr,
+		c.visitLikeExpr,
+	)
+}
+
+// visitComparisonExpr splits equality vs ordering since weaviate emits
+// distinct WhereBuilder shapes for the two families.
+func (c *Visitor) visitComparisonExpr(expr *ast.BinaryExpr) error {
 	if expr.Op.Kind.IsEqualityOperator() {
 		return c.visitEqualityExpr(expr)
 	}
-	if expr.Op.Kind.IsOrderingOperator() {
-		return c.visitOrderingExpr(expr)
-	}
-	if expr.Op.Kind.Is(token.IN) {
-		return c.visitInExpr(expr)
-	}
-	if expr.Op.Kind.Is(token.LIKE) {
-		return c.visitLikeExpr(expr)
-	}
-	return fmt.Errorf("weaviate: unsupported binary operator '%s' at %s",
-		expr.Op.Literal, expr.Start().String())
+	return c.visitOrderingExpr(expr)
 }
 
-// visitUnaryExpr handles unary expressions.
-// Currently only the NOT operator is supported for logical negation.
+// visitUnaryExpr handles unary expressions — only NOT today.
 func (c *Visitor) visitUnaryExpr(expr *ast.UnaryExpr) error {
-	if !expr.Op.Kind.IsUnaryOperator() {
-		return fmt.Errorf("weaviate: '%s' is not a valid unary operator at %s",
-			expr.Op.Literal, expr.Start().String())
-	}
-
-	switch expr.Op.Kind {
-	case token.NOT:
-		return c.visitNotExpr(expr)
-	default:
-		return fmt.Errorf("weaviate: unhandled unary operator '%s' at %s",
-			expr.Op.Literal, expr.Start().String())
-	}
+	return filterhelp.DispatchUnaryErr(expr, c.visitNotExpr)
 }
 
 // visitIdent extracts and stores the identifier name as a single-element field path.
@@ -356,14 +343,9 @@ func (c *Visitor) visitInExpr(expr *ast.BinaryExpr) error {
 			expr.Start().String(), err)
 	}
 
-	listLit, ok := expr.Right.(*ast.ListLiteral)
-	if !ok {
-		return fmt.Errorf("weaviate: 'IN' operator requires a list on the right side at %s, got %T",
-			expr.Start().String(), expr.Right)
-	}
-	if len(listLit.Values) == 0 {
-		return fmt.Errorf("weaviate: 'IN' operator requires a non-empty list at %s",
-			expr.Start().String())
+	listLit, err := filterhelp.RequireListLiteral(expr)
+	if err != nil {
+		return fmt.Errorf("weaviate: %w", err)
 	}
 
 	if err = c.visitListLiteral(listLit); err != nil {
