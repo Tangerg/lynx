@@ -413,8 +413,8 @@ func (v *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) (err
 	return nil
 }
 
-func (v *Store) Metadata() vectorstore.StoreInfo {
-	return vectorstore.StoreInfo{
+func (v *Store) Metadata() vectorstore.StoreMetadata {
+	return vectorstore.StoreMetadata{
 		NativeClient: v.client,
 		Provider:     Provider,
 	}

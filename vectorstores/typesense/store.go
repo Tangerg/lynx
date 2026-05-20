@@ -366,8 +366,8 @@ func metaOrEmpty(m map[string]any) map[string]any {
 	return m
 }
 
-func (s *Store) Metadata() vectorstore.StoreInfo {
-	return vectorstore.StoreInfo{
+func (s *Store) Metadata() vectorstore.StoreMetadata {
+	return vectorstore.StoreMetadata{
 		NativeClient: s.client,
 		Provider:     Provider,
 	}

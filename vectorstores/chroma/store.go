@@ -443,8 +443,8 @@ func (v *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) (err
 }
 
 // Info returns metadata about this store instance.
-func (v *Store) Metadata() vectorstore.StoreInfo {
-	return vectorstore.StoreInfo{
+func (v *Store) Metadata() vectorstore.StoreMetadata {
+	return vectorstore.StoreMetadata{
 		NativeClient: v.client,
 		Provider:     Provider,
 	}

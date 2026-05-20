@@ -672,8 +672,8 @@ func parseMetadataValue(raw string, t MetadataFieldType) any {
 	return raw
 }
 
-func (s *Store) Metadata() vectorstore.StoreInfo {
-	return vectorstore.StoreInfo{
+func (s *Store) Metadata() vectorstore.StoreMetadata {
+	return vectorstore.StoreMetadata{
 		NativeClient: s.client,
 		Provider:     Provider,
 	}
