@@ -74,16 +74,25 @@ function ShellChat() {
 
   if (!activeS) return null;
 
+  // Tool clicks pick the right inspector view, set context, then open it
+  // as a main-area tab. There is no right pane anymore — VS Code style.
   const onOpenInspector = (toolId: string) => {
     const tool = toolCalls[toolId];
     if (!tool) return;
-    if (tool.fn === "bash") ui.setInspectorTab("terminal");
-    else if (tool.fn === "edit_file" || tool.fn === "write_file" || tool.fn === "read_file") {
-      ui.setInspectorTab("diff");
+
+    let viewId = "diff";
+    let title = "Diff";
+    let icon = "diff";
+    if (tool.fn === "bash") {
+      viewId = "terminal"; title = "Terminal"; icon = "terminal";
+    } else if (tool.fn === "edit_file" || tool.fn === "write_file" || tool.fn === "read_file") {
+      viewId = "diff"; title = "Diff"; icon = "diff";
       const m = String(tool.args).match(/^([^\s(]+)/);
       if (m) ui.setActiveFile(m[1]);
-    } else ui.setInspectorTab("diff");
+    }
+    ui.setInspectorTab(viewId as never);
     ui.setSelectedToolId(toolId);
+    ui.openMainView({ id: viewId, title, icon });
   };
 
   // Clearing the textarea after a submit is owned by `submitComposer` so

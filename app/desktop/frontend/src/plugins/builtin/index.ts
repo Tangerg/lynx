@@ -54,7 +54,6 @@ import sampleAttachments from "./sample-attachments";
 import searchBlock from "./search-block";
 import searchResultsHandler from "./search-results-handler";
 import shellChat from "./shell-chat";
-import shellInspector from "./shell-inspector";
 import shellSettings from "./shell-settings";
 import shellSidebar from "./shell-sidebar";
 import shortcuts from "./shortcuts";
@@ -67,6 +66,7 @@ import sidebarRailSessions from "./sidebar-rail-sessions";
 import sidebarSearch from "./sidebar-search";
 import sidebarSessions from "./sidebar-sessions";
 import slashHints from "./slash-hints";
+import statusNotifications from "./status-notifications";
 import statusPill from "./status-pill";
 import telemetryHandler from "./telemetry-handler";
 import toaster from "./toaster";
@@ -146,9 +146,11 @@ const panes: PluginSpec[] = [
 
 // ---------------------------------------------------------------------------
 // Shell layout regions — fill the named slots in AgentClientPage.
+// The right inspector pane was removed in favour of VS Code-style main
+// tabs; inspector views are now promoted to chat-area tabs.
 // ---------------------------------------------------------------------------
 const shell: PluginSpec[] = [
-  shellSidebar, shellChat, shellInspector, shellSettings,
+  shellSidebar, shellChat, shellSettings,
 ];
 
 // ---------------------------------------------------------------------------
@@ -167,7 +169,7 @@ const sidebar: PluginSpec[] = [
 // ---------------------------------------------------------------------------
 const overlays: PluginSpec[] = [
   toaster, commandPalette, defaultCommands,
-  statusPill, welcomeScreen, topbarNewTab,
+  statusPill, statusNotifications, welcomeScreen, topbarNewTab,
   shortcuts,
 ];
 
