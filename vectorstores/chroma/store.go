@@ -12,6 +12,7 @@ import (
 	"github.com/Tangerg/lynx/core/model/embedding"
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/pkg/math"
+	"github.com/Tangerg/lynx/vectorstores/internal/tracing"
 )
 
 const Provider = "Chroma"
@@ -255,12 +256,16 @@ func (v *Store) buildAddOptions(docs []*document.Document, vectors [][]float64) 
 }
 
 // Create embeds the documents in req and upserts them into Chroma.
-func (v *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) error {
-	if err := req.Validate(); err != nil {
+func (v *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) (err error) {
+	if err = req.Validate(); err != nil {
 		return fmt.Errorf("chroma: invalid create request: %w", err)
 	}
 
-	batchedDocs, err := v.documentBatcher.Batch(ctx, req.Documents)
+	ctx, span := tracing.StartCreate(ctx, "chroma", len(req.Documents))
+	defer func() { tracing.Finish(span, err) }()
+
+	var batchedDocs [][]*document.Document
+	batchedDocs, err = v.documentBatcher.Batch(ctx, req.Documents)
 	if err != nil {
 		return fmt.Errorf("chroma: failed to batch documents: %w", err)
 	}
@@ -374,12 +379,16 @@ func (v *Store) buildDocumentsFromResult(result v2.QueryResult, minScore float64
 }
 
 // Retrieve embeds the query in req, searches Chroma, and returns matching documents.
-func (v *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) ([]*document.Document, error) {
-	if err := req.Validate(); err != nil {
+func (v *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) (docs []*document.Document, err error) {
+	if err = req.Validate(); err != nil {
 		return nil, fmt.Errorf("chroma: invalid retrieval request: %w", err)
 	}
 
-	vector, _, err := v.embeddingClient.
+	ctx, span := tracing.StartRetrieve(ctx, "chroma", req.TopK, req.MinScore)
+	defer func() { tracing.RecordRetrieveResult(span, err, len(docs)) }()
+
+	var vector []float64
+	vector, _, err = v.embeddingClient.
 		EmbedWithText(req.Query).
 		Call().
 		Embedding(ctx)
@@ -389,26 +398,33 @@ func (v *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 
 	queryVector := math.ConvertSlice[float64, float32](vector)
 
-	opts, err := v.buildQueryOptions(req, queryVector)
+	var opts []v2.CollectionQueryOption
+	opts, err = v.buildQueryOptions(req, queryVector)
 	if err != nil {
 		return nil, err
 	}
 
-	result, err := v.collection.Query(ctx, opts...)
+	var result v2.QueryResult
+	result, err = v.collection.Query(ctx, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("chroma: failed to query collection %s: %w", v.collectionName, err)
 	}
 
-	return v.buildDocumentsFromResult(result, req.MinScore), nil
+	docs = v.buildDocumentsFromResult(result, req.MinScore)
+	return docs, nil
 }
 
 // Delete removes documents from the collection that match the filter in req.
-func (v *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) error {
-	if err := req.Validate(); err != nil {
+func (v *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) (err error) {
+	if err = req.Validate(); err != nil {
 		return fmt.Errorf("chroma: invalid delete request: %w", err)
 	}
 
-	filter, err := ToFilter(req.Filter)
+	ctx, span := tracing.StartDelete(ctx, "chroma")
+	defer func() { tracing.Finish(span, err) }()
+
+	var filter v2.WhereFilter
+	filter, err = ToFilter(req.Filter)
 	if err != nil {
 		return fmt.Errorf("chroma: failed to convert filter: %w", err)
 	}

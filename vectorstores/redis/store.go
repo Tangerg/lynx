@@ -19,6 +19,7 @@ import (
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter/ast"
 	"github.com/Tangerg/lynx/pkg/math"
+	"github.com/Tangerg/lynx/vectorstores/internal/tracing"
 )
 
 const Provider = "Redis"
@@ -413,12 +414,16 @@ func (s *Store) distanceToScore(distance float64) float64 {
 
 // Create embeds documents and writes them as Redis HASHes keyed by
 // `<KeyPrefix><id>`.
-func (s *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) error {
-	if err := req.Validate(); err != nil {
+func (s *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) (err error) {
+	if err = req.Validate(); err != nil {
 		return fmt.Errorf("redis: invalid create request: %w", err)
 	}
 
-	batchedDocs, err := s.documentBatcher.Batch(ctx, req.Documents)
+	ctx, span := tracing.StartCreate(ctx, "redis", len(req.Documents))
+	defer func() { tracing.Finish(span, err) }()
+
+	var batchedDocs [][]*document.Document
+	batchedDocs, err = s.documentBatcher.Batch(ctx, req.Documents)
 	if err != nil {
 		return fmt.Errorf("redis: failed to batch documents: %w", err)
 	}
@@ -457,12 +462,16 @@ func (s *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) erro
 
 // Retrieve embeds the query, runs a KNN search through RediSearch,
 // and returns the matching documents above MinScore.
-func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) ([]*document.Document, error) {
-	if err := req.Validate(); err != nil {
+func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) (docs []*document.Document, err error) {
+	if err = req.Validate(); err != nil {
 		return nil, fmt.Errorf("redis: invalid retrieval request: %w", err)
 	}
 
-	vector, _, err := s.embeddingClient.
+	ctx, span := tracing.StartRetrieve(ctx, "redis", req.TopK, req.MinScore)
+	defer func() { tracing.RecordRetrieveResult(span, err, len(docs)) }()
+
+	var vector []float64
+	vector, _, err = s.embeddingClient.
 		EmbedWithText(req.Query).
 		Call().
 		Embedding(ctx)
@@ -507,7 +516,7 @@ func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 		return nil, fmt.Errorf("redis: FT.SEARCH %s: %w", s.indexName, err)
 	}
 
-	docs := make([]*document.Document, 0, len(result.Docs))
+	docs = make([]*document.Document, 0, len(result.Docs))
 	for _, hit := range result.Docs {
 		score, err := s.scoreFromFields(hit.Fields)
 		if err != nil {
@@ -523,12 +532,16 @@ func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 
 // Delete looks up documents matching the filter via FT.SEARCH, then
 // removes the underlying keys with DEL.
-func (s *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) error {
-	if err := req.Validate(); err != nil {
+func (s *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) (err error) {
+	if err = req.Validate(); err != nil {
 		return fmt.Errorf("redis: invalid delete request: %w", err)
 	}
 
-	query, err := s.buildFilterQuery(req.Filter)
+	ctx, span := tracing.StartDelete(ctx, "redis")
+	defer func() { tracing.Finish(span, err) }()
+
+	var query string
+	query, err = s.buildFilterQuery(req.Filter)
 	if err != nil {
 		return err
 	}

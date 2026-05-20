@@ -12,6 +12,7 @@ import (
 	"github.com/Tangerg/lynx/core/model/embedding"
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/pkg/math"
+	"github.com/Tangerg/lynx/vectorstores/internal/tracing"
 )
 
 const (
@@ -137,12 +138,16 @@ func (v *Store) buildVectors(docs []*document.Document, vectors [][]float64) ([]
 	return result, nil
 }
 
-func (v *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) error {
-	if err := req.Validate(); err != nil {
+func (v *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) (err error) {
+	if err = req.Validate(); err != nil {
 		return fmt.Errorf("pinecone: invalid create request: %w", err)
 	}
 
-	batchedDocs, err := v.documentBatcher.Batch(ctx, req.Documents)
+	ctx, span := tracing.StartCreate(ctx, "pinecone", len(req.Documents))
+	defer func() { tracing.Finish(span, err) }()
+
+	var batchedDocs [][]*document.Document
+	batchedDocs, err = v.documentBatcher.Batch(ctx, req.Documents)
 	if err != nil {
 		return fmt.Errorf("pinecone: failed to batch documents: %w", err)
 	}
@@ -204,12 +209,16 @@ func (v *Store) buildDocumentsFromScoredVectors(svs []*pinecone.ScoredVector, mi
 	return docs, nil
 }
 
-func (v *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) ([]*document.Document, error) {
-	if err := req.Validate(); err != nil {
+func (v *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) (docs []*document.Document, err error) {
+	if err = req.Validate(); err != nil {
 		return nil, fmt.Errorf("pinecone: invalid retrieval request: %w", err)
 	}
 
-	vector, _, err := v.embeddingClient.
+	ctx, span := tracing.StartRetrieve(ctx, "pinecone", req.TopK, req.MinScore)
+	defer func() { tracing.RecordRetrieveResult(span, err, len(docs)) }()
+
+	var vector []float64
+	vector, _, err = v.embeddingClient.
 		EmbedWithText(req.Query).
 		Call().
 		Embedding(ctx)
@@ -240,7 +249,7 @@ func (v *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 		return nil, nil
 	}
 
-	docs, err := v.buildDocumentsFromScoredVectors(resp.Matches, float64(req.MinScore))
+	docs, err = v.buildDocumentsFromScoredVectors(resp.Matches, float64(req.MinScore))
 	if err != nil {
 		return nil, fmt.Errorf("pinecone: failed to build documents from results: %w", err)
 	}
@@ -248,12 +257,16 @@ func (v *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 	return docs, nil
 }
 
-func (v *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) error {
-	if err := req.Validate(); err != nil {
+func (v *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) (err error) {
+	if err = req.Validate(); err != nil {
 		return fmt.Errorf("pinecone: invalid delete request: %w", err)
 	}
 
-	filter, err := ToFilter(req.Filter)
+	ctx, span := tracing.StartDelete(ctx, "pinecone")
+	defer func() { tracing.Finish(span, err) }()
+
+	var filter *structpb.Struct
+	filter, err = ToFilter(req.Filter)
 	if err != nil {
 		return fmt.Errorf("pinecone: failed to convert filter: %w", err)
 	}

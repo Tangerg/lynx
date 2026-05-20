@@ -8,6 +8,7 @@ import (
 	"github.com/go-openapi/strfmt"
 	"github.com/google/uuid"
 	"github.com/weaviate/weaviate-go-client/v5/weaviate"
+	"github.com/weaviate/weaviate-go-client/v5/weaviate/filters"
 	"github.com/weaviate/weaviate-go-client/v5/weaviate/graphql"
 	"github.com/weaviate/weaviate/entities/models"
 
@@ -15,6 +16,7 @@ import (
 	"github.com/Tangerg/lynx/core/model/embedding"
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/pkg/math"
+	"github.com/Tangerg/lynx/vectorstores/internal/tracing"
 )
 
 const (
@@ -203,12 +205,16 @@ func (v *Store) buildObjects(docs []*document.Document, vectors [][]float64) ([]
 	return objects, nil
 }
 
-func (v *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) error {
-	if err := req.Validate(); err != nil {
+func (v *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) (err error) {
+	if err = req.Validate(); err != nil {
 		return fmt.Errorf("weaviate: invalid create request: %w", err)
 	}
 
-	batchedDocs, err := v.documentBatcher.Batch(ctx, req.Documents)
+	ctx, span := tracing.StartCreate(ctx, "weaviate", len(req.Documents))
+	defer func() { tracing.Finish(span, err) }()
+
+	var batchedDocs [][]*document.Document
+	batchedDocs, err = v.documentBatcher.Batch(ctx, req.Documents)
 	if err != nil {
 		return fmt.Errorf("weaviate: failed to batch documents: %w", err)
 	}
@@ -259,12 +265,16 @@ func (v *Store) buildNearVector(vector []float64, minScore float64) *graphql.Nea
 	return builder
 }
 
-func (v *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) ([]*document.Document, error) {
-	if err := req.Validate(); err != nil {
+func (v *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) (docs []*document.Document, err error) {
+	if err = req.Validate(); err != nil {
 		return nil, fmt.Errorf("weaviate: invalid retrieval request: %w", err)
 	}
 
-	vector, _, err := v.embeddingClient.
+	ctx, span := tracing.StartRetrieve(ctx, "weaviate", req.TopK, req.MinScore)
+	defer func() { tracing.RecordRetrieveResult(span, err, len(docs)) }()
+
+	var vector []float64
+	vector, _, err = v.embeddingClient.
 		EmbedWithText(req.Query).
 		Call().
 		Embedding(ctx)
@@ -308,7 +318,7 @@ func (v *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 		return nil, fmt.Errorf("weaviate: GraphQL query error: %v", result.Errors[0].Message)
 	}
 
-	docs, err := v.buildDocumentsFromResult(result)
+	docs, err = v.buildDocumentsFromResult(result)
 	if err != nil {
 		return nil, fmt.Errorf("weaviate: failed to build documents from results: %w", err)
 	}
@@ -378,12 +388,16 @@ func (v *Store) buildDocumentsFromResult(result *models.GraphQLResponse) ([]*doc
 	return docs, nil
 }
 
-func (v *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) error {
-	if err := req.Validate(); err != nil {
+func (v *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) (err error) {
+	if err = req.Validate(); err != nil {
 		return fmt.Errorf("weaviate: invalid delete request: %w", err)
 	}
 
-	whereFilter, err := ToFilter(req.Filter)
+	ctx, span := tracing.StartDelete(ctx, "weaviate")
+	defer func() { tracing.Finish(span, err) }()
+
+	var whereFilter *filters.WhereBuilder
+	whereFilter, err = ToFilter(req.Filter)
 	if err != nil {
 		return fmt.Errorf("weaviate: failed to convert filter: %w", err)
 	}
