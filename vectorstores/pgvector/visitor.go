@@ -2,13 +2,12 @@ package pgvector
 
 import (
 	"fmt"
-	"strings"
 	"strconv"
-
+	"strings"
 
 	"github.com/Tangerg/lynx/core/vectorstore/filter/ast"
-	"github.com/Tangerg/lynx/vectorstores/internal/filterhelp"
 	"github.com/Tangerg/lynx/core/vectorstore/filter/token"
+	"github.com/Tangerg/lynx/vectorstores/internal/filterhelp"
 )
 
 var _ ast.Visitor = (*Visitor)(nil)
@@ -42,14 +41,12 @@ type Visitor struct {
 	metadataCol string // SQL identifier — already validated by the caller
 }
 
-
 func NewVisitor(metadataCol string) *Visitor {
 	if metadataCol == "" {
 		metadataCol = "metadata"
 	}
 	return &Visitor{metadataCol: metadataCol}
 }
-
 
 func (v *Visitor) Result() (string, []any) {
 	if v.err != nil {
@@ -58,9 +55,7 @@ func (v *Visitor) Result() (string, []any) {
 	return v.sql.String(), v.args
 }
 
-
 func (v *Visitor) Error() error { return v.err }
-
 
 func (v *Visitor) Visit(expr ast.Expr) ast.Visitor {
 	v.err = v.visit(expr)
@@ -77,38 +72,20 @@ func (v *Visitor) visit(expr ast.Expr) error {
 
 	switch node := expr.(type) {
 	case *ast.BinaryExpr:
-		return v.visitBinaryExpr(node)
+		return filterhelp.DispatchBinaryErr(node,
+			v.visitLogicalExpr,
+			v.visitComparisonExpr,
+			v.visitInExpr,
+			v.visitLikeExpr,
+		)
 	case *ast.UnaryExpr:
-		return v.visitUnaryExpr(node)
+		return filterhelp.DispatchUnaryErr(node, v.visitNotExpr)
 	default:
 		return fmt.Errorf("pgvector: unsupported root expression type %T", node)
 	}
 }
 
-func (v *Visitor) visitBinaryExpr(expr *ast.BinaryExpr) error {
-	switch {
-	case expr.Op.Kind.IsLogicalOperator():
-		return v.visitLogicalExpr(expr)
-	case expr.Op.Kind.IsEqualityOperator():
-		return v.visitComparisonExpr(expr)
-	case expr.Op.Kind.IsOrderingOperator():
-		return v.visitComparisonExpr(expr)
-	case expr.Op.Kind.Is(token.IN):
-		return v.visitInExpr(expr)
-	case expr.Op.Kind.Is(token.LIKE):
-		return v.visitLikeExpr(expr)
-	default:
-		return fmt.Errorf("pgvector: unsupported binary operator '%s' at %s",
-			expr.Op.Literal, expr.Start().String())
-	}
-}
-
-func (v *Visitor) visitUnaryExpr(expr *ast.UnaryExpr) error {
-	if !expr.Op.Kind.Is(token.NOT) {
-		return fmt.Errorf("pgvector: unsupported unary operator '%s' at %s",
-			expr.Op.Literal, expr.Start().String())
-	}
-
+func (v *Visitor) visitNotExpr(expr *ast.UnaryExpr) error {
 	v.sql.WriteString("(NOT ")
 	if err := v.visit(expr.Right); err != nil {
 		return err
@@ -118,16 +95,18 @@ func (v *Visitor) visitUnaryExpr(expr *ast.UnaryExpr) error {
 }
 
 func (v *Visitor) visitLogicalExpr(expr *ast.BinaryExpr) error {
-	op := " AND "
-	if expr.Op.Kind.Is(token.OR) {
-		op = " OR "
+	op, err := filterhelp.LogicalOpString(expr.Op.Kind)
+	if err != nil {
+		return fmt.Errorf("pgvector: %w", err)
 	}
 
 	v.sql.WriteString("(")
 	if err := v.visit(expr.Left); err != nil {
 		return err
 	}
+	v.sql.WriteString(" ")
 	v.sql.WriteString(op)
+	v.sql.WriteString(" ")
 	if err := v.visit(expr.Right); err != nil {
 		return err
 	}
@@ -169,17 +148,12 @@ func (v *Visitor) visitComparisonExpr(expr *ast.BinaryExpr) error {
 // follows the literal type — pgx maps Go slices to a Postgres array of
 // the matching type.
 func (v *Visitor) visitInExpr(expr *ast.BinaryExpr) error {
-	listLit, ok := expr.Right.(*ast.ListLiteral)
-	if !ok {
-		return fmt.Errorf("pgvector: 'IN' requires a list on the right at %s, got %T",
-			expr.Start().String(), expr.Right)
-	}
-	if len(listLit.Values) == 0 {
-		return fmt.Errorf("pgvector: 'IN' requires a non-empty list at %s",
-			expr.Start().String())
+	listLit, err := filterhelp.RequireListLiteral(expr)
+	if err != nil {
+		return fmt.Errorf("pgvector: %w", err)
 	}
 
-	values, sample, err := convertListLiteral(listLit)
+	values, sample, err := filterhelp.ConvertListLiteral(listLit)
 	if err != nil {
 		return fmt.Errorf("pgvector: %w (at %s)", err, expr.Start().String())
 	}
@@ -202,14 +176,9 @@ func (v *Visitor) visitInExpr(expr *ast.BinaryExpr) error {
 // pattern-match that most filter DSLs assume. Right side must be a
 // string literal.
 func (v *Visitor) visitLikeExpr(expr *ast.BinaryExpr) error {
-	value, err := filterhelp.ExtractValue(expr.Right)
+	pattern, err := filterhelp.RequireStringPatternOnRight(expr)
 	if err != nil {
-		return fmt.Errorf("pgvector: %w (at %s)", err, expr.Start().String())
-	}
-	pattern, ok := value.(string)
-	if !ok {
-		return fmt.Errorf("pgvector: 'LIKE' requires a string pattern, got %T at %s",
-			value, expr.Start().String())
+		return fmt.Errorf("pgvector: %w", err)
 	}
 
 	jsonPath, err := buildJSONPath(expr.Left, v.metadataCol, castNone)
@@ -315,51 +284,6 @@ func buildJSONPath(expr ast.Expr, metadataCol string, cast jsonCast) (string, er
 		}
 	}
 	return b.String(), nil
-}
-
-// collectKeyPath walks the left operand of a comparison and returns
-// the metadata sub-path it addresses, stripping a leading
-// "metadataCol" identifier when present.
-
-// convertListLiteral builds the typed slice passed to ANY($N) for IN
-// expressions. The element type is decided by the first literal —
-// pgx maps the slice straight to a Postgres array of that type.
-func convertListLiteral(list *ast.ListLiteral) (any, any, error) {
-	first := list.Values[0]
-	switch {
-	case first.IsString():
-		out := make([]string, 0, len(list.Values))
-		for _, lit := range list.Values {
-			s, err := lit.AsString()
-			if err != nil {
-				return nil, nil, err
-			}
-			out = append(out, s)
-		}
-		return out, out[0], nil
-	case first.IsNumber():
-		out := make([]float64, 0, len(list.Values))
-		for _, lit := range list.Values {
-			n, err := lit.AsNumber()
-			if err != nil {
-				return nil, nil, err
-			}
-			out = append(out, n)
-		}
-		return out, out[0], nil
-	case first.IsBool():
-		out := make([]bool, 0, len(list.Values))
-		for _, lit := range list.Values {
-			b, err := lit.AsBool()
-			if err != nil {
-				return nil, nil, err
-			}
-			out = append(out, b)
-		}
-		return out, out[0], nil
-	default:
-		return nil, nil, fmt.Errorf("unsupported list element kind %s", first.Token.Kind.Name())
-	}
 }
 
 func quoteSQLLiteral(s string) string {
