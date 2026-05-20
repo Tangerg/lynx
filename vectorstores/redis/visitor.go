@@ -2,12 +2,12 @@ package redis
 
 import (
 	"fmt"
-	"strings"
 	"strconv"
+	"strings"
 
 	"github.com/Tangerg/lynx/core/vectorstore/filter/ast"
-	"github.com/Tangerg/lynx/vectorstores/internal/filterhelp"
 	"github.com/Tangerg/lynx/core/vectorstore/filter/token"
+	"github.com/Tangerg/lynx/vectorstores/internal/filterhelp"
 )
 
 var _ ast.Visitor = (*Visitor)(nil)
@@ -36,11 +36,9 @@ type Visitor struct {
 	fields map[string]MetadataFieldType
 }
 
-
 func NewVisitor(fields map[string]MetadataFieldType) *Visitor {
 	return &Visitor{fields: fields}
 }
-
 
 func (v *Visitor) Result() string {
 	if v.err != nil {
@@ -66,35 +64,20 @@ func (v *Visitor) visit(expr ast.Expr) error {
 
 	switch node := expr.(type) {
 	case *ast.BinaryExpr:
-		return v.visitBinaryExpr(node)
+		return filterhelp.DispatchBinaryErr(node,
+			v.visitLogicalExpr,
+			v.visitComparisonExpr,
+			v.visitInExpr,
+			v.visitTextFieldExpr,
+		)
 	case *ast.UnaryExpr:
-		return v.visitUnaryExpr(node)
+		return filterhelp.DispatchUnaryErr(node, v.visitNotExpr)
 	default:
 		return fmt.Errorf("redis: unsupported root expression %T", node)
 	}
 }
 
-func (v *Visitor) visitBinaryExpr(expr *ast.BinaryExpr) error {
-	switch {
-	case expr.Op.Kind.IsLogicalOperator():
-		return v.visitLogicalExpr(expr)
-	case expr.Op.Kind.Is(token.IN):
-		return v.visitInExpr(expr)
-	case expr.Op.Kind.Is(token.LIKE):
-		return v.visitTextFieldExpr(expr)
-	case expr.Op.Kind.IsEqualityOperator() || expr.Op.Kind.IsOrderingOperator():
-		return v.visitComparisonExpr(expr)
-	default:
-		return fmt.Errorf("redis: unsupported binary operator '%s' at %s",
-			expr.Op.Literal, expr.Start().String())
-	}
-}
-
-func (v *Visitor) visitUnaryExpr(expr *ast.UnaryExpr) error {
-	if !expr.Op.Kind.Is(token.NOT) {
-		return fmt.Errorf("redis: unsupported unary operator '%s' at %s",
-			expr.Op.Literal, expr.Start().String())
-	}
+func (v *Visitor) visitNotExpr(expr *ast.UnaryExpr) error {
 	v.sql.WriteString("-(")
 	if err := v.visit(expr.Right); err != nil {
 		return err
@@ -103,6 +86,10 @@ func (v *Visitor) visitUnaryExpr(expr *ast.UnaryExpr) error {
 	return nil
 }
 
+// visitLogicalExpr uses RediSearch's space separator for AND and the
+// pipe (` | `) for OR — not the verbatim "AND"/"OR" strings other
+// vendors emit. We don't call filterhelp.LogicalOpString here because
+// of that mapping difference.
 func (v *Visitor) visitLogicalExpr(expr *ast.BinaryExpr) error {
 	sep := " "
 	if expr.Op.Kind.Is(token.OR) {
@@ -199,20 +186,15 @@ func (v *Visitor) visitTextFieldExpr(expr *ast.BinaryExpr) error {
 			kind, field)
 	}
 
-	value, err := filterhelp.ExtractValue(expr.Right)
+	pattern, err := filterhelp.RequireStringPatternOnRight(expr)
 	if err != nil {
-		return fmt.Errorf("redis: %w (at %s)", err, expr.Start().String())
-	}
-	s, ok := value.(string)
-	if !ok {
-		return fmt.Errorf("redis: LIKE requires a string pattern, got %T at %s",
-			value, expr.Start().String())
+		return fmt.Errorf("redis: %w", err)
 	}
 
 	v.sql.WriteString("@")
 	v.sql.WriteString(field)
 	v.sql.WriteString(":(")
-	v.sql.WriteString(escapeTextValue(s))
+	v.sql.WriteString(escapeTextValue(pattern))
 	v.sql.WriteString(")")
 	return nil
 }
@@ -223,14 +205,9 @@ func (v *Visitor) visitInExpr(expr *ast.BinaryExpr) error {
 		return fmt.Errorf("redis: %w (at %s)", err, expr.Start().String())
 	}
 
-	listLit, ok := expr.Right.(*ast.ListLiteral)
-	if !ok {
-		return fmt.Errorf("redis: 'IN' requires a list on the right at %s, got %T",
-			expr.Start().String(), expr.Right)
-	}
-	if len(listLit.Values) == 0 {
-		return fmt.Errorf("redis: 'IN' requires a non-empty list at %s",
-			expr.Start().String())
+	listLit, err := filterhelp.RequireListLiteral(expr)
+	if err != nil {
+		return fmt.Errorf("redis: %w", err)
 	}
 
 	switch kind {
@@ -388,7 +365,6 @@ func literalToString(lit *ast.Literal) (string, error) {
 		return "", fmt.Errorf("unsupported literal kind %s", lit.Token.Kind.Name())
 	}
 }
-
 
 func escapeTagValue(value string) string {
 	var b strings.Builder

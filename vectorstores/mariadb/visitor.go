@@ -5,8 +5,8 @@ import (
 	"strings"
 
 	"github.com/Tangerg/lynx/core/vectorstore/filter/ast"
-	"github.com/Tangerg/lynx/vectorstores/internal/filterhelp"
 	"github.com/Tangerg/lynx/core/vectorstore/filter/token"
+	"github.com/Tangerg/lynx/vectorstores/internal/filterhelp"
 )
 
 var _ ast.Visitor = (*Visitor)(nil)
@@ -33,14 +33,12 @@ type Visitor struct {
 	metadataColumn string
 }
 
-
 func NewVisitor(metadataColumn string) *Visitor {
 	if metadataColumn == "" {
 		metadataColumn = "metadata"
 	}
 	return &Visitor{metadataColumn: metadataColumn}
 }
-
 
 func (v *Visitor) Result() (string, []any) {
 	if v.err != nil {
@@ -66,35 +64,20 @@ func (v *Visitor) visit(expr ast.Expr) error {
 
 	switch node := expr.(type) {
 	case *ast.BinaryExpr:
-		return v.visitBinaryExpr(node)
+		return filterhelp.DispatchBinaryErr(node,
+			v.visitLogicalExpr,
+			v.visitComparisonExpr,
+			v.visitInExpr,
+			v.visitLikeExpr,
+		)
 	case *ast.UnaryExpr:
-		return v.visitUnaryExpr(node)
+		return filterhelp.DispatchUnaryErr(node, v.visitNotExpr)
 	default:
 		return fmt.Errorf("mariadb: unsupported root expression %T", node)
 	}
 }
 
-func (v *Visitor) visitBinaryExpr(expr *ast.BinaryExpr) error {
-	switch {
-	case expr.Op.Kind.IsLogicalOperator():
-		return v.visitLogicalExpr(expr)
-	case expr.Op.Kind.Is(token.IN):
-		return v.visitInExpr(expr)
-	case expr.Op.Kind.Is(token.LIKE):
-		return v.visitLikeExpr(expr)
-	case expr.Op.Kind.IsEqualityOperator() || expr.Op.Kind.IsOrderingOperator():
-		return v.visitComparisonExpr(expr)
-	default:
-		return fmt.Errorf("mariadb: unsupported binary operator '%s' at %s",
-			expr.Op.Literal, expr.Start().String())
-	}
-}
-
-func (v *Visitor) visitUnaryExpr(expr *ast.UnaryExpr) error {
-	if !expr.Op.Kind.Is(token.NOT) {
-		return fmt.Errorf("mariadb: unsupported unary operator '%s' at %s",
-			expr.Op.Literal, expr.Start().String())
-	}
+func (v *Visitor) visitNotExpr(expr *ast.UnaryExpr) error {
 	v.sql.WriteString("NOT (")
 	if err := v.visit(expr.Right); err != nil {
 		return err
@@ -104,15 +87,17 @@ func (v *Visitor) visitUnaryExpr(expr *ast.UnaryExpr) error {
 }
 
 func (v *Visitor) visitLogicalExpr(expr *ast.BinaryExpr) error {
-	op := " AND "
-	if expr.Op.Kind.Is(token.OR) {
-		op = " OR "
+	op, err := filterhelp.LogicalOpString(expr.Op.Kind)
+	if err != nil {
+		return fmt.Errorf("mariadb: %w", err)
 	}
 	v.sql.WriteString("(")
 	if err := v.visit(expr.Left); err != nil {
 		return err
 	}
+	v.sql.WriteString(" ")
 	v.sql.WriteString(op)
+	v.sql.WriteString(" ")
 	if err := v.visit(expr.Right); err != nil {
 		return err
 	}
@@ -148,14 +133,9 @@ func (v *Visitor) visitInExpr(expr *ast.BinaryExpr) error {
 		return fmt.Errorf("mariadb: %w (at %s)", err, expr.Start().String())
 	}
 
-	listLit, ok := expr.Right.(*ast.ListLiteral)
-	if !ok {
-		return fmt.Errorf("mariadb: 'IN' requires a list on the right at %s, got %T",
-			expr.Start().String(), expr.Right)
-	}
-	if len(listLit.Values) == 0 {
-		return fmt.Errorf("mariadb: 'IN' requires a non-empty list at %s",
-			expr.Start().String())
+	listLit, err := filterhelp.RequireListLiteral(expr)
+	if err != nil {
+		return fmt.Errorf("mariadb: %w", err)
 	}
 
 	values := make([]any, 0, len(listLit.Values))
@@ -184,14 +164,9 @@ func (v *Visitor) visitLikeExpr(expr *ast.BinaryExpr) error {
 	if err != nil {
 		return fmt.Errorf("mariadb: %w (at %s)", err, expr.Start().String())
 	}
-	value, err := filterhelp.ExtractValue(expr.Right)
+	pattern, err := filterhelp.RequireStringPatternOnRight(expr)
 	if err != nil {
-		return fmt.Errorf("mariadb: %w (at %s)", err, expr.Start().String())
-	}
-	pattern, ok := value.(string)
-	if !ok {
-		return fmt.Errorf("mariadb: LIKE requires a string pattern, got %T at %s",
-			value, expr.Start().String())
+		return fmt.Errorf("mariadb: %w", err)
 	}
 
 	v.appendJSONExtraction(jsonPath, "", token.EQ)
@@ -254,7 +229,6 @@ func buildJSONPath(expr ast.Expr) (string, error) {
 	}
 	return "$." + strings.Join(keys, "."), nil
 }
-
 
 func sqlOpFor(kind token.Kind) (string, error) {
 	switch kind {
