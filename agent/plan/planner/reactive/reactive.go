@@ -23,9 +23,16 @@ import (
 	"context"
 	"math"
 
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
+
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/plan"
 )
+
+// plannerTracer is the package-level tracer for the reactive planner.
+var plannerTracer = otel.Tracer("lynx/agent/planner")
 
 // Planner is the concrete reactive planner. Stateless across calls;
 // safe to share across goroutines.
@@ -54,23 +61,39 @@ func (p *Planner) Name() string { return "reactive" }
 //   - (nil, nil) when no applicable action makes progress (the runtime
 //     interprets this as "stuck" and may drive a stuck-handler).
 func (p *Planner) PlanToGoal(
-	_ context.Context,
+	ctx context.Context,
 	start core.WorldState,
 	system *plan.PlanningSystem,
 	goal *core.Goal,
 	options plan.PlanOptions,
-) (*plan.Plan, error) {
-	if err := plan.CheckPlanInputs(start, system, goal); err != nil {
+) (result *plan.Plan, err error) {
+	if err = plan.CheckPlanInputs(start, system, goal); err != nil {
 		return nil, err
 	}
+
+	_, span := plannerTracer.Start(ctx, "reactive.plan",
+		trace.WithAttributes(
+			attribute.String("lynx.agent.planner", "reactive"),
+			attribute.String("lynx.agent.goal.name", goal.Name),
+		),
+	)
+	defer func() {
+		if result != nil {
+			span.SetAttributes(attribute.Int("lynx.agent.plan.length", len(result.Actions)))
+		}
+		span.End()
+	}()
+
 	if goal.IsSatisfiedBy(start) {
-		return &plan.Plan{Goal: goal}, nil
+		result = &plan.Plan{Goal: goal}
+		return result, nil
 	}
 	best := p.bestApplicable(start, system.Actions, goal, options.ExcludedActions)
 	if best == nil {
 		return nil, nil
 	}
-	return &plan.Plan{Actions: []core.Action{best}, Goal: goal}, nil
+	result = &plan.Plan{Actions: []core.Action{best}, Goal: goal}
+	return result, nil
 }
 
 // bestApplicable picks the action whose effects close the most
