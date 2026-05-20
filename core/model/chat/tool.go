@@ -8,6 +8,10 @@ import (
 	"slices"
 	"sync"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
+
 	pkgSlices "github.com/Tangerg/lynx/pkg/slices"
 )
 
@@ -346,7 +350,9 @@ func (i *toolCallInvoker) canInvokeToolCalls(resp *Response) (bool, error) {
 }
 
 // invokeToolCalls runs every requested tool in order and collects the
-// results into a single [*ToolMessage].
+// results into a single [*ToolMessage]. One child span per tool call
+// is emitted under the parent chat span, tagged with `lynx.tool.*`
+// attributes — see [toolTracer] / doc/OBSERVABILITY.md §4.5.
 func (i *toolCallInvoker) invokeToolCalls(ctx context.Context, calls []*ToolCallPart) (*ToolInvocationResult, error) {
 	allReturnDirect := true
 	returns := make([]*ToolReturn, 0, len(calls))
@@ -355,7 +361,7 @@ func (i *toolCallInvoker) invokeToolCalls(ctx context.Context, calls []*ToolCall
 		// Existence is guaranteed by the canInvokeToolCalls precheck.
 		t, _ := i.registry.Find(call.Name)
 
-		result, err := t.Call(ctx, call.Arguments)
+		result, err := i.invokeOne(ctx, t, call)
 		if err != nil {
 			return nil, fmt.Errorf("chat.toolCallInvoker.invokeToolCalls: tool %q failed: %w", call.Name, err)
 		}
@@ -377,6 +383,30 @@ func (i *toolCallInvoker) invokeToolCalls(ctx context.Context, calls []*ToolCall
 		toolMessage:     toolMsg,
 		allReturnDirect: allReturnDirect,
 	}, nil
+}
+
+// invokeOne dispatches a single tool call under its own OTel span.
+// The span emits `lynx.tool.name` / `lynx.tool.call_id`; an error
+// adds `lynx.tool.is_error=true` and sets span status before
+// re-throwing the underlying error to the caller. Noop overhead
+// when no TracerProvider is configured.
+func (i *toolCallInvoker) invokeOne(ctx context.Context, t Tool, call *ToolCallPart) (string, error) {
+	ctx, span := toolTracer.Start(ctx, "tool.invoke "+call.Name,
+		trace.WithSpanKind(trace.SpanKindInternal),
+		trace.WithAttributes(
+			attribute.String(attrLynxToolName, call.Name),
+			attribute.String(attrLynxToolCallID, call.ID),
+		),
+	)
+	defer span.End()
+
+	result, err := t.Call(ctx, call.Arguments)
+	if err != nil {
+		span.SetAttributes(attribute.Bool(attrLynxToolIsError, true))
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+	}
+	return result, err
 }
 
 // invoke is the orchestrator: validate, run, attach context.

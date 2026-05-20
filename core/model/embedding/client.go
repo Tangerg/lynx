@@ -143,15 +143,22 @@ type ClientCaller struct {
 
 // Response runs the call through the middleware chain and returns the
 // raw [*Response].
+//
+// One OTel span is started per call following the GenAI semconv —
+// see [startEmbeddingSpan] / [finishEmbeddingSpan] for the attribute
+// set. Noop overhead when no TracerProvider is configured.
 func (c *ClientCaller) Response(ctx context.Context) (*Response, error) {
 	req, err := c.request.buildRequest()
 	if err != nil {
 		return nil, err
 	}
-	return c.request.
+	ctx, span := startEmbeddingSpan(ctx, c.request.model, req)
+	resp, err := c.request.
 		MiddlewareManager().
 		BuildCallHandler(c.request.model).
 		Call(ctx, req)
+	finishEmbeddingSpan(span, resp, err)
+	return resp, err
 }
 
 // Embedding runs the call and returns the first embedding vector

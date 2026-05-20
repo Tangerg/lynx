@@ -275,9 +275,42 @@ type ClientStreamer struct {
 // stream feeds the request through the middleware chain into the model.
 // Tool execution is NOT auto-injected — register [NewToolMiddleware] via
 // WithMiddlewares if you need that.
+//
+// One OTel span is started per stream call, following the GenAI
+// semconv: request-side attributes (model, options) are stamped up
+// front; response-side attributes (usage, finish reason) latch from
+// the last chunk that carried them; a `gen_ai.stream.first_token_received`
+// event fires on the first non-empty yield.
 func (s *ClientStreamer) stream(ctx context.Context, req *Request) iter.Seq2[*Response, error] {
+	spanCtx, span := startChatSpan(ctx, s.request.model, req, "chat")
 	handler := s.request.MiddlewareManager().BuildStreamHandler(s.request.model)
-	return handler.Stream(ctx, req)
+	inner := handler.Stream(spanCtx, req)
+
+	return func(yield func(*Response, error) bool) {
+		var (
+			firstChunk = true
+			lastResp   *Response
+			lastErr    error
+		)
+		for resp, err := range inner {
+			if err != nil {
+				lastErr = err
+				yield(nil, err)
+				break
+			}
+			if firstChunk {
+				span.AddEvent("gen_ai.stream.first_token_received")
+				firstChunk = false
+			}
+			if resp != nil {
+				lastResp = resp
+			}
+			if !yield(resp, nil) {
+				break
+			}
+		}
+		finishChatSpan(span, lastResp, lastErr)
+	}
 }
 
 // runStream is the shared entry point for streaming: build the request,
@@ -339,9 +372,17 @@ type ClientCaller struct {
 // call feeds the request through the middleware chain into the model.
 // Tool execution is NOT auto-injected — register [NewToolMiddleware] via
 // WithMiddlewares if you need that.
+//
+// One OTel span is started per call, following the GenAI semconv —
+// see [startChatSpan] / [finishChatSpan] for the attribute set. When
+// no TracerProvider is configured (the default) the span calls are
+// noop and effectively zero-cost.
 func (c *ClientCaller) call(ctx context.Context, req *Request) (*Response, error) {
+	ctx, span := startChatSpan(ctx, c.request.model, req, "chat")
 	handler := c.request.MiddlewareManager().BuildCallHandler(c.request.model)
-	return handler.Call(ctx, req)
+	resp, err := handler.Call(ctx, req)
+	finishChatSpan(span, resp, err)
+	return resp, err
 }
 
 // runCall is the shared entry point: build the request, optionally
