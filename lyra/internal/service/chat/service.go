@@ -41,10 +41,14 @@ type TurnHandle struct {
 //	    switch e := ev.(type) {
 //	    case MessageDelta: ui.AppendText(e.Text)
 //	    case ToolCallStart: ui.ShowSpinner(e.ToolName)
+//	    case PlanGenerated: ui.ShowPlan(e.Plan)  // plan-mode only
 //	    case TurnEnd: return
 //	    case Error: handleErr(e)
 //	    }
 //	}
+//
+// In plan mode the turn pauses after [PlanGenerated]; call
+// [ContinuePlan] with the user's decision to resume.
 //
 // Cancellation flows through ctx — closing ctx cancels the turn and
 // drains the event channel.
@@ -68,9 +72,38 @@ type Service interface {
 	// (M-future; signature reserved to stabilize the surface.)
 	InjectSteering(ctx context.Context, handle TurnHandle, message string) error
 
+	// ContinuePlan resumes a plan-mode turn that paused after emitting
+	// a [PlanGenerated] event. Decision = Approve runs the plan
+	// through the regular tool-loop path; Reject ends the turn with
+	// Reason=Cancelled. Returns [ErrTurnNotFound] when the turn is
+	// not in the plan-pending state.
+	ContinuePlan(ctx context.Context, handle TurnHandle, decision PlanDecision) error
+
 	// Cancel stops the turn immediately, drains pending tool calls
 	// safely, and emits a final [TurnEnd] event with Reason=Cancelled.
 	Cancel(ctx context.Context, handle TurnHandle) error
+}
+
+// PlanDecision is the client's response to a paused plan-mode turn.
+type PlanDecision int
+
+const (
+	// PlanApprove tells the runtime to execute the proposed plan.
+	PlanApprove PlanDecision = iota
+	// PlanReject aborts the turn — Lyra emits TurnEnd(Cancelled)
+	// without running any tools.
+	PlanReject
+)
+
+func (d PlanDecision) String() string {
+	switch d {
+	case PlanApprove:
+		return "approve"
+	case PlanReject:
+		return "reject"
+	default:
+		return "unknown"
+	}
 }
 
 // ------------------------------------------------------------------
@@ -124,6 +157,19 @@ type ToolCallStart struct {
 	CallID    string
 	ToolName  string
 	Arguments string
+}
+
+// PlanGenerated fires once during a plan-mode turn, after the LLM
+// produces the step-list but before any tool calls run. The turn
+// is paused at this point — the client inspects the plan, then
+// calls [Service.ContinuePlan] with an Approve / Reject decision.
+//
+// Plan is the LLM's raw markdown — typically a numbered list. The
+// runtime makes no attempt to parse it into structured steps;
+// downstream consumers render the markdown verbatim.
+type PlanGenerated struct {
+	BaseEvent
+	Plan string
 }
 
 // ToolCallEnd fires when the tool finishes. Output is the tool's

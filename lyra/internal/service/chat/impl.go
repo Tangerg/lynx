@@ -29,14 +29,21 @@ func New(eng *engine.Engine) Service {
 }
 
 // turnState holds the per-turn bookkeeping the implementation needs:
-// the event channel subscribers read from, the cancel func that fires
-// when [Service.Cancel] is called, and a monotone sequence number
-// stamped onto every emitted event.
+// the event channel subscribers read from, the cancel func that
+// fires when [Service.Cancel] is called, a monotone sequence number
+// stamped onto every emitted event, and the plan-decision channel
+// runTurn blocks on when the turn is in plan-pending state.
 type turnState struct {
 	handle TurnHandle
 	events chan Event
 	cancel context.CancelFunc
 	seq    atomic.Uint64
+
+	// planDecision is non-nil only while the turn is paused
+	// waiting for [Service.ContinuePlan]. Buffered (cap 1) so a
+	// ContinuePlan call never blocks regardless of runTurn's
+	// progress. nil for non-plan-mode turns.
+	planDecision chan PlanDecision
 }
 
 type impl struct {
@@ -72,6 +79,9 @@ func (s *impl) StartTurn(ctx context.Context, req StartTurnRequest) (TurnHandle,
 		handle: handle,
 		events: make(chan Event, 32),
 		cancel: cancel,
+	}
+	if req.PlanMode {
+		state.planDecision = make(chan PlanDecision, 1)
 	}
 
 	s.mu.Lock()
@@ -111,6 +121,29 @@ func (s *impl) Cancel(_ context.Context, handle TurnHandle) error {
 	return nil
 }
 
+// ContinuePlan resumes a paused plan-mode turn. The decision is
+// pushed to the buffered channel runTurn is waiting on; a closed
+// channel (turn already over) returns [ErrTurnNotFound]. Plain
+// chat turns (no PlanMode) have no planDecision channel and so
+// also return ErrTurnNotFound — the wrong-mode case is folded in
+// rather than introducing a separate sentinel.
+func (s *impl) ContinuePlan(_ context.Context, handle TurnHandle, decision PlanDecision) error {
+	s.mu.Lock()
+	state, ok := s.turns[handle.TurnID]
+	s.mu.Unlock()
+	if !ok || state.planDecision == nil {
+		return ErrTurnNotFound
+	}
+	select {
+	case state.planDecision <- decision:
+		return nil
+	default:
+		// Decision already received — second ContinuePlan call is a no-op
+		// rather than an error so transport retries are safe.
+		return nil
+	}
+}
+
 // ------------------------------------------------------------------
 // Turn execution
 // ------------------------------------------------------------------
@@ -132,6 +165,52 @@ func (s *impl) runTurn(ctx context.Context, st *turnState, req StartTurnRequest)
 		BaseEvent: st.baseEvent(),
 		Model:     "default", // M1 — engine exposes model name in M2+
 	})
+
+	// Plan-mode pre-flight: ask the LLM for a plan, emit it, wait
+	// for the user's Approve / Reject. Reject short-circuits the
+	// turn without invoking any tools.
+	if req.PlanMode {
+		plan, err := s.engine.GeneratePlan(ctx, req.Message)
+		if err != nil {
+			s.emit(st, ErrorEvent{
+				BaseEvent: st.baseEvent(),
+				Message:   "plan generation failed: " + err.Error(),
+				Code:      "PLANNING_ERROR",
+			})
+			s.emit(st, TurnEnd{
+				BaseEvent: st.baseEvent(),
+				Reason:    TurnEndErrored,
+				Duration:  time.Since(startedAt),
+			})
+			return
+		}
+		// Trivial requests (LLM returned NO_PLAN → plan == "") skip
+		// the approval step and fall through to direct execution.
+		if plan != "" {
+			s.emit(st, PlanGenerated{
+				BaseEvent: st.baseEvent(),
+				Plan:      plan,
+			})
+			decision, ok := waitDecision(ctx, st)
+			if !ok {
+				// Context cancelled while waiting.
+				s.emit(st, TurnEnd{
+					BaseEvent: st.baseEvent(),
+					Reason:    TurnEndCancelled,
+					Duration:  time.Since(startedAt),
+				})
+				return
+			}
+			if decision == PlanReject {
+				s.emit(st, TurnEnd{
+					BaseEvent: st.baseEvent(),
+					Reason:    TurnEndCancelled,
+					Duration:  time.Since(startedAt),
+				})
+				return
+			}
+		}
+	}
 
 	observer := &turnObserver{impl: s, st: st}
 	_, runErr := s.engine.RunChat(ctx, engine.RunChatRequest{
@@ -214,6 +293,8 @@ func (s *impl) emit(st *turnState, ev Event) {
 		ev = withSeq(st, e)
 	case ToolCallEnd:
 		ev = withSeq(st, e)
+	case PlanGenerated:
+		ev = withSeq(st, e)
 	case TurnEnd:
 		ev = withSeq(st, e)
 	case ErrorEvent:
@@ -253,6 +334,10 @@ func withSeq(st *turnState, ev Event) Event {
 		e.BaseEvent.Seq = seq
 		e.BaseEvent.Timestamp = now
 		return e
+	case PlanGenerated:
+		e.BaseEvent.Seq = seq
+		e.BaseEvent.Timestamp = now
+		return e
 	case TurnEnd:
 		e.BaseEvent.Seq = seq
 		e.BaseEvent.Timestamp = now
@@ -269,6 +354,18 @@ func (st *turnState) baseEvent() BaseEvent {
 	return BaseEvent{
 		SessionID: st.handle.SessionID,
 		TurnID:    st.handle.TurnID,
+	}
+}
+
+// waitDecision blocks until the client calls ContinuePlan or the
+// turn context is cancelled. Returns the second value as false on
+// cancellation so the caller emits TurnEndCancelled cleanly.
+func waitDecision(ctx context.Context, st *turnState) (PlanDecision, bool) {
+	select {
+	case d := <-st.planDecision:
+		return d, true
+	case <-ctx.Done():
+		return PlanReject, false
 	}
 }
 

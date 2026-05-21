@@ -70,6 +70,7 @@ type Engine struct {
 	memSvc    lyramem.Service
 	compactor *compactor
 	extractor *extractor
+	planner   *planner
 }
 
 // New constructs an engine. Returns an error when required deps
@@ -117,6 +118,8 @@ func New(cfg Config) (*Engine, error) {
 		ex = newExtractor(memStore, cfg.MemoryService, cfg.ChatClient)
 	}
 
+	pl := newPlanner(cfg.ChatClient)
+
 	return &Engine{
 		platform:  platform,
 		agent:     a,
@@ -124,7 +127,25 @@ func New(cfg Config) (*Engine, error) {
 		memSvc:    cfg.MemoryService,
 		compactor: c,
 		extractor: ex,
+		planner:   pl,
 	}, nil
+}
+
+// GeneratePlan asks the LLM for a step-by-step plan handling
+// userMessage, threading in the same system prompt the regular
+// agent would build (LYRA.md cascade + base persona). Returns an
+// empty string when the LLM judges the request trivial (NO_PLAN).
+//
+// Lives on the engine — not the planner pointer directly — so
+// chat.Service composes the prompt the same way the actual run
+// will. Errors propagate as-is; the caller decides whether to
+// fall back to direct execution.
+func (e *Engine) GeneratePlan(ctx context.Context, userMessage string) (string, error) {
+	if e.planner == nil {
+		return "", nil
+	}
+	sys := composeSystemPrompt(ctx, e.memSvc)
+	return e.planner.Plan(ctx, sys, userMessage)
 }
 
 // MaybeCompact runs one auto-compaction sweep against sessionID. The
