@@ -122,14 +122,68 @@ src/
 └── test/                 测试 setup
 ```
 
-> **关于 `domain/` `infra/` `main/`** —— 参考 clean-react-app 的整洁架构分层，但**没有照搬全套**。Lyra 大部分 UI ↔ 数据流通过插件系统（`plugins/sdk` + builtin 插件）已经达成解耦；仅在"UI 直接发起 outbound 副作用"的场景（目前是 ApprovalCard POST /permission）抽出 gateway 接口。规则：
->
->   - `domain/` 只能 `import type`，不能 `import` 任何运行时代码（React / fetch / zustand 都禁）
->   - `infra/` 实现 `domain/gateways/*`，可以用 fetch / localStorage / IPC
->   - `main/container.ts` 是唯一把 infra 实现塞给 domain 接口的地方
->   - UI 一律 `import { getContainer } from "@/main/container"` 然后 `.permission.submit(...)`
->
-> 增加新 gateway 的步骤：① `domain/gateways/Foo.ts` 写接口；② `infra/.../HttpFoo.ts` 写实现；③ `main/container.ts` 加字段；④ UI 调用 `getContainer().foo.x()`。
+### 3.1 整洁架构 → Lyra 适配
+
+参考 [clean-react-app](https://github.com/rmanguinho/clean-react) 的整洁架构分层，但**没有照搬全套六层**（`domain/data/infra/main/presentation/validation`）。Lyra 大部分 UI ↔ 数据流通过插件系统已经解耦了，所以只补真正缺的那一层 —— "UI 直接发起 outbound 副作用"——剩下的层 YAGNI 不做。
+
+**层依赖规则**（由 `src/test/architecture.test.ts` 强制）：
+
+```
+                       ┌──────────────────────────┐
+                       │  domain/                 │
+                       │   - models (types only)  │
+                       │   - gateways (contracts) │
+                       │   零依赖                  │
+                       └──────────────────────────┘
+                              ▲
+                              │ implements
+                       ┌──────────────────────────┐
+                       │  infra/                  │
+                       │   - HttpXxxGateway       │
+                       │   只依赖 domain + lib/http│
+                       └──────────────────────────┘
+                              ▲
+                              │ wires
+                       ┌──────────────────────────┐
+                       │  main/container.ts       │
+                       │   getContainer() 单例     │
+                       │   可以依赖任何东西        │
+                       └──────────────────────────┘
+                              ▲
+                              │ via getContainer()
+                       ┌──────────────────────────┐
+                       │  components/ state/      │
+                       │  plugins/ lib/ pages/    │
+                       │   不能直接 import infra/  │
+                       └──────────────────────────┘
+```
+
+具体规则：
+
+- `domain/` 只能 `import type`，**禁** React / fetch / zustand / `@/infra/*` / 其他 `@/...` 任何运行时模块
+- `infra/` 实现 `domain/gateways/*`，可以用 fetch / localStorage / IPC，但**禁** 反向 import `@/components/*` / `@/state/*` / `@/plugins/*` / `@/main/*`
+- `main/container.ts` 是**唯一**把 infra 实现塞给 domain 接口槽的地方
+- UI / 状态 / 插件 / lib 全部通过 `getContainer().xxx.method(...)` 拿 gateway，**禁直接 import `@/infra/*`**
+
+**增加新 gateway 的步骤**：
+1. `domain/gateways/Foo.ts` 写接口 + 必要的 `domain/models/Foo.ts` 类型
+2. `infra/.../HttpFoo.ts` (或别的 transport) 实现接口
+3. `main/container.ts` 加字段 + `defaultContainer()` 里实例化
+4. UI 调用 `getContainer().foo.method(...)`
+5. 测试用 `setContainer({ foo: fakeFoo })` 注入假实现
+
+合规检查跑 `pnpm vitest architecture` 即可——违反任何一条规则都会失败。
+
+### 3.2 关于 monorepo（暂不拆）
+
+`domain/` `infra/` `main/` 完全可以拆成独立的 `@lyra/domain` `@lyra/infra` 等 workspace packages（参考 clean-react-app 风格）。我们**暂时不拆**——package 边界的真正回报是当有第二个消费方时。**触发条件**任一命中就启动 monorepo 改造：
+
+1. 出现第二个 app（CLI / mobile / 嵌入式 web）
+2. `sample-plugins/` 里有 ≥ 2 个非空 demo，且其中至少一个需要外部 publish
+3. 团队扩到 3+ 人，需要按包做 CODEOWNERS
+4. 任何一个 `packages/` 候选超过 ~200 文件且有 5+ 外部依赖
+
+在那之前，TypeScript path alias + `architecture.test.ts` 已经给到等价的边界约束。
 
 
 ---
