@@ -243,6 +243,52 @@ func (b *inMemoryBlackboard) InfoString(verbose bool) string {
 	return core.InspectInfoString(b, verbose)
 }
 
+// Snapshot implements [BlackboardSnapshotter] — returns shallow copies
+// of the named bindings, conditions, and ordered objects list so the
+// [SnapshotProcess] helper can persist them. Hidden + protected
+// markers are deliberately omitted: protected re-applies naturally at
+// restore time (a freshly-restored process behaves as though no
+// reset has occurred), and Hide markers are a transient view filter
+// that has no meaning outside the running process.
+func (b *inMemoryBlackboard) Snapshot() (map[string]any, map[string]bool, []any) {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+
+	named := make(map[string]any, len(b.named))
+	for k, v := range b.named {
+		named[k] = v
+	}
+	conditions := make(map[string]bool, len(b.conditions))
+	for k, v := range b.conditions {
+		conditions[k] = v
+	}
+	objects := make([]any, len(b.objects))
+	copy(objects, b.objects)
+	return named, conditions, objects
+}
+
+// Restore implements [BlackboardRestorer] — fills the blackboard
+// from the values previously returned by [Snapshot]. Existing
+// bindings are cleared first; partial restore is not supported.
+// Protected / hidden markers are reset because they have no
+// portable wire form.
+func (b *inMemoryBlackboard) Restore(named map[string]any, conditions map[string]bool, objects []any) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	clear(b.named)
+	for k, v := range named {
+		b.named[k] = v
+	}
+	clear(b.conditions)
+	for k, v := range conditions {
+		b.conditions[k] = v
+	}
+	b.objects = append(b.objects[:0], objects...)
+	b.hidden = b.hidden[:0]
+	clear(b.protected)
+}
+
 // typeMatches checks whether v matches typeName by walking the same rules
 // IOBinding uses. Pointer types unwrap; sealed-interface hierarchies
 // require explicit DomainType registration (handled by the determiner).

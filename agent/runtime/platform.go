@@ -2,6 +2,8 @@ package runtime
 
 import (
 	"context"
+	"errors"
+	"fmt"
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/event"
@@ -37,8 +39,9 @@ type Platform struct {
 
 	events     *event.Multicast      // populated from EventListener extensions
 	services   *core.ServiceProvider // open registry exposed via Platform.Services()
-	chatClient *chat.Client          // optional shared LLM client
-	guardrails *core.Guardrails      // optional global chat middlewares
+	chatClient   *chat.Client      // optional shared LLM client
+	guardrails   *core.Guardrails  // optional global chat middlewares
+	processStore core.ProcessStore // optional snapshot backend
 }
 
 // PlatformConfig is the construction-time configuration for
@@ -58,6 +61,14 @@ type PlatformConfig struct {
 	// content safeguard, request/response logging, global quota.
 	// Optional — nil / empty means "no global wrapping".
 	Guardrails *core.Guardrails
+
+	// ProcessStore persists [AgentProcess] snapshots so a process
+	// can survive runtime restart, be migrated across nodes, or
+	// audited after termination. Optional — nil means "no
+	// persistence" (lynx's historical in-memory-only behaviour).
+	// See [SnapshotProcess] / [RestoreProcess] / [Platform.Save] /
+	// [Platform.Restore] for the surface.
+	ProcessStore core.ProcessStore
 
 	// Extensions are the platform-scoped plug-ins. Each value must
 	// implement [core.Extension] and may additionally implement any
@@ -87,8 +98,9 @@ func NewPlatform(config *PlatformConfig) *Platform {
 		extensions: newExtensionRegistry(),
 		events:     event.NewMulticast(),
 		services:   core.NewServiceProvider(),
-		chatClient: config.ChatClient,
-		guardrails: config.Guardrails,
+		chatClient:   config.ChatClient,
+		guardrails:   config.Guardrails,
+		processStore: config.ProcessStore,
 	}
 	for _, ext := range config.Extensions {
 		p.extensions.register("PlatformConfig.Extensions", ext)
@@ -124,6 +136,46 @@ func (p *Platform) GetProcess(id string) (*AgentProcess, bool) { return p.procs.
 // ActiveProcesses returns a snapshot of all currently registered
 // processes.
 func (p *Platform) ActiveProcesses() []*AgentProcess { return p.procs.list() }
+
+// ProcessStore returns the configured snapshot backend, or nil when
+// the platform was constructed without one.
+func (p *Platform) ProcessStore() core.ProcessStore { return p.processStore }
+
+// SaveProcess captures the named process into the configured
+// [core.ProcessStore] under its current id. Errors when no store is
+// configured, the process id is unknown, or the store rejects the
+// write.
+func (p *Platform) SaveProcess(ctx context.Context, processID string) error {
+	if p.processStore == nil {
+		return errors.New("save process: no ProcessStore configured")
+	}
+	proc, ok := p.procs.get(processID)
+	if !ok {
+		return fmt.Errorf("save process: id %q not registered", processID)
+	}
+	return p.processStore.Save(ctx, SnapshotProcess(proc))
+}
+
+// RestoreProcess loads a snapshot from the configured store and
+// rebuilds an [AgentProcess] bound to a currently-deployed agent
+// definition. The restored process is registered in the platform's
+// process map and ready for inspection or (when the snapshot status
+// is resumable) re-entry into the tick loop via the standard run
+// surface.
+//
+// Errors propagate from the store and from agent re-binding (the
+// agent must be deployed under the same name as recorded in the
+// snapshot).
+func (p *Platform) RestoreProcess(ctx context.Context, processID string) (*AgentProcess, error) {
+	if p.processStore == nil {
+		return nil, errors.New("restore process: no ProcessStore configured")
+	}
+	snap, err := p.processStore.Load(ctx, processID)
+	if err != nil {
+		return nil, fmt.Errorf("restore process: %w", err)
+	}
+	return RestoreProcess(p, snap)
+}
 
 // publish is the runtime's event entry point. Used by AgentProcess
 // and executeAction.
