@@ -5,12 +5,14 @@ import (
 	"encoding/json"
 	"errors"
 	"iter"
+	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime"
 	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime/document"
 	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime/types"
 
+	"github.com/Tangerg/lynx/core/media"
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/models/internal/options"
 )
@@ -112,6 +114,11 @@ func buildMessages(msgs []chat.Message) ([]types.SystemContentBlock, []types.Mes
 			if m.Text != "" {
 				blocks = append(blocks, &types.ContentBlockMemberText{Value: m.Text})
 			}
+			for _, mm := range m.Media {
+				if block := mediaToBlock(mm); block != nil {
+					blocks = append(blocks, block)
+				}
+			}
 			if len(blocks) > 0 {
 				out = append(out, types.Message{
 					Role:    types.ConversationRoleUser,
@@ -128,6 +135,24 @@ func buildMessages(msgs []chat.Message) ([]types.SystemContentBlock, []types.Mes
 					if tp.Text != "" {
 						blocks = append(blocks, &types.ContentBlockMemberText{Value: tp.Text})
 					}
+				case *chat.ReasoningPart:
+					// Round-trip the model's reasoning back to the
+					// provider so multi-turn thinking is preserved.
+					// Signature must be echoed verbatim — Bedrock
+					// rejects the call when it's tampered with.
+					if tp.Text == "" && len(tp.Signature) == 0 {
+						continue
+					}
+					rb := types.ReasoningTextBlock{}
+					if tp.Text != "" {
+						rb.Text = aws.String(tp.Text)
+					}
+					if len(tp.Signature) > 0 {
+						rb.Signature = aws.String(string(tp.Signature))
+					}
+					blocks = append(blocks, &types.ContentBlockMemberReasoningContent{
+						Value: &types.ReasoningContentBlockMemberReasoningText{Value: rb},
+					})
 				case *chat.ToolCallPart:
 					var input map[string]any
 					if tp.Arguments != "" {
@@ -141,11 +166,6 @@ func buildMessages(msgs []chat.Message) ([]types.SystemContentBlock, []types.Mes
 						},
 					})
 				}
-				// ReasoningPart: Bedrock Converse exposes thinking via a
-				// separate "reasoning_content" block type that isn't
-				// surfaced by the current Go SDK types in use here. Skip
-				// for now — round-trip works via Metadata for the rare
-				// case where a vendor preserves reasoning continuation.
 			}
 			if len(blocks) > 0 {
 				out = append(out, types.Message{
@@ -178,17 +198,60 @@ func buildMessages(msgs []chat.Message) ([]types.SystemContentBlock, []types.Mes
 }
 
 // toDocument wraps an arbitrary value into the AWS Smithy document
-// shape Bedrock expects for tool inputs.
+// shape Bedrock expects for tool inputs. nil/empty inputs return nil
+// so the field can stay unset on the wire.
 func toDocument(v any) document.Interface {
 	if v == nil {
 		return nil
 	}
-	// Return nil for now — callers needing typed tool inputs thread
-	// them through Extra-threaded ConverseInput. A proper smithy
-	// document builder (document.NewLazyDocument) requires importing
-	// the AWS document/jsonrpc package which we keep out of the public
-	// surface.
-	return nil
+	if m, ok := v.(map[string]any); ok && len(m) == 0 {
+		return nil
+	}
+	return document.NewLazyDocument(v)
+}
+
+// mediaToBlock maps a [*media.Media] payload onto the appropriate
+// Bedrock content-block variant. Only image media is fully supported
+// today — Bedrock Converse expects png / jpeg / gif / webp inline
+// bytes. Unrecognised media types are silently dropped (the assistant
+// gets the text portion of the message and the caller learns of the
+// gap by inspecting the prompt that round-tripped).
+func mediaToBlock(m *media.Media) types.ContentBlock {
+	if m == nil || m.MimeType == nil {
+		return nil
+	}
+	if !strings.EqualFold(m.MimeType.Type(), "image") {
+		return nil
+	}
+	format, ok := bedrockImageFormat(m.MimeType.SubType())
+	if !ok {
+		return nil
+	}
+	raw, err := m.DataAsBytes()
+	if err != nil || len(raw) == 0 {
+		return nil
+	}
+	return &types.ContentBlockMemberImage{
+		Value: types.ImageBlock{
+			Format: format,
+			Source: &types.ImageSourceMemberBytes{Value: raw},
+		},
+	}
+}
+
+func bedrockImageFormat(subtype string) (types.ImageFormat, bool) {
+	switch strings.ToLower(subtype) {
+	case "png":
+		return types.ImageFormatPng, true
+	case "jpeg", "jpg":
+		return types.ImageFormatJpeg, true
+	case "gif":
+		return types.ImageFormatGif, true
+	case "webp":
+		return types.ImageFormatWebp, true
+	default:
+		return "", false
+	}
 }
 
 func (c *ChatModel) buildResponse(out *bedrockruntime.ConverseOutput) (*chat.Response, error) {
@@ -208,6 +271,19 @@ func (c *ChatModel) buildResponse(out *bedrockruntime.ConverseOutput) (*chat.Res
 		switch b := block.(type) {
 		case *types.ContentBlockMemberText:
 			msgParams.Parts = append(msgParams.Parts, &chat.TextPart{Text: b.Value})
+		case *types.ContentBlockMemberReasoningContent:
+			if rt, ok := b.Value.(*types.ReasoningContentBlockMemberReasoningText); ok {
+				rp := &chat.ReasoningPart{}
+				if rt.Value.Text != nil {
+					rp.Text = *rt.Value.Text
+				}
+				if rt.Value.Signature != nil {
+					rp.Signature = []byte(*rt.Value.Signature)
+				}
+				if rp.Text != "" || len(rp.Signature) > 0 {
+					msgParams.Parts = append(msgParams.Parts, rp)
+				}
+			}
 		case *types.ContentBlockMemberToolUse:
 			argsBytes, _ := json.Marshal(b.Value.Input)
 			id := ""
@@ -236,16 +312,35 @@ func (c *ChatModel) buildResponse(out *bedrockruntime.ConverseOutput) (*chat.Res
 
 	meta := &chat.ResponseMetadata{}
 	if out.Usage != nil {
-		usage := &chat.Usage{OriginalUsage: out.Usage}
-		if out.Usage.InputTokens != nil {
-			usage.PromptTokens = int64(*out.Usage.InputTokens)
-		}
-		if out.Usage.OutputTokens != nil {
-			usage.CompletionTokens = int64(*out.Usage.OutputTokens)
-		}
-		meta.Usage = usage
+		meta.Usage = bedrockUsageToChat(out.Usage)
 	}
 	return chat.NewResponse(result, meta)
+}
+
+// bedrockUsageToChat maps the Bedrock Usage struct (which itself
+// varies a bit by model — Anthropic Bedrock surfaces cache tokens,
+// Llama/Titan don't) onto [chat.Usage], preserving the original
+// payload via OriginalUsage so callers can drop down when needed.
+func bedrockUsageToChat(u *types.TokenUsage) *chat.Usage {
+	if u == nil {
+		return nil
+	}
+	usage := &chat.Usage{OriginalUsage: u}
+	if u.InputTokens != nil {
+		usage.PromptTokens = int64(*u.InputTokens)
+	}
+	if u.OutputTokens != nil {
+		usage.CompletionTokens = int64(*u.OutputTokens)
+	}
+	if u.CacheReadInputTokens != nil {
+		v := int64(*u.CacheReadInputTokens)
+		usage.CacheReadInputTokens = &v
+	}
+	if u.CacheWriteInputTokens != nil {
+		v := int64(*u.CacheWriteInputTokens)
+		usage.CacheWriteInputTokens = &v
+	}
+	return usage
 }
 
 func mapStopReason(reason types.StopReason) chat.FinishReason {
@@ -341,6 +436,23 @@ func (a *chunkAccumulator) AddChunk(evt types.ConverseStreamOutput) (*chat.Respo
 			}
 			msgParams.Parts = []chat.OutputPart{&chat.TextPart{Text: d.Value}}
 			hasContent = true
+		case *types.ContentBlockDeltaMemberReasoningContent:
+			switch rd := d.Value.(type) {
+			case *types.ReasoningContentBlockDeltaMemberText:
+				if rd.Value == "" {
+					break
+				}
+				msgParams.Parts = []chat.OutputPart{&chat.ReasoningPart{Text: rd.Value}}
+				hasContent = true
+			case *types.ReasoningContentBlockDeltaMemberSignature:
+				if rd.Value == "" {
+					break
+				}
+				msgParams.Parts = []chat.OutputPart{&chat.ReasoningPart{
+					Signature: []byte(rd.Value),
+				}}
+				hasContent = true
+			}
 		case *types.ContentBlockDeltaMemberToolUse:
 			if d.Value.Input == nil || *d.Value.Input == "" {
 				break
@@ -364,14 +476,7 @@ func (a *chunkAccumulator) AddChunk(evt types.ConverseStreamOutput) (*chat.Respo
 		if e.Value.Usage == nil {
 			break
 		}
-		u := &chat.Usage{OriginalUsage: e.Value.Usage}
-		if e.Value.Usage.InputTokens != nil {
-			u.PromptTokens = int64(*e.Value.Usage.InputTokens)
-		}
-		if e.Value.Usage.OutputTokens != nil {
-			u.CompletionTokens = int64(*e.Value.Usage.OutputTokens)
-		}
-		metaUsage = u
+		metaUsage = bedrockUsageToChat(e.Value.Usage)
 		hasContent = true
 	}
 
