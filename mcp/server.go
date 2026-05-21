@@ -64,6 +64,11 @@ func registerOne(server *sdkmcp.Server, tool chat.Tool) error {
 // a [*sdkmcp.TextContent] body — never as a Go error from the handler
 // — because the latter would be promoted to a JSON-RPC protocol error
 // and hide the failure from the LLM's view.
+//
+// The MCP server session is stamped onto the context so tool authors
+// can use the reverse-capability helpers ([ReportProgress],
+// [ElicitFromClient], [LogToClient]) without taking a direct
+// dependency on the SDK.
 func serverHandler(tool chat.Tool) sdkmcp.ToolHandler {
 	return func(ctx context.Context, req *sdkmcp.CallToolRequest) (*sdkmcp.CallToolResult, error) {
 		toolName := tool.Definition().Name
@@ -72,6 +77,9 @@ func serverHandler(tool chat.Tool) sdkmcp.ToolHandler {
 			trace.WithAttributes(attribute.String(attrLynxMCPTool, toolName)),
 		)
 		defer span.End()
+
+		ctx = WithServerSession(ctx, req.Session)
+		ctx = withProgressToken(ctx, req)
 
 		args := cmp.Or(string(req.Params.Arguments), "{}")
 		out, err := tool.Call(ctx, args)
