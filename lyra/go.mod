@@ -7,7 +7,9 @@ require (
 	github.com/Tangerg/lynx/core v0.0.0-20260521101326-c68784dc9f99
 	github.com/Tangerg/lynx/models v0.0.0-20260521101326-c68784dc9f99
 	github.com/Tangerg/lynx/tools v0.0.0-20260521101326-c68784dc9f99
+	github.com/ag-ui-protocol/ag-ui/sdks/community/go v0.0.0-20260520152522-0245ce4434c4
 	github.com/google/uuid v1.6.0
+	github.com/spf13/cobra v1.10.2
 )
 
 require (
@@ -33,8 +35,8 @@ require (
 	github.com/pkoukk/tiktoken-go v0.1.8 // indirect
 	github.com/segmentio/asm v1.2.1 // indirect
 	github.com/segmentio/encoding v0.5.4 // indirect
+	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/spf13/cast v1.10.0 // indirect
-	github.com/spf13/cobra v1.10.2 // indirect
 	github.com/spf13/pflag v1.0.9 // indirect
 	github.com/standard-webhooks/standard-webhooks/libraries v0.0.1 // indirect
 	github.com/tidwall/gjson v1.19.0 // indirect
