@@ -57,7 +57,7 @@ export interface BuiltinContentBlockMap {
   tool:       { kind: "tool";       toolCallId: string };
   code:       { kind: "code";       lang: string; file: string; text: string };
   search:     { kind: "search";     toolCallId: string; results: SearchResult[] };
-  approval:   { kind: "approval";   text: string; command: string; reason: string };
+  approval:   { kind: "approval";   text: string; command: string; reason: string; requestId?: string; decision?: "approved" | "declined" };
   checkpoint: { kind: "checkpoint"; text: string };
 }
 

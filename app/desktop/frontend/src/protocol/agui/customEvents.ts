@@ -11,6 +11,7 @@ export const CUSTOM = {
   CODE_PROPOSAL: "lyra.code-proposal",
   SEARCH_RESULTS: "lyra.search-results",
   APPROVAL: "lyra.approval",
+  APPROVAL_RESULT: "lyra.approval-result",
   TELEMETRY: "lyra.telemetry",
 } as const;
 
@@ -23,10 +24,19 @@ export type PlanBlockAttachment = {
 };
 
 export type ApprovalRequest = {
+  /** Backend-generated id; the frontend echoes it back in the POST /permission
+   *  body when the user clicks Approve / Decline. Absent in pre-HITL events
+   *  (treated as a decorative card with no buttons). */
+  requestId?: string;
   parentMessageId: string;
   text: string;
   command: string;
   reason: string;
+};
+
+export type ApprovalResult = {
+  requestId: string;
+  decision: "approved" | "declined";
 };
 
 export type SearchResultsPayload = {

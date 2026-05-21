@@ -9,6 +9,7 @@ import { appendBlockToMessage, definePlugin, patchRun, setPlan } from "@/plugins
 import {
   CUSTOM,
   type ApprovalRequest,
+  type ApprovalResult,
   type CodeProposalPayload,
   type PlanBlockAttachment,
   type PlanSnapshot,
@@ -20,14 +21,35 @@ export const approvalHandler = definePlugin({
   name: "lyra.builtin.approval-handler",
   version: "1.0.0",
   setup({ host }) {
+    // Card arrives. `requestId` is carried through so the UI can POST
+    // the user's click back to /permission. Pre-HITL backends omit the
+    // id; in that case the card renders as a decorative read-only one
+    // (ApprovalCard hides its action buttons when requestId is absent).
     host.agui.on<ApprovalRequest>(CUSTOM.APPROVAL, (value) =>
       appendBlockToMessage(value.parentMessageId, {
         kind: "approval",
         text: value.text,
         command: value.command,
         reason: value.reason,
+        requestId: value.requestId,
       }),
     );
+
+    // Decision follow-up — find the approval block by requestId and
+    // stamp `decision` on it so the card switches to its post-decision
+    // state. Walks all messages because we don't carry parentMessageId
+    // on the result event.
+    host.agui.on<ApprovalResult>(CUSTOM.APPROVAL_RESULT, (value) => (state) => ({
+      ...state,
+      messages: state.messages.map((m) => ({
+        ...m,
+        blocks: m.blocks.map((b) =>
+          b.kind === "approval" && b.requestId === value.requestId
+            ? { ...b, decision: value.decision }
+            : b,
+        ),
+      })),
+    }));
   },
 });
 

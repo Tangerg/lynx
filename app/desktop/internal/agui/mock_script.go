@@ -209,10 +209,11 @@ const (
 
 // Custom event names — must match the constants in customEvents.ts on the JS side.
 const (
-	customPlan          = "lyra.plan"
-	customPlanBlock     = "lyra.plan-block"
-	customCodeProposal  = "lyra.code-proposal"
-	customSearchResults = "lyra.search-results"
-	customApproval      = "lyra.approval"
-	customTelemetry     = "lyra.telemetry"
+	customPlan           = "lyra.plan"
+	customPlanBlock      = "lyra.plan-block"
+	customCodeProposal   = "lyra.code-proposal"
+	customSearchResults  = "lyra.search-results"
+	customApproval       = "lyra.approval"
+	customApprovalResult = "lyra.approval-result"
+	customTelemetry      = "lyra.telemetry"
 )

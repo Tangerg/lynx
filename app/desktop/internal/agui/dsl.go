@@ -231,6 +231,62 @@ func (s customFnStep) Run(e *env) bool {
 	return e.send(sdkevents.NewCustomEvent(s.name, sdkevents.WithValue(s.build(e))))
 }
 
+// Approval emits an approval request CUSTOM event and BLOCKS until the
+// user clicks Approve / Decline on the rendered card (or the client
+// disconnects). The decision is forwarded to a follow-up event so the
+// frontend can mark the card as decided.
+//
+// Wire shape — the `lyra.approval` event carries:
+//   { requestId, parentMessageId, text, command, reason }
+// The frontend renders an ApprovalCard, the user clicks; we get a POST
+// /permission with { requestId, decision }, and unblock here.
+//
+// Follow-up `lyra.approval-result` event:
+//   { requestId, decision: "approved" | "declined" }
+// The reducer updates the original block in-place.
+func Approval(text, command, reason string) Step {
+	return approvalStep{text: text, command: command, reason: reason}
+}
+
+type approvalStep struct {
+	text, command, reason string
+}
+
+func (s approvalStep) Run(e *env) bool {
+	id := newID("approval")
+
+	if !e.send(sdkevents.NewCustomEvent(customApproval, sdkevents.WithValue(map[string]any{
+		"requestId":       id,
+		"parentMessageId": e.assistantID,
+		"text":            s.text,
+		"command":         s.command,
+		"reason":          s.reason,
+	}))) {
+		return false
+	}
+
+	ch := permissions.register(id)
+	defer permissions.release(id)
+
+	select {
+	case <-e.ctx.Done():
+		return false
+	case resp := <-ch:
+		// Tell the frontend the card is now decided. The reducer
+		// looks up the block by requestId and stamps the decision.
+		if !e.send(sdkevents.NewCustomEvent(customApprovalResult, sdkevents.WithValue(map[string]any{
+			"requestId": id,
+			"decision":  string(resp.Decision),
+		}))) {
+			return false
+		}
+		// If declined, the script just continues — current demos
+		// don't branch on decline. Real LLM scripts would inspect
+		// the decision and abort the tool execution.
+		return true
+	}
+}
+
 // TelemetryLoop emits an initial telemetry payload then rotates through
 // `activities` every 2.4s until the client disconnects. Should be the
 // LAST step in a script — it runs forever.

@@ -93,14 +93,11 @@ func refactorDemo() []Step {
 		Think(reasoning2Text),
 		Pause(400, 900),
 
-		CustomFn(customApproval, func(e *env) any {
-			return map[string]any{
-				"parentMessageId": e.assistantID,
-				"text":            "Run integration tests for the auth + billing slice",
-				"command":         "pnpm test --filter=auth --filter=billing",
-				"reason":          "Tests touch the Stripe sandbox API. Output is logged but no charges are made.",
-			}
-		}),
+		Approval(
+			"Run integration tests for the auth + billing slice",
+			"pnpm test --filter=auth --filter=billing",
+			"Tests touch the Stripe sandbox API. Output is logged but no charges are made.",
+		),
 		Pause(500, 1000),
 		Say(" " + postApprovalText),
 		Pause(300, 700),
