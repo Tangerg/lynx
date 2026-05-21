@@ -41,6 +41,33 @@ func FromAgent(a *core.Agent) *PlanningSystem {
 	return NewPlanningSystem(a.Actions, a.Goals, a.Conditions)
 }
 
+// FromAgents unions the capability sets of multiple agents into a single
+// planning system — the lynx analogue of embabel's AgentScope joint
+// planning. The resulting system carries the concatenation of every
+// agent's actions, goals, and conditions; the planner reasons over the
+// whole union and may pick a path that crosses agent boundaries.
+//
+// Name uniqueness across the input agents is the caller's
+// responsibility — the planner does not deduplicate. Nil entries are
+// skipped so callers can pass partially-populated slices without
+// guarding.
+func FromAgents(agents []*core.Agent) *PlanningSystem {
+	var (
+		actions    []core.Action
+		goals      []*core.Goal
+		conditions []core.Condition
+	)
+	for _, a := range agents {
+		if a == nil {
+			continue
+		}
+		actions = append(actions, a.Actions...)
+		goals = append(goals, a.Goals...)
+		conditions = append(conditions, a.Conditions...)
+	}
+	return NewPlanningSystem(actions, goals, conditions)
+}
+
 // KnownConditions enumerates all condition keys reachable via the system —
 // the world-state determiner uses it to know what to evaluate. Result is
 // cached after the first call.
