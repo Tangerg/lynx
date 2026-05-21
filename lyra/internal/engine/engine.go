@@ -30,6 +30,12 @@ type Config struct {
 	// websearch / httpreq) are registered. Each tool is independent;
 	// missing credentials skip just that tool.
 	Online OnlineConfig
+
+	// MemoryStore optionally supplies a persistent chat-memory
+	// backend (FileMessageStore, redis-backed, ...). When nil the
+	// engine falls back to lynx's in-process [memory.InMemoryStore]
+	// — fine for tests but loses history on restart.
+	MemoryStore memory.Store
 }
 
 // OnlineConfig is engine's view of the runtime-time online-tool
@@ -65,7 +71,10 @@ func New(cfg Config) (*Engine, error) {
 	}
 	resolver := buildCodingResolverFromTools(tools)
 
-	memStore := memory.NewInMemoryStore()
+	memStore := cfg.MemoryStore
+	if memStore == nil {
+		memStore = memory.NewInMemoryStore()
+	}
 	callMW, streamMW, err := memory.NewMiddleware(memStore)
 	if err != nil {
 		return nil, fmt.Errorf("engine: build memory middleware: %w", err)
