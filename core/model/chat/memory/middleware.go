@@ -5,6 +5,7 @@ import (
 	"errors"
 	"iter"
 	"maps"
+	"slices"
 
 	"github.com/Tangerg/lynx/core/model/chat"
 )
@@ -180,6 +181,7 @@ func (m *middleware) prepareRequest(ctx context.Context, req *chat.Request) (*ch
 	}
 	next.Options = req.Options.Clone()
 	next.Params = maps.Clone(req.Params)
+	next.Tools = slices.Clone(req.Tools)
 
 	return next, nil
 }
