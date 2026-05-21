@@ -46,11 +46,11 @@ func (a *App) memoryShowCmd() *cobra.Command {
 			}
 			ctx := cmd.Context()
 			if both {
-				printScope(a, ctx, memory.ScopeUser, "user")
-				printScope(a, ctx, memory.ScopeProject, "project")
+				a.printScope(ctx, memory.ScopeUser, "user")
+				a.printScope(ctx, memory.ScopeProject, "project")
 				return nil
 			}
-			printScope(a, ctx, target, scope)
+			a.printScope(ctx, target, scope)
 			return nil
 		},
 	}
@@ -150,7 +150,7 @@ func readMemoryBody(from string, stdin io.Reader) ([]byte, error) {
 // printScope writes one scope's contents to the App's stdout
 // under a markdown heading. Errors print to stderr but don't
 // abort the show command — partial output is still useful.
-func printScope(a *App, ctx context.Context, scope memory.Scope, label string) {
+func (a *App) printScope(ctx context.Context, scope memory.Scope, label string) {
 	content, err := a.memory.Get(ctx, scope)
 	if err != nil {
 		fmt.Fprintf(a.Err, "[lyra] %s scope read error: %s\n", label, err)
