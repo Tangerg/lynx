@@ -1,6 +1,6 @@
 import ky, { type KyInstance } from "ky";
 import { getConfig } from "@/plugins/sdk/config";
-import { listRpcAfterHooks, listRpcBeforeHooks } from "@/plugins/sdk/registry";
+import { listRpcAfterHooks, listRpcBeforeHooks } from "@/plugins/sdk/selectors";
 
 // Default base URL for the local Go AG-UI mock. Plugins (typically
 // `lyra.builtin.default-config`) can override via

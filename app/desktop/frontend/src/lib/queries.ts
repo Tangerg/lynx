@@ -1,15 +1,14 @@
-// React Query hooks — Phase 11.
-//
-// Each hook owns one query key + return type. The actual fetcher comes
-// from the plugin data-provider registry (`lookupDataProvider(key)`); the
-// built-in `lyra.builtin.default-data` plugin registers the original
-// HTTP-backed fetchers, but a user plugin can replace any of them (e.g.
-// fixture data, IPC, in-memory mock).
+// React Query hooks for the cached side panels (sessions, files, diff,
+// terminal, etc.). Each hook owns one query key + return type. The
+// actual fetcher comes from the plugin data-provider registry
+// (`lookupDataProvider(key)`); built-in defaults are registered by
+// `lyra.builtin.default-data`, but a user plugin can replace any of
+// them (fixture data, IPC, in-memory mock, …).
 
 import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 import { lookupDataProvider } from "@/plugins/sdk";
 import type { SidebarProject, SidebarSession } from "@/components/sidebar/types";
-import type { FileChange, MCPServer } from "@/components/inspector/types";
+import type { FileChange, MCPServer } from "@/components/views/types";
 import type { DiffRow, FileLine, GrepMatch, TermLine } from "@/components/tools/previews";
 
 // Shape returned by /grep — matches plus a "more matches" total.

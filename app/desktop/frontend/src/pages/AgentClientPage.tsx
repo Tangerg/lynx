@@ -1,8 +1,9 @@
-// AgentClientPage — the shell.
+// AgentClientPage — the kernel layout.
 //
-// VS Code-inspired layout: left sidebar + center editor area + bottom
-// status bar. The right "inspector" pane is gone; inspector views are
-// promoted to main-area tabs when the user opens them.
+// VS Code-inspired regions: left sidebar + center main area + bottom
+// status bar + global overlay. Each region is a named Slot whose body
+// comes from plugin contributions; this file owns no functional code,
+// only the grid.
 
 import { Slot } from "@/plugins/Slot";
 import { useUIStore } from "@/state/uiStore";

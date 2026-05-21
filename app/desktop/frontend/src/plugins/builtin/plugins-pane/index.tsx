@@ -1,13 +1,15 @@
 // Built-in plugin: "Plugins" settings pane.
 //
-// Lists every loaded plugin with:
-//   - name + version + origin badge (builtin / sideload)
-//   - per-plugin error count (if any) with a "Clear" button
-// Plus a footer hint about where to drop sideloaded plugins.
+// Lists every loaded plugin with name + version + origin + error count.
+// Each row has a Reload action; errored rows surface a Clear-errors
+// button. Built-ins can be reloaded but not unloaded (they're shipped
+// in the bundle; disabling would brick the kernel).
 
-import { Icon, PillButton } from "@/components/common";
+import { useState } from "react";
+import { Icon, IconButton, PillButton } from "@/components/common";
 import {
   definePlugin,
+  reloadPlugin,
   usePluginErrorStore,
   usePluginStore,
 } from "@/plugins/sdk";
@@ -17,6 +19,7 @@ function PluginsPane() {
   const loaded = usePluginStore((s) => s.loaded);
   const log = usePluginErrorStore((s) => s.log);
   const clearFor = usePluginErrorStore((s) => s.clearFor);
+  const [reloading, setReloading] = useState<string | null>(null);
 
   const errorsByPlugin = new Map<string, number>();
   for (const err of log) {
@@ -35,12 +38,22 @@ function PluginsPane() {
     return a.spec.name.localeCompare(b.spec.name);
   });
 
+  const handleReload = async (name: string) => {
+    setReloading(name);
+    try {
+      await reloadPlugin(name);
+    } finally {
+      setReloading((cur) => (cur === name ? null : cur));
+    }
+  };
+
   return (
     <div>
       <div className="plugin-list">
         {rows.map(({ spec }) => {
           const errCount = errorsByPlugin.get(spec.name) ?? 0;
           const origin = pluginOrigin(spec.name);
+          const busy = reloading === spec.name;
           return (
             <div
               key={spec.name}
@@ -59,12 +72,19 @@ function PluginsPane() {
                   </div>
                 )}
               </div>
-              <div>
+              <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
                 {errCount > 0 && (
                   <PillButton variant="outlined" size="sm" onClick={() => clearFor(spec.name)}>
                     Clear
                   </PillButton>
                 )}
+                <IconButton
+                  title={busy ? "Reloading…" : "Reload plugin"}
+                  onClick={() => handleReload(spec.name)}
+                  disabled={busy}
+                >
+                  <Icon name="loop" size={13} />
+                </IconButton>
               </div>
             </div>
           );

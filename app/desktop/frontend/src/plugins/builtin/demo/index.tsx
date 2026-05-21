@@ -1,5 +1,5 @@
-// Phase-2 demo plugin — exercises every register-* method added in Phase 2
-// so the API surface is self-proven.
+// Demo plugin — exercises content-block + AG-UI CUSTOM event APIs so
+// the surface is self-proven from an in-tree example.
 //
 //   /health        → host.rpc.get + host.notify
 //   demoBanner     → host.message.registerContentBlock + declaration merging

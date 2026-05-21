@@ -3,7 +3,7 @@
 // Tabs are heterogeneous:
 //   - chat session tabs (StatusDot + title + close)
 //   - workspace-view tabs (icon + title + close) — opened by clicking
-//     "↗ Open in main" on an inspector tab. Owned by `useUIStore.mainViewTabs`.
+//     "↗ Open in main" on a workspace view tab. Owned by `useUIStore.mainViewTabs`.
 //
 // The single `activeId` decides which one is currently focused. When a
 // view tab is active, ChatPanel renders that view's body instead of the

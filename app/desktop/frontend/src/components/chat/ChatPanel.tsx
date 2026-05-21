@@ -1,26 +1,19 @@
 // ChatPanel — the main pane.
 //
 // Reads everything it can from the application stores (useAgentStore,
-// useUIStore, useComposerStore, useSessions) so the shell wrapper
-// (shell-chat plugin) shrinks to just the agent-session lifecycle.
+// useUIStore, useComposerStore, useSessions) so the kernel wrapper
+// (kernel-chat plugin) shrinks to just the agent-session lifecycle.
 //
-// Props are limited to two truly external inputs:
-//   `onSend`     — supplied by shell-chat (knows how to forward into the
-//                  live AG-UI agent). Kept as a prop so ChatPanel itself
-//                  has no opinion about *how* messages get to the agent.
-//   `model`      — was already optional; the composer-toolbar plugin
-//                  reads it from useSessions directly, so we don't even
-//                  pass it here.
-//
-// Everything else (messages, tabs, view-tabs, composer state, ui flags)
-// is read where it's needed via store hooks.
+// Props are limited to one truly external input:
+//   onSend — supplied by kernel-chat (knows how to forward into the
+//            live AG-UI agent). Kept as a prop so ChatPanel itself has
+//            no opinion about *how* messages get to the agent.
 
 import { useEffect, useMemo, useRef } from "react";
 import { Panel } from "@/components/common";
-import { InspectorProvider } from "@/components/inspector/InspectorContext";
 import { PluginBoundary } from "@/plugins/PluginBoundary";
 import { Slot } from "@/plugins/Slot";
-import { useInspectorTabs, usePluginStore } from "@/plugins/sdk";
+import { useWorkspaceViews } from "@/plugins/sdk";
 import { useSessions } from "@/lib/queries";
 import { useAgentStore } from "@/state/agentStore";
 import { useComposerStore } from "@/state/composerStore";
@@ -33,7 +26,7 @@ import { ComposerFooter } from "./ComposerFooter";
 
 type Props = {
   /** Send a plain user message through the live AG-UI agent. Supplied by
-   *  shell-chat (or whatever container owns the agent session). */
+   *  kernel-chat (or whatever container owns the agent session). */
   onSend: (text: string) => void;
 };
 
@@ -53,10 +46,22 @@ export function ChatPanel({ onSend }: Props) {
   const mainViewTabs = useUIStore((s) => s.mainViewTabs);
   const activeMainView = useUIStore((s) => s.activeMainView);
 
+  // ---- ui actions ----
+  const closeTab = useUIStore((s) => s.closeTab);
+  const selectMainView = useUIStore((s) => s.selectMainView);
+  const closeMainView = useUIStore((s) => s.closeMainView);
+  const setSelectedToolId = useUIStore((s) => s.setSelectedToolId);
+  const toggleExpandedTool = useUIStore((s) => s.toggleExpandedTool);
+
   // ---- composer state ----
   const composerValue = useComposerStore((s) => s.value);
   const composerMode = useComposerStore((s) => s.mode);
   const attachments = useComposerStore((s) => s.attachments);
+
+  // ---- composer actions ----
+  const setComposerValue = useComposerStore((s) => s.setValue);
+  const setComposerMode = useComposerStore((s) => s.setMode);
+  const removeAttachment = useComposerStore((s) => s.removeAttachment);
 
   // ---- sessions list ----
   const { data: sessions = [] } = useSessions();
@@ -78,8 +83,11 @@ export function ChatPanel({ onSend }: Props) {
     el.scrollTop = el.scrollHeight;
   }, [messages]);
 
-  // Auto-expand the latest tool the first time it streams in. Pure
-  // ui-state side effect; lives here because it's chat-specific.
+  // Auto-expand the latest tool the first time it streams in.
+  //
+  // We snapshot UI state via getState() instead of subscribing — we want
+  // this effect to fire only when the toolCalls map mutates, not when
+  // the user manually selects a tool.
   useEffect(() => {
     const tools = Object.values(toolCalls);
     const ui = useUIStore.getState();
@@ -88,13 +96,10 @@ export function ChatPanel({ onSend }: Props) {
     }
   }, [toolCalls]);
 
-  // Resolve the active main-view body. Workspace registry takes priority;
-  // inspector tabs are auto-promoted as a fallback.
-  const inspectorTabs = useInspectorTabs();
+  // Resolve the active main-view body via the workspace registry.
+  const workspaceViews = useWorkspaceViews();
   const activeViewBody = activeMainView
-    ? (usePluginStore.getState().workspaceViews.get(activeMainView)?.value.component
-       ?? inspectorTabs.find((t) => t.id === activeMainView)?.component
-       ?? null)
+    ? workspaceViews.find((v) => v.id === activeMainView)?.component ?? null
     : null;
   const headerActiveId = activeMainView ?? activeSession;
 
@@ -107,19 +112,16 @@ export function ChatPanel({ onSend }: Props) {
         viewTabs={mainViewTabs}
         activeId={headerActiveId}
         onSelectChat={selectChat}
-        onCloseChat={useUIStore.getState().closeTab}
-        onSelectView={useUIStore.getState().selectMainView}
-        onCloseView={useUIStore.getState().closeMainView}
+        onCloseChat={closeTab}
+        onSelectView={selectMainView}
+        onCloseView={closeMainView}
       />
 
       {activeViewBody ? (
-        // Workspace view tab (Settings, Diff, Files, etc.) — full-bleed,
-        // no composer underneath. Whatever the view needs is its own
-        // problem; the chat composer is irrelevant here.
+        // Workspace view tab (Settings, Diff, Files, …) — full-bleed,
+        // no composer. Whatever the view needs is its own problem.
         <PluginBoundary plugin={`workspace:${activeMainView}`} label="main view">
-          <MainViewInspectorBridge>
-            <ActiveView component={activeViewBody} />
-          </MainViewInspectorBridge>
+          <ActiveView component={activeViewBody} />
         </PluginBoundary>
       ) : (
         <>
@@ -130,24 +132,24 @@ export function ChatPanel({ onSend }: Props) {
               plan,
               toolCalls,
               selectedToolId,
-              onSelectTool: useUIStore.getState().setSelectedToolId,
+              onSelectTool: setSelectedToolId,
               expandedIds: expandedToolIds,
-              onToggleExpand: useUIStore.getState().toggleExpandedTool,
+              onToggleExpand: toggleExpandedTool,
             }}
           />
           <div className="composer-wrap">
             <div className="composer-fade" />
             <div className="composer-inner">
               <Slot name="chat.status" />
-              <SlashSuggestions value={composerValue} onPick={useComposerStore.getState().setValue} />
+              <SlashSuggestions value={composerValue} onPick={setComposerValue} />
               <Composer
                 value={composerValue}
-                onChange={useComposerStore.getState().setValue}
+                onChange={setComposerValue}
                 onSend={onSend}
                 attachments={attachments}
-                onRemoveAttachment={useComposerStore.getState().removeAttachment}
+                onRemoveAttachment={removeAttachment}
                 mode={composerMode}
-                onModeChange={useComposerStore.getState().setMode}
+                onModeChange={setComposerMode}
               />
               <ComposerFooter />
             </div>
@@ -170,22 +172,6 @@ function selectChat(id: string) {
 // dynamic body we resolved imperatively.
 function ActiveView({ component: Body }: { component: React.ComponentType }) {
   return <Body />;
-}
-
-// Supplies the InspectorContext when an inspector tab is promoted into
-// the main pane. Reads `activeFile` / setters from the same store the
-// docked inspector used to, so the inner tab body keeps working.
-function MainViewInspectorBridge({ children }: { children: React.ReactNode }) {
-  const activeFile = useUIStore((s) => s.activeFile);
-  const setActiveFile = useUIStore((s) => s.setActiveFile);
-  const setInspectorTab = useUIStore((s) => s.setInspectorTab);
-  return (
-    <InspectorProvider
-      value={{ activeFile, onSelectFile: setActiveFile, onSwitchTab: setInspectorTab }}
-    >
-      {children}
-    </InspectorProvider>
-  );
 }
 
 export type { ComposerMode };

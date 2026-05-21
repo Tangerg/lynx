@@ -3,7 +3,7 @@
 // Why separate from the transient toaster:
 //   - the visual toast disappears after a few seconds, but users often want
 //     to scroll back through what happened ("did anything fail?")
-//   - inspector / settings tabs can read this without subscribing to DOM
+//   - workspace views / settings panes can read this without subscribing to DOM
 //     events
 //   - plugins can ingest the feed as a stream
 //

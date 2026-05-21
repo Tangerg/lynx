@@ -1,5 +1,5 @@
 // Router — TanStack Router tree built dynamically from plugin-registered
-// routes (Phase 7).
+// routes.
 //
 // AppRouter mounts after `PluginProvider` has loaded all built-in plugins,
 // so by the time we construct the route tree the registry already contains

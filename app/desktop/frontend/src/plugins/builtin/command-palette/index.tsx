@@ -9,7 +9,8 @@ import { AnimatePresence, motion } from "motion/react";
 import { create } from "zustand";
 import { Icon, type IconName } from "@/components/common";
 import { popIn, swift } from "@/lib/motion";
-import { definePlugin, reportPluginError, useCommands, usePluginStore, type CommandSpec } from "@/plugins/sdk";
+import { definePlugin, evalWhen, reportPluginError, useCommands, usePluginStore, type CommandSpec } from "@/plugins/sdk";
+import { useWhenContext } from "@/state/useWhenContext";
 
 // ---------- store ---------------------------------------------------------
 
@@ -24,7 +25,7 @@ type PaletteState = {
 const usePaletteStore = create<PaletteState>((set) => ({
   open: false,
   query: "",
-  setOpen: (open) => set({ open, query: open ? "" : "" }),
+  setOpen: (open) => set({ open, query: "" }),
   setQuery: (query) => set({ query }),
   toggle: () => set((s) => ({ open: !s.open, query: "" })),
 }));
@@ -50,8 +51,16 @@ function CommandPalette() {
   const setOpen = usePaletteStore((s) => s.setOpen);
   const setQuery = usePaletteStore((s) => s.setQuery);
   const commands = useCommands();
+  const whenCtx = useWhenContext();
 
-  const filtered = useMemo(() => commands.filter((c) => matches(c, query)), [commands, query]);
+  const visible = useMemo(
+    () => commands.filter((c) => !c.when || evalWhen(c.when, whenCtx)),
+    [commands, whenCtx],
+  );
+  const filtered = useMemo(
+    () => visible.filter((c) => matches(c, query)),
+    [visible, query],
+  );
   const [activeIdx, setActiveIdx] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -111,9 +120,6 @@ function CommandPalette() {
                     const target = filtered[activeIdx];
                     if (target) run(target);
                   } else if (e.key === "Escape") {
-                    // Local handler so we don't clash with the built-in
-                    // Escape→close-settings shortcut. Stop propagation in
-                    // case anyone else listens.
                     e.preventDefault();
                     e.stopPropagation();
                     setOpen(false);

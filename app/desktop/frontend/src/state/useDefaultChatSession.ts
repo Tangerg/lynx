@@ -6,7 +6,7 @@
 // duplicate: pick source → factory → useAgentSession → done.
 //
 // Exposing it as a hook keeps the agent lifecycle decoupled from the
-// shell component — `shell-chat` only has to call this hook, not know
+// kernel component — `kernel-chat` only has to call this hook, not know
 // about agent sources or factories.
 
 import { useCallback } from "react";

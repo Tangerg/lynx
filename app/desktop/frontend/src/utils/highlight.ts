@@ -20,7 +20,7 @@ function highlight(src: string, keywords: RegExp): string {
 // Wider keyword set — for full code blocks in chat.
 const CODE_KEYWORDS = /\b(async|await|return|const|let|var|if|else|new|throw|class|extends|export|import|from|interface|type|public|private|protected|readonly|enum|as|null|undefined|true|false|this|function)\b/g;
 
-// Narrower keyword set — for diff rows in inspector.
+// Narrower keyword set — for diff rows in the Diff workspace view.
 const DIFF_KEYWORDS = /\b(async|await|return|const|let|var|if|else|new|throw|class|extends|export|import|from|interface|type|public|private|protected|readonly|enum|as|null|undefined|true|false|this)\b/g;
 
 export function highlightCode(src: string): string {

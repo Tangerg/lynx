@@ -1,9 +1,8 @@
 // Composer footer — renders the row of small chips below the composer
 // (working directory, execution mode, git branch, etc.).
 //
-// Phase 8 made the chip list extensible: chips come from the plugin
-// registry (`host.composer.registerStatus`). The footer is a pure
-// container — no per-chip props.
+// Chips come from the plugin registry (`host.composer.registerStatus`);
+// the footer is a pure container — no per-chip props.
 
 import { PluginBoundary } from "@/plugins/PluginBoundary";
 import { useComposerStatus } from "@/plugins/sdk";

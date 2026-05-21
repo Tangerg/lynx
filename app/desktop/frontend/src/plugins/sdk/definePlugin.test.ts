@@ -1,7 +1,14 @@
 import { describe, expect, it, vi } from "vitest";
-import { definePlugin, loadPlugin, loadPlugins } from "./definePlugin";
+import {
+  definePlugin,
+  loadPlugin,
+  loadPlugins,
+  reloadPlugin,
+  unloadPlugin,
+} from "./definePlugin";
 import { usePluginErrorStore } from "./errors";
 import { usePluginStore } from "./registry";
+import { lookupCommand } from "./selectors";
 
 describe("definePlugin", () => {
   it("is an identity function", () => {
@@ -108,5 +115,161 @@ describe("loadPlugins", () => {
     expect(usePluginStore.getState().loaded.has("a")).toBe(true);
     expect(usePluginStore.getState().loaded.has("b")).toBe(false);
     expect(usePluginStore.getState().loaded.has("c")).toBe(true);
+  });
+
+  it("honours `requires` and reorders to satisfy them", async () => {
+    const order: string[] = [];
+    await loadPlugins([
+      // Declared first, but requires `b` — must load second.
+      definePlugin({
+        name: "a", version: "1.0.0",
+        requires: ["b"],
+        setup: () => { order.push("a"); },
+      }),
+      definePlugin({ name: "b", version: "1.0.0", setup: () => { order.push("b"); } }),
+    ]);
+    expect(order).toEqual(["b", "a"]);
+  });
+
+  it("preserves manifest order between independent plugins", async () => {
+    const order: string[] = [];
+    await loadPlugins([
+      definePlugin({ name: "x", version: "1.0.0", setup: () => { order.push("x"); } }),
+      definePlugin({ name: "y", version: "1.0.0", setup: () => { order.push("y"); } }),
+      definePlugin({ name: "z", version: "1.0.0", setup: () => { order.push("z"); } }),
+    ]);
+    expect(order).toEqual(["x", "y", "z"]);
+  });
+
+  it("skips a plugin whose required dep isn't loaded", async () => {
+    const results = await loadPlugins([
+      definePlugin({
+        name: "orphan", version: "1.0.0",
+        requires: ["does-not-exist"],
+        setup: vi.fn(),
+      }),
+    ]);
+    expect(results[0]).toMatchObject({ kind: "skipped", name: "orphan" });
+    if (results[0].kind === "skipped") {
+      expect(results[0].reason).toMatch(/does-not-exist/);
+    }
+  });
+
+  it("skips every plugin participating in a dependency cycle", async () => {
+    const setupA = vi.fn();
+    const setupB = vi.fn();
+    const results = await loadPlugins([
+      definePlugin({ name: "a", version: "1.0.0", requires: ["b"], setup: setupA }),
+      definePlugin({ name: "b", version: "1.0.0", requires: ["a"], setup: setupB }),
+    ]);
+    expect(setupA).not.toHaveBeenCalled();
+    expect(setupB).not.toHaveBeenCalled();
+    expect(results.every((r) => r.kind === "skipped")).toBe(true);
+  });
+});
+
+describe("lazy activation", () => {
+  it("stages the placeholder and skips setup until activation", async () => {
+    const setup = vi.fn();
+    await loadPlugins([
+      definePlugin({
+        name: "lazy.plugin",
+        version: "1.0.0",
+        activationEvents: ["onCommand:lazy.do"],
+        contributes: { commands: [{ id: "lazy.do", label: "Lazy: Do It" }] },
+        setup,
+      }),
+    ]);
+
+    expect(setup).not.toHaveBeenCalled();
+    expect(usePluginStore.getState().declaredCommands.has("lazy.do")).toBe(true);
+    expect(usePluginStore.getState().pendingActivations.has("lazy.plugin")).toBe(true);
+    // lookupCommand only sees *registered* commands, so still undefined.
+    expect(lookupCommand("lazy.do")).toBeUndefined();
+  });
+
+  it("runs setup-returned cleanup when the plugin is unloaded", async () => {
+    const cleanup = vi.fn();
+    await loadPlugin(definePlugin({
+      name: "with-cleanup",
+      version: "1.0.0",
+      setup: ({ host }) => {
+        host.commands.register({ id: "with-cleanup.cmd", label: "x", run: () => {} });
+        return cleanup;
+      },
+    }));
+    expect(usePluginStore.getState().loaded.has("with-cleanup")).toBe(true);
+    expect(usePluginStore.getState().commands.has("with-cleanup.cmd")).toBe(true);
+
+    unloadPlugin("with-cleanup");
+
+    expect(cleanup).toHaveBeenCalledOnce();
+    expect(usePluginStore.getState().loaded.has("with-cleanup")).toBe(false);
+    // host.commands.register's disposable also ran — its entry is gone.
+    expect(usePluginStore.getState().commands.has("with-cleanup.cmd")).toBe(false);
+  });
+
+  it("restricts host to declared capabilities and throws on disallowed namespaces", async () => {
+    let captured: unknown = null;
+    const result = await loadPlugin(definePlugin({
+      name: "capped",
+      version: "1.0.0",
+      capabilities: ["commands"],
+      setup: ({ host }) => {
+        host.commands.register({ id: "ok", label: "OK", run: () => {} });
+        try {
+          // host.tool is not declared — must throw.
+          (host as unknown as Record<string, { registerPreview: () => void }>)
+            .tool.registerPreview();
+        } catch (err) { captured = err; }
+      },
+    }));
+    expect(result.kind).toBe("loaded");
+    expect(usePluginStore.getState().commands.has("ok")).toBe(true);
+    expect(captured).toBeInstanceOf(Error);
+    expect(String(captured)).toMatch(/not in this plugin's declared capabilities/);
+  });
+
+  it("reload disposes + re-runs setup", async () => {
+    const setup = vi.fn(({ host }) => {
+      host.commands.register({ id: "reload.test", label: "x", run: () => {} });
+    });
+    await loadPlugin(definePlugin({ name: "reloadable", version: "1.0.0", setup }));
+    expect(setup).toHaveBeenCalledOnce();
+    await reloadPlugin("reloadable");
+    expect(setup).toHaveBeenCalledTimes(2);
+    expect(usePluginStore.getState().commands.has("reload.test")).toBe(true);
+  });
+
+  it("runs setup + dispatches the real handler when the placeholder fires", async () => {
+    const handler = vi.fn();
+    await loadPlugins([
+      definePlugin({
+        name: "lazy.greet",
+        version: "1.0.0",
+        activationEvents: ["onCommand:greet"],
+        contributes: { commands: [{ id: "greet", label: "Greet" }] },
+        setup: ({ host }) => {
+          host.commands.register({ id: "greet", label: "Greet", run: handler });
+        },
+      }),
+    ]);
+
+    // Activate by name, just like the placeholder's `run` does.
+    const store = usePluginStore.getState();
+    const pending = store.pendingActivations.get("lazy.greet");
+    if (!pending) throw new Error("pending entry missing");
+    store.removePendingActivation("lazy.greet");
+    await loadPlugin(pending.spec);
+    store.removeDeclaredCommandsBy("lazy.greet");
+
+    // After activation, the real command is registered and dispatchable.
+    const real = lookupCommand("greet");
+    expect(real).toBeDefined();
+    await real!.run();
+    expect(handler).toHaveBeenCalledOnce();
+
+    // And the placeholder is gone.
+    expect(usePluginStore.getState().declaredCommands.has("greet")).toBe(false);
   });
 });

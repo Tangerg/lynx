@@ -1,13 +1,13 @@
 // Fold a stream of AG-UI events (@ag-ui/core BaseEvents) into AgentViewState.
 //
-// Phase 6 made this a *pure dispatcher*: every reducer case used to live
-// here, but now even the AG-UI built-in events (RUN_*, TEXT_MESSAGE_*,
-// TOOL_CALL_*, REASONING_*) are owned by the `lyra.builtin.core-reducer`
-// plugin. The reducer's only job is:
+// This file is intentionally a *pure dispatcher* — every reducer case
+// lives in a plugin. Even the built-in event types (RUN_*, TEXT_MESSAGE_*,
+// TOOL_CALL_*, REASONING_*) are owned by `lyra.builtin.core-reducer`.
+// The reducer here only:
 //
-//   1. for built-in event types — chain through every plugin registered
+//   1. for built-in event types — chains through every plugin registered
 //      via `host.agui.onCore(type, handler)`
-//   2. for CUSTOM events — route to plugins via `host.agui.on(name, handler)`
+//   2. for CUSTOM events — routes to plugins via `host.agui.on(name, handler)`
 //
 // Both pathways use the same error-isolation policy: a throwing handler is
 // logged to the error store and its input state is preserved.

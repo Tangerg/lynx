@@ -1,18 +1,31 @@
 // Public SDK surface — what plugin authors import.
 
-export { definePlugin, loadPlugin, loadPlugins } from "./definePlugin";
+export {
+  definePlugin,
+  loadPlugin,
+  loadPlugins,
+  unloadPlugin,
+  reloadPlugin,
+} from "./definePlugin";
 
+// The Zustand store + write-side actions live in registry.ts.
+export { normalizeCombo, usePluginStore } from "./registry";
+
+// Read-side selectors / imperative lookups for every surface.
 export {
   listRoutes,
+  listRpcAfterHooks,
+  listRpcBeforeHooks,
   lookupAccent,
   lookupCommand,
-  lookupDataProvider,
+  lookupComposerKeyBinding,
   lookupCoreEventHandlers,
   lookupCustomEventHandler,
+  lookupDataProvider,
   lookupShortcut,
   lookupSlashCommand,
   lookupTheme,
-  normalizeCombo,
+  lookupToolIcon,
   pickAgentSource,
   pickComposerPlaceholder,
   pickPluginErrorFallback,
@@ -22,17 +35,8 @@ export {
   useComposerModes,
   useComposerStatus,
   useContentBlockRenderer,
-  listLogSubscribers,
-  listRpcAfterHooks,
-  listRpcBeforeHooks,
-  lookupComposerKeyBinding,
-  lookupToolIcon,
-  useInspectorTabs,
   useLayoutSlot,
   useMessageRole,
-  usePluginStore,
-  useWorkspaceViews,
-  listWorkspaceViews,
   useSettingsPanes,
   useSidebarRailItems,
   useSidebarSections,
@@ -40,7 +44,8 @@ export {
   useThemes,
   useToolActions,
   useToolPreview,
-} from "./registry";
+  useWorkspaceViews,
+} from "./selectors";
 
 export type {
   AgentSourceSpec,
@@ -59,7 +64,6 @@ export type {
   CustomEventHandler,
   Disposable,
   Host,
-  InspectorTabSpec,
   BeforeUnloadHandler,
   LayoutSlotSpec,
   LoadedPlugin,
@@ -102,7 +106,7 @@ export {
 
 export { PLUGIN_TOAST_EVENT, type PluginToastDetail } from "./host";
 
-// Phase 3 — error aggregation.
+// Plugin error aggregation.
 export {
   reportPluginError,
   usePluginErrorStore,
@@ -110,15 +114,15 @@ export {
   type PluginErrorSource,
 } from "./errors";
 
-// Phase 16 — persistent notification feed.
+// Persistent notification feed.
 export { useNotificationStore } from "./notifications";
 export type { NotificationEntry, NotificationLevel } from "./types";
 
-// Phase 17 — shared cross-plugin state slices.
+// Shared cross-plugin state slices.
 export { getOrCreateSlice } from "./stateSlice";
 export type { StateSlice } from "./stateSlice";
 
-// Phase 19 — app-wide config store.
+// App-wide config store.
 export {
   getConfig,
   hasConfig,
@@ -127,9 +131,15 @@ export {
 } from "./config";
 export type { ConfigValue } from "./config";
 
-// Phase 21 — storage migrations (live in storage.ts since they're per-plugin).
+// Storage migrations (live in storage.ts since they're per-plugin).
 export type { KeyValueStore, StorageMigration } from "./storage";
 
-// Phase 22 — per-message context + slots. Re-export from the chat
-// component so plugin authors only ever import from `@/plugins/sdk`.
+// `when` clause evaluator + context shape — exposed so plugin command
+// consumers (palette, future menu providers) can filter declarative
+// commands consistently.
+export { evalWhen } from "./evalWhen";
+export type { WhenContext } from "./evalWhen";
+
+// Per-message context + slots. Re-export from the chat component so
+// plugin authors only ever import from `@/plugins/sdk`.
 export { useCurrentMessage } from "@/components/chat/MessageContext";
