@@ -6,7 +6,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Icon, Sparkline, StatusDot } from "@/components/common";
 import { definePlugin } from "@/plugins/sdk";
-import { useAgentStore } from "@/state/agentStore";
+import { useAgentAction, useAgentSlice } from "@/state/agentStore";
 
 // "1.2k" / "200k" / "1.5M" → number. Conservative; if we can't parse,
 // return NaN so the caller can fall back gracefully.
@@ -36,8 +36,8 @@ function useNumericHistory(current: number, max = 32): number[] {
 }
 
 function RunState() {
-  const run = useAgentStore((s) => s.run);
-  const stop = useAgentStore((s) => s.stop);
+  const run = useAgentSlice((v) => v.run);
+  const stop = useAgentAction("stop");
   return (
     <span className={`sb-item sb-run ${run.running ? "live" : ""}`}>
       <StatusDot as="sb-dot" />
@@ -62,7 +62,7 @@ function RunState() {
 function Spacer() { return <span className="sb-spacer" />; }
 
 function Tokens() {
-  const run = useAgentStore((s) => s.run);
+  const run = useAgentSlice((v) => v.run);
   const usedNum = parseShorthand(run.tokens.used);
   const history = useNumericHistory(usedNum);
   return (
@@ -76,7 +76,7 @@ function Tokens() {
 }
 
 function Cost() {
-  const run = useAgentStore((s) => s.run);
+  const run = useAgentSlice((v) => v.run);
   return (
     <span className="sb-item" title="Session cost (USD)">
       <span className="sb-key">$</span>

@@ -1,11 +1,11 @@
 import { EmptyState, Icon, IconButton, ScrollArea } from "@/components/common";
 import { ViewHeader } from "@/components/views/ViewHeader";
 import { PlanList } from "@/components/views/PlanList";
-import { useAgentStore } from "@/state/agentStore";
+import { useAgentSlice } from "@/state/agentStore";
 import { definePlugin } from "@/plugins/sdk";
 
 function PlanTab() {
-  const plan = useAgentStore((s) => s.plan);
+  const plan = useAgentSlice((v) => v.plan);
   const done = plan.filter((p) => p.status === "done").length;
 
   // TODO: pull the goal + ETA from the live agent run once that's

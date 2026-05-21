@@ -16,7 +16,7 @@ import { Slot } from "@/plugins/Slot";
 import { useWorkspaceViews } from "@/plugins/sdk";
 import { useSessions } from "@/lib/queries";
 import { useStickyBottomScroll } from "@/lib/useStickyBottomScroll";
-import { useAgentStore } from "@/state/agentStore";
+import { useAgentSlice } from "@/state/agentStore";
 import { useComposerStore } from "@/state/composerStore";
 import { useUIStore } from "@/state/uiStore";
 import { ChatErrorBoundary } from "./ChatErrorBoundary";
@@ -35,10 +35,10 @@ type Props = {
 export function ChatPanel({ onSend }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // ---- agent state ----
-  const messages = useAgentStore((s) => s.messages);
-  const plan = useAgentStore((s) => s.plan);
-  const toolCalls = useAgentStore((s) => s.toolCalls);
+  // ---- agent state (scoped to the current session) ----
+  const messages = useAgentSlice((v) => v.messages);
+  const plan = useAgentSlice((v) => v.plan);
+  const toolCalls = useAgentSlice((v) => v.toolCalls);
 
   // ---- ui state ----
   const activeSession = useUIStore((s) => s.activeSessionId);

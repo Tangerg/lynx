@@ -5,8 +5,9 @@
 // "chat container" component would otherwise duplicate: pick source →
 // factory → useAgentSession → done.
 //
-// `activeSessionId` from useUIStore is passed as the sessionKey so the
-// agent is torn down + rebuilt when the user switches sessions. The
+// `activeSessionId` from useUIStore is passed as the sessionId so the
+// agent is torn down + rebuilt when the user switches sessions, and so
+// the agentStore knows which session's slice to write events into. The
 // http-agent built-in reads the same store inside its factory to bind
 // the new agent's threadId, so the backend sees the new session id on
 // first runAgent() and picks the right demo script.

@@ -2,20 +2,21 @@ import { useEffect, useRef } from "react";
 import type { AbstractAgent } from "@ag-ui/client";
 import { useAgentStore } from "./agentStore";
 
-// useAgentSession owns the AG-UI agent lifecycle:
+// useAgentSession owns the AG-UI agent lifecycle for ONE session:
 //   1. Instantiate the agent (factory).
 //   2. Subscribe to every event via AgentSubscriber.onEvent.
-//   3. Pipe events through `useAgentStore.applyEvent` so any component (and
-//      any plugin) can read view-state slices via `useAgentStore((s) => …)`.
+//   3. Pipe events through `useAgentStore.applyEvent(sessionId, event)`
+//      so each session keeps its own view-state slice.
 //
-// `sessionKey` controls when to rebuild the agent. Pass the active
-// thread / session id; when it changes the previous agent is aborted +
-// unsubscribed and a fresh one is constructed from `makeAgent()`. The
-// agent store is reset across the boundary so the new session starts
-// with an empty view.
+// `sessionId` controls when to rebuild the agent. When it changes the
+// previous agent is aborted + unsubscribed and a fresh one is constructed
+// from `makeAgent()`. The departing session's view state stays in the
+// store (so going back to it shows what was there), but its `stop`/`send`
+// bindings are cleared.
 //
-// The hook returns only the imperative actions (`send`, `stop`); state is
-// read via the store from anywhere in the tree.
+// Returns the imperative actions (`send`, `stop`) for the CURRENT
+// session. Other components can read the same pair off the store via
+// `useAgentAction("stop")` / `useAgentAction("send")` without prop drilling.
 export type AgentSession = {
   send: (text: string) => void;
   stop: () => void;
@@ -23,7 +24,7 @@ export type AgentSession = {
 
 export function useAgentSession(
   makeAgent: () => AbstractAgent,
-  sessionKey?: unknown,
+  sessionId: string,
 ): AgentSession {
   const agentRef = useRef<AbstractAgent | null>(null);
 
@@ -34,14 +35,14 @@ export function useAgentSession(
     const agent = factoryRef.current();
     agentRef.current = agent;
 
-    // Reset before subscribing so a new session doesn't see leftover
-    // state from the previous one.
-    useAgentStore.getState().reset();
+    // Reset this session's slice before subscribing so we don't carry
+    // state from a previous mount of the same session id.
+    useAgentStore.getState().resetSession(sessionId);
 
-    useAgentStore.getState().setStop(() => {
+    useAgentStore.getState().setStop(sessionId, () => {
       try { agent.abortRun(); } catch { /* ignore */ }
     });
-    useAgentStore.getState().setSend((text: string) => {
+    useAgentStore.getState().setSend(sessionId, (text: string) => {
       agent.addMessage({
         id: `user_${Date.now()}`,
         role: "user",
@@ -54,30 +55,30 @@ export function useAgentSession(
       onEvent: ({ event }) => {
         if (import.meta.env.DEV) {
           // eslint-disable-next-line no-console
-          console.debug("[agui]", event.type, event);
+          console.debug("[agui]", sessionId, event.type, event);
         }
-        useAgentStore.getState().applyEvent(event);
+        useAgentStore.getState().applyEvent(sessionId, event);
       },
       onRunFailed: ({ error }) => {
         // eslint-disable-next-line no-console
-        console.error("[agui] run failed:", error);
+        console.error("[agui] run failed:", sessionId, error);
       },
     });
 
     void agent.runAgent().catch((err) => {
       // eslint-disable-next-line no-console
-      console.error("[agui] runAgent threw:", err);
+      console.error("[agui] runAgent threw:", sessionId, err);
     });
 
     return () => {
       subscription.unsubscribe();
       try { agent.abortRun(); } catch { /* may not be running */ }
-      useAgentStore.getState().setStop(null);
-      useAgentStore.getState().setSend(null);
+      useAgentStore.getState().setStop(sessionId, null);
+      useAgentStore.getState().setSend(sessionId, null);
       agentRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sessionKey]);
+  }, [sessionId]);
 
   return {
     send: (text: string) => {
