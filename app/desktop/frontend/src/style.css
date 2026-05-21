@@ -1241,6 +1241,49 @@ html.theme-light .ig-glyph { background: var(--color-surface-2); }
 }
 
 /* ===========================================================
+   Jump-to-bottom button — floats above the composer when the user
+   has scrolled away from the live tail.
+   =========================================================== */
+.jump-to-bottom {
+  position: absolute;
+  /* Sit above the composer card. composer-wrap has 16px bottom padding,
+     composer height varies; 96px floats just clear of it. */
+  bottom: 96px;
+  right: 28px;
+  z-index: 3;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--color-surface-2);
+  border: 1px solid color-mix(in srgb, var(--color-text) 14%, transparent);
+  color: var(--color-text);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(8px);
+  transition:
+    opacity var(--polish-fast),
+    transform var(--polish-fast),
+    background var(--polish-fast),
+    border-color var(--polish-fast);
+  box-shadow: var(--shadow-md);
+}
+.jump-to-bottom.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+.jump-to-bottom:hover {
+  background: var(--color-surface-3);
+  border-color: color-mix(in srgb, var(--color-text) 22%, transparent);
+}
+.jump-to-bottom:active {
+  transform: translateY(0) scale(0.96);
+}
+
+/* ===========================================================
    Chat error boundary — sits where MessageStream would, when the
    subtree throws.
    =========================================================== */

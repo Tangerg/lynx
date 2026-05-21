@@ -21,6 +21,7 @@ import { useComposerStore } from "@/state/composerStore";
 import { useUIStore } from "@/state/uiStore";
 import { ChatErrorBoundary } from "./ChatErrorBoundary";
 import { ChatTopBar, type ChatTab } from "./ChatTopBar";
+import { JumpToBottomButton } from "./JumpToBottomButton";
 import { MessageStream } from "./MessageStream";
 import { SlashSuggestions } from "./SlashSuggestions";
 import { Composer, type ComposerMode } from "./Composer";
@@ -82,7 +83,9 @@ export function ChatPanel({ onSend }: Props) {
   // listeners, the user-vs-programmatic-scroll discrimination, and the
   // ResizeObserver that triggers follow scrolls on content growth.
   // `activeSession` resets follow mode + snaps to bottom on session swap.
-  useStickyBottomScroll(scrollRef, activeSession);
+  // Returns `atBottom` (mirrored React state) so we can show / hide the
+  // jump-to-bottom button, plus `scrollToBottom` for that button's click.
+  const { atBottom, scrollToBottom } = useStickyBottomScroll(scrollRef, activeSession);
 
   // Auto-select (but don't expand) the latest tool the first time it
   // streams in — so the inspector pane has something to show without
@@ -148,6 +151,7 @@ export function ChatPanel({ onSend }: Props) {
           </ChatErrorBoundary>
           <div className="composer-wrap">
             <div className="composer-fade" />
+            <JumpToBottomButton visible={!atBottom} onClick={scrollToBottom} />
             <div className="composer-inner">
               <Slot name="chat.status" />
               <SlashSuggestions value={composerValue} onPick={setComposerValue} />

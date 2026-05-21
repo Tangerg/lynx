@@ -7,7 +7,8 @@ export type IconName =
   | "branch" | "git" | "globe" | "book" | "history" | "tool" | "sparkle"
   | "edit" | "paperclip" | "image" | "command" | "panel" | "panel-l"
   | "user" | "spark" | "skip-back" | "skip-fwd" | "minimize" | "diff"
-  | "list" | "lightning" | "bug" | "shield" | "loop" | "copy" | "panel-r";
+  | "list" | "lightning" | "bug" | "shield" | "loop" | "copy" | "panel-r"
+  | "arrow-down";
 
 type Props = {
   name: IconName;
@@ -77,6 +78,7 @@ export function Icon({ name, size = 16, strokeWidth = 2, style, className }: Pro
     case "loop": return <svg {...p}><path d="m17 2 4 4-4 4M3 11v-1a4 4 0 0 1 4-4h14M7 22l-4-4 4-4M21 13v1a4 4 0 0 1-4 4H3" /></svg>;
     case "copy": return <svg {...p}><rect x="9" y="9" width="13" height="13" rx="2" ry="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></svg>;
     case "panel-r": return <svg {...p}><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M15 3v18" /></svg>;
+    case "arrow-down": return <svg {...p}><path d="M12 5v14M19 12l-7 7-7-7" /></svg>;
     default:
       return null;
   }
