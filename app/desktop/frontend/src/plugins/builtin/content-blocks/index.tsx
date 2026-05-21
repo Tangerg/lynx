@@ -19,7 +19,13 @@ export const approvalBlock = definePlugin({
   version: "1.0.0",
   setup({ host }) {
     host.message.registerContentBlock("approval", ({ block }: ContentBlockRendererProps<"approval">) => (
-      <ApprovalCard what={block.text} cmd={block.command} reason={block.reason} />
+      <ApprovalCard
+        what={block.text}
+        cmd={block.command}
+        reason={block.reason}
+        requestId={block.requestId}
+        decision={block.decision}
+      />
     ));
   },
 });
