@@ -103,32 +103,27 @@ func New(cfg Config) (*Engine, error) {
 		},
 	})
 
-	a := buildChatAgent(cfg.MemoryService)
-	if err := platform.Deploy(a); err != nil {
+	// Build the engine value first so the agent's Action closure can
+	// capture *Engine (and therefore reach e.SystemPrompt) instead
+	// of dragging a memory service through the constructor.
+	e := &Engine{
+		platform: platform,
+		tools:    tools,
+		memSvc:   cfg.MemoryService,
+	}
+	e.agent = e.buildChatAgent()
+	if err := platform.Deploy(e.agent); err != nil {
 		return nil, fmt.Errorf("engine: deploy chat agent: %w", err)
 	}
 
-	var c *compactor
 	if cfg.Compaction.MaxMessages >= 0 {
-		c = newCompactor(memStore, cfg.ChatClient, cfg.Compaction)
+		e.compactor = newCompactor(memStore, cfg.ChatClient, cfg.Compaction)
 	}
-
-	var ex *extractor
 	if cfg.MemoryService != nil {
-		ex = newExtractor(memStore, cfg.MemoryService, cfg.ChatClient)
+		e.extractor = newExtractor(memStore, cfg.MemoryService, cfg.ChatClient)
 	}
-
-	pl := newPlanner(cfg.ChatClient)
-
-	return &Engine{
-		platform:  platform,
-		agent:     a,
-		tools:     tools,
-		memSvc:    cfg.MemoryService,
-		compactor: c,
-		extractor: ex,
-		planner:   pl,
-	}, nil
+	e.planner = newPlanner(cfg.ChatClient)
+	return e, nil
 }
 
 // GeneratePlan asks the LLM for a step-by-step plan handling
@@ -144,8 +139,7 @@ func (e *Engine) GeneratePlan(ctx context.Context, userMessage string) (string, 
 	if e.planner == nil {
 		return "", nil
 	}
-	sys := composeSystemPrompt(ctx, e.memSvc)
-	return e.planner.Plan(ctx, sys, userMessage)
+	return e.planner.Plan(ctx, e.SystemPrompt(ctx), userMessage)
 }
 
 // MaybeCompact runs one auto-compaction sweep against sessionID. The
