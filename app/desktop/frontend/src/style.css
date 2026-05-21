@@ -1240,6 +1240,59 @@ html.theme-light .ig-glyph { background: var(--color-surface-2); }
   color: inherit;
 }
 
+/* ===========================================================
+   Chat error boundary — sits where MessageStream would, when the
+   subtree throws.
+   =========================================================== */
+.chat-error-card {
+  margin: 32px;
+  padding: 16px 20px;
+  border: 1px solid color-mix(in srgb, var(--color-negative) 45%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--color-negative) 10%, transparent);
+  color: var(--color-text);
+  max-width: 720px;
+}
+.chat-error-title {
+  font-weight: 700;
+  color: var(--color-negative);
+  margin-bottom: 8px;
+  font-size: 13.5px;
+  letter-spacing: -0.005em;
+}
+.chat-error-message {
+  margin: 0 0 12px 0;
+  padding: 10px 12px;
+  background: color-mix(in srgb, var(--color-text) 4%, transparent);
+  border-radius: 6px;
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 200px;
+  overflow: auto;
+}
+.chat-error-actions {
+  display: flex;
+  gap: 8px;
+}
+.chat-error-retry {
+  background: var(--color-surface-2);
+  border: 1px solid color-mix(in srgb, var(--color-text) 12%, transparent);
+  color: var(--color-text);
+  padding: 5px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-family: var(--font-ui);
+  cursor: pointer;
+  transition: background var(--polish-fast);
+}
+.chat-error-retry:hover {
+  background: var(--color-surface-3);
+}
+
 /* Per-word fade-in for streaming text. Direct port of portai's
    .md-fade-in: pure opacity 0 → 1 over 0.7s ease-in-out. Each
    <span class="fade-in"> wraps a word emitted by the smooth-text engine
