@@ -9,7 +9,7 @@ import (
 
 // basePrompt is the always-on identity / behavioural preamble. It
 // stays small on purpose — anything project-specific lives in
-// LYRA.md and gets appended at composeSystemPrompt time. Anything
+// LYRA.md and gets appended at SystemPrompt time. Anything
 // user-specific lives in ~/.lyra/LYRA.md.
 const basePrompt = `You are Lyra, a general-purpose AI coding agent.
 
@@ -23,7 +23,7 @@ When you change files, show the change. When a tool returns an
 error, read the message and adjust — don't blindly retry. If a
 task is ambiguous, ask one focused question rather than guess.`
 
-// composeSystemPrompt assembles the system prompt for one turn. The
+// SystemPrompt assembles the system prompt for one turn. The
 // shape is:
 //
 //	<base prompt>
@@ -36,9 +36,17 @@ task is ambiguous, ask one focused question rather than guess.`
 // markdown header so the model can tell which knowledge layer it
 // came from.
 //
-// A nil memory service simply yields the base prompt — used by
-// tests and by deployments that intentionally disable LYRA.md.
-func composeSystemPrompt(ctx context.Context, mem memory.Service) string {
+// Engines built without a memory service simply yield the base
+// prompt — tests and minimal deployments both stay valid.
+func (e *Engine) SystemPrompt(ctx context.Context) string {
+	return composePrompt(ctx, e.memSvc)
+}
+
+// composePrompt is the pure form behind [Engine.SystemPrompt],
+// exposed unexported so the unit tests (which build stub memory
+// services without a full Engine) can exercise the cascade
+// directly.
+func composePrompt(ctx context.Context, mem memory.Service) string {
 	var b strings.Builder
 	b.WriteString(basePrompt)
 

@@ -277,7 +277,7 @@ func (s *impl) runPlanMode(ctx context.Context, st *turnState, message string, s
 	s.emit(st, PlanGenerated{
 		Plan: plan,
 	})
-	decision, ok := waitDecision(ctx, st)
+	decision, ok := st.waitDecision(ctx)
 	if !ok || decision == PlanReject {
 		s.emit(st, TurnEnd{
 			Reason:   TurnEndCancelled,
@@ -319,7 +319,12 @@ func (s *impl) postTurnMaintenance(ctx context.Context, st *turnState, sessionID
 // waitDecision blocks until the client calls ContinuePlan or the
 // turn context is cancelled. Returns the second value as false on
 // cancellation so the caller emits TurnEndCancelled cleanly.
-func waitDecision(ctx context.Context, st *turnState) (PlanDecision, bool) {
+//
+// Lives on *turnState (not as a free function) because the state
+// owns the planDecision channel — keeping the method here matches
+// the rest of the file's "behaviour lives on the type that holds
+// the data" convention.
+func (st *turnState) waitDecision(ctx context.Context) (PlanDecision, bool) {
 	select {
 	case d := <-st.planDecision:
 		return d, true
