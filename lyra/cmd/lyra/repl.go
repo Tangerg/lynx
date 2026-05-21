@@ -6,55 +6,84 @@ import (
 	"fmt"
 	"io"
 	"strings"
+
+	"github.com/spf13/cobra"
 )
 
-// cmdRepl is `lyra repl` — interactive multi-turn chat against a
-// single session. The user types messages one line at a time;
-// each line drives one turn, events stream to stdout/stderr as
-// they arrive. Slash-prefixed input invokes REPL commands rather
-// than the model:
+// ReplCmd is `lyra repl [--session ID]` — interactive multi-turn
+// chat. The user types messages one line at a time; each line
+// drives one turn, events stream to stdout/stderr as they arrive.
+// Slash-prefixed input invokes REPL commands rather than the
+// model:
 //
 //	/exit     exit the REPL (also: Ctrl+D / EOF)
 //	/help     show available commands
 //	/new      start a fresh session in this REPL
+//	/plan ... run one plan-mode turn
 //	/session  print the current session id
-//
-// The session is created (or resumed via --session) once at REPL
-// start; every turn shares the same session id so chat-memory
-// links them.
-func cmdRepl(args []string) int {
-	fs := newSubFlagSet("repl")
-	sessionFlag := fs.String("session", "", "resume an existing session id (default: create a fresh one)")
-	fs.Usage = func() {
-		fmt.Fprintln(stderr(), "Usage: lyra repl [--session ID]")
-		fmt.Fprintln(stderr(), "Start an interactive multi-turn conversation. Slash commands: /exit /help /new /session.")
-		fs.PrintDefaults()
+func (a *App) ReplCmd() *cobra.Command {
+	var sessionID string
+	cmd := &cobra.Command{
+		Use:   "repl",
+		Short: "Interactive multi-turn conversation.",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := a.ensureRuntime(); err != nil {
+				return a.fatalErr(err)
+			}
+			r, err := NewReplRunner(a, sessionID)
+			if err != nil {
+				return a.fatalErr(err)
+			}
+			return r.Run(cmd.Context())
+		},
 	}
-	if err := fs.Parse(args); err != nil {
-		return 2
+	cmd.Flags().StringVar(&sessionID, "session", "", "resume an existing session id (default: create a fresh one)")
+	return cmd
+}
+
+// ReplRunner is the interactive loop's controller — owns the
+// session it's bound to plus the App's IO + services.
+type ReplRunner struct {
+	app       *App
+	sessionID string
+}
+
+// NewReplRunner resolves the session (resume given id or create
+// fresh) and returns a ready runner. Errors propagate when
+// resuming a non-existent session.
+func NewReplRunner(app *App, requestedSession string) (*ReplRunner, error) {
+	ctx := context.Background()
+	var sessID string
+	if requestedSession != "" {
+		sess, err := app.session.Get(ctx, requestedSession)
+		if err != nil {
+			return nil, fmt.Errorf("resume session %q: %w", requestedSession, err)
+		}
+		sessID = sess.ID
+	} else {
+		sess, err := app.session.Create(ctx, "")
+		if err != nil {
+			return nil, fmt.Errorf("create session: %w", err)
+		}
+		sessID = sess.ID
 	}
+	return &ReplRunner{app: app, sessionID: sessID}, nil
+}
 
-	rt, err := newRuntime()
-	if err != nil {
-		return printErr(err)
-	}
+// Run drives the REPL until /exit, Ctrl+D, or scanner error.
+// Each line is either a slash command (handled inline) or a
+// regular message (dispatched through [TurnRunner]).
+func (r *ReplRunner) Run(ctx context.Context) error {
+	fmt.Fprintf(r.app.Err, "[lyra] repl ready — session %s\n", r.sessionID)
+	fmt.Fprintln(r.app.Err, "[lyra] type your message, or /help for commands.")
 
-	sessionID, err := resolveSession(rt, *sessionFlag)
-	if err != nil {
-		return printErr(err)
-	}
-
-	fmt.Fprintf(stderr(), "[lyra] repl ready — session %s\n", sessionID)
-	fmt.Fprintln(stderr(), "[lyra] type your message, or /help for commands.")
-
-	scanner := bufio.NewScanner(stdin())
+	scanner := bufio.NewScanner(r.app.In)
 	scanner.Buffer(make([]byte, 64*1024), 1024*1024)
 
 	for {
-		fmt.Fprintf(stderr(), "\n[%s] > ", shortSessionID(sessionID))
+		fmt.Fprintf(r.app.Err, "\n[%s] > ", shortSessionID(r.sessionID))
 		if !scanner.Scan() {
-			// Ctrl+D / EOF
-			fmt.Fprintln(stderr())
+			fmt.Fprintln(r.app.Err) // newline after EOF for clean shell prompt
 			break
 		}
 		line := strings.TrimSpace(scanner.Text())
@@ -63,54 +92,54 @@ func cmdRepl(args []string) int {
 		}
 
 		if strings.HasPrefix(line, "/") {
-			// /plan <msg> is the only slash command that runs a turn —
-			// the others are pure REPL state changes. Handled inline
-			// because the message body comes from the same input line.
-			if strings.HasPrefix(line, "/plan ") {
-				msg := strings.TrimSpace(strings.TrimPrefix(line, "/plan "))
-				if msg == "" {
-					fmt.Fprintln(stderr(), "[lyra] usage: /plan <message>")
-					continue
-				}
-				runTurnWithOptions(rt, sessionID, msg, turnOptions{PlanMode: true})
-				continue
-			}
-			done, newSession := handleSlashCommand(rt, line, sessionID)
-			if done {
-				return 0
-			}
-			if newSession != "" {
-				sessionID = newSession
+			if done := r.handleSlash(ctx, line); done {
+				return nil
 			}
 			continue
 		}
 
-		runTurn(rt, sessionID, line)
+		NewTurnRunner(r.app, turnOptions{}).Run(ctx, r.sessionID, line)
 	}
 
 	if err := scanner.Err(); err != nil && err != io.EOF {
-		return printErr(err)
+		return r.app.fatalErr(err)
 	}
-	return 0
+	return nil
 }
 
-// resolveSession either resumes the supplied id (asserts it exists)
-// or creates a fresh anonymous session. Returns the session id the
-// REPL should bind every turn to.
-func resolveSession(rt *runtime, requested string) (string, error) {
-	ctx := context.Background()
-	if requested != "" {
-		sess, err := rt.session.Get(ctx, requested)
-		if err != nil {
-			return "", fmt.Errorf("resume session %q: %w", requested, err)
+// handleSlash dispatches one slash command. Returns true when the
+// REPL should exit (/exit, /quit). /plan <msg> spawns a plan-mode
+// TurnRunner since it consumes the rest of the line as the message.
+func (r *ReplRunner) handleSlash(ctx context.Context, line string) (done bool) {
+	if strings.HasPrefix(line, "/plan ") {
+		msg := strings.TrimSpace(strings.TrimPrefix(line, "/plan "))
+		if msg == "" {
+			fmt.Fprintln(r.app.Err, "[lyra] usage: /plan <message>")
+			return false
 		}
-		return sess.ID, nil
+		NewTurnRunner(r.app, turnOptions{PlanMode: true}).Run(ctx, r.sessionID, msg)
+		return false
 	}
-	sess, err := rt.session.Create(ctx, "")
-	if err != nil {
-		return "", fmt.Errorf("create session: %w", err)
+
+	switch line {
+	case "/exit", "/quit":
+		return true
+	case "/help":
+		fmt.Fprintln(r.app.Err, "[lyra] commands: /exit  /help  /new  /plan <msg>  /session")
+	case "/new":
+		sess, err := r.app.session.Create(ctx, "")
+		if err != nil {
+			fmt.Fprintf(r.app.Err, "[lyra] create session: %s\n", err)
+			return false
+		}
+		r.sessionID = sess.ID
+		fmt.Fprintf(r.app.Err, "[lyra] switched to fresh session %s\n", sess.ID)
+	case "/session":
+		fmt.Fprintf(r.app.Err, "[lyra] current session: %s\n", r.sessionID)
+	default:
+		fmt.Fprintf(r.app.Err, "[lyra] unknown command %q (try /help)\n", line)
 	}
-	return sess.ID, nil
+	return false
 }
 
 // shortSessionID returns the first 8 characters of a session id
@@ -123,29 +152,3 @@ func shortSessionID(id string) string {
 	}
 	return id
 }
-
-// handleSlashCommand interprets the REPL meta-commands. Returns
-// (done, newSessionID). done=true exits the REPL; newSessionID
-// non-empty rebinds the loop to a fresh session id.
-func handleSlashCommand(rt *runtime, line, current string) (done bool, newSessionID string) {
-	switch line {
-	case "/exit", "/quit":
-		return true, ""
-	case "/help":
-		fmt.Fprintln(stderr(), "[lyra] commands: /exit  /help  /new  /plan <msg>  /session")
-	case "/new":
-		sess, err := rt.session.Create(context.Background(), "")
-		if err != nil {
-			fmt.Fprintf(stderr(), "[lyra] create session: %s\n", err)
-			return false, ""
-		}
-		fmt.Fprintf(stderr(), "[lyra] switched to fresh session %s\n", sess.ID)
-		return false, sess.ID
-	case "/session":
-		fmt.Fprintf(stderr(), "[lyra] current session: %s\n", current)
-	default:
-		fmt.Fprintf(stderr(), "[lyra] unknown command %q (try /help)\n", line)
-	}
-	return false, ""
-}
-

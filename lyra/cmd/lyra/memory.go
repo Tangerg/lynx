@@ -2,194 +2,165 @@ package main
 
 import (
 	"context"
-	"flag"
 	"fmt"
 	"io"
 	"os"
-	"strings"
+
+	"github.com/spf13/cobra"
 
 	"github.com/Tangerg/lynx/lyra/internal/service/memory"
 )
 
-// cmdMemory is `lyra memory <sub>` — inspect and edit the LYRA.md
-// cascade the agent injects into every system prompt. Two scopes:
+// MemoryCmd is the `lyra memory` group — inspect / edit the
+// LYRA.md cascade the agent injects into every system prompt.
+// Two scopes:
 //
-//   - project   <cwd>/LYRA.md          (per-repo knowledge)
-//   - user      ~/.lyra/LYRA.md        (cross-project preferences)
-//
-// `lyra memory show` prints both; `set` overwrites one scope from
-// stdin or from a file flag; `clear` empties one scope.
-func cmdMemory(args []string) int {
-	if len(args) == 0 {
-		printMemoryUsage()
-		return 2
+//   - project   <cwd>/LYRA.md      (per-repo knowledge)
+//   - user      ~/.lyra/LYRA.md    (cross-project preferences)
+func (a *App) MemoryCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "memory",
+		Short: "Inspect / edit the LYRA.md memory cascade.",
 	}
-	sub, rest := args[0], args[1:]
-
-	// Cheap help paths don't need the runtime (no API key required).
-	switch sub {
-	case "-h", "--help", "help":
-		printMemoryUsage()
-		return 0
-	}
-
-	rt, err := newRuntime()
-	if err != nil {
-		return printErr(err)
-	}
-
-	switch sub {
-	case "show":
-		return memoryShow(rt, rest)
-	case "set":
-		return memorySet(rt, rest)
-	case "clear":
-		return memoryClear(rt, rest)
-	default:
-		fmt.Fprintf(stderr(), "lyra memory: unknown sub-command %q\n\n", sub)
-		printMemoryUsage()
-		return 2
-	}
+	cmd.AddCommand(
+		a.memoryShowCmd(),
+		a.memorySetCmd(),
+		a.memoryClearCmd(),
+	)
+	return cmd
 }
 
-func printMemoryUsage() {
-	fmt.Fprintln(stderr(), "Usage: lyra memory <show|set|clear> [--scope project|user] [--from path]")
-	fmt.Fprintln(stderr(), "  show              Print the LYRA.md cascade (default: both scopes).")
-	fmt.Fprintln(stderr(), "  set --scope X     Overwrite scope X from stdin or --from <path>.")
-	fmt.Fprintln(stderr(), "  clear --scope X   Empty scope X.")
-}
-
-// scopeFlag attaches a --scope option to fs. When allowBoth is
-// true "both" becomes the default + an accepted value; otherwise
-// scope is restricted to project / user. Returned pointer's
-// resolve() turns the parsed value into the typed
-// (memory.Scope, both bool).
-func scopeFlag(fs *flag.FlagSet, allowBoth bool) *memoryScopeFlag {
-	v := &memoryScopeFlag{value: "project", allowBoth: allowBoth}
-	help := "memory scope: project | user"
-	if allowBoth {
-		v.value = "both"
-		help += " | both"
-	}
-	fs.Var(v, "scope", help)
-	return v
-}
-
-type memoryScopeFlag struct {
-	value     string
-	allowBoth bool
-}
-
-// validScopes lists the textual scope values accepted by --scope.
-// Restricted by [memoryScopeFlag.allowBoth] — "both" only shows
-// up when the caller of [scopeFlag] opted in.
-func (f *memoryScopeFlag) validScopes() []string {
-	if f.allowBoth {
-		return []string{"project", "user", "both"}
-	}
-	return []string{"project", "user"}
-}
-
-func (f *memoryScopeFlag) String() string { return f.value }
-
-func (f *memoryScopeFlag) Set(s string) error {
-	for _, v := range f.validScopes() {
-		if v == s {
-			f.value = s
+func (a *App) memoryShowCmd() *cobra.Command {
+	var scope string
+	cmd := &cobra.Command{
+		Use:   "show",
+		Short: "Print the LYRA.md cascade (default: both scopes).",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := a.ensureRuntime(); err != nil {
+				return a.fatalErr(err)
+			}
+			target, both, err := parseScope(scope, true)
+			if err != nil {
+				return a.fatalErr(err)
+			}
+			ctx := cmd.Context()
+			if both {
+				printScope(a, ctx, memory.ScopeUser, "user")
+				printScope(a, ctx, memory.ScopeProject, "project")
+				return nil
+			}
+			printScope(a, ctx, target, scope)
 			return nil
-		}
+		},
 	}
-	return fmt.Errorf("scope must be one of %s", strings.Join(f.validScopes(), " | "))
+	cmd.Flags().StringVar(&scope, "scope", "both", "memory scope: project | user | both")
+	return cmd
 }
 
-// resolve maps the parsed value into the runtime types. Returns
-// (target, both): both=true means "operate on every scope" — only
-// valid when the flag was constructed with allowBoth.
-func (f *memoryScopeFlag) resolve() (memory.Scope, bool) {
-	switch f.value {
+func (a *App) memorySetCmd() *cobra.Command {
+	var (
+		scope string
+		from  string
+	)
+	cmd := &cobra.Command{
+		Use:   "set",
+		Short: "Overwrite a scope from stdin or --from <path>.",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := a.ensureRuntime(); err != nil {
+				return a.fatalErr(err)
+			}
+			target, _, err := parseScope(scope, false)
+			if err != nil {
+				return a.fatalErr(err)
+			}
+			content, err := readMemoryBody(from, a.In)
+			if err != nil {
+				return a.fatalErr(err)
+			}
+			if err := a.memory.Update(cmd.Context(), target, string(content)); err != nil {
+				return a.fatalErr(err)
+			}
+			fmt.Fprintf(a.Err, "[lyra] %s memory updated (%d bytes)\n", scope, len(content))
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&scope, "scope", "project", "memory scope: project | user")
+	cmd.Flags().StringVar(&from, "from", "", "read content from this file (default: stdin)")
+	return cmd
+}
+
+func (a *App) memoryClearCmd() *cobra.Command {
+	var scope string
+	cmd := &cobra.Command{
+		Use:   "clear",
+		Short: "Empty a scope.",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := a.ensureRuntime(); err != nil {
+				return a.fatalErr(err)
+			}
+			target, _, err := parseScope(scope, false)
+			if err != nil {
+				return a.fatalErr(err)
+			}
+			if err := a.memory.Update(cmd.Context(), target, ""); err != nil {
+				return a.fatalErr(err)
+			}
+			fmt.Fprintf(a.Err, "[lyra] %s memory cleared\n", scope)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&scope, "scope", "project", "memory scope: project | user")
+	return cmd
+}
+
+// parseScope maps the --scope flag value to the typed enum.
+// allowBoth controls whether "both" is acceptable — show accepts
+// it, set / clear don't.
+func parseScope(s string, allowBoth bool) (target memory.Scope, both bool, err error) {
+	switch s {
+	case "project":
+		return memory.ScopeProject, false, nil
 	case "user":
-		return memory.ScopeUser, false
+		return memory.ScopeUser, false, nil
 	case "both":
-		return 0, true
+		if !allowBoth {
+			return 0, false, fmt.Errorf("scope %q not allowed here (use project|user)", s)
+		}
+		return 0, true, nil
 	}
-	// project is the default + the fallback for unrecognised
-	// values (which Set would already have rejected).
-	return memory.ScopeProject, false
+	allowed := "project | user"
+	if allowBoth {
+		allowed += " | both"
+	}
+	return 0, false, fmt.Errorf("scope must be one of %s", allowed)
 }
 
-func memoryShow(rt *runtime, args []string) int {
-	fs := newSubFlagSet("memory show")
-	scope := scopeFlag(fs, true)
-	if err := fs.Parse(args); err != nil {
-		return 2
+// readMemoryBody returns the content to write — from the named
+// file when from != "", otherwise drained from stdin.
+func readMemoryBody(from string, stdin io.Reader) ([]byte, error) {
+	if from != "" {
+		return os.ReadFile(from)
 	}
-
-	ctx := context.Background()
-	target, both := scope.resolve()
-	if both {
-		printScope(rt, ctx, memory.ScopeUser, "user")
-		printScope(rt, ctx, memory.ScopeProject, "project")
-		return 0
-	}
-	printScope(rt, ctx, target, scope.value)
-	return 0
+	return io.ReadAll(stdin)
 }
 
-func printScope(rt *runtime, ctx context.Context, scope memory.Scope, label string) {
-	content, err := rt.memory.Get(ctx, scope)
+// printScope writes one scope's contents to the App's stdout
+// under a markdown heading. Errors print to stderr but don't
+// abort the show command — partial output is still useful.
+func printScope(a *App, ctx context.Context, scope memory.Scope, label string) {
+	content, err := a.memory.Get(ctx, scope)
 	if err != nil {
-		fmt.Fprintf(stderr(), "[lyra] %s scope read error: %s\n", label, err)
+		fmt.Fprintf(a.Err, "[lyra] %s scope read error: %s\n", label, err)
 		return
 	}
-	fmt.Fprintf(stdout(), "## %s\n", label)
+	fmt.Fprintf(a.Out, "## %s\n", label)
 	if content == "" {
-		fmt.Fprintln(stdout(), "(empty)")
+		fmt.Fprintln(a.Out, "(empty)")
 	} else {
-		fmt.Fprintln(stdout(), content)
+		fmt.Fprintln(a.Out, content)
 	}
-	fmt.Fprintln(stdout())
-}
-
-func memorySet(rt *runtime, args []string) int {
-	fs := newSubFlagSet("memory set")
-	scope := scopeFlag(fs, false)
-	from := fs.String("from", "", "read content from this file (default: stdin)")
-	if err := fs.Parse(args); err != nil {
-		return 2
-	}
-
-	var content []byte
-	var err error
-	if *from != "" {
-		content, err = os.ReadFile(*from)
-		if err != nil {
-			return printErr(err)
-		}
-	} else {
-		content, err = io.ReadAll(stdin())
-		if err != nil {
-			return printErr(err)
-		}
-	}
-
-	target, _ := scope.resolve()
-	if err := rt.memory.Update(context.Background(), target, string(content)); err != nil {
-		return printErr(err)
-	}
-	fmt.Fprintf(stderr(), "[lyra] %s memory updated (%d bytes)\n", scope.value, len(content))
-	return 0
-}
-
-func memoryClear(rt *runtime, args []string) int {
-	fs := newSubFlagSet("memory clear")
-	scope := scopeFlag(fs, false)
-	if err := fs.Parse(args); err != nil {
-		return 2
-	}
-	target, _ := scope.resolve()
-	if err := rt.memory.Update(context.Background(), target, ""); err != nil {
-		return printErr(err)
-	}
-	fmt.Fprintf(stderr(), "[lyra] %s memory cleared\n", scope.value)
-	return 0
+	fmt.Fprintln(a.Out)
 }
