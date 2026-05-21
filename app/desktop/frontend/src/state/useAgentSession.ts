@@ -8,14 +8,23 @@ import { useAgentStore } from "./agentStore";
 //   3. Pipe events through `useAgentStore.applyEvent` so any component (and
 //      any plugin) can read view-state slices via `useAgentStore((s) => …)`.
 //
-// The hook itself returns only the imperative actions (`send`, `stop`).
-// State is read via the store from anywhere in the tree.
+// `sessionKey` controls when to rebuild the agent. Pass the active
+// thread / session id; when it changes the previous agent is aborted +
+// unsubscribed and a fresh one is constructed from `makeAgent()`. The
+// agent store is reset across the boundary so the new session starts
+// with an empty view.
+//
+// The hook returns only the imperative actions (`send`, `stop`); state is
+// read via the store from anywhere in the tree.
 export type AgentSession = {
   send: (text: string) => void;
   stop: () => void;
 };
 
-export function useAgentSession(makeAgent: () => AbstractAgent): AgentSession {
+export function useAgentSession(
+  makeAgent: () => AbstractAgent,
+  sessionKey?: unknown,
+): AgentSession {
   const agentRef = useRef<AbstractAgent | null>(null);
 
   const factoryRef = useRef(makeAgent);
@@ -25,13 +34,10 @@ export function useAgentSession(makeAgent: () => AbstractAgent): AgentSession {
     const agent = factoryRef.current();
     agentRef.current = agent;
 
-    // Reset before subscribing so a remounted session doesn't see leftover
-    // state from a previous run.
+    // Reset before subscribing so a new session doesn't see leftover
+    // state from the previous one.
     useAgentStore.getState().reset();
 
-    // Plugins (status pill, palette command, etc.) read `stop`/`send` off
-    // the agent store so they don't have to know who owns the agent. Bind
-    // on mount, clear on unmount.
     useAgentStore.getState().setStop(() => {
       try { agent.abortRun(); } catch { /* ignore */ }
     });
@@ -71,7 +77,7 @@ export function useAgentSession(makeAgent: () => AbstractAgent): AgentSession {
       agentRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [sessionKey]);
 
   return {
     send: (text: string) => {

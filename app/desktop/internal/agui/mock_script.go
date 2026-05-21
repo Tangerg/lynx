@@ -194,6 +194,17 @@ const (
 
 	postApprovalText = "Got it — kicking off the integration suite now. This is the long-running " +
 		"step, so I'll stay attached and surface anything that fails or hangs:"
+
+	reasoning1Text = "The neverthrow style is closest to what we use elsewhere — Ok/Err discriminated " +
+		"union, no exotic combinators, no class hierarchy. matklad has the principled argument for " +
+		"why a discriminated union is enough and why bigger abstractions like Effect's tagged unions " +
+		"are overkill for service-layer code. Going to mirror neverthrow's shape but inline it. " +
+		"One fewer dependency, and it makes the type trivially auditable from this file alone."
+
+	reasoning2Text = "Sandbox mode means no actual charges, but the calls still go to api.stripe.com — " +
+		"so a misconfigured token or a stale fixture could surface a real error. The auth changes " +
+		"are upstream of these calls, so if the unwrap shape is wrong it'll fail loudly. Worth " +
+		"asking the user before kicking off a 2-3 minute integration run."
 )
 
 // Custom event names — must match the constants in customEvents.ts on the JS side.
