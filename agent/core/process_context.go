@@ -165,9 +165,49 @@ func (pc *ProcessContext) Chat() *chat.ClientRequest {
 	if pc.chatClient == nil {
 		return nil
 	}
+	return pc.buildChatRequest(nil)
+}
+
+// ChatWithActionTools is the "ask the LLM with my action's tools"
+// shortcut: a [chat.ClientRequest] pre-loaded with the action's
+// resolved tools and [chat.NewToolMiddleware]. When the action
+// declares no ToolGroups, returns the bare client clone (same shape
+// as [Chat]).
+//
+// Platform-level [Guardrails] are layered outside the tool middleware
+// so the guardrails see the user-facing request shape (before the
+// tool loop expands it).
+//
+// Errors when no ChatClient is configured or tool resolution fails.
+func (pc *ProcessContext) ChatWithActionTools(ctx context.Context) (*chat.ClientRequest, error) {
+	if pc.chatClient == nil {
+		return nil, errors.New("chat with action tools: no ChatClient configured on the platform")
+	}
+	tools, err := pc.ActionTools(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("chat with action tools: %w", err)
+	}
+	return pc.buildChatRequest(tools), nil
+}
+
+// buildChatRequest composes the per-action chat request: guardrails
+// outermost, optional tool middleware innermost. Callers pre-resolve
+// tools (nil means "no tool middleware"); the rest of the wiring
+// (chatClient existence, session params, middleware order) lives in
+// one place so [Chat] and [ChatWithActionTools] stay aligned.
+func (pc *ProcessContext) buildChatRequest(tools []AgentTool) *chat.ClientRequest {
 	req := pc.chatClient.Chat()
-	if mws := pc.guardrails.MiddlewareValues(); len(mws) > 0 {
+
+	mws := pc.guardrails.MiddlewareValues()
+	if len(tools) > 0 {
+		callMW, streamMW := chat.NewToolMiddleware()
+		mws = append(mws, callMW, streamMW)
+	}
+	if len(mws) > 0 {
 		req = req.WithMiddlewares(mws...)
+	}
+	if len(tools) > 0 {
+		req = req.WithTools(tools...)
 	}
 	if params := pc.sessionParams(); len(params) > 0 {
 		req = req.WithParams(params)
@@ -178,7 +218,7 @@ func (pc *ProcessContext) Chat() *chat.ClientRequest {
 // sessionParams returns the request-params map the session
 // machinery needs the chat client to see — currently just the
 // chat-memory conversation key. Returns nil when no session is
-// bound so [Chat] can skip the WithParams call.
+// bound so [buildChatRequest] can skip the WithParams call.
 func (pc *ProcessContext) sessionParams() map[string]any {
 	if pc.Options == nil || pc.Options.Session == nil || pc.Options.Session.ID == "" {
 		return nil
@@ -195,48 +235,6 @@ func (pc *ProcessContext) sessionParams() map[string]any {
 // would pull memory into every agent binary even when nobody uses
 // chat sessions.
 const chatMemoryConversationIDKey = "lynx:ai:model:chat:memory:conversation_id"
-
-// ChatWithActionTools is the "ask the LLM with my action's tools"
-// shortcut: a [chat.ClientRequest] pre-loaded with the action's
-// resolved tools and [chat.NewToolMiddleware]. When the action
-// declares no ToolGroups, returns the bare client clone.
-//
-// Platform-level [Guardrails] are layered outside the tool middleware
-// so the guardrails see the user-facing request shape (before the
-// tool loop expands it).
-//
-// Errors when no ChatClient is configured or tool resolution fails.
-func (pc *ProcessContext) ChatWithActionTools(ctx context.Context) (*chat.ClientRequest, error) {
-	if pc.chatClient == nil {
-		return nil, errors.New("chat with action tools: no ChatClient configured on the platform")
-	}
-	req := pc.chatClient.Chat()
-	tools, err := pc.ActionTools(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("chat with action tools: %w", err)
-	}
-
-	sessionParams := pc.sessionParams()
-	guardrails := pc.guardrails.MiddlewareValues()
-	if len(tools) == 0 {
-		if len(guardrails) > 0 {
-			req = req.WithMiddlewares(guardrails...)
-		}
-		if len(sessionParams) > 0 {
-			req = req.WithParams(sessionParams)
-		}
-		return req, nil
-	}
-	callMW, streamMW := chat.NewToolMiddleware()
-	chain := make([]any, 0, len(guardrails)+2)
-	chain = append(chain, guardrails...)
-	chain = append(chain, callMW, streamMW)
-	req = req.WithMiddlewares(chain...).WithTools(tools...)
-	if len(sessionParams) > 0 {
-		req = req.WithParams(sessionParams)
-	}
-	return req, nil
-}
 
 // ActionTools resolves the tools declared on the currently-executing
 // action's [ActionConfig.ToolGroups]. Returns (nil, nil) when the
