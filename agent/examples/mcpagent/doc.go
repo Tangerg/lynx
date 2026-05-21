@@ -1,4 +1,4 @@
-// Command mcp-agent shows the complete client-side MCP integration
+// Command mcpagent shows the complete client-side MCP integration
 // in one file:
 //
 //   - mcp.Provider over an in-memory MCP server (one tool + one prompt)
@@ -14,5 +14,5 @@
 //
 // Run from repo root:
 //
-//	go run ./agent/examples/mcp-agent
+//	go run ./agent/examples/mcpagent
 package main
