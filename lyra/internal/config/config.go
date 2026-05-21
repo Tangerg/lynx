@@ -16,6 +16,7 @@ package config
 import (
 	"errors"
 	"os"
+	"strings"
 )
 
 // Provider enumerates the LLM provider Lyra talks to. M1 ships the
@@ -33,6 +34,31 @@ type Config struct {
 	Provider Provider
 	Model    string
 	APIKey   string
+
+	// Online optionally enables provider-backed tools (web fetch,
+	// web search, HTTP requests). Each field is independent — set
+	// only the ones you have credentials for. See [OnlineConfig].
+	Online OnlineConfig
+}
+
+// OnlineConfig groups the credentials needed by network-reaching
+// tools. Empty fields disable the corresponding tool — no tool is
+// registered without explicit opt-in, so an offline-only install
+// has no surprise outbound traffic.
+type OnlineConfig struct {
+	// JinaAPIKey enables the webfetch tool backed by Jina Reader.
+	// Get a key from https://jina.ai/reader.
+	JinaAPIKey string
+
+	// TavilyAPIKey enables the websearch tool backed by Tavily.
+	// Get a key from https://app.tavily.com.
+	TavilyAPIKey string
+
+	// HTTPAllowedHosts enables the httpreq tool. Pass an explicit
+	// allowlist (e.g. ["api.github.com", "*.openai.com"]) — empty
+	// keeps the tool disabled. Required so the LLM can't reach
+	// arbitrary internal endpoints.
+	HTTPAllowedHosts []string
 }
 
 // Load resolves the configuration from defaults + environment. The
@@ -62,7 +88,33 @@ func Load() (Config, error) {
 		Provider: provider,
 		Model:    model,
 		APIKey:   apiKey,
+		Online: OnlineConfig{
+			JinaAPIKey:       os.Getenv("LYRA_JINA_API_KEY"),
+			TavilyAPIKey:     os.Getenv("LYRA_TAVILY_API_KEY"),
+			HTTPAllowedHosts: splitHosts(os.Getenv("LYRA_HTTP_ALLOWED_HOSTS")),
+		},
 	}, nil
+}
+
+// splitHosts parses the comma-separated LYRA_HTTP_ALLOWED_HOSTS
+// value. Empty entries are dropped so trailing commas are tolerated.
+// Empty input → nil slice (tool stays disabled).
+func splitHosts(raw string) []string {
+	if raw == "" {
+		return nil
+	}
+	parts := strings.Split(raw, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			out = append(out, p)
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 func envOr(key, fallback string) string {
