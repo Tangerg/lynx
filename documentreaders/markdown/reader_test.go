@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Tangerg/lynx/document-readers/markdown"
+	"github.com/Tangerg/lynx/documentreaders/markdown"
 )
 
 const sample = `# Intro

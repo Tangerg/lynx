@@ -4,7 +4,7 @@ use (
 	./agent
 	./chatmemory
 	./core
-	./document-readers
+	./documentreaders
 	./mcp
 	./models
 	./otel

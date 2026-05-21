@@ -1,4 +1,4 @@
-module github.com/Tangerg/lynx/document-readers
+module github.com/Tangerg/lynx/documentreaders
 
 go 1.26.3
 

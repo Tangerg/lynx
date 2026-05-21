@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/Tangerg/lynx/document-readers/pdf"
+	"github.com/Tangerg/lynx/documentreaders/pdf"
 )
 
 // PDF parsing correctness is exercised by the upstream
