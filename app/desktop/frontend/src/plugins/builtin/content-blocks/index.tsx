@@ -12,7 +12,7 @@ import { PlanBlock } from "@/components/chat/PlanBlock";
 import { ReasoningBlock } from "@/components/chat/ReasoningBlock";
 import { SearchResults } from "@/components/chat/SearchResults";
 import { definePlugin, type ContentBlockRendererProps } from "@/plugins/sdk";
-import { useAgentStore } from "@/state/agentStore";
+import { useAgentSlice } from "@/state/agentStore";
 
 export const approvalBlock = definePlugin({
   name: "lyra.builtin.approval-block",
@@ -48,7 +48,7 @@ export const codeBlock = definePlugin({
 // current plan here", and the renderer pulls from useAgentStore so plan
 // updates re-render the block in place.
 function PlanContentBlock() {
-  const plan = useAgentStore((s) => s.plan);
+  const plan = useAgentSlice((v) => v.plan);
   return <PlanBlock plan={plan} />;
 }
 

@@ -4,7 +4,7 @@
 // Lives outside the render tree so `ToolCard` can invoke it directly
 // without anyone passing a callback down through the chat panel.
 
-import { useAgentStore } from "./agentStore";
+import { getCurrentSessionView } from "./agentStore";
 import { useUIStore } from "./uiStore";
 
 type ViewRouting = { id: string; title: string; icon: string };
@@ -31,7 +31,7 @@ function routeForTool(fn: string, args: string): ViewRouting {
  * No-op if the tool id isn't in the current agent state.
  */
 export function openViewForTool(toolId: string): void {
-  const tool = useAgentStore.getState().toolCalls[toolId];
+  const tool = getCurrentSessionView().toolCalls[toolId];
   if (!tool) return;
 
   const view = routeForTool(tool.fn, String(tool.args));

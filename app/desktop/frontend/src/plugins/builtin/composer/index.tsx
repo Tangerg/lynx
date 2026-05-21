@@ -10,7 +10,7 @@ import { Icon, type IconName } from "@/components/common";
 import { submitComposer } from "@/components/chat/submitComposer";
 import { useSessions } from "@/lib/queries";
 import { definePlugin } from "@/plugins/sdk";
-import { useAgentStore } from "@/state/agentStore";
+import { useAgentAction } from "@/state/agentStore";
 import { useComposerStore } from "@/state/composerStore";
 import { useUIStore } from "@/state/uiStore";
 
@@ -155,7 +155,7 @@ export const composerHint = definePlugin({
 function SendButton() {
   const value = useComposerStore((s) => s.value);
   const clear = useComposerStore((s) => s.clear);
-  const send = useAgentStore((s) => s.send);
+  const send = useAgentAction("send");
 
   const disabled = !value.trim() || !send;
   const onClick = () => {
