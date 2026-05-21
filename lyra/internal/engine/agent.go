@@ -7,6 +7,8 @@ import (
 	"github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/core/model/chat"
+
+	lyramem "github.com/Tangerg/lynx/lyra/internal/service/memory"
 )
 
 // ChatInput is the typed input to the M1 single-turn chat agent. It
@@ -25,6 +27,11 @@ type ChatOutput struct {
 // buildChatAgent constructs the chat agent: one action ("chat") that
 // asks the LLM with the coding tool set wired in.
 //
+// memSvc, when non-nil, is consulted at the start of every turn to
+// compose the system prompt — the base persona plus user / project
+// LYRA.md content. Passing nil keeps the prompt minimal (used by
+// tests and headless deployments).
+//
 // The Action declares [ToolRoleCoding] so the runtime resolves the
 // coding tool group at dispatch time; the body calls
 // [core.ProcessContext.ChatWithActionTools] which composes the
@@ -38,7 +45,7 @@ type ChatOutput struct {
 // pre-buffered MessageDelta. Tool-call rounds still go through the
 // same ToolMiddleware loop; tool events surface via the
 // ToolDecorator path independently of the text-delta path.
-func buildChatAgent() *core.Agent {
+func buildChatAgent(memSvc lyramem.Service) *core.Agent {
 	return agent.New("lyra-chat").
 		Description("single-turn LLM chat with the default coding tool set").
 		Actions(agent.NewAction("chat",
@@ -49,7 +56,11 @@ func buildChatAgent() *core.Agent {
 				}
 
 				observer := ObserverFrom(pc.Options)
-				stream := req.WithUserPrompt(in.Message).Stream()
+				systemPrompt := composeSystemPrompt(ctx, memSvc)
+				stream := req.
+					WithSystemPrompt(systemPrompt).
+					WithUserPrompt(in.Message).
+					Stream()
 
 				var accumulated strings.Builder
 				for chunk, streamErr := range stream.Response(ctx) {

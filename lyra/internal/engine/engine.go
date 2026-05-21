@@ -10,6 +10,7 @@ import (
 	"github.com/Tangerg/lynx/agent/runtime"
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/core/model/chat/memory"
+	lyramem "github.com/Tangerg/lynx/lyra/internal/service/memory"
 )
 
 // Config is the engine construction-time bundle. All fields are
@@ -36,6 +37,16 @@ type Config struct {
 	// engine falls back to lynx's in-process [memory.InMemoryStore]
 	// — fine for tests but loses history on restart.
 	MemoryStore memory.Store
+
+	// MemoryService optionally supplies the LYRA.md cascade reader
+	// the agent injects into every system prompt. nil disables the
+	// injection — the base prompt is used verbatim.
+	MemoryService lyramem.Service
+
+	// Compaction tunes the auto-compaction heuristic. Zero values
+	// fall back to defaults (see [CompactionConfig]). Setting
+	// MaxMessages negative disables auto-compaction entirely.
+	Compaction CompactionConfig
 }
 
 // OnlineConfig is engine's view of the runtime-time online-tool
@@ -53,9 +64,12 @@ type OnlineConfig struct {
 // milestones extend it (more agents, tool resolvers, blackboard
 // providers, ...).
 type Engine struct {
-	platform *runtime.Platform
-	agent    *core.Agent
-	tools    []chat.Tool
+	platform  *runtime.Platform
+	agent     *core.Agent
+	tools     []chat.Tool
+	memSvc    lyramem.Service
+	compactor *compactor
+	extractor *extractor
 }
 
 // New constructs an engine. Returns an error when required deps
@@ -88,16 +102,61 @@ func New(cfg Config) (*Engine, error) {
 		},
 	})
 
-	a := buildChatAgent()
+	a := buildChatAgent(cfg.MemoryService)
 	if err := platform.Deploy(a); err != nil {
 		return nil, fmt.Errorf("engine: deploy chat agent: %w", err)
 	}
 
+	var c *compactor
+	if cfg.Compaction.MaxMessages >= 0 {
+		c = newCompactor(memStore, cfg.ChatClient, cfg.Compaction)
+	}
+
+	var ex *extractor
+	if cfg.MemoryService != nil {
+		ex = newExtractor(memStore, cfg.MemoryService, cfg.ChatClient)
+	}
+
 	return &Engine{
-		platform: platform,
-		agent:    a,
-		tools:    tools,
+		platform:  platform,
+		agent:     a,
+		tools:     tools,
+		memSvc:    cfg.MemoryService,
+		compactor: c,
+		extractor: ex,
 	}, nil
+}
+
+// MaybeCompact runs one auto-compaction sweep against sessionID. The
+// runtime calls this at every turn-end so growing histories get
+// folded into a summary before the next turn starts. Returns
+// (compacted, nil) — compacted is true only when the sweep
+// actually replaced history, so callers can chain follow-on work
+// (e.g. fact extraction) only on real events.
+//
+// No-op (returns false, nil) when:
+//   - sessionID is empty (single-turn / no chat-memory path)
+//   - the configured Compaction.MaxMessages is negative (disabled)
+//   - the current history is shorter than the threshold
+func (e *Engine) MaybeCompact(ctx context.Context, sessionID string) (bool, error) {
+	if e.compactor == nil {
+		return false, nil
+	}
+	return e.compactor.maybeCompact(ctx, sessionID)
+}
+
+// MaybeExtract mines the recent conversation for facts worth
+// recording in <cwd>/LYRA.md. Best run right after MaybeCompact so
+// the LLM sees a digest rather than a raw firehose. Best-effort —
+// failures are logged but don't bubble.
+//
+// No-op when the engine has no MemoryService or the conversation
+// is too short.
+func (e *Engine) MaybeExtract(ctx context.Context, sessionID string) error {
+	if e.extractor == nil {
+		return nil
+	}
+	return e.extractor.maybeExtract(ctx, sessionID)
 }
 
 // Tools returns the registered coding tool set — used by
