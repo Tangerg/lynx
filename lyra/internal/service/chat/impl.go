@@ -92,12 +92,25 @@ func (s *impl) StartTurn(ctx context.Context, req StartTurnRequest) (TurnHandle,
 	return handle, nil
 }
 
-func (s *impl) Events(_ context.Context, handle TurnHandle) (<-chan Event, error) {
+// findTurn looks up the per-turn state by id under the impl's
+// mutex. Returns ErrTurnNotFound when the turn has already ended
+// (runTurn deletes itself from the map on exit). Centralises the
+// "lock / lookup / unlock" sequence every public method below
+// needs to perform.
+func (s *impl) findTurn(id string) (*turnState, error) {
 	s.mu.Lock()
-	state, ok := s.turns[handle.TurnID]
-	s.mu.Unlock()
+	defer s.mu.Unlock()
+	state, ok := s.turns[id]
 	if !ok {
 		return nil, ErrTurnNotFound
+	}
+	return state, nil
+}
+
+func (s *impl) Events(_ context.Context, handle TurnHandle) (<-chan Event, error) {
+	state, err := s.findTurn(handle.TurnID)
+	if err != nil {
+		return nil, err
 	}
 	return state.events, nil
 }
@@ -110,11 +123,9 @@ func (s *impl) InjectSteering(_ context.Context, _ TurnHandle, _ string) error {
 }
 
 func (s *impl) Cancel(_ context.Context, handle TurnHandle) error {
-	s.mu.Lock()
-	state, ok := s.turns[handle.TurnID]
-	s.mu.Unlock()
-	if !ok {
-		return ErrTurnNotFound
+	state, err := s.findTurn(handle.TurnID)
+	if err != nil {
+		return err
 	}
 	state.cancel()
 	return nil
@@ -127,10 +138,11 @@ func (s *impl) Cancel(_ context.Context, handle TurnHandle) error {
 // also return ErrTurnNotFound — the wrong-mode case is folded in
 // rather than introducing a separate sentinel.
 func (s *impl) ContinuePlan(_ context.Context, handle TurnHandle, decision PlanDecision) error {
-	s.mu.Lock()
-	state, ok := s.turns[handle.TurnID]
-	s.mu.Unlock()
-	if !ok || state.planDecision == nil {
+	state, err := s.findTurn(handle.TurnID)
+	if err != nil {
+		return err
+	}
+	if state.planDecision == nil {
 		return ErrTurnNotFound
 	}
 	select {
@@ -161,8 +173,7 @@ func (s *impl) runTurn(ctx context.Context, st *turnState, req StartTurnRequest)
 
 	startedAt := time.Now()
 	s.emit(st, TurnStart{
-		BaseEvent: st.baseEvent(),
-		Model:     "default", // M1 — engine exposes model name in M2+
+		Model: "default", // M1 — engine exposes model name in M2+
 	})
 
 	if req.PlanMode && !s.runPlanMode(ctx, st, req.Message, startedAt) {
@@ -184,21 +195,18 @@ func (s *impl) runTurn(ctx context.Context, st *turnState, req StartTurnRequest)
 		// transport adapters can render the right state.
 		if errors.Is(ctx.Err(), context.Canceled) {
 			s.emit(st, TurnEnd{
-				BaseEvent: st.baseEvent(),
-				Reason:    TurnEndCancelled,
-				Duration:  time.Since(startedAt),
+				Reason:   TurnEndCancelled,
+				Duration: time.Since(startedAt),
 			})
 			return
 		}
 		s.emit(st, ErrorEvent{
-			BaseEvent: st.baseEvent(),
-			Message:   runErr.Error(),
-			Code:      "ENGINE_ERROR",
+			Message: runErr.Error(),
+			Code:    "ENGINE_ERROR",
 		})
 		s.emit(st, TurnEnd{
-			BaseEvent: st.baseEvent(),
-			Reason:    TurnEndErrored,
-			Duration:  time.Since(startedAt),
+			Reason:   TurnEndErrored,
+			Duration: time.Since(startedAt),
 		})
 		return
 	}
@@ -207,17 +215,13 @@ func (s *impl) runTurn(ctx context.Context, st *turnState, req StartTurnRequest)
 	// the stream — no need to re-emit the assembled reply here.
 
 	s.emit(st, TurnEnd{
-		BaseEvent: st.baseEvent(),
-		Reason:    TurnEndCompleted,
-		Duration:  time.Since(startedAt),
+		Reason:   TurnEndCompleted,
+		Duration: time.Since(startedAt),
 		// TokenUsage / CostUSD wired up in M5 when invocation history
 		// per-turn aggregation lands.
 	})
 }
 
-// emit drops one event on the turn's channel. The send is non-blocking
-// for cancellation safety — if the receiver has fallen behind we drop
-// the event rather than block the turn forever.
 // emit stamps the event with the next sequence number and timestamp
 // and pushes it onto the turn's channel. Type-specific stamping
 // lives on each concrete event (via the unexported [Event.stamp]
@@ -230,17 +234,15 @@ func (s *impl) runTurn(ctx context.Context, st *turnState, req StartTurnRequest)
 // could buffer dropped events into an outbox + metric counter so
 // slow clients are visible in observability.
 func (s *impl) emit(st *turnState, ev Event) {
-	stamped := ev.stamp(st.seq.Add(1), time.Now())
+	stamped := ev.stamp(BaseEvent{
+		SessionID: st.handle.SessionID,
+		TurnID:    st.handle.TurnID,
+		Seq:       st.seq.Add(1),
+		Timestamp: time.Now(),
+	})
 	select {
 	case st.events <- stamped:
 	default:
-	}
-}
-
-func (st *turnState) baseEvent() BaseEvent {
-	return BaseEvent{
-		SessionID: st.handle.SessionID,
-		TurnID:    st.handle.TurnID,
 	}
 }
 
@@ -257,14 +259,12 @@ func (s *impl) runPlanMode(ctx context.Context, st *turnState, message string, s
 	plan, err := s.engine.GeneratePlan(ctx, message)
 	if err != nil {
 		s.emit(st, ErrorEvent{
-			BaseEvent: st.baseEvent(),
-			Message:   "plan generation failed: " + err.Error(),
-			Code:      "PLANNING_ERROR",
+			Message: "plan generation failed: " + err.Error(),
+			Code:    "PLANNING_ERROR",
 		})
 		s.emit(st, TurnEnd{
-			BaseEvent: st.baseEvent(),
-			Reason:    TurnEndErrored,
-			Duration:  time.Since(startedAt),
+			Reason:   TurnEndErrored,
+			Duration: time.Since(startedAt),
 		})
 		return false
 	}
@@ -275,15 +275,13 @@ func (s *impl) runPlanMode(ctx context.Context, st *turnState, message string, s
 	}
 
 	s.emit(st, PlanGenerated{
-		BaseEvent: st.baseEvent(),
-		Plan:      plan,
+		Plan: plan,
 	})
 	decision, ok := waitDecision(ctx, st)
 	if !ok || decision == PlanReject {
 		s.emit(st, TurnEnd{
-			BaseEvent: st.baseEvent(),
-			Reason:    TurnEndCancelled,
-			Duration:  time.Since(startedAt),
+			Reason:   TurnEndCancelled,
+			Duration: time.Since(startedAt),
 		})
 		return false
 	}
@@ -302,9 +300,8 @@ func (s *impl) postTurnMaintenance(ctx context.Context, st *turnState, sessionID
 	compacted, err := s.engine.MaybeCompact(ctx, sessionID)
 	if err != nil {
 		s.emit(st, ErrorEvent{
-			BaseEvent: st.baseEvent(),
-			Message:   "auto-compaction failed: " + err.Error(),
-			Code:      "COMPACTION_ERROR",
+			Message: "auto-compaction failed: " + err.Error(),
+			Code:    "COMPACTION_ERROR",
 		})
 		return
 	}
@@ -313,9 +310,8 @@ func (s *impl) postTurnMaintenance(ctx context.Context, st *turnState, sessionID
 	}
 	if err := s.engine.MaybeExtract(ctx, sessionID); err != nil {
 		s.emit(st, ErrorEvent{
-			BaseEvent: st.baseEvent(),
-			Message:   "memory extraction failed: " + err.Error(),
-			Code:      "EXTRACTION_ERROR",
+			Message: "memory extraction failed: " + err.Error(),
+			Code:    "EXTRACTION_ERROR",
 		})
 	}
 }
@@ -343,7 +339,6 @@ type turnObserver struct {
 
 func (t *turnObserver) OnToolCallStart(callID, toolName, arguments string) {
 	t.impl.emit(t.st, ToolCallStart{
-		BaseEvent: t.st.baseEvent(),
 		CallID:    callID,
 		ToolName:  toolName,
 		Arguments: arguments,
@@ -356,16 +351,14 @@ func (t *turnObserver) OnToolCallEnd(callID, _ string, output string, err error)
 		errStr = err.Error()
 	}
 	t.impl.emit(t.st, ToolCallEnd{
-		BaseEvent: t.st.baseEvent(),
-		CallID:    callID,
-		Output:    output,
-		Err:       errStr,
+		CallID: callID,
+		Output: output,
+		Err:    errStr,
 	})
 }
 
 func (t *turnObserver) OnMessageDelta(text string) {
 	t.impl.emit(t.st, MessageDelta{
-		BaseEvent: t.st.baseEvent(),
-		Text:      text,
+		Text: text,
 	})
 }

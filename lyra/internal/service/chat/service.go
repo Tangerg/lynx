@@ -117,14 +117,14 @@ func (d PlanDecision) String() string {
 // + Timestamp. Seq is monotone within a turn so clients can detect
 // gaps after reconnects (Phase 2).
 //
-// Concrete event types additionally implement [stamper] (an
-// unexported interface) so the runtime can assign Seq + Timestamp
-// uniformly without a hand-maintained type switch. Adding a new
-// event = adding the struct + one stamp method — the dispatcher
-// in impl.go doesn't change.
+// Concrete event types implement [stamp] so the runtime replaces
+// the full BaseEvent header in one call. Call sites construct
+// events with their type-specific fields only — the dispatcher in
+// impl.go fills the four routing fields uniformly. Adding a new
+// event = adding the struct + one stamp method, nothing else.
 type Event interface {
 	isLyraEvent()
-	stamp(seq uint64, ts time.Time) Event
+	stamp(b BaseEvent) Event
 }
 
 // BaseEvent is the common header on every event. Embedded by all
@@ -211,44 +211,20 @@ type ErrorEvent struct {
 }
 
 // stamp implementations — concrete events return themselves with
-// the BaseEvent header rewritten. Value-typed events are the right
-// idiom here: the dispatcher (impl.emit) takes ownership of a copy
-// so concurrent receivers can't observe a half-stamped header.
+// the BaseEvent header replaced wholesale. Value-typed events are
+// the right idiom here: the dispatcher (impl.emit) takes ownership
+// of a copy so concurrent receivers can't observe a half-stamped
+// header. Each method is one assignment because the new BaseEvent
+// already carries every routing field — emit builds it once per
+// call.
 
-func (e TurnStart) stamp(seq uint64, ts time.Time) Event {
-	e.Seq, e.Timestamp = seq, ts
-	return e
-}
-
-func (e MessageDelta) stamp(seq uint64, ts time.Time) Event {
-	e.Seq, e.Timestamp = seq, ts
-	return e
-}
-
-func (e ToolCallStart) stamp(seq uint64, ts time.Time) Event {
-	e.Seq, e.Timestamp = seq, ts
-	return e
-}
-
-func (e ToolCallEnd) stamp(seq uint64, ts time.Time) Event {
-	e.Seq, e.Timestamp = seq, ts
-	return e
-}
-
-func (e PlanGenerated) stamp(seq uint64, ts time.Time) Event {
-	e.Seq, e.Timestamp = seq, ts
-	return e
-}
-
-func (e TurnEnd) stamp(seq uint64, ts time.Time) Event {
-	e.Seq, e.Timestamp = seq, ts
-	return e
-}
-
-func (e ErrorEvent) stamp(seq uint64, ts time.Time) Event {
-	e.Seq, e.Timestamp = seq, ts
-	return e
-}
+func (e TurnStart) stamp(b BaseEvent) Event     { e.BaseEvent = b; return e }
+func (e MessageDelta) stamp(b BaseEvent) Event  { e.BaseEvent = b; return e }
+func (e ToolCallStart) stamp(b BaseEvent) Event { e.BaseEvent = b; return e }
+func (e ToolCallEnd) stamp(b BaseEvent) Event   { e.BaseEvent = b; return e }
+func (e PlanGenerated) stamp(b BaseEvent) Event { e.BaseEvent = b; return e }
+func (e TurnEnd) stamp(b BaseEvent) Event       { e.BaseEvent = b; return e }
+func (e ErrorEvent) stamp(b BaseEvent) Event    { e.BaseEvent = b; return e }
 
 // TurnEndReason enumerates why a turn ended.
 type TurnEndReason int
