@@ -1,97 +1,80 @@
-// Command lyra is the M1 walking-skeleton entrypoint. It wires the
-// loaded config → chat client → engine → ChatService, runs one turn
-// with the message supplied on argv, prints the streamed events.
+// Command lyra is the entrypoint for the Lyra general-purpose agent
+// runtime. It dispatches on the first argument to one of the
+// subcommands below; each subcommand owns its own flag parsing.
 //
-// Layer breakdown (see lyra/doc/ARCHITECTURE.md):
+// Layout — one file per subcommand keeps each entry self-contained:
 //
-//	main.go                     // wiring only
-//	  └─ config.Load            // env-based config
-//	  └─ config.BuildChatClient // pick lynx model adapter
-//	  └─ engine.New             // build platform + agent
-//	  └─ chat.New               // ChatService implementation
-//	  └─ svc.StartTurn          // run one turn
-//	  └─ svc.Events             // drain event stream
+//	main.go     — argv dispatch + shared wiring (newRuntime)
+//	chat.go     — `lyra chat <message>` one-shot
+//	repl.go     — `lyra repl [--session ID]` interactive
+//	session.go  — `lyra session {list|show|delete}` management
+//	version.go  — `lyra version` build info
 //
-// Transport layer (HTTP/gRPC/IPC) is *not* in M1 — callers use the
-// Go ChatService interface directly. Adapters arrive in Phase 2.
+// Transport layer (HTTP/gRPC/IPC) is *not* in this CLI — these
+// subcommands consume the in-process Service interfaces directly.
+// Phase 2 wraps the same services behind transport adapters.
 package main
 
 import (
-	"context"
-	"flag"
 	"fmt"
 	"os"
-	"strings"
-
-	"github.com/google/uuid"
-
-	"github.com/Tangerg/lynx/lyra/internal/config"
-	"github.com/Tangerg/lynx/lyra/internal/engine"
-	"github.com/Tangerg/lynx/lyra/internal/service/chat"
 )
 
-func main() {
-	if err := run(); err != nil {
-		fmt.Fprintln(os.Stderr, "lyra:", err)
-		os.Exit(1)
-	}
+// subcommand is the contract every CLI sub-binary implements. Each
+// receives its own argv slice (post-subcommand) and is responsible
+// for parsing its own flags. exit code surfaces through the int
+// return — non-zero propagates to os.Exit.
+type subcommand func(args []string) int
+
+// commands is the dispatch table. Keep entries alphabetical so the
+// help listing is predictable.
+var commands = map[string]struct {
+	run     subcommand
+	summary string
+}{
+	"chat":    {run: cmdChat, summary: "Send one message and print the streamed reply."},
+	"repl":    {run: cmdRepl, summary: "Interactive multi-turn conversation."},
+	"session": {run: cmdSession, summary: "Manage saved sessions (list / show / delete)."},
+	"version": {run: cmdVersion, summary: "Print build / version info."},
 }
 
-func run() error {
-	flag.Parse()
-	message := strings.TrimSpace(strings.Join(flag.Args(), " "))
-	if message == "" {
-		return fmt.Errorf("usage: lyra <message>")
-	}
-
-	cfg, err := config.Load()
-	if err != nil {
-		return err
-	}
-	client, err := config.BuildChatClient(cfg)
-	if err != nil {
-		return err
-	}
-	eng, err := engine.New(engine.Config{
-		ChatClient: client,
-		Online:     config.EngineOnline(cfg),
-	})
-	if err != nil {
-		return err
-	}
-
-	svc := chat.New(eng)
-	ctx := context.Background()
-
-	handle, err := svc.StartTurn(ctx, chat.StartTurnRequest{
-		SessionID: "cli-" + uuid.NewString(),
-		Message:   message,
-	})
-	if err != nil {
-		return err
-	}
-
-	events, err := svc.Events(ctx, handle)
-	if err != nil {
-		return err
-	}
-
-	for ev := range events {
-		switch e := ev.(type) {
-		case chat.TurnStart:
-			fmt.Fprintf(os.Stderr, "[lyra] turn %s started (model=%s)\n", e.TurnID[:8], e.Model)
-		case chat.MessageDelta:
-			fmt.Print(e.Text)
-		case chat.ToolCallStart:
-			fmt.Fprintf(os.Stderr, "\n[lyra] tool start: %s\n", e.ToolName)
-		case chat.ToolCallEnd:
-			fmt.Fprintf(os.Stderr, "[lyra] tool end (%d bytes)\n", len(e.Output))
-		case chat.ErrorEvent:
-			fmt.Fprintf(os.Stderr, "\n[lyra] error: %s (%s)\n", e.Message, e.Code)
-		case chat.TurnEnd:
-			fmt.Fprintf(os.Stderr, "\n[lyra] turn ended: %s (%s)\n", e.Reason, e.Duration)
+func main() {
+	if len(os.Args) < 2 || os.Args[1] == "-h" || os.Args[1] == "--help" || os.Args[1] == "help" {
+		printUsage(os.Stdout)
+		if len(os.Args) < 2 {
+			os.Exit(2)
 		}
+		return
 	}
 
-	return nil
+	name := os.Args[1]
+	cmd, ok := commands[name]
+	if !ok {
+		fmt.Fprintf(os.Stderr, "lyra: unknown command %q\n\n", name)
+		printUsage(os.Stderr)
+		os.Exit(2)
+	}
+
+	os.Exit(cmd.run(os.Args[2:]))
+}
+
+// printUsage writes the top-level command listing. Subcommand-
+// specific usage lives on each cmd* function (they print their own
+// when called with -h).
+func printUsage(w *os.File) {
+	fmt.Fprintln(w, "lyra — general-purpose agent runtime")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Usage: lyra <command> [args]")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Commands:")
+	// Stable ordering: same names walk in the same order each run.
+	for _, name := range commandOrder() {
+		fmt.Fprintf(w, "  %-8s  %s\n", name, commands[name].summary)
+	}
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Run `lyra <command> -h` for command-specific help.")
+}
+
+func commandOrder() []string {
+	return []string{"chat", "repl", "session", "version"}
 }
