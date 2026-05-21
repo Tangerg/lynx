@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 
 	"github.com/Tangerg/lynx/lyra/internal/service/memory"
 )
@@ -58,18 +59,19 @@ func printMemoryUsage() {
 	fmt.Fprintln(stderr(), "  clear --scope X   Empty scope X.")
 }
 
-// scopeFlag parses --scope into the typed enum.
+// scopeFlag attaches a --scope option to fs. When allowBoth is
+// true "both" becomes the default + an accepted value; otherwise
+// scope is restricted to project / user. Returned pointer's
+// resolve() turns the parsed value into the typed
+// (memory.Scope, both bool).
 func scopeFlag(fs *flag.FlagSet, allowBoth bool) *memoryScopeFlag {
 	v := &memoryScopeFlag{value: "project", allowBoth: allowBoth}
+	help := "memory scope: project | user"
 	if allowBoth {
 		v.value = "both"
+		help += " | both"
 	}
-	fs.Var(v, "scope", "memory scope: project | user"+func() string {
-		if allowBoth {
-			return " | both"
-		}
-		return ""
-	}())
+	fs.Var(v, "scope", help)
 	return v
 }
 
@@ -78,35 +80,40 @@ type memoryScopeFlag struct {
 	allowBoth bool
 }
 
-func (f *memoryScopeFlag) String() string { return f.value }
-func (f *memoryScopeFlag) Set(s string) error {
-	switch s {
-	case "project", "user":
-		f.value = s
-		return nil
-	case "both":
-		if !f.allowBoth {
-			return fmt.Errorf("scope %q not allowed here", s)
-		}
-		f.value = s
-		return nil
-	}
-	suffix := ""
+// validScopes lists the textual scope values accepted by --scope.
+// Restricted by [memoryScopeFlag.allowBoth] — "both" only shows
+// up when the caller of [scopeFlag] opted in.
+func (f *memoryScopeFlag) validScopes() []string {
 	if f.allowBoth {
-		suffix = " | both"
+		return []string{"project", "user", "both"}
 	}
-	return fmt.Errorf("scope must be one of project | user%s", suffix)
+	return []string{"project", "user"}
 }
 
+func (f *memoryScopeFlag) String() string { return f.value }
+
+func (f *memoryScopeFlag) Set(s string) error {
+	for _, v := range f.validScopes() {
+		if v == s {
+			f.value = s
+			return nil
+		}
+	}
+	return fmt.Errorf("scope must be one of %s", strings.Join(f.validScopes(), " | "))
+}
+
+// resolve maps the parsed value into the runtime types. Returns
+// (target, both): both=true means "operate on every scope" — only
+// valid when the flag was constructed with allowBoth.
 func (f *memoryScopeFlag) resolve() (memory.Scope, bool) {
 	switch f.value {
-	case "project":
-		return memory.ScopeProject, false
 	case "user":
 		return memory.ScopeUser, false
 	case "both":
 		return 0, true
 	}
+	// project is the default + the fallback for unrecognised
+	// values (which Set would already have rejected).
 	return memory.ScopeProject, false
 }
 

@@ -165,50 +165,8 @@ func (s *impl) runTurn(ctx context.Context, st *turnState, req StartTurnRequest)
 		Model:     "default", // M1 — engine exposes model name in M2+
 	})
 
-	// Plan-mode pre-flight: ask the LLM for a plan, emit it, wait
-	// for the user's Approve / Reject. Reject short-circuits the
-	// turn without invoking any tools.
-	if req.PlanMode {
-		plan, err := s.engine.GeneratePlan(ctx, req.Message)
-		if err != nil {
-			s.emit(st, ErrorEvent{
-				BaseEvent: st.baseEvent(),
-				Message:   "plan generation failed: " + err.Error(),
-				Code:      "PLANNING_ERROR",
-			})
-			s.emit(st, TurnEnd{
-				BaseEvent: st.baseEvent(),
-				Reason:    TurnEndErrored,
-				Duration:  time.Since(startedAt),
-			})
-			return
-		}
-		// Trivial requests (LLM returned NO_PLAN → plan == "") skip
-		// the approval step and fall through to direct execution.
-		if plan != "" {
-			s.emit(st, PlanGenerated{
-				BaseEvent: st.baseEvent(),
-				Plan:      plan,
-			})
-			decision, ok := waitDecision(ctx, st)
-			if !ok {
-				// Context cancelled while waiting.
-				s.emit(st, TurnEnd{
-					BaseEvent: st.baseEvent(),
-					Reason:    TurnEndCancelled,
-					Duration:  time.Since(startedAt),
-				})
-				return
-			}
-			if decision == PlanReject {
-				s.emit(st, TurnEnd{
-					BaseEvent: st.baseEvent(),
-					Reason:    TurnEndCancelled,
-					Duration:  time.Since(startedAt),
-				})
-				return
-			}
-		}
+	if req.PlanMode && !s.runPlanMode(ctx, st, req.Message, startedAt) {
+		return
 	}
 
 	observer := &turnObserver{impl: s, st: st}
@@ -218,30 +176,8 @@ func (s *impl) runTurn(ctx context.Context, st *turnState, req StartTurnRequest)
 		Observer:  observer,
 	})
 
-	// Post-turn maintenance: fold the older history into a summary
-	// when it has grown past the engine's compaction threshold.
-	// Fact extraction only runs when compaction actually fires —
-	// extraction is expensive (one extra LLM call), so we gate it
-	// on the same threshold that already justified the cost.
-	// Errors surface via the event stream but don't kill the turn —
-	// the user's text is already on screen.
 	if runErr == nil && req.SessionID != "" {
-		compacted, compactErr := s.engine.MaybeCompact(ctx, req.SessionID)
-		if compactErr != nil {
-			s.emit(st, ErrorEvent{
-				BaseEvent: st.baseEvent(),
-				Message:   "auto-compaction failed: " + compactErr.Error(),
-				Code:      "COMPACTION_ERROR",
-			})
-		} else if compacted {
-			if extractErr := s.engine.MaybeExtract(ctx, req.SessionID); extractErr != nil {
-				s.emit(st, ErrorEvent{
-					BaseEvent: st.baseEvent(),
-					Message:   "memory extraction failed: " + extractErr.Error(),
-					Code:      "EXTRACTION_ERROR",
-				})
-			}
-		}
+		s.postTurnMaintenance(ctx, st, req.SessionID)
 	}
 	if runErr != nil {
 		// Honour cancellation differently from genuine errors so
@@ -305,6 +241,82 @@ func (st *turnState) baseEvent() BaseEvent {
 	return BaseEvent{
 		SessionID: st.handle.SessionID,
 		TurnID:    st.handle.TurnID,
+	}
+}
+
+// runPlanMode handles the plan-mode pre-flight: ask the LLM for a
+// plan, emit it, then wait for the user's Approve / Reject.
+// Returns true when execution should proceed (Approve, or NO_PLAN
+// short-circuit). Returns false when the turn is over — the
+// function has already emitted the appropriate TurnEnd /
+// ErrorEvent before returning.
+//
+// Lives as a method so it shares the runTurn defer (cleanup +
+// channel close) without duplicating it.
+func (s *impl) runPlanMode(ctx context.Context, st *turnState, message string, startedAt time.Time) bool {
+	plan, err := s.engine.GeneratePlan(ctx, message)
+	if err != nil {
+		s.emit(st, ErrorEvent{
+			BaseEvent: st.baseEvent(),
+			Message:   "plan generation failed: " + err.Error(),
+			Code:      "PLANNING_ERROR",
+		})
+		s.emit(st, TurnEnd{
+			BaseEvent: st.baseEvent(),
+			Reason:    TurnEndErrored,
+			Duration:  time.Since(startedAt),
+		})
+		return false
+	}
+	// Trivial requests (NO_PLAN → empty plan) skip approval and
+	// fall through to direct execution.
+	if plan == "" {
+		return true
+	}
+
+	s.emit(st, PlanGenerated{
+		BaseEvent: st.baseEvent(),
+		Plan:      plan,
+	})
+	decision, ok := waitDecision(ctx, st)
+	if !ok || decision == PlanReject {
+		s.emit(st, TurnEnd{
+			BaseEvent: st.baseEvent(),
+			Reason:    TurnEndCancelled,
+			Duration:  time.Since(startedAt),
+		})
+		return false
+	}
+	return true
+}
+
+// postTurnMaintenance runs the compact + (conditional) extract pair
+// after the turn's real LLM round completed cleanly. Errors at
+// this stage surface through ErrorEvent but don't abort the turn —
+// the user's reply is already on screen.
+//
+// Fact extraction is gated on compaction firing: extraction is one
+// extra LLM call, so we amortise it onto the moments where the
+// runtime had to summarise anyway.
+func (s *impl) postTurnMaintenance(ctx context.Context, st *turnState, sessionID string) {
+	compacted, err := s.engine.MaybeCompact(ctx, sessionID)
+	if err != nil {
+		s.emit(st, ErrorEvent{
+			BaseEvent: st.baseEvent(),
+			Message:   "auto-compaction failed: " + err.Error(),
+			Code:      "COMPACTION_ERROR",
+		})
+		return
+	}
+	if !compacted {
+		return
+	}
+	if err := s.engine.MaybeExtract(ctx, sessionID); err != nil {
+		s.emit(st, ErrorEvent{
+			BaseEvent: st.baseEvent(),
+			Message:   "memory extraction failed: " + err.Error(),
+			Code:      "EXTRACTION_ERROR",
+		})
 	}
 }
 

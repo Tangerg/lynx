@@ -59,45 +59,62 @@ func buildOfflineTools(workdir string) []chat.Tool {
 // model. Returns an error only when a configured provider fails
 // to build (e.g. invalid HTTP allowlist).
 func buildOnlineTools(online OnlineConfig) ([]chat.Tool, error) {
-	var out []chat.Tool
+	var (
+		out []chat.Tool
+		err error
+	)
 
-	if online.JinaAPIKey != "" {
+	out, err = appendIfBuilt(out, online.JinaAPIKey != "", "webfetch (jina)", func() (chat.Tool, error) {
 		client, err := jina.NewClient(&jina.Config{APIKey: online.JinaAPIKey})
 		if err != nil {
-			return nil, fmt.Errorf("webfetch provider (jina): %w", err)
+			return nil, err
 		}
-		tool, err := webfetch.NewTool(client)
-		if err != nil {
-			return nil, fmt.Errorf("webfetch tool: %w", err)
-		}
-		out = append(out, tool)
+		return webfetch.NewTool(client)
+	})
+	if err != nil {
+		return nil, err
 	}
 
-	if online.TavilyAPIKey != "" {
+	out, err = appendIfBuilt(out, online.TavilyAPIKey != "", "websearch (tavily)", func() (chat.Tool, error) {
 		client, err := tavily.NewClient(&tavily.Config{APIKey: online.TavilyAPIKey})
 		if err != nil {
-			return nil, fmt.Errorf("websearch provider (tavily): %w", err)
+			return nil, err
 		}
-		tool, err := websearch.NewTool(client)
-		if err != nil {
-			return nil, fmt.Errorf("websearch tool: %w", err)
-		}
-		out = append(out, tool)
+		return websearch.NewTool(client)
+	})
+	if err != nil {
+		return nil, err
 	}
 
-	if len(online.HTTPAllowedHosts) > 0 {
+	out, err = appendIfBuilt(out, len(online.HTTPAllowedHosts) > 0, "httpreq", func() (chat.Tool, error) {
 		client, err := httpreq.NewClient(&httpreq.Config{AllowedHosts: online.HTTPAllowedHosts})
 		if err != nil {
-			return nil, fmt.Errorf("httpreq client: %w", err)
+			return nil, err
 		}
-		tool, err := httpreq.NewTool(client)
-		if err != nil {
-			return nil, fmt.Errorf("httpreq tool: %w", err)
-		}
-		out = append(out, tool)
+		return httpreq.NewTool(client)
+	})
+	if err != nil {
+		return nil, err
 	}
 
 	return out, nil
+}
+
+// appendIfBuilt is the conditional-tool-registration helper. When
+// cond is false it returns tools unchanged (the credentials weren't
+// supplied so the tool stays disabled — explicit opt-in is the
+// safety model). When cond is true it runs build(); a non-nil
+// error is wrapped with the label so the caller can tell which
+// provider mis-configured.
+func appendIfBuilt(tools []chat.Tool, cond bool, label string, build func() (chat.Tool, error)) ([]chat.Tool, error) {
+	if !cond {
+		return tools, nil
+	}
+	tool, err := build()
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", label, err)
+	}
+	return append(tools, tool), nil
 }
 
 // buildCodingResolverFromTools wires the supplied tool list behind
