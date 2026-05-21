@@ -33,7 +33,7 @@ import type {
   DataProviderSpec,
   Disposable,
   Host,
-  InspectorTabSpec,
+  HostCapability,
   LayoutSlotSpec,
   LoadedPlugin,
   MessageRoleSpec,
@@ -72,7 +72,38 @@ import type {
 let idCounter = 0;
 const mintId = (prefix: string) => `${prefix}#${++idCounter}`;
 
-export function createHost(pluginName: string, sink: Disposable[]): Host {
+// Plugin runtime injection point — definePlugin.ts installs the real
+// implementation at module load time. The Host's `plugins.{load,unload,
+// reload}` methods dispatch through this seam so we don't introduce a
+// circular import (host.ts → definePlugin.ts → host.ts).
+//
+// We hold the runtime inside a const wrapper so the binding itself is
+// initialised at module-evaluation time. A bare `let pluginRuntime`
+// would hit a TDZ if any code path called the setter before the let was
+// reached (rare, but observable under Vitest's module loader).
+type PluginRuntime = {
+  load(spec: PluginSpec): Promise<void>;
+  unload(name: string): void;
+  reload(name: string): Promise<void>;
+};
+const runtimeSlot: { current: PluginRuntime | null } = { current: null };
+
+export function setPluginRuntime(rt: PluginRuntime): void {
+  runtimeSlot.current = rt;
+}
+
+function getRuntime(): PluginRuntime {
+  if (!runtimeSlot.current) {
+    throw new Error("plugin runtime not wired; call setPluginRuntime() before host is used");
+  }
+  return runtimeSlot.current;
+}
+
+export function createHost(
+  pluginName: string,
+  sink: Disposable[],
+  capabilities?: HostCapability[],
+): Host {
   const track = (d: Disposable): Disposable => {
     sink.push(d);
     return d;
@@ -80,7 +111,7 @@ export function createHost(pluginName: string, sink: Disposable[]): Host {
 
   const store = () => usePluginStore.getState();
 
-  return {
+  const full = {
     tool: {
       registerPreview(fn: string, component: ToolPreviewComponent): Disposable {
         store().addToolPreview(pluginName, fn, component);
@@ -140,20 +171,13 @@ export function createHost(pluginName: string, sink: Disposable[]): Host {
         return track({ dispose: () => store().removeWorkspaceView(pluginName, spec.id) });
       },
       openView(id: string): void {
-        // Resolve spec metadata. Inspector tabs are second-class workspace
-        // views: they get auto-promoted when the user asks to open them in
-        // the main pane, without anyone calling registerView for them.
-        const fromWorkspace = usePluginStore.getState().workspaceViews.get(id)?.value;
-        const fromInspector = usePluginStore.getState().inspectorTabs.get(id)?.value;
-        if (!fromWorkspace && !fromInspector) {
+        const view = usePluginStore.getState().workspaceViews.get(id)?.value;
+        if (!view) {
           // eslint-disable-next-line no-console
           console.warn(`[plugin] workspace.openView("${id}"): no view registered`);
           return;
         }
-        const tab = fromWorkspace
-          ? { id, title: fromWorkspace.title, icon: fromWorkspace.icon }
-          : { id, title: fromInspector!.label, icon: fromInspector!.icon };
-        useUIStore.getState().openMainView(tab);
+        useUIStore.getState().openMainView({ id, title: view.title, icon: view.icon });
       },
       closeView(id: string): void {
         useUIStore.getState().closeMainView(id);
@@ -294,13 +318,6 @@ export function createHost(pluginName: string, sink: Disposable[]): Host {
       },
     },
 
-    inspector: {
-      registerTab(spec: InspectorTabSpec): Disposable {
-        store().addInspectorTab(pluginName, spec);
-        return track({ dispose: () => store().removeInspectorTab(pluginName, spec.id) });
-      },
-    },
-
     storage: createStorage(pluginName),
 
     rpc: {
@@ -363,6 +380,19 @@ export function createHost(pluginName: string, sink: Disposable[]): Host {
         store().addPluginUnloadListener(pluginName, id, fn);
         return track({ dispose: () => store().removePluginUnloadListener(pluginName, id) });
       },
+      // Dynamic load / unload — the SDK indirection lets plugins ship admin
+      // UI without importing definePlugin directly. The actual impl lives
+      // in definePlugin.ts and is installed via setPluginRuntime() so we
+      // don't introduce a circular import.
+      load(spec: PluginSpec): Promise<void> {
+        return getRuntime().load(spec);
+      },
+      unload(name: string): void {
+        getRuntime().unload(name);
+      },
+      reload(name: string): Promise<void> {
+        return getRuntime().reload(name);
+      },
       registerErrorFallback(spec: PluginErrorFallbackSpec): Disposable {
         store().addPluginErrorFallback(pluginName, spec);
         return track({ dispose: () => store().removePluginErrorFallback(pluginName, spec.id) });
@@ -380,7 +410,47 @@ export function createHost(pluginName: string, sink: Disposable[]): Host {
         return track({ dispose: () => store().removeLogSubscriber(pluginName, id) });
       },
     },
+  } satisfies Host;
+
+  return capabilities ? restrictHost(full, pluginName, capabilities) : full;
+}
+
+/**
+ * Wrap a host such that any access to a namespace the plugin didn't
+ * declare in `capabilities` throws with a clear error message. The
+ * allowed namespaces are returned as-is.
+ */
+function restrictHost(host: Host, pluginName: string, allowed: HostCapability[]): Host {
+  const allowedSet = new Set(allowed);
+  const denied: Record<string, unknown> = {};
+  for (const key of Object.keys(host) as Array<keyof Host>) {
+    if (allowedSet.has(key as HostCapability)) {
+      denied[key as string] = host[key];
+    } else {
+      denied[key as string] = createDenyProxy(pluginName, key as string);
+    }
+  }
+  return denied as Host;
+}
+
+function createDenyProxy(pluginName: string, namespace: string): unknown {
+  const explain = (prop: string) =>
+    new Error(
+      `[plugin] ${pluginName}: host.${namespace}${prop ? `.${prop}` : ""} ` +
+      `is not in this plugin's declared capabilities (add "${namespace}" to spec.capabilities)`,
+    );
+  // Trap both function-style (host.notify(...)) and property access.
+  const denied = function denied() {
+    throw explain("");
   };
+  return new Proxy(denied, {
+    get(_, prop) {
+      throw explain(String(prop));
+    },
+    apply() {
+      throw explain("");
+    },
+  });
 }
 
 // Module-scoped log emission: forwards to console with a `[plugin:<name>]`

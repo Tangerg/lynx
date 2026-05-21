@@ -45,7 +45,7 @@ export function PluginProvider({ children }: Props) {
       usePluginStore.getState().markAppReady();
       if (!cancelled) setBuiltinsReady(true);
       // Sideloaded plugins kick off independently — they're additive and
-      // don't block the shell.
+      // don't block the kernel.
       void loadSideloadedPlugins();
     })();
 
@@ -54,7 +54,7 @@ export function PluginProvider({ children }: Props) {
 
   // Nothing to show until built-ins register (router has no routes, layout
   // slots are empty). One tick of blank is preferable to a flash of "no
-  // routes match" or empty-shell.
+  // routes match" or an empty kernel.
   if (!builtinsReady) return null;
 
   return <>{children}</>;

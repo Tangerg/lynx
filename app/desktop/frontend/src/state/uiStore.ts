@@ -1,21 +1,23 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
-import type { InspectorTab } from "@/components/inspector/types";
 import type { Theme } from "@/components/sidebar/types";
-import { usePluginStore } from "@/plugins/sdk";
+// Import the registry store directly rather than via the SDK barrel —
+// the barrel pulls in definePlugin / host, and host.ts already imports
+// this very file. Going through the barrel creates a real cycle that
+// shows up as a TDZ at module-init time under the Vitest loader.
+import { usePluginStore } from "@/plugins/sdk/registry";
 
 // All cross-cutting UI state in one Zustand store.
 //
-// Why one store: every value here is shell-level UI (theme, layout toggles,
-// active tab, inspector state) and components frequently combine them. One
-// store, one subscription.
+// Why one store: every value here is kernel-level UI (theme, layout toggles,
+// active tab, …) and components frequently combine them. One store, one
+// subscription.
 //
 // Persistence policy (see `partialize` below):
 //   - Theme / accent → persisted (user expects them to stick across launches)
-//   - Sidebar rail + inspector open → persisted (window state should survive)
+//   - Sidebar rail → persisted (window state should survive)
 //   - Active session + open tabs → persisted (continuity)
-//   - Inspector tab + active file → ephemeral (resets each launch — those
-//     reference data that may not exist on next boot)
+//   - Active file → ephemeral (references data that may not exist next boot)
 //   - Tool selection / expansion → ephemeral (purely per-session UI)
 
 type UIState = {
@@ -27,20 +29,18 @@ type UIState = {
   activeSessionId: string;
   tabIds: string[];
 
-  inspectorTab: InspectorTab;
   activeFile: string;
 
   selectedToolId: string;
   expandedToolIds: Set<string>;
 
   /**
-   * Heterogeneous chat-area tabs (Phase B).
+   * Heterogeneous chat-area tabs.
    *
-   * Each entry is an inspector (or other plugin-contributed) view that the
-   * user "promoted" into the main pane to read it at full width. When
-   * `activeMainView` is set, the chat panel renders that view's component
-   * instead of the message stream. Selecting a chat session tab clears
-   * `activeMainView`.
+   * Each entry is a workspace view the user "promoted" into the main
+   * pane to read at full width. When `activeMainView` is set, the chat
+   * panel renders that view's component instead of the message stream.
+   * Selecting a chat session tab clears `activeMainView`.
    */
   mainViewTabs: { id: string; title: string; icon?: string }[];
   activeMainView: string | null;
@@ -51,7 +51,6 @@ type UIActions = {
   toggleTheme: () => void;
   setAccent: (accent: string) => void;
   toggleSidebar: () => void;
-  setInspectorTab: (tab: InspectorTab) => void;
   setActiveFile: (path: string) => void;
   setSelectedToolId: (id: string) => void;
   toggleExpandedTool: (id: string) => void;
@@ -80,7 +79,6 @@ export const useUIStore = create<UIState & UIActions>()(
       sidebarRail: false,
       activeSessionId: "s1",
       tabIds: ["s1", "s2", "s3"],
-      inspectorTab: "diff",
       activeFile: "src/api/auth.ts",
       selectedToolId: "",
       expandedToolIds: new Set<string>(),
@@ -94,7 +92,6 @@ export const useUIStore = create<UIState & UIActions>()(
 
       toggleSidebar: () => set((s) => ({ sidebarRail: !s.sidebarRail })),
 
-      setInspectorTab: (tab) => set({ inspectorTab: tab }),
       setActiveFile: (path) => set({ activeFile: path }),
 
       setSelectedToolId: (id) => set({ selectedToolId: id }),
@@ -154,7 +151,7 @@ export const useUIStore = create<UIState & UIActions>()(
       // Whitelist what we persist. `partialize` projects the slice we want.
       // Things we deliberately leave out:
       //   - expandedToolIds (Set: hard to serialize + ephemeral by nature)
-      //   - selectedToolId / activeFile / inspectorTab (data-coupled)
+      //   - selectedToolId / activeFile (data-coupled to a running agent)
       partialize: (s) => ({
         theme: s.theme,
         accent: s.accent,

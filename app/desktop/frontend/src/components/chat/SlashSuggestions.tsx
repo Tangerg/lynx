@@ -30,11 +30,16 @@ export function SlashSuggestions({ value, onPick }: Props) {
     <div className="slash-panel">
       <div className="slash-head">Commands</div>
       {filtered.map(({ cmd, spec }, i) => (
-        <div key={cmd} className="slash-row" onClick={() => onPick(`${cmd} `)}>
+        <button
+          key={cmd}
+          type="button"
+          className="slash-row"
+          onClick={() => onPick(`${cmd} `)}
+        >
           <code className="slash-cmd">{cmd}</code>
           <span className="slash-desc">{spec.description}</span>
           {i === 0 && <span className="slash-hint">↵</span>}
-        </div>
+        </button>
       ))}
     </div>
   );

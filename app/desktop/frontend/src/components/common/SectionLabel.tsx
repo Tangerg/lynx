@@ -6,7 +6,7 @@ type Props = {
   style?: CSSProperties;
 };
 
-// Uppercase + wide-tracking heading used for sidebar sections and inspector
+// Uppercase + wide-tracking heading used for sidebar sections and workspace-view
 // gutters. Keeps the "label voice" consistent across the app.
 export function SectionLabel({ children, trailing, style }: Props) {
   return (

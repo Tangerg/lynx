@@ -11,11 +11,11 @@ type Props = {
   selected: boolean;
   expanded: boolean;
   onToggleExpand: () => void;
-  onOpenInspector: () => void;
+  onOpenView: () => void;
 };
 
 export function ToolCard({
-  tool, selected, expanded, onToggleExpand, onOpenInspector,
+  tool, selected, expanded, onToggleExpand, onOpenView,
 }: Props) {
   const statusClass = tool.status === "running" ? "run" : tool.status === "ok" ? "ok" : "err";
   const statusLabel = tool.status === "running" ? "Running" : tool.status === "ok" ? "Done" : "Failed";
@@ -69,7 +69,7 @@ export function ToolCard({
             transition={swift}
             style={{ overflow: "hidden" }}
           >
-            <ToolPreview tool={tool} onOpenInspector={onOpenInspector} />
+            <ToolPreview tool={tool} onOpenView={onOpenView} />
           </motion.div>
         )}
       </AnimatePresence>

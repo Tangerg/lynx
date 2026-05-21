@@ -1,7 +1,7 @@
 // Cross-plugin state slices — a named, shared zustand store.
 //
 // Use case: plugin A produces some data (e.g. "currently-focused file");
-// plugin B (an inspector tab) wants to read + display it without forming
+// plugin B (a workspace view) wants to read + display it without forming
 // a hard module-level dependency. They both call
 // `host.state.slice("focused-file", "")` and operate on the same store.
 //

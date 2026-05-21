@@ -15,12 +15,12 @@ import {
 // reducer is happy with `BaseEvent` typing.
 const ev = <T extends BaseEvent>(e: T): BaseEvent => e;
 
-// Phase 6 moved AG-UI protocol semantics out of the reducer into the
-// `lyra.builtin.core-reducer` plugin. Every test in this file that fires
-// a built-in event type (RUN_*, TEXT_MESSAGE_*, TOOL_CALL_*) — including
-// the CUSTOM-fallback tests that seed state with TEXT_MESSAGE_START — has
-// to load core-reducer first. Hoisting to the file's top level applies to
-// every describe block below.
+// AG-UI protocol semantics live in the `lyra.builtin.core-reducer`
+// plugin, not the reducer dispatcher. Every test that fires a built-in
+// event type (RUN_*, TEXT_MESSAGE_*, TOOL_CALL_*) — including CUSTOM-
+// fallback tests that seed state with TEXT_MESSAGE_START — needs
+// core-reducer loaded first. Hoisting to the file's top level applies
+// to every describe block below.
 beforeEach(async () => {
   const { default: spec } = await import("@/plugins/builtin/core-reducer");
   await loadPlugin(spec);
@@ -78,11 +78,11 @@ describe("reducer — built-in events", () => {
 });
 
 describe("reducer — built-in CUSTOM events (via builtin plugin handlers)", () => {
-  // Phase 5 moved `lyra.plan` / `lyra.telemetry` handling out of the reducer
-  // and into individual plugins. The reducer alone no longer reacts to those
-  // names — we load the builtin handler before each test.
+  // `lyra.plan` / `lyra.telemetry` handling lives in individual plugins.
+  // The reducer alone no longer reacts to those names — we load the
+  // builtin handler before each test.
   it("lyra.plan installs the plan once plan-handler is loaded", async () => {
-    const { default: spec } = await import("@/plugins/builtin/plan-handler");
+    const { planHandler: spec } = await import("@/plugins/builtin/agui-handlers");
     await loadPlugin(spec);
 
     const next = reduce(INITIAL_VIEW_STATE, ev({
@@ -95,7 +95,7 @@ describe("reducer — built-in CUSTOM events (via builtin plugin handlers)", () 
   });
 
   it("lyra.telemetry patches the run state once telemetry-handler is loaded", async () => {
-    const { default: spec } = await import("@/plugins/builtin/telemetry-handler");
+    const { telemetryHandler: spec } = await import("@/plugins/builtin/agui-handlers");
     await loadPlugin(spec);
 
     const next = reduce(INITIAL_VIEW_STATE, ev({

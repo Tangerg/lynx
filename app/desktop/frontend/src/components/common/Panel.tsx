@@ -6,9 +6,9 @@ type Props = {
   children: ReactNode;
 };
 
-// One of the three rounded columns that make up the app shell.
-// Subclasses just add a marker className (e.g. "sidebar", "chat", "inspector")
-// to opt into the section-specific styling already in app.css.
+// One of the rounded columns that make up the kernel layout. Callers
+// add a marker className ("sidebar", "chat", …) to opt into the
+// section-specific styling already in app.css.
 export function Panel({ className, children }: Props) {
   return <div className={cn("panel", className)}>{children}</div>;
 }

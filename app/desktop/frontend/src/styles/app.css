@@ -1,5 +1,5 @@
 /* ============================================================
-   Sonance Agent — app shell styles
+   Sonance Agent — kernel layout styles
    Built on top of design system tokens.
    ============================================================ */
 
@@ -40,7 +40,7 @@ body {
   overflow-x: auto;
 }
 
-/* ---------- App shell ---------- */
+/* ---------- Kernel layout ---------- */
 /* Vercel-style flush layout: panels touch the window edges and each
    other. The visual lines between sidebar/main/statusbar are produced
    by 1px gaps that show the canvas colour underneath — no panel
@@ -66,7 +66,7 @@ body {
   grid-template-columns: 56px minmax(0, 1fr);
 }
 
-/* Status bar — slim horizontal strip pinned to the bottom of the shell.
+/* Status bar — slim horizontal strip pinned to the bottom of the kernel.
    Hosts plugin-contributed status items (run pill, notifications,
    MCP count, git branch). 24px tall to match the grid row. */
 .app-statusbar {
@@ -1102,7 +1102,7 @@ html.theme-light .msg.user .msg-content {
 }
 
 /* ============================================================
-   MCP server row (Tools inspector tab)
+   MCP server row (Tools workspace view)
    ============================================================ */
 .mcp-row {
   display: grid;
@@ -1294,54 +1294,9 @@ html.theme-light .msg.user .msg-content {
 .composer-tool-btn.active { background: var(--color-surface-2); color: var(--color-accent); }
 
 /* ============================================================
-   Right — Inspector
+   Workspace view header — promoted views use this layout
    ============================================================ */
-.inspector {
-  background: var(--color-bg);
-  padding: 0;
-}
-
-.insp-tabs {
-  display: flex;
-  gap: 2px;
-  padding: 14px 16px 0 16px;
-  border-bottom: none;
-}
-.insp-tab {
-  background: transparent;
-  border: none;
-  color: var(--color-text-muted);
-  font-family: var(--font-ui);
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  cursor: pointer;
-  padding: 8px 12px 12px 12px;
-  border-bottom: 2px solid transparent;
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  margin-bottom: -1px;
-}
-.insp-tab:hover { color: var(--color-text); }
-.insp-tab.active {
-  color: var(--color-text);
-  border-bottom-color: var(--color-accent);
-}
-.insp-tab .badge {
-  background: var(--color-surface-2);
-  color: var(--color-text-muted);
-  font-size: 10px;
-  letter-spacing: 0;
-  padding: 1px 6px;
-  border-radius: 99px;
-  font-weight: 700;
-}
-.insp-tab.active .badge { background: var(--color-accent); color: #000; }
-
-.insp-head {
+.view-head {
   display: grid;
   grid-template-columns: 28px 1fr auto;
   gap: 10px;
@@ -1349,14 +1304,14 @@ html.theme-light .msg.user .msg-content {
   padding: 14px 16px;
   border-bottom: none;
 }
-.insp-head .ficon {
+.view-head .view-icon {
   width: 28px; height: 28px;
   background: var(--color-surface-2);
   border-radius: 6px;
   display: grid; place-items: center;
   color: var(--color-text-muted);
 }
-.insp-head .ftitle {
+.view-head .view-title {
   font-family: var(--font-mono);
   font-size: 12px;
   color: var(--color-text);
@@ -1364,7 +1319,39 @@ html.theme-light .msg.user .msg-content {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.insp-head .fsub {
+.view-head .view-title.strong {
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+/* Placeholder rendered while a lazy plugin's setup is running. Replaced
+   in-place once the real component registers. */
+.lazy-activator {
+  display: grid;
+  place-items: center;
+  padding: 48px 16px;
+  color: var(--color-text-faint);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+}
+
+/* Footer prose under a workspace-view list (e.g. tools pane links to config). */
+.view-foot {
+  margin: 0;
+  padding: 14px 16px 18px 16px;
+  color: var(--color-text-faint);
+  font-size: 11px;
+  line-height: 1.5;
+}
+.view-code {
+  font-family: var(--font-mono);
+  background: var(--color-surface-2);
+  padding: 1px 5px;
+  border-radius: 3px;
+  color: var(--color-text);
+}
+.view-head .view-sub {
   font-size: 10.5px;
   color: var(--color-text-faint);
   letter-spacing: 0.04em;
@@ -1579,25 +1566,10 @@ html.theme-light .msg.user .msg-content {
   margin: 8px 0;
 }
 
-/* Empty-message placeholder for narrow */
-.empty-inspector {
-  padding: 40px 24px;
-  text-align: center;
-  color: var(--color-text-faint);
-  font-size: 13px;
-}
-
 /* ============================================================
-   NEW LAYOUT — Rail sidebar, top tab bar, slide-out inspector,
-   inline tool expansion
+   Kernel layout — rail sidebar, top tab bar, inline tool expansion
    ============================================================ */
 
-/* Stale block (pre-Phase-23) — kept only as marker for the diff. The
-   primary `.app-main` rule at the top of this file already drives the
-   grid for the current 2-column flush layout. The legacy 3-column /
-   padded variants below are no-ops in the new shell; left commented
-   out so removing them doesn't risk reviving any cascaded rule. */
-/* .app-main { padding: 8px; gap: 8px; } */
 .app { padding: 0 !important; }
 
 /* Sidebar — rail mode */
@@ -2247,27 +2219,6 @@ html.theme-light .composer-model .cm-avatar {
 html.theme-light .cf-chip:hover { background: var(--color-surface-2); }
 html.theme-light .cf-chip.ghost .cf-dot { box-shadow: 0 0 6px rgba(22, 156, 70, 0.5); }
 
-/* Inspector "sheet" wrapper removed in Phase 23 (right pane gone). The
-   tab body styles (.insp-head, .ftitle, etc.) still apply when an
-   inspector view is promoted to a main-area tab — see styles further
-   down for those. */
-
-.insp-handle {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  align-items: center;
-  padding: 12px 8px 0 16px;
-  border-bottom: 1px solid #1c1c1c;
-  background: var(--color-bg);
-}
-.insp-handle .insp-tabs {
-  padding: 0;
-  border-bottom: none;
-  margin-bottom: -1px;
-  gap: 4px;
-}
-.insp-close { margin-bottom: 8px; }
-
 /* ============================================================
    Inline tool expansion
    ============================================================ */
@@ -2447,13 +2398,11 @@ html.theme-light .panel {
   box-shadow: none;
 }
 html.theme-light .chat { background: var(--color-surface); }
-/* `html.theme-light .inspector-sheet` removed — sheet itself is gone. */
 
-/* Hairline borders inside panels — was #1c1c1c (dark hairline) */
+/* Hairline borders inside panels. */
 html.theme-light .chat-tabs,
 html.theme-light .chat-subheader,
-html.theme-light .insp-tabs,
-html.theme-light .insp-head { border-bottom-color: var(--color-border); }
+html.theme-light .view-head { border-bottom-color: var(--color-border); }
 html.theme-light .chat-tabs { background: var(--color-surface); }
 html.theme-light .chat-subheader { background: var(--color-surface); }
 html.theme-light .side-footer { border-top-color: var(--color-border); }
@@ -2648,13 +2597,8 @@ html.theme-light .send-btn:hover { background: var(--color-cta-hover); }
 html.theme-light .send-btn:active { background: var(--color-cta); }
 html.theme-light .send-btn:disabled { background: var(--color-surface-3); color: var(--color-text-faint); }
 
-/* Inspector */
-html.theme-light .insp-tab { color: var(--color-text-muted); }
-html.theme-light .insp-tab:hover { color: var(--color-text); }
-html.theme-light .insp-tab.active { color: var(--color-text); border-bottom-color: var(--color-accent); }
-html.theme-light .insp-tab .badge { background: var(--color-surface-2); color: var(--color-text-muted); }
-html.theme-light .insp-tab.active .badge { background: var(--color-accent); color: #fff; }
-html.theme-light .ficon { background: var(--color-surface-2); color: var(--color-text-muted); }
+/* Workspace-view header. */
+html.theme-light .view-icon { background: var(--color-surface-2); color: var(--color-text-muted); }
 
 /* Terminal */
 html.theme-light .term { color: var(--color-text); }
@@ -2707,7 +2651,7 @@ html.theme-light .file-preview .fp-line .code .t-fn { color: #1d4ed8; }
 html.theme-light .file-preview .fp-line .ln { color: var(--color-text-faint); }
 
 /* ============================================================
-   Top bar — minimal: tabs only (sidebar & inspector have their own toggles)
+   Top bar — minimal: tabs only
    ============================================================ */
 .chat-topbar {
   display: flex;
@@ -2746,7 +2690,6 @@ html.theme-light .file-preview .fp-line .ln { color: var(--color-text-faint); }
   flex: 1;
 }
 .topbar-tabs::-webkit-scrollbar { display: none; }
-.topbar-right, .topbar-context, .ctx-branch { display: none !important; }
 
 /* Light theme — topbar */
 html.theme-light .chat-topbar { background: var(--color-surface); border-bottom-color: var(--color-border); }
@@ -2768,38 +2711,9 @@ html.theme-light .chat-topbar { background: var(--color-surface); border-bottom-
 }
 .topbar-tabs::-webkit-scrollbar { display: none; }
 
-.topbar-context {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  white-space: nowrap;
-  margin-bottom: 4px;
-  flex-shrink: 0;
-}
-.ctx-branch {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-family: var(--font-mono);
-  font-size: 11px;
-  color: var(--color-text-muted);
-  padding: 2px 8px 2px 7px;
-  background: var(--color-surface);
-  border-radius: 99px;
-}
-
-.topbar-right {
-  display: flex;
-  gap: 4px;
-  align-items: center;
-  flex-shrink: 0;
-  margin-bottom: 4px;
-}
-
 /* Light theme — topbar */
 html.theme-light .chat-topbar { background: var(--color-surface); border-bottom-color: var(--color-border); }
 html.theme-light .topbar-divider { background: var(--color-border); }
-html.theme-light .ctx-branch { background: var(--color-surface-2); border: 1px solid var(--color-border); }
 
 /* ============================================================
    Status pill — composer-style row that sits below the topbar.
@@ -2977,11 +2891,6 @@ html.theme-light .sp-stop:hover {
 }
 
 /* ============================================================
-   Legacy components removed: plan-bar, msg-rail
-   ============================================================ */
-.plan-bar, .msg-rail, .msg-rail-line { display: none !important; }
-
-/* ============================================================
    Slash command suggestions panel above composer
    ============================================================ */
 .slash-panel {
@@ -3013,6 +2922,12 @@ html.theme-light .sp-stop:hover {
   padding: 7px 14px;
   cursor: pointer;
   transition: background 120ms;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  color: inherit;
+  font: inherit;
 }
 .slash-row:hover, .slash-row:first-of-type {
   background: var(--color-surface-2);
@@ -3044,9 +2959,6 @@ html.theme-light .slash-panel { background: var(--color-surface); border-color: 
 html.theme-light .slash-row:hover, html.theme-light .slash-row:first-of-type { background: var(--color-surface-2); }
 html.theme-light .slash-hint { background: var(--color-surface-2); }
 
-/* Inspector mini-rail removed in Phase 23 — the right pane is gone.
-   Tab body styles (.insp-head, .ftitle, etc.) live elsewhere and still
-   apply when an inspector view is opened as a main-area tab. */
 html.theme-light .panel-scroll { scrollbar-color: #cdcdcc transparent; }
 html.theme-light .panel-scroll::-webkit-scrollbar-thumb {
   background: #d4d4d3;
@@ -3062,9 +2974,7 @@ html.theme-light .panel-scroll::-webkit-scrollbar-thumb:hover {
 html.theme-light .session-row.active { background: rgba(22, 156, 70, 0.06); }
 html.theme-light .session-row.active::before { background: var(--color-accent); }
 
-/* Inspector tabs panel-background */
-html.theme-light .insp-handle { background: var(--color-surface); }
-html.theme-light .insp-head { background: var(--color-surface); }
+html.theme-light .view-head { background: var(--color-surface); }
 
 /* Make the tab dots and accent underlines pop on light */
 html.theme-light .chat-tab .tab-dot { background: var(--color-text-faint); }

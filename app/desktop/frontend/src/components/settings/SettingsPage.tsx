@@ -1,11 +1,6 @@
-// SettingsPage — the full-width "open as a main-area tab" variant of the
-// settings UI. Replaced the modal (`SettingsModal`) so settings reads /
-// edits like any other workspace view: navigate to it via Cmd+K → "View:
-// Settings", close the tab when you're done.
-//
-// Internal layout is the same two-pane rail + content split the modal
-// had; the chrome (backdrop, motion, close button) is gone because the
-// chat-area tab strip already handles open/close.
+// SettingsPage — the workspace view for app settings. Two-pane layout:
+// a rail of plugin-registered panes on the left, the active pane on the
+// right. Opens via Cmd+K → "View: Settings" or the sidebar-footer cog.
 
 import { useState } from "react";
 import { Icon, type IconName } from "@/components/common";

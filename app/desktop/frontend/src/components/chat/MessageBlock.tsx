@@ -1,8 +1,8 @@
 // MessageBlock — renders one chat turn.
 //
-// Phase 12: message role identity (display name + avatar icon) is looked
-// up from the plugin registry. Fallbacks preserve the original behaviour
-// when no plugin has registered the role.
+// Role identity (display name + avatar icon) is looked up from the
+// plugin registry. Fallbacks render a generic identity when no plugin
+// has registered the role.
 
 import { Icon, type IconName } from "@/components/common";
 import { Avatar } from "@/components/common/Avatar";

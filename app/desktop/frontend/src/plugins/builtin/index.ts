@@ -1,77 +1,82 @@
 // Manifest of all built-in plugins.
 //
-// PluginProvider loads them in declared order at app startup. Order
-// matters in two situations:
-//   1. Last-write-wins slots (preview, theme, etc.) — later plugins
-//      override earlier ones.
-//   2. Setup-time snapshots (defaultCommands snapshots the accent
-//      registry) — the snapshotting plugin must load after its source.
+// `loadPlugins` performs a topological sort over `spec.requires`. This
+// array's order is only a tie-breaker between independent plugins — the
+// groups below are for *human* readability, not load-order semantics.
+// Any "must load before X" relationship lives inside the dependent
+// plugin's `requires: [...]` field.
 //
-// The groups below collect plugins by concern. Within a group, ordering
-// is informational; between groups, the comment on the group records the
-// "must load before X" constraint when there is one.
+// Slot ordering (which contribution wins for last-write-wins slots like
+// previews / themes) is still array-order driven, so keep destructive
+// overrides later in the manifest.
 
 import appearance from "./appearance";
-import approvalBlock from "./approval-block";
-import approvalHandler from "./approval-handler";
-import bash from "./bash";
-import checkpointBlock from "./checkpoint-block";
-import codeBlock from "./code-block";
-import codeProposalHandler from "./code-proposal-handler";
+import {
+  approvalHandler,
+  codeProposalHandler,
+  planHandler,
+  searchResultsHandler,
+  telemetryHandler,
+} from "./agui-handlers";
+import {
+  approvalBlock,
+  checkpointBlock,
+  codeBlock,
+  planBlock,
+  reasoningBlock,
+  searchBlock,
+} from "./content-blocks";
 import commandPalette from "./command-palette";
-import composerChips from "./composer-chips";
-import composerHint from "./composer-hint";
-import composerKeymap from "./composer-keymap";
-import composerModes from "./composer-modes";
-import composerPlaceholders from "./composer-placeholders";
-import composerSend from "./composer-send";
-import composerToolbar from "./composer-toolbar";
+import {
+  composerChips,
+  composerHint,
+  composerKeymap,
+  composerModes,
+  composerPlaceholders,
+  composerSend,
+  composerToolbar,
+} from "./composer";
 import coreReducer from "./core-reducer";
-import defaultCommands from "./default-commands";
-import defaultConfig from "./default-config";
-import defaultData from "./default-data";
-import defaultRoles from "./default-roles";
-import defaultThemes from "./default-themes";
-import defaultTitle from "./default-title";
+import {
+  defaultCommands,
+  defaultConfig,
+  defaultData,
+  defaultRoles,
+  defaultThemes,
+  defaultTitle,
+} from "./defaults";
 import demo from "./demo";
-import diff from "./diff";
-import file from "./file";
-import grep from "./grep";
 import httpAgent from "./http-agent";
-import inspectorDiff from "./inspector-diff";
-import inspectorFiles from "./inspector-files";
-import inspectorNotifications from "./inspector-notifications";
-import inspectorPlan from "./inspector-plan";
-import inspectorTerminal from "./inspector-terminal";
-import inspectorTools from "./inspector-tools";
+import iconGallery from "./icon-gallery";
+import {
+  diffView,
+  filesView,
+  notificationsView,
+  planView,
+  terminalView,
+  toolsView,
+} from "./workspace-views";
 import mainRoute from "./main-route";
 import messageCopy from "./message-copy";
-import planBlock from "./plan-block";
-import planHandler from "./plan-handler";
 import pluginsPane from "./plugins-pane";
-import reasoningBlock from "./reasoning-block";
 import sampleAttachments from "./sample-attachments";
-import searchBlock from "./search-block";
-import searchResultsHandler from "./search-results-handler";
-import shellChat from "./shell-chat";
-import shellSettings from "./shell-settings";
-import shellSidebar from "./shell-sidebar";
+import { kernelChat, kernelSettings, kernelSidebar } from "./kernel";
 import shortcuts from "./shortcuts";
-import sidebarBrand from "./sidebar-brand";
-import sidebarFooter from "./sidebar-footer";
-import sidebarProjects from "./sidebar-projects";
-import sidebarRailActions from "./sidebar-rail-actions";
-import sidebarRailBottom from "./sidebar-rail-bottom";
-import sidebarRailSessions from "./sidebar-rail-sessions";
-import sidebarSearch from "./sidebar-search";
-import sidebarSessions from "./sidebar-sessions";
+import {
+  sidebarBrand,
+  sidebarFooter,
+  sidebarProjects,
+  sidebarRailActions,
+  sidebarRailBottom,
+  sidebarRailSessions,
+  sidebarSearch,
+  sidebarSessions,
+} from "./sidebar";
 import slashHints from "./slash-hints";
-import statusNotifications from "./status-notifications";
-import statusPill from "./status-pill";
-import telemetryHandler from "./telemetry-handler";
+import { statusNotifications, statusPill } from "./status";
 import toaster from "./toaster";
-import toolActions from "./tool-actions";
-import toolIcons from "./tool-icons";
+import { bash, diff, file, grep } from "./tool-previews";
+import { toolActions, toolIcons } from "./tool-meta";
 import topbarNewTab from "./topbar-new-tab";
 import welcomeScreen from "./welcome-screen";
 import type { PluginSpec } from "../sdk";
@@ -90,8 +95,6 @@ const protocol: PluginSpec[] = [
 
 // ---------------------------------------------------------------------------
 // Configuration & infrastructure.
-// `defaultConfig` must precede `httpAgent` (httpAgent reads api.baseUrl).
-// `defaultData` must precede any UI that triggers a query.
 // ---------------------------------------------------------------------------
 const infrastructure: PluginSpec[] = [
   defaultConfig,
@@ -136,21 +139,19 @@ const composer: PluginSpec[] = [
 ];
 
 // ---------------------------------------------------------------------------
-// Settings & inspector panes (each spec is independent).
+// Settings panes + workspace views (each spec is independent).
 // ---------------------------------------------------------------------------
 const panes: PluginSpec[] = [
   appearance, pluginsPane,
-  inspectorDiff, inspectorTerminal, inspectorFiles,
-  inspectorPlan, inspectorTools, inspectorNotifications,
+  diffView, terminalView, filesView,
+  planView, toolsView, notificationsView,
 ];
 
 // ---------------------------------------------------------------------------
-// Shell layout regions — fill the named slots in AgentClientPage.
-// The right inspector pane was removed in favour of VS Code-style main
-// tabs; inspector views are now promoted to chat-area tabs.
+// Kernel layout regions — fill the named slots in AgentClientPage.
 // ---------------------------------------------------------------------------
-const shell: PluginSpec[] = [
-  shellSidebar, shellChat, shellSettings,
+const kernel: PluginSpec[] = [
+  kernelSidebar, kernelChat, kernelSettings,
 ];
 
 // ---------------------------------------------------------------------------
@@ -163,14 +164,13 @@ const sidebar: PluginSpec[] = [
 ];
 
 // ---------------------------------------------------------------------------
-// Overlays — toasts, command palette, status pill, welcome screen, default
-// commands (defaultCommands snapshots accents at setup time, so it must
-// follow `defaultThemes` from the infrastructure group).
+// Overlays — toasts, command palette, status pill, welcome screen, …
 // ---------------------------------------------------------------------------
 const overlays: PluginSpec[] = [
   toaster, commandPalette, defaultCommands,
   statusPill, statusNotifications, welcomeScreen, topbarNewTab,
   shortcuts,
+  iconGallery,
 ];
 
 export const builtinPlugins: PluginSpec[] = [
@@ -180,7 +180,7 @@ export const builtinPlugins: PluginSpec[] = [
   ...toolRendering,
   ...composer,
   ...panes,
-  ...shell,
+  ...kernel,
   ...sidebar,
   ...overlays,
 ];

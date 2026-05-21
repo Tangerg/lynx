@@ -3,13 +3,14 @@ import { EventType, type BaseEvent } from "@ag-ui/core";
 import { useConfigStore } from "./config";
 import { createHost } from "./host";
 import { useNotificationStore } from "./notifications";
+import { normalizeCombo, usePluginStore } from "./registry";
 import {
   listRoutes,
   listRpcAfterHooks,
   listRpcBeforeHooks,
-  lookupComposerKeyBinding,
   lookupAccent,
   lookupCommand,
+  lookupComposerKeyBinding,
   lookupCoreEventHandlers,
   lookupCustomEventHandler,
   lookupDataProvider,
@@ -17,12 +18,10 @@ import {
   lookupSlashCommand,
   lookupTheme,
   lookupToolIcon,
-  normalizeCombo,
   pickAgentSource,
   pickComposerPlaceholder,
   pickPluginErrorFallback,
-  usePluginStore,
-} from "./registry";
+} from "./selectors";
 import { INITIAL_VIEW_STATE } from "@/protocol/agui/viewState";
 import type { Disposable, ToolPreviewComponent } from "./types";
 

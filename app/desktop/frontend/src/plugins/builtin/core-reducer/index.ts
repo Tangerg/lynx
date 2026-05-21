@@ -4,7 +4,7 @@
 // inside `protocol/agui/reducer.ts`. Pulling them into a plugin means even
 // the protocol layer is a (replaceable) extension — a power user can swap
 // this for a custom dialect by registering a different `core-reducer` plugin
-// that takes priority. The shell reducer is now pure dispatch.
+// that takes priority. The kernel reducer is now pure dispatch.
 
 import {
   EventType,

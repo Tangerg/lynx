@@ -1,12 +1,12 @@
-// Slot — a named shell region filled by plugin contributions.
+// Slot — a named kernel region filled by plugin contributions.
 //
 // `<Slot name="app.sidebar"/>` renders every plugin component registered
-// for that slot, ordered by `order ?? 100`. Each contribution is wrapped in
-// its own PluginBoundary so one bad render doesn't take down the shell.
+// for that slot, ordered by `order ?? 100`. Each contribution is wrapped
+// in its own PluginBoundary so one bad render doesn't take down the kernel.
 //
 // By default the slot is *transparent* (renders as a Fragment) — important
-// because most of our shell slots sit inside a CSS grid whose layout depends
-// on the immediate children being the panels themselves. Pass `wrapper=true`
+// because most kernel slots sit inside a CSS grid whose layout depends on
+// the immediate children being the panels themselves. Pass `wrapper=true`
 // if you want a real `<div data-slot=...>` (e.g. for hit-testing or zone
 // styling).
 

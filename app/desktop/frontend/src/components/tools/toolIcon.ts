@@ -3,7 +3,7 @@
 // Lookup order:
 //   1. Plugin registry — `host.tool.registerIcon("bash", "terminal")`. Lets
 //      a plugin add an icon for a custom tool, or swap the built-in one.
-//   2. Hardcoded fallback — kept inline so the shell still renders sensibly
+//   2. Hardcoded fallback — kept inline so the kernel still renders sensibly
 //      even with zero plugins loaded (and so the built-in mapping plugin
 //      is a thin convenience, not the source of truth).
 //

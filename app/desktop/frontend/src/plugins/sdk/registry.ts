@@ -1,13 +1,14 @@
 // Plugin registry — central store of everything plugins have contributed.
 //
-// Backed by Zustand so React components (e.g. ToolPreview, PartRenderer,
-// SlashSuggestions) can subscribe to registration changes. Phase 2 adds
-// runtime-mutated slots (CUSTOM handlers, slash commands) alongside the
-// Phase 1 tool-preview slot.
+// Backed by Zustand so React components (ToolPreview, PartRenderer,
+// SlashSuggestions, …) can subscribe to registration changes. The store
+// holds both the static slots (tool previews, content blocks) and the
+// runtime-mutated ones (CUSTOM handlers, slash commands).
 
 import { useMemo } from "react";
 import { create } from "zustand";
 import type { ContentBlockKind } from "@/protocol/agui/viewState";
+import { makeLazyActivator } from "../LazyActivator";
 import type {
   AgentSourceSpec,
   CommandSpec,
@@ -18,12 +19,14 @@ import type {
   ComposerPlaceholderSpec,
   ComposerStatusSpec,
   ContentBlockRenderer,
+  ContributedCommand,
+  ContributedSettingsPane,
+  ContributedView,
   PluginErrorFallbackSpec,
   WorkspaceViewSpec,
   CoreEventHandler,
   CustomEventHandler,
   DataProviderSpec,
-  InspectorTabSpec,
   LayoutSlotSpec,
   LoadedPlugin,
   BeforeUnloadHandler,
@@ -60,7 +63,6 @@ type PluginStoreState = {
   coreEventHandlers:   Map<string, Owned<{ eventType: string; handler: CoreEventHandler }>>;
   slashCommands:       Map<string, Owned<SlashCommandSpec>>;
   settingsPanes:       Map<string, Owned<SettingsPaneSpec>>;
-  inspectorTabs:       Map<string, Owned<InspectorTabSpec>>;
   // Layout slot key is `${slot}|${pluginName}|${spec.id}` to allow the same
   // plugin to fill multiple slots and to keep insertion order deterministic.
   layoutSlots:         Map<string, Owned<{ slot: string; spec: LayoutSlotSpec }>>;
@@ -76,6 +78,24 @@ type PluginStoreState = {
   sidebarSections:     Map<string, Owned<SidebarSectionSpec>>;
   agentSources:        Map<string, Owned<AgentSourceSpec>>;
   commands:            Map<string, Owned<CommandSpec>>;
+  /**
+   * Commands declared in `PluginSpec.contributes.commands` but whose
+   * owning plugin hasn't been activated yet. Displayed as palette
+   * placeholders; running one activates the plugin first, then dispatches
+   * to whatever `host.commands.register` set up during setup.
+   */
+  declaredCommands:    Map<string, Owned<ContributedCommand>>;
+  /** Same idea, for workspace views. Mounting renders a placeholder UI. */
+  declaredViews:       Map<string, Owned<ContributedView>>;
+  /** Same idea, for settings panes. */
+  declaredSettingsPanes: Map<string, Owned<ContributedSettingsPane>>;
+  /**
+   * Specs awaiting an activation event. Keyed by plugin name so we can
+   * activate by id; the value carries the spec + the list of events it
+   * registered for (used by the palette to map "onCommand:foo" back to a
+   * plugin).
+   */
+  pendingActivations:  Map<string, { spec: PluginSpec; events: string[] }>;
   dataProviders:       Map<string, Owned<DataProviderSpec>>;
   sidebarRailItems:    Map<string, Owned<SidebarRailItemSpec>>;
   messageRoles:        Map<string, Owned<MessageRoleSpec>>;
@@ -94,10 +114,6 @@ type PluginStoreState = {
   pluginUnloadListeners: Map<string, Owned<(name: string) => void>>;
   pluginErrorFallbacks:  Map<string, Owned<PluginErrorFallbackSpec>>;
   workspaceViews:        Map<string, Owned<WorkspaceViewSpec>>;
-  /** Bound by DockShell on mount so `host.workspace.openView/closeView`
-   *  has somewhere to dispatch. Same shape as `agentStore.send/stop`. */
-  workspaceOpenView:     ((id: string) => void) | null;
-  workspaceCloseView:    ((id: string) => void) | null;
   // Window title state — most-recent setter wins. Stored as the "base"
   // text + a badge count; document.title is derived: `[n] base`.
   windowTitle:         string;
@@ -128,9 +144,6 @@ type PluginStoreActions = {
 
   addSettingsPane(pluginName: string, spec: SettingsPaneSpec): void;
   removeSettingsPane(pluginName: string, id: string): void;
-
-  addInspectorTab(pluginName: string, spec: InspectorTabSpec): void;
-  removeInspectorTab(pluginName: string, id: string): void;
 
   addCoreEventHandler(pluginName: string, eventType: string, id: string, handler: CoreEventHandler): void;
   removeCoreEventHandler(pluginName: string, eventType: string, id: string): void;
@@ -174,6 +187,19 @@ type PluginStoreActions = {
   addCommand(pluginName: string, spec: CommandSpec): void;
   removeCommand(pluginName: string, id: string): void;
 
+  addDeclaredCommand(pluginName: string, spec: ContributedCommand): void;
+  removeDeclaredCommand(pluginName: string, id: string): void;
+  removeDeclaredCommandsBy(pluginName: string): void;
+
+  addDeclaredView(pluginName: string, spec: ContributedView): void;
+  removeDeclaredViewsBy(pluginName: string): void;
+
+  addDeclaredSettingsPane(pluginName: string, spec: ContributedSettingsPane): void;
+  removeDeclaredSettingsPanesBy(pluginName: string): void;
+
+  addPendingActivation(spec: PluginSpec, events: string[]): void;
+  removePendingActivation(name: string): void;
+
   addDataProvider(pluginName: string, spec: DataProviderSpec): void;
   removeDataProvider(pluginName: string, key: string): void;
 
@@ -211,7 +237,6 @@ type PluginStoreActions = {
 
   addWorkspaceView(pluginName: string, spec: WorkspaceViewSpec): void;
   removeWorkspaceView(pluginName: string, id: string): void;
-  setWorkspaceController(open: ((id: string) => void) | null, close: ((id: string) => void) | null): void;
 
   setWindowTitle(text: string): void;
   setWindowBadge(n: number): void;
@@ -295,58 +320,11 @@ function removeOwnedMulti<T>(
   return next;
 }
 
-// One source of truth for the "fresh registry" shape. New slots only need
-// to be added here — the test setup, the reset action, and the store
-// initializer all read from it.
-const INITIAL_STATE: PluginStoreState = {
-  loaded: new Map(),
-  toolPreviews: new Map(),
-  toolActions: new Map(),
-  toolIcons: new Map(),
-  contentBlocks: new Map(),
-  customEventHandlers: new Map(),
-  coreEventHandlers: new Map(),
-  slashCommands: new Map(),
-  settingsPanes: new Map(),
-  inspectorTabs: new Map(),
-  layoutSlots: new Map(),
-  themes: new Map(),
-  accents: new Map(),
-  routes: new Map(),
-  shortcuts: new Map(),
-  composerStatus: new Map(),
-  composerModes: new Map(),
-  composerPlaceholders: new Map(),
-  composerAttachmentSources: new Map(),
-  composerKeyBindings: new Map(),
-  sidebarSections: new Map(),
-  agentSources: new Map(),
-  commands: new Map(),
-  dataProviders: new Map(),
-  sidebarRailItems: new Map(),
-  messageRoles: new Map(),
-  rpcBeforeRequest: new Map(),
-  rpcAfterResponse: new Map(),
-  logSubscribers: new Map(),
-  readyHandlers: new Map(),
-  beforeUnloadHandlers: new Map(),
-  appReady: false,
-  pluginLoadListeners: new Map(),
-  pluginUnloadListeners: new Map(),
-  pluginErrorFallbacks: new Map(),
-  windowTitle: "",
-  windowBadge: 0,
-  workspaceViews: new Map(),
-  workspaceOpenView: null,
-  workspaceCloseView: null,
-};
-
-/** Build a brand-new copy of the initial registry state. */
+// Single source of truth for the "fresh registry" shape. New slots only
+// need to be added here — the test setup, the reset action, and the
+// store initializer all call this.
 function freshState(): PluginStoreState {
-  // Shallow-rebuild every Map / collection so two callers don't share
-  // references back to INITIAL_STATE's entries.
   return {
-    ...INITIAL_STATE,
     loaded: new Map(),
     toolPreviews: new Map(),
     toolActions: new Map(),
@@ -356,7 +334,6 @@ function freshState(): PluginStoreState {
     coreEventHandlers: new Map(),
     slashCommands: new Map(),
     settingsPanes: new Map(),
-    inspectorTabs: new Map(),
     layoutSlots: new Map(),
     themes: new Map(),
     accents: new Map(),
@@ -370,6 +347,10 @@ function freshState(): PluginStoreState {
     sidebarSections: new Map(),
     agentSources: new Map(),
     commands: new Map(),
+    declaredCommands: new Map(),
+    declaredViews: new Map(),
+    declaredSettingsPanes: new Map(),
+    pendingActivations: new Map(),
     dataProviders: new Map(),
     sidebarRailItems: new Map(),
     messageRoles: new Map(),
@@ -382,6 +363,9 @@ function freshState(): PluginStoreState {
     pluginUnloadListeners: new Map(),
     pluginErrorFallbacks: new Map(),
     workspaceViews: new Map(),
+    appReady: false,
+    windowTitle: "",
+    windowBadge: 0,
   };
 }
 
@@ -468,13 +452,6 @@ export const usePluginStore = create<PluginStoreState & PluginStoreActions>((set
   },
   removeSettingsPane(pluginName, id) {
     set({ settingsPanes: removeOwned(get().settingsPanes, pluginName, id) });
-  },
-
-  addInspectorTab(pluginName, spec) {
-    set({ inspectorTabs: addOwned(get().inspectorTabs, pluginName, spec.id, spec, "inspector tab") });
-  },
-  removeInspectorTab(pluginName, id) {
-    set({ inspectorTabs: removeOwned(get().inspectorTabs, pluginName, id) });
   },
 
   // Core handlers + layout slots both pre-baked their discriminator
@@ -596,6 +573,47 @@ export const usePluginStore = create<PluginStoreState & PluginStoreActions>((set
     set({ commands: removeOwned(get().commands, pluginName, id) });
   },
 
+  addDeclaredCommand(pluginName, spec) {
+    set({ declaredCommands: addOwned(get().declaredCommands, pluginName, spec.id, spec, "declared command") });
+  },
+  removeDeclaredCommand(pluginName, id) {
+    set({ declaredCommands: removeOwned(get().declaredCommands, pluginName, id) });
+  },
+  removeDeclaredCommandsBy(pluginName) {
+    const next = new Map(get().declaredCommands);
+    for (const [k, v] of next) if (v.pluginName === pluginName) next.delete(k);
+    set({ declaredCommands: next });
+  },
+
+  addDeclaredView(pluginName, spec) {
+    set({ declaredViews: addOwned(get().declaredViews, pluginName, spec.id, spec, "declared view") });
+  },
+  removeDeclaredViewsBy(pluginName) {
+    const next = new Map(get().declaredViews);
+    for (const [k, v] of next) if (v.pluginName === pluginName) next.delete(k);
+    set({ declaredViews: next });
+  },
+
+  addDeclaredSettingsPane(pluginName, spec) {
+    set({ declaredSettingsPanes: addOwned(get().declaredSettingsPanes, pluginName, spec.id, spec, "declared settings pane") });
+  },
+  removeDeclaredSettingsPanesBy(pluginName) {
+    const next = new Map(get().declaredSettingsPanes);
+    for (const [k, v] of next) if (v.pluginName === pluginName) next.delete(k);
+    set({ declaredSettingsPanes: next });
+  },
+
+  addPendingActivation(spec, events) {
+    const next = new Map(get().pendingActivations);
+    next.set(spec.name, { spec, events });
+    set({ pendingActivations: next });
+  },
+  removePendingActivation(name) {
+    const next = new Map(get().pendingActivations);
+    next.delete(name);
+    set({ pendingActivations: next });
+  },
+
   addDataProvider(pluginName, spec) {
     set({ dataProviders: addOwned(get().dataProviders, pluginName, spec.key, spec, "data provider") });
   },
@@ -701,9 +719,6 @@ export const usePluginStore = create<PluginStoreState & PluginStoreActions>((set
   removeWorkspaceView(pluginName, id) {
     set({ workspaceViews: removeOwned(get().workspaceViews, pluginName, id) });
   },
-  setWorkspaceController(open, close) {
-    set({ workspaceOpenView: open, workspaceCloseView: close });
-  },
 
   resetForTest() {
     set(freshState());
@@ -741,321 +756,3 @@ function normalizeCombo(combo: string): string {
 
 export { normalizeCombo };
 
-// ---- subscribable selectors (React hooks) ---------------------------------
-
-export function useToolPreview(fn: string): ToolPreviewComponent | undefined {
-  return usePluginStore((s) => s.toolPreviews.get(fn)?.value);
-}
-
-export function useToolActions(): ToolActionSpec[] {
-  const map = usePluginStore((s) => s.toolActions);
-  return useMemo(
-    () =>
-      Array.from(map.values())
-        .map((o) => o.value)
-        .sort((a, b) => (a.order ?? 100) - (b.order ?? 100)),
-    [map],
-  );
-}
-
-/** Look up the registered icon for a tool fn name. */
-export function lookupToolIcon(fn: string): string | undefined {
-  return usePluginStore.getState().toolIcons.get(fn)?.value;
-}
-
-/** Snapshot of registered workspace views in sorted (defaultLocation, order) form. */
-export function listWorkspaceViews(): WorkspaceViewSpec[] {
-  return Array.from(usePluginStore.getState().workspaceViews.values())
-    .map((o) => o.value)
-    .sort((a, b) => (a.order ?? 100) - (b.order ?? 100));
-}
-
-export function useWorkspaceViews(): WorkspaceViewSpec[] {
-  const map = usePluginStore((s) => s.workspaceViews);
-  return useMemo(
-    () =>
-      Array.from(map.values())
-        .map((o) => o.value)
-        .sort((a, b) => (a.order ?? 100) - (b.order ?? 100)),
-    [map],
-  );
-}
-
-/**
- * Pick the highest-priority registered error fallback. Tied priorities
- * resolve by insertion order (later wins). Returns undefined when nothing
- * is registered.
- */
-export function pickPluginErrorFallback(): PluginErrorFallbackSpec | undefined {
-  const specs = Array.from(usePluginStore.getState().pluginErrorFallbacks.values()).map((o) => o.value);
-  if (specs.length === 0) return undefined;
-  return specs.reduce((best, cur) =>
-    (cur.priority ?? 0) >= (best.priority ?? 0) ? cur : best,
-  );
-}
-
-export function useContentBlockRenderer(
-  kind: string,
-): ContentBlockRenderer<ContentBlockKind> | undefined {
-  return usePluginStore((s) => s.contentBlocks.get(kind)?.value);
-}
-
-// IMPORTANT — selector + useMemo split.
-//
-// Zustand's `useShallow` compares element-by-element with Object.is. Our
-// selectors used to wrap each entry in a fresh `{ cmd, spec }` object every
-// call, which never `Object.is`-equals the previous one — useShallow saw a
-// "different" array on every render, useSyncExternalStore raised
-// "result of getSnapshot should be cached", and we got "Maximum update
-// depth exceeded".
-//
-// Pattern: the selector returns the raw Map (reference stable until a
-// register/unregister mutates the registry). The component-side useMemo
-// then derives whatever shape it needs, with the Map as a dep so it only
-// recomputes when the underlying data actually changes.
-export function useSlashCommands(): Array<{ cmd: string; spec: SlashCommandSpec }> {
-  const map = usePluginStore((s) => s.slashCommands);
-  return useMemo(
-    () => Array.from(map.entries()).map(([cmd, owned]) => ({ cmd, spec: owned.value })),
-    [map],
-  );
-}
-
-export function useSettingsPanes(): SettingsPaneSpec[] {
-  const map = usePluginStore((s) => s.settingsPanes);
-  return useMemo(
-    () =>
-      Array.from(map.values())
-        .map((o) => o.value)
-        .sort((a, b) => (a.order ?? 100) - (b.order ?? 100)),
-    [map],
-  );
-}
-
-export function useInspectorTabs(): InspectorTabSpec[] {
-  const map = usePluginStore((s) => s.inspectorTabs);
-  return useMemo(
-    () =>
-      Array.from(map.values())
-        .map((o) => o.value)
-        .sort((a, b) => (a.order ?? 100) - (b.order ?? 100)),
-    [map],
-  );
-}
-
-export function useLayoutSlot(slot: string): LayoutSlotSpec[] {
-  const map = usePluginStore((s) => s.layoutSlots);
-  return useMemo(
-    () =>
-      Array.from(map.values())
-        .filter((o) => o.value.slot === slot)
-        .map((o) => o.value.spec)
-        .sort((a, b) => (a.order ?? 100) - (b.order ?? 100)),
-    [map, slot],
-  );
-}
-
-export function useThemes(): ThemeSpec[] {
-  const map = usePluginStore((s) => s.themes);
-  return useMemo(
-    () =>
-      Array.from(map.values())
-        .map((o) => o.value)
-        .sort((a, b) => (a.order ?? 100) - (b.order ?? 100)),
-    [map],
-  );
-}
-
-export function useAccents(): ThemeAccentSpec[] {
-  const map = usePluginStore((s) => s.accents);
-  return useMemo(
-    () =>
-      Array.from(map.values())
-        .map((o) => o.value)
-        .sort((a, b) => (a.order ?? 100) - (b.order ?? 100)),
-    [map],
-  );
-}
-
-export function useComposerStatus(): ComposerStatusSpec[] {
-  const map = usePluginStore((s) => s.composerStatus);
-  return useMemo(
-    () =>
-      Array.from(map.values())
-        .map((o) => o.value)
-        .sort((a, b) => (a.order ?? 100) - (b.order ?? 100)),
-    [map],
-  );
-}
-
-export function useComposerModes(): ComposerModeSpec[] {
-  const map = usePluginStore((s) => s.composerModes);
-  return useMemo(
-    () =>
-      Array.from(map.values())
-        .map((o) => o.value)
-        .sort((a, b) => (a.order ?? 100) - (b.order ?? 100)),
-    [map],
-  );
-}
-
-export function useSidebarSections(): SidebarSectionSpec[] {
-  const map = usePluginStore((s) => s.sidebarSections);
-  return useMemo(
-    () =>
-      Array.from(map.values())
-        .map((o) => o.value)
-        .sort((a, b) => (a.order ?? 100) - (b.order ?? 100)),
-    [map],
-  );
-}
-
-export function useCommands(): CommandSpec[] {
-  const map = usePluginStore((s) => s.commands);
-  return useMemo(
-    () =>
-      Array.from(map.values())
-        .map((o) => o.value)
-        .sort((a, b) => (a.order ?? 100) - (b.order ?? 100)),
-    [map],
-  );
-}
-
-export function useSidebarRailItems(): SidebarRailItemSpec[] {
-  const map = usePluginStore((s) => s.sidebarRailItems);
-  return useMemo(
-    () =>
-      Array.from(map.values())
-        .map((o) => o.value)
-        .sort((a, b) => (a.order ?? 100) - (b.order ?? 100)),
-    [map],
-  );
-}
-
-export function useMessageRole(id: string): MessageRoleSpec | undefined {
-  return usePluginStore((s) => s.messageRoles.get(id)?.value);
-}
-
-/** Snapshot of registered beforeRequest hooks in insertion order. */
-export function listRpcBeforeHooks(): RpcBeforeRequestHook[] {
-  return Array.from(usePluginStore.getState().rpcBeforeRequest.values()).map((o) => o.value);
-}
-
-/** Snapshot of registered afterResponse hooks in insertion order. */
-export function listRpcAfterHooks(): RpcAfterResponseHook[] {
-  return Array.from(usePluginStore.getState().rpcAfterResponse.values()).map((o) => o.value);
-}
-
-/** Snapshot of registered log subscribers in insertion order. */
-export function listLogSubscribers(): LogSubscriber[] {
-  return Array.from(usePluginStore.getState().logSubscribers.values()).map((o) => o.value);
-}
-
-// ---- imperative lookups (non-React callers, e.g. reducer & composer) ------
-
-/** Look up a CUSTOM-event handler. Used by the reducer at event time. */
-export function lookupCustomEventHandler(name: string): CustomEventHandler<unknown> | undefined {
-  return usePluginStore.getState().customEventHandlers.get(name)?.value;
-}
-
-/**
- * Look up all *core* handlers registered for an AG-UI built-in event type.
- * Returned in insertion order; the reducer chains them through the state.
- */
-export function lookupCoreEventHandlers(
-  eventType: string,
-): Array<{ pluginName: string; handler: CoreEventHandler }> {
-  const out: Array<{ pluginName: string; handler: CoreEventHandler }> = [];
-  for (const o of usePluginStore.getState().coreEventHandlers.values()) {
-    if (o.value.eventType === eventType) out.push({ pluginName: o.pluginName, handler: o.value.handler });
-  }
-  return out;
-}
-
-/** Look up a slash command by exact key (including leading "/"). */
-export function lookupSlashCommand(cmd: string): SlashCommandSpec | undefined {
-  return usePluginStore.getState().slashCommands.get(cmd)?.value;
-}
-
-/** Look up a theme spec by id. */
-export function lookupTheme(id: string): ThemeSpec | undefined {
-  return usePluginStore.getState().themes.get(id)?.value;
-}
-
-/** Look up an accent spec by id. */
-export function lookupAccent(id: string): ThemeAccentSpec | undefined {
-  return usePluginStore.getState().accents.get(id)?.value;
-}
-
-/** Snapshot of all registered routes, sorted by `order`. */
-export function listRoutes(): RouteSpec[] {
-  return Array.from(usePluginStore.getState().routes.values())
-    .map((o) => o.value)
-    .sort((a, b) => (a.order ?? 100) - (b.order ?? 100));
-}
-
-/** Look up a registered shortcut by canonical combo (after `normalizeCombo`). */
-export function lookupShortcut(canonical: string): ShortcutSpec | undefined {
-  return usePluginStore.getState().shortcuts.get(canonical)?.value;
-}
-
-/** Look up a composer key binding by canonical combo. */
-export function lookupComposerKeyBinding(canonical: string): ComposerKeyBindingSpec | undefined {
-  return usePluginStore.getState().composerKeyBindings.get(canonical)?.value;
-}
-
-export function useComposerAttachmentSources(): ComposerAttachmentSourceSpec[] {
-  const map = usePluginStore((s) => s.composerAttachmentSources);
-  return useMemo(
-    () =>
-      Array.from(map.values())
-        .map((o) => o.value)
-        .sort((a, b) => (a.order ?? 100) - (b.order ?? 100)),
-    [map],
-  );
-}
-
-/**
- * Pick one composer placeholder via weighted random. Returns undefined
- * when nothing's registered; callers should fall back to a sensible
- * default. Pure read — call once at component mount, not on every render.
- */
-export function pickComposerPlaceholder(): ComposerPlaceholderSpec | undefined {
-  const specs = Array.from(usePluginStore.getState().composerPlaceholders.values()).map((o) => o.value);
-  if (specs.length === 0) return undefined;
-  const total = specs.reduce((sum, s) => sum + (s.weight ?? 1), 0);
-  if (total <= 0) return undefined;
-  let r = Math.random() * total;
-  for (const spec of specs) {
-    r -= spec.weight ?? 1;
-    if (r <= 0) return spec;
-  }
-  return specs[specs.length - 1];
-}
-
-/**
- * Pick the active agent source — highest priority wins, ties broken by
- * insertion order. Returns undefined if none registered.
- */
-export function pickAgentSource(): AgentSourceSpec | undefined {
-  const sources = Array.from(usePluginStore.getState().agentSources.values()).map((o) => o.value);
-  if (sources.length === 0) return undefined;
-  return sources.reduce((best, cur) =>
-    (cur.priority ?? 0) > (best.priority ?? 0) ? cur : best,
-  );
-}
-
-/** Look up a registered command by id. */
-export function lookupCommand(id: string): CommandSpec | undefined {
-  return usePluginStore.getState().commands.get(id)?.value;
-}
-
-/**
- * Look up the fetcher for a data-provider key. Type is erased — callers
- * cast to their expected return shape. Returns undefined when nothing
- * registered (consumer hooks should throw or fall back).
- */
-export function lookupDataProvider<T = unknown>(key: string): (() => Promise<T>) | undefined {
-  const entry = usePluginStore.getState().dataProviders.get(key);
-  return entry ? (entry.value.fetcher as () => Promise<T>) : undefined;
-}

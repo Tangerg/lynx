@@ -27,17 +27,18 @@ import type {
 export type Disposable = { dispose: () => void };
 
 // ---------------------------------------------------------------------------
-// Tool previews (Phase 1)
+// Tool previews — plugin-contributed inline body for a tool call.
 // ---------------------------------------------------------------------------
 
 export type ToolPreviewProps = {
   tool: ToolCall;
-  onOpenInspector: () => void;
+  /** Promote the full tool view (terminal / diff / …) into a main-area tab. */
+  onOpenView: () => void;
 };
 export type ToolPreviewComponent = ComponentType<ToolPreviewProps>;
 
 // ---------------------------------------------------------------------------
-// Tool actions (Phase 17)
+// Tool actions — header buttons (Re-run, Copy, …) on a tool card.
 // ---------------------------------------------------------------------------
 
 /**
@@ -62,7 +63,7 @@ export type ToolActionSpec = {
 };
 
 // ---------------------------------------------------------------------------
-// Content blocks (Phase 2)
+// Content blocks — renderable parts inside a message body.
 // ---------------------------------------------------------------------------
 
 /**
@@ -77,7 +78,7 @@ export type ContentBlockRenderer<K extends ContentBlockKind> =
   ComponentType<ContentBlockRendererProps<K>>;
 
 // ---------------------------------------------------------------------------
-// AG-UI CUSTOM event handlers (Phase 2)
+// AG-UI CUSTOM event handlers — fold protocol events into view state.
 // ---------------------------------------------------------------------------
 
 /**
@@ -108,36 +109,7 @@ export type CustomEventHandler<T = unknown> = (value: T) => StateUpdate | void;
 export type CoreEventHandler = (state: AgentViewState, event: BaseEvent) => AgentViewState;
 
 // ---------------------------------------------------------------------------
-// Inspector tabs (Phase 5)
-// ---------------------------------------------------------------------------
-
-/**
- * Plugin-contributed inspector tab.
- *
- * Tabs read their data from app stores (useAgentStore, useUIStore) and
- * react-query hooks directly — no props from the host. That keeps the
- * registration descriptor flat: just id/icon/label/optional-badge/component.
- */
-export type InspectorTabSpec = {
-  /** Stable id — also the URL key for the inspector tab state. */
-  id: string;
-  /** Display label for tooltip / settings. */
-  label: string;
-  /** Icon name from the host's Icon component. */
-  icon: string;
-  /** Sort hint. Built-ins use 0..99; plugins ≥ 100. */
-  order?: number;
-  /**
-   * Optional hook for the rail badge. Called inside the rail component, so
-   * it can subscribe to stores. Return 0 / undefined to hide the badge.
-   */
-  useBadge?: () => number | undefined;
-  /** The tab's content — receives no props. */
-  component: ComponentType;
-};
-
-// ---------------------------------------------------------------------------
-// Settings panes (Phase 3)
+// Settings panes — rail entries inside the Settings workspace view.
 // ---------------------------------------------------------------------------
 
 export type SettingsPaneSpec = {
@@ -154,7 +126,7 @@ export type SettingsPaneSpec = {
 };
 
 // ---------------------------------------------------------------------------
-// Themes (Phase 7)
+// Themes — color schemes (dark/light) and accents.
 // ---------------------------------------------------------------------------
 
 /**
@@ -194,7 +166,7 @@ export type ThemeAccentSpec = {
 };
 
 // ---------------------------------------------------------------------------
-// Notifications (Phase 16)
+// Notifications — persistent feed surfaced by host.notify().
 // ---------------------------------------------------------------------------
 
 export type NotificationLevel = "info" | "warn" | "error";
@@ -202,7 +174,7 @@ export type NotificationLevel = "info" | "warn" | "error";
 /**
  * One entry in the persistent notification feed. Created every time a
  * plugin calls `host.notify(...)`. The transient toast is just the visual
- * surface; the feed is what plugins (e.g. inspector tab, settings pane)
+ * surface; the feed is what plugins (e.g. workspace view, settings pane)
  * read.
  */
 export type NotificationEntry = {
@@ -219,7 +191,7 @@ export type NotificationEntry = {
 };
 
 // ---------------------------------------------------------------------------
-// Lifecycle (Phase 15)
+// Lifecycle
 // ---------------------------------------------------------------------------
 
 /**
@@ -241,7 +213,7 @@ export type ReadyHandler = () => void;
 export type BeforeUnloadHandler = () => void;
 
 // ---------------------------------------------------------------------------
-// Logger (Phase 14)
+// Logger — structured logger passed to a plugin in setup().
 // ---------------------------------------------------------------------------
 
 export type LogLevel = "debug" | "info" | "warn" | "error";
@@ -261,7 +233,7 @@ export type LogEvent = {
 export type LogSubscriber = (event: LogEvent) => void;
 
 // ---------------------------------------------------------------------------
-// RPC hooks (Phase 13)
+// RPC hooks — runtime extension of the host.rpc namespace.
 // ---------------------------------------------------------------------------
 
 /**
@@ -287,7 +259,7 @@ export type RpcAfterResponseHook = (
 ) => void | Response | Promise<void | Response>;
 
 // ---------------------------------------------------------------------------
-// Data providers (Phase 11)
+// Data providers — pluggable fetchers behind React Query hooks.
 // ---------------------------------------------------------------------------
 
 /**
@@ -307,7 +279,7 @@ export type DataProviderSpec<T = unknown> = {
 };
 
 // ---------------------------------------------------------------------------
-// Agent sources (Phase 10)
+// Agent sources — transports that drive the chat (HTTP, mock, IPC…).
 // ---------------------------------------------------------------------------
 
 /**
@@ -315,9 +287,9 @@ export type DataProviderSpec<T = unknown> = {
  * HttpAgent against the local Go backend; alternative sources can implement
  * a WebSocket variant, mock streamer, etc.
  *
- * Only one source is active at a time — shell-chat resolves to the first
- * spec sorted by `priority`. Higher priority wins; a user plugin can
- * override the built-in by registering at priority > 0.
+ * Only one source is active at a time — kernel-chat resolves to the
+ * first spec sorted by `priority`. Higher priority wins; a user plugin
+ * can override the built-in by registering at priority > 0.
  */
 export type AgentSourceSpec = {
   id: string;
@@ -329,7 +301,7 @@ export type AgentSourceSpec = {
 };
 
 // ---------------------------------------------------------------------------
-// Commands (Phase 10 — command palette)
+// Commands — entries shown in the Cmd+K palette.
 // ---------------------------------------------------------------------------
 
 /**
@@ -357,12 +329,28 @@ export type CommandSpec = {
   shortcut?: string;
   /** Sort hint within the group. Lower comes first. */
   order?: number;
+  /**
+   * Optional `when` clause filtering when this command is visible in the
+   * palette. See `evalWhen.ts` for the supported syntax. Identifiers come
+   * from the runtime when-context (e.g. `mainViewActive`, `mainView`,
+   * `theme`, `sidebarRail`). Missing/invalid → command hidden.
+   */
+  when?: string;
   /** What to do. */
   run: () => void | Promise<void>;
 };
 
+/**
+ * Declarative command — same shape as CommandSpec minus the run handler.
+ * Lives in `PluginSpec.contributes.commands` so the kernel can show the
+ * palette entry *before* the plugin is activated. Picking the entry
+ * triggers the plugin's activation; after setup runs, the real
+ * `host.commands.register` call replaces this placeholder.
+ */
+export type ContributedCommand = Omit<CommandSpec, "run">;
+
 // ---------------------------------------------------------------------------
-// Keyboard shortcuts (Phase 8)
+// Keyboard shortcuts — global, app-wide key bindings.
 // ---------------------------------------------------------------------------
 
 /**
@@ -404,7 +392,7 @@ export type ShortcutSpec = {
 };
 
 // ---------------------------------------------------------------------------
-// Composer key bindings (Phase 19)
+// Composer key bindings — keys handled by the chat composer textarea.
 // ---------------------------------------------------------------------------
 
 /**
@@ -429,7 +417,7 @@ export type ComposerKeyBindingSpec = {
 };
 
 // ---------------------------------------------------------------------------
-// Composer attachment sources (Phase 18)
+// Composer attachment sources — chips displayed above the composer.
 // ---------------------------------------------------------------------------
 
 /**
@@ -445,9 +433,9 @@ export type ComposerAttachment = {
 };
 
 /**
- * A plugin contribution that produces attachment chips. The shell merges
- * the lists from every source (in `order`) ahead of any user-added items
- * stored in `useComposerStore.attachments`.
+ * A plugin contribution that produces attachment chips. The kernel
+ * merges the lists from every source (in `order`) ahead of any
+ * user-added items stored in `useComposerStore.attachments`.
  *
  * `useAttachments` is a hook — plugins can derive the list from query
  * data ("recently edited files") or other stores.
@@ -461,7 +449,7 @@ export type ComposerAttachmentSourceSpec = {
 };
 
 // ---------------------------------------------------------------------------
-// Composer placeholder pool (Phase 16)
+// Composer placeholder pool — rotating textarea placeholders.
 // ---------------------------------------------------------------------------
 
 /**
@@ -480,7 +468,7 @@ export type ComposerPlaceholderSpec = {
 };
 
 // ---------------------------------------------------------------------------
-// Composer modes (Phase 9)
+// Composer modes — segmented toggle (agent / ask / plan / …).
 // ---------------------------------------------------------------------------
 
 /**
@@ -503,7 +491,7 @@ export type ComposerModeSpec = {
 };
 
 // ---------------------------------------------------------------------------
-// Composer status chips (Phase 8)
+// Composer status chips — informational chips above the composer.
 // ---------------------------------------------------------------------------
 
 /**
@@ -522,13 +510,13 @@ export type ComposerStatusSpec = {
 };
 
 // ---------------------------------------------------------------------------
-// Sidebar sections (Phase 8)
+// Sidebar sections — collapsible blocks inside the expanded sidebar.
 // ---------------------------------------------------------------------------
 
 /**
  * Plugin-contributed sidebar section, rendered between the search box and
  * the user-card footer. Each section owns its own header + body; the
- * sidebar shell just orders them by `order`.
+ * sidebar kernel just orders them by `order`.
  */
 export type SidebarSectionSpec = {
   id: string;
@@ -539,7 +527,7 @@ export type SidebarSectionSpec = {
 };
 
 /**
- * Plugin-contributed item in the collapsed (rail) sidebar. The shell
+ * Plugin-contributed item in the collapsed (rail) sidebar. The kernel
  * renders all registered items vertically in `order`. Each item may be a
  * single button, a stack of buttons, a divider, or anything else — it
  * just has to fit in the rail's narrow column.
@@ -559,7 +547,7 @@ export type SidebarRailItemSpec = {
 };
 
 // ---------------------------------------------------------------------------
-// Message roles (Phase 12)
+// Message roles — display name + icon for each role in the transcript.
 // ---------------------------------------------------------------------------
 
 /**
@@ -584,7 +572,7 @@ export type MessageRoleSpec = {
 };
 
 // ---------------------------------------------------------------------------
-// Routes (Phase 7)
+// Routes — plugin-contributed URL paths and their renderers.
 // ---------------------------------------------------------------------------
 
 /**
@@ -604,7 +592,7 @@ export type RouteSpec = {
 };
 
 // ---------------------------------------------------------------------------
-// Plugin error fallback (Phase 20)
+// Plugin error fallback — UI shown when a plugin component throws.
 // ---------------------------------------------------------------------------
 
 /**
@@ -612,7 +600,7 @@ export type RouteSpec = {
  * component throws inside `PluginBoundary`.
  */
 export type PluginErrorFallbackProps = {
-  /** Plugin name / context label, e.g. "inspector:diff" or "layout:app.main:chat". */
+  /** Plugin name / context label, e.g. "view:diff" or "layout:app.main:chat". */
   plugin: string;
   /** Optional human-readable label that was passed to the boundary. */
   label?: string;
@@ -628,24 +616,20 @@ export type PluginErrorFallbackSpec = {
 };
 
 // ---------------------------------------------------------------------------
-// Workspace views (Phase 23 — "layout is also a plugin")
+// Workspace views — plugin-contributed surfaces that open as main-area tabs.
 // ---------------------------------------------------------------------------
 
-/**
- * Default docking hint used the first time a workspace is loaded (i.e.
- * before the user has saved a layout). Plain regions only; "floating" is
- * supported by dockview but not exposed yet to keep the API small.
- */
+/** First-launch docking hint. Plain regions only; floating is not exposed. */
 export type DockLocation = "left" | "right" | "main" | "bottom";
 
 /**
- * A plugin-contributed view that participates in the dock layout. Unlike
- * `LayoutSlotSpec`, a workspace view doesn't pick a position — the user
- * does (drag, split, close, restore). The shell only needs `id` + the
- * component; everything else is a hint.
+ * A plugin-contributed view that participates in the workspace layout.
+ * Unlike `LayoutSlotSpec`, a workspace view doesn't pick a position — the
+ * user does (open, close, switch tabs). The kernel only needs `id` +
+ * the component; everything else is a hint.
  */
 export type WorkspaceViewSpec = {
-  /** Stable id — used as the dockview panel id + layout persistence key. */
+  /** Stable id — used as the layout persistence key. */
   id: string;
   /** Tab title shown in the panel header. */
   title: string;
@@ -662,21 +646,21 @@ export type WorkspaceViewSpec = {
 };
 
 // ---------------------------------------------------------------------------
-// Layout slots (Phase 6 — "everything is a plugin")
+// Layout slots — named mount points the kernel exposes (sidebar.body, …).
 // ---------------------------------------------------------------------------
 
 /**
- * Plugin-contributed shell region.
+ * Plugin-contributed kernel region.
  *
- * The app shell renders `<Slot name="..."/>` for each region (sidebar, main,
- * inspector, overlay). Plugins fill regions by registering a component +
- * sort hint. Most regions are conceptually singletons (sidebar / main /
- * inspector) but the registry allows multiple contributions so power users
- * can stack overlays without forking the shell.
+ * The kernel renders `<Slot name="..."/>` for each region (sidebar, main,
+ * statusbar, overlay). Plugins fill regions by registering a component +
+ * sort hint. Most regions are conceptually singletons (sidebar / main)
+ * but the registry allows multiple contributions so power users can
+ * stack overlays without forking the kernel.
  *
  * The component receives no props — slot consumers read from app stores
  * (Zustand) and react-query hooks directly. That keeps the registration
- * descriptor flat and prevents the shell from having to thread N props
+ * descriptor flat and prevents the kernel from having to thread N props
  * down to N plugins.
  */
 export type LayoutSlotSpec = {
@@ -691,7 +675,7 @@ export type LayoutSlotSpec = {
 };
 
 // ---------------------------------------------------------------------------
-// Composer slash commands (Phase 2)
+// Composer slash commands — typed-in `/foo` shortcuts.
 // ---------------------------------------------------------------------------
 
 /**
@@ -730,7 +714,7 @@ export type Host = {
     /**
      * Register the icon glyph for a tool function name. The lookup is
      * checked before any hardcoded fallback so plugins can swap icons
-     * (e.g. give `bash` a custom terminal glyph) without forking the shell.
+     * (e.g. give `bash` a custom terminal glyph) without forking the kernel.
      */
     registerIcon(fn: string, icon: string): Disposable;
   };
@@ -757,7 +741,7 @@ export type Host = {
     onCore(eventType: string, handler: CoreEventHandler): Disposable;
   };
   layout: {
-    /** Contribute a component to a named shell region. */
+    /** Contribute a component to a named kernel region. */
     register(slot: string, spec: LayoutSlotSpec): Disposable;
   };
   workspace: {
@@ -850,10 +834,6 @@ export type Host = {
     /** Contribute a pane to the settings modal. */
     registerPane(spec: SettingsPaneSpec): Disposable;
   };
-  inspector: {
-    /** Contribute a tab to the right-hand inspector panel. */
-    registerTab(spec: InspectorTabSpec): Disposable;
-  };
   /** Namespaced key-value storage, persisted to localStorage. */
   storage: {
     get<T = unknown>(key: string): T | undefined;
@@ -869,7 +849,7 @@ export type Host = {
     /**
      * Register a request hook. Runs for every call made through the shared
      * `api` ky instance (which is what `host.rpc.get/post`, queries.ts, and
-     * shell-chat all use). Common uses: auth headers, request logging,
+     * kernel-chat all use). Common uses: auth headers, request logging,
      * X-Request-Id injection.
      */
     beforeRequest(hook: RpcBeforeRequestHook): Disposable;
@@ -903,6 +883,25 @@ export type Host = {
     /** Fires every time a plugin is unloaded. */
     onUnload(fn: (name: string) => void): Disposable;
     /**
+     * Load a plugin spec at runtime — useful for hot-loading or
+     * conditional features. Goes through the same setup pipeline as
+     * built-in / sideload loads, including disposable tracking + error
+     * isolation.
+     */
+    load(spec: PluginSpec): Promise<void>;
+    /**
+     * Unload a previously-loaded plugin. Disposes every register* return
+     * value collected during setup, removes the plugin from the loaded
+     * map, and fires onUnload listeners. No-op if the plugin isn't
+     * currently loaded.
+     */
+    unload(name: string): void;
+    /**
+     * Convenience: `unload(name)` then re-load the same spec. Returns the
+     * load promise so callers can `await` for setup completion.
+     */
+    reload(name: string): Promise<void>;
+    /**
      * Contribute a custom error-fallback UI shown inside `PluginBoundary`
      * when a plugin-rendered component throws. Highest-priority registration
      * wins; if none, the built-in red banner is rendered.
@@ -926,6 +925,58 @@ export type Host = {
 
 export type PluginContext = { host: Host };
 
+/**
+ * When this plugin should activate (i.e. when `setup` runs).
+ *
+ *   - `"onStartup"`        — load eagerly during the kernel boot sequence.
+ *                            This is the default when `activationEvents`
+ *                            is missing or empty.
+ *   - `"onCommand:<id>"`   — activate the first time the user runs that
+ *                            command (declared in `contributes.commands`).
+ *
+ * Future events: `"onView:<id>"`, `"onLanguage:<id>"`, etc. — add when
+ * there's a real need.
+ */
+export type ActivationEvent = "onStartup" | `onCommand:${string}`;
+
+/**
+ * A workspace view declared ahead of activation. Same shape as
+ * `WorkspaceViewSpec` minus the body component — the kernel renders a
+ * lightweight "activating…" placeholder until the plugin's setup runs.
+ */
+export type ContributedView = Omit<WorkspaceViewSpec, "component">;
+
+/**
+ * A settings pane declared ahead of activation. Mirror of
+ * `SettingsPaneSpec` minus the body component.
+ */
+export type ContributedSettingsPane = Omit<SettingsPaneSpec, "component">;
+
+/**
+ * Names of the top-level groupings on `Host`. A plugin can voluntarily
+ * narrow what it can see by listing only the namespaces it actually uses
+ * in `PluginSpec.capabilities`. Anything not listed becomes a throwing
+ * proxy on the bound host — useful as a self-imposed contract today and
+ * a hook for future permission enforcement / marketplace audits.
+ */
+export type HostCapability =
+  | "tool" | "message" | "agui" | "layout" | "workspace" | "theme"
+  | "router" | "composer" | "sidebar" | "shortcuts" | "agent" | "data"
+  | "commands" | "lifecycle" | "state" | "config" | "settings"
+  | "storage" | "rpc" | "notify" | "window" | "plugins" | "log";
+
+/**
+ * Declarative ahead-of-activation contributions. Anything listed here is
+ * visible in the palette / settings rail / workspace tab strip before
+ * the plugin has actually been activated; first interaction triggers the
+ * activation and swaps the placeholder for the real component.
+ */
+export type PluginContributes = {
+  commands?: ContributedCommand[];
+  views?: ContributedView[];
+  settingsPanes?: ContributedSettingsPane[];
+};
+
 export type PluginSpec = {
   /** Unique identifier. Built-ins use the `lyra.builtin.*` namespace. */
   name: string;
@@ -933,8 +984,41 @@ export type PluginSpec = {
   version: string;
   /** Optional host API range this plugin targets. Not enforced yet. */
   apiVersion?: string;
-  /** Called once at load time. All register* calls go here. */
-  setup: (ctx: PluginContext) => void | Promise<void>;
+  /**
+   * Names of plugins that must load before this one. The kernel does a
+   * topological sort over the requested list, then loads in dependency
+   * order. Missing requires + cycles surface as setup errors.
+   */
+  requires?: string[];
+  /**
+   * When the plugin should activate. Defaults to eager (`["onStartup"]`)
+   * when omitted, preserving the historical behaviour.
+   */
+  activationEvents?: ActivationEvent[];
+  /**
+   * Declarative metadata visible before activation. Today: commands,
+   * workspace views, settings panes. Future surfaces follow the same
+   * pattern when there's a real lazy-load use case.
+   */
+  contributes?: PluginContributes;
+  /**
+   * Voluntary capability declaration. When present, the bound host only
+   * exposes the listed namespaces — accessing any other throws a clear
+   * error at runtime. Omit to keep full access (the existing behaviour).
+   */
+  capabilities?: HostCapability[];
+  /**
+   * Called once at load time. All `host.*.register*` calls go here.
+   *
+   * May return a cleanup function (sync or via Promise). If returned,
+   * the kernel runs it when the plugin is unloaded — handy for `subscribe`
+   * style side effects whose disposable isn't a `host.*.register*` result
+   * (Zustand store subscriptions, window event listeners, etc.).
+   */
+  setup: (ctx: PluginContext) =>
+    | void
+    | (() => void)
+    | Promise<void | (() => void)>;
 };
 
 export type LoadedPlugin = {

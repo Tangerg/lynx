@@ -1,0 +1,93 @@
+// Built-in plugins: starter defaults for config / data / themes / roles /
+// title / palette commands. Each one is its own plugin so a third-party
+// can swap any single piece without taking out the others.
+//
+// `defaultCommands` lives in a sibling file because it's substantially
+// bigger than the rest (~100 lines for the reactive command rebuild).
+
+import { AGUI_BASE, api } from "@/lib/http";
+import { definePlugin } from "@/plugins/sdk";
+
+export { defaultCommands } from "./commands";
+
+export const defaultConfig = definePlugin({
+  name: "lyra.builtin.default-config",
+  version: "1.0.0",
+  setup({ host }) {
+    host.config.set("api.baseUrl", AGUI_BASE);
+  },
+});
+
+export const defaultTitle = definePlugin({
+  name: "lyra.builtin.default-title",
+  version: "1.0.0",
+  setup({ host }) {
+    host.window.setTitle("Lyra");
+  },
+});
+
+export const defaultThemes = definePlugin({
+  name: "lyra.builtin.default-themes",
+  version: "1.0.0",
+  setup({ host }) {
+    host.theme.registerTheme({ id: "dark",  label: "Dark",  scheme: "dark",  icon: "moon", order: 0 });
+    host.theme.registerTheme({ id: "light", label: "Light", scheme: "light", icon: "sun",  order: 1 });
+
+    host.theme.registerAccent({ id: "green",  label: "Green",  dark: "#1ed760", light: "#169c46", order: 0 });
+    host.theme.registerAccent({ id: "blue",   label: "Blue",   dark: "#82cfff", light: "#2563eb", order: 1 });
+    host.theme.registerAccent({ id: "pink",   label: "Pink",   dark: "#e07acc", light: "#a823a3", order: 2 });
+    host.theme.registerAccent({ id: "orange", label: "Orange", dark: "#ffa42b", light: "#c2410c", order: 3 });
+  },
+});
+
+export const defaultRoles = definePlugin({
+  name: "lyra.builtin.default-roles",
+  version: "1.0.0",
+  setup({ host }) {
+    host.message.registerRole({
+      id: "user",
+      displayName: "You",
+      icon: "user",
+      avatarVariant: "msg-user",
+    });
+    host.message.registerRole({
+      id: "assistant",
+      displayName: "Sonnet 4.5",
+      icon: "spark",
+      avatarVariant: "msg-agent",
+    });
+    host.message.registerRole({
+      id: "system",
+      displayName: "System",
+      icon: "shield",
+      avatarVariant: "msg-agent",
+    });
+  },
+});
+
+// HTTP_KEYS lists every query key from `lib/queries.ts`. Adding a key in
+// queries without adding it here will make the corresponding hook reject
+// at runtime (no provider registered).
+const HTTP_KEYS = [
+  "sessions",
+  "projects",
+  "files-changed",
+  "diff",
+  "terminal",
+  "grep",
+  "file-head",
+  "mcp-servers",
+] as const;
+
+export const defaultData = definePlugin({
+  name: "lyra.builtin.default-data",
+  version: "1.0.0",
+  setup({ host }) {
+    for (const key of HTTP_KEYS) {
+      host.data.registerProvider({
+        key,
+        fetcher: () => api.get(key).json(),
+      });
+    }
+  },
+});

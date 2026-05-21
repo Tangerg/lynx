@@ -1,5 +1,5 @@
 // Agent view state — backed by Zustand so plugin renderers (settings panes,
-// inspector tabs, content blocks) can subscribe to slices of it without
+// workspace views, content blocks) can subscribe to slices of it without
 // having to thread props through the entire component tree.
 //
 // useAgentSession drives this store: it subscribes to the underlying AbstractAgent
