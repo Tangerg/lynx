@@ -1,120 +1,121 @@
 package main
 
 import (
-	"context"
 	"errors"
 	"fmt"
+
+	"github.com/spf13/cobra"
 
 	"github.com/Tangerg/lynx/lyra/internal/service/session"
 )
 
-// cmdSession is `lyra session <sub>` — list / show / delete the
-// runtime's known sessions. SessionService is in-memory only today;
-// a `lyra session list` after a process restart returns an empty
-// slice until M3 persistence lands.
-func cmdSession(args []string) int {
-	if len(args) == 0 {
-		printSessionUsage()
-		return 2
+// SessionCmd is the `lyra session` group — CRUD over saved
+// sessions. Subcommands attach as cobra children so `lyra
+// session --help` lists them automatically.
+func (a *App) SessionCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "session",
+		Short: "Manage saved sessions (list / show / delete).",
 	}
-	sub, rest := args[0], args[1:]
+	cmd.AddCommand(
+		a.sessionListCmd(),
+		a.sessionShowCmd(),
+		a.sessionDeleteCmd(),
+	)
+	return cmd
+}
 
-	rt, err := newRuntime()
-	if err != nil {
-		return printErr(err)
-	}
-
-	switch sub {
-	case "list", "ls":
-		return sessionList(rt)
-	case "show":
-		return sessionShow(rt, rest)
-	case "delete", "rm":
-		return sessionDelete(rt, rest)
-	case "-h", "--help", "help":
-		printSessionUsage()
-		return 0
-	default:
-		fmt.Fprintf(stderr(), "lyra session: unknown sub-command %q\n\n", sub)
-		printSessionUsage()
-		return 2
+func (a *App) sessionListCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:     "list",
+		Aliases: []string{"ls"},
+		Short:   "List all known sessions.",
+		Args:    cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := a.ensureRuntime(); err != nil {
+				return a.fatalErr(err)
+			}
+			sessions, err := a.session.List(cmd.Context())
+			if err != nil {
+				return a.fatalErr(err)
+			}
+			if len(sessions) == 0 {
+				fmt.Fprintln(a.Out, "(no sessions)")
+				return nil
+			}
+			fmt.Fprintf(a.Out, "%-36s  %-19s  %5s  %s\n", "ID", "UPDATED", "TURNS", "TITLE")
+			for _, s := range sessions {
+				fmt.Fprintf(a.Out, "%-36s  %-19s  %5d  %s\n",
+					s.ID,
+					s.UpdatedAt.Format("2006-01-02 15:04:05"),
+					s.TurnCount,
+					s.Title,
+				)
+			}
+			return nil
+		},
 	}
 }
 
-func printSessionUsage() {
-	fmt.Fprintln(stderr(), "Usage: lyra session <list|show|delete> [args]")
-	fmt.Fprintln(stderr(), "  list           List all known sessions.")
-	fmt.Fprintln(stderr(), "  show <id>      Show one session's metadata.")
-	fmt.Fprintln(stderr(), "  delete <id>    Drop a session (idempotent).")
+func (a *App) sessionShowCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "show <id>",
+		Short: "Show one session's metadata.",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := a.ensureRuntime(); err != nil {
+				return a.fatalErr(err)
+			}
+			id := args[0]
+			sess, err := a.session.Get(cmd.Context(), id)
+			if err != nil {
+				if errors.Is(err, session.ErrNotFound) {
+					fmt.Fprintf(a.Err, "lyra: session %q not found\n", id)
+					return errSilenced
+				}
+				return a.fatalErr(err)
+			}
+			printSession(a.Out, sess)
+			return nil
+		},
+	}
 }
 
-func sessionList(rt *runtime) int {
-	sessions, err := rt.session.List(context.Background())
-	if err != nil {
-		return printErr(err)
+func (a *App) sessionDeleteCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:     "delete <id>",
+		Aliases: []string{"rm"},
+		Short:   "Drop a session (idempotent).",
+		Args:    cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := a.ensureRuntime(); err != nil {
+				return a.fatalErr(err)
+			}
+			if err := a.session.Delete(cmd.Context(), args[0]); err != nil {
+				return a.fatalErr(err)
+			}
+			fmt.Fprintf(a.Err, "[lyra] deleted session %s\n", args[0])
+			return nil
+		},
 	}
-	if len(sessions) == 0 {
-		fmt.Fprintln(stdout(), "(no sessions)")
-		return 0
-	}
-	// Plain table; tabwriter would be cleaner but std-only keeps deps small.
-	fmt.Fprintf(stdout(), "%-36s  %-19s  %5s  %s\n", "ID", "UPDATED", "TURNS", "TITLE")
-	for _, s := range sessions {
-		fmt.Fprintf(stdout(), "%-36s  %-19s  %5d  %s\n",
-			s.ID,
-			s.UpdatedAt.Format("2006-01-02 15:04:05"),
-			s.TurnCount,
-			s.Title,
-		)
-	}
-	return 0
 }
 
-func sessionShow(rt *runtime, args []string) int {
-	fs := newSubFlagSet("session show")
-	if err := fs.Parse(args); err != nil {
-		return 2
-	}
-	if fs.NArg() != 1 {
-		fmt.Fprintln(stderr(), "Usage: lyra session show <id>")
-		return 2
-	}
-	id := fs.Arg(0)
-
-	sess, err := rt.session.Get(context.Background(), id)
-	if err != nil {
-		if errors.Is(err, session.ErrNotFound) {
-			fmt.Fprintf(stderr(), "lyra: session %q not found\n", id)
-			return 1
-		}
-		return printErr(err)
-	}
-	fmt.Fprintf(stdout(), "id:         %s\n", sess.ID)
-	fmt.Fprintf(stdout(), "title:      %s\n", sess.Title)
+// printSession is the shared renderer for `session show`. Kept as
+// a package-level function (not a method) because it depends on
+// nothing but the supplied writer + session value.
+func printSession(out interface {
+	Write([]byte) (int, error)
+}, sess session.Session) {
+	fmt.Fprintf(out, "id:         %s\n", sess.ID)
+	fmt.Fprintf(out, "title:      %s\n", sess.Title)
 	if sess.ParentID != "" {
-		fmt.Fprintf(stdout(), "parent:     %s\n", sess.ParentID)
+		fmt.Fprintf(out, "parent:     %s\n", sess.ParentID)
 	}
-	fmt.Fprintf(stdout(), "started_at: %s\n", sess.StartedAt.Format("2006-01-02 15:04:05"))
-	fmt.Fprintf(stdout(), "updated_at: %s\n", sess.UpdatedAt.Format("2006-01-02 15:04:05"))
-	fmt.Fprintf(stdout(), "turns:      %d\n", sess.TurnCount)
+	fmt.Fprintf(out, "started_at: %s\n", sess.StartedAt.Format("2006-01-02 15:04:05"))
+	fmt.Fprintf(out, "updated_at: %s\n", sess.UpdatedAt.Format("2006-01-02 15:04:05"))
+	fmt.Fprintf(out, "turns:      %d\n", sess.TurnCount)
 	for k, v := range sess.Metadata {
-		fmt.Fprintf(stdout(), "meta.%s: %s\n", k, v)
+		fmt.Fprintf(out, "meta.%s: %s\n", k, v)
 	}
-	return 0
 }
 
-func sessionDelete(rt *runtime, args []string) int {
-	fs := newSubFlagSet("session delete")
-	if err := fs.Parse(args); err != nil {
-		return 2
-	}
-	if fs.NArg() != 1 {
-		fmt.Fprintln(stderr(), "Usage: lyra session delete <id>")
-		return 2
-	}
-	if err := rt.session.Delete(context.Background(), fs.Arg(0)); err != nil {
-		return printErr(err)
-	}
-	fmt.Fprintf(stderr(), "[lyra] deleted session %s\n", fs.Arg(0))
-	return 0
-}
