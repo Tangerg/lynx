@@ -91,11 +91,7 @@ respond with exactly: NO_FACTS
 
 Otherwise output ONLY the bullets, no preamble or trailing text.`
 
-	text, _, err := e.client.Chat().
-		WithSystemPrompt(prompt).
-		WithUserPrompt(transcript).
-		Call().
-		Text(ctx)
+	text, err := askDirect(ctx, e.client, prompt, transcript)
 	if err != nil {
 		return "", err
 	}

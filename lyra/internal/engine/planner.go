@@ -60,11 +60,7 @@ commentary, no JSON wrapper.`
 		composedSystem = systemPrompt + "\n\n---\n\n" + planInstructions
 	}
 
-	text, _, err := p.client.Chat().
-		WithSystemPrompt(composedSystem).
-		WithUserPrompt(userMessage).
-		Call().
-		Text(ctx)
+	text, err := askDirect(ctx, p.client, composedSystem, userMessage)
 	if err != nil {
 		return "", err
 	}

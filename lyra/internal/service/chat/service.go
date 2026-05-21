@@ -116,8 +116,15 @@ func (d PlanDecision) String() string {
 // All events carry [BaseEvent] for routing — SessionID + TurnID + Seq
 // + Timestamp. Seq is monotone within a turn so clients can detect
 // gaps after reconnects (Phase 2).
+//
+// Concrete event types additionally implement [stamper] (an
+// unexported interface) so the runtime can assign Seq + Timestamp
+// uniformly without a hand-maintained type switch. Adding a new
+// event = adding the struct + one stamp method — the dispatcher
+// in impl.go doesn't change.
 type Event interface {
 	isLyraEvent()
+	stamp(seq uint64, ts time.Time) Event
 }
 
 // BaseEvent is the common header on every event. Embedded by all
@@ -201,6 +208,46 @@ type ErrorEvent struct {
 	BaseEvent
 	Message string
 	Code    string // stable error code; see errors.go
+}
+
+// stamp implementations — concrete events return themselves with
+// the BaseEvent header rewritten. Value-typed events are the right
+// idiom here: the dispatcher (impl.emit) takes ownership of a copy
+// so concurrent receivers can't observe a half-stamped header.
+
+func (e TurnStart) stamp(seq uint64, ts time.Time) Event {
+	e.Seq, e.Timestamp = seq, ts
+	return e
+}
+
+func (e MessageDelta) stamp(seq uint64, ts time.Time) Event {
+	e.Seq, e.Timestamp = seq, ts
+	return e
+}
+
+func (e ToolCallStart) stamp(seq uint64, ts time.Time) Event {
+	e.Seq, e.Timestamp = seq, ts
+	return e
+}
+
+func (e ToolCallEnd) stamp(seq uint64, ts time.Time) Event {
+	e.Seq, e.Timestamp = seq, ts
+	return e
+}
+
+func (e PlanGenerated) stamp(seq uint64, ts time.Time) Event {
+	e.Seq, e.Timestamp = seq, ts
+	return e
+}
+
+func (e TurnEnd) stamp(seq uint64, ts time.Time) Event {
+	e.Seq, e.Timestamp = seq, ts
+	return e
+}
+
+func (e ErrorEvent) stamp(seq uint64, ts time.Time) Event {
+	e.Seq, e.Timestamp = seq, ts
+	return e
 }
 
 // TurnEndReason enumerates why a turn ended.

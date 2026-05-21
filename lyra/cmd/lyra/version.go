@@ -1,7 +1,6 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 	"runtime/debug"
 )
@@ -14,8 +13,7 @@ var version = "dev"
 // info embedded by the toolchain. The latter is useful in bug
 // reports — it shows which lynx-agent commit Lyra was built against.
 func cmdVersion(args []string) int {
-	fs := flag.NewFlagSet("version", flag.ContinueOnError)
-	fs.SetOutput(stderr())
+	fs := newSubFlagSet("version")
 	verbose := fs.Bool("v", false, "print build info from debug.ReadBuildInfo")
 	if err := fs.Parse(args); err != nil {
 		return 2

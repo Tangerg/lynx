@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"errors"
-	"flag"
 	"fmt"
 
 	"github.com/Tangerg/lynx/lyra/internal/service/session"
@@ -72,8 +71,7 @@ func sessionList(rt *runtime) int {
 }
 
 func sessionShow(rt *runtime, args []string) int {
-	fs := flag.NewFlagSet("session show", flag.ContinueOnError)
-	fs.SetOutput(stderr())
+	fs := newSubFlagSet("session show")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
@@ -106,8 +104,7 @@ func sessionShow(rt *runtime, args []string) int {
 }
 
 func sessionDelete(rt *runtime, args []string) int {
-	fs := flag.NewFlagSet("session delete", flag.ContinueOnError)
-	fs.SetOutput(stderr())
+	fs := newSubFlagSet("session delete")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}

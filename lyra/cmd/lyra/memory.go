@@ -111,8 +111,7 @@ func (f *memoryScopeFlag) resolve() (memory.Scope, bool) {
 }
 
 func memoryShow(rt *runtime, args []string) int {
-	fs := flag.NewFlagSet("memory show", flag.ContinueOnError)
-	fs.SetOutput(stderr())
+	fs := newSubFlagSet("memory show")
 	scope := scopeFlag(fs, true)
 	if err := fs.Parse(args); err != nil {
 		return 2
@@ -145,8 +144,7 @@ func printScope(rt *runtime, ctx context.Context, scope memory.Scope, label stri
 }
 
 func memorySet(rt *runtime, args []string) int {
-	fs := flag.NewFlagSet("memory set", flag.ContinueOnError)
-	fs.SetOutput(stderr())
+	fs := newSubFlagSet("memory set")
 	scope := scopeFlag(fs, false)
 	from := fs.String("from", "", "read content from this file (default: stdin)")
 	if err := fs.Parse(args); err != nil {
@@ -176,8 +174,7 @@ func memorySet(rt *runtime, args []string) int {
 }
 
 func memoryClear(rt *runtime, args []string) int {
-	fs := flag.NewFlagSet("memory clear", flag.ContinueOnError)
-	fs.SetOutput(stderr())
+	fs := newSubFlagSet("memory clear")
 	scope := scopeFlag(fs, false)
 	if err := fs.Parse(args); err != nil {
 		return 2
