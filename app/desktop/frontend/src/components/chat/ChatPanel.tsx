@@ -19,6 +19,7 @@ import { useStickyBottomScroll } from "@/lib/useStickyBottomScroll";
 import { useAgentStore } from "@/state/agentStore";
 import { useComposerStore } from "@/state/composerStore";
 import { useUIStore } from "@/state/uiStore";
+import { ChatErrorBoundary } from "./ChatErrorBoundary";
 import { ChatTopBar, type ChatTab } from "./ChatTopBar";
 import { MessageStream } from "./MessageStream";
 import { SlashSuggestions } from "./SlashSuggestions";
@@ -128,18 +129,23 @@ export function ChatPanel({ onSend }: Props) {
         </PluginBoundary>
       ) : (
         <>
-          <MessageStream
-            ref={scrollRef}
-            messages={messages}
-            ctx={{
-              plan,
-              toolCalls,
-              selectedToolId,
-              onSelectTool: setSelectedToolId,
-              expandedIds: expandedToolIds,
-              onToggleExpand: toggleExpandedTool,
-            }}
-          />
+          <ChatErrorBoundary
+            resetKey={activeSession}
+            label={`session:${activeSession}`}
+          >
+            <MessageStream
+              ref={scrollRef}
+              messages={messages}
+              ctx={{
+                plan,
+                toolCalls,
+                selectedToolId,
+                onSelectTool: setSelectedToolId,
+                expandedIds: expandedToolIds,
+                onToggleExpand: toggleExpandedTool,
+              }}
+            />
+          </ChatErrorBoundary>
           <div className="composer-wrap">
             <div className="composer-fade" />
             <div className="composer-inner">
