@@ -99,3 +99,61 @@ func BestValuePlan(
 	}
 	return plans[0], nil
 }
+
+// Prune returns a copy of system whose Actions slice is filtered
+// down to actions referenced by at least one plan reachable from
+// start. Goals and Conditions are kept verbatim — the dead-code
+// signal we care about is "this action can never participate in
+// any plan", not "this goal is unreachable".
+//
+// Use cases (mirrors embabel's OptimizingGoapPlanner.prune):
+//
+//   - Deploy-time diagnostic — surface "agent X has N actions of
+//     which K are unreachable" so the author can clean up the
+//     definition or notice a misconfigured precondition.
+//   - Documentation generation — strip dead actions before
+//     rendering the action catalog.
+//   - Repeated planning over an optimised system — the planner
+//     stops considering known-dead actions tick after tick.
+//
+// Prune does *not* mutate system. Returns (nil, error) when the
+// underlying [PlansToGoals] call fails; returns (clone-with-empty-
+// actions, nil) when no goal is reachable so callers can detect
+// the "every action is dead" case.
+func Prune(
+	ctx context.Context,
+	p Planner,
+	start core.WorldState,
+	system *PlanningSystem,
+	options PlanOptions,
+) (*PlanningSystem, error) {
+	if system == nil {
+		return nil, errors.New("prune: planning system is nil")
+	}
+
+	plans, err := PlansToGoals(ctx, p, start, system, options)
+	if err != nil {
+		return nil, err
+	}
+
+	referenced := map[string]struct{}{}
+	for _, plan := range plans {
+		for _, action := range plan.Actions {
+			if action == nil {
+				continue
+			}
+			referenced[action.Metadata().Name] = struct{}{}
+		}
+	}
+
+	kept := make([]core.Action, 0, len(referenced))
+	for _, action := range system.Actions {
+		if action == nil {
+			continue
+		}
+		if _, ok := referenced[action.Metadata().Name]; ok {
+			kept = append(kept, action)
+		}
+	}
+	return NewPlanningSystem(kept, system.Goals, system.Conditions), nil
+}
