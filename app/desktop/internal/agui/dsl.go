@@ -200,34 +200,27 @@ func (s adHocToolStep) Run(e *env) bool {
 	})
 }
 
-// CustomVal emits a CUSTOM event with a static value. For values that
-// depend on env state (e.g. parentMessageId pointing at the current
-// assistant message), use CustomFn instead.
-func CustomVal(name string, value any) Step { return customValStep{name, value} }
-
-type customValStep struct {
-	name  string
-	value any
-}
-
-func (s customValStep) Run(e *env) bool {
-	return e.send(sdkevents.NewCustomEvent(s.name, sdkevents.WithValue(s.value)))
-}
-
-// CustomFn is the env-aware variant of CustomVal — the value-builder gets
-// the live env so it can reach into `assistantID` etc. Used for the
-// plan-block / search-results / approval / code-proposal events that
-// attach to the current assistant message.
+// CustomFn emits a CUSTOM event whose value is built from the live env —
+// `assistantID`, `input`, anything the step needs to interpolate at
+// runtime. Used for plan-block / search-results / code-proposal etc.
+// where the value depends on the currently-open assistant message.
 func CustomFn(name string, build func(e *env) any) Step {
-	return customFnStep{name, build}
+	return customStep{name, build}
 }
 
-type customFnStep struct {
+// CustomVal is the static-value sugar over CustomFn — passes a constant
+// builder. Kept as a separate top-level helper so the most common case
+// (no env access) stays terse at the call site.
+func CustomVal(name string, value any) Step {
+	return CustomFn(name, func(*env) any { return value })
+}
+
+type customStep struct {
 	name  string
 	build func(e *env) any
 }
 
-func (s customFnStep) Run(e *env) bool {
+func (s customStep) Run(e *env) bool {
 	return e.send(sdkevents.NewCustomEvent(s.name, sdkevents.WithValue(s.build(e))))
 }
 

@@ -1,6 +1,5 @@
-import { useState } from "react";
 import { Icon, PillButton } from "@/components/common";
-import { AGUI_BASE } from "@/lib/http";
+import { useApprovalSubmit, type ApprovalDecision } from "@/lib/useApprovalSubmit";
 
 type Props = {
   what: string;
@@ -10,56 +9,26 @@ type Props = {
    *  card renders as a decorative pre-HITL preview with no buttons. */
   requestId?: string;
   /** Set by the agui-handlers reducer once the backend has confirmed
-   *  receipt of the decision via the lyra.approval-result event. The
-   *  card swaps to its post-decision look. */
-  decision?: "approved" | "declined";
+   *  receipt of the decision via the lyra.approval-result event. */
+  decision?: ApprovalDecision;
 };
 
-// Approval card — drives the human-in-the-loop gate for tool calls.
+// Approval card — pure presentation. HTTP / submitting state lives in
+// useApprovalSubmit; this component only renders three visual states:
+//   - settled       → checkpoint row (decision is the authoritative source)
+//   - optimistic    → checkpoint row (pending is the user's last click)
+//   - pre-decision  → action card with Approve / Decline buttons
 //
-// Flow:
-//   1. Backend script hits an Approval(...) step → blocks
-//   2. Backend emits lyra.approval CUSTOM event with a requestId
-//   3. Reducer materialises an approval content block
-//   4. THIS card renders Approve / Decline buttons
-//   5. User clicks → POST /permission { requestId, decision }
-//   6. Backend resolves the chan + emits lyra.approval-result
-//   7. Reducer stamps `decision` on the block → card switches state
-//
-// `decision` is the source of truth post-click — when it's set, the
-// card shows the committed view and ignores its own local "submitting"
-// flag. That way switching sessions and coming back keeps the card
-// in the same state the backend confirmed.
+// Flow recap (HITL):
+//   1. Backend Approval(...) step → emit lyra.approval { requestId }
+//   2. Reducer materialises an approval content block (this card)
+//   3. User clicks → useApprovalSubmit POSTs /permission
+//   4. Backend resolves the chan, script emits lyra.approval-result
+//   5. Reducer stamps `decision` on the block → card swaps state
 export function ApprovalCard({ what, cmd, reason, requestId, decision }: Props) {
-  const [submitting, setSubmitting] = useState<null | "approved" | "declined">(null);
+  const { submit, pending } = useApprovalSubmit(requestId);
 
-  const send = async (next: "approved" | "declined") => {
-    if (!requestId || submitting || decision) return;
-    setSubmitting(next);
-    try {
-      const r = await fetch(`${AGUI_BASE}/permission`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ requestId, decision: next }),
-      });
-      if (!r.ok) {
-        // eslint-disable-next-line no-console
-        console.error("[approval] /permission rejected:", r.status, await r.text().catch(() => ""));
-        setSubmitting(null);
-      }
-      // On success we leave `submitting` set — the backend's
-      // lyra.approval-result event flips `decision` on the block,
-      // which is what we render against next.
-    } catch (err) {
-      // eslint-disable-next-line no-console
-      console.error("[approval] network error:", err);
-      setSubmitting(null);
-    }
-  };
-
-  // Post-decision states — show a compact confirmation row instead of
-  // the full card. Matches the existing checkpoint style.
-  const finalised = decision ?? submitting;
+  const finalised = decision ?? pending;
   if (finalised === "approved") {
     return (
       <div className="checkpoint">
@@ -79,9 +48,9 @@ export function ApprovalCard({ what, cmd, reason, requestId, decision }: Props) 
     );
   }
 
-  // Pre-decision card. The action buttons are disabled when there's no
-  // requestId (decorative preview) or while a request is in flight.
-  const disabled = !requestId || submitting !== null;
+  // Pre-decision card. Buttons disabled when no requestId (decorative
+  // preview) or while a request is in flight.
+  const disabled = !requestId || pending !== null;
   return (
     <div className="approval-card">
       <div className="head">
@@ -95,14 +64,14 @@ export function ApprovalCard({ what, cmd, reason, requestId, decision }: Props) 
           variant="accent"
           style={{ height: 30, fontSize: 11 }}
           disabled={disabled}
-          onClick={() => send("approved")}
+          onClick={() => submit("approved")}
         >
           Approve
         </PillButton>
         <PillButton
           style={{ height: 30, fontSize: 11 }}
           disabled={disabled}
-          onClick={() => send("declined")}
+          onClick={() => submit("declined")}
         >
           Decline
         </PillButton>

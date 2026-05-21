@@ -117,15 +117,10 @@ export function useAgentAction(kind: "stop" | "send"): StopFn | SendFn {
 }
 
 /**
- * Imperative helper for non-React code (toolRouting, plugin command
- * handlers) that needs to query a session's view by id.
+ * Imperative helper — read the current session's view from outside React.
+ * Used by non-component code (toolRouting, plugin command handlers).
  */
-export function getSessionView(sessionId: string): AgentViewState {
-  return useAgentStore.getState().sessions[sessionId]?.view ?? INITIAL_VIEW_STATE;
-}
-
-/** Imperative helper — read the current session's view from outside React. */
 export function getCurrentSessionView(): AgentViewState {
   const sid = useUIStore.getState().activeSessionId;
-  return getSessionView(sid);
+  return useAgentStore.getState().sessions[sid]?.view ?? INITIAL_VIEW_STATE;
 }
