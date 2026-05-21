@@ -43,6 +43,15 @@ export function useStickyBottomScroll<T>(
   const followRef = useRef(true);
   const [atBottom, setAtBottom] = useState(true);
 
+  // The single place follow-state mutates. Updates the ref (read by the
+  // RO callback) AND the mirrored React state (read by consumers /
+  // JumpToBottomButton). setState short-circuits on equal values so
+  // it's safe to call indiscriminately on every scroll tick.
+  const setFollow = useCallback((next: boolean) => {
+    followRef.current = next;
+    setAtBottom(next);
+  }, []);
+
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
@@ -61,19 +70,10 @@ export function useStickyBottomScroll<T>(
     el.addEventListener("touchmove", markUserInput, { passive: true });
     el.addEventListener("mousedown", markUserInput);
 
-    // `sync` mirrors followRef into React state. Cheap when the value
-    // hasn't changed (setState bails on equal references), so we can
-    // call it from both the scroll handler and the RO callback without
-    // worrying about extra renders.
-    const sync = (next: boolean) => {
-      followRef.current = next;
-      setAtBottom((prev) => (prev === next ? prev : next));
-    };
-
     const onScroll = () => {
       if (userInputTimeout === null) return; // programmatic, ignore
       const dist = el.scrollHeight - el.scrollTop - el.clientHeight;
-      sync(dist <= 1);
+      setFollow(dist <= 1);
     };
     el.addEventListener("scroll", onScroll, { passive: true });
 
@@ -97,24 +97,21 @@ export function useStickyBottomScroll<T>(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Reset on key change — snap to bottom + re-arm follow. The
-  // programmatic scroll won't disengage follow because the input-timeout
-  // gate in onScroll filters it out.
-  useEffect(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    el.scrollTop = el.scrollHeight;
-    followRef.current = true;
-    setAtBottom(true);
-  }, [resetKey, scrollRef]);
-
+  // scrollToBottom is the programmatic "back to live tail" — snaps the
+  // scroll position AND re-arms follow. The programmatic scroll itself
+  // doesn't disengage follow because the input-timeout gate in
+  // onScroll filters it out.
   const scrollToBottom = useCallback(() => {
     const el = scrollRef.current;
     if (!el) return;
     el.scrollTop = el.scrollHeight;
-    followRef.current = true;
-    setAtBottom(true);
-  }, [scrollRef]);
+    setFollow(true);
+  }, [scrollRef, setFollow]);
+
+  // Reset on key change — equivalent to a user-triggered scrollToBottom.
+  useEffect(() => {
+    scrollToBottom();
+  }, [resetKey, scrollToBottom]);
 
   return { atBottom, scrollToBottom };
 }
