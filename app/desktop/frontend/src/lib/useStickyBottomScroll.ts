@@ -1,4 +1,4 @@
-import { useEffect, useRef, type RefObject } from "react";
+import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 
 // useStickyBottomScroll — keeps a scroll container glued to its content's
 // bottom while the content grows, but yields control the moment the user
@@ -24,13 +24,24 @@ import { useEffect, useRef, type RefObject } from "react";
 // performs the actual auto-scroll only when follow mode is on.
 //
 // `resetKey` forces follow mode back ON and snaps to the bottom when it
-// changes (e.g. switching sessions / threads). Pass the active id you
-// want to reset on.
+// changes (e.g. switching sessions / threads).
+//
+// Returns `{ atBottom, scrollToBottom }` so the caller can render a
+// "jump to bottom" affordance and programmatically re-engage follow
+// when the user clicks it. `atBottom` mirrors the ref but is React
+// state so it re-renders consumers; the ref stays the fast path used
+// inside the rAF/ResizeObserver loop.
+export type StickyBottomControls = {
+  atBottom: boolean;
+  scrollToBottom: () => void;
+};
+
 export function useStickyBottomScroll<T>(
   scrollRef: RefObject<HTMLDivElement | null>,
   resetKey: T,
-) {
+): StickyBottomControls {
   const followRef = useRef(true);
+  const [atBottom, setAtBottom] = useState(true);
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -50,10 +61,19 @@ export function useStickyBottomScroll<T>(
     el.addEventListener("touchmove", markUserInput, { passive: true });
     el.addEventListener("mousedown", markUserInput);
 
+    // `sync` mirrors followRef into React state. Cheap when the value
+    // hasn't changed (setState bails on equal references), so we can
+    // call it from both the scroll handler and the RO callback without
+    // worrying about extra renders.
+    const sync = (next: boolean) => {
+      followRef.current = next;
+      setAtBottom((prev) => (prev === next ? prev : next));
+    };
+
     const onScroll = () => {
       if (userInputTimeout === null) return; // programmatic, ignore
       const dist = el.scrollHeight - el.scrollTop - el.clientHeight;
-      followRef.current = dist <= 1;
+      sync(dist <= 1);
     };
     el.addEventListener("scroll", onScroll, { passive: true });
 
@@ -85,5 +105,16 @@ export function useStickyBottomScroll<T>(
     if (!el) return;
     el.scrollTop = el.scrollHeight;
     followRef.current = true;
+    setAtBottom(true);
   }, [resetKey, scrollRef]);
+
+  const scrollToBottom = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
+    followRef.current = true;
+    setAtBottom(true);
+  }, [scrollRef]);
+
+  return { atBottom, scrollToBottom };
 }
