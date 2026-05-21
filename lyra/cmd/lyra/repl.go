@@ -3,10 +3,8 @@ package main
 import (
 	"bufio"
 	"context"
-	"flag"
 	"fmt"
 	"io"
-	"os"
 	"strings"
 )
 
@@ -25,8 +23,7 @@ import (
 // start; every turn shares the same session id so chat-memory
 // links them.
 func cmdRepl(args []string) int {
-	fs := flag.NewFlagSet("repl", flag.ContinueOnError)
-	fs.SetOutput(stderr())
+	fs := newSubFlagSet("repl")
 	sessionFlag := fs.String("session", "", "resume an existing session id (default: create a fresh one)")
 	fs.Usage = func() {
 		fmt.Fprintln(stderr(), "Usage: lyra repl [--session ID]")
@@ -141,7 +138,3 @@ func handleSlashCommand(rt *runtime, line, current string) (done bool, newSessio
 	return false, ""
 }
 
-// stdin indirection mirrors stdout / stderr so tests can swap it.
-var inStream io.Reader = os.Stdin
-
-func stdin() io.Reader { return inStream }

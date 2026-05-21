@@ -128,11 +128,7 @@ function names) so they remain greppable. Do NOT include the
 preamble or the user message; the agent will receive your bullets
 verbatim as part of its system prompt.`
 
-	text, _, err := c.client.Chat().
-		WithSystemPrompt(prompt).
-		WithUserPrompt(transcript).
-		Call().
-		Text(ctx)
+	text, err := askDirect(ctx, c.client, prompt, transcript)
 	if err != nil {
 		return nil, err
 	}

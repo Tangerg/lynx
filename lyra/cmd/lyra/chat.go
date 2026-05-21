@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"flag"
 	"fmt"
 	"strings"
 
@@ -20,8 +19,7 @@ import (
 // plan, prints it, and waits for the user's y/N before executing
 // any tools. --auto-approve skips the prompt for unattended runs.
 func cmdChat(args []string) int {
-	fs := flag.NewFlagSet("chat", flag.ContinueOnError)
-	fs.SetOutput(stderr())
+	fs := newSubFlagSet("chat")
 	planMode := fs.Bool("plan", false, "ask the LLM for a plan and prompt to approve before executing")
 	autoApprove := fs.Bool("auto-approve", false, "with --plan: approve the plan without prompting")
 	fs.Usage = func() {

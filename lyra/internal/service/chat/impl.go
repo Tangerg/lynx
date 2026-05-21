@@ -3,7 +3,6 @@ package chat
 import (
 	"context"
 	"errors"
-	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -283,71 +282,23 @@ func (s *impl) runTurn(ctx context.Context, st *turnState, req StartTurnRequest)
 // emit drops one event on the turn's channel. The send is non-blocking
 // for cancellation safety — if the receiver has fallen behind we drop
 // the event rather than block the turn forever.
+// emit stamps the event with the next sequence number and timestamp
+// and pushes it onto the turn's channel. Type-specific stamping
+// lives on each concrete event (via the unexported [Event.stamp]
+// method) so this dispatcher stays open-closed — adding a new
+// event variant means writing the struct + one stamp method,
+// nothing here.
+//
+// Sends are non-blocking: if the receiver has fallen behind, we
+// drop the event rather than stall the turn. A future enhancement
+// could buffer dropped events into an outbox + metric counter so
+// slow clients are visible in observability.
 func (s *impl) emit(st *turnState, ev Event) {
-	switch e := ev.(type) {
-	case TurnStart:
-		ev = withSeq(st, e)
-	case MessageDelta:
-		ev = withSeq(st, e)
-	case ToolCallStart:
-		ev = withSeq(st, e)
-	case ToolCallEnd:
-		ev = withSeq(st, e)
-	case PlanGenerated:
-		ev = withSeq(st, e)
-	case TurnEnd:
-		ev = withSeq(st, e)
-	case ErrorEvent:
-		ev = withSeq(st, e)
-	default:
-		panic(fmt.Sprintf("chat: unknown event type %T", ev))
-	}
-
+	stamped := ev.stamp(st.seq.Add(1), time.Now())
 	select {
-	case st.events <- ev:
+	case st.events <- stamped:
 	default:
-		// Drop — subscriber is too slow. Future enhancement: buffered
-		// outbox with metric counter so we can spot slow clients.
 	}
-}
-
-// withSeq is the type-aware seq stamping helper. Each concrete event
-// is a value type; we rewrite the BaseEvent's Seq before sending.
-func withSeq(st *turnState, ev Event) Event {
-	seq := st.seq.Add(1)
-	now := time.Now()
-
-	switch e := ev.(type) {
-	case TurnStart:
-		e.BaseEvent.Seq = seq
-		e.BaseEvent.Timestamp = now
-		return e
-	case MessageDelta:
-		e.BaseEvent.Seq = seq
-		e.BaseEvent.Timestamp = now
-		return e
-	case ToolCallStart:
-		e.BaseEvent.Seq = seq
-		e.BaseEvent.Timestamp = now
-		return e
-	case ToolCallEnd:
-		e.BaseEvent.Seq = seq
-		e.BaseEvent.Timestamp = now
-		return e
-	case PlanGenerated:
-		e.BaseEvent.Seq = seq
-		e.BaseEvent.Timestamp = now
-		return e
-	case TurnEnd:
-		e.BaseEvent.Seq = seq
-		e.BaseEvent.Timestamp = now
-		return e
-	case ErrorEvent:
-		e.BaseEvent.Seq = seq
-		e.BaseEvent.Timestamp = now
-		return e
-	}
-	return ev
 }
 
 func (st *turnState) baseEvent() BaseEvent {
