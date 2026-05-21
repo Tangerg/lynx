@@ -9,6 +9,9 @@ import (
 	"net/http"
 	"sync"
 	"time"
+
+	sdkevents "github.com/ag-ui-protocol/ag-ui/sdks/community/go/pkg/core/events"
+	sdksse "github.com/ag-ui-protocol/ag-ui/sdks/community/go/pkg/encoding/sse"
 )
 
 // DefaultAddr is the loopback-only address the mock listens on.
@@ -82,6 +85,10 @@ func (s *Server) Stop(ctx context.Context) error {
 
 // handleRun is the AG-UI /run endpoint:
 //   POST application/json (RunAgentInput) → text/event-stream
+//
+// Events are produced by the community Go SDK and framed by its SSEWriter,
+// which handles newline escaping in JSON payloads and the flush-per-event
+// dance for us.
 func (s *Server) handleRun(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodOptions {
 		w.WriteHeader(http.StatusNoContent)
@@ -92,8 +99,7 @@ func (s *Server) handleRun(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	flusher, ok := w.(http.Flusher)
-	if !ok {
+	if _, ok := w.(http.Flusher); !ok {
 		http.Error(w, "streaming unsupported", http.StatusInternalServerError)
 		return
 	}
@@ -109,22 +115,14 @@ func (s *Server) handleRun(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Connection", "keep-alive")
 	w.Header().Set("X-Accel-Buffering", "no") // disable nginx-style buffering, harmless locally
 	w.WriteHeader(http.StatusOK)
-	flusher.Flush()
 
 	// Cancel the run when the client disconnects (closes the connection or
 	// aborts the fetch). AbstractAgent.abortRun() triggers this path.
 	ctx := r.Context()
 
-	emit := func(ev Event) error {
-		data, err := ev.Marshal()
-		if err != nil {
-			return err
-		}
-		if _, err := fmt.Fprintf(w, "data: %s\n\n", data); err != nil {
-			return err
-		}
-		flusher.Flush()
-		return nil
+	writer := sdksse.NewSSEWriter()
+	emit := func(ev sdkevents.Event) error {
+		return writer.WriteEvent(ctx, w, ev)
 	}
 
 	Run(ctx, input, emit)

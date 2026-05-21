@@ -119,9 +119,50 @@
   --radius-full:   9999px;/* Nav pills */
   --radius-circle: 50%;   /* Play, avatar */
 
-  /* ---------- SHADOWS — Heavy by design, on black ---------- */
-  --shadow-card:   rgba(0, 0, 0, 0.3) 0px 8px 8px;
-  --shadow-dialog: rgba(0, 0, 0, 0.5) 0px 8px 24px;
+  /* ---------- MOTION — Easing + durations ---------- */
+  /* Standard ease-out — quick exit, gentle settle. Same curve we use in
+     motion/react via `lib/motion.ts` so CSS and JS animations match. */
+  --ease-out:      cubic-bezier(0.3, 0, 0, 1);
+  --ease-in-out:   cubic-bezier(0.45, 0, 0.55, 1);
+  /* "Emphasized decel" — bigger, slower tail. Use for large surface
+     moves (panel slide-in, expansion). Not for small hovers. */
+  --ease-emphasized: cubic-bezier(0.16, 1, 0.3, 1);
+
+  --dur-instant:   80ms;
+  --dur-fast:      140ms;
+  --dur-med:       220ms;
+  --dur-slow:      360ms;
+
+  /* Convenience presets: pair common duration with the default ease. */
+  --polish-fast:   var(--dur-fast) var(--ease-out);
+  --polish-med:    var(--dur-med) var(--ease-out);
+
+  /* ---------- SHADOWS — Multi-layer soft, on black ---------- */
+  /* Dark-mode defaults: built up from a faint contact + a wider ambient
+     blur so elevated surfaces feel grounded without a hard line. Light
+     theme overrides live next to the rest of the light overrides. */
+  --shadow-xs:
+    0 1px 2px rgba(0, 0, 0, 0.20);
+  --shadow-sm:
+    0 1px 2px rgba(0, 0, 0, 0.12),
+    0 2px 6px rgba(0, 0, 0, 0.16);
+  --shadow-md:
+    0 2px 4px rgba(0, 0, 0, 0.10),
+    0 8px 20px rgba(0, 0, 0, 0.22);
+  --shadow-lg:
+    0 1px 0 rgba(255, 255, 255, 0.04) inset,
+    0 4px 12px rgba(0, 0, 0, 0.22),
+    0 24px 60px -12px rgba(0, 0, 0, 0.55);
+  /* Accent halo — used for "live" dots, focused inputs. */
+  --shadow-glow:   0 0 12px color-mix(in srgb, var(--color-accent) 50%, transparent);
+
+  /* Legacy aliases — keep callers compiling while the migration finishes.
+     New code should use the xs/sm/md/lg tokens. */
+  --shadow-card:   var(--shadow-md);
+  --shadow-dialog: var(--shadow-lg);
+  --shadow-soft:   var(--shadow-xs);
+  --shadow-pop:    var(--shadow-lg);
+
   /* Inset border-shadow combo for inputs (1px floor + 1px inset stroke) */
   --shadow-input:
     rgb(18, 18, 18) 0px 1px 0px,

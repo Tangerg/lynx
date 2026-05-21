@@ -34,7 +34,12 @@ export const MessageStream = forwardRef<HTMLDivElement, Props>(function MessageS
       <div className="msg-stream">
         <AnimatePresence initial={false}>
           {messages.map((m) => (
-            <motion.div key={m.id} {...enterUp} layout>
+            // No `layout` prop here — Motion's layout animation re-tweens
+            // the message block every time it changes size, so each text
+            // delta makes the whole block (avatar included) bobble while
+            // streaming. `enterUp` is enough: the first paint slides in;
+            // afterwards the block grows naturally with the DOM.
+            <motion.div key={m.id} {...enterUp}>
               <MessageBlock msg={m} ctx={ctx} />
             </motion.div>
           ))}

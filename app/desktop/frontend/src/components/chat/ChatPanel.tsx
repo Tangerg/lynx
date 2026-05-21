@@ -76,14 +76,97 @@ export function ChatPanel({ onSend }: Props) {
   );
 
   // ---- side effects ----
-  // Auto-scroll to bottom on new messages.
+  // Sticky-bottom auto-scroll.
+  //
+  // Semantics:
+  //   1. DEFAULT: follow mode ON — new content auto-scrolls into view.
+  //   2. User-initiated scroll away from the literal bottom → follow OFF.
+  //      They stay parked wherever they stopped, no matter how much new
+  //      content arrives.
+  //   3. User-initiated scroll back to the literal bottom → follow ON.
+  //
+  // Key trick: distinguish *user* scrolls from *our own* programmatic
+  // scrolls by sniffing the input device events (wheel / touchmove /
+  // mousedown) that precede a real user scroll. We arm a short
+  // userInputTimeout window when one of those fires; scroll events that
+  // happen during that window are treated as user-initiated and update
+  // follow mode. Scroll events outside the window (i.e. fired by our own
+  // `scrollTop = scrollHeight` assignment from the ResizeObserver below)
+  // are ignored, so we never accidentally toggle follow mode on
+  // ourselves.
+  //
+  // ResizeObserver on the inner content fires for every height change —
+  // backend deltas, smooth-text reveals, tool cards expanding — and
+  // performs the actual auto-scroll only when follow mode is on.
+  //
+  // Threshold: only "literal max" counts as bottom (dist ≤ 1 for
+  // sub-pixel rounding). The .msg-stream has 220px of bottom padding so
+  // the floating composer sits over empty space; at max scroll the last
+  // bubble lands right above the composer — that IS the visual bottom.
+  const followRef = useRef(true);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+
+    let userInputTimeout: number | null = null;
+    const USER_INPUT_WINDOW_MS = 200;
+
+    const markUserInput = () => {
+      if (userInputTimeout !== null) clearTimeout(userInputTimeout);
+      userInputTimeout = window.setTimeout(() => {
+        userInputTimeout = null;
+      }, USER_INPUT_WINDOW_MS);
+    };
+
+    // Wheel + touch cover trackpad, mouse-wheel, and touch-drag scrolls.
+    // Mousedown catches scrollbar-thumb drags (and is a harmless no-op for
+    // plain clicks since they don't move scrollTop).
+    el.addEventListener("wheel", markUserInput, { passive: true });
+    el.addEventListener("touchmove", markUserInput, { passive: true });
+    el.addEventListener("mousedown", markUserInput);
+
+    const onScroll = () => {
+      // No recent user input → this scroll was driven by our own
+      // `scrollTop = scrollHeight` below. Leave followRef alone.
+      if (userInputTimeout === null) return;
+      const dist = el.scrollHeight - el.scrollTop - el.clientHeight;
+      followRef.current = dist <= 1;
+    };
+    el.addEventListener("scroll", onScroll, { passive: true });
+
+    const ro = new ResizeObserver(() => {
+      if (followRef.current) {
+        el.scrollTop = el.scrollHeight;
+      }
+    });
+    const inner = el.firstElementChild;
+    if (inner) ro.observe(inner);
+
+    return () => {
+      el.removeEventListener("wheel", markUserInput);
+      el.removeEventListener("touchmove", markUserInput);
+      el.removeEventListener("mousedown", markUserInput);
+      el.removeEventListener("scroll", onScroll);
+      ro.disconnect();
+      if (userInputTimeout !== null) clearTimeout(userInputTimeout);
+    };
+  }, []);
+
+  // Session switch — always land at the bottom and re-arm follow mode.
+  // The programmatic scroll below doesn't disengage follow because the
+  // input-timeout gate in onScroll filters it out.
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
     el.scrollTop = el.scrollHeight;
-  }, [messages]);
+    followRef.current = true;
+  }, [activeSession]);
 
-  // Auto-expand the latest tool the first time it streams in.
+  // Auto-select (but don't expand) the latest tool the first time it
+  // streams in — so the inspector pane has something to show without
+  // forcing the inline card to balloon open. Expanding is a deliberate
+  // user click.
   //
   // We snapshot UI state via getState() instead of subscribing — we want
   // this effect to fire only when the toolCalls map mutates, not when
@@ -92,7 +175,7 @@ export function ChatPanel({ onSend }: Props) {
     const tools = Object.values(toolCalls);
     const ui = useUIStore.getState();
     if (tools.length > 0 && !ui.selectedToolId) {
-      ui.expandTool(tools[tools.length - 1].id);
+      ui.setSelectedToolId(tools[tools.length - 1].id);
     }
   }, [toolCalls]);
 
