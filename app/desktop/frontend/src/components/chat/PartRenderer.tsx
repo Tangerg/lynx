@@ -1,8 +1,8 @@
 import type { ContentBlock, PlanItem, ToolCall } from "@/protocol/agui/viewState";
+import { FadeInText } from "@/components/chat/FadeInText";
 import { ToolCard } from "@/components/tools/ToolCard";
 import { PluginContentBlock } from "@/plugins/PluginContentBlock";
 import { openViewForTool } from "@/state/toolRouting";
-import { renderInline } from "@/utils/inline";
 
 /**
  * Per-render bag of data threaded into block renderers. Kept narrow —
@@ -17,6 +17,12 @@ export type PartCtx = {
   onSelectTool: (id: string) => void;
   expandedIds: Set<string>;
   onToggleExpand: (id: string) => void;
+  /**
+   * Skip stream-smoothing and the fade-in animation for this message.
+   * Used for user-typed messages — the author already saw the text they
+   * typed, so animating it back at them feels patronizing and slow.
+   */
+  instant?: boolean;
 };
 
 /**
@@ -35,13 +41,9 @@ export function renderPart(block: ContentBlock, key: number, ctx: PartCtx) {
   switch (block.kind) {
     case "text":
       return (
-        <p
-          key={key}
-          className={block.streaming ? "streaming" : undefined}
-          dangerouslySetInnerHTML={{
-            __html: renderInline(block.text) + (block.streaming ? '<span class="cursor">▌</span>' : ""),
-          }}
-        />
+        <p key={key} className={block.streaming && !ctx.instant ? "streaming" : undefined}>
+          <FadeInText text={block.text} streaming={block.streaming} instant={ctx.instant} />
+        </p>
       );
 
     case "tool": {

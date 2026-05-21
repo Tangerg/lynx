@@ -5,24 +5,32 @@
 
 * { box-sizing: border-box; }
 
-/* Local refinement layer over Sonance tokens —
-   hairline border system + subtle shadow scale */
+/* Local refinement layer over Sonance tokens — hairline border system.
+   Shadow + motion tokens live in tokens.css. */
 :root {
   --hairline-1: rgba(255, 255, 255, 0.05);
   --hairline-2: rgba(255, 255, 255, 0.08);
   --hairline-3: rgba(255, 255, 255, 0.12);
   --hairline-4: rgba(255, 255, 255, 0.18);
-  --shadow-pop: 0 1px 0 rgba(0,0,0,0.2), 0 8px 24px -8px rgba(0,0,0,0.6), 0 24px 48px -12px rgba(0,0,0,0.5);
-  --shadow-soft: 0 1px 2px rgba(0,0,0,0.2);
-  --ease-out: cubic-bezier(0.3, 0, 0, 1);
 }
 html.theme-light {
   --hairline-1: rgba(15, 15, 15, 0.06);
   --hairline-2: rgba(15, 15, 15, 0.10);
   --hairline-3: rgba(15, 15, 15, 0.14);
   --hairline-4: rgba(15, 15, 15, 0.20);
-  --shadow-pop: 0 1px 0 rgba(15,15,15,0.04), 0 8px 24px -8px rgba(15,15,15,0.15), 0 24px 48px -12px rgba(15,15,15,0.12);
-  --shadow-soft: 0 1px 2px rgba(15,15,15,0.04);
+
+  /* Light theme — softer shadow stack (smaller blur radius, less alpha). */
+  --shadow-xs: 0 1px 2px rgba(15, 15, 15, 0.04);
+  --shadow-sm:
+    0 1px 2px rgba(15, 15, 15, 0.04),
+    0 2px 6px rgba(15, 15, 15, 0.06);
+  --shadow-md:
+    0 2px 4px rgba(15, 15, 15, 0.04),
+    0 8px 20px rgba(15, 15, 15, 0.10);
+  --shadow-lg:
+    0 4px 12px rgba(15, 15, 15, 0.08),
+    0 24px 60px -12px rgba(15, 15, 15, 0.18);
+  --shadow-glow: 0 0 10px color-mix(in srgb, var(--color-accent) 35%, transparent);
 }
 
 html, body, #root {
@@ -485,7 +493,7 @@ html.theme-light .tool-card.running::before {
   border-radius: 50%;
   cursor: pointer;
   display: grid; place-items: center;
-  transition: background 120ms, color 120ms;
+  transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
 }
 .icon-btn:hover { background: var(--color-surface-2); color: var(--color-text); }
 .icon-btn.active { color: var(--color-accent); }
@@ -504,7 +512,7 @@ html.theme-light .tool-card.running::before {
   letter-spacing: 0.1em;
   text-transform: uppercase;
   cursor: pointer;
-  transition: border-color 120ms;
+  transition: border-color var(--dur-fast) var(--ease-out);
 }
 .pill-btn:hover { border-color: #fff; }
 .pill-btn.solid {
@@ -958,7 +966,7 @@ html.theme-light .msg.user .msg-content {
   border-radius: 10px;
   padding: 12px 14px;
   cursor: pointer;
-  transition: background 120ms;
+  transition: background var(--dur-fast) var(--ease-out);
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -1112,7 +1120,7 @@ html.theme-light .msg.user .msg-content {
   padding: 10px 16px;
   border-bottom: 1px solid #1c1c1c;
   cursor: pointer;
-  transition: background 120ms;
+  transition: background var(--dur-fast) var(--ease-out);
 }
 .mcp-row:hover { background: var(--color-surface); }
 .mcp-icon {
@@ -1268,7 +1276,7 @@ html.theme-light .msg.user .msg-content {
   color: #000;
   cursor: pointer;
   display: grid; place-items: center;
-  transition: transform 120ms;
+  transition: transform var(--dur-fast) var(--ease-out);
 }
 .send-btn:hover { transform: scale(1.04); }
 .send-btn:active { transform: scale(0.96); background: var(--color-accent-press); }
@@ -1599,7 +1607,7 @@ html.theme-light .msg.user .msg-content {
   color: var(--color-text-muted);
   border-radius: 8px;
   cursor: pointer;
-  transition: background 120ms, color 120ms;
+  transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
 }
 .rail-btn:hover { background: var(--color-surface); color: var(--color-text); }
 .rail-btn.primary {
@@ -1631,7 +1639,7 @@ html.theme-light .msg.user .msg-content {
   display: grid; place-items: center;
   cursor: pointer;
   position: relative;
-  transition: background 120ms, color 120ms, transform 120ms;
+  transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out), transform var(--dur-fast) var(--ease-out);
   font-family: var(--font-ui);
   font-size: 13px;
   font-weight: 700;
@@ -1684,7 +1692,7 @@ html.theme-light .msg.user .msg-content {
   margin-top: 4px;
   cursor: pointer;
   border: 2px solid transparent;
-  transition: border-color 120ms;
+  transition: border-color var(--dur-fast) var(--ease-out);
 }
 .rail-user:hover { border-color: var(--color-accent); }
 
@@ -1698,7 +1706,7 @@ html.theme-light .msg.user .msg-content {
   background: transparent;
   border-radius: 8px;
   cursor: default;
-  transition: background 120ms;
+  transition: background var(--dur-fast) var(--ease-out);
 }
 .user-card:hover { background: var(--color-surface); }
 .user-avatar {
@@ -1751,7 +1759,7 @@ html.theme-light .msg.user .msg-content {
   cursor: pointer;
   display: grid; place-items: center;
   border-radius: 6px;
-  transition: background 120ms, color 120ms;
+  transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
 }
 .user-action:hover { background: var(--color-surface-2); color: var(--color-text); }
 
@@ -1785,7 +1793,7 @@ html.theme-light .user-action:hover { background: var(--color-surface-3); }
   height: 26px;
   padding: 0 10px 0 9px;
   border-radius: var(--radius-sm);
-  transition: background 120ms, color 120ms, border-color 120ms;
+  transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
   letter-spacing: 0.01em;
 }
 .theme-toggle:hover {
@@ -1809,7 +1817,7 @@ html.theme-light .user-action:hover { background: var(--color-surface-3); }
   background-clip: padding-box;
   cursor: pointer;
   padding: 0;
-  transition: transform 120ms, border-color 120ms;
+  transition: transform var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
 }
 .accent-swatch:hover { transform: scale(1.15); }
 .accent-swatch.active {
@@ -1896,7 +1904,7 @@ html.theme-light .theme-toggle:hover {
   height: 22px;
   padding: 0 8px;
   border-radius: 3px;
-  transition: background 120ms, color 120ms;
+  transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
 }
 .settings-popover .sp-seg:hover { color: var(--color-text); }
 .settings-popover .sp-seg.active {
@@ -2028,7 +2036,7 @@ html.theme-light .user-action.open { background: var(--color-surface-2); }
   border-radius: 4px;
   color: var(--color-text-faint);
   opacity: 0;
-  transition: opacity 120ms, background 120ms, color 120ms;
+  transition: opacity var(--dur-fast) var(--ease-out), background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
 }
 .chat-tab:hover .tab-close, .chat-tab.active .tab-close { opacity: 1; }
 .chat-tab .tab-close:hover {
@@ -2124,7 +2132,7 @@ html.theme-light .user-action.open { background: var(--color-surface-2); }
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
-  transition: background 120ms, border-color 120ms;
+  transition: background var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
   white-space: nowrap;
   flex-shrink: 0;
   margin-right: 4px;
@@ -2192,7 +2200,7 @@ html.theme-light .composer-model .cm-avatar {
   font-size: var(--fs-small);
   font-weight: var(--fw-regular);
   cursor: pointer;
-  transition: background 120ms, color 120ms, border-color 120ms;
+  transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
   white-space: nowrap;
   letter-spacing: 0.005em;
 }
@@ -2234,7 +2242,7 @@ html.theme-light .cf-chip.ghost .cf-dot { box-shadow: 0 0 6px rgba(22, 156, 70, 
   cursor: pointer;
   display: grid; place-items: center;
   border-radius: 4px;
-  transition: background 120ms, color 120ms;
+  transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
 }
 .tool-card .tool-expand:hover,
 .tool-card .tool-action:hover {
@@ -2861,7 +2869,7 @@ html.theme-light .topbar-divider { background: var(--color-border); }
   padding: 0 10px 0 9px;
   border-radius: var(--radius-sm);
   flex-shrink: 0;
-  transition: background 120ms, border-color 120ms, color 120ms;
+  transition: background var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
 }
 .sp-stop:hover {
   background: rgba(243, 114, 127, 0.1);
@@ -2921,7 +2929,7 @@ html.theme-light .sp-stop:hover {
   gap: 12px;
   padding: 7px 14px;
   cursor: pointer;
-  transition: background 120ms;
+  transition: background var(--dur-fast) var(--ease-out);
   width: 100%;
   text-align: left;
   background: transparent;
