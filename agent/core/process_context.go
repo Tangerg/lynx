@@ -156,6 +156,11 @@ func (pc *ProcessContext) ResolveTools(ctx context.Context, roles ...string) ([]
 // the returned request — every call / stream the action issues
 // passes through the global logger / safeguard / quota middlewares
 // before reaching the underlying model.
+//
+// When [ProcessOptions.Session] is set (typically via
+// [Platform.RunInSession]) the session id is stamped onto the
+// request params under the chat-memory conversation key so the
+// memory middleware auto-loads the conversation history.
 func (pc *ProcessContext) Chat() *chat.ClientRequest {
 	if pc.chatClient == nil {
 		return nil
@@ -164,8 +169,32 @@ func (pc *ProcessContext) Chat() *chat.ClientRequest {
 	if mws := pc.guardrails.MiddlewareValues(); len(mws) > 0 {
 		req = req.WithMiddlewares(mws...)
 	}
+	if params := pc.sessionParams(); len(params) > 0 {
+		req = req.WithParams(params)
+	}
 	return req
 }
+
+// sessionParams returns the request-params map the session
+// machinery needs the chat client to see — currently just the
+// chat-memory conversation key. Returns nil when no session is
+// bound so [Chat] can skip the WithParams call.
+func (pc *ProcessContext) sessionParams() map[string]any {
+	if pc.Options == nil || pc.Options.Session == nil || pc.Options.Session.ID == "" {
+		return nil
+	}
+	return map[string]any{
+		chatMemoryConversationIDKey: pc.Options.Session.ID,
+	}
+}
+
+// chatMemoryConversationIDKey is the string the memory middleware
+// in core/model/chat/memory reads from the request params. Kept as
+// a local constant (matching the value declared at memory.ConversationIDKey)
+// so agent/core doesn't import the memory package — that import
+// would pull memory into every agent binary even when nobody uses
+// chat sessions.
+const chatMemoryConversationIDKey = "lynx:ai:model:chat:memory:conversation_id"
 
 // ChatWithActionTools is the "ask the LLM with my action's tools"
 // shortcut: a [chat.ClientRequest] pre-loaded with the action's
@@ -187,10 +216,14 @@ func (pc *ProcessContext) ChatWithActionTools(ctx context.Context) (*chat.Client
 		return nil, fmt.Errorf("chat with action tools: %w", err)
 	}
 
+	sessionParams := pc.sessionParams()
 	guardrails := pc.guardrails.MiddlewareValues()
 	if len(tools) == 0 {
 		if len(guardrails) > 0 {
 			req = req.WithMiddlewares(guardrails...)
+		}
+		if len(sessionParams) > 0 {
+			req = req.WithParams(sessionParams)
 		}
 		return req, nil
 	}
@@ -198,7 +231,11 @@ func (pc *ProcessContext) ChatWithActionTools(ctx context.Context) (*chat.Client
 	chain := make([]any, 0, len(guardrails)+2)
 	chain = append(chain, guardrails...)
 	chain = append(chain, callMW, streamMW)
-	return req.WithMiddlewares(chain...).WithTools(tools...), nil
+	req = req.WithMiddlewares(chain...).WithTools(tools...)
+	if len(sessionParams) > 0 {
+		req = req.WithParams(sessionParams)
+	}
+	return req, nil
 }
 
 // ActionTools resolves the tools declared on the currently-executing
