@@ -381,7 +381,7 @@ var (
 - Document pipeline 四段式
 - VectorStore 用 Filter DSL 做 lingua franca
 - 显式 Middleware 洋葱
-- `AssistantMessage.Reasoning` 一等公民（详见 `REASONING.md`）
+- `AssistantMessage.Parts []OutputPart` 含 `ReasoningPart` 一等公民（详见 `REASONING.md`）
 - MCP 桥接的克制设计（详见 `MCP.md`）
 - Usage cache tokens（`CacheReadInputTokens` / `CacheWriteInputTokens`）一等公民
 

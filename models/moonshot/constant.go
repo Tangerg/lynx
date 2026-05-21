@@ -30,8 +30,8 @@ const (
 	ModelK2 = "kimi-k2-0905-preview"
 
 	// ModelK2Thinking is the K2 variant that returns chain-of-thought
-	// via reasoning_content (auto-surfaced as
-	// chat.AssistantMessage.Reasoning).
+	// via reasoning_content (auto-surfaced as a [chat.ReasoningPart]
+	// in AssistantMessage.Parts).
 	ModelK2Thinking = "kimi-k2-thinking"
 
 	// ModelV1_8K / 32K / 128K are the legacy moonshot-v1 chat models.

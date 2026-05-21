@@ -129,7 +129,7 @@ Raw JSON object with string keys and any valid JSON values.`
 // Parse decodes raw output into a map[string]any. Markdown code fences
 // are stripped automatically; reasoning wrappers (<think>, ...) are not
 // — that is the provider adapter's job, which routes reasoning into
-// AssistantMessage.Reasoning before the parser sees the text.
+// dedicated [ReasoningPart]s before the parser sees the text.
 func (m *MapParser) Parse(rawLLMOutput string) (map[string]any, error) {
 	cleaned := removeMarkdownCodeBlockDelimiters(rawLLMOutput)
 

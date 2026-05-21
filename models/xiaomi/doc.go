@@ -17,8 +17,8 @@
 //     [chat.Options].Extra["openai_params"] to a
 //     ChatCompletionNewParams whose Body carries
 //     {"thinking": {"type": "enabled"}}. The reasoning_content field
-//     in the response is auto-surfaced as
-//     chat.AssistantMessage.Reasoning;
+//     in the response is auto-surfaced as a [chat.ReasoningPart] in
+//     AssistantMessage.Parts;
 //   - 1M-token context window on V2.5-series models.
 //
 // MiMo-specific surfaces not exposed here (TTS / image / omni I/O)

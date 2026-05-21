@@ -34,8 +34,8 @@ const (
 	ModelQwenLong = "qwen-long"
 
 	// ModelQwQ32B (qwq-32b) is the reasoning model — returns
-	// chain-of-thought via reasoning_content (auto-surfaced as
-	// chat.AssistantMessage.Reasoning).
+	// chain-of-thought via reasoning_content (auto-surfaced as a
+	// [chat.ReasoningPart] in AssistantMessage.Parts).
 	ModelQwQ32B = "qwq-32b"
 
 	// ModelQwen3CoderPlus (qwen3-coder-plus) targets code generation
