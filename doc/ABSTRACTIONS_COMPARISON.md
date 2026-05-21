@@ -106,7 +106,7 @@ ChatModel / Embedding / Image / Audio / Moderation / Document / VectorStore / RA
 1. ~~**Retry `Transient` / `NonTransient` 分类**~~ —— 不做：SDK 内部已自带重试
 2. ~~**Anthropic Extra 通道保护**~~ —— 已闭合（`models/anthropic/extra.go`）
 3. ~~**持久化 Memory 后端**~~ —— **已闭合 + 反超**：顶层 `chatmemory/` 6 个 provider；spring-ai main 当前仅 5 个（v1.0 后 cosmosdb chat memory 模块已移除）
-4. ~~**PDF / Markdown reader**~~ —— **已闭合**：顶层 `document-readers/` 出货 markdown / html / pdf 三个 reader（goldmark / goquery / ledongthuc/pdf）；Tika 因依赖 JVM 服务故意不做
+4. ~~**PDF / Markdown reader**~~ —— **已闭合**：顶层 `documentreaders/` 出货 markdown / html / pdf 三个 reader（goldmark / goquery / ledongthuc/pdf）；Tika 因依赖 JVM 服务故意不做
 5. ~~**Structured Output Converter**~~ —— 已闭合：`core/model/chat/parser.go`（JSONParser[T] / ListParser / MapParser / StructuredParser[T] / AnyParser）
 6. ~~**SafeGuard / Logger middleware**~~ —— **已闭合**：`core/model/chat/middleware/` 新包，依赖倒置形态——`Logger` / `Matcher` 接口对外暴露，slog / `strings.Contains` 作为 stdlib 默认实现
 7. ~~**DocumentJoiner / QueryRouter**~~ —— **不做**：spring-ai 的 `ConcatenationDocumentJoiner` 等价于 lynx 的 `DeduplicationRefiner` → `RankRefiner` refiner 链，无需额外抽象；RRF 要等到 lynx 加入非向量 retriever（BM25 / sparse）时再做，那时设计才有真实约束；QueryRouter 由用户在自定义 `DocumentRetriever` 内部决定即可，pipeline 不需要专门接口。详见 `rag/doc.go` 多 retriever 章节

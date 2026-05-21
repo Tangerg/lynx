@@ -1,5 +1,5 @@
 // Package documentreaders is the parent of the lynx document-reader
-// sibling modules — markdown / html / pdf — that turn external file
+// sibling packages — markdown / html / pdf — that turn external file
 // formats into [document.Document] streams suitable for RAG ingestion.
 //
 // Each sub-module is its own go module so heavy dependencies (PDF
@@ -7,9 +7,9 @@
 // actually need them. Pick the readers you want via direct import:
 //
 //	import (
-//	    "github.com/Tangerg/lynx/document-readers/markdown"
-//	    "github.com/Tangerg/lynx/document-readers/html"
-//	    "github.com/Tangerg/lynx/document-readers/pdf"
+//	    "github.com/Tangerg/lynx/documentreaders/markdown"
+//	    "github.com/Tangerg/lynx/documentreaders/html"
+//	    "github.com/Tangerg/lynx/documentreaders/pdf"
 //	)
 //
 // All sub-modules implement [document.Reader] from

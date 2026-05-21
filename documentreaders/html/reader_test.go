@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Tangerg/lynx/document-readers/html"
+	"github.com/Tangerg/lynx/documentreaders/html"
 )
 
 const samplePage = `<!doctype html>
