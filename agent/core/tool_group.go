@@ -11,13 +11,33 @@ import (
 
 // ToolGroupPermission is the security/sensitivity flag on a ToolGroup —
 // helpful so user-facing UIs can surface "this agent will need internet
-// access" before kicking off a long-running task.
+// access" before kicking off a long-running task, and so platform
+// validators can enforce sandbox policy at deploy time.
 type ToolGroupPermission int
 
 const (
+	// ToolGroupHostAccess covers tools that touch the host process's
+	// own resources: filesystem, environment, child processes, local
+	// network sockets. Sandboxed deployments deny this by default.
 	ToolGroupHostAccess ToolGroupPermission = iota
+
+	// ToolGroupInternetAccess covers tools that reach off-host
+	// network endpoints (web search, HTTP fetch, third-party APIs).
+	// Air-gapped deployments deny this; cost-sensitive deployments
+	// may track it for outbound-traffic budgeting.
 	ToolGroupInternetAccess
 )
+
+func (p ToolGroupPermission) String() string {
+	switch p {
+	case ToolGroupHostAccess:
+		return "host_access"
+	case ToolGroupInternetAccess:
+		return "internet_access"
+	default:
+		return "unknown"
+	}
+}
 
 // AssetCoordinates is the (provider, name, version) triple that uniquely
 // identifies a ToolGroup release across distribution channels. Version
@@ -33,19 +53,59 @@ type AssetCoordinates struct {
 // ToolGroupMetadata is what a resolver returns from a registry
 // lookup. Carries the role + the (optional) versioned coordinates so
 // observability surfaces can display "which provider's tool group
-// satisfied this role".
+// satisfied this role", plus the permissions the group exercises so
+// the platform can refuse high-privilege groups in sandboxed deployments.
 type ToolGroupMetadata interface {
 	Role() string
 	AssetCoordinates() AssetCoordinates
+
+	// Permissions reports the categories of access this tool group
+	// requires at runtime. An empty result means the group claims no
+	// special access; the platform must still consult its own policy
+	// before granting use. Callers use the returned slice as a
+	// read-only snapshot — implementations should return a fresh slice
+	// per call when their underlying storage is mutable.
+	Permissions() []ToolGroupPermission
 }
 
 // ToolGroupRequirement is what an agent declares ("I need a
 // search-shaped tool group") without binding to a specific provider.
 // The planner consults the resolver to translate role → concrete
 // tool list at execution time.
+//
+// Permissions lists the privileges the action is willing to grant the
+// resolved group. The runtime rejects a group whose Metadata().Permissions()
+// is not a subset of this set, so a sandboxed agent can't accidentally
+// pick up an internet-reaching resolver implementation. An empty
+// Permissions slice means "no special privileges" — high-privilege
+// groups are rejected unless the requirement opts in.
 type ToolGroupRequirement struct {
 	Role             string
 	TerminationScope TerminationScope
+	Permissions      []ToolGroupPermission
+}
+
+// PermissionsSatisfy returns true when every permission in `granted`
+// also appears in `required`. Empty `granted` is always satisfied.
+// Order does not matter.
+func PermissionsSatisfy(required, granted []ToolGroupPermission) bool {
+	if len(granted) == 0 {
+		return true
+	}
+	inRequired := func(p ToolGroupPermission) bool {
+		for _, r := range required {
+			if r == p {
+				return true
+			}
+		}
+		return false
+	}
+	for _, g := range granted {
+		if !inRequired(g) {
+			return false
+		}
+	}
+	return true
 }
 
 // TerminationScope is the structured-termination enum: AGENT stops
@@ -178,9 +238,18 @@ func (r *StaticToolGroupResolver) Resolve(_ context.Context, req ToolGroupRequir
 // the static resolver and by adapters (mcp, subagent) that don't
 // version their tool groups.
 type SimpleToolGroupMetadata struct {
-	RoleText    string
-	Coordinates AssetCoordinates
+	RoleText           string
+	Coordinates        AssetCoordinates
+	PermissionsGranted []ToolGroupPermission
 }
 
 func (m SimpleToolGroupMetadata) Role() string                       { return m.RoleText }
 func (m SimpleToolGroupMetadata) AssetCoordinates() AssetCoordinates { return m.Coordinates }
+
+// Permissions returns the permission slice verbatim — callers are
+// expected to treat the result as read-only. SimpleToolGroupMetadata
+// is a value type used for static configuration, so sharing the slice
+// across callers is acceptable.
+func (m SimpleToolGroupMetadata) Permissions() []ToolGroupPermission {
+	return m.PermissionsGranted
+}

@@ -38,6 +38,7 @@ type Platform struct {
 	events     *event.Multicast      // populated from EventListener extensions
 	services   *core.ServiceProvider // open registry exposed via Platform.Services()
 	chatClient *chat.Client          // optional shared LLM client
+	guardrails *core.Guardrails      // optional global chat middlewares
 }
 
 // PlatformConfig is the construction-time configuration for
@@ -50,6 +51,13 @@ type PlatformConfig struct {
 	// [core.ProcessContext.ChatWithActionTools]. Optional — agents
 	// that don't talk to an LLM leave it nil.
 	ChatClient *chat.Client
+
+	// Guardrails are platform-wide chat middlewares applied to every
+	// LLM call action bodies issue through [core.ProcessContext.Chat]
+	// or [core.ProcessContext.ChatWithActionTools]. Typical uses:
+	// content safeguard, request/response logging, global quota.
+	// Optional — nil / empty means "no global wrapping".
+	Guardrails *core.Guardrails
 
 	// Extensions are the platform-scoped plug-ins. Each value must
 	// implement [core.Extension] and may additionally implement any
@@ -80,6 +88,7 @@ func NewPlatform(config *PlatformConfig) *Platform {
 		events:     event.NewMulticast(),
 		services:   core.NewServiceProvider(),
 		chatClient: config.ChatClient,
+		guardrails: config.Guardrails,
 	}
 	for _, ext := range config.Extensions {
 		p.extensions.register("PlatformConfig.Extensions", ext)
