@@ -26,9 +26,9 @@ type Event = aguievents.Event
 
 // Translator converts Lyra's internal [chat.Event] stream into
 // AG-UI events. One Translator per turn — it carries lifecycle
-// state (whether an assistant message is currently open, the
-// active text-message id) so the output is well-formed AG-UI
-// regardless of how the underlying chat events interleave.
+// state (an in-flight assistant message, the active text-message
+// id) so the output is well-formed AG-UI regardless of how the
+// underlying chat events interleave.
 //
 // State machine:
 //
@@ -44,9 +44,7 @@ type Event = aguievents.Event
 type Translator struct {
 	threadID string
 	runID    string
-
-	textOpen     bool
-	curMessageID string
+	text     textStream
 }
 
 // NewTranslator wires a translator to a Lyra (sessionID, turnID)
@@ -62,9 +60,9 @@ func NewTranslator(sessionID, turnID string) *Translator {
 func (t *Translator) Translate(ev chat.Event) []Event {
 	switch e := ev.(type) {
 	case chat.TurnStart:
-		return []Event{t.runStarted()}
+		return []Event{aguievents.NewRunStartedEvent(t.threadID, t.runID)}
 	case chat.MessageDelta:
-		return t.textContent(e)
+		return t.text.appendDelta(e.Text)
 	case chat.ToolCallStart:
 		return t.toolCallStart(e)
 	case chat.ToolCallEnd:
@@ -79,66 +77,31 @@ func (t *Translator) Translate(ev chat.Event) []Event {
 	return nil
 }
 
-// ------------------------------------------------------------------
-// per-event translators
-// ------------------------------------------------------------------
-
-func (t *Translator) runStarted() Event {
-	return aguievents.NewRunStartedEvent(t.threadID, t.runID)
-}
-
-// textContent opens a text message on first delta, then emits one
-// content chunk per call. Caller is the chat-event stream — if
-// the model produces 200 chunks, this fires once with Start and
-// 200 times with Content, all sharing one messageId.
-func (t *Translator) textContent(e chat.MessageDelta) []Event {
-	out := make([]Event, 0, 2)
-	if !t.textOpen {
-		t.curMessageID = uuid.NewString()
-		t.textOpen = true
-		out = append(out, aguievents.NewTextMessageStartEvent(
-			t.curMessageID,
-			aguievents.WithRole("assistant"),
-		))
-	}
-	out = append(out, aguievents.NewTextMessageContentEvent(t.curMessageID, e.Text))
-	return out
-}
-
 // toolCallStart closes any in-flight text message (a tool call
 // interrupts the assistant's natural-language output) and then
 // emits the AG-UI start/args/end triplet. Lyra knows the full
 // arg JSON upfront so a single Args event suffices.
 func (t *Translator) toolCallStart(e chat.ToolCallStart) []Event {
-	out := make([]Event, 0, 4)
-	if t.textOpen {
-		out = append(out, aguievents.NewTextMessageEndEvent(t.curMessageID))
-		t.textOpen = false
-	}
-	out = append(out,
+	out := t.text.closeIfOpen()
+	return append(out,
 		aguievents.NewToolCallStartEvent(e.CallID, e.ToolName,
 			aguievents.WithParentMessageID(t.runID)),
 		aguievents.NewToolCallArgsEvent(e.CallID, e.Arguments),
 		aguievents.NewToolCallEndEvent(e.CallID),
 	)
-	return out
 }
 
 // toolCallResult emits AG-UI's ToolCallResult on Lyra's
 // ToolCallEnd — Lyra collapses "tool finished + output" into one
 // event, AG-UI separates them but the data arrives together.
+// Failed tools surface their error message as the Content so
+// AG-UI clients render the failure verbatim.
 func (t *Translator) toolCallResult(e chat.ToolCallEnd) Event {
-	return aguievents.NewToolCallResultEvent(t.runID, e.CallID, chooseResultContent(e))
-}
-
-// chooseResultContent prefers the error message when the tool
-// failed (clients show it as the result text) and falls back to
-// the captured output otherwise.
-func chooseResultContent(e chat.ToolCallEnd) string {
+	content := e.Output
 	if e.Err != "" {
-		return e.Err
+		content = e.Err
 	}
-	return e.Output
+	return aguievents.NewToolCallResultEvent(t.runID, e.CallID, content)
 }
 
 // planAsCustom encodes a plan-mode pause as an AG-UI CustomEvent.
@@ -153,6 +116,9 @@ func (t *Translator) planAsCustom(e chat.PlanGenerated) Event {
 	)
 }
 
+// runError lifts a chat.ErrorEvent into an AG-UI RunErrorEvent,
+// preserving the stable Code when present so transports / UIs
+// can branch on it.
 func (t *Translator) runError(e chat.ErrorEvent) Event {
 	opts := []aguievents.RunErrorOption{aguievents.WithRunID(t.runID)}
 	if e.Code != "" {
@@ -167,18 +133,58 @@ func (t *Translator) runError(e chat.ErrorEvent) Event {
 // clients see one terminal event regardless of which Lyra path
 // got here.
 func (t *Translator) runFinishedOrErrored(e chat.TurnEnd) []Event {
-	out := make([]Event, 0, 2)
-	if t.textOpen {
-		out = append(out, aguievents.NewTextMessageEndEvent(t.curMessageID))
-		t.textOpen = false
-	}
+	out := t.text.closeIfOpen()
 	if e.Reason == chat.TurnEndErrored {
-		out = append(out, aguievents.NewRunErrorEvent("turn errored",
+		return append(out, aguievents.NewRunErrorEvent("turn errored",
 			aguievents.WithErrorCode("TURN_ERRORED"),
 			aguievents.WithRunID(t.runID),
 		))
-		return out
 	}
-	out = append(out, aguievents.NewRunFinishedEvent(t.threadID, t.runID))
-	return out
+	return append(out, aguievents.NewRunFinishedEvent(t.threadID, t.runID))
+}
+
+// ------------------------------------------------------------------
+// textStream — the in-flight assistant message's own state
+// ------------------------------------------------------------------
+
+// textStream tracks one streaming TextMessage's lifecycle: whether
+// it's open, and the messageId that ties Start / Content / End
+// together on the AG-UI wire.
+//
+// Splitting it out of [Translator] keeps the "is a text message
+// open?" question in one place — Translator's other branches just
+// call closeIfOpen before they emit non-text events instead of
+// each tracking the bool themselves.
+type textStream struct {
+	open      bool
+	messageID string
+}
+
+// appendDelta returns the AG-UI events for one [chat.MessageDelta].
+// First call opens the message and emits Start + Content; later
+// calls emit only Content, all sharing the original messageId.
+func (s *textStream) appendDelta(text string) []Event {
+	if !s.open {
+		s.messageID = uuid.NewString()
+		s.open = true
+		return []Event{
+			aguievents.NewTextMessageStartEvent(s.messageID, aguievents.WithRole("assistant")),
+			aguievents.NewTextMessageContentEvent(s.messageID, text),
+		}
+	}
+	return []Event{aguievents.NewTextMessageContentEvent(s.messageID, text)}
+}
+
+// closeIfOpen returns a one-element slice containing the
+// TextMessageEnd event when a stream is open (and flips the
+// state to closed); nil otherwise. Returning a slice (not the
+// event directly) lets callers append the rest of their per-event
+// output with a single append — no nil-check at the call site.
+func (s *textStream) closeIfOpen() []Event {
+	if !s.open {
+		return nil
+	}
+	end := aguievents.NewTextMessageEndEvent(s.messageID)
+	s.open = false
+	return []Event{end}
 }
