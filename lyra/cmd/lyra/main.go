@@ -8,6 +8,7 @@
 //	chat.go     — `lyra chat <message>` one-shot
 //	repl.go     — `lyra repl [--session ID]` interactive
 //	session.go  — `lyra session {list|show|delete}` management
+//	memory.go   — `lyra memory {show|set|clear}` LYRA.md cascade
 //	version.go  — `lyra version` build info
 //
 // Transport layer (HTTP/gRPC/IPC) is *not* in this CLI — these
@@ -26,17 +27,35 @@ import (
 // return — non-zero propagates to os.Exit.
 type subcommand func(args []string) int
 
-// commands is the dispatch table. Keep entries alphabetical so the
-// help listing is predictable.
-var commands = map[string]struct {
+// command is one row of the dispatch table. The slice in [commands]
+// is the single source of truth for both name → handler dispatch
+// (via [lookupCommand]) and the help-listing order.
+type command struct {
+	name    string
 	run     subcommand
 	summary string
-}{
-	"chat":    {run: cmdChat, summary: "Send one message and print the streamed reply."},
-	"memory":  {run: cmdMemory, summary: "Inspect / edit the LYRA.md memory cascade."},
-	"repl":    {run: cmdRepl, summary: "Interactive multi-turn conversation."},
-	"session": {run: cmdSession, summary: "Manage saved sessions (list / show / delete)."},
-	"version": {run: cmdVersion, summary: "Print build / version info."},
+}
+
+// commands lists every subcommand in the order help renders them.
+// Slice (not map) so order is intrinsic — adding a new entry is a
+// single-line change, no second list to keep in sync.
+var commands = []command{
+	{"chat", cmdChat, "Send one message and print the streamed reply."},
+	{"repl", cmdRepl, "Interactive multi-turn conversation."},
+	{"memory", cmdMemory, "Inspect / edit the LYRA.md memory cascade."},
+	{"session", cmdSession, "Manage saved sessions (list / show / delete)."},
+	{"version", cmdVersion, "Print build / version info."},
+}
+
+// lookupCommand finds the command entry matching name, or (nil, false).
+// Linear scan is fine — the command list is tiny and bounded.
+func lookupCommand(name string) (command, bool) {
+	for _, c := range commands {
+		if c.name == name {
+			return c, true
+		}
+	}
+	return command{}, false
 }
 
 func main() {
@@ -49,7 +68,7 @@ func main() {
 	}
 
 	name := os.Args[1]
-	cmd, ok := commands[name]
+	cmd, ok := lookupCommand(name)
 	if !ok {
 		fmt.Fprintf(os.Stderr, "lyra: unknown command %q\n\n", name)
 		printUsage(os.Stderr)
@@ -68,14 +87,9 @@ func printUsage(w *os.File) {
 	fmt.Fprintln(w, "Usage: lyra <command> [args]")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Commands:")
-	// Stable ordering: same names walk in the same order each run.
-	for _, name := range commandOrder() {
-		fmt.Fprintf(w, "  %-8s  %s\n", name, commands[name].summary)
+	for _, c := range commands {
+		fmt.Fprintf(w, "  %-8s  %s\n", c.name, c.summary)
 	}
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Run `lyra <command> -h` for command-specific help.")
-}
-
-func commandOrder() []string {
-	return []string{"chat", "repl", "memory", "session", "version"}
 }
