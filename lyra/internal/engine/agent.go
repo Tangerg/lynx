@@ -2,9 +2,11 @@ package engine
 
 import (
 	"context"
+	"strings"
 
 	"github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/core"
+	"github.com/Tangerg/lynx/core/model/chat"
 )
 
 // ChatInput is the typed input to the M1 single-turn chat agent. It
@@ -28,9 +30,14 @@ type ChatOutput struct {
 // [core.ProcessContext.ChatWithActionTools] which composes the
 // chat.NewToolMiddleware tool-loop on top of platform guardrails.
 // The model can therefore call read / write / edit / glob / grep /
-// bash freely within one turn — every tool call lands on the lynx
-// event bus so [chat.Service] can fan it out as ToolCallStart /
-// ToolCallEnd events.
+// bash freely within one turn.
+//
+// The body uses Stream rather than Call so each text chunk surfaces
+// to [ToolObserver.OnMessageDelta] as it arrives — transport
+// adapters get a real streaming experience instead of one
+// pre-buffered MessageDelta. Tool-call rounds still go through the
+// same ToolMiddleware loop; tool events surface via the
+// ToolDecorator path independently of the text-delta path.
 func buildChatAgent() *core.Agent {
 	return agent.New("lyra-chat").
 		Description("single-turn LLM chat with the default coding tool set").
@@ -40,14 +47,25 @@ func buildChatAgent() *core.Agent {
 				if err != nil {
 					return ChatOutput{}, err
 				}
-				text, _, err := req.
-					WithUserPrompt(in.Message).
-					Call().
-					Text(ctx)
-				if err != nil {
-					return ChatOutput{}, err
+
+				observer := ObserverFrom(pc.Options)
+				stream := req.WithUserPrompt(in.Message).Stream()
+
+				var accumulated strings.Builder
+				for chunk, streamErr := range stream.Response(ctx) {
+					if streamErr != nil {
+						return ChatOutput{}, streamErr
+					}
+					delta := extractTextDelta(chunk)
+					if delta == "" {
+						continue
+					}
+					accumulated.WriteString(delta)
+					if observer != nil {
+						observer.OnMessageDelta(delta)
+					}
 				}
-				return ChatOutput{Reply: text}, nil
+				return ChatOutput{Reply: accumulated.String()}, nil
 			},
 			core.ActionConfig{
 				ToolGroups: core.ToolRolesFor(ToolRoleCoding),
@@ -57,4 +75,17 @@ func buildChatAgent() *core.Agent {
 			Description: "single-turn reply produced",
 		})).
 		Build()
+}
+
+// extractTextDelta pulls the text the model emitted in this chunk
+// (its TextPart bodies, joined). Returns "" for chunks that don't
+// carry assistant text — tool-call rounds (AssistantMessage has
+// only ToolCallParts), tool-injection rounds (Result.AssistantMessage
+// is nil and only Result.ToolMessage is populated), and any
+// reasoning-only or empty chunk the provider sends.
+func extractTextDelta(resp *chat.Response) string {
+	if resp == nil || resp.Result == nil || resp.Result.AssistantMessage == nil {
+		return ""
+	}
+	return resp.Result.AssistantMessage.JoinedText()
 }
