@@ -108,7 +108,7 @@ ChatModel / Embedding / Image / Audio / Moderation / Document / VectorStore / RA
 3. ~~**持久化 Memory 后端**~~ —— **已闭合 + 反超**：顶层 `chatmemory/` 6 个 provider；spring-ai main 当前仅 5 个（v1.0 后 cosmosdb chat memory 模块已移除）
 4. ~~**PDF / Markdown reader**~~ —— **已闭合**：顶层 `document-readers/` 出货 markdown / html / pdf 三个 reader（goldmark / goquery / ledongthuc/pdf）；Tika 因依赖 JVM 服务故意不做
 5. ~~**Structured Output Converter**~~ —— 已闭合：`core/model/chat/parser.go`（JSONParser[T] / ListParser / MapParser / StructuredParser[T] / AnyParser）
-6. **SafeGuard / Logger middleware** —— **当前唯一真 P1 gap**
+6. ~~**SafeGuard / Logger middleware**~~ —— **已闭合**：`core/model/chat/middleware/` 新包，依赖倒置形态——`Logger` / `Matcher` 接口对外暴露，slog / `strings.Contains` 作为 stdlib 默认实现
 7. ~~**DocumentJoiner / QueryRouter**~~ —— **不做**：spring-ai 的 `ConcatenationDocumentJoiner` 等价于 lynx 的 `DeduplicationRefiner` → `RankRefiner` refiner 链，无需额外抽象；RRF 要等到 lynx 加入非向量 retriever（BM25 / sparse）时再做，那时设计才有真实约束；QueryRouter 由用户在自定义 `DocumentRetriever` 内部决定即可，pipeline 不需要专门接口。详见 `rag/doc.go` 多 retriever 章节
 
 **vendor 生命周期视角**：spring-ai 自 v1.0.0 以来主仓库砍掉了一批模块（`spring-ai-azure-openai` / `spring-ai-vertex-ai` chat / `spring-ai-zhipuai` / `spring-ai-moonshot` / `spring-ai-qianfan` / `spring-ai-azure-cosmos-db-store` / `spring-ai-hanadb-store` / `spring-ai-infinispan-store` / cosmosdb chat memory）。lynx 这边对应的 `models/azureopenai` / `models/vertexai` / `models/zhipu` / `models/moonshot` / `chatmemory/cosmosdb` 都还在——**lynx 每个 vendor 是独立 go module，没有 spring-ai 的"autoconfigure + starter + BOM 三件套"维护税**，所以没有定期清理压力。扩张/收缩的成本曲线完全不同（详见 `SPRING_AI_COMPARISON.md` §1.1）。
@@ -117,7 +117,7 @@ ChatModel / Embedding / Image / Audio / Moderation / Document / VectorStore / RA
 
 ## I.5 一句话定档（Part I）
 
-**lynx 走 thin-library 路线扩 vendor 的边际成本远低于 spring-ai 的 framework 路线**——24 vector stores / 39 model providers / 6 chat memory provider / 3 document reader 已经验证；spring-ai 同期反而做了一轮主仓库收缩（azure-openai / vertex-ai chat / zhipuai / moonshot / cosmosdb / hanadb / infinispan 全部移出），是 framework 路线必须缴的"模块矩阵维护税"。Document reader 已闭合后，剩下的 *最后一公里* 是 SafeGuard / Logger middleware，且是 P1 中最轻的一件。
+**lynx 走 thin-library 路线扩 vendor 的边际成本远低于 spring-ai 的 framework 路线**——24 vector stores / 39 model providers / 6 chat memory provider / 3 document reader 已经验证；spring-ai 同期反而做了一轮主仓库收缩（azure-openai / vertex-ai chat / zhipuai / moonshot / cosmosdb / hanadb / infinispan 全部移出），是 framework 路线必须缴的"模块矩阵维护税"。**P0 + P1 + P2 三轮 gap 已全部闭合**——retry 不做、Anthropic Extra 已闭合、OTel 全量、持久化 Memory 反超、document readers、Structured Output、BaseVisitor、SafeGuard + Logger middleware 全部到位。剩下的是真正的长尾创新（多 agent 编排 / Bedrock Converse / Anthropic Skills 等）。
 
 ---
 
