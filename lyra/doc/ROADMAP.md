@@ -1,4 +1,4 @@
-# Lyra — 产品路线图
+# Lyra — 路线图（CS 架构 / v2）
 
 > 配合 [`ARCHITECTURE.md`](./ARCHITECTURE.md) 阅读。本文档定义实施顺序和 milestone 边界。
 
@@ -6,327 +6,297 @@
 
 ## 总体策略
 
-Lyra 是产品，不是 framework。**每个 milestone 都要能跑、能演示**。绝不做"先把 10 个抽象写好再用"。
+Lyra 是 **server runtime**，前端在独立 repo。本 repo 的每个 milestone 都要交付：
+1. **可启动的 server binary**（`lyra serve`）
+2. **稳定的 protocol contract**（`lyra/proto/`）
+3. **至少一个 transport 跑通**（HTTP / gRPC / IPC）
 
-每个 milestone 完成后能交付一个**可执行的 lyra 二进制**，体验在每个 milestone 都有可见提升。
+不交付 client UI（前端 repo 单独节奏）。
 
 ---
 
 ## M0 — 骨架（已完成 ✅）
 
-**目标**：仓库就位，可编译，可跑 hello world。
-
 - [x] `lyra/` Go module + `go.work` 注册
-- [x] `cmd/lyra/main.go` 占位 main
-- [x] `doc/ARCHITECTURE.md` + `doc/ROADMAP.md`
+- [x] `cmd/lyra/main.go` 占位
+- [x] `doc/ARCHITECTURE.md`（v2 CS 架构）
+- [x] `doc/ROADMAP.md`
 
 ---
 
-## M1 — Walking Skeleton（**第一个能演示的版本**）
+## M1 — Protocol Contract + Service 接口（**协议先行**）
 
-**目标**：单轮对话。用户输入 → LLM 回复 → 退出。无 tool、无 memory、无 session。
+**目标**：定义所有 6 个 service 的 Go interface + proto v1 框架。**还不实现业务，先确定接口**。
 
-**用户体验**：
-```bash
-$ lyra chat "what is the capital of france"
-Paris.
-$
-```
+**为什么先做协议**：前端在独立 repo 已经在写代码。协议越早稳定，前端越早能 mock 联调。
 
 **实现**：
-- `internal/config/` — 读 `~/.lyra/config.toml`（model / api_key / system_prompt path）
-- `internal/agent/definition.go` — 构造最小 `*core.Agent`（一个 chat-only Action）
-- `cmd/lyra/chat.go` — cobra subcommand，单轮 prompt → 走 lynx Platform.RunAgent → 打印回复
-
-**完成判定**：
-- 能配置 anthropic + openai 至少一家
-- 流式输出（不是等完整 response 再打）
-- 配置错误有友好提示（不是 panic）
-
-**预计**：1–2 天
-
----
-
-## M2 — Tool 集 v1（**Lyra 开始"做事"**）
-
-**目标**：内置 7 个 tool，agent loop 能 read/edit code、跑 bash。
-
-**用户体验**：
-```bash
-$ lyra chat "what version of go does this repo use"
-<reads go.mod>
-This repo uses Go 1.26.3.
-$
-```
-
-**实现**：
-- `internal/tools/fs/` — `read_file`, `write_file`, `edit_file`（diff-based 修改，参考 Claude Code 的 Edit tool）
-- `internal/tools/bash/` — `bash`（带 timeout、cwd、output 截断）
-- `internal/tools/grep/` — `grep`（shell out 到 ripgrep）
-- `internal/tools/glob/` — `glob`（filepath.Walk + doublestar）
-- `internal/tools/webfetch/` — `web_fetch`（HTTP + html → text）
-- `internal/agent/` — Action 自动注入 tool middleware
-- 走 lynx `chat.NewToolMiddleware()` 实现 tool loop
+- `lyra/proto/lyra/v1/session.proto` — `SessionService` 全部 RPC + 消息类型
+- `lyra/proto/lyra/v1/chat.proto` — `ChatService` + 全部 Event 类型
+- `lyra/proto/lyra/v1/tool.proto` — `ToolService`
+- `lyra/proto/lyra/v1/approval.proto` — `ApprovalService`
+- `lyra/proto/lyra/v1/memory.proto` — `MemoryService`
+- `lyra/proto/lyra/v1/trace.proto` — `TraceService`
+- `lyra/proto/openapi.yaml` — HTTP 映射（从 proto 注解生成）
+- `lyra/internal/service/*/service.go` — 对应 Go interface（不实现）
+- `lyra/doc/PROTOCOL.md` — 协议规则（版本、错误码、event 序列、断线重连）
 
 **关键决策**：
-- 每个 tool 是 `core.AgentTool` + metadata（safety / sandbox / idempotency）
-- Tool 执行用 `chat.NewToolMiddleware()`（lynx-core 已有）
-- Bash 在 M2 **不带沙箱**（M4 才加），先用 `os/exec` + cwd 限制
-- 全部 tool 显示在 system prompt 里（让模型知道有什么可用）
+- **Event 模型先冻结**：`TurnStart` / `MessageDelta` / `ToolCallRequest` / `ToolCallApproval` / `ToolCallStart` / `ToolCallOutput` / `ToolCallEnd` / `ReasoningDelta` / `PlanGenerated` / `TurnEnd` / `Error`
+- **错误码标准化**：`SESSION_NOT_FOUND` / `SESSION_IN_USE` / `TURN_ALREADY_RUNNING` / `INVALID_APPROVAL` 等
+- **断线重连协议**：每个 event 有 `seq`，客户端传 `resume_from_seq` 续传
+- **proto v1 冻结**：v0.1 发布前内部可改，发布后只能加字段
 
 **完成判定**：
-- 用 Lyra 修一个真实 bug：先 grep 找文件，read 看代码，edit 改，bash 跑测试
-- Token 不会爆（自动截断长 output）
-- Tool 错误能 graceful 反馈给模型，让它 retry
+- proto 编译通过（`buf lint && buf generate`）
+- 所有 service Go interface 文件存在但方法体是 `panic("not implemented")`
+- 前端 repo 能通过 git submodule / buf 消费 proto
 
-**预计**：1–2 周
+**预计**：3-5 天
 
 ---
 
-## M3 — TUI + Streaming + Steering（**产品化 UX**）
+## M2 — HTTP Transport + Walking Skeleton（**第一个能演示的版本**）
 
-**目标**：交互式 TUI，模型流式输出，用户能中途插话。
+**目标**：实现 `ChatService.StartTurn` + `StreamEvents`，HTTP+SSE transport 跑通单轮 chat。
 
-**用户体验**：
+**用户体验（前端视角）**：
 ```bash
-$ lyra
-┌─ lyra ─────────────────────────────────────┐
-│ ▶ what does this codebase do                │
-│                                              │
-│   Reading README.md... ●                     │
-│   This codebase is...                        │
-│   |                                          │
-└──────────────────────────────────────────────┘
-[steering] _
+# 前端发请求
+$ curl -X POST localhost:8080/v1/sessions/<id>/turns \
+    -d '{"message": "what is the capital of france"}'
+
+# SSE stream
+event: TurnStart
+data: {"turn_id":"...","timestamp":...}
+
+event: MessageDelta
+data: {"text":"Paris"}
+
+event: TurnEnd
+data: {"tokens":42,"cost_usd":0.0001}
 ```
 
 **实现**：
-- `internal/tui/` — bubbletea 主循环
-  - markdown 渲染（glamour 或 lipgloss）
-  - tool call 状态显示
-  - streaming text 增量更新
-  - 中断（Ctrl+C 停止当前 turn，不退出）
-- `internal/stream/` — Event channel（`iter.Seq2[Event, error]`）
-  - `TurnStart` / `MessageDelta` / `ToolCallStart` / `ToolCallEnd` / `TurnEnd` / `Error`
-- Steering 队列（参考 pi-mono）
-  - 用户在 agent 工作时按 Enter → 下一个 tool boundary 注入消息
-- `--no-tui` 降级到 plain text streaming
+- `internal/transport/http/` — gin 或 chi-based router
+- `internal/transport/http/sse.go` — SSE event encoder
+- `internal/service/chat/impl.go` — 走 lynx `Platform.RunAgent`，把 lynx 的 event 总线转成 Lyra event stream
+- `internal/service/session/impl.go` — 内存 session store（M6 才上 JSONL 持久化）
+- `internal/engine/agent.go` — 构造最小 `*core.Agent`（chat-only，无 tool）
+- `internal/config/` — `~/.lyra/config.toml`（model / api_key）
+- `cmd/lyra/serve.go` — cobra subcommand
+
+**关键决策**：
+- M2 不上 sandbox / approval / compaction —— 先把 transport 链路打通
+- 至少支持 anthropic + openai 两家
 
 **完成判定**：
-- TUI 真的好用（不卡、不闪、不偷字）
-- Ctrl+C 立刻响应（不会等 LLM 完成）
-- Steering 实测：用户能在 tool 跑一半时改方向
+- `lyra serve --listen :8080` 启动 < 100ms
+- 前端通过 HTTP+SSE 完成一轮 chat
+- Ctrl+C 退出后端，下次启动还能用（session id 持久不重）
+- proto v1 各 message 都能 marshal/unmarshal（test 覆盖）
 
-**预计**：1–2 周
+**预计**：1-2 周
 
 ---
 
-## M4 — Sandbox + Permission（**安全可控**）
+## M3 — IPC Transport（**本地嵌入式部署**）
 
-**目标**：Bash / 文件写入受沙箱保护，permission 三档可切。
+**目标**：stdio JSON-RPC transport，让前端可 spawn lyra-server 子进程通信。
 
-**用户体验**：
-```bash
-$ lyra --mode balanced
-> delete all .log files in /tmp
-[lyra] I'd like to run: rm -f /tmp/*.log
-       (allow once / allow always / deny)
-> a
-[lyra] Deleted 23 files.
+**用户体验**：前端启动时：
+```ts
+const server = spawn("lyra", ["serve", "--stdio"]);
+const client = new LyraClient(server.stdio);
+await client.session.create({...});
 ```
 
 **实现**：
-- `internal/sandbox/` — 抽象 `Profile` 接口
-  - macOS: Seatbelt (`sandbox-exec`)
-  - Linux: bwrap
-  - Windows: 先 stub，输出"无沙箱"警告
-- `internal/approval/` — Tool-level approval
-  - 三档预设（`safe` / `balanced` / `yolo`）
-  - `(tool_name, normalized_arg) → allow/deny` cache
-  - LLM classifier（balanced 模式下 Bash 的智能审批）—— **M5 才加**，M4 先做规则
-- `--mode` flag + config.toml
+- `internal/transport/ipc/` — stdio JSON-RPC server
+  - 一行一个 message（newline-delimited JSON）
+  - 同一份 service 方法 dispatch（不重复实现）
+  - bidirectional：服务端可主动推 event 到 client（不是只 reply）
+- `cmd/lyra/serve.go` 加 `--stdio` flag
+
+**关键决策**：
+- JSON-RPC 2.0 标准（method / params / id / result / error）
+- Event push 走 notification（无 id 的 message）
+- 协议头里带 `lyra-version` 用于版本协商
 
 **完成判定**：
-- macOS 上 Bash 在 seatbelt 里跑，FS 写出 lyra 工作区被拒
-- Linux 上 bwrap 等效
+- 前端可以 spawn server 跑完整 chat 流程
+- IPC 延迟 < 5ms（本地）
+- Server 进程退出时干净关闭（无僵尸）
+
+**预计**：1 周
+
+---
+
+## M4 — Tool 集 v1（**Lyra 开始"做事"**）
+
+**目标**：7 个内置 tool 全部可用。
+
+**实现**：
+- `internal/engine/tools/fs/` — `read_file`, `write_file`, `edit_file`
+- `internal/engine/tools/bash/` — `bash`（带 timeout + cwd + output 截断，**无沙箱**）
+- `internal/engine/tools/grep/` — `grep`（ripgrep wrapper）
+- `internal/engine/tools/glob/` — `glob`
+- `internal/engine/tools/webfetch/` — `web_fetch`
+- `internal/engine/tools/task/` — `task`（子任务委派，用 lynx `AsChatTool`）
+- `internal/service/tool/impl.go` — `ListTools` 返回所有内置 tool 的 metadata
+- agent definition 自动注入 tool middleware
+
+**完成判定**：
+- 前端调用一轮 chat，模型能 call tool，event stream 推 `ToolCallStart` / `ToolCallOutput` / `ToolCallEnd`
+- 真实场景：让 lyra 修一个 bug（grep + read + edit + bash）
+
+**预计**：1-2 周
+
+---
+
+## M5 — gRPC Transport（**高吞吐场景**）
+
+**目标**：gRPC + bidirectional stream。
+
+**实现**：
+- `internal/transport/grpc/` — `google.golang.org/grpc`
+- Bidirectional stream 实现 ChatService（一个 stream 同时跑 request + event push）
+- TLS 支持（远端部署用）
+
+**完成判定**：
+- 同一份业务逻辑跑在 gRPC / HTTP / IPC 三个 transport 上行为一致
+- benchmark：gRPC 吞吐 > HTTP 2x（同等负载）
+
+**预计**：1 周
+
+---
+
+## M6 — Sandbox + Permission（**安全可控**）
+
+**目标**：sandbox 三平台 + 三档 permission 模式。
+
+**实现**：
+- `internal/engine/sandbox/` — macOS Seatbelt / Linux bwrap / Windows stub
+- `internal/service/approval/impl.go` — Tool-level approval cache（bbolt 持久化）
+- 三档预设 `safe` / `balanced` / `yolo`
+- 服务端发 `ToolCallApproval` event → 客户端 UI 询问 → 客户端调 `ApprovalService.Decide`
+
+**完成判定**：
+- macOS 上 Bash 在 seatbelt 沙箱内
 - 三档模式行为差异明显
+- approval cache 跨重启保留
 
-**预计**：1–2 周
+**预计**：1-2 周
 
 ---
 
-## M5 — Context Compaction + Memory（**长对话不爆**）
+## M7 — Context Compaction + Memory（**长对话不爆**）
 
-**目标**：token > 60% 自动压缩；学到的东西写进 `LYRA.md`。
-
-**用户体验**：用户感知不到，但可以连续聊 100 轮不爆。`LYRA.md` 文件会自动出现并维护。
+**目标**：token > 60% auto-compact，写回 LYRA.md。
 
 **实现**：
-- `internal/compaction/`
-  - token-ratio 监测（用 lynx 的 `LLMInvocation` 历史）
-  - 触发后调 LLM 生成 conversation summary
-  - 保留最近 N 条 + summary + LYRA.md
-- `internal/memory/`
-  - 项目级：`<cwd>/LYRA.md`（agent 学到的项目特定知识）
-  - 用户级：`~/.lyra/LYRA.md`（跨项目偏好）
-  - 自动提取：每次 turn end 检查"这一轮有什么值得记的"
-  - 自动加载：每次 session 开始注入 system prompt
-- `internal/instructions/`
-  - LYRA.md / AGENT.md 级联加载（cwd 向上 + 全局）
+- `internal/engine/compaction/` — token-ratio 监测 + LLM summary
+- `internal/service/memory/impl.go` — `<cwd>/LYRA.md` + `~/.lyra/LYRA.md` 级联
+- 自动提取：每次 turn end 检查"这一轮有什么值得记的"
 
 **完成判定**：
-- 连续聊 100 轮不爆 context
-- 重启 lyra 后能"记得"上次学到的偏好
-- 用户可以手动编辑 LYRA.md，下次会读
+- 连续聊 100 轮不爆
+- LYRA.md 跨 session 保留
+- 前端可通过 `MemoryService.GetLYRAMd` / `UpdateLYRAMd` 编辑
 
 **预计**：2 周
 
 ---
 
-## M6 — Session 树 + 持久化（**探索性工作流**）
+## M8 — Session 持久化 + 树 + Fork（**探索性工作流**）
 
-**目标**：每个 session 是一棵树，可 fork、可回放。
-
-**用户体验**：
-```
-$ lyra session list
-[12:34] refactor auth module (23 messages)
-[09:12] add logging (8 messages)
-$ lyra session resume <id>
-$ /fork    # 在当前 message 创建分支
-$ /tree    # 看完整树状结构
-```
+**目标**：JSONL 持久化 + session 树 + branching。
 
 **实现**：
-- `internal/session/`
-  - JSONL 持久化（每 session 一个文件）
-  - 树结构（message 带 `parent_id`）
-  - `/fork`, `/tree`, `/checkout` 命令
-- 集成 lynx `core.SessionStore`（filesystem backend）
+- `internal/storage/session_store.go` — JSONL 持久化（实现 lynx `core.SessionStore`）
+- 树结构（message 带 `parent_id`）
+- `SessionService.Fork(id, at_message_id)` 创建分支
+- `SessionService.List` 返回树结构
+- 断线重连：客户端传 `resume_from_seq`，服务端从持久化日志续传 event
 
 **完成判定**：
-- 100 个 session 切换流畅
-- fork 后两条线互不影响
-- 树深度可视化
+- 重启 server 后 session 状态完整恢复
+- Fork 后两条线互不影响
+- 100 个 session 列表渲染 < 50ms
 
-**预计**：1–2 周
+**预计**：1-2 周
 
 ---
 
-## M7 — MCP 集成（**生态接入**）
+## M9 — MCP Transport + MCP Client（**生态双向接入**）
 
-**目标**：Lyra 既可当 MCP client 用外部 server，也可被当 MCP server 调用。
-
-**用户体验**：
-```bash
-$ cat ~/.lyra/config.toml
-[[mcp_servers]]
-name = "github"
-command = "mcp-github"
-
-$ lyra
-> list my open prs
-<calls github mcp's list_prs tool>
-...
-```
+**目标**：
+1. Lyra-server 把自己暴露成 MCP server（让其他 agent 当 subagent 调）
+2. Lyra-server 作为 MCP client 消费外部 MCP server（github / filesystem / lsp 等）
 
 **实现**：
-- 直接用 lynx-mcp 客户端
-- Lyra 启动时连接配置的 MCP servers
-- 把 MCP tools 合并进 Lyra 内置 tool 列表
-- 可选：把 Lyra 自己 expose 成 MCP server（让 Claude Code 等调用 Lyra 当子 agent）
+- `internal/transport/mcp/` — 走 lynx-mcp server 实现
+  - 把 6 个 Lyra service 映射成 MCP tool（如 `lyra.chat.start_turn`）
+- `internal/engine/mcp_client.go` — 启动时连接配置的 MCP servers，工具合并进 tool 列表
 
 **完成判定**：
-- 配置 github MCP 后能在 Lyra 里调用 GitHub 操作
-- 配置 filesystem MCP 后能用其文件能力
+- 配置 github MCP 后能在 Lyra 里用 github 操作
+- Claude Code 等 agent 把 Lyra 当 MCP server 调
+- 三种 transport（HTTP / gRPC / IPC）+ MCP 全部一致
 
-**预计**：1 周
+**预计**：1-2 周
 
 ---
 
-## M8 — Planner 集成 + Plan Mode（**lynx 独门**）
+## M10 — Planner + Plan Mode（**lynx 独门**）
 
-**目标**：让用户体验到"5 planner 可切"和 Plan Mode。
-
-**用户体验**：
-```bash
-> /plan refactor the auth module to use jwt
-[lyra] Planning...
-       Step 1: read auth module
-       Step 2: identify session-based auth points
-       Step 3: introduce jwt library
-       Step 4: convert each handler
-       Step 5: update tests
-       (proceed / edit / abort)
-```
+**目标**：让前端能体验到"5 planner 可切"和 Plan Mode。
 
 **实现**：
-- `/plan` 命令切到 goap planner + plan mode
-- HTN library 提供 "refactor" / "bug-fix" / "feature-add" 几个高频任务的预定义分解
-- Plan 预览 + 用户确认 + 执行
+- `ChatService.StartTurn` 接受 `plan_mode: bool`
+- Plan mode 下走 goap planner，先产 plan event，等用户确认后才执行
+- HTN library 提供 `refactor` / `bug-fix` / `feature-add` 预设
+- `PlanGenerated` event 推 plan 给前端预览
 
 **完成判定**：
-- 真实任务里 HTN 比 reactive 更稳定
-- 用户能编辑 plan 后再执行
+- 前端发 `plan_mode: true` 能看到 plan 预览
+- 用户编辑 plan 后再执行
 
 **预计**：2 周
 
 ---
 
-## M9 — 观测 + Trace Viewer（**生产可调试**）
+## M11 — Trace Service（**观测**）
 
-**目标**：每个 session 都有完整 trace；本地 viewer 可看 timeline。
-
-**用户体验**：
-```bash
-$ lyra trace --session <id>
-<打开 TUI 时间线，看每个 tool / LLM call 的耗时 / token / cost>
-```
+**目标**：完整 trace 收集 + 查询 API。
 
 **实现**：
-- `internal/trace/`
-  - 启动内嵌的 OTel collector（in-memory）
-  - 收集 lynx 的 span（agent / planner / action / tool / chat）
-  - JSONL 持久化
-- `lyra trace` subcommand：TUI timeline viewer
-- `lyra trace --export-otlp` 推送到外部 collector
+- `internal/service/trace/impl.go` — 内嵌 OTel collector
+- 持久化到 JSONL（同 session 目录）
+- `TraceService.ListTraces` / `GetTrace` / `StreamLiveSpans`（实时观看当前 turn）
 
 **完成判定**：
-- 一个 session 后能看清"哪一步慢"
-- 能看 token / cost 分布
+- 前端能渲染 trace timeline
+- 一个 turn 完成后能查到完整 span tree（agent / planner / action / tool / chat）
 
-**预计**：1–2 周
+**预计**：1-2 周
 
 ---
 
-## M10 — v0.1 发布
+## M12 — v0.1 发布
 
-**目标**：能在外人面前演示，文档齐全。
+**目标**：能演示，文档齐全，proto v1 锁定。
 
-- [ ] README（含 demo gif）
-- [ ] 安装指南（brew / go install）
+- [ ] README（含 demo 视频链接）
+- [ ] 安装指南（brew / go install / docker）
 - [ ] config.toml 文档
-- [ ] LYRA.md 写法指南
-- [ ] 5 个典型用例（refactor / bug-fix / explain / test-gen / web-research）
-- [ ] CHANGELOG.md
-- [ ] CI（GitHub Actions：build / test / lint）
+- [ ] proto v1 freeze + CHANGELOG
+- [ ] CI（build / lint / proto-lint / e2e）
 - [ ] 跨平台 release（darwin / linux / windows）
+- [ ] **PROTOCOL.md + CLIENT.md 完整**
+- [ ] 跟前端 repo 联调通过 v0.1 acceptance test
 
 **预计**：1 周
-
----
-
-## 后续路线（v0.2+，不在 v0.1 范围）
-
-- IDE bridge（VSCode extension）
-- Web UI
-- 团队/云同步
-- Plugin marketplace
-- Skill 系统（Markdown + SKILL.md）
-- LSP 集成（通过 MCP）
-- 多 agent 编排 UI（基于 lynx RunInScope）
-- Memory 向量化检索（基于 lynx vectorstore）
-- 评估 framework（agent benchmark / regression test）
 
 ---
 
@@ -334,38 +304,71 @@ $ lyra trace --session <id>
 
 | Milestone | 预计耗时 | 累计 |
 |---|---|---|
-| M0 | 完成 | — |
-| M1 walking skeleton | 1–2 d | 2 d |
-| M2 tool 集 v1 | 1–2 w | 16 d |
-| M3 TUI + steering | 1–2 w | 30 d |
-| M4 sandbox + permission | 1–2 w | 44 d |
-| M5 compaction + memory | 2 w | 58 d |
-| M6 session 树 | 1–2 w | 72 d |
-| M7 MCP | 1 w | 79 d |
-| M8 planner | 2 w | 93 d |
-| M9 trace viewer | 1–2 w | 107 d |
-| M10 v0.1 发布 | 1 w | 114 d |
+| M0 骨架 | 完成 | — |
+| M1 protocol + service 接口 | 3-5 d | 5 d |
+| M2 HTTP transport + walking skeleton | 1-2 w | 19 d |
+| M3 IPC transport | 1 w | 26 d |
+| M4 tool 集 | 1-2 w | 40 d |
+| M5 gRPC transport | 1 w | 47 d |
+| M6 sandbox + permission | 1-2 w | 61 d |
+| M7 compaction + memory | 2 w | 75 d |
+| M8 session 持久化 + 树 | 1-2 w | 89 d |
+| M9 MCP transport + client | 1-2 w | 103 d |
+| M10 planner + plan mode | 2 w | 117 d |
+| M11 trace service | 1-2 w | 131 d |
+| M12 v0.1 发布 | 1 w | 138 d |
 
-**~4 个月做到 v0.1**（按一人 full-time 估）。
+**~4.5 个月做到 v0.1**（一人 full-time）。
+
+---
+
+## 跟前端 repo 的协作时间线
+
+```
+M1 完成 ──────► 前端可拿 proto mock 联调
+M2 完成 ──────► 前端可跑真实 HTTP+SSE 链路（chat）
+M3 完成 ──────► 前端可 embed lyra-server 走 stdio
+M4 完成 ──────► 前端能展示 tool 调用流（spinner / 输出）
+M6 完成 ──────► 前端能弹 approval 对话框
+M7 完成 ──────► 前端能展示 LYRA.md 编辑器
+M8 完成 ──────► 前端能展示 session 树 / fork UI
+M11 完成 ──────► 前端能展示 trace timeline
+M12 ──────► 双 repo 联合发布
+```
 
 ---
 
 ## Milestone 顺序的几个理由
 
-1. **M1 → M2**：先能聊天再做事。倒过来会被 tool 系统复杂度拖死。
-2. **M3 在 M2 后**：先把核心能力做出来，再做 UX。倒过来会做漂亮的玩具。
-3. **M4 在 M3 后**：sandbox 不影响功能演示，但影响"敢不敢真用"。所以 M3 之后立刻加。
-4. **M5 是分水岭**：M5 之前 lyra 是"聊天 + 工具"，M5 之后是"长期助手"。
-5. **M8 放后面**：planner 是 lynx 的独门，但短链路 coding 用 reactive 就够。MVP 阶段 planner 是 nice-to-have。
+1. **M1 协议先行**：CS 架构最大风险是协议反复改，前端已开始写，协议要先冻
+2. **M2 → M3 顺序**：先 HTTP（最通用）再 IPC（特殊优化）
+3. **M5 gRPC 放中间**：等 HTTP 接口稳了再加 gRPC，避免双份 maintain
+4. **M6 sandbox 后置**：先把 tool 跑起来再加沙箱，否则 tool 调试都难
+5. **M7 → M8 顺序**：先压缩（短期内存）再持久化（长期存储）
+6. **M9 MCP**：等业务稳定再做生态接入，避免协议震荡
+7. **M10 planner**：lynx 独门优势，留到中后期作为差异化卖点
+8. **M11 trace 接近收尾**：先保证功能，最后做可观测
 
 ---
 
-## 衡量产品价值的指标（每个 milestone 后追踪）
+## 价值指标（每 milestone 跑一遍）
 
-- **first-token latency**：从用户敲回车到第一个字出现
-- **task success rate**：典型任务（修 bug / 加 feature）通过率
-- **context efficiency**：完成同一任务消耗的 token
-- **interruption smoothness**：Ctrl+C / steering 的响应时间
-- **session persistence**：能恢复多深的中断点
+- **first-event latency**：HTTP POST 到首个 SSE event 的时间
+- **task success rate**：典型任务通过率
+- **token efficiency**：完成同任务消耗的 token
+- **server boot time**：`lyra serve` 到 ready
+- **transport parity**：HTTP / gRPC / IPC 三个 transport 行为一致性测试
 
-每个 milestone 完成时跑一遍指标，对比上个 milestone。指标退化 = 不能合并。
+指标退化 = 不能合并。
+
+---
+
+## 跟前端 repo 的协议同步流程
+
+1. **协议改动 → 在 lyra repo 提 PR**
+2. **CI 自动跑 `buf breaking`** 检测破坏性变更
+3. **前端 repo 维护者 review**
+4. **同步 merge** + 双方 release
+5. **breaking change 必须升 v2**，v1 保留至少 6 个月
+
+每个 milestone 完成的同时，**proto / openapi / docs 必须同步更新**。
