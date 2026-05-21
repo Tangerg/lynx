@@ -1,8 +1,8 @@
 package runtime
 
 import (
+	"errors"
 	"fmt"
-	"slices"
 	"time"
 
 	"github.com/Tangerg/lynx/agent/core"
@@ -65,10 +65,10 @@ func SnapshotProcess(p *AgentProcess) core.ProcessSnapshot {
 		}
 	}
 
-	if bb := p.blackboard; bb != nil {
-		if s, ok := bb.(BlackboardSnapshotter); ok {
-			snap.Blackboard, snap.Conditions, snap.Objects = s.Snapshot()
-		}
+	// Type assertion on a nil interface returns (zero, false) — no
+	// guard needed before the assertion.
+	if s, ok := p.blackboard.(BlackboardSnapshotter); ok {
+		snap.Blackboard, snap.Conditions, snap.Objects = s.Snapshot()
 	}
 	return snap
 }
@@ -126,7 +126,7 @@ func RestoreProcess(platform *Platform, snap core.ProcessSnapshot) (*AgentProces
 		p.state.setLastWorld(snap.LastWorld)
 	}
 	if snap.Failure != "" {
-		p.state.setFailure(fmt.Errorf("%s", snap.Failure))
+		p.state.setFailure(errors.New(snap.Failure))
 	}
 	for _, h := range snap.History {
 		p.state.recordInvocation(ActionInvocation{
@@ -138,11 +138,7 @@ func RestoreProcess(platform *Platform, snap core.ProcessSnapshot) (*AgentProces
 		})
 	}
 
-	// Re-install budget totals + invocation history.
-	p.budget.ownCost = snap.Cost
-	p.budget.ownTokens = snap.Tokens
-	p.budget.llmInvocations = slices.Clone(snap.LLMInvocations)
-	p.budget.embeddingInvocations = slices.Clone(snap.EmbeddingInvocations)
+	p.budget.restore(snap.Cost, snap.Tokens, snap.LLMInvocations, snap.EmbeddingInvocations)
 
 	// Re-populate blackboard when the implementation supports it.
 	if r, ok := blackboard.(BlackboardRestorer); ok {
