@@ -5,6 +5,7 @@ use (
 	./chatmemory
 	./core
 	./documentreaders
+	./lyra
 	./mcp
 	./models
 	./otel
