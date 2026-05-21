@@ -101,11 +101,36 @@ src/
 │   ├── sidebar/          类型 + Avatar
 │   └── icon-gallery/     IconGallery / IconShowcase
 │
-├── lib/                  共享工具：queries.ts / http.ts / queryClient.ts / motion.ts
+├── domain/               【整洁架构】业务接口 + 模型（零外部依赖）
+│   ├── models/           值类型：Approval / 未来的 Session/Tool/…
+│   ├── gateways/         outbound 副作用契约：PermissionGateway / …
+│   └── index.ts          barrel，外部从 `@/domain` 引入
+│
+├── infra/                【整洁架构】框架适配（实现 domain gateway）
+│   └── http/             HTTP 实现：HttpPermissionGateway
+│
+├── main/                 【整洁架构】composition root
+│   └── container.ts      DI 单例：getContainer() / setContainer() 测试用
+│
+├── lib/                  共享工具 hook + 纯函数（不属于上述任何层）
+│   ├── queries.ts / http.ts / queryClient.ts / motion.ts
+│   ├── smoothText.ts / segmentWords.ts / rehypeFadeIn.ts / shiki.ts
+│   ├── markdownPartials.ts / useDebouncedValue.ts
+│   ├── useStickyBottomScroll.ts / useApprovalSubmit.ts
 ├── utils/                inline 渲染、TS 简易语法高亮
 ├── styles/app.css        承载主体样式
 └── test/                 测试 setup
 ```
+
+> **关于 `domain/` `infra/` `main/`** —— 参考 clean-react-app 的整洁架构分层，但**没有照搬全套**。Lyra 大部分 UI ↔ 数据流通过插件系统（`plugins/sdk` + builtin 插件）已经达成解耦；仅在"UI 直接发起 outbound 副作用"的场景（目前是 ApprovalCard POST /permission）抽出 gateway 接口。规则：
+>
+>   - `domain/` 只能 `import type`，不能 `import` 任何运行时代码（React / fetch / zustand 都禁）
+>   - `infra/` 实现 `domain/gateways/*`，可以用 fetch / localStorage / IPC
+>   - `main/container.ts` 是唯一把 infra 实现塞给 domain 接口的地方
+>   - UI 一律 `import { getContainer } from "@/main/container"` 然后 `.permission.submit(...)`
+>
+> 增加新 gateway 的步骤：① `domain/gateways/Foo.ts` 写接口；② `infra/.../HttpFoo.ts` 写实现；③ `main/container.ts` 加字段；④ UI 调用 `getContainer().foo.x()`。
+
 
 ---
 
