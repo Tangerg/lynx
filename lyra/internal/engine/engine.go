@@ -18,6 +18,12 @@ type Config struct {
 	// ChatClient is the LLM client used by every action. Built from
 	// a lynx model adapter (anthropic, openai, ...) at startup.
 	ChatClient *chat.Client
+
+	// Workdir is the filesystem root every Lyra-shipped tool is
+	// scoped to. Empty string disables the scoping (LocalExecutor
+	// permits any path) — fine for tests, not recommended for
+	// production. Typical value: the user's project cwd.
+	Workdir string
 }
 
 // Engine is the runtime container. Holds the lynx Platform and the
@@ -27,6 +33,7 @@ type Config struct {
 type Engine struct {
 	platform *runtime.Platform
 	agent    *core.Agent
+	tools    []chat.Tool
 }
 
 // New constructs an engine. Returns an error when required deps
@@ -36,8 +43,12 @@ func New(cfg Config) (*Engine, error) {
 		return nil, errors.New("engine: ChatClient is required")
 	}
 
+	resolver := buildCodingResolver(cfg.Workdir)
+	tools := BuildCodingTools(cfg.Workdir)
+
 	platform := agent.NewPlatform(&runtime.PlatformConfig{
 		ChatClient: cfg.ChatClient,
+		Extensions: []core.Extension{resolver},
 	})
 
 	a := buildChatAgent()
@@ -48,8 +59,14 @@ func New(cfg Config) (*Engine, error) {
 	return &Engine{
 		platform: platform,
 		agent:    a,
+		tools:    tools,
 	}, nil
 }
+
+// Tools returns the registered coding tool set — used by
+// ToolService.List to surface tool metadata to clients without
+// re-running the construction.
+func (e *Engine) Tools() []chat.Tool { return e.tools }
 
 // Platform exposes the underlying lynx platform for service
 // implementations that need fine-grained control (most don't —
@@ -64,15 +81,28 @@ func (e *Engine) ChatAgent() *core.Agent { return e.agent }
 // schedules a process against the configured ChatAgent, blocks on
 // completion, and returns the produced reply.
 //
+// When observer is non-nil the engine attaches a process-scope
+// [core.ToolDecorator] that fires OnToolCallStart / OnToolCallEnd
+// for every tool the model invokes during the turn — used by
+// chat.Service to surface ToolCallStart / ToolCallEnd events.
+//
 // Streaming (the more useful entry for transport adapters) lives
 // in chat.Service.StartTurn — it wraps RunChat with a goroutine and
 // event channel. RunChat is exposed for tests and synchronous
 // callers.
-func (e *Engine) RunChat(ctx context.Context, userMessage string) (string, error) {
+func (e *Engine) RunChat(ctx context.Context, userMessage string, observer ToolObserver) (string, error) {
 	in := ChatInput{Message: userMessage}
+
+	opts := core.ProcessOptions{}
+	if observer != nil {
+		opts.Extensions = []core.Extension{
+			&toolObserverDecorator{observer: observer},
+		}
+	}
+
 	proc, err := e.platform.RunAgent(ctx, e.agent,
 		map[string]any{core.DefaultBindingName: in},
-		core.ProcessOptions{},
+		opts,
 	)
 	if err != nil {
 		return "", fmt.Errorf("engine: run chat: %w", err)

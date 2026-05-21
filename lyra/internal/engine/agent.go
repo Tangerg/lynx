@@ -20,18 +20,25 @@ type ChatOutput struct {
 	Reply string
 }
 
-// buildChatAgent constructs the M1 chat agent: one action ("chat")
-// that asks the LLM and returns the reply text. No tools, no planner
-// flag — the framework defaults to GOAP A*, finds the one-step plan
-// trivially.
+// buildChatAgent constructs the chat agent: one action ("chat") that
+// asks the LLM with the coding tool set wired in.
+//
+// The Action declares [ToolRoleCoding] so the runtime resolves the
+// coding tool group at dispatch time; the body calls
+// [core.ProcessContext.ChatWithActionTools] which composes the
+// chat.NewToolMiddleware tool-loop on top of platform guardrails.
+// The model can therefore call read / write / edit / glob / grep /
+// bash freely within one turn — every tool call lands on the lynx
+// event bus so [chat.Service] can fan it out as ToolCallStart /
+// ToolCallEnd events.
 func buildChatAgent() *core.Agent {
 	return agent.New("lyra-chat").
-		Description("single-turn LLM chat — the M1 walking-skeleton agent").
+		Description("single-turn LLM chat with the default coding tool set").
 		Actions(agent.NewAction("chat",
 			func(ctx context.Context, pc *core.ProcessContext, in ChatInput) (ChatOutput, error) {
-				req := pc.Chat()
-				if req == nil {
-					return ChatOutput{}, errChatClientMissing
+				req, err := pc.ChatWithActionTools(ctx)
+				if err != nil {
+					return ChatOutput{}, err
 				}
 				text, _, err := req.
 					WithUserPrompt(in.Message).
@@ -42,7 +49,9 @@ func buildChatAgent() *core.Agent {
 				}
 				return ChatOutput{Reply: text}, nil
 			},
-			core.ActionConfig{},
+			core.ActionConfig{
+				ToolGroups: core.ToolRolesFor(ToolRoleCoding),
+			},
 		)).
 		Goals(agent.GoalProducing[ChatOutput](core.Goal{
 			Description: "single-turn reply produced",

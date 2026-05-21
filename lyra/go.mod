@@ -6,6 +6,7 @@ require (
 	github.com/Tangerg/lynx/agent v0.0.0-20260521101326-c68784dc9f99
 	github.com/Tangerg/lynx/core v0.0.0-20260521101326-c68784dc9f99
 	github.com/Tangerg/lynx/models v0.0.0-20260521101326-c68784dc9f99
+	github.com/Tangerg/lynx/tools v0.0.0-20260521101326-c68784dc9f99
 	github.com/google/uuid v1.6.0
 )
 
