@@ -134,7 +134,11 @@ func (s *impl) runTurn(ctx context.Context, st *turnState, req StartTurnRequest)
 	})
 
 	observer := &turnObserver{impl: s, st: st}
-	_, runErr := s.engine.RunChat(ctx, req.Message, observer)
+	_, runErr := s.engine.RunChat(ctx, engine.RunChatRequest{
+		SessionID: req.SessionID,
+		Message:   req.Message,
+		Observer:  observer,
+	})
 	if runErr != nil {
 		// Honour cancellation differently from genuine errors so
 		// transport adapters can render the right state.
