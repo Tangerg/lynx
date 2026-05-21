@@ -105,17 +105,19 @@ ChatModel / Embedding / Image / Audio / Moderation / Document / VectorStore / RA
 
 1. ~~**Retry `Transient` / `NonTransient` 分类**~~ —— 不做：SDK 内部已自带重试
 2. ~~**Anthropic Extra 通道保护**~~ —— 已闭合（`models/anthropic/extra.go`）
-3. ~~**持久化 Memory 后端**~~ —— 已闭合：顶层 `chatmemory/` 提供 postgres/redis/mongodb/cassandra/neo4j/cosmosdb 共 6 个 provider
-4. **PDF / Markdown reader**——spring-ai 4 个 reader，lynx 仅 text + JSON
+3. ~~**持久化 Memory 后端**~~ —— **已闭合 + 反超**：顶层 `chatmemory/` 6 个 provider；spring-ai main 当前仅 5 个（v1.0 后 cosmosdb chat memory 模块已移除）
+4. **PDF / Markdown reader**——spring-ai 4 个 reader（jsoup / markdown / pdf / tika），lynx 仅 text + JSON。**当前唯一真 P1 gap**
 5. ~~**Structured Output Converter**~~ —— 已闭合：`core/model/chat/parser.go`（JSONParser[T] / ListParser / MapParser / StructuredParser[T] / AnyParser）
 6. **SafeGuard / Logger middleware**
 7. **DocumentJoiner / QueryRouter**（RAG 多路检索合并 + query 路由）
+
+**vendor 生命周期视角**：spring-ai 自 v1.0.0 以来主仓库砍掉了一批模块（`spring-ai-azure-openai` / `spring-ai-vertex-ai` chat / `spring-ai-zhipuai` / `spring-ai-moonshot` / `spring-ai-qianfan` / `spring-ai-azure-cosmos-db-store` / `spring-ai-hanadb-store` / `spring-ai-infinispan-store` / cosmosdb chat memory）。lynx 这边对应的 `models/azureopenai` / `models/vertexai` / `models/zhipu` / `models/moonshot` / `chatmemory/cosmosdb` 都还在——**lynx 每个 vendor 是独立 go module，没有 spring-ai 的"autoconfigure + starter + BOM 三件套"维护税**，所以没有定期清理压力。扩张/收缩的成本曲线完全不同（详见 `SPRING_AI_COMPARISON.md` §1.1）。
 
 > **完整 gap 路线图 + ROI 评级见 `SPRING_AI_COMPARISON.md` §9**。
 
 ## I.5 一句话定档（Part I）
 
-**lynx 走 thin-library 路线扩 vendor 的边际成本远低于 spring-ai 的 framework 路线**——27 vector stores / 39 model providers 已经验证。但 *最后一公里* 的 production-readiness（持久化记忆 / PDF reader / retry 分类 / 结构化输出 converter）仍未补齐。
+**lynx 走 thin-library 路线扩 vendor 的边际成本远低于 spring-ai 的 framework 路线**——24 vector stores / 39 model providers / 6 chat memory provider 已经验证；spring-ai 同期反而做了一轮主仓库收缩（azure-openai / vertex-ai chat / zhipuai / moonshot / cosmosdb / hanadb / infinispan 全部移出），是 framework 路线必须缴的"模块矩阵维护税"。剩下的 *最后一公里*：document reader（PDF / Markdown / Jsoup / Tika）是当前唯一 P1 gap。
 
 ---
 
