@@ -45,18 +45,44 @@ type Process interface {
 	// StatusWaiting, and returns ActionWaiting.
 	AwaitInput(req Awaitable) ActionStatus
 
-	// RecordUsage attributes LLM cost (USD) and token count to this
-	// process, contributing to subtree budget aggregation. Integration
-	// code (listeners, chat-client adapters) calls this on each LLM
-	// response.
+	// RecordUsage attributes a flat (cost, tokens) pair to this
+	// process for callers that don't care about per-invocation
+	// detail. Equivalent to [Process.RecordLLMInvocation] with an
+	// LLMInvocation whose only populated fields are Cost and
+	// PromptTokens (PromptTokens stands in for the lumped token
+	// count). Prefer the typed Record* methods when per-call audit
+	// is required.
 	RecordUsage(cost float64, tokens int)
 
+	// RecordLLMInvocation appends an LLM call to this process's
+	// invocation history and contributes to subtree budget
+	// aggregation. Integration code (chat middleware, per-vendor
+	// adapter) calls this once per LLM response.
+	RecordLLMInvocation(invocation LLMInvocation)
+
+	// RecordEmbeddingInvocation appends an embedding call to this
+	// process's history. Mirrors RecordLLMInvocation for the
+	// embeddings path.
+	RecordEmbeddingInvocation(invocation EmbeddingInvocation)
+
 	// Usage returns the subtree-aggregated cost / token / action totals.
-	// Cost and tokens come from [Process.RecordUsage] calls; the action
-	// count is the recursive sum of every History across this process
-	// and its child processes. [BudgetPolicy] reads this directly so a
+	// Cost and tokens come from RecordUsage / RecordLLMInvocation /
+	// RecordEmbeddingInvocation calls; the action count is the
+	// recursive sum of every History across this process and its
+	// child processes. [BudgetPolicy] reads this directly so a
 	// parent's budget governs its entire delegation tree.
 	Usage() (cost float64, tokens int, actions int)
+
+	// LLMInvocations returns the subtree-aggregated LLM invocation
+	// history in chronological order across this process and every
+	// descendant. The returned slice is a fresh copy — callers may
+	// retain or sort it without affecting future Record* calls.
+	LLMInvocations() []LLMInvocation
+
+	// EmbeddingInvocations returns the subtree-aggregated embedding
+	// invocation history. Same ordering and copy semantics as
+	// LLMInvocations.
+	EmbeddingInvocations() []EmbeddingInvocation
 }
 
 // processCtxKey is the unexported context key for embedding a Process. Using

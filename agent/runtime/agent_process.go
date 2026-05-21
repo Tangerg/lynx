@@ -134,6 +134,31 @@ func (p *AgentProcess) RecordUsage(cost float64, tokens int) {
 	p.budget.recordUsage(cost, tokens)
 }
 
+// RecordLLMInvocation appends a fully-attributed LLM call to this
+// process's history. Integration code calls this once per LLM
+// response with the model id, provider, cost, and token breakdown.
+func (p *AgentProcess) RecordLLMInvocation(inv core.LLMInvocation) {
+	p.budget.recordLLMInvocation(inv)
+}
+
+// RecordEmbeddingInvocation appends a fully-attributed embedding
+// call. Mirrors RecordLLMInvocation for the embeddings path.
+func (p *AgentProcess) RecordEmbeddingInvocation(inv core.EmbeddingInvocation) {
+	p.budget.recordEmbeddingInvocation(inv)
+}
+
+// LLMInvocations returns the subtree-aggregated LLM invocation
+// history in chronological-per-process order.
+func (p *AgentProcess) LLMInvocations() []core.LLMInvocation {
+	return p.budget.llmHistory()
+}
+
+// EmbeddingInvocations returns the subtree-aggregated embedding
+// invocation history.
+func (p *AgentProcess) EmbeddingInvocations() []core.EmbeddingInvocation {
+	return p.budget.embeddingHistory()
+}
+
 // --- core.Process mutation surface ----------------------------------------
 
 // TerminateAgent queues a "stop the whole process" signal. Tick consumes
@@ -267,6 +292,17 @@ func (p *AgentProcess) platformChatClient() *chat.Client {
 		return nil
 	}
 	return p.platform.chatClient
+}
+
+// platformGuardrails returns the platform-level chat guardrails, or
+// nil when none are configured (or no platform attached). Threaded
+// into ProcessContext so [ProcessContext.Chat] can pre-install the
+// global middlewares on every request.
+func (p *AgentProcess) platformGuardrails() *core.Guardrails {
+	if p.platform == nil {
+		return nil
+	}
+	return p.platform.guardrails
 }
 
 // platformExtensions exposes the platform-scoped extension list.

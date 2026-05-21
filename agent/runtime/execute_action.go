@@ -209,6 +209,7 @@ func (p *AgentProcess) buildProcessContext(actionToolGroups []core.ToolGroupRequ
 		OutputChannel:    p.options.OutputChannel,
 		Services:         p.platformServices(),
 		ChatClient:       p.platformChatClient(),
+		Guardrails:       p.platformGuardrails(),
 		ActionToolGroups: actionToolGroups,
 		Publish:          p.publishAny,
 		ToolCallCancel:   p.signals.registerToolCallCancel,

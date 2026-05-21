@@ -135,6 +135,10 @@ func runGoalApprovers(approvers []core.GoalApprover, process core.Process, goal 
 // runToolGroupResolvers walks resolvers in order; the first non-nil
 // group wins. A resolver returning (nil, nil) means "I don't know
 // this role, ask the next one"; any error short-circuits.
+//
+// Resolved groups are rejected when their declared permissions exceed
+// what the requirement grants — a sandboxed action can't pick up a
+// resolver implementation that quietly upgrades the privilege set.
 func runToolGroupResolvers(
 	resolvers []core.ToolGroupResolver,
 	ctx context.Context,
@@ -145,9 +149,15 @@ func runToolGroupResolvers(
 		if err != nil {
 			return nil, fmt.Errorf("resolver %q: %w", r.Name(), err)
 		}
-		if group != nil {
-			return group, nil
+		if group == nil {
+			continue
 		}
+		granted := group.Metadata().Permissions()
+		if !core.PermissionsSatisfy(requirement.Permissions, granted) {
+			return nil, fmt.Errorf("resolver %q: tool group %q grants permissions %v exceeding requirement %v",
+				r.Name(), group.Metadata().Role(), granted, requirement.Permissions)
+		}
+		return group, nil
 	}
 	return nil, nil
 }

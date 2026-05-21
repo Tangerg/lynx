@@ -53,6 +53,11 @@ type ProcessContextConfig struct {
 	// then returns nil and the action body must handle that case.
 	ChatClient *chat.Client
 
+	// Guardrails carries platform-wide chat middlewares (logger /
+	// safeguard / quota etc.) that wrap every Chat request action
+	// bodies make. nil or empty means "no global middleware".
+	Guardrails *Guardrails
+
 	// ActionToolGroups carries the currently-executing action's declared
 	// [ToolGroupRequirement]s, so [ProcessContext.ActionTools] can
 	// resolve them without the action body having to re-state role
@@ -87,6 +92,7 @@ type ProcessContext struct {
 	Services      *ServiceProvider
 
 	chatClient       *chat.Client
+	guardrails       *Guardrails
 	actionToolGroups []ToolGroupRequirement
 	publishEvent     EventPublisher
 	resolveTools     ToolResolver
@@ -109,6 +115,7 @@ func NewProcessContext(config ProcessContextConfig) *ProcessContext {
 		OutputChannel:    config.OutputChannel,
 		Services:         config.Services,
 		chatClient:       config.ChatClient,
+		guardrails:       config.Guardrails,
 		actionToolGroups: config.ActionToolGroups,
 		publishEvent:     config.Publish,
 		resolveTools:     config.ResolveTools,
@@ -144,11 +151,20 @@ func (pc *ProcessContext) ResolveTools(ctx context.Context, roles ...string) ([]
 // shared [chat.Client], or nil when the platform was constructed
 // without one — actions that expect LLM access should nil-check (or
 // use [ChatWithActionTools] which surfaces a clear error).
+//
+// Platform-level [Guardrails] (when configured) are pre-installed on
+// the returned request — every call / stream the action issues
+// passes through the global logger / safeguard / quota middlewares
+// before reaching the underlying model.
 func (pc *ProcessContext) Chat() *chat.ClientRequest {
 	if pc.chatClient == nil {
 		return nil
 	}
-	return pc.chatClient.Chat()
+	req := pc.chatClient.Chat()
+	if mws := pc.guardrails.MiddlewareValues(); len(mws) > 0 {
+		req = req.WithMiddlewares(mws...)
+	}
+	return req
 }
 
 // ChatWithActionTools is the "ask the LLM with my action's tools"
@@ -156,21 +172,33 @@ func (pc *ProcessContext) Chat() *chat.ClientRequest {
 // resolved tools and [chat.NewToolMiddleware]. When the action
 // declares no ToolGroups, returns the bare client clone.
 //
+// Platform-level [Guardrails] are layered outside the tool middleware
+// so the guardrails see the user-facing request shape (before the
+// tool loop expands it).
+//
 // Errors when no ChatClient is configured or tool resolution fails.
 func (pc *ProcessContext) ChatWithActionTools(ctx context.Context) (*chat.ClientRequest, error) {
-	req := pc.Chat()
-	if req == nil {
+	if pc.chatClient == nil {
 		return nil, errors.New("chat with action tools: no ChatClient configured on the platform")
 	}
+	req := pc.chatClient.Chat()
 	tools, err := pc.ActionTools(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("chat with action tools: %w", err)
 	}
+
+	guardrails := pc.guardrails.MiddlewareValues()
 	if len(tools) == 0 {
+		if len(guardrails) > 0 {
+			req = req.WithMiddlewares(guardrails...)
+		}
 		return req, nil
 	}
 	callMW, streamMW := chat.NewToolMiddleware()
-	return req.WithMiddlewares(callMW, streamMW).WithTools(tools...), nil
+	chain := make([]any, 0, len(guardrails)+2)
+	chain = append(chain, guardrails...)
+	chain = append(chain, callMW, streamMW)
+	return req.WithMiddlewares(chain...).WithTools(tools...), nil
 }
 
 // ActionTools resolves the tools declared on the currently-executing
@@ -223,6 +251,24 @@ func (pc *ProcessContext) RecordUsage(cost float64, tokens int) {
 		return
 	}
 	pc.Process.RecordUsage(cost, tokens)
+}
+
+// RecordLLMInvocation forwards a per-call LLM invocation record to
+// the running process. No-op when no Process is wired.
+func (pc *ProcessContext) RecordLLMInvocation(inv LLMInvocation) {
+	if pc.Process == nil {
+		return
+	}
+	pc.Process.RecordLLMInvocation(inv)
+}
+
+// RecordEmbeddingInvocation forwards a per-call embedding invocation
+// record to the running process. No-op when no Process is wired.
+func (pc *ProcessContext) RecordEmbeddingInvocation(inv EmbeddingInvocation) {
+	if pc.Process == nil {
+		return
+	}
+	pc.Process.RecordEmbeddingInvocation(inv)
 }
 
 // ExecuteSafely runs a.Execute(ctx, pc) under a panic guard,
