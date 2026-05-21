@@ -22,7 +22,7 @@
 
 import type { Element, Root, Text } from "hast";
 import { visit } from "unist-util-visit";
-import { segmentWords } from "./smoothText";
+import { segmentWords } from "./segmentWords";
 
 const SKIP_TAGS = new Set(["pre", "code", "script", "style"]);
 
