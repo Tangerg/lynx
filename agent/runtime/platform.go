@@ -42,6 +42,7 @@ type Platform struct {
 	chatClient   *chat.Client      // optional shared LLM client
 	guardrails   *core.Guardrails  // optional global chat middlewares
 	processStore core.ProcessStore // optional snapshot backend
+	sessionStore core.SessionStore // optional session persistence
 }
 
 // PlatformConfig is the construction-time configuration for
@@ -69,6 +70,13 @@ type PlatformConfig struct {
 	// See [SnapshotProcess] / [RestoreProcess] / [Platform.Save] /
 	// [Platform.Restore] for the surface.
 	ProcessStore core.ProcessStore
+
+	// SessionStore persists multi-turn [core.Session] records so
+	// conversations survive runtime restart and dispatch can pick
+	// the right agent on subsequent turns. Optional — without it
+	// [Platform.RunInSession] still works, but the session is not
+	// saved between turns.
+	SessionStore core.SessionStore
 
 	// Extensions are the platform-scoped plug-ins. Each value must
 	// implement [core.Extension] and may additionally implement any
@@ -101,6 +109,7 @@ func NewPlatform(config *PlatformConfig) *Platform {
 		chatClient:   config.ChatClient,
 		guardrails:   config.Guardrails,
 		processStore: config.ProcessStore,
+		sessionStore: config.SessionStore,
 	}
 	for _, ext := range config.Extensions {
 		p.extensions.register("PlatformConfig.Extensions", ext)

@@ -2,6 +2,7 @@ package runtime
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -47,6 +48,65 @@ func (p *Platform) RunAgent(
 	span.SetAttributes(attribute.String("lynx.agent.status", proc.Status().String()))
 	return proc, nil
 }
+
+// RunInSession runs the agent under a multi-turn session context.
+// The session is stamped onto [ProcessOptions.Session] so action
+// bodies' chat calls flow through chat-memory keyed by [Session.ID].
+// When a [SessionStore] is configured on the platform the session is
+// saved before dispatch (so a concurrent reader sees the active
+// turn) and re-saved with refreshed [Session.UpdatedAt] after the
+// dispatch completes — successful or failed.
+//
+// Passing a nil session is rejected; build a session via
+// [core.NewSession] (or load one via the configured store) before
+// calling.
+//
+// Returns the same (*AgentProcess, error) shape as [RunAgent].
+func (p *Platform) RunInSession(
+	ctx context.Context,
+	agentDef *core.Agent,
+	session *core.Session,
+	bindings map[string]any,
+	options core.ProcessOptions,
+) (*AgentProcess, error) {
+	if session == nil {
+		return nil, errors.New("run in session: session must not be nil")
+	}
+	if session.ID == "" {
+		return nil, errors.New("run in session: session ID must not be empty")
+	}
+	if session.AgentName == "" && agentDef != nil {
+		session.AgentName = agentDef.Name
+	}
+
+	options.Session = session
+
+	// Persist before dispatch so concurrent readers see the active
+	// turn (UpdatedAt = "now") even if the dispatch is long-running.
+	if p.sessionStore != nil {
+		session.Touch()
+		if err := p.sessionStore.Save(ctx, *session); err != nil {
+			return nil, fmt.Errorf("run in session: save (pre-dispatch): %w", err)
+		}
+	}
+
+	proc, runErr := p.RunAgent(ctx, agentDef, bindings, options)
+
+	// Re-save after dispatch with refreshed UpdatedAt. The post-save
+	// runs even on RunAgent error so SessionStore reflects the
+	// activity that happened.
+	if p.sessionStore != nil {
+		session.Touch()
+		if saveErr := p.sessionStore.Save(ctx, *session); saveErr != nil && runErr == nil {
+			return proc, fmt.Errorf("run in session: save (post-dispatch): %w", saveErr)
+		}
+	}
+	return proc, runErr
+}
+
+// SessionStore returns the configured session-persistence backend,
+// or nil when the platform was constructed without one.
+func (p *Platform) SessionStore() core.SessionStore { return p.sessionStore }
 
 // StartAgent runs the agent in the background, returning the process
 // and a channel that delivers the final error (or nil on success).
