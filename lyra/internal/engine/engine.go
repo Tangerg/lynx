@@ -9,6 +9,7 @@ import (
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/runtime"
 	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/core/model/chat/memory"
 )
 
 // Config is the engine construction-time bundle. All fields are
@@ -46,9 +47,18 @@ func New(cfg Config) (*Engine, error) {
 	resolver := buildCodingResolver(cfg.Workdir)
 	tools := BuildCodingTools(cfg.Workdir)
 
+	memStore := memory.NewInMemoryStore()
+	callMW, streamMW, mwErr := memory.NewMiddleware(memStore)
+	if mwErr != nil {
+		return nil, fmt.Errorf("engine: build memory middleware: %w", mwErr)
+	}
 	platform := agent.NewPlatform(&runtime.PlatformConfig{
 		ChatClient: cfg.ChatClient,
 		Extensions: []core.Extension{resolver},
+		Guardrails: &core.Guardrails{
+			CallMiddlewares:   []chat.CallMiddleware{callMW},
+			StreamMiddlewares: []chat.StreamMiddleware{streamMW},
+		},
 	})
 
 	a := buildChatAgent()
@@ -77,26 +87,48 @@ func (e *Engine) Platform() *runtime.Platform { return e.platform }
 // tools to this agent's actions; M6 adds planner-aware variants.
 func (e *Engine) ChatAgent() *core.Agent { return e.agent }
 
+// RunChatRequest carries the per-turn parameters for [Engine.RunChat].
+// sessionID is non-empty to bind the turn to a chat-memory keyed
+// conversation; observer is non-nil to receive streaming
+// notifications.
+type RunChatRequest struct {
+	// SessionID anchors the turn to a chat-memory conversation. The
+	// memory middleware reads this via [memory.ConversationIDKey] to
+	// pull prior history before the model call and to save the new
+	// round afterwards. Empty string runs the turn unattached (each
+	// call starts fresh).
+	SessionID string
+
+	// Message is the user's input for this turn.
+	Message string
+
+	// Observer receives streaming tool-call + text-delta
+	// notifications. May be nil — the turn still runs.
+	Observer ToolObserver
+}
+
 // RunChat is the engine's lowest-level chat entry. The runtime
 // schedules a process against the configured ChatAgent, blocks on
 // completion, and returns the produced reply.
 //
-// When observer is non-nil the engine attaches a process-scope
+// When req.Observer is non-nil the engine attaches a process-scope
 // [core.ToolDecorator] that fires OnToolCallStart / OnToolCallEnd
-// for every tool the model invokes during the turn — used by
-// chat.Service to surface ToolCallStart / ToolCallEnd events.
+// for every tool the model invokes during the turn, plus
+// OnMessageDelta for each streamed text chunk.
 //
-// Streaming (the more useful entry for transport adapters) lives
-// in chat.Service.StartTurn — it wraps RunChat with a goroutine and
-// event channel. RunChat is exposed for tests and synchronous
-// callers.
-func (e *Engine) RunChat(ctx context.Context, userMessage string, observer ToolObserver) (string, error) {
-	in := ChatInput{Message: userMessage}
+// When req.SessionID is non-empty the engine binds the turn to a
+// chat-memory keyed conversation — the memory middleware auto-loads
+// prior turns and saves new messages keyed by SessionID.
+func (e *Engine) RunChat(ctx context.Context, req RunChatRequest) (string, error) {
+	in := ChatInput{Message: req.Message}
 
 	opts := core.ProcessOptions{}
-	if observer != nil {
+	if req.SessionID != "" {
+		opts.Session = &core.Session{ID: req.SessionID}
+	}
+	if req.Observer != nil {
 		opts.Extensions = []core.Extension{
-			&toolObserverDecorator{observer: observer},
+			&toolObserverDecorator{observer: req.Observer},
 		}
 	}
 
@@ -109,7 +141,7 @@ func (e *Engine) RunChat(ctx context.Context, userMessage string, observer ToolO
 	}
 	out, ok := core.ResultOfType[ChatOutput](proc)
 	if !ok {
-		return "", fmt.Errorf("engine: no ChatOutput produced; status=%s", proc.Status())
+		return "", fmt.Errorf("engine: no ChatOutput produced; status=%s failure=%v", proc.Status(), proc.Failure())
 	}
 	return out.Reply, nil
 }

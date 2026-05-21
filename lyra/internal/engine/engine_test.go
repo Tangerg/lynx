@@ -32,7 +32,10 @@ func TestEngine_RunChat_ToolCallObserved(t *testing.T) {
 	}
 
 	rec := &recordingObserver{}
-	reply, err := eng.RunChat(context.Background(), "say lyra via bash", rec)
+	reply, err := eng.RunChat(context.Background(), RunChatRequest{
+		Message:  "say lyra via bash",
+		Observer: rec,
+	})
 	if err != nil {
 		t.Fatalf("RunChat: %v", err)
 	}
@@ -80,7 +83,7 @@ func TestEngine_RunChat_NoObserver(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	reply, err := eng.RunChat(context.Background(), "go", nil)
+	reply, err := eng.RunChat(context.Background(), RunChatRequest{Message: "go"})
 	if err != nil {
 		t.Fatalf("RunChat: %v", err)
 	}
@@ -102,7 +105,10 @@ func TestEngine_RunChat_StreamingDeltas(t *testing.T) {
 	}
 
 	rec := &recordingObserver{}
-	reply, err := eng.RunChat(context.Background(), "go", rec)
+	reply, err := eng.RunChat(context.Background(), RunChatRequest{
+		Message:  "go",
+		Observer: rec,
+	})
 	if err != nil {
 		t.Fatalf("RunChat: %v", err)
 	}
@@ -119,6 +125,69 @@ func TestEngine_RunChat_StreamingDeltas(t *testing.T) {
 		if deltas[i] != wantDeltas[i] {
 			t.Errorf("delta[%d] = %q, want %q", i, deltas[i], wantDeltas[i])
 		}
+	}
+}
+
+// TestEngine_RunChat_MultiTurnMemory verifies the chat-memory
+// middleware loads prior turns before each call. Running two turns
+// against the same SessionID must result in the second Call seeing
+// strictly more messages than the first (history of turn 1 + new
+// user message of turn 2).
+func TestEngine_RunChat_MultiTurnMemory(t *testing.T) {
+	stub := newHistoryAwareStub()
+	client, _ := chat.NewClient(stub)
+	eng, err := New(Config{ChatClient: client})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	const sessionID = "sess-memory"
+
+	if _, err := eng.RunChat(context.Background(), RunChatRequest{
+		SessionID: sessionID,
+		Message:   "hello",
+	}); err != nil {
+		t.Fatalf("turn 1: %v", err)
+	}
+	if _, err := eng.RunChat(context.Background(), RunChatRequest{
+		SessionID: sessionID,
+		Message:   "again",
+	}); err != nil {
+		t.Fatalf("turn 2: %v", err)
+	}
+
+	if len(stub.seenLengths) < 2 {
+		t.Fatalf("seenLengths = %v, want at least 2 entries", stub.seenLengths)
+	}
+	if stub.seenLengths[1] <= stub.seenLengths[0] {
+		t.Errorf("turn 2 should see more messages than turn 1; got %v", stub.seenLengths)
+	}
+}
+
+// TestEngine_RunChat_NoSessionIDDoesNotPersist verifies turns without
+// a SessionID stay isolated — running twice with empty SessionID
+// must see identical message counts (no history loaded).
+func TestEngine_RunChat_NoSessionIDDoesNotPersist(t *testing.T) {
+	stub := newHistoryAwareStub()
+	client, _ := chat.NewClient(stub)
+	eng, err := New(Config{ChatClient: client})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for i := 0; i < 2; i++ {
+		if _, err := eng.RunChat(context.Background(), RunChatRequest{
+			Message: "hello",
+		}); err != nil {
+			t.Fatalf("turn %d: %v", i, err)
+		}
+	}
+
+	if len(stub.seenLengths) != 2 {
+		t.Fatalf("seenLengths = %v, want 2 entries", stub.seenLengths)
+	}
+	if stub.seenLengths[0] != stub.seenLengths[1] {
+		t.Errorf("both turns should see same message count; got %v", stub.seenLengths)
 	}
 }
 

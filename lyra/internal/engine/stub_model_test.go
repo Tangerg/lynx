@@ -93,6 +93,32 @@ func (m *streamingStubModel) Stream(_ context.Context, _ *chat.Request) iter.Seq
 	}
 }
 
+// historyAwareStub remembers how many messages it saw on each Call.
+// Used by multi-turn tests to confirm chat-memory loads prior turns
+// before passing the request to the model.
+type historyAwareStub struct {
+	defaults    *chat.Options
+	seenLengths []int
+}
+
+func newHistoryAwareStub() *historyAwareStub {
+	opts, _ := chat.NewOptions("stub-model-history")
+	return &historyAwareStub{defaults: opts}
+}
+
+func (m *historyAwareStub) DefaultOptions() chat.Options { return *m.defaults }
+func (m *historyAwareStub) Metadata() chat.ModelMetadata { return chat.ModelMetadata{Provider: "stub"} }
+
+func (m *historyAwareStub) Call(_ context.Context, req *chat.Request) (*chat.Response, error) {
+	m.seenLengths = append(m.seenLengths, len(req.Messages))
+	return responseWithText("ok")
+}
+
+func (m *historyAwareStub) Stream(ctx context.Context, req *chat.Request) iter.Seq2[*chat.Response, error] {
+	resp, err := m.Call(ctx, req)
+	return func(yield func(*chat.Response, error) bool) { yield(resp, err) }
+}
+
 func hasToolMessage(messages []chat.Message) bool {
 	for _, msg := range messages {
 		if msg.Type() == chat.MessageTypeTool {
