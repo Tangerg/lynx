@@ -3,7 +3,6 @@ package utility
 import (
 	"context"
 	"math"
-	"sort"
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -48,63 +47,19 @@ func NewPlanner() *Planner { return &Planner{} }
 // planner by setting [core.AgentConfig.PlannerName] to "utility".
 func (p *Planner) Name() string { return "utility" }
 
-// PlanToGoal implements the classic shape:
-//
-//   - Nirvana goal: emit a one-step plan with the highest-net-value
-//     applicable action, or nil when no action is applicable.
-//   - Real goal, no applicable actions: empty plan if already
-//     satisfied, else nil.
-//   - Real goal with applicable actions: 1-step plan when the
-//     top-pick reaches the goal, else nil.
+// PlanToGoal implements the classic shape: pick the top-net-value
+// applicable action and emit a one-step plan when it reaches the
+// goal (or any time the goal is Nirvana). When no applicable action
+// exists, return the empty plan only if the goal is already
+// satisfied.
 func (p *Planner) PlanToGoal(
 	ctx context.Context,
 	start core.WorldState,
 	system *plan.PlanningSystem,
 	goal *core.Goal,
 	options plan.PlanOptions,
-) (result *plan.Plan, err error) {
-	if err = plan.CheckPlanInputs(start, system, goal); err != nil {
-		return nil, err
-	}
-	_, span := plannerTracer.Start(ctx, "utility.plan",
-		trace.WithAttributes(
-			attribute.String("lynx.agent.planner", "utility"),
-			attribute.String("lynx.agent.goal.name", goal.Name),
-		),
-	)
-	defer func() {
-		if result != nil {
-			span.SetAttributes(attribute.Int("lynx.agent.plan.length", len(result.Actions)))
-		}
-		span.End()
-	}()
-
-	ranked := rankApplicable(start, system.Actions, options.ExcludedActions)
-	span.SetAttributes(attribute.Int("lynx.agent.actions.applicable", len(ranked)))
-
-	first := topAction(ranked)
-
-	if IsNirvana(goal) {
-		if first == nil {
-			return nil, nil
-		}
-		return &plan.Plan{Actions: []core.Action{first}, Goal: goal}, nil
-	}
-
-	if first == nil {
-		// No applicable actions — only "already satisfied" can win.
-		if goal.IsSatisfiedBy(start) {
-			return &plan.Plan{Goal: goal}, nil
-		}
-		return nil, nil
-	}
-
-	// Single-step lookahead.
-	after := apply(start, first)
-	if goal.IsSatisfiedBy(after) {
-		return &plan.Plan{Actions: []core.Action{first}, Goal: goal}, nil
-	}
-	return nil, nil
+) (*plan.Plan, error) {
+	return planUtility(ctx, p.Name(), start, system, goal, options, false)
 }
 
 // HybridPlanner is the goal-satisfaction-first variant: checks "is
@@ -132,13 +87,30 @@ func (p *HybridPlanner) PlanToGoal(
 	system *plan.PlanningSystem,
 	goal *core.Goal,
 	options plan.PlanOptions,
+) (*plan.Plan, error) {
+	return planUtility(ctx, p.Name(), start, system, goal, options, true)
+}
+
+// planUtility holds the shared 1-step-lookahead body for both
+// utility planners. satisfiedFirst toggles the [HybridPlanner]
+// short-circuit: when true and the real goal already satisfies the
+// start state, return the empty plan even if higher-value actions
+// remain applicable.
+func planUtility(
+	ctx context.Context,
+	name string,
+	start core.WorldState,
+	system *plan.PlanningSystem,
+	goal *core.Goal,
+	options plan.PlanOptions,
+	satisfiedFirst bool,
 ) (result *plan.Plan, err error) {
 	if err = plan.CheckPlanInputs(start, system, goal); err != nil {
 		return nil, err
 	}
-	_, span := plannerTracer.Start(ctx, "hybrid-utility.plan",
+	_, span := plannerTracer.Start(ctx, name+".plan",
 		trace.WithAttributes(
-			attribute.String("lynx.agent.planner", "hybrid-utility"),
+			attribute.String("lynx.agent.planner", name),
 			attribute.String("lynx.agent.goal.name", goal.Name),
 		),
 	)
@@ -149,8 +121,8 @@ func (p *HybridPlanner) PlanToGoal(
 		span.End()
 	}()
 
-	ranked := rankApplicable(start, system.Actions, options.ExcludedActions)
-	first := topAction(ranked)
+	first := topApplicable(start, system.Actions, options.ExcludedActions)
+	span.SetAttributes(attribute.Bool("lynx.agent.actions.any_applicable", first != nil))
 
 	if IsNirvana(goal) {
 		if first == nil {
@@ -159,40 +131,36 @@ func (p *HybridPlanner) PlanToGoal(
 		return &plan.Plan{Actions: []core.Action{first}, Goal: goal}, nil
 	}
 
-	// Hybrid contract: check satisfaction FIRST.
-	if goal.IsSatisfiedBy(start) {
+	if satisfiedFirst && goal.IsSatisfiedBy(start) {
 		return &plan.Plan{Goal: goal}, nil
 	}
 
 	if first == nil {
+		if !satisfiedFirst && goal.IsSatisfiedBy(start) {
+			return &plan.Plan{Goal: goal}, nil
+		}
 		return nil, nil
 	}
-	after := apply(start, first)
-	if goal.IsSatisfiedBy(after) {
+	if goal.IsSatisfiedBy(start.Apply(first.Metadata().Effects)) {
 		return &plan.Plan{Actions: []core.Action{first}, Goal: goal}, nil
 	}
 	return nil, nil
 }
 
-// --- shared helpers ---------------------------------------------------------
-
-// scoredAction pairs an action with its net value at the planning
-// instant. Used by [rankApplicable] for descending-net-value sort.
-type scoredAction struct {
-	action   core.Action
-	netValue float64
-}
-
-// rankApplicable filters actions to those applicable in start and
-// not excluded, then sorts by net value descending. Returns a fresh
-// slice; the input is not mutated.
-func rankApplicable(
+// topApplicable returns the highest-net-value action applicable in
+// start that's not in the excluded set, or nil when no candidate
+// qualifies. Single-pass O(n) — both planners only need the top
+// pick, so a full sort would be wasted work.
+func topApplicable(
 	start core.WorldState,
 	actions []core.Action,
 	excluded map[string]struct{},
-) []scoredAction {
+) core.Action {
 	state := start.State()
-	out := make([]scoredAction, 0, len(actions))
+	var (
+		best    core.Action
+		bestVal = math.Inf(-1)
+	)
 	for _, action := range actions {
 		if action == nil {
 			continue
@@ -204,51 +172,38 @@ func rankApplicable(
 		if !meta.IsApplicableIn(state) {
 			continue
 		}
-		out = append(out, scoredAction{
-			action:   action,
-			netValue: netValue(start, meta),
-		})
+		v := netValue(start, meta)
+		if v > bestVal {
+			best, bestVal = action, v
+		}
 	}
-	sort.SliceStable(out, func(i, j int) bool {
-		return out[i].netValue > out[j].netValue
-	})
-	return out
-}
-
-// topAction returns the highest-net-value action, or nil when the
-// ranked slice is empty.
-func topAction(ranked []scoredAction) core.Action {
-	if len(ranked) == 0 {
-		return nil
-	}
-	return ranked[0].action
+	return best
 }
 
 // netValue computes Value(state) − Cost(state). nil Cost defaults to
 // 0 (no cost penalty), matching the convention that a missing cost
-// is "free"; nil Value defaults to 0. The planner ranks actions by
-// this scalar — higher is better. Use [core.Static] for constant
-// numbers.
+// is "free"; nil Value defaults to 0. NaN / Inf are squashed to 0 so
+// a misbehaving value func can't poison the ordering.
 func netValue(start core.WorldState, meta core.ActionMetadata) float64 {
-	var value, cost float64
-	if meta.Value != nil {
-		value = meta.Value(start)
-	}
-	if meta.Cost != nil {
-		cost = meta.Cost(start)
-	}
-	if math.IsNaN(value) || math.IsInf(value, 0) {
-		value = 0
-	}
-	if math.IsNaN(cost) || math.IsInf(cost, 0) {
-		cost = 0
-	}
+	value := safeScalar(meta.Value, start)
+	cost := safeScalar(meta.Cost, start)
 	return value - cost
 }
 
-// apply returns the world state after action's effects have been
-// merged on top of start. Used by the 1-step-lookahead branch of
-// both planners.
-func apply(start core.WorldState, action core.Action) core.WorldState {
-	return start.Apply(action.Metadata().Effects)
+func safeScalar(f func(core.WorldState) float64, s core.WorldState) float64 {
+	if f == nil {
+		return 0
+	}
+	v := f(s)
+	if math.IsNaN(v) || math.IsInf(v, 0) {
+		return 0
+	}
+	return v
 }
+
+// Compile-time assertions that the planners satisfy [plan.Planner];
+// keeps the contract honest if the interface grows.
+var (
+	_ plan.Planner = (*Planner)(nil)
+	_ plan.Planner = (*HybridPlanner)(nil)
+)

@@ -78,30 +78,34 @@ func (p *Platform) RunInSession(
 	if session.AgentName == "" && agentDef != nil {
 		session.AgentName = agentDef.Name
 	}
-
 	options.Session = session
 
-	// Persist before dispatch so concurrent readers see the active
-	// turn (UpdatedAt = "now") even if the dispatch is long-running.
-	if p.sessionStore != nil {
-		session.Touch()
-		if err := p.sessionStore.Save(ctx, *session); err != nil {
-			return nil, fmt.Errorf("run in session: save (pre-dispatch): %w", err)
-		}
+	// Pre-dispatch save so concurrent readers see the active turn
+	// (UpdatedAt = "now") even if dispatch is long-running.
+	if err := p.touchAndSaveSession(ctx, session); err != nil {
+		return nil, fmt.Errorf("run in session: save (pre-dispatch): %w", err)
 	}
 
 	proc, runErr := p.RunAgent(ctx, agentDef, bindings, options)
 
-	// Re-save after dispatch with refreshed UpdatedAt. The post-save
-	// runs even on RunAgent error so SessionStore reflects the
-	// activity that happened.
-	if p.sessionStore != nil {
-		session.Touch()
-		if saveErr := p.sessionStore.Save(ctx, *session); saveErr != nil && runErr == nil {
-			return proc, fmt.Errorf("run in session: save (post-dispatch): %w", saveErr)
-		}
+	// Post-dispatch save runs even on RunAgent error so the store
+	// reflects activity. Only override runErr's nil with the save
+	// error — a real run error wins.
+	if saveErr := p.touchAndSaveSession(ctx, session); saveErr != nil && runErr == nil {
+		return proc, fmt.Errorf("run in session: save (post-dispatch): %w", saveErr)
 	}
 	return proc, runErr
+}
+
+// touchAndSaveSession refreshes UpdatedAt and persists when a
+// SessionStore is configured. No-op when none is wired so callers
+// don't have to nil-check the store at every save site.
+func (p *Platform) touchAndSaveSession(ctx context.Context, session *core.Session) error {
+	if p.sessionStore == nil {
+		return nil
+	}
+	session.Touch()
+	return p.sessionStore.Save(ctx, *session)
 }
 
 // SessionStore returns the configured session-persistence backend,

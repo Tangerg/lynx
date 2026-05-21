@@ -253,18 +253,7 @@ func (b *inMemoryBlackboard) InfoString(verbose bool) string {
 func (b *inMemoryBlackboard) Snapshot() (map[string]any, map[string]bool, []any) {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
-
-	named := make(map[string]any, len(b.named))
-	for k, v := range b.named {
-		named[k] = v
-	}
-	conditions := make(map[string]bool, len(b.conditions))
-	for k, v := range b.conditions {
-		conditions[k] = v
-	}
-	objects := make([]any, len(b.objects))
-	copy(objects, b.objects)
-	return named, conditions, objects
+	return maps.Clone(b.named), maps.Clone(b.conditions), slices.Clone(b.objects)
 }
 
 // Restore implements [BlackboardRestorer] — fills the blackboard
@@ -277,14 +266,10 @@ func (b *inMemoryBlackboard) Restore(named map[string]any, conditions map[string
 	defer b.mu.Unlock()
 
 	clear(b.named)
-	for k, v := range named {
-		b.named[k] = v
-	}
+	maps.Copy(b.named, named)
 	clear(b.conditions)
-	for k, v := range conditions {
-		b.conditions[k] = v
-	}
-	b.objects = append(b.objects[:0], objects...)
+	maps.Copy(b.conditions, conditions)
+	b.objects = slices.Clone(objects)
 	b.hidden = b.hidden[:0]
 	clear(b.protected)
 }
