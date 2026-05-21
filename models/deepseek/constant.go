@@ -24,6 +24,6 @@ const (
 
 	// ModelReasoner (deepseek-reasoner) returns visible chain-of-thought
 	// in the reasoning_content field. The thinking is automatically
-	// surfaced via [chat.AssistantMessage.Reasoning].
+	// surfaced via [chat.ReasoningPart] entries in AssistantMessage.Parts.
 	ModelReasoner = "deepseek-reasoner"
 )

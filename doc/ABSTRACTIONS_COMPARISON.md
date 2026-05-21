@@ -91,7 +91,7 @@ ChatModel / Embedding / Image / Audio / Moderation / Document / VectorStore / RA
 
 | # | 反超点 | 简述 |
 |---|---|---|
-| 1 | **Reasoning 一等公民** | `AssistantMessage.Reasoning` + `Usage.ReasoningTokens`；spring-ai 至今没有 |
+| 1 | **Reasoning 一等公民** | `AssistantMessage.Parts` 含 `ReasoningPart{Text, Signature}` + `Usage.ReasoningTokens`；spring-ai 至今没有 |
 | 2 | **chat 包零 provider 知识** | provider-specific metadata 下沉到 `models/<x>/`；spring-ai `MessageAggregator` 仍硬编码识别 Google `"isThought"` |
 | 3 | **`iter.Seq2` 流式** | Go 1.23 内置迭代器；spring-ai 仍是 Reactor `Flux` ceremony |
 | 4 | **ISP 拆接口** | `Store = Creator+Retriever+Deleter` / `memory.Store = Reader+Writer+Clearer`；spring-ai 单接口 |

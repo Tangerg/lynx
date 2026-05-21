@@ -18,7 +18,7 @@
 
 | # | 反超点 | 简述 |
 |---|---|---|
-| 1 | **Reasoning 一等公民** | `AssistantMessage.Reasoning string` + `Usage.ReasoningTokens *int64`；spring-ai 至今没有 |
+| 1 | **Reasoning 一等公民** | `AssistantMessage.Parts` 含 `ReasoningPart{Text, Signature}` + `Usage.ReasoningTokens *int64`；spring-ai 至今没有 |
 | 2 | **chat 包零 provider 知识** | provider-specific metadata key 下沉到 `models/<provider>/`，core 包 grep 不到 vendor 字符串；spring-ai `MessageAggregator` 仍硬编码识别 Google `"isThought"` |
 | 3 | **`iter.Seq2` 流式** | Go 1.23 内置迭代器即 streaming；spring-ai 仍是 Reactor `Flux` + `contextView` ceremony |
 | 4 | **ISP 拆接口** | `vectorstore.Store = Creator + Retriever + Deleter`、`memory.Store = Reader + Writer + Clearer`；spring-ai 单接口仍是巨型 interface |
