@@ -1,20 +1,20 @@
 # 多角度对比：lynx vs spring-ai
 
 > **基线**
-> - lynx HEAD `24354b4`（branch `main`，2026-05-17）；go.work 编入 9 个 module（`core` / `models` / `vectorstores` / `agent` / `rag` / `tools` / `mcp` / `otel` / `pkg`），Go 1.26.3
-> - spring-ai 主干（2026-05 范围）；Maven artifact 矩阵 + Spring Boot starter 路线
+> - lynx HEAD `6bef5eb`（branch `main`，2026-05-21）；go.work 编入 11 个 module，Go 1.26.3
+> - spring-ai main HEAD `0ed060b07`（2026-05），Spring Boot 4 + Spring Framework 7 + Reactor + Micrometer 路线
 >
-> 本文取代旧版 `SPRING_AI_COMPARISON.md` (2026-05-14 基线)。自上版以来 lynx 完成了三轮生态扩张（vector stores 6→27、model providers 3→39、tools 套件出货），原文 §9 的多数 P1/P3 gap 已闭合，需要重新校准坐标。本次重组沿用 10 节框架，但每节内容按当前事实重写。
+> 本文取代历次旧版（2026-05-14 / 05-17 / 05-21 三次基线），采用当前事实直接重写——不再保留历史 strikethrough。需要历史轨迹的看 git log。
 
 ---
 
 ## 0. TL;DR
 
-**两边的心智模型仍然对得上**：ChatModel + Embedding + Image + Audio + Moderation + Document + VectorStore + RAG + MCP + Tool calling + Memory + Evaluation 这 9 大概念在两侧都能一一对应。差异不在"有没有"，而在**怎么做**以及**广度／深度的取舍**。
+**心智模型对得上**：ChatModel + Embedding + Image + Audio + Moderation + Tool calling + Memory + Document + VectorStore + RAG + MCP + Evaluation 这 12 大概念两边都能一一对应。**差异在工程形态与边际成本**。
 
-**根本分歧一句话**：spring-ai 是 *batteries-included framework*（autoconfigure / starter / BOM / Micrometer 抽象），lynx 是 *thin library*（核心抽象 + 显式构造 + 原生 OTel）。这条立场未变。
+**根本分歧一句话**：spring-ai 是 *batteries-included framework*（autoconfigure / starter / BOM / Micrometer 抽象），lynx 是 *thin library*（核心抽象 + 显式构造 + 原生 OTel）。
 
-**lynx 当前在 7 条线反超 spring-ai 主干**（原文 5 条 + 2 条新增）：
+**lynx 在 8 条线上反超 spring-ai 主干**：
 
 | # | 反超点 | 简述 |
 |---|---|---|
@@ -23,322 +23,286 @@
 | 3 | **`iter.Seq2` 流式** | Go 1.23 内置迭代器即 streaming；spring-ai 仍是 Reactor `Flux` + `contextView` ceremony |
 | 4 | **ISP 拆接口** | `vectorstore.Store = Creator + Retriever + Deleter`、`memory.Store = Reader + Writer + Clearer`；spring-ai 单接口仍是巨型 interface |
 | 5 | **Cache tokens 类型化** | `Usage.CacheReadInputTokens / CacheWriteInputTokens *int64` 三态语义清晰；spring-ai 2.0 仍是 `default Long ... { return null; }` 弱形态 |
-| 6 | **Vector store 广度**（新增）| **lynx 27 vs spring-ai 21**——lynx 已反超绝对数量；多 8 个 spring-ai 没有的（bedrockkb / s3vectors / clickhouse / cockroachdb / supabase / tidb / vectara / vespa） |
-| 7 | **多模态广度**（新增）| Image / TTS / STT 各 8 个 vendor；spring-ai 主干 image 仅 2 个 vendor、TTS 仅 OpenAI、STT 仅 OpenAI |
+| 6 | **多模态广度** | Image / TTS / STT 各 9–10 个 vendor，spring-ai 主干 image 仅 2 / TTS 仅 1 / STT 完全没有 |
+| 7 | **Vector store 广度** | lynx 27 vs spring-ai 22；多 8 个独有（bedrockkb / s3vectors / clickhouse / cockroachdb / supabase / tidb / vectara / vespa）|
+| 8 | **Chat memory 广度** | lynx 6 vs spring-ai 5（lynx 多 cosmosdb，spring-ai v1.0 后已移除）|
 
-**lynx 仍有 / 真正剩下的 gap**（按 ROI 重排）：
-
-| # | Gap | 状态 vs 旧版 | 简述 |
-|---|---|---|---|
-| ~~1~~ | ~~Retry Transient / NonTransient 分类~~ | **不做** | SDK 内部自带重试，再加一层是重复建设 |
-| ~~2~~ | ~~Anthropic Extra 通道保护~~ | **已闭合** | `models/anthropic/extra.go` |
-| ~~3~~ | ~~持久化 Memory 后端~~ | **已闭合 + 反超** | 顶层 `chatmemory/` 6 个 provider（postgres / redis / mongodb / cassandra / neo4j / cosmosdb）；spring-ai main 现在只有 5 个（cassandra / jdbc / mongodb / neo4j / redis），lynx 还多 cosmosdb |
-| ~~4~~ | ~~PDF / Markdown reader~~ | **已闭合** | 顶层 `documentreaders/` 3 个 reader：markdown（goldmark）/ html（goquery）/ pdf（ledongthuc/pdf）；Tika 因依赖 JVM 服务故意不做 |
-| ~~5~~ | ~~Structured Output Converter~~ | **已闭合** | `core/model/chat/parser.go`（JSONParser[T] / ListParser / MapParser / StructuredParser[T] / AnyParser）|
-| ~~1~~ | ~~SafeGuard / Logger middleware~~ | **已闭合** | `core/model/chat/middleware/` 新包：`NewLoggerMiddleware(Logger)` + slog 默认实现；`NewSafeguardMiddleware(Matcher, opts)` + `strings.Contains` 默认实现。**依赖倒置**：接口对外暴露，stdlib 实现作为默认 |
-| ~~7~~ | ~~DocumentJoiner / QueryRouter~~ | **不做** | spring-ai 的 ConcatenationDocumentJoiner（dedup + score-sort）等价 lynx 的 `DeduplicationRefiner` + `RankRefiner` refiner 链，已有现成等价物；RRF 仅在异质 retriever（BM25 + 向量）混用时有价值，lynx 目前 retriever 只有 `VectorStoreRetriever`，加 Joiner 是 YAGNI；QueryRouter 由用户在自定义 retriever 内决定即可。详见 `rag/doc.go` |
-| ~~8~~ | ~~FilterExpression BaseVisitor~~ | **已闭合** | `vectorstores/internal/filterhelp` 提供 dispatch helpers，10 个 visitor 已迁移 |
-| 2 | **ToolSpec fluent API 对账** | 新增观察 | spring-ai 在 4d0bb7b7f 给 ChatClient 加了 `ToolSpec`；lynx 一直是 `Chat().WithTools(...)` fluent，方向一致但要确认覆盖面 |
-| 3 | **MCP Streamable HTTP** | 新增观察 | spring-ai 已 deprecate SSE，Streamable HTTP 为新默认（c549bf821）；lynx `mcp/` 需评估是否跟进 |
-
-**自上版以来已闭合的 gap**（按重要性）：
-
-| # | 项 | 闭合方式 |
-|---|---|---|
-| A | **Ollama adapter** | `models/ollama` 出货（chat + embed） |
-| B | **Vector store 广度** | 一次性新增 21 个 vendor（pgvector / mongodb / elasticsearch / opensearch / redis / cassandra / neo4j / couchbase / clickhouse / mariadb / oracle / tidb / cockroachdb / supabase / azureaisearch / azurecosmos / bedrockkb / s3vectors / typesense / vespa / vectara） |
-| C | **多模态 vendor 矩阵** | Image / TTS / STT 各扩到 8 个 vendor（含 elevenlabs / stability / deepgram / assemblyai 等） |
-| D | **OpenAI-compat 网关广覆盖** | xai / groq / together / fireworks / perplexity 原生包出货，不再依赖用户自配 BaseURL |
-| E | **专业 embedding vendor** | voyage / cohere / jina / nomic 出货（Anthropic 推荐 + matryoshka + 任务条件 embedding） |
-| F | **Tool 套件出货** | `tools/{bash, fs, websearch, webfetch}` + 7 个 search backend / 4 个 fetch backend 已就位 |
-| G | **OTel 埋点全覆盖** | chat / embedding / tool / RAG / MCP / agent / 24 vectorstore / 6 chatmemory 按 GenAI 与 DB semconv 全量挂上 |
-| H | **持久化 Chat Memory** | 顶层 `chatmemory/` module 6 个 provider（postgres / redis / mongodb / cassandra / neo4j / cosmosdb），含 spring-ai 已移除的 cosmosdb |
-| I | **Structured Output** | `core/model/chat/parser.go` 完整覆盖 spring-ai `BeanOutputConverter` 家族 |
-| J | **不可变 Options 路线** | lynx 一直就是 `WithXxx()` builder + value-typed `DefaultOptions()`；spring-ai 1.1.6 整周期才把全套 setter 移除，方向一致但 lynx 落地更早 |
+**lynx 剩余 gap**：见 §9，只有 6 项长尾观察项，无生产硬刚需。**P0/P1/P2 全部闭合**。
 
 ---
 
 ## 1. 哲学 / 定位
 
-立场未变，原版分析仍成立：
-
 | 维度 | lynx | spring-ai |
 |---|---|---|
 | **角色** | 基础库——给应用层 / agent runtime 用 | 应用 framework——给 Spring Boot 业务应用用 |
-| **打包思路** | go.work 多 module，按需 import | Maven artifact 矩阵 + Spring Boot starter |
-| **加 vendor 的代价** | 新建 sibling dir（`models/<x>` 或 `vectorstores/<x>`），不影响 core | 新建 `models/spring-ai-<x>` + `auto-configurations/models/<x>` + `starters/spring-ai-starter-<x>`，三件套 |
+| **打包** | go.work 11 个独立 module | Maven artifact 矩阵 + Spring Boot starter（BOM 160 个 artifact）|
+| **加 vendor 代价** | 新建 sibling dir（`models/<x>` / `vectorstores/<x>`），core 零改动 | 三件套：`spring-ai-<x>` + `spring-ai-autoconfigure-model-<x>` + `spring-ai-starter-model-<x>` |
 | **依赖注入** | 没有（显式 `NewClient(model)` / `NewStore(config)`） | Spring DI 容器一等公民 |
 | **配置方式** | 构造函数 + Option struct | `application.yml` + `@ConfigurationProperties` + autoconfigure |
-| **开箱即用程度** | 最小可工作集合需要用户手动拼 model + middleware | starter 引入即生效 |
-| **依赖体积** | 单 module 内可零外部依赖 | 即便最小用例也带 Spring Framework + Boot + Micrometer + Reactor |
-
-新增观察：**lynx vendor 扩张的边际成本明显低于 spring-ai**——这次单分支一次性加 21 个 vector store + 7 个 model provider，每个 vendor 平均 ~400 LOC（含 visitor + store + docs），且不需要写 autoconfigure / starter / properties / @ConfigurationProperties 任何一行。spring-ai 加一个 vendor 需要至少 3 个 Maven module + ~1500 LOC + Bean 装配测试。
+| **开箱即用度** | 用户手动拼 model + middleware | starter 引入即生效 |
+| **依赖体积** | 单 module 可零外部依赖 | 最小用例也带 Spring Framework + Boot + Micrometer + Reactor |
 
 ### 1.1 vendor 生命周期成本曲线
 
-spring-ai 自 v1.0.0 以来主仓库收缩明显——`spring-ai-azure-openai`、`spring-ai-vertex-ai`（chat）、`spring-ai-zhipuai`、`spring-ai-moonshot` / `spring-ai-qianfan`（→ community）、`spring-ai-azure-cosmos-db-store`、`spring-ai-hanadb-store`、`spring-ai-infinispan-store`、`spring-ai-model-chat-memory-repository-cosmos-db` 全部被清出主仓库。原因不在"provider 不好"，而在**模块矩阵的维护税**：spring-ai 每个 vendor 至少绑着 `spring-ai-<x>` + `spring-ai-autoconfigure-model-<x>` + `spring-ai-starter-model-<x>` 三个 Maven module + BOM 入口 + integration test；任何一个用户量不达标的 vendor 都会拖慢 CI 与 release。
+spring-ai 自 v1.0.0 → HEAD（HEAD `0ed060b07`）已移除 / 外迁的模块：
 
-**lynx 没有这套耦合**——`models/<x>` 和 `vectorstores/<x>` 各自是独立 go module（自己的 `go.mod` / `go.sum` / 测试），core import 路径与它们零耦合。这意味着：
+| 移除模块 | 原因 |
+|---|---|
+| `spring-ai-azure-openai` | 并入官方 openai-java SDK（同 SDK 直接谈 Azure endpoint）|
+| `spring-ai-vertex-ai`（chat 部分）| 由 google-genai 取代 |
+| `spring-ai-zhipuai` 模型 + autoconfigure | 移出主仓库 |
+| `spring-ai-moonshot` / `spring-ai-qianfan` | 移到 community（"外区访问不到"）|
+| `spring-ai-azure-cosmos-db-store` + chat memory | 整套 cosmos-db 砍掉 |
+| `spring-ai-hanadb-store` | SAP HANA 砍掉 |
+| `spring-ai-infinispan-store` | Infinispan 砍掉 |
+| `spring-ai-spring-cloud-bindings` | 内部整合包砍掉 |
 
-- **扩张**：加一个 vendor = 新建 sibling dir，core 不动一行
-- **收缩**：把一个 vendor 搬到独立仓库（甚至社区 org） = 改 import 路径，无破坏
-- **维护**：单个 vendor 的依赖升级 / 弃用 / 安全告警都被隔离在它自己的 `go.sum` 里
+**这不是 provider 不好，是 framework 模块矩阵维护税**——每个 vendor 至少绑 3 个 Maven module + BOM 入口 + IT，用户量不达标就拖慢 CI。
 
-所以 lynx 不需要、也不会做 spring-ai 那种周期性的"模块矩阵瘦身"。`models/azureopenai` / `models/vertexai` / `models/zhipu` / `models/moonshot` / `chatmemory/cosmosdb` 这些 spring-ai 已移除的 provider，在 lynx 这边维护成本可以忽略不计。
+**lynx 没有这套耦合**：`models/<x>` / `vectorstores/<x>` 各自独立 go module，core 零依赖。扩张 = 新建 sibling 目录；收缩 = 移到独立仓库改 import 路径，core 不动一行。所以 `models/azureopenai` / `models/vertexai` / `models/zhipu` / `models/moonshot` / `chatmemory/cosmosdb` 这些 spring-ai 已移除的，在 lynx 维护成本可忽略。
 
-未来如果某个 vendor 真要独立分发，lynx 的路径是"移到 sibling 仓库"而不是"deprecate 后删除"——成本曲线完全不同。
+**结论**：扩张和收缩在 lynx 的成本曲线远低于 spring-ai。未来如果某 vendor 真要独立分发，路径是"移到 sibling 仓库"，不是"deprecate 后删"。
 
 ---
 
 ## 2. 语言范式
 
-未变。原文 §2 论述（流式 / 类型层级 / 反射 vs 显式 schema / 并发模型）仍然准确。补一条新增观察：
+| 维度 | lynx (Go 1.26) | spring-ai (Java 21 / Reactor) |
+|---|---|---|
+| 流式 | `iter.Seq2[*Response, error]` 标准库 | `Flux<ChatResponse>` Reactor + `contextView` |
+| 类型层级 | flat struct + interface（无继承）| 抽象类 + 多层 generics |
+| Tool schema | `pkg/json` 显式 JSON schema 生成 | reflection + `JsonSchemaGenerator` |
+| 并发模型 | goroutine + `context.Context` + `errgroup` | `CompletableFuture` + `coroutines` 混合 |
+| Options | `Options` value + `WithXxx()` builder + value-typed `DefaultOptions()` | 1.1.6 起从 setter 改为 builder（spring-ai 走了 lynx 一直就在的路）|
+| Extra 通道 | `Options.Extra map[string]any` + provider 直接读 | `ChatOptions` 字段预声明 + ExtraFields 受限 |
 
-**JSON.ExtraFields 在新一轮 OpenAI-compat vendor 中验证了价值**：xai / groq / together / fireworks / perplexity 全部用同一份 `openai.ChatModel`，通过 `option.WithBaseURL` + `chat.ModelMetadata.Provider` 覆盖即可工作；provider-specific knob（Perplexity 的 `search_mode` / `web_search_options`、Groq 的 `service_tier` / `reasoning_format`、xAI 的 `search_parameters`）一律走 ExtraFields 透传。spring-ai 这个路线走不通——`OpenAiChatOptions` 把每个字段都预声明了，接 third-party endpoint 需要 patch 库或绕过 `@ConditionalOnProperty`。
+**Extra 通道的胜利**：lynx 用 `JSON.ExtraFields` + `chat.ModelMetadata.Provider` 让 22 个 chat provider 共用同一份 `openai.ChatModel`——5 行配置接 xAI / Groq / Together / Fireworks / Perplexity。spring-ai 的 `OpenAiChatOptions` 字段预声明，接 third-party endpoint 要 patch 库或绕 `@ConditionalOnProperty`。
 
 ---
 
-## 3. 抽象形态 / API surface
+## 3. 抽象形态
 
-§3.1 / §3.2 / §3.3 原文未变。§3.4 模态对称性需要更新——lynx 的"6 模态 + Client 一致性"现在落到 39 个 vendor 上，比 spring-ai 主干更深：
+### 3.1 Message 模型
+
+| 维度 | lynx | spring-ai |
+|---|---|---|
+| AssistantMessage shape | `Parts []OutputPart`（保序）含 `TextPart` / `ReasoningPart` / `ToolCallPart` | `content String` + `media List<Media>` + `toolCalls List<ToolCall>` + `properties Map`（平铺）|
+| Reasoning | `ReasoningPart{Text, Signature}` 一等公民 + part-level 顺序 | 无；走 `properties` map（Anthropic）或硬编码 `"isThought"`（Google）|
+| Multi block ordering | ✅ wire order 保留 | ❌ 按类型打平 |
+| Cache tokens | `Usage.CacheReadInputTokens / CacheWriteInputTokens *int64`，三态 nil / 0 / >0 | `Long`，nil / 0 弱区分 |
+
+### 3.2 模态对称
 
 | 模态 | lynx vendor 数 | spring-ai vendor 数 |
 |---|---|---|
-| Chat | 22（incl. openaicompat 通用适配器）| 15 |
-| Embedding | 12 | ~8 |
-| Image | 8 | 2（openai + stability） |
-| TTS | 8 | 1（openai） |
-| STT | 8 | 1（openai） |
-| Moderation | 2（openai + mistral） | 1（openai） |
-| Audio translation | 1（openai） | 0 |
+| Chat | **21** | 8（含 bedrock + bedrock-converse + ollama 等）|
+| Embedding | 12 | 8 |
+| Image | **10** | 2（openai + stability） |
+| TTS | **9** | 1（elevenlabs，v1.0 后新加）|
+| STT | **9** | 0（已从主干完全移除）|
+| Moderation | 2（openai + mistral）| 1（openai）|
 
-**取舍维度的不同**：spring-ai 的 vendor module 更细——一个 vendor 通常拆成 `spring-ai-<vendor>` + `spring-ai-<vendor>-chat` + `spring-ai-<vendor>-embedding` 多个 artifact；lynx 一个 vendor dir 内多模态共存（`models/openai/` 一夹覆盖 chat + embedding + image + tts + stt + moderation + audio-translation 七路）。这种打包对 Go 用户更直观（import 路径就是依赖图），对 Spring 用户却反直觉（Spring 习惯每个 Bean 一个 artifact）。
+每个 lynx vendor dir 内多模态共存（如 `models/openai/` 一夹覆盖 chat + embed + image + tts + stt + moderation 六路）；spring-ai 倾向于每个 vendor 拆多个 artifact。
 
 ---
 
 ## 4. 生态广度（vendor 矩阵）
 
-**这是自上版以来最大的剧变**。原文 §4 的核心结论"lynx 在 vendor 广度上是最大短板"现在已不成立。
+### 4.1 Chat-capable model provider
 
-### 4.1 模型 vendor
+**lynx 21 个 vs spring-ai 8 个**——2.6× 反超。
 
-**spring-ai main 在 v1.0.0 → HEAD 期间砍掉了一批 chat module**（azureopenai / vertex-ai chat / zhipuai 整模块移除；moonshot / qianfan 移到 community；watson 早在 RC1 移除），重新对账：
+| 类别 | spring-ai 主干 | lynx |
+|---|---|---|
+| 闭源云模型 | anthropic / openai / google-genai / minimax / deepseek / mistral-ai | + azureopenai / vertexai / cohere / xiaomi |
+| AWS | bedrock + bedrock-converse | bedrock（双路径合一）|
+| 本地 / 自托管 | ollama | ollama |
+| OpenAI-compat 网关 | 走 base URL 配置 | **原生包**：xai / groq / together / fireworks / perplexity / openrouter / moonshot / huggingface / zhipu / alibaba + `openaicompat` 通用适配器 |
 
-| 类别 | spring-ai 主干 | lynx 当前 | gap |
-|---|---|---|---|
-| **闭源云模型** | anthropic / openai / google-genai / minimax / deepseek / mistral-ai（chat 模块共 9：含 bedrock + bedrock-converse）| anthropic / openai / azureopenai / google / vertexai / minimax / deepseek / mistral / cohere | **lynx 反超**：azureopenai（spring-ai 已并入 openai SDK）/ vertexai chat（spring-ai 已移除）/ cohere chat（spring-ai 缺）lynx 都还在 |
-| **OpenAI-compat 网关** | 走 base URL 配置（接 vLLM / Together / Anyscale 等） | **原生包**：xai / groq / together / fireworks / perplexity / openrouter / moonshot / huggingface / zhipu / alibaba / xiaomi / openaicompat 通用适配器 | **lynx 反超**（spring-ai 主干没有针对 xai / groq / together / fireworks / perplexity 的专属包；moonshot / qianfan 已移到 community）|
-| **本地 / 自托管** | ollama / transformers / postgresml（embedding only）| ollama | **平**（lynx 不做 transformers / postgresml，这两个 niche） |
-| **AWS** | bedrock / bedrock-converse | bedrock | **接近平**（lynx 通过 bedrock module 同时覆盖 chat + embed）|
-| **专业图像** | stability-ai | stability / blackforestlabs / midjourney / luma / prodia / replicate / openai / google | **lynx 反超**（5 个独有 vendor）|
-| **专业语音 TTS** | elevenlabs（v1.0 后新加）| elevenlabs / hume / lmnt / deepgram / replicate / openai / google / azureopenai | **lynx 反超**（7 个独有）|
-| **专业语音 STT** | — | deepgram / assemblyai / gladia / revai / elevenlabs / openai / google / azureopenai | **lynx 反超**（spring-ai main 完全没有）|
-| **专业 embedding** | vertex-ai-embedding（chat 部分已移除）/ google-genai-embedding | voyage / cohere / jina / nomic（+ 每个 chat vendor 配套）| **lynx 反超** |
+**5 个 spring-ai 没有的 OpenAI-compat 专属包** + **3 个 spring-ai 已移除但 lynx 保留**（azureopenai / vertexai chat / zhipu）+ **2 个 spring-ai 缺**（cohere chat / xiaomi）。
 
-**总计**：lynx 39 个 model provider 目录 / 22 个 chat-capable，spring-ai main 当前 9 个 chat module + 5 个非 chat 模型模块。从绝对覆盖看 lynx 2.4× 反超 chat 数；spring-ai 仍可能在企业向 vendor（IBM watsonx / Snowflake Cortex / Databricks）上有覆盖——这些都不在 spring-ai 主仓库，得去 community / 第三方寻。
+### 4.2 Vector store
 
-### 4.2 Vector store vendor
+**lynx 27 vs spring-ai 22**——绝对数反超。
 
-**这是反差最大的部分**。原文：spring-ai 23 vs lynx 6。当前：
-
-| spring-ai 主干（21）| lynx 当前（27） |
+| spring-ai 主干（22）| lynx（27） |
 |---|---|
-| azure / **bedrock-knowledgebase** / cassandra / chroma / **coherence** / couchbase / elasticsearch / **gemfire** / mariadb / milvus / mongodb-atlas / neo4j / opensearch / oracle / pgvector / pinecone / qdrant / redis / **s3-vector** / typesense / weaviate（azurecosmos / saphana / infinispan 已于 v1.0 后移除）| azureaisearch / azurecosmos / **bedrockkb** / cassandra / chroma / **clickhouse** / **cockroachdb** / couchbase / elasticsearch / inmemory / mariadb / milvus / mongodb / neo4j / opensearch / oracle / pgvector / pinecone / qdrant / redis / **s3vectors** / **supabase** / **tidb** / typesense / **vectara** / **vespa** / weaviate |
+| azure / **bedrock-knowledgebase** / cassandra / chroma / **coherence** / couchbase / elasticsearch / **gemfire** / mariadb / milvus / mongodb-atlas / neo4j / opensearch / oracle / pgvector / pinecone / qdrant / redis (+ redis-semantic-cache) / **s3-vector** / typesense / weaviate | azureaisearch / azurecosmos / **bedrockkb** / cassandra / chroma / **clickhouse** / **cockroachdb** / couchbase / elasticsearch / inmemory / mariadb / milvus / mongodb / neo4j / opensearch / oracle / pgvector / pinecone / qdrant / redis / **s3vectors** / **supabase** / **tidb** / typesense / **vectara** / **vespa** / weaviate |
 
-**统计**（基线已对齐 spring-ai main HEAD `b63a0d117`）：
-- lynx 已覆盖 spring-ai 21 个中的 19 个（缺 gemfire + coherence，这两个是 Java 强生态，Go SDK 缺位）
-- **lynx 多出 8 个 spring-ai 主干没有的**：bedrockkb / s3vectors / clickhouse / cockroachdb / supabase / tidb / vectara / vespa
-- **lynx 还保留了 spring-ai 已移除的 azurecosmos** —— 这条不是 gap，是 §1.1 vendor 生命周期成本曲线的直接体现：lynx 独立 module 没有维护成本压力
-- 绝对数量反超：27 > 21
+- lynx 覆盖 spring-ai 22 个中的 19 个，缺 **gemfire / coherence**（Java 强生态，Go SDK 缺位）
+- lynx 多出 **8 个**：bedrockkb / s3vectors / clickhouse / cockroachdb / supabase / tidb / vectara / vespa
+- lynx 还保留 **azurecosmos**（spring-ai v1.0 后已移除）—— 不是 gap，是 §1.1 vendor 生命周期成本曲线的直接体现
 
-**架构副产物**：本轮 vector store 扩张引入了 `vectorstores/internal/` 共享层——`filterhelp`（AST 助手）/ `ident`（标识符校验）/ `docio`（文档 I/O + 向量字面量格式化）。这把 §6.4 的"每 vendor visitor 600–800 LOC"问题局部缓解（共享了 ~1000 LOC 的 AST 处理样板），但 spring-ai 的 `AbstractFilterExpressionConverter` 模板方法基类形式上更彻底——lynx 仍无 `BaseVisitor`。
+### 4.3 Chat memory backend
 
-### 4.3 Document reader
+**lynx 6 vs spring-ai 5**。
 
-未变。
-
-| spring-ai（4 个）| lynx（2 个）|
+| spring-ai | lynx |
 |---|---|
-| pdf（PagePdf + ParagraphPdf）/ markdown / tika / jsoup | text / JSON |
+| jdbc / redis / mongodb / neo4j / cassandra | postgres / redis / mongodb / neo4j / cassandra / **cosmosdb** |
 
-**仍是真 gap**：PDF / Markdown 在 RAG 场景里几乎必需。原文 §9 P1-6 此项未闭合。
+spring-ai v1.0 后移除了 cosmos-db，lynx 保留。两边都没有 vector-store-backed memory（语义检索式长期记忆）。
 
-### 4.4 Memory 后端
+### 4.4 Document reader
 
-未变。
+**lynx 3 vs spring-ai 4**。spring-ai 多一个 **Tika**（universal parser，但依赖 JVM 服务）。lynx 的 markdown（goldmark）/ html（goquery）/ pdf（ledongthuc/pdf）覆盖 95% RAG 输入；Tika 故意不做（要求用户跑独立 JVM 服务）。
 
-| spring-ai（6 个）| lynx（1 个）|
-|---|---|
-| jdbc / redis / mongodb / neo4j / cassandra / cosmos-db | in-memory + message-window |
+### 4.5 Image / TTS / STT
 
-**仍是真 gap**：原文 §9 P1-5 此项未闭合。**讽刺的是**：lynx 现在已经有 27 个 vector store 后端，把其中任何一个（postgres / redis / mongodb）改写成 memory.Store 都只需要 ~100 LOC——这件事的工作量已经被 vector store 那一轮消化掉一半。
+**这是 lynx 反超最大的领域**。
 
-### 4.5 Tool 实现
+| 模态 | lynx | spring-ai |
+|---|---|---|
+| Image | 10：azureopenai / blackforestlabs / google / luma / midjourney / openai / prodia / replicate / stability / vertexai | 2：openai + stability |
+| TTS | 9：azureopenai / deepgram / elevenlabs / google / hume / lmnt / openai / replicate / vertexai | 1：elevenlabs |
+| STT | 9：assemblyai / azureopenai / deepgram / elevenlabs / gladia / google / openai / revai / vertexai | 0 |
 
-未变。
+### 4.6 Tool 实现
 
 | 类别 | spring-ai | lynx |
 |---|---|---|
-| 内置 tool 实现 | 仅提供 `ToolCallback` SPI，无开箱即用工具 | 出货 `tools/{bash, fs, websearch, webfetch}` 4 大类 |
-| Websearch backend | — | 7 个（brave / exa / firecrawl / jina / perplexity / serper / tavily）|
-| Webfetch backend | — | 4 个 |
+| 内置 tool 实现 | 仅 `ToolCallback` SPI | 出货 `tools/{bash, fs, websearch, webfetch}` 4 大类 |
+| Websearch backend | — | 7 个：brave / exa / firecrawl / jina / perplexity / serper / tavily |
+| Webfetch backend | — | 4 个：exa / firecrawl / jina / tavily |
 
-**lynx 反向超**仍然成立。
-
-### 4.6 MCP 模块化
-
-未变。
+### 4.7 MCP 模块化
 
 | | spring-ai | lynx |
 |---|---|---|
 | 模块数 | ~12 个 Maven module | 1 个 Go package |
-| 估算 LOC | 8k–10k | ~750 |
+| LOC | 8k–10k | ~1500（含 reverse capabilities + Streamable HTTP）|
 | Sync/Async | 双轨 | 仅 sync + `iter.Seq2` 流式 |
-| Server transport | WebMvc / WebFlux / stateless | mcp-go SDK（InProc / stdio / HTTP SSE / Streamable HTTP）|
+| Server transport | WebMvc / WebFlux / stateless | modelcontextprotocol/go-sdk（InProc / stdio / SSE / **Streamable HTTP** lynx 已包装）|
+| 反向能力 | Sampling / Elicit / Progress / Log / Ping 全开 | 全开（`mcp/notify.go` + `mcp/session.go`）|
 
 ---
 
 ## 5. 中间件 / Advisor 体系
 
-未变。lynx 仍只有 3 个内置 middleware（`tool_middleware` / `memory/middleware` / `rag/pipeline_middleware`），spring-ai 仍有 ~10 个 advisor。**SafeGuard + Logger middleware 仍未出货**——原文 §9 P2-9 此项未闭合。
+| | spring-ai | lynx |
+|---|---|---|
+| 数量 | ~10 个 advisor | 4 个 middleware（`ToolMiddleware` + `memory.Middleware` + `LoggerMiddleware` + `SafeguardMiddleware`）+ `rag.PipelineMiddleware` |
+| 形态 | `CallAroundAdvisor` / `StreamAroundAdvisor` | `CallMiddleware` / `StreamMiddleware`（双轨但共用底层逻辑）|
+| Logger | `SimpleLoggerAdvisor` 硬编码 slf4j | **依赖倒置**：`Logger` 接口 + `NewSlogLogger` 默认实现，用户可换 zap/zerolog |
+| Safeguard | `SafeGuardAdvisor` 硬编码字符串列表 | **依赖倒置**：`Matcher` 接口 + `NewSubstringMatcher` 默认实现，用户可换 regex/ML 分类器 |
+| Tool loop | `ToolCallingManager` | `ToolMiddleware`（recursion + accumulator）|
+
+依赖倒置形态是 lynx 比 spring-ai 在 middleware 设计上的小胜——但 spring-ai 的 advisor 数量上仍领先（QuestionAnswer / RetrievalAugmentation / Refusal / TokenCount 等场景化 advisor lynx 缺）。
 
 ---
 
-## 6. 关键子系统深入对比
+## 6. 关键子系统
 
-### 6.1 Chat client 形态
+### 6.1 Chat client
 
-未变。新增观察：随着 22 个 chat provider 出货，`JSON.ExtraFields` + `chat.ModelMetadata.Provider` 这套机制已在 5 个 OpenAI-compat 新 vendor 上经过验证——同一份 `openai.ChatModel`，5 行配置即可服务 xAI / Groq / Together / Fireworks / Perplexity 五家。这种"薄壳 facade"路线在 lynx 已成定式。
+| | spring-ai | lynx |
+|---|---|---|
+| Fluent API | `ChatClient.builder().defaultXxx(...).build()` + `.prompt().user(...).call()` | `client.Chat().WithMessages(...).WithTools(...).Call().Response(ctx)` |
+| ToolSpec 风格 | 4d0bb7b7f 引入 `ToolSpec` fluent | lynx 一直就是 fluent（`Chat().WithTools(...)`）|
+| Multi-vendor 复用 | 各 vendor 一个 ChatModel 子类 | 5 个 OpenAI-compat vendor 共用 `openai.ChatModel`，BaseURL 切换即可 |
 
 ### 6.2 Tool / function calling
 
-未变。
+| | spring-ai | lynx |
+|---|---|---|
+| 注册 | `@Tool` 注解 / `MethodToolCallback` / `FunctionToolCallback` 多种 | 单一 `Tool` 接口（去年 `Tool` + `CallableTool` 二分已合并）|
+| Reflection schema | 自动 + 注解约束 | `pkg/json` 显式生成；可手写 |
+| Loop driver | `ToolCallingManager` | `ToolMiddleware`（recursion + ShouldReturnDirect 短路）|
 
 ### 6.3 RAG pipeline
 
-未变。
-
 | | spring-ai（4 阶段层级）| lynx（扁平）|
 |---|---|---|
-| 组件数 | ~10 | ~9 |
-| 阶段化 | preretrieval / retrieval / postretrieval / generation | 扁平自由组合 |
 | 入口 | `RetrievalAugmentationAdvisor` | `rag.NewMiddleware` |
-| lynx 独有 | — | `DeduplicationRefiner` / `RankRefiner` |
-| spring-ai 独有 | `DocumentJoiner`（多路检索合并）| — |
-
-**`DocumentJoiner` 仍缺**——原文 §9 P2-10 此项未闭合。
+| 组件 | `QueryTransformer` / `QueryExpander` / `DocumentRetriever` / `DocumentJoiner` / `QueryAugmenter` | `QueryTransformer` / `QueryExpander` / `DocumentRetriever` / `DocumentRefiner` / `QueryAugmenter` |
+| Joiner | `ConcatenationDocumentJoiner`（dedup + sort）| `DeduplicationRefiner` → `RankRefiner` refiner 链等价 |
+| Refiner | — | `DeduplicationRefiner` / `RankRefiner` lynx 独有 |
+| 多路 RRF | — | YAGNI：lynx 当前 retriever 全部向量同尺度，RRF 无对象 |
 
 ### 6.4 VectorStore filter mini-language
 
-**部分变动**。原文 §6.4 提到"lynx 的架构倒退是每个 vendor visitor 从 0 写、~600-800 LOC 重复样板"。本轮重构后：
-
-| 维度 | spring-ai | lynx 当前 |
+| | spring-ai | lynx |
 |---|---|---|
-| Lexer/Parser 实现 | ANTLR4 generated（grammar in `vectorstore/filter/antlr4/`）| 手写 lexer + recursive descent parser，~500 LOC |
-| AST visitor | `AbstractFilterExpressionConverter` 模板方法基类 | **每 vendor 独立 visitor + 共享 `internal/filterhelp` 助手**（CollectKeyPath / LiteralToValue / ExtractValue / WholeNumber 等） |
-| Vendor visitor LOC | ~600 LOC × 21 vendor，但基类省了 ~40% | ~500 LOC × 27 vendor，filterhelp 省了 ~30% |
-| Runtime 依赖 | ANTLR4 runtime（~500KB JAR） | 零运行时依赖 |
-| 标识符校验 | 基类统一 | `internal/ident.Check` / `CheckWithDash` 共享 |
-| 向量字面量格式化 | 基类统一 | `internal/docio.FormatVectorLiteral` 共享（SQL stores） |
-
-**部分闭合**：本轮抽出的 `vectorstores/internal/{filterhelp,ident,docio}` 三个共享包消化了 vendor visitor 的 30% 重复代码（约 1000 LOC 不再重复）。**但形态上仍没有 spring-ai 那种 `AbstractVisitor` 基类**——lynx 走的是"组合优于继承"的 Go 路线，把通用部分抽成函数式 helper 而不是基类。哪种更好见仁见智，但绝对 LOC 上 spring-ai 仍胜（21 × 600 × 0.6 = 7560 vs lynx 27 × 500 × 0.7 = 9450）。
-
-### 6.5 MCP 桥接
-
-未变。
+| Lexer/Parser | ANTLR4 generated | 手写 lexer + recursive descent，~500 LOC |
+| AST visitor | `AbstractFilterExpressionConverter` 模板方法基类 | 每 vendor 独立 visitor + `internal/filterhelp` 共享 helper（dispatch / literal / wholeNumber 等）|
+| Runtime 依赖 | ANTLR4 runtime（~500KB JAR）| 零 |
+| 标识符 / 字面量校验 | 基类统一 | `internal/ident` + `internal/docio` 共享 |
+| 形态 | 继承基类 | 组合 helper（Go 风）|
 
 ---
 
 ## 7. 打包 / 集成 / 部署
 
-未变。原文 §7 的论述（spring-ai `@Autowired` vs lynx 显式构造、BOM vs go.work、autoconfigure 链 vs 编译期类型检查）全部仍然成立。
+| | spring-ai | lynx |
+|---|---|---|
+| 模块矩阵 | 160 个 BOM artifact | 11 个 go module |
+| 配置发现 | Spring autoconfigure 链 | 编译期 import + 显式构造 |
+| 部署 | 主要进 Spring Boot 应用 | 直接编译进 Go 二进制 |
+| OS / 平台 | JVM | Go 原生交叉编译 |
 
 ---
 
 ## 8. 可观测性 / 错误处理 / Retry
 
-### 8.1 可观测性
+### 8.1 Observability
 
-未变。`doc/OBSERVABILITY.md` 仍是单一事实源；lynx 走 OTel 原生 + slog bridge，spring-ai 走 Micrometer Observation。
+lynx 走 **OTel 原生** + slog bridge（OTLP 全家桶 + `otel/slog` SpanExporter）；spring-ai 走 **Micrometer Observation** 抽象层。
 
-**仍有局部 gap**：core hot path 埋点据 OBSERVABILITY.md §4 清单尚未完整覆盖——原文 §9 P0-3 此项**未闭合**。
+**lynx 埋点覆盖（已全量）**：chat / embedding / tool / RAG 五阶段 / MCP client+server / agent runtime（含 HTN / Reactive / GOAP planner）/ 24 个 vectorstore / 6 个 chatmemory provider 全部按 GenAI + DB semconv 严格挂上。详见 `OBSERVABILITY.md`。
 
 ### 8.2 Retry
 
-未变。原文 §9 P0-1 此项**未闭合**——`pkg/retry` 仍无 `Transient` / `NonTransient` 分类，各 vendor adapter 仍不区分 429/503 vs 401/400。
+lynx 不做 vendor-agnostic retry 层——SDK 内部已自带（openai-go / anthropic-sdk-go / bedrockruntime / pinecone-go 等）。spring-ai 的 `RetryTemplate` 也基本是 wrap SDK 重试，再造一层属重复建设。
 
-**这是当前所有未闭合 gap 中 ROI 最高的一项**：30 LOC 类型 + 各 adapter ~20 LOC 分类逻辑，但收益是 LLM 集成最高频的痛点（rate-limit 自动重试 + auth-fail 立刻报错）。
+### 8.3 错误处理
 
-### 8.3 错误处理总体
-
-未变。lynx sentinel error + `errors.As` 仍优于 spring-ai unchecked exception。
+| | spring-ai | lynx |
+|---|---|---|
+| 形态 | unchecked exception | sentinel error + `errors.As` |
+| Wrap | `NestedRuntimeException` | `fmt.Errorf("...: %w", err)` |
+| Type assertion | `instanceof` | `errors.As` |
 
 ---
 
-## 9. 战略 gap 清单 + ROI 路线图（更新版）
+## 9. 剩余 gap 清单
 
-按 ROI 重排。已闭合项移出列表，仅留剩余项。
+P0 / P1 / P2 全部闭合，剩余仅长尾观察项。
 
-### 9.1 P0 — 短工作量、高单点价值
-
-| # | 项 | 工作量 | 价值 |
+| # | 项 | 类别 | 说明 |
 |---|---|---|---|
-| ~~1~~ | ~~Retry `Transient` / `NonTransient` 分类~~ | — | **不做**：SDK 内部已自带重试，再加一层是重复建设 |
-| ~~2~~ | ~~Anthropic Extra 通道保护~~ | — | **已闭合**（`models/anthropic/extra.go`）|
-| ~~3~~ | ~~OTel hot path 埋点补完~~ | — | **已闭合**：chat / embedding / tool / RAG / MCP / agent / 24 vectorstore / 6 chatmemory 全量埋点 |
+| 1 | Vector-store backed chat memory | P3 / 中 | 语义检索式长期记忆，复用 vectorstore.Store + memory middleware；spring-ai 也未做 |
+| 2 | OpenAI Responses API（chat 路径）| P3 / 中 | o1/o3/gpt-5 reasoning 路径已通过 `models/openai/chat_responses.go` 落地（earlier PR），但 Tools / Built-in Tools / streaming 部分细节仍可深化 |
+| 3 | Anthropic Web Search Tool + Citations | P3 / 中 | Anthropic 特有能力 |
+| 4 | Anthropic Skills + Files API | P3 / 高 | 生成 Excel / PPT / PDF 报告 |
+| 5 | Google Gemini 高级特性 | P3 / 中 | CachedContent API / ThinkingLevel / thoughtSignatures |
+| 6 | 企业向 vendor 补全 | P3 / 中-高 | IBM watsonx / Snowflake Cortex / Databricks 等非 OpenAI-compat，需独立 SDK；spring-ai 也未做 |
 
-### 9.2 P1 — 生产硬刚需
+### 9.1 故意不做（"为什么不抄"）
 
-| # | 项 | 工作量 | 价值 |
-|---|---|---|---|
-| ~~4~~ | ~~持久化 Memory 后端~~ | — | **已闭合**：顶层 `chatmemory/` module 提供 postgres / redis / mongodb / cassandra / neo4j / cosmosdb 6 个 provider |
-| ~~5~~ | ~~PDF + Markdown document reader~~ | — | **已闭合**：顶层 `documentreaders/` 出货 markdown / html / pdf 三个 reader（goldmark / goquery / ledongthuc/pdf）|
-
-### 9.3 P2 — 闭合 spring-ai 已有的设计
-
-| # | 项 | 工作量 | 价值 |
-|---|---|---|---|
-| ~~6~~ | ~~Structured output converter~~ | — | **已闭合**：`core/model/chat/parser.go`（JSONParser[T] / ListParser / MapParser / StructuredParser[T] / AnyParser）已与 spring-ai BeanOutputConverter 家族对齐 |
-| ~~7~~ | ~~`SafeGuardMiddleware` + `LoggerMiddleware`~~ | — | **已闭合**：`core/model/chat/middleware/` 新包；接口 + stdlib 默认实现的依赖倒置形态 |
-| ~~8~~ | ~~`DocumentJoiner` + `QueryRouter`~~ | — | **不做**：spring-ai ConcatenationDocumentJoiner 等价于 lynx `DeduplicationRefiner` + `RankRefiner` 链；RRF 留待非向量 retriever 落地时再设计；QueryRouter 由用户自定义 retriever 解决。详见 `rag/doc.go` |
-| ~~9~~ | ~~Vector store `BaseVisitor` 进一步抽象~~ | — | **已闭合**：`vectorstores/internal/filterhelp` 提供 dispatch helpers，10 个 visitor 已迁移 |
-
-### 9.4 P3 — 长尾 / 大依赖
-
-| # | 项 | 工作量 | 价值 |
-|---|---|---|---|
-| ~~10~~ | ~~Bedrock Converse adapter（chat 路径）~~ | — | **已闭合**：`models/bedrock/chat.go` 完整 Converse 路径——Call + Stream + tool 调用 + reasoning（Claude 3.7 thinking + DeepSeek-R1）round-trip + image 输入（png/jpeg/gif/webp）+ cache token usage（Anthropic prompt caching） |
-| ~~11~~ | ~~MCP v2 反向能力~~ | — | **已闭合**：`mcp/` 出货 ServerSessionFromContext + ReportProgress + ElicitFromClient + LogToClient + Streamable HTTP transport helpers |
-| 12 | Vector-store backed chat memory（语义检索式长期记忆）| 中 | 复用 vectorstore.Store + 现有 memory middleware |
-| 13 | OpenAI Responses API | 中 | o1/o3/gpt-5 reasoning 解锁 |
-| 14 | Anthropic Web Search Tool + Citations | 中 | Anthropic 特有能力 |
-| 15 | Anthropic Skills + Files API | 高 | 生成 Excel / PPT / PDF 报告 |
-| 16 | Google Gemini 高级特性（CachedContent API / ThinkingLevel / thoughtSignatures）| 中 | Google 用户 |
-| 17 | OpenAI Audio Output（chat 主路径同时返回 text + audio）| 低 | gpt-4o-audio-preview |
-| 18 | 企业向 vendor 补全（IBM watsonx / Snowflake Cortex / Databricks）| 中-高 | 企业 RFP 加分项；非 OpenAI-compat，需独立 SDK |
-
-### 9.5 故意不做（"为什么不抄"）
-
-| # | spring-ai 有但 lynx 不该抄 | 原因 |
+| # | spring-ai 有但 lynx 不做 | 原因 |
 |---|---|---|
-| A | Spring Boot autoconfigure / starter | lynx 是 library 不是 framework；Go 生态没有"DI 容器自动装配"传统 |
+| A | Spring Boot autoconfigure / starter | lynx 是 library；Go 生态没有"DI 容器自动装配"传统 |
 | B | Micrometer Observation 抽象层 | Go 世界 OTel 已是事实标准 |
 | C | `@Tool` / `@McpTool` 注解 | Go 无 runtime annotation；构造函数路线已足够清晰 |
 | D | `ToolCallbackResolver` Spring Bean 解析 | lynx 无 DI 容器 |
-| E | sync/async 双轨 | Go goroutine + `iter.Seq2` 单一路径已经覆盖 |
+| E | sync/async 双轨 | Go goroutine + `iter.Seq2` 单一路径已覆盖 |
 | F | `StringTemplate` 完整模板引擎 | `text/template` 已是 Go 标准库；简单 `{key}` placeholder 够用 |
-| G | 多套 vendor module 完整拆分 | lynx 一个 vendor dir 覆盖多模态（如 openai 含 7 路），不需要 chat / embedding / image 各一个 artifact |
-| H | GemFire / SAP Hana vector store | Java 强生态，Go SDK 缺位；目标用户重合度低 |
+| G | 多套 vendor module 完整拆分 | lynx 一个 vendor dir 覆盖多模态 |
+| H | GemFire / Coherence vector store | Java 强生态，Go SDK 缺位 |
 | I | transformers / postgresml 本地推理 vendor | Go 调 Python ML runtime 是异常路径；用户该用 ollama |
+| J | Tika document reader | 要求独立 JVM 服务；Go 用户体验差 |
+| K | Retry `Transient` / `NonTransient` 分类 | SDK 内部已自带重试；再加一层重复 |
+| L | RRF DocumentJoiner | 当前所有 retriever 都是向量同尺度，RRF 无对象；待非向量 retriever 落地再做 |
 
 ---
 
-## 10. 一句话定档（修订）
+## 10. 一句话定档
 
-对照 spring-ai 时**不照抄、照搬克制原则做薄壳**——这套打法在 reasoning / MCP / observability / cache tokens / vector-store 广度 / 多模态广度 6 条线上都已经验证成立。**本轮 vector store 6→27 和 model provider 3→39 的扩张证明：thin-library 路线下，扩 vendor 的边际成本远低于 framework 路线**——spring-ai 同期反而做了 vendor 矩阵收缩（azure-openai / vertex-ai chat / zhipuai / moonshot / qianfan / cosmosdb / hanadb / infinispan 全部移出主仓库），是 framework 路线必须缴的"模块矩阵维护税"。
+**lynx 走 thin-library 路线扩 vendor 的边际成本远低于 spring-ai 的 framework 路线——21 chat / 27 vector / 6 chatmemory / 10 image / 9 TTS / 9 STT 已经验证；spring-ai 同期反而做了一轮主仓库收缩（azure-openai / vertex-ai chat / zhipuai / moonshot / cosmosdb / hanadb / infinispan 全部移出），是 framework 路线必须缴的"模块矩阵维护税"**。
 
-**对 spring-ai 的 P0 / P1 / P2 硬差距全部闭合**：retry 不做 / Anthropic Extra 已闭合 / OTel 全量埋点 / 持久化 Memory 反超 / document readers / Structured Output / BaseVisitor / SafeGuard + Logger middleware 全部到位；DocumentJoiner / QueryRouter 经深度分析判定为 YAGNI（refiner 链已等价覆盖），不做。剩余仅长尾观察项（ToolSpec API 对账、MCP Streamable HTTP 跟进——后者实际上 lynx 也已通过 mcp/transport.go 落地）。lynx 在"生产可用度"上对 spring-ai 的硬差距已实质补齐，同时保留 thin library 哲学不动摇。
+P0 / P1 / P2 全部闭合后，lynx 在"生产可用度"上对 spring-ai 的硬差距已实质补齐：reasoning 一等公民 / OTel 全量埋点 / 持久化 memory 反超 / document readers / Structured Output / SafeGuard + Logger middleware（依赖倒置形态优于 spring-ai 硬编码版）/ Bedrock Converse 深化 / MCP v2 反向能力 / Streamable HTTP——全部到位。剩余 6 项 P3 都是长尾创新（spring-ai 也未做的）。
 
 ---
 
-*对比结束。lynx HEAD `d236959`，2026-05-21；对照 spring-ai main HEAD `b63a0d117`。*
+*对比结束。lynx HEAD `6bef5eb`，对照 spring-ai main HEAD `0ed060b07`，2026-05-21。*
