@@ -7,7 +7,7 @@
 
 import { ApprovalCard } from "@/components/chat/ApprovalCard";
 import { Checkpoint } from "@/components/chat/Checkpoint";
-import { CodeBlock } from "@/components/chat/CodeBlock";
+import { ShikiCodeBlock } from "@/components/chat/ShikiCodeBlock";
 import { PlanBlock } from "@/components/chat/PlanBlock";
 import { ReasoningBlock } from "@/components/chat/ReasoningBlock";
 import { SearchResults } from "@/components/chat/SearchResults";
@@ -39,7 +39,7 @@ export const codeBlock = definePlugin({
   version: "1.0.0",
   setup({ host }) {
     host.message.registerContentBlock("code", ({ block }: ContentBlockRendererProps<"code">) => (
-      <CodeBlock lang={block.lang} file={block.file} text={block.text} />
+      <ShikiCodeBlock lang={block.lang} code={block.text} file={block.file} />
     ));
   },
 });

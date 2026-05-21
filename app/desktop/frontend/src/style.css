@@ -1128,6 +1128,15 @@ html.theme-light .ig-glyph { background: var(--color-surface-2); }
   color: var(--color-text-faint);
   font-family: var(--font-ui);
 }
+.shiki-block-head .fname {
+  font-size: 11.5px;
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
 .shiki-block-head .copy {
   display: inline-flex;
   align-items: center;
