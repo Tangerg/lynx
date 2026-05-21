@@ -191,9 +191,10 @@ func TestEngine_RunChat_NoSessionIDDoesNotPersist(t *testing.T) {
 	}
 }
 
-// TestEngine_Tools verifies the engine exposes its registered coding
-// tool set — used by ToolService.List in the next layer up.
-func TestEngine_Tools(t *testing.T) {
+// TestEngine_Tools_OfflineOnly verifies the engine exposes the
+// always-on coding tool set when no Online credentials are
+// configured. Provider-backed tools must NOT appear.
+func TestEngine_Tools_OfflineOnly(t *testing.T) {
 	stub := newStubModel("bash", `{}`, "")
 	client, _ := chat.NewClient(stub)
 	eng, err := New(Config{ChatClient: client})
@@ -203,18 +204,75 @@ func TestEngine_Tools(t *testing.T) {
 
 	tools := eng.Tools()
 	if len(tools) != 6 {
-		t.Fatalf("tool count = %d, want 6 (read/write/edit/glob/grep/bash)", len(tools))
+		t.Fatalf("tool count = %d, want 6 (offline-only)", len(tools))
 	}
 
-	names := make(map[string]bool, len(tools))
-	for _, tl := range tools {
-		names[tl.Definition().Name] = true
-	}
+	names := toolNames(tools)
 	for _, want := range []string{"read", "write", "edit", "glob", "grep", "bash"} {
 		if !names[want] {
 			t.Errorf("missing tool %q in %v", want, names)
 		}
 	}
+	for _, never := range []string{"web_fetch", "web_search", "http_request"} {
+		if names[never] {
+			t.Errorf("unexpected online tool %q in offline build", never)
+		}
+	}
+}
+
+// TestEngine_Tools_OnlineEnabled verifies provider-backed tools
+// arrive when their credentials are supplied.
+func TestEngine_Tools_OnlineEnabled(t *testing.T) {
+	stub := newStubModel("bash", `{}`, "")
+	client, _ := chat.NewClient(stub)
+	eng, err := New(Config{
+		ChatClient: client,
+		Online: OnlineConfig{
+			JinaAPIKey:       "test-jina",
+			TavilyAPIKey:     "test-tavily",
+			HTTPAllowedHosts: []string{"api.example.com"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("engine.New: %v", err)
+	}
+
+	tools := eng.Tools()
+	if len(tools) != 9 {
+		t.Fatalf("tool count = %d, want 9 (6 offline + 3 online)", len(tools))
+	}
+	names := toolNames(tools)
+	for _, want := range []string{"web_fetch", "web_search", "http_request"} {
+		if !names[want] {
+			t.Errorf("expected online tool %q in %v", want, names)
+		}
+	}
+}
+
+// TestEngine_Tools_PartialOnline verifies each online tool is
+// independent — supplying only one credential registers only one
+// extra tool.
+func TestEngine_Tools_PartialOnline(t *testing.T) {
+	stub := newStubModel("bash", `{}`, "")
+	client, _ := chat.NewClient(stub)
+	eng, err := New(Config{
+		ChatClient: client,
+		Online:     OnlineConfig{JinaAPIKey: "k"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(eng.Tools()) != 7 {
+		t.Fatalf("tool count = %d, want 7 (offline + jina only)", len(eng.Tools()))
+	}
+}
+
+func toolNames(tools []chat.Tool) map[string]bool {
+	out := make(map[string]bool, len(tools))
+	for _, tl := range tools {
+		out[tl.Definition().Name] = true
+	}
+	return out
 }
 
 // ------------------------------------------------------------------

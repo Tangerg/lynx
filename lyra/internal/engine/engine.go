@@ -25,6 +25,21 @@ type Config struct {
 	// permits any path) — fine for tests, not recommended for
 	// production. Typical value: the user's project cwd.
 	Workdir string
+
+	// Online controls which network-reaching tools (webfetch /
+	// websearch / httpreq) are registered. Each tool is independent;
+	// missing credentials skip just that tool.
+	Online OnlineConfig
+}
+
+// OnlineConfig is engine's view of the runtime-time online-tool
+// credentials. Mirrors config.OnlineConfig but lives in this
+// package so the engine has no dependency on the config layer
+// (callers map between them).
+type OnlineConfig struct {
+	JinaAPIKey       string
+	TavilyAPIKey     string
+	HTTPAllowedHosts []string
 }
 
 // Engine is the runtime container. Holds the lynx Platform and the
@@ -44,13 +59,16 @@ func New(cfg Config) (*Engine, error) {
 		return nil, errors.New("engine: ChatClient is required")
 	}
 
-	resolver := buildCodingResolver(cfg.Workdir)
-	tools := BuildCodingTools(cfg.Workdir)
+	tools, err := BuildToolSet(cfg.Workdir, cfg.Online)
+	if err != nil {
+		return nil, fmt.Errorf("engine: build tool set: %w", err)
+	}
+	resolver := buildCodingResolverFromTools(tools)
 
 	memStore := memory.NewInMemoryStore()
-	callMW, streamMW, mwErr := memory.NewMiddleware(memStore)
-	if mwErr != nil {
-		return nil, fmt.Errorf("engine: build memory middleware: %w", mwErr)
+	callMW, streamMW, err := memory.NewMiddleware(memStore)
+	if err != nil {
+		return nil, fmt.Errorf("engine: build memory middleware: %w", err)
 	}
 	platform := agent.NewPlatform(&runtime.PlatformConfig{
 		ChatClient: cfg.ChatClient,

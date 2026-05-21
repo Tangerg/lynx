@@ -2,28 +2,45 @@ package engine
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/tools/bash"
 	"github.com/Tangerg/lynx/tools/fs"
+	"github.com/Tangerg/lynx/tools/httpreq"
+	"github.com/Tangerg/lynx/tools/webfetch"
+	"github.com/Tangerg/lynx/tools/webfetch/jina"
+	"github.com/Tangerg/lynx/tools/websearch"
+	"github.com/Tangerg/lynx/tools/websearch/tavily"
 )
 
 // ToolRoleCoding is the role name the chat agent declares to require
 // the default coding tool group. Action bodies that opt into this
-// role get every tool returned by [BuildCodingTools] wired into their
+// role get every tool returned by [BuildToolSet] wired into their
 // chat request.
 const ToolRoleCoding = "coding"
 
-// BuildCodingTools returns the default tool set Lyra ships with —
-// read / write / edit / glob / grep / bash. workdir constrains every
-// file operation to that root (empty string = unconfined; useful for
-// tests but not for production).
-//
-// Provider-backed tools (webfetch / websearch / httpreq) are NOT
-// included here — they need configured providers and arrive in
-// future milestones once Lyra's config grows API-key plumbing.
-func BuildCodingTools(workdir string) []chat.Tool {
+// BuildToolSet returns the runtime's complete tool list — six
+// always-on coding tools plus zero or more provider-backed online
+// tools enabled by online. The six baseline tools (read / write /
+// edit / glob / grep / bash) need only a filesystem root; online
+// tools require explicit credentials so a misconfigured deployment
+// silently runs offline rather than exposing arbitrary network
+// access to the LLM.
+func BuildToolSet(workdir string, online OnlineConfig) ([]chat.Tool, error) {
+	tools := buildOfflineTools(workdir)
+
+	onlineTools, err := buildOnlineTools(online)
+	if err != nil {
+		return nil, err
+	}
+	return append(tools, onlineTools...), nil
+}
+
+// buildOfflineTools instantiates the always-on coding tool set. No
+// credentials needed; safe to register unconditionally.
+func buildOfflineTools(workdir string) []chat.Tool {
 	fsExec := fs.NewLocalExecutor(workdir)
 	bashExec := bash.NewLocalExecutor()
 	return []chat.Tool{
@@ -36,12 +53,59 @@ func BuildCodingTools(workdir string) []chat.Tool {
 	}
 }
 
-// buildCodingResolver wires the coding tool set behind the
-// [ToolRoleCoding] role on a fresh [core.StaticToolGroupResolver].
-// The resolver is registered as a platform-scope extension so every
-// agent (just the chat agent for now) can opt-in via [core.ToolRolesFor].
-func buildCodingResolver(workdir string) *core.StaticToolGroupResolver {
-	tools := BuildCodingTools(workdir)
+// buildOnlineTools instantiates each network-reaching tool whose
+// credentials are present in online. Missing credentials silently
+// skip the corresponding tool — explicit opt-in is the safety
+// model. Returns an error only when a configured provider fails
+// to build (e.g. invalid HTTP allowlist).
+func buildOnlineTools(online OnlineConfig) ([]chat.Tool, error) {
+	var out []chat.Tool
+
+	if online.JinaAPIKey != "" {
+		client, err := jina.NewClient(&jina.Config{APIKey: online.JinaAPIKey})
+		if err != nil {
+			return nil, fmt.Errorf("webfetch provider (jina): %w", err)
+		}
+		tool, err := webfetch.NewTool(client)
+		if err != nil {
+			return nil, fmt.Errorf("webfetch tool: %w", err)
+		}
+		out = append(out, tool)
+	}
+
+	if online.TavilyAPIKey != "" {
+		client, err := tavily.NewClient(&tavily.Config{APIKey: online.TavilyAPIKey})
+		if err != nil {
+			return nil, fmt.Errorf("websearch provider (tavily): %w", err)
+		}
+		tool, err := websearch.NewTool(client)
+		if err != nil {
+			return nil, fmt.Errorf("websearch tool: %w", err)
+		}
+		out = append(out, tool)
+	}
+
+	if len(online.HTTPAllowedHosts) > 0 {
+		client, err := httpreq.NewClient(&httpreq.Config{AllowedHosts: online.HTTPAllowedHosts})
+		if err != nil {
+			return nil, fmt.Errorf("httpreq client: %w", err)
+		}
+		tool, err := httpreq.NewTool(client)
+		if err != nil {
+			return nil, fmt.Errorf("httpreq tool: %w", err)
+		}
+		out = append(out, tool)
+	}
+
+	return out, nil
+}
+
+// buildCodingResolverFromTools wires the supplied tool list behind
+// [ToolRoleCoding] on a fresh [core.StaticToolGroupResolver]. The
+// resolver is registered as a platform-scope extension so every
+// agent (just the chat agent for now) can opt-in via
+// [core.ToolRolesFor].
+func buildCodingResolverFromTools(tools []chat.Tool) *core.StaticToolGroupResolver {
 	resolver := core.NewStaticToolGroupResolver("coding-tools")
 	resolver.Register(ToolRoleCoding, &codingToolGroup{tools: tools})
 	return resolver

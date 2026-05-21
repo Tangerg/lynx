@@ -52,7 +52,10 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	eng, err := engine.New(engine.Config{ChatClient: client})
+	eng, err := engine.New(engine.Config{
+		ChatClient: client,
+		Online:     config.EngineOnline(cfg),
+	})
 	if err != nil {
 		return err
 	}
