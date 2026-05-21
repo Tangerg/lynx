@@ -7,7 +7,13 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/core/model/chat/memory"
 )
+
+// memoryNewInMemoryStore re-exports memory.NewInMemoryStore under a
+// shorter test-only name so the persistent-store test reads as
+// "shared store" rather than spelling out the lynx package twice.
+func memoryNewInMemoryStore() memory.Store { return memory.NewInMemoryStore() }
 
 // TestEngine_RunChat_ToolCallObserved drives the engine with a stub
 // model that asks for a `bash` tool call (echo lyra), then returns a
@@ -161,6 +167,44 @@ func TestEngine_RunChat_MultiTurnMemory(t *testing.T) {
 	}
 	if stub.seenLengths[1] <= stub.seenLengths[0] {
 		t.Errorf("turn 2 should see more messages than turn 1; got %v", stub.seenLengths)
+	}
+}
+
+// TestEngine_RunChat_PersistentMemoryStoreRoundTrip verifies that a
+// caller-supplied [memory.Store] survives engine reconstruction —
+// the use case for storage.FileMessageStore + cross-process
+// session resume. Two engines built on the same store + same
+// SessionID must see history accumulate across instances.
+func TestEngine_RunChat_PersistentMemoryStoreRoundTrip(t *testing.T) {
+	shared := memoryNewInMemoryStore() // built-in store; durability proxy
+	stub1 := newHistoryAwareStub()
+	cli1, _ := chat.NewClient(stub1)
+	eng1, _ := New(Config{ChatClient: cli1, MemoryStore: shared})
+
+	const sessionID = "shared-sess"
+	if _, err := eng1.RunChat(context.Background(), RunChatRequest{
+		SessionID: sessionID, Message: "first",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Simulate process restart: brand-new engine, same store.
+	stub2 := newHistoryAwareStub()
+	cli2, _ := chat.NewClient(stub2)
+	eng2, _ := New(Config{ChatClient: cli2, MemoryStore: shared})
+
+	if _, err := eng2.RunChat(context.Background(), RunChatRequest{
+		SessionID: sessionID, Message: "second",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Second engine's first call should have seen turn-1's history.
+	if len(stub2.seenLengths) != 1 {
+		t.Fatalf("stub2.seenLengths = %v, want one entry", stub2.seenLengths)
+	}
+	if stub2.seenLengths[0] <= 1 {
+		t.Errorf("second engine should see prior history; got len=%d", stub2.seenLengths[0])
 	}
 }
 

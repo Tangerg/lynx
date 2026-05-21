@@ -8,6 +8,7 @@ import (
 	"github.com/Tangerg/lynx/lyra/internal/service/chat"
 	"github.com/Tangerg/lynx/lyra/internal/service/session"
 	"github.com/Tangerg/lynx/lyra/internal/service/tool"
+	"github.com/Tangerg/lynx/lyra/internal/storage"
 )
 
 // runtime bundles the constructed services. Subcommands receive it
@@ -18,9 +19,9 @@ type runtime struct {
 	tool    tool.Service
 }
 
-// newRuntime loads config + builds the engine + wires services.
-// Returns an error suitable for printing to stderr; subcommands
-// pass that straight through to [printErr] without further wrapping.
+// newRuntime loads config + builds the engine + wires services,
+// using on-disk persistence for sessions and chat-memory so state
+// survives process restart.
 //
 // Kept centralised so the day a subcommand grows (or transport
 // adapters arrive) the wiring stays in one place.
@@ -33,16 +34,27 @@ func newRuntime() (*runtime, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	sessionSvc, err := storage.NewFileSessionService()
+	if err != nil {
+		return nil, fmt.Errorf("session storage: %w", err)
+	}
+	msgStore, err := storage.NewFileMessageStore()
+	if err != nil {
+		return nil, fmt.Errorf("message storage: %w", err)
+	}
+
 	eng, err := engine.New(engine.Config{
-		ChatClient: client,
-		Online:     config.EngineOnline(cfg),
+		ChatClient:  client,
+		Online:      config.EngineOnline(cfg),
+		MemoryStore: msgStore,
 	})
 	if err != nil {
 		return nil, err
 	}
 	return &runtime{
 		chat:    chat.New(eng),
-		session: session.NewInMemoryService(),
+		session: sessionSvc,
 		tool:    tool.New(eng),
 	}, nil
 }
