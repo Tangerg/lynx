@@ -25,7 +25,7 @@ agent/
 ├── toolpolicy/     OnceOnly / Unlocked chat-tool decorators
 ├── workflow/       higher-level agent shapes (Loop / Parallel / RepeatUntil / …)
 └── examples/       hello (1 action), blog (3-action GOAP plan), supervisor,
-                    mcp-agent, blog-llm, mcp-bridge
+                    mcpagent, blogllm, mcpbridge
 ```
 
 ## Quick start

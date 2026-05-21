@@ -1,4 +1,4 @@
-// Command blog-llm extends the basic blog example to use the
+// Command blogllm extends the basic blog example to use the
 // [chat.Client] binding on ProcessContext: an action body grabs the
 // platform's shared LLM client via [core.ProcessContext.ChatWithActionTools],
 // which returns a request pre-loaded with the action's resolved
@@ -9,7 +9,7 @@
 //
 // Run from repo root:
 //
-//	go run ./agent/examples/blog-llm
+//	go run ./agent/examples/blogllm
 //
 // Wire a real model by replacing newStubModel with a chat.Model
 // implementation from one of the lynx/models/* providers.
