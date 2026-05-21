@@ -133,7 +133,8 @@ func (s *impl) runTurn(ctx context.Context, st *turnState, req StartTurnRequest)
 		Model:     "default", // M1 — engine exposes model name in M2+
 	})
 
-	reply, runErr := s.engine.RunChat(ctx, req.Message)
+	observer := &turnObserver{impl: s, st: st}
+	reply, runErr := s.engine.RunChat(ctx, req.Message, observer)
 	if runErr != nil {
 		// Honour cancellation differently from genuine errors so
 		// transport adapters can render the right state.
@@ -243,4 +244,35 @@ func (st *turnState) baseEvent() BaseEvent {
 		SessionID: st.handle.SessionID,
 		TurnID:    st.handle.TurnID,
 	}
+}
+
+// turnObserver bridges engine.ToolObserver to the turn's event
+// channel. The engine fires Start / End for every tool the model
+// invokes; we translate each into a Lyra ToolCallStart / ToolCallEnd
+// event so transport adapters surface them verbatim.
+type turnObserver struct {
+	impl *impl
+	st   *turnState
+}
+
+func (t *turnObserver) OnToolCallStart(callID, toolName, arguments string) {
+	t.impl.emit(t.st, ToolCallStart{
+		BaseEvent: t.st.baseEvent(),
+		CallID:    callID,
+		ToolName:  toolName,
+		Arguments: arguments,
+	})
+}
+
+func (t *turnObserver) OnToolCallEnd(callID, _ string, output string, err error) {
+	errStr := ""
+	if err != nil {
+		errStr = err.Error()
+	}
+	t.impl.emit(t.st, ToolCallEnd{
+		BaseEvent: t.st.baseEvent(),
+		CallID:    callID,
+		Output:    output,
+		Err:       errStr,
+	})
 }

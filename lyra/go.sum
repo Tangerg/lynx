@@ -10,6 +10,8 @@ github.com/Tangerg/lynx/models v0.0.0-20260521101326-c68784dc9f99 h1:yMqKFtRkjeT
 github.com/Tangerg/lynx/models v0.0.0-20260521101326-c68784dc9f99/go.mod h1:V6M4qWY5IoPOplQMPV7Q0FizRmDojiSE7iHXBiYh/zQ=
 github.com/Tangerg/lynx/pkg v0.0.0-20260511081009-fbf46737de3d h1:gjCbC1D3FfBMdGbGfNl0Y52EE3xoqOfe0Q0LhcudUhc=
 github.com/Tangerg/lynx/pkg v0.0.0-20260511081009-fbf46737de3d/go.mod h1:irOX9IMBJ1Oms4KWfCne/0FWPdh3Uk0vpQJ88KKpv8I=
+github.com/Tangerg/lynx/tools v0.0.0-20260521101326-c68784dc9f99 h1:E/LrZby3/cm76kjtK46ubcXnZkOkZdw3p6SQRGxSUkY=
+github.com/Tangerg/lynx/tools v0.0.0-20260521101326-c68784dc9f99/go.mod h1:rGn+APD+aRZz9Kflek1MBtta+EMzFN2XnTz2REwru5E=
 github.com/anthropics/anthropic-sdk-go v1.43.0 h1:ShY3C7lafzHP0ze1dCxL3ZFZzvkGfXJN91DfZTG8zLM=
 github.com/anthropics/anthropic-sdk-go v1.43.0/go.mod h1:5cEaslQ6A9ajdL5YUvhNW57LKxEz0OAZ7WEzgZWLD7k=
 github.com/bahlo/generic-list-go v0.2.0 h1:5sz/EEAK+ls5wF+NeqDpk5+iNdMDXrh3z3nPnH1Wvgk=
