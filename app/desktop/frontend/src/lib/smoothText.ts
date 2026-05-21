@@ -22,6 +22,7 @@
 //     visible rate exactly on-target regardless of vsync jitter.
 
 import { useEffect, useRef, useState } from "react";
+import { segmentWords } from "./segmentWords";
 
 // Rates in chars/sec. The visible cadence picks one based on backlog and
 // whether the source is still streaming.
@@ -40,35 +41,6 @@ const MAX_FRAME_STEP_MS = 64;
 const DRAIN_RATE_MIN = 80;
 const DRAIN_RATE_MAX = 280;
 const DRAIN_RATE_PER_CHAR = 8;
-
-// Word-granularity segmentation. Latin runs and CJK individual codepoints,
-// trailing punctuation glued to the preceding token. Whitespace stays
-// separate so the render layer can pass it through as inert text.
-export function segmentWords(text: string): string[] {
-  if (typeof Intl !== "undefined" && "Segmenter" in Intl) {
-    try {
-      const seg = new Intl.Segmenter(undefined, { granularity: "word" });
-      const out: string[] = [];
-      for (const { segment } of seg.segment(text)) {
-        if (/^[，。！？,!?]/.test(segment) && out.length > 0) {
-          out[out.length - 1] += segment;
-        } else {
-          out.push(segment);
-        }
-      }
-      return out.filter((s) => s.length > 0);
-    } catch {
-      /* fall through to regex */
-    }
-  }
-  // Fallback regex when Intl.Segmenter is unavailable.
-  const tokens: string[] = [];
-  const re =
-    /(\[[^\]]*\])|([a-zA-Z0-9]+[，。！？,!?]*)|(\p{Unified_Ideograph}[，。！？,!?]*)|(\s+)|(.)/gsu;
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(text)) !== null) tokens.push(m[0]);
-  return tokens;
-}
 
 const SENTENCE_END_RE = /[。！？…!?.]$/;
 

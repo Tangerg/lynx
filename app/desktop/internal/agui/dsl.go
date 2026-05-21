@@ -181,14 +181,7 @@ func (s adHocToolStep) Run(e *env) bool {
 	if !streamToolArgs(e.ctx, e.send, id, s.args) {
 		return false
 	}
-	execMin := 120 + s.summary.DurationMs/8
-	execMax := execMin + 250
-	if execMax > 900 {
-		execMax = 900
-	}
-	if execMin > execMax {
-		execMin = execMax - 100
-	}
+	execMin, execMax := toolExecPauseRange(s.summary.DurationMs)
 	if !pause(e.ctx, execMin, execMax) {
 		return false
 	}
