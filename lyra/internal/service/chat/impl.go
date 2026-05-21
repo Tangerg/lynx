@@ -134,7 +134,7 @@ func (s *impl) runTurn(ctx context.Context, st *turnState, req StartTurnRequest)
 	})
 
 	observer := &turnObserver{impl: s, st: st}
-	reply, runErr := s.engine.RunChat(ctx, req.Message, observer)
+	_, runErr := s.engine.RunChat(ctx, req.Message, observer)
 	if runErr != nil {
 		// Honour cancellation differently from genuine errors so
 		// transport adapters can render the right state.
@@ -159,12 +159,8 @@ func (s *impl) runTurn(ctx context.Context, st *turnState, req StartTurnRequest)
 		return
 	}
 
-	// M1 emits the full reply as one MessageDelta. M2 will replace
-	// this with real chunk streaming via lynx event bus.
-	s.emit(st, MessageDelta{
-		BaseEvent: st.baseEvent(),
-		Text:      reply,
-	})
+	// MessageDelta events already flowed through the observer during
+	// the stream — no need to re-emit the assembled reply here.
 
 	s.emit(st, TurnEnd{
 		BaseEvent: st.baseEvent(),
@@ -274,5 +270,12 @@ func (t *turnObserver) OnToolCallEnd(callID, _ string, output string, err error)
 		CallID:    callID,
 		Output:    output,
 		Err:       errStr,
+	})
+}
+
+func (t *turnObserver) OnMessageDelta(text string) {
+	t.impl.emit(t.st, MessageDelta{
+		BaseEvent: t.st.baseEvent(),
+		Text:      text,
 	})
 }

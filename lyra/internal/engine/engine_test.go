@@ -89,6 +89,39 @@ func TestEngine_RunChat_NoObserver(t *testing.T) {
 	}
 }
 
+// TestEngine_RunChat_StreamingDeltas verifies the engine forwards
+// every chunk the model emits to OnMessageDelta — i.e. text is
+// streamed, not buffered. The returned reply is the concatenation
+// of all chunks.
+func TestEngine_RunChat_StreamingDeltas(t *testing.T) {
+	stub := newStreamingStubModel("Hello, ", "world!", " (lyra)")
+	client, _ := chat.NewClient(stub)
+	eng, err := New(Config{ChatClient: client})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rec := &recordingObserver{}
+	reply, err := eng.RunChat(context.Background(), "go", rec)
+	if err != nil {
+		t.Fatalf("RunChat: %v", err)
+	}
+	if reply != "Hello, world! (lyra)" {
+		t.Errorf("reply = %q, want %q", reply, "Hello, world! (lyra)")
+	}
+
+	deltas := rec.deltas()
+	wantDeltas := []string{"Hello, ", "world!", " (lyra)"}
+	if len(deltas) != len(wantDeltas) {
+		t.Fatalf("delta count = %d, want %d (%v)", len(deltas), len(wantDeltas), deltas)
+	}
+	for i := range deltas {
+		if deltas[i] != wantDeltas[i] {
+			t.Errorf("delta[%d] = %q, want %q", i, deltas[i], wantDeltas[i])
+		}
+	}
+}
+
 // TestEngine_Tools verifies the engine exposes its registered coding
 // tool set — used by ToolService.List in the next layer up.
 func TestEngine_Tools(t *testing.T) {
@@ -132,14 +165,15 @@ type endCall struct {
 	err      error
 }
 
-// recordingObserver collects every Start/End the engine fires so the
-// test can assert on counts, ordering, and field values. Safe for
-// concurrent use — parallel tool calls would race the inner slices
-// without the mutex.
+// recordingObserver collects every Start/End/Delta the engine fires
+// so the test can assert on counts, ordering, and field values. Safe
+// for concurrent use — parallel tool calls would race the inner
+// slices without the mutex.
 type recordingObserver struct {
 	mu        sync.Mutex
 	startList []startCall
 	endList   []endCall
+	deltaList []string
 }
 
 func (r *recordingObserver) OnToolCallStart(callID, toolName, arguments string) {
@@ -152,6 +186,12 @@ func (r *recordingObserver) OnToolCallEnd(callID, toolName, output string, err e
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.endList = append(r.endList, endCall{callID, toolName, output, err})
+}
+
+func (r *recordingObserver) OnMessageDelta(text string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.deltaList = append(r.deltaList, text)
 }
 
 func (r *recordingObserver) starts() []startCall {
@@ -167,5 +207,13 @@ func (r *recordingObserver) ends() []endCall {
 	defer r.mu.Unlock()
 	out := make([]endCall, len(r.endList))
 	copy(out, r.endList)
+	return out
+}
+
+func (r *recordingObserver) deltas() []string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	out := make([]string, len(r.deltaList))
+	copy(out, r.deltaList)
 	return out
 }

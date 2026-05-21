@@ -55,6 +55,44 @@ func (m *stubModel) Stream(ctx context.Context, req *chat.Request) iter.Seq2[*ch
 	return func(yield func(*chat.Response, error) bool) { yield(resp, err) }
 }
 
+// streamingStubModel ignores tool calls entirely and yields the
+// configured Chunks one at a time so streaming-path tests can
+// assert that each chunk lands on OnMessageDelta independently.
+type streamingStubModel struct {
+	Chunks   []string
+	defaults *chat.Options
+}
+
+func newStreamingStubModel(chunks ...string) *streamingStubModel {
+	opts, _ := chat.NewOptions("stub-model-streaming")
+	return &streamingStubModel{Chunks: chunks, defaults: opts}
+}
+
+func (m *streamingStubModel) DefaultOptions() chat.Options { return *m.defaults }
+func (m *streamingStubModel) Metadata() chat.ModelMetadata { return chat.ModelMetadata{Provider: "stub"} }
+
+// Call concatenates the chunks into one response — used when a non-
+// stream caller asks for the full reply (the engine doesn't, but
+// chat.Model requires both methods).
+func (m *streamingStubModel) Call(_ context.Context, _ *chat.Request) (*chat.Response, error) {
+	all := ""
+	for _, c := range m.Chunks {
+		all += c
+	}
+	return responseWithText(all)
+}
+
+func (m *streamingStubModel) Stream(_ context.Context, _ *chat.Request) iter.Seq2[*chat.Response, error] {
+	return func(yield func(*chat.Response, error) bool) {
+		for _, chunk := range m.Chunks {
+			resp, err := responseWithText(chunk)
+			if !yield(resp, err) {
+				return
+			}
+		}
+	}
+}
+
 func hasToolMessage(messages []chat.Message) bool {
 	for _, msg := range messages {
 		if msg.Type() == chat.MessageTypeTool {

@@ -9,10 +9,11 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat"
 )
 
-// ToolObserver receives tool-call lifecycle notifications. Each pair
-// of OnToolCallStart / OnToolCallEnd is matched by an opaque CallID
-// so observers correlating the two halves don't have to keep their
-// own tracking map.
+// ToolObserver receives both tool-call lifecycle notifications and
+// streaming assistant text deltas as a turn unfolds. Each tool call
+// fires one OnToolCallStart followed by one OnToolCallEnd carrying
+// the same opaque CallID; the assistant text arrives in zero or
+// more OnMessageDelta calls between (and around) tool calls.
 //
 // Implementations must be safe for concurrent calls — a chat turn
 // may dispatch multiple tools simultaneously when the model emits
@@ -20,6 +21,30 @@ import (
 type ToolObserver interface {
 	OnToolCallStart(callID, toolName, arguments string)
 	OnToolCallEnd(callID, toolName, output string, err error)
+
+	// OnMessageDelta is invoked for every non-empty text chunk the
+	// model streams out. Implementations typically append the chunk
+	// to a UI buffer or forward it to an event channel.
+	OnMessageDelta(text string)
+}
+
+// ObserverFrom extracts the [ToolObserver] the engine attached to
+// opts via [Engine.RunChat]. Returns nil when no observer is
+// registered — Action bodies treat that as "no streaming hook
+// wired" and skip the per-chunk callback.
+//
+// Lives here (not on ProcessContext) because action bodies are the
+// only callers and the lookup is type-specific to Lyra's decorator.
+func ObserverFrom(opts *core.ProcessOptions) ToolObserver {
+	if opts == nil {
+		return nil
+	}
+	for _, ext := range opts.Extensions {
+		if d, ok := ext.(*toolObserverDecorator); ok {
+			return d.observer
+		}
+	}
+	return nil
 }
 
 // toolObserverDecorator is the process-scope [core.ToolDecorator]
