@@ -1,24 +1,20 @@
 import { useCallback, useState } from "react";
-import { AGUI_BASE } from "@/lib/http";
+import type { ApprovalDecision } from "@/domain";
+import { getContainer } from "@/main/container";
 
-// POST the user's approval / decline back to the backend permission
-// endpoint. Extracted from ApprovalCard so the card stays pure
-// presentation and the HTTP plumbing can be tested / mocked
-// independently.
+// Submits the user's approval / decline decision via the permission
+// gateway (see `@/domain/gateways/PermissionGateway`). Pure UI state
+// (`pending`) lives here; the HTTP plumbing lives in the gateway impl
+// so this hook is transport-agnostic and trivially mockable in tests:
 //
-// Returns:
-//   - `submit(decision)`: fires the request. No-op if the card has no
-//     requestId (decorative card) or a submission is already in flight.
-//   - `pending`: which decision the user just clicked, while the POST
-//     resolves. Drives the optimistic post-decision UI; the authoritative
-//     value lands later via the lyra.approval-result reducer.
+//   setContainer({ permission: fakeGateway });
 //
 // We deliberately do NOT clear `pending` on success — the backend's
-// approval-result event will stamp the block's `decision` field, and
-// the card renders against that. Clearing here would briefly flicker
-// back to the pre-decision card.
+// `lyra.approval-result` event will stamp the block's `decision` field,
+// and the card renders against that. Clearing here would briefly flicker
+// the card back to the pre-decision state.
 
-export type ApprovalDecision = "approved" | "declined";
+export type { ApprovalDecision };
 
 export type ApprovalSubmit = {
   submit: (decision: ApprovalDecision) => void;
@@ -32,25 +28,11 @@ export function useApprovalSubmit(requestId: string | undefined): ApprovalSubmit
     (decision: ApprovalDecision) => {
       if (!requestId || pending !== null) return;
       setPending(decision);
-      fetch(`${AGUI_BASE}/permission`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ requestId, decision }),
-      })
-        .then(async (r) => {
-          if (!r.ok) {
-            // eslint-disable-next-line no-console
-            console.error(
-              "[approval] /permission rejected:",
-              r.status,
-              await r.text().catch(() => ""),
-            );
-            setPending(null);
-          }
-        })
+      getContainer()
+        .permission.submit({ requestId, decision })
         .catch((err) => {
           // eslint-disable-next-line no-console
-          console.error("[approval] network error:", err);
+          console.error("[approval] gateway rejected:", err);
           setPending(null);
         });
     },
