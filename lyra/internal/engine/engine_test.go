@@ -1,0 +1,171 @@
+package engine
+
+import (
+	"context"
+	"strings"
+	"sync"
+	"testing"
+
+	"github.com/Tangerg/lynx/core/model/chat"
+)
+
+// TestEngine_RunChat_ToolCallObserved drives the engine with a stub
+// model that asks for a `bash` tool call (echo lyra), then returns a
+// final text mentioning the captured output. The observer must see
+// one OnToolCallStart / OnToolCallEnd pair; the returned reply must
+// be the stub's FinalText.
+//
+// This is the M2-readiness gate: it proves the chain
+// engine.RunChat → lynx Platform → ToolMiddleware → ToolDecorator
+// → observedTool → ToolObserver is wired end-to-end without any
+// real LLM in the loop.
+func TestEngine_RunChat_ToolCallObserved(t *testing.T) {
+	stub := newStubModel("bash", `{"command":"echo lyra"}`, "I ran echo and got lyra.")
+	client, err := chat.NewClient(stub)
+	if err != nil {
+		t.Fatalf("chat client: %v", err)
+	}
+
+	eng, err := New(Config{ChatClient: client})
+	if err != nil {
+		t.Fatalf("engine.New: %v", err)
+	}
+
+	rec := &recordingObserver{}
+	reply, err := eng.RunChat(context.Background(), "say lyra via bash", rec)
+	if err != nil {
+		t.Fatalf("RunChat: %v", err)
+	}
+
+	if reply != "I ran echo and got lyra." {
+		t.Errorf("reply mismatch: got %q", reply)
+	}
+
+	starts := rec.starts()
+	ends := rec.ends()
+
+	if len(starts) != 1 {
+		t.Fatalf("OnToolCallStart count = %d, want 1; got %#v", len(starts), starts)
+	}
+	if starts[0].toolName != "bash" {
+		t.Errorf("start tool name = %q, want bash", starts[0].toolName)
+	}
+	if !strings.Contains(starts[0].arguments, "echo lyra") {
+		t.Errorf("start arguments missing command: %q", starts[0].arguments)
+	}
+
+	if len(ends) != 1 {
+		t.Fatalf("OnToolCallEnd count = %d, want 1", len(ends))
+	}
+	if ends[0].err != nil {
+		t.Errorf("end err: %v", ends[0].err)
+	}
+	if !strings.Contains(ends[0].output, "lyra") {
+		t.Errorf("end output missing 'lyra': %q", ends[0].output)
+	}
+	// Start and end must share the same CallID so observers can pair them.
+	if starts[0].callID != ends[0].callID {
+		t.Errorf("call id mismatch: start=%s end=%s", starts[0].callID, ends[0].callID)
+	}
+}
+
+// TestEngine_RunChat_NoObserver verifies the nil-observer path: the
+// engine still drives the tool loop, just without firing any
+// notifications.
+func TestEngine_RunChat_NoObserver(t *testing.T) {
+	stub := newStubModel("bash", `{"command":"echo lyra"}`, "done")
+	client, _ := chat.NewClient(stub)
+	eng, err := New(Config{ChatClient: client})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	reply, err := eng.RunChat(context.Background(), "go", nil)
+	if err != nil {
+		t.Fatalf("RunChat: %v", err)
+	}
+	if reply != "done" {
+		t.Errorf("reply = %q, want %q", reply, "done")
+	}
+}
+
+// TestEngine_Tools verifies the engine exposes its registered coding
+// tool set — used by ToolService.List in the next layer up.
+func TestEngine_Tools(t *testing.T) {
+	stub := newStubModel("bash", `{}`, "")
+	client, _ := chat.NewClient(stub)
+	eng, err := New(Config{ChatClient: client})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tools := eng.Tools()
+	if len(tools) != 6 {
+		t.Fatalf("tool count = %d, want 6 (read/write/edit/glob/grep/bash)", len(tools))
+	}
+
+	names := make(map[string]bool, len(tools))
+	for _, tl := range tools {
+		names[tl.Definition().Name] = true
+	}
+	for _, want := range []string{"read", "write", "edit", "glob", "grep", "bash"} {
+		if !names[want] {
+			t.Errorf("missing tool %q in %v", want, names)
+		}
+	}
+}
+
+// ------------------------------------------------------------------
+// Test helpers
+// ------------------------------------------------------------------
+
+type startCall struct {
+	callID    string
+	toolName  string
+	arguments string
+}
+
+type endCall struct {
+	callID   string
+	toolName string
+	output   string
+	err      error
+}
+
+// recordingObserver collects every Start/End the engine fires so the
+// test can assert on counts, ordering, and field values. Safe for
+// concurrent use — parallel tool calls would race the inner slices
+// without the mutex.
+type recordingObserver struct {
+	mu        sync.Mutex
+	startList []startCall
+	endList   []endCall
+}
+
+func (r *recordingObserver) OnToolCallStart(callID, toolName, arguments string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.startList = append(r.startList, startCall{callID, toolName, arguments})
+}
+
+func (r *recordingObserver) OnToolCallEnd(callID, toolName, output string, err error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.endList = append(r.endList, endCall{callID, toolName, output, err})
+}
+
+func (r *recordingObserver) starts() []startCall {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	out := make([]startCall, len(r.startList))
+	copy(out, r.startList)
+	return out
+}
+
+func (r *recordingObserver) ends() []endCall {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	out := make([]endCall, len(r.endList))
+	copy(out, r.endList)
+	return out
+}
