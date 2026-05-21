@@ -14,14 +14,17 @@ type Session struct {
 	Time   string `json:"time"`
 }
 
+// Sessions — each id maps to a demo script in demos.go. Update both this
+// list and demos.go together when adding a new demo so the sidebar label
+// matches the playback.
 var sessions = []Session{
 	{"s1", "Refactor auth.ts → Result<T,E>", "running", "Sonnet 4.5", "now"},
-	{"s2", "Bug: race in WebSocket reconnect logic", "waiting", "Opus 4.1", "3m"},
-	{"s3", "Write integration tests for /v2/billing", "idle", "Sonnet 4.5", "1h"},
-	{"s4", "Migrate Postgres 15 → 16 on staging", "idle", "Opus 4.1", "yesterday"},
-	{"s5", "Draft RFC: query budget enforcement", "idle", "Sonnet 4.5", "2d"},
-	{"s6", "Replace Stripe webhook handler", "idle", "Haiku 4.5", "4d"},
-	{"s7", "Investigate 502s on us-east-1", "idle", "Sonnet 4.5", "1w"},
+	{"s2", "番茄牛肉意面：家常版菜谱", "idle", "Sonnet 4.5", "3m"},
+	{"s3", "上海周末两日游 · 行程规划", "idle", "Opus 4.1", "1h"},
+	{"s4", "发布会开场白润色", "idle", "Sonnet 4.5", "yesterday"},
+	{"s5", "光合作用：讲给小学生听", "idle", "Haiku 4.5", "2d"},
+	{"s6", "用户登录流程设计（含 OAuth）", "idle", "Sonnet 4.5", "4d"},
+	{"s7", "国内云厂商横向对比", "idle", "Opus 4.1", "1w"},
 }
 
 // ----- Projects ------------------------------------------------------------
