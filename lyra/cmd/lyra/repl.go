@@ -66,6 +66,18 @@ func cmdRepl(args []string) int {
 		}
 
 		if strings.HasPrefix(line, "/") {
+			// /plan <msg> is the only slash command that runs a turn —
+			// the others are pure REPL state changes. Handled inline
+			// because the message body comes from the same input line.
+			if strings.HasPrefix(line, "/plan ") {
+				msg := strings.TrimSpace(strings.TrimPrefix(line, "/plan "))
+				if msg == "" {
+					fmt.Fprintln(stderr(), "[lyra] usage: /plan <message>")
+					continue
+				}
+				runTurnWithOptions(rt, sessionID, msg, turnOptions{PlanMode: true})
+				continue
+			}
 			done, newSession := handleSlashCommand(rt, line, sessionID)
 			if done {
 				return 0
@@ -112,7 +124,7 @@ func handleSlashCommand(rt *runtime, line, current string) (done bool, newSessio
 	case "/exit", "/quit":
 		return true, ""
 	case "/help":
-		fmt.Fprintln(stderr(), "[lyra] commands: /exit  /help  /new  /session")
+		fmt.Fprintln(stderr(), "[lyra] commands: /exit  /help  /new  /plan <msg>  /session")
 	case "/new":
 		sess, err := rt.session.Create(context.Background(), "")
 		if err != nil {
