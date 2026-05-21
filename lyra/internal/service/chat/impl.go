@@ -139,6 +139,32 @@ func (s *impl) runTurn(ctx context.Context, st *turnState, req StartTurnRequest)
 		Message:   req.Message,
 		Observer:  observer,
 	})
+
+	// Post-turn maintenance: fold the older history into a summary
+	// when it has grown past the engine's compaction threshold.
+	// Fact extraction only runs when compaction actually fires —
+	// extraction is expensive (one extra LLM call), so we gate it
+	// on the same threshold that already justified the cost.
+	// Errors surface via the event stream but don't kill the turn —
+	// the user's text is already on screen.
+	if runErr == nil && req.SessionID != "" {
+		compacted, compactErr := s.engine.MaybeCompact(ctx, req.SessionID)
+		if compactErr != nil {
+			s.emit(st, ErrorEvent{
+				BaseEvent: st.baseEvent(),
+				Message:   "auto-compaction failed: " + compactErr.Error(),
+				Code:      "COMPACTION_ERROR",
+			})
+		} else if compacted {
+			if extractErr := s.engine.MaybeExtract(ctx, req.SessionID); extractErr != nil {
+				s.emit(st, ErrorEvent{
+					BaseEvent: st.baseEvent(),
+					Message:   "memory extraction failed: " + extractErr.Error(),
+					Code:      "EXTRACTION_ERROR",
+				})
+			}
+		}
+	}
 	if runErr != nil {
 		// Honour cancellation differently from genuine errors so
 		// transport adapters can render the right state.

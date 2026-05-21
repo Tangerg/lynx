@@ -33,6 +33,7 @@ var commands = map[string]struct {
 	summary string
 }{
 	"chat":    {run: cmdChat, summary: "Send one message and print the streamed reply."},
+	"memory":  {run: cmdMemory, summary: "Inspect / edit the LYRA.md memory cascade."},
 	"repl":    {run: cmdRepl, summary: "Interactive multi-turn conversation."},
 	"session": {run: cmdSession, summary: "Manage saved sessions (list / show / delete)."},
 	"version": {run: cmdVersion, summary: "Print build / version info."},
@@ -76,5 +77,5 @@ func printUsage(w *os.File) {
 }
 
 func commandOrder() []string {
-	return []string{"chat", "repl", "session", "version"}
+	return []string{"chat", "repl", "memory", "session", "version"}
 }
