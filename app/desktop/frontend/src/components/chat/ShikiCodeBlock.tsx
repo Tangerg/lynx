@@ -7,6 +7,13 @@ import { useDebouncedValue } from "@/lib/useDebouncedValue";
 type Props = {
   lang: string;
   code: string;
+  /**
+   * Optional filename to display in the header. When set, the lang pill
+   * sits on the left and the filename takes the centre column — same
+   * shape as the legacy CodeBlock so the code-proposal plugin keeps
+   * working unchanged.
+   */
+  file?: string;
 };
 
 // ShikiCodeBlock — async syntax highlighting with theme-aware output.
@@ -20,7 +27,7 @@ type Props = {
 // the user is either between paragraphs or the block has closed. The
 // LIVE code (pre-debounce) shows in a plain `<pre>` fallback in the
 // meantime, which doubles as the loading state on first paint.
-export function ShikiCodeBlock({ lang, code }: Props) {
+export function ShikiCodeBlock({ lang, code, file }: Props) {
   const theme = useUIStore((s) => s.theme);
   const shikiTheme = theme === "light" ? "github-light" : "github-dark";
 
@@ -76,6 +83,7 @@ export function ShikiCodeBlock({ lang, code }: Props) {
     <div className="shiki-block">
       <div className="shiki-block-head">
         <span className="lang">{displayLang}</span>
+        {file ? <span className="fname">{file}</span> : <span aria-hidden="true" />}
         <button className="copy" type="button" onClick={onCopy}>
           <Icon name={copied ? "check" : "file"} size={11} />
           {copied ? "Copied" : "Copy"}
