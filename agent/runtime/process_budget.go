@@ -1,6 +1,7 @@
 package runtime
 
 import (
+	"slices"
 	"sync"
 	"time"
 
@@ -32,16 +33,11 @@ type processBudget struct {
 }
 
 // recordUsage adds a single flat (cost, tokens) pair without per-call
-// detail. Equivalent to recordLLMInvocation with an LLMInvocation
-// carrying only Cost + PromptTokens; kept as a convenience for code
-// that doesn't track per-model rates.
+// detail. Thin shim over [recordLLMInvocation] — kept as a convenience
+// for integration code that doesn't track per-model rates yet still
+// wants the rolled-up totals to flow.
 func (b *processBudget) recordUsage(cost float64, tokens int) {
-	b.lock.Lock()
-	defer b.lock.Unlock()
-	b.ownCost += cost
-	b.ownTokens += tokens
-	b.llmInvocations = append(b.llmInvocations, core.LLMInvocation{
-		Timestamp:    time.Now(),
+	b.recordLLMInvocation(core.LLMInvocation{
 		Cost:         cost,
 		PromptTokens: int64(tokens),
 	})
@@ -72,6 +68,23 @@ func (b *processBudget) recordEmbeddingInvocation(inv core.EmbeddingInvocation) 
 	b.ownCost += inv.Cost
 	b.ownTokens += int(inv.InputTokens)
 	b.embeddingInvocations = append(b.embeddingInvocations, inv)
+}
+
+// restore re-installs budget totals + invocation history from a
+// snapshot. Holds the lock so [usage] / [llmHistory] / [embeddingHistory]
+// observe the bulk update atomically.
+func (b *processBudget) restore(
+	cost float64,
+	tokens int,
+	llms []core.LLMInvocation,
+	embeds []core.EmbeddingInvocation,
+) {
+	b.lock.Lock()
+	defer b.lock.Unlock()
+	b.ownCost = cost
+	b.ownTokens = tokens
+	b.llmInvocations = slices.Clone(llms)
+	b.embeddingInvocations = slices.Clone(embeds)
 }
 
 // addChild registers a child process so its Usage() rolls up.
@@ -107,8 +120,7 @@ func (b *processBudget) llmHistory() []core.LLMInvocation {
 	b.lock.RLock()
 	defer b.lock.RUnlock()
 
-	out := make([]core.LLMInvocation, 0, len(b.llmInvocations))
-	out = append(out, b.llmInvocations...)
+	out := slices.Clone(b.llmInvocations)
 	for _, child := range b.children {
 		out = append(out, child.LLMInvocations()...)
 	}
@@ -120,8 +132,7 @@ func (b *processBudget) embeddingHistory() []core.EmbeddingInvocation {
 	b.lock.RLock()
 	defer b.lock.RUnlock()
 
-	out := make([]core.EmbeddingInvocation, 0, len(b.embeddingInvocations))
-	out = append(out, b.embeddingInvocations...)
+	out := slices.Clone(b.embeddingInvocations)
 	for _, child := range b.children {
 		out = append(out, child.EmbeddingInvocations()...)
 	}
