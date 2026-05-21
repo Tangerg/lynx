@@ -35,12 +35,14 @@ export function getContainer(): Container {
   return instance;
 }
 
-/** Test seam — swap any subset of gateways with fakes. Call with no
- *  argument to reset back to defaults between tests. */
-export function setContainer(next: Partial<Container> | null): void {
-  if (next === null) {
-    instance = defaultContainer();
-    return;
-  }
+/** Test seam — swap any subset of gateways with fakes. Other slots stay
+ *  on the current defaults. */
+export function setContainer(next: Partial<Container>): void {
   instance = { ...instance, ...next };
+}
+
+/** Test seam — restore every gateway to its default wiring. Call from
+ *  `afterEach` so one test's stubs don't bleed into the next. */
+export function resetContainer(): void {
+  instance = defaultContainer();
 }

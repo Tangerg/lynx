@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach } from "vitest";
 import type { ApprovalSubmission, PermissionGateway } from "@/domain";
-import { getContainer, setContainer } from "./container";
+import { getContainer, resetContainer, setContainer } from "./container";
 
 class FakePermissionGateway implements PermissionGateway {
   calls: ApprovalSubmission[] = [];
@@ -10,7 +10,7 @@ class FakePermissionGateway implements PermissionGateway {
 }
 
 describe("main/container", () => {
-  afterEach(() => setContainer(null));
+  afterEach(resetContainer);
 
   it("exposes a default permission gateway out of the box", () => {
     expect(getContainer().permission).toBeDefined();
@@ -23,14 +23,14 @@ describe("main/container", () => {
     expect(getContainer().permission).toBe(fake);
   });
 
-  it("setContainer(null) resets to defaults", () => {
+  it("resetContainer() restores defaults", () => {
     const fake = new FakePermissionGateway();
     setContainer({ permission: fake });
-    setContainer(null);
+    resetContainer();
     expect(getContainer().permission).not.toBe(fake);
   });
 
-  it("the swapped gateway is what useApprovalSubmit will call", async () => {
+  it("gateway calls route through whatever container currently holds", async () => {
     const fake = new FakePermissionGateway();
     setContainer({ permission: fake });
     await getContainer().permission.submit({ requestId: "r1", decision: "approved" });

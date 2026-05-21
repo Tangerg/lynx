@@ -56,13 +56,31 @@ function staticImports(src: string): string[] {
   return out;
 }
 
+// Named import-pattern bundles. Composed per-layer below so a regex is
+// only written once and the rule for each layer reads as a checklist.
+
+const REACT_AND_LIBS = [/^react$/, /^react\//, /^zustand/, /^@ag-ui\//];
+const UI_LAYERS = [/^@\/components/, /^@\/state/, /^@\/plugins/, /^@\/pages/];
+const INTERNAL_NOT_DOMAIN = [
+  ...UI_LAYERS,
+  /^@\/infra/,
+  /^@\/main/,
+  /^@\/lib/,
+  /^@\/protocol/,
+  /^@\/utils/,
+];
+
+// Source-level patterns (not import specifiers — actual code shapes
+// we forbid in certain layers).
+const FORBID_FETCH_IN_DOMAIN = [/\bfetch\s*\(/, /localStorage\./, /sessionStorage\./];
+
 type Rule = {
   layer: string;
   files: string[];
   /** A spec is forbidden if any of these regexes match. */
-  forbidden: RegExp[];
+  forbiddenImports: RegExp[];
   /** Extra source-text checks (raw string match). Used for fetch() etc. */
-  forbidSourceMatch?: RegExp[];
+  forbiddenSource?: RegExp[];
 };
 
 function assertRule(rule: Rule) {
@@ -72,13 +90,13 @@ function assertRule(rule: Rule) {
     const rel = relative(SRC_ROOT, file);
 
     for (const imp of staticImports(src)) {
-      for (const pattern of rule.forbidden) {
+      for (const pattern of rule.forbiddenImports) {
         if (pattern.test(imp)) {
           violations.push(`  ${rel}: forbidden import "${imp}" (matched ${pattern})`);
         }
       }
     }
-    for (const pattern of rule.forbidSourceMatch ?? []) {
+    for (const pattern of rule.forbiddenSource ?? []) {
       if (pattern.test(src)) {
         violations.push(`  ${rel}: forbidden pattern ${pattern} found in source`);
       }
@@ -97,51 +115,32 @@ describe("architecture conformance", () => {
   // or store breaks the rule that domain has zero outward dependencies.
   it("domain/ contains no react / zustand / cross-layer imports", () => {
     const files = walk(resolve(SRC_ROOT, "domain"));
-    expect(files.length).toBeGreaterThan(0); // sanity: domain/ exists
+    expect(files.length).toBeGreaterThan(0);
     assertRule({
       layer: "domain/",
       files,
-      forbidden: [
-        /^react$/,
-        /^react\//,
-        /^zustand/,
-        /^@ag-ui\//,
-        /^@\/infra/,
-        /^@\/main/,
-        /^@\/components/,
-        /^@\/state/,
-        /^@\/plugins/,
-        /^@\/lib/,
-        /^@\/protocol/,
-        /^@\/utils/,
-      ],
-      forbidSourceMatch: [/\bfetch\s*\(/, /localStorage\./, /sessionStorage\./],
+      forbiddenImports: [...REACT_AND_LIBS, ...INTERNAL_NOT_DOMAIN],
+      forbiddenSource: FORBID_FETCH_IN_DOMAIN,
     });
   });
 
   // ---- infra/ -----------------------------------------------------------
   // Implements domain gateways using external libs / fetch. Allowed to
   // pull from @/domain and @/lib/http (the transport facade). Forbidden to
-  // reach into UI, store, plugins, main.
+  // reach into UI, store, plugins, main, protocol.
   it("infra/ depends only on domain (+ lib/http) and never on UI/state/plugins/main", () => {
     const files = walk(resolve(SRC_ROOT, "infra"));
     expect(files.length).toBeGreaterThan(0);
     assertRule({
       layer: "infra/",
       files,
-      forbidden: [
-        /^@\/components/,
-        /^@\/state/,
-        /^@\/plugins/,
-        /^@\/main/,
-        /^@\/protocol/,
-      ],
+      forbiddenImports: [...UI_LAYERS, /^@\/main/, /^@\/protocol/],
     });
   });
 
   // ---- presentation / cross-cutting layers ------------------------------
-  // components/, state/, plugins/, lib/ must not punch through to infra
-  // directly — they go through main/container which holds the wired
+  // components/, state/, plugins/, lib/, pages/ must not punch through to
+  // infra directly — they go through main/container which holds the wired
   // gateways. This is what keeps useApprovalSubmit transport-agnostic.
   it("presentation code does not import @/infra/* directly (must go via main/container)", () => {
     const layers = ["components", "state", "plugins", "lib", "pages"];
@@ -150,7 +149,7 @@ describe("architecture conformance", () => {
     assertRule({
       layer: "presentation",
       files,
-      forbidden: [/^@\/infra/],
+      forbiddenImports: [/^@\/infra/],
     });
   });
 });
