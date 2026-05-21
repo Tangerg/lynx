@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"slices"
 	"sync"
 
 	"github.com/Masterminds/semver/v3"
@@ -89,19 +90,8 @@ type ToolGroupRequirement struct {
 // also appears in `required`. Empty `granted` is always satisfied.
 // Order does not matter.
 func PermissionsSatisfy(required, granted []ToolGroupPermission) bool {
-	if len(granted) == 0 {
-		return true
-	}
-	inRequired := func(p ToolGroupPermission) bool {
-		for _, r := range required {
-			if r == p {
-				return true
-			}
-		}
-		return false
-	}
 	for _, g := range granted {
-		if !inRequired(g) {
+		if !slices.Contains(required, g) {
 			return false
 		}
 	}
