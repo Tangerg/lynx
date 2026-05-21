@@ -51,7 +51,7 @@ func cmdRepl(args []string) int {
 	scanner.Buffer(make([]byte, 64*1024), 1024*1024)
 
 	for {
-		fmt.Fprint(stderr(), "\n> ")
+		fmt.Fprintf(stderr(), "\n[%s] > ", shortSessionID(sessionID))
 		if !scanner.Scan() {
 			// Ctrl+D / EOF
 			fmt.Fprintln(stderr())
@@ -111,6 +111,17 @@ func resolveSession(rt *runtime, requested string) (string, error) {
 		return "", fmt.Errorf("create session: %w", err)
 	}
 	return sess.ID, nil
+}
+
+// shortSessionID returns the first 8 characters of a session id
+// for use in user-facing prompts. UUIDs are 36 chars; the first
+// segment is enough to disambiguate visually without filling the
+// prompt line.
+func shortSessionID(id string) string {
+	if len(id) > 8 {
+		return id[:8]
+	}
+	return id
 }
 
 // handleSlashCommand interprets the REPL meta-commands. Returns
