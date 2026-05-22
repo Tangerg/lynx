@@ -894,23 +894,36 @@ html.theme-light .ig-glyph { background: var(--color-surface-2); }
   display: inline-flex;
   align-items: center;
   gap: 8px;
+  /* Sit slightly to the left so the hover pad lines up under the
+     border-left rule visually instead of indenting away from it. */
+  margin-left: -8px;
   background: transparent;
   border: none;
-  padding: 2px 0;
+  /* Real padding so the click target is a proper chip, not just the
+     text. Was 2px 0 — basically the bounding box of the label. */
+  padding: 6px 10px;
+  border-radius: 6px;
   color: var(--color-text-faint);
   font-family: var(--font-ui);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
   cursor: pointer;
   max-width: 100%;
+  transition: background var(--polish-fast), color var(--polish-fast);
 }
-.reasoning-head:hover { color: var(--color-text-muted); }
+.reasoning-head:hover {
+  color: var(--color-text);
+  background: color-mix(in srgb, var(--color-text) 6%, transparent);
+}
+.reasoning-head:active {
+  background: color-mix(in srgb, var(--color-text) 10%, transparent);
+}
 .reasoning-head .rb-label { flex-shrink: 0; }
 .reasoning-head .rb-preview {
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 11.5px;
   font-weight: 400;
   letter-spacing: 0;
   text-transform: none;
