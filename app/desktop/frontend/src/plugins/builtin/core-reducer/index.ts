@@ -8,6 +8,8 @@
 
 import {
   EventType,
+  type MessagesSnapshotEvent,
+  type ReasoningMessageChunkEvent,
   type ReasoningMessageContentEvent,
   type ReasoningMessageEndEvent,
   type ReasoningMessageStartEvent,
@@ -15,10 +17,13 @@ import {
   type RunStartedEvent,
   type StepFinishedEvent,
   type StepStartedEvent,
+  type TextMessageChunkEvent,
   type TextMessageContentEvent,
   type TextMessageEndEvent,
   type TextMessageStartEvent,
+  type ThinkingTextMessageContentEvent,
   type ToolCallArgsEvent,
+  type ToolCallChunkEvent,
   type ToolCallEndEvent,
   type ToolCallResultEvent,
   type ToolCallStartEvent,
@@ -241,6 +246,283 @@ const onReasoningEnd = (state: AgentViewState, ev: ReasoningMessageEndEvent): Ag
   mapReasoning(state, ev.messageId, (b) => ({ ...b, streaming: false }));
 
 // ---------------------------------------------------------------------------
+// CHUNK variants — combined START/CONTENT/END streams.
+// ---------------------------------------------------------------------------
+//
+// AG-UI's *_CHUNK events let a backend emit one event per delta with optional
+// "first chunk" metadata (role, messageId, toolCallName) and a payload delta.
+// There's no explicit END for chunked streams — closure rides on RUN_FINISHED
+// or a follow-up non-chunk END event.
+//
+// Strategy: do the START detection inline. If the entity (message / tool
+// call / reasoning block) isn't present yet, materialize it; then merge
+// the delta. No synthetic events crossing the dispatcher — this is the
+// same handler approach as the non-chunk variants, just with the START
+// fused into the same call as CONTENT.
+
+function findMessageById(state: AgentViewState, id: string): Message | undefined {
+  return state.messages.find((m) => m.id === id);
+}
+
+const onTextChunk = (state: AgentViewState, ev: TextMessageChunkEvent): AgentViewState => {
+  if (!ev.messageId) return state;
+  let next = state;
+  if (!findMessageById(next, ev.messageId)) {
+    // First chunk for this messageId — materialize the message.
+    const role: Message["role"] =
+      ev.role === "user" ? "user" : ev.role === "system" ? "system" : "assistant";
+    next = {
+      ...next,
+      messages: [
+        ...next.messages,
+        {
+          id: ev.messageId,
+          role,
+          who: nameForRole(role),
+          time: nowTime(),
+          blocks: [],
+        },
+      ],
+    };
+  }
+  if (ev.delta) {
+    next = updateMessage(next, ev.messageId, (m) => appendTextDelta(m, ev.delta!));
+  }
+  return next;
+};
+
+const onToolChunk = (state: AgentViewState, ev: ToolCallChunkEvent): AgentViewState => {
+  if (!ev.toolCallId) return state;
+  let next = state;
+  if (!next.toolCalls[ev.toolCallId]) {
+    // First chunk — synthesize the tool entry. toolCallName might be
+    // absent (some backends only set it on the first chunk that has it);
+    // we fall back to "" and downstream consumers tolerate that until
+    // a later chunk fills it.
+    next = {
+      ...next,
+      toolCalls: {
+        ...next.toolCalls,
+        [ev.toolCallId]: {
+          id: ev.toolCallId,
+          fn: ev.toolCallName ?? "",
+          args: "",
+          status: "running",
+          duration: "LIVE",
+        },
+      },
+    };
+    if (ev.parentMessageId) {
+      next = updateMessage(next, ev.parentMessageId, (m) =>
+        appendBlock(m, { kind: "tool", toolCallId: ev.toolCallId! }),
+      );
+    }
+  } else if (ev.toolCallName && !next.toolCalls[ev.toolCallId].fn) {
+    // Later chunk arrived with the name — fill in the gap.
+    next = {
+      ...next,
+      toolCalls: {
+        ...next.toolCalls,
+        [ev.toolCallId]: { ...next.toolCalls[ev.toolCallId], fn: ev.toolCallName },
+      },
+    };
+  }
+  if (ev.delta) {
+    next = updateTool(next, ev.toolCallId, (t) => ({ ...t, args: t.args + ev.delta }));
+  }
+  return next;
+};
+
+// ---------------------------------------------------------------------------
+// THINKING_* — extended-thinking phase events (Claude 3.7+ style).
+// ---------------------------------------------------------------------------
+//
+// Two layers:
+//   THINKING_START / THINKING_END           — phase markers (optional title)
+//   THINKING_TEXT_MESSAGE_START/CONTENT/END — the actual text inside
+//
+// THINKING_TEXT_MESSAGE_* events don't carry messageId — they're an
+// implicitly-scoped sequence between THINKING_START and THINKING_END. We
+// translate them into our reasoning-block model: each START opens a new
+// reasoning block on the last assistant message with a synthetic id, and
+// CONTENT/END operate on the most recent still-streaming reasoning block.
+// Visually identical to REASONING_MESSAGE_* — same collapsible "thought"
+// panel.
+//
+// The THINKING_START/END phase markers themselves do nothing: the inner
+// blocks already convey "thinking happened" via their stream lifecycle.
+// If we later want to expose the optional `title` from THINKING_START,
+// it'd hang on the reasoning block as a separate field.
+
+let thinkingIdCounter = 0;
+function nextThinkingId(): string {
+  thinkingIdCounter += 1;
+  return `thinking:${Date.now()}:${thinkingIdCounter}`;
+}
+
+function findActiveThinkingId(state: AgentViewState): string | null {
+  // Walk messages backwards for the most recent still-streaming reasoning
+  // block. That's the "currently open" thinking block we should write to.
+  for (let i = state.messages.length - 1; i >= 0; i--) {
+    const m = state.messages[i];
+    for (let j = m.blocks.length - 1; j >= 0; j--) {
+      const b = m.blocks[j];
+      if (b.kind === "reasoning" && b.streaming) return b.reasoningId;
+    }
+  }
+  return null;
+}
+
+const onThinkingTextStart = (state: AgentViewState): AgentViewState => {
+  const parentId = findLastAssistantMessageId(state);
+  if (!parentId) return state;
+  return updateMessage(state, parentId, (m) =>
+    appendBlock(m, {
+      kind: "reasoning",
+      reasoningId: nextThinkingId(),
+      text: "",
+      streaming: true,
+    }),
+  );
+};
+
+const onThinkingTextContent = (
+  state: AgentViewState,
+  ev: ThinkingTextMessageContentEvent,
+): AgentViewState => {
+  const id = findActiveThinkingId(state);
+  if (!id) return state;
+  return mapReasoning(state, id, (b) => ({ ...b, text: b.text + ev.delta }));
+};
+
+const onThinkingTextEnd = (state: AgentViewState): AgentViewState => {
+  const id = findActiveThinkingId(state);
+  if (!id) return state;
+  return mapReasoning(state, id, (b) => ({ ...b, streaming: false }));
+};
+
+const onReasoningChunk = (state: AgentViewState, ev: ReasoningMessageChunkEvent): AgentViewState => {
+  if (!ev.messageId) return state;
+  // Has this reasoning block been opened yet on any message?
+  const exists = state.messages.some((m) =>
+    m.blocks.some((b) => b.kind === "reasoning" && b.reasoningId === ev.messageId),
+  );
+  let next = state;
+  if (!exists) {
+    const parentId =
+      (ev as ReasoningMessageChunkEvent & { parentMessageId?: string }).parentMessageId
+      ?? findLastAssistantMessageId(next);
+    if (!parentId) return state;
+    next = updateMessage(next, parentId, (m) =>
+      appendBlock(m, {
+        kind: "reasoning",
+        reasoningId: ev.messageId!,
+        text: "",
+        streaming: true,
+      }),
+    );
+  }
+  if (ev.delta) {
+    next = mapReasoning(next, ev.messageId, (b) => ({ ...b, text: b.text + ev.delta }));
+  }
+  return next;
+};
+
+// MESSAGES_SNAPSHOT — full conversation hydrate. Sent on reconnect or
+// when joining an existing thread. Replaces both `messages` and
+// `toolCalls` wholesale (the snapshot is authoritative); leaves run /
+// plan / error untouched so the UI doesn't lose stop-button + plan
+// context if it was already mid-run.
+//
+// Conversion notes:
+//   - developer / system messages collapse into our "system" role.
+//   - assistant.toolCalls (the OpenAI-shaped {id, function: {name, arguments}})
+//     each become both a tool block on the assistant message AND an
+//     entry in state.toolCalls. We default to status "ok" + duration "—"
+//     because the snapshot represents settled history; a still-running
+//     tool would arrive via fresh TOOL_CALL_START events after the snap.
+//   - role:"tool" messages don't become UI messages — they're tool
+//     RESULTS, so we fold them into toolCalls[toolCallId].result and
+//     adjust status if `error` is set.
+type SnapshotMessage = MessagesSnapshotEvent["messages"][number];
+type SnapToolCall = {
+  id: string;
+  type: "function";
+  function: { name: string; arguments: string };
+};
+
+const onMessagesSnapshot = (
+  state: AgentViewState,
+  ev: MessagesSnapshotEvent,
+): AgentViewState => {
+  const messages: Message[] = [];
+  const toolCalls: Record<string, ToolCall> = {};
+
+  for (const m of ev.messages as SnapshotMessage[]) {
+    if (m.role === "tool") {
+      // Tool result — attach to its tool call entry. If the matching
+      // tool call hasn't been seen yet (out-of-order snapshot), stash
+      // a minimal entry; downstream assistant message will fill in fn.
+      const tcId = (m as { toolCallId: string }).toolCallId;
+      const content = (m as { content: string }).content;
+      const errored = Boolean((m as { error?: string }).error);
+      const prev = toolCalls[tcId];
+      toolCalls[tcId] = {
+        id: tcId,
+        fn: prev?.fn ?? "",
+        args: prev?.args ?? "",
+        status: errored ? "err" : "ok",
+        duration: prev?.duration ?? "—",
+        result: content,
+      };
+      continue;
+    }
+
+    const role: Message["role"] =
+      m.role === "user" ? "user"
+        : m.role === "assistant" ? "assistant"
+        : "system";
+
+    const blocks: ContentBlock[] = [];
+    if (m.role === "assistant") {
+      const content = (m as { content?: string }).content;
+      if (content) {
+        blocks.push({ kind: "text", text: content, streaming: false });
+      }
+      const tcs = (m as { toolCalls?: SnapToolCall[] }).toolCalls ?? [];
+      for (const tc of tcs) {
+        blocks.push({ kind: "tool", toolCallId: tc.id });
+        const prev = toolCalls[tc.id];
+        toolCalls[tc.id] = {
+          id: tc.id,
+          fn: tc.function.name,
+          args: tc.function.arguments,
+          status: prev?.status ?? "ok",
+          duration: prev?.duration ?? "—",
+          result: prev?.result,
+        };
+      }
+    } else {
+      const content = (m as { content: string }).content;
+      blocks.push({ kind: "text", text: content, streaming: false });
+    }
+
+    messages.push({
+      id: m.id,
+      role,
+      who: nameForRole(role),
+      // Snapshot messages don't carry timestamps in the AG-UI message
+      // type — we use "now" as a stand-in. Real backends should include
+      // timestamps when they extend the message schema.
+      time: nowTime(),
+      blocks,
+    });
+  }
+
+  return { ...state, messages, toolCalls };
+};
+
+// ---------------------------------------------------------------------------
 // Plugin
 // ---------------------------------------------------------------------------
 
@@ -271,5 +553,25 @@ export default definePlugin({
     host.agui.onCore(EventType.REASONING_MESSAGE_START,   (s, ev) => onReasoningStart  (s, ev as ReasoningMessageStartEvent));
     host.agui.onCore(EventType.REASONING_MESSAGE_CONTENT, (s, ev) => onReasoningContent(s, ev as ReasoningMessageContentEvent));
     host.agui.onCore(EventType.REASONING_MESSAGE_END,     (s, ev) => onReasoningEnd    (s, ev as ReasoningMessageEndEvent));
+
+    // Snapshots — bulk hydration. Used on reconnect / thread switch.
+    host.agui.onCore(EventType.MESSAGES_SNAPSHOT,
+      (s, ev) => onMessagesSnapshot(s, ev as MessagesSnapshotEvent));
+
+    // CHUNK variants — start/content fused into one event type.
+    host.agui.onCore(EventType.TEXT_MESSAGE_CHUNK,
+      (s, ev) => onTextChunk(s, ev as TextMessageChunkEvent));
+    host.agui.onCore(EventType.TOOL_CALL_CHUNK,
+      (s, ev) => onToolChunk(s, ev as ToolCallChunkEvent));
+    host.agui.onCore(EventType.REASONING_MESSAGE_CHUNK,
+      (s, ev) => onReasoningChunk(s, ev as ReasoningMessageChunkEvent));
+
+    // Extended-thinking phase (Claude 3.7+). Text events map onto our
+    // existing reasoning-block UI. THINKING_START / THINKING_END are
+    // currently no-ops — the inner stream lifecycle already conveys it.
+    host.agui.onCore(EventType.THINKING_TEXT_MESSAGE_START, (s) => onThinkingTextStart(s));
+    host.agui.onCore(EventType.THINKING_TEXT_MESSAGE_CONTENT,
+      (s, ev) => onThinkingTextContent(s, ev as ThinkingTextMessageContentEvent));
+    host.agui.onCore(EventType.THINKING_TEXT_MESSAGE_END, (s) => onThinkingTextEnd(s));
   },
 });
