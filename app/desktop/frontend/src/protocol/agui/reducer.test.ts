@@ -192,3 +192,126 @@ describe("reducer — plugin CUSTOM fallback", () => {
     expect(next.messages[0].blocks).toEqual([{ kind: "plan" }]);
   });
 });
+
+describe("reducer — run error / step finished", () => {
+  it("RUN_ERROR stores message + flips running off; RUN_STARTED clears it", () => {
+    let s = reduce(INITIAL_VIEW_STATE, ev({
+      type: EventType.RUN_STARTED, threadId: "t", runId: "r",
+    }));
+    s = reduce(s, ev({
+      type: EventType.RUN_ERROR, message: "boom", code: "E_TIMEOUT",
+    }));
+    expect(s.error).toEqual({ message: "boom", code: "E_TIMEOUT" });
+    expect(s.run.running).toBe(false);
+
+    s = reduce(s, ev({
+      type: EventType.RUN_STARTED, threadId: "t", runId: "r2",
+    }));
+    expect(s.error).toBeNull();
+  });
+
+  it("STEP_FINISHED bumps step counter and clears matching activity", () => {
+    let s: AgentViewState = INITIAL_VIEW_STATE;
+    s = reduce(s, ev({ type: EventType.STEP_STARTED, stepName: "analyse" }));
+    expect(s.run.activity).toBe("analyse");
+    s = reduce(s, ev({ type: EventType.STEP_FINISHED, stepName: "analyse" }));
+    expect(s.run.step).toBe(1);
+    expect(s.run.activity).toBe("");
+  });
+});
+
+describe("reducer — chunk variants", () => {
+  it("TEXT_MESSAGE_CHUNK materializes message on first chunk and appends deltas", () => {
+    let s: AgentViewState = INITIAL_VIEW_STATE;
+    s = reduce(s, ev({
+      type: EventType.TEXT_MESSAGE_CHUNK,
+      messageId: "m1", role: "assistant", delta: "hi ",
+    }));
+    s = reduce(s, ev({
+      type: EventType.TEXT_MESSAGE_CHUNK, messageId: "m1", delta: "world",
+    }));
+    expect(s.messages).toHaveLength(1);
+    expect(s.messages[0].blocks).toEqual([
+      { kind: "text", text: "hi world", streaming: true },
+    ]);
+  });
+
+  it("TOOL_CALL_CHUNK materializes tool on first chunk; later chunks fill the name", () => {
+    let s = reduce(INITIAL_VIEW_STATE, ev({
+      type: EventType.TEXT_MESSAGE_START, messageId: "m1", role: "assistant",
+    }));
+    s = reduce(s, ev({
+      type: EventType.TOOL_CALL_CHUNK,
+      toolCallId: "t1", parentMessageId: "m1", delta: '{"path":',
+    }));
+    expect(s.toolCalls.t1.fn).toBe("");
+    expect(s.toolCalls.t1.args).toBe('{"path":');
+    s = reduce(s, ev({
+      type: EventType.TOOL_CALL_CHUNK,
+      toolCallId: "t1", toolCallName: "read_file", delta: '"x"}',
+    }));
+    expect(s.toolCalls.t1.fn).toBe("read_file");
+    expect(s.toolCalls.t1.args).toBe('{"path":"x"}');
+  });
+});
+
+describe("reducer — state snapshot / delta", () => {
+  it("STATE_SNAPSHOT replaces shared wholesale", () => {
+    const s = reduce(INITIAL_VIEW_STATE, ev({
+      type: EventType.STATE_SNAPSHOT, snapshot: { plan: ["a", "b"], counter: 1 },
+    }));
+    expect(s.shared).toEqual({ plan: ["a", "b"], counter: 1 });
+  });
+
+  it("STATE_DELTA applies a JSON Patch to shared", () => {
+    let s = reduce(INITIAL_VIEW_STATE, ev({
+      type: EventType.STATE_SNAPSHOT, snapshot: { counter: 0, list: ["a"] },
+    }));
+    s = reduce(s, ev({
+      type: EventType.STATE_DELTA,
+      delta: [
+        { op: "replace", path: "/counter", value: 5 },
+        { op: "add",     path: "/list/-",  value: "b" },
+      ],
+    }));
+    expect(s.shared).toEqual({ counter: 5, list: ["a", "b"] });
+  });
+
+  it("STATE_DELTA with a broken patch leaves shared unchanged", () => {
+    const s = reduce(INITIAL_VIEW_STATE, ev({
+      type: EventType.STATE_SNAPSHOT, snapshot: { x: 1 },
+    }));
+    const next = reduce(s, ev({
+      type: EventType.STATE_DELTA,
+      delta: [{ op: "remove", path: "/does/not/exist" }],
+    }));
+    expect(next.shared).toEqual({ x: 1 });
+  });
+});
+
+describe("reducer — messages snapshot", () => {
+  it("hydrates messages and toolCalls from a snapshot", () => {
+    const next = reduce(INITIAL_VIEW_STATE, ev({
+      type: EventType.MESSAGES_SNAPSHOT,
+      messages: [
+        { id: "u1", role: "user",      content: "hi" },
+        {
+          id: "a1", role: "assistant", content: "ok",
+          toolCalls: [{
+            id: "t1", type: "function",
+            function: { name: "read_file", arguments: '{"path":"x"}' },
+          }],
+        },
+        { id: "tr1", role: "tool", toolCallId: "t1", content: "file contents" },
+      ],
+    }));
+
+    expect(next.messages.map((m) => m.role)).toEqual(["user", "assistant"]);
+    expect(next.messages[1].blocks).toEqual([
+      { kind: "text", text: "ok", streaming: false },
+      { kind: "tool", toolCallId: "t1" },
+    ]);
+    expect(next.toolCalls.t1.fn).toBe("read_file");
+    expect(next.toolCalls.t1.result).toBe("file contents");
+  });
+});

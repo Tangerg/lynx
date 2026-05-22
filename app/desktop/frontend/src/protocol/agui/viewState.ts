@@ -75,6 +75,13 @@ export type Message = {
   who: string;       // display name
   time: string;      // formatted timestamp
   blocks: ContentBlock[];
+  /**
+   * AG-UI ACTIVITY_* events stash arbitrary per-activity-type content
+   * here. Backends typically use it for streaming structured side-data
+   * (e.g. "draft" → { outline: [...] }, "tool_thinking" → { ... }).
+   * Renderers pick the activity types they understand and ignore the rest.
+   */
+  activities?: Record<string, unknown>;
 };
 
 export type RunState = {
@@ -100,6 +107,13 @@ export type AgentViewState = {
   plan: PlanItem[];
   run: RunState;
   error: RunError | null;
+  /**
+   * Backend-owned shared state — AG-UI STATE_SNAPSHOT / STATE_DELTA.
+   * Free-form JSON the agent maintains and the UI observes; plugins use
+   * `useSharedState(path)` to subscribe to specific subtrees. Empty by
+   * default; not all backends populate it.
+   */
+  shared: Record<string, unknown>;
 };
 
 export const INITIAL_VIEW_STATE: AgentViewState = {
@@ -118,4 +132,5 @@ export const INITIAL_VIEW_STATE: AgentViewState = {
     cost: "0.00",
   },
   error: null,
+  shared: {},
 };
