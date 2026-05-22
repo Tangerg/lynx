@@ -7,19 +7,16 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sync"
-	"time"
-
-	"github.com/google/uuid"
 
 	"github.com/Tangerg/lynx/lyra/internal/service/session"
 )
 
 // FileSessionService persists [session.Service] state to one JSON
 // file on disk — small enough to rewrite atomically on every
-// mutation, large enough to survive process restart. Sessions are
-// keyed by id; the on-disk shape is a flat array of [session.Session]
-// values, which loads back into the in-memory map at construction.
+// mutation, large enough to survive process restart. The
+// in-memory shape (map + RWMutex + the mutate operations) is
+// owned by [session.Repo]; this type composes Repo with a
+// persist-on-mutate hook.
 //
 // Trade-offs:
 //   - Whole-file rewrite per mutation: simple, atomic via rename;
@@ -30,31 +27,31 @@ import (
 //   - No fsync on write: durability is best-effort; the runtime
 //     does not promise per-write durability today.
 type FileSessionService struct {
+	repo *session.Repo
 	path string
-
-	mu       sync.RWMutex
-	sessions map[string]*session.Session
 }
 
-// NewFileSessionService opens (or creates) the sessions file under
-// the storage home directory. Returns an error when the directory
-// cannot be created or the existing file is unreadable / malformed.
+// NewFileSessionService opens (or creates) the sessions file
+// under the storage home directory. Returns an error when the
+// directory cannot be created or the existing file is unreadable
+// / malformed.
 func NewFileSessionService() (*FileSessionService, error) {
 	dir, err := Home()
 	if err != nil {
 		return nil, err
 	}
-	path := filepath.Join(dir, "sessions.json")
-
-	svc := &FileSessionService{path: path, sessions: map[string]*session.Session{}}
+	svc := &FileSessionService{
+		repo: session.NewRepo(),
+		path: filepath.Join(dir, "sessions.json"),
+	}
 	if err := svc.load(); err != nil {
 		return nil, err
 	}
 	return svc, nil
 }
 
-// load reads the on-disk file into the in-memory map. Missing file
-// is treated as an empty store — first-run starts clean.
+// load reads the on-disk file into the repo. Missing file is
+// treated as an empty store — first-run starts clean.
 func (s *FileSessionService) load() error {
 	data, err := os.ReadFile(s.path)
 	if errors.Is(err, os.ErrNotExist) {
@@ -70,22 +67,14 @@ func (s *FileSessionService) load() error {
 	if err := json.Unmarshal(data, &list); err != nil {
 		return fmt.Errorf("storage: parse %q: %w", s.path, err)
 	}
-	for i := range list {
-		sess := list[i]
-		s.sessions[sess.ID] = &sess
-	}
+	s.repo.Restore(list)
 	return nil
 }
 
-// persist writes the current map to disk atomically — write to a
-// tmp file, then rename. Called under the write lock so the
-// serialized snapshot matches the in-memory state.
+// persist writes the current repo snapshot to disk atomically —
+// tmp file + rename. Called after every successful mutate.
 func (s *FileSessionService) persist() error {
-	list := make([]session.Session, 0, len(s.sessions))
-	for _, sess := range s.sessions {
-		list = append(list, *sess)
-	}
-	data, err := json.MarshalIndent(list, "", "  ")
+	data, err := json.MarshalIndent(s.repo.List(), "", "  ")
 	if err != nil {
 		return fmt.Errorf("storage: marshal: %w", err)
 	}
@@ -103,102 +92,75 @@ func (s *FileSessionService) persist() error {
 // session.Service
 // ------------------------------------------------------------------
 
+// Read methods are straight pass-throughs to the repo — no I/O,
+// nothing to roll back.
+
 func (s *FileSessionService) List(_ context.Context) ([]session.Session, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	out := make([]session.Session, 0, len(s.sessions))
-	for _, sess := range s.sessions {
-		out = append(out, *sess)
-	}
-	return out, nil
+	return s.repo.List(), nil
 }
 
 func (s *FileSessionService) Get(_ context.Context, id string) (session.Session, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	sess, ok := s.sessions[id]
+	sess, ok := s.repo.Get(id)
 	if !ok {
 		return session.Session{}, session.ErrNotFound
 	}
-	return *sess, nil
+	return sess, nil
 }
 
+// Write methods all share the same shape: mutate the repo, try
+// to persist, undo the repo change on persist failure so the
+// in-memory state stays consistent with disk.
+
 func (s *FileSessionService) Create(_ context.Context, title string) (session.Session, error) {
-	now := time.Now().UTC()
-	sess := &session.Session{
-		ID:        uuid.NewString(),
-		Title:     title,
-		StartedAt: now,
-		UpdatedAt: now,
-	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.sessions[sess.ID] = sess
+	sess := s.repo.Create(title)
 	if err := s.persist(); err != nil {
-		delete(s.sessions, sess.ID)
+		s.repo.Delete(sess.ID)
 		return session.Session{}, err
 	}
-	return *sess, nil
+	return sess, nil
 }
 
 func (s *FileSessionService) Fork(_ context.Context, parentID, atMessageID string) (session.Session, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	parent, ok := s.sessions[parentID]
+	child, ok := s.repo.Fork(parentID, atMessageID)
 	if !ok {
 		return session.Session{}, session.ErrNotFound
 	}
-	now := time.Now().UTC()
-	child := &session.Session{
-		ID:        uuid.NewString(),
-		Title:     parent.Title + " (fork)",
-		ParentID:  parentID,
-		StartedAt: now,
-		UpdatedAt: now,
-		Metadata: map[string]string{
-			"fork_at_message_id": atMessageID,
-		},
-	}
-	s.sessions[child.ID] = child
 	if err := s.persist(); err != nil {
-		delete(s.sessions, child.ID)
+		s.repo.Delete(child.ID)
 		return session.Session{}, err
 	}
-	return *child, nil
+	return child, nil
 }
 
 func (s *FileSessionService) Delete(_ context.Context, id string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if _, exists := s.sessions[id]; !exists {
-		return nil
+	removed, found := s.repo.Delete(id)
+	if !found {
+		return nil // idempotent
 	}
-	saved := s.sessions[id]
-	delete(s.sessions, id)
 	if err := s.persist(); err != nil {
-		s.sessions[id] = saved
+		s.repo.Insert(removed)
 		return err
 	}
 	return nil
 }
 
-// Touch updates UpdatedAt + bumps TurnCount and persists. Internal
-// — same shape as [session.NewInMemoryService]'s Touch (mirrored
-// here so callers can swap implementations without losing the
-// recency bump).
+// Touch refreshes UpdatedAt + bumps TurnCount on the named
+// session and persists. Mirrors session.inMemoryService.Touch —
+// lives off the [session.Service] interface because it's
+// implementation-detail bookkeeping.
+//
+// Rollback is best-effort: we capture the pre-mutation snapshot
+// only when persist fails, restoring the previous fields.
 func (s *FileSessionService) Touch(id string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	sess, ok := s.sessions[id]
+	prev, ok := s.repo.Get(id)
 	if !ok {
 		return session.ErrNotFound
 	}
-	prev := *sess
-	sess.UpdatedAt = time.Now().UTC()
-	sess.TurnCount++
+	if !s.repo.Touch(id) {
+		return session.ErrNotFound
+	}
 	if err := s.persist(); err != nil {
-		*sess = prev
+		s.repo.Insert(prev)
 		return err
 	}
 	return nil
