@@ -48,16 +48,21 @@ const (
 	DecisionDeny
 )
 
-// Service is the ApprovalService contract. M4 milestone wires the
-// real implementation; M1 leaves it as a stub.
+// Service is the ApprovalService contract.
+//
+// The interface unifies two roles. Client-facing methods
+// (ListPending, Decide, SetMode, GetMode) drive the UX layer —
+// list outstanding asks, push a verdict, swap the runtime stance.
+// Producer-side (Register) is used by chat / engine to declare a
+// pending ask and obtain the channel the decision arrives on.
 type Service interface {
 	// ListPending returns every unresolved approval request — useful
 	// for client startup ("any approvals waiting for me?").
 	ListPending(ctx context.Context) ([]Request, error)
 
-	// Decide resolves a pending request. Idempotent for the same
-	// decision; returns an error if the request is already resolved
-	// with a different decision.
+	// Decide resolves a pending request. Returns [ErrRequestNotFound]
+	// when no pending request matches requestID — either the id is
+	// bogus or the request has already been decided.
 	Decide(ctx context.Context, requestID string, decision Decision) error
 
 	// SetMode changes the runtime-wide stance. Future tool calls
@@ -66,4 +71,20 @@ type Service interface {
 
 	// GetMode returns the current runtime stance.
 	GetMode(ctx context.Context) (Mode, error)
+
+	// Register declares a pending approval ask and returns the
+	// channel its decision lands on, plus a cleanup func the caller
+	// MUST call (typically via defer) to remove the entry if the
+	// caller gives up before [Decide] arrives.
+	//
+	// The split — register / emit / wait — exists so producers can
+	// emit the user-facing event after registration completes, with
+	// no race where [Decide] could be called before the pending
+	// entry exists.
+	//
+	// req.ID must be non-empty and globally unique within the
+	// process; producers typically reuse the tool call's UUID so
+	// the request id matches the lifecycle event ids on the same
+	// turn channel.
+	Register(req Request) (<-chan Decision, func())
 }

@@ -5,16 +5,17 @@ go 1.26.3
 require (
 	github.com/Tangerg/lynx/agent v0.0.0-20260521101326-c68784dc9f99
 	github.com/Tangerg/lynx/core v0.0.0-20260521101326-c68784dc9f99
+	github.com/Tangerg/lynx/mcp v0.0.0-20260511081009-fbf46737de3d
 	github.com/Tangerg/lynx/models v0.0.0-20260521101326-c68784dc9f99
 	github.com/Tangerg/lynx/tools v0.0.0-20260521101326-c68784dc9f99
 	github.com/ag-ui-protocol/ag-ui/sdks/community/go v0.0.0-20260520152522-0245ce4434c4
 	github.com/google/uuid v1.6.0
+	github.com/modelcontextprotocol/go-sdk v1.6.0
 	github.com/spf13/cobra v1.10.2
 )
 
 require (
 	github.com/Masterminds/semver/v3 v3.5.0 // indirect
-	github.com/Tangerg/lynx/mcp v0.0.0-20260511081009-fbf46737de3d // indirect
 	github.com/Tangerg/lynx/pkg v0.0.0-20260511081009-fbf46737de3d // indirect
 	github.com/anthropics/anthropic-sdk-go v1.43.0 // indirect
 	github.com/bahlo/generic-list-go v0.2.0 // indirect
@@ -30,7 +31,6 @@ require (
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/invopop/jsonschema v0.13.0 // indirect
 	github.com/mailru/easyjson v0.9.2 // indirect
-	github.com/modelcontextprotocol/go-sdk v1.6.0 // indirect
 	github.com/openai/openai-go/v3 v3.35.0 // indirect
 	github.com/pkoukk/tiktoken-go v0.1.8 // indirect
 	github.com/segmentio/asm v1.2.1 // indirect

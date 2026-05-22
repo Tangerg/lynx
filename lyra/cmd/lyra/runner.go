@@ -28,9 +28,8 @@ type turnOptions struct {
 // One instance per turn — TurnRunner holds the active TurnHandle
 // so it doesn't have to thread it through every helper.
 type TurnRunner struct {
-	app     *App
-	opts    turnOptions
-	verbose bool
+	app  *App
+	opts turnOptions
 
 	// exit tracks the cumulative exit code over the event stream;
 	// 1 on errors, 0 otherwise.
@@ -39,7 +38,7 @@ type TurnRunner struct {
 
 // NewTurnRunner wires the runner to an App and per-turn options.
 func NewTurnRunner(app *App, opts turnOptions) *TurnRunner {
-	return &TurnRunner{app: app, opts: opts, verbose: opts.Verbose}
+	return &TurnRunner{app: app, opts: opts}
 }
 
 // Run starts a turn for sessionID + message, drains its events,
@@ -95,6 +94,14 @@ func (r *TurnRunner) dispatch(ctx context.Context, handle chat.TurnHandle, ev ch
 		r.renderPlanGenerated(ctx, handle, e)
 	case chat.MessageDelta:
 		fmt.Fprint(r.app.Out, e.Text)
+	case chat.ReasoningDelta:
+		// Render extended thinking only when --verbose is on so the
+		// terse-mode UX stays focused on the model's final answer.
+		// Marked with a `[think]` prefix per line so it doesn't mix
+		// with the assistant text on stdout.
+		if r.opts.Verbose {
+			fmt.Fprintf(r.app.Err, "[think] %s", e.Text)
+		}
 	case chat.ToolCallStart:
 		fmt.Fprintf(r.app.Err, "\n[lyra] tool start: %s\n", e.ToolName)
 	case chat.ToolCallEnd:
@@ -103,7 +110,7 @@ func (r *TurnRunner) dispatch(ctx context.Context, handle chat.TurnHandle, ev ch
 		fmt.Fprintf(r.app.Err, "\n[lyra] error: %s (%s)\n", e.Message, e.Code)
 		r.exit = 1
 	case chat.TurnEnd:
-		fmt.Fprintf(r.app.Err, "\n[lyra] turn ended: %s (%s)\n", e.Reason, e.Duration)
+		r.renderTurnEnd(e)
 		if e.Reason == chat.TurnEndErrored {
 			r.exit = 1
 		}
@@ -126,6 +133,23 @@ func (r *TurnRunner) renderPlanGenerated(ctx context.Context, handle chat.TurnHa
 	}
 }
 
+// renderTurnEnd prints the per-turn summary line — reason + wall
+// clock plus the token roll-up when the provider reported one.
+// Zero usage is omitted (stub models / mocked endpoints) so the
+// line stays compact when there's nothing to show.
+func (r *TurnRunner) renderTurnEnd(e chat.TurnEnd) {
+	u := e.TokenUsage
+	if u.PromptTokens == 0 && u.CompletionTokens == 0 && u.ReasoningTokens == 0 {
+		fmt.Fprintf(r.app.Err, "\n[lyra] turn ended: %s (%s)\n", e.Reason, e.Duration)
+		return
+	}
+	fmt.Fprintf(r.app.Err, "\n[lyra] turn ended: %s (%s) — tokens: %d in / %d out", e.Reason, e.Duration, u.PromptTokens, u.CompletionTokens)
+	if u.ReasoningTokens > 0 {
+		fmt.Fprintf(r.app.Err, " (%d reasoning)", u.ReasoningTokens)
+	}
+	fmt.Fprintln(r.app.Err)
+}
+
 // renderToolEnd prints the tool's output, truncated to
 // [toolOutputMaxLines] in terse mode and verbatim under --verbose.
 func (r *TurnRunner) renderToolEnd(e chat.ToolCallEnd) {
@@ -137,7 +161,7 @@ func (r *TurnRunner) renderToolEnd(e chat.ToolCallEnd) {
 		fmt.Fprintln(r.app.Err, "[lyra] tool end: (no output)")
 		return
 	}
-	if r.verbose {
+	if r.opts.Verbose {
 		fmt.Fprintf(r.app.Err, "[lyra] tool end:\n%s\n", strings.TrimRight(e.Output, "\n"))
 		return
 	}

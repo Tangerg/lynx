@@ -22,6 +22,20 @@ func EngineOnline(cfg Config) engine.OnlineConfig {
 	}
 }
 
+// EngineMCPServers maps the loaded config's MCP entries into the
+// engine-package shape. Same direction-of-knowledge rule as
+// EngineOnline — engine stays config-agnostic.
+func EngineMCPServers(cfg Config) []engine.MCPServer {
+	if len(cfg.MCPServers) == 0 {
+		return nil
+	}
+	out := make([]engine.MCPServer, 0, len(cfg.MCPServers))
+	for _, s := range cfg.MCPServers {
+		out = append(out, engine.MCPServer{Name: s.Name, Endpoint: s.Endpoint})
+	}
+	return out
+}
+
 // BuildChatClient wires a *chat.Client from the loaded config — picks
 // the right lynx model adapter, plugs in the model id and api key.
 // Returned client is the singleton handed to engine.New.

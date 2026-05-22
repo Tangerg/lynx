@@ -148,3 +148,53 @@ func responseWithToolCall(name, args string) (*chat.Response, error) {
 		&chat.ResponseMetadata{},
 	)
 }
+
+// usageStubModel runs the same two-round bash dance as stubModel but
+// stamps a configurable Usage on each round's Response so per-turn
+// usage accumulation can be asserted end-to-end.
+type usageStubModel struct {
+	round1Usage chat.Usage
+	round2Usage chat.Usage
+	defaults    *chat.Options
+}
+
+func newUsageStubModel(round1, round2 chat.Usage) *usageStubModel {
+	opts, _ := chat.NewOptions("stub-model-usage")
+	return &usageStubModel{round1Usage: round1, round2Usage: round2, defaults: opts}
+}
+
+func (m *usageStubModel) DefaultOptions() chat.Options { return *m.defaults }
+func (m *usageStubModel) Metadata() chat.ModelMetadata { return chat.ModelMetadata{Provider: "stub"} }
+
+func (m *usageStubModel) Call(_ context.Context, req *chat.Request) (*chat.Response, error) {
+	if hasToolMessage(req.Messages) {
+		return responseWithTextAndUsage("done", m.round2Usage)
+	}
+	return responseWithToolCallAndUsage("bash", `{"command":"echo lyra"}`, m.round1Usage)
+}
+
+func (m *usageStubModel) Stream(ctx context.Context, req *chat.Request) iter.Seq2[*chat.Response, error] {
+	resp, err := m.Call(ctx, req)
+	return func(yield func(*chat.Response, error) bool) { yield(resp, err) }
+}
+
+func responseWithTextAndUsage(text string, usage chat.Usage) (*chat.Response, error) {
+	return chat.NewResponse(
+		&chat.Result{
+			AssistantMessage: chat.NewAssistantMessage(text),
+			Metadata:         &chat.ResultMetadata{FinishReason: chat.FinishReasonStop},
+		},
+		&chat.ResponseMetadata{Usage: &usage},
+	)
+}
+
+func responseWithToolCallAndUsage(name, args string, usage chat.Usage) (*chat.Response, error) {
+	calls := []*chat.ToolCallPart{{ID: "call_1", Name: name, Arguments: args}}
+	return chat.NewResponse(
+		&chat.Result{
+			AssistantMessage: chat.NewAssistantMessage(calls),
+			Metadata:         &chat.ResultMetadata{FinishReason: chat.FinishReasonToolCalls},
+		},
+		&chat.ResponseMetadata{Usage: &usage},
+	)
+}

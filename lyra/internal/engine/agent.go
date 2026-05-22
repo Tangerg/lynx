@@ -16,10 +16,35 @@ type ChatInput struct {
 	Message string
 }
 
-// ChatOutput is the typed output. M1 just carries the assistant's
-// reply text; later milestones add tool_calls / reasoning / sources.
+// ChatOutput is the typed output of one turn. Reply is the
+// assistant's final text; Usage is the per-turn token roll-up
+// summed across every LLM round in the tool loop.
 type ChatOutput struct {
 	Reply string
+	Usage TokenUsage
+}
+
+// TokenUsage is the per-turn token total — sum across every LLM
+// round in the tool loop. ReasoningTokens stays zero for providers
+// that don't report it (it's a subset of CompletionTokens, not an
+// addition).
+type TokenUsage struct {
+	PromptTokens     int64
+	CompletionTokens int64
+	ReasoningTokens  int64
+}
+
+// add folds one round's [chat.Usage] into the running per-turn
+// total. nil usage is a no-op so callers don't need a guard.
+func (t *TokenUsage) add(u *chat.Usage) {
+	if u == nil {
+		return
+	}
+	t.PromptTokens += u.PromptTokens
+	t.CompletionTokens += u.CompletionTokens
+	if u.ReasoningTokens != nil {
+		t.ReasoningTokens += *u.ReasoningTokens
+	}
 }
 
 // buildChatAgent constructs the chat agent owned by this Engine.
@@ -56,10 +81,26 @@ func (e *Engine) buildChatAgent() *core.Agent {
 					WithUserPrompt(in.Message).
 					Stream()
 
-				var accumulated strings.Builder
+				var (
+					accumulated strings.Builder
+					totals      TokenUsage
+					roundUsage  *chat.Usage
+				)
 				for chunk, streamErr := range stream.Response(ctx) {
 					if streamErr != nil {
 						return ChatOutput{}, streamErr
+					}
+					if isToolRoundBoundary(chunk) {
+						totals.add(roundUsage)
+						roundUsage = nil
+					}
+					if chunk != nil && chunk.Metadata != nil && chunk.Metadata.Usage != nil {
+						roundUsage = chunk.Metadata.Usage
+					}
+					if observer != nil {
+						if reasoning := extractReasoningDelta(chunk); reasoning != "" {
+							observer.OnReasoningDelta(reasoning)
+						}
 					}
 					delta := extractTextDelta(chunk)
 					if delta == "" {
@@ -70,7 +111,8 @@ func (e *Engine) buildChatAgent() *core.Agent {
 						observer.OnMessageDelta(delta)
 					}
 				}
-				return ChatOutput{Reply: accumulated.String()}, nil
+				totals.add(roundUsage)
+				return ChatOutput{Reply: accumulated.String(), Usage: totals}, nil
 			},
 			core.ActionConfig{
 				ToolGroups: core.ToolRolesFor(ToolRoleCoding),
@@ -93,4 +135,30 @@ func extractTextDelta(resp *chat.Response) string {
 		return ""
 	}
 	return resp.Result.AssistantMessage.JoinedText()
+}
+
+// isToolRoundBoundary reports whether resp is the synthetic
+// tool-result chunk the chat ToolMiddleware yields between LLM
+// rounds. The middleware emits a Response with Result.ToolMessage
+// set and Result.AssistantMessage nil to surface the tool return
+// to stream consumers — that's our cue that the prior round is
+// over and any pending Usage should be committed to the per-turn
+// total before the next round overwrites it.
+func isToolRoundBoundary(resp *chat.Response) bool {
+	return resp != nil &&
+		resp.Result != nil &&
+		resp.Result.AssistantMessage == nil &&
+		resp.Result.ToolMessage != nil
+}
+
+// extractReasoningDelta pulls extended-thinking text from one
+// streamed chunk (its ReasoningPart bodies, joined). Returns ""
+// for chunks without reasoning content — text-only or tool-only
+// rounds. Mirrors [extractTextDelta] in shape but reads the
+// reasoning subset instead of the final-text subset.
+func extractReasoningDelta(resp *chat.Response) string {
+	if resp == nil || resp.Result == nil || resp.Result.AssistantMessage == nil {
+		return ""
+	}
+	return resp.Result.AssistantMessage.JoinedReasoning()
 }

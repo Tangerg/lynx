@@ -17,6 +17,7 @@ import (
 
 	"github.com/Tangerg/lynx/lyra/internal/config"
 	"github.com/Tangerg/lynx/lyra/internal/engine"
+	"github.com/Tangerg/lynx/lyra/internal/service/approval"
 	"github.com/Tangerg/lynx/lyra/internal/service/chat"
 	"github.com/Tangerg/lynx/lyra/internal/service/memory"
 	"github.com/Tangerg/lynx/lyra/internal/service/session"
@@ -42,10 +43,11 @@ type App struct {
 
 	// services — built lazily on first call to ensureRuntime so
 	// `lyra help` / `lyra version` don't require an API key.
-	chat    chat.Service
-	session session.Service
-	tool    tool.Service
-	memory  memory.Service
+	chat     chat.Service
+	session  session.Service
+	tool     tool.Service
+	memory   memory.Service
+	approval approval.Service
 }
 
 // NewApp returns an App wired to the OS standard streams. Tests
@@ -112,6 +114,7 @@ func (a *App) ensureRuntime() error {
 	eng, err := engine.New(engine.Config{
 		ChatClient:    client,
 		Online:        config.EngineOnline(cfg),
+		MCPServers:    config.EngineMCPServers(cfg),
 		MemoryStore:   msgStore,
 		MemoryService: memSvc,
 	})
@@ -119,10 +122,17 @@ func (a *App) ensureRuntime() error {
 		return err
 	}
 
-	a.chat = chat.New(eng)
+	// Approval mode defaults to YOLO so the CLI path keeps the
+	// "just run it" feel users had before M4. Operators that want
+	// a stricter stance flip the mode at runtime via the HTTP
+	// /v1/approvals/mode endpoint (or a future --approval-mode flag).
+	approvalSvc := approval.New(approval.ModeYolo)
+
+	a.chat = chat.New(eng, approvalSvc)
 	a.session = sessionSvc
 	a.tool = tool.New(eng)
 	a.memory = memSvc
+	a.approval = approvalSvc
 	return nil
 }
 
