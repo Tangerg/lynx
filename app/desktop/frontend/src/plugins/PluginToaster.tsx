@@ -7,10 +7,11 @@
 
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
+import { nanoid } from "nanoid";
 import { PLUGIN_TOAST_EVENT, type PluginToastDetail } from "./sdk";
 import { swift } from "@/lib/motion";
 
-type Toast = PluginToastDetail & { id: number };
+type Toast = PluginToastDetail & { id: string };
 
 const AUTO_DISMISS_MS = 4_000;
 
@@ -18,10 +19,9 @@ export function PluginToaster() {
   const [toasts, setToasts] = useState<Toast[]>([]);
 
   useEffect(() => {
-    let counter = 0;
     const onToast = (e: Event) => {
       const detail = (e as CustomEvent<PluginToastDetail>).detail;
-      const id = ++counter;
+      const id = nanoid(8);
       setToasts((prev) => [...prev, { ...detail, id }]);
       window.setTimeout(() => {
         setToasts((prev) => prev.filter((t) => t.id !== id));

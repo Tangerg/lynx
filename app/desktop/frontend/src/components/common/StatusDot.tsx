@@ -1,4 +1,4 @@
-import { cn } from "./cn";
+import { cn } from "@/lib/utils";
 
 // Small colored dot. The visual tone is controlled by the parent's CSS scope
 // (e.g. .session-sub .status-dot.running, .chat-tab .tab-dot.running). The

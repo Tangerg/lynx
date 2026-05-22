@@ -13,4 +13,4 @@ export { Kbd } from "./Kbd";
 export { Sparkline } from "./Sparkline";
 export { EmptyState } from "./EmptyState";
 export { SkeletonLine, SkeletonRow, SkeletonList } from "./Skeleton";
-export { cn } from "./cn";
+export { cn } from "@/lib/utils";

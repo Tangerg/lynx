@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { cn } from "./cn";
+import { cn } from "@/lib/utils";
 
 type Option<T extends string> = {
   value: T;
