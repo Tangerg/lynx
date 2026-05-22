@@ -6,8 +6,11 @@
 // this for a custom dialect by registering a different `core-reducer` plugin
 // that takes priority. The kernel reducer is now pure dispatch.
 
+import { applyPatch, deepClone, type Operation } from "fast-json-patch";
 import {
   EventType,
+  type ActivityDeltaEvent,
+  type ActivitySnapshotEvent,
   type MessagesSnapshotEvent,
   type ReasoningMessageChunkEvent,
   type ReasoningMessageContentEvent,
@@ -15,6 +18,8 @@ import {
   type ReasoningMessageStartEvent,
   type RunErrorEvent,
   type RunStartedEvent,
+  type StateDeltaEvent,
+  type StateSnapshotEvent,
   type StepFinishedEvent,
   type StepStartedEvent,
   type TextMessageChunkEvent,
@@ -401,6 +406,97 @@ const onThinkingTextEnd = (state: AgentViewState): AgentViewState => {
   return mapReasoning(state, id, (b) => ({ ...b, streaming: false }));
 };
 
+// ---------------------------------------------------------------------------
+// STATE_* — backend-owned shared state.
+// ---------------------------------------------------------------------------
+//
+// STATE_SNAPSHOT replaces `state.shared` wholesale. STATE_DELTA applies
+// a JSON Patch (RFC 6902) array to it. Plugins subscribe via
+// useSharedState() in the SDK selectors layer. A throwing patch (path
+// not found, op invalid) is logged and the state is left unchanged —
+// silently swallowing a bad patch is better than throwing all the way
+// up the reducer chain and crashing the chat.
+const onStateSnapshot = (state: AgentViewState, ev: StateSnapshotEvent): AgentViewState => {
+  const snapshot = (ev as { snapshot?: unknown }).snapshot;
+  if (snapshot == null || typeof snapshot !== "object") return state;
+  return { ...state, shared: snapshot as Record<string, unknown> };
+};
+
+const onStateDelta = (state: AgentViewState, ev: StateDeltaEvent): AgentViewState => {
+  const patch = (ev as { delta?: unknown[] }).delta;
+  if (!Array.isArray(patch) || patch.length === 0) return state;
+  try {
+    // Clone to keep our `shared` immutable across the reduction step
+    // — fast-json-patch mutates the document in place otherwise.
+    const next = applyPatch(
+      deepClone(state.shared),
+      patch as Operation[],
+      /* validate */ false,
+      /* mutateDocument */ true,
+    ).newDocument as Record<string, unknown>;
+    return { ...state, shared: next };
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error("[agui] STATE_DELTA patch failed:", err);
+    return state;
+  }
+};
+
+// ---------------------------------------------------------------------------
+// ACTIVITY_* — structured per-message activity streams.
+// ---------------------------------------------------------------------------
+//
+// Each event is scoped by (messageId, activityType). SNAPSHOT writes the
+// content blob; the optional `replace` flag controls whether existing
+// content for the same key is replaced (default false → shallow merge).
+// DELTA applies a JSON Patch to that content. Renderers in plugins pick
+// the activity types they understand and ignore the rest.
+function updateActivity(
+  state: AgentViewState,
+  messageId: string,
+  activityType: string,
+  fn: (prev: unknown) => unknown,
+): AgentViewState {
+  return {
+    ...state,
+    messages: state.messages.map((m) => {
+      if (m.id !== messageId) return m;
+      const prev = m.activities?.[activityType];
+      const next = fn(prev);
+      return {
+        ...m,
+        activities: { ...(m.activities ?? {}), [activityType]: next },
+      };
+    }),
+  };
+}
+
+const onActivitySnapshot = (state: AgentViewState, ev: ActivitySnapshotEvent): AgentViewState => {
+  const content = (ev as { content?: Record<string, unknown> }).content ?? {};
+  const replace = Boolean((ev as { replace?: boolean }).replace);
+  return updateActivity(state, ev.messageId, ev.activityType, (prev) => {
+    if (replace || !prev || typeof prev !== "object") return content;
+    return { ...(prev as Record<string, unknown>), ...content };
+  });
+};
+
+const onActivityDelta = (state: AgentViewState, ev: ActivityDeltaEvent): AgentViewState => {
+  const patch = (ev as { patch?: unknown[] }).patch;
+  if (!Array.isArray(patch) || patch.length === 0) return state;
+  return updateActivity(state, ev.messageId, ev.activityType, (prev) => {
+    try {
+      const base = prev && typeof prev === "object" ? deepClone(prev) : {};
+      return applyPatch(base, patch as Operation[], false, true).newDocument;
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error(
+        `[agui] ACTIVITY_DELTA patch failed for ${ev.messageId}/${ev.activityType}:`, err,
+      );
+      return prev;
+    }
+  });
+};
+
 const onReasoningChunk = (state: AgentViewState, ev: ReasoningMessageChunkEvent): AgentViewState => {
   if (!ev.messageId) return state;
   // Has this reasoning block been opened yet on any message?
@@ -573,5 +669,19 @@ export default definePlugin({
     host.agui.onCore(EventType.THINKING_TEXT_MESSAGE_CONTENT,
       (s, ev) => onThinkingTextContent(s, ev as ThinkingTextMessageContentEvent));
     host.agui.onCore(EventType.THINKING_TEXT_MESSAGE_END, (s) => onThinkingTextEnd(s));
+
+    // Shared state — STATE_SNAPSHOT replaces wholesale; STATE_DELTA
+    // applies JSON Patch. Plugins consume via useSharedState().
+    host.agui.onCore(EventType.STATE_SNAPSHOT,
+      (s, ev) => onStateSnapshot(s, ev as StateSnapshotEvent));
+    host.agui.onCore(EventType.STATE_DELTA,
+      (s, ev) => onStateDelta(s, ev as StateDeltaEvent));
+
+    // Per-message activity streams — structured side-data scoped by
+    // (messageId, activityType). Renderers pick the types they know.
+    host.agui.onCore(EventType.ACTIVITY_SNAPSHOT,
+      (s, ev) => onActivitySnapshot(s, ev as ActivitySnapshotEvent));
+    host.agui.onCore(EventType.ACTIVITY_DELTA,
+      (s, ev) => onActivityDelta(s, ev as ActivityDeltaEvent));
   },
 });

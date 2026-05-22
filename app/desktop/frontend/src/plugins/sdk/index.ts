@@ -122,6 +122,9 @@ export type { NotificationEntry, NotificationLevel } from "./types";
 export { getOrCreateSlice } from "./stateSlice";
 export type { StateSlice } from "./stateSlice";
 
+// Backend-driven shared state — AG-UI STATE_SNAPSHOT / STATE_DELTA.
+export { useSharedState } from "./sharedState";
+
 // App-wide config store.
 export {
   getConfig,
