@@ -44,6 +44,29 @@ import type {
 } from "./types";
 
 // ---------------------------------------------------------------------------
+// Shared list-selector helper
+// ---------------------------------------------------------------------------
+//
+// Most "list every X contributed by plugins" hooks share the same shape:
+// pluck `value` off each owned entry and sort by ascending `order` (default
+// 100 when unset). `useSortedList` factors that out so each registry-backed
+// selector stays a one-liner. The Map identity gates re-derivation — see
+// the useSlashCommands note below for the useMemo-on-Map discipline.
+
+type Owned<T> = { value: T; pluginName: string };
+type Ordered = { order?: number };
+
+function useSortedList<T extends Ordered>(map: Map<string, Owned<T>>): T[] {
+  return useMemo(
+    () =>
+      Array.from(map.values())
+        .map((o) => o.value)
+        .sort((a, b) => (a.order ?? 100) - (b.order ?? 100)),
+    [map],
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Tool surface
 // ---------------------------------------------------------------------------
 
@@ -52,14 +75,7 @@ export function useToolPreview(fn: string): ToolPreviewComponent | undefined {
 }
 
 export function useToolActions(): ToolActionSpec[] {
-  const map = usePluginStore((s) => s.toolActions);
-  return useMemo(
-    () =>
-      Array.from(map.values())
-        .map((o) => o.value)
-        .sort((a, b) => (a.order ?? 100) - (b.order ?? 100)),
-    [map],
-  );
+  return useSortedList(usePluginStore((s) => s.toolActions));
 }
 
 /** Look up the registered icon for a tool fn name. */
@@ -199,25 +215,11 @@ export function useLayoutSlot(slot: string): LayoutSlotSpec[] {
 }
 
 export function useThemes(): ThemeSpec[] {
-  const map = usePluginStore((s) => s.themes);
-  return useMemo(
-    () =>
-      Array.from(map.values())
-        .map((o) => o.value)
-        .sort((a, b) => (a.order ?? 100) - (b.order ?? 100)),
-    [map],
-  );
+  return useSortedList(usePluginStore((s) => s.themes));
 }
 
 export function useAccents(): ThemeAccentSpec[] {
-  const map = usePluginStore((s) => s.accents);
-  return useMemo(
-    () =>
-      Array.from(map.values())
-        .map((o) => o.value)
-        .sort((a, b) => (a.order ?? 100) - (b.order ?? 100)),
-    [map],
-  );
+  return useSortedList(usePluginStore((s) => s.accents));
 }
 
 /** Look up a theme spec by id. */
@@ -231,36 +233,15 @@ export function lookupAccent(id: string): ThemeAccentSpec | undefined {
 }
 
 export function useComposerStatus(): ComposerStatusSpec[] {
-  const map = usePluginStore((s) => s.composerStatus);
-  return useMemo(
-    () =>
-      Array.from(map.values())
-        .map((o) => o.value)
-        .sort((a, b) => (a.order ?? 100) - (b.order ?? 100)),
-    [map],
-  );
+  return useSortedList(usePluginStore((s) => s.composerStatus));
 }
 
 export function useComposerModes(): ComposerModeSpec[] {
-  const map = usePluginStore((s) => s.composerModes);
-  return useMemo(
-    () =>
-      Array.from(map.values())
-        .map((o) => o.value)
-        .sort((a, b) => (a.order ?? 100) - (b.order ?? 100)),
-    [map],
-  );
+  return useSortedList(usePluginStore((s) => s.composerModes));
 }
 
 export function useComposerAttachmentSources(): ComposerAttachmentSourceSpec[] {
-  const map = usePluginStore((s) => s.composerAttachmentSources);
-  return useMemo(
-    () =>
-      Array.from(map.values())
-        .map((o) => o.value)
-        .sort((a, b) => (a.order ?? 100) - (b.order ?? 100)),
-    [map],
-  );
+  return useSortedList(usePluginStore((s) => s.composerAttachmentSources));
 }
 
 /**
@@ -287,25 +268,11 @@ export function lookupComposerKeyBinding(canonical: string): ComposerKeyBindingS
 }
 
 export function useSidebarSections(): SidebarSectionSpec[] {
-  const map = usePluginStore((s) => s.sidebarSections);
-  return useMemo(
-    () =>
-      Array.from(map.values())
-        .map((o) => o.value)
-        .sort((a, b) => (a.order ?? 100) - (b.order ?? 100)),
-    [map],
-  );
+  return useSortedList(usePluginStore((s) => s.sidebarSections));
 }
 
 export function useSidebarRailItems(): SidebarRailItemSpec[] {
-  const map = usePluginStore((s) => s.sidebarRailItems);
-  return useMemo(
-    () =>
-      Array.from(map.values())
-        .map((o) => o.value)
-        .sort((a, b) => (a.order ?? 100) - (b.order ?? 100)),
-    [map],
-  );
+  return useSortedList(usePluginStore((s) => s.sidebarRailItems));
 }
 
 // ---------------------------------------------------------------------------
