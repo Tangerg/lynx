@@ -27,6 +27,7 @@ import {
   searchBlock,
 } from "./content-blocks";
 import commandPalette from "./command-palette";
+import globalKeymap from "./global-keymap";
 import {
   composerChips,
   composerHint,
@@ -169,7 +170,7 @@ const sidebar: PluginSpec[] = [
 const overlays: PluginSpec[] = [
   toaster, commandPalette, defaultCommands,
   statusPill, statusNotifications, welcomeScreen, topbarNewTab,
-  shortcuts,
+  shortcuts, globalKeymap,
   iconGallery,
 ];
 

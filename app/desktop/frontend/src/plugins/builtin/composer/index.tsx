@@ -58,11 +58,35 @@ export const composerKeymap = definePlugin({
   name: "lyra.builtin.composer-keymap",
   version: "1.0.0",
   setup({ host }) {
+    // Plain Enter sends; Shift+Enter is intentionally NOT registered so the
+    // browser's default newline behavior kicks in.
     host.composer.registerKeyBinding({
       key: "Enter",
       description: "Send the current message",
       handler: ({ submit }) => {
         submit();
+        return true;
+      },
+    });
+    // Mod+Enter mirrors Enter — the hint chip on the toolbar advertises
+    // "⌘↵ send", so users who learned that combo elsewhere don't get a
+    // dead key.
+    host.composer.registerKeyBinding({
+      key: "Mod+Enter",
+      description: "Send the current message",
+      handler: ({ submit }) => {
+        submit();
+        return true;
+      },
+    });
+    // Escape blurs the textarea so the user can keyboard-navigate out of
+    // the composer (e.g. to use Cmd+1..9 tab shortcuts which skip inputs
+    // by default).
+    host.composer.registerKeyBinding({
+      key: "Escape",
+      description: "Unfocus the composer",
+      handler: ({ event }) => {
+        (event.target as HTMLElement | null)?.blur();
         return true;
       },
     });

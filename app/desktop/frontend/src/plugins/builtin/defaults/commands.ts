@@ -9,6 +9,7 @@
 // it doesn't matter whether contributors load before or after — the
 // subscription catches up either way.
 
+import { queryClient } from "@/lib/queryClient";
 import {
   definePlugin,
   usePluginStore,
@@ -16,7 +17,37 @@ import {
   type ThemeAccentSpec,
   type WorkspaceViewSpec,
 } from "@/plugins/sdk";
+import type { SidebarSession } from "@/components/sidebar/types";
 import { useUIStore } from "@/state/uiStore";
+
+// "Close the currently-focused tab" — if the user is viewing a workspace
+// view in the main area, close that tab; otherwise close the active chat
+// session tab. Mirrors what the close-X glyph does in ChatTopBar.
+function closeFocusedTab(): void {
+  const ui = useUIStore.getState();
+  if (ui.activeMainView) {
+    ui.closeMainView(ui.activeMainView);
+  } else if (ui.activeSessionId) {
+    ui.closeTab(ui.activeSessionId);
+  }
+}
+
+// "Open a new chat tab" — pick the next session that isn't already in
+// the tab strip (mirrors topbar-new-tab's behavior). Returns silently
+// when every available session is already open.
+function openNewChatTab(): void {
+  const sessions = queryClient.getQueryData<SidebarSession[]>(["sessions"]) ?? [];
+  const tabIds = useUIStore.getState().tabIds;
+  const candidate = sessions.find((s) => !tabIds.includes(s.id));
+  if (candidate) useUIStore.getState().selectTab(candidate.id);
+}
+
+// "Focus the composer" — the composer textarea has a stable class name
+// (set by Composer.tsx); we DOM-query rather than threading a ref through
+// half the tree just for one shortcut.
+function focusComposer(): void {
+  document.querySelector<HTMLTextAreaElement>(".composer-input")?.focus();
+}
 
 export const defaultCommands = definePlugin({
   name: "lyra.builtin.default-commands",
@@ -29,6 +60,7 @@ export const defaultCommands = definePlugin({
       group: "View",
       keywords: ["collapse", "expand"],
       order: 0,
+      shortcut: "⌘B",
       run: () => useUIStore.getState().toggleSidebar(),
     });
 
@@ -38,7 +70,41 @@ export const defaultCommands = definePlugin({
       icon: "moon",
       group: "Theme",
       order: 0,
+      shortcut: "⌘⇧L",
       run: () => useUIStore.getState().toggleTheme(),
+    });
+
+    host.commands.register({
+      id: "chat.new",
+      label: "New chat tab",
+      icon: "plus",
+      group: "Chat",
+      keywords: ["session", "tab", "open"],
+      order: 0,
+      shortcut: "⌘N",
+      run: openNewChatTab,
+    });
+
+    host.commands.register({
+      id: "chat.close-tab",
+      label: "Close current tab",
+      icon: "x",
+      group: "Chat",
+      keywords: ["dismiss"],
+      order: 1,
+      shortcut: "⌘W",
+      run: closeFocusedTab,
+    });
+
+    host.commands.register({
+      id: "composer.focus",
+      label: "Focus composer",
+      icon: "edit",
+      group: "Composer",
+      keywords: ["input", "write"],
+      order: 0,
+      shortcut: "⌘L",
+      run: focusComposer,
     });
 
     // Dynamic commands: rebuild from the workspaceViews + accents registry
