@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { cn } from "./cn";
+import { cn } from "@/lib/utils";
 
 type Variant =
   | "msg-agent"   // chat message avatar, agent side (handled by .msg.agent rule)

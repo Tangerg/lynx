@@ -1,5 +1,5 @@
 import type { ButtonHTMLAttributes, CSSProperties, ReactNode } from "react";
-import { cn } from "./cn";
+import { cn } from "@/lib/utils";
 
 type Variant = "outlined" | "solid" | "accent" | "danger";
 

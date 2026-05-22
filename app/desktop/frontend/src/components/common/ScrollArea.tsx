@@ -1,5 +1,5 @@
 import { forwardRef, type CSSProperties, type ReactNode } from "react";
-import { cn } from "./cn";
+import { cn } from "@/lib/utils";
 
 type Props = {
   className?: string;

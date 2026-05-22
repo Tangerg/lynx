@@ -1,5 +1,5 @@
 import type { ButtonHTMLAttributes, ReactNode } from "react";
-import { cn } from "./cn";
+import { cn } from "@/lib/utils";
 
 type Variant = "ghost" | "rail" | "rail-primary";
 
