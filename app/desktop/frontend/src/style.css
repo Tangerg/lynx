@@ -1197,6 +1197,32 @@ html.theme-light .ig-glyph { background: var(--color-surface-2); }
   color: var(--color-text-soft);
   white-space: pre;
 }
+/* Fold toggle — replaces the body when the block is folded, also
+   appears at the bottom of expanded long blocks so the user can re-fold
+   without scrolling back to the header. */
+.shiki-fold-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  padding: 10px 16px;
+  background: transparent;
+  border: none;
+  border-top: 1px solid color-mix(in srgb, var(--color-text) 7%, transparent);
+  color: var(--color-text-muted);
+  font-family: var(--font-ui);
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: background var(--polish-fast), color var(--polish-fast);
+}
+.shiki-fold-toggle:hover {
+  background: color-mix(in srgb, var(--color-text) 4%, transparent);
+  color: var(--color-text);
+}
+.shiki-block.folded .shiki-fold-toggle { border-top: none; }
 /* Thinner internal scrollbars so the card frame stays clean. */
 .shiki-block .shiki::-webkit-scrollbar,
 .shiki-block .shiki-fallback::-webkit-scrollbar { height: 8px; width: 8px; }
@@ -1220,9 +1246,50 @@ html.theme-light .ig-glyph { background: var(--color-surface-2); }
   overflow-x: auto;
   text-align: center;
 }
+.mermaid-block {
+  cursor: zoom-in;
+  transition: border-color var(--polish-fast);
+}
+.mermaid-block:hover {
+  border-color: color-mix(in srgb, var(--color-accent) 30%, transparent);
+}
 .mermaid-block svg {
   max-width: 100%;
   height: auto;
+}
+
+/* Lightbox — click the diagram, get a full-window overlay with the SVG
+   at its native scale. Backdrop click and Escape both close. */
+.mermaid-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: color-mix(in srgb, #000 60%, transparent);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: grid;
+  place-items: center;
+  padding: 40px;
+  cursor: zoom-out;
+}
+.mermaid-lightbox-frame {
+  max-width: min(1400px, 95vw);
+  max-height: 90vh;
+  overflow: auto;
+  background: var(--color-surface);
+  border: 1px solid var(--hairline-3);
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: var(--shadow-lg);
+  cursor: default;
+}
+.mermaid-lightbox-frame svg {
+  display: block;
+  margin: 0 auto;
+  max-width: none;
+}
+html.theme-light .mermaid-lightbox {
+  background: color-mix(in srgb, #000 25%, transparent);
 }
 .mermaid-block-error {
   margin: 14px 0;

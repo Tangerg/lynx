@@ -1,7 +1,9 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { AnimatePresence, motion } from "motion/react";
 import { renderMermaidSVG } from "beautiful-mermaid";
 import { useDebouncedValue } from "@/lib/useDebouncedValue";
 import { useUIStore } from "@/state/uiStore";
+import { popIn, swift } from "@/lib/motion";
 
 type Props = {
   code: string;
@@ -77,8 +79,62 @@ export function MermaidBlock({ code }: Props) {
     }
   }, [debouncedCode, isSettling, theme, accent]);
 
+  const [zoomed, setZoomed] = useState(false);
+
+  // Esc closes the lightbox — only bind the listener while it's open so
+  // we don't compete with other Escape handlers (composer, palette).
+  useEffect(() => {
+    if (!zoomed) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setZoomed(false);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [zoomed]);
+
   if (svg) {
-    return <div className="mermaid-block" dangerouslySetInnerHTML={{ __html: svg }} />;
+    return (
+      <>
+        <div
+          className="mermaid-block"
+          role="button"
+          tabIndex={0}
+          title="Click to enlarge"
+          onClick={() => setZoomed(true)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              setZoomed(true);
+            }
+          }}
+          dangerouslySetInnerHTML={{ __html: svg }}
+        />
+        <AnimatePresence>
+          {zoomed && (
+            <motion.div
+              className="mermaid-lightbox"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={swift}
+              onClick={() => setZoomed(false)}
+              role="dialog"
+              aria-modal="true"
+            >
+              <motion.div
+                className="mermaid-lightbox-frame"
+                {...popIn}
+                onClick={(e) => e.stopPropagation()}
+                dangerouslySetInnerHTML={{ __html: svg }}
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </>
+    );
   }
 
   // Streaming or genuinely-broken source. Show the in-progress source as

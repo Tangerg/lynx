@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef } from "react";
-import { Chip, Icon, type IconName } from "@/components/common";
+import { Chip, Icon, Segmented, type IconName } from "@/components/common";
 import { Slot } from "@/plugins/Slot";
 import {
   lookupComposerKeyBinding,
@@ -57,7 +57,12 @@ export function Composer({
       {attachments.length > 0 && (
         <div className="composer-chips">
           {attachments.map((a, i) => (
-            <Chip key={i} icon={a.icon ?? "file"} onClose={() => onRemoveAttachment(i)}>
+            <Chip
+              key={i}
+              icon={a.icon ?? "file"}
+              title={a.label}
+              onClose={() => onRemoveAttachment(i)}
+            >
               {a.label}
             </Chip>
           ))}
@@ -93,40 +98,25 @@ export function Composer({
       />
       <div className="composer-toolbar">
         <Slot name="composer.toolbar.start" />
-        {modes.map((m) => (
-          <ModeBtn
-            key={m.id}
-            icon={(m.icon as IconName) ?? "spark"}
-            label={m.label}
-            title={m.title}
-            current={mode}
-            value={m.id}
+        {modes.length > 0 && (
+          <Segmented
+            value={mode}
             onChange={onModeChange}
+            options={modes.map((m) => ({
+              value: m.id,
+              label: (
+                <>
+                  <Icon name={(m.icon as IconName) ?? "spark"} size={12} />
+                  <span>{m.label}</span>
+                </>
+              ),
+            }))}
           />
-        ))}
+        )}
         <div className="spacer" />
         <Slot name="composer.toolbar.end" />
       </div>
     </div>
-  );
-}
-
-function ModeBtn({
-  icon, label, title, current, value, onChange,
-}: {
-  icon: IconName; label: string;
-  title?: string;
-  current: ComposerMode; value: ComposerMode;
-  onChange: (m: ComposerMode) => void;
-}) {
-  return (
-    <button
-      className={`composer-tool-btn ${current === value ? "active" : ""}`}
-      onClick={() => onChange(value)}
-      title={title ?? `${label} mode`}
-    >
-      <Icon name={icon} size={12} />{label}
-    </button>
   );
 }
 
@@ -147,7 +137,11 @@ function SourceChips({ source }: { source: AttachmentSource }) {
   return (
     <>
       {items.map((a, i) => (
-        <Chip key={`${source.id}:${i}`} icon={(a.icon as IconName | undefined) ?? "file"}>
+        <Chip
+          key={`${source.id}:${i}`}
+          icon={(a.icon as IconName | undefined) ?? "file"}
+          title={a.label}
+        >
           {a.label}
         </Chip>
       ))}

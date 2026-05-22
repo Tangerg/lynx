@@ -27,6 +27,11 @@ type Props = {
 // the user is either between paragraphs or the block has closed. The
 // LIVE code (pre-debounce) shows in a plain `<pre>` fallback in the
 // meantime, which doubles as the loading state on first paint.
+// Blocks longer than this default to collapsed (only while not streaming).
+// Below the threshold we render in full so short snippets aren't hidden
+// behind a click.
+const FOLD_LINE_THRESHOLD = 24;
+
 export function ShikiCodeBlock({ lang, code, file }: Props) {
   const theme = useUIStore((s) => s.theme);
   const shikiTheme = theme === "light" ? "github-light" : "github-dark";
@@ -36,6 +41,13 @@ export function ShikiCodeBlock({ lang, code, file }: Props) {
 
   const [html, setHtml] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+
+  const lineCount = useMemo(() => code.split("\n").length, [code]);
+  // Auto-fold rules: long block + stream has settled + user hasn't expanded.
+  // While the code is still streaming we leave it open — collapsing a
+  // growing block hides the agent's progress.
+  const folded = !expanded && !isSettling && lineCount > FOLD_LINE_THRESHOLD;
 
   useEffect(() => {
     let cancelled = false;
@@ -80,7 +92,7 @@ export function ShikiCodeBlock({ lang, code, file }: Props) {
   const showHighlighted = !isSettling && html !== null;
 
   return (
-    <div className="shiki-block">
+    <div className={`shiki-block ${folded ? "folded" : ""}`}>
       <div className="shiki-block-head">
         <span className="lang">{displayLang}</span>
         {file ? <span className="fname">{file}</span> : <span aria-hidden="true" />}
@@ -94,10 +106,35 @@ export function ShikiCodeBlock({ lang, code, file }: Props) {
           {copied ? "Copied" : "Copy"}
         </button>
       </div>
-      {showHighlighted ? (
-        <div className="shiki-body" dangerouslySetInnerHTML={{ __html: html! }} />
+      {folded ? (
+        <button
+          className="shiki-fold-toggle"
+          type="button"
+          onClick={() => setExpanded(true)}
+          title="Expand code block"
+        >
+          <Icon name="code" size={12} />
+          <span>Show {lineCount} lines</span>
+        </button>
       ) : (
-        <pre className="shiki-body shiki-fallback">{code}</pre>
+        <>
+          {showHighlighted ? (
+            <div className="shiki-body" dangerouslySetInnerHTML={{ __html: html! }} />
+          ) : (
+            <pre className="shiki-body shiki-fallback">{code}</pre>
+          )}
+          {lineCount > FOLD_LINE_THRESHOLD && !isSettling && (
+            <button
+              className="shiki-fold-toggle bottom"
+              type="button"
+              onClick={() => setExpanded(false)}
+              title="Collapse code block"
+            >
+              <Icon name="minimize" size={12} />
+              <span>Collapse</span>
+            </button>
+          )}
+        </>
       )}
     </div>
   );

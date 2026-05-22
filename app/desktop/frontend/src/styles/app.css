@@ -1165,13 +1165,24 @@ html.theme-light .msg.user .msg-content {
   color: var(--color-text-muted);
   font-family: var(--font-mono);
 }
+.composer-chip .chip-label {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .composer-chip .x {
   width: 16px; height: 16px;
   display: grid; place-items: center;
   border-radius: 50%;
   cursor: pointer;
   color: var(--color-text-faint);
+  opacity: 0;
+  transform: scale(0.85);
+  transition: opacity var(--polish-fast), transform var(--polish-fast), background var(--polish-fast), color var(--polish-fast);
 }
+.composer-chip:hover .x,
+.composer-chip:focus-within .x { opacity: 1; transform: scale(1); }
 .composer-chip .x:hover { background: #2f2f2f; color: var(--color-text); }
 
 .composer-input {
@@ -1210,6 +1221,61 @@ html.theme-light .msg.user .msg-content {
   .composer-toolbar .meta { display: inline; }
 }
 .composer-toolbar .meta .accent { color: var(--color-accent); }
+
+/* Cheat sheet — hover the inline ⌘K / ⌘↵ hint to reveal the full
+   shortcut list. Floats above the composer with a soft fade-up. */
+.composer-toolbar .key-hint { position: relative; cursor: default; }
+.composer-toolbar .key-cheatsheet {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  right: 0;
+  background: var(--color-surface);
+  border: 1px solid var(--hairline-3);
+  border-radius: 8px;
+  padding: 10px 12px;
+  box-shadow: var(--shadow-md);
+  min-width: 220px;
+  z-index: 50;
+  opacity: 0;
+  transform: translateY(4px);
+  pointer-events: none;
+  transition: opacity var(--polish-fast), transform var(--polish-fast);
+  font-family: var(--font-ui);
+  letter-spacing: 0;
+  color: var(--color-text);
+}
+.composer-toolbar .key-hint:hover .key-cheatsheet,
+.composer-toolbar .key-hint:focus-within .key-cheatsheet {
+  opacity: 1;
+  transform: translateY(0);
+}
+.composer-toolbar .key-cheatsheet-title {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-text-faint);
+  margin-bottom: 6px;
+}
+.composer-toolbar .key-cheat-row {
+  display: grid;
+  grid-template-columns: 64px 1fr;
+  gap: 10px;
+  align-items: center;
+  padding: 3px 0;
+  font-size: 11.5px;
+}
+.composer-toolbar .key-cheat-row kbd {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--color-text-soft);
+  background: var(--hairline-2);
+  border: 1px solid var(--hairline-3);
+  border-radius: 4px;
+  padding: 1px 5px;
+  text-align: center;
+}
+.composer-toolbar .key-cheat-row span { color: var(--color-text-muted); }
 
 .send-btn {
   width: 32px; height: 32px;
@@ -1823,7 +1889,7 @@ html.theme-light .theme-toggle:hover {
   color: var(--color-text-muted);
   font-weight: var(--fw-semibold);
 }
-.settings-popover .sp-segmented {
+.sp-segmented {
   display: flex;
   background: var(--color-bg);
   border: 1px solid #1f1f1f;
@@ -1831,7 +1897,7 @@ html.theme-light .theme-toggle:hover {
   padding: 2px;
   gap: 2px;
 }
-.settings-popover .sp-seg {
+.sp-seg {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1849,16 +1915,16 @@ html.theme-light .theme-toggle:hover {
   border-radius: 3px;
   transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
 }
-.settings-popover .sp-seg:hover { color: var(--color-text); }
-.settings-popover .sp-seg.active {
+.sp-seg:hover { color: var(--color-text); }
+.sp-seg.active {
   background: var(--color-surface-2);
   color: var(--color-text);
 }
 .settings-popover .accent-swatches { justify-content: flex-start; }
 
 html.theme-light .settings-popover { background: var(--color-surface); border-color: var(--color-border); }
-html.theme-light .settings-popover .sp-segmented { background: var(--color-surface-2); border-color: var(--color-border); }
-html.theme-light .settings-popover .sp-seg.active { background: var(--color-surface); }
+html.theme-light .sp-segmented { background: var(--color-surface-2); border-color: var(--color-border); }
+html.theme-light .sp-seg.active { background: var(--color-surface); }
 html.theme-light .user-action.open { background: var(--color-surface-2); }
 
 /* Expanded sidebar — brand toggle button */
