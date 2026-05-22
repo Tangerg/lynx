@@ -17,6 +17,7 @@ func (a *App) RootCmd() *cobra.Command {
 		a.ChatCmd(),
 		a.ReplCmd(),
 		a.MemoryCmd(),
+		a.ServeCmd(),
 		a.SessionCmd(),
 		a.VersionCmd(),
 	)
