@@ -25,8 +25,3 @@ export const useComposerStore = create<ComposerState & ComposerActions>((set) =>
   removeAttachment: (i) => set((s) => ({ attachments: s.attachments.filter((_, idx) => idx !== i) })),
   addAttachment: (a) => set((s) => ({ attachments: [...s.attachments, a] })),
 }));
-
-// Default sample chips used to live here as the initial `attachments`
-// array. They moved into `lyra.builtin.sample-attachments` (a plugin-
-// contributed attachment source); the store itself now starts empty,
-// reflecting "the user hasn't attached anything yet".
