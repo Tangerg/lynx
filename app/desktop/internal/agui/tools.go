@@ -10,7 +10,7 @@ import (
 // the periodic telemetry payload. The DSL's RunTool() step delegates
 // here; ad-hoc Tool() lives in dsl.go and assembles its events inline.
 
-// fireTool runs a scripted tool by id (from toolScript in mock_script.go)
+// fireTool runs a scripted tool by id (from toolScript in refactor_demo_data.go)
 // against the current assistant message. Used by RunTool() in dsl.go and
 // by the canned follow-up reply in reply.go.
 func fireTool(ctx context.Context, send sender, parentMessageID, toolID string) bool {

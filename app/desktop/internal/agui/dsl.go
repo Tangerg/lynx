@@ -137,7 +137,7 @@ func (s thinkStep) Run(e *env) bool {
 
 // RunTool fires a scripted tool from `toolScript` by id. Use this for
 // canned demo tools (read_file, grep, web_search, etc.) that already have
-// args + duration + summary set up in mock_script.go.
+// args + duration + summary set up in refactor_demo_data.go.
 func RunTool(id string) Step { return toolStep{id} }
 
 type toolStep struct{ id string }

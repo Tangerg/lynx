@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { Icon } from "@/components/common";
-import { FadeInText } from "@/components/chat/FadeInText";
+import { MarkdownMessage } from "@/components/chat/MarkdownMessage";
 import { swift } from "@/lib/motion";
 
 type Props = {
@@ -42,7 +42,7 @@ export function ReasoningBlock({ text, streaming }: Props) {
             style={{ overflow: "hidden" }}
           >
             <div className="reasoning-body">
-              <FadeInText text={text} streaming={streaming} />
+              <MarkdownMessage text={text} streaming={streaming} />
             </div>
           </motion.div>
         )}

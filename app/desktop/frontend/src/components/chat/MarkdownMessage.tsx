@@ -21,8 +21,8 @@ type Props = {
 // keeps react-markdown from treating each render as a new plugin set.
 const remarkPlugins = [remarkGfm];
 
-// FadeInText renders streaming text as full Markdown with per-word
-// fade-in.
+// MarkdownMessage — renders one message's body as full Markdown, with
+// optional smooth-streamed per-word fade-in.
 //
 // Pipeline:
 //   raw text
@@ -43,7 +43,7 @@ const remarkPlugins = [remarkGfm];
 // When `instant` is true, smoothing is bypassed and rehypeFadeIn is
 // dropped from the pipeline — the text renders as plain Markdown with
 // zero animation (used for user-typed messages).
-export function FadeInText({ text, streaming, instant }: Props) {
+export function MarkdownMessage({ text, streaming, instant }: Props) {
   // Hook must run unconditionally; when `instant`, pass enabled=false so
   // it jumps to full length and idles.
   const smoothed = useSmoothText(text, !instant && !!streaming);

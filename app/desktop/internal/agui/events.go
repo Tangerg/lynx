@@ -44,5 +44,5 @@ type reasoningStart struct {
 
 func (e *reasoningStart) ToJSON() ([]byte, error) { return json.Marshal(e) }
 
-// IntPtr is kept for the mock_script.go literal table.
+// IntPtr is kept for the refactor_demo_data.go literal table.
 func IntPtr(v int) *int { return &v }

@@ -26,10 +26,6 @@ export function pluginOrigin(name: string): "builtin" | "sideload" {
   return pluginOrigins.get(name) ?? "builtin";
 }
 
-export function markBuiltin(name: string): void {
-  pluginOrigins.set(name, "builtin");
-}
-
 async function fetchSideloadList(): Promise<SideloadInfo[]> {
   const res = await fetch(`${AGUI_BASE}/plugins`);
   if (!res.ok) throw new Error(`GET /plugins → ${res.status}`);
