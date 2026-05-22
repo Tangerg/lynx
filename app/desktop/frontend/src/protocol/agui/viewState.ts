@@ -89,11 +89,17 @@ export type RunState = {
   cost: string;
 };
 
+/** Last error reported by the agent — RUN_ERROR event payload. UI shows
+ *  this as a dismissible banner above the message stream. Cleared the
+ *  next time RUN_STARTED fires. */
+export type RunError = { message: string; code?: string };
+
 export type AgentViewState = {
   messages: Message[];
   toolCalls: Record<string, ToolCall>;
   plan: PlanItem[];
   run: RunState;
+  error: RunError | null;
 };
 
 export const INITIAL_VIEW_STATE: AgentViewState = {
@@ -111,4 +117,5 @@ export const INITIAL_VIEW_STATE: AgentViewState = {
     ctxPct: 0,
     cost: "0.00",
   },
+  error: null,
 };

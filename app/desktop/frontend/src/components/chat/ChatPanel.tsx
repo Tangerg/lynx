@@ -22,6 +22,7 @@ import { ChatErrorBoundary } from "./ChatErrorBoundary";
 import { ChatTopBar, type ChatTab } from "./ChatTopBar";
 import { JumpToBottomButton } from "./JumpToBottomButton";
 import { MessageStream, type StreamControls } from "./MessageStream";
+import { RunErrorBanner } from "./RunErrorBanner";
 import { SlashSuggestions } from "./SlashSuggestions";
 import { Composer, type ComposerMode } from "./Composer";
 import { ComposerFooter } from "./ComposerFooter";
@@ -132,6 +133,7 @@ export function ChatPanel({ onSend }: Props) {
         </PluginBoundary>
       ) : (
         <>
+          <RunErrorBanner />
           <ChatErrorBoundary
             resetKey={activeSession}
             label={`session:${activeSession}`}

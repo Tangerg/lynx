@@ -51,6 +51,8 @@ type AgentStore = {
   setStop: (sessionId: string, fn: StopFn) => void;
   /** Bind / unbind the imperative send action for a session. */
   setSend: (sessionId: string, fn: SendFn) => void;
+  /** Dismiss the error banner for a session without resetting the rest. */
+  clearError: (sessionId: string) => void;
 };
 
 const emptyEntry = (): SessionEntry => ({
@@ -81,6 +83,16 @@ export const useAgentStore = create<AgentStore>((set) => ({
     set((s) => ({ sessions: patch(s.sessions, sessionId, { stop: fn }) })),
   setSend: (sessionId, fn) =>
     set((s) => ({ sessions: patch(s.sessions, sessionId, { send: fn }) })),
+  clearError: (sessionId) =>
+    set((s) => {
+      const prev = s.sessions[sessionId];
+      if (!prev) return s;
+      return {
+        sessions: patch(s.sessions, sessionId, {
+          view: { ...prev.view, error: null },
+        }),
+      };
+    }),
 }));
 
 // ---------------------------------------------------------------------------

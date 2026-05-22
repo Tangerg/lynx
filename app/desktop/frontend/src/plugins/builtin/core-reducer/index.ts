@@ -11,7 +11,9 @@ import {
   type ReasoningMessageContentEvent,
   type ReasoningMessageEndEvent,
   type ReasoningMessageStartEvent,
+  type RunErrorEvent,
   type RunStartedEvent,
+  type StepFinishedEvent,
   type StepStartedEvent,
   type TextMessageContentEvent,
   type TextMessageEndEvent,
@@ -115,7 +117,31 @@ function findLastAssistantMessageId(state: AgentViewState): string | null {
 
 const onRunStarted = (state: AgentViewState, ev: RunStartedEvent): AgentViewState => ({
   ...state,
+  // Clear the previous run's error banner on a fresh start — once the
+  // agent is moving again, the stale message would just confuse.
+  error: null,
   run: { ...state.run, running: true, threadId: ev.threadId, runId: ev.runId },
+});
+
+const onRunError = (state: AgentViewState, ev: RunErrorEvent): AgentViewState => ({
+  ...state,
+  error: { message: ev.message, code: ev.code },
+  run: { ...state.run, running: false, activity: "" },
+});
+
+// STEP_FINISHED: the named step the agent announced via STEP_STARTED is
+// done. We mirror onStepStarted's effect on `activity` (the topbar
+// "what is the agent doing" pill) by clearing it — keeping the old step
+// name visible after it finishes is misleading. Step counter bumps so
+// downstream UI can show "step N / M" if it cares.
+const onStepFinished = (state: AgentViewState, ev: StepFinishedEvent): AgentViewState => ({
+  ...state,
+  run: {
+    ...state.run,
+    step: state.run.step + 1,
+    // Only clear if it matches — defensive against out-of-order events.
+    activity: state.run.activity === ev.stepName ? "" : state.run.activity,
+  },
 });
 
 const onRunFinished = (state: AgentViewState): AgentViewState => ({
@@ -225,8 +251,9 @@ export default definePlugin({
     // Run lifecycle.
     host.agui.onCore(EventType.RUN_STARTED, (s, ev) => onRunStarted(s, ev as RunStartedEvent));
     host.agui.onCore(EventType.RUN_FINISHED, onRunFinished);
-    host.agui.onCore(EventType.RUN_ERROR, onRunFinished);
+    host.agui.onCore(EventType.RUN_ERROR, (s, ev) => onRunError(s, ev as RunErrorEvent));
     host.agui.onCore(EventType.STEP_STARTED, (s, ev) => onStepStarted(s, ev as StepStartedEvent));
+    host.agui.onCore(EventType.STEP_FINISHED, (s, ev) => onStepFinished(s, ev as StepFinishedEvent));
 
     // Text messages.
     host.agui.onCore(EventType.TEXT_MESSAGE_START,   (s, ev) => onTextStart  (s, ev as TextMessageStartEvent));

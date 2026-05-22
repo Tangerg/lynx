@@ -103,6 +103,53 @@ html.theme-light .user-avatar {
   box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.04);
 }
 
+/* Run-error banner — surfaces AG-UI RUN_ERROR. Lives above the message
+   stream; dismissible. Tinted with --color-negative so it reads as a
+   stoppable problem, not a passing notice. */
+.run-error {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: start;
+  gap: 10px;
+  margin: 10px 16px 4px 16px;
+  padding: 10px 12px;
+  background: color-mix(in srgb, var(--color-negative) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-negative) 35%, transparent);
+  border-radius: 8px;
+  color: var(--color-text);
+  font-family: var(--font-ui);
+}
+.run-error > svg { color: var(--color-negative); margin-top: 2px; }
+.run-error-body { min-width: 0; }
+.run-error-title {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--color-negative);
+  margin-bottom: 2px;
+}
+.run-error-message {
+  font-size: 13px;
+  color: var(--color-text-soft);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.run-error-dismiss {
+  background: transparent;
+  border: none;
+  color: var(--color-text-faint);
+  cursor: pointer;
+  width: 22px; height: 22px;
+  display: grid; place-items: center;
+  border-radius: 4px;
+  transition: background var(--polish-fast), color var(--polish-fast), transform var(--polish-fast);
+}
+.run-error-dismiss:hover {
+  background: color-mix(in srgb, var(--color-text) 10%, transparent);
+  color: var(--color-text);
+}
+.run-error-dismiss:active { transform: scale(0.9); }
+
 /* Composer focus ring — stronger accent halo when the textarea is
    active, so users can clearly see "I'm typing here". */
 .composer:focus-within {
