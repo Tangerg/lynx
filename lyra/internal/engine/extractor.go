@@ -44,7 +44,7 @@ func newExtractor(store memory.Store, memSvc lyramem.Service, client *chat.Clien
 // memory service (LYRA.md disabled), or when the conversation is
 // still too short to be worth mining.
 func (e *extractor) maybeExtract(ctx context.Context, sessionID string) error {
-	if e == nil || e.memSvc == nil || e.client == nil || e.store == nil || sessionID == "" {
+	if e == nil || sessionID == "" {
 		return nil
 	}
 	msgs, err := e.store.Read(ctx, sessionID)

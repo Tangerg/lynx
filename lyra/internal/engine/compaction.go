@@ -73,7 +73,7 @@ func newCompactor(store memory.Store, client *chat.Client, cfg CompactionConfig)
 // — otherwise the summarisation request itself would be appended
 // to the history and trigger another compaction round.
 func (c *compactor) maybeCompact(ctx context.Context, sessionID string) (bool, error) {
-	if c == nil || c.store == nil || c.client == nil || sessionID == "" {
+	if c == nil || sessionID == "" {
 		return false, nil
 	}
 	msgs, err := c.store.Read(ctx, sessionID)

@@ -110,39 +110,6 @@ func (s *FileMemoryService) Update(_ context.Context, scope memory.Scope, conten
 	return nil
 }
 
-// Append adds content to the existing memory under scope without
-// rewriting the rest. Used by the auto-extract path (M5.3) where
-// each turn contributes a small note. Empty content is a no-op.
-//
-// Lives on the concrete type rather than the memory.Service
-// interface — the Service surface stays minimal (Get / Update /
-// List); append-style mutations are an implementation convenience
-// the engine reaches for directly.
-func (s *FileMemoryService) Append(_ context.Context, scope memory.Scope, content string) error {
-	if content == "" {
-		return nil
-	}
-	path := s.pathFor(scope)
-	if path == "" {
-		return fmt.Errorf("memory store: scope %d unavailable", scope)
-	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return fmt.Errorf("memory store: mkdir: %w", err)
-	}
-	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
-	if err != nil {
-		return fmt.Errorf("memory store: open %q: %w", path, err)
-	}
-	defer f.Close()
-	if _, err := f.WriteString(content); err != nil {
-		return fmt.Errorf("memory store: append: %w", err)
-	}
-	return nil
-}
-
 // List returns one [memory.Entry] per scope that has content. Empty
 // scopes are skipped — the UI shouldn't render placeholder entries
 // for files that don't exist yet.

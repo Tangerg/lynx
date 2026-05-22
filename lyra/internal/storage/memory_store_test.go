@@ -57,20 +57,6 @@ func TestFileMemoryService_PersistsAcrossInstances(t *testing.T) {
 	}
 }
 
-func TestFileMemoryService_AppendNonDestructive(t *testing.T) {
-	t.Setenv("LYRA_HOME", t.TempDir())
-	svc, _ := storage.NewFileMemoryService()
-	ctx := context.Background()
-
-	_ = svc.Update(ctx, memory.ScopeUser, "line one\n")
-	_ = svc.Append(ctx, memory.ScopeUser, "line two\n")
-
-	got, _ := svc.Get(ctx, memory.ScopeUser)
-	if got != "line one\nline two\n" {
-		t.Errorf("Append produced %q", got)
-	}
-}
-
 func TestFileMemoryService_List_SkipsEmptyScopes(t *testing.T) {
 	t.Setenv("LYRA_HOME", t.TempDir())
 	svc, _ := storage.NewFileMemoryService()

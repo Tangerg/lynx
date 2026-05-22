@@ -39,7 +39,7 @@ func newPlanner(client *chat.Client) *planner {
 // than blocking on a missing plan — the caller (chat.Service)
 // decides whether to surface the error or proceed.
 func (p *planner) Plan(ctx context.Context, systemPrompt, userMessage string) (string, error) {
-	if p == nil || p.client == nil {
+	if p == nil {
 		return "", fmt.Errorf("planner: chat client missing")
 	}
 
