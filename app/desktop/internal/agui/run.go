@@ -11,20 +11,21 @@ import (
 // AG-UI mock entry point + transport-layer types.
 //
 // Where everything lives in this package:
-//   - server.go     — HTTP listener, /run handler, CORS
-//   - mock.go       — Run() dispatcher + RunAgentInput/sender (this file)
-//   - streaming.go  — pause + streamText / streamReasoning / streamToolArgs
-//   - tools.go      — fireTool (scripted) + telemetry payload helper
-//   - dsl.go        — Step interface + DSL primitives (Say/Think/Pause/...)
-//   - demos.go      — threadId → []Step registry + s1 refactor script
-//   - demos_zh.go   — Chinese non-coding demo scripts (s2-s7)
-//   - reply.go      — runReply (canned follow-up turn)
-//   - mock_script.go — text constants + tool/plan/search data for the
-//                      s1 refactor demo (referenced by demos.go)
-//   - events.go     — typed extensions over the community SDK's events
-//   - rest.go       — REST endpoints (sessions, projects, terminal, …)
-//   - artifacts.go  — static data served via REST
-//   - plugins.go    — sideloaded plugin manifest + asset serving
+//   - server.go              — HTTP listener, /run handler, CORS
+//   - run.go                 — Run() dispatcher + RunAgentInput/sender (this file)
+//   - streaming.go           — pause + streamText / streamReasoning / streamToolArgs
+//   - tools.go               — fireTool (scripted) + telemetry payload helper
+//   - dsl.go                 — Step interface + DSL primitives (Say/Think/Pause/...)
+//   - demos.go               — threadId → []Step registry + s1 refactor script
+//   - demos_zh.go            — Chinese non-coding demo scripts (s2-s7)
+//   - reply.go               — runReply (canned follow-up turn)
+//   - refactor_demo_data.go  — text constants + tool/plan/search data for the
+//                              s1 refactor demo (referenced by demos.go)
+//   - events.go              — typed extensions over the community SDK's events
+//   - permissions.go         — HITL chan-based approval store
+//   - rest.go                — REST endpoints (sessions, projects, terminal, …)
+//   - artifacts.go           — static data served via REST
+//   - plugins.go             — sideloaded plugin manifest + asset serving
 
 // RunAgentInput — body posted to /run. Only the fields we use are decoded;
 // the rest is ignored (passthrough is fine).

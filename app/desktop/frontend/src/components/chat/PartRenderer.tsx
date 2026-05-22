@@ -1,5 +1,5 @@
 import type { ContentBlock, PlanItem, ToolCall } from "@/protocol/agui/viewState";
-import { FadeInText } from "@/components/chat/FadeInText";
+import { MarkdownMessage } from "@/components/chat/MarkdownMessage";
 import { ToolCard } from "@/components/tools/ToolCard";
 import { PluginContentBlock } from "@/plugins/PluginContentBlock";
 import { openViewForTool } from "@/state/toolRouting";
@@ -42,7 +42,7 @@ export function renderPart(block: ContentBlock, key: number, ctx: PartCtx) {
     case "text":
       return (
         <p key={key} className={block.streaming && !ctx.instant ? "streaming" : undefined}>
-          <FadeInText text={block.text} streaming={block.streaming} instant={ctx.instant} />
+          <MarkdownMessage text={block.text} streaming={block.streaming} instant={ctx.instant} />
         </p>
       );
 

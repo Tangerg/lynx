@@ -2642,9 +2642,6 @@ html.theme-light .side-section-head .add { background: var(--color-surface-2); c
 html.theme-light .side-section-head .add:hover { background: var(--color-surface-3); color: var(--color-text); }
 html.theme-light .session-sub .status-dot { background: var(--color-text-faint); }
 
-/* Streaming cursor */
-html.theme-light .streaming .cursor { background: var(--color-accent); }
-
 /* Approval pill button accent */
 html.theme-light .pill-btn.accent { background: var(--color-accent); color: #fff; border-color: var(--color-accent); }
 
