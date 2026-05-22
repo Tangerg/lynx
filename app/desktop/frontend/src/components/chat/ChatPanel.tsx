@@ -9,20 +9,19 @@
 //            live AG-UI agent). Kept as a prop so ChatPanel itself has
 //            no opinion about *how* messages get to the agent.
 
-import { useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Panel } from "@/components/common";
 import { PluginBoundary } from "@/plugins/PluginBoundary";
 import { Slot } from "@/plugins/Slot";
 import { useWorkspaceViews } from "@/plugins/sdk";
 import { useSessions } from "@/lib/queries";
-import { useStickyBottomScroll } from "@/lib/useStickyBottomScroll";
 import { useAgentSlice } from "@/state/agentStore";
 import { useComposerStore } from "@/state/composerStore";
 import { useUIStore } from "@/state/uiStore";
 import { ChatErrorBoundary } from "./ChatErrorBoundary";
 import { ChatTopBar, type ChatTab } from "./ChatTopBar";
 import { JumpToBottomButton } from "./JumpToBottomButton";
-import { MessageStream } from "./MessageStream";
+import { MessageStream, type StreamControls } from "./MessageStream";
 import { SlashSuggestions } from "./SlashSuggestions";
 import { Composer, type ComposerMode } from "./Composer";
 import { ComposerFooter } from "./ComposerFooter";
@@ -34,8 +33,6 @@ type Props = {
 };
 
 export function ChatPanel({ onSend }: Props) {
-  const scrollRef = useRef<HTMLDivElement>(null);
-
   // ---- agent state (scoped to the current session) ----
   const messages = useAgentSlice((v) => v.messages);
   const plan = useAgentSlice((v) => v.plan);
@@ -79,13 +76,16 @@ export function ChatPanel({ onSend }: Props) {
   );
 
   // ---- side effects ----
-  // Sticky-bottom auto-scroll. Hook owns: scroll/wheel/touch/mousedown
-  // listeners, the user-vs-programmatic-scroll discrimination, and the
-  // ResizeObserver that triggers follow scrolls on content growth.
-  // `activeSession` resets follow mode + snaps to bottom on session swap.
-  // Returns `atBottom` (mirrored React state) so we can show / hide the
-  // jump-to-bottom button, plus `scrollToBottom` for that button's click.
-  const { atBottom, scrollToBottom } = useStickyBottomScroll(scrollRef, activeSession);
+  // Sticky-bottom auto-scroll lives inside MessageStream via the
+  // `use-stick-to-bottom` library. ChatPanel only needs to know
+  // "is the user currently at bottom?" to toggle the jump-to-bottom
+  // button, plus a hand to programmatically re-engage follow. The
+  // MessageStream relays those out via `onControlsChange`.
+  const [streamControls, setStreamControls] = useState<StreamControls | null>(null);
+  const handleControls = useCallback(
+    (c: StreamControls) => setStreamControls(c),
+    [],
+  );
 
   // Auto-select (but don't expand) the latest tool the first time it
   // streams in — so the inspector pane has something to show without
@@ -137,7 +137,6 @@ export function ChatPanel({ onSend }: Props) {
             label={`session:${activeSession}`}
           >
             <MessageStream
-              ref={scrollRef}
               messages={messages}
               ctx={{
                 plan,
@@ -147,11 +146,16 @@ export function ChatPanel({ onSend }: Props) {
                 expandedIds: expandedToolIds,
                 onToggleExpand: toggleExpandedTool,
               }}
+              resetKey={activeSession}
+              onControlsChange={handleControls}
             />
           </ChatErrorBoundary>
           <div className="composer-wrap">
             <div className="composer-fade" />
-            <JumpToBottomButton visible={!atBottom} onClick={scrollToBottom} />
+            <JumpToBottomButton
+              visible={streamControls ? !streamControls.isAtBottom : false}
+              onClick={() => streamControls?.scrollToBottom()}
+            />
             <div className="composer-inner">
               <Slot name="chat.status" />
               <SlashSuggestions value={composerValue} onPick={setComposerValue} />
