@@ -83,8 +83,6 @@ export function ShikiCodeBlock({ lang, code, file }: Props) {
     setTimeout(() => setCopied(false), 1500);
   };
 
-  const displayLang = useMemo(() => lang || "text", [lang]);
-
   // While streaming we show the live (un-highlighted) text — feels like a
   // terminal scrolling in. When the stream settles, we swap to the
   // syntax-highlighted version. If the highlighter never finished (e.g.
@@ -94,7 +92,7 @@ export function ShikiCodeBlock({ lang, code, file }: Props) {
   return (
     <div className={`shiki-block ${folded ? "folded" : ""}`}>
       <div className="shiki-block-head">
-        <span className="lang">{displayLang}</span>
+        <span className="lang">{lang || "text"}</span>
         {file ? <span className="fname">{file}</span> : <span aria-hidden="true" />}
         <button
           className="copy"
