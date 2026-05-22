@@ -1051,13 +1051,15 @@ html.theme-light .ig-glyph { background: var(--color-surface-2); }
 /* Tables — soft separator lines instead of full grid. Header gets a
    stronger underline; rows are zebra-free but get a quiet hover tint
    for scannability on long tables.
-   The wrapper handles overflow so wide tables (8+ columns) scroll in
-   place instead of busting the message column. */
+   The wrapper handles overflow when a wide table (8+ cols) exceeds the
+   message column; it shrinks to fit-content otherwise so a narrow table
+   doesn't leave dead space to its right. No border of its own — the
+   table's own chrome carries the visual. */
 .md-table-wrap {
   margin: 12px 0;
+  max-width: 100%;
+  width: fit-content;
   overflow-x: auto;
-  border-radius: 8px;
-  border: 1px solid color-mix(in srgb, var(--color-text) 10%, transparent);
 }
 .md-table-wrap::-webkit-scrollbar { height: 8px; }
 .md-table-wrap::-webkit-scrollbar-thumb {
@@ -1066,7 +1068,7 @@ html.theme-light .ig-glyph { background: var(--color-surface-2); }
   border: 2px solid transparent;
   background-clip: content-box;
 }
-.md-table-wrap > table { margin: 0; border: 0; border-radius: 0; }
+.md-table-wrap > table { margin: 0; }
 .md table {
   border-collapse: collapse;
   margin: 12px 0;
