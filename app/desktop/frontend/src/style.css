@@ -391,10 +391,12 @@ html.theme-light .chat-tab.active {
   color: var(--color-text-faint);
   cursor: pointer;
   display: grid; place-items: center;
-  padding: 0; width: 16px; height: 16px;
+  padding: 0; width: 22px; height: 22px;
   border-radius: 4px;
+  transition: background var(--polish-fast), color var(--polish-fast), transform var(--polish-fast);
 }
 .ig-clear:hover { background: var(--color-surface-3); color: var(--color-text); }
+.ig-clear:active { transform: scale(0.9); }
 
 .ig-section { padding: 18px 20px 12px; }
 .ig-section-head {

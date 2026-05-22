@@ -307,15 +307,17 @@ html.theme-light .tool-card.running::before {
 }
 .side-section-head .add {
   margin-left: auto;
-  width: 22px; height: 22px;
+  width: 26px; height: 26px;
   display: grid; place-items: center;
   background: var(--color-surface-2);
   color: var(--color-text-muted);
   border-radius: 50%;
   cursor: pointer;
   border: none;
+  transition: background var(--polish-fast), color var(--polish-fast), transform var(--polish-fast);
 }
 .side-section-head .add:hover { background: var(--color-surface-3); color: var(--color-text); }
+.side-section-head .add:active { transform: scale(0.92); }
 
 .side-list { display: flex; flex-direction: column; gap: 2px; padding: 0 4px; }
 
@@ -1016,8 +1018,14 @@ html.theme-light .msg.user .msg-content {
   align-items: center;
   gap: 6px;
   cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: background var(--polish-fast), color var(--polish-fast);
 }
-.approval-card .actions .always:hover { color: var(--color-text-muted); }
+.approval-card .actions .always:hover {
+  color: var(--color-text);
+  background: color-mix(in srgb, var(--color-text) 6%, transparent);
+}
 .approval-card .actions .always input[type=checkbox] {
   width: 13px; height: 13px;
   margin: 0;
@@ -1172,7 +1180,7 @@ html.theme-light .msg.user .msg-content {
   white-space: nowrap;
 }
 .composer-chip .x {
-  width: 16px; height: 16px;
+  width: 20px; height: 20px;
   display: grid; place-items: center;
   border-radius: 50%;
   cursor: pointer;
@@ -1184,6 +1192,7 @@ html.theme-light .msg.user .msg-content {
 .composer-chip:hover .x,
 .composer-chip:focus-within .x { opacity: 1; transform: scale(1); }
 .composer-chip .x:hover { background: #2f2f2f; color: var(--color-text); }
+.composer-chip .x:active { transform: scale(0.88); }
 
 .composer-input {
   width: 100%;
@@ -1448,12 +1457,14 @@ html.theme-light .msg.user .msg-content {
   grid-template-columns: 16px 16px 1fr auto;
   gap: 6px;
   align-items: center;
-  padding: 4px 6px;
+  padding: 6px 8px;
   border-radius: 4px;
   color: var(--color-text-muted);
   cursor: pointer;
+  transition: background var(--polish-fast), color var(--polish-fast);
 }
 .tree-row:hover { background: var(--color-surface); color: var(--color-text); }
+.tree-row:active { background: var(--color-surface-2); }
 .tree-row.active { background: var(--color-surface-2); color: var(--color-text); }
 .tree-row .name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tree-row .change {
@@ -1768,9 +1779,10 @@ html.theme-light .msg.user .msg-content {
   cursor: pointer;
   display: grid; place-items: center;
   border-radius: 6px;
-  transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
+  transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out), transform var(--polish-fast);
 }
 .user-action:hover { background: var(--color-surface-2); color: var(--color-text); }
+.user-action:active { transform: scale(0.92); }
 
 html.theme-light .rail-user { background: var(--color-surface-2); color: var(--color-text); }
 html.theme-light .user-card:hover { background: var(--color-surface-2); }
@@ -1815,12 +1827,12 @@ html.theme-light .user-action:hover { background: var(--color-surface-3); }
 
 .accent-swatches {
   display: flex;
-  gap: 6px;
+  gap: 10px;
   justify-content: flex-end;
 }
 .accent-swatch {
-  width: 16px;
-  height: 16px;
+  width: 20px;
+  height: 20px;
   border-radius: 50%;
   border: 2px solid transparent;
   background-clip: padding-box;
@@ -1829,6 +1841,7 @@ html.theme-light .user-action:hover { background: var(--color-surface-3); }
   transition: transform var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
 }
 .accent-swatch:hover { transform: scale(1.15); }
+.accent-swatch:active { transform: scale(0.95); }
 .accent-swatch.active {
   border-color: var(--color-bg);
   box-shadow: 0 0 0 1.5px var(--color-text);
@@ -2040,18 +2053,19 @@ html.theme-light .user-action.open { background: var(--color-surface-2); }
 }
 .chat-tab .tab-dot.waiting { background: var(--color-warning); }
 .chat-tab .tab-close {
-  width: 18px; height: 18px;
+  width: 22px; height: 22px;
   display: grid; place-items: center;
   border-radius: 4px;
   color: var(--color-text-faint);
   opacity: 0;
-  transition: opacity var(--dur-fast) var(--ease-out), background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
+  transition: opacity var(--dur-fast) var(--ease-out), background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out), transform var(--polish-fast);
 }
 .chat-tab:hover .tab-close, .chat-tab.active .tab-close { opacity: 1; }
 .chat-tab .tab-close:hover {
   background: var(--color-surface-3);
   color: var(--color-text);
 }
+.chat-tab .tab-close:active { transform: scale(0.9); }
 .tab-new {
   width: 26px; height: 26px;
   background: transparent;
