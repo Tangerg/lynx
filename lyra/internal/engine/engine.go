@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 
+	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
+
 	"github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/runtime"
@@ -47,6 +49,12 @@ type Config struct {
 	// fall back to defaults (see [CompactionConfig]). Setting
 	// MaxMessages negative disables auto-compaction entirely.
 	Compaction CompactionConfig
+
+	// MCPServers lists external MCP servers to dial at engine
+	// construction. Their tools are merged into the built-in coding
+	// tool set, prefixed with the server's Name so collisions across
+	// servers stay separable. Empty disables MCP integration.
+	MCPServers []MCPServer
 }
 
 // OnlineConfig is engine's view of the runtime-time online-tool
@@ -67,10 +75,15 @@ type Engine struct {
 	platform  *runtime.Platform
 	agent     *core.Agent
 	tools     []chat.Tool
+	memStore  memory.Store
 	memSvc    lyramem.Service
 	compactor *compactor
 	extractor *extractor
 	planner   *planner
+
+	// mcpSessions holds the live MCP client sessions opened in New.
+	// Closed during [Engine.Close]; nil when no servers are wired.
+	mcpSessions []*sdkmcp.ClientSession
 }
 
 // New constructs an engine. Returns an error when required deps
@@ -84,6 +97,16 @@ func New(cfg Config) (*Engine, error) {
 	if err != nil {
 		return nil, fmt.Errorf("engine: build tool set: %w", err)
 	}
+
+	// Dial MCP servers and merge their tools alongside the built-in
+	// coding tools so the model can call them transparently. The
+	// dial happens before resolver wiring so the resolver sees the
+	// merged set in one place.
+	mcpTools, mcpSessions, err := dialMCPServers(context.Background(), cfg.MCPServers)
+	if err != nil {
+		return nil, err
+	}
+	tools = append(tools, mcpTools...)
 	resolver := buildCodingResolverFromTools(tools)
 
 	memStore := cfg.MemoryStore
@@ -107,9 +130,11 @@ func New(cfg Config) (*Engine, error) {
 	// capture *Engine (and therefore reach e.SystemPrompt) instead
 	// of dragging a memory service through the constructor.
 	e := &Engine{
-		platform: platform,
-		tools:    tools,
-		memSvc:   cfg.MemoryService,
+		platform:    platform,
+		tools:       tools,
+		memStore:    memStore,
+		memSvc:      cfg.MemoryService,
+		mcpSessions: mcpSessions,
 	}
 	e.agent = e.buildChatAgent()
 	if err := platform.Deploy(e.agent); err != nil {
@@ -136,9 +161,6 @@ func New(cfg Config) (*Engine, error) {
 // will. Errors propagate as-is; the caller decides whether to
 // fall back to direct execution.
 func (e *Engine) GeneratePlan(ctx context.Context, userMessage string) (string, error) {
-	if e.planner == nil {
-		return "", nil
-	}
 	return e.planner.Plan(ctx, e.SystemPrompt(ctx), userMessage)
 }
 
@@ -154,9 +176,6 @@ func (e *Engine) GeneratePlan(ctx context.Context, userMessage string) (string, 
 //   - the configured Compaction.MaxMessages is negative (disabled)
 //   - the current history is shorter than the threshold
 func (e *Engine) MaybeCompact(ctx context.Context, sessionID string) (bool, error) {
-	if e.compactor == nil {
-		return false, nil
-	}
 	return e.compactor.maybeCompact(ctx, sessionID)
 }
 
@@ -168,9 +187,6 @@ func (e *Engine) MaybeCompact(ctx context.Context, sessionID string) (bool, erro
 // No-op when the engine has no MemoryService or the conversation
 // is too short.
 func (e *Engine) MaybeExtract(ctx context.Context, sessionID string) error {
-	if e.extractor == nil {
-		return nil
-	}
 	return e.extractor.maybeExtract(ctx, sessionID)
 }
 
@@ -178,6 +194,51 @@ func (e *Engine) MaybeExtract(ctx context.Context, sessionID string) error {
 // ToolService.List to surface tool metadata to clients without
 // re-running the construction.
 func (e *Engine) Tools() []chat.Tool { return e.tools }
+
+// Close releases per-engine external resources — currently only
+// the MCP client sessions opened in [New]. Safe to call multiple
+// times; the second call is a no-op.
+//
+// Errors from individual session closures are collected and
+// returned together so the caller can log them; partial failure
+// does not stop subsequent closes.
+func (e *Engine) Close() error {
+	if len(e.mcpSessions) == 0 {
+		return nil
+	}
+	var errs []error
+	for _, sess := range e.mcpSessions {
+		if err := sess.Close(); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	e.mcpSessions = nil
+	return errors.Join(errs...)
+}
+
+// InjectUserMessage appends a synthetic user message to the
+// chat-memory store under sessionID. The message becomes part of
+// the conversation history that the chat-memory middleware loads
+// at the start of the next chat call.
+//
+// chat.Service.InjectSteering uses this to deliver mid-turn
+// steering: the runtime queues the message in the active turn
+// state and flushes it through here once the current turn ends
+// in TurnEndCompleted so the next StartTurn (or post-turn
+// maintenance, e.g. compaction) sees the steering as part of the
+// conversation.
+//
+// Returns an error when sessionID is empty (no conversation to
+// attach to) or text is empty (no message to inject).
+func (e *Engine) InjectUserMessage(ctx context.Context, sessionID, text string) error {
+	if sessionID == "" {
+		return errors.New("engine: sessionID is required")
+	}
+	if text == "" {
+		return errors.New("engine: text must not be empty")
+	}
+	return e.memStore.Write(ctx, sessionID, chat.NewUserMessage(text))
+}
 
 // Platform exposes the underlying lynx platform for service
 // implementations that need fine-grained control (most don't —
@@ -210,7 +271,8 @@ type RunChatRequest struct {
 
 // RunChat is the engine's lowest-level chat entry. The runtime
 // schedules a process against the configured ChatAgent, blocks on
-// completion, and returns the produced reply.
+// completion, and returns the produced reply alongside the per-turn
+// token roll-up.
 //
 // When req.Observer is non-nil the engine attaches a process-scope
 // [core.ToolDecorator] that fires OnToolCallStart / OnToolCallEnd
@@ -220,7 +282,7 @@ type RunChatRequest struct {
 // When req.SessionID is non-empty the engine binds the turn to a
 // chat-memory keyed conversation — the memory middleware auto-loads
 // prior turns and saves new messages keyed by SessionID.
-func (e *Engine) RunChat(ctx context.Context, req RunChatRequest) (string, error) {
+func (e *Engine) RunChat(ctx context.Context, req RunChatRequest) (ChatOutput, error) {
 	in := ChatInput{Message: req.Message}
 
 	opts := core.ProcessOptions{}
@@ -238,11 +300,11 @@ func (e *Engine) RunChat(ctx context.Context, req RunChatRequest) (string, error
 		opts,
 	)
 	if err != nil {
-		return "", fmt.Errorf("engine: run chat: %w", err)
+		return ChatOutput{}, fmt.Errorf("engine: run chat: %w", err)
 	}
 	out, ok := core.ResultOfType[ChatOutput](proc)
 	if !ok {
-		return "", fmt.Errorf("engine: no ChatOutput produced; status=%s failure=%v", proc.Status(), proc.Failure())
+		return ChatOutput{}, fmt.Errorf("engine: no ChatOutput produced; status=%s failure=%v", proc.Status(), proc.Failure())
 	}
-	return out.Reply, nil
+	return out, nil
 }

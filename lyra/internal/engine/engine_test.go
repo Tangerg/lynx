@@ -38,7 +38,7 @@ func TestEngine_RunChat_ToolCallObserved(t *testing.T) {
 	}
 
 	rec := &recordingObserver{}
-	reply, err := eng.RunChat(context.Background(), RunChatRequest{
+	out, err := eng.RunChat(context.Background(), RunChatRequest{
 		Message:  "say lyra via bash",
 		Observer: rec,
 	})
@@ -46,8 +46,8 @@ func TestEngine_RunChat_ToolCallObserved(t *testing.T) {
 		t.Fatalf("RunChat: %v", err)
 	}
 
-	if reply != "I ran echo and got lyra." {
-		t.Errorf("reply mismatch: got %q", reply)
+	if out.Reply != "I ran echo and got lyra." {
+		t.Errorf("reply mismatch: got %q", out.Reply)
 	}
 
 	starts := rec.starts()
@@ -89,12 +89,39 @@ func TestEngine_RunChat_NoObserver(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	reply, err := eng.RunChat(context.Background(), RunChatRequest{Message: "go"})
+	out, err := eng.RunChat(context.Background(), RunChatRequest{Message: "go"})
 	if err != nil {
 		t.Fatalf("RunChat: %v", err)
 	}
-	if reply != "done" {
-		t.Errorf("reply = %q, want %q", reply, "done")
+	if out.Reply != "done" {
+		t.Errorf("reply = %q, want %q", out.Reply, "done")
+	}
+}
+
+// TestEngine_RunChat_TokenUsageAccumulates verifies the per-turn
+// usage roll-up sums across both LLM rounds (tool-call + final
+// reply). ReasoningTokens come from a pointer field on chat.Usage —
+// only the rounds that populate it should contribute to the total.
+func TestEngine_RunChat_TokenUsageAccumulates(t *testing.T) {
+	reasoning := int64(3)
+	stub := newUsageStubModel(
+		chat.Usage{PromptTokens: 10, CompletionTokens: 5},
+		chat.Usage{PromptTokens: 20, CompletionTokens: 7, ReasoningTokens: &reasoning},
+	)
+	client, _ := chat.NewClient(stub)
+	eng, err := New(Config{ChatClient: client})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := eng.RunChat(context.Background(), RunChatRequest{Message: "go"})
+	if err != nil {
+		t.Fatalf("RunChat: %v", err)
+	}
+	got := out.Usage
+	want := TokenUsage{PromptTokens: 30, CompletionTokens: 12, ReasoningTokens: 3}
+	if got != want {
+		t.Errorf("usage = %+v, want %+v", got, want)
 	}
 }
 
@@ -111,15 +138,15 @@ func TestEngine_RunChat_StreamingDeltas(t *testing.T) {
 	}
 
 	rec := &recordingObserver{}
-	reply, err := eng.RunChat(context.Background(), RunChatRequest{
+	out, err := eng.RunChat(context.Background(), RunChatRequest{
 		Message:  "go",
 		Observer: rec,
 	})
 	if err != nil {
 		t.Fatalf("RunChat: %v", err)
 	}
-	if reply != "Hello, world! (lyra)" {
-		t.Errorf("reply = %q, want %q", reply, "Hello, world! (lyra)")
+	if out.Reply != "Hello, world! (lyra)" {
+		t.Errorf("reply = %q, want %q", out.Reply, "Hello, world! (lyra)")
 	}
 
 	deltas := rec.deltas()
@@ -347,6 +374,10 @@ type recordingObserver struct {
 	deltaList []string
 }
 
+func (r *recordingObserver) OnToolCallApprove(_ context.Context, _, _, _ string) error {
+	return nil
+}
+
 func (r *recordingObserver) OnToolCallStart(callID, toolName, arguments string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -364,6 +395,11 @@ func (r *recordingObserver) OnMessageDelta(text string) {
 	defer r.mu.Unlock()
 	r.deltaList = append(r.deltaList, text)
 }
+
+// OnReasoningDelta is a no-op for the current tests — reasoning
+// streams aren't asserted at the engine level. Lyra-level tests
+// in chat/impl_test.go cover the propagation path.
+func (r *recordingObserver) OnReasoningDelta(_ string) {}
 
 func (r *recordingObserver) starts() []startCall {
 	r.mu.Lock()

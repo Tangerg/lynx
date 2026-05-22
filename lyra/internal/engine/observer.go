@@ -19,6 +19,17 @@ import (
 // may dispatch multiple tools simultaneously when the model emits
 // parallel tool_calls.
 type ToolObserver interface {
+	// OnToolCallApprove is the gate fired BEFORE every tool call —
+	// implementations decide whether the call may proceed. Returning
+	// a non-nil error short-circuits the tool: the engine reports
+	// the error back to the model so it can recover. nil means
+	// "go ahead". Implementations that don't gate should return nil
+	// unconditionally (the engine's default observer behaviour).
+	//
+	// Receives the same callID it will later get on Start / End so
+	// the implementation can pair the gate with the lifecycle.
+	OnToolCallApprove(ctx context.Context, callID, toolName, arguments string) error
+
 	OnToolCallStart(callID, toolName, arguments string)
 	OnToolCallEnd(callID, toolName, output string, err error)
 
@@ -26,6 +37,12 @@ type ToolObserver interface {
 	// model streams out. Implementations typically append the chunk
 	// to a UI buffer or forward it to an event channel.
 	OnMessageDelta(text string)
+
+	// OnReasoningDelta is invoked for every non-empty reasoning
+	// (extended thinking) chunk the model streams out — distinct
+	// from final-text chunks so UIs can render thinking separately
+	// (e.g. dimmed, collapsed, or behind a "show reasoning" toggle).
+	OnReasoningDelta(text string)
 }
 
 // ObserverFrom extracts the [ToolObserver] the engine attached to
@@ -83,6 +100,19 @@ func (o *observedTool) Metadata() chat.ToolMetadata     { return o.inner.Metadat
 func (o *observedTool) Call(ctx context.Context, arguments string) (string, error) {
 	callID := uuid.NewString()
 	name := o.inner.Definition().Name
+
+	if err := o.observer.OnToolCallApprove(ctx, callID, name, arguments); err != nil {
+		// Surface the gate refusal as a recoverable tool *result*
+		// (text the model can read), not a Go error. Returning an
+		// error would propagate up the chat tool middleware and
+		// abort the turn — denying the model a chance to back off
+		// and try a different path. Observers still see a
+		// (start, end) pair so UI counts stay matched.
+		denial := "tool execution denied by user: " + err.Error()
+		o.observer.OnToolCallStart(callID, name, arguments)
+		o.observer.OnToolCallEnd(callID, name, denial, nil)
+		return denial, nil
+	}
 
 	o.observer.OnToolCallStart(callID, name, arguments)
 	output, err := o.inner.Call(ctx, arguments)

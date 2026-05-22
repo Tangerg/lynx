@@ -10,21 +10,31 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/Tangerg/lynx/lyra/internal/engine"
+	"github.com/Tangerg/lynx/lyra/internal/service/approval"
 )
 
-// New returns the M1 [Service] implementation. The implementation
-// is single-process — it holds in-memory state about live turns and
+// New returns the [Service] implementation. The implementation is
+// single-process — it holds in-memory state about live turns and
 // fans events out to subscribers via per-turn channels.
 //
-// Future milestones extend this: session-store backing, multi-client
-// event fan-out, plan-mode pause/resume, etc. The Service interface
-// is stable, so transport adapters (M8+) don't care which impl they
-// talk to.
-func New(eng *engine.Engine) Service {
+// approvalSvc is optional. When non-nil the chat impl threads
+// every tool call through it for permission gating; on nil the
+// gate is a no-op and every call passes (legacy YOLO behaviour
+// useful for tests / smoke runs).
+//
+// Future milestones extend this: session-store backing,
+// multi-client event fan-out, plan-mode pause/resume, etc. The
+// Service interface is stable, so transport adapters don't care
+// which impl they talk to.
+func New(eng *engine.Engine, approvalSvc approval.Service) Service {
 	if eng == nil {
 		panic("chat: engine is required")
 	}
-	return &impl{engine: eng, turns: map[string]*turnState{}}
+	return &impl{
+		engine:   eng,
+		approval: approvalSvc,
+		turns:    map[string]*turnState{},
+	}
 }
 
 // turnState holds the per-turn bookkeeping the implementation needs:
@@ -43,10 +53,40 @@ type turnState struct {
 	// ContinuePlan call never blocks regardless of runTurn's
 	// progress. nil for non-plan-mode turns.
 	planDecision chan PlanDecision
+
+	// steerMu guards steering — the queue of mid-turn user
+	// messages injected via [Service.InjectSteering]. The runtime
+	// flushes the queue to the chat-memory store after the turn
+	// ends so the messages land in conversation history for the
+	// next turn.
+	steerMu  sync.Mutex
+	steering []string
+}
+
+// appendSteering atomically pushes one user message onto the
+// turn's pending-steering queue.
+func (st *turnState) appendSteering(message string) {
+	st.steerMu.Lock()
+	defer st.steerMu.Unlock()
+	st.steering = append(st.steering, message)
+}
+
+// drainSteering atomically returns the queued steering messages
+// and clears the queue. Returns nil when no steering is pending.
+func (st *turnState) drainSteering() []string {
+	st.steerMu.Lock()
+	defer st.steerMu.Unlock()
+	if len(st.steering) == 0 {
+		return nil
+	}
+	out := st.steering
+	st.steering = nil
+	return out
 }
 
 type impl struct {
-	engine *engine.Engine
+	engine   *engine.Engine
+	approval approval.Service // optional — nil = auto-approve every tool
 
 	mu    sync.Mutex
 	turns map[string]*turnState // turn_id → state
@@ -115,11 +155,31 @@ func (s *impl) Events(_ context.Context, handle TurnHandle) (<-chan Event, error
 	return state.events, nil
 }
 
-func (s *impl) InjectSteering(_ context.Context, _ TurnHandle, _ string) error {
-	// M1 leaves steering as a stub — surface stable so transport
-	// adapters can call it; impl arrives with M3+ when multi-turn
-	// + session persistence land.
-	return errors.New("chat: steering not implemented in M1")
+// InjectSteering queues message onto the active turn's pending
+// steering buffer. The runtime flushes the queue to the chat-memory
+// store after the turn ends — every queued message becomes a
+// user-role entry in the conversation history that the next turn's
+// chat-memory middleware loads on the next StartTurn.
+//
+// This is "next-turn" semantics — not true mid-stream injection.
+// Steering you send while the model is mid-tool-loop affects the
+// next turn, not the current one. Documented limitation; doing
+// real mid-stream injection would require intercepting between
+// rounds of the chat tool middleware.
+//
+// Returns [ErrTurnNotFound] when the turn has already ended (its
+// runTurn deleted itself from the map on exit). Empty messages
+// are silently dropped.
+func (s *impl) InjectSteering(_ context.Context, handle TurnHandle, message string) error {
+	if message == "" {
+		return nil
+	}
+	state, err := s.findTurn(handle.TurnID)
+	if err != nil {
+		return err
+	}
+	state.appendSteering(message)
+	return nil
 }
 
 func (s *impl) Cancel(_ context.Context, handle TurnHandle) error {
@@ -181,11 +241,17 @@ func (s *impl) runTurn(ctx context.Context, st *turnState, req StartTurnRequest)
 	}
 
 	observer := &turnObserver{impl: s, st: st}
-	_, runErr := s.engine.RunChat(ctx, engine.RunChatRequest{
+	out, runErr := s.engine.RunChat(ctx, engine.RunChatRequest{
 		SessionID: req.SessionID,
 		Message:   req.Message,
 		Observer:  observer,
 	})
+
+	// Drain any steering the client injected during the turn so it
+	// lands in conversation history BEFORE post-turn maintenance —
+	// the compactor / extractor then see steering as part of the
+	// conversation they summarise.
+	s.flushSteering(ctx, st, req.SessionID)
 
 	if runErr == nil && req.SessionID != "" {
 		s.postTurnMaintenance(ctx, st, req.SessionID)
@@ -215,10 +281,10 @@ func (s *impl) runTurn(ctx context.Context, st *turnState, req StartTurnRequest)
 	// the stream — no need to re-emit the assembled reply here.
 
 	s.emit(st, TurnEnd{
-		Reason:   TurnEndCompleted,
-		Duration: time.Since(startedAt),
-		// TokenUsage / CostUSD wired up in M5 when invocation history
-		// per-turn aggregation lands.
+		Reason:     TurnEndCompleted,
+		Duration:   time.Since(startedAt),
+		TokenUsage: out.Usage,
+		// CostUSD requires per-provider pricing — see M-future.
 	})
 }
 
@@ -288,6 +354,28 @@ func (s *impl) runPlanMode(ctx context.Context, st *turnState, message string, s
 	return true
 }
 
+// flushSteering writes the turn's queued steering messages to the
+// chat-memory store so the next turn picks them up as conversation
+// history. No-op when there's no session or no queued steering.
+// Errors surface through an ErrorEvent but don't abort the turn —
+// dropping steering is preferable to wrecking an otherwise
+// successful turn.
+func (s *impl) flushSteering(ctx context.Context, st *turnState, sessionID string) {
+	queue := st.drainSteering()
+	if sessionID == "" || len(queue) == 0 {
+		return
+	}
+	for _, msg := range queue {
+		if err := s.engine.InjectUserMessage(ctx, sessionID, msg); err != nil {
+			s.emit(st, ErrorEvent{
+				Message: "steering inject failed: " + err.Error(),
+				Code:    "STEERING_ERROR",
+			})
+			return
+		}
+	}
+}
+
 // postTurnMaintenance runs the compact + (conditional) extract pair
 // after the turn's real LLM round completed cleanly. Errors at
 // this stage surface through ErrorEvent but don't abort the turn —
@@ -334,12 +422,63 @@ func (st *turnState) waitDecision(ctx context.Context) (PlanDecision, bool) {
 }
 
 // turnObserver bridges engine.ToolObserver to the turn's event
-// channel. The engine fires Start / End for every tool the model
-// invokes; we translate each into a Lyra ToolCallStart / ToolCallEnd
+// channel. The engine fires Approve / Start / End for every tool
+// the model invokes; we translate each into a Lyra ToolCall*
 // event so transport adapters surface them verbatim.
 type turnObserver struct {
 	impl *impl
 	st   *turnState
+}
+
+// OnToolCallApprove is the gate the engine fires BEFORE every tool
+// call. When the configured [approval.Service] mode + the tool's
+// safety class agree to auto-pass the call, the gate returns nil
+// immediately and the tool runs. Otherwise the gate registers the
+// pending request, emits a [ToolCallApproval] event onto the turn
+// channel, and blocks on the decision channel until the client
+// posts a verdict via [approval.Service.Decide].
+//
+// Returns nil to proceed, an error to short-circuit. The engine
+// surfaces the error back to the model as the tool's "output"
+// (engine.observedTool collapses Deny into a non-fatal tool
+// result) so the model can recover without aborting the turn.
+func (t *turnObserver) OnToolCallApprove(ctx context.Context, callID, toolName, arguments string) error {
+	if t.impl.approval == nil {
+		return nil
+	}
+	mode, err := t.impl.approval.GetMode(ctx)
+	if err != nil {
+		return err
+	}
+	if !needsApproval(toolName, mode) {
+		return nil
+	}
+
+	req := approval.Request{
+		ID:          callID,
+		SessionID:   t.st.handle.SessionID,
+		TurnID:      t.st.handle.TurnID,
+		ToolName:    toolName,
+		Arguments:   arguments,
+		RequestedAt: time.Now(),
+	}
+	// Register BEFORE emit so a Decide that arrives the instant
+	// the client sees the event has a pending entry to resolve.
+	decisionCh, cleanup := t.impl.approval.Register(req)
+	defer cleanup()
+
+	t.impl.emit(t.st, ToolCallApproval{Request: req})
+
+	select {
+	case d := <-decisionCh:
+		if d == approval.DecisionDeny {
+			return errors.New("tool call denied by user")
+		}
+		return nil
+	case <-ctx.Done():
+		// Fail-closed on turn cancellation.
+		return ctx.Err()
+	}
 }
 
 func (t *turnObserver) OnToolCallStart(callID, toolName, arguments string) {
@@ -364,6 +503,16 @@ func (t *turnObserver) OnToolCallEnd(callID, _ string, output string, err error)
 
 func (t *turnObserver) OnMessageDelta(text string) {
 	t.impl.emit(t.st, MessageDelta{
+		Text: text,
+	})
+}
+
+// OnReasoningDelta forwards extended-thinking chunks to the turn
+// channel as [ReasoningDelta] events. Clients that don't care
+// about reasoning can ignore the type in their dispatch switch —
+// no event is dropped on the engine side.
+func (t *turnObserver) OnReasoningDelta(text string) {
+	t.impl.emit(t.st, ReasoningDelta{
 		Text: text,
 	})
 }

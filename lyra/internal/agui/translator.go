@@ -32,19 +32,22 @@ type Event = aguievents.Event
 //
 // State machine:
 //
-//   - chat.TurnStart      → RunStartedEvent
-//   - chat.MessageDelta   → TextMessageStart (lazy) + TextMessageContent
-//   - chat.ToolCallStart  → close any open text + ToolCallStart +
-//                           ToolCallArgs + ToolCallEnd
-//   - chat.ToolCallEnd    → ToolCallResultEvent
-//   - chat.PlanGenerated  → CustomEvent(name="plan_generated")
-//   - chat.ErrorEvent     → RunErrorEvent
-//   - chat.TurnEnd        → close any open text + RunFinished /
-//                           RunError(code=TURN_ERRORED)
+//   - chat.TurnStart       → RunStartedEvent
+//   - chat.MessageDelta    → TextMessageStart (lazy) + TextMessageContent
+//   - chat.ReasoningDelta  → ThinkingTextMessageStart (lazy) +
+//                            ThinkingTextMessageContent
+//   - chat.ToolCallStart   → close any open text + ToolCallStart +
+//                            ToolCallArgs + ToolCallEnd
+//   - chat.ToolCallEnd     → ToolCallResultEvent
+//   - chat.PlanGenerated   → CustomEvent(name="plan_generated")
+//   - chat.ErrorEvent      → RunErrorEvent
+//   - chat.TurnEnd         → close any open text + RunFinished /
+//                            RunError(code=TURN_ERRORED)
 type Translator struct {
-	threadID string
-	runID    string
-	text     textStream
+	threadID  string
+	runID     string
+	text      textStream
+	reasoning reasoningStream
 }
 
 // NewTranslator wires a translator to a Lyra (sessionID, turnID)
@@ -62,13 +65,18 @@ func (t *Translator) Translate(ev chat.Event) []Event {
 	case chat.TurnStart:
 		return []Event{aguievents.NewRunStartedEvent(t.threadID, t.runID)}
 	case chat.MessageDelta:
-		return t.text.appendDelta(e.Text)
+		out := t.reasoning.closeIfOpen()
+		return append(out, t.text.appendDelta(e.Text)...)
+	case chat.ReasoningDelta:
+		return t.reasoning.appendDelta(e.Text)
 	case chat.ToolCallStart:
 		return t.toolCallStart(e)
 	case chat.ToolCallEnd:
 		return []Event{t.toolCallResult(e)}
 	case chat.PlanGenerated:
 		return []Event{t.planAsCustom(e)}
+	case chat.ToolCallApproval:
+		return []Event{t.approvalAsCustom(e)}
 	case chat.ErrorEvent:
 		return []Event{t.runError(e)}
 	case chat.TurnEnd:
@@ -77,12 +85,13 @@ func (t *Translator) Translate(ev chat.Event) []Event {
 	return nil
 }
 
-// toolCallStart closes any in-flight text message (a tool call
-// interrupts the assistant's natural-language output) and then
-// emits the AG-UI start/args/end triplet. Lyra knows the full
-// arg JSON upfront so a single Args event suffices.
+// toolCallStart closes any in-flight text / reasoning message (a
+// tool call interrupts both) and then emits the AG-UI
+// start/args/end triplet. Lyra knows the full arg JSON upfront so
+// a single Args event suffices.
 func (t *Translator) toolCallStart(e chat.ToolCallStart) []Event {
-	out := t.text.closeIfOpen()
+	out := t.reasoning.closeIfOpen()
+	out = append(out, t.text.closeIfOpen()...)
 	return append(out,
 		aguievents.NewToolCallStartEvent(e.CallID, e.ToolName,
 			aguievents.WithParentMessageID(t.runID)),
@@ -116,6 +125,21 @@ func (t *Translator) planAsCustom(e chat.PlanGenerated) Event {
 	)
 }
 
+// approvalAsCustom encodes an approval-pause as an AG-UI
+// CustomEvent. Like plan_generated, "tool_call_approval" is a
+// Lyra convention — the frontend reads it, prompts the user,
+// then POSTs the verdict to /v1/approvals/{id}.
+func (t *Translator) approvalAsCustom(e chat.ToolCallApproval) Event {
+	return aguievents.NewCustomEvent("tool_call_approval",
+		aguievents.WithValue(map[string]any{
+			"runId":     t.runID,
+			"requestId": e.Request.ID,
+			"toolName":  e.Request.ToolName,
+			"arguments": e.Request.Arguments,
+		}),
+	)
+}
+
 // runError lifts a chat.ErrorEvent into an AG-UI RunErrorEvent,
 // preserving the stable Code when present so transports / UIs
 // can branch on it.
@@ -128,12 +152,13 @@ func (t *Translator) runError(e chat.ErrorEvent) Event {
 }
 
 // runFinishedOrErrored closes the run, also closing any in-flight
-// text message. TurnEndErrored produces a RunErrorEvent (in
-// addition to any chat.ErrorEvent already emitted) so AG-UI
-// clients see one terminal event regardless of which Lyra path
-// got here.
+// text / reasoning message. TurnEndErrored produces a
+// RunErrorEvent (in addition to any chat.ErrorEvent already
+// emitted) so AG-UI clients see one terminal event regardless of
+// which Lyra path got here.
 func (t *Translator) runFinishedOrErrored(e chat.TurnEnd) []Event {
-	out := t.text.closeIfOpen()
+	out := t.reasoning.closeIfOpen()
+	out = append(out, t.text.closeIfOpen()...)
 	if e.Reason == chat.TurnEndErrored {
 		return append(out, aguievents.NewRunErrorEvent("turn errored",
 			aguievents.WithErrorCode("TURN_ERRORED"),
@@ -187,4 +212,45 @@ func (s *textStream) closeIfOpen() []Event {
 	end := aguievents.NewTextMessageEndEvent(s.messageID)
 	s.open = false
 	return []Event{end}
+}
+
+// ------------------------------------------------------------------
+// reasoningStream — mirrors textStream for extended-thinking
+// chunks, emitting the AG-UI ThinkingStart / ThinkingTextMessage*
+// / ThinkingEnd lifecycle. Splitting from textStream keeps each
+// state machine focused on one event family.
+// ------------------------------------------------------------------
+
+type reasoningStream struct {
+	open bool
+}
+
+// appendDelta opens the thinking lifecycle on first call (Start +
+// MessageStart + MessageContent) and emits Content only on
+// follow-ups. The AG-UI thinking events don't carry an explicit
+// message id — the protocol scopes them to the run.
+func (s *reasoningStream) appendDelta(text string) []Event {
+	if !s.open {
+		s.open = true
+		return []Event{
+			aguievents.NewThinkingStartEvent(),
+			aguievents.NewThinkingTextMessageStartEvent(),
+			aguievents.NewThinkingTextMessageContentEvent(text),
+		}
+	}
+	return []Event{aguievents.NewThinkingTextMessageContentEvent(text)}
+}
+
+// closeIfOpen finalises the thinking lifecycle: MessageEnd +
+// ThinkingEnd. Returns nil when no thinking message is in flight
+// so callers can append unconditionally.
+func (s *reasoningStream) closeIfOpen() []Event {
+	if !s.open {
+		return nil
+	}
+	s.open = false
+	return []Event{
+		aguievents.NewThinkingTextMessageEndEvent(),
+		aguievents.NewThinkingEndEvent(),
+	}
 }

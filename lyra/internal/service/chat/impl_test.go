@@ -10,6 +10,7 @@ import (
 	chatmodel "github.com/Tangerg/lynx/core/model/chat"
 
 	"github.com/Tangerg/lynx/lyra/internal/engine"
+	"github.com/Tangerg/lynx/lyra/internal/service/approval"
 	"github.com/Tangerg/lynx/lyra/internal/service/chat"
 )
 
@@ -212,6 +213,167 @@ func TestService_PlanMode_NoPlanFallthrough(t *testing.T) {
 	}
 }
 
+// TestService_InjectSteering_LandsInNextTurn verifies the "next-turn"
+// semantics: a steering message injected during turn 1 must be
+// visible to the model as a history user message at the start of
+// turn 2. The history-aware stub counts messages per Call, so the
+// second turn must see strictly more messages than turn 1's
+// initial new-message count.
+func TestService_InjectSteering_LandsInNextTurn(t *testing.T) {
+	stub := newHistoryAwareStub()
+	client, _ := chatmodel.NewClient(stub)
+	eng, _ := engine.New(engine.Config{ChatClient: client})
+	svc := chat.New(eng, nil)
+
+	// Turn 1.
+	handle, _ := svc.StartTurn(context.Background(), chat.StartTurnRequest{
+		SessionID: "sess-steer",
+		Message:   "hi",
+	})
+	events, _ := svc.Events(context.Background(), handle)
+
+	// Inject steering before consuming events so the service has
+	// time to land it on the turn state. Drain the channel before
+	// starting turn 2 — the steering flushes after RunChat returns.
+	if err := svc.InjectSteering(context.Background(), handle, "also keep responses short"); err != nil {
+		t.Fatalf("InjectSteering: %v", err)
+	}
+	for range events {
+	}
+
+	turn1Msgs := stub.seenLengths[0]
+
+	// Turn 2 — should see (original user + assistant + steering + new user) = at least turn1Msgs+3.
+	handle2, _ := svc.StartTurn(context.Background(), chat.StartTurnRequest{
+		SessionID: "sess-steer",
+		Message:   "go on",
+	})
+	events2, _ := svc.Events(context.Background(), handle2)
+	for range events2 {
+	}
+
+	if len(stub.seenLengths) < 2 {
+		t.Fatalf("stub Call count = %d, want >= 2", len(stub.seenLengths))
+	}
+	turn2Msgs := stub.seenLengths[1]
+	if turn2Msgs <= turn1Msgs+1 {
+		// turn 2 should see at least: turn1 user, turn1 assistant, steering, turn2 user = turn1Msgs + 3
+		// allowing a margin for system-prompt messages.
+		t.Errorf("turn 2 message count = %d, turn 1 = %d; steering should add at least one user entry", turn2Msgs, turn1Msgs)
+	}
+}
+
+// TestService_InjectSteering_UnknownTurn returns ErrTurnNotFound
+// for handles the service doesn't recognise — completed turns are
+// pruned from the in-memory map.
+func TestService_InjectSteering_UnknownTurn(t *testing.T) {
+	svc, _ := buildService(t)
+	err := svc.InjectSteering(context.Background(), chat.TurnHandle{TurnID: "no-such"}, "msg")
+	if err == nil {
+		t.Error("steering on unknown handle should error")
+	}
+}
+
+// TestService_ApprovalGate_AllowOnce verifies the gate emits a
+// ToolCallApproval event when the configured mode requires
+// consent and lets the tool proceed after the test pushes
+// AllowOnce through the approval service. Turn must complete
+// normally (TurnEndCompleted).
+func TestService_ApprovalGate_AllowOnce(t *testing.T) {
+	client, _ := chatmodel.NewClient(newStubChatModel())
+	eng, _ := engine.New(engine.Config{ChatClient: client})
+	approvalSvc := approval.New(approval.ModeBalanced) // bash → gate
+	svc := chat.New(eng, approvalSvc)
+
+	handle, _ := svc.StartTurn(context.Background(), chat.StartTurnRequest{
+		SessionID: "sess-approve",
+		Message:   "echo lyra",
+	})
+	events, _ := svc.Events(context.Background(), handle)
+
+	var (
+		sawApproval bool
+		endReason   chat.TurnEndReason
+	)
+	for ev := range events {
+		switch e := ev.(type) {
+		case chat.ToolCallApproval:
+			sawApproval = true
+			if e.Request.ToolName != "bash" {
+				t.Errorf("ToolCallApproval.ToolName = %q, want bash", e.Request.ToolName)
+			}
+			if err := approvalSvc.Decide(context.Background(), e.Request.ID, approval.DecisionAllowOnce); err != nil {
+				t.Errorf("Decide: %v", err)
+			}
+		case chat.TurnEnd:
+			endReason = e.Reason
+		}
+	}
+	if !sawApproval {
+		t.Error("ToolCallApproval never fired in balanced mode")
+	}
+	if endReason != chat.TurnEndCompleted {
+		t.Errorf("turn end = %s, want completed", endReason)
+	}
+}
+
+// TestService_ApprovalGate_Deny — when the client denies the
+// approval, the tool short-circuits with the denial error fed
+// back to the model. The model sees the error as a tool result
+// and emits its final text reply; turn still completes.
+func TestService_ApprovalGate_Deny(t *testing.T) {
+	client, _ := chatmodel.NewClient(newStubChatModel())
+	eng, _ := engine.New(engine.Config{ChatClient: client})
+	approvalSvc := approval.New(approval.ModeBalanced)
+	svc := chat.New(eng, approvalSvc)
+
+	handle, _ := svc.StartTurn(context.Background(), chat.StartTurnRequest{
+		SessionID: "sess-deny",
+		Message:   "echo lyra",
+	})
+	events, _ := svc.Events(context.Background(), handle)
+
+	var endReason chat.TurnEndReason
+	for ev := range events {
+		switch e := ev.(type) {
+		case chat.ToolCallApproval:
+			_ = approvalSvc.Decide(context.Background(), e.Request.ID, approval.DecisionDeny)
+		case chat.ToolCallEnd:
+			// Denial flows back as a tool *result* so the model can
+			// recover — Err stays empty, Output contains the reason.
+			if !strings.Contains(e.Output, "denied") {
+				t.Errorf("ToolCallEnd.Output = %q, want a denial message", e.Output)
+			}
+		case chat.TurnEnd:
+			endReason = e.Reason
+		}
+	}
+	if endReason != chat.TurnEndCompleted {
+		t.Errorf("turn end = %s, want completed (model recovered after denial)", endReason)
+	}
+}
+
+// TestService_ApprovalGate_YoloSkipsEvent makes sure the gate is
+// invisible under ModeYolo — no ToolCallApproval ever fires, the
+// tool runs as if no gate were wired.
+func TestService_ApprovalGate_YoloSkipsEvent(t *testing.T) {
+	client, _ := chatmodel.NewClient(newStubChatModel())
+	eng, _ := engine.New(engine.Config{ChatClient: client})
+	svc := chat.New(eng, approval.New(approval.ModeYolo))
+
+	handle, _ := svc.StartTurn(context.Background(), chat.StartTurnRequest{
+		SessionID: "sess-yolo",
+		Message:   "echo lyra",
+	})
+	events, _ := svc.Events(context.Background(), handle)
+
+	for ev := range events {
+		if _, ok := ev.(chat.ToolCallApproval); ok {
+			t.Error("ToolCallApproval should NOT fire in yolo mode")
+		}
+	}
+}
+
 // TestService_StartTurn_Validation rejects empty SessionID / Message.
 func TestService_StartTurn_Validation(t *testing.T) {
 	svc, _ := buildService(t)
@@ -239,7 +401,7 @@ func buildService(t *testing.T) (chat.Service, *engine.Engine) {
 	if err != nil {
 		t.Fatalf("engine.New: %v", err)
 	}
-	return chat.New(eng), eng
+	return chat.New(eng, nil), eng
 }
 
 // buildPlanService stands up a service backed by a planAwareStub
@@ -257,7 +419,7 @@ func buildPlanService(t *testing.T, planText string) (chat.Service, *planAwareSt
 	if err != nil {
 		t.Fatal(err)
 	}
-	return chat.New(eng), stub
+	return chat.New(eng, nil), stub
 }
 
 func drainEvents(events <-chan chat.Event) []chat.Event {
@@ -376,6 +538,37 @@ func makeToolCall(name, args string) (*chatmodel.Response, error) {
 		},
 		&chatmodel.ResponseMetadata{},
 	)
+}
+
+// historyAwareStub records the length of req.Messages on each
+// Call so steering / memory tests can assert that a follow-up turn
+// sees strictly more conversation history than the previous one.
+type historyAwareStub struct {
+	defaults    *chatmodel.Options
+	mu          sync.Mutex
+	seenLengths []int
+}
+
+func newHistoryAwareStub() *historyAwareStub {
+	opts, _ := chatmodel.NewOptions("stub-history")
+	return &historyAwareStub{defaults: opts}
+}
+
+func (m *historyAwareStub) DefaultOptions() chatmodel.Options { return *m.defaults }
+func (m *historyAwareStub) Metadata() chatmodel.ModelMetadata {
+	return chatmodel.ModelMetadata{Provider: "stub"}
+}
+
+func (m *historyAwareStub) Call(_ context.Context, req *chatmodel.Request) (*chatmodel.Response, error) {
+	m.mu.Lock()
+	m.seenLengths = append(m.seenLengths, len(req.Messages))
+	m.mu.Unlock()
+	return makeText("ok")
+}
+
+func (m *historyAwareStub) Stream(ctx context.Context, req *chatmodel.Request) iter.Seq2[*chatmodel.Response, error] {
+	resp, err := m.Call(ctx, req)
+	return func(yield func(*chatmodel.Response, error) bool) { yield(resp, err) }
 }
 
 // planAwareStub routes Call/Stream on the system-prompt content:

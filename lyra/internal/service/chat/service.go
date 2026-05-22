@@ -7,6 +7,9 @@ package chat
 import (
 	"context"
 	"time"
+
+	"github.com/Tangerg/lynx/lyra/internal/engine"
+	"github.com/Tangerg/lynx/lyra/internal/service/approval"
 )
 
 // StartTurnRequest is the input to [Service.StartTurn]. SessionID
@@ -154,6 +157,16 @@ type MessageDelta struct {
 	Text string
 }
 
+// ReasoningDelta is one streaming chunk of extended-thinking
+// (reasoning) text — Claude's <thinking> blocks, OpenAI o-series
+// reasoning summaries, DeepSeek-R1 chain-of-thought. Distinct
+// from [MessageDelta] so transports can render reasoning
+// separately (collapsed by default, dimmed, behind a toggle).
+type ReasoningDelta struct {
+	BaseEvent
+	Text string
+}
+
 // ToolCallStart fires when the model invokes a tool. Arguments is
 // the raw JSON the model emitted.
 //
@@ -179,6 +192,21 @@ type PlanGenerated struct {
 	Plan string
 }
 
+// ToolCallApproval fires when a destructive tool wants to run and
+// the configured approval mode requires user consent. The turn
+// blocks until the client resolves the matching [approval.Request]
+// via [approval.Service.Decide]; on Deny the engine surfaces the
+// refusal back to the model so it can recover or abandon the
+// approach.
+//
+// Emitted only when the runtime is wired with a non-yolo
+// [approval.Service]; transports gate on this event to render
+// the consent prompt.
+type ToolCallApproval struct {
+	BaseEvent
+	Request approval.Request
+}
+
 // ToolCallEnd fires when the tool finishes. Output is the tool's
 // returned text; Err is non-empty when the tool failed.
 //
@@ -197,7 +225,7 @@ type TurnEnd struct {
 	BaseEvent
 	Reason     TurnEndReason
 	TokenUsage TokenUsage
-	CostUSD    float64
+	CostUSD    float64 // M-future — per-provider pricing table required
 	Duration   time.Duration
 }
 
@@ -218,13 +246,15 @@ type ErrorEvent struct {
 // already carries every routing field — emit builds it once per
 // call.
 
-func (e TurnStart) stamp(b BaseEvent) Event     { e.BaseEvent = b; return e }
-func (e MessageDelta) stamp(b BaseEvent) Event  { e.BaseEvent = b; return e }
-func (e ToolCallStart) stamp(b BaseEvent) Event { e.BaseEvent = b; return e }
-func (e ToolCallEnd) stamp(b BaseEvent) Event   { e.BaseEvent = b; return e }
-func (e PlanGenerated) stamp(b BaseEvent) Event { e.BaseEvent = b; return e }
-func (e TurnEnd) stamp(b BaseEvent) Event       { e.BaseEvent = b; return e }
-func (e ErrorEvent) stamp(b BaseEvent) Event    { e.BaseEvent = b; return e }
+func (e TurnStart) stamp(b BaseEvent) Event        { e.BaseEvent = b; return e }
+func (e MessageDelta) stamp(b BaseEvent) Event     { e.BaseEvent = b; return e }
+func (e ReasoningDelta) stamp(b BaseEvent) Event   { e.BaseEvent = b; return e }
+func (e ToolCallStart) stamp(b BaseEvent) Event    { e.BaseEvent = b; return e }
+func (e ToolCallEnd) stamp(b BaseEvent) Event      { e.BaseEvent = b; return e }
+func (e ToolCallApproval) stamp(b BaseEvent) Event { e.BaseEvent = b; return e }
+func (e PlanGenerated) stamp(b BaseEvent) Event    { e.BaseEvent = b; return e }
+func (e TurnEnd) stamp(b BaseEvent) Event          { e.BaseEvent = b; return e }
+func (e ErrorEvent) stamp(b BaseEvent) Event       { e.BaseEvent = b; return e }
 
 // TurnEndReason enumerates why a turn ended.
 type TurnEndReason int
@@ -253,10 +283,8 @@ func (r TurnEndReason) String() string {
 	}
 }
 
-// TokenUsage is the per-turn token roll-up. Field names mirror lynx
-// core.LLMInvocation so future transport adapters can map 1:1.
-type TokenUsage struct {
-	PromptTokens     int64
-	CompletionTokens int64
-	ReasoningTokens  int64
-}
+// TokenUsage is the per-turn token roll-up. Alias for
+// [engine.TokenUsage] — the engine owns the canonical shape and
+// the chat package re-exports it so transport adapters can stay
+// scoped to one import.
+type TokenUsage = engine.TokenUsage

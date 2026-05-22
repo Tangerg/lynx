@@ -15,6 +15,7 @@ package config
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"strings"
 )
@@ -39,6 +40,19 @@ type Config struct {
 	// web search, HTTP requests). Each field is independent — set
 	// only the ones you have credentials for. See [OnlineConfig].
 	Online OnlineConfig
+
+	// MCPServers is the parsed list of external MCP servers the
+	// engine dials at startup. Tools from each server merge into
+	// the engine's tool set under the server's Name as prefix.
+	// Empty disables MCP integration.
+	MCPServers []MCPServer
+}
+
+// MCPServer is the parsed form of one entry in
+// LYRA_MCP_SERVERS — a logical name + Streamable HTTP endpoint.
+type MCPServer struct {
+	Name     string
+	Endpoint string
 }
 
 // OnlineConfig groups the credentials needed by network-reaching
@@ -84,6 +98,11 @@ func Load() (Config, error) {
 		return Config{}, errors.New("config: " + apiKeyEnvFor(provider) + " is empty")
 	}
 
+	servers, err := parseMCPServers(os.Getenv("LYRA_MCP_SERVERS"))
+	if err != nil {
+		return Config{}, fmt.Errorf("config: LYRA_MCP_SERVERS: %w", err)
+	}
+
 	return Config{
 		Provider: provider,
 		Model:    model,
@@ -93,7 +112,42 @@ func Load() (Config, error) {
 			TavilyAPIKey:     os.Getenv("LYRA_TAVILY_API_KEY"),
 			HTTPAllowedHosts: splitHosts(os.Getenv("LYRA_HTTP_ALLOWED_HOSTS")),
 		},
+		MCPServers: servers,
 	}, nil
+}
+
+// parseMCPServers parses the LYRA_MCP_SERVERS env var: a comma-
+// separated list of "name=url" pairs. Empty input yields nil with
+// no error; per-entry errors include the offending fragment so
+// the operator can spot the typo immediately.
+//
+//	LYRA_MCP_SERVERS="github=https://mcp.github.com/,lsp=https://mcp.lsp.local/"
+func parseMCPServers(raw string) ([]MCPServer, error) {
+	if raw == "" {
+		return nil, nil
+	}
+	parts := strings.Split(raw, ",")
+	out := make([]MCPServer, 0, len(parts))
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p == "" {
+			continue
+		}
+		eq := strings.IndexByte(p, '=')
+		if eq <= 0 || eq == len(p)-1 {
+			return nil, fmt.Errorf("entry %q: expected name=url", p)
+		}
+		name := strings.TrimSpace(p[:eq])
+		endpoint := strings.TrimSpace(p[eq+1:])
+		if name == "" || endpoint == "" {
+			return nil, fmt.Errorf("entry %q: name and url must be non-empty", p)
+		}
+		out = append(out, MCPServer{Name: name, Endpoint: endpoint})
+	}
+	if len(out) == 0 {
+		return nil, nil
+	}
+	return out, nil
 }
 
 // splitHosts parses the comma-separated LYRA_HTTP_ALLOWED_HOSTS
