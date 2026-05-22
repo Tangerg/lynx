@@ -160,10 +160,35 @@ export const composerToolbar = definePlugin({
 
 // ---- toolbar (end): keyboard hint + send ---------------------------------
 
+// Minimum cheat-sheet content. Kept terse — it's a hover discovery aid,
+// not a manual. If we add more shortcuts later, organize by surface
+// (composer / global / chat) so users can scan.
+const CHEATSHEET: Array<{ combo: string; what: string }> = [
+  { combo: "⌘↵",    what: "Send message" },
+  { combo: "⇧↵",    what: "New line" },
+  { combo: "Esc",   what: "Unfocus composer" },
+  { combo: "⌘K",    what: "Command palette" },
+  { combo: "⌘N",    what: "New tab" },
+  { combo: "⌘W",    what: "Close current tab" },
+  { combo: "⌘L",    what: "Focus composer" },
+  { combo: "⌘B",    what: "Toggle sidebar" },
+  { combo: "⌘1-9",  what: "Switch to tab N" },
+  { combo: "⌘⇧L",   what: "Toggle theme" },
+];
+
 function KeyHint() {
   return (
-    <div className="meta">
+    <div className="meta key-hint">
       <span className="accent">⌘K</span> commands · <span className="accent">⌘↵</span> send
+      <div className="key-cheatsheet" role="tooltip">
+        <div className="key-cheatsheet-title">Shortcuts</div>
+        {CHEATSHEET.map((r) => (
+          <div className="key-cheat-row" key={r.combo}>
+            <kbd>{r.combo}</kbd>
+            <span>{r.what}</span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
