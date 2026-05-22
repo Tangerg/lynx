@@ -11,6 +11,15 @@ import { ShikiCodeBlock } from "@/components/chat/ShikiCodeBlock";
 //   everything else with a recognised `language-X` className goes
 //   through Shiki. Inline code (no language- prefix) stays as a plain
 //   `<code>` so it can sit in the text flow with .fade-in alongside it.
+// - `table`: wrap in an overflow-x container so wide tables (think 8+
+//   columns of bench data) scroll instead of bursting the message
+//   column. The wrapper is the scroll surface; the table itself keeps
+//   its natural width.
+// - `a`: open external links in a new tab. With Wails, clicking a
+//   <a href> in the WebView opens it INSIDE the chrome-less window with
+//   no back button — same as a desktop app eating a popup. `_blank` +
+//   `noopener` punts it to the OS default browser, which is what users
+//   expect when they click a link in chat.
 export const markdownComponents: Components = {
   pre({ children }) {
     return <>{children}</>;
@@ -29,5 +38,19 @@ export const markdownComponents: Components = {
     const codeStr = String(children ?? "").replace(/\n$/, "");
     if (lang === "mermaid") return <MermaidBlock code={codeStr} />;
     return <ShikiCodeBlock lang={lang} code={codeStr} />;
+  },
+  table({ children, ...rest }) {
+    return (
+      <div className="md-table-wrap">
+        <table {...rest}>{children}</table>
+      </div>
+    );
+  },
+  a({ href, children, ...rest }) {
+    return (
+      <a href={href} target="_blank" rel="noopener noreferrer" {...rest}>
+        {children}
+      </a>
+    );
   },
 };

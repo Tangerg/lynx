@@ -84,8 +84,13 @@ export function ShikiCodeBlock({ lang, code, file }: Props) {
       <div className="shiki-block-head">
         <span className="lang">{displayLang}</span>
         {file ? <span className="fname">{file}</span> : <span aria-hidden="true" />}
-        <button className="copy" type="button" onClick={onCopy}>
-          <Icon name={copied ? "check" : "file"} size={11} />
+        <button
+          className="copy"
+          type="button"
+          onClick={onCopy}
+          title={copied ? "Copied" : "Copy code"}
+        >
+          <Icon name={copied ? "check" : "copy"} size={11} />
           {copied ? "Copied" : "Copy"}
         </button>
       </div>
