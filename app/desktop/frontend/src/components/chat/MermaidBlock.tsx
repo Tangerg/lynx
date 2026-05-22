@@ -1,10 +1,30 @@
 import { useMemo } from "react";
 import { renderMermaidSVG } from "beautiful-mermaid";
 import { useDebouncedValue } from "@/lib/useDebouncedValue";
+import { useUIStore } from "@/state/uiStore";
 
 type Props = {
   code: string;
 };
+
+// Pull the resolved hex values for our theme tokens out of CSS so the
+// diagram follows light/dark switches. We can't pass `var(--x)` directly —
+// the SVG ends up with literal text "var(--x)" baked into stroke/fill
+// attributes that browsers then refuse to honor on inline SVGs.
+function readThemeColors() {
+  const root = document.documentElement;
+  const cs = getComputedStyle(root);
+  const grab = (name: string, fallback: string) =>
+    cs.getPropertyValue(name).trim() || fallback;
+  return {
+    fg:      grab("--color-text",       "#e6e6e6"),
+    muted:   grab("--color-text-muted", "#9a9a9a"),
+    line:    grab("--color-text-faint", "#6f6f6f"),
+    accent:  grab("--color-accent",     "#1ed760"),
+    surface: grab("--color-surface-2",  "#1f1f1f"),
+    border:  grab("--color-border",     "#4d4d4d"),
+  };
+}
 
 // MermaidBlock — beautiful-mermaid's synchronous SVG renderer, gated by
 // a debounce.
@@ -18,6 +38,12 @@ type Props = {
 // "pending" pre-block. Once the source stabilises and parses, the SVG
 // snaps in.
 export function MermaidBlock({ code }: Props) {
+  // Re-render whenever theme/accent changes so the diagram re-paints
+  // against the new palette. We don't need the values themselves — they
+  // come from getComputedStyle at render time — just a dependency to
+  // trigger useMemo invalidation.
+  const theme  = useUIStore((s) => s.theme);
+  const accent = useUIStore((s) => s.accent);
   const debouncedCode = useDebouncedValue(code, 300);
   const isSettling = code !== debouncedCode;
 
@@ -29,7 +55,19 @@ export function MermaidBlock({ code }: Props) {
       return { svg: null, error: null as Error | null };
     }
     try {
-      const out = renderMermaidSVG(debouncedCode, { transparent: true });
+      const c = readThemeColors();
+      const out = renderMermaidSVG(debouncedCode, {
+        transparent: true,
+        // `bg` is still required by the type even with transparent:true;
+        // beautiful-mermaid uses it for color-mix fallbacks of unset roles.
+        bg: c.surface,
+        fg: c.fg,
+        line: c.line,
+        accent: c.accent,
+        muted: c.muted,
+        surface: c.surface,
+        border: c.border,
+      });
       return { svg: out, error: null as Error | null };
     } catch (err) {
       return {
@@ -37,7 +75,7 @@ export function MermaidBlock({ code }: Props) {
         error: err instanceof Error ? err : new Error(String(err)),
       };
     }
-  }, [debouncedCode, isSettling]);
+  }, [debouncedCode, isSettling, theme, accent]);
 
   if (svg) {
     return <div className="mermaid-block" dangerouslySetInnerHTML={{ __html: svg }} />;
