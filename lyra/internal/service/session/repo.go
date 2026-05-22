@@ -148,6 +148,6 @@ func (r *Repo) Restore(list []Session) {
 func (r *Repo) Insert(sess Session) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	copy := sess
-	r.sessions[sess.ID] = &copy
+	clone := sess
+	r.sessions[sess.ID] = &clone
 }
