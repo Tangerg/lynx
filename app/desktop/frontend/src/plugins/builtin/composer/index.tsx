@@ -9,7 +9,7 @@
 import { Icon, type IconName } from "@/components/common";
 import { submitComposer } from "@/components/chat/submitComposer";
 import { useSessions } from "@/lib/queries";
-import { definePlugin } from "@/plugins/sdk";
+import { definePlugin, useCommands } from "@/plugins/sdk";
 import { useAgentAction } from "@/state/agentStore";
 import { useComposerStore } from "@/state/composerStore";
 import { useUIStore } from "@/state/uiStore";
@@ -160,32 +160,37 @@ export const composerToolbar = definePlugin({
 
 // ---- toolbar (end): keyboard hint + send ---------------------------------
 
-// Minimum cheat-sheet content. Kept terse — it's a hover discovery aid,
-// not a manual. If we add more shortcuts later, organize by surface
-// (composer / global / chat) so users can scan.
-const CHEATSHEET: Array<{ combo: string; what: string }> = [
-  { combo: "⌘↵",    what: "Send message" },
-  { combo: "⇧↵",    what: "New line" },
-  { combo: "Esc",   what: "Unfocus composer" },
-  { combo: "⌘K",    what: "Command palette" },
-  { combo: "⌘N",    what: "New tab" },
-  { combo: "⌘W",    what: "Close current tab" },
-  { combo: "⌘L",    what: "Focus composer" },
-  { combo: "⌘B",    what: "Toggle sidebar" },
-  { combo: "⌘1-9",  what: "Switch to tab N" },
-  { combo: "⌘⇧L",   what: "Toggle theme" },
+// Composer-local key handlers — registered by composerKeymap on the
+// textarea, not on the global shortcut store. They don't appear in
+// useCommands(), so we list them statically. Plus ⌘1-9 which is in
+// global-keymap but deliberately omits a palette command (would clutter
+// the palette with 9 "switch to tab N" entries).
+const STATIC_CHEATS: Array<{ combo: string; label: string }> = [
+  { combo: "↵",     label: "Send message" },
+  { combo: "⌘↵",    label: "Send message" },
+  { combo: "⇧↵",    label: "New line" },
+  { combo: "Esc",   label: "Unfocus composer" },
+  { combo: "⌘1-9",  label: "Switch to tab N" },
 ];
 
 function KeyHint() {
+  // Dynamic rows: any palette command that advertises a `shortcut` string.
+  // Stays in sync with whatever defaults/commands.ts (or any plugin) has
+  // registered — no parallel hardcoded list to maintain here.
+  const commands = useCommands();
+  const dynamic = commands
+    .filter((c) => c.shortcut)
+    .map((c) => ({ combo: c.shortcut as string, label: c.label }));
+
   return (
     <div className="meta key-hint">
       <span className="accent">⌘K</span> commands · <span className="accent">⌘↵</span> send
       <div className="key-cheatsheet" role="tooltip">
         <div className="key-cheatsheet-title">Shortcuts</div>
-        {CHEATSHEET.map((r) => (
-          <div className="key-cheat-row" key={r.combo}>
+        {[...STATIC_CHEATS, ...dynamic].map((r, i) => (
+          <div className="key-cheat-row" key={`${r.combo}:${i}`}>
             <kbd>{r.combo}</kbd>
-            <span>{r.what}</span>
+            <span>{r.label}</span>
           </div>
         ))}
       </div>
