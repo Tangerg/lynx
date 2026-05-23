@@ -287,6 +287,115 @@ html.theme-light .user-action.open { background: var(--color-surface-2); }
   margin-top: 2px;
 }
 
+/* Block variant — header on top, control below at full width. Used when
+   the control is a list / grid that needs more room than the 1fr column
+   in the default row layout (theme picker, plugin list, etc.). */
+.settings-row-block {
+  grid-template-columns: 1fr;
+  align-items: stretch;
+  gap: 12px;
+}
+
+/* ============================================================
+   Theme picker — IDE-style list with palette preview swatch.
+   Each row is a theme registered via host.theme.registerTheme().
+   Adding a theme plugin makes a new row appear automatically.
+   ============================================================ */
+.theme-picker {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 8px;
+}
+.theme-picker-row {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  text-align: left;
+  color: inherit;
+  font: inherit;
+  transition:
+    background var(--polish-fast),
+    border-color var(--polish-fast);
+}
+.theme-picker-row:hover {
+  background: var(--color-surface-2);
+}
+.theme-picker-row.active {
+  /* Accent border + lifted surface is the IDE-canonical "selected" cue.
+     Pairs with the check icon on the right for redundancy. */
+  background: var(--color-surface-2);
+  border-color: var(--color-accent);
+}
+.theme-picker-row:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 22%, transparent);
+}
+
+/* Layered swatch — bg fills the tile, surface tile floats on top,
+   accent dot anchors the bottom-right corner. Reads at a glance as a
+   miniature "what does the theme look like" tile, even with the label
+   covered up. */
+.theme-picker-swatch {
+  position: relative;
+  width: 48px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.theme-picker-swatch .tps-surface {
+  position: absolute;
+  inset: 8px 8px 4px 8px;
+  border-radius: 2px;
+}
+.theme-picker-swatch .tps-accent {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+.theme-picker-meta {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.theme-picker-name {
+  font-size: var(--fs-body-sm);
+  font-weight: var(--fw-semibold);
+  color: var(--color-text);
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.theme-picker-scheme {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--font-mono);
+  font-size: var(--fs-caption);
+  color: var(--color-text-faint);
+  text-transform: lowercase;
+  letter-spacing: 0;
+}
+.theme-picker-scheme svg {
+  flex-shrink: 0;
+}
+.theme-picker-check {
+  color: var(--color-accent);
+  flex-shrink: 0;
+}
+
 /* Plugins pane list. */
 .plugin-list {
   display: flex;
