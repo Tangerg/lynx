@@ -259,37 +259,6 @@ html.theme-light .tool-card.running::before {
 .app { padding: 0 !important; }
 
 /* Sidebar — rail mode */
-.sidebar.rail {
-  width: 56px;
-  padding: 12px 6px;
-  background: var(--color-bg);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-}
-.rail-brand {
-  width: 36px; height: 36px;
-  display: grid; place-items: center;
-  background: var(--color-accent);
-  color: #000;
-  border-radius: 8px;
-  margin-bottom: 4px;
-}
-.rail-brand .brand-mark { display: contents; }
-.rail-btn {
-  width: 40px; height: 40px;
-  display: grid; place-items: center;
-  background: transparent;
-  border: none;
-  color: var(--color-text-muted);
-  border-radius: 8px;
-  cursor: pointer;
-  transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
-}
-.rail-btn:hover { background: var(--color-surface); color: var(--color-text); }
-.rail-btn.primary {
-  background: var(--color-surface-2);
 
 @import "./styles/app.css";
 
