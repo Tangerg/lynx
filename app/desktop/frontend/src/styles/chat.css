@@ -378,7 +378,7 @@ html.theme-light .msg.user .msg-content {
   /* Warning-tinted background carries the "this is a command preview"
      semantic. 14% mix is loud enough to read as "warning" without
      overwhelming the surrounding card. */
-  background: color-mix(in srgb, var(--color-warning) 14%, var(--color-bg));
+  background: color-mix(in srgb, var(--color-warning) 14%, var(--color-surface));
   padding: 8px 12px;
   border-radius: var(--radius-sm);
   margin: 8px 0 10px 0;

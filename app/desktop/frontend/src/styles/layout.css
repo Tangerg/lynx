@@ -280,8 +280,6 @@ html.theme-light .tool-card.running::before {
    Kernel layout — rail sidebar, top tab bar, inline tool expansion
    ============================================================ */
 
-.app { padding: 0 !important; }
-
 /* Sidebar — rail mode */
 
 html,
