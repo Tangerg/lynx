@@ -29,9 +29,13 @@
      `--depth-step` is the tunable knob — increase for higher contrast
      between depth levels, decrease for subtler steps. The same formula
      drives both themes; no per-theme hex needs to be maintained beyond
-     canvas + surface. See DESIGN.md §5 "Elevation & Depth". */
+     canvas + surface. See DESIGN.md §5 "Elevation & Depth".
+     Note: surface (L1) in dark intentionally sits ~24 luminance units
+     above canvas (was 14 — too subtle on dim displays / glossy panels;
+     cards-on-canvas layout needs the panel to read distinctly from
+     the surrounding canvas). */
   --color-bg:             #010102;   /* canvas — faint blue tint, NOT #000000 */
-  --color-surface:        #0f1011;   /* L1 — cards, sidebar, message bubble */
+  --color-surface:        #181a1d;   /* L1 — cards, sidebar, message bubble */
   --depth-step:           5%;
   --color-surface-2:      color-mix(in srgb, var(--color-text) calc(var(--depth-step) * 1), var(--color-surface));
   --color-surface-3:      color-mix(in srgb, var(--color-text) calc(var(--depth-step) * 2), var(--color-surface));
