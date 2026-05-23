@@ -637,31 +637,13 @@ Light mode **does** use stacked shadows (Vercel-style level 1-5). This is the on
 
 Accent stays the same green in light mode (no need to dim — `#1ed760` reads well on white).
 
-## 12. Migration from Sonance / Spotify (the prior system)
-
-The prior `DESIGN.md` ("Design System Inspired by Spotify") is superseded by this document. The historical artifact is preserved at `frontend/DESIGN.legacy.md` for reference.
-
-Key migrations required in code (each is a separate phase, see implementation tracker):
-
-| From | To |
-|---|---|
-| `--color-bg: #121212` | `--color-bg: #010102` |
-| `--color-surface: #181818` | `--color-surface: #0f1011` |
-| `--font-ui: "Geist","SpotifyMixUI",...` | `--font-ui: "Geist","Inter",...` |
-| `text-transform: uppercase; letter-spacing: 0.16em` | `font-family: var(--font-mono); text-transform: none` |
-| `border-radius: var(--radius-pill)` on buttons | `border-radius: var(--radius-lg)` |
-| `font-weight: 700` on display | `font-weight: 600` |
-| `box-shadow: ...` on dark cards | Remove. Use surface lift + hairline. |
-| `color: var(--color-accent)` on inactive nav, "ok" status, avatar bg | Replace with `--color-text-muted` or `--color-success` per Accent Usage Policy |
-
-## 13. References
+## 12. References
 
 - `frontend/linear.md` — source for canvas / surface ladder / hairline ladder / accent policy.
 - `frontend/vercel.md` — source for typography (Geist), mono-as-eyebrow, stacked elevation, light palette.
-- `frontend/DESIGN.legacy.md` — prior Sonance/Spotify system, retained for historical context only.
 - AG-UI protocol — `frontend/src/protocol/agui/` — drives the shape of the data this UI renders.
 
-## 14. Iteration guide
+## 13. Iteration guide
 
 1. When adding a new surface, reference its component spec in the frontmatter `components:` block. If none exists, propose one (commit + this doc together).
 2. Default to the dark theme. Verify light parity before merging visual changes.

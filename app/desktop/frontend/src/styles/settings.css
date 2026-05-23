@@ -83,7 +83,7 @@ html.theme-light .theme-toggle:hover {
   right: -36px;
   width: 240px;
   background: var(--color-surface);
-  border: 1px solid var(--hairline-3);
+  border: 1px solid var(--color-border-soft);
   border-radius: var(--radius-lg);
   padding: 10px;
   box-shadow: var(--shadow-pop);
@@ -409,7 +409,7 @@ html.theme-light .user-action.open { background: var(--color-surface-2); }
   padding: 10px 12px;
   border-radius: 8px;
   background: var(--color-bg);
-  border: 1px solid var(--hairline-2);
+  border: 1px solid var(--color-border-soft);
 }
 .plugin-list-row.has-errors { border-color: rgba(243,114,127,0.36); }
 .plugin-list-row .plugin-list-name {

@@ -40,7 +40,7 @@ html.theme-light .cmdk-backdrop {
   padding: 10px 14px;
   border-radius: var(--radius-lg);
   background: var(--color-surface);
-  border: 1px solid var(--hairline-3);
+  border: 1px solid var(--color-border-soft);
   color: var(--color-text);
   font-size: 13px;
   line-height: 1.45;
@@ -243,7 +243,7 @@ html.theme-light .cmdk-backdrop {
   width: min(620px, 92vw);
   max-height: 60vh;
   background: var(--color-surface);
-  border: 1px solid var(--hairline-3);
+  border: 1px solid var(--color-border-soft);
   border-radius: 12px;
   box-shadow: var(--shadow-dialog);
   display: flex;
@@ -271,7 +271,7 @@ html.theme-light .cmdk-backdrop {
 .cmdk-hint {
   font-size: 10.5px;
   color: var(--color-text-faint);
-  border: 1px solid var(--hairline-2);
+  border: 1px solid var(--color-border-soft);
   padding: 2px 6px;
   border-radius: var(--radius-sm);
 }
@@ -322,7 +322,7 @@ html.theme-light .cmdk-backdrop {
 .cmdk-item-shortcut {
   font-size: 10.5px;
   color: var(--color-text-faint);
-  border: 1px solid var(--hairline-2);
+  border: 1px solid var(--color-border-soft);
   padding: 1px 6px;
   border-radius: var(--radius-sm);
 }

@@ -98,8 +98,8 @@
 .icon-btn:hover { background: var(--color-surface-2); color: var(--color-text); }
 .icon-btn.active { color: var(--color-accent); }
 
-/* Legacy name "pill-btn" — no longer pill-radius. Kept the class name
-   to avoid a JSX-wide rename; the shape is now md (8px) per DESIGN.md §6. */
+/* Project CTA shape — outlined / solid / accent / danger variants.
+   md (8px) corner per DESIGN.md §6. Emitted by the PillButton primitive. */
 .pill-btn {
   display: inline-flex; align-items: center; gap: 6px;
   height: 32px;
@@ -274,8 +274,8 @@ html.theme-light .msg.user .msg-content {
   font-family: var(--font-mono);
   font-size: 12.5px;
   padding: 0.5px 5px 1px 5px;
-  background: var(--hairline-1);
-  border: 1px solid var(--hairline-2);
+  background: var(--color-border);
+  border: 1px solid var(--color-border-soft);
   border-radius: var(--radius-xs);
   color: var(--color-text);
   letter-spacing: 0;
@@ -285,7 +285,7 @@ html.theme-light .msg.user .msg-content {
 
 .plan-block {
   background: transparent;
-  border: 1px solid var(--hairline-2);
+  border: 1px solid var(--color-border-soft);
   border-radius: 8px;
   padding: 10px 14px;
   margin: 8px 0;

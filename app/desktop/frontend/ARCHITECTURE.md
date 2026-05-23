@@ -110,7 +110,6 @@ src/
 │   ├── sessionStore.ts   activeSessionId / tabIds / mainViewTabs / activeFile /
 │   │                     selectedToolId / expandedToolIds（部分持久化）
 │   ├── composerStore.ts  撰写区文本 + 模式 + 附件
-│   ├── _legacyMigration.ts  一次性把旧 lyra.ui 单 key 迁移到三个新 key
 │   ├── useAgentSession.ts AG-UI Agent 生命周期 hook
 │   ├── useDefaultChatSession.ts  从 agentSource registry 挑选 agent
 │   ├── useWhenContext.ts  build context for `when` clauses（theme / scheme / sidebarRail / mainView）
@@ -542,9 +541,7 @@ unmount  → subscription.unsubscribe()
 | `useNotificationStore` | host.notify 推过的持久 feed | ❌ |
 | `usePluginErrorStore` | 插件错误聚合 | ❌ |
 
-**为什么 UI store 拆成三块**：原来的 `useUIStore`（262 行）把主题 / 布局 / 会话 tab / 工具检查器五种 concern 揉一起，违反单一职责。拆分后每个组件只订阅自己关心的那一块。
-
-**持久化迁移**：`_legacyMigration.ts` 在三个新 store 任意一个首次 import 时同步运行，把旧的 `lyra.ui` 单 key 中的字段 fan-out 到 `lyra.theme` / `lyra.layout` / `lyra.session`，然后删掉 `lyra.ui`。幂等、安全 — 用户偏好（已选主题 / sidebar 状态 / 已开 tab）无感知地存活下来。
+**为什么 UI store 拆成三块**：原来的 `useUIStore` 把主题 / 布局 / 会话 tab / 工具检查器五种 concern 揉一起，违反单一职责。拆分后每个组件只订阅自己关心的那一块。
 
 每个 store 各自用 Zustand `persist` 中间件 + 自己的 version 号；任意单一 store 的 schema 变更只重置该 store 的存档。
 
@@ -863,7 +860,7 @@ declare module "@/protocol/agui/viewState" {
 | 主题如何注册 | `src/plugins/builtin/themes/defineThemePlugin.ts` + 任意 `<theme>/index.ts` |
 | AG-UI 数据 fold | `src/protocol/agui/reducer.ts` + `src/plugins/builtin/core-reducer/index.ts` |
 | ChatPanel 怎么把一切串起来 | `src/components/chat/ChatPanel.tsx`（orchestrator）+ `ChatHeader` / `ChatStream` / `WorkspaceViewBody` |
-| Store 拆分与持久化迁移 | `src/state/themeStore.ts` / `layoutStore.ts` / `sessionStore.ts` / `_legacyMigration.ts` |
+| Store 拆分 | `src/state/themeStore.ts` / `layoutStore.ts` / `sessionStore.ts` |
 | 路由动态构建 | `src/router.tsx` |
 | Sideload 入口 | `src/plugins/sideload.ts` + `src/plugins/hostBridge.ts` |
 

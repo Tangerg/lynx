@@ -13,10 +13,10 @@
   transition: background var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
   border: 1px solid transparent;
 }
-.tool-card:hover { background: var(--hairline-1); border-color: var(--hairline-2); }
+.tool-card:hover { background: var(--color-border); border-color: var(--color-border-soft); }
 .tool-card.selected {
-  background: var(--hairline-1);
-  border-color: var(--hairline-3);
+  background: var(--color-border);
+  border-color: var(--color-border-soft);
 }
 
 /* Direction 2 — running tool cards get a rotating conic-gradient border.
@@ -319,7 +319,7 @@
 .diff-line.del .code { color: #f5cdd2; }
 .diff-line .code { color: var(--color-text-soft); white-space: pre; }
 .diff-hunk-head {
-  background: var(--hairline-1);
+  background: var(--color-border);
   color: var(--color-text-faint);
   padding: 4px 12px;
   font-size: 11px;

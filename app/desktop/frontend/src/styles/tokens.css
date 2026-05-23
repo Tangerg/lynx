@@ -92,8 +92,6 @@
   --fs-body-sm:    0.81rem;   /* 13px — secondary body, button label */
   --fs-body-xs:    0.75rem;   /* 12px — caption, status pill */
   --fs-caption:    0.72rem;   /* 11.5px — mono eyebrow, status bar */
-  /* Legacy `--fs-body` retained — referenced by body/textarea defaults. */
-  --fs-body:       var(--fs-body-md);
 
   /* ---------- TYPE — Weights ----------
      600 is the display ceiling — hierarchy via size + weight (400 vs 600)
@@ -177,15 +175,16 @@
     inset 0 0 0 1px var(--color-border);
   --shadow-glow:   0 0 12px color-mix(in srgb, var(--color-accent) 50%, transparent);
 
-  /* Legacy aliases — point everything that used to be a card-level
-     shadow to `none`. The only place we still want elevation chrome is
-     the floating overlay layer, which uses --shadow-lg directly. */
+  /* Semantic shadow aliases — most map to `none` on dark (depth comes
+     from the surface ladder + hairlines, not shadow per DESIGN.md §5).
+     Overlay-class shadows reuse --shadow-lg directly. Light theme
+     re-maps these via its token block — see plugins/builtin/lyra-light. */
   --shadow-card:   none;
   --shadow-dialog: var(--shadow-lg);
   --shadow-soft:   none;
   --shadow-pop:    var(--shadow-lg);
 
-  /* Input focus ring — accent halo + hairline-strong inset. Used by
+  /* Input focus ring — accent halo + soft-border inset. Used by
      .side-search input. Composed once so the focus treatment is
      consistent across any other input that wants the same affordance. */
   --shadow-input-focus:
@@ -201,7 +200,7 @@ html, body {
   background: var(--color-bg);
   color: var(--color-text);
   font-family: var(--font-ui);
-  font-size: var(--fs-body);
+  font-size: var(--fs-body-md);
   font-weight: var(--fw-regular);
   line-height: var(--leading-body);
   -webkit-font-smoothing: antialiased;
