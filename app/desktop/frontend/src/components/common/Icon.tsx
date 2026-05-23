@@ -73,8 +73,9 @@ export type IconName =
   | "arrow-down";
 
 // Mapping from our project's icon vocabulary to lucide components.
-// Names on the left are project legacy (used at hundreds of call sites);
-// names on the right are the Feather/Lucide-canonical equivalents.
+// Names on the left are the project's IconName tokens used at every
+// callsite; names on the right are the Feather/Lucide-canonical
+// equivalents we render under the hood.
 const ICON_MAP: Record<IconName, LucideIcon> = {
   "search": Search,
   "plus": Plus,
@@ -107,8 +108,8 @@ const ICON_MAP: Record<IconName, LucideIcon> = {
   "paperclip": Paperclip,
   "image": ImageIcon,
   "command": Command,
-  // "panel" and "panel-r" had identical SVGs in the legacy hand-rolled
-  // set — both right-side panel layouts. Keeping the alias here.
+  // "panel" + "panel-r" are aliases for the right-side panel layout —
+  // callsites use either interchangeably.
   "panel": PanelRight,
   "panel-l": PanelLeft,
   "panel-r": PanelRight,

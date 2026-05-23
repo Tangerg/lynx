@@ -10,9 +10,6 @@
 
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
-import { migrateLegacyUIStore } from "./_legacyMigration";
-
-migrateLegacyUIStore();
 
 type MainViewTab = { id: string; title: string; icon?: string };
 

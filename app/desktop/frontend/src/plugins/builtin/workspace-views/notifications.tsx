@@ -89,7 +89,7 @@ function NotificationRow({
         gap: 10,
         alignItems: "flex-start",
         opacity: dismissed ? 0.5 : 1,
-        borderBottom: "1px solid var(--hairline-2)",
+        borderBottom: "1px solid var(--color-border-soft)",
       }}
     >
       <div style={{

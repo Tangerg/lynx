@@ -14,9 +14,6 @@ import type { Theme } from "@/components/sidebar/types";
 // this file. Going through the barrel creates a real cycle that shows
 // up as a TDZ at module-init time under the Vitest loader.
 import { usePluginStore } from "@/plugins/sdk/registry";
-import { migrateLegacyUIStore } from "./_legacyMigration";
-
-migrateLegacyUIStore();
 
 type ThemeState = {
   theme: Theme;

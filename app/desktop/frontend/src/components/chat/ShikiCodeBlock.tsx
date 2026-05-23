@@ -10,9 +10,7 @@ type Props = {
   code: string;
   /**
    * Optional filename to display in the header. When set, the lang pill
-   * sits on the left and the filename takes the centre column — same
-   * shape as the legacy CodeBlock so the code-proposal plugin keeps
-   * working unchanged.
+   * sits on the left and the filename takes the centre column.
    */
   file?: string;
 };

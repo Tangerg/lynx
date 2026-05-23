@@ -5,9 +5,6 @@
 
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
-import { migrateLegacyUIStore } from "./_legacyMigration";
-
-migrateLegacyUIStore();
 
 type LayoutState = {
   /** True = collapsed rail. False = expanded sidebar. */

@@ -10,19 +10,6 @@
 
 * { box-sizing: border-box; }
 
-/* Hairline alias layer — legacy --hairline-* names map onto the
-   --color-border ladder, but each level steps up so callsites that
-   want a "stronger" stroke against a lifted surface (e.g. surface-2)
-   get something visibly distinct. With the new color-mix surface
-   ladder, --color-border alone matched surface-2 numerically — using
-   it as a border on surface-2 was invisible. The ladder below avoids
-   that. */
-:root {
-  --hairline-1: var(--color-border);        /* faintest divider, on canvas */
-  --hairline-2: var(--color-border-soft);   /* default border, on surface */
-  --hairline-3: var(--color-border-soft);   /* stronger stroke, on surface-2 */
-  --hairline-4: var(--color-divider);       /* deepest contrast */
-}
 /* Light-mode glow tweak — slightly tighter than dark since light backgrounds
    make halos read more loudly. Other shadow tokens are set in the main
    .theme-light block further down. */
@@ -40,7 +27,7 @@ body {
   background: var(--color-bg);
   color: var(--color-text);
   font-family: var(--font-ui);
-  font-size: var(--fs-body);
+  font-size: var(--fs-body-md);
   min-width: 1180px;
   overflow-x: auto;
 }
@@ -128,7 +115,7 @@ body {
   margin-left: 4px;
   padding: 1px 6px;
   background: transparent;
-  border: 1px solid var(--hairline-2);
+  border: 1px solid var(--color-border-soft);
   border-radius: var(--radius-xs);
   color: var(--color-text-muted);
   font-size: 10px;
@@ -307,7 +294,7 @@ body {
   background: var(--color-bg);
   color: var(--color-text);
   font-family: var(--font-ui);
-  font-size: var(--fs-body);
+  font-size: var(--fs-body-md);
   overflow: auto;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;

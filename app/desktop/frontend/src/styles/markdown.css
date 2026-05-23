@@ -414,7 +414,7 @@
   max-height: 90vh;
   overflow: auto;
   background: var(--color-surface);
-  border: 1px solid var(--hairline-3);
+  border: 1px solid var(--color-border-soft);
   border-radius: 12px;
   padding: 24px;
   box-shadow: var(--shadow-lg);
