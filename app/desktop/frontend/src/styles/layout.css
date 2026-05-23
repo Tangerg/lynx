@@ -198,11 +198,17 @@ html.theme-light .tool-card.running::before {
 }
 
 /* ---------- Panels ----------
-   Lifted cards on the outer canvas. Both sidebar and chat panel use
-   surface-1 (#0f1011 dark / #ffffff light) so they read as
-   structurally equivalent — the difference between them is purely
-   their content, not their tone. Canvas shows through the .app-main
-   padding + gap, framing each panel. */
+   Lifted cards on the outer canvas. Depth via SHADOW + tone step —
+   not lines (per user feedback, JetBrains-style: 完全没有线条, 但是
+   分界线很明显). Both panels use surface-1; canvas frames them in
+   the 8px padding/gap. The cards "float" via a subtle multi-layer
+   drop shadow + inset top-edge highlight (lit-from-above feel).
+
+   This intentionally overrides DESIGN.md §5's "no shadow on dark"
+   guidance. The DESIGN.md rule was correct for the prior flush-edge
+   layout where shadows would be invisible against same-colored
+   neighbors. With the new cards-on-canvas layout, panels float
+   against canvas — a real visual separation needs real shadow. */
 .panel {
   background: var(--color-surface);
   border-radius: var(--radius-md);
@@ -210,6 +216,16 @@ html.theme-light .tool-card.running::before {
   display: flex;
   flex-direction: column;
   min-height: 0;
+  box-shadow:
+    /* Inset top-edge highlight — picks up "light from above" so the
+       card reads as having an actual top face. */
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    /* Drop shadow ladder — small contact + wider ambient. Tuned
+       against canvas #010102; on a slightly-lighter neighbour the
+       shadow stays visible without being theatrical. */
+    0 1px 2px rgba(0, 0, 0, 0.35),
+    0 8px 16px -4px rgba(0, 0, 0, 0.28),
+    0 16px 32px -8px rgba(0, 0, 0, 0.20);
 }
 
 .panel-scroll {

@@ -78,11 +78,16 @@
 html.theme-light, html.theme-light body { background: var(--color-bg); }
 html.theme-light .app { background: var(--color-bg); }
 
-/* Panel chrome — keep rounded corners + lifted surface from the
-   .panel default. Light mode adds a subtle border for visible
-   definition since white-on-near-white needs an outline cue. */
+/* Panel chrome — no border. Depth via STACKED SHADOW only (JB / Vercel
+   pattern). The inset top-highlight from the dark-mode .panel rule
+   doesn't make sense on light (you can't have a "light from above"
+   highlight on a white surface), so we explicitly reset it. */
 html.theme-light .panel {
-  border: 1px solid var(--color-border);
+  border: none;
+  box-shadow:
+    0 1px 2px rgba(15, 15, 15, 0.06),
+    0 4px 12px rgba(15, 15, 15, 0.08),
+    0 12px 24px -8px rgba(15, 15, 15, 0.10);
 }
 
 /* Inner chrome inside chat panel — match the panel surface. */
