@@ -66,10 +66,12 @@ body {
 .app-main {
   display: grid;
   grid-template-columns: 248px minmax(0, 1fr);
-  /* Gap + padding expose the canvas around lifted panels. The 8px
-     value matches the radius-md ladder so corners and gutters rhyme. */
+  /* Gap + padding expose the canvas around lifted panels on ALL four
+     sides — including bottom, so the statusbar reads as floating below
+     the panel rather than glued to its base. The 8px value matches
+     --radius-md so corners and gutters rhyme. */
   gap: 8px;
-  padding: 8px 8px 0 8px;
+  padding: 8px;
   min-height: 0;
 }
 
