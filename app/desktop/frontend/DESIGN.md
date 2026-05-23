@@ -1,246 +1,670 @@
-# Design System Inspired by Spotify
+---
+version: 1.0
+name: lyra-design-analysis
+description: "Lyra is an agent client — a desktop chat shell that streams AG-UI events from a Go runtime. The design is dark-first, dense, keyboard-driven; built for engineers reading streaming markdown, inspecting tool calls, and approving actions. Visually a synthesis of Linear (canvas / surface ladder / hairline-defined regions / single accent) and Vercel (Geist typography / mono-as-eyebrow / stacked subtle elevation / sentence-case headlines). The system replaces the previous Spotify-inspired vocabulary (pill geometry / ALL-CAPS labels / 700+ display weight / heavy dark shadows) which read as a consumer media app and clashed with the engineering posture of an agent runtime."
 
-## 1. Visual Theme & Atmosphere
+colors:
+  # ---- Brand / accent ----
+  # Single chromatic accent — used scarcely. Allowed surfaces: active tab
+  # indicator, primary CTA, focus ring, live indicator (streaming dot,
+  # running pill). Forbidden as section background, card fill, or
+  # decorative tint.
+  primary: "#1ed760"            # Lyra signature green — kept from prior identity
+  primary-hover: "#3fe57a"
+  primary-pressed: "#169c46"
+  on-primary: "#000000"
 
-Spotify's web interface is a dark, immersive music player that wraps listeners in a near-black cocoon (`#121212`, `#181818`, `#1f1f1f`) where album art and content become the primary source of color. The design philosophy is "content-first darkness" — the UI recedes into shadow so that music, podcasts, and playlists can glow. Every surface is a shade of charcoal, creating a theater-like environment where the only true color comes from the iconic Spotify Green (`#1ed760`) and the album artwork itself.
+  # ---- Ink (text) ----
+  ink: "#f7f8f8"                # Headlines + emphasized body
+  ink-soft: "#d0d6e0"            # Body / paragraph
+  ink-muted: "#8a8f98"           # Secondary / inactive nav / meta
+  ink-faint: "#62666d"           # Tertiary / disabled / footnotes
 
-The typography uses SpotifyMixUI and SpotifyMixUITitle — proprietary fonts from the CircularSp family (Circular by Lineto, customized for Spotify) with an extensive fallback stack that includes Arabic, Hebrew, Cyrillic, Greek, Devanagari, and CJK fonts, reflecting Spotify's global reach. The type system is compact and functional: 700 (bold) for emphasis and navigation, 600 (semibold) for secondary emphasis, and 400 (regular) for body. Buttons use uppercase with positive letter-spacing (1.4px–2px) for a systematic, label-like quality.
+  # ---- Surface ladder (Linear-derived) ----
+  # Four steps above canvas. Depth comes from this ladder + hairlines —
+  # never from drop shadows on dark.
+  canvas: "#010102"              # Page background. NOT #000000 — faint blue tint
+  surface-1: "#0f1011"           # Cards, sidebar, message bubble
+  surface-2: "#141516"           # Hover / active row, raised surface
+  surface-3: "#18191a"           # Sub-nav, dropdown, popover
+  surface-4: "#191a1b"           # Deepest lifted surface
 
-What distinguishes Spotify is its pill-and-circle geometry. Primary buttons use 500px–9999px radius (full pill), circular play buttons use 50% radius, and search inputs are 500px pills. Combined with heavy shadows (`rgba(0,0,0,0.5) 0px 8px 24px`) on elevated elements and a unique inset border-shadow combo (`rgb(18,18,18) 0px 1px 0px, rgb(124,124,124) 0px 0px 0px 1px inset`), the result is an interface that feels like a premium audio device — tactile, rounded, and built for touch.
+  # ---- Hairlines ----
+  hairline: "#23252a"            # Default 1px border
+  hairline-strong: "#34343a"     # Input focus, emphasized divider
+  hairline-tertiary: "#3e3e44"   # Nested surface borders
 
-**Key Characteristics:**
-- Near-black immersive dark theme (`#121212`–`#1f1f1f`) — UI disappears behind content
-- Spotify Green (`#1ed760`) as singular brand accent — never decorative, always functional
-- SpotifyMixUI/CircularSp font family with global script support
-- Pill buttons (500px–9999px) and circular controls (50%) — rounded, touch-optimized
-- Uppercase button labels with wide letter-spacing (1.4px–2px)
-- Heavy shadows on elevated elements (`rgba(0,0,0,0.5) 0px 8px 24px`)
-- Semantic colors: negative red (`#f3727f`), warning orange (`#ffa42b`), announcement blue (`#539df5`)
-- Album art as the primary color source — the UI is achromatic by design
+  # ---- Semantic ----
+  # Used ONLY for genuine errors / warnings / live confirmations. Not
+  # decoration. RUN_ERROR banner / approval-card warnings / status dots.
+  success: "#27a644"             # Confirmed action, run finished cleanly
+  warning: "#f5a623"             # User attention required (approval pending)
+  negative: "#ee0000"            # Errors (RUN_ERROR banner, tool failure)
+  info: "#0070f3"                # Inline links, info badges
 
-## 2. Color Palette & Roles
+  # ---- Light theme (Vercel-derived) ----
+  light-canvas: "#ffffff"
+  light-surface-1: "#fafafa"
+  light-surface-2: "#f5f5f5"
+  light-surface-3: "#ececed"
+  light-hairline: "#ebebeb"
+  light-hairline-strong: "#a1a1a1"
+  light-ink: "#171717"
+  light-ink-soft: "#4d4d4d"
+  light-ink-muted: "#888888"
 
-### Primary Brand
-- **Spotify Green** (`#1ed760`): Primary brand accent — play buttons, active states, CTAs
-- **Near Black** (`#121212`): Deepest background surface
-- **Dark Surface** (`#181818`): Cards, containers, elevated surfaces
-- **Mid Dark** (`#1f1f1f`): Button backgrounds, interactive surfaces
+typography:
+  # ---- Font families ----
+  # Sans: Geist — sharp geometric, the agent-tool consensus (Linear / Vercel
+  # / Cursor all use it or Inter as fallback). Webfont loaded from Vercel CDN.
+  # Mono: Geist Mono — every numeric / ID / timestamp / eyebrow / code snippet.
+  # CJK fallback chain preserves Hiragino / Meiryo so mixed-script renders.
+  #
+  # Webfonts loaded in tokens.css via @import.
 
-### Text
-- **White** (`#ffffff`): `--text-base`, primary text
-- **Silver** (`#b3b3b3`): Secondary text, muted labels, inactive nav
-- **Near White** (`#cbcbcb`): Slightly brighter secondary text
-- **Light** (`#fdfdfd`): Near-pure white for maximum emphasis
+  # ---- Display ----
+  # 600 is the display ceiling. Both Linear and Vercel forbid 700+.
+  # Negative tracking on display, near-zero on body.
+  display-xl:
+    fontFamily: Geist, Inter, system-ui, -apple-system, sans-serif
+    fontSize: 32px
+    fontWeight: 600
+    lineHeight: 1.10
+    letterSpacing: -0.96px
+  display-lg:
+    fontFamily: Geist, Inter, system-ui, -apple-system, sans-serif
+    fontSize: 24px
+    fontWeight: 600
+    lineHeight: 1.15
+    letterSpacing: -0.6px
+  display-md:
+    fontFamily: Geist, Inter, system-ui, -apple-system, sans-serif
+    fontSize: 20px
+    fontWeight: 600
+    lineHeight: 1.20
+    letterSpacing: -0.4px
+  display-sm:
+    fontFamily: Geist, Inter, system-ui, -apple-system, sans-serif
+    fontSize: 16px
+    fontWeight: 600
+    lineHeight: 1.25
+    letterSpacing: -0.2px
 
-### Semantic
-- **Negative Red** (`#f3727f`): `--text-negative`, error states
-- **Warning Orange** (`#ffa42b`): `--text-warning`, warning states
-- **Announcement Blue** (`#539df5`): `--text-announcement`, info states
+  # ---- Body ----
+  body-lg:
+    fontFamily: Geist, Inter, system-ui, -apple-system, sans-serif
+    fontSize: 15px
+    fontWeight: 400
+    lineHeight: 1.65
+    letterSpacing: -0.1px
+  body-md:
+    fontFamily: Geist, Inter, system-ui, -apple-system, sans-serif
+    fontSize: 14px
+    fontWeight: 400
+    lineHeight: 1.55
+    letterSpacing: -0.05px
+  body-sm:
+    fontFamily: Geist, Inter, system-ui, -apple-system, sans-serif
+    fontSize: 13px
+    fontWeight: 400
+    lineHeight: 1.50
+    letterSpacing: 0
+  body-xs:
+    fontFamily: Geist, Inter, system-ui, -apple-system, sans-serif
+    fontSize: 12px
+    fontWeight: 400
+    lineHeight: 1.45
+    letterSpacing: 0
 
-### Surface & Border
-- **Dark Card** (`#252525`): Elevated card surface
-- **Mid Card** (`#272727`): Alternate card surface
-- **Border Gray** (`#4d4d4d`): Button borders on dark
-- **Light Border** (`#7c7c7c`): Outlined button borders, muted links
-- **Separator** (`#b3b3b3`): Divider lines
-- **Light Surface** (`#eeeeee`): Light-mode buttons (rare)
-- **Spotify Green Border** (`#1db954`): Green accent border variant
+  # ---- Button label ----
+  button-md:
+    fontFamily: Geist, Inter, system-ui, -apple-system, sans-serif
+    fontSize: 13px
+    fontWeight: 500
+    lineHeight: 1.20
+    letterSpacing: 0
+  button-sm:
+    fontFamily: Geist, Inter, system-ui, -apple-system, sans-serif
+    fontSize: 12px
+    fontWeight: 500
+    lineHeight: 1.20
+    letterSpacing: 0
 
-### Shadows
-- **Heavy** (`rgba(0,0,0,0.5) 0px 8px 24px`): Dialogs, menus, elevated panels
-- **Medium** (`rgba(0,0,0,0.3) 0px 8px 8px`): Cards, dropdowns
-- **Inset Border** (`rgb(18,18,18) 0px 1px 0px, rgb(124,124,124) 0px 0px 0px 1px inset`): Input border-shadow combo
+  # ---- Caption / mono eyebrow ----
+  # Replaces every ALL-CAPS + letter-spacing label from the previous system.
+  # Mono signals "technical / observable / data" — used for reasoning headers,
+  # tool-call signatures, file paths, durations, IDs, status-bar items.
+  caption:
+    fontFamily: Geist, Inter, system-ui, -apple-system, sans-serif
+    fontSize: 12px
+    fontWeight: 400
+    lineHeight: 1.40
+    letterSpacing: 0
+  caption-mono:
+    fontFamily: Geist Mono, JetBrains Mono, ui-monospace, SFMono-Regular, Menlo, monospace
+    fontSize: 11.5px
+    fontWeight: 400
+    lineHeight: 1.40
+    letterSpacing: 0
+    fontFeatureSettings: "\"tnum\""
+  code:
+    fontFamily: Geist Mono, JetBrains Mono, ui-monospace, SFMono-Regular, Menlo, monospace
+    fontSize: 12.5px
+    fontWeight: 400
+    lineHeight: 1.55
+    letterSpacing: 0
+    fontFeatureSettings: "\"tnum\""
 
-## 3. Typography Rules
+rounded:
+  none: 0px
+  xs: 4px        # Badges, status pills
+  sm: 6px        # Inputs, small buttons, nav buttons (Vercel --geist-radius)
+  md: 8px        # Default button, card chrome, dialog (Linear --geist-marketing-radius)
+  lg: 12px       # Workspace cards, pricing-style summaries
+  xl: 16px       # Hero / lightbox frame
+  pill: 9999px   # Status badge / segmented toggle ONLY — NEVER for CTAs
+  circle: 50%    # Avatar, dot indicator
 
-### Font Families
-- **Title**: `SpotifyMixUITitle`, fallbacks: `CircularSp-Arab, CircularSp-Hebr, CircularSp-Cyrl, CircularSp-Grek, CircularSp-Deva, Helvetica Neue, helvetica, arial, Hiragino Sans, Hiragino Kaku Gothic ProN, Meiryo, MS Gothic`
-- **UI / Body**: `SpotifyMixUI`, same fallback stack
+spacing:
+  # 4-base — every value a multiple of 4. Both Linear & Vercel agree.
+  px: 1px
+  xxs: 4px
+  xs: 8px
+  sm: 12px
+  md: 16px
+  lg: 24px
+  xl: 32px
+  2xl: 40px
+  3xl: 48px
+  4xl: 64px
+  5xl: 96px
 
-### Hierarchy
+# ---- Lyra-specific layout constants ----
+layout:
+  chat-measure: 760px      # Max reading width for chat content — cap to keep lines ≤80 chars
+  sidebar-rail: 56px       # Collapsed sidebar (default state)
+  sidebar-expanded: 260px  # Expanded sidebar (on demand)
+  topbar-height: 36px      # Chat tab strip — drag region on macOS
+  statusbar-height: 24px   # Bottom status bar — dense data row
+  app-divider: 1px         # Gap between flush panels — Linear hairline color shows through
 
-| Role | Font | Size | Weight | Line Height | Letter Spacing | Notes |
-|------|------|------|--------|-------------|----------------|-------|
-| Section Title | SpotifyMixUITitle | 24px (1.50rem) | 700 | normal | normal | Bold title weight |
-| Feature Heading | SpotifyMixUI | 18px (1.13rem) | 600 | 1.30 (tight) | normal | Semibold section heads |
-| Body Bold | SpotifyMixUI | 16px (1.00rem) | 700 | normal | normal | Emphasized text |
-| Body | SpotifyMixUI | 16px (1.00rem) | 400 | normal | normal | Standard body |
-| Button Uppercase | SpotifyMixUI | 14px (0.88rem) | 600–700 | 1.00 (tight) | 1.4px–2px | `text-transform: uppercase` |
-| Button | SpotifyMixUI | 14px (0.88rem) | 700 | normal | 0.14px | Standard button |
-| Nav Link Bold | SpotifyMixUI | 14px (0.88rem) | 700 | normal | normal | Navigation |
-| Nav Link | SpotifyMixUI | 14px (0.88rem) | 400 | normal | normal | Inactive nav |
-| Caption Bold | SpotifyMixUI | 14px (0.88rem) | 700 | 1.50–1.54 | normal | Bold metadata |
-| Caption | SpotifyMixUI | 14px (0.88rem) | 400 | normal | normal | Metadata |
-| Small Bold | SpotifyMixUI | 12px (0.75rem) | 700 | 1.50 | normal | Tags, counts |
-| Small | SpotifyMixUI | 12px (0.75rem) | 400 | normal | normal | Fine print |
-| Badge | SpotifyMixUI | 10.5px (0.66rem) | 600 | 1.33 | normal | `text-transform: capitalize` |
-| Micro | SpotifyMixUI | 10px (0.63rem) | 400 | normal | normal | Smallest text |
+motion:
+  ease-out: cubic-bezier(0.3, 0, 0, 1)
+  ease-emphasized: cubic-bezier(0.16, 1, 0.3, 1)
+  ease-in-out: cubic-bezier(0.45, 0, 0.55, 1)
+  dur-instant: 80ms
+  dur-fast: 140ms
+  dur-med: 220ms
+  dur-slow: 360ms
+
+components:
+  # ---- Buttons ----
+  button-primary:
+    backgroundColor: "{colors.primary}"
+    textColor: "{colors.on-primary}"
+    typography: "{typography.button-md}"
+    rounded: "{rounded.md}"
+    padding: "8px 14px"
+    description: Primary CTA. Lyra signature green. Reserved for explicit action ("Send", "Approve", "Run").
+  button-secondary:
+    backgroundColor: "{colors.surface-1}"
+    textColor: "{colors.ink}"
+    borderColor: "{colors.hairline}"
+    typography: "{typography.button-md}"
+    rounded: "{rounded.md}"
+    padding: "8px 14px"
+    description: Charcoal button on hairline border. Most "Cancel" / "Dismiss" / inline actions.
+  button-tertiary:
+    backgroundColor: transparent
+    textColor: "{colors.ink-muted}"
+    typography: "{typography.button-sm}"
+    rounded: "{rounded.sm}"
+    padding: "6px 8px"
+    description: Plain text button. Sidebar toggles, inline minor actions.
+  icon-button:
+    backgroundColor: transparent
+    textColor: "{colors.ink-muted}"
+    rounded: "{rounded.sm}"
+    minSize: 28px
+    description: Square icon container. 28×28 standard, 32×32 emphasized. Hover surface-2 fill.
+
+  # ---- Composer surface ----
+  composer:
+    backgroundColor: "{colors.surface-1}"
+    borderColor: "{colors.hairline}"
+    rounded: "{rounded.lg}"
+    padding: "12px 14px"
+    maxWidth: "{layout.chat-measure}"
+    description: Textarea + toolbar surface. Anchored bottom, centered to chat-measure. Focus ring uses primary at 14% alpha + hairline-strong.
+  composer-chip:
+    backgroundColor: "{colors.surface-2}"
+    textColor: "{colors.ink-muted}"
+    typography: "{typography.caption-mono}"
+    rounded: "{rounded.xs}"
+    padding: "2px 8px"
+    description: Attachment / file ref pill. Mono caption — these are file paths and IDs.
+  segmented-control:
+    backgroundColor: "{colors.surface-2}"
+    textColor: "{colors.ink-muted}"
+    rounded: "{rounded.sm}"
+    description: Composer mode picker (Agent / Ask / Plan). Active segment lifts to surface-3 + ink.
+
+  # ---- Message stream ----
+  message-bubble-user:
+    backgroundColor: "{colors.surface-1}"
+    borderColor: "{colors.hairline}"
+    textColor: "{colors.ink}"
+    typography: "{typography.body-md}"
+    rounded: "14px 14px 4px 14px"
+    padding: "10px 14px"
+    maxWidth: "580px"
+    description: Right-aligned bubble. Compact, hairline-bordered.
+  message-body-assistant:
+    backgroundColor: transparent
+    textColor: "{colors.ink-soft}"
+    typography: "{typography.body-md}"
+    maxWidth: "{layout.chat-measure}"
+    description: Full-width prose. No bubble chrome. Avatar peeks left.
+  reasoning-block:
+    backgroundColor: transparent
+    borderLeft: "2px solid {colors.hairline-strong}"
+    paddingLeft: "12px"
+    headerTypography: "{typography.caption-mono}"
+    headerColor: "{colors.ink-muted}"
+    bodyTypography: "{typography.body-sm}"
+    bodyColor: "{colors.ink-muted}"
+    bodyFontStyle: italic
+    description: Collapsible thinking panel. Header shows "thinking · 12s" or "thought for 12s" in mono lowercase (NEVER "THINKING" all-caps).
+  tool-call-card:
+    backgroundColor: "{colors.surface-1}"
+    borderColor: "{colors.hairline}"
+    rounded: "{rounded.md}"
+    signatureTypography: "{typography.code}"
+    metaTypography: "{typography.caption-mono}"
+    description: |
+      Renders like an RPC log entry, not a generic card. First line: function
+      signature in mono (e.g. `read_file(path: "src/auth.ts")`). Second line:
+      status glyph + duration + bytes/lines summary in caption-mono. Expandable
+      for full result.
+
+  # ---- Code & Mermaid ----
+  shiki-code-block:
+    backgroundColor: "{colors.surface-1}"
+    borderColor: "{colors.hairline}"
+    rounded: "{rounded.md}"
+    headTypography: "{typography.caption-mono}"
+    bodyTypography: "{typography.code}"
+    description: Shiki-highlighted code with mono header (lang lowercase, optional filename, copy button on hover). Long blocks auto-collapse > 24 lines.
+  mermaid-block:
+    backgroundColor: "{colors.surface-1}"
+    borderColor: "{colors.hairline}"
+    rounded: "{rounded.md}"
+    description: Clickable diagram — click opens lightbox at native scale. Diagram colors derived from theme tokens at render time.
+
+  # ---- Navigation ----
+  chat-tab:
+    backgroundColor: transparent
+    activeBackgroundColor: "{colors.surface-1}"
+    activeBorderColor: "{colors.hairline}"
+    activeIndicatorColor: "{colors.primary}"
+    typography: "{typography.body-sm}"
+    rounded: "7px 7px 0 0"
+    description: Topbar tab. Active = surface lift + 2px primary underline (the ONLY accent in the tab strip).
+  view-tab:
+    backgroundColor: "color-mix(in srgb, {colors.primary} 6%, transparent)"
+    description: Same shape as chat-tab, faintly accent-washed to distinguish "this is a panel view, not a session".
+  command-palette:
+    backgroundColor: "{colors.surface-2}"
+    borderColor: "{colors.hairline-strong}"
+    rounded: "{rounded.lg}"
+    backdropFilter: blur(10px)
+    itemTypography: "{typography.body-sm}"
+    description: ⌘K overlay. Surface-2 + hairline-strong + backdrop blur + Level 5 stacked shadow (the rare floating element where shadow is allowed).
+
+  # ---- Status bar ----
+  statusbar:
+    backgroundColor: "{colors.canvas}"
+    height: "{layout.statusbar-height}"
+    typography: "{typography.caption-mono}"
+    color: "{colors.ink-muted}"
+    description: |
+      Dense data row at app bottom. Slots, separated by hairline pipes:
+      [● status] [branch] [run_8f3a2c] [tokens 12,847 / 200,000 (6.4%)]
+      [$0.0234] [↑ 18.2 t/s]. Each value mono with tnum. The accent dot
+      pulses while running.
+
+  # ---- Overlays ----
+  toast:
+    backgroundColor: "{colors.surface-2}"
+    borderColor: "{colors.hairline}"
+    rounded: "{rounded.md}"
+    typography: "{typography.body-sm}"
+    description: Plugin toaster entry. Bottom-right stack. Auto-dismiss 4s.
+  approval-card:
+    backgroundColor: "color-mix(in srgb, {colors.warning} 8%, {colors.surface-1})"
+    borderColor: "color-mix(in srgb, {colors.warning} 30%, transparent)"
+    rounded: "{rounded.md}"
+    titleTypography: "{typography.display-sm}"
+    metaTypography: "{typography.caption-mono}"
+    description: HITL approval prompt. Warning-tinted card with mono command preview, "Approve" primary + "Decline" secondary.
+  run-error-banner:
+    backgroundColor: "color-mix(in srgb, {colors.negative} 12%, transparent)"
+    borderColor: "color-mix(in srgb, {colors.negative} 35%, transparent)"
+    rounded: "{rounded.md}"
+    titleTypography: "{typography.caption-mono}"
+    titleColor: "{colors.negative}"
+    bodyTypography: "{typography.body-sm}"
+    description: AG-UI RUN_ERROR surface. Lives above MessageStream, dismissible. Cleared automatically on next RUN_STARTED.
+---
+
+## 1. Overview
+
+Lyra is an agent client — a desktop application (Wails / React) that streams AG-UI protocol events from a Go runtime and renders them as a chat surface with inline tool calls, code, diagrams, and approval flows. The frontend is a **view onto a runtime**, not the runtime itself; the visual language reflects that posture: dense, observable, keyboard-driven.
+
+The system is dark-first by deliberate choice — agent users spend long sessions in front of the surface, and dark reduces eye fatigue. Light mode is supported with full parity (no second-class treatment).
+
+**Synthesis sources** — this system borrows specific elements from two reference systems analyzed at `frontend/linear.md` and `frontend/vercel.md`:
+
+- **From Linear**: the color system (canvas `#010102`, four-step surface ladder, three-step hairline ladder, scarce single accent), the "depth via surface + hairlines, never shadow on dark" rule, and the strict accent-usage policy.
+- **From Vercel**: the typography system (Geist + Geist Mono), the mono-as-eyebrow convention (replaces ALL-CAPS labels), sentence-case headlines, stacked-subtle elevation for the rare floating overlay, and the light-theme palette.
+
+**Explicitly rejected** from the previous "Sonance" / Spotify-derived system:
+- Pill-radius CTAs (500-9999px)
+- ALL-CAPS labels with positive letter-spacing
+- 700+ display weight
+- Heavy drop shadows on dark surfaces
+- Accent color used decoratively across 100+ surfaces
+
+## 2. Color
+
+### Philosophy
+
+Color carries information, not decoration. The system uses **one chromatic accent**, **four greys for surfaces**, **three greys for hairlines**, and **four semantic colors used sparingly**. Decoration comes from the surface ladder, not from color variation.
+
+### Surface ladder
+
+| Token | Hex | Use |
+|---|---|---|
+| `canvas` | `#010102` | Page background. The faint blue tint is deliberate — pure `#000000` reads as void; this reads as "deep dark". |
+| `surface-1` | `#0f1011` | Default lifted surface — cards, sidebar, message bubble, tool-call card. |
+| `surface-2` | `#141516` | Hovered / active row, raised surface, command palette. |
+| `surface-3` | `#18191a` | Sub-nav, dropdown, popover. |
+| `surface-4` | `#191a1b` | Deepest lifted surface (rare). |
+
+### Hairlines
+
+| Token | Hex | Use |
+|---|---|---|
+| `hairline` | `#23252a` | Default 1px border on cards, dividers, table rows. |
+| `hairline-strong` | `#34343a` | Input focus border, emphasized divider. |
+| `hairline-tertiary` | `#3e3e44` | Borders on nested surfaces. |
+
+**Hairlines must use literal hex values, not `color-mix(text X%, transparent)`** — semi-transparent borders shift visually across different surface lifts and read as "approximate". Literal hex = precision = perceived craft.
+
+### Accent policy
+
+The single accent (`primary: #1ed760`) is reserved for **exactly four surfaces**:
+
+1. Active tab indicator (2px underline on `chat-tab.active`)
+2. Primary CTA fill (`button-primary`, Send button)
+3. Focus ring (`:focus-visible` outline)
+4. Live indicator (streaming dot, running pill, `tab-dot.running`)
+
+Forbidden surfaces for accent: section background, card fill, avatar background, decorative borders, status icons that are not "live".
+
+### Semantic palette
+
+| Token | Hex | Use |
+|---|---|---|
+| `success` | `#27a644` | Run finished cleanly, action confirmed. Allowed in: run pill (idle/done), `tab-dot.idle` after success. |
+| `warning` | `#f5a623` | User attention required. Allowed in: `approval-card`, `tab-dot.waiting`. |
+| `negative` | `#ee0000` | Error. Allowed in: `run-error-banner`, tool-call `status: err`. |
+| `info` | `#0070f3` | Information / link. Allowed in: inline links, info badges. |
+
+## 3. Typography
+
+### Font families
+
+Two real webfonts, two fallback chains:
+
+- **`Geist`** (sans) — primary UI face. Sharp geometric sans, the agent-tool consensus (Linear, Vercel, Cursor, Raycast all use it or Inter as fallback). Loaded from Vercel CDN. Weights 400 / 500 / 600.
+- **`Geist Mono`** (mono) — every numeric / ID / timestamp / eyebrow / code snippet / file path. Weight 400 only.
+- **Fallback sans**: Inter, system-ui, -apple-system, then CJK chain.
+- **Fallback mono**: JetBrains Mono, ui-monospace, SFMono-Regular, Menlo.
+
+The previous `--font-title` / `--font-ui` split is **removed** — display and body share one face, weight does the hierarchy work.
+
+### Scale
+
+The full scale is 11 tokens — narrower than the previous 13-step Spotify scale. Display sizes are smaller than typical marketing systems because Lyra is a product UI, not a hero page.
+
+(See frontmatter `typography:` for canonical sizes / weights / tracking.)
 
 ### Principles
-- **Bold/regular binary**: Most text is either 700 (bold) or 400 (regular), with 600 used sparingly. This creates a clear visual hierarchy through weight contrast rather than size variation.
-- **Uppercase buttons as system**: Button labels use uppercase + wide letter-spacing (1.4px–2px), creating a systematic "label" voice distinct from content text.
-- **Compact sizing**: The range is 10px–24px — narrower than most systems. Spotify's type is compact and functional, designed for scanning playlists, not reading articles.
-- **Global script support**: The extensive fallback stack (Arabic, Hebrew, Cyrillic, Greek, Devanagari, CJK) reflects Spotify's 180+ market reach.
 
-## 4. Component Stylings
+1. **Mono is the technical voice.** All eyebrows, IDs, durations, timestamps, file paths, tool signatures, status-bar items render in `caption-mono` or `code`. This replaces every ALL-CAPS + letter-spacing label from the prior system.
 
-### Buttons
+2. **600 is the display ceiling.** Never use 700, 800, 900. Hierarchy comes from size + weight contrast (400 vs 600), not from going heavier.
 
-**Dark Pill**
-- Background: `#1f1f1f`
-- Text: `#ffffff` or `#b3b3b3`
-- Padding: 8px 16px
-- Radius: 9999px (full pill)
-- Use: Navigation pills, secondary actions
+3. **Display gets negative tracking.** -0.96px at 32px display-xl, scaling proportionally. Body holds at -0.05 to 0.
 
-**Dark Large Pill**
-- Background: `#181818`
-- Text: `#ffffff`
-- Padding: 0px 43px
-- Radius: 500px
-- Use: Primary app navigation buttons
+4. **Sentence-case headlines.** Never ALL-CAPS. Welcome screen, settings sections, view headers — all sentence-case. Optional period termination is allowed (Vercel signature) but not required.
 
-**Light Pill**
-- Background: `#eeeeee`
-- Text: `#181818`
-- Radius: 500px
-- Use: Light-mode CTAs (cookie consent, marketing)
+5. **Tabular numerals everywhere numeric.** `font-feature-settings: "tnum"` on caption-mono and code by default. Numbers don't jitter when counters update.
 
-**Outlined Pill**
-- Background: transparent
-- Text: `#ffffff`
-- Border: `1px solid #7c7c7c`
-- Padding: 4px 16px 4px 36px (asymmetric for icon)
-- Radius: 9999px
-- Use: Follow buttons, secondary actions
+6. **CJK safety.** Letter-spacing > 0.02em should be scoped to `:lang(en)` — CJK characters are pulled visually apart by positive tracking.
 
-**Circular Play**
-- Background: `#1f1f1f`
-- Text: `#ffffff`
-- Padding: 12px
-- Radius: 50% (circle)
-- Use: Play/pause controls
+## 4. Layout
 
-### Cards & Containers
-- Background: `#181818` or `#1f1f1f`
-- Radius: 6px–8px
-- No visible borders on most cards
-- Hover: slight background lightening
-- Shadow: `rgba(0,0,0,0.3) 0px 8px 8px` on elevated
+### App shell
 
-### Inputs
-- Search input: `#1f1f1f` background, `#ffffff` text
-- Radius: 500px (pill)
-- Padding: 12px 96px 12px 48px (icon-aware)
-- Focus: border becomes `#000000`, outline `1px solid`
+```
+┌──────┬─────────────────────────────────────────────────────────┐
+│      │ Topbar — chat-tab strip + slot for plugin actions       │ 36px
+│ Rail │─────────────────────────────────────────────────────────│
+│  56  │                                                          │
+│   /  │             Message stream (max-width 760)              │ 1fr
+│ Side │                                                          │
+│ 260  │  ┌───────────────────────────────────────┐              │
+│      │  │  Composer (max-width 760)             │              │
+│      │  └───────────────────────────────────────┘              │
+├──────┴─────────────────────────────────────────────────────────┤
+│ Statusbar — dense data row, mono                                │ 24px
+└─────────────────────────────────────────────────────────────────┘
+```
 
-### Navigation
-- Dark sidebar with SpotifyMixUI 14px weight 700 for active, 400 for inactive
-- `#b3b3b3` muted color for inactive items, `#ffffff` for active
-- Circular icon buttons (50% radius)
-- Spotify logo top-left in green
+### Sidebar
 
-## 5. Layout Principles
+- **Default state: rail** (56px). The expanded mode (260px) is on-demand via `⌘B` or rail hover.
+- This reverses the prior default (expanded) — agent users live in keyboard mode; the sidebar earns its width only when the user reaches for it.
 
-### Spacing System
-- Base unit: 8px
-- Scale: 1px, 2px, 3px, 4px, 5px, 6px, 8px, 10px, 12px, 14px, 15px, 16px, 20px
+### Chat measure
 
-### Grid & Container
-- Sidebar (fixed) + main content area
-- Grid-based album/playlist cards
-- Full-width now-playing bar at bottom
-- Responsive content area fills remaining space
+- Message stream + composer both cap at **`chat-measure: 760px`**, centered.
+- Reading ergonomics: 45–75 characters per line at body-md (14px) translates to ≈ 720–820px. 760 is the comfortable middle.
+- Long code blocks and tables can exceed 760 — they get horizontal scroll inside their own wrapper, the prose column stays at 760.
 
-### Whitespace Philosophy
-- **Dark compression**: Spotify packs content densely — playlist grids, track lists, and navigation are all tightly spaced. The dark background provides visual rest between elements without needing large gaps.
-- **Content density over breathing room**: This is an app, not a marketing site. Every pixel serves the listening experience.
+### Tabs
 
-### Border Radius Scale
-- Minimal (2px): Badges, explicit tags
-- Subtle (4px): Inputs, small elements
-- Standard (6px): Album art containers, cards
-- Comfortable (8px): Sections, dialogs
-- Medium (10px–20px): Panels, overlay elements
-- Large (100px): Large pill buttons
-- Pill (500px): Primary buttons, search input
-- Full Pill (9999px): Navigation pills, search
-- Circle (50%): Play buttons, avatars, icons
+- **Chat session tabs are deprecated from the topbar.** Sessions live in the sidebar as a vertical list (already implemented). The topbar carries only **view tabs** (workspace views the user "opened" into the main area: Files, Diff, Plan, Terminal).
+- When only one chat session is active and no view tabs are open, the topbar is empty (just the drag region).
 
-## 6. Depth & Elevation
+### Spacing rhythm
+
+Lyra is a **product UI**, not a marketing site. Spacing values from the frontmatter `spacing:` block apply, but:
+
+- Section breaks inside a panel: `md` 16px to `lg` 24px (never `5xl` 96px — too marketing).
+- Card interior padding: `md` 16px default, `lg` 24px for emphasized cards.
+- Inline gaps: `xs` 8px to `sm` 12px.
+- Marketing-band spacing (`5xl` / `section` 192px from Vercel) is **not used** in Lyra except in the welcome screen.
+
+## 5. Elevation & Depth
+
+### Dark mode
+
+**Depth on dark is carried by the surface ladder + hairlines.** Drop shadows on dark backgrounds are nearly invisible and waste GPU on opacity blur. The rule:
 
 | Level | Treatment | Use |
-|-------|-----------|-----|
-| Base (Level 0) | `#121212` background | Deepest layer, page background |
-| Surface (Level 1) | `#181818` or `#1f1f1f` | Cards, sidebar, containers |
-| Elevated (Level 2) | `rgba(0,0,0,0.3) 0px 8px 8px` | Dropdown menus, hover cards |
-| Dialog (Level 3) | `rgba(0,0,0,0.5) 0px 8px 24px` | Modals, overlays, menus |
-| Inset (Border) | `rgb(18,18,18) 0px 1px 0px, rgb(124,124,124) 0px 0px 0px 1px inset` | Input borders |
+|---|---|---|
+| 0 | No border, no shadow | Body text, message body |
+| 1 | `surface-1` background + 1px `hairline` border | Default card, tool-call card, message bubble |
+| 2 | `surface-2` background + 1px `hairline-strong` | Active row, hovered card, command palette base |
+| 3 | `surface-3` background | Sub-nav, dropdown |
+| 4 | Stacked subtle shadow (Vercel-style) + inset hairline | The few truly-floating overlays: command palette, mermaid lightbox, plugin toaster |
 
-**Shadow Philosophy**: Spotify uses notably heavy shadows for a dark-themed app. The 0.5 opacity shadow at 24px blur creates a dramatic "floating in darkness" effect for dialogs and menus, while the 0.3 opacity at 8px blur provides a more subtle card lift. The unique inset border-shadow combination on inputs creates a recessed, tactile quality.
+**Level 4 is the ONLY level on dark where shadow is allowed**, and it's a stacked-subtle (Vercel) shadow, not a single 24px-blur drop. Used for overlays that float above the entire app.
 
-## 7. Do's and Don'ts
+### Light mode
+
+Light uses the full Vercel-style stacked-shadow ladder (5 levels). On light, shadows are visible and necessary.
+
+## 6. Shapes
+
+### Radius scale
+
+| Token | Value | Use |
+|---|---|---|
+| `none` | 0px | Full-bleed bars (topbar, statusbar) |
+| `xs` | 4px | Badges, status pills, file chips |
+| `sm` | 6px | Inputs, small buttons, icon button square |
+| `md` | 8px | **Default button**, card chrome, dialog corners |
+| `lg` | 12px | Workspace cards, command palette frame |
+| `xl` | 16px | Lightbox frame, hero panels |
+| `pill` | 9999px | Status badges, segmented toggle ONLY |
+| `circle` | 50% | Avatars, dot indicators |
+
+### NEVER
+
+- **No pill-radius CTAs.** The previous `--radius-pill: 500px` and `--radius-full: 9999px` are removed from button surfaces. Buttons are `md` 8px square.
+- **No mixed scales on one screen.** Vercel allows pill at marketing scale + 6px at nav; Lyra picks one scale (8px) and stays there.
+
+## 7. Motion
+
+(See frontmatter `motion:` for tokens.)
+
+- **Hover / press feedback**: `dur-fast` 140ms with `ease-out`. Every interactive element has a visible state change.
+- **Layout enter/exit** (modal, toast, palette): `dur-med` 220ms with `ease-emphasized`.
+- **Heavy transitions** (panel slide, accordion expand): `dur-slow` 360ms with `ease-emphasized`.
+- **Active press scale**: every clickable surface gets `:active { transform: scale(0.92-0.96) }` per element size — gives tactile confirmation.
+- **`prefers-reduced-motion`**: all transitions degrade to ≤80ms, all scale animations disabled.
+
+## 8. Components
+
+The frontmatter `components:` block carries the canonical spec for every Lyra-specific component. Highlights:
+
+### Tool-call card — the "RPC log" rule
+
+Tool calls render **like an RPC log entry, not a generic card**:
+
+```
+read_file(path: "src/auth.ts")            ✓ 12ms · 1,247 lines
+```
+
+- Line 1: function signature in `code` typography (mono 12.5px).
+- Line 2: status glyph (`✓` / `✗` / pulsing dot) + duration + summary, all `caption-mono`.
+- Expandable for full result body.
+- Card chrome: `surface-1` + `hairline` + `md` radius.
+
+This single change carries more "agent-tool" feel than any other component decision.
+
+### Status bar — the data row
+
+Bottom 24px row, mono caption throughout. Plugins contribute slots; default set:
+
+```
+[● running] [main] [run_8f3a2c] [12,847 / 200k · 6.4%] [$0.0234] [↑ 18.2 t/s]
+```
+
+Each value is mono with tnum. Separators are hairline pipes (` │ `). The leading `●` is the agent state dot, pulsing accent while running.
+
+### Reasoning block — mono header, no caps
+
+Header was `THOUGHT FOR 1S` ALL-CAPS — now `thought · 1.2s` in `caption-mono` lowercase. Body italic stays.
+
+### Composer cheatsheet — auto-derived
+
+The composer's hover-revealed cheatsheet **derives rows from `useCommands()`**. Any command with a `shortcut: string` field auto-appears. Static rows reserved for composer-local keys (`Enter`, `⇧↵`, `⌘↵`, `Esc`, `⌘1-9`).
+
+## 9. Accent Usage Policy (strict)
+
+Accent (`#1ed760`) appears in:
+
+1. **Active tab indicator** — 2px underline on `chat-tab.active::after`
+2. **Primary CTA fill** — `button-primary` background, send button
+3. **Focus ring** — `:focus-visible { outline: 2px solid color-mix(primary 55%, transparent) }`
+4. **Live indicator** — streaming `tab-dot.running`, status pill while `run.running === true`, the reasoning block's pulse dot
+
+That's the entire list. Accent does **not** appear in:
+- Avatar backgrounds (use `surface-3` + `ink-muted`)
+- Section headers (use `ink`)
+- Active-state list rows (use `surface-2` + `ink`)
+- Iconography (icons are `ink-muted` → `ink` on hover)
+- Tool-call success status (use `success` `#27a644`, not primary)
+
+When in doubt: **does this surface convey "the agent is alive and live"?** If yes, accent. If no, grey.
+
+## 10. Do's and Don'ts
 
 ### Do
-- Use near-black backgrounds (`#121212`–`#1f1f1f`) — depth through shade variation
-- Apply Spotify Green (`#1ed760`) only for play controls, active states, and primary CTAs
-- Use pill shape (500px–9999px) for all buttons — circular (50%) for play controls
-- Apply uppercase + wide letter-spacing (1.4px–2px) on button labels
-- Keep typography compact (10px–24px range) — this is an app, not a magazine
-- Use heavy shadows (`0.3–0.5 opacity`) for elevated elements on dark backgrounds
-- Let album art provide color — the UI itself is achromatic
+
+- Render every eyebrow / label / ID / duration / file path in `caption-mono`.
+- Cap chat content (message stream + composer) at `chat-measure: 760px`, centered.
+- Use literal hex hairlines (`#23252a` / `#34343a` / `#3e3e44`) — not `color-mix(text X%, transparent)`.
+- Set every interactive element with `:hover`, `:active`, `:focus-visible`.
+- Use `font-feature-settings: "tnum"` on every numeric display.
+- Default sidebar to rail (56px). Expand on demand.
+- Render tool calls as RPC logs (mono signature + duration line).
+- Pair display weight 600 with body weight 400. Hierarchy via size + weight contrast, never weight 700+.
 
 ### Don't
-- Don't use Spotify Green decoratively or on backgrounds — it's functional only
-- Don't use light backgrounds for primary surfaces — the dark immersion is core
-- Don't skip the pill/circle geometry on buttons — square buttons break the identity
-- Don't use thin/subtle shadows — on dark backgrounds, shadows need to be heavy to be visible
-- Don't add additional brand colors — green + achromatic grays is the complete palette
-- Don't use relaxed line-heights — Spotify's typography is compact and dense
-- Don't expose raw gray borders — use shadow-based or inset borders instead
 
-## 8. Responsive Behavior
+- **Don't use ALL-CAPS labels with letter-spacing.** Replace with `caption-mono` lowercase.
+- **Don't use pill-radius CTAs** (`9999px`, `500px`, `100px` on a button). Buttons are `md` 8px.
+- **Don't use weight 700+ for display.** 600 is the ceiling, Linear and Vercel both forbid this.
+- **Don't drop a single heavy `box-shadow` on dark surfaces.** Use surface ladder + hairlines. Stacked-subtle shadow allowed only for Level 4 overlays.
+- **Don't use `#000000` true black as canvas.** `#010102` with the faint blue tint is the right anchor.
+- **Don't introduce a second chromatic accent.** Lyra has one accent + four semantic colors. No more.
+- **Don't use accent decoratively.** Active tab / primary CTA / focus ring / live indicator — that's the entire allowed list.
+- **Don't set body paragraphs in mono.** Mono is for the technical layer only.
+- **Don't apply atmospheric gradients, mesh backdrops, or dot grids** (the latter was discussed and rejected — Linear explicitly forbids "atmospheric gradients or spotlight cards").
+- **Don't add backdrop-filter / vibrancy / Mica effects.** Wails WebView is inconsistent across platforms; visual carries the load.
 
-### Breakpoints
-| Name | Width | Key Changes |
-|------|-------|-------------|
-| Mobile Small | <425px | Compact mobile layout |
-| Mobile | 425–576px | Standard mobile |
-| Tablet | 576–768px | 2-column grid |
-| Tablet Large | 768–896px | Expanded layout |
-| Desktop Small | 896–1024px | Sidebar visible |
-| Desktop | 1024–1280px | Full desktop layout |
-| Large Desktop | >1280px | Expanded grid |
+## 11. Light theme
 
-### Collapsing Strategy
-- Sidebar: full → collapsed → hidden
-- Album grid: 5 columns → 3 → 2 → 1
-- Now-playing bar: maintained at all sizes
-- Search: pill input maintained, width adjusts
-- Navigation: sidebar → bottom bar on mobile
+Light mode targets full parity with dark. Surfaces invert: canvas `#ffffff`, surface-1 `#fafafa`, surface-2 `#f5f5f5`, surface-3 `#ececed`. Hairlines invert to `#ebebeb` / `#a1a1a1`. Ink inverts to `#171717` / `#4d4d4d` / `#888888`.
 
-## 9. Agent Prompt Guide
+Light mode **does** use stacked shadows (Vercel-style level 1-5). This is the only place the dark/light symmetry breaks.
 
-### Quick Color Reference
-- Background: Near Black (`#121212`)
-- Surface: Dark Card (`#181818`)
-- Text: White (`#ffffff`)
-- Secondary text: Silver (`#b3b3b3`)
-- Accent: Spotify Green (`#1ed760`)
-- Border: `#4d4d4d`
-- Error: Negative Red (`#f3727f`)
+Accent stays the same green in light mode (no need to dim — `#1ed760` reads well on white).
 
-### Example Component Prompts
-- "Create a dark card: #181818 background, 8px radius. Title at 16px SpotifyMixUI weight 700, white text. Subtitle at 14px weight 400, #b3b3b3. Shadow rgba(0,0,0,0.3) 0px 8px 8px on hover."
-- "Design a pill button: #1f1f1f background, white text, 9999px radius, 8px 16px padding. 14px SpotifyMixUI weight 700, uppercase, letter-spacing 1.4px."
-- "Build a circular play button: Spotify Green (#1ed760) background, #000000 icon, 50% radius, 12px padding."
-- "Create search input: #1f1f1f background, white text, 500px radius, 12px 48px padding. Inset border: rgb(124,124,124) 0px 0px 0px 1px inset."
-- "Design navigation sidebar: #121212 background. Active items: 14px weight 700, white. Inactive: 14px weight 400, #b3b3b3."
+## 12. Migration from Sonance / Spotify (the prior system)
 
-### Iteration Guide
-1. Start with #121212 — everything lives in near-black darkness
-2. Spotify Green for functional highlights only (play, active, CTA)
-3. Pill everything — 500px for large, 9999px for small, 50% for circular
-4. Uppercase + wide tracking on buttons — the systematic label voice
-5. Heavy shadows (0.3–0.5 opacity) for elevation — light shadows are invisible on dark
-6. Album art provides all the color — the UI stays achromatic
+The prior `DESIGN.md` ("Design System Inspired by Spotify") is superseded by this document. The historical artifact is preserved at `frontend/DESIGN.legacy.md` for reference.
+
+Key migrations required in code (each is a separate phase, see implementation tracker):
+
+| From | To |
+|---|---|
+| `--color-bg: #121212` | `--color-bg: #010102` |
+| `--color-surface: #181818` | `--color-surface: #0f1011` |
+| `--font-ui: "Geist","SpotifyMixUI",...` | `--font-ui: "Geist","Inter",...` |
+| `text-transform: uppercase; letter-spacing: 0.16em` | `font-family: var(--font-mono); text-transform: none` |
+| `border-radius: var(--radius-pill)` on buttons | `border-radius: var(--radius-lg)` |
+| `font-weight: 700` on display | `font-weight: 600` |
+| `box-shadow: ...` on dark cards | Remove. Use surface lift + hairline. |
+| `color: var(--color-accent)` on inactive nav, "ok" status, avatar bg | Replace with `--color-text-muted` or `--color-success` per Accent Usage Policy |
+
+## 13. References
+
+- `frontend/linear.md` — source for canvas / surface ladder / hairline ladder / accent policy.
+- `frontend/vercel.md` — source for typography (Geist), mono-as-eyebrow, stacked elevation, light palette.
+- `frontend/DESIGN.legacy.md` — prior Sonance/Spotify system, retained for historical context only.
+- AG-UI protocol — `frontend/src/protocol/agui/` — drives the shape of the data this UI renders.
+
+## 14. Iteration guide
+
+1. When adding a new surface, reference its component spec in the frontmatter `components:` block. If none exists, propose one (commit + this doc together).
+2. Default to the dark theme. Verify light parity before merging visual changes.
+3. Run `npx tsc --noEmit && npx vitest run` after any token change.
+4. Visually verify in `wails dev` — type/spacing changes especially.
+5. Treat the accent as scarce: ask "is this live?" — if no, use grey.

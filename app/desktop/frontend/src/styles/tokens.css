@@ -1,64 +1,69 @@
 /* ============================================================
-   Sonance Design System — Core tokens
-   Dark-immersive music-player aesthetic.
-   Single green accent, pill geometry, uppercase systematic labels.
+   Lyra Design System — Core tokens
+   Dark-first agent client. See frontend/DESIGN.md for the spec.
+   Synthesis of Linear (canvas / surface / hairline) + Vercel (Geist /
+   mono-eyebrow / elevation). Replaces the prior Spotify-derived system.
    ============================================================ */
 
-/* --- Webfont (Google Fonts substitute for the proprietary
-       CircularSp / SpotifyMixUI family — see README) --- */
-@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap');
+/* --- Webfonts ---
+     Geist (sans) drives every UI surface; Geist Mono drives every
+     numeric / ID / timestamp / eyebrow / code snippet. Both are loaded
+     from Vercel's font CDN — no proprietary fallbacks. */
+@import url('https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400&display=swap');
 
 :root {
-  /* ---------- COLOR — Brand ---------- */
-  --color-accent:         #1ed760;   /* Signature green — functional only */
-  --color-accent-border:  #1db954;   /* Slightly darker green for borders */
-  --color-accent-press:   #169c46;   /* Press/active state */
+  /* ---------- COLOR — Brand (single accent, used scarcely) ----------
+     Allowed surfaces: active tab indicator, primary CTA, focus ring,
+     live indicator. Forbidden as section background or decorative tint.
+     See DESIGN.md §9 "Accent Usage Policy". */
+  --color-accent:         #1ed760;
+  --color-accent-border:  #1db954;
+  --color-accent-press:   #169c46;
 
-  /* ---------- COLOR — Surfaces (depth via shade, not borders) ---------- */
-  --color-bg:             #121212;   /* L0 — page background, deepest */
-  --color-surface:        #181818;   /* L1 — cards, sidebar */
-  --color-surface-2:      #1f1f1f;   /* L1.5 — buttons, inputs, raised */
-  --color-surface-3:      #252525;   /* L2 — elevated cards */
-  --color-surface-4:      #272727;   /* L2 alt */
-  --color-surface-light:  #eeeeee;   /* Light-mode CTAs (rare) */
+  /* ---------- COLOR — Surface ladder (Linear hex) ----------
+     Depth comes from this ladder + hairlines — never from drop shadow
+     on dark. See DESIGN.md §5 "Elevation & Depth". */
+  --color-bg:             #010102;   /* canvas — faint blue tint, NOT #000000 */
+  --color-surface:        #0f1011;   /* L1 — cards, sidebar, message bubble */
+  --color-surface-2:      #141516;   /* L2 — hover/active row, palette */
+  --color-surface-3:      #18191a;   /* L3 — sub-nav, dropdown, popover */
+  --color-surface-4:      #191a1b;   /* L4 — deepest lifted surface */
+  --color-surface-light:  #fafafa;   /* Light-mode L1 (Vercel canvas-soft) */
 
-  /* ---------- COLOR — Text ---------- */
-  --color-text:           #ffffff;   /* Primary */
-  --color-text-bright:    #fdfdfd;   /* Max emphasis */
-  --color-text-soft:      #cbcbcb;   /* Brighter muted */
-  --color-text-muted:     #b3b3b3;   /* Secondary, inactive nav */
-  --color-text-faint:     #7c7c7c;   /* Tertiary, hint text */
-  --color-text-on-accent: #000000;   /* Black icon on green play button */
+  /* ---------- COLOR — Ink (text) ---------- */
+  --color-text:           #f7f8f8;   /* Headlines + emphasized body */
+  --color-text-bright:    #ffffff;
+  --color-text-soft:      #d0d6e0;   /* Body / paragraph */
+  --color-text-muted:     #8a8f98;   /* Secondary / inactive nav / meta */
+  --color-text-faint:     #62666d;   /* Tertiary / disabled / footnotes */
+  --color-text-on-accent: #000000;   /* Black ink on green CTA */
 
-  /* ---------- COLOR — Borders & dividers ---------- */
-  --color-border:         #4d4d4d;   /* Standard border on dark */
-  --color-border-soft:    #7c7c7c;   /* Outlined buttons */
-  --color-divider:        #b3b3b3;   /* Visible separator */
-  /* The colour that shows through the 1px gap between flush panels in
-     the app grid. Slightly lighter than --color-surface in dark mode so
-     the boundary is visible without being loud. Light mode overrides. */
-  --color-app-divider:    #262626;
+  /* ---------- COLOR — Hairlines (literal hex, not color-mix) ----------
+     Literal hex = precision = perceived craft. Semi-transparent borders
+     shift across surface lifts and read as "approximate". */
+  --color-border:         #23252a;   /* Default 1px border */
+  --color-border-soft:    #34343a;   /* Input focus, emphasized divider */
+  --color-divider:        #3e3e44;   /* Nested surface borders */
+  --color-app-divider:    #23252a;   /* 1px gap between flush panels */
 
-  /* ---------- COLOR — Semantic ---------- */
-  --color-negative:       #f3727f;   /* Errors */
-  --color-warning:        #ffa42b;   /* Warnings */
-  --color-info:           #539df5;   /* Announcements */
+  /* ---------- COLOR — Semantic (used sparingly, see DESIGN.md §2) ----- */
+  --color-negative:       #ee0000;   /* Errors — RUN_ERROR banner, tool err */
+  --color-warning:        #f5a623;   /* User attention — approval pending */
+  --color-info:           #0070f3;   /* Inline links, info badges */
+  --color-success:        #27a644;   /* Run finished cleanly */
 
-  /* ---------- TYPE — Families ---------- */
-  /* Title fallbacks intentionally include scripts for global reach. */
-  --font-title:
-    "SpotifyMixUITitle", "CircularSp-Title", "Manrope",
-    "Helvetica Neue", helvetica, arial,
-    "Hiragino Sans", "Hiragino Kaku Gothic ProN", Meiryo, "MS Gothic",
-    sans-serif;
+  /* ---------- TYPE — Families ----------
+     Sans / mono — two families do all the work. The previous
+     `--font-title` is removed; display and body share Geist. */
   --font-ui:
-    "Geist", "SpotifyMixUI", "CircularSp", "Manrope",
-    "Helvetica Neue", helvetica, arial,
+    "Geist", "Inter", system-ui, -apple-system, "Segoe UI", Roboto,
     "Hiragino Sans", "Hiragino Kaku Gothic ProN", Meiryo, "MS Gothic",
     sans-serif;
-  /* Direction 2 — JetBrains Mono drives all numeric / ID / timestamp /
-     code-adjacent UI text. System monos kept as fallback for offline boot. */
-  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --font-mono:
+    "Geist Mono", "JetBrains Mono", ui-monospace, SFMono-Regular,
+    Menlo, Consolas, monospace;
+  /* Legacy alias — anything still requesting --font-title gets Geist. */
+  --font-title: var(--font-ui);
 
   /* Primary CTA — defaults to the accent (dark mode), light mode overrides
      to pure black (Vercel signature). Decoupled from --color-accent so the
@@ -68,26 +73,47 @@
   --color-cta-hover:  var(--color-accent-border);
   --color-cta-text:   var(--color-text-on-accent);
 
-  /* ---------- TYPE — Sizes (compact, app-not-magazine) ---------- */
-  --fs-section:   1.50rem;   /* 24px — section title */
-  --fs-feature:   1.13rem;   /* 18px — feature heading */
-  --fs-body:      1.00rem;   /* 16px — body */
-  --fs-button:    0.88rem;   /* 14px — buttons / nav / caption */
-  --fs-small:     0.75rem;   /* 12px — tags, fine print */
-  --fs-badge:     0.66rem;   /* 10.5px */
-  --fs-micro:     0.63rem;   /* 10px */
+  /* ---------- TYPE — Sizes (DESIGN.md §3 scale) ---------- */
+  --fs-display-xl: 2.00rem;   /* 32px — welcome / settings hero */
+  --fs-display-lg: 1.50rem;   /* 24px — section title */
+  --fs-display-md: 1.25rem;   /* 20px — sub-section / pane title */
+  --fs-display-sm: 1.00rem;   /* 16px — card title */
+  --fs-body-lg:    0.94rem;   /* 15px — message body (long-form reading) */
+  --fs-body-md:    0.88rem;   /* 14px — default body */
+  --fs-body-sm:    0.81rem;   /* 13px — secondary body, button label */
+  --fs-body-xs:    0.75rem;   /* 12px — caption, status pill */
+  --fs-caption:    0.72rem;   /* 11.5px — mono eyebrow, status bar */
 
-  /* ---------- TYPE — Weights ---------- */
+  /* Legacy aliases — keep callers compiling through migration. */
+  --fs-section:   var(--fs-display-lg);
+  --fs-feature:   var(--fs-display-md);
+  --fs-body:      var(--fs-body-md);
+  --fs-button:    var(--fs-body-sm);
+  --fs-small:     var(--fs-body-xs);
+  --fs-badge:     var(--fs-caption);
+  --fs-micro:     var(--fs-caption);
+
+  /* ---------- TYPE — Weights ----------
+     600 is the display ceiling. Hierarchy via size + weight (400 vs 600)
+     contrast. 700+ is forbidden — see DESIGN.md §3 principle 2. */
   --fw-regular:   400;
+  --fw-medium:    500;
   --fw-semibold:  600;
-  --fw-bold:      700;
+  /* Legacy alias — `--fw-bold` now maps to 600 to enforce the ceiling. */
+  --fw-bold:      600;
 
-  /* ---------- TYPE — Tracking / leading ---------- */
-  --tracking-button: 0.1em;   /* ~1.4px on 14px */
-  --tracking-button-wide: 0.14em; /* 2px on 14px */
-  --leading-tight: 1.0;
-  --leading-snug:  1.3;
-  --leading-body:  1.5;
+  /* ---------- TYPE — Tracking / leading ----------
+     Display gets negative tracking; body holds ≈0. The old positive
+     `--tracking-button` / `--tracking-button-wide` (1.4-2px) are kept
+     as legacy aliases but mapped to 0 to neutralize ALL-CAPS callsites
+     during migration. */
+  --tracking-display: -0.02em;
+  --tracking-display-tight: -0.03em;
+  --tracking-button: 0;
+  --tracking-button-wide: 0;
+  --leading-tight: 1.10;
+  --leading-snug:  1.30;
+  --leading-body:  1.55;
 
   /* ---------- SPACING — Base unit 8 ---------- */
   --space-px:   1px;
@@ -107,17 +133,21 @@
   --space-32:   32px;
   --space-40:   40px;
 
-  /* ---------- RADIUS ---------- */
-  --radius-min:    2px;   /* Badges */
-  --radius-sm:     4px;   /* Inputs, small */
-  --radius-md:     6px;   /* Album art, cards */
-  --radius-lg:     8px;   /* Sections, dialogs */
-  --radius-xl:     10px;
-  --radius-2xl:    20px;
-  --radius-100:    100px; /* Large pill */
-  --radius-pill:   500px; /* Primary buttons, search */
-  --radius-full:   9999px;/* Nav pills */
-  --radius-circle: 50%;   /* Play, avatar */
+  /* ---------- RADIUS (DESIGN.md §6) ----------
+     md (8px) is the default button radius. Pill is reserved for status
+     badges + segmented toggle ONLY — never CTAs. */
+  --radius-xs:     4px;   /* Badges, status pills, file chips */
+  --radius-sm:     6px;   /* Inputs, small buttons, icon button square */
+  --radius-md:     8px;   /* Default button, card chrome, dialog */
+  --radius-lg:     12px;  /* Workspace cards, command palette frame */
+  --radius-xl:     16px;  /* Lightbox frame, hero panels */
+  --radius-pill:   9999px;/* Status badge / segmented toggle ONLY */
+  --radius-circle: 50%;   /* Avatar, dot indicator */
+  /* Legacy aliases — keep call sites compiling through migration. */
+  --radius-min:    var(--radius-xs);
+  --radius-2xl:    var(--radius-xl);
+  --radius-100:    var(--radius-pill);
+  --radius-full:   var(--radius-pill);
 
   /* ---------- MOTION — Easing + durations ---------- */
   /* Standard ease-out — quick exit, gentle settle. Same curve we use in
@@ -137,39 +167,39 @@
   --polish-fast:   var(--dur-fast) var(--ease-out);
   --polish-med:    var(--dur-med) var(--ease-out);
 
-  /* ---------- SHADOWS — Multi-layer soft, on black ---------- */
-  /* Dark-mode defaults: built up from a faint contact + a wider ambient
-     blur so elevated surfaces feel grounded without a hard line. Light
-     theme overrides live next to the rest of the light overrides. */
-  --shadow-xs:
-    0 1px 2px rgba(0, 0, 0, 0.20);
-  --shadow-sm:
-    0 1px 2px rgba(0, 0, 0, 0.12),
-    0 2px 6px rgba(0, 0, 0, 0.16);
-  --shadow-md:
-    0 2px 4px rgba(0, 0, 0, 0.10),
-    0 8px 20px rgba(0, 0, 0, 0.22);
+  /* ---------- SHADOWS (DESIGN.md §5) ----------
+     Dark mode: depth comes from surface ladder + hairlines, NOT shadow.
+     `--shadow-xs / -sm / -md` are intentionally `none` on dark — any
+     existing call site that requests them gets nothing, which is what
+     we want. The one exception is `--shadow-lg`: Level 4 stacked-subtle
+     for truly-floating overlays (palette, lightbox, toaster). Light
+     theme overrides re-enable the full stack — see app.css. */
+  --shadow-xs:     none;
+  --shadow-sm:     none;
+  --shadow-md:     none;
   --shadow-lg:
-    0 1px 0 rgba(255, 255, 255, 0.04) inset,
-    0 4px 12px rgba(0, 0, 0, 0.22),
-    0 24px 60px -12px rgba(0, 0, 0, 0.55);
-  /* Accent halo — used for "live" dots, focused inputs. */
+    0 1px 2px rgba(0, 0, 0, 0.40),
+    0 8px 16px -4px rgba(0, 0, 0, 0.50),
+    0 24px 32px -8px rgba(0, 0, 0, 0.60),
+    inset 0 0 0 1px var(--color-border);
   --shadow-glow:   0 0 12px color-mix(in srgb, var(--color-accent) 50%, transparent);
 
-  /* Legacy aliases — keep callers compiling while the migration finishes.
-     New code should use the xs/sm/md/lg tokens. */
-  --shadow-card:   var(--shadow-md);
+  /* Legacy aliases — point everything that used to be a card-level
+     shadow to `none`. The only place we still want elevation chrome is
+     the floating overlay layer, which uses --shadow-lg directly. */
+  --shadow-card:   none;
   --shadow-dialog: var(--shadow-lg);
-  --shadow-soft:   var(--shadow-xs);
+  --shadow-soft:   none;
   --shadow-pop:    var(--shadow-lg);
 
-  /* Inset border-shadow combo for inputs (1px floor + 1px inset stroke) */
-  --shadow-input:
-    rgb(18, 18, 18) 0px 1px 0px,
-    rgb(124, 124, 124) 0px 0px 0px 1px inset;
+  /* Input borders use the hairline ladder directly — the inset-shadow
+     combo was Spotify-derived chrome we don't need. Kept as alias for
+     transitional compatibility; resolves to a plain border on the
+     surface ladder. */
+  --shadow-input:  inset 0 0 0 1px var(--color-border);
   --shadow-input-focus:
-    rgb(0, 0, 0) 0px 0px 0px 2px,
-    rgb(255, 255, 255) 0px 0px 0px 1px inset;
+    0 0 0 2px color-mix(in srgb, var(--color-accent) 30%, transparent),
+    inset 0 0 0 1px var(--color-border-soft);
 }
 
 /* ============================================================
@@ -188,32 +218,33 @@ html, body {
 }
 
 h1, .h1 {
-  font-family: var(--font-title);
-  font-size: var(--fs-section);
-  font-weight: var(--fw-bold);
-  line-height: var(--leading-snug);
-  letter-spacing: -0.01em;
+  font-family: var(--font-ui);
+  font-size: var(--fs-display-lg);
+  font-weight: var(--fw-semibold);
+  line-height: var(--leading-tight);
+  letter-spacing: var(--tracking-display-tight);
   margin: 0;
 }
 
 h2, .h2 {
   font-family: var(--font-ui);
-  font-size: var(--fs-feature);
+  font-size: var(--fs-display-md);
   font-weight: var(--fw-semibold);
   line-height: var(--leading-snug);
+  letter-spacing: var(--tracking-display);
   margin: 0;
 }
 
 h3, .h3 {
   font-family: var(--font-ui);
-  font-size: var(--fs-body);
-  font-weight: var(--fw-bold);
-  line-height: var(--leading-body);
+  font-size: var(--fs-display-sm);
+  font-weight: var(--fw-semibold);
+  line-height: var(--leading-snug);
   margin: 0;
 }
 
 p, .body {
-  font-size: var(--fs-body);
+  font-size: var(--fs-body-md);
   font-weight: var(--fw-regular);
   line-height: var(--leading-body);
   color: var(--color-text);
@@ -221,32 +252,63 @@ p, .body {
 }
 
 .caption {
-  font-size: var(--fs-button);
+  font-size: var(--fs-body-xs);
   font-weight: var(--fw-regular);
   color: var(--color-text-muted);
 }
 
 .caption-bold {
-  font-size: var(--fs-button);
-  font-weight: var(--fw-bold);
+  font-size: var(--fs-body-xs);
+  font-weight: var(--fw-medium);
   line-height: 1.5;
 }
 
-.small        { font-size: var(--fs-small); font-weight: var(--fw-regular); }
-.small-bold   { font-size: var(--fs-small); font-weight: var(--fw-bold); line-height: 1.5; }
-.badge-text   {
-  font-size: var(--fs-badge); font-weight: var(--fw-semibold);
-  line-height: 1.33; text-transform: capitalize;
+/* Mono eyebrow — replaces ALL-CAPS + letter-spacing labels.
+   See DESIGN.md §3 principle 1. Apply class `.eyebrow` to any element
+   that used to be ALL-CAPS UPPERCASE (REASONING / THOUGHT FOR 1S /
+   FILES CHANGED / LIVE …). Result: same role (taxonomy / label) but
+   with technical voice instead of media-app voice. */
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: var(--fs-caption);
+  font-weight: var(--fw-regular);
+  line-height: var(--leading-snug);
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--color-text-muted);
+  font-feature-settings: "tnum";
 }
-.micro        { font-size: var(--fs-micro); font-weight: var(--fw-regular); }
 
-/* ---------- Button label voice (uppercase + tracking) ---------- */
+/* Tabular-numeric utility — apply anywhere numbers are displayed
+   (token counts, durations, IDs, %, costs). Keeps digits in column
+   so counters don't jitter when values update. */
+.mono-num {
+  font-family: var(--font-mono);
+  font-feature-settings: "tnum";
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+}
+
+.small        { font-size: var(--fs-body-xs); font-weight: var(--fw-regular); }
+.small-bold   { font-size: var(--fs-body-xs); font-weight: var(--fw-medium); line-height: 1.5; }
+.badge-text   {
+  font-size: var(--fs-caption); font-weight: var(--fw-medium);
+  line-height: 1.33;
+}
+.micro        { font-size: var(--fs-caption); font-weight: var(--fw-regular); }
+
+/* Legacy `.label-uppercase` — neutralized. Old callsites still apply
+   the class but the visual now matches `.eyebrow` (mono lowercase).
+   Removing the rule entirely would break a dozen unrelated places mid-
+   migration; this lets us strip the class incrementally per file. */
 .label-uppercase {
-  font-size: var(--fs-button);
-  font-weight: var(--fw-bold);
-  line-height: var(--leading-tight);
-  letter-spacing: var(--tracking-button);
-  text-transform: uppercase;
+  font-family: var(--font-mono);
+  font-size: var(--fs-caption);
+  font-weight: var(--fw-regular);
+  line-height: var(--leading-snug);
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--color-text-muted);
 }
 
 /* ---------- Nav ---------- */
