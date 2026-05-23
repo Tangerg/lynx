@@ -18,7 +18,10 @@ export function ToolCard({
   tool, selected, expanded, onToggleExpand, onOpenView,
 }: Props) {
   const statusClass = tool.status === "running" ? "run" : tool.status === "ok" ? "ok" : "err";
-  const statusLabel = tool.status === "running" ? "Running" : tool.status === "ok" ? "Done" : "Failed";
+  // Glyph instead of word — "Running / Done / Failed" → "● / ✓ / ✗" — gives the
+  // row an RPC-log voice (see DESIGN.md §8 "RPC log rule"). The pulsing dot
+  // for `running` is set up in CSS via `.tool-status.run::before` animation.
+  const statusGlyph = tool.status === "running" ? "" : tool.status === "ok" ? "✓" : "✗";
   const actions = useToolActions().filter((a) => !a.predicate || a.predicate(tool));
 
   return (
@@ -29,10 +32,15 @@ export function ToolCard({
         </div>
         <div className="tool-name">
           <span className="tool-fn">{tool.fn}</span>
-          <span className="tool-args">{tool.args}</span>
+          {/* Args rendered as parens-wrapped argument list, mono, so the
+              full line reads as a function signature. Truncates with
+              ellipsis if the args are long. */}
+          <span className="tool-args">({tool.args})</span>
         </div>
         <ToolMeta tool={tool} />
-        <div className={`tool-status ${statusClass}`}>{statusLabel}</div>
+        <div className={`tool-status ${statusClass}`} aria-label={tool.status}>
+          <span aria-hidden="true">{statusGlyph}</span>
+        </div>
         {actions.map((a) => (
           <button
             key={a.id}
