@@ -10,15 +10,18 @@
 
 * { box-sizing: border-box; }
 
-/* Hairline alias layer — legacy --hairline-* names point at the
-   token-stable --color-border ladder. Since the aliases resolve via
-   `var()`, the values automatically follow the active theme — the
-   light/dark hex values live in tokens.css + the .theme-light block. */
+/* Hairline alias layer — legacy --hairline-* names map onto the
+   --color-border ladder, but each level steps up so callsites that
+   want a "stronger" stroke against a lifted surface (e.g. surface-2)
+   get something visibly distinct. With the new color-mix surface
+   ladder, --color-border alone matched surface-2 numerically — using
+   it as a border on surface-2 was invisible. The ladder below avoids
+   that. */
 :root {
-  --hairline-1: var(--color-border);
-  --hairline-2: var(--color-border);
-  --hairline-3: var(--color-border-soft);
-  --hairline-4: var(--color-divider);
+  --hairline-1: var(--color-border);        /* faintest divider, on canvas */
+  --hairline-2: var(--color-border-soft);   /* default border, on surface */
+  --hairline-3: var(--color-border-soft);   /* stronger stroke, on surface-2 */
+  --hairline-4: var(--color-divider);       /* deepest contrast */
 }
 /* Light-mode glow tweak — slightly tighter than dark since light backgrounds
    make halos read more loudly. Other shadow tokens are set in the main
