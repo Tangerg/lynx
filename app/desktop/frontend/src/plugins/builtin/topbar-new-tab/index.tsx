@@ -9,12 +9,12 @@
 import { Icon } from "@/components/common";
 import { useSessions } from "@/lib/queries";
 import { definePlugin } from "@/plugins/sdk";
-import { useUIStore } from "@/state/uiStore";
+import { useSessionStore } from "@/state/sessionStore";
 
 function NewTabButton() {
   const { data: sessions = [] } = useSessions();
-  const tabIds = useUIStore((s) => s.tabIds);
-  const selectTab = useUIStore((s) => s.selectTab);
+  const tabIds = useSessionStore((s) => s.tabIds);
+  const selectTab = useSessionStore((s) => s.selectTab);
 
   const onClick = () => {
     const candidate = sessions.find((s) => !tabIds.includes(s.id));

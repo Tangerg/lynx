@@ -11,7 +11,7 @@ import { ProjectRow } from "@/components/sidebar/ProjectRow";
 import { SessionRow } from "@/components/sidebar/SessionRow";
 import { useProjects, useSessions } from "@/lib/queries";
 import { definePlugin } from "@/plugins/sdk";
-import { useUIStore } from "@/state/uiStore";
+import { useSessionStore } from "@/state/sessionStore";
 
 // ---- brand ---------------------------------------------------------------
 
@@ -104,8 +104,8 @@ export const sidebarProjects = definePlugin({
 
 function SessionsSection() {
   const { data: sessions, isLoading } = useSessions();
-  const activeSessionId = useUIStore((s) => s.activeSessionId);
-  const selectTab = useUIStore((s) => s.selectTab);
+  const activeSessionId = useSessionStore((s) => s.activeSessionId);
+  const selectTab = useSessionStore((s) => s.selectTab);
 
   return (
     <>
@@ -149,7 +149,7 @@ export const sidebarSessions = definePlugin({
 
 function SidebarFooter() {
   const openSettings = () =>
-    useUIStore.getState().openMainView({
+    useSessionStore.getState().openMainView({
       id: "settings",
       title: "Settings",
       icon: "settings",
@@ -210,8 +210,8 @@ export const sidebarRailActions = definePlugin({
 
 function RailSessions() {
   const { data: sessions = [] } = useSessions();
-  const activeSessionId = useUIStore((s) => s.activeSessionId);
-  const selectTab = useUIStore((s) => s.selectTab);
+  const activeSessionId = useSessionStore((s) => s.activeSessionId);
+  const selectTab = useSessionStore((s) => s.selectTab);
   const recent = sessions.slice(0, 5);
 
   return (

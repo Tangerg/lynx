@@ -9,12 +9,12 @@ import { FilesChanged } from "@/components/views/FilesChanged";
 import { ViewHeader } from "@/components/views/ViewHeader";
 import { useFilesChanged } from "@/lib/queries";
 import { definePlugin } from "@/plugins/sdk";
-import { useUIStore } from "@/state/uiStore";
+import { useSessionStore } from "@/state/sessionStore";
 
 function FilesView() {
-  const activeFile = useUIStore((s) => s.activeFile);
-  const setActiveFile = useUIStore((s) => s.setActiveFile);
-  const openMainView = useUIStore((s) => s.openMainView);
+  const activeFile = useSessionStore((s) => s.activeFile);
+  const setActiveFile = useSessionStore((s) => s.setActiveFile);
+  const openMainView = useSessionStore((s) => s.openMainView);
   const { data: files, isLoading } = useFilesChanged();
   const items = files ?? [];
 

@@ -13,7 +13,7 @@
 // palette. They live here as pure shortcuts.
 
 import { definePlugin, lookupCommand } from "@/plugins/sdk";
-import { useUIStore } from "@/state/uiStore";
+import { useSessionStore } from "@/state/sessionStore";
 
 // (combo, commandId, description) — handler resolves and invokes the
 // command at trigger time. Late binding means a plugin can replace the
@@ -60,7 +60,7 @@ export default definePlugin({
         allowInInputs: true,
         handler: (e) => {
           e.preventDefault();
-          const { tabIds, selectTab } = useUIStore.getState();
+          const { tabIds, selectTab } = useSessionStore.getState();
           const target = tabIds[n - 1];
           if (target) selectTab(target);
         },

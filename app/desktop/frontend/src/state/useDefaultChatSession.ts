@@ -5,8 +5,8 @@
 // "chat container" component would otherwise duplicate: pick source →
 // factory → useAgentSession → done.
 //
-// `activeSessionId` from useUIStore is passed as the sessionId so the
-// agent is torn down + rebuilt when the user switches sessions, and so
+// `activeSessionId` from useSessionStore is passed as the sessionId so
+// the agent is torn down + rebuilt when the user switches sessions, and so
 // the agentStore knows which session's slice to write events into. The
 // http-agent built-in reads the same store inside its factory to bind
 // the new agent's threadId, so the backend sees the new session id on
@@ -14,11 +14,11 @@
 
 import { useCallback } from "react";
 import { pickAgentSource } from "@/plugins/sdk";
-import { useUIStore } from "@/state/uiStore";
+import { useSessionStore } from "@/state/sessionStore";
 import { useAgentSession, type AgentSession } from "./useAgentSession";
 
 export function useDefaultChatSession(): AgentSession {
-  const activeSessionId = useUIStore((s) => s.activeSessionId);
+  const activeSessionId = useSessionStore((s) => s.activeSessionId);
   return useAgentSession(
     useCallback(() => {
       const source = pickAgentSource();

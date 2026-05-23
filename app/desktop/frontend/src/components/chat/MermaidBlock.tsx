@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { renderMermaidSVG } from "beautiful-mermaid";
 import { useDebouncedValue } from "@/lib/useDebouncedValue";
-import { useUIStore } from "@/state/uiStore";
+import { useThemeStore } from "@/state/themeStore";
 import { popIn, swift } from "@/lib/motion";
 
 type Props = {
@@ -44,8 +44,8 @@ export function MermaidBlock({ code }: Props) {
   // against the new palette. We don't need the values themselves — they
   // come from getComputedStyle at render time — just a dependency to
   // trigger useMemo invalidation.
-  const theme  = useUIStore((s) => s.theme);
-  const accent = useUIStore((s) => s.accent);
+  const theme  = useThemeStore((s) => s.theme);
+  const accent = useThemeStore((s) => s.accent);
   const debouncedCode = useDebouncedValue(code, 300);
   const isSettling = code !== debouncedCode;
 

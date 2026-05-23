@@ -1,0 +1,126 @@
+// Everything the composer textarea + its surrounding toolbar exposes
+// to plugins: key bindings, attachment chips, placeholders, mode toggles,
+// status chips, slash commands.
+
+import type { ComponentType } from "react";
+
+/**
+ * Context passed to a composer key binding handler. The handler can read
+ * the current value, replace it, or invoke `submit` to send the pending
+ * text. Returning `true` (or invoking `preventDefault` indirectly via
+ * `submit`) tells the host to stop the browser default.
+ */
+export type ComposerKeyContext = {
+  value: string;
+  onChange: (next: string) => void;
+  submit: () => void;
+  event: KeyboardEvent;
+};
+
+export type ComposerKeyBindingSpec = {
+  /** Combo string — same format as `host.shortcuts.register`. */
+  key: string;
+  description?: string;
+  /** Return `true` to call `preventDefault` on the keypress. */
+  handler: (ctx: ComposerKeyContext) => boolean | void;
+};
+
+/**
+ * Shape of one chip rendered in the composer attachments row. Mirrors
+ * `components/chat/Composer.tsx`'s `Attachment` type — declared here so
+ * plugins don't have to import from `components/`.
+ */
+export type ComposerAttachment = {
+  /** Display label, e.g. "src/api/auth.ts". */
+  label: string;
+  /** Optional icon glyph name. Defaults to "file" when omitted. */
+  icon?: string;
+};
+
+/**
+ * A plugin contribution that produces attachment chips. The kernel
+ * merges the lists from every source (in `order`) ahead of any
+ * user-added items stored in `useComposerStore.attachments`.
+ *
+ * `useAttachments` is a hook — plugins can derive the list from query
+ * data ("recently edited files") or other stores.
+ */
+export type ComposerAttachmentSourceSpec = {
+  id: string;
+  /** Sort hint — lower comes first. Built-ins use 0..99. */
+  order?: number;
+  /** Hook that returns the current attachments. */
+  useAttachments: () => ComposerAttachment[];
+};
+
+/**
+ * One placeholder string for the composer textarea. Composer picks one at
+ * mount via weighted random — `weight` defaults to 1, so a plugin can
+ * register multiple to bias toward (or against) certain prompts.
+ *
+ * Useful for branding ("Ask Acme…") or seasonal nudges ("Try /lint on a
+ * test file").
+ */
+export type ComposerPlaceholderSpec = {
+  id: string;
+  text: string;
+  /** Selection weight — defaults to 1. Set to 0 to register but skip selection. */
+  weight?: number;
+};
+
+/**
+ * A composer mode toggle ("Agent" / "Ask" / "Plan" by default — plugins can
+ * register more). The active mode is stored on `useComposerStore.mode` so
+ * the conversation context (agent vs ask vs plan) can drive runtime
+ * behaviour (e.g. a /plan command, or a stricter prompt prefix).
+ *
+ * Mode ids are free-form strings: built-ins use `agent`, `ask`, `plan`;
+ * a third-party plugin could add `code`, `research`, etc.
+ */
+export type ComposerModeSpec = {
+  id: string;
+  label: string;
+  icon?: string;
+  /** Sort hint — lower comes first. Built-ins use 0..99. */
+  order?: number;
+  /** Optional tooltip; defaults to "${label} mode". */
+  title?: string;
+};
+
+/**
+ * Plugin-contributed chip in the composer footer ("project · branch · mode").
+ *
+ * The component renders the chip body — typically a small `<button>` with
+ * icon + label. The host provides no props; chips read state from stores
+ * directly.
+ */
+export type ComposerStatusSpec = {
+  id: string;
+  /** Sort hint — lower comes first. Built-ins use 0..99. */
+  order?: number;
+  /** The chip body. Receives no props. */
+  component: ComponentType;
+};
+
+/**
+ * Context passed to a slash command's `run` function.
+ *
+ * `send(text)` lets the command queue a real agent message after running
+ * its local logic. Useful for commands like `/lint <file>` that first hit
+ * a backend endpoint and then ask the agent to interpret the result.
+ */
+export type SlashCommandRunCtx = {
+  args: string;
+  send: (text: string) => void;
+};
+
+export type SlashCommandSpec = {
+  /** Description shown in the autocomplete dropdown. */
+  description: string;
+  /**
+   * Optional run handler. If absent, the command is a *hint only* — typing
+   * it just shows the description; pressing Enter forwards the raw text as
+   * a normal user message.
+   */
+  run?: (ctx: SlashCommandRunCtx) => void | Promise<void>;
+};

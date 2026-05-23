@@ -29,7 +29,7 @@ import { create } from "zustand";
 import type { BaseEvent } from "@ag-ui/core";
 import { reduce } from "@/protocol/agui/reducer";
 import { INITIAL_VIEW_STATE, type AgentViewState } from "@/protocol/agui/viewState";
-import { useUIStore } from "./uiStore";
+import { useSessionStore } from "./sessionStore";
 
 type StopFn = (() => void) | null;
 type SendFn = ((text: string) => void) | null;
@@ -113,7 +113,7 @@ export const useAgentStore = create<AgentStore>((set) => ({
  * seeded yet (no events received).
  */
 export function useAgentSlice<T>(selector: (view: AgentViewState) => T): T {
-  const sid = useUIStore((s) => s.activeSessionId);
+  const sid = useSessionStore((s) => s.activeSessionId);
   return useAgentStore((s) => {
     const view = s.sessions[sid]?.view ?? INITIAL_VIEW_STATE;
     return selector(view);
@@ -124,7 +124,7 @@ export function useAgentSlice<T>(selector: (view: AgentViewState) => T): T {
 export function useAgentAction(kind: "stop"): StopFn;
 export function useAgentAction(kind: "send"): SendFn;
 export function useAgentAction(kind: "stop" | "send"): StopFn | SendFn {
-  const sid = useUIStore((s) => s.activeSessionId);
+  const sid = useSessionStore((s) => s.activeSessionId);
   return useAgentStore((s) => s.sessions[sid]?.[kind] ?? null);
 }
 
@@ -133,6 +133,6 @@ export function useAgentAction(kind: "stop" | "send"): StopFn | SendFn {
  * Used by non-component code (toolRouting, plugin command handlers).
  */
 export function getCurrentSessionView(): AgentViewState {
-  const sid = useUIStore.getState().activeSessionId;
+  const sid = useSessionStore.getState().activeSessionId;
   return useAgentStore.getState().sessions[sid]?.view ?? INITIAL_VIEW_STATE;
 }

@@ -12,7 +12,7 @@ import { useSessions } from "@/lib/queries";
 import { definePlugin, useCommands } from "@/plugins/sdk";
 import { useAgentAction } from "@/state/agentStore";
 import { useComposerStore } from "@/state/composerStore";
-import { useUIStore } from "@/state/uiStore";
+import { useSessionStore } from "@/state/sessionStore";
 
 // ---- modes ---------------------------------------------------------------
 
@@ -128,7 +128,7 @@ export const composerChips = definePlugin({
 
 function ModelPicker() {
   const { data: sessions = [] } = useSessions();
-  const activeId = useUIStore((s) => s.activeSessionId);
+  const activeId = useSessionStore((s) => s.activeSessionId);
   const active = sessions.find((s) => s.id === activeId) ?? sessions[0];
   const model = active?.model ?? "Sonnet";
 

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useUIStore } from "@/state/uiStore";
+import { useThemeStore } from "@/state/themeStore";
 import { Icon } from "@/components/common";
 import { getHighlighter, resolveLang } from "@/lib/shiki";
 import { useDebouncedValue } from "@/lib/useDebouncedValue";
@@ -34,7 +34,7 @@ type Props = {
 const FOLD_LINE_THRESHOLD = 24;
 
 export function ShikiCodeBlock({ lang, code, file }: Props) {
-  const themeId = useUIStore((s) => s.theme);
+  const themeId = useThemeStore((s) => s.theme);
   // Use the spec's scheme so custom themes (e.g. "solarized-dark") still
   // resolve to the correct shiki preset — comparing id === "light" would
   // miss third-party light themes.
