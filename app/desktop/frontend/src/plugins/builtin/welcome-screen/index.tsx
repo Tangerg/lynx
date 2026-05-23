@@ -22,8 +22,8 @@ function WelcomeScreen() {
 
   return (
     <div className="welcome">
-      <div className="welcome-icon"><Icon name="spark" size={28} /></div>
-      <h1 className="welcome-title">What can I help you build today?</h1>
+      <div className="welcome-eyebrow">agent ready</div>
+      <h1 className="welcome-title">What can I help you build today.</h1>
       <p className="welcome-sub">
         Start a conversation, paste a stack trace, or pick a suggestion below.
       </p>
