@@ -320,6 +320,19 @@ function removeOwnedMulti<T>(
   return next;
 }
 
+// "Drop every entry a given plugin owns" — used by the declared-* slots
+// when a plugin's activation replaces its entire batch of placeholder
+// contributions at once. Pure helper so the three callsites read the
+// same way as the per-entry add/remove.
+function clearByPlugin<T>(
+  map: Map<string, Owned<T>>,
+  pluginName: string,
+): Map<string, Owned<T>> {
+  const next = new Map(map);
+  for (const [k, v] of next) if (v.pluginName === pluginName) next.delete(k);
+  return next;
+}
+
 // Single source of truth for the "fresh registry" shape. New slots only
 // need to be added here — the test setup, the reset action, and the
 // store initializer all call this.
@@ -580,27 +593,21 @@ export const usePluginStore = create<PluginStoreState & PluginStoreActions>((set
     set({ declaredCommands: removeOwned(get().declaredCommands, pluginName, id) });
   },
   removeDeclaredCommandsBy(pluginName) {
-    const next = new Map(get().declaredCommands);
-    for (const [k, v] of next) if (v.pluginName === pluginName) next.delete(k);
-    set({ declaredCommands: next });
+    set({ declaredCommands: clearByPlugin(get().declaredCommands, pluginName) });
   },
 
   addDeclaredView(pluginName, spec) {
     set({ declaredViews: addOwned(get().declaredViews, pluginName, spec.id, spec, "declared view") });
   },
   removeDeclaredViewsBy(pluginName) {
-    const next = new Map(get().declaredViews);
-    for (const [k, v] of next) if (v.pluginName === pluginName) next.delete(k);
-    set({ declaredViews: next });
+    set({ declaredViews: clearByPlugin(get().declaredViews, pluginName) });
   },
 
   addDeclaredSettingsPane(pluginName, spec) {
     set({ declaredSettingsPanes: addOwned(get().declaredSettingsPanes, pluginName, spec.id, spec, "declared settings pane") });
   },
   removeDeclaredSettingsPanesBy(pluginName) {
-    const next = new Map(get().declaredSettingsPanes);
-    for (const [k, v] of next) if (v.pluginName === pluginName) next.delete(k);
-    set({ declaredSettingsPanes: next });
+    set({ declaredSettingsPanes: clearByPlugin(get().declaredSettingsPanes, pluginName) });
   },
 
   addPendingActivation(spec, events) {
