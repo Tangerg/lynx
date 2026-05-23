@@ -1,17 +1,68 @@
 // Built-in plugin: Appearance settings pane.
 //
-// Same surface as the small popover above the user-card, but rendered inside
-// the larger Settings modal — more breathing room + easier to expand later
-// (font size, density, motion-reduction, etc.).
-//
-// All theme + accent options come from the plugin registry — see
-// `lyra.builtin.default-themes` for the actual values. Power users can
-// override or extend with their own theme plugin.
+// Lists every theme registered via `host.theme.registerTheme()` as a
+// row with a live color preview (canvas / surface / accent), the
+// theme's scheme (dark vs light), and a check on the active one.
+// Adding a theme plugin makes a row appear here automatically — no
+// changes to this file.
 
-import { Icon, Segmented, type IconName } from "@/components/common";
-import type { Theme } from "@/components/sidebar/types";
+import { cn } from "@/lib/utils";
+import { Icon } from "@/components/common";
 import { definePlugin, useAccents, useThemes } from "@/plugins/sdk";
+import type { ThemeSpec } from "@/plugins/sdk";
 import { useUIStore } from "@/state/uiStore";
+
+// Fallback hexes for previewing themes that didn't ship a `tokens` map.
+// Match the built-in dark palette so the preview never goes blank.
+const FALLBACK_TOKENS: Record<string, Record<string, string>> = {
+  dark:  { bg: "#010102", surface: "#181a1d", accent: "#1ed760" },
+  light: { bg: "#fafafa", surface: "#ffffff", accent: "#15883e" },
+};
+
+function previewTokens(spec: ThemeSpec): { bg: string; surface: string; accent: string } {
+  const fallback = FALLBACK_TOKENS[spec.scheme];
+  return {
+    bg:      spec.tokens?.["color-bg"]      ?? fallback.bg,
+    surface: spec.tokens?.["color-surface"] ?? fallback.surface,
+    accent:  spec.tokens?.["color-accent"]  ?? fallback.accent,
+  };
+}
+
+function ThemeRow({
+  spec,
+  active,
+  onSelect,
+}: {
+  spec: ThemeSpec;
+  active: boolean;
+  onSelect: (id: string) => void;
+}) {
+  const preview = previewTokens(spec);
+  return (
+    <button
+      type="button"
+      className={cn("theme-picker-row", active && "active")}
+      onClick={() => onSelect(spec.id)}
+      aria-pressed={active}
+    >
+      {/* Layered swatch: bg fills the rectangle, surface lifts above as a
+          floating tile, accent dot anchors the bottom-right. Reads as a
+          mini "what does this theme look like" cue without needing words. */}
+      <div className="theme-picker-swatch" style={{ background: preview.bg }}>
+        <div className="tps-surface" style={{ background: preview.surface }} />
+        <div className="tps-accent" style={{ background: preview.accent }} />
+      </div>
+      <div className="theme-picker-meta">
+        <div className="theme-picker-name">{spec.label}</div>
+        <div className="theme-picker-scheme">
+          <Icon name={spec.scheme === "dark" ? "moon" : "sun"} size={10} />
+          {spec.scheme}
+        </div>
+      </div>
+      {active && <Icon name="check" size={14} className="theme-picker-check" />}
+    </button>
+  );
+}
 
 function AppearancePane() {
   const theme = useUIStore((s) => s.theme);
@@ -24,25 +75,22 @@ function AppearancePane() {
 
   return (
     <div>
-      <div className="settings-row">
+      <div className="settings-row settings-row-block">
         <div>
           <div className="settings-row-label">Theme</div>
-          <div className="settings-row-sub">Switch the entire UI between dark and light.</div>
+          <div className="settings-row-sub">
+            Pick a color theme. Plugins can register more — they show up here automatically.
+          </div>
         </div>
-        <div>
-          <Segmented<Theme>
-            value={theme}
-            onChange={setTheme}
-            options={themes.map((t) => ({
-              value: t.id as Theme,
-              label: (
-                <>
-                  {t.icon && <Icon name={t.icon as IconName} size={11} />}
-                  {t.label}
-                </>
-              ),
-            }))}
-          />
+        <div className="theme-picker">
+          {themes.map((t) => (
+            <ThemeRow
+              key={t.id}
+              spec={t}
+              active={theme === t.id}
+              onSelect={setTheme}
+            />
+          ))}
         </div>
       </div>
 
