@@ -33,7 +33,7 @@
   gap: 7px;
   padding: 7px 8px 7px 11px;
   background: transparent;
-  border-radius: 7px 7px 0 0;
+  border-radius: var(--radius-md) 7px 0 0;
   cursor: pointer;
   position: relative;
   font-size: 12.5px;
@@ -43,7 +43,7 @@
   border: 1px solid transparent;
   border-bottom: none;
   margin-bottom: -1px;
-  transition: background 160ms var(--ease-out), color 160ms var(--ease-out);
+  transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
 }
 .chat-tab:hover {
   background: var(--hairline-1);
@@ -145,7 +145,7 @@
   display: inline-flex; align-items: center; gap: 4px;
   padding: 2px 8px;
   background: var(--color-surface);
-  border-radius: 99px;
+  border-radius: var(--radius-pill);
   color: var(--color-text-muted);
   font-family: var(--font-mono);
   font-size: 11px;
@@ -155,7 +155,7 @@
   display: inline-flex; align-items: center; gap: 6px;
   padding: 4px 10px 4px 8px;
   background: var(--color-surface);
-  border-radius: 99px;
+  border-radius: var(--radius-pill);
   color: var(--color-text);
   font-size: 12px;
   font-weight: 600;
@@ -180,7 +180,7 @@
   background: transparent;
   border: 1px solid transparent;
   color: var(--color-text);
-  border-radius: 99px;
+  border-radius: var(--radius-pill);
   font-family: var(--font-ui);
   font-size: 12px;
   font-weight: 600;

@@ -8,6 +8,28 @@
    pulse animations, gradient avatars, backdrop blurs. CSS-only.
    ============================================================ */
 
+/* ---- Lifted-surface inner highlight ----
+   DESIGN.md §5 decorative depth: "Subtle white edge highlight on the
+   top edge of lifted panels — gives the dark surface a faint 'pixel
+   rendered' feel." Linear's signature touch.
+   Floating overlays get the highlight as part of --shadow-lg (see
+   tokens.css). The selectors below cover non-floating lifted surfaces:
+   composer, selected tool-card, user-bubble, welcome-card. Effect is
+   intentionally barely-visible — it's structural craft, not decoration. */
+.composer,
+.tool-card.selected,
+.msg.user .msg-content,
+.welcome-card {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+html.theme-light .composer,
+html.theme-light .tool-card.selected,
+html.theme-light .msg.user .msg-content,
+html.theme-light .welcome-card {
+  /* Light surfaces don't need / can't show a white top highlight. */
+  box-shadow: none;
+}
+
 /* Motion + shadow tokens are in tokens.css. The remainder of this file
    is the polish layer: refined motion bindings, focus rings, ambient
    gradients, pulse animations, gradient avatars, backdrop blurs. */
