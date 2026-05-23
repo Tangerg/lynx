@@ -42,18 +42,15 @@
   max-width: 200px;
   transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
 }
-.chat-tab:hover {
+.chat-tab:hover,
+.chat-tab.active {
   background: color-mix(in srgb, var(--color-text) 4%, transparent);
   color: var(--color-text);
 }
 /* Active tab — JetBrains style:
-   - lifted background one tone step over the topbar (surface-2)
-   - 2px accent indicator line flush along the bottom edge
-   - full ink (vs muted ink on inactive) does the rest of the signaling */
-.chat-tab.active {
-  background: var(--color-surface-2);
-  color: var(--color-text);
-}
+   Same hover-style background; only the 2px accent indicator line
+   on the bottom edge distinguishes active from hover. Full ink (vs
+   muted on idle) carries the secondary cue. */
 .chat-tab.active::after {
   content: "";
   position: absolute;
