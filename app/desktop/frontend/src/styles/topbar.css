@@ -318,19 +318,11 @@ html.theme-light .cf-chip.ghost .cf-dot { box-shadow: 0 0 6px rgba(22, 156, 70, 
 }
 .topbar-tabs::-webkit-scrollbar { display: none; }
 
-/* View tabs (workspace views promoted into the main area) — same shape
-   as chat tabs but a faint accent wash so the user can tell at a glance
-   "this tab is a panel, not a conversation." Active state retains the
-   full accent underline from .chat-tab.active::after. */
-.chat-tab.view-tab {
-  background: color-mix(in srgb, var(--color-accent) 6%, transparent);
-}
-.chat-tab.view-tab:hover {
-  background: color-mix(in srgb, var(--color-accent) 12%, transparent);
-}
-.chat-tab.view-tab.active {
-  background: color-mix(in srgb, var(--color-accent) 10%, var(--color-surface));
-}
+/* View tabs (workspace views promoted into the main area) — same
+   visual treatment as chat session tabs. The leading view icon
+   already tells the user "this is a panel, not a conversation";
+   no need for an extra accent-wash background that would conflict
+   with the unified hover/active rule above. */
 
 /* Selection highlight uses the accent so dragging-to-select text feels
    like a deliberate UI affordance instead of the OS default blue. */
