@@ -42,26 +42,28 @@ body {
   overflow-x: auto;
 }
 
-/* ---------- Kernel layout ---------- */
-/* Vercel-style flush layout: panels touch the window edges and each
-   other. The visual lines between sidebar/main/statusbar are produced
-   by 1px gaps that show the canvas colour underneath — no panel
-   borders, no rounded card chrome. */
+/* ---------- Kernel layout ----------
+   Block-surface layout (JetBrains / Cursor / VS Code pattern):
+   - Sidebar + statusbar render on canvas (recedes — "chrome / frame")
+   - Chat panel renders on surface-1 (slightly lifted — "content")
+   The TONE step between the two surfaces does the dividing work; no 1px
+   hairline gap needed. Reads more naturally than the prior Vercel-style
+   "flush + hairline gap" approach because the eye reads contrast faster
+   than it finds thin lines. See chat with the user that triggered this
+   migration. */
 .app {
   display: grid;
   grid-template-rows: 1fr 24px;
   height: 100vh;
-  background: var(--color-app-divider);
   padding: 0;
-  gap: 1px;
+  gap: 0;
 }
 
 .app-main {
   display: grid;
   grid-template-columns: 248px minmax(0, 1fr);
-  gap: 1px;
+  gap: 0;
   min-height: 0;
-  background: var(--color-app-divider);
 }
 
 .app.rail .app-main {
@@ -69,8 +71,7 @@ body {
 }
 
 /* Status bar — slim horizontal strip pinned to the bottom of the kernel.
-   Hosts plugin-contributed status items (run pill, notifications,
-   MCP count, git branch). 24px tall to match the grid row. */
+   Renders on canvas to match the sidebar (frames the bottom). */
 .app-statusbar {
   display: flex;
   align-items: center;
@@ -188,18 +189,22 @@ html.theme-light .tool-card.running::before {
   );
 }
 
-/* ---------- Panels (rounded surface columns) ---------- */
+/* ---------- Panels ----------
+   Default panel sits on canvas (matches sidebar). The chat panel
+   explicitly opts into surface-1 (lifted) — see selector below — so
+   the tone step between sidebar (canvas) and chat (surface-1) is
+   the boundary. No card chrome / no rounded corners / no border —
+   the color block IS the partition. */
 .panel {
   background: var(--color-bg);
-  /* Edge-to-edge flush layout — no rounded card chrome. The 1px grid
-     gaps in .app/.app-main expose --color-border as a hairline between
-     regions, doing the divider work that border + radius used to do. */
   border-radius: 0;
   overflow: hidden;
   display: flex;
   flex-direction: column;
   min-height: 0;
 }
+/* Chat panel — the focal content area — lifts to surface-1. */
+.panel.chat { background: var(--color-surface); }
 
 .panel-scroll {
   flex: 1 1 0;

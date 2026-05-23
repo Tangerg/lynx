@@ -12,7 +12,8 @@
   align-items: end;
   gap: 8px;
   padding: 8px 16px 0 16px;
-  background: var(--color-bg);
+  /* Sits inside the chat panel (surface-1), so it matches. */
+  background: var(--color-surface);
   border-bottom: 1px solid var(--color-border);
   flex-shrink: 0;
   z-index: 5;
@@ -287,13 +288,13 @@ html.theme-light .cf-chip.ghost .cf-dot { box-shadow: 0 0 6px rgba(22, 156, 70, 
   display: flex;
   align-items: center;
   gap: 4px;
-  /* Was `8px 16px 0 16px` + min-height 44 — the top padding left a
-     visible empty band above the tab. Now zero top padding, the tab
-     row hugs the panel edge, and on macOS the strip doubles as the
-     window drag region. */
   padding: 0 16px;
-  background: var(--color-bg);
-  border-bottom: 1px solid var(--color-app-divider);
+  /* Matches the chat panel surface (lifted) — sits flush, no visible
+     boundary inside the panel. The drag region works either way. */
+  background: var(--color-surface);
+  /* No bottom border — the topbar reads as continuous with the chat
+     panel content below it. The tab strip's active-state underline +
+     the row's height alone delineate it. */
   flex-shrink: 0;
   z-index: 5;
   min-height: 36px;
