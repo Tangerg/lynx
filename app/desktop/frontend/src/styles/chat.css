@@ -1,0 +1,569 @@
+/* ============================================================
+   Chat panel chrome + message stream + reasoning / approval / checkpoint / plan / run-error.
+   See frontend/DESIGN.md for the spec.
+   ============================================================ */
+
+/* ============================================================
+   Center — chat
+   ============================================================ */
+.chat {
+  background: var(--color-bg);
+  position: relative;
+}
+
+.chat-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  padding: 14px 20px;
+  gap: 16px;
+  border-bottom: 1px solid var(--color-border);
+  background: rgba(18,18,18,0.85);
+  backdrop-filter: blur(12px);
+  position: sticky; top: 0; z-index: 5;
+}
+
+.chat-title-row { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.chat-crumbs {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 12px;
+  color: var(--color-text-faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.chat-crumbs .sep { opacity: 0.5; }
+.chat-crumbs .repo { color: var(--color-text-muted); }
+.chat-crumbs .branch {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 2px 8px;
+  background: var(--color-surface);
+  border-radius: 99px;
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.chat-title-line {
+  display: flex; align-items: center; gap: 12px;
+  margin-top: 4px;
+}
+.chat-title {
+  font-family: var(--font-ui);
+  font-size: 19px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.run-badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 3px 10px 3px 8px;
+  background: rgba(30,215,96,0.12);
+  color: var(--color-accent);
+  border-radius: 99px;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0;
+  font-family: var(--font-mono);
+  text-transform: none;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.run-badge .dot {
+  width: 6px; height: 6px;
+  background: var(--color-accent);
+  border-radius: 50%;
+  animation: pulse 1.4s ease-in-out infinite;
+}
+
+.head-actions { display: flex; gap: 6px; align-items: center; }
+.icon-btn {
+  width: 32px; height: 32px;
+  background: transparent;
+  border: none;
+  color: var(--color-text-muted);
+  border-radius: 50%;
+  cursor: pointer;
+  display: grid; place-items: center;
+  transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
+}
+.icon-btn:hover { background: var(--color-surface-2); color: var(--color-text); }
+.icon-btn.active { color: var(--color-accent); }
+
+/* Legacy name "pill-btn" — no longer pill-radius. Kept the class name
+   to avoid a JSX-wide rename; the shape is now md (8px) per DESIGN.md §6. */
+.pill-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 32px;
+  padding: 0 14px;
+  background: transparent;
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
+  border-radius: var(--radius-md);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: var(--fw-medium);
+  letter-spacing: 0;
+  text-transform: none;
+  cursor: pointer;
+  transition: background var(--polish-fast), border-color var(--polish-fast);
+}
+.pill-btn:hover { background: var(--color-surface-2); border-color: var(--color-border-soft); }
+.pill-btn:hover { border-color: #fff; }
+.pill-btn.solid {
+  background: #fff;
+  color: #000;
+  border-color: #fff;
+}
+.pill-btn.solid:hover { transform: scale(1.04); }
+.pill-btn.accent {
+  background: var(--color-accent);
+  color: #000;
+  border-color: var(--color-accent);
+}
+.pill-btn.accent:hover { transform: scale(1.04); }
+.pill-btn.danger {
+  background: transparent;
+  color: var(--color-negative);
+  border-color: var(--color-negative);
+}
+
+/* ---------- Message stream ----------
+   chat-measure 760px centered (DESIGN.md §4). Long prose lines reading
+   at body-md (14px) end up at 45–75 chars per line — the comfortable
+   measure. Long code blocks and tables overflow internally via their
+   own wrappers (.shiki-block, .md-table-wrap); the prose column stays
+   capped. */
+.msg-stream {
+  padding: 24px 24px 220px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  width: 100%;
+  max-width: 760px;
+  margin: 0 auto;
+  position: relative;
+}
+
+.msg {
+  display: grid;
+  grid-template-columns: 32px 1fr;
+  gap: 14px;
+  align-items: flex-start;
+  position: relative;
+}
+/* Agent message — body spans the full 820-wide row.
+   Avatar is absolutely positioned and pokes OUT to the left so it doesn't
+   eat into the content width. */
+.msg.agent {
+  grid-template-columns: 1fr;
+  gap: 4px;
+  padding-left: 46px;
+}
+.msg.agent .msg-avatar {
+  position: absolute;
+  left: 0;
+  top: 2px;
+}
+
+/* User message — right-aligned chat bubble. Avatar at composer's right edge. */
+.msg.user {
+  grid-template-columns: 1fr;
+  gap: 4px;
+  padding-right: 46px;
+}
+.msg.user .msg-avatar {
+  position: absolute;
+  right: 0;
+  top: 2px;
+}
+.msg.user .msg-body {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  min-width: 0;
+}
+.msg.user .msg-meta { justify-content: flex-end; }
+.msg.user .msg-content {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 14px 14px 4px 14px;
+  padding: 10px 14px;
+  max-width: 580px;
+  text-align: left;
+}
+.msg.user .msg-content p { margin: 0; }
+html.theme-light .msg.user .msg-content {
+  background: var(--color-surface-2);
+  border-color: var(--color-border);
+}
+.msg-avatar {
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  display: grid; place-items: center;
+  font-size: 12px;
+  font-weight: 600;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.msg.user .msg-avatar {
+  background: var(--color-surface-3);
+  color: var(--color-text);
+}
+.msg.agent .msg-avatar {
+  background: var(--color-accent);
+  color: #000;
+}
+.msg.system .msg-avatar {
+  background: transparent;
+  border: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+}
+.msg-body { min-width: 0; }
+.msg-meta {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 10.5px;
+  color: var(--color-text-faint);
+  margin-bottom: 4px;
+  white-space: nowrap;
+  opacity: 0.65;
+  font-feature-settings: "tnum";
+  letter-spacing: 0.01em;
+}
+.msg-meta .who {
+  font-weight: var(--fw-semibold);
+  font-size: 11px;
+  letter-spacing: 0.01em;
+}
+/* DESIGN.md §9: agent name is identity, not "live" — drops accent
+   color. Uses --color-text-bright to stay visible on dark, ink-soft on
+   light. The font-family difference (mono) was kept to subtly visually
+   distinguish agent vs user names without leaning on color. */
+.msg-meta .who.agent {
+  color: var(--color-text);
+  font-family: var(--font-mono);
+  text-transform: none;
+  letter-spacing: 0;
+}
+.msg-meta .who {
+  color: var(--color-text);
+  font-weight: 600;
+  font-size: 12px;
+  letter-spacing: 0;
+}
+.msg-content {
+  color: var(--color-text);
+  font-size: 14.5px;
+  line-height: 1.68;
+  letter-spacing: -0.003em;
+  font-weight: var(--fw-regular);
+}
+.msg-content p { margin: 0 0 10px 0; letter-spacing: -0.003em; }
+.msg-content p:last-child { margin-bottom: 0; }
+.msg-content code {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  padding: 0.5px 5px 1px 5px;
+  background: var(--hairline-1);
+  border: 1px solid var(--hairline-2);
+  border-radius: 3px;
+  color: var(--color-text);
+  letter-spacing: 0;
+}
+.msg-content strong { color: var(--color-text); font-weight: 600; }
+
+
+.plan-block {
+  background: transparent;
+  border: 1px solid var(--hairline-2);
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin: 8px 0;
+}
+.plan-block .plan-head {
+  font-size: var(--fs-micro);
+  font-weight: var(--fw-semibold);
+  letter-spacing: 0;
+  font-family: var(--font-mono);
+  text-transform: none;
+  color: var(--color-text-faint);
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-feature-settings: "tnum";
+}
+.plan-item {
+  display: grid;
+  grid-template-columns: 18px 1fr;
+  gap: 10px;
+  align-items: flex-start;
+  font-size: 13.5px;
+  color: var(--color-text-soft);
+  padding: 4px 0;
+  line-height: 1.45;
+}
+.plan-item .check {
+  width: 18px; height: 18px;
+  border-radius: 4px;
+  margin-top: 1px;
+  display: grid; place-items: center;
+  flex-shrink: 0;
+}
+.plan-item.done .check {
+  background: var(--color-accent);
+  color: #000;
+}
+.plan-item.done { color: var(--color-text-faint); text-decoration: line-through; text-decoration-color: #3a3a3a; }
+.plan-item.doing .check {
+  background: transparent;
+  border: 1.5px solid var(--color-accent);
+  position: relative;
+}
+.plan-item.doing .check::after {
+  content: "";
+  width: 8px; height: 8px;
+  background: var(--color-accent);
+  border-radius: 2px;
+  animation: pulse 1.4s ease-in-out infinite;
+}
+.plan-item.doing { color: var(--color-text); font-weight: 600; }
+.plan-item.todo .check {
+  border: 1.5px solid #4d4d4d;
+  background: transparent;
+}
+
+/* ============================================================
+   Inline approval gate
+   ============================================================ */
+.approval-card {
+  margin: 12px 0;
+  background: linear-gradient(180deg, rgba(255,164,43,0.06) 0%, var(--color-surface) 60%);
+  border: 1px solid rgba(255,164,43,0.25);
+  border-radius: 12px;
+  padding: 14px 16px;
+}
+.approval-card .head {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0;
+  font-family: var(--font-mono);
+  text-transform: none;
+  color: var(--color-warning);
+  margin-bottom: 8px;
+}
+.approval-card .what {
+  font-size: 14px;
+  color: var(--color-text);
+  font-weight: 600;
+  line-height: 1.4;
+  margin-bottom: 6px;
+}
+.approval-card .cmd {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  color: var(--color-text);
+  background: rgba(0,0,0,0.4);
+  padding: 8px 12px;
+  border-radius: 6px;
+  margin: 8px 0 10px 0;
+  border-left: 2px solid var(--color-warning);
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+.approval-card .reason {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  line-height: 1.5;
+  margin-bottom: 12px;
+}
+.approval-card .actions {
+  display: flex; gap: 8px;
+  align-items: center;
+}
+.approval-card .actions .always {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--color-text-faint);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: background var(--polish-fast), color var(--polish-fast);
+}
+.approval-card .actions .always:hover {
+  color: var(--color-text);
+  background: color-mix(in srgb, var(--color-text) 6%, transparent);
+}
+.approval-card .actions .always input[type=checkbox] {
+  width: 13px; height: 13px;
+  margin: 0;
+  accent-color: var(--color-accent);
+}
+
+/* ============================================================
+   Checkpoint marker
+   ============================================================ */
+.checkpoint {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 8px 0;
+  font-size: 10.5px;
+  letter-spacing: 0;
+  font-family: var(--font-mono);
+  text-transform: none;
+  color: var(--color-text-faint);
+  font-weight: 600;
+}
+.checkpoint::before, .checkpoint::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, #2a2a2a 50%, transparent);
+}
+.checkpoint .ico {
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  background: var(--color-surface-2);
+  display: grid; place-items: center;
+  color: var(--color-accent);
+}
+
+/* Run-error banner — surfaces AG-UI RUN_ERROR. Lives above the message
+   stream; dismissible. Tinted with --color-negative so it reads as a
+   stoppable problem, not a passing notice. */
+.run-error {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: start;
+  gap: 10px;
+  margin: 10px 16px 4px 16px;
+  padding: 10px 12px;
+  background: color-mix(in srgb, var(--color-negative) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-negative) 35%, transparent);
+  border-radius: 8px;
+  color: var(--color-text);
+  font-family: var(--font-ui);
+}
+.run-error > svg { color: var(--color-negative); margin-top: 2px; }
+.run-error-body { min-width: 0; }
+.run-error-title {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0;
+  color: var(--color-negative);
+  margin-bottom: 2px;
+}
+.run-error-message {
+  font-size: 13px;
+  color: var(--color-text-soft);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.run-error-dismiss {
+  background: transparent;
+  border: none;
+  color: var(--color-text-faint);
+  cursor: pointer;
+  width: 22px; height: 22px;
+  display: grid; place-items: center;
+  border-radius: 4px;
+  transition: background var(--polish-fast), color var(--polish-fast), transform var(--polish-fast);
+}
+.run-error-dismiss:hover {
+  background: color-mix(in srgb, var(--color-text) 10%, transparent);
+  color: var(--color-text);
+}
+.run-error-dismiss:active { transform: scale(0.9); }
+
+/* ============================================================
+   Message lane — both agent and user content sit between the two
+   avatars (left for agent, right for user), so the content area
+   has the same width regardless of role.
+   ============================================================ */
+.msg.agent { padding: 0 46px 0 46px; }
+.msg.user  { padding: 0 46px 0 46px; }
+
+/* User bubble fills the lane instead of capping at 580px. Right-aligned
+   alignment is moot once the bubble is full-width, but we keep
+   align-items so anything inline still sits to the right. */
+.msg.user .msg-content { max-width: none; }
+
+/* ============================================================
+   Reasoning ("thinking") block — collapsible, muted, italic.
+   ============================================================ */
+.reasoning-block {
+  margin: 8px 0;
+  border-left: 2px solid var(--hairline-3);
+  padding-left: 12px;
+}
+.reasoning-head {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  /* Sit slightly to the left so the hover pad lines up under the
+     border-left rule visually instead of indenting away from it. */
+  margin-left: -8px;
+  background: transparent;
+  border: none;
+  /* Real padding so the click target is a proper chip, not just the
+     text. Was 2px 0 — basically the bounding box of the label. */
+  padding: 6px 10px;
+  border-radius: 6px;
+  color: var(--color-text-faint);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0;
+  font-family: var(--font-mono);
+  text-transform: none;
+  cursor: pointer;
+  max-width: 100%;
+  transition: background var(--polish-fast), color var(--polish-fast);
+}
+.reasoning-head:hover {
+  color: var(--color-text);
+  background: color-mix(in srgb, var(--color-text) 6%, transparent);
+}
+.reasoning-head:active {
+  background: color-mix(in srgb, var(--color-text) 10%, transparent);
+}
+/* tnum on the label so "thought · 1.2s" doesn't shimmy as the counter
+   advances (1 → 12 → 120 changes glyph width without it). */
+.reasoning-head .rb-label { flex-shrink: 0; font-feature-settings: "tnum"; }
+.reasoning-head .rb-preview {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--color-text-faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.reasoning-head .rb-pulse {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  box-shadow: 0 0 6px var(--color-accent);
+  animation: pulse 1.4s ease-in-out infinite;
+}
+.reasoning-body {
+  padding: 6px 0 4px 0;
+  color: var(--color-text-muted);
+  font-style: italic;
+  font-size: 13.5px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+

@@ -1,0 +1,95 @@
+/* ============================================================
+   Base resets, focus ring, ::selection, button utility transitions, user avatar.
+   See frontend/DESIGN.md for the spec.
+   ============================================================ */
+
+/* ============================================================
+   Polish pass — refined motion, focus rings, ambient gradients,
+   pulse animations, gradient avatars, backdrop blurs. CSS-only.
+   ============================================================ */
+
+/* Motion + shadow tokens are in tokens.css. The remainder of this file
+   is the polish layer: refined motion bindings, focus rings, ambient
+   gradients, pulse animations, gradient avatars, backdrop blurs. */
+
+/* Keyboard-only focus ring. Uses :focus-visible so mouse clicks don't
+   summon the halo. The 2px accent-tinted outline reads as "I'm here"
+   without competing with content. */
+:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--color-accent) 55%, transparent);
+  outline-offset: 2px;
+}
+/* Inputs already get the inset focus stroke from --shadow-input-focus —
+   skip the outline so the two effects don't double up. */
+input:focus-visible,
+textarea:focus-visible {
+  outline: none;
+}
+
+/* Pulse for "live" status indicators (sb-dot.live, etc.). Halo + tiny
+   scale — reads as a heartbeat without being a UI distraction. */
+@keyframes lyra-pulse {
+  0%, 100% { transform: scale(1);    box-shadow: 0 0 0 0 currentColor; }
+  50%      { transform: scale(1.18); box-shadow: 0 0 0 4px transparent; }
+}
+.sb-run.live .sb-dot,
+.sb-run.live .status-dot {
+  background: var(--color-accent);
+  color: var(--color-accent);
+  animation: lyra-pulse 1.6s ease-in-out infinite;
+}
+
+/* User avatar — DESIGN.md §9 forbids accent on avatar backgrounds. The
+   user is "identity", not "live"; that's a grey surface, not the brand
+   color. surface-3 + ink reads as a neutral name chip. */
+.user-avatar {
+  background: var(--color-surface-3);
+  color: var(--color-text);
+  box-shadow: inset 0 0 0 1px var(--color-border);
+}
+html.theme-light .user-avatar {
+  background: var(--color-surface-2);
+  box-shadow: inset 0 0 0 1px var(--color-border);
+}
+
+/* Buttons — IconButton and friends. Consistent radius + smooth
+   transitions. Picks up where the per-component styles don't. */
+.icon-btn,
+.pill-btn,
+.user-action,
+.tab-new,
+.add {
+  transition:
+    background var(--polish-fast),
+    color var(--polish-fast),
+    transform var(--polish-fast);
+}
+.icon-btn:active,
+.pill-btn:active,
+.tab-new:active,
+.user-action:active,
+.cmdk-item:active,
+.slash-row:active,
+.composer-tool-btn:active,
+.send-btn:active { transform: scale(0.96); }
+
+/* `prefers-reduced-motion` opt-out — every transition/animation tones
+   down to "near-instant + no scale" so vestibular users don't get
+   bounced around. Keyframes that drive opacity still run (those are
+   benign and convey information). */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    transition-duration: 1ms !important;
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+  }
+  .icon-btn:active,
+  .pill-btn:active,
+  .tab-new:active,
+  .user-action:active,
+  .cmdk-item:active,
+  .slash-row:active,
+  .composer-tool-btn:active,
+  .send-btn:active { transform: none; }
+}
+

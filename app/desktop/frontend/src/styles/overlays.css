@@ -1,0 +1,320 @@
+/* ============================================================
+   Floating overlays: command palette / toaster / jump-to-bottom / chat error / plugin error / mermaid lightbox.
+   See frontend/DESIGN.md for the spec.
+   ============================================================ */
+
+/* Overlays get a real backdrop-blur. The command palette and toaster
+   benefit from the same treatment. */
+.cmdk-backdrop {
+  backdrop-filter: blur(10px) saturate(140%);
+  -webkit-backdrop-filter: blur(10px) saturate(140%);
+  background: color-mix(in srgb, #000 35%, transparent);
+}
+html.theme-light .cmdk-backdrop {
+  background: color-mix(in srgb, #fff 55%, transparent);
+}
+
+/* Floating palette card — uses the shared --shadow-lg stack so its
+   elevation matches every other overlay in the app. */
+.cmdk {
+  box-shadow: var(--shadow-lg);
+}
+
+/* ============================================================
+   Plugin toaster — bottom-right stack of host.notify() messages.
+   ============================================================ */
+.plugin-toaster {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 100;
+  pointer-events: none;
+}
+.plugin-toast {
+  pointer-events: auto;
+  min-width: 220px;
+  max-width: 360px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: var(--color-surface);
+  border: 1px solid var(--hairline-3);
+  color: var(--color-text);
+  font-size: 13px;
+  line-height: 1.45;
+  box-shadow: var(--shadow-dialog);
+}
+.plugin-toast.warn  { border-color: rgba(255,164,43,0.36); }
+.plugin-toast.error { border-color: rgba(243,114,127,0.4); color: var(--color-negative); }
+
+/* "More settings…" link inside the small popover. */
+.sp-more {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: calc(100% + 24px);
+  margin: 4px -12px -12px -12px;
+  padding: 10px 12px;
+  background: transparent;
+  border: none;
+  border-top: 1px solid var(--hairline-2);
+  color: var(--color-text-muted);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  cursor: pointer;
+  border-radius: 0 0 12px 12px;
+  text-align: left;
+}
+.sp-more:hover {
+  background: var(--color-surface-2);
+  color: var(--color-text);
+}
+
+/* ============================================================
+   Plugin error boundary — inline notice when a plugin component
+   throws during render.
+   ============================================================ */
+.plugin-boundary-error {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 8px 0;
+  padding: 10px 12px;
+  border: 1px solid rgba(243, 114, 127, 0.32);
+  border-radius: 8px;
+  background: rgba(243, 114, 127, 0.06);
+  color: var(--color-negative);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.plugin-boundary-error code {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--color-text-muted);
+  background: transparent;
+  padding: 0;
+  border: none;
+}
+
+/* ===========================================================
+   Jump-to-bottom button — floats above the composer when the user
+   has scrolled away from the live tail.
+   =========================================================== */
+.jump-to-bottom {
+  position: absolute;
+  /* Sit above the composer card. composer-wrap has 16px bottom padding,
+     composer height varies; 96px floats just clear of it. */
+  bottom: 96px;
+  right: 28px;
+  z-index: 3;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--color-surface-2);
+  border: 1px solid color-mix(in srgb, var(--color-text) 14%, transparent);
+  color: var(--color-text);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(8px);
+  transition:
+    opacity var(--polish-fast),
+    transform var(--polish-fast),
+    background var(--polish-fast),
+    border-color var(--polish-fast);
+  box-shadow: var(--shadow-md);
+}
+.jump-to-bottom.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+.jump-to-bottom:hover {
+  background: var(--color-surface-3);
+  border-color: color-mix(in srgb, var(--color-text) 22%, transparent);
+}
+.jump-to-bottom:active {
+  transform: translateY(0) scale(0.96);
+}
+
+/* ===========================================================
+   Chat error boundary — sits where MessageStream would, when the
+   subtree throws.
+   =========================================================== */
+.chat-error-card {
+  margin: 32px;
+  padding: 16px 20px;
+  border: 1px solid color-mix(in srgb, var(--color-negative) 45%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--color-negative) 10%, transparent);
+  color: var(--color-text);
+  max-width: 720px;
+}
+.chat-error-title {
+  font-weight: 600;
+  color: var(--color-negative);
+  margin-bottom: 8px;
+  font-size: 13.5px;
+  letter-spacing: -0.005em;
+}
+.chat-error-message {
+  margin: 0 0 12px 0;
+  padding: 10px 12px;
+  background: color-mix(in srgb, var(--color-text) 4%, transparent);
+  border-radius: 6px;
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 200px;
+  overflow: auto;
+}
+.chat-error-actions {
+  display: flex;
+  gap: 8px;
+}
+.chat-error-retry {
+  background: var(--color-surface-2);
+  border: 1px solid color-mix(in srgb, var(--color-text) 12%, transparent);
+  color: var(--color-text);
+  padding: 5px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-family: var(--font-ui);
+  cursor: pointer;
+  transition: background var(--polish-fast);
+}
+.chat-error-retry:hover {
+  background: var(--color-surface-3);
+}
+
+/* Per-word fade-in for streaming text. Direct port of portai's
+   .md-fade-in: pure opacity 0 → 1 over 0.7s ease-in-out. Each
+   <span class="fade-in"> wraps a word emitted by the smooth-text engine
+   (see frontend/src/lib/smoothText.ts), runs this animation once on
+   mount, and never replays — React's key-by-index reconciliation keeps
+   already-rendered words mounted across deltas.
+
+   IMPORTANT: layout-neutral. No filter / transform / inline-block —
+   on WebKit (Wails uses WKWebView) those expand the line-box and cause
+   vertical jitter when new spans mount mid-line. Pure opacity is
+   GPU-composited and never touches layout. */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.fade-in {
+  animation: fadeIn 0.7s ease-in-out both;
+}
+
+/* Interactive elements must opt out of dragging. */
+.brand-toggle,
+.rail-btn,
+.rail-session,
+.rail-brand .brand-mark,
+.brand .brand-mark {
+  --wails-draggable: no-drag;
+  -webkit-app-region: no-drag;
+}
+
+
+/* ============================================================
+   Command palette (Cmd+K).
+   ============================================================ */
+.cmdk-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 95;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 14vh;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(4px);
+}
+.cmdk {
+  width: min(620px, 92vw);
+  max-height: 60vh;
+  background: var(--color-surface);
+  border: 1px solid var(--hairline-3);
+  border-radius: 12px;
+  box-shadow: var(--shadow-dialog);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.cmdk-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--hairline-2);
+  color: var(--color-text-muted);
+}
+.cmdk-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--color-text);
+  font-size: 14px;
+}
+.cmdk-hint {
+  font-size: 10.5px;
+  color: var(--color-text-faint);
+  border: 1px solid var(--hairline-2);
+  padding: 2px 6px;
+  border-radius: 5px;
+}
+.cmdk-list {
+  overflow-y: auto;
+  padding: 6px;
+}
+.cmdk-empty {
+  padding: 24px 14px;
+  text-align: center;
+  color: var(--color-text-faint);
+  font-size: 13px;
+}
+.cmdk-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  background: transparent;
+  border: none;
+  border-radius: 7px;
+  color: var(--color-text-muted);
+  text-align: left;
+  cursor: pointer;
+}
+.cmdk-item.active,
+.cmdk-item:hover {
+  background: var(--color-surface-2);
+  color: var(--color-text);
+}
+.cmdk-item-body { flex: 1; min-width: 0; }
+.cmdk-item-label { font-size: 13px; line-height: 1.3; }
+.cmdk-item-sub   { font-size: 11px; color: var(--color-text-faint); margin-top: 2px; }
+.cmdk-item-group {
+  font-size: 10px;
+  letter-spacing: 0;
+  font-family: var(--font-mono);
+  text-transform: none;
+  color: var(--color-text-faint);
+}
+.cmdk-item-shortcut {
+  font-size: 10.5px;
+  color: var(--color-text-faint);
+  border: 1px solid var(--hairline-2);
+  padding: 1px 6px;
+  border-radius: 5px;
+}
+
