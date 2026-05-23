@@ -10,13 +10,16 @@
    thing dividing them is a 1px border. CTAs go pure black/white.
    ============================================================ */
 .theme-light {
-  /* Surface ladder — Vercel canvas / canvas-soft / canvas-soft-2
-     mapped to our 4-step. Pure white for cards, near-white body. */
-  --color-bg:            #ffffff;
-  --color-surface:       #ffffff;
-  --color-surface-2:     #fafafa;
-  --color-surface-3:     #f5f5f5;
-  --color-surface-4:     #ececed;
+  /* Surface ladder — mirrors dark-mode logic: canvas recedes, surface
+     lifts. Canvas is off-white (frame for sidebar / statusbar); surface
+     is pure white (the lifted chat content area). The TONE step
+     between #fafafa and #ffffff does the boundary work — no hairline
+     gap between sidebar and main needed. */
+  --color-bg:            #fafafa;   /* canvas — sidebar/statusbar frame */
+  --color-surface:       #ffffff;   /* lifted — chat content */
+  --color-surface-2:     #f5f5f5;   /* hover / row highlight */
+  --color-surface-3:     #ececed;   /* active / pressed */
+  --color-surface-4:     #dcdce0;
 
   /* Ink — Vercel #171717 ink / #4d4d4d body / #888888 mute. */
   --color-text:          #171717;
@@ -69,22 +72,26 @@
   --shadow-soft:         var(--shadow-xs);
 }
 
-/* Body / canvas: pure off-white. Panels are the same colour — no raised
-   cards, just hairline-bordered regions. */
-html.theme-light, html.theme-light body { background: #fafafa; }
-html.theme-light .app { background: #fafafa; }
+/* Body / canvas — uses the token so the JetBrains-style block surface
+   pattern stays consistent. Body bg is canvas (#fafafa) which is also
+   the sidebar / statusbar tone. The chat panel lifts above this. */
+html.theme-light, html.theme-light body { background: var(--color-bg); }
+html.theme-light .app { background: var(--color-bg); }
 
-/* Panels: same near-white as the canvas — the 1px grid gap in .app /
-   .app-main does the dividing. No border, no radius, no shadow. */
+/* Panel chrome — flat, no shadow, no radius. The TONE step between
+   canvas (.sidebar/.app default = #fafafa) and surface (.chat = #ffffff)
+   does the dividing work. */
 html.theme-light .panel {
-  background: var(--color-surface);
   border: none;
   border-radius: 0;
   box-shadow: none;
 }
-html.theme-light .chat { background: var(--color-surface); }
+/* Chat panel — lifts to surface (#ffffff) so it stands clear of the
+   canvas sidebar/statusbar. */
+html.theme-light .panel.chat { background: var(--color-surface); }
 
-/* Hairline borders inside panels. */
+/* Inner chrome inside chat panel — topbar / subheader match surface. */
+html.theme-light .chat-topbar { background: var(--color-surface); }
 html.theme-light .chat-tabs,
 html.theme-light .chat-subheader,
 html.theme-light .view-head { border-bottom-color: var(--color-border); }
@@ -93,8 +100,9 @@ html.theme-light .chat-subheader { background: var(--color-surface); }
 html.theme-light .side-footer { border-top-color: var(--color-border); }
 html.theme-light .divider-h { background: var(--color-border); }
 
-/* Sidebar (full) */
-html.theme-light .sidebar { background: var(--color-surface); }
+/* Sidebar — sits on canvas (frame); explicit so the .panel default
+   doesn't paint it the wrong colour. */
+html.theme-light .sidebar { background: var(--color-bg); }
 html.theme-light .session-row:hover { background: var(--color-surface-2); }
 html.theme-light .session-row.active { background: var(--color-surface-2); }
 html.theme-light .model-card { background: var(--color-surface-2); }
