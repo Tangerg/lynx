@@ -13,10 +13,9 @@ import (
 
 	chatmodel "github.com/Tangerg/lynx/core/model/chat"
 
-	"github.com/Tangerg/lynx/lyra/internal/engine"
+	lyraruntime "github.com/Tangerg/lynx/lyra/internal/runtime"
 	"github.com/Tangerg/lynx/lyra/internal/service/approval"
 	"github.com/Tangerg/lynx/lyra/internal/service/chat"
-	"github.com/Tangerg/lynx/lyra/internal/service/session"
 	lyrahttp "github.com/Tangerg/lynx/lyra/internal/transport/http"
 )
 
@@ -152,7 +151,7 @@ func TestSteerEndpoint_BadJSON(t *testing.T) {
 // through the HTTP surface. POST changes it, GET observes the
 // change.
 func TestApprovalModeGetSet(t *testing.T) {
-	ts := newTestServerWithApproval(t, approval.New(approval.ModeYolo))
+	ts := newTestServerWithMode(t, approval.ModeYolo)
 	defer ts.Close()
 
 	resp := mustDo(t, http.MethodGet, ts.URL+"/v1/approvals/mode", nil)
@@ -177,25 +176,13 @@ func TestApprovalModeGetSet(t *testing.T) {
 
 // TestApprovalModeBadValue returns 400 on unknown mode strings.
 func TestApprovalModeBadValue(t *testing.T) {
-	ts := newTestServerWithApproval(t, approval.New(approval.ModeYolo))
+	ts := newTestServerWithMode(t, approval.ModeYolo)
 	defer ts.Close()
 
 	body := bytes.NewBufferString(`{"mode":"reckless"}`)
 	resp := mustDo(t, http.MethodPost, ts.URL+"/v1/approvals/mode", body)
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Fatalf("status = %d, want 400", resp.StatusCode)
-	}
-}
-
-// TestApprovalEndpointsRequireService returns 503 when the
-// server was started without an approval service wired.
-func TestApprovalEndpointsRequireService(t *testing.T) {
-	ts, _ := newTestServer(t) // no approval service
-	defer ts.Close()
-
-	resp := mustDo(t, http.MethodGet, ts.URL+"/v1/approvals/mode", nil)
-	if resp.StatusCode != http.StatusServiceUnavailable {
-		t.Errorf("status = %d, want 503", resp.StatusCode)
 	}
 }
 
@@ -215,46 +202,46 @@ type modeWire struct {
 // `lyra serve` would use.
 func newTestServer(t *testing.T) (*httptest.Server, chat.Service) {
 	t.Helper()
+	rt := newTestRuntime(t, approval.ModeYolo)
+	ts := mustHTTPServer(t, rt)
+	return ts, rt.Chat()
+}
+
+// newTestServerWithMode is the variant used by /v1/approvals
+// tests — boots the runtime under a specific approval mode so the
+// gate path is reproducible.
+func newTestServerWithMode(t *testing.T, mode approval.Mode) *httptest.Server {
+	t.Helper()
+	rt := newTestRuntime(t, mode)
+	return mustHTTPServer(t, rt)
+}
+
+// newTestRuntime stands up a stub-backed Runtime — same construction
+// path lyra serve uses, minus the file-backed storage. Returned so
+// callers can reach the live services for cross-check assertions.
+func newTestRuntime(t *testing.T, mode approval.Mode) *lyraruntime.Runtime {
+	t.Helper()
 
 	client, err := chatmodel.NewClient(newStubChatModel())
 	if err != nil {
 		t.Fatalf("chat client: %v", err)
 	}
-	eng, err := engine.New(engine.Config{ChatClient: client})
-	if err != nil {
-		t.Fatalf("engine.New: %v", err)
-	}
-	chatSvc := chat.New(eng, nil)
-	sessSvc := session.NewInMemoryService()
-
-	srv, err := lyrahttp.NewServer(lyrahttp.Config{
-		Chat:    chatSvc,
-		Session: sessSvc,
-		Addr:    ":0", // unused; we use Handler() directly
+	rt, err := lyraruntime.New(lyraruntime.Config{
+		ChatClient:   client,
+		ApprovalMode: mode,
 	})
 	if err != nil {
-		t.Fatalf("NewServer: %v", err)
+		t.Fatalf("runtime.New: %v", err)
 	}
-	ts := httptest.NewServer(srv.Handler())
-	return ts, chatSvc
+	t.Cleanup(func() { _ = rt.Close() })
+	return rt
 }
 
-// newTestServerWithApproval is the variant used by /v1/approvals
-// tests — wires a real approval.Service through the server so
-// the mode endpoints behave like production.
-func newTestServerWithApproval(t *testing.T, approvalSvc approval.Service) *httptest.Server {
+func mustHTTPServer(t *testing.T, rt *lyraruntime.Runtime) *httptest.Server {
 	t.Helper()
-
-	client, _ := chatmodel.NewClient(newStubChatModel())
-	eng, _ := engine.New(engine.Config{ChatClient: client})
-	chatSvc := chat.New(eng, approvalSvc)
-	sessSvc := session.NewInMemoryService()
-
 	srv, err := lyrahttp.NewServer(lyrahttp.Config{
-		Chat:     chatSvc,
-		Session:  sessSvc,
-		Approval: approvalSvc,
-		Addr:     ":0",
+		Runtime: rt,
+		Addr:    ":0",
 	})
 	if err != nil {
 		t.Fatalf("NewServer: %v", err)

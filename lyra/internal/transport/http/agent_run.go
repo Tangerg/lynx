@@ -52,7 +52,7 @@ func (s *Server) handleAgentRun(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	handle, err := s.chat.StartTurn(r.Context(), chat.StartTurnRequest{
+	handle, err := s.chat().StartTurn(r.Context(), chat.StartTurnRequest{
 		SessionID: sessionID,
 		Message:   req.Message,
 		PlanMode:  req.PlanMode,
@@ -61,7 +61,7 @@ func (s *Server) handleAgentRun(w http.ResponseWriter, r *http.Request) {
 		writeJSONError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	events, err := s.chat.Events(r.Context(), handle)
+	events, err := s.chat().Events(r.Context(), handle)
 	if err != nil {
 		writeJSONError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -85,13 +85,13 @@ func (s *Server) handleAgentRun(w http.ResponseWriter, r *http.Request) {
 // conversation without an extra round-trip to /v1/sessions.
 func (s *Server) resolveSession(ctx context.Context, threadID string) (string, error) {
 	if threadID == "" {
-		sess, err := s.session.Create(ctx, "")
+		sess, err := s.session().Create(ctx, "")
 		if err != nil {
 			return "", err
 		}
 		return sess.ID, nil
 	}
-	if _, err := s.session.Get(ctx, threadID); err != nil {
+	if _, err := s.session().Get(ctx, threadID); err != nil {
 		if errors.Is(err, session.ErrNotFound) {
 			return "", errors.New("session not found")
 		}
@@ -130,7 +130,7 @@ func (s *Server) handleSteer(w http.ResponseWriter, r *http.Request) {
 	// SessionID is unused by chat.InjectSteering's lookup path —
 	// the impl indexes turns by TurnID. Pass empty to keep the
 	// transport surface minimal.
-	err := s.chat.InjectSteering(r.Context(), chat.TurnHandle{TurnID: turnID}, body.Message)
+	err := s.chat().InjectSteering(r.Context(), chat.TurnHandle{TurnID: turnID}, body.Message)
 	if err != nil {
 		if errors.Is(err, chat.ErrTurnNotFound) {
 			writeJSONError(w, http.StatusNotFound, "turn not found or already ended")
@@ -165,12 +165,12 @@ func (s *Server) pumpEvents(
 			}
 			for _, out := range translator.Translate(ev) {
 				if err := writer.WriteEvent(ctx, w, out); err != nil {
-					_ = s.chat.Cancel(context.Background(), handle)
+					_ = s.chat().Cancel(context.Background(), handle)
 					return
 				}
 			}
 		case <-ctx.Done():
-			_ = s.chat.Cancel(context.Background(), handle)
+			_ = s.chat().Cancel(context.Background(), handle)
 			return
 		}
 	}

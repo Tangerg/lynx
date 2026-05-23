@@ -31,22 +31,8 @@ func approvalToDTO(req approval.Request) approvalDTO {
 	}
 }
 
-// requireApproval short-circuits the handler with 503 when the
-// server was constructed without an approval service. Returns
-// false to signal "stop processing".
-func (s *Server) requireApproval(w http.ResponseWriter) bool {
-	if s.approval == nil {
-		writeJSONError(w, http.StatusServiceUnavailable, "approval service not configured")
-		return false
-	}
-	return true
-}
-
 func (s *Server) handleListApprovals(w http.ResponseWriter, r *http.Request) {
-	if !s.requireApproval(w) {
-		return
-	}
-	pending, err := s.approval.ListPending(r.Context())
+	pending, err := s.approval().ListPending(r.Context())
 	if err != nil {
 		writeJSONError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -65,9 +51,6 @@ type decideRequest struct {
 }
 
 func (s *Server) handleDecideApproval(w http.ResponseWriter, r *http.Request) {
-	if !s.requireApproval(w) {
-		return
-	}
 	id := r.PathValue("id")
 	if id == "" {
 		writeJSONError(w, http.StatusBadRequest, "id is required")
@@ -83,7 +66,7 @@ func (s *Server) handleDecideApproval(w http.ResponseWriter, r *http.Request) {
 		writeJSONError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	if err := s.approval.Decide(r.Context(), id, decision); err != nil {
+	if err := s.approval().Decide(r.Context(), id, decision); err != nil {
 		if errors.Is(err, approval.ErrRequestNotFound) {
 			writeJSONError(w, http.StatusNotFound, "approval request not found")
 			return
@@ -100,10 +83,7 @@ type modeBody struct {
 }
 
 func (s *Server) handleGetApprovalMode(w http.ResponseWriter, r *http.Request) {
-	if !s.requireApproval(w) {
-		return
-	}
-	mode, err := s.approval.GetMode(r.Context())
+	mode, err := s.approval().GetMode(r.Context())
 	if err != nil {
 		writeJSONError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -112,9 +92,6 @@ func (s *Server) handleGetApprovalMode(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleSetApprovalMode(w http.ResponseWriter, r *http.Request) {
-	if !s.requireApproval(w) {
-		return
-	}
 	var body modeBody
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeJSONError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
@@ -125,7 +102,7 @@ func (s *Server) handleSetApprovalMode(w http.ResponseWriter, r *http.Request) {
 		writeJSONError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	if err := s.approval.SetMode(r.Context(), mode); err != nil {
+	if err := s.approval().SetMode(r.Context(), mode); err != nil {
 		writeJSONError(w, http.StatusInternalServerError, err.Error())
 		return
 	}

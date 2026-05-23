@@ -45,7 +45,7 @@ func writeJSON(w http.ResponseWriter, status int, body any) {
 }
 
 func (s *Server) handleListSessions(w http.ResponseWriter, r *http.Request) {
-	sessions, err := s.session.List(r.Context())
+	sessions, err := s.session().List(r.Context())
 	if err != nil {
 		writeJSONError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -73,7 +73,7 @@ func (s *Server) handleCreateSession(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	sess, err := s.session.Create(r.Context(), body.Title)
+	sess, err := s.session().Create(r.Context(), body.Title)
 	if err != nil {
 		writeJSONError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -87,7 +87,7 @@ func (s *Server) handleGetSession(w http.ResponseWriter, r *http.Request) {
 		writeJSONError(w, http.StatusBadRequest, "id is required")
 		return
 	}
-	sess, err := s.session.Get(r.Context(), id)
+	sess, err := s.session().Get(r.Context(), id)
 	if err != nil {
 		if errors.Is(err, session.ErrNotFound) {
 			writeJSONError(w, http.StatusNotFound, "session not found")
@@ -105,7 +105,7 @@ func (s *Server) handleDeleteSession(w http.ResponseWriter, r *http.Request) {
 		writeJSONError(w, http.StatusBadRequest, "id is required")
 		return
 	}
-	if err := s.session.Delete(r.Context(), id); err != nil {
+	if err := s.session().Delete(r.Context(), id); err != nil {
 		writeJSONError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
