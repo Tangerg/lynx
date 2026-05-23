@@ -303,7 +303,7 @@ html.theme-light .tool-card.running::before {
   align-items: center;
   padding: 14px 12px 6px 12px;
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 600;
   letter-spacing: 0;
   font-family: var(--font-mono);
   text-transform: none;
@@ -411,7 +411,7 @@ html.theme-light .tool-card.running::before {
 .side-footer {
   margin-top: auto;
   padding: 8px 4px 0 4px;
-  border-top: 1px solid #1f1f1f;
+  border-top: 1px solid var(--color-border);
 }
 
 .model-card {
@@ -436,7 +436,7 @@ html.theme-light .tool-card.running::before {
   font-size: 13px;
   font-family: var(--font-title);
 }
-.model-card .mname { font-size: 13px; font-weight: 700; line-height: 1.2; }
+.model-card .mname { font-size: 13px; font-weight: 600; line-height: 1.2; }
 .model-card .msub { font-size: 11px; color: var(--color-text-faint); line-height: 1.2; }
 
 /* ============================================================
@@ -453,7 +453,7 @@ html.theme-light .tool-card.running::before {
   align-items: center;
   padding: 14px 20px;
   gap: 16px;
-  border-bottom: 1px solid #1c1c1c;
+  border-bottom: 1px solid var(--color-border);
   background: rgba(18,18,18,0.85);
   backdrop-filter: blur(12px);
   position: sticky; top: 0; z-index: 5;
@@ -487,7 +487,7 @@ html.theme-light .tool-card.running::before {
 .chat-title {
   font-family: var(--font-title);
   font-size: 19px;
-  font-weight: 700;
+  font-weight: 600;
   letter-spacing: -0.01em;
   line-height: 1.2;
   white-space: nowrap;
@@ -501,7 +501,7 @@ html.theme-light .tool-card.running::before {
   color: var(--color-accent);
   border-radius: 99px;
   font-size: 10.5px;
-  font-weight: 700;
+  font-weight: 600;
   letter-spacing: 0;
   font-family: var(--font-mono);
   text-transform: none;
@@ -625,7 +625,7 @@ html.theme-light .tool-card.running::before {
 .msg.user .msg-meta { justify-content: flex-end; }
 .msg.user .msg-content {
   background: var(--color-surface);
-  border: 1px solid #1f1f1f;
+  border: 1px solid var(--color-border);
   border-radius: 14px 14px 4px 14px;
   padding: 10px 14px;
   max-width: 580px;
@@ -641,7 +641,7 @@ html.theme-light .msg.user .msg-content {
   border-radius: 50%;
   display: grid; place-items: center;
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 600;
   flex-shrink: 0;
   margin-top: 2px;
 }
@@ -674,19 +674,22 @@ html.theme-light .msg.user .msg-content {
   font-size: 11px;
   letter-spacing: 0.01em;
 }
+/* DESIGN.md §9: agent name is identity, not "live" — drops accent
+   color. Uses --color-text-bright to stay visible on dark, ink-soft on
+   light. The font-family difference (mono) was kept to subtly visually
+   distinguish agent vs user names without leaning on color. */
 .msg-meta .who.agent {
-  color: var(--color-accent);
+  color: var(--color-text);
   font-family: var(--font-mono);
   text-transform: none;
-  letter-spacing: 0.01em;
+  letter-spacing: 0;
 }
 .msg-meta .who {
   color: var(--color-text);
-  font-weight: 700;
+  font-weight: 600;
   font-size: 12px;
-  letter-spacing: 0.02em;
+  letter-spacing: 0;
 }
-.msg-meta .who.agent { color: var(--color-accent); }
 .msg-content {
   color: var(--color-text);
   font-size: 14.5px;
@@ -706,7 +709,7 @@ html.theme-light .msg.user .msg-content {
   color: var(--color-text);
   letter-spacing: 0;
 }
-.msg-content strong { color: var(--color-text); font-weight: 700; }
+.msg-content strong { color: var(--color-text); font-weight: 600; }
 
 /* ---------- Tool-call card (the "track-row" analog) ---------- */
 .tool-card {
@@ -816,7 +819,7 @@ html.theme-light .msg.user .msg-content {
   color: var(--color-text-faint);
   font-family: var(--font-mono);
   font-feature-settings: "tnum";
-  letter-spacing: 0.02em;
+  letter-spacing: 0;
   font-family: var(--font-mono);
   text-transform: none;
 }
@@ -849,7 +852,7 @@ html.theme-light .msg.user .msg-content {
 /* Tool body — preview snippet (visible on selected/expanded) */
 .tool-body {
   padding: 0 14px 12px 14px;
-  border-top: 1px solid #232323;
+  border-top: 1px solid var(--color-border);
   margin-top: 2px;
 }
 .tool-preview-line {
@@ -968,7 +971,7 @@ html.theme-light .msg.user .msg-content {
   display: grid; place-items: center;
   color: var(--color-text-muted);
   font-size: 8px;
-  font-weight: 700;
+  font-weight: 600;
   font-family: var(--font-ui);
   flex-shrink: 0;
 }
@@ -1006,7 +1009,7 @@ html.theme-light .msg.user .msg-content {
 .approval-card .head {
   display: flex; align-items: center; gap: 8px;
   font-size: 10.5px;
-  font-weight: 700;
+  font-weight: 600;
   letter-spacing: 0;
   font-family: var(--font-mono);
   text-transform: none;
@@ -1078,7 +1081,7 @@ html.theme-light .msg.user .msg-content {
   font-family: var(--font-mono);
   text-transform: none;
   color: var(--color-text-faint);
-  font-weight: 700;
+  font-weight: 600;
 }
 .checkpoint::before, .checkpoint::after {
   content: "";
@@ -1103,7 +1106,7 @@ html.theme-light .msg.user .msg-content {
   gap: 12px;
   align-items: center;
   padding: 10px 16px;
-  border-bottom: 1px solid #1c1c1c;
+  border-bottom: 1px solid var(--color-border);
   cursor: pointer;
   transition: background var(--dur-fast) var(--ease-out);
 }
@@ -1121,7 +1124,7 @@ html.theme-light .msg.user .msg-content {
 .mcp-row.active .mcp-icon { color: var(--color-accent); background: rgba(30, 215, 96, 0.1); }
 .mcp-name {
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--color-text);
   line-height: 1.25;
 }
@@ -1141,7 +1144,7 @@ html.theme-light .msg.user .msg-content {
 }
 .mcp-status {
   font-size: 9.5px;
-  font-weight: 700;
+  font-weight: 600;
   letter-spacing: 0;
   font-family: var(--font-mono);
   text-transform: none;
@@ -1270,11 +1273,13 @@ html.theme-light .msg.user .msg-content {
   position: absolute;
   bottom: calc(100% + 8px);
   right: 0;
-  background: var(--color-surface);
-  border: 1px solid var(--hairline-3);
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border-soft);
   border-radius: 8px;
   padding: 10px 12px;
-  box-shadow: var(--shadow-md);
+  /* Floating overlay — DESIGN.md §5 Level 4 stacked-subtle shadow is
+     allowed here. Previously was shadow-md which is now `none` on dark. */
+  box-shadow: var(--shadow-lg);
   min-width: 220px;
   z-index: 50;
   opacity: 0;
@@ -1292,7 +1297,7 @@ html.theme-light .msg.user .msg-content {
 }
 .composer-toolbar .key-cheatsheet-title {
   font-size: 9.5px;
-  font-weight: 700;
+  font-weight: 600;
   letter-spacing: 0;
   font-family: var(--font-mono);
   text-transform: none;
@@ -1381,7 +1386,7 @@ html.theme-light .msg.user .msg-content {
 .view-head .view-title.strong {
   font-family: var(--font-ui);
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 /* Placeholder rendered while a lazy plugin's setup is running. Replaced
@@ -1472,7 +1477,7 @@ html.theme-light .msg.user .msg-content {
   color: var(--color-text-soft);
   white-space: pre;
 }
-.term .prompt { color: var(--color-accent); font-weight: 700; }
+.term .prompt { color: var(--color-accent); font-weight: 600; }
 .term .cmd { color: var(--color-text); }
 .term .ok { color: var(--color-accent); }
 .term .err { color: var(--color-negative); }
@@ -1502,7 +1507,7 @@ html.theme-light .msg.user .msg-content {
 .tree-row .name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tree-row .change {
   font-size: 10px;
-  font-weight: 700;
+  font-weight: 600;
   padding: 1px 6px;
   border-radius: 99px;
   letter-spacing: 0;
@@ -1532,7 +1537,7 @@ html.theme-light .msg.user .msg-content {
 .run-strip .step {
   display: inline-flex; align-items: center; gap: 8px;
   color: var(--color-text);
-  font-weight: 700;
+  font-weight: 600;
   font-size: 10.5px;
   letter-spacing: 0;
   font-family: var(--font-mono);
@@ -1588,11 +1593,11 @@ html.theme-light .msg.user .msg-content {
 .run-strip .stop-link {
   display: inline-flex; align-items: center; gap: 6px;
   background: transparent;
-  border: 1px solid #3a3a3a;
+  border: 1px solid var(--color-border-soft);
   color: var(--color-text-muted);
   font-family: var(--font-ui);
   font-size: 10px;
-  font-weight: 700;
+  font-weight: 600;
   letter-spacing: 0;
   font-family: var(--font-mono);
   text-transform: none;
@@ -1614,7 +1619,7 @@ html.theme-light .msg.user .msg-content {
   display: inline-block;
   padding: 1px 5px;
   background: var(--color-surface-2);
-  border: 1px solid #2f2f2f;
+  border: 1px solid var(--color-border);
   border-bottom-width: 2px;
   border-radius: 4px;
   font-family: var(--font-mono);
@@ -1697,7 +1702,7 @@ html.theme-light .msg.user .msg-content {
   transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out), transform var(--dur-fast) var(--ease-out);
   font-family: var(--font-ui);
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 600;
 }
 .rail-session:hover {
   background: var(--color-surface-2);
@@ -1717,7 +1722,7 @@ html.theme-light .msg.user .msg-content {
 }
 .rail-session-glyph {
   font-family: var(--font-ui);
-  font-weight: 700;
+  font-weight: 600;
   font-size: 14px;
 }
 .rail-pulse {
@@ -1741,7 +1746,7 @@ html.theme-light .msg.user .msg-content {
   color: var(--color-text);
   display: grid; place-items: center;
   font-family: var(--font-ui);
-  font-weight: 700;
+  font-weight: 600;
   font-size: 13px;
   border-radius: 50%;
   margin-top: 4px;
@@ -1772,7 +1777,7 @@ html.theme-light .msg.user .msg-content {
   display: grid;
   place-items: center;
   font-family: var(--font-ui);
-  font-weight: 700;
+  font-weight: 600;
   font-size: 13px;
   flex-shrink: 0;
   position: relative;
@@ -1840,7 +1845,7 @@ html.theme-light .user-action:hover { background: var(--color-surface-3); }
   align-items: center;
   gap: 6px;
   background: transparent;
-  border: 1px solid #1f1f1f;
+  border: 1px solid var(--color-border);
   color: var(--color-text-muted);
   font-family: var(--font-mono);
   font-size: var(--fs-small);
@@ -1941,7 +1946,7 @@ html.theme-light .theme-toggle:hover {
 .sp-segmented {
   display: flex;
   background: var(--color-bg);
-  border: 1px solid #1f1f1f;
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   padding: 2px;
   gap: 2px;
@@ -2019,7 +2024,7 @@ html.theme-light .user-action.open { background: var(--color-surface-2); }
   gap: 8px;
   padding: 8px 16px 0 16px;
   background: var(--color-bg);
-  border-bottom: 1px solid #1c1c1c;
+  border-bottom: 1px solid var(--color-border);
   flex-shrink: 0;
   z-index: 5;
 }
@@ -2132,7 +2137,7 @@ html.theme-light .user-action.open { background: var(--color-surface-2); }
   align-items: center;
   padding: 10px 18px;
   gap: 14px;
-  border-bottom: 1px solid #1c1c1c;
+  border-bottom: 1px solid var(--color-border);
   flex-shrink: 0;
   background: var(--color-bg);
 }
@@ -2313,7 +2318,7 @@ html.theme-light .cf-chip.ghost .cf-dot { box-shadow: 0 0 6px rgba(22, 156, 70, 
 }
 
 .tool-preview {
-  border-top: 1px solid #232323;
+  border-top: 1px solid var(--color-border);
   padding: 10px 14px 8px 14px;
   font-family: var(--font-mono);
   font-size: 12px;
@@ -2335,7 +2340,7 @@ html.theme-light .cf-chip.ghost .cf-dot { box-shadow: 0 0 6px rgba(22, 156, 70, 
 }
 .tool-preview .preview-open {
   background: transparent;
-  border: 1px solid #2a2a2a;
+  border: 1px solid var(--color-border);
   color: var(--color-text-muted);
   font-family: var(--font-ui);
   font-size: 11px;
@@ -2847,7 +2852,7 @@ html.theme-light .topbar-divider { background: var(--color-border); }
   color: var(--color-text-muted);
   white-space: nowrap;
   flex-shrink: 0;
-  letter-spacing: 0.02em;
+  letter-spacing: 0;
   font-feature-settings: "tnum";
 }
 .sp-state.live { color: var(--color-accent); }
@@ -2909,7 +2914,7 @@ html.theme-light .topbar-divider { background: var(--color-border); }
   align-items: center;
   gap: 5px;
   background: transparent;
-  border: 1px solid #232323;
+  border: 1px solid var(--color-border);
   color: var(--color-text-muted);
   font-family: var(--font-mono);
   font-size: var(--fs-micro);
@@ -2956,7 +2961,7 @@ html.theme-light .sp-stop:hover {
    ============================================================ */
 .slash-panel {
   background: var(--color-surface);
-  border: 1px solid #232323;
+  border: 1px solid var(--color-border);
   border-radius: 12px;
   box-shadow: var(--shadow-dialog);
   overflow: hidden;
@@ -2969,7 +2974,7 @@ html.theme-light .sp-stop:hover {
 }
 .slash-head {
   font-size: 10.5px;
-  font-weight: 700;
+  font-weight: 600;
   letter-spacing: 0;
   font-family: var(--font-mono);
   text-transform: none;
