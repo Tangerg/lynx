@@ -11,6 +11,7 @@
 // overrides later in the manifest.
 
 import appearance from "./appearance";
+import atomOneDark from "./atom-one-dark";
 import {
   approvalHandler,
   codeProposalHandler,
@@ -102,6 +103,7 @@ const infrastructure: PluginSpec[] = [
   httpAgent,
   defaultTitle,
   defaultThemes,
+  atomOneDark,
   mainRoute,
 ];
 
