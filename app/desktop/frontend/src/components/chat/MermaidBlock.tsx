@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { renderMermaidSVG } from "beautiful-mermaid";
-import { useDebouncedValue } from "@/lib/useDebouncedValue";
+import { useDebounce } from "use-debounce";
 import { useThemeStore } from "@/state/themeStore";
 import { popIn, swift } from "@/lib/motion";
 
@@ -46,7 +46,7 @@ export function MermaidBlock({ code }: Props) {
   // trigger useMemo invalidation.
   const theme  = useThemeStore((s) => s.theme);
   const accent = useThemeStore((s) => s.accent);
-  const debouncedCode = useDebouncedValue(code, 300);
+  const [debouncedCode] = useDebounce(code, 300);
   const isSettling = code !== debouncedCode;
 
   const { svg, error } = useMemo(() => {
