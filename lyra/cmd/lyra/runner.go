@@ -49,7 +49,7 @@ func NewTurnRunner(app *App, opts turnOptions) *TurnRunner {
 // TurnEnd(Cancelled). A second SIGINT escalates to the default
 // kill — for wedged turns.
 func (r *TurnRunner) Run(ctx context.Context, sessionID, message string) int {
-	handle, err := r.app.chat.StartTurn(ctx, chat.StartTurnRequest{
+	handle, err := r.app.rt.Chat().StartTurn(ctx, chat.StartTurnRequest{
 		SessionID: sessionID,
 		Message:   message,
 		PlanMode:  r.opts.PlanMode,
@@ -58,7 +58,7 @@ func (r *TurnRunner) Run(ctx context.Context, sessionID, message string) int {
 		fmt.Fprintf(r.app.Err, "lyra: %s\n", err)
 		return 1
 	}
-	events, err := r.app.chat.Events(ctx, handle)
+	events, err := r.app.rt.Chat().Events(ctx, handle)
 	if err != nil {
 		fmt.Fprintf(r.app.Err, "lyra: %s\n", err)
 		return 1
@@ -77,7 +77,7 @@ func (r *TurnRunner) Run(ctx context.Context, sessionID, message string) int {
 			r.dispatch(ctx, handle, ev)
 		case <-sigCh:
 			fmt.Fprintln(r.app.Err, "\n[lyra] cancelling...")
-			_ = r.app.chat.Cancel(ctx, handle)
+			_ = r.app.rt.Chat().Cancel(ctx, handle)
 			sigCh = nil // ignore further signals until TurnEnd drains the channel
 		}
 	}
@@ -125,7 +125,7 @@ func (r *TurnRunner) renderPlanGenerated(ctx context.Context, handle chat.TurnHa
 	fmt.Fprintln(r.app.Out, e.Plan)
 	fmt.Fprintln(r.app.Out, "-----------------------")
 	decision := r.decidePlan()
-	if err := r.app.chat.ContinuePlan(ctx, handle, decision); err != nil {
+	if err := r.app.rt.Chat().ContinuePlan(ctx, handle, decision); err != nil {
 		fmt.Fprintf(r.app.Err, "[lyra] continue plan: %s\n", err)
 	}
 	if decision == chat.PlanReject {

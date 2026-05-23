@@ -15,10 +15,7 @@ import (
 )
 
 // ServeCmd is `lyra serve [--listen :8080]` — boot the HTTP+SSE
-// transport. This is the first Phase-2 transport realising the
-// "server runtime" promise from ARCHITECTURE.md: web / desktop
-// clients connect over /v1/agent/run (SSE) and CRUD sessions via
-// /v1/sessions.
+// transport against the in-process runtime bundle.
 //
 // Shutdown: SIGINT / SIGTERM trigger a graceful 10s drain — the
 // SSE in-flight turns get a chance to finish their TurnEnd event
@@ -48,10 +45,8 @@ Routes:
 				return a.fatalErr(err)
 			}
 			srv, err := lyrahttp.NewServer(lyrahttp.Config{
-				Chat:     a.chat,
-				Session:  a.session,
-				Approval: a.approval,
-				Addr:     addr,
+				Runtime: a.runtime(),
+				Addr:    addr,
 			})
 			if err != nil {
 				return a.fatalErr(err)
@@ -91,8 +86,6 @@ func (a *App) runServer(ctx context.Context, srv *lyrahttp.Server, addr string) 
 	if err := srv.Shutdown(shutdownCtx); err != nil {
 		return a.fatalErr(err)
 	}
-	// Drain the listenErr send from the goroutine — ListenAndServe
-	// returns http.ErrServerClosed after Shutdown completes.
 	if err := <-listenErr; err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return a.fatalErr(err)
 	}

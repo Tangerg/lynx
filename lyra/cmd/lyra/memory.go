@@ -79,7 +79,7 @@ func (a *App) memorySetCmd() *cobra.Command {
 			if err != nil {
 				return a.fatalErr(err)
 			}
-			if err := a.memory.Update(cmd.Context(), target, string(content)); err != nil {
+			if err := a.rt.Memory().Update(cmd.Context(), target, string(content)); err != nil {
 				return a.fatalErr(err)
 			}
 			fmt.Fprintf(a.Err, "[lyra] %s memory updated (%d bytes)\n", scope, len(content))
@@ -105,7 +105,7 @@ func (a *App) memoryClearCmd() *cobra.Command {
 			if err != nil {
 				return a.fatalErr(err)
 			}
-			if err := a.memory.Update(cmd.Context(), target, ""); err != nil {
+			if err := a.rt.Memory().Update(cmd.Context(), target, ""); err != nil {
 				return a.fatalErr(err)
 			}
 			fmt.Fprintf(a.Err, "[lyra] %s memory cleared\n", scope)
@@ -151,7 +151,7 @@ func readMemoryBody(from string, stdin io.Reader) ([]byte, error) {
 // under a markdown heading. Errors print to stderr but don't
 // abort the show command — partial output is still useful.
 func (a *App) printScope(ctx context.Context, scope memory.Scope, label string) {
-	content, err := a.memory.Get(ctx, scope)
+	content, err := a.rt.Memory().Get(ctx, scope)
 	if err != nil {
 		fmt.Fprintf(a.Err, "[lyra] %s scope read error: %s\n", label, err)
 		return

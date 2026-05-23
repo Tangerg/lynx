@@ -16,20 +16,16 @@ import (
 	"os"
 
 	"github.com/Tangerg/lynx/lyra/internal/config"
-	"github.com/Tangerg/lynx/lyra/internal/engine"
-	"github.com/Tangerg/lynx/lyra/internal/service/approval"
-	"github.com/Tangerg/lynx/lyra/internal/service/chat"
-	"github.com/Tangerg/lynx/lyra/internal/service/memory"
-	"github.com/Tangerg/lynx/lyra/internal/service/session"
-	"github.com/Tangerg/lynx/lyra/internal/service/tool"
+	lyraruntime "github.com/Tangerg/lynx/lyra/internal/runtime"
 	"github.com/Tangerg/lynx/lyra/internal/storage"
 )
 
 // App is the top-level CLI object. It owns the IO streams every
-// subcommand writes to and the runtime services subcommands
-// dispatch through. Construction is cheap — building the LLM
-// client / engine is deferred to [App.ensureRuntime] so commands
-// like `help` and `version` run without an API key.
+// subcommand writes to and holds the runtime bundle every command
+// that actually talks to the model dispatches through. Construction
+// is cheap — building the LLM client / engine is deferred to
+// [App.ensureRuntime] so commands like `help` and `version` run
+// without an API key.
 //
 // Concurrency: methods are not safe for concurrent invocation —
 // the CLI is single-threaded by design. Each test instance gets
@@ -41,13 +37,10 @@ type App struct {
 	Err io.Writer
 	In  io.Reader
 
-	// services — built lazily on first call to ensureRuntime so
-	// `lyra help` / `lyra version` don't require an API key.
-	chat     chat.Service
-	session  session.Service
-	tool     tool.Service
-	memory   memory.Service
-	approval approval.Service
+	// rt is the core runtime — built lazily on first call to
+	// ensureRuntime so `lyra help` / `lyra version` don't require
+	// an API key. Nil until ensureRuntime succeeds.
+	rt *lyraruntime.Runtime
 }
 
 // NewApp returns an App wired to the OS standard streams. Tests
@@ -78,7 +71,7 @@ func (a *App) Run(ctx context.Context, args []string) int {
 	return 0
 }
 
-// ensureRuntime lazily builds the LLM-backed services. Idempotent —
+// ensureRuntime lazily builds the runtime bundle. Idempotent —
 // safe to call from every RunE entry point.
 //
 // Building the chat client requires a valid API key, so calling
@@ -86,7 +79,7 @@ func (a *App) Run(ctx context.Context, args []string) int {
 // / version commands therefore don't call ensureRuntime; commands
 // that actually talk to the model do.
 func (a *App) ensureRuntime() error {
-	if a.chat != nil {
+	if a.rt != nil {
 		return nil
 	}
 	cfg, err := config.Load()
@@ -111,30 +104,28 @@ func (a *App) ensureRuntime() error {
 		return fmt.Errorf("memory storage: %w", err)
 	}
 
-	eng, err := engine.New(engine.Config{
-		ChatClient:    client,
-		Online:        config.EngineOnline(cfg),
-		MCPServers:    config.EngineMCPServers(cfg),
-		MemoryStore:   msgStore,
-		MemoryService: memSvc,
+	rt, err := lyraruntime.New(lyraruntime.Config{
+		ChatClient:     client,
+		Online:         config.EngineOnline(cfg),
+		MCPServers:     config.EngineMCPServers(cfg),
+		MemoryStore:    msgStore,
+		MemoryService:  memSvc,
+		SessionService: sessionSvc,
+		// ApprovalMode defaults to YOLO — operators flip the mode at
+		// runtime via /v1/approvals/mode (HTTP) or a future
+		// --approval-mode flag.
 	})
 	if err != nil {
 		return err
 	}
-
-	// Approval mode defaults to YOLO so the CLI path keeps the
-	// "just run it" feel users had before M4. Operators that want
-	// a stricter stance flip the mode at runtime via the HTTP
-	// /v1/approvals/mode endpoint (or a future --approval-mode flag).
-	approvalSvc := approval.New(approval.ModeYolo)
-
-	a.chat = chat.New(eng, approvalSvc)
-	a.session = sessionSvc
-	a.tool = tool.New(eng)
-	a.memory = memSvc
-	a.approval = approvalSvc
+	a.rt = rt
 	return nil
 }
+
+// runtime returns the runtime bundle; subcommands call this after
+// ensureRuntime succeeded. Centralises the nil-check that would
+// otherwise sprinkle across every cmd file.
+func (a *App) runtime() *lyraruntime.Runtime { return a.rt }
 
 // fatalErr writes "lyra: <err>" to Err and returns a cobra-friendly
 // error so RunE propagates the non-zero exit code without printing
@@ -148,4 +139,3 @@ func (a *App) fatalErr(err error) error {
 // message has already been printed. cobra.Command.SilenceErrors +
 // SilenceUsage on the root prevent the duplicate stderr.
 var errSilenced = fmt.Errorf("lyra: handled")
-

@@ -18,54 +18,55 @@ import (
 	"net/http"
 	"time"
 
+	lyraruntime "github.com/Tangerg/lynx/lyra/internal/runtime"
 	"github.com/Tangerg/lynx/lyra/internal/service/approval"
 	"github.com/Tangerg/lynx/lyra/internal/service/chat"
 	"github.com/Tangerg/lynx/lyra/internal/service/session"
 )
 
-// Server is the HTTP+SSE transport. Wire it with the live
-// services + listen address, then call [Server.Start] to bind /
+// Server is the HTTP+SSE transport. Wire it with the runtime
+// bundle + listen address, then call [Server.Start] to bind /
 // serve and [Server.Shutdown] to drain cleanly.
 type Server struct {
-	chat     chat.Service
-	session  session.Service
-	approval approval.Service
-	addr     string
+	runtime *lyraruntime.Runtime
+	addr    string
 
 	server *http.Server
 }
 
-// Config bundles the construction-time inputs. Chat, Session,
-// and Addr are required. Approval is optional — when nil the
-// /v1/approvals routes return 503; pass a service to enable
-// permission gating from the transport surface.
+// Config bundles the construction-time inputs. Runtime and Addr
+// are required. The runtime carries every Service the handlers
+// dispatch through; no individual service wiring is needed at the
+// transport boundary.
 type Config struct {
-	Chat     chat.Service
-	Session  session.Service
-	Approval approval.Service
-	Addr     string // e.g. ":8080"
+	Runtime *lyraruntime.Runtime
+	Addr    string // e.g. ":8080"
 }
 
-// NewServer assembles a Server. Routes are wired here; the
-// underlying *http.Server is created lazily in Start so tests can
-// inject a custom listener via [Server.Handler].
+// NewServer assembles a Server. Routes are wired in [Server.Handler];
+// the underlying *http.Server is created lazily in Start so tests
+// can inject a custom listener via Handler().
 func NewServer(cfg Config) (*Server, error) {
-	if cfg.Chat == nil {
-		return nil, errors.New("http: Chat service is required")
-	}
-	if cfg.Session == nil {
-		return nil, errors.New("http: Session service is required")
+	if cfg.Runtime == nil {
+		return nil, errors.New("http: Runtime is required")
 	}
 	if cfg.Addr == "" {
 		return nil, errors.New("http: Addr is required")
 	}
 	return &Server{
-		chat:     cfg.Chat,
-		session:  cfg.Session,
-		approval: cfg.Approval,
-		addr:     cfg.Addr,
+		runtime: cfg.Runtime,
+		addr:    cfg.Addr,
 	}, nil
 }
+
+// Accessors that route every handler through the runtime. Keeping
+// the indirection in one place means the transport surface tracks
+// the Runtime contract — if a service moves or gets renamed the
+// fix lives here, not in twelve handler files.
+
+func (s *Server) chat() chat.Service         { return s.runtime.Chat() }
+func (s *Server) session() session.Service   { return s.runtime.Session() }
+func (s *Server) approval() approval.Service { return s.runtime.Approval() }
 
 // Handler returns the routed handler — exposed so tests can drive
 // it with httptest.NewServer without going through Start. Each
