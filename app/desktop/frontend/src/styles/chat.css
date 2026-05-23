@@ -38,7 +38,7 @@
   display: inline-flex; align-items: center; gap: 4px;
   padding: 2px 8px;
   background: var(--color-surface);
-  border-radius: 99px;
+  border-radius: var(--radius-pill);
   color: var(--color-text-muted);
   font-family: var(--font-mono);
   font-size: 11px;
@@ -63,7 +63,7 @@
   padding: 3px 10px 3px 8px;
   background: rgba(30,215,96,0.12);
   color: var(--color-accent);
-  border-radius: 99px;
+  border-radius: var(--radius-pill);
   font-size: 10.5px;
   font-weight: 600;
   letter-spacing: 0;
@@ -269,7 +269,7 @@ html.theme-light .msg.user .msg-content {
   padding: 0.5px 5px 1px 5px;
   background: var(--hairline-1);
   border: 1px solid var(--hairline-2);
-  border-radius: 3px;
+  border-radius: var(--radius-xs);
   color: var(--color-text);
   letter-spacing: 0;
 }
@@ -317,7 +317,7 @@ html.theme-light .msg.user .msg-content {
   background: var(--color-accent);
   color: #000;
 }
-.plan-item.done { color: var(--color-text-faint); text-decoration: line-through; text-decoration-color: #3a3a3a; }
+.plan-item.done { color: var(--color-text-faint); text-decoration: line-through; text-decoration-color: var(--color-border-soft); }
 .plan-item.doing .check {
   background: transparent;
   border: 1.5px solid var(--color-accent);
@@ -332,7 +332,7 @@ html.theme-light .msg.user .msg-content {
 }
 .plan-item.doing { color: var(--color-text); font-weight: 600; }
 .plan-item.todo .check {
-  border: 1.5px solid #4d4d4d;
+  border: 1.5px solid var(--color-border-soft);
   background: transparent;
 }
 
@@ -427,7 +427,7 @@ html.theme-light .msg.user .msg-content {
   content: "";
   flex: 1;
   height: 1px;
-  background: linear-gradient(90deg, transparent, #2a2a2a 50%, transparent);
+  background: linear-gradient(90deg, transparent, var(--color-border-soft) 50%, transparent);
 }
 .checkpoint .ico {
   width: 18px; height: 18px;

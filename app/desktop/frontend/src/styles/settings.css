@@ -33,7 +33,7 @@
 .theme-toggle:hover {
   background: var(--color-surface);
   color: var(--color-text);
-  border-color: #2a2a2a;
+  border-color: var(--color-border);
 }
 .theme-toggle svg { color: var(--color-text-faint); flex-shrink: 0; }
 .theme-toggle:hover svg { color: var(--color-text); }
@@ -84,11 +84,11 @@ html.theme-light .theme-toggle:hover {
   width: 240px;
   background: var(--color-surface);
   border: 1px solid var(--hairline-3);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   padding: 10px;
   box-shadow: var(--shadow-pop);
   z-index: 30;
-  animation: settings-pop-in 160ms var(--ease-out);
+  animation: settings-pop-in var(--dur-fast) var(--ease-out);
 }
 @keyframes settings-pop-in {
   from { transform: translateY(4px); opacity: 0; }
@@ -138,7 +138,7 @@ html.theme-light .theme-toggle:hover {
   cursor: pointer;
   height: 22px;
   padding: 0 8px;
-  border-radius: 3px;
+  border-radius: var(--radius-xs);
   transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
 }
 .sp-seg:hover { color: var(--color-text); }
@@ -225,7 +225,7 @@ html.theme-light .user-action.open { background: var(--color-surface-2); }
   color: var(--color-text-muted);
   text-align: left;
   font-size: 13px;
-  border-radius: 7px;
+  border-radius: var(--radius-md);
   cursor: pointer;
   transition: background 120ms var(--ease-out), color 120ms var(--ease-out);
 }
@@ -317,7 +317,7 @@ html.theme-light .user-action.open { background: var(--color-surface-2); }
   display: inline-block;
   margin-left: 8px;
   padding: 1px 7px;
-  border-radius: 99px;
+  border-radius: var(--radius-pill);
   font-size: 10px;
   font-weight: 600;
   letter-spacing: 0;

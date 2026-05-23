@@ -138,7 +138,7 @@ html.theme-light .ig-glyph { background: var(--color-surface-2); }
 }
 .ig-swatch {
   width: 8px; height: 8px;
-  border-radius: 99px;
+  border-radius: var(--radius-pill);
   border: 1px solid color-mix(in srgb, var(--color-text) 10%, transparent);
 }
 .ig-id {
@@ -167,7 +167,7 @@ html.theme-light .ig-glyph { background: var(--color-surface-2); }
   font-size: 11px;
   background: var(--color-surface-2);
   padding: 1px 5px;
-  border-radius: 3px;
+  border-radius: var(--radius-xs);
   color: var(--color-text);
 }
 .icon-showcase-blurb em {
@@ -217,7 +217,7 @@ html.theme-light .ig-glyph { background: var(--color-surface-2); }
   display: grid; place-items: center;
   color: var(--color-text);
   background: var(--color-surface-2);
-  border-radius: 5px;
+  border-radius: var(--radius-sm);
 }
 .icon-showcase-missing {
   font-family: var(--font-mono);

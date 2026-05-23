@@ -14,7 +14,7 @@
 }
 .search-card {
   background: var(--color-surface);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   padding: 12px 14px;
   cursor: pointer;
   transition: background var(--dur-fast) var(--ease-out);
@@ -25,7 +25,7 @@
 }
 .search-card:hover {
   background: var(--color-surface-2);
-  border-color: #2f2f2f;
+  border-color: var(--color-border-soft);
 }
 .search-card .src {
   display: flex;
@@ -38,7 +38,7 @@
 .search-card .src .favicon {
   width: 14px; height: 14px;
   background: var(--color-surface-2);
-  border-radius: 3px;
+  border-radius: var(--radius-xs);
   display: grid; place-items: center;
   color: var(--color-text-muted);
   font-size: 8px;
@@ -196,7 +196,7 @@
 .md-table-wrap::-webkit-scrollbar { height: 8px; }
 .md-table-wrap::-webkit-scrollbar-thumb {
   background: color-mix(in srgb, var(--color-text) 14%, transparent);
-  border-radius: 99px;
+  border-radius: var(--radius-pill);
   border: 2px solid transparent;
   background-clip: content-box;
 }
@@ -256,7 +256,7 @@
 .shiki-block {
   margin: 14px 0;
   border: 1px solid color-mix(in srgb, var(--color-text) 10%, transparent);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   overflow: hidden;
   font-family: var(--font-mono);
   font-size: 12.5px;
@@ -366,7 +366,7 @@
 .shiki-block .shiki::-webkit-scrollbar-thumb,
 .shiki-block .shiki-fallback::-webkit-scrollbar-thumb {
   background: color-mix(in srgb, var(--color-text) 14%, transparent);
-  border-radius: 99px;
+  border-radius: var(--radius-pill);
   border: 2px solid transparent;
   background-clip: content-box;
 }
@@ -378,7 +378,7 @@
   margin: 14px 0;
   padding: 16px;
   border: 1px solid color-mix(in srgb, var(--color-text) 10%, transparent);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   background: color-mix(in srgb, var(--color-text) 3%, transparent);
   overflow-x: auto;
   text-align: center;
@@ -432,7 +432,7 @@ html.theme-light .mermaid-lightbox {
   margin: 14px 0;
   padding: 10px 14px;
   border: 1px solid color-mix(in srgb, var(--color-negative) 45%, transparent);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   background: color-mix(in srgb, var(--color-negative) 10%, transparent);
   color: var(--color-negative);
   font-family: var(--font-mono);
@@ -443,7 +443,7 @@ html.theme-light .mermaid-lightbox {
   margin: 14px 0;
   padding: 12px 14px;
   border: 1px dashed color-mix(in srgb, var(--color-text) 14%, transparent);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   background: color-mix(in srgb, var(--color-text) 2%, transparent);
   color: var(--color-text-faint);
   font-family: var(--font-mono);

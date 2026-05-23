@@ -137,7 +137,7 @@
   display: grid;
   place-items: center;
   width: 40px; height: 40px;
-  border-radius: 99px;
+  border-radius: var(--radius-pill);
   background: var(--color-surface-2);
   color: var(--color-text-muted);
 }
