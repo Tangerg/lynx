@@ -87,13 +87,10 @@ html.theme-light .panel {
     0 12px 24px -8px rgba(15, 15, 15, 0.10);
 }
 
-/* Inner chrome inside chat panel — match the panel surface. */
-html.theme-light .chat-topbar { background: var(--color-surface); }
-html.theme-light .chat-tabs,
-html.theme-light .chat-subheader,
-html.theme-light .view-head { border-bottom-color: var(--color-border); }
-html.theme-light .chat-tabs { background: var(--color-surface); }
-html.theme-light .chat-subheader { background: var(--color-surface); }
+/* Inner chrome inside chat panel inherits --color-surface from the dark
+   defaults (which now also target surface, not canvas) since both themes
+   re-map --color-surface via the .theme-light token block above. Only
+   the divider rail needs a theme-specific tone. */
 html.theme-light .divider-h { background: var(--color-border); }
 
 /* Sidebar row states — surface-2 (#f5f5f5) on hover/active reads as

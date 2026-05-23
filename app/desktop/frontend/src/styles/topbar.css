@@ -125,7 +125,7 @@
   padding: 10px 18px;
   gap: 14px;
   flex-shrink: 0;
-  background: var(--color-bg);
+  background: var(--color-surface);
 }
 .sub-left, .sub-right { display: flex; align-items: center; gap: 10px; min-width: 0; flex-wrap: nowrap; }
 .sub-left .run-badge { margin-left: 4px; white-space: nowrap; flex-shrink: 0; }
@@ -332,7 +332,6 @@ html.theme-light .cf-chip.ghost .cf-dot { box-shadow: 0 0 6px rgba(22, 156, 70, 
 }
 
 /* Light theme — topbar */
-html.theme-light .chat-topbar { background: var(--color-surface); border-bottom-color: var(--color-border); }
 html.theme-light .topbar-divider { background: var(--color-border); }
 
 /* Active-tab background is handled above (color-mix(text 4%, transparent)

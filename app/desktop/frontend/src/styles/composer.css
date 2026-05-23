@@ -45,11 +45,7 @@
   position: relative;
   box-shadow: var(--shadow-soft);
   border: 1px solid var(--hairline-2);
-  transition: border-color var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out);
-}
-.composer:focus-within {
-  border-color: var(--hairline-3);
-  box-shadow: 0 0 0 3px rgba(30, 215, 96, 0.08), var(--shadow-soft);
+  transition: border-color var(--polish-med), box-shadow var(--polish-med);
 }
 
 .composer-chips {
@@ -419,14 +415,12 @@ html.theme-light .brand-dot { background: var(--color-accent); box-shadow: none;
    (DESIGN.md §5). The 3px accent-tinted ring is the focus cue. Light
    theme keeps a subtle stacked shadow because shadows are visible there. */
 .composer:focus-within {
-  border-color: var(--color-border-soft) !important;
-  box-shadow:
-    0 0 0 3px color-mix(in srgb, var(--color-accent) 14%, transparent) !important;
-  transition: border-color var(--polish-med), box-shadow var(--polish-med);
+  border-color: var(--color-border-soft);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 14%, transparent);
 }
 html.theme-light .composer:focus-within {
   box-shadow:
     0 0 0 3px color-mix(in srgb, var(--color-accent) 12%, transparent),
-    0 6px 22px -6px rgba(0, 0, 0, 0.1) !important;
+    0 6px 22px -6px rgba(0, 0, 0, 0.1);
 }
 
