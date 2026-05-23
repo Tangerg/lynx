@@ -7,7 +7,6 @@
 
 import { AGUI_BASE, api } from "@/lib/http";
 import { definePlugin } from "@/plugins/sdk";
-import { darkTokens, lightTokens } from "./themeTokens";
 
 export { defaultCommands } from "./commands";
 
@@ -27,19 +26,14 @@ export const defaultTitle = definePlugin({
   },
 });
 
-export const defaultThemes = definePlugin({
-  name: "lyra.builtin.default-themes",
+// Themes themselves live in their own plugin folders (lyra-dark/,
+// lyra-light/, atom-one-*/, tokyo-night-*/, solarized-*/, catppuccin-*/)
+// using the `defineThemePlugin` helper. This plugin only owns the
+// accent palette — the 4 colored dots in the Appearance pane.
+export const defaultAccents = definePlugin({
+  name: "lyra.builtin.default-accents",
   version: "1.0.0",
   setup({ host }) {
-    host.theme.registerTheme({
-      id: "dark", label: "Dark", scheme: "dark", icon: "moon", order: 0,
-      tokens: darkTokens,
-    });
-    host.theme.registerTheme({
-      id: "light", label: "Light", scheme: "light", icon: "sun", order: 1,
-      tokens: lightTokens,
-    });
-
     host.theme.registerAccent({ id: "green",  label: "Green",  dark: "#1ed760", light: "#169c46", order: 0 });
     host.theme.registerAccent({ id: "blue",   label: "Blue",   dark: "#82cfff", light: "#2563eb", order: 1 });
     host.theme.registerAccent({ id: "pink",   label: "Pink",   dark: "#e07acc", light: "#a823a3", order: 2 });

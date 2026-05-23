@@ -11,14 +11,7 @@
 // overrides later in the manifest.
 
 import appearance from "./appearance";
-import atomOneDark from "./atom-one-dark";
-import atomOneLight from "./atom-one-light";
-import catppuccinLatte from "./catppuccin-latte";
-import catppuccinMocha from "./catppuccin-mocha";
-import solarizedDark from "./solarized-dark";
-import solarizedLight from "./solarized-light";
-import tokyoNightLight from "./tokyo-night-light";
-import tokyoNightStorm from "./tokyo-night-storm";
+import { builtinThemes } from "./themes";
 import {
   approvalHandler,
   codeProposalHandler,
@@ -47,11 +40,11 @@ import {
 } from "./composer";
 import coreReducer from "./core-reducer";
 import {
+  defaultAccents,
   defaultCommands,
   defaultConfig,
   defaultData,
   defaultRoles,
-  defaultThemes,
   defaultTitle,
 } from "./defaults";
 import demo from "./demo";
@@ -109,15 +102,8 @@ const infrastructure: PluginSpec[] = [
   defaultData,
   httpAgent,
   defaultTitle,
-  defaultThemes,
-  atomOneDark,
-  atomOneLight,
-  tokyoNightStorm,
-  tokyoNightLight,
-  solarizedDark,
-  solarizedLight,
-  catppuccinMocha,
-  catppuccinLatte,
+  defaultAccents,
+  ...builtinThemes,
   mainRoute,
 ];
 
