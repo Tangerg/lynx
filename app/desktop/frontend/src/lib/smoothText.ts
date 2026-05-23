@@ -44,7 +44,9 @@ const DRAIN_RATE_PER_CHAR = 8;
 
 const SENTENCE_END_RE = /[。！？…!?.]$/;
 
-function pickRate(backlog: number, streaming: boolean): number {
+// Exported so tests can pin the rate selection. Not part of the public
+// API otherwise — keep imports through `useSmoothText` from app code.
+export function pickRate(backlog: number, streaming: boolean): number {
   if (!streaming) {
     // Drain mode — proportional to remaining backlog, clamped.
     return Math.min(
