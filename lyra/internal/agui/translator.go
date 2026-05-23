@@ -26,35 +26,62 @@ type Event = aguievents.Event
 
 // Translator converts Lyra's internal [chat.Event] stream into
 // AG-UI events. One Translator per turn — it carries lifecycle
-// state (an in-flight assistant message, the active text-message
-// id) so the output is well-formed AG-UI regardless of how the
-// underlying chat events interleave.
+// state (in-flight assistant message, in-flight thinking message,
+// the active tool-call step names) so the output is well-formed
+// AG-UI regardless of how the underlying chat events interleave.
 //
 // State machine:
 //
-//   - chat.TurnStart       → RunStartedEvent
-//   - chat.MessageDelta    → TextMessageStart (lazy) + TextMessageContent
-//   - chat.ReasoningDelta  → ThinkingTextMessageStart (lazy) +
-//                            ThinkingTextMessageContent
-//   - chat.ToolCallStart   → close any open text + ToolCallStart +
-//                            ToolCallArgs + ToolCallEnd
-//   - chat.ToolCallEnd     → ToolCallResultEvent
-//   - chat.PlanGenerated   → CustomEvent(name="plan_generated")
-//   - chat.ErrorEvent      → RunErrorEvent
-//   - chat.TurnEnd         → close any open text + RunFinished /
-//                            RunError(code=TURN_ERRORED)
+//   - chat.TurnStart        → RunStartedEvent
+//   - chat.MessageDelta     → close thinking + TextMessageStart (lazy) +
+//                             TextMessageContent
+//   - chat.ReasoningDelta   → ThinkingStart (lazy) +
+//                             ThinkingTextMessageStart (lazy) +
+//                             ThinkingTextMessageContent
+//   - chat.ToolCallStart    → close thinking + close text +
+//                             StepStarted("tool:<name>") +
+//                             ToolCallStart + ToolCallArgs +
+//                             ToolCallEnd
+//   - chat.ToolCallEnd      → ToolCallResultEvent +
+//                             StepFinished("tool:<name>")
+//   - chat.PlanGenerated    → StepStarted("plan_review") +
+//                             CustomEvent("plan_generated") +
+//                             StepFinished("plan_review")
+//   - chat.ToolCallApproval → StepStarted("approval:<name>") +
+//                             CustomEvent("tool_call_approval")
+//                             (StepFinished fires next ToolCall*)
+//   - chat.ErrorEvent       → RunErrorEvent
+//   - chat.TurnEnd          → close streams + RunFinished /
+//                             RunError(code=TURN_ERRORED)
 type Translator struct {
 	threadID  string
 	runID     string
 	text      textStream
 	reasoning reasoningStream
+
+	// toolSteps remembers the StepStarted name we emitted for each
+	// in-flight tool call so the matching StepFinished can use the
+	// same name. Keyed by callID; entry removed on ToolCallEnd.
+	toolSteps map[string]string
+
+	// approvalSteps tracks the same for tool-call-approval pauses,
+	// keyed by the approval request id (same as the tool callID).
+	// StepFinished fires when the matching tool actually starts /
+	// ends (denial flows back as a ToolCallEnd with the denial
+	// text), or at TurnEnd as a safety drain.
+	approvalSteps map[string]string
 }
 
 // NewTranslator wires a translator to a Lyra (sessionID, turnID)
 // pair. The session id becomes AG-UI's threadId; the turn id
 // becomes runId.
 func NewTranslator(sessionID, turnID string) *Translator {
-	return &Translator{threadID: sessionID, runID: turnID}
+	return &Translator{
+		threadID:      sessionID,
+		runID:         turnID,
+		toolSteps:     map[string]string{},
+		approvalSteps: map[string]string{},
+	}
 }
 
 // Translate maps one Lyra chat event to zero or more AG-UI
@@ -72,11 +99,11 @@ func (t *Translator) Translate(ev chat.Event) []Event {
 	case chat.ToolCallStart:
 		return t.toolCallStart(e)
 	case chat.ToolCallEnd:
-		return []Event{t.toolCallResult(e)}
+		return t.toolCallResult(e)
 	case chat.PlanGenerated:
-		return []Event{t.planAsCustom(e)}
+		return t.planAsCustom(e)
 	case chat.ToolCallApproval:
-		return []Event{t.approvalAsCustom(e)}
+		return t.approvalAsCustom(e)
 	case chat.ErrorEvent:
 		return []Event{t.runError(e)}
 	case chat.TurnEnd:
@@ -86,13 +113,27 @@ func (t *Translator) Translate(ev chat.Event) []Event {
 }
 
 // toolCallStart closes any in-flight text / reasoning message (a
-// tool call interrupts both) and then emits the AG-UI
-// start/args/end triplet. Lyra knows the full arg JSON upfront so
-// a single Args event suffices.
+// tool call interrupts both) and then emits the AG-UI step + tool
+// lifecycle. A matching StepFinished fires from [toolCallResult]
+// when the tool returns so clients can render "step in progress"
+// indicators. The step name uses the prefix convention
+// "tool:<name>" so multiple Steps in one turn stay separable on
+// the wire.
+//
+// If an approval Step was open for this callID (model wanted to
+// run a gated tool and the user approved), the approval Step
+// finishes here — execution has begun.
 func (t *Translator) toolCallStart(e chat.ToolCallStart) []Event {
 	out := t.reasoning.closeIfOpen()
 	out = append(out, t.text.closeIfOpen()...)
+	if name, ok := t.approvalSteps[e.CallID]; ok {
+		out = append(out, aguievents.NewStepFinishedEvent(name))
+		delete(t.approvalSteps, e.CallID)
+	}
+	stepName := "tool:" + e.ToolName
+	t.toolSteps[e.CallID] = stepName
 	return append(out,
+		aguievents.NewStepStartedEvent(stepName),
 		aguievents.NewToolCallStartEvent(e.CallID, e.ToolName,
 			aguievents.WithParentMessageID(t.runID)),
 		aguievents.NewToolCallArgsEvent(e.CallID, e.Arguments),
@@ -101,43 +142,70 @@ func (t *Translator) toolCallStart(e chat.ToolCallStart) []Event {
 }
 
 // toolCallResult emits AG-UI's ToolCallResult on Lyra's
-// ToolCallEnd — Lyra collapses "tool finished + output" into one
-// event, AG-UI separates them but the data arrives together.
-// Failed tools surface their error message as the Content so
-// AG-UI clients render the failure verbatim.
-func (t *Translator) toolCallResult(e chat.ToolCallEnd) Event {
+// ToolCallEnd and closes the matching Step. Lyra collapses "tool
+// finished + output" into one event, AG-UI separates them but the
+// data arrives together. Failed tools surface their error message
+// as the Content so AG-UI clients render the failure verbatim.
+//
+// Edge case: a denied approval emits ToolCallEnd without a prior
+// ToolCallStart (the engine short-circuits the tool). The
+// approval Step (if any) is closed here so clients still see a
+// matching Started/Finished pair.
+func (t *Translator) toolCallResult(e chat.ToolCallEnd) []Event {
 	content := e.Output
 	if e.Err != "" {
 		content = e.Err
 	}
-	return aguievents.NewToolCallResultEvent(t.runID, e.CallID, content)
+	out := []Event{aguievents.NewToolCallResultEvent(t.runID, e.CallID, content)}
+	if name, ok := t.toolSteps[e.CallID]; ok {
+		out = append(out, aguievents.NewStepFinishedEvent(name))
+		delete(t.toolSteps, e.CallID)
+	}
+	if name, ok := t.approvalSteps[e.CallID]; ok {
+		out = append(out, aguievents.NewStepFinishedEvent(name))
+		delete(t.approvalSteps, e.CallID)
+	}
+	return out
 }
 
-// planAsCustom encodes a plan-mode pause as an AG-UI CustomEvent.
-// AG-UI v1 has no first-class plan event; "plan_generated" is
-// Lyra's convention — the frontend already coordinates on it.
-func (t *Translator) planAsCustom(e chat.PlanGenerated) Event {
-	return aguievents.NewCustomEvent("plan_generated",
-		aguievents.WithValue(map[string]any{
-			"runId": t.runID,
-			"plan":  e.Plan,
-		}),
-	)
+// planAsCustom encodes a plan-mode pause as a Step-bracketed
+// CustomEvent. The Step's Start/Finish straddle the Custom so
+// clients can render plan-review as a discrete phase; the Custom
+// is the part they actually display. AG-UI v1 has no first-class
+// plan event — "plan_generated" is Lyra's convention.
+func (t *Translator) planAsCustom(e chat.PlanGenerated) []Event {
+	const stepName = "plan_review"
+	return []Event{
+		aguievents.NewStepStartedEvent(stepName),
+		aguievents.NewCustomEvent("plan_generated",
+			aguievents.WithValue(map[string]any{
+				"runId": t.runID,
+				"plan":  e.Plan,
+			}),
+		),
+		aguievents.NewStepFinishedEvent(stepName),
+	}
 }
 
-// approvalAsCustom encodes an approval-pause as an AG-UI
-// CustomEvent. Like plan_generated, "tool_call_approval" is a
-// Lyra convention — the frontend reads it, prompts the user,
-// then POSTs the verdict to /v1/approvals/{id}.
-func (t *Translator) approvalAsCustom(e chat.ToolCallApproval) Event {
-	return aguievents.NewCustomEvent("tool_call_approval",
-		aguievents.WithValue(map[string]any{
-			"runId":     t.runID,
-			"requestId": e.Request.ID,
-			"toolName":  e.Request.ToolName,
-			"arguments": e.Request.Arguments,
-		}),
-	)
+// approvalAsCustom encodes an approval-pause as a Step-bracketed
+// CustomEvent. The Step is left OPEN until [toolCallStart] or
+// [toolCallResult] closes it — the approval decision is what
+// resolves the step, not the event itself. Like plan_generated,
+// "tool_call_approval" is a Lyra convention.
+func (t *Translator) approvalAsCustom(e chat.ToolCallApproval) []Event {
+	stepName := "approval:" + e.Request.ToolName
+	t.approvalSteps[e.Request.ID] = stepName
+	return []Event{
+		aguievents.NewStepStartedEvent(stepName),
+		aguievents.NewCustomEvent("tool_call_approval",
+			aguievents.WithValue(map[string]any{
+				"runId":     t.runID,
+				"requestId": e.Request.ID,
+				"toolName":  e.Request.ToolName,
+				"arguments": e.Request.Arguments,
+			}),
+		),
+	}
 }
 
 // runError lifts a chat.ErrorEvent into an AG-UI RunErrorEvent,
@@ -151,14 +219,16 @@ func (t *Translator) runError(e chat.ErrorEvent) Event {
 	return aguievents.NewRunErrorEvent(e.Message, opts...)
 }
 
-// runFinishedOrErrored closes the run, also closing any in-flight
-// text / reasoning message. TurnEndErrored produces a
+// runFinishedOrErrored closes the run, also draining any open
+// streams or step lifecycles so the wire ends in a balanced state
+// (every Start has a Finish). TurnEndErrored produces a
 // RunErrorEvent (in addition to any chat.ErrorEvent already
 // emitted) so AG-UI clients see one terminal event regardless of
 // which Lyra path got here.
 func (t *Translator) runFinishedOrErrored(e chat.TurnEnd) []Event {
 	out := t.reasoning.closeIfOpen()
 	out = append(out, t.text.closeIfOpen()...)
+	out = append(out, t.drainOpenSteps()...)
 	if e.Reason == chat.TurnEndErrored {
 		return append(out, aguievents.NewRunErrorEvent("turn errored",
 			aguievents.WithErrorCode("TURN_ERRORED"),
@@ -166,6 +236,27 @@ func (t *Translator) runFinishedOrErrored(e chat.TurnEnd) []Event {
 		))
 	}
 	return append(out, aguievents.NewRunFinishedEvent(t.threadID, t.runID))
+}
+
+// drainOpenSteps emits a StepFinished for every Step the
+// translator still has open — orphaned tool calls or approval
+// pauses that the turn ended without resolving. Clients that
+// require balanced Start/Finish pairs (e.g. progress UIs) stay
+// happy.
+func (t *Translator) drainOpenSteps() []Event {
+	if len(t.toolSteps) == 0 && len(t.approvalSteps) == 0 {
+		return nil
+	}
+	out := make([]Event, 0, len(t.toolSteps)+len(t.approvalSteps))
+	for callID, name := range t.toolSteps {
+		out = append(out, aguievents.NewStepFinishedEvent(name))
+		delete(t.toolSteps, callID)
+	}
+	for reqID, name := range t.approvalSteps {
+		out = append(out, aguievents.NewStepFinishedEvent(name))
+		delete(t.approvalSteps, reqID)
+	}
+	return out
 }
 
 // ------------------------------------------------------------------
