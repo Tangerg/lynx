@@ -1,7 +1,7 @@
 // Built-in plugin: "Diff" workspace view — renders the diff for the
 // currently selected file (kept in useSessionStore.activeFile).
 
-import { EmptyState, Icon, IconButton, ScrollArea, SkeletonList } from "@/components/common";
+import { DataView, Icon, IconButton, ScrollArea } from "@/components/common";
 import { DiffView } from "@/components/views/DiffView";
 import { ViewHeader } from "@/components/views/ViewHeader";
 import { useDiff } from "@/lib/queries";
@@ -56,17 +56,18 @@ function DiffViewTab() {
         }
       />
       <ScrollArea>
-        {isLoading ? (
-          <SkeletonList count={10} />
-        ) : !rows || rows.length === 0 ? (
-          <EmptyState
-            icon="diff"
-            title="Nothing to compare"
-            sub="Pick a file in the Files tab to see its diff."
-          />
-        ) : (
-          <DiffView rows={rows} />
-        )}
+        <DataView
+          items={rows}
+          isLoading={isLoading}
+          skeletonCount={10}
+          empty={{
+            icon: "diff",
+            title: "Nothing to compare",
+            sub: "Pick a file in the Files tab to see its diff.",
+          }}
+        >
+          {(diffRows) => <DiffView rows={diffRows} />}
+        </DataView>
       </ScrollArea>
     </>
   );

@@ -4,7 +4,7 @@
 // supplies the mock). Selecting a row updates the shared active-file
 // state and opens the Diff tab.
 
-import { EmptyState, Icon, IconButton, ScrollArea, SkeletonList } from "@/components/common";
+import { DataView, Icon, IconButton, ScrollArea } from "@/components/common";
 import { FilesChanged } from "@/components/views/FilesChanged";
 import { ViewHeader } from "@/components/views/ViewHeader";
 import { useFilesChanged } from "@/lib/queries";
@@ -33,24 +33,27 @@ function FilesView() {
         }
       />
       <ScrollArea>
-        {isLoading ? (
-          <SkeletonList count={6} />
-        ) : items.length === 0 ? (
-          <EmptyState
-            icon="check"
-            title="Working tree clean"
-            sub="No uncommitted changes in the current workspace."
-          />
-        ) : (
-          <FilesChanged
-            files={items}
-            activePath={activeFile}
-            onSelect={(p) => {
-              setActiveFile(p);
-              openMainView({ id: "diff", title: "Diff", icon: "diff" });
-            }}
-          />
-        )}
+        <DataView
+          items={items}
+          isLoading={isLoading}
+          skeletonCount={6}
+          empty={{
+            icon: "check",
+            title: "Working tree clean",
+            sub: "No uncommitted changes in the current workspace.",
+          }}
+        >
+          {(rows) => (
+            <FilesChanged
+              files={rows}
+              activePath={activeFile}
+              onSelect={(p) => {
+                setActiveFile(p);
+                openMainView({ id: "diff", title: "Diff", icon: "diff" });
+              }}
+            />
+          )}
+        </DataView>
       </ScrollArea>
     </>
   );
