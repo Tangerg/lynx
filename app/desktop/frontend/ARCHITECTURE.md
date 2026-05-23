@@ -50,9 +50,23 @@ src/
 │   ├── hostBridge.ts         挂载 window.__LYRA__，让 sideload 包共用 React/SDK
 │   ├── sideload.ts           从 Go 后端拉取并 dynamic-import 用户插件
 │   ├── sdk/                  插件 SDK —— Host、Registry、各种 spec 类型
-│   │   ├── types.ts          所有 *Spec 类型 + Host 接口
+│   │   ├── types/            12 个 domain 文件 + barrel（按面拆，details 见 §5.1.7）
+│   │   │   ├── index.ts      barrel 重导出，外部 import 仍走 `./types`
+│   │   │   ├── common.ts     Disposable + lifecycle hooks
+│   │   │   ├── tool.ts       ToolPreview / ToolAction
+│   │   │   ├── message.ts    ContentBlock / MessageRole
+│   │   │   ├── agui.ts       StateUpdate / Core / Custom EventHandler
+│   │   │   ├── theme.ts      ThemeSpec / ThemeAccentSpec
+│   │   │   ├── composer.ts   全部 composer-* spec
+│   │   │   ├── sidebar.ts    SidebarSection / SidebarRailItem
+│   │   │   ├── commands.ts   Command / Shortcut
+│   │   │   ├── workspace.ts  WorkspaceView / Layout / Route / SettingsPane
+│   │   │   ├── infra.ts      RPC / Data / Agent / Notification / Log / ErrorFallback
+│   │   │   ├── host.ts       Host 接口（聚合 31 个 register* 方法）
+│   │   │   └── plugin.ts     PluginSpec / Contributed / HostCapability / LoadedPlugin
 │   │   ├── host.ts           createHost(pluginName) 返回绑定的 Host 实例
 │   │   ├── registry.ts       usePluginStore — 集中存放所有插件贡献的 Map
+│   │   ├── selectors.ts      所有 useXxx / lookupXxx 读端选择器
 │   │   ├── definePlugin.ts   loadPlugin / loadPlugins
 │   │   ├── state.ts          AG-UI state 更新组合子（appendBlock…/patchRun…）
 │   │   ├── storage.ts        每插件 namespaced localStorage
@@ -62,7 +76,7 @@ src/
 │   │   ├── notifications.ts  持久化通知 feed
 │   │   └── apiVersion.ts     HOST_API_VERSION 常量
 │   │
-│   └── builtin/              内置插件，按领域分组到 25 个目录
+│   └── builtin/              内置插件，按领域分组到 37 个目录
 │       ├── index.ts          manifest（topo sort 由 spec.requires 驱动）
 │       ├── core-reducer/     AG-UI 内置事件 → view state
 │       ├── kernel/           填 app.sidebar / app.main / Settings 三个核心 slot
@@ -73,7 +87,12 @@ src/
 │       ├── agui-handlers/    5 个 CUSTOM 事件 → state 的 handler
 │       ├── tool-previews/    4 个工具 inline preview（bash/diff/file/grep）
 │       ├── tool-meta/        tool actions + tool icons
-│       ├── defaults/         默认 commands / config / data / themes / roles / title
+│       ├── defaults/         默认 commands / config / data / accents / roles / title
+│       ├── themes/           defineThemePlugin helper + builtinThemes 数组
+│       ├── lyra-dark / lyra-light / atom-one-dark / atom-one-light /
+│       │   tokyo-night-storm / tokyo-night-light / solarized-dark /
+│       │   solarized-light / catppuccin-mocha / catppuccin-latte
+│       │                     10 个独立主题插件（details 见 §5.4）
 │       ├── status/           status bar 的 pill + notifications badge
 │       ├── command-palette/  Cmd+K 浮层
 │       └── … 其它独立小插件（toaster / shortcuts / icon-gallery / demo / …）
@@ -86,15 +105,22 @@ src/
 │
 ├── state/                跨切面 Zustand store（非插件，kernel 自身的）
 │   ├── agentStore.ts     AgentViewState + applyEvent + send/stop binding
-│   ├── uiStore.ts        theme / sidebarRail / mainViewTabs / activeFile …
+│   ├── themeStore.ts     theme + accent + applyTheme 副作用（持久化）
+│   ├── layoutStore.ts    sidebarRail + toggleSidebar（持久化）
+│   ├── sessionStore.ts   activeSessionId / tabIds / mainViewTabs / activeFile /
+│   │                     selectedToolId / expandedToolIds（部分持久化）
 │   ├── composerStore.ts  撰写区文本 + 模式 + 附件
+│   ├── _legacyMigration.ts  一次性把旧 lyra.ui 单 key 迁移到三个新 key
 │   ├── useAgentSession.ts AG-UI Agent 生命周期 hook
 │   ├── useDefaultChatSession.ts  从 agentSource registry 挑选 agent
+│   ├── useWhenContext.ts  build context for `when` clauses（theme / scheme / sidebarRail / mainView）
 │   └── toolRouting.ts    openViewForTool(toolId) — tool card 点击的路由
 │
 ├── components/           共享 UI 组件（不是插件）
-│   ├── common/           Icon / Panel / Chip / ScrollArea / EmptyState / Skeleton
-│   ├── chat/             ChatPanel / Composer / MessageStream / PartRenderer
+│   ├── common/           Icon / Panel / Chip / ScrollArea / EmptyState / Skeleton /
+│   │                     DataView（loading|empty|content 三态 render-prop）
+│   ├── chat/             ChatPanel（51 行 orchestrator） / ChatHeader / ChatStream /
+│   │                     WorkspaceViewBody / Composer / MessageStream / PartRenderer
 │   ├── tools/            ToolCard / ToolPreview / previews/
 │   ├── views/           DiffView / Terminal / FilesChanged / McpRow / PlanList / ViewHeader
 │   ├── settings/         SettingsPage（workspace view 主体）
@@ -504,17 +530,107 @@ unmount  → subscription.unsubscribe()
 
 ### 5.3 状态管理（除 agent 之外的 UI 状态）
 
-| Store | 内容 | 持久化 |
+| Store | 内容 | 持久化 key |
 | --- | --- | --- |
 | `useAgentStore` | AgentViewState + 当前 agent 的 send/stop 引用 | ❌ 每次会话重置 |
-| `useUIStore` | theme / accent / sidebarRail / 当前 session / 打开的 chat tab / 主区 workspace view tab / activeFile / 工具选中态 | ✅ 部分字段 |
+| `useThemeStore` | theme id + accent hex + applyTheme 副作用 | ✅ `lyra.theme` |
+| `useLayoutStore` | sidebarRail boolean | ✅ `lyra.layout` |
+| `useSessionStore` | activeSessionId / tabIds / mainViewTabs / activeMainView / activeFile / selectedToolId / expandedToolIds | ✅ `lyra.session`（仅 activeSessionId + tabIds 持久；其余 ephemeral） |
 | `useComposerStore` | textarea 文本 + 模式 + 附件 | ❌ |
 | `usePluginStore` | 整个插件 registry | ❌ |
 | `useConfigStore` | 插件可读写的全局 config（如 `api.baseUrl`） | ✅ |
 | `useNotificationStore` | host.notify 推过的持久 feed | ❌ |
 | `usePluginErrorStore` | 插件错误聚合 | ❌ |
 
-uiStore 用 Zustand `persist` 中间件序列化白名单字段到 `localStorage`，版本号变化时直接丢弃旧数据避免形状错配。
+**为什么 UI store 拆成三块**：原来的 `useUIStore`（262 行）把主题 / 布局 / 会话 tab / 工具检查器五种 concern 揉一起，违反单一职责。拆分后每个组件只订阅自己关心的那一块。
+
+**持久化迁移**：`_legacyMigration.ts` 在三个新 store 任意一个首次 import 时同步运行，把旧的 `lyra.ui` 单 key 中的字段 fan-out 到 `lyra.theme` / `lyra.layout` / `lyra.session`，然后删掉 `lyra.ui`。幂等、安全 — 用户偏好（已选主题 / sidebar 状态 / 已开 tab）无感知地存活下来。
+
+每个 store 各自用 Zustand `persist` 中间件 + 自己的 version 号；任意单一 store 的 schema 变更只重置该 store 的存档。
+
+---
+
+### 5.4 主题系统（IDE/VS Code 风格的"主题即插件"）
+
+#### 形状：ThemeSpec.tokens = CSS 变量 map
+
+每个主题就是一个**完整的 CSS 变量调色板**：
+
+```ts
+type ThemeSpec = {
+  id: string;            // 持久化到 useThemeStore.theme（"dark" / "atom-one-dark" / ...）
+  label: string;         // 显示名
+  scheme: "dark" | "light";  // 决定 <html> 上的 theme-{scheme} class + shadow 策略
+  icon?: string;         // 选择器图标，默认按 scheme 给 moon / sun
+  order?: number;        // 排序提示
+  tokens?: Record<string, string>;  // CSS 变量名（无 -- 前缀）→ 值
+};
+```
+
+当主题切换时，`themeStore` 的副作用：
+
+1. 从 `usePluginStore.themes` 查找 spec
+2. 替换 `<html>` 上的 `theme-dark` / `theme-light` class（驱动结构性 CSS override）
+3. 把 `spec.tokens` 全部以 inline style 写到 `:root.style` —— 内联永远胜过 stylesheet 声明，于是插件完全拥有调色板
+4. 最后写一次 `--color-accent`，让用户选的 accent 覆盖主题默认
+
+#### `defineThemePlugin` helper：高内聚 DRY
+
+每个主题只需要声明它独有的部分：
+
+```ts
+// frontend/src/plugins/builtin/atom-one-dark/index.ts
+import { defineThemePlugin } from "../themes/defineThemePlugin";
+
+export default defineThemePlugin({
+  id: "atom-one-dark",
+  label: "Atom One Dark",
+  scheme: "dark",
+  order: 10,
+  palette: {
+    "color-accent":       "#528bff",
+    "color-accent-border":"#4078e6",
+    "color-bg":           "#1c2026",
+    "color-surface":      "#282c34",
+    "color-text":         "#abb2bf",
+    // ... 大概 25 行调色板
+  },
+});
+```
+
+helper 自动补：
+- Shadow ladder（dark scheme = inner none / overlay shadow-lg；light scheme = 完整堆叠 ladder）
+- CTA 默认指向 accent（除非传 `cta:` override，比如 Vercel 风格的 lyra-light 用 `#000`）
+- 注册仪式：`name`、`version`、`setup({ host }) { host.theme.registerTheme(...) }`
+
+文件从原来的 ~95 行（含 shadow / CTA / setup 模板）缩到 ~30 行（**纯调色板**）。10 个主题节省 ~600 行。
+
+#### 内置 10 个主题
+
+| order | id | series | accent |
+| --- | --- | --- | --- |
+| 0  | dark | Lyra | `#1ed760` green |
+| 1  | light | Lyra | `#15883e` green |
+| 10 | atom-one-dark | Atom | `#528bff` blue |
+| 11 | atom-one-light | Atom | `#526fff` blue |
+| 20 | tokyo-night-storm | Tokyo Night | `#7aa2f7` blue |
+| 21 | tokyo-night-light | Tokyo Night | `#34548a` blue |
+| 30 | solarized-dark | Solarized | `#268bd2` blue |
+| 31 | solarized-light | Solarized | `#268bd2` blue |
+| 40 | catppuccin-mocha | Catppuccin | `#cba6f7` mauve |
+| 41 | catppuccin-latte | Catppuccin | `#8839ef` mauve |
+
+所有色值来自上游 canonical（`one-dark-syntax` / `enkia/tokyonight` / Ethan Schoonover Solarized / `catppuccin/catppuccin`），没有臆造。
+
+#### 加新主题的步骤
+
+1. `plugins/builtin/<theme-name>/index.ts`：调 `defineThemePlugin({ id, label, scheme, order, palette })`
+2. `plugins/builtin/themes/index.ts`：在 `builtinThemes` 数组里加一行
+3. Done —— Settings → Appearance 的 theme picker 从 registry 读列表，自动出现新选项
+
+#### 首屏防闪烁
+
+`index.html` 内嵌一段 8 行同步 JS：读 `localStorage["lyra.theme"]`、解析出 id、根据 id 推断 scheme，在 CSS 解析前把 `theme-{scheme}` class 加到 `<html>`。light 用户冷启动不再闪一下黑。tokens.css 里的 `:root` 默认值作为 dark 的 fallback；插件 setup 完成后 inline tokens 接管。
 
 ---
 
@@ -740,10 +856,112 @@ declare module "@/protocol/agui/viewState" {
 | 想了解 | 先看 |
 | --- | --- |
 | 视觉规范 / 颜色 / 排版 | `DESIGN.md` |
-| Host 全部接口 | `src/plugins/sdk/types.ts` |
+| Host 全部接口 | `src/plugins/sdk/types/host.ts` |
+| 各类 Spec 类型 | `src/plugins/sdk/types/<domain>.ts`（按 domain 拆 12 个） |
 | Registry 形状 + composite key | `src/plugins/sdk/registry.ts` |
 | 一个完整的内置插件 | `src/plugins/builtin/demo/index.tsx` |
+| 主题如何注册 | `src/plugins/builtin/themes/defineThemePlugin.ts` + 任意 `<theme>/index.ts` |
 | AG-UI 数据 fold | `src/protocol/agui/reducer.ts` + `src/plugins/builtin/core-reducer/index.ts` |
-| ChatPanel 怎么把一切串起来 | `src/components/chat/ChatPanel.tsx` |
+| ChatPanel 怎么把一切串起来 | `src/components/chat/ChatPanel.tsx`（orchestrator）+ `ChatHeader` / `ChatStream` / `WorkspaceViewBody` |
+| Store 拆分与持久化迁移 | `src/state/themeStore.ts` / `layoutStore.ts` / `sessionStore.ts` / `_legacyMigration.ts` |
 | 路由动态构建 | `src/router.tsx` |
 | Sideload 入口 | `src/plugins/sideload.ts` + `src/plugins/hostBridge.ts` |
+
+---
+
+## 12. 改进方向（forward-looking analysis）
+
+下面这份清单是**有依据的**而不是 wishlist —— 每条都标了"做的理由 / 不做的理由 / 触发条件"，避免 backlog 变成永远不收敛的"理想架构"幻象。
+
+### 12.1 值得做（有明确收益、风险可控）
+
+#### A. 给 `core-reducer` 补集成测试，再做 table-driven 重构
+**现状**：`plugins/builtin/core-reducer/index.ts` 687 行，处理 14+ 种 AG-UI 内置事件（RUN_*、TEXT_MESSAGE_*、TOOL_CALL_*、REASONING_*、STEP_*、STATE_*、ACTIVITY_*）。大量 case 结构重复，明显可以 table-driven 化（事件类型 → handler 表）。
+
+**为什么没做**：协议语义层。改错了流式渲染会挂，目前 `reducer.test.ts` 只覆盖 dispatcher 层（"事件路由到哪个 handler"），不覆盖单个 handler 的具体语义。
+
+**怎么做**（先决条件）：
+1. 给每个内置事件类型写一组 input event → expected state delta 的快照测试（参考 redux-toolkit 的 reducer 测试模式）
+2. 测试通过后再用 table 替换 case，跑同一组测试验证零回归
+3. 收益：~687 行 → 估计 ~300 行 + 表格
+
+**触发条件**：要加新的内置事件类型时（比如 `THINKING_*` / `MEMORY_*`）一并补上。
+
+#### B. ChatPanel/MessageStream 的视觉回归测试
+**现状**：ChatPanel 已经拆成 4 个子组件（51 行 orchestrator + ChatHeader/ChatStream/WorkspaceViewBody），单文件没法继续小拆。但视觉回归（"切 tab 时 tab strip 是否正确"、"打开 workspace view 时 composer 是否消失"）目前靠手测。
+
+**为什么没做**：DOM 集成测试容易脆弱，Playwright/Storybook 是更大的引擎引入。
+
+**触发条件**：tab 状态机改三次以上 / 引入第一次回归 bug。届时 ROI 翻正。
+
+#### C. plugin sideload 的端到端测试
+**现状**：sideload 路径（`sideload.ts` + `hostBridge.ts`）只有单元测试，没有"真的从 Go 后端下载 + dynamic import + 注册"的 e2e 覆盖。
+**为什么没做**：mocking dynamic import 比较奇技淫巧，工程量大。
+**触发条件**：sideload 路径出第一个真实 bug / 第一个外部 plugin 进入仓库。
+
+#### D. 给 `useSmoothText` hook 加最小行为测试
+**现状**：`pickRate` 纯函数有 8 个测试（`smoothText.test.ts`），但 hook 本身（rAF + 词分段 + 句末停顿 + drain mode）零测试。
+**为什么没做**：rAF 在 happy-dom 下需要 stub + fake timers，hook 行为随性能特征调，测试容易跟 vsync jitter 打架。
+**触发条件**：流式渲染速率出 bug / pickRate 重新设计时一起做。
+
+### 12.2 想做但当前 KISS / YAGNI 不允许
+
+#### E. 把 `registry.ts` 的 30+ 对 `addX/removeX` action 抽成 factory
+**为什么不做**：现有 `addOwned` / `addOwnedMulti` 已经把 conflict-warning + immutable update 这些**真重复**的部分抽完了。剩下的 per-slot 2 行 wrapper 是 type safety 的成本 —— 强行抽 factory 必须用 string-keyed slot indexing 牺牲类型推断，clarity loss > LOC saving。**KISS / SOLID-O 都站在不抽这一边**。
+
+#### F. 把 `html.theme-light .foo` 结构性 override 全部 token 化
+**为什么不做**：`styles/theme.css` 里剩下约 200 行 `html.theme-light .panel { border: none }` 这类规则 —— 改的是 CSS rule 而不是 token 值，没法用 inline style 表达。要全部 token 化需要：
+- 给每条 rule 找到对应的 "新 token"（`--panel-border`、`--panel-shadow-policy`、…）
+- 在 base CSS 里改成 `var(--token)`
+- 主题 plugin 写出这些新 token
+
+**触发条件**：第三方主题作者需要修改这些"结构性"差异。在那之前 `theme-{scheme}` class 已经够用。
+
+#### G. 把 `domain/infra/main/` 拆成 monorepo packages
+**为什么不做**：见 §3.2 的现有 4 个触发条件，目前一个都没命中。TS path alias + `architecture.test.ts` 已经强制了同样的边界约束。
+
+#### H. plugin marketplace 元数据 / 签名
+**为什么不做**：`apiVersion` 闸已经在；marketplace 概念目前只是设想。等出现真的第三方 plugin 提交时再设计。**纯 YAGNI**。
+
+### 12.3 可能值得做的"隔壁优化"（非重构）
+
+#### I. 国际化（i18n）
+**现状**：所有 UI 文案 hardcode 中英文混合（command label / empty state / 注释）。
+**判断**：单语言用户没有痛点；但 ChatPanel/Composer 这些核心 UI 的文案应该走 i18n 框架以便未来扩展。引入 `@lingui/macro` 或 `react-intl` 是几小时活，但**重构 200+ 字符串到字典是数天**。
+
+**触发条件**：第一个非中英文用户 / 第一个 PR 想加日文。
+
+#### J. 性能：MessageStream 虚拟化
+**现状**：消息流用普通 React 列表 + `use-stick-to-bottom`。
+**判断**：长会话（1000+ 消息）目前没人抱怨；流式刚开始的消息密度不高。
+
+**触发条件**：实际遇到 > 500 消息会话卡顿时，引入 `@tanstack/react-virtual`。
+
+#### K. 后端：把 mock SSE server 替换成可插拔的 agent provider
+**现状**：`internal/agui/` 全是 fixture demo 数据；真要接 LLM 还得改一遍。
+**判断**：当前定位是 UI 设计预览 + 协议验证；真接入 LLM 是一个**新阶段**，不属于"前端架构改进"。
+
+**触发条件**：进入"真实 agent 集成"阶段（与本文档无关）。
+
+### 12.4 优先级建议
+
+如果下一轮投 1 天的工程力：
+1. **首选 A**（core-reducer 测试 + table-driven）—— 收益最大、风险最低、直接降低 LOC
+2. 备选 D（smoothText hook 测试）—— 防止流式 bug 复发
+
+如果下一轮投 1 周：
+1. A + D（半天）
+2. 给 `core-reducer` table-driven 后空出来的 ~400 行注释 + 复杂 case 写成 ADR（架构决策记录）
+3. C（sideload e2e）—— 是 plugin marketplace 路径上必经
+
+如果只是日常维护：维持现状。当前架构通过了所有审计原则（KISS / SOLID / YAGNI / DRY），LOC 在合理范围，所有热路径有测试覆盖。**继续等触发条件出现**，不要做投机式重构。
+
+### 12.5 反向不变量（强意见弱依据）
+
+下面这些方向**已知会被人提出**，但当前判断是错的方向，记下来避免重复辩论：
+
+- **❌ Redux Toolkit / Effector / Jotai 替换 Zustand**：现有 5 个 store 都很小，订阅模型够用；切换框架是纯切换，无收益。
+- **❌ 给所有 plugin 加 schema 验证（Zod）**：plugin spec 由 TS 类型守护，runtime 验证只在 sideload 边界有意义 —— 加重 build size 没好处。要做也是只在 sideload 入口加。
+- **❌ 把 React Query → SWR / RTK Query**：同上，切换框架本身没有收益。
+- **❌ 把 Wails → Tauri**：桌面壳兼容性问题，没有实际 bug 也没好处。
+- **❌ 把 CSS → Tailwind / CSS-in-JS**：当前 CSS variable + 主题插件的模式很好用，迁移成本高。
