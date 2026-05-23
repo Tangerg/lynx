@@ -7,7 +7,13 @@
    Center — chat
    ============================================================ */
 .chat {
-  background: var(--color-bg);
+  /* Surface (#181a1d dark / #ffffff light) — lifts above canvas so
+     the chat panel reads as a card on the canvas frame. Was --color-bg
+     (canvas) which made it indistinguishable from the surrounding
+     canvas in dark mode. The cascade order put .chat after .panel so
+     this single line silently undid the cards-on-canvas layout for
+     the chat panel — see git history. */
+  background: var(--color-surface);
   position: relative;
 }
 
