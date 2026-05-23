@@ -335,13 +335,8 @@ html.theme-light .cf-chip.ghost .cf-dot { box-shadow: 0 0 6px rgba(22, 156, 70, 
 html.theme-light .chat-topbar { background: var(--color-surface); border-bottom-color: var(--color-border); }
 html.theme-light .topbar-divider { background: var(--color-border); }
 
-/* Chat-tab active state — DESIGN.md §9: the 2px accent underline is the
-   ONLY accent surface on the tab. The previous gradient tint over the
-   tab body violated that policy. Active = flat surface-1 + underline. */
-.chat-tab.active {
-  background: var(--color-surface) !important;
-}
-html.theme-light .chat-tab.active {
-  background: var(--color-surface) !important;
-}
+/* Active-tab background is handled above (color-mix(text 4%, transparent)
+   shared with hover). The leftover rules that previously lived here
+   used !important to override an earlier gradient tint that's now
+   long-gone — keeping them re-introduced the conflict. */
 
