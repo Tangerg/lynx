@@ -43,18 +43,22 @@ body {
 }
 
 /* ---------- Kernel layout ----------
-   Block-surface layout (JetBrains / Cursor / VS Code pattern):
-   - Sidebar + statusbar render on canvas (recedes — "chrome / frame")
-   - Chat panel renders on surface-1 (slightly lifted — "content")
-   The TONE step between the two surfaces does the dividing work; no 1px
-   hairline gap needed. Reads more naturally than the prior Vercel-style
-   "flush + hairline gap" approach because the eye reads contrast faster
-   than it finds thin lines. See chat with the user that triggered this
-   migration. */
+   Cards-on-canvas pattern (Lyra original / Proma / IDE-class apps):
+   - Outer .app paints the canvas (darkest tone — the "stage").
+   - .app-main adds padding + gap so the canvas shows around / between
+     panels, like matting around framed art.
+   - Each .panel is a "lifted card" on surface-1 with rounded corners.
+   - .app-statusbar stays flush at the bottom — sits on the canvas itself
+     for the chrome-frame look.
+   Why this over the prior tone-step (sidebar=canvas / chat=surface):
+   the floating-card pattern gives a real depth cue the eye reads
+   instantly. Same hierarchy logic, just with structural breathing
+   room making it explicit. */
 .app {
   display: grid;
   grid-template-rows: 1fr 24px;
   height: 100vh;
+  background: var(--color-bg);
   padding: 0;
   gap: 0;
 }
@@ -62,7 +66,10 @@ body {
 .app-main {
   display: grid;
   grid-template-columns: 248px minmax(0, 1fr);
-  gap: 0;
+  /* Gap + padding expose the canvas around lifted panels. The 8px
+     value matches the radius-md ladder so corners and gutters rhyme. */
+  gap: 8px;
+  padding: 8px 8px 0 8px;
   min-height: 0;
 }
 
@@ -70,8 +77,9 @@ body {
   grid-template-columns: 56px minmax(0, 1fr);
 }
 
-/* Status bar — slim horizontal strip pinned to the bottom of the kernel.
-   Renders on canvas to match the sidebar (frames the bottom). */
+/* Status bar — slim horizontal strip flush at the bottom. Sits on the
+   outer canvas (matches .app background) so the bottom edge of the
+   window reads as part of the frame. */
 .app-statusbar {
   display: flex;
   align-items: center;
@@ -190,21 +198,19 @@ html.theme-light .tool-card.running::before {
 }
 
 /* ---------- Panels ----------
-   Default panel sits on canvas (matches sidebar). The chat panel
-   explicitly opts into surface-1 (lifted) — see selector below — so
-   the tone step between sidebar (canvas) and chat (surface-1) is
-   the boundary. No card chrome / no rounded corners / no border —
-   the color block IS the partition. */
+   Lifted cards on the outer canvas. Both sidebar and chat panel use
+   surface-1 (#0f1011 dark / #ffffff light) so they read as
+   structurally equivalent — the difference between them is purely
+   their content, not their tone. Canvas shows through the .app-main
+   padding + gap, framing each panel. */
 .panel {
-  background: var(--color-bg);
-  border-radius: 0;
+  background: var(--color-surface);
+  border-radius: var(--radius-md);
   overflow: hidden;
   display: flex;
   flex-direction: column;
   min-height: 0;
 }
-/* Chat panel — the focal content area — lifts to surface-1. */
-.panel.chat { background: var(--color-surface); }
 
 .panel-scroll {
   flex: 1 1 0;

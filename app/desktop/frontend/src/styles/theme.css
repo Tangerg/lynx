@@ -72,44 +72,34 @@
   --shadow-soft:         var(--shadow-xs);
 }
 
-/* Body / canvas — uses the token so the JetBrains-style block surface
-   pattern stays consistent. Body bg is canvas (#fafafa) which is also
-   the sidebar / statusbar tone. The chat panel lifts above this. */
+/* Body / canvas — outer frame is canvas (#fafafa). Panels lift above
+   it to surface (#ffffff) via the .panel default. Same cards-on-canvas
+   pattern as dark mode, just inverted. */
 html.theme-light, html.theme-light body { background: var(--color-bg); }
 html.theme-light .app { background: var(--color-bg); }
 
-/* Panel chrome — flat, no shadow, no radius. The TONE step between
-   canvas (.sidebar/.app default = #fafafa) and surface (.chat = #ffffff)
-   does the dividing work. */
+/* Panel chrome — keep rounded corners + lifted surface from the
+   .panel default. Light mode adds a subtle border for visible
+   definition since white-on-near-white needs an outline cue. */
 html.theme-light .panel {
-  border: none;
-  border-radius: 0;
-  box-shadow: none;
+  border: 1px solid var(--color-border);
 }
-/* Chat panel — lifts to surface (#ffffff) so it stands clear of the
-   canvas sidebar/statusbar. */
-html.theme-light .panel.chat { background: var(--color-surface); }
 
-/* Inner chrome inside chat panel — topbar / subheader match surface. */
+/* Inner chrome inside chat panel — match the panel surface. */
 html.theme-light .chat-topbar { background: var(--color-surface); }
 html.theme-light .chat-tabs,
 html.theme-light .chat-subheader,
 html.theme-light .view-head { border-bottom-color: var(--color-border); }
 html.theme-light .chat-tabs { background: var(--color-surface); }
 html.theme-light .chat-subheader { background: var(--color-surface); }
-html.theme-light .side-footer { border-top-color: var(--color-border); }
 html.theme-light .divider-h { background: var(--color-border); }
 
-/* Sidebar — sits on canvas (frame); explicit so the .panel default
-   doesn't paint it the wrong colour. */
-html.theme-light .sidebar { background: var(--color-bg); }
+/* Sidebar row states — surface-2 (#f5f5f5) on hover/active reads as
+   a discrete row highlight against the panel's white. */
 html.theme-light .session-row:hover { background: var(--color-surface-2); }
 html.theme-light .session-row.active { background: var(--color-surface-2); }
 html.theme-light .model-card { background: var(--color-surface-2); }
 html.theme-light .model-card:hover { background: var(--color-surface-3); }
-
-/* Sidebar (rail) */
-html.theme-light .sidebar.rail { background: var(--color-surface); }
 html.theme-light .rail-btn:hover { background: var(--color-surface-2); }
 html.theme-light .rail-btn.primary { background: var(--color-surface-2); }
 html.theme-light .rail-btn.primary:hover { background: var(--color-surface-3); }
