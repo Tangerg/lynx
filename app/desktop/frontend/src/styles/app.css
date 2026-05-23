@@ -272,7 +272,7 @@ html.theme-light .tool-card.running::before {
   font-family: var(--font-ui);
   font-size: 13px;
   padding: 9px 12px 9px 36px;
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-sm);
   outline: none;
   box-shadow: var(--shadow-input);
 }
@@ -516,23 +516,25 @@ html.theme-light .tool-card.running::before {
 .icon-btn:hover { background: var(--color-surface-2); color: var(--color-text); }
 .icon-btn.active { color: var(--color-accent); }
 
+/* Legacy name "pill-btn" — no longer pill-radius. Kept the class name
+   to avoid a JSX-wide rename; the shape is now md (8px) per DESIGN.md §6. */
 .pill-btn {
   display: inline-flex; align-items: center; gap: 6px;
   height: 32px;
   padding: 0 14px;
   background: transparent;
-  border: 1px solid var(--color-border-soft);
+  border: 1px solid var(--color-border);
   color: var(--color-text);
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-md);
   font-family: var(--font-ui);
-  font-size: 12px;
-  font-weight: 700;
+  font-size: 13px;
+  font-weight: var(--fw-medium);
   letter-spacing: 0;
-  font-family: var(--font-mono);
   text-transform: none;
   cursor: pointer;
-  transition: border-color var(--dur-fast) var(--ease-out);
+  transition: background var(--polish-fast), border-color var(--polish-fast);
 }
+.pill-btn:hover { background: var(--color-surface-2); border-color: var(--color-border-soft); }
 .pill-btn:hover { border-color: #fff; }
 .pill-btn.solid {
   background: #fff;
@@ -552,17 +554,20 @@ html.theme-light .tool-card.running::before {
   border-color: var(--color-negative);
 }
 
-/* ---------- Message stream ---------- */
+/* ---------- Message stream ----------
+   chat-measure 760px centered (DESIGN.md §4). Long prose lines reading
+   at body-md (14px) end up at 45–75 chars per line — the comfortable
+   measure. Long code blocks and tables overflow internally via their
+   own wrappers (.shiki-block, .md-table-wrap); the prose column stays
+   capped. */
 .msg-stream {
-  padding: 24px 32px 220px 32px;
+  padding: 24px 24px 220px 24px;
   display: flex;
   flex-direction: column;
   gap: 28px;
-  /* Was max-width 876 centered — that left a wide "abandoned" gutter
-     on the right of the chat panel. Let messages fill the full
-     available width; readability is still bounded by msg-content's
-     own inner max-width. */
   width: 100%;
+  max-width: 760px;
+  margin: 0 auto;
   position: relative;
 }
 
@@ -1128,23 +1133,20 @@ html.theme-light .msg.user .msg-content {
 .mcp-status.idle { background: var(--color-surface-2); color: var(--color-text-faint); }
 .mcp-status.error { background: rgba(243,114,127,0.12); color: var(--color-negative); }
 
-/* ---------- Composer (the search-input analog) ---------- */
+/* ---------- Composer (the search-input analog) ----------
+   Capped to chat-measure 760 + centered, matching .msg-stream
+   (DESIGN.md §4). Composer reads as a continuation of the message
+   column. */
 .composer-wrap {
   position: absolute;
   left: 0; right: 0; bottom: 0;
-  padding: 0 28px 16px 28px;
+  padding: 0 24px 16px 24px;
   pointer-events: none;
 }
 .composer-inner {
-  /* Stretches across the chat panel — was max-width 820 centered, which
-     left the right of the panel feeling abandoned. */
   width: 100%;
-  pointer-events: auto;
-  position: relative;
-  z-index: 2;
-}
-.composer-inner {
-  width: 100%;
+  max-width: 760px;
+  margin: 0 auto;
   pointer-events: auto;
   position: relative;
   z-index: 2;
@@ -1320,10 +1322,10 @@ html.theme-light .msg.user .msg-content {
   background: transparent;
   border: none;
   color: var(--color-text-muted);
-  border-radius: 99px;
+  border-radius: var(--radius-md);
   font-family: var(--font-ui);
-  font-size: 11.5px;
-  font-weight: 600;
+  font-size: 12px;
+  font-weight: var(--fw-medium);
   cursor: pointer;
   white-space: nowrap;
   flex-shrink: 0;

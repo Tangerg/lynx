@@ -76,7 +76,7 @@ export const useUIStore = create<UIState & UIActions>()(
       // ---- initial state ----
       theme: "dark",
       accent: "#1ed760",
-      sidebarRail: false,
+      sidebarRail: true,
       activeSessionId: "s1",
       tabIds: ["s1", "s2", "s3"],
       activeFile: "src/api/auth.ts",
@@ -161,7 +161,9 @@ export const useUIStore = create<UIState & UIActions>()(
       }),
       // Bump on any breaking shape change — wipes stale stored data so a
       // dev who upgraded mid-session doesn't get hit by mismatched fields.
-      version: 3,
+      // v4: sidebarRail default flipped to true (Linear/Cursor convention —
+      // rail is the keyboard-driven default; full sidebar is on-demand).
+      version: 4,
     },
   ),
 );
