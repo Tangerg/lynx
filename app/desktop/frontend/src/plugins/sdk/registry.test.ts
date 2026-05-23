@@ -196,6 +196,26 @@ describe("plugin registry", () => {
     expect(lookupTheme("dim")).toBeUndefined();
   });
 
+  it("theme.registerTheme retains the tokens map for applyTheme to consume", () => {
+    const sink: Disposable[] = [];
+    const host = createHost("alpha", sink);
+    host.theme.registerTheme({
+      id: "dim",
+      label: "Dim",
+      scheme: "dark",
+      tokens: {
+        "color-bg": "#101010",
+        "color-text": "#fafafa",
+      },
+    });
+
+    const spec = lookupTheme("dim");
+    expect(spec?.tokens).toEqual({
+      "color-bg": "#101010",
+      "color-text": "#fafafa",
+    });
+  });
+
   it("theme.registerAccent + lookupAccent round-trip", () => {
     const sink: Disposable[] = [];
     const host = createHost("alpha", sink);

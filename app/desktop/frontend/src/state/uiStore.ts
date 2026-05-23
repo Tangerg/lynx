@@ -87,7 +87,25 @@ export const useUIStore = create<UIState & UIActions>()(
 
       // ---- actions ----
       setTheme: (theme) => set({ theme }),
-      toggleTheme: () => set((s) => ({ theme: s.theme === "dark" ? "light" : "dark" })),
+      // Flip to the opposite SCHEME (not just "dark"/"light" id) so custom
+      // theme plugins still toggle sensibly. Pick the first registered
+      // theme whose scheme is the opposite of the current one; if none
+      // exists (e.g. registry only has dark themes), no-op.
+      toggleTheme: () => {
+        const cur = get().theme;
+        const themes = usePluginStore.getState().themes;
+        const curSpec = themes.get(cur)?.value;
+        const curScheme = curSpec?.scheme ?? (cur === "light" ? "light" : "dark");
+        const target = curScheme === "dark" ? "light" : "dark";
+        // Sort by `order` so the toggle picks the "primary" theme of the
+        // opposite scheme rather than whichever Map happens to enumerate
+        // first. Matches the sort the appearance pane uses.
+        const candidates = Array.from(themes.values())
+          .map((o) => o.value)
+          .filter((t) => t.scheme === target)
+          .sort((a, b) => (a.order ?? 100) - (b.order ?? 100));
+        if (candidates[0]) set({ theme: candidates[0].id });
+      },
       setAccent: (accent) => set({ accent }),
 
       toggleSidebar: () => set((s) => ({ sidebarRail: !s.sidebarRail })),
@@ -168,14 +186,26 @@ export const useUIStore = create<UIState & UIActions>()(
   ),
 );
 
-// Side-effect: keep <html> class and CSS var in sync with the store.
+// Side-effect: keep <html> class + inline CSS vars in sync with the
+// active theme spec from the plugin registry.
 //
-// Light-mode variants come from the plugin registry (`lyra.builtin.default-themes`
-// registers them) — uiStore stays decoupled from the actual palette so a
-// theme plugin can change which colors are available without touching this
-// file. While the registry is still empty (very early in boot, before the
-// plugin loads), we fall back to the dark hex unchanged. Once the plugin
-// registers and the store re-fires applyTheme, the light variant kicks in.
+// Theme model — IDE/VS Code style:
+//   1. A plugin (default: `lyra.builtin.default-themes`) registers one or
+//      more ThemeSpec entries. Each carries a `tokens` map: CSS variable
+//      name → value.
+//   2. When `theme` changes (or the registry's theme map mutates because
+//      a plugin registered late), we look up the spec, toggle the
+//      `theme-{scheme}` class on <html> so structural CSS still applies,
+//      and write every token to `:root.style` as an inline override.
+//   3. Until the plugin registers, the tokens declared in `tokens.css`
+//      (`:root`) take effect as a first-paint fallback. The fallback
+//      values match the dark theme — light users see a brief dark flash
+//      before the plugin registers and inline tokens kick in.
+//
+// Accent works the same way: the accent picker stores a hex; we resolve
+// to the light variant via the accent registry when the active theme's
+// scheme is "light".
+
 function lookupLightVariant(darkHex: string): string | undefined {
   const accents = usePluginStore.getState().accents;
   for (const o of accents.values()) {
@@ -186,9 +216,28 @@ function lookupLightVariant(darkHex: string): string | undefined {
 
 function applyTheme(theme: Theme, accent: string) {
   const root = document.documentElement;
+  const spec = usePluginStore.getState().themes.get(theme)?.value;
+
+  // Scheme drives the structural class. If the spec isn't registered yet
+  // we fall back to the id itself — for built-in ids ("dark"/"light")
+  // that's still right; for custom ids it's the best we can do until the
+  // plugin loads and we re-fire.
+  const scheme = spec?.scheme ?? (theme === "light" ? "light" : "dark");
   root.classList.remove("theme-light", "theme-dark");
-  root.classList.add(`theme-${theme}`);
-  const c = theme === "light" ? (lookupLightVariant(accent) ?? accent) : accent;
+  root.classList.add(`theme-${scheme}`);
+
+  // Write all of the theme's tokens as inline vars. Inline beats stylesheet
+  // declarations, so this lets the plugin own the palette regardless of
+  // what the fallback CSS in tokens.css says.
+  if (spec?.tokens) {
+    for (const [name, value] of Object.entries(spec.tokens)) {
+      root.style.setProperty(`--${name}`, value);
+    }
+  }
+
+  // Accent override last so the user's accent pick beats the theme's
+  // default --color-accent token.
+  const c = scheme === "light" ? (lookupLightVariant(accent) ?? accent) : accent;
   root.style.setProperty("--color-accent", c);
 }
 
@@ -201,11 +250,12 @@ useUIStore.subscribe((state, prev) => {
   }
 });
 
-// Re-apply when the plugin registry's accent map changes — this is the path
-// for "default-themes" registering at startup AFTER the persisted state has
-// already triggered an initial applyTheme with an empty registry.
+// Re-apply when the plugin registry's theme or accent maps change — this
+// is the path that handles built-in plugins registering at startup AFTER
+// the persisted-state init above already fired applyTheme with an empty
+// registry, AND the path for theme plugins loaded/unloaded at runtime.
 usePluginStore.subscribe((state, prev) => {
-  if (state.accents !== prev.accents) {
+  if (state.themes !== prev.themes || state.accents !== prev.accents) {
     const { theme, accent } = useUIStore.getState();
     applyTheme(theme, accent);
   }

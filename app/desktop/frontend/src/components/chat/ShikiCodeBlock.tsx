@@ -3,6 +3,7 @@ import { useUIStore } from "@/state/uiStore";
 import { Icon } from "@/components/common";
 import { getHighlighter, resolveLang } from "@/lib/shiki";
 import { useDebouncedValue } from "@/lib/useDebouncedValue";
+import { resolveScheme } from "@/plugins/sdk";
 
 type Props = {
   lang: string;
@@ -33,8 +34,12 @@ type Props = {
 const FOLD_LINE_THRESHOLD = 24;
 
 export function ShikiCodeBlock({ lang, code, file }: Props) {
-  const theme = useUIStore((s) => s.theme);
-  const shikiTheme = theme === "light" ? "github-light" : "github-dark";
+  const themeId = useUIStore((s) => s.theme);
+  // Use the spec's scheme so custom themes (e.g. "solarized-dark") still
+  // resolve to the correct shiki preset — comparing id === "light" would
+  // miss third-party light themes.
+  const scheme = resolveScheme(themeId);
+  const shikiTheme = scheme === "light" ? "github-light" : "github-dark";
 
   const debouncedCode = useDebouncedValue(code, 120);
   const isSettling = code !== debouncedCode;

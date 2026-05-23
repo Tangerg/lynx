@@ -7,6 +7,7 @@
 
 import { AGUI_BASE, api } from "@/lib/http";
 import { definePlugin } from "@/plugins/sdk";
+import { darkTokens, lightTokens } from "./themeTokens";
 
 export { defaultCommands } from "./commands";
 
@@ -30,8 +31,14 @@ export const defaultThemes = definePlugin({
   name: "lyra.builtin.default-themes",
   version: "1.0.0",
   setup({ host }) {
-    host.theme.registerTheme({ id: "dark",  label: "Dark",  scheme: "dark",  icon: "moon", order: 0 });
-    host.theme.registerTheme({ id: "light", label: "Light", scheme: "light", icon: "sun",  order: 1 });
+    host.theme.registerTheme({
+      id: "dark", label: "Dark", scheme: "dark", icon: "moon", order: 0,
+      tokens: darkTokens,
+    });
+    host.theme.registerTheme({
+      id: "light", label: "Light", scheme: "light", icon: "sun", order: 1,
+      tokens: lightTokens,
+    });
 
     host.theme.registerAccent({ id: "green",  label: "Green",  dark: "#1ed760", light: "#169c46", order: 0 });
     host.theme.registerAccent({ id: "blue",   label: "Blue",   dark: "#82cfff", light: "#2563eb", order: 1 });
