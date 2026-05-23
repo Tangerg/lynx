@@ -8,8 +8,16 @@ import (
 	aguievents "github.com/ag-ui-protocol/ag-ui/sdks/community/go/pkg/core/events"
 
 	"github.com/Tangerg/lynx/lyra/internal/agui"
+	"github.com/Tangerg/lynx/lyra/internal/service/approval"
 	"github.com/Tangerg/lynx/lyra/internal/service/chat"
 )
+
+// approvalRequest is the test-shape minimum needed to feed a
+// ToolCallApproval into the translator — saves repeating the
+// approval.Request literal in every test.
+func approvalRequest(id, toolName string) approval.Request {
+	return approval.Request{ID: id, ToolName: toolName, RequestedAt: ts}
+}
 
 // ts is a fixed timestamp every test uses so output ordering /
 // JSON shape are deterministic. Translator passes the chat
@@ -78,7 +86,8 @@ func TestTranslate_MessageDelta_LazyStart(t *testing.T) {
 
 // TestTranslate_ToolCallStart_ClosesOpenText verifies that a tool
 // call interrupting the assistant's text emits TextMessageEnd
-// before the tool-call triplet.
+// before the tool-call triplet, with a StepStarted bracketing the
+// tool lifecycle.
 func TestTranslate_ToolCallStart_ClosesOpenText(t *testing.T) {
 	tr := agui.NewTranslator("s", "r")
 	_ = tr.Translate(chat.MessageDelta{BaseEvent: base("s", "r"), Text: "thinking..."})
@@ -90,22 +99,26 @@ func TestTranslate_ToolCallStart_ClosesOpenText(t *testing.T) {
 		Arguments: `{"command":"ls"}`,
 	})
 
-	if len(out) != 4 {
-		t.Fatalf("want TextMessageEnd + Start/Args/End, got %d events", len(out))
+	// TextMessageEnd + StepStarted + ToolCallStart + Args + End
+	if len(out) != 5 {
+		t.Fatalf("want 5 events (TextEnd + StepStart + tool triplet), got %d", len(out))
 	}
 	if _, ok := out[0].(*aguievents.TextMessageEndEvent); !ok {
 		t.Errorf("out[0] = %T, want *TextMessageEndEvent", out[0])
 	}
-	tcs, ok := out[1].(*aguievents.ToolCallStartEvent)
-	if !ok || tcs.ToolCallID != "c-1" || tcs.ToolCallName != "bash" {
-		t.Errorf("out[1] = %#v", out[1])
+	if step, ok := out[1].(*aguievents.StepStartedEvent); !ok || step.StepName != "tool:bash" {
+		t.Errorf("out[1] = %#v, want StepStarted(tool:bash)", out[1])
 	}
-	args, ok := out[2].(*aguievents.ToolCallArgsEvent)
-	if !ok || args.Delta != `{"command":"ls"}` || args.ToolCallID != "c-1" {
+	tcs, ok := out[2].(*aguievents.ToolCallStartEvent)
+	if !ok || tcs.ToolCallID != "c-1" || tcs.ToolCallName != "bash" {
 		t.Errorf("out[2] = %#v", out[2])
 	}
-	if _, ok := out[3].(*aguievents.ToolCallEndEvent); !ok {
-		t.Errorf("out[3] = %T", out[3])
+	args, ok := out[3].(*aguievents.ToolCallArgsEvent)
+	if !ok || args.Delta != `{"command":"ls"}` || args.ToolCallID != "c-1" {
+		t.Errorf("out[3] = %#v", out[3])
+	}
+	if _, ok := out[4].(*aguievents.ToolCallEndEvent); !ok {
+		t.Errorf("out[4] = %T", out[4])
 	}
 }
 
@@ -148,17 +161,21 @@ func TestTranslate_ToolCallEnd_ErrPrefersErrMessage(t *testing.T) {
 	}
 }
 
-// TestTranslate_PlanGenerated_Custom emits a CustomEvent with
-// name="plan_generated".
+// TestTranslate_PlanGenerated_Custom emits the Step-bracketed
+// "plan_generated" custom event so plan review surfaces as a
+// named phase on the wire.
 func TestTranslate_PlanGenerated_Custom(t *testing.T) {
 	tr := agui.NewTranslator("s", "r")
 	out := tr.Translate(chat.PlanGenerated{BaseEvent: base("s", "r"), Plan: "1. step"})
-	if len(out) != 1 {
-		t.Fatalf("want 1 event, got %d", len(out))
+	if len(out) != 3 {
+		t.Fatalf("want StepStart + Custom + StepFinish, got %d events", len(out))
 	}
-	c, ok := out[0].(*aguievents.CustomEvent)
+	if step, ok := out[0].(*aguievents.StepStartedEvent); !ok || step.StepName != "plan_review" {
+		t.Errorf("out[0] = %#v, want StepStarted(plan_review)", out[0])
+	}
+	c, ok := out[1].(*aguievents.CustomEvent)
 	if !ok {
-		t.Fatalf("want *CustomEvent, got %T", out[0])
+		t.Fatalf("out[1] = %T, want *CustomEvent", out[1])
 	}
 	if c.Name != "plan_generated" {
 		t.Errorf("name = %q", c.Name)
@@ -169,6 +186,68 @@ func TestTranslate_PlanGenerated_Custom(t *testing.T) {
 	}
 	if v["plan"] != "1. step" || v["runId"] != "r" {
 		t.Errorf("value = %#v", v)
+	}
+	if step, ok := out[2].(*aguievents.StepFinishedEvent); !ok || step.StepName != "plan_review" {
+		t.Errorf("out[2] = %#v, want StepFinished(plan_review)", out[2])
+	}
+}
+
+// TestTranslate_ToolStepLifecycle — tool calls emit a balanced
+// StepStarted("tool:<name>") + StepFinished pair around the
+// AG-UI tool triplet so clients can render the tool's progress
+// as a discrete step.
+func TestTranslate_ToolStepLifecycle(t *testing.T) {
+	tr := agui.NewTranslator("s", "r")
+	out := tr.Translate(chat.ToolCallStart{
+		BaseEvent: base("s", "r"),
+		CallID:    "c-1",
+		ToolName:  "bash",
+		Arguments: `{"command":"ls"}`,
+	})
+	out = append(out, tr.Translate(chat.ToolCallEnd{
+		BaseEvent: base("s", "r"),
+		CallID:    "c-1",
+		Output:    "total 0\n",
+	})...)
+
+	// Expected order: StepStarted, ToolCallStart, Args, End,
+	// ToolCallResult, StepFinished.
+	if len(out) != 6 {
+		t.Fatalf("want 6 events, got %d", len(out))
+	}
+	if step, ok := out[0].(*aguievents.StepStartedEvent); !ok || step.StepName != "tool:bash" {
+		t.Errorf("out[0] = %#v, want StepStarted(tool:bash)", out[0])
+	}
+	if step, ok := out[5].(*aguievents.StepFinishedEvent); !ok || step.StepName != "tool:bash" {
+		t.Errorf("out[5] = %#v, want StepFinished(tool:bash)", out[5])
+	}
+}
+
+// TestTranslate_ApprovalStepClosesOnToolStart — the approval Step
+// is opened by ToolCallApproval and closed when the corresponding
+// ToolCallStart fires (model proceeds after approval).
+func TestTranslate_ApprovalStepClosesOnToolStart(t *testing.T) {
+	tr := agui.NewTranslator("s", "r")
+	_ = tr.Translate(chat.ToolCallApproval{
+		BaseEvent: base("s", "r"),
+		Request: approvalRequest("c-1", "bash"),
+	})
+	out := tr.Translate(chat.ToolCallStart{
+		BaseEvent: base("s", "r"),
+		CallID:    "c-1",
+		ToolName:  "bash",
+		Arguments: `{}`,
+	})
+	// Expected ordering: StepFinished(approval:bash) +
+	// StepStarted(tool:bash) + tool triplet.
+	if len(out) != 5 {
+		t.Fatalf("want 5 events, got %d (%+v)", len(out), out)
+	}
+	if step, ok := out[0].(*aguievents.StepFinishedEvent); !ok || step.StepName != "approval:bash" {
+		t.Errorf("out[0] = %#v, want StepFinished(approval:bash)", out[0])
+	}
+	if step, ok := out[1].(*aguievents.StepStartedEvent); !ok || step.StepName != "tool:bash" {
+		t.Errorf("out[1] = %#v, want StepStarted(tool:bash)", out[1])
 	}
 }
 
