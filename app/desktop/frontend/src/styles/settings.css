@@ -198,15 +198,18 @@ html.theme-light .user-action.open { background: var(--color-surface-2); }
   height: 100%;
   overflow: hidden;
 }
-/* Settings rail — sub-frame inside the settings panel. Uses canvas
-   (#010102 dark / #fafafa light) so it sits one step deeper than the
-   panel surface; the TONE STEP is the divider, not a 1px line. */
+/* Settings rail — sub-frame inside the settings panel. Uses surface-2
+   (one step LIGHTER than panel surface in dark / one step DARKER in
+   light) so it sits visibly inside the panel without merging with the
+   outer canvas frame. Previously used --color-bg = canvas, which
+   matched the 8px outer canvas padding and made the rail "disappear"
+   into the surrounding frame. */
 .settings-rail {
   display: flex;
   flex-direction: column;
   gap: 2px;
   padding: 14px 8px;
-  background: var(--color-bg);
+  background: var(--color-surface-2);
 }
 .settings-rail-title {
   font-size: 10.5px;
@@ -231,9 +234,13 @@ html.theme-light .user-action.open { background: var(--color-surface-2); }
   cursor: pointer;
   transition: background 120ms var(--ease-out), color 120ms var(--ease-out);
 }
-.settings-rail-btn:hover { background: var(--color-surface); color: var(--color-text); }
+.settings-rail-btn:hover {
+  background: color-mix(in srgb, var(--color-text) 5%, transparent);
+  color: var(--color-text);
+}
 .settings-rail-btn.active {
-  background: var(--color-surface-2);
+  /* Active item lifts to surface-3 (one step over the rail's surface-2). */
+  background: var(--color-surface-3);
   color: var(--color-text);
 }
 .settings-content {

@@ -212,11 +212,14 @@
 .sidebar.rail {
   width: 56px;
   /* Top padding is set in layout.css (48px, clears macOS traffic lights).
-     We only set the side + bottom here so the layout.css value wins. */
+     We only set the side + bottom here so the layout.css value wins.
+     No explicit background — inherits .panel default (surface), which
+     keeps rail-mode sidebar visually consistent with full-mode sidebar
+     (both lifted on the canvas frame). Previously this set canvas bg,
+     making the rail merge with the surrounding 8px canvas margin. */
   padding-right: 6px;
   padding-bottom: 12px;
   padding-left: 6px;
-  background: var(--color-bg);
   display: flex;
   flex-direction: column;
   align-items: center;
