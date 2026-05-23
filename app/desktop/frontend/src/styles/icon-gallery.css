@@ -18,7 +18,7 @@
   justify-content: space-between;
   gap: 16px;
   padding: 16px 20px;
-  border-bottom: 1px solid var(--color-app-divider);
+  /* No divider — header reads via type weight + padding. */
 }
 .ig-title {
   font-size: 15px;

@@ -198,13 +198,15 @@ html.theme-light .user-action.open { background: var(--color-surface-2); }
   height: 100%;
   overflow: hidden;
 }
+/* Settings rail — sub-frame inside the settings panel. Uses canvas
+   (#010102 dark / #fafafa light) so it sits one step deeper than the
+   panel surface; the TONE STEP is the divider, not a 1px line. */
 .settings-rail {
   display: flex;
   flex-direction: column;
   gap: 2px;
   padding: 14px 8px;
   background: var(--color-bg);
-  border-right: 1px solid var(--hairline-2);
 }
 .settings-rail-title {
   font-size: 10.5px;
@@ -245,7 +247,7 @@ html.theme-light .user-action.open { background: var(--color-surface-2); }
   align-items: center;
   justify-content: space-between;
   padding: 14px 18px;
-  border-bottom: 1px solid var(--hairline-2);
+  /* No divider line — header reads as header via type weight + padding. */
 }
 .settings-content-title {
   font-size: 16px;
@@ -258,16 +260,15 @@ html.theme-light .user-action.open { background: var(--color-surface-2); }
   padding: 18px 20px;
 }
 
-/* Reusable rows inside a settings pane. */
+/* Reusable rows inside a settings pane. No divider line between rows;
+   the row gap + label weight alone delineate. */
 .settings-row {
   display: grid;
   grid-template-columns: 140px 1fr;
   gap: 16px;
   align-items: center;
-  padding: 10px 0;
-  border-bottom: 1px solid var(--hairline-1);
+  padding: 12px 0;
 }
-.settings-row:last-child { border-bottom: none; }
 .settings-row .settings-row-label {
   font-size: 13px;
   font-weight: 600;

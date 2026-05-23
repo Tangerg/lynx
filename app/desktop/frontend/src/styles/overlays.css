@@ -57,9 +57,10 @@ html.theme-light .cmdk-backdrop {
   width: calc(100% + 24px);
   margin: 4px -12px -12px -12px;
   padding: 10px 12px;
-  background: transparent;
+  /* Sub-region inside the toast: use surface-2 (one step deeper) to
+     differentiate from the toast body — color step, not a 1px line. */
+  background: var(--color-surface-2);
   border: none;
-  border-top: 1px solid var(--hairline-2);
   color: var(--color-text-muted);
   font-family: var(--font-ui);
   font-size: 12px;
@@ -254,7 +255,9 @@ html.theme-light .cmdk-backdrop {
   align-items: center;
   gap: 10px;
   padding: 12px 14px;
-  border-bottom: 1px solid var(--hairline-2);
+  /* Search row sits one step deeper than the palette body — color step,
+     not a 1px line. */
+  background: var(--color-surface);
   color: var(--color-text-muted);
 }
 .cmdk-input {

@@ -17,8 +17,7 @@
   align-items: center;
   padding: 14px 20px;
   gap: 16px;
-  border-bottom: 1px solid var(--color-border);
-  background: rgba(18,18,18,0.85);
+  background: var(--color-surface);
   backdrop-filter: blur(12px);
   position: sticky; top: 0; z-index: 5;
 }
@@ -368,11 +367,14 @@ html.theme-light .msg.user .msg-content {
   font-family: var(--font-mono);
   font-size: 12.5px;
   color: var(--color-text);
-  background: rgba(0,0,0,0.4);
+  /* Warning-tinted background (no 2px stripe) carries the semantic.
+     The approval-card outer chrome already reads as "this needs
+     attention"; this preview block just darkens further to feel like
+     a terminal capture inside the warning surface. */
+  background: color-mix(in srgb, var(--color-warning) 8%, var(--color-bg));
   padding: 8px 12px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   margin: 8px 0 10px 0;
-  border-left: 2px solid var(--color-warning);
   white-space: pre-wrap;
   word-break: break-all;
 }
@@ -500,18 +502,19 @@ html.theme-light .msg.user .msg-content {
 /* ============================================================
    Reasoning ("thinking") block — collapsible, muted, italic.
    ============================================================ */
+/* Reasoning block — replaces the prior 2px left indent bar with a
+   subtle inset surface tint. Italic + mono eyebrow header still
+   carries the "this is thinking" semantic. */
 .reasoning-block {
   margin: 8px 0;
-  border-left: 2px solid var(--hairline-3);
-  padding-left: 12px;
+  padding: 8px 12px;
+  background: color-mix(in srgb, var(--color-text) 3%, transparent);
+  border-radius: var(--radius-sm);
 }
 .reasoning-head {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  /* Sit slightly to the left so the hover pad lines up under the
-     border-left rule visually instead of indenting away from it. */
-  margin-left: -8px;
   background: transparent;
   border: none;
   /* Real padding so the click target is a proper chip, not just the
