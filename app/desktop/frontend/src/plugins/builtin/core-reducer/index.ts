@@ -9,6 +9,7 @@
 import { applyPatch, deepClone, type Operation } from "fast-json-patch";
 import {
   EventType,
+  type BaseEvent,
   type ActivityDeltaEvent,
   type ActivitySnapshotEvent,
   type MessagesSnapshotEvent,
@@ -33,13 +34,23 @@ import {
   type ToolCallResultEvent,
   type ToolCallStartEvent,
 } from "@ag-ui/core";
-import { definePlugin } from "@/plugins/sdk";
+import { definePlugin, type CoreEventHandler } from "@/plugins/sdk";
 import type {
   AgentViewState,
   ContentBlock,
   Message,
   ToolCall,
 } from "@/protocol/agui/viewState";
+
+// Erases each handler's specific event variant down to BaseEvent so a
+// uniform `[EventType, CoreEventHandler]` table can carry them all. The
+// per-handler signature still type-checks the event payload it
+// destructures; the cast is only for the table's homogeneous shape.
+function bind<E extends BaseEvent>(
+  fn: (state: AgentViewState, ev: E) => AgentViewState,
+): CoreEventHandler {
+  return fn as CoreEventHandler;
+}
 
 // ---------------------------------------------------------------------------
 // Helpers (copied from the old reducer — they're pure state ops, no I/O).
@@ -619,69 +630,69 @@ const onMessagesSnapshot = (
 };
 
 // ---------------------------------------------------------------------------
-// Plugin
+// Dispatch table
 // ---------------------------------------------------------------------------
+//
+// Every AG-UI core event the plugin handles, paired with its handler.
+// Adding a new event = one row here + a new `onX` function above. The
+// `setup` block iterates the table — no per-event registration code to
+// keep in sync. THINKING_START / THINKING_END / REASONING_START /
+// REASONING_END phase markers are deliberately absent: the inner
+// MESSAGE stream lifecycle already conveys those.
+
+const HANDLERS: ReadonlyArray<[EventType, CoreEventHandler]> = [
+  // Run lifecycle.
+  [EventType.RUN_STARTED,                   bind(onRunStarted)],
+  [EventType.RUN_FINISHED,                  bind(onRunFinished)],
+  [EventType.RUN_ERROR,                     bind(onRunError)],
+  [EventType.STEP_STARTED,                  bind(onStepStarted)],
+  [EventType.STEP_FINISHED,                 bind(onStepFinished)],
+
+  // Text messages — including the fused CHUNK variant.
+  [EventType.TEXT_MESSAGE_START,            bind(onTextStart)],
+  [EventType.TEXT_MESSAGE_CONTENT,          bind(onTextContent)],
+  [EventType.TEXT_MESSAGE_END,              bind(onTextEnd)],
+  [EventType.TEXT_MESSAGE_CHUNK,            bind(onTextChunk)],
+
+  // Tool calls — including the fused CHUNK variant.
+  [EventType.TOOL_CALL_START,               bind(onToolStart)],
+  [EventType.TOOL_CALL_ARGS,                bind(onToolArgs)],
+  [EventType.TOOL_CALL_END,                 bind(onToolEnd)],
+  [EventType.TOOL_CALL_RESULT,              bind(onToolResult)],
+  [EventType.TOOL_CALL_CHUNK,               bind(onToolChunk)],
+
+  // Reasoning — including the fused CHUNK variant.
+  [EventType.REASONING_MESSAGE_START,       bind(onReasoningStart)],
+  [EventType.REASONING_MESSAGE_CONTENT,     bind(onReasoningContent)],
+  [EventType.REASONING_MESSAGE_END,         bind(onReasoningEnd)],
+  [EventType.REASONING_MESSAGE_CHUNK,       bind(onReasoningChunk)],
+
+  // Extended-thinking phase (Claude 3.7+). Text events map onto our
+  // existing reasoning-block UI.
+  [EventType.THINKING_TEXT_MESSAGE_START,   bind(onThinkingTextStart)],
+  [EventType.THINKING_TEXT_MESSAGE_CONTENT, bind(onThinkingTextContent)],
+  [EventType.THINKING_TEXT_MESSAGE_END,     bind(onThinkingTextEnd)],
+
+  // Snapshots — bulk hydration on reconnect / thread switch.
+  [EventType.MESSAGES_SNAPSHOT,             bind(onMessagesSnapshot)],
+
+  // Shared state — STATE_SNAPSHOT replaces wholesale; STATE_DELTA applies
+  // JSON Patch. Plugins consume via useSharedState().
+  [EventType.STATE_SNAPSHOT,                bind(onStateSnapshot)],
+  [EventType.STATE_DELTA,                   bind(onStateDelta)],
+
+  // Per-message activity streams — structured side-data scoped by
+  // (messageId, activityType). Renderers pick the types they know.
+  [EventType.ACTIVITY_SNAPSHOT,             bind(onActivitySnapshot)],
+  [EventType.ACTIVITY_DELTA,                bind(onActivityDelta)],
+];
 
 export default definePlugin({
   name: "lyra.builtin.core-reducer",
   version: "1.0.0",
   setup({ host }) {
-    // Run lifecycle.
-    host.agui.onCore(EventType.RUN_STARTED, (s, ev) => onRunStarted(s, ev as RunStartedEvent));
-    host.agui.onCore(EventType.RUN_FINISHED, onRunFinished);
-    host.agui.onCore(EventType.RUN_ERROR, (s, ev) => onRunError(s, ev as RunErrorEvent));
-    host.agui.onCore(EventType.STEP_STARTED, (s, ev) => onStepStarted(s, ev as StepStartedEvent));
-    host.agui.onCore(EventType.STEP_FINISHED, (s, ev) => onStepFinished(s, ev as StepFinishedEvent));
-
-    // Text messages.
-    host.agui.onCore(EventType.TEXT_MESSAGE_START,   (s, ev) => onTextStart  (s, ev as TextMessageStartEvent));
-    host.agui.onCore(EventType.TEXT_MESSAGE_CONTENT, (s, ev) => onTextContent(s, ev as TextMessageContentEvent));
-    host.agui.onCore(EventType.TEXT_MESSAGE_END,     (s, ev) => onTextEnd    (s, ev as TextMessageEndEvent));
-
-    // Tool calls.
-    host.agui.onCore(EventType.TOOL_CALL_START,  (s, ev) => onToolStart (s, ev as ToolCallStartEvent));
-    host.agui.onCore(EventType.TOOL_CALL_ARGS,   (s, ev) => onToolArgs  (s, ev as ToolCallArgsEvent));
-    host.agui.onCore(EventType.TOOL_CALL_END,    (s, ev) => onToolEnd   (s, ev as ToolCallEndEvent));
-    host.agui.onCore(EventType.TOOL_CALL_RESULT, (s, ev) => onToolResult(s, ev as ToolCallResultEvent));
-
-    // Reasoning. REASONING_START / REASONING_END are span markers we don't
-    // need to act on (we open/close via REASONING_MESSAGE_START / END).
-    host.agui.onCore(EventType.REASONING_MESSAGE_START,   (s, ev) => onReasoningStart  (s, ev as ReasoningMessageStartEvent));
-    host.agui.onCore(EventType.REASONING_MESSAGE_CONTENT, (s, ev) => onReasoningContent(s, ev as ReasoningMessageContentEvent));
-    host.agui.onCore(EventType.REASONING_MESSAGE_END,     (s, ev) => onReasoningEnd    (s, ev as ReasoningMessageEndEvent));
-
-    // Snapshots — bulk hydration. Used on reconnect / thread switch.
-    host.agui.onCore(EventType.MESSAGES_SNAPSHOT,
-      (s, ev) => onMessagesSnapshot(s, ev as MessagesSnapshotEvent));
-
-    // CHUNK variants — start/content fused into one event type.
-    host.agui.onCore(EventType.TEXT_MESSAGE_CHUNK,
-      (s, ev) => onTextChunk(s, ev as TextMessageChunkEvent));
-    host.agui.onCore(EventType.TOOL_CALL_CHUNK,
-      (s, ev) => onToolChunk(s, ev as ToolCallChunkEvent));
-    host.agui.onCore(EventType.REASONING_MESSAGE_CHUNK,
-      (s, ev) => onReasoningChunk(s, ev as ReasoningMessageChunkEvent));
-
-    // Extended-thinking phase (Claude 3.7+). Text events map onto our
-    // existing reasoning-block UI. THINKING_START / THINKING_END are
-    // currently no-ops — the inner stream lifecycle already conveys it.
-    host.agui.onCore(EventType.THINKING_TEXT_MESSAGE_START, (s) => onThinkingTextStart(s));
-    host.agui.onCore(EventType.THINKING_TEXT_MESSAGE_CONTENT,
-      (s, ev) => onThinkingTextContent(s, ev as ThinkingTextMessageContentEvent));
-    host.agui.onCore(EventType.THINKING_TEXT_MESSAGE_END, (s) => onThinkingTextEnd(s));
-
-    // Shared state — STATE_SNAPSHOT replaces wholesale; STATE_DELTA
-    // applies JSON Patch. Plugins consume via useSharedState().
-    host.agui.onCore(EventType.STATE_SNAPSHOT,
-      (s, ev) => onStateSnapshot(s, ev as StateSnapshotEvent));
-    host.agui.onCore(EventType.STATE_DELTA,
-      (s, ev) => onStateDelta(s, ev as StateDeltaEvent));
-
-    // Per-message activity streams — structured side-data scoped by
-    // (messageId, activityType). Renderers pick the types they know.
-    host.agui.onCore(EventType.ACTIVITY_SNAPSHOT,
-      (s, ev) => onActivitySnapshot(s, ev as ActivitySnapshotEvent));
-    host.agui.onCore(EventType.ACTIVITY_DELTA,
-      (s, ev) => onActivityDelta(s, ev as ActivityDeltaEvent));
+    for (const [type, handler] of HANDLERS) {
+      host.agui.onCore(type, handler);
+    }
   },
 });
