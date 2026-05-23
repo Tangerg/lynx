@@ -4,6 +4,25 @@
     <meta charset="UTF-8"/>
     <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
     <title>lyra</title>
+    <!-- First-paint theme class sync.
+         Reads the persisted theme id from the same localStorage key the
+         Zustand store uses (`lyra.ui`) and toggles `theme-{scheme}` on
+         <html> BEFORE any CSS parses. This prevents the brief flash of
+         structural dark-mode styles for light-theme users on cold boot.
+         We only know the scheme for the two built-ins ("dark" / "light");
+         custom theme ids default to dark until the plugin loads and the
+         JS-side `applyTheme()` corrects the class. -->
+    <script>
+      (function () {
+        try {
+          var raw = localStorage.getItem("lyra.ui");
+          if (!raw) return;
+          var id = JSON.parse(raw)?.state?.theme;
+          var scheme = id === "light" ? "light" : "dark";
+          document.documentElement.classList.add("theme-" + scheme);
+        } catch (_) { /* localStorage blocked, malformed JSON — fall back to default dark */ }
+      })();
+    </script>
     <!-- JetBrains Mono — numbers, IDs, timestamps, code-adjacent UI text.
          Phase: Direction 2 (Bloomberg-style data density). -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />

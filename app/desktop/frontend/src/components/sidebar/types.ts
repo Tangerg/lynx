@@ -16,4 +16,16 @@ export type SidebarProject = {
   active?: boolean;
 };
 
-export type Theme = "dark" | "light";
+/**
+ * A theme id — references a `ThemeSpec` registered via
+ * `host.theme.registerTheme()`. Built-ins ship as `"dark"` and `"light"`;
+ * plugins can add more (`"solarized-dark"`, `"github-light"`, …).
+ *
+ * Code that needs the binary dark/light distinction (asset selection,
+ * shiki/mermaid preset, etc.) should read the active theme's `scheme`
+ * via `useActiveScheme()` instead of comparing the id directly.
+ */
+export type Theme = string;
+
+/** Binary theme kind — the discriminator structural CSS keys on. */
+export type ThemeScheme = "dark" | "light";

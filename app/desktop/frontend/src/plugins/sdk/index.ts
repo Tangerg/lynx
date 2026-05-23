@@ -26,6 +26,7 @@ export {
   lookupSlashCommand,
   lookupTheme,
   lookupToolIcon,
+  resolveScheme,
   pickAgentSource,
   pickComposerPlaceholder,
   pickPluginErrorFallback,

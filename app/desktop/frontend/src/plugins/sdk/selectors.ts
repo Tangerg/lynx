@@ -232,6 +232,20 @@ export function lookupAccent(id: string): ThemeAccentSpec | undefined {
   return usePluginStore.getState().accents.get(id)?.value;
 }
 
+/**
+ * Resolve a theme id to its scheme (`"dark"` / `"light"`).
+ *
+ * Defaults to `"dark"` when the id isn't registered (e.g. very early in
+ * boot before built-in plugins finish, or the user has a saved id that no
+ * longer exists). Callers wanting the binary "is this a light theme?"
+ * distinction (Shiki preset, Mermaid theme, …) should read scheme via
+ * this helper rather than comparing the id against `"light"` directly —
+ * custom themes like `"solarized-dark"` would otherwise fall through.
+ */
+export function resolveScheme(themeId: string): "dark" | "light" {
+  return lookupTheme(themeId)?.scheme ?? "dark";
+}
+
 export function useComposerStatus(): ComposerStatusSpec[] {
   return useSortedList(usePluginStore((s) => s.composerStatus));
 }

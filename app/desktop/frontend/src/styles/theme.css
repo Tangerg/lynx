@@ -1,73 +1,15 @@
 /* ============================================================
-   Light theme token re-mapping + cross-cutting html.theme-light overrides.
+   Cross-cutting html.theme-light structural overrides.
    See frontend/DESIGN.md for the spec.
+
+   Token values (--color-bg, --color-text, --shadow-…) are NOT declared
+   here anymore — they live on the `lyra.builtin.default-themes` plugin
+   (frontend/src/plugins/builtin/defaults/themeTokens.ts) and are
+   written to :root.style at theme switch. This file owns only the
+   structural rules that key on the .theme-light selector: shape-level
+   differences (panel chrome, search input shape) that aren't
+   expressible as token overrides.
    ============================================================ */
-
-/* ============================================================
-   LIGHT THEME — Vercel dashboard inspired.
-   Single near-white surface, hairline-defined regions, no panel
-   elevation. Panels = same near-white as the canvas; the only
-   thing dividing them is a 1px border. CTAs go pure black/white.
-   ============================================================ */
-.theme-light {
-  /* Canvas + surface (L1) are manual anchors per the dark theme.
-     L2-L4 derive from the same color-mix() formula in tokens.css —
-     pulling `--color-text` (dark in light mode) into surface gives
-     us "deeper = darker" automatically. Don't re-define surface-2/3/4
-     here; the formula handles them. */
-  --color-bg:            #fafafa;   /* canvas — sidebar/statusbar frame */
-  --color-surface:       #ffffff;   /* lifted — chat content */
-
-  /* Ink — Vercel #171717 ink / #4d4d4d body / #888888 mute. */
-  --color-text:          #171717;
-  --color-text-bright:   #000000;
-  --color-text-soft:     #4d4d4d;
-  --color-text-muted:    #6f6f6f;
-  --color-text-faint:    #a1a1a1;
-  --color-text-on-accent:#ffffff;
-
-  /* Hairline — Vercel #ebebeb / #a1a1a1 ladder. */
-  --color-border:        #ebebeb;
-  --color-border-soft:   #d4d4d6;
-  --color-divider:       #a1a1a1;
-  --color-app-divider:   #ebebeb;
-
-  /* Accent stays our brand green — #1ed760 reads OK on white;
-     #15883e is the dim-down variant kept for accent-borders / press. */
-  --color-accent:        #15883e;
-  --color-accent-border: #117134;
-  --color-accent-press:  #0c5d2a;
-
-  /* CTAs in light are black-on-white (Vercel signature). Decoupled from
-     accent so the accent can still drive "live state" without forcing
-     CTAs green. */
-  --color-cta:           #000000;
-  --color-cta-hover:     #222222;
-  --color-cta-text:      #ffffff;
-
-  --color-negative:      #ee0000;
-  --color-warning:       #f5a623;
-  --color-info:          #0070f3;
-  --color-success:       #15883e;
-
-  /* Light theme — full Vercel-style stacked shadow ladder.
-     Light surfaces NEED shadows (they're visible against the white);
-     dark mode disables them per DESIGN.md §5. */
-  --shadow-xs: 0 1px 2px rgba(15, 15, 15, 0.04);
-  --shadow-sm:
-    0 1px 2px rgba(15, 15, 15, 0.04),
-    0 2px 6px rgba(15, 15, 15, 0.06);
-  --shadow-md:
-    0 2px 4px rgba(15, 15, 15, 0.04),
-    0 8px 20px rgba(15, 15, 15, 0.10);
-  --shadow-lg:
-    0 4px 12px rgba(15, 15, 15, 0.08),
-    0 24px 60px -12px rgba(15, 15, 15, 0.18);
-  --shadow-card:         var(--shadow-sm);
-  --shadow-dialog:       var(--shadow-lg);
-  --shadow-pop:          var(--shadow-lg);
-  --shadow-soft:         var(--shadow-xs);
-}
 
 /* Body / canvas — outer frame is canvas (#fafafa). Panels lift above
    it to surface (#ffffff) via the .panel default. Same cards-on-canvas
