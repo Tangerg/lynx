@@ -32,31 +32,35 @@
   gap: 7px;
   padding: 7px 8px 7px 11px;
   background: transparent;
-  border-radius: var(--radius-md) 7px 0 0;
+  border: none;
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
   cursor: pointer;
   position: relative;
   font-size: 12.5px;
   color: var(--color-text-muted);
   min-width: 110px;
   max-width: 200px;
-  border: 1px solid transparent;
-  border-bottom: none;
-  margin-bottom: -1px;
   transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
 }
 .chat-tab:hover {
-  background: var(--hairline-1);
+  background: color-mix(in srgb, var(--color-text) 4%, transparent);
   color: var(--color-text);
 }
-/* Active tab — lifted surface ONE step deeper than the topbar
-   surface (via the surface-2 token, which is now color-mix-derived).
-   No 2px accent underline (per the "no lines" rule); the tone step
-   plus the ink contrast (active = full ink, inactive = muted) does
-   the active-state signaling. */
+/* Active tab — JetBrains style:
+   - lifted background one tone step over the topbar (surface-2)
+   - 2px accent indicator line flush along the bottom edge
+   - full ink (vs muted ink on inactive) does the rest of the signaling */
 .chat-tab.active {
   background: var(--color-surface-2);
   color: var(--color-text);
-  border-color: transparent;
+}
+.chat-tab.active::after {
+  content: "";
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  height: 2px;
+  background: var(--color-accent);
+  pointer-events: none;
 }
 .chat-tab .tab-title {
   white-space: nowrap;

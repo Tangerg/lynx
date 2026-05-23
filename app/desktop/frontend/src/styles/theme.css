@@ -130,12 +130,15 @@ html.theme-light .side-search input:focus {
 }
 html.theme-light .search-kbd { background: var(--color-surface-3); }
 
-/* Tabs */
+/* Tabs — light theme. Active tab still lifts to surface-2 (a step
+   away from the topbar surface) + keeps the accent 2px bottom line
+   from the dark rule (works in both themes). No border. */
 html.theme-light .chat-tab { color: var(--color-text-muted); }
-html.theme-light .chat-tab:hover { background: var(--color-surface-2); }
+html.theme-light .chat-tab:hover {
+  background: color-mix(in srgb, var(--color-text) 5%, transparent);
+}
 html.theme-light .chat-tab.active {
-  background: var(--color-surface);
-  border-color: var(--color-border);
+  background: var(--color-surface-2);
 }
 html.theme-light .chat-tab .tab-close:hover { background: var(--color-surface-3); }
 html.theme-light .tab-new:hover { background: var(--color-surface-2); }
