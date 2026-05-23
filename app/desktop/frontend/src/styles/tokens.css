@@ -297,20 +297,6 @@ p, .body {
 }
 .micro        { font-size: var(--fs-caption); font-weight: var(--fw-regular); }
 
-/* Legacy `.label-uppercase` — neutralized. Old callsites still apply
-   the class but the visual now matches `.eyebrow` (mono lowercase).
-   Removing the rule entirely would break a dozen unrelated places mid-
-   migration; this lets us strip the class incrementally per file. */
-.label-uppercase {
-  font-family: var(--font-mono);
-  font-size: var(--fs-caption);
-  font-weight: var(--fw-regular);
-  line-height: var(--leading-snug);
-  letter-spacing: 0;
-  text-transform: none;
-  color: var(--color-text-muted);
-}
-
 /* ---------- Nav ---------- */
 .nav-active   { font-size: var(--fs-button); font-weight: var(--fw-bold);    color: var(--color-text); }
 .nav-inactive { font-size: var(--fs-button); font-weight: var(--fw-regular); color: var(--color-text-muted); }

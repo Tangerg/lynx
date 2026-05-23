@@ -5,31 +5,23 @@
 
 * { box-sizing: border-box; }
 
-/* Local refinement layer over Sonance tokens — hairline border system.
-   Shadow + motion tokens live in tokens.css. */
+/* Hairline alias layer — points the legacy --hairline-* names at the
+   token-stable --color-border ladder. DESIGN.md §2 forbids semi-
+   transparent borders (they shift visually across surface lifts);
+   literal hex via the color tokens reads as precise. */
 :root {
-  --hairline-1: rgba(255, 255, 255, 0.05);
-  --hairline-2: rgba(255, 255, 255, 0.08);
-  --hairline-3: rgba(255, 255, 255, 0.12);
-  --hairline-4: rgba(255, 255, 255, 0.18);
+  --hairline-1: var(--color-border);
+  --hairline-2: var(--color-border);
+  --hairline-3: var(--color-border-soft);
+  --hairline-4: var(--color-divider);
 }
 html.theme-light {
-  --hairline-1: rgba(15, 15, 15, 0.06);
-  --hairline-2: rgba(15, 15, 15, 0.10);
-  --hairline-3: rgba(15, 15, 15, 0.14);
-  --hairline-4: rgba(15, 15, 15, 0.20);
-
-  /* Light theme — softer shadow stack (smaller blur radius, less alpha). */
-  --shadow-xs: 0 1px 2px rgba(15, 15, 15, 0.04);
-  --shadow-sm:
-    0 1px 2px rgba(15, 15, 15, 0.04),
-    0 2px 6px rgba(15, 15, 15, 0.06);
-  --shadow-md:
-    0 2px 4px rgba(15, 15, 15, 0.04),
-    0 8px 20px rgba(15, 15, 15, 0.10);
-  --shadow-lg:
-    0 4px 12px rgba(15, 15, 15, 0.08),
-    0 24px 60px -12px rgba(15, 15, 15, 0.18);
+  /* Hairline aliases — same color-border token, light value resolved via
+     the .theme-light block below. Shadow ladder also lives there. */
+  --hairline-1: var(--color-border);
+  --hairline-2: var(--color-border);
+  --hairline-3: var(--color-border-soft);
+  --hairline-4: var(--color-divider);
   --shadow-glow: 0 0 10px color-mix(in srgb, var(--color-accent) 35%, transparent);
 }
 
@@ -40,7 +32,7 @@ html, body, #root {
 }
 
 body {
-  background: #000;
+  background: var(--color-bg);
   color: var(--color-text);
   font-family: var(--font-ui);
   font-size: var(--fs-body);
@@ -2425,35 +2417,63 @@ html.theme-light .cf-chip.ghost .cf-dot { box-shadow: 0 0 6px rgba(22, 156, 70, 
    thing dividing them is a 1px border. CTAs go pure black/white.
    ============================================================ */
 .theme-light {
-  --color-bg:            #ffffff;   /* panel face */
+  /* Surface ladder — Vercel canvas / canvas-soft / canvas-soft-2
+     mapped to our 4-step. Pure white for cards, near-white body. */
+  --color-bg:            #ffffff;
   --color-surface:       #ffffff;
-  --color-surface-2:     #f4f4f5;   /* hover / row highlight */
-  --color-surface-3:     #ececed;   /* active / pressed */
-  --color-surface-4:     #dcdce0;
-  --color-text:          #0a0a0a;
+  --color-surface-2:     #fafafa;
+  --color-surface-3:     #f5f5f5;
+  --color-surface-4:     #ececed;
+
+  /* Ink — Vercel #171717 ink / #4d4d4d body / #888888 mute. */
+  --color-text:          #171717;
   --color-text-bright:   #000000;
-  --color-text-soft:     #1f1f1f;
+  --color-text-soft:     #4d4d4d;
   --color-text-muted:    #6f6f6f;
-  --color-text-faint:    #9f9fa3;
+  --color-text-faint:    #a1a1a1;
   --color-text-on-accent:#ffffff;
-  --color-border:        #e7e7e9;   /* the Vercel hairline */
+
+  /* Hairline — Vercel #ebebeb / #a1a1a1 ladder. */
+  --color-border:        #ebebeb;
   --color-border-soft:   #d4d4d6;
-  --color-app-divider:   #e7e7e9;   /* matches border — visible thin lines on light */
-  --color-divider:       #ececed;
+  --color-divider:       #a1a1a1;
+  --color-app-divider:   #ebebeb;
+
+  /* Accent stays our brand green — #1ed760 reads OK on white;
+     #15883e is the dim-down variant kept for accent-borders / press. */
   --color-accent:        #15883e;
   --color-accent-border: #117134;
   --color-accent-press:  #0c5d2a;
-  /* CTAs in light are black-on-white. Set as a separate token so dark
-     mode keeps its accent CTA unchanged. */
+
+  /* CTAs in light are black-on-white (Vercel signature). Decoupled from
+     accent so the accent can still drive "live state" without forcing
+     CTAs green. */
   --color-cta:           #000000;
   --color-cta-hover:     #222222;
   --color-cta-text:      #ffffff;
-  --color-negative:      #c8202b;
-  --color-warning:       #b25c0d;
-  --color-info:          #0064d0;
-  /* Vercel uses no card shadows in light. Borders carry all elevation. */
-  --shadow-card:         none;
-  --shadow-dialog:       0 1px 0 rgba(0, 0, 0, 0.04), 0 16px 40px -6px rgba(0, 0, 0, 0.14);
+
+  --color-negative:      #ee0000;
+  --color-warning:       #f5a623;
+  --color-info:          #0070f3;
+  --color-success:       #15883e;
+
+  /* Light theme — full Vercel-style stacked shadow ladder.
+     Light surfaces NEED shadows (they're visible against the white);
+     dark mode disables them per DESIGN.md §5. */
+  --shadow-xs: 0 1px 2px rgba(15, 15, 15, 0.04);
+  --shadow-sm:
+    0 1px 2px rgba(15, 15, 15, 0.04),
+    0 2px 6px rgba(15, 15, 15, 0.06);
+  --shadow-md:
+    0 2px 4px rgba(15, 15, 15, 0.04),
+    0 8px 20px rgba(15, 15, 15, 0.10);
+  --shadow-lg:
+    0 4px 12px rgba(15, 15, 15, 0.08),
+    0 24px 60px -12px rgba(15, 15, 15, 0.18);
+  --shadow-card:         var(--shadow-sm);
+  --shadow-dialog:       var(--shadow-lg);
+  --shadow-pop:          var(--shadow-lg);
+  --shadow-soft:         var(--shadow-xs);
 }
 
 /* Body / canvas: pure off-white. Panels are the same colour — no raised
