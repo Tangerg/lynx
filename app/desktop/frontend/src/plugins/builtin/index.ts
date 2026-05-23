@@ -12,6 +12,7 @@
 
 import appearance from "./appearance";
 import atomOneDark from "./atom-one-dark";
+import atomOneLight from "./atom-one-light";
 import {
   approvalHandler,
   codeProposalHandler,
@@ -104,6 +105,7 @@ const infrastructure: PluginSpec[] = [
   defaultTitle,
   defaultThemes,
   atomOneDark,
+  atomOneLight,
   mainRoute,
 ];
 
