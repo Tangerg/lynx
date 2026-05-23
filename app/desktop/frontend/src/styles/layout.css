@@ -260,8 +260,6 @@ html.theme-light .tool-card.running::before {
 
 /* Sidebar — rail mode */
 
-@import "./styles/app.css";
-
 html,
 body,
 #root {
