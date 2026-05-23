@@ -64,7 +64,6 @@ import sampleAttachments from "./sample-attachments";
 import { kernelChat, kernelSettings, kernelSidebar } from "./kernel";
 import shortcuts from "./shortcuts";
 import {
-  sidebarBrand,
   sidebarFooter,
   sidebarProjects,
   sidebarRailActions,
@@ -159,7 +158,9 @@ const kernel: PluginSpec[] = [
 // Sidebar internals — sections in the expanded view, items in the rail.
 // ---------------------------------------------------------------------------
 const sidebar: PluginSpec[] = [
-  sidebarBrand, sidebarSearch,
+  // sidebarBrand removed per user request — the top-left mark + "Lyra"
+  // wordmark added decorative weight without functional value.
+  sidebarSearch,
   sidebarProjects, sidebarSessions, sidebarFooter,
   sidebarRailActions, sidebarRailSessions, sidebarRailBottom,
 ];
