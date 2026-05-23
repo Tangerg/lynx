@@ -21,11 +21,20 @@
   position: relative;
   z-index: 2;
 }
+/* Fade gradient behind the composer — masks scrolling messages so they
+   visually fade out under the composer instead of clipping abruptly.
+   Targets --color-surface (the chat panel bg) NOT --color-bg (canvas);
+   previously fading to canvas painted a dark band at the bottom of the
+   chat panel that looked like the panel didn't reach the bottom. */
 .composer-fade {
   position: absolute;
   left: 0; right: 0; bottom: 0;
   height: 140px;
-  background: linear-gradient(180deg, color-mix(in srgb, var(--color-bg) 0%, transparent) 0%, var(--color-bg) 50%);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--color-surface) 0%, transparent) 0%,
+    var(--color-surface) 50%
+  );
   pointer-events: none;
 }
 
