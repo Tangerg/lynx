@@ -13,6 +13,12 @@
 import appearance from "./appearance";
 import atomOneDark from "./atom-one-dark";
 import atomOneLight from "./atom-one-light";
+import catppuccinLatte from "./catppuccin-latte";
+import catppuccinMocha from "./catppuccin-mocha";
+import solarizedDark from "./solarized-dark";
+import solarizedLight from "./solarized-light";
+import tokyoNightLight from "./tokyo-night-light";
+import tokyoNightStorm from "./tokyo-night-storm";
 import {
   approvalHandler,
   codeProposalHandler,
@@ -106,6 +112,12 @@ const infrastructure: PluginSpec[] = [
   defaultThemes,
   atomOneDark,
   atomOneLight,
+  tokyoNightStorm,
+  tokyoNightLight,
+  solarizedDark,
+  solarizedLight,
+  catppuccinMocha,
+  catppuccinLatte,
   mainRoute,
 ];
 
