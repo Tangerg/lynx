@@ -37,8 +37,10 @@ html.theme-light .welcome-card {
 /* Keyboard-only focus ring. Uses :focus-visible so mouse clicks don't
    summon the halo. The 2px accent-tinted outline reads as "I'm here"
    without competing with content. */
+/* Keyboard focus ring — accent at 70% reads clearly in both themes.
+   55% was too pale on light surfaces. */
 :focus-visible {
-  outline: 2px solid color-mix(in srgb, var(--color-accent) 55%, transparent);
+  outline: 2px solid color-mix(in srgb, var(--color-accent) 70%, transparent);
   outline-offset: 2px;
 }
 /* Inputs already get the inset focus stroke from --shadow-input-focus —

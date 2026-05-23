@@ -234,10 +234,13 @@ html.theme-light .plan-item.done { color: var(--color-text-faint); }
 
 /* Approval card */
 html.theme-light .approval-card {
-  background: linear-gradient(180deg, rgba(217, 119, 6, 0.06) 0%, var(--color-surface-2) 60%);
-  border-color: rgba(217, 119, 6, 0.3);
+  background: color-mix(in srgb, var(--color-warning) 8%, var(--color-surface));
+  border-color: color-mix(in srgb, var(--color-warning) 30%, var(--color-border));
 }
-html.theme-light .approval-card .cmd { background: var(--color-surface); color: var(--color-text); border-left-color: var(--color-warning); }
+html.theme-light .approval-card .cmd {
+  background: color-mix(in srgb, var(--color-warning) 14%, var(--color-surface));
+  color: var(--color-text);
+}
 html.theme-light .approval-card .reason { color: var(--color-text-muted); }
 
 /* Run strip */

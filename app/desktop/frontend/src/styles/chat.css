@@ -111,7 +111,6 @@
   transition: background var(--polish-fast), border-color var(--polish-fast);
 }
 .pill-btn:hover { background: var(--color-surface-2); border-color: var(--color-border-soft); }
-.pill-btn:hover { border-color: #fff; }
 .pill-btn.solid {
   background: #fff;
   color: #000;
@@ -187,8 +186,10 @@
 }
 .msg.user .msg-meta { justify-content: flex-end; }
 .msg.user .msg-content {
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
+  /* User bubble sits on the chat panel (surface). Surface-2 lifts it
+     one tone step so the bubble reads against the surrounding prose
+     without needing a border. */
+  background: var(--color-surface-2);
   border-radius: 14px 14px 4px 14px;
   padding: 10px 14px;
   max-width: 580px;
@@ -196,8 +197,9 @@
 }
 .msg.user .msg-content p { margin: 0; }
 html.theme-light .msg.user .msg-content {
-  background: var(--color-surface-2);
-  border-color: var(--color-border);
+  /* Light theme — surface-3 (#ececed) reads better against the white
+     chat panel than surface-2 (#f3, almost invisible). */
+  background: var(--color-surface-3);
 }
 .msg-avatar {
   width: 32px; height: 32px;
@@ -367,11 +369,10 @@ html.theme-light .msg.user .msg-content {
   font-family: var(--font-mono);
   font-size: 12.5px;
   color: var(--color-text);
-  /* Warning-tinted background (no 2px stripe) carries the semantic.
-     The approval-card outer chrome already reads as "this needs
-     attention"; this preview block just darkens further to feel like
-     a terminal capture inside the warning surface. */
-  background: color-mix(in srgb, var(--color-warning) 8%, var(--color-bg));
+  /* Warning-tinted background carries the "this is a command preview"
+     semantic. 14% mix is loud enough to read as "warning" without
+     overwhelming the surrounding card. */
+  background: color-mix(in srgb, var(--color-warning) 14%, var(--color-bg));
   padding: 8px 12px;
   border-radius: var(--radius-sm);
   margin: 8px 0 10px 0;
@@ -502,13 +503,13 @@ html.theme-light .msg.user .msg-content {
 /* ============================================================
    Reasoning ("thinking") block — collapsible, muted, italic.
    ============================================================ */
-/* Reasoning block — replaces the prior 2px left indent bar with a
-   subtle inset surface tint. Italic + mono eyebrow header still
-   carries the "this is thinking" semantic. */
+/* Reasoning block — surface lift instead of a 2px left indent bar.
+   Uses surface-2 token (the same step every other "lifted sub-region"
+   uses) so the visual hierarchy stays consistent across components. */
 .reasoning-block {
   margin: 8px 0;
   padding: 8px 12px;
-  background: color-mix(in srgb, var(--color-text) 3%, transparent);
+  background: var(--color-surface-2);
   border-radius: var(--radius-sm);
 }
 .reasoning-head {

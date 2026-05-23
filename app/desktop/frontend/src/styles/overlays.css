@@ -298,9 +298,15 @@ html.theme-light .cmdk-backdrop {
   text-align: left;
   cursor: pointer;
 }
-.cmdk-item.active,
+/* Hover vs active differentiated by lift depth — active (keyboard
+   focus / current selection) sits one step deeper than hover so the
+   two states are visually distinct when both apply. */
 .cmdk-item:hover {
   background: var(--color-surface-2);
+  color: var(--color-text);
+}
+.cmdk-item.active {
+  background: var(--color-surface-3);
   color: var(--color-text);
 }
 .cmdk-item-body { flex: 1; min-width: 0; }
