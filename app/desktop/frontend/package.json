@@ -36,6 +36,7 @@
     "tailwind-merge": "^2.5.5",
     "tailwindcss-animate": "^1.0.7",
     "unist-util-visit": "^5.1.0",
+    "use-debounce": "^10.1.1",
     "use-stick-to-bottom": "^1.1.4",
     "zustand": "^5.0.13"
   },

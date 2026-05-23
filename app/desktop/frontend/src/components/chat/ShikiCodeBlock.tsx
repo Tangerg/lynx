@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useThemeStore } from "@/state/themeStore";
 import { Icon } from "@/components/common";
 import { getHighlighter, resolveLang } from "@/lib/shiki";
-import { useDebouncedValue } from "@/lib/useDebouncedValue";
+import { useDebounce } from "use-debounce";
 import { resolveScheme } from "@/plugins/sdk";
 
 type Props = {
@@ -39,7 +39,7 @@ export function ShikiCodeBlock({ lang, code, file }: Props) {
   const scheme = resolveScheme(themeId);
   const shikiTheme = scheme === "light" ? "github-light" : "github-dark";
 
-  const debouncedCode = useDebouncedValue(code, 120);
+  const [debouncedCode] = useDebounce(code, 120);
   const isSettling = code !== debouncedCode;
 
   const [html, setHtml] = useState<string | null>(null);
