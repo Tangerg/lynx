@@ -1,0 +1,387 @@
+/* ============================================================
+   Sidebar full + rail mode, .session-row, .rail-* items, side-section header.
+   See frontend/DESIGN.md for the spec.
+   ============================================================ */
+
+/* ============================================================
+   Sidebar
+   ============================================================ */
+.sidebar {
+  padding: 18px 12px 12px 12px;
+  gap: 8px;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 8px 16px 8px;
+}
+.brand-mark {
+  width: 28px; height: 28px;
+  display: grid; place-items: center;
+  background: var(--color-accent);
+  border-radius: 50%;
+  color: #000;
+}
+.brand-name {
+  font-family: var(--font-ui);
+  font-weight: 800;
+  font-size: 17px;
+  letter-spacing: -0.01em;
+}
+.brand-dot {
+  width: 6px; height: 6px;
+  background: var(--color-accent);
+  border-radius: 50%;
+  margin-left: auto;
+  box-shadow: 0 0 8px var(--color-accent);
+  animation: pulse 1.6s ease-in-out infinite;
+}
+@keyframes pulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.25); opacity: 0.55; } }
+
+.side-search {
+  position: relative;
+  margin: 0 4px 14px 4px;
+}
+.side-search input {
+  width: 100%;
+  background: var(--color-surface-2);
+  border: none;
+  color: var(--color-text);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  padding: 9px 12px 9px 36px;
+  border-radius: var(--radius-sm);
+  outline: none;
+  box-shadow: var(--shadow-input);
+}
+.side-search input:focus { box-shadow: var(--shadow-input-focus); }
+.side-search input::placeholder { color: var(--color-text-faint); }
+.side-search-icon {
+  position: absolute;
+  left: 12px; top: 50%; transform: translateY(-50%);
+  color: var(--color-text-faint);
+  pointer-events: none;
+}
+
+.side-section-head {
+  display: flex;
+  align-items: center;
+  padding: 14px 12px 6px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0;
+  font-family: var(--font-mono);
+  text-transform: none;
+  color: var(--color-text-faint);
+  gap: 8px;
+}
+.side-section-head .count {
+  margin-left: auto;
+  background: var(--color-surface-2);
+  color: var(--color-text-muted);
+  padding: 1px 7px;
+  border-radius: 99px;
+  letter-spacing: 0;
+  font-size: 10px;
+}
+.side-section-head .add {
+  margin-left: auto;
+  width: 26px; height: 26px;
+  display: grid; place-items: center;
+  background: var(--color-surface-2);
+  color: var(--color-text-muted);
+  border-radius: 50%;
+  cursor: pointer;
+  border: none;
+  transition: background var(--polish-fast), color var(--polish-fast), transform var(--polish-fast);
+}
+.side-section-head .add:hover { background: var(--color-surface-3); color: var(--color-text); }
+.side-section-head .add:active { transform: scale(0.92); }
+
+.side-list { display: flex; flex-direction: column; gap: 2px; padding: 0 4px; }
+
+.session-row {
+  display: grid;
+  grid-template-columns: 18px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  position: relative;
+}
+.session-row:hover { background: var(--color-surface); }
+.session-row.active { background: var(--color-surface-2); }
+.session-row.active::before {
+  content: "";
+  position: absolute;
+  left: -4px; top: 8px; bottom: 8px;
+  width: 3px;
+  background: var(--color-accent);
+  border-radius: 99px;
+}
+
+.session-icon {
+  width: 18px; height: 18px;
+  display: grid; place-items: center;
+  color: var(--color-text-muted);
+}
+.session-row.active .session-icon { color: var(--color-text); }
+
+.session-body { min-width: 0; }
+.session-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.3;
+}
+.session-row.active .session-title { color: var(--color-text); }
+.session-sub {
+  font-size: 11px;
+  color: var(--color-text-faint);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+  line-height: 1.2;
+}
+.session-sub .status-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--color-text-faint);
+  flex-shrink: 0;
+}
+.session-sub .status-dot.running {
+  background: var(--color-accent);
+  box-shadow: 0 0 6px var(--color-accent);
+  animation: pulse 1.6s ease-in-out infinite;
+}
+.session-sub .status-dot.waiting { background: var(--color-warning); }
+
+.session-time {
+  font-size: var(--fs-micro);
+  color: var(--color-text-faint);
+  letter-spacing: 0;
+  font-family: var(--font-mono);
+  font-feature-settings: "tnum";
+  text-transform: none;
+  font-weight: var(--fw-semibold);
+}
+
+/* Sidebar footer — model picker */
+.side-footer {
+  margin-top: auto;
+  padding: 8px 4px 0 4px;
+  border-top: 1px solid var(--color-border);
+}
+
+.model-card {
+  display: grid;
+  grid-template-columns: 32px 1fr 18px;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--color-surface);
+  border-radius: 8px;
+  cursor: pointer;
+  margin-top: 8px;
+}
+.model-card:hover { background: var(--color-surface-2); }
+.model-card .mavatar {
+  width: 32px; height: 32px;
+  border-radius: 6px;
+  background: linear-gradient(135deg, #1ed760 0%, #0d5c2a 100%);
+  display: grid; place-items: center;
+  color: #000;
+  font-weight: 800;
+  font-size: 13px;
+  font-family: var(--font-ui);
+}
+.model-card .mname { font-size: 13px; font-weight: 600; line-height: 1.2; }
+.model-card .msub { font-size: 11px; color: var(--color-text-faint); line-height: 1.2; }
+
+  color: var(--color-text);
+}
+.rail-btn.primary:hover { background: var(--color-surface-3); }
+
+.rail-divider {
+  height: 1px;
+  background: #1c1c1c;
+  width: 28px;
+  margin: 6px 0;
+}
+
+.rail-sessions {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  align-items: center;
+}
+.rail-session {
+  width: 36px; height: 36px;
+  border-radius: 8px;
+  background: var(--color-surface);
+  border: none;
+  color: var(--color-text-muted);
+  display: grid; place-items: center;
+  cursor: pointer;
+  position: relative;
+  transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out), transform var(--dur-fast) var(--ease-out);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 600;
+}
+.rail-session:hover {
+  background: var(--color-surface-2);
+  color: var(--color-text);
+}
+.rail-session.active {
+  background: var(--color-surface-2);
+  color: var(--color-text);
+}
+.rail-session.active::before {
+  content: "";
+  position: absolute;
+  left: -8px; top: 8px; bottom: 8px;
+  width: 3px;
+  background: var(--color-accent);
+  border-radius: 99px;
+}
+.rail-session-glyph {
+  font-family: var(--font-ui);
+  font-weight: 600;
+  font-size: 14px;
+}
+.rail-pulse {
+  position: absolute;
+  top: 4px; right: 4px;
+  width: 8px; height: 8px;
+  background: var(--color-accent);
+  border-radius: 50%;
+  box-shadow: 0 0 6px var(--color-accent);
+  animation: pulse 1.4s ease-in-out infinite;
+}
+.rail-pulse.warn {
+  background: var(--color-warning);
+  box-shadow: 0 0 6px var(--color-warning);
+  animation: none;
+}
+
+.rail-user {
+  width: 36px; height: 36px;
+  background: var(--color-surface-2);
+  color: var(--color-text);
+  display: grid; place-items: center;
+  font-family: var(--font-ui);
+  font-weight: 600;
+  font-size: 13px;
+  border-radius: 50%;
+  margin-top: 4px;
+  cursor: pointer;
+  border: 2px solid transparent;
+  transition: border-color var(--dur-fast) var(--ease-out);
+}
+.rail-user:hover { border-color: var(--color-accent); }
+
+/* User card in expanded sidebar footer */
+.user-card {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 8px 8px 10px;
+  background: transparent;
+  border-radius: 8px;
+  cursor: default;
+  transition: background var(--dur-fast) var(--ease-out);
+}
+.user-card:hover { background: var(--color-surface); }
+.user-avatar {
+  width: 32px; height: 32px;
+  background: var(--color-surface-3);
+  color: var(--color-text);
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-family: var(--font-ui);
+  font-weight: 600;
+  font-size: 13px;
+  flex-shrink: 0;
+  position: relative;
+}
+.user-avatar::after {
+  content: "";
+  position: absolute;
+  bottom: -1px;
+  right: -1px;
+  width: 10px;
+  height: 10px;
+  background: var(--color-accent);
+  border-radius: 50%;
+  border: 2px solid var(--color-bg);
+}
+.user-body { min-width: 0; }
+.user-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.2;
+}
+.user-sub {
+  font-size: 11px;
+  color: var(--color-text-faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 1px;
+}
+.user-action {
+  width: 26px; height: 26px;
+  background: transparent;
+  border: none;
+  color: var(--color-text-faint);
+  cursor: pointer;
+  display: grid; place-items: center;
+  border-radius: 6px;
+  transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out), transform var(--polish-fast);
+}
+.user-action:hover { background: var(--color-surface-2); color: var(--color-text); }
+.user-action:active { transform: scale(0.92); }
+
+html.theme-light .rail-user { background: var(--color-surface-2); color: var(--color-text); }
+html.theme-light .user-card:hover { background: var(--color-surface-2); }
+html.theme-light .user-avatar { background: var(--color-surface-3); }
+html.theme-light .user-avatar::after { border-color: var(--color-surface); }
+html.theme-light .user-action:hover { background: var(--color-surface-3); }
+
+
+/* Session row — active row uses a flat surface-2 fill. The previous
+   accent-tinted gradient violated DESIGN.md §9: list rows are
+   "identity / location", not "live", so the active-state cue is
+   surface lift, not accent tint. Visually the active row reads via the
+   surface step from canvas, which is enough. */
+.session-row {
+  transition: background var(--polish-fast), color var(--polish-fast);
+}
+.session-row.active {
+  background: var(--color-surface-2);
+}
+html.theme-light .session-row.active {
+  background: var(--color-surface-2);
+}
+
+/* Sidebar — no decorative gradient. The previous accent-tinted radial
+   glow violated DESIGN.md §9 (accent is reserved for "live"). The
+   surface step from canvas to surface-1 already separates the panel;
+   no extra glow needed. */
+.sidebar > * { position: relative; z-index: 1; }
+

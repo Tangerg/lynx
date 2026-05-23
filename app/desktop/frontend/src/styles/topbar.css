@@ -1,0 +1,358 @@
+/* ============================================================
+   Chat tab strip, view tabs, chat-subheader (branch / model row), chat-topbar drag region.
+   See frontend/DESIGN.md for the spec.
+   ============================================================ */
+
+/* ============================================================
+   Top tab bar
+   ============================================================ */
+.chat-tabs {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 8px;
+  padding: 8px 16px 0 16px;
+  background: var(--color-bg);
+  border-bottom: 1px solid var(--color-border);
+  flex-shrink: 0;
+  z-index: 5;
+}
+.chat-tabs-row {
+  display: flex;
+  align-items: end;
+  gap: 4px;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.chat-tabs-row::-webkit-scrollbar { display: none; }
+.chat-tab {
+  display: inline-grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 8px 7px 11px;
+  background: transparent;
+  border-radius: 7px 7px 0 0;
+  cursor: pointer;
+  position: relative;
+  font-size: 12.5px;
+  color: var(--color-text-muted);
+  min-width: 110px;
+  max-width: 200px;
+  border: 1px solid transparent;
+  border-bottom: none;
+  margin-bottom: -1px;
+  transition: background 160ms var(--ease-out), color 160ms var(--ease-out);
+}
+.chat-tab:hover {
+  background: var(--hairline-1);
+  color: var(--color-text);
+}
+.chat-tab.active {
+  background: var(--color-surface);
+  color: var(--color-text);
+  border-color: var(--hairline-2);
+}
+.chat-tab.active::after {
+  content: "";
+  position: absolute;
+  left: 8px; right: 8px; bottom: 0px;
+  height: 2px;
+  background: var(--color-accent);
+}
+.chat-tab .tab-title {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: var(--fw-semibold);
+  font-size: var(--fs-small);
+  line-height: 1.2;
+  letter-spacing: 0.005em;
+}
+.chat-tab .tab-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--color-text-faint);
+  flex-shrink: 0;
+}
+.chat-tab .tab-dot.running {
+  background: var(--color-accent);
+  box-shadow: 0 0 6px var(--color-accent);
+  animation: pulse 1.6s ease-in-out infinite;
+}
+.chat-tab .tab-dot.waiting { background: var(--color-warning); }
+.chat-tab .tab-close {
+  width: 22px; height: 22px;
+  display: grid; place-items: center;
+  border-radius: 4px;
+  color: var(--color-text-faint);
+  opacity: 0;
+  transition: opacity var(--dur-fast) var(--ease-out), background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out), transform var(--polish-fast);
+}
+.chat-tab:hover .tab-close, .chat-tab.active .tab-close { opacity: 1; }
+.chat-tab .tab-close:hover {
+  background: var(--color-surface-3);
+  color: var(--color-text);
+}
+.chat-tab .tab-close:active { transform: scale(0.9); }
+.tab-new {
+  width: 26px; height: 26px;
+  background: transparent;
+  border: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  border-radius: 6px;
+  display: grid; place-items: center;
+  margin: 0 2px 4px 4px;
+  flex-shrink: 0;
+}
+.tab-new:hover { background: var(--color-surface); color: var(--color-text); }
+
+.chat-tabs-right {
+  display: flex;
+  gap: 2px;
+  align-items: center;
+  padding-bottom: 4px;
+  flex-shrink: 0;
+}
+
+/* ============================================================
+   Chat subheader — branch / model / actions row
+   ============================================================ */
+.chat-subheader {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  padding: 10px 18px;
+  gap: 14px;
+  border-bottom: 1px solid var(--color-border);
+  flex-shrink: 0;
+  background: var(--color-bg);
+}
+.sub-left, .sub-right { display: flex; align-items: center; gap: 10px; min-width: 0; flex-wrap: nowrap; }
+.sub-left .run-badge { margin-left: 4px; white-space: nowrap; flex-shrink: 0; }
+.sub-crumbs {
+  display: flex; align-items: center; gap: 7px;
+  font-size: 12px;
+  color: var(--color-text-faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sub-crumbs .repo { color: var(--color-text-muted); font-weight: 600; }
+.sub-crumbs .branch {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 2px 8px;
+  background: var(--color-surface);
+  border-radius: 99px;
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.model-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 10px 4px 8px;
+  background: var(--color-surface);
+  border-radius: 99px;
+  color: var(--color-text);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.model-chip .dot {
+  width: 6px; height: 6px;
+  background: var(--color-accent);
+  border-radius: 50%;
+  box-shadow: 0 0 6px var(--color-accent);
+}
+.model-chip:hover { background: var(--color-surface-2); }
+
+/* Model selector pill — lives at the LEFT side of the composer toolbar
+   (Codex-style placement). Visually distinguished from mode toggles. */
+.composer-model {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 26px;
+  padding: 0 10px 0 3px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--color-text);
+  border-radius: 99px;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
+  white-space: nowrap;
+  flex-shrink: 0;
+  margin-right: 4px;
+}
+.composer-model:hover {
+  background: var(--color-surface-2);
+  border-color: var(--color-border, #2a2a2a);
+}
+.composer-model .cm-avatar {
+  width: 20px; height: 20px;
+  background: linear-gradient(135deg, var(--color-accent) 0%, color-mix(in oklab, var(--color-accent) 40%, #000) 100%);
+  color: #000;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-family: var(--font-title, var(--font-ui));
+  font-weight: var(--fw-semibold);
+  font-size: 10.5px;
+  flex-shrink: 0;
+}
+.composer-model .cm-name {
+  color: var(--color-text);
+  font-family: var(--font-mono);
+  font-size: var(--fs-small);
+  font-weight: var(--fw-semibold);
+  letter-spacing: 0.01em;
+}
+.composer-model svg:last-child { color: var(--color-text-faint); opacity: 0.7; }
+
+html.theme-light .composer-model:hover {
+  background: var(--color-surface-2);
+  border-color: var(--color-border);
+}
+html.theme-light .composer-model .cm-avatar {
+  background: linear-gradient(135deg, #169c46 0%, #0a5826 100%);
+  color: #fff;
+}
+
+/* Hide the "Add files" text label so the toolbar fits the model + 3 modes */
+.composer-tool-btn[title="Attach file"] {
+  width: 28px;
+  padding: 0;
+  justify-content: center;
+}
+.composer-footer {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 4px 4px 4px;
+  flex-wrap: wrap;
+  position: relative;
+  z-index: 3;
+}
+.cf-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding: 0 8px 0 9px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--color-text-muted);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: var(--fs-small);
+  font-weight: var(--fw-regular);
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
+  white-space: nowrap;
+  letter-spacing: 0.005em;
+}
+.cf-chip svg:first-child { color: var(--color-text-faint); flex-shrink: 0; }
+.cf-chip:hover {
+  background: var(--color-surface-2);
+  color: var(--color-text);
+}
+.cf-chip:hover svg:first-child { color: var(--color-text); }
+.cf-chip:hover svg:last-child { color: var(--color-text-muted); }
+.cf-chip svg:last-child { color: var(--color-text-faint); opacity: 0.6; }
+.cf-chip.ghost { color: var(--color-text); }
+.cf-chip.ghost .cf-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  box-shadow: 0 0 6px var(--color-accent);
+}
+
+.cf-spacer { flex: 1; }
+
+/* Light variant */
+html.theme-light .cf-chip:hover { background: var(--color-surface-2); }
+html.theme-light .cf-chip.ghost .cf-dot { box-shadow: 0 0 6px rgba(22, 156, 70, 0.5); }
+
+/* ============================================================
+   Top bar — minimal: tabs only
+   ============================================================ */
+.chat-topbar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  /* Was `8px 16px 0 16px` + min-height 44 — the top padding left a
+     visible empty band above the tab. Now zero top padding, the tab
+     row hugs the panel edge, and on macOS the strip doubles as the
+     window drag region. */
+  padding: 0 16px;
+  background: var(--color-bg);
+  border-bottom: 1px solid var(--color-app-divider);
+  flex-shrink: 0;
+  z-index: 5;
+  min-height: 36px;
+  -webkit-app-region: drag;
+  --wails-draggable: drag;
+}
+/* Tabs / buttons inside the drag region must opt out so clicks work. */
+.chat-topbar .chat-tab,
+.chat-topbar .topbar-tabs button,
+.chat-topbar .tab-close,
+.chat-topbar .tab-new {
+  -webkit-app-region: no-drag;
+  --wails-draggable: no-drag;
+}
+.topbar-divider { display: none; }
+.topbar-tabs {
+  display: flex;
+  align-items: end;
+  gap: 4px;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+  margin-bottom: -1px;
+  flex: 1;
+}
+.topbar-tabs::-webkit-scrollbar { display: none; }
+
+/* View tabs (workspace views promoted into the main area) — same shape
+   as chat tabs but a faint accent wash so the user can tell at a glance
+   "this tab is a panel, not a conversation." Active state retains the
+   full accent underline from .chat-tab.active::after. */
+.chat-tab.view-tab {
+  background: color-mix(in srgb, var(--color-accent) 6%, transparent);
+}
+.chat-tab.view-tab:hover {
+  background: color-mix(in srgb, var(--color-accent) 12%, transparent);
+}
+.chat-tab.view-tab.active {
+  background: color-mix(in srgb, var(--color-accent) 10%, var(--color-surface));
+}
+
+/* Selection highlight uses the accent so dragging-to-select text feels
+   like a deliberate UI affordance instead of the OS default blue. */
+::selection {
+  background: color-mix(in srgb, var(--color-accent) 30%, transparent);
+  color: var(--color-text);
+}
+
+/* Light theme — topbar */
+html.theme-light .chat-topbar { background: var(--color-surface); border-bottom-color: var(--color-border); }
+html.theme-light .topbar-divider { background: var(--color-border); }
+
+/* Chat-tab active state — DESIGN.md §9: the 2px accent underline is the
+   ONLY accent surface on the tab. The previous gradient tint over the
+   tab body violated that policy. Active = flat surface-1 + underline. */
+.chat-tab.active {
+  background: var(--color-surface) !important;
+}
+html.theme-light .chat-tab.active {
+  background: var(--color-surface) !important;
+}
+

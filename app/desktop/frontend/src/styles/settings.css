@@ -1,0 +1,405 @@
+/* ============================================================
+   Settings page + popover + theme/accent strip in sidebar footer.
+   See frontend/DESIGN.md for the spec.
+   ============================================================ */
+
+/* ============================================================
+   Theme + accent strip — sits above the user card in sidebar footer
+   ============================================================ */
+.theme-strip {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px 8px 10px;
+}
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--fs-small);
+  font-weight: var(--fw-semibold);
+  cursor: pointer;
+  height: 26px;
+  padding: 0 10px 0 9px;
+  border-radius: var(--radius-sm);
+  transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
+  letter-spacing: 0.01em;
+}
+.theme-toggle:hover {
+  background: var(--color-surface);
+  color: var(--color-text);
+  border-color: #2a2a2a;
+}
+.theme-toggle svg { color: var(--color-text-faint); flex-shrink: 0; }
+.theme-toggle:hover svg { color: var(--color-text); }
+
+.accent-swatches {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+.accent-swatch {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  cursor: pointer;
+  padding: 0;
+  transition: transform var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
+}
+.accent-swatch:hover { transform: scale(1.15); }
+.accent-swatch:active { transform: scale(0.95); }
+.accent-swatch.active {
+  border-color: var(--color-bg);
+  box-shadow: 0 0 0 1.5px var(--color-text);
+}
+
+html.theme-light .theme-toggle {
+  border-color: var(--color-border);
+}
+html.theme-light .theme-toggle:hover {
+  background: var(--color-surface-2);
+  border-color: var(--color-border-soft);
+}
+.theme-strip { display: none; }
+
+.user-settings-wrap {
+  position: relative;
+}
+.user-action.open {
+  background: var(--color-surface-2);
+  color: var(--color-text);
+}
+
+.settings-popover {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  right: -36px;
+  width: 240px;
+  background: var(--color-surface);
+  border: 1px solid var(--hairline-3);
+  border-radius: 10px;
+  padding: 10px;
+  box-shadow: var(--shadow-pop);
+  z-index: 30;
+  animation: settings-pop-in 160ms var(--ease-out);
+}
+@keyframes settings-pop-in {
+  from { transform: translateY(4px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+.settings-popover .sp-section {
+  font-family: var(--font-mono);
+  font-size: var(--fs-micro);
+  font-weight: var(--fw-semibold);
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--color-text-faint);
+  padding: 4px 6px 8px 6px;
+}
+.settings-popover .sp-row {
+  display: grid;
+  grid-template-columns: 60px 1fr;
+  align-items: center;
+  gap: 12px;
+  padding: 6px;
+}
+.settings-popover .sp-label {
+  font-size: var(--fs-small);
+  color: var(--color-text-muted);
+  font-weight: var(--fw-semibold);
+}
+.sp-segmented {
+  display: flex;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 2px;
+  gap: 2px;
+}
+.sp-seg {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: var(--color-text-muted);
+  font-family: var(--font-ui);
+  font-size: var(--fs-small);
+  font-weight: var(--fw-semibold);
+  cursor: pointer;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 3px;
+  transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
+}
+.sp-seg:hover { color: var(--color-text); }
+.sp-seg.active {
+  background: var(--color-surface-2);
+  color: var(--color-text);
+}
+.settings-popover .accent-swatches { justify-content: flex-start; }
+
+html.theme-light .settings-popover { background: var(--color-surface); border-color: var(--color-border); }
+html.theme-light .sp-segmented { background: var(--color-surface-2); border-color: var(--color-border); }
+html.theme-light .sp-seg.active { background: var(--color-surface); }
+html.theme-light .user-action.open { background: var(--color-surface-2); }
+
+/* Expanded sidebar — brand toggle button */
+.brand {
+  position: relative;
+}
+.brand .brand-toggle {
+  position: absolute;
+  top: 50%;
+  right: 4px;
+  transform: translateY(-50%);
+  width: 26px; height: 26px;
+  background: transparent;
+  border: none;
+  color: var(--color-text-faint);
+  cursor: pointer;
+  display: grid; place-items: center;
+  border-radius: 6px;
+}
+.brand .brand-toggle:hover { background: var(--color-surface); color: var(--color-text); }
+/* Hide the brand-dot since we have toggle now */
+.brand .brand-dot { display: none; }
+
+.search-kbd {
+  position: absolute;
+  right: 10px; top: 50%; transform: translateY(-50%);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0;
+  color: var(--color-text-faint);
+  background: var(--color-surface-2);
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
+/* ============================================================
+   Settings page — opens as a main-area workspace tab. Two-column
+   layout: rail of panes on the left, active pane content on the right.
+   The chat-tab strip handles open/close so there's no modal chrome.
+   ============================================================ */
+.settings-page {
+  display: grid;
+  grid-template-columns: 200px 1fr;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+.settings-rail {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 14px 8px;
+  background: var(--color-bg);
+  border-right: 1px solid var(--hairline-2);
+}
+.settings-rail-title {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0;
+  font-family: var(--font-mono);
+  text-transform: none;
+  color: var(--color-text-faint);
+  padding: 4px 10px 8px 10px;
+}
+.settings-rail-btn {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 10px;
+  background: transparent;
+  border: none;
+  color: var(--color-text-muted);
+  text-align: left;
+  font-size: 13px;
+  border-radius: 7px;
+  cursor: pointer;
+  transition: background 120ms var(--ease-out), color 120ms var(--ease-out);
+}
+.settings-rail-btn:hover { background: var(--color-surface); color: var(--color-text); }
+.settings-rail-btn.active {
+  background: var(--color-surface-2);
+  color: var(--color-text);
+}
+.settings-content {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+.settings-content-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--hairline-2);
+}
+.settings-content-title {
+  font-size: 16px;
+  font-weight: 600;
+}
+.settings-content-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 18px 20px;
+}
+
+/* Reusable rows inside a settings pane. */
+.settings-row {
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  gap: 16px;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--hairline-1);
+}
+.settings-row:last-child { border-bottom: none; }
+.settings-row .settings-row-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+.settings-row .settings-row-sub {
+  font-size: 11.5px;
+  color: var(--color-text-faint);
+  margin-top: 2px;
+}
+
+/* Plugins pane list. */
+.plugin-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.plugin-list-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--color-bg);
+  border: 1px solid var(--hairline-2);
+}
+.plugin-list-row.has-errors { border-color: rgba(243,114,127,0.36); }
+.plugin-list-row .plugin-list-name {
+  font-size: 13px;
+  font-weight: 600;
+}
+.plugin-list-row .plugin-list-version {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--color-text-faint);
+}
+.plugin-list-row .plugin-list-errors {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--color-negative);
+  font-size: 11px;
+}
+
+/* Origin badge — "Built-in" vs "Sideload". */
+.plugin-origin-badge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 7px;
+  border-radius: 99px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0;
+  font-family: var(--font-mono);
+  text-transform: none;
+  vertical-align: middle;
+}
+.plugin-origin-badge.plugin-origin-builtin {
+  background: var(--color-surface-2);
+  color: var(--color-text-muted);
+}
+.plugin-origin-badge.plugin-origin-sideload {
+  background: rgba(82, 157, 245, 0.14);
+  color: var(--color-info);
+}
+
+/* ============================================================
+   Settings popover polish — anchor on the user-card row instead
+   of the tiny gear-wrapper, so the popover can never overflow
+   past the sidebar's left edge.
+   ============================================================ */
+.user-card { position: relative; }
+.user-settings-wrap { position: static; }
+
+.settings-popover {
+  /* Span the full width of the user-card row, with 4px slack on each
+     side so the rounded edges don't kiss the sidebar inner padding. */
+  left: 4px;
+  right: 4px;
+  width: auto;
+  bottom: calc(100% + 10px);
+  padding: 12px;
+  border-radius: 12px;
+}
+.settings-popover .sp-section {
+  padding: 4px 6px 10px 6px;
+  font-size: 9.5px;
+  letter-spacing: 0;
+}
+.settings-popover .sp-row {
+  grid-template-columns: 56px 1fr;
+  padding: 8px 6px;
+  gap: 14px;
+}
+.settings-popover .sp-row + .sp-row { padding-top: 6px; }
+.settings-popover .sp-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-text-soft);
+}
+.settings-popover .sp-segmented {
+  padding: 3px;
+  border-radius: 6px;
+}
+.settings-popover .sp-seg {
+  height: 26px;
+  padding: 0 12px;
+  font-size: 11.5px;
+  gap: 6px;
+  font-weight: 600;
+  border-radius: 4px;
+  transition: background 140ms var(--ease-out), color 140ms var(--ease-out);
+}
+.settings-popover .sp-seg.active {
+  background: var(--color-surface-3);
+  color: var(--color-text);
+  box-shadow: 0 1px 0 rgba(0,0,0,0.4), 0 0 0 0.5px rgba(255,255,255,0.04) inset;
+}
+
+/* Accent swatches — tighter selection ring with a subtle outer glow. */
+.settings-popover .accent-swatches { gap: 10px; }
+.accent-swatch {
+  width: 18px;
+  height: 18px;
+  border-width: 2px;
+  transition: transform 140ms var(--ease-out), box-shadow 140ms var(--ease-out);
+}
+.accent-swatch.active {
+  border-color: var(--color-surface);
+  box-shadow: 0 0 0 1.5px var(--color-text);
+}
+.accent-swatch:hover {
+  transform: scale(1.08);
+}
+

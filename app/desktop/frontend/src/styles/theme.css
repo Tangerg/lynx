@@ -1,0 +1,328 @@
+/* ============================================================
+   Light theme token re-mapping + cross-cutting html.theme-light overrides.
+   See frontend/DESIGN.md for the spec.
+   ============================================================ */
+
+/* ============================================================
+   LIGHT THEME — Vercel dashboard inspired.
+   Single near-white surface, hairline-defined regions, no panel
+   elevation. Panels = same near-white as the canvas; the only
+   thing dividing them is a 1px border. CTAs go pure black/white.
+   ============================================================ */
+.theme-light {
+  /* Surface ladder — Vercel canvas / canvas-soft / canvas-soft-2
+     mapped to our 4-step. Pure white for cards, near-white body. */
+  --color-bg:            #ffffff;
+  --color-surface:       #ffffff;
+  --color-surface-2:     #fafafa;
+  --color-surface-3:     #f5f5f5;
+  --color-surface-4:     #ececed;
+
+  /* Ink — Vercel #171717 ink / #4d4d4d body / #888888 mute. */
+  --color-text:          #171717;
+  --color-text-bright:   #000000;
+  --color-text-soft:     #4d4d4d;
+  --color-text-muted:    #6f6f6f;
+  --color-text-faint:    #a1a1a1;
+  --color-text-on-accent:#ffffff;
+
+  /* Hairline — Vercel #ebebeb / #a1a1a1 ladder. */
+  --color-border:        #ebebeb;
+  --color-border-soft:   #d4d4d6;
+  --color-divider:       #a1a1a1;
+  --color-app-divider:   #ebebeb;
+
+  /* Accent stays our brand green — #1ed760 reads OK on white;
+     #15883e is the dim-down variant kept for accent-borders / press. */
+  --color-accent:        #15883e;
+  --color-accent-border: #117134;
+  --color-accent-press:  #0c5d2a;
+
+  /* CTAs in light are black-on-white (Vercel signature). Decoupled from
+     accent so the accent can still drive "live state" without forcing
+     CTAs green. */
+  --color-cta:           #000000;
+  --color-cta-hover:     #222222;
+  --color-cta-text:      #ffffff;
+
+  --color-negative:      #ee0000;
+  --color-warning:       #f5a623;
+  --color-info:          #0070f3;
+  --color-success:       #15883e;
+
+  /* Light theme — full Vercel-style stacked shadow ladder.
+     Light surfaces NEED shadows (they're visible against the white);
+     dark mode disables them per DESIGN.md §5. */
+  --shadow-xs: 0 1px 2px rgba(15, 15, 15, 0.04);
+  --shadow-sm:
+    0 1px 2px rgba(15, 15, 15, 0.04),
+    0 2px 6px rgba(15, 15, 15, 0.06);
+  --shadow-md:
+    0 2px 4px rgba(15, 15, 15, 0.04),
+    0 8px 20px rgba(15, 15, 15, 0.10);
+  --shadow-lg:
+    0 4px 12px rgba(15, 15, 15, 0.08),
+    0 24px 60px -12px rgba(15, 15, 15, 0.18);
+  --shadow-card:         var(--shadow-sm);
+  --shadow-dialog:       var(--shadow-lg);
+  --shadow-pop:          var(--shadow-lg);
+  --shadow-soft:         var(--shadow-xs);
+}
+
+/* Body / canvas: pure off-white. Panels are the same colour — no raised
+   cards, just hairline-bordered regions. */
+html.theme-light, html.theme-light body { background: #fafafa; }
+html.theme-light .app { background: #fafafa; }
+
+/* Panels: same near-white as the canvas — the 1px grid gap in .app /
+   .app-main does the dividing. No border, no radius, no shadow. */
+html.theme-light .panel {
+  background: var(--color-surface);
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+}
+html.theme-light .chat { background: var(--color-surface); }
+
+/* Hairline borders inside panels. */
+html.theme-light .chat-tabs,
+html.theme-light .chat-subheader,
+html.theme-light .view-head { border-bottom-color: var(--color-border); }
+html.theme-light .chat-tabs { background: var(--color-surface); }
+html.theme-light .chat-subheader { background: var(--color-surface); }
+html.theme-light .side-footer { border-top-color: var(--color-border); }
+html.theme-light .divider-h { background: var(--color-border); }
+
+/* Sidebar (full) */
+html.theme-light .sidebar { background: var(--color-surface); }
+html.theme-light .session-row:hover { background: var(--color-surface-2); }
+html.theme-light .session-row.active { background: var(--color-surface-2); }
+html.theme-light .model-card { background: var(--color-surface-2); }
+html.theme-light .model-card:hover { background: var(--color-surface-3); }
+
+/* Sidebar (rail) */
+html.theme-light .sidebar.rail { background: var(--color-surface); }
+html.theme-light .rail-btn:hover { background: var(--color-surface-2); }
+html.theme-light .rail-btn.primary { background: var(--color-surface-2); }
+html.theme-light .rail-btn.primary:hover { background: var(--color-surface-3); }
+html.theme-light .rail-session { background: var(--color-surface-2); }
+html.theme-light .rail-session:hover, html.theme-light .rail-session.active { background: var(--color-surface-3); }
+html.theme-light .rail-divider { background: var(--color-border); }
+
+/* Brand mark — green pill on white */
+html.theme-light .brand-mark { background: var(--color-accent); color: #fff; }
+html.theme-light .rail-brand { background: var(--color-accent); color: #fff; }
+html.theme-light .rail-avatar { background: linear-gradient(135deg, #169c46 0%, #0a5826 100%); color: #fff; }
+html.theme-light .model-card .mavatar { background: linear-gradient(135deg, #169c46 0%, #0a5826 100%); color: #fff; }
+html.theme-light .msg.agent .msg-avatar { background: var(--color-accent); color: #fff; }
+html.theme-light .msg.user .msg-avatar { background: var(--color-surface-3); color: var(--color-text); }
+
+/* Search input */
+html.theme-light .side-search input {
+  background: var(--color-surface-2);
+  color: var(--color-text);
+  box-shadow: none;
+  border: 1px solid var(--color-border);
+}
+html.theme-light .side-search input:focus {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px rgba(22, 156, 70, 0.12);
+}
+html.theme-light .search-kbd { background: var(--color-surface-3); }
+
+/* Tabs */
+html.theme-light .chat-tab { color: var(--color-text-muted); }
+html.theme-light .chat-tab:hover { background: var(--color-surface-2); }
+html.theme-light .chat-tab.active {
+  background: var(--color-surface);
+  border-color: var(--color-border);
+}
+html.theme-light .chat-tab .tab-close:hover { background: var(--color-surface-3); }
+html.theme-light .tab-new:hover { background: var(--color-surface-2); }
+
+/* Icon buttons */
+html.theme-light .icon-btn { color: var(--color-text-muted); }
+html.theme-light .icon-btn:hover { background: var(--color-surface-2); color: var(--color-text); }
+html.theme-light .icon-btn.active { color: var(--color-accent); }
+
+/* Sub-header chip */
+html.theme-light .sub-crumbs { color: var(--color-text-muted); }
+html.theme-light .sub-crumbs .branch {
+  background: var(--color-surface-2);
+  color: var(--color-text-muted);
+  border: 1px solid var(--color-border);
+}
+html.theme-light .model-chip { background: var(--color-surface-2); }
+html.theme-light .model-chip:hover { background: var(--color-surface-3); }
+html.theme-light .run-badge {
+  background: rgba(22, 156, 70, 0.1);
+  color: var(--color-accent);
+}
+
+/* Pill buttons */
+html.theme-light .pill-btn {
+  border-color: var(--color-border-soft);
+  color: var(--color-text);
+}
+html.theme-light .pill-btn:hover { border-color: var(--color-text); background: rgba(0,0,0,0.03); }
+html.theme-light .pill-btn.solid { background: #1a1a1a; color: #fff; border-color: #1a1a1a; }
+html.theme-light .pill-btn.solid:hover { background: #000; }
+html.theme-light .pill-btn.danger { color: var(--color-negative); border-color: var(--color-negative); }
+
+/* Messages */
+html.theme-light .msg-content { color: var(--color-text-soft); }
+html.theme-light .msg-content code {
+  background: var(--color-surface-2);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  padding: 1px 5px;
+}
+html.theme-light .msg-meta { color: var(--color-text-faint); }
+
+/* Tool cards */
+html.theme-light .tool-card { border-color: transparent; }
+html.theme-light .tool-card:hover { background: var(--color-surface-2); border-color: var(--color-border); }
+html.theme-light .tool-card.selected { background: var(--color-surface-2); border-color: var(--color-border); box-shadow: 0 0 0 1px var(--color-accent) inset; }
+html.theme-light .tool-icon { background: var(--color-surface-3); }
+html.theme-light .tool-card.selected .tool-icon, html.theme-light .tool-card:hover .tool-icon { background: var(--color-surface-4); }
+html.theme-light .tool-icon.ok { background: rgba(22, 156, 70, 0.14); color: var(--color-accent); }
+html.theme-light .tool-icon.err { background: rgba(214, 56, 72, 0.12); color: var(--color-negative); }
+html.theme-light .tool-icon.run { background: rgba(37, 99, 235, 0.12); color: var(--color-info); }
+html.theme-light .tool-status.ok { background: rgba(22, 156, 70, 0.14); color: var(--color-accent); }
+html.theme-light .tool-status.err { background: rgba(214, 56, 72, 0.12); color: var(--color-negative); }
+html.theme-light .tool-status.run { background: rgba(37, 99, 235, 0.12); color: var(--color-info); }
+html.theme-light .tool-card .tool-head { border-color: transparent; }
+html.theme-light .tool-body, html.theme-light .tool-preview { border-top-color: var(--color-border); background: var(--color-surface); }
+html.theme-light .tool-preview .preview-foot { border-top-color: var(--color-border); }
+html.theme-light .tool-preview .preview-open { background: var(--color-surface-2); border-color: var(--color-border); color: var(--color-text-muted); }
+html.theme-light .tool-preview .preview-open:hover { background: var(--color-surface-3); color: var(--color-text); }
+html.theme-light .tool-card .tool-expand { color: var(--color-text-faint); }
+html.theme-light .tool-card .tool-expand:hover { background: var(--color-surface-3); color: var(--color-text); }
+
+/* Diff syntax tokens (used by utils/highlight.ts → DiffView) */
+html.theme-light .token-kw   { color: #b91d7d; }
+html.theme-light .token-str  { color: #b86a00; }
+html.theme-light .token-fn   { color: #1d4ed8; }
+html.theme-light .token-comm { color: #9a9a9a; }
+
+/* Diff lines */
+html.theme-light .diff-line.add { background: rgba(22, 156, 70, 0.08); }
+html.theme-light .diff-line.add .code { color: #0f5e2b; }
+html.theme-light .diff-line.add .sign, html.theme-light .diff-line.add .ln { color: rgba(22, 156, 70, 0.7); }
+html.theme-light .diff-line.del { background: rgba(214, 56, 72, 0.08); }
+html.theme-light .diff-line.del .code { color: #8a1e2a; }
+html.theme-light .diff-line.del .sign, html.theme-light .diff-line.del .ln { color: rgba(214, 56, 72, 0.7); }
+html.theme-light .diff-line .code { color: var(--color-text); }
+html.theme-light .diff-hunk-head { background: var(--color-surface-2); color: var(--color-text-muted); }
+
+/* Search results */
+html.theme-light .search-card { background: var(--color-surface-2); }
+html.theme-light .search-card:hover { background: var(--color-surface); border-color: var(--color-border-soft); box-shadow: var(--shadow-card); }
+html.theme-light .search-card .favicon { background: var(--color-surface-3); color: var(--color-text); }
+html.theme-light .search-card:hover .favicon { background: var(--color-accent); color: #fff; }
+
+/* Plan block */
+html.theme-light .plan-block { background: var(--color-surface-2); }
+html.theme-light .plan-item.done .check { background: var(--color-accent); color: #fff; }
+html.theme-light .plan-item.doing .check { border-color: var(--color-accent); }
+html.theme-light .plan-item.doing .check::after { background: var(--color-accent); }
+html.theme-light .plan-item.todo .check { border-color: var(--color-border-soft); }
+html.theme-light .plan-item.done { color: var(--color-text-faint); }
+
+/* Approval card */
+html.theme-light .approval-card {
+  background: linear-gradient(180deg, rgba(217, 119, 6, 0.06) 0%, var(--color-surface-2) 60%);
+  border-color: rgba(217, 119, 6, 0.3);
+}
+html.theme-light .approval-card .cmd { background: var(--color-surface); color: var(--color-text); border-left-color: var(--color-warning); }
+html.theme-light .approval-card .reason { color: var(--color-text-muted); }
+
+/* Run strip */
+html.theme-light .run-strip {
+  background: var(--color-surface);
+  box-shadow: var(--shadow-card);
+  border: 1px solid var(--color-border);
+}
+html.theme-light .run-strip .step { color: var(--color-text); }
+html.theme-light .run-strip .activity { color: var(--color-text-muted); }
+html.theme-light .run-strip .stat .ctx-bar { background: var(--color-surface-3); }
+html.theme-light .run-strip .stop-link { border-color: var(--color-border-soft); color: var(--color-text-muted); }
+html.theme-light .run-strip .stop-link:hover { background: rgba(214, 56, 72, 0.1); border-color: var(--color-negative); color: var(--color-negative); }
+
+/* Composer */
+html.theme-light .composer {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  box-shadow: none;
+}
+html.theme-light .composer:focus-within { border-color: var(--color-accent); box-shadow: 0 0 0 3px rgba(22, 156, 70, 0.12); }
+html.theme-light .composer-chip { background: var(--color-surface-2); color: var(--color-text-muted); }
+html.theme-light .composer-chip .x:hover { background: var(--color-surface-3); color: var(--color-text); }
+html.theme-light .composer-tool-btn { color: var(--color-text-muted); }
+html.theme-light .composer-tool-btn:hover { background: var(--color-surface-2); color: var(--color-text); }
+html.theme-light .composer-tool-btn.active { background: var(--color-surface-2); color: var(--color-accent); }
+html.theme-light .composer-input { color: var(--color-text); }
+html.theme-light .composer-fade {
+  background: linear-gradient(180deg, rgba(255,255,255,0) 0%, var(--color-surface) 50%);
+}
+/* Vercel CTAs: pure black on white. The accent is reserved for live /
+   running indicators so the eye separates "agent is doing something"
+   from "this is the primary action". */
+html.theme-light .send-btn {
+  background: var(--color-cta);
+  color: var(--color-cta-text);
+}
+html.theme-light .send-btn:hover { background: var(--color-cta-hover); }
+html.theme-light .send-btn:active { background: var(--color-cta); }
+html.theme-light .send-btn:disabled { background: var(--color-surface-3); color: var(--color-text-faint); }
+
+/* Workspace-view header. */
+html.theme-light .view-icon { background: var(--color-surface-2); color: var(--color-text-muted); }
+
+/* Terminal */
+html.theme-light .term { color: var(--color-text); }
+html.theme-light .term .mute { color: var(--color-text-faint); }
+html.theme-light .term .prompt { color: var(--color-accent); }
+html.theme-light .term .ok { color: var(--color-accent); }
+html.theme-light .term .err { color: var(--color-negative); }
+html.theme-light .term .warn { color: var(--color-warning); }
+
+/* MCP rows */
+html.theme-light .mcp-row { border-bottom-color: var(--color-border); }
+html.theme-light .mcp-row:hover { background: var(--color-surface-2); }
+html.theme-light .mcp-icon { background: var(--color-surface-2); color: var(--color-text-muted); }
+html.theme-light .mcp-row:hover .mcp-icon { background: var(--color-surface-3); color: var(--color-text); }
+html.theme-light .mcp-tools { background: var(--color-surface-2); color: var(--color-text-muted); }
+html.theme-light .mcp-status.active { background: rgba(22, 156, 70, 0.12); color: var(--color-accent); }
+html.theme-light .mcp-status.idle { background: var(--color-surface-2); color: var(--color-text-faint); }
+html.theme-light .mcp-status.error { background: rgba(214, 56, 72, 0.12); color: var(--color-negative); }
+
+/* Tree */
+html.theme-light .tree-row { color: var(--color-text-muted); }
+html.theme-light .tree-row:hover, html.theme-light .tree-row.active { background: var(--color-surface-2); color: var(--color-text); }
+html.theme-light .tree-row .change.add { background: rgba(22, 156, 70, 0.14); color: var(--color-accent); }
+html.theme-light .tree-row .change.mod { background: rgba(217, 119, 6, 0.14); color: var(--color-warning); }
+html.theme-light .tree-row .change.del { background: rgba(214, 56, 72, 0.14); color: var(--color-negative); }
+
+/* kbd */
+html.theme-light .kbd { background: var(--color-surface-2); border-color: var(--color-border); color: var(--color-text-muted); }
+
+/* Side section heads */
+html.theme-light .side-section-head .count { background: var(--color-surface-2); color: var(--color-text-muted); }
+html.theme-light .side-section-head .add { background: var(--color-surface-2); color: var(--color-text-muted); }
+html.theme-light .side-section-head .add:hover { background: var(--color-surface-3); color: var(--color-text); }
+html.theme-light .session-sub .status-dot { background: var(--color-text-faint); }
+
+/* Approval pill button accent */
+html.theme-light .pill-btn.accent { background: var(--color-accent); color: #fff; border-color: var(--color-accent); }
+
+/* Composer toolbar meta */
+html.theme-light .composer-toolbar .meta { color: var(--color-text-faint); }
+html.theme-light .composer-toolbar .meta .accent { color: var(--color-accent); }
+
+/* File preview tokens (in inline tool expand) */
+html.theme-light .file-preview .fp-line .code .t-kw { color: #b91d7d; }
+html.theme-light .file-preview .fp-line .code .t-str { color: #b86a00; }
+html.theme-light .file-preview .fp-line .code .t-fn { color: #1d4ed8; }
+html.theme-light .file-preview .fp-line .ln { color: var(--color-text-faint); }
+
