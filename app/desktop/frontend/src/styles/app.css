@@ -1,27 +1,24 @@
 /* ============================================================
-   Sonance Agent — kernel layout styles
-   Built on top of design system tokens.
+   Lyra — kernel layout + component foundation.
+   Built on top of the tokens declared in styles/tokens.css.
    ============================================================ */
 
 * { box-sizing: border-box; }
 
-/* Hairline alias layer — points the legacy --hairline-* names at the
-   token-stable --color-border ladder. DESIGN.md §2 forbids semi-
-   transparent borders (they shift visually across surface lifts);
-   literal hex via the color tokens reads as precise. */
+/* Hairline alias layer — legacy --hairline-* names point at the
+   token-stable --color-border ladder. Since the aliases resolve via
+   `var()`, the values automatically follow the active theme — the
+   light/dark hex values live in tokens.css + the .theme-light block. */
 :root {
   --hairline-1: var(--color-border);
   --hairline-2: var(--color-border);
   --hairline-3: var(--color-border-soft);
   --hairline-4: var(--color-divider);
 }
+/* Light-mode glow tweak — slightly tighter than dark since light backgrounds
+   make halos read more loudly. Other shadow tokens are set in the main
+   .theme-light block further down. */
 html.theme-light {
-  /* Hairline aliases — same color-border token, light value resolved via
-     the .theme-light block below. Shadow ladder also lives there. */
-  --hairline-1: var(--color-border);
-  --hairline-2: var(--color-border);
-  --hairline-3: var(--color-border-soft);
-  --hairline-4: var(--color-divider);
   --shadow-glow: 0 0 10px color-mix(in srgb, var(--color-accent) 35%, transparent);
 }
 
@@ -250,7 +247,7 @@ html.theme-light .tool-card.running::before {
   color: #000;
 }
 .brand-name {
-  font-family: var(--font-title);
+  font-family: var(--font-ui);
   font-weight: 800;
   font-size: 17px;
   letter-spacing: -0.01em;
@@ -394,7 +391,6 @@ html.theme-light .tool-card.running::before {
   letter-spacing: 0;
   font-family: var(--font-mono);
   font-feature-settings: "tnum";
-  font-family: var(--font-mono);
   text-transform: none;
   font-weight: var(--fw-semibold);
 }
@@ -426,7 +422,7 @@ html.theme-light .tool-card.running::before {
   color: #000;
   font-weight: 800;
   font-size: 13px;
-  font-family: var(--font-title);
+  font-family: var(--font-ui);
 }
 .model-card .mname { font-size: 13px; font-weight: 600; line-height: 1.2; }
 .model-card .msub { font-size: 11px; color: var(--color-text-faint); line-height: 1.2; }
@@ -477,7 +473,7 @@ html.theme-light .tool-card.running::before {
   margin-top: 4px;
 }
 .chat-title {
-  font-family: var(--font-title);
+  font-family: var(--font-ui);
   font-size: 19px;
   font-weight: 600;
   letter-spacing: -0.01em;
@@ -812,19 +808,17 @@ html.theme-light .msg.user .msg-content {
   font-family: var(--font-mono);
   font-feature-settings: "tnum";
   letter-spacing: 0;
-  font-family: var(--font-mono);
   text-transform: none;
 }
 .tool-status {
   font-size: var(--fs-micro);
-  font-weight: var(--fw-bold);
+  font-weight: var(--fw-semibold);
   letter-spacing: 0;
   font-family: var(--font-mono);
   text-transform: none;
   padding: 2px 6px;
   border-radius: var(--radius-sm);
   background: transparent;
-  font-family: var(--font-mono);
 }
 .tool-status.ok { color: var(--color-success); }
 .tool-status.err { color: var(--color-negative); }
@@ -872,7 +866,7 @@ html.theme-light .msg.user .msg-content {
 }
 .plan-block .plan-head {
   font-size: var(--fs-micro);
-  font-weight: var(--fw-bold);
+  font-weight: var(--fw-semibold);
   letter-spacing: 0;
   font-family: var(--font-mono);
   text-transform: none;
@@ -881,7 +875,6 @@ html.theme-light .msg.user .msg-content {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-family: var(--font-mono);
   font-feature-settings: "tnum";
 }
 .plan-item {
@@ -1916,9 +1909,8 @@ html.theme-light .theme-toggle:hover {
 .settings-popover .sp-section {
   font-family: var(--font-mono);
   font-size: var(--fs-micro);
-  font-weight: var(--fw-bold);
+  font-weight: var(--fw-semibold);
   letter-spacing: 0;
-  font-family: var(--font-mono);
   text-transform: none;
   color: var(--color-text-faint);
   padding: 4px 6px 8px 6px;
@@ -2205,7 +2197,7 @@ html.theme-light .user-action.open { background: var(--color-surface-2); }
   display: grid;
   place-items: center;
   font-family: var(--font-title, var(--font-ui));
-  font-weight: var(--fw-bold);
+  font-weight: var(--fw-semibold);
   font-size: 10.5px;
   flex-shrink: 0;
 }
@@ -2911,7 +2903,6 @@ html.theme-light .topbar-divider { background: var(--color-border); }
   flex-shrink: 0;
   font-feature-settings: "tnum";
   letter-spacing: 0;
-  font-family: var(--font-mono);
   text-transform: none;
 }
 .sp-stat .v { color: var(--color-text-muted); font-weight: 600; }
@@ -2938,9 +2929,8 @@ html.theme-light .topbar-divider { background: var(--color-border); }
   color: var(--color-text-muted);
   font-family: var(--font-mono);
   font-size: var(--fs-micro);
-  font-weight: var(--fw-bold);
+  font-weight: var(--fw-semibold);
   letter-spacing: 0;
-  font-family: var(--font-mono);
   text-transform: none;
   cursor: pointer;
   height: 22px;

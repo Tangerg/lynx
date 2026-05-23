@@ -2,7 +2,7 @@
    Lyra Design System — Core tokens
    Dark-first agent client. See frontend/DESIGN.md for the spec.
    Synthesis of Linear (canvas / surface / hairline) + Vercel (Geist /
-   mono-eyebrow / elevation). Replaces the prior Spotify-derived system.
+   mono-eyebrow / elevation).
    ============================================================ */
 
 /* --- Webfonts ---
@@ -28,7 +28,6 @@
   --color-surface-2:      #141516;   /* L2 — hover/active row, palette */
   --color-surface-3:      #18191a;   /* L3 — sub-nav, dropdown, popover */
   --color-surface-4:      #191a1b;   /* L4 — deepest lifted surface */
-  --color-surface-light:  #fafafa;   /* Light-mode L1 (Vercel canvas-soft) */
 
   /* ---------- COLOR — Ink (text) ---------- */
   --color-text:           #f7f8f8;   /* Headlines + emphasized body */
@@ -53,8 +52,8 @@
   --color-success:        #27a644;   /* Run finished cleanly */
 
   /* ---------- TYPE — Families ----------
-     Sans / mono — two families do all the work. The previous
-     `--font-title` is removed; display and body share Geist. */
+     Two families do all the work. Display and body share Geist; mono
+     carries every numeric / ID / timestamp / eyebrow / code snippet. */
   --font-ui:
     "Geist", "Inter", system-ui, -apple-system, "Segoe UI", Roboto,
     "Hiragino Sans", "Hiragino Kaku Gothic ProN", Meiryo, "MS Gothic",
@@ -62,13 +61,11 @@
   --font-mono:
     "Geist Mono", "JetBrains Mono", ui-monospace, SFMono-Regular,
     Menlo, Consolas, monospace;
-  /* Legacy alias — anything still requesting --font-title gets Geist. */
-  --font-title: var(--font-ui);
 
-  /* Primary CTA — defaults to the accent (dark mode), light mode overrides
-     to pure black (Vercel signature). Decoupled from --color-accent so the
-     accent can still drive "live state" colour without forcing CTA buttons
-     to be green. */
+  /* Primary CTA — defaults to the accent (dark mode); light mode overrides
+     in .theme-light to black ink (Vercel signature). Decoupled from
+     --color-accent so accent can drive "live state" without forcing CTAs
+     green. */
   --color-cta:        var(--color-accent);
   --color-cta-hover:  var(--color-accent-border);
   --color-cta-text:   var(--color-text-on-accent);
@@ -83,34 +80,20 @@
   --fs-body-sm:    0.81rem;   /* 13px — secondary body, button label */
   --fs-body-xs:    0.75rem;   /* 12px — caption, status pill */
   --fs-caption:    0.72rem;   /* 11.5px — mono eyebrow, status bar */
-
-  /* Legacy aliases — keep callers compiling through migration. */
-  --fs-section:   var(--fs-display-lg);
-  --fs-feature:   var(--fs-display-md);
-  --fs-body:      var(--fs-body-md);
-  --fs-button:    var(--fs-body-sm);
-  --fs-small:     var(--fs-body-xs);
-  --fs-badge:     var(--fs-caption);
-  --fs-micro:     var(--fs-caption);
+  /* Legacy `--fs-body` retained — referenced by body/textarea defaults. */
+  --fs-body:       var(--fs-body-md);
 
   /* ---------- TYPE — Weights ----------
-     600 is the display ceiling. Hierarchy via size + weight (400 vs 600)
-     contrast. 700+ is forbidden — see DESIGN.md §3 principle 2. */
+     600 is the display ceiling — hierarchy via size + weight (400 vs 600)
+     contrast. 700+ is forbidden per DESIGN.md §3 principle 2. */
   --fw-regular:   400;
   --fw-medium:    500;
   --fw-semibold:  600;
-  /* Legacy alias — `--fw-bold` now maps to 600 to enforce the ceiling. */
-  --fw-bold:      600;
 
   /* ---------- TYPE — Tracking / leading ----------
-     Display gets negative tracking; body holds ≈0. The old positive
-     `--tracking-button` / `--tracking-button-wide` (1.4-2px) are kept
-     as legacy aliases but mapped to 0 to neutralize ALL-CAPS callsites
-     during migration. */
+     Display gets negative tracking; body holds ≈0. */
   --tracking-display: -0.02em;
   --tracking-display-tight: -0.03em;
-  --tracking-button: 0;
-  --tracking-button-wide: 0;
   --leading-tight: 1.10;
   --leading-snug:  1.30;
   --leading-body:  1.55;
@@ -143,11 +126,6 @@
   --radius-xl:     16px;  /* Lightbox frame, hero panels */
   --radius-pill:   9999px;/* Status badge / segmented toggle ONLY */
   --radius-circle: 50%;   /* Avatar, dot indicator */
-  /* Legacy aliases — keep call sites compiling through migration. */
-  --radius-min:    var(--radius-xs);
-  --radius-2xl:    var(--radius-xl);
-  --radius-100:    var(--radius-pill);
-  --radius-full:   var(--radius-pill);
 
   /* ---------- MOTION — Easing + durations ---------- */
   /* Standard ease-out — quick exit, gentle settle. Same curve we use in
@@ -192,11 +170,9 @@
   --shadow-soft:   none;
   --shadow-pop:    var(--shadow-lg);
 
-  /* Input borders use the hairline ladder directly — the inset-shadow
-     combo was Spotify-derived chrome we don't need. Kept as alias for
-     transitional compatibility; resolves to a plain border on the
-     surface ladder. */
-  --shadow-input:  inset 0 0 0 1px var(--color-border);
+  /* Input focus ring — accent halo + hairline-strong inset. Used by
+     .side-search input. Composed once so the focus treatment is
+     consistent across any other input that wants the same affordance. */
   --shadow-input-focus:
     0 0 0 2px color-mix(in srgb, var(--color-accent) 30%, transparent),
     inset 0 0 0 1px var(--color-border-soft);
@@ -243,7 +219,7 @@ h3, .h3 {
   margin: 0;
 }
 
-p, .body {
+p {
   font-size: var(--fs-body-md);
   font-weight: var(--fw-regular);
   line-height: var(--leading-body);
@@ -251,23 +227,16 @@ p, .body {
   margin: 0;
 }
 
-.caption {
-  font-size: var(--fs-body-xs);
-  font-weight: var(--fw-regular);
-  color: var(--color-text-muted);
-}
-
-.caption-bold {
-  font-size: var(--fs-body-xs);
-  font-weight: var(--fw-medium);
-  line-height: 1.5;
-}
+/* ---- Utility classes ----
+   `.eyebrow` and `.mono-num` are the two utilities the rest of the
+   app pulls in for "label voice" and "tabular numbers". The previous
+   scale of utility classes (.caption / .small / .nav-active /
+   .text-X) was dead weight — no JSX referenced them. Component-level
+   styles in app.css set their own type stack. */
 
 /* Mono eyebrow — replaces ALL-CAPS + letter-spacing labels.
-   See DESIGN.md §3 principle 1. Apply class `.eyebrow` to any element
-   that used to be ALL-CAPS UPPERCASE (REASONING / THOUGHT FOR 1S /
-   FILES CHANGED / LIVE …). Result: same role (taxonomy / label) but
-   with technical voice instead of media-app voice. */
+   See DESIGN.md §3 principle 1. Apply to any element that used to be
+   ALL-CAPS UPPERCASE (reasoning / files changed / live …). */
 .eyebrow {
   font-family: var(--font-mono);
   font-size: var(--fs-caption);
@@ -279,31 +248,12 @@ p, .body {
   font-feature-settings: "tnum";
 }
 
-/* Tabular-numeric utility — apply anywhere numbers are displayed
-   (token counts, durations, IDs, %, costs). Keeps digits in column
-   so counters don't jitter when values update. */
+/* Tabular-numeric — apply to any element rendering numbers (token
+   counts, durations, IDs, %, costs). Keeps digits in column so
+   counters don't jitter when values update. */
 .mono-num {
   font-family: var(--font-mono);
   font-feature-settings: "tnum";
   font-variant-numeric: tabular-nums;
   letter-spacing: 0;
 }
-
-.small        { font-size: var(--fs-body-xs); font-weight: var(--fw-regular); }
-.small-bold   { font-size: var(--fs-body-xs); font-weight: var(--fw-medium); line-height: 1.5; }
-.badge-text   {
-  font-size: var(--fs-caption); font-weight: var(--fw-medium);
-  line-height: 1.33;
-}
-.micro        { font-size: var(--fs-caption); font-weight: var(--fw-regular); }
-
-/* ---------- Nav ---------- */
-.nav-active   { font-size: var(--fs-button); font-weight: var(--fw-bold);    color: var(--color-text); }
-.nav-inactive { font-size: var(--fs-button); font-weight: var(--fw-regular); color: var(--color-text-muted); }
-
-/* ---------- Semantic text colors ---------- */
-.text-negative     { color: var(--color-negative); }
-.text-warning      { color: var(--color-warning); }
-.text-info         { color: var(--color-info); }
-.text-muted        { color: var(--color-text-muted); }
-.text-faint        { color: var(--color-text-faint); }
