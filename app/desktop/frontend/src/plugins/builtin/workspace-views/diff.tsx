@@ -1,12 +1,12 @@
 // Built-in plugin: "Diff" workspace view — renders the diff for the
-// currently selected file (kept in useUIStore.activeFile).
+// currently selected file (kept in useSessionStore.activeFile).
 
 import { EmptyState, Icon, IconButton, ScrollArea, SkeletonList } from "@/components/common";
 import { DiffView } from "@/components/views/DiffView";
 import { ViewHeader } from "@/components/views/ViewHeader";
 import { useDiff } from "@/lib/queries";
 import { definePlugin } from "@/plugins/sdk";
-import { useUIStore } from "@/state/uiStore";
+import { useSessionStore } from "@/state/sessionStore";
 import type { DiffRow } from "@/components/tools/previews";
 
 type DiffStats = { added: number; removed: number; lineCount: number };
@@ -28,7 +28,7 @@ function summarize(rows: DiffRow[] | undefined): DiffStats {
 }
 
 function DiffViewTab() {
-  const activeFile = useUIStore((s) => s.activeFile);
+  const activeFile = useSessionStore((s) => s.activeFile);
   const { data: rows, isLoading } = useDiff();
   const { added, removed, lineCount } = summarize(rows);
 

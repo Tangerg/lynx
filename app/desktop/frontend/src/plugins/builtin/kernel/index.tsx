@@ -10,7 +10,8 @@ import { SidebarPanel } from "@/components/sidebar/SidebarPanel";
 import { useSessions } from "@/lib/queries";
 import { definePlugin } from "@/plugins/sdk";
 import { useDefaultChatSession } from "@/state/useDefaultChatSession";
-import { useUIStore } from "@/state/uiStore";
+import { useLayoutStore } from "@/state/layoutStore";
+import { useSessionStore } from "@/state/sessionStore";
 
 function KernelChat() {
   const session = useDefaultChatSession();
@@ -20,10 +21,10 @@ function KernelChat() {
 }
 
 function KernelSidebar() {
-  const sidebarRail = useUIStore((s) => s.sidebarRail);
-  const activeSession = useUIStore((s) => s.activeSessionId);
-  const selectTab = useUIStore((s) => s.selectTab);
-  const toggleSidebar = useUIStore((s) => s.toggleSidebar);
+  const sidebarRail = useLayoutStore((s) => s.sidebarRail);
+  const activeSession = useSessionStore((s) => s.activeSessionId);
+  const selectTab = useSessionStore((s) => s.selectTab);
+  const toggleSidebar = useLayoutStore((s) => s.toggleSidebar);
 
   // Only the rail view still needs the sessions list (the expanded view
   // gets it via the plugin-contributed sidebar sections).

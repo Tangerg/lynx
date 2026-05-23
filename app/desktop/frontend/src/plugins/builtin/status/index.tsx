@@ -7,7 +7,7 @@
 
 import { Icon } from "@/components/common";
 import { definePlugin, useNotificationStore } from "@/plugins/sdk";
-import { useUIStore } from "@/state/uiStore";
+import { useSessionStore } from "@/state/sessionStore";
 
 export { statusPill } from "./pill";
 
@@ -17,7 +17,7 @@ function NotificationsBadge() {
   );
 
   const onClick = () => {
-    useUIStore.getState().openMainView({
+    useSessionStore.getState().openMainView({
       id: "notifications",
       title: "Notifications",
       icon: "chat",

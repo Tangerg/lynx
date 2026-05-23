@@ -6,10 +6,10 @@
 // only the grid.
 
 import { Slot } from "@/plugins/Slot";
-import { useUIStore } from "@/state/uiStore";
+import { useLayoutStore } from "@/state/layoutStore";
 
 export function AgentClientPage() {
-  const sidebarRail = useUIStore((s) => s.sidebarRail);
+  const sidebarRail = useLayoutStore((s) => s.sidebarRail);
 
   return (
     <div className={`app ${sidebarRail ? "rail" : ""}`}>

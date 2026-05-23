@@ -17,7 +17,7 @@ import { useWorkspaceViews } from "@/plugins/sdk";
 import { useSessions } from "@/lib/queries";
 import { useAgentSlice } from "@/state/agentStore";
 import { useComposerStore } from "@/state/composerStore";
-import { useUIStore } from "@/state/uiStore";
+import { useSessionStore } from "@/state/sessionStore";
 import { ChatErrorBoundary } from "./ChatErrorBoundary";
 import { ChatTopBar, type ChatTab } from "./ChatTopBar";
 import { JumpToBottomButton } from "./JumpToBottomButton";
@@ -39,20 +39,20 @@ export function ChatPanel({ onSend }: Props) {
   const plan = useAgentSlice((v) => v.plan);
   const toolCalls = useAgentSlice((v) => v.toolCalls);
 
-  // ---- ui state ----
-  const activeSession = useUIStore((s) => s.activeSessionId);
-  const tabIds = useUIStore((s) => s.tabIds);
-  const selectedToolId = useUIStore((s) => s.selectedToolId);
-  const expandedToolIds = useUIStore((s) => s.expandedToolIds);
-  const mainViewTabs = useUIStore((s) => s.mainViewTabs);
-  const activeMainView = useUIStore((s) => s.activeMainView);
+  // ---- session UI state ----
+  const activeSession = useSessionStore((s) => s.activeSessionId);
+  const tabIds = useSessionStore((s) => s.tabIds);
+  const selectedToolId = useSessionStore((s) => s.selectedToolId);
+  const expandedToolIds = useSessionStore((s) => s.expandedToolIds);
+  const mainViewTabs = useSessionStore((s) => s.mainViewTabs);
+  const activeMainView = useSessionStore((s) => s.activeMainView);
 
-  // ---- ui actions ----
-  const closeTab = useUIStore((s) => s.closeTab);
-  const selectMainView = useUIStore((s) => s.selectMainView);
-  const closeMainView = useUIStore((s) => s.closeMainView);
-  const setSelectedToolId = useUIStore((s) => s.setSelectedToolId);
-  const toggleExpandedTool = useUIStore((s) => s.toggleExpandedTool);
+  // ---- session UI actions ----
+  const closeTab = useSessionStore((s) => s.closeTab);
+  const selectMainView = useSessionStore((s) => s.selectMainView);
+  const closeMainView = useSessionStore((s) => s.closeMainView);
+  const setSelectedToolId = useSessionStore((s) => s.setSelectedToolId);
+  const toggleExpandedTool = useSessionStore((s) => s.toggleExpandedTool);
 
   // ---- composer state ----
   const composerValue = useComposerStore((s) => s.value);
@@ -98,7 +98,7 @@ export function ChatPanel({ onSend }: Props) {
   // the user manually selects a tool.
   useEffect(() => {
     const tools = Object.values(toolCalls);
-    const ui = useUIStore.getState();
+    const ui = useSessionStore.getState();
     if (tools.length > 0 && !ui.selectedToolId) {
       ui.setSelectedToolId(tools[tools.length - 1].id);
     }
@@ -182,7 +182,7 @@ export function ChatPanel({ onSend }: Props) {
 // Switching to a chat session has to clear `activeMainView` first so the
 // workspace-view tab doesn't stay focused.
 function selectChat(id: string) {
-  const ui = useUIStore.getState();
+  const ui = useSessionStore.getState();
   ui.selectChat();
   ui.selectTab(id);
 }

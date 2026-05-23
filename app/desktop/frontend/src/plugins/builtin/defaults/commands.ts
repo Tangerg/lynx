@@ -18,13 +18,15 @@ import {
   type WorkspaceViewSpec,
 } from "@/plugins/sdk";
 import type { SidebarSession } from "@/components/sidebar/types";
-import { useUIStore } from "@/state/uiStore";
+import { useLayoutStore } from "@/state/layoutStore";
+import { useSessionStore } from "@/state/sessionStore";
+import { useThemeStore } from "@/state/themeStore";
 
 // "Close the currently-focused tab" — if the user is viewing a workspace
 // view in the main area, close that tab; otherwise close the active chat
 // session tab. Mirrors what the close-X glyph does in ChatTopBar.
 function closeFocusedTab(): void {
-  const ui = useUIStore.getState();
+  const ui = useSessionStore.getState();
   if (ui.activeMainView) {
     ui.closeMainView(ui.activeMainView);
   } else if (ui.activeSessionId) {
@@ -37,9 +39,9 @@ function closeFocusedTab(): void {
 // when every available session is already open.
 function openNewChatTab(): void {
   const sessions = queryClient.getQueryData<SidebarSession[]>(["sessions"]) ?? [];
-  const tabIds = useUIStore.getState().tabIds;
+  const tabIds = useSessionStore.getState().tabIds;
   const candidate = sessions.find((s) => !tabIds.includes(s.id));
-  if (candidate) useUIStore.getState().selectTab(candidate.id);
+  if (candidate) useSessionStore.getState().selectTab(candidate.id);
 }
 
 // "Focus the composer" — the composer textarea has a stable class name
@@ -61,7 +63,7 @@ export const defaultCommands = definePlugin({
       keywords: ["collapse", "expand"],
       order: 0,
       shortcut: "⌘B",
-      run: () => useUIStore.getState().toggleSidebar(),
+      run: () => useLayoutStore.getState().toggleSidebar(),
     });
 
     host.commands.register({
@@ -71,7 +73,7 @@ export const defaultCommands = definePlugin({
       group: "Theme",
       order: 0,
       shortcut: "⌘⇧L",
-      run: () => useUIStore.getState().toggleTheme(),
+      run: () => useThemeStore.getState().toggleTheme(),
     });
 
     host.commands.register({
@@ -125,7 +127,7 @@ export const defaultCommands = definePlugin({
           keywords: ["open", "show", view.id],
           // Hide when this view is already the focused main-area tab.
           when: `mainView != "${view.id}"`,
-          run: () => useUIStore.getState().openMainView({
+          run: () => useSessionStore.getState().openMainView({
             id: view.id, title: view.title, icon: view.icon,
           }),
         }));
@@ -137,7 +139,7 @@ export const defaultCommands = definePlugin({
           icon: "spark",
           group: "Theme",
           order: 10,
-          run: () => useUIStore.getState().setAccent(accent.dark),
+          run: () => useThemeStore.getState().setAccent(accent.dark),
         }));
       }
     };

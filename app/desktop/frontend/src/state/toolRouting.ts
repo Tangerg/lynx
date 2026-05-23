@@ -5,7 +5,7 @@
 // without anyone passing a callback down through the chat panel.
 
 import { getCurrentSessionView } from "./agentStore";
-import { useUIStore } from "./uiStore";
+import { useSessionStore } from "./sessionStore";
 
 type ViewRouting = { id: string; title: string; icon: string };
 
@@ -20,7 +20,7 @@ function routeForTool(fn: string, args: string): ViewRouting {
     // Pull the path off the front of the args ("src/foo.ts …") so the
     // diff view knows which file to render.
     const m = args.match(/^([^\s(]+)/);
-    if (m) useUIStore.getState().setActiveFile(m[1]);
+    if (m) useSessionStore.getState().setActiveFile(m[1]);
     return { id: "diff", title: "Diff", icon: "diff" };
   }
   return { id: "diff", title: "Diff", icon: "diff" };
@@ -35,7 +35,7 @@ export function openViewForTool(toolId: string): void {
   if (!tool) return;
 
   const view = routeForTool(tool.fn, String(tool.args));
-  const ui = useUIStore.getState();
+  const ui = useSessionStore.getState();
   ui.setSelectedToolId(toolId);
   ui.openMainView(view);
 }

@@ -7,7 +7,7 @@
 
 import { api } from "@/lib/http";
 import type { ContentBlockKind } from "@/protocol/agui/viewState";
-import { useUIStore } from "@/state/uiStore";
+import { useSessionStore } from "@/state/sessionStore";
 import {
   getConfig,
   hasConfig,
@@ -177,10 +177,10 @@ export function createHost(
           console.warn(`[plugin] workspace.openView("${id}"): no view registered`);
           return;
         }
-        useUIStore.getState().openMainView({ id, title: view.title, icon: view.icon });
+        useSessionStore.getState().openMainView({ id, title: view.title, icon: view.icon });
       },
       closeView(id: string): void {
-        useUIStore.getState().closeMainView(id);
+        useSessionStore.getState().closeMainView(id);
       },
     },
 

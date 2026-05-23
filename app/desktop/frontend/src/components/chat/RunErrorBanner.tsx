@@ -2,7 +2,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { Icon } from "@/components/common";
 import { swift } from "@/lib/motion";
 import { useAgentSlice, useAgentStore } from "@/state/agentStore";
-import { useUIStore } from "@/state/uiStore";
+import { useSessionStore } from "@/state/sessionStore";
 
 // RunErrorBanner — surfaces an AG-UI RUN_ERROR event.
 //
@@ -12,7 +12,7 @@ import { useUIStore } from "@/state/uiStore";
 // doesn't take the error notice down with it.
 export function RunErrorBanner() {
   const error = useAgentSlice((v) => v.error);
-  const sid = useUIStore((s) => s.activeSessionId);
+  const sid = useSessionStore((s) => s.activeSessionId);
   const clearError = useAgentStore((s) => s.clearError);
 
   return (

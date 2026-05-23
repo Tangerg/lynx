@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 import { Icon } from "@/components/common";
 import { definePlugin, useAccents, useThemes } from "@/plugins/sdk";
 import type { ThemeSpec } from "@/plugins/sdk";
-import { useUIStore } from "@/state/uiStore";
+import { useThemeStore } from "@/state/themeStore";
 
 // Fallback hexes for previewing themes that didn't ship a `tokens` map.
 // Match the built-in dark palette so the preview never goes blank.
@@ -65,10 +65,10 @@ function ThemeRow({
 }
 
 function AppearancePane() {
-  const theme = useUIStore((s) => s.theme);
-  const accent = useUIStore((s) => s.accent);
-  const setTheme = useUIStore((s) => s.setTheme);
-  const setAccent = useUIStore((s) => s.setAccent);
+  const theme = useThemeStore((s) => s.theme);
+  const accent = useThemeStore((s) => s.accent);
+  const setTheme = useThemeStore((s) => s.setTheme);
+  const setAccent = useThemeStore((s) => s.setAccent);
 
   const themes = useThemes();
   const accents = useAccents();
