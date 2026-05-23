@@ -176,11 +176,12 @@
   font-weight: var(--fw-semibold);
 }
 
-/* Sidebar footer — model picker */
+/* Sidebar footer — model picker. No border-top; the extra top padding
+   gives breathing room. The block-surface layout doesn't need divider
+   lines (canvas-on-card layout carries the depth). */
 .side-footer {
   margin-top: auto;
-  padding: 8px 4px 0 4px;
-  border-top: 1px solid var(--color-border);
+  padding: 16px 4px 0 4px;
 }
 
 .model-card {
