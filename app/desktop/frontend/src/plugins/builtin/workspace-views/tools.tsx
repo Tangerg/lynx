@@ -1,4 +1,4 @@
-import { EmptyState, Icon, IconButton, ScrollArea, SkeletonList } from "@/components/common";
+import { DataView, Icon, IconButton, ScrollArea } from "@/components/common";
 import { ViewHeader } from "@/components/views/ViewHeader";
 import { McpRow } from "@/components/views/McpRow";
 import { useMCPServers } from "@/lib/queries";
@@ -21,23 +21,26 @@ function ToolsTab() {
         actions={<IconButton title="Add server"><Icon name="plus" size={14} /></IconButton>}
       />
       <ScrollArea style={{ padding: "4px 0" }}>
-        {isLoading ? (
-          <SkeletonList count={4} />
-        ) : servers.length === 0 ? (
-          <EmptyState
-            icon="tool"
-            title="No MCP servers configured"
-            sub={`Add a server in ${CONFIG_PATH} to expose tools to the agent.`}
-          />
-        ) : (
-          <>
-            {servers.map((s) => <McpRow key={s.id} server={s} />)}
-            <p className="view-foot">
-              Servers expose tools the agent can call. Edit{" "}
-              <code className="view-code">{CONFIG_PATH}</code> to add or remove.
-            </p>
-          </>
-        )}
+        <DataView
+          items={servers}
+          isLoading={isLoading}
+          skeletonCount={4}
+          empty={{
+            icon: "tool",
+            title: "No MCP servers configured",
+            sub: `Add a server in ${CONFIG_PATH} to expose tools to the agent.`,
+          }}
+        >
+          {(rows) => (
+            <>
+              {rows.map((s) => <McpRow key={s.id} server={s} />)}
+              <p className="view-foot">
+                Servers expose tools the agent can call. Edit{" "}
+                <code className="view-code">{CONFIG_PATH}</code> to add or remove.
+              </p>
+            </>
+          )}
+        </DataView>
       </ScrollArea>
     </>
   );

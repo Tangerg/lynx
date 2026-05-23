@@ -1,31 +1,22 @@
 // ChatPanel — the main pane.
 //
-// Reads everything it can from the application stores (useAgentStore,
-// useUIStore, useComposerStore, useSessions) so the kernel wrapper
-// (kernel-chat plugin) shrinks to just the agent-session lifecycle.
+// Thin orchestrator: render the top tab strip, then pick between the
+// workspace-view body or the chat-stream body based on whether the
+// user has promoted a workspace view tab. Both branches own their own
+// state subscriptions; this file just owns the layout decision.
 //
 // Props are limited to one truly external input:
 //   onSend — supplied by kernel-chat (knows how to forward into the
-//            live AG-UI agent). Kept as a prop so ChatPanel itself has
-//            no opinion about *how* messages get to the agent.
+//            live AG-UI agent). Kept as a prop so ChatPanel itself
+//            has no opinion about *how* messages get to the agent.
 
-import { useCallback, useEffect, useMemo, useState } from "react";
 import { Panel } from "@/components/common";
-import { PluginBoundary } from "@/plugins/PluginBoundary";
-import { Slot } from "@/plugins/Slot";
-import { useWorkspaceViews } from "@/plugins/sdk";
 import { useSessions } from "@/lib/queries";
-import { useAgentSlice } from "@/state/agentStore";
-import { useComposerStore } from "@/state/composerStore";
 import { useSessionStore } from "@/state/sessionStore";
-import { ChatErrorBoundary } from "./ChatErrorBoundary";
-import { ChatTopBar, type ChatTab } from "./ChatTopBar";
-import { JumpToBottomButton } from "./JumpToBottomButton";
-import { MessageStream, type StreamControls } from "./MessageStream";
-import { RunErrorBanner } from "./RunErrorBanner";
-import { SlashSuggestions } from "./SlashSuggestions";
-import { Composer, type ComposerMode } from "./Composer";
-import { ComposerFooter } from "./ComposerFooter";
+import { ChatHeader } from "./ChatHeader";
+import { ChatStream } from "./ChatStream";
+import { WorkspaceViewBody } from "./WorkspaceViewBody";
+import type { ComposerMode } from "./Composer";
 
 type Props = {
   /** Send a plain user message through the live AG-UI agent. Supplied by
@@ -34,163 +25,24 @@ type Props = {
 };
 
 export function ChatPanel({ onSend }: Props) {
-  // ---- agent state (scoped to the current session) ----
-  const messages = useAgentSlice((v) => v.messages);
-  const plan = useAgentSlice((v) => v.plan);
-  const toolCalls = useAgentSlice((v) => v.toolCalls);
-
-  // ---- session UI state ----
-  const activeSession = useSessionStore((s) => s.activeSessionId);
-  const tabIds = useSessionStore((s) => s.tabIds);
-  const selectedToolId = useSessionStore((s) => s.selectedToolId);
-  const expandedToolIds = useSessionStore((s) => s.expandedToolIds);
-  const mainViewTabs = useSessionStore((s) => s.mainViewTabs);
   const activeMainView = useSessionStore((s) => s.activeMainView);
-
-  // ---- session UI actions ----
-  const closeTab = useSessionStore((s) => s.closeTab);
-  const selectMainView = useSessionStore((s) => s.selectMainView);
-  const closeMainView = useSessionStore((s) => s.closeMainView);
-  const setSelectedToolId = useSessionStore((s) => s.setSelectedToolId);
-  const toggleExpandedTool = useSessionStore((s) => s.toggleExpandedTool);
-
-  // ---- composer state ----
-  const composerValue = useComposerStore((s) => s.value);
-  const composerMode = useComposerStore((s) => s.mode);
-  const attachments = useComposerStore((s) => s.attachments);
-
-  // ---- composer actions ----
-  const setComposerValue = useComposerStore((s) => s.setValue);
-  const setComposerMode = useComposerStore((s) => s.setMode);
-  const removeAttachment = useComposerStore((s) => s.removeAttachment);
-
-  // ---- sessions list ----
+  const activeSessionId = useSessionStore((s) => s.activeSessionId);
   const { data: sessions = [] } = useSessions();
-  const activeS = sessions.find((s) => s.id === activeSession) ?? sessions[0];
-  const openTabs: ChatTab[] = useMemo(
-    () =>
-      tabIds
-        .map((id) => sessions.find((s) => s.id === id))
-        .filter((s): s is (typeof sessions)[number] => Boolean(s))
-        .map((s) => ({ id: s.id, title: s.title, status: s.status })),
-    [tabIds, sessions],
-  );
 
-  // ---- side effects ----
-  // Sticky-bottom auto-scroll lives inside MessageStream via the
-  // `use-stick-to-bottom` library. ChatPanel only needs to know
-  // "is the user currently at bottom?" to toggle the jump-to-bottom
-  // button, plus a hand to programmatically re-engage follow. The
-  // MessageStream relays those out via `onControlsChange`.
-  const [streamControls, setStreamControls] = useState<StreamControls | null>(null);
-  const handleControls = useCallback(
-    (c: StreamControls) => setStreamControls(c),
-    [],
-  );
-
-  // Auto-select (but don't expand) the latest tool the first time it
-  // streams in — so the inspector pane has something to show without
-  // forcing the inline card to balloon open. Expanding is a deliberate
-  // user click.
-  //
-  // We snapshot UI state via getState() instead of subscribing — we want
-  // this effect to fire only when the toolCalls map mutates, not when
-  // the user manually selects a tool.
-  useEffect(() => {
-    const tools = Object.values(toolCalls);
-    const ui = useSessionStore.getState();
-    if (tools.length > 0 && !ui.selectedToolId) {
-      ui.setSelectedToolId(tools[tools.length - 1].id);
-    }
-  }, [toolCalls]);
-
-  // Resolve the active main-view body via the workspace registry.
-  const workspaceViews = useWorkspaceViews();
-  const activeViewBody = activeMainView
-    ? workspaceViews.find((v) => v.id === activeMainView)?.component ?? null
-    : null;
-  const headerActiveId = activeMainView ?? activeSession;
-
-  if (!activeS) return null;
+  // Render nothing while sessions are still loading and there's no
+  // workspace view to fall back to — avoids a blank-but-bordered panel.
+  if (sessions.length === 0 && !activeMainView) return null;
 
   return (
     <Panel className="chat">
-      <ChatTopBar
-        tabs={openTabs}
-        viewTabs={mainViewTabs}
-        activeId={headerActiveId}
-        onSelectChat={selectChat}
-        onCloseChat={closeTab}
-        onSelectView={selectMainView}
-        onCloseView={closeMainView}
-      />
-
-      {activeViewBody ? (
-        // Workspace view tab (Settings, Diff, Files, …) — full-bleed,
-        // no composer. Whatever the view needs is its own problem.
-        <PluginBoundary plugin={`workspace:${activeMainView}`} label="main view">
-          <ActiveView component={activeViewBody} />
-        </PluginBoundary>
+      <ChatHeader />
+      {activeMainView ? (
+        <WorkspaceViewBody viewId={activeMainView} />
       ) : (
-        <>
-          <RunErrorBanner />
-          <ChatErrorBoundary
-            resetKey={activeSession}
-            label={`session:${activeSession}`}
-          >
-            <MessageStream
-              messages={messages}
-              ctx={{
-                plan,
-                toolCalls,
-                selectedToolId,
-                onSelectTool: setSelectedToolId,
-                expandedIds: expandedToolIds,
-                onToggleExpand: toggleExpandedTool,
-              }}
-              resetKey={activeSession}
-              onControlsChange={handleControls}
-            />
-          </ChatErrorBoundary>
-          <div className="composer-wrap">
-            <div className="composer-fade" />
-            <JumpToBottomButton
-              visible={streamControls ? !streamControls.isAtBottom : false}
-              onClick={() => streamControls?.scrollToBottom()}
-            />
-            <div className="composer-inner">
-              <Slot name="chat.status" />
-              <SlashSuggestions value={composerValue} onPick={setComposerValue} />
-              <Composer
-                value={composerValue}
-                onChange={setComposerValue}
-                onSend={onSend}
-                attachments={attachments}
-                onRemoveAttachment={removeAttachment}
-                mode={composerMode}
-                onModeChange={setComposerMode}
-              />
-              <ComposerFooter />
-            </div>
-          </div>
-        </>
+        <ChatStream onSend={onSend} resetKey={activeSessionId} />
       )}
     </Panel>
   );
-}
-
-// Switching to a chat session has to clear `activeMainView` first so the
-// workspace-view tab doesn't stay focused.
-function selectChat(id: string) {
-  const ui = useSessionStore.getState();
-  ui.selectChat();
-  ui.selectTab(id);
-}
-
-// Trivial wrapper — React likes a stable component reference for the
-// dynamic body we resolved imperatively.
-function ActiveView({ component: Body }: { component: React.ComponentType }) {
-  return <Body />;
 }
 
 export type { ComposerMode };

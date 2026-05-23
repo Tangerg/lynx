@@ -1,4 +1,4 @@
-import { EmptyState, Icon, IconButton, ScrollArea, SkeletonList } from "@/components/common";
+import { DataView, Icon, IconButton, ScrollArea } from "@/components/common";
 import { ViewHeader } from "@/components/views/ViewHeader";
 import { Terminal } from "@/components/views/Terminal";
 import { useTerminal } from "@/lib/queries";
@@ -41,17 +41,18 @@ function TerminalTab() {
         }
       />
       <ScrollArea>
-        {isLoading ? (
-          <SkeletonList count={8} />
-        ) : !lines || lines.length === 0 ? (
-          <EmptyState
-            icon="terminal"
-            title="No output yet"
-            sub="Run a command — terminal output will stream here."
-          />
-        ) : (
-          <Terminal lines={lines} running={running} />
-        )}
+        <DataView
+          items={lines}
+          isLoading={isLoading}
+          skeletonCount={8}
+          empty={{
+            icon: "terminal",
+            title: "No output yet",
+            sub: "Run a command — terminal output will stream here.",
+          }}
+        >
+          {(rows) => <Terminal lines={rows} running={running} />}
+        </DataView>
       </ScrollArea>
     </>
   );

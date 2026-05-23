@@ -6,7 +6,7 @@
 // single contribution without forking the others. They live together
 // because they're individually small.
 
-import { EmptyState, Icon, IconButton, SectionLabel, SkeletonList } from "@/components/common";
+import { DataView, Icon, IconButton, SectionLabel } from "@/components/common";
 import { ProjectRow } from "@/components/sidebar/ProjectRow";
 import { SessionRow } from "@/components/sidebar/SessionRow";
 import { useProjects, useSessions } from "@/lib/queries";
@@ -74,20 +74,23 @@ function ProjectsSection() {
       >
         Projects
       </SectionLabel>
-      {isLoading ? (
-        <SkeletonList count={3} />
-      ) : !projects || projects.length === 0 ? (
-        <EmptyState
-          icon="folder"
-          title="No projects"
-          sub="Add one to scope sessions to a codebase."
-          size="compact"
-        />
-      ) : (
-        <div className="side-list">
-          {projects.map((p) => <ProjectRow key={p.id} project={p} />)}
-        </div>
-      )}
+      <DataView
+        items={projects}
+        isLoading={isLoading}
+        skeletonCount={3}
+        empty={{
+          icon: "folder",
+          title: "No projects",
+          sub: "Add one to scope sessions to a codebase.",
+          size: "compact",
+        }}
+      >
+        {(items) => (
+          <div className="side-list">
+            {items.map((p) => <ProjectRow key={p.id} project={p} />)}
+          </div>
+        )}
+      </DataView>
     </>
   );
 }
@@ -112,27 +115,30 @@ function SessionsSection() {
       <SectionLabel trailing={<span className="count">{sessions?.length ?? 0}</span>}>
         Sessions
       </SectionLabel>
-      {isLoading ? (
-        <SkeletonList count={4} />
-      ) : !sessions || sessions.length === 0 ? (
-        <EmptyState
-          icon="chat"
-          title="No sessions yet"
-          sub="Start a new conversation to see it here."
-          size="compact"
-        />
-      ) : (
-        <div className="side-list">
-          {sessions.map((s) => (
-            <SessionRow
-              key={s.id}
-              session={s}
-              active={s.id === activeSessionId}
-              onSelect={selectTab}
-            />
-          ))}
-        </div>
-      )}
+      <DataView
+        items={sessions}
+        isLoading={isLoading}
+        skeletonCount={4}
+        empty={{
+          icon: "chat",
+          title: "No sessions yet",
+          sub: "Start a new conversation to see it here.",
+          size: "compact",
+        }}
+      >
+        {(items) => (
+          <div className="side-list">
+            {items.map((s) => (
+              <SessionRow
+                key={s.id}
+                session={s}
+                active={s.id === activeSessionId}
+                onSelect={selectTab}
+              />
+            ))}
+          </div>
+        )}
+      </DataView>
     </>
   );
 }
