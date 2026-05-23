@@ -100,22 +100,14 @@ body {
   letter-spacing: -0.005em;
 }
 
+/* Status-bar item — adjacent items get visual separation from the
+   row gap (12px on parent) + a subtle muted middle dot character if
+   needed. No 1px pipe (per the "no lines anywhere" rule). */
 .sb-item {
   display: inline-flex;
   align-items: center;
   gap: 5px;
   white-space: nowrap;
-  /* Hairline pipe separator between adjacent items — borrowed from the
-     terminal status-line idiom. Gives the row "data-row" feel without
-     adding extra DOM. The first .sb-item in the row has no left border. */
-  padding-left: 10px;
-  border-left: 1px solid var(--color-border);
-  margin-left: 0;
-}
-.sb-item:first-child,
-.sb-spacer + .sb-item {
-  padding-left: 0;
-  border-left: none;
 }
 .sb-run.live { color: var(--color-accent); }
 .sb-sep { color: var(--color-text-faint); }

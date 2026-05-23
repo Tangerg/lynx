@@ -139,11 +139,12 @@
   animation: pulse 1.2s ease-in-out infinite;
 }
 
-/* Tool body — preview snippet (visible on selected/expanded) */
+/* Tool body — preview snippet (visible on selected/expanded). Subtle
+   surface-2 background separates it from the .tool-head above — color
+   step, not a 1px line. */
 .tool-body {
-  padding: 0 14px 12px 14px;
-  border-top: 1px solid var(--color-border);
-  margin-top: 2px;
+  padding: 8px 14px 12px 14px;
+  background: var(--color-surface-2);
 }
 .tool-preview-line {
   font-family: var(--font-mono);
@@ -170,7 +171,7 @@
   gap: 12px;
   align-items: center;
   padding: 10px 16px;
-  border-bottom: 1px solid var(--color-border);
+  /* No 1px separator. Row gap + hover bg do the visual work. */
   cursor: pointer;
   transition: background var(--dur-fast) var(--ease-out);
 }
@@ -405,7 +406,8 @@
 }
 
 .tool-preview {
-  border-top: 1px solid var(--color-border);
+  /* Goes one step deeper than the card surface for nested-depth feel.
+     No top border — the color step IS the boundary. */
   padding: 10px 14px 8px 14px;
   font-family: var(--font-mono);
   font-size: 12px;
@@ -422,7 +424,6 @@
 .tool-preview .preview-foot {
   margin-top: 10px;
   padding-top: 8px;
-  border-top: 1px dashed #232323;
   text-align: right;
 }
 .tool-preview .preview-open {

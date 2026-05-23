@@ -12,9 +12,7 @@
   align-items: end;
   gap: 8px;
   padding: 8px 16px 0 16px;
-  /* Sits inside the chat panel (surface-1), so it matches. */
   background: var(--color-surface);
-  border-bottom: 1px solid var(--color-border);
   flex-shrink: 0;
   z-index: 5;
 }
@@ -127,7 +125,6 @@
   align-items: center;
   padding: 10px 18px;
   gap: 14px;
-  border-bottom: 1px solid var(--color-border);
   flex-shrink: 0;
   background: var(--color-bg);
 }
