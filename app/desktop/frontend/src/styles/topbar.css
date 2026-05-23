@@ -48,17 +48,15 @@
   background: var(--hairline-1);
   color: var(--color-text);
 }
+/* Active tab — lifted surface ONE step deeper than the topbar
+   surface (via the surface-2 token, which is now color-mix-derived).
+   No 2px accent underline (per the "no lines" rule); the tone step
+   plus the ink contrast (active = full ink, inactive = muted) does
+   the active-state signaling. */
 .chat-tab.active {
-  background: var(--color-surface);
+  background: var(--color-surface-2);
   color: var(--color-text);
-  border-color: var(--hairline-2);
-}
-.chat-tab.active::after {
-  content: "";
-  position: absolute;
-  left: 8px; right: 8px; bottom: 0px;
-  height: 2px;
-  background: var(--color-accent);
+  border-color: transparent;
 }
 .chat-tab .tab-title {
   white-space: nowrap;

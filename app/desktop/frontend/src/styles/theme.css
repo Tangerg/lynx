@@ -10,16 +10,13 @@
    thing dividing them is a 1px border. CTAs go pure black/white.
    ============================================================ */
 .theme-light {
-  /* Surface ladder — mirrors dark-mode logic: canvas recedes, surface
-     lifts. Canvas is off-white (frame for sidebar / statusbar); surface
-     is pure white (the lifted chat content area). The TONE step
-     between #fafafa and #ffffff does the boundary work — no hairline
-     gap between sidebar and main needed. */
+  /* Canvas + surface (L1) are manual anchors per the dark theme.
+     L2-L4 derive from the same color-mix() formula in tokens.css —
+     pulling `--color-text` (dark in light mode) into surface gives
+     us "deeper = darker" automatically. Don't re-define surface-2/3/4
+     here; the formula handles them. */
   --color-bg:            #fafafa;   /* canvas — sidebar/statusbar frame */
   --color-surface:       #ffffff;   /* lifted — chat content */
-  --color-surface-2:     #f5f5f5;   /* hover / row highlight */
-  --color-surface-3:     #ececed;   /* active / pressed */
-  --color-surface-4:     #dcdce0;
 
   /* Ink — Vercel #171717 ink / #4d4d4d body / #888888 mute. */
   --color-text:          #171717;

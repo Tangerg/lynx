@@ -20,14 +20,22 @@
   --color-accent-border:  #1db954;
   --color-accent-press:   #169c46;
 
-  /* ---------- COLOR — Surface ladder (Linear hex) ----------
-     Depth comes from this ladder + hairlines — never from drop shadow
-     on dark. See DESIGN.md §5 "Elevation & Depth". */
+  /* ---------- COLOR — Surface ladder ----------
+     Canvas + surface (L1) are the two MANUAL anchors. L2-L4 are
+     DERIVED via color-mix() — each step mixes more of the text color
+     into the surface, so the direction is automatically theme-aware:
+       Dark mode: text is near-white → deeper = lighter (lifts away from canvas).
+       Light mode: text is near-black → deeper = darker (pulls toward ink).
+     `--depth-step` is the tunable knob — increase for higher contrast
+     between depth levels, decrease for subtler steps. The same formula
+     drives both themes; no per-theme hex needs to be maintained beyond
+     canvas + surface. See DESIGN.md §5 "Elevation & Depth". */
   --color-bg:             #010102;   /* canvas — faint blue tint, NOT #000000 */
   --color-surface:        #0f1011;   /* L1 — cards, sidebar, message bubble */
-  --color-surface-2:      #141516;   /* L2 — hover/active row, palette */
-  --color-surface-3:      #18191a;   /* L3 — sub-nav, dropdown, popover */
-  --color-surface-4:      #191a1b;   /* L4 — deepest lifted surface */
+  --depth-step:           5%;
+  --color-surface-2:      color-mix(in srgb, var(--color-text) calc(var(--depth-step) * 1), var(--color-surface));
+  --color-surface-3:      color-mix(in srgb, var(--color-text) calc(var(--depth-step) * 2), var(--color-surface));
+  --color-surface-4:      color-mix(in srgb, var(--color-text) calc(var(--depth-step) * 3), var(--color-surface));
 
   /* ---------- COLOR — Ink (text) ---------- */
   --color-text:           #f7f8f8;   /* Headlines + emphasized body */
