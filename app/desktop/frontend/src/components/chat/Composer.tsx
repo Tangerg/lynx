@@ -96,7 +96,7 @@ export function Composer({
         rows={1}
         className="w-full resize-none border-0 bg-transparent px-1.5 py-2 font-sans text-[14px] leading-[1.55] tracking-[-0.003em] text-fg outline-none min-h-[22px] max-h-40 placeholder:text-fg-faint placeholder:tracking-normal"
       />
-      <div className="flex flex-nowrap items-center gap-1 pt-1.5">
+      <div className="composer-toolbar flex flex-nowrap items-center gap-1 pt-1.5">
         <Slot name="composer.toolbar.start" />
         {modes.length > 0 && (
           <Segmented

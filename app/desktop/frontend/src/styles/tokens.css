@@ -5,11 +5,9 @@
    mono-eyebrow / elevation).
    ============================================================ */
 
-/* --- Webfonts ---
-     Geist (sans) drives every UI surface; Geist Mono drives every
-     numeric / ID / timestamp / eyebrow / code snippet. Both are loaded
-     from Vercel's font CDN — no proprietary fallbacks. */
-@import url('https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400&display=swap');
+/* Webfonts moved to styles/globals.css — must be hoisted to the very
+   top of the CSS bundle since @import rules can't follow any other
+   rule per the spec, and Tailwind's @import expands into rules. */
 
 :root {
   /* ---------- COLOR — Brand (single accent, used scarcely) ----------
