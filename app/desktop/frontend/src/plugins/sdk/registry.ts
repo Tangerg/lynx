@@ -462,23 +462,31 @@ function syncDocumentTitle(base: string, badge: number): void {
   document.title = `${prefix}${base || "Lyra"}`;
 }
 
-// Normalize "Cmd+K" / "cmd+K" / "Mod+k" to a canonical "mod+k" form. Mod
-// collapses Cmd (Mac) / Ctrl (others) so registrations are cross-platform
-// by default. The leftmost key segment is the modifier; the last is the key.
+// Modifier aliases → canonical name. `mod` collapses Cmd (Mac) / Ctrl
+// (others) so registrations are cross-platform by default. Unmapped
+// segments pass through unchanged (so a literal "ctrl+k" still records
+// as ctrl, distinct from "mod+k").
+const MODIFIER_ALIAS: Record<string, string> = {
+  cmd: "mod",
+  meta: "mod",
+  mod: "mod",
+  ctrl: "ctrl",
+  control: "ctrl",
+  shift: "shift",
+  alt: "alt",
+  option: "alt",
+};
+
+// Stable output order matches common docs convention (e.g. "mod+shift+k").
+const MODIFIER_ORDER = ["mod", "ctrl", "alt", "shift"] as const;
+
+// Normalize "Cmd+K" / "cmd+K" / "Mod+k" → canonical "mod+k" form. The
+// leftmost segments are modifiers; the last segment is the key.
 function normalizeCombo(combo: string): string {
   const parts = combo.split("+").map((p) => p.trim().toLowerCase());
   const key = parts.pop() ?? "";
-  const mods = new Set<string>();
-  for (const p of parts) {
-    if (p === "cmd" || p === "meta" || p === "mod") mods.add("mod");
-    else if (p === "ctrl" || p === "control") mods.add("ctrl");
-    else if (p === "shift") mods.add("shift");
-    else if (p === "alt" || p === "option") mods.add("alt");
-    else mods.add(p);
-  }
-  // Stable order: mod, ctrl, alt, shift — matches common docs convention.
-  const order = ["mod", "ctrl", "alt", "shift"];
-  const sortedMods = order.filter((m) => mods.has(m));
+  const mods = new Set<string>(parts.map((p) => MODIFIER_ALIAS[p] ?? p));
+  const sortedMods = MODIFIER_ORDER.filter((m) => mods.has(m));
   return [...sortedMods, key].join("+");
 }
 

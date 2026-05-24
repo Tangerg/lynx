@@ -52,15 +52,3 @@ export const api: KyInstance = ky.create({
     afterResponse: [afterResponse],
   },
 });
-
-// Convenience: ky for arbitrary external URLs (web search results, etc.).
-// Same plugin hooks fire here too so a logging / auth plugin sees every
-// outbound request the host makes.
-export const http: KyInstance = ky.create({
-  retry: { limit: 1 },
-  timeout: 30_000,
-  hooks: {
-    beforeRequest: [beforeRequest],
-    afterResponse: [afterResponse],
-  },
-});

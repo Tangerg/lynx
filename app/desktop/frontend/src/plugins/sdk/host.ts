@@ -2,10 +2,9 @@
 // plugin gets a Host bound to its name so registrations, errors, and
 // conflict warnings can be attributed back when it unloads.
 
-import { nanoid } from "nanoid";
 import { api } from "@/lib/http";
 import { addLocaleBundle } from "@/lib/i18n";
-import { TASK_LINGER_MS, useTasksStore } from "@/state/tasksStore";
+import { startTask } from "@/state/tasksStore";
 import type { ContentBlockKind } from "@/protocol/agui/viewState";
 import { useSessionStore } from "@/state/sessionStore";
 import { getConfig, hasConfig, setConfig, useConfigStore, type ConfigValue } from "./config";
@@ -432,49 +431,7 @@ export function createHost(
 
     tasks: {
       start(opts) {
-        const tasks = useTasksStore.getState();
-        const id = opts.id ?? `task:${pluginName}:${nanoid(8)}`;
-        tasks.add({
-          id,
-          pluginName,
-          label: opts.label,
-          message: opts.message ?? null,
-          progress: opts.progress ?? null,
-          status: "running",
-          startedAt: Date.now(),
-        });
-
-        return {
-          update(patch) {
-            const cur = useTasksStore.getState().tasks.get(id);
-            if (!cur || cur.status !== "running") return;
-            useTasksStore.getState().patch(id, {
-              progress: patch.progress === undefined ? cur.progress : patch.progress,
-              message: patch.message === undefined ? cur.message : patch.message,
-            });
-          },
-          succeed(message) {
-            const cur = useTasksStore.getState().tasks.get(id);
-            if (!cur || cur.status !== "running") return;
-            useTasksStore.getState().patch(id, {
-              status: "succeeded",
-              progress: 1,
-              settledAt: Date.now(),
-              ...(message !== undefined ? { message } : {}),
-            });
-            window.setTimeout(() => useTasksStore.getState().remove(id), TASK_LINGER_MS);
-          },
-          fail(err) {
-            const cur = useTasksStore.getState().tasks.get(id);
-            if (!cur || cur.status !== "running") return;
-            useTasksStore.getState().patch(id, {
-              status: "failed",
-              settledAt: Date.now(),
-              error: err instanceof Error ? err.message : String(err),
-            });
-            window.setTimeout(() => useTasksStore.getState().remove(id), TASK_LINGER_MS);
-          },
-        };
+        return startTask(pluginName, opts);
       },
     },
   } satisfies Host;

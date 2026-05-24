@@ -23,10 +23,35 @@ export function nowTime(): string {
   return `${h}:${m} ${meridiem}`;
 }
 
+// Display name shown under the avatar. A real backend should drive the
+// assistant name via STATE_SNAPSHOT or a session-level field — pinning
+// "Sonnet 4.5" here is a placeholder until that lands.
+const ROLE_DISPLAY_NAME: Record<Message["role"], string> = {
+  user: "You",
+  assistant: "Sonnet 4.5",
+  system: "System",
+};
+
 export function nameForRole(role: Message["role"]): string {
-  if (role === "user") return "You";
-  if (role === "assistant") return "Sonnet 4.5";
-  return "System";
+  return ROLE_DISPLAY_NAME[role];
+}
+
+// Normalize TextMessage* role field — backends sometimes omit it or send
+// "developer" / other variants. We collapse anything non-user/non-system
+// to "assistant" (the common streaming case).
+export function roleFromTextEvent(role: string | undefined): Message["role"] {
+  if (role === "user") return "user";
+  if (role === "system") return "system";
+  return "assistant";
+}
+
+// Same idea for MESSAGES_SNAPSHOT — but the default lands on "system"
+// (developer / unknown roles fold there) because snapshot includes both
+// chat turns and protocol noise.
+export function roleFromSnapshotMessage(role: string): Message["role"] {
+  if (role === "user") return "user";
+  if (role === "assistant") return "assistant";
+  return "system";
 }
 
 export function updateMessage(

@@ -1,22 +1,17 @@
-// Skeleton primitives for loading states. Three shapes cover the common
-// cases:
-//   <SkeletonLine width={"60%"} /> — a single inline row
-//   <SkeletonRow />                — full-width line + secondary line
-//   <SkeletonList count={5} />     — N stacked rows
-//
-// Shimmer animation uses the `animate-shimmer` keyframe declared in
-// styles/globals.css. Honors prefers-reduced-motion via Tailwind's
-// `motion-reduce:animate-none` modifier.
+// Skeleton primitives for loading states. Only `SkeletonList` is exported;
+// `Line` + `Row` are internal building blocks. Shimmer uses the
+// `animate-shimmer` keyframe in styles/globals.css and honors
+// prefers-reduced-motion via `motion-reduce:animate-none`.
 
 import type { CSSProperties } from "react";
 
-type LineProps = {
+function SkeletonLine({
+  width = "100%",
+  height = 10,
+}: {
   width?: string;
   height?: number;
-  style?: CSSProperties;
-};
-
-export function SkeletonLine({ width = "100%", height = 10, style }: LineProps) {
+}) {
   return (
     <span
       className={
@@ -24,14 +19,14 @@ export function SkeletonLine({ width = "100%", height = 10, style }: LineProps) 
         "bg-[linear-gradient(90deg,var(--color-surface-2)_0%,color-mix(in_srgb,var(--color-text)_8%,var(--color-surface-2))_50%,var(--color-surface-2)_100%)] " +
         "bg-[length:200%_100%]"
       }
-      style={{ width, height, ...style }}
+      style={{ width, height }}
     />
   );
 }
 
-export function SkeletonRow({ style }: { style?: CSSProperties }) {
+function SkeletonRow() {
   return (
-    <div className="flex flex-col gap-1.5 py-2" style={style}>
+    <div className="flex flex-col gap-1.5 py-2">
       <SkeletonLine width="68%" />
       <SkeletonLine width="38%" height={8} />
     </div>

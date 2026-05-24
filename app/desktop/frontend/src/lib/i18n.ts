@@ -161,7 +161,7 @@ if (typeof document !== "undefined") {
   document.documentElement.lang = initial === "zh" ? "zh-CN" : "en";
 }
 
-export function getLocale(): Locale {
+function getLocale(): Locale {
   return (i18next.resolvedLanguage as Locale | undefined) ?? "en";
 }
 
