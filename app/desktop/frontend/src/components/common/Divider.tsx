@@ -31,7 +31,7 @@ export function Divider({
       {icon && (
         <div
           className={cn(
-            "grid h-[18px] w-[18px] place-items-center rounded-full bg-surface-2",
+            "grid h-4.5 w-4.5 place-items-center rounded-full bg-surface-2",
             intent === "accent" ? "text-accent" : "text-fg-faint",
           )}
         >

@@ -11,7 +11,7 @@ export function PlanCheck({ status }: { status: PlanItem["status"] }) {
   return (
     <div
       className={cn(
-        "mt-px grid h-[18px] w-[18px] shrink-0 place-items-center rounded",
+        "mt-px grid h-4.5 w-4.5 shrink-0 place-items-center rounded",
         status === "done" && "bg-accent text-on-accent",
         status === "doing" &&
           "border-[1.5px] border-accent relative " +

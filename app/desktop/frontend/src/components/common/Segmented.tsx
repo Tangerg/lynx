@@ -25,7 +25,7 @@ export function Segmented<T extends string>({ options, value, onChange }: Props<
             type="button"
             onClick={() => { if (!active) onChange(o.value); }}
             className={cn(
-              "inline-flex h-[26px] flex-1 items-center justify-center gap-1.5 rounded-xs px-3 font-sans text-[11.5px] font-semibold transition-colors duration-150 ease-out",
+              "inline-flex h-6.5 flex-1 items-center justify-center gap-1.5 rounded-xs px-3 font-sans text-[11.5px] font-semibold transition-colors duration-150 ease-out",
               active
                 ? "bg-surface-3 text-fg shadow-[0_1px_0_rgba(0,0,0,0.4),0_0_0_0.5px_rgba(255,255,255,0.04)_inset]"
                 : "text-fg-muted hover:text-fg",

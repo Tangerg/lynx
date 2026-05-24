@@ -134,7 +134,7 @@ export function ToolCard({
 
 // Shared button style for inline action + expand glyphs.
 const ACTION_BTN =
-  "grid h-[22px] w-[22px] place-items-center rounded-xs border-0 bg-transparent text-fg-faint cursor-pointer transition-colors hover:bg-surface-3 hover:text-fg";
+  "grid h-5.5 w-5.5 place-items-center rounded-xs border-0 bg-transparent text-fg-faint cursor-pointer transition-colors hover:bg-surface-3 hover:text-fg";
 
 function ToolMeta({ tool }: { tool: ToolCall }) {
   return (
