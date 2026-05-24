@@ -1,42 +1,67 @@
 // Built-in plugin: Solarized Light theme.
 //
-// Mirror of Solarized Dark — same 8 accent hues, base-* ladder inverted.
+// Mirror of Solarized Dark — same 8 accent hues, base-* ladder
+// inverted. Same blue accent works on both schemes.
 
 import { defineThemePlugin } from "../themes/defineThemePlugin";
+
+const c = {
+  blue:        "#268bd2",
+  blueBorder:  "#1e6fa6",
+  bluePress:   "#155383",
+
+  base03: "#002b36",
+  base02: "#073642",
+  base01: "#586e75",
+  base00: "#657b83",
+  base0:  "#839496",
+  base1:  "#93a1a1",
+  base2:  "#eee8d5",  // light surface anchor
+  base3:  "#fdf6e3",  // light canvas anchor
+};
 
 export default defineThemePlugin({
   id: "solarized-light",
   label: "Solarized Light",
   scheme: "light",
   order: 31,
-  palette: {
-    // ---------- Brand — Solarized blue (identical to Dark) ----------
-    "color-accent":         "#268bd2",
-    "color-accent-border":  "#1e6fa6",
-    "color-accent-press":   "#155383",
 
-    // ---------- Surface ladder — base2 / base3 ----------
-    "color-bg":             "#eee8d5", // base2
-    "color-surface":        "#fdf6e3", // base3
-
-    // ---------- Ink — inverted base-* ladder ----------
-    "color-text":           "#657b83", // base00 — body
-    "color-text-bright":    "#002b36", // base03
-    "color-text-soft":      "#586e75", // base01
-    "color-text-muted":     "#93a1a1", // base1
-    "color-text-faint":     "#b5b2a2", // derived for "very faint"
-    "color-text-on-accent": "#fdf6e3",
-
-    // ---------- Hairlines — derived (Solarized has no light borders) ----------
-    "color-border":         "#ddd6c1",
-    "color-border-soft":    "#c4bda4",
-    "color-divider":        "#93a1a1",
-    "color-app-divider":    "#eee8d5",
-
-    // ---------- Semantic — identical to Solarized Dark ----------
-    "color-negative":       "#dc322f",
-    "color-warning":        "#cb4b16",
-    "color-info":           "#2aa198",
-    "color-success":        "#859900",
+  brand: {
+    accent:       c.blue,
+    accentBorder: c.blueBorder,
+    accentPress:  c.bluePress,
+    textOnAccent: c.base3,
+  },
+  surfaces: {
+    bg:       c.base2,
+    surface:  c.base3,
+    // Derived "deeper" tones for hover / popover — Solarized doesn't
+    // canonically define light lifted surfaces, so we step down toward
+    // base2's hue.
+    surface2: "#e7e0c8",
+    surface3: "#d8d0b4",
+    surface4: "#cac1a4",
+  },
+  ink: {
+    text:       c.base00,
+    textBright: c.base03,
+    textSoft:   c.base01,
+    // base1 #93a1a1 was ~3.2:1 on base3 (failing AA). Step toward base00.
+    textMuted:  "#6f8388",
+    // Derived "very faint" — base1 + base2 mix that reads ~4.6:1.
+    textFaint:  "#7e8d8d",
+  },
+  borders: {
+    border:     "#ddd6c1",
+    borderSoft: "#c4bda4",
+    divider:    c.base1,
+    appDivider: c.base2,
+  },
+  semantic: {
+    // Solarized canonical hues — work on both schemes per the spec
+    negative: "#dc322f",
+    warning:  "#cb4b16",
+    info:     "#2aa198",
+    success:  "#859900",
   },
 });
