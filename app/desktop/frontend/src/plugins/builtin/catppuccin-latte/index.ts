@@ -5,39 +5,67 @@
 
 import { defineThemePlugin } from "../themes/defineThemePlugin";
 
+const c = {
+  // Brand — Latte's saturated mauve
+  mauve:       "#8839ef",
+  mauveBorder: "#6f25d4",
+  mauvePress:  "#5817b3",
+
+  // Latte base ladder
+  base:        "#eff1f5",
+  mantle:      "#e6e9ef",
+  surface0:    "#ccd0da",
+  surface1:    "#bcc0cc",
+  surface2:    "#acb0be",
+
+  // Overlay / muted
+  overlay0:    "#9ca0b0",
+  overlay1:    "#8c8fa1",
+
+  // Text
+  text:        "#4c4f69",
+  subtext1:    "#5c5f77",
+  subtext0:    "#6c6f85",
+};
+
 export default defineThemePlugin({
   id: "catppuccin-latte",
   label: "Catppuccin Latte",
   scheme: "light",
   order: 41,
-  palette: {
-    // ---------- Brand — Latte's saturated mauve ----------
-    "color-accent":         "#8839ef",
-    "color-accent-border":  "#6f25d4",
-    "color-accent-press":   "#5817b3",
 
-    // ---------- Surface ladder — mantle / base ----------
-    "color-bg":             "#e6e9ef",
-    "color-surface":        "#eff1f5",
-
-    // ---------- Ink ----------
-    "color-text":           "#4c4f69",
-    "color-text-bright":    "#000000",
-    "color-text-soft":      "#5c5f77", // subtext1
-    "color-text-muted":     "#6c6f85", // subtext0
-    "color-text-faint":     "#8c8fa1", // overlay1
-    "color-text-on-accent": "#ffffff",
-
-    // ---------- Hairlines — surface0/1/2 ----------
-    "color-border":         "#ccd0da", // surface0
-    "color-border-soft":    "#bcc0cc", // surface1
-    "color-divider":        "#acb0be", // surface2
-    "color-app-divider":    "#ccd0da",
-
-    // ---------- Semantic ----------
-    "color-negative":       "#d20f39",
-    "color-warning":        "#fe640b",
-    "color-info":           "#1e66f5",
-    "color-success":        "#40a02b",
+  brand: {
+    accent:       c.mauve,
+    accentBorder: c.mauveBorder,
+    accentPress:  c.mauvePress,
+    textOnAccent: "#ffffff",
+  },
+  surfaces: {
+    bg:       c.mantle,
+    surface:  c.base,
+    surface2: c.surface0,
+    surface3: c.surface1,
+    surface4: c.surface2,
+  },
+  ink: {
+    text:       c.text,
+    textBright: "#000000",
+    textSoft:   c.subtext1,
+    textMuted:  c.subtext0,
+    // Bumped from overlay1 #8c8fa1 (~3.4:1 on base) → #75788a (~4.7:1).
+    textFaint:  "#75788a",
+  },
+  borders: {
+    border:     c.surface0,
+    borderSoft: c.surface1,
+    divider:    c.surface2,
+    appDivider: c.surface0,
+  },
+  semantic: {
+    // Canonical Catppuccin Latte
+    negative: "#d20f39",
+    warning:  "#fe640b",
+    info:     "#1e66f5",
+    success:  "#40a02b",
   },
 });

@@ -31,4 +31,14 @@ export const builtinThemes: PluginSpec[] = [
 ];
 
 export { defineThemePlugin } from "./defineThemePlugin";
-export type { ThemePluginSpec } from "./defineThemePlugin";
+export type {
+  ThemePluginSpec,
+  ThemeBrand,
+  ThemeSurfaces,
+  ThemeInk,
+  ThemeBorders,
+  ThemeSemantic,
+  ThemeCta,
+  ThemeShadows,
+  ThemeRadii,
+} from "./defineThemePlugin";

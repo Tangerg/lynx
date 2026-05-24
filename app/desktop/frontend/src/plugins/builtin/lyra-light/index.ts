@@ -6,50 +6,72 @@
 
 import { defineThemePlugin } from "../themes/defineThemePlugin";
 
+const c = {
+  // Brand — Lyra green, dimmed for white background
+  green:       "#15883e",
+  greenBorder: "#117134",
+  greenPress:  "#0c5d2a",
+
+  // Surface anchors — Vercel-style #fafafa canvas / #ffffff surface
+  canvas:      "#fafafa",
+  surface1:    "#ffffff",
+
+  // Ink — Vercel #171717 / #4d4d4d / #5e5e5e ladder.
+  // text-muted + text-faint calibrated for WCAG AA on small body sizes
+  // (~6.8:1 / ~4.9:1 on the #fafafa canvas).
+  inkBright:   "#000000",
+  ink:         "#171717",
+  inkSoft:     "#4d4d4d",
+  inkMuted:    "#5e5e5e",
+  inkFaint:    "#707070",
+
+  // Hairlines — Vercel #ebebeb / #d4d4d6 / #a1a1a1 ladder
+  hairline:    "#ebebeb",
+  hairStrong:  "#d4d4d6",
+  hairTertiary:"#a1a1a1",
+};
+
 export default defineThemePlugin({
   id: "light",
   label: "Light",
   scheme: "light",
   order: 1,
-  palette: {
-    // ---------- Brand — Lyra green, dimmed for white background ----------
-    "color-accent":         "#15883e",
-    "color-accent-border":  "#117134",
-    "color-accent-press":   "#0c5d2a",
 
-    // ---------- Surface ladder ----------
-    "color-bg":             "#fafafa",
-    "color-surface":        "#ffffff",
-
-    // Ink ladder calibrated so the small-text tiers stay above WCAG AA
-    // (4.5:1 on the #fafafa canvas / #ffffff surface). text-faint was
-    // #a1a1a1 which read ≈2.6:1 — failed AA badly. New #707070 reads
-    // ≈4.9:1 while staying clearly subordinate to text-muted. Same
-    // visual hierarchy, accessible to low-vision users.
-    "color-text":           "#171717",
-    "color-text-bright":    "#000000",
-    "color-text-soft":      "#4d4d4d",
-    "color-text-muted":     "#5e5e5e", // bumped from #6f6f6f → ~6.8:1 on canvas
-    "color-text-faint":     "#707070", // bumped from #a1a1a1 → ~4.9:1 on canvas
-    "color-text-on-accent": "#ffffff",
-
-    // ---------- Hairlines — Vercel #ebebeb / #d4d4d6 ladder ----------
-    "color-border":         "#ebebeb",
-    "color-border-soft":    "#d4d4d6",
-    "color-divider":        "#a1a1a1",
-    "color-app-divider":    "#ebebeb",
-
-    // ---------- Semantic ----------
-    "color-negative":       "#ee0000",
-    "color-warning":        "#f5a623",
-    "color-info":           "#0070f3",
-    "color-success":        "#15883e",
+  brand: {
+    accent:       c.green,
+    accentBorder: c.greenBorder,
+    accentPress:  c.greenPress,
+    textOnAccent: "#ffffff",
   },
-  // Override CTA — Vercel's signature black-on-white instead of the
-  // accent-driven default. Accent stays reserved for live indicators.
+  surfaces: {
+    bg:      c.canvas,
+    surface: c.surface1,
+  },
+  ink: {
+    text:       c.ink,
+    textBright: c.inkBright,
+    textSoft:   c.inkSoft,
+    textMuted:  c.inkMuted,
+    textFaint:  c.inkFaint,
+  },
+  borders: {
+    border:     c.hairline,
+    borderSoft: c.hairStrong,
+    divider:    c.hairTertiary,
+    appDivider: c.hairline,
+  },
+  semantic: {
+    negative: "#ee0000",
+    warning:  "#f5a623",
+    info:     "#0070f3",
+    success:  "#15883e",
+  },
+  // Vercel signature CTA — pure black on white. Decoupled from accent
+  // so accent stays reserved for live indicators (running pill, focus
+  // ring, active tab line).
   cta: {
-    "color-cta":       "#000000",
-    "color-cta-hover": "#222222",
-    "color-cta-text":  "#ffffff",
+    cta:      "#000000",
+    ctaHover: "#222222",
+    ctaText:  "#ffffff",
   },
 });
