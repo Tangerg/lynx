@@ -35,8 +35,14 @@ export function SettingsPage() {
             key={p.id}
             type="button"
             onClick={() => setSelectedId(p.id)}
+            // Hover === active background (settings-rail follows the
+            // same rule as SessionRow / ProjectRow). Both states share
+            // the same surface-3 lift + fg ink; nothing else
+            // distinguishes them — the active pane reads as "selected"
+            // via the chat-tab strip mirror in the topbar, not via a
+            // second tone step inside the rail itself.
             className={cn(
-              "flex items-center gap-2 rounded-md border-0 bg-transparent px-2.5 py-2 text-left text-[14px] text-fg-muted cursor-pointer transition-colors duration-150 hover:bg-[color-mix(in_srgb,var(--color-text)_5%,transparent)] hover:text-fg",
+              "flex items-center gap-2 rounded-md border-0 bg-transparent px-2.5 py-2 text-left text-[14px] text-fg-muted cursor-pointer transition-colors duration-150 hover:bg-surface-3 hover:text-fg",
               p.id === activeId && "bg-surface-3 text-fg",
             )}
           >
