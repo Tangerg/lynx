@@ -1,6 +1,10 @@
+import { useEffect, useMemo, useState } from "react";
+import type { Highlighter } from "shiki";
 import type { DiffRow } from "@/components/tools/previews";
 import { cn } from "@/lib/utils";
-import { highlightTS } from "@/utils/highlight";
+import { getHighlighter } from "@/lib/shiki";
+import { resolveScheme } from "@/plugins/sdk";
+import { useThemeStore } from "@/state/themeStore";
 
 // A diff row's line numbers (`l`/`r`) plus a small ordinal are enough to
 // produce a stable key without relying on row content collisions.
@@ -11,7 +15,37 @@ function keyFor(row: DiffRow, i: number): string {
   return `=:${row.l}-${row.r}`;
 }
 
+// Strip Shiki's <pre><code>…</code></pre> wrapper so the inner token spans
+// can be injected inline into our grid row.
+function highlightInline(h: Highlighter, code: string, theme: string): string {
+  const html = h.codeToHtml(code || " ", { lang: "typescript", theme });
+  return html.match(/<code[^>]*>([\s\S]*)<\/code>/)?.[1] ?? code;
+}
+
 export function DiffView({ rows }: { rows: DiffRow[] }) {
+  const themeId = useThemeStore((s) => s.theme);
+  const shikiTheme = resolveScheme(themeId) === "light" ? "github-light" : "github-dark";
+  const [highlighter, setHighlighter] = useState<Highlighter | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void getHighlighter().then((h) => {
+      if (!cancelled) setHighlighter(h);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const highlighted = useMemo(() => {
+    if (!highlighter) return null;
+    const out = new Map<string, string>();
+    for (const row of rows) {
+      if (row.type !== "hunk") out.set(row.code, highlightInline(highlighter, row.code, shikiTheme));
+    }
+    return out;
+  }, [highlighter, rows, shikiTheme]);
+
   return (
     <div className="py-2 font-mono text-[12px] leading-[1.6]">
       {rows.map((row, i) => {
@@ -38,22 +72,18 @@ export function DiffView({ rows }: { rows: DiffRow[] }) {
             : row.type === "del"
               ? "text-[rgba(243,114,127,0.7)]"
               : "text-fg-faint";
-        const codeTone =
-          row.type === "add"
-            ? "text-[#c8f5d8]"
-            : row.type === "del"
-              ? "text-[#f5cdd2]"
-              : "text-fg-soft";
         const sign = row.type === "add" ? "+" : row.type === "del" ? "−" : " ";
         const lnum = row.type === "del" ? row.l : row.r;
+        const inner = highlighted?.get(row.code);
         return (
           <div key={k} className={cn("grid grid-cols-[36px_36px_1fr] gap-1.5 px-3", tone)}>
             <span className={cn("text-right text-[11px] select-none", meta)}>{lnum}</span>
             <span className={cn("text-center text-[11px] select-none", meta)}>{sign}</span>
-            <span
-              className={cn("whitespace-pre", codeTone)}
-              dangerouslySetInnerHTML={{ __html: highlightTS(row.code) }}
-            />
+            {inner ? (
+              <span className="whitespace-pre" dangerouslySetInnerHTML={{ __html: inner }} />
+            ) : (
+              <span className="whitespace-pre text-fg-soft">{row.code}</span>
+            )}
           </div>
         );
       })}

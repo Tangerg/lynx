@@ -1,23 +1,16 @@
-// Lightweight i18n — no library, ~60 lines.
-//
-// Why not react-i18next: that package + its peers add ~120KB to the
-// bundle and require a Provider in the tree. For an in-app desktop UI
-// with two locales and a few dozen strings, this is overkill. The
-// helper below uses `useSyncExternalStore` so any component that calls
-// `useT()` re-renders when the user changes locale.
-//
-// Adding a string: drop it into both locales in `messages` below. The
-// `t()` key falls back through  active locale → English → key string,
-// so a missing translation never crashes the UI.
+// Thin wrapper over i18next + react-i18next so the rest of the app
+// stays on a stable `useT() / setLocale() / useLocale()` API. Dictionary
+// lives below as a single flat-keyed object (no nested namespaces) — the
+// helper sets `keySeparator: false` to keep "sidebar.search.label" as a
+// literal key instead of treating it as a path.
 
-import { useSyncExternalStore } from "react";
+import i18next from "i18next";
+import { initReactI18next, useTranslation } from "react-i18next";
 
 export type Locale = "en" | "zh";
 
 const STORAGE_KEY = "lyra.locale";
 
-// User-facing strings, grouped by surface. Keep keys hierarchical
-// (surface.element.purpose) so future search-and-replace stays scoped.
 const messages: Record<Locale, Record<string, string>> = {
   en: {
     "common.cancel": "Cancel",
@@ -26,7 +19,6 @@ const messages: Record<Locale, Record<string, string>> = {
     "common.retry": "Retry",
     "common.search": "Search",
 
-    // Sidebar
     "sidebar.search.placeholder": "Search · files · commands",
     "sidebar.search.label": "Search files and commands",
     "sidebar.section.projects": "Projects",
@@ -40,7 +32,6 @@ const messages: Record<Locale, Record<string, string>> = {
     "sidebar.action.settings": "Settings",
     "sidebar.user.menuLabel": "Account menu",
 
-    // Composer
     "composer.input.label": "Message composer",
     "composer.placeholder.fallback": "Ask, plan, or paste a stack trace…  /  to run a command",
     "composer.send": "Send",
@@ -48,11 +39,9 @@ const messages: Record<Locale, Record<string, string>> = {
     "composer.attachFile": "Attach file",
     "composer.switchModel": "Switch model",
 
-    // Chat error boundary
     "chat.error.title": "Render error",
     "chat.error.retry": "Retry",
 
-    // Welcome screen
     "welcome.eyebrow": "agent ready",
     "welcome.title": "What can I help you build today.",
     "welcome.sub": "Start a conversation, paste a stack trace, or pick a suggestion below.",
@@ -65,7 +54,6 @@ const messages: Record<Locale, Record<string, string>> = {
     "welcome.suggest.checklist": "Draft a checklist",
     "welcome.suggest.checklist.prompt": "Draft a checklist for ",
 
-    // Settings
     "settings.title": "Settings",
     "settings.pane.appearance": "Appearance",
     "settings.pane.plugins": "Plugins",
@@ -78,10 +66,9 @@ const messages: Record<Locale, Record<string, string>> = {
     "settings.language.label": "Language",
     "settings.language.sub": "Interface language. More locales can be added via plugins.",
 
-    // Icon gallery
     "iconGallery.filterLabel": "Filter icons by name",
     "iconGallery.filterPlaceholder": "Filter by name…",
-    "iconGallery.empty": 'No icons match "{q}".',
+    "iconGallery.empty": 'No icons match "{{q}}".',
   },
   zh: {
     "common.cancel": "取消",
@@ -138,11 +125,10 @@ const messages: Record<Locale, Record<string, string>> = {
 
     "iconGallery.filterLabel": "按名称筛选图标",
     "iconGallery.filterPlaceholder": "按名称筛选…",
-    "iconGallery.empty": '没有匹配 "{q}" 的图标。',
+    "iconGallery.empty": '没有匹配 "{{q}}" 的图标。',
   },
 };
 
-// Locale defaults: persisted value → browser language → English.
 function detectInitial(): Locale {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
@@ -154,59 +140,58 @@ function detectInitial(): Locale {
   return nav.toLowerCase().startsWith("zh") ? "zh" : "en";
 }
 
-let current: Locale = detectInitial();
-const listeners = new Set<() => void>();
+const initial = detectInitial();
+
+void i18next.use(initReactI18next).init({
+  resources: {
+    en: { translation: messages.en },
+    zh: { translation: messages.zh },
+  },
+  lng: initial,
+  fallbackLng: "en",
+  // Keys are dotted strings ("sidebar.search.label") — treat them as
+  // literal, not as nested paths.
+  keySeparator: false,
+  nsSeparator: false,
+  interpolation: { escapeValue: false },
+  returnNull: false,
+});
+
+if (typeof document !== "undefined") {
+  document.documentElement.lang = initial === "zh" ? "zh-CN" : "en";
+}
 
 export function getLocale(): Locale {
-  return current;
+  return (i18next.resolvedLanguage as Locale | undefined) ?? "en";
 }
 
 export function setLocale(loc: Locale): void {
-  if (loc === current) return;
-  current = loc;
+  if (loc === getLocale()) return;
+  void i18next.changeLanguage(loc);
   try {
     localStorage.setItem(STORAGE_KEY, loc);
   } catch {
     /* ignore */
   }
-  // Set <html lang="…"> so SR and CSS `:lang()` selectors track too.
   if (typeof document !== "undefined") {
     document.documentElement.lang = loc === "zh" ? "zh-CN" : "en";
   }
-  listeners.forEach((l) => l());
 }
 
-// Initialise <html lang> on first load.
-if (typeof document !== "undefined") {
-  document.documentElement.lang = current === "zh" ? "zh-CN" : "en";
-}
-
-/** Lookup with active locale → English fallback → key passthrough. */
 export function t(key: string, params?: Record<string, string | number>): string {
-  let msg = messages[current][key] ?? messages.en[key] ?? key;
-  if (params) {
-    for (const [k, v] of Object.entries(params)) {
-      msg = msg.replaceAll(`{${k}}`, String(v));
-    }
-  }
-  return msg;
+  return i18next.t(key, params) as string;
 }
 
-const subscribe = (cb: () => void) => {
-  listeners.add(cb);
-  return () => listeners.delete(cb);
-};
-const getSnapshot = () => current;
-
-/** Reactive locale hook — components using `useT()` re-render on change. */
+/** Reactive locale hook — components using this re-render on change. */
 export function useLocale(): Locale {
-  return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+  const { i18n } = useTranslation();
+  return (i18n.resolvedLanguage as Locale | undefined) ?? "en";
 }
 
-/** Hook that returns a translate function bound to the live locale. */
+/** Hook returning a translate fn bound to the live locale. */
 export function useT(): typeof t {
-  useLocale();
-  return t;
+  const { t: rt } = useTranslation();
+  return (key, params) => rt(key, params) as string;
 }
 
 export const LOCALES: ReadonlyArray<{ id: Locale; label: string }> = [
