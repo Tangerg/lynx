@@ -7,6 +7,7 @@
 
 import { useState } from "react";
 import { Icon, IconButton, PillButton } from "@/components/common";
+import { cn } from "@/lib/utils";
 import {
   definePlugin,
   reloadPlugin,
@@ -49,7 +50,7 @@ function PluginsPane() {
 
   return (
     <div>
-      <div className="plugin-list">
+      <div className="flex flex-col gap-2">
         {rows.map(({ spec }) => {
           const errCount = errorsByPlugin.get(spec.name) ?? 0;
           const origin = pluginOrigin(spec.name);
@@ -57,22 +58,25 @@ function PluginsPane() {
           return (
             <div
               key={spec.name}
-              className={`plugin-list-row ${errCount > 0 ? "has-errors" : ""}`}
+              className={cn(
+                "grid grid-cols-[1fr_auto] gap-2.5 rounded-lg border border-line-soft bg-canvas px-3 py-2.5",
+                errCount > 0 && "border-[rgba(243,114,127,0.36)]",
+              )}
             >
               <div>
-                <div className="plugin-list-name">
+                <div className="text-[13px] font-semibold text-fg">
                   {spec.name}
                   <OriginBadge origin={origin} />
                 </div>
-                <div className="plugin-list-version">v{spec.version}</div>
+                <div className="font-mono text-[11px] text-fg-faint">v{spec.version}</div>
                 {errCount > 0 && (
-                  <div className="plugin-list-errors" style={{ marginTop: 6 }}>
+                  <div className="mt-1.5 inline-flex items-center gap-1.5 text-[11px] text-negative">
                     <Icon name="bug" size={11} />
                     {errCount} error{errCount === 1 ? "" : "s"} — see browser console
                   </div>
                 )}
               </div>
-              <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+              <div className="flex items-center gap-1.5">
                 {errCount > 0 && (
                   <PillButton variant="outlined" size="sm" onClick={() => clearFor(spec.name)}>
                     Clear
@@ -91,38 +95,32 @@ function PluginsPane() {
         })}
       </div>
 
-      <div style={{
-        marginTop: 16,
-        color: "var(--color-text-faint)",
-        fontSize: 11.5,
-        lineHeight: 1.55,
-      }}>
-        Sideload by dropping a plugin folder containing <code style={codeStyle}>index.js</code>
-        {" "}into <code style={codeStyle}>~/.lyra/plugins/</code> and restarting the app.
-        See <code style={codeStyle}>frontend/sample-plugins/hello-sideload/</code> for a template.
+      <div className="mt-4 text-[11.5px] leading-[1.55] text-fg-faint">
+        Sideload by dropping a plugin folder containing <code className={INLINE_CODE}>index.js</code>
+        {" "}into <code className={INLINE_CODE}>~/.lyra/plugins/</code> and restarting the app.
+        See <code className={INLINE_CODE}>frontend/sample-plugins/hello-sideload/</code> for a template.
       </div>
     </div>
   );
 }
 
+const INLINE_CODE = "rounded-[3px] bg-surface-2 px-1.5 py-px font-mono text-fg";
+
 function OriginBadge({ origin }: { origin: "builtin" | "sideload" }) {
   return (
     <span
-      className={`plugin-origin-badge plugin-origin-${origin}`}
       title={origin === "builtin" ? "Ships with Lyra" : "User-installed"}
+      className={cn(
+        "ml-2 inline-block rounded-full px-1.5 py-px font-mono text-[10px] font-semibold align-middle tracking-normal",
+        origin === "builtin"
+          ? "bg-surface-2 text-fg-muted"
+          : "bg-[rgba(82,157,245,0.14)] text-info",
+      )}
     >
       {origin === "builtin" ? "Built-in" : "Sideload"}
     </span>
   );
 }
-
-const codeStyle: React.CSSProperties = {
-  fontFamily: "var(--font-mono)",
-  background: "var(--color-surface-2)",
-  padding: "1px 5px",
-  borderRadius: 3,
-  color: "var(--color-text)",
-};
 
 export default definePlugin({
   name: "lyra.builtin.plugins-pane",

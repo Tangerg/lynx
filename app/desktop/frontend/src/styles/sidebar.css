@@ -76,6 +76,19 @@
   color: var(--color-text-faint);
   pointer-events: none;
 }
+/* ⌘K hint, absolutely positioned inside .side-search. Lives here so the
+   whole search-input cluster is one section. */
+.search-kbd {
+  position: absolute;
+  right: 10px; top: 50%; transform: translateY(-50%);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0;
+  color: var(--color-text-faint);
+  background: var(--color-surface-2);
+  padding: 1px 6px;
+  border-radius: 4px;
+}
 
 .side-list { display: flex; flex-direction: column; gap: 2px; padding: 0 4px; }
 

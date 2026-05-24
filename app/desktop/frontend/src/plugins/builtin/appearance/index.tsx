@@ -41,25 +41,37 @@ function ThemeRow({
   return (
     <button
       type="button"
-      className={cn("theme-picker-row", active && "active")}
       onClick={() => onSelect(spec.id)}
       aria-pressed={active}
+      className={cn(
+        "grid grid-cols-[48px_minmax(0,1fr)_auto] items-center gap-3 rounded-md border border-line bg-surface px-3 py-2.5 text-left cursor-pointer transition-[background,border-color] duration-150 hover:bg-surface-2 focus-visible:outline-none focus-visible:shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-accent)_22%,transparent)]",
+        active && "bg-surface-2 border-accent",
+      )}
     >
       {/* Layered swatch: bg fills the rectangle, surface lifts above as a
           floating tile, accent dot anchors the bottom-right. Reads as a
           mini "what does this theme look like" cue without needing words. */}
-      <div className="theme-picker-swatch" style={{ background: preview.bg }}>
-        <div className="tps-surface" style={{ background: preview.surface }} />
-        <div className="tps-accent" style={{ background: preview.accent }} />
+      <div
+        className="relative h-8 w-12 shrink-0 overflow-hidden rounded-sm border border-line"
+        style={{ background: preview.bg }}
+      >
+        <div
+          className="absolute inset-x-2 top-2 bottom-1 rounded-[2px]"
+          style={{ background: preview.surface }}
+        />
+        <div
+          className="absolute right-1 bottom-1 h-1.5 w-1.5 rounded-full"
+          style={{ background: preview.accent }}
+        />
       </div>
-      <div className="theme-picker-meta">
-        <div className="theme-picker-name">{spec.label}</div>
-        <div className="theme-picker-scheme">
-          <Icon name={spec.scheme === "dark" ? "moon" : "sun"} size={10} />
+      <div className="grid min-w-0 gap-0.5">
+        <div className="truncate text-[13px] font-semibold leading-[1.2] text-fg">{spec.label}</div>
+        <div className="inline-flex items-center gap-1 font-mono text-[10.5px] text-fg-faint lowercase tracking-normal">
+          <Icon name={spec.scheme === "dark" ? "moon" : "sun"} size={10} className="shrink-0" />
           {spec.scheme}
         </div>
       </div>
-      {active && <Icon name="check" size={14} className="theme-picker-check" />}
+      {active && <Icon name="check" size={14} className="shrink-0 text-accent" />}
     </button>
   );
 }
@@ -75,14 +87,16 @@ function AppearancePane() {
 
   return (
     <div>
-      <div className="settings-row settings-row-block">
+      {/* Block-style row: label on top, control below at full width — the
+          theme picker is a grid that needs more room than a 1fr column. */}
+      <div className="grid items-stretch gap-3 py-3">
         <div>
-          <div className="settings-row-label">Theme</div>
-          <div className="settings-row-sub">
+          <div className="text-[13px] font-semibold text-fg">Theme</div>
+          <div className="mt-0.5 text-[11.5px] text-fg-faint">
             Pick a color theme. Plugins can register more — they show up here automatically.
           </div>
         </div>
-        <div className="theme-picker">
+        <div className="grid gap-2 [grid-template-columns:repeat(auto-fill,minmax(220px,1fr))]">
           {themes.map((t) => (
             <ThemeRow
               key={t.id}
@@ -94,19 +108,24 @@ function AppearancePane() {
         </div>
       </div>
 
-      <div className="settings-row">
+      {/* Default settings row: label column + control column. */}
+      <div className="grid grid-cols-[140px_1fr] items-center gap-4 py-3">
         <div>
-          <div className="settings-row-label">Accent</div>
-          <div className="settings-row-sub">Functional highlight color — play / active / CTA.</div>
+          <div className="text-[13px] font-semibold text-fg">Accent</div>
+          <div className="mt-0.5 text-[11.5px] text-fg-faint">Functional highlight color — play / active / CTA.</div>
         </div>
-        <div className="accent-swatches" style={{ justifyContent: "flex-start" }}>
+        <div className="flex flex-wrap gap-2.5 justify-start">
           {accents.map((a) => (
             <button
               key={a.id}
-              className={`accent-swatch ${accent === a.dark ? "active" : ""}`}
-              style={{ background: a.dark }}
+              type="button"
               onClick={() => setAccent(a.dark)}
               title={`Accent: ${a.label}`}
+              style={{ background: a.dark }}
+              className={cn(
+                "h-[18px] w-[18px] rounded-full border-2 border-transparent bg-clip-padding p-0 cursor-pointer transition-[transform,box-shadow] duration-150 hover:scale-[1.08] active:scale-95",
+                accent === a.dark && "border-surface shadow-[0_0_0_1.5px_var(--color-text)]",
+              )}
             />
           ))}
         </div>
