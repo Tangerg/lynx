@@ -17,8 +17,6 @@ import { HOST_API_VERSION } from "./sdk/apiVersion";
 import { safeCall } from "./sdk/errors";
 import { usePluginStore } from "./sdk/registry";
 
-export { HOST_API_VERSION };
-
 declare global {
   interface Window {
     __LYRA__?: LyraHostBridge;

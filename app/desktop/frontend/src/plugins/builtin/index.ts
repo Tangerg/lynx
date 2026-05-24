@@ -166,8 +166,6 @@ const kernel: PluginSpec[] = [kernelSidebar, kernelChat, kernelSettings];
 // Sidebar internals — sections in the expanded view, items in the rail.
 // ---------------------------------------------------------------------------
 const sidebar: PluginSpec[] = [
-  // sidebarBrand removed per user request — the top-left mark + "Lyra"
-  // wordmark added decorative weight without functional value.
   sidebarSearch,
   sidebarProjects,
   sidebarSessions,

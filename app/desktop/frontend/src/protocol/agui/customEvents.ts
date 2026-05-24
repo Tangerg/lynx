@@ -2,8 +2,6 @@
 // Standard AG-UI events come from @ag-ui/core directly; CUSTOM is the spec's
 // escape hatch for product-level extensions, so we declare ours here.
 
-import type { CustomEvent } from "@ag-ui/core";
-
 // `name` discriminators — values for CustomEvent.name we recognize.
 export const CUSTOM = {
   PLAN: "lyra.plan",
@@ -62,8 +60,3 @@ export type TelemetryPayload = {
   ctxPct: number;
   cost: string;
 };
-
-// Type-narrowing helpers — keep call sites free of `as` casts.
-export function isCustom(name: string, ev: CustomEvent): boolean {
-  return ev.name === name;
-}

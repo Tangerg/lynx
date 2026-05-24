@@ -60,6 +60,23 @@ function useSortedList<T extends Ordered>(map: Map<string, Owned<T>>): T[] {
   );
 }
 
+// Merge two ownership maps by id and sort by order. Used for the three
+// surfaces that have both a "declared placeholder" (rendered until the
+// owning plugin activates) and a "registered real" (the activated
+// component). Registered entries win when ids collide.
+function useDeclaredMerged<D extends { id: string }, R extends { id: string } & Ordered>(
+  registered: Map<string, Owned<R>>,
+  declared: Map<string, Owned<D>>,
+  declaredToReal: (d: D, pluginName: string) => R,
+): R[] {
+  return useMemo(() => {
+    const byId = new Map<string, R>();
+    for (const o of declared.values()) byId.set(o.value.id, declaredToReal(o.value, o.pluginName));
+    for (const o of registered.values()) byId.set(o.value.id, o.value);
+    return Array.from(byId.values()).sort((a, b) => (a.order ?? 100) - (b.order ?? 100));
+  }, [registered, declared, declaredToReal]);
+}
+
 // ---------------------------------------------------------------------------
 // Tool surface
 // ---------------------------------------------------------------------------
@@ -84,16 +101,7 @@ export function lookupToolIcon(fn: string): string | undefined {
 export function useWorkspaceViews(): WorkspaceViewSpec[] {
   const registered = usePluginStore((s) => s.workspaceViews);
   const declared = usePluginStore((s) => s.declaredViews);
-  return useMemo(() => {
-    const byId = new Map<string, WorkspaceViewSpec>();
-    for (const o of declared.values()) {
-      byId.set(o.value.id, declaredToWorkspaceView(o.value, o.pluginName));
-    }
-    for (const o of registered.values()) {
-      byId.set(o.value.id, o.value);
-    }
-    return Array.from(byId.values()).sort((a, b) => (a.order ?? 100) - (b.order ?? 100));
-  }, [registered, declared]);
+  return useDeclaredMerged(registered, declared, declaredToWorkspaceView);
 }
 
 function declaredToWorkspaceView(d: ContributedView, pluginName: string): WorkspaceViewSpec {
@@ -173,16 +181,7 @@ export function lookupSlashCommand(cmd: string): SlashCommandSpec | undefined {
 export function useSettingsPanes(): SettingsPaneSpec[] {
   const registered = usePluginStore((s) => s.settingsPanes);
   const declared = usePluginStore((s) => s.declaredSettingsPanes);
-  return useMemo(() => {
-    const byId = new Map<string, SettingsPaneSpec>();
-    for (const o of declared.values()) {
-      byId.set(o.value.id, declaredToSettingsPane(o.value, o.pluginName));
-    }
-    for (const o of registered.values()) {
-      byId.set(o.value.id, o.value);
-    }
-    return Array.from(byId.values()).sort((a, b) => (a.order ?? 100) - (b.order ?? 100));
-  }, [registered, declared]);
+  return useDeclaredMerged(registered, declared, declaredToSettingsPane);
 }
 
 function declaredToSettingsPane(d: ContributedSettingsPane, pluginName: string): SettingsPaneSpec {
@@ -304,16 +303,7 @@ export function useSidebarRailItems(): SidebarRailItemSpec[] {
 export function useCommands(): CommandSpec[] {
   const registered = usePluginStore((s) => s.commands);
   const declared = usePluginStore((s) => s.declaredCommands);
-  return useMemo(() => {
-    const byId = new Map<string, CommandSpec>();
-    for (const o of declared.values()) {
-      byId.set(o.value.id, declaredToPlaceholder(o.value, o.pluginName));
-    }
-    for (const o of registered.values()) {
-      byId.set(o.value.id, o.value);
-    }
-    return Array.from(byId.values()).sort((a, b) => (a.order ?? 100) - (b.order ?? 100));
-  }, [registered, declared]);
+  return useDeclaredMerged(registered, declared, declaredToPlaceholder);
 }
 
 /** Look up a registered command by id. */

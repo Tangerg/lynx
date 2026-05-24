@@ -8,16 +8,16 @@ import { cn } from "@/lib/utils";
 import { definePlugin } from "@/plugins/sdk";
 import { useTasksStore, type TaskEntry, type TaskStatus } from "@/state/tasksStore";
 
-function statusIcon(status: TaskStatus): { name: "spark" | "check" | "x"; tone: string } {
-  if (status === "succeeded") return { name: "check", tone: "text-accent" };
-  if (status === "failed") return { name: "x", tone: "text-negative" };
-  // Running — use a generic icon. The animate-pulse-dot class drives a
-  // gentle blink so the spinner is visible without a separate component.
-  return { name: "spark", tone: "text-fg" };
-}
+// Glyph + tint by task status. `running` uses a generic spark + a pulse
+// animation (applied at render time) to fake a lightweight spinner.
+const STATUS_ICON: Record<TaskStatus, { name: "spark" | "check" | "x"; tone: string }> = {
+  running: { name: "spark", tone: "text-fg" },
+  succeeded: { name: "check", tone: "text-accent" },
+  failed: { name: "x", tone: "text-negative" },
+};
 
 function TaskRow({ task }: { task: TaskEntry }) {
-  const { name, tone } = statusIcon(task.status);
+  const { name, tone } = STATUS_ICON[task.status];
   const pct =
     task.progress !== null && task.status !== "failed"
       ? Math.round(Math.max(0, Math.min(1, task.progress)) * 100)
@@ -58,7 +58,7 @@ function TasksPill() {
   const list = Array.from(tasks.values()).sort((a, b) => a.startedAt - b.startedAt);
   const running = list.filter((t) => t.status === "running");
   const head = running[0] ?? list[list.length - 1];
-  const { name, tone } = statusIcon(head.status);
+  const { name, tone } = STATUS_ICON[head.status];
   const label = running.length > 1 ? `${head.label} +${running.length - 1}` : head.label;
 
   return (

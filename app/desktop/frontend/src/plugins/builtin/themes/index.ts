@@ -29,16 +29,3 @@ export const builtinThemes: PluginSpec[] = [
   catppuccinMocha,
   catppuccinLatte,
 ];
-
-export { defineThemePlugin } from "./defineThemePlugin";
-export type {
-  ThemePluginSpec,
-  ThemeBrand,
-  ThemeSurfaces,
-  ThemeInk,
-  ThemeBorders,
-  ThemeSemantic,
-  ThemeCta,
-  ThemeShadows,
-  ThemeRadii,
-} from "./defineThemePlugin";

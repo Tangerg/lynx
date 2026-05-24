@@ -42,6 +42,8 @@ import {
   nameForRole,
   nextThinkingId,
   nowTime,
+  roleFromSnapshotMessage,
+  roleFromTextEvent,
   updateActivity,
   updateMessage,
   updateTool,
@@ -89,8 +91,7 @@ const onStepStarted = (state: AgentViewState, ev: StepStartedEvent): AgentViewSt
 // ---- text messages ------------------------------------------------------
 
 const onTextStart = (state: AgentViewState, ev: TextMessageStartEvent): AgentViewState => {
-  const role: Message["role"] =
-    ev.role === "user" ? "user" : ev.role === "system" ? "system" : "assistant";
+  const role = roleFromTextEvent(ev.role);
   const msg: Message = {
     id: ev.messageId,
     role,
@@ -119,8 +120,7 @@ const onTextChunk = (state: AgentViewState, ev: TextMessageChunkEvent): AgentVie
   if (!ev.messageId) return state;
   let next = state;
   if (!findMessageById(next, ev.messageId)) {
-    const role: Message["role"] =
-      ev.role === "user" ? "user" : ev.role === "system" ? "system" : "assistant";
+    const role = roleFromTextEvent(ev.role);
     next = {
       ...next,
       messages: [
@@ -464,8 +464,7 @@ const onMessagesSnapshot = (state: AgentViewState, ev: MessagesSnapshotEvent): A
       continue;
     }
 
-    const role: Message["role"] =
-      m.role === "user" ? "user" : m.role === "assistant" ? "assistant" : "system";
+    const role = roleFromSnapshotMessage(m.role);
 
     const blocks: ContentBlock[] =
       m.role === "assistant"

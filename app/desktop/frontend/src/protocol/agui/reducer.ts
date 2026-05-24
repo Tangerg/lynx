@@ -18,7 +18,7 @@ import {
   lookupCustomEventHandlers,
   reportPluginError,
 } from "@/plugins/sdk";
-import { INITIAL_VIEW_STATE, type AgentViewState } from "./viewState";
+import type { AgentViewState } from "./viewState";
 
 function applyCoreHandlers(state: AgentViewState, event: BaseEvent): AgentViewState {
   const handlers = lookupCoreEventHandlers(event.type);
@@ -62,10 +62,4 @@ function applyCustom(state: AgentViewState, ev: CustomEvent): AgentViewState {
 export function reduce(state: AgentViewState, ev: BaseEvent): AgentViewState {
   if (ev.type === EventType.CUSTOM) return applyCustom(state, ev as CustomEvent);
   return applyCoreHandlers(state, ev);
-}
-
-export function reduceAll(events: Iterable<BaseEvent>): AgentViewState {
-  let s = INITIAL_VIEW_STATE;
-  for (const ev of events) s = reduce(s, ev);
-  return s;
 }
