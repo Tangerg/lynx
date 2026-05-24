@@ -1,9 +1,8 @@
 // Shared header bar for workspace-view tabs: icon · title · subtitle · actions.
-// Concentrates the markup so individual views don't redo the inline-style
-// overrides they used to.
 
 import type { ReactNode } from "react";
 import { Icon, type IconName } from "@/components/common";
+import { cn } from "@/lib/utils";
 
 type Props = {
   icon: IconName;
@@ -20,14 +19,23 @@ type Props = {
 
 export function ViewHeader({ icon, title, sub, actions, titleStrong }: Props) {
   return (
-    <div className="view-head">
-      <div className="view-icon"><Icon name={icon} size={14} /></div>
-      <div style={{ minWidth: 0 }}>
-        <div className={`view-title${titleStrong ? " strong" : ""}`}>{title}</div>
-        {sub !== undefined && <div className="view-sub">{sub}</div>}
+    <div className="grid grid-cols-[28px_1fr_auto] items-center gap-2.5 px-4 py-3.5">
+      <div className="grid h-7 w-7 place-items-center rounded-md bg-surface-2 text-fg-muted">
+        <Icon name={icon} size={14} />
+      </div>
+      <div className="min-w-0">
+        <div className={cn(
+          "text-fg whitespace-nowrap overflow-hidden text-ellipsis",
+          titleStrong ? "font-sans text-[13px] font-semibold" : "font-mono text-[12px]",
+        )}>
+          {title}
+        </div>
+        {sub !== undefined && (
+          <div className="mt-0.5 font-mono text-[10.5px] text-fg-faint">{sub}</div>
+        )}
       </div>
       {actions !== undefined && (
-        <div style={{ display: "flex", gap: 4 }}>{actions}</div>
+        <div className="flex gap-1">{actions}</div>
       )}
     </div>
   );
