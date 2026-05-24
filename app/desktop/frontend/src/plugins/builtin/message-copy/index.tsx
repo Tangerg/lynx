@@ -29,7 +29,7 @@ function CopyButton() {
     <button
       className="msg-action-btn"
       onClick={onClick}
-      title="Copy message"
+      title="Copy message" aria-label="Copy message"
       style={{
         background: "transparent",
         border: "none",

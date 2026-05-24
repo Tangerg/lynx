@@ -14,10 +14,21 @@ export function AgentClientPage() {
   return (
     <div className={`app ${sidebarRail ? "rail" : ""}`}>
       <div className="app-main">
-        <Slot name="app.sidebar" />
-        <Slot name="app.main" />
+        {/* Landmark roles let screen-reader users skip between regions.
+            `<aside>` is implicit role="complementary" — Sidebar holds
+            session list + projects + tools entry. `<main>` is the chat /
+            workspace surface. */}
+        <aside aria-label="Sidebar">
+          <Slot name="app.sidebar" />
+        </aside>
+        <main aria-label="Main">
+          <Slot name="app.main" />
+        </main>
       </div>
-      <div className="app-statusbar">
+      {/* `role="status"` + `aria-live="polite"` means SR users hear
+          telemetry updates (run state, tokens, branch) when they change,
+          without interruption. */}
+      <div className="app-statusbar" role="status" aria-live="polite">
         <Slot name="app.statusbar" />
       </div>
       <Slot name="app.overlay" />

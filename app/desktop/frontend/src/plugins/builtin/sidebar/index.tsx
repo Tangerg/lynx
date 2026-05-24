@@ -79,6 +79,8 @@ function SidebarSearch() {
         <Icon name="search" size={14} />
       </div>
       <input
+        type="search"
+        aria-label="Search files and commands"
         placeholder="Search · files · commands"
         // Dark mode: shadow-input/focus tokens give a soft inset glow.
         // Light mode: tokens go quiet (Vercel pattern) so we draw shape
@@ -115,7 +117,7 @@ function ProjectsSection() {
         trailing={
           <button
             type="button"
-            title="Add project"
+            title="Add project" aria-label="Add project"
             className="ml-auto grid h-6.5 w-6.5 place-items-center rounded-full border-0 bg-surface-2 text-fg-muted cursor-pointer transition-colors hover:bg-surface-3 hover:text-fg active:scale-[0.92]"
           >
             <Icon name="plus" size={12} />
@@ -235,10 +237,10 @@ function SidebarFooter() {
           jdoe@longbridge-inc.com
         </div>
       </div>
-      <button type="button" onClick={openSettings} title="Settings" className={USER_ACTION}>
+      <button type="button" onClick={openSettings} title="Settings" aria-label="Settings" className={USER_ACTION}>
         <Icon name="settings" size={14} />
       </button>
-      <button type="button" title="Account menu" className={USER_ACTION}>
+      <button type="button" title="Account menu" aria-label="Account menu" className={USER_ACTION}>
         <Icon name="more" size={14} />
       </button>
     </div>
