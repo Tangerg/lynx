@@ -179,15 +179,30 @@
    Semantic element styles
    ============================================================ */
 
-html, body {
+/* IMPORTANT: do NOT set `font-size` on <html>. It anchors the rem unit
+   for the entire document, and setting it via `var(--fs-body-md)`
+   (which is a rem itself) was a self-referencing trap:
+     html { font-size: 0.88rem }
+       → root size becomes 0.88 × 16 = 14.08px
+     body { font-size: 0.88rem }
+       → 0.88 × root (14.08) = 12.39px
+     every rem-based token then computed at 88% of the intended px:
+       --fs-display-xl (2rem)  → 28.16 instead of 32
+       --fs-body-md   (0.88rem)→ 12.39 instead of 14
+   Keeping <html> at the browser default (16px) means rem tokens map
+   one-to-one to the px values in their comments. Only <body> gets the
+   project's UI baseline. */
+html {
   background: var(--color-bg);
   color: var(--color-text);
   font-family: var(--font-ui);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+body {
   font-size: var(--fs-body-md);
   font-weight: var(--fw-regular);
   line-height: var(--leading-body);
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
 }
 
 /* Element rules deleted — they were a cascade trap:
