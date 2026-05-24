@@ -8,8 +8,13 @@ type Props = {
   onSelect: (id: string) => void;
 };
 
-// Session row — sidebar list item. Active state lifts to surface-2 +
-// a 3px accent indicator bar pokes out 4px to the left via `before:`.
+// Session row — sidebar list item.
+//
+// Hover === active background (CLAUDE.md "tab hover === active" rule
+// extended to sidebar lists): both states lift to surface-2 + bump
+// text to fg. Only the 3px accent indicator bar on the left
+// distinguishes "currently selected" from "just hovering" — a single
+// visual cue carries the active state, no fighting tone steps.
 export function SessionRow({ session, active, onSelect }: Props) {
   const subText =
     session.status === "running" ? "Running" :
@@ -20,20 +25,23 @@ export function SessionRow({ session, active, onSelect }: Props) {
     <div
       onClick={() => onSelect(session.id)}
       className={cn(
-        "group relative grid grid-cols-[18px_1fr_auto] items-center gap-2.5 rounded-lg px-2.5 py-2 cursor-pointer hover:bg-surface",
+        "group relative grid grid-cols-[18px_1fr_auto] items-center gap-2.5 rounded-lg px-2.5 py-2 cursor-pointer transition-colors duration-150 hover:bg-surface-2",
         active && [
           "bg-surface-2",
           "before:content-[''] before:absolute before:-left-1 before:top-2 before:bottom-2 before:w-[3px] before:bg-accent before:rounded-full",
         ],
       )}
     >
-      <div className={cn("grid h-4.5 w-4.5 place-items-center text-fg-muted", active && "text-fg")}>
+      <div className={cn(
+        "grid h-4.5 w-4.5 place-items-center text-fg-muted transition-colors group-hover:text-fg",
+        active && "text-fg",
+      )}>
         <Icon name="chat" size={14} />
       </div>
       <div className="min-w-0">
         <div className={cn(
-          "text-[13px] font-semibold leading-[1.3] truncate",
-          active ? "text-fg" : "text-fg-muted",
+          "text-[13px] font-semibold leading-[1.3] truncate transition-colors text-fg-muted group-hover:text-fg",
+          active && "text-fg",
         )}>
           {session.title}
         </div>
