@@ -2,11 +2,27 @@
 // density. Run state on the left with a ticking live dot; tokens / cost
 // pinned right with mono numbers + a token sparkline tracking how usage
 // has grown across the current run.
+//
+// Each pill component now owns its visual treatment via Tailwind utility
+// classes (P6.4 migration). The shared "inline-flex + gap + nowrap"
+// status-bar pill shape is captured by the `pill` helper below — one
+// internal abstraction to avoid restating the same 4 utilities at every
+// pill site.
 
 import { useEffect, useRef, useState } from "react";
 import { Icon, Sparkline, StatusDot } from "@/components/common";
+import { cn } from "@/lib/utils";
 import { definePlugin } from "@/plugins/sdk";
 import { useAgentAction, useAgentSlice } from "@/state/agentStore";
+
+// One slot in the status bar. All callers use the same shape:
+// inline-flex row, 5px gap, no-wrap, tabular-numeric so digits don't
+// shimmy as values tick.
+const pill = (extra?: string) =>
+  cn(
+    "inline-flex items-center gap-1.5 whitespace-nowrap tabular-nums",
+    extra,
+  );
 
 // "1.2k" / "200k" / "1.5M" → number. Conservative; if we can't parse,
 // return NaN so the caller can fall back gracefully.
@@ -39,15 +55,20 @@ function RunState() {
   const run = useAgentSlice((v) => v.run);
   const stop = useAgentAction("stop");
   return (
-    <span className={`sb-item sb-run ${run.running ? "live" : ""}`}>
+    <span className={pill(run.running ? "text-accent" : "")}>
       <StatusDot tone={run.running ? "running" : "idle"} />
       {run.running ? (
         <>
-          <span className="mono-num">{run.step}/{run.totalSteps}</span>
-          <span className="sb-sep">·</span>
-          <span className="sb-activity">{run.activity || "running"}</span>
+          <span className="font-mono">{run.step}/{run.totalSteps}</span>
+          <span className="text-fg-faint">·</span>
+          <span className="text-fg">{run.activity || "running"}</span>
           {stop && (
-            <button className="sb-stop" onClick={stop} title="Stop (⌘.)">
+            <button
+              type="button"
+              onClick={stop}
+              title="Stop (⌘.)"
+              className="ml-1 inline-flex items-center gap-0.5 rounded-xs border border-line-soft bg-transparent px-1.5 py-px font-mono text-[10px] text-fg-muted cursor-pointer transition-colors hover:bg-surface-2 hover:text-fg"
+            >
               <Icon name="stop" size={9} />stop
             </button>
           )}
@@ -65,9 +86,9 @@ function RunState() {
 // the visual density is honest.
 function Branch() {
   return (
-    <span className="sb-item sb-branch" title="Git branch (placeholder)">
-      <Icon name="branch" size={10} />
-      <span className="mono-num">main</span>
+    <span className={pill()} title="Git branch (placeholder)">
+      <Icon name="branch" size={10} className="text-fg-faint" />
+      <span className="font-mono">main</span>
     </span>
   );
 }
@@ -78,25 +99,25 @@ function RunId() {
   const runId = useAgentSlice((v) => v.run.runId);
   const short = runId ? runId.slice(0, 8) : "—";
   return (
-    <span className="sb-item sb-runid" title={runId ? `Run: ${runId}` : "No active run"}>
-      <span className="sb-key">run</span>
-      <span className="mono-num">{short}</span>
+    <span className={pill()} title={runId ? `Run: ${runId}` : "No active run"}>
+      <span className="text-fg-faint">run</span>
+      <span className="font-mono">{short}</span>
     </span>
   );
 }
 
-function Spacer() { return <span className="sb-spacer" />; }
+function Spacer() { return <span className="flex-1" />; }
 
 function Tokens() {
   const run = useAgentSlice((v) => v.run);
   const usedNum = parseShorthand(run.tokens.used);
   const history = useNumericHistory(usedNum);
   return (
-    <span className="sb-item" title={`Context: ${run.ctxPct}% of ${run.tokens.total}`}>
+    <span className={pill()} title={`Context: ${run.ctxPct}% of ${run.tokens.total}`}>
       <Sparkline values={history} width={42} height={12} fill />
-      <span className="mono-num">{run.tokens.used}</span>
-      <span className="sb-key mono-num">/{run.tokens.total}</span>
-      <span className="sb-key mono-num">{run.ctxPct}%</span>
+      <span className="font-mono">{run.tokens.used}</span>
+      <span className="font-mono text-fg-faint">/{run.tokens.total}</span>
+      <span className="font-mono text-fg-faint">{run.ctxPct}%</span>
     </span>
   );
 }
@@ -104,9 +125,9 @@ function Tokens() {
 function Cost() {
   const run = useAgentSlice((v) => v.run);
   return (
-    <span className="sb-item" title="Session cost (USD)">
-      <span className="sb-key">$</span>
-      <span className="mono-num">{run.cost}</span>
+    <span className={pill()} title="Session cost (USD)">
+      <span className="text-fg-faint">$</span>
+      <span className="font-mono">{run.cost}</span>
     </span>
   );
 }
