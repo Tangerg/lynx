@@ -1,17 +1,6 @@
-// Word-granularity text segmentation.
-//
-// Latin runs and CJK individual codepoints, trailing punctuation glued
-// to the preceding token. Whitespace stays separate so the render layer
-// can pass it through as inert text.
-//
-// Shared by:
-//   - useSmoothText  (paces reveal by whole-word units)
-//   - rehypeFadeIn   (wraps non-code text nodes in per-word fade spans)
-//
-// Lives in its own file so neither caller pulls the other in just to
-// share these helpers. Before this split, rehypeFadeIn had to import
-// from `smoothText.ts` — a React-hook module — purely for `segmentWords`,
-// which left the rehype plugin coupled to a hook it never used.
+// Word-granularity text segmentation: Latin runs as words, CJK as
+// individual codepoints, trailing punctuation glued to the preceding
+// token, whitespace separate. Shared by useSmoothText + rehypeFadeIn.
 
 export function segmentWords(text: string): string[] {
   if (typeof Intl !== "undefined" && "Segmenter" in Intl) {

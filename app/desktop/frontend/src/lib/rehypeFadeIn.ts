@@ -1,24 +1,8 @@
-// rehype plugin: wraps each word inside a text node in
-// <span class="fade-in">…</span> so the per-token CSS animation lands on
-// every newly-arrived word as react-markdown re-renders.
-//
-// React-markdown derives JSX keys from each element's position in the
-// hast tree; since our smooth-text pipeline only ever appends to the end,
-// existing word-spans retain stable positions (and keys) across renders,
-// so they don't replay their fade-in. Only the freshly-appended tail
-// gets a fresh mount → fresh animation.
-//
-// Skipped contexts: code blocks (<pre>/<code>) and any container whose
-// `data-no-fade` property is set. Code is highlighted by Shiki as one
-// HTML chunk; splitting it into per-word spans would butcher the
-// tokenization and look noisy.
-//
-// Inspired by portai's `rehype-animate-plugin.ts` but simpler: portai
-// segments by language locale and only animates the last 3 top-level
-// blocks. We animate everywhere for now — Lyra messages are short enough
-// that animating older content on initial mount is fine, and the smooth-
-// stream pacing means the "burst of animations on history load" effect
-// rarely triggers.
+// rehype plugin: wraps each word in <span class="fade-in"> so the
+// per-token CSS animation lands as new words arrive. Stable hast
+// positions across renders mean already-rendered spans don't replay;
+// only the freshly-appended tail animates. Skips <pre>/<code> (Shiki
+// handles those as one chunk) and any container with `data-no-fade`.
 
 import type { Element, Root, Text } from "hast";
 import { visit } from "unist-util-visit";

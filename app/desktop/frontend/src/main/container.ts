@@ -1,19 +1,7 @@
-// Composition root — wires concrete infra implementations to the
-// domain gateways at app start, then exposes a single accessor
-// (`getContainer()`) for everything else to read from.
-//
-// Why a singleton object, not React Context: most gateways are called
-// from non-component code too (zustand effects, plugin setup, fetch
-// retries inside hooks). A Context would force everything to thread
-// through a hook, which doesn't fit. The Context-wrapper exists in
-// proper clean-react-app setups so unit tests can inject fakes; for
-// Lyra we just expose `setContainer()` for the same purpose.
-//
-// Adding a new gateway:
-//   1. Declare interface in `@/domain/gateways/*`
-//   2. Implement in `@/infra/...`
-//   3. Add field here + bootstrap line in `defaultContainer()`
-//   4. UI calls `getContainer().yourGateway.method(...)`
+// Composition root — wires infra to domain gateways at app start.
+// Singleton instead of Context because non-component code (zustand
+// effects, plugin setup) calls these too; tests inject fakes via
+// `setContainer()`.
 
 import type { PermissionGateway } from "@/domain";
 import { HttpPermissionGateway } from "@/infra/http/HttpPermissionGateway";

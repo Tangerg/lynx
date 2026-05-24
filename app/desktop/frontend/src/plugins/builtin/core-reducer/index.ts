@@ -1,10 +1,6 @@
-// Built-in plugin: AG-UI protocol semantics.
-//
-// Every RUN_*, TEXT_MESSAGE_*, TOOL_CALL_*, REASONING_* case used to live
-// inside `protocol/agui/reducer.ts`. Pulling them into a plugin means even
-// the protocol layer is a (replaceable) extension — a power user can swap
-// this for a custom dialect by registering a different `core-reducer` plugin
-// that takes priority. The kernel reducer is now pure dispatch.
+// AG-UI protocol semantics — every RUN_* / TEXT_MESSAGE_* / TOOL_CALL_* /
+// REASONING_* case lives here as a plugin, so a custom dialect can swap
+// this out by registering a higher-priority core-reducer.
 
 import { applyPatch, deepClone, type Operation } from "fast-json-patch";
 import {

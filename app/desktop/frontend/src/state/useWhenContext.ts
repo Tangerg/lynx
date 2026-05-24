@@ -1,17 +1,7 @@
-// Build the context object that `when` clauses evaluate against.
-//
-// Adds keys for shell-level UI state that commands typically gate on:
-//   - mainViewActive: a workspace view is open in the main area
-//   - mainView:       its id (e.g. "settings", "diff"), "" otherwise
-//   - theme:          active theme id ("dark", "light", or any custom)
-//   - scheme:         binary kind — "dark" | "light"
-//   - sidebarRail:    sidebar is in collapsed-rail mode
-//
-// New keys can be added incrementally — the evaluator treats unknown
-// identifiers as `undefined`, which negates / compares as falsy.
-//
-// `when` clauses checking the binary kind ("scheme == 'light'") should
-// prefer `scheme` over `theme` so custom theme plugins work.
+// Context for `when` clauses. Exposes: mainViewActive, mainView (id),
+// theme (id), scheme ("dark" | "light"), sidebarRail. Unknown
+// identifiers evaluate to undefined → falsy. Prefer `scheme` over
+// `theme` in clauses so custom theme plugins still match.
 
 import { useMemo } from "react";
 import { resolveScheme, type WhenContext } from "@/plugins/sdk";

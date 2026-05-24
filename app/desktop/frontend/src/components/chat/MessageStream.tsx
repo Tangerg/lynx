@@ -7,25 +7,9 @@ import type { Message } from "@/protocol/agui/viewState";
 import { MessageBlock } from "./MessageBlock";
 import type { PartCtx } from "./PartRenderer";
 
-// MessageStream — chat scroll surface, backed by `use-stick-to-bottom`.
-//
-// Why the library: we tried hand-rolling sticky-bottom-during-stream
-// twice (useStickyBottomScroll v1 / v2). Both ran into the same edge
-// cases:
-//   - macOS trackpad momentum scrolling fires `scroll` events after our
-//     200ms user-input window expired, breaking user/programmatic
-//     discrimination.
-//   - The 220px composer padding means "literal scroll max" is far
-//     below "the user perceives they're at the bottom".
-//   - Smooth-text reveals that extend an existing line (no height
-//     change) don't fire ResizeObserver, so follow stalls between
-//     line wraps.
-// `use-stick-to-bottom` (the same lib portai uses) handles all three.
-// We keep the JumpToBottomButton + composer in ChatPanel, but read
-// follow state from the library via the small ControlsRelay below.
-//
-// `resetKey` re-keys the whole scroll subtree on session switch so a
-// fresh thread always lands at its bottom (initial="smooth" runs again).
+// Chat scroll surface, backed by use-stick-to-bottom. `resetKey`
+// re-keys the subtree on session switch so a new thread lands at the
+// bottom. Follow state surfaces to the parent via ControlsRelay below.
 
 export type StreamControls = {
   isAtBottom: boolean;

@@ -1,19 +1,7 @@
-// ChatTopBar — tabs on the left, plugin-contributed actions on the right.
-//
-// Tabs are heterogeneous:
-//   - chat session tabs (StatusDot + title + close)
-//   - workspace-view tabs (icon + title + close) — opened by clicking
-//     "↗ Open in main" on a workspace view tab. Owned by
-//     `useSessionStore.mainViewTabs`.
-//
-// The single `activeId` decides which one is currently focused. When a
-// view tab is active, ChatPanel renders that view's body instead of the
-// message stream.
-//
-// The hover and active states share the same background (per design
-// rule "tab hover === active"); only the bottom 2px accent underline
-// distinguishes the active tab. Wails drag region covers the whole
-// strip — interactive children opt out via `[--wails-draggable:no-drag]`.
+// Topbar — heterogeneous tabs (chat sessions + workspace views) on
+// the left, plugin actions on the right. Single `activeId`; when a
+// view tab is active, ChatPanel swaps in its body. Hover === active
+// background; only the 2px accent underline marks the active tab.
 
 import { Icon, StatusDot, type IconName } from "@/components/common";
 import { cn } from "@/lib/utils";

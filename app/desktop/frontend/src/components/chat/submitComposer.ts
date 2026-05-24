@@ -1,18 +1,6 @@
-// Shared composer submit pipeline.
-//
-// Originally inline in `Composer.tsx`; extracted so the textarea Enter
-// path AND the send-button plugin (AND any future "send" trigger —
-// palette command, keyboard shortcut, etc.) run identical semantics.
-//
-// Responsibility split:
-//   - caller supplies `value` and `clear` (DOM-y knobs) + `sendText`
-//     (whatever "send a user message" means in their context)
-//   - this helper owns slash routing AND the always-clear-after-submit
-//     rule
-//
-// Why the helper clears, not the caller: every successful submit must
-// clear; making it the caller's job duplicates that line at every site
-// and produced subtle inconsistencies between paths during refactors.
+// Shared composer submit — used by the textarea Enter path, the send
+// button, and any future trigger (palette command etc.). Owns slash
+// routing + the always-clear-after-submit invariant.
 
 import { lookupSlashCommand, reportPluginError, usePluginStore } from "@/plugins/sdk";
 

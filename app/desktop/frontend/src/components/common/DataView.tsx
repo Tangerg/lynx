@@ -1,26 +1,7 @@
-// DataView — the canonical "loading skeleton | empty state | content"
-// tri-state branch every query-driven surface in the app was open-coding.
-//
-// Replaces a repeated ~10-line ternary chain:
-//
-//   {isLoading
-//     ? <SkeletonList count={6} />
-//     : !data || data.length === 0
-//       ? <EmptyState icon="..." title="..." sub="..." />
-//       : <WhateverContent items={data} />
-//   }
-//
-// with a render-prop component that owns the branching once:
-//
-//   <DataView items={data} isLoading={isLoading} skeletonCount={6}
-//     empty={{ icon: "...", title: "...", sub: "..." }}>
-//     {(items) => <WhateverContent items={items} />}
-//   </DataView>
-//
-// The body wrapper (div.side-list, ScrollArea, FilesChanged, …) is the
-// consumer's call — DataView doesn't presume how the success state
-// should render. That keeps it useful for the wildly different layouts
-// each surface wants (sidebar row list, scrollable tree, terminal lines).
+// Render-prop wrapper for the "loading skeleton | empty state | content"
+// tri-state branch every query-driven surface needs. Owns the branching
+// once; the success-state render is the consumer's call (sidebar row,
+// scrollable tree, terminal lines — different layouts per surface).
 
 import type { ReactNode } from "react";
 import { EmptyState } from "./EmptyState";

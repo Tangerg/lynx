@@ -1,33 +1,24 @@
-// Built-in plugin: Tokyo Night Light theme.
-//
-// Canonical palette from enkia/tokyonight (Day/Light variant) —
-// intentionally muted compared to other light themes. Bg ladder uses
-// soft cool greys rather than pure white so the accent blues don't
-// scream against the surface.
+// Tokyo Night Light — canonical Day variant. Cool-grey bg ladder
+// instead of pure white so the saturated blue accent doesn't scream.
 
 import { defineThemePlugin } from "../themes/defineThemePlugin";
 
 const c = {
-  // Brand — Tokyo Night Day's darker, more saturated blue
   blue: "#34548a",
   blueBorder: "#2a4373",
   bluePress: "#1f335a",
 
-  // Tokyo Night Day surfaces — bg_dark / bg / bg_highlight
   bgDark: "#cbccd1",
   bg: "#d5d6db",
   bgHighlight: "#c4c8d8",
   bgHover: "#b8bdd0",
 
-  // Ink — fg / fg_dark / comment
   fg: "#343b58",
   fgBright: "#1a1b26",
-  // Bumped from #4c505e → reads ~5.4:1 on #d5d6db (was just above AA).
+  // Bumped above the original #4c505e / #848cb5 to clear WCAG AA.
   fgMuted: "#454960",
-  // Bumped from #848cb5 (~2.7:1 on #d5d6db) → #5e6585 (~4.6:1).
   fgFaint: "#5e6585",
 
-  // Hairlines — fg_gutter ladder
   hairline: "#a8aecb",
   hairStrong: "#909bbe",
   hairTertiary: "#7882a8",

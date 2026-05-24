@@ -1,29 +1,9 @@
-// Per-session agent view state.
-//
-// Why per-session, not single global: in a real chat app the user
-// expects switching sessions to feel like switching browser tabs —
-// each tab keeps its own conversation, its own running tools, its
-// own scroll position. A single global store would either (a) blow
-// away state on switch (current behaviour pre-refactor) or (b) leak
-// events across sessions (race conditions when multiple agents
-// stream concurrently).
-//
-// Architecture borrowed from Proma's `streamingStatesAtom: Map<id,
-// State>` pattern (`apps/electron/src/renderer/atoms/chat-atoms.ts`).
-//
-// Storage shape:
-//   sessions[sessionId] = { view, stop, send }
-//     - view: AgentViewState (messages / plan / toolCalls / run)
-//       — reducer dispatches into this per-session slice
-//     - stop / send: imperative actions bound by useAgentSession on
-//       mount; plugins (status pill stop button, palette commands)
-//       read them off the current-session entry without holding a
-//       direct reference to the live agent.
-//
-// Consumers read via the selector hooks below. Pulling
-// `s.sessions[id]?.view` directly works too but the selectors do
-// the activeSessionId lookup + INITIAL_VIEW_STATE fallback for you,
-// which is what every callsite needs.
+// Per-session agent view state — each session keeps its own
+// AgentViewState slice + imperative stop/send fns, so switching
+// sessions feels like switching browser tabs (no event leakage when
+// multiple agents stream concurrently). Read via the selector hooks
+// below; they do the active-session lookup + INITIAL_VIEW_STATE
+// fallback that every callsite needs.
 
 import { create } from "zustand";
 import type { BaseEvent } from "@ag-ui/core";
