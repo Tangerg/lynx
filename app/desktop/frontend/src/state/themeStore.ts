@@ -94,6 +94,14 @@ function lookupLightVariant(darkHex: string): string | undefined {
   return undefined;
 }
 
+// Track every CSS variable the last theme set on :root.style so we can
+// remove it before applying the next theme. Without this, a theme that
+// pins surface-2/3/4 (Catppuccin, Tokyo Night, Atom One) leaves those
+// values on :root after the user switches to a theme that doesn't pin
+// them — and the new theme's color-mix() fallbacks never get a chance
+// to kick in because the old inline property still wins.
+let appliedTokenNames: string[] = [];
+
 function applyTheme(theme: Theme, accent: string) {
   const root = document.documentElement;
   const spec = usePluginStore.getState().themes.get(theme)?.value;
@@ -104,18 +112,33 @@ function applyTheme(theme: Theme, accent: string) {
   root.classList.remove("theme-light", "theme-dark");
   root.classList.add(`theme-${scheme}`);
 
-  // Inline tokens beat stylesheet declarations, so the plugin owns the
-  // palette regardless of what the fallback CSS in tokens.css says.
+  // Step 1 — clear every token the previous theme wrote. Anything the
+  // new theme also sets will be re-added in step 2; anything it doesn't
+  // falls through to tokens.css's :root defaults (and the color-mix()
+  // surface ladder derivations).
+  for (const name of appliedTokenNames) {
+    root.style.removeProperty(name);
+  }
+  appliedTokenNames = [];
+
+  // Step 2 — write the new theme's tokens. Inline beats stylesheet, so
+  // the plugin owns the palette regardless of what tokens.css says.
   if (spec?.tokens) {
     for (const [name, value] of Object.entries(spec.tokens)) {
-      root.style.setProperty(`--${name}`, value);
+      const fullName = `--${name}`;
+      root.style.setProperty(fullName, value);
+      appliedTokenNames.push(fullName);
     }
   }
 
   // Accent override last so the user's accent pick beats the theme's
-  // default --color-accent token.
+  // default --color-accent token. Also tracked so a theme switch clears
+  // it cleanly.
   const c = scheme === "light" ? (lookupLightVariant(accent) ?? accent) : accent;
   root.style.setProperty("--color-accent", c);
+  if (!appliedTokenNames.includes("--color-accent")) {
+    appliedTokenNames.push("--color-accent");
+  }
 }
 
 // Persist middleware rehydrates synchronously on store creation, so
