@@ -28,16 +28,10 @@ html, body, #root {
 }
 #root { height: 100vh; }
 
-body {
-  background: var(--color-bg);
-  color: var(--color-text);
-  font-family: var(--font-ui);
-  font-size: var(--fs-body-md);
-  /* Lock body to scroll, never squash. */
-  overflow: auto;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
+/* Body — only the layout knob that's not shared with tokens.css's body
+   block (which carries background / color / font / smoothing). Locks
+   body to scroll instead of letting content squash the viewport. */
+body { overflow: auto; }
 
 /* Default colour scheme — switched by themeStore.applyTheme via the
    .theme-light class. */

@@ -227,7 +227,18 @@
   font-size: 13.5px;
   background: transparent !important;
 }
-.shiki-block .shiki code { background: transparent; border: 0; padding: 0; }
+/* `<code>` inside Shiki's emitted `<pre class="shiki">` would otherwise
+   inherit the inline-code rule `.md code { font-size: 0.88em }`
+   (specificity 0,1,1 — this rule's is 0,2,1 but it didn't set
+   font-size, so the cascade fell through). That shrank block code to
+   13.5 × 0.88 = 11.88px. `font-size: inherit` pins it back to the
+   parent `.shiki`'s 13.5px. */
+.shiki-block .shiki code {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  font-size: inherit;
+}
 .shiki-block .shiki-fallback {
   color: var(--color-text-soft);
   white-space: pre;
