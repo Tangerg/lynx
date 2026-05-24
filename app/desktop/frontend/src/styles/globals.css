@@ -18,6 +18,11 @@
      is deleted in P6.
    ============================================================ */
 
+/* Webfonts must be the very first statement in the CSS bundle —
+   `@import` rules cannot follow any other rule per the CSS spec, and
+   Tailwind's `@import` directive expands into rules. */
+@import url('https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400&display=swap');
+
 @import "tailwindcss";
 
 /* Custom variants for our scheme classes. Drives `dark:bg-surface` etc.
