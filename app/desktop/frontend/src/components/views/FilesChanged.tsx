@@ -14,7 +14,7 @@ export function FilesChanged({ files, activePath, onSelect }: Props) {
 
   return (
     <div>
-      <div className="flex items-center gap-2 px-2.5 py-2 font-mono text-[10.5px] font-bold uppercase tracking-[0.14em] text-fg-faint">
+      <div className="flex items-center gap-2 px-2.5 py-2 font-mono text-[11px] font-bold uppercase tracking-[0.14em] text-fg-faint">
         <span>{files.length} files changed</span>
         <span className="ml-auto text-accent">+{totalAdded}</span>
         <span className="text-negative">−{totalRemoved}</span>

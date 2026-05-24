@@ -26,7 +26,7 @@ function WelcomeScreen() {
     // DESIGN.md §3 (Vercel headlines voice).
     <div className="mx-auto flex max-w-[760px] flex-col items-start gap-3.5 px-6 pt-20 pb-60">
       {/* Eyebrow — terminal-style "ready" mark with an accent dot. */}
-      <div className="mb-1.5 inline-flex items-center gap-2 font-mono text-[10.5px] text-fg-faint tracking-normal [font-feature-settings:'tnum'] before:content-[''] before:h-1.5 before:w-1.5 before:rounded-full before:bg-accent before:shadow-[0_0_6px_var(--color-accent)]">
+      <div className="mb-1.5 inline-flex items-center gap-2 font-mono text-[11px] text-fg-faint tracking-normal [font-feature-settings:'tnum'] before:content-[''] before:h-1.5 before:w-1.5 before:rounded-full before:bg-accent before:shadow-[0_0_6px_var(--color-accent)]">
         agent ready
       </div>
       <h1 className="m-0 text-[40px] font-semibold leading-[1.15] tracking-[-0.02em] text-fg">

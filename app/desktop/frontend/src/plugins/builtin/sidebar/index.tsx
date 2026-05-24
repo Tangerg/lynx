@@ -90,7 +90,7 @@ function SidebarSearch() {
           "light:focus:border-accent light:focus:shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-accent)_12%,transparent)]",
         )}
       />
-      <span className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-[4px] bg-surface-2 light:bg-surface-3 px-1.5 py-px font-mono text-[10.5px] text-fg-faint tracking-normal">
+      <span className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-[4px] bg-surface-2 light:bg-surface-3 px-1.5 py-px font-mono text-[11px] text-fg-faint tracking-normal">
         ⌘K
       </span>
     </div>

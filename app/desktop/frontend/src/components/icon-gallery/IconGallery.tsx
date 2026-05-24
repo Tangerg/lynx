@@ -78,7 +78,7 @@ export function IconGallery() {
           if (list.length === 0) return null;
           return (
             <section key={g} className="px-5 pt-4.5 pb-3">
-              <header className="flex items-baseline justify-between pb-2.5 font-mono text-[10.5px] font-semibold text-fg-faint tracking-normal">
+              <header className="flex items-baseline justify-between pb-2.5 font-mono text-[11px] font-semibold text-fg-faint tracking-normal">
                 <span>{GROUP_TITLES[g]}</span>
                 <span className="font-mono text-fg-muted tabular-nums">{list.length}</span>
               </header>
@@ -119,7 +119,7 @@ function IconCard({ entry }: { entry: (typeof rawToc)[number] }) {
           className="h-2 w-2 rounded-full border border-[color-mix(in_srgb,var(--color-text)_10%,transparent)]"
           style={{ background: entry.color }}
         />
-        <code className="font-mono text-[9.5px] text-fg-faint tracking-[-0.005em]">{entry.id}</code>
+        <code className="font-mono text-[10px] text-fg-faint tracking-[-0.005em]">{entry.id}</code>
       </div>
     </div>
   );

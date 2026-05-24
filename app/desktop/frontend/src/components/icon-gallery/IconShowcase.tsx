@@ -68,7 +68,7 @@ export function IconShowcase() {
 
       {SECTIONS.map((sec) => (
         <section key={sec.title} className="flex flex-col gap-2">
-          <header className="flex items-baseline justify-between font-mono text-[10.5px] font-semibold text-fg-faint tracking-normal">
+          <header className="flex items-baseline justify-between font-mono text-[11px] font-semibold text-fg-faint tracking-normal">
             <span>{sec.title}</span>
             <span className="font-mono text-fg-muted tabular-nums">{sec.ids.length}</span>
           </header>

@@ -77,7 +77,7 @@ export function ReasoningBlock({ text, streaming }: Props) {
             transition={swift}
             style={{ overflow: "hidden" }}
           >
-            <div className="whitespace-pre-wrap px-0 pb-1 pt-1.5 text-[13.5px] italic leading-[1.6] text-fg-muted">
+            <div className="whitespace-pre-wrap px-0 pb-1 pt-1.5 text-[13px] italic leading-[1.6] text-fg-muted">
               <MarkdownMessage text={text} streaming={streaming} />
             </div>
           </motion.div>

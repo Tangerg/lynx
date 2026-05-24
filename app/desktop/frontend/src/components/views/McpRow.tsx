@@ -20,11 +20,11 @@ export function McpRow({ server }: { server: MCPServer }) {
         <div className="text-[13px] font-semibold text-fg truncate">{server.name}</div>
         <div className="mt-0.5 text-[11.5px] text-fg-faint truncate">{server.desc}</div>
       </div>
-      <div className="rounded-xs bg-surface-2 px-1.5 py-0.5 font-mono text-[10.5px] text-fg-faint">
+      <div className="rounded-xs bg-surface-2 px-1.5 py-0.5 font-mono text-[11px] text-fg-faint">
         {server.tools} tools
       </div>
       <div className={cn(
-        "rounded-xs px-1.5 py-0.5 font-mono text-[10.5px] font-semibold",
+        "rounded-xs px-1.5 py-0.5 font-mono text-[11px] font-semibold",
         server.status === "active" && "bg-accent/12 text-accent",
         server.status === "idle"   && "bg-surface-2 text-fg-faint",
         server.status === "error"  && "bg-negative/12 text-negative",

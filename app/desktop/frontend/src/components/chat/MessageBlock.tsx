@@ -75,7 +75,7 @@ export function MessageBlock({ msg, ctx }: { msg: Message; ctx: PartCtx }) {
         >
           <div
             className={cn(
-              "mb-1 flex items-center gap-2 whitespace-nowrap text-[10.5px] text-fg-faint opacity-65",
+              "mb-1 flex items-center gap-2 whitespace-nowrap text-[11px] text-fg-faint opacity-65",
               isUser && "justify-end",
             )}
           >
@@ -93,7 +93,7 @@ export function MessageBlock({ msg, ctx }: { msg: Message; ctx: PartCtx }) {
           </div>
           <div
             className={cn(
-              "msg-content text-fg text-[14.5px] leading-[1.68] tracking-[-0.003em] font-normal",
+              "msg-content text-fg text-[14px] leading-[1.68] tracking-[-0.003em] font-normal",
               isUser && "max-w-[580px] rounded-[14px_14px_4px_14px] bg-surface-2 px-3.5 py-2.5 text-left light:bg-surface-3",
             )}
           >

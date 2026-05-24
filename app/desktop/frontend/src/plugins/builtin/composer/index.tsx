@@ -116,7 +116,7 @@ function ModelPicker() {
       title="Switch model"
       className="mr-1 inline-flex h-[26px] shrink-0 items-center gap-1.5 rounded-full border border-transparent bg-transparent pl-1 pr-2.5 font-sans text-[12px] font-semibold text-fg whitespace-nowrap cursor-pointer transition-colors hover:bg-surface-2 hover:border-line"
     >
-      <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-[linear-gradient(135deg,var(--color-accent)_0%,color-mix(in_oklab,var(--color-accent)_40%,#000)_100%)] text-on-accent font-semibold text-[10.5px]">
+      <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-[linear-gradient(135deg,var(--color-accent)_0%,color-mix(in_oklab,var(--color-accent)_40%,#000)_100%)] text-on-accent font-semibold text-[11px]">
         {model.slice(0, 1)}
       </span>
       <span className="font-mono text-[11.5px] font-semibold tracking-[0.01em]">{model}</span>
@@ -170,7 +170,7 @@ function KeyHint() {
   return (
     <Popover.Root>
       <Popover.Trigger
-        className="hidden xl:inline-flex items-center gap-1 px-1 font-mono text-[10.5px] text-fg-faint cursor-default border-0 bg-transparent"
+        className="hidden xl:inline-flex items-center gap-1 px-1 font-mono text-[11px] text-fg-faint cursor-default border-0 bg-transparent"
       >
         <span className="text-accent">⌘K</span> commands · <span className="text-accent">⌘↵</span> send
       </Popover.Trigger>
@@ -182,10 +182,10 @@ function KeyHint() {
           role="tooltip"
           className="z-50 min-w-[220px] rounded-md border border-line-soft bg-surface-2 p-2.5 shadow-lg animate-rise-in"
         >
-          <div className="mb-1.5 font-mono text-[9.5px] font-semibold text-fg-faint">Shortcuts</div>
+          <div className="mb-1.5 font-mono text-[10px] font-semibold text-fg-faint">Shortcuts</div>
           {[...STATIC_CHEATS, ...dynamic].map((r, i) => (
             <div key={`${r.combo}:${i}`} className="grid grid-cols-[64px_1fr] items-center gap-2.5 py-0.5 text-[11.5px]">
-              <kbd className="rounded-sm border border-line-soft bg-line px-1.5 text-center font-mono text-[10.5px] text-fg-soft">
+              <kbd className="rounded-sm border border-line-soft bg-line px-1.5 text-center font-mono text-[11px] text-fg-soft">
                 {r.combo}
               </kbd>
               <span className="text-fg-muted">{r.label}</span>
@@ -238,7 +238,7 @@ function SendButton() {
           <Tooltip.Content
             side="top"
             sideOffset={6}
-            className="rounded-sm bg-surface-3 px-2 py-1 font-mono text-[10.5px] text-fg-soft shadow-md"
+            className="rounded-sm bg-surface-3 px-2 py-1 font-mono text-[11px] text-fg-soft shadow-md"
           >
             Send (⌘↵)
           </Tooltip.Content>

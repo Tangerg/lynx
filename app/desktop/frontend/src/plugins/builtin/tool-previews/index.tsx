@@ -39,7 +39,7 @@ function DiffPreview({ onOpenView }: ToolPreviewProps) {
         {(rows ?? []).slice(0, MAX_DIFF_ROWS).map((row, i) => {
           if (row.type === "hunk") {
             return (
-              <div key={i} className="mx-0 mt-1.5 mb-1 px-1.5 py-1 text-[10.5px] text-fg-faint">
+              <div key={i} className="mx-0 mt-1.5 mb-1 px-1.5 py-1 text-[11px] text-fg-faint">
                 {row.text}
               </div>
             );
@@ -87,7 +87,7 @@ function FilePreview({ onOpenView }: ToolPreviewProps) {
               l.muted && "text-fg-faint",
             )}
           >
-            <span className="text-right text-[10.5px] text-fg-faint select-none">{l.ln}</span>
+            <span className="text-right text-[11px] text-fg-faint select-none">{l.ln}</span>
             <span
               className={cn("code", l.muted && "text-fg-faint")}
               dangerouslySetInnerHTML={{ __html: l.code }}

@@ -107,7 +107,7 @@ export function ShikiCodeBlock({ lang, code, file }: Props) {
       )}
     >
       <div className="grid grid-cols-[auto_1fr_auto] items-center gap-2.5 border-b border-[color-mix(in_srgb,var(--color-text)_7%,transparent)] pl-3.5 pr-3 py-2">
-        <span className="font-sans text-[9.5px] font-semibold text-fg-faint tracking-normal normal-case">
+        <span className="font-sans text-[10px] font-semibold text-fg-faint tracking-normal normal-case">
           {lang || "text"}
         </span>
         {file ? (
@@ -119,7 +119,7 @@ export function ShikiCodeBlock({ lang, code, file }: Props) {
           type="button"
           onClick={onCopy}
           title={copied ? "Copied" : "Copy code"}
-          className="inline-flex items-center gap-1 rounded-md border-0 bg-transparent px-2 py-1 font-mono text-[10.5px] font-semibold text-fg-faint cursor-pointer transition-[opacity,color,background] duration-150 opacity-60 group-hover/code:opacity-100 hover:!text-fg hover:bg-[color-mix(in_srgb,var(--color-text)_8%,transparent)]"
+          className="inline-flex items-center gap-1 rounded-md border-0 bg-transparent px-2 py-1 font-mono text-[11px] font-semibold text-fg-faint cursor-pointer transition-[opacity,color,background] duration-150 opacity-60 group-hover/code:opacity-100 hover:!text-fg hover:bg-[color-mix(in_srgb,var(--color-text)_8%,transparent)]"
         >
           <Icon name={copied ? "check" : "copy"} size={11} />
           {copied ? "Copied" : "Copy"}
