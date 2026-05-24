@@ -260,20 +260,10 @@ const onReasoningContent = (
 const onReasoningEnd = (state: AgentViewState, ev: ReasoningMessageEndEvent): AgentViewState =>
   mapReasoning(state, ev.messageId, (b) => ({ ...b, streaming: false }));
 
-// ---------------------------------------------------------------------------
-// CHUNK variants — combined START/CONTENT/END streams.
-// ---------------------------------------------------------------------------
-//
-// AG-UI's *_CHUNK events let a backend emit one event per delta with optional
-// "first chunk" metadata (role, messageId, toolCallName) and a payload delta.
-// There's no explicit END for chunked streams — closure rides on RUN_FINISHED
-// or a follow-up non-chunk END event.
-//
-// Strategy: do the START detection inline. If the entity (message / tool
-// call / reasoning block) isn't present yet, materialize it; then merge
-// the delta. No synthetic events crossing the dispatcher — this is the
-// same handler approach as the non-chunk variants, just with the START
-// fused into the same call as CONTENT.
+// *_CHUNK variants — one event per delta with optional first-chunk
+// metadata. No explicit END (closure rides on RUN_FINISHED or a later
+// non-chunk END). We materialize the entity inline on first sight,
+// then merge each delta.
 
 function findMessageById(state: AgentViewState, id: string): Message | undefined {
   return state.messages.find((m) => m.id === id);
@@ -348,26 +338,13 @@ const onToolChunk = (state: AgentViewState, ev: ToolCallChunkEvent): AgentViewSt
   return next;
 };
 
-// ---------------------------------------------------------------------------
-// THINKING_* — extended-thinking phase events (Claude 3.7+ style).
-// ---------------------------------------------------------------------------
-//
-// Two layers:
-//   THINKING_START / THINKING_END           — phase markers (optional title)
-//   THINKING_TEXT_MESSAGE_START/CONTENT/END — the actual text inside
-//
-// THINKING_TEXT_MESSAGE_* events don't carry messageId — they're an
-// implicitly-scoped sequence between THINKING_START and THINKING_END. We
-// translate them into our reasoning-block model: each START opens a new
-// reasoning block on the last assistant message with a synthetic id, and
-// CONTENT/END operate on the most recent still-streaming reasoning block.
-// Visually identical to REASONING_MESSAGE_* — same collapsible "thought"
-// panel.
-//
-// The THINKING_START/END phase markers themselves do nothing: the inner
-// blocks already convey "thinking happened" via their stream lifecycle.
-// If we later want to expose the optional `title` from THINKING_START,
-// it'd hang on the reasoning block as a separate field.
+// THINKING_* — extended-thinking phase (Claude 3.7+ style). The inner
+// THINKING_TEXT_MESSAGE_* events have no messageId; they're scoped by
+// the surrounding THINKING_START/END pair. We translate each START into
+// a reasoning block (synthetic id) on the last assistant message;
+// CONTENT/END operate on the most recent open block. THINKING_START/END
+// themselves are no-ops — the inner stream lifecycle conveys "thinking
+// happened".
 
 let thinkingIdCounter = 0;
 function nextThinkingId(): string {
@@ -540,20 +517,12 @@ const onReasoningChunk = (
 
 // MESSAGES_SNAPSHOT — full conversation hydrate. Sent on reconnect or
 // when joining an existing thread. Replaces both `messages` and
-// `toolCalls` wholesale (the snapshot is authoritative); leaves run /
-// plan / error untouched so the UI doesn't lose stop-button + plan
-// context if it was already mid-run.
-//
-// Conversion notes:
-//   - developer / system messages collapse into our "system" role.
-//   - assistant.toolCalls (the OpenAI-shaped {id, function: {name, arguments}})
-//     each become both a tool block on the assistant message AND an
-//     entry in state.toolCalls. We default to status "ok" + duration "—"
-//     because the snapshot represents settled history; a still-running
-//     tool would arrive via fresh TOOL_CALL_START events after the snap.
-//   - role:"tool" messages don't become UI messages — they're tool
-//     RESULTS, so we fold them into toolCalls[toolCallId].result and
-//     adjust status if `error` is set.
+// MESSAGES_SNAPSHOT — replaces messages + toolCalls wholesale (snapshot
+// is authoritative); leaves run / plan / error so a mid-run UI keeps
+// its stop button + plan. developer / system both collapse to "system";
+// role:"tool" messages fold into toolCalls[id].result (they're results,
+// not chat turns). Snapshot tools default to "ok" + duration "—" since
+// they represent settled history.
 type SnapshotMessage = MessagesSnapshotEvent["messages"][number];
 type SnapToolCall = {
   id: string;
