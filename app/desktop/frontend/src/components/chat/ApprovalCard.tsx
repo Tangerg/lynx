@@ -52,11 +52,11 @@ export function ApprovalCard({ what, cmd, reason, requestId, decision }: Props) 
       <div className="mb-2 flex items-center gap-2 font-mono text-[11px] font-semibold text-warning">
         <Icon name="shield" size={12} />Approval required
       </div>
-      <div className="mb-1.5 text-[15px] font-semibold leading-[1.4] text-fg">{what}</div>
-      <code className="my-2 block whitespace-pre-wrap break-all rounded-sm bg-warning/14 px-3 py-2 font-mono text-[13px] text-fg">
+      <div className="mb-1.5 text-[16px] font-semibold leading-[1.4] text-fg">{what}</div>
+      <code className="my-2 block whitespace-pre-wrap break-all rounded-sm bg-warning/14 px-3 py-2 font-mono text-[14px] text-fg">
         $ {cmd}
       </code>
-      <div className="mb-3 text-[13px] leading-[1.55] text-fg-muted">{reason}</div>
+      <div className="mb-3 text-[14px] leading-[1.55] text-fg-muted">{reason}</div>
       <div className="flex items-center gap-2">
         <PillButton
           variant="accent"

@@ -29,17 +29,17 @@ function ChatErrorFallback({ error, resetErrorBoundary }: FallbackProps) {
       role="alert"
       className="m-8 max-w-[720px] rounded-lg border border-negative/45 bg-negative/10 px-5 py-4 text-fg"
     >
-      <div className="mb-2 font-semibold text-[13px] tracking-tight text-negative">
+      <div className="mb-2 font-semibold text-[14px] tracking-tight text-negative">
         {t("chat.error.title")}
       </div>
-      <pre className="m-0 mb-3 max-h-[200px] overflow-auto rounded-md bg-[color-mix(in_srgb,var(--color-text)_4%,transparent)] px-3 py-2.5 font-mono text-[12px] leading-[1.5] text-fg-muted whitespace-pre-wrap break-words">
+      <pre className="m-0 mb-3 max-h-[200px] overflow-auto rounded-md bg-[color-mix(in_srgb,var(--color-text)_4%,transparent)] px-3 py-2.5 font-mono text-[13px] leading-[1.55] text-fg-muted whitespace-pre-wrap break-words">
         {error instanceof Error ? error.message : String(error)}
       </pre>
       <div className="flex gap-2">
         <button
           type="button"
           onClick={resetErrorBoundary}
-          className="rounded-md border border-[color-mix(in_srgb,var(--color-text)_12%,transparent)] bg-surface-2 px-3 py-1 text-[12px] text-fg font-sans cursor-pointer transition-colors hover:bg-surface-3"
+          className="rounded-md border border-[color-mix(in_srgb,var(--color-text)_12%,transparent)] bg-surface-2 px-3 py-1 text-[13px] text-fg font-sans cursor-pointer transition-colors hover:bg-surface-3"
         >
           {t("chat.error.retry")}
         </button>
