@@ -1,27 +1,30 @@
 /* ============================================================
-   Tool-call card: .tool-card / .tool-head / .tool-preview + MCP row + workspace view header + inline expansion.
-   See frontend/DESIGN.md for the spec.
+   Tool-card residuals + tool-preview shells + diff/file/term/grep
+   inline renderers + lazy-activator placeholder.
+
+   What lives here (still raw className):
+     .tool-card.running ::before     — rotating conic-gradient border
+                                       (uses @property + mask, not
+                                       Tailwind-expressible)
+     .tool-preview / .tool-preview.term — preview container
+     .preview-foot / .preview-open  — preview footer + open-in-view btn
+     .diff-view / .diff-line / .diff-hunk-head — full + mini diff
+     .token-kw / .token-str / .token-fn / .token-comm — highlight.ts spans
+     .file-preview / .fp-line + .t-kw/.t-str/.t-fn — Read tool preview
+     .grep-preview / .grep-line     — grep tool preview
+     .view-foot / .view-code        — workspace-view footer prose
+     .lazy-activator                — slot placeholder while a lazy plugin
+                                      finishes its setup
+
+   Other rules (ToolCard head/icon/name/args/meta/status/expand/action,
+   PreviewFoot, MCP rows, view-head, tree, terminal child spans) were
+   deleted in P6.9 — every consumer has migrated to Tailwind utilities.
    ============================================================ */
 
-/* ---------- Tool-call card (the "track-row" analog) ---------- */
-.tool-card {
-  background: transparent;
-  border-radius: var(--radius-md);
-  margin: 6px 0;
-  overflow: hidden;
-  cursor: pointer;
-  transition: background var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
-  border: 1px solid transparent;
-}
-.tool-card:hover { background: var(--color-border); border-color: var(--color-border-soft); }
-.tool-card.selected {
-  background: var(--color-border);
-  border-color: var(--color-border-soft);
-}
-
-/* Direction 2 — running tool cards get a rotating conic-gradient border.
-   `--mask` cuts the inside so only the rim shows; the rotation comes
-   from a single `--angle` CSS property animated via @property. */
+/* ---------- Running animation ---------- */
+/* `@property` lets the CSS engine animate the angle smoothly. Without
+   it, browsers can't interpolate `<angle>` custom properties and the
+   border would snap. */
 @property --tc-angle {
   syntax: "<angle>";
   initial-value: 0deg;
@@ -57,236 +60,25 @@
   to { --tc-angle: 360deg; }
 }
 
-.tool-head {
-  display: grid;
-  grid-template-columns: 22px 1fr auto auto;
-  align-items: center;
-  gap: 10px;
-  padding: 7px 12px;
-}
-.tool-icon {
-  width: 20px; height: 20px;
-  border-radius: 4px;
-  display: grid; place-items: center;
-  background: transparent;
-  color: var(--color-text-faint);
-  flex-shrink: 0;
-  transition: color var(--dur-fast) var(--ease-out);
-}
-.tool-card.selected .tool-icon, .tool-card:hover .tool-icon {
-  color: var(--color-text-muted);
-}
-/* Tool status colors — accent (primary) is RESERVED for "alive"
-   indicators per DESIGN.md §9 accent policy. A finished-ok tool uses
-   --color-success (#27a644), not the brand green. The two greens differ
-   subtly but the policy is structural: accent === "live", success ===
-   "finished cleanly". */
-.tool-icon.ok { color: var(--color-success); }
-.tool-icon.err { color: var(--color-negative); }
-.tool-icon.run { color: var(--color-accent); }
-
-.tool-name {
-  display: flex; align-items: baseline; gap: 8px;
-  min-width: 0;
-}
-.tool-fn {
+/* ---------- Tool preview container (inline tool expansion) ---------- */
+.tool-preview {
+  /* Goes one step deeper than the card surface for nested-depth feel.
+     No top border — the color step IS the boundary. */
+  padding: 10px 14px 8px 14px;
   font-family: var(--font-mono);
   font-size: 12px;
-  color: var(--color-text);
-  font-weight: var(--fw-semibold);
-  letter-spacing: -0.005em;
-}
-.tool-args {
-  font-family: var(--font-mono);
-  font-size: 11.5px;
-  color: var(--color-text-faint);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  letter-spacing: -0.005em;
-}
-.tool-meta {
-  display: flex; align-items: center; gap: var(--space-10);
-  font-size: var(--fs-micro);
-  color: var(--color-text-faint);
-  font-family: var(--font-mono);
-  font-feature-settings: "tnum";
-  letter-spacing: 0;
-  text-transform: none;
-}
-.tool-status {
-  font-size: var(--fs-micro);
-  font-weight: var(--fw-semibold);
-  letter-spacing: 0;
-  font-family: var(--font-mono);
-  text-transform: none;
-  padding: 2px 6px;
-  border-radius: var(--radius-sm);
-  background: transparent;
-}
-.tool-status.ok { color: var(--color-success); }
-.tool-status.err { color: var(--color-negative); }
-.tool-status.run {
-  color: var(--color-accent);
-  display: inline-flex; align-items: center; gap: 5px;
-}
-.tool-status.run::before {
-  content: "";
-  width: 6px; height: 6px;
-  background: var(--color-accent);
-  border-radius: 50%;
-  box-shadow: 0 0 6px var(--color-accent);
-  animation: pulse 1.2s ease-in-out infinite;
-}
-
-/* Tool body — preview snippet (visible on selected/expanded). Subtle
-   surface-2 background separates it from the .tool-head above — color
-   step, not a 1px line. */
-.tool-body {
-  padding: 8px 14px 12px 14px;
-  background: var(--color-surface-2);
-}
-.tool-preview-line {
-  font-family: var(--font-mono);
-  font-size: 12px;
-  padding: 2px 0;
-  display: grid;
-  grid-template-columns: 30px 1fr;
-  gap: 8px;
+  background: var(--color-bg);
   color: var(--color-text-muted);
+  line-height: 1.55;
+  max-height: 240px;
+  overflow-y: auto;
 }
-.tool-preview-line .ln { color: var(--color-text-faint); text-align: right; user-select: none; }
-
-.diff-add { background: rgba(30,215,96,0.08); }
-.diff-add .ln, .diff-add .code { color: #5fe39a; }
-.diff-del { background: rgba(243,114,127,0.08); }
-.diff-del .ln, .diff-del .code { color: #f3727f; }
-
-/* ============================================================
-   MCP server row (Tools workspace view)
-   ============================================================ */
-.mcp-row {
-  display: grid;
-  grid-template-columns: 32px 1fr auto auto;
-  gap: 12px;
-  align-items: center;
-  padding: 10px 16px;
-  /* No 1px separator. Row gap + hover bg do the visual work. */
-  cursor: pointer;
-  transition: background var(--dur-fast) var(--ease-out);
-}
-.mcp-row:hover { background: var(--color-surface); }
-.mcp-icon {
-  width: 32px; height: 32px;
-  border-radius: var(--radius-md);
-  background: var(--color-surface-2);
-  display: grid; place-items: center;
-  color: var(--color-text-muted);
-  flex-shrink: 0;
-}
-.mcp-row:hover .mcp-icon { background: var(--color-surface-3); color: var(--color-text); }
-.mcp-row.error .mcp-icon { color: var(--color-negative); background: rgba(243, 114, 127, 0.1); }
-.mcp-row.active .mcp-icon { color: var(--color-accent); background: rgba(30, 215, 96, 0.1); }
-.mcp-name {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--color-text);
-  line-height: 1.25;
-}
-.mcp-desc {
-  font-size: 11px;
-  color: var(--color-text-faint);
-  line-height: 1.3;
-  margin-top: 1px;
-}
-.mcp-tools {
-  font-family: var(--font-mono);
-  font-size: 10.5px;
-  color: var(--color-text-faint);
-  padding: 2px 8px;
-  background: var(--color-surface-2);
-  border-radius: var(--radius-pill);
-}
-.mcp-status {
-  font-size: 9.5px;
-  font-weight: 600;
-  letter-spacing: 0;
-  font-family: var(--font-mono);
-  text-transform: none;
-  padding: 3px 8px;
-  border-radius: var(--radius-pill);
-}
-.mcp-status.active { background: rgba(30,215,96,0.12); color: var(--color-accent); }
-.mcp-status.idle { background: var(--color-surface-2); color: var(--color-text-faint); }
-.mcp-status.error { background: rgba(243,114,127,0.12); color: var(--color-negative); }
-
-/* ============================================================
-   Workspace view header — promoted views use this layout
-   ============================================================ */
-.view-head {
-  display: grid;
-  grid-template-columns: 28px 1fr auto;
-  gap: 10px;
-  align-items: center;
-  padding: 14px 16px;
-  border-bottom: none;
-}
-.view-head .view-icon {
-  width: 28px; height: 28px;
-  background: var(--color-surface-2);
-  border-radius: 6px;
-  display: grid; place-items: center;
-  color: var(--color-text-muted);
-}
-.view-head .view-title {
-  font-family: var(--font-mono);
-  font-size: 12px;
-  color: var(--color-text);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.view-head .view-title.strong {
-  font-family: var(--font-ui);
-  font-size: 13px;
-  font-weight: 600;
+.tool-preview.term {
+  white-space: pre;
+  color: var(--color-text-soft);
 }
 
-/* Placeholder rendered while a lazy plugin's setup is running. Replaced
-   in-place once the real component registers. */
-.lazy-activator {
-  display: grid;
-  place-items: center;
-  padding: 48px 16px;
-  color: var(--color-text-faint);
-  font-size: 12px;
-  letter-spacing: 0;
-}
-
-/* Footer prose under a workspace-view list (e.g. tools pane links to config). */
-.view-foot {
-  margin: 0;
-  padding: 14px 16px 18px 16px;
-  color: var(--color-text-faint);
-  font-size: 11px;
-  line-height: 1.5;
-}
-.view-code {
-  font-family: var(--font-mono);
-  background: var(--color-surface-2);
-  padding: 1px 5px;
-  border-radius: var(--radius-xs);
-  color: var(--color-text);
-}
-.view-head .view-sub {
-  font-size: 10.5px;
-  color: var(--color-text-faint);
-  letter-spacing: 0;
-  margin-top: 2px;
-  font-family: var(--font-mono);
-}
-
-/* Diff view */
+/* ---------- Diff view + mini diff ---------- */
 .diff-view {
   font-family: var(--font-mono);
   font-size: 12px;
@@ -326,126 +118,6 @@
   margin: 10px 0 0 0;
   border: none;
 }
-.token-kw { color: #e07acc; }
-.token-str { color: #f5d97a; }
-.token-fn { color: #82cfff; }
-.token-comm { color: var(--color-text-faint); font-style: italic; }
-
-/* Terminal block */
-.term {
-  font-family: var(--font-mono);
-  font-size: 12px;
-  line-height: 1.55;
-  padding: 14px 16px;
-  color: var(--color-text-soft);
-  white-space: pre;
-}
-.term .prompt { color: var(--color-accent); font-weight: 600; }
-.term .cmd { color: var(--color-text); }
-.term .ok { color: var(--color-accent); }
-.term .err { color: var(--color-negative); }
-.term .warn { color: var(--color-warning); }
-.term .mute { color: var(--color-text-faint); }
-
-/* File-tree */
-.tree {
-  padding: 8px 8px 16px 8px;
-  font-family: var(--font-mono);
-  font-size: 12.5px;
-}
-.tree-row {
-  display: grid;
-  grid-template-columns: 16px 16px 1fr auto;
-  gap: 6px;
-  align-items: center;
-  padding: 6px 8px;
-  border-radius: 4px;
-  color: var(--color-text-muted);
-  cursor: pointer;
-  transition: background var(--polish-fast), color var(--polish-fast);
-}
-.tree-row:hover { background: var(--color-surface); color: var(--color-text); }
-.tree-row:active { background: var(--color-surface-2); }
-.tree-row.active { background: var(--color-surface-2); color: var(--color-text); }
-.tree-row .name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.tree-row .change {
-  font-size: 10px;
-  font-weight: 600;
-  padding: 1px 6px;
-  border-radius: var(--radius-pill);
-  letter-spacing: 0;
-}
-.tree-row .change.add { background: rgba(30,215,96,0.14); color: var(--color-accent); }
-.tree-row .change.mod { background: rgba(255,164,43,0.14); color: var(--color-warning); }
-.tree-row .change.del { background: rgba(243,114,127,0.14); color: var(--color-negative); }
-
-/* ============================================================
-   Inline tool expansion
-   ============================================================ */
-.tool-card {
-  position: relative;
-}
-.tool-card .tool-expand,
-.tool-card .tool-action {
-  width: 22px; height: 22px;
-  background: transparent;
-  border: none;
-  color: var(--color-text-faint);
-  cursor: pointer;
-  display: grid; place-items: center;
-  border-radius: 4px;
-  transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
-}
-.tool-card .tool-expand:hover,
-.tool-card .tool-action:hover {
-  background: var(--color-surface-3);
-  color: var(--color-text);
-}
-.tool-card .tool-head {
-  grid-template-columns: 28px 1fr auto auto auto;
-}
-
-.tool-preview {
-  /* Goes one step deeper than the card surface for nested-depth feel.
-     No top border — the color step IS the boundary. */
-  padding: 10px 14px 8px 14px;
-  font-family: var(--font-mono);
-  font-size: 12px;
-  background: var(--color-bg);
-  color: var(--color-text-muted);
-  line-height: 1.55;
-  max-height: 240px;
-  overflow-y: auto;
-}
-.tool-preview.term {
-  white-space: pre;
-  color: var(--color-text-soft);
-}
-.tool-preview .preview-foot {
-  margin-top: 10px;
-  padding-top: 8px;
-  text-align: right;
-}
-.tool-preview .preview-open {
-  background: transparent;
-  border: 1px solid var(--color-border);
-  color: var(--color-text-muted);
-  font-family: var(--font-ui);
-  font-size: 11px;
-  font-weight: 600;
-  padding: 4px 10px;
-  border-radius: var(--radius-pill);
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-.tool-preview .preview-open:hover {
-  border-color: var(--color-border-soft);
-  background: var(--color-surface);
-  color: var(--color-text);
-}
-
 .diff-view-mini {
   font-family: var(--font-mono);
   font-size: 11.5px;
@@ -463,6 +135,13 @@
   color: var(--color-text-faint);
 }
 
+/* Token colours emitted by utils/highlight.ts spans. */
+.token-kw { color: #e07acc; }
+.token-str { color: #f5d97a; }
+.token-fn { color: #82cfff; }
+.token-comm { color: var(--color-text-faint); font-style: italic; }
+
+/* ---------- Grep + file previews ---------- */
 .grep-preview, .file-preview {
   font-family: var(--font-mono);
   font-size: 11.5px;
@@ -506,20 +185,32 @@
 .file-preview .fp-line.muted { color: var(--color-text-faint); }
 .file-preview .fp-line.muted .code { color: var(--color-text-faint); }
 
-/* Tool cards — running state already has a rotating border. Give the
-   idle/selected card a slightly more refined hover lift + soft shadow. */
-.tool-card {
-  transition:
-    background var(--polish-fast),
-    border-color var(--polish-fast),
-    box-shadow var(--polish-med),
-    transform var(--polish-med);
-}
-/* DESIGN.md §5: no drop shadow on dark — depth via surface + hairlines.
-   The hover lift uses border-color + 1px translateY, not a shadow. */
-.tool-card:hover {
-  transform: translateY(-1px);
-  border-color: var(--color-border-soft);
-}
-.tool-card.selected { transform: none; }
+/* ---------- Preview footer ("Open in <X>") ---------- */
+/* Foot wrapper + open btn are now Tailwind (PreviewFoot.tsx); only the
+   class hooks remain in theme.css for light-mode overrides. */
 
+/* ---------- Workspace-view trailing prose ---------- */
+.view-foot {
+  margin: 0;
+  padding: 14px 16px 18px 16px;
+  color: var(--color-text-faint);
+  font-size: 11px;
+  line-height: 1.5;
+}
+.view-code {
+  font-family: var(--font-mono);
+  background: var(--color-surface-2);
+  padding: 1px 5px;
+  border-radius: var(--radius-xs);
+  color: var(--color-text);
+}
+
+/* ---------- Lazy-activator placeholder ---------- */
+.lazy-activator {
+  display: grid;
+  place-items: center;
+  padding: 48px 16px;
+  color: var(--color-text-faint);
+  font-size: 12px;
+  letter-spacing: 0;
+}
