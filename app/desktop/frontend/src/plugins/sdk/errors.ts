@@ -69,3 +69,14 @@ export function reportPluginError(
   const message = err instanceof Error ? err.message : String(err);
   usePluginErrorStore.getState().push({ plugin, source, message, detail });
 }
+
+// Run `fn` in a try/catch and log to console with a tag on failure. Used
+// throughout the plugin pipeline so a misbehaving subscriber / disposable
+// / lifecycle hook can't crash the kernel.
+export function safeCall(fn: () => void, tag: string): void {
+  try {
+    fn();
+  } catch (err) {
+    console.error(tag, err);
+  }
+}

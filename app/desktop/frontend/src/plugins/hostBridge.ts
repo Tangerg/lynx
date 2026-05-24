@@ -14,6 +14,7 @@ import * as ReactJSXRuntime from "react/jsx-runtime";
 import * as Motion from "motion/react";
 import * as SDK from "@/plugins/sdk";
 import { HOST_API_VERSION } from "./sdk/apiVersion";
+import { safeCall } from "./sdk/errors";
 import { usePluginStore } from "./sdk/registry";
 
 export { HOST_API_VERSION };
@@ -51,11 +52,7 @@ export function installHostBridge(): void {
   // mode's double-mounted effect doesn't stack duplicate listeners.
   window.addEventListener("beforeunload", () => {
     for (const o of usePluginStore.getState().beforeUnloadHandlers.values()) {
-      try {
-        o.value();
-      } catch (err) {
-        console.error(`[plugin] ${o.pluginName} onBeforeUnload threw:`, err);
-      }
+      safeCall(() => o.value(), `[plugin] ${o.pluginName} onBeforeUnload threw:`);
     }
   });
 }
