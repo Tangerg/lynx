@@ -1,71 +1,30 @@
 /* ============================================================
-   .md / .shiki-block / .mermaid-block / .md-table-wrap / search-results.
-   See frontend/DESIGN.md for the spec.
-   ============================================================ */
+   Markdown body styling.
 
-/* ============================================================
-   Web-search citation cards
+   What lives in this file:
+
+   1) `.md` + descendant selectors —
+      Children come from react-markdown / rehype as raw HTML
+      (`<p>`, `<h1>`, `<ul>`, `<a>`, `<code>`, `<table>`, …). We don't
+      author those JSX nodes so Tailwind utilities can't be attached at
+      the call site. Hand-rolled selectors set the prose voice.
+
+   2) `.shiki-block .shiki` + `.shiki-block .shiki-fallback` + their
+      scrollbar internals —
+      Shiki emits a `<pre class="shiki">` + nested `<code>` from a
+      string. The outer wrapper is Tailwind (ShikiCodeBlock.tsx), the
+      inner Shiki HTML needs CSS to override Shiki's `github-*` page
+      background and to host our scrollbar tokens.
+
+   3) `.md-table-wrap` —
+      Set by markdownComponents.tsx as a wrapper around `<table>` for
+      horizontal overflow + scrollbar polish. Plain class.
+
+   Everything else (.search-card / .mermaid-block / .shiki-block head /
+   .lang / .copy / fold toggles / mermaid lightbox) has been Tailwind-
+   ified at the call site (SearchResults.tsx / MermaidBlock.tsx /
+   ShikiCodeBlock.tsx).
    ============================================================ */
-.search-results {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 8px;
-  margin: 10px 0;
-}
-.search-card {
-  background: var(--color-surface);
-  border-radius: var(--radius-lg);
-  padding: 12px 14px;
-  cursor: pointer;
-  transition: background var(--dur-fast) var(--ease-out);
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  border: 1px solid transparent;
-}
-.search-card:hover {
-  background: var(--color-surface-2);
-  border-color: var(--color-border-soft);
-}
-.search-card .src {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 10.5px;
-  color: var(--color-text-faint);
-  font-family: var(--font-mono);
-}
-.search-card .src .favicon {
-  width: 14px; height: 14px;
-  background: var(--color-surface-2);
-  border-radius: var(--radius-xs);
-  display: grid; place-items: center;
-  color: var(--color-text-muted);
-  font-size: 8px;
-  font-weight: 600;
-  font-family: var(--font-ui);
-  flex-shrink: 0;
-}
-.search-card:hover .src .favicon { background: var(--color-surface-3); color: var(--color-text); }
-.search-card .title {
-  font-size: 12.5px;
-  font-weight: 600;
-  color: var(--color-text);
-  line-height: 1.35;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-.search-card .snip {
-  font-size: 11.5px;
-  color: var(--color-text-muted);
-  line-height: 1.45;
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
 
 /* ===========================================================
    Markdown body (.md) — react-markdown output container
@@ -246,77 +205,13 @@
 .md em { font-style: italic; }
 
 /* ===========================================================
-   Shiki code block — premium chat surface
+   Shiki code block — Shiki-emitted HTML internals
    ===========================================================
-   - Slightly lifted background via color-mix; the box itself sits a
-     touch above the message bubble.
-   - No hard border between head and body — a subtle inner-divider.
-   - Lang pill is small and quiet; copy button reveals on hover.
-   - Custom scrollbar inside the body so it doesn't look generic. */
-.shiki-block {
-  margin: 14px 0;
-  border: 1px solid color-mix(in srgb, var(--color-text) 10%, transparent);
-  border-radius: var(--radius-lg);
-  overflow: hidden;
-  font-family: var(--font-mono);
-  font-size: 12.5px;
-  background: color-mix(in srgb, var(--color-text) 3%, transparent);
-}
-.shiki-block-head {
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 12px 8px 14px;
-  border-bottom: 1px solid color-mix(in srgb, var(--color-text) 7%, transparent);
-  background: transparent;
-}
-.shiki-block-head .lang {
-  font-size: 9.5px;
-  font-weight: 600;
-  letter-spacing: 0;
-  font-family: var(--font-mono);
-  text-transform: none;
-  color: var(--color-text-faint);
-  font-family: var(--font-ui);
-}
-.shiki-block-head .fname {
-  font-size: 11.5px;
-  color: var(--color-text-muted);
-  font-family: var(--font-mono);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  min-width: 0;
-}
-.shiki-block-head .copy {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  background: transparent;
-  border: none;
-  color: var(--color-text-faint);
-  font-size: 10.5px;
-  font-family: var(--font-ui);
-  letter-spacing: 0;
-  font-family: var(--font-mono);
-  text-transform: none;
-  font-weight: 600;
-  cursor: pointer;
-  padding: 4px 8px;
-  border-radius: 6px;
-  opacity: 0.6;
-  transition: opacity var(--polish-fast), color var(--polish-fast), background var(--polish-fast);
-}
-.shiki-block:hover .shiki-block-head .copy { opacity: 1; }
-.shiki-block-head .copy:hover {
-  color: var(--color-text);
-  background: color-mix(in srgb, var(--color-text) 8%, transparent);
-}
-
-/* Shiki's rendered <pre> brings its own theme colors via inline
-   styles — we just constrain layout and override the bg so it sits on
-   our card surface, not Shiki's "github" page bg. */
+   The outer card chrome (border, fold toggle, copy button, header) is
+   Tailwind on the JSX in ShikiCodeBlock.tsx. What lives here is the
+   styling for what Shiki itself injects as a string —
+   `<pre class="shiki"><code>…</code></pre>` — which Tailwind utilities
+   can't reach. */
 .shiki-block .shiki,
 .shiki-block .shiki-fallback {
   margin: 0;
@@ -328,39 +223,11 @@
   font-size: 12.5px;
   background: transparent !important;
 }
-.shiki-body { margin: 0; }
 .shiki-block .shiki code { background: transparent; border: 0; padding: 0; }
 .shiki-block .shiki-fallback {
   color: var(--color-text-soft);
   white-space: pre;
 }
-/* Fold toggle — replaces the body when the block is folded, also
-   appears at the bottom of expanded long blocks so the user can re-fold
-   without scrolling back to the header. */
-.shiki-fold-toggle {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  width: 100%;
-  padding: 10px 16px;
-  background: transparent;
-  border: none;
-  border-top: 1px solid color-mix(in srgb, var(--color-text) 7%, transparent);
-  color: var(--color-text-muted);
-  font-family: var(--font-ui);
-  font-size: 11.5px;
-  font-weight: 600;
-  letter-spacing: 0;
-  cursor: pointer;
-  transition: background var(--polish-fast), color var(--polish-fast);
-}
-.shiki-fold-toggle:hover {
-  background: color-mix(in srgb, var(--color-text) 4%, transparent);
-  color: var(--color-text);
-}
-.shiki-block.folded .shiki-fold-toggle { border-top: none; }
-/* Thinner internal scrollbars so the card frame stays clean. */
 .shiki-block .shiki::-webkit-scrollbar,
 .shiki-block .shiki-fallback::-webkit-scrollbar { height: 8px; width: 8px; }
 .shiki-block .shiki::-webkit-scrollbar-thumb,
@@ -370,93 +237,3 @@
   border: 2px solid transparent;
   background-clip: content-box;
 }
-
-/* ===========================================================
-   Mermaid diagram block
-   =========================================================== */
-.mermaid-block {
-  margin: 14px 0;
-  padding: 16px;
-  border: 1px solid color-mix(in srgb, var(--color-text) 10%, transparent);
-  border-radius: var(--radius-lg);
-  background: color-mix(in srgb, var(--color-text) 3%, transparent);
-  overflow-x: auto;
-  text-align: center;
-}
-.mermaid-block {
-  cursor: zoom-in;
-  transition: border-color var(--polish-fast);
-}
-.mermaid-block:hover {
-  border-color: color-mix(in srgb, var(--color-accent) 30%, transparent);
-}
-.mermaid-block svg {
-  max-width: 100%;
-  height: auto;
-}
-
-/* Lightbox — click the diagram, get a full-window overlay with the SVG
-   at its native scale. Backdrop click and Escape both close. */
-.mermaid-lightbox {
-  position: fixed;
-  inset: 0;
-  z-index: 200;
-  background: color-mix(in srgb, #000 60%, transparent);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  display: grid;
-  place-items: center;
-  padding: 40px;
-  cursor: zoom-out;
-}
-.mermaid-lightbox-frame {
-  max-width: min(1400px, 95vw);
-  max-height: 90vh;
-  overflow: auto;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border-soft);
-  border-radius: 12px;
-  padding: 24px;
-  box-shadow: var(--shadow-lg);
-  cursor: default;
-}
-.mermaid-lightbox-frame svg {
-  display: block;
-  margin: 0 auto;
-  max-width: none;
-}
-html.theme-light .mermaid-lightbox {
-  background: color-mix(in srgb, #000 25%, transparent);
-}
-.mermaid-block-error {
-  margin: 14px 0;
-  padding: 10px 14px;
-  border: 1px solid color-mix(in srgb, var(--color-negative) 45%, transparent);
-  border-radius: var(--radius-lg);
-  background: color-mix(in srgb, var(--color-negative) 10%, transparent);
-  color: var(--color-negative);
-  font-family: var(--font-mono);
-  font-size: 12px;
-  white-space: pre-wrap;
-}
-.mermaid-block-pending {
-  margin: 14px 0;
-  padding: 12px 14px;
-  border: 1px dashed color-mix(in srgb, var(--color-text) 14%, transparent);
-  border-radius: var(--radius-lg);
-  background: color-mix(in srgb, var(--color-text) 2%, transparent);
-  color: var(--color-text-faint);
-  font-family: var(--font-mono);
-  font-size: 12px;
-  line-height: 1.55;
-  white-space: pre;
-  overflow-x: auto;
-}
-.mermaid-block-pending code {
-  background: transparent;
-  border: 0;
-  padding: 0;
-  font-size: inherit;
-  color: inherit;
-}
-

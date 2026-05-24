@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useThemeStore } from "@/state/themeStore";
 import { Icon } from "@/components/common";
+import { cn } from "@/lib/utils";
 import { getHighlighter, resolveLang } from "@/lib/shiki";
 import { useDebounce } from "use-debounce";
 import { resolveScheme } from "@/plugins/sdk";
@@ -93,15 +94,32 @@ export function ShikiCodeBlock({ lang, code, file }: Props) {
   const showHighlighted = !isSettling && html !== null;
 
   return (
-    <div className={`shiki-block ${folded ? "folded" : ""}`}>
-      <div className="shiki-block-head">
-        <span className="lang">{lang || "text"}</span>
-        {file ? <span className="fname">{file}</span> : <span aria-hidden="true" />}
+    // `shiki-block` class is kept as a DOM hook for the markdown.css
+    // rules that style Shiki's emitted `.shiki` + `.shiki code` children
+    // (those come from a string, not JSX, so Tailwind utilities can't
+    // reach them). Everything else here is Tailwind utilities.
+    <div
+      className={cn(
+        "shiki-block group/code my-3.5 overflow-hidden rounded-lg font-mono text-[12.5px]",
+        "border border-[color-mix(in_srgb,var(--color-text)_10%,transparent)]",
+        "bg-[color-mix(in_srgb,var(--color-text)_3%,transparent)]",
+        folded && "folded",
+      )}
+    >
+      <div className="grid grid-cols-[auto_1fr_auto] items-center gap-2.5 border-b border-[color-mix(in_srgb,var(--color-text)_7%,transparent)] pl-3.5 pr-3 py-2">
+        <span className="font-sans text-[9.5px] font-semibold text-fg-faint tracking-normal normal-case">
+          {lang || "text"}
+        </span>
+        {file ? (
+          <span className="truncate font-mono text-[11.5px] text-fg-muted">{file}</span>
+        ) : (
+          <span aria-hidden="true" />
+        )}
         <button
-          className="copy"
           type="button"
           onClick={onCopy}
           title={copied ? "Copied" : "Copy code"}
+          className="inline-flex items-center gap-1 rounded-md border-0 bg-transparent px-2 py-1 font-mono text-[10.5px] font-semibold text-fg-faint cursor-pointer transition-[opacity,color,background] duration-150 opacity-60 group-hover/code:opacity-100 hover:!text-fg hover:bg-[color-mix(in_srgb,var(--color-text)_8%,transparent)]"
         >
           <Icon name={copied ? "check" : "copy"} size={11} />
           {copied ? "Copied" : "Copy"}
@@ -109,10 +127,10 @@ export function ShikiCodeBlock({ lang, code, file }: Props) {
       </div>
       {folded ? (
         <button
-          className="shiki-fold-toggle"
           type="button"
           onClick={() => setExpanded(true)}
           title="Expand code block"
+          className={FOLD_TOGGLE}
         >
           <Icon name="code" size={12} />
           <span>Show {lineCount} lines</span>
@@ -122,14 +140,16 @@ export function ShikiCodeBlock({ lang, code, file }: Props) {
           {showHighlighted ? (
             <div className="shiki-body" dangerouslySetInnerHTML={{ __html: html! }} />
           ) : (
-            <pre className="shiki-body shiki-fallback">{code}</pre>
+            // `shiki-fallback` is a CSS hook — the markdown.css rule sets
+            // colour + whitespace-pre on this pre while we wait for Shiki.
+            <pre className="shiki-body shiki-fallback m-0">{code}</pre>
           )}
           {lineCount > FOLD_LINE_THRESHOLD && !isSettling && (
             <button
-              className="shiki-fold-toggle bottom"
               type="button"
               onClick={() => setExpanded(false)}
               title="Collapse code block"
+              className={cn(FOLD_TOGGLE, "border-t border-[color-mix(in_srgb,var(--color-text)_7%,transparent)]")}
             >
               <Icon name="minimize" size={12} />
               <span>Collapse</span>
@@ -140,3 +160,6 @@ export function ShikiCodeBlock({ lang, code, file }: Props) {
     </div>
   );
 }
+
+const FOLD_TOGGLE =
+  "flex w-full items-center justify-center gap-1.5 border-0 bg-transparent px-4 py-2.5 font-sans text-[11.5px] font-semibold text-fg-muted tracking-normal cursor-pointer transition-[background,color] duration-150 hover:bg-[color-mix(in_srgb,var(--color-text)_4%,transparent)] hover:text-fg";
