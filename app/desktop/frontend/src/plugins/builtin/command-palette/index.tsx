@@ -83,7 +83,12 @@ function CommandPalette() {
           {visible.map((cmd) => (
             <Command.Item
               key={cmd.id}
-              value={[cmd.label, cmd.description ?? "", cmd.group ?? "", ...(cmd.keywords ?? [])].join(" ")}
+              value={[
+                cmd.label,
+                cmd.description ?? "",
+                cmd.group ?? "",
+                ...(cmd.keywords ?? []),
+              ].join(" ")}
               onSelect={() => run(cmd)}
               className="flex cursor-pointer items-center gap-2.5 rounded-md px-2.5 py-2 text-[13px] text-fg-muted aria-selected:bg-surface-2 aria-selected:text-fg"
             >

@@ -10,7 +10,7 @@ function flattenText(blocks: ReturnType<typeof useCurrentMessage>["blocks"]): st
   // Tool / approval / search blocks fall through (they don't really make
   // sense to "copy" as plain text anyway).
   return blocks
-    .map((b) => ("text" in b ? (b as { text?: string }).text ?? "" : ""))
+    .map((b) => ("text" in b ? ((b as { text?: string }).text ?? "") : ""))
     .filter(Boolean)
     .join("\n\n");
 }
@@ -22,14 +22,19 @@ function CopyButton() {
 
   const onClick = async () => {
     if (typeof navigator === "undefined" || !navigator.clipboard) return;
-    try { await navigator.clipboard.writeText(text); } catch { /* unfocused window */ }
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      /* unfocused window */
+    }
   };
 
   return (
     <button
       className="msg-action-btn"
       onClick={onClick}
-      title="Copy message" aria-label="Copy message"
+      title="Copy message"
+      aria-label="Copy message"
       style={{
         background: "transparent",
         border: "none",

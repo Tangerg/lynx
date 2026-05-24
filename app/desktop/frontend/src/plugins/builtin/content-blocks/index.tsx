@@ -18,15 +18,18 @@ export const approvalBlock = definePlugin({
   name: "lyra.builtin.approval-block",
   version: "1.0.0",
   setup({ host }) {
-    host.message.registerContentBlock("approval", ({ block }: ContentBlockRendererProps<"approval">) => (
-      <ApprovalCard
-        what={block.text}
-        cmd={block.command}
-        reason={block.reason}
-        requestId={block.requestId}
-        decision={block.decision}
-      />
-    ));
+    host.message.registerContentBlock(
+      "approval",
+      ({ block }: ContentBlockRendererProps<"approval">) => (
+        <ApprovalCard
+          what={block.text}
+          cmd={block.command}
+          reason={block.reason}
+          requestId={block.requestId}
+          decision={block.decision}
+        />
+      ),
+    );
   },
 });
 
@@ -34,9 +37,10 @@ export const checkpointBlock = definePlugin({
   name: "lyra.builtin.checkpoint-block",
   version: "1.0.0",
   setup({ host }) {
-    host.message.registerContentBlock("checkpoint", ({ block }: ContentBlockRendererProps<"checkpoint">) => (
-      <Checkpoint text={block.text} />
-    ));
+    host.message.registerContentBlock(
+      "checkpoint",
+      ({ block }: ContentBlockRendererProps<"checkpoint">) => <Checkpoint text={block.text} />,
+    );
   },
 });
 
@@ -70,9 +74,12 @@ export const reasoningBlock = definePlugin({
   name: "lyra.builtin.reasoning-block",
   version: "1.0.0",
   setup({ host }) {
-    host.message.registerContentBlock("reasoning", ({ block }: ContentBlockRendererProps<"reasoning">) => (
-      <ReasoningBlock text={block.text} streaming={block.streaming} />
-    ));
+    host.message.registerContentBlock(
+      "reasoning",
+      ({ block }: ContentBlockRendererProps<"reasoning">) => (
+        <ReasoningBlock text={block.text} streaming={block.streaming} />
+      ),
+    );
   },
 });
 
@@ -80,8 +87,9 @@ export const searchBlock = definePlugin({
   name: "lyra.builtin.search-block",
   version: "1.0.0",
   setup({ host }) {
-    host.message.registerContentBlock("search", ({ block }: ContentBlockRendererProps<"search">) => (
-      <SearchResults results={block.results} />
-    ));
+    host.message.registerContentBlock(
+      "search",
+      ({ block }: ContentBlockRendererProps<"search">) => <SearchResults results={block.results} />,
+    );
   },
 });

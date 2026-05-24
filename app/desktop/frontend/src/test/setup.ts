@@ -22,5 +22,9 @@ beforeEach(() => {
 
 afterEach(() => {
   // Clear localStorage so storage specs don't leak between cases.
-  try { localStorage.clear(); } catch { /* SSR-like envs */ }
+  try {
+    localStorage.clear();
+  } catch {
+    /* SSR-like envs */
+  }
 });

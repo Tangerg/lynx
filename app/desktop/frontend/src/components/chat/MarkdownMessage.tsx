@@ -67,10 +67,7 @@ export function MarkdownMessage({ text, streaming, instant }: Props) {
   // use-stick-to-bottom — drop-in upgrade.
   const safe = useMemo(() => remend(display), [display]);
 
-  const rehypePlugins = useMemo(
-    () => (instant ? [] : [rehypeFadeIn]),
-    [instant],
-  );
+  const rehypePlugins = useMemo(() => (instant ? [] : [rehypeFadeIn]), [instant]);
 
   return (
     <div className="md">

@@ -25,24 +25,34 @@ function resolve<T>(key: string): () => Promise<T> {
   return () => {
     const fetcher = lookupDataProvider<T>(key);
     if (!fetcher) {
-      return Promise.reject(
-        new Error(`No data provider registered for key "${key}"`),
-      );
+      return Promise.reject(new Error(`No data provider registered for key "${key}"`));
     }
     return fetcher();
   };
 }
 
 export function useSessions(): UseQueryResult<SidebarSession[]> {
-  return useQuery({ queryKey: ["sessions"], queryFn: resolve<SidebarSession[]>("sessions"), ...STATIC });
+  return useQuery({
+    queryKey: ["sessions"],
+    queryFn: resolve<SidebarSession[]>("sessions"),
+    ...STATIC,
+  });
 }
 
 export function useProjects(): UseQueryResult<SidebarProject[]> {
-  return useQuery({ queryKey: ["projects"], queryFn: resolve<SidebarProject[]>("projects"), ...STATIC });
+  return useQuery({
+    queryKey: ["projects"],
+    queryFn: resolve<SidebarProject[]>("projects"),
+    ...STATIC,
+  });
 }
 
 export function useFilesChanged(): UseQueryResult<FileChange[]> {
-  return useQuery({ queryKey: ["files-changed"], queryFn: resolve<FileChange[]>("files-changed"), ...STATIC });
+  return useQuery({
+    queryKey: ["files-changed"],
+    queryFn: resolve<FileChange[]>("files-changed"),
+    ...STATIC,
+  });
 }
 
 export function useDiff(): UseQueryResult<DiffRow[]> {
@@ -58,9 +68,17 @@ export function useGrep(): UseQueryResult<GrepResult> {
 }
 
 export function useFileHead(): UseQueryResult<FileLine[]> {
-  return useQuery({ queryKey: ["file-head"], queryFn: resolve<FileLine[]>("file-head"), ...STATIC });
+  return useQuery({
+    queryKey: ["file-head"],
+    queryFn: resolve<FileLine[]>("file-head"),
+    ...STATIC,
+  });
 }
 
 export function useMCPServers(): UseQueryResult<MCPServer[]> {
-  return useQuery({ queryKey: ["mcp-servers"], queryFn: resolve<MCPServer[]>("mcp-servers"), ...STATIC });
+  return useQuery({
+    queryKey: ["mcp-servers"],
+    queryFn: resolve<MCPServer[]>("mcp-servers"),
+    ...STATIC,
+  });
 }

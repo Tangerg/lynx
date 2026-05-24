@@ -4,24 +4,26 @@ import { SettingsPage } from "./SettingsPage";
 import { definePlugin, loadPlugin } from "@/plugins/sdk";
 
 async function loadPanes() {
-  await loadPlugin(definePlugin({
-    name: "test.settings",
-    version: "1.0.0",
-    setup: ({ host }) => {
-      host.settings.registerPane({
-        id: "appearance",
-        label: "Appearance",
-        order: 0,
-        component: () => <div data-testid="appearance-body">appearance body</div>,
-      });
-      host.settings.registerPane({
-        id: "plugins",
-        label: "Plugins",
-        order: 10,
-        component: () => <div data-testid="plugins-body">plugins body</div>,
-      });
-    },
-  }));
+  await loadPlugin(
+    definePlugin({
+      name: "test.settings",
+      version: "1.0.0",
+      setup: ({ host }) => {
+        host.settings.registerPane({
+          id: "appearance",
+          label: "Appearance",
+          order: 0,
+          component: () => <div data-testid="appearance-body">appearance body</div>,
+        });
+        host.settings.registerPane({
+          id: "plugins",
+          label: "Plugins",
+          order: 10,
+          component: () => <div data-testid="plugins-body">plugins body</div>,
+        });
+      },
+    }),
+  );
 }
 
 describe("SettingsPage", () => {

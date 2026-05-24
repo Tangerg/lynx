@@ -9,30 +9,30 @@ import { defineThemePlugin } from "../themes/defineThemePlugin";
 
 const c = {
   // Brand — Tokyo Night signature blue
-  blue:        "#7aa2f7",
-  blueBorder:  "#5d86e6",
-  bluePress:   "#4068c5",
+  blue: "#7aa2f7",
+  blueBorder: "#5d86e6",
+  bluePress: "#4068c5",
 
   // Tokyo Night Storm surfaces — bg_dark / bg / bg_highlight / fg_gutter
-  bgDark:      "#1f2335",
-  bg:          "#24283b",
+  bgDark: "#1f2335",
+  bg: "#24283b",
   bgHighlight: "#292e42",
-  bgHover:     "#2f3549",
+  bgHover: "#2f3549",
 
   // Ink — fg / fg_dark / fg_gutter / comment
-  fg:          "#c0caf5",
-  fgDark:      "#a9b1d6",
-  fgBright:    "#ffffff",
+  fg: "#c0caf5",
+  fgDark: "#a9b1d6",
+  fgBright: "#ffffff",
   // Bumped from #787c99 → ~5.0:1 on bg (was ~4.0). Still subordinate to
   // fgDark (#a9b1d6 → ~7.6:1) so the hierarchy reads.
-  fgMuted:     "#8389ab",
+  fgMuted: "#8389ab",
   // Bumped from #565f89 (comment, ~3.4:1) → #6873a3 (~4.6:1).
-  fgFaint:     "#6873a3",
+  fgFaint: "#6873a3",
 
   // Hairlines — fg_gutter ladder
-  hairline:    "#3b4261",
-  hairStrong:  "#545c7e",
-  hairTertiary:"#6873a3",
+  hairline: "#3b4261",
+  hairStrong: "#545c7e",
+  hairTertiary: "#6873a3",
 };
 
 export default defineThemePlugin({
@@ -42,37 +42,37 @@ export default defineThemePlugin({
   order: 20,
 
   brand: {
-    accent:       c.blue,
+    accent: c.blue,
     accentBorder: c.blueBorder,
-    accentPress:  c.bluePress,
+    accentPress: c.bluePress,
     // Tokyo Night runs dark ink on the lighter blue accent — matches
     // the upstream VS Code build.
     textOnAccent: "#1a1b26",
   },
   surfaces: {
-    bg:       c.bgDark,
-    surface:  c.bg,
+    bg: c.bgDark,
+    surface: c.bg,
     surface2: c.bgHighlight,
     surface3: c.bgHover,
   },
   ink: {
-    text:       c.fg,
+    text: c.fg,
     textBright: c.fgBright,
-    textSoft:   c.fgDark,
-    textMuted:  c.fgMuted,
-    textFaint:  c.fgFaint,
+    textSoft: c.fgDark,
+    textMuted: c.fgMuted,
+    textFaint: c.fgFaint,
   },
   borders: {
-    border:     c.hairline,
+    border: c.hairline,
     borderSoft: c.hairStrong,
-    divider:    c.hairTertiary,
+    divider: c.hairTertiary,
     appDivider: c.hairline,
   },
   semantic: {
     // Tokyo Night canonical syntax pulls
     negative: "#f7768e",
-    warning:  "#ff9e64",
-    info:     "#7dcfff",
-    success:  "#9ece6a",
+    warning: "#ff9e64",
+    info: "#7dcfff",
+    success: "#9ece6a",
   },
 });

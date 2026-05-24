@@ -12,7 +12,10 @@ import { create } from "zustand";
 import type { Disposable } from "./types";
 
 export type ConfigValue =
-  | string | number | boolean | null
+  | string
+  | number
+  | boolean
+  | null
   | ConfigValue[]
   | { [key: string]: ConfigValue };
 
@@ -39,7 +42,9 @@ export const useConfigStore = create<ConfigStoreState & ConfigStoreActions>((set
     const subs = get().subscribers.get(key);
     if (!subs) return;
     for (const fn of [...subs]) {
-      try { fn(value); } catch (err) {
+      try {
+        fn(value);
+      } catch (err) {
         // eslint-disable-next-line no-console
         console.error(`[plugin] config subscriber for "${key}" threw:`, err);
       }
@@ -71,7 +76,7 @@ export const useConfigStore = create<ConfigStoreState & ConfigStoreActions>((set
 /** Imperative read with optional fallback. */
 export function getConfig<T = ConfigValue>(key: string, defaultValue?: T): T | undefined {
   const v = useConfigStore.getState().values.get(key);
-  return (v === undefined ? defaultValue : (v as unknown as T));
+  return v === undefined ? defaultValue : (v as unknown as T);
 }
 
 /** Imperative write. */

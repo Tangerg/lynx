@@ -69,7 +69,11 @@ export async function loadPlugin(spec: PluginSpec): Promise<LoadResult> {
     console.error(`[plugin] ${spec.name} setup failed:`, err);
     reportPluginError(spec.name, "setup", err);
     for (const d of disposables) {
-      try { d.dispose(); } catch { /* swallow */ }
+      try {
+        d.dispose();
+      } catch {
+        /* swallow */
+      }
     }
     return { kind: "failed", name: spec.name, error: err };
   }
@@ -177,7 +181,9 @@ export async function reloadPlugin(name: string): Promise<void> {
 
 // Expose load/unload/reload to host.plugins via the runtime seam.
 setPluginRuntime({
-  load: async (spec) => { await loadPlugin(spec); },
+  load: async (spec) => {
+    await loadPlugin(spec);
+  },
   unload: unloadPlugin,
   reload: reloadPlugin,
 });
@@ -190,7 +196,7 @@ type Skipped = { name: string; reason: string };
  */
 function topoSort(specs: PluginSpec[]): { order: PluginSpec[]; skipped: Skipped[] } {
   const byName = new Map(specs.map((s) => [s.name, s]));
-  const index  = new Map(specs.map((s, i) => [s.name, i]));
+  const index = new Map(specs.map((s, i) => [s.name, i]));
   const skipped: Skipped[] = [];
 
   // Filter requires: missing deps mark the dependent as skipped right away.
@@ -235,7 +241,10 @@ function topoSort(specs: PluginSpec[]): { order: PluginSpec[]; skipped: Skipped[
     let pickIdx = Infinity;
     for (const name of ready) {
       const i = index.get(name)!;
-      if (i < pickIdx) { pick = name; pickIdx = i; }
+      if (i < pickIdx) {
+        pick = name;
+        pickIdx = i;
+      }
     }
     ready.delete(pick!);
     order.push(byName.get(pick!)!);

@@ -12,19 +12,19 @@ import { defineThemePlugin } from "../themes/defineThemePlugin";
 
 const c = {
   // Brand — Solarized blue
-  blue:        "#268bd2",
-  blueBorder:  "#1e6fa6",
-  bluePress:   "#155383",
+  blue: "#268bd2",
+  blueBorder: "#1e6fa6",
+  bluePress: "#155383",
 
   // Solarized base ladder — canonical hexes
-  base03: "#002b36",  // canvas
-  base02: "#073642",  // surface
-  base01: "#586e75",  // comments / muted
-  base00: "#657b83",  // body / soft
-  base0:  "#839496",  // default text
-  base1:  "#93a1a1",  // emphasis
-  base2:  "#eee8d5",  // light surface
-  base3:  "#fdf6e3",  // light canvas
+  base03: "#002b36", // canvas
+  base02: "#073642", // surface
+  base01: "#586e75", // comments / muted
+  base00: "#657b83", // body / soft
+  base0: "#839496", // default text
+  base1: "#93a1a1", // emphasis
+  base2: "#eee8d5", // light surface
+  base3: "#fdf6e3", // light canvas
 };
 
 export default defineThemePlugin({
@@ -34,14 +34,14 @@ export default defineThemePlugin({
   order: 30,
 
   brand: {
-    accent:       c.blue,
+    accent: c.blue,
     accentBorder: c.blueBorder,
-    accentPress:  c.bluePress,
+    accentPress: c.bluePress,
     textOnAccent: c.base3,
   },
   surfaces: {
-    bg:       c.base03,
-    surface:  c.base02,
+    bg: c.base03,
+    surface: c.base02,
     // Solarized's "lifted" surfaces extend the same blue-grey axis,
     // not a lightness step. Manual ladder keeps the canonical feel.
     surface2: "#0e4250",
@@ -49,25 +49,25 @@ export default defineThemePlugin({
     surface4: "#185868",
   },
   ink: {
-    text:       c.base0,
+    text: c.base0,
     textBright: c.base3,
-    textSoft:   c.base1,
+    textSoft: c.base1,
     // Bumped from base00 (#657b83 → ~4.3:1 on base03) → #7a8e95 (~5.1:1).
-    textMuted:  "#7a8e95",
+    textMuted: "#7a8e95",
     // Bumped from base01 (#586e75 → ~3.1:1) → #687f86 (~4.6:1).
-    textFaint:  "#687f86",
+    textFaint: "#687f86",
   },
   borders: {
-    border:     c.base01,
+    border: c.base01,
     borderSoft: c.base00,
-    divider:    c.base1,
+    divider: c.base1,
     appDivider: c.base02,
   },
   semantic: {
     // Solarized canonical accent hues — already plenty of contrast
     negative: "#dc322f",
-    warning:  "#cb4b16",
-    info:     "#2aa198",
-    success:  "#859900",
+    warning: "#cb4b16",
+    info: "#2aa198",
+    success: "#859900",
   },
 });

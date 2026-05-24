@@ -14,43 +14,90 @@ const SECTIONS: Section[] = [
   {
     title: "Frontier labs",
     ids: [
-      "OpenAI", "Anthropic", "Claude", "ClaudeCode", "Gemini", "Google",
-      "Grok", "Meta", "DeepSeek", "Mistral", "Cohere", "Perplexity",
+      "OpenAI",
+      "Anthropic",
+      "Claude",
+      "ClaudeCode",
+      "Gemini",
+      "Google",
+      "Grok",
+      "Meta",
+      "DeepSeek",
+      "Mistral",
+      "Cohere",
+      "Perplexity",
     ],
   },
   {
     title: "Cloud & enterprise",
     ids: [
-      "Microsoft", "Azure", "Bedrock", "Aws", "GoogleCloud",
-      "Nvidia", "IBM", "Apple", "Github",
+      "Microsoft",
+      "Azure",
+      "Bedrock",
+      "Aws",
+      "GoogleCloud",
+      "Nvidia",
+      "IBM",
+      "Apple",
+      "Github",
     ],
   },
   {
     title: "Chinese ecosystem",
     ids: [
-      "Qwen", "Doubao", "Kimi", "Wenxin", "Hunyuan", "ChatGLM",
-      "Yi", "Minimax", "Spark", "SenseNova",
+      "Qwen",
+      "Doubao",
+      "Kimi",
+      "Wenxin",
+      "Hunyuan",
+      "ChatGLM",
+      "Yi",
+      "Minimax",
+      "Spark",
+      "SenseNova",
     ],
   },
   {
     title: "Local runtimes & gateways",
     ids: [
-      "Ollama", "LmStudio", "Vllm", "HuggingFace", "Together",
-      "Groq", "Fireworks", "Replicate", "OpenRouter", "SiliconCloud",
+      "Ollama",
+      "LmStudio",
+      "Vllm",
+      "HuggingFace",
+      "Together",
+      "Groq",
+      "Fireworks",
+      "Replicate",
+      "OpenRouter",
+      "SiliconCloud",
     ],
   },
   {
     title: "Media generation",
     ids: [
-      "Midjourney", "Stability", "Flux", "Runway", "Sora",
-      "Kling", "Pika", "Suno", "ElevenLabs",
+      "Midjourney",
+      "Stability",
+      "Flux",
+      "Runway",
+      "Sora",
+      "Kling",
+      "Pika",
+      "Suno",
+      "ElevenLabs",
     ],
   },
   {
     title: "Dev tools",
     ids: [
-      "Cursor", "Windsurf", "Cline", "Codex", "Copilot",
-      "GithubCopilot", "Trae", "RooCode", "LobeHub",
+      "Cursor",
+      "Windsurf",
+      "Cline",
+      "Codex",
+      "Copilot",
+      "GithubCopilot",
+      "Trae",
+      "RooCode",
+      "LobeHub",
     ],
   },
 ];
@@ -62,8 +109,10 @@ export function IconShowcase() {
     <div className="flex flex-col gap-4.5">
       <p className="m-0 mb-1 text-[14px] leading-[1.55] text-fg-muted">
         A curated set of {total} brand glyphs from{" "}
-        <code className="rounded-xs bg-surface-2 px-1.5 py-px font-mono text-[12px] text-fg">@lobehub/icons</code>.
-        Full catalogue: <em className="not-italic text-fg">Cmd + K → View: Icon Gallery</em>.
+        <code className="rounded-xs bg-surface-2 px-1.5 py-px font-mono text-[12px] text-fg">
+          @lobehub/icons
+        </code>
+        . Full catalogue: <em className="not-italic text-fg">Cmd + K → View: Icon Gallery</em>.
       </p>
 
       {SECTIONS.map((sec) => (
@@ -95,9 +144,7 @@ function ShowcaseCard({ id }: { id: string }) {
       <div className="grid h-8.5 w-8.5 place-items-center rounded-sm bg-surface-2 text-fg">
         {Glyph ? <Glyph size={22} /> : <span className="font-mono text-fg-faint">?</span>}
       </div>
-      <div className="max-w-full truncate text-center text-[11px] font-medium text-fg">
-        {title}
-      </div>
+      <div className="max-w-full truncate text-center text-[11px] font-medium text-fg">{title}</div>
     </div>
   );
 }

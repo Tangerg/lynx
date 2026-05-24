@@ -23,9 +23,7 @@ export class HttpPermissionGateway implements PermissionGateway {
     });
     if (!response.ok) {
       const body = await response.text().catch(() => "");
-      throw new Error(
-        `permission submit ${response.status}${body ? `: ${body}` : ""}`,
-      );
+      throw new Error(`permission submit ${response.status}${body ? `: ${body}` : ""}`);
     }
   }
 }

@@ -23,19 +23,62 @@ export const unwrapOr = <T, E>(r: Result<T, E>, fallback: T): T =>
   r.ok ? r.value : fallback;`;
 
 export const PLAN_ITEMS = [
-  { id: 1, pid: "T-001", status: "done"  as const, text: "Read src/api/auth.ts and identify error-throwing call sites" },
-  { id: 2, pid: "T-002", status: "done"  as const, text: "Grep callers of login(), refresh(), and verifyToken() across the repo" },
-  { id: 3, pid: "T-003", status: "done"  as const, text: "Introduce Result<T,E> type in src/lib/result.ts with helpers ok() and err()" },
-  { id: 4, pid: "T-004", status: "done"  as const, text: "Refactor auth.ts to return Result instead of throwing" },
-  { id: 5, pid: "T-005", status: "doing" as const, text: "Update 7 call sites to handle the new return shape" },
-  { id: 6, pid: "T-006", status: "todo"  as const, text: "Run pnpm test and pnpm typecheck" },
-  { id: 7, pid: "T-007", status: "todo"  as const, text: "Update CHANGELOG.md and open a draft PR" },
+  {
+    id: 1,
+    pid: "T-001",
+    status: "done" as const,
+    text: "Read src/api/auth.ts and identify error-throwing call sites",
+  },
+  {
+    id: 2,
+    pid: "T-002",
+    status: "done" as const,
+    text: "Grep callers of login(), refresh(), and verifyToken() across the repo",
+  },
+  {
+    id: 3,
+    pid: "T-003",
+    status: "done" as const,
+    text: "Introduce Result<T,E> type in src/lib/result.ts with helpers ok() and err()",
+  },
+  {
+    id: 4,
+    pid: "T-004",
+    status: "done" as const,
+    text: "Refactor auth.ts to return Result instead of throwing",
+  },
+  {
+    id: 5,
+    pid: "T-005",
+    status: "doing" as const,
+    text: "Update 7 call sites to handle the new return shape",
+  },
+  { id: 6, pid: "T-006", status: "todo" as const, text: "Run pnpm test and pnpm typecheck" },
+  { id: 7, pid: "T-007", status: "todo" as const, text: "Update CHANGELOG.md and open a draft PR" },
 ];
 
 export const SEARCH_RESULTS = [
-  { domain: "matklad.github.io", title: "Result vs. Exceptions — why TypeScript adopted both", time: "2024", snippet: "The Result pattern shines for recoverable errors at boundaries; throwing remains idiomatic for programmer bugs." },
-  { domain: "effect.website", title: "Effect — Building blocks for typed errors", time: "2025", snippet: "Effect's tagged Result and Either generalize the pattern, but plain Result<T, E> is enough for most service-level code." },
-  { domain: "github.com/supermacro/neverthrow", title: "neverthrow — Type-safe errors for TS", time: "★ 5.2k", snippet: "Lightweight Result type with combinators (map, andThen, mapErr). The most popular pure-TS implementation." },
+  {
+    domain: "matklad.github.io",
+    title: "Result vs. Exceptions — why TypeScript adopted both",
+    time: "2024",
+    snippet:
+      "The Result pattern shines for recoverable errors at boundaries; throwing remains idiomatic for programmer bugs.",
+  },
+  {
+    domain: "effect.website",
+    title: "Effect — Building blocks for typed errors",
+    time: "2025",
+    snippet:
+      "Effect's tagged Result and Either generalize the pattern, but plain Result<T, E> is enough for most service-level code.",
+  },
+  {
+    domain: "github.com/supermacro/neverthrow",
+    title: "neverthrow — Type-safe errors for TS",
+    time: "★ 5.2k",
+    snippet:
+      "Lightweight Result type with combinators (map, andThen, mapErr). The most popular pure-TS implementation.",
+  },
 ];
 
 export const APPROVAL = {
@@ -47,13 +90,19 @@ export const APPROVAL = {
 // Scripted tool calls — id, fn name, arg string, and summary fields surfaced
 // on TOOL_CALL_END.
 export const TOOL_SCRIPT = [
-  { id: "t1", fn: "read_file",  args: "src/api/auth.ts", durationMs: 12,  lines: 247 },
-  { id: "t2", fn: "grep",       args: '"login\\(|refresh\\(|verifyToken\\("', durationMs: 34,  hits: 14 },
-  { id: "tw", fn: "web_search", args: "Result<T,E> type pattern TypeScript best practices", durationMs: 1200, hits: 3 },
-  { id: "t3", fn: "write_file", args: "src/lib/result.ts", durationMs: 8,  added: 38, removed: 0 },
-  { id: "t4", fn: "edit_file",  args: "src/api/auth.ts",   durationMs: 11, added: 47, removed: 31 },
-  { id: "t5", fn: "bash",       args: "pnpm typecheck",    durationMs: 2400 },
-  { id: "t6", fn: "edit_file",  args: "src/api/billing.ts", durationMs: 9, added: 3,  removed: 3 },
+  { id: "t1", fn: "read_file", args: "src/api/auth.ts", durationMs: 12, lines: 247 },
+  { id: "t2", fn: "grep", args: '"login\\(|refresh\\(|verifyToken\\("', durationMs: 34, hits: 14 },
+  {
+    id: "tw",
+    fn: "web_search",
+    args: "Result<T,E> type pattern TypeScript best practices",
+    durationMs: 1200,
+    hits: 3,
+  },
+  { id: "t3", fn: "write_file", args: "src/lib/result.ts", durationMs: 8, added: 38, removed: 0 },
+  { id: "t4", fn: "edit_file", args: "src/api/auth.ts", durationMs: 11, added: 47, removed: 31 },
+  { id: "t5", fn: "bash", args: "pnpm typecheck", durationMs: 2400 },
+  { id: "t6", fn: "edit_file", args: "src/api/billing.ts", durationMs: 9, added: 3, removed: 3 },
 ];
 
 export const USER_PROMPT =

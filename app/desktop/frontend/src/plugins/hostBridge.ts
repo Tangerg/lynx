@@ -46,7 +46,9 @@ export function installHostBridge(): void {
   // promises during unload.
   window.addEventListener("beforeunload", () => {
     for (const o of usePluginStore.getState().beforeUnloadHandlers.values()) {
-      try { o.value(); } catch (err) {
+      try {
+        o.value();
+      } catch (err) {
         // eslint-disable-next-line no-console
         console.error(`[plugin] ${o.pluginName} onBeforeUnload threw:`, err);
       }

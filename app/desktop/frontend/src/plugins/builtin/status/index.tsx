@@ -12,9 +12,7 @@ import { useSessionStore } from "@/state/sessionStore";
 export { statusPill } from "./pill";
 
 function NotificationsBadge() {
-  const unread = useNotificationStore((s) =>
-    s.log.reduce((n, e) => (e.dismissed ? n : n + 1), 0),
-  );
+  const unread = useNotificationStore((s) => s.log.reduce((n, e) => (e.dismissed ? n : n + 1), 0));
 
   const onClick = () => {
     useSessionStore.getState().openMainView({

@@ -118,29 +118,36 @@ export const defaultCommands = definePlugin({
       for (const d of dynamic) d.dispose();
       dynamic = [];
       for (const view of [...views].sort((a, b) => (a.order ?? 100) - (b.order ?? 100))) {
-        dynamic.push(host.commands.register({
-          id: `view.open.${view.id}`,
-          label: `View: ${view.title}`,
-          icon: view.icon,
-          group: "View",
-          order: 10,
-          keywords: ["open", "show", view.id],
-          // Hide when this view is already the focused main-area tab.
-          when: `mainView != "${view.id}"`,
-          run: () => useSessionStore.getState().openMainView({
-            id: view.id, title: view.title, icon: view.icon,
+        dynamic.push(
+          host.commands.register({
+            id: `view.open.${view.id}`,
+            label: `View: ${view.title}`,
+            icon: view.icon,
+            group: "View",
+            order: 10,
+            keywords: ["open", "show", view.id],
+            // Hide when this view is already the focused main-area tab.
+            when: `mainView != "${view.id}"`,
+            run: () =>
+              useSessionStore.getState().openMainView({
+                id: view.id,
+                title: view.title,
+                icon: view.icon,
+              }),
           }),
-        }));
+        );
       }
       for (const accent of [...accents].sort((a, b) => (a.order ?? 100) - (b.order ?? 100))) {
-        dynamic.push(host.commands.register({
-          id: `theme.accent.${accent.id}`,
-          label: `Accent: ${accent.label}`,
-          icon: "spark",
-          group: "Theme",
-          order: 10,
-          run: () => useThemeStore.getState().setAccent(accent.dark),
-        }));
+        dynamic.push(
+          host.commands.register({
+            id: `theme.accent.${accent.id}`,
+            label: `Accent: ${accent.label}`,
+            icon: "spark",
+            group: "Theme",
+            order: 10,
+            run: () => useThemeStore.getState().setAccent(accent.dark),
+          }),
+        );
       }
     };
 

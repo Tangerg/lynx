@@ -1,10 +1,7 @@
 // Message + content-block plugin surface.
 
 import type { ComponentType } from "react";
-import type {
-  ContentBlockKind,
-  ContentBlockMap,
-} from "@/protocol/agui/viewState";
+import type { ContentBlockKind, ContentBlockMap } from "@/protocol/agui/viewState";
 
 /**
  * Renderer props for a specific content-block kind. The `block` prop is
@@ -14,8 +11,9 @@ import type {
 export type ContentBlockRendererProps<K extends ContentBlockKind> = {
   block: ContentBlockMap[K];
 };
-export type ContentBlockRenderer<K extends ContentBlockKind> =
-  ComponentType<ContentBlockRendererProps<K>>;
+export type ContentBlockRenderer<K extends ContentBlockKind> = ComponentType<
+  ContentBlockRendererProps<K>
+>;
 
 /**
  * A message role identity — display name + avatar icon. Used by

@@ -85,9 +85,9 @@ export async function loadSideloadedPlugins(): Promise<LoadResult[]> {
 function isPluginSpec(v: unknown): v is PluginSpec {
   if (!v || typeof v !== "object") return false;
   const o = v as Record<string, unknown>;
-  return typeof o.name === "string"
-    && typeof o.version === "string"
-    && typeof o.setup === "function";
+  return (
+    typeof o.name === "string" && typeof o.version === "string" && typeof o.setup === "function"
+  );
 }
 
 // Tag any plugin that's currently loaded as builtin when this module is

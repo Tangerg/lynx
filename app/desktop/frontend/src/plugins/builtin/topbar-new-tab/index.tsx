@@ -25,7 +25,8 @@ function NewTabButton() {
     <button
       type="button"
       onClick={onClick}
-      title="New session (⌘N)" aria-label="New session (⌘N)"
+      title="New session (⌘N)"
+      aria-label="New session (⌘N)"
       className="ml-1 mr-0.5 mb-1 grid h-6.5 w-6.5 shrink-0 place-items-center rounded-md border-0 bg-transparent text-fg-muted cursor-pointer [-webkit-app-region:no-drag] [--wails-draggable:no-drag] hover:bg-surface hover:text-fg"
     >
       <Icon name="plus" size={13} />

@@ -39,7 +39,9 @@ textarea:focus-visible {
    Opacity-only fade-in keyframes still run (those are benign and convey
    information). */
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
+  *,
+  *::before,
+  *::after {
     transition-duration: 1ms !important;
     animation-duration: 1ms !important;
     animation-iteration-count: 1 !important;

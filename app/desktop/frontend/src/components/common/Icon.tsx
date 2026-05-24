@@ -63,13 +63,52 @@ import type { CSSProperties } from "react";
 // and components.
 
 export type IconName =
-  | "search" | "plus" | "chat" | "folder" | "code" | "terminal" | "file"
-  | "filetext" | "send" | "send-arrow" | "stop" | "play" | "pause"
-  | "settings" | "sun" | "moon" | "share" | "more" | "x" | "check"
-  | "branch" | "git" | "globe" | "book" | "history" | "tool" | "sparkle"
-  | "edit" | "paperclip" | "image" | "command" | "panel" | "panel-l"
-  | "user" | "spark" | "skip-back" | "skip-fwd" | "minimize" | "diff"
-  | "list" | "lightning" | "bug" | "shield" | "loop" | "copy" | "panel-r"
+  | "search"
+  | "plus"
+  | "chat"
+  | "folder"
+  | "code"
+  | "terminal"
+  | "file"
+  | "filetext"
+  | "send"
+  | "send-arrow"
+  | "stop"
+  | "play"
+  | "pause"
+  | "settings"
+  | "sun"
+  | "moon"
+  | "share"
+  | "more"
+  | "x"
+  | "check"
+  | "branch"
+  | "git"
+  | "globe"
+  | "book"
+  | "history"
+  | "tool"
+  | "sparkle"
+  | "edit"
+  | "paperclip"
+  | "image"
+  | "command"
+  | "panel"
+  | "panel-l"
+  | "user"
+  | "spark"
+  | "skip-back"
+  | "skip-fwd"
+  | "minimize"
+  | "diff"
+  | "list"
+  | "lightning"
+  | "bug"
+  | "shield"
+  | "loop"
+  | "copy"
+  | "panel-r"
   | "arrow-down";
 
 // Mapping from our project's icon vocabulary to lucide components.
@@ -77,54 +116,54 @@ export type IconName =
 // callsite; names on the right are the Feather/Lucide-canonical
 // equivalents we render under the hood.
 const ICON_MAP: Record<IconName, LucideIcon> = {
-  "search": Search,
-  "plus": Plus,
-  "chat": MessageSquare,
-  "folder": Folder,
-  "code": Code,
-  "terminal": Terminal,
-  "file": File,
-  "filetext": FileText,
-  "send": Send,
+  search: Search,
+  plus: Plus,
+  chat: MessageSquare,
+  folder: Folder,
+  code: Code,
+  terminal: Terminal,
+  file: File,
+  filetext: FileText,
+  send: Send,
   "send-arrow": Send,
-  "stop": Square,
-  "play": Play,
-  "pause": Pause,
-  "settings": Settings,
-  "sun": Sun,
-  "moon": Moon,
-  "share": Share2,
-  "more": MoreHorizontal,
-  "x": X,
-  "check": Check,
-  "branch": GitBranch,
-  "git": GitFork,
-  "globe": Globe,
-  "book": Book,
-  "history": History,
-  "tool": Wrench,
-  "sparkle": Sparkle,
-  "edit": Pencil,
-  "paperclip": Paperclip,
-  "image": ImageIcon,
-  "command": Command,
+  stop: Square,
+  play: Play,
+  pause: Pause,
+  settings: Settings,
+  sun: Sun,
+  moon: Moon,
+  share: Share2,
+  more: MoreHorizontal,
+  x: X,
+  check: Check,
+  branch: GitBranch,
+  git: GitFork,
+  globe: Globe,
+  book: Book,
+  history: History,
+  tool: Wrench,
+  sparkle: Sparkle,
+  edit: Pencil,
+  paperclip: Paperclip,
+  image: ImageIcon,
+  command: Command,
   // "panel" + "panel-r" are aliases for the right-side panel layout —
   // callsites use either interchangeably.
-  "panel": PanelRight,
+  panel: PanelRight,
   "panel-l": PanelLeft,
   "panel-r": PanelRight,
-  "user": User,
-  "spark": Sparkles,
+  user: User,
+  spark: Sparkles,
   "skip-back": SkipBack,
   "skip-fwd": SkipForward,
-  "minimize": Minimize2,
-  "diff": FileDiff,
-  "list": List,
-  "lightning": Zap,
-  "bug": Bug,
-  "shield": Shield,
-  "loop": Repeat,
-  "copy": Copy,
+  minimize: Minimize2,
+  diff: FileDiff,
+  list: List,
+  lightning: Zap,
+  bug: Bug,
+  shield: Shield,
+  loop: Repeat,
+  copy: Copy,
   "arrow-down": ArrowDown,
   // Intentionally unused alias kept for forward-compat: "maximize" can
   // map to Maximize2 if a callsite is added later.

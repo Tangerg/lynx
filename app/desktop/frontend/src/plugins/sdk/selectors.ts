@@ -98,15 +98,16 @@ export function useWorkspaceViews(): WorkspaceViewSpec[] {
     for (const o of registered.values()) {
       byId.set(o.value.id, o.value);
     }
-    return Array.from(byId.values())
-      .sort((a, b) => (a.order ?? 100) - (b.order ?? 100));
+    return Array.from(byId.values()).sort((a, b) => (a.order ?? 100) - (b.order ?? 100));
   }, [registered, declared]);
 }
 
 function declaredToWorkspaceView(d: ContributedView, pluginName: string): WorkspaceViewSpec {
   return {
     ...d,
-    component: makeLazyActivator(d.title, () => { void runActivator(pluginName); }),
+    component: makeLazyActivator(d.title, () => {
+      void runActivator(pluginName);
+    }),
   };
 }
 
@@ -120,11 +121,11 @@ function declaredToWorkspaceView(d: ContributedView, pluginName: string): Worksp
  * is registered.
  */
 export function pickPluginErrorFallback(): PluginErrorFallbackSpec | undefined {
-  const specs = Array.from(usePluginStore.getState().pluginErrorFallbacks.values()).map((o) => o.value);
-  if (specs.length === 0) return undefined;
-  return specs.reduce((best, cur) =>
-    (cur.priority ?? 0) >= (best.priority ?? 0) ? cur : best,
+  const specs = Array.from(usePluginStore.getState().pluginErrorFallbacks.values()).map(
+    (o) => o.value,
   );
+  if (specs.length === 0) return undefined;
+  return specs.reduce((best, cur) => ((cur.priority ?? 0) >= (best.priority ?? 0) ? cur : best));
 }
 
 // ---------------------------------------------------------------------------
@@ -186,15 +187,16 @@ export function useSettingsPanes(): SettingsPaneSpec[] {
     for (const o of registered.values()) {
       byId.set(o.value.id, o.value);
     }
-    return Array.from(byId.values())
-      .sort((a, b) => (a.order ?? 100) - (b.order ?? 100));
+    return Array.from(byId.values()).sort((a, b) => (a.order ?? 100) - (b.order ?? 100));
   }, [registered, declared]);
 }
 
 function declaredToSettingsPane(d: ContributedSettingsPane, pluginName: string): SettingsPaneSpec {
   return {
     ...d,
-    component: makeLazyActivator(d.label, () => { void runActivator(pluginName); }),
+    component: makeLazyActivator(d.label, () => {
+      void runActivator(pluginName);
+    }),
   };
 }
 
@@ -264,7 +266,9 @@ export function useComposerAttachmentSources(): ComposerAttachmentSourceSpec[] {
  * default. Pure read — call once at component mount, not on every render.
  */
 export function pickComposerPlaceholder(): ComposerPlaceholderSpec | undefined {
-  const specs = Array.from(usePluginStore.getState().composerPlaceholders.values()).map((o) => o.value);
+  const specs = Array.from(usePluginStore.getState().composerPlaceholders.values()).map(
+    (o) => o.value,
+  );
   if (specs.length === 0) return undefined;
   const total = specs.reduce((sum, s) => sum + (s.weight ?? 1), 0);
   if (total <= 0) return undefined;
@@ -314,8 +318,7 @@ export function useCommands(): CommandSpec[] {
     for (const o of registered.values()) {
       byId.set(o.value.id, o.value);
     }
-    return Array.from(byId.values())
-      .sort((a, b) => (a.order ?? 100) - (b.order ?? 100));
+    return Array.from(byId.values()).sort((a, b) => (a.order ?? 100) - (b.order ?? 100));
   }, [registered, declared]);
 }
 
@@ -390,7 +393,8 @@ export function lookupCoreEventHandlers(
 ): Array<{ pluginName: string; handler: CoreEventHandler }> {
   const out: Array<{ pluginName: string; handler: CoreEventHandler }> = [];
   for (const o of usePluginStore.getState().coreEventHandlers.values()) {
-    if (o.value.eventType === eventType) out.push({ pluginName: o.pluginName, handler: o.value.handler });
+    if (o.value.eventType === eventType)
+      out.push({ pluginName: o.pluginName, handler: o.value.handler });
   }
   return out;
 }
@@ -418,9 +422,7 @@ export function lookupShortcut(canonical: string): ShortcutSpec | undefined {
 export function pickAgentSource(): AgentSourceSpec | undefined {
   const sources = Array.from(usePluginStore.getState().agentSources.values()).map((o) => o.value);
   if (sources.length === 0) return undefined;
-  return sources.reduce((best, cur) =>
-    (cur.priority ?? 0) > (best.priority ?? 0) ? cur : best,
-  );
+  return sources.reduce((best, cur) => ((cur.priority ?? 0) > (best.priority ?? 0) ? cur : best));
 }
 
 /**
@@ -442,4 +444,3 @@ export function listRpcBeforeHooks(): RpcBeforeRequestHook[] {
 export function listRpcAfterHooks(): RpcAfterResponseHook[] {
   return Array.from(usePluginStore.getState().rpcAfterResponse.values()).map((o) => o.value);
 }
-

@@ -33,12 +33,10 @@ function DemoBanner({ block }: ContentBlockRendererProps<"demoBanner">) {
         margin: "8px 0",
         padding: "10px 14px",
         borderRadius: 10,
-        background: tone === "warn"
-          ? "rgba(255, 164, 43, 0.10)"
-          : "rgba(82, 157, 245, 0.10)",
-        border: `1px solid ${tone === "warn"
-          ? "rgba(255, 164, 43, 0.36)"
-          : "rgba(82, 157, 245, 0.36)"}`,
+        background: tone === "warn" ? "rgba(255, 164, 43, 0.10)" : "rgba(82, 157, 245, 0.10)",
+        border: `1px solid ${
+          tone === "warn" ? "rgba(255, 164, 43, 0.36)" : "rgba(82, 157, 245, 0.36)"
+        }`,
         color: tone === "warn" ? "var(--color-warning)" : "var(--color-info)",
         fontSize: 13,
       }}
@@ -57,14 +55,12 @@ export default definePlugin({
 
     // 2. CUSTOM event handler — when Go emits `lyra.demo.banner`, append a
     //    banner to the latest assistant message.
-    host.agui.on<{ text: string; tone?: "info" | "warn" }>(
-      "lyra.demo.banner",
-      (value) =>
-        appendBlockToLatestAssistant({
-          kind: "demoBanner",
-          text: value.text,
-          tone: value.tone,
-        }),
+    host.agui.on<{ text: string; tone?: "info" | "warn" }>("lyra.demo.banner", (value) =>
+      appendBlockToLatestAssistant({
+        kind: "demoBanner",
+        text: value.text,
+        tone: value.tone,
+      }),
     );
 
     // 3. Slash command — `/health` hits the Go /health endpoint and toasts

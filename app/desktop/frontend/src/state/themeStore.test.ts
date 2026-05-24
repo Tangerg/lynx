@@ -103,8 +103,7 @@ describe("applyTheme — theme-as-plugin contract", () => {
 
     useThemeStore.getState().setTheme("light");
 
-    expect(document.documentElement.style.getPropertyValue("--color-accent"))
-      .toBe("#15883e");
+    expect(document.documentElement.style.getPropertyValue("--color-accent")).toBe("#15883e");
   });
 
   it("toggleTheme flips to the first registered theme of the opposite scheme", () => {

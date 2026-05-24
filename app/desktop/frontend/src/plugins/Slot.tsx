@@ -36,11 +36,7 @@ export function Slot({ name, wrapper, className }: Props) {
       <Component />
     );
     return (
-      <PluginBoundary
-        key={spec.id}
-        plugin={`layout:${name}:${spec.id}`}
-        label={`${name} slot`}
-      >
+      <PluginBoundary key={spec.id} plugin={`layout:${name}:${spec.id}`} label={`${name} slot`}>
         {body}
       </PluginBoundary>
     );

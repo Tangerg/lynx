@@ -22,6 +22,7 @@ export const useComposerStore = create<ComposerState & ComposerActions>((set) =>
   setValue: (value) => set({ value }),
   setMode: (mode) => set({ mode }),
   clear: () => set({ value: "" }),
-  removeAttachment: (i) => set((s) => ({ attachments: s.attachments.filter((_, idx) => idx !== i) })),
+  removeAttachment: (i) =>
+    set((s) => ({ attachments: s.attachments.filter((_, idx) => idx !== i) })),
   addAttachment: (a) => set((s) => ({ attachments: [...s.attachments, a] })),
 }));

@@ -7,7 +7,7 @@ import type { Transition } from "motion/react";
 // for snappy "in" motion that decelerates without overshoot.
 export const ease = [0.3, 0, 0, 1] as const;
 
-export const fast: Transition  = { duration: 0.16, ease };
+export const fast: Transition = { duration: 0.16, ease };
 export const swift: Transition = { duration: 0.22, ease };
 
 // Spring used for inline expansion (tool card preview, reasoning body) —

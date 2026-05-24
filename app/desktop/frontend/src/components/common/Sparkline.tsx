@@ -20,17 +20,20 @@ type Props = {
   style?: CSSProperties;
 };
 
-export function Sparkline({
-  values, width = 48, height = 14, color, fill = false, style,
-}: Props) {
+export function Sparkline({ values, width = 48, height = 14, color, fill = false, style }: Props) {
   if (values.length < 2) {
     // One or zero data points → render a flat baseline at mid-height so
     // the slot doesn't visually collapse.
     return (
       <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} style={style}>
         <line
-          x1={0} y1={height / 2} x2={width} y2={height / 2}
-          stroke={color ?? "currentColor"} strokeWidth={1} strokeOpacity={0.35}
+          x1={0}
+          y1={height / 2}
+          x2={width}
+          y2={height / 2}
+          stroke={color ?? "currentColor"}
+          strokeWidth={1}
+          strokeOpacity={0.35}
         />
       </svg>
     );

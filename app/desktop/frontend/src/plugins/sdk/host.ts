@@ -8,13 +8,7 @@
 import { api } from "@/lib/http";
 import type { ContentBlockKind } from "@/protocol/agui/viewState";
 import { useSessionStore } from "@/state/sessionStore";
-import {
-  getConfig,
-  hasConfig,
-  setConfig,
-  useConfigStore,
-  type ConfigValue,
-} from "./config";
+import { getConfig, hasConfig, setConfig, useConfigStore, type ConfigValue } from "./config";
 import { useNotificationStore } from "./notifications";
 import { usePluginStore } from "./registry";
 import { getOrCreateSlice } from "./stateSlice";
@@ -134,7 +128,11 @@ export function createHost(
       ): Disposable {
         // The store holds renderers as the union root type; the public method
         // is typed per-kind for plugin author ergonomics.
-        store().addContentBlock(pluginName, kind, renderer as ContentBlockRenderer<ContentBlockKind>);
+        store().addContentBlock(
+          pluginName,
+          kind,
+          renderer as ContentBlockRenderer<ContentBlockKind>,
+        );
         return track({ dispose: () => store().removeContentBlock(pluginName, kind) });
       },
       registerRole(spec: MessageRoleSpec): Disposable {
@@ -223,7 +221,9 @@ export function createHost(
       },
       registerAttachmentSource(spec: ComposerAttachmentSourceSpec): Disposable {
         store().addComposerAttachmentSource(pluginName, spec);
-        return track({ dispose: () => store().removeComposerAttachmentSource(pluginName, spec.id) });
+        return track({
+          dispose: () => store().removeComposerAttachmentSource(pluginName, spec.id),
+        });
       },
       registerKeyBinding(spec: ComposerKeyBindingSpec): Disposable {
         store().addComposerKeyBinding(pluginName, spec);
@@ -279,8 +279,7 @@ export function createHost(
     },
 
     config: {
-      get: <T = ConfigValue>(key: string, defaultValue?: T) =>
-        getConfig<T>(key, defaultValue),
+      get: <T = ConfigValue>(key: string, defaultValue?: T) => getConfig<T>(key, defaultValue),
       set: (key: string, value: ConfigValue) => setConfig(key, value),
       has: (key: string) => hasConfig(key),
       onChange: (key, fn) => useConfigStore.getState().subscribe(key, fn),
@@ -293,12 +292,18 @@ export function createHost(
         // setup-time callers).
         if (usePluginStore.getState().appReady) {
           queueMicrotask(() => {
-            try { fn(); } catch (err) {
+            try {
+              fn();
+            } catch (err) {
               // eslint-disable-next-line no-console
               console.error(`[plugin] ${pluginName} onReady threw:`, err);
             }
           });
-          return track({ dispose: () => { /* no-op: already fired */ } });
+          return track({
+            dispose: () => {
+              /* no-op: already fired */
+            },
+          });
         }
         const id = mintId("ready");
         store().addReadyHandler(pluginName, id, fn);
@@ -401,8 +406,8 @@ export function createHost(
 
     log: {
       debug: (...args) => emitLog(pluginName, "debug", args),
-      info:  (...args) => emitLog(pluginName, "info",  args),
-      warn:  (...args) => emitLog(pluginName, "warn",  args),
+      info: (...args) => emitLog(pluginName, "info", args),
+      warn: (...args) => emitLog(pluginName, "warn", args),
       error: (...args) => emitLog(pluginName, "error", args),
       subscribe(fn: LogSubscriber): Disposable {
         const id = mintId("log");
@@ -437,7 +442,7 @@ function createDenyProxy(pluginName: string, namespace: string): unknown {
   const explain = (prop: string) =>
     new Error(
       `[plugin] ${pluginName}: host.${namespace}${prop ? `.${prop}` : ""} ` +
-      `is not in this plugin's declared capabilities (add "${namespace}" to spec.capabilities)`,
+        `is not in this plugin's declared capabilities (add "${namespace}" to spec.capabilities)`,
     );
   // Trap both function-style (host.notify(...)) and property access.
   const denied = function denied() {
@@ -459,17 +464,22 @@ function createDenyProxy(pluginName: string, namespace: string): unknown {
 function emitLog(plugin: string, level: LogLevel, args: unknown[]): void {
   const tag = `[plugin:${plugin}]`;
   const consoleFn =
-    level === "error" ? console.error :
-    level === "warn"  ? console.warn  :
-    level === "info"  ? console.info  :
-    console.log;
+    level === "error"
+      ? console.error
+      : level === "warn"
+        ? console.warn
+        : level === "info"
+          ? console.info
+          : console.log;
   // eslint-disable-next-line no-console
   consoleFn(tag, ...args);
 
   const event = { plugin, level, args, timestamp: Date.now() };
   const subs = usePluginStore.getState().logSubscribers;
   for (const o of subs.values()) {
-    try { o.value(event); } catch (err) {
+    try {
+      o.value(event);
+    } catch (err) {
       // Don't let a subscriber crash the logger — but DO surface the error
       // so a malformed subscriber isn't invisible.
       // eslint-disable-next-line no-console

@@ -28,8 +28,9 @@ export function MessageBlock({ msg, ctx }: { msg: Message; ctx: PartCtx }) {
   const isAgent = msg.role === "assistant";
 
   const displayName = role?.displayName ?? msg.who;
-  const avatarVariant =
-    (role?.avatarVariant ?? (isUser ? "msg-user" : "msg-agent")) as "msg-user" | "msg-agent";
+  const avatarVariant = (role?.avatarVariant ?? (isUser ? "msg-user" : "msg-agent")) as
+    | "msg-user"
+    | "msg-agent";
   const iconName = (role?.icon ?? (isUser ? "user" : "spark")) as IconName;
 
   // The streaming-tail caret should only sit at the END of the message —
@@ -67,12 +68,7 @@ export function MessageBlock({ msg, ctx }: { msg: Message; ctx: PartCtx }) {
             <Icon name={iconName} size={14} />
           </Avatar>
         </div>
-        <div
-          className={cn(
-            "min-w-0",
-            isUser && "flex flex-col items-end",
-          )}
-        >
+        <div className={cn("min-w-0", isUser && "flex flex-col items-end")}>
           <div
             className={cn(
               // Meta row — author + time. We dropped the previous
@@ -106,7 +102,8 @@ export function MessageBlock({ msg, ctx }: { msg: Message; ctx: PartCtx }) {
               // dense data tiers step off this number. See
               // CONTENT TYPE SCALE notes throughout the codebase.
               "msg-content text-fg text-[15px] leading-[1.68] tracking-[-0.003em] font-normal",
-              isUser && "max-w-[580px] rounded-[14px_14px_4px_14px] bg-surface-2 px-3.5 py-2.5 text-left light:bg-surface-3",
+              isUser &&
+                "max-w-[580px] rounded-[14px_14px_4px_14px] bg-surface-2 px-3.5 py-2.5 text-left light:bg-surface-3",
             )}
           >
             {msg.blocks.map((part, i) => {

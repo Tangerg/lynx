@@ -16,16 +16,16 @@ import { useThemeStore } from "@/state/themeStore";
 // Fallback hexes for previewing themes that didn't ship a `tokens` map.
 // Match the built-in dark palette so the preview never goes blank.
 const FALLBACK_TOKENS: Record<string, Record<string, string>> = {
-  dark:  { bg: "#010102", surface: "#181a1d", accent: "#1ed760" },
+  dark: { bg: "#010102", surface: "#181a1d", accent: "#1ed760" },
   light: { bg: "#fafafa", surface: "#ffffff", accent: "#15883e" },
 };
 
 function previewTokens(spec: ThemeSpec): { bg: string; surface: string; accent: string } {
   const fallback = FALLBACK_TOKENS[spec.scheme];
   return {
-    bg:      spec.tokens?.["color-bg"]      ?? fallback.bg,
+    bg: spec.tokens?.["color-bg"] ?? fallback.bg,
     surface: spec.tokens?.["color-surface"] ?? fallback.surface,
-    accent:  spec.tokens?.["color-accent"]  ?? fallback.accent,
+    accent: spec.tokens?.["color-accent"] ?? fallback.accent,
   };
 }
 
@@ -99,12 +99,7 @@ function AppearancePane() {
         </div>
         <div className="grid gap-2 [grid-template-columns:repeat(auto-fill,minmax(220px,1fr))]">
           {themes.map((spec) => (
-            <ThemeRow
-              key={spec.id}
-              spec={spec}
-              active={theme === spec.id}
-              onSelect={setTheme}
-            />
+            <ThemeRow key={spec.id} spec={spec} active={theme === spec.id} onSelect={setTheme} />
           ))}
         </div>
       </div>

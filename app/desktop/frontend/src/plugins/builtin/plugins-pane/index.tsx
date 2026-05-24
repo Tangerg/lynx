@@ -8,12 +8,7 @@
 import { useState } from "react";
 import { Icon, IconButton, PillButton } from "@/components/common";
 import { cn } from "@/lib/utils";
-import {
-  definePlugin,
-  reloadPlugin,
-  usePluginErrorStore,
-  usePluginStore,
-} from "@/plugins/sdk";
+import { definePlugin, reloadPlugin, usePluginErrorStore, usePluginStore } from "@/plugins/sdk";
 import { pluginOrigin } from "@/plugins/sideload";
 
 function PluginsPane() {
@@ -96,9 +91,10 @@ function PluginsPane() {
       </div>
 
       <div className="mt-4 text-[13px] leading-[1.55] text-fg-muted">
-        Sideload by dropping a plugin folder containing <code className={INLINE_CODE}>index.js</code>
-        {" "}into <code className={INLINE_CODE}>~/.lyra/plugins/</code> and restarting the app.
-        See <code className={INLINE_CODE}>frontend/sample-plugins/hello-sideload/</code> for a template.
+        Sideload by dropping a plugin folder containing{" "}
+        <code className={INLINE_CODE}>index.js</code> into{" "}
+        <code className={INLINE_CODE}>~/.lyra/plugins/</code> and restarting the app. See{" "}
+        <code className={INLINE_CODE}>frontend/sample-plugins/hello-sideload/</code> for a template.
       </div>
     </div>
   );

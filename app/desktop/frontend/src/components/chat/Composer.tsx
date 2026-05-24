@@ -29,7 +29,13 @@ type Props = {
 };
 
 export function Composer({
-  onSend, value, onChange, attachments, onRemoveAttachment, mode, onModeChange,
+  onSend,
+  value,
+  onChange,
+  attachments,
+  onRemoveAttachment,
+  mode,
+  onModeChange,
 }: Props) {
   const t = useT();
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -46,11 +52,12 @@ export function Composer({
     [t],
   );
 
-  const submit = () => submitComposer({
-    value,
-    clear: () => onChange(""),
-    sendText: onSend,
-  });
+  const submit = () =>
+    submitComposer({
+      value,
+      clear: () => onChange(""),
+      sendText: onSend,
+    });
 
   useEffect(() => {
     const el = inputRef.current;
@@ -89,7 +96,7 @@ export function Composer({
           // (e.g. Mod+K to open a snippet drawer).
           const parts: string[] = [];
           if (e.metaKey || e.ctrlKey) parts.push("mod");
-          if (e.altKey)   parts.push("alt");
+          if (e.altKey) parts.push("alt");
           if (e.shiftKey) parts.push("shift");
           parts.push(e.key);
           const binding = lookupComposerKeyBinding(normalizeCombo(parts.join("+")));
@@ -125,7 +132,9 @@ export function Composer({
 type Mode = ReturnType<typeof useComposerModes>[number];
 
 function ModePicker({
-  modes, value, onChange,
+  modes,
+  value,
+  onChange,
 }: {
   modes: Mode[];
   value: ComposerMode;
@@ -173,7 +182,9 @@ function PluginAttachments({ sources }: { sources: AttachmentSource[] }) {
   if (sources.length === 0) return null;
   return (
     <div className="flex flex-wrap gap-1.5 px-1 pb-0.5 pt-1">
-      {sources.map((s) => <SourceChips key={s.id} source={s} />)}
+      {sources.map((s) => (
+        <SourceChips key={s.id} source={s} />
+      ))}
     </div>
   );
 }

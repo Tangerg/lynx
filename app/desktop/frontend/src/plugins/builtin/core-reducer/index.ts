@@ -35,12 +35,7 @@ import {
   type ToolCallStartEvent,
 } from "@ag-ui/core";
 import { definePlugin, type CoreEventHandler } from "@/plugins/sdk";
-import type {
-  AgentViewState,
-  ContentBlock,
-  Message,
-  ToolCall,
-} from "@/protocol/agui/viewState";
+import type { AgentViewState, ContentBlock, Message, ToolCall } from "@/protocol/agui/viewState";
 
 // Erases each handler's specific event variant down to BaseEvent so a
 // uniform `[EventType, CoreEventHandler]` table can carry them all. The
@@ -176,7 +171,8 @@ const onStepStarted = (state: AgentViewState, ev: StepStartedEvent): AgentViewSt
 });
 
 const onTextStart = (state: AgentViewState, ev: TextMessageStartEvent): AgentViewState => {
-  const role: Message["role"] = ev.role === "user" ? "user" : ev.role === "system" ? "system" : "assistant";
+  const role: Message["role"] =
+    ev.role === "user" ? "user" : ev.role === "system" ? "system" : "assistant";
   const msg: Message = {
     id: ev.messageId,
     role,
@@ -235,7 +231,8 @@ const onToolEnd = (state: AgentViewState, ev: ToolCallEndEvent): AgentViewState 
   return updateTool(state, ev.toolCallId, (t) => ({
     ...t,
     status: ex.status ?? "ok",
-    duration: ex.durationMs != null ? `${ex.durationMs}ms` : t.duration === "LIVE" ? "—" : t.duration,
+    duration:
+      ex.durationMs != null ? `${ex.durationMs}ms` : t.duration === "LIVE" ? "—" : t.duration,
     added: ex.added ?? t.added,
     removed: ex.removed ?? t.removed,
     hits: ex.hits ?? t.hits,
@@ -246,8 +243,12 @@ const onToolEnd = (state: AgentViewState, ev: ToolCallEndEvent): AgentViewState 
 const onToolResult = (state: AgentViewState, ev: ToolCallResultEvent): AgentViewState =>
   updateTool(state, ev.toolCallId, (t) => ({ ...t, result: ev.content }));
 
-const onReasoningStart = (state: AgentViewState, ev: ReasoningMessageStartEvent): AgentViewState => {
-  const parentId = (ev as ReasoningMessageStartEvent & { parentMessageId?: string }).parentMessageId;
+const onReasoningStart = (
+  state: AgentViewState,
+  ev: ReasoningMessageStartEvent,
+): AgentViewState => {
+  const parentId = (ev as ReasoningMessageStartEvent & { parentMessageId?: string })
+    .parentMessageId;
   const targetId = parentId ?? findLastAssistantMessageId(state);
   if (!targetId) return state;
   return updateMessage(state, targetId, (m) =>
@@ -255,8 +256,10 @@ const onReasoningStart = (state: AgentViewState, ev: ReasoningMessageStartEvent)
   );
 };
 
-const onReasoningContent = (state: AgentViewState, ev: ReasoningMessageContentEvent): AgentViewState =>
-  mapReasoning(state, ev.messageId, (b) => ({ ...b, text: b.text + ev.delta }));
+const onReasoningContent = (
+  state: AgentViewState,
+  ev: ReasoningMessageContentEvent,
+): AgentViewState => mapReasoning(state, ev.messageId, (b) => ({ ...b, text: b.text + ev.delta }));
 
 const onReasoningEnd = (state: AgentViewState, ev: ReasoningMessageEndEvent): AgentViewState =>
   mapReasoning(state, ev.messageId, (b) => ({ ...b, streaming: false }));
@@ -501,14 +504,18 @@ const onActivityDelta = (state: AgentViewState, ev: ActivityDeltaEvent): AgentVi
     } catch (err) {
       // eslint-disable-next-line no-console
       console.error(
-        `[agui] ACTIVITY_DELTA patch failed for ${ev.messageId}/${ev.activityType}:`, err,
+        `[agui] ACTIVITY_DELTA patch failed for ${ev.messageId}/${ev.activityType}:`,
+        err,
       );
       return prev;
     }
   });
 };
 
-const onReasoningChunk = (state: AgentViewState, ev: ReasoningMessageChunkEvent): AgentViewState => {
+const onReasoningChunk = (
+  state: AgentViewState,
+  ev: ReasoningMessageChunkEvent,
+): AgentViewState => {
   if (!ev.messageId) return state;
   // Has this reasoning block been opened yet on any message?
   const exists = state.messages.some((m) =>
@@ -517,8 +524,8 @@ const onReasoningChunk = (state: AgentViewState, ev: ReasoningMessageChunkEvent)
   let next = state;
   if (!exists) {
     const parentId =
-      (ev as ReasoningMessageChunkEvent & { parentMessageId?: string }).parentMessageId
-      ?? findLastAssistantMessageId(next);
+      (ev as ReasoningMessageChunkEvent & { parentMessageId?: string }).parentMessageId ??
+      findLastAssistantMessageId(next);
     if (!parentId) return state;
     next = updateMessage(next, parentId, (m) =>
       appendBlock(m, {
@@ -558,10 +565,7 @@ type SnapToolCall = {
   function: { name: string; arguments: string };
 };
 
-const onMessagesSnapshot = (
-  state: AgentViewState,
-  ev: MessagesSnapshotEvent,
-): AgentViewState => {
+const onMessagesSnapshot = (state: AgentViewState, ev: MessagesSnapshotEvent): AgentViewState => {
   const messages: Message[] = [];
   const toolCalls: Record<string, ToolCall> = {};
 
@@ -586,9 +590,7 @@ const onMessagesSnapshot = (
     }
 
     const role: Message["role"] =
-      m.role === "user" ? "user"
-        : m.role === "assistant" ? "assistant"
-        : "system";
+      m.role === "user" ? "user" : m.role === "assistant" ? "assistant" : "system";
 
     const blocks: ContentBlock[] = [];
     if (m.role === "assistant") {
@@ -642,49 +644,49 @@ const onMessagesSnapshot = (
 
 const HANDLERS: ReadonlyArray<[EventType, CoreEventHandler]> = [
   // Run lifecycle.
-  [EventType.RUN_STARTED,                   bind(onRunStarted)],
-  [EventType.RUN_FINISHED,                  bind(onRunFinished)],
-  [EventType.RUN_ERROR,                     bind(onRunError)],
-  [EventType.STEP_STARTED,                  bind(onStepStarted)],
-  [EventType.STEP_FINISHED,                 bind(onStepFinished)],
+  [EventType.RUN_STARTED, bind(onRunStarted)],
+  [EventType.RUN_FINISHED, bind(onRunFinished)],
+  [EventType.RUN_ERROR, bind(onRunError)],
+  [EventType.STEP_STARTED, bind(onStepStarted)],
+  [EventType.STEP_FINISHED, bind(onStepFinished)],
 
   // Text messages — including the fused CHUNK variant.
-  [EventType.TEXT_MESSAGE_START,            bind(onTextStart)],
-  [EventType.TEXT_MESSAGE_CONTENT,          bind(onTextContent)],
-  [EventType.TEXT_MESSAGE_END,              bind(onTextEnd)],
-  [EventType.TEXT_MESSAGE_CHUNK,            bind(onTextChunk)],
+  [EventType.TEXT_MESSAGE_START, bind(onTextStart)],
+  [EventType.TEXT_MESSAGE_CONTENT, bind(onTextContent)],
+  [EventType.TEXT_MESSAGE_END, bind(onTextEnd)],
+  [EventType.TEXT_MESSAGE_CHUNK, bind(onTextChunk)],
 
   // Tool calls — including the fused CHUNK variant.
-  [EventType.TOOL_CALL_START,               bind(onToolStart)],
-  [EventType.TOOL_CALL_ARGS,                bind(onToolArgs)],
-  [EventType.TOOL_CALL_END,                 bind(onToolEnd)],
-  [EventType.TOOL_CALL_RESULT,              bind(onToolResult)],
-  [EventType.TOOL_CALL_CHUNK,               bind(onToolChunk)],
+  [EventType.TOOL_CALL_START, bind(onToolStart)],
+  [EventType.TOOL_CALL_ARGS, bind(onToolArgs)],
+  [EventType.TOOL_CALL_END, bind(onToolEnd)],
+  [EventType.TOOL_CALL_RESULT, bind(onToolResult)],
+  [EventType.TOOL_CALL_CHUNK, bind(onToolChunk)],
 
   // Reasoning — including the fused CHUNK variant.
-  [EventType.REASONING_MESSAGE_START,       bind(onReasoningStart)],
-  [EventType.REASONING_MESSAGE_CONTENT,     bind(onReasoningContent)],
-  [EventType.REASONING_MESSAGE_END,         bind(onReasoningEnd)],
-  [EventType.REASONING_MESSAGE_CHUNK,       bind(onReasoningChunk)],
+  [EventType.REASONING_MESSAGE_START, bind(onReasoningStart)],
+  [EventType.REASONING_MESSAGE_CONTENT, bind(onReasoningContent)],
+  [EventType.REASONING_MESSAGE_END, bind(onReasoningEnd)],
+  [EventType.REASONING_MESSAGE_CHUNK, bind(onReasoningChunk)],
 
   // Extended-thinking phase (Claude 3.7+). Text events map onto our
   // existing reasoning-block UI.
-  [EventType.THINKING_TEXT_MESSAGE_START,   bind(onThinkingTextStart)],
+  [EventType.THINKING_TEXT_MESSAGE_START, bind(onThinkingTextStart)],
   [EventType.THINKING_TEXT_MESSAGE_CONTENT, bind(onThinkingTextContent)],
-  [EventType.THINKING_TEXT_MESSAGE_END,     bind(onThinkingTextEnd)],
+  [EventType.THINKING_TEXT_MESSAGE_END, bind(onThinkingTextEnd)],
 
   // Snapshots — bulk hydration on reconnect / thread switch.
-  [EventType.MESSAGES_SNAPSHOT,             bind(onMessagesSnapshot)],
+  [EventType.MESSAGES_SNAPSHOT, bind(onMessagesSnapshot)],
 
   // Shared state — STATE_SNAPSHOT replaces wholesale; STATE_DELTA applies
   // JSON Patch. Plugins consume via useSharedState().
-  [EventType.STATE_SNAPSHOT,                bind(onStateSnapshot)],
-  [EventType.STATE_DELTA,                   bind(onStateDelta)],
+  [EventType.STATE_SNAPSHOT, bind(onStateSnapshot)],
+  [EventType.STATE_DELTA, bind(onStateDelta)],
 
   // Per-message activity streams — structured side-data scoped by
   // (messageId, activityType). Renderers pick the types they know.
-  [EventType.ACTIVITY_SNAPSHOT,             bind(onActivitySnapshot)],
-  [EventType.ACTIVITY_DELTA,                bind(onActivityDelta)],
+  [EventType.ACTIVITY_SNAPSHOT, bind(onActivitySnapshot)],
+  [EventType.ACTIVITY_DELTA, bind(onActivityDelta)],
 ];
 
 export default definePlugin({

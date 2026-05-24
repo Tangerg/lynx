@@ -10,10 +10,10 @@ export type ToolCallStatus = "running" | "ok" | "err";
 
 export type ToolCall = {
   id: string;
-  fn: string;          // toolCallName
-  args: string;        // accumulated arg text
+  fn: string; // toolCallName
+  args: string; // accumulated arg text
   status: ToolCallStatus;
-  duration: string;    // pre-formatted (e.g. "12ms", "LIVE")
+  duration: string; // pre-formatted (e.g. "12ms", "LIVE")
   added?: number;
   removed?: number;
   hits?: number;
@@ -51,13 +51,20 @@ export type SearchResult = { domain: string; title: string; time: string; snippe
 // ---------------------------------------------------------------------------
 
 export interface BuiltinContentBlockMap {
-  text:       { kind: "text";       text: string; streaming: boolean };
-  reasoning:  { kind: "reasoning";  reasoningId: string; text: string; streaming: boolean };
-  plan:       { kind: "plan" };
-  tool:       { kind: "tool";       toolCallId: string };
-  code:       { kind: "code";       lang: string; file: string; text: string };
-  search:     { kind: "search";     toolCallId: string; results: SearchResult[] };
-  approval:   { kind: "approval";   text: string; command: string; reason: string; requestId?: string; decision?: "approved" | "declined" };
+  text: { kind: "text"; text: string; streaming: boolean };
+  reasoning: { kind: "reasoning"; reasoningId: string; text: string; streaming: boolean };
+  plan: { kind: "plan" };
+  tool: { kind: "tool"; toolCallId: string };
+  code: { kind: "code"; lang: string; file: string; text: string };
+  search: { kind: "search"; toolCallId: string; results: SearchResult[] };
+  approval: {
+    kind: "approval";
+    text: string;
+    command: string;
+    reason: string;
+    requestId?: string;
+    decision?: "approved" | "declined";
+  };
   checkpoint: { kind: "checkpoint"; text: string };
 }
 
@@ -72,8 +79,8 @@ export type ContentBlock = ContentBlockMap[ContentBlockKind];
 export type Message = {
   id: string;
   role: MessageRole;
-  who: string;       // display name
-  time: string;      // formatted timestamp
+  who: string; // display name
+  time: string; // formatted timestamp
   blocks: ContentBlock[];
   /**
    * AG-UI ACTIVITY_* events stash arbitrary per-activity-type content

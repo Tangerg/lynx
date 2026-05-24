@@ -45,8 +45,12 @@ export function ReasoningBlock({ text, streaming }: Props) {
 
   const elapsedLabel = formatElapsed(elapsedMs);
   const label = streaming
-    ? (elapsedLabel ? `Thinking · ${elapsedLabel}` : "Thinking…")
-    : (elapsedLabel ? `Thought for ${elapsedLabel}` : "Thought");
+    ? elapsedLabel
+      ? `Thinking · ${elapsedLabel}`
+      : "Thinking…"
+    : elapsedLabel
+      ? `Thought for ${elapsedLabel}`
+      : "Thought";
   const preview = streaming ? "" : truncate(text, 80);
 
   return (

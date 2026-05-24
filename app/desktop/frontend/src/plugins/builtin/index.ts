@@ -86,8 +86,8 @@ import type { PluginSpec } from "../sdk";
 // Protocol — fold AG-UI events into view state.
 // ---------------------------------------------------------------------------
 const protocol: PluginSpec[] = [
-  coreReducer,        // RUN_* / TEXT_* / TOOL_* / REASONING_*
-  planHandler,        // CUSTOM "lyra.plan" / "lyra.plan-block"
+  coreReducer, // RUN_* / TEXT_* / TOOL_* / REASONING_*
+  planHandler, // CUSTOM "lyra.plan" / "lyra.plan-block"
   codeProposalHandler,
   searchResultsHandler,
   approvalHandler,
@@ -124,37 +124,42 @@ const messageRendering: PluginSpec[] = [
 // ---------------------------------------------------------------------------
 // Tool rendering — previews, header actions, icon glyph map.
 // ---------------------------------------------------------------------------
-const toolRendering: PluginSpec[] = [
-  bash, diff, file, grep,
-  toolActions,
-  toolIcons,
-];
+const toolRendering: PluginSpec[] = [bash, diff, file, grep, toolActions, toolIcons];
 
 // ---------------------------------------------------------------------------
 // Composer — slash commands, modes, toolbar, status chips, send & hint.
 // ---------------------------------------------------------------------------
 const composer: PluginSpec[] = [
-  slashHints, demo,
-  composerChips, composerModes, composerToolbar,
-  composerPlaceholders, sampleAttachments,
-  composerKeymap, composerHint, composerSend,
+  slashHints,
+  demo,
+  composerChips,
+  composerModes,
+  composerToolbar,
+  composerPlaceholders,
+  sampleAttachments,
+  composerKeymap,
+  composerHint,
+  composerSend,
 ];
 
 // ---------------------------------------------------------------------------
 // Settings panes + workspace views (each spec is independent).
 // ---------------------------------------------------------------------------
 const panes: PluginSpec[] = [
-  appearance, pluginsPane,
-  diffView, terminalView, filesView,
-  planView, toolsView, notificationsView,
+  appearance,
+  pluginsPane,
+  diffView,
+  terminalView,
+  filesView,
+  planView,
+  toolsView,
+  notificationsView,
 ];
 
 // ---------------------------------------------------------------------------
 // Kernel layout regions — fill the named slots in AgentClientPage.
 // ---------------------------------------------------------------------------
-const kernel: PluginSpec[] = [
-  kernelSidebar, kernelChat, kernelSettings,
-];
+const kernel: PluginSpec[] = [kernelSidebar, kernelChat, kernelSettings];
 
 // ---------------------------------------------------------------------------
 // Sidebar internals — sections in the expanded view, items in the rail.
@@ -163,17 +168,27 @@ const sidebar: PluginSpec[] = [
   // sidebarBrand removed per user request — the top-left mark + "Lyra"
   // wordmark added decorative weight without functional value.
   sidebarSearch,
-  sidebarProjects, sidebarSessions, sidebarFooter,
-  sidebarRailActions, sidebarRailSessions, sidebarRailBottom,
+  sidebarProjects,
+  sidebarSessions,
+  sidebarFooter,
+  sidebarRailActions,
+  sidebarRailSessions,
+  sidebarRailBottom,
 ];
 
 // ---------------------------------------------------------------------------
 // Overlays — toasts, command palette, status pill, welcome screen, …
 // ---------------------------------------------------------------------------
 const overlays: PluginSpec[] = [
-  toaster, commandPalette, defaultCommands,
-  statusPill, statusNotifications, welcomeScreen, topbarNewTab,
-  shortcuts, globalKeymap,
+  toaster,
+  commandPalette,
+  defaultCommands,
+  statusPill,
+  statusNotifications,
+  welcomeScreen,
+  topbarNewTab,
+  shortcuts,
+  globalKeymap,
   iconGallery,
 ];
 

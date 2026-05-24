@@ -18,7 +18,11 @@ function ToolsTab() {
         titleStrong
         title="Connected MCP servers"
         sub={`${active} active · ${servers.length} configured`}
-        actions={<IconButton title="Add server"><Icon name="plus" size={14} /></IconButton>}
+        actions={
+          <IconButton title="Add server">
+            <Icon name="plus" size={14} />
+          </IconButton>
+        }
       />
       <ScrollArea style={{ padding: "4px 0" }}>
         <DataView
@@ -33,7 +37,9 @@ function ToolsTab() {
         >
           {(rows) => (
             <>
-              {rows.map((s) => <McpRow key={s.id} server={s} />)}
+              {rows.map((s) => (
+                <McpRow key={s.id} server={s} />
+              ))}
               <p className="m-0 px-4 pt-3.5 pb-4.5 text-[11px] leading-[1.5] text-fg-faint">
                 Servers expose tools the agent can call. Edit{" "}
                 <code className="rounded-xs bg-surface-2 px-1.5 py-px font-mono text-fg">

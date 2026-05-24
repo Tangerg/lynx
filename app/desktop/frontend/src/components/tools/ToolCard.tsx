@@ -18,14 +18,12 @@ type Props = {
 // Status → text colour. Three states map to three semantic tokens; the
 // `run` state also gets a pulsing accent dot in the status pill.
 const STATUS_TONE = {
-  ok:  "text-success",
+  ok: "text-success",
   err: "text-negative",
   run: "text-accent",
 } as const;
 
-export function ToolCard({
-  tool, selected, expanded, onToggleExpand, onOpenView,
-}: Props) {
+export function ToolCard({ tool, selected, expanded, onToggleExpand, onOpenView }: Props) {
   const status: keyof typeof STATUS_TONE =
     tool.status === "running" ? "run" : tool.status === "ok" ? "ok" : "err";
   // Glyph instead of word — "Running / Done / Failed" → "● / ✓ / ✗" — gives the
@@ -55,10 +53,13 @@ export function ToolCard({
         <div
           className={cn(
             "grid h-5 w-5 shrink-0 place-items-center rounded-xs bg-transparent transition-colors",
-            status === "ok"  ? "text-success"
-              : status === "err" ? "text-negative"
-              : status === "run" ? "text-accent"
-              : "text-fg-faint group-hover:text-fg-muted",
+            status === "ok"
+              ? "text-success"
+              : status === "err"
+                ? "text-negative"
+                : status === "run"
+                  ? "text-accent"
+                  : "text-fg-faint group-hover:text-fg-muted",
           )}
         >
           <Icon name={toolIconFor(tool.fn)} size={14} />
@@ -94,7 +95,8 @@ export function ToolCard({
             onClick={(e) => {
               e.stopPropagation();
               void Promise.resolve(a.run(tool)).catch((err) => {
-                const owner = usePluginStore.getState().toolActions.get(a.id)?.pluginName ?? "unknown";
+                const owner =
+                  usePluginStore.getState().toolActions.get(a.id)?.pluginName ?? "unknown";
                 // eslint-disable-next-line no-console
                 console.error(`[plugin] tool action ${a.id} threw:`, err);
                 reportPluginError(owner, "command", err, `tool action: ${a.id}`);
@@ -108,7 +110,10 @@ export function ToolCard({
         <button
           type="button"
           title={expanded ? "Collapse" : "Expand preview"}
-          onClick={(e) => { e.stopPropagation(); onToggleExpand(); }}
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleExpand();
+          }}
           className={ACTION_BTN}
         >
           <Icon name={expanded ? "minimize" : "more"} size={12} />
@@ -139,9 +144,9 @@ const ACTION_BTN =
 function ToolMeta({ tool }: { tool: ToolCall }) {
   return (
     <div className="flex items-center gap-2.5 font-mono text-[10px] text-fg-faint tabular-nums tracking-normal normal-case">
-      {tool.added != null   && <span className="text-accent">+{tool.added}</span>}
+      {tool.added != null && <span className="text-accent">+{tool.added}</span>}
       {tool.removed != null && <span className="text-negative">−{tool.removed}</span>}
-      {tool.hits != null    && <span>{tool.hits} matches</span>}
+      {tool.hits != null && <span>{tool.hits} matches</span>}
       {tool.lines != null && tool.lines > 0 && tool.added == null && tool.hits == null && (
         <span>{tool.lines} lines</span>
       )}

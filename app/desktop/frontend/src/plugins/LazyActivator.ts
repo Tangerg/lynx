@@ -14,10 +14,6 @@ export function makeLazyActivator(label: string, onActivate: () => void): Compon
     useEffect(() => {
       onActivate();
     }, []);
-    return createElement(
-      "div",
-      { className: "lazy-activator" },
-      `Activating ${label}…`,
-    );
+    return createElement("div", { className: "lazy-activator" }, `Activating ${label}…`);
   };
 }

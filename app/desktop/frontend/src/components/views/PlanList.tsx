@@ -36,7 +36,9 @@ function ApprovalNote() {
       </code>{" "}
       after typecheck passes.
       <div className="mt-2.5 flex gap-1.5">
-        <PillButton variant="accent" size="sm">Approve</PillButton>
+        <PillButton variant="accent" size="sm">
+          Approve
+        </PillButton>
         <PillButton size="sm">Skip</PillButton>
       </div>
     </div>

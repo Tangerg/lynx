@@ -22,10 +22,7 @@ export type AgentSession = {
   stop: () => void;
 };
 
-export function useAgentSession(
-  makeAgent: () => AbstractAgent,
-  sessionId: string,
-): AgentSession {
+export function useAgentSession(makeAgent: () => AbstractAgent, sessionId: string): AgentSession {
   const agentRef = useRef<AbstractAgent | null>(null);
 
   const factoryRef = useRef(makeAgent);
@@ -40,7 +37,11 @@ export function useAgentSession(
     useAgentStore.getState().resetSession(sessionId);
 
     useAgentStore.getState().setStop(sessionId, () => {
-      try { agent.abortRun(); } catch { /* ignore */ }
+      try {
+        agent.abortRun();
+      } catch {
+        /* ignore */
+      }
     });
     useAgentStore.getState().setSend(sessionId, (text: string) => {
       agent.addMessage({
@@ -72,7 +73,11 @@ export function useAgentSession(
 
     return () => {
       subscription.unsubscribe();
-      try { agent.abortRun(); } catch { /* may not be running */ }
+      try {
+        agent.abortRun();
+      } catch {
+        /* may not be running */
+      }
       useAgentStore.getState().setStop(sessionId, null);
       useAgentStore.getState().setSend(sessionId, null);
       agentRef.current = null;
@@ -92,7 +97,11 @@ export function useAgentSession(
       void agent.runAgent();
     },
     stop: () => {
-      try { agentRef.current?.abortRun(); } catch { /* ignore */ }
+      try {
+        agentRef.current?.abortRun();
+      } catch {
+        /* ignore */
+      }
     },
   };
 }

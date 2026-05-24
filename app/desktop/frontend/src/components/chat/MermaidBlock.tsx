@@ -16,15 +16,14 @@ type Props = {
 function readThemeColors() {
   const root = document.documentElement;
   const cs = getComputedStyle(root);
-  const grab = (name: string, fallback: string) =>
-    cs.getPropertyValue(name).trim() || fallback;
+  const grab = (name: string, fallback: string) => cs.getPropertyValue(name).trim() || fallback;
   return {
-    fg:      grab("--color-text",       "#e6e6e6"),
-    muted:   grab("--color-text-muted", "#9a9a9a"),
-    line:    grab("--color-text-faint", "#6f6f6f"),
-    accent:  grab("--color-accent",     "#1ed760"),
-    surface: grab("--color-surface-2",  "#1f1f1f"),
-    border:  grab("--color-border",     "#4d4d4d"),
+    fg: grab("--color-text", "#e6e6e6"),
+    muted: grab("--color-text-muted", "#9a9a9a"),
+    line: grab("--color-text-faint", "#6f6f6f"),
+    accent: grab("--color-accent", "#1ed760"),
+    surface: grab("--color-surface-2", "#1f1f1f"),
+    border: grab("--color-border", "#4d4d4d"),
   };
 }
 
@@ -44,7 +43,7 @@ export function MermaidBlock({ code }: Props) {
   // against the new palette. We don't need the values themselves — they
   // come from getComputedStyle at render time — just a dependency to
   // trigger useMemo invalidation.
-  const theme  = useThemeStore((s) => s.theme);
+  const theme = useThemeStore((s) => s.theme);
   const accent = useThemeStore((s) => s.accent);
   const [debouncedCode] = useDebounce(code, 300);
   const isSettling = code !== debouncedCode;
