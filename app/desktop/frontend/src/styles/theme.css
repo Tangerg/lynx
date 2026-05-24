@@ -1,23 +1,14 @@
 /* ============================================================
    Cross-cutting html.theme-light structural overrides.
-   See frontend/DESIGN.md for the spec.
 
    Token values (--color-bg, --color-text, --shadow-…) are NOT declared
-   here anymore — they live on the `lyra.builtin.default-themes` plugin
+   here — they live on the `lyra.builtin.default-themes` plugin
    (frontend/src/plugins/builtin/defaults/themeTokens.ts) and are
    written to :root.style at theme switch. This file owns only the
-   structural rules that key on the .theme-light selector: shape-level
-   differences (panel chrome, search input shape) that aren't
-   expressible as token overrides.
-
-   P6.5: Aggressively trimmed — every override whose target class has
-   been Tailwind-migrated was deleted, because Tailwind utilities
-   (`bg-surface`, `text-fg`, etc.) automatically resolve through the
-   @theme inline bridge per theme. The remaining rules target classes
-   still emitted as raw className strings: .app/.panel shell, sidebar
-   plugin rails (.brand-mark/.rail-*), .side-search input shape,
-   .tool-card cluster (ToolCard not migrated), highlight.ts tokens,
-   DiffView (.diff-line/.diff-hunk-head), and tool-previews (.file-preview/.fp-line).
+   structural rules that key on the .theme-light selector and can't
+   ride the @theme inline token bridge: shape-level differences (panel
+   chrome) and styling for spans emitted by HTML-string renderers
+   (highlight.ts) which can't be addressed with Tailwind utilities.
    ============================================================ */
 
 /* Body / canvas — outer frame is canvas (#fafafa). Panels lift above
@@ -38,31 +29,10 @@ html.theme-light .panel {
     0 12px 24px -8px rgba(15, 15, 15, 0.10);
 }
 
-/* Sidebar — rail mode chrome (still raw-className inside sidebar plugin). */
-html.theme-light .brand-mark { background: var(--color-accent); color: #fff; }
-html.theme-light .rail-brand { background: var(--color-accent); color: #fff; }
-html.theme-light .rail-divider { background: var(--color-border); }
-html.theme-light .rail-session { background: var(--color-surface-2); }
-html.theme-light .rail-session:hover,
-html.theme-light .rail-session.active { background: var(--color-surface-3); }
-
-/* Search input — shape (not just colour) differs in light theme. */
-html.theme-light .side-search input {
-  background: var(--color-surface-2);
-  color: var(--color-text);
-  box-shadow: none;
-  border: 1px solid var(--color-border);
-}
-html.theme-light .side-search input:focus {
-  border-color: var(--color-accent);
-  box-shadow: 0 0 0 3px rgba(22, 156, 70, 0.12);
-}
-html.theme-light .search-kbd { background: var(--color-surface-3); }
-
 /* Syntax tokens — emitted by utils/highlight.ts (DiffView.tsx) and the
    FilePreview HTML-string highlighter. The spans come from a
    dangerouslySetInnerHTML string, so we can't override colours via
-   Tailwind at the call site — light-theme tones live here. */
+   Tailwind utilities at the call site — light-theme tones live here. */
 html.theme-light .token-kw   { color: #b91d7d; }
 html.theme-light .token-str  { color: #b86a00; }
 html.theme-light .token-fn   { color: #1d4ed8; }

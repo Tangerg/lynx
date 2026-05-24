@@ -30,8 +30,13 @@ type Props = {
 export function SidebarRail({ onToggleRail }: Props) {
   const items = useSidebarRailItems();
   return (
-    <Panel className="sidebar rail">
-      <div className="rail-brand">
+    // `sidebar` / `rail` classes are kept as DOM hooks for layout.css
+    // (macOS titlebar padding + Wails drag region). All visual styling is
+    // Tailwind here.
+    <Panel className="sidebar rail w-14 items-center gap-1 px-1.5 pb-3">
+      {/* Rail brand square — 36×36 accent tile, hosts the brand-mark icon.
+          Same `text-black light:text-white` rationale as BrandMark. */}
+      <div className="rail-brand mb-1 grid h-9 w-9 place-items-center rounded-lg bg-accent text-black light:text-white">
         <Slot name="sidebar.rail.brand" />
       </div>
       <IconButton variant="rail" title="Expand sidebar" onClick={onToggleRail}>

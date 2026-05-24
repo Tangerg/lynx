@@ -117,27 +117,25 @@
   color: var(--color-text);
 }
 
-/* Legacy CSS still imported during the P2-P6 migration. Components
-   rewritten with Tailwind utilities don't need their old class, but
-   the rest of the app still does. Each styles/*.css file gets deleted
-   as its consumers migrate.
-     P6.3 deleted topbar.css    (composer plugin is now fully Tailwind+Radix).
-     P6.5 deleted statusbar.css (status pill plugin is now fully Tailwind).
-     P6.6 deleted composer.css  (Composer / SlashSuggestions / run-strip
-                                 are all Tailwind — only the textarea
-                                 keeps a `composer-input` DOM-hook class
-                                 so the focus command can querySelector
-                                 it without threading a ref).
-     P6.7 deleted settings.css  (SettingsPage shell + appearance pane +
-                                 plugins-pane are now Tailwind; the
-                                 .search-kbd hint moved into sidebar.css
-                                 where it belongs cohesion-wise).
-     P6.8 deleted welcome.css   (welcome-screen plugin migrated to
-                                 Tailwind; the skeleton + empty-state
-                                 primitives in that file were already
-                                 dead — Skeleton/EmptyState common
-                                 components have been Tailwind since
-                                 the start of P6). */
+/* What still lives in plain .css files (everything else is Tailwind):
+   - tokens.css   — theme token defaults (overridden at runtime by themeStore)
+   - reset.css    — small CSS reset rules (form normalisation etc.)
+   - layout.css   — kernel shell: .app/.app-main/.panel grid + macOS
+                    titlebar drag-region wiring
+   - chat.css     — three semantic hooks the chat layer still emits as
+                    raw classes (.chat / .msg-stream / .msg-content)
+   - icon-gallery.css — debug surface (icon showcase view)
+   - markdown.css — bundle of `.msg-content X` rules whose targets are
+                    HTML emitted by rehype, not JSX
+   - overlays.css — .plugin-boundary-error + .fade-in + Wails drag opt-out
+   - tool.css     — .tool-card.running animation + .token-* highlight
+                    spans + .lazy-activator hook
+   - theme.css    — html.theme-light overrides that can't be expressed
+                    as Tailwind utilities (token-* via dangerouslySetInnerHTML,
+                    .panel chrome, scrollbar tint, .msg-content body)
+
+   Deleted in P6.x: topbar.css, statusbar.css, composer.css, settings.css,
+   welcome.css, sidebar.css. */
 @import "./tokens.css";
 @import "./reset.css";
 @import "./layout.css";
@@ -145,6 +143,5 @@
 @import "./icon-gallery.css";
 @import "./markdown.css";
 @import "./overlays.css";
-@import "./sidebar.css";
 @import "./tool.css";
 @import "./theme.css";
