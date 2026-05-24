@@ -65,7 +65,9 @@ export type HostCapability =
   | "notify"
   | "window"
   | "plugins"
-  | "log";
+  | "log"
+  | "i18n"
+  | "tasks";
 
 /**
  * Declarative ahead-of-activation contributions. Anything listed here is

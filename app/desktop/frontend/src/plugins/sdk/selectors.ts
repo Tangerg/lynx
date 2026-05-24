@@ -373,9 +373,20 @@ async function runActivator(pluginName: string): Promise<void> {
 // AG-UI event handlers — imperative lookups used by the reducer
 // ---------------------------------------------------------------------------
 
-/** Look up a CUSTOM-event handler. Used by the reducer at event time. */
-export function lookupCustomEventHandler(name: string): CustomEventHandler<unknown> | undefined {
-  return usePluginStore.getState().customEventHandlers.get(name)?.value;
+/**
+ * Look up every CUSTOM-event handler registered for `name`, in registration
+ * order. The reducer fans the event out through all of them, chaining each
+ * handler's StateUpdate return through the state.
+ */
+export function lookupCustomEventHandlers(
+  name: string,
+): Array<{ pluginName: string; handler: CustomEventHandler<unknown> }> {
+  const out: Array<{ pluginName: string; handler: CustomEventHandler<unknown> }> = [];
+  for (const o of usePluginStore.getState().customEventHandlers.values()) {
+    if (o.value.name === name)
+      out.push({ pluginName: o.pluginName, handler: o.value.handler });
+  }
+  return out;
 }
 
 /**

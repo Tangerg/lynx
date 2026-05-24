@@ -2,7 +2,10 @@
 // plugin gets a Host bound to its name so registrations, errors, and
 // conflict warnings can be attributed back when it unloads.
 
+import { nanoid } from "nanoid";
 import { api } from "@/lib/http";
+import { addLocaleBundle } from "@/lib/i18n";
+import { TASK_LINGER_MS, useTasksStore } from "@/state/tasksStore";
 import type { ContentBlockKind } from "@/protocol/agui/viewState";
 import { useSessionStore } from "@/state/sessionStore";
 import { getConfig, hasConfig, setConfig, useConfigStore, type ConfigValue } from "./config";
@@ -140,8 +143,17 @@ export function createHost(
 
     agui: {
       on<T = unknown>(name: string, handler: CustomEventHandler<T>): Disposable {
-        store().addCustomEventHandler(pluginName, name, handler as CustomEventHandler<unknown>);
-        return track({ dispose: () => store().removeCustomEventHandler(pluginName, name) });
+        // Composite-key registration so multiple plugins (or the same
+        // plugin twice) can handle the same custom event name. The
+        // reducer fans the event out through every match.
+        const id = mintId(`custom:${name}`);
+        store().addCustomEventHandler(
+          pluginName,
+          name,
+          id,
+          handler as CustomEventHandler<unknown>,
+        );
+        return track({ dispose: () => store().removeCustomEventHandler(pluginName, id) });
       },
       onCore(eventType: string, handler: CoreEventHandler): Disposable {
         // Composite-key registration in the registry allows multiple handlers
@@ -405,6 +417,64 @@ export function createHost(
         const id = mintId("log");
         store().addLogSubscriber(pluginName, id, fn);
         return track({ dispose: () => store().removeLogSubscriber(pluginName, id) });
+      },
+    },
+
+    i18n: {
+      addBundle(locale: string, dict: Record<string, string>): Disposable {
+        addLocaleBundle(locale, dict);
+        // i18next has no per-key removal; leaving bundles registered is
+        // safe because t() only matters while plugin UI is mounted, and a
+        // same-name reload overwrites cleanly.
+        return track({ dispose: () => {} });
+      },
+    },
+
+    tasks: {
+      start(opts) {
+        const tasks = useTasksStore.getState();
+        const id = opts.id ?? `task:${pluginName}:${nanoid(8)}`;
+        tasks.add({
+          id,
+          pluginName,
+          label: opts.label,
+          message: opts.message ?? null,
+          progress: opts.progress ?? null,
+          status: "running",
+          startedAt: Date.now(),
+        });
+
+        return {
+          update(patch) {
+            const cur = useTasksStore.getState().tasks.get(id);
+            if (!cur || cur.status !== "running") return;
+            useTasksStore.getState().patch(id, {
+              progress: patch.progress === undefined ? cur.progress : patch.progress,
+              message: patch.message === undefined ? cur.message : patch.message,
+            });
+          },
+          succeed(message) {
+            const cur = useTasksStore.getState().tasks.get(id);
+            if (!cur || cur.status !== "running") return;
+            useTasksStore.getState().patch(id, {
+              status: "succeeded",
+              progress: 1,
+              settledAt: Date.now(),
+              ...(message !== undefined ? { message } : {}),
+            });
+            window.setTimeout(() => useTasksStore.getState().remove(id), TASK_LINGER_MS);
+          },
+          fail(err) {
+            const cur = useTasksStore.getState().tasks.get(id);
+            if (!cur || cur.status !== "running") return;
+            useTasksStore.getState().patch(id, {
+              status: "failed",
+              settledAt: Date.now(),
+              error: err instanceof Error ? err.message : String(err),
+            });
+            window.setTimeout(() => useTasksStore.getState().remove(id), TASK_LINGER_MS);
+          },
+        };
       },
     },
   } satisfies Host;

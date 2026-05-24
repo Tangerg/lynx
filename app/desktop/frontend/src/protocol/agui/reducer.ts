@@ -15,9 +15,8 @@
 import { EventType, type BaseEvent, type CustomEvent } from "@ag-ui/core";
 import {
   lookupCoreEventHandlers,
-  lookupCustomEventHandler,
+  lookupCustomEventHandlers,
   reportPluginError,
-  usePluginStore,
 } from "@/plugins/sdk";
 import { INITIAL_VIEW_STATE, type AgentViewState } from "./viewState";
 
@@ -39,23 +38,25 @@ function applyCoreHandlers(state: AgentViewState, event: BaseEvent): AgentViewSt
   return next;
 }
 
-// Hand a CUSTOM event to the plugin registry. If a plugin has registered a
-// handler for ev.name, its returned StateUpdate is applied; otherwise the
-// event is silently ignored.
+// Fan a CUSTOM event out through every plugin registered for `ev.name`.
+// Each handler returns an optional StateUpdate (`(state) => state`); the
+// reducer threads state through the chain in registration order. A throwing
+// handler is logged + reported, then skipped — the rest of the chain still
+// runs, same isolation policy as core handlers.
 function applyCustom(state: AgentViewState, ev: CustomEvent): AgentViewState {
-  const handler = lookupCustomEventHandler(ev.name);
-  if (!handler) return state;
-  try {
-    const update = handler(ev.value);
-    return typeof update === "function" ? update(state) : state;
-  } catch (err) {
-     
-    console.error(`[plugin] agui handler "${ev.name}" threw:`, err);
-    const owner =
-      usePluginStore.getState().customEventHandlers.get(ev.name)?.pluginName ?? "unknown";
-    reportPluginError(owner, "agui", err, `event: ${ev.name}`);
-    return state;
+  const handlers = lookupCustomEventHandlers(ev.name);
+  if (handlers.length === 0) return state;
+  let next = state;
+  for (const { pluginName, handler } of handlers) {
+    try {
+      const update = handler(ev.value);
+      if (typeof update === "function") next = update(next);
+    } catch (err) {
+      console.error(`[plugin] agui handler "${ev.name}" (${pluginName}) threw:`, err);
+      reportPluginError(pluginName, "agui", err, `event: ${ev.name}`);
+    }
   }
+  return next;
 }
 
 export function reduce(state: AgentViewState, ev: BaseEvent): AgentViewState {

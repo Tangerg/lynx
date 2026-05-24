@@ -202,3 +202,17 @@ export const LOCALES: ReadonlyArray<{ id: Locale; label: string }> = [
   { id: "en", label: "English" },
   { id: "zh", label: "简体中文" },
 ];
+
+/**
+ * Merge `dict` into the dictionary for `locale`. Existing keys are
+ * overwritten; new keys land alongside the kernel's strings. Used by
+ * `host.i18n.addBundle` so plugins can contribute their own labels.
+ *
+ * i18next has no public per-key removal, so plugin unload doesn't roll
+ * the bundle back. In practice this is fine — keys are unreferenced
+ * after the plugin's UI is gone, and a same-name reload overwrites
+ * cleanly.
+ */
+export function addLocaleBundle(locale: string, dict: Record<string, string>): void {
+  i18next.addResourceBundle(locale, "translation", dict, true, true);
+}
