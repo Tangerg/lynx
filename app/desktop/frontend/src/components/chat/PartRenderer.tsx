@@ -40,10 +40,19 @@ export type PartCtx = {
 export function renderPart(block: ContentBlock, key: number, ctx: PartCtx) {
   switch (block.kind) {
     case "text":
+      // Wrapper is a <div>, not a <p>: react-markdown emits <p> nodes
+      // of its own, and `<p>` inside `<p>` is invalid HTML (browsers
+      // silently split the outer one). The earlier <p> wrapper also
+      // triggered tokens.css's naked-element `p { font-size: var(
+      // --fs-body-md) }` (14.08px) — which then propagated through
+      // `.md` and made every chat message render at 14px regardless of
+      // the Tailwind `text-[16px]` set on .msg-content. The `streaming`
+      // class was a dead marker (no CSS rule referenced it) so it goes
+      // away with the wrapper.
       return (
-        <p key={key} className={block.streaming && !ctx.instant ? "streaming" : undefined}>
+        <div key={key}>
           <MarkdownMessage text={block.text} streaming={block.streaming} instant={ctx.instant} />
-        </p>
+        </div>
       );
 
     case "tool": {
