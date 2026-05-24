@@ -80,10 +80,12 @@
   --font-mono: "Geist Mono", "JetBrains Mono", ui-monospace, Menlo, monospace;
 
   /* ---------- Animations ----------
-     `animate-shimmer` powers Skeleton primitives. `animate-pulse-dot`
-     is the running-indicator dot pulse. */
+     `animate-shimmer` powers Skeleton primitives.
+     `animate-pulse-dot` is the running-indicator dot pulse.
+     `animate-rise-in` is the slash-suggestion / popover entrance. */
   --animate-shimmer: lyra-shimmer 1.4s linear infinite;
   --animate-pulse-dot: lyra-pulse 1.6s ease-in-out infinite;
+  --animate-rise-in: lyra-rise-in 140ms cubic-bezier(0.3, 0, 0, 1);
 }
 
 @keyframes lyra-shimmer {
@@ -93,6 +95,12 @@
 @keyframes lyra-pulse {
   0%, 100% { opacity: 1; transform: scale(1); }
   50%      { opacity: 0.6; transform: scale(0.9); }
+}
+
+/* Slash-suggestion / popover slide-up entrance. */
+@keyframes lyra-rise-in {
+  from { transform: translateY(8px); opacity: 0; }
+  to   { transform: translateY(0);   opacity: 1; }
 }
 
 /* Legacy CSS still imported during the P2-P6 migration. Components

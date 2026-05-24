@@ -23,16 +23,19 @@ type Props = {
 
 function ChatErrorFallback({ error, resetErrorBoundary }: FallbackProps) {
   return (
-    <div className="chat-error-card" role="alert">
-      <div className="chat-error-title">渲染出错</div>
-      <pre className="chat-error-message">
+    <div
+      role="alert"
+      className="m-8 max-w-[720px] rounded-lg border border-negative/45 bg-negative/10 px-5 py-4 text-fg"
+    >
+      <div className="mb-2 font-semibold text-[13.5px] tracking-tight text-negative">渲染出错</div>
+      <pre className="m-0 mb-3 max-h-[200px] overflow-auto rounded-md bg-[color-mix(in_srgb,var(--color-text)_4%,transparent)] px-3 py-2.5 font-mono text-[12px] leading-[1.5] text-fg-muted whitespace-pre-wrap break-words">
         {error instanceof Error ? error.message : String(error)}
       </pre>
-      <div className="chat-error-actions">
+      <div className="flex gap-2">
         <button
           type="button"
-          className="chat-error-retry"
           onClick={resetErrorBoundary}
+          className="rounded-md border border-[color-mix(in_srgb,var(--color-text)_12%,transparent)] bg-surface-2 px-3 py-1 text-[12px] text-fg font-sans cursor-pointer transition-colors hover:bg-surface-3"
         >
           重试
         </button>
