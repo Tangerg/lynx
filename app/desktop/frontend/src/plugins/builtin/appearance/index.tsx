@@ -145,7 +145,12 @@ function AppearancePane() {
         <div
           role="radiogroup"
           aria-label={t("settings.language.label")}
-          className="inline-flex gap-1 rounded-md border border-line bg-surface-2 p-1"
+          // `w-fit` keeps the radiogroup at content width inside the
+          // 1fr grid cell. Without it, grid items default to
+          // `justify-self: stretch`, which overrides `inline-flex`'s
+          // shrink-to-content behaviour and the segmented control
+          // gets dragged across the entire row.
+          className="inline-flex w-fit gap-1 rounded-md border border-line bg-surface-2 p-1"
         >
           {LOCALES.map((l) => (
             <button
