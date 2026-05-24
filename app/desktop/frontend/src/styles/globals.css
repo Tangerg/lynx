@@ -109,10 +109,19 @@
   to   { transform: translateY(0);   opacity: 1; }
 }
 
+/* Global text-selection highlight — accent-tinted instead of the OS
+   default blue, so dragging-to-select reads as a deliberate UI
+   affordance instead of platform chrome bleeding through. */
+::selection {
+  background: color-mix(in srgb, var(--color-accent) 30%, transparent);
+  color: var(--color-text);
+}
+
 /* Legacy CSS still imported during the P2-P6 migration. Components
    rewritten with Tailwind utilities don't need their old class, but
    the rest of the app still does. Each styles/*.css file gets deleted
-   as its consumers migrate. */
+   as its consumers migrate. P6.3 deleted topbar.css (composer plugin
+   is now fully Tailwind+Radix). */
 @import "./tokens.css";
 @import "./reset.css";
 @import "./layout.css";
@@ -125,6 +134,5 @@
 @import "./sidebar.css";
 @import "./statusbar.css";
 @import "./tool.css";
-@import "./topbar.css";
 @import "./welcome.css";
 @import "./theme.css";

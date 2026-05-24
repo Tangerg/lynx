@@ -1,14 +1,18 @@
-// Built-in plugins for the composer surface — modes / placeholders /
-// keymap / status chips / start-toolbar items / end-toolbar items / send.
+// Built-in plugin: composer accessories — modes / placeholders /
+// keymap / status chips / model picker / attach / send / kbd hint.
 //
-// Each is still an independent plugin (so a user can replace any single
-// piece — e.g. ship a real model picker without touching the mode
-// toggles), but the implementations live together because they're small
-// and conceptually adjacent.
+// Every piece is its own micro-plugin so a fork can drop or replace any
+// single accessory without touching the rest. Migration P6.3 moved
+// these from raw className strings to Tailwind utilities + Radix
+// primitives — see CLAUDE.md "Tailwind first" / "Radix first" rules.
 
+import * as React from "react";
+import * as Popover from "@radix-ui/react-popover";
+import * as Tooltip from "@radix-ui/react-tooltip";
 import { Icon, type IconName } from "@/components/common";
 import { submitComposer } from "@/components/chat/submitComposer";
 import { useSessions } from "@/lib/queries";
+import { cn } from "@/lib/utils";
 import { definePlugin, useCommands } from "@/plugins/sdk";
 import { useAgentAction } from "@/state/agentStore";
 import { useComposerStore } from "@/state/composerStore";
@@ -32,81 +36,55 @@ export const composerPlaceholders = definePlugin({
   name: "lyra.builtin.composer-placeholders",
   version: "1.0.0",
   setup({ host }) {
-    host.composer.registerPlaceholder({
-      id: "default",
-      text: "Ask, plan, or paste a stack trace…  /  to run a command",
-      weight: 4,
-    });
-    host.composer.registerPlaceholder({
-      id: "plan",
-      text: "What should I do next? Try /plan to draft a checklist.",
-    });
-    host.composer.registerPlaceholder({
-      id: "search",
-      text: "Look up something in the codebase — start with /search …",
-    });
-    host.composer.registerPlaceholder({
-      id: "explain",
-      text: "Paste an error or a snippet and I'll explain it.",
-    });
+    host.composer.registerPlaceholder({ id: "ask",       text: "Ask, plan, or paste a stack trace…  /  to run a command" });
+    host.composer.registerPlaceholder({ id: "debug",     text: "Paste a failing test output and I'll walk you through it." });
+    host.composer.registerPlaceholder({ id: "implement", text: "Implement what? Describe the change and I'll plan + execute." });
+    host.composer.registerPlaceholder({ id: "refactor",  text: "Point at code that smells; I'll suggest a refactor." });
   },
 });
 
-// ---- key bindings --------------------------------------------------------
+// ---- keymap --------------------------------------------------------------
 
 export const composerKeymap = definePlugin({
   name: "lyra.builtin.composer-keymap",
   version: "1.0.0",
   setup({ host }) {
-    // Plain Enter sends; Shift+Enter is intentionally NOT registered so the
-    // browser's default newline behavior kicks in.
     host.composer.registerKeyBinding({
       key: "Enter",
-      description: "Send the current message",
-      handler: ({ submit }) => {
+      description: "Send message",
+      handler: ({ submit, event }) => {
+        if (event.shiftKey) return false; // Shift+Enter inserts a newline.
         submit();
         return true;
       },
     });
-    // Mod+Enter mirrors Enter — the hint chip on the toolbar advertises
-    // "⌘↵ send", so users who learned that combo elsewhere don't get a
-    // dead key.
     host.composer.registerKeyBinding({
       key: "Mod+Enter",
-      description: "Send the current message",
-      handler: ({ submit }) => {
-        submit();
-        return true;
-      },
-    });
-    // Escape blurs the textarea so the user can keyboard-navigate out of
-    // the composer (e.g. to use Cmd+1..9 tab shortcuts which skip inputs
-    // by default).
-    host.composer.registerKeyBinding({
-      key: "Escape",
-      description: "Unfocus the composer",
-      handler: ({ event }) => {
-        (event.target as HTMLElement | null)?.blur();
-        return true;
-      },
+      description: "Send message (override)",
+      handler: ({ submit }) => { submit(); return true; },
     });
   },
 });
 
 // ---- status chips --------------------------------------------------------
-
+//
 // Values are still hard-coded strings (taken over verbatim from the
 // original AgentClientPage props). Wiring them to live state (active
 // project, current branch via git, …) is a follow-up that doesn't touch
 // the registration API.
+
 function Chip({
   icon, title, children,
 }: { icon: IconName; title: string; children: React.ReactNode }) {
   return (
-    <button className="cf-chip" title={title}>
-      <Icon name={icon} size={11} />
+    <button
+      type="button"
+      title={title}
+      className="group inline-flex h-6 items-center gap-1.5 rounded-sm border border-transparent bg-transparent px-2 pl-2.5 font-mono text-[11.5px] font-normal text-fg-muted tracking-tight whitespace-nowrap cursor-pointer transition-colors duration-150 hover:bg-surface-2 hover:text-fg"
+    >
+      <Icon name={icon} size={11} className="text-fg-faint shrink-0 group-hover:text-fg" />
       <span>{children}</span>
-      <Icon name="more" size={10} />
+      <Icon name="more" size={10} className="text-fg-faint opacity-60 group-hover:text-fg-muted" />
     </button>
   );
 }
@@ -133,17 +111,27 @@ function ModelPicker() {
   const model = active?.model ?? "Sonnet";
 
   return (
-    <button className="composer-model" title="Switch model">
-      <span className="cm-avatar">{model.slice(0, 1)}</span>
-      <span className="cm-name">{model}</span>
-      <Icon name="more" size={10} />
+    <button
+      type="button"
+      title="Switch model"
+      className="mr-1 inline-flex h-[26px] shrink-0 items-center gap-1.5 rounded-full border border-transparent bg-transparent pl-1 pr-2.5 font-sans text-[12px] font-semibold text-fg whitespace-nowrap cursor-pointer transition-colors hover:bg-surface-2 hover:border-line"
+    >
+      <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-[linear-gradient(135deg,var(--color-accent)_0%,color-mix(in_oklab,var(--color-accent)_40%,#000)_100%)] text-on-accent font-semibold text-[10.5px]">
+        {model.slice(0, 1)}
+      </span>
+      <span className="font-mono text-[11.5px] font-semibold tracking-[0.01em]">{model}</span>
+      <Icon name="more" size={10} className="text-fg-faint opacity-70" />
     </button>
   );
 }
 
 function AttachButton() {
   return (
-    <button className="composer-tool-btn" title="Attach file">
+    <button
+      type="button"
+      title="Attach file"
+      className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border-0 bg-transparent text-fg-muted cursor-pointer transition-colors hover:bg-surface-2 hover:text-fg"
+    >
       <Icon name={"paperclip" as IconName} size={13} />
     </button>
   );
@@ -159,12 +147,11 @@ export const composerToolbar = definePlugin({
 });
 
 // ---- toolbar (end): keyboard hint + send ---------------------------------
-
+//
 // Composer-local key handlers — registered by composerKeymap on the
 // textarea, not on the global shortcut store. They don't appear in
-// useCommands(), so we list them statically. Plus ⌘1-9 which is in
-// global-keymap but deliberately omits a palette command (would clutter
-// the palette with 9 "switch to tab N" entries).
+// useCommands(), so we list them statically.
+
 const STATIC_CHEATS: Array<{ combo: string; label: string }> = [
   { combo: "↵",     label: "Send message" },
   { combo: "⌘↵",    label: "Send message" },
@@ -175,26 +162,38 @@ const STATIC_CHEATS: Array<{ combo: string; label: string }> = [
 
 function KeyHint() {
   // Dynamic rows: any palette command that advertises a `shortcut` string.
-  // Stays in sync with whatever defaults/commands.ts (or any plugin) has
-  // registered — no parallel hardcoded list to maintain here.
   const commands = useCommands();
   const dynamic = commands
     .filter((c) => c.shortcut)
     .map((c) => ({ combo: c.shortcut as string, label: c.label }));
 
   return (
-    <div className="meta key-hint">
-      <span className="accent">⌘K</span> commands · <span className="accent">⌘↵</span> send
-      <div className="key-cheatsheet" role="tooltip">
-        <div className="key-cheatsheet-title">Shortcuts</div>
-        {[...STATIC_CHEATS, ...dynamic].map((r, i) => (
-          <div className="key-cheat-row" key={`${r.combo}:${i}`}>
-            <kbd>{r.combo}</kbd>
-            <span>{r.label}</span>
-          </div>
-        ))}
-      </div>
-    </div>
+    <Popover.Root>
+      <Popover.Trigger
+        className="hidden xl:inline-flex items-center gap-1 px-1 font-mono text-[10.5px] text-fg-faint cursor-default border-0 bg-transparent"
+      >
+        <span className="text-accent">⌘K</span> commands · <span className="text-accent">⌘↵</span> send
+      </Popover.Trigger>
+      <Popover.Portal>
+        <Popover.Content
+          side="top"
+          sideOffset={8}
+          align="end"
+          role="tooltip"
+          className="z-50 min-w-[220px] rounded-md border border-line-soft bg-surface-2 p-2.5 shadow-lg animate-rise-in"
+        >
+          <div className="mb-1.5 font-mono text-[9.5px] font-semibold text-fg-faint">Shortcuts</div>
+          {[...STATIC_CHEATS, ...dynamic].map((r, i) => (
+            <div key={`${r.combo}:${i}`} className="grid grid-cols-[64px_1fr] items-center gap-2.5 py-0.5 text-[11.5px]">
+              <kbd className="rounded-sm border border-line-soft bg-line px-1.5 text-center font-mono text-[10.5px] text-fg-soft">
+                {r.combo}
+              </kbd>
+              <span className="text-fg-muted">{r.label}</span>
+            </div>
+          ))}
+        </Popover.Content>
+      </Popover.Portal>
+    </Popover.Root>
   );
 }
 
@@ -218,14 +217,34 @@ function SendButton() {
   };
 
   return (
-    <button
-      className="send-btn"
-      disabled={disabled}
-      onClick={onClick}
-      title="Send (⌘↵)"
-    >
-      <Icon name="send-arrow" size={14} strokeWidth={2.5} />
-    </button>
+    <Tooltip.Provider delayDuration={300}>
+      <Tooltip.Root>
+        <Tooltip.Trigger asChild>
+          <button
+            type="button"
+            disabled={disabled}
+            onClick={onClick}
+            className={cn(
+              "grid h-8 w-8 shrink-0 place-items-center rounded-full border-0 cursor-pointer transition-transform duration-150",
+              disabled
+                ? "bg-surface-3 text-fg-faint cursor-not-allowed"
+                : "bg-accent text-on-accent hover:scale-105 active:scale-95",
+            )}
+          >
+            <Icon name="send-arrow" size={14} strokeWidth={2.5} />
+          </button>
+        </Tooltip.Trigger>
+        <Tooltip.Portal>
+          <Tooltip.Content
+            side="top"
+            sideOffset={6}
+            className="rounded-sm bg-surface-3 px-2 py-1 font-mono text-[10.5px] text-fg-soft shadow-md"
+          >
+            Send (⌘↵)
+          </Tooltip.Content>
+        </Tooltip.Portal>
+      </Tooltip.Root>
+    </Tooltip.Provider>
   );
 }
 
