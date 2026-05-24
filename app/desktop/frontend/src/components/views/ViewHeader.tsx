@@ -26,12 +26,12 @@ export function ViewHeader({ icon, title, sub, actions, titleStrong }: Props) {
       <div className="min-w-0">
         <div className={cn(
           "text-fg whitespace-nowrap overflow-hidden text-ellipsis",
-          titleStrong ? "font-sans text-[13px] font-semibold" : "font-mono text-[12px]",
+          titleStrong ? "font-sans text-[15px] font-semibold tracking-[-0.005em]" : "font-mono text-[13px]",
         )}>
           {title}
         </div>
         {sub !== undefined && (
-          <div className="mt-0.5 font-mono text-[11px] text-fg-faint">{sub}</div>
+          <div className="mt-0.5 font-mono text-[12px] text-fg-faint">{sub}</div>
         )}
       </div>
       {actions !== undefined && (

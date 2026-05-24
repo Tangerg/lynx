@@ -100,12 +100,12 @@ export function MessageBlock({ msg, ctx }: { msg: Message; ctx: PartCtx }) {
           </div>
           <div
             className={cn(
-              // Body prose at 16px — matches Claude's chat surface. This
-              // is the dominant reading rhythm of the entire app, and the
-              // anchor that markdown headings (h1-h6) and the composer
-              // textarea size against. Anything below 16 made the chat
-              // column feel cramped to long-form readers.
-              "msg-content text-fg text-[16px] leading-[1.68] tracking-[-0.003em] font-normal",
+              // Body prose at 15px — the project's content baseline. Every
+              // content-area surface (chat, settings panes, welcome,
+              // approval cards) reads at this size; markdown headings +
+              // dense data tiers step off this number. See
+              // CONTENT TYPE SCALE notes throughout the codebase.
+              "msg-content text-fg text-[15px] leading-[1.68] tracking-[-0.003em] font-normal",
               isUser && "max-w-[580px] rounded-[14px_14px_4px_14px] bg-surface-2 px-3.5 py-2.5 text-left light:bg-surface-3",
             )}
           >

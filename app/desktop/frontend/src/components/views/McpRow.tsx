@@ -17,8 +17,8 @@ export function McpRow({ server }: { server: MCPServer }) {
         <Icon name={server.icon as IconName} size={15} />
       </div>
       <div className="min-w-0">
-        <div className="text-[13px] font-semibold text-fg truncate">{server.name}</div>
-        <div className="mt-0.5 text-[11.5px] text-fg-faint truncate">{server.desc}</div>
+        <div className="text-[14px] font-semibold text-fg truncate">{server.name}</div>
+        <div className="mt-0.5 text-[12px] text-fg-faint truncate">{server.desc}</div>
       </div>
       <div className="rounded-xs bg-surface-2 px-1.5 py-0.5 font-mono text-[11px] text-fg-faint">
         {server.tools} tools

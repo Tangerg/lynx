@@ -36,18 +36,18 @@ export function SettingsPage() {
             type="button"
             onClick={() => setSelectedId(p.id)}
             className={cn(
-              "flex items-center gap-2 rounded-md border-0 bg-transparent px-2.5 py-1.5 text-left text-[13px] text-fg-muted cursor-pointer transition-colors duration-150 hover:bg-[color-mix(in_srgb,var(--color-text)_5%,transparent)] hover:text-fg",
+              "flex items-center gap-2 rounded-md border-0 bg-transparent px-2.5 py-2 text-left text-[14px] text-fg-muted cursor-pointer transition-colors duration-150 hover:bg-[color-mix(in_srgb,var(--color-text)_5%,transparent)] hover:text-fg",
               p.id === activeId && "bg-surface-3 text-fg",
             )}
           >
-            {p.icon && <Icon name={p.icon as IconName} size={14} />}
+            {p.icon && <Icon name={p.icon as IconName} size={15} />}
             <span>{p.label}</span>
           </button>
         ))}
       </div>
       <div className="flex min-h-0 min-w-0 flex-col">
         <div className="flex items-center justify-between px-4.5 py-3.5">
-          <span className="text-[16px] font-semibold">{active?.label ?? t("settings.title")}</span>
+          <span className="text-[18px] font-semibold tracking-[-0.01em]">{active?.label ?? t("settings.title")}</span>
         </div>
         <div className="flex-1 min-h-0 overflow-y-auto px-5 py-4.5">
           {ActiveBody && (
