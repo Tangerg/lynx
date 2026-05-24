@@ -100,7 +100,9 @@ export function ShikiCodeBlock({ lang, code, file }: Props) {
     // reach them). Everything else here is Tailwind utilities.
     <div
       className={cn(
-        "shiki-block group/code my-3.5 overflow-hidden rounded-lg font-mono text-[12.5px]",
+        // Block code body at 13.5 — one step below body (16), keeps code
+        // visually distinct from prose but readable at a glance.
+        "shiki-block group/code my-3.5 overflow-hidden rounded-lg font-mono text-[13.5px]",
         "border border-[color-mix(in_srgb,var(--color-text)_10%,transparent)]",
         "bg-[color-mix(in_srgb,var(--color-text)_3%,transparent)]",
         folded && "folded",
