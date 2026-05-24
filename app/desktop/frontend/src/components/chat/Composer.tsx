@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef } from "react";
-import { Chip, Icon, Segmented, type IconName } from "@/components/common";
+import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
+import { Chip, Icon, type IconName } from "@/components/common";
 import { Slot } from "@/plugins/Slot";
 import {
   lookupComposerKeyBinding,
@@ -98,25 +99,58 @@ export function Composer({
       />
       <div className="composer-toolbar flex flex-nowrap items-center gap-1 pt-1.5">
         <Slot name="composer.toolbar.start" />
-        {modes.length > 0 && (
-          <Segmented
-            value={mode}
-            onChange={onModeChange}
-            options={modes.map((m) => ({
-              value: m.id,
-              label: (
-                <>
-                  <Icon name={(m.icon as IconName) ?? "spark"} size={12} />
-                  <span>{m.label}</span>
-                </>
-              ),
-            }))}
-          />
-        )}
+        {modes.length > 0 && <ModePicker modes={modes} value={mode} onChange={onModeChange} />}
         <div className="flex-1 min-w-2" />
         <Slot name="composer.toolbar.end" />
       </div>
     </div>
+  );
+}
+
+// Compact mode picker — Radix DropdownMenu trigger that shows the
+// current mode (icon + label + chevron) and reveals the full list on
+// click. Replaces the wider Segmented control to give the composer
+// toolbar more breathing room.
+type Mode = ReturnType<typeof useComposerModes>[number];
+
+function ModePicker({
+  modes, value, onChange,
+}: {
+  modes: Mode[];
+  value: ComposerMode;
+  onChange: (v: ComposerMode) => void;
+}) {
+  const active = modes.find((m) => m.id === value) ?? modes[0];
+  return (
+    <DropdownMenu.Root>
+      <DropdownMenu.Trigger
+        className="inline-flex h-[26px] items-center gap-1.5 rounded-sm border border-line bg-transparent px-2 font-sans text-[11.5px] font-semibold text-fg cursor-pointer transition-colors hover:bg-surface-2 data-[state=open]:bg-surface-2"
+        title="Composer mode"
+      >
+        <Icon name={(active.icon as IconName) ?? "spark"} size={12} />
+        <span>{active.label}</span>
+        <Icon name="more" size={10} className="text-fg-faint -rotate-90" />
+      </DropdownMenu.Trigger>
+      <DropdownMenu.Portal>
+        <DropdownMenu.Content
+          align="start"
+          sideOffset={6}
+          className="z-50 min-w-[160px] overflow-hidden rounded-md border border-line-soft bg-surface p-1 shadow-lg animate-rise-in"
+        >
+          {modes.map((m) => (
+            <DropdownMenu.Item
+              key={m.id}
+              onSelect={() => onChange(m.id)}
+              className="flex cursor-pointer items-center gap-2 rounded-sm px-2.5 py-1.5 text-[12.5px] text-fg-muted outline-none data-[highlighted]:bg-surface-2 data-[highlighted]:text-fg"
+            >
+              <Icon name={(m.icon as IconName) ?? "spark"} size={12} />
+              <span className="flex-1">{m.label}</span>
+              {m.id === value && <Icon name="check" size={12} className="text-accent" />}
+            </DropdownMenu.Item>
+          ))}
+        </DropdownMenu.Content>
+      </DropdownMenu.Portal>
+    </DropdownMenu.Root>
   );
 }
 
