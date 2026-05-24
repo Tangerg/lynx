@@ -1,56 +1,67 @@
 /* ============================================================
-   App shell — .app / .app-main / .app-statusbar / .panel / .panel-scroll + macOS titlebar shim + rail-mode grid.
-   See frontend/DESIGN.md for the spec.
-   ============================================================ */
-
-/* ============================================================
-   Lyra — kernel layout + component foundation.
-   Built on top of the tokens declared in styles/tokens.css.
+   Kernel layout — built on top of the tokens declared in tokens.css.
+   Owns the app shell (.app / .app-main / .app-statusbar / .panel /
+   .panel-scroll / .msg-scroll-frame), the cards-on-canvas pattern,
+   and the macOS titlebar shim that pushes the sidebar header down
+   so it clears the traffic-light controls.
    ============================================================ */
 
 * { box-sizing: border-box; }
 
-/* Light-mode glow tweak — slightly tighter than dark since light backgrounds
-   make halos read more loudly. Other shadow tokens are set in the main
-   .theme-light block further down. */
-html.theme-light {
-  --shadow-glow: 0 0 10px color-mix(in srgb, var(--color-accent) 35%, transparent);
+/* ---------- Document + body ---------- */
+/* Hard minimum viewport size. Below this the composer (760px max-width)
+   and the two columns (sidebar + chat) start overlapping, so we lock the
+   page to scroll instead of squashing layout. */
+:root {
+  --app-min-width: 1280px;
+  --app-min-height: 720px;
 }
 
 html, body, #root {
   height: 100%;
   margin: 0;
-  overflow: hidden;
+  min-width: var(--app-min-width);
+  min-height: var(--app-min-height);
 }
+#root { height: 100vh; }
 
 body {
   background: var(--color-bg);
   color: var(--color-text);
   font-family: var(--font-ui);
   font-size: var(--fs-body-md);
-  min-width: 1180px;
-  overflow-x: auto;
+  /* Lock body to scroll, never squash. */
+  overflow: auto;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-/* ---------- Kernel layout ----------
+/* Default colour scheme — switched by themeStore.applyTheme via the
+   .theme-light class. */
+html { color-scheme: dark; }
+html.theme-light { color-scheme: light; }
+
+/* Light-mode glow tweak — slightly tighter than dark since light
+   backgrounds make halos read more loudly. */
+html.theme-light {
+  --shadow-glow: 0 0 10px color-mix(in srgb, var(--color-accent) 35%, transparent);
+}
+
+/* ---------- Kernel grid ----------
    Cards-on-canvas pattern (Lyra original / Proma / IDE-class apps):
    - Outer .app paints the canvas (darkest tone — the "stage").
    - .app-main adds padding + gap so the canvas shows around / between
      panels, like matting around framed art.
    - Each .panel is a "lifted card" on surface-1 with rounded corners.
    - .app-statusbar stays flush at the bottom — sits on the canvas itself
-     for the chrome-frame look.
-   Why this over the prior tone-step (sidebar=canvas / chat=surface):
-   the floating-card pattern gives a real depth cue the eye reads
-   instantly. Same hierarchy logic, just with structural breathing
-   room making it explicit. */
+     for the chrome-frame look. */
 .app {
   display: grid;
   grid-template-rows: 1fr 24px;
   height: 100vh;
+  min-width: var(--app-min-width);
+  min-height: var(--app-min-height);
   background: var(--color-bg);
-  padding: 0;
-  gap: 0;
 }
 
 .app-main {
@@ -82,30 +93,19 @@ body {
   color: var(--color-text-muted);
   background: var(--color-bg);
 }
-/* .mono utility + .sb-* status-bar item classes removed in P6.4.
-   The status-pill plugin (plugins/builtin/status/pill.tsx) now owns
-   its visual treatment via Tailwind utilities + a tiny local `pill()`
-   helper. Tabular-numeric digits come from Tailwind's `tabular-nums`
-   utility instead of a custom .mono rule. */
 
-/* Vercel-mode polish for status bar — light theme override on the
-   bar background. */
+/* Light-theme bar polish + sparkline desaturation. Sparkline reads as a
+   faint trace on light, fully-coloured on dark. */
 html.theme-light .app-statusbar {
   background: var(--color-surface);
-  border: none;
-  border-radius: 0;
   color: var(--color-text-muted);
-  box-shadow: none;
 }
-/* Sparkline reads as faint trace on light, fully-coloured on dark.
-   `currentColor` works in dark; in light we want a quieter line.
-   Targets the Sparkline primitive's SVG directly so we don't depend
-   on the (now-deleted) .sb-item wrapper class. */
 html.theme-light .app-statusbar svg polyline { stroke-opacity: 0.55; }
-html.theme-light .app-statusbar svg polygon { fill-opacity: 0.10; }
+html.theme-light .app-statusbar svg polygon  { fill-opacity:  0.10; }
 
 /* Running tool card border — full accent gradient is too loud on white;
-   pull saturation down + tighten the visible arc. */
+   pull saturation down + tighten the visible arc. (Paired with the
+   `.tool-card.running::before` rule in tool.css.) */
 html.theme-light .tool-card.running::before {
   background: conic-gradient(
     from var(--tc-angle),
@@ -117,17 +117,17 @@ html.theme-light .tool-card.running::before {
 }
 
 /* ---------- Panels ----------
-   Lifted cards on the outer canvas. Depth via SHADOW + tone step —
-   not lines (per user feedback, JetBrains-style: 完全没有线条, 但是
-   分界线很明显). Both panels use surface-1; canvas frames them in
-   the 8px padding/gap. The cards "float" via a subtle multi-layer
-   drop shadow + inset top-edge highlight (lit-from-above feel).
+   Lifted cards on the outer canvas. Depth via SHADOW + tone step — not
+   lines (per user feedback, JetBrains-style: 完全没有线条, 但是分界线
+   很明显). Both panels use surface-1; canvas frames them in the 8px
+   padding/gap. The cards "float" via a subtle multi-layer drop shadow
+   + inset top-edge highlight (lit-from-above feel).
 
    This intentionally overrides DESIGN.md §5's "no shadow on dark"
    guidance. The DESIGN.md rule was correct for the prior flush-edge
    layout where shadows would be invisible against same-colored
-   neighbors. With the new cards-on-canvas layout, panels float
-   against canvas — a real visual separation needs real shadow. */
+   neighbors. With cards-on-canvas, panels float against canvas — a
+   real visual separation needs real shadow. */
 .panel {
   background: var(--color-surface);
   border-radius: var(--radius-md);
@@ -139,20 +139,32 @@ html.theme-light .tool-card.running::before {
     /* Inset top-edge highlight — picks up "light from above" so the
        card reads as having an actual top face. */
     inset 0 1px 0 rgba(255, 255, 255, 0.04),
-    /* Drop shadow ladder — small contact + wider ambient. Tuned
-       against canvas #010102; on a slightly-lighter neighbour the
-       shadow stays visible without being theatrical. */
+    /* Drop shadow ladder — small contact + wider ambient. Tuned against
+       canvas #010102; on a slightly-lighter neighbour the shadow stays
+       visible without being theatrical. */
     0 1px 2px rgba(0, 0, 0, 0.35),
     0 8px 16px -4px rgba(0, 0, 0, 0.28),
     0 16px 32px -8px rgba(0, 0, 0, 0.20);
 }
 
+/* ---------- Scroll containers ---------- */
 .panel-scroll {
   flex: 1 1 0;
   min-height: 0;
   overflow-y: auto;
   scrollbar-width: thin;
   scrollbar-color: var(--color-border-soft) transparent;
+}
+.panel-scroll::-webkit-scrollbar { width: 10px; }
+.panel-scroll::-webkit-scrollbar-thumb {
+  background: var(--color-border-soft);
+  border-radius: var(--radius-pill);
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+.panel-scroll::-webkit-scrollbar-thumb:hover {
+  background: var(--color-border-soft);
+  background-clip: content-box;
 }
 
 /* StickToBottom outer wrapper. The lib renders its own scrolling div
@@ -167,98 +179,24 @@ html.theme-light .tool-card.running::before {
   display: flex;
   flex-direction: column;
 }
-.panel-scroll::-webkit-scrollbar { width: 10px; }
-.panel-scroll::-webkit-scrollbar-thumb {
-  background: var(--color-border-soft);
-  border-radius: var(--radius-pill);
-  border: 2px solid transparent;
-  background-clip: content-box;
-}
-.panel-scroll::-webkit-scrollbar-thumb:hover { background: var(--color-border-soft); background-clip: content-box; }
 
 /* ============================================================
-   Misc
-   ============================================================ */
-.kbd {
-  display: inline-block;
-  padding: 1px 5px;
-  background: var(--color-surface-2);
-  border: 1px solid var(--color-border);
-  border-bottom-width: 2px;
-  border-radius: 4px;
-  font-family: var(--font-mono);
-  font-size: 10.5px;
-  color: var(--color-text-muted);
-  line-height: 1.3;
-}
-
-.divider-h {
-  height: 1px;
-  background: var(--color-border);
-  margin: 8px 0;
-}
-
-/* ============================================================
-   Kernel layout — rail sidebar, top tab bar, inline tool expansion
-   ============================================================ */
-
-/* Sidebar — rail mode */
-
-html,
-body,
-#root {
-  margin: 0;
-}
-
-/* Hard minimum viewport size. Below this, the composer (820px max-width)
-   and the two columns (sidebar + chat) start overlapping,
-   so we lock the page to scroll instead of squashing layout. */
-:root {
-  --app-min-width: 1280px;
-  --app-min-height: 720px;
-}
-
-html, body, #root {
-  min-width: var(--app-min-width);
-  min-height: var(--app-min-height);
-}
-html, body { height: 100%; }
-#root { height: 100vh; }
-
-body {
-  background: var(--color-bg);
-  color: var(--color-text);
-  font-family: var(--font-ui);
-  font-size: var(--fs-body-md);
-  overflow: auto;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-
-/* Top-level kernel honors the same minimum so the grid never collapses. */
-.app {
-  min-width: var(--app-min-width);
-  min-height: var(--app-min-height);
-}
-
-/* Default to dark theme. */
-html { color-scheme: dark; }
-html.theme-light { color-scheme: light; }
-
-/* ============================================================
-   macOS: native titlebar is hidden, traffic-light controls
-   overlap the top-left corner. Push the sidebar header down so
+   macOS titlebar shim — the native titlebar is hidden, traffic-light
+   controls overlap the top-left corner. Push the sidebar header down so
    the brand isn't covered, and make the top zone draggable.
+
+   Top padding clears the controls (red/amber/green at ~10-26px from
+   window top + ~6px reserve = 32px footprint, plus visual breathing).
+   Full mode gets 48px (room for the brand row); rail mode tightens to
+   36px since the rail-brand square sits directly under the lights. The
+   top zone doubles as the window drag region so users can move the
+   window by the brand row.
    ============================================================ */
-/* Top padding clears macOS traffic-light controls (red/amber/green at
-   ~10-26px from window top + ~6px reserve = 32px footprint, plus
-   visual breathing). The full mode gets 48px (room for the brand row);
-   the rail mode is tighter at 36px since the rail-brand square sits
-   directly under the traffic lights. The top zone doubles as the
-   window drag region so users can move the window by the brand row. */
 .sidebar       { padding-top: 48px; -webkit-app-region: drag; --wails-draggable: drag; }
 .sidebar.rail  { padding-top: 36px; -webkit-app-region: drag; --wails-draggable: drag; }
-/* Brand row + interactive children opt out of drag so they remain clickable. */
+/* Brand row + interactive children opt out of drag so they remain
+   clickable. (The icon-host divs `.brand-mark` need their own opt-out;
+   it lives in overlays.css.) */
 .sidebar .brand,
 .sidebar .rail-brand,
 .sidebar button,
@@ -267,4 +205,3 @@ html.theme-light { color-scheme: light; }
   -webkit-app-region: no-drag;
   --wails-draggable: no-drag;
 }
-
