@@ -98,7 +98,7 @@ export function Composer({
         /* The `composer-input` class is a DOM-target hook (no styles) so
            the `composer.focus` command in defaults/commands.ts can find
            this textarea without threading a ref through the tree. */
-        className="composer-input w-full resize-none border-0 bg-transparent px-1.5 py-2 font-sans text-[14px] leading-[1.55] tracking-[-0.003em] text-fg outline-none min-h-[22px] max-h-40 placeholder:text-fg-faint placeholder:tracking-normal"
+        className="composer-input w-full resize-none border-0 bg-transparent px-1.5 py-2 font-sans text-[14px] leading-[1.55] tracking-[-0.003em] text-fg outline-none min-h-5.5 max-h-40 placeholder:text-fg-faint placeholder:tracking-normal"
       />
       <div className="flex flex-nowrap items-center gap-1 pt-1.5">
         <Slot name="composer.toolbar.start" />
@@ -127,7 +127,7 @@ function ModePicker({
   return (
     <DropdownMenu.Root>
       <DropdownMenu.Trigger
-        className="inline-flex h-[26px] items-center gap-1.5 rounded-sm border border-line bg-transparent px-2 font-sans text-[11.5px] font-semibold text-fg cursor-pointer transition-colors hover:bg-surface-2 data-[state=open]:bg-surface-2"
+        className="inline-flex h-6.5 items-center gap-1.5 rounded-sm border border-line bg-transparent px-2 font-sans text-[11.5px] font-semibold text-fg cursor-pointer transition-colors hover:bg-surface-2 data-[state=open]:bg-surface-2"
         title="Composer mode"
       >
         <Icon name={(active.icon as IconName) ?? "spark"} size={12} />

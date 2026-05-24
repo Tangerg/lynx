@@ -123,7 +123,7 @@ function AppearancePane() {
               title={`Accent: ${a.label}`}
               style={{ background: a.dark }}
               className={cn(
-                "h-[18px] w-[18px] rounded-full border-2 border-transparent bg-clip-padding p-0 cursor-pointer transition-[transform,box-shadow] duration-150 hover:scale-[1.08] active:scale-95",
+                "h-4.5 w-4.5 rounded-full border-2 border-transparent bg-clip-padding p-0 cursor-pointer transition-[transform,box-shadow] duration-150 hover:scale-[1.08] active:scale-95",
                 accent === a.dark && "border-surface shadow-[0_0_0_1.5px_var(--color-text)]",
               )}
             />

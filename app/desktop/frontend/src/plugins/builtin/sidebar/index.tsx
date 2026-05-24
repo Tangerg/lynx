@@ -116,7 +116,7 @@ function ProjectsSection() {
           <button
             type="button"
             title="Add project"
-            className="ml-auto grid h-[26px] w-[26px] place-items-center rounded-full border-0 bg-surface-2 text-fg-muted cursor-pointer transition-colors hover:bg-surface-3 hover:text-fg active:scale-[0.92]"
+            className="ml-auto grid h-6.5 w-6.5 place-items-center rounded-full border-0 bg-surface-2 text-fg-muted cursor-pointer transition-colors hover:bg-surface-3 hover:text-fg active:scale-[0.92]"
           >
             <Icon name="plus" size={12} />
           </button>
@@ -246,7 +246,7 @@ function SidebarFooter() {
 }
 
 const USER_ACTION =
-  "grid h-[26px] w-[26px] place-items-center rounded-md border-0 bg-transparent text-fg-faint cursor-pointer transition-[background,color,transform] hover:bg-surface-2 hover:text-fg light:hover:bg-surface-3 active:scale-[0.92]";
+  "grid h-6.5 w-6.5 place-items-center rounded-md border-0 bg-transparent text-fg-faint cursor-pointer transition-[background,color,transform] hover:bg-surface-2 hover:text-fg light:hover:bg-surface-3 active:scale-[0.92]";
 
 export const sidebarFooter = definePlugin({
   name: "lyra.builtin.sidebar-footer",

@@ -74,7 +74,7 @@ export function ChatTopBar({
               {t.title}
             </span>
             <span
-              className="grid h-[22px] w-[22px] place-items-center rounded text-fg-faint opacity-0 transition-all duration-150 group-hover:opacity-100 hover:bg-surface-3 hover:text-fg active:scale-90"
+              className="grid h-5.5 w-5.5 place-items-center rounded text-fg-faint opacity-0 transition-all duration-150 group-hover:opacity-100 hover:bg-surface-3 hover:text-fg active:scale-90"
               onClick={(e) => { e.stopPropagation(); onCloseChat(t.id); }}
               title="Close"
             >
@@ -93,7 +93,7 @@ export function ChatTopBar({
               {t.title}
             </span>
             <span
-              className="grid h-[22px] w-[22px] place-items-center rounded text-fg-faint opacity-0 transition-all duration-150 group-hover:opacity-100 hover:bg-surface-3 hover:text-fg active:scale-90"
+              className="grid h-5.5 w-5.5 place-items-center rounded text-fg-faint opacity-0 transition-all duration-150 group-hover:opacity-100 hover:bg-surface-3 hover:text-fg active:scale-90"
               onClick={(e) => { e.stopPropagation(); onCloseView(t.id); }}
               title="Close"
             >
