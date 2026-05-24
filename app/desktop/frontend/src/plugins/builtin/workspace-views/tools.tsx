@@ -34,9 +34,12 @@ function ToolsTab() {
           {(rows) => (
             <>
               {rows.map((s) => <McpRow key={s.id} server={s} />)}
-              <p className="view-foot">
+              <p className="m-0 px-4 pt-3.5 pb-4.5 text-[11px] leading-[1.5] text-fg-faint">
                 Servers expose tools the agent can call. Edit{" "}
-                <code className="view-code">{CONFIG_PATH}</code> to add or remove.
+                <code className="rounded-xs bg-surface-2 px-1.5 py-px font-mono text-fg">
+                  {CONFIG_PATH}
+                </code>{" "}
+                to add or remove.
               </p>
             </>
           )}
