@@ -1,25 +1,45 @@
 import type { ButtonHTMLAttributes, ReactNode } from "react";
+import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
-type Variant = "ghost" | "rail" | "rail-primary";
+// Icon-only button with three variants used across the app.
+//   ghost        — header / chat-tab actions (32px circle, transparent until hover)
+//   rail         — collapsed sidebar items (40px rounded square)
+//   rail-primary — emphasized rail item (subtle bg in idle state)
+const styles = cva(
+  "grid place-items-center text-fg-muted cursor-pointer border-0 bg-transparent " +
+  "transition-colors duration-150 ease-out hover:text-fg disabled:cursor-not-allowed disabled:opacity-50",
+  {
+    variants: {
+      variant: {
+        ghost: "h-8 w-8 rounded-full hover:bg-surface-2",
+        rail: "h-10 w-10 rounded-lg hover:bg-surface",
+        "rail-primary": "h-10 w-10 rounded-lg bg-surface-2 text-fg hover:bg-surface-3",
+      },
+      active: {
+        true: "",
+        false: "",
+      },
+    },
+    compoundVariants: [
+      // Active state varies per variant — ghost goes accent-colored,
+      // rail variants stay neutral (the user signals active via other UI).
+      { variant: "ghost", active: true, class: "text-accent" },
+    ],
+    defaultVariants: { variant: "ghost", active: false },
+  },
+);
 
-type Props = Omit<ButtonHTMLAttributes<HTMLButtonElement>, "children"> & {
-  variant?: Variant;
-  active?: boolean;
-  children: ReactNode;
-};
+type Props = Omit<ButtonHTMLAttributes<HTMLButtonElement>, "children"> &
+  VariantProps<typeof styles> & {
+    children: ReactNode;
+  };
 
-// 32 / 40 px square button used for header actions and rail icons. The visual
-// variant picks the right CSS hook from app.css.
 export function IconButton({
-  variant = "ghost", active, className, children, ...rest
+  variant, active, className, children, ...rest
 }: Props) {
-  const cls =
-    variant === "rail"         ? "rail-btn" :
-    variant === "rail-primary" ? "rail-btn primary" :
-    "icon-btn";
   return (
-    <button {...rest} className={cn(cls, active && "active", className)}>
+    <button {...rest} className={cn(styles({ variant, active }), className)}>
       {children}
     </button>
   );

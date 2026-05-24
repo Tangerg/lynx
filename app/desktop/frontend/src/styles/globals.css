@@ -78,6 +78,21 @@
   /* ---------- Fonts ---------- */
   --font-sans: "Geist", "Inter", system-ui, sans-serif;
   --font-mono: "Geist Mono", "JetBrains Mono", ui-monospace, Menlo, monospace;
+
+  /* ---------- Animations ----------
+     `animate-shimmer` powers Skeleton primitives. `animate-pulse-dot`
+     is the running-indicator dot pulse. */
+  --animate-shimmer: lyra-shimmer 1.4s linear infinite;
+  --animate-pulse-dot: lyra-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes lyra-shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position:  200% 0; }
+}
+@keyframes lyra-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%      { opacity: 0.6; transform: scale(0.9); }
 }
 
 /* Legacy CSS still imported during the P2-P6 migration. Components

@@ -1,30 +1,40 @@
-import type { ButtonHTMLAttributes, CSSProperties, ReactNode } from "react";
+import type { ButtonHTMLAttributes, ReactNode } from "react";
+import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
-type Variant = "outlined" | "solid" | "accent" | "danger";
+// The project's primary CTA shape — outlined / solid / accent / danger
+// variants in two sizes. md (8px) corner per DESIGN.md §6.
+const styles = cva(
+  "inline-flex items-center gap-1.5 rounded-md font-sans font-medium tracking-normal " +
+  "transition-colors duration-150 ease-out cursor-pointer " +
+  "disabled:cursor-not-allowed disabled:opacity-50",
+  {
+    variants: {
+      variant: {
+        outlined: "border border-line text-fg bg-transparent hover:bg-surface-2 hover:border-line-soft",
+        solid:    "bg-white text-black border border-white hover:scale-[1.04]",
+        accent:   "bg-accent text-on-accent border border-accent hover:scale-[1.04]",
+        danger:   "bg-transparent text-negative border border-negative hover:bg-negative/8",
+      },
+      size: {
+        sm: "h-[26px] px-3 text-[10.5px]",
+        md: "h-8 px-3.5 text-[13px]",
+      },
+    },
+    defaultVariants: { variant: "outlined", size: "md" },
+  },
+);
 
-type Props = ButtonHTMLAttributes<HTMLButtonElement> & {
-  variant?: Variant;
-  size?: "sm" | "md";
-  children: ReactNode;
-};
+type Props = Omit<ButtonHTMLAttributes<HTMLButtonElement>, "children"> &
+  VariantProps<typeof styles> & {
+    children: ReactNode;
+  };
 
-const SIZE_STYLES: Record<NonNullable<Props["size"]>, CSSProperties> = {
-  sm: { height: 26, fontSize: 10.5, padding: "0 12px" },
-  md: {},
-};
-
-// Outlined / solid / accent / danger pill — the project's primary CTA shape.
 export function PillButton({
-  variant = "outlined", size = "md", className, style, children, ...rest
+  variant, size, className, children, ...rest
 }: Props) {
-  const variantCls = variant === "outlined" ? "" : variant;
   return (
-    <button
-      {...rest}
-      className={cn("pill-btn", variantCls, className)}
-      style={{ ...SIZE_STYLES[size], ...style }}
-    >
+    <button {...rest} className={cn(styles({ variant, size }), className)}>
       {children}
     </button>
   );
