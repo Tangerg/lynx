@@ -1,55 +1,45 @@
-// Built-in plugin: Cmd+K command palette.
+// Built-in plugin: Cmd+K command palette — now backed by `cmdk` (the
+// same lib Linear / Vercel / Cursor / Anthropic Console use).
 //
-// Subscribes the global Mod+K shortcut, mounts an overlay on app.overlay,
-// and renders all plugin-registered commands. Search filters by label +
-// description + keywords. Up/Down navigate; Enter runs.
+// cmdk gives us focus trap + portal + keyboard nav + built-in fuzzy
+// search for free. We keep:
+//   - the Mod+K shortcut + per-command `when` clause filtering
+//   - the plugin-registry data source (useCommands())
+//   - the error-isolated run() that reports failures into PluginsPane
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { AnimatePresence, motion } from "motion/react";
+import { useMemo } from "react";
+import { Command } from "cmdk";
 import { create } from "zustand";
 import { Icon, type IconName } from "@/components/common";
-import { popIn, swift } from "@/lib/motion";
-import { definePlugin, evalWhen, reportPluginError, useCommands, usePluginStore, type CommandSpec } from "@/plugins/sdk";
+import {
+  definePlugin,
+  evalWhen,
+  reportPluginError,
+  useCommands,
+  usePluginStore,
+  type CommandSpec,
+} from "@/plugins/sdk";
 import { useWhenContext } from "@/state/useWhenContext";
 
-// ---------- store ---------------------------------------------------------
+// ---------- open-state store ---------------------------------------------
 
 type PaletteState = {
   open: boolean;
-  query: string;
   setOpen: (open: boolean) => void;
-  setQuery: (q: string) => void;
   toggle: () => void;
 };
 
 const usePaletteStore = create<PaletteState>((set) => ({
   open: false,
-  query: "",
-  setOpen: (open) => set({ open, query: "" }),
-  setQuery: (query) => set({ query }),
-  toggle: () => set((s) => ({ open: !s.open, query: "" })),
+  setOpen: (open) => set({ open }),
+  toggle: () => set((s) => ({ open: !s.open })),
 }));
-
-// ---------- filtering -----------------------------------------------------
-
-function matches(cmd: CommandSpec, q: string): boolean {
-  if (!q) return true;
-  const haystack = [
-    cmd.label,
-    cmd.description ?? "",
-    cmd.group ?? "",
-    ...(cmd.keywords ?? []),
-  ].join(" ").toLowerCase();
-  return haystack.includes(q.toLowerCase());
-}
 
 // ---------- palette UI ----------------------------------------------------
 
 function CommandPalette() {
   const open = usePaletteStore((s) => s.open);
-  const query = usePaletteStore((s) => s.query);
   const setOpen = usePaletteStore((s) => s.setOpen);
-  const setQuery = usePaletteStore((s) => s.setQuery);
   const commands = useCommands();
   const whenCtx = useWhenContext();
 
@@ -57,20 +47,6 @@ function CommandPalette() {
     () => commands.filter((c) => !c.when || evalWhen(c.when, whenCtx)),
     [commands, whenCtx],
   );
-  const filtered = useMemo(
-    () => visible.filter((c) => matches(c, query)),
-    [visible, query],
-  );
-  const [activeIdx, setActiveIdx] = useState(0);
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  // Reset selection when filtered list changes.
-  useEffect(() => { setActiveIdx(0); }, [query, commands]);
-
-  // Autofocus the input on open.
-  useEffect(() => {
-    if (open) inputRef.current?.focus();
-  }, [open]);
 
   const run = (cmd: CommandSpec) => {
     setOpen(false);
@@ -83,78 +59,54 @@ function CommandPalette() {
   };
 
   return (
-    <AnimatePresence>
-      {open && (
-        <motion.div
-          className="cmdk-backdrop"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={swift}
-          onClick={() => setOpen(false)}
-        >
-          <motion.div
-            className="cmdk"
-            {...popIn}
-            onClick={(e) => e.stopPropagation()}
-            role="dialog"
-            aria-modal="true"
-          >
-            <div className="cmdk-search">
-              <Icon name="search" size={14} />
-              <input
-                ref={inputRef}
-                className="cmdk-input"
-                placeholder="Type a command…"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "ArrowDown") {
-                    e.preventDefault();
-                    setActiveIdx((i) => Math.min(filtered.length - 1, i + 1));
-                  } else if (e.key === "ArrowUp") {
-                    e.preventDefault();
-                    setActiveIdx((i) => Math.max(0, i - 1));
-                  } else if (e.key === "Enter") {
-                    e.preventDefault();
-                    const target = filtered[activeIdx];
-                    if (target) run(target);
-                  } else if (e.key === "Escape") {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    setOpen(false);
-                  }
-                }}
-              />
-              <span className="cmdk-hint">esc</span>
-            </div>
-            <div className="cmdk-list">
-              {filtered.length === 0 && (
-                <div className="cmdk-empty">No commands match</div>
+    <Command.Dialog
+      open={open}
+      onOpenChange={setOpen}
+      label="Command palette"
+      className="fixed inset-0 z-50 flex items-start justify-center p-24 data-[state=open]:animate-in data-[state=closed]:animate-out [&_[cmdk-overlay]]:fixed [&_[cmdk-overlay]]:inset-0 [&_[cmdk-overlay]]:bg-black/40 [&_[cmdk-overlay]]:backdrop-blur-sm"
+    >
+      <Command className="relative z-[1] flex w-full max-w-[640px] flex-col overflow-hidden rounded-xl border border-line-soft bg-surface shadow-lg">
+        <div className="flex items-center gap-2 border-b border-line-soft px-4 py-3 text-fg-faint">
+          <Icon name="search" size={14} />
+          <Command.Input
+            placeholder="Type a command…"
+            className="flex-1 bg-transparent text-[14px] text-fg outline-none placeholder:text-fg-faint"
+          />
+          <span className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[10px] text-fg-faint">
+            esc
+          </span>
+        </div>
+        <Command.List className="max-h-[400px] overflow-y-auto p-1.5">
+          <Command.Empty className="px-3 py-6 text-center text-[12px] text-fg-faint">
+            No commands match
+          </Command.Empty>
+          {visible.map((cmd) => (
+            <Command.Item
+              key={cmd.id}
+              value={[cmd.label, cmd.description ?? "", cmd.group ?? "", ...(cmd.keywords ?? [])].join(" ")}
+              onSelect={() => run(cmd)}
+              className="flex cursor-pointer items-center gap-2.5 rounded-md px-2.5 py-2 text-[13px] text-fg-muted aria-selected:bg-surface-2 aria-selected:text-fg"
+            >
+              {cmd.icon && <Icon name={cmd.icon as IconName} size={14} />}
+              <div className="flex min-w-0 flex-1 flex-col">
+                <div className="truncate font-medium">{cmd.label}</div>
+                {cmd.description && (
+                  <div className="truncate text-[11.5px] text-fg-faint">{cmd.description}</div>
+                )}
+              </div>
+              {cmd.group && (
+                <span className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[10px] text-fg-faint">
+                  {cmd.group}
+                </span>
               )}
-              {filtered.map((cmd, i) => (
-                <button
-                  key={cmd.id}
-                  className={`cmdk-item ${i === activeIdx ? "active" : ""}`}
-                  onMouseEnter={() => setActiveIdx(i)}
-                  onClick={() => run(cmd)}
-                >
-                  {cmd.icon && <Icon name={cmd.icon as IconName} size={14} />}
-                  <div className="cmdk-item-body">
-                    <div className="cmdk-item-label">{cmd.label}</div>
-                    {cmd.description && (
-                      <div className="cmdk-item-sub">{cmd.description}</div>
-                    )}
-                  </div>
-                  {cmd.group && <span className="cmdk-item-group">{cmd.group}</span>}
-                  {cmd.shortcut && <span className="cmdk-item-shortcut">{cmd.shortcut}</span>}
-                </button>
-              ))}
-            </div>
-          </motion.div>
-        </motion.div>
-      )}
-    </AnimatePresence>
+              {cmd.shortcut && (
+                <span className="ml-1 font-mono text-[11px] text-fg-faint">{cmd.shortcut}</span>
+              )}
+            </Command.Item>
+          ))}
+        </Command.List>
+      </Command>
+    </Command.Dialog>
   );
 }
 
