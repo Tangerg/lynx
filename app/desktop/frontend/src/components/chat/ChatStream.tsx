@@ -87,13 +87,19 @@ export function ChatStream({ onSend, resetKey }: Props) {
           onControlsChange={handleControls}
         />
       </ChatErrorBoundary>
-      <div className="composer-wrap">
-        <div className="composer-fade" />
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 px-6 pb-4">
+        <div
+          className="pointer-events-none absolute inset-x-0 bottom-0 h-[140px]"
+          style={{
+            background:
+              "linear-gradient(180deg, color-mix(in srgb, var(--color-surface) 0%, transparent) 0%, var(--color-surface) 50%)",
+          }}
+        />
         <JumpToBottomButton
           visible={streamControls ? !streamControls.isAtBottom : false}
           onClick={() => streamControls?.scrollToBottom()}
         />
-        <div className="composer-inner">
+        <div className="pointer-events-auto relative z-[2] mx-auto w-full max-w-[760px]">
           <Slot name="chat.status" />
           <SlashSuggestions value={composerValue} onPick={setComposerValue} />
           <Composer
