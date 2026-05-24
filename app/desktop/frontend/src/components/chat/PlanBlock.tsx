@@ -1,11 +1,10 @@
 import { Icon } from "@/components/common";
-import { cn } from "@/lib/utils";
 import type { PlanItem } from "@/protocol/agui/viewState";
+import { PlanCheck, planItemRow } from "./PlanCheck";
 
 // Plan block — shown when an assistant message describes a multi-step
-// plan. Each item is `todo` → `doing` → `done` with a custom check
-// state. The `doing` state's inner square pulses to show forward
-// motion (`animate-pulse-dot` keyframe from globals.css).
+// plan. Inline variant; the promoted workspace view uses PlanList. Both
+// share the per-item check + row styling via ./PlanCheck.
 export function PlanBlock({ plan }: { plan: PlanItem[] }) {
   const done = plan.filter((p) => p.status === "done").length;
   return (
@@ -15,27 +14,8 @@ export function PlanBlock({ plan }: { plan: PlanItem[] }) {
         Plan · {done} of {plan.length} complete
       </div>
       {plan.map((p) => (
-        <div
-          key={p.id}
-          className={cn(
-            "grid grid-cols-[18px_1fr] items-start gap-2.5 py-1 text-[13.5px] leading-[1.45]",
-            p.status === "done" && "text-fg-faint line-through decoration-line-soft",
-            p.status === "doing" && "text-fg font-semibold",
-            p.status === "todo" && "text-fg-soft",
-          )}
-        >
-          <div
-            className={cn(
-              "mt-px grid h-[18px] w-[18px] shrink-0 place-items-center rounded",
-              p.status === "done" && "bg-accent text-on-accent",
-              p.status === "doing" &&
-                "border-[1.5px] border-accent relative " +
-                "after:content-[''] after:h-2 after:w-2 after:rounded-[2px] after:bg-accent after:animate-pulse-dot",
-              p.status === "todo" && "border-[1.5px] border-line-soft",
-            )}
-          >
-            {p.status === "done" && <Icon name="check" size={12} strokeWidth={3} />}
-          </div>
+        <div key={p.id} className={planItemRow(p.status)}>
+          <PlanCheck status={p.status} />
           <div>{p.text}</div>
         </div>
       ))}
