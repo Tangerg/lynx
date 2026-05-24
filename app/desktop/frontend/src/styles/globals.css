@@ -120,8 +120,9 @@
 /* Legacy CSS still imported during the P2-P6 migration. Components
    rewritten with Tailwind utilities don't need their old class, but
    the rest of the app still does. Each styles/*.css file gets deleted
-   as its consumers migrate. P6.3 deleted topbar.css (composer plugin
-   is now fully Tailwind+Radix). */
+   as its consumers migrate.
+     P6.3 deleted topbar.css   (composer plugin is now fully Tailwind+Radix).
+     P6.5 deleted statusbar.css (status pill plugin is now fully Tailwind). */
 @import "./tokens.css";
 @import "./reset.css";
 @import "./layout.css";
@@ -132,7 +133,6 @@
 @import "./overlays.css";
 @import "./settings.css";
 @import "./sidebar.css";
-@import "./statusbar.css";
 @import "./tool.css";
 @import "./welcome.css";
 @import "./theme.css";

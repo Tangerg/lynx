@@ -9,6 +9,15 @@
    structural rules that key on the .theme-light selector: shape-level
    differences (panel chrome, search input shape) that aren't
    expressible as token overrides.
+
+   P6.5: Aggressively trimmed — every override whose target class has
+   been Tailwind-migrated was deleted, because Tailwind utilities
+   (`bg-surface`, `text-fg`, etc.) automatically resolve through the
+   @theme inline bridge per theme. The remaining rules target classes
+   still emitted as raw className strings: .app/.panel shell, sidebar
+   plugin rails (.brand-mark/.rail-*), .side-search input shape,
+   .tool-card cluster (ToolCard not migrated), highlight.ts tokens,
+   DiffView (.diff-line/.diff-hunk-head), and tool-previews (.file-preview/.fp-line).
    ============================================================ */
 
 /* Body / canvas — outer frame is canvas (#fafafa). Panels lift above
@@ -29,34 +38,15 @@ html.theme-light .panel {
     0 12px 24px -8px rgba(15, 15, 15, 0.10);
 }
 
-/* Inner chrome inside chat panel inherits --color-surface from the dark
-   defaults (which now also target surface, not canvas) since both themes
-   re-map --color-surface via the .theme-light token block above. Only
-   the divider rail needs a theme-specific tone. */
-html.theme-light .divider-h { background: var(--color-border); }
-
-/* Sidebar row states — surface-2 (#f5f5f5) on hover/active reads as
-   a discrete row highlight against the panel's white. */
-html.theme-light .session-row:hover { background: var(--color-surface-2); }
-html.theme-light .session-row.active { background: var(--color-surface-2); }
-html.theme-light .model-card { background: var(--color-surface-2); }
-html.theme-light .model-card:hover { background: var(--color-surface-3); }
-html.theme-light .rail-btn:hover { background: var(--color-surface-2); }
-html.theme-light .rail-btn.primary { background: var(--color-surface-2); }
-html.theme-light .rail-btn.primary:hover { background: var(--color-surface-3); }
-html.theme-light .rail-session { background: var(--color-surface-2); }
-html.theme-light .rail-session:hover, html.theme-light .rail-session.active { background: var(--color-surface-3); }
-html.theme-light .rail-divider { background: var(--color-border); }
-
-/* Brand mark — green pill on white */
+/* Sidebar — rail mode chrome (still raw-className inside sidebar plugin). */
 html.theme-light .brand-mark { background: var(--color-accent); color: #fff; }
 html.theme-light .rail-brand { background: var(--color-accent); color: #fff; }
-html.theme-light .rail-avatar { background: linear-gradient(135deg, #169c46 0%, #0a5826 100%); color: #fff; }
-html.theme-light .model-card .mavatar { background: linear-gradient(135deg, #169c46 0%, #0a5826 100%); color: #fff; }
-html.theme-light .msg.agent .msg-avatar { background: var(--color-accent); color: #fff; }
-html.theme-light .msg.user .msg-avatar { background: var(--color-surface-3); color: var(--color-text); }
+html.theme-light .rail-divider { background: var(--color-border); }
+html.theme-light .rail-session { background: var(--color-surface-2); }
+html.theme-light .rail-session:hover,
+html.theme-light .rail-session.active { background: var(--color-surface-3); }
 
-/* Search input */
+/* Search input — shape (not just colour) differs in light theme. */
 html.theme-light .side-search input {
   background: var(--color-surface-2);
   color: var(--color-text);
@@ -69,47 +59,52 @@ html.theme-light .side-search input:focus {
 }
 html.theme-light .search-kbd { background: var(--color-surface-3); }
 
-/* Tabs — light theme. Active tab shares hover background; only the
-   2px accent bottom line (from the dark rule) distinguishes active
-   from hovered. No border. */
-html.theme-light .chat-tab { color: var(--color-text-muted); }
-html.theme-light .chat-tab:hover,
-html.theme-light .chat-tab.active {
-  background: color-mix(in srgb, var(--color-text) 5%, transparent);
-}
-html.theme-light .chat-tab .tab-close:hover { background: var(--color-surface-3); }
-html.theme-light .tab-new:hover { background: var(--color-surface-2); }
+/* Tool cards (ToolCard.tsx not yet migrated to Tailwind). */
+html.theme-light .tool-card { border-color: transparent; }
+html.theme-light .tool-card:hover { background: var(--color-surface-2); border-color: var(--color-border); }
+html.theme-light .tool-card.selected { background: var(--color-surface-2); border-color: var(--color-border); box-shadow: 0 0 0 1px var(--color-accent) inset; }
+html.theme-light .tool-icon { background: var(--color-surface-3); }
+html.theme-light .tool-card.selected .tool-icon,
+html.theme-light .tool-card:hover .tool-icon { background: var(--color-surface-4); }
+html.theme-light .tool-icon.ok  { background: rgba(22, 156, 70, 0.14); color: var(--color-accent); }
+html.theme-light .tool-icon.err { background: rgba(214, 56, 72, 0.12); color: var(--color-negative); }
+html.theme-light .tool-icon.run { background: rgba(37, 99, 235, 0.12); color: var(--color-info); }
+html.theme-light .tool-status.ok  { background: rgba(22, 156, 70, 0.14); color: var(--color-accent); }
+html.theme-light .tool-status.err { background: rgba(214, 56, 72, 0.12); color: var(--color-negative); }
+html.theme-light .tool-status.run { background: rgba(37, 99, 235, 0.12); color: var(--color-info); }
+html.theme-light .tool-card .tool-head { border-color: transparent; }
+html.theme-light .tool-preview { border-top-color: var(--color-border); background: var(--color-surface); }
+html.theme-light .tool-preview .preview-foot { border-top-color: var(--color-border); }
+html.theme-light .tool-preview .preview-open { background: var(--color-surface-2); border-color: var(--color-border); color: var(--color-text-muted); }
+html.theme-light .tool-preview .preview-open:hover { background: var(--color-surface-3); color: var(--color-text); }
+html.theme-light .tool-card .tool-expand { color: var(--color-text-faint); }
+html.theme-light .tool-card .tool-expand:hover { background: var(--color-surface-3); color: var(--color-text); }
 
-/* Icon buttons */
-html.theme-light .icon-btn { color: var(--color-text-muted); }
-html.theme-light .icon-btn:hover { background: var(--color-surface-2); color: var(--color-text); }
-html.theme-light .icon-btn.active { color: var(--color-accent); }
+/* Syntax tokens — emitted by utils/highlight.ts and used by DiffView. */
+html.theme-light .token-kw   { color: #b91d7d; }
+html.theme-light .token-str  { color: #b86a00; }
+html.theme-light .token-fn   { color: #1d4ed8; }
+html.theme-light .token-comm { color: #9a9a9a; }
 
-/* Sub-header chip */
-html.theme-light .sub-crumbs { color: var(--color-text-muted); }
-html.theme-light .sub-crumbs .branch {
-  background: var(--color-surface-2);
-  color: var(--color-text-muted);
-  border: 1px solid var(--color-border);
-}
-html.theme-light .model-chip { background: var(--color-surface-2); }
-html.theme-light .model-chip:hover { background: var(--color-surface-3); }
-html.theme-light .run-badge {
-  background: rgba(22, 156, 70, 0.1);
-  color: var(--color-accent);
-}
+/* Diff lines — DiffView.tsx + tool-previews unified diff renderer. */
+html.theme-light .diff-line.add { background: rgba(22, 156, 70, 0.08); }
+html.theme-light .diff-line.add .code { color: #0f5e2b; }
+html.theme-light .diff-line.add .sign,
+html.theme-light .diff-line.add .ln { color: rgba(22, 156, 70, 0.7); }
+html.theme-light .diff-line.del { background: rgba(214, 56, 72, 0.08); }
+html.theme-light .diff-line.del .code { color: #8a1e2a; }
+html.theme-light .diff-line.del .sign,
+html.theme-light .diff-line.del .ln { color: rgba(214, 56, 72, 0.7); }
+html.theme-light .diff-line .code { color: var(--color-text); }
+html.theme-light .diff-hunk-head { background: var(--color-surface-2); color: var(--color-text-muted); }
 
-/* Pill buttons */
-html.theme-light .pill-btn {
-  border-color: var(--color-border-soft);
-  color: var(--color-text);
-}
-html.theme-light .pill-btn:hover { border-color: var(--color-text); background: rgba(0,0,0,0.03); }
-html.theme-light .pill-btn.solid { background: #1a1a1a; color: #fff; border-color: #1a1a1a; }
-html.theme-light .pill-btn.solid:hover { background: #000; }
-html.theme-light .pill-btn.danger { color: var(--color-negative); border-color: var(--color-negative); }
+/* Inline file preview (tool-previews `Read` renderer). */
+html.theme-light .file-preview .fp-line .ln { color: var(--color-text-faint); }
 
-/* Messages */
+/* Markdown message body — overrides .msg-content children only.
+   MessageBlock keeps the .msg-content className for the markdown body
+   (Tailwind would require migrating every markdownComponents child
+   element; not worth the churn for one wrapper). */
 html.theme-light .msg-content { color: var(--color-text-soft); }
 html.theme-light .msg-content code {
   background: var(--color-surface-2);
@@ -117,141 +112,3 @@ html.theme-light .msg-content code {
   border: 1px solid var(--color-border);
   padding: 1px 5px;
 }
-html.theme-light .msg-meta { color: var(--color-text-faint); }
-
-/* Tool cards */
-html.theme-light .tool-card { border-color: transparent; }
-html.theme-light .tool-card:hover { background: var(--color-surface-2); border-color: var(--color-border); }
-html.theme-light .tool-card.selected { background: var(--color-surface-2); border-color: var(--color-border); box-shadow: 0 0 0 1px var(--color-accent) inset; }
-html.theme-light .tool-icon { background: var(--color-surface-3); }
-html.theme-light .tool-card.selected .tool-icon, html.theme-light .tool-card:hover .tool-icon { background: var(--color-surface-4); }
-html.theme-light .tool-icon.ok { background: rgba(22, 156, 70, 0.14); color: var(--color-accent); }
-html.theme-light .tool-icon.err { background: rgba(214, 56, 72, 0.12); color: var(--color-negative); }
-html.theme-light .tool-icon.run { background: rgba(37, 99, 235, 0.12); color: var(--color-info); }
-html.theme-light .tool-status.ok { background: rgba(22, 156, 70, 0.14); color: var(--color-accent); }
-html.theme-light .tool-status.err { background: rgba(214, 56, 72, 0.12); color: var(--color-negative); }
-html.theme-light .tool-status.run { background: rgba(37, 99, 235, 0.12); color: var(--color-info); }
-html.theme-light .tool-card .tool-head { border-color: transparent; }
-html.theme-light .tool-body, html.theme-light .tool-preview { border-top-color: var(--color-border); background: var(--color-surface); }
-html.theme-light .tool-preview .preview-foot { border-top-color: var(--color-border); }
-html.theme-light .tool-preview .preview-open { background: var(--color-surface-2); border-color: var(--color-border); color: var(--color-text-muted); }
-html.theme-light .tool-preview .preview-open:hover { background: var(--color-surface-3); color: var(--color-text); }
-html.theme-light .tool-card .tool-expand { color: var(--color-text-faint); }
-html.theme-light .tool-card .tool-expand:hover { background: var(--color-surface-3); color: var(--color-text); }
-
-/* Diff syntax tokens (used by utils/highlight.ts → DiffView) */
-html.theme-light .token-kw   { color: #b91d7d; }
-html.theme-light .token-str  { color: #b86a00; }
-html.theme-light .token-fn   { color: #1d4ed8; }
-html.theme-light .token-comm { color: #9a9a9a; }
-
-/* Diff lines */
-html.theme-light .diff-line.add { background: rgba(22, 156, 70, 0.08); }
-html.theme-light .diff-line.add .code { color: #0f5e2b; }
-html.theme-light .diff-line.add .sign, html.theme-light .diff-line.add .ln { color: rgba(22, 156, 70, 0.7); }
-html.theme-light .diff-line.del { background: rgba(214, 56, 72, 0.08); }
-html.theme-light .diff-line.del .code { color: #8a1e2a; }
-html.theme-light .diff-line.del .sign, html.theme-light .diff-line.del .ln { color: rgba(214, 56, 72, 0.7); }
-html.theme-light .diff-line .code { color: var(--color-text); }
-html.theme-light .diff-hunk-head { background: var(--color-surface-2); color: var(--color-text-muted); }
-
-/* Search results */
-html.theme-light .search-card { background: var(--color-surface-2); }
-html.theme-light .search-card:hover { background: var(--color-surface); border-color: var(--color-border-soft); box-shadow: var(--shadow-card); }
-html.theme-light .search-card .favicon { background: var(--color-surface-3); color: var(--color-text); }
-html.theme-light .search-card:hover .favicon { background: var(--color-accent); color: #fff; }
-
-/* Plan block / Approval card light overrides removed — the rewritten
-   PlanBlock + ApprovalCard components use bg-surface / bg-warning/X
-   Tailwind utilities that pick up the right value automatically via
-   the theme tokens. */
-
-/* Run strip */
-html.theme-light .run-strip {
-  background: var(--color-surface);
-  box-shadow: var(--shadow-card);
-  border: 1px solid var(--color-border);
-}
-html.theme-light .run-strip .step { color: var(--color-text); }
-html.theme-light .run-strip .activity { color: var(--color-text-muted); }
-html.theme-light .run-strip .stat .ctx-bar { background: var(--color-surface-3); }
-html.theme-light .run-strip .stop-link { border-color: var(--color-border-soft); color: var(--color-text-muted); }
-html.theme-light .run-strip .stop-link:hover { background: rgba(214, 56, 72, 0.1); border-color: var(--color-negative); color: var(--color-negative); }
-
-/* Composer */
-html.theme-light .composer {
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  box-shadow: none;
-}
-html.theme-light .composer:focus-within { border-color: var(--color-accent); box-shadow: 0 0 0 3px rgba(22, 156, 70, 0.12); }
-html.theme-light .composer-chip { background: var(--color-surface-2); color: var(--color-text-muted); }
-html.theme-light .composer-chip .x:hover { background: var(--color-surface-3); color: var(--color-text); }
-html.theme-light .composer-tool-btn { color: var(--color-text-muted); }
-html.theme-light .composer-tool-btn:hover { background: var(--color-surface-2); color: var(--color-text); }
-html.theme-light .composer-tool-btn.active { background: var(--color-surface-2); color: var(--color-accent); }
-html.theme-light .composer-input { color: var(--color-text); }
-html.theme-light .composer-fade {
-  background: linear-gradient(180deg, rgba(255,255,255,0) 0%, var(--color-surface) 50%);
-}
-/* Vercel CTAs: pure black on white. The accent is reserved for live /
-   running indicators so the eye separates "agent is doing something"
-   from "this is the primary action". */
-html.theme-light .send-btn {
-  background: var(--color-cta);
-  color: var(--color-cta-text);
-}
-html.theme-light .send-btn:hover { background: var(--color-cta-hover); }
-html.theme-light .send-btn:active { background: var(--color-cta); }
-html.theme-light .send-btn:disabled { background: var(--color-surface-3); color: var(--color-text-faint); }
-
-/* Workspace-view header. */
-html.theme-light .view-icon { background: var(--color-surface-2); color: var(--color-text-muted); }
-
-/* Terminal */
-html.theme-light .term { color: var(--color-text); }
-html.theme-light .term .mute { color: var(--color-text-faint); }
-html.theme-light .term .prompt { color: var(--color-accent); }
-html.theme-light .term .ok { color: var(--color-accent); }
-html.theme-light .term .err { color: var(--color-negative); }
-html.theme-light .term .warn { color: var(--color-warning); }
-
-/* MCP rows */
-html.theme-light .mcp-row { border-bottom-color: var(--color-border); }
-html.theme-light .mcp-row:hover { background: var(--color-surface-2); }
-html.theme-light .mcp-icon { background: var(--color-surface-2); color: var(--color-text-muted); }
-html.theme-light .mcp-row:hover .mcp-icon { background: var(--color-surface-3); color: var(--color-text); }
-html.theme-light .mcp-tools { background: var(--color-surface-2); color: var(--color-text-muted); }
-html.theme-light .mcp-status.active { background: rgba(22, 156, 70, 0.12); color: var(--color-accent); }
-html.theme-light .mcp-status.idle { background: var(--color-surface-2); color: var(--color-text-faint); }
-html.theme-light .mcp-status.error { background: rgba(214, 56, 72, 0.12); color: var(--color-negative); }
-
-/* Tree */
-html.theme-light .tree-row { color: var(--color-text-muted); }
-html.theme-light .tree-row:hover, html.theme-light .tree-row.active { background: var(--color-surface-2); color: var(--color-text); }
-html.theme-light .tree-row .change.add { background: rgba(22, 156, 70, 0.14); color: var(--color-accent); }
-html.theme-light .tree-row .change.mod { background: rgba(217, 119, 6, 0.14); color: var(--color-warning); }
-html.theme-light .tree-row .change.del { background: rgba(214, 56, 72, 0.14); color: var(--color-negative); }
-
-/* kbd */
-html.theme-light .kbd { background: var(--color-surface-2); border-color: var(--color-border); color: var(--color-text-muted); }
-
-/* Side section heads */
-html.theme-light .side-section-head .count { background: var(--color-surface-2); color: var(--color-text-muted); }
-html.theme-light .side-section-head .add { background: var(--color-surface-2); color: var(--color-text-muted); }
-html.theme-light .side-section-head .add:hover { background: var(--color-surface-3); color: var(--color-text); }
-html.theme-light .session-sub .status-dot { background: var(--color-text-faint); }
-
-/* Approval pill button accent */
-html.theme-light .pill-btn.accent { background: var(--color-accent); color: #fff; border-color: var(--color-accent); }
-
-/* Composer toolbar meta */
-html.theme-light .composer-toolbar .meta { color: var(--color-text-faint); }
-html.theme-light .composer-toolbar .meta .accent { color: var(--color-accent); }
-
-/* File preview tokens (in inline tool expand) */
-html.theme-light .file-preview .fp-line .code .t-kw { color: #b91d7d; }
-html.theme-light .file-preview .fp-line .code .t-str { color: #b86a00; }
-html.theme-light .file-preview .fp-line .code .t-fn { color: #1d4ed8; }
-html.theme-light .file-preview .fp-line .ln { color: var(--color-text-faint); }
-
