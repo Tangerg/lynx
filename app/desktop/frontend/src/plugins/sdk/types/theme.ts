@@ -20,7 +20,7 @@
  * control of the palette.
  */
 export type ThemeSpec = {
-  /** Stable id. Persisted in localStorage as `useUIStore.theme`. */
+  /** Stable id. Persisted by `themeStore` to `lyra.theme`. */
   id: string;
   /** User-facing label. */
   label: string;
