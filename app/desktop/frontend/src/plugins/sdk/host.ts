@@ -171,7 +171,7 @@ export function createHost(
       openView(id: string): void {
         const view = usePluginStore.getState().workspaceViews.get(id)?.value;
         if (!view) {
-          // eslint-disable-next-line no-console
+           
           console.warn(`[plugin] workspace.openView("${id}"): no view registered`);
           return;
         }
@@ -295,7 +295,7 @@ export function createHost(
             try {
               fn();
             } catch (err) {
-              // eslint-disable-next-line no-console
+               
               console.error(`[plugin] ${pluginName} onReady threw:`, err);
             }
           });
@@ -471,7 +471,7 @@ function emitLog(plugin: string, level: LogLevel, args: unknown[]): void {
         : level === "info"
           ? console.info
           : console.log;
-  // eslint-disable-next-line no-console
+   
   consoleFn(tag, ...args);
 
   const event = { plugin, level, args, timestamp: Date.now() };
@@ -482,7 +482,7 @@ function emitLog(plugin: string, level: LogLevel, args: unknown[]): void {
     } catch (err) {
       // Don't let a subscriber crash the logger — but DO surface the error
       // so a malformed subscriber isn't invisible.
-      // eslint-disable-next-line no-console
+       
       console.error("[plugin] log subscriber threw:", err);
     }
   }

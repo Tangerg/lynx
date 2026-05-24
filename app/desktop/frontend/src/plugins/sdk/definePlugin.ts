@@ -37,7 +37,7 @@ export async function loadPlugin(spec: PluginSpec): Promise<LoadResult> {
     try {
       if (!satisfies(HOST_API_VERSION, spec.apiVersion)) {
         const reason = `requires host apiVersion ${spec.apiVersion}, this host is ${HOST_API_VERSION}`;
-        // eslint-disable-next-line no-console
+         
         console.warn(`[plugin] ${spec.name} skipped: ${reason}`);
         reportPluginError(spec.name, "setup", new Error(reason));
         return { kind: "skipped", name: spec.name, reason };
@@ -65,7 +65,7 @@ export async function loadPlugin(spec: PluginSpec): Promise<LoadResult> {
     usePluginStore.getState().registerLoaded({ spec, disposables });
     return { kind: "loaded", name: spec.name };
   } catch (err) {
-    // eslint-disable-next-line no-console
+     
     console.error(`[plugin] ${spec.name} setup failed:`, err);
     reportPluginError(spec.name, "setup", err);
     for (const d of disposables) {

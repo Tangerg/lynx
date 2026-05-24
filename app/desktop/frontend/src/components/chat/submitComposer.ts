@@ -35,7 +35,7 @@ export function submitComposer({ value, clear, sendText }: SubmitDeps): void {
     const spec = lookupSlashCommand(slash.cmd);
     if (spec?.run) {
       void Promise.resolve(spec.run({ args: slash.args, send: sendText })).catch((err) => {
-        // eslint-disable-next-line no-console
+         
         console.error(`[plugin] command ${slash.cmd} threw:`, err);
         const owner =
           usePluginStore.getState().slashCommands.get(slash.cmd)?.pluginName ?? "unknown";

@@ -48,7 +48,10 @@ export function MermaidBlock({ code }: Props) {
   const [debouncedCode] = useDebounce(code, 300);
   const isSettling = code !== debouncedCode;
 
-  const { svg, error } = useMemo(() => {
+  // We destructure `error` but currently don't render it — the pending
+  // pre-block doubles as both "streaming" and "broken source" states.
+  // Underscore-prefix tells ESLint that's intentional.
+  const { svg, error: _error } = useMemo(() => {
     // Don't even attempt while still streaming — saves the parse cost
     // entirely. Once the value settles, useMemo recomputes against the
     // settled string and either gives us SVG or a real parse failure.
@@ -76,6 +79,12 @@ export function MermaidBlock({ code }: Props) {
         error: err instanceof Error ? err : new Error(String(err)),
       };
     }
+    // theme + accent feel "unnecessary" to the static analyser because
+    // useMemo doesn't read them directly, but readThemeColors() pulls
+    // them from getComputedStyle at call time. Pinning them in deps
+    // re-triggers the memo when the user switches palette so the SVG
+    // re-paints with the new tokens.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [debouncedCode, isSettling, theme, accent]);
 
   const [zoomed, setZoomed] = useState(false);

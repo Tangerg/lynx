@@ -31,7 +31,7 @@ export class PluginBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, info: ErrorInfo): void {
-    // eslint-disable-next-line no-console
+     
     console.error(`[plugin] ${this.props.plugin} render failed:`, error, info.componentStack);
     reportPluginError(this.props.plugin, "render", error, info.componentStack ?? undefined);
   }

@@ -54,7 +54,7 @@ export function ChatErrorBoundary({ resetKey, label, children }: Props) {
       FallbackComponent={ChatErrorFallback}
       resetKeys={resetKey === undefined ? [] : [resetKey]}
       onError={(error, info) => {
-        // eslint-disable-next-line no-console
+         
         console.error(`[chat-error-boundary] ${label ?? "chat"}:`, error, info.componentStack);
       }}
     >

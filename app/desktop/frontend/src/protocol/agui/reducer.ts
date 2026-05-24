@@ -29,7 +29,7 @@ function applyCoreHandlers(state: AgentViewState, event: BaseEvent): AgentViewSt
     try {
       next = handler(next, event);
     } catch (err) {
-      // eslint-disable-next-line no-console
+       
       console.error(`[plugin] core handler "${event.type}" (${pluginName}) threw:`, err);
       reportPluginError(pluginName, "agui", err, `event: ${event.type}`);
       // Skip this handler — keep `next` as it was before the throw so the
@@ -49,7 +49,7 @@ function applyCustom(state: AgentViewState, ev: CustomEvent): AgentViewState {
     const update = handler(ev.value);
     return typeof update === "function" ? update(state) : state;
   } catch (err) {
-    // eslint-disable-next-line no-console
+     
     console.error(`[plugin] agui handler "${ev.name}" threw:`, err);
     const owner =
       usePluginStore.getState().customEventHandlers.get(ev.name)?.pluginName ?? "unknown";

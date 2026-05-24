@@ -49,7 +49,7 @@ export function installHostBridge(): void {
       try {
         o.value();
       } catch (err) {
-        // eslint-disable-next-line no-console
+         
         console.error(`[plugin] ${o.pluginName} onBeforeUnload threw:`, err);
       }
     }

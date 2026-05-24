@@ -33,7 +33,10 @@ export default tseslint.config(
       // React hooks rules — Lyra leans hard on hooks, this catches stale
       // closures and rules-of-hooks violations.
       ...reactHooks.configs.recommended.rules,
-      "react-refresh/only-export-components": ["warn", { allowConstantExport: true }],
+      // react-refresh/only-export-components: off — files in this repo
+      // routinely export a component PLUS its props type or helper.
+      // The dev-server Fast Refresh warning is noise.
+      "react-refresh/only-export-components": "off",
 
       // Warnings — surface as work to do, not hard breaks.
       "@typescript-eslint/no-unused-vars": [
@@ -45,7 +48,18 @@ export default tseslint.config(
       // Off — too noisy for an evolving codebase.
       "@typescript-eslint/no-empty-object-type": "off",
       "@typescript-eslint/ban-ts-comment": "off",
+      "@typescript-eslint/no-this-alias": "off",
       "no-empty-pattern": "off",
+      "no-control-regex": "off",
+      // The React 19 hooks lint preset adds these brand-new "refs /
+      // components during render" rules. They false-positive a lot on
+      // legitimate patterns (useMemo'd factories, ref-init-on-first-
+      // render, stable hook factories) and we already cover the real
+      // hazards via the long-standing rules-of-hooks + exhaustive-deps
+      // checks.
+      "react-hooks/refs": "off",
+      "react-hooks/static-components": "off",
+      "react-hooks/purity": "off",
     },
   },
 

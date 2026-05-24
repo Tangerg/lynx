@@ -450,7 +450,7 @@ const onStateDelta = (state: AgentViewState, ev: StateDeltaEvent): AgentViewStat
     ).newDocument as Record<string, unknown>;
     return { ...state, shared: next };
   } catch (err) {
-    // eslint-disable-next-line no-console
+     
     console.error("[agui] STATE_DELTA patch failed:", err);
     return state;
   }
@@ -502,7 +502,7 @@ const onActivityDelta = (state: AgentViewState, ev: ActivityDeltaEvent): AgentVi
       const base = prev && typeof prev === "object" ? deepClone(prev) : {};
       return applyPatch(base, patch as Operation[], false, true).newDocument;
     } catch (err) {
-      // eslint-disable-next-line no-console
+       
       console.error(
         `[agui] ACTIVITY_DELTA patch failed for ${ev.messageId}/${ev.activityType}:`,
         err,
