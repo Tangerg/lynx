@@ -188,10 +188,14 @@ export function useLocale(): Locale {
   return (i18n.resolvedLanguage as Locale | undefined) ?? "en";
 }
 
-/** Hook returning a translate fn bound to the live locale. */
+/** Hook returning a translate fn bound to the live locale. The returned
+ *  reference is stable across renders (until the language changes) so it's
+ *  safe to use in `useMemo` / `useCallback` deps. */
 export function useT(): typeof t {
-  const { t: rt } = useTranslation();
-  return (key, params) => rt(key, params) as string;
+  // Subscribe for re-renders on language change; the module-level `t`
+  // reads i18next live so it always sees the new locale.
+  useTranslation();
+  return t;
 }
 
 export const LOCALES: ReadonlyArray<{ id: Locale; label: string }> = [
