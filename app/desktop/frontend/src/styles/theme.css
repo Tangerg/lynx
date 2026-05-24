@@ -161,24 +161,10 @@ html.theme-light .search-card:hover { background: var(--color-surface); border-c
 html.theme-light .search-card .favicon { background: var(--color-surface-3); color: var(--color-text); }
 html.theme-light .search-card:hover .favicon { background: var(--color-accent); color: #fff; }
 
-/* Plan block */
-html.theme-light .plan-block { background: var(--color-surface-2); }
-html.theme-light .plan-item.done .check { background: var(--color-accent); color: #fff; }
-html.theme-light .plan-item.doing .check { border-color: var(--color-accent); }
-html.theme-light .plan-item.doing .check::after { background: var(--color-accent); }
-html.theme-light .plan-item.todo .check { border-color: var(--color-border-soft); }
-html.theme-light .plan-item.done { color: var(--color-text-faint); }
-
-/* Approval card */
-html.theme-light .approval-card {
-  background: color-mix(in srgb, var(--color-warning) 8%, var(--color-surface));
-  border-color: color-mix(in srgb, var(--color-warning) 30%, var(--color-border));
-}
-html.theme-light .approval-card .cmd {
-  background: color-mix(in srgb, var(--color-warning) 14%, var(--color-surface));
-  color: var(--color-text);
-}
-html.theme-light .approval-card .reason { color: var(--color-text-muted); }
+/* Plan block / Approval card light overrides removed — the rewritten
+   PlanBlock + ApprovalCard components use bg-surface / bg-warning/X
+   Tailwind utilities that pick up the right value automatically via
+   the theme tokens. */
 
 /* Run strip */
 html.theme-light .run-strip {

@@ -43,20 +43,21 @@
   --color-surface-3: var(--color-surface-3);
 
   /* ---------- Ink ladder ----------
-     `text-fg` is the default body color; -bright / -soft / -muted /
-     -faint step down toward the background. `on-accent` is used for
-     text/icons sitting on a primary-color surface. */
+     `text-fg` is the default body color; -soft / -muted / -faint step
+     down toward the background. `on-accent` is used for text/icons
+     sitting on a primary-color surface. */
   --color-fg:        var(--color-text);
-  --color-fg-bright: var(--color-text-bright);
   --color-fg-soft:   var(--color-text-soft);
   --color-fg-muted:  var(--color-text-muted);
   --color-fg-faint:  var(--color-text-faint);
   --color-on-accent: var(--color-text-on-accent);
 
-  /* ---------- Accent ---------- */
+  /* ---------- Accent ----------
+     Only --color-accent is exposed as a Tailwind utility. The -border /
+     -press shades stay as raw CSS variables (themes set them; CTA
+     defaults consume them via var(...) — no `bg-accent-border` utility
+     ever needed). */
   --color-accent:        var(--color-accent);
-  --color-accent-border: var(--color-accent-border);
-  --color-accent-press:  var(--color-accent-press);
 
   /* ---------- Semantic ---------- */
   --color-negative: var(--color-negative);

@@ -1,4 +1,4 @@
-import { Icon, PillButton } from "@/components/common";
+import { Divider, Icon, PillButton } from "@/components/common";
 import { useApprovalSubmit, type ApprovalDecision } from "@/lib/useApprovalSubmit";
 
 type Props = {
@@ -31,26 +31,16 @@ export function ApprovalCard({ what, cmd, reason, requestId, decision }: Props) 
   const finalised = decision ?? pending;
   if (finalised === "approved") {
     return (
-      <div className="my-2 flex items-center gap-3 font-mono text-[10.5px] font-semibold text-fg-faint
-        before:flex-1 before:h-px before:content-[''] before:bg-[linear-gradient(90deg,transparent,var(--color-border-soft)_50%,transparent)]
-        after:flex-1  after:h-px  after:content-[''] after:bg-[linear-gradient(90deg,transparent,var(--color-border-soft)_50%,transparent)]">
-        <div className="grid h-[18px] w-[18px] place-items-center rounded-full bg-surface-2 text-accent">
-          <Icon name="check" size={11} strokeWidth={3} />
-        </div>
-        <span>已批准 · 正在执行</span>
-      </div>
+      <Divider icon={<Icon name="check" size={11} strokeWidth={3} />} intent="accent">
+        已批准 · 正在执行
+      </Divider>
     );
   }
   if (finalised === "declined") {
     return (
-      <div className="my-2 flex items-center gap-3 font-mono text-[10.5px] font-semibold text-fg-faint
-        before:flex-1 before:h-px before:content-[''] before:bg-[linear-gradient(90deg,transparent,var(--color-border-soft)_50%,transparent)]
-        after:flex-1  after:h-px  after:content-[''] after:bg-[linear-gradient(90deg,transparent,var(--color-border-soft)_50%,transparent)]">
-        <div className="grid h-[18px] w-[18px] place-items-center rounded-full bg-surface-2 text-fg-faint">
-          <Icon name="x" size={11} />
-        </div>
-        <span>已拒绝</span>
-      </div>
+      <Divider icon={<Icon name="x" size={11} />}>
+        已拒绝
+      </Divider>
     );
   }
 

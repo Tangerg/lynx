@@ -1,9 +1,9 @@
 import { Icon, PillButton } from "@/components/common";
-import { cn } from "@/lib/utils";
+import { PlanCheck, planItemRow } from "@/components/chat/PlanCheck";
 import type { PlanItem } from "@/protocol/agui/viewState";
 
-// Plan view workspace tab. Same item visual as the inline PlanBlock —
-// todo / doing / done with custom check states.
+// Plan view workspace tab. Same per-item visual as the inline PlanBlock
+// — both share ./PlanCheck for the check icon + row styling.
 export function PlanList({ plan }: { plan: PlanItem[] }) {
   return (
     <div className="px-4.5 py-3.5">
@@ -11,27 +11,8 @@ export function PlanList({ plan }: { plan: PlanItem[] }) {
         Task plan
       </div>
       {plan.map((p) => (
-        <div
-          key={p.id}
-          className={cn(
-            "grid grid-cols-[18px_1fr] items-start gap-2.5 py-2 text-[13.5px] leading-[1.45]",
-            p.status === "done" && "text-fg-faint line-through decoration-line-soft",
-            p.status === "doing" && "text-fg font-semibold",
-            p.status === "todo" && "text-fg-soft",
-          )}
-        >
-          <div
-            className={cn(
-              "mt-px grid h-[18px] w-[18px] shrink-0 place-items-center rounded",
-              p.status === "done" && "bg-accent text-on-accent",
-              p.status === "doing" &&
-                "border-[1.5px] border-accent relative " +
-                "after:content-[''] after:h-2 after:w-2 after:rounded-[2px] after:bg-accent after:animate-pulse-dot",
-              p.status === "todo" && "border-[1.5px] border-line-soft",
-            )}
-          >
-            {p.status === "done" && <Icon name="check" size={12} strokeWidth={3} />}
-          </div>
+        <div key={p.id} className={planItemRow(p.status)}>
+          <PlanCheck status={p.status} />
           <div>{p.text}</div>
         </div>
       ))}
