@@ -75,13 +75,20 @@ export function MessageBlock({ msg, ctx }: { msg: Message; ctx: PartCtx }) {
         >
           <div
             className={cn(
-              "mb-1 flex items-center gap-2 whitespace-nowrap text-[11px] text-fg-faint opacity-65",
+              // Meta row — author + time. We dropped the previous
+              // `opacity-65` (it was stacking on top of fg-faint and
+              // making 11px text disappear on dark canvas). fg-faint
+              // alone is the right subordinate tier.
+              "mb-1 flex items-center gap-2 whitespace-nowrap text-[12px] text-fg-faint",
               isUser && "justify-end",
             )}
           >
             <span
               className={cn(
-                "text-fg text-[12px] font-semibold tracking-normal",
+                // Author name — one tier above meta. Bump to 13px so the
+                // name reads as a heading next to the body prose rather
+                // than blending into the meta tag-along.
+                "text-fg text-[13px] font-semibold tracking-normal",
                 isAgent && "font-mono",
               )}
             >
@@ -93,7 +100,11 @@ export function MessageBlock({ msg, ctx }: { msg: Message; ctx: PartCtx }) {
           </div>
           <div
             className={cn(
-              "msg-content text-fg text-[14px] leading-[1.68] tracking-[-0.003em] font-normal",
+              // Body prose 14 → 15px. The chat surface is where users
+              // read for minutes at a stretch; the +1 noticeably eases
+              // long-form reading without disturbing layout (composer +
+              // markdown body inherit from this).
+              "msg-content text-fg text-[15px] leading-[1.68] tracking-[-0.003em] font-normal",
               isUser && "max-w-[580px] rounded-[14px_14px_4px_14px] bg-surface-2 px-3.5 py-2.5 text-left light:bg-surface-3",
             )}
           >

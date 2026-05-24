@@ -19,13 +19,13 @@ export function SearchResults({ results }: { results: SearchResult[] }) {
             <span className="ml-auto opacity-70">{r.time}</span>
           </div>
           <div
-            className="font-semibold text-[12.5px] leading-[1.35] text-fg overflow-hidden"
+            className="font-semibold text-[13.5px] leading-[1.35] text-fg overflow-hidden"
             style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}
           >
             {r.title}
           </div>
           <div
-            className="text-[11.5px] leading-[1.45] text-fg-muted overflow-hidden"
+            className="text-[12.5px] leading-[1.5] text-fg-muted overflow-hidden"
             style={{ display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical" }}
           >
             {r.snippet}

@@ -29,10 +29,10 @@ export function RunErrorBanner() {
         >
           <Icon name="bug" size={14} className="text-negative mt-0.5" />
           <div className="min-w-0">
-            <div className="text-[12px] font-semibold text-negative mb-0.5">
+            <div className="text-[13px] font-semibold text-negative mb-0.5">
               Agent error{error.code ? ` · ${error.code}` : ""}
             </div>
-            <div className="text-[13px] text-fg-soft whitespace-pre-wrap break-words">
+            <div className="text-[14px] text-fg-soft whitespace-pre-wrap break-words">
               {error.message}
             </div>
           </div>
