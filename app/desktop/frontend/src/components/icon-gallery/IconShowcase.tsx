@@ -59,19 +59,20 @@ export function IconShowcase() {
   const total = SECTIONS.reduce((n, s) => n + s.ids.length, 0);
 
   return (
-    <div className="icon-showcase">
-      <p className="icon-showcase-blurb">
-        A curated set of {total} brand glyphs from <code>@lobehub/icons</code>.
-        Full catalogue: <em>Cmd + K → View: Icon Gallery</em>.
+    <div className="flex flex-col gap-4.5">
+      <p className="m-0 mb-1 text-[12px] leading-[1.55] text-fg-muted">
+        A curated set of {total} brand glyphs from{" "}
+        <code className="rounded-xs bg-surface-2 px-1.5 py-px font-mono text-[11px] text-fg">@lobehub/icons</code>.
+        Full catalogue: <em className="not-italic text-fg">Cmd + K → View: Icon Gallery</em>.
       </p>
 
       {SECTIONS.map((sec) => (
-        <section key={sec.title} className="icon-showcase-section">
-          <header className="icon-showcase-head">
+        <section key={sec.title} className="flex flex-col gap-2">
+          <header className="flex items-baseline justify-between font-mono text-[10.5px] font-semibold text-fg-faint tracking-normal">
             <span>{sec.title}</span>
-            <span className="icon-showcase-count">{sec.ids.length}</span>
+            <span className="font-mono text-fg-muted tabular-nums">{sec.ids.length}</span>
           </header>
-          <div className="icon-showcase-grid">
+          <div className="grid gap-1.5 [grid-template-columns:repeat(auto-fill,minmax(96px,1fr))]">
             {sec.ids.map((id) => (
               <ShowcaseCard key={id} id={id} />
             ))}
@@ -87,11 +88,16 @@ function ShowcaseCard({ id }: { id: string }) {
   const meta = TocById[id];
   const title = meta?.fullTitle ?? id;
   return (
-    <div className="icon-showcase-card" title={`${title} — ${id}`}>
-      <div className="icon-showcase-glyph">
-        {Glyph ? <Glyph size={22} /> : <span className="icon-showcase-missing">?</span>}
+    <div
+      title={`${title} — ${id}`}
+      className="flex flex-col items-center gap-1.5 rounded-md border border-line bg-surface px-2 pt-2.5 pb-2 cursor-default transition-[border-color,transform] duration-150 hover:border-[color-mix(in_srgb,var(--color-accent)_30%,var(--color-line))] hover:-translate-y-px"
+    >
+      <div className="grid h-[34px] w-[34px] place-items-center rounded-sm bg-surface-2 text-fg">
+        {Glyph ? <Glyph size={22} /> : <span className="font-mono text-fg-faint">?</span>}
       </div>
-      <div className="icon-showcase-name">{title}</div>
+      <div className="max-w-full truncate text-center text-[11px] font-medium text-fg">
+        {title}
+      </div>
     </div>
   );
 }
