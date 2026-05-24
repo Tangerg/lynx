@@ -2,9 +2,8 @@ import type { ReactNode } from "react";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
-// Small circular avatar with role-aware coloring. The `variant` prop
-// owns the full visual treatment via Tailwind utilities — consumers
-// no longer need to wrap with a per-role parent class.
+// Small circular avatar with role-aware coloring. `variant` carries
+// the entire visual treatment; size scales the box + glyph together.
 const avatarStyles = cva(
   "grid place-items-center rounded-full font-semibold shrink-0 select-none",
   {

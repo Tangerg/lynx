@@ -141,7 +141,6 @@
                     titlebar drag-region wiring
    - chat.css     — three semantic hooks the chat layer still emits as
                     raw classes (.chat / .msg-stream / .msg-content)
-   - icon-gallery.css — debug surface (icon showcase view)
    - markdown.css — bundle of `.msg-content X` rules whose targets are
                     HTML emitted by rehype, not JSX
    - overlays.css — .plugin-boundary-error + .fade-in + Wails drag opt-out
