@@ -154,7 +154,8 @@
      existing call site that requests them gets nothing, which is what
      we want. The one exception is `--shadow-lg`: Level 4 stacked-subtle
      for truly-floating overlays (palette, lightbox, toaster). Light
-     theme overrides re-enable the full stack — see app.css. */
+     theme overrides re-enable the full stack via the theme plugin's
+     `shadows` section (see defineThemePlugin.ts). */
   --shadow-xs: none;
   --shadow-sm: none;
   --shadow-md: none;
