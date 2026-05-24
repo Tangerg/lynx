@@ -59,31 +59,17 @@ html.theme-light .side-search input:focus {
 }
 html.theme-light .search-kbd { background: var(--color-surface-3); }
 
-/* Tool preview shell — the .tool-preview wrapper still uses raw
-   className (set by tool-previews plugin) so its light-mode bg lives
-   here. PreviewFoot + the open btn have moved to Tailwind in P6.9. */
-html.theme-light .tool-preview { background: var(--color-surface); }
-
-/* Syntax tokens — emitted by utils/highlight.ts and used by DiffView. */
+/* Syntax tokens — emitted by utils/highlight.ts (DiffView.tsx) and the
+   FilePreview HTML-string highlighter. The spans come from a
+   dangerouslySetInnerHTML string, so we can't override colours via
+   Tailwind at the call site — light-theme tones live here. */
 html.theme-light .token-kw   { color: #b91d7d; }
 html.theme-light .token-str  { color: #b86a00; }
 html.theme-light .token-fn   { color: #1d4ed8; }
 html.theme-light .token-comm { color: #9a9a9a; }
-
-/* Diff lines — DiffView.tsx + tool-previews unified diff renderer. */
-html.theme-light .diff-line.add { background: rgba(22, 156, 70, 0.08); }
-html.theme-light .diff-line.add .code { color: #0f5e2b; }
-html.theme-light .diff-line.add .sign,
-html.theme-light .diff-line.add .ln { color: rgba(22, 156, 70, 0.7); }
-html.theme-light .diff-line.del { background: rgba(214, 56, 72, 0.08); }
-html.theme-light .diff-line.del .code { color: #8a1e2a; }
-html.theme-light .diff-line.del .sign,
-html.theme-light .diff-line.del .ln { color: rgba(214, 56, 72, 0.7); }
-html.theme-light .diff-line .code { color: var(--color-text); }
-html.theme-light .diff-hunk-head { background: var(--color-surface-2); color: var(--color-text-muted); }
-
-/* Inline file preview (tool-previews `Read` renderer). */
-html.theme-light .file-preview .fp-line .ln { color: var(--color-text-faint); }
+html.theme-light .file-preview .fp-line .code .t-kw  { color: #b91d7d; }
+html.theme-light .file-preview .fp-line .code .t-str { color: #b86a00; }
+html.theme-light .file-preview .fp-line .code .t-fn  { color: #1d4ed8; }
 
 /* Scrollbar — light theme uses a quieter thumb (Vercel pattern: light
    surfaces would make the dark thumb tokens overshoot). Targets the

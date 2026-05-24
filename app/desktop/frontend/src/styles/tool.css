@@ -1,30 +1,31 @@
 /* ============================================================
-   Tool-card residuals + tool-preview shells + diff/file/term/grep
-   inline renderers + lazy-activator placeholder.
+   Tool-card residuals + highlight.ts token colours + lazy placeholder.
 
-   What lives here (still raw className):
-     .tool-card.running ::before     — rotating conic-gradient border
-                                       (uses @property + mask, not
-                                       Tailwind-expressible)
-     .tool-preview / .tool-preview.term — preview container
-     .preview-foot / .preview-open  — preview footer + open-in-view btn
-     .diff-view / .diff-line / .diff-hunk-head — full + mini diff
-     .token-kw / .token-str / .token-fn / .token-comm — highlight.ts spans
-     .file-preview / .fp-line + .t-kw/.t-str/.t-fn — Read tool preview
-     .grep-preview / .grep-line     — grep tool preview
-     .view-foot / .view-code        — workspace-view footer prose
-     .lazy-activator                — slot placeholder while a lazy plugin
-                                      finishes its setup
+   After P6.9 / P6.10, this file is just three orthogonal concerns:
 
-   Other rules (ToolCard head/icon/name/args/meta/status/expand/action,
-   PreviewFoot, MCP rows, view-head, tree, terminal child spans) were
-   deleted in P6.9 — every consumer has migrated to Tailwind utilities.
+   1) `.tool-card.running` rotating border —
+      Uses @property + conic-gradient + mask. Tailwind can't express
+      that combo cleanly, so the rule lives here and the JSX adds
+      `tool-card running` alongside its other utility classes
+      (see components/tools/ToolCard.tsx).
+
+   2) Syntax token colours —
+      `utils/highlight.ts` produces `<span class="token-kw">…</span>`
+      strings inserted via dangerouslySetInnerHTML. Those strings live
+      outside JSX, so Tailwind utilities can't be applied at the call
+      site. The four `.token-*` rules give the spans their colour.
+      The same applies to `.file-preview .fp-line .code .t-kw/.t-str/
+      .t-fn` — those spans are produced by another rendering helper
+      that also returns HTML strings, not JSX.
+
+   3) `.lazy-activator` —
+      DOM marker that `plugins/LazyActivator.ts` puts on the wrapper
+      while it streams in a lazily-registered component. Tiny enough
+      that inlining via JSX is overkill; keeping the class lets the
+      activator be a non-React utility.
    ============================================================ */
 
 /* ---------- Running animation ---------- */
-/* `@property` lets the CSS engine animate the angle smoothly. Without
-   it, browsers can't interpolate `<angle>` custom properties and the
-   border would snap. */
 @property --tc-angle {
   syntax: "<angle>";
   initial-value: 0deg;
@@ -60,152 +61,20 @@
   to { --tc-angle: 360deg; }
 }
 
-/* ---------- Tool preview container (inline tool expansion) ---------- */
-.tool-preview {
-  /* Goes one step deeper than the card surface for nested-depth feel.
-     No top border — the color step IS the boundary. */
-  padding: 10px 14px 8px 14px;
-  font-family: var(--font-mono);
-  font-size: 12px;
-  background: var(--color-bg);
-  color: var(--color-text-muted);
-  line-height: 1.55;
-  max-height: 240px;
-  overflow-y: auto;
-}
-.tool-preview.term {
-  white-space: pre;
-  color: var(--color-text-soft);
-}
-
-/* ---------- Diff view + mini diff ---------- */
-.diff-view {
-  font-family: var(--font-mono);
-  font-size: 12px;
-  line-height: 1.6;
-  padding: 8px 0;
-}
-.diff-line {
-  display: grid;
-  grid-template-columns: 36px 36px 1fr;
-  gap: 6px;
-  padding: 0 12px;
-}
-.diff-line .ln {
-  text-align: right;
-  color: var(--color-text-faint);
-  user-select: none;
-  font-size: 11px;
-}
-.diff-line .sign {
-  text-align: center;
-  color: var(--color-text-faint);
-  user-select: none;
-  font-size: 11px;
-}
-.diff-line.add { background: rgba(30,215,96,0.07); }
-.diff-line.add .sign, .diff-line.add .ln { color: rgba(95,227,154,0.7); }
-.diff-line.add .code { color: #c8f5d8; }
-.diff-line.del { background: rgba(243,114,127,0.07); }
-.diff-line.del .sign, .diff-line.del .ln { color: rgba(243,114,127,0.7); }
-.diff-line.del .code { color: #f5cdd2; }
-.diff-line .code { color: var(--color-text-soft); white-space: pre; }
-.diff-hunk-head {
-  background: var(--color-border);
-  color: var(--color-text-faint);
-  padding: 4px 12px;
-  font-size: 11px;
-  margin: 10px 0 0 0;
-  border: none;
-}
-.diff-view-mini {
-  font-family: var(--font-mono);
-  font-size: 11.5px;
-  line-height: 1.55;
-}
-.diff-view-mini .diff-line {
-  grid-template-columns: 18px 1fr;
-  padding: 0 2px;
-}
-.diff-view-mini .diff-line .ln { display: none; }
-.diff-view-mini .diff-hunk-head {
-  padding: 4px 6px;
-  font-size: 10.5px;
-  margin: 6px 0 4px 0;
-  color: var(--color-text-faint);
-}
-
-/* Token colours emitted by utils/highlight.ts spans. */
-.token-kw { color: #e07acc; }
-.token-str { color: #f5d97a; }
-.token-fn { color: #82cfff; }
+/* ---------- Syntax tokens (dark theme defaults) ---------- */
+.token-kw   { color: #e07acc; }
+.token-str  { color: #f5d97a; }
+.token-fn   { color: #82cfff; }
 .token-comm { color: var(--color-text-faint); font-style: italic; }
 
-/* ---------- Grep + file previews ---------- */
-.grep-preview, .file-preview {
-  font-family: var(--font-mono);
-  font-size: 11.5px;
-  line-height: 1.55;
-}
-.grep-preview .grep-line {
-  display: grid;
-  grid-template-columns: 200px 1fr;
-  gap: 12px;
-  padding: 2px 0;
-  white-space: nowrap;
-  overflow: hidden;
-}
-.grep-preview .grep-line .path {
-  color: var(--color-text-faint);
-  font-size: 11px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.grep-preview .grep-line .match {
-  color: var(--color-text);
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.grep-preview .grep-line.muted { color: var(--color-text-faint); padding-top: 4px; }
-
-.file-preview .fp-line {
-  display: grid;
-  grid-template-columns: 28px 1fr;
-  gap: 10px;
-}
-.file-preview .fp-line .ln {
-  color: var(--color-text-faint);
-  text-align: right;
-  font-size: 10.5px;
-  user-select: none;
-}
-.file-preview .fp-line .code .t-kw { color: #e07acc; }
+/* File-preview's mini highlighter — the spans live inside a `.file-preview
+   .fp-line .code` chain emitted as an HTML string, so the rules need to
+   inherit through that hierarchy. */
+.file-preview .fp-line .code .t-kw  { color: #e07acc; }
 .file-preview .fp-line .code .t-str { color: #f5d97a; }
-.file-preview .fp-line .code .t-fn { color: #82cfff; }
-.file-preview .fp-line.muted { color: var(--color-text-faint); }
-.file-preview .fp-line.muted .code { color: var(--color-text-faint); }
+.file-preview .fp-line .code .t-fn  { color: #82cfff; }
 
-/* ---------- Preview footer ("Open in <X>") ---------- */
-/* Foot wrapper + open btn are now Tailwind (PreviewFoot.tsx); only the
-   class hooks remain in theme.css for light-mode overrides. */
-
-/* ---------- Workspace-view trailing prose ---------- */
-.view-foot {
-  margin: 0;
-  padding: 14px 16px 18px 16px;
-  color: var(--color-text-faint);
-  font-size: 11px;
-  line-height: 1.5;
-}
-.view-code {
-  font-family: var(--font-mono);
-  background: var(--color-surface-2);
-  padding: 1px 5px;
-  border-radius: var(--radius-xs);
-  color: var(--color-text);
-}
-
-/* ---------- Lazy-activator placeholder ---------- */
+/* ---------- Lazy-activator slot placeholder ---------- */
 .lazy-activator {
   display: grid;
   place-items: center;

@@ -1,4 +1,5 @@
 import type { DiffRow } from "@/components/tools/previews";
+import { cn } from "@/lib/utils";
 import { highlightTS } from "@/utils/highlight";
 
 // A diff row's line numbers (`l`/`r`) plus a small ordinal are enough to
@@ -12,20 +13,44 @@ function keyFor(row: DiffRow, i: number): string {
 
 export function DiffView({ rows }: { rows: DiffRow[] }) {
   return (
-    <div className="diff-view">
+    <div className="py-2 font-mono text-[12px] leading-[1.6]">
       {rows.map((row, i) => {
         const k = keyFor(row, i);
         if (row.type === "hunk") {
-          return <div key={k} className="diff-hunk-head">{row.text}</div>;
+          return (
+            <div
+              key={k}
+              className="mx-0 mt-2.5 mb-0 border-0 bg-line px-3 py-1 text-[11px] text-fg-faint"
+            >
+              {row.text}
+            </div>
+          );
         }
-        const cls = row.type === "add" ? "add" : row.type === "del" ? "del" : "ctx";
+        const tone =
+          row.type === "add" ? "bg-[rgba(30,215,96,0.07)]" :
+          row.type === "del" ? "bg-[rgba(243,114,127,0.07)]" :
+          "";
+        const meta =
+          row.type === "add" ? "text-[rgba(95,227,154,0.7)]" :
+          row.type === "del" ? "text-[rgba(243,114,127,0.7)]" :
+          "text-fg-faint";
+        const codeTone =
+          row.type === "add" ? "text-[#c8f5d8]" :
+          row.type === "del" ? "text-[#f5cdd2]" :
+          "text-fg-soft";
         const sign = row.type === "add" ? "+" : row.type === "del" ? "−" : " ";
         const lnum = row.type === "del" ? row.l : row.r;
         return (
-          <div key={k} className={`diff-line ${cls}`}>
-            <span className="ln">{lnum}</span>
-            <span className="sign">{sign}</span>
-            <span className="code" dangerouslySetInnerHTML={{ __html: highlightTS(row.code) }} />
+          <div
+            key={k}
+            className={cn("grid grid-cols-[36px_36px_1fr] gap-1.5 px-3", tone)}
+          >
+            <span className={cn("text-right text-[11px] select-none", meta)}>{lnum}</span>
+            <span className={cn("text-center text-[11px] select-none", meta)}>{sign}</span>
+            <span
+              className={cn("whitespace-pre", codeTone)}
+              dangerouslySetInnerHTML={{ __html: highlightTS(row.code) }}
+            />
           </div>
         );
       })}
