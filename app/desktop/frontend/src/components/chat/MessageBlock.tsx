@@ -1,17 +1,6 @@
-// MessageBlock — renders one chat turn.
-//
-// Role identity (display name + avatar icon) is looked up from the
-// plugin registry. Fallbacks render a generic identity when no plugin
-// has registered the role.
-//
-// Layout:
-//   - Agent / system messages: full-width body, avatar absolute-positioned
-//     46px to the left so the body keeps its measure.
-//   - User messages: right-aligned bubble, avatar absolute on the right.
-//
-// `msg-content` className is preserved (not Tailwind-only) — markdown
-// content styling lives there and the MarkdownMessage component nests
-// many elements (p, code, table, etc.) inside it.
+// MessageBlock — one chat turn. Role identity comes from the plugin
+// registry. Agent rows take full-width prose with avatar to the left;
+// user rows are right-aligned bubbles with avatar to the right.
 
 import { Icon, type IconName } from "@/components/common";
 import { Avatar } from "@/components/common/Avatar";
@@ -33,17 +22,13 @@ export function MessageBlock({ msg, ctx }: { msg: Message; ctx: PartCtx }) {
     | "msg-agent";
   const iconName = (role?.icon ?? (isUser ? "user" : "spark")) as IconName;
 
-  // The streaming-tail caret should only sit at the END of the message —
-  // not at the end of every text block. When an assistant message
-  // interleaves text + tool calls + more text, the reducer leaves every
-  // intermediate text block with `streaming: true` until TEXT_MESSAGE_END
-  // closes them all at once. Without this gating each older text block
-  // would render its own cursor and leave "ghost carets" stranded mid-bubble.
+  // Only the last text block keeps `streaming: true` so we don't draw
+  // a caret at the end of every intermediate text block (the reducer
+  // leaves them all streaming until TEXT_MESSAGE_END).
   const lastIdx = msg.blocks.length - 1;
 
-  // The user already saw what they typed — replaying their own message
-  // through the smooth-text + fade-in pipeline feels patronizing and
-  // adds a couple of seconds of latency before they can read it back.
+  // Skip the smooth-text + fade-in pipeline for user messages — they
+  // already saw what they typed; replaying it adds latency for no gain.
   const partCtx: PartCtx = isUser ? { ...ctx, instant: true } : ctx;
 
   return (
@@ -71,19 +56,12 @@ export function MessageBlock({ msg, ctx }: { msg: Message; ctx: PartCtx }) {
         <div className={cn("min-w-0", isUser && "flex flex-col items-end")}>
           <div
             className={cn(
-              // Meta row — author + time. We dropped the previous
-              // `opacity-65` (it was stacking on top of fg-faint and
-              // making 11px text disappear on dark canvas). fg-faint
-              // alone is the right subordinate tier.
               "mb-1 flex items-center gap-2 whitespace-nowrap text-[12px] text-fg-faint",
               isUser && "justify-end",
             )}
           >
             <span
               className={cn(
-                // Author name — one tier above meta. Bump to 13px so the
-                // name reads as a heading next to the body prose rather
-                // than blending into the meta tag-along.
                 "text-fg text-[13px] font-semibold tracking-normal",
                 isAgent && "font-mono",
               )}
@@ -96,11 +74,8 @@ export function MessageBlock({ msg, ctx }: { msg: Message; ctx: PartCtx }) {
           </div>
           <div
             className={cn(
-              // Body prose at 15px — the project's content baseline. Every
-              // content-area surface (chat, settings panes, welcome,
-              // approval cards) reads at this size; markdown headings +
-              // dense data tiers step off this number. See
-              // CONTENT TYPE SCALE notes throughout the codebase.
+              // 15px is the content baseline — markdown headings and
+              // every other content surface size off this.
               "msg-content text-fg text-[15px] leading-[1.68] tracking-[-0.003em] font-normal",
               isUser &&
                 "max-w-[580px] rounded-[14px_14px_4px_14px] bg-surface-2 px-3.5 py-2.5 text-left light:bg-surface-3",

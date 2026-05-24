@@ -9,10 +9,9 @@ type Props = {
   code: string;
 };
 
-// Pull the resolved hex values for our theme tokens out of CSS so the
-// diagram follows light/dark switches. We can't pass `var(--x)` directly —
-// the SVG ends up with literal text "var(--x)" baked into stroke/fill
-// attributes that browsers then refuse to honor on inline SVGs.
+// Resolve token vars to literal hex — beautiful-mermaid bakes the
+// values into stroke/fill on the SVG output and browsers won't honor
+// raw `var(--x)` text there.
 function readThemeColors() {
   const root = document.documentElement;
   const cs = getComputedStyle(root);
@@ -27,34 +26,21 @@ function readThemeColors() {
   };
 }
 
-// MermaidBlock — beautiful-mermaid's synchronous SVG renderer, gated by
-// a debounce.
-//
-// Why we debounce harder than Shiki: every parse attempt on an
-// in-progress diagram throws (the source is malformed until the closing
-// fence and the full directive land). Each throw is 30-100ms of CPU,
-// and smooth-text feeds new chars at ~30 Hz — running the parser on
-// every delta freezes the chat. We let `code` settle for 300ms before
-// attempting a render; until then we show the live source in a quiet
-// "pending" pre-block. Once the source stabilises and parses, the SVG
-// snaps in.
+// Debounced 300ms — every parse on an in-progress diagram throws
+// (malformed until the closing fence lands), each throw is 30-100ms,
+// and smooth-text feeds chars at ~30 Hz. Until the source settles we
+// show a quiet "pending" pre-block; settled + parses → SVG snaps in.
 export function MermaidBlock({ code }: Props) {
-  // Re-render whenever theme/accent changes so the diagram re-paints
-  // against the new palette. We don't need the values themselves — they
-  // come from getComputedStyle at render time — just a dependency to
-  // trigger useMemo invalidation.
+  // theme + accent feed into readThemeColors() below via deps so the
+  // diagram re-paints when the palette switches.
   const theme = useThemeStore((s) => s.theme);
   const accent = useThemeStore((s) => s.accent);
   const [debouncedCode] = useDebounce(code, 300);
   const isSettling = code !== debouncedCode;
 
-  // We destructure `error` but currently don't render it — the pending
-  // pre-block doubles as both "streaming" and "broken source" states.
-  // Underscore-prefix tells ESLint that's intentional.
+  // Render swallows errors via the pending pre-block fallback; underscore
+  // tells ESLint the destructure is intentional.
   const { svg, error: _error } = useMemo(() => {
-    // Don't even attempt while still streaming — saves the parse cost
-    // entirely. Once the value settles, useMemo recomputes against the
-    // settled string and either gives us SVG or a real parse failure.
     if (isSettling) {
       return { svg: null, error: null as Error | null };
     }

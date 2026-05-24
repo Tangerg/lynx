@@ -1,9 +1,6 @@
-// Host implementation — the bridge between plugin code and the registry +
-// shared services (HTTP, notifications).
-//
-// Each plugin receives a Host instance bound to its own name. The bound name
-// lets the registry track who registered what so we can clean up cleanly on
-// unload + attribute errors and conflict warnings correctly.
+// Host bridges plugin code to the registry + shared services. Each
+// plugin gets a Host bound to its name so registrations, errors, and
+// conflict warnings can be attributed back when it unloads.
 
 import { api } from "@/lib/http";
 import type { ContentBlockKind } from "@/protocol/agui/viewState";

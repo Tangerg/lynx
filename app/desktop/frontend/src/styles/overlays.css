@@ -1,22 +1,10 @@
-/* ============================================================
-   Surviving overlay primitives after P6.11:
-     .plugin-boundary-error — PluginBoundary fallback (still raw class)
-     .fade-in               — per-word streaming animation (rehype plugin
-                              emits the className as a string)
-     drag-region opt-outs   — `.brand-mark` inside `.brand` / `.rail-brand`
-                              must opt out of -webkit-app-region:drag.
+/* Surviving overlay primitives:
+     .plugin-boundary-error — PluginBoundary fallback (raw class)
+     .fade-in               — per-word streaming animation (className
+                              emitted as a string by rehype-fade-in)
+     .brand-mark drag opt-out — div inside .brand / .rail-brand */
 
-   Everything else this file used to host (cmdk command palette,
-   plugin-toaster, jump-to-bottom, chat-error fallback) has been migrated
-   to Tailwind utilities at the call site — the CommandPalette plugin uses
-   `cmdk` + Tailwind, JumpToBottomButton + ChatErrorBoundary are pure
-   Tailwind, and the toaster never had a live consumer.
-   ============================================================ */
-
-/* ============================================================
-   Plugin error boundary — inline notice when a plugin component
-   throws during render.
-   ============================================================ */
+/* Plugin error boundary — inline notice when a plugin throws. */
 .plugin-boundary-error {
   display: flex;
   flex-direction: column;
@@ -39,18 +27,10 @@
   border: none;
 }
 
-/* Per-word fade-in for streaming text. Direct port of portai's
-   .md-fade-in: pure opacity 0 → 1 over 0.7s ease-in-out. Each
-   <span class="fade-in"> wraps a word emitted by the smooth-text engine
-   (see frontend/src/lib/smoothText.ts) and the rehype-fade-in transform
-   (lib/rehypeFadeIn.ts). The animation runs once on mount and never
-   replays — React's key-by-index reconciliation keeps already-rendered
-   words mounted across deltas.
-
-   IMPORTANT: layout-neutral. No filter / transform / inline-block —
-   on WebKit (Wails uses WKWebView) those expand the line-box and cause
-   vertical jitter when new spans mount mid-line. Pure opacity is
-   GPU-composited and never touches layout. */
+/* Per-word fade-in for streaming text. Layout-neutral on purpose: no
+   filter / transform / inline-block (those expand the line-box in
+   WKWebView and cause vertical jitter when new spans mount mid-line).
+   Pure opacity is GPU-composited. */
 @keyframes fadeIn {
   from {
     opacity: 0;
@@ -63,11 +43,9 @@
   animation: fadeIn 0.7s ease-in-out both;
 }
 
-/* Wails drag-region opt-out — `-webkit-app-region` doesn't inherit, so
-   children of a draggable parent need their own `no-drag` if they want
-   to stay clickable. The sidebar rule in layout.css already covers
-   buttons / inputs / anchors; brand-mark is a plain <div> that hosts an
-   icon, so it needs the explicit opt-out. */
+/* Wails drag-region opt-out — -webkit-app-region doesn't inherit, so
+   div children of a draggable parent need this explicitly. Buttons /
+   inputs / anchors are covered by the .sidebar rule in layout.css. */
 .brand .brand-mark,
 .rail-brand .brand-mark {
   --wails-draggable: no-drag;

@@ -1,42 +1,7 @@
-/* ============================================================
-   Markdown body styling.
-
-   What lives in this file:
-
-   1) `.md` + descendant selectors —
-      Children come from react-markdown / rehype as raw HTML
-      (`<p>`, `<h1>`, `<ul>`, `<a>`, `<code>`, `<table>`, …). We don't
-      author those JSX nodes so Tailwind utilities can't be attached at
-      the call site. Hand-rolled selectors set the prose voice.
-
-   2) `.shiki-block .shiki` + `.shiki-block .shiki-fallback` + their
-      scrollbar internals —
-      Shiki emits a `<pre class="shiki">` + nested `<code>` from a
-      string. The outer wrapper is Tailwind (ShikiCodeBlock.tsx), the
-      inner Shiki HTML needs CSS to override Shiki's `github-*` page
-      background and to host our scrollbar tokens.
-
-   3) `.md-table-wrap` —
-      Set by markdownComponents.tsx as a wrapper around `<table>` for
-      horizontal overflow + scrollbar polish. Plain class.
-
-   Everything else (.search-card / .mermaid-block / .shiki-block head /
-   .lang / .copy / fold toggles / mermaid lightbox) has been Tailwind-
-   ified at the call site (SearchResults.tsx / MermaidBlock.tsx /
-   ShikiCodeBlock.tsx).
-   ============================================================ */
-
-/* ===========================================================
-   Markdown body (.md) — react-markdown output container
-   ===========================================================
-   Design rules used throughout:
-     - Borders are color-mix on text @ 8-14% rather than the hard
-       --color-border (which reads as #4d on dark, too loud against
-       message bg). Gives surfaces a "drawn-from-the-text" feel.
-     - Vertical rhythm: most blocks have 14px bottom margin; tight
-       elements (list items, h+adjacent-p) shrink that.
-     - Inline code is flat-tinted with NO border — fewer fighting
-       outlines next to fade-in spans. */
+/* Markdown body — selectors target HTML rehype emits (no JSX nodes
+   to hang Tailwind utilities on). Borders use color-mix on text
+   instead of the hard --color-border so they sit gently against the
+   message background. */
 .md {
   display: block;
 }
@@ -204,13 +169,8 @@
   margin: 18px 0;
 }
 
-/* Tables — soft separator lines instead of full grid. Header gets a
-   stronger underline; rows are zebra-free but get a quiet hover tint
-   for scannability on long tables.
-   The wrapper handles overflow when a wide table (8+ cols) exceeds the
-   message column; it shrinks to fit-content otherwise so a narrow table
-   doesn't leave dead space to its right. No border of its own — the
-   table's own chrome carries the visual. */
+/* Tables — wrapper handles horizontal overflow; shrinks to
+   fit-content otherwise so narrow tables don't leave dead space. */
 .md-table-wrap {
   margin: 12px 0;
   max-width: 100%;
@@ -260,9 +220,8 @@
   background: color-mix(in srgb, var(--color-text) 3%, transparent);
 }
 
-/* Inline code — flat tinted background, no border. The previous
-   1px outline competed with fade-in spans and made paragraphs look
-   busy on a long answer. */
+/* Inline code — flat tinted background, no border (would compete with
+   fade-in span outlines on streaming text). */
 .md code {
   font-family: var(--font-mono);
   font-size: 0.88em;
@@ -280,14 +239,9 @@
   font-style: italic;
 }
 
-/* ===========================================================
-   Shiki code block — Shiki-emitted HTML internals
-   ===========================================================
-   The outer card chrome (border, fold toggle, copy button, header) is
-   Tailwind on the JSX in ShikiCodeBlock.tsx. What lives here is the
-   styling for what Shiki itself injects as a string —
-   `<pre class="shiki"><code>…</code></pre>` — which Tailwind utilities
-   can't reach. */
+/* Shiki code block — rules below target the `<pre class="shiki">` +
+   `<code>` Shiki emits as a string. Outer card chrome is Tailwind on
+   ShikiCodeBlock.tsx. */
 .shiki-block .shiki,
 .shiki-block .shiki-fallback {
   margin: 0;
@@ -299,12 +253,8 @@
   font-size: 13px;
   background: transparent !important;
 }
-/* `<code>` inside Shiki's emitted `<pre class="shiki">` would otherwise
-   inherit the inline-code rule `.md code { font-size: 0.88em }`
-   (specificity 0,1,1 — this rule's is 0,2,1 but it didn't set
-   font-size, so the cascade fell through). That shrank block code to
-   13.5 × 0.88 = 11.88px. `font-size: inherit` pins it back to the
-   parent `.shiki`'s 13.5px. */
+/* `font-size: inherit` pins block code to the parent .shiki size —
+   otherwise `.md code { font-size: 0.88em }` would shrink it further. */
 .shiki-block .shiki code {
   background: transparent;
   border: 0;

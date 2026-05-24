@@ -1,16 +1,6 @@
-// Default chat session bootstrap.
-//
-// Resolves the active agent source from the plugin registry, then hands
-// the factory to `useAgentSession`. Wraps the boilerplate that every
-// "chat container" component would otherwise duplicate: pick source →
-// factory → useAgentSession → done.
-//
-// `activeSessionId` from useSessionStore is passed as the sessionId so
-// the agent is torn down + rebuilt when the user switches sessions, and so
-// the agentStore knows which session's slice to write events into. The
-// http-agent built-in reads the same store inside its factory to bind
-// the new agent's threadId, so the backend sees the new session id on
-// first runAgent() and picks the right demo script.
+// Resolves the active agent source from the plugin registry and hands
+// the factory to useAgentSession. Switching activeSessionId rebuilds
+// the agent so the backend sees the new session id on first runAgent().
 
 import { useCallback } from "react";
 import { pickAgentSource } from "@/plugins/sdk";

@@ -1,79 +1,49 @@
-/* ============================================================
-   Lyra — Tailwind 4 entry point + design-token bridge.
+/* Tailwind 4 entry + design-token bridge. The @theme inline block
+   aliases our `--color-bg / --color-text / ...` tokens into Tailwind's
+   utility names so theme plugins (which write to :root.style at
+   runtime) propagate to every `bg-canvas` / `text-fg` callsite live. */
 
-   Strategy:
-   - Tailwind 4 is imported FIRST so its `@theme` directive sees our
-     CSS variable bridge below.
-   - `@theme inline` aliases our existing `--color-bg / --color-text /
-     ...` tokens (which theme plugins write to at runtime) into
-     Tailwind's expected `--color-{name}` / `--radius-{name}` names.
-     `inline` prevents Tailwind from re-declaring them at :root, so
-     each utility class compiles to e.g.
-       `.bg-canvas { background-color: var(--color-bg); }`
-     which means: theme plugins keep working — they set `--color-bg`,
-     and every `bg-canvas` callsite picks up the new value live.
-   - Legacy `style.css` imports stay during the migration; once a
-     component is rewritten with Tailwind utilities, its old CSS lives
-     on harmlessly in the bundle until the matching styles/*.css file
-     is deleted in P6.
-   ============================================================ */
-
-/* Webfonts must be the very first statement in the CSS bundle —
-   `@import` rules cannot follow any other rule per the CSS spec, and
-   Tailwind's `@import` directive expands into rules. */
+/* Webfonts first — @import can't follow other rules per spec, and
+   Tailwind's @import expands into rules. */
 @import url("https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400&display=swap");
 
 @import "tailwindcss";
 
-/* Custom variants for our scheme classes. Drives `dark:bg-surface` etc.
-   `theme-light` and `theme-dark` are written by themeStore.applyTheme. */
+/* Scheme variants. `theme-light` / `theme-dark` are written to <html>
+   by themeStore.applyTheme. */
 @custom-variant dark (&:where(.theme-dark, .theme-dark *));
 @custom-variant light (&:where(.theme-light, .theme-light *));
 
-/* Design-token bridge. Inline mode means each utility uses
-   var(--source) directly, no shadow variable. */
 @theme inline {
-  /* ---------- Surface ladder ----------
-     `bg-canvas`  → outer frame (darkest in dark / lightest in light)
-     `bg-surface` → lifted panel
-     `bg-surface-2/3` → derived steps for hover / active / popovers */
+  /* Surface ladder */
   --color-canvas: var(--color-bg);
   --color-surface: var(--color-surface);
   --color-surface-2: var(--color-surface-2);
   --color-surface-3: var(--color-surface-3);
 
-  /* ---------- Ink ladder ----------
-     `text-fg` is the default body color; -soft / -muted / -faint step
-     down toward the background. `on-accent` is used for text/icons
-     sitting on a primary-color surface. */
+  /* Ink ladder */
   --color-fg: var(--color-text);
   --color-fg-soft: var(--color-text-soft);
   --color-fg-muted: var(--color-text-muted);
   --color-fg-faint: var(--color-text-faint);
   --color-on-accent: var(--color-text-on-accent);
 
-  /* ---------- Accent ----------
-     Only --color-accent is exposed as a Tailwind utility. The -border /
-     -press shades stay as raw CSS variables (themes set them; CTA
-     defaults consume them via var(...) — no `bg-accent-border` utility
-     ever needed). */
+  /* Accent — only the base is exposed as a utility; -border / -press
+     stay raw CSS vars (consumed by CTA defaults via var()). */
   --color-accent: var(--color-accent);
 
-  /* ---------- Semantic ---------- */
+  /* Semantic */
   --color-negative: var(--color-negative);
   --color-warning: var(--color-warning);
   --color-info: var(--color-info);
   --color-success: var(--color-success);
 
-  /* ---------- Borders ----------
-     `border-line` is the default hairline; -soft is the emphasized
-     stroke used on lifted surfaces; -divider is the deepest contrast. */
+  /* Borders — default hairline / emphasized stroke / deepest contrast. */
   --color-line: var(--color-border);
   --color-line-soft: var(--color-border-soft);
   --color-divider: var(--color-divider);
 
-  /* ---------- Radius ----------
-     md (8px) is the default button radius. pill = fully rounded. */
+  /* Radius — md (8px) is the default button radius. */
   --radius-xs: 4px;
   --radius-sm: 6px;
   --radius-md: 8px;
@@ -81,14 +51,12 @@
   --radius-xl: 16px;
   --radius-pill: 9999px;
 
-  /* ---------- Fonts ---------- */
+  /* Fonts */
   --font-sans: "Geist", "Inter", system-ui, sans-serif;
   --font-mono: "Geist Mono", "JetBrains Mono", ui-monospace, Menlo, monospace;
 
-  /* ---------- Animations ----------
-     `animate-shimmer` powers Skeleton primitives.
-     `animate-pulse-dot` is the running-indicator dot pulse.
-     `animate-rise-in` is the slash-suggestion / popover entrance. */
+  /* Animations — `animate-shimmer` powers Skeleton, `animate-pulse-dot`
+     the running indicator, `animate-rise-in` popover entry. */
   --animate-shimmer: lyra-shimmer 1.4s linear infinite;
   --animate-pulse-dot: lyra-pulse 1.6s ease-in-out infinite;
   --animate-rise-in: lyra-rise-in 140ms cubic-bezier(0.3, 0, 0, 1);
@@ -113,8 +81,6 @@
     transform: scale(0.9);
   }
 }
-
-/* Slash-suggestion / popover slide-up entrance. */
 @keyframes lyra-rise-in {
   from {
     transform: translateY(8px);
@@ -126,32 +92,13 @@
   }
 }
 
-/* Global text-selection highlight — accent-tinted instead of the OS
-   default blue, so dragging-to-select reads as a deliberate UI
-   affordance instead of platform chrome bleeding through. */
+/* Accent-tinted text selection — reads as a deliberate UI affordance
+   instead of the OS default blue bleeding through. */
 ::selection {
   background: color-mix(in srgb, var(--color-accent) 30%, transparent);
   color: var(--color-text);
 }
 
-/* What still lives in plain .css files (everything else is Tailwind):
-   - tokens.css   — theme token defaults (overridden at runtime by themeStore)
-   - reset.css    — small CSS reset rules (form normalisation etc.)
-   - layout.css   — kernel shell: .app/.app-main/.panel grid + macOS
-                    titlebar drag-region wiring
-   - chat.css     — three semantic hooks the chat layer still emits as
-                    raw classes (.chat / .msg-stream / .msg-content)
-   - markdown.css — bundle of `.msg-content X` rules whose targets are
-                    HTML emitted by rehype, not JSX
-   - overlays.css — .plugin-boundary-error + .fade-in + Wails drag opt-out
-   - tool.css     — .tool-card.running animation + .token-* highlight
-                    spans + .lazy-activator hook
-   - theme.css    — html.theme-light overrides that can't be expressed
-                    as Tailwind utilities (token-* via dangerouslySetInnerHTML,
-                    .panel chrome, scrollbar tint, .msg-content body)
-
-   Deleted in P6.x: topbar.css, statusbar.css, composer.css, settings.css,
-   welcome.css, sidebar.css. */
 @import "./tokens.css";
 @import "./reset.css";
 @import "./layout.css";

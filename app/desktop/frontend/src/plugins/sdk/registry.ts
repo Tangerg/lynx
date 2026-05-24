@@ -1,9 +1,5 @@
-// Plugin registry — central store of everything plugins have contributed.
-//
-// Backed by Zustand so React components (ToolPreview, PartRenderer,
-// SlashSuggestions, …) can subscribe to registration changes. The store
-// holds both the static slots (tool previews, content blocks) and the
-// runtime-mutated ones (CUSTOM handlers, slash commands).
+// Central Zustand store of every plugin contribution — React
+// components subscribe so registrations propagate live.
 
 import { create } from "zustand";
 import type { ContentBlockKind } from "@/protocol/agui/viewState";

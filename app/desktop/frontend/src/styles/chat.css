@@ -1,25 +1,12 @@
-/* ============================================================
-   Chat panel surface — three semantic hooks the chat layer still emits
-   as raw classes:
-
-     .chat        — wraps the chat Panel. Background + a positioning
-                    context for the absolutely-anchored composer-wrap.
+/* Three semantic hooks the chat layer emits as raw classes:
+     .chat        — wraps the chat Panel (background + positioning
+                    context for the absolutely-anchored composer).
      .msg-stream  — chat-measure 760px centered column (DESIGN.md §4).
-                    MessageStream renders this around the message list.
-     .msg-content — sits on MessageBlock's prose div. Used as a CSS
-                    hook for the markdown body — everything *visual* is
-                    Tailwind on the JSX (`text-[16px]` etc.); this class
-                    only carries selectors that target markdown children
-                    rehype injects later. Nested `p` / `code` / `strong`
-                    rules used to live here too but they collided with
-                    markdown.css's `.md X` rules (same specificity, later
-                    import won) so they did nothing — deleted.
-   ============================================================ */
+     .msg-content — markdown body hook; visual properties come from
+                    Tailwind on JSX, this class only roots `.md X`
+                    descendant selectors from markdown.css. */
 
 .chat {
-  /* Surface lifts above canvas so the chat panel reads as a card on the
-     canvas frame. Was --color-bg pre-refactor, which silently undid the
-     cards-on-canvas layout — see git history. */
   background: var(--color-surface);
   position: relative;
 }
