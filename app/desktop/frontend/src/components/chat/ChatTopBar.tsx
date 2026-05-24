@@ -47,7 +47,7 @@ export function ChatTopBar({
             className={`chat-tab ${t.id === activeId ? "active" : ""}`}
             onClick={() => onSelectChat(t.id)}
           >
-            <StatusDot as="tab-dot" tone={t.status} />
+            <StatusDot tone={t.status} />
             <span className="tab-title" title={t.title}>{t.title}</span>
             <span
               className="tab-close"

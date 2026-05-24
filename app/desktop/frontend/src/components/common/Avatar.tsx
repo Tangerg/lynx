@@ -1,20 +1,36 @@
 import type { ReactNode } from "react";
+import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
-type Variant =
-  | "msg-agent"   // chat message avatar, agent side (handled by .msg.agent rule)
-  | "msg-user"    // chat message avatar, user side (handled by .msg.user rule)
-  | "user-card";  // sidebar user-card avatar
+// Small circular avatar with role-aware coloring. The `variant` prop
+// owns the full visual treatment via Tailwind utilities — consumers
+// no longer need to wrap with a per-role parent class.
+const avatarStyles = cva(
+  "grid place-items-center rounded-full font-semibold shrink-0 select-none",
+  {
+    variants: {
+      variant: {
+        "msg-agent":  "bg-accent text-on-accent",
+        "msg-user":   "bg-surface-3 text-fg",
+        "msg-system": "bg-transparent border border-line text-fg-muted",
+        "user-card":  "bg-surface-3 text-fg",
+      },
+      size: {
+        sm: "h-7 w-7 text-[11px]",
+        md: "h-8 w-8 text-[12px]",
+        lg: "h-9 w-9 text-[13px]",
+      },
+    },
+    defaultVariants: { size: "md" },
+  },
+);
 
-type Props = {
-  variant: Variant;
+type Props = VariantProps<typeof avatarStyles> & {
+  variant: NonNullable<VariantProps<typeof avatarStyles>["variant"]>;
   children: ReactNode;
   className?: string;
 };
 
-// Small circular avatar. Picks the right pre-existing CSS class so we don't
-// invent a parallel naming scheme.
-export function Avatar({ variant, children, className }: Props) {
-  const cls = variant === "user-card" ? "user-avatar" : "msg-avatar";
-  return <div className={cn(cls, className)}>{children}</div>;
+export function Avatar({ variant, size, children, className }: Props) {
+  return <div className={cn(avatarStyles({ variant, size }), className)}>{children}</div>;
 }

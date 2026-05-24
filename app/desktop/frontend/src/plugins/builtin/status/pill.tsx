@@ -40,7 +40,7 @@ function RunState() {
   const stop = useAgentAction("stop");
   return (
     <span className={`sb-item sb-run ${run.running ? "live" : ""}`}>
-      <StatusDot as="sb-dot" />
+      <StatusDot tone={run.running ? "running" : "idle"} />
       {run.running ? (
         <>
           <span className="mono-num">{run.step}/{run.totalSteps}</span>
