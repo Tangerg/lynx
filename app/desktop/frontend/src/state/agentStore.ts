@@ -27,6 +27,8 @@ type AgentStore = {
   applyEvent: (sessionId: string, event: BaseEvent) => void;
   /** Discard a session's state and start clean (e.g. on agent re-mount). */
   resetSession: (sessionId: string) => void;
+  /** Remove a session entry entirely (closing the tab — frees view state). */
+  dropSession: (sessionId: string) => void;
   /** Bind / unbind the imperative stop action for a session. */
   setStop: (sessionId: string, fn: StopFn) => void;
   /** Bind / unbind the imperative send action for a session. */
@@ -59,6 +61,13 @@ export const useAgentStore = create<AgentStore>((set) => ({
     }),
   resetSession: (sessionId) =>
     set((s) => ({ sessions: { ...s.sessions, [sessionId]: emptyEntry() } })),
+  dropSession: (sessionId) =>
+    set((s) => {
+      if (!(sessionId in s.sessions)) return s;
+      const next = { ...s.sessions };
+      delete next[sessionId];
+      return { sessions: next };
+    }),
   setStop: (sessionId, fn) =>
     set((s) => ({ sessions: patch(s.sessions, sessionId, { stop: fn }) })),
   setSend: (sessionId, fn) =>
@@ -74,6 +83,18 @@ export const useAgentStore = create<AgentStore>((set) => ({
       };
     }),
 }));
+
+// Prune sessions whose tab is closed. The view slice (messages, toolCalls,
+// shared, plan) can be megabytes of streamed markdown per session — without
+// this it accumulates forever.
+useSessionStore.subscribe((state, prev) => {
+  if (state.tabIds === prev.tabIds) return;
+  const live = new Set(state.tabIds);
+  const sessions = useAgentStore.getState().sessions;
+  for (const id of Object.keys(sessions)) {
+    if (!live.has(id)) useAgentStore.getState().dropSession(id);
+  }
+});
 
 // ---------------------------------------------------------------------------
 // Selector hooks

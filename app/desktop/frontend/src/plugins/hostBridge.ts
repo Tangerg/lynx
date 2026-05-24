@@ -32,6 +32,8 @@ export type LyraHostBridge = {
   SDK: typeof SDK;
 };
 
+let bridgeInstalled = false;
+
 export function installHostBridge(): void {
   if (typeof window === "undefined") return;
   window.__LYRA__ = {
@@ -41,15 +43,17 @@ export function installHostBridge(): void {
     Motion,
     SDK,
   };
+  if (bridgeInstalled) return;
+  bridgeInstalled = true;
   // Single beforeunload listener — fans out to every plugin-registered
   // BeforeUnloadHandler. Synchronous on purpose: browsers don't await
-  // promises during unload.
+  // promises during unload. Guarded by `bridgeInstalled` so React strict-
+  // mode's double-mounted effect doesn't stack duplicate listeners.
   window.addEventListener("beforeunload", () => {
     for (const o of usePluginStore.getState().beforeUnloadHandlers.values()) {
       try {
         o.value();
       } catch (err) {
-         
         console.error(`[plugin] ${o.pluginName} onBeforeUnload threw:`, err);
       }
     }
