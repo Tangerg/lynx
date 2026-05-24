@@ -252,11 +252,12 @@ html.theme-light { color-scheme: light; }
    ============================================================ */
 /* Top padding clears macOS traffic-light controls (red/amber/green at
    ~10-26px from window top + ~6px reserve = 32px footprint, plus
-   visual breathing). Same value used on rail mode below. The top zone
-   doubles as the window drag region so users can move the window by
-   the brand row. */
+   visual breathing). The full mode gets 48px (room for the brand row);
+   the rail mode is tighter at 36px since the rail-brand square sits
+   directly under the traffic lights. The top zone doubles as the
+   window drag region so users can move the window by the brand row. */
 .sidebar       { padding-top: 48px; -webkit-app-region: drag; --wails-draggable: drag; }
-.sidebar.rail  { padding-top: 48px; -webkit-app-region: drag; --wails-draggable: drag; }
+.sidebar.rail  { padding-top: 36px; -webkit-app-region: drag; --wails-draggable: drag; }
 /* Brand row + interactive children opt out of drag so they remain clickable. */
 .sidebar .brand,
 .sidebar .rail-brand,

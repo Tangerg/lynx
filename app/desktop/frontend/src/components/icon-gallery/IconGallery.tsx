@@ -43,21 +43,29 @@ export function IconGallery() {
   }, [items]);
 
   return (
-    <div className="icon-gallery">
-      <div className="ig-head">
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="flex items-center justify-between gap-4 px-5 py-4">
         <div>
-          <div className="ig-title">@lobehub/icons</div>
-          <div className="ig-sub">{rawToc.length} icons · brands across LLM models, providers, and apps</div>
+          <div className="text-[15px] font-semibold tracking-[-0.01em]">@lobehub/icons</div>
+          <div className="mt-0.5 text-[11.5px] text-fg-faint">
+            {rawToc.length} icons · brands across LLM models, providers, and apps
+          </div>
         </div>
-        <div className="ig-search">
-          <Icon name="search" size={13} />
+        <div className="relative flex w-60 items-center gap-1.5 rounded-md border border-transparent bg-surface-2 px-2.5 py-1 transition-colors duration-150 focus-within:border-[color-mix(in_srgb,var(--color-accent)_35%,var(--color-line))]">
+          <Icon name="search" size={13} className="shrink-0 text-fg-faint" />
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Filter by name…"
+            className="flex-1 border-0 bg-transparent text-[12px] text-fg font-inherit outline-none placeholder:text-fg-faint"
           />
           {query && (
-            <button className="ig-clear" onClick={() => setQuery("")} title="Clear">
+            <button
+              type="button"
+              onClick={() => setQuery("")}
+              title="Clear"
+              className="grid h-5.5 w-5.5 place-items-center rounded-xs border-0 bg-transparent p-0 text-fg-faint cursor-pointer transition-[background,color,transform] duration-150 hover:bg-surface-3 hover:text-fg active:scale-90"
+            >
               <Icon name="x" size={11} />
             </button>
           )}
@@ -69,12 +77,12 @@ export function IconGallery() {
           const list = grouped[g];
           if (list.length === 0) return null;
           return (
-            <section key={g} className="ig-section">
-              <header className="ig-section-head">
+            <section key={g} className="px-5 pt-4.5 pb-3">
+              <header className="flex items-baseline justify-between pb-2.5 font-mono text-[10.5px] font-semibold text-fg-faint tracking-normal">
                 <span>{GROUP_TITLES[g]}</span>
-                <span className="ig-section-count">{list.length}</span>
+                <span className="font-mono text-fg-muted tabular-nums">{list.length}</span>
               </header>
-              <div className="ig-grid">
+              <div className="grid gap-2 [grid-template-columns:repeat(auto-fill,minmax(120px,1fr))]">
                 {list.map((entry) => (
                   <IconCard key={entry.id} entry={entry} />
                 ))}
@@ -83,7 +91,9 @@ export function IconGallery() {
           );
         })}
         {items.length === 0 && (
-          <div className="ig-empty">No icons match "{query}".</div>
+          <div className="px-5 py-16 text-center text-[12px] text-fg-faint">
+            No icons match "{query}".
+          </div>
         )}
       </ScrollArea>
     </div>
@@ -93,18 +103,23 @@ export function IconGallery() {
 function IconCard({ entry }: { entry: (typeof rawToc)[number] }) {
   const Component = IconMap[entry.id];
   return (
-    <div className="ig-card" title={`${entry.fullTitle} — ${entry.id}`}>
-      <div className="ig-glyph">
-        {Component ? <Component size={28} /> : <span className="ig-missing">?</span>}
+    <div
+      title={`${entry.fullTitle} — ${entry.id}`}
+      className="flex flex-col items-center gap-1.5 rounded-lg border border-line bg-surface px-2.5 pt-3.5 pb-2.5 cursor-default transition-[border-color,transform] duration-150 hover:border-[color-mix(in_srgb,var(--color-accent)_30%,var(--color-line))] hover:-translate-y-px"
+    >
+      <div className="grid h-11 w-11 place-items-center rounded-md bg-surface-2 text-fg">
+        {Component ? <Component size={28} /> : <span className="font-mono text-fg-faint">?</span>}
       </div>
-      <div className="ig-name">{entry.fullTitle}</div>
-      <div className="ig-meta">
+      <div className="max-w-full truncate text-center text-[11.5px] font-medium text-fg">
+        {entry.fullTitle}
+      </div>
+      <div className="flex items-center gap-1.5 text-[10px]">
         <span
-          className="ig-swatch"
-          style={{ background: entry.color }}
           title={entry.color}
+          className="h-2 w-2 rounded-full border border-[color-mix(in_srgb,var(--color-text)_10%,transparent)]"
+          style={{ background: entry.color }}
         />
-        <code className="ig-id">{entry.id}</code>
+        <code className="font-mono text-[9.5px] text-fg-faint tracking-[-0.005em]">{entry.id}</code>
       </div>
     </div>
   );
