@@ -1,0 +1,101 @@
+/* ============================================================
+   Lyra — Tailwind 4 entry point + design-token bridge.
+
+   Strategy:
+   - Tailwind 4 is imported FIRST so its `@theme` directive sees our
+     CSS variable bridge below.
+   - `@theme inline` aliases our existing `--color-bg / --color-text /
+     ...` tokens (which theme plugins write to at runtime) into
+     Tailwind's expected `--color-{name}` / `--radius-{name}` names.
+     `inline` prevents Tailwind from re-declaring them at :root, so
+     each utility class compiles to e.g.
+       `.bg-canvas { background-color: var(--color-bg); }`
+     which means: theme plugins keep working — they set `--color-bg`,
+     and every `bg-canvas` callsite picks up the new value live.
+   - Legacy `style.css` imports stay during the migration; once a
+     component is rewritten with Tailwind utilities, its old CSS lives
+     on harmlessly in the bundle until the matching styles/*.css file
+     is deleted in P6.
+   ============================================================ */
+
+@import "tailwindcss";
+
+/* Custom variants for our scheme classes. Drives `dark:bg-surface` etc.
+   `theme-light` and `theme-dark` are written by themeStore.applyTheme. */
+@custom-variant dark (&:where(.theme-dark, .theme-dark *));
+@custom-variant light (&:where(.theme-light, .theme-light *));
+
+/* Design-token bridge. Inline mode means each utility uses
+   var(--source) directly, no shadow variable. */
+@theme inline {
+  /* ---------- Surface ladder ----------
+     `bg-canvas`  → outer frame (darkest in dark / lightest in light)
+     `bg-surface` → lifted panel
+     `bg-surface-2/3` → derived steps for hover / active / popovers */
+  --color-canvas:    var(--color-bg);
+  --color-surface:   var(--color-surface);
+  --color-surface-2: var(--color-surface-2);
+  --color-surface-3: var(--color-surface-3);
+
+  /* ---------- Ink ladder ----------
+     `text-fg` is the default body color; -bright / -soft / -muted /
+     -faint step down toward the background. `on-accent` is used for
+     text/icons sitting on a primary-color surface. */
+  --color-fg:        var(--color-text);
+  --color-fg-bright: var(--color-text-bright);
+  --color-fg-soft:   var(--color-text-soft);
+  --color-fg-muted:  var(--color-text-muted);
+  --color-fg-faint:  var(--color-text-faint);
+  --color-on-accent: var(--color-text-on-accent);
+
+  /* ---------- Accent ---------- */
+  --color-accent:        var(--color-accent);
+  --color-accent-border: var(--color-accent-border);
+  --color-accent-press:  var(--color-accent-press);
+
+  /* ---------- Semantic ---------- */
+  --color-negative: var(--color-negative);
+  --color-warning:  var(--color-warning);
+  --color-info:     var(--color-info);
+  --color-success:  var(--color-success);
+
+  /* ---------- Borders ----------
+     `border-line` is the default hairline; -soft is the emphasized
+     stroke used on lifted surfaces; -divider is the deepest contrast. */
+  --color-line:      var(--color-border);
+  --color-line-soft: var(--color-border-soft);
+  --color-divider:   var(--color-divider);
+
+  /* ---------- Radius ----------
+     md (8px) is the default button radius. pill = fully rounded. */
+  --radius-xs:   4px;
+  --radius-sm:   6px;
+  --radius-md:   8px;
+  --radius-lg:   12px;
+  --radius-xl:   16px;
+  --radius-pill: 9999px;
+
+  /* ---------- Fonts ---------- */
+  --font-sans: "Geist", "Inter", system-ui, sans-serif;
+  --font-mono: "Geist Mono", "JetBrains Mono", ui-monospace, Menlo, monospace;
+}
+
+/* Legacy CSS still imported during the P2-P6 migration. Components
+   rewritten with Tailwind utilities don't need their old class, but
+   the rest of the app still does. Each styles/*.css file gets deleted
+   as its consumers migrate. */
+@import "./tokens.css";
+@import "./reset.css";
+@import "./layout.css";
+@import "./chat.css";
+@import "./composer.css";
+@import "./icon-gallery.css";
+@import "./markdown.css";
+@import "./overlays.css";
+@import "./settings.css";
+@import "./sidebar.css";
+@import "./statusbar.css";
+@import "./tool.css";
+@import "./topbar.css";
+@import "./welcome.css";
+@import "./theme.css";
