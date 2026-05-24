@@ -38,8 +38,16 @@ type Props = Omit<ButtonHTMLAttributes<HTMLButtonElement>, "children"> &
 export function IconButton({
   variant, active, className, children, ...rest
 }: Props) {
+  // Icon-only buttons need an accessible name. If the caller supplied
+  // `title` (the hover tooltip) but didn't override `aria-label`, mirror
+  // it so screen readers get the same text the sighted user sees.
+  const ariaLabel = rest["aria-label"] ?? rest.title;
   return (
-    <button {...rest} className={cn(styles({ variant, active }), className)}>
+    <button
+      {...rest}
+      aria-label={ariaLabel}
+      className={cn(styles({ variant, active }), className)}
+    >
       {children}
     </button>
   );

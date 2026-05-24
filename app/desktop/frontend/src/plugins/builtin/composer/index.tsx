@@ -113,7 +113,7 @@ function ModelPicker() {
   return (
     <button
       type="button"
-      title="Switch model"
+      title="Switch model" aria-label="Switch model"
       className="mr-1 inline-flex h-6.5 shrink-0 items-center gap-1.5 rounded-full border border-transparent bg-transparent pl-1 pr-2.5 font-sans text-[12px] font-semibold text-fg whitespace-nowrap cursor-pointer transition-colors hover:bg-surface-2 hover:border-line"
     >
       <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-[linear-gradient(135deg,var(--color-accent)_0%,color-mix(in_oklab,var(--color-accent)_40%,#000)_100%)] text-on-accent font-semibold text-[11px]">
@@ -129,7 +129,7 @@ function AttachButton() {
   return (
     <button
       type="button"
-      title="Attach file"
+      title="Attach file" aria-label="Attach file"
       className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border-0 bg-transparent text-fg-muted cursor-pointer transition-colors hover:bg-surface-2 hover:text-fg"
     >
       <Icon name={"paperclip" as IconName} size={13} />

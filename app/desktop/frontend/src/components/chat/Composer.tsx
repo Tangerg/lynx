@@ -53,7 +53,7 @@ export function Composer({
   }, [value]);
 
   return (
-    <div className="relative rounded-2xl border border-line-soft bg-surface px-2.5 pb-1.5 pt-2 transition-[border-color,box-shadow] duration-200 focus-within:border-line-soft focus-within:shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-accent)_14%,transparent)]">
+    <div className="relative rounded-2xl border border-line-soft bg-surface px-2.5 pb-1.5 pt-2 transition-[border-color,box-shadow] duration-150 focus-within:border-line-soft focus-within:shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-accent)_14%,transparent)]">
       <PluginAttachments sources={attachmentSources} />
       {attachments.length > 0 && (
         <div className="flex flex-wrap gap-1.5 px-1 pb-0.5 pt-1">
@@ -71,6 +71,7 @@ export function Composer({
       )}
       <textarea
         ref={inputRef}
+        aria-label="Message composer"
         placeholder={placeholder}
         value={value}
         onChange={(e) => onChange(e.target.value)}
