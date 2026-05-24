@@ -26,11 +26,17 @@ export default defineThemePlugin({
     "color-surface":        "#181a1d",
 
     // ---------- Ink ----------
+    // Ink ladder calibrated so the small-text tiers stay above WCAG AA
+    // (4.5:1 on dark canvas). text-faint was #62666d — that read ≈3.6:1
+    // on canvas, which fails AA for body / caption sizes (11-12px). New
+    // #76787e reads ≈4.7:1 on canvas while staying clearly subordinate
+    // to text-muted. Same hierarchy intent, accessible to low-vision
+    // users and on glossy displays.
     "color-text":           "#f7f8f8",
     "color-text-bright":    "#ffffff",
     "color-text-soft":      "#d0d6e0",
-    "color-text-muted":     "#8a8f98",
-    "color-text-faint":     "#62666d",
+    "color-text-muted":     "#9ea3ac", // bumped from #8a8f98 → ~5.6:1 on canvas
+    "color-text-faint":     "#76787e", // bumped from #62666d → ~4.7:1 on canvas
     "color-text-on-accent": "#000000", // black ink reads on bright green
 
     // ---------- Hairlines ----------
