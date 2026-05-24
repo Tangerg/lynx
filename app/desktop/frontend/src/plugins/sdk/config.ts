@@ -9,6 +9,7 @@
 // can subscribe to a key and mirror it to localStorage if needed.
 
 import { create } from "zustand";
+import { safeCall } from "./errors";
 import type { Disposable } from "./types";
 
 export type ConfigValue =
@@ -42,12 +43,7 @@ export const useConfigStore = create<ConfigStoreState & ConfigStoreActions>((set
     const subs = get().subscribers.get(key);
     if (!subs) return;
     for (const fn of [...subs]) {
-      try {
-        fn(value);
-      } catch (err) {
-         
-        console.error(`[plugin] config subscriber for "${key}" threw:`, err);
-      }
+      safeCall(() => fn(value), `[plugin] config subscriber for "${key}" threw:`);
     }
   },
 

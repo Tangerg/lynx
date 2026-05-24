@@ -40,6 +40,7 @@ import type {
   ToolActionSpec,
   ToolPreviewComponent,
 } from "./types";
+import { safeCall } from "./errors";
 
 type Owned<T> = { pluginName: string; value: T };
 
@@ -391,12 +392,10 @@ export const usePluginStore = create<PluginStoreState & PluginStoreActions>((set
     set({ loaded: next });
     // Fan out to onLoad listeners — isolated per subscriber.
     for (const o of get().pluginLoadListeners.values()) {
-      try {
-        o.value(plugin.spec);
-      } catch (err) {
-         
-        console.error(`[plugin] ${o.pluginName} onLoad listener threw:`, err);
-      }
+      safeCall(
+        () => o.value(plugin.spec),
+        `[plugin] ${o.pluginName} onLoad listener threw:`,
+      );
     }
   },
 
@@ -404,23 +403,16 @@ export const usePluginStore = create<PluginStoreState & PluginStoreActions>((set
     const plugin = get().loaded.get(pluginName);
     if (!plugin) return;
     for (const d of plugin.disposables) {
-      try {
-        d.dispose();
-      } catch (err) {
-         
-        console.error(`[plugin] ${pluginName} dispose threw:`, err);
-      }
+      safeCall(() => d.dispose(), `[plugin] ${pluginName} dispose threw:`);
     }
     const next = new Map(get().loaded);
     next.delete(pluginName);
     set({ loaded: next });
     for (const o of get().pluginUnloadListeners.values()) {
-      try {
-        o.value(pluginName);
-      } catch (err) {
-         
-        console.error(`[plugin] ${o.pluginName} onUnload listener threw:`, err);
-      }
+      safeCall(
+        () => o.value(pluginName),
+        `[plugin] ${o.pluginName} onUnload listener threw:`,
+      );
     }
   },
 
@@ -776,12 +768,7 @@ export const usePluginStore = create<PluginStoreState & PluginStoreActions>((set
     set({ appReady: true });
     // Fire each handler — isolated; one throw must not skip the rest.
     for (const o of get().readyHandlers.values()) {
-      try {
-        o.value();
-      } catch (err) {
-         
-        console.error(`[plugin] ${o.pluginName} onReady threw:`, err);
-      }
+      safeCall(() => o.value(), `[plugin] ${o.pluginName} onReady threw:`);
     }
   },
 

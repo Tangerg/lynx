@@ -6,6 +6,7 @@ import { api } from "@/lib/http";
 import type { ContentBlockKind } from "@/protocol/agui/viewState";
 import { useSessionStore } from "@/state/sessionStore";
 import { getConfig, hasConfig, setConfig, useConfigStore, type ConfigValue } from "./config";
+import { safeCall } from "./errors";
 import { useNotificationStore } from "./notifications";
 import { usePluginStore } from "./registry";
 import { getOrCreateSlice } from "./stateSlice";
@@ -56,12 +57,11 @@ import type {
  */
 // Single monotonic id minter used by every composite-key register call
 // (onCore, rpc.before/afterResponse, log.subscribe, lifecycle.onReady /
-// onBeforeUnload, plugins.onLoad / onUnload, etc.). The actual uniqueness
-// only matters within one plugin's composite map, so a global counter is
-// overkill — but it's simpler than per-scope ones, and the IDs aren't
-// exposed to user code.
-let idCounter = 0;
-const mintId = (prefix: string) => `${prefix}#${++idCounter}`;
+// onBeforeUnload, plugins.onLoad / onUnload, etc.). Uniqueness only needs
+// to hold within one plugin's composite map; a global counter is simpler
+// than per-scope ones and IDs aren't exposed to user code.
+let nextCompositeKeyId = 0;
+const mintId = (prefix: string) => `${prefix}#${++nextCompositeKeyId}`;
 
 // Plugin runtime injection point — definePlugin.ts installs the real
 // implementation at module load time. The Host's `plugins.{load,unload,
@@ -288,14 +288,9 @@ export function createHost(
         // — never synchronously inside register (which would surprise
         // setup-time callers).
         if (usePluginStore.getState().appReady) {
-          queueMicrotask(() => {
-            try {
-              fn();
-            } catch (err) {
-               
-              console.error(`[plugin] ${pluginName} onReady threw:`, err);
-            }
-          });
+          queueMicrotask(() =>
+            safeCall(fn, `[plugin] ${pluginName} onReady threw:`),
+          );
           return track({
             dispose: () => {
               /* no-op: already fired */
@@ -474,14 +469,7 @@ function emitLog(plugin: string, level: LogLevel, args: unknown[]): void {
   const event = { plugin, level, args, timestamp: Date.now() };
   const subs = usePluginStore.getState().logSubscribers;
   for (const o of subs.values()) {
-    try {
-      o.value(event);
-    } catch (err) {
-      // Don't let a subscriber crash the logger — but DO surface the error
-      // so a malformed subscriber isn't invisible.
-       
-      console.error("[plugin] log subscriber threw:", err);
-    }
+    safeCall(() => o.value(event), "[plugin] log subscriber threw:");
   }
 }
 

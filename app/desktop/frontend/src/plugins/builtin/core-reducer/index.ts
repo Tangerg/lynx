@@ -296,41 +296,52 @@ const onTextChunk = (state: AgentViewState, ev: TextMessageChunkEvent): AgentVie
   return next;
 };
 
+// First chunk — synthesize the tool entry. toolCallName might be absent
+// (some backends only set it on the first chunk that carries it); we fall
+// back to "" and downstream consumers tolerate that until a later chunk
+// fills it.
+function initToolCall(state: AgentViewState, ev: ToolCallChunkEvent): AgentViewState {
+  const id = ev.toolCallId!;
+  let next: AgentViewState = {
+    ...state,
+    toolCalls: {
+      ...state.toolCalls,
+      [id]: {
+        id,
+        fn: ev.toolCallName ?? "",
+        args: "",
+        status: "running",
+        duration: "LIVE",
+      },
+    },
+  };
+  if (ev.parentMessageId) {
+    next = updateMessage(next, ev.parentMessageId, (m) =>
+      appendBlock(m, { kind: "tool", toolCallId: id }),
+    );
+  }
+  return next;
+}
+
+// Later chunk arrived with the name — fill in the gap on an existing entry.
+function fillToolName(state: AgentViewState, id: string, name: string): AgentViewState {
+  return {
+    ...state,
+    toolCalls: {
+      ...state.toolCalls,
+      [id]: { ...state.toolCalls[id], fn: name },
+    },
+  };
+}
+
 const onToolChunk = (state: AgentViewState, ev: ToolCallChunkEvent): AgentViewState => {
   if (!ev.toolCallId) return state;
   let next = state;
-  if (!next.toolCalls[ev.toolCallId]) {
-    // First chunk — synthesize the tool entry. toolCallName might be
-    // absent (some backends only set it on the first chunk that has it);
-    // we fall back to "" and downstream consumers tolerate that until
-    // a later chunk fills it.
-    next = {
-      ...next,
-      toolCalls: {
-        ...next.toolCalls,
-        [ev.toolCallId]: {
-          id: ev.toolCallId,
-          fn: ev.toolCallName ?? "",
-          args: "",
-          status: "running",
-          duration: "LIVE",
-        },
-      },
-    };
-    if (ev.parentMessageId) {
-      next = updateMessage(next, ev.parentMessageId, (m) =>
-        appendBlock(m, { kind: "tool", toolCallId: ev.toolCallId! }),
-      );
-    }
-  } else if (ev.toolCallName && !next.toolCalls[ev.toolCallId].fn) {
-    // Later chunk arrived with the name — fill in the gap.
-    next = {
-      ...next,
-      toolCalls: {
-        ...next.toolCalls,
-        [ev.toolCallId]: { ...next.toolCalls[ev.toolCallId], fn: ev.toolCallName },
-      },
-    };
+  const existing = next.toolCalls[ev.toolCallId];
+  if (!existing) {
+    next = initToolCall(next, ev);
+  } else if (ev.toolCallName && !existing.fn) {
+    next = fillToolName(next, ev.toolCallId, ev.toolCallName);
   }
   if (ev.delta) {
     next = updateTool(next, ev.toolCallId, (t) => ({ ...t, args: t.args + ev.delta }));
@@ -346,10 +357,10 @@ const onToolChunk = (state: AgentViewState, ev: ToolCallChunkEvent): AgentViewSt
 // themselves are no-ops — the inner stream lifecycle conveys "thinking
 // happened".
 
-let thinkingIdCounter = 0;
+let thinkingBlockSeq = 0;
 function nextThinkingId(): string {
-  thinkingIdCounter += 1;
-  return `thinking:${Date.now()}:${thinkingIdCounter}`;
+  thinkingBlockSeq += 1;
+  return `thinking:${Date.now()}:${thinkingBlockSeq}`;
 }
 
 function findActiveThinkingId(state: AgentViewState): string | null {
@@ -530,64 +541,75 @@ type SnapToolCall = {
   function: { name: string; arguments: string };
 };
 
+// Tool result — attach to its tool call entry. If the matching tool call
+// hasn't been seen yet (out-of-order snapshot), stash a minimal entry;
+// the downstream assistant message will fill in fn.
+function ingestToolResult(toolCalls: Record<string, ToolCall>, m: SnapshotMessage): void {
+  const tcId = (m as { toolCallId: string }).toolCallId;
+  const content = (m as { content: string }).content;
+  const errored = Boolean((m as { error?: string }).error);
+  const prev = toolCalls[tcId];
+  toolCalls[tcId] = {
+    id: tcId,
+    fn: prev?.fn ?? "",
+    args: prev?.args ?? "",
+    status: errored ? "err" : "ok",
+    duration: prev?.duration ?? "—",
+    result: content,
+  };
+}
+
+// Build assistant blocks (text + tool placeholders) and side-effect the
+// accumulator with each tool call's metadata.
+function buildAssistantBlocks(
+  m: SnapshotMessage,
+  toolCalls: Record<string, ToolCall>,
+): ContentBlock[] {
+  const blocks: ContentBlock[] = [];
+  const content = (m as { content?: string }).content;
+  if (content) {
+    blocks.push({ kind: "text", text: content, streaming: false });
+  }
+  const tcs = (m as { toolCalls?: SnapToolCall[] }).toolCalls ?? [];
+  for (const tc of tcs) {
+    blocks.push({ kind: "tool", toolCallId: tc.id });
+    const prev = toolCalls[tc.id];
+    toolCalls[tc.id] = {
+      id: tc.id,
+      fn: tc.function.name,
+      args: tc.function.arguments,
+      status: prev?.status ?? "ok",
+      duration: prev?.duration ?? "—",
+      result: prev?.result,
+    };
+  }
+  return blocks;
+}
+
 const onMessagesSnapshot = (state: AgentViewState, ev: MessagesSnapshotEvent): AgentViewState => {
   const messages: Message[] = [];
   const toolCalls: Record<string, ToolCall> = {};
 
   for (const m of ev.messages as SnapshotMessage[]) {
     if (m.role === "tool") {
-      // Tool result — attach to its tool call entry. If the matching
-      // tool call hasn't been seen yet (out-of-order snapshot), stash
-      // a minimal entry; downstream assistant message will fill in fn.
-      const tcId = (m as { toolCallId: string }).toolCallId;
-      const content = (m as { content: string }).content;
-      const errored = Boolean((m as { error?: string }).error);
-      const prev = toolCalls[tcId];
-      toolCalls[tcId] = {
-        id: tcId,
-        fn: prev?.fn ?? "",
-        args: prev?.args ?? "",
-        status: errored ? "err" : "ok",
-        duration: prev?.duration ?? "—",
-        result: content,
-      };
+      ingestToolResult(toolCalls, m);
       continue;
     }
 
     const role: Message["role"] =
       m.role === "user" ? "user" : m.role === "assistant" ? "assistant" : "system";
 
-    const blocks: ContentBlock[] = [];
-    if (m.role === "assistant") {
-      const content = (m as { content?: string }).content;
-      if (content) {
-        blocks.push({ kind: "text", text: content, streaming: false });
-      }
-      const tcs = (m as { toolCalls?: SnapToolCall[] }).toolCalls ?? [];
-      for (const tc of tcs) {
-        blocks.push({ kind: "tool", toolCallId: tc.id });
-        const prev = toolCalls[tc.id];
-        toolCalls[tc.id] = {
-          id: tc.id,
-          fn: tc.function.name,
-          args: tc.function.arguments,
-          status: prev?.status ?? "ok",
-          duration: prev?.duration ?? "—",
-          result: prev?.result,
-        };
-      }
-    } else {
-      const content = (m as { content: string }).content;
-      blocks.push({ kind: "text", text: content, streaming: false });
-    }
+    const blocks: ContentBlock[] =
+      m.role === "assistant"
+        ? buildAssistantBlocks(m, toolCalls)
+        : [{ kind: "text", text: (m as { content: string }).content, streaming: false }];
 
     messages.push({
       id: m.id,
       role,
       who: nameForRole(role),
-      // Snapshot messages don't carry timestamps in the AG-UI message
-      // type — we use "now" as a stand-in. Real backends should include
-      // timestamps when they extend the message schema.
+      // Snapshot messages don't carry timestamps in the AG-UI schema — we
+      // use "now" as a stand-in. Real backends should include timestamps.
       time: nowTime(),
       blocks,
     });
