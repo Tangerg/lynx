@@ -16,27 +16,16 @@ type Props = {
   file?: string;
 };
 
-// ShikiCodeBlock — async syntax highlighting with theme-aware output.
-//
-// Why we debounce `code` instead of highlighting on every render:
-// smooth-text reveals new chars at ~30 Hz during streaming, and each
-// Shiki tokenization pass is 3-10ms. Hammering it every delta racks up
-// hundreds of ms/sec on the main thread and freezes the chat. We hold
-// onto the previous highlight while the stream is in flight and only
-// re-tokenize once the code stops changing for 120ms — at that point
-// the user is either between paragraphs or the block has closed. The
-// LIVE code (pre-debounce) shows in a plain `<pre>` fallback in the
-// meantime, which doubles as the loading state on first paint.
-// Blocks longer than this default to collapsed (only while not streaming).
-// Below the threshold we render in full so short snippets aren't hidden
-// behind a click.
+// We debounce `code` so the Shiki tokenizer (3-10ms per pass) doesn't
+// run on every smooth-text delta during streaming. While it's settling,
+// raw code shows in a <pre> fallback. Blocks longer than this auto-fold
+// once the stream finishes.
 const FOLD_LINE_THRESHOLD = 24;
 
 export function ShikiCodeBlock({ lang, code, file }: Props) {
   const themeId = useThemeStore((s) => s.theme);
-  // Use the spec's scheme so custom themes (e.g. "solarized-dark") still
-  // resolve to the correct shiki preset — comparing id === "light" would
-  // miss third-party light themes.
+  // resolveScheme via the registry so third-party light themes ("solarized-
+  // light" etc.) also pick the right shiki preset, not just id === "light".
   const scheme = resolveScheme(themeId);
   const shikiTheme = scheme === "light" ? "github-light" : "github-dark";
 
@@ -48,9 +37,8 @@ export function ShikiCodeBlock({ lang, code, file }: Props) {
   const [expanded, setExpanded] = useState(false);
 
   const lineCount = useMemo(() => code.split("\n").length, [code]);
-  // Auto-fold rules: long block + stream has settled + user hasn't expanded.
-  // While the code is still streaming we leave it open — collapsing a
-  // growing block hides the agent's progress.
+  // Don't fold while the stream is in flight — collapsing a growing
+  // block hides the agent's progress.
   const folded = !expanded && !isSettling && lineCount > FOLD_LINE_THRESHOLD;
 
   useEffect(() => {
@@ -87,21 +75,15 @@ export function ShikiCodeBlock({ lang, code, file }: Props) {
     setTimeout(() => setCopied(false), 1500);
   };
 
-  // While streaming we show the live (un-highlighted) text — feels like a
-  // terminal scrolling in. When the stream settles, we swap to the
-  // syntax-highlighted version. If the highlighter never finished (e.g.
-  // failed to load), we keep the fallback indefinitely.
+  // Streaming → raw <pre> fallback; settled → swap to highlighted.
+  // Falls back indefinitely if the highlighter never resolves.
   const showHighlighted = !isSettling && html !== null;
 
   return (
-    // `shiki-block` class is kept as a DOM hook for the markdown.css
-    // rules that style Shiki's emitted `.shiki` + `.shiki code` children
-    // (those come from a string, not JSX, so Tailwind utilities can't
-    // reach them). Everything else here is Tailwind utilities.
+    // `shiki-block` is a CSS hook for markdown.css rules that style the
+    // `<pre class="shiki">` + child `<code>` Shiki emits as a string.
     <div
       className={cn(
-        // Block code body at 13 — two steps below body (15), keeps code
-        // visually distinct from prose but readable at a glance.
         "shiki-block group/code my-3.5 overflow-hidden rounded-lg font-mono text-[13px]",
         "border border-[color-mix(in_srgb,var(--color-text)_10%,transparent)]",
         "bg-[color-mix(in_srgb,var(--color-text)_3%,transparent)]",

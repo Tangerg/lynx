@@ -1,25 +1,8 @@
-// Smooth-text engine — decouples render cadence from backend chunk cadence.
-//
-// Why this exists: backend SSE chunks arrive irregularly (5-9 runes every
-// 40-100ms in our mock; real models cluster bursts of tokens then pause).
-// Rendering raw makes the fade-in feel like "word pop, char spit, word pop".
-// Smoothing buffers the raw text into a queue and reveals it at a steady,
-// adaptive rate so each fade-in has time to register before the next word
-// arrives.
-//
-// Three improvements over the previous version (inspired by Proma's
-// useSmoothStream and our own backlog observations):
-//   - Three-tier adaptive rate based on remaining backlog (was two-tier).
-//     A small backlog cruises at 40 chars/sec; mid-sized at 80; large at
-//     160. That gives a more natural feel than the old binary 40/120
-//     switch.
-//   - Stream-end drain: when `enabled` flips false, instead of either
-//     freezing at the slow rate (laggy) or snapping to full text (jarring),
-//     we drain the remaining backlog at a rate proportional to its size —
-//     small tail catches up smoothly, big tail catches up quickly.
-//   - Time-based char-debt: each frame we add `rate × elapsed` to a debt
-//     counter and consume whole words while debt ≥ next-word-length. Keeps
-//     visible rate exactly on-target regardless of vsync jitter.
+// Smooth-text engine — paces token reveal at a steady rate so each
+// per-word fade-in has time to register, regardless of how irregularly
+// the backend chunks arrive. Three-tier adaptive rate based on backlog
+// + drain mode when the stream ends + time-based char-debt accounting
+// so the visible cadence stays on-target through vsync jitter.
 
 import { useEffect, useRef, useState } from "react";
 import { segmentWords } from "./segmentWords";
@@ -56,17 +39,10 @@ export function pickRate(backlog: number, streaming: boolean): number {
   return RATE_CRUISE;
 }
 
-// useSmoothText paces `rawText` reveal to a steady, adaptive rhythm.
-// Returns the visible prefix; consumers re-tokenize and render that. The
-// reveal advances by whole words only, so the suffix never lands mid-word.
-//
-// `enabled` controls TWO things:
-//   - initial displayLen (true → start at 0; false → start fully revealed)
-//   - the live rate selection (false → drain mode, see pickRate)
-//
-// The rAF loop is always-on after mount: a block that transitions from
-// streaming → finished mid-play continues draining gracefully; future text
-// growth on the same block restarts the cruise.
+// Reveals `rawText` whole-word at a time at the adaptive rate from
+// pickRate. `enabled` controls both the initial state (false → start
+// fully revealed) and the live rate (false → drain mode). The rAF
+// loop stays mounted so stream-end transitions drain gracefully.
 export function useSmoothText(rawText: string, enabled: boolean): string {
   const initialLen = enabled ? 0 : rawText.length;
   const [displayLen, setDisplayLen] = useState(initialLen);

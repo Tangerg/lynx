@@ -1,31 +1,11 @@
-/* ============================================================
-   Tool-card residuals + highlight.ts token colours + lazy placeholder.
+/* Three orthogonal concerns:
+   - .tool-card.running rotating border (@property + conic + mask, not
+     Tailwind-expressible);
+   - .token-* / .t-* syntax span colours (highlight.ts emits raw HTML
+     strings via dangerouslySetInnerHTML, no JSX nodes to attach utils);
+   - .lazy-activator marker for the LazyActivator placeholder. */
 
-   After P6.9 / P6.10, this file is just three orthogonal concerns:
-
-   1) `.tool-card.running` rotating border —
-      Uses @property + conic-gradient + mask. Tailwind can't express
-      that combo cleanly, so the rule lives here and the JSX adds
-      `tool-card running` alongside its other utility classes
-      (see components/tools/ToolCard.tsx).
-
-   2) Syntax token colours —
-      `utils/highlight.ts` produces `<span class="token-kw">…</span>`
-      strings inserted via dangerouslySetInnerHTML. Those strings live
-      outside JSX, so Tailwind utilities can't be applied at the call
-      site. The four `.token-*` rules give the spans their colour.
-      The same applies to `.file-preview .fp-line .code .t-kw/.t-str/
-      .t-fn` — those spans are produced by another rendering helper
-      that also returns HTML strings, not JSX.
-
-   3) `.lazy-activator` —
-      DOM marker that `plugins/LazyActivator.ts` puts on the wrapper
-      while it streams in a lazily-registered component. Tiny enough
-      that inlining via JSX is overkill; keeping the class lets the
-      activator be a non-React utility.
-   ============================================================ */
-
-/* ---------- Running animation ---------- */
+/* Running animation */
 @property --tc-angle {
   syntax: "<angle>";
   initial-value: 0deg;
@@ -63,7 +43,7 @@
   }
 }
 
-/* ---------- Syntax tokens (dark theme defaults) ---------- */
+/* Syntax tokens — dark defaults. Light theme overrides in theme.css. */
 .token-kw {
   color: #e07acc;
 }
@@ -77,10 +57,6 @@
   color: var(--color-text-faint);
   font-style: italic;
 }
-
-/* File-preview's mini highlighter — the spans live inside a `.file-preview
-   .fp-line .code` chain emitted as an HTML string, so the rules need to
-   inherit through that hierarchy. */
 .file-preview .fp-line .code .t-kw {
   color: #e07acc;
 }
@@ -91,7 +67,7 @@
   color: #82cfff;
 }
 
-/* ---------- Lazy-activator slot placeholder ---------- */
+/* Lazy-activator slot placeholder */
 .lazy-activator {
   display: grid;
   place-items: center;

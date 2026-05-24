@@ -1,19 +1,8 @@
-/* ============================================================
-   Cross-cutting html.theme-light structural overrides.
+/* html.theme-light structural overrides — the rules that can't ride
+   the @theme inline token bridge: panel chrome shape, scrollbar tint,
+   and colour spans emitted by HTML-string renderers (highlight.ts /
+   FilePreview) which Tailwind utilities can't reach. */
 
-   Token values (--color-bg, --color-text, --shadow-…) are NOT declared
-   here — they live on the `lyra.builtin.default-themes` plugin
-   (frontend/src/plugins/builtin/defaults/themeTokens.ts) and are
-   written to :root.style at theme switch. This file owns only the
-   structural rules that key on the .theme-light selector and can't
-   ride the @theme inline token bridge: shape-level differences (panel
-   chrome) and styling for spans emitted by HTML-string renderers
-   (highlight.ts) which can't be addressed with Tailwind utilities.
-   ============================================================ */
-
-/* Body / canvas — outer frame is canvas (#fafafa). Panels lift above
-   it to surface (#ffffff) via the .panel default. Same cards-on-canvas
-   pattern as dark mode, just inverted. */
 html.theme-light,
 html.theme-light body {
   background: var(--color-bg);
@@ -22,10 +11,8 @@ html.theme-light .app {
   background: var(--color-bg);
 }
 
-/* Panel chrome — no border. Depth via STACKED SHADOW only (JB / Vercel
-   pattern). The inset top-highlight from the dark-mode .panel rule
-   doesn't make sense on light (you can't have a "light from above"
-   highlight on a white surface), so we explicitly reset it. */
+/* Panel chrome — stacked shadow, no border, no inset top highlight
+   (white-on-white can't show one). */
 html.theme-light .panel {
   border: none;
   box-shadow:
@@ -34,10 +21,8 @@ html.theme-light .panel {
     0 12px 24px -8px rgba(15, 15, 15, 0.1);
 }
 
-/* Syntax tokens — emitted by utils/highlight.ts (DiffView.tsx) and the
-   FilePreview HTML-string highlighter. The spans come from a
-   dangerouslySetInnerHTML string, so we can't override colours via
-   Tailwind utilities at the call site — light-theme tones live here. */
+/* Syntax tokens — light-theme tones for highlight.ts / FilePreview
+   spans. (Dark defaults live in tool.css.) */
 html.theme-light .token-kw {
   color: #b91d7d;
 }
@@ -60,9 +45,7 @@ html.theme-light .file-preview .fp-line .code .t-fn {
   color: #1d4ed8;
 }
 
-/* Scrollbar — light theme uses a quieter thumb (Vercel pattern: light
-   surfaces would make the dark thumb tokens overshoot). Targets the
-   .panel-scroll class set on every scrollable Panel body. */
+/* Quieter scrollbar on light — the dark thumb tokens overshoot. */
 html.theme-light .panel-scroll {
   scrollbar-color: #cdcdcc transparent;
 }
@@ -76,10 +59,8 @@ html.theme-light .panel-scroll::-webkit-scrollbar-thumb:hover {
   background-clip: content-box;
 }
 
-/* Markdown message body — overrides .msg-content children only.
-   MessageBlock keeps the .msg-content className for the markdown body
-   (Tailwind would require migrating every markdownComponents child
-   element; not worth the churn for one wrapper). */
+/* Markdown body overrides — .msg-content keeps the className because
+   migrating every markdownComponents child to Tailwind isn't worth it. */
 html.theme-light .msg-content {
   color: var(--color-text-soft);
 }

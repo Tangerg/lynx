@@ -1,32 +1,7 @@
-// Helper for the "theme as plugin" pattern.
-//
-// Every theme registers the same shape: a ThemeSpec carrying a tokens
-// map of CSS-var values. Most of that map is identical across themes of
-// the same scheme — the shadow ladder follows a fixed dark vs light
-// policy (DESIGN.md §5), and CTAs default to accent-driven. Only the
-// palette itself (surface ladder, ink, hairlines, semantic hues,
-// accent) and the optional shadow/radius/depth overrides are unique.
-//
-// `defineThemePlugin` removes that boilerplate: pass in the structured
-// spec, get back a fully-formed PluginSpec ready to drop into the
-// builtin manifest. The spec is strongly-typed so adding a new theme
-// = filling in the required brand / surfaces / ink / borders / semantic
-// sections (TypeScript enforces every field) + optional overrides.
-//
-// Customisation points exposed to themes (all optional, sane defaults):
-//   - shadows      — override the per-scheme shadow ladder
-//   - radii        — override the global radius scale
-//   - depthStep    — change the % step between surface-2/3/4 ladder
-//   - cta          — non-accent-driven primary button (e.g. Vercel black)
-//   - extras       — escape hatch for any CSS variable not yet captured
-//                    by the typed sections (custom syntax tokens etc.)
-//
-// Reference: pi-mono uses a flat JSON schema with a `vars` indirection;
-// VS Code splits `colors` (UI) and `tokenColors` (syntax); JetBrains
-// keeps `.icls` (palette) and `.theme.json` (UI) apart. We're inlining
-// everything into a single typed object because lyra themes are TS
-// files — local `const` declarations give us the same reuse `vars`
-// gives JSON authors, with zero runtime indirection.
+// Helper for the "theme as plugin" pattern — turns a typed ThemePluginSpec
+// into a PluginSpec ready for the builtin manifest. Required sections
+// (brand / surfaces / ink / borders / semantic) are enforced by TypeScript;
+// shadows / radii / depthStep / cta / extras are optional overrides.
 
 import { definePlugin } from "@/plugins/sdk";
 import type { PluginSpec } from "@/plugins/sdk";

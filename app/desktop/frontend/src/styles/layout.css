@@ -1,22 +1,12 @@
-/* ============================================================
-   Kernel layout — built on top of the tokens declared in tokens.css.
-   Owns the app shell (.app / .app-main / .app-statusbar / .panel /
-   .panel-scroll / .msg-scroll-frame), the cards-on-canvas pattern,
-   and the macOS titlebar shim that pushes the sidebar header down
-   so it clears the traffic-light controls.
-   ============================================================ */
+/* App shell — cards-on-canvas grid + macOS titlebar shim. */
 
 * {
   box-sizing: border-box;
 }
 
-/* ---------- Document + body ---------- */
-/* Hard minimum viewport size. Below this the composer (760px max-width)
-   and the two columns (sidebar + chat) start overlapping, so we lock the
-   page to scroll instead of squashing layout.
-   1180×720 lines up with: 760 (chat-measure) + 248 (sidebar) + 8×2 (canvas
-   gutters) + ~150 (margin to keep sidebar items breathing room). Fits a
-   1366×768 laptop comfortably; older 1280-class displays scroll once. */
+/* Hard minimum viewport: 760 (chat-measure) + 248 (sidebar) + gutters
+   round up to ~1180. Below this the two columns overlap, so the page
+   scrolls instead of squashing. */
 :root {
   --app-min-width: 1180px;
   --app-min-height: 720px;
@@ -56,14 +46,8 @@ html.theme-light {
   --shadow-glow: 0 0 10px color-mix(in srgb, var(--color-accent) 35%, transparent);
 }
 
-/* ---------- Kernel grid ----------
-   Cards-on-canvas pattern (Lyra original / Proma / IDE-class apps):
-   - Outer .app paints the canvas (darkest tone — the "stage").
-   - .app-main adds padding + gap so the canvas shows around / between
-     panels, like matting around framed art.
-   - Each .panel is a "lifted card" on surface-1 with rounded corners.
-   - .app-statusbar stays flush at the bottom — sits on the canvas itself
-     for the chrome-frame look. */
+/* Kernel grid — cards-on-canvas: .app paints the canvas, .app-main
+   pads it so panels read as lifted cards, statusbar sits flush. */
 .app {
   display: grid;
   grid-template-rows: 1fr 24px;
@@ -129,18 +113,10 @@ html.theme-light .tool-card.running::before {
   );
 }
 
-/* ---------- Panels ----------
-   Lifted cards on the outer canvas. Depth via SHADOW + tone step — not
-   lines (per user feedback, JetBrains-style: 完全没有线条, 但是分界线
-   很明显). Both panels use surface-1; canvas frames them in the 8px
-   padding/gap. The cards "float" via a subtle multi-layer drop shadow
-   + inset top-edge highlight (lit-from-above feel).
-
-   This intentionally overrides DESIGN.md §5's "no shadow on dark"
-   guidance. The DESIGN.md rule was correct for the prior flush-edge
-   layout where shadows would be invisible against same-colored
-   neighbors. With cards-on-canvas, panels float against canvas — a
-   real visual separation needs real shadow. */
+/* Panels — lifted cards on canvas. Multi-layer drop shadow + inset
+   top highlight give a "lit from above" feel. (Overrides DESIGN.md
+   §5's "no shadow on dark"; that rule assumed flush-edge layout
+   where shadows would be invisible against same-colored neighbours.) */
 .panel {
   background: var(--color-surface);
   border-radius: var(--radius-md);
@@ -195,18 +171,9 @@ html.theme-light .tool-card.running::before {
   flex-direction: column;
 }
 
-/* ============================================================
-   macOS titlebar shim — the native titlebar is hidden, traffic-light
-   controls overlap the top-left corner. Push the sidebar header down so
-   the brand isn't covered, and make the top zone draggable.
-
-   Top padding clears the controls (red/amber/green at ~10-26px from
-   window top + ~6px reserve = 32px footprint, plus visual breathing).
-   Full mode gets 48px (room for the brand row); rail mode tightens to
-   36px since the rail-brand square sits directly under the lights. The
-   top zone doubles as the window drag region so users can move the
-   window by the brand row.
-   ============================================================ */
+/* macOS titlebar shim — push sidebar header below the traffic-light
+   controls + make the top zone a Wails drag region. Full mode 48px,
+   rail mode 36px (the rail-brand square already sits under the lights). */
 .sidebar {
   padding-top: 48px;
   -webkit-app-region: drag;
