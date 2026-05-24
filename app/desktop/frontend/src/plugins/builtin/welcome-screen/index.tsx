@@ -37,7 +37,7 @@ function WelcomeScreen() {
       <h1 className="m-0 text-[40px] font-semibold leading-[1.15] tracking-[-0.02em] text-fg">
         {t("welcome.title")}
       </h1>
-      <p className="m-0 mb-4 max-w-[600px] text-[16px] leading-[1.65] text-fg-soft">
+      <p className="m-0 mb-4 max-w-[600px] text-[15px] leading-[1.65] text-fg-soft">
         {t("welcome.sub")}
       </p>
       <div className="grid w-full grid-cols-2 gap-2">
@@ -46,7 +46,7 @@ function WelcomeScreen() {
             key={s.labelKey}
             type="button"
             onClick={() => setValue(t(s.promptKey))}
-            className="group inline-flex items-center gap-2.5 rounded-md border border-line bg-surface px-3.5 py-3 font-sans text-[15px] font-medium text-fg-soft text-left cursor-pointer transition-[background,border-color,color,transform] duration-150 hover:bg-surface-2 hover:border-line-soft hover:text-fg active:scale-[0.98]"
+            className="group inline-flex items-center gap-2.5 rounded-md border border-line bg-surface px-3.5 py-3 font-sans text-[14px] font-medium text-fg-soft text-left cursor-pointer transition-[background,border-color,color,transform] duration-150 hover:bg-surface-2 hover:border-line-soft hover:text-fg active:scale-[0.98]"
           >
             <Icon name={s.icon} size={14} className="shrink-0 text-fg-faint group-hover:text-fg" />
             <span>{t(s.labelKey)}</span>

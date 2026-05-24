@@ -60,9 +60,9 @@ export function IconShowcase() {
 
   return (
     <div className="flex flex-col gap-4.5">
-      <p className="m-0 mb-1 text-[12px] leading-[1.55] text-fg-muted">
+      <p className="m-0 mb-1 text-[14px] leading-[1.55] text-fg-muted">
         A curated set of {total} brand glyphs from{" "}
-        <code className="rounded-xs bg-surface-2 px-1.5 py-px font-mono text-[11px] text-fg">@lobehub/icons</code>.
+        <code className="rounded-xs bg-surface-2 px-1.5 py-px font-mono text-[12px] text-fg">@lobehub/icons</code>.
         Full catalogue: <em className="not-italic text-fg">Cmd + K → View: Icon Gallery</em>.
       </p>
 

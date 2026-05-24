@@ -48,8 +48,8 @@ export function IconGallery() {
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex items-center justify-between gap-4 px-5 py-4">
         <div>
-          <div className="text-[15px] font-semibold tracking-[-0.01em]">@lobehub/icons</div>
-          <div className="mt-0.5 text-[11.5px] text-fg-faint">
+          <div className="text-[17px] font-semibold tracking-[-0.01em]">@lobehub/icons</div>
+          <div className="mt-0.5 text-[13px] text-fg-muted">
             {rawToc.length} icons · brands across LLM models, providers, and apps
           </div>
         </div>

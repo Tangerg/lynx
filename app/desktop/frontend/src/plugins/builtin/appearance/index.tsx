@@ -66,7 +66,7 @@ function ThemeRow({
         />
       </div>
       <div className="grid min-w-0 gap-0.5">
-        <div className="truncate text-[13px] font-semibold leading-[1.2] text-fg">{spec.label}</div>
+        <div className="truncate text-[14px] font-semibold leading-[1.2] text-fg">{spec.label}</div>
         <div className="inline-flex items-center gap-1 font-mono text-[11px] text-fg-faint lowercase tracking-normal">
           <Icon name={spec.scheme === "dark" ? "moon" : "sun"} size={10} className="shrink-0" />
           {spec.scheme}
@@ -94,8 +94,8 @@ function AppearancePane() {
           theme picker is a grid that needs more room than a 1fr column. */}
       <div className="grid items-stretch gap-3 py-3">
         <div>
-          <div className="text-[13px] font-semibold text-fg">{t("settings.theme")}</div>
-          <div className="mt-0.5 text-[11.5px] text-fg-faint">{t("settings.theme.sub")}</div>
+          <div className="text-[15px] font-semibold text-fg">{t("settings.theme")}</div>
+          <div className="mt-0.5 text-[13px] text-fg-muted">{t("settings.theme.sub")}</div>
         </div>
         <div className="grid gap-2 [grid-template-columns:repeat(auto-fill,minmax(220px,1fr))]">
           {themes.map((spec) => (
@@ -112,8 +112,8 @@ function AppearancePane() {
       {/* Default settings row: label column + control column. */}
       <div className="grid grid-cols-[140px_1fr] items-center gap-4 py-3">
         <div>
-          <div className="text-[13px] font-semibold text-fg">{t("settings.accent")}</div>
-          <div className="mt-0.5 text-[11.5px] text-fg-faint">{t("settings.accent.sub")}</div>
+          <div className="text-[15px] font-semibold text-fg">{t("settings.accent")}</div>
+          <div className="mt-0.5 text-[13px] text-fg-muted">{t("settings.accent.sub")}</div>
         </div>
         <div className="flex flex-wrap gap-2.5 justify-start">
           {accents.map((a) => (
@@ -139,8 +139,8 @@ function AppearancePane() {
           control automatically. */}
       <div className="grid grid-cols-[140px_1fr] items-center gap-4 py-3">
         <div>
-          <div className="text-[13px] font-semibold text-fg">{t("settings.language.label")}</div>
-          <div className="mt-0.5 text-[11.5px] text-fg-faint">{t("settings.language.sub")}</div>
+          <div className="text-[15px] font-semibold text-fg">{t("settings.language.label")}</div>
+          <div className="mt-0.5 text-[13px] text-fg-muted">{t("settings.language.sub")}</div>
         </div>
         <div
           role="radiogroup"
@@ -155,7 +155,7 @@ function AppearancePane() {
               aria-checked={locale === l.id}
               onClick={() => setLocale(l.id as Locale)}
               className={cn(
-                "rounded-sm px-3 py-1 text-[12px] font-medium cursor-pointer transition-colors duration-150",
+                "rounded-sm px-3 py-1 text-[13px] font-medium cursor-pointer transition-colors duration-150",
                 locale === l.id
                   ? "bg-surface text-fg shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]"
                   : "bg-transparent text-fg-muted hover:text-fg",

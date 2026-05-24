@@ -64,14 +64,14 @@ function PluginsPane() {
               )}
             >
               <div>
-                <div className="text-[13px] font-semibold text-fg">
+                <div className="text-[14px] font-semibold text-fg">
                   {spec.name}
                   <OriginBadge origin={origin} />
                 </div>
-                <div className="font-mono text-[11px] text-fg-faint">v{spec.version}</div>
+                <div className="font-mono text-[12px] text-fg-faint">v{spec.version}</div>
                 {errCount > 0 && (
-                  <div className="mt-1.5 inline-flex items-center gap-1.5 text-[11px] text-negative">
-                    <Icon name="bug" size={11} />
+                  <div className="mt-1.5 inline-flex items-center gap-1.5 text-[12px] text-negative">
+                    <Icon name="bug" size={12} />
                     {errCount} error{errCount === 1 ? "" : "s"} — see browser console
                   </div>
                 )}
@@ -95,7 +95,7 @@ function PluginsPane() {
         })}
       </div>
 
-      <div className="mt-4 text-[11.5px] leading-[1.55] text-fg-faint">
+      <div className="mt-4 text-[13px] leading-[1.55] text-fg-muted">
         Sideload by dropping a plugin folder containing <code className={INLINE_CODE}>index.js</code>
         {" "}into <code className={INLINE_CODE}>~/.lyra/plugins/</code> and restarting the app.
         See <code className={INLINE_CODE}>frontend/sample-plugins/hello-sideload/</code> for a template.
