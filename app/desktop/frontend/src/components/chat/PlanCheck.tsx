@@ -28,7 +28,7 @@ export function PlanCheck({ status }: { status: PlanItem["status"] }) {
 // status. Used by both PlanBlock and PlanList.
 export const planItemRow = (status: PlanItem["status"]) =>
   cn(
-    "grid grid-cols-[18px_1fr] items-start gap-2.5 py-1 text-[13.5px] leading-[1.45]",
+    "grid grid-cols-[18px_1fr] items-start gap-2.5 py-1 text-[13px] leading-[1.45]",
     status === "done" && "text-fg-faint line-through decoration-line-soft",
     status === "doing" && "text-fg font-semibold",
     status === "todo" && "text-fg-soft",

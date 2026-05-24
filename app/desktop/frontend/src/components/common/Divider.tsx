@@ -22,7 +22,7 @@ export function Divider({
   return (
     <div
       className={cn(
-        "my-2 flex items-center gap-3 font-mono text-[10.5px] font-semibold text-fg-faint",
+        "my-2 flex items-center gap-3 font-mono text-[11px] font-semibold text-fg-faint",
         "before:flex-1 before:h-px before:content-[''] before:bg-[linear-gradient(90deg,transparent,var(--color-border-soft)_50%,transparent)]",
         "after:flex-1  after:h-px  after:content-[''] after:bg-[linear-gradient(90deg,transparent,var(--color-border-soft)_50%,transparent)]",
         className,

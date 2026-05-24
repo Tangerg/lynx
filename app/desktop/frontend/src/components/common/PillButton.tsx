@@ -17,7 +17,7 @@ const styles = cva(
         danger:   "bg-transparent text-negative border border-negative hover:bg-negative/8",
       },
       size: {
-        sm: "h-[26px] px-3 text-[10.5px]",
+        sm: "h-[26px] px-3 text-[11px]",
         md: "h-8 px-3.5 text-[13px]",
       },
     },

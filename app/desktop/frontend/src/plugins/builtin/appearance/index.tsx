@@ -66,7 +66,7 @@ function ThemeRow({
       </div>
       <div className="grid min-w-0 gap-0.5">
         <div className="truncate text-[13px] font-semibold leading-[1.2] text-fg">{spec.label}</div>
-        <div className="inline-flex items-center gap-1 font-mono text-[10.5px] text-fg-faint lowercase tracking-normal">
+        <div className="inline-flex items-center gap-1 font-mono text-[11px] text-fg-faint lowercase tracking-normal">
           <Icon name={spec.scheme === "dark" ? "moon" : "sun"} size={10} className="shrink-0" />
           {spec.scheme}
         </div>

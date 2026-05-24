@@ -29,7 +29,7 @@ export function SlashSuggestions({ value, onPick }: Props) {
 
   return (
     <div className="mb-2 overflow-hidden rounded-xl border border-line bg-surface shadow-lg animate-rise-in">
-      <div className="px-3.5 pb-1 pt-2 font-mono text-[10.5px] font-semibold text-fg-faint">
+      <div className="px-3.5 pb-1 pt-2 font-mono text-[11px] font-semibold text-fg-faint">
         Commands
       </div>
       {filtered.map(({ cmd, spec }, i) => (
@@ -44,7 +44,7 @@ export function SlashSuggestions({ value, onPick }: Props) {
           </code>
           <span className="text-[12.5px] text-fg-muted">{spec.description}</span>
           {i === 0 && (
-            <span className="rounded bg-surface-3 px-1.5 py-px font-mono text-[10.5px] text-fg-faint">
+            <span className="rounded bg-surface-3 px-1.5 py-px font-mono text-[11px] text-fg-faint">
               ↵
             </span>
           )}

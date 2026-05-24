@@ -7,7 +7,7 @@ import type { PlanItem } from "@/protocol/agui/viewState";
 export function PlanList({ plan }: { plan: PlanItem[] }) {
   return (
     <div className="px-4.5 py-3.5">
-      <div className="mb-3 font-mono text-[10.5px] font-bold uppercase tracking-[0.14em] text-fg-faint">
+      <div className="mb-3 font-mono text-[11px] font-bold uppercase tracking-[0.14em] text-fg-faint">
         Task plan
       </div>
       {plan.map((p) => (

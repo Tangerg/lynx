@@ -31,7 +31,7 @@ export function ViewHeader({ icon, title, sub, actions, titleStrong }: Props) {
           {title}
         </div>
         {sub !== undefined && (
-          <div className="mt-0.5 font-mono text-[10.5px] text-fg-faint">{sub}</div>
+          <div className="mt-0.5 font-mono text-[11px] text-fg-faint">{sub}</div>
         )}
       </div>
       {actions !== undefined && (

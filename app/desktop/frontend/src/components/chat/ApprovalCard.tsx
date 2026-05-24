@@ -49,7 +49,7 @@ export function ApprovalCard({ what, cmd, reason, requestId, decision }: Props) 
   const disabled = !requestId || pending !== null;
   return (
     <div className="my-3 rounded-xl border border-warning/25 bg-[linear-gradient(180deg,rgba(255,164,43,0.06)_0%,var(--color-surface)_60%)] px-4 py-3.5">
-      <div className="mb-2 flex items-center gap-2 font-mono text-[10.5px] font-semibold text-warning">
+      <div className="mb-2 flex items-center gap-2 font-mono text-[11px] font-semibold text-warning">
         <Icon name="shield" size={12} />Approval required
       </div>
       <div className="mb-1.5 text-[14px] font-semibold leading-[1.4] text-fg">{what}</div>
