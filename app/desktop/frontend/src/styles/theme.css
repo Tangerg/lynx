@@ -59,26 +59,10 @@ html.theme-light .side-search input:focus {
 }
 html.theme-light .search-kbd { background: var(--color-surface-3); }
 
-/* Tool cards (ToolCard.tsx not yet migrated to Tailwind). */
-html.theme-light .tool-card { border-color: transparent; }
-html.theme-light .tool-card:hover { background: var(--color-surface-2); border-color: var(--color-border); }
-html.theme-light .tool-card.selected { background: var(--color-surface-2); border-color: var(--color-border); box-shadow: 0 0 0 1px var(--color-accent) inset; }
-html.theme-light .tool-icon { background: var(--color-surface-3); }
-html.theme-light .tool-card.selected .tool-icon,
-html.theme-light .tool-card:hover .tool-icon { background: var(--color-surface-4); }
-html.theme-light .tool-icon.ok  { background: rgba(22, 156, 70, 0.14); color: var(--color-accent); }
-html.theme-light .tool-icon.err { background: rgba(214, 56, 72, 0.12); color: var(--color-negative); }
-html.theme-light .tool-icon.run { background: rgba(37, 99, 235, 0.12); color: var(--color-info); }
-html.theme-light .tool-status.ok  { background: rgba(22, 156, 70, 0.14); color: var(--color-accent); }
-html.theme-light .tool-status.err { background: rgba(214, 56, 72, 0.12); color: var(--color-negative); }
-html.theme-light .tool-status.run { background: rgba(37, 99, 235, 0.12); color: var(--color-info); }
-html.theme-light .tool-card .tool-head { border-color: transparent; }
-html.theme-light .tool-preview { border-top-color: var(--color-border); background: var(--color-surface); }
-html.theme-light .tool-preview .preview-foot { border-top-color: var(--color-border); }
-html.theme-light .tool-preview .preview-open { background: var(--color-surface-2); border-color: var(--color-border); color: var(--color-text-muted); }
-html.theme-light .tool-preview .preview-open:hover { background: var(--color-surface-3); color: var(--color-text); }
-html.theme-light .tool-card .tool-expand { color: var(--color-text-faint); }
-html.theme-light .tool-card .tool-expand:hover { background: var(--color-surface-3); color: var(--color-text); }
+/* Tool preview shell — the .tool-preview wrapper still uses raw
+   className (set by tool-previews plugin) so its light-mode bg lives
+   here. PreviewFoot + the open btn have moved to Tailwind in P6.9. */
+html.theme-light .tool-preview { background: var(--color-surface); }
 
 /* Syntax tokens — emitted by utils/highlight.ts and used by DiffView. */
 html.theme-light .token-kw   { color: #b91d7d; }
