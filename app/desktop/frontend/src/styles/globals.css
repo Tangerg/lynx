@@ -131,7 +131,13 @@
      P6.7 deleted settings.css  (SettingsPage shell + appearance pane +
                                  plugins-pane are now Tailwind; the
                                  .search-kbd hint moved into sidebar.css
-                                 where it belongs cohesion-wise). */
+                                 where it belongs cohesion-wise).
+     P6.8 deleted welcome.css   (welcome-screen plugin migrated to
+                                 Tailwind; the skeleton + empty-state
+                                 primitives in that file were already
+                                 dead — Skeleton/EmptyState common
+                                 components have been Tailwind since
+                                 the start of P6). */
 @import "./tokens.css";
 @import "./reset.css";
 @import "./layout.css";
@@ -141,5 +147,4 @@
 @import "./overlays.css";
 @import "./sidebar.css";
 @import "./tool.css";
-@import "./welcome.css";
 @import "./theme.css";
