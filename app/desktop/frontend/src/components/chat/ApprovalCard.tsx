@@ -19,7 +19,7 @@ type Props = {
 //   - optimistic    → checkpoint row (pending is the user's last click)
 //   - pre-decision  → action card with Approve / Decline buttons
 //
-// Flow recap (HITL):
+// HITL flow:
 //   1. Backend Approval(...) step → emit lyra.approval { requestId }
 //   2. Reducer materialises an approval content block (this card)
 //   3. User clicks → useApprovalSubmit POSTs /permission
@@ -31,19 +31,25 @@ export function ApprovalCard({ what, cmd, reason, requestId, decision }: Props) 
   const finalised = decision ?? pending;
   if (finalised === "approved") {
     return (
-      <div className="checkpoint">
-        <div className="ico"><Icon name="check" size={11} strokeWidth={3} /></div>
+      <div className="my-2 flex items-center gap-3 font-mono text-[10.5px] font-semibold text-fg-faint
+        before:flex-1 before:h-px before:content-[''] before:bg-[linear-gradient(90deg,transparent,var(--color-border-soft)_50%,transparent)]
+        after:flex-1  after:h-px  after:content-[''] after:bg-[linear-gradient(90deg,transparent,var(--color-border-soft)_50%,transparent)]">
+        <div className="grid h-[18px] w-[18px] place-items-center rounded-full bg-surface-2 text-accent">
+          <Icon name="check" size={11} strokeWidth={3} />
+        </div>
         <span>已批准 · 正在执行</span>
       </div>
     );
   }
   if (finalised === "declined") {
     return (
-      <div className="checkpoint">
-        <div className="ico" style={{ color: "var(--color-text-faint)" }}>
+      <div className="my-2 flex items-center gap-3 font-mono text-[10.5px] font-semibold text-fg-faint
+        before:flex-1 before:h-px before:content-[''] before:bg-[linear-gradient(90deg,transparent,var(--color-border-soft)_50%,transparent)]
+        after:flex-1  after:h-px  after:content-[''] after:bg-[linear-gradient(90deg,transparent,var(--color-border-soft)_50%,transparent)]">
+        <div className="grid h-[18px] w-[18px] place-items-center rounded-full bg-surface-2 text-fg-faint">
           <Icon name="x" size={11} />
         </div>
-        <span style={{ color: "var(--color-text-faint)" }}>已拒绝</span>
+        <span>已拒绝</span>
       </div>
     );
   }
@@ -52,24 +58,26 @@ export function ApprovalCard({ what, cmd, reason, requestId, decision }: Props) 
   // preview) or while a request is in flight.
   const disabled = !requestId || pending !== null;
   return (
-    <div className="approval-card">
-      <div className="head">
+    <div className="my-3 rounded-xl border border-warning/25 bg-[linear-gradient(180deg,rgba(255,164,43,0.06)_0%,var(--color-surface)_60%)] px-4 py-3.5">
+      <div className="mb-2 flex items-center gap-2 font-mono text-[10.5px] font-semibold text-warning">
         <Icon name="shield" size={12} />Approval required
       </div>
-      <div className="what">{what}</div>
-      <code className="cmd">$ {cmd}</code>
-      <div className="reason">{reason}</div>
-      <div className="actions">
+      <div className="mb-1.5 text-[14px] font-semibold leading-[1.4] text-fg">{what}</div>
+      <code className="my-2 block whitespace-pre-wrap break-all rounded-sm bg-warning/14 px-3 py-2 font-mono text-[12.5px] text-fg">
+        $ {cmd}
+      </code>
+      <div className="mb-3 text-[12px] leading-[1.5] text-fg-muted">{reason}</div>
+      <div className="flex items-center gap-2">
         <PillButton
           variant="accent"
-          style={{ height: 30, fontSize: 11 }}
+          size="sm"
           disabled={disabled}
           onClick={() => submit("approved")}
         >
           Approve
         </PillButton>
         <PillButton
-          style={{ height: 30, fontSize: 11 }}
+          size="sm"
           disabled={disabled}
           onClick={() => submit("declined")}
         >
