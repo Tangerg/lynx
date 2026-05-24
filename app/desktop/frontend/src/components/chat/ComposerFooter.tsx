@@ -12,7 +12,7 @@ export function ComposerFooter() {
   if (items.length === 0) return null;
 
   return (
-    <div className="composer-footer">
+    <div className="relative z-[3] flex flex-wrap items-center gap-1 px-1 pb-1 pt-2.5">
       {items.map((it) => {
         const Body = it.component;
         return (
