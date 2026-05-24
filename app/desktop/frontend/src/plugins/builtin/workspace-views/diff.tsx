@@ -20,9 +20,14 @@ function summarize(rows: DiffRow[] | undefined): DiffStats {
   let removed = 0;
   let lineCount = 0;
   for (const row of rows) {
-    if (row.type === "add") { added += 1; lineCount += 1; }
-    else if (row.type === "del") { removed += 1; }
-    else if (row.type === "ctx") { lineCount += 1; }
+    if (row.type === "add") {
+      added += 1;
+      lineCount += 1;
+    } else if (row.type === "del") {
+      removed += 1;
+    } else if (row.type === "ctx") {
+      lineCount += 1;
+    }
   }
   return { added, removed, lineCount };
 }
@@ -50,8 +55,12 @@ function DiffViewTab() {
         sub={sub}
         actions={
           <>
-            <IconButton title="Revert"><Icon name="loop" size={14} /></IconButton>
-            <IconButton title="Accept"><Icon name="check" size={14} /></IconButton>
+            <IconButton title="Revert">
+              <Icon name="loop" size={14} />
+            </IconButton>
+            <IconButton title="Accept">
+              <Icon name="check" size={14} />
+            </IconButton>
           </>
         }
       />

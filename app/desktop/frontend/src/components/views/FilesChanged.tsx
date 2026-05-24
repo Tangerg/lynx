@@ -19,18 +19,28 @@ export function FilesChanged({ files, activePath, onSelect }: Props) {
         <span className="ml-auto text-accent">+{totalAdded}</span>
         <span className="text-negative">−{totalRemoved}</span>
       </div>
-      {files.map((f) => <FileRow key={f.path} file={f} active={f.path === activePath} onSelect={onSelect} />)}
+      {files.map((f) => (
+        <FileRow key={f.path} file={f} active={f.path === activePath} onSelect={onSelect} />
+      ))}
     </div>
   );
 }
 
 function FileRow({
-  file, active, onSelect,
-}: { file: FileChange; active: boolean; onSelect: (p: string) => void }) {
+  file,
+  active,
+  onSelect,
+}: {
+  file: FileChange;
+  active: boolean;
+  onSelect: (p: string) => void;
+}) {
   const tagColor =
-    file.change === "add" ? "text-accent" :
-    file.change === "del" ? "text-negative" :
-    "text-warning";
+    file.change === "add"
+      ? "text-accent"
+      : file.change === "del"
+        ? "text-negative"
+        : "text-warning";
   const tagLetter = file.change === "add" ? "A" : file.change === "del" ? "D" : "M";
   return (
     <div
@@ -41,10 +51,7 @@ function FileRow({
       )}
     >
       <Icon name="file" size={12} />
-      <span className={cn(
-        "font-mono text-[9px] font-bold uppercase tracking-[0.04em]",
-        tagColor,
-      )}>
+      <span className={cn("font-mono text-[9px] font-bold uppercase tracking-[0.04em]", tagColor)}>
         {tagLetter}
       </span>
       <span className="flex-1 truncate font-mono">{file.path}</span>

@@ -49,7 +49,9 @@ export function PluginProvider({ children }: Props) {
       void loadSideloadedPlugins();
     })();
 
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // Nothing to show until built-ins register (router has no routes, layout

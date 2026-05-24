@@ -15,7 +15,7 @@ export function PlanCheck({ status }: { status: PlanItem["status"] }) {
         status === "done" && "bg-accent text-on-accent",
         status === "doing" &&
           "border-[1.5px] border-accent relative " +
-          "after:content-[''] after:h-2 after:w-2 after:rounded-[2px] after:bg-accent after:animate-pulse-dot",
+            "after:content-[''] after:h-2 after:w-2 after:rounded-[2px] after:bg-accent after:animate-pulse-dot",
         status === "todo" && "border-[1.5px] border-line-soft",
       )}
     >

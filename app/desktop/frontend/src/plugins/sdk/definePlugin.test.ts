@@ -1,11 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import {
-  definePlugin,
-  loadPlugin,
-  loadPlugins,
-  reloadPlugin,
-  unloadPlugin,
-} from "./definePlugin";
+import { definePlugin, loadPlugin, loadPlugins, reloadPlugin, unloadPlugin } from "./definePlugin";
 import { usePluginErrorStore } from "./errors";
 import { usePluginStore } from "./registry";
 import { lookupCommand } from "./selectors";
@@ -31,16 +25,18 @@ describe("loadPlugin", () => {
 
   it("disposes already-registered handles when setup throws later", async () => {
     const StubComponent = () => null;
-    const result = await loadPlugin(definePlugin({
-      name: "a",
-      version: "1.0.0",
-      setup: ({ host }) => {
-        // Register first…
-        host.tool.registerPreview("bash", StubComponent);
-        // …then explode.
-        throw new Error("kaboom");
-      },
-    }));
+    const result = await loadPlugin(
+      definePlugin({
+        name: "a",
+        version: "1.0.0",
+        setup: ({ host }) => {
+          // Register first…
+          host.tool.registerPreview("bash", StubComponent);
+          // …then explode.
+          throw new Error("kaboom");
+        },
+      }),
+    );
 
     expect(result.kind).toBe("failed");
     // The registry must be empty — the bash entry was rolled back.
@@ -56,12 +52,14 @@ describe("loadPlugin", () => {
 
   it("rejects plugins whose apiVersion doesn't match the host", async () => {
     const setup = vi.fn();
-    const result = await loadPlugin(definePlugin({
-      name: "tooOld",
-      version: "1.0.0",
-      apiVersion: "^2.0.0",        // host is 1.0.0
-      setup,
-    }));
+    const result = await loadPlugin(
+      definePlugin({
+        name: "tooOld",
+        version: "1.0.0",
+        apiVersion: "^2.0.0", // host is 1.0.0
+        setup,
+      }),
+    );
 
     expect(result).toMatchObject({ kind: "skipped", name: "tooOld" });
     expect(setup).not.toHaveBeenCalled();
@@ -69,31 +67,37 @@ describe("loadPlugin", () => {
   });
 
   it("accepts plugins with a matching range", async () => {
-    const result = await loadPlugin(definePlugin({
-      name: "ok",
-      version: "1.0.0",
-      apiVersion: "^1.0.0",
-      setup: () => {},
-    }));
+    const result = await loadPlugin(
+      definePlugin({
+        name: "ok",
+        version: "1.0.0",
+        apiVersion: "^1.0.0",
+        setup: () => {},
+      }),
+    );
     expect(result.kind).toBe("loaded");
   });
 
   it("treats a missing apiVersion as implicit trust (loaded)", async () => {
-    const result = await loadPlugin(definePlugin({
-      name: "implicit",
-      version: "1.0.0",
-      setup: () => {},
-    }));
+    const result = await loadPlugin(
+      definePlugin({
+        name: "implicit",
+        version: "1.0.0",
+        setup: () => {},
+      }),
+    );
     expect(result.kind).toBe("loaded");
   });
 
   it("rejects an invalid apiVersion string with a clear reason", async () => {
-    const result = await loadPlugin(definePlugin({
-      name: "garbage",
-      version: "1.0.0",
-      apiVersion: "not-a-range",
-      setup: () => {},
-    }));
+    const result = await loadPlugin(
+      definePlugin({
+        name: "garbage",
+        version: "1.0.0",
+        apiVersion: "not-a-range",
+        setup: () => {},
+      }),
+    );
     expect(result.kind).toBe("skipped");
     if (result.kind === "skipped") {
       expect(result.reason).toMatch(/invalid apiVersion/);
@@ -105,9 +109,27 @@ describe("loadPlugins", () => {
   it("loads in order, isolating failures per plugin", async () => {
     const order: string[] = [];
     const results = await loadPlugins([
-      definePlugin({ name: "a", version: "1.0.0", setup: () => { order.push("a"); } }),
-      definePlugin({ name: "b", version: "1.0.0", setup: () => { throw new Error("nope"); } }),
-      definePlugin({ name: "c", version: "1.0.0", setup: () => { order.push("c"); } }),
+      definePlugin({
+        name: "a",
+        version: "1.0.0",
+        setup: () => {
+          order.push("a");
+        },
+      }),
+      definePlugin({
+        name: "b",
+        version: "1.0.0",
+        setup: () => {
+          throw new Error("nope");
+        },
+      }),
+      definePlugin({
+        name: "c",
+        version: "1.0.0",
+        setup: () => {
+          order.push("c");
+        },
+      }),
     ]);
 
     expect(order).toEqual(["a", "c"]);
@@ -122,11 +144,20 @@ describe("loadPlugins", () => {
     await loadPlugins([
       // Declared first, but requires `b` — must load second.
       definePlugin({
-        name: "a", version: "1.0.0",
+        name: "a",
+        version: "1.0.0",
         requires: ["b"],
-        setup: () => { order.push("a"); },
+        setup: () => {
+          order.push("a");
+        },
       }),
-      definePlugin({ name: "b", version: "1.0.0", setup: () => { order.push("b"); } }),
+      definePlugin({
+        name: "b",
+        version: "1.0.0",
+        setup: () => {
+          order.push("b");
+        },
+      }),
     ]);
     expect(order).toEqual(["b", "a"]);
   });
@@ -134,9 +165,27 @@ describe("loadPlugins", () => {
   it("preserves manifest order between independent plugins", async () => {
     const order: string[] = [];
     await loadPlugins([
-      definePlugin({ name: "x", version: "1.0.0", setup: () => { order.push("x"); } }),
-      definePlugin({ name: "y", version: "1.0.0", setup: () => { order.push("y"); } }),
-      definePlugin({ name: "z", version: "1.0.0", setup: () => { order.push("z"); } }),
+      definePlugin({
+        name: "x",
+        version: "1.0.0",
+        setup: () => {
+          order.push("x");
+        },
+      }),
+      definePlugin({
+        name: "y",
+        version: "1.0.0",
+        setup: () => {
+          order.push("y");
+        },
+      }),
+      definePlugin({
+        name: "z",
+        version: "1.0.0",
+        setup: () => {
+          order.push("z");
+        },
+      }),
     ]);
     expect(order).toEqual(["x", "y", "z"]);
   });
@@ -144,7 +193,8 @@ describe("loadPlugins", () => {
   it("skips a plugin whose required dep isn't loaded", async () => {
     const results = await loadPlugins([
       definePlugin({
-        name: "orphan", version: "1.0.0",
+        name: "orphan",
+        version: "1.0.0",
         requires: ["does-not-exist"],
         setup: vi.fn(),
       }),
@@ -190,14 +240,16 @@ describe("lazy activation", () => {
 
   it("runs setup-returned cleanup when the plugin is unloaded", async () => {
     const cleanup = vi.fn();
-    await loadPlugin(definePlugin({
-      name: "with-cleanup",
-      version: "1.0.0",
-      setup: ({ host }) => {
-        host.commands.register({ id: "with-cleanup.cmd", label: "x", run: () => {} });
-        return cleanup;
-      },
-    }));
+    await loadPlugin(
+      definePlugin({
+        name: "with-cleanup",
+        version: "1.0.0",
+        setup: ({ host }) => {
+          host.commands.register({ id: "with-cleanup.cmd", label: "x", run: () => {} });
+          return cleanup;
+        },
+      }),
+    );
     expect(usePluginStore.getState().loaded.has("with-cleanup")).toBe(true);
     expect(usePluginStore.getState().commands.has("with-cleanup.cmd")).toBe(true);
 
@@ -211,19 +263,24 @@ describe("lazy activation", () => {
 
   it("restricts host to declared capabilities and throws on disallowed namespaces", async () => {
     let captured: unknown = null;
-    const result = await loadPlugin(definePlugin({
-      name: "capped",
-      version: "1.0.0",
-      capabilities: ["commands"],
-      setup: ({ host }) => {
-        host.commands.register({ id: "ok", label: "OK", run: () => {} });
-        try {
-          // host.tool is not declared — must throw.
-          (host as unknown as Record<string, { registerPreview: () => void }>)
-            .tool.registerPreview();
-        } catch (err) { captured = err; }
-      },
-    }));
+    const result = await loadPlugin(
+      definePlugin({
+        name: "capped",
+        version: "1.0.0",
+        capabilities: ["commands"],
+        setup: ({ host }) => {
+          host.commands.register({ id: "ok", label: "OK", run: () => {} });
+          try {
+            // host.tool is not declared — must throw.
+            (
+              host as unknown as Record<string, { registerPreview: () => void }>
+            ).tool.registerPreview();
+          } catch (err) {
+            captured = err;
+          }
+        },
+      }),
+    );
     expect(result.kind).toBe("loaded");
     expect(usePluginStore.getState().commands.has("ok")).toBe(true);
     expect(captured).toBeInstanceOf(Error);

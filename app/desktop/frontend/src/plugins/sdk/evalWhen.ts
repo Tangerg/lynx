@@ -16,12 +16,12 @@
 // during command-palette render.
 
 type Token =
-  | { type: "id";  value: string }
+  | { type: "id"; value: string }
   | { type: "str"; value: string }
-  | { type: "op";  value: "!" | "==" | "!=" | "&&" | "||" | "(" | ")" };
+  | { type: "op"; value: "!" | "==" | "!=" | "&&" | "||" | "(" | ")" };
 
 type Node =
-  | { kind: "id";  name: string }
+  | { kind: "id"; name: string }
   | { kind: "str"; value: string }
   | { kind: "not"; child: Node }
   | { kind: "eq" | "neq" | "and" | "or"; left: Node; right: Node };
@@ -35,13 +35,40 @@ function tokenize(s: string): Token[] {
   let i = 0;
   while (i < s.length) {
     const c = s[i];
-    if (/\s/.test(c)) { i++; continue; }
-    if (c === "(" || c === ")") { out.push({ type: "op", value: c }); i++; continue; }
-    if (s.startsWith("==", i)) { out.push({ type: "op", value: "==" }); i += 2; continue; }
-    if (s.startsWith("!=", i)) { out.push({ type: "op", value: "!=" }); i += 2; continue; }
-    if (s.startsWith("&&", i)) { out.push({ type: "op", value: "&&" }); i += 2; continue; }
-    if (s.startsWith("||", i)) { out.push({ type: "op", value: "||" }); i += 2; continue; }
-    if (c === "!") { out.push({ type: "op", value: "!" }); i++; continue; }
+    if (/\s/.test(c)) {
+      i++;
+      continue;
+    }
+    if (c === "(" || c === ")") {
+      out.push({ type: "op", value: c });
+      i++;
+      continue;
+    }
+    if (s.startsWith("==", i)) {
+      out.push({ type: "op", value: "==" });
+      i += 2;
+      continue;
+    }
+    if (s.startsWith("!=", i)) {
+      out.push({ type: "op", value: "!=" });
+      i += 2;
+      continue;
+    }
+    if (s.startsWith("&&", i)) {
+      out.push({ type: "op", value: "&&" });
+      i += 2;
+      continue;
+    }
+    if (s.startsWith("||", i)) {
+      out.push({ type: "op", value: "||" });
+      i += 2;
+      continue;
+    }
+    if (c === "!") {
+      out.push({ type: "op", value: "!" });
+      i++;
+      continue;
+    }
     if (c === '"' || c === "'") {
       const end = s.indexOf(c, i + 1);
       if (end < 0) throw new Error(`unclosed string literal`);
@@ -137,13 +164,20 @@ class Parser {
 
 function evaluate(node: Node, ctx: WhenContext): unknown {
   switch (node.kind) {
-    case "id":  return ctx[node.name];
-    case "str": return node.value;
-    case "not": return !evaluate(node.child, ctx);
-    case "eq":  return evaluate(node.left, ctx) === evaluate(node.right, ctx);
-    case "neq": return evaluate(node.left, ctx) !== evaluate(node.right, ctx);
-    case "and": return !!evaluate(node.left, ctx) && !!evaluate(node.right, ctx);
-    case "or":  return !!evaluate(node.left, ctx) || !!evaluate(node.right, ctx);
+    case "id":
+      return ctx[node.name];
+    case "str":
+      return node.value;
+    case "not":
+      return !evaluate(node.child, ctx);
+    case "eq":
+      return evaluate(node.left, ctx) === evaluate(node.right, ctx);
+    case "neq":
+      return evaluate(node.left, ctx) !== evaluate(node.right, ctx);
+    case "and":
+      return !!evaluate(node.left, ctx) && !!evaluate(node.right, ctx);
+    case "or":
+      return !!evaluate(node.left, ctx) || !!evaluate(node.right, ctx);
   }
 }
 

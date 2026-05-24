@@ -51,42 +51,42 @@ type Owned<T> = { pluginName: string; value: T };
 
 type PluginStoreState = {
   loaded: Map<string, LoadedPlugin>;
-  toolPreviews:        Map<string, Owned<ToolPreviewComponent>>;
-  toolActions:         Map<string, Owned<ToolActionSpec>>;
-  toolIcons:           Map<string, Owned<string>>;
-  contentBlocks:       Map<string, Owned<ContentBlockRenderer<ContentBlockKind>>>;
+  toolPreviews: Map<string, Owned<ToolPreviewComponent>>;
+  toolActions: Map<string, Owned<ToolActionSpec>>;
+  toolIcons: Map<string, Owned<string>>;
+  contentBlocks: Map<string, Owned<ContentBlockRenderer<ContentBlockKind>>>;
   customEventHandlers: Map<string, Owned<CustomEventHandler<unknown>>>;
   // Built-in AG-UI events can have *multiple* handlers per type — they
   // chain. The key is `${eventType}|${pluginName}|${id}` to keep insertion
   // order stable + allow the same plugin to register more than one handler
   // for the same type (rare but legal).
-  coreEventHandlers:   Map<string, Owned<{ eventType: string; handler: CoreEventHandler }>>;
-  slashCommands:       Map<string, Owned<SlashCommandSpec>>;
-  settingsPanes:       Map<string, Owned<SettingsPaneSpec>>;
+  coreEventHandlers: Map<string, Owned<{ eventType: string; handler: CoreEventHandler }>>;
+  slashCommands: Map<string, Owned<SlashCommandSpec>>;
+  settingsPanes: Map<string, Owned<SettingsPaneSpec>>;
   // Layout slot key is `${slot}|${pluginName}|${spec.id}` to allow the same
   // plugin to fill multiple slots and to keep insertion order deterministic.
-  layoutSlots:         Map<string, Owned<{ slot: string; spec: LayoutSlotSpec }>>;
-  themes:              Map<string, Owned<ThemeSpec>>;
-  accents:             Map<string, Owned<ThemeAccentSpec>>;
-  routes:              Map<string, Owned<RouteSpec>>;
-  shortcuts:           Map<string, Owned<ShortcutSpec>>;
-  composerStatus:      Map<string, Owned<ComposerStatusSpec>>;
-  composerModes:       Map<string, Owned<ComposerModeSpec>>;
+  layoutSlots: Map<string, Owned<{ slot: string; spec: LayoutSlotSpec }>>;
+  themes: Map<string, Owned<ThemeSpec>>;
+  accents: Map<string, Owned<ThemeAccentSpec>>;
+  routes: Map<string, Owned<RouteSpec>>;
+  shortcuts: Map<string, Owned<ShortcutSpec>>;
+  composerStatus: Map<string, Owned<ComposerStatusSpec>>;
+  composerModes: Map<string, Owned<ComposerModeSpec>>;
   composerPlaceholders: Map<string, Owned<ComposerPlaceholderSpec>>;
   composerAttachmentSources: Map<string, Owned<ComposerAttachmentSourceSpec>>;
-  composerKeyBindings:       Map<string, Owned<ComposerKeyBindingSpec>>;
-  sidebarSections:     Map<string, Owned<SidebarSectionSpec>>;
-  agentSources:        Map<string, Owned<AgentSourceSpec>>;
-  commands:            Map<string, Owned<CommandSpec>>;
+  composerKeyBindings: Map<string, Owned<ComposerKeyBindingSpec>>;
+  sidebarSections: Map<string, Owned<SidebarSectionSpec>>;
+  agentSources: Map<string, Owned<AgentSourceSpec>>;
+  commands: Map<string, Owned<CommandSpec>>;
   /**
    * Commands declared in `PluginSpec.contributes.commands` but whose
    * owning plugin hasn't been activated yet. Displayed as palette
    * placeholders; running one activates the plugin first, then dispatches
    * to whatever `host.commands.register` set up during setup.
    */
-  declaredCommands:    Map<string, Owned<ContributedCommand>>;
+  declaredCommands: Map<string, Owned<ContributedCommand>>;
   /** Same idea, for workspace views. Mounting renders a placeholder UI. */
-  declaredViews:       Map<string, Owned<ContributedView>>;
+  declaredViews: Map<string, Owned<ContributedView>>;
   /** Same idea, for settings panes. */
   declaredSettingsPanes: Map<string, Owned<ContributedSettingsPane>>;
   /**
@@ -95,29 +95,29 @@ type PluginStoreState = {
    * registered for (used by the palette to map "onCommand:foo" back to a
    * plugin).
    */
-  pendingActivations:  Map<string, { spec: PluginSpec; events: string[] }>;
-  dataProviders:       Map<string, Owned<DataProviderSpec>>;
-  sidebarRailItems:    Map<string, Owned<SidebarRailItemSpec>>;
-  messageRoles:        Map<string, Owned<MessageRoleSpec>>;
+  pendingActivations: Map<string, { spec: PluginSpec; events: string[] }>;
+  dataProviders: Map<string, Owned<DataProviderSpec>>;
+  sidebarRailItems: Map<string, Owned<SidebarRailItemSpec>>;
+  messageRoles: Map<string, Owned<MessageRoleSpec>>;
   // RPC hooks: composite key `${pluginName}|${id}` to allow multiple per plugin.
-  rpcBeforeRequest:    Map<string, Owned<RpcBeforeRequestHook>>;
-  rpcAfterResponse:    Map<string, Owned<RpcAfterResponseHook>>;
+  rpcBeforeRequest: Map<string, Owned<RpcBeforeRequestHook>>;
+  rpcAfterResponse: Map<string, Owned<RpcAfterResponseHook>>;
   // Log subscribers — composite key, same pattern.
-  logSubscribers:      Map<string, Owned<LogSubscriber>>;
+  logSubscribers: Map<string, Owned<LogSubscriber>>;
   // Lifecycle hooks — also composite key.
-  readyHandlers:       Map<string, Owned<ReadyHandler>>;
+  readyHandlers: Map<string, Owned<ReadyHandler>>;
   beforeUnloadHandlers: Map<string, Owned<BeforeUnloadHandler>>;
   /** Set true after PluginProvider has finished loading built-ins. */
-  appReady:            boolean;
+  appReady: boolean;
   // Plugin-load / unload listeners — composite key per registration.
-  pluginLoadListeners:   Map<string, Owned<(spec: PluginSpec) => void>>;
+  pluginLoadListeners: Map<string, Owned<(spec: PluginSpec) => void>>;
   pluginUnloadListeners: Map<string, Owned<(name: string) => void>>;
-  pluginErrorFallbacks:  Map<string, Owned<PluginErrorFallbackSpec>>;
-  workspaceViews:        Map<string, Owned<WorkspaceViewSpec>>;
+  pluginErrorFallbacks: Map<string, Owned<PluginErrorFallbackSpec>>;
+  workspaceViews: Map<string, Owned<WorkspaceViewSpec>>;
   // Window title state — most-recent setter wins. Stored as the "base"
   // text + a badge count; document.title is derived: `[n] base`.
-  windowTitle:         string;
-  windowBadge:         number;
+  windowTitle: string;
+  windowBadge: number;
 };
 
 type PluginStoreActions = {
@@ -133,7 +133,11 @@ type PluginStoreActions = {
   addToolIcon(pluginName: string, fn: string, icon: string): void;
   removeToolIcon(pluginName: string, fn: string): void;
 
-  addContentBlock(pluginName: string, kind: string, r: ContentBlockRenderer<ContentBlockKind>): void;
+  addContentBlock(
+    pluginName: string,
+    kind: string,
+    r: ContentBlockRenderer<ContentBlockKind>,
+  ): void;
   removeContentBlock(pluginName: string, kind: string): void;
 
   addCustomEventHandler(pluginName: string, name: string, h: CustomEventHandler<unknown>): void;
@@ -145,7 +149,12 @@ type PluginStoreActions = {
   addSettingsPane(pluginName: string, spec: SettingsPaneSpec): void;
   removeSettingsPane(pluginName: string, id: string): void;
 
-  addCoreEventHandler(pluginName: string, eventType: string, id: string, handler: CoreEventHandler): void;
+  addCoreEventHandler(
+    pluginName: string,
+    eventType: string,
+    id: string,
+    handler: CoreEventHandler,
+  ): void;
   removeCoreEventHandler(pluginName: string, eventType: string, id: string): void;
 
   addLayoutSlot(pluginName: string, slot: string, spec: LayoutSlotSpec): void;
@@ -262,7 +271,7 @@ function addOwned<T>(
     // eslint-disable-next-line no-console
     console.warn(
       `[plugin] ${pluginName} overrides ${label} "${key}" ` +
-      `previously registered by ${existing.pluginName}`,
+        `previously registered by ${existing.pluginName}`,
     );
   }
   const next = new Map(map);
@@ -324,10 +333,7 @@ function removeOwnedMulti<T>(
 // when a plugin's activation replaces its entire batch of placeholder
 // contributions at once. Pure helper so the three callsites read the
 // same way as the per-entry add/remove.
-function clearByPlugin<T>(
-  map: Map<string, Owned<T>>,
-  pluginName: string,
-): Map<string, Owned<T>> {
+function clearByPlugin<T>(map: Map<string, Owned<T>>, pluginName: string): Map<string, Owned<T>> {
   const next = new Map(map);
   for (const [k, v] of next) if (v.pluginName === pluginName) next.delete(k);
   return next;
@@ -391,7 +397,9 @@ export const usePluginStore = create<PluginStoreState & PluginStoreActions>((set
     set({ loaded: next });
     // Fan out to onLoad listeners — isolated per subscriber.
     for (const o of get().pluginLoadListeners.values()) {
-      try { o.value(plugin.spec); } catch (err) {
+      try {
+        o.value(plugin.spec);
+      } catch (err) {
         // eslint-disable-next-line no-console
         console.error(`[plugin] ${o.pluginName} onLoad listener threw:`, err);
       }
@@ -402,7 +410,9 @@ export const usePluginStore = create<PluginStoreState & PluginStoreActions>((set
     const plugin = get().loaded.get(pluginName);
     if (!plugin) return;
     for (const d of plugin.disposables) {
-      try { d.dispose(); } catch (err) {
+      try {
+        d.dispose();
+      } catch (err) {
         // eslint-disable-next-line no-console
         console.error(`[plugin] ${pluginName} dispose threw:`, err);
       }
@@ -411,7 +421,9 @@ export const usePluginStore = create<PluginStoreState & PluginStoreActions>((set
     next.delete(pluginName);
     set({ loaded: next });
     for (const o of get().pluginUnloadListeners.values()) {
-      try { o.value(pluginName); } catch (err) {
+      try {
+        o.value(pluginName);
+      } catch (err) {
         // eslint-disable-next-line no-console
         console.error(`[plugin] ${o.pluginName} onUnload listener threw:`, err);
       }
@@ -440,14 +452,24 @@ export const usePluginStore = create<PluginStoreState & PluginStoreActions>((set
   },
 
   addContentBlock(pluginName, kind, renderer) {
-    set({ contentBlocks: addOwned(get().contentBlocks, pluginName, kind, renderer, "content block") });
+    set({
+      contentBlocks: addOwned(get().contentBlocks, pluginName, kind, renderer, "content block"),
+    });
   },
   removeContentBlock(pluginName, kind) {
     set({ contentBlocks: removeOwned(get().contentBlocks, pluginName, kind) });
   },
 
   addCustomEventHandler(pluginName, name, handler) {
-    set({ customEventHandlers: addOwned(get().customEventHandlers, pluginName, name, handler, "agui handler") });
+    set({
+      customEventHandlers: addOwned(
+        get().customEventHandlers,
+        pluginName,
+        name,
+        handler,
+        "agui handler",
+      ),
+    });
   },
   removeCustomEventHandler(pluginName, name) {
     set({ customEventHandlers: removeOwned(get().customEventHandlers, pluginName, name) });
@@ -461,7 +483,9 @@ export const usePluginStore = create<PluginStoreState & PluginStoreActions>((set
   },
 
   addSettingsPane(pluginName, spec) {
-    set({ settingsPanes: addOwned(get().settingsPanes, pluginName, spec.id, spec, "settings pane") });
+    set({
+      settingsPanes: addOwned(get().settingsPanes, pluginName, spec.id, spec, "settings pane"),
+    });
   },
   removeSettingsPane(pluginName, id) {
     set({ settingsPanes: removeOwned(get().settingsPanes, pluginName, id) });
@@ -473,22 +497,28 @@ export const usePluginStore = create<PluginStoreState & PluginStoreActions>((set
   // but via the shared helper now.
   addCoreEventHandler(pluginName, eventType, id, handler) {
     set({
-      coreEventHandlers: addOwnedMulti(
-        get().coreEventHandlers, pluginName, `${eventType}#${id}`,
-        { eventType, handler },
-      ),
+      coreEventHandlers: addOwnedMulti(get().coreEventHandlers, pluginName, `${eventType}#${id}`, {
+        eventType,
+        handler,
+      }),
     });
   },
   removeCoreEventHandler(pluginName, eventType, id) {
-    set({ coreEventHandlers: removeOwnedMulti(get().coreEventHandlers, pluginName, `${eventType}#${id}`) });
+    set({
+      coreEventHandlers: removeOwnedMulti(
+        get().coreEventHandlers,
+        pluginName,
+        `${eventType}#${id}`,
+      ),
+    });
   },
 
   addLayoutSlot(pluginName, slot, spec) {
     set({
-      layoutSlots: addOwnedMulti(
-        get().layoutSlots, pluginName, `${slot}#${spec.id}`,
-        { slot, spec },
-      ),
+      layoutSlots: addOwnedMulti(get().layoutSlots, pluginName, `${slot}#${spec.id}`, {
+        slot,
+        spec,
+      }),
     });
   },
   removeLayoutSlot(pluginName, slot, id) {
@@ -528,45 +558,85 @@ export const usePluginStore = create<PluginStoreState & PluginStoreActions>((set
   },
 
   addComposerStatus(pluginName, spec) {
-    set({ composerStatus: addOwned(get().composerStatus, pluginName, spec.id, spec, "composer status") });
+    set({
+      composerStatus: addOwned(get().composerStatus, pluginName, spec.id, spec, "composer status"),
+    });
   },
   removeComposerStatus(pluginName, id) {
     set({ composerStatus: removeOwned(get().composerStatus, pluginName, id) });
   },
 
   addComposerMode(pluginName, spec) {
-    set({ composerModes: addOwned(get().composerModes, pluginName, spec.id, spec, "composer mode") });
+    set({
+      composerModes: addOwned(get().composerModes, pluginName, spec.id, spec, "composer mode"),
+    });
   },
   removeComposerMode(pluginName, id) {
     set({ composerModes: removeOwned(get().composerModes, pluginName, id) });
   },
 
   addComposerPlaceholder(pluginName, spec) {
-    set({ composerPlaceholders: addOwned(get().composerPlaceholders, pluginName, spec.id, spec, "composer placeholder") });
+    set({
+      composerPlaceholders: addOwned(
+        get().composerPlaceholders,
+        pluginName,
+        spec.id,
+        spec,
+        "composer placeholder",
+      ),
+    });
   },
   removeComposerPlaceholder(pluginName, id) {
     set({ composerPlaceholders: removeOwned(get().composerPlaceholders, pluginName, id) });
   },
 
   addComposerAttachmentSource(pluginName, spec) {
-    set({ composerAttachmentSources: addOwned(get().composerAttachmentSources, pluginName, spec.id, spec, "composer attachment source") });
+    set({
+      composerAttachmentSources: addOwned(
+        get().composerAttachmentSources,
+        pluginName,
+        spec.id,
+        spec,
+        "composer attachment source",
+      ),
+    });
   },
   removeComposerAttachmentSource(pluginName, id) {
-    set({ composerAttachmentSources: removeOwned(get().composerAttachmentSources, pluginName, id) });
+    set({
+      composerAttachmentSources: removeOwned(get().composerAttachmentSources, pluginName, id),
+    });
   },
 
   addComposerKeyBinding(pluginName, spec) {
     // Normalize the key on the way in so registrations and lookups match
     // regardless of case ("Enter" vs "enter", "Cmd+Enter" vs "mod+enter").
     const key = normalizeCombo(spec.key);
-    set({ composerKeyBindings: addOwned(get().composerKeyBindings, pluginName, key, spec, "composer key binding") });
+    set({
+      composerKeyBindings: addOwned(
+        get().composerKeyBindings,
+        pluginName,
+        key,
+        spec,
+        "composer key binding",
+      ),
+    });
   },
   removeComposerKeyBinding(pluginName, key) {
-    set({ composerKeyBindings: removeOwned(get().composerKeyBindings, pluginName, normalizeCombo(key)) });
+    set({
+      composerKeyBindings: removeOwned(get().composerKeyBindings, pluginName, normalizeCombo(key)),
+    });
   },
 
   addSidebarSection(pluginName, spec) {
-    set({ sidebarSections: addOwned(get().sidebarSections, pluginName, spec.id, spec, "sidebar section") });
+    set({
+      sidebarSections: addOwned(
+        get().sidebarSections,
+        pluginName,
+        spec.id,
+        spec,
+        "sidebar section",
+      ),
+    });
   },
   removeSidebarSection(pluginName, id) {
     set({ sidebarSections: removeOwned(get().sidebarSections, pluginName, id) });
@@ -587,7 +657,15 @@ export const usePluginStore = create<PluginStoreState & PluginStoreActions>((set
   },
 
   addDeclaredCommand(pluginName, spec) {
-    set({ declaredCommands: addOwned(get().declaredCommands, pluginName, spec.id, spec, "declared command") });
+    set({
+      declaredCommands: addOwned(
+        get().declaredCommands,
+        pluginName,
+        spec.id,
+        spec,
+        "declared command",
+      ),
+    });
   },
   removeDeclaredCommand(pluginName, id) {
     set({ declaredCommands: removeOwned(get().declaredCommands, pluginName, id) });
@@ -597,14 +675,24 @@ export const usePluginStore = create<PluginStoreState & PluginStoreActions>((set
   },
 
   addDeclaredView(pluginName, spec) {
-    set({ declaredViews: addOwned(get().declaredViews, pluginName, spec.id, spec, "declared view") });
+    set({
+      declaredViews: addOwned(get().declaredViews, pluginName, spec.id, spec, "declared view"),
+    });
   },
   removeDeclaredViewsBy(pluginName) {
     set({ declaredViews: clearByPlugin(get().declaredViews, pluginName) });
   },
 
   addDeclaredSettingsPane(pluginName, spec) {
-    set({ declaredSettingsPanes: addOwned(get().declaredSettingsPanes, pluginName, spec.id, spec, "declared settings pane") });
+    set({
+      declaredSettingsPanes: addOwned(
+        get().declaredSettingsPanes,
+        pluginName,
+        spec.id,
+        spec,
+        "declared settings pane",
+      ),
+    });
   },
   removeDeclaredSettingsPanesBy(pluginName) {
     set({ declaredSettingsPanes: clearByPlugin(get().declaredSettingsPanes, pluginName) });
@@ -622,14 +710,24 @@ export const usePluginStore = create<PluginStoreState & PluginStoreActions>((set
   },
 
   addDataProvider(pluginName, spec) {
-    set({ dataProviders: addOwned(get().dataProviders, pluginName, spec.key, spec, "data provider") });
+    set({
+      dataProviders: addOwned(get().dataProviders, pluginName, spec.key, spec, "data provider"),
+    });
   },
   removeDataProvider(pluginName, key) {
     set({ dataProviders: removeOwned(get().dataProviders, pluginName, key) });
   },
 
   addSidebarRailItem(pluginName, spec) {
-    set({ sidebarRailItems: addOwned(get().sidebarRailItems, pluginName, spec.id, spec, "sidebar rail item") });
+    set({
+      sidebarRailItems: addOwned(
+        get().sidebarRailItems,
+        pluginName,
+        spec.id,
+        spec,
+        "sidebar rail item",
+      ),
+    });
   },
   removeSidebarRailItem(pluginName, id) {
     set({ sidebarRailItems: removeOwned(get().sidebarRailItems, pluginName, id) });
@@ -684,7 +782,9 @@ export const usePluginStore = create<PluginStoreState & PluginStoreActions>((set
     set({ appReady: true });
     // Fire each handler — isolated; one throw must not skip the rest.
     for (const o of get().readyHandlers.values()) {
-      try { o.value(); } catch (err) {
+      try {
+        o.value();
+      } catch (err) {
         // eslint-disable-next-line no-console
         console.error(`[plugin] ${o.pluginName} onReady threw:`, err);
       }
@@ -705,7 +805,15 @@ export const usePluginStore = create<PluginStoreState & PluginStoreActions>((set
   },
 
   addPluginErrorFallback(pluginName, spec) {
-    set({ pluginErrorFallbacks: addOwned(get().pluginErrorFallbacks, pluginName, spec.id, spec, "plugin error fallback") });
+    set({
+      pluginErrorFallbacks: addOwned(
+        get().pluginErrorFallbacks,
+        pluginName,
+        spec.id,
+        spec,
+        "plugin error fallback",
+      ),
+    });
   },
   removePluginErrorFallback(pluginName, id) {
     set({ pluginErrorFallbacks: removeOwned(get().pluginErrorFallbacks, pluginName, id) });
@@ -721,7 +829,9 @@ export const usePluginStore = create<PluginStoreState & PluginStoreActions>((set
   },
 
   addWorkspaceView(pluginName, spec) {
-    set({ workspaceViews: addOwned(get().workspaceViews, pluginName, spec.id, spec, "workspace view") });
+    set({
+      workspaceViews: addOwned(get().workspaceViews, pluginName, spec.id, spec, "workspace view"),
+    });
   },
   removeWorkspaceView(pluginName, id) {
     set({ workspaceViews: removeOwned(get().workspaceViews, pluginName, id) });
@@ -762,4 +872,3 @@ function normalizeCombo(combo: string): string {
 }
 
 export { normalizeCombo };
-

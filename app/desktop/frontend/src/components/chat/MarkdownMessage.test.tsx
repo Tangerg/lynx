@@ -27,7 +27,9 @@ describe("MarkdownMessage", () => {
     const { container } = render(<MarkdownMessage text="Hello world" />);
     const spans = container.querySelectorAll("span.fade-in");
     expect(spans.length).toBeGreaterThanOrEqual(2);
-    const text = Array.from(spans).map((s) => s.textContent).join("|");
+    const text = Array.from(spans)
+      .map((s) => s.textContent)
+      .join("|");
     expect(text).toContain("Hello");
     expect(text).toContain("world");
   });

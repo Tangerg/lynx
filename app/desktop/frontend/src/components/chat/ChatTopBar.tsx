@@ -55,13 +55,16 @@ const tabClass = (active: boolean) =>
   );
 
 export function ChatTopBar({
-  tabs, viewTabs, activeId,
-  onSelectChat, onSelectView, onCloseChat, onCloseView,
+  tabs,
+  viewTabs,
+  activeId,
+  onSelectChat,
+  onSelectView,
+  onCloseChat,
+  onCloseView,
 }: Props) {
   return (
-    <div
-      className="flex min-h-9 items-center gap-1 bg-surface px-4 [-webkit-app-region:drag] [--wails-draggable:drag]"
-    >
+    <div className="flex min-h-9 items-center gap-1 bg-surface px-4 [-webkit-app-region:drag] [--wails-draggable:drag]">
       <div className="-mb-px flex min-w-0 flex-1 items-end gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {tabs.map((t) => (
           <div
@@ -75,7 +78,10 @@ export function ChatTopBar({
             </span>
             <span
               className="grid h-5.5 w-5.5 place-items-center rounded text-fg-faint opacity-0 transition-all duration-150 group-hover:opacity-100 hover:bg-surface-3 hover:text-fg active:scale-90"
-              onClick={(e) => { e.stopPropagation(); onCloseChat(t.id); }}
+              onClick={(e) => {
+                e.stopPropagation();
+                onCloseChat(t.id);
+              }}
               title="Close"
             >
               <Icon name="x" size={10} />
@@ -94,7 +100,10 @@ export function ChatTopBar({
             </span>
             <span
               className="grid h-5.5 w-5.5 place-items-center rounded text-fg-faint opacity-0 transition-all duration-150 group-hover:opacity-100 hover:bg-surface-3 hover:text-fg active:scale-90"
-              onClick={(e) => { e.stopPropagation(); onCloseView(t.id); }}
+              onClick={(e) => {
+                e.stopPropagation();
+                onCloseView(t.id);
+              }}
               title="Close"
             >
               <Icon name="x" size={10} />

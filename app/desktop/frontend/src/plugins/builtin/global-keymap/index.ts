@@ -23,10 +23,10 @@ const COMMAND_BINDINGS: Array<{
   commandId: string;
   description: string;
 }> = [
-  { combo: "Mod+N",       commandId: "chat.new",            description: "New chat tab" },
-  { combo: "Mod+W",       commandId: "chat.close-tab",      description: "Close current tab" },
-  { combo: "Mod+L",       commandId: "composer.focus",      description: "Focus composer" },
-  { combo: "Mod+B",       commandId: "view.toggle-sidebar", description: "Toggle sidebar" },
+  { combo: "Mod+N", commandId: "chat.new", description: "New chat tab" },
+  { combo: "Mod+W", commandId: "chat.close-tab", description: "Close current tab" },
+  { combo: "Mod+L", commandId: "composer.focus", description: "Focus composer" },
+  { combo: "Mod+B", commandId: "view.toggle-sidebar", description: "Toggle sidebar" },
   { combo: "Mod+Shift+L", commandId: "settings.toggle-theme", description: "Toggle theme" },
 ];
 

@@ -14,8 +14,13 @@
 /* Body / canvas — outer frame is canvas (#fafafa). Panels lift above
    it to surface (#ffffff) via the .panel default. Same cards-on-canvas
    pattern as dark mode, just inverted. */
-html.theme-light, html.theme-light body { background: var(--color-bg); }
-html.theme-light .app { background: var(--color-bg); }
+html.theme-light,
+html.theme-light body {
+  background: var(--color-bg);
+}
+html.theme-light .app {
+  background: var(--color-bg);
+}
 
 /* Panel chrome — no border. Depth via STACKED SHADOW only (JB / Vercel
    pattern). The inset top-highlight from the dark-mode .panel rule
@@ -26,25 +31,41 @@ html.theme-light .panel {
   box-shadow:
     0 1px 2px rgba(15, 15, 15, 0.06),
     0 4px 12px rgba(15, 15, 15, 0.08),
-    0 12px 24px -8px rgba(15, 15, 15, 0.10);
+    0 12px 24px -8px rgba(15, 15, 15, 0.1);
 }
 
 /* Syntax tokens — emitted by utils/highlight.ts (DiffView.tsx) and the
    FilePreview HTML-string highlighter. The spans come from a
    dangerouslySetInnerHTML string, so we can't override colours via
    Tailwind utilities at the call site — light-theme tones live here. */
-html.theme-light .token-kw   { color: #b91d7d; }
-html.theme-light .token-str  { color: #b86a00; }
-html.theme-light .token-fn   { color: #1d4ed8; }
-html.theme-light .token-comm { color: #9a9a9a; }
-html.theme-light .file-preview .fp-line .code .t-kw  { color: #b91d7d; }
-html.theme-light .file-preview .fp-line .code .t-str { color: #b86a00; }
-html.theme-light .file-preview .fp-line .code .t-fn  { color: #1d4ed8; }
+html.theme-light .token-kw {
+  color: #b91d7d;
+}
+html.theme-light .token-str {
+  color: #b86a00;
+}
+html.theme-light .token-fn {
+  color: #1d4ed8;
+}
+html.theme-light .token-comm {
+  color: #9a9a9a;
+}
+html.theme-light .file-preview .fp-line .code .t-kw {
+  color: #b91d7d;
+}
+html.theme-light .file-preview .fp-line .code .t-str {
+  color: #b86a00;
+}
+html.theme-light .file-preview .fp-line .code .t-fn {
+  color: #1d4ed8;
+}
 
 /* Scrollbar — light theme uses a quieter thumb (Vercel pattern: light
    surfaces would make the dark thumb tokens overshoot). Targets the
    .panel-scroll class set on every scrollable Panel body. */
-html.theme-light .panel-scroll { scrollbar-color: #cdcdcc transparent; }
+html.theme-light .panel-scroll {
+  scrollbar-color: #cdcdcc transparent;
+}
 html.theme-light .panel-scroll::-webkit-scrollbar-thumb {
   background: #d4d4d3;
   border: 2px solid transparent;
@@ -59,7 +80,9 @@ html.theme-light .panel-scroll::-webkit-scrollbar-thumb:hover {
    MessageBlock keeps the .msg-content className for the markdown body
    (Tailwind would require migrating every markdownComponents child
    element; not worth the churn for one wrapper). */
-html.theme-light .msg-content { color: var(--color-text-soft); }
+html.theme-light .msg-content {
+  color: var(--color-text-soft);
+}
 html.theme-light .msg-content code {
   background: var(--color-surface-2);
   color: var(--color-text);

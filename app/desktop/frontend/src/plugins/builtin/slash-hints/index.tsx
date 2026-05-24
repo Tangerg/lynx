@@ -7,13 +7,13 @@ import { definePlugin } from "@/plugins/sdk";
 
 const HINTS: Array<[cmd: string, description: string]> = [
   ["/explain", "Explain a file, function, or selection"],
-  ["/test",    "Generate or run tests for the current change"],
-  ["/fix",     "Diagnose and fix the failing typecheck"],
-  ["/diff",    "Show the working-tree diff inline"],
-  ["/review",  "Review pending changes line-by-line"],
-  ["/commit",  "Stage, commit, and push the current branch"],
-  ["/search",  "Search the codebase for a symbol or pattern"],
-  ["/plan",    "Restate or edit the current plan"],
+  ["/test", "Generate or run tests for the current change"],
+  ["/fix", "Diagnose and fix the failing typecheck"],
+  ["/diff", "Show the working-tree diff inline"],
+  ["/review", "Review pending changes line-by-line"],
+  ["/commit", "Stage, commit, and push the current branch"],
+  ["/search", "Search the codebase for a symbol or pattern"],
+  ["/plan", "Restate or edit the current plan"],
 ];
 
 export default definePlugin({

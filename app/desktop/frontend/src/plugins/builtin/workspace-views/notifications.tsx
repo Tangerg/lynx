@@ -72,13 +72,13 @@ type RowProps = {
   onDismiss: () => void;
 };
 
-function NotificationRow({
-  level, message, plugin, timestamp, dismissed, onDismiss,
-}: RowProps) {
+function NotificationRow({ level, message, plugin, timestamp, dismissed, onDismiss }: RowProps) {
   const dotColor =
-    level === "error" ? "var(--color-error, #f87171)" :
-    level === "warn"  ? "var(--color-warn,  #fbbf24)" :
-                        "var(--color-text-faint)";
+    level === "error"
+      ? "var(--color-error, #f87171)"
+      : level === "warn"
+        ? "var(--color-warn,  #fbbf24)"
+        : "var(--color-text-faint)";
 
   return (
     <div
@@ -92,20 +92,34 @@ function NotificationRow({
         borderBottom: "1px solid var(--color-border-soft)",
       }}
     >
-      <div style={{
-        width: 6, height: 6, borderRadius: "50%",
-        marginTop: 6, background: dotColor, flexShrink: 0,
-      }} />
+      <div
+        style={{
+          width: 6,
+          height: 6,
+          borderRadius: "50%",
+          marginTop: 6,
+          background: dotColor,
+          flexShrink: 0,
+        }}
+      />
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{
-          fontSize: 12, color: "var(--color-text)",
-          whiteSpace: "pre-wrap", wordBreak: "break-word",
-        }}>
+        <div
+          style={{
+            fontSize: 12,
+            color: "var(--color-text)",
+            whiteSpace: "pre-wrap",
+            wordBreak: "break-word",
+          }}
+        >
           {message}
         </div>
-        <div style={{
-          fontSize: 10, color: "var(--color-text-faint)", marginTop: 3,
-        }}>
+        <div
+          style={{
+            fontSize: 10,
+            color: "var(--color-text-faint)",
+            marginTop: 3,
+          }}
+        >
           {plugin} · {timeAgo(timestamp)}
         </div>
       </div>

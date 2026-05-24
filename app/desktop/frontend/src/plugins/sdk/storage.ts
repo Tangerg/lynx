@@ -111,7 +111,7 @@ export function createStorage(pluginName: string): KeyValueStore {
 
     migrate(migrations: StorageMigration[]): void {
       const self = this;
-      const current = (self.get<number>(SCHEMA_VERSION_KEY) ?? 0);
+      const current = self.get<number>(SCHEMA_VERSION_KEY) ?? 0;
       // Stable sort so a migration list authored in arbitrary order still
       // applies low-to-high. Filter out steps we've already executed.
       const pending = [...migrations]
@@ -123,10 +123,7 @@ export function createStorage(pluginName: string): KeyValueStore {
           self.set(SCHEMA_VERSION_KEY, step.version);
         } catch (err) {
           // eslint-disable-next-line no-console
-          console.error(
-            `[plugin] ${pluginName} migration to v${step.version} failed:`,
-            err,
-          );
+          console.error(`[plugin] ${pluginName} migration to v${step.version} failed:`, err);
           return;
         }
       }

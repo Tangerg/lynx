@@ -27,8 +27,12 @@ function FilesView() {
         sub={`${items.length} files · uncommitted`}
         actions={
           <>
-            <IconButton title="Stage all"><Icon name="check" size={14} /></IconButton>
-            <IconButton title="More"><Icon name="more" size={14} /></IconButton>
+            <IconButton title="Stage all">
+              <Icon name="check" size={14} />
+            </IconButton>
+            <IconButton title="More">
+              <Icon name="more" size={14} />
+            </IconButton>
           </>
         }
       />

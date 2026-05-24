@@ -35,13 +35,15 @@ describe("submitComposer", () => {
 
   it("routes a registered slash command to its handler — sendText not called", async () => {
     const run = vi.fn();
-    await loadPlugin(definePlugin({
-      name: "test.submit.slash",
-      version: "1.0.0",
-      setup: ({ host }) => {
-        host.composer.registerCommand("/echo", { description: "echo", run });
-      },
-    }));
+    await loadPlugin(
+      definePlugin({
+        name: "test.submit.slash",
+        version: "1.0.0",
+        setup: ({ host }) => {
+          host.composer.registerCommand("/echo", { description: "echo", run });
+        },
+      }),
+    );
     const send = vi.fn();
     const clear = vi.fn();
     submitComposer({ value: "/echo hi there", clear, sendText: send });

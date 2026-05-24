@@ -42,12 +42,14 @@ describe("appendBlockToMessage", () => {
 describe("appendBlockToLatestAssistant", () => {
   it("targets the most-recent assistant message", () => {
     const update = appendBlockToLatestAssistant({ kind: "plan" });
-    const next = update(stateWith([
-      msg("u1", "user"),
-      msg("a1"),               // assistant — not latest
-      msg("u2", "user"),
-      msg("a2"),               // latest assistant
-    ]));
+    const next = update(
+      stateWith([
+        msg("u1", "user"),
+        msg("a1"), // assistant — not latest
+        msg("u2", "user"),
+        msg("a2"), // latest assistant
+      ]),
+    );
 
     expect(next.messages[1].blocks).toHaveLength(0);
     expect(next.messages[3].blocks).toHaveLength(1);

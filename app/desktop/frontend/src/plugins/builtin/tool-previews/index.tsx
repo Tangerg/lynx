@@ -24,7 +24,9 @@ function BashPreview({ onOpenView }: ToolPreviewProps) {
   return (
     <div className={cn(PREVIEW_WRAP, "whitespace-pre text-fg-soft")}>
       {(lines ?? []).slice(0, MAX_TERM_LINES).map((l, i) => (
-        <span key={i} className={l.kind}>{l.text}</span>
+        <span key={i} className={l.kind}>
+          {l.text}
+        </span>
       ))}
       <PreviewFoot label="Open in Terminal" onClick={onOpenView} />
     </div>
@@ -45,17 +47,23 @@ function DiffPreview({ onOpenView }: ToolPreviewProps) {
             );
           }
           const tone =
-            row.type === "add" ? "bg-[rgba(30,215,96,0.07)]" :
-            row.type === "del" ? "bg-[rgba(243,114,127,0.07)]" :
-            "";
+            row.type === "add"
+              ? "bg-[rgba(30,215,96,0.07)]"
+              : row.type === "del"
+                ? "bg-[rgba(243,114,127,0.07)]"
+                : "";
           const meta =
-            row.type === "add" ? "text-[rgba(95,227,154,0.7)]" :
-            row.type === "del" ? "text-[rgba(243,114,127,0.7)]" :
-            "text-fg-faint";
+            row.type === "add"
+              ? "text-[rgba(95,227,154,0.7)]"
+              : row.type === "del"
+                ? "text-[rgba(243,114,127,0.7)]"
+                : "text-fg-faint";
           const codeTone =
-            row.type === "add" ? "text-[#c8f5d8]" :
-            row.type === "del" ? "text-[#f5cdd2]" :
-            "text-fg-soft";
+            row.type === "add"
+              ? "text-[#c8f5d8]"
+              : row.type === "del"
+                ? "text-[#f5cdd2]"
+                : "text-fg-soft";
           const sign = row.type === "add" ? "+" : row.type === "del" ? "−" : " ";
           return (
             <div key={i} className={cn("grid grid-cols-[18px_1fr] px-0.5", tone)}>
@@ -82,10 +90,7 @@ function FilePreview({ onOpenView }: ToolPreviewProps) {
         {(lines ?? []).map((l, i) => (
           <div
             key={i}
-            className={cn(
-              "fp-line grid grid-cols-[28px_1fr] gap-2.5",
-              l.muted && "text-fg-faint",
-            )}
+            className={cn("fp-line grid grid-cols-[28px_1fr] gap-2.5", l.muted && "text-fg-faint")}
           >
             <span className="text-right text-[11px] text-fg-faint select-none">{l.ln}</span>
             <span
@@ -118,9 +123,7 @@ function GrepPreview({ onOpenView }: ToolPreviewProps) {
             <span className="truncate text-fg">{m.match}</span>
           </div>
         ))}
-        {overflow > 0 && (
-          <div className="pt-1 text-fg-faint">… {overflow} more matches</div>
-        )}
+        {overflow > 0 && <div className="pt-1 text-fg-faint">… {overflow} more matches</div>}
       </div>
       <PreviewFoot label="View all matches" onClick={onOpenView} />
     </div>

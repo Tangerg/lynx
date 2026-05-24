@@ -6,7 +6,9 @@
    so it clears the traffic-light controls.
    ============================================================ */
 
-* { box-sizing: border-box; }
+* {
+  box-sizing: border-box;
+}
 
 /* ---------- Document + body ---------- */
 /* Hard minimum viewport size. Below this the composer (760px max-width)
@@ -20,23 +22,33 @@
   --app-min-height: 720px;
 }
 
-html, body, #root {
+html,
+body,
+#root {
   height: 100%;
   margin: 0;
   min-width: var(--app-min-width);
   min-height: var(--app-min-height);
 }
-#root { height: 100vh; }
+#root {
+  height: 100vh;
+}
 
 /* Body — only the layout knob that's not shared with tokens.css's body
    block (which carries background / color / font / smoothing). Locks
    body to scroll instead of letting content squash the viewport. */
-body { overflow: auto; }
+body {
+  overflow: auto;
+}
 
 /* Default colour scheme — switched by themeStore.applyTheme via the
    .theme-light class. */
-html { color-scheme: dark; }
-html.theme-light { color-scheme: light; }
+html {
+  color-scheme: dark;
+}
+html.theme-light {
+  color-scheme: light;
+}
 
 /* Light-mode glow tweak — slightly tighter than dark since light
    backgrounds make halos read more loudly. */
@@ -97,8 +109,12 @@ html.theme-light .app-statusbar {
   background: var(--color-surface);
   color: var(--color-text-muted);
 }
-html.theme-light .app-statusbar svg polyline { stroke-opacity: 0.55; }
-html.theme-light .app-statusbar svg polygon  { fill-opacity:  0.10; }
+html.theme-light .app-statusbar svg polyline {
+  stroke-opacity: 0.55;
+}
+html.theme-light .app-statusbar svg polygon {
+  fill-opacity: 0.1;
+}
 
 /* Running tool card border — full accent gradient is too loud on white;
    pull saturation down + tighten the visible arc. (Paired with the
@@ -107,8 +123,8 @@ html.theme-light .tool-card.running::before {
   background: conic-gradient(
     from var(--tc-angle),
     var(--color-accent) 0deg,
-    rgba(21, 136, 62, 0.0) 70deg,
-    rgba(21, 136, 62, 0.0) 290deg,
+    rgba(21, 136, 62, 0) 70deg,
+    rgba(21, 136, 62, 0) 290deg,
     var(--color-accent) 360deg
   );
 }
@@ -141,7 +157,7 @@ html.theme-light .tool-card.running::before {
        visible without being theatrical. */
     0 1px 2px rgba(0, 0, 0, 0.35),
     0 8px 16px -4px rgba(0, 0, 0, 0.28),
-    0 16px 32px -8px rgba(0, 0, 0, 0.20);
+    0 16px 32px -8px rgba(0, 0, 0, 0.2);
 }
 
 /* ---------- Scroll containers ---------- */
@@ -152,7 +168,9 @@ html.theme-light .tool-card.running::before {
   scrollbar-width: thin;
   scrollbar-color: var(--color-border-soft) transparent;
 }
-.panel-scroll::-webkit-scrollbar { width: 10px; }
+.panel-scroll::-webkit-scrollbar {
+  width: 10px;
+}
 .panel-scroll::-webkit-scrollbar-thumb {
   background: var(--color-border-soft);
   border-radius: var(--radius-pill);
@@ -189,8 +207,16 @@ html.theme-light .tool-card.running::before {
    top zone doubles as the window drag region so users can move the
    window by the brand row.
    ============================================================ */
-.sidebar       { padding-top: 48px; -webkit-app-region: drag; --wails-draggable: drag; }
-.sidebar.rail  { padding-top: 36px; -webkit-app-region: drag; --wails-draggable: drag; }
+.sidebar {
+  padding-top: 48px;
+  -webkit-app-region: drag;
+  --wails-draggable: drag;
+}
+.sidebar.rail {
+  padding-top: 36px;
+  -webkit-app-region: drag;
+  --wails-draggable: drag;
+}
 /* Brand row + interactive children opt out of drag so they remain
    clickable. (The icon-host divs `.brand-mark` need their own opt-out;
    it lives in overlays.css.) */

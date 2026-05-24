@@ -16,9 +16,11 @@ export function PluginToaster() {
     const onToast = (e: Event) => {
       const detail = (e as CustomEvent<PluginToastDetail>).detail;
       const fn =
-        detail.level === "warn"  ? toast.warning :
-        detail.level === "error" ? toast.error :
-        toast.info;
+        detail.level === "warn"
+          ? toast.warning
+          : detail.level === "error"
+            ? toast.error
+            : toast.info;
       fn(detail.message);
     };
     window.addEventListener(PLUGIN_TOAST_EVENT, onToast);

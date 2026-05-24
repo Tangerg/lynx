@@ -20,7 +20,11 @@ function PlanTab() {
         titleStrong
         title={title}
         sub={`${done} of ${plan.length} complete · ${eta}`}
-        actions={<IconButton title="Edit plan"><Icon name="edit" size={14} /></IconButton>}
+        actions={
+          <IconButton title="Edit plan">
+            <Icon name="edit" size={14} />
+          </IconButton>
+        }
       />
       <ScrollArea>
         {plan.length === 0 ? (

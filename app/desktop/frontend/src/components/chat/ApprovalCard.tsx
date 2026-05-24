@@ -37,11 +37,7 @@ export function ApprovalCard({ what, cmd, reason, requestId, decision }: Props) 
     );
   }
   if (finalised === "declined") {
-    return (
-      <Divider icon={<Icon name="x" size={11} />}>
-        已拒绝
-      </Divider>
-    );
+    return <Divider icon={<Icon name="x" size={11} />}>已拒绝</Divider>;
   }
 
   // Pre-decision card. Buttons disabled when no requestId (decorative
@@ -50,7 +46,8 @@ export function ApprovalCard({ what, cmd, reason, requestId, decision }: Props) 
   return (
     <div className="my-3 rounded-xl border border-warning/25 bg-[linear-gradient(180deg,rgba(255,164,43,0.06)_0%,var(--color-surface)_60%)] px-4 py-3.5">
       <div className="mb-2 flex items-center gap-2 font-mono text-[11px] font-semibold text-warning">
-        <Icon name="shield" size={12} />Approval required
+        <Icon name="shield" size={12} />
+        Approval required
       </div>
       <div className="mb-1.5 text-[15px] font-semibold leading-[1.4] text-fg">{what}</div>
       <code className="my-2 block whitespace-pre-wrap break-all rounded-sm bg-warning/14 px-3 py-2 font-mono text-[13px] text-fg">
@@ -66,11 +63,7 @@ export function ApprovalCard({ what, cmd, reason, requestId, decision }: Props) 
         >
           Approve
         </PillButton>
-        <PillButton
-          size="sm"
-          disabled={disabled}
-          onClick={() => submit("declined")}
-        >
+        <PillButton size="sm" disabled={disabled} onClick={() => submit("declined")}>
           Decline
         </PillButton>
       </div>

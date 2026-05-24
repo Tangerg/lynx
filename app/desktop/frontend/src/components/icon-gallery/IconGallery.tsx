@@ -12,8 +12,8 @@ import { IconMap, rawToc } from "./iconMap";
 type GroupKey = "model" | "provider" | "application";
 
 const GROUP_TITLES: Record<GroupKey, string> = {
-  model:       "Models",
-  provider:    "Providers",
+  model: "Models",
+  provider: "Providers",
   application: "Applications",
 };
 
@@ -25,15 +25,17 @@ export function IconGallery() {
   const items = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return rawToc;
-    return rawToc.filter((e) =>
-      e.fullTitle.toLowerCase().includes(q) || e.id.toLowerCase().includes(q),
+    return rawToc.filter(
+      (e) => e.fullTitle.toLowerCase().includes(q) || e.id.toLowerCase().includes(q),
     );
   }, [query]);
 
   // Group by `group` and keep alphabetical order inside each.
   const grouped = useMemo(() => {
     const buckets: Record<GroupKey, typeof rawToc> = {
-      model: [], provider: [], application: [],
+      model: [],
+      provider: [],
+      application: [],
     };
     for (const e of items) {
       if (e.group in buckets) buckets[e.group as GroupKey].push(e);

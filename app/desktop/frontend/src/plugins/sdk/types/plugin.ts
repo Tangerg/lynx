@@ -43,10 +43,29 @@ export type ContributedSettingsPane = Omit<SettingsPaneSpec, "component">;
  * a hook for future permission enforcement / marketplace audits.
  */
 export type HostCapability =
-  | "tool" | "message" | "agui" | "layout" | "workspace" | "theme"
-  | "router" | "composer" | "sidebar" | "shortcuts" | "agent" | "data"
-  | "commands" | "lifecycle" | "state" | "config" | "settings"
-  | "storage" | "rpc" | "notify" | "window" | "plugins" | "log";
+  | "tool"
+  | "message"
+  | "agui"
+  | "layout"
+  | "workspace"
+  | "theme"
+  | "router"
+  | "composer"
+  | "sidebar"
+  | "shortcuts"
+  | "agent"
+  | "data"
+  | "commands"
+  | "lifecycle"
+  | "state"
+  | "config"
+  | "settings"
+  | "storage"
+  | "rpc"
+  | "notify"
+  | "window"
+  | "plugins"
+  | "log";
 
 /**
  * Declarative ahead-of-activation contributions. Anything listed here is
@@ -98,10 +117,7 @@ export type PluginSpec = {
    * style side effects whose disposable isn't a `host.*.register*` result
    * (Zustand store subscriptions, window event listeners, etc.).
    */
-  setup: (ctx: PluginContext) =>
-    | void
-    | (() => void)
-    | Promise<void | (() => void)>;
+  setup: (ctx: PluginContext) => void | (() => void) | Promise<void | (() => void)>;
 };
 
 export type LoadedPlugin = {

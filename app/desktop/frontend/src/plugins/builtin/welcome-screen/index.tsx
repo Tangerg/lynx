@@ -15,10 +15,26 @@ type Suggestion = { icon: IconName; labelKey: string; promptKey: string };
 // switch with the active locale. Keep order intentional (recognition
 // order: refactor → search → review → checklist).
 const SUGGESTIONS: Suggestion[] = [
-  { icon: "spark",  labelKey: "welcome.suggest.refactor",  promptKey: "welcome.suggest.refactor.prompt" },
-  { icon: "search", labelKey: "welcome.suggest.search",    promptKey: "welcome.suggest.search.prompt" },
-  { icon: "branch", labelKey: "welcome.suggest.review",    promptKey: "welcome.suggest.review.prompt" },
-  { icon: "list",   labelKey: "welcome.suggest.checklist", promptKey: "welcome.suggest.checklist.prompt" },
+  {
+    icon: "spark",
+    labelKey: "welcome.suggest.refactor",
+    promptKey: "welcome.suggest.refactor.prompt",
+  },
+  {
+    icon: "search",
+    labelKey: "welcome.suggest.search",
+    promptKey: "welcome.suggest.search.prompt",
+  },
+  {
+    icon: "branch",
+    labelKey: "welcome.suggest.review",
+    promptKey: "welcome.suggest.review.prompt",
+  },
+  {
+    icon: "list",
+    labelKey: "welcome.suggest.checklist",
+    promptKey: "welcome.suggest.checklist.prompt",
+  },
 ];
 
 function WelcomeScreen() {

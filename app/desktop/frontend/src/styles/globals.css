@@ -21,7 +21,7 @@
 /* Webfonts must be the very first statement in the CSS bundle —
    `@import` rules cannot follow any other rule per the CSS spec, and
    Tailwind's `@import` directive expands into rules. */
-@import url('https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400&display=swap');
+@import url("https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400&display=swap");
 
 @import "tailwindcss";
 
@@ -37,8 +37,8 @@
      `bg-canvas`  → outer frame (darkest in dark / lightest in light)
      `bg-surface` → lifted panel
      `bg-surface-2/3` → derived steps for hover / active / popovers */
-  --color-canvas:    var(--color-bg);
-  --color-surface:   var(--color-surface);
+  --color-canvas: var(--color-bg);
+  --color-surface: var(--color-surface);
   --color-surface-2: var(--color-surface-2);
   --color-surface-3: var(--color-surface-3);
 
@@ -46,10 +46,10 @@
      `text-fg` is the default body color; -soft / -muted / -faint step
      down toward the background. `on-accent` is used for text/icons
      sitting on a primary-color surface. */
-  --color-fg:        var(--color-text);
-  --color-fg-soft:   var(--color-text-soft);
-  --color-fg-muted:  var(--color-text-muted);
-  --color-fg-faint:  var(--color-text-faint);
+  --color-fg: var(--color-text);
+  --color-fg-soft: var(--color-text-soft);
+  --color-fg-muted: var(--color-text-muted);
+  --color-fg-faint: var(--color-text-faint);
   --color-on-accent: var(--color-text-on-accent);
 
   /* ---------- Accent ----------
@@ -57,28 +57,28 @@
      -press shades stay as raw CSS variables (themes set them; CTA
      defaults consume them via var(...) — no `bg-accent-border` utility
      ever needed). */
-  --color-accent:        var(--color-accent);
+  --color-accent: var(--color-accent);
 
   /* ---------- Semantic ---------- */
   --color-negative: var(--color-negative);
-  --color-warning:  var(--color-warning);
-  --color-info:     var(--color-info);
-  --color-success:  var(--color-success);
+  --color-warning: var(--color-warning);
+  --color-info: var(--color-info);
+  --color-success: var(--color-success);
 
   /* ---------- Borders ----------
      `border-line` is the default hairline; -soft is the emphasized
      stroke used on lifted surfaces; -divider is the deepest contrast. */
-  --color-line:      var(--color-border);
+  --color-line: var(--color-border);
   --color-line-soft: var(--color-border-soft);
-  --color-divider:   var(--color-divider);
+  --color-divider: var(--color-divider);
 
   /* ---------- Radius ----------
      md (8px) is the default button radius. pill = fully rounded. */
-  --radius-xs:   4px;
-  --radius-sm:   6px;
-  --radius-md:   8px;
-  --radius-lg:   12px;
-  --radius-xl:   16px;
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
   --radius-pill: 9999px;
 
   /* ---------- Fonts ---------- */
@@ -95,18 +95,35 @@
 }
 
 @keyframes lyra-shimmer {
-  0%   { background-position: -200% 0; }
-  100% { background-position:  200% 0; }
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
 }
 @keyframes lyra-pulse {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50%      { opacity: 0.6; transform: scale(0.9); }
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.6;
+    transform: scale(0.9);
+  }
 }
 
 /* Slash-suggestion / popover slide-up entrance. */
 @keyframes lyra-rise-in {
-  from { transform: translateY(8px); opacity: 0; }
-  to   { transform: translateY(0);   opacity: 1; }
+  from {
+    transform: translateY(8px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
 }
 
 /* Global text-selection highlight — accent-tinted instead of the OS

@@ -25,8 +25,8 @@ export const composerModes = definePlugin({
   version: "1.0.0",
   setup({ host }) {
     host.composer.registerMode({ id: "agent", label: "Agent", icon: "spark", order: 0 });
-    host.composer.registerMode({ id: "ask",   label: "Ask",   icon: "chat",  order: 1 });
-    host.composer.registerMode({ id: "plan",  label: "Plan",  icon: "list",  order: 2 });
+    host.composer.registerMode({ id: "ask", label: "Ask", icon: "chat", order: 1 });
+    host.composer.registerMode({ id: "plan", label: "Plan", icon: "list", order: 2 });
   },
 });
 
@@ -36,10 +36,22 @@ export const composerPlaceholders = definePlugin({
   name: "lyra.builtin.composer-placeholders",
   version: "1.0.0",
   setup({ host }) {
-    host.composer.registerPlaceholder({ id: "ask",       text: "Ask, plan, or paste a stack trace…  /  to run a command" });
-    host.composer.registerPlaceholder({ id: "debug",     text: "Paste a failing test output and I'll walk you through it." });
-    host.composer.registerPlaceholder({ id: "implement", text: "Implement what? Describe the change and I'll plan + execute." });
-    host.composer.registerPlaceholder({ id: "refactor",  text: "Point at code that smells; I'll suggest a refactor." });
+    host.composer.registerPlaceholder({
+      id: "ask",
+      text: "Ask, plan, or paste a stack trace…  /  to run a command",
+    });
+    host.composer.registerPlaceholder({
+      id: "debug",
+      text: "Paste a failing test output and I'll walk you through it.",
+    });
+    host.composer.registerPlaceholder({
+      id: "implement",
+      text: "Implement what? Describe the change and I'll plan + execute.",
+    });
+    host.composer.registerPlaceholder({
+      id: "refactor",
+      text: "Point at code that smells; I'll suggest a refactor.",
+    });
   },
 });
 
@@ -61,7 +73,10 @@ export const composerKeymap = definePlugin({
     host.composer.registerKeyBinding({
       key: "Mod+Enter",
       description: "Send message (override)",
-      handler: ({ submit }) => { submit(); return true; },
+      handler: ({ submit }) => {
+        submit();
+        return true;
+      },
     });
   },
 });
@@ -74,8 +89,14 @@ export const composerKeymap = definePlugin({
 // the registration API.
 
 function Chip({
-  icon, title, children,
-}: { icon: IconName; title: string; children: React.ReactNode }) {
+  icon,
+  title,
+  children,
+}: {
+  icon: IconName;
+  title: string;
+  children: React.ReactNode;
+}) {
   return (
     <button
       type="button"
@@ -88,15 +109,27 @@ function Chip({
     </button>
   );
 }
-const ProjectChip   = () => <Chip icon="folder" title="Working directory">fern-api</Chip>;
-const ExecModeChip  = () => <Chip icon="shield" title="Execution mode">Workspace · Auto</Chip>;
-const GitBranchChip = () => <Chip icon="branch" title="Git branch">feat/result-type</Chip>;
+const ProjectChip = () => (
+  <Chip icon="folder" title="Working directory">
+    fern-api
+  </Chip>
+);
+const ExecModeChip = () => (
+  <Chip icon="shield" title="Execution mode">
+    Workspace · Auto
+  </Chip>
+);
+const GitBranchChip = () => (
+  <Chip icon="branch" title="Git branch">
+    feat/result-type
+  </Chip>
+);
 
 export const composerChips = definePlugin({
   name: "lyra.builtin.composer-chips",
   version: "1.0.0",
   setup({ host }) {
-    host.composer.registerStatus({ id: "project",   order: 0, component: ProjectChip });
+    host.composer.registerStatus({ id: "project", order: 0, component: ProjectChip });
     host.composer.registerStatus({ id: "exec-mode", order: 1, component: ExecModeChip });
     host.composer.registerStatus({ id: "git-branch", order: 2, component: GitBranchChip });
   },
@@ -113,7 +146,8 @@ function ModelPicker() {
   return (
     <button
       type="button"
-      title="Switch model" aria-label="Switch model"
+      title="Switch model"
+      aria-label="Switch model"
       className="mr-1 inline-flex h-6.5 shrink-0 items-center gap-1.5 rounded-full border border-transparent bg-transparent pl-1 pr-2.5 font-sans text-[12px] font-semibold text-fg whitespace-nowrap cursor-pointer transition-colors hover:bg-surface-2 hover:border-line"
     >
       <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-[linear-gradient(135deg,var(--color-accent)_0%,color-mix(in_oklab,var(--color-accent)_40%,#000)_100%)] text-on-accent font-semibold text-[11px]">
@@ -129,7 +163,8 @@ function AttachButton() {
   return (
     <button
       type="button"
-      title="Attach file" aria-label="Attach file"
+      title="Attach file"
+      aria-label="Attach file"
       className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border-0 bg-transparent text-fg-muted cursor-pointer transition-colors hover:bg-surface-2 hover:text-fg"
     >
       <Icon name={"paperclip" as IconName} size={13} />
@@ -141,8 +176,16 @@ export const composerToolbar = definePlugin({
   name: "lyra.builtin.composer-toolbar",
   version: "1.0.0",
   setup({ host }) {
-    host.layout.register("composer.toolbar.start", { id: "model",  order: 0, component: ModelPicker });
-    host.layout.register("composer.toolbar.start", { id: "attach", order: 1, component: AttachButton });
+    host.layout.register("composer.toolbar.start", {
+      id: "model",
+      order: 0,
+      component: ModelPicker,
+    });
+    host.layout.register("composer.toolbar.start", {
+      id: "attach",
+      order: 1,
+      component: AttachButton,
+    });
   },
 });
 
@@ -153,11 +196,11 @@ export const composerToolbar = definePlugin({
 // useCommands(), so we list them statically.
 
 const STATIC_CHEATS: Array<{ combo: string; label: string }> = [
-  { combo: "↵",     label: "Send message" },
-  { combo: "⌘↵",    label: "Send message" },
-  { combo: "⇧↵",    label: "New line" },
-  { combo: "Esc",   label: "Unfocus composer" },
-  { combo: "⌘1-9",  label: "Switch to tab N" },
+  { combo: "↵", label: "Send message" },
+  { combo: "⌘↵", label: "Send message" },
+  { combo: "⇧↵", label: "New line" },
+  { combo: "Esc", label: "Unfocus composer" },
+  { combo: "⌘1-9", label: "Switch to tab N" },
 ];
 
 function KeyHint() {
@@ -169,10 +212,9 @@ function KeyHint() {
 
   return (
     <Popover.Root>
-      <Popover.Trigger
-        className="hidden xl:inline-flex items-center gap-1 px-1 font-mono text-[11px] text-fg-faint cursor-default border-0 bg-transparent"
-      >
-        <span className="text-accent">⌘K</span> commands · <span className="text-accent">⌘↵</span> send
+      <Popover.Trigger className="hidden xl:inline-flex items-center gap-1 px-1 font-mono text-[11px] text-fg-faint cursor-default border-0 bg-transparent">
+        <span className="text-accent">⌘K</span> commands · <span className="text-accent">⌘↵</span>{" "}
+        send
       </Popover.Trigger>
       <Popover.Portal>
         <Popover.Content
@@ -184,7 +226,10 @@ function KeyHint() {
         >
           <div className="mb-1.5 font-mono text-[10px] font-semibold text-fg-faint">Shortcuts</div>
           {[...STATIC_CHEATS, ...dynamic].map((r, i) => (
-            <div key={`${r.combo}:${i}`} className="grid grid-cols-[64px_1fr] items-center gap-2.5 py-0.5 text-[11.5px]">
+            <div
+              key={`${r.combo}:${i}`}
+              className="grid grid-cols-[64px_1fr] items-center gap-2.5 py-0.5 text-[11.5px]"
+            >
               <kbd className="rounded-sm border border-line-soft bg-line px-1.5 text-center font-mono text-[11px] text-fg-soft">
                 {r.combo}
               </kbd>

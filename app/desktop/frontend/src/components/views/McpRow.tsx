@@ -9,11 +9,13 @@ export function McpRow({ server }: { server: MCPServer }) {
   const label = server.status === "active" ? "On" : server.status === "idle" ? "Idle" : "Error";
   return (
     <div className="group grid grid-cols-[40px_1fr_auto_auto] items-center gap-3 px-4 py-3 hover:bg-surface">
-      <div className={cn(
-        "grid h-10 w-10 place-items-center rounded-lg bg-surface-2 text-fg-muted group-hover:bg-surface-3 group-hover:text-fg",
-        server.status === "active" && "bg-accent/10 text-accent",
-        server.status === "error" && "bg-negative/10 text-negative",
-      )}>
+      <div
+        className={cn(
+          "grid h-10 w-10 place-items-center rounded-lg bg-surface-2 text-fg-muted group-hover:bg-surface-3 group-hover:text-fg",
+          server.status === "active" && "bg-accent/10 text-accent",
+          server.status === "error" && "bg-negative/10 text-negative",
+        )}
+      >
         <Icon name={server.icon as IconName} size={15} />
       </div>
       <div className="min-w-0">
@@ -23,12 +25,14 @@ export function McpRow({ server }: { server: MCPServer }) {
       <div className="rounded-xs bg-surface-2 px-1.5 py-0.5 font-mono text-[11px] text-fg-faint">
         {server.tools} tools
       </div>
-      <div className={cn(
-        "rounded-xs px-1.5 py-0.5 font-mono text-[11px] font-semibold",
-        server.status === "active" && "bg-accent/12 text-accent",
-        server.status === "idle"   && "bg-surface-2 text-fg-faint",
-        server.status === "error"  && "bg-negative/12 text-negative",
-      )}>
+      <div
+        className={cn(
+          "rounded-xs px-1.5 py-0.5 font-mono text-[11px] font-semibold",
+          server.status === "active" && "bg-accent/12 text-accent",
+          server.status === "idle" && "bg-surface-2 text-fg-faint",
+          server.status === "error" && "bg-negative/12 text-negative",
+        )}
+      >
         {label}
       </div>
     </div>

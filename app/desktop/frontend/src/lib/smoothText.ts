@@ -26,9 +26,9 @@ import { segmentWords } from "./segmentWords";
 
 // Rates in chars/sec. The visible cadence picks one based on backlog and
 // whether the source is still streaming.
-const RATE_CRUISE   = 40;   // backlog < 20, streaming = true
-const RATE_MODERATE = 80;   // backlog in [20, 60)
-const RATE_CATCHUP  = 160;  // backlog ≥ 60
+const RATE_CRUISE = 40; // backlog < 20, streaming = true
+const RATE_MODERATE = 80; // backlog in [20, 60)
+const RATE_CATCHUP = 160; // backlog ≥ 60
 
 const SENTENCE_PAUSE_MS = 80;
 const MAX_DEBT = 12;
@@ -49,10 +49,7 @@ const SENTENCE_END_RE = /[。！？…!?.]$/;
 export function pickRate(backlog: number, streaming: boolean): number {
   if (!streaming) {
     // Drain mode — proportional to remaining backlog, clamped.
-    return Math.min(
-      DRAIN_RATE_MAX,
-      Math.max(DRAIN_RATE_MIN, backlog * DRAIN_RATE_PER_CHAR),
-    );
+    return Math.min(DRAIN_RATE_MAX, Math.max(DRAIN_RATE_MIN, backlog * DRAIN_RATE_PER_CHAR));
   }
   if (backlog >= 60) return RATE_CATCHUP;
   if (backlog >= 20) return RATE_MODERATE;

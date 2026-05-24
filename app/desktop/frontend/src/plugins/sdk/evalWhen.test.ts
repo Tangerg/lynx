@@ -26,7 +26,7 @@ describe("evalWhen", () => {
     // a || b && c  ===  a || (b && c)
     expect(evalWhen("a || b && c", { a: false, b: true, c: false })).toBe(false);
     expect(evalWhen("a || b && c", { a: false, b: true, c: true })).toBe(true);
-    expect(evalWhen("a || b && c", { a: true,  b: false, c: false })).toBe(true);
+    expect(evalWhen("a || b && c", { a: true, b: false, c: false })).toBe(true);
   });
 
   it("supports parentheses for grouping", () => {

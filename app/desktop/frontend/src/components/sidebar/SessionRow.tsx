@@ -17,9 +17,11 @@ type Props = {
 // visual cue carries the active state, no fighting tone steps.
 export function SessionRow({ session, active, onSelect }: Props) {
   const subText =
-    session.status === "running" ? "Running" :
-    session.status === "waiting" ? "Needs input" :
-    session.model;
+    session.status === "running"
+      ? "Running"
+      : session.status === "waiting"
+        ? "Needs input"
+        : session.model;
 
   return (
     <div
@@ -32,17 +34,21 @@ export function SessionRow({ session, active, onSelect }: Props) {
         ],
       )}
     >
-      <div className={cn(
-        "grid h-4.5 w-4.5 place-items-center text-fg-muted transition-colors group-hover:text-fg",
-        active && "text-fg",
-      )}>
+      <div
+        className={cn(
+          "grid h-4.5 w-4.5 place-items-center text-fg-muted transition-colors group-hover:text-fg",
+          active && "text-fg",
+        )}
+      >
         <Icon name="chat" size={14} />
       </div>
       <div className="min-w-0">
-        <div className={cn(
-          "text-[13px] font-semibold leading-[1.3] truncate transition-colors text-fg-muted group-hover:text-fg",
-          active && "text-fg",
-        )}>
+        <div
+          className={cn(
+            "text-[13px] font-semibold leading-[1.3] truncate transition-colors text-fg-muted group-hover:text-fg",
+            active && "text-fg",
+          )}
+        >
           {session.title}
         </div>
         <div className="mt-0.5 flex items-center gap-1.5 text-[11px] leading-[1.2] text-fg-faint">

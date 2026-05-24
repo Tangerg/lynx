@@ -14,9 +14,9 @@
      Allowed surfaces: active tab indicator, primary CTA, focus ring,
      live indicator. Forbidden as section background or decorative tint.
      See DESIGN.md §9 "Accent Usage Policy". */
-  --color-accent:         #1ed760;
-  --color-accent-border:  #1db954;
-  --color-accent-press:   #169c46;
+  --color-accent: #1ed760;
+  --color-accent-border: #1db954;
+  --color-accent-press: #169c46;
 
   /* ---------- COLOR — Surface ladder ----------
      Canvas + surface (L1) are the two MANUAL anchors. L2-L4 are
@@ -32,79 +32,89 @@
      above canvas (was 14 — too subtle on dim displays / glossy panels;
      cards-on-canvas layout needs the panel to read distinctly from
      the surrounding canvas). */
-  --color-bg:             #010102;   /* canvas — faint blue tint, NOT #000000 */
-  --color-surface:        #181a1d;   /* L1 — cards, sidebar, message bubble */
-  --depth-step:           5%;
-  --color-surface-2:      color-mix(in srgb, var(--color-text) calc(var(--depth-step) * 1), var(--color-surface));
-  --color-surface-3:      color-mix(in srgb, var(--color-text) calc(var(--depth-step) * 2), var(--color-surface));
-  --color-surface-4:      color-mix(in srgb, var(--color-text) calc(var(--depth-step) * 3), var(--color-surface));
+  --color-bg: #010102; /* canvas — faint blue tint, NOT #000000 */
+  --color-surface: #181a1d; /* L1 — cards, sidebar, message bubble */
+  --depth-step: 5%;
+  --color-surface-2: color-mix(
+    in srgb,
+    var(--color-text) calc(var(--depth-step) * 1),
+    var(--color-surface)
+  );
+  --color-surface-3: color-mix(
+    in srgb,
+    var(--color-text) calc(var(--depth-step) * 2),
+    var(--color-surface)
+  );
+  --color-surface-4: color-mix(
+    in srgb,
+    var(--color-text) calc(var(--depth-step) * 3),
+    var(--color-surface)
+  );
 
   /* ---------- COLOR — Ink (text) ---------- */
-  --color-text:           #f7f8f8;   /* Headlines + emphasized body */
-  --color-text-bright:    #ffffff;
-  --color-text-soft:      #d0d6e0;   /* Body / paragraph */
-  --color-text-muted:     #8a8f98;   /* Secondary / inactive nav / meta */
-  --color-text-faint:     #62666d;   /* Tertiary / disabled / footnotes */
-  --color-text-on-accent: #000000;   /* Black ink on green CTA */
+  --color-text: #f7f8f8; /* Headlines + emphasized body */
+  --color-text-bright: #ffffff;
+  --color-text-soft: #d0d6e0; /* Body / paragraph */
+  --color-text-muted: #8a8f98; /* Secondary / inactive nav / meta */
+  --color-text-faint: #62666d; /* Tertiary / disabled / footnotes */
+  --color-text-on-accent: #000000; /* Black ink on green CTA */
 
   /* ---------- COLOR — Hairlines (literal hex, not color-mix) ----------
      Literal hex = precision = perceived craft. Semi-transparent borders
      shift across surface lifts and read as "approximate". */
-  --color-border:         #23252a;   /* Default 1px border */
-  --color-border-soft:    #34343a;   /* Input focus, emphasized divider */
-  --color-divider:        #3e3e44;   /* Nested surface borders */
-  --color-app-divider:    #23252a;   /* 1px gap between flush panels */
+  --color-border: #23252a; /* Default 1px border */
+  --color-border-soft: #34343a; /* Input focus, emphasized divider */
+  --color-divider: #3e3e44; /* Nested surface borders */
+  --color-app-divider: #23252a; /* 1px gap between flush panels */
 
   /* ---------- COLOR — Semantic (used sparingly, see DESIGN.md §2) ----- */
-  --color-negative:       #ee0000;   /* Errors — RUN_ERROR banner, tool err */
-  --color-warning:        #f5a623;   /* User attention — approval pending */
-  --color-info:           #0070f3;   /* Inline links, info badges */
-  --color-success:        #27a644;   /* Run finished cleanly */
+  --color-negative: #ee0000; /* Errors — RUN_ERROR banner, tool err */
+  --color-warning: #f5a623; /* User attention — approval pending */
+  --color-info: #0070f3; /* Inline links, info badges */
+  --color-success: #27a644; /* Run finished cleanly */
 
   /* ---------- TYPE — Families ----------
      Two families do all the work. Display and body share Geist; mono
      carries every numeric / ID / timestamp / eyebrow / code snippet. */
   --font-ui:
-    "Geist", "Inter", system-ui, -apple-system, "Segoe UI", Roboto,
-    "Hiragino Sans", "Hiragino Kaku Gothic ProN", Meiryo, "MS Gothic",
-    sans-serif;
+    "Geist", "Inter", system-ui, -apple-system, "Segoe UI", Roboto, "Hiragino Sans",
+    "Hiragino Kaku Gothic ProN", Meiryo, "MS Gothic", sans-serif;
   --font-mono:
-    "Geist Mono", "JetBrains Mono", ui-monospace, SFMono-Regular,
-    Menlo, Consolas, monospace;
+    "Geist Mono", "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
   /* Primary CTA — defaults to the accent (dark mode); light mode overrides
      in .theme-light to black ink (Vercel signature). Decoupled from
      --color-accent so accent can drive "live state" without forcing CTAs
      green. */
-  --color-cta:        var(--color-accent);
-  --color-cta-hover:  var(--color-accent-border);
-  --color-cta-text:   var(--color-text-on-accent);
+  --color-cta: var(--color-accent);
+  --color-cta-hover: var(--color-accent-border);
+  --color-cta-text: var(--color-text-on-accent);
 
   /* ---------- TYPE — Sizes (DESIGN.md §3 scale) ---------- */
-  --fs-display-xl: 2.00rem;   /* 32px — welcome / settings hero */
-  --fs-display-lg: 1.50rem;   /* 24px — section title */
-  --fs-display-md: 1.25rem;   /* 20px — sub-section / pane title */
-  --fs-display-sm: 1.00rem;   /* 16px — card title */
-  --fs-body-lg:    0.94rem;   /* 15px — message body (long-form reading) */
-  --fs-body-md:    0.88rem;   /* 14px — default body */
-  --fs-body-sm:    0.81rem;   /* 13px — secondary body, button label */
-  --fs-body-xs:    0.75rem;   /* 12px — caption, status pill */
-  --fs-caption:    0.72rem;   /* 11.5px — mono eyebrow, status bar */
+  --fs-display-xl: 2rem; /* 32px — welcome / settings hero */
+  --fs-display-lg: 1.5rem; /* 24px — section title */
+  --fs-display-md: 1.25rem; /* 20px — sub-section / pane title */
+  --fs-display-sm: 1rem; /* 16px — card title */
+  --fs-body-lg: 0.94rem; /* 15px — message body (long-form reading) */
+  --fs-body-md: 0.88rem; /* 14px — default body */
+  --fs-body-sm: 0.81rem; /* 13px — secondary body, button label */
+  --fs-body-xs: 0.75rem; /* 12px — caption, status pill */
+  --fs-caption: 0.72rem; /* 11.5px — mono eyebrow, status bar */
 
   /* ---------- TYPE — Weights ----------
      600 is the display ceiling — hierarchy via size + weight (400 vs 600)
      contrast. 700+ is forbidden per DESIGN.md §3 principle 2. */
-  --fw-regular:   400;
-  --fw-medium:    500;
-  --fw-semibold:  600;
+  --fw-regular: 400;
+  --fw-medium: 500;
+  --fw-semibold: 600;
 
   /* ---------- TYPE — Tracking / leading ----------
      Display gets negative tracking; body holds ≈0. */
   --tracking-display: -0.02em;
   --tracking-display-tight: -0.03em;
-  --leading-tight: 1.10;
-  --leading-snug:  1.30;
-  --leading-body:  1.55;
+  --leading-tight: 1.1;
+  --leading-snug: 1.3;
+  --leading-body: 1.55;
 
   /* (Spacing tokens removed — every callsite now uses Tailwind's spacing
      scale; the legacy `--space-*` vars had zero consumers left.) */
@@ -112,31 +122,31 @@
   /* ---------- RADIUS (DESIGN.md §6) ----------
      md (8px) is the default button radius. Pill is reserved for status
      badges + segmented toggle ONLY — never CTAs. */
-  --radius-xs:     4px;   /* Badges, status pills, file chips */
-  --radius-sm:     6px;   /* Inputs, small buttons, icon button square */
-  --radius-md:     8px;   /* Default button, card chrome, dialog */
-  --radius-lg:     12px;  /* Workspace cards, command palette frame */
-  --radius-xl:     16px;  /* Lightbox frame, hero panels */
-  --radius-pill:   9999px;/* Status badge / segmented toggle ONLY */
-  --radius-circle: 50%;   /* Avatar, dot indicator */
+  --radius-xs: 4px; /* Badges, status pills, file chips */
+  --radius-sm: 6px; /* Inputs, small buttons, icon button square */
+  --radius-md: 8px; /* Default button, card chrome, dialog */
+  --radius-lg: 12px; /* Workspace cards, command palette frame */
+  --radius-xl: 16px; /* Lightbox frame, hero panels */
+  --radius-pill: 9999px; /* Status badge / segmented toggle ONLY */
+  --radius-circle: 50%; /* Avatar, dot indicator */
 
   /* ---------- MOTION — Easing + durations ---------- */
   /* Standard ease-out — quick exit, gentle settle. Same curve we use in
      motion/react via `lib/motion.ts` so CSS and JS animations match. */
-  --ease-out:      cubic-bezier(0.3, 0, 0, 1);
-  --ease-in-out:   cubic-bezier(0.45, 0, 0.55, 1);
+  --ease-out: cubic-bezier(0.3, 0, 0, 1);
+  --ease-in-out: cubic-bezier(0.45, 0, 0.55, 1);
   /* "Emphasized decel" — bigger, slower tail. Use for large surface
      moves (panel slide-in, expansion). Not for small hovers. */
   --ease-emphasized: cubic-bezier(0.16, 1, 0.3, 1);
 
-  --dur-instant:   80ms;
-  --dur-fast:      140ms;
-  --dur-med:       var(--dur-med);
-  --dur-slow:      360ms;
+  --dur-instant: 80ms;
+  --dur-fast: 140ms;
+  --dur-med: var(--dur-med);
+  --dur-slow: 360ms;
 
   /* Convenience presets: pair common duration with the default ease. */
-  --polish-fast:   var(--dur-fast) var(--ease-out);
-  --polish-med:    var(--dur-med) var(--ease-out);
+  --polish-fast: var(--dur-fast) var(--ease-out);
+  --polish-med: var(--dur-med) var(--ease-out);
 
   /* ---------- SHADOWS (DESIGN.md §5) ----------
      Dark mode: depth comes from surface ladder + hairlines, NOT shadow.
@@ -145,27 +155,25 @@
      we want. The one exception is `--shadow-lg`: Level 4 stacked-subtle
      for truly-floating overlays (palette, lightbox, toaster). Light
      theme overrides re-enable the full stack — see app.css. */
-  --shadow-xs:     none;
-  --shadow-sm:     none;
-  --shadow-md:     none;
+  --shadow-xs: none;
+  --shadow-sm: none;
+  --shadow-md: none;
   --shadow-lg:
     /* Top-edge highlight — 1px white at very low alpha gives the
        overlay a faint "pixel-rendered" lift, the Linear signature. */
-    inset 0 1px 0 rgba(255, 255, 255, 0.04),
-    0 1px 2px rgba(0, 0, 0, 0.40),
-    0 8px 16px -4px rgba(0, 0, 0, 0.50),
-    0 24px 32px -8px rgba(0, 0, 0, 0.60),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 1px 2px rgba(0, 0, 0, 0.4),
+    0 8px 16px -4px rgba(0, 0, 0, 0.5), 0 24px 32px -8px rgba(0, 0, 0, 0.6),
     inset 0 0 0 1px var(--color-border);
-  --shadow-glow:   0 0 12px color-mix(in srgb, var(--color-accent) 50%, transparent);
+  --shadow-glow: 0 0 12px color-mix(in srgb, var(--color-accent) 50%, transparent);
 
   /* Semantic shadow aliases — most map to `none` on dark (depth comes
      from the surface ladder + hairlines, not shadow per DESIGN.md §5).
      Overlay-class shadows reuse --shadow-lg directly. Light theme
      re-maps these via its token block — see plugins/builtin/lyra-light. */
-  --shadow-card:   none;
+  --shadow-card: none;
   --shadow-dialog: var(--shadow-lg);
-  --shadow-soft:   none;
-  --shadow-pop:    var(--shadow-lg);
+  --shadow-soft: none;
+  --shadow-pop: var(--shadow-lg);
 
   /* Input focus ring — accent halo + soft-border inset. Used by
      .side-search input. Composed once so the focus treatment is

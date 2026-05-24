@@ -6,17 +6,22 @@ import { definePlugin, loadPlugin } from "@/plugins/sdk";
 // Composer relies on a built-in composer-keymap registration to bind
 // Enter → submit. Set up a tiny in-test plugin that mirrors it.
 async function withEnterKeymap() {
-  await loadPlugin(definePlugin({
-    name: "test.composer-keymap",
-    version: "1.0.0",
-    setup: ({ host }) => {
-      host.composer.registerKeyBinding({
-        key: "Enter",
-        description: "submit",
-        handler: ({ submit }) => { submit(); return true; },
-      });
-    },
-  }));
+  await loadPlugin(
+    definePlugin({
+      name: "test.composer-keymap",
+      version: "1.0.0",
+      setup: ({ host }) => {
+        host.composer.registerKeyBinding({
+          key: "Enter",
+          description: "submit",
+          handler: ({ submit }) => {
+            submit();
+            return true;
+          },
+        });
+      },
+    }),
+  );
 }
 
 const baseProps = {
@@ -29,9 +34,7 @@ const baseProps = {
 describe("Composer", () => {
   it("calls onChange as the user types", () => {
     const onChange = vi.fn();
-    render(
-      <Composer {...baseProps} value="" onChange={onChange} onSend={() => {}} />,
-    );
+    render(<Composer {...baseProps} value="" onChange={onChange} onSend={() => {}} />);
     const textarea = screen.getByRole("textbox") as HTMLTextAreaElement;
     fireEvent.change(textarea, { target: { value: "hi" } });
     expect(onChange).toHaveBeenCalledWith("hi");
@@ -41,9 +44,7 @@ describe("Composer", () => {
     await withEnterKeymap();
     const onSend = vi.fn();
     const onChange = vi.fn();
-    render(
-      <Composer {...baseProps} value="hello world" onChange={onChange} onSend={onSend} />,
-    );
+    render(<Composer {...baseProps} value="hello world" onChange={onChange} onSend={onSend} />);
     fireEvent.keyDown(screen.getByRole("textbox"), { key: "Enter" });
     expect(onSend).toHaveBeenCalledWith("hello world");
   });
@@ -51,9 +52,7 @@ describe("Composer", () => {
   it("does not submit when the textarea is empty / whitespace only", async () => {
     await withEnterKeymap();
     const onSend = vi.fn();
-    render(
-      <Composer {...baseProps} value="   " onChange={() => {}} onSend={onSend} />,
-    );
+    render(<Composer {...baseProps} value="   " onChange={() => {}} onSend={onSend} />);
     fireEvent.keyDown(screen.getByRole("textbox"), { key: "Enter" });
     expect(onSend).not.toHaveBeenCalled();
   });

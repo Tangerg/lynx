@@ -10,10 +10,10 @@ const avatarStyles = cva(
   {
     variants: {
       variant: {
-        "msg-agent":  "bg-accent text-on-accent",
-        "msg-user":   "bg-surface-3 text-fg",
+        "msg-agent": "bg-accent text-on-accent",
+        "msg-user": "bg-surface-3 text-fg",
         "msg-system": "bg-transparent border border-line text-fg-muted",
-        "user-card":  "bg-surface-3 text-fg",
+        "user-card": "bg-surface-3 text-fg",
       },
       size: {
         sm: "h-7 w-7 text-[11px]",

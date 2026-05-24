@@ -23,10 +23,11 @@ export function appendBlockToMessage<K extends ContentBlockKind>(
   messageId: string,
   block: ContentBlockMap[K],
 ): StateUpdate {
-  return (state) => updateMessage(state, messageId, (m) => ({
-    ...m,
-    blocks: [...m.blocks, block as ContentBlock],
-  }));
+  return (state) =>
+    updateMessage(state, messageId, (m) => ({
+      ...m,
+      blocks: [...m.blocks, block as ContentBlock],
+    }));
 }
 
 /** Append a content block to the most recent assistant message. No-op if none. */

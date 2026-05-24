@@ -63,7 +63,11 @@ export const sidebarBrand = definePlugin({
   version: "1.0.0",
   setup({ host }) {
     host.layout.register("sidebar.brand", { id: "brand", order: 0, component: FullBrand });
-    host.layout.register("sidebar.rail.brand", { id: "rail-brand", order: 0, component: RailBrand });
+    host.layout.register("sidebar.rail.brand", {
+      id: "rail-brand",
+      order: 0,
+      component: RailBrand,
+    });
   },
 });
 
@@ -143,7 +147,9 @@ function ProjectsSection() {
       >
         {(items) => (
           <div className={SIDE_LIST}>
-            {items.map((p) => <ProjectRow key={p.id} project={p} />)}
+            {items.map((p) => (
+              <ProjectRow key={p.id} project={p} />
+            ))}
           </div>
         )}
       </DataView>
@@ -239,9 +245,7 @@ function SidebarFooter() {
         <div className="truncate font-sans text-[13px] font-semibold leading-[1.2] text-fg">
           Jamie Doe
         </div>
-        <div className="mt-px truncate text-[11px] text-fg-faint">
-          jdoe@longbridge-inc.com
-        </div>
+        <div className="mt-px truncate text-[11px] text-fg-faint">jdoe@longbridge-inc.com</div>
       </div>
       <button
         type="button"
@@ -299,7 +303,7 @@ export const sidebarRailActions = definePlugin({
   version: "1.0.0",
   setup({ host }) {
     host.sidebar.registerRailItem({ id: "new-session", order: 10, component: NewSessionBtn });
-    host.sidebar.registerRailItem({ id: "search",      order: 20, component: SearchBtn });
+    host.sidebar.registerRailItem({ id: "search", order: 20, component: SearchBtn });
   },
 });
 
@@ -361,16 +365,26 @@ export const sidebarRailSessions = definePlugin({
 
 // ---- rail (collapsed) bottom — tools / settings / user ------------------
 
-function RailSpacer()  { return <div className="flex-1" />; }
-function RailTools()    {
+function RailSpacer() {
+  return <div className="flex-1" />;
+}
+function RailTools() {
   const t = useT();
-  return <IconButton variant="rail" title={t("sidebar.action.tools")}><Icon name="tool" size={16} /></IconButton>;
+  return (
+    <IconButton variant="rail" title={t("sidebar.action.tools")}>
+      <Icon name="tool" size={16} />
+    </IconButton>
+  );
 }
 function RailSettings() {
   const t = useT();
-  return <IconButton variant="rail" title={t("sidebar.action.settings")}><Icon name="settings" size={16} /></IconButton>;
+  return (
+    <IconButton variant="rail" title={t("sidebar.action.settings")}>
+      <Icon name="settings" size={16} />
+    </IconButton>
+  );
 }
-function RailUser()     {
+function RailUser() {
   return (
     <div
       title="You · jdoe@longbridge-inc.com"
@@ -385,9 +399,9 @@ export const sidebarRailBottom = definePlugin({
   name: "lyra.builtin.sidebar-rail-bottom",
   version: "1.0.0",
   setup({ host }) {
-    host.sidebar.registerRailItem({ id: "rail-spacer",   order: 800, component: RailSpacer });
-    host.sidebar.registerRailItem({ id: "rail-tools",    order: 900, component: RailTools });
+    host.sidebar.registerRailItem({ id: "rail-spacer", order: 800, component: RailSpacer });
+    host.sidebar.registerRailItem({ id: "rail-tools", order: 900, component: RailTools });
     host.sidebar.registerRailItem({ id: "rail-settings", order: 910, component: RailSettings });
-    host.sidebar.registerRailItem({ id: "rail-user",     order: 920, component: RailUser });
+    host.sidebar.registerRailItem({ id: "rail-user", order: 920, component: RailUser });
   },
 });

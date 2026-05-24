@@ -72,8 +72,20 @@ describe("createStorage", () => {
     const calls: number[] = [];
 
     s.migrate([
-      { version: 2, migrate: () => { calls.push(2); s.set("data", { name: "v2" }); } },
-      { version: 1, migrate: () => { calls.push(1); s.set("flag", true); } },
+      {
+        version: 2,
+        migrate: () => {
+          calls.push(2);
+          s.set("data", { name: "v2" });
+        },
+      },
+      {
+        version: 1,
+        migrate: () => {
+          calls.push(1);
+          s.set("flag", true);
+        },
+      },
     ]);
 
     expect(calls).toEqual([1, 2]);
@@ -86,8 +98,18 @@ describe("createStorage", () => {
     const s = createStorage("alpha");
     const seen: number[] = [];
     const migrations = [
-      { version: 1, migrate: () => { seen.push(1); } },
-      { version: 2, migrate: () => { seen.push(2); } },
+      {
+        version: 1,
+        migrate: () => {
+          seen.push(1);
+        },
+      },
+      {
+        version: 2,
+        migrate: () => {
+          seen.push(2);
+        },
+      },
     ];
     s.migrate(migrations);
     s.migrate(migrations); // second call: nothing pending
@@ -100,9 +122,24 @@ describe("createStorage", () => {
     try {
       const s = createStorage("alpha");
       s.migrate([
-        { version: 1, migrate: () => { /* ok */ } },
-        { version: 2, migrate: () => { throw new Error("kaboom"); } },
-        { version: 3, migrate: () => { /* should not run */ } },
+        {
+          version: 1,
+          migrate: () => {
+            /* ok */
+          },
+        },
+        {
+          version: 2,
+          migrate: () => {
+            throw new Error("kaboom");
+          },
+        },
+        {
+          version: 3,
+          migrate: () => {
+            /* should not run */
+          },
+        },
       ]);
       expect(s.get("__schema_version")).toBe(1);
       expect(err).toHaveBeenCalled();

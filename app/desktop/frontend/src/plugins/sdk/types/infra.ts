@@ -61,10 +61,7 @@ export type LogSubscriber = (event: LogEvent) => void;
  *
  * Hooks run in registration order; the first registered runs first.
  */
-export type RpcBeforeRequestHook = (request: Request) =>
-  | void
-  | Request
-  | Promise<void | Request>;
+export type RpcBeforeRequestHook = (request: Request) => void | Request | Promise<void | Request>;
 
 /**
  * An `afterResponse` hook — runs once the underlying fetch resolves

@@ -27,24 +27,27 @@ export function DiffView({ rows }: { rows: DiffRow[] }) {
           );
         }
         const tone =
-          row.type === "add" ? "bg-[rgba(30,215,96,0.07)]" :
-          row.type === "del" ? "bg-[rgba(243,114,127,0.07)]" :
-          "";
+          row.type === "add"
+            ? "bg-[rgba(30,215,96,0.07)]"
+            : row.type === "del"
+              ? "bg-[rgba(243,114,127,0.07)]"
+              : "";
         const meta =
-          row.type === "add" ? "text-[rgba(95,227,154,0.7)]" :
-          row.type === "del" ? "text-[rgba(243,114,127,0.7)]" :
-          "text-fg-faint";
+          row.type === "add"
+            ? "text-[rgba(95,227,154,0.7)]"
+            : row.type === "del"
+              ? "text-[rgba(243,114,127,0.7)]"
+              : "text-fg-faint";
         const codeTone =
-          row.type === "add" ? "text-[#c8f5d8]" :
-          row.type === "del" ? "text-[#f5cdd2]" :
-          "text-fg-soft";
+          row.type === "add"
+            ? "text-[#c8f5d8]"
+            : row.type === "del"
+              ? "text-[#f5cdd2]"
+              : "text-fg-soft";
         const sign = row.type === "add" ? "+" : row.type === "del" ? "−" : " ";
         const lnum = row.type === "del" ? row.l : row.r;
         return (
-          <div
-            key={k}
-            className={cn("grid grid-cols-[36px_36px_1fr] gap-1.5 px-3", tone)}
-          >
+          <div key={k} className={cn("grid grid-cols-[36px_36px_1fr] gap-1.5 px-3", tone)}>
             <span className={cn("text-right text-[11px] select-none", meta)}>{lnum}</span>
             <span className={cn("text-center text-[11px] select-none", meta)}>{sign}</span>
             <span

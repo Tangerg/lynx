@@ -13,11 +13,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { EventType, type BaseEvent } from "@ag-ui/core";
 import { loadPlugin } from "@/plugins/sdk/definePlugin";
 import { reduce } from "@/protocol/agui/reducer";
-import {
-  INITIAL_VIEW_STATE,
-  type AgentViewState,
-  type Message,
-} from "@/protocol/agui/viewState";
+import { INITIAL_VIEW_STATE, type AgentViewState, type Message } from "@/protocol/agui/viewState";
 
 const ev = <T extends BaseEvent>(e: T): BaseEvent => e;
 
@@ -29,11 +25,14 @@ beforeEach(async () => {
 // Test-fixture helper — seed an assistant message that downstream events
 // (reasoning / thinking / activity) can attach blocks to.
 function withAssistantMessage(id = "m1"): AgentViewState {
-  return reduce(INITIAL_VIEW_STATE, ev({
-    type: EventType.TEXT_MESSAGE_START,
-    messageId: id,
-    role: "assistant",
-  }));
+  return reduce(
+    INITIAL_VIEW_STATE,
+    ev({
+      type: EventType.TEXT_MESSAGE_START,
+      messageId: id,
+      role: "assistant",
+    }),
+  );
 }
 
 function lastBlocks(state: AgentViewState, messageId: string): Message["blocks"] {
@@ -49,26 +48,37 @@ function lastBlocks(state: AgentViewState, messageId: string): Message["blocks"]
 describe("core-reducer — TOOL_CALL_RESULT", () => {
   it("stores ev.content on the matching tool call", () => {
     let s = withAssistantMessage();
-    s = reduce(s, ev({
-      type: EventType.TOOL_CALL_START,
-      toolCallId: "t1", toolCallName: "read_file", parentMessageId: "m1",
-    }));
-    s = reduce(s, ev({
-      type: EventType.TOOL_CALL_RESULT,
-      messageId: "m1",
-      toolCallId: "t1",
-      content: "file contents here",
-    }));
+    s = reduce(
+      s,
+      ev({
+        type: EventType.TOOL_CALL_START,
+        toolCallId: "t1",
+        toolCallName: "read_file",
+        parentMessageId: "m1",
+      }),
+    );
+    s = reduce(
+      s,
+      ev({
+        type: EventType.TOOL_CALL_RESULT,
+        messageId: "m1",
+        toolCallId: "t1",
+        content: "file contents here",
+      }),
+    );
     expect(s.toolCalls.t1.result).toBe("file contents here");
   });
 
   it("no-op when toolCallId is unknown (defensive)", () => {
-    const s = reduce(INITIAL_VIEW_STATE, ev({
-      type: EventType.TOOL_CALL_RESULT,
-      messageId: "m1",
-      toolCallId: "ghost",
-      content: "x",
-    }));
+    const s = reduce(
+      INITIAL_VIEW_STATE,
+      ev({
+        type: EventType.TOOL_CALL_RESULT,
+        messageId: "m1",
+        toolCallId: "ghost",
+        content: "x",
+      }),
+    );
     expect(s.toolCalls).toEqual({});
   });
 });
@@ -80,10 +90,13 @@ describe("core-reducer — TOOL_CALL_RESULT", () => {
 describe("core-reducer — REASONING_MESSAGE_*", () => {
   it("START appends a streaming reasoning block to the latest assistant message", () => {
     let s = withAssistantMessage();
-    s = reduce(s, ev({
-      type: EventType.REASONING_MESSAGE_START,
-      messageId: "r1",
-    }));
+    s = reduce(
+      s,
+      ev({
+        type: EventType.REASONING_MESSAGE_START,
+        messageId: "r1",
+      }),
+    );
     expect(lastBlocks(s, "m1")).toEqual([
       { kind: "reasoning", reasoningId: "r1", text: "", streaming: true },
     ]);
@@ -91,20 +104,29 @@ describe("core-reducer — REASONING_MESSAGE_*", () => {
 
   it("CONTENT appends delta text to the matching reasoning block", () => {
     let s = withAssistantMessage();
-    s = reduce(s, ev({
-      type: EventType.REASONING_MESSAGE_START,
-      messageId: "r1",
-    }));
-    s = reduce(s, ev({
-      type: EventType.REASONING_MESSAGE_CONTENT,
-      messageId: "r1",
-      delta: "first ",
-    }));
-    s = reduce(s, ev({
-      type: EventType.REASONING_MESSAGE_CONTENT,
-      messageId: "r1",
-      delta: "thought",
-    }));
+    s = reduce(
+      s,
+      ev({
+        type: EventType.REASONING_MESSAGE_START,
+        messageId: "r1",
+      }),
+    );
+    s = reduce(
+      s,
+      ev({
+        type: EventType.REASONING_MESSAGE_CONTENT,
+        messageId: "r1",
+        delta: "first ",
+      }),
+    );
+    s = reduce(
+      s,
+      ev({
+        type: EventType.REASONING_MESSAGE_CONTENT,
+        messageId: "r1",
+        delta: "thought",
+      }),
+    );
     const block = lastBlocks(s, "m1")[0];
     expect(block).toMatchObject({ kind: "reasoning", text: "first thought", streaming: true });
   });
@@ -112,34 +134,46 @@ describe("core-reducer — REASONING_MESSAGE_*", () => {
   it("END flips streaming off on the matching block", () => {
     let s = withAssistantMessage();
     s = reduce(s, ev({ type: EventType.REASONING_MESSAGE_START, messageId: "r1" }));
-    s = reduce(s, ev({ type: EventType.REASONING_MESSAGE_END,   messageId: "r1" }));
+    s = reduce(s, ev({ type: EventType.REASONING_MESSAGE_END, messageId: "r1" }));
     const block = lastBlocks(s, "m1")[0];
     expect(block).toMatchObject({ kind: "reasoning", streaming: false });
   });
 
   it("START is a no-op when there's no assistant message to attach to", () => {
-    const s = reduce(INITIAL_VIEW_STATE, ev({
-      type: EventType.REASONING_MESSAGE_START,
-      messageId: "r1",
-    }));
+    const s = reduce(
+      INITIAL_VIEW_STATE,
+      ev({
+        type: EventType.REASONING_MESSAGE_START,
+        messageId: "r1",
+      }),
+    );
     expect(s.messages).toEqual([]);
   });
 
   it("CHUNK materializes the reasoning block on first chunk and appends deltas", () => {
     let s = withAssistantMessage();
-    s = reduce(s, ev({
-      type: EventType.REASONING_MESSAGE_CHUNK,
-      messageId: "r1",
-      delta: "alpha ",
-    }));
-    s = reduce(s, ev({
-      type: EventType.REASONING_MESSAGE_CHUNK,
-      messageId: "r1",
-      delta: "beta",
-    }));
+    s = reduce(
+      s,
+      ev({
+        type: EventType.REASONING_MESSAGE_CHUNK,
+        messageId: "r1",
+        delta: "alpha ",
+      }),
+    );
+    s = reduce(
+      s,
+      ev({
+        type: EventType.REASONING_MESSAGE_CHUNK,
+        messageId: "r1",
+        delta: "beta",
+      }),
+    );
     const block = lastBlocks(s, "m1")[0];
     expect(block).toMatchObject({
-      kind: "reasoning", reasoningId: "r1", text: "alpha beta", streaming: true,
+      kind: "reasoning",
+      reasoningId: "r1",
+      text: "alpha beta",
+      streaming: true,
     });
   });
 });
@@ -179,17 +213,23 @@ describe("core-reducer — THINKING_TEXT_MESSAGE_*", () => {
   });
 
   it("CONTENT/END with no open thinking block is a no-op", () => {
-    const s = reduce(INITIAL_VIEW_STATE, ev({
-      type: EventType.THINKING_TEXT_MESSAGE_CONTENT,
-      delta: "abandoned",
-    }));
+    const s = reduce(
+      INITIAL_VIEW_STATE,
+      ev({
+        type: EventType.THINKING_TEXT_MESSAGE_CONTENT,
+        delta: "abandoned",
+      }),
+    );
     expect(s).toBe(INITIAL_VIEW_STATE);
   });
 
   it("START is a no-op without an assistant message to attach to", () => {
-    const s = reduce(INITIAL_VIEW_STATE, ev({
-      type: EventType.THINKING_TEXT_MESSAGE_START,
-    }));
+    const s = reduce(
+      INITIAL_VIEW_STATE,
+      ev({
+        type: EventType.THINKING_TEXT_MESSAGE_START,
+      }),
+    );
     expect(s.messages).toEqual([]);
   });
 });
@@ -201,30 +241,39 @@ describe("core-reducer — THINKING_TEXT_MESSAGE_*", () => {
 describe("core-reducer — ACTIVITY_SNAPSHOT", () => {
   it("writes content onto message.activities under the activityType key", () => {
     let s = withAssistantMessage();
-    s = reduce(s, ev({
-      type: EventType.ACTIVITY_SNAPSHOT,
-      messageId: "m1",
-      activityType: "websearch",
-      content: { query: "react query", hits: 12 },
-    }));
+    s = reduce(
+      s,
+      ev({
+        type: EventType.ACTIVITY_SNAPSHOT,
+        messageId: "m1",
+        activityType: "websearch",
+        content: { query: "react query", hits: 12 },
+      }),
+    );
     const m = s.messages.find((x) => x.id === "m1")!;
     expect(m.activities?.websearch).toEqual({ query: "react query", hits: 12 });
   });
 
   it("merges with prior content by default (replace=false)", () => {
     let s = withAssistantMessage();
-    s = reduce(s, ev({
-      type: EventType.ACTIVITY_SNAPSHOT,
-      messageId: "m1",
-      activityType: "websearch",
-      content: { query: "q1", hits: 5 },
-    }));
-    s = reduce(s, ev({
-      type: EventType.ACTIVITY_SNAPSHOT,
-      messageId: "m1",
-      activityType: "websearch",
-      content: { hits: 10, latencyMs: 200 },
-    }));
+    s = reduce(
+      s,
+      ev({
+        type: EventType.ACTIVITY_SNAPSHOT,
+        messageId: "m1",
+        activityType: "websearch",
+        content: { query: "q1", hits: 5 },
+      }),
+    );
+    s = reduce(
+      s,
+      ev({
+        type: EventType.ACTIVITY_SNAPSHOT,
+        messageId: "m1",
+        activityType: "websearch",
+        content: { hits: 10, latencyMs: 200 },
+      }),
+    );
     const m = s.messages.find((x) => x.id === "m1")!;
     // hits gets overwritten (10), query preserved (q1), latencyMs added.
     expect(m.activities?.websearch).toEqual({ query: "q1", hits: 10, latencyMs: 200 });
@@ -232,33 +281,49 @@ describe("core-reducer — ACTIVITY_SNAPSHOT", () => {
 
   it("replaces wholesale when replace=true", () => {
     let s = withAssistantMessage();
-    s = reduce(s, ev({
-      type: EventType.ACTIVITY_SNAPSHOT,
-      messageId: "m1",
-      activityType: "websearch",
-      content: { query: "q1", hits: 5 },
-    }));
-    s = reduce(s, ev({
-      type: EventType.ACTIVITY_SNAPSHOT,
-      messageId: "m1",
-      activityType: "websearch",
-      content: { totalMs: 400 },
-      replace: true,
-    } as BaseEvent));
+    s = reduce(
+      s,
+      ev({
+        type: EventType.ACTIVITY_SNAPSHOT,
+        messageId: "m1",
+        activityType: "websearch",
+        content: { query: "q1", hits: 5 },
+      }),
+    );
+    s = reduce(
+      s,
+      ev({
+        type: EventType.ACTIVITY_SNAPSHOT,
+        messageId: "m1",
+        activityType: "websearch",
+        content: { totalMs: 400 },
+        replace: true,
+      } as BaseEvent),
+    );
     const m = s.messages.find((x) => x.id === "m1")!;
     expect(m.activities?.websearch).toEqual({ totalMs: 400 });
   });
 
   it("scopes by (messageId, activityType) — different keys coexist", () => {
     let s = withAssistantMessage();
-    s = reduce(s, ev({
-      type: EventType.ACTIVITY_SNAPSHOT,
-      messageId: "m1", activityType: "websearch", content: { hits: 1 },
-    }));
-    s = reduce(s, ev({
-      type: EventType.ACTIVITY_SNAPSHOT,
-      messageId: "m1", activityType: "exec", content: { exitCode: 0 },
-    }));
+    s = reduce(
+      s,
+      ev({
+        type: EventType.ACTIVITY_SNAPSHOT,
+        messageId: "m1",
+        activityType: "websearch",
+        content: { hits: 1 },
+      }),
+    );
+    s = reduce(
+      s,
+      ev({
+        type: EventType.ACTIVITY_SNAPSHOT,
+        messageId: "m1",
+        activityType: "exec",
+        content: { exitCode: 0 },
+      }),
+    );
     const m = s.messages.find((x) => x.id === "m1")!;
     expect(m.activities).toEqual({
       websearch: { hits: 1 },
@@ -270,48 +335,70 @@ describe("core-reducer — ACTIVITY_SNAPSHOT", () => {
 describe("core-reducer — ACTIVITY_DELTA", () => {
   it("applies a JSON Patch to the existing activity content", () => {
     let s = withAssistantMessage();
-    s = reduce(s, ev({
-      type: EventType.ACTIVITY_SNAPSHOT,
-      messageId: "m1", activityType: "exec",
-      content: { stdout: "", stderr: "" },
-    }));
-    s = reduce(s, ev({
-      type: EventType.ACTIVITY_DELTA,
-      messageId: "m1", activityType: "exec",
-      patch: [
-        { op: "replace", path: "/stdout", value: "line one\n" },
-        { op: "add", path: "/exitCode", value: 0 },
-      ],
-    } as BaseEvent));
+    s = reduce(
+      s,
+      ev({
+        type: EventType.ACTIVITY_SNAPSHOT,
+        messageId: "m1",
+        activityType: "exec",
+        content: { stdout: "", stderr: "" },
+      }),
+    );
+    s = reduce(
+      s,
+      ev({
+        type: EventType.ACTIVITY_DELTA,
+        messageId: "m1",
+        activityType: "exec",
+        patch: [
+          { op: "replace", path: "/stdout", value: "line one\n" },
+          { op: "add", path: "/exitCode", value: 0 },
+        ],
+      } as BaseEvent),
+    );
     const m = s.messages.find((x) => x.id === "m1")!;
     expect(m.activities?.exec).toEqual({
-      stdout: "line one\n", stderr: "", exitCode: 0,
+      stdout: "line one\n",
+      stderr: "",
+      exitCode: 0,
     });
   });
 
   it("starts from {} when no prior content exists for the activity", () => {
     let s = withAssistantMessage();
-    s = reduce(s, ev({
-      type: EventType.ACTIVITY_DELTA,
-      messageId: "m1", activityType: "exec",
-      patch: [{ op: "add", path: "/started", value: true }],
-    } as BaseEvent));
+    s = reduce(
+      s,
+      ev({
+        type: EventType.ACTIVITY_DELTA,
+        messageId: "m1",
+        activityType: "exec",
+        patch: [{ op: "add", path: "/started", value: true }],
+      } as BaseEvent),
+    );
     const m = s.messages.find((x) => x.id === "m1")!;
     expect(m.activities?.exec).toEqual({ started: true });
   });
 
   it("with a broken patch leaves prior content unchanged", () => {
     let s = withAssistantMessage();
-    s = reduce(s, ev({
-      type: EventType.ACTIVITY_SNAPSHOT,
-      messageId: "m1", activityType: "exec",
-      content: { stdout: "kept" },
-    }));
-    s = reduce(s, ev({
-      type: EventType.ACTIVITY_DELTA,
-      messageId: "m1", activityType: "exec",
-      patch: [{ op: "remove", path: "/does/not/exist" }],
-    } as BaseEvent));
+    s = reduce(
+      s,
+      ev({
+        type: EventType.ACTIVITY_SNAPSHOT,
+        messageId: "m1",
+        activityType: "exec",
+        content: { stdout: "kept" },
+      }),
+    );
+    s = reduce(
+      s,
+      ev({
+        type: EventType.ACTIVITY_DELTA,
+        messageId: "m1",
+        activityType: "exec",
+        patch: [{ op: "remove", path: "/does/not/exist" }],
+      } as BaseEvent),
+    );
     const m = s.messages.find((x) => x.id === "m1")!;
     expect(m.activities?.exec).toEqual({ stdout: "kept" });
   });

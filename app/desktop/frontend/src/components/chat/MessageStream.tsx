@@ -64,12 +64,7 @@ function ControlsRelay({ onChange }: { onChange?: (c: StreamControls) => void })
 export function MessageStream({ messages, ctx, resetKey, onControlsChange }: Props) {
   if (messages.length === 0) {
     return (
-      <StickToBottom
-        key={resetKey}
-        className="msg-scroll-frame"
-        initial="smooth"
-        resize="smooth"
-      >
+      <StickToBottom key={resetKey} className="msg-scroll-frame" initial="smooth" resize="smooth">
         <StickToBottom.Content
           scrollClassName="panel-scroll"
           className="msg-stream msg-stream-empty"
@@ -88,10 +83,7 @@ export function MessageStream({ messages, ctx, resetKey, onControlsChange }: Pro
       initial="smooth"
       resize="smooth"
     >
-      <StickToBottom.Content
-        scrollClassName="panel-scroll"
-        className="msg-stream"
-      >
+      <StickToBottom.Content scrollClassName="panel-scroll" className="msg-stream">
         <AnimatePresence initial={false}>
           {messages.map((m) => (
             // No `layout` prop — Motion's layout animation re-tweens

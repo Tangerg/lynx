@@ -19,10 +19,7 @@ import { useAgentAction, useAgentSlice } from "@/state/agentStore";
 // inline-flex row, 5px gap, no-wrap, tabular-numeric so digits don't
 // shimmy as values tick.
 const pill = (extra?: string) =>
-  cn(
-    "inline-flex items-center gap-1.5 whitespace-nowrap tabular-nums",
-    extra,
-  );
+  cn("inline-flex items-center gap-1.5 whitespace-nowrap tabular-nums", extra);
 
 // "1.2k" / "200k" / "1.5M" → number. Conservative; if we can't parse,
 // return NaN so the caller can fall back gracefully.
@@ -59,17 +56,21 @@ function RunState() {
       <StatusDot tone={run.running ? "running" : "idle"} />
       {run.running ? (
         <>
-          <span className="font-mono">{run.step}/{run.totalSteps}</span>
+          <span className="font-mono">
+            {run.step}/{run.totalSteps}
+          </span>
           <span className="text-fg-faint">·</span>
           <span className="text-fg">{run.activity || "running"}</span>
           {stop && (
             <button
               type="button"
               onClick={stop}
-              title="Stop (⌘.)" aria-label="Stop (⌘.)"
+              title="Stop (⌘.)"
+              aria-label="Stop (⌘.)"
               className="ml-1 inline-flex items-center gap-0.5 rounded-xs border border-line-soft bg-transparent px-1.5 py-px font-mono text-[10px] text-fg-muted cursor-pointer transition-colors hover:bg-surface-2 hover:text-fg"
             >
-              <Icon name="stop" size={9} />stop
+              <Icon name="stop" size={9} />
+              stop
             </button>
           )}
         </>
@@ -106,7 +107,9 @@ function RunId() {
   );
 }
 
-function Spacer() { return <span className="flex-1" />; }
+function Spacer() {
+  return <span className="flex-1" />;
+}
 
 function Tokens() {
   const run = useAgentSlice((v) => v.run);
@@ -136,11 +139,11 @@ export const statusPill = definePlugin({
   name: "lyra.builtin.status-pill",
   version: "1.0.0",
   setup({ host }) {
-    host.layout.register("app.statusbar", { id: "run",     order: 0,   component: RunState });
-    host.layout.register("app.statusbar", { id: "branch",  order: 10,  component: Branch });
-    host.layout.register("app.statusbar", { id: "runid",   order: 20,  component: RunId });
-    host.layout.register("app.statusbar", { id: "spacer",  order: 100, component: Spacer });
-    host.layout.register("app.statusbar", { id: "tokens",  order: 200, component: Tokens });
-    host.layout.register("app.statusbar", { id: "cost",    order: 210, component: Cost });
+    host.layout.register("app.statusbar", { id: "run", order: 0, component: RunState });
+    host.layout.register("app.statusbar", { id: "branch", order: 10, component: Branch });
+    host.layout.register("app.statusbar", { id: "runid", order: 20, component: RunId });
+    host.layout.register("app.statusbar", { id: "spacer", order: 100, component: Spacer });
+    host.layout.register("app.statusbar", { id: "tokens", order: 200, component: Tokens });
+    host.layout.register("app.statusbar", { id: "cost", order: 210, component: Cost });
   },
 });

@@ -75,7 +75,7 @@ describe("plugin registry", () => {
     const a: Disposable[] = [];
     const b: Disposable[] = [];
     const hostA = createHost("alpha", a);
-    const hostB = createHost("beta",  b);
+    const hostB = createHost("beta", b);
 
     hostA.tool.registerPreview("bash", StubPreview);
     // Beta hands back a Disposable that would remove its own entry — but
@@ -345,7 +345,9 @@ describe("plugin registry", () => {
     const sink: Disposable[] = [];
     const host = createHost("alpha", sink);
     host.composer.registerAttachmentSource({
-      id: "files", order: 5, useAttachments: () => [],
+      id: "files",
+      order: 5,
+      useAttachments: () => [],
     });
 
     const map = usePluginStore.getState().composerAttachmentSources;
@@ -357,7 +359,9 @@ describe("plugin registry", () => {
     const sink: Disposable[] = [];
     const host = createHost("alpha", sink);
     host.tool.registerAction({
-      id: "copy", icon: "copy", title: "Copy",
+      id: "copy",
+      icon: "copy",
+      title: "Copy",
       run: () => {},
     });
 
@@ -369,7 +373,7 @@ describe("plugin registry", () => {
   it("state.slice shares store across plugins by name", () => {
     const sink: Disposable[] = [];
     const a = createHost("alpha", sink);
-    const b = createHost("beta",  sink);
+    const b = createHost("beta", sink);
 
     const sa = a.state.slice<number>("counter", 0);
     const sb = b.state.slice<number>("counter", 999); // initial ignored
@@ -412,11 +416,11 @@ describe("plugin registry", () => {
   it("plugins.registerErrorFallback picks highest priority", () => {
     const sink: Disposable[] = [];
     const a = createHost("alpha", sink);
-    const b = createHost("beta",  sink);
+    const b = createHost("beta", sink);
 
     const lo = () => null;
     const hi = () => null;
-    a.plugins.registerErrorFallback({ id: "lo", priority: 0,  component: lo });
+    a.plugins.registerErrorFallback({ id: "lo", priority: 0, component: lo });
     b.plugins.registerErrorFallback({ id: "hi", priority: 10, component: hi });
 
     expect(pickPluginErrorFallback()?.id).toBe("hi");
@@ -471,7 +475,7 @@ describe("plugin registry", () => {
     // factory only runs if someone calls it.
     const lo = vi.fn();
     const hi = vi.fn();
-    host.agent.registerSource({ id: "lo", label: "Low",  priority: 0,  factory: lo as never });
+    host.agent.registerSource({ id: "lo", label: "Low", priority: 0, factory: lo as never });
     host.agent.registerSource({ id: "hi", label: "High", priority: 10, factory: hi as never });
 
     expect(pickAgentSource()?.id).toBe("hi");
@@ -657,7 +661,9 @@ describe("plugin registry", () => {
     try {
       const sink: Disposable[] = [];
       const host = createHost("alpha", sink);
-      host.log.subscribe(() => { throw new Error("nope"); });
+      host.log.subscribe(() => {
+        throw new Error("nope");
+      });
       const good = vi.fn();
       host.log.subscribe(good);
 
@@ -697,7 +703,11 @@ describe("registry.unload", () => {
     const err = vi.spyOn(console, "error").mockImplementation(() => {});
     try {
       const sink: Disposable[] = [
-        { dispose: () => { throw new Error("nope"); } },
+        {
+          dispose: () => {
+            throw new Error("nope");
+          },
+        },
       ];
       const host = createHost("alpha", sink);
       host.tool.registerPreview("bash", StubPreview);

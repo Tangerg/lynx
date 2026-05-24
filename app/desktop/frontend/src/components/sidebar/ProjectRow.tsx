@@ -17,17 +17,21 @@ export function ProjectRow({ project }: { project: SidebarProject }) {
         ],
       )}
     >
-      <div className={cn(
-        "grid h-4.5 w-4.5 place-items-center text-fg-muted transition-colors group-hover:text-fg",
-        active && "text-fg",
-      )}>
+      <div
+        className={cn(
+          "grid h-4.5 w-4.5 place-items-center text-fg-muted transition-colors group-hover:text-fg",
+          active && "text-fg",
+        )}
+      >
         <Icon name="folder" size={14} />
       </div>
       <div className="min-w-0">
-        <div className={cn(
-          "text-[13px] font-semibold leading-[1.3] truncate transition-colors text-fg-muted group-hover:text-fg",
-          active && "text-fg",
-        )}>
+        <div
+          className={cn(
+            "text-[13px] font-semibold leading-[1.3] truncate transition-colors text-fg-muted group-hover:text-fg",
+            active && "text-fg",
+          )}
+        >
           {project.name}
         </div>
         <div className="mt-0.5 font-mono text-[11px] leading-[1.2] text-fg-faint">

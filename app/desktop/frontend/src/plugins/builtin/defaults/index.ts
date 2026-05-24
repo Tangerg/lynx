@@ -34,10 +34,34 @@ export const defaultAccents = definePlugin({
   name: "lyra.builtin.default-accents",
   version: "1.0.0",
   setup({ host }) {
-    host.theme.registerAccent({ id: "green",  label: "Green",  dark: "#1ed760", light: "#169c46", order: 0 });
-    host.theme.registerAccent({ id: "blue",   label: "Blue",   dark: "#82cfff", light: "#2563eb", order: 1 });
-    host.theme.registerAccent({ id: "pink",   label: "Pink",   dark: "#e07acc", light: "#a823a3", order: 2 });
-    host.theme.registerAccent({ id: "orange", label: "Orange", dark: "#ffa42b", light: "#c2410c", order: 3 });
+    host.theme.registerAccent({
+      id: "green",
+      label: "Green",
+      dark: "#1ed760",
+      light: "#169c46",
+      order: 0,
+    });
+    host.theme.registerAccent({
+      id: "blue",
+      label: "Blue",
+      dark: "#82cfff",
+      light: "#2563eb",
+      order: 1,
+    });
+    host.theme.registerAccent({
+      id: "pink",
+      label: "Pink",
+      dark: "#e07acc",
+      light: "#a823a3",
+      order: 2,
+    });
+    host.theme.registerAccent({
+      id: "orange",
+      label: "Orange",
+      dark: "#ffa42b",
+      light: "#c2410c",
+      order: 3,
+    });
   },
 });
 

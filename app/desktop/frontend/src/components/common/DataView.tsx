@@ -50,13 +50,7 @@ type Props<T> = {
   children: (items: T[]) => ReactNode;
 };
 
-export function DataView<T>({
-  items,
-  isLoading,
-  skeletonCount = 4,
-  empty,
-  children,
-}: Props<T>) {
+export function DataView<T>({ items, isLoading, skeletonCount = 4, empty, children }: Props<T>) {
   if (isLoading) return <SkeletonList count={skeletonCount} />;
   if (!items || items.length === 0) {
     return empty ? <EmptyState {...empty} /> : null;

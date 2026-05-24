@@ -53,26 +53,43 @@
     linear-gradient(#000 0 0) content-box,
     linear-gradient(#000 0 0);
   -webkit-mask-composite: xor;
-          mask-composite: exclude;
+  mask-composite: exclude;
   pointer-events: none;
   animation: tc-spin 2.4s linear infinite;
 }
 @keyframes tc-spin {
-  to { --tc-angle: 360deg; }
+  to {
+    --tc-angle: 360deg;
+  }
 }
 
 /* ---------- Syntax tokens (dark theme defaults) ---------- */
-.token-kw   { color: #e07acc; }
-.token-str  { color: #f5d97a; }
-.token-fn   { color: #82cfff; }
-.token-comm { color: var(--color-text-faint); font-style: italic; }
+.token-kw {
+  color: #e07acc;
+}
+.token-str {
+  color: #f5d97a;
+}
+.token-fn {
+  color: #82cfff;
+}
+.token-comm {
+  color: var(--color-text-faint);
+  font-style: italic;
+}
 
 /* File-preview's mini highlighter — the spans live inside a `.file-preview
    .fp-line .code` chain emitted as an HTML string, so the rules need to
    inherit through that hierarchy. */
-.file-preview .fp-line .code .t-kw  { color: #e07acc; }
-.file-preview .fp-line .code .t-str { color: #f5d97a; }
-.file-preview .fp-line .code .t-fn  { color: #82cfff; }
+.file-preview .fp-line .code .t-kw {
+  color: #e07acc;
+}
+.file-preview .fp-line .code .t-str {
+  color: #f5d97a;
+}
+.file-preview .fp-line .code .t-fn {
+  color: #82cfff;
+}
 
 /* ---------- Lazy-activator slot placeholder ---------- */
 .lazy-activator {

@@ -16,10 +16,7 @@ export function SettingsPage() {
   // one (or their pick has since been unregistered), fall back to the
   // first pane via a derived value — no useEffect/setState loop.
   const [selectedId, setSelectedId] = useState<string | undefined>();
-  const activeId =
-    selectedId && panes.some((p) => p.id === selectedId)
-      ? selectedId
-      : panes[0]?.id;
+  const activeId = selectedId && panes.some((p) => p.id === selectedId) ? selectedId : panes[0]?.id;
 
   const active = panes.find((p) => p.id === activeId);
   const ActiveBody = active?.component;
@@ -53,7 +50,9 @@ export function SettingsPage() {
       </div>
       <div className="flex min-h-0 min-w-0 flex-col">
         <div className="flex items-center justify-between px-4.5 py-3.5">
-          <span className="text-[18px] font-semibold tracking-[-0.01em]">{active?.label ?? t("settings.title")}</span>
+          <span className="text-[18px] font-semibold tracking-[-0.01em]">
+            {active?.label ?? t("settings.title")}
+          </span>
         </div>
         <div className="flex-1 min-h-0 overflow-y-auto px-5 py-4.5">
           {ActiveBody && (

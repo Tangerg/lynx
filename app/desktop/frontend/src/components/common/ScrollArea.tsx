@@ -20,7 +20,7 @@ export const ScrollArea = forwardRef<HTMLDivElement, Props>(function ScrollArea(
       ref={ref}
       className={cn(
         "flex-1 min-h-0 overflow-y-auto overflow-x-hidden " +
-        "[scrollbar-width:thin] [scrollbar-color:var(--color-border-soft)_transparent]",
+          "[scrollbar-width:thin] [scrollbar-color:var(--color-border-soft)_transparent]",
         className,
       )}
       style={style}

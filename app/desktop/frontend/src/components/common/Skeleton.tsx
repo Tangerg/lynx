@@ -41,7 +41,9 @@ export function SkeletonRow({ style }: { style?: CSSProperties }) {
 export function SkeletonList({ count = 4, style }: { count?: number; style?: CSSProperties }) {
   return (
     <div className="flex flex-col gap-2 px-3 py-2" style={style}>
-      {Array.from({ length: count }, (_, i) => <SkeletonRow key={i} />)}
+      {Array.from({ length: count }, (_, i) => (
+        <SkeletonRow key={i} />
+      ))}
     </div>
   );
 }

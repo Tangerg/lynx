@@ -1,12 +1,6 @@
 // Public SDK surface — what plugin authors import.
 
-export {
-  definePlugin,
-  loadPlugin,
-  loadPlugins,
-  unloadPlugin,
-  reloadPlugin,
-} from "./definePlugin";
+export { definePlugin, loadPlugin, loadPlugins, unloadPlugin, reloadPlugin } from "./definePlugin";
 
 // The Zustand store + write-side actions live in registry.ts.
 export { normalizeCombo, usePluginStore } from "./registry";
@@ -127,12 +121,7 @@ export type { StateSlice } from "./stateSlice";
 export { useSharedState } from "./sharedState";
 
 // App-wide config store.
-export {
-  getConfig,
-  hasConfig,
-  setConfig,
-  useConfigStore,
-} from "./config";
+export { getConfig, hasConfig, setConfig, useConfigStore } from "./config";
 export type { ConfigValue } from "./config";
 
 // Storage migrations (live in storage.ts since they're per-plugin).

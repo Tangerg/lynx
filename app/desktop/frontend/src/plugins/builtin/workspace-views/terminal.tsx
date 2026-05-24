@@ -21,7 +21,9 @@ function TerminalTab() {
         ● {running ? "Running" : "Idle"}
       </span>
       <span style={{ margin: "0 8px", color: "var(--color-text-faint)" }}>·</span>
-      <span>{errors} error{errors === 1 ? "" : "s"} · {warnings} warning{warnings === 1 ? "" : "s"}</span>
+      <span>
+        {errors} error{errors === 1 ? "" : "s"} · {warnings} warning{warnings === 1 ? "" : "s"}
+      </span>
       <span style={{ margin: "0 8px", color: "var(--color-text-faint)" }}>·</span>
       <span>{cwd}</span>
     </>
@@ -35,8 +37,12 @@ function TerminalTab() {
         sub={sub}
         actions={
           <>
-            <IconButton title="Re-run"><Icon name="loop" size={14} /></IconButton>
-            <IconButton title="Stop"><Icon name="stop" size={12} /></IconButton>
+            <IconButton title="Re-run">
+              <Icon name="loop" size={14} />
+            </IconButton>
+            <IconButton title="Stop">
+              <Icon name="stop" size={12} />
+            </IconButton>
           </>
         }
       />

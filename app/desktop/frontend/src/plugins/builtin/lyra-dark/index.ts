@@ -12,26 +12,26 @@ import { defineThemePlugin } from "../themes/defineThemePlugin";
 // TypeScript const does the same thing with zero runtime cost.)
 const c = {
   // Brand — Lyra signature green
-  green:       "#1ed760",
+  green: "#1ed760",
   greenBorder: "#1db954",
-  greenPress:  "#169c46",
+  greenPress: "#169c46",
 
   // Surface anchors
-  canvas:      "#010102",  // page background — faint blue tint, not pure black
-  surface1:    "#181a1d",  // panel / sidebar / message bubble
+  canvas: "#010102", // page background — faint blue tint, not pure black
+  surface1: "#181a1d", // panel / sidebar / message bubble
 
   // Ink
-  inkBright:   "#ffffff",
-  ink:         "#f7f8f8",
-  inkSoft:     "#d0d6e0",
+  inkBright: "#ffffff",
+  ink: "#f7f8f8",
+  inkSoft: "#d0d6e0",
   // Calibrated for WCAG AA at 11-12px sizes on canvas (~5.6:1 / ~4.7:1).
-  inkMuted:    "#9ea3ac",
-  inkFaint:    "#76787e",
+  inkMuted: "#9ea3ac",
+  inkFaint: "#76787e",
 
   // Hairlines — literal hex (DESIGN.md §2: precise > alpha-blended)
-  hairline:    "#23252a",
-  hairStrong:  "#34343a",
-  hairTertiary:"#3e3e44",
+  hairline: "#23252a",
+  hairStrong: "#34343a",
+  hairTertiary: "#3e3e44",
 };
 
 export default defineThemePlugin({
@@ -41,32 +41,32 @@ export default defineThemePlugin({
   order: 0,
 
   brand: {
-    accent:       c.green,
+    accent: c.green,
     accentBorder: c.greenBorder,
-    accentPress:  c.greenPress,
+    accentPress: c.greenPress,
     textOnAccent: "#000000", // black ink reads on bright green
   },
   surfaces: {
-    bg:      c.canvas,
+    bg: c.canvas,
     surface: c.surface1,
   },
   ink: {
-    text:       c.ink,
+    text: c.ink,
     textBright: c.inkBright,
-    textSoft:   c.inkSoft,
-    textMuted:  c.inkMuted,
-    textFaint:  c.inkFaint,
+    textSoft: c.inkSoft,
+    textMuted: c.inkMuted,
+    textFaint: c.inkFaint,
   },
   borders: {
-    border:     c.hairline,
+    border: c.hairline,
     borderSoft: c.hairStrong,
-    divider:    c.hairTertiary,
+    divider: c.hairTertiary,
     appDivider: c.hairline,
   },
   semantic: {
     negative: "#ee0000",
-    warning:  "#f5a623",
-    info:     "#0070f3",
-    success:  "#27a644",
+    warning: "#f5a623",
+    info: "#0070f3",
+    success: "#27a644",
   },
 });

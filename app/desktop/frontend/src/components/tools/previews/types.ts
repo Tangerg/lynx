@@ -18,7 +18,7 @@ export type GrepMatch = {
 };
 
 export type FileLine = {
-  ln: string;          // line number or marker like "···"
-  code: string;        // already-rendered HTML
+  ln: string; // line number or marker like "···"
+  code: string; // already-rendered HTML
   muted?: boolean;
 };

@@ -9,10 +9,7 @@ import type { StateSlice } from "../stateSlice";
 import type { ContentBlockKind } from "@/protocol/agui/viewState";
 
 import type { Disposable, ReadyHandler, BeforeUnloadHandler } from "./common";
-import type {
-  ContentBlockRenderer,
-  MessageRoleSpec,
-} from "./message";
+import type { ContentBlockRenderer, MessageRoleSpec } from "./message";
 import type { CoreEventHandler, CustomEventHandler } from "./agui";
 import type { ThemeSpec, ThemeAccentSpec } from "./theme";
 import type {
@@ -25,12 +22,7 @@ import type {
 } from "./composer";
 import type { SidebarSectionSpec, SidebarRailItemSpec } from "./sidebar";
 import type { CommandSpec, ShortcutSpec } from "./commands";
-import type {
-  LayoutSlotSpec,
-  RouteSpec,
-  SettingsPaneSpec,
-  WorkspaceViewSpec,
-} from "./workspace";
+import type { LayoutSlotSpec, RouteSpec, SettingsPaneSpec, WorkspaceViewSpec } from "./workspace";
 import type { ToolActionSpec, ToolPreviewComponent } from "./tool";
 import type {
   AgentSourceSpec,
@@ -163,10 +155,7 @@ export type Host = {
     /** Does the key have a value (regardless of falsiness)? */
     has(key: string): boolean;
     /** Subscribe to changes for one key. Receives the new value (or undefined). */
-    onChange(
-      key: string,
-      fn: (value: ConfigValue | undefined) => void,
-    ): Disposable;
+    onChange(key: string, fn: (value: ConfigValue | undefined) => void): Disposable;
   };
   settings: {
     /** Contribute a pane to the settings modal. */

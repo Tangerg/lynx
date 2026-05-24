@@ -32,11 +32,7 @@ export class PluginBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, info: ErrorInfo): void {
     // eslint-disable-next-line no-console
-    console.error(
-      `[plugin] ${this.props.plugin} render failed:`,
-      error,
-      info.componentStack,
-    );
+    console.error(`[plugin] ${this.props.plugin} render failed:`, error, info.componentStack);
     reportPluginError(this.props.plugin, "render", error, info.componentStack ?? undefined);
   }
 
@@ -49,13 +45,7 @@ export class PluginBoundary extends Component<Props, State> {
       // Render OUTSIDE another PluginBoundary — if the fallback itself
       // throws, React will surface that via the next enclosing boundary
       // (or crash, which is fine: the host should ship a working fallback).
-      return (
-        <Body
-          plugin={this.props.plugin}
-          label={this.props.label}
-          error={this.state.error}
-        />
-      );
+      return <Body plugin={this.props.plugin} label={this.props.label} error={this.state.error} />;
     }
 
     return (

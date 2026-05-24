@@ -12,11 +12,7 @@
 // Both pathways use the same error-isolation policy: a throwing handler is
 // logged to the error store and its input state is preserved.
 
-import {
-  EventType,
-  type BaseEvent,
-  type CustomEvent,
-} from "@ag-ui/core";
+import { EventType, type BaseEvent, type CustomEvent } from "@ag-ui/core";
 import {
   lookupCoreEventHandlers,
   lookupCustomEventHandler,

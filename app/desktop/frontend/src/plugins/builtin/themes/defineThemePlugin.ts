@@ -166,11 +166,11 @@ const DARK_SHADOWS: ThemeShadows = {
     "0 8px 16px -4px rgba(0, 0, 0, 0.50), " +
     "0 24px 32px -8px rgba(0, 0, 0, 0.60), " +
     "inset 0 0 0 1px var(--color-border)",
-  card:   "none",
+  card: "none",
   dialog: "var(--shadow-lg)",
-  pop:    "var(--shadow-lg)",
-  soft:   "none",
-  glow:   "0 0 12px color-mix(in srgb, var(--color-accent) 50%, transparent)",
+  pop: "var(--shadow-lg)",
+  soft: "none",
+  glow: "0 0 12px color-mix(in srgb, var(--color-accent) 50%, transparent)",
   inputFocus:
     "0 0 0 2px color-mix(in srgb, var(--color-accent) 30%, transparent), " +
     "inset 0 0 0 1px var(--color-border-soft)",
@@ -181,11 +181,11 @@ const LIGHT_SHADOWS: ThemeShadows = {
   sm: "0 1px 2px rgba(15, 15, 15, 0.04), 0 2px 6px rgba(15, 15, 15, 0.06)",
   md: "0 2px 4px rgba(15, 15, 15, 0.04), 0 8px 20px rgba(15, 15, 15, 0.10)",
   lg: "0 4px 12px rgba(15, 15, 15, 0.08), 0 24px 60px -12px rgba(15, 15, 15, 0.18)",
-  card:   "var(--shadow-sm)",
+  card: "var(--shadow-sm)",
   dialog: "var(--shadow-lg)",
-  pop:    "var(--shadow-lg)",
-  soft:   "var(--shadow-xs)",
-  glow:   "0 0 12px color-mix(in srgb, var(--color-accent) 40%, transparent)",
+  pop: "var(--shadow-lg)",
+  soft: "var(--shadow-xs)",
+  glow: "0 0 12px color-mix(in srgb, var(--color-accent) 40%, transparent)",
   inputFocus:
     "0 0 0 3px color-mix(in srgb, var(--color-accent) 14%, transparent), " +
     "inset 0 0 0 1px var(--color-border-soft)",
@@ -263,53 +263,53 @@ export function defineThemePlugin(spec: ThemePluginSpec): PluginSpec {
     "depth-step": spec.depthStep ?? "5%",
 
     // Brand
-    "color-accent":         spec.brand.accent,
-    "color-accent-border":  spec.brand.accentBorder,
-    "color-accent-press":   spec.brand.accentPress,
+    "color-accent": spec.brand.accent,
+    "color-accent-border": spec.brand.accentBorder,
+    "color-accent-press": spec.brand.accentPress,
     "color-text-on-accent": spec.brand.textOnAccent,
 
     // Surfaces — surface2/3/4 default to color-mix() in tokens.css; only
     // emit explicit values when the theme provided them.
-    "color-bg":      spec.surfaces.bg,
+    "color-bg": spec.surfaces.bg,
     "color-surface": spec.surfaces.surface,
     ...(spec.surfaces.surface2 ? { "color-surface-2": spec.surfaces.surface2 } : {}),
     ...(spec.surfaces.surface3 ? { "color-surface-3": spec.surfaces.surface3 } : {}),
     ...(spec.surfaces.surface4 ? { "color-surface-4": spec.surfaces.surface4 } : {}),
 
     // Ink
-    "color-text":        spec.ink.text,
+    "color-text": spec.ink.text,
     "color-text-bright": spec.ink.textBright,
-    "color-text-soft":   spec.ink.textSoft,
-    "color-text-muted":  spec.ink.textMuted,
-    "color-text-faint":  spec.ink.textFaint,
+    "color-text-soft": spec.ink.textSoft,
+    "color-text-muted": spec.ink.textMuted,
+    "color-text-faint": spec.ink.textFaint,
 
     // Borders
-    "color-border":       spec.borders.border,
-    "color-border-soft":  spec.borders.borderSoft,
-    "color-divider":      spec.borders.divider,
-    "color-app-divider":  spec.borders.appDivider,
+    "color-border": spec.borders.border,
+    "color-border-soft": spec.borders.borderSoft,
+    "color-divider": spec.borders.divider,
+    "color-app-divider": spec.borders.appDivider,
 
     // Semantic
     "color-negative": spec.semantic.negative,
-    "color-warning":  spec.semantic.warning,
-    "color-info":     spec.semantic.info,
-    "color-success":  spec.semantic.success,
+    "color-warning": spec.semantic.warning,
+    "color-info": spec.semantic.info,
+    "color-success": spec.semantic.success,
 
     // CTA
-    "color-cta":       cta.cta,
+    "color-cta": cta.cta,
     "color-cta-hover": cta.ctaHover,
-    "color-cta-text":  cta.ctaText,
+    "color-cta-text": cta.ctaText,
 
     // Shadows
-    "shadow-xs":          shadows.xs,
-    "shadow-sm":          shadows.sm,
-    "shadow-md":          shadows.md,
-    "shadow-lg":          shadows.lg,
-    "shadow-card":        shadows.card,
-    "shadow-dialog":      shadows.dialog,
-    "shadow-pop":         shadows.pop,
-    "shadow-soft":        shadows.soft,
-    "shadow-glow":        shadows.glow,
+    "shadow-xs": shadows.xs,
+    "shadow-sm": shadows.sm,
+    "shadow-md": shadows.md,
+    "shadow-lg": shadows.lg,
+    "shadow-card": shadows.card,
+    "shadow-dialog": shadows.dialog,
+    "shadow-pop": shadows.pop,
+    "shadow-soft": shadows.soft,
+    "shadow-glow": shadows.glow,
     "shadow-input-focus": shadows.inputFocus,
 
     // Radii

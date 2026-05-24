@@ -49,10 +49,7 @@ export function ChatStream({ onSend, resetKey }: Props) {
   // `use-stick-to-bottom`. This component only needs to know "is the
   // user currently at bottom?" to toggle the jump-to-bottom button.
   const [streamControls, setStreamControls] = useState<StreamControls | null>(null);
-  const handleControls = useCallback(
-    (c: StreamControls) => setStreamControls(c),
-    [],
-  );
+  const handleControls = useCallback((c: StreamControls) => setStreamControls(c), []);
 
   // Auto-select (but don't expand) the latest tool the first time it
   // streams in — so the inspector pane has something to show without

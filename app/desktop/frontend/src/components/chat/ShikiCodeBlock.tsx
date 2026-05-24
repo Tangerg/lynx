@@ -151,7 +151,10 @@ export function ShikiCodeBlock({ lang, code, file }: Props) {
               type="button"
               onClick={() => setExpanded(false)}
               title="Collapse code block"
-              className={cn(FOLD_TOGGLE, "border-t border-[color-mix(in_srgb,var(--color-text)_7%,transparent)]")}
+              className={cn(
+                FOLD_TOGGLE,
+                "border-t border-[color-mix(in_srgb,var(--color-text)_7%,transparent)]",
+              )}
             >
               <Icon name="minimize" size={12} />
               <span>Collapse</span>
