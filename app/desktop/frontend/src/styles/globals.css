@@ -127,7 +127,11 @@
                                  are all Tailwind — only the textarea
                                  keeps a `composer-input` DOM-hook class
                                  so the focus command can querySelector
-                                 it without threading a ref). */
+                                 it without threading a ref).
+     P6.7 deleted settings.css  (SettingsPage shell + appearance pane +
+                                 plugins-pane are now Tailwind; the
+                                 .search-kbd hint moved into sidebar.css
+                                 where it belongs cohesion-wise). */
 @import "./tokens.css";
 @import "./reset.css";
 @import "./layout.css";
@@ -135,7 +139,6 @@
 @import "./icon-gallery.css";
 @import "./markdown.css";
 @import "./overlays.css";
-@import "./settings.css";
 @import "./sidebar.css";
 @import "./tool.css";
 @import "./welcome.css";
