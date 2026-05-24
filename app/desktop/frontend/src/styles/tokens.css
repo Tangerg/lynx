@@ -190,22 +190,23 @@ html, body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Naked-element rules — the few places where raw `<p>` / `<h1>` come
-   from rehype output (markdown.css covers `.md p`, `.md h1` etc.) or
-   from a JSX node that doesn't set margins via Tailwind. */
-h1, h2, h3 {
-  font-family: var(--font-ui);
-  font-weight: var(--fw-semibold);
-  line-height: var(--leading-snug);
-  margin: 0;
-}
-h1 { font-size: var(--fs-display-lg); line-height: var(--leading-tight); letter-spacing: var(--tracking-display-tight); }
-h2 { font-size: var(--fs-display-md); letter-spacing: var(--tracking-display); }
-h3 { font-size: var(--fs-display-sm); }
-p  {
-  font-size: var(--fs-body-md);
-  font-weight: var(--fw-regular);
-  line-height: var(--leading-body);
-  color: var(--color-text);
-  margin: 0;
-}
+/* Element rules deleted — they were a cascade trap:
+
+   1. `p { font-size: var(--fs-body-md) }` is a selector with
+      specificity (0,0,1). markdown.css's `.md p` is (0,1,1) and
+      doesn't set font-size — cascade is per-property, so the higher-
+      specificity selector winning the *element* doesn't pull
+      font-size with it. Result: every `<p>` rehype emits inside `.md`
+      was forced back to 14.08px regardless of what the chat surface
+      Tailwind utilities set on `.msg-content` (16px). Inline `<code>`
+      then computed `.md code { font-size: 0.88em }` against the wrong
+      parent → 12.39px.
+
+   2. Same trap for `h1/h2/h3`. We never relied on these rules — every
+      <p>/<h1> in JSX carries its own Tailwind className (`m-0 text-[X]`)
+      and markdown's <p>/<h1>/etc. are handled by `.md p` / `.md h1`
+      in markdown.css.
+
+   Removing these rules lets descendants inherit cleanly from the
+   parent element's font-size, which is what the design system
+   actually wanted. */
