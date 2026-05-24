@@ -101,6 +101,20 @@ html.theme-light .diff-hunk-head { background: var(--color-surface-2); color: va
 /* Inline file preview (tool-previews `Read` renderer). */
 html.theme-light .file-preview .fp-line .ln { color: var(--color-text-faint); }
 
+/* Scrollbar — light theme uses a quieter thumb (Vercel pattern: light
+   surfaces would make the dark thumb tokens overshoot). Targets the
+   .panel-scroll class set on every scrollable Panel body. */
+html.theme-light .panel-scroll { scrollbar-color: #cdcdcc transparent; }
+html.theme-light .panel-scroll::-webkit-scrollbar-thumb {
+  background: #d4d4d3;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+html.theme-light .panel-scroll::-webkit-scrollbar-thumb:hover {
+  background: #b8b8b7;
+  background-clip: content-box;
+}
+
 /* Markdown message body — overrides .msg-content children only.
    MessageBlock keeps the .msg-content className for the markdown body
    (Tailwind would require migrating every markdownComponents child

@@ -21,7 +21,12 @@ export function SidebarExpanded({ onToggleRail }: Props) {
     <Panel className="sidebar">
       <div className="brand">
         <Slot name="sidebar.brand" />
-        <button className="brand-toggle" onClick={onToggleRail} title="Collapse to rail">
+        <button
+          type="button"
+          onClick={onToggleRail}
+          title="Collapse to rail"
+          className="ml-auto grid h-[26px] w-[26px] place-items-center rounded-md border-0 bg-transparent text-fg-muted cursor-pointer transition-colors hover:bg-surface-2 hover:text-fg"
+        >
           <Icon name="panel-l" size={14} />
         </button>
       </div>
