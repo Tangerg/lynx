@@ -99,7 +99,6 @@ export function MermaidBlock({ code }: Props) {
     return (
       <>
         <div
-          className="mermaid-block"
           role="button"
           tabIndex={0}
           title="Click to enlarge"
@@ -110,12 +109,16 @@ export function MermaidBlock({ code }: Props) {
               setZoomed(true);
             }
           }}
+          // Inline SVG sizes itself; the wrapper provides chrome + zoom
+          // affordance. `[&_svg]:` reaches the SVG that
+          // dangerouslySetInnerHTML drops in (we can't put utilities on it
+          // directly).
+          className="my-3.5 cursor-zoom-in overflow-x-auto rounded-lg border border-[color-mix(in_srgb,var(--color-text)_10%,transparent)] bg-[color-mix(in_srgb,var(--color-text)_3%,transparent)] p-4 text-center transition-colors duration-150 hover:border-[color-mix(in_srgb,var(--color-accent)_30%,transparent)] [&_svg]:max-w-full [&_svg]:h-auto"
           dangerouslySetInnerHTML={{ __html: svg }}
         />
         <AnimatePresence>
           {zoomed && (
             <motion.div
-              className="mermaid-lightbox"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
@@ -123,11 +126,17 @@ export function MermaidBlock({ code }: Props) {
               onClick={() => setZoomed(false)}
               role="dialog"
               aria-modal="true"
+              // Light theme keeps the backdrop quieter — already-light
+              // page bg + a 60% black wash reads as a flat grey haze.
+              className="fixed inset-0 z-[200] grid cursor-zoom-out place-items-center bg-black/60 light:bg-black/25 backdrop-blur-[8px] p-10"
             >
               <motion.div
-                className="mermaid-lightbox-frame"
                 {...popIn}
                 onClick={(e) => e.stopPropagation()}
+                // Frame: a Panel-style card that pops the SVG out of the
+                // backdrop. SVG renders at native scale (max-width: none)
+                // so the user gets the full readable diagram.
+                className="max-h-[90vh] max-w-[min(1400px,95vw)] overflow-auto rounded-xl border border-line-soft bg-surface p-6 shadow-lg cursor-default [&_svg]:block [&_svg]:mx-auto [&_svg]:max-w-none"
                 dangerouslySetInnerHTML={{ __html: svg }}
               />
             </motion.div>
@@ -143,7 +152,7 @@ export function MermaidBlock({ code }: Props) {
   // the visual transition reads as progressive disclosure rather than a
   // flicker between error / success states.
   return (
-    <pre className="mermaid-block-pending">
+    <pre className="my-3.5 overflow-x-auto whitespace-pre rounded-lg border border-dashed border-[color-mix(in_srgb,var(--color-text)_14%,transparent)] bg-[color-mix(in_srgb,var(--color-text)_2%,transparent)] px-3.5 py-3 font-mono text-[12px] leading-[1.55] text-fg-faint">
       <code>{code}</code>
     </pre>
   );
