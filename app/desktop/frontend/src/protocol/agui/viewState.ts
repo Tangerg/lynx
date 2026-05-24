@@ -30,25 +30,14 @@ export type PlanItem = {
 
 export type SearchResult = { domain: string; title: string; time: string; snippet: string };
 
-// ---------------------------------------------------------------------------
-// ContentBlock — extensible discriminated union.
-//
-// Each block kind has its own entry in BuiltinContentBlockMap (built-ins) or
-// in CustomContentBlockMap (plugin-contributed; empty by default, augmented
-// via TypeScript declaration merging). The final ContentBlock union is the
-// values of both maps.
-//
-// Plugin authors extend like this:
-//
+// ContentBlock — discriminated union extended via TypeScript declaration
+// merging on `CustomContentBlockMap`. A plugin adds:
 //   declare module "@/protocol/agui/viewState" {
 //     interface CustomContentBlockMap {
 //       cpuChart: { kind: "cpuChart"; series: ChartPoint[] };
 //     }
 //   }
-//
-// After that augmentation, ContentBlock includes `{ kind: "cpuChart"; … }`
-// and the plugin's registered renderer is type-checked against it.
-// ---------------------------------------------------------------------------
+// and its registered renderer is then type-checked against the union.
 
 export interface BuiltinContentBlockMap {
   text: { kind: "text"; text: string; streaming: boolean };

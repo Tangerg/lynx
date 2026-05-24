@@ -1,32 +1,24 @@
-// Built-in plugin: Atom One Light theme.
-//
-// Canonical palette from the `one-light-syntax` Atom package + VS Code's
-// `Atom One Light` theme.
+// Atom One Light — canonical one-light-syntax palette.
 
 import { defineThemePlugin } from "../themes/defineThemePlugin";
 
 const c = {
-  // Brand — One Light cursor blue (slightly cooler than One Dark)
   blue: "#526fff",
   blueBorder: "#4060e8",
   bluePress: "#2d4ac6",
 
-  // Atom One Light canonical surfaces
-  panel: "#f0f0f1", // sidebar / panel
-  editor: "#fafafa", // editor
-  sel1: "#e5e5e6", // selection bg
+  panel: "#f0f0f1",
+  editor: "#fafafa",
+  sel1: "#e5e5e6",
   sel2: "#d4d4d6",
   sel3: "#c5c5c6",
 
-  // Ink — `mono-1` body, `mono-2/3` muted/faint
   fg: "#383a42",
   fgBright: "#000000",
-  // Bumped from #696c77 → reads ~4.6:1 on #fafafa surface (was failing AA).
+  // Bumped above the original #696c77 / #a0a1a7 to clear WCAG AA.
   fgMuted: "#5b5e66",
-  // Bumped from #a0a1a7 (comment) which was ~2.7:1. New ~4.6:1.
   fgFaint: "#74757c",
 
-  // Hairlines
   hairline: "#e5e5e6",
   hairStrong: "#c5c5c6",
   hairTertiary: "#a0a1a7",

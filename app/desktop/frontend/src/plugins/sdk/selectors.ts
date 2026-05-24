@@ -1,11 +1,5 @@
-// Read-side of the plugin registry — every React hook + imperative
-// lookup callers reach for. Split out of `registry.ts` to keep that
-// file focused on the Zustand store + write actions.
-//
-// All selectors here observe the same store created in `./registry`.
-// Lazy-activation helpers (placeholder → real component / handler) also
-// live here because they're invoked only from selectors and would push
-// the cycle back into registry.ts otherwise.
+// Read side of the plugin registry — React hooks + imperative lookups
+// + lazy-activation helpers (placeholder → real component / handler).
 
 import { useMemo } from "react";
 import type { ContentBlockKind } from "@/protocol/agui/viewState";

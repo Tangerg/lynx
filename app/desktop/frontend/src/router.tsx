@@ -1,16 +1,8 @@
-// Router — TanStack Router tree built dynamically from plugin-registered
-// routes.
-//
-// AppRouter mounts after `PluginProvider` has loaded all built-in plugins,
-// so by the time we construct the route tree the registry already contains
-// everything (built-ins + sideloaded). The built-in "main-route" plugin
-// contributes "/" → AgentClientPage; user plugins can contribute more.
-//
-// Note on TanStack's type registration: the static `declare module` binding
-// below is keyed off the *router instance shape*, not the route tree, so
-// adding routes at runtime doesn't break the type-safe Link/navigate API
-// for the routes that exist at build time. Plugin-contributed routes are
-// queried by their `id` and aren't autocompleted by `<Link to="...">`.
+// TanStack Router tree, built dynamically from plugin-registered routes.
+// AppRouter mounts after PluginProvider so the registry is already
+// populated. Plugin routes are queried by id; they don't show up in
+// the type-safe `<Link to="…">` autocomplete (the declare module below
+// is keyed off the router shape, not the runtime route list).
 
 import {
   createRootRoute,

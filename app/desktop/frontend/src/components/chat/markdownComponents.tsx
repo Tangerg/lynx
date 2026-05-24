@@ -2,24 +2,10 @@ import type { Components } from "react-markdown";
 import { MermaidBlock } from "@/components/chat/MermaidBlock";
 import { ShikiCodeBlock } from "@/components/chat/ShikiCodeBlock";
 
-// Component overrides for react-markdown.
-//
-// - `pre`: unwrap. Our `code` override below handles the entire block-
-//   level rendering (Shiki / Mermaid / plain fallback) and emits its
-//   own outer container — keeping the default `<pre>` would double-wrap.
-// - `code`: route by language tag. Mermaid blocks render as diagrams,
-//   everything else with a recognised `language-X` className goes
-//   through Shiki. Inline code (no language- prefix) stays as a plain
-//   `<code>` so it can sit in the text flow with .fade-in alongside it.
-// - `table`: wrap in an overflow-x container so wide tables (think 8+
-//   columns of bench data) scroll instead of bursting the message
-//   column. The wrapper is the scroll surface; the table itself keeps
-//   its natural width.
-// - `a`: open external links in a new tab. With Wails, clicking a
-//   <a href> in the WebView opens it INSIDE the chrome-less window with
-//   no back button — same as a desktop app eating a popup. `_blank` +
-//   `noopener` punts it to the OS default browser, which is what users
-//   expect when they click a link in chat.
+// react-markdown component overrides. `pre` unwraps because `code`
+// below emits its own block container (would otherwise double-wrap).
+// `a` opens external links in the OS browser — clicking a link inside
+// the Wails WebView would otherwise navigate the chrome-less window.
 export const markdownComponents: Components = {
   pre({ children }) {
     return <>{children}</>;

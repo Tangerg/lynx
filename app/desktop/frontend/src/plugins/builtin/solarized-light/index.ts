@@ -1,7 +1,4 @@
-// Built-in plugin: Solarized Light theme.
-//
-// Mirror of Solarized Dark — same 8 accent hues, base-* ladder
-// inverted. Same blue accent works on both schemes.
+// Solarized Light — same 8 accent hues as Dark, base-* ladder inverted.
 
 import { defineThemePlugin } from "../themes/defineThemePlugin";
 
@@ -16,8 +13,8 @@ const c = {
   base00: "#657b83",
   base0: "#839496",
   base1: "#93a1a1",
-  base2: "#eee8d5", // light surface anchor
-  base3: "#fdf6e3", // light canvas anchor
+  base2: "#eee8d5",
+  base3: "#fdf6e3",
 };
 
 export default defineThemePlugin({
@@ -35,9 +32,8 @@ export default defineThemePlugin({
   surfaces: {
     bg: c.base2,
     surface: c.base3,
-    // Derived "deeper" tones for hover / popover — Solarized doesn't
-    // canonically define light lifted surfaces, so we step down toward
-    // base2's hue.
+    // Solarized doesn't canonically define light lifted surfaces;
+    // these step toward base2's hue.
     surface2: "#e7e0c8",
     surface3: "#d8d0b4",
     surface4: "#cac1a4",
@@ -46,9 +42,8 @@ export default defineThemePlugin({
     text: c.base00,
     textBright: c.base03,
     textSoft: c.base01,
-    // base1 #93a1a1 was ~3.2:1 on base3 (failing AA). Step toward base00.
+    // Bumped above base1 to clear WCAG AA on small body.
     textMuted: "#6f8388",
-    // Derived "very faint" — base1 + base2 mix that reads ~4.6:1.
     textFaint: "#7e8d8d",
   },
   borders: {
@@ -58,7 +53,6 @@ export default defineThemePlugin({
     appDivider: c.base2,
   },
   semantic: {
-    // Solarized canonical hues — work on both schemes per the spec
     negative: "#dc322f",
     warning: "#cb4b16",
     info: "#2aa198",

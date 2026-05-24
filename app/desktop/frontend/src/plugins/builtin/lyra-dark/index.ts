@@ -1,15 +1,9 @@
-// Built-in plugin: Lyra Dark — the system default theme.
-//
-// Synthesis of Linear (canvas / surface / hairline) + Vercel (Geist
-// typography / stacked elevation). The values here are the source of
-// truth — tokens.css's `:root` block only carries first-paint
-// fallbacks for the brief window before this plugin's setup runs.
+// Lyra Dark — system default. Synthesis of Linear (surface ladder) +
+// Vercel (typography + elevation). Source of truth; tokens.css `:root`
+// only stands in until this plugin's setup runs.
 
 import { defineThemePlugin } from "../themes/defineThemePlugin";
 
-// Named palette — local consts let us write the value once and reuse it
-// across sections. (Pi-mono uses a `vars` JSON indirection for this;
-// TypeScript const does the same thing with zero runtime cost.)
 const c = {
   // Brand — Lyra signature green
   green: "#1ed760",

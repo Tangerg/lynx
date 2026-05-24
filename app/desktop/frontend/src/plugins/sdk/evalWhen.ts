@@ -1,19 +1,10 @@
-// Minimal expression evaluator for command `when` clauses.
-//
-// Grammar (precedence low → high):
-//   or    := and ("||" and)*
-//   and   := eq  ("&&" eq )*
-//   eq    := unary (("==" | "!=") unary)?
-//   unary := "!" unary | primary
-//   primary := identifier | string | "(" or ")"
-//
-// Inspired by VS Code's `when` clauses but kept tiny: no number literals,
-// no `in`, no regex, no chained equality. Identifiers may contain dots so
-// callers can use namespaced keys like `view.diff.active`.
-//
-// Evaluation is best-effort: a parse error or unknown identifier collapses
-// to `false`, with a console warning. Better to hide an entry than throw
-// during command-palette render.
+// Tiny expression evaluator for command `when` clauses (VS Code-style,
+// stripped down). Grammar:
+//   or → and ("||" and)*    eq → unary (("==" | "!=") unary)?
+//   and → eq ("&&" eq)*     unary → "!" unary | primary
+//   primary → identifier | string | "(" or ")"
+// Parse errors / unknown identifiers collapse to `false` — better to
+// hide an entry than throw at palette-render time.
 
 type Token =
   | { type: "id"; value: string }

@@ -1,23 +1,13 @@
-// Built-in plugin: wires global keyboard shortcuts to default-commands.
-//
-// Separation of concerns:
-//   - `default-commands` owns the command catalog (palette entries) and
-//     the canonical `run()` for each action. The `shortcut` field on a
-//     CommandSpec is display-only — it does NOT auto-register a binding.
-//   - This plugin reads that catalog and registers actual key bindings
-//     via `host.shortcuts.register`. Drop this plugin to disable global
-//     shortcuts without losing the palette.
-//
-// Cmd+1..9 (switch to Nth tab) intentionally do NOT exist as palette
-// commands — 9 ungrouped "switch to tab N" entries would drown the
-// palette. They live here as pure shortcuts.
+// Wires global keyboard shortcuts to palette commands. CommandSpec's
+// `shortcut` field is display-only; this plugin reads the catalog and
+// registers the bindings. Cmd+1..9 stays here as pure shortcuts —
+// 9 "switch to tab N" entries would drown the palette.
 
 import { definePlugin, lookupCommand } from "@/plugins/sdk";
 import { useSessionStore } from "@/state/sessionStore";
 
-// (combo, commandId, description) — handler resolves and invokes the
-// command at trigger time. Late binding means a plugin can replace the
-// command's run() and shortcuts keep working.
+// Late binding: the handler resolves the command at trigger time, so
+// a plugin can replace its run() without rewriting the key wiring.
 const COMMAND_BINDINGS: Array<{
   combo: string;
   commandId: string;

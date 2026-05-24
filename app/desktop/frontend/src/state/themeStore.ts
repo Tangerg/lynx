@@ -1,18 +1,12 @@
-// Theme + accent — the appearance slice of the kernel's UI state.
-//
-// Persisted: `theme` (id from the plugin registry) and `accent` (hex).
-// The active theme + accent are mirrored to :root via the side-effects
-// at the bottom of this file: tokens become inline CSS vars, the
-// scheme class on <html> toggles, accent picks up the right light/dark
-// variant.
+// Theme + accent store. Persists the theme id + accent hex; the
+// side-effects at the bottom of this file mirror the active spec to
+// :root (inline CSS vars + theme-{scheme} class on <html>).
 
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import type { Theme } from "@/components/sidebar/types";
-// Import the registry store directly rather than via the SDK barrel —
-// the barrel pulls in definePlugin / host, and host.ts already imports
-// this file. Going through the barrel creates a real cycle that shows
-// up as a TDZ at module-init time under the Vitest loader.
+// Direct registry import — going through the SDK barrel pulls in
+// host.ts which imports this file, creating a TDZ cycle under Vitest.
 import { usePluginStore } from "@/plugins/sdk/registry";
 
 type ThemeState = {
@@ -64,27 +58,9 @@ export const useThemeStore = create<ThemeState & ThemeActions>()(
   ),
 );
 
-// ---------------------------------------------------------------------------
-// Side-effects: keep <html> class + inline CSS vars in sync with the
-// active theme spec from the plugin registry.
-// ---------------------------------------------------------------------------
-//
-// Theme model — IDE/VS Code style:
-//   1. A theme plugin (default: `lyra.builtin.theme-dark` etc.) registers
-//      one or more ThemeSpec entries. Each carries a `tokens` map: CSS
-//      variable name → value.
-//   2. When `theme` changes (or the registry's theme map mutates because
-//      a plugin registered late), we look up the spec, toggle the
-//      `theme-{scheme}` class on <html> so structural CSS still applies,
-//      and write every token to `:root.style` as an inline override.
-//   3. Until the plugin registers, the tokens declared in `tokens.css`
-//      (`:root`) take effect as a first-paint fallback. The fallback
-//      values match the dark theme — light users see a brief dark flash
-//      before the plugin registers and inline tokens kick in.
-//
-// Accent works the same way: the accent picker stores a hex; we resolve
-// to the light variant via the accent registry when the active theme's
-// scheme is "light".
+// Side-effects below mirror the active theme + accent to :root. Until
+// the theme plugin registers, tokens.css :root values stand in as
+// first-paint fallback.
 
 function lookupLightVariant(darkHex: string): string | undefined {
   const accents = usePluginStore.getState().accents;
