@@ -41,15 +41,16 @@ export function Composer({
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const modes = useComposerModes();
   const attachmentSources = useComposerAttachmentSources();
-  // Pick a placeholder once at mount — using a hook would cause the text
-  // to re-roll on every render (and `pickComposerPlaceholder` is random).
+  // Pick a placeholder once at mount — `pickComposerPlaceholder` is
+  // random, so re-running on every render would make the text flicker.
   // Falls back to the localized "ask…" string if no placeholder plugin
-  // is registered (or the random pick rolls a 0-weight pool).
+  // is registered (or the random pick rolls a 0-weight pool). Locale
+  // switch after mount won't relocalize the fallback — acceptable for
+  // a random hint string.
   const placeholder = useMemo(
     () => pickComposerPlaceholder()?.text ?? t("composer.placeholder.fallback"),
-    // Pin the locale into deps so the fallback re-localizes if the user
-    // switches language while the composer is open.
-    [t],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
   );
 
   const submit = () =>

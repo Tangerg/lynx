@@ -10,8 +10,10 @@ type Props = {
  * Auto-suggest panel that appears when the composer value starts with "/".
  *
  * Commands come from the plugin registry; built-in hints live in the
- * `lyra.builtin.slash-hints` plugin. First row is highlighted (matches
- * Enter-to-submit behavior).
+ * `lyra.builtin.slash-hints` plugin. Clicking a row fills the composer
+ * with the command + a trailing space — Enter on the composer still
+ * submits the full typed text, so there's no implicit "pick first on
+ * Enter" behavior.
  */
 export function SlashSuggestions({ value, onPick }: Props) {
   const commands = useSlashCommands();
@@ -32,22 +34,17 @@ export function SlashSuggestions({ value, onPick }: Props) {
       <div className="px-3.5 pb-1 pt-2 font-mono text-[11px] font-semibold text-fg-faint">
         Commands
       </div>
-      {filtered.map(({ cmd, spec }, i) => (
+      {filtered.map(({ cmd, spec }) => (
         <button
           key={cmd}
           type="button"
           onClick={() => onPick(`${cmd} `)}
-          className="grid w-full grid-cols-[auto_1fr_auto] items-center gap-3 px-3.5 py-1.5 text-left text-inherit bg-transparent border-0 font-inherit cursor-pointer transition-colors duration-150 hover:bg-surface-2 first:bg-surface-2"
+          className="grid w-full grid-cols-[auto_1fr] items-center gap-3 px-3.5 py-1.5 text-left text-inherit bg-transparent border-0 font-inherit cursor-pointer transition-colors duration-150 hover:bg-surface-2"
         >
           <code className="bg-transparent p-0 font-mono text-[12.5px] font-semibold text-accent border-0">
             {cmd}
           </code>
           <span className="text-[12.5px] text-fg-muted">{spec.description}</span>
-          {i === 0 && (
-            <span className="rounded bg-surface-3 px-1.5 py-px font-mono text-[11px] text-fg-faint">
-              ↵
-            </span>
-          )}
         </button>
       ))}
     </div>

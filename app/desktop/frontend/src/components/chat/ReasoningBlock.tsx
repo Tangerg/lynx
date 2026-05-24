@@ -22,9 +22,14 @@ export function ReasoningBlock({ text, streaming }: Props) {
   const [userToggled, setUserToggled] = useState(false);
   const isOpen = userToggled ? open : streaming;
 
+  // Flip relative to what the user *sees* (isOpen), not the underlying
+  // `open` slot. Before first toggle, `isOpen` follows `streaming` while
+  // `open` is still the initial `true` — flipping `open` would land on
+  // the same state the user already sees and the first click would feel
+  // dead. Anchoring on isOpen makes every click match its arrow.
   const toggle = () => {
     setUserToggled(true);
-    setOpen((v) => !v);
+    setOpen(!isOpen);
   };
 
   const startedAtRef = useRef<number>(Date.now());

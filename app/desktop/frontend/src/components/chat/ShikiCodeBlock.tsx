@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useThemeStore } from "@/state/themeStore";
 import { Icon } from "@/components/common";
 import { cn } from "@/lib/utils";
@@ -65,6 +65,17 @@ export function ShikiCodeBlock({ lang, code, file }: Props) {
     };
   }, [lang, debouncedCode, shikiTheme]);
 
+  // setTimeout id for the "Copied" → idle flip. Tracked so we can clear
+  // it on unmount (otherwise a fast-mount/unmount or re-copy stacks
+  // timers and fires setState on an unmounted component).
+  const copyTimerRef = useRef<number | null>(null);
+  useEffect(
+    () => () => {
+      if (copyTimerRef.current !== null) window.clearTimeout(copyTimerRef.current);
+    },
+    [],
+  );
+
   const onCopy = () => {
     try {
       navigator.clipboard?.writeText(code);
@@ -72,7 +83,11 @@ export function ShikiCodeBlock({ lang, code, file }: Props) {
       /* ignore */
     }
     setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
+    if (copyTimerRef.current !== null) window.clearTimeout(copyTimerRef.current);
+    copyTimerRef.current = window.setTimeout(() => {
+      setCopied(false);
+      copyTimerRef.current = null;
+    }, 1500);
   };
 
   // Streaming → raw <pre> fallback; settled → swap to highlighted.
