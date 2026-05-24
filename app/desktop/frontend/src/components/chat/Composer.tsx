@@ -52,10 +52,10 @@ export function Composer({
   }, [value]);
 
   return (
-    <div className="composer">
+    <div className="relative rounded-2xl border border-line-soft bg-surface px-2.5 pb-1.5 pt-2 transition-[border-color,box-shadow] duration-200 focus-within:border-line-soft focus-within:shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-accent)_14%,transparent)]">
       <PluginAttachments sources={attachmentSources} />
       {attachments.length > 0 && (
-        <div className="composer-chips">
+        <div className="flex flex-wrap gap-1.5 px-1 pb-0.5 pt-1">
           {attachments.map((a, i) => (
             <Chip
               key={i}
@@ -70,7 +70,6 @@ export function Composer({
       )}
       <textarea
         ref={inputRef}
-        className="composer-input"
         placeholder={placeholder}
         value={value}
         onChange={(e) => onChange(e.target.value)}
@@ -95,8 +94,9 @@ export function Composer({
           if (handled) e.preventDefault();
         }}
         rows={1}
+        className="w-full resize-none border-0 bg-transparent px-1.5 py-2 font-sans text-[14px] leading-[1.55] tracking-[-0.003em] text-fg outline-none min-h-[22px] max-h-40 placeholder:text-fg-faint placeholder:tracking-normal"
       />
-      <div className="composer-toolbar">
+      <div className="flex flex-nowrap items-center gap-1 pt-1.5">
         <Slot name="composer.toolbar.start" />
         {modes.length > 0 && (
           <Segmented
@@ -113,7 +113,7 @@ export function Composer({
             }))}
           />
         )}
-        <div className="spacer" />
+        <div className="flex-1 min-w-2" />
         <Slot name="composer.toolbar.end" />
       </div>
     </div>
@@ -127,7 +127,7 @@ type AttachmentSource = ReturnType<typeof useComposerAttachmentSources>[number];
 function PluginAttachments({ sources }: { sources: AttachmentSource[] }) {
   if (sources.length === 0) return null;
   return (
-    <div className="composer-chips">
+    <div className="flex flex-wrap gap-1.5 px-1 pb-0.5 pt-1">
       {sources.map((s) => <SourceChips key={s.id} source={s} />)}
     </div>
   );
@@ -148,4 +148,3 @@ function SourceChips({ source }: { source: AttachmentSource }) {
     </>
   );
 }
-
