@@ -1,17 +1,36 @@
 import { Icon, type IconName } from "@/components/common";
+import { cn } from "@/lib/utils";
 import type { MCPServer } from "./types";
 
+// MCP server row — appears in the Tools workspace view. Status pill
+// (On / Idle / Error) tinted with semantic tokens; icon background
+// mirrors the same tint for active / error states.
 export function McpRow({ server }: { server: MCPServer }) {
   const label = server.status === "active" ? "On" : server.status === "idle" ? "Idle" : "Error";
   return (
-    <div className={`mcp-row ${server.status}`}>
-      <div className="mcp-icon"><Icon name={server.icon as IconName} size={15} /></div>
-      <div style={{ minWidth: 0 }}>
-        <div className="mcp-name">{server.name}</div>
-        <div className="mcp-desc">{server.desc}</div>
+    <div className="group grid grid-cols-[40px_1fr_auto_auto] items-center gap-3 px-4 py-3 hover:bg-surface">
+      <div className={cn(
+        "grid h-10 w-10 place-items-center rounded-lg bg-surface-2 text-fg-muted group-hover:bg-surface-3 group-hover:text-fg",
+        server.status === "active" && "bg-accent/10 text-accent",
+        server.status === "error" && "bg-negative/10 text-negative",
+      )}>
+        <Icon name={server.icon as IconName} size={15} />
       </div>
-      <div className="mcp-tools">{server.tools} tools</div>
-      <div className={`mcp-status ${server.status}`}>{label}</div>
+      <div className="min-w-0">
+        <div className="text-[13px] font-semibold text-fg truncate">{server.name}</div>
+        <div className="mt-0.5 text-[11.5px] text-fg-faint truncate">{server.desc}</div>
+      </div>
+      <div className="rounded-xs bg-surface-2 px-1.5 py-0.5 font-mono text-[10.5px] text-fg-faint">
+        {server.tools} tools
+      </div>
+      <div className={cn(
+        "rounded-xs px-1.5 py-0.5 font-mono text-[10.5px] font-semibold",
+        server.status === "active" && "bg-accent/12 text-accent",
+        server.status === "idle"   && "bg-surface-2 text-fg-faint",
+        server.status === "error"  && "bg-negative/12 text-negative",
+      )}>
+        {label}
+      </div>
     </div>
   );
 }
