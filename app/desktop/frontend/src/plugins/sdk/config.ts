@@ -45,7 +45,7 @@ export const useConfigStore = create<ConfigStoreState & ConfigStoreActions>((set
       try {
         fn(value);
       } catch (err) {
-        // eslint-disable-next-line no-console
+         
         console.error(`[plugin] config subscriber for "${key}" threw:`, err);
       }
     }

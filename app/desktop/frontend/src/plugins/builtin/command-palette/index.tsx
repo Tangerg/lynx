@@ -51,7 +51,7 @@ function CommandPalette() {
   const run = (cmd: CommandSpec) => {
     setOpen(false);
     void Promise.resolve(cmd.run()).catch((err) => {
-      // eslint-disable-next-line no-console
+       
       console.error(`[plugin] command ${cmd.id} threw:`, err);
       const owner = usePluginStore.getState().commands.get(cmd.id)?.pluginName ?? "unknown";
       reportPluginError(owner, "command", err, `command: ${cmd.id}`);

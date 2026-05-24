@@ -97,7 +97,7 @@ export function ToolCard({ tool, selected, expanded, onToggleExpand, onOpenView 
               void Promise.resolve(a.run(tool)).catch((err) => {
                 const owner =
                   usePluginStore.getState().toolActions.get(a.id)?.pluginName ?? "unknown";
-                // eslint-disable-next-line no-console
+                 
                 console.error(`[plugin] tool action ${a.id} threw:`, err);
                 reportPluginError(owner, "command", err, `tool action: ${a.id}`);
               });

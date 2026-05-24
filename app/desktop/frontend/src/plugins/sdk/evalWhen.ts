@@ -191,7 +191,7 @@ export function evalWhen(expr: string, ctx: WhenContext): boolean {
     try {
       node = new Parser(tokenize(expr)).parse();
     } catch (err) {
-      // eslint-disable-next-line no-console
+       
       console.warn(`[when] failed to parse "${expr}":`, err);
       node = "ERROR";
     }

@@ -55,19 +55,19 @@ export function useAgentSession(makeAgent: () => AbstractAgent, sessionId: strin
     const subscription = agent.subscribe({
       onEvent: ({ event }) => {
         if (import.meta.env.DEV) {
-          // eslint-disable-next-line no-console
+           
           console.debug("[agui]", sessionId, event.type, event);
         }
         useAgentStore.getState().applyEvent(sessionId, event);
       },
       onRunFailed: ({ error }) => {
-        // eslint-disable-next-line no-console
+         
         console.error("[agui] run failed:", sessionId, error);
       },
     });
 
     void agent.runAgent().catch((err) => {
-      // eslint-disable-next-line no-console
+       
       console.error("[agui] runAgent threw:", sessionId, err);
     });
 
@@ -82,7 +82,7 @@ export function useAgentSession(makeAgent: () => AbstractAgent, sessionId: strin
       useAgentStore.getState().setSend(sessionId, null);
       agentRef.current = null;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [sessionId]);
 
   return {

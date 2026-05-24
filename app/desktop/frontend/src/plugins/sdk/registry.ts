@@ -5,10 +5,8 @@
 // holds both the static slots (tool previews, content blocks) and the
 // runtime-mutated ones (CUSTOM handlers, slash commands).
 
-import { useMemo } from "react";
 import { create } from "zustand";
 import type { ContentBlockKind } from "@/protocol/agui/viewState";
-import { makeLazyActivator } from "../LazyActivator";
 import type {
   AgentSourceSpec,
   CommandSpec,
@@ -268,7 +266,7 @@ function addOwned<T>(
 ): Map<string, Owned<T>> {
   const existing = map.get(key);
   if (existing && existing.pluginName !== pluginName) {
-    // eslint-disable-next-line no-console
+     
     console.warn(
       `[plugin] ${pluginName} overrides ${label} "${key}" ` +
         `previously registered by ${existing.pluginName}`,
@@ -400,7 +398,7 @@ export const usePluginStore = create<PluginStoreState & PluginStoreActions>((set
       try {
         o.value(plugin.spec);
       } catch (err) {
-        // eslint-disable-next-line no-console
+         
         console.error(`[plugin] ${o.pluginName} onLoad listener threw:`, err);
       }
     }
@@ -413,7 +411,7 @@ export const usePluginStore = create<PluginStoreState & PluginStoreActions>((set
       try {
         d.dispose();
       } catch (err) {
-        // eslint-disable-next-line no-console
+         
         console.error(`[plugin] ${pluginName} dispose threw:`, err);
       }
     }
@@ -424,7 +422,7 @@ export const usePluginStore = create<PluginStoreState & PluginStoreActions>((set
       try {
         o.value(pluginName);
       } catch (err) {
-        // eslint-disable-next-line no-console
+         
         console.error(`[plugin] ${o.pluginName} onUnload listener threw:`, err);
       }
     }
@@ -785,7 +783,7 @@ export const usePluginStore = create<PluginStoreState & PluginStoreActions>((set
       try {
         o.value();
       } catch (err) {
-        // eslint-disable-next-line no-console
+         
         console.error(`[plugin] ${o.pluginName} onReady threw:`, err);
       }
     }

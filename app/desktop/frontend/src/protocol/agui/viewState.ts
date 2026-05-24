@@ -69,7 +69,7 @@ export interface BuiltinContentBlockMap {
 }
 
 // Empty by design — plugins augment this via `declare module`.
-// eslint-disable-next-line @typescript-eslint/no-empty-interface
+ 
 export interface CustomContentBlockMap {}
 
 export type ContentBlockMap = BuiltinContentBlockMap & CustomContentBlockMap;

@@ -352,7 +352,7 @@ async function activateAndRun(pluginName: string, commandId: string): Promise<vo
   await runActivator(pluginName);
   const real = lookupCommand(commandId);
   if (!real) {
-    // eslint-disable-next-line no-console
+     
     console.warn(`[plugin] ${pluginName} activated but did not register command ${commandId}`);
     return;
   }
@@ -368,7 +368,7 @@ async function activateAndRun(pluginName: string, commandId: string): Promise<vo
  */
 async function runActivator(pluginName: string): Promise<void> {
   if (!activator) {
-    // eslint-disable-next-line no-console
+     
     console.error(`[plugin] activator not wired; cannot lazily activate ${pluginName}`);
     return;
   }

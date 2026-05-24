@@ -43,7 +43,7 @@ export async function loadSideloadedPlugins(): Promise<LoadResult[]> {
   try {
     infos = await fetchSideloadList();
   } catch (err) {
-    // eslint-disable-next-line no-console
+     
     console.warn("[plugin] sideload manifest fetch failed:", err);
     return [];
   }
@@ -68,7 +68,7 @@ export async function loadSideloadedPlugins(): Promise<LoadResult[]> {
       }
       spec = def;
     } catch (err) {
-      // eslint-disable-next-line no-console
+       
       console.error(`[plugin] sideload ${info.id} import failed:`, err);
       reportPluginError(info.id, "setup", err);
       results.push({ kind: "failed", name: info.id, error: err });
