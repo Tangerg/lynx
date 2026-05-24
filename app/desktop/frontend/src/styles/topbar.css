@@ -1,170 +1,12 @@
 /* ============================================================
-   Chat tab strip, view tabs, chat-subheader (branch / model row), chat-topbar drag region.
-   See frontend/DESIGN.md for the spec.
+   Composer toolbar accessories — kept after the Tailwind migration:
+   model picker pill, attach-file tool button, footer status chips.
+   Earlier sections (.chat-tabs / .chat-tab / .chat-subheader /
+   .sub-* / .model-chip / .chat-topbar / .topbar-tabs) were removed
+   when ChatTopBar / ChatHeader / ChatStream were rewritten with
+   Tailwind utilities. The composer-* + .cf-chip selectors below are
+   still consumed by `plugins/builtin/composer/index.tsx` plugins.
    ============================================================ */
-
-/* ============================================================
-   Top tab bar
-   ============================================================ */
-.chat-tabs {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: end;
-  gap: 8px;
-  padding: 8px 16px 0 16px;
-  background: var(--color-surface);
-  flex-shrink: 0;
-  z-index: 5;
-}
-.chat-tabs-row {
-  display: flex;
-  align-items: end;
-  gap: 4px;
-  min-width: 0;
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-.chat-tabs-row::-webkit-scrollbar { display: none; }
-.chat-tab {
-  display: inline-grid;
-  grid-template-columns: auto 1fr auto;
-  align-items: center;
-  gap: 7px;
-  padding: 7px 8px 7px 11px;
-  background: transparent;
-  border: none;
-  border-radius: var(--radius-md) var(--radius-md) 0 0;
-  cursor: pointer;
-  position: relative;
-  font-size: 12.5px;
-  color: var(--color-text-muted);
-  min-width: 110px;
-  max-width: 200px;
-  transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
-}
-.chat-tab:hover,
-.chat-tab.active {
-  background: color-mix(in srgb, var(--color-text) 4%, transparent);
-  color: var(--color-text);
-}
-/* Active tab — JetBrains style:
-   Same hover-style background; only the 2px accent indicator line
-   on the bottom edge distinguishes active from hover. Full ink (vs
-   muted on idle) carries the secondary cue. */
-.chat-tab.active::after {
-  content: "";
-  position: absolute;
-  left: 0; right: 0; bottom: 0;
-  height: 2px;
-  background: var(--color-accent);
-  pointer-events: none;
-}
-.chat-tab .tab-title {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: var(--fw-semibold);
-  font-size: var(--fs-small);
-  line-height: 1.2;
-  letter-spacing: 0.005em;
-}
-.chat-tab .tab-dot {
-  width: 6px; height: 6px;
-  border-radius: 50%;
-  background: var(--color-text-faint);
-  flex-shrink: 0;
-}
-.chat-tab .tab-dot.running {
-  background: var(--color-accent);
-  box-shadow: 0 0 6px var(--color-accent);
-  animation: pulse 1.6s ease-in-out infinite;
-}
-.chat-tab .tab-dot.waiting { background: var(--color-warning); }
-.chat-tab .tab-close {
-  width: 22px; height: 22px;
-  display: grid; place-items: center;
-  border-radius: 4px;
-  color: var(--color-text-faint);
-  opacity: 0;
-  transition: opacity var(--dur-fast) var(--ease-out), background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out), transform var(--polish-fast);
-}
-.chat-tab:hover .tab-close, .chat-tab.active .tab-close { opacity: 1; }
-.chat-tab .tab-close:hover {
-  background: var(--color-surface-3);
-  color: var(--color-text);
-}
-.chat-tab .tab-close:active { transform: scale(0.9); }
-.tab-new {
-  width: 26px; height: 26px;
-  background: transparent;
-  border: none;
-  color: var(--color-text-muted);
-  cursor: pointer;
-  border-radius: 6px;
-  display: grid; place-items: center;
-  margin: 0 2px 4px 4px;
-  flex-shrink: 0;
-}
-.tab-new:hover { background: var(--color-surface); color: var(--color-text); }
-
-.chat-tabs-right {
-  display: flex;
-  gap: 2px;
-  align-items: center;
-  padding-bottom: 4px;
-  flex-shrink: 0;
-}
-
-/* ============================================================
-   Chat subheader — branch / model / actions row
-   ============================================================ */
-.chat-subheader {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  padding: 10px 18px;
-  gap: 14px;
-  flex-shrink: 0;
-  background: var(--color-surface);
-}
-.sub-left, .sub-right { display: flex; align-items: center; gap: 10px; min-width: 0; flex-wrap: nowrap; }
-.sub-left .run-badge { margin-left: 4px; white-space: nowrap; flex-shrink: 0; }
-.sub-crumbs {
-  display: flex; align-items: center; gap: 7px;
-  font-size: 12px;
-  color: var(--color-text-faint);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.sub-crumbs .repo { color: var(--color-text-muted); font-weight: 600; }
-.sub-crumbs .branch {
-  display: inline-flex; align-items: center; gap: 4px;
-  padding: 2px 8px;
-  background: var(--color-surface);
-  border-radius: var(--radius-pill);
-  color: var(--color-text-muted);
-  font-family: var(--font-mono);
-  font-size: 11px;
-}
-
-.model-chip {
-  display: inline-flex; align-items: center; gap: 6px;
-  padding: 4px 10px 4px 8px;
-  background: var(--color-surface);
-  border-radius: var(--radius-pill);
-  color: var(--color-text);
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-}
-.model-chip .dot {
-  width: 6px; height: 6px;
-  background: var(--color-accent);
-  border-radius: 50%;
-  box-shadow: 0 0 6px var(--color-accent);
-}
-.model-chip:hover { background: var(--color-surface-2); }
 
 /* Model selector pill — lives at the LEFT side of the composer toolbar
    (Codex-style placement). Visually distinguished from mode toggles. */
@@ -221,12 +63,13 @@ html.theme-light .composer-model .cm-avatar {
   color: #fff;
 }
 
-/* Hide the "Add files" text label so the toolbar fits the model + 3 modes */
+/* Hide the "Add files" text label so the toolbar fits the model + 3 modes. */
 .composer-tool-btn[title="Attach file"] {
   width: 28px;
   padding: 0;
   justify-content: center;
 }
+
 .composer-footer {
   display: flex;
   align-items: center;
@@ -270,72 +113,14 @@ html.theme-light .composer-model .cm-avatar {
   background: var(--color-accent);
   box-shadow: 0 0 6px var(--color-accent);
 }
-
 .cf-spacer { flex: 1; }
 
-/* Light variant */
 html.theme-light .cf-chip:hover { background: var(--color-surface-2); }
 html.theme-light .cf-chip.ghost .cf-dot { box-shadow: 0 0 6px rgba(22, 156, 70, 0.5); }
 
-/* ============================================================
-   Top bar — minimal: tabs only
-   ============================================================ */
-.chat-topbar {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 0 16px;
-  /* Matches the chat panel surface (lifted) — sits flush, no visible
-     boundary inside the panel. The drag region works either way. */
-  background: var(--color-surface);
-  /* No bottom border — the topbar reads as continuous with the chat
-     panel content below it. The tab strip's active-state underline +
-     the row's height alone delineate it. */
-  flex-shrink: 0;
-  z-index: 5;
-  min-height: 36px;
-  -webkit-app-region: drag;
-  --wails-draggable: drag;
-}
-/* Tabs / buttons inside the drag region must opt out so clicks work. */
-.chat-topbar .chat-tab,
-.chat-topbar .topbar-tabs button,
-.chat-topbar .tab-close,
-.chat-topbar .tab-new {
-  -webkit-app-region: no-drag;
-  --wails-draggable: no-drag;
-}
-.topbar-divider { display: none; }
-.topbar-tabs {
-  display: flex;
-  align-items: end;
-  gap: 4px;
-  min-width: 0;
-  overflow-x: auto;
-  scrollbar-width: none;
-  margin-bottom: -1px;
-  flex: 1;
-}
-.topbar-tabs::-webkit-scrollbar { display: none; }
-
-/* View tabs (workspace views promoted into the main area) — same
-   visual treatment as chat session tabs. The leading view icon
-   already tells the user "this is a panel, not a conversation";
-   no need for an extra accent-wash background that would conflict
-   with the unified hover/active rule above. */
-
-/* Selection highlight uses the accent so dragging-to-select text feels
-   like a deliberate UI affordance instead of the OS default blue. */
+/* Global text-selection highlight — accent-tinted instead of the OS
+   default blue so dragging-to-select reads as a deliberate UI affordance. */
 ::selection {
   background: color-mix(in srgb, var(--color-accent) 30%, transparent);
   color: var(--color-text);
 }
-
-/* Light theme — topbar */
-html.theme-light .topbar-divider { background: var(--color-border); }
-
-/* Active-tab background is handled above (color-mix(text 4%, transparent)
-   shared with hover). The leftover rules that previously lived here
-   used !important to override an earlier gradient tint that's now
-   long-gone — keeping them re-introduced the conflict. */
-
