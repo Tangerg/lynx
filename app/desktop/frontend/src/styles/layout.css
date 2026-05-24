@@ -11,9 +11,12 @@
 /* ---------- Document + body ---------- */
 /* Hard minimum viewport size. Below this the composer (760px max-width)
    and the two columns (sidebar + chat) start overlapping, so we lock the
-   page to scroll instead of squashing layout. */
+   page to scroll instead of squashing layout.
+   1180×720 lines up with: 760 (chat-measure) + 248 (sidebar) + 8×2 (canvas
+   gutters) + ~150 (margin to keep sidebar items breathing room). Fits a
+   1366×768 laptop comfortably; older 1280-class displays scroll once. */
 :root {
-  --app-min-width: 1280px;
+  --app-min-width: 1180px;
   --app-min-height: 720px;
 }
 

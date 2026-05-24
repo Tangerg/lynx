@@ -21,12 +21,16 @@ export default defineThemePlugin({
     "color-bg":             "#fafafa",
     "color-surface":        "#ffffff",
 
-    // ---------- Ink — Vercel #171717 / #4d4d4d / #6f6f6f ladder ----------
+    // Ink ladder calibrated so the small-text tiers stay above WCAG AA
+    // (4.5:1 on the #fafafa canvas / #ffffff surface). text-faint was
+    // #a1a1a1 which read ≈2.6:1 — failed AA badly. New #707070 reads
+    // ≈4.9:1 while staying clearly subordinate to text-muted. Same
+    // visual hierarchy, accessible to low-vision users.
     "color-text":           "#171717",
     "color-text-bright":    "#000000",
     "color-text-soft":      "#4d4d4d",
-    "color-text-muted":     "#6f6f6f",
-    "color-text-faint":     "#a1a1a1",
+    "color-text-muted":     "#5e5e5e", // bumped from #6f6f6f → ~6.8:1 on canvas
+    "color-text-faint":     "#707070", // bumped from #a1a1a1 → ~4.9:1 on canvas
     "color-text-on-accent": "#ffffff",
 
     // ---------- Hairlines — Vercel #ebebeb / #d4d4d6 ladder ----------
