@@ -1,146 +1,35 @@
 /* ============================================================
-   Chat panel chrome + message stream + reasoning / approval / checkpoint / plan / run-error.
-   See frontend/DESIGN.md for the spec.
+   Chat panel surface.
+
+   Most of this file was deleted in P6 — every per-component selector
+   (chat-header / chat-title* / chat-crumbs / run-badge / head-actions
+   / icon-btn / pill-btn / msg / msg-avatar / msg-meta / msg-body /
+   plan-* / approval-* / checkpoint / run-error-* / reasoning-*) has
+   moved to Tailwind utilities inside the React components.
+
+   What remains is the small set of classes that are still emitted as
+   semantic hooks by React JSX:
+     .chat         — wraps the chat Panel; surface-tinted bg + relative
+                     positioning context for the absolutely-anchored
+                     composer-wrap.
+     .msg-stream   — chat-measure 760px centered column (DESIGN.md §4).
+                     MessageStream renders this around the message list.
+     .msg-content  — markdown body of an assistant/user message.
+                     MarkdownMessage children (p / code / strong / …)
+                     inherit styling from this container; migrating each
+                     to Tailwind would require touching every markdown
+                     element renderer in markdownComponents.tsx — not
+                     worth the churn vs the 19 lines here.
    ============================================================ */
 
-/* ============================================================
-   Center — chat
-   ============================================================ */
 .chat {
-  /* Surface (#181a1d dark / #ffffff light) — lifts above canvas so
-     the chat panel reads as a card on the canvas frame. Was --color-bg
-     (canvas) which made it indistinguishable from the surrounding
-     canvas in dark mode. The cascade order put .chat after .panel so
-     this single line silently undid the cards-on-canvas layout for
-     the chat panel — see git history. */
+  /* Surface lifts above canvas so the chat panel reads as a card on the
+     canvas frame. Was --color-bg pre-refactor, which silently undid the
+     cards-on-canvas layout — see git history. */
   background: var(--color-surface);
   position: relative;
 }
 
-.chat-header {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  padding: 14px 20px;
-  gap: 16px;
-  background: var(--color-surface);
-  backdrop-filter: blur(12px);
-  position: sticky; top: 0; z-index: 5;
-}
-
-.chat-title-row { display: flex; align-items: center; gap: 12px; min-width: 0; }
-.chat-crumbs {
-  display: flex; align-items: center; gap: 8px;
-  font-size: 12px;
-  color: var(--color-text-faint);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.chat-crumbs .sep { opacity: 0.5; }
-.chat-crumbs .repo { color: var(--color-text-muted); }
-.chat-crumbs .branch {
-  display: inline-flex; align-items: center; gap: 4px;
-  padding: 2px 8px;
-  background: var(--color-surface);
-  border-radius: var(--radius-pill);
-  color: var(--color-text-muted);
-  font-family: var(--font-mono);
-  font-size: 11px;
-}
-
-.chat-title-line {
-  display: flex; align-items: center; gap: 12px;
-  margin-top: 4px;
-}
-.chat-title {
-  font-family: var(--font-ui);
-  font-size: 19px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-  line-height: 1.2;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.run-badge {
-  display: inline-flex; align-items: center; gap: 6px;
-  padding: 3px 10px 3px 8px;
-  background: rgba(30,215,96,0.12);
-  color: var(--color-accent);
-  border-radius: var(--radius-pill);
-  font-size: 10.5px;
-  font-weight: 600;
-  letter-spacing: 0;
-  font-family: var(--font-mono);
-  text-transform: none;
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-.run-badge .dot {
-  width: 6px; height: 6px;
-  background: var(--color-accent);
-  border-radius: 50%;
-  animation: pulse 1.4s ease-in-out infinite;
-}
-
-.head-actions { display: flex; gap: 6px; align-items: center; }
-.icon-btn {
-  width: 32px; height: 32px;
-  background: transparent;
-  border: none;
-  color: var(--color-text-muted);
-  border-radius: 50%;
-  cursor: pointer;
-  display: grid; place-items: center;
-  transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
-}
-.icon-btn:hover { background: var(--color-surface-2); color: var(--color-text); }
-.icon-btn.active { color: var(--color-accent); }
-
-/* Project CTA shape — outlined / solid / accent / danger variants.
-   md (8px) corner per DESIGN.md §6. Emitted by the PillButton primitive. */
-.pill-btn {
-  display: inline-flex; align-items: center; gap: 6px;
-  height: 32px;
-  padding: 0 14px;
-  background: transparent;
-  border: 1px solid var(--color-border);
-  color: var(--color-text);
-  border-radius: var(--radius-md);
-  font-family: var(--font-ui);
-  font-size: 13px;
-  font-weight: var(--fw-medium);
-  letter-spacing: 0;
-  text-transform: none;
-  cursor: pointer;
-  transition: background var(--polish-fast), border-color var(--polish-fast);
-}
-.pill-btn:hover { background: var(--color-surface-2); border-color: var(--color-border-soft); }
-.pill-btn.solid {
-  background: #fff;
-  color: #000;
-  border-color: #fff;
-}
-.pill-btn.solid:hover { transform: scale(1.04); }
-.pill-btn.accent {
-  background: var(--color-accent);
-  color: #000;
-  border-color: var(--color-accent);
-}
-.pill-btn.accent:hover { transform: scale(1.04); }
-.pill-btn.danger {
-  background: transparent;
-  color: var(--color-negative);
-  border-color: var(--color-negative);
-}
-
-/* ---------- Message stream ----------
-   chat-measure 760px centered (DESIGN.md §4). Long prose lines reading
-   at body-md (14px) end up at 45–75 chars per line — the comfortable
-   measure. Long code blocks and tables overflow internally via their
-   own wrappers (.shiki-block, .md-table-wrap); the prose column stays
-   capped. */
 .msg-stream {
   padding: 24px 24px 220px 24px;
   display: flex;
@@ -152,115 +41,6 @@
   position: relative;
 }
 
-.msg {
-  display: grid;
-  grid-template-columns: 32px 1fr;
-  gap: 14px;
-  align-items: flex-start;
-  position: relative;
-}
-/* Agent message — body spans the full 820-wide row.
-   Avatar is absolutely positioned and pokes OUT to the left so it doesn't
-   eat into the content width. */
-.msg.agent {
-  grid-template-columns: 1fr;
-  gap: 4px;
-  padding-left: 46px;
-}
-.msg.agent .msg-avatar {
-  position: absolute;
-  left: 0;
-  top: 2px;
-}
-
-/* User message — right-aligned chat bubble. Avatar at composer's right edge. */
-.msg.user {
-  grid-template-columns: 1fr;
-  gap: 4px;
-  padding-right: 46px;
-}
-.msg.user .msg-avatar {
-  position: absolute;
-  right: 0;
-  top: 2px;
-}
-.msg.user .msg-body {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  min-width: 0;
-}
-.msg.user .msg-meta { justify-content: flex-end; }
-.msg.user .msg-content {
-  /* User bubble sits on the chat panel (surface). Surface-2 lifts it
-     one tone step so the bubble reads against the surrounding prose
-     without needing a border. */
-  background: var(--color-surface-2);
-  border-radius: 14px 14px 4px 14px;
-  padding: 10px 14px;
-  max-width: 580px;
-  text-align: left;
-}
-.msg.user .msg-content p { margin: 0; }
-html.theme-light .msg.user .msg-content {
-  /* Light theme — surface-3 (#ececed) reads better against the white
-     chat panel than surface-2 (#f3, almost invisible). */
-  background: var(--color-surface-3);
-}
-.msg-avatar {
-  width: 32px; height: 32px;
-  border-radius: 50%;
-  display: grid; place-items: center;
-  font-size: 12px;
-  font-weight: 600;
-  flex-shrink: 0;
-  margin-top: 2px;
-}
-.msg.user .msg-avatar {
-  background: var(--color-surface-3);
-  color: var(--color-text);
-}
-.msg.agent .msg-avatar {
-  background: var(--color-accent);
-  color: #000;
-}
-.msg.system .msg-avatar {
-  background: transparent;
-  border: 1px solid var(--color-border);
-  color: var(--color-text-muted);
-}
-.msg-body { min-width: 0; }
-.msg-meta {
-  display: flex; align-items: center; gap: 8px;
-  font-size: 10.5px;
-  color: var(--color-text-faint);
-  margin-bottom: 4px;
-  white-space: nowrap;
-  opacity: 0.65;
-  font-feature-settings: "tnum";
-  letter-spacing: 0.01em;
-}
-.msg-meta .who {
-  font-weight: var(--fw-semibold);
-  font-size: 11px;
-  letter-spacing: 0.01em;
-}
-/* DESIGN.md §9: agent name is identity, not "live" — drops accent
-   color. Uses --color-text-bright to stay visible on dark, ink-soft on
-   light. The font-family difference (mono) was kept to subtly visually
-   distinguish agent vs user names without leaning on color. */
-.msg-meta .who.agent {
-  color: var(--color-text);
-  font-family: var(--font-mono);
-  text-transform: none;
-  letter-spacing: 0;
-}
-.msg-meta .who {
-  color: var(--color-text);
-  font-weight: 600;
-  font-size: 12px;
-  letter-spacing: 0;
-}
 .msg-content {
   color: var(--color-text);
   font-size: 14.5px;
@@ -281,11 +61,3 @@ html.theme-light .msg.user .msg-content {
   letter-spacing: 0;
 }
 .msg-content strong { color: var(--color-text); font-weight: 600; }
-
-
-/* End of chat.css.
-   Plan / approval / checkpoint / run-error / reasoning / msg-role rules
-   were removed in P6 — their JSX consumers (PlanBlock, ApprovalCard,
-   Checkpoint, RunErrorBanner, ReasoningBlock, MessageBlock) now emit
-   Tailwind utility classes directly. Light-theme overrides for the
-   same selectors live in theme.css and follow this cleanup. */

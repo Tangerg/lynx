@@ -70,7 +70,15 @@ function ProjectsSection() {
   return (
     <>
       <SectionLabel
-        trailing={<button className="add" title="Add project"><Icon name="plus" size={12} /></button>}
+        trailing={
+          <button
+            type="button"
+            title="Add project"
+            className="ml-auto grid h-[26px] w-[26px] place-items-center rounded-full border-0 bg-surface-2 text-fg-muted cursor-pointer transition-colors hover:bg-surface-3 hover:text-fg active:scale-[0.92]"
+          >
+            <Icon name="plus" size={12} />
+          </button>
+        }
       >
         Projects
       </SectionLabel>
@@ -112,7 +120,13 @@ function SessionsSection() {
 
   return (
     <>
-      <SectionLabel trailing={<span className="count">{sessions?.length ?? 0}</span>}>
+      <SectionLabel
+        trailing={
+          <span className="ml-auto rounded-full bg-surface-2 px-1.5 py-px text-[10px] text-fg-muted">
+            {sessions?.length ?? 0}
+          </span>
+        }
+      >
         Sessions
       </SectionLabel>
       <DataView
