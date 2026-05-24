@@ -32,6 +32,8 @@ import type {
   PluginErrorFallbackSpec,
   RpcAfterResponseHook,
   RpcBeforeRequestHook,
+  TaskHandle,
+  TaskStartOptions,
 } from "./infra";
 import type { LoadedPlugin, PluginSpec } from "./plugin";
 
@@ -186,6 +188,27 @@ export type Host = {
      * normalising error envelopes.
      */
     afterResponse(hook: RpcAfterResponseHook): Disposable;
+  };
+  i18n: {
+    /**
+     * Merge a translation dictionary into the kernel's i18n store for
+     * `locale`. Plugin keys live alongside the kernel's; lookups via
+     * `useT()` / `t()` resolve them normally. Last writer wins for any
+     * collision.
+     *
+     * The returned disposable is a no-op (i18next has no per-key removal
+     * in its public API), but a same-name plugin reload safely
+     * re-overwrites the same keys.
+     */
+    addBundle(locale: string, dict: Record<string, string>): Disposable;
+  };
+  tasks: {
+    /**
+     * Register a long-running task. Returns a handle for updating progress
+     * + marking the task complete or failed. Settled tasks linger in the
+     * status bar briefly so the final state is visible.
+     */
+    start(opts: TaskStartOptions): TaskHandle;
   };
   /** Display a brief toast notification. */
   notify(message: string, level?: NotificationLevel): void;

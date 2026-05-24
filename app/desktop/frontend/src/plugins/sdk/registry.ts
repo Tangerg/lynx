@@ -79,19 +79,16 @@ export const usePluginStore = create<PluginStoreState & PluginStoreActions>((set
     set({ contentBlocks: removeOwned(get().contentBlocks, pluginName, kind) });
   },
 
-  addCustomEventHandler(pluginName, name, handler) {
+  addCustomEventHandler(pluginName, name, id, handler) {
     set({
-      customEventHandlers: addOwned(
-        get().customEventHandlers,
-        pluginName,
+      customEventHandlers: addOwnedMulti(get().customEventHandlers, pluginName, id, {
         name,
         handler,
-        "agui handler",
-      ),
+      }),
     });
   },
-  removeCustomEventHandler(pluginName, name) {
-    set({ customEventHandlers: removeOwned(get().customEventHandlers, pluginName, name) });
+  removeCustomEventHandler(pluginName, id) {
+    set({ customEventHandlers: removeOwnedMulti(get().customEventHandlers, pluginName, id) });
   },
 
   addSlashCommand(pluginName, cmd, spec) {

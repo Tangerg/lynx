@@ -75,6 +75,7 @@ import {
 } from "./sidebar";
 import slashHints from "./slash-hints";
 import { statusNotifications, statusPill } from "./status";
+import { tasksPill } from "./tasks";
 import toaster from "./toaster";
 import { bash, diff, file, grep } from "./tool-previews";
 import { toolActions, toolIcons } from "./tool-meta";
@@ -184,6 +185,7 @@ const overlays: PluginSpec[] = [
   commandPalette,
   defaultCommands,
   statusPill,
+  tasksPill,
   statusNotifications,
   welcomeScreen,
   topbarNewTab,

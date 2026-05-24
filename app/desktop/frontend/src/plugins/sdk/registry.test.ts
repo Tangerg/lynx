@@ -12,7 +12,7 @@ import {
   lookupCommand,
   lookupComposerKeyBinding,
   lookupCoreEventHandlers,
-  lookupCustomEventHandler,
+  lookupCustomEventHandlers,
   lookupDataProvider,
   lookupShortcut,
   lookupSlashCommand,
@@ -109,13 +109,17 @@ describe("plugin registry", () => {
     expect(panes.map((p) => p.id)).toEqual(["a", "z"]);
   });
 
-  it("lookupCustomEventHandler returns registered handler", () => {
-    const sink: Disposable[] = [];
-    const host = createHost("alpha", sink);
-    const handler = vi.fn();
-    host.agui.on("custom.thing", handler);
+  it("lookupCustomEventHandlers returns every registered handler in order", () => {
+    const sinkA: Disposable[] = [];
+    const sinkB: Disposable[] = [];
+    const handlerA = vi.fn();
+    const handlerB = vi.fn();
+    createHost("alpha", sinkA).agui.on("custom.thing", handlerA);
+    createHost("beta", sinkB).agui.on("custom.thing", handlerB);
 
-    expect(lookupCustomEventHandler("custom.thing")).toBe(handler);
+    const found = lookupCustomEventHandlers("custom.thing");
+    expect(found.map((h) => h.handler)).toEqual([handlerA, handlerB]);
+    expect(found.map((h) => h.pluginName)).toEqual(["alpha", "beta"]);
   });
 
   it("lookupSlashCommand normalizes the leading slash", () => {

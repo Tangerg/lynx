@@ -14,7 +14,7 @@ export {
   lookupCommand,
   lookupComposerKeyBinding,
   lookupCoreEventHandlers,
-  lookupCustomEventHandler,
+  lookupCustomEventHandlers,
   lookupDataProvider,
   lookupShortcut,
   lookupSlashCommand,

@@ -50,7 +50,11 @@ export type PluginStoreState = {
   toolActions: Map<string, Owned<ToolActionSpec>>;
   toolIcons: Map<string, Owned<string>>;
   contentBlocks: Map<string, Owned<ContentBlockRenderer<ContentBlockKind>>>;
-  customEventHandlers: Map<string, Owned<CustomEventHandler<unknown>>>;
+  // Composite key `${pluginName}|${id}` so multiple handlers can be
+  // registered for the same custom event name across (or within) plugins.
+  // The reducer fans the event out through every match in registration
+  // order, chaining StateUpdate returns.
+  customEventHandlers: Map<string, Owned<{ name: string; handler: CustomEventHandler<unknown> }>>;
   // Built-in AG-UI events can have *multiple* handlers per type — they
   // chain. The key is `${eventType}|${pluginName}|${id}` to keep insertion
   // order stable + allow the same plugin to register more than one handler
@@ -135,8 +139,13 @@ export type PluginStoreActions = {
   ): void;
   removeContentBlock(pluginName: string, kind: string): void;
 
-  addCustomEventHandler(pluginName: string, name: string, h: CustomEventHandler<unknown>): void;
-  removeCustomEventHandler(pluginName: string, name: string): void;
+  addCustomEventHandler(
+    pluginName: string,
+    name: string,
+    id: string,
+    h: CustomEventHandler<unknown>,
+  ): void;
+  removeCustomEventHandler(pluginName: string, id: string): void;
 
   addSlashCommand(pluginName: string, cmd: string, spec: SlashCommandSpec): void;
   removeSlashCommand(pluginName: string, cmd: string): void;
