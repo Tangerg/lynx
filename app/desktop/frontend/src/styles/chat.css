@@ -1,25 +1,19 @@
 /* ============================================================
-   Chat panel surface.
+   Chat panel surface — three semantic hooks the chat layer still emits
+   as raw classes:
 
-   Most of this file was deleted in P6 — every per-component selector
-   (chat-header / chat-title* / chat-crumbs / run-badge / head-actions
-   / icon-btn / pill-btn / msg / msg-avatar / msg-meta / msg-body /
-   plan-* / approval-* / checkpoint / run-error-* / reasoning-*) has
-   moved to Tailwind utilities inside the React components.
-
-   What remains is the small set of classes that are still emitted as
-   semantic hooks by React JSX:
-     .chat         — wraps the chat Panel; surface-tinted bg + relative
-                     positioning context for the absolutely-anchored
-                     composer-wrap.
-     .msg-stream   — chat-measure 760px centered column (DESIGN.md §4).
-                     MessageStream renders this around the message list.
-     .msg-content  — markdown body of an assistant/user message.
-                     MarkdownMessage children (p / code / strong / …)
-                     inherit styling from this container; migrating each
-                     to Tailwind would require touching every markdown
-                     element renderer in markdownComponents.tsx — not
-                     worth the churn vs the 19 lines here.
+     .chat        — wraps the chat Panel. Background + a positioning
+                    context for the absolutely-anchored composer-wrap.
+     .msg-stream  — chat-measure 760px centered column (DESIGN.md §4).
+                    MessageStream renders this around the message list.
+     .msg-content — sits on MessageBlock's prose div. Used as a CSS
+                    hook for the markdown body — everything *visual* is
+                    Tailwind on the JSX (`text-[16px]` etc.); this class
+                    only carries selectors that target markdown children
+                    rehype injects later. Nested `p` / `code` / `strong`
+                    rules used to live here too but they collided with
+                    markdown.css's `.md X` rules (same specificity, later
+                    import won) so they did nothing — deleted.
    ============================================================ */
 
 .chat {
@@ -41,23 +35,8 @@
   position: relative;
 }
 
-.msg-content {
-  color: var(--color-text);
-  font-size: 14.5px;
-  line-height: 1.68;
-  letter-spacing: -0.003em;
-  font-weight: var(--fw-regular);
-}
-.msg-content p { margin: 0 0 10px 0; letter-spacing: -0.003em; }
-.msg-content p:last-child { margin-bottom: 0; }
-.msg-content code {
-  font-family: var(--font-mono);
-  font-size: 12.5px;
-  padding: 0.5px 5px 1px 5px;
-  background: var(--color-border);
-  border: 1px solid var(--color-border-soft);
-  border-radius: var(--radius-xs);
-  color: var(--color-text);
-  letter-spacing: 0;
-}
-.msg-content strong { color: var(--color-text); font-weight: 600; }
+/* `.msg-content` is the markdown body hook. Visual rules (font-size,
+   leading, tracking, color) are set via Tailwind on the JSX so a single
+   source of truth governs the chat reading column. Markdown children
+   (`p` / `code` / `strong` / `h1`-`h6` / `table` …) get their styling
+   from `markdown.css` via the `.md X` selectors. */
