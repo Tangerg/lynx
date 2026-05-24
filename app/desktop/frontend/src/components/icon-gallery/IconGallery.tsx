@@ -6,6 +6,7 @@
 
 import { useMemo, useState } from "react";
 import { Icon, ScrollArea } from "@/components/common";
+import { useT } from "@/lib/i18n";
 import { IconMap, rawToc } from "./iconMap";
 
 type GroupKey = "model" | "provider" | "application";
@@ -17,6 +18,7 @@ const GROUP_TITLES: Record<GroupKey, string> = {
 };
 
 export function IconGallery() {
+  const t = useT();
   const [query, setQuery] = useState("");
 
   // Filter once per query — cheap (≤300 entries).
@@ -55,10 +57,10 @@ export function IconGallery() {
           <Icon name="search" size={13} className="shrink-0 text-fg-faint" />
           <input
             type="search"
-            aria-label="Filter icons by name"
+            aria-label={t("iconGallery.filterLabel")}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Filter by name…"
+            placeholder={t("iconGallery.filterPlaceholder")}
             className="flex-1 border-0 bg-transparent text-[12px] text-fg font-inherit outline-none placeholder:text-fg-faint"
           />
           {query && (
@@ -94,7 +96,7 @@ export function IconGallery() {
         })}
         {items.length === 0 && (
           <div className="px-5 py-16 text-center text-[12px] text-fg-faint">
-            No icons match "{query}".
+            {t("iconGallery.empty", { q: query })}
           </div>
         )}
       </ScrollArea>

@@ -8,6 +8,7 @@
 
 import { DataView, Icon, IconButton, SectionLabel } from "@/components/common";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n";
 import { ProjectRow } from "@/components/sidebar/ProjectRow";
 import { SessionRow } from "@/components/sidebar/SessionRow";
 import { useProjects, useSessions } from "@/lib/queries";
@@ -73,6 +74,7 @@ export const sidebarBrand = definePlugin({
 // real local-files index.
 
 function SidebarSearch() {
+  const t = useT();
   return (
     <div className="relative mx-1 mb-3.5">
       <div className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-fg-faint">
@@ -80,8 +82,8 @@ function SidebarSearch() {
       </div>
       <input
         type="search"
-        aria-label="Search files and commands"
-        placeholder="Search · files · commands"
+        aria-label={t("sidebar.search.label")}
+        placeholder={t("sidebar.search.placeholder")}
         // Dark mode: shadow-input/focus tokens give a soft inset glow.
         // Light mode: tokens go quiet (Vercel pattern) so we draw shape
         // with a hairline border + accent focus ring instead.
@@ -110,6 +112,7 @@ export const sidebarSearch = definePlugin({
 // ---- Projects section ----------------------------------------------------
 
 function ProjectsSection() {
+  const t = useT();
   const { data: projects, isLoading } = useProjects();
   return (
     <>
@@ -117,14 +120,15 @@ function ProjectsSection() {
         trailing={
           <button
             type="button"
-            title="Add project" aria-label="Add project"
+            title={t("sidebar.action.addProject")}
+            aria-label={t("sidebar.action.addProject")}
             className="ml-auto grid h-6.5 w-6.5 place-items-center rounded-full border-0 bg-surface-2 text-fg-muted cursor-pointer transition-colors hover:bg-surface-3 hover:text-fg active:scale-[0.92]"
           >
             <Icon name="plus" size={12} />
           </button>
         }
       >
-        Projects
+        {t("sidebar.section.projects")}
       </SectionLabel>
       <DataView
         items={projects}
@@ -160,6 +164,7 @@ export const sidebarProjects = definePlugin({
 // ---- Sessions section ----------------------------------------------------
 
 function SessionsSection() {
+  const t = useT();
   const { data: sessions, isLoading } = useSessions();
   const activeSessionId = useSessionStore((s) => s.activeSessionId);
   const selectTab = useSessionStore((s) => s.selectTab);
@@ -173,7 +178,7 @@ function SessionsSection() {
           </span>
         }
       >
-        Sessions
+        {t("sidebar.section.sessions")}
       </SectionLabel>
       <DataView
         items={sessions}
@@ -214,10 +219,11 @@ export const sidebarSessions = definePlugin({
 // ---- footer (user card) --------------------------------------------------
 
 function SidebarFooter() {
+  const t = useT();
   const openSettings = () =>
     useSessionStore.getState().openMainView({
       id: "settings",
-      title: "Settings",
+      title: t("settings.title"),
       icon: "settings",
     });
 
@@ -237,10 +243,21 @@ function SidebarFooter() {
           jdoe@longbridge-inc.com
         </div>
       </div>
-      <button type="button" onClick={openSettings} title="Settings" aria-label="Settings" className={USER_ACTION}>
+      <button
+        type="button"
+        onClick={openSettings}
+        title={t("sidebar.action.settings")}
+        aria-label={t("sidebar.action.settings")}
+        className={USER_ACTION}
+      >
         <Icon name="settings" size={14} />
       </button>
-      <button type="button" title="Account menu" aria-label="Account menu" className={USER_ACTION}>
+      <button
+        type="button"
+        title={t("sidebar.user.menuLabel")}
+        aria-label={t("sidebar.user.menuLabel")}
+        className={USER_ACTION}
+      >
         <Icon name="more" size={14} />
       </button>
     </div>
@@ -261,15 +278,17 @@ export const sidebarFooter = definePlugin({
 // ---- rail (collapsed) actions -------------------------------------------
 
 function NewSessionBtn() {
+  const t = useT();
   return (
-    <IconButton variant="rail-primary" title="New session">
+    <IconButton variant="rail-primary" title={t("sidebar.action.newSession")}>
       <Icon name="plus" size={16} />
     </IconButton>
   );
 }
 function SearchBtn() {
+  const t = useT();
   return (
-    <IconButton variant="rail" title="Search (⌘K)">
+    <IconButton variant="rail" title={t("sidebar.action.searchHint")}>
       <Icon name="search" size={16} />
     </IconButton>
   );
@@ -344,10 +363,12 @@ export const sidebarRailSessions = definePlugin({
 
 function RailSpacer()  { return <div className="flex-1" />; }
 function RailTools()    {
-  return <IconButton variant="rail" title="Tools / MCP"><Icon name="tool" size={16} /></IconButton>;
+  const t = useT();
+  return <IconButton variant="rail" title={t("sidebar.action.tools")}><Icon name="tool" size={16} /></IconButton>;
 }
 function RailSettings() {
-  return <IconButton variant="rail" title="Settings"><Icon name="settings" size={16} /></IconButton>;
+  const t = useT();
+  return <IconButton variant="rail" title={t("sidebar.action.settings")}><Icon name="settings" size={16} /></IconButton>;
 }
 function RailUser()     {
   return (

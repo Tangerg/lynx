@@ -6,6 +6,7 @@
 // plugin can replace them.
 
 import { Icon, Panel, ScrollArea } from "@/components/common";
+import { useT } from "@/lib/i18n";
 import { PluginBoundary } from "@/plugins/PluginBoundary";
 import { Slot } from "@/plugins/Slot";
 import { useSidebarSections } from "@/plugins/sdk";
@@ -15,6 +16,7 @@ type Props = {
 };
 
 export function SidebarExpanded({ onToggleRail }: Props) {
+  const t = useT();
   const sections = useSidebarSections();
 
   return (
@@ -30,7 +32,8 @@ export function SidebarExpanded({ onToggleRail }: Props) {
         <button
           type="button"
           onClick={onToggleRail}
-          title="Collapse to rail" aria-label="Collapse to rail"
+          title={t("sidebar.action.collapse")}
+          aria-label={t("sidebar.action.collapse")}
           className="ml-auto grid h-6.5 w-6.5 place-items-center rounded-md border-0 bg-transparent text-fg-muted cursor-pointer transition-colors hover:bg-surface-2 hover:text-fg"
         >
           <Icon name="panel-l" size={14} />
