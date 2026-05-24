@@ -5,10 +5,12 @@
 import { useState } from "react";
 import { Icon, type IconName } from "@/components/common";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n";
 import { PluginBoundary } from "@/plugins/PluginBoundary";
 import { useSettingsPanes } from "@/plugins/sdk";
 
 export function SettingsPage() {
+  const t = useT();
   const panes = useSettingsPanes();
   // `selectedId` is the user's explicit choice. If they haven't picked
   // one (or their pick has since been unregistered), fall back to the
@@ -26,7 +28,7 @@ export function SettingsPage() {
     <div className="grid h-full w-full grid-cols-[200px_1fr] overflow-hidden">
       <div className="flex flex-col gap-0.5 bg-surface-2 px-2 py-3.5">
         <div className="px-2.5 pb-2 pt-1 font-mono text-[11px] font-semibold text-fg-faint">
-          Settings
+          {t("settings.title")}
         </div>
         {panes.map((p) => (
           <button
@@ -45,7 +47,7 @@ export function SettingsPage() {
       </div>
       <div className="flex min-h-0 min-w-0 flex-col">
         <div className="flex items-center justify-between px-4.5 py-3.5">
-          <span className="text-[16px] font-semibold">{active?.label ?? "Settings"}</span>
+          <span className="text-[16px] font-semibold">{active?.label ?? t("settings.title")}</span>
         </div>
         <div className="flex-1 min-h-0 overflow-y-auto px-5 py-4.5">
           {ActiveBody && (

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { Chip, Icon, type IconName } from "@/components/common";
+import { useT } from "@/lib/i18n";
 import { Slot } from "@/plugins/Slot";
 import {
   lookupComposerKeyBinding,
@@ -10,8 +11,6 @@ import {
   useComposerModes,
 } from "@/plugins/sdk";
 import { submitComposer } from "./submitComposer";
-
-const FALLBACK_PLACEHOLDER = "Ask, plan, or paste a stack trace…  /  to run a command";
 
 // The mode is a free-form id — built-ins ship "agent" / "ask" / "plan" via
 // the composer-modes plugin, but third-party plugins can add their own.
@@ -32,12 +31,20 @@ type Props = {
 export function Composer({
   onSend, value, onChange, attachments, onRemoveAttachment, mode, onModeChange,
 }: Props) {
+  const t = useT();
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const modes = useComposerModes();
   const attachmentSources = useComposerAttachmentSources();
   // Pick a placeholder once at mount — using a hook would cause the text
   // to re-roll on every render (and `pickComposerPlaceholder` is random).
-  const placeholder = useMemo(() => pickComposerPlaceholder()?.text ?? FALLBACK_PLACEHOLDER, []);
+  // Falls back to the localized "ask…" string if no placeholder plugin
+  // is registered (or the random pick rolls a 0-weight pool).
+  const placeholder = useMemo(
+    () => pickComposerPlaceholder()?.text ?? t("composer.placeholder.fallback"),
+    // Pin the locale into deps so the fallback re-localizes if the user
+    // switches language while the composer is open.
+    [t],
+  );
 
   const submit = () => submitComposer({
     value,
@@ -71,7 +78,7 @@ export function Composer({
       )}
       <textarea
         ref={inputRef}
-        aria-label="Message composer"
+        aria-label={t("composer.input.label")}
         placeholder={placeholder}
         value={value}
         onChange={(e) => onChange(e.target.value)}

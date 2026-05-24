@@ -12,6 +12,7 @@
 // `margin-top: auto`.
 
 import { Icon, IconButton, Panel } from "@/components/common";
+import { useT } from "@/lib/i18n";
 import { PluginBoundary } from "@/plugins/PluginBoundary";
 import { Slot } from "@/plugins/Slot";
 import { useSidebarRailItems } from "@/plugins/sdk";
@@ -28,6 +29,7 @@ type Props = {
 };
 
 export function SidebarRail({ onToggleRail }: Props) {
+  const t = useT();
   const items = useSidebarRailItems();
   return (
     // `sidebar` / `rail` classes are kept as DOM hooks for layout.css
@@ -39,7 +41,7 @@ export function SidebarRail({ onToggleRail }: Props) {
       <div className="rail-brand mb-1 grid h-9 w-9 place-items-center rounded-lg bg-accent text-black light:text-white">
         <Slot name="sidebar.rail.brand" />
       </div>
-      <IconButton variant="rail" title="Expand sidebar" onClick={onToggleRail}>
+      <IconButton variant="rail" title={t("sidebar.action.expand")} onClick={onToggleRail}>
         <Icon name="panel-l" size={16} />
       </IconButton>
       {items.map((item) => {

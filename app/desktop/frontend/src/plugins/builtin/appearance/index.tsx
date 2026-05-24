@@ -8,6 +8,7 @@
 
 import { cn } from "@/lib/utils";
 import { Icon } from "@/components/common";
+import { LOCALES, setLocale, useLocale, useT, type Locale } from "@/lib/i18n";
 import { definePlugin, useAccents, useThemes } from "@/plugins/sdk";
 import type { ThemeSpec } from "@/plugins/sdk";
 import { useThemeStore } from "@/state/themeStore";
@@ -77,6 +78,8 @@ function ThemeRow({
 }
 
 function AppearancePane() {
+  const t = useT();
+  const locale = useLocale();
   const theme = useThemeStore((s) => s.theme);
   const accent = useThemeStore((s) => s.accent);
   const setTheme = useThemeStore((s) => s.setTheme);
@@ -91,17 +94,15 @@ function AppearancePane() {
           theme picker is a grid that needs more room than a 1fr column. */}
       <div className="grid items-stretch gap-3 py-3">
         <div>
-          <div className="text-[13px] font-semibold text-fg">Theme</div>
-          <div className="mt-0.5 text-[11.5px] text-fg-faint">
-            Pick a color theme. Plugins can register more — they show up here automatically.
-          </div>
+          <div className="text-[13px] font-semibold text-fg">{t("settings.theme")}</div>
+          <div className="mt-0.5 text-[11.5px] text-fg-faint">{t("settings.theme.sub")}</div>
         </div>
         <div className="grid gap-2 [grid-template-columns:repeat(auto-fill,minmax(220px,1fr))]">
-          {themes.map((t) => (
+          {themes.map((spec) => (
             <ThemeRow
-              key={t.id}
-              spec={t}
-              active={theme === t.id}
+              key={spec.id}
+              spec={spec}
+              active={theme === spec.id}
               onSelect={setTheme}
             />
           ))}
@@ -111,8 +112,8 @@ function AppearancePane() {
       {/* Default settings row: label column + control column. */}
       <div className="grid grid-cols-[140px_1fr] items-center gap-4 py-3">
         <div>
-          <div className="text-[13px] font-semibold text-fg">Accent</div>
-          <div className="mt-0.5 text-[11.5px] text-fg-faint">Functional highlight color — play / active / CTA.</div>
+          <div className="text-[13px] font-semibold text-fg">{t("settings.accent")}</div>
+          <div className="mt-0.5 text-[11.5px] text-fg-faint">{t("settings.accent.sub")}</div>
         </div>
         <div className="flex flex-wrap gap-2.5 justify-start">
           {accents.map((a) => (
@@ -120,13 +121,48 @@ function AppearancePane() {
               key={a.id}
               type="button"
               onClick={() => setAccent(a.dark)}
-              title={`Accent: ${a.label}`}
+              title={`${t("settings.accent")}: ${a.label}`}
+              aria-label={`${t("settings.accent")}: ${a.label}`}
+              aria-pressed={accent === a.dark}
               style={{ background: a.dark }}
               className={cn(
                 "h-4.5 w-4.5 rounded-full border-2 border-transparent bg-clip-padding p-0 cursor-pointer transition-[transform,box-shadow] duration-150 hover:scale-[1.08] active:scale-95",
                 accent === a.dark && "border-surface shadow-[0_0_0_1.5px_var(--color-text)]",
               )}
             />
+          ))}
+        </div>
+      </div>
+
+      {/* Language picker — segmented control sized to fit the two
+          built-in locales. Adding a new locale to lib/i18n.ts grows the
+          control automatically. */}
+      <div className="grid grid-cols-[140px_1fr] items-center gap-4 py-3">
+        <div>
+          <div className="text-[13px] font-semibold text-fg">{t("settings.language.label")}</div>
+          <div className="mt-0.5 text-[11.5px] text-fg-faint">{t("settings.language.sub")}</div>
+        </div>
+        <div
+          role="radiogroup"
+          aria-label={t("settings.language.label")}
+          className="inline-flex gap-1 rounded-md border border-line bg-surface-2 p-1"
+        >
+          {LOCALES.map((l) => (
+            <button
+              key={l.id}
+              type="button"
+              role="radio"
+              aria-checked={locale === l.id}
+              onClick={() => setLocale(l.id as Locale)}
+              className={cn(
+                "rounded-sm px-3 py-1 text-[12px] font-medium cursor-pointer transition-colors duration-150",
+                locale === l.id
+                  ? "bg-surface text-fg shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]"
+                  : "bg-transparent text-fg-muted hover:text-fg",
+              )}
+            >
+              {l.label}
+            </button>
           ))}
         </div>
       </div>
