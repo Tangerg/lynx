@@ -106,23 +106,8 @@
   --leading-snug:  1.30;
   --leading-body:  1.55;
 
-  /* ---------- SPACING — Base unit 8 ---------- */
-  --space-px:   1px;
-  --space-2:    2px;
-  --space-3:    3px;
-  --space-4:    4px;
-  --space-5:    5px;
-  --space-6:    6px;
-  --space-8:    8px;
-  --space-10:   10px;
-  --space-12:   12px;
-  --space-14:   14px;
-  --space-15:   15px;
-  --space-16:   16px;
-  --space-20:   20px;
-  --space-24:   24px;
-  --space-32:   32px;
-  --space-40:   40px;
+  /* (Spacing tokens removed — every callsite now uses Tailwind's spacing
+     scale; the legacy `--space-*` vars had zero consumers left.) */
 
   /* ---------- RADIUS (DESIGN.md §6) ----------
      md (8px) is the default button radius. Pill is reserved for status
@@ -205,67 +190,22 @@ html, body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-h1, .h1 {
+/* Naked-element rules — the few places where raw `<p>` / `<h1>` come
+   from rehype output (markdown.css covers `.md p`, `.md h1` etc.) or
+   from a JSX node that doesn't set margins via Tailwind. */
+h1, h2, h3 {
   font-family: var(--font-ui);
-  font-size: var(--fs-display-lg);
-  font-weight: var(--fw-semibold);
-  line-height: var(--leading-tight);
-  letter-spacing: var(--tracking-display-tight);
-  margin: 0;
-}
-
-h2, .h2 {
-  font-family: var(--font-ui);
-  font-size: var(--fs-display-md);
-  font-weight: var(--fw-semibold);
-  line-height: var(--leading-snug);
-  letter-spacing: var(--tracking-display);
-  margin: 0;
-}
-
-h3, .h3 {
-  font-family: var(--font-ui);
-  font-size: var(--fs-display-sm);
   font-weight: var(--fw-semibold);
   line-height: var(--leading-snug);
   margin: 0;
 }
-
-p {
+h1 { font-size: var(--fs-display-lg); line-height: var(--leading-tight); letter-spacing: var(--tracking-display-tight); }
+h2 { font-size: var(--fs-display-md); letter-spacing: var(--tracking-display); }
+h3 { font-size: var(--fs-display-sm); }
+p  {
   font-size: var(--fs-body-md);
   font-weight: var(--fw-regular);
   line-height: var(--leading-body);
   color: var(--color-text);
   margin: 0;
-}
-
-/* ---- Utility classes ----
-   `.eyebrow` and `.mono-num` are the two utilities the rest of the
-   app pulls in for "label voice" and "tabular numbers". The previous
-   scale of utility classes (.caption / .small / .nav-active /
-   .text-X) was dead weight — no JSX referenced them. Component-level
-   styles in app.css set their own type stack. */
-
-/* Mono eyebrow — replaces ALL-CAPS + letter-spacing labels.
-   See DESIGN.md §3 principle 1. Apply to any element that used to be
-   ALL-CAPS UPPERCASE (reasoning / files changed / live …). */
-.eyebrow {
-  font-family: var(--font-mono);
-  font-size: var(--fs-caption);
-  font-weight: var(--fw-regular);
-  line-height: var(--leading-snug);
-  letter-spacing: 0;
-  text-transform: none;
-  color: var(--color-text-muted);
-  font-feature-settings: "tnum";
-}
-
-/* Tabular-numeric — apply to any element rendering numbers (token
-   counts, durations, IDs, %, costs). Keeps digits in column so
-   counters don't jitter when values update. */
-.mono-num {
-  font-family: var(--font-mono);
-  font-feature-settings: "tnum";
-  font-variant-numeric: tabular-nums;
-  letter-spacing: 0;
 }
