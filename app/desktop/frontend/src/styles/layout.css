@@ -19,16 +19,16 @@ body,
   margin: 0;
   min-width: var(--app-min-width);
   min-height: var(--app-min-height);
+  /* Hard-lock the outer scrollers — without this, WKWebView interprets a
+     trackpad pan / click-drag on body content as scroll-the-page, which
+     looks like "the whole UI can be dragged around inside the window".
+     The kernel's min-width/height + Wails' window MinWidth/MinHeight
+     already guarantee panels fit; any internal scrolling happens inside
+     panel-scroll / msg-scroll-frame, not at the document level. */
+  overflow: hidden;
 }
 #root {
   height: 100vh;
-}
-
-/* Body — only the layout knob that's not shared with tokens.css's body
-   block (which carries background / color / font / smoothing). Locks
-   body to scroll instead of letting content squash the viewport. */
-body {
-  overflow: auto;
 }
 
 /* Default colour scheme — switched by themeStore.applyTheme via the
