@@ -6,8 +6,6 @@ import { defineThemePlugin } from "../themes/defineThemePlugin";
 
 const c = {
   blue: "#268bd2",
-  blueBorder: "#1e6fa6",
-  bluePress: "#155383",
 
   base03: "#002b36",
   base02: "#073642",
@@ -27,8 +25,6 @@ export default defineThemePlugin({
 
   brand: {
     accent: c.blue,
-    accentBorder: c.blueBorder,
-    accentPress: c.bluePress,
     textOnAccent: c.base3,
   },
   surfaces: {

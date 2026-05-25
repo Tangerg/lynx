@@ -4,26 +4,28 @@
 // shadows / radii / depthStep / cta / extras are optional overrides.
 
 import type { PluginSpec } from "@/plugins/sdk";
+import { colord } from "colord";
 import { definePlugin } from "@/plugins/sdk";
 
 // ---------- Typed palette sections ----------
 
-/** Single accent color + the two derived shades the design system uses
- *  to give CTAs depth (hover border, pressed background) and the ink
- *  that reads cleanly on top of an accent fill. */
+/** Single accent color + the ink that reads on top of it. The two
+ *  derived shades (accentBorder for hover, accentPress for :active) are
+ *  computed from `accent` via colord unless a theme passes explicit
+ *  overrides — saves 20 hand-tuned hex values across the 10 builtins. */
 export interface ThemeBrand {
   /** Primary accent. Used scarcely — live indicator, active tab line,
    *  focus ring, CTA fill (when CTA is accent-driven). */
   accent: string;
-  /** Slightly darker than accent — used for hover borders / focus rings
-   *  where the accent itself would be too bright. */
-  accentBorder: string;
-  /** Two steps darker than accent — used for `:active` press states on
-   *  CTA buttons so the user feels the click land. */
-  accentPress: string;
   /** Ink color that reads on top of an accent fill. Usually black on a
    *  light accent, white on a dark accent. */
   textOnAccent: string;
+  /** Optional override — slightly darker than accent, used for hover
+   *  borders / focus rings. Default: `colord(accent).darken(0.08)`. */
+  accentBorder?: string;
+  /** Optional override — two steps darker than accent, used for
+   *  `:active` press states on CTAs. Default: `colord(accent).darken(0.16)`. */
+  accentPress?: string;
 }
 
 /** Canvas (the outermost frame) + surface (the lifted panel). The
@@ -227,9 +229,16 @@ export function defineThemePlugin(spec: ThemePluginSpec): PluginSpec {
   const shadows: ThemeShadows = { ...shadowDefaults, ...spec.shadows };
   const radii: ThemeRadii = { ...DEFAULT_RADII, ...spec.radii };
 
+  // Auto-derive accentBorder / accentPress from the base accent via
+  // colord. Themes can still pass explicit values when the perceptual
+  // darkening doesn't land where the palette wants it.
+  const accent = colord(spec.brand.accent);
+  const accentBorder = spec.brand.accentBorder ?? accent.darken(0.08).toHex();
+  const accentPress = spec.brand.accentPress ?? accent.darken(0.16).toHex();
+
   const ctaDefaults: ThemeCta = {
     cta: spec.brand.accent,
-    ctaHover: spec.brand.accentBorder,
+    ctaHover: accentBorder,
     ctaText: spec.brand.textOnAccent,
   };
   const cta: ThemeCta = { ...ctaDefaults, ...spec.cta };
@@ -239,8 +248,8 @@ export function defineThemePlugin(spec: ThemePluginSpec): PluginSpec {
 
     // Brand
     "color-accent": spec.brand.accent,
-    "color-accent-border": spec.brand.accentBorder,
-    "color-accent-press": spec.brand.accentPress,
+    "color-accent-border": accentBorder,
+    "color-accent-press": accentPress,
     "color-text-on-accent": spec.brand.textOnAccent,
 
     // Surfaces — surface2/3/4 default to color-mix() in tokens.css; only
