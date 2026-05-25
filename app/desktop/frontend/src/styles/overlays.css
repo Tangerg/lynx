@@ -1,8 +1,7 @@
 /* Surviving overlay primitives:
      .plugin-boundary-error — PluginBoundary fallback (raw class)
      .fade-in               — per-word streaming animation (className
-                              emitted as a string by rehype-fade-in)
-     .brand-mark drag opt-out — div inside .brand / .rail-brand */
+                              emitted as a string by rehype-fade-in) */
 
 /* Plugin error boundary — inline notice when a plugin throws. */
 .plugin-boundary-error {
@@ -43,11 +42,3 @@
   animation: fadeIn 0.7s ease-in-out both;
 }
 
-/* Wails drag-region opt-out — -webkit-app-region doesn't inherit, so
-   div children of a draggable parent need this explicitly. Buttons /
-   inputs / anchors are covered by the .sidebar rule in layout.css. */
-.brand .brand-mark,
-.rail-brand .brand-mark {
-  --wails-draggable: no-drag;
-  -webkit-app-region: no-drag;
-}

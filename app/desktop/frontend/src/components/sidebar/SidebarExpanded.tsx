@@ -1,9 +1,5 @@
 // Expanded sidebar — slim chrome: collapse button + search box + scroll
 // area of plugin-contributed sections + plugin-contributed footer.
-//
-// Brand bar (Lyra logo + name) and the user-card footer used to be
-// hardcoded; both are now layout slots so a re-branded build or an account
-// plugin can replace them.
 
 import { Icon, Panel, ScrollArea } from "@/components/common";
 import { useT } from "@/lib/i18n";
@@ -24,11 +20,7 @@ export function SidebarExpanded({ onToggleRail }: Props) {
     // titlebar padding + Wails drag region opt-outs). All visual styling
     // is Tailwind here.
     <Panel className="sidebar gap-2 px-3 pb-3">
-      {/* Brand row — accent-coloured logo + "Lyra" name + collapse btn.
-          The `brand` class is kept as a DOM hook so the layout.css
-          .sidebar .brand no-drag rule still applies. */}
-      <div className="brand relative flex items-center gap-2.5 px-2 pt-1 pb-4">
-        <Slot name="sidebar.brand" />
+      <div className="flex items-center pt-1 pb-4">
         <button
           type="button"
           onClick={onToggleRail}

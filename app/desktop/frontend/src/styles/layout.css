@@ -173,7 +173,7 @@ html.theme-light .tool-card.running::before {
 
 /* macOS titlebar shim — push sidebar header below the traffic-light
    controls + make the top zone a Wails drag region. Full mode 48px,
-   rail mode 36px (the rail-brand square already sits under the lights). */
+   rail mode 36px. */
 .sidebar {
   padding-top: 48px;
   -webkit-app-region: drag;
@@ -184,11 +184,7 @@ html.theme-light .tool-card.running::before {
   -webkit-app-region: drag;
   --wails-draggable: drag;
 }
-/* Brand row + interactive children opt out of drag so they remain
-   clickable. (The icon-host divs `.brand-mark` need their own opt-out;
-   it lives in overlays.css.) */
-.sidebar .brand,
-.sidebar .rail-brand,
+/* Interactive children opt out of drag so they remain clickable. */
 .sidebar button,
 .sidebar input,
 .sidebar a {

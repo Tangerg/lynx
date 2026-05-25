@@ -1,9 +1,9 @@
-// Collapsed sidebar — slim vertical strip. The kernel owns the brand
-// mark + the expand button + the rail container; everything else is
-// contributed via `host.sidebar.registerRailItem`.
+// Collapsed sidebar — slim vertical strip. The kernel owns the expand
+// button + the rail container; every other item is contributed via
+// `host.sidebar.registerRailItem`.
 //
 // Order convention (loosely enforced by `order` numbers, see types.ts):
-//   - 0..99  : top (brand stack, new-session, search)
+//   - 0..99    : top (new-session, search)
 //   - 100..899 : middle (sessions stack)
 //   - 900..999 : bottom (tools, settings, user)
 //
@@ -14,7 +14,6 @@
 import { Icon, IconButton, Panel } from "@/components/common";
 import { useT } from "@/lib/i18n";
 import { PluginBoundary } from "@/plugins/PluginBoundary";
-import { Slot } from "@/plugins/Slot";
 import { useSidebarRailItems } from "@/plugins/sdk";
 import type { SidebarSession } from "./types";
 
@@ -36,11 +35,6 @@ export function SidebarRail({ onToggleRail }: Props) {
     // (macOS titlebar padding + Wails drag region). All visual styling is
     // Tailwind here.
     <Panel className="sidebar rail w-14 items-center gap-1 px-1.5 pb-3">
-      {/* Rail brand square — 36×36 accent tile, hosts the brand-mark icon.
-          Same `text-black light:text-white` rationale as BrandMark. */}
-      <div className="rail-brand mb-1 grid h-9 w-9 place-items-center rounded-lg bg-accent text-black light:text-white">
-        <Slot name="sidebar.rail.brand" />
-      </div>
       <IconButton variant="rail" title={t("sidebar.action.expand")} onClick={onToggleRail}>
         <Icon name="panel-l" size={16} />
       </IconButton>

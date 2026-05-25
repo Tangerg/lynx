@@ -22,7 +22,7 @@ export type SidebarSectionSpec = {
  * just has to fit in the rail's narrow column.
  *
  * Conventional order ranges:
- *   - 0..99: top-area items (brand, new session, search)
+ *   - 0..99: top-area items (new session, search)
  *   - 100..899: middle area (recent sessions, custom stacks)
  *   - 900..999: bottom area (tools, settings, user) — these typically
  *     render with `margin-top: auto` or similar to stick to the bottom
