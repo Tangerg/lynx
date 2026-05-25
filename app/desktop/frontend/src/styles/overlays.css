@@ -42,3 +42,15 @@
   animation: fadeIn 0.7s ease-in-out both;
 }
 
+/* Chat search hit painting (chat-search plugin). Uses CSS Custom
+   Highlight API — Range objects painted by `CSS.highlights.set(name, ...)`
+   pick up these pseudo-class rules. */
+::highlight(chat-search) {
+  background: color-mix(in srgb, var(--color-warning) 32%, transparent);
+  color: var(--color-text);
+}
+::highlight(chat-search-active) {
+  background: var(--color-warning);
+  color: #000;
+}
+

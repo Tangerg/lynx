@@ -19,6 +19,7 @@ import {
   telemetryHandler,
 } from "./agui-handlers";
 import appearance from "./appearance";
+import chatSearch from "./chat-search";
 import commandPalette from "./command-palette";
 import {
   composerChips,
@@ -29,6 +30,7 @@ import {
   composerSend,
   composerToolbar,
 } from "./composer";
+import connectionSettings from "./connection-settings";
 import {
   approvalBlock,
   checkpointBlock,
@@ -52,6 +54,7 @@ import httpAgent from "./http-agent";
 import iconGallery from "./icon-gallery";
 import { kernelChat, kernelSettings, kernelSidebar } from "./kernel";
 import mainRoute from "./main-route";
+import { messageEdit, messageRegenerate } from "./message-actions";
 import messageCopy from "./message-copy";
 import pluginsPane from "./plugins-pane";
 import sampleAttachments from "./sample-attachments";
@@ -114,6 +117,8 @@ const infrastructure: PluginSpec[] = [
 const messageRendering: PluginSpec[] = [
   defaultRoles,
   messageCopy,
+  messageEdit,
+  messageRegenerate,
   planBlock,
   codeBlock,
   searchBlock,
@@ -148,6 +153,7 @@ const composer: PluginSpec[] = [
 // ---------------------------------------------------------------------------
 const panes: PluginSpec[] = [
   appearance,
+  connectionSettings,
   pluginsPane,
   diffView,
   terminalView,
@@ -181,6 +187,7 @@ const sidebar: PluginSpec[] = [
 const overlays: PluginSpec[] = [
   toaster,
   commandPalette,
+  chatSearch,
   defaultCommands,
   statusPill,
   tasksPill,

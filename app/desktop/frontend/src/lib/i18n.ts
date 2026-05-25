@@ -67,6 +67,12 @@ const messages: Record<Locale, Record<string, string>> = {
     "settings.language.label": "Language",
     "settings.language.sub": "Interface language. More locales can be added via plugins.",
 
+    "settings.pane.connection": "Connection",
+    "settings.connection.title": "Backend",
+    "settings.connection.sub": "Where the AG-UI runtime is reachable. Changes apply on the next request.",
+    "settings.connection.url": "URL",
+    "settings.connection.reset": "Reset to default",
+
     "iconGallery.filterLabel": "Filter icons by name",
     "iconGallery.filterPlaceholder": "Filter by name…",
     "iconGallery.empty": 'No icons match "{{q}}".',
@@ -124,6 +130,12 @@ const messages: Record<Locale, Record<string, string>> = {
     "settings.accent.custom": "自定义颜色",
     "settings.language.label": "语言",
     "settings.language.sub": "界面语言。可以通过插件添加更多语言。",
+
+    "settings.pane.connection": "连接",
+    "settings.connection.title": "后端",
+    "settings.connection.sub": "AG-UI 运行时的地址。下一次请求生效。",
+    "settings.connection.url": "URL",
+    "settings.connection.reset": "恢复默认",
 
     "iconGallery.filterLabel": "按名称筛选图标",
     "iconGallery.filterPlaceholder": "按名称筛选…",
