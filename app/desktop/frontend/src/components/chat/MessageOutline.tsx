@@ -1,10 +1,6 @@
-// Floating heading outline for long assistant messages.
-//
-// Watches its `target` ref for `h1`-`h6` descendants, builds a TOC, and
-// scrolls the target heading into view on click. Hides itself when
-// fewer than 3 headings are present (short messages don't need
-// navigation). Mounts as a sibling next to the message content so it
-// shares the surrounding column flow.
+// Floating heading outline for assistant messages. Mounts as a
+// sibling of the message content (shares its column flow) and
+// hides itself below MIN_ITEMS so short messages don't get a TOC.
 
 import type { RefObject } from "react";
 import { useEffect, useState } from "react";
@@ -21,10 +17,10 @@ const MIN_ITEMS = 3;
 export function MessageOutline({ target }: { target: RefObject<HTMLElement | null> }) {
   const [items, setItems] = useState<OutlineItem[]>([]);
 
-  // Rebuild the list whenever the message content changes (streaming
-  // delta, post-render rewrap). Uses MutationObserver so we don't have
-  // to thread the streaming flag down. Cheap: each rebuild is O(n) over
-  // a single message's heading nodes.
+  // MutationObserver instead of threading a `streaming` flag down
+  // from the message: the outline rebuilds on every DOM change to
+  // its target, so it stays correct during streaming and post-render
+  // rewraps. O(n) per rebuild over one message's headings — cheap.
   useEffect(() => {
     const el = target.current;
     if (!el) return;
