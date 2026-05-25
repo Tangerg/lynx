@@ -1,6 +1,10 @@
-// MessageBlock — one chat turn. Role identity comes from the plugin
-// registry. Agent rows take full-width prose with avatar to the left;
-// user rows are right-aligned bubbles with avatar to the right.
+// MessageBlock — one chat turn.
+//
+// Layout: avatar + name + time on one header row, then the content
+// on a new line aligned with the avatar's left edge (Cherry Studio
+// pattern). User-bubble mode flips the header to right-aligned and
+// drops a chat bubble below; user-plain and assistant share the
+// left-aligned flat-prose layout.
 
 import type {Citation} from "./CitationContext";
 import type {PartCtx} from "./PartRenderer";
@@ -63,72 +67,78 @@ export function MessageBlock({ msg, ctx }: { msg: Message; ctx: PartCtx }) {
 
   return (
     <MessageContext.Provider value={msg}>
-     <CitationContext.Provider value={citations}>
-      <div
-        className={cn(
-          "relative grid items-start gap-1",
-          isAgent && "grid-cols-[1fr] pl-[46px]",
-          // Bubble mode: avatar on the right, right-aligned content.
-          // Plain mode: same as assistant — avatar on the left.
-          isUser && (bubble ? "grid-cols-[1fr] pr-[46px]" : "grid-cols-[1fr] pl-[46px]"),
-          !isAgent && !isUser && "grid-cols-[32px_1fr] gap-3.5",
-        )}
-      >
-        <div
-          className={cn(
-            "shrink-0",
-            (isAgent || isUser) && "absolute top-0.5",
-            isAgent && "left-0",
-            isUser && (bubble ? "right-0" : "left-0"),
-          )}
-        >
-          <Avatar variant={avatarVariant}>
-            <Icon name={iconName} size={14} />
-          </Avatar>
-        </div>
-        <div className={cn("min-w-0", bubble && "flex flex-col items-end")}>
+      <CitationContext.Provider value={citations}>
+        {/* minmax(0,1fr) caps the implicit grid column at the parent's
+            width — without it, a wide child (e.g. a ReasoningBlock with
+            a long preview line) stretches the whole row past the
+            intended msg-stream column. */}
+        <div className="relative grid grid-cols-[minmax(0,1fr)] gap-2">
+          {/* Header: avatar paired with a vertical (title / time) stack.
+              User-bubble flips the row so the avatar lands on the right
+              and the stack right-aligns its rows. */}
           <div
             className={cn(
-              "mb-1 flex items-center gap-2 whitespace-nowrap text-[12px] text-fg-faint",
-              bubble && "justify-end",
+              "flex items-center gap-2.5",
+              bubble && "flex-row-reverse",
             )}
           >
-            <span
+            <Avatar variant={avatarVariant}>
+              <Icon name={iconName} size={14} />
+            </Avatar>
+            <div
               className={cn(
-                "text-fg text-[13px] font-semibold tracking-normal",
-                isAgent && "font-mono",
+                "flex min-w-0 flex-col gap-0.5 leading-tight",
+                bubble && "items-end",
               )}
             >
-              {displayName}
-            </span>
-            <span>·</span>
-            <span>{msg.time}</span>
-            <Slot name="message.header.end" />
+              <div
+                className={cn(
+                  "flex items-center gap-1.5 text-fg text-[13px] font-semibold tracking-normal",
+                  isAgent && "font-mono",
+                )}
+              >
+                <span className="truncate">{displayName}</span>
+                <Slot name="message.header.end" />
+              </div>
+              <span className="font-mono text-[11px] text-fg-faint tabular-nums">
+                {msg.time}
+              </span>
+            </div>
           </div>
-          <div
-            ref={contentRef}
-            className={cn(
-              // 15px is the content baseline — markdown headings and
-              // every other content surface size off this.
-              "msg-content min-w-0 text-fg text-[15px] leading-[1.68] tracking-[-0.003em] font-normal",
-              bubble &&
-                "max-w-[580px] rounded-[14px_14px_4px_14px] bg-surface-2 px-3.5 py-2.5 text-left light:bg-surface-3",
-            )}
-          >
-            {msg.blocks.map((part, i) => {
-              if (part.kind === "text" && part.streaming && i !== lastIdx) {
-                return renderPart({ ...part, streaming: false }, i, partCtx);
-              }
-              return renderPart(part, i, partCtx);
-            })}
+
+          {/* Content row. Plain layouts (agent + user-plain) start at
+              the row's left edge so they line up with the avatar above.
+              User-bubble floats a max-width card to the right so its
+              right edge matches the header's right edge. */}
+          <div className={cn(bubble && "flex justify-end")}>
+            <div
+              ref={contentRef}
+              className={cn(
+                // 15px is the content baseline — markdown headings and
+                // every other content surface size off this.
+                "msg-content min-w-0 text-fg text-[15px] leading-[1.68] tracking-[-0.003em] font-normal",
+                bubble &&
+                  "max-w-[580px] rounded-[14px_14px_4px_14px] bg-surface-2 px-3.5 py-2.5 text-left light:bg-surface-3",
+              )}
+            >
+              {msg.blocks.map((part, i) => {
+                if (part.kind === "text" && part.streaming && i !== lastIdx) {
+                  return renderPart({ ...part, streaming: false }, i, partCtx);
+                }
+                return renderPart(part, i, partCtx);
+              })}
+            </div>
           </div>
-          <Slot name="message.actions" />
+
+          <div className={cn(bubble && "flex justify-end")}>
+            <Slot name="message.actions" />
+          </div>
+
+          {/* Right-gutter outline. Hidden on narrow viewports where no
+              gutter is available. */}
+          {isAgent && <MessageOutline target={contentRef} />}
         </div>
-        {/* Lives in the right gutter outside the 760px content column.
-            Hidden on narrow viewports where no gutter is available. */}
-        {isAgent && <MessageOutline target={contentRef} />}
-      </div>
-     </CitationContext.Provider>
+      </CitationContext.Provider>
     </MessageContext.Provider>
   );
 }
