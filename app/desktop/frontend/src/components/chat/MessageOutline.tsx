@@ -1,6 +1,7 @@
-// Floating heading outline for assistant messages. Mounts as a
-// sibling of the message content (shares its column flow) and
-// hides itself below MIN_ITEMS so short messages don't get a TOC.
+// Floating heading outline for assistant messages. Anchored to the
+// gutter outside the 760px content column so it never compresses
+// content width. Hides itself below MIN_ITEMS (short messages don't
+// need a TOC) and on narrow viewports where there is no gutter.
 
 import type { RefObject } from "react";
 import { useEffect, useState } from "react";
@@ -51,37 +52,43 @@ export function MessageOutline({ target }: { target: RefObject<HTMLElement | nul
   const minLevel = Math.min(...items.map((i) => i.level));
 
   return (
+    // Outer aside spans the message height in the right gutter.
+    // Inner div is sticky so the outline tracks scrolling while the
+    // message is in view (sticky climbs to find panel-scroll as the
+    // scroll ancestor, not the absolute aside above it).
     <aside
       aria-label="Message outline"
-      className="hidden xl:block sticky top-4 ml-3 max-h-[60vh] w-44 shrink-0 overflow-y-auto"
+      className="hidden xl:block absolute inset-y-0 left-[calc(100%+16px)] w-44"
     >
-      <div className="mb-1.5 font-mono text-[10px] font-semibold uppercase tracking-wider text-fg-faint">
-        On this message
+      <div className="sticky top-4 max-h-[60vh] overflow-y-auto">
+        <div className="mb-1.5 font-mono text-[10px] font-semibold uppercase tracking-wider text-fg-faint">
+          On this message
+        </div>
+        <ul className="flex flex-col gap-0.5">
+          {items.map((it) => (
+            <li key={it.id}>
+              <a
+                href={`#${it.id}`}
+                onClick={(e) => {
+                  e.preventDefault();
+                  document
+                    .getElementById(it.id)
+                    ?.scrollIntoView({ block: "start", behavior: "smooth" });
+                }}
+                style={{ paddingLeft: `${(it.level - minLevel) * 10}px` }}
+                className={cn(
+                  "block truncate rounded px-1.5 py-0.5 text-[12px] text-fg-muted cursor-pointer transition-colors",
+                  "hover:bg-surface-2 hover:text-fg",
+                  it.level === minLevel && "font-semibold text-fg-soft",
+                )}
+                title={it.text}
+              >
+                {it.text}
+              </a>
+            </li>
+          ))}
+        </ul>
       </div>
-      <ul className="flex flex-col gap-0.5">
-        {items.map((it) => (
-          <li key={it.id}>
-            <a
-              href={`#${it.id}`}
-              onClick={(e) => {
-                e.preventDefault();
-                document
-                  .getElementById(it.id)
-                  ?.scrollIntoView({ block: "start", behavior: "smooth" });
-              }}
-              style={{ paddingLeft: `${(it.level - minLevel) * 10}px` }}
-              className={cn(
-                "block truncate rounded px-1.5 py-0.5 text-[12px] text-fg-muted cursor-pointer transition-colors",
-                "hover:bg-surface-2 hover:text-fg",
-                it.level === minLevel && "font-semibold text-fg-soft",
-              )}
-              title={it.text}
-            >
-              {it.text}
-            </a>
-          </li>
-        ))}
-      </ul>
     </aside>
   );
 }
