@@ -1,6 +1,7 @@
 export { Chip } from "./Chip";
 export { DataView } from "./DataView";
 export { Divider } from "./Divider";
+export { dragClasses, DragStrip, noDragClasses } from "./DragRegion";
 export { EmptyState } from "./EmptyState";
 export { Icon } from "./Icon";
 export type { IconName } from "./Icon";

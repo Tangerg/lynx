@@ -1,7 +1,7 @@
 // Expanded sidebar — slim chrome: collapse button + search box + scroll
 // area of plugin-contributed sections + plugin-contributed footer.
 
-import { Icon, Panel, ScrollArea } from "@/components/common";
+import { DragStrip, Icon, Panel, ScrollArea } from "@/components/common";
 import { useT } from "@/lib/i18n";
 import { PluginBoundary } from "@/plugins/PluginBoundary";
 import { useSidebarSections } from "@/plugins/sdk";
@@ -24,7 +24,7 @@ export function SidebarExpanded({ onToggleRail }: Props) {
           Sits under the traffic-light controls and lets the user move
           the window from the titlebar zone, without making every
           div-based row in the sidebar a drag handle. */}
-      <div className="absolute top-0 left-0 right-0 h-12 [-webkit-app-region:drag] [--wails-draggable:drag]" />
+      <DragStrip height={48} />
       <div className="flex items-center pt-1 pb-4">
         <button
           type="button"

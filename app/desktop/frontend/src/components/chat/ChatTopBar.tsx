@@ -4,7 +4,7 @@
 // background; only the 2px accent underline marks the active tab.
 
 import type {IconName} from "@/components/common";
-import { Icon,  StatusDot } from "@/components/common";
+import { dragClasses, Icon, noDragClasses, StatusDot } from "@/components/common";
 import { cn } from "@/lib/utils";
 import { Slot } from "@/plugins/Slot";
 
@@ -35,7 +35,7 @@ interface Props {
 const tabClass = (active: boolean) =>
   cn(
     "group relative inline-grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-1.5 rounded-t-md px-3 py-1.5 pr-2 text-[12.5px] text-fg-muted cursor-pointer min-w-[110px] max-w-[200px] transition-colors duration-150 ease-out",
-    "[-webkit-app-region:no-drag] [--wails-draggable:no-drag]",
+    noDragClasses,
     "hover:bg-[color-mix(in_srgb,var(--color-text)_4%,transparent)] hover:text-fg",
     active && [
       "bg-[color-mix(in_srgb,var(--color-text)_4%,transparent)] text-fg",
@@ -53,7 +53,7 @@ export function ChatTopBar({
   onCloseView,
 }: Props) {
   return (
-    <div className="flex min-h-9 items-center gap-1 bg-surface px-4 [-webkit-app-region:drag] [--wails-draggable:drag]">
+    <div className={cn("flex min-h-9 items-center gap-1 bg-surface px-4", dragClasses)}>
       <div className="-mb-px flex min-w-0 flex-1 items-end gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {tabs.map((t) => (
           <div
