@@ -224,7 +224,10 @@ export interface ThemePluginSpec {
 
 // ---------- Helper that resolves spec → flat tokens map ----------
 
-export function defineThemePlugin(spec: ThemePluginSpec): PluginSpec {
+// Build the flat CSS-variable map a theme registers as `tokens`. Split
+// out so defineThemePlugin reads as a small registration shim — every
+// section's mapping rule lives here.
+function buildTokenMap(spec: ThemePluginSpec): Record<string, string> {
   const shadowDefaults = spec.scheme === "dark" ? DARK_SHADOWS : LIGHT_SHADOWS;
   const shadows: ThemeShadows = { ...shadowDefaults, ...spec.shadows };
   const radii: ThemeRadii = { ...DEFAULT_RADII, ...spec.radii };
@@ -235,15 +238,14 @@ export function defineThemePlugin(spec: ThemePluginSpec): PluginSpec {
   const accent = colord(spec.brand.accent);
   const accentBorder = spec.brand.accentBorder ?? accent.darken(0.08).toHex();
   const accentPress = spec.brand.accentPress ?? accent.darken(0.16).toHex();
-
-  const ctaDefaults: ThemeCta = {
+  const cta: ThemeCta = {
     cta: spec.brand.accent,
     ctaHover: accentBorder,
     ctaText: spec.brand.textOnAccent,
+    ...spec.cta,
   };
-  const cta: ThemeCta = { ...ctaDefaults, ...spec.cta };
 
-  const tokens: Record<string, string> = {
+  return {
     "depth-step": spec.depthStep ?? "5%",
 
     // Brand
@@ -303,11 +305,14 @@ export function defineThemePlugin(spec: ThemePluginSpec): PluginSpec {
     "radius-lg": radii.lg,
     "radius-xl": radii.xl,
 
-    // Free-form extras (last → wins over any of the above if a theme
-    // really wants to override one).
+    // Free-form extras win on collision so theme-level overrides
+    // always take precedence.
     ...(spec.extras ?? {}),
   };
+}
 
+export function defineThemePlugin(spec: ThemePluginSpec): PluginSpec {
+  const tokens = buildTokenMap(spec);
   return definePlugin({
     name: `lyra.builtin.theme-${spec.id}`,
     version: "1.0.0",
