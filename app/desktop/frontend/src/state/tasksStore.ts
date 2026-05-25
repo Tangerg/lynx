@@ -3,13 +3,13 @@
 // label. Settled tasks linger briefly so the user sees the final state
 // before they vanish.
 
-import { create } from "zustand";
-import { nanoid } from "nanoid";
 import type { TaskHandle, TaskStartOptions } from "@/plugins/sdk/types/infra";
+import { nanoid } from "nanoid";
+import { create } from "zustand";
 
 export type TaskStatus = "running" | "succeeded" | "failed";
 
-export type TaskEntry = {
+export interface TaskEntry {
   id: string;
   pluginName: string;
   label: string;
@@ -23,17 +23,17 @@ export type TaskEntry = {
   startedAt: number;
   /** Set on terminal transitions; the store removes the entry shortly after. */
   settledAt?: number;
-};
+}
 
-type TasksState = {
+interface TasksState {
   tasks: Map<string, TaskEntry>;
-};
+}
 
-type TasksActions = {
-  add(entry: TaskEntry): void;
-  patch(id: string, next: Partial<TaskEntry>): void;
-  remove(id: string): void;
-};
+interface TasksActions {
+  add: (entry: TaskEntry) => void;
+  patch: (id: string, next: Partial<TaskEntry>) => void;
+  remove: (id: string) => void;
+}
 
 export const useTasksStore = create<TasksState & TasksActions>((set) => ({
   tasks: new Map(),

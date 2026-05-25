@@ -8,7 +8,7 @@
 
 export type ApprovalDecision = "approved" | "declined";
 
-export type ApprovalSubmission = {
+export interface ApprovalSubmission {
   requestId: string;
   decision: ApprovalDecision;
-};
+}

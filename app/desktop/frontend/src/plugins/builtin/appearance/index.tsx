@@ -6,11 +6,12 @@
 // Adding a theme plugin makes a row appear here automatically — no
 // changes to this file.
 
-import { cn } from "@/lib/utils";
-import { Icon } from "@/components/common";
-import { LOCALES, setLocale, useLocale, useT, type Locale } from "@/lib/i18n";
-import { definePlugin, useAccents, useThemes } from "@/plugins/sdk";
+import type {Locale} from "@/lib/i18n";
 import type { ThemeSpec } from "@/plugins/sdk";
+import { Icon } from "@/components/common";
+import {  LOCALES, setLocale, useLocale, useT } from "@/lib/i18n";
+import { cn } from "@/lib/utils";
+import { definePlugin, useAccents, useThemes } from "@/plugins/sdk";
 import { useThemeStore } from "@/state/themeStore";
 
 // Fallback hexes for previewing themes that didn't ship a `tokens` map.

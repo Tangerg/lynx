@@ -4,14 +4,14 @@
 
 import { lookupSlashCommand, reportPluginError, usePluginStore } from "@/plugins/sdk";
 
-export type SubmitDeps = {
+export interface SubmitDeps {
   /** Current textarea contents. */
   value: string;
   /** Wipe the textarea. Called once per successful submit. */
   clear: () => void;
   /** Forward a plain user message to the agent. */
   sendText: (text: string) => void;
-};
+}
 
 /** Run the composer submit pipeline. Safe to call on empty/whitespace text. */
 export function submitComposer({ value, clear, sendText }: SubmitDeps): void {

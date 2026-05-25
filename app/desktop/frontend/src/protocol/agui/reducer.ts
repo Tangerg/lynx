@@ -12,13 +12,14 @@
 // Both pathways use the same error-isolation policy: a throwing handler is
 // logged to the error store and its input state is preserved.
 
-import { EventType, type BaseEvent, type CustomEvent } from "@ag-ui/core";
+import type {BaseEvent, CustomEvent} from "@ag-ui/core";
+import type { AgentViewState } from "./viewState";
+import {   EventType } from "@ag-ui/core";
 import {
   lookupCoreEventHandlers,
   lookupCustomEventHandlers,
   reportPluginError,
 } from "@/plugins/sdk";
-import type { AgentViewState } from "./viewState";
 
 function applyCoreHandlers(state: AgentViewState, event: BaseEvent): AgentViewState {
   const handlers = lookupCoreEventHandlers(event.type);

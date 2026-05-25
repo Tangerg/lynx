@@ -10,5 +10,5 @@
 //   gateways/  — outbound side-effect contracts (e.g. PermissionGateway)
 //   errors/    — typed domain errors (when we need them; YAGNI until then)
 
-export type { ApprovalDecision, ApprovalSubmission } from "./models/Approval";
 export type { PermissionGateway } from "./gateways/PermissionGateway";
+export type { ApprovalDecision, ApprovalSubmission } from "./models/Approval";

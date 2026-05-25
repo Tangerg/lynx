@@ -1,7 +1,7 @@
 import { DataView, SectionLabel } from "@/components/common";
 import { SessionRow } from "@/components/sidebar/SessionRow";
-import { useSessions } from "@/lib/queries";
 import { useT } from "@/lib/i18n";
+import { useSessions } from "@/lib/queries";
 import { definePlugin } from "@/plugins/sdk";
 import { useSessionStore } from "@/state/sessionStore";
 import { sideListClasses } from "./styles";

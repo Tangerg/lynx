@@ -10,8 +10,7 @@
 // previews / themes) is still array-order driven, so keep destructive
 // overrides later in the manifest.
 
-import appearance from "./appearance";
-import { builtinThemes } from "./themes";
+import type { PluginSpec } from "../sdk";
 import {
   approvalHandler,
   codeProposalHandler,
@@ -19,16 +18,8 @@ import {
   searchResultsHandler,
   telemetryHandler,
 } from "./agui-handlers";
-import {
-  approvalBlock,
-  checkpointBlock,
-  codeBlock,
-  planBlock,
-  reasoningBlock,
-  searchBlock,
-} from "./content-blocks";
+import appearance from "./appearance";
 import commandPalette from "./command-palette";
-import globalKeymap from "./global-keymap";
 import {
   composerChips,
   composerHint,
@@ -38,6 +29,14 @@ import {
   composerSend,
   composerToolbar,
 } from "./composer";
+import {
+  approvalBlock,
+  checkpointBlock,
+  codeBlock,
+  planBlock,
+  reasoningBlock,
+  searchBlock,
+} from "./content-blocks";
 import coreReducer from "./core-reducer";
 import {
   defaultAccents,
@@ -48,21 +47,14 @@ import {
   defaultTitle,
 } from "./defaults";
 import demo from "./demo";
+import globalKeymap from "./global-keymap";
 import httpAgent from "./http-agent";
 import iconGallery from "./icon-gallery";
-import {
-  diffView,
-  filesView,
-  notificationsView,
-  planView,
-  terminalView,
-  toolsView,
-} from "./workspace-views";
+import { kernelChat, kernelSettings, kernelSidebar } from "./kernel";
 import mainRoute from "./main-route";
 import messageCopy from "./message-copy";
 import pluginsPane from "./plugins-pane";
 import sampleAttachments from "./sample-attachments";
-import { kernelChat, kernelSettings, kernelSidebar } from "./kernel";
 import shortcuts from "./shortcuts";
 import {
   sidebarFooter,
@@ -76,12 +68,20 @@ import {
 import slashHints from "./slash-hints";
 import { statusNotifications, statusPill } from "./status";
 import { tasksPill } from "./tasks";
+import { builtinThemes } from "./themes";
 import toaster from "./toaster";
-import { bash, diff, file, grep } from "./tool-previews";
 import { toolActions, toolIcons } from "./tool-meta";
+import { bash, diff, file, grep } from "./tool-previews";
 import topbarNewTab from "./topbar-new-tab";
 import welcomeScreen from "./welcome-screen";
-import type { PluginSpec } from "../sdk";
+import {
+  diffView,
+  filesView,
+  notificationsView,
+  planView,
+  terminalView,
+  toolsView,
+} from "./workspace-views";
 
 // ---------------------------------------------------------------------------
 // Protocol — fold AG-UI events into view state.

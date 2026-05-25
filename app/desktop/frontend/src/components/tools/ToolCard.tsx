@@ -1,19 +1,20 @@
-import { AnimatePresence, motion } from "motion/react";
-import { Icon, type IconName } from "@/components/common";
-import { cn } from "@/lib/utils";
-import { swift } from "@/lib/motion";
-import { reportPluginError, usePluginStore, useToolActions } from "@/plugins/sdk";
+import type {IconName} from "@/components/common";
 import type { ToolCall } from "@/protocol/agui/viewState";
+import { AnimatePresence, motion } from "motion/react";
+import { Icon  } from "@/components/common";
+import { swift } from "@/lib/motion";
+import { cn } from "@/lib/utils";
+import { reportPluginError, usePluginStore, useToolActions } from "@/plugins/sdk";
 import { toolIconFor } from "./toolIcon";
 import { ToolPreview } from "./ToolPreview";
 
-type Props = {
+interface Props {
   tool: ToolCall;
   selected: boolean;
   expanded: boolean;
   onToggleExpand: () => void;
   onOpenView: () => void;
-};
+}
 
 // Status → text colour. Three states map to three semantic tokens; the
 // `run` state also gets a pulsing accent dot in the status pill.

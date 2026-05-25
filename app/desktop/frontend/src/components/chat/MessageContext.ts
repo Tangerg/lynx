@@ -4,8 +4,8 @@
 // Defined as its own module so plugin SDK consumers can import the hook
 // without dragging in the React component tree of `MessageBlock`.
 
-import { createContext, useContext } from "react";
 import type { Message } from "@/protocol/agui/viewState";
+import { createContext, useContext } from "react";
 
 export const MessageContext = createContext<Message | null>(null);
 

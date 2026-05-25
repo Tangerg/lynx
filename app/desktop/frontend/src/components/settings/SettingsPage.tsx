@@ -2,10 +2,11 @@
 // a rail of plugin-registered panes on the left, the active pane on the
 // right. Opens via Cmd+K → "View: Settings" or the sidebar-footer cog.
 
+import type {IconName} from "@/components/common";
 import { useState } from "react";
-import { Icon, type IconName } from "@/components/common";
-import { cn } from "@/lib/utils";
+import { Icon  } from "@/components/common";
 import { useT } from "@/lib/i18n";
+import { cn } from "@/lib/utils";
 import { PluginBoundary } from "@/plugins/PluginBoundary";
 import { useSettingsPanes } from "@/plugins/sdk";
 

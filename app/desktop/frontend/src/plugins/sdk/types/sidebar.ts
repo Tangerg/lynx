@@ -7,13 +7,13 @@ import type { ComponentType } from "react";
  * the user-card footer. Each section owns its own header + body; the
  * sidebar kernel just orders them by `order`.
  */
-export type SidebarSectionSpec = {
+export interface SidebarSectionSpec {
   id: string;
   /** Sort hint. */
   order?: number;
   /** Section body. Receives no props. */
   component: ComponentType;
-};
+}
 
 /**
  * Plugin-contributed item in the collapsed (rail) sidebar. The kernel
@@ -27,10 +27,10 @@ export type SidebarSectionSpec = {
  *   - 900..999: bottom area (tools, settings, user) — these typically
  *     render with `margin-top: auto` or similar to stick to the bottom
  */
-export type SidebarRailItemSpec = {
+export interface SidebarRailItemSpec {
   id: string;
   /** Sort hint — see ranges above. */
   order?: number;
   /** Item body. Receives no props. */
   component: ComponentType;
-};
+}

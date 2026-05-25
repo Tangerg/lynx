@@ -1,5 +1,5 @@
-import { useCallback, useState } from "react";
 import type { ApprovalDecision } from "@/domain";
+import { useCallback, useState } from "react";
 import { getContainer } from "@/main/container";
 
 // Submits the user's approval / decline decision via the permission
@@ -16,10 +16,10 @@ import { getContainer } from "@/main/container";
 
 export type { ApprovalDecision };
 
-export type ApprovalSubmit = {
+export interface ApprovalSubmit {
   submit: (decision: ApprovalDecision) => void;
   pending: ApprovalDecision | null;
-};
+}
 
 export function useApprovalSubmit(requestId: string | undefined): ApprovalSubmit {
   const [pending, setPending] = useState<ApprovalDecision | null>(null);

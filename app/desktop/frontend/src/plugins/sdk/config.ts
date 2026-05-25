@@ -8,9 +8,9 @@
 // In-memory only. Persistence is the plugin's responsibility: a plugin
 // can subscribe to a key and mirror it to localStorage if needed.
 
+import type { Disposable } from "./types";
 import { create } from "zustand";
 import { safeCall } from "./errors";
-import type { Disposable } from "./types";
 
 export type ConfigValue =
   | string
@@ -20,15 +20,15 @@ export type ConfigValue =
   | ConfigValue[]
   | { [key: string]: ConfigValue };
 
-type ConfigStoreState = {
+interface ConfigStoreState {
   values: Map<string, ConfigValue>;
   subscribers: Map<string, Set<(value: ConfigValue | undefined) => void>>;
-};
+}
 
-type ConfigStoreActions = {
-  set(key: string, value: ConfigValue): void;
-  subscribe(key: string, fn: (value: ConfigValue | undefined) => void): Disposable;
-};
+interface ConfigStoreActions {
+  set: (key: string, value: ConfigValue) => void;
+  subscribe: (key: string, fn: (value: ConfigValue | undefined) => void) => Disposable;
+}
 
 export const useConfigStore = create<ConfigStoreState & ConfigStoreActions>((set, get) => ({
   values: new Map(),

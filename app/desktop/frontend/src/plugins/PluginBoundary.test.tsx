@@ -1,6 +1,6 @@
 import type React from "react";
-import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 import { PluginBoundary } from "./PluginBoundary";
 import { usePluginErrorStore } from "./sdk";
 
@@ -8,7 +8,7 @@ function Boom(): React.ReactNode {
   throw new Error("kaboom");
 }
 
-describe("PluginBoundary", () => {
+describe("pluginBoundary", () => {
   it("renders children when nothing throws", () => {
     render(
       <PluginBoundary plugin="ok.plugin">

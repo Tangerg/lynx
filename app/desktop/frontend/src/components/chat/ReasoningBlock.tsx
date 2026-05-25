@@ -1,13 +1,13 @@
-import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { Icon } from "@/components/common";
+import { useEffect, useRef, useState } from "react";
 import { MarkdownMessage } from "@/components/chat/MarkdownMessage";
+import { Icon } from "@/components/common";
 import { swift } from "@/lib/motion";
 
-type Props = {
+interface Props {
   text: string;
   streaming: boolean;
-};
+}
 
 // Collapsible "thinking" panel. Auto-opens while the agent streams, then
 // collapses once the reasoning is done. User can toggle anytime to override.
@@ -107,5 +107,5 @@ function formatElapsed(ms: number | null): string | null {
 
 function truncate(s: string, n: number): string {
   if (s.length <= n) return s;
-  return s.slice(0, n).trimEnd() + "…";
+  return `${s.slice(0, n).trimEnd()  }…`;
 }

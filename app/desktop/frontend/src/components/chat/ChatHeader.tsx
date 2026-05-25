@@ -9,10 +9,11 @@
 // wiring — adding a chip / changing the selection model doesn't
 // ripple through to the parent.
 
+import type {ChatTab} from "./ChatTopBar";
 import { useMemo } from "react";
 import { useSessions } from "@/lib/queries";
 import { useSessionStore } from "@/state/sessionStore";
-import { ChatTopBar, type ChatTab } from "./ChatTopBar";
+import {  ChatTopBar } from "./ChatTopBar";
 
 export function ChatHeader() {
   const { data: sessions = [] } = useSessions();

@@ -1,9 +1,9 @@
-import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { Slot } from "./Slot";
+import { describe, expect, it, vi } from "vitest";
 import { definePlugin, loadPlugin } from "./sdk";
+import { Slot } from "./Slot";
 
-describe("Slot", () => {
+describe("slot", () => {
   it("renders nothing when no plugin has filled the slot", () => {
     const { container } = render(<Slot name="empty.slot" />);
     expect(container.firstChild).toBeNull();

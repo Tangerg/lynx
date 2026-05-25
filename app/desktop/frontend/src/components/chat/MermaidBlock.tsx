@@ -1,13 +1,13 @@
-import { useEffect, useMemo, useState } from "react";
-import { AnimatePresence, motion } from "motion/react";
 import { renderMermaidSVG } from "beautiful-mermaid";
+import { AnimatePresence, motion } from "motion/react";
+import { useEffect, useMemo, useState } from "react";
 import { useDebounce } from "use-debounce";
-import { useThemeStore } from "@/state/themeStore";
 import { popIn, swift } from "@/lib/motion";
+import { useThemeStore } from "@/state/themeStore";
 
-type Props = {
+interface Props {
   code: string;
-};
+}
 
 // Resolve token vars to literal hex — beautiful-mermaid bakes the
 // values into stroke/fill on the SVG output and browsers won't honor
@@ -70,7 +70,7 @@ export function MermaidBlock({ code }: Props) {
     // them from getComputedStyle at call time. Pinning them in deps
     // re-triggers the memo when the user switches palette so the SVG
     // re-paints with the new tokens.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react/exhaustive-deps
   }, [debouncedCode, isSettling, theme, accent]);
 
   const [zoomed, setZoomed] = useState(false);

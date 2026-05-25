@@ -13,15 +13,15 @@ export const CUSTOM = {
   TELEMETRY: "lyra.telemetry",
 } as const;
 
-export type PlanSnapshot = {
+export interface PlanSnapshot {
   items: { id: number; pid: string; status: "done" | "doing" | "todo"; text: string }[];
-};
+}
 
-export type PlanBlockAttachment = {
+export interface PlanBlockAttachment {
   messageId: string;
-};
+}
 
-export type ApprovalRequest = {
+export interface ApprovalRequest {
   /** Backend-generated id; the frontend echoes it back in the POST /permission
    *  body when the user clicks Approve / Decline. Absent in pre-HITL events
    *  (treated as a decorative card with no buttons). */
@@ -30,33 +30,33 @@ export type ApprovalRequest = {
   text: string;
   command: string;
   reason: string;
-};
+}
 
-export type ApprovalResult = {
+export interface ApprovalResult {
   requestId: string;
   decision: "approved" | "declined";
-};
+}
 
-export type SearchResultsPayload = {
+export interface SearchResultsPayload {
   parentMessageId: string;
   results: { domain: string; title: string; time: string; snippet: string }[];
-};
+}
 
-export type CodeProposalPayload = {
+export interface CodeProposalPayload {
   parentMessageId: string;
   lang: string;
   file: string;
   text: string;
-};
+}
 
 // Telemetry the status pill reads. The TOOL_CALL_END summary fields could
 // cover most of this in a real protocol, but `step / activity / tokens` are
 // truly UI-only and ride on CUSTOM.
-export type TelemetryPayload = {
+export interface TelemetryPayload {
   step: number;
   totalSteps: number;
   activity: string;
   tokens: { used: string; total: string };
   ctxPct: number;
   cost: string;
-};
+}

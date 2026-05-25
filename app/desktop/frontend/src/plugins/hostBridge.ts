@@ -9,9 +9,9 @@
 // "dispatcher.useRef is null" and "maximum update depth"). Static keeps
 // everything in the main chunk.
 
+import * as Motion from "motion/react";
 import * as React from "react";
 import * as ReactJSXRuntime from "react/jsx-runtime";
-import * as Motion from "motion/react";
 import * as SDK from "@/plugins/sdk";
 import { HOST_API_VERSION } from "./sdk/apiVersion";
 import { safeCall } from "./sdk/errors";
@@ -23,13 +23,13 @@ declare global {
   }
 }
 
-export type LyraHostBridge = {
+export interface LyraHostBridge {
   apiVersion: string;
   React: typeof React;
   ReactJSXRuntime: typeof ReactJSXRuntime;
   Motion: typeof Motion;
   SDK: typeof SDK;
-};
+}
 
 let bridgeInstalled = false;
 

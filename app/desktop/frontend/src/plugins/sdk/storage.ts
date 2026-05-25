@@ -19,27 +19,27 @@ const SCHEMA_VERSION_KEY = "__schema_version";
  * once per version bump (the current version is tracked in
  * `__schema_version`).
  */
-export type StorageMigration = {
+export interface StorageMigration {
   version: number;
   /** Synchronous mutation against the plugin's namespace. */
   migrate: (store: KeyValueStore) => void;
-};
+}
 
-export type KeyValueStore = {
-  get<T = unknown>(key: string): T | undefined;
-  set<T = unknown>(key: string, value: T): void;
-  remove(key: string): void;
+export interface KeyValueStore {
+  get: <T = unknown>(key: string) => T | undefined;
+  set: <T = unknown>(key: string, value: T) => void;
+  remove: (key: string) => void;
   /** Clear *all* keys this plugin has stored. Used on unload by tests. */
-  clear(): void;
+  clear: () => void;
   /** List the plugin's keys (without the prefix). */
-  keys(): string[];
+  keys: () => string[];
   /**
    * Run an ordered set of migrations once each. Idempotent — pass the full
    * list every boot; only the unapplied ones execute. Migration errors
    * abort the chain and surface to the console (no partial bumps).
    */
-  migrate(migrations: StorageMigration[]): void;
-};
+  migrate: (migrations: StorageMigration[]) => void;
+}
 
 export function createStorage(pluginName: string): KeyValueStore {
   const prefix = `${ROOT}.${pluginName}.`;

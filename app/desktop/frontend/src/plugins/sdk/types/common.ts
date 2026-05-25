@@ -4,7 +4,7 @@
  * A reversible handle. `register*` returns this; the host calls `.dispose()`
  * during unload so plugin authors never write cleanup code themselves.
  */
-export type Disposable = { dispose: () => void };
+export interface Disposable { dispose: () => void }
 
 /**
  * Fires once, when PluginProvider has finished loading all built-in

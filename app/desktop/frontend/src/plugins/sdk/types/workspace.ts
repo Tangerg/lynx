@@ -8,7 +8,7 @@ import type { ComponentType } from "react";
 // Settings panes — rail entries inside the Settings workspace view.
 // ---------------------------------------------------------------------------
 
-export type SettingsPaneSpec = {
+export interface SettingsPaneSpec {
   /** Stable id used as the rail key + storage namespace if needed. */
   id: string;
   /** Sidebar label. */
@@ -19,7 +19,7 @@ export type SettingsPaneSpec = {
   order?: number;
   /** The pane content. Receives no props in v1. */
   component: ComponentType;
-};
+}
 
 // ---------------------------------------------------------------------------
 // Workspace views — plugin-contributed surfaces that open as main-area tabs.
@@ -34,7 +34,7 @@ export type DockLocation = "left" | "right" | "main" | "bottom";
  * user does (open, close, switch tabs). The kernel only needs `id` +
  * the component; everything else is a hint.
  */
-export type WorkspaceViewSpec = {
+export interface WorkspaceViewSpec {
   /** Stable id — used as the layout persistence key. */
   id: string;
   /** Tab title shown in the panel header. */
@@ -49,7 +49,7 @@ export type WorkspaceViewSpec = {
   order?: number;
   /** The body component. Receives no props. */
   component: ComponentType;
-};
+}
 
 // ---------------------------------------------------------------------------
 // Layout slots — named mount points the kernel exposes (sidebar.body, …).
@@ -69,7 +69,7 @@ export type WorkspaceViewSpec = {
  * descriptor flat and prevents the kernel from having to thread N props
  * down to N plugins.
  */
-export type LayoutSlotSpec = {
+export interface LayoutSlotSpec {
   /** Stable id — multiple registrations to the same slot use this to dedupe. */
   id: string;
   /** Sort hint — lower comes first. Built-ins use 0..99; plugins ≥ 100. */
@@ -78,7 +78,7 @@ export type LayoutSlotSpec = {
   className?: string;
   /** Component that renders the region. Receives no props. */
   component: ComponentType;
-};
+}
 
 // ---------------------------------------------------------------------------
 // Routes — plugin-contributed URL paths and their renderers.
@@ -89,7 +89,7 @@ export type LayoutSlotSpec = {
  * rebuilt from the registry at AppRouter mount time, so additions take
  * effect on next reload (or by calling `rebuildRouter()` from the host).
  */
-export type RouteSpec = {
+export interface RouteSpec {
   /** Stable id — used as the TanStack route id. */
   id: string;
   /** URL path (TanStack syntax, e.g. "/", "/runs/$runId"). */
@@ -98,4 +98,4 @@ export type RouteSpec = {
   component: ComponentType;
   /** Sort hint — does not affect matching, only listing order. */
   order?: number;
-};
+}

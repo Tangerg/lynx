@@ -1,3 +1,5 @@
+import type {LucideIcon} from "lucide-react";
+import type { CSSProperties } from "react";
 import {
   ArrowDown,
   Book,
@@ -6,8 +8,8 @@ import {
   Code,
   Command,
   Copy,
-  FileDiff,
   File,
+  FileDiff,
   FileText,
   Folder,
   GitBranch,
@@ -16,6 +18,7 @@ import {
   History,
   Image as ImageIcon,
   List,
+  
   MessageSquare,
   Minimize2,
   Moon,
@@ -43,10 +46,8 @@ import {
   User,
   Wrench,
   X,
-  Zap,
-  type LucideIcon,
+  Zap
 } from "lucide-react";
-import type { CSSProperties } from "react";
 
 // Project-wide icon shim — name → lucide-react component.
 //
@@ -169,13 +170,13 @@ const ICON_MAP: Record<IconName, LucideIcon> = {
   // map to Maximize2 if a callsite is added later.
 };
 
-type Props = {
+interface Props {
   name: IconName;
   size?: number;
   strokeWidth?: number;
   style?: CSSProperties;
   className?: string;
-};
+}
 
 export function Icon({ name, size = 16, strokeWidth = 2, style, className }: Props) {
   const Glyph = ICON_MAP[name];

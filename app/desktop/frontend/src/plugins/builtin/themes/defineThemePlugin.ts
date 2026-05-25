@@ -3,8 +3,8 @@
 // (brand / surfaces / ink / borders / semantic) are enforced by TypeScript;
 // shadows / radii / depthStep / cta / extras are optional overrides.
 
-import { definePlugin } from "@/plugins/sdk";
 import type { PluginSpec } from "@/plugins/sdk";
+import { definePlugin } from "@/plugins/sdk";
 
 // ---------- Typed palette sections ----------
 

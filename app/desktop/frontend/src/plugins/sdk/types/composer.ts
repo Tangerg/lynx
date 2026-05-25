@@ -10,32 +10,32 @@ import type { ComponentType } from "react";
  * text. Returning `true` (or invoking `preventDefault` indirectly via
  * `submit`) tells the host to stop the browser default.
  */
-export type ComposerKeyContext = {
+export interface ComposerKeyContext {
   value: string;
   onChange: (next: string) => void;
   submit: () => void;
   event: KeyboardEvent;
-};
+}
 
-export type ComposerKeyBindingSpec = {
+export interface ComposerKeyBindingSpec {
   /** Combo string — same format as `host.shortcuts.register`. */
   key: string;
   description?: string;
   /** Return `true` to call `preventDefault` on the keypress. */
   handler: (ctx: ComposerKeyContext) => boolean | void;
-};
+}
 
 /**
  * Shape of one chip rendered in the composer attachments row. Mirrors
  * `components/chat/Composer.tsx`'s `Attachment` type — declared here so
  * plugins don't have to import from `components/`.
  */
-export type ComposerAttachment = {
+export interface ComposerAttachment {
   /** Display label, e.g. "src/api/auth.ts". */
   label: string;
   /** Optional icon glyph name. Defaults to "file" when omitted. */
   icon?: string;
-};
+}
 
 /**
  * A plugin contribution that produces attachment chips. The kernel
@@ -45,13 +45,13 @@ export type ComposerAttachment = {
  * `useAttachments` is a hook — plugins can derive the list from query
  * data ("recently edited files") or other stores.
  */
-export type ComposerAttachmentSourceSpec = {
+export interface ComposerAttachmentSourceSpec {
   id: string;
   /** Sort hint — lower comes first. Built-ins use 0..99. */
   order?: number;
   /** Hook that returns the current attachments. */
   useAttachments: () => ComposerAttachment[];
-};
+}
 
 /**
  * One placeholder string for the composer textarea. Composer picks one at
@@ -61,12 +61,12 @@ export type ComposerAttachmentSourceSpec = {
  * Useful for branding ("Ask Acme…") or seasonal nudges ("Try /lint on a
  * test file").
  */
-export type ComposerPlaceholderSpec = {
+export interface ComposerPlaceholderSpec {
   id: string;
   text: string;
   /** Selection weight — defaults to 1. Set to 0 to register but skip selection. */
   weight?: number;
-};
+}
 
 /**
  * A composer mode toggle ("Agent" / "Ask" / "Plan" by default — plugins can
@@ -77,7 +77,7 @@ export type ComposerPlaceholderSpec = {
  * Mode ids are free-form strings: built-ins use `agent`, `ask`, `plan`;
  * a third-party plugin could add `code`, `research`, etc.
  */
-export type ComposerModeSpec = {
+export interface ComposerModeSpec {
   id: string;
   label: string;
   icon?: string;
@@ -85,7 +85,7 @@ export type ComposerModeSpec = {
   order?: number;
   /** Optional tooltip; defaults to "${label} mode". */
   title?: string;
-};
+}
 
 /**
  * Plugin-contributed chip in the composer footer ("project · branch · mode").
@@ -94,13 +94,13 @@ export type ComposerModeSpec = {
  * icon + label. The host provides no props; chips read state from stores
  * directly.
  */
-export type ComposerStatusSpec = {
+export interface ComposerStatusSpec {
   id: string;
   /** Sort hint — lower comes first. Built-ins use 0..99. */
   order?: number;
   /** The chip body. Receives no props. */
   component: ComponentType;
-};
+}
 
 /**
  * Context passed to a slash command's `run` function.
@@ -109,12 +109,12 @@ export type ComposerStatusSpec = {
  * its local logic. Useful for commands like `/lint <file>` that first hit
  * a backend endpoint and then ask the agent to interpret the result.
  */
-export type SlashCommandRunCtx = {
+export interface SlashCommandRunCtx {
   args: string;
   send: (text: string) => void;
-};
+}
 
-export type SlashCommandSpec = {
+export interface SlashCommandSpec {
   /** Description shown in the autocomplete dropdown. */
   description: string;
   /**
@@ -123,4 +123,4 @@ export type SlashCommandSpec = {
    * a normal user message.
    */
   run?: (ctx: SlashCommandRunCtx) => void | Promise<void>;
-};
+}

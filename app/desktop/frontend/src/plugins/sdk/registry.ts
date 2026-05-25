@@ -3,6 +3,7 @@
 // + map helpers live in registryState.ts; this file is the action
 // implementations only.
 
+import type {PluginStoreActions, PluginStoreState} from "./registryState";
 import { create } from "zustand";
 import { safeCall } from "./errors";
 import {
@@ -10,10 +11,10 @@ import {
   addOwnedMulti,
   clearByPlugin,
   freshState,
+  
+  
   removeOwned,
-  removeOwnedMulti,
-  type PluginStoreActions,
-  type PluginStoreState,
+  removeOwnedMulti
 } from "./registryState";
 
 export const usePluginStore = create<PluginStoreState & PluginStoreActions>((set, get) => ({

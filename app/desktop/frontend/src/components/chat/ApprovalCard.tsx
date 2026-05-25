@@ -1,7 +1,8 @@
+import type {ApprovalDecision} from "@/lib/useApprovalSubmit";
 import { Divider, Icon, PillButton } from "@/components/common";
-import { useApprovalSubmit, type ApprovalDecision } from "@/lib/useApprovalSubmit";
+import {  useApprovalSubmit } from "@/lib/useApprovalSubmit";
 
-type Props = {
+interface Props {
   what: string;
   cmd: string;
   reason: string;
@@ -11,7 +12,7 @@ type Props = {
   /** Set by the agui-handlers reducer once the backend has confirmed
    *  receipt of the decision via the lyra.approval-result event. */
   decision?: ApprovalDecision;
-};
+}
 
 // Approval card — pure presentation. HTTP / submitting state lives in
 // useApprovalSubmit; this component only renders three visual states:

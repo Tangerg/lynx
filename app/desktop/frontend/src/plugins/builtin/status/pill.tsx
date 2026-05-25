@@ -24,10 +24,10 @@ const pill = (extra?: string) =>
 // "1.2k" / "200k" / "1.5M" → number. Conservative; if we can't parse,
 // return NaN so the caller can fall back gracefully.
 function parseShorthand(input: string | undefined): number {
-  if (!input) return NaN;
-  const m = input.trim().match(/^([\d.]+)\s*([kmKM]?)$/);
-  if (!m) return NaN;
-  const n = parseFloat(m[1]);
+  if (!input) return Number.NaN;
+  const m = input.trim().match(/^([\d.]+)\s*([km]?)$/i);
+  if (!m) return Number.NaN;
+  const n = Number.parseFloat(m[1]);
   const unit = m[2].toLowerCase();
   if (unit === "k") return n * 1_000;
   if (unit === "m") return n * 1_000_000;

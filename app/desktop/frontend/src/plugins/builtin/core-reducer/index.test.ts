@@ -9,11 +9,13 @@
 // Pattern matches the existing reducer.test.ts: load the core-reducer
 // plugin once per spec, feed events through `reduce()`, assert state.
 
+import type {BaseEvent} from "@ag-ui/core";
+import type {AgentViewState, Message} from "@/protocol/agui/viewState";
+import {  EventType } from "@ag-ui/core";
 import { beforeEach, describe, expect, it } from "vitest";
-import { EventType, type BaseEvent } from "@ag-ui/core";
 import { loadPlugin } from "@/plugins/sdk/definePlugin";
 import { reduce } from "@/protocol/agui/reducer";
-import { INITIAL_VIEW_STATE, type AgentViewState, type Message } from "@/protocol/agui/viewState";
+import {  INITIAL_VIEW_STATE  } from "@/protocol/agui/viewState";
 
 const ev = <T extends BaseEvent>(e: T): BaseEvent => e;
 
@@ -88,7 +90,7 @@ describe("core-reducer — TOOL_CALL_RESULT", () => {
 // ---------------------------------------------------------------------------
 
 describe("core-reducer — REASONING_MESSAGE_*", () => {
-  it("START appends a streaming reasoning block to the latest assistant message", () => {
+  it("sTART appends a streaming reasoning block to the latest assistant message", () => {
     let s = withAssistantMessage();
     s = reduce(
       s,
@@ -102,7 +104,7 @@ describe("core-reducer — REASONING_MESSAGE_*", () => {
     ]);
   });
 
-  it("CONTENT appends delta text to the matching reasoning block", () => {
+  it("cONTENT appends delta text to the matching reasoning block", () => {
     let s = withAssistantMessage();
     s = reduce(
       s,
@@ -131,7 +133,7 @@ describe("core-reducer — REASONING_MESSAGE_*", () => {
     expect(block).toMatchObject({ kind: "reasoning", text: "first thought", streaming: true });
   });
 
-  it("END flips streaming off on the matching block", () => {
+  it("eND flips streaming off on the matching block", () => {
     let s = withAssistantMessage();
     s = reduce(s, ev({ type: EventType.REASONING_MESSAGE_START, messageId: "r1" }));
     s = reduce(s, ev({ type: EventType.REASONING_MESSAGE_END, messageId: "r1" }));
@@ -139,7 +141,7 @@ describe("core-reducer — REASONING_MESSAGE_*", () => {
     expect(block).toMatchObject({ kind: "reasoning", streaming: false });
   });
 
-  it("START is a no-op when there's no assistant message to attach to", () => {
+  it("sTART is a no-op when there's no assistant message to attach to", () => {
     const s = reduce(
       INITIAL_VIEW_STATE,
       ev({
@@ -150,7 +152,7 @@ describe("core-reducer — REASONING_MESSAGE_*", () => {
     expect(s.messages).toEqual([]);
   });
 
-  it("CHUNK materializes the reasoning block on first chunk and appends deltas", () => {
+  it("cHUNK materializes the reasoning block on first chunk and appends deltas", () => {
     let s = withAssistantMessage();
     s = reduce(
       s,
@@ -187,7 +189,7 @@ describe("core-reducer — REASONING_MESSAGE_*", () => {
 // ---------------------------------------------------------------------------
 
 describe("core-reducer — THINKING_TEXT_MESSAGE_*", () => {
-  it("START opens a new reasoning block with a synthetic id", () => {
+  it("sTART opens a new reasoning block with a synthetic id", () => {
     let s = withAssistantMessage();
     s = reduce(s, ev({ type: EventType.THINKING_TEXT_MESSAGE_START }));
     const block = lastBlocks(s, "m1")[0];
@@ -195,7 +197,7 @@ describe("core-reducer — THINKING_TEXT_MESSAGE_*", () => {
     expect((block as { reasoningId: string }).reasoningId).toMatch(/^thinking:/);
   });
 
-  it("CONTENT appends delta to the currently-open thinking block", () => {
+  it("cONTENT appends delta to the currently-open thinking block", () => {
     let s = withAssistantMessage();
     s = reduce(s, ev({ type: EventType.THINKING_TEXT_MESSAGE_START }));
     s = reduce(s, ev({ type: EventType.THINKING_TEXT_MESSAGE_CONTENT, delta: "hmm " }));
@@ -204,7 +206,7 @@ describe("core-reducer — THINKING_TEXT_MESSAGE_*", () => {
     expect(block).toMatchObject({ kind: "reasoning", text: "hmm yes", streaming: true });
   });
 
-  it("END flips streaming off on the active thinking block", () => {
+  it("eND flips streaming off on the active thinking block", () => {
     let s = withAssistantMessage();
     s = reduce(s, ev({ type: EventType.THINKING_TEXT_MESSAGE_START }));
     s = reduce(s, ev({ type: EventType.THINKING_TEXT_MESSAGE_END }));
@@ -212,7 +214,7 @@ describe("core-reducer — THINKING_TEXT_MESSAGE_*", () => {
     expect(block).toMatchObject({ kind: "reasoning", streaming: false });
   });
 
-  it("CONTENT/END with no open thinking block is a no-op", () => {
+  it("cONTENT/END with no open thinking block is a no-op", () => {
     const s = reduce(
       INITIAL_VIEW_STATE,
       ev({
@@ -223,7 +225,7 @@ describe("core-reducer — THINKING_TEXT_MESSAGE_*", () => {
     expect(s).toBe(INITIAL_VIEW_STATE);
   });
 
-  it("START is a no-op without an assistant message to attach to", () => {
+  it("sTART is a no-op without an assistant message to attach to", () => {
     const s = reduce(
       INITIAL_VIEW_STATE,
       ev({

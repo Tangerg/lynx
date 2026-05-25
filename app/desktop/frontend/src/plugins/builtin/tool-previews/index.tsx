@@ -4,10 +4,11 @@
 // call. They go through the same SDK surface third-party plugins use, so
 // adding a new tool fn means writing a similar plugin — no special-casing.
 
+import type {ToolPreviewProps} from "@/plugins/sdk";
 import { PreviewFoot } from "@/components/tools/previews/PreviewFoot";
-import { cn } from "@/lib/utils";
 import { useDiff, useFileHead, useGrep, useTerminal } from "@/lib/queries";
-import { definePlugin, type ToolPreviewProps } from "@/plugins/sdk";
+import { cn } from "@/lib/utils";
+import { definePlugin  } from "@/plugins/sdk";
 
 const MAX_TERM_LINES = 9;
 const MAX_DIFF_ROWS = 8;

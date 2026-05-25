@@ -1,12 +1,14 @@
+import type {BaseEvent} from "@ag-ui/core";
+import type {AgentViewState} from "./viewState";
+import {  EventType } from "@ag-ui/core";
 import { beforeEach, describe, expect, it } from "vitest";
-import { EventType, type BaseEvent } from "@ag-ui/core";
-import { createHost } from "@/plugins/sdk/host";
 import { loadPlugin } from "@/plugins/sdk/definePlugin";
 import { usePluginErrorStore } from "@/plugins/sdk/errors";
+import { createHost } from "@/plugins/sdk/host";
+import { appendBlockToLatestAssistant, appendBlockToMessage } from "@/plugins/sdk/state";
 import { CUSTOM } from "./customEvents";
 import { reduce } from "./reducer";
-import { INITIAL_VIEW_STATE, type AgentViewState } from "./viewState";
-import { appendBlockToLatestAssistant, appendBlockToMessage } from "@/plugins/sdk/state";
+import {  INITIAL_VIEW_STATE } from "./viewState";
 
 // Cast helper — every event we craft is a single discriminated variant; the
 // reducer is happy with `BaseEvent` typing.
@@ -24,7 +26,7 @@ beforeEach(async () => {
 });
 
 describe("reducer — built-in events", () => {
-  it("RUN_STARTED flips running + records ids", () => {
+  it("rUN_STARTED flips running + records ids", () => {
     const next = reduce(
       INITIAL_VIEW_STATE,
       ev({
@@ -38,7 +40,7 @@ describe("reducer — built-in events", () => {
     expect(next.run.runId).toBe("r");
   });
 
-  it("RUN_FINISHED flips running off", () => {
+  it("rUN_FINISHED flips running off", () => {
     let s = reduce(
       INITIAL_VIEW_STATE,
       ev({
@@ -58,7 +60,7 @@ describe("reducer — built-in events", () => {
     expect(s.run.running).toBe(false);
   });
 
-  it("TEXT_MESSAGE_* builds an assistant message with one streaming text block", () => {
+  it("tEXT_MESSAGE_* builds an assistant message with one streaming text block", () => {
     let s: AgentViewState = INITIAL_VIEW_STATE;
     s = reduce(s, ev({ type: EventType.TEXT_MESSAGE_START, messageId: "m1", role: "assistant" }));
     s = reduce(s, ev({ type: EventType.TEXT_MESSAGE_CONTENT, messageId: "m1", delta: "hi " }));
@@ -70,7 +72,7 @@ describe("reducer — built-in events", () => {
     expect(s.messages[0].blocks).toEqual([{ kind: "text", text: "hi there", streaming: false }]);
   });
 
-  it("TOOL_CALL_* attaches a tool block to the parent message", () => {
+  it("tOOL_CALL_* attaches a tool block to the parent message", () => {
     let s: AgentViewState = INITIAL_VIEW_STATE;
     s = reduce(s, ev({ type: EventType.TEXT_MESSAGE_START, messageId: "m1", role: "assistant" }));
     s = reduce(
@@ -85,7 +87,7 @@ describe("reducer — built-in events", () => {
     s = reduce(s, ev({ type: EventType.TOOL_CALL_ARGS, toolCallId: "t1", delta: "pnpm test" }));
     s = reduce(s, ev({ type: EventType.TOOL_CALL_END, toolCallId: "t1" }));
 
-    expect(s.toolCalls["t1"]).toMatchObject({ fn: "bash", args: "pnpm test", status: "ok" });
+    expect(s.toolCalls.t1).toMatchObject({ fn: "bash", args: "pnpm test", status: "ok" });
     expect(s.messages[0].blocks).toEqual([{ kind: "tool", toolCallId: "t1" }]);
   });
 });
@@ -247,7 +249,7 @@ describe("reducer — plugin CUSTOM fallback", () => {
 });
 
 describe("reducer — run error / step finished", () => {
-  it("RUN_ERROR stores message + flips running off; RUN_STARTED clears it", () => {
+  it("rUN_ERROR stores message + flips running off; RUN_STARTED clears it", () => {
     let s = reduce(
       INITIAL_VIEW_STATE,
       ev({
@@ -278,7 +280,7 @@ describe("reducer — run error / step finished", () => {
     expect(s.error).toBeNull();
   });
 
-  it("STEP_FINISHED bumps step counter and clears matching activity", () => {
+  it("sTEP_FINISHED bumps step counter and clears matching activity", () => {
     let s: AgentViewState = INITIAL_VIEW_STATE;
     s = reduce(s, ev({ type: EventType.STEP_STARTED, stepName: "analyse" }));
     expect(s.run.activity).toBe("analyse");
@@ -289,7 +291,7 @@ describe("reducer — run error / step finished", () => {
 });
 
 describe("reducer — chunk variants", () => {
-  it("TEXT_MESSAGE_CHUNK materializes message on first chunk and appends deltas", () => {
+  it("tEXT_MESSAGE_CHUNK materializes message on first chunk and appends deltas", () => {
     let s: AgentViewState = INITIAL_VIEW_STATE;
     s = reduce(
       s,
@@ -312,7 +314,7 @@ describe("reducer — chunk variants", () => {
     expect(s.messages[0].blocks).toEqual([{ kind: "text", text: "hi world", streaming: true }]);
   });
 
-  it("TOOL_CALL_CHUNK materializes tool on first chunk; later chunks fill the name", () => {
+  it("tOOL_CALL_CHUNK materializes tool on first chunk; later chunks fill the name", () => {
     let s = reduce(
       INITIAL_VIEW_STATE,
       ev({
@@ -347,7 +349,7 @@ describe("reducer — chunk variants", () => {
 });
 
 describe("reducer — state snapshot / delta", () => {
-  it("STATE_SNAPSHOT replaces shared wholesale", () => {
+  it("sTATE_SNAPSHOT replaces shared wholesale", () => {
     const s = reduce(
       INITIAL_VIEW_STATE,
       ev({
@@ -358,7 +360,7 @@ describe("reducer — state snapshot / delta", () => {
     expect(s.shared).toEqual({ plan: ["a", "b"], counter: 1 });
   });
 
-  it("STATE_DELTA applies a JSON Patch to shared", () => {
+  it("sTATE_DELTA applies a JSON Patch to shared", () => {
     let s = reduce(
       INITIAL_VIEW_STATE,
       ev({
@@ -379,7 +381,7 @@ describe("reducer — state snapshot / delta", () => {
     expect(s.shared).toEqual({ counter: 5, list: ["a", "b"] });
   });
 
-  it("STATE_DELTA with a broken patch leaves shared unchanged", () => {
+  it("sTATE_DELTA with a broken patch leaves shared unchanged", () => {
     const s = reduce(
       INITIAL_VIEW_STATE,
       ev({

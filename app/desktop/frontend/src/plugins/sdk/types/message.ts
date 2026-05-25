@@ -8,9 +8,9 @@ import type { ContentBlockKind, ContentBlockMap } from "@/protocol/agui/viewStat
  * typed to exactly the variant whose `kind` matches K, so plugins get
  * autocomplete on the block payload fields.
  */
-export type ContentBlockRendererProps<K extends ContentBlockKind> = {
+export interface ContentBlockRendererProps<K extends ContentBlockKind> {
   block: ContentBlockMap[K];
-};
+}
 export type ContentBlockRenderer<K extends ContentBlockKind> = ComponentType<
   ContentBlockRendererProps<K>
 >;
@@ -21,7 +21,7 @@ export type ContentBlockRenderer<K extends ContentBlockKind> = ComponentType<
  * are `user`, `assistant`, `system`; a plugin can register more (e.g. a
  * `developer` role with a wrench icon).
  */
-export type MessageRoleSpec = {
+export interface MessageRoleSpec {
   /** Stable id — matches `Message.role`. */
   id: string;
   /** Header label shown next to the timestamp. */
@@ -34,4 +34,4 @@ export type MessageRoleSpec = {
    * with one of those or rely on default styling.
    */
   avatarVariant?: "msg-user" | "msg-agent" | string;
-};
+}

@@ -1,19 +1,19 @@
-import { create } from "zustand";
 import type { Attachment, ComposerMode } from "@/components/chat/Composer";
+import { create } from "zustand";
 
-type ComposerState = {
+interface ComposerState {
   value: string;
   mode: ComposerMode;
   attachments: Attachment[];
-};
+}
 
-type ComposerActions = {
+interface ComposerActions {
   setValue: (v: string) => void;
   setMode: (m: ComposerMode) => void;
   clear: () => void;
   removeAttachment: (i: number) => void;
   addAttachment: (a: Attachment) => void;
-};
+}
 
 export const useComposerStore = create<ComposerState & ComposerActions>((set) => ({
   value: "",

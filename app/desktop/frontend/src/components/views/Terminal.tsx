@@ -1,5 +1,5 @@
-import { cn } from "@/lib/utils";
 import type { TermLine } from "@/components/tools/previews";
+import { cn } from "@/lib/utils";
 
 // Terminal output viewer. Inline span runs colored by kind:
 //   prompt  → accent green (the "$" / "❯")

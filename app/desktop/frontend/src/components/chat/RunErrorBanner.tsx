@@ -1,4 +1,4 @@
-import { motion, AnimatePresence } from "motion/react";
+import { AnimatePresence, motion } from "motion/react";
 import { Icon } from "@/components/common";
 import { swift } from "@/lib/motion";
 import { useAgentSlice, useAgentStore } from "@/state/agentStore";

@@ -1,15 +1,15 @@
 // Built-in plugin: "Diff" workspace view — renders the diff for the
 // currently selected file (kept in useSessionStore.activeFile).
 
+import type { DiffRow } from "@/components/tools/previews";
 import { DataView, Icon, IconButton, ScrollArea } from "@/components/common";
 import { DiffView } from "@/components/views/DiffView";
 import { ViewHeader } from "@/components/views/ViewHeader";
 import { useDiff } from "@/lib/queries";
 import { definePlugin } from "@/plugins/sdk";
 import { useSessionStore } from "@/state/sessionStore";
-import type { DiffRow } from "@/components/tools/previews";
 
-type DiffStats = { added: number; removed: number; lineCount: number };
+interface DiffStats { added: number; removed: number; lineCount: number }
 
 // Real diff metadata isn't on the query result yet, so we derive what we can
 // from the rendered rows. Once the data layer surfaces per-file stats, swap

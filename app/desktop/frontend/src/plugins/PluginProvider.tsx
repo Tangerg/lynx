@@ -1,12 +1,13 @@
-import { useEffect, useState, type ReactNode } from "react";
+import type {ReactNode} from "react";
+import {  useEffect, useState } from "react";
 import { builtinPlugins } from "./builtin";
 import { installHostBridge } from "./hostBridge";
 import { loadPlugins, usePluginStore } from "./sdk";
 import { loadSideloadedPlugins, tagAllAsBuiltin } from "./sideload";
 
-type Props = {
+interface Props {
   children: ReactNode;
-};
+}
 
 /**
  * PluginProvider — startup orchestrator for plugins.

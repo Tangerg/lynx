@@ -1,8 +1,8 @@
 import { EmptyState, Icon, IconButton, ScrollArea } from "@/components/common";
-import { ViewHeader } from "@/components/views/ViewHeader";
 import { PlanList } from "@/components/views/PlanList";
-import { useAgentSlice } from "@/state/agentStore";
+import { ViewHeader } from "@/components/views/ViewHeader";
 import { definePlugin } from "@/plugins/sdk";
+import { useAgentSlice } from "@/state/agentStore";
 
 function PlanTab() {
   const plan = useAgentSlice((v) => v.plan);

@@ -1,6 +1,6 @@
+import type { PlanItem } from "@/protocol/agui/viewState";
 import { Icon } from "@/components/common";
 import { cn } from "@/lib/utils";
-import type { PlanItem } from "@/protocol/agui/viewState";
 
 // Plan-item check icon — shared between the inline PlanBlock and the
 // promoted PlanList workspace view. Encodes the three states:

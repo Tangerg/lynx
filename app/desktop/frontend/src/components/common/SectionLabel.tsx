@@ -1,10 +1,10 @@
 import type { CSSProperties, ReactNode } from "react";
 
-type Props = {
+interface Props {
   children: ReactNode;
   trailing?: ReactNode;
   style?: CSSProperties;
-};
+}
 
 // Mono-eyebrow heading used for sidebar sections + workspace-view
 // gutters. Keeps the "label voice" consistent across the app.

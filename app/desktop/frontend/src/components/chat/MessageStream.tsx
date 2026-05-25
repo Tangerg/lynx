@@ -1,22 +1,23 @@
-import { useCallback, useEffect, type Ref } from "react";
+import type {Ref} from "react";
+import type { PartCtx } from "./PartRenderer";
+import type { Message } from "@/protocol/agui/viewState";
 import { AnimatePresence, motion } from "motion/react";
+import {  useCallback, useEffect } from "react";
 import { StickToBottom, useStickToBottomContext } from "use-stick-to-bottom";
 import { enterUp } from "@/lib/motion";
 import { Slot } from "@/plugins/Slot";
-import type { Message } from "@/protocol/agui/viewState";
 import { MessageBlock } from "./MessageBlock";
-import type { PartCtx } from "./PartRenderer";
 
 // Chat scroll surface, backed by use-stick-to-bottom. `resetKey`
 // re-keys the subtree on session switch so a new thread lands at the
 // bottom. Follow state surfaces to the parent via ControlsRelay below.
 
-export type StreamControls = {
+export interface StreamControls {
   isAtBottom: boolean;
   scrollToBottom: () => void;
-};
+}
 
-type Props = {
+interface Props {
   messages: Message[];
   ctx: PartCtx;
   /** Re-key on change to reset scroll position + follow state. */
@@ -25,7 +26,7 @@ type Props = {
    *  forwards these to the JumpToBottomButton sibling. Pass a stable
    *  reference (e.g. a setState setter) — we call it from an effect. */
   onControlsChange?: (controls: StreamControls) => void;
-};
+}
 
 // Bridges StickToBottom's context out of the provider so ChatPanel can
 // render the jump-to-bottom button as a sibling (the button needs to

@@ -1,7 +1,7 @@
-import { describe, expect, it } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
-import { SettingsPage } from "./SettingsPage";
+import { describe, expect, it } from "vitest";
 import { definePlugin, loadPlugin } from "@/plugins/sdk";
+import { SettingsPage } from "./SettingsPage";
 
 async function loadPanes() {
   await loadPlugin(
@@ -26,7 +26,7 @@ async function loadPanes() {
   );
 }
 
-describe("SettingsPage", () => {
+describe("settingsPage", () => {
   it("shows the first pane by default and renders its body", async () => {
     await loadPanes();
     render(<SettingsPage />);

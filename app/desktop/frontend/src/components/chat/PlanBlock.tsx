@@ -1,5 +1,5 @@
-import { Icon } from "@/components/common";
 import type { PlanItem } from "@/protocol/agui/viewState";
+import { Icon } from "@/components/common";
 import { PlanCheck, planItemRow } from "./PlanCheck";
 
 // Plan block — shown when an assistant message describes a multi-step

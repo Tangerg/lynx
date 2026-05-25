@@ -4,16 +4,16 @@
 // convention: rail = keyboard-driven default).
 
 import { create } from "zustand";
-import { persist, createJSONStorage } from "zustand/middleware";
+import { createJSONStorage, persist } from "zustand/middleware";
 
-type LayoutState = {
+interface LayoutState {
   /** True = collapsed rail. False = expanded sidebar. */
   sidebarRail: boolean;
-};
+}
 
-type LayoutActions = {
+interface LayoutActions {
   toggleSidebar: () => void;
-};
+}
 
 export const useLayoutStore = create<LayoutState & LayoutActions>()(
   persist(

@@ -5,22 +5,23 @@
 // below; they do the active-session lookup + INITIAL_VIEW_STATE
 // fallback that every callsite needs.
 
-import { create } from "zustand";
 import type { BaseEvent } from "@ag-ui/core";
+import type {AgentViewState} from "@/protocol/agui/viewState";
+import { create } from "zustand";
 import { reduce } from "@/protocol/agui/reducer";
-import { INITIAL_VIEW_STATE, type AgentViewState } from "@/protocol/agui/viewState";
+import {  INITIAL_VIEW_STATE } from "@/protocol/agui/viewState";
 import { useSessionStore } from "./sessionStore";
 
 type StopFn = (() => void) | null;
 type SendFn = ((text: string) => void) | null;
 
-type SessionEntry = {
+interface SessionEntry {
   view: AgentViewState;
   stop: StopFn;
   send: SendFn;
-};
+}
 
-type AgentStore = {
+interface AgentStore {
   sessions: Record<string, SessionEntry>;
 
   /** Fold one AG-UI event into the named session's view state. */
@@ -35,7 +36,7 @@ type AgentStore = {
   setSend: (sessionId: string, fn: SendFn) => void;
   /** Dismiss the error banner for a session without resetting the rest. */
   clearError: (sessionId: string) => void;
-};
+}
 
 const emptyEntry = (): SessionEntry => ({
   view: INITIAL_VIEW_STATE,

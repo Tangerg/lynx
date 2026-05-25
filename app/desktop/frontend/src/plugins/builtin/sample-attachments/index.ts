@@ -6,7 +6,8 @@
 // Disabling this plugin (just removing it from the manifest) is enough to
 // hide the samples — useful for demos / screenshots.
 
-import { definePlugin, type ComposerAttachment } from "@/plugins/sdk";
+import type {ComposerAttachment} from "@/plugins/sdk";
+import {  definePlugin } from "@/plugins/sdk";
 
 const SAMPLES: ComposerAttachment[] = [
   { label: "src/api/auth.ts", icon: "file" },

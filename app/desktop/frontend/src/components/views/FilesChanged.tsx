@@ -1,12 +1,12 @@
+import type { FileChange } from "./types";
 import { Icon } from "@/components/common";
 import { cn } from "@/lib/utils";
-import type { FileChange } from "./types";
 
-type Props = {
+interface Props {
   files: FileChange[];
   activePath: string;
   onSelect: (path: string) => void;
-};
+}
 
 export function FilesChanged({ files, activePath, onSelect }: Props) {
   const totalAdded = files.reduce((s, f) => s + f.added, 0);

@@ -7,15 +7,15 @@
 // pick types from one entry point — domain boundaries matter for authors,
 // not consumers.
 
-export * from "./common";
-export * from "./tool";
-export * from "./message";
 export * from "./agui";
-export * from "./theme";
-export * from "./composer";
-export * from "./sidebar";
 export * from "./commands";
-export * from "./workspace";
-export * from "./infra";
+export * from "./common";
+export * from "./composer";
 export * from "./host";
+export * from "./infra";
+export * from "./message";
 export * from "./plugin";
+export * from "./sidebar";
+export * from "./theme";
+export * from "./tool";
+export * from "./workspace";

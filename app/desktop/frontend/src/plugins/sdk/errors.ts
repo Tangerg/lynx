@@ -15,7 +15,7 @@ import { create } from "zustand";
 
 export type PluginErrorSource = "setup" | "render" | "agui" | "command" | "other";
 
-export type PluginError = {
+export interface PluginError {
   id: number;
   timestamp: number;
   plugin: string;
@@ -23,19 +23,19 @@ export type PluginError = {
   message: string;
   /** Optional component stack / call site. */
   detail?: string;
-};
+}
 
-type ErrorStoreState = {
+interface ErrorStoreState {
   log: PluginError[];
   /** Monotonic counter for stable React keys. */
   nextId: number;
-};
+}
 
-type ErrorStoreActions = {
-  push(e: Omit<PluginError, "id" | "timestamp">): void;
-  clearFor(plugin: string): void;
-  clearAll(): void;
-};
+interface ErrorStoreActions {
+  push: (e: Omit<PluginError, "id" | "timestamp">) => void;
+  clearFor: (plugin: string) => void;
+  clearAll: () => void;
+}
 
 export const usePluginErrorStore = create<ErrorStoreState & ErrorStoreActions>((set, get) => ({
   log: [],

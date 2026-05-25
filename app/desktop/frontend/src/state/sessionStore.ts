@@ -9,11 +9,11 @@
 //     exist or may have changed on next boot.
 
 import { create } from "zustand";
-import { persist, createJSONStorage } from "zustand/middleware";
+import { createJSONStorage, persist } from "zustand/middleware";
 
-type MainViewTab = { id: string; title: string; icon?: string };
+interface MainViewTab { id: string; title: string; icon?: string }
 
-type SessionState = {
+interface SessionState {
   activeSessionId: string;
   tabIds: string[];
 
@@ -31,9 +31,9 @@ type SessionState = {
   activeFile: string;
   selectedToolId: string;
   expandedToolIds: Set<string>;
-};
+}
 
-type SessionActions = {
+interface SessionActions {
   selectTab: (id: string) => void;
   closeTab: (id: string) => void;
   openTab: (id: string) => void;
@@ -51,7 +51,7 @@ type SessionActions = {
   setSelectedToolId: (id: string) => void;
   toggleExpandedTool: (id: string) => void;
   expandTool: (id: string) => void;
-};
+}
 
 export const useSessionStore = create<SessionState & SessionActions>()(
   persist(

@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
 import type { Highlighter } from "shiki";
 import type { DiffRow } from "@/components/tools/previews";
-import { cn } from "@/lib/utils";
+import { useEffect, useMemo, useState } from "react";
 import { getHighlighter } from "@/lib/shiki";
+import { cn } from "@/lib/utils";
 import { resolveScheme } from "@/plugins/sdk";
 import { useThemeStore } from "@/state/themeStore";
 

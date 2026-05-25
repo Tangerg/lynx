@@ -2,14 +2,14 @@
 // Every fn → component mapping lives in a plugin (built-ins included);
 // there is no special-casing for "this is built-in".
 
+import type { ToolCall } from "@/protocol/agui/viewState";
 import { PluginBoundary } from "@/plugins/PluginBoundary";
 import { useToolPreview } from "@/plugins/sdk";
-import type { ToolCall } from "@/protocol/agui/viewState";
 
-type Props = {
+interface Props {
   tool: ToolCall;
   onOpenView: () => void;
-};
+}
 
 export function ToolPreview({ tool, onOpenView }: Props) {
   const Preview = useToolPreview(tool.fn);

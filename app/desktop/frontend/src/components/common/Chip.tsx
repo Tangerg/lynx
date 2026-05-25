@@ -1,13 +1,14 @@
 import type { ReactNode } from "react";
-import { Icon, type IconName } from "./Icon";
+import type {IconName} from "./Icon";
+import { Icon  } from "./Icon";
 
-type Props = {
+interface Props {
   icon?: IconName;
   children: ReactNode;
   /** Native tooltip — useful when the chip's text is truncated. */
   title?: string;
   onClose?: () => void;
-};
+}
 
 // A compact rounded label used for composer attachments, file refs, etc.
 //

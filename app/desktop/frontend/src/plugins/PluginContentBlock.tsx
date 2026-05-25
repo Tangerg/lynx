@@ -5,8 +5,8 @@
 // break the whole message.
 
 import type { ContentBlock } from "@/protocol/agui/viewState";
-import { useContentBlockRenderer } from "./sdk";
 import { PluginBoundary } from "./PluginBoundary";
+import { useContentBlockRenderer } from "./sdk";
 
 export function PluginContentBlock({ block }: { block: ContentBlock }) {
   const Renderer = useContentBlockRenderer(block.kind);
@@ -15,7 +15,7 @@ export function PluginContentBlock({ block }: { block: ContentBlock }) {
     <PluginBoundary plugin={`content-block:${block.kind}`} label={`${block.kind} block`}>
       {/* Renderer's prop type is per-kind; storage widens to the union root.
           Cast the block to `any` here so React passes it through. */}
-      {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+      {/* eslint-disable-next-line ts/no-explicit-any */}
       <Renderer block={block as any} />
     </PluginBoundary>
   );

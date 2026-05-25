@@ -4,12 +4,13 @@
 // Lives on the `chat.empty` layout slot so user plugins can replace or
 // supplement it (e.g. add a "Recent files" or "What's new" card).
 
-import { Icon, type IconName } from "@/components/common";
+import type {IconName} from "@/components/common";
+import { Icon  } from "@/components/common";
 import { useT } from "@/lib/i18n";
 import { definePlugin } from "@/plugins/sdk";
 import { useComposerStore } from "@/state/composerStore";
 
-type Suggestion = { icon: IconName; labelKey: string; promptKey: string };
+interface Suggestion { icon: IconName; labelKey: string; promptKey: string }
 
 // Suggestions are an array of (icon + i18n key pair) so labels + prompts
 // switch with the active locale. Keep order intentional (recognition

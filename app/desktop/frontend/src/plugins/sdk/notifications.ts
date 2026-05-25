@@ -10,21 +10,21 @@
 // Capped at MAX_ENTRIES — oldest dropped first. Same store pattern as
 // `usePluginErrorStore` for consistency.
 
-import { create } from "zustand";
 import type { NotificationEntry, NotificationLevel } from "./types";
+import { create } from "zustand";
 
 const MAX_ENTRIES = 200;
 
-type NotificationStoreState = {
+interface NotificationStoreState {
   log: NotificationEntry[];
   nextId: number;
-};
+}
 
-type NotificationStoreActions = {
-  push(entry: { plugin: string; level: NotificationLevel; message: string }): NotificationEntry;
-  dismiss(id: number): void;
-  clearAll(): void;
-};
+interface NotificationStoreActions {
+  push: (entry: { plugin: string; level: NotificationLevel; message: string }) => NotificationEntry;
+  dismiss: (id: number) => void;
+  clearAll: () => void;
+}
 
 export const useNotificationStore = create<NotificationStoreState & NotificationStoreActions>(
   (set, get) => ({

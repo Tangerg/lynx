@@ -10,7 +10,7 @@ import { openViewForTool } from "@/state/toolRouting";
  * The "open the full view" action lives in `openViewForTool` so the
  * callback doesn't have to be threaded down.
  */
-export type PartCtx = {
+export interface PartCtx {
   plan: PlanItem[];
   toolCalls: Record<string, ToolCall>;
   selectedToolId: string;
@@ -23,7 +23,7 @@ export type PartCtx = {
    * typed, so animating it back at them feels patronizing and slow.
    */
   instant?: boolean;
-};
+}
 
 /**
  * Render one content block.

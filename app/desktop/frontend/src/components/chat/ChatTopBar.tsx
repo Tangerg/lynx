@@ -3,23 +3,24 @@
 // view tab is active, ChatPanel swaps in its body. Hover === active
 // background; only the 2px accent underline marks the active tab.
 
-import { Icon, StatusDot, type IconName } from "@/components/common";
+import type {IconName} from "@/components/common";
+import { Icon,  StatusDot } from "@/components/common";
 import { cn } from "@/lib/utils";
 import { Slot } from "@/plugins/Slot";
 
-export type ChatTab = {
+export interface ChatTab {
   id: string;
   title: string;
   status: "running" | "waiting" | "idle";
-};
+}
 
-export type ViewTab = {
+export interface ViewTab {
   id: string;
   title: string;
   icon?: string;
-};
+}
 
-type Props = {
+interface Props {
   tabs: ChatTab[];
   viewTabs: ViewTab[];
   activeId: string;
@@ -27,7 +28,7 @@ type Props = {
   onSelectView: (id: string) => void;
   onCloseChat: (id: string) => void;
   onCloseView: (id: string) => void;
-};
+}
 
 // Shared tab pill — drives hover background, active accent underline,
 // interactive opt-out from the Wails drag region.

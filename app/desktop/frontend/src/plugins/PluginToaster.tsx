@@ -7,9 +7,10 @@
 // surface is event-only — third-party plugins don't depend on React's
 // portal / motion machinery.
 
+import type {PluginToastDetail} from "./sdk";
 import { useEffect } from "react";
-import { Toaster, toast } from "sonner";
-import { PLUGIN_TOAST_EVENT, type PluginToastDetail } from "./sdk";
+import { toast, Toaster } from "sonner";
+import { PLUGIN_TOAST_EVENT  } from "./sdk";
 
 export function PluginToaster() {
   useEffect(() => {

@@ -2,8 +2,8 @@
 // observability, or background service rather than a user-facing
 // component contribution.
 
-import type { ComponentType } from "react";
 import type { AbstractAgent } from "@ag-ui/client";
+import type { ComponentType } from "react";
 
 // ---------------------------------------------------------------------------
 // Notifications — persistent feed surfaced by host.notify().
@@ -17,7 +17,7 @@ export type NotificationLevel = "info" | "warn" | "error";
  * surface; the feed is what plugins (e.g. workspace view, settings pane)
  * read.
  */
-export type NotificationEntry = {
+export interface NotificationEntry {
   /** Monotonic id assigned by the host. */
   id: number;
   /** Plugin that called `host.notify`. */
@@ -28,7 +28,7 @@ export type NotificationEntry = {
   timestamp: number;
   /** Set when the user dismisses the toast / clears the feed entry. */
   dismissed?: boolean;
-};
+}
 
 // ---------------------------------------------------------------------------
 // Logger — structured logger passed to a plugin in setup().
@@ -40,12 +40,12 @@ export type LogLevel = "debug" | "info" | "warn" | "error";
  * One log event. `plugin` records who emitted it, so a UI that consumes
  * logs (notifications pane, dev panel) can group / filter by plugin.
  */
-export type LogEvent = {
+export interface LogEvent {
   plugin: string;
   level: LogLevel;
   args: unknown[];
   timestamp: number;
-};
+}
 
 /** Subscriber for log events. Errors thrown inside are caught by the host. */
 export type LogSubscriber = (event: LogEvent) => void;
@@ -86,12 +86,12 @@ export type RpcAfterResponseHook = (
  * Plugins can swap the underlying transport (HTTP, IPC, in-memory mock)
  * without callers having to know.
  */
-export type DataProviderSpec<T = unknown> = {
+export interface DataProviderSpec<T = unknown> {
   /** Query key — must match the consumer hook's expected key. */
   key: string;
   /** Async fetcher. Throw for failure; TanStack-Query handles the rest. */
   fetcher: () => Promise<T>;
-};
+}
 
 // ---------------------------------------------------------------------------
 // Agent sources — transports that drive the chat (HTTP, mock, IPC…).
@@ -106,14 +106,14 @@ export type DataProviderSpec<T = unknown> = {
  * first spec sorted by `priority`. Higher priority wins; a user plugin
  * can override the built-in by registering at priority > 0.
  */
-export type AgentSourceSpec = {
+export interface AgentSourceSpec {
   id: string;
   label: string;
   /** Higher wins. Built-in defaults use 0. */
   priority?: number;
   /** Build a fresh agent for each session. */
   factory: () => AbstractAgent;
-};
+}
 
 // ---------------------------------------------------------------------------
 // Plugin error fallback — UI shown when a plugin component throws.
@@ -123,21 +123,21 @@ export type AgentSourceSpec = {
  * Props passed to the registered error-fallback renderer when a plugin
  * component throws inside `PluginBoundary`.
  */
-export type PluginErrorFallbackProps = {
+export interface PluginErrorFallbackProps {
   /** Plugin name / context label, e.g. "view:diff" or "layout:app.main:chat". */
   plugin: string;
   /** Optional human-readable label that was passed to the boundary. */
   label?: string;
   /** The thrown Error. */
   error: Error;
-};
+}
 
-export type PluginErrorFallbackSpec = {
+export interface PluginErrorFallbackSpec {
   id: string;
   /** Sort hint — highest priority wins. Built-ins use 0; plugins ≥ 100. */
   priority?: number;
   component: ComponentType<PluginErrorFallbackProps>;
-};
+}
 
 // ---------------------------------------------------------------------------
 // Tasks — long-running operations visible in the status bar
@@ -145,16 +145,16 @@ export type PluginErrorFallbackSpec = {
 
 /** Handle returned by `host.tasks.start`. All methods are idempotent after a
  *  terminal transition (succeed / fail) — extra calls are no-ops. */
-export type TaskHandle = {
+export interface TaskHandle {
   /** Update mid-flight state. `progress` is 0..1 (or null for indeterminate). */
-  update(patch: { progress?: number | null; message?: string | null }): void;
+  update: (patch: { progress?: number | null; message?: string | null }) => void;
   /** Mark the task done. The status-bar entry briefly flashes "done" then disappears. */
-  succeed(message?: string): void;
+  succeed: (message?: string) => void;
   /** Mark the task failed. The error surfaces in the status bar; entry disappears after a beat. */
-  fail(error: unknown): void;
-};
+  fail: (error: unknown) => void;
+}
 
-export type TaskStartOptions = {
+export interface TaskStartOptions {
   /** Stable id — defaults to a generated one. Pass an id to allow cross-call updates. */
   id?: string;
   /** One-line label shown in the status bar. */
@@ -163,4 +163,4 @@ export type TaskStartOptions = {
   message?: string;
   /** 0..1 to start with a determinate bar; omit / null for an indeterminate spinner. */
   progress?: number | null;
-};
+}

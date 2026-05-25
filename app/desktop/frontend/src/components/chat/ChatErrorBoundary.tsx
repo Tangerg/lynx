@@ -1,5 +1,6 @@
-import { ErrorBoundary, type FallbackProps } from "react-error-boundary";
 import type { ReactNode } from "react";
+import type {FallbackProps} from "react-error-boundary";
+import { ErrorBoundary  } from "react-error-boundary";
 import { useT } from "@/lib/i18n";
 
 // ChatErrorBoundary — wraps the chat surface so a render error in one
@@ -12,7 +13,7 @@ import { useT } from "@/lib/i18n";
 // fallback UI and forwards `resetKey` so switching sessions clears a
 // stuck card.
 
-type Props = {
+interface Props {
   /** Identifier (typically the active session id) that resets the
    *  boundary on change. Lets the user "escape" a stuck session by
    *  switching tabs. */
@@ -20,7 +21,7 @@ type Props = {
   /** Optional label included in the console log. */
   label?: string;
   children: ReactNode;
-};
+}
 
 function ChatErrorFallback({ error, resetErrorBoundary }: FallbackProps) {
   const t = useT();

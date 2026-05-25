@@ -5,6 +5,7 @@
 // the streamControls bridge that lets the jump-to-bottom button know
 // when the user has scrolled away from the tail.
 
+import type {StreamControls} from "./MessageStream";
 import { useCallback, useEffect, useState } from "react";
 import { Slot } from "@/plugins/Slot";
 import { useAgentSlice } from "@/state/agentStore";
@@ -14,16 +15,16 @@ import { ChatErrorBoundary } from "./ChatErrorBoundary";
 import { Composer } from "./Composer";
 import { ComposerFooter } from "./ComposerFooter";
 import { JumpToBottomButton } from "./JumpToBottomButton";
-import { MessageStream, type StreamControls } from "./MessageStream";
+import { MessageStream  } from "./MessageStream";
 import { RunErrorBanner } from "./RunErrorBanner";
 import { SlashSuggestions } from "./SlashSuggestions";
 
-type Props = {
+interface Props {
   /** Send a plain user message through the live AG-UI agent. */
   onSend: (text: string) => void;
   /** Active session id — used to reset the error boundary + stream. */
   resetKey: string;
-};
+}
 
 export function ChatStream({ onSend, resetKey }: Props) {
   // ---- agent state (scoped to the current session) ----

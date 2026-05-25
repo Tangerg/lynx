@@ -1,10 +1,10 @@
 // Generic shapes that the inline tool previews consume. They're intentionally
 // not tied to AG-UI — any data source can map onto these.
 
-export type TermLine = {
+export interface TermLine {
   kind: "prompt" | "cmd" | "out" | "err" | "warn" | "mute" | "ok";
   text: string;
-};
+}
 
 export type DiffRow =
   | { type: "hunk"; text: string }
@@ -12,13 +12,13 @@ export type DiffRow =
   | { type: "add"; r: number; code: string }
   | { type: "del"; l: number; code: string };
 
-export type GrepMatch = {
+export interface GrepMatch {
   path: string;
   match: string;
-};
+}
 
-export type FileLine = {
+export interface FileLine {
   ln: string; // line number or marker like "···"
   code: string; // already-rendered HTML
   muted?: boolean;
-};
+}

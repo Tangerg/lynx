@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useRef } from "react";
+import type {IconName} from "@/components/common";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
-import { Chip, Icon, type IconName } from "@/components/common";
+import { useEffect, useMemo, useRef } from "react";
+import { Chip, Icon  } from "@/components/common";
 import { useT } from "@/lib/i18n";
-import { Slot } from "@/plugins/Slot";
 import {
   lookupComposerKeyBinding,
   normalizeCombo,
@@ -10,15 +10,16 @@ import {
   useComposerAttachmentSources,
   useComposerModes,
 } from "@/plugins/sdk";
+import { Slot } from "@/plugins/Slot";
 import { submitComposer } from "./submitComposer";
 
 // The mode is a free-form id — built-ins ship "agent" / "ask" / "plan" via
 // the composer-modes plugin, but third-party plugins can add their own.
 export type ComposerMode = string;
 
-export type Attachment = { label: string; icon?: IconName };
+export interface Attachment { label: string; icon?: IconName }
 
-type Props = {
+interface Props {
   onSend: (text: string) => void;
   value: string;
   onChange: (v: string) => void;
@@ -26,7 +27,7 @@ type Props = {
   onRemoveAttachment: (i: number) => void;
   mode: ComposerMode;
   onModeChange: (m: ComposerMode) => void;
-};
+}
 
 export function Composer({
   onSend,
@@ -49,7 +50,7 @@ export function Composer({
   // a random hint string.
   const placeholder = useMemo(
     () => pickComposerPlaceholder()?.text ?? t("composer.placeholder.fallback"),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react/exhaustive-deps
     [],
   );
 

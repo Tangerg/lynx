@@ -11,13 +11,13 @@
 // to the bottom" should leave a flex spacer or set its own
 // `margin-top: auto`.
 
+import type { SidebarSession } from "./types";
 import { Icon, IconButton, Panel } from "@/components/common";
 import { useT } from "@/lib/i18n";
 import { PluginBoundary } from "@/plugins/PluginBoundary";
 import { useSidebarRailItems } from "@/plugins/sdk";
-import type { SidebarSession } from "./types";
 
-type Props = {
+interface Props {
   // Forwarded purely so the rail-sessions plugin doesn't have to refetch
   // — sidebar callers already pass these for the expanded view. The
   // rail-sessions plugin reads these from stores/queries directly.
@@ -25,7 +25,7 @@ type Props = {
   activeSessionId: string;
   onSelect: (id: string) => void;
   onToggleRail: () => void;
-};
+}
 
 export function SidebarRail({ onToggleRail }: Props) {
   const t = useT();

@@ -9,9 +9,9 @@ import { SettingsPage } from "@/components/settings/SettingsPage";
 import { SidebarPanel } from "@/components/sidebar/SidebarPanel";
 import { useSessions } from "@/lib/queries";
 import { definePlugin } from "@/plugins/sdk";
-import { useDefaultChatSession } from "@/state/useDefaultChatSession";
 import { useLayoutStore } from "@/state/layoutStore";
 import { useSessionStore } from "@/state/sessionStore";
+import { useDefaultChatSession } from "@/state/useDefaultChatSession";
 
 function KernelChat() {
   const session = useDefaultChatSession();

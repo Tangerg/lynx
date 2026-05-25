@@ -4,11 +4,11 @@
 import type { ComponentType } from "react";
 import type { ToolCall } from "@/protocol/agui/viewState";
 
-export type ToolPreviewProps = {
+export interface ToolPreviewProps {
   tool: ToolCall;
   /** Promote the full tool view (terminal / diff / …) into a main-area tab. */
   onOpenView: () => void;
-};
+}
 export type ToolPreviewComponent = ComponentType<ToolPreviewProps>;
 
 /**
@@ -18,7 +18,7 @@ export type ToolPreviewComponent = ComponentType<ToolPreviewProps>;
  *
  * Common use cases: copy-command, rerun, open-file, view-stderr.
  */
-export type ToolActionSpec = {
+export interface ToolActionSpec {
   id: string;
   /** Icon name. */
   icon: string;
@@ -30,4 +30,4 @@ export type ToolActionSpec = {
   predicate?: (tool: ToolCall) => boolean;
   /** Click handler. */
   run: (tool: ToolCall) => void | Promise<void>;
-};
+}
