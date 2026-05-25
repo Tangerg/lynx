@@ -2,11 +2,10 @@
 // `definePlugin`. Also: declarative ahead-of-activation contributions
 // and the capability whitelist.
 
-import type { Disposable } from "./common";
 import type { ContributedCommand } from "./commands";
+import type { Disposable } from "./common";
 import type { PluginContext } from "./host";
-import type { SettingsPaneSpec } from "./workspace";
-import type { WorkspaceViewSpec } from "./workspace";
+import type { SettingsPaneSpec, WorkspaceViewSpec  } from "./workspace";
 
 /**
  * When this plugin should activate (i.e. when `setup` runs).
@@ -75,13 +74,13 @@ export type HostCapability =
  * the plugin has actually been activated; first interaction triggers the
  * activation and swaps the placeholder for the real component.
  */
-export type PluginContributes = {
+export interface PluginContributes {
   commands?: ContributedCommand[];
   views?: ContributedView[];
   settingsPanes?: ContributedSettingsPane[];
-};
+}
 
-export type PluginSpec = {
+export interface PluginSpec {
   /** Unique identifier. Built-ins use the `lyra.builtin.*` namespace. */
   name: string;
   /** Semver string. Surfaced in settings + error reports. */
@@ -120,9 +119,9 @@ export type PluginSpec = {
    * (Zustand store subscriptions, window event listeners, etc.).
    */
   setup: (ctx: PluginContext) => void | (() => void) | Promise<void | (() => void)>;
-};
+}
 
-export type LoadedPlugin = {
+export interface LoadedPlugin {
   spec: PluginSpec;
   disposables: Disposable[];
-};
+}

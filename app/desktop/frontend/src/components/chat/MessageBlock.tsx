@@ -2,14 +2,16 @@
 // registry. Agent rows take full-width prose with avatar to the left;
 // user rows are right-aligned bubbles with avatar to the right.
 
-import { Icon, type IconName } from "@/components/common";
+import type {PartCtx} from "./PartRenderer";
+import type {IconName} from "@/components/common";
+import type { Message } from "@/protocol/agui/viewState";
+import { Icon  } from "@/components/common";
 import { Avatar } from "@/components/common/Avatar";
 import { cn } from "@/lib/utils";
-import { Slot } from "@/plugins/Slot";
 import { useMessageRole } from "@/plugins/sdk";
-import type { Message } from "@/protocol/agui/viewState";
+import { Slot } from "@/plugins/Slot";
 import { MessageContext } from "./MessageContext";
-import { renderPart, type PartCtx } from "./PartRenderer";
+import {  renderPart } from "./PartRenderer";
 
 export function MessageBlock({ msg, ctx }: { msg: Message; ctx: PartCtx }) {
   const role = useMessageRole(msg.role);

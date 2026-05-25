@@ -13,7 +13,7 @@ const SKIP_TAGS = new Set(["pre", "code", "script", "style"]);
 export function rehypeFadeIn() {
   return (tree: Root) => {
     // Collect work in a first pass so we don't mutate while visiting.
-    type Job = { parent: Element | Root; index: number; replacement: Array<Element | Text> };
+    interface Job { parent: Element | Root; index: number; replacement: Array<Element | Text> }
     const jobs: Job[] = [];
 
     visit(tree, "text", (node: Text, index, parent) => {
@@ -26,7 +26,7 @@ export function rehypeFadeIn() {
         // ancestor info here from visit(). Cheap check: just the immediate
         // parent.
         const props = parent.properties ?? {};
-        if (props["dataNoFade"] || props["data-no-fade"]) return;
+        if (props.dataNoFade || props["data-no-fade"]) return;
       }
 
       const value = node.value;

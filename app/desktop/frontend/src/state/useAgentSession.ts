@@ -1,15 +1,15 @@
-import { useEffect, useRef } from "react";
 import type { AbstractAgent } from "@ag-ui/client";
+import { useEffect, useRef } from "react";
 import { useAgentStore } from "./agentStore";
 
 // Owns the AG-UI agent lifecycle for one session: instantiate, subscribe
 // to events → useAgentStore.applyEvent, expose imperative send / stop.
 // Changing sessionId rebuilds; the previous session's view state stays
 // in the store (so switching back shows what was there).
-export type AgentSession = {
+export interface AgentSession {
   send: (text: string) => void;
   stop: () => void;
-};
+}
 
 export function useAgentSession(makeAgent: () => AbstractAgent, sessionId: string): AgentSession {
   const agentRef = useRef<AbstractAgent | null>(null);

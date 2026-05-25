@@ -14,13 +14,13 @@ import { Fragment } from "react";
 import { useLayoutSlot } from "@/plugins/sdk";
 import { PluginBoundary } from "./PluginBoundary";
 
-type Props = {
+interface Props {
   name: string;
   /** When true, wrap the slot contents in `<div data-slot={name} className={className}/>`. */
   wrapper?: boolean;
   /** className on the wrapping `<div>` — implies `wrapper=true`. */
   className?: string;
-};
+}
 
 export function Slot({ name, wrapper, className }: Props) {
   const specs = useLayoutSlot(name);

@@ -8,15 +8,15 @@
 //     appendBlockToLatestAssistant({ kind: "cpuChart", series: value.series })
 //   );
 
+import type { StateUpdate } from "./types";
 import type {
   AgentViewState,
   ContentBlock,
-  ContentBlockMap,
   ContentBlockKind,
+  ContentBlockMap,
   Message,
   PlanItem,
 } from "@/protocol/agui/viewState";
-import type { StateUpdate } from "./types";
 
 /** Append a content block to a specific message by id. No-op if not found. */
 export function appendBlockToMessage<K extends ContentBlockKind>(

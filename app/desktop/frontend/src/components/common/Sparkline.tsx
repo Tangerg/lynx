@@ -8,7 +8,7 @@
 
 import type { CSSProperties } from "react";
 
-type Props = {
+interface Props {
   values: number[];
   width?: number;
   height?: number;
@@ -18,7 +18,7 @@ type Props = {
   fill?: boolean;
   /** Extra CSS — useful for vertical-align nudges next to text. */
   style?: CSSProperties;
-};
+}
 
 export function Sparkline({ values, width = 48, height = 14, color, fill = false, style }: Props) {
   if (values.length < 2) {

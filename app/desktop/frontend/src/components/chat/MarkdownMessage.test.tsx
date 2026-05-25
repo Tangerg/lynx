@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
 import { render } from "@testing-library/react";
+import { describe, expect, it } from "vitest";
 import { MarkdownMessage } from "./MarkdownMessage";
 
 // MarkdownMessage now renders through react-markdown + remark-gfm with our
@@ -16,7 +16,7 @@ import { MarkdownMessage } from "./MarkdownMessage";
 //      wrappers from rehypeFadeIn.
 //   5. With `instant`, no `.fade-in` wrappers are produced.
 
-describe("MarkdownMessage", () => {
+describe("markdownMessage", () => {
   it("renders an empty string without throwing", () => {
     const { container } = render(<MarkdownMessage text="" />);
     // react-markdown adds a wrapper div; the body is just empty.

@@ -8,7 +8,7 @@ export type MessageRole = "user" | "assistant" | "system";
 // Tool-call state, derived from TOOL_CALL_START / TOOL_CALL_END events.
 export type ToolCallStatus = "running" | "ok" | "err";
 
-export type ToolCall = {
+export interface ToolCall {
   id: string;
   fn: string; // toolCallName
   args: string; // accumulated arg text
@@ -19,16 +19,16 @@ export type ToolCall = {
   hits?: number;
   lines?: number;
   result?: string;
-};
+}
 
-export type PlanItem = {
+export interface PlanItem {
   id: number;
   pid: string;
   status: "done" | "doing" | "todo";
   text: string;
-};
+}
 
-export type SearchResult = { domain: string; title: string; time: string; snippet: string };
+export interface SearchResult { domain: string; title: string; time: string; snippet: string }
 
 // ContentBlock — discriminated union extended via TypeScript declaration
 // merging on `CustomContentBlockMap`. A plugin adds:
@@ -65,7 +65,7 @@ export type ContentBlockMap = BuiltinContentBlockMap & CustomContentBlockMap;
 export type ContentBlockKind = keyof ContentBlockMap;
 export type ContentBlock = ContentBlockMap[ContentBlockKind];
 
-export type Message = {
+export interface Message {
   id: string;
   role: MessageRole;
   who: string; // display name
@@ -78,9 +78,9 @@ export type Message = {
    * Renderers pick the activity types they understand and ignore the rest.
    */
   activities?: Record<string, unknown>;
-};
+}
 
-export type RunState = {
+export interface RunState {
   running: boolean;
   threadId: string | null;
   runId: string | null;
@@ -90,14 +90,14 @@ export type RunState = {
   tokens: { used: string; total: string };
   ctxPct: number;
   cost: string;
-};
+}
 
 /** Last error reported by the agent — RUN_ERROR event payload. UI shows
  *  this as a dismissible banner above the message stream. Cleared the
  *  next time RUN_STARTED fires. */
-export type RunError = { message: string; code?: string };
+export interface RunError { message: string; code?: string }
 
-export type AgentViewState = {
+export interface AgentViewState {
   messages: Message[];
   toolCalls: Record<string, ToolCall>;
   plan: PlanItem[];
@@ -110,7 +110,7 @@ export type AgentViewState = {
    * default; not all backends populate it.
    */
   shared: Record<string, unknown>;
-};
+}
 
 export const INITIAL_VIEW_STATE: AgentViewState = {
   messages: [],

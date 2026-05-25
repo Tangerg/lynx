@@ -1,5 +1,6 @@
+import type {VariantProps} from "class-variance-authority";
 import type { ReactNode } from "react";
-import { cva, type VariantProps } from "class-variance-authority";
+import { cva  } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
 // Small circular avatar with role-aware coloring. `variant` carries

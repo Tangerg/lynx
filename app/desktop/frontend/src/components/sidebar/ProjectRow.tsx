@@ -1,6 +1,6 @@
+import type { SidebarProject } from "./types";
 import { Icon } from "@/components/common";
 import { cn } from "@/lib/utils";
-import type { SidebarProject } from "./types";
 
 // Project row — same shape + hover/active rule as SessionRow:
 // hover === active background (surface-2 + fg ink); only the 3px

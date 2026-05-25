@@ -19,7 +19,7 @@
  * the existing stylesheets supply values. Pass `tokens` to take full
  * control of the palette.
  */
-export type ThemeSpec = {
+export interface ThemeSpec {
   /** Stable id. Persisted by `themeStore` to `lyra.theme`. */
   id: string;
   /** User-facing label. */
@@ -36,7 +36,7 @@ export type ThemeSpec = {
    * Example: `{ "color-bg": "#010102", "color-surface": "#181a1d" }`
    */
   tokens?: Record<string, string>;
-};
+}
 
 /**
  * An accent — a named color with one value per theme scheme. The active
@@ -45,11 +45,11 @@ export type ThemeSpec = {
  * Defaults: `light` falls back to `dark` when omitted, which is what
  * "monochrome-friendly" accents will want.
  */
-export type ThemeAccentSpec = {
+export interface ThemeAccentSpec {
   id: string;
   label: string;
   dark: string;
   light?: string;
   /** Sort hint — lower comes first. */
   order?: number;
-};
+}

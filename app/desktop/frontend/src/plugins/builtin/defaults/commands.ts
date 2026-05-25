@@ -9,15 +9,16 @@
 // it doesn't matter whether contributors load before or after — the
 // subscription catches up either way.
 
+import type { SidebarSession } from "@/components/sidebar/types";
+import type {Disposable, ThemeAccentSpec, WorkspaceViewSpec} from "@/plugins/sdk";
 import { queryClient } from "@/lib/queryClient";
 import {
   definePlugin,
-  usePluginStore,
-  type Disposable,
-  type ThemeAccentSpec,
-  type WorkspaceViewSpec,
+  
+  
+  usePluginStore
+  
 } from "@/plugins/sdk";
-import type { SidebarSession } from "@/components/sidebar/types";
 import { useLayoutStore } from "@/state/layoutStore";
 import { useSessionStore } from "@/state/sessionStore";
 import { useThemeStore } from "@/state/themeStore";

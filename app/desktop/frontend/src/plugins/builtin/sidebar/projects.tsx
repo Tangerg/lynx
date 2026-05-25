@@ -1,7 +1,7 @@
 import { DataView, Icon, SectionLabel } from "@/components/common";
 import { ProjectRow } from "@/components/sidebar/ProjectRow";
-import { useProjects } from "@/lib/queries";
 import { useT } from "@/lib/i18n";
+import { useProjects } from "@/lib/queries";
 import { definePlugin } from "@/plugins/sdk";
 import { sideListClasses } from "./styles";
 

@@ -2,19 +2,10 @@
 // plugin gets a Host bound to its name so registrations, errors, and
 // conflict warnings can be attributed back when it unloads.
 
-import { api } from "@/lib/http";
-import { addLocaleBundle } from "@/lib/i18n";
-import { startTask } from "@/state/tasksStore";
-import type { ContentBlockKind } from "@/protocol/agui/viewState";
-import { useSessionStore } from "@/state/sessionStore";
-import { getConfig, hasConfig, setConfig, useConfigStore, type ConfigValue } from "./config";
-import { safeCall } from "./errors";
-import { useNotificationStore } from "./notifications";
-import { usePluginStore } from "./registry";
-import { getOrCreateSlice } from "./stateSlice";
-import { createStorage } from "./storage";
+import type {ConfigValue} from "./config";
 import type {
   AgentSourceSpec,
+  BeforeUnloadHandler,
   CommandSpec,
   ComposerAttachmentSourceSpec,
   ComposerKeyBindingSpec,
@@ -30,27 +21,37 @@ import type {
   HostCapability,
   LayoutSlotSpec,
   LoadedPlugin,
+  LogLevel,
+  LogSubscriber,
   MessageRoleSpec,
   PluginErrorFallbackSpec,
   PluginSpec,
-  RouteSpec,
-  WorkspaceViewSpec,
-  SettingsPaneSpec,
-  BeforeUnloadHandler,
-  LogLevel,
-  LogSubscriber,
   ReadyHandler,
+  RouteSpec,
+  RpcAfterResponseHook,
+  RpcBeforeRequestHook,
+  SettingsPaneSpec,
   ShortcutSpec,
   SidebarRailItemSpec,
   SidebarSectionSpec,
   SlashCommandSpec,
-  RpcAfterResponseHook,
-  RpcBeforeRequestHook,
   ThemeAccentSpec,
   ThemeSpec,
   ToolActionSpec,
   ToolPreviewComponent,
+  WorkspaceViewSpec,
 } from "./types";
+import type { ContentBlockKind } from "@/protocol/agui/viewState";
+import { api } from "@/lib/http";
+import { addLocaleBundle } from "@/lib/i18n";
+import { useSessionStore } from "@/state/sessionStore";
+import { startTask } from "@/state/tasksStore";
+import {  getConfig, hasConfig, setConfig, useConfigStore } from "./config";
+import { safeCall } from "./errors";
+import { useNotificationStore } from "./notifications";
+import { usePluginStore } from "./registry";
+import { getOrCreateSlice } from "./stateSlice";
+import { createStorage } from "./storage";
 
 /**
  * Build a Host bound to a specific plugin. `register*` returns Disposables;
@@ -74,11 +75,11 @@ const mintId = (prefix: string) => `${prefix}#${++nextCompositeKeyId}`;
 // initialised at module-evaluation time. A bare `let pluginRuntime`
 // would hit a TDZ if any code path called the setter before the let was
 // reached (rare, but observable under Vitest's module loader).
-type PluginRuntime = {
-  load(spec: PluginSpec): Promise<void>;
-  unload(name: string): void;
-  reload(name: string): Promise<void>;
-};
+interface PluginRuntime {
+  load: (spec: PluginSpec) => Promise<void>;
+  unload: (name: string) => void;
+  reload: (name: string) => Promise<void>;
+}
 const runtimeSlot: { current: PluginRuntime | null } = { current: null };
 
 export function setPluginRuntime(rt: PluginRuntime): void {
@@ -454,7 +455,7 @@ function restrictHost(host: Host, pluginName: string, allowed: HostCapability[])
       denied[key as string] = createDenyProxy(pluginName, key as string);
     }
   }
-  return denied as Host;
+  return denied as unknown as Host;
 }
 
 function createDenyProxy(pluginName: string, namespace: string): unknown {
@@ -508,7 +509,7 @@ function emitLog(plugin: string, level: LogLevel, args: unknown[]): void {
 
 type ToastLevel = "info" | "warn" | "error";
 export const PLUGIN_TOAST_EVENT = "lyra:plugin-toast";
-export type PluginToastDetail = { message: string; level: ToastLevel };
+export interface PluginToastDetail { message: string; level: ToastLevel }
 
 function dispatchToast(message: string, level: ToastLevel): void {
   if (typeof window === "undefined") return;

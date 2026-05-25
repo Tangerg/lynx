@@ -4,12 +4,12 @@
 import { Icon, Panel, ScrollArea } from "@/components/common";
 import { useT } from "@/lib/i18n";
 import { PluginBoundary } from "@/plugins/PluginBoundary";
-import { Slot } from "@/plugins/Slot";
 import { useSidebarSections } from "@/plugins/sdk";
+import { Slot } from "@/plugins/Slot";
 
-type Props = {
+interface Props {
   onToggleRail: () => void;
-};
+}
 
 export function SidebarExpanded({ onToggleRail }: Props) {
   const t = useT();

@@ -1,10 +1,12 @@
 // EmptyState — universal "nothing here yet" surface. Vertically
 // centred; sizes via `size` prop ("compact" / "comfortable").
 
+import type {VariantProps} from "class-variance-authority";
 import type { CSSProperties, ReactNode } from "react";
-import { cva, type VariantProps } from "class-variance-authority";
+import type {IconName} from "./Icon";
+import { cva  } from "class-variance-authority";
 import { cn } from "@/lib/utils";
-import { Icon, type IconName } from "./Icon";
+import { Icon  } from "./Icon";
 
 const root = cva(
   "flex flex-col items-center justify-center text-center text-fg-faint select-none",

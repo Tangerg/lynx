@@ -1,10 +1,10 @@
 import { useMemo } from "react";
 import { useSlashCommands } from "@/plugins/sdk";
 
-type Props = {
+interface Props {
   value: string;
   onPick: (cmd: string) => void;
-};
+}
 
 /**
  * Auto-suggest panel that appears when the composer value starts with "/".

@@ -5,7 +5,7 @@
 
 import { IconMap, TocById } from "./iconMap";
 
-type Section = { title: string; ids: string[] };
+interface Section { title: string; ids: string[] }
 
 // Hand-curated list. Keep each row to ~6–10 brands so the grid stays tidy
 // at the settings pane width. Order within a section is intentional

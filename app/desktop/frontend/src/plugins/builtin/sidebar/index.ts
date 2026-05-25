@@ -1,5 +1,5 @@
-export { sidebarSearch } from "./search";
-export { sidebarProjects } from "./projects";
-export { sidebarSessions } from "./sessions";
 export { sidebarFooter } from "./footer";
-export { sidebarRailActions, sidebarRailSessions, sidebarRailBottom } from "./rail";
+export { sidebarProjects } from "./projects";
+export { sidebarRailActions, sidebarRailBottom, sidebarRailSessions } from "./rail";
+export { sidebarSearch } from "./search";
+export { sidebarSessions } from "./sessions";

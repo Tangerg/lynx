@@ -1,6 +1,6 @@
 import { DataView, Icon, IconButton, ScrollArea } from "@/components/common";
-import { ViewHeader } from "@/components/views/ViewHeader";
 import { Terminal } from "@/components/views/Terminal";
+import { ViewHeader } from "@/components/views/ViewHeader";
 import { useTerminal } from "@/lib/queries";
 import { definePlugin } from "@/plugins/sdk";
 

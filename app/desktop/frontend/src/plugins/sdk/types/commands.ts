@@ -8,7 +8,7 @@
  * types `/<cmd>`). Both can coexist for the same action — register both
  * if you want it reachable from both UIs.
  */
-export type CommandSpec = {
+export interface CommandSpec {
   /** Stable id. */
   id: string;
   /** Display label. */
@@ -34,7 +34,7 @@ export type CommandSpec = {
   when?: string;
   /** What to do. */
   run: () => void | Promise<void>;
-};
+}
 
 /**
  * Declarative command — same shape as CommandSpec minus the run handler.
@@ -69,7 +69,7 @@ export type ShortcutHandler = (event: KeyboardEvent) => void;
  * the same combo, the last one wins (with a warning) — same policy as the
  * other slots.
  */
-export type ShortcutSpec = {
+export interface ShortcutSpec {
   /** Combo string, e.g. "Mod+K". */
   key: string;
   /** What to do. */
@@ -81,4 +81,4 @@ export type ShortcutSpec = {
    * Defaults to false — most shortcuts shouldn't steal typing input.
    */
   allowInInputs?: boolean;
-};
+}

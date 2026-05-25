@@ -1,4 +1,5 @@
-import { cva, type VariantProps } from "class-variance-authority";
+import type {VariantProps} from "class-variance-authority";
+import { cva  } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
 // Small colored dot used as a status indicator (running / waiting / idle).

@@ -7,9 +7,9 @@
 // These tests act as the contract for theme plugins: register a theme
 // spec with tokens, switch to it, and the DOM reflects the palette.
 
-import { describe, expect, it, beforeEach } from "vitest";
-import { createHost } from "@/plugins/sdk/host";
 import type { Disposable } from "@/plugins/sdk/types";
+import { beforeEach, describe, expect, it } from "vitest";
+import { createHost } from "@/plugins/sdk/host";
 import { useThemeStore } from "@/state/themeStore";
 
 const sink: Disposable[] = [];

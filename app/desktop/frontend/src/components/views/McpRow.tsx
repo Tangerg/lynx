@@ -1,6 +1,7 @@
-import { Icon, type IconName } from "@/components/common";
-import { cn } from "@/lib/utils";
 import type { MCPServer } from "./types";
+import type {IconName} from "@/components/common";
+import { Icon  } from "@/components/common";
+import { cn } from "@/lib/utils";
 
 // MCP server row — appears in the Tools workspace view. Status pill
 // (On / Idle / Error) tinted with semantic tokens; icon background

@@ -2,35 +2,37 @@
 // (state, event) → state mapping; the table at the bottom is what
 // the plugin registers with `host.agui.onCore`.
 
-import { applyPatch, deepClone, type Operation } from "fast-json-patch";
-import {
-  EventType,
-  type ActivityDeltaEvent,
-  type ActivitySnapshotEvent,
-  type MessagesSnapshotEvent,
-  type ReasoningMessageChunkEvent,
-  type ReasoningMessageContentEvent,
-  type ReasoningMessageEndEvent,
-  type ReasoningMessageStartEvent,
-  type RunErrorEvent,
-  type RunStartedEvent,
-  type StateDeltaEvent,
-  type StateSnapshotEvent,
-  type StepFinishedEvent,
-  type StepStartedEvent,
-  type TextMessageChunkEvent,
-  type TextMessageContentEvent,
-  type TextMessageEndEvent,
-  type TextMessageStartEvent,
-  type ThinkingTextMessageContentEvent,
-  type ToolCallArgsEvent,
-  type ToolCallChunkEvent,
-  type ToolCallEndEvent,
-  type ToolCallResultEvent,
-  type ToolCallStartEvent,
-} from "@ag-ui/core";
+import type {ActivityDeltaEvent, ActivitySnapshotEvent, MessagesSnapshotEvent, ReasoningMessageChunkEvent, ReasoningMessageContentEvent, ReasoningMessageEndEvent, ReasoningMessageStartEvent, RunErrorEvent, RunStartedEvent, StateDeltaEvent, StateSnapshotEvent, StepFinishedEvent, StepStartedEvent, TextMessageChunkEvent, TextMessageContentEvent, TextMessageEndEvent, TextMessageStartEvent, ThinkingTextMessageContentEvent, ToolCallArgsEvent, ToolCallChunkEvent, ToolCallEndEvent, ToolCallResultEvent, ToolCallStartEvent} from "@ag-ui/core";
+import type {Operation} from "fast-json-patch";
 import type { CoreEventHandler } from "@/plugins/sdk";
 import type { AgentViewState, ContentBlock, Message, ToolCall } from "@/protocol/agui/viewState";
+import {
+  
+  
+  EventType
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+} from "@ag-ui/core";
+import { applyPatch, deepClone  } from "fast-json-patch";
 import {
   appendBlock,
   appendTextDelta,
@@ -403,11 +405,11 @@ const onActivityDelta = (state: AgentViewState, ev: ActivityDeltaEvent): AgentVi
 // history.
 
 type SnapshotMessage = MessagesSnapshotEvent["messages"][number];
-type SnapToolCall = {
+interface SnapToolCall {
   id: string;
   type: "function";
   function: { name: string; arguments: string };
-};
+}
 
 // Tool result — attach to its tool call entry. If the matching tool call
 // hasn't been seen yet (out-of-order snapshot), stash a minimal entry;

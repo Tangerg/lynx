@@ -1,6 +1,6 @@
-import { Icon, PillButton } from "@/components/common";
-import { PlanCheck, planItemRow } from "@/components/chat/PlanCheck";
 import type { PlanItem } from "@/protocol/agui/viewState";
+import { PlanCheck, planItemRow } from "@/components/chat/PlanCheck";
+import { Icon, PillButton } from "@/components/common";
 
 // Plan view workspace tab. Same per-item visual as the inline PlanBlock
 // — both share ./PlanCheck for the check icon + row styling.

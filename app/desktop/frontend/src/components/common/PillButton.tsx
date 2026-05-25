@@ -1,5 +1,6 @@
+import type {VariantProps} from "class-variance-authority";
 import type { ButtonHTMLAttributes, ReactNode } from "react";
-import { cva, type VariantProps } from "class-variance-authority";
+import { cva  } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
 // The project's primary CTA shape — outlined / solid / accent / danger

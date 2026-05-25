@@ -5,16 +5,17 @@
 // touching the others. Co-located here because each handler is a single
 // `host.agui.on(...)` call.
 
+import type {ApprovalRequest, ApprovalResult, CodeProposalPayload, PlanBlockAttachment, PlanSnapshot, SearchResultsPayload, TelemetryPayload} from "@/protocol/agui/customEvents";
 import { appendBlockToMessage, definePlugin, patchRun, setPlan } from "@/plugins/sdk";
 import {
-  CUSTOM,
-  type ApprovalRequest,
-  type ApprovalResult,
-  type CodeProposalPayload,
-  type PlanBlockAttachment,
-  type PlanSnapshot,
-  type SearchResultsPayload,
-  type TelemetryPayload,
+  
+  
+  
+  CUSTOM
+  
+  
+  
+  
 } from "@/protocol/agui/customEvents";
 
 export const approvalHandler = definePlugin({

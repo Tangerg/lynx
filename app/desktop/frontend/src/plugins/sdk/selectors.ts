@@ -1,10 +1,6 @@
 // Read side of the plugin registry — React hooks + imperative lookups
 // + lazy-activation helpers (placeholder → real component / handler).
 
-import { useMemo } from "react";
-import type { ContentBlockKind } from "@/protocol/agui/viewState";
-import { makeLazyActivator } from "../LazyActivator";
-import { usePluginStore } from "./registry";
 import type {
   AgentSourceSpec,
   CommandSpec,
@@ -36,6 +32,10 @@ import type {
   ToolPreviewComponent,
   WorkspaceViewSpec,
 } from "./types";
+import type { ContentBlockKind } from "@/protocol/agui/viewState";
+import { useMemo } from "react";
+import { makeLazyActivator } from "../LazyActivator";
+import { usePluginStore } from "./registry";
 
 // ---------------------------------------------------------------------------
 // Shared list-selector helper
@@ -47,8 +47,8 @@ import type {
 // selector stays a one-liner. The Map identity gates re-derivation — see
 // the useSlashCommands note below for the useMemo-on-Map discipline.
 
-type Owned<T> = { value: T; pluginName: string };
-type Ordered = { order?: number };
+interface Owned<T> { value: T; pluginName: string }
+interface Ordered { order?: number }
 
 function useSortedList<T extends Ordered>(map: Map<string, Owned<T>>): T[] {
   return useMemo(

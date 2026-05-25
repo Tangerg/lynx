@@ -1,20 +1,21 @@
-import { forwardRef, type CSSProperties, type ReactNode } from "react";
+import type {CSSProperties, ReactNode} from "react";
+import {  forwardRef  } from "react";
 import { cn } from "@/lib/utils";
 
-type Props = {
+interface Props {
   className?: string;
   style?: CSSProperties;
   children: ReactNode;
-};
+}
 
 // Vertical scroll container with our project-wide scrollbar styling.
 // Native scrollbar — Radix ScrollArea would add virtual track overhead
 // for no real benefit on the surfaces we use this on (Settings rail,
 // workspace view bodies, etc.).
-export const ScrollArea = forwardRef<HTMLDivElement, Props>(function ScrollArea(
+export const ScrollArea = forwardRef<HTMLDivElement, Props>((
   { className, style, children },
   ref,
-) {
+) => {
   return (
     <div
       ref={ref}

@@ -4,9 +4,9 @@
 // the expanded sidebar and only with each other.
 
 import { Icon, IconButton } from "@/components/common";
-import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n";
 import { useSessions } from "@/lib/queries";
+import { cn } from "@/lib/utils";
 import { definePlugin } from "@/plugins/sdk";
 import { useSessionStore } from "@/state/sessionStore";
 

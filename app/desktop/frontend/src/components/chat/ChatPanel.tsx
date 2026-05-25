@@ -10,19 +10,19 @@
 //            live AG-UI agent). Kept as a prop so ChatPanel itself
 //            has no opinion about *how* messages get to the agent.
 
+import type { ComposerMode } from "./Composer";
 import { Panel } from "@/components/common";
 import { useSessions } from "@/lib/queries";
 import { useSessionStore } from "@/state/sessionStore";
 import { ChatHeader } from "./ChatHeader";
 import { ChatStream } from "./ChatStream";
 import { WorkspaceViewBody } from "./WorkspaceViewBody";
-import type { ComposerMode } from "./Composer";
 
-type Props = {
+interface Props {
   /** Send a plain user message through the live AG-UI agent. Supplied by
    *  kernel-chat (or whatever container owns the agent session). */
   onSend: (text: string) => void;
-};
+}
 
 export function ChatPanel({ onSend }: Props) {
   const activeMainView = useSessionStore((s) => s.activeMainView);

@@ -1,15 +1,16 @@
-import { Component, type ErrorInfo, type ReactNode } from "react";
+import type {ErrorInfo, ReactNode} from "react";
+import { Component   } from "react";
 import { pickPluginErrorFallback, reportPluginError } from "./sdk";
 
-type Props = {
+interface Props {
   /** Plugin name — used for the fallback label and the console log. */
   plugin: string;
   /** Optional label shown to the user. Defaults to the plugin name. */
   label?: string;
   children: ReactNode;
-};
+}
 
-type State = { error: Error | null };
+interface State { error: Error | null }
 
 /**
  * Error boundary wrapped around every plugin-contributed component.

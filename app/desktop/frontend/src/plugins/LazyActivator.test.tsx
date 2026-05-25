@@ -1,6 +1,6 @@
-import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { createElement } from "react";
+import { describe, expect, it, vi } from "vitest";
 import { makeLazyActivator } from "./LazyActivator";
 
 describe("makeLazyActivator", () => {

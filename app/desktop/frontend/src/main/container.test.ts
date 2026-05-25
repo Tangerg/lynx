@@ -1,5 +1,5 @@
-import { describe, it, expect, afterEach } from "vitest";
 import type { ApprovalSubmission, PermissionGateway } from "@/domain";
+import { afterEach, describe, expect, it } from "vitest";
 import { getContainer, resetContainer, setContainer } from "./container";
 
 class FakePermissionGateway implements PermissionGateway {

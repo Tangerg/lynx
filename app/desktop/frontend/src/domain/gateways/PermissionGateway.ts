@@ -15,5 +15,5 @@
 import type { ApprovalSubmission } from "@/domain/models/Approval";
 
 export interface PermissionGateway {
-  submit(submission: ApprovalSubmission): Promise<void>;
+  submit: (submission: ApprovalSubmission) => Promise<void>;
 }

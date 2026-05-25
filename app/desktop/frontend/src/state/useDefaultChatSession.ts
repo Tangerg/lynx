@@ -2,10 +2,11 @@
 // the factory to useAgentSession. Switching activeSessionId rebuilds
 // the agent so the backend sees the new session id on first runAgent().
 
+import type {AgentSession} from "./useAgentSession";
 import { useCallback } from "react";
 import { pickAgentSource } from "@/plugins/sdk";
 import { useSessionStore } from "@/state/sessionStore";
-import { useAgentSession, type AgentSession } from "./useAgentSession";
+import {  useAgentSession } from "./useAgentSession";
 
 export function useDefaultChatSession(): AgentSession {
   const activeSessionId = useSessionStore((s) => s.activeSessionId);
@@ -19,7 +20,7 @@ export function useDefaultChatSession(): AgentSession {
       // the callback identity as its rebuild key. Re-creating the
       // callback when the active session changes tears down the old
       // agent and stands up a fresh one bound to the new session.
-      // eslint-disable-next-line react-hooks/exhaustive-deps
+      // eslint-disable-next-line react/exhaustive-deps
     }, [activeSessionId]),
     activeSessionId,
   );

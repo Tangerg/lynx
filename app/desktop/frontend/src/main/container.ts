@@ -7,9 +7,9 @@ import type { PermissionGateway } from "@/domain";
 import { HttpPermissionGateway } from "@/infra/http/HttpPermissionGateway";
 import { AGUI_BASE } from "@/lib/http";
 
-export type Container = {
+export interface Container {
   permission: PermissionGateway;
-};
+}
 
 function defaultContainer(): Container {
   return {

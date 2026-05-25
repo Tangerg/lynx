@@ -1,4 +1,6 @@
+import type {AgentViewState, Message} from "@/protocol/agui/viewState";
 import { describe, expect, it } from "vitest";
+import {  INITIAL_VIEW_STATE  } from "@/protocol/agui/viewState";
 import {
   appendBlockToLatestAssistant,
   appendBlockToMessage,
@@ -6,7 +8,6 @@ import {
   patchRun,
   setPlan,
 } from "./state";
-import { INITIAL_VIEW_STATE, type AgentViewState, type Message } from "@/protocol/agui/viewState";
 
 // Helpers to construct messages without typing the whole shape every time.
 const msg = (id: string, role: Message["role"] = "assistant"): Message => ({

@@ -2,19 +2,19 @@
 // side-effects at the bottom of this file mirror the active spec to
 // :root (inline CSS vars + theme-{scheme} class on <html>).
 
-import { create } from "zustand";
-import { persist, createJSONStorage } from "zustand/middleware";
 import type { Theme } from "@/components/sidebar/types";
+import { create } from "zustand";
+import { createJSONStorage, persist } from "zustand/middleware";
 // Direct registry import — going through the SDK barrel pulls in
 // host.ts which imports this file, creating a TDZ cycle under Vitest.
 import { usePluginStore } from "@/plugins/sdk/registry";
 
-type ThemeState = {
+interface ThemeState {
   theme: Theme;
   accent: string;
-};
+}
 
-type ThemeActions = {
+interface ThemeActions {
   setTheme: (theme: Theme) => void;
   /**
    * Flip to the opposite SCHEME (not just "dark"/"light" id) so custom
@@ -24,7 +24,7 @@ type ThemeActions = {
    */
   toggleTheme: () => void;
   setAccent: (accent: string) => void;
-};
+}
 
 export const useThemeStore = create<ThemeState & ThemeActions>()(
   persist(

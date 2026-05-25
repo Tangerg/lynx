@@ -1,14 +1,14 @@
 import { useMemo } from "react";
 import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
 import remarkBreaks from "remark-breaks";
 import remarkCjkFriendly from "remark-cjk-friendly";
+import remarkGfm from "remark-gfm";
 import remend from "remend";
-import { useSmoothText } from "@/lib/smoothText";
-import { rehypeFadeIn } from "@/lib/rehypeFadeIn";
 import { markdownComponents } from "@/components/chat/markdownComponents";
+import { rehypeFadeIn } from "@/lib/rehypeFadeIn";
+import { useSmoothText } from "@/lib/smoothText";
 
-type Props = {
+interface Props {
   text: string;
   streaming?: boolean;
   /**
@@ -17,7 +17,7 @@ type Props = {
    * animating it back feels patronizing.
    */
   instant?: boolean;
-};
+}
 
 // Stable plugin list — keeps react-markdown from treating each render
 // as a new plugin set. remarkBreaks turns a single \n into <br> (LLMs

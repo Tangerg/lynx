@@ -5,17 +5,17 @@
 // single array and never has to touch individual theme imports — the
 // `infrastructure` group stays uncluttered as more themes ship.
 
-import lyraDark from "../lyra-dark";
-import lyraLight from "../lyra-light";
+import type { PluginSpec } from "@/plugins/sdk";
 import atomOneDark from "../atom-one-dark";
 import atomOneLight from "../atom-one-light";
-import tokyoNightStorm from "../tokyo-night-storm";
-import tokyoNightLight from "../tokyo-night-light";
+import catppuccinLatte from "../catppuccin-latte";
+import catppuccinMocha from "../catppuccin-mocha";
+import lyraDark from "../lyra-dark";
+import lyraLight from "../lyra-light";
 import solarizedDark from "../solarized-dark";
 import solarizedLight from "../solarized-light";
-import catppuccinMocha from "../catppuccin-mocha";
-import catppuccinLatte from "../catppuccin-latte";
-import type { PluginSpec } from "@/plugins/sdk";
+import tokyoNightLight from "../tokyo-night-light";
+import tokyoNightStorm from "../tokyo-night-storm";
 
 export const builtinThemes: PluginSpec[] = [
   lyraDark,

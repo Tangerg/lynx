@@ -1,10 +1,10 @@
+import type { Disposable, PluginSpec } from "./types";
 import { satisfies } from "compare-versions";
 import { HOST_API_VERSION } from "./apiVersion";
 import { reportPluginError } from "./errors";
 import { createHost, setPluginRuntime } from "./host";
 import { usePluginStore } from "./registry";
 import { setActivator } from "./selectors";
-import type { Disposable, PluginSpec } from "./types";
 
 /**
  * Identity function — `definePlugin({ ... })` is what plugins default-export.
@@ -188,7 +188,7 @@ setPluginRuntime({
   reload: reloadPlugin,
 });
 
-type Skipped = { name: string; reason: string };
+interface Skipped { name: string; reason: string }
 
 /**
  * Kahn-style topological sort. Picks the ready node with the lowest input

@@ -7,13 +7,14 @@
 // Failures are isolated per plugin: a broken module logs + is skipped,
 // remaining plugins still load.
 
+import type {LoadResult} from "./sdk/definePlugin";
+import type { PluginSpec } from "./sdk/types";
 import { AGUI_BASE } from "@/lib/http";
-import { loadPlugin, type LoadResult } from "./sdk/definePlugin";
+import { loadPlugin  } from "./sdk/definePlugin";
 import { reportPluginError } from "./sdk/errors";
 import { usePluginStore } from "./sdk/registry";
-import type { PluginSpec } from "./sdk/types";
 
-type SideloadInfo = { id: string; url: string };
+interface SideloadInfo { id: string; url: string }
 
 /**
  * Track where each plugin came from so the Plugins settings pane can mark

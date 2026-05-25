@@ -63,14 +63,14 @@ function NotificationsTab() {
   );
 }
 
-type RowProps = {
+interface RowProps {
   level: "info" | "warn" | "error";
   message: string;
   plugin: string;
   timestamp: number;
   dismissed?: boolean;
   onDismiss: () => void;
-};
+}
 
 function NotificationRow({ level, message, plugin, timestamp, dismissed, onDismiss }: RowProps) {
   const dotColor =

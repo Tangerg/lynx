@@ -19,7 +19,7 @@ type Node =
 
 export type WhenContext = Record<string, unknown>;
 
-const ID_CHAR = /[A-Za-z0-9_.]/;
+const ID_CHAR = /[\w.]/;
 
 function tokenize(s: string): Token[] {
   const out: Token[] = [];

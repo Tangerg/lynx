@@ -1,12 +1,12 @@
+import type { SidebarSession } from "./types";
 import { Icon, StatusDot } from "@/components/common";
 import { cn } from "@/lib/utils";
-import type { SidebarSession } from "./types";
 
-type Props = {
+interface Props {
   session: SidebarSession;
   active: boolean;
   onSelect: (id: string) => void;
-};
+}
 
 // Session row — sidebar list item.
 //

@@ -1,5 +1,8 @@
-import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
-import { EventType, type BaseEvent } from "@ag-ui/core";
+import type {BaseEvent} from "@ag-ui/core";
+import type { Disposable, ToolPreviewComponent } from "./types";
+import {  EventType } from "@ag-ui/core";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { INITIAL_VIEW_STATE } from "@/protocol/agui/viewState";
 import { useConfigStore } from "./config";
 import { createHost } from "./host";
 import { useNotificationStore } from "./notifications";
@@ -22,8 +25,6 @@ import {
   pickComposerPlaceholder,
   pickPluginErrorFallback,
 } from "./selectors";
-import { INITIAL_VIEW_STATE } from "@/protocol/agui/viewState";
-import type { Disposable, ToolPreviewComponent } from "./types";
 
 // A throwaway component used for `tool.registerPreview` calls. It doesn't get
 // mounted in these tests — we only care about identity.
@@ -61,7 +62,7 @@ describe("plugin registry", () => {
     }
   });
 
-  it("Disposable.dispose removes the entry — but only if the owner matches", () => {
+  it("disposable.dispose removes the entry — but only if the owner matches", () => {
     const sink: Disposable[] = [];
     const d = createHost("alpha", sink).tool.registerPreview("bash", StubPreview);
     expect(usePluginStore.getState().toolPreviews.has("bash")).toBe(true);
@@ -142,7 +143,7 @@ describe("plugin registry", () => {
     }));
     host.agui.onCore(EventType.RUN_STARTED, (s) => ({
       ...s,
-      run: { ...s.run, threadId: s.run.threadId + "b" },
+      run: { ...s.run, threadId: `${s.run.threadId  }b` },
     }));
 
     const handlers = lookupCoreEventHandlers(EventType.RUN_STARTED);

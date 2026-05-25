@@ -11,19 +11,19 @@
 // Slices live until the process exits (no per-plugin unload — they can
 // be useful across plugin restarts) but the registry is reset in tests.
 
-import { useSyncExternalStore } from "react";
 import type { Disposable } from "./types";
+import { useSyncExternalStore } from "react";
 
-export type StateSlice<T> = {
+export interface StateSlice<T> {
   /** Current value. */
-  get(): T;
+  get: () => T;
   /** Set or update the value; listeners notified when it changes by Object.is. */
-  set(next: T | ((prev: T) => T)): void;
+  set: (next: T | ((prev: T) => T)) => void;
   /** Subscribe to changes; returns a Disposable. */
-  subscribe(listener: (state: T) => void): Disposable;
+  subscribe: (listener: (state: T) => void) => Disposable;
   /** React hook — selector pattern, identical to a zustand store. */
-  useStore<U = T>(selector?: (state: T) => U): U;
-};
+  useStore: <U = T>(selector?: (state: T) => U) => U;
+}
 
 // Implementation. Kept hand-written (not `create()` from zustand) because:
 //   1. Each slice is a new instance; using zustand here would mean shipping

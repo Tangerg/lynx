@@ -20,9 +20,9 @@
 // edit it here — but explain the reason in the relevant ARCHITECTURE.md
 // section so the rule stays consistent with intent.
 
-import { describe, it, expect } from "vitest";
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
+import { describe, expect, it } from "vitest";
 
 const SRC_ROOT = resolve(__dirname, "..");
 
@@ -38,7 +38,7 @@ function walk(dir: string, out: string[] = []): string[] {
     const stat = statSync(full);
     if (stat.isDirectory()) {
       walk(full, out);
-    } else if (/\.(ts|tsx)$/.test(entry) && !/\.test\.tsx?$/.test(entry)) {
+    } else if (/\.(?:ts|tsx)$/.test(entry) && !/\.test\.tsx?$/.test(entry)) {
       out.push(full);
     }
   }
@@ -49,10 +49,9 @@ function walk(dir: string, out: string[] = []): string[] {
 // Static imports only — dynamic `import(...)` is allowed in this codebase
 // (plugin sideloader uses it deliberately) and isn't a layering concern.
 function staticImports(src: string): string[] {
-  const re = /^\s*import\s+(?:[^"';]+\s+from\s+)?["']([^"']+)["']/gm;
+  const re = /^\s*import\s+(?:[^"'\s;]+\s+from\s+)?["']([^"']+)["']/gm;
   const out: string[] = [];
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(src)) !== null) out.push(m[1]);
+  for (const m of src.matchAll(re)) out.push(m[1]);
   return out;
 }
 
@@ -74,14 +73,14 @@ const INTERNAL_NOT_DOMAIN = [
 // we forbid in certain layers).
 const FORBID_FETCH_IN_DOMAIN = [/\bfetch\s*\(/, /localStorage\./, /sessionStorage\./];
 
-type Rule = {
+interface Rule {
   layer: string;
   files: string[];
   /** A spec is forbidden if any of these regexes match. */
   forbiddenImports: RegExp[];
   /** Extra source-text checks (raw string match). Used for fetch() etc. */
   forbiddenSource?: RegExp[];
-};
+}
 
 function assertRule(rule: Rule) {
   const violations: string[] = [];
@@ -103,7 +102,7 @@ function assertRule(rule: Rule) {
     }
   }
   if (violations.length > 0) {
-    throw new Error(`Architecture rule violated in ${rule.layer}:\n` + violations.join("\n"));
+    throw new Error(`Architecture rule violated in ${rule.layer}:\n${  violations.join("\n")}`);
   }
 }
 

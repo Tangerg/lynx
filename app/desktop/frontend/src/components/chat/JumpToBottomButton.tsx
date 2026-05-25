@@ -1,10 +1,10 @@
 import { Icon } from "@/components/common";
 import { cn } from "@/lib/utils";
 
-type Props = {
+interface Props {
   visible: boolean;
   onClick: () => void;
-};
+}
 
 // Floating "scroll to bottom" affordance. Renders inside the composer
 // area (positioned above the composer card) so it never overlaps the

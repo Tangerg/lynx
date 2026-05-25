@@ -2,11 +2,12 @@
 // Hidden when no task exists; expands to a popover listing each entry
 // when the user clicks.
 
+import type {TaskEntry, TaskStatus} from "@/state/tasksStore";
 import * as Popover from "@radix-ui/react-popover";
 import { Icon } from "@/components/common";
 import { cn } from "@/lib/utils";
 import { definePlugin } from "@/plugins/sdk";
-import { useTasksStore, type TaskEntry, type TaskStatus } from "@/state/tasksStore";
+import {   useTasksStore } from "@/state/tasksStore";
 
 // Glyph + tint by task status. `running` uses a generic spark + a pulse
 // animation (applied at render time) to fake a lightweight spinner.

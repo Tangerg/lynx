@@ -6,8 +6,8 @@
 // register their own shortcuts; this plugin's job is just to mount the
 // global key listener.
 
-import { ShortcutsProvider } from "@/plugins/ShortcutsProvider";
 import { definePlugin } from "@/plugins/sdk";
+import { ShortcutsProvider } from "@/plugins/ShortcutsProvider";
 
 export default definePlugin({
   name: "lyra.builtin.shortcuts",

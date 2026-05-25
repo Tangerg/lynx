@@ -4,18 +4,18 @@
 // scrollable tree, terminal lines — different layouts per surface).
 
 import type { ReactNode } from "react";
-import { EmptyState } from "./EmptyState";
 import type { IconName } from "./Icon";
+import { EmptyState } from "./EmptyState";
 import { SkeletonList } from "./Skeleton";
 
-type EmptyConfig = {
+interface EmptyConfig {
   icon?: IconName;
   title: string;
   sub?: string;
   size?: "compact" | "comfortable";
-};
+}
 
-type Props<T> = {
+interface Props<T> {
   /** Query result. `undefined` is treated the same as `null` / empty list. */
   items: T[] | undefined;
   /** True while the underlying query is loading for the first time. */
@@ -29,7 +29,7 @@ type Props<T> = {
   empty?: EmptyConfig;
   /** Renderer for the success branch — receives the non-empty items list. */
   children: (items: T[]) => ReactNode;
-};
+}
 
 export function DataView<T>({ items, isLoading, skeletonCount = 4, empty, children }: Props<T>) {
   if (isLoading) return <SkeletonList count={skeletonCount} />;

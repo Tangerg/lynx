@@ -3,9 +3,9 @@
 // action implementations; adding a new slot is a two-file edit
 // (this file + registry.ts) instead of one file scrolled.
 
-import type { ContentBlockKind } from "@/protocol/agui/viewState";
 import type {
   AgentSourceSpec,
+  BeforeUnloadHandler,
   CommandSpec,
   ComposerAttachmentSourceSpec,
   ComposerKeyBindingSpec,
@@ -21,7 +21,6 @@ import type {
   DataProviderSpec,
   LayoutSlotSpec,
   LoadedPlugin,
-  BeforeUnloadHandler,
   LogSubscriber,
   MessageRoleSpec,
   PluginErrorFallbackSpec,
@@ -41,10 +40,11 @@ import type {
   ToolPreviewComponent,
   WorkspaceViewSpec,
 } from "./types";
+import type { ContentBlockKind } from "@/protocol/agui/viewState";
 
-export type Owned<T> = { pluginName: string; value: T };
+export interface Owned<T> { pluginName: string; value: T }
 
-export type PluginStoreState = {
+export interface PluginStoreState {
   loaded: Map<string, LoadedPlugin>;
   toolPreviews: Map<string, Owned<ToolPreviewComponent>>;
   toolActions: Map<string, Owned<ToolActionSpec>>;
@@ -117,149 +117,149 @@ export type PluginStoreState = {
   // text + a badge count; document.title is derived: `[n] base`.
   windowTitle: string;
   windowBadge: number;
-};
+}
 
-export type PluginStoreActions = {
-  registerLoaded(plugin: LoadedPlugin): void;
-  unload(pluginName: string): void;
+export interface PluginStoreActions {
+  registerLoaded: (plugin: LoadedPlugin) => void;
+  unload: (pluginName: string) => void;
 
-  addToolPreview(pluginName: string, fn: string, c: ToolPreviewComponent): void;
-  removeToolPreview(pluginName: string, fn: string): void;
+  addToolPreview: (pluginName: string, fn: string, c: ToolPreviewComponent) => void;
+  removeToolPreview: (pluginName: string, fn: string) => void;
 
-  addToolAction(pluginName: string, spec: ToolActionSpec): void;
-  removeToolAction(pluginName: string, id: string): void;
+  addToolAction: (pluginName: string, spec: ToolActionSpec) => void;
+  removeToolAction: (pluginName: string, id: string) => void;
 
-  addToolIcon(pluginName: string, fn: string, icon: string): void;
-  removeToolIcon(pluginName: string, fn: string): void;
+  addToolIcon: (pluginName: string, fn: string, icon: string) => void;
+  removeToolIcon: (pluginName: string, fn: string) => void;
 
-  addContentBlock(
+  addContentBlock: (
     pluginName: string,
     kind: string,
     r: ContentBlockRenderer<ContentBlockKind>,
-  ): void;
-  removeContentBlock(pluginName: string, kind: string): void;
+  ) => void;
+  removeContentBlock: (pluginName: string, kind: string) => void;
 
-  addCustomEventHandler(
+  addCustomEventHandler: (
     pluginName: string,
     name: string,
     id: string,
     h: CustomEventHandler<unknown>,
-  ): void;
-  removeCustomEventHandler(pluginName: string, id: string): void;
+  ) => void;
+  removeCustomEventHandler: (pluginName: string, id: string) => void;
 
-  addSlashCommand(pluginName: string, cmd: string, spec: SlashCommandSpec): void;
-  removeSlashCommand(pluginName: string, cmd: string): void;
+  addSlashCommand: (pluginName: string, cmd: string, spec: SlashCommandSpec) => void;
+  removeSlashCommand: (pluginName: string, cmd: string) => void;
 
-  addSettingsPane(pluginName: string, spec: SettingsPaneSpec): void;
-  removeSettingsPane(pluginName: string, id: string): void;
+  addSettingsPane: (pluginName: string, spec: SettingsPaneSpec) => void;
+  removeSettingsPane: (pluginName: string, id: string) => void;
 
-  addCoreEventHandler(
+  addCoreEventHandler: (
     pluginName: string,
     eventType: string,
     id: string,
     handler: CoreEventHandler,
-  ): void;
-  removeCoreEventHandler(pluginName: string, eventType: string, id: string): void;
+  ) => void;
+  removeCoreEventHandler: (pluginName: string, eventType: string, id: string) => void;
 
-  addLayoutSlot(pluginName: string, slot: string, spec: LayoutSlotSpec): void;
-  removeLayoutSlot(pluginName: string, slot: string, id: string): void;
+  addLayoutSlot: (pluginName: string, slot: string, spec: LayoutSlotSpec) => void;
+  removeLayoutSlot: (pluginName: string, slot: string, id: string) => void;
 
-  addTheme(pluginName: string, spec: ThemeSpec): void;
-  removeTheme(pluginName: string, id: string): void;
+  addTheme: (pluginName: string, spec: ThemeSpec) => void;
+  removeTheme: (pluginName: string, id: string) => void;
 
-  addAccent(pluginName: string, spec: ThemeAccentSpec): void;
-  removeAccent(pluginName: string, id: string): void;
+  addAccent: (pluginName: string, spec: ThemeAccentSpec) => void;
+  removeAccent: (pluginName: string, id: string) => void;
 
-  addRoute(pluginName: string, spec: RouteSpec): void;
-  removeRoute(pluginName: string, id: string): void;
+  addRoute: (pluginName: string, spec: RouteSpec) => void;
+  removeRoute: (pluginName: string, id: string) => void;
 
-  addShortcut(pluginName: string, spec: ShortcutSpec): void;
-  removeShortcut(pluginName: string, key: string): void;
+  addShortcut: (pluginName: string, spec: ShortcutSpec) => void;
+  removeShortcut: (pluginName: string, key: string) => void;
 
-  addComposerStatus(pluginName: string, spec: ComposerStatusSpec): void;
-  removeComposerStatus(pluginName: string, id: string): void;
+  addComposerStatus: (pluginName: string, spec: ComposerStatusSpec) => void;
+  removeComposerStatus: (pluginName: string, id: string) => void;
 
-  addComposerMode(pluginName: string, spec: ComposerModeSpec): void;
-  removeComposerMode(pluginName: string, id: string): void;
+  addComposerMode: (pluginName: string, spec: ComposerModeSpec) => void;
+  removeComposerMode: (pluginName: string, id: string) => void;
 
-  addComposerPlaceholder(pluginName: string, spec: ComposerPlaceholderSpec): void;
-  removeComposerPlaceholder(pluginName: string, id: string): void;
+  addComposerPlaceholder: (pluginName: string, spec: ComposerPlaceholderSpec) => void;
+  removeComposerPlaceholder: (pluginName: string, id: string) => void;
 
-  addComposerAttachmentSource(pluginName: string, spec: ComposerAttachmentSourceSpec): void;
-  removeComposerAttachmentSource(pluginName: string, id: string): void;
+  addComposerAttachmentSource: (pluginName: string, spec: ComposerAttachmentSourceSpec) => void;
+  removeComposerAttachmentSource: (pluginName: string, id: string) => void;
 
-  addComposerKeyBinding(pluginName: string, spec: ComposerKeyBindingSpec): void;
-  removeComposerKeyBinding(pluginName: string, key: string): void;
+  addComposerKeyBinding: (pluginName: string, spec: ComposerKeyBindingSpec) => void;
+  removeComposerKeyBinding: (pluginName: string, key: string) => void;
 
-  addSidebarSection(pluginName: string, spec: SidebarSectionSpec): void;
-  removeSidebarSection(pluginName: string, id: string): void;
+  addSidebarSection: (pluginName: string, spec: SidebarSectionSpec) => void;
+  removeSidebarSection: (pluginName: string, id: string) => void;
 
-  addAgentSource(pluginName: string, spec: AgentSourceSpec): void;
-  removeAgentSource(pluginName: string, id: string): void;
+  addAgentSource: (pluginName: string, spec: AgentSourceSpec) => void;
+  removeAgentSource: (pluginName: string, id: string) => void;
 
-  addCommand(pluginName: string, spec: CommandSpec): void;
-  removeCommand(pluginName: string, id: string): void;
+  addCommand: (pluginName: string, spec: CommandSpec) => void;
+  removeCommand: (pluginName: string, id: string) => void;
 
-  addDeclaredCommand(pluginName: string, spec: ContributedCommand): void;
-  removeDeclaredCommand(pluginName: string, id: string): void;
-  removeDeclaredCommandsBy(pluginName: string): void;
+  addDeclaredCommand: (pluginName: string, spec: ContributedCommand) => void;
+  removeDeclaredCommand: (pluginName: string, id: string) => void;
+  removeDeclaredCommandsBy: (pluginName: string) => void;
 
-  addDeclaredView(pluginName: string, spec: ContributedView): void;
-  removeDeclaredViewsBy(pluginName: string): void;
+  addDeclaredView: (pluginName: string, spec: ContributedView) => void;
+  removeDeclaredViewsBy: (pluginName: string) => void;
 
-  addDeclaredSettingsPane(pluginName: string, spec: ContributedSettingsPane): void;
-  removeDeclaredSettingsPanesBy(pluginName: string): void;
+  addDeclaredSettingsPane: (pluginName: string, spec: ContributedSettingsPane) => void;
+  removeDeclaredSettingsPanesBy: (pluginName: string) => void;
 
-  addPendingActivation(spec: PluginSpec, events: string[]): void;
-  removePendingActivation(name: string): void;
+  addPendingActivation: (spec: PluginSpec, events: string[]) => void;
+  removePendingActivation: (name: string) => void;
 
-  addDataProvider(pluginName: string, spec: DataProviderSpec): void;
-  removeDataProvider(pluginName: string, key: string): void;
+  addDataProvider: (pluginName: string, spec: DataProviderSpec) => void;
+  removeDataProvider: (pluginName: string, key: string) => void;
 
-  addSidebarRailItem(pluginName: string, spec: SidebarRailItemSpec): void;
-  removeSidebarRailItem(pluginName: string, id: string): void;
+  addSidebarRailItem: (pluginName: string, spec: SidebarRailItemSpec) => void;
+  removeSidebarRailItem: (pluginName: string, id: string) => void;
 
-  addMessageRole(pluginName: string, spec: MessageRoleSpec): void;
-  removeMessageRole(pluginName: string, id: string): void;
+  addMessageRole: (pluginName: string, spec: MessageRoleSpec) => void;
+  removeMessageRole: (pluginName: string, id: string) => void;
 
-  addRpcBeforeRequest(pluginName: string, id: string, hook: RpcBeforeRequestHook): void;
-  removeRpcBeforeRequest(pluginName: string, id: string): void;
+  addRpcBeforeRequest: (pluginName: string, id: string, hook: RpcBeforeRequestHook) => void;
+  removeRpcBeforeRequest: (pluginName: string, id: string) => void;
 
-  addRpcAfterResponse(pluginName: string, id: string, hook: RpcAfterResponseHook): void;
-  removeRpcAfterResponse(pluginName: string, id: string): void;
+  addRpcAfterResponse: (pluginName: string, id: string, hook: RpcAfterResponseHook) => void;
+  removeRpcAfterResponse: (pluginName: string, id: string) => void;
 
-  addLogSubscriber(pluginName: string, id: string, fn: LogSubscriber): void;
-  removeLogSubscriber(pluginName: string, id: string): void;
+  addLogSubscriber: (pluginName: string, id: string, fn: LogSubscriber) => void;
+  removeLogSubscriber: (pluginName: string, id: string) => void;
 
-  addReadyHandler(pluginName: string, id: string, fn: ReadyHandler): void;
-  removeReadyHandler(pluginName: string, id: string): void;
+  addReadyHandler: (pluginName: string, id: string, fn: ReadyHandler) => void;
+  removeReadyHandler: (pluginName: string, id: string) => void;
 
-  addBeforeUnloadHandler(pluginName: string, id: string, fn: BeforeUnloadHandler): void;
-  removeBeforeUnloadHandler(pluginName: string, id: string): void;
+  addBeforeUnloadHandler: (pluginName: string, id: string, fn: BeforeUnloadHandler) => void;
+  removeBeforeUnloadHandler: (pluginName: string, id: string) => void;
 
   /** Mark the app as ready — fires all registered readyHandlers in order. */
-  markAppReady(): void;
+  markAppReady: () => void;
 
-  addPluginLoadListener(pluginName: string, id: string, fn: (spec: PluginSpec) => void): void;
-  removePluginLoadListener(pluginName: string, id: string): void;
-  addPluginUnloadListener(pluginName: string, id: string, fn: (name: string) => void): void;
-  removePluginUnloadListener(pluginName: string, id: string): void;
+  addPluginLoadListener: (pluginName: string, id: string, fn: (spec: PluginSpec) => void) => void;
+  removePluginLoadListener: (pluginName: string, id: string) => void;
+  addPluginUnloadListener: (pluginName: string, id: string, fn: (name: string) => void) => void;
+  removePluginUnloadListener: (pluginName: string, id: string) => void;
 
-  addPluginErrorFallback(pluginName: string, spec: PluginErrorFallbackSpec): void;
-  removePluginErrorFallback(pluginName: string, id: string): void;
+  addPluginErrorFallback: (pluginName: string, spec: PluginErrorFallbackSpec) => void;
+  removePluginErrorFallback: (pluginName: string, id: string) => void;
 
-  addWorkspaceView(pluginName: string, spec: WorkspaceViewSpec): void;
-  removeWorkspaceView(pluginName: string, id: string): void;
+  addWorkspaceView: (pluginName: string, spec: WorkspaceViewSpec) => void;
+  removeWorkspaceView: (pluginName: string, id: string) => void;
 
-  setWindowTitle(text: string): void;
-  setWindowBadge(n: number): void;
+  setWindowTitle: (text: string) => void;
+  setWindowBadge: (n: number) => void;
 
   /**
    * Wipe the registry back to a fresh state. Only used by the test
    * harness — production code should never see this fire.
    */
-  resetForTest(): void;
-};
+  resetForTest: () => void;
+}
 
 // ---- map helpers -------------------------------------------------------
 //

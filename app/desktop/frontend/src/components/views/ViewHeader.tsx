@@ -1,10 +1,11 @@
 // Shared header bar for workspace-view tabs: icon · title · subtitle · actions.
 
 import type { ReactNode } from "react";
-import { Icon, type IconName } from "@/components/common";
+import type {IconName} from "@/components/common";
+import { Icon  } from "@/components/common";
 import { cn } from "@/lib/utils";
 
-type Props = {
+interface Props {
   icon: IconName;
   title: ReactNode;
   sub?: ReactNode;
@@ -15,7 +16,7 @@ type Props = {
    * servers") rather than a filename or process name.
    */
   titleStrong?: boolean;
-};
+}
 
 export function ViewHeader({ icon, title, sub, actions, titleStrong }: Props) {
   return (

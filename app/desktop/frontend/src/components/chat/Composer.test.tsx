@@ -1,7 +1,7 @@
-import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
-import { Composer } from "./Composer";
+import { describe, expect, it, vi } from "vitest";
 import { definePlugin, loadPlugin } from "@/plugins/sdk";
+import { Composer } from "./Composer";
 
 // Composer relies on a built-in composer-keymap registration to bind
 // Enter → submit. Set up a tiny in-test plugin that mirrors it.
@@ -31,7 +31,7 @@ const baseProps = {
   onModeChange: () => {},
 };
 
-describe("Composer", () => {
+describe("composer", () => {
   it("calls onChange as the user types", () => {
     const onChange = vi.fn();
     render(<Composer {...baseProps} value="" onChange={onChange} onSend={() => {}} />);

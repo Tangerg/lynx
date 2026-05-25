@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useThemeStore } from "@/state/themeStore";
-import { Icon } from "@/components/common";
-import { cn } from "@/lib/utils";
-import { getHighlighter, resolveLang } from "@/lib/shiki";
 import { useDebounce } from "use-debounce";
+import { Icon } from "@/components/common";
+import { getHighlighter, resolveLang } from "@/lib/shiki";
+import { cn } from "@/lib/utils";
 import { resolveScheme } from "@/plugins/sdk";
+import { useThemeStore } from "@/state/themeStore";
 
-type Props = {
+interface Props {
   lang: string;
   code: string;
   /**
@@ -14,7 +14,7 @@ type Props = {
    * sits on the left and the filename takes the centre column.
    */
   file?: string;
-};
+}
 
 // We debounce `code` so the Shiki tokenizer (3-10ms per pass) doesn't
 // run on every smooth-text delta during streaming. While it's settling,
