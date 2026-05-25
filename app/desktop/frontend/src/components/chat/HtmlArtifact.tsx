@@ -1,8 +1,7 @@
-// HTML artifact card — when an agent emits a ```html code fence, we
-// detect it and render the result two ways: a sandboxed iframe preview
-// + the original source (Shiki-highlighted). Iframe is sandbox-only
-// (`allow-scripts` but NOT `allow-same-origin`) so the embedded
-// document can't reach our app's storage, cookies, parent frame, etc.
+// HTML artifact card: preview + source tabs for a ```html fence.
+// Iframe uses `allow-scripts` without `allow-same-origin` so the
+// embedded doc lands in an opaque origin and can't read our cookies,
+// storage, or reach into the parent frame.
 
 import { useState } from "react";
 import { Icon } from "@/components/common";
@@ -32,7 +31,6 @@ function looksLikeDoc(code: string): boolean {
 export function HtmlArtifact({ code }: Props) {
   const [tab, setTab] = useState<Tab>("preview");
 
-  // Auto-fall-through for tiny snippets — render as a normal code block.
   if (!looksLikeDoc(code)) {
     return <ShikiCodeBlock lang="html" code={code} />;
   }
@@ -64,18 +62,15 @@ export function HtmlArtifact({ code }: Props) {
       </div>
       {tab === "preview" ? (
         <iframe
-          // sandbox without allow-same-origin → the embedded doc is a
-          // separate, isolated origin. Scripts can run but can't read
-          // our cookies / localStorage / parent window. No allow-forms
-          // either (we don't want navigation away from the artifact).
+          // `allow-scripts` without `allow-same-origin`: the doc runs
+          // but is treated as a foreign origin. No `allow-forms` —
+          // we don't want navigation to leave the artifact.
           sandbox="allow-scripts"
           srcDoc={code}
           title="HTML artifact preview"
           className="block h-[420px] w-full border-0 bg-white"
         />
       ) : (
-        // Reuse the ordinary Shiki block for the source view so the
-        // user gets the same syntax-highlighting + copy affordance.
         <ShikiCodeBlock lang="html" code={code} />
       )}
     </div>

@@ -1,0 +1,86 @@
+// Accent picker — one swatch per registered AccentSpec plus a custom
+// color slot that opens the OS-native color wheel.
+
+import { useT } from "@/lib/i18n";
+import { cn } from "@/lib/utils";
+import { useAccents } from "@/plugins/sdk";
+import { useThemeStore } from "@/state/themeStore";
+
+// Conic gradient used when no custom color is active — communicates
+// "click me, you can pick anything" without committing to a default hue.
+const RAINBOW_HINT =
+  "conic-gradient(from 0deg, #ef4444, #f59e0b, #eab308, #22c55e, #06b6d4, #6366f1, #a855f7, #ec4899, #ef4444)";
+
+function CustomAccentPicker({
+  value,
+  isActive,
+  onChange,
+  label,
+}: {
+  value: string;
+  isActive: boolean;
+  onChange: (hex: string) => void;
+  label: string;
+}) {
+  return (
+    <label
+      title={label}
+      aria-label={label}
+      className={cn(
+        "relative inline-grid h-4.5 w-4.5 place-items-center rounded-full border-2 border-transparent bg-clip-padding cursor-pointer transition-[transform,box-shadow] duration-150 hover:scale-[1.08] active:scale-95",
+        isActive && "border-surface shadow-[0_0_0_1.5px_var(--color-text)]",
+      )}
+      style={{ background: isActive ? value : RAINBOW_HINT }}
+    >
+      {/* Hidden native input — the visible swatch is the label; click
+          opens the OS color picker. */}
+      <input
+        type="color"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+      />
+    </label>
+  );
+}
+
+export function AccentSection() {
+  const t = useT();
+  const accents = useAccents();
+  const accent = useThemeStore((s) => s.accent);
+  const setAccent = useThemeStore((s) => s.setAccent);
+
+  const isCustom = !accents.some((a) => a.dark === accent);
+
+  return (
+    <div className="grid grid-cols-[140px_1fr] items-center gap-4 py-3">
+      <div>
+        <div className="text-[15px] font-semibold text-fg">{t("settings.accent")}</div>
+        <div className="mt-0.5 text-[13px] text-fg-muted">{t("settings.accent.sub")}</div>
+      </div>
+      <div className="flex flex-wrap gap-2.5 justify-start items-center">
+        {accents.map((a) => (
+          <button
+            key={a.id}
+            type="button"
+            onClick={() => setAccent(a.dark)}
+            title={`${t("settings.accent")}: ${a.label}`}
+            aria-label={`${t("settings.accent")}: ${a.label}`}
+            aria-pressed={accent === a.dark}
+            style={{ background: a.dark }}
+            className={cn(
+              "h-4.5 w-4.5 rounded-full border-2 border-transparent bg-clip-padding p-0 cursor-pointer transition-[transform,box-shadow] duration-150 hover:scale-[1.08] active:scale-95",
+              accent === a.dark && "border-surface shadow-[0_0_0_1.5px_var(--color-text)]",
+            )}
+          />
+        ))}
+        <CustomAccentPicker
+          value={accent}
+          isActive={isCustom}
+          onChange={setAccent}
+          label={t("settings.accent.custom")}
+        />
+      </div>
+    </div>
+  );
+}
