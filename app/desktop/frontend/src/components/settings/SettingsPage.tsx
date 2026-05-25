@@ -49,7 +49,7 @@ export function SettingsPage() {
           </button>
         ))}
       </div>
-      <div className="flex min-h-0 min-w-0 flex-col">
+      <div className="flex min-h-0 min-w-0 flex-col bg-surface-2">
         <div className="flex items-center justify-between px-4.5 py-3.5">
           <span className="text-[18px] font-semibold tracking-[-0.01em]">
             {active?.label ?? t("settings.title")}
