@@ -6,6 +6,7 @@
 // rewrites on every change so the URL survives across launches.
 
 import { useState } from "react";
+import { z } from "zod";
 import { AGUI_BASE } from "@/lib/http";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
@@ -14,25 +15,48 @@ import { definePlugin, getConfig, setConfig } from "@/plugins/sdk";
 const CONFIG_KEY = "api.baseUrl";
 const STORAGE_KEY = "api.baseUrl";
 
+// Backend URL must be a real http(s) origin. Anything else (file://,
+// trailing path, plain text) would silently break ky's baseUrl handling
+// at the next request — reject on input instead.
+const UrlSchema = z
+  .url()
+  .refine((v) => v.startsWith("http://") || v.startsWith("https://"), {
+    message: "Must start with http:// or https://",
+  });
+
 function ConnectionPane() {
   const t = useT();
   const initial = (getConfig<string>(CONFIG_KEY) ?? AGUI_BASE) || AGUI_BASE;
   const [url, setUrl] = useState(initial);
+  const [error, setError] = useState<string | null>(null);
 
-  const dirty = url.trim() !== initial.trim();
-  const isDefault = url.trim() === AGUI_BASE;
+  const trimmed = url.trim();
+  const dirty = trimmed !== initial.trim();
+  const isDefault = trimmed === AGUI_BASE;
 
   const apply = () => {
-    const next = url.trim() || AGUI_BASE;
-    setConfig(CONFIG_KEY, next);
-    // The plugin's onChange listener (see setup below) mirrors this to
-    // localStorage so the next launch reads it back.
-    setUrl(next);
+    // Empty input → silently fall back to the default. Anything else
+    // must parse as a real http(s) URL.
+    if (!trimmed) {
+      setConfig(CONFIG_KEY, AGUI_BASE);
+      setUrl(AGUI_BASE);
+      setError(null);
+      return;
+    }
+    const result = UrlSchema.safeParse(trimmed);
+    if (!result.success) {
+      setError(result.error.issues[0]?.message ?? "Invalid URL");
+      return;
+    }
+    setConfig(CONFIG_KEY, result.data);
+    setUrl(result.data);
+    setError(null);
   };
 
   const reset = () => {
     setUrl(AGUI_BASE);
     setConfig(CONFIG_KEY, AGUI_BASE);
+    setError(null);
   };
 
   return (
@@ -61,8 +85,10 @@ function ConnectionPane() {
               }}
               placeholder={AGUI_BASE}
               className={cn(
-                "flex-1 h-9 rounded-md border border-line bg-surface px-3 font-mono text-[13px] text-fg outline-none",
-                "focus:border-accent focus:shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-accent)_14%,transparent)]",
+                "flex-1 h-9 rounded-md border bg-surface px-3 font-mono text-[13px] text-fg outline-none",
+                error
+                  ? "border-negative focus:shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-negative)_18%,transparent)]"
+                  : "border-line focus:border-accent focus:shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-accent)_14%,transparent)]",
               )}
               spellCheck={false}
             />
@@ -76,12 +102,14 @@ function ConnectionPane() {
               </button>
             )}
           </div>
-          {dirty && (
+          {error ? (
+            <div className="text-[11.5px] text-negative">{error}</div>
+          ) : dirty ? (
             <div className="text-[11.5px] text-fg-faint">
               {/* Inline hint — applied on blur or Enter. */}
               ↵ to apply · click outside to apply
             </div>
-          )}
+          ) : null}
         </div>
       </div>
     </div>

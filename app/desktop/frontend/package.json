@@ -53,6 +53,7 @@
     "unist-util-visit": "^5.1.0",
     "use-debounce": "^10.1.1",
     "use-stick-to-bottom": "^1.1.4",
+    "zod": "^4.4.3",
     "zustand": "^5.0.13"
   },
   "devDependencies": {
