@@ -2,8 +2,47 @@
 // components subscribe so registrations propagate live. The state shape
 // + map helpers live in registryState.ts; this file is the action
 // implementations only.
+//
+// To keep the 30+ add/remove pairs from drowning the file, three local
+// factories (ownedKeySlot / ownedSpecSlot / multiSlot) generate the
+// `set({ ... })` bodies. Each slot then expands to ≤ 1 line per action.
 
-import type {PluginStoreActions, PluginStoreState} from "./registryState";
+import type { Owned, PluginStoreActions, PluginStoreState } from "./registryState";
+import type {
+  AgentSourceSpec,
+  BeforeUnloadHandler,
+  CommandSpec,
+  ComposerAttachmentSourceSpec,
+  ComposerModeSpec,
+  ComposerPlaceholderSpec,
+  ComposerStatusSpec,
+  ContentBlockRenderer,
+  ContributedCommand,
+  ContributedSettingsPane,
+  ContributedView,
+  CoreEventHandler,
+  CustomEventHandler,
+  DataProviderSpec,
+  LayoutSlotSpec,
+  LogSubscriber,
+  MessageRoleSpec,
+  PluginErrorFallbackSpec,
+  PluginSpec,
+  ReadyHandler,
+  RouteSpec,
+  RpcAfterResponseHook,
+  RpcBeforeRequestHook,
+  SettingsPaneSpec,
+  SidebarRailItemSpec,
+  SidebarSectionSpec,
+  SlashCommandSpec,
+  ThemeAccentSpec,
+  ThemeSpec,
+  ToolActionSpec,
+  ToolPreviewComponent,
+  WorkspaceViewSpec,
+} from "./types";
+import type { ContentBlockKind } from "@/protocol/agui/viewState";
 import { create } from "zustand";
 import { safeCall } from "./errors";
 import {
@@ -11,448 +50,345 @@ import {
   addOwnedMulti,
   clearByPlugin,
   freshState,
-  
-  
   removeOwned,
-  removeOwnedMulti
+  removeOwnedMulti,
 } from "./registryState";
 
-export const usePluginStore = create<PluginStoreState & PluginStoreActions>((set, get) => ({
-  ...freshState(),
+type OwnedMapKey = {
+  [K in keyof PluginStoreState]: PluginStoreState[K] extends Map<string, Owned<unknown>>
+    ? K
+    : never;
+}[keyof PluginStoreState];
 
-  registerLoaded(plugin) {
-    const next = new Map(get().loaded);
-    next.set(plugin.spec.name, plugin);
-    set({ loaded: next });
-    // Fan out to onLoad listeners — isolated per subscriber.
-    for (const o of get().pluginLoadListeners.values()) {
-      safeCall(
-        () => o.value(plugin.spec),
-        `[plugin] ${o.pluginName} onLoad listener threw:`,
-      );
-    }
-  },
+export const usePluginStore = create<PluginStoreState & PluginStoreActions>((set, get) => {
+  // Slot factories. Each returns `{ add, remove }` closures that bake
+  // in the state-key, label, and helper choice (`addOwned` vs
+  // `addOwnedMulti`). The `as` casts narrow PluginStoreState[K] from
+  // its TS union back to the concrete `Map<string, Owned<T>>`.
 
-  unload(pluginName) {
-    const plugin = get().loaded.get(pluginName);
-    if (!plugin) return;
-    for (const d of plugin.disposables) {
-      safeCall(() => d.dispose(), `[plugin] ${pluginName} dispose threw:`);
-    }
-    const next = new Map(get().loaded);
-    next.delete(pluginName);
-    set({ loaded: next });
-    for (const o of get().pluginUnloadListeners.values()) {
-      safeCall(
-        () => o.value(pluginName),
-        `[plugin] ${o.pluginName} onUnload listener threw:`,
-      );
-    }
-  },
+  // (pluginName, key, value) — caller supplies the key explicitly.
+  function ownedKeySlot<T>(slot: OwnedMapKey, label: string) {
+    return {
+      add: (pluginName: string, key: string, value: T) =>
+        set({
+          [slot]: addOwned(get()[slot] as Map<string, Owned<T>>, pluginName, key, value, label),
+        } as Partial<PluginStoreState>),
+      remove: (pluginName: string, key: string) =>
+        set({
+          [slot]: removeOwned(get()[slot] as Map<string, Owned<T>>, pluginName, key),
+        } as Partial<PluginStoreState>),
+    };
+  }
 
-  addToolPreview(pluginName, fn, component) {
-    set({ toolPreviews: addOwned(get().toolPreviews, pluginName, fn, component, "tool preview") });
-  },
-  removeToolPreview(pluginName, fn) {
-    set({ toolPreviews: removeOwned(get().toolPreviews, pluginName, fn) });
-  },
+  // (pluginName, spec) — key is `spec.id` by default; pass `keyOf` for
+  // slots that key by a different field (e.g. dataProvider uses `key`).
+  function ownedSpecSlot<T>(
+    slot: OwnedMapKey,
+    label: string,
+    keyOf: (spec: T) => string = (s) => (s as unknown as { id: string }).id,
+  ) {
+    return {
+      add: (pluginName: string, spec: T) =>
+        set({
+          [slot]: addOwned(
+            get()[slot] as Map<string, Owned<T>>,
+            pluginName,
+            keyOf(spec),
+            spec,
+            label,
+          ),
+        } as Partial<PluginStoreState>),
+      remove: (pluginName: string, key: string) =>
+        set({
+          [slot]: removeOwned(get()[slot] as Map<string, Owned<T>>, pluginName, key),
+        } as Partial<PluginStoreState>),
+    };
+  }
 
-  addToolAction(pluginName, spec) {
-    set({ toolActions: addOwned(get().toolActions, pluginName, spec.id, spec, "tool action") });
-  },
-  removeToolAction(pluginName, id) {
-    set({ toolActions: removeOwned(get().toolActions, pluginName, id) });
-  },
+  // Composite-key multi-slot — same plugin may register many entries.
+  function multiSlot<T>(slot: OwnedMapKey) {
+    return {
+      add: (pluginName: string, id: string, value: T) =>
+        set({
+          [slot]: addOwnedMulti(get()[slot] as Map<string, Owned<T>>, pluginName, id, value),
+        } as Partial<PluginStoreState>),
+      remove: (pluginName: string, id: string) =>
+        set({
+          [slot]: removeOwnedMulti(get()[slot] as Map<string, Owned<T>>, pluginName, id),
+        } as Partial<PluginStoreState>),
+    };
+  }
 
-  addToolIcon(pluginName, fn, icon) {
-    set({ toolIcons: addOwned(get().toolIcons, pluginName, fn, icon, "tool icon") });
-  },
-  removeToolIcon(pluginName, fn) {
-    set({ toolIcons: removeOwned(get().toolIcons, pluginName, fn) });
-  },
+  // Instantiate one helper per slot — kept dense; the action map below
+  // wires them up to the public `addX` / `removeX` signatures.
+  const toolPreviews = ownedKeySlot<ToolPreviewComponent>("toolPreviews", "tool preview");
+  const toolIcons = ownedKeySlot<string>("toolIcons", "tool icon");
+  const contentBlocks = ownedKeySlot<ContentBlockRenderer<ContentBlockKind>>(
+    "contentBlocks",
+    "content block",
+  );
+  const slashCommands = ownedKeySlot<SlashCommandSpec>("slashCommands", "slash command");
 
-  addContentBlock(pluginName, kind, renderer) {
-    set({
-      contentBlocks: addOwned(get().contentBlocks, pluginName, kind, renderer, "content block"),
-    });
-  },
-  removeContentBlock(pluginName, kind) {
-    set({ contentBlocks: removeOwned(get().contentBlocks, pluginName, kind) });
-  },
+  const toolActions = ownedSpecSlot<ToolActionSpec>("toolActions", "tool action");
+  const settingsPanes = ownedSpecSlot<SettingsPaneSpec>("settingsPanes", "settings pane");
+  const themes = ownedSpecSlot<ThemeSpec>("themes", "theme");
+  const accents = ownedSpecSlot<ThemeAccentSpec>("accents", "accent");
+  const routes = ownedSpecSlot<RouteSpec>("routes", "route");
+  const composerStatus = ownedSpecSlot<ComposerStatusSpec>("composerStatus", "composer status");
+  const composerModes = ownedSpecSlot<ComposerModeSpec>("composerModes", "composer mode");
+  const composerPlaceholders = ownedSpecSlot<ComposerPlaceholderSpec>(
+    "composerPlaceholders",
+    "composer placeholder",
+  );
+  const composerAttachmentSources = ownedSpecSlot<ComposerAttachmentSourceSpec>(
+    "composerAttachmentSources",
+    "composer attachment source",
+  );
+  const sidebarSections = ownedSpecSlot<SidebarSectionSpec>("sidebarSections", "sidebar section");
+  const agentSources = ownedSpecSlot<AgentSourceSpec>("agentSources", "agent source");
+  const commands = ownedSpecSlot<CommandSpec>("commands", "command");
+  const declaredCommands = ownedSpecSlot<ContributedCommand>("declaredCommands", "declared command");
+  const declaredViews = ownedSpecSlot<ContributedView>("declaredViews", "declared view");
+  const declaredSettingsPanes = ownedSpecSlot<ContributedSettingsPane>(
+    "declaredSettingsPanes",
+    "declared settings pane",
+  );
+  const dataProviders = ownedSpecSlot<DataProviderSpec>(
+    "dataProviders",
+    "data provider",
+    (s) => s.key,
+  );
+  const sidebarRailItems = ownedSpecSlot<SidebarRailItemSpec>(
+    "sidebarRailItems",
+    "sidebar rail item",
+  );
+  const messageRoles = ownedSpecSlot<MessageRoleSpec>("messageRoles", "message role");
+  const pluginErrorFallbacks = ownedSpecSlot<PluginErrorFallbackSpec>(
+    "pluginErrorFallbacks",
+    "plugin error fallback",
+  );
+  const workspaceViews = ownedSpecSlot<WorkspaceViewSpec>("workspaceViews", "workspace view");
 
-  addCustomEventHandler(pluginName, name, id, handler) {
-    set({
-      customEventHandlers: addOwnedMulti(get().customEventHandlers, pluginName, id, {
-        name,
-        handler,
-      }),
-    });
-  },
-  removeCustomEventHandler(pluginName, id) {
-    set({ customEventHandlers: removeOwnedMulti(get().customEventHandlers, pluginName, id) });
-  },
+  const customEvents = multiSlot<{ name: string; handler: CustomEventHandler<unknown> }>(
+    "customEventHandlers",
+  );
+  const coreEvents = multiSlot<{ eventType: string; handler: CoreEventHandler }>(
+    "coreEventHandlers",
+  );
+  const layoutSlots = multiSlot<{ slot: string; spec: LayoutSlotSpec }>("layoutSlots");
+  const rpcBeforeRequest = multiSlot<RpcBeforeRequestHook>("rpcBeforeRequest");
+  const rpcAfterResponse = multiSlot<RpcAfterResponseHook>("rpcAfterResponse");
+  const logSubscribers = multiSlot<LogSubscriber>("logSubscribers");
+  const readyHandlers = multiSlot<ReadyHandler>("readyHandlers");
+  const beforeUnloadHandlers = multiSlot<BeforeUnloadHandler>("beforeUnloadHandlers");
+  const pluginLoadListeners = multiSlot<(spec: PluginSpec) => void>("pluginLoadListeners");
+  const pluginUnloadListeners = multiSlot<(name: string) => void>("pluginUnloadListeners");
 
-  addSlashCommand(pluginName, cmd, spec) {
-    set({ slashCommands: addOwned(get().slashCommands, pluginName, cmd, spec, "slash command") });
-  },
-  removeSlashCommand(pluginName, cmd) {
-    set({ slashCommands: removeOwned(get().slashCommands, pluginName, cmd) });
-  },
+  return {
+    ...freshState(),
 
-  addSettingsPane(pluginName, spec) {
-    set({
-      settingsPanes: addOwned(get().settingsPanes, pluginName, spec.id, spec, "settings pane"),
-    });
-  },
-  removeSettingsPane(pluginName, id) {
-    set({ settingsPanes: removeOwned(get().settingsPanes, pluginName, id) });
-  },
+    registerLoaded(plugin) {
+      const next = new Map(get().loaded);
+      next.set(plugin.spec.name, plugin);
+      set({ loaded: next });
+      for (const o of get().pluginLoadListeners.values()) {
+        safeCall(() => o.value(plugin.spec), `[plugin] ${o.pluginName} onLoad listener threw:`);
+      }
+    },
 
-  // Core handlers + layout slots both pre-baked their discriminator
-  // (eventType / slot) into the composite key so the same plugin can
-  // register more than one entry per discriminator. We still bake it in,
-  // but via the shared helper now.
-  addCoreEventHandler(pluginName, eventType, id, handler) {
-    set({
-      coreEventHandlers: addOwnedMulti(get().coreEventHandlers, pluginName, `${eventType}#${id}`, {
-        eventType,
-        handler,
-      }),
-    });
-  },
-  removeCoreEventHandler(pluginName, eventType, id) {
-    set({
-      coreEventHandlers: removeOwnedMulti(
-        get().coreEventHandlers,
-        pluginName,
-        `${eventType}#${id}`,
-      ),
-    });
-  },
+    unload(pluginName) {
+      const plugin = get().loaded.get(pluginName);
+      if (!plugin) return;
+      for (const d of plugin.disposables) {
+        safeCall(() => d.dispose(), `[plugin] ${pluginName} dispose threw:`);
+      }
+      const next = new Map(get().loaded);
+      next.delete(pluginName);
+      set({ loaded: next });
+      for (const o of get().pluginUnloadListeners.values()) {
+        safeCall(() => o.value(pluginName), `[plugin] ${o.pluginName} onUnload listener threw:`);
+      }
+    },
 
-  addLayoutSlot(pluginName, slot, spec) {
-    set({
-      layoutSlots: addOwnedMulti(get().layoutSlots, pluginName, `${slot}#${spec.id}`, {
-        slot,
-        spec,
-      }),
-    });
-  },
-  removeLayoutSlot(pluginName, slot, id) {
-    set({ layoutSlots: removeOwnedMulti(get().layoutSlots, pluginName, `${slot}#${id}`) });
-  },
+    addToolPreview: toolPreviews.add,
+    removeToolPreview: toolPreviews.remove,
 
-  addTheme(pluginName, spec) {
-    set({ themes: addOwned(get().themes, pluginName, spec.id, spec, "theme") });
-  },
-  removeTheme(pluginName, id) {
-    set({ themes: removeOwned(get().themes, pluginName, id) });
-  },
+    addToolAction: toolActions.add,
+    removeToolAction: toolActions.remove,
 
-  addAccent(pluginName, spec) {
-    set({ accents: addOwned(get().accents, pluginName, spec.id, spec, "accent") });
-  },
-  removeAccent(pluginName, id) {
-    set({ accents: removeOwned(get().accents, pluginName, id) });
-  },
+    addToolIcon: toolIcons.add,
+    removeToolIcon: toolIcons.remove,
 
-  addRoute(pluginName, spec) {
-    set({ routes: addOwned(get().routes, pluginName, spec.id, spec, "route") });
-  },
-  removeRoute(pluginName, id) {
-    set({ routes: removeOwned(get().routes, pluginName, id) });
-  },
+    addContentBlock: contentBlocks.add,
+    removeContentBlock: contentBlocks.remove,
 
-  addShortcut(pluginName, spec) {
-    // Normalize on the way in so registration and lookup match regardless of
-    // case ("mod+k" vs "Mod+K"). We keep the original spec.key in the value
-    // for display purposes.
-    const key = normalizeCombo(spec.key);
-    set({ shortcuts: addOwned(get().shortcuts, pluginName, key, spec, "shortcut") });
-  },
-  removeShortcut(pluginName, key) {
-    set({ shortcuts: removeOwned(get().shortcuts, pluginName, normalizeCombo(key)) });
-  },
+    addCustomEventHandler: (pluginName, name, id, handler) =>
+      customEvents.add(pluginName, id, { name, handler }),
+    removeCustomEventHandler: customEvents.remove,
 
-  addComposerStatus(pluginName, spec) {
-    set({
-      composerStatus: addOwned(get().composerStatus, pluginName, spec.id, spec, "composer status"),
-    });
-  },
-  removeComposerStatus(pluginName, id) {
-    set({ composerStatus: removeOwned(get().composerStatus, pluginName, id) });
-  },
+    addSlashCommand: slashCommands.add,
+    removeSlashCommand: slashCommands.remove,
 
-  addComposerMode(pluginName, spec) {
-    set({
-      composerModes: addOwned(get().composerModes, pluginName, spec.id, spec, "composer mode"),
-    });
-  },
-  removeComposerMode(pluginName, id) {
-    set({ composerModes: removeOwned(get().composerModes, pluginName, id) });
-  },
+    addSettingsPane: settingsPanes.add,
+    removeSettingsPane: settingsPanes.remove,
 
-  addComposerPlaceholder(pluginName, spec) {
-    set({
-      composerPlaceholders: addOwned(
-        get().composerPlaceholders,
-        pluginName,
-        spec.id,
-        spec,
-        "composer placeholder",
-      ),
-    });
-  },
-  removeComposerPlaceholder(pluginName, id) {
-    set({ composerPlaceholders: removeOwned(get().composerPlaceholders, pluginName, id) });
-  },
+    // eventType is baked into the composite key so the same plugin can
+    // register handlers for several event types in one go.
+    addCoreEventHandler: (pluginName, eventType, id, handler) =>
+      coreEvents.add(pluginName, `${eventType}#${id}`, { eventType, handler }),
+    removeCoreEventHandler: (pluginName, eventType, id) =>
+      coreEvents.remove(pluginName, `${eventType}#${id}`),
 
-  addComposerAttachmentSource(pluginName, spec) {
-    set({
-      composerAttachmentSources: addOwned(
-        get().composerAttachmentSources,
-        pluginName,
-        spec.id,
-        spec,
-        "composer attachment source",
-      ),
-    });
-  },
-  removeComposerAttachmentSource(pluginName, id) {
-    set({
-      composerAttachmentSources: removeOwned(get().composerAttachmentSources, pluginName, id),
-    });
-  },
+    addLayoutSlot: (pluginName, slot, spec) =>
+      layoutSlots.add(pluginName, `${slot}#${spec.id}`, { slot, spec }),
+    removeLayoutSlot: (pluginName, slot, id) => layoutSlots.remove(pluginName, `${slot}#${id}`),
 
-  addComposerKeyBinding(pluginName, spec) {
-    // Normalize the key on the way in so registrations and lookups match
-    // regardless of case ("Enter" vs "enter", "Cmd+Enter" vs "mod+enter").
-    const key = normalizeCombo(spec.key);
-    set({
-      composerKeyBindings: addOwned(
-        get().composerKeyBindings,
-        pluginName,
-        key,
-        spec,
-        "composer key binding",
-      ),
-    });
-  },
-  removeComposerKeyBinding(pluginName, key) {
-    set({
-      composerKeyBindings: removeOwned(get().composerKeyBindings, pluginName, normalizeCombo(key)),
-    });
-  },
+    addTheme: themes.add,
+    removeTheme: themes.remove,
 
-  addSidebarSection(pluginName, spec) {
-    set({
-      sidebarSections: addOwned(
-        get().sidebarSections,
-        pluginName,
-        spec.id,
-        spec,
-        "sidebar section",
-      ),
-    });
-  },
-  removeSidebarSection(pluginName, id) {
-    set({ sidebarSections: removeOwned(get().sidebarSections, pluginName, id) });
-  },
+    addAccent: accents.add,
+    removeAccent: accents.remove,
 
-  addAgentSource(pluginName, spec) {
-    set({ agentSources: addOwned(get().agentSources, pluginName, spec.id, spec, "agent source") });
-  },
-  removeAgentSource(pluginName, id) {
-    set({ agentSources: removeOwned(get().agentSources, pluginName, id) });
-  },
+    addRoute: routes.add,
+    removeRoute: routes.remove,
 
-  addCommand(pluginName, spec) {
-    set({ commands: addOwned(get().commands, pluginName, spec.id, spec, "command") });
-  },
-  removeCommand(pluginName, id) {
-    set({ commands: removeOwned(get().commands, pluginName, id) });
-  },
+    // Shortcuts + composer key bindings normalize on the way in/out so
+    // "Cmd+K" and "mod+k" hit the same slot regardless of how they
+    // were registered or looked up.
+    addShortcut(pluginName, spec) {
+      const key = normalizeCombo(spec.key);
+      set({ shortcuts: addOwned(get().shortcuts, pluginName, key, spec, "shortcut") });
+    },
+    removeShortcut(pluginName, key) {
+      set({ shortcuts: removeOwned(get().shortcuts, pluginName, normalizeCombo(key)) });
+    },
 
-  addDeclaredCommand(pluginName, spec) {
-    set({
-      declaredCommands: addOwned(
-        get().declaredCommands,
-        pluginName,
-        spec.id,
-        spec,
-        "declared command",
-      ),
-    });
-  },
-  removeDeclaredCommand(pluginName, id) {
-    set({ declaredCommands: removeOwned(get().declaredCommands, pluginName, id) });
-  },
-  removeDeclaredCommandsBy(pluginName) {
-    set({ declaredCommands: clearByPlugin(get().declaredCommands, pluginName) });
-  },
+    addComposerStatus: composerStatus.add,
+    removeComposerStatus: composerStatus.remove,
 
-  addDeclaredView(pluginName, spec) {
-    set({
-      declaredViews: addOwned(get().declaredViews, pluginName, spec.id, spec, "declared view"),
-    });
-  },
-  removeDeclaredViewsBy(pluginName) {
-    set({ declaredViews: clearByPlugin(get().declaredViews, pluginName) });
-  },
+    addComposerMode: composerModes.add,
+    removeComposerMode: composerModes.remove,
 
-  addDeclaredSettingsPane(pluginName, spec) {
-    set({
-      declaredSettingsPanes: addOwned(
-        get().declaredSettingsPanes,
-        pluginName,
-        spec.id,
-        spec,
-        "declared settings pane",
-      ),
-    });
-  },
-  removeDeclaredSettingsPanesBy(pluginName) {
-    set({ declaredSettingsPanes: clearByPlugin(get().declaredSettingsPanes, pluginName) });
-  },
+    addComposerPlaceholder: composerPlaceholders.add,
+    removeComposerPlaceholder: composerPlaceholders.remove,
 
-  addPendingActivation(spec, events) {
-    const next = new Map(get().pendingActivations);
-    next.set(spec.name, { spec, events });
-    set({ pendingActivations: next });
-  },
-  removePendingActivation(name) {
-    const next = new Map(get().pendingActivations);
-    next.delete(name);
-    set({ pendingActivations: next });
-  },
+    addComposerAttachmentSource: composerAttachmentSources.add,
+    removeComposerAttachmentSource: composerAttachmentSources.remove,
 
-  addDataProvider(pluginName, spec) {
-    set({
-      dataProviders: addOwned(get().dataProviders, pluginName, spec.key, spec, "data provider"),
-    });
-  },
-  removeDataProvider(pluginName, key) {
-    set({ dataProviders: removeOwned(get().dataProviders, pluginName, key) });
-  },
+    addComposerKeyBinding(pluginName, spec) {
+      const key = normalizeCombo(spec.key);
+      set({
+        composerKeyBindings: addOwned(
+          get().composerKeyBindings,
+          pluginName,
+          key,
+          spec,
+          "composer key binding",
+        ),
+      });
+    },
+    removeComposerKeyBinding(pluginName, key) {
+      set({
+        composerKeyBindings: removeOwned(
+          get().composerKeyBindings,
+          pluginName,
+          normalizeCombo(key),
+        ),
+      });
+    },
 
-  addSidebarRailItem(pluginName, spec) {
-    set({
-      sidebarRailItems: addOwned(
-        get().sidebarRailItems,
-        pluginName,
-        spec.id,
-        spec,
-        "sidebar rail item",
-      ),
-    });
-  },
-  removeSidebarRailItem(pluginName, id) {
-    set({ sidebarRailItems: removeOwned(get().sidebarRailItems, pluginName, id) });
-  },
+    addSidebarSection: sidebarSections.add,
+    removeSidebarSection: sidebarSections.remove,
 
-  addMessageRole(pluginName, spec) {
-    set({ messageRoles: addOwned(get().messageRoles, pluginName, spec.id, spec, "message role") });
-  },
-  removeMessageRole(pluginName, id) {
-    set({ messageRoles: removeOwned(get().messageRoles, pluginName, id) });
-  },
+    addAgentSource: agentSources.add,
+    removeAgentSource: agentSources.remove,
 
-  // RPC hooks, log subscribers, lifecycle, plugin observers — every
-  // composite-key slot below has the exact same add/remove shape now,
-  // factored through `addOwnedMulti` / `removeOwnedMulti`.
-  addRpcBeforeRequest(pluginName, id, hook) {
-    set({ rpcBeforeRequest: addOwnedMulti(get().rpcBeforeRequest, pluginName, id, hook) });
-  },
-  removeRpcBeforeRequest(pluginName, id) {
-    set({ rpcBeforeRequest: removeOwnedMulti(get().rpcBeforeRequest, pluginName, id) });
-  },
-  addRpcAfterResponse(pluginName, id, hook) {
-    set({ rpcAfterResponse: addOwnedMulti(get().rpcAfterResponse, pluginName, id, hook) });
-  },
-  removeRpcAfterResponse(pluginName, id) {
-    set({ rpcAfterResponse: removeOwnedMulti(get().rpcAfterResponse, pluginName, id) });
-  },
+    addCommand: commands.add,
+    removeCommand: commands.remove,
 
-  addLogSubscriber(pluginName, id, fn) {
-    set({ logSubscribers: addOwnedMulti(get().logSubscribers, pluginName, id, fn) });
-  },
-  removeLogSubscriber(pluginName, id) {
-    set({ logSubscribers: removeOwnedMulti(get().logSubscribers, pluginName, id) });
-  },
+    addDeclaredCommand: declaredCommands.add,
+    removeDeclaredCommand: declaredCommands.remove,
+    removeDeclaredCommandsBy(pluginName) {
+      set({ declaredCommands: clearByPlugin(get().declaredCommands, pluginName) });
+    },
 
-  addReadyHandler(pluginName, id, fn) {
-    set({ readyHandlers: addOwnedMulti(get().readyHandlers, pluginName, id, fn) });
-  },
-  removeReadyHandler(pluginName, id) {
-    set({ readyHandlers: removeOwnedMulti(get().readyHandlers, pluginName, id) });
-  },
+    addDeclaredView: declaredViews.add,
+    removeDeclaredViewsBy(pluginName) {
+      set({ declaredViews: clearByPlugin(get().declaredViews, pluginName) });
+    },
 
-  addBeforeUnloadHandler(pluginName, id, fn) {
-    set({ beforeUnloadHandlers: addOwnedMulti(get().beforeUnloadHandlers, pluginName, id, fn) });
-  },
-  removeBeforeUnloadHandler(pluginName, id) {
-    set({ beforeUnloadHandlers: removeOwnedMulti(get().beforeUnloadHandlers, pluginName, id) });
-  },
+    addDeclaredSettingsPane: declaredSettingsPanes.add,
+    removeDeclaredSettingsPanesBy(pluginName) {
+      set({ declaredSettingsPanes: clearByPlugin(get().declaredSettingsPanes, pluginName) });
+    },
 
-  markAppReady() {
-    if (get().appReady) return;
-    set({ appReady: true });
-    // Fire each handler — isolated; one throw must not skip the rest.
-    for (const o of get().readyHandlers.values()) {
-      safeCall(() => o.value(), `[plugin] ${o.pluginName} onReady threw:`);
-    }
-  },
+    addPendingActivation(spec, events) {
+      const next = new Map(get().pendingActivations);
+      next.set(spec.name, { spec, events });
+      set({ pendingActivations: next });
+    },
+    removePendingActivation(name) {
+      const next = new Map(get().pendingActivations);
+      next.delete(name);
+      set({ pendingActivations: next });
+    },
 
-  addPluginLoadListener(pluginName, id, fn) {
-    set({ pluginLoadListeners: addOwnedMulti(get().pluginLoadListeners, pluginName, id, fn) });
-  },
-  removePluginLoadListener(pluginName, id) {
-    set({ pluginLoadListeners: removeOwnedMulti(get().pluginLoadListeners, pluginName, id) });
-  },
-  addPluginUnloadListener(pluginName, id, fn) {
-    set({ pluginUnloadListeners: addOwnedMulti(get().pluginUnloadListeners, pluginName, id, fn) });
-  },
-  removePluginUnloadListener(pluginName, id) {
-    set({ pluginUnloadListeners: removeOwnedMulti(get().pluginUnloadListeners, pluginName, id) });
-  },
+    addDataProvider: dataProviders.add,
+    removeDataProvider: dataProviders.remove,
 
-  addPluginErrorFallback(pluginName, spec) {
-    set({
-      pluginErrorFallbacks: addOwned(
-        get().pluginErrorFallbacks,
-        pluginName,
-        spec.id,
-        spec,
-        "plugin error fallback",
-      ),
-    });
-  },
-  removePluginErrorFallback(pluginName, id) {
-    set({ pluginErrorFallbacks: removeOwned(get().pluginErrorFallbacks, pluginName, id) });
-  },
+    addSidebarRailItem: sidebarRailItems.add,
+    removeSidebarRailItem: sidebarRailItems.remove,
 
-  setWindowTitle(text) {
-    set({ windowTitle: text });
-    syncDocumentTitle(text, get().windowBadge);
-  },
-  setWindowBadge(n) {
-    set({ windowBadge: n });
-    syncDocumentTitle(get().windowTitle, n);
-  },
+    addMessageRole: messageRoles.add,
+    removeMessageRole: messageRoles.remove,
 
-  addWorkspaceView(pluginName, spec) {
-    set({
-      workspaceViews: addOwned(get().workspaceViews, pluginName, spec.id, spec, "workspace view"),
-    });
-  },
-  removeWorkspaceView(pluginName, id) {
-    set({ workspaceViews: removeOwned(get().workspaceViews, pluginName, id) });
-  },
+    addRpcBeforeRequest: rpcBeforeRequest.add,
+    removeRpcBeforeRequest: rpcBeforeRequest.remove,
+    addRpcAfterResponse: rpcAfterResponse.add,
+    removeRpcAfterResponse: rpcAfterResponse.remove,
 
-  resetForTest() {
-    set(freshState());
-  },
-}));
+    addLogSubscriber: logSubscribers.add,
+    removeLogSubscriber: logSubscribers.remove,
+
+    addReadyHandler: readyHandlers.add,
+    removeReadyHandler: readyHandlers.remove,
+
+    addBeforeUnloadHandler: beforeUnloadHandlers.add,
+    removeBeforeUnloadHandler: beforeUnloadHandlers.remove,
+
+    markAppReady() {
+      if (get().appReady) return;
+      set({ appReady: true });
+      for (const o of get().readyHandlers.values()) {
+        safeCall(() => o.value(), `[plugin] ${o.pluginName} onReady threw:`);
+      }
+    },
+
+    addPluginLoadListener: pluginLoadListeners.add,
+    removePluginLoadListener: pluginLoadListeners.remove,
+    addPluginUnloadListener: pluginUnloadListeners.add,
+    removePluginUnloadListener: pluginUnloadListeners.remove,
+
+    addPluginErrorFallback: pluginErrorFallbacks.add,
+    removePluginErrorFallback: pluginErrorFallbacks.remove,
+
+    setWindowTitle(text) {
+      set({ windowTitle: text });
+      syncDocumentTitle(text, get().windowBadge);
+    },
+    setWindowBadge(n) {
+      set({ windowBadge: n });
+      syncDocumentTitle(get().windowTitle, n);
+    },
+
+    addWorkspaceView: workspaceViews.add,
+    removeWorkspaceView: workspaceViews.remove,
+
+    resetForTest() {
+      set(freshState());
+    },
+  };
+});
 
 // Side-effect: keep `document.title` in sync with the registry's title +
 // badge. Run only in DOM environments — test runs without a document just

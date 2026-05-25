@@ -50,12 +50,16 @@ import { usePluginStore } from "./registry";
 interface Owned<T> { value: T; pluginName: string }
 interface Ordered { order?: number }
 
+// Plain-function counterpart of useSortedList — pulls the value off
+// each owned entry. Used by imperative lookups (`listRoutes`,
+// `pick*`, RPC hook lists) that aren't allowed to call hooks.
+function mapOwned<T>(map: Map<string, Owned<T>>): T[] {
+  return Array.from(map.values()).map((o) => o.value);
+}
+
 function useSortedList<T extends Ordered>(map: Map<string, Owned<T>>): T[] {
   return useMemo(
-    () =>
-      Array.from(map.values())
-        .map((o) => o.value)
-        .sort((a, b) => (a.order ?? 100) - (b.order ?? 100)),
+    () => mapOwned(map).sort((a, b) => (a.order ?? 100) - (b.order ?? 100)),
     [map],
   );
 }
@@ -123,9 +127,7 @@ function declaredToWorkspaceView(d: ContributedView, pluginName: string): Worksp
  * is registered.
  */
 export function pickPluginErrorFallback(): PluginErrorFallbackSpec | undefined {
-  const specs = Array.from(usePluginStore.getState().pluginErrorFallbacks.values()).map(
-    (o) => o.value,
-  );
+  const specs = mapOwned(usePluginStore.getState().pluginErrorFallbacks);
   if (specs.length === 0) return undefined;
   return specs.reduce((best, cur) => ((cur.priority ?? 0) >= (best.priority ?? 0) ? cur : best));
 }
@@ -259,9 +261,7 @@ export function useComposerAttachmentSources(): ComposerAttachmentSourceSpec[] {
  * default. Pure read — call once at component mount, not on every render.
  */
 export function pickComposerPlaceholder(): ComposerPlaceholderSpec | undefined {
-  const specs = Array.from(usePluginStore.getState().composerPlaceholders.values()).map(
-    (o) => o.value,
-  );
+  const specs = mapOwned(usePluginStore.getState().composerPlaceholders);
   if (specs.length === 0) return undefined;
   const total = specs.reduce((sum, s) => sum + (s.weight ?? 1), 0);
   if (total <= 0) return undefined;
@@ -326,17 +326,16 @@ function declaredToPlaceholder(c: ContributedCommand, pluginName: string): Comma
 // definePlugin import direction clean (no cycle).
 
 type Activator = (pluginName: string) => Promise<void>;
-let activator: Activator | null = null;
+let pluginActivator: Activator | null = null;
 
 export function setActivator(fn: Activator): void {
-  activator = fn;
+  pluginActivator = fn;
 }
 
 async function activateAndRun(pluginName: string, commandId: string): Promise<void> {
   await runActivator(pluginName);
   const real = lookupCommand(commandId);
   if (!real) {
-     
     console.warn(`[plugin] ${pluginName} activated but did not register command ${commandId}`);
     return;
   }
@@ -351,12 +350,11 @@ async function activateAndRun(pluginName: string, commandId: string): Promise<vo
  * the placeholder.
  */
 async function runActivator(pluginName: string): Promise<void> {
-  if (!activator) {
-     
+  if (!pluginActivator) {
     console.error(`[plugin] activator not wired; cannot lazily activate ${pluginName}`);
     return;
   }
-  await activator(pluginName);
+  await pluginActivator(pluginName);
 }
 
 // ---------------------------------------------------------------------------
@@ -400,9 +398,9 @@ export function lookupCoreEventHandlers(
 
 /** Snapshot of all registered routes, sorted by `order`. */
 export function listRoutes(): RouteSpec[] {
-  return Array.from(usePluginStore.getState().routes.values())
-    .map((o) => o.value)
-    .sort((a, b) => (a.order ?? 100) - (b.order ?? 100));
+  return mapOwned(usePluginStore.getState().routes).sort(
+    (a, b) => (a.order ?? 100) - (b.order ?? 100),
+  );
 }
 
 /** Look up a registered shortcut by canonical combo (after `normalizeCombo`). */
@@ -415,7 +413,7 @@ export function lookupShortcut(canonical: string): ShortcutSpec | undefined {
  * insertion order. Returns undefined if none registered.
  */
 export function pickAgentSource(): AgentSourceSpec | undefined {
-  const sources = Array.from(usePluginStore.getState().agentSources.values()).map((o) => o.value);
+  const sources = mapOwned(usePluginStore.getState().agentSources);
   if (sources.length === 0) return undefined;
   return sources.reduce((best, cur) => ((cur.priority ?? 0) > (best.priority ?? 0) ? cur : best));
 }
@@ -432,10 +430,10 @@ export function lookupDataProvider<T = unknown>(key: string): (() => Promise<T>)
 
 /** Snapshot of registered beforeRequest hooks in insertion order. */
 export function listRpcBeforeHooks(): RpcBeforeRequestHook[] {
-  return Array.from(usePluginStore.getState().rpcBeforeRequest.values()).map((o) => o.value);
+  return mapOwned(usePluginStore.getState().rpcBeforeRequest);
 }
 
 /** Snapshot of registered afterResponse hooks in insertion order. */
 export function listRpcAfterHooks(): RpcAfterResponseHook[] {
-  return Array.from(usePluginStore.getState().rpcAfterResponse.values()).map((o) => o.value);
+  return mapOwned(usePluginStore.getState().rpcAfterResponse);
 }

@@ -355,10 +355,7 @@ export function createHost(
     },
 
     notify(message: string, level: "info" | "warn" | "error" = "info"): void {
-      const tag = `[plugin:${pluginName}]`;
-      if (level === "error") console.error(tag, message);
-      else if (level === "warn") console.warn(tag, message);
-      else console.info(tag, message);
+      logToConsole(pluginName, level, [message]);
       // Push to the persistent feed BEFORE dispatching the visual toast so
       // any listener that reacts to the toast can already cross-reference
       // an entry id (e.g. "Open in notifications panel").
@@ -478,25 +475,27 @@ function createDenyProxy(pluginName: string, namespace: string): unknown {
   });
 }
 
+// Method-name lookup beats the previous nested ternary — adding a
+// level is one line. Stored as the method *name* (not a reference) so
+// vitest's `vi.spyOn(console, "info")` after module load still binds.
+const CONSOLE_METHOD: Record<LogLevel, "log" | "info" | "warn" | "error"> = {
+  debug: "log",
+  info: "info",
+  warn: "warn",
+  error: "error",
+};
+
+function logToConsole(plugin: string, level: LogLevel, args: unknown[]): void {
+  console[CONSOLE_METHOD[level]](`[plugin:${plugin}]`, ...args);
+}
+
 // Module-scoped log emission: forwards to console with a `[plugin:<name>]`
 // prefix (preserving the existing log shape) and fans the event out to
 // every registered subscriber. Subscriber failures are isolated.
 function emitLog(plugin: string, level: LogLevel, args: unknown[]): void {
-  const tag = `[plugin:${plugin}]`;
-  const consoleFn =
-    level === "error"
-      ? console.error
-      : level === "warn"
-        ? console.warn
-        : level === "info"
-          ? console.info
-          : console.log;
-   
-  consoleFn(tag, ...args);
-
+  logToConsole(plugin, level, args);
   const event = { plugin, level, args, timestamp: Date.now() };
-  const subs = usePluginStore.getState().logSubscribers;
-  for (const o of subs.values()) {
+  for (const o of usePluginStore.getState().logSubscribers.values()) {
     safeCall(() => o.value(event), "[plugin] log subscriber threw:");
   }
 }
