@@ -13,6 +13,18 @@ import { usePluginStore } from "@/plugins/sdk/registry";
 interface ThemeState {
   theme: Theme;
   accent: string;
+  /** Empty string = use the bundled Geist default. Anything else overrides
+   *  `--font-sans` on :root and propagates via Tailwind's `font-sans`. */
+  uiFont: string;
+  /** Empty string = use the bundled Geist Mono default. */
+  codeFont: string;
+  /** Pixel font-size on <html>. Empty = browser default (16px) so existing
+   *  rem tokens stay calibrated. Range: 13–18 in the picker. */
+  fontSize: number | null;
+  /** "bubble" (default): user messages render as right-aligned cards with
+   *  rounded corners + surface-2 fill. "plain": user messages match the
+   *  assistant's flat layout — left-aligned, no bubble. */
+  messageStyle: "bubble" | "plain";
 }
 
 interface ThemeActions {
@@ -25,6 +37,10 @@ interface ThemeActions {
    */
   toggleTheme: () => void;
   setAccent: (accent: string) => void;
+  setUiFont: (font: string) => void;
+  setCodeFont: (font: string) => void;
+  setFontSize: (size: number | null) => void;
+  setMessageStyle: (style: "bubble" | "plain") => void;
 }
 
 export const useThemeStore = create<ThemeState & ThemeActions>()(
@@ -32,6 +48,10 @@ export const useThemeStore = create<ThemeState & ThemeActions>()(
     (set, get) => ({
       theme: "dark",
       accent: "#1ed760",
+      uiFont: "",
+      codeFont: "",
+      fontSize: null,
+      messageStyle: "bubble",
 
       setTheme: (theme) => set({ theme }),
       toggleTheme: () => {
@@ -50,6 +70,10 @@ export const useThemeStore = create<ThemeState & ThemeActions>()(
         if (candidates[0]) set({ theme: candidates[0].id });
       },
       setAccent: (accent) => set({ accent }),
+      setUiFont: (uiFont) => set({ uiFont }),
+      setCodeFont: (codeFont) => set({ codeFont }),
+      setFontSize: (fontSize) => set({ fontSize }),
+      setMessageStyle: (messageStyle) => set({ messageStyle }),
     }),
     {
       name: "lyra.theme",
@@ -122,12 +146,53 @@ function applyTheme(theme: Theme, accent: string) {
   }
 }
 
+// Apply user font preferences to :root. uiFont / codeFont override the
+// Tailwind --font-sans / --font-mono tokens; fontSize sets <html>
+// font-size in px so every rem-anchored token scales proportionally.
+// (See tokens.css comment for why we DON'T set this to a rem-based
+// value — that would self-reference.)
+function applyFonts(uiFont: string, codeFont: string, fontSize: number | null) {
+  const root = document.documentElement;
+  if (uiFont) {
+    root.style.setProperty(
+      "--font-sans",
+      `"${uiFont}", "Geist", "Inter", system-ui, sans-serif`,
+    );
+  } else {
+    root.style.removeProperty("--font-sans");
+  }
+  if (codeFont) {
+    root.style.setProperty(
+      "--font-mono",
+      `"${codeFont}", "Geist Mono", "JetBrains Mono", ui-monospace, Menlo, monospace`,
+    );
+  } else {
+    root.style.removeProperty("--font-mono");
+  }
+  if (fontSize) {
+    root.style.fontSize = `${fontSize}px`;
+  } else {
+    root.style.fontSize = "";
+  }
+}
+
 // Persist middleware rehydrates synchronously on store creation, so
 // getState() already reflects persisted values.
-applyTheme(useThemeStore.getState().theme, useThemeStore.getState().accent);
+{
+  const s = useThemeStore.getState();
+  applyTheme(s.theme, s.accent);
+  applyFonts(s.uiFont, s.codeFont, s.fontSize);
+}
 useThemeStore.subscribe((state, prev) => {
   if (state.theme !== prev.theme || state.accent !== prev.accent) {
     applyTheme(state.theme, state.accent);
+  }
+  if (
+    state.uiFont !== prev.uiFont ||
+    state.codeFont !== prev.codeFont ||
+    state.fontSize !== prev.fontSize
+  ) {
+    applyFonts(state.uiFont, state.codeFont, state.fontSize);
   }
 });
 
