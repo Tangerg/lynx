@@ -20,6 +20,11 @@ export function SidebarExpanded({ onToggleRail }: Props) {
     // titlebar padding + Wails drag region opt-outs). All visual styling
     // is Tailwind here.
     <Panel className="sidebar gap-2 px-3 pb-3">
+      {/* macOS drag-region strip — only the 48px above the search box.
+          Sits under the traffic-light controls and lets the user move
+          the window from the titlebar zone, without making every
+          div-based row in the sidebar a drag handle. */}
+      <div className="absolute top-0 left-0 right-0 h-12 [-webkit-app-region:drag] [--wails-draggable:drag]" />
       <div className="flex items-center pt-1 pb-4">
         <button
           type="button"
