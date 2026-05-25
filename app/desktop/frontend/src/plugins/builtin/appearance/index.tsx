@@ -78,6 +78,43 @@ function ThemeRow({
   );
 }
 
+// Conic gradient used when no custom color is active — communicates
+// "click me, you can pick anything" without committing to a default hue.
+const RAINBOW_HINT = "conic-gradient(from 0deg, #ef4444, #f59e0b, #eab308, #22c55e, #06b6d4, #6366f1, #a855f7, #ec4899, #ef4444)";
+
+function CustomAccentPicker({
+  value,
+  isActive,
+  onChange,
+  label,
+}: {
+  value: string;
+  isActive: boolean;
+  onChange: (hex: string) => void;
+  label: string;
+}) {
+  return (
+    <label
+      title={label}
+      aria-label={label}
+      className={cn(
+        "relative inline-grid h-4.5 w-4.5 place-items-center rounded-full border-2 border-transparent bg-clip-padding cursor-pointer transition-[transform,box-shadow] duration-150 hover:scale-[1.08] active:scale-95",
+        isActive && "border-surface shadow-[0_0_0_1.5px_var(--color-text)]",
+      )}
+      style={{ background: isActive ? value : RAINBOW_HINT }}
+    >
+      {/* Native color input — visually hidden but consumes the click and
+          opens the OS color picker (macOS color wheel, etc.). */}
+      <input
+        type="color"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+      />
+    </label>
+  );
+}
+
 function AppearancePane() {
   const t = useT();
   const locale = useLocale();
@@ -111,7 +148,7 @@ function AppearancePane() {
           <div className="text-[15px] font-semibold text-fg">{t("settings.accent")}</div>
           <div className="mt-0.5 text-[13px] text-fg-muted">{t("settings.accent.sub")}</div>
         </div>
-        <div className="flex flex-wrap gap-2.5 justify-start">
+        <div className="flex flex-wrap gap-2.5 justify-start items-center">
           {accents.map((a) => (
             <button
               key={a.id}
@@ -127,6 +164,16 @@ function AppearancePane() {
               )}
             />
           ))}
+          {/* Custom color picker — opens the OS-native color wheel via a
+              hidden <input type="color">. The swatch shows the current
+              accent when it's not one of the registered presets, and a
+              rainbow gradient hint otherwise. */}
+          <CustomAccentPicker
+            value={accent}
+            isActive={!accents.some((a) => a.dark === accent)}
+            onChange={setAccent}
+            label={t("settings.accent.custom")}
+          />
         </div>
       </div>
 
