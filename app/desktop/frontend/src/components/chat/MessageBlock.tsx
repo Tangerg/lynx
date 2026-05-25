@@ -105,28 +105,28 @@ export function MessageBlock({ msg, ctx }: { msg: Message; ctx: PartCtx }) {
             <span>{msg.time}</span>
             <Slot name="message.header.end" />
           </div>
-          <div className={cn(isAgent && "flex items-start gap-3")}>
-            <div
-              ref={contentRef}
-              className={cn(
-                // 15px is the content baseline — markdown headings and
-                // every other content surface size off this.
-                "msg-content min-w-0 flex-1 text-fg text-[15px] leading-[1.68] tracking-[-0.003em] font-normal",
-                bubble &&
-                  "max-w-[580px] rounded-[14px_14px_4px_14px] bg-surface-2 px-3.5 py-2.5 text-left light:bg-surface-3",
-              )}
-            >
-              {msg.blocks.map((part, i) => {
-                if (part.kind === "text" && part.streaming && i !== lastIdx) {
-                  return renderPart({ ...part, streaming: false }, i, partCtx);
-                }
-                return renderPart(part, i, partCtx);
-              })}
-            </div>
-            {isAgent && <MessageOutline target={contentRef} />}
+          <div
+            ref={contentRef}
+            className={cn(
+              // 15px is the content baseline — markdown headings and
+              // every other content surface size off this.
+              "msg-content min-w-0 text-fg text-[15px] leading-[1.68] tracking-[-0.003em] font-normal",
+              bubble &&
+                "max-w-[580px] rounded-[14px_14px_4px_14px] bg-surface-2 px-3.5 py-2.5 text-left light:bg-surface-3",
+            )}
+          >
+            {msg.blocks.map((part, i) => {
+              if (part.kind === "text" && part.streaming && i !== lastIdx) {
+                return renderPart({ ...part, streaming: false }, i, partCtx);
+              }
+              return renderPart(part, i, partCtx);
+            })}
           </div>
           <Slot name="message.actions" />
         </div>
+        {/* Lives in the right gutter outside the 760px content column.
+            Hidden on narrow viewports where no gutter is available. */}
+        {isAgent && <MessageOutline target={contentRef} />}
       </div>
      </CitationContext.Provider>
     </MessageContext.Provider>
