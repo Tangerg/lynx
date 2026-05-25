@@ -35,6 +35,9 @@ export function SidebarRail({ onToggleRail }: Props) {
     // (macOS titlebar padding + Wails drag region). All visual styling is
     // Tailwind here.
     <Panel className="sidebar rail w-14 items-center gap-1 px-1.5 pb-3">
+      {/* macOS drag-region strip — 36px above the expand button. See
+          SidebarExpanded for the rationale (don't make rows draggable). */}
+      <div className="absolute top-0 left-0 right-0 h-9 [-webkit-app-region:drag] [--wails-draggable:drag]" />
       <IconButton variant="rail" title={t("sidebar.action.expand")} onClick={onToggleRail}>
         <Icon name="panel-l" size={16} />
       </IconButton>

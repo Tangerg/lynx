@@ -172,22 +172,15 @@ html.theme-light .tool-card.running::before {
 }
 
 /* macOS titlebar shim — push sidebar header below the traffic-light
-   controls + make the top zone a Wails drag region. Full mode 48px,
-   rail mode 36px. */
+   controls. The drag region is a dedicated absolutely-positioned strip
+   added by SidebarExpanded / SidebarRail (see those files), not the
+   whole sidebar — making the entire column drag would catch every
+   div-based row (SessionRow, ProjectRow, footer card) and let the
+   window be moved by clicking on them. */
 .sidebar {
   padding-top: 48px;
-  -webkit-app-region: drag;
-  --wails-draggable: drag;
+  position: relative;
 }
 .sidebar.rail {
   padding-top: 36px;
-  -webkit-app-region: drag;
-  --wails-draggable: drag;
-}
-/* Interactive children opt out of drag so they remain clickable. */
-.sidebar button,
-.sidebar input,
-.sidebar a {
-  -webkit-app-region: no-drag;
-  --wails-draggable: no-drag;
 }
