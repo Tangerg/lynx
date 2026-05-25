@@ -5,8 +5,6 @@ import { defineThemePlugin } from "../themes/defineThemePlugin";
 
 const c = {
   mauve: "#cba6f7",
-  mauveBorder: "#b18cf3",
-  mauvePress: "#9572ed",
 
   crust: "#11111b",
   mantle: "#181825",
@@ -32,8 +30,6 @@ export default defineThemePlugin({
 
   brand: {
     accent: c.mauve,
-    accentBorder: c.mauveBorder,
-    accentPress: c.mauvePress,
     textOnAccent: c.base,
   },
   surfaces: {

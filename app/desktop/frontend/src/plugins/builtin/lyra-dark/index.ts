@@ -5,10 +5,9 @@
 import { defineThemePlugin } from "../themes/defineThemePlugin";
 
 const c = {
-  // Brand — Lyra signature green
+  // Brand — Lyra signature green. accentBorder/Press derived by
+  // defineThemePlugin via colord.darken().
   green: "#1ed760",
-  greenBorder: "#1db954",
-  greenPress: "#169c46",
 
   // Surface anchors
   canvas: "#010102", // page background — faint blue tint, not pure black
@@ -36,8 +35,6 @@ export default defineThemePlugin({
 
   brand: {
     accent: c.green,
-    accentBorder: c.greenBorder,
-    accentPress: c.greenPress,
     textOnAccent: "#000000", // black ink reads on bright green
   },
   surfaces: {

@@ -5,8 +5,6 @@ import { defineThemePlugin } from "../themes/defineThemePlugin";
 
 const c = {
   green: "#15883e",
-  greenBorder: "#117134",
-  greenPress: "#0c5d2a",
 
   canvas: "#fafafa",
   surface1: "#ffffff",
@@ -31,8 +29,6 @@ export default defineThemePlugin({
 
   brand: {
     accent: c.green,
-    accentBorder: c.greenBorder,
-    accentPress: c.greenPress,
     textOnAccent: "#ffffff",
   },
   surfaces: {
