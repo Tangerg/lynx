@@ -24,7 +24,7 @@ export function SettingsPage() {
 
   return (
     <div className="grid h-full w-full grid-cols-[200px_1fr] overflow-hidden">
-      <div className="flex flex-col gap-0.5 bg-surface-2 px-2 py-3.5">
+      <div className="flex flex-col gap-0.5 px-2 py-3.5">
         <div className="px-2.5 pb-2 pt-1 font-mono text-[11px] font-semibold text-fg-faint">
           {t("settings.title")}
         </div>
