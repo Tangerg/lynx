@@ -1,26 +1,56 @@
 // Built-in plugins: per-message action buttons in `message.header.end`.
 //
-// Three icons rendered in the message header (existing copy + edit +
-// regenerate). Each is its own plugin so a fork that doesn't want one
-// can drop it without touching the others.
+// Three icons rendered in the message header (copy + edit + regenerate).
+// Each is its own plugin so a fork that doesn't want one can drop it
+// without touching the others. Shared chrome / helpers live in
+// _shared.ts.
 
-import type { Message } from "@/protocol/agui/viewState";
 import { Icon } from "@/components/common";
 import { definePlugin, useCurrentMessage } from "@/plugins/sdk";
 import { getCurrentSessionView, useAgentAction } from "@/state/agentStore";
 import { useComposerStore } from "@/state/composerStore";
+import { ACTION_BTN_CLASSES, flattenText } from "./_shared";
 
-const ACTION_BTN_CLASSES =
-  "inline-flex h-5 w-5 items-center justify-center rounded border-0 bg-transparent text-fg-faint cursor-pointer transition-colors hover:bg-surface-2 hover:text-fg";
+// ---- Copy: plaintext flatten of the message into the clipboard. ----
 
-// Best-effort plaintext extraction — only blocks with a `text` field
-// contribute (tool / approval / search blocks don't make sense as text).
-function flattenText(blocks: Message["blocks"]): string {
-  return blocks
-    .map((b) => ("text" in b ? ((b as { text?: string }).text ?? "") : ""))
-    .filter(Boolean)
-    .join("\n\n");
+function CopyButton() {
+  const msg = useCurrentMessage();
+  const text = flattenText(msg.blocks);
+  if (!text) return null;
+
+  const onClick = async () => {
+    if (typeof navigator === "undefined" || !navigator.clipboard) return;
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      /* unfocused window — silent */
+    }
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title="Copy message"
+      aria-label="Copy message"
+      className={ACTION_BTN_CLASSES}
+    >
+      <Icon name="copy" size={11} />
+    </button>
+  );
 }
+
+export const messageCopy = definePlugin({
+  name: "lyra.builtin.message-copy",
+  version: "1.0.0",
+  setup({ host }) {
+    host.layout.register("message.header.end", {
+      id: "copy",
+      order: 0,
+      component: CopyButton,
+    });
+  },
+});
 
 // ---- Edit (user messages only): load the text back into the composer
 // so the user can tweak and re-send. Doesn't mutate the original message
@@ -67,9 +97,9 @@ export const messageEdit = definePlugin({
 });
 
 // ---- Regenerate (assistant messages only): find the preceding user
-// prompt and re-send it. The new run produces a fresh response — not
-// literally "rerun from this point" but the closest thing the AG-UI
-// stream protocol supports without backend-side history-fork support. ----
+// prompt and re-send it. AG-UI doesn't have a "fork-from-here" verb, so
+// the closest thing we can do is replay that prompt — backend treats it
+// as a fresh request and produces a new response. ----
 
 function RegenerateButton() {
   const msg = useCurrentMessage();
@@ -78,11 +108,6 @@ function RegenerateButton() {
   if (!send) return null;
 
   const onClick = () => {
-    // Walk back through the session's messages to find the user prompt
-    // that produced this assistant turn. AG-UI doesn't have a
-    // "fork-from-here" verb, so the closest thing we can do is replay
-    // that prompt — backend treats it as a fresh request and produces
-    // a new response.
     const { messages } = getCurrentSessionView();
     const idx = messages.findIndex((m) => m.id === msg.id);
     if (idx < 0) return;

@@ -1,0 +1,8 @@
+{
+  "$schema": "https://unpkg.com/knip@latest/schema.json",
+  "ignoreExportsUsedInFile": true,
+  "ignore": [
+    "wailsjs/**",
+    "sample-plugins/**"
+  ]
+}

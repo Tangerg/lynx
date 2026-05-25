@@ -26,6 +26,3 @@ export interface SidebarProject {
  * via `useActiveScheme()` instead of comparing the id directly.
  */
 export type Theme = string;
-
-/** Binary theme kind — the discriminator structural CSS keys on. */
-export type ThemeScheme = "dark" | "light";

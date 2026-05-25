@@ -1,4 +1,3 @@
-import type {Ref} from "react";
 import type { PartCtx } from "./PartRenderer";
 import type { Message } from "@/protocol/agui/viewState";
 import { AnimatePresence, motion } from "motion/react";
@@ -86,7 +85,3 @@ export function MessageStream({ messages, ctx, resetKey, onControlsChange }: Pro
     </StickToBottom>
   );
 }
-
-// Kept for any old callsite still importing the type. Most consumers
-// should use `StreamControls` directly.
-export type MessageStreamRef = Ref<HTMLDivElement>;
