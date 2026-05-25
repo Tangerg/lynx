@@ -5,6 +5,8 @@ import {
   Book,
   Bug,
   Check,
+  ChevronDown,
+  ChevronUp,
   Code,
   Command,
   Copy,
@@ -109,6 +111,8 @@ export type IconName =
   | "shield"
   | "loop"
   | "copy"
+  | "chevron-up"
+  | "chevron-down"
   | "panel-r"
   | "arrow-down";
 
@@ -165,6 +169,8 @@ const ICON_MAP: Record<IconName, LucideIcon> = {
   shield: Shield,
   loop: Repeat,
   copy: Copy,
+  "chevron-up": ChevronUp,
+  "chevron-down": ChevronDown,
   "arrow-down": ArrowDown,
   // Intentionally unused alias kept for forward-compat: "maximize" can
   // map to Maximize2 if a callsite is added later.
