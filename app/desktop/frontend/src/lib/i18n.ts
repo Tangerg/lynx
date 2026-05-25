@@ -63,6 +63,7 @@ const messages: Record<Locale, Record<string, string>> = {
       "Pick a color theme. Plugins can register more — they show up here automatically.",
     "settings.accent": "Accent",
     "settings.accent.sub": "Functional highlight color — play / active / CTA.",
+    "settings.accent.custom": "Pick a custom color",
     "settings.language.label": "Language",
     "settings.language.sub": "Interface language. More locales can be added via plugins.",
 
@@ -120,6 +121,7 @@ const messages: Record<Locale, Record<string, string>> = {
     "settings.theme.sub": "选择一个配色方案。插件可以注册更多主题——会自动出现在这里。",
     "settings.accent": "强调色",
     "settings.accent.sub": "功能性高亮——运行、激活、主要操作。",
+    "settings.accent.custom": "自定义颜色",
     "settings.language.label": "语言",
     "settings.language.sub": "界面语言。可以通过插件添加更多语言。",
 

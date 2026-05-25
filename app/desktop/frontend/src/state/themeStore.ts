@@ -3,6 +3,7 @@
 // :root (inline CSS vars + theme-{scheme} class on <html>).
 
 import type { Theme } from "@/components/sidebar/types";
+import { colord } from "colord";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 // Direct registry import — going through the SDK barrel pulls in
@@ -62,12 +63,16 @@ export const useThemeStore = create<ThemeState & ThemeActions>()(
 // the theme plugin registers, tokens.css :root values stand in as
 // first-paint fallback.
 
-function lookupLightVariant(darkHex: string): string | undefined {
+// Resolve the accent's light-theme variant. Registered presets have a
+// hand-tuned `light` hex; custom colors (via the picker) don't, so we
+// darken the dark hex by ~20% — enough to give it legible contrast on
+// the bright surface without losing the user's chosen hue.
+function lookupLightVariant(darkHex: string): string {
   const accents = usePluginStore.getState().accents;
   for (const o of accents.values()) {
     if (o.value.dark === darkHex) return o.value.light ?? darkHex;
   }
-  return undefined;
+  return colord(darkHex).darken(0.2).toHex();
 }
 
 // Track every CSS variable the last theme set on :root.style so we can
@@ -110,7 +115,7 @@ function applyTheme(theme: Theme, accent: string) {
   // Accent override last so the user's accent pick beats the theme's
   // default --color-accent token. Also tracked so a theme switch clears
   // it cleanly.
-  const c = scheme === "light" ? (lookupLightVariant(accent) ?? accent) : accent;
+  const c = scheme === "light" ? lookupLightVariant(accent) : accent;
   root.style.setProperty("--color-accent", c);
   if (!appliedTokenNames.includes("--color-accent")) {
     appliedTokenNames.push("--color-accent");
