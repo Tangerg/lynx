@@ -97,7 +97,10 @@ export function ChatStream({ onSend, resetKey }: Props) {
           visible={streamControls ? !streamControls.isAtBottom : false}
           onClick={() => streamControls?.scrollToBottom()}
         />
-        <div className="pointer-events-auto relative z-[2] mx-auto w-full max-w-[760px]">
+        {/* px-6 mirrors msg-stream's 24px content padding so the
+            composer's outer edge lines up with the message text
+            column above it (instead of the raw 760px column edge). */}
+        <div className="pointer-events-auto relative z-[2] mx-auto w-full max-w-[760px] px-6">
           <Slot name="chat.status" />
           <SlashSuggestions value={composerValue} onPick={setComposerValue} />
           <Composer
