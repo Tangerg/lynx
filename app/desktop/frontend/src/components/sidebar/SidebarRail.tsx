@@ -12,7 +12,7 @@
 // `margin-top: auto`.
 
 import type { SidebarSession } from "./types";
-import { Icon, IconButton, Panel } from "@/components/common";
+import { DragStrip, Icon, IconButton, Panel } from "@/components/common";
 import { useT } from "@/lib/i18n";
 import { PluginBoundary } from "@/plugins/PluginBoundary";
 import { useSidebarRailItems } from "@/plugins/sdk";
@@ -37,7 +37,7 @@ export function SidebarRail({ onToggleRail }: Props) {
     <Panel className="sidebar rail w-14 items-center gap-1 px-1.5 pb-3">
       {/* macOS drag-region strip — 36px above the expand button. See
           SidebarExpanded for the rationale (don't make rows draggable). */}
-      <div className="absolute top-0 left-0 right-0 h-9 [-webkit-app-region:drag] [--wails-draggable:drag]" />
+      <DragStrip height={36} />
       <IconButton variant="rail" title={t("sidebar.action.expand")} onClick={onToggleRail}>
         <Icon name="panel-l" size={16} />
       </IconButton>

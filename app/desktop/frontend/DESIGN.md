@@ -387,9 +387,11 @@ Color carries information, not decoration. The system uses **one chromatic accen
 |---|---|---|
 | `canvas` | `#010102` | Page background. The faint blue tint is deliberate — pure `#000000` reads as void; this reads as "deep dark". |
 | `surface-1` | `#0f1011` | Default lifted surface — cards, sidebar, message bubble, tool-call card. |
-| `surface-2` | `#141516` | Hovered / active row, raised surface, command palette. |
+| `surface-2` | `#141516` | Hovered / active row, raised surface, command palette, **inset reading pane** (e.g. settings content area inside a workspace view — distinct from the outer chrome). |
 | `surface-3` | `#18191a` | Sub-nav, dropdown, popover. |
 | `surface-4` | `#191a1b` | Deepest lifted surface (rare). |
+
+**Inset-pane rule** — when a workspace view has its own internal nav rail + content split (e.g. the settings page), keep the rail on `surface` (same as the outer sidebar — consistent chrome) and lift the content area to `surface-2`. This reverses the naïve "nav darker / content lighter" guess from web-app conventions; the chrome stays uniform, and the reading area gets the distinct surface so it reads as the focus zone.
 
 ### Hairlines
 

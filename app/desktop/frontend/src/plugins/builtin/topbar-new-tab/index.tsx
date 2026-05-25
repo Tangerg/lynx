@@ -6,8 +6,9 @@
 // drop the plugin (and other plugins can register their own top-bar
 // actions alongside).
 
-import { Icon } from "@/components/common";
+import { Icon, noDragClasses } from "@/components/common";
 import { useSessions } from "@/lib/queries";
+import { cn } from "@/lib/utils";
 import { definePlugin } from "@/plugins/sdk";
 import { useSessionStore } from "@/state/sessionStore";
 
@@ -27,7 +28,10 @@ function NewTabButton() {
       onClick={onClick}
       title="New session (⌘N)"
       aria-label="New session (⌘N)"
-      className="ml-1 mr-0.5 mb-1 grid h-6.5 w-6.5 shrink-0 place-items-center rounded-md border-0 bg-transparent text-fg-muted cursor-pointer [-webkit-app-region:no-drag] [--wails-draggable:no-drag] hover:bg-surface hover:text-fg"
+      className={cn(
+        "ml-1 mr-0.5 mb-1 grid h-6.5 w-6.5 shrink-0 place-items-center rounded-md border-0 bg-transparent text-fg-muted cursor-pointer hover:bg-surface hover:text-fg",
+        noDragClasses,
+      )}
     >
       <Icon name="plus" size={13} />
     </button>
