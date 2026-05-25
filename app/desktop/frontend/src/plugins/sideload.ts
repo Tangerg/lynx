@@ -9,10 +9,30 @@
 
 import type {LoadResult} from "./sdk/definePlugin";
 import type { PluginSpec } from "./sdk/types";
+import { z } from "zod";
 import { AGUI_BASE } from "@/lib/http";
 import { loadPlugin  } from "./sdk/definePlugin";
 import { reportPluginError } from "./sdk/errors";
 import { usePluginStore } from "./sdk/registry";
+
+// Sideloaded modules cross the trust boundary — we can't trust their
+// default export from TS alone. Validate the shape with Zod before
+// handing it to loadPlugin(). The schema is intentionally lenient on
+// optional fields (capabilities, requires, contributes…) so older
+// plugin bundles still load.
+const PluginSpecSchema = z.object({
+  name: z.string().min(1),
+  version: z.string().min(1),
+  setup: z.custom<PluginSpec["setup"]>(
+    (v) => typeof v === "function",
+    "setup must be a function",
+  ),
+  apiVersion: z.string().optional(),
+  requires: z.array(z.string()).optional(),
+  activationEvents: z.array(z.string()).optional(),
+  capabilities: z.array(z.string()).optional(),
+  contributes: z.unknown().optional(),
+});
 
 interface SideloadInfo { id: string; url: string }
 
@@ -61,13 +81,18 @@ export async function loadSideloadedPlugins(): Promise<LoadResult[]> {
       // and live behind the Go backend.
       const mod = await import(/* @vite-ignore */ url);
       const def = (mod as { default?: unknown }).default;
-      if (!isPluginSpec(def)) {
-        const reason = "default export is not a definePlugin(...) result";
+      const parsed = PluginSpecSchema.safeParse(def);
+      if (!parsed.success) {
+        const issues = z.treeifyError(parsed.error);
+        const reason = `default export failed PluginSpec schema: ${JSON.stringify(issues)}`;
         reportPluginError(info.id, "setup", new Error(reason));
         results.push({ kind: "skipped", name: info.id, reason });
         continue;
       }
-      spec = def;
+      // The schema is intentionally narrower than PluginSpec (we don't
+      // re-validate every nested HostCapability literal etc.) so the
+      // assertion below keeps the downstream typing precise.
+      spec = parsed.data as PluginSpec;
     } catch (err) {
        
       console.error(`[plugin] sideload ${info.id} import failed:`, err);
@@ -81,14 +106,6 @@ export async function loadSideloadedPlugins(): Promise<LoadResult[]> {
   }
 
   return results;
-}
-
-function isPluginSpec(v: unknown): v is PluginSpec {
-  if (!v || typeof v !== "object") return false;
-  const o = v as Record<string, unknown>;
-  return (
-    typeof o.name === "string" && typeof o.version === "string" && typeof o.setup === "function"
-  );
 }
 
 // Tag any plugin that's currently loaded as builtin when this module is
