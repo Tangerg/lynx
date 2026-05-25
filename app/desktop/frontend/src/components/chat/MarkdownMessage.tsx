@@ -2,15 +2,19 @@ import { useMemo } from "react";
 
 import ReactMarkdown from "react-markdown";
 import rehypeKatex from "rehype-katex";
+import rehypeRaw from "rehype-raw";
 import remarkBreaks from "remark-breaks";
 import remarkCjkFriendly from "remark-cjk-friendly";
 import remarkGfm from "remark-gfm";
+import remarkAlert from "remark-github-blockquote-alert";
 import remarkMath from "remark-math";
 import remend from "remend";
 import { markdownComponents } from "@/components/chat/markdownComponents";
+import { rehypeCitations } from "@/lib/rehypeCitations";
 import { rehypeFadeIn } from "@/lib/rehypeFadeIn";
 import { useSmoothText } from "@/lib/smoothText";
 import "katex/dist/katex.min.css";
+import "remark-github-blockquote-alert/alert.css";
 
 interface Props {
   text: string;
@@ -24,11 +28,20 @@ interface Props {
 }
 
 // Stable plugin list — keeps react-markdown from treating each render
-// as a new plugin set. remarkBreaks turns a single \n into <br> (LLMs
-// expect that); remarkCjkFriendly fixes bold/italic boundaries that
-// vanilla CommonMark breaks for CJK text; remarkMath parses $…$ /
-// $$…$$ blocks for rehypeKatex to render.
-const remarkPlugins = [remarkGfm, remarkBreaks, remarkCjkFriendly, remarkMath];
+// as a new plugin set.
+//   remarkGfm           — tables / strikethrough / task lists
+//   remarkBreaks        — single \n → <br> (LLMs expect that)
+//   remarkCjkFriendly   — fix bold/italic boundaries on CJK text
+//   remarkMath          — parse $…$ / $$…$$ blocks
+//   remarkAlert         — GitHub `> [!NOTE]` / [!WARNING] / etc. callouts
+const remarkPlugins = [remarkGfm, remarkBreaks, remarkCjkFriendly, remarkMath, remarkAlert];
+
+// rehypeRaw lets the markdown pipe parse inline HTML — `<details>`,
+// `<kbd>`, `<sub>`, `<sup>`, `<mark>`, `<table>` etc. that agents
+// regularly emit. We pass a strict allow list to react-markdown
+// (`allowElement`) below so scripts / iframes / objects / embeds
+// can't sneak through even though they parsed.
+const HTML_DENY = new Set(["script", "iframe", "object", "embed", "form"]);
 
 // MarkdownMessage — full Markdown with optional smooth-streamed per-
 // word fade-in. Pipeline: raw → useSmoothText → remend (auto-close
@@ -42,10 +55,15 @@ export function MarkdownMessage({ text, streaming, instant }: Props) {
   // doesn't render as broken syntax mid-stream.
   const safe = useMemo(() => remend(display), [display]);
 
-  // rehypeKatex always runs (math renders the same instant or streamed);
-  // rehypeFadeIn only on streamed assistant messages.
+  // Pipeline: rehypeRaw (parse inline HTML) → rehypeCitations (swap
+  // `[n]` markers for <sup> badges) → rehypeFadeIn (per-word streaming
+  // animation, streamed-only) → rehypeKatex (math). rehypeRaw must
+  // come first so subsequent rehype plugins see the expanded tree.
   const rehypePlugins = useMemo(
-    () => (instant ? [rehypeKatex] : [rehypeFadeIn, rehypeKatex]),
+    () =>
+      instant
+        ? [rehypeRaw, rehypeCitations, rehypeKatex]
+        : [rehypeRaw, rehypeCitations, rehypeFadeIn, rehypeKatex],
     [instant],
   );
 
@@ -55,6 +73,9 @@ export function MarkdownMessage({ text, streaming, instant }: Props) {
         remarkPlugins={remarkPlugins}
         rehypePlugins={rehypePlugins}
         components={markdownComponents}
+        // Hard-blocklist tags that can execute or break sandbox even if
+        // the markdown author wrote them out as raw HTML.
+        allowElement={(el) => !HTML_DENY.has(el.tagName)}
       >
         {safe}
       </ReactMarkdown>

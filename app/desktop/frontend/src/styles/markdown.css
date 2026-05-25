@@ -277,3 +277,35 @@
   border: 2px solid transparent;
   background-clip: content-box;
 }
+
+/* ===== GitHub Alerts ($remark-github-blockquote-alert) =====
+   Their default alert.css uses prefers-color-scheme + GitHub brand
+   hexes. Override the CSS vars they read so alerts pick up OUR
+   semantic tokens (info/warning/negative/success/accent) and track
+   theme switches via our .theme-{scheme} class instead of the OS. */
+.md .markdown-alert {
+  --color-border-default: var(--color-border);
+  --color-accent-fg: var(--color-info);
+  --color-accent-emphasis: var(--color-info);
+  --color-danger-fg: var(--color-negative);
+  --color-danger-emphasis: var(--color-negative);
+  --color-attention-fg: var(--color-warning);
+  --color-attention-emphasis: var(--color-warning);
+  --color-done-fg: var(--color-accent);
+  --color-done-emphasis: var(--color-accent);
+  --color-success-fg: var(--color-success);
+  --color-success-emphasis: var(--color-success);
+
+  margin: 16px 0;
+  padding: 10px 14px;
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--color-text) 3%, transparent);
+}
+.md .markdown-alert .markdown-alert-title {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
