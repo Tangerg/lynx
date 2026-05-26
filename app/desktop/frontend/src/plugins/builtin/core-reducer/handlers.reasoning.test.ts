@@ -1,13 +1,7 @@
-// Per-event semantics tests for the core-reducer plugin.
-//
-// `protocol/agui/reducer.test.ts` covers the dispatcher + the 17 most
-// common event types (RUN_* / TEXT_MESSAGE_* / TOOL_CALL_* / STATE_* /
-// STEP_* / MESSAGES_SNAPSHOT). This file fills the gap with the 9
-// remaining event types — reasoning / thinking / activity / tool
-// result — plus a handful of edge cases worth pinning.
-//
-// Pattern matches the existing reducer.test.ts: load the core-reducer
-// plugin once per spec, feed events through `reduce()`, assert state.
+// Reasoning-style event semantics for the core-reducer plugin —
+// TOOL_CALL_RESULT + REASONING_MESSAGE_* + THINKING_TEXT_MESSAGE_*.
+// All three feed text/result data into the most recent assistant
+// message, so they share the `withAssistantMessage` fixture.
 
 import type {BaseEvent} from "@ag-ui/core";
 import type {AgentViewState, Message} from "@/protocol/agui/viewState";
@@ -24,8 +18,6 @@ beforeEach(async () => {
   await loadPlugin(spec);
 });
 
-// Test-fixture helper — seed an assistant message that downstream events
-// (reasoning / thinking / activity) can attach blocks to.
 function withAssistantMessage(id = "m1"): AgentViewState {
   return reduce(
     INITIAL_VIEW_STATE,
@@ -233,175 +225,5 @@ describe("core-reducer — THINKING_TEXT_MESSAGE_*", () => {
       }),
     );
     expect(s.messages).toEqual([]);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// ACTIVITY_SNAPSHOT / ACTIVITY_DELTA
-// ---------------------------------------------------------------------------
-
-describe("core-reducer — ACTIVITY_SNAPSHOT", () => {
-  it("writes content onto message.activities under the activityType key", () => {
-    let s = withAssistantMessage();
-    s = reduce(
-      s,
-      ev({
-        type: EventType.ACTIVITY_SNAPSHOT,
-        messageId: "m1",
-        activityType: "websearch",
-        content: { query: "react query", hits: 12 },
-      }),
-    );
-    const m = s.messages.find((x) => x.id === "m1")!;
-    expect(m.activities?.websearch).toEqual({ query: "react query", hits: 12 });
-  });
-
-  it("merges with prior content by default (replace=false)", () => {
-    let s = withAssistantMessage();
-    s = reduce(
-      s,
-      ev({
-        type: EventType.ACTIVITY_SNAPSHOT,
-        messageId: "m1",
-        activityType: "websearch",
-        content: { query: "q1", hits: 5 },
-      }),
-    );
-    s = reduce(
-      s,
-      ev({
-        type: EventType.ACTIVITY_SNAPSHOT,
-        messageId: "m1",
-        activityType: "websearch",
-        content: { hits: 10, latencyMs: 200 },
-      }),
-    );
-    const m = s.messages.find((x) => x.id === "m1")!;
-    // hits gets overwritten (10), query preserved (q1), latencyMs added.
-    expect(m.activities?.websearch).toEqual({ query: "q1", hits: 10, latencyMs: 200 });
-  });
-
-  it("replaces wholesale when replace=true", () => {
-    let s = withAssistantMessage();
-    s = reduce(
-      s,
-      ev({
-        type: EventType.ACTIVITY_SNAPSHOT,
-        messageId: "m1",
-        activityType: "websearch",
-        content: { query: "q1", hits: 5 },
-      }),
-    );
-    s = reduce(
-      s,
-      ev({
-        type: EventType.ACTIVITY_SNAPSHOT,
-        messageId: "m1",
-        activityType: "websearch",
-        content: { totalMs: 400 },
-        replace: true,
-      } as BaseEvent),
-    );
-    const m = s.messages.find((x) => x.id === "m1")!;
-    expect(m.activities?.websearch).toEqual({ totalMs: 400 });
-  });
-
-  it("scopes by (messageId, activityType) — different keys coexist", () => {
-    let s = withAssistantMessage();
-    s = reduce(
-      s,
-      ev({
-        type: EventType.ACTIVITY_SNAPSHOT,
-        messageId: "m1",
-        activityType: "websearch",
-        content: { hits: 1 },
-      }),
-    );
-    s = reduce(
-      s,
-      ev({
-        type: EventType.ACTIVITY_SNAPSHOT,
-        messageId: "m1",
-        activityType: "exec",
-        content: { exitCode: 0 },
-      }),
-    );
-    const m = s.messages.find((x) => x.id === "m1")!;
-    expect(m.activities).toEqual({
-      websearch: { hits: 1 },
-      exec: { exitCode: 0 },
-    });
-  });
-});
-
-describe("core-reducer — ACTIVITY_DELTA", () => {
-  it("applies a JSON Patch to the existing activity content", () => {
-    let s = withAssistantMessage();
-    s = reduce(
-      s,
-      ev({
-        type: EventType.ACTIVITY_SNAPSHOT,
-        messageId: "m1",
-        activityType: "exec",
-        content: { stdout: "", stderr: "" },
-      }),
-    );
-    s = reduce(
-      s,
-      ev({
-        type: EventType.ACTIVITY_DELTA,
-        messageId: "m1",
-        activityType: "exec",
-        patch: [
-          { op: "replace", path: "/stdout", value: "line one\n" },
-          { op: "add", path: "/exitCode", value: 0 },
-        ],
-      } as BaseEvent),
-    );
-    const m = s.messages.find((x) => x.id === "m1")!;
-    expect(m.activities?.exec).toEqual({
-      stdout: "line one\n",
-      stderr: "",
-      exitCode: 0,
-    });
-  });
-
-  it("starts from {} when no prior content exists for the activity", () => {
-    let s = withAssistantMessage();
-    s = reduce(
-      s,
-      ev({
-        type: EventType.ACTIVITY_DELTA,
-        messageId: "m1",
-        activityType: "exec",
-        patch: [{ op: "add", path: "/started", value: true }],
-      } as BaseEvent),
-    );
-    const m = s.messages.find((x) => x.id === "m1")!;
-    expect(m.activities?.exec).toEqual({ started: true });
-  });
-
-  it("with a broken patch leaves prior content unchanged", () => {
-    let s = withAssistantMessage();
-    s = reduce(
-      s,
-      ev({
-        type: EventType.ACTIVITY_SNAPSHOT,
-        messageId: "m1",
-        activityType: "exec",
-        content: { stdout: "kept" },
-      }),
-    );
-    s = reduce(
-      s,
-      ev({
-        type: EventType.ACTIVITY_DELTA,
-        messageId: "m1",
-        activityType: "exec",
-        patch: [{ op: "remove", path: "/does/not/exist" }],
-      } as BaseEvent),
-    );
-    const m = s.messages.find((x) => x.id === "m1")!;
-    expect(m.activities?.exec).toEqual({ stdout: "kept" });
   });
 });
