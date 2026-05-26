@@ -99,6 +99,23 @@
   color: var(--color-text);
 }
 
+/* Selection scope — IDE-like. Chrome (tabs, sidebar, composer toolbar,
+   status bar, headers) is non-selectable so accidental drags don't
+   leave stray highlights mid-conversation. The `.msg-content` subtree
+   re-enables selection so the actual reply (text, code, tables,
+   reasoning, alerts) stays copy-pastable. Form controls (input /
+   textarea) ignore inherited `user-select: none` per the spec, so the
+   composer keeps working without an explicit override. */
+body {
+  user-select: none;
+  -webkit-user-select: none;
+}
+.msg-content,
+.msg-content * {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
 @import "./tokens.css";
 @import "./reset.css";
 @import "./layout.css";
