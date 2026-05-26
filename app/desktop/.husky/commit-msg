@@ -1,0 +1,6 @@
+# Conventional Commits enforcement via commitlint. The hook fires from
+# the git repo root; $1 is the path to COMMIT_EDITMSG relative to that
+# cwd. Resolve it to an absolute path before we cd into frontend/ (where
+# the commitlint binary + config live).
+MSG="$PWD/$1"
+cd frontend && npx commitlint --edit "$MSG"

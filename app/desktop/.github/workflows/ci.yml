@@ -1,7 +1,8 @@
 # Frontend CI — runs the same gate as `npm run check` locally
-# (typecheck + oxlint + vitest + knip). Keep this in lockstep with the
-# `check` script in `frontend/package.json`; if a new step is added there,
-# add it here too (or just keep relying on `npm run check`).
+# (typecheck + oxlint + prettier --check + vitest + knip). Keep this in
+# lockstep with the `check` script in `frontend/package.json`; if a new
+# step is added there, add it here too (or just keep relying on
+# `npm run check`).
 
 name: CI
 
