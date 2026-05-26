@@ -39,6 +39,7 @@ import {
   reasoningBlock,
   searchBlock,
 } from "./content-blocks";
+import conversationExport from "./conversation-export";
 import coreReducer from "./core-reducer";
 import {
   defaultAccents,
@@ -204,6 +205,7 @@ const overlays: PluginSpec[] = [
   globalKeymap,
   iconGallery,
   planProgress,
+  conversationExport,
 ];
 
 export const builtinPlugins: PluginSpec[] = [
