@@ -56,6 +56,7 @@ import iconGallery from "./icon-gallery";
 import { kernelChat, kernelSettings, kernelSidebar } from "./kernel";
 import mainRoute from "./main-route";
 import { messageCopy, messageEdit, messageRegenerate } from "./message-actions";
+import planProgress from "./plan-progress";
 import pluginsPane from "./plugins-pane";
 import sampleAttachments from "./sample-attachments";
 import shortcuts from "./shortcuts";
@@ -202,6 +203,7 @@ const overlays: PluginSpec[] = [
   shortcuts,
   globalKeymap,
   iconGallery,
+  planProgress,
 ];
 
 export const builtinPlugins: PluginSpec[] = [
