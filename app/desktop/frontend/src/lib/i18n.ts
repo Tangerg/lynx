@@ -1,227 +1,85 @@
 // Thin wrapper over i18next + react-i18next so the rest of the app
-// stays on a stable `useT() / setLocale() / useLocale()` API. Dictionary
-// lives below as a single flat-keyed object (no nested namespaces) — the
-// helper sets `keySeparator: false` to keep "sidebar.search.label" as a
-// literal key instead of treating it as a path.
+// stays on a stable `useT() / setLocale() / useLocale()` API. Each
+// locale's dictionary lives in its own file under `lib/locales/`;
+// this module just wires them into i18next + exposes the React hooks.
+//
+// All bundles are statically imported so the entire UI is translated
+// from the first paint — locale switches don't trigger a network
+// fetch. They're small (~80 keys × ~30 chars each); the whole set is
+// well under a KB after gzip.
 
 import i18next from "i18next";
 import { initReactI18next, useTranslation } from "react-i18next";
+import { de } from "@/lib/locales/de";
+import { en } from "@/lib/locales/en";
+import { es } from "@/lib/locales/es";
+import { fr } from "@/lib/locales/fr";
+import { ja } from "@/lib/locales/ja";
+import { ko } from "@/lib/locales/ko";
+import { zh } from "@/lib/locales/zh";
+import { zhTW } from "@/lib/locales/zh-TW";
 
-export type Locale = "en" | "zh";
+// Locale ids align with BCP-47 primary subtags plus the one regional
+// variant we ship for Traditional Chinese. Add a new locale by
+// dropping a `lib/locales/<id>.ts` and wiring it into LOCALES below.
+export type Locale = "en" | "zh" | "zh-TW" | "ja" | "ko" | "es" | "fr" | "de";
 
 const STORAGE_KEY = "lyra.locale";
 
-const messages: Record<Locale, Record<string, string>> = {
-  en: {
-    "common.cancel": "Cancel",
-    "common.confirm": "Confirm",
-    "common.close": "Close",
-    "common.retry": "Retry",
-    "common.search": "Search",
-
-    "sidebar.search.placeholder": "Search · files · commands",
-    "sidebar.search.label": "Search files and commands",
-    "sidebar.section.projects": "Projects",
-    "sidebar.section.sessions": "Sessions",
-    "sidebar.action.addProject": "Add project",
-    "sidebar.action.collapse": "Collapse to rail",
-    "sidebar.action.expand": "Expand sidebar",
-    "sidebar.action.newSession": "New session",
-    "sidebar.action.searchHint": "Search (⌘K)",
-    "sidebar.action.tools": "Tools / MCP",
-    "sidebar.action.settings": "Settings",
-    "sidebar.user.menuLabel": "Account menu",
-
-    "composer.input.label": "Message composer",
-    "composer.placeholder.fallback": "Ask, plan, or paste a stack trace…  /  to run a command",
-    "composer.send": "Send",
-    "composer.mode": "Composer mode",
-    "composer.attachFile": "Attach file",
-    "composer.switchModel": "Switch model",
-
-    "chat.error.title": "Render error",
-    "chat.error.retry": "Retry",
-
-    "welcome.eyebrow": "agent ready",
-    "welcome.title": "What can I help you build today.",
-    "welcome.sub": "Start a conversation, paste a stack trace, or pick a suggestion below.",
-    "welcome.suggest.refactor": "Plan a refactor",
-    "welcome.suggest.refactor.prompt": "Help me plan a refactor of ",
-    "welcome.suggest.search": "Search the codebase",
-    "welcome.suggest.search.prompt": "Search the codebase for ",
-    "welcome.suggest.review": "Review recent changes",
-    "welcome.suggest.review.prompt": "Review my recent changes on ",
-    "welcome.suggest.checklist": "Draft a checklist",
-    "welcome.suggest.checklist.prompt": "Draft a checklist for ",
-
-    "settings.title": "Settings",
-    "settings.pane.appearance": "Appearance",
-    "settings.pane.plugins": "Plugins",
-    "settings.pane.language": "Language",
-    "settings.theme": "Theme",
-    "settings.theme.sub":
-      "Pick a color theme. Plugins can register more — they show up here automatically.",
-    "settings.accent": "Accent",
-    "settings.accent.sub": "Functional highlight color — play / active / CTA.",
-    "settings.accent.custom": "Pick a custom color",
-    "settings.font": "Font",
-    "settings.font.sub": "Typeface + size. Empty = bundled Geist.",
-    "settings.font.ui": "UI",
-    "settings.font.code": "Code",
-    "settings.font.size": "Size",
-    "settings.font.default": "Default",
-    "settings.messageStyle": "Message style",
-    "settings.messageStyle.sub": "How your own messages render.",
-    "settings.messageStyle.bubble": "Bubble",
-    "settings.messageStyle.plain": "Plain",
-    "settings.language.label": "Language",
-    "settings.language.sub": "Interface language. More locales can be added via plugins.",
-
-    "settings.pane.connection": "Connection",
-    "settings.connection.title": "Backend",
-    "settings.connection.sub": "Where the AG-UI runtime is reachable. Changes apply on the next request.",
-    "settings.connection.url": "URL",
-    "settings.connection.reset": "Reset to default",
-
-    "iconGallery.filterLabel": "Filter icons by name",
-    "iconGallery.filterPlaceholder": "Filter by name…",
-
-    "approval.settled.approved": "Approved · executing",
-    "approval.settled.declined": "Declined",
-    "approval.required": "Approval required",
-    "approval.action.approve": "Approve",
-    "approval.action.decline": "Decline",
-    "approval.risk.low": "Low risk",
-    "approval.risk.medium": "Medium risk",
-    "approval.risk.high": "High risk",
-    "approval.reversible": "Reversible",
-    "approval.permanent": "Permanent",
-
-    "runError.title": "Agent error",
-    "runError.action.retry": "Retry",
-    "runError.action.timeline": "Open timeline",
-    "runError.action.diagnostics": "Diagnostics",
-    "runError.action.dismiss": "Dismiss",
-
-    "session.status.running": "Running",
-    "session.status.waiting": "Needs input",
-
-    "iconGallery.empty": 'No icons match "{{q}}".',
-  },
-  zh: {
-    "common.cancel": "取消",
-    "common.confirm": "确认",
-    "common.close": "关闭",
-    "common.retry": "重试",
-    "common.search": "搜索",
-
-    "sidebar.search.placeholder": "搜索 · 文件 · 命令",
-    "sidebar.search.label": "搜索文件和命令",
-    "sidebar.section.projects": "项目",
-    "sidebar.section.sessions": "会话",
-    "sidebar.action.addProject": "添加项目",
-    "sidebar.action.collapse": "收起到边栏",
-    "sidebar.action.expand": "展开边栏",
-    "sidebar.action.newSession": "新建会话",
-    "sidebar.action.searchHint": "搜索 (⌘K)",
-    "sidebar.action.tools": "工具 / MCP",
-    "sidebar.action.settings": "设置",
-    "sidebar.user.menuLabel": "账号菜单",
-
-    "composer.input.label": "消息输入框",
-    "composer.placeholder.fallback": "提问、规划，或粘贴一段错误堆栈…  斜杠 / 运行命令",
-    "composer.send": "发送",
-    "composer.mode": "输入模式",
-    "composer.attachFile": "添加附件",
-    "composer.switchModel": "切换模型",
-
-    "chat.error.title": "渲染出错",
-    "chat.error.retry": "重试",
-
-    "welcome.eyebrow": "agent 就绪",
-    "welcome.title": "今天想构建点什么？",
-    "welcome.sub": "开始对话，粘贴一段错误堆栈，或从下方的建议中挑选。",
-    "welcome.suggest.refactor": "规划一次重构",
-    "welcome.suggest.refactor.prompt": "帮我规划重构: ",
-    "welcome.suggest.search": "搜索代码库",
-    "welcome.suggest.search.prompt": "在代码库中搜索: ",
-    "welcome.suggest.review": "查看最近改动",
-    "welcome.suggest.review.prompt": "查看我最近的改动: ",
-    "welcome.suggest.checklist": "起草一份清单",
-    "welcome.suggest.checklist.prompt": "起草清单: ",
-
-    "settings.title": "设置",
-    "settings.pane.appearance": "外观",
-    "settings.pane.plugins": "插件",
-    "settings.pane.language": "语言",
-    "settings.theme": "主题",
-    "settings.theme.sub": "选择一个配色方案。插件可以注册更多主题——会自动出现在这里。",
-    "settings.accent": "强调色",
-    "settings.accent.sub": "功能性高亮——运行、激活、主要操作。",
-    "settings.accent.custom": "自定义颜色",
-    "settings.font": "字体",
-    "settings.font.sub": "字体 + 字号。留空使用内置 Geist。",
-    "settings.font.ui": "界面",
-    "settings.font.code": "代码",
-    "settings.font.size": "字号",
-    "settings.font.default": "默认",
-    "settings.messageStyle": "消息样式",
-    "settings.messageStyle.sub": "你自己消息的渲染方式。",
-    "settings.messageStyle.bubble": "气泡",
-    "settings.messageStyle.plain": "平铺",
-    "settings.language.label": "语言",
-    "settings.language.sub": "界面语言。可以通过插件添加更多语言。",
-
-    "settings.pane.connection": "连接",
-    "settings.connection.title": "后端",
-    "settings.connection.sub": "AG-UI 运行时的地址。下一次请求生效。",
-    "settings.connection.url": "URL",
-    "settings.connection.reset": "恢复默认",
-
-    "iconGallery.filterLabel": "按名称筛选图标",
-    "iconGallery.filterPlaceholder": "按名称筛选…",
-    "iconGallery.empty": '没有匹配 "{{q}}" 的图标。',
-
-    "approval.settled.approved": "已批准 · 正在执行",
-    "approval.settled.declined": "已拒绝",
-    "approval.required": "需要审批",
-    "approval.action.approve": "批准",
-    "approval.action.decline": "拒绝",
-    "approval.risk.low": "低风险",
-    "approval.risk.medium": "中风险",
-    "approval.risk.high": "高风险",
-    "approval.reversible": "可撤销",
-    "approval.permanent": "不可撤销",
-
-    "runError.title": "Agent 报错",
-    "runError.action.retry": "重试",
-    "runError.action.timeline": "查看时间线",
-    "runError.action.diagnostics": "诊断",
-    "runError.action.dismiss": "忽略",
-
-    "session.status.running": "运行中",
-    "session.status.waiting": "等待输入",
-  },
+const BUNDLES: Record<Locale, Record<string, string>> = {
+  en,
+  zh,
+  "zh-TW": zhTW,
+  ja,
+  ko,
+  es,
+  fr,
+  de,
 };
 
+const LOCALE_IDS = Object.keys(BUNDLES) as Locale[];
+
+function isLocale(value: string): value is Locale {
+  return (LOCALE_IDS as string[]).includes(value);
+}
+
+// Pick a starting locale from (a) stored preference, (b) navigator
+// language, (c) English. Navigator strings like "zh-CN", "zh-HK",
+// "fr-CA" are reduced to the closest shipped bundle.
 function detectInitial(): Locale {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored === "en" || stored === "zh") return stored;
+    if (stored && isLocale(stored)) return stored;
   } catch {
     /* ignore */
   }
   const nav = typeof navigator !== "undefined" ? navigator.language : "";
-  return nav.toLowerCase().startsWith("zh") ? "zh" : "en";
+  return matchNavigator(nav);
+}
+
+// Map navigator.language to one of the shipped bundles. Traditional
+// Chinese variants (zh-TW, zh-HK, zh-MO) fold into zh-TW; everything
+// else "zh-*" lands on simplified zh.
+function matchNavigator(nav: string): Locale {
+  const low = nav.toLowerCase();
+  if (low.startsWith("zh")) {
+    return low.includes("tw") || low.includes("hk") || low.includes("mo") ? "zh-TW" : "zh";
+  }
+  for (const id of LOCALE_IDS) {
+    if (id === "en" || id === "zh" || id === "zh-TW") continue;
+    if (low.startsWith(id)) return id;
+  }
+  return "en";
 }
 
 const initial = detectInitial();
 
+const resources = Object.fromEntries(
+  LOCALE_IDS.map((id) => [id, { translation: BUNDLES[id] }]),
+);
+
 void i18next.use(initReactI18next).init({
-  resources: {
-    en: { translation: messages.en },
-    zh: { translation: messages.zh },
-  },
+  resources,
   lng: initial,
   fallbackLng: "en",
   // Keys are dotted strings ("sidebar.search.label") — treat them as
@@ -232,12 +90,19 @@ void i18next.use(initReactI18next).init({
   returnNull: false,
 });
 
-if (typeof document !== "undefined") {
-  document.documentElement.lang = initial === "zh" ? "zh-CN" : "en";
+// `lang` attribute on <html> drives browser-side a11y, font selection,
+// and Intl APIs that read `document.documentElement.lang` (we don't,
+// but it's standards-hygiene to keep it in sync).
+function syncHtmlLang(loc: Locale): void {
+  if (typeof document === "undefined") return;
+  document.documentElement.lang =
+    loc === "zh" ? "zh-CN" : loc === "zh-TW" ? "zh-TW" : loc;
 }
+syncHtmlLang(initial);
 
 function getLocale(): Locale {
-  return (i18next.resolvedLanguage as Locale | undefined) ?? "en";
+  const lng = i18next.resolvedLanguage;
+  return lng && isLocale(lng) ? lng : "en";
 }
 
 export function setLocale(loc: Locale): void {
@@ -248,9 +113,7 @@ export function setLocale(loc: Locale): void {
   } catch {
     /* ignore */
   }
-  if (typeof document !== "undefined") {
-    document.documentElement.lang = loc === "zh" ? "zh-CN" : "en";
-  }
+  syncHtmlLang(loc);
 }
 
 export function t(key: string, params?: Record<string, string | number>): string {
@@ -260,7 +123,8 @@ export function t(key: string, params?: Record<string, string | number>): string
 /** Reactive locale hook — components using this re-render on change. */
 export function useLocale(): Locale {
   const { i18n } = useTranslation();
-  return (i18n.resolvedLanguage as Locale | undefined) ?? "en";
+  const lng = i18n.resolvedLanguage;
+  return lng && isLocale(lng) ? lng : "en";
 }
 
 /** Hook returning a translate fn bound to the live locale. The returned
@@ -273,9 +137,18 @@ export function useT(): typeof t {
   return t;
 }
 
+// Native-name labels — what the user sees in the settings picker.
+// Native spelling is the convention (Wikipedia, MacOS) so a German
+// speaker recognises "Deutsch" without needing to know English.
 export const LOCALES: ReadonlyArray<{ id: Locale; label: string }> = [
   { id: "en", label: "English" },
   { id: "zh", label: "简体中文" },
+  { id: "zh-TW", label: "繁體中文" },
+  { id: "ja", label: "日本語" },
+  { id: "ko", label: "한국어" },
+  { id: "es", label: "Español" },
+  { id: "fr", label: "Français" },
+  { id: "de", label: "Deutsch" },
 ];
 
 /**
