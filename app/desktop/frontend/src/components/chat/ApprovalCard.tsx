@@ -1,4 +1,5 @@
 import type {ApprovalDecision} from "@/lib/useApprovalSubmit";
+import type { BlockStatus } from "@/protocol/agui/viewState";
 import { Divider, Icon, PillButton } from "@/components/common";
 import { useT } from "@/lib/i18n";
 import {  useApprovalSubmit } from "@/lib/useApprovalSubmit";
@@ -7,6 +8,10 @@ import { cn } from "@/lib/utils";
 type Risk = "low" | "medium" | "high";
 
 interface Props {
+  /** Block lifecycle. `"requires-action"` shows the action card with the
+   *  Approve / Decline buttons; `"complete"` collapses to a settled
+   *  checkpoint row driven by `decision`. */
+  status: BlockStatus;
   what: string;
   cmd: string;
   reason: string;
@@ -54,18 +59,20 @@ const SCOPE_CHIP_CLASS: Record<string, string> = {
 const SCOPE_CHIP_DEFAULT = "border-line bg-surface-2 text-fg-muted";
 
 // Approval card — pure presentation. HTTP / submitting state lives in
-// useApprovalSubmit; this component only renders three visual states:
-//   - settled       → checkpoint row (decision is the authoritative source)
-//   - optimistic    → checkpoint row (pending is the user's last click)
-//   - pre-decision  → action card with Approve / Decline buttons
+// useApprovalSubmit; this component renders against `status`:
+//   - "complete"         → settled checkpoint row (decision is authoritative)
+//   - "requires-action"  → action card with Approve / Decline buttons,
+//                           or optimistic checkpoint while a submit is in
+//                           flight (pending mirrors the user's last click)
 //
 // HITL flow:
 //   1. Backend Approval(...) step → emit lyra.approval { requestId }
-//   2. Reducer materialises an approval content block (this card)
+//   2. Reducer materialises an approval content block with status="requires-action"
 //   3. User clicks → useApprovalSubmit POSTs /permission
 //   4. Backend resolves the chan, script emits lyra.approval-result
-//   5. Reducer stamps `decision` on the block → card swaps state
+//   5. Reducer stamps `decision` + flips status to "complete" → card swaps
 export function ApprovalCard({
+  status,
   what,
   cmd,
   reason,
@@ -79,7 +86,7 @@ export function ApprovalCard({
   const t = useT();
   const { submit, pending } = useApprovalSubmit(requestId);
 
-  const finalised = decision ?? pending;
+  const finalised = status === "complete" ? decision : pending;
   if (finalised === "approved") {
     return (
       <Divider icon={<Icon name="check" size={11} strokeWidth={3} />} intent="accent">

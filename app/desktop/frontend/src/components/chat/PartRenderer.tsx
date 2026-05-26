@@ -51,7 +51,11 @@ export function renderPart(block: ContentBlock, key: number, ctx: PartCtx) {
       // away with the wrapper.
       return (
         <div key={key}>
-          <MarkdownMessage text={block.text} streaming={block.streaming} instant={ctx.instant} />
+          <MarkdownMessage
+            text={block.text}
+            streaming={block.status === "running"}
+            instant={ctx.instant}
+          />
         </div>
       );
 

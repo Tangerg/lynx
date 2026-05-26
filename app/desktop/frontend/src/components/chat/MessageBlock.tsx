@@ -56,16 +56,16 @@ export function MessageBlock({ msg, ctx }: { msg: Message; ctx: PartCtx }) {
     | "msg-agent";
   const iconName = (role?.icon ?? (isUser ? "user" : "spark")) as IconName;
 
-  // Only the last text block keeps `streaming: true` so we don't draw
+  // Only the last text block keeps `status === "running"` so we don't draw
   // a caret at the end of every intermediate text block (the reducer
-  // leaves them all streaming until TEXT_MESSAGE_END).
+  // leaves them all running until TEXT_MESSAGE_END).
   const lastIdx = msg.blocks.length - 1;
 
   // True while any block on this message is still streaming. Gates the
   // MessageOutline mount so the per-token MutationObserver inside doesn't
   // fire while content is in motion.
   const isStreaming = msg.blocks.some(
-    (b) => (b.kind === "text" || b.kind === "reasoning") && b.streaming,
+    (b) => (b.kind === "text" || b.kind === "reasoning") && b.status === "running",
   );
 
   // Skip the smooth-text + fade-in pipeline for user messages — they
@@ -129,8 +129,8 @@ export function MessageBlock({ msg, ctx }: { msg: Message; ctx: PartCtx }) {
               )}
             >
               {msg.blocks.map((part, i) => {
-                if (part.kind === "text" && part.streaming && i !== lastIdx) {
-                  return renderPart({ ...part, streaming: false }, i, partCtx);
+                if (part.kind === "text" && part.status === "running" && i !== lastIdx) {
+                  return renderPart({ ...part, status: "complete" }, i, partCtx);
                 }
                 return renderPart(part, i, partCtx);
               })}

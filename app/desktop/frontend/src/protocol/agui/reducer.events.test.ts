@@ -67,7 +67,7 @@ describe("reducer — built-in events", () => {
 
     expect(s.messages).toHaveLength(1);
     expect(s.messages[0].role).toBe("assistant");
-    expect(s.messages[0].blocks).toEqual([{ kind: "text", text: "hi there", streaming: false }]);
+    expect(s.messages[0].blocks).toEqual([{ kind: "text", text: "hi there", status: "complete" }]);
   });
 
   it("tOOL_CALL_* attaches a tool block to the parent message", () => {
@@ -153,7 +153,7 @@ describe("reducer — chunk variants", () => {
       }),
     );
     expect(s.messages).toHaveLength(1);
-    expect(s.messages[0].blocks).toEqual([{ kind: "text", text: "hi world", streaming: true }]);
+    expect(s.messages[0].blocks).toEqual([{ kind: "text", text: "hi world", status: "running" }]);
   });
 
   it("tOOL_CALL_CHUNK materializes tool on first chunk; later chunks fill the name", () => {

@@ -39,6 +39,7 @@ export const approvalHandler = definePlugin({
         compose(
           appendBlockToMessage(value.parentMessageId, {
             kind: "approval",
+            status: "requires-action",
             text: value.text,
             command: value.command,
             reason: value.reason,
@@ -71,7 +72,7 @@ export const approvalHandler = definePlugin({
               ...m,
               blocks: m.blocks.map((b) =>
                 b.kind === "approval" && b.requestId === value.requestId
-                  ? { ...b, decision: value.decision }
+                  ? { ...b, status: "complete", decision: value.decision }
                   : b,
               ),
             })),

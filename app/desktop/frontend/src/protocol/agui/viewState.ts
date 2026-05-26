@@ -8,6 +8,17 @@ export type MessageRole = "user" | "assistant" | "system";
 // Tool-call state, derived from TOOL_CALL_START / TOOL_CALL_END events.
 export type ToolCallStatus = "running" | "ok" | "err";
 
+// Block lifecycle status — mirrors the cross-source consensus (assistant-ui's
+// MessagePartStatus, cline's ClineMessage ask/say split) so any block with
+// a non-trivial lifecycle expresses the same four states:
+//   - "running"          → streaming / still being produced
+//   - "complete"         → settled successfully
+//   - "incomplete"       → settled but interrupted / errored
+//   - "requires-action"  → awaiting human decision (approval, interrupt)
+// Blocks without a lifecycle (plan / code / search / checkpoint / tool
+// pointer) don't carry this field — adding "complete" everywhere is noise.
+export type BlockStatus = "running" | "complete" | "incomplete" | "requires-action";
+
 export interface ToolCall {
   id: string;
   fn: string; // toolCallName
@@ -40,14 +51,15 @@ export interface SearchResult { domain: string; title: string; time: string; sni
 // and its registered renderer is then type-checked against the union.
 
 export interface BuiltinContentBlockMap {
-  text: { kind: "text"; text: string; streaming: boolean };
-  reasoning: { kind: "reasoning"; reasoningId: string; text: string; streaming: boolean };
+  text: { kind: "text"; text: string; status: BlockStatus };
+  reasoning: { kind: "reasoning"; reasoningId: string; text: string; status: BlockStatus };
   plan: { kind: "plan" };
   tool: { kind: "tool"; toolCallId: string };
   code: { kind: "code"; lang: string; file: string; text: string };
   search: { kind: "search"; toolCallId: string; results: SearchResult[] };
   approval: {
     kind: "approval";
+    status: BlockStatus;
     text: string;
     command: string;
     reason: string;

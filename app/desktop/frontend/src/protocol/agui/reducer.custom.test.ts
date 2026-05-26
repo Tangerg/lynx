@@ -96,7 +96,7 @@ describe("reducer — plugin CUSTOM fallback", () => {
       appendBlockToLatestAssistant({
         kind: "text",
         text: `banner: ${value.text}`,
-        streaming: false,
+        status: "complete",
       }),
     );
 
@@ -110,7 +110,7 @@ describe("reducer — plugin CUSTOM fallback", () => {
     );
 
     expect(next.messages[0].blocks).toEqual([
-      { kind: "text", text: "banner: hi", streaming: false },
+      { kind: "text", text: "banner: hi", status: "complete" },
     ]);
   });
 

@@ -25,7 +25,7 @@ const stateWith = (messages: Message[]): AgentViewState => ({
 
 describe("appendBlockToMessage", () => {
   it("appends to the matching message id", () => {
-    const update = appendBlockToMessage("m1", { kind: "text", text: "hi", streaming: false });
+    const update = appendBlockToMessage("m1", { kind: "text", text: "hi", status: "complete" });
     const next = update(stateWith([msg("m1"), msg("m2")]));
 
     expect(next.messages[0].blocks).toHaveLength(1);
@@ -34,7 +34,7 @@ describe("appendBlockToMessage", () => {
 
   it("is a no-op when the id is missing", () => {
     const initial = stateWith([msg("m1")]);
-    const update = appendBlockToMessage("nope", { kind: "text", text: "x", streaming: false });
+    const update = appendBlockToMessage("nope", { kind: "text", text: "x", status: "complete" });
     const next = update(initial);
     expect(next.messages[0].blocks).toHaveLength(0);
   });

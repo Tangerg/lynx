@@ -159,7 +159,7 @@ describe("reducer — messages snapshot", () => {
 
     expect(next.messages.map((m) => m.role)).toEqual(["user", "assistant"]);
     expect(next.messages[1].blocks).toEqual([
-      { kind: "text", text: "ok", streaming: false },
+      { kind: "text", text: "ok", status: "complete" },
       { kind: "tool", toolCallId: "t1" },
     ]);
     expect(next.toolCalls.t1.fn).toBe("read_file");

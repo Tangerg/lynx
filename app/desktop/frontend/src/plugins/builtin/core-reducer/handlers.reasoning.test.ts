@@ -92,7 +92,7 @@ describe("core-reducer — REASONING_MESSAGE_*", () => {
       }),
     );
     expect(lastBlocks(s, "m1")).toEqual([
-      { kind: "reasoning", reasoningId: "r1", text: "", streaming: true },
+      { kind: "reasoning", reasoningId: "r1", text: "", status: "running" },
     ]);
   });
 
@@ -122,7 +122,7 @@ describe("core-reducer — REASONING_MESSAGE_*", () => {
       }),
     );
     const block = lastBlocks(s, "m1")[0];
-    expect(block).toMatchObject({ kind: "reasoning", text: "first thought", streaming: true });
+    expect(block).toMatchObject({ kind: "reasoning", text: "first thought", status: "running" });
   });
 
   it("eND flips streaming off on the matching block", () => {
@@ -130,7 +130,7 @@ describe("core-reducer — REASONING_MESSAGE_*", () => {
     s = reduce(s, ev({ type: EventType.REASONING_MESSAGE_START, messageId: "r1" }));
     s = reduce(s, ev({ type: EventType.REASONING_MESSAGE_END, messageId: "r1" }));
     const block = lastBlocks(s, "m1")[0];
-    expect(block).toMatchObject({ kind: "reasoning", streaming: false });
+    expect(block).toMatchObject({ kind: "reasoning", status: "complete" });
   });
 
   it("sTART is a no-op when there's no assistant message to attach to", () => {
@@ -167,7 +167,7 @@ describe("core-reducer — REASONING_MESSAGE_*", () => {
       kind: "reasoning",
       reasoningId: "r1",
       text: "alpha beta",
-      streaming: true,
+      status: "running",
     });
   });
 });
@@ -185,7 +185,7 @@ describe("core-reducer — THINKING_TEXT_MESSAGE_*", () => {
     let s = withAssistantMessage();
     s = reduce(s, ev({ type: EventType.THINKING_TEXT_MESSAGE_START }));
     const block = lastBlocks(s, "m1")[0];
-    expect(block).toMatchObject({ kind: "reasoning", text: "", streaming: true });
+    expect(block).toMatchObject({ kind: "reasoning", text: "", status: "running" });
     expect((block as { reasoningId: string }).reasoningId).toMatch(/^thinking:/);
   });
 
@@ -195,7 +195,7 @@ describe("core-reducer — THINKING_TEXT_MESSAGE_*", () => {
     s = reduce(s, ev({ type: EventType.THINKING_TEXT_MESSAGE_CONTENT, delta: "hmm " }));
     s = reduce(s, ev({ type: EventType.THINKING_TEXT_MESSAGE_CONTENT, delta: "yes" }));
     const block = lastBlocks(s, "m1")[0];
-    expect(block).toMatchObject({ kind: "reasoning", text: "hmm yes", streaming: true });
+    expect(block).toMatchObject({ kind: "reasoning", text: "hmm yes", status: "running" });
   });
 
   it("eND flips streaming off on the active thinking block", () => {
@@ -203,7 +203,7 @@ describe("core-reducer — THINKING_TEXT_MESSAGE_*", () => {
     s = reduce(s, ev({ type: EventType.THINKING_TEXT_MESSAGE_START }));
     s = reduce(s, ev({ type: EventType.THINKING_TEXT_MESSAGE_END }));
     const block = lastBlocks(s, "m1")[0];
-    expect(block).toMatchObject({ kind: "reasoning", streaming: false });
+    expect(block).toMatchObject({ kind: "reasoning", status: "complete" });
   });
 
   it("cONTENT/END with no open thinking block is a no-op", () => {

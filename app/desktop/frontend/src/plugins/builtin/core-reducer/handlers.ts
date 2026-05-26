@@ -121,7 +121,7 @@ const onTextEnd = (state: AgentViewState, ev: TextMessageEndEvent): AgentViewSta
   updateMessage(state, ev.messageId, (m) => ({
     ...m,
     blocks: m.blocks.map((b) =>
-      b.kind === "text" && b.streaming ? { ...b, streaming: false } : b,
+      b.kind === "text" && b.status === "running" ? { ...b, status: "complete" } : b,
     ),
   }));
 
@@ -272,7 +272,7 @@ const onReasoningStart = (
   const targetId = parentId ?? findLastAssistantMessageId(state);
   if (!targetId) return state;
   const next = updateMessage(state, targetId, (m) =>
-    appendBlock(m, { kind: "reasoning", reasoningId: ev.messageId, text: "", streaming: true }),
+    appendBlock(m, { kind: "reasoning", reasoningId: ev.messageId, text: "", status: "running" }),
   );
   return appendTimeline(next, { kind: "reasoning-start", refId: ev.messageId });
 };
@@ -283,7 +283,7 @@ const onReasoningContent = (
 ): AgentViewState => mapReasoning(state, ev.messageId, (b) => ({ ...b, text: b.text + ev.delta }));
 
 const onReasoningEnd = (state: AgentViewState, ev: ReasoningMessageEndEvent): AgentViewState => {
-  const next = mapReasoning(state, ev.messageId, (b) => ({ ...b, streaming: false }));
+  const next = mapReasoning(state, ev.messageId, (b) => ({ ...b, status: "complete" }));
   return appendTimeline(next, { kind: "reasoning-end", refId: ev.messageId });
 };
 
@@ -306,7 +306,7 @@ const onReasoningChunk = (
         kind: "reasoning",
         reasoningId: ev.messageId!,
         text: "",
-        streaming: true,
+        status: "running",
       }),
     );
   }
@@ -333,7 +333,7 @@ const onThinkingTextStart = (state: AgentViewState): AgentViewState => {
       kind: "reasoning",
       reasoningId: nextThinkingId(),
       text: "",
-      streaming: true,
+      status: "running",
     }),
   );
 };
@@ -350,7 +350,7 @@ const onThinkingTextContent = (
 const onThinkingTextEnd = (state: AgentViewState): AgentViewState => {
   const id = findActiveThinkingId(state);
   if (!id) return state;
-  return mapReasoning(state, id, (b) => ({ ...b, streaming: false }));
+  return mapReasoning(state, id, (b) => ({ ...b, status: "complete" }));
 };
 
 // ---- shared state (STATE_*) ---------------------------------------------
@@ -462,7 +462,7 @@ function buildAssistantBlocks(
   const blocks: ContentBlock[] = [];
   const content = (m as { content?: string }).content;
   if (content) {
-    blocks.push({ kind: "text", text: content, streaming: false });
+    blocks.push({ kind: "text", text: content, status: "complete" });
   }
   const tcs = (m as { toolCalls?: SnapToolCall[] }).toolCalls ?? [];
   for (const tc of tcs) {
@@ -495,7 +495,7 @@ const onMessagesSnapshot = (state: AgentViewState, ev: MessagesSnapshotEvent): A
     const blocks: ContentBlock[] =
       m.role === "assistant"
         ? buildAssistantBlocks(m, toolCalls)
-        : [{ kind: "text", text: (m as { content: string }).content, streaming: false }];
+        : [{ kind: "text", text: (m as { content: string }).content, status: "complete" }];
 
     messages.push({
       id: m.id,
