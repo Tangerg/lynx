@@ -39,7 +39,7 @@ export function SidebarExpanded({ onToggleRail }: Props) {
 
       <Slot name="sidebar.search" />
 
-      <ScrollArea style={{ padding: "0 0 8px 0" }}>
+      <ScrollArea hideScrollbar style={{ padding: "0 0 8px 0" }}>
         {sections.map((section) => {
           const Body = section.component;
           return (
