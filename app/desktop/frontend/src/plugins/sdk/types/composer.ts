@@ -85,6 +85,13 @@ export interface ComposerModeSpec {
   order?: number;
   /** Optional tooltip; defaults to "${label} mode". */
   title?: string;
+  /**
+   * One-line capability blurb shown under the label in the mode dropdown
+   * — e.g. "Read-only", "Plans first, then executes", "Runs tools".
+   * The point is to make permissions/behaviour obvious before the user
+   * picks a mode (UX review: "Composer mode 的语义不够可见").
+   */
+  description?: string;
 }
 
 /**

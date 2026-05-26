@@ -152,17 +152,28 @@ function ModePicker({
         <DropdownMenu.Content
           align="start"
           sideOffset={6}
-          className="z-50 min-w-[160px] overflow-hidden rounded-md border border-line-soft bg-surface p-1 shadow-lg animate-rise-in"
+          className="z-50 min-w-[240px] overflow-hidden rounded-md border border-line-soft bg-surface p-1 shadow-lg animate-rise-in"
         >
           {modes.map((m) => (
             <DropdownMenu.Item
               key={m.id}
               onSelect={() => onChange(m.id)}
-              className="flex cursor-pointer items-center gap-2 rounded-sm px-2.5 py-1.5 text-[12.5px] text-fg-muted outline-none data-[highlighted]:bg-surface-2 data-[highlighted]:text-fg"
+              className="grid grid-cols-[16px_minmax(0,1fr)_12px] cursor-pointer items-start gap-2 rounded-sm px-2.5 py-1.5 text-[12.5px] text-fg-muted outline-none data-[highlighted]:bg-surface-2 data-[highlighted]:text-fg"
             >
-              <Icon name={(m.icon as IconName) ?? "spark"} size={12} />
-              <span className="flex-1">{m.label}</span>
-              {m.id === value && <Icon name="check" size={12} className="text-accent" />}
+              <Icon name={(m.icon as IconName) ?? "spark"} size={12} className="mt-0.5" />
+              <div className="min-w-0">
+                <div className="text-fg">{m.label}</div>
+                {m.description && (
+                  <div className="mt-0.5 text-[11px] leading-snug text-fg-faint">
+                    {m.description}
+                  </div>
+                )}
+              </div>
+              {m.id === value ? (
+                <Icon name="check" size={12} className="mt-0.5 text-accent" />
+              ) : (
+                <span aria-hidden />
+              )}
             </DropdownMenu.Item>
           ))}
         </DropdownMenu.Content>
