@@ -85,10 +85,10 @@ export function MarkdownMessage({ text, streaming, instant }: Props) {
 }
 
 // Single markdown block — paragraph / fence / list / heading. Memoised
-// on its content + flags. `streaming` marks the tail block (the one
-// currently growing) — it gets `data-streaming-tail` so CSS can drop
-// a blinking caret at its end.
-const MarkdownBlock = memo(function MarkdownBlock({ text, streaming, instant }: Props) {
+// on its content + flags. `streaming` is forwarded but doesn't gate
+// any visual yet — the per-word fade-in already conveys "currently
+// generating", so a tail caret would just double the signal.
+const MarkdownBlock = memo(function MarkdownBlock({ text, instant }: Props) {
   // Pull in the KaTeX stylesheet (~30KB) the first time a math-bearing
   // block mounts. Probe is just `$` — false positives (USD prices)
   // preload the CSS earlier than strictly needed, which is harmless;
@@ -113,15 +113,13 @@ const MarkdownBlock = memo(function MarkdownBlock({ text, streaming, instant }: 
   );
 
   return (
-    <div data-streaming-tail={streaming || undefined}>
-      <ReactMarkdown
-        remarkPlugins={remarkPlugins}
-        rehypePlugins={rehypePlugins}
-        components={markdownComponents}
-        allowElement={allowElement}
-      >
-        {text}
-      </ReactMarkdown>
-    </div>
+    <ReactMarkdown
+      remarkPlugins={remarkPlugins}
+      rehypePlugins={rehypePlugins}
+      components={markdownComponents}
+      allowElement={allowElement}
+    >
+      {text}
+    </ReactMarkdown>
   );
 });
