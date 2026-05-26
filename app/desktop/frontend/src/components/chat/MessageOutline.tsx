@@ -4,6 +4,11 @@
 // need a TOC) and when the chat panel doesn't have a 192px right
 // gutter to host the outline (container query, not viewport — sidebar
 // mode + window width together drive the available width).
+//
+// MessageBlock skips mounting this while the message is streaming, so
+// the per-token MutationObserver path below only runs against a settled
+// message — but the rAF coalesce + structural-equality bail stay as
+// defense-in-depth in case a future caller mounts mid-stream.
 
 import type { RefObject } from "react";
 import { useEffect, useState } from "react";
@@ -17,13 +22,17 @@ interface OutlineItem {
 
 const MIN_ITEMS = 3;
 
+function sameItems(a: OutlineItem[], b: OutlineItem[]): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i].id !== b[i].id || a[i].level !== b[i].level || a[i].text !== b[i].text) return false;
+  }
+  return true;
+}
+
 export function MessageOutline({ target }: { target: RefObject<HTMLElement | null> }) {
   const [items, setItems] = useState<OutlineItem[]>([]);
 
-  // MutationObserver instead of threading a `streaming` flag down
-  // from the message: the outline rebuilds on every DOM change to
-  // its target, so it stays correct during streaming and post-render
-  // rewraps. O(n) per rebuild over one message's headings — cheap.
   useEffect(() => {
     const el = target.current;
     if (!el) return;
@@ -38,13 +47,28 @@ export function MessageOutline({ target }: { target: RefObject<HTMLElement | nul
         if (!h.id) h.id = `h-${next.length}-${text.slice(0, 24).replace(/\s+/g, "-")}`;
         next.push({ id: h.id, level: Number(h.tagName.slice(1)), text });
       }
-      setItems(next);
+      setItems((prev) => (sameItems(prev, next) ? prev : next));
+    };
+
+    // rAF-coalesce so a burst of mutations (e.g. a streaming render
+    // dumping many text nodes in the same task) collapses to one rebuild
+    // per frame instead of one per mutation.
+    let raf = 0;
+    const schedule = () => {
+      if (raf) return;
+      raf = requestAnimationFrame(() => {
+        raf = 0;
+        rebuild();
+      });
     };
 
     rebuild();
-    const obs = new MutationObserver(rebuild);
+    const obs = new MutationObserver(schedule);
     obs.observe(el, { childList: true, subtree: true, characterData: true });
-    return () => obs.disconnect();
+    return () => {
+      obs.disconnect();
+      if (raf) cancelAnimationFrame(raf);
+    };
   }, [target]);
 
   if (items.length < MIN_ITEMS) return null;
