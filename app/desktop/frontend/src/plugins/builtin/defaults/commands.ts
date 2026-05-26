@@ -10,15 +10,9 @@
 // subscription catches up either way.
 
 import type { SidebarSession } from "@/lib/queries";
-import type {Disposable, ThemeAccentSpec, WorkspaceViewSpec} from "@/plugins/sdk";
+import type { Disposable, ThemeAccentSpec, WorkspaceViewSpec } from "@/plugins/sdk";
 import { queryClient } from "@/lib/queryClient";
-import {
-  definePlugin,
-  
-  
-  usePluginStore
-  
-} from "@/plugins/sdk";
+import { definePlugin, usePluginStore } from "@/plugins/sdk";
 import { useSessionStore } from "@/state/sessionStore";
 import { useUiStore } from "@/state/uiStore";
 

@@ -18,11 +18,9 @@ const STORAGE_KEY = "api.baseUrl";
 // Backend URL must be a real http(s) origin. Anything else (file://,
 // trailing path, plain text) would silently break ky's baseUrl handling
 // at the next request — reject on input instead.
-const UrlSchema = z
-  .url()
-  .refine((v) => v.startsWith("http://") || v.startsWith("https://"), {
-    message: "Must start with http:// or https://",
-  });
+const UrlSchema = z.url().refine((v) => v.startsWith("http://") || v.startsWith("https://"), {
+  message: "Must start with http:// or https://",
+});
 
 function ConnectionPane() {
   const t = useT();
@@ -106,8 +104,7 @@ function ConnectionPane() {
             <div className="text-[11.5px] text-negative">{error}</div>
           ) : dirty ? (
             <div className="text-[11.5px] text-fg-faint">
-              {/* Inline hint — applied on blur or Enter. */}
-              ↵ to apply · click outside to apply
+              {/* Inline hint — applied on blur or Enter. */}↵ to apply · click outside to apply
             </div>
           ) : null}
         </div>

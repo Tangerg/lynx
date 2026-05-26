@@ -5,13 +5,7 @@
 
 import type { CSSProperties } from "react";
 
-function SkeletonLine({
-  width = "100%",
-  height = 10,
-}: {
-  width?: string;
-  height?: number;
-}) {
+function SkeletonLine({ width = "100%", height = 10 }: { width?: string; height?: number }) {
   return (
     <span
       className={

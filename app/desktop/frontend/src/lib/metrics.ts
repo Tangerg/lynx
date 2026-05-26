@@ -74,11 +74,7 @@ export function measureMermaidRender(ms: number): void {
 /** Outcome of one definePlugin loadPlugin() invocation. */
 export type PluginLoadResult = "loaded" | "failed" | "skipped";
 
-export function measurePluginLoad(
-  ms: number,
-  pluginName: string,
-  result: PluginLoadResult,
-): void {
+export function measurePluginLoad(ms: number, pluginName: string, result: PluginLoadResult): void {
   pluginLoadHistogram.record(ms, { plugin: pluginName, result });
 }
 

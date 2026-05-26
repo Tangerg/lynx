@@ -7,7 +7,11 @@
 import { getCurrentSessionView } from "./agentStore";
 import { useSessionStore } from "./sessionStore";
 
-interface ViewRouting { id: string; title: string; icon: string }
+interface ViewRouting {
+  id: string;
+  title: string;
+  icon: string;
+}
 
 // Choose which workspace view to surface for a given tool fn name. Each
 // branch sets up the side effects the view will rely on (e.g. active-file

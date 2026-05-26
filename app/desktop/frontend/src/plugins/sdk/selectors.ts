@@ -48,8 +48,13 @@ import { usePluginStore } from "./registry";
 // selector stays a one-liner. The Map identity gates re-derivation — see
 // the useSlashCommands note below for the useMemo-on-Map discipline.
 
-interface Owned<T> { value: T; pluginName: string }
-interface Ordered { order?: number }
+interface Owned<T> {
+  value: T;
+  pluginName: string;
+}
+interface Ordered {
+  order?: number;
+}
 
 // Plain-function counterpart of useSortedList — pulls the value off
 // each owned entry. Used by imperative lookups (`listRoutes`,
@@ -84,10 +89,7 @@ function createIndex<S, V>(extract: (owned: Owned<S>) => { key: string; value: V
 }
 
 function useSortedList<T extends Ordered>(map: Map<string, Owned<T>>): T[] {
-  return useMemo(
-    () => mapOwned(map).sort((a, b) => (a.order ?? 100) - (b.order ?? 100)),
-    [map],
-  );
+  return useMemo(() => mapOwned(map).sort((a, b) => (a.order ?? 100) - (b.order ?? 100)), [map]);
 }
 
 // Merge two ownership maps by id and sort by order. Used for the three
@@ -225,17 +227,16 @@ function declaredToSettingsPane(d: ContributedSettingsPane, pluginName: string):
 // Layout / theme / composer / sidebar
 // ---------------------------------------------------------------------------
 
-const layoutBySlot = createIndex<{ slot: string; spec: LayoutSlotSpec }, LayoutSlotSpec>(
-  (o) => ({ key: o.value.slot, value: o.value.spec }),
-);
+const layoutBySlot = createIndex<{ slot: string; spec: LayoutSlotSpec }, LayoutSlotSpec>((o) => ({
+  key: o.value.slot,
+  value: o.value.spec,
+}));
 
 export function useLayoutSlot(slot: string): LayoutSlotSpec[] {
   const map = usePluginStore((s) => s.layoutSlots);
   return useMemo(
     () =>
-      [...(layoutBySlot(map).get(slot) ?? [])].sort(
-        (a, b) => (a.order ?? 100) - (b.order ?? 100),
-      ),
+      [...(layoutBySlot(map).get(slot) ?? [])].sort((a, b) => (a.order ?? 100) - (b.order ?? 100)),
     [map, slot],
   );
 }

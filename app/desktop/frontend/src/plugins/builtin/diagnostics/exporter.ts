@@ -6,7 +6,11 @@
 // CUMULATIVE temporality matches how the store overwrites on every
 // export — no delta accumulation needed.
 
-import type { AggregationTemporality, PushMetricExporter, ResourceMetrics } from "@opentelemetry/sdk-metrics";
+import type {
+  AggregationTemporality,
+  PushMetricExporter,
+  ResourceMetrics,
+} from "@opentelemetry/sdk-metrics";
 import { useDiagnosticsStore } from "./store";
 
 // Inlined enum values from @opentelemetry/sdk-metrics:
@@ -18,7 +22,9 @@ import { useDiagnosticsStore } from "./store";
 const EXPORT_SUCCESS = 0;
 const CUMULATIVE_TEMPORALITY = 1 as AggregationTemporality;
 
-interface ExportResult { code: number }
+interface ExportResult {
+  code: number;
+}
 
 export class DiagnosticsExporter implements PushMetricExporter {
   export(batch: ResourceMetrics, callback: (result: ExportResult) => void): void {

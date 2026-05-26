@@ -1,4 +1,4 @@
-import type {KyInstance} from "ky";
+import type { KyInstance } from "ky";
 import ky from "ky";
 import { AGUI_BASE } from "@/main/config";
 import { getConfig } from "@/plugins/sdk/config";
@@ -32,7 +32,7 @@ const afterResponse = async (state: { request: Request; response: Response }) =>
 function anchorOn(req: Request, base: string): Request {
   if (req.url.startsWith(base)) return req;
   const { pathname, search } = new URL(req.url);
-  const baseSlash = base.endsWith("/") ? base : `${base  }/`;
+  const baseSlash = base.endsWith("/") ? base : `${base}/`;
   const target = new URL(pathname.replace(/^\//, "") + search, baseSlash);
   return new Request(target.toString(), req);
 }

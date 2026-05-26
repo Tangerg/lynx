@@ -149,7 +149,10 @@ export const usePluginStore = create<PluginStoreState & PluginStoreActions>((set
   const sidebarSections = ownedSpecSlot<SidebarSectionSpec>("sidebarSections", "sidebar section");
   const agentSources = ownedSpecSlot<AgentSourceSpec>("agentSources", "agent source");
   const commands = ownedSpecSlot<CommandSpec>("commands", "command");
-  const declaredCommands = ownedSpecSlot<ContributedCommand>("declaredCommands", "declared command");
+  const declaredCommands = ownedSpecSlot<ContributedCommand>(
+    "declaredCommands",
+    "declared command",
+  );
   const declaredViews = ownedSpecSlot<ContributedView>("declaredViews", "declared view");
   const declaredSettingsPanes = ownedSpecSlot<ContributedSettingsPane>(
     "declaredSettingsPanes",

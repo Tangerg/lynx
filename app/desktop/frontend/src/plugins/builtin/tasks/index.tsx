@@ -2,12 +2,12 @@
 // Hidden when no task exists; expands to a popover listing each entry
 // when the user clicks.
 
-import type {TaskEntry, TaskStatus} from "@/state/tasksStore";
+import type { TaskEntry, TaskStatus } from "@/state/tasksStore";
 import * as Popover from "@radix-ui/react-popover";
 import { Icon } from "@/components/common";
 import { cn } from "@/lib/utils";
 import { definePlugin } from "@/plugins/sdk";
-import {   useTasksStore } from "@/state/tasksStore";
+import { useTasksStore } from "@/state/tasksStore";
 
 // Glyph + tint by task status. `running` uses a generic spark + a pulse
 // animation (applied at render time) to fake a lightweight spinner.
@@ -26,7 +26,11 @@ function TaskRow({ task }: { task: TaskEntry }) {
   return (
     <div className="px-3 py-2">
       <div className="flex items-center gap-2">
-        <Icon name={name} size={11} className={cn(tone, task.status === "running" && "animate-pulse-dot")} />
+        <Icon
+          name={name}
+          size={11}
+          className={cn(tone, task.status === "running" && "animate-pulse-dot")}
+        />
         <span className="flex-1 truncate text-[12.5px] font-semibold text-fg">{task.label}</span>
         {pct !== null && (
           <span className="font-mono text-[11px] tabular-nums text-fg-faint">{pct}%</span>
@@ -41,7 +45,10 @@ function TaskRow({ task }: { task: TaskEntry }) {
       {pct !== null && (
         <div className="mt-1.5 ml-[18px] h-1 rounded-full bg-surface-3 overflow-hidden">
           <div
-            className={cn("h-full transition-[width] duration-150", task.status === "failed" ? "bg-negative" : "bg-accent")}
+            className={cn(
+              "h-full transition-[width] duration-150",
+              task.status === "failed" ? "bg-negative" : "bg-accent",
+            )}
             style={{ width: `${pct}%` }}
           />
         </div>
@@ -70,7 +77,11 @@ function TasksPill() {
           className="sb-item sb-btn inline-flex items-center gap-1.5 whitespace-nowrap"
           title={running.length > 0 ? `${running.length} running task(s)` : "Recent tasks"}
         >
-          <Icon name={name} size={11} className={cn(tone, head.status === "running" && "animate-pulse-dot")} />
+          <Icon
+            name={name}
+            size={11}
+            className={cn(tone, head.status === "running" && "animate-pulse-dot")}
+          />
           <span className="max-w-[180px] truncate text-[11.5px] text-fg-muted">{label}</span>
         </button>
       </Popover.Trigger>

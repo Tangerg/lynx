@@ -3,9 +3,9 @@
 // identifiers evaluate to undefined → falsy. Prefer `scheme` over
 // `theme` in clauses so custom theme plugins still match.
 
-import type {WhenContext} from "@/plugins/sdk";
+import type { WhenContext } from "@/plugins/sdk";
 import { useMemo } from "react";
-import { resolveScheme  } from "@/plugins/sdk";
+import { resolveScheme } from "@/plugins/sdk";
 import { useSessionStore } from "./sessionStore";
 import { useUiStore } from "./uiStore";
 

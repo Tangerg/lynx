@@ -1,5 +1,5 @@
-import type {CSSProperties, ReactNode} from "react";
-import {  forwardRef  } from "react";
+import type { CSSProperties, ReactNode } from "react";
+import { forwardRef } from "react";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -26,28 +26,27 @@ interface Props {
 // inset via `background-clip: content-box`) gets its own layout column.
 // Pass `hideScrollbar` to suppress the chrome entirely on surfaces
 // where a visible thumb fights with row content.
-export const ScrollArea = forwardRef<HTMLDivElement, Props>((
-  { className, style, children, hideScrollbar },
-  ref,
-) => {
-  // When `hideScrollbar` is set we deliberately drop the `.panel-scroll`
-  // class — its `::-webkit-scrollbar { width: 10px }` rule is defined
-  // in layout.css, which comes after Tailwind utilities in the cascade
-  // and would otherwise override `[&::-webkit-scrollbar]:hidden` (both
-  // selectors have identical specificity; source order wins). Using
-  // utility-only layout sidesteps the conflict.
-  return (
-    <div
-      ref={ref}
-      className={cn(
-        hideScrollbar
-          ? "flex-1 min-h-0 overflow-y-auto overflow-x-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-          : "panel-scroll",
-        className,
-      )}
-      style={style}
-    >
-      {children}
-    </div>
-  );
-});
+export const ScrollArea = forwardRef<HTMLDivElement, Props>(
+  ({ className, style, children, hideScrollbar }, ref) => {
+    // When `hideScrollbar` is set we deliberately drop the `.panel-scroll`
+    // class — its `::-webkit-scrollbar { width: 10px }` rule is defined
+    // in layout.css, which comes after Tailwind utilities in the cascade
+    // and would otherwise override `[&::-webkit-scrollbar]:hidden` (both
+    // selectors have identical specificity; source order wins). Using
+    // utility-only layout sidesteps the conflict.
+    return (
+      <div
+        ref={ref}
+        className={cn(
+          hideScrollbar
+            ? "flex-1 min-h-0 overflow-y-auto overflow-x-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            : "panel-scroll",
+          className,
+        )}
+        style={style}
+      >
+        {children}
+      </div>
+    );
+  },
+);

@@ -6,12 +6,12 @@
 // these from raw className strings to Tailwind utilities + Radix
 // primitives — see CLAUDE.md "Tailwind first" / "Radix first" rules.
 
-import type {IconName} from "@/components/common";
+import type { IconName } from "@/components/common";
 import * as Popover from "@radix-ui/react-popover";
 import * as Tooltip from "@radix-ui/react-tooltip";
 import * as React from "react";
 import { submitComposer } from "@/components/chat/submitComposer";
-import { Icon  } from "@/components/common";
+import { Icon } from "@/components/common";
 import { useSessions } from "@/lib/queries";
 import { cn } from "@/lib/utils";
 import { definePlugin, useCommands } from "@/plugins/sdk";

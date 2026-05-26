@@ -3,13 +3,13 @@
 // All three feed text/result data into the most recent assistant
 // message, so they share the `withAssistantMessage` fixture.
 
-import type {BaseEvent} from "@ag-ui/core";
-import type {AgentViewState, Message} from "@/protocol/agui/viewState";
-import {  EventType } from "@ag-ui/core";
+import type { BaseEvent } from "@ag-ui/core";
+import type { AgentViewState, Message } from "@/protocol/agui/viewState";
+import { EventType } from "@ag-ui/core";
 import { beforeEach, describe, expect, it } from "vitest";
 import { loadPlugin } from "@/plugins/sdk/definePlugin";
 import { reduce } from "@/protocol/agui/reducer";
-import {  INITIAL_VIEW_STATE  } from "@/protocol/agui/viewState";
+import { INITIAL_VIEW_STATE } from "@/protocol/agui/viewState";
 
 const ev = <T extends BaseEvent>(e: T): BaseEvent => e;
 

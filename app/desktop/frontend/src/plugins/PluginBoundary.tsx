@@ -1,5 +1,5 @@
-import type {ErrorInfo, ReactNode} from "react";
-import { Component   } from "react";
+import type { ErrorInfo, ReactNode } from "react";
+import { Component } from "react";
 import { pickPluginErrorFallback, reportPluginError } from "./sdk";
 
 interface Props {
@@ -10,7 +10,9 @@ interface Props {
   children: ReactNode;
 }
 
-interface State { error: Error | null }
+interface State {
+  error: Error | null;
+}
 
 /**
  * Error boundary wrapped around every plugin-contributed component.
@@ -32,7 +34,6 @@ export class PluginBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, info: ErrorInfo): void {
-     
     console.error(`[plugin] ${this.props.plugin} render failed:`, error, info.componentStack);
     reportPluginError(this.props.plugin, "render", error, info.componentStack ?? undefined);
   }

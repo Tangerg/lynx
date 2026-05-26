@@ -1,7 +1,7 @@
 import type { PartCtx } from "./PartRenderer";
 import type { Message } from "@/protocol/agui/viewState";
 import { AnimatePresence, motion } from "motion/react";
-import {  useCallback, useEffect } from "react";
+import { useCallback, useEffect } from "react";
 import { StickToBottom, useStickToBottomContext } from "use-stick-to-bottom";
 import { enterUp } from "@/lib/motion";
 import { Slot } from "@/plugins/Slot";

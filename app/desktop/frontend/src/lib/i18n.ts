@@ -62,8 +62,7 @@ void i18next.use(initReactI18next).init({
 // and Intl APIs that read `document.documentElement.lang`.
 function syncHtmlLang(loc: Locale): void {
   if (typeof document === "undefined") return;
-  document.documentElement.lang =
-    loc === "zh" ? "zh-CN" : loc === "zh-TW" ? "zh-TW" : loc;
+  document.documentElement.lang = loc === "zh" ? "zh-CN" : loc === "zh-TW" ? "zh-TW" : loc;
 }
 syncHtmlLang(initial);
 

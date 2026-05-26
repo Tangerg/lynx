@@ -21,7 +21,8 @@ export const fr: Record<string, string> = {
   "sidebar.user.menuLabel": "Menu du compte",
 
   "composer.input.label": "Compositeur de message",
-  "composer.placeholder.fallback": "Demande, planifie, ou colle une trace d'erreur…  /  pour une commande",
+  "composer.placeholder.fallback":
+    "Demande, planifie, ou colle une trace d'erreur…  /  pour une commande",
   "composer.send": "Envoyer",
   "composer.mode": "Mode du compositeur",
   "composer.attachFile": "Joindre un fichier",
@@ -32,7 +33,8 @@ export const fr: Record<string, string> = {
 
   "welcome.eyebrow": "agent prêt",
   "welcome.title": "Que voulez-vous construire aujourd'hui ?",
-  "welcome.sub": "Démarrez une conversation, collez une trace d'erreur, ou choisissez une suggestion.",
+  "welcome.sub":
+    "Démarrez une conversation, collez une trace d'erreur, ou choisissez une suggestion.",
   "welcome.suggest.refactor": "Planifier un refactoring",
   "welcome.suggest.refactor.prompt": "Aide-moi à planifier un refactoring de ",
   "welcome.suggest.search": "Rechercher dans le code",

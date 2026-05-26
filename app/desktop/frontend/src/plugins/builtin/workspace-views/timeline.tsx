@@ -77,10 +77,7 @@ function TimelineRow({ entry }: { entry: TimelineEntry }) {
           {entry.summary && (
             // `title=` preserves full text when the inline column
             // truncates a long command / tool name on hover.
-            <span
-              title={entry.summary}
-              className="truncate font-mono text-[11.5px] text-fg-muted"
-            >
+            <span title={entry.summary} className="truncate font-mono text-[11.5px] text-fg-muted">
               {entry.summary}
             </span>
           )}

@@ -5,7 +5,7 @@
 import type { ContributedCommand } from "./commands";
 import type { Disposable } from "./common";
 import type { PluginContext } from "./host";
-import type { SettingsPaneSpec, WorkspaceViewSpec  } from "./workspace";
+import type { SettingsPaneSpec, WorkspaceViewSpec } from "./workspace";
 
 /**
  * When this plugin should activate (i.e. when `setup` runs).

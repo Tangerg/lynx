@@ -32,8 +32,8 @@ export function DiagnosticsView() {
         <div>
           <div className="text-[15px] font-semibold text-fg">Diagnostics</div>
           <div className="mt-0.5 text-[12px] text-fg-muted">
-            Live measurements from kernel + plugins. CUMULATIVE since this view
-            was mounted; "Clear" resets the in-memory aggregates.
+            Live measurements from kernel + plugins. CUMULATIVE since this view was mounted; "Clear"
+            resets the in-memory aggregates.
           </div>
         </div>
         <button
@@ -47,8 +47,8 @@ export function DiagnosticsView() {
 
       {grouped.length === 0 ? (
         <div className="text-[13px] text-fg-faint">
-          No measurements yet — interact with the chat (send a message, open a
-          code block, etc.) and they will appear here.
+          No measurements yet — interact with the chat (send a message, open a code block, etc.) and
+          they will appear here.
         </div>
       ) : (
         grouped.map((g) => <InstrumentSection key={g.name} group={g} />)

@@ -104,7 +104,7 @@ function assertRule(rule: Rule) {
     }
   }
   if (violations.length > 0) {
-    throw new Error(`Architecture rule violated in ${rule.layer}:\n${  violations.join("\n")}`);
+    throw new Error(`Architecture rule violated in ${rule.layer}:\n${violations.join("\n")}`);
   }
 }
 

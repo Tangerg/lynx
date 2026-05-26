@@ -2,13 +2,13 @@
 // scoping) and ACTIVITY_DELTA (JSON Patch onto prior content, with
 // empty-object fallback and broken-patch isolation).
 
-import type {BaseEvent} from "@ag-ui/core";
-import type {AgentViewState} from "@/protocol/agui/viewState";
-import {  EventType } from "@ag-ui/core";
+import type { BaseEvent } from "@ag-ui/core";
+import type { AgentViewState } from "@/protocol/agui/viewState";
+import { EventType } from "@ag-ui/core";
 import { beforeEach, describe, expect, it } from "vitest";
 import { loadPlugin } from "@/plugins/sdk/definePlugin";
 import { reduce } from "@/protocol/agui/reducer";
-import {  INITIAL_VIEW_STATE  } from "@/protocol/agui/viewState";
+import { INITIAL_VIEW_STATE } from "@/protocol/agui/viewState";
 
 const ev = <T extends BaseEvent>(e: T): BaseEvent => e;
 

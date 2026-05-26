@@ -3,14 +3,14 @@
 // the audit `timeline`, the agent-owned shared state (snapshot +
 // JSON-patch delta), and bulk `MESSAGES_SNAPSHOT` hydration.
 
-import type {BaseEvent} from "@ag-ui/core";
-import type {AgentViewState} from "./viewState";
-import {  EventType } from "@ag-ui/core";
+import type { BaseEvent } from "@ag-ui/core";
+import type { AgentViewState } from "./viewState";
+import { EventType } from "@ag-ui/core";
 import { beforeEach, describe, expect, it } from "vitest";
 import { loadPlugin } from "@/plugins/sdk/definePlugin";
 import { CUSTOM } from "./customEvents";
 import { reduce } from "./reducer";
-import {  INITIAL_VIEW_STATE } from "./viewState";
+import { INITIAL_VIEW_STATE } from "./viewState";
 
 const ev = <T extends BaseEvent>(e: T): BaseEvent => e;
 

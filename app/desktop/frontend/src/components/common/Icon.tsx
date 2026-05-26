@@ -1,4 +1,4 @@
-import type {LucideIcon} from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import type { CSSProperties } from "react";
 import {
   ArrowDown,
@@ -20,7 +20,6 @@ import {
   History,
   Image as ImageIcon,
   List,
-  
   MessageSquare,
   Minimize2,
   Moon,
@@ -48,7 +47,7 @@ import {
   User,
   Wrench,
   X,
-  Zap
+  Zap,
 } from "lucide-react";
 
 // Project-wide icon shim — name → lucide-react component.

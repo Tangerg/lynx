@@ -51,10 +51,22 @@ function CopyButton() {
           sideOffset={4}
           className="z-50 min-w-[160px] overflow-hidden rounded-md border border-line-soft bg-surface p-1 shadow-lg animate-rise-in"
         >
-          <CopyItem label="Copy markdown" hint="Headings / fences kept" onSelect={() => writeClipboard(markdown)} />
-          <CopyItem label="Copy plain text" hint="Markup stripped" onSelect={() => writeClipboard(plain)} />
+          <CopyItem
+            label="Copy markdown"
+            hint="Headings / fences kept"
+            onSelect={() => writeClipboard(markdown)}
+          />
+          <CopyItem
+            label="Copy plain text"
+            hint="Markup stripped"
+            onSelect={() => writeClipboard(plain)}
+          />
           {code && (
-            <CopyItem label="Copy code only" hint="Fenced blocks joined" onSelect={() => writeClipboard(code)} />
+            <CopyItem
+              label="Copy code only"
+              hint="Fenced blocks joined"
+              onSelect={() => writeClipboard(code)}
+            />
           )}
         </DropdownMenu.Content>
       </DropdownMenu.Portal>

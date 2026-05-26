@@ -38,8 +38,8 @@ export function ShikiCodeBlock({ lang, code, file }: Props) {
   // toggle returning to a prior theme, MarkdownBlock memo invalidation
   // on a long history) skips both the async highlighter resolution and
   // the tokenizer call. Cache key is (lang, theme, exact-code).
-  const [html, setHtml] = useState<string | null>(() =>
-    getCachedHighlight(lang, shikiTheme, debouncedCode) ?? null,
+  const [html, setHtml] = useState<string | null>(
+    () => getCachedHighlight(lang, shikiTheme, debouncedCode) ?? null,
   );
   const [copied, setCopied] = useState(false);
   const [expanded, setExpanded] = useState(false);

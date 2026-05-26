@@ -11,8 +11,7 @@ import { useUiStore } from "@/state/uiStore";
 
 const SEGMENT_BTN_BASE =
   "rounded-sm px-3 py-1 text-[13px] font-medium cursor-pointer transition-colors duration-150";
-const SEGMENT_BTN_ACTIVE =
-  "bg-surface text-fg shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]";
+const SEGMENT_BTN_ACTIVE = "bg-surface text-fg shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]";
 const SEGMENT_BTN_IDLE = "bg-transparent text-fg-muted hover:text-fg";
 
 export function MessageStyleSection() {

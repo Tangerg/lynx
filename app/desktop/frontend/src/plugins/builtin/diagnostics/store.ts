@@ -84,7 +84,12 @@ export const useDiagnosticsStore = create<State>((set) => ({
   clear: () => set({ rows: {} }),
 }));
 
-function histogramRow(id: string, desc: MetricDescriptor, v: HistogramValue, attrs: Attrs): MetricRow {
+function histogramRow(
+  id: string,
+  desc: MetricDescriptor,
+  v: HistogramValue,
+  attrs: Attrs,
+): MetricRow {
   const sum = v.sum ?? 0;
   const { p50, p95 } = estimatePercentiles(v.buckets);
   return {

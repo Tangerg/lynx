@@ -31,7 +31,6 @@ export function useApprovalSubmit(requestId: string | undefined): ApprovalSubmit
       getContainer()
         .permission.submit({ requestId, decision })
         .catch((err) => {
-           
           console.error("[approval] gateway rejected:", err);
           setPending(null);
         });

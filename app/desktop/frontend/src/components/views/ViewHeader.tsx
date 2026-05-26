@@ -1,8 +1,8 @@
 // Shared header bar for workspace-view tabs: icon · title · subtitle · actions.
 
 import type { ReactNode } from "react";
-import type {IconName} from "@/components/common";
-import { Icon  } from "@/components/common";
+import type { IconName } from "@/components/common";
+import { Icon } from "@/components/common";
 import { cn } from "@/lib/utils";
 
 interface Props {

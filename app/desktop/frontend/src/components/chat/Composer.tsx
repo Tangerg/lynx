@@ -1,8 +1,8 @@
 import type { Attachment, ComposerMode } from "@/state/composerStore";
-import type {IconName} from "@/components/common";
+import type { IconName } from "@/components/common";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { useEffect, useMemo, useRef } from "react";
-import { Chip, Icon  } from "@/components/common";
+import { Chip, Icon } from "@/components/common";
 import { useT } from "@/lib/i18n";
 import {
   lookupComposerKeyBinding,

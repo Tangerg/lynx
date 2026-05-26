@@ -286,4 +286,6 @@ export interface Host {
   };
 }
 
-export interface PluginContext { host: Host }
+export interface PluginContext {
+  host: Host;
+}

@@ -21,7 +21,8 @@ export const es: Record<string, string> = {
   "sidebar.user.menuLabel": "Menú de cuenta",
 
   "composer.input.label": "Compositor de mensajes",
-  "composer.placeholder.fallback": "Pregunta, planifica o pega un stack trace…  /  para ejecutar un comando",
+  "composer.placeholder.fallback":
+    "Pregunta, planifica o pega un stack trace…  /  para ejecutar un comando",
   "composer.send": "Enviar",
   "composer.mode": "Modo de composición",
   "composer.attachFile": "Adjuntar archivo",

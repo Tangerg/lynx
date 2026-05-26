@@ -182,7 +182,6 @@ export function evalWhen(expr: string, ctx: WhenContext): boolean {
     try {
       node = new Parser(tokenize(expr)).parse();
     } catch (err) {
-       
       console.warn(`[when] failed to parse "${expr}":`, err);
       node = "ERROR";
     }

@@ -30,10 +30,7 @@ export function withSchema<T>(
   return (raw) => {
     const result = schema.safeParse(raw);
     if (!result.success) {
-      console.error(
-        `[agui] "${name}" payload rejected by schema:`,
-        z.treeifyError(result.error),
-      );
+      console.error(`[agui] "${name}" payload rejected by schema:`, z.treeifyError(result.error));
       return;
     }
     return handler(result.data);

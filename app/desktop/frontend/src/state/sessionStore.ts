@@ -11,7 +11,11 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 
-interface MainViewTab { id: string; title: string; icon?: string }
+interface MainViewTab {
+  id: string;
+  title: string;
+  icon?: string;
+}
 
 /**
  * Discriminator for the two tab kinds the chat header juggles. Chat

@@ -7,19 +7,18 @@
 //   - the plugin-registry data source (useCommands())
 //   - the error-isolated run() that reports failures into PluginsPane
 
-import type {IconName} from "@/components/common";
-import type {CommandSpec} from "@/plugins/sdk";
+import type { IconName } from "@/components/common";
+import type { CommandSpec } from "@/plugins/sdk";
 import { Command } from "cmdk";
 import { useMemo } from "react";
 import { create } from "zustand";
-import { Icon  } from "@/components/common";
+import { Icon } from "@/components/common";
 import {
-  
   definePlugin,
   evalWhen,
   reportPluginError,
   useCommands,
-  usePluginStore
+  usePluginStore,
 } from "@/plugins/sdk";
 import { useWhenContext } from "@/state/useWhenContext";
 
@@ -53,7 +52,6 @@ function CommandPalette() {
   const run = (cmd: CommandSpec) => {
     setOpen(false);
     void Promise.resolve(cmd.run()).catch((err) => {
-       
       console.error(`[plugin] command ${cmd.id} threw:`, err);
       const owner = usePluginStore.getState().commands.get(cmd.id)?.pluginName ?? "unknown";
       reportPluginError(owner, "command", err, `command: ${cmd.id}`);

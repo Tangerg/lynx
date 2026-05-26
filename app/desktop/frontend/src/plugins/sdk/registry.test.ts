@@ -1,6 +1,6 @@
-import type {BaseEvent} from "@ag-ui/core";
+import type { BaseEvent } from "@ag-ui/core";
 import type { Disposable, ToolPreviewComponent } from "./types";
-import {  EventType } from "@ag-ui/core";
+import { EventType } from "@ag-ui/core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { INITIAL_VIEW_STATE } from "@/protocol/agui/viewState";
 import { useConfigStore } from "./config";
@@ -143,7 +143,7 @@ describe("plugin registry", () => {
     }));
     host.agui.onCore(EventType.RUN_STARTED, (s) => ({
       ...s,
-      run: { ...s.run, threadId: `${s.run.threadId  }b` },
+      run: { ...s.run, threadId: `${s.run.threadId}b` },
     }));
 
     const handlers = lookupCoreEventHandlers(EventType.RUN_STARTED);

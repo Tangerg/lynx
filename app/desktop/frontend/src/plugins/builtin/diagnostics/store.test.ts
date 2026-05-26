@@ -208,12 +208,14 @@ describe("diagnostics store: ingest", () => {
   });
 
   it("keeps separate rows when attributes differ", () => {
-    useDiagnosticsStore.getState().ingest(
-      batch([
-        () => counterMetric({ name: "c", attrs: { lang: "ts" }, total: 1 }),
-        () => counterMetric({ name: "c", attrs: { lang: "go" }, total: 2 }),
-      ]),
-    );
+    useDiagnosticsStore
+      .getState()
+      .ingest(
+        batch([
+          () => counterMetric({ name: "c", attrs: { lang: "ts" }, total: 1 }),
+          () => counterMetric({ name: "c", attrs: { lang: "go" }, total: 2 }),
+        ]),
+      );
     expect(Object.values(useDiagnosticsStore.getState().rows)).toHaveLength(2);
   });
 

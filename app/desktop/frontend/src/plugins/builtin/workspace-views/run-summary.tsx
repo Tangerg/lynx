@@ -154,16 +154,10 @@ function RunSummaryTab() {
 
         <Section title="Commands" count={digest.commands.length}>
           {digest.commands.map((c, i) => (
-            <div
-              key={`${c.cmd}:${i}`}
-              className="flex items-baseline gap-2 font-mono text-[12px]"
-            >
+            <div key={`${c.cmd}:${i}`} className="flex items-baseline gap-2 font-mono text-[12px]">
               <Icon name="terminal" size={11} className="text-fg-faint" />
               <span
-                className={cn(
-                  "truncate",
-                  c.status === "err" ? "text-negative" : "text-fg-muted",
-                )}
+                className={cn("truncate", c.status === "err" ? "text-negative" : "text-fg-muted")}
               >
                 {c.cmd}
               </span>
@@ -197,10 +191,7 @@ function RunSummaryTab() {
 
         <Section title="Errors" count={digest.errors.length}>
           {digest.errors.map((e, i) => (
-            <div
-              key={`${e}:${i}`}
-              className="flex items-baseline gap-2 text-[12px] text-negative"
-            >
+            <div key={`${e}:${i}`} className="flex items-baseline gap-2 text-[12px] text-negative">
               <Icon name="bug" size={11} />
               <span className="whitespace-pre-wrap break-words">{e}</span>
             </div>

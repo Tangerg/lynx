@@ -13,7 +13,11 @@ const SKIP_TAGS = new Set(["pre", "code", "script", "style"]);
 export function rehypeFadeIn() {
   return (tree: Root) => {
     // Collect work in a first pass so we don't mutate while visiting.
-    interface Job { parent: Element | Root; index: number; replacement: Array<Element | Text> }
+    interface Job {
+      parent: Element | Root;
+      index: number;
+      replacement: Array<Element | Text>;
+    }
     const jobs: Job[] = [];
 
     visit(tree, "text", (node: Text, index, parent) => {

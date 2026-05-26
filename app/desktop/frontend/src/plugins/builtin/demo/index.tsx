@@ -9,12 +9,8 @@
 // { text: "..." })` from `internal/agui/mock.go`. The content block + handler
 // are registered unconditionally, but the channel is open-ended.
 
-import type {ContentBlockRendererProps} from "@/plugins/sdk";
-import {
-  appendBlockToLatestAssistant,
-  
-  definePlugin
-} from "@/plugins/sdk";
+import type { ContentBlockRendererProps } from "@/plugins/sdk";
+import { appendBlockToLatestAssistant, definePlugin } from "@/plugins/sdk";
 
 // Augment the ContentBlockMap so every consumer (PartRenderer, the SDK,
 // downstream plugins) sees the new kind in the union with the right shape.
