@@ -1,4 +1,4 @@
-import { memo, useMemo } from "react";
+import { memo, useEffect, useMemo } from "react";
 
 import ReactMarkdown from "react-markdown";
 import rehypeKatex from "rehype-katex";
@@ -11,11 +11,11 @@ import remarkMath from "remark-math";
 import remend from "remend";
 import { parseMarkdownIntoBlocks } from "streamdown";
 import { markdownComponents } from "@/components/chat/markdownComponents";
+import { ensureKatexCss } from "@/lib/katexCss";
 import { measureMarkdownRepair } from "@/lib/metrics";
 import { rehypeCitations } from "@/lib/rehypeCitations";
 import { rehypeFadeIn } from "@/lib/rehypeFadeIn";
 import { useSmoothText } from "@/lib/smoothText";
-import "katex/dist/katex.min.css";
 import "remark-github-blockquote-alert/alert.css";
 
 interface Props {
@@ -100,6 +100,15 @@ export function MarkdownMessage({ text, streaming, instant }: Props) {
   );
 }
 
+// Cheap "this block contains math" probe. A literal `$` is enough —
+// false positives (a paragraph mentioning USD prices) just preload
+// the KaTeX stylesheet earlier than strictly necessary, which is
+// harmless. remarkMath / rehype-katex won't actually render anything
+// without proper `$…$` pairs.
+function blockHasMath(text: string): boolean {
+  return text.includes("$");
+}
+
 // Single block of markdown — paragraph / fenced code / list / heading.
 // Memoised on its content + flags so a re-render of the parent that
 // doesn't change this block's text skips the entire react-markdown
@@ -107,6 +116,12 @@ export function MarkdownMessage({ text, streaming, instant }: Props) {
 // gate any plugin — kept in the signature so future per-block UI
 // (e.g. a tail caret) has a clean prop to read.
 const MarkdownBlock = memo(function MarkdownBlock({ text, instant }: Props) {
+  // Pull in the KaTeX stylesheet the first time a math-bearing block
+  // mounts. Skips the ~30KB CSS for math-free sessions entirely.
+  const hasMath = blockHasMath(text);
+  useEffect(() => {
+    if (hasMath) ensureKatexCss();
+  }, [hasMath]);
   // Pipeline: rehypeRaw (parse inline HTML) → rehypeCitations (swap
   // `[n]` markers for <sup> badges) → rehypeFadeIn (per-word streaming
   // animation, non-instant only — the CSS animation runs once per
