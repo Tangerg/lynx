@@ -1,28 +1,40 @@
-// Localised time formatter. Goes through i18next for both the
-// relative-time templates ("3 minutes ago" / "3 分钟前") and the
-// absolute-date formats — sidesteps dayjs's own locale-loading dance
-// (UMD subpath imports broke Vite's dep cache after multiple HMR
-// cycles; the previous async-load + bumpSnapshot workaround left
-// idle SessionRows stale on first paint).
+// Localised compact time formatter. Uses the browser-native
+// `Intl.RelativeTimeFormat` + `Intl.DateTimeFormat` — no library
+// needed. Both APIs handle plurals + locale strings natively, which
+// is the whole point: "3 minutes ago" / "3 分钟前", "yesterday" /
+// "昨天", "Mar 5" / "3月5日".
 //
-// Threshold layout (mirrors dayjs's classic relativeTime cliffs):
-//   < 45 s   → now
-//   < 60 m   → X minutes
-//   < 24 h   → X hours
-//   < 7 d    → X days
+// Threshold layout:
+//   < 45 s   → "now" / "现在"
+//   < 60 m   → X minute(s) ago
+//   < 24 h   → X hour(s) ago
+//   < 7 d    → X day(s) ago (1 day → "yesterday"/"昨天" via numeric:auto)
 //   same yr  → "MMM D" / "M月D日"
 //   older    → "MMM D, YYYY" / "YYYY年M月D日"
 //
 // Components subscribe via `useT()` (already React-reactive on
-// language change), so relative labels refresh on locale toggle
-// without any custom store.
+// language change), so labels refresh on locale toggle.
 
-import dayjs from "dayjs";
 import i18next from "i18next";
 
-function isZh(): boolean {
+// Translate i18next's "en"/"zh" to a BCP-47 tag Intl expects.
+// "zh" alone resolves to zh-Hans by ICU defaults but we want the
+// mainland flavour explicitly for consistent grammar.
+function bcp47(): string {
   const lng = i18next.language ?? "en";
-  return lng.startsWith("zh");
+  if (lng.startsWith("zh")) return "zh-CN";
+  return lng;
+}
+
+function relative(value: number, unit: Intl.RelativeTimeFormatUnit): string {
+  return new Intl.RelativeTimeFormat(bcp47(), { numeric: "auto" }).format(value, unit);
+}
+
+function absolute(d: Date, sameYear: boolean): string {
+  const opts: Intl.DateTimeFormatOptions = sameYear
+    ? { month: "short", day: "numeric" }
+    : { year: "numeric", month: "short", day: "numeric" };
+  return new Intl.DateTimeFormat(bcp47(), opts).format(d);
 }
 
 /**
@@ -31,26 +43,23 @@ function isZh(): boolean {
  */
 export function formatRelative(input: string | number | Date | undefined | null): string {
   if (input === undefined || input === null || input === "") return "";
-  const d = dayjs(input);
-  if (!d.isValid()) return "";
-  const now = dayjs();
-  const diffSec = now.diff(d, "second");
-  const diffMin = now.diff(d, "minute");
-  const diffHour = now.diff(d, "hour");
-  const diffDay = now.diff(d, "day");
+  const d = input instanceof Date ? input : new Date(input);
+  if (Number.isNaN(d.getTime())) return "";
 
-  if (diffSec < 45) return i18next.t("time.now");
-  if (diffMin < 60) return i18next.t("time.minutes", { count: diffMin });
-  if (diffHour < 24) return i18next.t("time.hours", { count: diffHour });
-  if (diffDay < 7) return i18next.t("time.days", { count: diffDay });
+  const now = Date.now();
+  const diffMs = now - d.getTime();
+  const diffSec = Math.floor(diffMs / 1000);
+  const diffMin = Math.floor(diffSec / 60);
+  const diffHour = Math.floor(diffMin / 60);
+  const diffDay = Math.floor(diffHour / 24);
 
-  // Absolute. Hand-format zh to avoid pulling in dayjs's zh-cn locale
-  // bundle just for two month-name strings.
-  const sameYear = d.year() === now.year();
-  if (isZh()) {
-    return sameYear
-      ? `${d.month() + 1}月${d.date()}日`
-      : `${d.year()}年${d.month() + 1}月${d.date()}日`;
-  }
-  return d.format(sameYear ? "MMM D" : "MMM D, YYYY");
+  // Under 45s reads as "now" / "现在". Intl's `numeric: "auto"` only
+  // emits "now" for value=0, so floor anything under the cliff to 0.
+  if (diffSec < 45) return relative(0, "second");
+  if (diffMin < 60) return relative(-diffMin, "minute");
+  if (diffHour < 24) return relative(-diffHour, "hour");
+  if (diffDay < 7) return relative(-diffDay, "day");
+
+  const sameYear = d.getFullYear() === new Date(now).getFullYear();
+  return absolute(d, sameYear);
 }
