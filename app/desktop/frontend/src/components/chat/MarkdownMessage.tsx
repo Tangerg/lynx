@@ -10,6 +10,7 @@ import remarkAlert from "remark-github-blockquote-alert";
 import remarkMath from "remark-math";
 import remend from "remend";
 import { markdownComponents } from "@/components/chat/markdownComponents";
+import { measureMarkdownParse } from "@/lib/metrics";
 import { rehypeCitations } from "@/lib/rehypeCitations";
 import { rehypeFadeIn } from "@/lib/rehypeFadeIn";
 import { useSmoothText } from "@/lib/smoothText";
@@ -53,7 +54,12 @@ export function MarkdownMessage({ text, streaming, instant }: Props) {
   // remend handles open code/math fences + word-internal context
   // (`foo_bar` isn't an unterminated italic) so partial markdown
   // doesn't render as broken syntax mid-stream.
-  const safe = useMemo(() => remend(display), [display]);
+  const safe = useMemo(() => {
+    const start = performance.now();
+    const out = remend(display);
+    measureMarkdownParse(performance.now() - start, display.length, !!streaming);
+    return out;
+  }, [display, streaming]);
 
   // Pipeline: rehypeRaw (parse inline HTML) → rehypeCitations (swap
   // `[n]` markers for <sup> badges) → rehypeFadeIn (per-word streaming
