@@ -6,7 +6,7 @@ import { getHighlighter, resolveLang } from "@/lib/shiki";
 import { getCachedHighlight, setCachedHighlight } from "@/lib/shikiCache";
 import { cn } from "@/lib/utils";
 import { resolveScheme } from "@/plugins/sdk";
-import { useThemeStore } from "@/state/themeStore";
+import { useUiStore } from "@/state/uiStore";
 
 interface Props {
   lang: string;
@@ -25,7 +25,7 @@ interface Props {
 const FOLD_LINE_THRESHOLD = 24;
 
 export function ShikiCodeBlock({ lang, code, file }: Props) {
-  const themeId = useThemeStore((s) => s.theme);
+  const themeId = useUiStore((s) => s.theme);
   // resolveScheme via the registry so third-party light themes ("solarized-
   // light" etc.) also pick the right shiki preset, not just id === "light".
   const scheme = resolveScheme(themeId);

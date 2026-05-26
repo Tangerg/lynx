@@ -19,9 +19,8 @@ import {
   usePluginStore
   
 } from "@/plugins/sdk";
-import { useLayoutStore } from "@/state/layoutStore";
 import { useSessionStore } from "@/state/sessionStore";
-import { useThemeStore } from "@/state/themeStore";
+import { useUiStore } from "@/state/uiStore";
 
 // "Close the currently-focused tab" — if the user is viewing a workspace
 // view in the main area, close that tab; otherwise close the active chat
@@ -64,7 +63,7 @@ export const defaultCommands = definePlugin({
       keywords: ["collapse", "expand"],
       order: 0,
       shortcut: "⌘B",
-      run: () => useLayoutStore.getState().toggleSidebar(),
+      run: () => useUiStore.getState().toggleSidebar(),
     });
 
     host.commands.register({
@@ -74,7 +73,7 @@ export const defaultCommands = definePlugin({
       group: "Theme",
       order: 0,
       shortcut: "⌘⇧L",
-      run: () => useThemeStore.getState().toggleTheme(),
+      run: () => useUiStore.getState().toggleTheme(),
     });
 
     host.commands.register({
@@ -146,7 +145,7 @@ export const defaultCommands = definePlugin({
             icon: "spark",
             group: "Theme",
             order: 10,
-            run: () => useThemeStore.getState().setAccent(accent.dark),
+            run: () => useUiStore.getState().setAccent(accent.dark),
           }),
         );
       }

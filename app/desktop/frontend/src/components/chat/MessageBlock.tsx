@@ -16,7 +16,7 @@ import { Avatar } from "@/components/common/Avatar";
 import { cn } from "@/lib/utils";
 import { useMessageRole } from "@/plugins/sdk";
 import { Slot } from "@/plugins/Slot";
-import { useThemeStore } from "@/state/themeStore";
+import { useUiStore } from "@/state/uiStore";
 import {  CitationContext } from "./CitationContext";
 import { MessageContext } from "./MessageContext";
 import { MessageOutline } from "./MessageOutline";
@@ -28,7 +28,7 @@ export function MessageBlock({ msg, ctx }: { msg: Message; ctx: PartCtx }) {
   const isAgent = msg.role === "assistant";
   // Bubble (right-aligned card) is the default for user messages.
   // Plain mirrors the assistant layout — left-aligned flat prose, no card.
-  const bubble = useThemeStore((s) => s.messageStyle) === "bubble" && isUser;
+  const bubble = useUiStore((s) => s.messageStyle) === "bubble" && isUser;
 
   // Outline target — only mounted for assistant messages. Bubble user
   // messages are short and don't need a TOC.

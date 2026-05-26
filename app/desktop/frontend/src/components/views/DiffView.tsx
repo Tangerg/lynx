@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { getHighlighter } from "@/lib/shiki";
 import { cn } from "@/lib/utils";
 import { resolveScheme } from "@/plugins/sdk";
-import { useThemeStore } from "@/state/themeStore";
+import { useUiStore } from "@/state/uiStore";
 
 // A diff row's line numbers (`l`/`r`) plus a small ordinal are enough to
 // produce a stable key without relying on row content collisions.
@@ -23,7 +23,7 @@ function highlightInline(h: Highlighter, code: string, theme: string): string {
 }
 
 export function DiffView({ rows }: { rows: DiffRow[] }) {
-  const themeId = useThemeStore((s) => s.theme);
+  const themeId = useUiStore((s) => s.theme);
   const shikiTheme = resolveScheme(themeId) === "light" ? "github-light" : "github-dark";
   const [highlighter, setHighlighter] = useState<Highlighter | null>(null);
 

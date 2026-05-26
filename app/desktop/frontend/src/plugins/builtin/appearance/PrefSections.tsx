@@ -7,7 +7,7 @@ import { Icon } from "@/components/common";
 import { setLocale, useLocale, useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { useLocales } from "@/plugins/sdk";
-import { useThemeStore } from "@/state/themeStore";
+import { useUiStore } from "@/state/uiStore";
 
 const SEGMENT_BTN_BASE =
   "rounded-sm px-3 py-1 text-[13px] font-medium cursor-pointer transition-colors duration-150";
@@ -17,8 +17,8 @@ const SEGMENT_BTN_IDLE = "bg-transparent text-fg-muted hover:text-fg";
 
 export function MessageStyleSection() {
   const t = useT();
-  const messageStyle = useThemeStore((s) => s.messageStyle);
-  const setMessageStyle = useThemeStore((s) => s.setMessageStyle);
+  const messageStyle = useUiStore((s) => s.messageStyle);
+  const setMessageStyle = useUiStore((s) => s.setMessageStyle);
 
   return (
     <div className="grid grid-cols-[140px_1fr] items-center gap-4 py-3">

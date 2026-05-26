@@ -6,14 +6,13 @@
 import type {WhenContext} from "@/plugins/sdk";
 import { useMemo } from "react";
 import { resolveScheme  } from "@/plugins/sdk";
-import { useLayoutStore } from "./layoutStore";
 import { useSessionStore } from "./sessionStore";
-import { useThemeStore } from "./themeStore";
+import { useUiStore } from "./uiStore";
 
 export function useWhenContext(): WhenContext {
   const activeMainView = useSessionStore((s) => s.activeMainView);
-  const theme = useThemeStore((s) => s.theme);
-  const sidebarRail = useLayoutStore((s) => s.sidebarRail);
+  const theme = useUiStore((s) => s.theme);
+  const sidebarRail = useUiStore((s) => s.sidebarRail);
 
   return useMemo(
     () => ({

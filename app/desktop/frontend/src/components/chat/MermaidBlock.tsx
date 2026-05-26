@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useDebounce } from "use-debounce";
 import { measureMermaidRender } from "@/lib/metrics";
 import { popIn, swift } from "@/lib/motion";
-import { useThemeStore } from "@/state/themeStore";
+import { useUiStore } from "@/state/uiStore";
 
 // `beautiful-mermaid` is heavy (~200KB) and only mounts when an
 // agent actually emits a mermaid fence. Cached module promise so
@@ -45,8 +45,8 @@ function readThemeColors() {
 export function MermaidBlock({ code }: Props) {
   // theme + accent feed into readThemeColors() below via deps so the
   // diagram re-paints when the palette switches.
-  const theme = useThemeStore((s) => s.theme);
-  const accent = useThemeStore((s) => s.accent);
+  const theme = useUiStore((s) => s.theme);
+  const accent = useUiStore((s) => s.accent);
   const [debouncedCode] = useDebounce(code, 300);
   const isSettling = code !== debouncedCode;
 

@@ -21,7 +21,7 @@
 @import "tailwindcss";
 
 /* Scheme variants. `theme-light` / `theme-dark` are written to <html>
-   by themeStore.applyTheme. */
+   by uiStore.applyTheme. */
 @custom-variant dark (&:where(.theme-dark, .theme-dark *));
 @custom-variant light (&:where(.theme-light, .theme-light *));
 

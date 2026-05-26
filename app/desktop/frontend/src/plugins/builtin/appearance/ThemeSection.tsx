@@ -6,7 +6,7 @@ import { Icon } from "@/components/common";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { useThemes } from "@/plugins/sdk";
-import { useThemeStore } from "@/state/themeStore";
+import { useUiStore } from "@/state/uiStore";
 
 // Fallback hexes for previewing themes that didn't ship a `tokens` map.
 // Match the built-in dark palette so the preview never goes blank.
@@ -72,8 +72,8 @@ function ThemeRow({
 export function ThemeSection() {
   const t = useT();
   const themes = useThemes();
-  const theme = useThemeStore((s) => s.theme);
-  const setTheme = useThemeStore((s) => s.setTheme);
+  const theme = useUiStore((s) => s.theme);
+  const setTheme = useUiStore((s) => s.setTheme);
 
   return (
     // Full-width block (label on top, grid below) — the theme grid

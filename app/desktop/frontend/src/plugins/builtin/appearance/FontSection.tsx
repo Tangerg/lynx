@@ -5,7 +5,7 @@
 import { useState } from "react";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
-import { useThemeStore } from "@/state/themeStore";
+import { useUiStore } from "@/state/uiStore";
 
 // Free-text font picker. Commits on blur / Enter so the user can type
 // a multi-word name without each keystroke re-rendering the whole app.
@@ -102,12 +102,12 @@ function FontSizeField({
 
 export function FontSection() {
   const t = useT();
-  const uiFont = useThemeStore((s) => s.uiFont);
-  const codeFont = useThemeStore((s) => s.codeFont);
-  const fontSize = useThemeStore((s) => s.fontSize);
-  const setUiFont = useThemeStore((s) => s.setUiFont);
-  const setCodeFont = useThemeStore((s) => s.setCodeFont);
-  const setFontSize = useThemeStore((s) => s.setFontSize);
+  const uiFont = useUiStore((s) => s.uiFont);
+  const codeFont = useUiStore((s) => s.codeFont);
+  const fontSize = useUiStore((s) => s.fontSize);
+  const setUiFont = useUiStore((s) => s.setUiFont);
+  const setCodeFont = useUiStore((s) => s.setCodeFont);
+  const setFontSize = useUiStore((s) => s.setFontSize);
 
   return (
     <div className="grid grid-cols-[140px_1fr] items-start gap-4 py-3">
