@@ -9,8 +9,8 @@ import { SettingsPage } from "@/components/settings/SettingsPage";
 import { SidebarPanel } from "@/components/sidebar/SidebarPanel";
 import { useSessions } from "@/lib/queries";
 import { definePlugin } from "@/plugins/sdk";
-import { useLayoutStore } from "@/state/layoutStore";
 import { useSessionStore } from "@/state/sessionStore";
+import { useUiStore } from "@/state/uiStore";
 import { useDefaultChatSession } from "@/state/useDefaultChatSession";
 
 function KernelChat() {
@@ -21,10 +21,10 @@ function KernelChat() {
 }
 
 function KernelSidebar() {
-  const sidebarRail = useLayoutStore((s) => s.sidebarRail);
+  const sidebarRail = useUiStore((s) => s.sidebarRail);
   const activeSession = useSessionStore((s) => s.activeSessionId);
   const selectTab = useSessionStore((s) => s.selectTab);
-  const toggleSidebar = useLayoutStore((s) => s.toggleSidebar);
+  const toggleSidebar = useUiStore((s) => s.toggleSidebar);
 
   // Only the rail view still needs the sessions list (the expanded view
   // gets it via the plugin-contributed sidebar sections).

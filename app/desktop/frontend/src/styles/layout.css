@@ -31,7 +31,7 @@ body,
   height: 100vh;
 }
 
-/* Default colour scheme — switched by themeStore.applyTheme via the
+/* Default colour scheme — switched by uiStore.applyTheme via the
    .theme-light class. */
 html {
   color-scheme: dark;

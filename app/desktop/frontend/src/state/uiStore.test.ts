@@ -1,5 +1,5 @@
 // Theme-application contract. Verifies the side effect that lives at the
-// bottom of themeStore.ts — when the active theme id changes, the kernel:
+// bottom of uiStore.ts — when the active theme id changes, the kernel:
 //   1. swaps `theme-{scheme}` on <html> based on the theme spec's scheme,
 //   2. writes every token from spec.tokens to :root.style as inline vars,
 //   3. updates --color-accent based on the resolved accent + scheme.
@@ -10,7 +10,7 @@
 import type { Disposable } from "@/plugins/sdk/types";
 import { beforeEach, describe, expect, it } from "vitest";
 import { createHost } from "@/plugins/sdk/host";
-import { useThemeStore } from "@/state/themeStore";
+import { useUiStore } from "@/state/uiStore";
 
 const sink: Disposable[] = [];
 
@@ -18,8 +18,8 @@ beforeEach(() => {
   // Wipe inline styles + class so each spec starts from a known root.
   document.documentElement.removeAttribute("style");
   document.documentElement.className = "";
-  // Reset theme store to defaults (the setup file already wipes plugin store).
-  useThemeStore.setState({ theme: "dark", accent: "#1ed760" });
+  // Reset UI store to defaults (the setup file already wipes plugin store).
+  useUiStore.setState({ theme: "dark", accent: "#1ed760" });
   sink.length = 0;
 });
 
@@ -36,7 +36,7 @@ describe("applyTheme — theme-as-plugin contract", () => {
       },
     });
 
-    // The registry subscription in themeStore re-fires applyTheme when
+    // The registry subscription in uiStore re-fires applyTheme when
     // the themes map mutates, so registering above is enough to write tokens.
     const root = document.documentElement;
     expect(root.style.getPropertyValue("--color-bg")).toBe("#101010");
@@ -52,7 +52,7 @@ describe("applyTheme — theme-as-plugin contract", () => {
       tokens: { "color-bg": "#fdf6e3" },
     });
 
-    useThemeStore.getState().setTheme("solarized-light");
+    useUiStore.getState().setTheme("solarized-light");
 
     const root = document.documentElement;
     expect(root.classList.contains("theme-light")).toBe(true);
@@ -75,13 +75,13 @@ describe("applyTheme — theme-as-plugin contract", () => {
       tokens: { "color-bg": "#fafafa", "color-text": "#171717" },
     });
 
-    useThemeStore.getState().setTheme("light");
+    useUiStore.getState().setTheme("light");
 
     const root = document.documentElement;
     expect(root.style.getPropertyValue("--color-bg")).toBe("#fafafa");
     expect(root.style.getPropertyValue("--color-text")).toBe("#171717");
 
-    useThemeStore.getState().setTheme("dark");
+    useUiStore.getState().setTheme("dark");
     expect(root.style.getPropertyValue("--color-bg")).toBe("#010102");
     expect(root.style.getPropertyValue("--color-text")).toBe("#f7f8f8");
   });
@@ -101,7 +101,7 @@ describe("applyTheme — theme-as-plugin contract", () => {
       light: "#15883e",
     });
 
-    useThemeStore.getState().setTheme("light");
+    useUiStore.getState().setTheme("light");
 
     expect(document.documentElement.style.getPropertyValue("--color-accent")).toBe("#15883e");
   });
@@ -123,11 +123,11 @@ describe("applyTheme — theme-as-plugin contract", () => {
       tokens: {},
     });
 
-    useThemeStore.setState({ theme: "dark" });
-    useThemeStore.getState().toggleTheme();
-    expect(useThemeStore.getState().theme).toBe("solarized-light");
+    useUiStore.setState({ theme: "dark" });
+    useUiStore.getState().toggleTheme();
+    expect(useUiStore.getState().theme).toBe("solarized-light");
 
-    useThemeStore.getState().toggleTheme();
-    expect(useThemeStore.getState().theme).toBe("dark");
+    useUiStore.getState().toggleTheme();
+    expect(useUiStore.getState().theme).toBe("dark");
   });
 });

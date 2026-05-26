@@ -20,7 +20,7 @@
  * control of the palette.
  */
 export interface ThemeSpec {
-  /** Stable id. Persisted by `themeStore` to `lyra.theme`. */
+  /** Stable id. Persisted by `uiStore` to `lyra.ui`. */
   id: string;
   /** User-facing label. */
   label: string;

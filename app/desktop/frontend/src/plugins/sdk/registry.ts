@@ -50,10 +50,10 @@ import {
   addOwned,
   addOwnedMulti,
   clearByPlugin,
-  freshState,
   removeOwned,
   removeOwnedMulti,
-} from "./registryState";
+} from "./registryHelpers";
+import { freshState } from "./registryState";
 
 type OwnedMapKey = {
   [K in keyof PluginStoreState]: PluginStoreState[K] extends Map<string, Owned<unknown>>

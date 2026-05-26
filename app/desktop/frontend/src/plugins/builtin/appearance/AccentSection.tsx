@@ -4,7 +4,7 @@
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { useAccents } from "@/plugins/sdk";
-import { useThemeStore } from "@/state/themeStore";
+import { useUiStore } from "@/state/uiStore";
 
 // Conic gradient used when no custom color is active — communicates
 // "click me, you can pick anything" without committing to a default hue.
@@ -47,8 +47,8 @@ function CustomAccentPicker({
 export function AccentSection() {
   const t = useT();
   const accents = useAccents();
-  const accent = useThemeStore((s) => s.accent);
-  const setAccent = useThemeStore((s) => s.setAccent);
+  const accent = useUiStore((s) => s.accent);
+  const setAccent = useUiStore((s) => s.setAccent);
 
   const isCustom = !accents.some((a) => a.dark === accent);
 

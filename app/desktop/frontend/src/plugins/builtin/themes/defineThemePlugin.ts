@@ -184,7 +184,7 @@ const SCHEME_ICON: Record<"dark" | "light", string> = {
 // ---------- The spec ----------
 
 export interface ThemePluginSpec {
-  /** Stable id — what `themeStore` persists to `lyra.theme`. */
+  /** Stable id — what `uiStore` persists to `lyra.ui`. */
   id: string;
   /** User-facing label. */
   label: string;

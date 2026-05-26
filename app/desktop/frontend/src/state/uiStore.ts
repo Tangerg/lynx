@@ -1,10 +1,16 @@
-// Theme + accent store. Persists the theme id + accent hex; the
-// side-effects at the bottom of this file mirror the active spec to
-// :root (inline CSS vars + theme-{scheme} class on <html>).
+// Persisted UI preferences — theme + accent + fonts + message-style +
+// sidebar collapse state. Single Zustand store + single persistence key
+// since every field is "what the user's UI should look like across
+// launches". The side-effects at the bottom of this file mirror the
+// active theme spec + font preferences to :root (inline CSS vars +
+// theme-{scheme} class on <html>).
 
 import { colord } from "colord";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
+// Direct registry import — going through the SDK barrel pulls in
+// host.ts which imports this file, creating a TDZ cycle under Vitest.
+import { usePluginStore } from "@/plugins/sdk/registry";
 
 /**
  * A theme id — references a `ThemeSpec` registered via
@@ -18,11 +24,8 @@ import { createJSONStorage, persist } from "zustand/middleware";
  * would otherwise fall through.
  */
 export type Theme = string;
-// Direct registry import — going through the SDK barrel pulls in
-// host.ts which imports this file, creating a TDZ cycle under Vitest.
-import { usePluginStore } from "@/plugins/sdk/registry";
 
-interface ThemeState {
+interface UiState {
   theme: Theme;
   accent: string;
   /** Empty string = use the bundled Geist default. Anything else overrides
@@ -30,16 +33,18 @@ interface ThemeState {
   uiFont: string;
   /** Empty string = use the bundled Geist Mono default. */
   codeFont: string;
-  /** Pixel font-size on <html>. Empty = browser default (16px) so existing
+  /** Pixel font-size on <html>. Null = browser default (16px) so existing
    *  rem tokens stay calibrated. Range: 13–18 in the picker. */
   fontSize: number | null;
   /** "bubble" (default): user messages render as right-aligned cards with
    *  rounded corners + surface-2 fill. "plain": user messages match the
    *  assistant's flat layout — left-aligned, no bubble. */
   messageStyle: "bubble" | "plain";
+  /** True = collapsed rail. False = expanded sidebar. */
+  sidebarRail: boolean;
 }
 
-interface ThemeActions {
+interface UiActions {
   setTheme: (theme: Theme) => void;
   /**
    * Flip to the opposite SCHEME (not just "dark"/"light" id) so custom
@@ -53,9 +58,10 @@ interface ThemeActions {
   setCodeFont: (font: string) => void;
   setFontSize: (size: number | null) => void;
   setMessageStyle: (style: "bubble" | "plain") => void;
+  toggleSidebar: () => void;
 }
 
-export const useThemeStore = create<ThemeState & ThemeActions>()(
+export const useUiStore = create<UiState & UiActions>()(
   persist(
     (set, get) => ({
       theme: "dark",
@@ -64,6 +70,7 @@ export const useThemeStore = create<ThemeState & ThemeActions>()(
       codeFont: "",
       fontSize: null,
       messageStyle: "bubble",
+      sidebarRail: true,
 
       setTheme: (theme) => set({ theme }),
       toggleTheme: () => {
@@ -86,17 +93,18 @@ export const useThemeStore = create<ThemeState & ThemeActions>()(
       setCodeFont: (codeFont) => set({ codeFont }),
       setFontSize: (fontSize) => set({ fontSize }),
       setMessageStyle: (messageStyle) => set({ messageStyle }),
+      toggleSidebar: () => set((s) => ({ sidebarRail: !s.sidebarRail })),
     }),
     {
-      name: "lyra.theme",
+      name: "lyra.ui",
       storage: createJSONStorage(() => localStorage),
       version: 1,
     },
   ),
 );
 
-// Side-effects below mirror the active theme + accent to :root. Until
-// the theme plugin registers, tokens.css :root values stand in as
+// Side-effects below mirror the active theme + accent + fonts to :root.
+// Until the theme plugin registers, tokens.css :root values stand in as
 // first-paint fallback.
 
 // Resolve the accent's light-theme variant. Registered presets have a
@@ -191,11 +199,11 @@ function applyFonts(uiFont: string, codeFont: string, fontSize: number | null) {
 // Persist middleware rehydrates synchronously on store creation, so
 // getState() already reflects persisted values.
 {
-  const s = useThemeStore.getState();
+  const s = useUiStore.getState();
   applyTheme(s.theme, s.accent);
   applyFonts(s.uiFont, s.codeFont, s.fontSize);
 }
-useThemeStore.subscribe((state, prev) => {
+useUiStore.subscribe((state, prev) => {
   if (state.theme !== prev.theme || state.accent !== prev.accent) {
     applyTheme(state.theme, state.accent);
   }
@@ -213,7 +221,7 @@ useThemeStore.subscribe((state, prev) => {
 // runtime hot-loading of theme plugins.
 usePluginStore.subscribe((state, prev) => {
   if (state.themes !== prev.themes || state.accents !== prev.accents) {
-    const { theme, accent } = useThemeStore.getState();
+    const { theme, accent } = useUiStore.getState();
     applyTheme(theme, accent);
   }
 });
