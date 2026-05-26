@@ -2,37 +2,36 @@
 // (state, event) → state mapping; the table at the bottom is what
 // the plugin registers with `host.agui.onCore`.
 
-import type {ActivityDeltaEvent, ActivitySnapshotEvent, MessagesSnapshotEvent, ReasoningMessageChunkEvent, ReasoningMessageContentEvent, ReasoningMessageEndEvent, ReasoningMessageStartEvent, RunErrorEvent, RunStartedEvent, StateDeltaEvent, StateSnapshotEvent, StepFinishedEvent, StepStartedEvent, TextMessageChunkEvent, TextMessageContentEvent, TextMessageEndEvent, TextMessageStartEvent, ThinkingTextMessageContentEvent, ToolCallArgsEvent, ToolCallChunkEvent, ToolCallEndEvent, ToolCallResultEvent, ToolCallStartEvent} from "@ag-ui/core";
-import type {Operation} from "fast-json-patch";
+import type {
+  ActivityDeltaEvent,
+  ActivitySnapshotEvent,
+  MessagesSnapshotEvent,
+  ReasoningMessageChunkEvent,
+  ReasoningMessageContentEvent,
+  ReasoningMessageEndEvent,
+  ReasoningMessageStartEvent,
+  RunErrorEvent,
+  RunStartedEvent,
+  StateDeltaEvent,
+  StateSnapshotEvent,
+  StepFinishedEvent,
+  StepStartedEvent,
+  TextMessageChunkEvent,
+  TextMessageContentEvent,
+  TextMessageEndEvent,
+  TextMessageStartEvent,
+  ThinkingTextMessageContentEvent,
+  ToolCallArgsEvent,
+  ToolCallChunkEvent,
+  ToolCallEndEvent,
+  ToolCallResultEvent,
+  ToolCallStartEvent,
+} from "@ag-ui/core";
+import type { Operation } from "fast-json-patch";
 import type { CoreEventHandler } from "@/plugins/sdk";
 import type { AgentViewState, ContentBlock, Message, ToolCall } from "@/protocol/agui/viewState";
-import {
-  
-  
-  EventType
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-} from "@ag-ui/core";
-import { applyPatch, deepClone  } from "fast-json-patch";
+import { EventType } from "@ag-ui/core";
+import { applyPatch, deepClone } from "fast-json-patch";
 import {
   appendBlock,
   appendTextDelta,

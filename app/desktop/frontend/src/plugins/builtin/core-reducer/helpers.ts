@@ -3,7 +3,13 @@
 
 import type { BaseEvent } from "@ag-ui/core";
 import type { CoreEventHandler } from "@/plugins/sdk";
-import type { AgentViewState, ContentBlock, Message, TimelineEntry, ToolCall } from "@/protocol/agui/viewState";
+import type {
+  AgentViewState,
+  ContentBlock,
+  Message,
+  TimelineEntry,
+  ToolCall,
+} from "@/protocol/agui/viewState";
 import { appendTimelineEntry } from "@/plugins/sdk";
 
 // Erases each handler's specific event variant down to BaseEvent so a

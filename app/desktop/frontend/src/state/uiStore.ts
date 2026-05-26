@@ -174,10 +174,7 @@ function applyTheme(theme: Theme, accent: string) {
 function applyFonts(uiFont: string, codeFont: string, fontSize: number | null) {
   const root = document.documentElement;
   if (uiFont) {
-    root.style.setProperty(
-      "--font-sans",
-      `"${uiFont}", "Geist", "Inter", system-ui, sans-serif`,
-    );
+    root.style.setProperty("--font-sans", `"${uiFont}", "Geist", "Inter", system-ui, sans-serif`);
   } else {
     root.style.removeProperty("--font-sans");
   }

@@ -1,8 +1,8 @@
-import type {ApprovalDecision} from "@/lib/useApprovalSubmit";
+import type { ApprovalDecision } from "@/lib/useApprovalSubmit";
 import type { BlockStatus } from "@/protocol/agui/viewState";
 import { Divider, Icon, PillButton } from "@/components/common";
 import { useT } from "@/lib/i18n";
-import {  useApprovalSubmit } from "@/lib/useApprovalSubmit";
+import { useApprovalSubmit } from "@/lib/useApprovalSubmit";
 import { cn } from "@/lib/utils";
 
 type Risk = "low" | "medium" | "high";
