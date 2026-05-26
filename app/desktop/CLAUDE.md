@@ -7,11 +7,11 @@
 
 ## 一句话定位
 
-**Kernel 不长肉，所有功能都是插件。** 路由、布局、内容渲染、命令、快捷键、主题、AG-UI 事件处理、设置面板 —— 全部由 `frontend/src/plugins/builtin/` 下的 37 个插件贡献。Kernel 自己只是一组命名 Slot + 几个共享 Zustand store。
+**Kernel 不长肉，所有功能都是插件。** 路由、布局、内容渲染、命令、快捷键、主题、AG-UI 事件处理、设置面板 —— 全部由 `frontend/src/plugins/builtin/` 下的内置插件贡献。Kernel 自己只是一组命名 Slot + 几个共享 Zustand store。
 
 ## 技术栈
 
-- **UI**: React 18 + TypeScript
+- **UI**: React 19 + TypeScript
 - **样式**: **Tailwind 4** + `cva`（class-variance-authority）+ `clsx` + `tailwind-merge`。**所有新代码必须用 Tailwind utility class，不再写新的 .css 文件。** 全局样式只剩 `src/styles/globals.css`（Tailwind base + `@theme` token + 全局 keyframes）。
 - **Headless 基件**: **Radix Primitives first**（Dialog / Popover / Select / Tooltip / DropdownMenu / ContextMenu / Tabs / 等）。**Radix 没有的才考虑别的库或自己写。** 不用 shadcn/ui npm 包，但可以借鉴它的 className 字符串作为起点。
 - **特定组件库**:
@@ -96,7 +96,7 @@ frontend/src/
 │   │   ├── registry.ts                usePluginStore + addOwned / addOwnedMulti / clearByPlugin
 │   │   ├── selectors.ts               所有 useXxx / lookupXxx
 │   │   └── definePlugin.ts            loadPlugin
-│   └── builtin/                       37 个插件，按 domain 分组
+│   └── builtin/                       内置插件，按 domain 分组
 ├── protocol/agui/                     reducer + viewState + customEvents
 ├── state/                             agentStore / themeStore / layoutStore / sessionStore / composerStore
 ├── components/
@@ -105,7 +105,7 @@ frontend/src/
 ├── domain/                            清洁架构：types-only contracts
 ├── infra/                             domain gateway 的 HTTP 实现
 ├── main/container.ts                  composition root（DI 单例）
-└── styles/                            14 个 CSS 文件，theme tokens 在 tokens.css
+└── styles/                            少量历史 CSS 文件（globals.css 是 Tailwind base，其余只承载无法用 utility 表达的 .md/.shiki/.panel 等 markdown/code/panel chrome）；新样式禁止再开 CSS，全部进 className
 
 internal/agui/                         Go AG-UI mock server，监听 :17171
 ```
@@ -116,12 +116,15 @@ internal/agui/                         Go AG-UI mock server，监听 :17171
 # 开发
 wails dev                # 在 /Users/tangerg/Desktop/lyra/ 跑，自动启 vite + Go backend
 
-# 测试 / 类型检查（在 frontend/ 跑）
-cd frontend && npx tsc --noEmit
-cd frontend && npx vitest run
-
-# 当前测试数：175 cases / 18 test files
+# 质量门禁（在 frontend/ 跑）—— 所有都有对应 npm script
+cd frontend && npm run typecheck    # tsc --noEmit
+cd frontend && npm run lint         # oxlint src
+cd frontend && npm run test         # vitest run
+cd frontend && npm run knip         # 死代码扫描
+cd frontend && npm run check        # 一次跑完上面 4 个，全绿才往下走
 ```
+
+测试数 / 插件数 / CSS 文件数等会漂的量请直接跑命令查，不在 CLAUDE.md 维护硬编码数字（review 反复指出过此处会过期）。
 
 ## 修改任何东西之前
 
@@ -150,5 +153,5 @@ cd frontend && npx vitest run
 - **中文回复**（用户偏好）
 - 代码 / 注释保持英文
 - 大重构前先给三步方案 + 权衡，等用户确认再动
-- 改动后跑 `tsc + vitest`，commit message 写清"why"而不仅是"what"
+- 改动后跑 `npm run check`（typecheck + lint + test + knip），commit message 写清"why"而不仅是"what"
 - commit trailer 用 `Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>`
