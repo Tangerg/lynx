@@ -1,8 +1,26 @@
 import { AnimatePresence, motion } from "motion/react";
 import { Icon } from "@/components/common";
 import { swift } from "@/lib/motion";
-import { useAgentSlice, useAgentStore } from "@/state/agentStore";
+import { getCurrentSessionView, useAgentAction, useAgentSlice, useAgentStore } from "@/state/agentStore";
 import { useSessionStore } from "@/state/sessionStore";
+
+// Best-effort: find the most recent user-message plaintext so Retry can
+// replay it. Returns "" if no usable text exists — Retry hides in that
+// case (there's nothing to resend).
+function findLastUserText(): string {
+  const { messages } = getCurrentSessionView();
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i];
+    if (m.role !== "user") continue;
+    const text = m.blocks
+      .map((b) => ("text" in b ? ((b as { text?: string }).text ?? "") : ""))
+      .filter(Boolean)
+      .join("\n\n")
+      .trim();
+    if (text) return text;
+  }
+  return "";
+}
 
 // RunErrorBanner — surfaces an AG-UI RUN_ERROR event.
 //
@@ -11,10 +29,35 @@ import { useSessionStore } from "@/state/sessionStore";
 // Sits above the message stream so a render error inside MessageStream
 // doesn't take the error notice down with it. Tinted with --color-negative
 // so it reads as a stoppable problem, not a passing notice.
+//
+// UX review §3.3: error must not be a dead end — gives the user a
+// concrete next step (Retry / Open timeline / Open diagnostics) instead
+// of forcing them to scroll up and figure out the recovery themselves.
 export function RunErrorBanner() {
   const error = useAgentSlice((v) => v.error);
   const sid = useSessionStore((s) => s.activeSessionId);
   const clearError = useAgentStore((s) => s.clearError);
+  const send = useAgentAction("send");
+
+  const onRetry = () => {
+    if (!send) return;
+    const text = findLastUserText();
+    if (!text) return;
+    clearError(sid);
+    send(text);
+  };
+
+  const onOpenTimeline = () => {
+    useSessionStore.getState().openMainView({ id: "timeline", title: "Timeline", icon: "history" });
+  };
+
+  const onOpenDiagnostics = () => {
+    useSessionStore
+      .getState()
+      .openMainView({ id: "diagnostics", title: "Diagnostics", icon: "spark" });
+  };
+
+  const canRetry = Boolean(send) && Boolean(findLastUserText());
 
   return (
     <AnimatePresence initial={false}>
@@ -35,6 +78,11 @@ export function RunErrorBanner() {
             <div className="text-[14px] text-fg-soft whitespace-pre-wrap break-words">
               {error.message}
             </div>
+            <div className="mt-2 flex flex-wrap items-center gap-1.5">
+              {canRetry && <BannerAction icon="loop" label="Retry" onClick={onRetry} primary />}
+              <BannerAction icon="history" label="Open timeline" onClick={onOpenTimeline} />
+              <BannerAction icon="spark" label="Diagnostics" onClick={onOpenDiagnostics} />
+            </div>
           </div>
           <button
             type="button"
@@ -47,5 +95,29 @@ export function RunErrorBanner() {
         </motion.div>
       )}
     </AnimatePresence>
+  );
+}
+
+interface BannerActionProps {
+  icon: "loop" | "history" | "spark";
+  label: string;
+  onClick: () => void;
+  primary?: boolean;
+}
+
+function BannerAction({ icon, label, onClick, primary }: BannerActionProps) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={
+        primary
+          ? "inline-flex h-6 items-center gap-1 rounded-md border border-negative/40 bg-negative/15 px-2 font-sans text-[11.5px] font-semibold text-negative cursor-pointer transition-colors hover:bg-negative/25"
+          : "inline-flex h-6 items-center gap-1 rounded-md border border-line-soft bg-transparent px-2 font-sans text-[11.5px] text-fg-muted cursor-pointer transition-colors hover:bg-surface-2 hover:text-fg"
+      }
+    >
+      <Icon name={icon} size={11} />
+      <span>{label}</span>
+    </button>
   );
 }
