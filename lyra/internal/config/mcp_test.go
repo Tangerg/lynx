@@ -1,11 +1,12 @@
 package config
 
 import (
+	"reflect"
 	"testing"
 )
 
-// TestParseMCPServers covers the env-var parser: empty / valid /
-// malformed inputs map to the documented outputs.
+// TestParseMCPServers covers the env-var parser across both HTTP
+// and stdio transport syntaxes plus error cases.
 func TestParseMCPServers(t *testing.T) {
 	cases := []struct {
 		name    string
@@ -19,16 +20,40 @@ func TestParseMCPServers(t *testing.T) {
 			want: nil,
 		},
 		{
-			name: "single entry",
+			name: "single http entry",
 			in:   "github=https://mcp.github.com/",
-			want: []MCPServer{{Name: "github", Endpoint: "https://mcp.github.com/"}},
+			want: []MCPServer{{
+				Name:      "github",
+				Transport: MCPTransportHTTP,
+				Endpoint:  "https://mcp.github.com/",
+			}},
 		},
 		{
-			name: "multiple with whitespace",
-			in:   " github = https://mcp.github.com/ , lsp = https://mcp.lsp/ ",
+			name: "single stdio entry",
+			in:   "fs=stdio:npx -y @modelcontextprotocol/server-filesystem /workspace",
+			want: []MCPServer{{
+				Name:      "fs",
+				Transport: MCPTransportStdio,
+				Command:   "npx",
+				Args:      []string{"-y", "@modelcontextprotocol/server-filesystem", "/workspace"},
+			}},
+		},
+		{
+			name: "stdio with single-word command",
+			in:   "time=stdio:mcp-server-time",
+			want: []MCPServer{{
+				Name:      "time",
+				Transport: MCPTransportStdio,
+				Command:   "mcp-server-time",
+				Args:      []string{},
+			}},
+		},
+		{
+			name: "mixed http + stdio with whitespace",
+			in:   " github = https://mcp.github.com/ , fs = stdio:npx mcp-server-fs ",
 			want: []MCPServer{
-				{Name: "github", Endpoint: "https://mcp.github.com/"},
-				{Name: "lsp", Endpoint: "https://mcp.lsp/"},
+				{Name: "github", Transport: MCPTransportHTTP, Endpoint: "https://mcp.github.com/"},
+				{Name: "fs", Transport: MCPTransportStdio, Command: "npx", Args: []string{"mcp-server-fs"}},
 			},
 		},
 		{
@@ -46,6 +71,16 @@ func TestParseMCPServers(t *testing.T) {
 			in:      "=https://mcp/",
 			wantErr: true,
 		},
+		{
+			name:    "unsupported scheme",
+			in:      "github=ftp://mcp/",
+			wantErr: true,
+		},
+		{
+			name:    "stdio empty command",
+			in:      "fs=stdio:",
+			wantErr: true,
+		},
 	}
 
 	for _, tc := range cases {
@@ -60,13 +95,8 @@ func TestParseMCPServers(t *testing.T) {
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
-			if len(got) != len(tc.want) {
-				t.Fatalf("len = %d, want %d (got=%+v)", len(got), len(tc.want), got)
-			}
-			for i := range got {
-				if got[i] != tc.want[i] {
-					t.Errorf("[%d] = %+v, want %+v", i, got[i], tc.want[i])
-				}
+			if !reflect.DeepEqual(got, tc.want) {
+				t.Errorf("got %+v, want %+v", got, tc.want)
 			}
 		})
 	}

@@ -31,9 +31,26 @@ func EngineMCPServers(cfg Config) []engine.MCPServer {
 	}
 	out := make([]engine.MCPServer, 0, len(cfg.MCPServers))
 	for _, s := range cfg.MCPServers {
-		out = append(out, engine.MCPServer{Name: s.Name, Endpoint: s.Endpoint})
+		out = append(out, engine.MCPServer{
+			Name:      s.Name,
+			Transport: engineMCPTransport(s.Transport),
+			Endpoint:  s.Endpoint,
+			Command:   s.Command,
+			Args:      s.Args,
+		})
 	}
 	return out
+}
+
+// engineMCPTransport bridges the config + engine enums so neither
+// package has to know about the other's symbol.
+func engineMCPTransport(t MCPTransport) engine.MCPTransport {
+	switch t {
+	case MCPTransportStdio:
+		return engine.MCPTransportStdio
+	default:
+		return engine.MCPTransportHTTP
+	}
 }
 
 // BuildChatClient wires a *chat.Client from the loaded config — picks
