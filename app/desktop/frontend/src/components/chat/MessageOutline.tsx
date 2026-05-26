@@ -84,11 +84,13 @@ export function MessageOutline({ target }: { target: RefObject<HTMLElement | nul
     // scroll ancestor, not the absolute aside above it).
     <aside
       aria-label="Message outline"
-      // Threshold: 760px content column + 2 × (16px gap + 176px outline)
-      // = 1144px chat-panel width. Below that the outline would either
-      // crowd the message column or get clipped by panel-scroll's
-      // `overflow-x: hidden` — neither reads well.
-      className="hidden @[1144px]/chat:block absolute inset-y-0 left-[calc(100%+16px)] w-44"
+      // Threshold: chat needs ≥ 760 + 2 × (16 + 176) = 1144px panel
+      // width to host the outline. With an expanded 248px sidebar +
+      // 16px gaps that means viewport ≥ ~1408px. Using a viewport
+      // media query (rather than a container query) sidesteps the
+      // `container-type: inline-size` / use-stick-to-bottom scroll
+      // anchoring issue that surfaced during streaming.
+      className="hidden min-[1408px]:block absolute inset-y-0 left-[calc(100%+16px)] w-44"
     >
       <div className="sticky top-4 max-h-[60vh] overflow-y-auto">
         <div className="mb-1.5 font-mono text-[10px] font-semibold uppercase tracking-wider text-fg-faint">
