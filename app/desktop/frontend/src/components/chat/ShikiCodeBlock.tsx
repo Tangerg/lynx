@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useDebounce } from "use-debounce";
 import { Icon } from "@/components/common";
 import { measureShikiHighlight } from "@/lib/metrics";
-import { getHighlighter, resolveLang } from "@/lib/shiki";
+import { getCachedHighlight, getHighlighter, resolveLang, setCachedHighlight } from "@/lib/shiki";
 import { cn } from "@/lib/utils";
 import { resolveScheme } from "@/plugins/sdk";
 import { useThemeStore } from "@/state/themeStore";
@@ -33,7 +33,13 @@ export function ShikiCodeBlock({ lang, code, file }: Props) {
   const [debouncedCode] = useDebounce(code, 120);
   const isSettling = code !== debouncedCode;
 
-  const [html, setHtml] = useState<string | null>(null);
+  // Seed from cache synchronously so a re-mount (scroll away/back, theme
+  // toggle returning to a prior theme, MarkdownBlock memo invalidation
+  // on a long history) skips both the async highlighter resolution and
+  // the tokenizer call. Cache key is (lang, theme, exact-code).
+  const [html, setHtml] = useState<string | null>(() =>
+    getCachedHighlight(lang, shikiTheme, debouncedCode) ?? null,
+  );
   const [copied, setCopied] = useState(false);
   const [expanded, setExpanded] = useState(false);
 
@@ -43,6 +49,13 @@ export function ShikiCodeBlock({ lang, code, file }: Props) {
   const folded = !expanded && !isSettling && lineCount > FOLD_LINE_THRESHOLD;
 
   useEffect(() => {
+    // Fast path — cache hit means we never wake the async highlighter.
+    const cached = getCachedHighlight(lang, shikiTheme, debouncedCode);
+    if (cached !== undefined) {
+      setHtml(cached);
+      return;
+    }
+
     let cancelled = false;
     getHighlighter()
       .then((h) => {
@@ -55,6 +68,7 @@ export function ShikiCodeBlock({ lang, code, file }: Props) {
             theme: shikiTheme,
           });
           measureShikiHighlight(performance.now() - start, resolvedLang);
+          setCachedHighlight(lang, shikiTheme, debouncedCode, out);
           setHtml(out);
         } catch {
           setHtml(null);
