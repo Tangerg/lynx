@@ -12,6 +12,7 @@
 // the (deliberately hidden) scrollbar.
 
 import type { IconName } from "@/components/common";
+import type { HeaderTabBulkActions, HeaderTabKind } from "@/state/sessionStore";
 import * as ContextMenu from "@radix-ui/react-context-menu";
 import { useCallback, useRef } from "react";
 import { dragClasses, Icon, noDragClasses, StatusDot } from "@/components/common";
@@ -30,17 +31,6 @@ export interface ViewTab {
   icon?: string;
 }
 
-export interface TabBulkActions {
-  /** Close every tab of the same type except `id`. */
-  onCloseOthers: (id: string) => void;
-  /** Close every tab of the same type to the left of `id`. */
-  onCloseLeft: (id: string) => void;
-  /** Close every tab of the same type to the right of `id`. */
-  onCloseRight: (id: string) => void;
-  /** Close every tab of the same type. */
-  onCloseAll: () => void;
-}
-
 interface Props {
   tabs: ChatTab[];
   viewTabs: ViewTab[];
@@ -49,8 +39,10 @@ interface Props {
   onSelectView: (id: string) => void;
   onCloseChat: (id: string) => void;
   onCloseView: (id: string) => void;
-  chatBulk: TabBulkActions;
-  viewBulk: TabBulkActions;
+  /** Resolve bulk-close actions for the right-clicked tab. The kind
+   *  decides which underlying store actions to compose so the rules
+   *  treat chat + view tabs as one unified strip. */
+  bulkFor: (kind: HeaderTabKind, id: string) => HeaderTabBulkActions;
 }
 
 export function ChatTopBar({
@@ -61,8 +53,7 @@ export function ChatTopBar({
   onSelectView,
   onCloseChat,
   onCloseView,
-  chatBulk,
-  viewBulk,
+  bulkFor,
 }: Props) {
   const stripRef = useRef<HTMLDivElement>(null);
   const onWheel = useCallback((e: React.WheelEvent<HTMLDivElement>) => {
@@ -77,6 +68,13 @@ export function ChatTopBar({
     el.scrollLeft += e.deltaY;
     e.preventDefault();
   }, []);
+
+  // Unified-strip positional info. Chat tabs always render before view
+  // tabs, so a chat tab can only be the strip's last tab when there
+  // are zero view tabs; a view tab can only be the strip's first when
+  // there are zero chat tabs.
+  const total = tabs.length + viewTabs.length;
+  const isOnly = total === 1;
 
   return (
     <div className={cn("flex min-h-9 items-center gap-1 bg-surface px-4", dragClasses)}>
@@ -93,11 +91,10 @@ export function ChatTopBar({
             leading={<StatusDot tone={t.status} />}
             onSelect={() => onSelectChat(t.id)}
             onClose={() => onCloseChat(t.id)}
-            bulk={chatBulk}
-            id={t.id}
+            bulk={bulkFor("chat", t.id)}
             isFirst={i === 0}
-            isLast={i === tabs.length - 1}
-            isOnly={tabs.length === 1}
+            isLast={i === tabs.length - 1 && viewTabs.length === 0}
+            isOnly={isOnly}
           />
         ))}
         {viewTabs.map((t, i) => (
@@ -108,11 +105,10 @@ export function ChatTopBar({
             leading={t.icon ? <Icon name={t.icon as IconName} size={11} /> : null}
             onSelect={() => onSelectView(t.id)}
             onClose={() => onCloseView(t.id)}
-            bulk={viewBulk}
-            id={t.id}
-            isFirst={i === 0}
+            bulk={bulkFor("view", t.id)}
+            isFirst={i === 0 && tabs.length === 0}
             isLast={i === viewTabs.length - 1}
-            isOnly={viewTabs.length === 1}
+            isOnly={isOnly}
           />
         ))}
       </div>
@@ -122,20 +118,18 @@ export function ChatTopBar({
 }
 
 interface TabItemProps {
-  id: string;
   active: boolean;
   title: string;
   leading: React.ReactNode;
   onSelect: () => void;
   onClose: () => void;
-  bulk: TabBulkActions;
+  bulk: HeaderTabBulkActions;
   isFirst: boolean;
   isLast: boolean;
   isOnly: boolean;
 }
 
 function TabItem({
-  id,
   active,
   title,
   leading,
@@ -191,13 +185,13 @@ function TabItem({
           collisionPadding={8}
         >
           <TabMenuItem onSelect={onClose}>Close</TabMenuItem>
-          <TabMenuItem disabled={isOnly} onSelect={() => bulk.onCloseOthers(id)}>
+          <TabMenuItem disabled={isOnly} onSelect={bulk.onCloseOthers}>
             Close Others
           </TabMenuItem>
-          <TabMenuItem disabled={isFirst} onSelect={() => bulk.onCloseLeft(id)}>
+          <TabMenuItem disabled={isFirst} onSelect={bulk.onCloseLeft}>
             Close Tabs to the Left
           </TabMenuItem>
-          <TabMenuItem disabled={isLast} onSelect={() => bulk.onCloseRight(id)}>
+          <TabMenuItem disabled={isLast} onSelect={bulk.onCloseRight}>
             Close Tabs to the Right
           </TabMenuItem>
           <ContextMenu.Separator className="my-1 h-px bg-line" />

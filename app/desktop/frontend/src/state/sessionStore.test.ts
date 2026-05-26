@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { useSessionStore } from "./sessionStore";
+import { headerTabBulkFor, useSessionStore } from "./sessionStore";
 
 // Snapshot of the store's initial chat-tab state so each test starts
 // from a known place. We restore via setState (not resetForTest — no
@@ -120,5 +120,64 @@ describe("sessionStore bulk-close (workspace-view tabs)", () => {
     const s = useSessionStore.getState();
     expect(s.mainViewTabs).toEqual([]);
     expect(s.activeMainView).toBeNull();
+  });
+});
+
+describe("headerTabBulkFor (unified-strip semantics)", () => {
+  beforeEach(reset);
+
+  it("Close All on any tab wipes BOTH lists", () => {
+    headerTabBulkFor("chat", "s2").onCloseAll();
+    let s = useSessionStore.getState();
+    expect(s.tabIds).toEqual([]);
+    expect(s.mainViewTabs).toEqual([]);
+
+    reset();
+    headerTabBulkFor("view", "v2").onCloseAll();
+    s = useSessionStore.getState();
+    expect(s.tabIds).toEqual([]);
+    expect(s.mainViewTabs).toEqual([]);
+  });
+
+  it("Close Others on a chat tab keeps that chat tab and drops every view tab", () => {
+    headerTabBulkFor("chat", "s2").onCloseOthers();
+    const s = useSessionStore.getState();
+    expect(s.tabIds).toEqual(["s2"]);
+    expect(s.mainViewTabs).toEqual([]);
+  });
+
+  it("Close Others on a view tab drops every chat tab and keeps only that view", () => {
+    headerTabBulkFor("view", "v2").onCloseOthers();
+    const s = useSessionStore.getState();
+    expect(s.tabIds).toEqual([]);
+    expect(s.mainViewTabs.map((t) => t.id)).toEqual(["v2"]);
+  });
+
+  it("Close Right on a chat tab drops trailing chat tabs AND every view tab", () => {
+    headerTabBulkFor("chat", "s2").onCloseRight();
+    const s = useSessionStore.getState();
+    expect(s.tabIds).toEqual(["s1", "s2"]);
+    expect(s.mainViewTabs).toEqual([]);
+  });
+
+  it("Close Right on a view tab only touches trailing view tabs (chat tabs untouched)", () => {
+    headerTabBulkFor("view", "v2").onCloseRight();
+    const s = useSessionStore.getState();
+    expect(s.tabIds).toEqual(["s1", "s2", "s3"]);
+    expect(s.mainViewTabs.map((t) => t.id)).toEqual(["v1", "v2"]);
+  });
+
+  it("Close Left on a chat tab only touches preceding chat tabs (view tabs untouched)", () => {
+    headerTabBulkFor("chat", "s2").onCloseLeft();
+    const s = useSessionStore.getState();
+    expect(s.tabIds).toEqual(["s2", "s3"]);
+    expect(s.mainViewTabs.map((t) => t.id)).toEqual(["v1", "v2", "v3"]);
+  });
+
+  it("Close Left on a view tab drops EVERY chat tab and preceding view tabs", () => {
+    headerTabBulkFor("view", "v2").onCloseLeft();
+    const s = useSessionStore.getState();
+    expect(s.tabIds).toEqual([]);
+    expect(s.mainViewTabs.map((t) => t.id)).toEqual(["v2", "v3"]);
   });
 });

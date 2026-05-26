@@ -13,6 +13,22 @@ import { createJSONStorage, persist } from "zustand/middleware";
 
 interface MainViewTab { id: string; title: string; icon?: string }
 
+/**
+ * Discriminator for the two tab kinds the chat header juggles. Chat
+ * tabs sit on the left of the unified strip, view tabs (workspace
+ * views — including the Settings pane opened via host.openMainView)
+ * sit on the right.
+ */
+export type HeaderTabKind = "chat" | "view";
+
+/** Bulk-close closures already bound to a specific right-clicked tab. */
+export interface HeaderTabBulkActions {
+  onCloseOthers: () => void;
+  onCloseLeft: () => void;
+  onCloseRight: () => void;
+  onCloseAll: () => void;
+}
+
 interface SessionState {
   activeSessionId: string;
   tabIds: string[];
@@ -215,3 +231,50 @@ export const useSessionStore = create<SessionState & SessionActions>()(
     },
   ),
 );
+
+/**
+ * Compose a tab kind + id into bulk-close closures with unified-strip
+ * semantics. Chat tabs render before view tabs in the header, so:
+ *
+ *   - Left-of a view tab includes EVERY chat tab plus preceding views.
+ *   - Right-of a chat tab includes the trailing chat tabs AND every
+ *     view tab.
+ *   - "Close Others" / "Close All" wipe both kinds regardless of
+ *     which kind was clicked.
+ *
+ * Lives in the store layer (not in ChatHeader) so the cross-kind
+ * sequencing is unit-testable without rendering.
+ */
+export function headerTabBulkFor(kind: HeaderTabKind, id: string): HeaderTabBulkActions {
+  const s = () => useSessionStore.getState();
+  const closeAll = () => {
+    s().closeAllTabs();
+    s().closeAllMainViews();
+  };
+  if (kind === "chat") {
+    return {
+      onCloseOthers: () => {
+        s().closeOtherTabs(id);
+        s().closeAllMainViews();
+      },
+      onCloseLeft: () => s().closeTabsLeftOf(id),
+      onCloseRight: () => {
+        s().closeTabsRightOf(id);
+        s().closeAllMainViews();
+      },
+      onCloseAll: closeAll,
+    };
+  }
+  return {
+    onCloseOthers: () => {
+      s().closeAllTabs();
+      s().closeOtherMainViews(id);
+    },
+    onCloseLeft: () => {
+      s().closeAllTabs();
+      s().closeMainViewsLeftOf(id);
+    },
+    onCloseRight: () => s().closeMainViewsRightOf(id),
+    onCloseAll: closeAll,
+  };
+}
