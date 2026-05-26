@@ -1,5 +1,6 @@
 import type { SidebarSession } from "@/lib/queries";
 import { Icon, StatusDot } from "@/components/common";
+import { formatRelative } from "@/lib/relativeTime";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -56,8 +57,11 @@ export function SessionRow({ session, active, onSelect }: Props) {
           <span>{subText}</span>
         </div>
       </div>
-      <div className="text-[11px] font-mono font-semibold text-fg-faint [font-feature-settings:'tnum']">
-        {session.time}
+      <div
+        title={session.time}
+        className="text-[11px] font-mono font-semibold text-fg-faint [font-feature-settings:'tnum']"
+      >
+        {formatRelative(session.time)}
       </div>
     </div>
   );
