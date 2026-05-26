@@ -10,7 +10,7 @@
 import type {LoadResult} from "./sdk/definePlugin";
 import type { PluginSpec } from "./sdk/types";
 import { z } from "zod";
-import { AGUI_BASE } from "@/lib/http";
+import { AGUI_BASE } from "@/main/config";
 import { loadPlugin  } from "./sdk/definePlugin";
 import { reportPluginError } from "./sdk/errors";
 import { usePluginStore } from "./sdk/registry";

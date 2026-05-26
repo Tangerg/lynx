@@ -1,12 +1,14 @@
 // Architecture conformance — enforces the Clean-Architecture-inspired
 // layering by scanning import statements at test time.
 //
-// Why a test, not ESLint: we don't have ESLint configured yet, and a
-// vitest test runs in the same toolchain as everything else — no new
-// dev dependencies, no plugin authoring. The trade-off is that this
-// catches violations on `pnpm test`, not on save in the editor; good
-// enough for now. Migrate to `eslint-plugin-boundaries` later if the
-// rule set grows.
+// Why a test, not a lint plugin: the boundary rules here are
+// project-specific (domain/infra/main/presentation split + the
+// per-layer "forbidden source patterns" like raw fetch()) and a
+// Vitest test runs in the same toolchain everything else uses
+// (`npm run check`). OxLint covers the generic rules; this file
+// covers the architectural ones. If the rule set grows enough that
+// an off-the-shelf boundary linter (eslint-plugin-boundaries or a
+// future oxlint equivalent) becomes cheaper to maintain, migrate.
 //
 // The layers Lyra recognises (see ARCHITECTURE.md "整洁架构 → Lyra 适配"):
 //

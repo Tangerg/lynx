@@ -7,7 +7,7 @@
 
 import { useState } from "react";
 import { z } from "zod";
-import { AGUI_BASE } from "@/lib/http";
+import { AGUI_BASE } from "@/main/config";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { definePlugin, getConfig, setConfig } from "@/plugins/sdk";

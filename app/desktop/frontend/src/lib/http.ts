@@ -1,13 +1,13 @@
 import type {KyInstance} from "ky";
 import ky from "ky";
+import { AGUI_BASE } from "@/main/config";
 import { getConfig } from "@/plugins/sdk/config";
 import { listRpcAfterHooks, listRpcBeforeHooks } from "@/plugins/sdk/selectors";
 
-// Default base URL for the local Go AG-UI mock. Plugins (typically
-// `lyra.builtin.default-config`) can override via
-// `host.config.set("api.baseUrl", "...")`. The override is read on every
-// request so a runtime change takes effect immediately.
-export const AGUI_BASE = "http://127.0.0.1:17171";
+// First-paint base URL is owned by `main/config`. Plugins (typically
+// `lyra.builtin.default-config`) can override at runtime via
+// `host.config.set("api.baseUrl", "...")`. The override is read on
+// every request so a runtime change takes effect immediately.
 
 function activeBase(): string {
   return getConfig<string>("api.baseUrl") ?? AGUI_BASE;
