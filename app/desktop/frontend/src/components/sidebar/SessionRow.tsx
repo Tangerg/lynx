@@ -17,18 +17,20 @@ interface Props {
 // distinguishes "currently selected" from "just hovering" — a single
 // visual cue carries the active state, no fighting tone steps.
 export function SessionRow({ session, active, onSelect }: Props) {
-  const subText =
-    session.status === "running"
-      ? "Running"
-      : session.status === "waiting"
-        ? "Needs input"
-        : session.model;
+  // Idle is the common case — drop the sub-row entirely and let the
+  // title sit centred against the time on the right. Running / waiting
+  // sessions keep the sub-row with a status dot + label so active work
+  // visibly stands out from the rest of the list. (Model name was
+  // sacrificed — not load-bearing in a list view; user already picks
+  // the model when opening a session.)
+  const showStatusRow = session.status === "running" || session.status === "waiting";
+  const statusLabel = session.status === "running" ? "Running" : "Needs input";
 
   return (
     <div
       onClick={() => onSelect(session.id)}
       className={cn(
-        "group relative grid grid-cols-[18px_1fr_auto] items-center gap-2.5 rounded-lg px-2.5 py-2 cursor-pointer transition-colors duration-150 hover:bg-surface-2",
+        "group relative grid grid-cols-[18px_minmax(0,1fr)_auto] items-center gap-2.5 rounded-lg px-2.5 py-2 cursor-pointer transition-colors duration-150 hover:bg-surface-2",
         active && [
           "bg-surface-2",
           "before:content-[''] before:absolute before:-left-1 before:top-2 before:bottom-2 before:w-[3px] before:bg-accent before:rounded-full",
@@ -52,10 +54,12 @@ export function SessionRow({ session, active, onSelect }: Props) {
         >
           {session.title}
         </div>
-        <div className="mt-0.5 flex items-center gap-1.5 text-[11px] leading-[1.2] text-fg-faint">
-          <StatusDot tone={session.status} />
-          <span>{subText}</span>
-        </div>
+        {showStatusRow && (
+          <div className="mt-0.5 flex items-center gap-1.5 text-[11px] leading-[1.2] text-fg-faint">
+            <StatusDot tone={session.status} />
+            <span>{statusLabel}</span>
+          </div>
+        )}
       </div>
       <div
         title={session.time}
