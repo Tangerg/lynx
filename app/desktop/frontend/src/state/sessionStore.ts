@@ -21,8 +21,12 @@ interface MainViewTab { id: string; title: string; icon?: string }
  */
 export type HeaderTabKind = "chat" | "view";
 
-/** Bulk-close closures already bound to a specific right-clicked tab. */
-export interface HeaderTabBulkActions {
+/**
+ * Close closures already bound to a specific right-clicked tab.
+ * Lives next to the store because each closure composes several
+ * underlying store actions (chat + view tabs together).
+ */
+export interface HeaderTabCloseActions {
   onCloseOthers: () => void;
   onCloseLeft: () => void;
   onCloseRight: () => void;
@@ -84,7 +88,6 @@ interface SessionActions {
   setActiveFile: (path: string) => void;
   setSelectedToolId: (id: string) => void;
   toggleExpandedTool: (id: string) => void;
-  expandTool: (id: string) => void;
 }
 
 export const useSessionStore = create<SessionState & SessionActions>()(
@@ -118,10 +121,10 @@ export const useSessionStore = create<SessionState & SessionActions>()(
         if (!tabIds.includes(id)) set({ tabIds: [...tabIds, id] });
       },
 
-      // Bulk close helpers — all preserve `activeSessionId` when the
-      // active tab survives, otherwise fall back to the leftmost
-      // remaining tab (or empty string when nothing is left, mirroring
-      // the original closeTab semantics).
+      // Multi-tab close helpers — all preserve `activeSessionId`
+      // when the active tab survives, otherwise fall back to the
+      // leftmost remaining tab (or empty string when nothing is
+      // left, mirroring the original closeTab semantics).
       closeOtherTabs: (id) => {
         const { tabIds } = get();
         if (!tabIds.includes(id)) return;
@@ -169,7 +172,7 @@ export const useSessionStore = create<SessionState & SessionActions>()(
       selectMainView: (id) => set({ activeMainView: id }),
       selectChat: () => set({ activeMainView: null }),
 
-      // Same shape as the chat-tab bulk close helpers, scoped to the
+      // Same shape as the chat-tab close helpers, scoped to the
       // workspace-view strip.
       closeOtherMainViews: (id) => {
         const cur = get().mainViewTabs;
@@ -211,11 +214,6 @@ export const useSessionStore = create<SessionState & SessionActions>()(
         else next.add(id);
         set({ expandedToolIds: next });
       },
-      expandTool: (id) => {
-        const next = new Set(get().expandedToolIds);
-        next.add(id);
-        set({ expandedToolIds: next, selectedToolId: id });
-      },
     }),
     {
       name: "lyra.session",
@@ -233,8 +231,9 @@ export const useSessionStore = create<SessionState & SessionActions>()(
 );
 
 /**
- * Compose a tab kind + id into bulk-close closures with unified-strip
- * semantics. Chat tabs render before view tabs in the header, so:
+ * Compose a tab kind + id into close-action closures with unified-
+ * strip semantics. Chat tabs render before view tabs in the header,
+ * so:
  *
  *   - Left-of a view tab includes EVERY chat tab plus preceding views.
  *   - Right-of a chat tab includes the trailing chat tabs AND every
@@ -245,7 +244,7 @@ export const useSessionStore = create<SessionState & SessionActions>()(
  * Lives in the store layer (not in PanelHeader) so the cross-kind
  * sequencing is unit-testable without rendering.
  */
-export function headerTabBulkFor(kind: HeaderTabKind, id: string): HeaderTabBulkActions {
+export function headerTabCloseActionsFor(kind: HeaderTabKind, id: string): HeaderTabCloseActions {
   const s = () => useSessionStore.getState();
   const closeAll = () => {
     s().closeAllTabs();
