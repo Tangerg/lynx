@@ -21,6 +21,7 @@ import type {
   DataProviderSpec,
   LayoutSlotSpec,
   LoadedPlugin,
+  LocaleSpec,
   LogSubscriber,
   MessageRoleSpec,
   PluginErrorFallbackSpec,
@@ -67,6 +68,7 @@ export interface PluginStoreState {
   layoutSlots: Map<string, Owned<{ slot: string; spec: LayoutSlotSpec }>>;
   themes: Map<string, Owned<ThemeSpec>>;
   accents: Map<string, Owned<ThemeAccentSpec>>;
+  locales: Map<string, Owned<LocaleSpec>>;
   routes: Map<string, Owned<RouteSpec>>;
   shortcuts: Map<string, Owned<ShortcutSpec>>;
   composerStatus: Map<string, Owned<ComposerStatusSpec>>;
@@ -169,6 +171,9 @@ export interface PluginStoreActions {
 
   addAccent: (pluginName: string, spec: ThemeAccentSpec) => void;
   removeAccent: (pluginName: string, id: string) => void;
+
+  addLocale: (pluginName: string, spec: LocaleSpec) => void;
+  removeLocale: (pluginName: string, id: string) => void;
 
   addRoute: (pluginName: string, spec: RouteSpec) => void;
   removeRoute: (pluginName: string, id: string) => void;
@@ -359,6 +364,7 @@ export function freshState(): PluginStoreState {
     layoutSlots: new Map(),
     themes: new Map(),
     accents: new Map(),
+    locales: new Map(),
     routes: new Map(),
     shortcuts: new Map(),
     composerStatus: new Map(),

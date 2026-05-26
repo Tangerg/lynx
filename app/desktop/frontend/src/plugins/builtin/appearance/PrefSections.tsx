@@ -2,11 +2,11 @@
 // UI language (8+ options → dropdown). Bundled into one file since
 // each section is < 60 lines.
 
-import type { Locale } from "@/lib/i18n";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { Icon } from "@/components/common";
-import { LOCALES, setLocale, useLocale, useT } from "@/lib/i18n";
+import { setLocale, useLocale, useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
+import { useLocales } from "@/plugins/sdk";
 import { useThemeStore } from "@/state/themeStore";
 
 const SEGMENT_BTN_BASE =
@@ -54,7 +54,12 @@ export function MessageStyleSection() {
 export function LanguageSection() {
   const t = useT();
   const locale = useLocale();
-  const active = LOCALES.find((l) => l.id === locale) ?? LOCALES[0];
+  const locales = useLocales();
+  const active = locales.find((l) => l.id === locale) ?? locales[0];
+  // While locale plugins are still loading (shouldn't happen post
+  // PluginProvider, but defensive), the picker would render with no
+  // options — bail until at least one is registered.
+  if (!active) return null;
 
   return (
     <div className="grid grid-cols-[140px_1fr] items-center gap-4 py-3">
@@ -82,10 +87,10 @@ export function LanguageSection() {
             sideOffset={4}
             className="z-50 min-w-[180px] overflow-hidden rounded-md border border-line-soft bg-surface p-1 shadow-lg animate-rise-in"
           >
-            {LOCALES.map((l) => (
+            {locales.map((l) => (
               <DropdownMenu.Item
                 key={l.id}
-                onSelect={() => setLocale(l.id as Locale)}
+                onSelect={() => setLocale(l.id)}
                 className="grid cursor-pointer grid-cols-[minmax(0,1fr)_12px] items-center gap-2 rounded-sm px-2.5 py-1.5 text-[12.5px] text-fg-muted outline-none data-[highlighted]:bg-surface-2 data-[highlighted]:text-fg"
               >
                 <span className="truncate">{l.label}</span>

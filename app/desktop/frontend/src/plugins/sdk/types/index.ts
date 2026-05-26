@@ -12,6 +12,7 @@ export * from "./commands";
 export * from "./common";
 export * from "./composer";
 export * from "./host";
+export * from "./i18n";
 export * from "./infra";
 export * from "./message";
 export * from "./plugin";

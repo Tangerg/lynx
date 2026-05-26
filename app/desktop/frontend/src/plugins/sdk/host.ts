@@ -425,6 +425,10 @@ export function createHost(
         // same-name reload overwrites cleanly.
         return track({ dispose: () => {} });
       },
+      registerLocale(spec): Disposable {
+        store().addLocale(pluginName, spec);
+        return track({ dispose: () => store().removeLocale(pluginName, spec.id) });
+      },
     },
 
     tasks: {
