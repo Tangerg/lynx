@@ -1,5 +1,7 @@
 {
   "$schema": "https://unpkg.com/knip@latest/schema.json",
   "ignoreExportsUsedInFile": true,
-  "ignore": ["wailsjs/**", "sample-plugins/**"]
+  "ignore": ["wailsjs/**", "sample-plugins/**"],
+  "ignoreDependencies": ["husky", "lint-staged", "@commitlint/cli"],
+  "ignoreBinaries": ["frontend.bin/husky"]
 }
