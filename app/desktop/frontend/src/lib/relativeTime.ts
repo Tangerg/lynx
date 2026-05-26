@@ -20,13 +20,32 @@ import i18next from "i18next";
 dayjs.extend(relativeTime);
 
 function syncDayjsLocale(lng: string | undefined): void {
-  dayjs.locale(lng && lng.startsWith("zh") ? "zh-cn" : "en");
+  try {
+    dayjs.locale(lng && lng.startsWith("zh") ? "zh-cn" : "en");
+  } catch {
+    /* dayjs throws if the locale isn't loaded; safe to ignore — it
+       just keeps the previous (or default 'en') locale. */
+  }
 }
 
-// Sync immediately + on every language switch. Subscribing once at
-// module load is enough — there's exactly one i18next instance.
-syncDayjsLocale(i18next.language);
-i18next.on("languageChanged", syncDayjsLocale);
+// Lazy bind: we used to subscribe at module load, but module-load
+// timing relative to i18next.init() is brittle (it imports
+// `i18next` directly, not via `@/lib/i18n`, so there's no
+// initialisation ordering guarantee). Deferring to first call means
+// React has already mounted by the time we subscribe — i18next is
+// fully initialised by then.
+let bound = false;
+function ensureBound(): void {
+  if (bound) return;
+  bound = true;
+  syncDayjsLocale(i18next.language);
+  try {
+    i18next.on("languageChanged", syncDayjsLocale);
+  } catch {
+    /* fall through: dayjs stays on whatever locale syncDayjsLocale
+       managed to set. */
+  }
+}
 
 function isZh(): boolean {
   return dayjs.locale().startsWith("zh");
@@ -38,6 +57,7 @@ function isZh(): boolean {
  */
 export function formatRelative(input: string | number | Date | undefined | null): string {
   if (input === undefined || input === null || input === "") return "";
+  ensureBound();
   const d = dayjs(input);
   if (!d.isValid()) return "";
   const now = dayjs();
