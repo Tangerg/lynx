@@ -61,6 +61,13 @@ export function MessageBlock({ msg, ctx }: { msg: Message; ctx: PartCtx }) {
   // leaves them all streaming until TEXT_MESSAGE_END).
   const lastIdx = msg.blocks.length - 1;
 
+  // True while any block on this message is still streaming. Gates the
+  // MessageOutline mount so the per-token MutationObserver inside doesn't
+  // fire while content is in motion.
+  const isStreaming = msg.blocks.some(
+    (b) => (b.kind === "text" || b.kind === "reasoning") && b.streaming,
+  );
+
   // Skip the smooth-text + fade-in pipeline for user messages — they
   // already saw what they typed; replaying it adds latency for no gain.
   const partCtx: PartCtx = isUser ? { ...ctx, instant: true } : ctx;
@@ -135,8 +142,12 @@ export function MessageBlock({ msg, ctx }: { msg: Message; ctx: PartCtx }) {
           </div>
 
           {/* Right-gutter outline. Hidden on narrow viewports where no
-              gutter is available. */}
-          {isAgent && <MessageOutline target={contentRef} />}
+              gutter is available. Skipped while *any* block on the message
+              is still streaming — the outline is a "jump to a finished
+              heading" affordance, and the per-token MutationObserver
+              rebuild used to compete with use-stick-to-bottom and cause
+              the chat to snap back during streaming. */}
+          {isAgent && !isStreaming && <MessageOutline target={contentRef} />}
         </div>
       </CitationContext.Provider>
     </MessageContext.Provider>
