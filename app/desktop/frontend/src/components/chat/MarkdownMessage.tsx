@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { memo, useMemo } from "react";
 
 import ReactMarkdown from "react-markdown";
 import rehypeKatex from "rehype-katex";
@@ -9,6 +9,7 @@ import remarkGfm from "remark-gfm";
 import remarkAlert from "remark-github-blockquote-alert";
 import remarkMath from "remark-math";
 import remend from "remend";
+import { parseMarkdownIntoBlocks } from "streamdown";
 import { markdownComponents } from "@/components/chat/markdownComponents";
 import { measureMarkdownRepair } from "@/lib/metrics";
 import { rehypeCitations } from "@/lib/rehypeCitations";
@@ -39,35 +40,79 @@ const remarkPlugins = [remarkGfm, remarkBreaks, remarkCjkFriendly, remarkMath, r
 
 // rehypeRaw lets the markdown pipe parse inline HTML — `<details>`,
 // `<kbd>`, `<sub>`, `<sup>`, `<mark>`, `<table>` etc. that agents
-// regularly emit. We pass a strict allow list to react-markdown
-// (`allowElement`) below so scripts / iframes / objects / embeds
-// can't sneak through even though they parsed.
+// regularly emit. We pass a strict allow list (`allowElement`) below
+// so scripts / iframes / objects / embeds can't sneak through.
 const DENIED_HTML_TAGS = new Set(["script", "iframe", "object", "embed", "form"]);
 
+const allowElement = (el: { tagName: string }) => !DENIED_HTML_TAGS.has(el.tagName);
+
 // MarkdownMessage — full Markdown with optional smooth-streamed per-
-// word fade-in. Pipeline: raw → useSmoothText → remend (auto-close
-// open `, **, ``` mid-stream) → react-markdown → rehypeFadeIn → JSX.
-// `instant=true` skips smoothing + fade-in for user-typed messages.
+// word fade-in.
 //
-// `remend` runs in sync with `display` on purpose: any debounce here
-// would make the rendered markdown lag behind smooth-text's character
-// reveal, which reads as stutter. The real lever for cutting parser
-// cost during streaming is block-level splitting (only the tail block
-// re-parses) — see the chat rendering plan, not a frame-level throttle.
+// Renderer strategy: borrow Vercel `streamdown`'s tested block splitter
+// (`parseMarkdownIntoBlocks` — handles unclosed code fences / math /
+// HTML tag balancing), but keep our own react-markdown + plugins +
+// components map underneath. Each block is its own memoised
+// `<MarkdownBlock>`, so on every smooth-text tick only the tail block
+// re-runs the remark→rehype→react pipeline; completed blocks stay
+// inert.
+//
+// Why not the full <Streamdown> component: it ships its own
+// `<span data-streamdown="strong">` design system that bypasses
+// `.md *` CSS rules we already maintain. The splitter alone is the
+// piece worth keeping.
 export function MarkdownMessage({ text, streaming, instant }: Props) {
   const smoothed = useSmoothText(text, !instant && !!streaming);
   const display = instant ? text : smoothed;
-  const safe = useMemo(() => {
+
+  // remend (auto-close unterminated bold / inline code / fenced blocks)
+  // runs on the *full* display text before splitting — block boundaries
+  // are easier to detect on well-formed markdown. Skipped for instant
+  // messages (user input is always complete).
+  const repaired = useMemo(() => {
+    if (instant) return display;
     const start = performance.now();
     const out = remend(display);
     measureMarkdownRepair(performance.now() - start, display.length, !!streaming);
     return out;
-  }, [display, streaming]);
+  }, [display, streaming, instant]);
 
+  const blocks = useMemo(() => parseMarkdownIntoBlocks(repaired), [repaired]);
+  const lastIdx = blocks.length - 1;
+
+  return (
+    <div className="md">
+      {blocks.map((block, i) => (
+        <MarkdownBlock
+          // Block content is the stable identity — re-keying by index
+          // would remount the tail block every render and lose its
+          // memo. By keying on content, completed blocks keep their
+          // React fibers across re-renders.
+          key={`${i}:${block}`}
+          text={block}
+          // Only the tail block is "streaming" — earlier blocks have
+          // settled, no fade-in / no caret pulses needed.
+          streaming={!!streaming && i === lastIdx}
+          instant={instant}
+        />
+      ))}
+    </div>
+  );
+}
+
+// Single block of markdown — paragraph / fenced code / list / heading.
+// Memoised on its content + flags so a re-render of the parent that
+// doesn't change this block's text skips the entire react-markdown
+// pipeline for it. `streaming` is forwarded but doesn't currently
+// gate any plugin — kept in the signature so future per-block UI
+// (e.g. a tail caret) has a clean prop to read.
+const MarkdownBlock = memo(function MarkdownBlock({ text, instant }: Props) {
   // Pipeline: rehypeRaw (parse inline HTML) → rehypeCitations (swap
   // `[n]` markers for <sup> badges) → rehypeFadeIn (per-word streaming
-  // animation, streamed-only) → rehypeKatex (math). rehypeRaw must
-  // come first so subsequent rehype plugins see the expanded tree.
+  // animation, non-instant only — the CSS animation runs once per
+  // span mount, so settled blocks animate on first paint then stay
+  // inert) → rehypeKatex (math). rehypeRaw must come first so later
+  // rehype plugins see the expanded tree.
   const rehypePlugins = useMemo(
     () =>
       instant
@@ -77,17 +122,13 @@ export function MarkdownMessage({ text, streaming, instant }: Props) {
   );
 
   return (
-    <div className="md">
-      <ReactMarkdown
-        remarkPlugins={remarkPlugins}
-        rehypePlugins={rehypePlugins}
-        components={markdownComponents}
-        // Hard-blocklist tags that can execute or break sandbox even if
-        // the markdown author wrote them out as raw HTML.
-        allowElement={(el) => !DENIED_HTML_TAGS.has(el.tagName)}
-      >
-        {safe}
-      </ReactMarkdown>
-    </div>
+    <ReactMarkdown
+      remarkPlugins={remarkPlugins}
+      rehypePlugins={rehypePlugins}
+      components={markdownComponents}
+      allowElement={allowElement}
+    >
+      {text}
+    </ReactMarkdown>
   );
-}
+});
