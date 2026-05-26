@@ -51,7 +51,7 @@ export function MessageStream({ messages, ctx, resetKey, onControlsChange }: Pro
       <StickToBottom key={resetKey} className="msg-scroll-frame" initial="smooth" resize="smooth">
         <StickToBottom.Content
           scrollClassName="panel-scroll"
-          className="msg-stream msg-stream-empty"
+          className="relative mx-auto flex w-full max-w-[760px] flex-col gap-7 px-6 pt-6 pb-[220px]"
         >
           <Slot name="chat.empty" />
         </StickToBottom.Content>
@@ -67,7 +67,10 @@ export function MessageStream({ messages, ctx, resetKey, onControlsChange }: Pro
       initial="smooth"
       resize="smooth"
     >
-      <StickToBottom.Content scrollClassName="panel-scroll" className="msg-stream">
+      <StickToBottom.Content
+        scrollClassName="panel-scroll"
+        className="relative mx-auto flex w-full max-w-[760px] flex-col gap-7 px-6 pt-6 pb-[220px]"
+      >
         <AnimatePresence initial={false}>
           {messages.map((m) => (
             // No `layout` prop — Motion's layout animation re-tweens
