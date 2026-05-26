@@ -1,7 +1,9 @@
 // Floating heading outline for assistant messages. Anchored to the
 // gutter outside the 760px content column so it never compresses
 // content width. Hides itself below MIN_ITEMS (short messages don't
-// need a TOC) and on narrow viewports where there is no gutter.
+// need a TOC) and when the chat panel doesn't have a 192px right
+// gutter to host the outline (container query, not viewport — sidebar
+// mode + window width together drive the available width).
 
 import type { RefObject } from "react";
 import { useEffect, useState } from "react";
@@ -58,7 +60,11 @@ export function MessageOutline({ target }: { target: RefObject<HTMLElement | nul
     // scroll ancestor, not the absolute aside above it).
     <aside
       aria-label="Message outline"
-      className="hidden xl:block absolute inset-y-0 left-[calc(100%+16px)] w-44"
+      // Threshold: 760px content column + 2 × (16px gap + 176px outline)
+      // = 1144px chat-panel width. Below that the outline would either
+      // crowd the message column or get clipped by panel-scroll's
+      // `overflow-x: hidden` — neither reads well.
+      className="hidden @[1144px]/chat:block absolute inset-y-0 left-[calc(100%+16px)] w-44"
     >
       <div className="sticky top-4 max-h-[60vh] overflow-y-auto">
         <div className="mb-1.5 font-mono text-[10px] font-semibold uppercase tracking-wider text-fg-faint">
