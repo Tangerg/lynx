@@ -22,12 +22,21 @@ export function PanelHeader() {
   const mainViewTabs = useSessionStore((s) => s.mainViewTabs);
   const activeMainView = useSessionStore((s) => s.activeMainView);
 
+  // One tab per id in tabIds, no exceptions. If `sessions` doesn't
+  // (yet / any more) carry metadata for an id — e.g. the sessions
+  // query is mid-refetch, or the user just opened a tab whose row
+  // hasn't landed in the cache yet — fall back to a placeholder with
+  // the id as the title. The previous `filter(Boolean)` silently
+  // dropped such tabs, producing the "I clicked but no tab appeared"
+  // bug; the strip is supposed to reflect tabIds 1:1.
   const openTabs: ChatTab[] = useMemo(
     () =>
-      tabIds
-        .map((id) => sessions.find((s) => s.id === id))
-        .filter((s): s is (typeof sessions)[number] => Boolean(s))
-        .map((s) => ({ id: s.id, title: s.title, status: s.status })),
+      tabIds.map((id) => {
+        const found = sessions.find((s) => s.id === id);
+        return found
+          ? { id: found.id, title: found.title, status: found.status }
+          : { id, title: id, status: "idle" as const };
+      }),
     [tabIds, sessions],
   );
 
