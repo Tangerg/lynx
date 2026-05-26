@@ -32,7 +32,9 @@ function PlanProgressBanner() {
   // Bail with no DOM if there's nothing planned, or every item is done
   // already — banner shouldn't linger after completion. The
   // AnimatePresence below still gets a graceful exit.
-  const hasPlan = plan.length > 0 && plan.some((p) => p.status !== "done");
+  // (`Array#some` returns false on an empty array, so we don't need an
+  // extra length check.)
+  const hasPlan = plan.some((p) => p.status !== "done");
 
   const total = plan.length;
   const done = plan.filter((p) => p.status === "done").length;
