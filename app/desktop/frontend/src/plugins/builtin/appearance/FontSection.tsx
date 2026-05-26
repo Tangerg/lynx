@@ -1,53 +1,87 @@
 // Font customization — UI + code typefaces and base size. Empty
-// input string reverts to the bundled Geist defaults; numeric `null`
-// reverts size to the inherited 15px baseline.
+// string reverts to the bundled Geist defaults; numeric `null` reverts
+// size to the inherited 15px baseline.
+//
+// JetBrains IDEA / VS Code-style pattern: a checkbox toggles "use a
+// custom font", and a Radix DropdownMenu picks from the curated list
+// of fonts actually installed on the user's machine. Each item renders
+// in its own family so the user sees a preview before clicking.
 
-import { useState } from "react";
+import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
+import { Icon } from "@/components/common";
 import { useT } from "@/lib/i18n";
+import { useSystemFonts } from "@/lib/systemFonts";
 import { cn } from "@/lib/utils";
 import { useUiStore } from "@/state/uiStore";
 
-// Free-text font picker. Commits on blur / Enter so the user can type
-// a multi-word name without each keystroke re-rendering the whole app.
-function FontField({
-  label,
-  placeholder,
-  value,
-  onCommit,
-  mono,
-}: {
+interface FontPickerProps {
   label: string;
-  placeholder: string;
+  mono: boolean;
   value: string;
-  onCommit: (v: string) => void;
-  mono?: boolean;
-}) {
-  const [draft, setDraft] = useState(value);
+  onChange: (v: string) => void;
+  defaultLabel: string;
+}
+
+function FontPicker({ label, mono, value, onChange, defaultLabel }: FontPickerProps) {
+  const fonts = useSystemFonts(mono);
+  const customEnabled = value !== "";
+  // Display name on the trigger: the chosen family, or the localized
+  // "Default (Geist…)" placeholder when the checkbox is off.
+  const triggerLabel = customEnabled ? value : defaultLabel;
+
   return (
-    <label className="grid grid-cols-[60px_1fr] items-center gap-2">
+    <div className="grid grid-cols-[60px_auto_1fr] items-center gap-2">
       <span className="text-[12px] font-semibold text-fg-faint">{label}</span>
-      <input
-        type="text"
-        value={draft}
-        onChange={(e) => setDraft(e.target.value)}
-        onBlur={() => onCommit(draft.trim())}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") {
-            e.preventDefault();
-            onCommit(draft.trim());
-            (e.target as HTMLInputElement).blur();
-          }
-        }}
-        placeholder={placeholder}
-        spellCheck={false}
-        style={{ fontFamily: draft ? `"${draft}"` : undefined }}
-        className={cn(
-          "h-8 w-full max-w-[280px] rounded-md border border-line bg-surface px-2.5 text-[13px] text-fg outline-none placeholder:text-fg-faint",
-          "focus:border-accent focus:shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-accent)_14%,transparent)]",
-          mono && "font-mono text-[12.5px]",
-        )}
-      />
-    </label>
+      <label className="inline-flex cursor-pointer items-center gap-1.5 text-[12.5px] text-fg-muted">
+        <input
+          type="checkbox"
+          checked={customEnabled}
+          onChange={(e) => onChange(e.target.checked ? (fonts[0] ?? "") : "")}
+          className="h-3.5 w-3.5 cursor-pointer accent-accent"
+        />
+        <span>Use custom</span>
+      </label>
+      <DropdownMenu.Root>
+        <DropdownMenu.Trigger
+          disabled={!customEnabled}
+          className={cn(
+            "inline-flex w-fit min-w-[220px] max-w-[280px] items-center justify-between gap-2 rounded-md border border-line bg-surface px-2.5 py-1.5 text-[13px] text-fg cursor-pointer transition-colors hover:bg-surface-2 data-[state=open]:bg-surface-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent",
+            "disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-surface",
+            mono && customEnabled && "font-mono text-[12.5px]",
+          )}
+          style={customEnabled ? { fontFamily: `"${value}"` } : undefined}
+        >
+          <span className="truncate">{triggerLabel}</span>
+          <Icon name="more" size={11} className="shrink-0 text-fg-faint -rotate-90" />
+        </DropdownMenu.Trigger>
+        <DropdownMenu.Portal>
+          <DropdownMenu.Content
+            align="start"
+            sideOffset={4}
+            className="z-50 max-h-[280px] min-w-[220px] overflow-auto rounded-md border border-line-soft bg-surface p-1 shadow-lg animate-rise-in"
+          >
+            {fonts.map((f) => (
+              <DropdownMenu.Item
+                key={f}
+                onSelect={() => onChange(f)}
+                // Preview each option in its own family — the user can
+                // scan the list and pick by visual feel, not by name
+                // recall.
+                style={{ fontFamily: `"${f}"` }}
+                className="grid cursor-pointer grid-cols-[minmax(0,1fr)_12px] items-center gap-2 rounded-sm px-2.5 py-1.5 text-[12.5px] text-fg-muted outline-none data-[highlighted]:bg-surface-2 data-[highlighted]:text-fg"
+              >
+                <span className="truncate">{f}</span>
+                {value === f ? (
+                  <Icon name="check" size={12} className="text-accent" />
+                ) : (
+                  <span aria-hidden />
+                )}
+              </DropdownMenu.Item>
+            ))}
+          </DropdownMenu.Content>
+        </DropdownMenu.Portal>
+      </DropdownMenu.Root>
+    </div>
   );
 }
 
@@ -116,18 +150,19 @@ export function FontSection() {
         <div className="mt-0.5 text-[13px] text-fg-muted">{t("settings.font.sub")}</div>
       </div>
       <div className="grid gap-2">
-        <FontField
+        <FontPicker
           label={t("settings.font.ui")}
-          placeholder="Geist"
+          mono={false}
           value={uiFont}
-          onCommit={setUiFont}
+          onChange={setUiFont}
+          defaultLabel="Default (Geist)"
         />
-        <FontField
+        <FontPicker
           label={t("settings.font.code")}
-          placeholder="Geist Mono"
+          mono={true}
           value={codeFont}
-          onCommit={setCodeFont}
-          mono
+          onChange={setCodeFont}
+          defaultLabel="Default (Geist Mono)"
         />
         <FontSizeField
           label={t("settings.font.size")}
