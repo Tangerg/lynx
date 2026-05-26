@@ -6,7 +6,7 @@
 // when the user has scrolled away from the tail.
 
 import type {StreamControls} from "./MessageStream";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Slot } from "@/plugins/Slot";
 import { useAgentSlice } from "@/state/agentStore";
 import { useComposerStore } from "@/state/composerStore";
@@ -57,15 +57,19 @@ export function ChatStream({ onSend, resetKey }: Props) {
   // forcing the inline card to balloon open. Expanding is a deliberate
   // user click.
   //
-  // Snapshot via getState() instead of subscribing so this effect fires
-  // only when the toolCalls map mutates, not when the user picks a tool.
-  useEffect(() => {
-    const tools = Object.values(toolCalls);
-    const ui = useSessionStore.getState();
-    if (tools.length > 0 && !ui.selectedToolId) {
-      ui.setSelectedToolId(tools[tools.length - 1].id);
-    }
+  // Effect deps narrow to `latestToolId` (a string, stable under
+  // Object.is) so it only fires when the *latest* tool changes —
+  // not on every TOOL_CALL_ARGS delta that mutates the toolCalls map
+  // reference while leaving the latest id alone.
+  const latestToolId = useMemo(() => {
+    const ids = Object.keys(toolCalls);
+    return ids.length === 0 ? "" : ids[ids.length - 1];
   }, [toolCalls]);
+  useEffect(() => {
+    if (!latestToolId) return;
+    const ui = useSessionStore.getState();
+    if (!ui.selectedToolId) ui.setSelectedToolId(latestToolId);
+  }, [latestToolId]);
 
   return (
     <>

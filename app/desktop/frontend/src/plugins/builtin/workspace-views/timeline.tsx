@@ -75,7 +75,14 @@ function TimelineRow({ entry }: { entry: TimelineEntry }) {
         <div className="flex items-baseline gap-2">
           <span className="shrink-0 text-[11.5px] font-medium text-fg">{meta.label}</span>
           {entry.summary && (
-            <span className="truncate font-mono text-[11.5px] text-fg-muted">{entry.summary}</span>
+            // `title=` preserves full text when the inline column
+            // truncates a long command / tool name on hover.
+            <span
+              title={entry.summary}
+              className="truncate font-mono text-[11.5px] text-fg-muted"
+            >
+              {entry.summary}
+            </span>
           )}
         </div>
       </div>

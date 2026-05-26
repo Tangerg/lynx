@@ -64,7 +64,10 @@ describe("composer", () => {
         value=""
         onChange={() => {}}
         onSend={() => {}}
-        attachments={[{ label: "src/app.ts" }, { label: "src/auth.ts" }]}
+        attachments={[
+          { id: "a1", label: "src/app.ts" },
+          { id: "a2", label: "src/auth.ts" },
+        ]}
       />,
     );
     expect(screen.getByText("src/app.ts")).toBeTruthy();

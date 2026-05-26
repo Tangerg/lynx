@@ -1,5 +1,6 @@
 import { AnimatePresence, motion } from "motion/react";
 import { Icon } from "@/components/common";
+import { useT } from "@/lib/i18n";
 import { swift } from "@/lib/motion";
 import { getCurrentSessionView, useAgentAction, useAgentSlice, useAgentStore } from "@/state/agentStore";
 import { openDiagnosticsView, openTimelineView } from "@/state/deeplinks";
@@ -35,6 +36,7 @@ function findLastUserText(): string {
 // concrete next step (Retry / Open timeline / Open diagnostics) instead
 // of forcing them to scroll up and figure out the recovery themselves.
 export function RunErrorBanner() {
+  const t = useT();
   const error = useAgentSlice((v) => v.error);
   const sid = useSessionStore((s) => s.activeSessionId);
   const clearError = useAgentStore((s) => s.clearError);
@@ -64,22 +66,38 @@ export function RunErrorBanner() {
           <Icon name="bug" size={14} className="text-negative mt-0.5" />
           <div className="min-w-0">
             <div className="text-[13px] font-semibold text-negative mb-0.5">
-              Agent error{error.code ? ` · ${error.code}` : ""}
+              {t("runError.title")}{error.code ? ` · ${error.code}` : ""}
             </div>
             <div className="text-[14px] text-fg-soft whitespace-pre-wrap break-words">
               {error.message}
             </div>
             <div className="mt-2 flex flex-wrap items-center gap-1.5">
-              {canRetry && <BannerAction icon="loop" label="Retry" onClick={onRetry} primary />}
-              <BannerAction icon="history" label="Open timeline" onClick={openTimelineView} />
-              <BannerAction icon="spark" label="Diagnostics" onClick={openDiagnosticsView} />
+              {canRetry && (
+                <BannerAction
+                  icon="loop"
+                  label={t("runError.action.retry")}
+                  onClick={onRetry}
+                  primary
+                />
+              )}
+              <BannerAction
+                icon="history"
+                label={t("runError.action.timeline")}
+                onClick={openTimelineView}
+              />
+              <BannerAction
+                icon="spark"
+                label={t("runError.action.diagnostics")}
+                onClick={openDiagnosticsView}
+              />
             </div>
           </div>
           <button
             type="button"
             onClick={() => clearError(sid)}
-            title="Dismiss"
-            className="grid h-5.5 w-5.5 place-items-center rounded text-fg-faint cursor-pointer bg-transparent border-0 transition-all duration-150 hover:bg-[color-mix(in_srgb,var(--color-text)_10%,transparent)] hover:text-fg active:scale-90"
+            title={t("runError.action.dismiss")}
+            aria-label={t("runError.action.dismiss")}
+            className="grid h-5.5 w-5.5 place-items-center rounded text-fg-faint cursor-pointer bg-transparent border-0 transition-all duration-150 hover:bg-[color-mix(in_srgb,var(--color-text)_10%,transparent)] hover:text-fg active:scale-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
           >
             <Icon name="x" size={12} />
           </button>
@@ -97,14 +115,20 @@ interface BannerActionProps {
 }
 
 function BannerAction({ icon, label, onClick, primary }: BannerActionProps) {
+  // Shared focus-visible ring so keyboard users get a clear focus
+  // indicator on both the primary (Retry) and secondary (Timeline /
+  // Diagnostics) actions. `focus-visible:` rather than `focus:` so
+  // mouse clicks don't trigger the ring.
+  const focusRing =
+    "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent";
   return (
     <button
       type="button"
       onClick={onClick}
       className={
         primary
-          ? "inline-flex h-6 items-center gap-1 rounded-md border border-negative/40 bg-negative/15 px-2 font-sans text-[11.5px] font-semibold text-negative cursor-pointer transition-colors hover:bg-negative/25"
-          : "inline-flex h-6 items-center gap-1 rounded-md border border-line-soft bg-transparent px-2 font-sans text-[11.5px] text-fg-muted cursor-pointer transition-colors hover:bg-surface-2 hover:text-fg"
+          ? `inline-flex h-6 items-center gap-1 rounded-md border border-negative/40 bg-negative/15 px-2 font-sans text-[11.5px] font-semibold text-negative cursor-pointer transition-colors hover:bg-negative/25 ${focusRing}`
+          : `inline-flex h-6 items-center gap-1 rounded-md border border-line-soft bg-transparent px-2 font-sans text-[11.5px] text-fg-muted cursor-pointer transition-colors hover:bg-surface-2 hover:text-fg ${focusRing}`
       }
     >
       <Icon name={icon} size={11} />

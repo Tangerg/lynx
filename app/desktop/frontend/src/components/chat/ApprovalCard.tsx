@@ -1,5 +1,6 @@
 import type {ApprovalDecision} from "@/lib/useApprovalSubmit";
 import { Divider, Icon, PillButton } from "@/components/common";
+import { useT } from "@/lib/i18n";
 import {  useApprovalSubmit } from "@/lib/useApprovalSubmit";
 import { cn } from "@/lib/utils";
 
@@ -35,10 +36,10 @@ const RISK_BADGE_CLASS: Record<Risk, string> = {
   high: "border-negative/50 bg-negative/15 text-negative",
 };
 
-const RISK_LABEL: Record<Risk, string> = {
-  low: "Low risk",
-  medium: "Medium risk",
-  high: "High risk",
+const RISK_I18N_KEY: Record<Risk, string> = {
+  low: "approval.risk.low",
+  medium: "approval.risk.medium",
+  high: "approval.risk.high",
 };
 
 // Known scopes get a coloured chip so "delete" reads differently from
@@ -75,18 +76,19 @@ export function ApprovalCard({
   target,
   reversible,
 }: Props) {
+  const t = useT();
   const { submit, pending } = useApprovalSubmit(requestId);
 
   const finalised = decision ?? pending;
   if (finalised === "approved") {
     return (
       <Divider icon={<Icon name="check" size={11} strokeWidth={3} />} intent="accent">
-        已批准 · 正在执行
+        {t("approval.settled.approved")}
       </Divider>
     );
   }
   if (finalised === "declined") {
-    return <Divider icon={<Icon name="x" size={11} />}>已拒绝</Divider>;
+    return <Divider icon={<Icon name="x" size={11} />}>{t("approval.settled.declined")}</Divider>;
   }
 
   // Pre-decision card. Buttons disabled when no requestId (decorative
@@ -97,7 +99,7 @@ export function ApprovalCard({
     <div className="my-3 rounded-xl border border-warning/25 bg-[linear-gradient(180deg,rgba(255,164,43,0.06)_0%,var(--color-surface)_60%)] px-4 py-3.5">
       <div className="mb-2 flex items-center gap-2 font-mono text-[11px] font-semibold text-warning">
         <Icon name="shield" size={12} />
-        <span>Approval required</span>
+        <span>{t("approval.required")}</span>
         <span className="flex-1" />
         <span
           className={cn(
@@ -105,7 +107,7 @@ export function ApprovalCard({
             RISK_BADGE_CLASS[effectiveRisk],
           )}
         >
-          {RISK_LABEL[effectiveRisk]}
+          {t(RISK_I18N_KEY[effectiveRisk])}
         </span>
       </div>
       <div className="mb-1.5 text-[15px] font-semibold leading-[1.4] text-fg">{what}</div>
@@ -140,7 +142,7 @@ export function ApprovalCard({
                   : "border-negative/40 bg-negative/12 text-negative",
               )}
             >
-              {reversible ? "Reversible" : "Permanent"}
+              {t(reversible ? "approval.reversible" : "approval.permanent")}
             </span>
           )}
         </div>
@@ -153,10 +155,10 @@ export function ApprovalCard({
           disabled={disabled}
           onClick={() => submit("approved")}
         >
-          Approve
+          {t("approval.action.approve")}
         </PillButton>
         <PillButton size="sm" disabled={disabled} onClick={() => submit("declined")}>
-          Decline
+          {t("approval.action.decline")}
         </PillButton>
       </div>
     </div>
