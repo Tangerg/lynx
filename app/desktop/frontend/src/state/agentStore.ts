@@ -26,6 +26,14 @@ interface AgentStore {
 
   /** Fold one AG-UI event into the named session's view state. */
   applyEvent: (sessionId: string, event: BaseEvent) => void;
+  /**
+   * Fold a batch of events into the named session's view state with
+   * a single `set()` — used by the per-frame batcher in
+   * useAgentSession so a burst of streaming TEXT/REASONING/TOOL_ARGS
+   * deltas produces one React commit per frame instead of one per
+   * delta.
+   */
+  applyEvents: (sessionId: string, events: BaseEvent[]) => void;
   /** Discard a session's state and start clean (e.g. on agent re-mount). */
   resetSession: (sessionId: string) => void;
   /** Remove a session entry entirely (closing the tab — frees view state). */
@@ -59,6 +67,14 @@ export const useAgentStore = create<AgentStore>((set) => ({
     set((s) => {
       const prev = s.sessions[sessionId] ?? emptyEntry();
       return { sessions: patch(s.sessions, sessionId, { view: reduce(prev.view, event) }) };
+    }),
+  applyEvents: (sessionId, events) =>
+    set((s) => {
+      if (events.length === 0) return s;
+      const prev = s.sessions[sessionId] ?? emptyEntry();
+      let view = prev.view;
+      for (const event of events) view = reduce(view, event);
+      return { sessions: patch(s.sessions, sessionId, { view }) };
     }),
   resetSession: (sessionId) =>
     set((s) => ({ sessions: { ...s.sessions, [sessionId]: emptyEntry() } })),
