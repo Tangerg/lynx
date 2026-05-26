@@ -83,11 +83,11 @@ export function appendBlock(m: Message, block: ContentBlock): Message {
 export function appendTextDelta(m: Message, delta: string): Message {
   const blocks = m.blocks.slice();
   const last = blocks[blocks.length - 1];
-  if (last && last.kind === "text" && last.streaming) {
+  if (last && last.kind === "text" && last.status === "running") {
     blocks[blocks.length - 1] = { ...last, text: last.text + delta };
     return { ...m, blocks };
   }
-  blocks.push({ kind: "text", text: delta, streaming: true });
+  blocks.push({ kind: "text", text: delta, status: "running" });
   return { ...m, blocks };
 }
 
@@ -128,7 +128,7 @@ export function findActiveThinkingId(state: AgentViewState): string | null {
     const m = state.messages[i];
     for (let j = m.blocks.length - 1; j >= 0; j--) {
       const b = m.blocks[j];
-      if (b.kind === "reasoning" && b.streaming) return b.reasoningId;
+      if (b.kind === "reasoning" && b.status === "running") return b.reasoningId;
     }
   }
   return null;

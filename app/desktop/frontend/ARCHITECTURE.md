@@ -954,8 +954,9 @@ declare module "@/protocol/agui/viewState" {
 ### 12.4 优先级建议
 
 **下一轮**（2026-05-26 之后，外部仓库调研落地）：
-1. **§12.6 A + B**（Block status 状态机 + ToolPrimitive headless 组件，~7h）—— 两个 P0 同时被 assistant-ui / cline 两源支持，approval UX 闭环升级必经
-2. 搭车做 §12.6 C + D（capability + LaTeX，~3h）—— quick win 不打断主线
+1. ~~§12.6 A + B~~（A 已做，B 推迟见 §12.6 备注）
+2. **§12.6 C + D**（capability + LaTeX，~3h）—— quick win 候选
+3. **§12.6 H**（MetaEvent 反馈统一，~6h）—— 看产品路线决定是否走
 
 **再下一轮**（如果有 1 周）：
 1. §12.6 H（MetaEvent 反馈统一，~6h）—— RLHF 数据基础设施，看产品路线
@@ -994,14 +995,16 @@ declare module "@/protocol/agui/viewState" {
 
 | # | 行动项 | 共识强度 | 投入 | 收益 | 状态 |
 |---|---|---|---|---|---|
-| A | Block-level `status` 字段 + approval 状态机 | ⭐⭐⭐ | 中 (~4h) | 高 | **P0** |
-| B | `<ToolPrimitive>` headless 组件 + button config map | ⭐⭐⭐ | 中 (~3h) | 高 | **P0** |
+| A | Block-level `status` 字段 + approval 状态机 | ⭐⭐⭐ | 中 (~4h) | 高 | ✅ **已做**（2026-05-26） |
+| B | `<ToolPrimitive>` headless 组件 + button config map | ⭐⭐⭐ | 中 (~3h) | 高 | ⏸ **YAGNI 推迟** — 见下方"为什么 B 没做" |
 | C | `/api/capabilities` 端点 + 前端 UI gating | ⭐⭐ | 小 (~2h) | 中 | P1 |
 | D | LaTeX (`remark-math + rehype-katex`) + GFM 表格 CSS | ⭐⭐ | 小 (~1h) | 中 | P1 |
 | E | State compaction（DELTA chain 周期性合并为 SNAPSHOT） | ⭐⭐ | 中 (~3h) | 低（dev 期数据量小） | P2 |
 | F | Generative UI spec + allowlist（agent 返回 JSON 描述 UI） | ⭐ | 大 (~8h) | 中（看路线） | P2 |
 | G | 配置树 + workspace overrides（continue `mergeJson`） | ⭐ | 大 (~6h) | 低（单用户桌面） | × 暂不 |
 | H | MetaEvent 统一用户反馈（thumbs/note/bookmark） | ⭐⭐ | 大 (~6h) | 高（RLHF） | P1（看产品路线） |
+
+**为什么 B 没做**：实施时 grep 了 `content-blocks/` 才发现 Lyra **只有 `approval` 一个真正 actionable 的 block**（tool 块是只读指针，code / search 是被动展示）。给单一消费者抽 `<ToolPrimitive>` 违反 CLAUDE.md "3+ 重复才抽象" 原则——属于 premature abstraction。`ApprovalCard` + `useApprovalSubmit` 已经把 HTTP / UI 分得很干净，下一个 actionable block 出现时再抽 primitive 也来得及。**触发条件**：第二个 actionable block 出现时（如 code-proposal 升级为 accept/reject、或 interrupt-block 落地）。
 
 **触发条件**：A + B 同时命中两个共识源，且 P0 块状态信号在 approval / interrupt UX 升级时**必经**，应在下一波重构里执行（即 §12.4 优先级建议下一轮直接做 A + B）。C / D 是 quick win，可以搭车做。
 

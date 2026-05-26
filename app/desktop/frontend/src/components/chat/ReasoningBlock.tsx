@@ -1,3 +1,4 @@
+import type { BlockStatus } from "@/protocol/agui/viewState";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 import { MarkdownMessage } from "@/components/chat/MarkdownMessage";
@@ -6,7 +7,7 @@ import { swift } from "@/lib/motion";
 
 interface Props {
   text: string;
-  streaming: boolean;
+  status: BlockStatus;
 }
 
 // Collapsible "thinking" panel. Auto-opens while the agent streams, then
@@ -17,7 +18,8 @@ interface Props {
 // false. Server-authoritative duration would be cleaner, but reasoning
 // timestamps aren't in the AG-UI events today and a 50ms render skew on a
 // label that always reads "thought for Xs" is not worth a protocol change.
-export function ReasoningBlock({ text, streaming }: Props) {
+export function ReasoningBlock({ text, status }: Props) {
+  const streaming = status === "running";
   const [open, setOpen] = useState(true);
   const [userToggled, setUserToggled] = useState(false);
   const isOpen = userToggled ? open : streaming;
@@ -88,6 +90,11 @@ export function ReasoningBlock({ text, streaming }: Props) {
           >
             <div className="whitespace-pre-wrap px-0 pb-1 pt-1.5 text-[14px] italic leading-[1.6] text-fg-muted">
               <MarkdownMessage text={text} streaming={streaming} />
+              {status === "incomplete" && (
+                <div className="mt-1 font-mono text-[11px] text-fg-faint">
+                  <Icon name="x" size={10} /> interrupted
+                </div>
+              )}
             </div>
           </motion.div>
         )}

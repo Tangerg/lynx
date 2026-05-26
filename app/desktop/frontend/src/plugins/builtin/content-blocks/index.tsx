@@ -23,6 +23,7 @@ export const approvalBlock = definePlugin({
       "approval",
       ({ block }: ContentBlockRendererProps<"approval">) => (
         <ApprovalCard
+          status={block.status}
           what={block.text}
           cmd={block.command}
           reason={block.reason}
@@ -82,7 +83,7 @@ export const reasoningBlock = definePlugin({
     host.message.registerContentBlock(
       "reasoning",
       ({ block }: ContentBlockRendererProps<"reasoning">) => (
-        <ReasoningBlock text={block.text} streaming={block.streaming} />
+        <ReasoningBlock text={block.text} status={block.status} />
       ),
     );
   },
