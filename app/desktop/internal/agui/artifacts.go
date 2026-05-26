@@ -1,5 +1,7 @@
 package agui
 
+import "time"
+
 // Static artifacts served via REST. Kept in one place; the HTTP handlers in
 // rest.go just marshal these to JSON. In production these would back onto
 // real workspace state.
@@ -11,20 +13,44 @@ type Session struct {
 	Title  string `json:"title"`
 	Status string `json:"status"` // running | waiting | idle
 	Model  string `json:"model"`
-	Time   string `json:"time"`
+	// RFC3339 timestamp. Frontend formats with dayjs's relativeTime
+	// so the displayed label stays compact + consistent (now / 3m /
+	// 1h / 1d / 2w / 1mo) — the previous mix of hand-rolled strings
+	// ("yesterday" alongside "3m" / "2d") was inconsistent.
+	Time string `json:"time"`
 }
 
-// Sessions — each id maps to a demo script in demos.go. Update both this
-// list and demos.go together when adding a new demo so the sidebar label
-// matches the playback.
-var sessions = []Session{
-	{"s1", "Refactor auth.ts → Result<T,E>", "running", "Sonnet 4.5", "now"},
-	{"s2", "番茄牛肉意面：家常版菜谱", "idle", "Sonnet 4.5", "3m"},
-	{"s3", "上海周末两日游 · 行程规划", "idle", "Opus 4.1", "1h"},
-	{"s4", "发布会开场白润色", "idle", "Sonnet 4.5", "yesterday"},
-	{"s5", "光合作用：讲给小学生听", "idle", "Haiku 4.5", "2d"},
-	{"s6", "用户登录流程设计（含 OAuth）", "idle", "Sonnet 4.5", "4d"},
-	{"s7", "国内云厂商横向对比", "idle", "Opus 4.1", "1w"},
+// sessionOffsets — base offsets per session id, expressed as durations
+// before "now". Re-evaluated on every request so the frontend always
+// gets fresh "X ago" data without us having to bake in absolute dates.
+var sessionOffsets = []struct {
+	id, title, status, model string
+	ago                      time.Duration
+}{
+	{"s1", "Refactor auth.ts → Result<T,E>", "running", "Sonnet 4.5", 0},
+	{"s2", "番茄牛肉意面：家常版菜谱", "idle", "Sonnet 4.5", 3 * time.Minute},
+	{"s3", "上海周末两日游 · 行程规划", "idle", "Opus 4.1", 1 * time.Hour},
+	{"s4", "发布会开场白润色", "idle", "Sonnet 4.5", 24 * time.Hour},
+	{"s5", "光合作用：讲给小学生听", "idle", "Haiku 4.5", 2 * 24 * time.Hour},
+	{"s6", "用户登录流程设计（含 OAuth）", "idle", "Sonnet 4.5", 4 * 24 * time.Hour},
+	{"s7", "国内云厂商横向对比", "idle", "Opus 4.1", 7 * 24 * time.Hour},
+}
+
+// makeSessions builds the session list with timestamps relative to the
+// current wall clock. Called by the /sessions handler on each request.
+func makeSessions() []Session {
+	now := time.Now()
+	out := make([]Session, len(sessionOffsets))
+	for i, s := range sessionOffsets {
+		out[i] = Session{
+			ID:     s.id,
+			Title:  s.title,
+			Status: s.status,
+			Model:  s.model,
+			Time:   now.Add(-s.ago).Format(time.RFC3339),
+		}
+	}
+	return out
 }
 
 // ----- Projects ------------------------------------------------------------
