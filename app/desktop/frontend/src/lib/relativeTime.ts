@@ -1,10 +1,19 @@
-// Compact relative-time formatter. Wraps dayjs + its `relativeTime`
-// plugin with a tightened locale so labels in tight surfaces (sidebar
-// session rows, status pills) read as `now / 3m / 1h / 1d / 2w` instead
-// of the default "3 minutes ago" / "a day ago" prose.
+// Compact time formatter for tight surfaces (sidebar session rows,
+// status pills). Wraps dayjs with a tightened locale for relative
+// units and falls through to absolute month/year format once a
+// timestamp is older than a week.
 //
-// dayjs handles the diff math + thresholds (45s → minute, 22h → day,
-// etc.); we just override the label strings.
+// Threshold layout:
+//   < 1 min   → "now"
+//   < 1 hour  → "Xm"      (m always = minute — no ambiguity)
+//   < 1 day   → "Xh"
+//   < 7 days  → "Xd"
+//   < 1 year  → "MMM D"   (e.g. "Mar 5") — absolute, never "mo"
+//   ≥ 1 year  → "MMM YYYY"
+//
+// The cliff at 7d keeps `m` reserved for minutes; month never collides
+// because we switch to spelled-out absolute dates before dayjs would
+// emit "Xmo".
 
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
@@ -13,9 +22,9 @@ import updateLocale from "dayjs/plugin/updateLocale";
 dayjs.extend(relativeTime);
 dayjs.extend(updateLocale);
 
-// Single tight locale for every "X ago" surface in the app. Future
-// columns are unused for our case (we never format upcoming times)
-// but kept so dayjs doesn't fall back to the default English string.
+// `s/m/h/d` cover what we use (everything ≥ 7d goes through the
+// absolute path below). `M`/`y` rows kept defaulted just so dayjs
+// doesn't throw if a caller asks for `.fromNow()` directly.
 dayjs.updateLocale("en", {
   relativeTime: {
     future: "in %s",
@@ -35,12 +44,17 @@ dayjs.updateLocale("en", {
 });
 
 /**
- * Compact relative-time string for an ISO timestamp / Date / dayjs input.
- * Returns "" for unparseable input so the caller can render a fallback.
+ * Compact time label for an ISO timestamp / Date / dayjs input.
+ * Recent → relative ("3m", "1d"); older → absolute month/year ("Mar 5",
+ * "Mar 2025"). Returns "" for unparseable input.
  */
 export function formatRelative(input: string | number | Date | undefined | null): string {
   if (input === undefined || input === null || input === "") return "";
   const d = dayjs(input);
   if (!d.isValid()) return "";
-  return d.fromNow(true /* without suffix */);
+  const now = dayjs();
+  const diffDays = now.diff(d, "day");
+  if (diffDays < 7) return d.fromNow(true /* without suffix */);
+  if (d.year() === now.year()) return d.format("MMM D");
+  return d.format("MMM YYYY");
 }
