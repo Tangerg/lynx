@@ -449,6 +449,17 @@ export function lookupShortcut(canonical: string): ShortcutSpec | undefined {
 }
 
 /**
+ * Every registered shortcut, in registration order. Used by the
+ * cheat-sheet pane in Settings. ShortcutSpec has no `order` field, so
+ * callers should sort by `description` (or whatever makes sense for
+ * presentation) themselves.
+ */
+export function useShortcuts(): ShortcutSpec[] {
+  const map = usePluginStore((s) => s.shortcuts);
+  return useMemo(() => Array.from(map.values()).map((o) => o.value), [map]);
+}
+
+/**
  * Pick the active agent source — highest priority wins, ties broken by
  * insertion order. Returns undefined if none registered.
  */

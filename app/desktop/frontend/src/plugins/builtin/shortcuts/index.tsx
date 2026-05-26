@@ -1,13 +1,11 @@
-// Built-in plugin: mounts ShortcutsProvider on the overlay slot.
-//
-// The single hardcoded shortcut we used to ship — Escape closing the
-// settings modal — went away with the modal itself when Settings
-// became a workspace view. Other plugins (command palette in particular)
-// register their own shortcuts; this plugin's job is just to mount the
-// global key listener.
+// Built-in plugin: mounts ShortcutsProvider on the overlay slot AND
+// contributes the "Keyboard shortcuts" settings pane — a cheat-sheet for
+// every registered shortcut, driven reactively off the plugin store so
+// late-loaded plugins show up automatically.
 
 import { definePlugin } from "@/plugins/sdk";
 import { ShortcutsProvider } from "@/plugins/ShortcutsProvider";
+import { ShortcutsPane } from "./ShortcutsPane";
 
 export default definePlugin({
   name: "lyra.builtin.shortcuts",
@@ -20,6 +18,14 @@ export default definePlugin({
       // first puts the side-effect mount before any visible overlays.
       order: 50,
       component: ShortcutsProvider,
+    });
+
+    host.settings.registerPane({
+      id: "shortcuts",
+      label: "Shortcuts",
+      icon: "command",
+      order: 50,
+      component: ShortcutsPane,
     });
   },
 });
