@@ -5,9 +5,12 @@
 // instance across the whole app. Themes follow the app's light/dark
 // scheme; languages are a curated list covering what an LLM is likely
 // to emit in chat. Adding a language is cheap — extend `LANGS` below.
+//
+// The `shiki` module itself is also dynamic-imported so the core
+// (~400KB) and its grammar JSONs don't ship in the main chunk;
+// they're fetched the first time a code block actually renders.
 
 import type { Highlighter } from "shiki";
-import { createHighlighter } from "shiki";
 
 const THEMES = ["github-dark", "github-light"] as const;
 
@@ -47,10 +50,12 @@ let promise: Promise<Highlighter> | null = null;
 
 export function getHighlighter(): Promise<Highlighter> {
   if (promise === null) {
-    promise = createHighlighter({
-      themes: [...THEMES],
-      langs: [...LANGS],
-    });
+    promise = import("shiki").then(({ createHighlighter }) =>
+      createHighlighter({
+        themes: [...THEMES],
+        langs: [...LANGS],
+      }),
+    );
   }
   return promise;
 }

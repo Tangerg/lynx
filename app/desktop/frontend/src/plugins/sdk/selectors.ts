@@ -57,6 +57,31 @@ function mapOwned<T>(map: Map<string, Owned<T>>): T[] {
   return Array.from(map.values()).map((o) => o.value);
 }
 
+// Lazily-built secondary index over an Owned<T> source map. The
+// registry produces a fresh Map on every add/remove, so caching on
+// the source Map reference auto-invalidates on mutation. Subsequent
+// lookups against the same epoch are O(1).
+//
+// Used to flip three hot-path scans (lookupCoreEventHandlers,
+// lookupCustomEventHandlers, useLayoutSlot) from O(n) per AG-UI
+// event / Slot render into O(n) once per registry mutation.
+function createIndex<S, V>(extract: (owned: Owned<S>) => { key: string; value: V }) {
+  const cache = new WeakMap<Map<string, Owned<S>>, Map<string, V[]>>();
+  return (source: Map<string, Owned<S>>): Map<string, V[]> => {
+    let idx = cache.get(source);
+    if (idx) return idx;
+    idx = new Map();
+    for (const o of source.values()) {
+      const { key, value } = extract(o);
+      const list = idx.get(key);
+      if (list) list.push(value);
+      else idx.set(key, [value]);
+    }
+    cache.set(source, idx);
+    return idx;
+  };
+}
+
 function useSortedList<T extends Ordered>(map: Map<string, Owned<T>>): T[] {
   return useMemo(
     () => mapOwned(map).sort((a, b) => (a.order ?? 100) - (b.order ?? 100)),
@@ -199,14 +224,17 @@ function declaredToSettingsPane(d: ContributedSettingsPane, pluginName: string):
 // Layout / theme / composer / sidebar
 // ---------------------------------------------------------------------------
 
+const layoutBySlot = createIndex<{ slot: string; spec: LayoutSlotSpec }, LayoutSlotSpec>(
+  (o) => ({ key: o.value.slot, value: o.value.spec }),
+);
+
 export function useLayoutSlot(slot: string): LayoutSlotSpec[] {
   const map = usePluginStore((s) => s.layoutSlots);
   return useMemo(
     () =>
-      Array.from(map.values())
-        .filter((o) => o.value.slot === slot)
-        .map((o) => o.value.spec)
-        .sort((a, b) => (a.order ?? 100) - (b.order ?? 100)),
+      [...(layoutBySlot(map).get(slot) ?? [])].sort(
+        (a, b) => (a.order ?? 100) - (b.order ?? 100),
+      ),
     [map, slot],
   );
 }
@@ -361,6 +389,22 @@ async function runActivator(pluginName: string): Promise<void> {
 // AG-UI event handlers — imperative lookups used by the reducer
 // ---------------------------------------------------------------------------
 
+const customByName = createIndex<
+  { name: string; handler: CustomEventHandler<unknown> },
+  { pluginName: string; handler: CustomEventHandler<unknown> }
+>((o) => ({
+  key: o.value.name,
+  value: { pluginName: o.pluginName, handler: o.value.handler },
+}));
+
+const coreByType = createIndex<
+  { eventType: string; handler: CoreEventHandler },
+  { pluginName: string; handler: CoreEventHandler }
+>((o) => ({
+  key: o.value.eventType,
+  value: { pluginName: o.pluginName, handler: o.value.handler },
+}));
+
 /**
  * Look up every CUSTOM-event handler registered for `name`, in registration
  * order. The reducer fans the event out through all of them, chaining each
@@ -369,12 +413,7 @@ async function runActivator(pluginName: string): Promise<void> {
 export function lookupCustomEventHandlers(
   name: string,
 ): Array<{ pluginName: string; handler: CustomEventHandler<unknown> }> {
-  const out: Array<{ pluginName: string; handler: CustomEventHandler<unknown> }> = [];
-  for (const o of usePluginStore.getState().customEventHandlers.values()) {
-    if (o.value.name === name)
-      out.push({ pluginName: o.pluginName, handler: o.value.handler });
-  }
-  return out;
+  return customByName(usePluginStore.getState().customEventHandlers).get(name) ?? [];
 }
 
 /**
@@ -384,12 +423,7 @@ export function lookupCustomEventHandlers(
 export function lookupCoreEventHandlers(
   eventType: string,
 ): Array<{ pluginName: string; handler: CoreEventHandler }> {
-  const out: Array<{ pluginName: string; handler: CoreEventHandler }> = [];
-  for (const o of usePluginStore.getState().coreEventHandlers.values()) {
-    if (o.value.eventType === eventType)
-      out.push({ pluginName: o.pluginName, handler: o.value.handler });
-  }
-  return out;
+  return coreByType(usePluginStore.getState().coreEventHandlers).get(eventType) ?? [];
 }
 
 // ---------------------------------------------------------------------------
