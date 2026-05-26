@@ -123,6 +123,60 @@ describe("sessionStore multi-tab close (workspace-view tabs)", () => {
   });
 });
 
+describe("selectTab after empty state", () => {
+  beforeEach(reset);
+
+  it("adds the first session to tabIds from a zero-tab state", () => {
+    useSessionStore.setState({ tabIds: [], activeSessionId: "" });
+    useSessionStore.getState().selectTab("s1");
+    const s = useSessionStore.getState();
+    expect(s.tabIds).toEqual(["s1"]);
+    expect(s.activeSessionId).toBe("s1");
+  });
+
+  it("appends a second session without dropping the first", () => {
+    useSessionStore.setState({ tabIds: [], activeSessionId: "" });
+    useSessionStore.getState().selectTab("s1");
+    useSessionStore.getState().selectTab("s2");
+    const s = useSessionStore.getState();
+    expect(s.tabIds).toEqual(["s1", "s2"]);
+    expect(s.activeSessionId).toBe("s2");
+  });
+
+  it("closeAllTabs → selectTab chain leaves correct state", () => {
+    // Mirror the user-reported flow: close everything, then start a
+    // new session and a second new session via sidebar clicks.
+    useSessionStore.getState().closeAllTabs();
+    expect(useSessionStore.getState().tabIds).toEqual([]);
+    expect(useSessionStore.getState().activeSessionId).toBe("");
+
+    useSessionStore.getState().selectTab("s5");
+    expect(useSessionStore.getState().tabIds).toEqual(["s5"]);
+
+    useSessionStore.getState().selectTab("s6");
+    const s = useSessionStore.getState();
+    expect(s.tabIds).toEqual(["s5", "s6"]);
+    expect(s.activeSessionId).toBe("s6");
+  });
+
+  it("closeTab on the last tab → selectTab chain leaves correct state", () => {
+    // Alternate path: close the very last tab by clicking its X, then
+    // open new ones from the sidebar.
+    useSessionStore.setState({ tabIds: ["s1"], activeSessionId: "s1" });
+    useSessionStore.getState().closeTab("s1");
+    // activeSessionId intentionally not cleared by closeTab when the
+    // closed tab was the only one — preserves the "what was I last on"
+    // hint for the next selection.
+    expect(useSessionStore.getState().tabIds).toEqual([]);
+
+    useSessionStore.getState().selectTab("s2");
+    expect(useSessionStore.getState().tabIds).toEqual(["s2"]);
+
+    useSessionStore.getState().selectTab("s3");
+    expect(useSessionStore.getState().tabIds).toEqual(["s2", "s3"]);
+  });
+});
+
 describe("headerTabCloseActionsFor (unified-strip semantics)", () => {
   beforeEach(reset);
 
