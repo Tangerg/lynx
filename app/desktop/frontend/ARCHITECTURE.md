@@ -953,10 +953,9 @@ declare module "@/protocol/agui/viewState" {
 
 ### 12.4 优先级建议
 
-**下一轮**（2026-05-26 之后，外部仓库调研落地）：
-1. ~~§12.6 A + B~~（A 已做，B 推迟见 §12.6 备注）
-2. **§12.6 C + D**（capability + LaTeX，~3h）—— quick win 候选
-3. **§12.6 H**（MetaEvent 反馈统一，~6h）—— 看产品路线决定是否走
+**下一轮**：
+- 暂时**无明确的下一步**。§12.6 八条已落实/盘点完毕：A 已做、B/C/G YAGNI、D 已存在、E/F/H 都需要产品路线决策才能启动。
+- 当前架构通过所有审计原则，LOC 在合理范围，所有热路径有测试覆盖。**继续等触发条件出现**（详见 §12.6 各项的"触发条件"），不要做投机式重构。
 
 **再下一轮**（如果有 1 周）：
 1. §12.6 H（MetaEvent 反馈统一，~6h）—— RLHF 数据基础设施，看产品路线
@@ -997,14 +996,18 @@ declare module "@/protocol/agui/viewState" {
 |---|---|---|---|---|---|
 | A | Block-level `status` 字段 + approval 状态机 | ⭐⭐⭐ | 中 (~4h) | 高 | ✅ **已做**（2026-05-26） |
 | B | `<ToolPrimitive>` headless 组件 + button config map | ⭐⭐⭐ | 中 (~3h) | 高 | ⏸ **YAGNI 推迟** — 见下方"为什么 B 没做" |
-| C | `/api/capabilities` 端点 + 前端 UI gating | ⭐⭐ | 小 (~2h) | 中 | P1 |
-| D | LaTeX (`remark-math + rehype-katex`) + GFM 表格 CSS | ⭐⭐ | 小 (~1h) | 中 | P1 |
+| C | `/api/capabilities` 端点 + 前端 UI gating | ⭐⭐ | 小 (~2h) | 中 | ⏸ **YAGNI 推迟** — 见下方"为什么 C 推迟" |
+| D | LaTeX (`remark-math + rehype-katex`) + GFM 表格 CSS | ⭐⭐ | 小 (~1h) | 中 | ✅ **已在做**（pre-existing）— 见下方"D 的发现" |
 | E | State compaction（DELTA chain 周期性合并为 SNAPSHOT） | ⭐⭐ | 中 (~3h) | 低（dev 期数据量小） | P2 |
 | F | Generative UI spec + allowlist（agent 返回 JSON 描述 UI） | ⭐ | 大 (~8h) | 中（看路线） | P2 |
 | G | 配置树 + workspace overrides（continue `mergeJson`） | ⭐ | 大 (~6h) | 低（单用户桌面） | × 暂不 |
 | H | MetaEvent 统一用户反馈（thumbs/note/bookmark） | ⭐⭐ | 大 (~6h) | 高（RLHF） | P1（看产品路线） |
 
 **为什么 B 没做**：实施时 grep 了 `content-blocks/` 才发现 Lyra **只有 `approval` 一个真正 actionable 的 block**（tool 块是只读指针，code / search 是被动展示）。给单一消费者抽 `<ToolPrimitive>` 违反 CLAUDE.md "3+ 重复才抽象" 原则——属于 premature abstraction。`ApprovalCard` + `useApprovalSubmit` 已经把 HTTP / UI 分得很干净，下一个 actionable block 出现时再抽 primitive 也来得及。**触发条件**：第二个 actionable block 出现时（如 code-proposal 升级为 accept/reject、或 interrupt-block 落地）。
+
+**为什么 C 推迟**：Lyra 是单进程 Wails 应用（Go + React 一起 build），不存在"backend version drift"风险；UI 已经是**懒渲染**——只有事件流到了才会渲染对应 block（reasoning / activity 都是这样），capability discovery 没有真实消费者。只有出现以下场景才有价值：多 agent source 并存（OpenAI / Anthropic / local LLM）、外部 agent provider 接入、plugin sideload 加载第三方 agent。**触发条件**：`AgentSourceSpec` 超过一个 built-in 注册时，给它加 `capabilities?: AgentCapabilities` 字段 + `useAgentCapabilities()` selector。
+
+**D 的发现**：原计划基于 agent-chat-ui 报告说"Lyra 缺 LaTeX / GFM 表格"。实际看 `components/chat/MarkdownMessage.tsx` 才发现 Lyra **早就有**：`remarkGfm`（表格 + 删除线 + 任务列表 + autolinks） / `remarkMath + rehypeKatex`（LaTeX 公式）/ `ensureKatexCss()` 懒加载 KaTeX 样式 / `markdownComponents.tsx` 自定义 `<table>` 包成 `md-table-wrap` 横向滚动容器 / `styles/markdown.css` 完整表格 CSS。**Lyra 的 Markdown pipeline 严格强于 agent-chat-ui 的**（多了 streamdown block 拆分、自定义 citation、shiki 高亮、fade-in 动画）。这条 audit 是外部 agent 没深挖到的伪缺口。
 
 **触发条件**：A + B 同时命中两个共识源，且 P0 块状态信号在 approval / interrupt UX 升级时**必经**，应在下一波重构里执行（即 §12.4 优先级建议下一轮直接做 A + B）。C / D 是 quick win，可以搭车做。
 
