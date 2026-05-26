@@ -8,10 +8,19 @@
 // register a fancier component for the same instrument set.
 
 import type { MetricRow } from "./store";
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
+import { ensureProvider } from "./index";
 import { useDiagnosticsStore } from "./store";
 
 export function DiagnosticsView() {
+  // First mount triggers the otel SDK load + MeterProvider install.
+  // Cached at module scope, so re-mounting (tab close/reopen) is a
+  // no-op and history persists. Until this runs, measure points are
+  // no-op proxies and the table is empty.
+  useEffect(() => {
+    void ensureProvider();
+  }, []);
+
   const rows = useDiagnosticsStore((s) => s.rows);
   const clear = useDiagnosticsStore((s) => s.clear);
 
@@ -120,7 +129,7 @@ function InstrumentSection({ group }: { group: NameGroup }) {
                     {fmt(r.p95, group.unit)}
                   </td>
                   <td className="py-0.5 pr-3 text-right tabular-nums text-fg">
-                    {fmt(r.last, group.unit)}
+                    {fmt(r.avg, group.unit)}
                   </td>
                 </>
               )}

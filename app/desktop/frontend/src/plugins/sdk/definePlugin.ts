@@ -56,10 +56,12 @@ export async function loadPlugin(spec: PluginSpec): Promise<LoadResult> {
   const disposables: Disposable[] = [];
   const host = createHost(spec.name, disposables, spec.capabilities);
 
+  // Record duration regardless of outcome so a slow-failing plugin
+  // shows up in diagnostics next to its faster-loading peers.
+  const start = performance.now();
   try {
-    const start = performance.now();
     const cleanup = await spec.setup({ host });
-    measurePluginLoad(performance.now() - start, spec.name);
+    measurePluginLoad(performance.now() - start, spec.name, "loaded");
     if (typeof cleanup === "function") {
       // setup returned a cleanup fn — fold it into the disposable list so
       // unloadPlugin triggers it alongside every register* result.
@@ -68,7 +70,7 @@ export async function loadPlugin(spec: PluginSpec): Promise<LoadResult> {
     usePluginStore.getState().registerLoaded({ spec, disposables });
     return { kind: "loaded", name: spec.name };
   } catch (err) {
-     
+    measurePluginLoad(performance.now() - start, spec.name, "failed");
     console.error(`[plugin] ${spec.name} setup failed:`, err);
     reportPluginError(spec.name, "setup", err);
     for (const d of disposables) {

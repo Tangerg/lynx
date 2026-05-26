@@ -10,7 +10,7 @@ import remarkAlert from "remark-github-blockquote-alert";
 import remarkMath from "remark-math";
 import remend from "remend";
 import { markdownComponents } from "@/components/chat/markdownComponents";
-import { measureMarkdownParse } from "@/lib/metrics";
+import { measureMarkdownRepair } from "@/lib/metrics";
 import { rehypeCitations } from "@/lib/rehypeCitations";
 import { rehypeFadeIn } from "@/lib/rehypeFadeIn";
 import { useSmoothText } from "@/lib/smoothText";
@@ -42,7 +42,7 @@ const remarkPlugins = [remarkGfm, remarkBreaks, remarkCjkFriendly, remarkMath, r
 // regularly emit. We pass a strict allow list to react-markdown
 // (`allowElement`) below so scripts / iframes / objects / embeds
 // can't sneak through even though they parsed.
-const HTML_DENY = new Set(["script", "iframe", "object", "embed", "form"]);
+const DENIED_HTML_TAGS = new Set(["script", "iframe", "object", "embed", "form"]);
 
 // MarkdownMessage — full Markdown with optional smooth-streamed per-
 // word fade-in. Pipeline: raw → useSmoothText → remend (auto-close
@@ -57,7 +57,7 @@ export function MarkdownMessage({ text, streaming, instant }: Props) {
   const safe = useMemo(() => {
     const start = performance.now();
     const out = remend(display);
-    measureMarkdownParse(performance.now() - start, display.length, !!streaming);
+    measureMarkdownRepair(performance.now() - start, display.length, !!streaming);
     return out;
   }, [display, streaming]);
 
@@ -81,7 +81,7 @@ export function MarkdownMessage({ text, streaming, instant }: Props) {
         components={markdownComponents}
         // Hard-blocklist tags that can execute or break sandbox even if
         // the markdown author wrote them out as raw HTML.
-        allowElement={(el) => !HTML_DENY.has(el.tagName)}
+        allowElement={(el) => !DENIED_HTML_TAGS.has(el.tagName)}
       >
         {safe}
       </ReactMarkdown>
