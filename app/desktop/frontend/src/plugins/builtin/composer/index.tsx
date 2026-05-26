@@ -25,9 +25,27 @@ export const composerModes = definePlugin({
   name: "lyra.builtin.composer-modes",
   version: "1.0.0",
   setup({ host }) {
-    host.composer.registerMode({ id: "agent", label: "Agent", icon: "spark", order: 0 });
-    host.composer.registerMode({ id: "ask", label: "Ask", icon: "chat", order: 1 });
-    host.composer.registerMode({ id: "plan", label: "Plan", icon: "list", order: 2 });
+    host.composer.registerMode({
+      id: "agent",
+      label: "Agent",
+      icon: "spark",
+      order: 0,
+      description: "Runs tools, edits files, executes commands. Asks before risky actions.",
+    });
+    host.composer.registerMode({
+      id: "ask",
+      label: "Ask",
+      icon: "chat",
+      order: 1,
+      description: "Read-only conversation. No tool calls, no file changes.",
+    });
+    host.composer.registerMode({
+      id: "plan",
+      label: "Plan",
+      icon: "list",
+      order: 2,
+      description: "Produces a plan first. Nothing runs until you switch to Agent.",
+    });
   },
 });
 
