@@ -12,7 +12,7 @@
 import type { ChatTab } from "./PanelTabBar";
 import { useMemo } from "react";
 import { useSessions } from "@/lib/queries";
-import { headerTabBulkFor, useSessionStore } from "@/state/sessionStore";
+import { headerTabCloseActionsFor, useSessionStore } from "@/state/sessionStore";
 import { PanelTabBar } from "./PanelTabBar";
 
 export function PanelHeader() {
@@ -42,7 +42,7 @@ export function PanelHeader() {
       onCloseChat={(id) => useSessionStore.getState().closeTab(id)}
       onSelectView={(id) => useSessionStore.getState().selectMainView(id)}
       onCloseView={(id) => useSessionStore.getState().closeMainView(id)}
-      bulkFor={headerTabBulkFor}
+      closeActionsFor={headerTabCloseActionsFor}
     />
   );
 }

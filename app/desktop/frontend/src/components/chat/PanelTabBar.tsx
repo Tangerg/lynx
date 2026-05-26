@@ -12,7 +12,7 @@
 // the (deliberately hidden) scrollbar.
 
 import type { IconName } from "@/components/common";
-import type { HeaderTabBulkActions, HeaderTabKind } from "@/state/sessionStore";
+import type { HeaderTabCloseActions, HeaderTabKind } from "@/state/sessionStore";
 import * as ContextMenu from "@radix-ui/react-context-menu";
 import { useCallback, useRef } from "react";
 import { dragClasses, Icon, noDragClasses, StatusDot } from "@/components/common";
@@ -39,10 +39,10 @@ interface Props {
   onSelectView: (id: string) => void;
   onCloseChat: (id: string) => void;
   onCloseView: (id: string) => void;
-  /** Resolve bulk-close actions for the right-clicked tab. The kind
-   *  decides which underlying store actions to compose so the rules
-   *  treat chat + view tabs as one unified strip. */
-  bulkFor: (kind: HeaderTabKind, id: string) => HeaderTabBulkActions;
+  /** Resolve the context-menu close actions for the right-clicked
+   *  tab. The kind decides which underlying store actions to compose
+   *  so the rules treat chat + view tabs as one unified strip. */
+  closeActionsFor: (kind: HeaderTabKind, id: string) => HeaderTabCloseActions;
 }
 
 export function PanelTabBar({
@@ -53,7 +53,7 @@ export function PanelTabBar({
   onSelectView,
   onCloseChat,
   onCloseView,
-  bulkFor,
+  closeActionsFor,
 }: Props) {
   const stripRef = useRef<HTMLDivElement>(null);
   const onWheel = useCallback((e: React.WheelEvent<HTMLDivElement>) => {
@@ -91,7 +91,7 @@ export function PanelTabBar({
             leading={<StatusDot tone={t.status} />}
             onSelect={() => onSelectChat(t.id)}
             onClose={() => onCloseChat(t.id)}
-            bulk={bulkFor("chat", t.id)}
+            closeActions={closeActionsFor("chat", t.id)}
             isFirst={i === 0}
             isLast={i === tabs.length - 1 && viewTabs.length === 0}
             isOnly={isOnly}
@@ -105,7 +105,7 @@ export function PanelTabBar({
             leading={t.icon ? <Icon name={t.icon as IconName} size={11} /> : null}
             onSelect={() => onSelectView(t.id)}
             onClose={() => onCloseView(t.id)}
-            bulk={bulkFor("view", t.id)}
+            closeActions={closeActionsFor("view", t.id)}
             isFirst={i === 0 && tabs.length === 0}
             isLast={i === viewTabs.length - 1}
             isOnly={isOnly}
@@ -123,7 +123,7 @@ interface TabItemProps {
   leading: React.ReactNode;
   onSelect: () => void;
   onClose: () => void;
-  bulk: HeaderTabBulkActions;
+  closeActions: HeaderTabCloseActions;
   isFirst: boolean;
   isLast: boolean;
   isOnly: boolean;
@@ -135,7 +135,7 @@ function TabItem({
   leading,
   onSelect,
   onClose,
-  bulk,
+  closeActions,
   isFirst,
   isLast,
   isOnly,
@@ -185,17 +185,17 @@ function TabItem({
           collisionPadding={8}
         >
           <TabMenuItem onSelect={onClose}>Close</TabMenuItem>
-          <TabMenuItem disabled={isOnly} onSelect={bulk.onCloseOthers}>
+          <TabMenuItem disabled={isOnly} onSelect={closeActions.onCloseOthers}>
             Close Others
           </TabMenuItem>
-          <TabMenuItem disabled={isFirst} onSelect={bulk.onCloseLeft}>
+          <TabMenuItem disabled={isFirst} onSelect={closeActions.onCloseLeft}>
             Close Tabs to the Left
           </TabMenuItem>
-          <TabMenuItem disabled={isLast} onSelect={bulk.onCloseRight}>
+          <TabMenuItem disabled={isLast} onSelect={closeActions.onCloseRight}>
             Close Tabs to the Right
           </TabMenuItem>
           <ContextMenu.Separator className="my-1 h-px bg-line" />
-          <TabMenuItem onSelect={bulk.onCloseAll}>Close All</TabMenuItem>
+          <TabMenuItem onSelect={closeActions.onCloseAll}>Close All</TabMenuItem>
         </ContextMenu.Content>
       </ContextMenu.Portal>
     </ContextMenu.Root>
