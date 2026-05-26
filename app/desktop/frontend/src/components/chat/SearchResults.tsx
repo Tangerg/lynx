@@ -6,9 +6,14 @@ import type { SearchResult } from "@/protocol/agui/viewState";
 export function SearchResults({ results }: { results: SearchResult[] }) {
   return (
     <div className="my-2.5 grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-2">
-      {results.map((r, i) => (
+      {results.map((r) => (
         <div
-          key={i}
+          // Search results carry no server-side id; composite key from
+          // domain + title + time is the most stable signature available
+          // and survives re-ordering (the index alone was not — if
+          // results streamed in or were re-ranked, react would have
+          // swapped DOM nodes by position and clobbered hover/focus).
+          key={`${r.domain}|${r.title}|${r.time}`}
           className="group flex flex-col gap-1.5 rounded-lg border border-transparent bg-surface px-3.5 py-3 cursor-pointer transition-colors duration-150 ease-out hover:bg-surface-2 hover:border-line-soft"
         >
           <div className="flex items-center gap-1.5 font-mono text-[11px] text-fg-faint">

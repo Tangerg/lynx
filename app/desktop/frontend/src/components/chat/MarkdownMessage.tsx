@@ -9,6 +9,7 @@ import remarkGfm from "remark-gfm";
 import remarkAlert from "remark-github-blockquote-alert";
 import remarkMath from "remark-math";
 import remend from "remend";
+import { useDebounce } from "use-debounce";
 import { markdownComponents } from "@/components/chat/markdownComponents";
 import { measureMarkdownRepair } from "@/lib/metrics";
 import { rehypeCitations } from "@/lib/rehypeCitations";
@@ -51,15 +52,21 @@ const DENIED_HTML_TAGS = new Set(["script", "iframe", "object", "embed", "form"]
 export function MarkdownMessage({ text, streaming, instant }: Props) {
   const smoothed = useSmoothText(text, !instant && !!streaming);
   const display = instant ? text : smoothed;
-  // remend handles open code/math fences + word-internal context
-  // (`foo_bar` isn't an unterminated italic) so partial markdown
-  // doesn't render as broken syntax mid-stream.
+  // remend is the partial-markdown auto-closer (open code fences,
+  // unterminated bolds/italics, mid-word context). It costs ~2-5ms per
+  // call and used to run on every smooth-text rAF tick (~60Hz). Trailing
+  // debounce caps it to once per ~80ms during streaming; when streaming
+  // ends the value settles immediately. The visual cost is a brief
+  // delay before unclosed syntax recovers, which is invisible at
+  // word-pacing speeds.
+  const [debouncedDisplay] = useDebounce(display, 80, { trailing: true });
+  const sourceText = streaming ? debouncedDisplay : display;
   const safe = useMemo(() => {
     const start = performance.now();
-    const out = remend(display);
-    measureMarkdownRepair(performance.now() - start, display.length, !!streaming);
+    const out = remend(sourceText);
+    measureMarkdownRepair(performance.now() - start, sourceText.length, !!streaming);
     return out;
-  }, [display, streaming]);
+  }, [sourceText, streaming]);
 
   // Pipeline: rehypeRaw (parse inline HTML) → rehypeCitations (swap
   // `[n]` markers for <sup> badges) → rehypeFadeIn (per-word streaming

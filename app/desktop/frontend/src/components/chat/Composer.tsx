@@ -70,7 +70,7 @@ export function Composer({
         <div className="flex flex-wrap gap-1.5 px-1 pb-0.5 pt-1">
           {attachments.map((a, i) => (
             <Chip
-              key={i}
+              key={a.id}
               icon={(a.icon as IconName | undefined) ?? "file"}
               title={a.label}
               onClose={() => onRemoveAttachment(i)}
@@ -141,7 +141,7 @@ function ModePicker({
   return (
     <DropdownMenu.Root>
       <DropdownMenu.Trigger
-        className="inline-flex h-6.5 items-center gap-1.5 rounded-sm border border-line bg-transparent px-2 font-sans text-[11.5px] font-semibold text-fg cursor-pointer transition-colors hover:bg-surface-2 data-[state=open]:bg-surface-2"
+        className="inline-flex h-6.5 items-center gap-1.5 rounded-sm border border-line bg-transparent px-2 font-sans text-[11.5px] font-semibold text-fg cursor-pointer transition-colors hover:bg-surface-2 data-[state=open]:bg-surface-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent"
         title="Composer mode"
       >
         <Icon name={(active.icon as IconName) ?? "spark"} size={12} />
@@ -200,9 +200,9 @@ function SourceChips({ source }: { source: AttachmentSource }) {
   const items = source.useAttachments();
   return (
     <>
-      {items.map((a, i) => (
+      {items.map((a) => (
         <Chip
-          key={`${source.id}:${i}`}
+          key={`${source.id}:${a.id ?? a.label}`}
           icon={(a.icon as IconName | undefined) ?? "file"}
           title={a.label}
         >

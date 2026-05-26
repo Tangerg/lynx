@@ -35,6 +35,12 @@ export interface ComposerAttachment {
   label: string;
   /** Optional icon glyph name. Defaults to "file" when omitted. */
   icon?: string;
+  /**
+   * Optional stable React-key id. When omitted the renderer falls back
+   * to `${source.id}:${label}` — sufficient for the typical case where
+   * each source emits unique labels.
+   */
+  id?: string;
 }
 
 /**

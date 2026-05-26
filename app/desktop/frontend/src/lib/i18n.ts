@@ -85,6 +85,23 @@ const messages: Record<Locale, Record<string, string>> = {
 
     "iconGallery.filterLabel": "Filter icons by name",
     "iconGallery.filterPlaceholder": "Filter by name…",
+
+    "approval.settled.approved": "Approved · executing",
+    "approval.settled.declined": "Declined",
+    "approval.required": "Approval required",
+    "approval.action.approve": "Approve",
+    "approval.action.decline": "Decline",
+    "approval.risk.low": "Low risk",
+    "approval.risk.medium": "Medium risk",
+    "approval.risk.high": "High risk",
+    "approval.reversible": "Reversible",
+    "approval.permanent": "Permanent",
+
+    "runError.title": "Agent error",
+    "runError.action.retry": "Retry",
+    "runError.action.timeline": "Open timeline",
+    "runError.action.diagnostics": "Diagnostics",
+    "runError.action.dismiss": "Dismiss",
     "iconGallery.empty": 'No icons match "{{q}}".',
   },
   zh: {
@@ -160,6 +177,23 @@ const messages: Record<Locale, Record<string, string>> = {
     "iconGallery.filterLabel": "按名称筛选图标",
     "iconGallery.filterPlaceholder": "按名称筛选…",
     "iconGallery.empty": '没有匹配 "{{q}}" 的图标。',
+
+    "approval.settled.approved": "已批准 · 正在执行",
+    "approval.settled.declined": "已拒绝",
+    "approval.required": "需要审批",
+    "approval.action.approve": "批准",
+    "approval.action.decline": "拒绝",
+    "approval.risk.low": "低风险",
+    "approval.risk.medium": "中风险",
+    "approval.risk.high": "高风险",
+    "approval.reversible": "可撤销",
+    "approval.permanent": "不可撤销",
+
+    "runError.title": "Agent 报错",
+    "runError.action.retry": "重试",
+    "runError.action.timeline": "查看时间线",
+    "runError.action.diagnostics": "诊断",
+    "runError.action.dismiss": "忽略",
   },
 };
 

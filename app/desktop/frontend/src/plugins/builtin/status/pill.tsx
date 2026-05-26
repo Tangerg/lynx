@@ -9,7 +9,7 @@
 // internal abstraction to avoid restating the same 4 utilities at every
 // pill site.
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Icon, Sparkline, StatusDot } from "@/components/common";
 import { cn } from "@/lib/utils";
 import { definePlugin } from "@/plugins/sdk";
@@ -49,19 +49,27 @@ function useNumericHistory(current: number, max = 32): number[] {
   return history;
 }
 
+// Narrow subscriptions: subscribing to the whole `v.run` object would
+// re-render this on every telemetry tick (token / cost / ctxPct). Only
+// the four primitives below actually drive the visual; pulling each via
+// Object.is means RunState skips renders the other status-bar pieces
+// (Tokens / Cost) care about.
 function RunState() {
-  const run = useAgentSlice((v) => v.run);
+  const running = useAgentSlice((v) => v.run.running);
+  const step = useAgentSlice((v) => v.run.step);
+  const totalSteps = useAgentSlice((v) => v.run.totalSteps);
+  const activity = useAgentSlice((v) => v.run.activity);
   const stop = useAgentAction("stop");
   return (
-    <span className={pill(run.running ? "text-accent" : "")}>
-      <StatusDot tone={run.running ? "running" : "idle"} />
-      {run.running ? (
+    <span className={pill(running ? "text-accent" : "")}>
+      <StatusDot tone={running ? "running" : "idle"} />
+      {running ? (
         <>
           <span className="font-mono">
-            {run.step}/{run.totalSteps}
+            {step}/{totalSteps}
           </span>
           <span className="text-fg-faint">·</span>
-          <span className="text-fg">{run.activity || "running"}</span>
+          <span className="text-fg">{activity || "running"}</span>
           {stop && (
             <button
               type="button"
@@ -122,25 +130,30 @@ function Spacer() {
 }
 
 function Tokens() {
-  const run = useAgentSlice((v) => v.run);
-  const usedNum = parseShorthand(run.tokens.used);
+  const used = useAgentSlice((v) => v.run.tokens.used);
+  const total = useAgentSlice((v) => v.run.tokens.total);
+  const ctxPct = useAgentSlice((v) => v.run.ctxPct);
+  // parseShorthand walks a regex + does float math — cheap individually
+  // but it ran on every render. Memo by the underlying string so it
+  // recomputes only when the displayed value actually changes.
+  const usedNum = useMemo(() => parseShorthand(used), [used]);
   const history = useNumericHistory(usedNum);
   return (
-    <span className={pill()} title={`Context: ${run.ctxPct}% of ${run.tokens.total}`}>
+    <span className={pill()} title={`Context: ${ctxPct}% of ${total}`}>
       <Sparkline values={history} width={42} height={12} fill />
-      <span className="font-mono">{run.tokens.used}</span>
-      <span className="font-mono text-fg-faint">/{run.tokens.total}</span>
-      <span className="font-mono text-fg-faint">{run.ctxPct}%</span>
+      <span className="font-mono">{used}</span>
+      <span className="font-mono text-fg-faint">/{total}</span>
+      <span className="font-mono text-fg-faint">{ctxPct}%</span>
     </span>
   );
 }
 
 function Cost() {
-  const run = useAgentSlice((v) => v.run);
+  const cost = useAgentSlice((v) => v.run.cost);
   return (
     <span className={pill()} title="Session cost (USD)">
       <span className="text-fg-faint">$</span>
-      <span className="font-mono">{run.cost}</span>
+      <span className="font-mono">{cost}</span>
     </span>
   );
 }

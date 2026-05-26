@@ -8,12 +8,13 @@
 
 import type { ReactNode } from "react";
 import type { RunDigest } from "@/protocol/agui/runDigest";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { EmptyState, Icon, IconButton, ScrollArea } from "@/components/common";
 import { ViewHeader } from "@/components/views/ViewHeader";
 import { cn } from "@/lib/utils";
 import { definePlugin } from "@/plugins/sdk";
 import { buildPlaintext, deriveLatestRun, durationText } from "@/protocol/agui/runDigest";
+import { INITIAL_VIEW_STATE } from "@/protocol/agui/viewState";
 import { useAgentSlice } from "@/state/agentStore";
 
 const STATUS_LABEL: Record<RunDigest["status"], { label: string; cls: string }> = {
@@ -45,8 +46,25 @@ function Section({
 }
 
 function RunSummaryTab() {
-  const view = useAgentSlice((v) => v);
-  const digest = deriveLatestRun(view);
+  // Subscribe only to the three slices the digest actually depends on.
+  // Going through `useAgentSlice((v) => v)` would re-render this tab on
+  // every TEXT_MESSAGE_CONTENT during streaming, even though messages
+  // don't affect the summary. Timeline is the dominant change driver.
+  const timeline = useAgentSlice((v) => v.timeline);
+  const toolCalls = useAgentSlice((v) => v.toolCalls);
+  const running = useAgentSlice((v) => v.run.running);
+
+  const digest = useMemo(
+    () =>
+      deriveLatestRun({
+        ...INITIAL_VIEW_STATE,
+        timeline,
+        toolCalls,
+        run: { ...INITIAL_VIEW_STATE.run, running },
+      }),
+    [timeline, toolCalls, running],
+  );
+
   const [copied, setCopied] = useState(false);
 
   if (!digest) {
