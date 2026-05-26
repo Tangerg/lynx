@@ -9,4 +9,5 @@ export { filesView } from "./files";
 export { notificationsView } from "./notifications";
 export { planView } from "./plan";
 export { terminalView } from "./terminal";
+export { timelineView } from "./timeline";
 export { toolsView } from "./tools";

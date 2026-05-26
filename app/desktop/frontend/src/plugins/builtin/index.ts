@@ -83,6 +83,7 @@ import {
   notificationsView,
   planView,
   terminalView,
+  timelineView,
   toolsView,
 } from "./workspace-views";
 
@@ -159,6 +160,7 @@ const panes: PluginSpec[] = [
   terminalView,
   filesView,
   planView,
+  timelineView,
   toolsView,
   notificationsView,
   diagnostics,
