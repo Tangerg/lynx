@@ -8,6 +8,7 @@ export { diffView } from "./diff";
 export { filesView } from "./files";
 export { notificationsView } from "./notifications";
 export { planView } from "./plan";
+export { runSummaryView } from "./run-summary";
 export { terminalView } from "./terminal";
 export { timelineView } from "./timeline";
 export { toolsView } from "./tools";
