@@ -17,12 +17,15 @@
 
 import i18next from "i18next";
 
-// Translate i18next's "en"/"zh" to a BCP-47 tag Intl expects.
-// "zh" alone resolves to zh-Hans by ICU defaults but we want the
-// mainland flavour explicitly for consistent grammar.
+// Translate i18next's locale id to a BCP-47 tag Intl expects.
+// "zh" / "zh-TW" become "zh-CN" / "zh-TW" explicitly so ICU picks
+// the right grammar variant (Simplified vs Traditional). All other
+// locales are passed through — they already are BCP-47 primary
+// subtags.
 function bcp47(): string {
   const lng = i18next.language ?? "en";
-  if (lng.startsWith("zh")) return "zh-CN";
+  if (lng === "zh") return "zh-CN";
+  if (lng === "zh-TW" || lng.toLowerCase() === "zh-tw") return "zh-TW";
   return lng;
 }
 
