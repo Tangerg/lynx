@@ -25,7 +25,12 @@ export default definePlugin({
       label: "HTTP (local backend)",
       priority: 0,
       factory: () => {
-        const sessionId = useSessionStore.getState().activeSessionId ?? "s1";
+        // `??` falls through only for null/undefined, but the store
+        // explicitly stores `""` after closeAllTabs to mean "no
+        // session" — accepting it as the threadId makes the backend
+        // reject with "threadId required". Treat empty as missing too.
+        const active = useSessionStore.getState().activeSessionId;
+        const sessionId = active || "s1";
         return new HttpAgent({ url: AGUI_URL, threadId: sessionId });
       },
     });
