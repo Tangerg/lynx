@@ -55,6 +55,16 @@ import globalKeymap from "./global-keymap";
 import httpAgent from "./http-agent";
 import iconGallery from "./icon-gallery";
 import { kernelChat, kernelSettings, kernelSidebar } from "./kernel";
+import {
+  localeDe,
+  localeEn,
+  localeEs,
+  localeFr,
+  localeJa,
+  localeKo,
+  localeZh,
+  localeZhTW,
+} from "./locales";
 import mainRoute from "./main-route";
 import { messageCopy, messageEdit, messageRegenerate } from "./message-actions";
 import planProgress from "./plan-progress";
@@ -112,6 +122,18 @@ const infrastructure: PluginSpec[] = [
   defaultTitle,
   defaultAccents,
   ...builtinThemes,
+  // Locale packs — each language is its own plugin so a third-party
+  // can ship Vietnamese / Arabic / ... without touching the kernel.
+  // English isn't strictly needed here (its bundle is bootstrapped by
+  // `lib/i18n.ts`) but the plugin registers the picker entry.
+  localeEn,
+  localeZh,
+  localeZhTW,
+  localeJa,
+  localeKo,
+  localeEs,
+  localeFr,
+  localeDe,
   mainRoute,
 ];
 

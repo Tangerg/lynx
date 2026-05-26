@@ -16,6 +16,7 @@ import type {
   CoreEventHandler,
   CustomEventHandler,
   LayoutSlotSpec,
+  LocaleSpec,
   MessageRoleSpec,
   PluginErrorFallbackSpec,
   RouteSpec,
@@ -245,6 +246,10 @@ export function useThemes(): ThemeSpec[] {
 
 export function useAccents(): ThemeAccentSpec[] {
   return useSortedList(usePluginStore((s) => s.accents));
+}
+
+export function useLocales(): LocaleSpec[] {
+  return useSortedList(usePluginStore((s) => s.locales));
 }
 
 /** Look up a theme spec by id. */

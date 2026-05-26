@@ -24,6 +24,7 @@ import type {
   CustomEventHandler,
   DataProviderSpec,
   LayoutSlotSpec,
+  LocaleSpec,
   LogSubscriber,
   MessageRoleSpec,
   PluginErrorFallbackSpec,
@@ -133,6 +134,7 @@ export const usePluginStore = create<PluginStoreState & PluginStoreActions>((set
   const settingsPanes = ownedSpecSlot<SettingsPaneSpec>("settingsPanes", "settings pane");
   const themes = ownedSpecSlot<ThemeSpec>("themes", "theme");
   const accents = ownedSpecSlot<ThemeAccentSpec>("accents", "accent");
+  const locales = ownedSpecSlot<LocaleSpec>("locales", "locale");
   const routes = ownedSpecSlot<RouteSpec>("routes", "route");
   const composerStatus = ownedSpecSlot<ComposerStatusSpec>("composerStatus", "composer status");
   const composerModes = ownedSpecSlot<ComposerModeSpec>("composerModes", "composer mode");
@@ -248,6 +250,9 @@ export const usePluginStore = create<PluginStoreState & PluginStoreActions>((set
 
     addAccent: accents.add,
     removeAccent: accents.remove,
+
+    addLocale: locales.add,
+    removeLocale: locales.remove,
 
     addRoute: routes.add,
     removeRoute: routes.remove,

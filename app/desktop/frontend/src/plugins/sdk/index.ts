@@ -55,6 +55,7 @@ export {
   useComposerStatus,
   useContentBlockRenderer,
   useLayoutSlot,
+  useLocales,
   useMessageRole,
   useSettingsPanes,
   useSidebarRailItems,

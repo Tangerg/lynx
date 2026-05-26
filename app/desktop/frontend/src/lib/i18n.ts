@@ -1,85 +1,53 @@
 // Thin wrapper over i18next + react-i18next so the rest of the app
-// stays on a stable `useT() / setLocale() / useLocale()` API. Each
-// locale's dictionary lives in its own file under `lib/locales/`;
-// this module just wires them into i18next + exposes the React hooks.
+// stays on a stable `useT() / setLocale() / useLocale()` API.
 //
-// All bundles are statically imported so the entire UI is translated
-// from the first paint — locale switches don't trigger a network
-// fetch. They're small (~80 keys × ~30 chars each); the whole set is
-// well under a KB after gzip.
+// The kernel ships **only the English bundle** — every other language
+// (zh / zh-TW / ja / ko / es / fr / de) is a built-in plugin under
+// `plugins/builtin/locales/` that calls `host.i18n.addBundle()` +
+// `host.i18n.registerLocale()` in its setup. The picker is driven by
+// the plugin store's `locales` registry (read via `useLocales()` from
+// the SDK), not a hardcoded array here.
+//
+// Locale type is `string` rather than a union because the set of
+// shipped locales is open: a sideloaded plugin can drop a Vietnamese
+// bundle in and the picker shows it. The kernel only knows two things
+// statically — what "English" looks like (the bootstrap dict so first
+// paint always has strings) and how to detect the user's preferred
+// locale from `navigator.language`.
 
 import i18next from "i18next";
 import { initReactI18next, useTranslation } from "react-i18next";
-import { de } from "@/lib/locales/de";
 import { en } from "@/lib/locales/en";
-import { es } from "@/lib/locales/es";
-import { fr } from "@/lib/locales/fr";
-import { ja } from "@/lib/locales/ja";
-import { ko } from "@/lib/locales/ko";
-import { zh } from "@/lib/locales/zh";
-import { zhTW } from "@/lib/locales/zh-TW";
 
-// Locale ids align with BCP-47 primary subtags plus the one regional
-// variant we ship for Traditional Chinese. Add a new locale by
-// dropping a `lib/locales/<id>.ts` and wiring it into LOCALES below.
-export type Locale = "en" | "zh" | "zh-TW" | "ja" | "ko" | "es" | "fr" | "de";
+export type Locale = string;
 
 const STORAGE_KEY = "lyra.locale";
 
-const BUNDLES: Record<Locale, Record<string, string>> = {
-  en,
-  zh,
-  "zh-TW": zhTW,
-  ja,
-  ko,
-  es,
-  fr,
-  de,
-};
-
-const LOCALE_IDS = Object.keys(BUNDLES) as Locale[];
-
-function isLocale(value: string): value is Locale {
-  return (LOCALE_IDS as string[]).includes(value);
-}
-
-// Pick a starting locale from (a) stored preference, (b) navigator
-// language, (c) English. Navigator strings like "zh-CN", "zh-HK",
-// "fr-CA" are reduced to the closest shipped bundle.
 function detectInitial(): Locale {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored && isLocale(stored)) return stored;
+    if (stored) return stored;
   } catch {
     /* ignore */
   }
   const nav = typeof navigator !== "undefined" ? navigator.language : "";
-  return matchNavigator(nav);
-}
-
-// Map navigator.language to one of the shipped bundles. Traditional
-// Chinese variants (zh-TW, zh-HK, zh-MO) fold into zh-TW; everything
-// else "zh-*" lands on simplified zh.
-function matchNavigator(nav: string): Locale {
+  // Fold zh-* variants to the simplified / traditional split here; the
+  // locale plugin loader (later) tolerates either "zh" or "zh-CN".
   const low = nav.toLowerCase();
   if (low.startsWith("zh")) {
     return low.includes("tw") || low.includes("hk") || low.includes("mo") ? "zh-TW" : "zh";
   }
-  for (const id of LOCALE_IDS) {
-    if (id === "en" || id === "zh" || id === "zh-TW") continue;
-    if (low.startsWith(id)) return id;
-  }
-  return "en";
+  // For everything else, hand i18next the primary subtag — it'll fall
+  // back to English if the matching plugin hasn't registered (yet).
+  return low.split("-")[0] || "en";
 }
 
 const initial = detectInitial();
 
-const resources = Object.fromEntries(
-  LOCALE_IDS.map((id) => [id, { translation: BUNDLES[id] }]),
-);
-
 void i18next.use(initReactI18next).init({
-  resources,
+  // Only English is bootstrapped — locale plugins add the rest at
+  // plugin-setup time via `addLocaleBundle()`.
+  resources: { en: { translation: en } },
   lng: initial,
   fallbackLng: "en",
   // Keys are dotted strings ("sidebar.search.label") — treat them as
@@ -91,8 +59,7 @@ void i18next.use(initReactI18next).init({
 });
 
 // `lang` attribute on <html> drives browser-side a11y, font selection,
-// and Intl APIs that read `document.documentElement.lang` (we don't,
-// but it's standards-hygiene to keep it in sync).
+// and Intl APIs that read `document.documentElement.lang`.
 function syncHtmlLang(loc: Locale): void {
   if (typeof document === "undefined") return;
   document.documentElement.lang =
@@ -101,8 +68,7 @@ function syncHtmlLang(loc: Locale): void {
 syncHtmlLang(initial);
 
 function getLocale(): Locale {
-  const lng = i18next.resolvedLanguage;
-  return lng && isLocale(lng) ? lng : "en";
+  return i18next.resolvedLanguage ?? "en";
 }
 
 export function setLocale(loc: Locale): void {
@@ -123,8 +89,7 @@ export function t(key: string, params?: Record<string, string | number>): string
 /** Reactive locale hook — components using this re-render on change. */
 export function useLocale(): Locale {
   const { i18n } = useTranslation();
-  const lng = i18n.resolvedLanguage;
-  return lng && isLocale(lng) ? lng : "en";
+  return i18n.resolvedLanguage ?? "en";
 }
 
 /** Hook returning a translate fn bound to the live locale. The returned
@@ -136,20 +101,6 @@ export function useT(): typeof t {
   useTranslation();
   return t;
 }
-
-// Native-name labels — what the user sees in the settings picker.
-// Native spelling is the convention (Wikipedia, MacOS) so a German
-// speaker recognises "Deutsch" without needing to know English.
-export const LOCALES: ReadonlyArray<{ id: Locale; label: string }> = [
-  { id: "en", label: "English" },
-  { id: "zh", label: "简体中文" },
-  { id: "zh-TW", label: "繁體中文" },
-  { id: "ja", label: "日本語" },
-  { id: "ko", label: "한국어" },
-  { id: "es", label: "Español" },
-  { id: "fr", label: "Français" },
-  { id: "de", label: "Deutsch" },
-];
 
 /**
  * Merge `dict` into the dictionary for `locale`. Existing keys are

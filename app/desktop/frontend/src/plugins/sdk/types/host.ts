@@ -10,6 +10,7 @@ import type { CoreEventHandler, CustomEventHandler } from "./agui";
 
 import type { CommandSpec, ShortcutSpec } from "./commands";
 import type { BeforeUnloadHandler, Disposable, ReadyHandler } from "./common";
+import type { LocaleSpec } from "./i18n";
 import type {
   ComposerAttachmentSourceSpec,
   ComposerKeyBindingSpec,
@@ -201,6 +202,18 @@ export interface Host {
      * re-overwrites the same keys.
      */
     addBundle: (locale: string, dict: Record<string, string>) => Disposable;
+    /**
+     * Register a language with the Settings → Language picker. The
+     * `spec.id` should match the locale passed to `addBundle`. Sort by
+     * `order` ascending; built-ins use 0..99. Returns a disposable that
+     * removes the entry from the picker when the plugin unloads.
+     *
+     * Typical flow inside a locale plugin's setup:
+     *
+     *   host.i18n.addBundle("ja", japaneseDict);
+     *   host.i18n.registerLocale({ id: "ja", label: "日本語", order: 30 });
+     */
+    registerLocale: (spec: LocaleSpec) => Disposable;
   };
   tasks: {
     /**
