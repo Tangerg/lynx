@@ -953,14 +953,13 @@ declare module "@/protocol/agui/viewState" {
 
 ### 12.4 优先级建议
 
-如果下一轮投 1 天的工程力：
-1. **首选 A**（core-reducer 测试 + table-driven）—— 收益最大、风险最低、直接降低 LOC
-2. 备选 D（smoothText hook 测试）—— 防止流式 bug 复发
+**下一轮**（2026-05-26 之后，外部仓库调研落地）：
+1. **§12.6 A + B**（Block status 状态机 + ToolPrimitive headless 组件，~7h）—— 两个 P0 同时被 assistant-ui / cline 两源支持，approval UX 闭环升级必经
+2. 搭车做 §12.6 C + D（capability + LaTeX，~3h）—— quick win 不打断主线
 
-如果下一轮投 1 周：
-1. A + D（半天）
-2. 给 `core-reducer` table-driven 后空出来的 ~400 行注释 + 复杂 case 写成 ADR（架构决策记录）
-3. C（sideload e2e）—— 是 plugin marketplace 路径上必经
+**再下一轮**（如果有 1 周）：
+1. §12.6 H（MetaEvent 反馈统一，~6h）—— RLHF 数据基础设施，看产品路线
+2. §12.1 A（core-reducer table-driven 重构，需要先补测试）
 
 如果只是日常维护：维持现状。当前架构通过了所有审计原则（KISS / SOLID / YAGNI / DRY），LOC 在合理范围，所有热路径有测试覆盖。**继续等触发条件出现**，不要做投机式重构。
 
@@ -968,8 +967,46 @@ declare module "@/protocol/agui/viewState" {
 
 下面这些方向**已知会被人提出**，但当前判断是错的方向，记下来避免重复辩论：
 
-- **❌ Redux Toolkit / Effector / Jotai 替换 Zustand**：现有 5 个 store 都很小，订阅模型够用；切换框架是纯切换，无收益。
+- **❌ Redux Toolkit / Effector / Jotai 替换 Zustand**：现有 store 都很小，订阅模型够用；切换框架是纯切换，无收益。
 - **❌ 给所有 plugin 加 schema 验证（Zod）**：plugin spec 由 TS 类型守护，runtime 验证只在 sideload 边界有意义 —— 加重 build size 没好处。要做也是只在 sideload 入口加。
 - **❌ 把 React Query → SWR / RTK Query**：同上，切换框架本身没有收益。
 - **❌ 把 Wails → Tauri**：桌面壳兼容性问题，没有实际 bug 也没好处。
-- **❌ 把 CSS → Tailwind / CSS-in-JS**：当前 CSS variable + 主题插件的模式很好用，迁移成本高。
+- **❌ 自研响应式框架替代 Zustand**（assistant-ui TAP 的教训）：`useAui` 200+ 行 boilerplate 只为 scope-based 细粒度订阅，学习曲线陡，**保留 Zustand**，需要 scope 时加 selector 而不是换 store。
+- **❌ Protocol multiplexing**（continue 的 `onWebview / onCore / onWebviewOrCore` 三套 handler）：Lyra 坚持 Go ↔ Frontend 单一 Wails RPC，IDE-specific 行为在 handler 内部条件判断，不要 fork protocol。
+- **❌ Interrupt / Approval UI 硬编码进消息组件**（agent-chat-ui 的耦合）：通过 Slot 注入（`message-footer` / `inline-overlay`）让 plugin 独立贡献 interrupt UI，reducer 只管数据。
+- **❌ Webview 初始化混杂 HTML/CSP/端口逻辑**（cline 的 WebviewProvider）：Wails 已经把模板 + dev server + 资源加载分离，**保持现状**，不要把任何运行时逻辑塞回 HTML 模板。
+
+### 12.6 外部仓库对比 → 候选行动项（2026-05-26 调研）
+
+横向对比 `assistant-ui` / `continue` / `cline` / `ag-ui-protocol` / `agent-chat-ui` 5 个仓库后，挖出 5 大共识主题。共识强 = 业界已收敛 = 值得做；单源 = 看场景。
+
+**5 大共识主题**：
+
+| # | 主题 | 共识源 | Lyra 现状 |
+|---|---|---|---|
+| 1 | **Block-level `status` 状态机**（`running \| complete \| incomplete \| requires-action`） | assistant-ui / cline | `blocks[]` 已 block-based，但只有 `streaming: boolean`，无法表达 `requires-action` |
+| 2 | **`<ToolPrimitive>` headless 组件**（props 方法注入：`onApprove` / `onReject` / `result`） | assistant-ui / cline | approval 走 hook + reducer dispatch，每个 block 自己 wire |
+| 3 | **Capability discovery + state compaction**（`/api/capabilities` + DELTA 周期合并 SNAPSHOT） | ag-ui 官方 | 前端硬假设 backend 支持所有 event；timeline 不 compact |
+| 4 | **History 元数据与消息体分离** | cline | sessionStore (meta) + agentStore (view) 已分层 ✓；messages 落盘待做 |
+| 5 | **Markdown 完整能力**（LaTeX + GFM 表格） | agent-chat-ui | shiki 高亮已有，缺 LaTeX 公式 + 表格 CSS |
+
+**8 个候选行动项**（按 ROI / 投入排序）：
+
+| # | 行动项 | 共识强度 | 投入 | 收益 | 状态 |
+|---|---|---|---|---|---|
+| A | Block-level `status` 字段 + approval 状态机 | ⭐⭐⭐ | 中 (~4h) | 高 | **P0** |
+| B | `<ToolPrimitive>` headless 组件 + button config map | ⭐⭐⭐ | 中 (~3h) | 高 | **P0** |
+| C | `/api/capabilities` 端点 + 前端 UI gating | ⭐⭐ | 小 (~2h) | 中 | P1 |
+| D | LaTeX (`remark-math + rehype-katex`) + GFM 表格 CSS | ⭐⭐ | 小 (~1h) | 中 | P1 |
+| E | State compaction（DELTA chain 周期性合并为 SNAPSHOT） | ⭐⭐ | 中 (~3h) | 低（dev 期数据量小） | P2 |
+| F | Generative UI spec + allowlist（agent 返回 JSON 描述 UI） | ⭐ | 大 (~8h) | 中（看路线） | P2 |
+| G | 配置树 + workspace overrides（continue `mergeJson`） | ⭐ | 大 (~6h) | 低（单用户桌面） | × 暂不 |
+| H | MetaEvent 统一用户反馈（thumbs/note/bookmark） | ⭐⭐ | 大 (~6h) | 高（RLHF） | P1（看产品路线） |
+
+**触发条件**：A + B 同时命中两个共识源，且 P0 块状态信号在 approval / interrupt UX 升级时**必经**，应在下一波重构里执行（即 §12.4 优先级建议下一轮直接做 A + B）。C / D 是 quick win，可以搭车做。
+
+**5 个仓库都为 Lyra 现状盖章的设计**（"做对了别动"）：
+- ✅ **Plugin reducer 模式**：ag-ui 官方明确——协议层不规定 reducer 实现，应用自由组织
+- ✅ **`internal/agui/events.go` 嵌入 + ToJSON override**：ag-ui agent 评价为"不侵入 SDK 的优雅扩展法"
+- ✅ **Zustand 多 store 分层**：和 assistant-ui scope 树同思路，但更轻
+- ✅ **`definePlugin({ host })` SDK**：跟 cline "10 个设计缝隙"思想一致
