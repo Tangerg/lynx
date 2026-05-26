@@ -43,6 +43,10 @@ export const approvalHandler = definePlugin({
             command: value.command,
             reason: value.reason,
             requestId: value.requestId,
+            risk: value.risk,
+            scope: value.scope,
+            target: value.target,
+            reversible: value.reversible,
           }),
           appendTimelineEntry({
             kind: "approval-request",
