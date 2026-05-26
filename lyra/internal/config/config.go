@@ -48,11 +48,35 @@ type Config struct {
 	MCPServers []MCPServer
 }
 
-// MCPServer is the parsed form of one entry in
-// LYRA_MCP_SERVERS — a logical name + Streamable HTTP endpoint.
+// MCPTransport mirrors engine.MCPTransport in shape; we keep our
+// own enum here so the config package stays independent of engine.
+type MCPTransport int
+
+const (
+	MCPTransportHTTP MCPTransport = iota + 1
+	MCPTransportStdio
+)
+
+// MCPServer is one parsed entry from LYRA_MCP_SERVERS. The wire
+// syntax is a discriminated union:
+//
+//	HTTP:  name=https://mcp.example.com/
+//	stdio: name=stdio:command arg1 arg2 ...
+//
+// `stdio:` is a literal prefix on the value; the remainder is the
+// command + args split by whitespace (no shell interpolation).
+// Use a TOML config (planned) for env var injection or complex
+// argument lists.
 type MCPServer struct {
-	Name     string
+	Name      string
+	Transport MCPTransport
+
+	// HTTP-only.
 	Endpoint string
+
+	// Stdio-only.
+	Command string
+	Args    []string
 }
 
 // OnlineConfig groups the credentials needed by network-reaching
@@ -117,11 +141,21 @@ func Load() (Config, error) {
 }
 
 // parseMCPServers parses the LYRA_MCP_SERVERS env var: a comma-
-// separated list of "name=url" pairs. Empty input yields nil with
-// no error; per-entry errors include the offending fragment so
-// the operator can spot the typo immediately.
+// separated list of "name=value" pairs. Empty input yields nil
+// with no error; per-entry errors include the offending fragment
+// so the operator can spot the typo immediately.
 //
-//	LYRA_MCP_SERVERS="github=https://mcp.github.com/,lsp=https://mcp.lsp.local/"
+// Two value shapes:
+//
+//	HTTP:  name=https://mcp.example.com/   (or http://)
+//	stdio: name=stdio:command arg1 arg2    (whitespace-split argv,
+//	                                        no shell interpolation)
+//
+// Examples:
+//
+//	LYRA_MCP_SERVERS="github=https://mcp.github.com/,\
+//	  fs=stdio:npx -y @modelcontextprotocol/server-filesystem /workspace,\
+//	  time=stdio:uvx mcp-server-time"
 func parseMCPServers(raw string) ([]MCPServer, error) {
 	if raw == "" {
 		return nil, nil
@@ -135,19 +169,52 @@ func parseMCPServers(raw string) ([]MCPServer, error) {
 		}
 		eq := strings.IndexByte(p, '=')
 		if eq <= 0 || eq == len(p)-1 {
-			return nil, fmt.Errorf("entry %q: expected name=url", p)
+			return nil, fmt.Errorf("entry %q: expected name=value", p)
 		}
 		name := strings.TrimSpace(p[:eq])
-		endpoint := strings.TrimSpace(p[eq+1:])
-		if name == "" || endpoint == "" {
-			return nil, fmt.Errorf("entry %q: name and url must be non-empty", p)
+		value := strings.TrimSpace(p[eq+1:])
+		if name == "" || value == "" {
+			return nil, fmt.Errorf("entry %q: name and value must be non-empty", p)
 		}
-		out = append(out, MCPServer{Name: name, Endpoint: endpoint})
+
+		srv, err := parseMCPServerValue(name, value)
+		if err != nil {
+			return nil, fmt.Errorf("entry %q: %w", p, err)
+		}
+		out = append(out, srv)
 	}
 	if len(out) == 0 {
 		return nil, nil
 	}
 	return out, nil
+}
+
+// parseMCPServerValue dispatches by prefix. `stdio:` is a Lyra
+// convention — anything else must look like an HTTP(S) URL (we
+// only sanity-check the scheme so the typo "stido:" stops here
+// rather than turning into a stalled HTTP dial).
+func parseMCPServerValue(name, value string) (MCPServer, error) {
+	if rest, ok := strings.CutPrefix(value, "stdio:"); ok {
+		rest = strings.TrimSpace(rest)
+		if rest == "" {
+			return MCPServer{}, fmt.Errorf("stdio: command is empty")
+		}
+		fields := strings.Fields(rest)
+		return MCPServer{
+			Name:      name,
+			Transport: MCPTransportStdio,
+			Command:   fields[0],
+			Args:      fields[1:],
+		}, nil
+	}
+	if !strings.HasPrefix(value, "http://") && !strings.HasPrefix(value, "https://") {
+		return MCPServer{}, fmt.Errorf("expected http(s):// URL or stdio: prefix, got %q", value)
+	}
+	return MCPServer{
+		Name:      name,
+		Transport: MCPTransportHTTP,
+		Endpoint:  value,
+	}, nil
 }
 
 // splitHosts parses the comma-separated LYRA_HTTP_ALLOWED_HOSTS
