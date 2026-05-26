@@ -3,6 +3,7 @@
 
 import { EmptyState, Icon, IconButton, ScrollArea } from "@/components/common";
 import { ViewHeader } from "@/components/views/ViewHeader";
+import { cn } from "@/lib/utils";
 import { definePlugin, useNotificationStore } from "@/plugins/sdk";
 
 function timeAgo(ts: number): string {
@@ -39,7 +40,7 @@ function NotificationsTab() {
           </IconButton>
         }
       />
-      <ScrollArea style={{ padding: "4px 0" }}>
+      <ScrollArea className="py-1">
         {entries.length === 0 && (
           <EmptyState
             icon="chat"
@@ -72,54 +73,31 @@ interface RowProps {
   onDismiss: () => void;
 }
 
-function NotificationRow({ level, message, plugin, timestamp, dismissed, onDismiss }: RowProps) {
-  const dotColor =
-    level === "error"
-      ? "var(--color-error, #f87171)"
-      : level === "warn"
-        ? "var(--color-warn,  #fbbf24)"
-        : "var(--color-text-faint)";
+// Level → dot color. Lookup table beats a nested ternary and makes
+// adding a new level (e.g. "success") a one-line edit.
+const DOT_BG_BY_LEVEL: Record<RowProps["level"], string> = {
+  error: "bg-negative",
+  warn: "bg-warning",
+  info: "bg-fg-faint",
+};
 
+function NotificationRow({ level, message, plugin, timestamp, dismissed, onDismiss }: RowProps) {
   return (
     <div
-      className={`notification-row ${dismissed ? "dismissed" : ""} ${level}`}
-      style={{
-        padding: "8px 14px",
-        display: "flex",
-        gap: 10,
-        alignItems: "flex-start",
-        opacity: dismissed ? 0.5 : 1,
-        borderBottom: "1px solid var(--color-border-soft)",
-      }}
+      className={cn(
+        "flex items-start gap-2.5 px-3.5 py-2 border-b border-line-soft",
+        dismissed && "opacity-50",
+      )}
     >
       <div
-        style={{
-          width: 6,
-          height: 6,
-          borderRadius: "50%",
-          marginTop: 6,
-          background: dotColor,
-          flexShrink: 0,
-        }}
+        className={cn(
+          "mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full",
+          DOT_BG_BY_LEVEL[level],
+        )}
       />
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div
-          style={{
-            fontSize: 12,
-            color: "var(--color-text)",
-            whiteSpace: "pre-wrap",
-            wordBreak: "break-word",
-          }}
-        >
-          {message}
-        </div>
-        <div
-          style={{
-            fontSize: 10,
-            color: "var(--color-text-faint)",
-            marginTop: 3,
-          }}
-        >
+      <div className="min-w-0 flex-1">
+        <div className="whitespace-pre-wrap break-words text-[12px] text-fg">{message}</div>
+        <div className="mt-0.5 text-[10px] text-fg-faint">
           {plugin} · {timeAgo(timestamp)}
         </div>
       </div>
