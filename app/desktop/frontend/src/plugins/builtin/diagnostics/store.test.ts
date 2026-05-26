@@ -1,7 +1,16 @@
-import type { MetricDescriptor, ResourceMetrics } from "@opentelemetry/sdk-metrics";
-import { AggregationTemporality, DataPointType } from "@opentelemetry/sdk-metrics";
+import type {
+  AggregationTemporality,
+  MetricDescriptor,
+  ResourceMetrics,
+} from "@opentelemetry/sdk-metrics";
 import { beforeEach, describe, expect, it } from "vitest";
 import { useDiagnosticsStore } from "./store";
+
+// Numeric enum values from @opentelemetry/sdk-metrics, inlined so
+// the test file mirrors the production module's lazy-import stance.
+const CUMULATIVE = 1 as AggregationTemporality;
+const HISTOGRAM = 0;
+const SUM = 3;
 
 const RES = {} as ResourceMetrics["resource"];
 const SCOPE = { name: "lyra", version: "1.0.0" };
@@ -41,8 +50,8 @@ function histogramMetric({
   const descriptor: MetricDescriptor = { name, unit, description, valueType: 1 };
   return {
     descriptor,
-    aggregationTemporality: AggregationTemporality.CUMULATIVE,
-    dataPointType: DataPointType.HISTOGRAM,
+    aggregationTemporality: CUMULATIVE,
+    dataPointType: HISTOGRAM,
     dataPoints: [
       {
         attributes: attrs,
@@ -70,8 +79,8 @@ function counterMetric({
   const descriptor: MetricDescriptor = { name, unit, description, valueType: 1 };
   return {
     descriptor,
-    aggregationTemporality: AggregationTemporality.CUMULATIVE,
-    dataPointType: DataPointType.SUM,
+    aggregationTemporality: CUMULATIVE,
+    dataPointType: SUM,
     isMonotonic: true,
     dataPoints: [
       {

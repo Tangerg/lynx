@@ -307,7 +307,7 @@ function buildTokenMap(spec: ThemePluginSpec): Record<string, string> {
 
     // Free-form extras win on collision so theme-level overrides
     // always take precedence.
-    ...(spec.extras ?? {}),
+    ...spec.extras,
   };
 }
 

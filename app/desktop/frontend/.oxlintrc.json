@@ -1,0 +1,13 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "rules": {
+    "unicorn/no-useless-spread": "off",
+    "typescript/no-this-alias": "off"
+  },
+  "ignorePatterns": [
+    "wailsjs/**",
+    "dist/**",
+    "node_modules/**",
+    "sample-plugins/**"
+  ]
+}

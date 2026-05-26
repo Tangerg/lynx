@@ -153,7 +153,7 @@ export function updateActivity(
       const next = fn(prev);
       return {
         ...m,
-        activities: { ...(m.activities ?? {}), [activityType]: next },
+        activities: { ...m.activities, [activityType]: next },
       };
     }),
   };
