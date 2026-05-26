@@ -6,21 +6,21 @@
 // drops a chat bubble below; user-plain and assistant share the
 // left-aligned flat-prose layout.
 
-import type {Citation} from "./CitationContext";
-import type {PartCtx} from "./PartRenderer";
-import type {IconName} from "@/components/common";
+import type { Citation } from "./CitationContext";
+import type { PartCtx } from "./PartRenderer";
+import type { IconName } from "@/components/common";
 import type { Message } from "@/protocol/agui/viewState";
 import { useRef } from "react";
-import { Icon  } from "@/components/common";
+import { Icon } from "@/components/common";
 import { Avatar } from "@/components/common/Avatar";
 import { cn } from "@/lib/utils";
 import { useMessageRole } from "@/plugins/sdk";
 import { Slot } from "@/plugins/Slot";
 import { useUiStore } from "@/state/uiStore";
-import {  CitationContext } from "./CitationContext";
+import { CitationContext } from "./CitationContext";
 import { MessageContext } from "./MessageContext";
 import { MessageOutline } from "./MessageOutline";
-import {  renderPart } from "./PartRenderer";
+import { renderPart } from "./PartRenderer";
 
 export function MessageBlock({ msg, ctx }: { msg: Message; ctx: PartCtx }) {
   const role = useMessageRole(msg.role);
@@ -83,20 +83,12 @@ export function MessageBlock({ msg, ctx }: { msg: Message; ctx: PartCtx }) {
           {/* Header: avatar paired with a vertical (title / time) stack.
               User-bubble flips the row so the avatar lands on the right
               and the stack right-aligns its rows. */}
-          <div
-            className={cn(
-              "flex items-center gap-2.5",
-              bubble && "flex-row-reverse",
-            )}
-          >
+          <div className={cn("flex items-center gap-2.5", bubble && "flex-row-reverse")}>
             <Avatar variant={avatarVariant}>
               <Icon name={iconName} size={14} />
             </Avatar>
             <div
-              className={cn(
-                "flex min-w-0 flex-col gap-0.5 leading-tight",
-                bubble && "items-end",
-              )}
+              className={cn("flex min-w-0 flex-col gap-0.5 leading-tight", bubble && "items-end")}
             >
               <div
                 className={cn(
@@ -107,9 +99,7 @@ export function MessageBlock({ msg, ctx }: { msg: Message; ctx: PartCtx }) {
                 <span className="truncate">{displayName}</span>
                 <Slot name="message.header.end" />
               </div>
-              <span className="font-mono text-[11px] text-fg-faint tabular-nums">
-                {msg.time}
-              </span>
+              <span className="font-mono text-[11px] text-fg-faint tabular-nums">{msg.time}</span>
             </div>
           </div>
 
