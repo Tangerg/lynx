@@ -58,6 +58,7 @@ export {
   useLocales,
   useMessageRole,
   useSettingsPanes,
+  useShortcuts,
   useSidebarRailItems,
   useSidebarSections,
   useSlashCommands,
