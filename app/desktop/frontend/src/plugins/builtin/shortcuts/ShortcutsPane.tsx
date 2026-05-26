@@ -32,15 +32,22 @@ const PC_LABELS: Record<string, string> = {
   meta: "Win",
 };
 
+// Named keys whose display form doesn't depend on platform — arrows
+// render as glyphs everywhere, "Escape" abbreviates to "Esc".
+const NAMED_KEYS: Record<string, string> = {
+  escape: "Esc",
+  arrowup: "↑",
+  arrowdown: "↓",
+  arrowleft: "←",
+  arrowright: "→",
+};
+
 function formatPart(part: string): string {
   const lower = part.toLowerCase();
-  const map = IS_MAC ? MAC_GLYPHS : PC_LABELS;
-  if (map[lower]) return map[lower];
-  if (lower === "escape") return "Esc";
-  if (lower === "arrowup") return "↑";
-  if (lower === "arrowdown") return "↓";
-  if (lower === "arrowleft") return "←";
-  if (lower === "arrowright") return "→";
+  const mod = (IS_MAC ? MAC_GLYPHS : PC_LABELS)[lower];
+  if (mod) return mod;
+  const named = NAMED_KEYS[lower];
+  if (named) return named;
   if (lower.length === 1) return lower.toUpperCase();
   // Capitalise multi-char keys (Enter, Tab, Space, …).
   return part.charAt(0).toUpperCase() + part.slice(1).toLowerCase();
