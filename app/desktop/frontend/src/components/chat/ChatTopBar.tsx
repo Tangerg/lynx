@@ -1,9 +1,19 @@
 // Topbar — heterogeneous tabs (chat sessions + workspace views) on
-// the left, plugin actions on the right. Single `activeId`; when a
-// view tab is active, ChatPanel swaps in its body. Hover === active
-// background; only the 2px accent underline marks the active tab.
+// the left, plugin actions pinned on the right. Single `activeId`;
+// when a view tab is active, ChatPanel swaps in its body. Hover ===
+// active background; only the 2px accent underline marks the active
+// tab.
+//
+// Layout: the tab strip is its own horizontal scroll viewport; the
+// plugin-actions Slot sits OUTSIDE that viewport so the "+" button
+// (and any future top-bar actions) stays visible regardless of how
+// many tabs are open. Mouse wheel inside the strip is mapped to
+// horizontal scroll so a regular mouse can navigate without using
+// the (deliberately hidden) scrollbar.
 
-import type {IconName} from "@/components/common";
+import type { IconName } from "@/components/common";
+import * as ContextMenu from "@radix-ui/react-context-menu";
+import { useCallback, useRef } from "react";
 import { dragClasses, Icon, noDragClasses, StatusDot } from "@/components/common";
 import { cn } from "@/lib/utils";
 import { Slot } from "@/plugins/Slot";
@@ -20,6 +30,17 @@ export interface ViewTab {
   icon?: string;
 }
 
+export interface TabBulkActions {
+  /** Close every tab of the same type except `id`. */
+  onCloseOthers: (id: string) => void;
+  /** Close every tab of the same type to the left of `id`. */
+  onCloseLeft: (id: string) => void;
+  /** Close every tab of the same type to the right of `id`. */
+  onCloseRight: (id: string) => void;
+  /** Close every tab of the same type. */
+  onCloseAll: () => void;
+}
+
 interface Props {
   tabs: ChatTab[];
   viewTabs: ViewTab[];
@@ -28,20 +49,9 @@ interface Props {
   onSelectView: (id: string) => void;
   onCloseChat: (id: string) => void;
   onCloseView: (id: string) => void;
+  chatBulk: TabBulkActions;
+  viewBulk: TabBulkActions;
 }
-
-// Shared tab pill — drives hover background, active accent underline,
-// interactive opt-out from the Wails drag region.
-const tabClass = (active: boolean) =>
-  cn(
-    "group relative inline-grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-1.5 rounded-t-md px-3 py-1.5 pr-2 text-[12.5px] text-fg-muted cursor-pointer min-w-[110px] max-w-[200px] transition-colors duration-150 ease-out",
-    noDragClasses,
-    "hover:bg-[color-mix(in_srgb,var(--color-text)_4%,transparent)] hover:text-fg",
-    active && [
-      "bg-[color-mix(in_srgb,var(--color-text)_4%,transparent)] text-fg",
-      "after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:bg-accent after:pointer-events-none",
-    ],
-  );
 
 export function ChatTopBar({
   tabs,
@@ -51,56 +61,169 @@ export function ChatTopBar({
   onSelectView,
   onCloseChat,
   onCloseView,
+  chatBulk,
+  viewBulk,
 }: Props) {
+  const stripRef = useRef<HTMLDivElement>(null);
+  const onWheel = useCallback((e: React.WheelEvent<HTMLDivElement>) => {
+    // Vertical wheel → horizontal scroll so a mouse user can navigate
+    // the strip without a visible scrollbar. Trackpad horizontal
+    // gestures already work as-is. Only intercept when the strip
+    // actually overflows; otherwise let the event bubble so the
+    // surrounding panel scroll keeps working.
+    const el = stripRef.current;
+    if (!el || e.deltaY === 0) return;
+    if (el.scrollWidth <= el.clientWidth) return;
+    el.scrollLeft += e.deltaY;
+    e.preventDefault();
+  }, []);
+
   return (
     <div className={cn("flex min-h-9 items-center gap-1 bg-surface px-4", dragClasses)}>
-      <div className="-mb-px flex min-w-0 flex-1 items-end gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        {tabs.map((t) => (
-          <div
+      <div
+        ref={stripRef}
+        onWheel={onWheel}
+        className="-mb-px flex min-w-0 flex-1 items-end gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      >
+        {tabs.map((t, i) => (
+          <TabItem
             key={`chat:${t.id}`}
-            className={tabClass(t.id === activeId)}
-            onClick={() => onSelectChat(t.id)}
-          >
-            <StatusDot tone={t.status} />
-            <span className="truncate font-semibold text-[12.5px] leading-tight" title={t.title}>
-              {t.title}
-            </span>
-            <span
-              className="grid h-5.5 w-5.5 place-items-center rounded text-fg-faint opacity-0 transition-all duration-150 group-hover:opacity-100 hover:bg-surface-3 hover:text-fg active:scale-90"
-              onClick={(e) => {
-                e.stopPropagation();
-                onCloseChat(t.id);
-              }}
-              title="Close"
-            >
-              <Icon name="x" size={10} />
-            </span>
-          </div>
+            active={t.id === activeId}
+            title={t.title}
+            leading={<StatusDot tone={t.status} />}
+            onSelect={() => onSelectChat(t.id)}
+            onClose={() => onCloseChat(t.id)}
+            bulk={chatBulk}
+            id={t.id}
+            isFirst={i === 0}
+            isLast={i === tabs.length - 1}
+            isOnly={tabs.length === 1}
+          />
         ))}
-        {viewTabs.map((t) => (
-          <div
+        {viewTabs.map((t, i) => (
+          <TabItem
             key={`view:${t.id}`}
-            className={tabClass(t.id === activeId)}
-            onClick={() => onSelectView(t.id)}
-          >
-            {t.icon && <Icon name={t.icon as IconName} size={11} />}
-            <span className="truncate font-semibold text-[12.5px] leading-tight" title={t.title}>
-              {t.title}
-            </span>
-            <span
-              className="grid h-5.5 w-5.5 place-items-center rounded text-fg-faint opacity-0 transition-all duration-150 group-hover:opacity-100 hover:bg-surface-3 hover:text-fg active:scale-90"
-              onClick={(e) => {
-                e.stopPropagation();
-                onCloseView(t.id);
-              }}
-              title="Close"
-            >
-              <Icon name="x" size={10} />
-            </span>
-          </div>
+            active={t.id === activeId}
+            title={t.title}
+            leading={t.icon ? <Icon name={t.icon as IconName} size={11} /> : null}
+            onSelect={() => onSelectView(t.id)}
+            onClose={() => onCloseView(t.id)}
+            bulk={viewBulk}
+            id={t.id}
+            isFirst={i === 0}
+            isLast={i === viewTabs.length - 1}
+            isOnly={viewTabs.length === 1}
+          />
         ))}
-        <Slot name="chat.topbar.actions" />
       </div>
+      <Slot name="chat.topbar.actions" />
     </div>
+  );
+}
+
+interface TabItemProps {
+  id: string;
+  active: boolean;
+  title: string;
+  leading: React.ReactNode;
+  onSelect: () => void;
+  onClose: () => void;
+  bulk: TabBulkActions;
+  isFirst: boolean;
+  isLast: boolean;
+  isOnly: boolean;
+}
+
+function TabItem({
+  id,
+  active,
+  title,
+  leading,
+  onSelect,
+  onClose,
+  bulk,
+  isFirst,
+  isLast,
+  isOnly,
+}: TabItemProps) {
+  return (
+    <ContextMenu.Root>
+      <ContextMenu.Trigger asChild>
+        <div
+          className={cn(
+            "group relative inline-grid shrink-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-1.5 rounded-t-md px-3 py-1.5 pr-2 text-[12.5px] text-fg-muted cursor-pointer min-w-[110px] max-w-[200px] transition-colors duration-150 ease-out",
+            noDragClasses,
+            "hover:bg-[color-mix(in_srgb,var(--color-text)_4%,transparent)] hover:text-fg",
+            active && [
+              "bg-[color-mix(in_srgb,var(--color-text)_4%,transparent)] text-fg",
+              "after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:bg-accent after:pointer-events-none",
+            ],
+          )}
+          onClick={onSelect}
+          onAuxClick={(e) => {
+            // Middle-click closes — matches every IDE / browser tab
+            // convention. button=1 is the wheel button.
+            if (e.button === 1) {
+              e.preventDefault();
+              onClose();
+            }
+          }}
+        >
+          {leading}
+          <span className="truncate font-semibold text-[12.5px] leading-tight" title={title}>
+            {title}
+          </span>
+          <span
+            className="grid h-5.5 w-5.5 place-items-center rounded text-fg-faint opacity-0 transition-all duration-150 group-hover:opacity-100 hover:bg-surface-3 hover:text-fg active:scale-90"
+            onClick={(e) => {
+              e.stopPropagation();
+              onClose();
+            }}
+            title="Close"
+          >
+            <Icon name="x" size={10} />
+          </span>
+        </div>
+      </ContextMenu.Trigger>
+      <ContextMenu.Portal>
+        <ContextMenu.Content
+          className="z-50 min-w-[180px] rounded-md border border-line bg-surface p-1 text-[12.5px] text-fg shadow-pop"
+          collisionPadding={8}
+        >
+          <TabMenuItem onSelect={onClose}>Close</TabMenuItem>
+          <TabMenuItem disabled={isOnly} onSelect={() => bulk.onCloseOthers(id)}>
+            Close Others
+          </TabMenuItem>
+          <TabMenuItem disabled={isFirst} onSelect={() => bulk.onCloseLeft(id)}>
+            Close Tabs to the Left
+          </TabMenuItem>
+          <TabMenuItem disabled={isLast} onSelect={() => bulk.onCloseRight(id)}>
+            Close Tabs to the Right
+          </TabMenuItem>
+          <ContextMenu.Separator className="my-1 h-px bg-line" />
+          <TabMenuItem onSelect={bulk.onCloseAll}>Close All</TabMenuItem>
+        </ContextMenu.Content>
+      </ContextMenu.Portal>
+    </ContextMenu.Root>
+  );
+}
+
+function TabMenuItem({
+  children,
+  disabled,
+  onSelect,
+}: {
+  children: React.ReactNode;
+  disabled?: boolean;
+  onSelect: () => void;
+}) {
+  return (
+    <ContextMenu.Item
+      disabled={disabled}
+      onSelect={onSelect}
+      className="rounded px-2 py-1 outline-none data-[highlighted]:bg-surface-2 data-[disabled]:cursor-not-allowed data-[disabled]:text-fg-faint cursor-pointer"
+    >
+      {children}
+    </ContextMenu.Item>
   );
 }
