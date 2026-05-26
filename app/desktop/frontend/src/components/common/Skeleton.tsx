@@ -27,9 +27,25 @@ function SkeletonRow() {
   );
 }
 
-export function SkeletonList({ count = 4, style }: { count?: number; style?: CSSProperties }) {
+export function SkeletonList({
+  count = 4,
+  style,
+  label = "Loading…",
+}: {
+  count?: number;
+  style?: CSSProperties;
+  /** Screen-reader announcement. Default matches the visual shimmer's intent. */
+  label?: string;
+}) {
   return (
-    <div className="flex flex-col gap-2 px-3 py-2" style={style}>
+    <div
+      className="flex flex-col gap-2 px-3 py-2"
+      style={style}
+      role="status"
+      aria-busy="true"
+      aria-live="polite"
+    >
+      <span className="sr-only">{label}</span>
       {Array.from({ length: count }, (_, i) => (
         <SkeletonRow key={i} />
       ))}

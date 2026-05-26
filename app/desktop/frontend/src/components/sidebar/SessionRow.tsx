@@ -37,10 +37,13 @@ export function SessionRow({ session, active, onSelect }: Props) {
         : formatRelative(session.time);
 
   return (
-    <div
+    <button
+      type="button"
       onClick={() => onSelect(session.id)}
+      aria-current={active ? "page" : undefined}
+      aria-label={session.title}
       className={cn(
-        "group relative grid grid-cols-[18px_minmax(0,1fr)] items-center gap-2.5 rounded-lg px-2.5 py-2 cursor-pointer transition-colors duration-150 hover:bg-surface-2",
+        "group relative grid w-full grid-cols-[18px_minmax(0,1fr)] items-center gap-2.5 rounded-lg border-0 bg-transparent px-2.5 py-2 text-left cursor-pointer transition-colors duration-150 hover:bg-surface-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent",
         active && [
           "bg-surface-2",
           "before:content-[''] before:absolute before:-left-1 before:top-2 before:bottom-2 before:w-[3px] before:bg-accent before:rounded-full",
@@ -72,6 +75,6 @@ export function SessionRow({ session, active, onSelect }: Props) {
           <span className="truncate">{subText}</span>
         </div>
       </div>
-    </div>
+    </button>
   );
 }

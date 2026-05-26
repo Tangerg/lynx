@@ -24,15 +24,14 @@ export function Chip({ icon, children, title, onClose }: Props) {
       {icon && <Icon name={icon} size={11} />}
       <span className="max-w-[220px] truncate">{children}</span>
       {onClose && (
-        <span
-          className="grid h-5 w-5 place-items-center rounded-full text-fg-faint opacity-0 scale-90 cursor-pointer transition-all group-hover:opacity-100 group-hover:scale-100 group-focus-within:opacity-100 hover:bg-line-soft hover:text-fg active:scale-90"
+        <button
+          type="button"
+          className="grid h-5 w-5 place-items-center rounded-full border-0 bg-transparent text-fg-faint opacity-0 scale-90 cursor-pointer transition-all group-hover:opacity-100 group-hover:scale-100 group-focus-within:opacity-100 hover:bg-line-soft hover:text-fg active:scale-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent"
           onClick={onClose}
-          role="button"
           aria-label="Remove"
-          tabIndex={0}
         >
           <Icon name="x" size={10} />
-        </span>
+        </button>
       )}
     </span>
   );
