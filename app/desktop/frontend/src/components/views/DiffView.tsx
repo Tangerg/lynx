@@ -1,5 +1,5 @@
 import type { Highlighter } from "shiki";
-import type { DiffRow } from "@/components/tools/previews";
+import type { DiffRow } from "@/lib/queries";
 import { useEffect, useMemo, useState } from "react";
 import { getHighlighter } from "@/lib/shiki";
 import { cn } from "@/lib/utils";

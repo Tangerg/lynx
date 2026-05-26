@@ -10,7 +10,7 @@
 //            live AG-UI agent). Kept as a prop so ChatPanel itself
 //            has no opinion about *how* messages get to the agent.
 
-import type { ComposerMode } from "./Composer";
+import type { ComposerMode } from "@/state/composerStore";
 import { Panel } from "@/components/common";
 import { useSessions } from "@/lib/queries";
 import { useSessionStore } from "@/state/sessionStore";

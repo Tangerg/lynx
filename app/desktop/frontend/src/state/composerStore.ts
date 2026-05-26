@@ -1,5 +1,14 @@
-import type { Attachment, ComposerMode } from "@/components/chat/Composer";
 import { create } from "zustand";
+
+// Composer data shapes. Declared here (the data owner) instead of in
+// `components/chat/Composer.tsx` so the store doesn't have to import
+// upward into the presentation layer. The icon field stays a `string`
+// — components cast to their typed IconName union at render time.
+export type ComposerMode = string;
+export interface Attachment {
+  label: string;
+  icon?: string;
+}
 
 interface ComposerState {
   value: string;

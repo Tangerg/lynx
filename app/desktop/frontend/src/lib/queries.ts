@@ -6,11 +6,68 @@
 // them (fixture data, IPC, in-memory mock, …).
 
 import type {UseQueryResult} from "@tanstack/react-query";
-import type { SidebarProject, SidebarSession } from "@/components/sidebar/types";
-import type { DiffRow, FileLine, GrepMatch, TermLine } from "@/components/tools/previews";
-import type { FileChange, MCPServer } from "@/components/views/types";
 import { useQuery  } from "@tanstack/react-query";
 import { lookupDataProvider } from "@/plugins/sdk";
+
+// ---- API response shapes ---------------------------------------------------
+//
+// Declared here (the data fetcher) rather than in the rendering
+// components so neither state/ nor lib/ has to import upward into
+// components/ for type-only metadata. Components import these types
+// from `@/lib/queries` when they need to type a row prop.
+
+export interface SidebarSession {
+  id: string;
+  title: string;
+  status: "running" | "waiting" | "idle";
+  model: string;
+  time: string;
+}
+
+export interface SidebarProject {
+  id: string;
+  name: string;
+  branch: string;
+  active?: boolean;
+}
+
+export interface FileChange {
+  path: string;
+  change: "add" | "mod" | "del";
+  added: number;
+  removed: number;
+}
+
+export interface MCPServer {
+  id: string;
+  name: string;
+  desc: string;
+  tools: number;
+  status: "active" | "idle" | "error";
+  icon: string;
+}
+
+export interface TermLine {
+  kind: "prompt" | "cmd" | "out" | "err" | "warn" | "mute" | "ok";
+  text: string;
+}
+
+export type DiffRow =
+  | { type: "hunk"; text: string }
+  | { type: "ctx"; l: number; r: number; code: string }
+  | { type: "add"; r: number; code: string }
+  | { type: "del"; l: number; code: string };
+
+export interface GrepMatch {
+  path: string;
+  match: string;
+}
+
+export interface FileLine {
+  ln: string;       // line number or marker like "···"
+  code: string;     // already-rendered HTML
+  muted?: boolean;
+}
 
 // Shape returned by /grep — matches plus a "more matches" total.
 export interface GrepResult { matches: GrepMatch[]; total: number }

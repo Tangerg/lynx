@@ -2,10 +2,22 @@
 // side-effects at the bottom of this file mirror the active spec to
 // :root (inline CSS vars + theme-{scheme} class on <html>).
 
-import type { Theme } from "@/components/sidebar/types";
 import { colord } from "colord";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
+
+/**
+ * A theme id — references a `ThemeSpec` registered via
+ * `host.theme.registerTheme()`. Built-ins ship as `"dark"` / `"light"`
+ * + the 8 IDE-style packs; plugins can add more.
+ *
+ * Code that needs the binary dark/light distinction (shiki / mermaid
+ * presets, asset selection) should read the active theme's `scheme`
+ * via `resolveScheme(themeId)` from `@/plugins/sdk` rather than
+ * comparing the id directly — custom themes like "solarized-dark"
+ * would otherwise fall through.
+ */
+export type Theme = string;
 // Direct registry import — going through the SDK barrel pulls in
 // host.ts which imports this file, creating a TDZ cycle under Vitest.
 import { usePluginStore } from "@/plugins/sdk/registry";
