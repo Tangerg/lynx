@@ -84,11 +84,17 @@ export function MarkdownMessage({ text, streaming, instant }: Props) {
     <div className="md">
       {blocks.map((block, i) => (
         <MarkdownBlock
-          // Block content is the stable identity — re-keying by index
-          // would remount the tail block every render and lose its
-          // memo. By keying on content, completed blocks keep their
-          // React fibers across re-renders.
-          key={`${i}:${block}`}
+          // Index keys are right here even though they're "wrong" for
+          // reorderable lists: markdown blocks are append-only during
+          // streaming, so position is a stable identity. Keying by
+          // content would change the key on every tail-block edit
+          // (new token = new content = new key) and force React to
+          // unmount the old fiber + mount a fresh one each tick,
+          // losing useState / useEffect. With index keys, React reuses
+          // the fiber and `memo` decides whether to re-run render:
+          // completed blocks bail (text unchanged), tail block runs
+          // the pipeline without the mount cost.
+          key={i}
           text={block}
           // Only the tail block is "streaming" — earlier blocks have
           // settled, no fade-in / no caret pulses needed.
