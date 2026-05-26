@@ -106,14 +106,6 @@ const messages: Record<Locale, Record<string, string>> = {
     "session.status.running": "Running",
     "session.status.waiting": "Needs input",
 
-    "time.now": "just now",
-    "time.minutes_one": "{{count}} minute ago",
-    "time.minutes_other": "{{count}} minutes ago",
-    "time.hours_one": "{{count}} hour ago",
-    "time.hours_other": "{{count}} hours ago",
-    "time.days_one": "{{count}} day ago",
-    "time.days_other": "{{count}} days ago",
-
     "iconGallery.empty": 'No icons match "{{q}}".',
   },
   zh: {
@@ -209,14 +201,6 @@ const messages: Record<Locale, Record<string, string>> = {
 
     "session.status.running": "运行中",
     "session.status.waiting": "等待输入",
-
-    "time.now": "刚才",
-    "time.minutes_one": "{{count}} 分钟前",
-    "time.minutes_other": "{{count}} 分钟前",
-    "time.hours_one": "{{count}} 小时前",
-    "time.hours_other": "{{count}} 小时前",
-    "time.days_one": "{{count}} 天前",
-    "time.days_other": "{{count}} 天前",
   },
 };
 
