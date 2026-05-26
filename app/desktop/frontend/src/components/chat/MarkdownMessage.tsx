@@ -21,54 +21,37 @@ import "remark-github-blockquote-alert/alert.css";
 interface Props {
   text: string;
   streaming?: boolean;
-  /**
-   * Render synchronously without smoothing or fade-in. Used for
-   * user-typed messages — the author already saw what they typed, so
-   * animating it back feels patronizing.
-   */
+  /** Skip smoothing + fade-in. User-typed messages set this — the
+   *  author already saw what they typed; animating it back is noise. */
   instant?: boolean;
 }
 
-// Stable plugin list — keeps react-markdown from treating each render
-// as a new plugin set.
-//   remarkGfm           — tables / strikethrough / task lists
-//   remarkBreaks        — single \n → <br> (LLMs expect that)
-//   remarkCjkFriendly   — fix bold/italic boundaries on CJK text
-//   remarkMath          — parse $…$ / $$…$$ blocks
-//   remarkAlert         — GitHub `> [!NOTE]` / [!WARNING] / etc. callouts
+// Module-level plugin lists keep react-markdown from treating each
+// render as a new plugin set. Order matters in the rehype chain — see
+// the MarkdownBlock comment for the pipeline.
 const remarkPlugins = [remarkGfm, remarkBreaks, remarkCjkFriendly, remarkMath, remarkAlert];
 
-// rehypeRaw lets the markdown pipe parse inline HTML — `<details>`,
-// `<kbd>`, `<sub>`, `<sup>`, `<mark>`, `<table>` etc. that agents
-// regularly emit. We pass a strict allow list (`allowElement`) below
-// so scripts / iframes / objects / embeds can't sneak through.
+// Tags that can execute / break sandbox even if the model emitted
+// them as raw HTML — blocklist takes precedence over rehype-raw.
 const DENIED_HTML_TAGS = new Set(["script", "iframe", "object", "embed", "form"]);
-
 const allowElement = (el: { tagName: string }) => !DENIED_HTML_TAGS.has(el.tagName);
 
-// MarkdownMessage — full Markdown with optional smooth-streamed per-
-// word fade-in.
+// MarkdownMessage — block-level memoised markdown renderer.
 //
-// Renderer strategy: borrow Vercel `streamdown`'s tested block splitter
-// (`parseMarkdownIntoBlocks` — handles unclosed code fences / math /
-// HTML tag balancing), but keep our own react-markdown + plugins +
-// components map underneath. Each block is its own memoised
-// `<MarkdownBlock>`, so on every smooth-text tick only the tail block
-// re-runs the remark→rehype→react pipeline; completed blocks stay
-// inert.
-//
-// Why not the full <Streamdown> component: it ships its own
-// `<span data-streamdown="strong">` design system that bypasses
-// `.md *` CSS rules we already maintain. The splitter alone is the
-// piece worth keeping.
+// We use Vercel `streamdown`'s tested `parseMarkdownIntoBlocks` (handles
+// unclosed code fences / math / HTML tag balancing during streaming)
+// but keep our own react-markdown + plugins + components map underneath
+// — Streamdown's <Streamdown> ships its own `<span data-streamdown=
+// "strong">` design system that bypasses `.md` CSS. Each block is its
+// own memoised <MarkdownBlock>; only the tail block re-parses on each
+// smooth-text tick.
 export function MarkdownMessage({ text, streaming, instant }: Props) {
   const smoothed = useSmoothText(text, !instant && !!streaming);
   const display = instant ? text : smoothed;
 
   // remend (auto-close unterminated bold / inline code / fenced blocks)
-  // runs on the *full* display text before splitting — block boundaries
-  // are easier to detect on well-formed markdown. Skipped for instant
-  // messages (user input is always complete).
+  // runs on the *full* display before splitting — block boundaries read
+  // more reliably on well-formed markdown. Skipped for instant messages.
   const repaired = useMemo(() => {
     if (instant) return display;
     const start = performance.now();
@@ -83,21 +66,16 @@ export function MarkdownMessage({ text, streaming, instant }: Props) {
   return (
     <div className="md">
       {blocks.map((block, i) => (
+        // Index keys are correct here: markdown blocks are append-only
+        // during streaming, so position is a stable identity. Keying by
+        // content would change the key on every tail-block edit and
+        // force React to unmount + remount the fiber each tick — losing
+        // useState / useEffect. With index keys the fiber survives and
+        // `memo` decides re-render: completed blocks bail, tail block
+        // runs the pipeline without the mount cost.
         <MarkdownBlock
-          // Index keys are right here even though they're "wrong" for
-          // reorderable lists: markdown blocks are append-only during
-          // streaming, so position is a stable identity. Keying by
-          // content would change the key on every tail-block edit
-          // (new token = new content = new key) and force React to
-          // unmount the old fiber + mount a fresh one each tick,
-          // losing useState / useEffect. With index keys, React reuses
-          // the fiber and `memo` decides whether to re-run render:
-          // completed blocks bail (text unchanged), tail block runs
-          // the pipeline without the mount cost.
           key={i}
           text={block}
-          // Only the tail block is "streaming" — earlier blocks have
-          // settled, no fade-in / no caret pulses needed.
           streaming={!!streaming && i === lastIdx}
           instant={instant}
         />
@@ -106,34 +84,26 @@ export function MarkdownMessage({ text, streaming, instant }: Props) {
   );
 }
 
-// Cheap "this block contains math" probe. A literal `$` is enough —
-// false positives (a paragraph mentioning USD prices) just preload
-// the KaTeX stylesheet earlier than strictly necessary, which is
-// harmless. remarkMath / rehype-katex won't actually render anything
-// without proper `$…$` pairs.
-function blockHasMath(text: string): boolean {
-  return text.includes("$");
-}
-
-// Single block of markdown — paragraph / fenced code / list / heading.
-// Memoised on its content + flags so a re-render of the parent that
-// doesn't change this block's text skips the entire react-markdown
-// pipeline for it. `streaming` is forwarded but doesn't currently
-// gate any plugin — kept in the signature so future per-block UI
-// (e.g. a tail caret) has a clean prop to read.
+// Single markdown block — paragraph / fence / list / heading. Memoised
+// on its content + flags. `streaming` is forwarded but doesn't gate
+// any plugin yet; kept on the signature for future per-block UI
+// (e.g. a tail caret) that needs the bit.
 const MarkdownBlock = memo(function MarkdownBlock({ text, instant }: Props) {
-  // Pull in the KaTeX stylesheet the first time a math-bearing block
-  // mounts. Skips the ~30KB CSS for math-free sessions entirely.
-  const hasMath = blockHasMath(text);
+  // Pull in the KaTeX stylesheet (~30KB) the first time a math-bearing
+  // block mounts. Probe is just `$` — false positives (USD prices)
+  // preload the CSS earlier than strictly needed, which is harmless;
+  // remarkMath itself ignores ambiguous single-`$` cases at render.
+  const hasMath = text.includes("$");
   useEffect(() => {
     if (hasMath) ensureKatexCss();
   }, [hasMath]);
+
   // Pipeline: rehypeRaw (parse inline HTML) → rehypeCitations (swap
   // `[n]` markers for <sup> badges) → rehypeFadeIn (per-word streaming
-  // animation, non-instant only — the CSS animation runs once per
-  // span mount, so settled blocks animate on first paint then stay
-  // inert) → rehypeKatex (math). rehypeRaw must come first so later
-  // rehype plugins see the expanded tree.
+  // animation, non-instant only — CSS runs once per span mount, so
+  // settled blocks animate on first paint then stay inert) →
+  // rehypeKatex. rehypeRaw must come first so later plugins see the
+  // expanded tree.
   const rehypePlugins = useMemo(
     () =>
       instant
