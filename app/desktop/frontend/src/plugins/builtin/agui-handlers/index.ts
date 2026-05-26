@@ -5,7 +5,14 @@
 // touching the others. Co-located here because each handler is a single
 // `host.agui.on(...)` call.
 
-import { appendBlockToMessage, definePlugin, patchRun, setPlan } from "@/plugins/sdk";
+import {
+  appendBlockToMessage,
+  appendTimelineEntry,
+  compose,
+  definePlugin,
+  patchRun,
+  setPlan,
+} from "@/plugins/sdk";
 import { CUSTOM } from "@/protocol/agui/customEvents";
 import {
   ApprovalRequestSchema,
@@ -29,13 +36,20 @@ export const approvalHandler = definePlugin({
     host.agui.on(
       CUSTOM.APPROVAL,
       withSchema(CUSTOM.APPROVAL, ApprovalRequestSchema, (value) =>
-        appendBlockToMessage(value.parentMessageId, {
-          kind: "approval",
-          text: value.text,
-          command: value.command,
-          reason: value.reason,
-          requestId: value.requestId,
-        }),
+        compose(
+          appendBlockToMessage(value.parentMessageId, {
+            kind: "approval",
+            text: value.text,
+            command: value.command,
+            reason: value.reason,
+            requestId: value.requestId,
+          }),
+          appendTimelineEntry({
+            kind: "approval-request",
+            summary: value.command || value.text,
+            refId: value.requestId,
+          }),
+        ),
       ),
     );
 
@@ -45,17 +59,26 @@ export const approvalHandler = definePlugin({
     // on the result event.
     host.agui.on(
       CUSTOM.APPROVAL_RESULT,
-      withSchema(CUSTOM.APPROVAL_RESULT, ApprovalResultSchema, (value) => (state) => ({
-        ...state,
-        messages: state.messages.map((m) => ({
-          ...m,
-          blocks: m.blocks.map((b) =>
-            b.kind === "approval" && b.requestId === value.requestId
-              ? { ...b, decision: value.decision }
-              : b,
-          ),
-        })),
-      })),
+      withSchema(CUSTOM.APPROVAL_RESULT, ApprovalResultSchema, (value) =>
+        compose(
+          (state) => ({
+            ...state,
+            messages: state.messages.map((m) => ({
+              ...m,
+              blocks: m.blocks.map((b) =>
+                b.kind === "approval" && b.requestId === value.requestId
+                  ? { ...b, decision: value.decision }
+                  : b,
+              ),
+            })),
+          }),
+          appendTimelineEntry({
+            kind: "approval-result",
+            refId: value.requestId,
+            status: value.decision,
+          }),
+        ),
+      ),
     );
   },
 });

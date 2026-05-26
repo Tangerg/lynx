@@ -71,6 +71,7 @@ export { useSharedState } from "./sharedState";
 export {
   appendBlockToLatestAssistant,
   appendBlockToMessage,
+  appendTimelineEntry,
   compose,
   patchRun,
   setPlan,

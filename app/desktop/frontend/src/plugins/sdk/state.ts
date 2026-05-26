@@ -16,6 +16,7 @@ import type {
   ContentBlockMap,
   Message,
   PlanItem,
+  TimelineEntry,
 } from "@/protocol/agui/viewState";
 
 /** Append a content block to a specific message by id. No-op if not found. */
@@ -57,6 +58,29 @@ export function patchRun(patch: Partial<AgentViewState["run"]>): StateUpdate {
 /** Compose a sequence of updates. Useful when one handler does several things. */
 export function compose(...updates: StateUpdate[]): StateUpdate {
   return (state) => updates.reduce((acc, u) => u(acc), state);
+}
+
+/** Append a structured entry to the run timeline. Custom-event handlers
+ *  use this to surface approval / checkpoint / other domain markers in
+ *  the Run Timeline view. Core handlers append directly via helpers; this
+ *  SDK helper exists so plugins outside core-reducer can do the same. */
+let timelineSeq = 0;
+export function appendTimelineEntry(
+  entry: Omit<TimelineEntry, "id" | "ts" | "runId"> & { runId?: string | null },
+): StateUpdate {
+  return (state) => {
+    timelineSeq += 1;
+    const full: TimelineEntry = {
+      id: `tl:${Date.now()}:${timelineSeq}`,
+      ts: Date.now(),
+      runId: entry.runId ?? state.run.runId,
+      kind: entry.kind,
+      summary: entry.summary,
+      refId: entry.refId,
+      status: entry.status,
+    };
+    return { ...state, timeline: [...state.timeline, full] };
+  };
 }
 
 // ---- internal -------------------------------------------------------------

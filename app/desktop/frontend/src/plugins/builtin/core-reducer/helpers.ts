@@ -3,7 +3,7 @@
 
 import type { BaseEvent } from "@ag-ui/core";
 import type { CoreEventHandler } from "@/plugins/sdk";
-import type { AgentViewState, ContentBlock, Message, ToolCall } from "@/protocol/agui/viewState";
+import type { AgentViewState, ContentBlock, Message, TimelineEntry, ToolCall } from "@/protocol/agui/viewState";
 
 // Erases each handler's specific event variant down to BaseEvent so a
 // uniform `[EventType, CoreEventHandler]` table can carry them all. The
@@ -137,6 +137,26 @@ let thinkingBlockSeq = 0;
 export function nextThinkingId(): string {
   thinkingBlockSeq += 1;
   return `thinking:${Date.now()}:${thinkingBlockSeq}`;
+}
+
+// Monotonic timeline-entry id. Combines a counter with Date.now() so
+// entries are stable for React keys *and* sort sensibly across reloads.
+let timelineSeq = 0;
+export function appendTimeline(
+  state: AgentViewState,
+  entry: Omit<TimelineEntry, "id" | "ts" | "runId"> & { runId?: string | null },
+): AgentViewState {
+  timelineSeq += 1;
+  const full: TimelineEntry = {
+    id: `tl:${Date.now()}:${timelineSeq}`,
+    ts: Date.now(),
+    runId: entry.runId ?? state.run.runId,
+    kind: entry.kind,
+    summary: entry.summary,
+    refId: entry.refId,
+    status: entry.status,
+  };
+  return { ...state, timeline: [...state.timeline, full] };
 }
 
 export function updateActivity(

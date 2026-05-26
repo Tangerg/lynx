@@ -290,6 +290,67 @@ describe("reducer — run error / step finished", () => {
   });
 });
 
+describe("reducer — timeline accumulator", () => {
+  it("records run-start / tool-start+end / run-end entries in order", () => {
+    let s: AgentViewState = INITIAL_VIEW_STATE;
+    s = reduce(s, ev({ type: EventType.RUN_STARTED, threadId: "t", runId: "r1" }));
+    s = reduce(s, ev({ type: EventType.TEXT_MESSAGE_START, messageId: "m1", role: "assistant" }));
+    s = reduce(
+      s,
+      ev({
+        type: EventType.TOOL_CALL_START,
+        toolCallId: "tc1",
+        toolCallName: "bash",
+        parentMessageId: "m1",
+      }),
+    );
+    s = reduce(s, ev({ type: EventType.TOOL_CALL_END, toolCallId: "tc1" }));
+    s = reduce(s, ev({ type: EventType.RUN_FINISHED, threadId: "t", runId: "r1" }));
+
+    const kinds = s.timeline.map((t) => t.kind);
+    expect(kinds).toEqual(["run-start", "tool-start", "tool-end", "run-end"]);
+    expect(s.timeline.every((t) => t.runId === "r1")).toBe(true);
+    expect(s.timeline.find((t) => t.kind === "tool-end")?.status).toBe("ok");
+    expect(s.timeline.find((t) => t.kind === "tool-start")?.summary).toBe("bash");
+  });
+
+  it("records approval-request + approval-result when handler loaded", async () => {
+    const { approvalHandler: spec } = await import("@/plugins/builtin/agui-handlers");
+    await loadPlugin(spec);
+
+    let s: AgentViewState = INITIAL_VIEW_STATE;
+    s = reduce(s, ev({ type: EventType.RUN_STARTED, threadId: "t", runId: "r1" }));
+    s = reduce(s, ev({ type: EventType.TEXT_MESSAGE_START, messageId: "m1", role: "assistant" }));
+    s = reduce(
+      s,
+      ev({
+        type: EventType.CUSTOM,
+        name: CUSTOM.APPROVAL,
+        value: {
+          requestId: "req-1",
+          parentMessageId: "m1",
+          text: "Run migration?",
+          command: "psql -f migrate.sql",
+          reason: "deploy",
+        },
+      }),
+    );
+    s = reduce(
+      s,
+      ev({
+        type: EventType.CUSTOM,
+        name: CUSTOM.APPROVAL_RESULT,
+        value: { requestId: "req-1", decision: "approved" },
+      }),
+    );
+
+    const approval = s.timeline.filter((t) => t.kind.startsWith("approval"));
+    expect(approval.map((t) => t.kind)).toEqual(["approval-request", "approval-result"]);
+    expect(approval[0].refId).toBe("req-1");
+    expect(approval[1].status).toBe("approved");
+  });
+});
+
 describe("reducer — chunk variants", () => {
   it("tEXT_MESSAGE_CHUNK materializes message on first chunk and appends deltas", () => {
     let s: AgentViewState = INITIAL_VIEW_STATE;

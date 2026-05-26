@@ -97,12 +97,46 @@ export interface RunState {
  *  next time RUN_STARTED fires. */
 export interface RunError { message: string; code?: string }
 
+/** One entry on the per-thread event timeline. Drives the Run Timeline
+ *  workspace view (UX review §2.2: "工具调用缺少统一 timeline").
+ *
+ *  Kept structural rather than message-shaped on purpose — the message
+ *  stream is for *reading*, the timeline is for *auditing* what the
+ *  agent did. Renderers may collapse / filter / group by `runId`. */
+export type TimelineEntryKind =
+  | "run-start"
+  | "run-end"
+  | "run-error"
+  | "step-start"
+  | "step-end"
+  | "tool-start"
+  | "tool-end"
+  | "reasoning-start"
+  | "reasoning-end"
+  | "approval-request"
+  | "approval-result";
+
+export interface TimelineEntry {
+  id: string;
+  ts: number;
+  kind: TimelineEntryKind;
+  runId: string | null;
+  /** Optional short label — tool fn name, approval command, error msg. */
+  summary?: string;
+  /** ToolCallId / requestId / reasoningId — used to deeplink + dedupe. */
+  refId?: string;
+  /** Settled status for tool-end / approval-result / run-end / run-error. */
+  status?: "ok" | "err" | "approved" | "declined";
+}
+
 export interface AgentViewState {
   messages: Message[];
   toolCalls: Record<string, ToolCall>;
   plan: PlanItem[];
   run: RunState;
   error: RunError | null;
+  /** Append-only audit log of run-significant events. See TimelineEntry. */
+  timeline: TimelineEntry[];
   /**
    * Backend-owned shared state — AG-UI STATE_SNAPSHOT / STATE_DELTA.
    * Free-form JSON the agent maintains and the UI observes; plugins use
@@ -128,5 +162,6 @@ export const INITIAL_VIEW_STATE: AgentViewState = {
     cost: "0.00",
   },
   error: null,
+  timeline: [],
   shared: {},
 };
