@@ -10,11 +10,11 @@ import (
 	ollamaapi "github.com/ollama/ollama/api"
 )
 
-// ApiConfig configures the Ollama native client. Unlike cloud
+// APIConfig configures the Ollama native client. Unlike cloud
 // providers, Ollama runs locally so the typical config is just the
 // BaseURL of the daemon (default: http://127.0.0.1:11434). There is no
 // API key.
-type ApiConfig struct {
+type APIConfig struct {
 	// BaseURL points at the Ollama daemon. Empty falls back to
 	// [DefaultBaseURL]. Pass an env value like
 	// "https://ollama.internal:11434" for remote setups.
@@ -25,21 +25,21 @@ type ApiConfig struct {
 	HTTPClient *http.Client
 }
 
-func (c *ApiConfig) validate() error {
+func (c *APIConfig) validate() error {
 	if c == nil {
 		return errors.New("ollama: config must not be nil")
 	}
 	return nil
 }
 
-// Api wraps Ollama's native client. We use the official SDK's typed
+// API wraps Ollama's native client. We use the official SDK's typed
 // surface for chat/embed (the SDK is hosted at github.com/ollama/ollama/api
 // in the same repo as the daemon).
-type Api struct {
+type API struct {
 	client *ollamaapi.Client
 }
 
-func NewApi(cfg *ApiConfig) (*Api, error) {
+func NewAPI(cfg *APIConfig) (*API, error) {
 	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
@@ -54,13 +54,13 @@ func NewApi(cfg *ApiConfig) (*Api, error) {
 		httpClient = http.DefaultClient
 	}
 
-	return &Api{client: ollamaapi.NewClient(u, httpClient)}, nil
+	return &API{client: ollamaapi.NewClient(u, httpClient)}, nil
 }
 
 // Chat wraps client.Chat. The Ollama SDK uses a streaming callback for
 // both sync and stream paths — Stream=false on the request still goes
 // through the callback but fires exactly once with the complete reply.
-func (a *Api) Chat(ctx context.Context, req *ollamaapi.ChatRequest, fn ollamaapi.ChatResponseFunc) error {
+func (a *API) Chat(ctx context.Context, req *ollamaapi.ChatRequest, fn ollamaapi.ChatResponseFunc) error {
 	if req == nil {
 		return errors.New("ollama: request must not be nil")
 	}
@@ -68,7 +68,7 @@ func (a *Api) Chat(ctx context.Context, req *ollamaapi.ChatRequest, fn ollamaapi
 }
 
 // Embed wraps client.Embed.
-func (a *Api) Embed(ctx context.Context, req *ollamaapi.EmbedRequest) (*ollamaapi.EmbedResponse, error) {
+func (a *API) Embed(ctx context.Context, req *ollamaapi.EmbedRequest) (*ollamaapi.EmbedResponse, error) {
 	if req == nil {
 		return nil, errors.New("ollama: request must not be nil")
 	}

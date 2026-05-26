@@ -11,7 +11,7 @@ import (
 )
 
 type ModerationModelConfig struct {
-	ApiKey         model.ApiKey
+	APIKey         model.APIKey
 	DefaultOptions *moderation.Options
 	BaseURL        string
 	HTTPClient     *http.Client
@@ -21,8 +21,8 @@ func (c *ModerationModelConfig) validate() error {
 	if c == nil {
 		return errors.New("mistral: config must not be nil")
 	}
-	if c.ApiKey == nil {
-		return errors.New("mistral: ApiKey is required")
+	if c.APIKey == nil {
+		return errors.New("mistral: APIKey is required")
 	}
 	if c.DefaultOptions == nil {
 		return errors.New("mistral: DefaultOptions is required")
@@ -39,7 +39,7 @@ var _ moderation.Model = (*ModerationModel)(nil)
 // [moderation.Moderation] slots so callers writing provider-agnostic
 // policy code still see flags / scores in the standard fields.
 type ModerationModel struct {
-	api            *Api
+	api            *API
 	defaultOptions *moderation.Options
 }
 
@@ -47,7 +47,7 @@ func NewModerationModel(cfg *ModerationModelConfig) (*ModerationModel, error) {
 	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
-	api, err := NewApi(&ApiConfig{ApiKey: cfg.ApiKey, BaseURL: cfg.BaseURL, HTTPClient: cfg.HTTPClient})
+	api, err := NewAPI(&APIConfig{APIKey: cfg.APIKey, BaseURL: cfg.BaseURL, HTTPClient: cfg.HTTPClient})
 	if err != nil {
 		return nil, err
 	}

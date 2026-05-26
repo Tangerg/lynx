@@ -11,7 +11,6 @@ import (
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/Tangerg/lynx/core/model/chat"
 	lynxmcp "github.com/Tangerg/lynx/mcp"
 )
 
@@ -56,7 +55,7 @@ func TestTool_IsErrorBecomesToolCallError(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, tools, 1)
 
-	callable := tools[0].(chat.Tool)
+	callable := tools[0]
 	out, err := callable.Call(ctx, "{}")
 	require.Error(t, err)
 	assert.Empty(t, out)
@@ -99,7 +98,7 @@ func TestTool_EmptyArgumentsTreatedAsEmptyObject(t *testing.T) {
 	tools, err := p.Tools(ctx)
 	require.NoError(t, err)
 
-	callable := tools[0].(chat.Tool)
+	callable := tools[0]
 
 	// echo without arguments — server returns empty string, no protocol error.
 	out, err := callable.Call(ctx, "")
@@ -138,7 +137,7 @@ func TestTool_MetaForwardedToServer(t *testing.T) {
 	require.NoError(t, err)
 
 	callCtx := lynxmcp.WithMeta(ctx, sdkmcp.Meta{"userId": "u-42", "trace": "tx-99"})
-	out, err := tools[0].(chat.Tool).Call(callCtx, "{}")
+	out, err := tools[0].Call(callCtx, "{}")
 	require.NoError(t, err)
 	assert.Equal(t, "ok", out)
 

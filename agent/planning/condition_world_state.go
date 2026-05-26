@@ -1,4 +1,4 @@
-package plan
+package planning
 
 import (
 	"maps"
@@ -55,7 +55,7 @@ func (w *ConditionWorldState) HashKey() string { return w.hashKey }
 // Apply layers effects on top, returning a new state. Effect map
 // entries equal to Unknown are skipped — Unknown is "no information"
 // and shouldn't override a definite value already in the state.
-func (w *ConditionWorldState) Apply(effects core.EffectSpec) core.WorldState {
+func (w *ConditionWorldState) Apply(effects core.Effects) core.WorldState {
 	if len(effects) == 0 {
 		return w
 	}

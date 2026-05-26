@@ -11,7 +11,7 @@ import (
 )
 
 type EmbeddingModelConfig struct {
-	ApiKey         model.ApiKey
+	APIKey         model.APIKey
 	Endpoint       string
 	APIVersion     string
 	DefaultOptions *embedding.Options
@@ -37,9 +37,9 @@ func NewEmbeddingModel(cfg *EmbeddingModelConfig) (*openai.EmbeddingModel, error
 	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
-	apiKey, reqOpts := buildAzureRequestOptions(cfg.ApiKey, cfg.Endpoint, cfg.APIVersion, cfg.RequestOptions)
+	apiKey, reqOpts := buildAzureRequestOptions(cfg.APIKey, cfg.Endpoint, cfg.APIVersion, cfg.RequestOptions)
 	return openai.NewEmbeddingModel(&openai.EmbeddingModelConfig{
-		ApiKey:         apiKey,
+		APIKey:         apiKey,
 		DefaultOptions: cfg.DefaultOptions,
 		RequestOptions: reqOpts,
 		Metadata:       &embedding.ModelMetadata{Provider: Provider},

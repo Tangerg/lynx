@@ -15,7 +15,7 @@ import (
 )
 
 type EmbeddingModelConfig struct {
-	ApiKey         model.ApiKey
+	APIKey         model.APIKey
 	DefaultOptions *embedding.Options
 	BaseURL        string
 }
@@ -24,8 +24,8 @@ func (c *EmbeddingModelConfig) validate() error {
 	if c == nil {
 		return errors.New("cohere: config must not be nil")
 	}
-	if c.ApiKey == nil {
-		return errors.New("cohere: ApiKey is required")
+	if c.APIKey == nil {
+		return errors.New("cohere: APIKey is required")
 	}
 	if c.DefaultOptions == nil {
 		return errors.New("cohere: DefaultOptions is required")
@@ -42,7 +42,7 @@ var _ embedding.Model = (*EmbeddingModel)(nil)
 // v4 is the only family that supports OutputDimension; older v3 models
 // have a fixed 1024-dim output.
 type EmbeddingModel struct {
-	api            *Api
+	api            *API
 	defaultOptions *embedding.Options
 }
 
@@ -51,7 +51,7 @@ func NewEmbeddingModel(cfg *EmbeddingModelConfig) (*EmbeddingModel, error) {
 		return nil, err
 	}
 
-	api, err := NewApi(&ApiConfig{ApiKey: cfg.ApiKey, BaseURL: cfg.BaseURL})
+	api, err := NewAPI(&APIConfig{APIKey: cfg.APIKey, BaseURL: cfg.BaseURL})
 	if err != nil {
 		return nil, err
 	}
@@ -62,7 +62,7 @@ func NewEmbeddingModel(cfg *EmbeddingModelConfig) (*EmbeddingModel, error) {
 	}, nil
 }
 
-func (e *EmbeddingModel) buildApiRequest(req *embedding.Request) (*cohere.V2EmbedRequest, error) {
+func (e *EmbeddingModel) buildAPIRequest(req *embedding.Request) (*cohere.V2EmbedRequest, error) {
 	mergedOpts, err := embedding.MergeOptions(e.defaultOptions, req.Options)
 	if err != nil {
 		return nil, err
@@ -137,7 +137,7 @@ func (e *EmbeddingModel) buildResponse(apiResp *cohere.EmbedByTypeResponse) (*em
 }
 
 func (e *EmbeddingModel) Call(ctx context.Context, req *embedding.Request) (*embedding.Response, error) {
-	apiReq, err := e.buildApiRequest(req)
+	apiReq, err := e.buildAPIRequest(req)
 	if err != nil {
 		return nil, err
 	}

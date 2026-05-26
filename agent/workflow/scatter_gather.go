@@ -9,7 +9,7 @@ import (
 	"github.com/Tangerg/lynx/agent/core"
 )
 
-// ScatterGatherSpec configures a scatter-gather workflow: every
+// ScatterGatherConfig configures a scatter-gather workflow: every
 // Generator runs in parallel against the workflow input, then a
 // single Joiner consolidates the per-generator outputs into the
 // final Result.
@@ -22,7 +22,7 @@ import (
 // Each generator runs in its own goroutine; Joiner sees the slice of
 // Elements (in generator order) only after every generator has
 // completed (or any has errored).
-type ScatterGatherSpec[In, Element, Result any] struct {
+type ScatterGatherConfig[In, Element, Result any] struct {
 	// Name names the produced agent + its goal + the action names.
 	// Required.
 	Name string
@@ -55,7 +55,7 @@ type ScatterGatherSpec[In, Element, Result any] struct {
 // when Joiner has bound it.
 //
 // Returns an error on missing Name, empty Generators, or nil Joiner.
-func ScatterGather[In, Element, Result any](spec ScatterGatherSpec[In, Element, Result]) (*core.Agent, error) {
+func ScatterGather[In, Element, Result any](spec ScatterGatherConfig[In, Element, Result]) (*core.Agent, error) {
 	if spec.Name == "" {
 		return nil, fmt.Errorf("workflow.ScatterGather: Name must not be empty")
 	}
@@ -112,7 +112,7 @@ func ScatterGather[In, Element, Result any](spec ScatterGatherSpec[In, Element, 
 		Actions:     []core.Action{scatter, gather},
 		Goals: []*core.Goal{core.GoalProducing[Result](core.Goal{
 			Name:        spec.Name,
-			Description: "produce " + core.TypeFullNameOf[Result](),
+			Description: "produce " + core.TypeName[Result](),
 		})},
 	}), nil
 }

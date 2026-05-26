@@ -16,7 +16,7 @@ import (
 )
 
 type AudioTTSModelConfig struct {
-	ApiKey         model.ApiKey
+	APIKey         model.APIKey
 	DefaultOptions *tts.Options
 	RequestOptions []option.RequestOption
 
@@ -29,8 +29,8 @@ func (c *AudioTTSModelConfig) validate() error {
 	if c == nil {
 		return errors.New("openai: config must not be nil")
 	}
-	if c.ApiKey == nil {
-		return errors.New("openai: ApiKey is required")
+	if c.APIKey == nil {
+		return errors.New("openai: APIKey is required")
 	}
 	if c.DefaultOptions == nil {
 		return errors.New("openai: DefaultOptions is required")
@@ -41,7 +41,7 @@ func (c *AudioTTSModelConfig) validate() error {
 var _ tts.Model = (*AudioTTSModel)(nil)
 
 type AudioTTSModel struct {
-	api            *Api
+	api            *API
 	defaultOptions *tts.Options
 	metadata       tts.ModelMetadata
 }
@@ -51,8 +51,8 @@ func NewAudioTTSModel(cfg *AudioTTSModelConfig) (*AudioTTSModel, error) {
 		return nil, err
 	}
 
-	api, err := NewApi(&ApiConfig{
-		ApiKey:         cfg.ApiKey,
+	api, err := NewAPI(&APIConfig{
+		APIKey:         cfg.APIKey,
 		RequestOptions: cfg.RequestOptions,
 	})
 	if err != nil {
@@ -70,7 +70,7 @@ func NewAudioTTSModel(cfg *AudioTTSModelConfig) (*AudioTTSModel, error) {
 	}, nil
 }
 
-func (a *AudioTTSModel) buildApiTTSRequest(req *tts.Request) (*openai.AudioSpeechNewParams, error) {
+func (a *AudioTTSModel) buildAPITTSRequest(req *tts.Request) (*openai.AudioSpeechNewParams, error) {
 	mergedOpts, err := tts.MergeOptions(a.defaultOptions, req.Options)
 	if err != nil {
 		return nil, err
@@ -106,7 +106,7 @@ func (a *AudioTTSModel) buildTTSResponse(data []byte) (*tts.Response, error) {
 }
 
 func (a *AudioTTSModel) Call(ctx context.Context, req *tts.Request) (*tts.Response, error) {
-	apiReq, err := a.buildApiTTSRequest(req)
+	apiReq, err := a.buildAPITTSRequest(req)
 	if err != nil {
 		return nil, err
 	}
@@ -127,7 +127,7 @@ func (a *AudioTTSModel) Call(ctx context.Context, req *tts.Request) (*tts.Respon
 
 func (a *AudioTTSModel) Stream(ctx context.Context, req *tts.Request) iter.Seq2[*tts.Response, error] {
 	return func(yield func(*tts.Response, error) bool) {
-		apiReq, err := a.buildApiTTSRequest(req)
+		apiReq, err := a.buildAPITTSRequest(req)
 		if err != nil {
 			yield(nil, err)
 			return

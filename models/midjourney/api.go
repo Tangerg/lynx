@@ -11,15 +11,15 @@ import (
 	"github.com/Tangerg/lynx/core/model"
 )
 
-// ApiConfig is intentionally proxy-shaped: BaseURL is required because
+// APIConfig is intentionally proxy-shaped: BaseURL is required because
 // Midjourney has no official REST endpoint. SubmitPath / FetchPath let
 // callers point at proxies that use non-default paths.
-type ApiConfig struct {
-	ApiKey     model.ApiKey
+type APIConfig struct {
+	APIKey     model.APIKey
 	BaseURL    string
 	HTTPClient *http.Client
 
-	// SubmitPath defaults to "/imagine" (ApiFrame / ImaginePro style).
+	// SubmitPath defaults to "/imagine" (APIFrame / ImaginePro style).
 	// GoAPI uses "/mj/v2/imagine" and TTAPI uses "/midjourney/imagine"
 	// — pass the proxy's path here.
 	SubmitPath string
@@ -36,12 +36,12 @@ type ApiConfig struct {
 	AuthBearer bool // when true (default), prefix value with "Bearer "
 }
 
-func (c *ApiConfig) validate() error {
+func (c *APIConfig) validate() error {
 	if c == nil {
 		return errors.New("midjourney: config must not be nil")
 	}
-	if c.ApiKey == nil {
-		return errors.New("midjourney: ApiKey is required")
+	if c.APIKey == nil {
+		return errors.New("midjourney: APIKey is required")
 	}
 	if c.BaseURL == "" {
 		return errors.New("midjourney: BaseURL is required")
@@ -49,13 +49,13 @@ func (c *ApiConfig) validate() error {
 	return nil
 }
 
-type Api struct {
+type API struct {
 	http       *resty.Client
 	submitPath string
 	fetchPath  string
 }
 
-func NewApi(cfg *ApiConfig) (*Api, error) {
+func NewAPI(cfg *APIConfig) (*API, error) {
 	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
@@ -68,7 +68,7 @@ func NewApi(cfg *ApiConfig) (*Api, error) {
 	if header == "" {
 		header = "Authorization"
 	}
-	value := cfg.ApiKey.Get()
+	value := cfg.APIKey.Get()
 	if header == "Authorization" && cfg.AuthBearer {
 		value = "Bearer " + value
 	} else if header == "Authorization" && !cfg.AuthBearer && cfg.AuthHeader == "" {
@@ -90,7 +90,7 @@ func NewApi(cfg *ApiConfig) (*Api, error) {
 		fetch = "/fetch/"
 	}
 
-	return &Api{http: client, submitPath: submit, fetchPath: fetch}, nil
+	return &API{http: client, submitPath: submit, fetchPath: fetch}, nil
 }
 
 // GenerateRequest mirrors the common-denominator imagine payload.
@@ -141,7 +141,7 @@ type FetchResponse struct {
 }
 
 // Submit posts the prompt to the configured submit path.
-func (a *Api) Submit(ctx context.Context, req *GenerateRequest) (*SubmitResponse, error) {
+func (a *API) Submit(ctx context.Context, req *GenerateRequest) (*SubmitResponse, error) {
 	if req == nil {
 		return nil, errors.New("midjourney: request must not be nil")
 	}
@@ -157,7 +157,7 @@ func (a *Api) Submit(ctx context.Context, req *GenerateRequest) (*SubmitResponse
 }
 
 // Fetch polls the status / result of a submitted task.
-func (a *Api) Fetch(ctx context.Context, id string) (*FetchResponse, error) {
+func (a *API) Fetch(ctx context.Context, id string) (*FetchResponse, error) {
 	var out FetchResponse
 	resp, err := a.http.R().SetContext(ctx).SetResult(&out).Get(a.fetchPath + id)
 	if err != nil {

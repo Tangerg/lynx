@@ -21,7 +21,7 @@ func TestImageModel_Call_Mock(t *testing.T) {
 		t.Fatal(err)
 	}
 	m, err := azureopenai.NewImageModel(&azureopenai.ImageModelConfig{
-		ApiKey:         model.NewApiKey("test-key"),
+		APIKey:         model.NewAPIKey("test-key"),
 		Endpoint:       srv.URL,
 		DefaultOptions: opts,
 	})

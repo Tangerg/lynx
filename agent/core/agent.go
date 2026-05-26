@@ -172,7 +172,7 @@ func validateUniqueNamed(
 }
 
 // KnownConditions is the pure builder reused by Agent and
-// plan.PlanningSystem caches: union of action precondition / effect keys,
+// planning.System caches: union of action precondition / effect keys,
 // goal precondition keys, and named-Condition names.
 func KnownConditions(actions []Action, goals []*Goal, conditions []Condition) map[string]struct{} {
 	out := map[string]struct{}{}

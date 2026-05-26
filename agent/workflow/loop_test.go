@@ -48,7 +48,7 @@ func TestLoop_LoopsUntilUntilTrue(t *testing.T) {
 
 	wf, err := workflow.Loop[loopIn, loopOut](
 		platform,
-		workflow.LoopSpec[loopIn, loopOut]{
+		workflow.LoopConfig[loopIn, loopOut]{
 			Name:          "incr-loop",
 			MaxIterations: 10,
 			Body:          body,
@@ -93,7 +93,7 @@ func TestLoop_MaxIterationsCapsTheLoop(t *testing.T) {
 
 	wf, err := workflow.Loop[loopIn, loopOut](
 		platform,
-		workflow.LoopSpec[loopIn, loopOut]{
+		workflow.LoopConfig[loopIn, loopOut]{
 			Name:          "capped-loop",
 			MaxIterations: 3, // cap kicks in before Target=100
 			Body:          body,
@@ -147,7 +147,7 @@ func TestLoop_BranchIsolation(t *testing.T) {
 
 	wf, err := workflow.Loop[loopIn, loopOut](
 		platform,
-		workflow.LoopSpec[loopIn, loopOut]{
+		workflow.LoopConfig[loopIn, loopOut]{
 			Name:          "isolation-loop",
 			MaxIterations: 3,
 			Body:          body,
@@ -170,7 +170,7 @@ func TestLoop_BranchIsolation(t *testing.T) {
 
 func TestLoop_RejectsNilBody(t *testing.T) {
 	platform := agent.NewPlatform(&runtime.PlatformConfig{})
-	if _, err := workflow.Loop[loopIn, loopOut](platform, workflow.LoopSpec[loopIn, loopOut]{
+	if _, err := workflow.Loop[loopIn, loopOut](platform, workflow.LoopConfig[loopIn, loopOut]{
 		Name:  "no-body",
 		Until: func(_ context.Context, _ loopIn, _ loopOut) bool { return true },
 	}); err == nil {
@@ -181,7 +181,7 @@ func TestLoop_RejectsNilBody(t *testing.T) {
 func TestLoop_RejectsNilUntil(t *testing.T) {
 	platform := agent.NewPlatform(&runtime.PlatformConfig{})
 	body, _ := makeIncrementingBody()
-	if _, err := workflow.Loop[loopIn, loopOut](platform, workflow.LoopSpec[loopIn, loopOut]{
+	if _, err := workflow.Loop[loopIn, loopOut](platform, workflow.LoopConfig[loopIn, loopOut]{
 		Name: "no-until",
 		Body: body,
 	}); err == nil {

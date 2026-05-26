@@ -38,7 +38,7 @@ import (
 // SDK but produce no Parts in this version — extending [chat.OutputPart]
 // is a follow-up epic.
 type ResponsesChatModel struct {
-	api            *Api
+	api            *API
 	defaultOptions *chat.Options
 	reqHelper      responsesRequestHelper
 	respHelper     responsesResponseHelper
@@ -48,7 +48,7 @@ type ResponsesChatModel struct {
 var _ chat.Model = (*ResponsesChatModel)(nil)
 
 // NewResponsesChatModel wires up a Responses-API-backed chat model.
-// Config is identical to [NewChatModel] — same ApiKey, DefaultOptions,
+// Config is identical to [NewChatModel] — same APIKey, DefaultOptions,
 // RequestOptions, optional Metadata override — so callers can switch
 // surfaces without re-plumbing.
 func NewResponsesChatModel(cfg *ChatModelConfig) (*ResponsesChatModel, error) {
@@ -56,8 +56,8 @@ func NewResponsesChatModel(cfg *ChatModelConfig) (*ResponsesChatModel, error) {
 		return nil, err
 	}
 
-	api, err := NewApi(&ApiConfig{
-		ApiKey:         cfg.ApiKey,
+	api, err := NewAPI(&APIConfig{
+		APIKey:         cfg.APIKey,
 		RequestOptions: cfg.RequestOptions,
 	})
 	if err != nil {

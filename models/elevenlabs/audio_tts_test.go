@@ -21,7 +21,7 @@ func TestAudioTTSModel_Call_Mock(t *testing.T) {
 	opts.Voice = "voice-id-test"
 
 	m, err := elevenlabs.NewAudioTTSModel(&elevenlabs.AudioTTSModelConfig{
-		ApiKey:         model.NewApiKey("test-key"),
+		APIKey:         model.NewAPIKey("test-key"),
 		DefaultOptions: opts,
 		BaseURL:        srv.URL,
 	})

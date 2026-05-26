@@ -12,7 +12,7 @@ import (
 )
 
 type AnthropicChatModelConfig struct {
-	ApiKey         model.ApiKey
+	APIKey         model.APIKey
 	DefaultOptions *chat.Options
 
 	// BaseURL defaults to [BaseURLAnthropic]. Override only when
@@ -28,8 +28,8 @@ func (c *AnthropicChatModelConfig) validate() error {
 	if c == nil {
 		return errors.New("zhipu: config must not be nil")
 	}
-	if c.ApiKey == nil {
-		return errors.New("zhipu: ApiKey is required")
+	if c.APIKey == nil {
+		return errors.New("zhipu: APIKey is required")
 	}
 	if c.DefaultOptions == nil {
 		return errors.New("zhipu: DefaultOptions is required")
@@ -51,7 +51,7 @@ func NewAnthropicChatModel(cfg *AnthropicChatModelConfig) (*anthropic.ChatModel,
 	baseURL := cmp.Or(cfg.BaseURL, BaseURLAnthropic)
 	reqOpts := append([]option.RequestOption{option.WithBaseURL(baseURL)}, cfg.RequestOptions...)
 	return anthropic.NewChatModel(&anthropic.ChatModelConfig{
-		ApiKey:         cfg.ApiKey,
+		APIKey:         cfg.APIKey,
 		DefaultOptions: cfg.DefaultOptions,
 		RequestOptions: reqOpts,
 		Metadata:       &chat.ModelMetadata{Provider: Provider},

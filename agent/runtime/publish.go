@@ -120,7 +120,7 @@ func newDynamicAgentTool(
 			return start(ctx, platform, agentDef, in)
 		},
 		extract: func(child *AgentProcess) (any, error) {
-			out, ok := child.Blackboard().GetValue(core.LastResultBindingName, "")
+			out, ok := child.Blackboard().Lookup(core.LastResultBindingName, "")
 			if !ok {
 				return nil, fmt.Errorf("completed but blackboard has no result")
 			}

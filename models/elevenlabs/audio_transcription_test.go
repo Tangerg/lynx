@@ -28,7 +28,7 @@ func TestAudioTranscriptionModel_Call_Mock(t *testing.T) {
 		t.Fatal(err)
 	}
 	m, err := elevenlabs.NewAudioTranscriptionModel(&elevenlabs.AudioTranscriptionModelConfig{
-		ApiKey:         model.NewApiKey("test-key"),
+		APIKey:         model.NewAPIKey("test-key"),
 		DefaultOptions: opts,
 		BaseURL:        srv.URL,
 	})

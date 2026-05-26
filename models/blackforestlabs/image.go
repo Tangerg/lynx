@@ -13,7 +13,7 @@ import (
 )
 
 type ImageModelConfig struct {
-	ApiKey         model.ApiKey
+	APIKey         model.APIKey
 	DefaultOptions *image.Options
 	BaseURL        string
 	HTTPClient     *http.Client
@@ -29,8 +29,8 @@ func (c *ImageModelConfig) validate() error {
 	if c == nil {
 		return errors.New("blackforestlabs: config must not be nil")
 	}
-	if c.ApiKey == nil {
-		return errors.New("blackforestlabs: ApiKey is required")
+	if c.APIKey == nil {
+		return errors.New("blackforestlabs: APIKey is required")
 	}
 	if c.DefaultOptions == nil {
 		return errors.New("blackforestlabs: DefaultOptions is required")
@@ -45,7 +45,7 @@ var _ image.Model = (*ImageModel)(nil)
 // "flux-dev", "flux-kontext-pro", "flux-kontext-max"). BFL is async
 // only — Call submits + polls until ready.
 type ImageModel struct {
-	api            *Api
+	api            *API
 	defaultOptions *image.Options
 	pollInterval   time.Duration
 	pollTimeout    time.Duration
@@ -55,8 +55,8 @@ func NewImageModel(cfg *ImageModelConfig) (*ImageModel, error) {
 	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
-	api, err := NewApi(&ApiConfig{
-		ApiKey:     cfg.ApiKey,
+	api, err := NewAPI(&APIConfig{
+		APIKey:     cfg.APIKey,
 		BaseURL:    cfg.BaseURL,
 		HTTPClient: cfg.HTTPClient,
 	})

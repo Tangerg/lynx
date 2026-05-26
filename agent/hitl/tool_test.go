@@ -54,7 +54,7 @@ func TestRequireAwait_NilDeciderResultDelegates(t *testing.T) {
 func TestRequireAwait_NonNilDeciderReturnsPauseError(t *testing.T) {
 	inner := newFake("search", "result")
 	awaitable := hitl.NewConfirmation("approve search?", func(bool) core.ResponseImpact {
-		return core.ResponseImpactUnchanged
+		return core.ImpactUnchanged
 	})
 
 	wrapped, _ := hitl.RequireAwait(inner, func(context.Context, string) core.Awaitable { return awaitable })
@@ -88,7 +88,7 @@ func TestRequireConfirmation_PromptsAndOnResponseFires(t *testing.T) {
 		},
 		func(approved bool) core.ResponseImpact {
 			captured = approved
-			return core.ResponseImpactUpdated
+			return core.ImpactUpdated
 		},
 	)
 
@@ -112,7 +112,7 @@ func TestRequireConfirmation_PromptsAndOnResponseFires(t *testing.T) {
 	if !captured {
 		t.Fatal("onResponse handler not fired")
 	}
-	if impact != core.ResponseImpactUpdated {
+	if impact != core.ImpactUpdated {
 		t.Fatalf("impact = %v, want Updated", impact)
 	}
 }
@@ -131,7 +131,7 @@ func TestRequireType_DeliversTypedValue(t *testing.T) {
 		func(args string) string { return "need shipping address for: " + args },
 		func(v Address) core.ResponseImpact {
 			got = v
-			return core.ResponseImpactUpdated
+			return core.ImpactUpdated
 		},
 	)
 
@@ -149,7 +149,7 @@ func TestRequireType_DeliversTypedValue(t *testing.T) {
 	if got != want {
 		t.Fatalf("typed handler got %+v, want %+v", got, want)
 	}
-	if impact != core.ResponseImpactUpdated {
+	if impact != core.ImpactUpdated {
 		t.Fatalf("impact = %v, want Updated", impact)
 	}
 
@@ -177,7 +177,7 @@ func TestHandlePause_RoutesPauseErrorToAwaitInput(t *testing.T) {
 	fp := &fakeProcess{}
 	pc := core.NewProcessContext(core.ProcessContextConfig{Process: fp})
 
-	a := hitl.NewConfirmation("ok?", func(bool) core.ResponseImpact { return core.ResponseImpactUnchanged })
+	a := hitl.NewConfirmation("ok?", func(bool) core.ResponseImpact { return core.ImpactUnchanged })
 	pe := &hitl.PauseError{Request: a}
 
 	status, paused := hitl.HandlePause(pc, pe)
@@ -207,7 +207,7 @@ func TestHandlePause_PassesThroughNonPauseError(t *testing.T) {
 }
 
 func TestPauseErrorMessageMentionsID(t *testing.T) {
-	a := hitl.NewConfirmation("ok?", func(bool) core.ResponseImpact { return core.ResponseImpactUnchanged })
+	a := hitl.NewConfirmation("ok?", func(bool) core.ResponseImpact { return core.ImpactUnchanged })
 	pe := &hitl.PauseError{Request: a}
 
 	msg := pe.Error()

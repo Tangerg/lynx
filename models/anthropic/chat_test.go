@@ -23,7 +23,7 @@ func newChatModel(t *testing.T, baseURL, modelID string) *anthropic.ChatModel {
 		t.Fatalf("NewOptions: %v", err)
 	}
 	m, err := anthropic.NewChatModel(&anthropic.ChatModelConfig{
-		ApiKey:         model.NewApiKey("test-key"),
+		APIKey:         model.NewAPIKey("test-key"),
 		DefaultOptions: opts,
 		RequestOptions: []option.RequestOption{option.WithBaseURL(baseURL)},
 	})

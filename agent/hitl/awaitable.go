@@ -48,7 +48,7 @@ func (r *TypedRequest[P, R]) Prompt() P      { return r.Payload }
 
 func (r *TypedRequest[P, R]) OnResponse(response R) core.ResponseImpact {
 	if r.Handler == nil {
-		return core.ResponseImpactUnchanged
+		return core.ImpactUnchanged
 	}
 	return r.Handler(response)
 }
@@ -60,7 +60,7 @@ func (r *TypedRequest[P, R]) OnResponseAny(response any) (core.ResponseImpact, e
 	typed, ok := response.(R)
 	if !ok {
 		var zero R
-		return core.ResponseImpactUnchanged,
+		return core.ImpactUnchanged,
 			fmt.Errorf("deliver response: expected %T, got %T", zero, response)
 	}
 	return r.OnResponse(typed), nil

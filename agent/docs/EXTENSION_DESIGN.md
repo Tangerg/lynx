@@ -153,7 +153,7 @@ type IDGenerator interface {
     Next() string
 }
 
-// plan.Planner（在 agent/plan 包）直接嵌入 core.Extension，无需 factory 包装。
+// plan.Planner（在 agent/planning 包）直接嵌入 core.Extension，无需 factory 包装。
 // runtime 按 AgentConfig.PlannerName 匹配 Name() 来挑：
 //
 //   type Planner interface {

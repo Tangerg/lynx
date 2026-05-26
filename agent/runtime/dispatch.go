@@ -67,12 +67,12 @@ func lastExtension[T any](extensions []core.Extension) T {
 	return zero
 }
 
-// runActionInterceptors executes the onion chain. The first
+// runActionMiddleware executes the onion chain. The first
 // registered interceptor is the outermost (matches net/http
 // middleware ordering). base is the inner "actually run the action"
 // closure invoked once every interceptor has called next().
-func runActionInterceptors(
-	interceptors []core.ActionInterceptor,
+func runActionMiddleware(
+	interceptors []core.ActionMiddleware,
 	ctx context.Context,
 	process core.Process,
 	action core.Action,

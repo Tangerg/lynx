@@ -48,7 +48,7 @@ func (b *inMemoryBlackboard) ID() string { return b.id }
 
 // Set stores under key AND appends to the ordered objects list. The
 // dual-record is what makes "give me the latest of type T" work via
-// GetValue("it", typeName).
+// Lookup("it", typeName).
 func (b *inMemoryBlackboard) Set(key string, value any) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -70,7 +70,7 @@ func (b *inMemoryBlackboard) Get(key string) (any, bool) {
 //   - variable == "it" / empty: newest object whose stored type matches typeName.
 //   - variable == "last_result":  newest object regardless of type.
 //   - explicit name:             the value stored at that name, only if its type matches.
-func (b *inMemoryBlackboard) GetValue(variable, typeName string) (any, bool) {
+func (b *inMemoryBlackboard) Lookup(variable, typeName string) (any, bool) {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
 
@@ -92,7 +92,7 @@ func (b *inMemoryBlackboard) GetValue(variable, typeName string) (any, bool) {
 }
 
 func (b *inMemoryBlackboard) HasValue(variable, typeName string) bool {
-	_, ok := b.GetValue(variable, typeName)
+	_, ok := b.Lookup(variable, typeName)
 	return ok
 }
 
@@ -196,7 +196,7 @@ func (b *inMemoryBlackboard) SetCondition(key string, value bool) {
 	b.conditions[key] = value
 }
 
-func (b *inMemoryBlackboard) GetCondition(key string) (bool, bool) {
+func (b *inMemoryBlackboard) Condition(key string) (bool, bool) {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
 
@@ -239,8 +239,8 @@ func (b *inMemoryBlackboard) Clear() {
 	clear(b.conditions)
 }
 
-func (b *inMemoryBlackboard) InfoString(verbose bool) string {
-	return core.InspectInfoString(b, verbose)
+func (b *inMemoryBlackboard) Inspect(verbose bool) string {
+	return core.InspectBlackboard(b, verbose)
 }
 
 // Snapshot implements [BlackboardSnapshotter] — returns shallow copies

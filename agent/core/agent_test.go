@@ -70,8 +70,8 @@ func TestKnownConditionsSkipsNilEntries(t *testing.T) {
 	conditions := core.KnownConditions(
 		[]core.Action{nil, fakeAction{meta: core.ActionMetadata{
 			Name:          "act",
-			Preconditions: core.EffectSpec{"need": core.True},
-			Effects:       core.EffectSpec{"have": core.True},
+			Preconditions: core.Effects{"need": core.True},
+			Effects:       core.Effects{"have": core.True},
 		}}},
 		[]*core.Goal{nil, {Name: "goal", Pre: []string{"done"}}},
 		[]core.Condition{nil},

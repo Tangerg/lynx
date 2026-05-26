@@ -23,7 +23,7 @@ type WorldState interface {
 
 	// Apply produces a new state with the supplied effects layered on top. The
 	// receiver MUST NOT mutate; planners rely on snapshots being immutable.
-	Apply(effects EffectSpec) WorldState
+	Apply(effects Effects) WorldState
 }
 
 // CostFunc computes a dynamic cost or value from the current world state. The

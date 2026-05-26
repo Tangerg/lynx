@@ -26,7 +26,7 @@ type BlackboardReader interface {
 	// objects list from newest to oldest for a type match.
 	// LastResultBindingName returns the most-recent object regardless
 	// of type.
-	GetValue(variable, typeName string) (any, bool)
+	Lookup(variable, typeName string) (any, bool)
 
 	// HasValue is the planner's cheap precondition probe; equivalent to
 	// GetValue returning ok.
@@ -36,11 +36,11 @@ type BlackboardReader interface {
 	Objects() []any
 
 	// GetCondition reads boolean state set via [BlackboardWriter.SetCondition].
-	GetCondition(key string) (bool, bool)
+	Condition(key string) (bool, bool)
 
-	// InfoString is for human consumption — verbose=true dumps everything,
+	// Inspect is for human consumption — verbose=true dumps everything,
 	// false produces a compact summary.
-	InfoString(verbose bool) string
+	Inspect(verbose bool) string
 }
 
 // BlackboardWriter is the mutation slice of [Blackboard].
@@ -101,7 +101,7 @@ type Blackboard interface {
 	Clear()
 }
 
-// Get is a typed shortcut for [BlackboardReader.GetValue]. It's a
+// Get is a typed shortcut for [BlackboardReader.Lookup]. It's a
 // top-level function because Go doesn't permit method-level type
 // parameters; callers write core.Get[Foo](bb, "it") instead of
 // bb.Get<Foo>("it").
@@ -111,7 +111,7 @@ func Get[T any](bb BlackboardReader, name string) (T, bool) {
 		return zero, false
 	}
 
-	value, ok := bb.GetValue(name, TypeFullNameOf[T]())
+	value, ok := bb.Lookup(name, TypeName[T]())
 	if !ok {
 		return zero, false
 	}
@@ -174,9 +174,9 @@ func DerivedTypeKey(v any) string {
 	return string(pkgstrings.AsCamelCase(name).ToSnakeCase())
 }
 
-// InspectInfoString helps custom Blackboard implementations format consistent
+// InspectBlackboard helps custom Blackboard implementations format consistent
 // debug strings. Exposed as a helper because the runtime uses it for tests.
-func InspectInfoString(bb BlackboardReader, verbose bool) string {
+func InspectBlackboard(bb BlackboardReader, verbose bool) string {
 	if bb == nil {
 		return "<nil blackboard>"
 	}

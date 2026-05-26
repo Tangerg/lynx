@@ -32,7 +32,7 @@ func TestEmbeddingModel(t *testing.T) {
 				t.Fatalf("NewOptions: %v", err)
 			}
 			m, err := jina.NewEmbeddingModel(&jina.EmbeddingModelConfig{
-				ApiKey:         model.NewApiKey("test-key"),
+				APIKey:         model.NewAPIKey("test-key"),
 				DefaultOptions: opts,
 				BaseURL:        baseURL,
 			})

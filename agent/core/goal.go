@@ -91,14 +91,14 @@ func GoalExportFor[In any](remote bool) *GoalExport {
 	}
 }
 
-// Preconditions merges Pre + Inputs into a single [EffectSpec]: each
+// Preconditions merges Pre + Inputs into a single [Effects]: each
 // listed precondition + each typed input contributes a True
 // condition the planner targets.
-func (g *Goal) Preconditions() EffectSpec {
+func (g *Goal) Preconditions() Effects {
 	if g == nil {
 		return nil
 	}
-	out := EffectSpec{}
+	out := Effects{}
 	for _, p := range g.Pre {
 		out[p] = True
 	}

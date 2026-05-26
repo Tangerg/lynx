@@ -11,7 +11,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/Tangerg/lynx/agent/core"
-	"github.com/Tangerg/lynx/agent/plan"
+	"github.com/Tangerg/lynx/agent/planning"
 )
 
 // plannerTracer is the package-level tracer for the HTN planner.
@@ -49,7 +49,7 @@ type Method struct {
 
 	// Preconditions guard method applicability. The state must
 	// satisfy every entry for the method to be considered.
-	Preconditions core.EffectSpec
+	Preconditions core.Effects
 
 	// Subtasks names the tasks this method expands into, in
 	// execution order. Each name must resolve in the [Library].
@@ -140,11 +140,11 @@ func (p *Planner) Name() string { return "htn" }
 func (p *Planner) PlanToGoal(
 	ctx context.Context,
 	start core.WorldState,
-	system *plan.PlanningSystem,
+	system *planning.System,
 	goal *core.Goal,
-	options plan.PlanOptions,
-) (result *plan.Plan, err error) {
-	if err = plan.CheckPlanInputs(start, system, goal); err != nil {
+	options planning.Options,
+) (result *planning.Plan, err error) {
+	if err = planning.CheckPlanInputs(start, system, goal); err != nil {
 		return nil, err
 	}
 
@@ -175,7 +175,7 @@ func (p *Planner) PlanToGoal(
 	if !ok {
 		return nil, nil
 	}
-	result = &plan.Plan{Actions: actions, Goal: goal}
+	result = &planning.Plan{Actions: actions, Goal: goal}
 	return result, nil
 }
 

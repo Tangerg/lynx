@@ -30,7 +30,7 @@ func TestOpenAIChatModel_Integration(t *testing.T) {
 				t.Fatal(err)
 			}
 			m, err := ollama.NewOpenAIChatModel(&ollama.OpenAIChatModelConfig{
-				ApiKey:         model.NewApiKey("ollama"),
+				APIKey:         model.NewAPIKey("ollama"),
 				DefaultOptions: opts,
 				BaseURL:        baseURL,
 			})

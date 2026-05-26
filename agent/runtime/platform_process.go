@@ -6,9 +6,9 @@ import (
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/event"
-	"github.com/Tangerg/lynx/agent/plan"
-	"github.com/Tangerg/lynx/agent/plan/planner/goap"
-	"github.com/Tangerg/lynx/agent/plan/planner/reactive"
+	"github.com/Tangerg/lynx/agent/planning"
+	"github.com/Tangerg/lynx/agent/planning/planner/goap"
+	"github.com/Tangerg/lynx/agent/planning/planner/reactive"
 )
 
 // createProcess assembles an AgentProcess and its dependencies
@@ -39,7 +39,7 @@ func (p *Platform) createProcess(
 		return nil, err
 	}
 
-	system := plan.FromAgent(agentDef)
+	system := planning.FromAgent(agentDef)
 	id := p.idGenerator().Next()
 	proc := newAgentProcess(id, agentDef, &options, blackboard, planner, system, p)
 
@@ -84,11 +84,11 @@ func (p *Platform) CreateChildProcess(
 	return child, nil
 }
 
-// resolvePlanner finds the [plan.Planner] for agentDef by matching
+// resolvePlanner finds the [planning.Planner] for agentDef by matching
 // [core.AgentConfig.PlannerName] against registered Planner extensions
 // (process-scope extensions take priority over platform-scope, then
 // the framework default). An empty PlannerName resolves to "goap".
-func (p *Platform) resolvePlanner(agentDef *core.Agent, processExts []core.Extension) (plan.Planner, error) {
+func (p *Platform) resolvePlanner(agentDef *core.Agent, processExts []core.Extension) (planning.Planner, error) {
 	name := agentDef.PlannerName
 	if name == "" {
 		name = "goap"
@@ -111,11 +111,11 @@ func (p *Platform) resolvePlanner(agentDef *core.Agent, processExts []core.Exten
 	return nil, fmt.Errorf("runtime.Platform.resolvePlanner: agent %q requests planner %q which is not registered%s", agentDef.Name, name, hint)
 }
 
-// findPlannerByName walks extensions for a [plan.Planner] whose
+// findPlannerByName walks extensions for a [planning.Planner] whose
 // Name() matches. Returns nil when none matches.
-func findPlannerByName(extensions []core.Extension, name string) plan.Planner {
+func findPlannerByName(extensions []core.Extension, name string) planning.Planner {
 	for _, ext := range extensions {
-		planner, ok := ext.(plan.Planner)
+		planner, ok := ext.(planning.Planner)
 		if !ok {
 			continue
 		}
@@ -129,10 +129,10 @@ func findPlannerByName(extensions []core.Extension, name string) plan.Planner {
 // defaultPlanner returns the framework's built-in planner for name,
 // or nil if name does not match a framework default. "htn" is not
 // here because it needs a user-supplied task library.
-func defaultPlanner(name string) plan.Planner {
+func defaultPlanner(name string) planning.Planner {
 	switch name {
 	case "goap":
-		return goap.NewAStarPlanner()
+		return goap.NewPlanner()
 	case "reactive":
 		return reactive.NewPlanner()
 	}

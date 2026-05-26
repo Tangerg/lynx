@@ -77,7 +77,7 @@ func loadTypedInput[In any](bb Blackboard, inputs []IOBinding) (In, error) {
 	}
 
 	binding := inputs[0]
-	value, ok := bb.GetValue(binding.Name, binding.Type)
+	value, ok := bb.Lookup(binding.Name, binding.Type)
 	if !ok {
 		return zero, fmt.Errorf("blackboard is missing required input %s", binding)
 	}
@@ -86,7 +86,7 @@ func loadTypedInput[In any](bb Blackboard, inputs []IOBinding) (In, error) {
 	if !ok {
 		return zero, fmt.Errorf(
 			"blackboard value %s has type %T, expected %s",
-			binding, value, TypeFullNameOf[In](),
+			binding, value, TypeName[In](),
 		)
 	}
 	return typed, nil
@@ -161,9 +161,9 @@ func resolveBindingName(name string) string {
 // .effects in embabel: every input binding becomes a True precondition,
 // every output binding becomes a True effect, and the hasRun_<name>
 // condition is toggled to keep canRerun=false actions from looping.
-func computePreconditionsAndEffects(meta ActionMetadata, extraPre, extraPost []string) (EffectSpec, EffectSpec) {
-	pre := EffectSpec{}
-	eff := EffectSpec{}
+func computePreconditionsAndEffects(meta ActionMetadata, extraPre, extraPost []string) (Effects, Effects) {
+	pre := Effects{}
+	eff := Effects{}
 
 	for _, key := range extraPre {
 		pre[key] = True
@@ -183,9 +183,9 @@ func computePreconditionsAndEffects(meta ActionMetadata, extraPre, extraPost []s
 	// determiner promotes the runtime's stored hasRun condition into the
 	// world state so the planner can prune already-executed actions.
 	if !meta.CanRerun {
-		pre[meta.HasRunKey()] = False
+		pre[meta.EffectiveRunKey()] = False
 	}
-	eff[meta.HasRunKey()] = True
+	eff[meta.EffectiveRunKey()] = True
 
 	return pre, eff
 }

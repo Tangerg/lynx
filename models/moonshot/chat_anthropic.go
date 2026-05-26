@@ -12,7 +12,7 @@ import (
 )
 
 type AnthropicChatModelConfig struct {
-	ApiKey         model.ApiKey
+	APIKey         model.APIKey
 	DefaultOptions *chat.Options
 
 	// BaseURL selects the region. Defaults to [BaseURLAnthropic]
@@ -29,8 +29,8 @@ func (c *AnthropicChatModelConfig) validate() error {
 	if c == nil {
 		return errors.New("moonshot: config must not be nil")
 	}
-	if c.ApiKey == nil {
-		return errors.New("moonshot: ApiKey is required")
+	if c.APIKey == nil {
+		return errors.New("moonshot: APIKey is required")
 	}
 	if c.DefaultOptions == nil {
 		return errors.New("moonshot: DefaultOptions is required")
@@ -49,7 +49,7 @@ func NewAnthropicChatModel(cfg *AnthropicChatModelConfig) (*anthropic.ChatModel,
 	baseURL := cmp.Or(cfg.BaseURL, BaseURLAnthropic)
 	reqOpts := append([]option.RequestOption{option.WithBaseURL(baseURL)}, cfg.RequestOptions...)
 	return anthropic.NewChatModel(&anthropic.ChatModelConfig{
-		ApiKey:         cfg.ApiKey,
+		APIKey:         cfg.APIKey,
 		DefaultOptions: cfg.DefaultOptions,
 		RequestOptions: reqOpts,
 		Metadata:       &chat.ModelMetadata{Provider: Provider},

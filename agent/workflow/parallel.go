@@ -10,7 +10,7 @@ import (
 	"github.com/Tangerg/lynx/agent/runtime"
 )
 
-// ParallelSpec configures a fan-out across N sub-agents that all
+// ParallelConfig configures a fan-out across N sub-agents that all
 // consume the same In type and produce the same Element type, then a
 // single Joiner consolidates the per-agent outputs into Result.
 //
@@ -21,7 +21,7 @@ import (
 // parallel phase. This mirrors ADK's ParallelAgent branch-isolation
 // design (avoids LLM context cross-pollination when each sub-agent
 // drives its own LLM tool loop).
-type ParallelSpec[In, Element, Result any] struct {
+type ParallelConfig[In, Element, Result any] struct {
 	// Name names the produced agent + its goal + the action names. Required.
 	Name string
 
@@ -58,7 +58,7 @@ type ParallelSpec[In, Element, Result any] struct {
 // caller decides whether to surface, retry, or panic.
 func Parallel[In, Element, Result any](
 	platform *runtime.Platform,
-	spec ParallelSpec[In, Element, Result],
+	spec ParallelConfig[In, Element, Result],
 ) (*core.Agent, error) {
 	if platform == nil {
 		return nil, fmt.Errorf("workflow.Parallel: platform must not be nil")
@@ -132,7 +132,7 @@ func Parallel[In, Element, Result any](
 		Actions:     []core.Action{fanout, join},
 		Goals: []*core.Goal{core.GoalProducing[Result](core.Goal{
 			Name:        spec.Name,
-			Description: "produce " + core.TypeFullNameOf[Result](),
+			Description: "produce " + core.TypeName[Result](),
 		})},
 	}), nil
 }

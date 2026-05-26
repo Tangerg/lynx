@@ -42,7 +42,7 @@ var _ embedding.Model = (*EmbeddingModel)(nil)
 // invocation handles one input); Call therefore loops over Request.Texts
 // internally.
 type EmbeddingModel struct {
-	api            *Api
+	api            *API
 	defaultOptions *embedding.Options
 }
 
@@ -50,7 +50,7 @@ func NewEmbeddingModel(ctx context.Context, cfg *EmbeddingModelConfig) (*Embeddi
 	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
-	api, err := NewApi(ctx, &ApiConfig{Region: cfg.Region, AWSConfig: cfg.AWSConfig})
+	api, err := NewAPI(ctx, &APIConfig{Region: cfg.Region, AWSConfig: cfg.AWSConfig})
 	if err != nil {
 		return nil, err
 	}

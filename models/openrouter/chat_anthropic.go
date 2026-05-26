@@ -12,7 +12,7 @@ import (
 )
 
 type AnthropicChatModelConfig struct {
-	ApiKey         model.ApiKey
+	APIKey         model.APIKey
 	DefaultOptions *chat.Options
 	BaseURL        string
 
@@ -31,8 +31,8 @@ func (c *AnthropicChatModelConfig) validate() error {
 	if c == nil {
 		return errors.New("openrouter: config must not be nil")
 	}
-	if c.ApiKey == nil {
-		return errors.New("openrouter: ApiKey is required")
+	if c.APIKey == nil {
+		return errors.New("openrouter: APIKey is required")
 	}
 	if c.DefaultOptions == nil {
 		return errors.New("openrouter: DefaultOptions is required")
@@ -65,7 +65,7 @@ func NewAnthropicChatModel(cfg *AnthropicChatModelConfig) (*anthropic.ChatModel,
 	}
 	reqOpts = append(reqOpts, cfg.RequestOptions...)
 	return anthropic.NewChatModel(&anthropic.ChatModelConfig{
-		ApiKey:         cfg.ApiKey,
+		APIKey:         cfg.APIKey,
 		DefaultOptions: cfg.DefaultOptions,
 		RequestOptions: reqOpts,
 		Metadata:       &chat.ModelMetadata{Provider: Provider},

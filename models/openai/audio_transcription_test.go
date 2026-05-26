@@ -23,7 +23,7 @@ func TestAudioTranscriptionModel_Call_Mock(t *testing.T) {
 		t.Fatal(err)
 	}
 	m, err := openai.NewAudioTranscriptionModel(&openai.AudioTranscriptionModelConfig{
-		ApiKey:         model.NewApiKey("test-key"),
+		APIKey:         model.NewAPIKey("test-key"),
 		DefaultOptions: opts,
 		RequestOptions: []option.RequestOption{option.WithBaseURL(srv.URL)},
 	})

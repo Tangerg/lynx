@@ -47,7 +47,7 @@ var _ chat.Model = (*ChatModel)(nil)
 // [bedrockruntime.ConverseInput] and reach the wire through the
 // Extra-threaded SDK params.
 type ChatModel struct {
-	api            *Api
+	api            *API
 	defaultOptions *chat.Options
 }
 
@@ -55,7 +55,7 @@ func NewChatModel(ctx context.Context, cfg *ChatModelConfig) (*ChatModel, error)
 	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
-	api, err := NewApi(ctx, &ApiConfig{Region: cfg.Region, AWSConfig: cfg.AWSConfig})
+	api, err := NewAPI(ctx, &APIConfig{Region: cfg.Region, AWSConfig: cfg.AWSConfig})
 	if err != nil {
 		return nil, err
 	}

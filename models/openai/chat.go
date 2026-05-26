@@ -213,7 +213,7 @@ func (r *requestHelper) buildMsgs(msgs []chat.Message) []openai.ChatCompletionMe
 	return result
 }
 
-func (r *requestHelper) buildApiChatRequest(req *chat.Request) (*openai.ChatCompletionNewParams, error) {
+func (r *requestHelper) buildAPIChatRequest(req *chat.Request) (*openai.ChatCompletionNewParams, error) {
 	params, err := r.buildParams(req.Options, req.Tools)
 	if err != nil {
 		return nil, err
@@ -360,7 +360,7 @@ func (r *responseHelper) buildChatResponse(req *openai.ChatCompletionNewParams, 
 }
 
 type ChatModelConfig struct {
-	ApiKey         model.ApiKey
+	APIKey         model.APIKey
 	DefaultOptions *chat.Options
 	RequestOptions []option.RequestOption
 
@@ -376,8 +376,8 @@ func (c *ChatModelConfig) validate() error {
 	if c == nil {
 		return errors.New("openai: config must not be nil")
 	}
-	if c.ApiKey == nil {
-		return errors.New("openai: ApiKey is required")
+	if c.APIKey == nil {
+		return errors.New("openai: APIKey is required")
 	}
 	if c.DefaultOptions == nil {
 		return errors.New("openai: DefaultOptions is required")
@@ -388,7 +388,7 @@ func (c *ChatModelConfig) validate() error {
 var _ chat.Model = (*ChatModel)(nil)
 
 type ChatModel struct {
-	api            *Api
+	api            *API
 	defaultOptions *chat.Options
 	reqHelper      requestHelper
 	respHelper     responseHelper
@@ -400,8 +400,8 @@ func NewChatModel(cfg *ChatModelConfig) (*ChatModel, error) {
 		return nil, err
 	}
 
-	api, err := NewApi(&ApiConfig{
-		ApiKey:         cfg.ApiKey,
+	api, err := NewAPI(&APIConfig{
+		APIKey:         cfg.APIKey,
 		RequestOptions: cfg.RequestOptions,
 	})
 	if err != nil {
@@ -423,7 +423,7 @@ func NewChatModel(cfg *ChatModelConfig) (*ChatModel, error) {
 }
 
 func (c *ChatModel) Call(ctx context.Context, req *chat.Request) (*chat.Response, error) {
-	apiReq, err := c.reqHelper.buildApiChatRequest(req)
+	apiReq, err := c.reqHelper.buildAPIChatRequest(req)
 	if err != nil {
 		return nil, err
 	}
@@ -438,7 +438,7 @@ func (c *ChatModel) Call(ctx context.Context, req *chat.Request) (*chat.Response
 
 func (c *ChatModel) Stream(ctx context.Context, req *chat.Request) iter.Seq2[*chat.Response, error] {
 	return func(yield func(*chat.Response, error) bool) {
-		apiReq, err := c.reqHelper.buildApiChatRequest(req)
+		apiReq, err := c.reqHelper.buildAPIChatRequest(req)
 		if err != nil {
 			yield(nil, err)
 			return

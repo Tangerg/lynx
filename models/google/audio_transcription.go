@@ -13,7 +13,7 @@ import (
 )
 
 type AudioTranscriptionModelConfig struct {
-	ApiKey         model.ApiKey
+	APIKey         model.APIKey
 	DefaultOptions *transcription.Options
 
 	// Backend / Project / Location enable Vertex AI access — see
@@ -34,8 +34,8 @@ func (c *AudioTranscriptionModelConfig) validate() error {
 	if c == nil {
 		return errors.New("google: config must not be nil")
 	}
-	if c.Backend != genai.BackendVertexAI && c.ApiKey == nil {
-		return errors.New("google: ApiKey is required")
+	if c.Backend != genai.BackendVertexAI && c.APIKey == nil {
+		return errors.New("google: APIKey is required")
 	}
 	if c.DefaultOptions == nil {
 		return errors.New("google: DefaultOptions is required")
@@ -51,7 +51,7 @@ var _ transcription.Model = (*AudioTranscriptionModel)(nil)
 // prompt is "Transcribe this audio."; callers override it by setting a
 // string at Options.Extra[OptionsKeyTranscriptionPrompt].
 type AudioTranscriptionModel struct {
-	api            *Api
+	api            *API
 	defaultOptions *transcription.Options
 	metadata       transcription.ModelMetadata
 }
@@ -61,8 +61,8 @@ func NewAudioTranscriptionModel(cfg *AudioTranscriptionModelConfig) (*AudioTrans
 		return nil, err
 	}
 
-	api, err := NewApi(&ApiConfig{
-		ApiKey:   cfg.ApiKey,
+	api, err := NewAPI(&APIConfig{
+		APIKey:   cfg.APIKey,
 		Backend:  cfg.Backend,
 		Project:  cfg.Project,
 		Location: cfg.Location,
@@ -88,7 +88,7 @@ func NewAudioTranscriptionModel(cfg *AudioTranscriptionModelConfig) (*AudioTrans
 // lynx-level transcription.Options stays minimal.
 const OptionsKeyTranscriptionPrompt = "prompt"
 
-func (a *AudioTranscriptionModel) buildApiTranscriptionRequest(req *transcription.Request) (string, []*genai.Content, *genai.GenerateContentConfig, error) {
+func (a *AudioTranscriptionModel) buildAPITranscriptionRequest(req *transcription.Request) (string, []*genai.Content, *genai.GenerateContentConfig, error) {
 	mergedOpts, err := transcription.MergeOptions(a.defaultOptions, req.Options)
 	if err != nil {
 		return "", nil, nil, err
@@ -148,7 +148,7 @@ func (a *AudioTranscriptionModel) buildTranscriptionResponse(apiResp *genai.Gene
 }
 
 func (a *AudioTranscriptionModel) Call(ctx context.Context, req *transcription.Request) (*transcription.Response, error) {
-	modelName, contents, cfg, err := a.buildApiTranscriptionRequest(req)
+	modelName, contents, cfg, err := a.buildAPITranscriptionRequest(req)
 	if err != nil {
 		return nil, err
 	}

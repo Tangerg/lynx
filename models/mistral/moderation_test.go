@@ -28,7 +28,7 @@ func TestModerationModel_Call_Mock(t *testing.T) {
 		t.Fatal(err)
 	}
 	m, err := mistral.NewModerationModel(&mistral.ModerationModelConfig{
-		ApiKey:         model.NewApiKey("test-key"),
+		APIKey:         model.NewAPIKey("test-key"),
 		DefaultOptions: opts,
 		BaseURL:        srv.URL,
 	})

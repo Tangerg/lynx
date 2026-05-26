@@ -8,7 +8,7 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat"
 )
 
-// OperationContext is the read-only surface a Condition.Evaluate sees. It's
+// ConditionEnv is the read-only surface a Condition.Evaluate sees. It's
 // kept small intentionally: a condition should not need a chat client, an
 // LLM, or a publish channel to decide whether a fact holds. (Prompt-driven
 // conditions plug in via PromptCondition, which carries its own client.)
@@ -16,7 +16,7 @@ import (
 // Blackboard is typed as [BlackboardReader] so condition implementations
 // cannot accidentally mutate state during the OBSERVE phase — the
 // compiler enforces the structural contract.
-type OperationContext struct {
+type ConditionEnv struct {
 	Process    Process
 	Blackboard BlackboardReader
 }
@@ -32,13 +32,13 @@ type Condition interface {
 	// numbers so the planner explores cheaper branches first.
 	Cost() float64
 
-	Evaluate(ctx context.Context, oc *OperationContext) Determination
+	Evaluate(ctx context.Context, oc *ConditionEnv) Determination
 }
 
 // ConditionFunc is the function shape used by NewCondition — exported so
 // callers can name parameters in their own code without re-typing the
 // signature.
-type ConditionFunc func(ctx context.Context, oc *OperationContext) Determination
+type ConditionFunc func(ctx context.Context, oc *ConditionEnv) Determination
 
 // ComputedCondition wraps a function — by far the common case.
 type ComputedCondition struct {
@@ -55,7 +55,7 @@ func NewCondition(name string, fn ConditionFunc) *ComputedCondition {
 func (c *ComputedCondition) Name() string  { return c.name }
 func (c *ComputedCondition) Cost() float64 { return c.cost }
 
-func (c *ComputedCondition) Evaluate(ctx context.Context, oc *OperationContext) Determination {
+func (c *ComputedCondition) Evaluate(ctx context.Context, oc *ConditionEnv) Determination {
 	if c.fn == nil {
 		return Unknown
 	}
@@ -68,7 +68,7 @@ func (c *ComputedCondition) Evaluate(ctx context.Context, oc *OperationContext) 
 // operation context into the LLM user prompt. Pulled into the
 // condition's [Evaluate] every tick so prompts can reference live
 // blackboard state.
-type PromptBuilder func(ctx context.Context, oc *OperationContext) string
+type PromptBuilder func(ctx context.Context, oc *ConditionEnv) string
 
 // ConditionParser converts the LLM's raw text reply into a
 // [Determination]. [ParseYesNoDetermination] is the canonical default
@@ -99,7 +99,7 @@ type PromptCondition struct {
 //   - name: condition key the planner uses (e.g., "draft_acceptable").
 //   - client: the chat client; nil panics — LLM-driven conditions
 //     without a model don't have a meaningful default.
-//   - prompt: builds the user prompt from the live OperationContext.
+//   - prompt: builds the user prompt from the live ConditionEnv.
 //   - parser: maps the LLM reply to True/False/Unknown. Pass
 //     [ParseYesNoDetermination] for the common yes/no shape.
 //
@@ -147,7 +147,7 @@ func (c *PromptCondition) Cost() float64 { return c.cost }
 // the reply. Returns [Unknown] on LLM error / empty reply, so the
 // planner falls back to "doesn't satisfy" rather than tripping on a
 // transient model issue.
-func (c *PromptCondition) Evaluate(ctx context.Context, oc *OperationContext) Determination {
+func (c *PromptCondition) Evaluate(ctx context.Context, oc *ConditionEnv) Determination {
 	text, _, err := c.client.
 		Chat().
 		WithUserPrompt(c.prompt(ctx, oc)).
@@ -201,7 +201,7 @@ func (c *andCondition) Cost() float64 {
 	return conditionCost(c.left) + conditionCost(c.right)
 }
 
-func (c *andCondition) Evaluate(ctx context.Context, oc *OperationContext) Determination {
+func (c *andCondition) Evaluate(ctx context.Context, oc *ConditionEnv) Determination {
 	leftResult := evaluateCondition(ctx, c.left, oc)
 	if leftResult == False {
 		return False
@@ -221,7 +221,7 @@ func (c *orCondition) Cost() float64 {
 	return conditionCost(c.left) + conditionCost(c.right)
 }
 
-func (c *orCondition) Evaluate(ctx context.Context, oc *OperationContext) Determination {
+func (c *orCondition) Evaluate(ctx context.Context, oc *ConditionEnv) Determination {
 	leftResult := evaluateCondition(ctx, c.left, oc)
 	if leftResult == True {
 		return True
@@ -236,7 +236,7 @@ func Not(inner Condition) Condition { return &notCondition{inner} }
 func (c *notCondition) Name() string  { return "(NOT " + conditionName(c.inner) + ")" }
 func (c *notCondition) Cost() float64 { return conditionCost(c.inner) }
 
-func (c *notCondition) Evaluate(ctx context.Context, oc *OperationContext) Determination {
+func (c *notCondition) Evaluate(ctx context.Context, oc *ConditionEnv) Determination {
 	return evaluateCondition(ctx, c.inner, oc).Not()
 }
 
@@ -257,7 +257,7 @@ func conditionCost(condition Condition) float64 {
 	return condition.Cost()
 }
 
-func evaluateCondition(ctx context.Context, condition Condition, oc *OperationContext) Determination {
+func evaluateCondition(ctx context.Context, condition Condition, oc *ConditionEnv) Determination {
 	if condition == nil {
 		return Unknown
 	}

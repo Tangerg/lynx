@@ -189,6 +189,10 @@ func newPipedServer(t *testing.T, mode approval.Mode) (
 			}
 			frames <- f
 		}
+		// Scanner.Err is intentionally discarded — pipe closed
+		// by cleanup() during test teardown produces an
+		// io.ErrClosedPipe that the test doesn't care about.
+		_ = buf.Err()
 	}()
 
 	cleanup := func() {

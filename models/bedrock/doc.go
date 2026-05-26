@@ -14,7 +14,7 @@
 // regional and cross-region inference-profile IDs.
 //
 // AWS auth is handled by the standard aws-sdk-go-v2 chain (env vars,
-// shared config, IRSA, instance role); no custom ApiKey is required.
+// shared config, IRSA, instance role); no custom APIKey is required.
 //
 // See https://docs.aws.amazon.com/bedrock/ for the full reference.
 package bedrock

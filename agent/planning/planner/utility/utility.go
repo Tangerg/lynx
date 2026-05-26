@@ -9,7 +9,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/Tangerg/lynx/agent/core"
-	"github.com/Tangerg/lynx/agent/plan"
+	"github.com/Tangerg/lynx/agent/planning"
 )
 
 // NirvanaGoalName is the conventional name for the unsatisfiable
@@ -40,7 +40,7 @@ var plannerTracer = otel.Tracer("lynx/agent/planner")
 type Planner struct{}
 
 // NewPlanner returns a Utility AI planner. There are no knobs;
-// per-call configuration flows through [plan.PlanOptions].
+// per-call configuration flows through [planning.Options].
 func NewPlanner() *Planner { return &Planner{} }
 
 // Name is the planner's extension identifier — agents select this
@@ -55,10 +55,10 @@ func (p *Planner) Name() string { return "utility" }
 func (p *Planner) PlanToGoal(
 	ctx context.Context,
 	start core.WorldState,
-	system *plan.PlanningSystem,
+	system *planning.System,
 	goal *core.Goal,
-	options plan.PlanOptions,
-) (*plan.Plan, error) {
+	options planning.Options,
+) (*planning.Plan, error) {
 	return planUtility(ctx, p.Name(), start, system, goal, options, false)
 }
 
@@ -84,10 +84,10 @@ func (p *HybridPlanner) Name() string { return "hybrid-utility" }
 func (p *HybridPlanner) PlanToGoal(
 	ctx context.Context,
 	start core.WorldState,
-	system *plan.PlanningSystem,
+	system *planning.System,
 	goal *core.Goal,
-	options plan.PlanOptions,
-) (*plan.Plan, error) {
+	options planning.Options,
+) (*planning.Plan, error) {
 	return planUtility(ctx, p.Name(), start, system, goal, options, true)
 }
 
@@ -100,12 +100,12 @@ func planUtility(
 	ctx context.Context,
 	name string,
 	start core.WorldState,
-	system *plan.PlanningSystem,
+	system *planning.System,
 	goal *core.Goal,
-	options plan.PlanOptions,
+	options planning.Options,
 	satisfiedFirst bool,
-) (result *plan.Plan, err error) {
-	if err = plan.CheckPlanInputs(start, system, goal); err != nil {
+) (result *planning.Plan, err error) {
+	if err = planning.CheckPlanInputs(start, system, goal); err != nil {
 		return nil, err
 	}
 	_, span := plannerTracer.Start(ctx, name+".plan",
@@ -128,21 +128,21 @@ func planUtility(
 		if first == nil {
 			return nil, nil
 		}
-		return &plan.Plan{Actions: []core.Action{first}, Goal: goal}, nil
+		return &planning.Plan{Actions: []core.Action{first}, Goal: goal}, nil
 	}
 
 	if satisfiedFirst && goal.IsSatisfiedBy(start) {
-		return &plan.Plan{Goal: goal}, nil
+		return &planning.Plan{Goal: goal}, nil
 	}
 
 	if first == nil {
 		if !satisfiedFirst && goal.IsSatisfiedBy(start) {
-			return &plan.Plan{Goal: goal}, nil
+			return &planning.Plan{Goal: goal}, nil
 		}
 		return nil, nil
 	}
 	if goal.IsSatisfiedBy(start.Apply(first.Metadata().Effects)) {
-		return &plan.Plan{Actions: []core.Action{first}, Goal: goal}, nil
+		return &planning.Plan{Actions: []core.Action{first}, Goal: goal}, nil
 	}
 	return nil, nil
 }
@@ -201,9 +201,9 @@ func safeScalar(f func(core.WorldState) float64, s core.WorldState) float64 {
 	return v
 }
 
-// Compile-time assertions that the planners satisfy [plan.Planner];
+// Compile-time assertions that the planners satisfy [planning.Planner];
 // keeps the contract honest if the interface grows.
 var (
-	_ plan.Planner = (*Planner)(nil)
-	_ plan.Planner = (*HybridPlanner)(nil)
+	_ planning.Planner = (*Planner)(nil)
+	_ planning.Planner = (*HybridPlanner)(nil)
 )

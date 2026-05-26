@@ -132,7 +132,7 @@ func (s *processSignals) peekAwaitable() core.Awaitable {
 func (s *processSignals) deliverResponse(response any) (core.ResponseImpact, error) {
 	slot := s.pendingAwaitable.Swap(nil)
 	if slot == nil {
-		return core.ResponseImpactUnchanged, errors.New("no awaitable response is pending")
+		return core.ImpactUnchanged, errors.New("no awaitable response is pending")
 	}
 	return slot.awaitable.OnResponseAny(response)
 }

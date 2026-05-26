@@ -13,10 +13,10 @@ import (
 )
 
 type OpenAIChatModelConfig struct {
-	// ApiKey is optional — local Ollama daemons don't enforce auth.
+	// APIKey is optional — local Ollama daemons don't enforce auth.
 	// Provide one only when running behind a gateway / reverse proxy
 	// that requires Bearer auth. nil sends an empty Bearer.
-	ApiKey model.ApiKey
+	APIKey model.APIKey
 
 	DefaultOptions *chat.Options
 
@@ -55,15 +55,15 @@ func NewOpenAIChatModel(cfg *OpenAIChatModelConfig) (*openai.ChatModel, error) {
 	}
 	baseURL := resolveOpenAIBaseURL(cfg.BaseURL)
 	reqOpts := append([]option.RequestOption{option.WithBaseURL(baseURL)}, cfg.RequestOptions...)
-	// openai.ChatModelConfig requires a non-nil ApiKey; supply an
+	// openai.ChatModelConfig requires a non-nil APIKey; supply an
 	// empty placeholder when the local Ollama daemon doesn't enforce
 	// auth.
-	apiKey := cfg.ApiKey
+	apiKey := cfg.APIKey
 	if apiKey == nil {
-		apiKey = model.NewApiKey("ollama")
+		apiKey = model.NewAPIKey("ollama")
 	}
 	return openai.NewChatModel(&openai.ChatModelConfig{
-		ApiKey:         apiKey,
+		APIKey:         apiKey,
 		DefaultOptions: cfg.DefaultOptions,
 		RequestOptions: reqOpts,
 		Metadata:       &chat.ModelMetadata{Provider: Provider},

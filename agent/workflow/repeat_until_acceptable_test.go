@@ -17,7 +17,7 @@ type ruaOut struct{ Draft string }
 func TestRepeatUntilAcceptable_StopsWhenScoreCrossesThreshold(t *testing.T) {
 	var iterations atomic.Int32
 
-	a, err := workflow.RepeatUntilAcceptable(workflow.RepeatUntilAcceptableSpec[ruaIn, ruaOut]{
+	a, err := workflow.RepeatUntilAcceptable(workflow.RepeatUntilAcceptableConfig[ruaIn, ruaOut]{
 		Name:            "iterate-draft",
 		MaxIterations:   5,
 		AcceptableScore: 0.7,
@@ -68,7 +68,7 @@ func TestRepeatUntilAcceptable_StopsWhenScoreCrossesThreshold(t *testing.T) {
 }
 
 func TestRepeatUntilAcceptable_DefaultsThresholdToZeroPointSeven(t *testing.T) {
-	a, err := workflow.RepeatUntilAcceptable(workflow.RepeatUntilAcceptableSpec[ruaIn, ruaOut]{
+	a, err := workflow.RepeatUntilAcceptable(workflow.RepeatUntilAcceptableConfig[ruaIn, ruaOut]{
 		Name:          "iterate",
 		MaxIterations: 3,
 		// AcceptableScore zero → should default to 0.7
@@ -101,9 +101,9 @@ func TestRepeatUntilAcceptable_DefaultsThresholdToZeroPointSeven(t *testing.T) {
 func TestRepeatUntilAcceptable_RejectsInvalidSpec(t *testing.T) {
 	cases := []struct {
 		name string
-		spec workflow.RepeatUntilAcceptableSpec[ruaIn, ruaOut]
+		spec workflow.RepeatUntilAcceptableConfig[ruaIn, ruaOut]
 	}{
-		{"empty name", workflow.RepeatUntilAcceptableSpec[ruaIn, ruaOut]{
+		{"empty name", workflow.RepeatUntilAcceptableConfig[ruaIn, ruaOut]{
 			Task: func(context.Context, *core.ProcessContext, ruaIn, *workflow.History[ruaOut]) (ruaOut, error) {
 				return ruaOut{}, nil
 			},
@@ -111,13 +111,13 @@ func TestRepeatUntilAcceptable_RejectsInvalidSpec(t *testing.T) {
 				return workflow.Feedback{}, nil
 			},
 		}},
-		{"nil task", workflow.RepeatUntilAcceptableSpec[ruaIn, ruaOut]{
+		{"nil task", workflow.RepeatUntilAcceptableConfig[ruaIn, ruaOut]{
 			Name: "x",
 			Evaluator: func(context.Context, *core.ProcessContext, ruaIn, ruaOut) (workflow.Feedback, error) {
 				return workflow.Feedback{}, nil
 			},
 		}},
-		{"nil evaluator", workflow.RepeatUntilAcceptableSpec[ruaIn, ruaOut]{
+		{"nil evaluator", workflow.RepeatUntilAcceptableConfig[ruaIn, ruaOut]{
 			Name: "x",
 			Task: func(context.Context, *core.ProcessContext, ruaIn, *workflow.History[ruaOut]) (ruaOut, error) {
 				return ruaOut{}, nil

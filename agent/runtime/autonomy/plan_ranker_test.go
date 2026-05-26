@@ -6,13 +6,13 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/agent/core"
-	"github.com/Tangerg/lynx/agent/plan"
+	"github.com/Tangerg/lynx/agent/planning"
 	"github.com/Tangerg/lynx/agent/runtime/autonomy"
 	"github.com/Tangerg/lynx/core/model/chat"
 )
 
-func newPlan(goalName string, value, cost float64) *plan.Plan {
-	return &plan.Plan{
+func newPlan(goalName string, value, cost float64) *planning.Plan {
+	return &planning.Plan{
 		Goal: &core.Goal{
 			Name:  goalName,
 			Value: core.Static(value),
@@ -41,7 +41,7 @@ func (a *fakePlanAction) Execute(context.Context, *core.ProcessContext) core.Act
 }
 
 func TestLLMPlanRanker_ReordersByLLMConfidence(t *testing.T) {
-	plans := []*plan.Plan{
+	plans := []*planning.Plan{
 		newPlan("low", 1, 0.1),
 		newPlan("medium", 5, 1),
 		newPlan("high", 10, 2),
@@ -58,7 +58,7 @@ func TestLLMPlanRanker_ReordersByLLMConfidence(t *testing.T) {
 	client, _ := chat.NewClient(model)
 
 	ranker, _ := autonomy.NewLLMPlanRanker(client, autonomy.LLMPlanRankerConfig{})
-	out, err := ranker.Rank(t.Context(), plans, plan.EmptyWorldState())
+	out, err := ranker.Rank(t.Context(), plans, planning.EmptyWorldState())
 	if err != nil {
 		t.Fatalf("Rank: %v", err)
 	}
@@ -77,12 +77,12 @@ func TestLLMPlanRanker_ReordersByLLMConfidence(t *testing.T) {
 }
 
 func TestLLMPlanRanker_PreservesOrderForSinglePlan(t *testing.T) {
-	plans := []*plan.Plan{newPlan("only", 1, 1)}
+	plans := []*planning.Plan{newPlan("only", 1, 1)}
 	model := newStubModel("ignored — never called")
 	client, _ := chat.NewClient(model)
 	ranker, _ := autonomy.NewLLMPlanRanker(client, autonomy.LLMPlanRankerConfig{})
 
-	out, err := ranker.Rank(t.Context(), plans, plan.EmptyWorldState())
+	out, err := ranker.Rank(t.Context(), plans, planning.EmptyWorldState())
 	if err != nil {
 		t.Fatalf("Rank: %v", err)
 	}
@@ -92,7 +92,7 @@ func TestLLMPlanRanker_PreservesOrderForSinglePlan(t *testing.T) {
 }
 
 func TestLLMPlanRanker_PromptContainsPlanSummaries(t *testing.T) {
-	plans := []*plan.Plan{
+	plans := []*planning.Plan{
 		newPlan("first", 2, 1),
 		newPlan("second", 5, 2),
 	}
@@ -103,7 +103,7 @@ func TestLLMPlanRanker_PromptContainsPlanSummaries(t *testing.T) {
 	client, _ := chat.NewClient(model)
 
 	ranker, _ := autonomy.NewLLMPlanRanker(client, autonomy.LLMPlanRankerConfig{})
-	if _, err := ranker.Rank(t.Context(), plans, plan.EmptyWorldState()); err != nil {
+	if _, err := ranker.Rank(t.Context(), plans, planning.EmptyWorldState()); err != nil {
 		t.Fatalf("Rank: %v", err)
 	}
 
