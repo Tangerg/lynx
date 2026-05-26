@@ -34,7 +34,12 @@ export function ChatPanel({ onSend }: Props) {
   if (sessions.length === 0 && !activeMainView) return null;
 
   return (
-    <Panel className="relative">
+    // `@container/chat` exposes the panel's actual width to container
+    // queries inside — MessageOutline uses it to decide whether the
+    // right gutter has room for the TOC. Querying the viewport (`xl:`)
+    // was wrong because chat panel width depends on sidebar mode +
+    // window width, not viewport alone.
+    <Panel className="relative @container/chat">
       <PanelHeader />
       {activeMainView ? (
         <WorkspaceViewBody viewId={activeMainView} />

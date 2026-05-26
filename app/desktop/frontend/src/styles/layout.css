@@ -141,6 +141,14 @@ html.theme-light .tool-card.running::before {
   flex: 1 1 0;
   min-height: 0;
   overflow-y: auto;
+  /* overflow-x: hidden — without this, `overflow-y: auto` makes browsers
+     compute overflow-x to `auto` too. Any absolutely-positioned child
+     that pokes past the right edge (e.g. MessageOutline's gutter aside
+     on a narrow chat panel) would otherwise turn the whole panel into a
+     drag-pan-able horizontal scroller. We want the inner column to stay
+     locked horizontally; anything that doesn't fit hides itself via a
+     container query, not by overflowing. */
+  overflow-x: hidden;
   scrollbar-width: thin;
   scrollbar-color: var(--color-border-soft) transparent;
 }
