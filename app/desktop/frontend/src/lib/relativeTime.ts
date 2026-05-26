@@ -13,37 +13,55 @@
 // scannable real date instead of "23 days ago" / "2 个月前".
 
 import dayjs from "dayjs";
-import "dayjs/locale/zh-cn";
 import relativeTime from "dayjs/plugin/relativeTime";
 import i18next from "i18next";
 
 dayjs.extend(relativeTime);
 
-function syncDayjsLocale(lng: string | undefined): void {
-  try {
-    dayjs.locale(lng && lng.startsWith("zh") ? "zh-cn" : "en");
-  } catch {
-    /* dayjs throws if the locale isn't loaded; safe to ignore — it
-       just keeps the previous (or default 'en') locale. */
+// zh-cn is dynamic-imported on demand. Static side-effect imports of
+// UMD locale files have caused HMR / Vite dep-cache headaches; the
+// dynamic-import lets Vite handle it as its own chunk and the locale
+// only loads when a Chinese-speaking user actually opens the app.
+let zhLoadingPromise: Promise<void> | null = null;
+function ensureZhLoaded(): Promise<void> {
+  if (!zhLoadingPromise) {
+    zhLoadingPromise = import("dayjs/locale/zh-cn").then(() => undefined);
+  }
+  return zhLoadingPromise;
+}
+
+function applyLocale(lng: string | undefined): void {
+  const wantZh = !!lng && lng.startsWith("zh");
+  if (wantZh) {
+    void ensureZhLoaded().then(() => {
+      try {
+        dayjs.locale("zh-cn");
+      } catch {
+        /* zh-cn not registered for some reason; stay on current. */
+      }
+    });
+  } else {
+    try {
+      dayjs.locale("en");
+    } catch {
+      /* unreachable — en is always built in. */
+    }
   }
 }
 
-// Lazy bind: we used to subscribe at module load, but module-load
-// timing relative to i18next.init() is brittle (it imports
-// `i18next` directly, not via `@/lib/i18n`, so there's no
-// initialisation ordering guarantee). Deferring to first call means
-// React has already mounted by the time we subscribe — i18next is
-// fully initialised by then.
+// Lazy bind on first formatRelative() call (when React is mounted +
+// i18next is initialised). Subscribing at module load was brittle
+// because relativeTime.ts imports `i18next` directly rather than via
+// `@/lib/i18n`, so there's no init-order guarantee.
 let bound = false;
 function ensureBound(): void {
   if (bound) return;
   bound = true;
-  syncDayjsLocale(i18next.language);
+  applyLocale(i18next.language);
   try {
-    i18next.on("languageChanged", syncDayjsLocale);
+    i18next.on("languageChanged", applyLocale);
   } catch {
-    /* fall through: dayjs stays on whatever locale syncDayjsLocale
-       managed to set. */
+    /* leave dayjs on whatever applyLocale managed to set. */
   }
 }
 
