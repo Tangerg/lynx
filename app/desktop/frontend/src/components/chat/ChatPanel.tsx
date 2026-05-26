@@ -34,7 +34,7 @@ export function ChatPanel({ onSend }: Props) {
   if (sessions.length === 0 && !activeMainView) return null;
 
   return (
-    <Panel className="chat">
+    <Panel className="relative">
       <PanelHeader />
       {activeMainView ? (
         <WorkspaceViewBody viewId={activeMainView} />
