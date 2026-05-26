@@ -14,6 +14,18 @@ import { Icon, Sparkline, StatusDot } from "@/components/common";
 import { cn } from "@/lib/utils";
 import { definePlugin } from "@/plugins/sdk";
 import { useAgentAction, useAgentSlice } from "@/state/agentStore";
+import { useSessionStore } from "@/state/sessionStore";
+
+// Deeplink: open the Timeline workspace view. Used by the RunId pill and
+// (in C4) by RunErrorBanner. Centralised so the view id / title stay in
+// one place — bumping the title here updates every caller.
+function openTimelineView(): void {
+  useSessionStore.getState().openMainView({
+    id: "timeline",
+    title: "Timeline",
+    icon: "history",
+  });
+}
 
 // One slot in the status bar. All callers use the same shape:
 // inline-flex row, 5px gap, no-wrap, tabular-numeric so digits don't
@@ -95,15 +107,24 @@ function Branch() {
 }
 
 // RunId — 8-char prefix of the active run's id. Mono + tnum so the
-// glyphs line up. Becomes "—" between runs.
+// glyphs line up. Becomes "—" between runs. Clickable → opens the
+// Timeline workspace view so users can audit what the run did.
 function RunId() {
   const runId = useAgentSlice((v) => v.run.runId);
   const short = runId ? runId.slice(0, 8) : "—";
   return (
-    <span className={pill()} title={runId ? `Run: ${runId}` : "No active run"}>
+    <button
+      type="button"
+      onClick={openTimelineView}
+      title={runId ? `Run: ${runId} · open timeline` : "Open timeline"}
+      className={cn(
+        pill(),
+        "rounded-xs border-0 bg-transparent px-1 cursor-pointer transition-colors hover:bg-surface-2 hover:text-fg",
+      )}
+    >
       <span className="text-fg-faint">run</span>
       <span className="font-mono">{short}</span>
-    </span>
+    </button>
   );
 }
 
