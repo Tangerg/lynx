@@ -34,12 +34,13 @@ export function ChatPanel({ onSend }: Props) {
   if (sessions.length === 0 && !activeMainView) return null;
 
   return (
-    // `@container/chat` exposes the panel's actual width to container
-    // queries inside — MessageOutline uses it to decide whether the
-    // right gutter has room for the TOC. Querying the viewport (`xl:`)
-    // was wrong because chat panel width depends on sidebar mode +
-    // window width, not viewport alone.
-    <Panel className="relative @container/chat">
+    // No `container-type: inline-size` here — it implicitly enables
+    // layout containment, which interacted badly with use-stick-to-
+    // bottom (the lib's ResizeObserver + scroll-anchor path lost
+    // position during streaming and snapped the chat to the top).
+    // MessageOutline's visibility now keys off a viewport media query
+    // instead of a container query — see MessageOutline for the math.
+    <Panel className="relative">
       <PanelHeader />
       {activeMainView ? (
         <WorkspaceViewBody viewId={activeMainView} />
