@@ -62,13 +62,12 @@ function applyCustom(state: AgentViewState, ev: CustomEvent): AgentViewState {
 }
 
 export function reduce(state: AgentViewState, ev: BaseEvent): AgentViewState {
+  const isCustom = ev.type === EventType.CUSTOM;
   // CUSTOM events carry the discriminating name in `ev.name`; core
   // events use `ev.type`. Tag the metric with the most specific
   // discriminator either side has.
-  const tag = ev.type === EventType.CUSTOM ? (ev as CustomEvent).name : ev.type;
+  const tag = isCustom ? (ev as CustomEvent).name : ev.type;
   return measureReduce(tag, () =>
-    ev.type === EventType.CUSTOM
-      ? applyCustom(state, ev as CustomEvent)
-      : applyCoreHandlers(state, ev),
+    isCustom ? applyCustom(state, ev as CustomEvent) : applyCoreHandlers(state, ev),
   );
 }

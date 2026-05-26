@@ -5,9 +5,16 @@
 // Persistence intentionally skipped — diagnostics are dev-time and the
 // data refreshes from otel every collect interval anyway.
 
-import type { ResourceMetrics } from "@opentelemetry/sdk-metrics";
+import type { MetricDescriptor, ResourceMetrics } from "@opentelemetry/sdk-metrics";
 import { DataPointType } from "@opentelemetry/sdk-metrics";
 import { create } from "zustand";
+
+type Attrs = Record<string, string | number | boolean>;
+interface HistogramValue {
+  count: number;
+  sum?: number;
+  buckets: { boundaries: number[]; counts: number[] };
+}
 
 export type InstrumentKind = "histogram" | "counter";
 
@@ -46,47 +53,13 @@ export const useDiagnosticsStore = create<State>((set) => ({
     const next: Record<string, MetricRow> = {};
     for (const scope of batch.scopeMetrics) {
       for (const m of scope.metrics) {
-        const desc = m.descriptor;
         const isHist = m.dataPointType === DataPointType.HISTOGRAM;
-        const kind: InstrumentKind = isHist ? "histogram" : "counter";
         for (const dp of m.dataPoints) {
-          const attrs = (dp.attributes ?? {}) as Record<string, string | number | boolean>;
-          const id = `${desc.name}|${stableKey(attrs)}`;
-          if (isHist) {
-            const v = dp.value as {
-              count: number;
-              sum?: number;
-              buckets: { boundaries: number[]; counts: number[] };
-            };
-            const sum = v.sum ?? 0;
-            const { p50, p95 } = estimatePercentiles(v.buckets);
-            next[id] = {
-              id,
-              name: desc.name,
-              unit: desc.unit,
-              description: desc.description,
-              kind,
-              attrs,
-              count: v.count,
-              sum,
-              p50,
-              p95,
-              last: v.count > 0 ? sum / v.count : 0,
-            };
-          } else {
-            const total = dp.value as number;
-            next[id] = {
-              id,
-              name: desc.name,
-              unit: desc.unit,
-              description: desc.description,
-              kind,
-              attrs,
-              count: total,
-              sum: total,
-              last: total,
-            };
-          }
+          const attrs = (dp.attributes ?? {}) as Attrs;
+          const id = `${m.descriptor.name}|${stableKey(attrs)}`;
+          next[id] = isHist
+            ? histogramRow(id, m.descriptor, dp.value as HistogramValue, attrs)
+            : counterRow(id, m.descriptor, dp.value as number, attrs);
         }
       }
     }
@@ -97,9 +70,41 @@ export const useDiagnosticsStore = create<State>((set) => ({
   clear: () => set({ rows: {} }),
 }));
 
+function histogramRow(id: string, desc: MetricDescriptor, v: HistogramValue, attrs: Attrs): MetricRow {
+  const sum = v.sum ?? 0;
+  const { p50, p95 } = estimatePercentiles(v.buckets);
+  return {
+    id,
+    name: desc.name,
+    unit: desc.unit,
+    description: desc.description,
+    kind: "histogram",
+    attrs,
+    count: v.count,
+    sum,
+    p50,
+    p95,
+    last: v.count > 0 ? sum / v.count : 0,
+  };
+}
+
+function counterRow(id: string, desc: MetricDescriptor, total: number, attrs: Attrs): MetricRow {
+  return {
+    id,
+    name: desc.name,
+    unit: desc.unit,
+    description: desc.description,
+    kind: "counter",
+    attrs,
+    count: total,
+    sum: total,
+    last: total,
+  };
+}
+
 // Deterministic attribute key — sort to keep "lang=ts,plugin=foo" and
 // "plugin=foo,lang=ts" collapse to the same row id.
-function stableKey(attrs: Record<string, string | number | boolean>): string {
+function stableKey(attrs: Attrs): string {
   const entries = Object.entries(attrs).sort(([a], [b]) => a.localeCompare(b));
   return entries.map(([k, v]) => `${k}=${String(v)}`).join(",");
 }
@@ -108,10 +113,7 @@ function stableKey(attrs: Record<string, string | number | boolean>): string {
 // bucket counts. Walk in order, find which bucket the percentile
 // observation lands in, return the upper boundary as a conservative
 // estimate (errs high — fine for "is this slow?" eyeballing).
-function estimatePercentiles(buckets: { boundaries: number[]; counts: number[] }): {
-  p50: number;
-  p95: number;
-} {
+function estimatePercentiles(buckets: HistogramValue["buckets"]): { p50: number; p95: number } {
   const total = buckets.counts.reduce((a, b) => a + b, 0);
   if (total === 0) return { p50: 0, p95: 0 };
   const target50 = total * 0.5;
