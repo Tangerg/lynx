@@ -1,7 +1,7 @@
 import type { SidebarSession } from "@/lib/queries";
 import { Icon, StatusDot } from "@/components/common";
 import { useT } from "@/lib/i18n";
-import { formatRelative, useDayjsLocale } from "@/lib/relativeTime";
+import { formatRelative } from "@/lib/relativeTime";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -18,11 +18,10 @@ interface Props {
 // distinguishes "currently selected" from "just hovering" — a single
 // visual cue carries the active state, no fighting tone steps.
 export function SessionRow({ session, active, onSelect }: Props) {
-  // Subscribe to dayjs locale changes — the zh-cn locale loads async
-  // (dynamic-import), so we re-render once it's actually applied to
-  // dayjs, not just when i18next thinks the language switched. The
-  // returned snapshot is unused; we only care about the subscription.
-  useDayjsLocale();
+  // `useT()` subscribes to i18next language changes, so the relative
+  // time + status labels refresh on locale toggle automatically.
+  // formatRelative reads `i18next.t` and `i18next.language` directly
+  // — no extra subscription needed.
   const t = useT();
   // Sub-row shows status text when the session is active (Running /
   // Needs input), otherwise the localised time. The previous design
