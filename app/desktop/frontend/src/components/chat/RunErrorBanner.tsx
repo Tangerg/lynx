@@ -2,6 +2,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { Icon } from "@/components/common";
 import { swift } from "@/lib/motion";
 import { getCurrentSessionView, useAgentAction, useAgentSlice, useAgentStore } from "@/state/agentStore";
+import { openDiagnosticsView, openTimelineView } from "@/state/deeplinks";
 import { useSessionStore } from "@/state/sessionStore";
 
 // Best-effort: find the most recent user-message plaintext so Retry can
@@ -47,16 +48,6 @@ export function RunErrorBanner() {
     send(text);
   };
 
-  const onOpenTimeline = () => {
-    useSessionStore.getState().openMainView({ id: "timeline", title: "Timeline", icon: "history" });
-  };
-
-  const onOpenDiagnostics = () => {
-    useSessionStore
-      .getState()
-      .openMainView({ id: "diagnostics", title: "Diagnostics", icon: "spark" });
-  };
-
   const canRetry = Boolean(send) && Boolean(findLastUserText());
 
   return (
@@ -80,8 +71,8 @@ export function RunErrorBanner() {
             </div>
             <div className="mt-2 flex flex-wrap items-center gap-1.5">
               {canRetry && <BannerAction icon="loop" label="Retry" onClick={onRetry} primary />}
-              <BannerAction icon="history" label="Open timeline" onClick={onOpenTimeline} />
-              <BannerAction icon="spark" label="Diagnostics" onClick={onOpenDiagnostics} />
+              <BannerAction icon="history" label="Open timeline" onClick={openTimelineView} />
+              <BannerAction icon="spark" label="Diagnostics" onClick={openDiagnosticsView} />
             </div>
           </div>
           <button

@@ -4,6 +4,7 @@
 import type { BaseEvent } from "@ag-ui/core";
 import type { CoreEventHandler } from "@/plugins/sdk";
 import type { AgentViewState, ContentBlock, Message, TimelineEntry, ToolCall } from "@/protocol/agui/viewState";
+import { appendTimelineEntry } from "@/plugins/sdk";
 
 // Erases each handler's specific event variant down to BaseEvent so a
 // uniform `[EventType, CoreEventHandler]` table can carry them all. The
@@ -139,24 +140,16 @@ export function nextThinkingId(): string {
   return `thinking:${Date.now()}:${thinkingBlockSeq}`;
 }
 
-// Monotonic timeline-entry id. Combines a counter with Date.now() so
-// entries are stable for React keys *and* sort sensibly across reloads.
-let timelineSeq = 0;
+// Thin sync wrapper around the SDK's `appendTimelineEntry` so core
+// handlers can use the natural `(state, entry) => state` signature
+// while still sharing the SDK's id-counter — important because both
+// core and custom-event handlers append to the same timeline and
+// owning two counters risked colliding entry ids.
 export function appendTimeline(
   state: AgentViewState,
   entry: Omit<TimelineEntry, "id" | "ts" | "runId"> & { runId?: string | null },
 ): AgentViewState {
-  timelineSeq += 1;
-  const full: TimelineEntry = {
-    id: `tl:${Date.now()}:${timelineSeq}`,
-    ts: Date.now(),
-    runId: entry.runId ?? state.run.runId,
-    kind: entry.kind,
-    summary: entry.summary,
-    refId: entry.refId,
-    status: entry.status,
-  };
-  return { ...state, timeline: [...state.timeline, full] };
+  return appendTimelineEntry(entry)(state);
 }
 
 export function updateActivity(

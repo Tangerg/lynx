@@ -14,18 +14,7 @@ import { Icon, Sparkline, StatusDot } from "@/components/common";
 import { cn } from "@/lib/utils";
 import { definePlugin } from "@/plugins/sdk";
 import { useAgentAction, useAgentSlice } from "@/state/agentStore";
-import { useSessionStore } from "@/state/sessionStore";
-
-// Deeplink: open the Timeline workspace view. Used by the RunId pill and
-// (in C4) by RunErrorBanner. Centralised so the view id / title stay in
-// one place — bumping the title here updates every caller.
-function openTimelineView(): void {
-  useSessionStore.getState().openMainView({
-    id: "timeline",
-    title: "Timeline",
-    icon: "history",
-  });
-}
+import { openTimelineView } from "@/state/deeplinks";
 
 // One slot in the status bar. All callers use the same shape:
 // inline-flex row, 5px gap, no-wrap, tabular-numeric so digits don't

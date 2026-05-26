@@ -1,179 +1,20 @@
 // Built-in plugin: "Run Summary" workspace view — task-end review
 // surface for the most recent run (UX review §2.4 P0.3).
 //
-// Derives entirely from `view.timeline` (C2) + `view.toolCalls` — no
-// new state. The job is: pick the last run boundary, walk the entries
-// it contains, and categorise them into the four buckets a user wants
-// after the agent stops:
-//
-//   - Changed files     (write_file / edit_file tool calls)
-//   - Read files        (read_file)
-//   - Commands run      (bash / shell tools)
-//   - Approvals         (request → decision)
-//   - Errors            (run-error entries)
-//
-// "Copy summary" produces a plaintext digest the user can paste into a
-// PR description or chat — useful for the common "what did the agent
-// do?" handoff.
+// Pure renderer. The "what did the agent just do" derivation lives in
+// `protocol/agui/runDigest.ts` (testable in isolation); this file only
+// owns the React surface that displays the buckets + the "Copy
+// summary" affordance.
 
 import type { ReactNode } from "react";
-import type { AgentViewState, TimelineEntry } from "@/protocol/agui/viewState";
+import type { RunDigest } from "@/protocol/agui/runDigest";
 import { useState } from "react";
 import { EmptyState, Icon, IconButton, ScrollArea } from "@/components/common";
 import { ViewHeader } from "@/components/views/ViewHeader";
 import { cn } from "@/lib/utils";
 import { definePlugin } from "@/plugins/sdk";
+import { buildPlaintext, deriveLatestRun, durationText } from "@/protocol/agui/runDigest";
 import { useAgentSlice } from "@/state/agentStore";
-
-interface ApprovalDigest {
-  command: string;
-  decision?: "approved" | "declined";
-}
-
-interface RunDigest {
-  runId: string | null;
-  startedAt: number | null;
-  endedAt: number | null;
-  status: "running" | "ok" | "err" | "unknown";
-  changedFiles: { path: string; added?: number; removed?: number }[];
-  readFiles: string[];
-  commands: { cmd: string; status: "ok" | "err" }[];
-  approvals: ApprovalDigest[];
-  errors: string[];
-}
-
-// First non-whitespace token of a tool args string — used as the path
-// for file-touching tools whose first arg is the path.
-function firstToken(args: string): string {
-  const m = args.match(/^([^\s(,]+)/);
-  return m ? m[1] : "";
-}
-
-// Tools categorisation. Lookup map (not switch) so adding a new tool
-// kind is one row. Unknown tool fns are ignored from the bucket-y
-// digests but still counted in the timeline view itself.
-const FILE_WRITE = new Set(["write_file", "edit_file", "create_file"]);
-const FILE_READ = new Set(["read_file", "cat"]);
-const SHELL_RUN = new Set(["bash", "shell", "run", "sh"]);
-
-function deriveLatestRun(view: AgentViewState): RunDigest | null {
-  // Walk timeline backwards for the last run-start. If none, no digest.
-  let startIdx = -1;
-  for (let i = view.timeline.length - 1; i >= 0; i--) {
-    if (view.timeline[i].kind === "run-start") {
-      startIdx = i;
-      break;
-    }
-  }
-  if (startIdx < 0) return null;
-
-  const slice = view.timeline.slice(startIdx);
-  const startEntry = slice[0];
-  const terminal = slice.find(
-    (e): e is TimelineEntry => e.kind === "run-end" || e.kind === "run-error",
-  );
-
-  const digest: RunDigest = {
-    runId: startEntry.runId,
-    startedAt: startEntry.ts,
-    endedAt: terminal?.ts ?? null,
-    status: terminal
-      ? terminal.kind === "run-error"
-        ? "err"
-        : "ok"
-      : view.run.running
-        ? "running"
-        : "unknown",
-    changedFiles: [],
-    readFiles: [],
-    commands: [],
-    approvals: [],
-    errors: [],
-  };
-
-  // Track tool-start refs so we can pair them with their tool-end and
-  // know which tools were *attempted* even if not yet ended.
-  const startedTools = new Set<string>();
-  for (const e of slice) {
-    if (e.kind === "tool-start" && e.refId) {
-      startedTools.add(e.refId);
-    }
-    if (e.kind === "run-error" && e.summary) {
-      digest.errors.push(e.summary);
-    }
-    if (e.kind === "approval-request" && e.refId) {
-      const result = slice.find((x) => x.kind === "approval-result" && x.refId === e.refId);
-      digest.approvals.push({
-        command: e.summary ?? "",
-        decision:
-          result?.status === "approved" || result?.status === "declined"
-            ? result.status
-            : undefined,
-      });
-    }
-  }
-
-  // Pull the categorised tool details from view.toolCalls — that's
-  // where the args, status, added/removed counts already live.
-  for (const id of startedTools) {
-    const tool = view.toolCalls[id];
-    if (!tool) continue;
-    if (FILE_WRITE.has(tool.fn)) {
-      const path = firstToken(tool.args);
-      if (path) {
-        digest.changedFiles.push({
-          path,
-          added: tool.added,
-          removed: tool.removed,
-        });
-      }
-    } else if (FILE_READ.has(tool.fn)) {
-      const path = firstToken(tool.args);
-      if (path) digest.readFiles.push(path);
-    } else if (SHELL_RUN.has(tool.fn)) {
-      digest.commands.push({
-        cmd: tool.args || tool.fn,
-        status: tool.status === "err" ? "err" : "ok",
-      });
-    }
-  }
-
-  return digest;
-}
-
-function durationText(start: number, end: number | null): string {
-  if (!end) return "—";
-  const sec = Math.round((end - start) / 1000);
-  if (sec < 60) return `${sec}s`;
-  const min = Math.floor(sec / 60);
-  return `${min}m ${sec % 60}s`;
-}
-
-function buildPlaintext(d: RunDigest): string {
-  const lines: string[] = [];
-  lines.push(`Run ${d.runId ?? "(unknown)"} — ${d.status}`);
-  if (d.changedFiles.length > 0) {
-    lines.push("", "Changed files:");
-    for (const f of d.changedFiles) {
-      const diff =
-        f.added != null || f.removed != null ? ` (+${f.added ?? 0} -${f.removed ?? 0})` : "";
-      lines.push(`  ${f.path}${diff}`);
-    }
-  }
-  if (d.commands.length > 0) {
-    lines.push("", "Commands:");
-    for (const c of d.commands) lines.push(`  [${c.status}] ${c.cmd}`);
-  }
-  if (d.approvals.length > 0) {
-    lines.push("", "Approvals:");
-    for (const a of d.approvals) lines.push(`  [${a.decision ?? "pending"}] ${a.command}`);
-  }
-  if (d.errors.length > 0) {
-    lines.push("", "Errors:");
-    for (const e of d.errors) lines.push(`  ${e}`);
-  }
-  return lines.join("\n");
-}
 
 const STATUS_LABEL: Record<RunDigest["status"], { label: string; cls: string }> = {
   ok: { label: "Done", cls: "border-positive/40 bg-positive/12 text-positive" },
