@@ -1,5 +1,5 @@
-// Topbar — heterogeneous tabs (chat sessions + workspace views) on
-// the left, plugin actions pinned on the right. Single `activeId`;
+// PanelTabBar — heterogeneous tabs (chat sessions + workspace views)
+// on the left, plugin actions pinned on the right. Single `activeId`;
 // when a view tab is active, ChatPanel swaps in its body. Hover ===
 // active background; only the 2px accent underline marks the active
 // tab.
@@ -45,7 +45,7 @@ interface Props {
   bulkFor: (kind: HeaderTabKind, id: string) => HeaderTabBulkActions;
 }
 
-export function ChatTopBar({
+export function PanelTabBar({
   tabs,
   viewTabs,
   activeId,

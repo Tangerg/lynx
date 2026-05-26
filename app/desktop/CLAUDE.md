@@ -92,7 +92,7 @@ frontend/src/
 ├── protocol/agui/                     reducer + viewState + customEvents
 ├── state/                             agentStore / themeStore / layoutStore / sessionStore / composerStore
 ├── components/
-│   ├── chat/                          ChatPanel(51 行 orchestrator) + ChatHeader + ChatStream + WorkspaceViewBody
+│   ├── chat/                          ChatPanel(51 行 orchestrator) + PanelHeader + ChatStream + WorkspaceViewBody
 │   └── common/                        Icon / Panel / DataView(三态 render-prop) / …
 ├── domain/                            清洁架构：types-only contracts
 ├── infra/                             domain gateway 的 HTTP 实现
@@ -128,7 +128,7 @@ cd frontend && npx vitest run
 
 - ✅ uiStore 拆成 themeStore / layoutStore / sessionStore（Phase 1）
 - ✅ plugins/sdk/types.ts 1045 行拆成 12 个 domain 文件（Phase 1）
-- ✅ ChatPanel 196 → 51 行 + 拆出 ChatHeader / ChatStream / WorkspaceViewBody（Phase 2）
+- ✅ ChatPanel 196 → 51 行 + 拆出 PanelHeader / ChatStream / WorkspaceViewBody（Phase 2）
 - ✅ `<DataView>` 三态 render-prop 替换 6 处 `loading | empty | content` 重复（Phase 2）
 - ✅ smoothText pickRate 加 8 个单元测试（Phase 3）
 - ✅ registry.ts 抽 `clearByPlugin` helper（Phase 3）

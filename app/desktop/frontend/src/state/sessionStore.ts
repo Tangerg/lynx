@@ -242,7 +242,7 @@ export const useSessionStore = create<SessionState & SessionActions>()(
  *   - "Close Others" / "Close All" wipe both kinds regardless of
  *     which kind was clicked.
  *
- * Lives in the store layer (not in ChatHeader) so the cross-kind
+ * Lives in the store layer (not in PanelHeader) so the cross-kind
  * sequencing is unit-testable without rendering.
  */
 export function headerTabBulkFor(kind: HeaderTabKind, id: string): HeaderTabBulkActions {

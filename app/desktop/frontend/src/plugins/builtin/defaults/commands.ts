@@ -25,7 +25,7 @@ import { useThemeStore } from "@/state/themeStore";
 
 // "Close the currently-focused tab" — if the user is viewing a workspace
 // view in the main area, close that tab; otherwise close the active chat
-// session tab. Mirrors what the close-X glyph does in ChatTopBar.
+// session tab. Mirrors what the close-X glyph does in PanelTabBar.
 function closeFocusedTab(): void {
   const ui = useSessionStore.getState();
   if (ui.activeMainView) {

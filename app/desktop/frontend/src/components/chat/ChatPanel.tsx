@@ -14,8 +14,8 @@ import type { ComposerMode } from "./Composer";
 import { Panel } from "@/components/common";
 import { useSessions } from "@/lib/queries";
 import { useSessionStore } from "@/state/sessionStore";
-import { ChatHeader } from "./ChatHeader";
 import { ChatStream } from "./ChatStream";
+import { PanelHeader } from "./PanelHeader";
 import { WorkspaceViewBody } from "./WorkspaceViewBody";
 
 interface Props {
@@ -35,7 +35,7 @@ export function ChatPanel({ onSend }: Props) {
 
   return (
     <Panel className="chat">
-      <ChatHeader />
+      <PanelHeader />
       {activeMainView ? (
         <WorkspaceViewBody viewId={activeMainView} />
       ) : (
