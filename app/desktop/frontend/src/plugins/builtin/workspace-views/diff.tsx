@@ -1,7 +1,7 @@
 // Built-in plugin: "Diff" workspace view — renders the diff for the
 // currently selected file (kept in useSessionStore.activeFile).
 
-import type { DiffRow } from "@/components/tools/previews";
+import type { DiffRow } from "@/lib/queries";
 import { DataView, Icon, IconButton, ScrollArea } from "@/components/common";
 import { DiffView } from "@/components/views/DiffView";
 import { ViewHeader } from "@/components/views/ViewHeader";

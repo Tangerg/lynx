@@ -1,4 +1,4 @@
-import type { TermLine } from "@/components/tools/previews";
+import type { TermLine } from "@/lib/queries";
 import { cn } from "@/lib/utils";
 
 // Terminal output viewer. Inline span runs colored by kind:

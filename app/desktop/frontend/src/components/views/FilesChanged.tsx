@@ -1,4 +1,4 @@
-import type { FileChange } from "./types";
+import type { FileChange } from "@/lib/queries";
 import { Icon } from "@/components/common";
 import { cn } from "@/lib/utils";
 

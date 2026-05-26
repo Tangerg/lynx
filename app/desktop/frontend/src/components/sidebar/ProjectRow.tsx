@@ -1,4 +1,4 @@
-import type { SidebarProject } from "./types";
+import type { SidebarProject } from "@/lib/queries";
 import { Icon } from "@/components/common";
 import { cn } from "@/lib/utils";
 

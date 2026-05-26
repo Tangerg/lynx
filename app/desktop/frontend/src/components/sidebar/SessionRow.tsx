@@ -1,4 +1,4 @@
-import type { SidebarSession } from "./types";
+import type { SidebarSession } from "@/lib/queries";
 import { Icon, StatusDot } from "@/components/common";
 import { cn } from "@/lib/utils";
 

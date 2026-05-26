@@ -1,3 +1,4 @@
+import type { Attachment, ComposerMode } from "@/state/composerStore";
 import type {IconName} from "@/components/common";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { useEffect, useMemo, useRef } from "react";
@@ -12,12 +13,6 @@ import {
 } from "@/plugins/sdk";
 import { Slot } from "@/plugins/Slot";
 import { submitComposer } from "./submitComposer";
-
-// The mode is a free-form id — built-ins ship "agent" / "ask" / "plan" via
-// the composer-modes plugin, but third-party plugins can add their own.
-export type ComposerMode = string;
-
-export interface Attachment { label: string; icon?: IconName }
 
 interface Props {
   onSend: (text: string) => void;
@@ -76,7 +71,7 @@ export function Composer({
           {attachments.map((a, i) => (
             <Chip
               key={i}
-              icon={a.icon ?? "file"}
+              icon={(a.icon as IconName | undefined) ?? "file"}
               title={a.label}
               onClose={() => onRemoveAttachment(i)}
             >
