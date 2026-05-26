@@ -9,11 +9,11 @@
 // wiring — adding a chip / changing the selection model doesn't
 // ripple through to the parent.
 
-import type {ChatTab} from "./ChatTopBar";
+import type { ChatTab, TabBulkActions } from "./ChatTopBar";
 import { useMemo } from "react";
 import { useSessions } from "@/lib/queries";
 import { useSessionStore } from "@/state/sessionStore";
-import {  ChatTopBar } from "./ChatTopBar";
+import { ChatTopBar } from "./ChatTopBar";
 
 export function ChatHeader() {
   const { data: sessions = [] } = useSessions();
@@ -21,9 +21,6 @@ export function ChatHeader() {
   const activeSessionId = useSessionStore((s) => s.activeSessionId);
   const mainViewTabs = useSessionStore((s) => s.mainViewTabs);
   const activeMainView = useSessionStore((s) => s.activeMainView);
-  const closeTab = useSessionStore((s) => s.closeTab);
-  const selectMainView = useSessionStore((s) => s.selectMainView);
-  const closeMainView = useSessionStore((s) => s.closeMainView);
 
   const openTabs: ChatTab[] = useMemo(
     () =>
@@ -36,15 +33,33 @@ export function ChatHeader() {
 
   const headerActiveId = activeMainView ?? activeSessionId;
 
+  // Bulk-close handler bundles. Pulled out of the store on demand
+  // (rather than subscribed) to avoid re-rendering the strip when
+  // unrelated session-store state changes.
+  const chatBulk: TabBulkActions = {
+    onCloseOthers: (id) => useSessionStore.getState().closeOtherTabs(id),
+    onCloseLeft: (id) => useSessionStore.getState().closeTabsLeftOf(id),
+    onCloseRight: (id) => useSessionStore.getState().closeTabsRightOf(id),
+    onCloseAll: () => useSessionStore.getState().closeAllTabs(),
+  };
+  const viewBulk: TabBulkActions = {
+    onCloseOthers: (id) => useSessionStore.getState().closeOtherMainViews(id),
+    onCloseLeft: (id) => useSessionStore.getState().closeMainViewsLeftOf(id),
+    onCloseRight: (id) => useSessionStore.getState().closeMainViewsRightOf(id),
+    onCloseAll: () => useSessionStore.getState().closeAllMainViews(),
+  };
+
   return (
     <ChatTopBar
       tabs={openTabs}
       viewTabs={mainViewTabs}
       activeId={headerActiveId}
       onSelectChat={selectChat}
-      onCloseChat={closeTab}
-      onSelectView={selectMainView}
-      onCloseView={closeMainView}
+      onCloseChat={(id) => useSessionStore.getState().closeTab(id)}
+      onSelectView={(id) => useSessionStore.getState().selectMainView(id)}
+      onCloseView={(id) => useSessionStore.getState().closeMainView(id)}
+      chatBulk={chatBulk}
+      viewBulk={viewBulk}
     />
   );
 }

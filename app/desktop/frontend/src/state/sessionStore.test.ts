@@ -1,0 +1,124 @@
+import { beforeEach, describe, expect, it } from "vitest";
+import { useSessionStore } from "./sessionStore";
+
+// Snapshot of the store's initial chat-tab state so each test starts
+// from a known place. We restore via setState (not resetForTest — no
+// such action exists on this store) and let the persist middleware
+// rewrite localStorage on its own.
+const INITIAL = {
+  activeSessionId: "s1",
+  tabIds: ["s1", "s2", "s3"],
+  mainViewTabs: [
+    { id: "v1", title: "View 1" },
+    { id: "v2", title: "View 2" },
+    { id: "v3", title: "View 3" },
+  ],
+  activeMainView: "v2" as string | null,
+};
+
+function reset() {
+  useSessionStore.setState({
+    activeSessionId: INITIAL.activeSessionId,
+    tabIds: [...INITIAL.tabIds],
+    mainViewTabs: INITIAL.mainViewTabs.map((t) => ({ ...t })),
+    activeMainView: INITIAL.activeMainView,
+  });
+}
+
+describe("sessionStore bulk-close (chat tabs)", () => {
+  beforeEach(reset);
+
+  it("closeOtherTabs keeps only the target tab and focuses it", () => {
+    useSessionStore.getState().closeOtherTabs("s2");
+    const s = useSessionStore.getState();
+    expect(s.tabIds).toEqual(["s2"]);
+    expect(s.activeSessionId).toBe("s2");
+  });
+
+  it("closeOtherTabs is a no-op when the id is not open", () => {
+    useSessionStore.getState().closeOtherTabs("missing");
+    expect(useSessionStore.getState().tabIds).toEqual(["s1", "s2", "s3"]);
+  });
+
+  it("closeTabsLeftOf drops everything before the pivot", () => {
+    useSessionStore.getState().closeTabsLeftOf("s3");
+    expect(useSessionStore.getState().tabIds).toEqual(["s3"]);
+  });
+
+  it("closeTabsLeftOf is a no-op when pivot is the first tab", () => {
+    useSessionStore.getState().closeTabsLeftOf("s1");
+    expect(useSessionStore.getState().tabIds).toEqual(["s1", "s2", "s3"]);
+  });
+
+  it("closeTabsLeftOf preserves activeSessionId when it survives", () => {
+    useSessionStore.setState({ activeSessionId: "s3" });
+    useSessionStore.getState().closeTabsLeftOf("s2");
+    expect(useSessionStore.getState().activeSessionId).toBe("s3");
+  });
+
+  it("closeTabsLeftOf reassigns activeSessionId to the pivot when the active tab is dropped", () => {
+    // active = s1, drop everything before s2 → active becomes s2
+    useSessionStore.getState().closeTabsLeftOf("s2");
+    const s = useSessionStore.getState();
+    expect(s.tabIds).toEqual(["s2", "s3"]);
+    expect(s.activeSessionId).toBe("s2");
+  });
+
+  it("closeTabsRightOf drops everything after the pivot", () => {
+    useSessionStore.getState().closeTabsRightOf("s1");
+    expect(useSessionStore.getState().tabIds).toEqual(["s1"]);
+  });
+
+  it("closeTabsRightOf is a no-op when pivot is the last tab", () => {
+    useSessionStore.getState().closeTabsRightOf("s3");
+    expect(useSessionStore.getState().tabIds).toEqual(["s1", "s2", "s3"]);
+  });
+
+  it("closeAllTabs empties the strip", () => {
+    useSessionStore.getState().closeAllTabs();
+    const s = useSessionStore.getState();
+    expect(s.tabIds).toEqual([]);
+    expect(s.activeSessionId).toBe("");
+  });
+});
+
+describe("sessionStore bulk-close (workspace-view tabs)", () => {
+  beforeEach(reset);
+
+  it("closeOtherMainViews keeps only the target view and focuses it", () => {
+    useSessionStore.getState().closeOtherMainViews("v3");
+    const s = useSessionStore.getState();
+    expect(s.mainViewTabs.map((t) => t.id)).toEqual(["v3"]);
+    expect(s.activeMainView).toBe("v3");
+  });
+
+  it("closeMainViewsLeftOf drops everything before the pivot", () => {
+    useSessionStore.getState().closeMainViewsLeftOf("v3");
+    expect(useSessionStore.getState().mainViewTabs.map((t) => t.id)).toEqual(["v3"]);
+  });
+
+  it("closeMainViewsLeftOf is a no-op when pivot is the first view", () => {
+    useSessionStore.getState().closeMainViewsLeftOf("v1");
+    expect(useSessionStore.getState().mainViewTabs.map((t) => t.id)).toEqual(["v1", "v2", "v3"]);
+  });
+
+  it("closeMainViewsLeftOf reassigns activeMainView to the pivot when the active view is dropped", () => {
+    // active = v2, drop everything before v3 → active becomes v3
+    useSessionStore.getState().closeMainViewsLeftOf("v3");
+    const s = useSessionStore.getState();
+    expect(s.mainViewTabs.map((t) => t.id)).toEqual(["v3"]);
+    expect(s.activeMainView).toBe("v3");
+  });
+
+  it("closeMainViewsRightOf drops everything after the pivot", () => {
+    useSessionStore.getState().closeMainViewsRightOf("v1");
+    expect(useSessionStore.getState().mainViewTabs.map((t) => t.id)).toEqual(["v1"]);
+  });
+
+  it("closeAllMainViews empties the strip and clears focus", () => {
+    useSessionStore.getState().closeAllMainViews();
+    const s = useSessionStore.getState();
+    expect(s.mainViewTabs).toEqual([]);
+    expect(s.activeMainView).toBeNull();
+  });
+});

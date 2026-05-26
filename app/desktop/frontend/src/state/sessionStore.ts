@@ -38,6 +38,15 @@ interface SessionActions {
   closeTab: (id: string) => void;
   openTab: (id: string) => void;
 
+  /** Close every chat tab except `id`. */
+  closeOtherTabs: (id: string) => void;
+  /** Close every chat tab whose position precedes `id` in `tabIds`. */
+  closeTabsLeftOf: (id: string) => void;
+  /** Close every chat tab whose position follows `id` in `tabIds`. */
+  closeTabsRightOf: (id: string) => void;
+  /** Close every chat tab. */
+  closeAllTabs: () => void;
+
   /** Add (if absent) and focus a workspace view in the chat-area tab strip. */
   openMainView: (tab: MainViewTab) => void;
   /** Remove a workspace view tab; falls back to chat if it was active. */
@@ -46,6 +55,15 @@ interface SessionActions {
   selectMainView: (id: string) => void;
   /** Clear the workspace view focus so the chat session takes over again. */
   selectChat: () => void;
+
+  /** Close every workspace-view tab except `id`. */
+  closeOtherMainViews: (id: string) => void;
+  /** Close every workspace-view tab whose position precedes `id`. */
+  closeMainViewsLeftOf: (id: string) => void;
+  /** Close every workspace-view tab whose position follows `id`. */
+  closeMainViewsRightOf: (id: string) => void;
+  /** Close every workspace-view tab. */
+  closeAllMainViews: () => void;
 
   setActiveFile: (path: string) => void;
   setSelectedToolId: (id: string) => void;
@@ -84,6 +102,39 @@ export const useSessionStore = create<SessionState & SessionActions>()(
         if (!tabIds.includes(id)) set({ tabIds: [...tabIds, id] });
       },
 
+      // Bulk close helpers — all preserve `activeSessionId` when the
+      // active tab survives, otherwise fall back to the leftmost
+      // remaining tab (or empty string when nothing is left, mirroring
+      // the original closeTab semantics).
+      closeOtherTabs: (id) => {
+        const { tabIds } = get();
+        if (!tabIds.includes(id)) return;
+        set({ tabIds: [id], activeSessionId: id });
+      },
+      closeTabsLeftOf: (id) => {
+        const { tabIds, activeSessionId } = get();
+        const idx = tabIds.indexOf(id);
+        if (idx <= 0) return;
+        const next = tabIds.slice(idx);
+        set({
+          tabIds: next,
+          activeSessionId: next.includes(activeSessionId) ? activeSessionId : id,
+        });
+      },
+      closeTabsRightOf: (id) => {
+        const { tabIds, activeSessionId } = get();
+        const idx = tabIds.indexOf(id);
+        if (idx === -1 || idx === tabIds.length - 1) return;
+        const next = tabIds.slice(0, idx + 1);
+        set({
+          tabIds: next,
+          activeSessionId: next.includes(activeSessionId) ? activeSessionId : id,
+        });
+      },
+      closeAllTabs: () => {
+        set({ tabIds: [], activeSessionId: "" });
+      },
+
       openMainView: (tab) => {
         const cur = get().mainViewTabs;
         const exists = cur.some((t) => t.id === tab.id);
@@ -101,6 +152,40 @@ export const useSessionStore = create<SessionState & SessionActions>()(
       },
       selectMainView: (id) => set({ activeMainView: id }),
       selectChat: () => set({ activeMainView: null }),
+
+      // Same shape as the chat-tab bulk close helpers, scoped to the
+      // workspace-view strip.
+      closeOtherMainViews: (id) => {
+        const cur = get().mainViewTabs;
+        const target = cur.find((t) => t.id === id);
+        if (!target) return;
+        set({ mainViewTabs: [target], activeMainView: id });
+      },
+      closeMainViewsLeftOf: (id) => {
+        const { mainViewTabs, activeMainView } = get();
+        const idx = mainViewTabs.findIndex((t) => t.id === id);
+        if (idx <= 0) return;
+        const next = mainViewTabs.slice(idx);
+        set({
+          mainViewTabs: next,
+          activeMainView:
+            activeMainView && next.some((t) => t.id === activeMainView) ? activeMainView : id,
+        });
+      },
+      closeMainViewsRightOf: (id) => {
+        const { mainViewTabs, activeMainView } = get();
+        const idx = mainViewTabs.findIndex((t) => t.id === id);
+        if (idx === -1 || idx === mainViewTabs.length - 1) return;
+        const next = mainViewTabs.slice(0, idx + 1);
+        set({
+          mainViewTabs: next,
+          activeMainView:
+            activeMainView && next.some((t) => t.id === activeMainView) ? activeMainView : id,
+        });
+      },
+      closeAllMainViews: () => {
+        set({ mainViewTabs: [], activeMainView: null });
+      },
 
       setActiveFile: (path) => set({ activeFile: path }),
       setSelectedToolId: (id) => set({ selectedToolId: id }),

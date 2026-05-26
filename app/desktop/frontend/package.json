@@ -18,6 +18,7 @@
     "@ag-ui/client": "^0.0.53",
     "@ag-ui/core": "^0.0.53",
     "@lobehub/icons": "^5.8.0",
+    "@radix-ui/react-context-menu": "^2.2.16",
     "@radix-ui/react-dropdown-menu": "^2.1.16",
     "@radix-ui/react-popover": "^1.1.15",
     "@radix-ui/react-tooltip": "^1.2.8",
