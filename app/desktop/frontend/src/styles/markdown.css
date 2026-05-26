@@ -220,6 +220,27 @@
   background: color-mix(in srgb, var(--color-text) 3%, transparent);
 }
 
+/* Streaming caret — blinking cursor after the tail block of an actively
+   streaming message. Marker (`data-streaming-tail`) is set by
+   MarkdownBlock; the ::after picks up the last child so the caret
+   sits at the end of the most recent paragraph / line / code fence.
+   Block elements get an inline caret; we use `display: inline-block`
+   so the cursor sits on the same line as the trailing text. */
+.md [data-streaming-tail] > *:last-child::after {
+  content: "▌";
+  display: inline-block;
+  margin-left: 2px;
+  color: var(--color-accent);
+  font-weight: 400;
+  animation: lyra-caret 1.05s steps(1) infinite;
+  vertical-align: baseline;
+}
+@keyframes lyra-caret {
+  50% {
+    opacity: 0;
+  }
+}
+
 /* Inline code — flat tinted background, no border (would compete with
    fade-in span outlines on streaming text). */
 .md code {

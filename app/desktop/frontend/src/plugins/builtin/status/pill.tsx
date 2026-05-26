@@ -158,6 +158,93 @@ function Cost() {
   );
 }
 
+// TTFT + tokens/sec — measured client-side over the active run.
+// Time-to-first-token is the elapsed ms from RUN_STARTED to the first
+// non-zero `tokens.used` sample we see. Rate is `used / (elapsed - TTFT)`
+// computed after a 500ms warm-up so the first sample's jitter doesn't
+// blow the number up.
+//
+// Cherry Studio surfaces this as a per-message badge; we put it in the
+// status bar next to Tokens so the user always sees current generation
+// speed regardless of which message they're looking at.
+function TokenRate() {
+  const running = useAgentSlice((v) => v.run.running);
+  const runId = useAgentSlice((v) => v.run.runId);
+  const used = useAgentSlice((v) => v.run.tokens.used);
+  const usedNum = useMemo(() => parseShorthand(used), [used]);
+
+  // Per-run refs reset on RUN_STARTED. Refs (not state) so the rAF-style
+  // updates from telemetry don't trigger our own re-renders just to
+  // record a sample.
+  const startedAtRef = useRef<number | null>(null);
+  const ttftMsRef = useRef<number | null>(null);
+  const lastRunIdRef = useRef<string | null>(null);
+  const [tokensPerSec, setTokensPerSec] = useState<number | null>(null);
+  const [ttftMs, setTtftMs] = useState<number | null>(null);
+
+  // Reset on new run.
+  useEffect(() => {
+    if (!running) {
+      startedAtRef.current = null;
+      ttftMsRef.current = null;
+      lastRunIdRef.current = null;
+      setTokensPerSec(null);
+      setTtftMs(null);
+      return;
+    }
+    if (runId && runId !== lastRunIdRef.current) {
+      lastRunIdRef.current = runId;
+      startedAtRef.current = performance.now();
+      ttftMsRef.current = null;
+      setTokensPerSec(null);
+      setTtftMs(null);
+    }
+  }, [running, runId]);
+
+  // Each token-usage sample: record TTFT on first non-zero, then update
+  // rate every sample (cheap — division + setState).
+  useEffect(() => {
+    if (!running || startedAtRef.current === null) return;
+    if (!Number.isFinite(usedNum) || usedNum <= 0) return;
+    const elapsed = performance.now() - startedAtRef.current;
+    if (ttftMsRef.current === null) {
+      ttftMsRef.current = elapsed;
+      setTtftMs(elapsed);
+      return;
+    }
+    const sinceFirstToken = (elapsed - ttftMsRef.current) / 1000;
+    if (sinceFirstToken > 0.5) {
+      setTokensPerSec(usedNum / sinceFirstToken);
+    }
+  }, [usedNum, running]);
+
+  if (!running) return null;
+  if (tokensPerSec !== null) {
+    return (
+      <span
+        className={pill("text-fg-faint")}
+        title={`TTFT ${ttftMs?.toFixed(0)}ms · live tokens/sec`}
+      >
+        <span className="font-mono">{tokensPerSec.toFixed(0)}</span>
+        <span>t/s</span>
+      </span>
+    );
+  }
+  if (ttftMs !== null) {
+    return (
+      <span className={pill("text-fg-faint")} title="Time to first token">
+        <span className="font-mono">{ttftMs.toFixed(0)}</span>
+        <span>ms</span>
+      </span>
+    );
+  }
+  return (
+    <span className={pill("text-fg-faint")} title="Waiting for first token…">
+      <span>·</span>
+    </span>
+  );
+}
+
 export const statusPill = definePlugin({
   name: "lyra.builtin.status-pill",
   version: "1.0.0",
@@ -166,6 +253,7 @@ export const statusPill = definePlugin({
     host.layout.register("app.statusbar", { id: "branch", order: 10, component: Branch });
     host.layout.register("app.statusbar", { id: "runid", order: 20, component: RunId });
     host.layout.register("app.statusbar", { id: "spacer", order: 100, component: Spacer });
+    host.layout.register("app.statusbar", { id: "token-rate", order: 190, component: TokenRate });
     host.layout.register("app.statusbar", { id: "tokens", order: 200, component: Tokens });
     host.layout.register("app.statusbar", { id: "cost", order: 210, component: Cost });
   },

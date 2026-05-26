@@ -5,38 +5,80 @@
 // without touching the others. Shared chrome / helpers live in
 // _shared.ts.
 
+import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { Icon } from "@/components/common";
 import { definePlugin, useCurrentMessage } from "@/plugins/sdk";
 import { getCurrentSessionView, useAgentAction } from "@/state/agentStore";
 import { useComposerStore } from "@/state/composerStore";
-import { ACTION_BTN_CLASSES, flattenText } from "./_shared";
+import { ACTION_BTN_CLASSES, flattenCode, flattenMarkdown, flattenText } from "./_shared";
 
-// ---- Copy: plaintext flatten of the message into the clipboard. ----
+// ---- Copy: dropdown menu with Markdown / Plain text / Code only. ----
+//
+// Default click writes Markdown (preserves headings / lists / fences
+// as they were rendered). The submenu surfaces the two alternates:
+// Plain text drops markup so it pastes flat into editors, Code only
+// concatenates the fenced code blocks for users who just want the
+// generated snippets. Code variant hides when the message has none.
+
+async function writeClipboard(text: string): Promise<void> {
+  if (!text || typeof navigator === "undefined" || !navigator.clipboard) return;
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch {
+    /* unfocused window — silent */
+  }
+}
 
 function CopyButton() {
   const msg = useCurrentMessage();
-  const text = flattenText(msg.blocks);
-  if (!text) return null;
-
-  const onClick = async () => {
-    if (typeof navigator === "undefined" || !navigator.clipboard) return;
-    try {
-      await navigator.clipboard.writeText(text);
-    } catch {
-      /* unfocused window — silent */
-    }
-  };
+  const markdown = flattenMarkdown(msg.blocks);
+  const plain = flattenText(msg.blocks);
+  const code = flattenCode(msg.blocks);
+  if (!markdown && !plain) return null;
 
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      title="Copy message"
-      aria-label="Copy message"
-      className={ACTION_BTN_CLASSES}
+    <DropdownMenu.Root>
+      <DropdownMenu.Trigger
+        title="Copy message"
+        aria-label="Copy message"
+        className={ACTION_BTN_CLASSES}
+      >
+        <Icon name="copy" size={11} />
+      </DropdownMenu.Trigger>
+      <DropdownMenu.Portal>
+        <DropdownMenu.Content
+          align="end"
+          sideOffset={4}
+          className="z-50 min-w-[160px] overflow-hidden rounded-md border border-line-soft bg-surface p-1 shadow-lg animate-rise-in"
+        >
+          <CopyItem label="Copy markdown" hint="Headings / fences kept" onSelect={() => writeClipboard(markdown)} />
+          <CopyItem label="Copy plain text" hint="Markup stripped" onSelect={() => writeClipboard(plain)} />
+          {code && (
+            <CopyItem label="Copy code only" hint="Fenced blocks joined" onSelect={() => writeClipboard(code)} />
+          )}
+        </DropdownMenu.Content>
+      </DropdownMenu.Portal>
+    </DropdownMenu.Root>
+  );
+}
+
+function CopyItem({
+  label,
+  hint,
+  onSelect,
+}: {
+  label: string;
+  hint: string;
+  onSelect: () => void;
+}) {
+  return (
+    <DropdownMenu.Item
+      onSelect={onSelect}
+      className="flex cursor-pointer flex-col gap-0.5 rounded-sm px-2.5 py-1.5 outline-none data-[highlighted]:bg-surface-2"
     >
-      <Icon name="copy" size={11} />
-    </button>
+      <span className="text-[12.5px] text-fg">{label}</span>
+      <span className="text-[11px] text-fg-faint">{hint}</span>
+    </DropdownMenu.Item>
   );
 }
 
