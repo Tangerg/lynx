@@ -27,16 +27,25 @@ export interface MetricRow {
   description: string;
   kind: InstrumentKind;
   attrs: Record<string, string | number | boolean>;
-  /** Cumulative count of observations. */
+  /**
+   * Histograms: observation count.
+   * Counters: the cumulative counter value (counter has no
+   * "observation" notion separate from its running total).
+   */
   count: number;
-  /** Cumulative sum (histogram + counter share the field — counters
-   *  set both count and sum to the running total). */
+  /**
+   * Histograms: sum of all observed values.
+   * Counters: same as `count`.
+   */
   sum: number;
   /** Estimated percentile from histogram buckets. Undefined for counters. */
   p50?: number;
   p95?: number;
-  /** Last seen value — most useful for counters. */
-  last: number;
+  /**
+   * Histogram-only running mean (`sum / count`). Undefined for
+   * counters, whose "value" is just `count`.
+   */
+  avg?: number;
 }
 
 interface State {
@@ -84,7 +93,7 @@ function histogramRow(id: string, desc: MetricDescriptor, v: HistogramValue, att
     sum,
     p50,
     p95,
-    last: v.count > 0 ? sum / v.count : 0,
+    avg: v.count > 0 ? sum / v.count : 0,
   };
 }
 
@@ -98,7 +107,6 @@ function counterRow(id: string, desc: MetricDescriptor, total: number, attrs: At
     attrs,
     count: total,
     sum: total,
-    last: total,
   };
 }
 

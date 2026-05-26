@@ -20,8 +20,8 @@ const reducerHistogram = meter.createHistogram("lyra.reducer.duration", {
   unit: "ms",
 });
 
-const markdownHistogram = meter.createHistogram("lyra.markdown.parse.duration", {
-  description: "Time spent in the markdown pre-parse step (remend) for one body",
+const markdownHistogram = meter.createHistogram("lyra.markdown.repair.duration", {
+  description: "Time spent in the markdown mid-stream repair step (remend) for one body",
   unit: "ms",
 });
 
@@ -59,7 +59,7 @@ export function measureReduce<T>(eventType: string, fn: () => T): T {
   }
 }
 
-export function measureMarkdownParse(ms: number, textLength: number, streaming: boolean): void {
+export function measureMarkdownRepair(ms: number, textLength: number, streaming: boolean): void {
   markdownHistogram.record(ms, { streaming, lengthBucket: bucketLength(textLength) });
 }
 
@@ -71,8 +71,15 @@ export function measureMermaidRender(ms: number): void {
   mermaidHistogram.record(ms);
 }
 
-export function measurePluginLoad(ms: number, pluginName: string): void {
-  pluginLoadHistogram.record(ms, { plugin: pluginName });
+/** Outcome of one definePlugin loadPlugin() invocation. */
+export type PluginLoadResult = "loaded" | "failed" | "skipped";
+
+export function measurePluginLoad(
+  ms: number,
+  pluginName: string,
+  result: PluginLoadResult,
+): void {
+  pluginLoadHistogram.record(ms, { plugin: pluginName, result });
 }
 
 // Coarse buckets — keeps cardinality bounded without losing the
