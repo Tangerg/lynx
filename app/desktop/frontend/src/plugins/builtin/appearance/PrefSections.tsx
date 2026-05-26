@@ -1,8 +1,10 @@
-// Two small segmented-control rows: message style (bubble vs plain)
-// and UI language. Each section is < 30 lines; bundled together
-// instead of two near-empty files.
+// Two small preference rows: message style (binary → segmented) and
+// UI language (8+ options → dropdown). Bundled into one file since
+// each section is < 60 lines.
 
 import type { Locale } from "@/lib/i18n";
+import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
+import { Icon } from "@/components/common";
 import { LOCALES, setLocale, useLocale, useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { useThemeStore } from "@/state/themeStore";
@@ -52,6 +54,7 @@ export function MessageStyleSection() {
 export function LanguageSection() {
   const t = useT();
   const locale = useLocale();
+  const active = LOCALES.find((l) => l.id === locale) ?? LOCALES[0];
 
   return (
     <div className="grid grid-cols-[140px_1fr] items-center gap-4 py-3">
@@ -59,32 +62,43 @@ export function LanguageSection() {
         <div className="text-[15px] font-semibold text-fg">{t("settings.language.label")}</div>
         <div className="mt-0.5 text-[13px] text-fg-muted">{t("settings.language.sub")}</div>
       </div>
-      {/* `w-fit` keeps the radiogroup at content width inside the 1fr
-          grid cell. Without it, grid items default to justify-self:
-          stretch, which overrides inline-flex's shrink-to-content
-          behaviour and the segmented control gets dragged across the
-          entire row. */}
-      <div
-        role="radiogroup"
-        aria-label={t("settings.language.label")}
-        className="inline-flex w-fit gap-1 rounded-md border border-line bg-surface-2 p-1"
-      >
-        {LOCALES.map((l) => (
-          <button
-            key={l.id}
-            type="button"
-            role="radio"
-            aria-checked={locale === l.id}
-            onClick={() => setLocale(l.id as Locale)}
-            className={cn(
-              SEGMENT_BTN_BASE,
-              locale === l.id ? SEGMENT_BTN_ACTIVE : SEGMENT_BTN_IDLE,
-            )}
+      {/* Dropdown rather than segmented because the locale set
+          (8 entries today, more via plugins) doesn't fit a single row.
+          Radix DropdownMenu gives keyboard nav + focus management for
+          free; visually mirrors Composer's ModePicker so the same
+          "trigger looks like a button, content drops below" idiom
+          carries between settings + chat. */}
+      <DropdownMenu.Root>
+        <DropdownMenu.Trigger
+          className="inline-flex w-fit min-w-[180px] items-center justify-between gap-2 rounded-md border border-line bg-surface-2 px-3 py-1.5 text-[13px] font-medium text-fg cursor-pointer transition-colors hover:bg-surface-3 data-[state=open]:bg-surface-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent"
+          aria-label={t("settings.language.label")}
+        >
+          <span>{active.label}</span>
+          <Icon name="more" size={11} className="text-fg-faint -rotate-90" />
+        </DropdownMenu.Trigger>
+        <DropdownMenu.Portal>
+          <DropdownMenu.Content
+            align="start"
+            sideOffset={4}
+            className="z-50 min-w-[180px] overflow-hidden rounded-md border border-line-soft bg-surface p-1 shadow-lg animate-rise-in"
           >
-            {l.label}
-          </button>
-        ))}
-      </div>
+            {LOCALES.map((l) => (
+              <DropdownMenu.Item
+                key={l.id}
+                onSelect={() => setLocale(l.id as Locale)}
+                className="grid cursor-pointer grid-cols-[minmax(0,1fr)_12px] items-center gap-2 rounded-sm px-2.5 py-1.5 text-[12.5px] text-fg-muted outline-none data-[highlighted]:bg-surface-2 data-[highlighted]:text-fg"
+              >
+                <span className="truncate">{l.label}</span>
+                {locale === l.id ? (
+                  <Icon name="check" size={12} className="text-accent" />
+                ) : (
+                  <span aria-hidden />
+                )}
+              </DropdownMenu.Item>
+            ))}
+          </DropdownMenu.Content>
+        </DropdownMenu.Portal>
+      </DropdownMenu.Root>
     </div>
   );
 }
