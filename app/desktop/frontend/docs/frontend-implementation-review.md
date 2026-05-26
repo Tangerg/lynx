@@ -2,226 +2,190 @@
 
 日期：2026-05-26
 
-范围：`frontend/src` 实现细节，包括命名、注释、局部代码组织、样式约定、测试与可维护性。已先阅读根目录 `CLAUDE.md`，以下建议按该文件约定执行。
+范围：`frontend/src` 的命名、注释、局部实现、样式习惯、测试覆盖。本轮重点仍以宏观架构和工程化为主，但同步记录实现层会影响架构演进的细节问题。
 
 ## 1. 总体评价
 
-实现质量总体较高：代码普遍使用清晰的函数边界，核心模块有测试，注释大多解释 why，插件 registry 和 AG-UI reducer 的复杂度被控制在可理解范围内。最近一轮调整也体现了较好的工程判断：没有引入大型新框架，而是在现有插件内核里补可观测性、批处理、索引和边界校验。
+实现层整体质量继续提升。相比上一轮：
 
-但实现层仍有几类细节债务：
+- CSS 文件已从更分散的历史状态收敛到 5 个。
+- `package.json` 已补齐 `typecheck/knip/check`。
+- `domain/infra/main` 的最小 Clean Architecture 样例已经落地。
+- `architecture.test.ts` 开始用测试保护依赖方向。
+- Diagnostics store 测试仍保持在基线内，当前 Vitest 21 files / 228 tests 通过。
 
-- 新旧样式约定混在一起：大量 inline style、border utility、旧 CSS hook 与 `CLAUDE.md` 的 Tailwind/no-lines 约定冲突。
-- 注释数量偏多，部分注释已经从“解释原因”滑向“复述代码”。
-- Diagnostics 的命名和数据语义有几处不精确。
-- 个别文件保留 TODO 和旧式实现，容易成为后续复制模板。
-- 测试覆盖了核心 registry/loader，但新增 metrics/diagnostics 的行为测试不足。
+剩余问题主要是局部一致性：少数注释已经过期，inline style 还有一些静态样式，`host.ts` / `core-reducer/handlers.ts` 文件偏大，Clean Architecture 的命名和归属还需要在跨层模块上更精确。
 
-## 2. 命名 Review
+## 2. 命名
 
-### 2.1 好的命名
+### 做得好的命名
 
-- `applyEvents`：准确表达批量 fold 多个 AG-UI events。
-- `createIndex`：比直接写多个 `Map` 缓存更泛化，但没有过度抽象。
-- `withSchema`：清楚表达“用 schema 包 handler”的边界语义。
-- `restrictHost` / `createDenyProxy`：行为明确，错误信息也能指导插件作者补 capabilities。
-- `layoutBySlot`, `customByName`, `coreByType`：索引意图非常直接。
+- `PermissionGateway` / `HttpPermissionGateway`：抽象和实现命名清楚，表达了 domain contract 与 transport implementation 的关系。
+- `ApprovalSubmission` / `ApprovalDecision`：业务语义明确。
+- `getContainer` / `setContainer` / `resetContainer`：测试替换点清楚。
+- `addOwned` / `addOwnedMulti` / `clearByPlugin`：registry helper 命名贴合 ownership 语义。
+- `nextCompositeKeyId`：比泛泛的 counter 更准确。
 
-### 2.2 建议改的命名
+### 建议优化的命名
 
-1. `MetricRow.last`
+1. `lib/http.ts`
 
-   在 histogram 场景里，`last` 实际写的是 `sum / count`，DiagnosticsView 里也显示为 `avg`。这不是 last seen value。建议改名为 `avg` 或 `mean`，counter 场景如果需要当前累计值则用 `value`。
+   这个文件不是普通 HTTP 工具，而是 plugin-aware RPC client：它读取 plugin config，也执行 plugin rpc hooks。建议中期改名或迁移为：
 
-2. `measureMarkdownParse`
+   - `plugins/sdk/runtime/rpcClient.ts`
+   - 或 `infra/http/pluginRpcClient.ts`
 
-   当前测的是 `remend(display)`，不是完整 Markdown parse/render。名字容易误导。建议改为 `measureMarkdownRepair`、`measureRemend` 或 `measureMarkdownPreprocess`。
+   同时把 `AGUI_BASE` 这种默认配置从这里拆出去，避免 composition root 依赖 plugin runtime。
 
-3. `DiagnosticsExporter`
+2. `domain/gateways`
 
-   名字本身可以，但如果未来还会有 remote exporter，建议更明确为 `InMemoryDiagnosticsExporter`。
+   `gateways` 可以接受，但建议在长期文档中明确：这里放“domain/use case 需要的 outbound contracts”，不是 infra 抽象池。后续不要出现 `HttpGateway`、`ApiGateway` 这类按实现命名的抽象。
 
-4. `EXPORT_INTERVAL_MS`
+3. build chunk 名称
 
-   当前常量位置在 diagnostics plugin 内，含义是 OpenTelemetry reader export interval。建议命名为 `METRIC_EXPORT_INTERVAL_MS`，避免和通用导出动作混淆。
+   `index-*.js`、`dist-*.js` 对工程排查不友好。建议用 chunk split 配置让产物名表达来源，例如 `vendor-react`、`markdown-runtime`、`shiki-runtime`、`diagnostics-runtime`。
 
-5. `HTML_DENY`
+## 3. 注释
 
-   实际是 tag deny list。建议 `DENIED_HTML_TAGS`，语义更准确。
+### 应保留的注释
 
-## 3. 注释 Review
+以下注释解释的是架构 why，值得保留：
 
-### 3.1 做得好的注释
+- `domain/gateways/PermissionGateway.ts` 对 gateway contract 的解释。
+- `infra/http/HttpPermissionGateway.ts` 对 transport 可替换性的解释。
+- `main/container.ts` 对 composition root 和测试替换的解释。
+- `protocol/agui/reducer.ts` 对 pure dispatcher 的解释。
+- `plugins/sdk/host.ts` 对 runtime seam 避免循环 import 的解释。
+- `plugins/sdk/registry.ts` 对 owned slot helper 的解释。
 
-以下注释是有价值的：
+### 建议清理或改写的注释
 
-- `main.tsx` 解释为什么暂时关闭 StrictMode。
-- `selectors.ts` 解释 selector 返回 raw Map + useMemo 的原因。
-- `useAgentSession.ts` 解释 rAF batch 对 streaming delta 的影响。
-- `schemas.ts` 解释 Zod 只用于信任边界。
-- `host.ts` 解释 runtime seam 避免 circular import。
+1. `src/test/architecture.test.ts`
 
-这些注释都在解释架构约束或踩坑原因，值得保留。
+   文件头仍写 “we don't have ESLint configured yet” 和未来迁移 `eslint-plugin-boundaries`。当前项目已经使用 OxLint，这条注释不再准确。建议改成：
 
-### 3.2 应减少的注释类型
+   - 架构边界是项目自定义规则，所以用 Vitest 扫 import。
+   - 如果规则增长，再考虑专门的 boundary 工具。
 
-1. 复述代码行为的注释偏多。
+2. `workspace-views/plan.tsx` / `workspace-views/terminal.tsx`
 
-   例如一些 `register*`、`dispose`、`return null` 附近的注释，在类型和函数名已经足够清晰时可以删减。当前文件长度不算失控，但 `host.ts`、`selectors.ts`、`definePlugin.ts` 的注释密度偏高，后续修改时应主动删除过期解释。
+   仍有 TODO 表达“未来接真实数据”。如果短期不会做，建议转到 issue 或 review 文档，代码里只保留当前行为需要的注释。
 
-2. TODO 不符合当前“开发阶段不留未来兼容包袱”的风格。
+3. `eslint-disable-next-line`
 
-   当前仍有：
+   当前仍有少数 `eslint-disable-next-line` 注释，但项目实际 lint 是 OxLint。建议统一改成工具无关的解释，或者确认 OxLint 是否识别这些规则；不要让注释长期停留在旧工具名上。
 
-   - `plugins/builtin/workspace-views/plan.tsx`
-   - `plugins/builtin/workspace-views/terminal.tsx`
+## 4. 样式实现
 
-   如果短期不做，建议改成 issue/文档任务；如果保留在代码里，应写清楚触发条件，不要作为常驻注释。
+### 已改善
 
-3. Diagnostics 注释和实际行为有轻微偏差。
+`styles/` 现在只有：
 
-   `diagnostics/index.tsx` 强调 SDK chunk “only loads when this plugin's setup() runs”，但该插件现在作为 builtin eager setup，启动后就会运行。建议改注释，避免读者误以为打开 Diagnostics view 才会加载 SDK。
+- `globals.css`
+- `layout.css`
+- `markdown.css`
+- `overlays.css`
+- `tool.css`
 
-## 4. 样式与 UI 约定 Review
+这更符合 Tailwind first 的方向。
 
-### 4.1 Tailwind first 尚未完全落地
+### 仍需收敛
 
-`CLAUDE.md` 明确写了“所有新代码必须用 Tailwind utility class，不再写新的 .css 文件”。当前仍有不少 inline style，部分是合理动态 token，部分可以改掉。
+`style={{ ... }}` 仍有一些静态样式：
 
-优先处理这些旧式实现：
+- `SidebarExpanded.tsx` 的 padding。
+- `SearchResults.tsx` 的 line clamp。
+- `workspace-views/terminal.tsx` 的 color / margin。
+- `workspace-views/diff.tsx` 的 color / margin。
+- `workspace-views/tools.tsx` 的 padding。
 
-- `plugins/builtin/workspace-views/notifications.tsx`：`NotificationRow` 几乎全是 inline style，可改为 Tailwind className。
-- `plugins/builtin/workspace-views/terminal.tsx`：多个 `style={{ color, margin }}` 可改 Tailwind arbitrary values。
-- `plugins/builtin/workspace-views/diff.tsx`：颜色和间距 inline style 可替换。
-- `components/chat/SearchResults.tsx`：`-webkit-line-clamp` 可用 Tailwind line-clamp utility 或局部 class 统一处理。
+动态 swatch、动态尺寸、测量值可以保留 inline style；静态布局和颜色应迁到 Tailwind className。
 
-动态 swatch 这类 `style={{ background: value }}` 是合理例外，不需要强行改。
+## 5. Clean Architecture 实现细节
 
-### 4.2 No-lines 原则需要重新定界
+当前 permission flow 是一个好的模板：
 
-仓库里大量 `border border-line`、`border-b`、`border-t`，与 `CLAUDE.md` 的 “No lines anywhere” 原则不完全一致。考虑到这些不是本轮新增，建议不要一次性大改，但要明确分层：
+```text
+useApprovalSubmit -> getContainer().permission -> PermissionGateway
+main/container -> HttpPermissionGateway
+HttpPermissionGateway -> fetch /permission
+```
 
-- 允许：focus ring、active accent line、输入控件状态、真正的 data table 行列辅助。
-- 收敛：普通卡片、panel、message block、tool card 的硬边线，逐步改为 surface ladder + shadow。
-- 禁止复制：新组件不要继续以 `border border-line` 作为默认容器风格。
+这条链路里 UI 没有直接 import `infra`，domain 也没有反向依赖外层。
 
-### 4.3 Radix first 仍有空间
+建议下一步补两类测试或规则：
 
-已有 Popover、Tooltip、ContextMenu 等 Radix 用法。需要注意：
+1. `main` 是唯一允许 import `@/infra/*` 的层。
 
-- `MermaidBlock` 的 zoom lightbox 当前手写 dialog 行为，只处理 Escape 和点击关闭。按 Radix first，后续应考虑用 Radix Dialog，获得 focus trap、aria、scroll lock。
-- Diagnostics view 是开发工具，简单实现可以接受；如果后续加 filter/select/tabs，优先 Radix。
+   当前 `architecture.test.ts` 已禁止 presentation import infra，但可以更直接地扫描全 `src`，确保除 `main` 和 `infra` 自身外没有其他 importer。
 
-## 5. 代码结构 Review
+2. gateway contract 只能定义在使用方。
 
-### 5.1 `host.ts`
+   这个规则不适合完全自动化，但可以靠 review checklist 落地：新增接口时必须回答“哪个 use case 需要它”。如果答案是“infra 实现方便”，就不该建这个接口。
 
-优点：
+## 6. 行为实现
 
-- namespace 边界清晰，register 返回 Disposable 的模式稳定。
-- `restrictHost` 简洁，错误信息具体。
-- `CONSOLE_METHOD` 查表替代条件链，符合约定。
+### Plugin Host
 
-建议：
+`plugins/sdk/host.ts` 已到 518 行。它承担了所有 host namespace 的注册、runtime seam、capability restriction、toast/log/tasks/rpc/i18n。现在还没到必须重写的程度，但已达到拆分信号。
 
-- 文件 518 行，仍可接受，但 Host namespace 继续增长时应拆成 `createHostNamespaces/*`，否则每加一个 surface 都会碰同一个大文件。
-- `capabilities` 当前按 namespace 粒度控制，后续如果 sideload 要做真实权限，可能需要 method-level 或 high-risk action 细分，例如 `plugins.load` 与 `plugins.list` 风险不同。
+建议按 namespace 拆低风险文件：
 
-### 5.2 `selectors.ts`
+- `hostRegistrations.ts`
+- `hostRuntime.ts`
+- `hostRpc.ts`
+- `hostNotifications.ts`
+- `hostCapabilities.ts`
 
-优点：
+拆分时保持 public `createHost()` 不变，避免影响插件调用面。
 
-- `createIndex` 与 WeakMap 设计贴合 registry mutation 模型。
-- selector 返回 Map、组件侧 useMemo 派生，避免了 useSyncExternalStore 快照不稳定问题。
+### Core Reducer Handlers
 
-建议：
+`plugins/builtin/core-reducer/handlers.ts` 已到 544 行。它是 builtin plugin 的实现细节，但继续增长会影响 review 和测试定位。
 
-- `createIndex` 返回数组是原数组引用，`useLayoutSlot` 再复制排序是正确的。建议在注释里强调 callers 不应 mutate index 返回的数组，或在 helper 内统一返回 readonly。
-- `useDeclaredMerged` 的 `declaredToReal` 是函数参数，会被作为 useMemo dep。当前传入的是模块级函数，没问题；后续不要传 inline lambda。
+建议按 AG-UI event family 拆：
 
-### 5.3 `lib/metrics.ts` 与 diagnostics
+- run lifecycle
+- text/message
+- tool call
+- reasoning
+- custom helper
 
-优点：
+### Protocol Error Isolation
 
-- call site 很薄，避免让业务代码直接接触 OpenTelemetry API。
-- 属性 cardinality 做了 length bucket，方向正确。
+`protocol/agui/reducer.ts` 的 handler error isolation 是正确的。建议补测试覆盖：
 
-建议：
+- 某个 core handler throw，不阻断后续 handler。
+- custom handler throw，会 report plugin error。
+- throwing handler 不污染已累积的 state。
 
-- 给 metrics/diagnostics 加测试，至少覆盖 store ingest 的 histogram/counter 行为、`clear()`、percentile fallback。
-- `measurePluginLoad` 只在 setup 成功后记录。失败 plugin 的 setup duration 当前没有记录；建议用 `finally` 记录并带 `result=loaded|failed|skipped` 属性，方便排查坏插件。
-- `pluginName` 作为 metric attribute cardinality 可能随 sideload 插件增多而扩大。dev-only 可以接受；若生产开启，应限制或 bucket。
+## 7. 测试
 
-### 5.4 `useAgentSession.ts`
+当前测试基线健康，但下一步应补这些高价值测试：
 
-优点：
+1. `architecture.test.ts` 增加 “only main may import infra”。
+2. sideload plugin 未声明 capabilities 时默认 deny。
+3. `ensureProvider()` 多次调用幂等，teardown 后可重建。
+4. `useAgentSession` rAF batching 对 error / finish / permission event 的策略测试。
+5. `PermissionGateway` fake 注入下 `useApprovalSubmit` 的成功/失败状态测试。
 
-- rAF batch 实现简单，避免了引入复杂 stream scheduler。
-- cleanup 会 cancelAnimationFrame、unsubscribe、abortRun。
-
-建议：
-
-- 现在所有事件都进 rAF queue，包括 `RUN_ERROR` / `RUN_FINISHED`。一帧延迟通常可接受，但如果后续有 permission/approval 这类交互事件，建议保留 immediate path。
-- `send` 逻辑在 `setSend` 和 return object 中重复。可以抽一个 `sendText(agent, text)` 小 helper，降低未来行为漂移。
-
-### 5.5 `MarkdownMessage` / artifact 渲染
-
-优点：
-
-- `rehypeRaw` 后有 tag deny list，HTML artifact iframe sandbox 也做了 opaque origin。
-- Shiki/Mermaid 都有 debounce 和 fallback。
-
-建议：
-
-- `HTML_DENY` 是 deny list，安全边界不够强。建议后续统一 `contentSecurity` 模块，至少处理 URL scheme，例如 `javascript:` href。
-- `ShadowStyleBlock` 用 `shadow.innerHTML = <style>${css}</style>`，虽然隔离了 host stylesheet，但仍应纳入统一 sanitizer 策略。
-- `dangerouslySetInnerHTML` 的来源应集中列清：Shiki、Mermaid、HTML artifact、Shadow style，给每处写明是否 sanitize、是否可信。
-
-## 6. 测试 Review
-
-当前测试基线健康：220 个用例通过，覆盖了 registry、plugin loading、lazy activation、architecture rules、settings、storage、smoothText、Markdown 等。
-
-建议补的测试：
-
-1. Diagnostics store/exporter：
-   - histogram ingest 后 p50/p95/sum/count 正确。
-   - counter ingest 后 value/avg 命名调整后语义正确。
-   - `clear()` 不会在下一次 cumulative export 前产生假数据。
-
-2. Metrics wrapper：
-   - `measureReduce` 在 fn throw 时仍记录并 rethrow。
-   - `measurePluginLoad` 失败场景是否记录，取决于后续实现。
-
-3. rAF batching：
-   - 多个 onEvent 在同一 frame 内只调用一次 `applyEvents`。
-   - cleanup 后 queue 不再 flush。
-
-4. capability：
-   - sideload schema + capabilities 联动。
-   - omitted capabilities 对 builtin/full trust 与 sideload/default deny 的差异。
-
-## 7. 具体可执行清单
+## 8. 具体清单
 
 P0：
 
-1. 修正 Diagnostics eager/按需语义：要么加开关，要么改成真正打开 view 后启用。
-2. 把 `MetricRow.last` 改为 `avg`/`value`，同步 DiagnosticsView 表头和注释。
-3. 清理 `notifications.tsx` 的 inline style，改为 Tailwind className。
+1. 改写 `architecture.test.ts` 过期 ESLint 注释。
+2. 拆出 `AGUI_BASE`，让 `main/container` 不依赖 plugin-aware `lib/http`。
+3. sideload capabilities 默认 deny 并补测试。
 
 P1：
 
-1. 给 diagnostics store/exporter 增加单元测试。
-2. 抽 `sendText(agent, text)`，消除 `useAgentSession` 重复。
-3. 给 `contentSecurity` 建最小 URL sanitizer，先覆盖 Markdown link href。
-4. 同步 `CLAUDE.md` / `ARCHITECTURE.md` 中的文件数量、插件列表和测试数。
+1. 静态 inline style 迁 Tailwind。
+2. `host.ts` 按 namespace 拆分。
+3. `core-reducer/handlers.ts` 按 event family 拆分。
+4. build chunk 命名。
 
 P2：
 
-1. 逐步收敛 `border border-line` 默认容器风格。
-2. Mermaid lightbox 迁到 Radix Dialog。
-3. Host 文件继续增长时拆 namespace factory。
-
-## 8. 不建议改的细节
-
-- 不建议把 `createIndex` 提前做成复杂 registry database。当前 WeakMap 索引足够。
-- 不建议把所有 inline style 一刀切删除，动态 token swatch 和测量尺寸仍可保留。
-- 不建议为了“少注释”删除关键 why 注释，尤其是 StrictMode、selector snapshot、rAF batching、Zod boundary 这些踩坑说明。
+1. 清理长期 TODO。
+2. 继续减少普通容器的硬边线用法。
+3. 如果 SDK 要开放给外部插件，拆 public types 和 runtime host adapter。
