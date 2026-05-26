@@ -36,6 +36,7 @@ import { applyPatch, deepClone  } from "fast-json-patch";
 import {
   appendBlock,
   appendTextDelta,
+  appendTimeline,
   bind,
   findActiveThinkingId,
   findLastAssistantMessageId,
@@ -53,42 +54,51 @@ import {
 
 // ---- run lifecycle ------------------------------------------------------
 
-const onRunStarted = (state: AgentViewState, ev: RunStartedEvent): AgentViewState => ({
-  ...state,
-  // Clear the previous run's error banner on a fresh start — once the
-  // agent is moving again, the stale message would just confuse.
-  error: null,
-  run: { ...state.run, running: true, threadId: ev.threadId, runId: ev.runId },
-});
+const onRunStarted = (state: AgentViewState, ev: RunStartedEvent): AgentViewState => {
+  const next: AgentViewState = {
+    ...state,
+    // Clear the previous run's error banner on a fresh start — once the
+    // agent is moving again, the stale message would just confuse.
+    error: null,
+    run: { ...state.run, running: true, threadId: ev.threadId, runId: ev.runId },
+  };
+  return appendTimeline(next, { kind: "run-start", runId: ev.runId, refId: ev.runId });
+};
 
-const onRunError = (state: AgentViewState, ev: RunErrorEvent): AgentViewState => ({
-  ...state,
-  error: { message: ev.message, code: ev.code },
-  run: { ...state.run, running: false, activity: "" },
-});
+const onRunError = (state: AgentViewState, ev: RunErrorEvent): AgentViewState => {
+  const next: AgentViewState = {
+    ...state,
+    error: { message: ev.message, code: ev.code },
+    run: { ...state.run, running: false, activity: "" },
+  };
+  return appendTimeline(next, { kind: "run-error", summary: ev.message, status: "err" });
+};
 
 // STEP_FINISHED clears `activity` (the topbar "what is the agent doing"
 // pill) and bumps the step counter — keeping the old step name visible
 // after it finishes is misleading.
-const onStepFinished = (state: AgentViewState, ev: StepFinishedEvent): AgentViewState => ({
-  ...state,
-  run: {
-    ...state.run,
-    step: state.run.step + 1,
-    // Only clear if it matches — defensive against out-of-order events.
-    activity: state.run.activity === ev.stepName ? "" : state.run.activity,
-  },
-});
+const onStepFinished = (state: AgentViewState, ev: StepFinishedEvent): AgentViewState => {
+  const next: AgentViewState = {
+    ...state,
+    run: {
+      ...state.run,
+      step: state.run.step + 1,
+      // Only clear if it matches — defensive against out-of-order events.
+      activity: state.run.activity === ev.stepName ? "" : state.run.activity,
+    },
+  };
+  return appendTimeline(next, { kind: "step-end", summary: ev.stepName });
+};
 
-const onRunFinished = (state: AgentViewState): AgentViewState => ({
-  ...state,
-  run: { ...state.run, running: false },
-});
+const onRunFinished = (state: AgentViewState): AgentViewState => {
+  const next: AgentViewState = { ...state, run: { ...state.run, running: false } };
+  return appendTimeline(next, { kind: "run-end", status: "ok" });
+};
 
-const onStepStarted = (state: AgentViewState, ev: StepStartedEvent): AgentViewState => ({
-  ...state,
-  run: { ...state.run, activity: ev.stepName },
-});
+const onStepStarted = (state: AgentViewState, ev: StepStartedEvent): AgentViewState => {
+  const next: AgentViewState = { ...state, run: { ...state.run, activity: ev.stepName } };
+  return appendTimeline(next, { kind: "step-start", summary: ev.stepName });
+};
 
 // ---- text messages ------------------------------------------------------
 
@@ -156,7 +166,11 @@ const onToolStart = (state: AgentViewState, ev: ToolCallStartEvent): AgentViewSt
       appendBlock(m, { kind: "tool", toolCallId: ev.toolCallId }),
     );
   }
-  return next;
+  return appendTimeline(next, {
+    kind: "tool-start",
+    summary: ev.toolCallName,
+    refId: ev.toolCallId,
+  });
 };
 
 const onToolArgs = (state: AgentViewState, ev: ToolCallArgsEvent): AgentViewState =>
@@ -173,9 +187,10 @@ const onToolEnd = (state: AgentViewState, ev: ToolCallEndEvent): AgentViewState 
     hits?: number;
     lines?: number;
   };
-  return updateTool(state, ev.toolCallId, (t) => ({
+  const finalStatus = ex.status ?? "ok";
+  const next = updateTool(state, ev.toolCallId, (t) => ({
     ...t,
-    status: ex.status ?? "ok",
+    status: finalStatus,
     duration:
       ex.durationMs != null ? `${ex.durationMs}ms` : t.duration === "LIVE" ? "—" : t.duration,
     added: ex.added ?? t.added,
@@ -183,6 +198,12 @@ const onToolEnd = (state: AgentViewState, ev: ToolCallEndEvent): AgentViewState 
     hits: ex.hits ?? t.hits,
     lines: ex.lines ?? t.lines,
   }));
+  return appendTimeline(next, {
+    kind: "tool-end",
+    summary: next.toolCalls[ev.toolCallId]?.fn,
+    refId: ev.toolCallId,
+    status: finalStatus === "err" ? "err" : "ok",
+  });
 };
 
 const onToolResult = (state: AgentViewState, ev: ToolCallResultEvent): AgentViewState =>
@@ -250,9 +271,10 @@ const onReasoningStart = (
     .parentMessageId;
   const targetId = parentId ?? findLastAssistantMessageId(state);
   if (!targetId) return state;
-  return updateMessage(state, targetId, (m) =>
+  const next = updateMessage(state, targetId, (m) =>
     appendBlock(m, { kind: "reasoning", reasoningId: ev.messageId, text: "", streaming: true }),
   );
+  return appendTimeline(next, { kind: "reasoning-start", refId: ev.messageId });
 };
 
 const onReasoningContent = (
@@ -260,8 +282,10 @@ const onReasoningContent = (
   ev: ReasoningMessageContentEvent,
 ): AgentViewState => mapReasoning(state, ev.messageId, (b) => ({ ...b, text: b.text + ev.delta }));
 
-const onReasoningEnd = (state: AgentViewState, ev: ReasoningMessageEndEvent): AgentViewState =>
-  mapReasoning(state, ev.messageId, (b) => ({ ...b, streaming: false }));
+const onReasoningEnd = (state: AgentViewState, ev: ReasoningMessageEndEvent): AgentViewState => {
+  const next = mapReasoning(state, ev.messageId, (b) => ({ ...b, streaming: false }));
+  return appendTimeline(next, { kind: "reasoning-end", refId: ev.messageId });
+};
 
 const onReasoningChunk = (
   state: AgentViewState,
