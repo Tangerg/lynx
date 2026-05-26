@@ -15,6 +15,7 @@
 import type {BaseEvent, CustomEvent} from "@ag-ui/core";
 import type { AgentViewState } from "./viewState";
 import {   EventType } from "@ag-ui/core";
+import { measureReduce } from "@/lib/metrics";
 import {
   lookupCoreEventHandlers,
   lookupCustomEventHandlers,
@@ -61,6 +62,13 @@ function applyCustom(state: AgentViewState, ev: CustomEvent): AgentViewState {
 }
 
 export function reduce(state: AgentViewState, ev: BaseEvent): AgentViewState {
-  if (ev.type === EventType.CUSTOM) return applyCustom(state, ev as CustomEvent);
-  return applyCoreHandlers(state, ev);
+  // CUSTOM events carry the discriminating name in `ev.name`; core
+  // events use `ev.type`. Tag the metric with the most specific
+  // discriminator either side has.
+  const tag = ev.type === EventType.CUSTOM ? (ev as CustomEvent).name : ev.type;
+  return measureReduce(tag, () =>
+    ev.type === EventType.CUSTOM
+      ? applyCustom(state, ev as CustomEvent)
+      : applyCoreHandlers(state, ev),
+  );
 }

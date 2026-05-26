@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useDebounce } from "use-debounce";
 import { Icon } from "@/components/common";
+import { measureShikiHighlight } from "@/lib/metrics";
 import { getHighlighter, resolveLang } from "@/lib/shiki";
 import { cn } from "@/lib/utils";
 import { resolveScheme } from "@/plugins/sdk";
@@ -48,10 +49,12 @@ export function ShikiCodeBlock({ lang, code, file }: Props) {
         if (cancelled) return;
         try {
           const resolvedLang = resolveLang(h, lang);
+          const start = performance.now();
           const out = h.codeToHtml(debouncedCode, {
             lang: resolvedLang,
             theme: shikiTheme,
           });
+          measureShikiHighlight(performance.now() - start, resolvedLang);
           setHtml(out);
         } catch {
           setHtml(null);

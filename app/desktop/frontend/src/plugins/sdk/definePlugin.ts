@@ -1,5 +1,6 @@
 import type { Disposable, PluginSpec } from "./types";
 import { satisfies } from "compare-versions";
+import { measurePluginLoad } from "@/lib/metrics";
 import { HOST_API_VERSION } from "./apiVersion";
 import { reportPluginError } from "./errors";
 import { createHost, setPluginRuntime } from "./host";
@@ -56,7 +57,9 @@ export async function loadPlugin(spec: PluginSpec): Promise<LoadResult> {
   const host = createHost(spec.name, disposables, spec.capabilities);
 
   try {
+    const start = performance.now();
     const cleanup = await spec.setup({ host });
+    measurePluginLoad(performance.now() - start, spec.name);
     if (typeof cleanup === "function") {
       // setup returned a cleanup fn — fold it into the disposable list so
       // unloadPlugin triggers it alongside every register* result.

@@ -1,6 +1,7 @@
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useMemo, useState } from "react";
 import { useDebounce } from "use-debounce";
+import { measureMermaidRender } from "@/lib/metrics";
 import { popIn, swift } from "@/lib/motion";
 import { useThemeStore } from "@/state/themeStore";
 
@@ -70,6 +71,7 @@ export function MermaidBlock({ code }: Props) {
     }
     try {
       const c = readThemeColors();
+      const start = performance.now();
       const out = renderer(debouncedCode, {
         transparent: true,
         // `bg` is still required by the type even with transparent:true;
@@ -82,6 +84,7 @@ export function MermaidBlock({ code }: Props) {
         surface: c.surface,
         border: c.border,
       });
+      measureMermaidRender(performance.now() - start);
       return { svg: out, error: null as Error | null };
     } catch (err) {
       return {
