@@ -28,6 +28,10 @@ export const approvalBlock = definePlugin({
           reason={block.reason}
           requestId={block.requestId}
           decision={block.decision}
+          risk={block.risk}
+          scope={block.scope}
+          target={block.target}
+          reversible={block.reversible}
         />
       ),
     );

@@ -53,6 +53,11 @@ export interface BuiltinContentBlockMap {
     reason: string;
     requestId?: string;
     decision?: "approved" | "declined";
+    /** Risk metadata. All optional — older backends omit them. */
+    risk?: "low" | "medium" | "high";
+    scope?: string[];
+    target?: string;
+    reversible?: boolean;
   };
   checkpoint: { kind: "checkpoint"; text: string };
 }

@@ -55,6 +55,19 @@ export const PlanBlockAttachmentSchema = z.object({
   messageId: z.string(),
 });
 
+/**
+ * Risk metadata on an approval request. All optional — backends that
+ * haven't been updated yet keep working; richer backends supply these
+ * so the card can render a risk badge, scope chips, target path, and
+ * a "reversible" hint (UX review §2.3 P0.5 — Approval Risk Model).
+ *
+ * `scope` is open-ended on purpose. The card renders any string as a
+ * chip; backends that want stricter typing can validate themselves.
+ * Built-in scopes the UI knows how to colour-code: read / write /
+ * network / shell / delete.
+ */
+const ApprovalRiskSchema = z.enum(["low", "medium", "high"]);
+
 export const ApprovalRequestSchema = z.object({
   // Pre-HITL events omit requestId — the resulting card is a decorative
   // preview with no buttons. Real requests have it.
@@ -63,6 +76,13 @@ export const ApprovalRequestSchema = z.object({
   text: z.string(),
   command: z.string(),
   reason: z.string(),
+  risk: ApprovalRiskSchema.optional(),
+  scope: z.array(z.string()).optional(),
+  /** Path / URL / resource the action will touch. */
+  target: z.string().optional(),
+  /** True if the action can be undone without side effects. Drives a
+   *  "reversible" / "permanent" hint chip on the card. */
+  reversible: z.boolean().optional(),
 });
 
 export const ApprovalResultSchema = z.object({

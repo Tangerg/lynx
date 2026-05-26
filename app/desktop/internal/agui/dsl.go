@@ -230,31 +230,89 @@ func (s customStep) Run(e *env) bool {
 // frontend can mark the card as decided.
 //
 // Wire shape — the `lyra.approval` event carries:
-//   { requestId, parentMessageId, text, command, reason }
+//   { requestId, parentMessageId, text, command, reason,
+//     risk?, scope?, target?, reversible? }
 // The frontend renders an ApprovalCard, the user clicks; we get a POST
 // /permission with { requestId, decision }, and unblock here.
 //
 // Follow-up `lyra.approval-result` event:
 //   { requestId, decision: "approved" | "declined" }
 // The reducer updates the original block in-place.
-func Approval(text, command, reason string) Step {
-	return approvalStep{text: text, command: command, reason: reason}
+//
+// Risk metadata (UX review §2.3 P0.5) is optional — scripts use the
+// `WithRisk` / `WithScope` / `WithTarget` / `WithReversible` options
+// to attach it. Older scripts compile unchanged.
+func Approval(text, command, reason string, opts ...ApprovalOption) Step {
+	s := approvalStep{text: text, command: command, reason: reason}
+	for _, o := range opts {
+		o(&s)
+	}
+	return s
+}
+
+// ApprovalOption — functional-options pattern. Keeps Approval()
+// backwards-compatible while letting scripts attach structured risk
+// fields without inventing N positional args.
+type ApprovalOption func(*approvalStep)
+
+// WithRisk attaches a risk level. Frontend renders a coloured badge.
+// Accepts "low" / "medium" / "high"; any other string falls through
+// as-is — the frontend ignores unknown values.
+func WithRisk(level string) ApprovalOption {
+	return func(s *approvalStep) { s.risk = level }
+}
+
+// WithScope tags the action categories the approval would unlock
+// (e.g. "read", "write", "shell", "network", "delete"). Frontend
+// renders them as chips with the known ones colour-coded.
+func WithScope(scopes ...string) ApprovalOption {
+	return func(s *approvalStep) { s.scope = scopes }
+}
+
+// WithTarget names the path / URL / resource the action touches.
+// Frontend renders it as a folder-icon chip next to the scopes.
+func WithTarget(target string) ApprovalOption {
+	return func(s *approvalStep) { s.target = target }
+}
+
+// WithReversible flags whether the action can be undone. Omitting
+// the option leaves the frontend with no hint — the chip is hidden.
+func WithReversible(reversible bool) ApprovalOption {
+	return func(s *approvalStep) { s.reversible = &reversible }
 }
 
 type approvalStep struct {
 	text, command, reason string
+	risk                  string
+	scope                 []string
+	target                string
+	reversible            *bool
 }
 
 func (s approvalStep) Run(e *env) bool {
 	id := newID("approval")
 
-	if !e.send(sdkevents.NewCustomEvent(customApproval, sdkevents.WithValue(map[string]any{
+	payload := map[string]any{
 		"requestId":       id,
 		"parentMessageId": e.assistantID,
 		"text":            s.text,
 		"command":         s.command,
 		"reason":          s.reason,
-	}))) {
+	}
+	if s.risk != "" {
+		payload["risk"] = s.risk
+	}
+	if len(s.scope) > 0 {
+		payload["scope"] = s.scope
+	}
+	if s.target != "" {
+		payload["target"] = s.target
+	}
+	if s.reversible != nil {
+		payload["reversible"] = *s.reversible
+	}
+
+	if !e.send(sdkevents.NewCustomEvent(customApproval, sdkevents.WithValue(payload))) {
 		return false
 	}
 
