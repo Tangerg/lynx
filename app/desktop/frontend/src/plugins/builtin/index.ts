@@ -49,6 +49,7 @@ import {
   defaultTitle,
 } from "./defaults";
 import demo from "./demo";
+import diagnostics from "./diagnostics";
 import globalKeymap from "./global-keymap";
 import httpAgent from "./http-agent";
 import iconGallery from "./icon-gallery";
@@ -160,6 +161,7 @@ const panes: PluginSpec[] = [
   planView,
   toolsView,
   notificationsView,
+  diagnostics,
 ];
 
 // ---------------------------------------------------------------------------
