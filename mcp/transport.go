@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"os/exec"
+	"time"
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -124,6 +126,76 @@ func DialStreamableHTTP(
 		transport.HTTPClient = opts.HTTPClient
 		transport.MaxRetries = opts.MaxRetries
 		transport.DisableStandaloneSSE = opts.DisableStandaloneSSE
+	}
+
+	return client.Connect(ctx, transport, nil)
+}
+
+// CommandClientOptions configures a stdio-subprocess MCP client
+// connection built by [DialCommand].
+type CommandClientOptions struct {
+	// Env overrides the subprocess environment. nil inherits the
+	// parent process env; a non-nil value (even empty) replaces it.
+	// Use [os.Environ] + extra entries when you want to extend rather
+	// than replace.
+	Env []string
+
+	// Dir sets the subprocess working directory. Empty inherits.
+	Dir string
+
+	// TerminateDuration controls how long Close waits after closing
+	// stdin for the process to exit before sending SIGTERM. Zero or
+	// negative uses the SDK default (5s).
+	TerminateDuration time.Duration
+}
+
+// DialCommand spawns command as a subprocess and connects to it
+// over its stdin/stdout pipes using the MCP stdio transport (the
+// canonical local-tool transport — most ecosystem MCP servers
+// distribute as `npx -y @modelcontextprotocol/server-<name>` style
+// commands).
+//
+// Caller is responsible for closing the returned session; closing
+// it shuts the subprocess down cleanly (stdin EOF, then SIGTERM /
+// SIGKILL after TerminateDuration).
+//
+// Example — list tools from the official filesystem server:
+//
+//	cli := sdkmcp.NewClient(&sdkmcp.Implementation{Name: "agent", Version: "v0.1"}, nil)
+//	session, err := mcp.DialCommand(ctx, cli, "npx",
+//	    []string{"-y", "@modelcontextprotocol/server-filesystem", "/workspace"},
+//	    nil)
+//	if err != nil { return err }
+//	defer session.Close()
+//
+// Returns an error when client or command is empty.
+func DialCommand(
+	ctx context.Context,
+	client *sdkmcp.Client,
+	command string,
+	args []string,
+	opts *CommandClientOptions,
+) (*sdkmcp.ClientSession, error) {
+	if client == nil {
+		return nil, errors.New("mcp.DialCommand: client must not be nil")
+	}
+	if command == "" {
+		return nil, errors.New("mcp.DialCommand: command must not be empty")
+	}
+
+	cmd := exec.CommandContext(ctx, command, args...)
+	if opts != nil {
+		if opts.Env != nil {
+			cmd.Env = opts.Env
+		}
+		if opts.Dir != "" {
+			cmd.Dir = opts.Dir
+		}
+	}
+
+	transport := &sdkmcp.CommandTransport{Command: cmd}
+	if opts != nil && opts.TerminateDuration > 0 {
+		transport.TerminateDuration = opts.TerminateDuration
 	}
 
 	return client.Connect(ctx, transport, nil)
