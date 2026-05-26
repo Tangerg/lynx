@@ -67,6 +67,10 @@ function WelcomeScreen() {
             key={s.labelKey}
             type="button"
             onClick={() => setValue(t(s.promptKey))}
+            // Native tooltip shows the actual prompt prefix that lands in
+            // the composer, so the user can preview what the suggestion
+            // will do (the visible label is intentionally short).
+            title={t(s.promptKey)}
             className="group inline-flex items-center gap-2.5 rounded-md border border-line bg-surface px-3.5 py-3 font-sans text-[14px] font-medium text-fg-soft text-left cursor-pointer transition-[background,border-color,color,transform] duration-150 hover:bg-surface-2 hover:border-line-soft hover:text-fg active:scale-[0.98]"
           >
             <Icon name={s.icon} size={14} className="shrink-0 text-fg-faint group-hover:text-fg" />
