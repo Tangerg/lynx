@@ -33,14 +33,7 @@ export function useAgentSession(makeAgent: () => AbstractAgent, sessionId: strin
         /* ignore */
       }
     });
-    useAgentStore.getState().setSend(sessionId, (text: string) => {
-      agent.addMessage({
-        id: `user_${Date.now()}`,
-        role: "user",
-        content: text,
-      });
-      void agent.runAgent();
-    });
+    useAgentStore.getState().setSend(sessionId, (text: string) => sendText(agent, text));
 
     // Per-session rAF batcher. AG-UI streams ~30 token-deltas per
     // second; without batching each one triggers a store.set + React
@@ -96,13 +89,7 @@ export function useAgentSession(makeAgent: () => AbstractAgent, sessionId: strin
   return {
     send: (text: string) => {
       const agent = agentRef.current;
-      if (!agent) return;
-      agent.addMessage({
-        id: `user_${Date.now()}`,
-        role: "user",
-        content: text,
-      });
-      void agent.runAgent();
+      if (agent) sendText(agent, text);
     },
     stop: () => {
       try {
@@ -112,4 +99,16 @@ export function useAgentSession(makeAgent: () => AbstractAgent, sessionId: strin
       }
     },
   };
+}
+
+// Append a user message then kick a new run. Used by both the
+// store-side `setSend` and the hook's returned `send` so the
+// "append + run" pair can't drift across the two call sites.
+function sendText(agent: AbstractAgent, text: string): void {
+  agent.addMessage({
+    id: `user_${Date.now()}`,
+    role: "user",
+    content: text,
+  });
+  void agent.runAgent();
 }
