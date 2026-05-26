@@ -17,14 +17,17 @@
 
 | 层 | 选型 |
 | --- | --- |
-| UI | React 18 + TypeScript |
+| UI | React 19 + TypeScript 6 |
 | 状态 | Zustand（多 store，无 context 链） |
 | 路由 | TanStack Router（route tree 动态构建） |
 | 数据 | TanStack React Query |
 | 协议 | `@ag-ui/core` / `@ag-ui/client`（AbstractAgent 事件流） |
 | 动画 | motion/react |
 | 桌面壳 | Wails v2（Go 后端 + WebKit/Chromium 前端） |
-| 测试 | Vitest + Testing Library |
+| 测试 | Vitest 4 + Testing Library + happy-dom |
+| 构建 | Vite 8（内置 Rolldown） |
+| Lint | OxLint 1.x（Rust-based） |
+| Node | >= 22.12（CI / dev 推荐 24 LTS） |
 
 ---
 
@@ -76,7 +79,7 @@ src/
 │   │   ├── notifications.ts  持久化通知 feed
 │   │   └── apiVersion.ts     HOST_API_VERSION 常量
 │   │
-│   └── builtin/              内置插件，按领域分组到 37 个目录
+│   └── builtin/              内置插件，按领域分组（数量动态增长，跑 `ls plugins/builtin | wc -l` 查实时）
 │       ├── index.ts          manifest（topo sort 由 spec.requires 驱动）
 │       ├── core-reducer/     AG-UI 内置事件 → view state
 │       ├── kernel/           填 app.sidebar / app.main / Settings 三个核心 slot
