@@ -118,7 +118,7 @@ src/
 ├── components/           共享 UI 组件（不是插件）
 │   ├── common/           Icon / Panel / Chip / ScrollArea / EmptyState / Skeleton /
 │   │                     DataView（loading|empty|content 三态 render-prop）
-│   ├── chat/             ChatPanel（51 行 orchestrator） / ChatHeader / ChatStream /
+│   ├── chat/             ChatPanel（51 行 orchestrator） / PanelHeader / ChatStream /
 │   │                     WorkspaceViewBody / Composer / MessageStream / PartRenderer
 │   ├── tools/            ToolCard / ToolPreview / previews/
 │   ├── views/           DiffView / Terminal / FilesChanged / McpRow / PlanList / ViewHeader
@@ -859,7 +859,7 @@ declare module "@/protocol/agui/viewState" {
 | 一个完整的内置插件 | `src/plugins/builtin/demo/index.tsx` |
 | 主题如何注册 | `src/plugins/builtin/themes/defineThemePlugin.ts` + 任意 `<theme>/index.ts` |
 | AG-UI 数据 fold | `src/protocol/agui/reducer.ts` + `src/plugins/builtin/core-reducer/index.ts` |
-| ChatPanel 怎么把一切串起来 | `src/components/chat/ChatPanel.tsx`（orchestrator）+ `ChatHeader` / `ChatStream` / `WorkspaceViewBody` |
+| ChatPanel 怎么把一切串起来 | `src/components/chat/ChatPanel.tsx`（orchestrator）+ `PanelHeader` / `ChatStream` / `WorkspaceViewBody` |
 | Store 拆分 | `src/state/themeStore.ts` / `layoutStore.ts` / `sessionStore.ts` |
 | 路由动态构建 | `src/router.tsx` |
 | Sideload 入口 | `src/plugins/sideload.ts` + `src/plugins/hostBridge.ts` |
@@ -885,7 +885,7 @@ declare module "@/protocol/agui/viewState" {
 **触发条件**：要加新的内置事件类型时（比如 `THINKING_*` / `MEMORY_*`）一并补上。
 
 #### B. ChatPanel/MessageStream 的视觉回归测试
-**现状**：ChatPanel 已经拆成 4 个子组件（51 行 orchestrator + ChatHeader/ChatStream/WorkspaceViewBody），单文件没法继续小拆。但视觉回归（"切 tab 时 tab strip 是否正确"、"打开 workspace view 时 composer 是否消失"）目前靠手测。
+**现状**：ChatPanel 已经拆成 4 个子组件（51 行 orchestrator + PanelHeader/ChatStream/WorkspaceViewBody），单文件没法继续小拆。但视觉回归（"切 tab 时 tab strip 是否正确"、"打开 workspace view 时 composer 是否消失"）目前靠手测。
 
 **为什么没做**：DOM 集成测试容易脆弱，Playwright/Storybook 是更大的引擎引入。
 

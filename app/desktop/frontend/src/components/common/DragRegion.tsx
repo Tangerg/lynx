@@ -19,7 +19,7 @@ export const noDragClasses = "[-webkit-app-region:no-drag] [--wails-draggable:no
 
 interface DragStripProps {
   /** Strip height in px. macOS titlebar shim is 48 (full) / 36 (rail);
-   *  ChatTopBar uses its own tab-strip height inline. */
+   *  PanelTabBar uses its own tab-strip height inline. */
   height: number;
   className?: string;
 }

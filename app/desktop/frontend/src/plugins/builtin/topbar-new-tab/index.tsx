@@ -1,7 +1,7 @@
 // Built-in plugin: the "+" button on the right side of the chat top bar.
 // Picks the next session not already in the tabbar and switches to it.
 //
-// Used to live as a hardcoded `<button class="tab-new">` inside ChatTopBar;
+// Used to live as a hardcoded `<button class="tab-new">` inside PanelTabBar;
 // pluginifying it means a fork that doesn't want this button can simply
 // drop the plugin (and other plugins can register their own top-bar
 // actions alongside).
