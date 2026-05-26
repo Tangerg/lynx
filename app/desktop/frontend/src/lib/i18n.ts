@@ -102,6 +102,9 @@ const messages: Record<Locale, Record<string, string>> = {
     "runError.action.timeline": "Open timeline",
     "runError.action.diagnostics": "Diagnostics",
     "runError.action.dismiss": "Dismiss",
+
+    "session.status.running": "Running",
+    "session.status.waiting": "Needs input",
     "iconGallery.empty": 'No icons match "{{q}}".',
   },
   zh: {
@@ -194,6 +197,9 @@ const messages: Record<Locale, Record<string, string>> = {
     "runError.action.timeline": "查看时间线",
     "runError.action.diagnostics": "诊断",
     "runError.action.dismiss": "忽略",
+
+    "session.status.running": "运行中",
+    "session.status.waiting": "等待输入",
   },
 };
 

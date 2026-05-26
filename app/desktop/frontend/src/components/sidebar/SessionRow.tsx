@@ -1,5 +1,6 @@
 import type { SidebarSession } from "@/lib/queries";
 import { Icon, StatusDot } from "@/components/common";
+import { useLocale, useT } from "@/lib/i18n";
 import { formatRelative } from "@/lib/relativeTime";
 import { cn } from "@/lib/utils";
 
@@ -17,17 +18,22 @@ interface Props {
 // distinguishes "currently selected" from "just hovering" — a single
 // visual cue carries the active state, no fighting tone steps.
 export function SessionRow({ session, active, onSelect }: Props) {
+  // Subscribe to locale changes so `formatRelative` (which reads the
+  // current dayjs locale) refreshes when the user toggles language.
+  // The value is unused — the call is for re-render side-effect.
+  useLocale();
+  const t = useT();
   // Sub-row shows status text when the session is active (Running /
-  // Needs input), otherwise the relative time. The previous design
+  // Needs input), otherwise the localised time. The previous design
   // had model name here + a separate time column on the right; with
   // titles routinely hitting 25+ chars that right column squeezed
   // the title into ellipsis early. Killing the right column gives
   // the title the full row width.
   const subText =
     session.status === "running"
-      ? "Running"
+      ? t("session.status.running")
       : session.status === "waiting"
-        ? "Needs input"
+        ? t("session.status.waiting")
         : formatRelative(session.time);
 
   return (
