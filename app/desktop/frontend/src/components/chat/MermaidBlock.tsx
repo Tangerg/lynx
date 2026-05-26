@@ -1,9 +1,20 @@
-import { renderMermaidSVG } from "beautiful-mermaid";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useMemo, useState } from "react";
 import { useDebounce } from "use-debounce";
 import { popIn, swift } from "@/lib/motion";
 import { useThemeStore } from "@/state/themeStore";
+
+// `beautiful-mermaid` is heavy (~200KB) and only mounts when an
+// agent actually emits a mermaid fence. Cached module promise so
+// every subsequent block reuses the same load.
+type MermaidRenderer = typeof import("beautiful-mermaid").renderMermaidSVG;
+let rendererPromise: Promise<MermaidRenderer> | null = null;
+function loadRenderer(): Promise<MermaidRenderer> {
+  if (!rendererPromise) {
+    rendererPromise = import("beautiful-mermaid").then((m) => m.renderMermaidSVG);
+  }
+  return rendererPromise;
+}
 
 interface Props {
   code: string;
@@ -38,15 +49,28 @@ export function MermaidBlock({ code }: Props) {
   const [debouncedCode] = useDebounce(code, 300);
   const isSettling = code !== debouncedCode;
 
+  // Lazy-loaded renderer. Stays null until the import resolves; the
+  // pending pre-block below covers the gap.
+  const [renderer, setRenderer] = useState<MermaidRenderer | null>(null);
+  useEffect(() => {
+    let alive = true;
+    loadRenderer().then((fn) => {
+      if (alive) setRenderer(() => fn);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
   // Render swallows errors via the pending pre-block fallback; underscore
   // tells ESLint the destructure is intentional.
   const { svg, error: _error } = useMemo(() => {
-    if (isSettling) {
+    if (!renderer || isSettling) {
       return { svg: null, error: null as Error | null };
     }
     try {
       const c = readThemeColors();
-      const out = renderMermaidSVG(debouncedCode, {
+      const out = renderer(debouncedCode, {
         transparent: true,
         // `bg` is still required by the type even with transparent:true;
         // beautiful-mermaid uses it for color-mix fallbacks of unset roles.
@@ -71,7 +95,7 @@ export function MermaidBlock({ code }: Props) {
     // re-triggers the memo when the user switches palette so the SVG
     // re-paints with the new tokens.
     // eslint-disable-next-line react/exhaustive-deps
-  }, [debouncedCode, isSettling, theme, accent]);
+  }, [debouncedCode, isSettling, theme, accent, renderer]);
 
   const [zoomed, setZoomed] = useState(false);
 
