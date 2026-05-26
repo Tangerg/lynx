@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
-import type {FallbackProps} from "react-error-boundary";
-import { ErrorBoundary  } from "react-error-boundary";
+import type { FallbackProps } from "react-error-boundary";
+import { ErrorBoundary } from "react-error-boundary";
 import { useT } from "@/lib/i18n";
 
 // ChatErrorBoundary — wraps the chat surface so a render error in one
@@ -55,7 +55,6 @@ export function ChatErrorBoundary({ resetKey, label, children }: Props) {
       FallbackComponent={ChatErrorFallback}
       resetKeys={resetKey === undefined ? [] : [resetKey]}
       onError={(error, info) => {
-         
         console.error(`[chat-error-boundary] ${label ?? "chat"}:`, error, info.componentStack);
       }}
     >

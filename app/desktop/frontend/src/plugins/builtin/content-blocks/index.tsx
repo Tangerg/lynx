@@ -5,14 +5,14 @@
 // Co-located here because each one is ~5 lines — a folder per plugin was
 // pure overhead.
 
-import type {ContentBlockRendererProps} from "@/plugins/sdk";
+import type { ContentBlockRendererProps } from "@/plugins/sdk";
 import { ApprovalCard } from "@/components/chat/ApprovalCard";
 import { Checkpoint } from "@/components/chat/Checkpoint";
 import { PlanBlock } from "@/components/chat/PlanBlock";
 import { ReasoningBlock } from "@/components/chat/ReasoningBlock";
 import { SearchResults } from "@/components/chat/SearchResults";
 import { ShikiCodeBlock } from "@/components/chat/ShikiCodeBlock";
-import {  definePlugin } from "@/plugins/sdk";
+import { definePlugin } from "@/plugins/sdk";
 import { useAgentSlice } from "@/state/agentStore";
 
 export const approvalBlock = definePlugin({

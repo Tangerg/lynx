@@ -44,7 +44,10 @@ import type {
 } from "./types";
 import type { ContentBlockKind } from "@/protocol/agui/viewState";
 
-export interface Owned<T> { pluginName: string; value: T }
+export interface Owned<T> {
+  pluginName: string;
+  value: T;
+}
 
 export interface PluginStoreState {
   loaded: Map<string, LoadedPlugin>;

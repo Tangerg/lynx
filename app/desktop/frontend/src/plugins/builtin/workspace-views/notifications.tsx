@@ -89,12 +89,7 @@ function NotificationRow({ level, message, plugin, timestamp, dismissed, onDismi
         dismissed && "opacity-50",
       )}
     >
-      <div
-        className={cn(
-          "mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full",
-          DOT_BG_BY_LEVEL[level],
-        )}
-      />
+      <div className={cn("mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full", DOT_BG_BY_LEVEL[level])} />
       <div className="min-w-0 flex-1">
         <div className="whitespace-pre-wrap break-words text-[12px] text-fg">{message}</div>
         <div className="mt-0.5 text-[10px] text-fg-faint">

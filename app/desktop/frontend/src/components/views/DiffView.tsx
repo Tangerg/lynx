@@ -41,7 +41,8 @@ export function DiffView({ rows }: { rows: DiffRow[] }) {
     if (!highlighter) return null;
     const out = new Map<string, string>();
     for (const row of rows) {
-      if (row.type !== "hunk") out.set(row.code, highlightInline(highlighter, row.code, shikiTheme));
+      if (row.type !== "hunk")
+        out.set(row.code, highlightInline(highlighter, row.code, shikiTheme));
     }
     return out;
   }, [highlighter, rows, shikiTheme]);

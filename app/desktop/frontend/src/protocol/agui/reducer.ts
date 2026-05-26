@@ -12,9 +12,9 @@
 // Both pathways use the same error-isolation policy: a throwing handler is
 // logged to the error store and its input state is preserved.
 
-import type {BaseEvent, CustomEvent} from "@ag-ui/core";
+import type { BaseEvent, CustomEvent } from "@ag-ui/core";
 import type { AgentViewState } from "./viewState";
-import {   EventType } from "@ag-ui/core";
+import { EventType } from "@ag-ui/core";
 import { measureReduce } from "@/lib/metrics";
 import {
   lookupCoreEventHandlers,
@@ -30,7 +30,6 @@ function applyCoreHandlers(state: AgentViewState, event: BaseEvent): AgentViewSt
     try {
       next = handler(next, event);
     } catch (err) {
-       
       console.error(`[plugin] core handler "${event.type}" (${pluginName}) threw:`, err);
       reportPluginError(pluginName, "agui", err, `event: ${event.type}`);
       // Skip this handler — keep `next` as it was before the throw so the

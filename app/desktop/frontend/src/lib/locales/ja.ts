@@ -21,7 +21,8 @@ export const ja: Record<string, string> = {
   "sidebar.user.menuLabel": "アカウントメニュー",
 
   "composer.input.label": "メッセージ入力欄",
-  "composer.placeholder.fallback": "質問、計画、またはスタックトレースを貼り付け…  / でコマンド実行",
+  "composer.placeholder.fallback":
+    "質問、計画、またはスタックトレースを貼り付け…  / でコマンド実行",
   "composer.send": "送信",
   "composer.mode": "入力モード",
   "composer.attachFile": "ファイルを添付",

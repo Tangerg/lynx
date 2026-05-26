@@ -6,7 +6,9 @@
 import { PluginBoundary } from "@/plugins/PluginBoundary";
 import { useWorkspaceViews } from "@/plugins/sdk";
 
-interface Props { viewId: string }
+interface Props {
+  viewId: string;
+}
 
 export function WorkspaceViewBody({ viewId }: Props) {
   const workspaceViews = useWorkspaceViews();

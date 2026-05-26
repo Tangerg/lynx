@@ -6,10 +6,10 @@
 // fallback that every callsite needs.
 
 import type { BaseEvent } from "@ag-ui/core";
-import type {AgentViewState} from "@/protocol/agui/viewState";
+import type { AgentViewState } from "@/protocol/agui/viewState";
 import { create } from "zustand";
 import { reduce } from "@/protocol/agui/reducer";
-import {  INITIAL_VIEW_STATE } from "@/protocol/agui/viewState";
+import { INITIAL_VIEW_STATE } from "@/protocol/agui/viewState";
 import { useSessionStore } from "./sessionStore";
 
 type StopFn = (() => void) | null;

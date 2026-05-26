@@ -4,8 +4,8 @@
 // via `host.agui.on(name, handler)`. Tests cover both flows plus the
 // "unrecognised name" + "throwing handler isolation" edges.
 
-import type {BaseEvent} from "@ag-ui/core";
-import {  EventType } from "@ag-ui/core";
+import type { BaseEvent } from "@ag-ui/core";
+import { EventType } from "@ag-ui/core";
 import { beforeEach, describe, expect, it } from "vitest";
 import { loadPlugin } from "@/plugins/sdk/definePlugin";
 import { usePluginErrorStore } from "@/plugins/sdk/errors";
@@ -13,7 +13,7 @@ import { createHost } from "@/plugins/sdk/host";
 import { appendBlockToLatestAssistant, appendBlockToMessage } from "@/plugins/sdk/state";
 import { CUSTOM } from "./customEvents";
 import { reduce } from "./reducer";
-import {  INITIAL_VIEW_STATE } from "./viewState";
+import { INITIAL_VIEW_STATE } from "./viewState";
 
 const ev = <T extends BaseEvent>(e: T): BaseEvent => e;
 

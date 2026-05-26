@@ -9,7 +9,11 @@ import { useDiff } from "@/lib/queries";
 import { definePlugin } from "@/plugins/sdk";
 import { useSessionStore } from "@/state/sessionStore";
 
-interface DiffStats { added: number; removed: number; lineCount: number }
+interface DiffStats {
+  added: number;
+  removed: number;
+  lineCount: number;
+}
 
 // Real diff metadata isn't on the query result yet, so we derive what we can
 // from the rendered rows. Once the data layer surfaces per-file stats, swap

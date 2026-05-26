@@ -1,6 +1,6 @@
 import type { MCPServer } from "@/lib/queries";
-import type {IconName} from "@/components/common";
-import { Icon  } from "@/components/common";
+import type { IconName } from "@/components/common";
+import { Icon } from "@/components/common";
 import { cn } from "@/lib/utils";
 
 // MCP server row — appears in the Tools workspace view. Status pill

@@ -14,7 +14,11 @@ const SKIP_TAGS = new Set(["pre", "code", "a", "sup", "script", "style"]);
 
 export function rehypeCitations() {
   return (tree: Root) => {
-    interface Job { parent: Element | Root; index: number; replacement: Array<Element | Text> }
+    interface Job {
+      parent: Element | Root;
+      index: number;
+      replacement: Array<Element | Text>;
+    }
     const jobs: Job[] = [];
 
     visit(tree, "text", (node: Text, index, parent) => {

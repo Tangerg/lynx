@@ -5,8 +5,8 @@
 // `lyra.builtin.default-data`, but a user plugin can replace any of
 // them (fixture data, IPC, in-memory mock, …).
 
-import type {UseQueryResult} from "@tanstack/react-query";
-import { useQuery  } from "@tanstack/react-query";
+import type { UseQueryResult } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { lookupDataProvider } from "@/plugins/sdk";
 
 // ---- API response shapes ---------------------------------------------------
@@ -64,13 +64,16 @@ export interface GrepMatch {
 }
 
 export interface FileLine {
-  ln: string;       // line number or marker like "···"
-  code: string;     // already-rendered HTML
+  ln: string; // line number or marker like "···"
+  code: string; // already-rendered HTML
   muted?: boolean;
 }
 
 // Shape returned by /grep — matches plus a "more matches" total.
-export interface GrepResult { matches: GrepMatch[]; total: number }
+export interface GrepResult {
+  matches: GrepMatch[];
+  total: number;
+}
 
 // Shared options — these resources rarely change for the mock, so we cache
 // aggressively. Real backends might choose shorter staleTime.

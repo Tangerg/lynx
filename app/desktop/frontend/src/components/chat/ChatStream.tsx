@@ -5,7 +5,7 @@
 // the streamControls bridge that lets the jump-to-bottom button know
 // when the user has scrolled away from the tail.
 
-import type {StreamControls} from "./MessageStream";
+import type { StreamControls } from "./MessageStream";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Slot } from "@/plugins/Slot";
 import { useAgentSlice } from "@/state/agentStore";
@@ -15,7 +15,7 @@ import { ChatErrorBoundary } from "./ChatErrorBoundary";
 import { Composer } from "./Composer";
 import { ComposerFooter } from "./ComposerFooter";
 import { JumpToBottomButton } from "./JumpToBottomButton";
-import { MessageStream  } from "./MessageStream";
+import { MessageStream } from "./MessageStream";
 import { RunErrorBanner } from "./RunErrorBanner";
 import { SlashSuggestions } from "./SlashSuggestions";
 

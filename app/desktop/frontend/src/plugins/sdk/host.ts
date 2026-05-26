@@ -2,7 +2,7 @@
 // plugin gets a Host bound to its name so registrations, errors, and
 // conflict warnings can be attributed back when it unloads.
 
-import type {ConfigValue} from "./config";
+import type { ConfigValue } from "./config";
 import type {
   AgentSourceSpec,
   BeforeUnloadHandler,
@@ -46,7 +46,7 @@ import { api } from "@/lib/http";
 import { addLocaleBundle } from "@/lib/i18n";
 import { useSessionStore } from "@/state/sessionStore";
 import { startTask } from "@/state/tasksStore";
-import {  getConfig, hasConfig, setConfig, useConfigStore } from "./config";
+import { getConfig, hasConfig, setConfig, useConfigStore } from "./config";
 import { safeCall } from "./errors";
 import { useNotificationStore } from "./notifications";
 import { usePluginStore } from "./registry";
@@ -147,12 +147,7 @@ export function createHost(
         // plugin twice) can handle the same custom event name. The
         // reducer fans the event out through every match.
         const id = mintId(`custom:${name}`);
-        store().addCustomEventHandler(
-          pluginName,
-          name,
-          id,
-          handler as CustomEventHandler<unknown>,
-        );
+        store().addCustomEventHandler(pluginName, name, id, handler as CustomEventHandler<unknown>);
         return track({ dispose: () => store().removeCustomEventHandler(pluginName, id) });
       },
       onCore(eventType: string, handler: CoreEventHandler): Disposable {
@@ -180,7 +175,6 @@ export function createHost(
       openView(id: string): void {
         const view = usePluginStore.getState().workspaceViews.get(id)?.value;
         if (!view) {
-           
           console.warn(`[plugin] workspace.openView("${id}"): no view registered`);
           return;
         }
@@ -300,9 +294,7 @@ export function createHost(
         // — never synchronously inside register (which would surprise
         // setup-time callers).
         if (usePluginStore.getState().appReady) {
-          queueMicrotask(() =>
-            safeCall(fn, `[plugin] ${pluginName} onReady threw:`),
-          );
+          queueMicrotask(() => safeCall(fn, `[plugin] ${pluginName} onReady threw:`));
           return track({
             dispose: () => {
               /* no-op: already fired */
@@ -512,7 +504,10 @@ function emitLog(plugin: string, level: LogLevel, args: unknown[]): void {
 
 type ToastLevel = "info" | "warn" | "error";
 export const PLUGIN_TOAST_EVENT = "lyra:plugin-toast";
-export interface PluginToastDetail { message: string; level: ToastLevel }
+export interface PluginToastDetail {
+  message: string;
+  level: ToastLevel;
+}
 
 function dispatchToast(message: string, level: ToastLevel): void {
   if (typeof window === "undefined") return;

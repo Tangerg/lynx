@@ -76,7 +76,7 @@ export function createStorage(pluginName: string): KeyValueStore {
       } catch (err) {
         // Quota exceeded, etc. Surface to console but don't throw — plugins
         // shouldn't crash because storage is full.
-         
+
         console.warn(`[plugin] storage.set("${key}") failed:`, err);
       }
     },
@@ -122,7 +122,6 @@ export function createStorage(pluginName: string): KeyValueStore {
           step.migrate(self);
           self.set(SCHEMA_VERSION_KEY, step.version);
         } catch (err) {
-           
           console.error(`[plugin] ${pluginName} migration to v${step.version} failed:`, err);
           return;
         }

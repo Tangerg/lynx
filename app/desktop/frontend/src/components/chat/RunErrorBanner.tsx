@@ -2,7 +2,12 @@ import { AnimatePresence, motion } from "motion/react";
 import { Icon } from "@/components/common";
 import { useT } from "@/lib/i18n";
 import { swift } from "@/lib/motion";
-import { getCurrentSessionView, useAgentAction, useAgentSlice, useAgentStore } from "@/state/agentStore";
+import {
+  getCurrentSessionView,
+  useAgentAction,
+  useAgentSlice,
+  useAgentStore,
+} from "@/state/agentStore";
 import { openDiagnosticsView, openTimelineView } from "@/state/deeplinks";
 import { useSessionStore } from "@/state/sessionStore";
 
@@ -66,7 +71,8 @@ export function RunErrorBanner() {
           <Icon name="bug" size={14} className="text-negative mt-0.5" />
           <div className="min-w-0">
             <div className="text-[13px] font-semibold text-negative mb-0.5">
-              {t("runError.title")}{error.code ? ` · ${error.code}` : ""}
+              {t("runError.title")}
+              {error.code ? ` · ${error.code}` : ""}
             </div>
             <div className="text-[14px] text-fg-soft whitespace-pre-wrap break-words">
               {error.message}

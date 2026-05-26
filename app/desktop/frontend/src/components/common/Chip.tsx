@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
-import type {IconName} from "./Icon";
-import { Icon  } from "./Icon";
+import type { IconName } from "./Icon";
+import { Icon } from "./Icon";
 
 interface Props {
   icon?: IconName;

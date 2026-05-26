@@ -1,8 +1,8 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8"/>
-    <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+  <head>
+    <meta charset="UTF-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
     <title>lyra</title>
     <!-- First-paint theme class sync.
          Reads the persisted theme id from the same localStorage key the
@@ -20,7 +20,9 @@
           var id = JSON.parse(raw)?.state?.theme;
           var scheme = id === "light" ? "light" : "dark";
           document.documentElement.classList.add("theme-" + scheme);
-        } catch (_) { /* localStorage blocked, malformed JSON — fall back to default dark */ }
+        } catch (_) {
+          /* localStorage blocked, malformed JSON — fall back to default dark */
+        }
       })();
     </script>
     <!-- JetBrains Mono — numbers, IDs, timestamps, code-adjacent UI text.
@@ -37,9 +39,9 @@
       href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&display=swap"
       rel="stylesheet"
     />
-</head>
-<body>
-<div id="root"></div>
-<script src="./src/main.tsx" type="module"></script>
-</body>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script src="./src/main.tsx" type="module"></script>
+  </body>
 </html>

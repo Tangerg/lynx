@@ -7,8 +7,8 @@
 // (useWorkspaceViews / useSettingsPanes) re-emits a list where the
 // real component replaces this placeholder.
 
-import type {ComponentType} from "react";
-import {  createElement, useEffect } from "react";
+import type { ComponentType } from "react";
+import { createElement, useEffect } from "react";
 
 export function makeLazyActivator(label: string, onActivate: () => void): ComponentType {
   return function LazyActivator() {

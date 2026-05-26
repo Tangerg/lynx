@@ -7,11 +7,11 @@
 // Failures are isolated per plugin: a broken module logs + is skipped,
 // remaining plugins still load.
 
-import type {LoadResult} from "./sdk/definePlugin";
+import type { LoadResult } from "./sdk/definePlugin";
 import type { PluginSpec } from "./sdk/types";
 import { z } from "zod";
 import { AGUI_BASE } from "@/main/config";
-import { loadPlugin  } from "./sdk/definePlugin";
+import { loadPlugin } from "./sdk/definePlugin";
 import { reportPluginError } from "./sdk/errors";
 import { usePluginStore } from "./sdk/registry";
 
@@ -23,10 +23,7 @@ import { usePluginStore } from "./sdk/registry";
 const PluginSpecSchema = z.object({
   name: z.string().min(1),
   version: z.string().min(1),
-  setup: z.custom<PluginSpec["setup"]>(
-    (v) => typeof v === "function",
-    "setup must be a function",
-  ),
+  setup: z.custom<PluginSpec["setup"]>((v) => typeof v === "function", "setup must be a function"),
   apiVersion: z.string().optional(),
   requires: z.array(z.string()).optional(),
   activationEvents: z.array(z.string()).optional(),
@@ -34,7 +31,10 @@ const PluginSpecSchema = z.object({
   contributes: z.unknown().optional(),
 });
 
-interface SideloadInfo { id: string; url: string }
+interface SideloadInfo {
+  id: string;
+  url: string;
+}
 
 /**
  * Track where each plugin came from so the Plugins settings pane can mark
@@ -64,7 +64,6 @@ export async function loadSideloadedPlugins(): Promise<LoadResult[]> {
   try {
     infos = await fetchSideloadList();
   } catch (err) {
-     
     console.warn("[plugin] sideload manifest fetch failed:", err);
     return [];
   }
@@ -94,7 +93,6 @@ export async function loadSideloadedPlugins(): Promise<LoadResult[]> {
       // assertion below keeps the downstream typing precise.
       spec = parsed.data as PluginSpec;
     } catch (err) {
-       
       console.error(`[plugin] sideload ${info.id} import failed:`, err);
       reportPluginError(info.id, "setup", err);
       results.push({ kind: "failed", name: info.id, error: err });

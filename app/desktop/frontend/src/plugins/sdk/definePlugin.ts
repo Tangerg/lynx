@@ -38,7 +38,7 @@ export async function loadPlugin(spec: PluginSpec): Promise<LoadResult> {
     try {
       if (!satisfies(HOST_API_VERSION, spec.apiVersion)) {
         const reason = `requires host apiVersion ${spec.apiVersion}, this host is ${HOST_API_VERSION}`;
-         
+
         console.warn(`[plugin] ${spec.name} skipped: ${reason}`);
         reportPluginError(spec.name, "setup", new Error(reason));
         return { kind: "skipped", name: spec.name, reason };
@@ -193,7 +193,10 @@ setPluginRuntime({
   reload: reloadPlugin,
 });
 
-interface Skipped { name: string; reason: string }
+interface Skipped {
+  name: string;
+  reason: string;
+}
 
 /**
  * Kahn-style topological sort. Picks the ready node with the lowest input

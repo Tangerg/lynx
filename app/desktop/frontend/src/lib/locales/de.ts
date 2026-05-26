@@ -21,7 +21,8 @@ export const de: Record<string, string> = {
   "sidebar.user.menuLabel": "Kontomenü",
 
   "composer.input.label": "Nachrichteneditor",
-  "composer.placeholder.fallback": "Frage, plane oder füge einen Stack-Trace ein…  /  für einen Befehl",
+  "composer.placeholder.fallback":
+    "Frage, plane oder füge einen Stack-Trace ein…  /  für einen Befehl",
   "composer.send": "Senden",
   "composer.mode": "Editor-Modus",
   "composer.attachFile": "Datei anhängen",

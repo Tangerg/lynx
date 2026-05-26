@@ -31,12 +31,7 @@ export function getCachedHighlight(lang: string, theme: string, code: string): s
   return hit;
 }
 
-export function setCachedHighlight(
-  lang: string,
-  theme: string,
-  code: string,
-  html: string,
-): void {
+export function setCachedHighlight(lang: string, theme: string, code: string, html: string): void {
   const key = cacheKey(lang, theme, code);
   cache.delete(key);
   cache.set(key, html);

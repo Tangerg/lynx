@@ -59,9 +59,7 @@ function InspectorSection({ title, body }: { title: string; body: FormattedBody 
         <span className="font-mono text-[10px] font-semibold uppercase tracking-wider text-fg-faint">
           {title}
         </span>
-        {body.isJson && (
-          <span className="font-mono text-[10px] text-fg-faint">json</span>
-        )}
+        {body.isJson && <span className="font-mono text-[10px] text-fg-faint">json</span>}
       </div>
       <pre
         className={cn(

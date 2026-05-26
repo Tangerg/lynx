@@ -39,7 +39,12 @@ export interface PlanItem {
   text: string;
 }
 
-export interface SearchResult { domain: string; title: string; time: string; snippet: string }
+export interface SearchResult {
+  domain: string;
+  title: string;
+  time: string;
+  snippet: string;
+}
 
 // ContentBlock — discriminated union extended via TypeScript declaration
 // merging on `CustomContentBlockMap`. A plugin adds:
@@ -75,7 +80,7 @@ export interface BuiltinContentBlockMap {
 }
 
 // Empty by design — plugins augment this via `declare module`.
- 
+
 export interface CustomContentBlockMap {}
 
 export type ContentBlockMap = BuiltinContentBlockMap & CustomContentBlockMap;
@@ -112,7 +117,10 @@ export interface RunState {
 /** Last error reported by the agent — RUN_ERROR event payload. UI shows
  *  this as a dismissible banner above the message stream. Cleared the
  *  next time RUN_STARTED fires. */
-export interface RunError { message: string; code?: string }
+export interface RunError {
+  message: string;
+  code?: string;
+}
 
 /** One entry on the per-thread event timeline. Drives the Run Timeline
  *  workspace view (UX review §2.2: "工具调用缺少统一 timeline").
