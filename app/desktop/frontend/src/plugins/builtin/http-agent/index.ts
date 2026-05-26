@@ -10,7 +10,7 @@
 // pick a demo script from `internal/agui/demos.go`.
 
 import { HttpAgent } from "@ag-ui/client";
-import { AGUI_BASE } from "@/lib/http";
+import { AGUI_BASE } from "@/main/config";
 import { definePlugin } from "@/plugins/sdk";
 import { useSessionStore } from "@/state/sessionStore";
 

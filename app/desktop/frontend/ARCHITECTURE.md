@@ -200,7 +200,15 @@ src/
 4. UI 调用 `getContainer().foo.method(...)`
 5. 测试用 `setContainer({ foo: fakeFoo })` 注入假实现
 
-合规检查跑 `pnpm vitest architecture` 即可——违反任何一条规则都会失败。
+合规检查跑 `npm run test` 里的 `architecture.test.ts` 即可——违反任何一条规则都会失败。
+
+**抽象定义在使用方（关键纪律）**：
+
+- 谁需要抽象，谁定义抽象。Permission flow 需要提交审批 → `PermissionGateway` 定义在 `domain/`，**不是因为 infra 要写 HTTP 实现才定义**。
+- 反例：**禁**为了 infra 方便先建一个通用 `ApiClient` interface 然后让 domain / use case 依赖它。这样会把 transport 形状渗回业务层，违反"内层不知道外层"。
+- 反例：**禁**新建空泛的 `Repository<T>` / `Gateway<T>` 这种"以防万一"的抽象。每个 gateway 是一个具体业务能力（提交审批 / 发起 agent run / 列会话）。
+- 真实后端尚未接入前，**禁**先一次性把所有可能用到的 gateway 都建出来。等具体 use case 触发再开。
+- `lib/`、`main/config.ts` 这类配置 / 工具属于 outer adapter，不要被误读成 inner domain。Composition root 可以读 `main/config` 拿默认 URL，但不应该读 `lib/http`（plugin-aware RPC facade）拿同一个常量——配置和 RPC facade 是两件事。
 
 ### 3.2 关于 monorepo（暂不拆）
 
