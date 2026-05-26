@@ -12,6 +12,7 @@
 // absolute path uses spelled month names) and gives older sessions a
 // scannable real date instead of "23 days ago" / "2 个月前".
 
+import { useSyncExternalStore } from "react";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import i18next from "i18next";
@@ -19,15 +20,39 @@ import i18next from "i18next";
 dayjs.extend(relativeTime);
 
 // zh-cn is dynamic-imported on demand. Static side-effect imports of
-// UMD locale files have caused HMR / Vite dep-cache headaches; the
-// dynamic-import lets Vite handle it as its own chunk and the locale
-// only loads when a Chinese-speaking user actually opens the app.
+// UMD locale files broke Vite's dev-mode dep-cache after multiple HMR
+// cycles ("SyntaxError: Importing binding name 't' is not found");
+// dynamic-import lets Vite split it into its own chunk that only
+// downloads when a Chinese-speaking user is actually active.
 let zhLoadingPromise: Promise<void> | null = null;
 function ensureZhLoaded(): Promise<void> {
   if (!zhLoadingPromise) {
     zhLoadingPromise = import("dayjs/locale/zh-cn").then(() => undefined);
   }
   return zhLoadingPromise;
+}
+
+// External-store snapshot. Bumped whenever the dayjs locale actually
+// changes (after a zh-cn load completes, or after en/zh switch). Lets
+// React components subscribe via `useDayjsLocale()` and re-render
+// without coupling to i18next's "language is `zh`" claim — they need
+// to wait for the locale resources to actually land in dayjs.
+let snapshot = 0;
+const listeners = new Set<() => void>();
+function subscribe(cb: () => void): () => void {
+  listeners.add(cb);
+  return () => listeners.delete(cb);
+}
+function bumpSnapshot(): void {
+  snapshot += 1;
+  for (const cb of listeners) cb();
+}
+export function useDayjsLocale(): number {
+  return useSyncExternalStore(
+    subscribe,
+    () => snapshot,
+    () => snapshot,
+  );
 }
 
 function applyLocale(lng: string | undefined): void {
@@ -39,6 +64,7 @@ function applyLocale(lng: string | undefined): void {
       } catch {
         /* zh-cn not registered for some reason; stay on current. */
       }
+      bumpSnapshot();
     });
   } else {
     try {
@@ -46,6 +72,7 @@ function applyLocale(lng: string | undefined): void {
     } catch {
       /* unreachable — en is always built in. */
     }
+    bumpSnapshot();
   }
 }
 
