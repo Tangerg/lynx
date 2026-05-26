@@ -10,7 +10,7 @@ import (
 
 func TestApiKey_GetReturnsValue(t *testing.T) {
 	const want = "sk-1234567890abcdef"
-	k := model.NewApiKey(want)
+	k := model.NewAPIKey(want)
 	if got := k.Get(); got != want {
 		t.Fatalf("Get = %q, want %q", got, want)
 	}
@@ -18,11 +18,11 @@ func TestApiKey_GetReturnsValue(t *testing.T) {
 
 func TestApiKey_StringNeverLeaksSecret(t *testing.T) {
 	const secret = "sk-this-is-a-secret-token"
-	k := model.NewApiKey(secret)
+	k := model.NewAPIKey(secret)
 
 	stringer, ok := k.(interface{ String() string })
 	if !ok {
-		t.Fatal("ApiKey implementation must satisfy fmt.Stringer for safe logging")
+		t.Fatal("APIKey implementation must satisfy fmt.Stringer for safe logging")
 	}
 
 	masked := stringer.String()
@@ -49,7 +49,7 @@ func TestApiKey_StringMaskingShapes(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			k := model.NewApiKey(tc.key)
+			k := model.NewAPIKey(tc.key)
 			stringer := k.(interface{ String() string })
 			if got := stringer.String(); got != tc.want {
 				t.Fatalf("String = %q, want %q", got, tc.want)
@@ -59,20 +59,20 @@ func TestApiKey_StringMaskingShapes(t *testing.T) {
 }
 
 func TestApiKey_EmptyKeyForNoAuth(t *testing.T) {
-	k := model.NewApiKey("")
+	k := model.NewAPIKey("")
 	if got := k.Get(); got != "" {
 		t.Fatalf("Get = %q, want empty for no-auth scenarios", got)
 	}
 }
 
 // TestApiKey_MarshalJSONNeverLeaksSecret pins the contract that
-// json-encoding a struct containing an ApiKey emits the masked form,
+// json-encoding a struct containing an APIKey emits the masked form,
 // not the raw value. Without MarshalJSON, encoding/json reaches into
 // unexported fields via reflection and would print the secret in plain
 // text — Stringer alone does not protect this path.
 func TestApiKey_MarshalJSONNeverLeaksSecret(t *testing.T) {
 	const secret = "sk-very-sensitive-token"
-	k := model.NewApiKey(secret)
+	k := model.NewAPIKey(secret)
 
 	out, err := json.Marshal(k)
 	if err != nil {
@@ -83,7 +83,7 @@ func TestApiKey_MarshalJSONNeverLeaksSecret(t *testing.T) {
 	}
 	// Sanity: containing struct passes through the masked form too.
 	type wrapper struct {
-		Key model.ApiKey `json:"key"`
+		Key model.APIKey `json:"key"`
 	}
 	wrap, err := json.Marshal(wrapper{Key: k})
 	if err != nil {

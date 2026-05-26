@@ -10,7 +10,7 @@ import (
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/event"
-	"github.com/Tangerg/lynx/agent/plan"
+	"github.com/Tangerg/lynx/agent/planning"
 	"github.com/Tangerg/lynx/core/model/chat"
 )
 
@@ -47,8 +47,8 @@ type AgentProcess struct {
 
 	blackboard core.Blackboard
 	determiner *blackboardDeterminer
-	planner    plan.Planner
-	system     *plan.PlanningSystem
+	planner    planning.Planner
+	system     *planning.System
 	platform   *Platform
 
 	// processEvents is the per-process multicast populated from
@@ -79,8 +79,8 @@ func newAgentProcess(
 	agentDef *core.Agent,
 	options *core.ProcessOptions,
 	blackboard core.Blackboard,
-	planner plan.Planner,
-	system *plan.PlanningSystem,
+	planner planning.Planner,
+	system *planning.System,
 	platform *Platform,
 ) *AgentProcess {
 	p := &AgentProcess{

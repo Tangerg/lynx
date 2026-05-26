@@ -19,7 +19,7 @@ import (
 // gpt-4o-transcribe models are transcription-only and reject translation
 // calls.
 type AudioTranslationModelConfig struct {
-	ApiKey         model.ApiKey
+	APIKey         model.APIKey
 	DefaultOptions *transcription.Options
 	RequestOptions []option.RequestOption
 
@@ -32,8 +32,8 @@ func (c *AudioTranslationModelConfig) validate() error {
 	if c == nil {
 		return errors.New("openai: config must not be nil")
 	}
-	if c.ApiKey == nil {
-		return errors.New("openai: ApiKey is required")
+	if c.APIKey == nil {
+		return errors.New("openai: APIKey is required")
 	}
 	if c.DefaultOptions == nil {
 		return errors.New("openai: DefaultOptions is required")
@@ -52,7 +52,7 @@ var _ transcription.Model = (*AudioTranslationModel)(nil)
 // If the caller needs the original-language transcript instead of a
 // translation, use [AudioTranscriptionModel].
 type AudioTranslationModel struct {
-	api            *Api
+	api            *API
 	defaultOptions *transcription.Options
 	metadata       transcription.ModelMetadata
 }
@@ -62,8 +62,8 @@ func NewAudioTranslationModel(cfg *AudioTranslationModelConfig) (*AudioTranslati
 		return nil, err
 	}
 
-	api, err := NewApi(&ApiConfig{
-		ApiKey:         cfg.ApiKey,
+	api, err := NewAPI(&APIConfig{
+		APIKey:         cfg.APIKey,
 		RequestOptions: cfg.RequestOptions,
 	})
 	if err != nil {
@@ -81,7 +81,7 @@ func NewAudioTranslationModel(cfg *AudioTranslationModelConfig) (*AudioTranslati
 	}, nil
 }
 
-func (a *AudioTranslationModel) buildApiTranslationRequest(req *transcription.Request) (*openai.AudioTranslationNewParams, error) {
+func (a *AudioTranslationModel) buildAPITranslationRequest(req *transcription.Request) (*openai.AudioTranslationNewParams, error) {
 	mergedOpts, err := transcription.MergeOptions(a.defaultOptions, req.Options)
 	if err != nil {
 		return nil, err
@@ -110,7 +110,7 @@ func (a *AudioTranslationModel) buildApiTranslationRequest(req *transcription.Re
 }
 
 func (a *AudioTranslationModel) Call(ctx context.Context, req *transcription.Request) (*transcription.Response, error) {
-	apiReq, err := a.buildApiTranslationRequest(req)
+	apiReq, err := a.buildAPITranslationRequest(req)
 	if err != nil {
 		return nil, err
 	}

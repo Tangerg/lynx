@@ -11,7 +11,7 @@ import (
 )
 
 type ImageModelConfig struct {
-	ApiKey         model.ApiKey
+	APIKey         model.APIKey
 	Endpoint       string
 	APIVersion     string
 	DefaultOptions *image.Options
@@ -39,9 +39,9 @@ func NewImageModel(cfg *ImageModelConfig) (*openai.ImageModel, error) {
 	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
-	apiKey, reqOpts := buildAzureRequestOptions(cfg.ApiKey, cfg.Endpoint, cfg.APIVersion, cfg.RequestOptions)
+	apiKey, reqOpts := buildAzureRequestOptions(cfg.APIKey, cfg.Endpoint, cfg.APIVersion, cfg.RequestOptions)
 	return openai.NewImageModel(&openai.ImageModelConfig{
-		ApiKey:         apiKey,
+		APIKey:         apiKey,
 		DefaultOptions: cfg.DefaultOptions,
 		RequestOptions: reqOpts,
 		Metadata:       &image.ModelMetadata{Provider: Provider},

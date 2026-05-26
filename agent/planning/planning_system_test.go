@@ -1,4 +1,4 @@
-package plan_test
+package planning_test
 
 import (
 	"context"
@@ -6,7 +6,7 @@ import (
 
 	"github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/core"
-	"github.com/Tangerg/lynx/agent/plan"
+	"github.com/Tangerg/lynx/agent/planning"
 )
 
 type psIn struct{ X int }
@@ -28,7 +28,7 @@ func TestFromAgents_UnionsCapabilities(t *testing.T) {
 	a := psAgent("alpha", "alpha:step")
 	b := psAgent("beta", "beta:step")
 
-	system := plan.FromAgents([]*core.Agent{a, b})
+	system := planning.FromAgents([]*core.Agent{a, b})
 	if len(system.Actions) != 2 {
 		t.Fatalf("actions = %d, want 2", len(system.Actions))
 	}
@@ -38,14 +38,14 @@ func TestFromAgents_UnionsCapabilities(t *testing.T) {
 }
 
 func TestFromAgents_NilEntriesSkipped(t *testing.T) {
-	system := plan.FromAgents([]*core.Agent{nil, psAgent("only", "only:step"), nil})
+	system := planning.FromAgents([]*core.Agent{nil, psAgent("only", "only:step"), nil})
 	if len(system.Actions) != 1 {
 		t.Fatalf("actions = %d, want 1", len(system.Actions))
 	}
 }
 
 func TestFromAgents_EmptyInputProducesEmptySystem(t *testing.T) {
-	system := plan.FromAgents(nil)
+	system := planning.FromAgents(nil)
 	if system == nil {
 		t.Fatal("system is nil")
 	}

@@ -14,7 +14,7 @@ import (
 )
 
 type AudioTTSModelConfig struct {
-	ApiKey         model.ApiKey
+	APIKey         model.APIKey
 	DefaultOptions *tts.Options
 
 	// Backend / Project / Location enable Vertex AI access — see
@@ -35,8 +35,8 @@ func (c *AudioTTSModelConfig) validate() error {
 	if c == nil {
 		return errors.New("google: config must not be nil")
 	}
-	if c.Backend != genai.BackendVertexAI && c.ApiKey == nil {
-		return errors.New("google: ApiKey is required")
+	if c.Backend != genai.BackendVertexAI && c.APIKey == nil {
+		return errors.New("google: APIKey is required")
 	}
 	if c.DefaultOptions == nil {
 		return errors.New("google: DefaultOptions is required")
@@ -54,7 +54,7 @@ var _ tts.Model = (*AudioTTSModel)(nil)
 // playback-rate knob, and the output container is fixed at 24 kHz
 // signed 16-bit little-endian PCM in a WAV wrapper.
 type AudioTTSModel struct {
-	api            *Api
+	api            *API
 	defaultOptions *tts.Options
 	metadata       tts.ModelMetadata
 }
@@ -64,8 +64,8 @@ func NewAudioTTSModel(cfg *AudioTTSModelConfig) (*AudioTTSModel, error) {
 		return nil, err
 	}
 
-	api, err := NewApi(&ApiConfig{
-		ApiKey:   cfg.ApiKey,
+	api, err := NewAPI(&APIConfig{
+		APIKey:   cfg.APIKey,
 		Backend:  cfg.Backend,
 		Project:  cfg.Project,
 		Location: cfg.Location,
@@ -86,7 +86,7 @@ func NewAudioTTSModel(cfg *AudioTTSModelConfig) (*AudioTTSModel, error) {
 	}, nil
 }
 
-func (a *AudioTTSModel) buildApiTTSRequest(req *tts.Request) (string, []*genai.Content, *genai.GenerateContentConfig, error) {
+func (a *AudioTTSModel) buildAPITTSRequest(req *tts.Request) (string, []*genai.Content, *genai.GenerateContentConfig, error) {
 	mergedOpts, err := tts.MergeOptions(a.defaultOptions, req.Options)
 	if err != nil {
 		return "", nil, nil, err
@@ -170,7 +170,7 @@ func (a *AudioTTSModel) buildTTSResponse(apiResp *genai.GenerateContentResponse)
 }
 
 func (a *AudioTTSModel) Call(ctx context.Context, req *tts.Request) (*tts.Response, error) {
-	modelName, contents, cfg, err := a.buildApiTTSRequest(req)
+	modelName, contents, cfg, err := a.buildAPITTSRequest(req)
 	if err != nil {
 		return nil, err
 	}
@@ -185,7 +185,7 @@ func (a *AudioTTSModel) Call(ctx context.Context, req *tts.Request) (*tts.Respon
 
 func (a *AudioTTSModel) Stream(ctx context.Context, req *tts.Request) iter.Seq2[*tts.Response, error] {
 	return func(yield func(*tts.Response, error) bool) {
-		modelName, contents, cfg, err := a.buildApiTTSRequest(req)
+		modelName, contents, cfg, err := a.buildAPITTSRequest(req)
 		if err != nil {
 			yield(nil, err)
 			return

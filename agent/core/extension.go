@@ -15,13 +15,13 @@ type Extension interface {
 	Name() string
 }
 
-// ActionInterceptor wraps a single [Action] execution — the
+// ActionMiddleware wraps a single [Action] execution — the
 // canonical around-call hook for timing, audit logging, ambient
 // context propagation (auth / tenancy / OTel baggage),
 // circuit-breaker / rate-limit (skip next to short-circuit).
 // Composition is onion-style: the first registered interceptor is
 // the outermost layer. Panics in next become [ActionFailed].
-type ActionInterceptor interface {
+type ActionMiddleware interface {
 	Extension
 
 	InterceptAction(

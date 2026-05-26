@@ -80,7 +80,7 @@ func Sequence[In, Out any](
 				// then makes it discoverable by type on the next child's
 				// blackboard.
 				if i < len(agents)-1 {
-					next, ok := child.Blackboard().GetValue(core.LastResultBindingName, "")
+					next, ok := child.Blackboard().Lookup(core.LastResultBindingName, "")
 					if !ok {
 						return zero, fmt.Errorf("step %d (%s) produced no output to chain forward", i, sub.Name)
 					}
@@ -106,7 +106,7 @@ func Sequence[In, Out any](
 		Actions: []core.Action{pipeline},
 		Goals: []*core.Goal{core.GoalProducing[Out](core.Goal{
 			Name:        name,
-			Description: "produce " + core.TypeFullNameOf[Out](),
+			Description: "produce " + core.TypeName[Out](),
 		})},
 	}), nil
 }

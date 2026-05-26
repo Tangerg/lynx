@@ -13,38 +13,38 @@ import (
 	"github.com/Tangerg/lynx/core/model"
 )
 
-type ApiConfig struct {
-	ApiKey     model.ApiKey
+type APIConfig struct {
+	APIKey     model.APIKey
 	BaseURL    string
 	HTTPClient *http.Client
 }
 
-func (c *ApiConfig) validate() error {
+func (c *APIConfig) validate() error {
 	if c == nil {
 		return errors.New("hume: config must not be nil")
 	}
-	if c.ApiKey == nil {
-		return errors.New("hume: ApiKey is required")
+	if c.APIKey == nil {
+		return errors.New("hume: APIKey is required")
 	}
 	return nil
 }
 
-type Api struct {
+type API struct {
 	http *resty.Client
 }
 
-func NewApi(cfg *ApiConfig) (*Api, error) {
+func NewAPI(cfg *APIConfig) (*API, error) {
 	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
 	client := resty.New().
 		SetBaseURL(cmp.Or(cfg.BaseURL, DefaultBaseURL)).
-		SetHeader("X-Hume-Api-Key", cfg.ApiKey.Get()).
+		SetHeader("X-Hume-API-Key", cfg.APIKey.Get()).
 		SetHeader("Content-Type", "application/json")
 	if cfg.HTTPClient != nil {
 		client.SetTransport(cfg.HTTPClient.Transport)
 	}
-	return &Api{http: client}, nil
+	return &API{http: client}, nil
 }
 
 // Voice references a named Octave voice. Provider is "HUME_AI" /
@@ -101,7 +101,7 @@ func (r *TTSResponse) DecodeAudio() ([]byte, error) {
 	return base64.StdEncoding.DecodeString(r.Generations[0].Audio)
 }
 
-func (a *Api) TTS(ctx context.Context, req *TTSRequest) (*TTSResponse, error) {
+func (a *API) TTS(ctx context.Context, req *TTSRequest) (*TTSResponse, error) {
 	if req == nil {
 		return nil, errors.New("hume: request must not be nil")
 	}

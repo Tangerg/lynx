@@ -72,13 +72,13 @@ func TestPromptCondition_YesReplyIsTrue(t *testing.T) {
 	cond, _ := core.NewPromptCondition(
 		"draft_acceptable",
 		newStubChatClient(t, model),
-		func(_ context.Context, _ *core.OperationContext) string {
+		func(_ context.Context, _ *core.ConditionEnv) string {
 			return "Is this draft acceptable?"
 		},
 		core.ParseYesNoDetermination,
 	)
 
-	got := cond.Evaluate(t.Context(), &core.OperationContext{})
+	got := cond.Evaluate(t.Context(), &core.ConditionEnv{})
 	if got != core.True {
 		t.Fatalf("Determination = %s, want True", got)
 	}
@@ -92,11 +92,11 @@ func TestPromptCondition_NoReplyIsFalse(t *testing.T) {
 	cond, _ := core.NewPromptCondition(
 		"x",
 		newStubChatClient(t, model),
-		func(_ context.Context, _ *core.OperationContext) string { return "ok?" },
+		func(_ context.Context, _ *core.ConditionEnv) string { return "ok?" },
 		core.ParseYesNoDetermination,
 	)
 
-	if got := cond.Evaluate(t.Context(), &core.OperationContext{}); got != core.False {
+	if got := cond.Evaluate(t.Context(), &core.ConditionEnv{}); got != core.False {
 		t.Fatalf("Determination = %s, want False", got)
 	}
 }
@@ -106,11 +106,11 @@ func TestPromptCondition_AmbiguousReplyIsUnknown(t *testing.T) {
 	cond, _ := core.NewPromptCondition(
 		"x",
 		newStubChatClient(t, model),
-		func(_ context.Context, _ *core.OperationContext) string { return "ok?" },
+		func(_ context.Context, _ *core.ConditionEnv) string { return "ok?" },
 		core.ParseYesNoDetermination,
 	)
 
-	if got := cond.Evaluate(t.Context(), &core.OperationContext{}); got != core.Unknown {
+	if got := cond.Evaluate(t.Context(), &core.ConditionEnv{}); got != core.Unknown {
 		t.Fatalf("Determination = %s, want Unknown", got)
 	}
 }
@@ -120,11 +120,11 @@ func TestPromptCondition_LLMErrorDegradesToUnknown(t *testing.T) {
 	cond, _ := core.NewPromptCondition(
 		"x",
 		newStubChatClient(t, model),
-		func(_ context.Context, _ *core.OperationContext) string { return "ok?" },
+		func(_ context.Context, _ *core.ConditionEnv) string { return "ok?" },
 		core.ParseYesNoDetermination,
 	)
 
-	if got := cond.Evaluate(t.Context(), &core.OperationContext{}); got != core.Unknown {
+	if got := cond.Evaluate(t.Context(), &core.ConditionEnv{}); got != core.Unknown {
 		t.Fatalf("LLM error → Determination = %s, want Unknown", got)
 	}
 }
@@ -133,7 +133,7 @@ func TestPromptCondition_CostDefaultsToOne(t *testing.T) {
 	cond, _ := core.NewPromptCondition(
 		"x",
 		newStubChatClient(t, newStubModel("yes")),
-		func(_ context.Context, _ *core.OperationContext) string { return "ok?" },
+		func(_ context.Context, _ *core.ConditionEnv) string { return "ok?" },
 		core.ParseYesNoDetermination,
 	)
 	if cond.Cost() != 1.0 {
@@ -152,7 +152,7 @@ func TestPromptCondition_RejectsInvalidArgs(t *testing.T) {
 	}{
 		{"nil client", func() error {
 			_, err := core.NewPromptCondition("x", nil,
-				func(_ context.Context, _ *core.OperationContext) string { return "" },
+				func(_ context.Context, _ *core.ConditionEnv) string { return "" },
 				core.ParseYesNoDetermination)
 			return err
 		}},
@@ -163,7 +163,7 @@ func TestPromptCondition_RejectsInvalidArgs(t *testing.T) {
 		}},
 		{"nil parser", func() error {
 			_, err := core.NewPromptCondition("x", newStubChatClient(t, newStubModel("yes")),
-				func(_ context.Context, _ *core.OperationContext) string { return "" }, nil)
+				func(_ context.Context, _ *core.ConditionEnv) string { return "" }, nil)
 			return err
 		}},
 	}

@@ -1,12 +1,12 @@
-package plan_test
+package planning_test
 
 import (
 	"context"
 	"testing"
 
 	"github.com/Tangerg/lynx/agent/core"
-	"github.com/Tangerg/lynx/agent/plan"
-	"github.com/Tangerg/lynx/agent/plan/planner/goap"
+	"github.com/Tangerg/lynx/agent/planning"
+	"github.com/Tangerg/lynx/agent/planning/planner/goap"
 )
 
 type pruneAction struct{ meta core.ActionMetadata }
@@ -16,7 +16,7 @@ func (a *pruneAction) Execute(context.Context, *core.ProcessContext) core.Action
 	return core.ActionFailed
 }
 
-func newPruneAction(name string, pre, eff core.EffectSpec) core.Action {
+func newPruneAction(name string, pre, eff core.Effects) core.Action {
 	return &pruneAction{meta: core.ActionMetadata{
 		Name:          name,
 		Preconditions: pre,
@@ -31,26 +31,26 @@ func newPruneAction(name string, pre, eff core.EffectSpec) core.Action {
 // the start state. The reachable action stays; the dead one is
 // pruned.
 func TestPrune_DropsUnreachableActions(t *testing.T) {
-	reachable := newPruneAction("reachable", nil, core.EffectSpec{"done": core.True})
+	reachable := newPruneAction("reachable", nil, core.Effects{"done": core.True})
 	// Dead: requires a precondition never produced by any action.
 	dead := newPruneAction("dead",
-		core.EffectSpec{"never_set": core.True},
-		core.EffectSpec{"done": core.True},
+		core.Effects{"never_set": core.True},
+		core.Effects{"done": core.True},
 	)
 
 	goal := &core.Goal{Name: "g", Pre: []string{"done"}, Value: core.Static(1)}
-	system := plan.NewPlanningSystem(
+	system := planning.NewSystem(
 		[]core.Action{reachable, dead},
 		[]*core.Goal{goal},
 		nil,
 	)
 
-	pruned, err := plan.Prune(
+	pruned, err := planning.Prune(
 		context.Background(),
-		goap.NewAStarPlanner(),
-		plan.EmptyWorldState(),
+		goap.NewPlanner(),
+		planning.EmptyWorldState(),
 		system,
-		plan.PlanOptions{},
+		planning.Options{},
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -67,22 +67,22 @@ func TestPrune_DropsUnreachableActions(t *testing.T) {
 // TestPrune_KeepsEveryActionWhenAllReferenced — the dual case:
 // every action is on the plan path, so nothing is dropped.
 func TestPrune_KeepsEveryActionWhenAllReferenced(t *testing.T) {
-	a := newPruneAction("a", nil, core.EffectSpec{"step1": core.True})
-	b := newPruneAction("b", core.EffectSpec{"step1": core.True}, core.EffectSpec{"done": core.True})
+	a := newPruneAction("a", nil, core.Effects{"step1": core.True})
+	b := newPruneAction("b", core.Effects{"step1": core.True}, core.Effects{"done": core.True})
 
 	goal := &core.Goal{Name: "g", Pre: []string{"done"}, Value: core.Static(1)}
-	system := plan.NewPlanningSystem(
+	system := planning.NewSystem(
 		[]core.Action{a, b},
 		[]*core.Goal{goal},
 		nil,
 	)
 
-	pruned, err := plan.Prune(
+	pruned, err := planning.Prune(
 		context.Background(),
-		goap.NewAStarPlanner(),
-		plan.EmptyWorldState(),
+		goap.NewPlanner(),
+		planning.EmptyWorldState(),
 		system,
-		plan.PlanOptions{},
+		planning.Options{},
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -94,21 +94,21 @@ func TestPrune_KeepsEveryActionWhenAllReferenced(t *testing.T) {
 
 // TestPrune_NoReachableGoalDropsEverything — when no plan exists
 // at all, every action is dead and the pruned system has an empty
-// Actions slice (but still a valid, non-nil PlanningSystem).
+// Actions slice (but still a valid, non-nil System).
 func TestPrune_NoReachableGoalDropsEverything(t *testing.T) {
 	dead := newPruneAction("a",
-		core.EffectSpec{"impossible": core.True},
-		core.EffectSpec{"done": core.True},
+		core.Effects{"impossible": core.True},
+		core.Effects{"done": core.True},
 	)
 	goal := &core.Goal{Name: "g", Pre: []string{"done"}, Value: core.Static(1)}
-	system := plan.NewPlanningSystem([]core.Action{dead}, []*core.Goal{goal}, nil)
+	system := planning.NewSystem([]core.Action{dead}, []*core.Goal{goal}, nil)
 
-	pruned, err := plan.Prune(
+	pruned, err := planning.Prune(
 		context.Background(),
-		goap.NewAStarPlanner(),
-		plan.EmptyWorldState(),
+		goap.NewPlanner(),
+		planning.EmptyWorldState(),
 		system,
-		plan.PlanOptions{},
+		planning.Options{},
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -124,25 +124,25 @@ func TestPrune_NoReachableGoalDropsEverything(t *testing.T) {
 // TestPrune_DoesNotMutateInput — Prune is pure: the input system's
 // Actions slice must be untouched after the call.
 func TestPrune_DoesNotMutateInput(t *testing.T) {
-	live := newPruneAction("live", nil, core.EffectSpec{"done": core.True})
+	live := newPruneAction("live", nil, core.Effects{"done": core.True})
 	dead := newPruneAction("dead",
-		core.EffectSpec{"never": core.True},
-		core.EffectSpec{"done": core.True},
+		core.Effects{"never": core.True},
+		core.Effects{"done": core.True},
 	)
 	goal := &core.Goal{Name: "g", Pre: []string{"done"}, Value: core.Static(1)}
-	system := plan.NewPlanningSystem(
+	system := planning.NewSystem(
 		[]core.Action{live, dead},
 		[]*core.Goal{goal},
 		nil,
 	)
 	originalCount := len(system.Actions)
 
-	_, err := plan.Prune(
+	_, err := planning.Prune(
 		context.Background(),
-		goap.NewAStarPlanner(),
-		plan.EmptyWorldState(),
+		goap.NewPlanner(),
+		planning.EmptyWorldState(),
 		system,
-		plan.PlanOptions{},
+		planning.Options{},
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -153,12 +153,12 @@ func TestPrune_DoesNotMutateInput(t *testing.T) {
 }
 
 func TestPrune_NilSystemRejected(t *testing.T) {
-	_, err := plan.Prune(
+	_, err := planning.Prune(
 		context.Background(),
-		goap.NewAStarPlanner(),
-		plan.EmptyWorldState(),
+		goap.NewPlanner(),
+		planning.EmptyWorldState(),
 		nil,
-		plan.PlanOptions{},
+		planning.Options{},
 	)
 	if err == nil {
 		t.Fatal("expected error for nil system")

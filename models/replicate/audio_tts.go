@@ -16,7 +16,7 @@ import (
 )
 
 type AudioTTSModelConfig struct {
-	ApiKey         model.ApiKey
+	APIKey         model.APIKey
 	DefaultOptions *tts.Options
 	BaseURL        string
 	HTTPClient     *http.Client
@@ -33,8 +33,8 @@ func (c *AudioTTSModelConfig) validate() error {
 	if c == nil {
 		return errors.New("replicate: config must not be nil")
 	}
-	if c.ApiKey == nil {
-		return errors.New("replicate: ApiKey is required")
+	if c.APIKey == nil {
+		return errors.New("replicate: APIKey is required")
 	}
 	if c.DefaultOptions == nil {
 		return errors.New("replicate: DefaultOptions is required")
@@ -56,7 +56,7 @@ var _ tts.Model = (*AudioTTSModel)(nil)
 // should set provider-specific keys directly via the
 // Extra-threaded PredictionRequest at [OptionsKey].
 type AudioTTSModel struct {
-	api            *Api
+	api            *API
 	defaultOptions *tts.Options
 	pollInterval   time.Duration
 	pollTimeout    time.Duration
@@ -67,8 +67,8 @@ func NewAudioTTSModel(cfg *AudioTTSModelConfig) (*AudioTTSModel, error) {
 	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
-	api, err := NewApi(&ApiConfig{
-		ApiKey:     cfg.ApiKey,
+	api, err := NewAPI(&APIConfig{
+		APIKey:     cfg.APIKey,
 		BaseURL:    cfg.BaseURL,
 		HTTPClient: cfg.HTTPClient,
 	})

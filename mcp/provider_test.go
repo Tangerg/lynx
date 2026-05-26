@@ -11,7 +11,6 @@ import (
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/Tangerg/lynx/core/model/chat"
 	lynxmcp "github.com/Tangerg/lynx/mcp"
 )
 
@@ -81,9 +80,7 @@ func TestProvider_DiscoversAndCallsTool(t *testing.T) {
 	assert.Equal(t, "echo the input", def.Description)
 	assert.NotEmpty(t, def.InputSchema)
 
-	callable, ok := tools[0].(chat.Tool)
-	require.True(t, ok, "wrapped tool must implement chat.Tool")
-
+	callable := tools[0]
 	out, err := callable.Call(ctx, `{"text":"hello world"}`)
 	require.NoError(t, err)
 	assert.Equal(t, "hello world", out)

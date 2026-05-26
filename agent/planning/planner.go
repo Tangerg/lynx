@@ -1,4 +1,4 @@
-package plan
+package planning
 
 import (
 	"context"
@@ -7,10 +7,10 @@ import (
 	"github.com/Tangerg/lynx/agent/core"
 )
 
-// PlanOptions carries per-call planner knobs. ExcludedActions is the
+// Options carries per-call planner knobs. ExcludedActions is the
 // runtime's "ignore this recently-replanned action so we don't loop"
 // signal; MaxIterations caps internal search iteration count.
-type PlanOptions struct {
+type Options struct {
 	ExcludedActions map[string]struct{}
 	MaxIterations   int
 }
@@ -34,16 +34,16 @@ type Planner interface {
 	PlanToGoal(
 		ctx context.Context,
 		start core.WorldState,
-		system *PlanningSystem,
+		system *System,
 		goal *core.Goal,
-		options PlanOptions,
+		options Options,
 	) (*Plan, error)
 }
 
 // CheckPlanInputs validates the trio of pointers every PlanToGoal
 // implementation needs. Lift the boilerplate so each strategy
 // doesn't paste its own version.
-func CheckPlanInputs(start core.WorldState, system *PlanningSystem, goal *core.Goal) error {
+func CheckPlanInputs(start core.WorldState, system *System, goal *core.Goal) error {
 	switch {
 	case start == nil:
 		return errors.New("plan: start world state is nil")
@@ -62,8 +62,8 @@ func PlansToGoals(
 	ctx context.Context,
 	p Planner,
 	start core.WorldState,
-	system *PlanningSystem,
-	options PlanOptions,
+	system *System,
+	options Options,
 ) ([]*Plan, error) {
 	if system == nil {
 		return nil, errors.New("plans to goals: planning system is nil")
@@ -90,8 +90,8 @@ func BestValuePlan(
 	ctx context.Context,
 	p Planner,
 	start core.WorldState,
-	system *PlanningSystem,
-	options PlanOptions,
+	system *System,
+	options Options,
 ) (*Plan, error) {
 	plans, err := PlansToGoals(ctx, p, start, system, options)
 	if err != nil || len(plans) == 0 {
@@ -124,9 +124,9 @@ func Prune(
 	ctx context.Context,
 	p Planner,
 	start core.WorldState,
-	system *PlanningSystem,
-	options PlanOptions,
-) (*PlanningSystem, error) {
+	system *System,
+	options Options,
+) (*System, error) {
 	if system == nil {
 		return nil, errors.New("prune: planning system is nil")
 	}
@@ -155,5 +155,5 @@ func Prune(
 			kept = append(kept, action)
 		}
 	}
-	return NewPlanningSystem(kept, system.Goals, system.Conditions), nil
+	return NewSystem(kept, system.Goals, system.Conditions), nil
 }

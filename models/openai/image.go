@@ -15,7 +15,7 @@ import (
 )
 
 type ImageModelConfig struct {
-	ApiKey         model.ApiKey
+	APIKey         model.APIKey
 	DefaultOptions *image.Options
 	RequestOptions []option.RequestOption
 
@@ -28,8 +28,8 @@ func (c *ImageModelConfig) validate() error {
 	if c == nil {
 		return errors.New("openai: config must not be nil")
 	}
-	if c.ApiKey == nil {
-		return errors.New("openai: ApiKey is required")
+	if c.APIKey == nil {
+		return errors.New("openai: APIKey is required")
 	}
 	if c.DefaultOptions == nil {
 		return errors.New("openai: DefaultOptions is required")
@@ -40,7 +40,7 @@ func (c *ImageModelConfig) validate() error {
 var _ image.Model = (*ImageModel)(nil)
 
 type ImageModel struct {
-	api            *Api
+	api            *API
 	defaultOptions *image.Options
 	metadata       image.ModelMetadata
 }
@@ -50,8 +50,8 @@ func NewImageModel(cfg *ImageModelConfig) (*ImageModel, error) {
 		return nil, err
 	}
 
-	api, err := NewApi(&ApiConfig{
-		ApiKey:         cfg.ApiKey,
+	api, err := NewAPI(&APIConfig{
+		APIKey:         cfg.APIKey,
 		RequestOptions: cfg.RequestOptions,
 	})
 	if err != nil {
@@ -69,7 +69,7 @@ func NewImageModel(cfg *ImageModelConfig) (*ImageModel, error) {
 	}, nil
 }
 
-func (i *ImageModel) buildApiImageRequest(req *image.Request) (*openai.ImageGenerateParams, error) {
+func (i *ImageModel) buildAPIImageRequest(req *image.Request) (*openai.ImageGenerateParams, error) {
 	mergedOpts, err := image.MergeOptions(i.defaultOptions, req.Options)
 	if err != nil {
 		return nil, err
@@ -124,7 +124,7 @@ func (i *ImageModel) buildImageResponse(resp *openai.ImagesResponse) (*image.Res
 }
 
 func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Response, error) {
-	apiReq, err := i.buildApiImageRequest(req)
+	apiReq, err := i.buildAPIImageRequest(req)
 	if err != nil {
 		return nil, err
 	}

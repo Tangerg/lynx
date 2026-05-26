@@ -85,11 +85,11 @@ func typeFullName(rt reflect.Type) string {
 }
 
 // TypeFullName exposes the same type-naming rule used internally so
-// callers building IOBindings outside the [NewIOBinding]/[TypeFullNameOf]
+// callers building IOBindings outside the [NewIOBinding]/[TypeName]
 // generics path produce identifiers that match [IOBinding.Type] exactly.
 func TypeFullName(rt reflect.Type) string { return typeFullName(rt) }
 
-// TypeFullNameOf returns the stable type name for the generic parameter T.
-func TypeFullNameOf[T any]() string {
+// TypeName returns the stable type name for the generic parameter T.
+func TypeName[T any]() string {
 	return typeFullName(reflect.TypeFor[T]())
 }

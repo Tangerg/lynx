@@ -9,7 +9,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/Tangerg/lynx/agent/core"
-	"github.com/Tangerg/lynx/agent/plan"
+	"github.com/Tangerg/lynx/agent/planning"
 )
 
 // plannerTracer is the package-level tracer for the reactive planner.
@@ -21,7 +21,7 @@ type Planner struct{}
 
 // NewPlanner returns a reactive planner with default settings. There
 // are no knobs today — all per-call options come through
-// [plan.PlanOptions].
+// [planning.Options].
 func NewPlanner() *Planner { return &Planner{} }
 
 // Name is the planner's extension identifier — the value an agent's
@@ -44,11 +44,11 @@ func (p *Planner) Name() string { return "reactive" }
 func (p *Planner) PlanToGoal(
 	ctx context.Context,
 	start core.WorldState,
-	system *plan.PlanningSystem,
+	system *planning.System,
 	goal *core.Goal,
-	options plan.PlanOptions,
-) (result *plan.Plan, err error) {
-	if err = plan.CheckPlanInputs(start, system, goal); err != nil {
+	options planning.Options,
+) (result *planning.Plan, err error) {
+	if err = planning.CheckPlanInputs(start, system, goal); err != nil {
 		return nil, err
 	}
 
@@ -66,14 +66,14 @@ func (p *Planner) PlanToGoal(
 	}()
 
 	if goal.IsSatisfiedBy(start) {
-		result = &plan.Plan{Goal: goal}
+		result = &planning.Plan{Goal: goal}
 		return result, nil
 	}
 	best := p.bestApplicable(start, system.Actions, goal, options.ExcludedActions)
 	if best == nil {
 		return nil, nil
 	}
-	result = &plan.Plan{Actions: []core.Action{best}, Goal: goal}
+	result = &planning.Plan{Actions: []core.Action{best}, Goal: goal}
 	return result, nil
 }
 
@@ -134,7 +134,7 @@ func (p *Planner) bestApplicable(
 
 // progressTowardsGoal counts how many still-unsatisfied goal
 // preconditions this effect map would establish.
-func progressTowardsGoal(effects core.EffectSpec, unsatisfied map[string]core.Determination) int {
+func progressTowardsGoal(effects core.Effects, unsatisfied map[string]core.Determination) int {
 	progress := 0
 	for key, required := range unsatisfied {
 		if effects[key] == required {

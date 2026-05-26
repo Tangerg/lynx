@@ -65,18 +65,18 @@ func BuildChatClient(cfg Config) (*chat.Client, error) {
 	if err != nil {
 		return nil, fmt.Errorf("config: chat options for %q: %w", cfg.Model, err)
 	}
-	apiKey := model.NewApiKey(cfg.APIKey)
+	apiKey := model.NewAPIKey(cfg.APIKey)
 
 	var llm chat.Model
 	switch cfg.Provider {
 	case ProviderAnthropic:
 		llm, err = anthropic.NewChatModel(&anthropic.ChatModelConfig{
-			ApiKey:         apiKey,
+			APIKey:         apiKey,
 			DefaultOptions: opts,
 		})
 	case ProviderOpenAI:
 		llm, err = openai.NewChatModel(&openai.ChatModelConfig{
-			ApiKey:         apiKey,
+			APIKey:         apiKey,
 			DefaultOptions: opts,
 		})
 	default:

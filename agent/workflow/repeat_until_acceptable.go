@@ -8,13 +8,13 @@ import (
 )
 
 // Evaluator is the user-supplied "did this attempt meet the bar?"
-// callback driving [RepeatUntilAcceptableSpec]. It receives the
+// callback driving [RepeatUntilAcceptableConfig]. It receives the
 // loop's input and the latest attempt; returns a [Feedback] whose
 // Score gates the loop. Typical implementation: ask an LLM judge
 // for a score 0..1 + rationale.
 type Evaluator[In, Out any] func(ctx context.Context, pc *core.ProcessContext, in In, last Out) (Feedback, error)
 
-// RepeatUntilAcceptableSpec is a thin shim over [RepeatUntilSpec]
+// RepeatUntilAcceptableConfig is a thin shim over [RepeatUntilConfig]
 // that turns the "loop until LLM is satisfied" pattern into a
 // configuration: supply Task + Evaluator + AcceptableScore, and
 // the workflow loops until the evaluator's Score crosses the
@@ -28,7 +28,7 @@ type Evaluator[In, Out any] func(ctx context.Context, pc *core.ProcessContext, i
 // Mirrors embabel's `RepeatUntilAcceptable.kt` without wiring it as
 // a separate Spring path — it's just RepeatUntil with a Feedback-
 // shaped Accept.
-type RepeatUntilAcceptableSpec[In, Out any] struct {
+type RepeatUntilAcceptableConfig[In, Out any] struct {
 	// Name names the produced agent. Required.
 	Name string
 
@@ -36,7 +36,7 @@ type RepeatUntilAcceptableSpec[In, Out any] struct {
 	Description string
 
 	// MaxIterations bounds the loop. <=0 defaults to 3 (same as
-	// [RepeatUntilSpec]).
+	// [RepeatUntilConfig]).
 	MaxIterations int
 
 	// AcceptableScore is the [Feedback.Score] threshold; the loop
@@ -45,7 +45,7 @@ type RepeatUntilAcceptableSpec[In, Out any] struct {
 	AcceptableScore float64
 
 	// Task produces a fresh attempt. Same shape as
-	// [RepeatUntilSpec.Task] — receives loop input, current
+	// [RepeatUntilConfig.Task] — receives loop input, current
 	// history (so the body can "revise based on prior feedback"),
 	// and returns the next Out.
 	Task func(ctx context.Context, pc *core.ProcessContext, in In, history *History[Out]) (Out, error)
@@ -60,11 +60,11 @@ type RepeatUntilAcceptableSpec[In, Out any] struct {
 // Implementation delegates to [RepeatUntil] — the same single
 // CanRerun action + computed Accept condition machinery. The only
 // special sauce is wrapping the user's Evaluator into a
-// [RepeatUntilSpec.Accept] and binding the latest [Feedback] on the
+// [RepeatUntilConfig.Accept] and binding the latest [Feedback] on the
 // blackboard each iteration.
 //
 // Returns an error on missing Name / nil Task / nil Evaluator.
-func RepeatUntilAcceptable[In, Out any](spec RepeatUntilAcceptableSpec[In, Out]) (*core.Agent, error) {
+func RepeatUntilAcceptable[In, Out any](spec RepeatUntilAcceptableConfig[In, Out]) (*core.Agent, error) {
 	if spec.Name == "" {
 		return nil, fmt.Errorf("workflow.RepeatUntilAcceptable: Name must not be empty")
 	}
@@ -79,7 +79,7 @@ func RepeatUntilAcceptable[In, Out any](spec RepeatUntilAcceptableSpec[In, Out])
 		threshold = 0.7
 	}
 
-	return RepeatUntil(RepeatUntilSpec[In, Out]{
+	return RepeatUntil(RepeatUntilConfig[In, Out]{
 		Name:          spec.Name,
 		Description:   spec.Description,
 		MaxIterations: spec.MaxIterations,

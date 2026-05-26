@@ -11,7 +11,7 @@ import (
 )
 
 type AudioTranscriptionModelConfig struct {
-	ApiKey         model.ApiKey
+	APIKey         model.APIKey
 	Endpoint       string
 	APIVersion     string
 	DefaultOptions *transcription.Options
@@ -39,9 +39,9 @@ func NewAudioTranscriptionModel(cfg *AudioTranscriptionModelConfig) (*openai.Aud
 	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
-	apiKey, reqOpts := buildAzureRequestOptions(cfg.ApiKey, cfg.Endpoint, cfg.APIVersion, cfg.RequestOptions)
+	apiKey, reqOpts := buildAzureRequestOptions(cfg.APIKey, cfg.Endpoint, cfg.APIVersion, cfg.RequestOptions)
 	return openai.NewAudioTranscriptionModel(&openai.AudioTranscriptionModelConfig{
-		ApiKey:         apiKey,
+		APIKey:         apiKey,
 		DefaultOptions: cfg.DefaultOptions,
 		RequestOptions: reqOpts,
 		Metadata:       &transcription.ModelMetadata{Provider: Provider},

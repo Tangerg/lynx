@@ -18,7 +18,7 @@ func (s stubAction) Execute(context.Context, *core.ProcessContext) core.ActionSt
 	return core.ActionSucceeded
 }
 
-func newStubAction(name string, pre, eff core.EffectSpec) stubAction {
+func newStubAction(name string, pre, eff core.Effects) stubAction {
 	return stubAction{
 		meta: core.ActionMetadata{
 			Name:          name,
@@ -47,12 +47,12 @@ func contains(slice []string, want string) bool {
 
 func TestRelevantActions_KeepsDirectGoalProducers(t *testing.T) {
 	produceX := newStubAction("produceX",
-		core.EffectSpec{},
-		core.EffectSpec{"x": core.True},
+		core.Effects{},
+		core.Effects{"x": core.True},
 	)
 	unrelated := newStubAction("unrelated",
-		core.EffectSpec{},
-		core.EffectSpec{"y": core.True},
+		core.Effects{},
+		core.Effects{"y": core.True},
 	)
 
 	goal := &core.Goal{Pre: []string{"x"}}
@@ -72,10 +72,10 @@ func TestRelevantActions_TransitivelyIncludesEnablers(t *testing.T) {
 	// Goal needs c=True. produceC requires b=True. produceB requires
 	// a=True. produceA has no preconditions. The full chain should be
 	// in the relevant set; producesD (effect d=True) should be excluded.
-	produceA := newStubAction("produceA", core.EffectSpec{}, core.EffectSpec{"a": core.True})
-	produceB := newStubAction("produceB", core.EffectSpec{"a": core.True}, core.EffectSpec{"b": core.True})
-	produceC := newStubAction("produceC", core.EffectSpec{"b": core.True}, core.EffectSpec{"c": core.True})
-	produceD := newStubAction("produceD", core.EffectSpec{}, core.EffectSpec{"d": core.True})
+	produceA := newStubAction("produceA", core.Effects{}, core.Effects{"a": core.True})
+	produceB := newStubAction("produceB", core.Effects{"a": core.True}, core.Effects{"b": core.True})
+	produceC := newStubAction("produceC", core.Effects{"b": core.True}, core.Effects{"c": core.True})
+	produceD := newStubAction("produceD", core.Effects{}, core.Effects{"d": core.True})
 
 	goal := &core.Goal{Pre: []string{"c"}}
 
@@ -94,8 +94,8 @@ func TestRelevantActions_TransitivelyIncludesEnablers(t *testing.T) {
 
 func TestRelevantActions_EmptyWhenNoProducer(t *testing.T) {
 	produceY := newStubAction("produceY",
-		core.EffectSpec{},
-		core.EffectSpec{"y": core.True},
+		core.Effects{},
+		core.Effects{"y": core.True},
 	)
 
 	// Goal needs x=True; no action produces x → relevant set must be empty.
@@ -110,8 +110,8 @@ func TestRelevantActions_DistinguishesValuePerKey(t *testing.T) {
 	// Goal wants x=True. setXTrue produces x=True. setXFalse produces
 	// x=False. Only setXTrue should be relevant — setXFalse's effect
 	// doesn't match any (key, value) the regression needs.
-	setXTrue := newStubAction("setXTrue", core.EffectSpec{}, core.EffectSpec{"x": core.True})
-	setXFalse := newStubAction("setXFalse", core.EffectSpec{}, core.EffectSpec{"x": core.False})
+	setXTrue := newStubAction("setXTrue", core.Effects{}, core.Effects{"x": core.True})
+	setXFalse := newStubAction("setXFalse", core.Effects{}, core.Effects{"x": core.False})
 
 	goal := &core.Goal{Pre: []string{"x"}}
 
@@ -125,9 +125,9 @@ func TestRelevantActions_DistinguishesValuePerKey(t *testing.T) {
 }
 
 func TestRelevantActions_PreservesInputOrder(t *testing.T) {
-	a := newStubAction("a", core.EffectSpec{}, core.EffectSpec{"x": core.True})
-	b := newStubAction("b", core.EffectSpec{}, core.EffectSpec{"x": core.True})
-	c := newStubAction("c", core.EffectSpec{}, core.EffectSpec{"x": core.True})
+	a := newStubAction("a", core.Effects{}, core.Effects{"x": core.True})
+	b := newStubAction("b", core.Effects{}, core.Effects{"x": core.True})
+	c := newStubAction("c", core.Effects{}, core.Effects{"x": core.True})
 
 	goal := &core.Goal{Pre: []string{"x"}}
 
@@ -139,8 +139,8 @@ func TestRelevantActions_PreservesInputOrder(t *testing.T) {
 
 func TestRelevantActions_NilSafe(t *testing.T) {
 	produceX := newStubAction("produceX",
-		core.EffectSpec{},
-		core.EffectSpec{"x": core.True},
+		core.Effects{},
+		core.Effects{"x": core.True},
 	)
 
 	goal := &core.Goal{Pre: []string{"x"}}

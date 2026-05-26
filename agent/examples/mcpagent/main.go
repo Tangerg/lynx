@@ -140,7 +140,7 @@ func main() {
 		Goals(agent.GoalProducing[Brief](core.Goal{Description: "topic brief produced"})).
 		Build()
 
-	resolver, err := runtime.NewMCPToolGroupResolver("research", provider)
+	resolver, err := runtime.NewMCPResolver("research", provider)
 	if err != nil {
 		log.Fatal(err)
 	}

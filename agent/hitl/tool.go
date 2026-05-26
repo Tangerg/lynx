@@ -103,7 +103,7 @@ type ConfirmationPrompter func(arguments string) string
 // before each invocation. prompter renders the confirmation message
 // from the call arguments; onResponse receives the user's bool reply
 // and returns the resulting [core.ResponseImpact] (typically
-// [core.ResponseImpactUpdated] when the handler writes the decision
+// [core.ImpactUpdated] when the handler writes the decision
 // to the blackboard so the next tick observes it).
 //
 // onResponse may be nil when the action body itself stages state via
@@ -124,7 +124,7 @@ func RequireConfirmation(
 	}
 	handler := onResponse
 	if handler == nil {
-		handler = func(bool) core.ResponseImpact { return core.ResponseImpactUnchanged }
+		handler = func(bool) core.ResponseImpact { return core.ImpactUnchanged }
 	}
 	return RequireAwait(tool, func(_ context.Context, arguments string) core.Awaitable {
 		return NewConfirmation(prompter(arguments), handler)
@@ -152,7 +152,7 @@ func RequireType[T any](
 	}
 	handler := onResponse
 	if handler == nil {
-		handler = func(T) core.ResponseImpact { return core.ResponseImpactUnchanged }
+		handler = func(T) core.ResponseImpact { return core.ImpactUnchanged }
 	}
 	return RequireAwait(tool, func(_ context.Context, arguments string) core.Awaitable {
 		return NewTypedRequest[string, T](prompter(arguments), handler)

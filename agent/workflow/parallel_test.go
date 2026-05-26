@@ -56,7 +56,7 @@ func TestParallel_RunsAllAndJoins(t *testing.T) {
 
 	wf, err := workflow.Parallel[paIn, paScore, paSummary](
 		platform,
-		workflow.ParallelSpec[paIn, paScore, paSummary]{
+		workflow.ParallelConfig[paIn, paScore, paSummary]{
 			Name:   "parallel-scoring",
 			Agents: []*core.Agent{a1, a2, a3},
 			Joiner: func(_ context.Context, _ *core.ProcessContext, items []paScore) (paSummary, error) {
@@ -112,7 +112,7 @@ func TestParallel_SubAgentFailureCancels(t *testing.T) {
 
 	wf, err := workflow.Parallel[paIn, paScore, paSummary](
 		platform,
-		workflow.ParallelSpec[paIn, paScore, paSummary]{
+		workflow.ParallelConfig[paIn, paScore, paSummary]{
 			Name:   "parallel-fail",
 			Agents: []*core.Agent{good, bad},
 			Joiner: func(_ context.Context, _ *core.ProcessContext, items []paScore) (paSummary, error) {
@@ -173,7 +173,7 @@ func TestParallel_MaxConcurrencyCaps(t *testing.T) {
 
 	wf, err := workflow.Parallel[paIn, paScore, paSummary](
 		platform,
-		workflow.ParallelSpec[paIn, paScore, paSummary]{
+		workflow.ParallelConfig[paIn, paScore, paSummary]{
 			Name:           "capped",
 			MaxConcurrency: 2,
 			Agents:         subs,
@@ -206,7 +206,7 @@ func TestParallel_RejectsEmptyAgents(t *testing.T) {
 	platform := agent.NewPlatform(&runtime.PlatformConfig{})
 	_, err := workflow.Parallel[paIn, paScore, paSummary](
 		platform,
-		workflow.ParallelSpec[paIn, paScore, paSummary]{
+		workflow.ParallelConfig[paIn, paScore, paSummary]{
 			Name: "empty",
 			Joiner: func(_ context.Context, _ *core.ProcessContext, _ []paScore) (paSummary, error) {
 				return paSummary{}, nil
@@ -222,7 +222,7 @@ func TestParallel_RejectsNilJoiner(t *testing.T) {
 	platform := agent.NewPlatform(&runtime.PlatformConfig{})
 	_, err := workflow.Parallel[paIn, paScore, paSummary](
 		platform,
-		workflow.ParallelSpec[paIn, paScore, paSummary]{
+		workflow.ParallelConfig[paIn, paScore, paSummary]{
 			Name:   "no-joiner",
 			Agents: []*core.Agent{makeScoringAgent("a", 1, nil)},
 		},

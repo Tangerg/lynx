@@ -13,7 +13,7 @@ import (
 )
 
 type ImageModelConfig struct {
-	ApiKey         model.ApiKey
+	APIKey         model.APIKey
 	DefaultOptions *image.Options
 	BaseURL        string
 	HTTPClient     *http.Client
@@ -30,8 +30,8 @@ func (c *ImageModelConfig) validate() error {
 	if c == nil {
 		return errors.New("stability: config must not be nil")
 	}
-	if c.ApiKey == nil {
-		return errors.New("stability: ApiKey is required")
+	if c.APIKey == nil {
+		return errors.New("stability: APIKey is required")
 	}
 	if c.DefaultOptions == nil {
 		return errors.New("stability: DefaultOptions is required")
@@ -53,7 +53,7 @@ var _ image.Model = (*ImageModel)(nil)
 // (Core / Ultra / SD3); callers wanting another tier construct another
 // model.
 type ImageModel struct {
-	api            *Api
+	api            *API
 	defaultOptions *image.Options
 	endpoint       string
 }
@@ -63,8 +63,8 @@ func NewImageModel(cfg *ImageModelConfig) (*ImageModel, error) {
 		return nil, err
 	}
 
-	api, err := NewApi(&ApiConfig{
-		ApiKey:     cfg.ApiKey,
+	api, err := NewAPI(&APIConfig{
+		APIKey:     cfg.APIKey,
 		BaseURL:    cfg.BaseURL,
 		HTTPClient: cfg.HTTPClient,
 	})
@@ -79,7 +79,7 @@ func NewImageModel(cfg *ImageModelConfig) (*ImageModel, error) {
 	}, nil
 }
 
-func (i *ImageModel) buildApiRequest(req *image.Request) (*GenerateRequest, error) {
+func (i *ImageModel) buildAPIRequest(req *image.Request) (*GenerateRequest, error) {
 	mergedOpts, err := image.MergeOptions(i.defaultOptions, req.Options)
 	if err != nil {
 		return nil, err
@@ -140,7 +140,7 @@ func (i *ImageModel) buildResponse(body []byte, hdr http.Header) (*image.Respons
 }
 
 func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Response, error) {
-	apiReq, err := i.buildApiRequest(req)
+	apiReq, err := i.buildAPIRequest(req)
 	if err != nil {
 		return nil, err
 	}

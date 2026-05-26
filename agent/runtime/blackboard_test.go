@@ -44,11 +44,11 @@ func TestInMemoryBlackboardSpawnInherits(t *testing.T) {
 
 func TestInMemoryBlackboardConditions(t *testing.T) {
 	bb := newInMemoryBlackboard()
-	if _, ok := bb.GetCondition("x"); ok {
+	if _, ok := bb.Condition("x"); ok {
 		t.Fatal("missing condition should not report ok")
 	}
 	bb.SetCondition("x", true)
-	v, ok := bb.GetCondition("x")
+	v, ok := bb.Condition("x")
 	if !ok || !v {
 		t.Fatalf("got %v ok=%v", v, ok)
 	}

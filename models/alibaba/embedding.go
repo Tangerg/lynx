@@ -12,7 +12,7 @@ import (
 )
 
 type EmbeddingModelConfig struct {
-	ApiKey         model.ApiKey
+	APIKey         model.APIKey
 	DefaultOptions *embedding.Options
 	BaseURL        string
 
@@ -25,8 +25,8 @@ func (c *EmbeddingModelConfig) validate() error {
 	if c == nil {
 		return errors.New("alibaba: config must not be nil")
 	}
-	if c.ApiKey == nil {
-		return errors.New("alibaba: ApiKey is required")
+	if c.APIKey == nil {
+		return errors.New("alibaba: APIKey is required")
 	}
 	if c.DefaultOptions == nil {
 		return errors.New("alibaba: DefaultOptions is required")
@@ -45,7 +45,7 @@ func NewEmbeddingModel(cfg *EmbeddingModelConfig) (*openai.EmbeddingModel, error
 	baseURL := cmp.Or(cfg.BaseURL, BaseURLChina)
 	reqOpts := append([]option.RequestOption{option.WithBaseURL(baseURL)}, cfg.RequestOptions...)
 	return openai.NewEmbeddingModel(&openai.EmbeddingModelConfig{
-		ApiKey:         cfg.ApiKey,
+		APIKey:         cfg.APIKey,
 		DefaultOptions: cfg.DefaultOptions,
 		RequestOptions: reqOpts,
 		Metadata:       &embedding.ModelMetadata{Provider: Provider},

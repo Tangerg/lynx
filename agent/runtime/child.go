@@ -157,7 +157,7 @@ func spawnChildOptions(
 	if parent == nil {
 		return nil, fmt.Errorf("spawn child: no parent process in ctx (use core.WithProcess to inject one)")
 	}
-	parentProc, ok := platform.GetProcess(parent.ID())
+	parentProc, ok := platform.ProcessByID(parent.ID())
 	if !ok {
 		return nil, fmt.Errorf("spawn child: parent process %q not registered on platform", parent.ID())
 	}

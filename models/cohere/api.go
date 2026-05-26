@@ -12,34 +12,34 @@ import (
 	"github.com/Tangerg/lynx/core/model"
 )
 
-type ApiConfig struct {
-	ApiKey  model.ApiKey
+type APIConfig struct {
+	APIKey  model.APIKey
 	BaseURL string
 
 	RequestOptions []cohereoption.RequestOption
 }
 
-func (c *ApiConfig) validate() error {
+func (c *APIConfig) validate() error {
 	if c == nil {
 		return errors.New("cohere: config must not be nil")
 	}
-	if c.ApiKey == nil {
-		return errors.New("cohere: ApiKey is required")
+	if c.APIKey == nil {
+		return errors.New("cohere: APIKey is required")
 	}
 	return nil
 }
 
-// Api wraps Cohere's v2 client. Only Embed is surfaced by design:
+// API wraps Cohere's v2 client. Only Embed is surfaced by design:
 // Cohere's chat ecosystem (documents, citations, web_search, ...) does
 // not map cleanly onto the OpenAI-shaped chat surface, and Cohere's
 // chat models lag behind OpenAI/Anthropic/Google in capability. For
 // embeddings — multilingual retrieval especially — Cohere remains
 // competitive, so that's the slice we expose.
-type Api struct {
+type API struct {
 	v2 *cohereclientv2.Client
 }
 
-func NewApi(cfg *ApiConfig) (*Api, error) {
+func NewAPI(cfg *APIConfig) (*API, error) {
 	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
@@ -48,14 +48,14 @@ func NewApi(cfg *ApiConfig) (*Api, error) {
 	// options). Build one with our token + caller-supplied BaseURL.
 	// Per-call options can still be passed at Embed time.
 	reqOpts := &core.RequestOptions{
-		Token:   cfg.ApiKey.Get(),
+		Token:   cfg.APIKey.Get(),
 		BaseURL: cfg.BaseURL,
 	}
 
-	return &Api{v2: cohereclientv2.NewClient(reqOpts)}, nil
+	return &API{v2: cohereclientv2.NewClient(reqOpts)}, nil
 }
 
-func (a *Api) Embed(ctx context.Context, req *cohere.V2EmbedRequest, opts ...cohereoption.RequestOption) (*cohere.EmbedByTypeResponse, error) {
+func (a *API) Embed(ctx context.Context, req *cohere.V2EmbedRequest, opts ...cohereoption.RequestOption) (*cohere.EmbedByTypeResponse, error) {
 	if req == nil {
 		return nil, errors.New("cohere: request must not be nil")
 	}

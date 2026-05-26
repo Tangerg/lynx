@@ -13,10 +13,10 @@ import (
 )
 
 type ChatModelConfig struct {
-	// ApiKey is the Azure OpenAI resource key. Leave nil when
+	// APIKey is the Azure OpenAI resource key. Leave nil when
 	// authenticating with [azure.WithTokenCredential] passed
 	// through RequestOptions.
-	ApiKey model.ApiKey
+	APIKey model.APIKey
 
 	// Endpoint is the resource URL — e.g.
 	// "https://my-resource.openai.azure.com". Required.
@@ -53,9 +53,9 @@ func NewChatModel(cfg *ChatModelConfig) (*openai.ChatModel, error) {
 	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
-	apiKey, reqOpts := buildAzureRequestOptions(cfg.ApiKey, cfg.Endpoint, cfg.APIVersion, cfg.RequestOptions)
+	apiKey, reqOpts := buildAzureRequestOptions(cfg.APIKey, cfg.Endpoint, cfg.APIVersion, cfg.RequestOptions)
 	return openai.NewChatModel(&openai.ChatModelConfig{
-		ApiKey:         apiKey,
+		APIKey:         apiKey,
 		DefaultOptions: cfg.DefaultOptions,
 		RequestOptions: reqOpts,
 		Metadata:       &chat.ModelMetadata{Provider: Provider},
@@ -63,11 +63,11 @@ func NewChatModel(cfg *ChatModelConfig) (*openai.ChatModel, error) {
 }
 
 // buildAzureRequestOptions wires azure.WithEndpoint + azure.WithAPIKey
-// into the RequestOptions slice. When ApiKey is nil we still need to
-// satisfy openai.*ModelConfig's non-nil ApiKey check, so we synthesize
-// a placeholder; the actual auth header (Bearer or Api-Key) is set by
+// into the RequestOptions slice. When APIKey is nil we still need to
+// satisfy openai.*ModelConfig's non-nil APIKey check, so we synthesize
+// a placeholder; the actual auth header (Bearer or API-Key) is set by
 // the Azure middleware in RequestOptions.
-func buildAzureRequestOptions(apiKey model.ApiKey, endpoint, apiVersion string, extra []option.RequestOption) (model.ApiKey, []option.RequestOption) {
+func buildAzureRequestOptions(apiKey model.APIKey, endpoint, apiVersion string, extra []option.RequestOption) (model.APIKey, []option.RequestOption) {
 	version := cmp.Or(apiVersion, DefaultAPIVersion)
 	opts := []option.RequestOption{azure.WithEndpoint(endpoint, version)}
 	if apiKey != nil {
@@ -77,7 +77,7 @@ func buildAzureRequestOptions(apiKey model.ApiKey, endpoint, apiVersion string, 
 
 	keyParam := apiKey
 	if keyParam == nil {
-		keyParam = model.NewApiKey("azure-ad")
+		keyParam = model.NewAPIKey("azure-ad")
 	}
 	return keyParam, opts
 }

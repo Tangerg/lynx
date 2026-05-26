@@ -81,8 +81,8 @@ type PlatformConfig struct {
 	// Extensions are the platform-scoped plug-ins. Each value must
 	// implement [core.Extension] and may additionally implement any
 	// subset of capability interfaces (EventListener,
-	// ActionInterceptor, ToolDecorator, AgentValidator, GoalApprover,
-	// ToolGroupResolver, IDGenerator, Blackboard, plan.Planner) —
+	// ActionMiddleware, ToolDecorator, AgentValidator, GoalApprover,
+	// ToolGroupResolver, IDGenerator, Blackboard, planning.Planner) —
 	// the runtime detects each via type assertion at dispatch time.
 	//
 	// [core.Extension.Name] must be unique within Extensions; an
@@ -139,8 +139,8 @@ func (p *Platform) Agents() []*core.Agent { return p.agents.list() }
 // FindAgent does a name lookup.
 func (p *Platform) FindAgent(name string) (*core.Agent, bool) { return p.agents.find(name) }
 
-// GetProcess looks up a process by id.
-func (p *Platform) GetProcess(id string) (*AgentProcess, bool) { return p.procs.get(id) }
+// ProcessByID looks up a process by id.
+func (p *Platform) ProcessByID(id string) (*AgentProcess, bool) { return p.procs.get(id) }
 
 // ActiveProcesses returns a snapshot of all currently registered
 // processes.

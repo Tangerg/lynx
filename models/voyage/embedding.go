@@ -14,10 +14,10 @@ import (
 )
 
 type EmbeddingModelConfig struct {
-	ApiKey         model.ApiKey
+	APIKey         model.APIKey
 	DefaultOptions *embedding.Options
 
-	// BaseURL / HTTPClient mirror [ApiConfig] for callers that need to
+	// BaseURL / HTTPClient mirror [APIConfig] for callers that need to
 	// proxy through a custom endpoint or share an http.Client.
 	BaseURL    string
 	HTTPClient *http.Client
@@ -27,8 +27,8 @@ func (c *EmbeddingModelConfig) validate() error {
 	if c == nil {
 		return errors.New("voyage: config must not be nil")
 	}
-	if c.ApiKey == nil {
-		return errors.New("voyage: ApiKey is required")
+	if c.APIKey == nil {
+		return errors.New("voyage: APIKey is required")
 	}
 	if c.DefaultOptions == nil {
 		return errors.New("voyage: DefaultOptions is required")
@@ -52,7 +52,7 @@ var _ embedding.Model = (*EmbeddingModel)(nil)
 // Extra-threaded SDK params, see [getOptionsParams] and the
 // [EmbeddingRequest] struct.
 type EmbeddingModel struct {
-	api            *Api
+	api            *API
 	defaultOptions *embedding.Options
 }
 
@@ -61,8 +61,8 @@ func NewEmbeddingModel(cfg *EmbeddingModelConfig) (*EmbeddingModel, error) {
 		return nil, err
 	}
 
-	api, err := NewApi(&ApiConfig{
-		ApiKey:     cfg.ApiKey,
+	api, err := NewAPI(&APIConfig{
+		APIKey:     cfg.APIKey,
 		BaseURL:    cfg.BaseURL,
 		HTTPClient: cfg.HTTPClient,
 	})
@@ -76,7 +76,7 @@ func NewEmbeddingModel(cfg *EmbeddingModelConfig) (*EmbeddingModel, error) {
 	}, nil
 }
 
-func (e *EmbeddingModel) buildApiRequest(req *embedding.Request) (*EmbeddingRequest, error) {
+func (e *EmbeddingModel) buildAPIRequest(req *embedding.Request) (*EmbeddingRequest, error) {
 	mergedOpts, err := embedding.MergeOptions(e.defaultOptions, req.Options)
 	if err != nil {
 		return nil, err
@@ -130,7 +130,7 @@ func (e *EmbeddingModel) buildResponse(apiResp *EmbeddingResponse) (*embedding.R
 }
 
 func (e *EmbeddingModel) Call(ctx context.Context, req *embedding.Request) (*embedding.Response, error) {
-	apiReq, err := e.buildApiRequest(req)
+	apiReq, err := e.buildAPIRequest(req)
 	if err != nil {
 		return nil, err
 	}

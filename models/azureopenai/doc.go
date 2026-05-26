@@ -12,7 +12,7 @@
 //   - the resource URL is per-account
 //     ("https://{resource}.openai.azure.com") and a dated
 //     "api-version" query parameter is required;
-//   - auth uses an "Api-Key" header (rather than "Authorization:
+//   - auth uses an "API-Key" header (rather than "Authorization:
 //     Bearer ..."), or alternatively an Azure AD bearer token via
 //     [azure.WithTokenCredential].
 //
@@ -28,7 +28,7 @@
 // after wiring [azure.WithEndpoint] and [azure.WithAPIKey] into the
 // RequestOptions. Token-credential auth flows through
 // [azure.WithTokenCredential] supplied by the caller in
-// RequestOptions — leave ApiKey nil in that case.
+// RequestOptions — leave APIKey nil in that case.
 //
 // Azure Content Safety (moderation) ships a different API shape than
 // OpenAI moderation and is not exposed here.

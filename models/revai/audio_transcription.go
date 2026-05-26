@@ -13,7 +13,7 @@ import (
 )
 
 type AudioTranscriptionModelConfig struct {
-	ApiKey         model.ApiKey
+	APIKey         model.APIKey
 	DefaultOptions *transcription.Options
 	BaseURL        string
 	HTTPClient     *http.Client
@@ -25,8 +25,8 @@ func (c *AudioTranscriptionModelConfig) validate() error {
 	if c == nil {
 		return errors.New("revai: config must not be nil")
 	}
-	if c.ApiKey == nil {
-		return errors.New("revai: ApiKey is required")
+	if c.APIKey == nil {
+		return errors.New("revai: APIKey is required")
 	}
 	if c.DefaultOptions == nil {
 		return errors.New("revai: DefaultOptions is required")
@@ -44,7 +44,7 @@ var _ transcription.Model = (*AudioTranscriptionModel)(nil)
 // hints and transcriber selection (machine vs human) all live on the
 // Extra-threaded [JobOptions].
 type AudioTranscriptionModel struct {
-	api            *Api
+	api            *API
 	defaultOptions *transcription.Options
 	pollInterval   time.Duration
 	pollTimeout    time.Duration
@@ -54,7 +54,7 @@ func NewAudioTranscriptionModel(cfg *AudioTranscriptionModelConfig) (*AudioTrans
 	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
-	api, err := NewApi(&ApiConfig{ApiKey: cfg.ApiKey, BaseURL: cfg.BaseURL, HTTPClient: cfg.HTTPClient})
+	api, err := NewAPI(&APIConfig{APIKey: cfg.APIKey, BaseURL: cfg.BaseURL, HTTPClient: cfg.HTTPClient})
 	if err != nil {
 		return nil, err
 	}

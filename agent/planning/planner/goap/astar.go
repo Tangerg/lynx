@@ -11,7 +11,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/Tangerg/lynx/agent/core"
-	"github.com/Tangerg/lynx/agent/plan"
+	"github.com/Tangerg/lynx/agent/planning"
 )
 
 const defaultMaxIterations = 10_000
@@ -34,33 +34,33 @@ const (
 
 var plannerTracer = otel.Tracer("lynx/agent/planner")
 
-// AStarPlanner is the concrete planner. It's stateless across PlanToGoal
+// Planner is the concrete planner. It's stateless across PlanToGoal
 // calls; safe to share across goroutines.
-type AStarPlanner struct {
+type Planner struct {
 	maxIterations int
 }
 
-// NewAStarPlanner returns a planner with sensible defaults (10k node
+// NewPlanner returns a planner with sensible defaults (10k node
 // expansions cap; matches embabel). Per-call overrides go through
-// [plan.PlanOptions].MaxIterations.
-func NewAStarPlanner() *AStarPlanner {
-	return &AStarPlanner{maxIterations: defaultMaxIterations}
+// [planning.Options].MaxIterations.
+func NewPlanner() *Planner {
+	return &Planner{maxIterations: defaultMaxIterations}
 }
 
 // Name is the planner's extension identifier — the value an agent's
 // [core.AgentConfig.PlannerName] must match to select this planner.
-func (p *AStarPlanner) Name() string { return "goap" }
+func (p *Planner) Name() string { return "goap" }
 
 // PlanToGoal is the workhorse. It does a forward A* search over world
 // states.
-func (p *AStarPlanner) PlanToGoal(
+func (p *Planner) PlanToGoal(
 	ctx context.Context,
 	start core.WorldState,
-	system *plan.PlanningSystem,
+	system *planning.System,
 	goal *core.Goal,
-	options plan.PlanOptions,
-) (*plan.Plan, error) {
-	if err := plan.CheckPlanInputs(start, system, goal); err != nil {
+	options planning.Options,
+) (*planning.Plan, error) {
+	if err := planning.CheckPlanInputs(start, system, goal); err != nil {
 		return nil, err
 	}
 
@@ -74,7 +74,7 @@ func (p *AStarPlanner) PlanToGoal(
 
 	if goal.IsSatisfiedBy(start) {
 		span.SetAttributes(attribute.Bool(attrAstarAlreadySat, true))
-		return &plan.Plan{Actions: nil, Goal: goal}, nil
+		return &planning.Plan{Actions: nil, Goal: goal}, nil
 	}
 
 	candidates := candidateActions(system.Actions, options.ExcludedActions)
@@ -120,12 +120,12 @@ func (p *AStarPlanner) PlanToGoal(
 		attribute.Int(attrAstarPlanLengthRaw, rawLen),
 		attribute.Int(attrAstarPlanLength, len(path)),
 	)
-	return &plan.Plan{Actions: path, Goal: goal}, nil
+	return &planning.Plan{Actions: path, Goal: goal}, nil
 }
 
 // iterationCap honors per-call MaxIterations when supplied, otherwise
 // returns the planner-default.
-func (p *AStarPlanner) iterationCap(options plan.PlanOptions) int {
+func (p *Planner) iterationCap(options planning.Options) int {
 	if options.MaxIterations > 0 {
 		return options.MaxIterations
 	}
@@ -157,7 +157,7 @@ func candidateActions(actions []core.Action, excluded map[string]struct{}) []cor
 // searchForGoal runs the A* loop. It's separated from PlanToGoal so the
 // outer function stays focused on validation, span management, and post-
 // processing.
-func (p *AStarPlanner) searchForGoal(
+func (p *Planner) searchForGoal(
 	ctx context.Context,
 	start core.WorldState,
 	actions []core.Action,

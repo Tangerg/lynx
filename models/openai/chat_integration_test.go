@@ -27,7 +27,7 @@ func integrationModel(t *testing.T) *openai.ChatModel {
 		t.Fatalf("NewOptions: %v", err)
 	}
 	m, err := openai.NewChatModel(&openai.ChatModelConfig{
-		ApiKey:         model.NewApiKey(key),
+		APIKey:         model.NewAPIKey(key),
 		DefaultOptions: opts,
 	})
 	if err != nil {

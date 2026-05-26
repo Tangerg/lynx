@@ -13,7 +13,7 @@ import (
 )
 
 type ImageModelConfig struct {
-	ApiKey         model.ApiKey
+	APIKey         model.APIKey
 	DefaultOptions *image.Options
 	BaseURL        string
 	HTTPClient     *http.Client
@@ -23,8 +23,8 @@ func (c *ImageModelConfig) validate() error {
 	if c == nil {
 		return errors.New("prodia: config must not be nil")
 	}
-	if c.ApiKey == nil {
-		return errors.New("prodia: ApiKey is required")
+	if c.APIKey == nil {
+		return errors.New("prodia: APIKey is required")
 	}
 	if c.DefaultOptions == nil {
 		return errors.New("prodia: DefaultOptions is required")
@@ -41,7 +41,7 @@ var _ image.Model = (*ImageModel)(nil)
 // JobRequest.Config map; lynx's typed Width/Height/NegativePrompt/Seed
 // are copied into Config automatically when set.
 type ImageModel struct {
-	api            *Api
+	api            *API
 	defaultOptions *image.Options
 }
 
@@ -49,7 +49,7 @@ func NewImageModel(cfg *ImageModelConfig) (*ImageModel, error) {
 	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
-	api, err := NewApi(&ApiConfig{ApiKey: cfg.ApiKey, BaseURL: cfg.BaseURL, HTTPClient: cfg.HTTPClient})
+	api, err := NewAPI(&APIConfig{APIKey: cfg.APIKey, BaseURL: cfg.BaseURL, HTTPClient: cfg.HTTPClient})
 	if err != nil {
 		return nil, err
 	}

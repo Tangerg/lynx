@@ -88,9 +88,9 @@ func TestPlatformExtensionEmptyNamePanic(t *testing.T) {
 	})
 }
 
-// TestActionInterceptorOnionOrdering verifies platform interceptors form
+// TestActionMiddlewareOnionOrdering verifies platform interceptors form
 // the outer onion and process interceptors sit inside.
-func TestActionInterceptorOnionOrdering(t *testing.T) {
+func TestActionMiddlewareOnionOrdering(t *testing.T) {
 	type runIn struct{ V int }
 	type runOut struct{ V int }
 

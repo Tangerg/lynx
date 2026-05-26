@@ -26,7 +26,7 @@ func integrationModel(t *testing.T) *openai.ChatModel {
 		t.Fatal(err)
 	}
 	m, err := xai.NewOpenAIChatModel(&xai.OpenAIChatModelConfig{
-		ApiKey:         model.NewApiKey(key),
+		APIKey:         model.NewAPIKey(key),
 		DefaultOptions: opts,
 	})
 	if err != nil {

@@ -7,8 +7,8 @@ package core
 type ResponseImpact int8
 
 const (
-	ResponseImpactUnchanged ResponseImpact = iota
-	ResponseImpactUpdated
+	ImpactUnchanged ResponseImpact = iota
+	ImpactUpdated
 )
 
 // Awaitable is the non-generic root of HITL prompts; it lives here so

@@ -19,7 +19,7 @@ func TestImageModel_Call_Mock(t *testing.T) {
 		t.Fatal(err)
 	}
 	m, err := prodia.NewImageModel(&prodia.ImageModelConfig{
-		ApiKey:         model.NewApiKey("test-key"),
+		APIKey:         model.NewAPIKey("test-key"),
 		DefaultOptions: opts,
 		BaseURL:        srv.URL,
 	})

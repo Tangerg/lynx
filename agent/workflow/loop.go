@@ -8,7 +8,7 @@ import (
 	"github.com/Tangerg/lynx/agent/runtime"
 )
 
-// LoopSpec configures a "run a sub-agent body repeatedly until
+// LoopConfig configures a "run a sub-agent body repeatedly until
 // Until returns true (or MaxIterations expires)" workflow. Each
 // iteration runs Body via [runtime.SpawnChildFresh] — a child process
 // with a CLEAN blackboard seeded only with the typed input. This
@@ -26,12 +26,12 @@ import (
 // where every iteration's Out has been bound by the typed action
 // wrapper).
 //
-// Compare to [RepeatUntilSpec]: that one's Task is an inline closure
-// (action level); LoopSpec.Body is a full sub-agent (agent
+// Compare to [RepeatUntilConfig]: that one's Task is an inline closure
+// (action level); LoopConfig.Body is a full sub-agent (agent
 // level), so Body can have its own LLM tool loop, sub-actions, etc.
-// Use [RepeatUntilSpec] for "loop a single function"; use Loop
+// Use [RepeatUntilConfig] for "loop a single function"; use Loop
 // for "loop a whole agent".
-type LoopSpec[In, Out any] struct {
+type LoopConfig[In, Out any] struct {
 	// Name names the produced agent + its goal + the iteration's
 	// computed condition. Required.
 	Name string
@@ -69,7 +69,7 @@ type LoopSpec[In, Out any] struct {
 // Returns an error on missing Name, nil Body, or nil Until.
 func Loop[In, Out any](
 	platform *runtime.Platform,
-	spec LoopSpec[In, Out],
+	spec LoopConfig[In, Out],
 ) (*core.Agent, error) {
 	if platform == nil {
 		return nil, fmt.Errorf("workflow.Loop: platform must not be nil")
@@ -92,7 +92,7 @@ func Loop[In, Out any](
 	// that for type-binding keys. Use '_' as the separator.
 	doneKey := spec.Name + "_done"
 
-	doneCondition := core.NewCondition(doneKey, func(ctx context.Context, oc *core.OperationContext) core.Determination {
+	doneCondition := core.NewCondition(doneKey, func(ctx context.Context, oc *core.ConditionEnv) core.Determination {
 		history, ok := core.Last[*History[Out]](oc.Blackboard)
 		if !ok {
 			return core.False
@@ -152,7 +152,7 @@ func Loop[In, Out any](
 		Conditions:  []core.Condition{doneCondition},
 		Goals: []*core.Goal{core.GoalProducing[Out](core.Goal{
 			Name:        spec.Name,
-			Description: "produce acceptable " + core.TypeFullNameOf[Out](),
+			Description: "produce acceptable " + core.TypeName[Out](),
 			Pre:         []string{doneKey},
 		})},
 	}), nil

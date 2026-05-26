@@ -29,7 +29,7 @@ const (
 // The retry loop respects ActionQoS: ActionFailed retries up to MaxAttempts
 // with back-off; ActionWaiting/Paused/Succeeded short-circuit immediately.
 // The full retry loop (not each attempt) is wrapped by every registered
-// [core.ActionInterceptor] — interceptors fire once per action, not per
+// [core.ActionMiddleware] — interceptors fire once per action, not per
 // retry, matching embabel's AgentProcessCallback semantics.
 func (p *AgentProcess) executeAction(ctx context.Context, action core.Action) (core.ActionStatus, *core.ReplanRequest) {
 	meta := action.Metadata()
@@ -56,8 +56,8 @@ func (p *AgentProcess) executeAction(ctx context.Context, action core.Action) (c
 		attempts int
 		lastErr  error
 	)
-	interceptors := collectExtensions[core.ActionInterceptor](p.combinedExtensions())
-	status = runActionInterceptors(interceptors, ctx, p, action, func() core.ActionStatus {
+	interceptors := collectExtensions[core.ActionMiddleware](p.combinedExtensions())
+	status = runActionMiddleware(interceptors, ctx, p, action, func() core.ActionStatus {
 		s, r, a, err := p.runWithRetry(ctx, action, processContext, meta.QoS)
 		replan, attempts, lastErr = r, a, err
 		return s
@@ -76,7 +76,7 @@ func (p *AgentProcess) executeAction(ctx context.Context, action core.Action) (c
 	if status == core.ActionSucceeded {
 		// hasRun gates non-rerunnable actions; we set it only on success so
 		// retrying after a future re-plan remains possible.
-		p.blackboard.SetCondition(meta.HasRunKey(), true)
+		p.blackboard.SetCondition(meta.EffectiveRunKey(), true)
 	}
 
 	span.SetAttributes(

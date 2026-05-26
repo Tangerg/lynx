@@ -187,7 +187,7 @@ type Request struct {
 	// to keep the wire format provider-agnostic — serialization is the
 	// provider's job. Sits at the Request level (not inside Options)
 	// because tools are capability, not sampling configuration.
-	Tools []Tool `json:"-,omitzero"`
+	Tools []Tool `json:"-"`
 
 	// Options carries model-specific parameters.
 	Options *Options `json:"options,omitempty"`

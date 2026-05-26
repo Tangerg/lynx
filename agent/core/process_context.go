@@ -28,13 +28,13 @@ type ToolResolver func(ctx context.Context, roles []string) ([]AgentTool, error)
 // custom events through the multicast listener.
 type EventPublisher func(event any)
 
-// ToolCallCanceller is the runtime's hook for [ProcessContext.ToolCallContext].
+// ToolCallCancelFunc is the runtime's hook for [ProcessContext.ToolCallContext].
 // It hands the runtime a cancel func tied to the in-flight tool call (so
 // [Process.TerminateToolCall] can fire it) and returns a release closure
 // the caller MUST defer to detach the registration once the tool call
 // returns. nil disables tool-call cancellation: ToolCallContext returns
 // the parent ctx unchanged.
-type ToolCallCanceller func(cancel context.CancelFunc) (release func())
+type ToolCallCancelFunc func(cancel context.CancelFunc) (release func())
 
 // ProcessContextConfig is the runtime-internal input bundle for
 // [NewProcessContext]. The runtime fills it once per tick and calls
@@ -61,7 +61,7 @@ type ProcessContextConfig struct {
 	// ActionToolGroups carries the currently-executing action's declared
 	// [ToolGroupRequirement]s, so [ProcessContext.ActionTools] can
 	// resolve them without the action body having to re-state role
-	// names. Mirrors embabel's OperationContext.toolGroups, which reads
+	// names. Mirrors embabel's ConditionEnv.toolGroups, which reads
 	// action.toolGroups for the LLM ops layer.
 	ActionToolGroups []ToolGroupRequirement
 
@@ -78,7 +78,7 @@ type ProcessContextConfig struct {
 	// ToolCallCancel registers a cancel func and returns a release
 	// closure — single function rather than a register/clear pair so
 	// callers can't mismatch them.
-	ToolCallCancel ToolCallCanceller
+	ToolCallCancel ToolCallCancelFunc
 }
 
 // ProcessContext is the only thing handed to an [Action.Execute] call.
@@ -96,7 +96,7 @@ type ProcessContext struct {
 	actionToolGroups []ToolGroupRequirement
 	publishEvent     EventPublisher
 	resolveTools     ToolResolver
-	toolCallCancel   ToolCallCanceller
+	toolCallCancel   ToolCallCancelFunc
 
 	// lastErr captures the most recent error from a typed-action body so
 	// the runtime can extract a ReplanRequest. ProcessContext is built

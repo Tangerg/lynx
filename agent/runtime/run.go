@@ -8,7 +8,7 @@ import (
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/event"
-	"github.com/Tangerg/lynx/agent/plan"
+	"github.com/Tangerg/lynx/agent/planning"
 )
 
 // run drives the OODA loop until the process terminates. Internal — the
@@ -230,7 +230,7 @@ func (p *AgentProcess) tickSimple(ctx context.Context, worldState core.WorldStat
 //     transitioned via failProcess / handleStuck / completeForGoal)
 //   - nil,        true,  err  — Tick should propagate err (handleStuck
 //     can't currently produce one but the contract leaves room)
-func (p *AgentProcess) planForTick(ctx context.Context, worldState core.WorldState) (*plan.Plan, bool, error) {
+func (p *AgentProcess) planForTick(ctx context.Context, worldState core.WorldState) (*planning.Plan, bool, error) {
 	planResult, err := p.formulatePlan(ctx, worldState)
 	if err != nil {
 		p.failProcess(err)
@@ -253,15 +253,15 @@ func (p *AgentProcess) planForTick(ctx context.Context, worldState core.WorldSta
 }
 
 // formulatePlan runs the configured planner against the current world
-// state, honoring the running exclusion list. The PlanningSystem is
+// state, honoring the running exclusion list. The planning.System is
 // allocated once per process at createProcess time so its KnownConditions
 // cache survives across ticks.
 //
 // Registered [core.GoalApprover] extensions filter the goal set before
 // the planner sees it — an unanimous "yes" is required for a goal to
 // remain plannable for this tick. With no approvers registered the
-// fast path reuses the cached PlanningSystem.
-func (p *AgentProcess) formulatePlan(ctx context.Context, worldState core.WorldState) (*plan.Plan, error) {
+// fast path reuses the cached planning.System.
+func (p *AgentProcess) formulatePlan(ctx context.Context, worldState core.WorldState) (*planning.Plan, error) {
 	system := p.system
 
 	approvers := collectExtensions[core.GoalApprover](p.combinedExtensions())
@@ -273,13 +273,13 @@ func (p *AgentProcess) formulatePlan(ctx context.Context, worldState core.WorldS
 			}
 		}
 		if len(approved) != len(system.Goals) {
-			system = plan.NewPlanningSystem(system.Actions, approved, system.Conditions)
+			system = planning.NewSystem(system.Actions, approved, system.Conditions)
 		}
 	}
 
-	return plan.BestValuePlan(
+	return planning.BestValuePlan(
 		ctx, p.planner, worldState, system,
-		plan.PlanOptions{ExcludedActions: p.state.snapshotExclusions()},
+		planning.Options{ExcludedActions: p.state.snapshotExclusions()},
 	)
 }
 

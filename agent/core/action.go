@@ -30,8 +30,8 @@ type ActionMetadata struct {
 	Description   string
 	Inputs        []IOBinding
 	Outputs       []IOBinding
-	Preconditions EffectSpec
-	Effects       EffectSpec
+	Preconditions Effects
+	Effects       Effects
 	CanRerun      bool
 	QoS           ActionQoS
 	ToolGroups    []ToolGroupRequirement
@@ -47,11 +47,11 @@ type ActionMetadata struct {
 	ClearBlackboard bool   // On success, clear blackboard before binding output.
 }
 
-// HasRunKey is the conventional condition key recording that this
+// EffectiveRunKey is the conventional condition key recording that this
 // action has executed at least once. The runtime sets it after each
 // successful run; the planner consumes it as a precondition guard for
 // non-rerunnable actions.
-func (m ActionMetadata) HasRunKey() string {
+func (m ActionMetadata) EffectiveRunKey() string {
 	return "hasRun_" + m.Name
 }
 
@@ -91,8 +91,8 @@ func DefaultActionQoS() ActionQoS {
 	}
 }
 
-// EffectSpec maps condition keys to required (or produced)
+// Effects maps condition keys to required (or produced)
 // Determinations. Used for both [ActionMetadata.Preconditions] /
-// [ActionMetadata.Effects] and [Goal] preconditions. A nil EffectSpec
+// [ActionMetadata.Effects] and [Goal] preconditions. A nil Effects
 // is a valid empty value.
-type EffectSpec map[string]Determination
+type Effects map[string]Determination

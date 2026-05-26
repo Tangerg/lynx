@@ -83,7 +83,7 @@ func (f fakeBlackboard) ID() string   { return "fake" }
 func (f fakeBlackboard) Get(string) (any, bool) {
 	return f.value, f.ok
 }
-func (f fakeBlackboard) GetValue(string, string) (any, bool) {
+func (f fakeBlackboard) Lookup(string, string) (any, bool) {
 	return f.value, f.ok
 }
 func (f fakeBlackboard) HasValue(string, string) bool { return f.ok }
@@ -93,8 +93,8 @@ func (f fakeBlackboard) Objects() []any {
 	}
 	return []any{f.value}
 }
-func (f fakeBlackboard) GetCondition(string) (bool, bool) { return false, false }
-func (f fakeBlackboard) InfoString(bool) string           { return "fake" }
+func (f fakeBlackboard) Condition(string) (bool, bool) { return false, false }
+func (f fakeBlackboard) Inspect(bool) string           { return "fake" }
 func (f fakeBlackboard) Set(string, any)                  {}
 func (f fakeBlackboard) AddObject(any)                    {}
 func (f fakeBlackboard) Bind(any)                         {}

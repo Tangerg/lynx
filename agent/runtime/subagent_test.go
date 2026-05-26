@@ -338,7 +338,7 @@ func (awaitForConfirmAction) Metadata() core.ActionMetadata {
 	return core.ActionMetadata{
 		Name:    "confirm",
 		Outputs: []core.IOBinding{binding},
-		Effects: core.EffectSpec{binding.String(): core.True},
+		Effects: core.Effects{binding.String(): core.True},
 		Cost:    core.Static(1),
 		Value:   core.Static(0),
 	}
@@ -346,7 +346,7 @@ func (awaitForConfirmAction) Metadata() core.ActionMetadata {
 
 func (awaitForConfirmAction) Execute(_ context.Context, pc *core.ProcessContext) core.ActionStatus {
 	req := hitl.NewConfirmation("approve doubling?", func(bool) core.ResponseImpact {
-		return core.ResponseImpactUnchanged
+		return core.ImpactUnchanged
 	})
 	return pc.AwaitInput(req)
 }

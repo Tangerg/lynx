@@ -12,7 +12,7 @@ import (
 )
 
 type OpenAIChatModelConfig struct {
-	ApiKey         model.ApiKey
+	APIKey         model.APIKey
 	DefaultOptions *chat.Options
 
 	// BaseURL defaults to [BaseURLOpenAI]. The bridge is hosted
@@ -29,8 +29,8 @@ func (c *OpenAIChatModelConfig) validate() error {
 	if c == nil {
 		return errors.New("google: config must not be nil")
 	}
-	if c.ApiKey == nil {
-		return errors.New("google: ApiKey is required")
+	if c.APIKey == nil {
+		return errors.New("google: APIKey is required")
 	}
 	if c.DefaultOptions == nil {
 		return errors.New("google: DefaultOptions is required")
@@ -56,7 +56,7 @@ func NewOpenAIChatModel(cfg *OpenAIChatModelConfig) (*openai.ChatModel, error) {
 	baseURL := cmp.Or(cfg.BaseURL, BaseURLOpenAI)
 	reqOpts := append([]option.RequestOption{option.WithBaseURL(baseURL)}, cfg.RequestOptions...)
 	return openai.NewChatModel(&openai.ChatModelConfig{
-		ApiKey:         cfg.ApiKey,
+		APIKey:         cfg.APIKey,
 		DefaultOptions: cfg.DefaultOptions,
 		RequestOptions: reqOpts,
 		Metadata:       &chat.ModelMetadata{Provider: Provider},

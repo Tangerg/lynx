@@ -5,8 +5,8 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/agent/core"
-	"github.com/Tangerg/lynx/agent/plan"
-	"github.com/Tangerg/lynx/agent/plan/planner/htn"
+	"github.com/Tangerg/lynx/agent/planning"
+	"github.com/Tangerg/lynx/agent/planning/planner/htn"
 )
 
 // mustHTNPlanner is a tiny test helper for the (*Planner, error)
@@ -29,7 +29,7 @@ func (a *fakeAction) Execute(context.Context, *core.ProcessContext) core.ActionS
 	return core.ActionFailed
 }
 
-func newAction(name string, eff core.EffectSpec) core.Action {
+func newAction(name string, eff core.Effects) core.Action {
 	return &fakeAction{meta: core.ActionMetadata{
 		Name:    name,
 		Effects: eff,
@@ -48,12 +48,12 @@ func names(actions []core.Action) []string {
 
 func TestHTN_PrimitiveTaskEmitsAction(t *testing.T) {
 	lib := htn.NewLibrary()
-	lib.MustAdd(&htn.Task{Name: "do_thing", Action: newAction("thing", core.EffectSpec{"done": core.True})})
+	lib.MustAdd(&htn.Task{Name: "do_thing", Action: newAction("thing", core.Effects{"done": core.True})})
 
 	g := &core.Goal{Name: "do_thing", Pre: []string{"done"}}
-	system := plan.NewPlanningSystem(nil, []*core.Goal{g}, nil)
+	system := planning.NewSystem(nil, []*core.Goal{g}, nil)
 
-	pl, err := mustHTNPlanner(t, lib).PlanToGoal(t.Context(), plan.EmptyWorldState(), system, g, plan.PlanOptions{})
+	pl, err := mustHTNPlanner(t, lib).PlanToGoal(t.Context(), planning.EmptyWorldState(), system, g, planning.Options{})
 	if err != nil {
 		t.Fatalf("PlanToGoal: %v", err)
 	}
@@ -67,15 +67,15 @@ func TestHTN_PrimitiveTaskEmitsAction(t *testing.T) {
 
 func TestHTN_CompoundTaskDecomposesIntoSubtaskOrder(t *testing.T) {
 	lib := htn.NewLibrary()
-	lib.MustAdd(&htn.Task{Name: "step_a", Action: newAction("a", core.EffectSpec{"a_done": core.True})})
-	lib.MustAdd(&htn.Task{Name: "step_b", Action: newAction("b", core.EffectSpec{"b_done": core.True})})
+	lib.MustAdd(&htn.Task{Name: "step_a", Action: newAction("a", core.Effects{"a_done": core.True})})
+	lib.MustAdd(&htn.Task{Name: "step_b", Action: newAction("b", core.Effects{"b_done": core.True})})
 	lib.MustAdd(&htn.Task{Name: "build_thing", Methods: []htn.Method{
 		{Name: "default", Subtasks: []string{"step_a", "step_b"}},
 	}})
 
 	g := &core.Goal{Name: "build_thing", Pre: []string{"b_done"}}
-	system := plan.NewPlanningSystem(nil, []*core.Goal{g}, nil)
-	pl, _ := mustHTNPlanner(t, lib).PlanToGoal(t.Context(), plan.EmptyWorldState(), system, g, plan.PlanOptions{})
+	system := planning.NewSystem(nil, []*core.Goal{g}, nil)
+	pl, _ := mustHTNPlanner(t, lib).PlanToGoal(t.Context(), planning.EmptyWorldState(), system, g, planning.Options{})
 	if got := names(pl.Actions); len(got) != 2 || got[0] != "a" || got[1] != "b" {
 		t.Fatalf("expected [a b], got %v", got)
 	}
@@ -83,27 +83,27 @@ func TestHTN_CompoundTaskDecomposesIntoSubtaskOrder(t *testing.T) {
 
 func TestHTN_MethodPreconditionGate(t *testing.T) {
 	lib := htn.NewLibrary()
-	lib.MustAdd(&htn.Task{Name: "fast", Action: newAction("fast", core.EffectSpec{"served": core.True})})
-	lib.MustAdd(&htn.Task{Name: "slow", Action: newAction("slow", core.EffectSpec{"served": core.True})})
+	lib.MustAdd(&htn.Task{Name: "fast", Action: newAction("fast", core.Effects{"served": core.True})})
+	lib.MustAdd(&htn.Task{Name: "slow", Action: newAction("slow", core.Effects{"served": core.True})})
 	lib.MustAdd(&htn.Task{Name: "serve", Methods: []htn.Method{
 		// First method requires "ready=true" — falls through when not.
-		{Name: "express", Preconditions: core.EffectSpec{"ready": core.True}, Subtasks: []string{"fast"}},
+		{Name: "express", Preconditions: core.Effects{"ready": core.True}, Subtasks: []string{"fast"}},
 		{Name: "fallback", Subtasks: []string{"slow"}},
 	}})
 
 	g := &core.Goal{Name: "serve", Pre: []string{"served"}}
-	system := plan.NewPlanningSystem(nil, []*core.Goal{g}, nil)
+	system := planning.NewSystem(nil, []*core.Goal{g}, nil)
 	planner := mustHTNPlanner(t, lib)
 
 	// Without "ready" → falls back to slow.
-	pl, _ := planner.PlanToGoal(t.Context(), plan.EmptyWorldState(), system, g, plan.PlanOptions{})
+	pl, _ := planner.PlanToGoal(t.Context(), planning.EmptyWorldState(), system, g, planning.Options{})
 	if names(pl.Actions)[0] != "slow" {
 		t.Fatalf("expected fallback path 'slow', got %v", names(pl.Actions))
 	}
 
 	// With "ready" → express path picks fast.
-	ready := plan.NewConditionWorldState(map[string]core.Determination{"ready": core.True})
-	pl, _ = planner.PlanToGoal(t.Context(), ready, system, g, plan.PlanOptions{})
+	ready := planning.NewConditionWorldState(map[string]core.Determination{"ready": core.True})
+	pl, _ = planner.PlanToGoal(t.Context(), ready, system, g, planning.Options{})
 	if names(pl.Actions)[0] != "fast" {
 		t.Fatalf("expected express path 'fast', got %v", names(pl.Actions))
 	}
@@ -111,12 +111,12 @@ func TestHTN_MethodPreconditionGate(t *testing.T) {
 
 func TestHTN_GoalWithoutMatchingTaskReturnsNil(t *testing.T) {
 	lib := htn.NewLibrary()
-	lib.MustAdd(&htn.Task{Name: "registered", Action: newAction("a", core.EffectSpec{"x": core.True})})
+	lib.MustAdd(&htn.Task{Name: "registered", Action: newAction("a", core.Effects{"x": core.True})})
 
 	g := &core.Goal{Name: "unregistered", Pre: []string{"x"}}
-	system := plan.NewPlanningSystem(nil, []*core.Goal{g}, nil)
+	system := planning.NewSystem(nil, []*core.Goal{g}, nil)
 
-	pl, err := mustHTNPlanner(t, lib).PlanToGoal(t.Context(), plan.EmptyWorldState(), system, g, plan.PlanOptions{})
+	pl, err := mustHTNPlanner(t, lib).PlanToGoal(t.Context(), planning.EmptyWorldState(), system, g, planning.Options{})
 	if err != nil {
 		t.Fatalf("PlanToGoal: %v", err)
 	}
@@ -152,7 +152,7 @@ func TestHTN_RejectsBadTaskShapes(t *testing.T) {
 
 func TestHTN_BacktracksWhenFirstMethodSubtaskMissing(t *testing.T) {
 	lib := htn.NewLibrary()
-	lib.MustAdd(&htn.Task{Name: "step_b", Action: newAction("b", core.EffectSpec{"done": core.True})})
+	lib.MustAdd(&htn.Task{Name: "step_b", Action: newAction("b", core.Effects{"done": core.True})})
 	// First method tries an unknown task — this surfaces as an error,
 	// not silent fallback. Second method works.
 	lib.MustAdd(&htn.Task{Name: "do", Methods: []htn.Method{
@@ -161,8 +161,8 @@ func TestHTN_BacktracksWhenFirstMethodSubtaskMissing(t *testing.T) {
 	}})
 
 	g := &core.Goal{Name: "do", Pre: []string{"done"}}
-	system := plan.NewPlanningSystem(nil, []*core.Goal{g}, nil)
-	_, err := mustHTNPlanner(t, lib).PlanToGoal(t.Context(), plan.EmptyWorldState(), system, g, plan.PlanOptions{})
+	system := planning.NewSystem(nil, []*core.Goal{g}, nil)
+	_, err := mustHTNPlanner(t, lib).PlanToGoal(t.Context(), planning.EmptyWorldState(), system, g, planning.Options{})
 	if err == nil {
 		t.Fatal("expected error when method references unknown subtask (no silent backtrack on missing names)")
 	}
@@ -170,16 +170,16 @@ func TestHTN_BacktracksWhenFirstMethodSubtaskMissing(t *testing.T) {
 
 func TestHTN_RespectsExclusion(t *testing.T) {
 	lib := htn.NewLibrary()
-	lib.MustAdd(&htn.Task{Name: "primary", Action: newAction("primary", core.EffectSpec{"done": core.True})})
-	lib.MustAdd(&htn.Task{Name: "fallback", Action: newAction("fallback", core.EffectSpec{"done": core.True})})
+	lib.MustAdd(&htn.Task{Name: "primary", Action: newAction("primary", core.Effects{"done": core.True})})
+	lib.MustAdd(&htn.Task{Name: "fallback", Action: newAction("fallback", core.Effects{"done": core.True})})
 	lib.MustAdd(&htn.Task{Name: "do", Methods: []htn.Method{
 		{Name: "first", Subtasks: []string{"primary"}},
 		{Name: "second", Subtasks: []string{"fallback"}},
 	}})
 
 	g := &core.Goal{Name: "do", Pre: []string{"done"}}
-	system := plan.NewPlanningSystem(nil, []*core.Goal{g}, nil)
-	pl, _ := mustHTNPlanner(t, lib).PlanToGoal(t.Context(), plan.EmptyWorldState(), system, g, plan.PlanOptions{
+	system := planning.NewSystem(nil, []*core.Goal{g}, nil)
+	pl, _ := mustHTNPlanner(t, lib).PlanToGoal(t.Context(), planning.EmptyWorldState(), system, g, planning.Options{
 		ExcludedActions: map[string]struct{}{"primary": {}},
 	})
 	if names(pl.Actions)[0] != "fallback" {
@@ -189,14 +189,14 @@ func TestHTN_RespectsExclusion(t *testing.T) {
 
 func TestHTN_BestValuePlanRanksByGoalValue(t *testing.T) {
 	lib := htn.NewLibrary()
-	lib.MustAdd(&htn.Task{Name: "low_goal", Action: newAction("a", core.EffectSpec{"x": core.True})})
-	lib.MustAdd(&htn.Task{Name: "high_goal", Action: newAction("b", core.EffectSpec{"y": core.True})})
+	lib.MustAdd(&htn.Task{Name: "low_goal", Action: newAction("a", core.Effects{"x": core.True})})
+	lib.MustAdd(&htn.Task{Name: "high_goal", Action: newAction("b", core.Effects{"y": core.True})})
 
 	low := &core.Goal{Name: "low_goal", Pre: []string{"x"}, Value: core.Static(2)}
 	high := &core.Goal{Name: "high_goal", Pre: []string{"y"}, Value: core.Static(10)}
 
-	system := plan.NewPlanningSystem(nil, []*core.Goal{low, high}, nil)
-	pl, _ := plan.BestValuePlan(t.Context(), mustHTNPlanner(t, lib), plan.EmptyWorldState(), system, plan.PlanOptions{})
+	system := planning.NewSystem(nil, []*core.Goal{low, high}, nil)
+	pl, _ := planning.BestValuePlan(t.Context(), mustHTNPlanner(t, lib), planning.EmptyWorldState(), system, planning.Options{})
 	if pl.Goal.Name != "high_goal" {
 		t.Fatalf("expected high_goal, got %q", pl.Goal.Name)
 	}

@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/agent/core"
-	"github.com/Tangerg/lynx/agent/plan"
+	"github.com/Tangerg/lynx/agent/planning"
 )
 
 // SnapshotProcess captures the state of process into a portable
@@ -106,7 +106,7 @@ func RestoreProcess(platform *Platform, snap core.ProcessSnapshot) (*AgentProces
 	if err != nil {
 		return nil, fmt.Errorf("restore process: %w", err)
 	}
-	system := plan.FromAgent(agentDef)
+	system := planning.FromAgent(agentDef)
 
 	p := newAgentProcess(snap.ID, agentDef, options, blackboard, plannerInst, system, platform)
 	p.parentID = snap.ParentID

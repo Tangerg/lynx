@@ -20,7 +20,7 @@ func TestAnthropicChatModel(t *testing.T) {
 				t.Fatalf("NewOptions: %v", err)
 			}
 			m, err := xiaomi.NewAnthropicChatModel(&xiaomi.AnthropicChatModelConfig{
-				ApiKey:         model.NewApiKey("test-key"),
+				APIKey:         model.NewAPIKey("test-key"),
 				DefaultOptions: opts,
 				BaseURL:        baseURL,
 			})

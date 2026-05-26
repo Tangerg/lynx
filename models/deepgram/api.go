@@ -14,39 +14,39 @@ import (
 	"github.com/Tangerg/lynx/core/model"
 )
 
-type ApiConfig struct {
-	ApiKey     model.ApiKey
+type APIConfig struct {
+	APIKey     model.APIKey
 	BaseURL    string
 	HTTPClient *http.Client
 }
 
-func (c *ApiConfig) validate() error {
+func (c *APIConfig) validate() error {
 	if c == nil {
 		return errors.New("deepgram: config must not be nil")
 	}
-	if c.ApiKey == nil {
-		return errors.New("deepgram: ApiKey is required")
+	if c.APIKey == nil {
+		return errors.New("deepgram: APIKey is required")
 	}
 	return nil
 }
 
-type Api struct {
+type API struct {
 	http *resty.Client
 }
 
-func NewApi(cfg *ApiConfig) (*Api, error) {
+func NewAPI(cfg *APIConfig) (*API, error) {
 	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
 
 	client := resty.New().
 		SetBaseURL(cmp.Or(cfg.BaseURL, DefaultBaseURL)).
-		SetHeader("Authorization", "Token "+cfg.ApiKey.Get())
+		SetHeader("Authorization", "Token "+cfg.APIKey.Get())
 	if cfg.HTTPClient != nil {
 		client.SetTransport(cfg.HTTPClient.Transport)
 	}
 
-	return &Api{http: client}, nil
+	return &API{http: client}, nil
 }
 
 // ListenParams holds the query-string knobs Deepgram /listen accepts.
@@ -103,7 +103,7 @@ type ListenResponse struct {
 	} `json:"results"`
 }
 
-func (a *Api) Listen(ctx context.Context, audio []byte, contentType string, params *ListenParams) (*ListenResponse, error) {
+func (a *API) Listen(ctx context.Context, audio []byte, contentType string, params *ListenParams) (*ListenResponse, error) {
 	if len(audio) == 0 {
 		return nil, errors.New("deepgram: request must not be nil")
 	}
@@ -138,7 +138,7 @@ type SpeakParams struct {
 
 // Speak posts text to /speak and returns the raw audio bytes plus the
 // response headers (request id / content-type live there).
-func (a *Api) Speak(ctx context.Context, text string, params *SpeakParams) ([]byte, http.Header, error) {
+func (a *API) Speak(ctx context.Context, text string, params *SpeakParams) ([]byte, http.Header, error) {
 	if text == "" {
 		return nil, nil, errors.New("deepgram: request must not be nil")
 	}

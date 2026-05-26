@@ -48,7 +48,7 @@ func (b *Builder) Conditions(conditions ...core.Condition) *Builder {
 	return b
 }
 
-// PlannerName selects which [plan.Planner] the runtime will use for
+// PlannerName selects which [planning.Planner] the runtime will use for
 // this agent — must match the [core.Extension.Name] of a planner
 // registered on the platform (or via process-scope extensions). An
 // empty / unset value resolves to "goap". Built-in names: "goap",

@@ -2,7 +2,7 @@ package event
 
 import (
 	"github.com/Tangerg/lynx/agent/core"
-	"github.com/Tangerg/lynx/agent/plan"
+	"github.com/Tangerg/lynx/agent/planning"
 )
 
 // ReadyToPlan fires at the start of every tick after the
@@ -22,7 +22,7 @@ func (e ReadyToPlan) MarshalJSON() ([]byte, error) {
 // PlanFormulated fires when the planner returns a non-nil plan.
 type PlanFormulated struct {
 	BaseEvent
-	Plan *plan.Plan `json:"-"`
+	Plan *planning.Plan `json:"-"`
 }
 
 func (PlanFormulated) EventName() string { return "plan_formulated" }
