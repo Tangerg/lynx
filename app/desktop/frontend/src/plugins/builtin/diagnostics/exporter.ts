@@ -6,18 +6,24 @@
 // CUMULATIVE temporality matches how the store overwrites on every
 // export — no delta accumulation needed.
 
-import type { PushMetricExporter, ResourceMetrics } from "@opentelemetry/sdk-metrics";
-import { AggregationTemporality } from "@opentelemetry/sdk-metrics";
+import type { AggregationTemporality, PushMetricExporter, ResourceMetrics } from "@opentelemetry/sdk-metrics";
 import { useDiagnosticsStore } from "./store";
 
-// ExportResultCode.SUCCESS = 0 in @opentelemetry/core. We inline the
-// shape rather than depend on `core` for one numeric constant.
+// Inlined enum values from @opentelemetry/sdk-metrics:
+//   ExportResultCode.SUCCESS = 0  (from @opentelemetry/core)
+//   AggregationTemporality.CUMULATIVE = 1
+// Keeping them as literal constants means this file does NOT pull
+// the SDK into the static graph — it stays lazy alongside the
+// dynamic import in index.tsx.
+const EXPORT_SUCCESS = 0;
+const CUMULATIVE_TEMPORALITY = 1 as AggregationTemporality;
+
 interface ExportResult { code: number }
 
 export class DiagnosticsExporter implements PushMetricExporter {
   export(batch: ResourceMetrics, callback: (result: ExportResult) => void): void {
     useDiagnosticsStore.getState().ingest(batch);
-    callback({ code: 0 });
+    callback({ code: EXPORT_SUCCESS });
   }
   forceFlush(): Promise<void> {
     return Promise.resolve();
@@ -27,6 +33,6 @@ export class DiagnosticsExporter implements PushMetricExporter {
     return Promise.resolve();
   }
   selectAggregationTemporality(): AggregationTemporality {
-    return AggregationTemporality.CUMULATIVE;
+    return CUMULATIVE_TEMPORALITY;
   }
 }

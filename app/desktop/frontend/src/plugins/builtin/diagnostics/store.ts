@@ -6,8 +6,13 @@
 // data refreshes from otel every collect interval anyway.
 
 import type { MetricDescriptor, ResourceMetrics } from "@opentelemetry/sdk-metrics";
-import { DataPointType } from "@opentelemetry/sdk-metrics";
 import { create } from "zustand";
+
+// Mirror of `DataPointType.HISTOGRAM` from @opentelemetry/sdk-metrics.
+// Inlined so this module doesn't pull the SDK into the static graph —
+// the SDK is dynamic-imported by index.tsx (~40KB gzip chunk that
+// only loads once a user opens the Diagnostics view).
+const HISTOGRAM_DATA_POINT = 0;
 
 type Attrs = Record<string, string | number | boolean>;
 interface HistogramValue {
@@ -62,7 +67,7 @@ export const useDiagnosticsStore = create<State>((set) => ({
     const next: Record<string, MetricRow> = {};
     for (const scope of batch.scopeMetrics) {
       for (const m of scope.metrics) {
-        const isHist = m.dataPointType === DataPointType.HISTOGRAM;
+        const isHist = m.dataPointType === HISTOGRAM_DATA_POINT;
         for (const dp of m.dataPoints) {
           const attrs = (dp.attributes ?? {}) as Attrs;
           const id = `${m.descriptor.name}|${stableKey(attrs)}`;
