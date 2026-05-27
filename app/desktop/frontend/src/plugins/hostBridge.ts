@@ -13,6 +13,7 @@ import * as Motion from "motion/react";
 import * as React from "react";
 import * as ReactJSXRuntime from "react/jsx-runtime";
 import * as SDK from "@/plugins/sdk";
+import { disposeOnHmr } from "@/lib/hmr";
 import { HOST_API_VERSION } from "./sdk/apiVersion";
 import { safeCall } from "./sdk/errors";
 import { usePluginStore } from "./sdk/registry";
@@ -57,17 +58,10 @@ export function installHostBridge(): void {
   window.addEventListener("beforeunload", beforeUnloadHandler);
 }
 
-// HMR safety: a Vite reload of this module resets `bridgeInstalled`
-// to false on the new module's module scope — the next call to
-// `installHostBridge()` would then register a fresh `beforeunload`
-// listener while the previous module's listener is still attached.
-// Dispose releases the previous listener so the count stays at 1.
-if (import.meta.hot) {
-  import.meta.hot.dispose(() => {
-    if (beforeUnloadHandler) {
-      window.removeEventListener("beforeunload", beforeUnloadHandler);
-      beforeUnloadHandler = null;
-    }
-    bridgeInstalled = false;
-  });
-}
+disposeOnHmr(() => {
+  if (beforeUnloadHandler) {
+    window.removeEventListener("beforeunload", beforeUnloadHandler);
+    beforeUnloadHandler = null;
+  }
+  bridgeInstalled = false;
+});
