@@ -6,7 +6,7 @@
 // _shared.ts.
 
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
-import { Icon } from "@/components/common";
+import { Icon, Tooltip } from "@/components/common";
 import { flattenCode, flattenMarkdown, flattenText, writeToClipboard } from "@/lib/messageContent";
 import { definePlugin, useCurrentMessage } from "@/plugins/sdk";
 import { getCurrentSessionView, useAgentAction } from "@/state/agentStore";
@@ -30,13 +30,11 @@ function CopyButton() {
 
   return (
     <DropdownMenu.Root>
-      <DropdownMenu.Trigger
-        title="Copy message"
-        aria-label="Copy message"
-        className={ACTION_BTN_CLASSES}
-      >
-        <Icon name="copy" size={11} />
-      </DropdownMenu.Trigger>
+      <Tooltip label="Copy message">
+        <DropdownMenu.Trigger aria-label="Copy message" className={ACTION_BTN_CLASSES}>
+          <Icon name="copy" size={11} />
+        </DropdownMenu.Trigger>
+      </Tooltip>
       <DropdownMenu.Portal>
         <DropdownMenu.Content
           align="end"
@@ -118,15 +116,16 @@ function EditButton() {
   };
 
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      title="Edit message"
-      aria-label="Edit message"
-      className={ACTION_BTN_CLASSES}
-    >
-      <Icon name="edit" size={11} />
-    </button>
+    <Tooltip label="Edit message">
+      <button
+        type="button"
+        onClick={onClick}
+        aria-label="Edit message"
+        className={ACTION_BTN_CLASSES}
+      >
+        <Icon name="edit" size={11} />
+      </button>
+    </Tooltip>
   );
 }
 
@@ -166,15 +165,16 @@ function RegenerateButton() {
   };
 
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      title="Regenerate response"
-      aria-label="Regenerate response"
-      className={ACTION_BTN_CLASSES}
-    >
-      <Icon name="loop" size={11} />
-    </button>
+    <Tooltip label="Regenerate response">
+      <button
+        type="button"
+        onClick={onClick}
+        aria-label="Regenerate response"
+        className={ACTION_BTN_CLASSES}
+      >
+        <Icon name="loop" size={11} />
+      </button>
+    </Tooltip>
   );
 }
 

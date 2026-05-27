@@ -8,10 +8,9 @@
 
 import type { IconName } from "@/components/common";
 import * as Popover from "@radix-ui/react-popover";
-import * as Tooltip from "@radix-ui/react-tooltip";
 import * as React from "react";
 import { submitComposer } from "@/components/chat/submitComposer";
-import { Icon } from "@/components/common";
+import { Icon, Tooltip } from "@/components/common";
 import { useSessions } from "@/lib/queries";
 import { cn } from "@/lib/utils";
 import { definePlugin, useCommands } from "@/plugins/sdk";
@@ -163,31 +162,33 @@ function ModelPicker() {
   const model = active?.model ?? "Sonnet";
 
   return (
-    <button
-      type="button"
-      title="Switch model"
-      aria-label="Switch model"
-      className="mr-1 inline-flex h-6.5 shrink-0 items-center gap-1.5 rounded-full border border-transparent bg-transparent pl-1 pr-2.5 font-sans text-[12px] font-semibold text-fg whitespace-nowrap cursor-pointer transition-colors hover:bg-surface-2 hover:border-line"
-    >
-      <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-[linear-gradient(135deg,var(--color-accent)_0%,color-mix(in_oklab,var(--color-accent)_40%,#000)_100%)] text-on-accent font-semibold text-[11px]">
-        {model.slice(0, 1)}
-      </span>
-      <span className="font-mono text-[11.5px] font-semibold tracking-[0.01em]">{model}</span>
-      <Icon name="more" size={10} className="text-fg-faint opacity-70" />
-    </button>
+    <Tooltip label="Switch model">
+      <button
+        type="button"
+        aria-label="Switch model"
+        className="mr-1 inline-flex h-6.5 shrink-0 items-center gap-1.5 rounded-full border border-transparent bg-transparent pl-1 pr-2.5 font-sans text-[12px] font-semibold text-fg whitespace-nowrap cursor-pointer transition-colors hover:bg-surface-2 hover:border-line"
+      >
+        <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-[linear-gradient(135deg,var(--color-accent)_0%,color-mix(in_oklab,var(--color-accent)_40%,#000)_100%)] text-on-accent font-semibold text-[11px]">
+          {model.slice(0, 1)}
+        </span>
+        <span className="font-mono text-[11.5px] font-semibold tracking-[0.01em]">{model}</span>
+        <Icon name="more" size={10} className="text-fg-faint opacity-70" />
+      </button>
+    </Tooltip>
   );
 }
 
 function AttachButton() {
   return (
-    <button
-      type="button"
-      title="Attach file"
-      aria-label="Attach file"
-      className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border-0 bg-transparent text-fg-muted cursor-pointer transition-colors hover:bg-surface-2 hover:text-fg"
-    >
-      <Icon name={"paperclip" as IconName} size={13} />
-    </button>
+    <Tooltip label="Attach file">
+      <button
+        type="button"
+        aria-label="Attach file"
+        className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border-0 bg-transparent text-fg-muted cursor-pointer transition-colors hover:bg-surface-2 hover:text-fg"
+      >
+        <Icon name={"paperclip" as IconName} size={13} />
+      </button>
+    </Tooltip>
   );
 }
 
@@ -281,34 +282,21 @@ function SendButton() {
   };
 
   return (
-    <Tooltip.Provider delayDuration={300}>
-      <Tooltip.Root>
-        <Tooltip.Trigger asChild>
-          <button
-            type="button"
-            disabled={disabled}
-            onClick={onClick}
-            className={cn(
-              "grid h-8 w-8 shrink-0 place-items-center rounded-full border-0 cursor-pointer transition-transform duration-150",
-              disabled
-                ? "bg-surface-3 text-fg-faint cursor-not-allowed"
-                : "bg-accent text-on-accent hover:scale-105 active:scale-95",
-            )}
-          >
-            <Icon name="send-arrow" size={14} strokeWidth={2.5} />
-          </button>
-        </Tooltip.Trigger>
-        <Tooltip.Portal>
-          <Tooltip.Content
-            side="top"
-            sideOffset={6}
-            className="rounded-sm bg-surface-3 px-2 py-1 font-mono text-[11px] text-fg-soft shadow-md"
-          >
-            Send (⌘↵)
-          </Tooltip.Content>
-        </Tooltip.Portal>
-      </Tooltip.Root>
-    </Tooltip.Provider>
+    <Tooltip label="Send (⌘↵)">
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={onClick}
+        className={cn(
+          "grid h-8 w-8 shrink-0 place-items-center rounded-full border-0 cursor-pointer transition-transform duration-150",
+          disabled
+            ? "bg-surface-3 text-fg-faint cursor-not-allowed"
+            : "bg-accent text-on-accent hover:scale-105 active:scale-95",
+        )}
+      >
+        <Icon name="send-arrow" size={14} strokeWidth={2.5} />
+      </button>
+    </Tooltip>
   );
 }
 

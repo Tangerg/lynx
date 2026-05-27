@@ -7,7 +7,7 @@
 // match scrolls into view; Enter / Shift+Enter cycle through hits.
 
 import { useEffect, useRef, useState } from "react";
-import { Icon } from "@/components/common";
+import { Icon, Tooltip } from "@/components/common";
 import { cn } from "@/lib/utils";
 import { definePlugin } from "@/plugins/sdk";
 
@@ -161,32 +161,38 @@ function ChatSearchOverlay() {
       <span className="px-1.5 font-mono text-[11px] tabular-nums text-fg-faint">
         {total > 0 ? `${active + 1} / ${total}` : query ? "0 / 0" : ""}
       </span>
-      <button
-        type="button"
-        onClick={prev}
-        disabled={total === 0}
-        title="Previous match (⇧⏎)"
-        className="grid h-6 w-6 place-items-center rounded border-0 bg-transparent text-fg-muted cursor-pointer transition-colors hover:bg-surface-2 hover:text-fg disabled:cursor-not-allowed disabled:opacity-40"
-      >
-        <Icon name="chevron-up" size={12} />
-      </button>
-      <button
-        type="button"
-        onClick={next}
-        disabled={total === 0}
-        title="Next match (⏎)"
-        className="grid h-6 w-6 place-items-center rounded border-0 bg-transparent text-fg-muted cursor-pointer transition-colors hover:bg-surface-2 hover:text-fg disabled:cursor-not-allowed disabled:opacity-40"
-      >
-        <Icon name="chevron-down" size={12} />
-      </button>
-      <button
-        type="button"
-        onClick={() => setOpen(false)}
-        title="Close (Esc)"
-        className="grid h-6 w-6 place-items-center rounded border-0 bg-transparent text-fg-muted cursor-pointer transition-colors hover:bg-surface-2 hover:text-fg"
-      >
-        <Icon name="x" size={12} />
-      </button>
+      <Tooltip label="Previous match (⇧⏎)">
+        <button
+          type="button"
+          onClick={prev}
+          disabled={total === 0}
+          aria-label="Previous match"
+          className="grid h-6 w-6 place-items-center rounded border-0 bg-transparent text-fg-muted cursor-pointer transition-colors hover:bg-surface-2 hover:text-fg disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          <Icon name="chevron-up" size={12} />
+        </button>
+      </Tooltip>
+      <Tooltip label="Next match (⏎)">
+        <button
+          type="button"
+          onClick={next}
+          disabled={total === 0}
+          aria-label="Next match"
+          className="grid h-6 w-6 place-items-center rounded border-0 bg-transparent text-fg-muted cursor-pointer transition-colors hover:bg-surface-2 hover:text-fg disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          <Icon name="chevron-down" size={12} />
+        </button>
+      </Tooltip>
+      <Tooltip label="Close (Esc)">
+        <button
+          type="button"
+          onClick={() => setOpen(false)}
+          aria-label="Close"
+          className="grid h-6 w-6 place-items-center rounded border-0 bg-transparent text-fg-muted cursor-pointer transition-colors hover:bg-surface-2 hover:text-fg"
+        >
+          <Icon name="x" size={12} />
+        </button>
+      </Tooltip>
     </div>
   );
 }
