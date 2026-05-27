@@ -67,9 +67,6 @@ const (
 )
 
 func (c StoreConfig) Validate() error {
-	if c.Context == nil {
-		c.Context = context.Background()
-	}
 	if c.Client == nil {
 		return errors.New("s3vectors: Client is required")
 	}
@@ -85,8 +82,15 @@ func (c StoreConfig) Validate() error {
 	if c.DocumentBatcher == nil {
 		return errors.New("s3vectors: DocumentBatcher is required")
 	}
-	c.DistanceMetric = cmp.Or(c.DistanceMetric, DistanceCosine)
 	return nil
+}
+
+// ApplyDefaults fills zero fields with documented defaults.
+func (c *StoreConfig) ApplyDefaults() {
+	if c.Context == nil {
+		c.Context = context.Background()
+	}
+	c.DistanceMetric = cmp.Or(c.DistanceMetric, DistanceCosine)
 }
 
 var _ vectorstore.Store = (*Store)(nil)
@@ -105,6 +109,7 @@ type Store struct {
 
 
 func NewStore(config StoreConfig) (*Store, error) {
+	config.ApplyDefaults()
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}

@@ -38,13 +38,18 @@ func (c StoreConfig) Validate() error {
 	if c.Client == nil {
 		return errors.New("redis: Client is required")
 	}
-	if c.KeyPrefix == "" {
-		c.KeyPrefix = DefaultKeyPrefix
-	}
 	if c.TTL < 0 {
 		return errors.New("redis: TTL must not be negative")
 	}
 	return nil
+}
+
+// ApplyDefaults fills zero fields. KeyPrefix defaults to
+// [DefaultKeyPrefix].
+func (c *StoreConfig) ApplyDefaults() {
+	if c.KeyPrefix == "" {
+		c.KeyPrefix = DefaultKeyPrefix
+	}
 }
 
 var _ memory.Store = (*Store)(nil)
@@ -58,6 +63,7 @@ type Store struct {
 
 // NewStore builds a [Store] from cfg.
 func NewStore(cfg StoreConfig) (*Store, error) {
+	cfg.ApplyDefaults()
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}

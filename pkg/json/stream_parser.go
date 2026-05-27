@@ -75,10 +75,10 @@ type StreamParser struct {
 
 // NewStreamParser returns a parser configured by config.
 func NewStreamParser(config StreamParserConfig) (*StreamParser, error) {
+	config.ApplyDefaults()
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
-	config.ApplyDefaults()
 	return &StreamParser{
 		bufferSize: config.BufferSize,
 		scopes:     make([]string, 0, 8),

@@ -37,7 +37,7 @@ type VectorStoreRetrieverConfig struct {
 	FilterFunc func(ctx context.Context, params map[string]any) (ast.Expr, error)
 }
 
-// validate fills defaults and rejects invalid configurations.
+// Validate rejects invalid configurations.
 func (c VectorStoreRetrieverConfig) Validate() error {
 	if c.VectorStore == nil {
 		return errors.New("rag.VectorStoreRetrieverConfig: VectorStore is required")
@@ -45,14 +45,19 @@ func (c VectorStoreRetrieverConfig) Validate() error {
 	if c.TopK < 0 {
 		return errors.New("rag.VectorStoreRetrieverConfig: TopK must be ≥ 0")
 	}
-	if c.TopK == 0 {
-		c.TopK = vectorstore.DefaultTopK
-	}
 	if c.MinScore < vectorstore.MinSimilarityScore || c.MinScore > vectorstore.MaxSimilarityScore {
 		return fmt.Errorf("rag.VectorStoreRetrieverConfig: MinScore must be in [%.1f, %.1f]",
 			vectorstore.MinSimilarityScore, vectorstore.MaxSimilarityScore)
 	}
 	return nil
+}
+
+// ApplyDefaults fills zero fields. TopK defaults to
+// [vectorstore.DefaultTopK].
+func (c *VectorStoreRetrieverConfig) ApplyDefaults() {
+	if c.TopK == 0 {
+		c.TopK = vectorstore.DefaultTopK
+	}
 }
 
 var _ DocumentRetriever = (*VectorStoreRetriever)(nil)
@@ -81,6 +86,7 @@ type VectorStoreRetriever struct {
 // [VectorStoreRetriever]. Returns an error when the
 // configuration fails [VectorStoreRetrieverConfig.validate].
 func NewVectorStoreRetriever(cfg VectorStoreRetrieverConfig) (*VectorStoreRetriever, error) {
+	cfg.ApplyDefaults()
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}

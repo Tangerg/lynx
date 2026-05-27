@@ -62,9 +62,6 @@ type StoreConfig struct {
 }
 
 func (c StoreConfig) Validate() error {
-	if c.Context == nil {
-		c.Context = context.Background()
-	}
 	if c.APIKey == "" {
 		return errors.New("vectara: APIKey is required")
 	}
@@ -74,6 +71,14 @@ func (c StoreConfig) Validate() error {
 	if c.DocumentBatcher == nil {
 		return errors.New("vectara: DocumentBatcher is required")
 	}
+	return nil
+}
+
+// ApplyDefaults fills zero fields with documented defaults.
+func (c *StoreConfig) ApplyDefaults() {
+	if c.Context == nil {
+		c.Context = context.Background()
+	}
 	c.Endpoint = cmp.Or(c.Endpoint, DefaultEndpoint)
 	if c.MetadataPrefix == "" {
 		c.MetadataPrefix = "doc"
@@ -81,7 +86,6 @@ func (c StoreConfig) Validate() error {
 	if c.HTTPClient == nil {
 		c.HTTPClient = http.DefaultClient
 	}
-	return nil
 }
 
 var _ vectorstore.Store = (*Store)(nil)
@@ -101,6 +105,7 @@ type Store struct {
 
 
 func NewStore(config StoreConfig) (*Store, error) {
+	config.ApplyDefaults()
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}

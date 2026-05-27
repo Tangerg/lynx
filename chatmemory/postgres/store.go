@@ -64,16 +64,9 @@ type StoreConfig struct {
 }
 
 func (c StoreConfig) Validate() error {
-	if c.Context == nil {
-		c.Context = context.Background()
-	}
 	if c.Pool == nil {
 		return errors.New("postgres: Pool is required")
 	}
-
-	c.SchemaName = cmpOr(c.SchemaName, DefaultSchemaName)
-	c.TableName = cmpOr(c.TableName, DefaultTableName)
-	c.IndexName = cmpOr(c.IndexName, c.TableName+DefaultIndexSuffix)
 
 	idents := map[string]string{
 		"SchemaName": c.SchemaName,
@@ -87,6 +80,18 @@ func (c StoreConfig) Validate() error {
 		}
 	}
 	return nil
+}
+
+// ApplyDefaults fills zero fields. Context defaults to
+// [context.Background]; SchemaName, TableName, and IndexName fall back
+// to the documented defaults.
+func (c *StoreConfig) ApplyDefaults() {
+	if c.Context == nil {
+		c.Context = context.Background()
+	}
+	c.SchemaName = cmpOr(c.SchemaName, DefaultSchemaName)
+	c.TableName = cmpOr(c.TableName, DefaultTableName)
+	c.IndexName = cmpOr(c.IndexName, c.TableName+DefaultIndexSuffix)
 }
 
 // cmpOr is a local stand-in for cmp.Or — first non-zero string wins.
@@ -133,6 +138,7 @@ type Store struct {
 // [StoreConfig.InitializeSchema] is true the table and index are
 // created if they don't already exist using [StoreConfig.Context].
 func NewStore(cfg StoreConfig) (*Store, error) {
+	cfg.ApplyDefaults()
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}

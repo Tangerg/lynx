@@ -39,18 +39,27 @@ type RewriteTransformerConfig struct {
 	PromptTemplate *chat.PromptTemplate
 }
 
-// validate fills defaults and rejects invalid configs.
+// Validate rejects invalid configs.
 func (c RewriteTransformerConfig) Validate() error {
 	if c.ChatModel == nil {
 		return errors.New("rag.RewriteTransformerConfig: ChatModel is required")
 	}
+	if c.PromptTemplate != nil {
+		return c.PromptTemplate.RequireVariables("Target", "Query")
+	}
+	return nil
+}
+
+// ApplyDefaults fills zero fields. TargetSearchSystem defaults to
+// [defaultRewriteTarget]; PromptTemplate defaults to
+// [rewriteDefaultTemplate].
+func (c *RewriteTransformerConfig) ApplyDefaults() {
 	if c.TargetSearchSystem == "" {
 		c.TargetSearchSystem = defaultRewriteTarget
 	}
 	if c.PromptTemplate == nil {
 		c.PromptTemplate = chat.NewPromptTemplate(rewriteDefaultTemplate)
 	}
-	return c.PromptTemplate.RequireVariables("Target", "Query")
 }
 
 var _ QueryTransformer = (*RewriteTransformer)(nil)
@@ -70,6 +79,7 @@ type RewriteTransformer struct {
 // Returns an error when the configuration fails validation or the
 // chat client cannot be constructed.
 func NewRewriteTransformer(cfg RewriteTransformerConfig) (*RewriteTransformer, error) {
+	cfg.ApplyDefaults()
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}

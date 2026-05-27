@@ -137,9 +137,6 @@ type StoreConfig struct {
 }
 
 func (c StoreConfig) Validate() error {
-	if c.Context == nil {
-		c.Context = context.Background()
-	}
 	if c.Pool == nil {
 		return errors.New("pgvector: Pool is required")
 	}
@@ -149,7 +146,19 @@ func (c StoreConfig) Validate() error {
 	if c.DocumentBatcher == nil {
 		return errors.New("pgvector: DocumentBatcher is required")
 	}
+	return ident.Check("pgvector", map[string]string{
+		"SchemaName":     c.SchemaName,
+		"TableName":      c.TableName,
+		"IndexName":      c.IndexName,
+		"MetadataColumn": c.MetadataColumn,
+	})
+}
 
+// ApplyDefaults fills zero fields with documented defaults.
+func (c *StoreConfig) ApplyDefaults() {
+	if c.Context == nil {
+		c.Context = context.Background()
+	}
 	c.SchemaName = cmp.Or(c.SchemaName, DefaultSchemaName)
 	c.TableName = cmp.Or(c.TableName, DefaultTableName)
 	c.MetadataColumn = cmp.Or(c.MetadataColumn, DefaultMetadataColumn)
@@ -158,13 +167,6 @@ func (c StoreConfig) Validate() error {
 	}
 	c.DistanceMetric = cmp.Or(c.DistanceMetric, DistanceCosine)
 	c.IndexType = cmp.Or(c.IndexType, IndexHNSW)
-
-	return ident.Check("pgvector", map[string]string{
-		"SchemaName":     c.SchemaName,
-		"TableName":      c.TableName,
-		"IndexName":      c.IndexName,
-		"MetadataColumn": c.MetadataColumn,
-	})
 }
 
 var _ vectorstore.Store = (*Store)(nil)
@@ -188,6 +190,7 @@ type Store struct {
 
 
 func NewStore(config StoreConfig) (*Store, error) {
+	config.ApplyDefaults()
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}

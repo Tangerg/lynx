@@ -50,17 +50,8 @@ type StoreConfig struct {
 }
 
 func (c StoreConfig) Validate() error {
-	if c.Context == nil {
-		c.Context = context.Background()
-	}
 	if c.Session == nil {
 		return errors.New("cassandra: Session is required")
-	}
-	if c.Keyspace == "" {
-		c.Keyspace = DefaultKeyspace
-	}
-	if c.TableName == "" {
-		c.TableName = DefaultTableName
 	}
 	for name, value := range map[string]string{"Keyspace": c.Keyspace, "TableName": c.TableName} {
 		if !identPattern.MatchString(value) {
@@ -68,6 +59,21 @@ func (c StoreConfig) Validate() error {
 		}
 	}
 	return nil
+}
+
+// ApplyDefaults fills zero fields. Context defaults to
+// [context.Background]; Keyspace defaults to [DefaultKeyspace];
+// TableName defaults to [DefaultTableName].
+func (c *StoreConfig) ApplyDefaults() {
+	if c.Context == nil {
+		c.Context = context.Background()
+	}
+	if c.Keyspace == "" {
+		c.Keyspace = DefaultKeyspace
+	}
+	if c.TableName == "" {
+		c.TableName = DefaultTableName
+	}
 }
 
 var _ memory.Store = (*Store)(nil)
@@ -84,6 +90,7 @@ type Store struct {
 
 // NewStore builds a [Store] from cfg.
 func NewStore(cfg StoreConfig) (*Store, error) {
+	cfg.ApplyDefaults()
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}

@@ -122,9 +122,6 @@ type StoreConfig struct {
 }
 
 func (c StoreConfig) Validate() error {
-	if c.Context == nil {
-		c.Context = context.Background()
-	}
 	if c.Session == nil {
 		return errors.New("cassandra: Session is required")
 	}
@@ -133,16 +130,6 @@ func (c StoreConfig) Validate() error {
 	}
 	if c.DocumentBatcher == nil {
 		return errors.New("cassandra: DocumentBatcher is required")
-	}
-
-	c.KeyspaceName = cmp.Or(c.KeyspaceName, DefaultKeyspaceName)
-	c.TableName = cmp.Or(c.TableName, DefaultTableName)
-	c.IDColumn = cmp.Or(c.IDColumn, DefaultIDColumn)
-	c.ContentColumn = cmp.Or(c.ContentColumn, DefaultContentColumn)
-	c.EmbeddingColumn = cmp.Or(c.EmbeddingColumn, DefaultEmbeddingColumn)
-	c.Similarity = cmp.Or(c.Similarity, DefaultSimilarity)
-	if c.KeyspaceReplication == "" {
-		c.KeyspaceReplication = "{'class': 'SimpleStrategy', 'replication_factor': 1}"
 	}
 
 	checks := map[string]string{
@@ -166,6 +153,22 @@ func (c StoreConfig) Validate() error {
 
 var _ vectorstore.Store = (*Store)(nil)
 
+// ApplyDefaults fills zero fields with documented defaults.
+func (c *StoreConfig) ApplyDefaults() {
+	if c.Context == nil {
+		c.Context = context.Background()
+	}
+	c.KeyspaceName = cmp.Or(c.KeyspaceName, DefaultKeyspaceName)
+	c.TableName = cmp.Or(c.TableName, DefaultTableName)
+	c.IDColumn = cmp.Or(c.IDColumn, DefaultIDColumn)
+	c.ContentColumn = cmp.Or(c.ContentColumn, DefaultContentColumn)
+	c.EmbeddingColumn = cmp.Or(c.EmbeddingColumn, DefaultEmbeddingColumn)
+	c.Similarity = cmp.Or(c.Similarity, DefaultSimilarity)
+	if c.KeyspaceReplication == "" {
+		c.KeyspaceReplication = "{'class': 'SimpleStrategy', 'replication_factor': 1}"
+	}
+}
+
 // Store is a Cassandra 5.0+ backed [vectorstore.Store] implementation.
 // It relies on the VECTOR column type and SAI indexes.
 type Store struct {
@@ -186,6 +189,7 @@ type Store struct {
 
 
 func NewStore(config StoreConfig) (*Store, error) {
+	config.ApplyDefaults()
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}

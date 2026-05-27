@@ -135,9 +135,6 @@ type StoreConfig struct {
 }
 
 func (c StoreConfig) Validate() error {
-	if c.Context == nil {
-		c.Context = context.Background()
-	}
 	if c.Client == nil {
 		return errors.New("opensearch: Client is required")
 	}
@@ -147,7 +144,14 @@ func (c StoreConfig) Validate() error {
 	if c.DocumentBatcher == nil {
 		return errors.New("opensearch: DocumentBatcher is required")
 	}
+	return nil
+}
 
+// ApplyDefaults fills zero fields with documented defaults.
+func (c *StoreConfig) ApplyDefaults() {
+	if c.Context == nil {
+		c.Context = context.Background()
+	}
 	c.IndexName = cmp.Or(c.IndexName, DefaultIndexName)
 	c.EmbeddingField = cmp.Or(c.EmbeddingField, DefaultEmbeddingField)
 	c.ContentField = cmp.Or(c.ContentField, DefaultContentField)
@@ -155,7 +159,6 @@ func (c StoreConfig) Validate() error {
 	c.SpaceType = cmp.Or(c.SpaceType, DefaultSpaceType)
 	c.Engine = cmp.Or(c.Engine, DefaultEngine)
 	c.MethodName = cmp.Or(c.MethodName, DefaultMethodName)
-	return nil
 }
 
 var _ vectorstore.Store = (*Store)(nil)
@@ -178,6 +181,7 @@ type Store struct {
 
 
 func NewStore(config StoreConfig) (*Store, error) {
+	config.ApplyDefaults()
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}

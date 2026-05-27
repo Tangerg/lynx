@@ -61,10 +61,10 @@ type Store struct {
 
 
 func NewStore(cfg StoreConfig) (*Store, error) {
+	cfg.ApplyDefaults()
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
-	cfg.ApplyDefaults()
 	return &Store{
 		embedder:   cfg.EmbeddingClient,
 		similarity: cfg.Similarity,

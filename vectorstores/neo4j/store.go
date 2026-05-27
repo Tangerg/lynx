@@ -110,9 +110,6 @@ type StoreConfig struct {
 }
 
 func (c StoreConfig) Validate() error {
-	if c.Context == nil {
-		c.Context = context.Background()
-	}
 	if c.Driver == nil {
 		return errors.New("neo4j: Driver is required")
 	}
@@ -122,7 +119,19 @@ func (c StoreConfig) Validate() error {
 	if c.DocumentBatcher == nil {
 		return errors.New("neo4j: DocumentBatcher is required")
 	}
+	return ident.Check("neo4j", map[string]string{
+		"Label":             c.Label,
+		"EmbeddingProperty": c.EmbeddingProperty,
+		"IDProperty":        c.IDProperty,
+		"TextProperty":      c.TextProperty,
+	})
+}
 
+// ApplyDefaults fills zero fields with documented defaults.
+func (c *StoreConfig) ApplyDefaults() {
+	if c.Context == nil {
+		c.Context = context.Background()
+	}
 	c.Label = cmp.Or(c.Label, DefaultLabel)
 	c.IndexName = cmp.Or(c.IndexName, DefaultIndexName)
 	c.EmbeddingProperty = cmp.Or(c.EmbeddingProperty, DefaultEmbeddingProperty)
@@ -130,13 +139,6 @@ func (c StoreConfig) Validate() error {
 	c.TextProperty = cmp.Or(c.TextProperty, DefaultTextProperty)
 	c.MetadataPrefix = cmp.Or(c.MetadataPrefix, DefaultMetadataPrefix)
 	c.Similarity = cmp.Or(c.Similarity, SimilarityCosine)
-
-	return ident.Check("neo4j", map[string]string{
-		"Label":             c.Label,
-		"EmbeddingProperty": c.EmbeddingProperty,
-		"IDProperty":        c.IDProperty,
-		"TextProperty":      c.TextProperty,
-	})
 }
 
 var _ vectorstore.Store = (*Store)(nil)
@@ -162,6 +164,7 @@ type Store struct {
 
 
 func NewStore(config StoreConfig) (*Store, error) {
+	config.ApplyDefaults()
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}

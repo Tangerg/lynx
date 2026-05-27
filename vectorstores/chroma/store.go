@@ -72,9 +72,6 @@ type StoreConfig struct {
 }
 
 func (c StoreConfig) Validate() error {
-	if c.Context == nil {
-		c.Context = context.Background()
-	}
 	if c.Client == nil {
 		return ErrMissingClient
 	}
@@ -87,10 +84,18 @@ func (c StoreConfig) Validate() error {
 	if c.DocumentBatcher == nil {
 		return ErrMissingDocumentBatcher
 	}
+	return nil
+}
+
+// ApplyDefaults fills zero fields. Context defaults to
+// [context.Background]; DistanceMetric defaults to [DistanceCosine].
+func (c *StoreConfig) ApplyDefaults() {
+	if c.Context == nil {
+		c.Context = context.Background()
+	}
 	if c.DistanceMetric == "" {
 		c.DistanceMetric = DistanceCosine
 	}
-	return nil
 }
 
 var _ vectorstore.Store = (*Store)(nil)
@@ -108,6 +113,7 @@ type Store struct {
 
 
 func NewStore(config StoreConfig) (*Store, error) {
+	config.ApplyDefaults()
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}

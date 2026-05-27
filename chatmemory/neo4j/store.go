@@ -50,11 +50,21 @@ type StoreConfig struct {
 }
 
 func (c StoreConfig) Validate() error {
-	if c.Context == nil {
-		c.Context = context.Background()
-	}
 	if c.Driver == nil {
 		return errors.New("neo4j: Driver is required")
+	}
+	if !identPattern.MatchString(c.Label) {
+		return fmt.Errorf("neo4j: Label=%q must match %s", c.Label, identPattern)
+	}
+	return nil
+}
+
+// ApplyDefaults fills zero fields. Context defaults to
+// [context.Background]; Database defaults to [DefaultDatabase];
+// Label defaults to [DefaultLabel].
+func (c *StoreConfig) ApplyDefaults() {
+	if c.Context == nil {
+		c.Context = context.Background()
 	}
 	if c.Database == "" {
 		c.Database = DefaultDatabase
@@ -62,10 +72,6 @@ func (c StoreConfig) Validate() error {
 	if c.Label == "" {
 		c.Label = DefaultLabel
 	}
-	if !identPattern.MatchString(c.Label) {
-		return fmt.Errorf("neo4j: Label=%q must match %s", c.Label, identPattern)
-	}
-	return nil
 }
 
 var _ memory.Store = (*Store)(nil)
@@ -79,6 +85,7 @@ type Store struct {
 
 // NewStore builds a [Store] from cfg.
 func NewStore(cfg StoreConfig) (*Store, error) {
+	cfg.ApplyDefaults()
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}

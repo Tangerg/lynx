@@ -63,16 +63,23 @@ func (c ToolConfig) Validate() error {
 	if c.Descriptor.Name == "" {
 		return errors.New("mcp.ToolConfig: descriptor has empty name")
 	}
-	if c.PrefixedName == "" {
+	return nil
+}
+
+// ApplyDefaults fills zero fields. PrefixedName defaults to the
+// descriptor's name. Nil Descriptor is left alone — Validate surfaces
+// it as an error.
+func (c *ToolConfig) ApplyDefaults() {
+	if c.PrefixedName == "" && c.Descriptor != nil {
 		c.PrefixedName = c.Descriptor.Name
 	}
-	return nil
 }
 
 // NewTool builds a [chat.Tool] from cfg. cfg.Session must be
 // initialized (returned from (*sdkmcp.Client).Connect) and must outlive
 // the returned Tool.
 func NewTool(cfg ToolConfig) (*Tool, error) {
+	cfg.ApplyDefaults()
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}

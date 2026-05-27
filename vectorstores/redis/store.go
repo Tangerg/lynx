@@ -171,9 +171,6 @@ type StoreConfig struct {
 }
 
 func (c StoreConfig) Validate() error {
-	if c.Context == nil {
-		c.Context = context.Background()
-	}
 	if c.Client == nil {
 		return errors.New("redis: Client is required")
 	}
@@ -183,7 +180,14 @@ func (c StoreConfig) Validate() error {
 	if c.DocumentBatcher == nil {
 		return errors.New("redis: DocumentBatcher is required")
 	}
+	return nil
+}
 
+// ApplyDefaults fills zero fields with documented defaults.
+func (c *StoreConfig) ApplyDefaults() {
+	if c.Context == nil {
+		c.Context = context.Background()
+	}
 	c.IndexName = cmp.Or(c.IndexName, DefaultIndexName)
 	c.KeyPrefix = cmp.Or(c.KeyPrefix, DefaultKeyPrefix)
 	c.ContentField = cmp.Or(c.ContentField, DefaultContentField)
@@ -201,7 +205,6 @@ func (c StoreConfig) Validate() error {
 			c.HNSWEFRuntime = DefaultHNSWEFRuntime
 		}
 	}
-	return nil
 }
 
 var _ vectorstore.Store = (*Store)(nil)
@@ -230,6 +233,7 @@ type Store struct {
 
 
 func NewStore(config StoreConfig) (*Store, error) {
+	config.ApplyDefaults()
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}

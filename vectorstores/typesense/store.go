@@ -66,9 +66,6 @@ type StoreConfig struct {
 }
 
 func (c StoreConfig) Validate() error {
-	if c.Context == nil {
-		c.Context = context.Background()
-	}
 	if c.Client == nil {
 		return errors.New("typesense: Client is required")
 	}
@@ -78,11 +75,18 @@ func (c StoreConfig) Validate() error {
 	if c.DocumentBatcher == nil {
 		return errors.New("typesense: DocumentBatcher is required")
 	}
-	c.CollectionName = cmp.Or(c.CollectionName, DefaultCollectionName)
 	if !ident.Pattern.MatchString(c.CollectionName) {
 		return fmt.Errorf("typesense: CollectionName=%q must be a safe identifier", c.CollectionName)
 	}
 	return nil
+}
+
+// ApplyDefaults fills zero fields with documented defaults.
+func (c *StoreConfig) ApplyDefaults() {
+	if c.Context == nil {
+		c.Context = context.Background()
+	}
+	c.CollectionName = cmp.Or(c.CollectionName, DefaultCollectionName)
 }
 
 var _ vectorstore.Store = (*Store)(nil)
@@ -99,6 +103,7 @@ type Store struct {
 
 
 func NewStore(config StoreConfig) (*Store, error) {
+	config.ApplyDefaults()
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}

@@ -94,6 +94,7 @@ type Provider struct {
 // NewProvider creates a Provider from cfg. cfg.Sources may be empty;
 // the returned Provider then exposes an empty tool list.
 func NewProvider(cfg ProviderConfig) (*Provider, error) {
+	cfg.ApplyDefaults()
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
