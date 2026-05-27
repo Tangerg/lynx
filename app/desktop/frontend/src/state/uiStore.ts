@@ -37,6 +37,16 @@ interface UiState {
   /** Pixel font-size on <html>. Null = browser default (16px) so existing
    *  rem tokens stay calibrated. Range: 13–18 in the picker. */
   fontSize: number | null;
+  /** Global radius multiplier — Tailwind 4 `rounded-*` utilities read
+   *  `var(--radius-*)` tokens, and each token multiplies by
+   *  `--radius-scale`, so any value here propagates to every corner
+   *  in the app. 1 = default, < 1 = sharper, > 1 = softer. */
+  radiusScale: number;
+  /** Global motion multiplier — applies to the CSS `--dur-*` tokens
+   *  (CSS keyframes, our `transition` shorthands, KaTeX) AND to the
+   *  motion/react presets in lib/motion.ts via the same scale. 0 =
+   *  effectively off (blanket 1ms overrides apply), 1 = default. */
+  motionScale: number;
   /** "bubble" (default): user messages render as right-aligned cards with
    *  rounded corners + surface-2 fill. "plain": user messages match the
    *  assistant's flat layout — left-aligned, no bubble. */
@@ -58,6 +68,8 @@ interface UiActions {
   setUiFont: (font: string) => void;
   setCodeFont: (font: string) => void;
   setFontSize: (size: number | null) => void;
+  setRadiusScale: (scale: number) => void;
+  setMotionScale: (scale: number) => void;
   setMessageStyle: (style: "bubble" | "plain") => void;
   toggleSidebar: () => void;
 }
@@ -70,6 +82,8 @@ export const useUiStore = create<UiState & UiActions>()(
       uiFont: "",
       codeFont: "",
       fontSize: null,
+      radiusScale: 1,
+      motionScale: 1,
       messageStyle: "bubble",
       sidebarRail: true,
 
@@ -93,13 +107,15 @@ export const useUiStore = create<UiState & UiActions>()(
       setUiFont: (uiFont) => set({ uiFont }),
       setCodeFont: (codeFont) => set({ codeFont }),
       setFontSize: (fontSize) => set({ fontSize }),
+      setRadiusScale: (radiusScale) => set({ radiusScale }),
+      setMotionScale: (motionScale) => set({ motionScale }),
       setMessageStyle: (messageStyle) => set({ messageStyle }),
       toggleSidebar: () => set((s) => ({ sidebarRail: !s.sidebarRail })),
     }),
     {
       name: "lyra.ui",
       storage: createJSONStorage(() => localStorage),
-      version: 1,
+      version: 2,
     },
   ),
 );
@@ -194,12 +210,30 @@ function applyFonts(uiFont: string, codeFont: string, fontSize: number | null) {
   }
 }
 
+// Apply shape + motion preferences to :root. Both are scalar CSS vars
+// that ripple through Tailwind 4's `@theme inline` token bridge — so
+// `--radius-scale` instantly re-rounds every `rounded-*` utility in
+// the app, and `--motion-scale` re-paces every `--dur-*` token in the
+// app's CSS-controlled animations. lib/motion.ts also reads
+// `motionScale` from this store for the motion/react preset durations.
+function applyShape(radiusScale: number, motionScale: number) {
+  const root = document.documentElement;
+  root.style.setProperty("--radius-scale", String(radiusScale));
+  root.style.setProperty("--motion-scale", String(motionScale));
+  // `data-motion="off"` triggers the blanket transition/animation
+  // override in globals.css so even Tailwind's literal-ms durations
+  // (which can't be multiplied via a CSS var) collapse to ~0.
+  if (motionScale === 0) root.setAttribute("data-motion", "off");
+  else root.removeAttribute("data-motion");
+}
+
 // Persist middleware rehydrates synchronously on store creation, so
 // getState() already reflects persisted values.
 {
   const s = useUiStore.getState();
   applyTheme(s.theme, s.accent);
   applyFonts(s.uiFont, s.codeFont, s.fontSize);
+  applyShape(s.radiusScale, s.motionScale);
 }
 const unsubUi = useUiStore.subscribe((state, prev) => {
   if (state.theme !== prev.theme || state.accent !== prev.accent) {
@@ -211,6 +245,9 @@ const unsubUi = useUiStore.subscribe((state, prev) => {
     state.fontSize !== prev.fontSize
   ) {
     applyFonts(state.uiFont, state.codeFont, state.fontSize);
+  }
+  if (state.radiusScale !== prev.radiusScale || state.motionScale !== prev.motionScale) {
+    applyShape(state.radiusScale, state.motionScale);
   }
 });
 
