@@ -1,422 +1,664 @@
 # Lyra API Contract
 
-> Single source of truth for the wire between the Lyra frontend (React/TS via
-> `@ag-ui/client`) and the backend (today: Go mock at `internal/agui/`; tomorrow:
-> real LLM provider + tool execution + persistence).
+> Single source of truth for the wire between any Lyra frontend and any Lyra
+> backend. Designed for an **m × n deployment matrix** — frontend variant
+> doesn't know which backend it's talking to, backend variant doesn't know
+> which frontend is calling. The protocol is the only thing they share.
 >
-> Audience: anyone wiring a new endpoint, adding a CUSTOM event, or swapping the
-> mock for a real backend. Cross-referenced from `frontend/ARCHITECTURE.md` §5
-> (AG-UI protocol layer) and `frontend/src/domain/` (typed gateway contracts).
+> Audience: anyone implementing a new frontend (web / packaged-web / TUI /
+> mobile), porting the backend (embedded in a client / standalone server /
+> managed cloud), or evolving the contract itself.
 
 ---
 
-## 0. Status snapshot (2026-05-27)
+## 0. Architecture model
 
-| Surface | Today | Real-backend gap |
+### 0.1 The m × n matrix
+
+| ↓ Frontend / Backend → | Embedded (in-client) | Standalone server | Managed (multi-tenant) |
+| --- | --- | --- | --- |
+| **Web (browser)** | n/a (no client to embed in) | ✓ | ✓ |
+| **Packaged web** (Wails / Tauri / Electron) | ✓ (loopback) | ✓ | ✓ |
+| **TUI** (terminal) | ✓ (loopback) | ✓ | ✓ |
+| **Mobile** (RN / native, future) | n/a | ✓ | ✓ |
+
+Three frontend kinds × three backend kinds = 9 viable combinations. **Every
+combination uses the same wire protocol.** No frontend imports backend types,
+no backend assumes frontend co-location.
+
+### 0.2 Consequences for the API design
+
+- **HTTP/1.1 + HTTP/2 over TCP only.** No platform-specific IPC, no
+  shared-memory shortcuts, no native bindings (Wails / Tauri / Electron
+  bridges). The packaged-web variants point their HTTP client at
+  `http://127.0.0.1:<port>` when embedded — same client as the browser case.
+- **Auth is required from day one.** Even loopback. The packaged-web variant
+  ships a token alongside the embedded backend at install time; the browser
+  variant negotiates one via the auth flow. No "trust because same machine".
+- **Capability discovery is non-optional.** Frontend X built today may talk
+  to backend Y built tomorrow — features only enabled by both sides.
+- **Schema is the only API.** OpenAPI + AsyncAPI files are the SSOT,
+  type-generated to TS / Go / Rust / Python / whatever consumes them.
+  No language-specific shortcuts.
+- **Stateless where possible.** Backend may run behind a load balancer with
+  N replicas. Session affinity is opt-in (via `X-Session-Affinity` header)
+  not a baked-in assumption.
+- **Streams must be resumable.** Network flakes, browser tabs sleep, TUI
+  reconnects on `^Z fg`. SSE uses `Last-Event-ID` to replay missed events.
+
+### 0.3 Frontend variants — what each needs
+
+| Variant | Transport surface | Notes |
 | --- | --- | --- |
-| Streaming events (`POST /run` SSE) | All 16 AG-UI standard events + 7 `lyra.*` CUSTOM events emitted from fixture DSL | Replace fixture DSL with real LLM call + tool execution. Protocol unchanged. |
-| REST sidebar / workspace data | 8 GET endpoints serve hard-coded fixtures | Wire to real filesystem / git / ripgrep / pty / MCP. |
-| HITL approval | `POST /permission` unblocks an in-memory chan | Surface decision to the real tool-execution path (abort vs resume). |
-| Plugin sideload | `GET /plugins` returns empty manifest | Optional — only required if a marketplace ships. |
-| Auth / multi-user | Not present | Add when product needs it. Single-user desktop today. |
-| Persistence | None (process-local) | Required for "history survives launch". |
+| **Web** | `fetch` + `EventSource` | CORS preflight; cookie or Bearer auth; relative URLs from served origin. |
+| **Packaged web** | Same HTTP stack (Wails / Tauri / Electron route through their WebView's fetch) | Embedded backend listens on `127.0.0.1:0` (random port), token written to local config at startup; remote backends look identical. |
+| **TUI** | `node-fetch` / `reqwest` / Go `net/http` + SSE library | No CORS (server-to-server); typically Bearer auth via env var or `~/.config/lyra/token`. |
 
-**Mock base URL**: `http://127.0.0.1:17171` (defined in `frontend/src/main/config.ts` as `AGUI_BASE`).
-Override at runtime via plugin config: `host.config.set("api.baseUrl", "https://…")`.
+### 0.4 Backend variants — what each provides
+
+| Variant | Listens on | Auth defaults | Persistence |
+| --- | --- | --- | --- |
+| **Embedded** | `127.0.0.1:0` only (no LAN exposure) | Generated token in local config, single-user | SQLite next to the client binary |
+| **Standalone server** | `0.0.0.0:port`, configurable | Required: Bearer token / API key | SQLite (small) or Postgres (large) |
+| **Managed cloud** | Behind LB / reverse proxy | OAuth + per-tenant token | Postgres, multi-tenant via workspace id |
+
+All three speak the same wire protocol. Differences are only in
+deployment / persistence / auth strength.
 
 ---
 
-## 1. Streaming events — `POST /run` (SSE)
+## 1. Status snapshot (2026-05-27)
 
-Single endpoint, one body, one event stream out. This is the spine of the agent UX.
+| Surface | Today | Gap to ship m × n |
+| --- | --- | --- |
+| Streaming events (`/run` SSE) | All 16 AG-UI standard + 7 `lyra.*` CUSTOM events from a fixture DSL | Replace fixture with real LLM call + real tool execution. Add `Last-Event-ID` resume. |
+| REST endpoints | 13 endpoints serving fixtures | Add capabilities / auth / sessions CRUD / messages pagination / attachments / providers / models / tools / cancel — see §4 |
+| HITL approval | `POST /permission` unblocks an in-memory chan | Make idempotent + tie to a running run id (not a global chan). |
+| Auth | None | Required from day one — Bearer token. See §3.2. |
+| Workspaces | None | URL-prefixed (`/v1/workspaces/{ws}/…`) when multi-tenant. |
+| Schema SSOT | Hand-typed shapes in `frontend/src/lib/queries.ts` | OpenAPI 3.1 + AsyncAPI 2.6 generated to TS + Go. See §6. |
+| Versioning | None | URL prefix `/v1/` + `X-Lyra-Protocol-Version` header. |
 
-### 1.1 Request
+Mock backend listens on `http://127.0.0.1:17171` today; frontends configure
+that via `host.config.set("api.baseUrl", "…")`. **No code in the frontend
+assumes the backend is local.**
+
+---
+
+## 2. Wire principles
+
+The constant rules that every endpoint inherits. **Anything new MUST follow
+these — they're what makes the m × n matrix actually work.**
+
+### 2.1 Transport
+
+| Topic | Rule |
+| --- | --- |
+| **Protocol** | HTTP/1.1 or HTTP/2 over TCP. TLS required for non-loopback. |
+| **Content types** | Requests / responses default to `application/json; charset=utf-8`. Streams are `text/event-stream`. Uploads are `multipart/form-data`. |
+| **Versioning** | URL prefix `/v1/`. Mismatch returns `426 Upgrade Required` with the supported versions in `Sunset` header. |
+| **CORS** | Server backends must implement `Access-Control-Allow-Origin` echoing the configured allowed origins. Embedded backends allow `null` (file:// origin) + `127.0.0.1`. |
+| **Compression** | `Accept-Encoding: gzip, br` honoured for JSON responses; SSE streams are never compressed (latency > size). |
+| **Heartbeats** | SSE streams emit a `:heartbeat\n\n` comment every 15s so reverse proxies don't time out. |
+
+### 2.2 Identity & versioning headers
+
+Every request:
 
 ```http
-POST /run HTTP/1.1
+Authorization: Bearer <token>
+X-Lyra-Client: lyra-web/0.4.2          // <kind>/<version>
+Idempotency-Key: 0193…d8b5             // UUID v7, required on POST/PUT/PATCH
+Accept-Language: en-US, zh-CN;q=0.8    // for localized error messages
+```
+
+Every response:
+
+```http
+X-Lyra-Server: lyra-core/0.8.1
+X-Lyra-Protocol-Version: 1.2.0         // semver of the wire contract
+X-Lyra-Request-ID: 0193…d8b5           // echoed back for tracing
+X-Lyra-Workspace: ws_abc               // when scoped
+```
+
+### 2.3 Auth
+
+| Variant | Token source | Renewal |
+| --- | --- | --- |
+| Embedded | Generated at install, written to `$XDG_CONFIG_HOME/lyra/token` (client reads same file) | No renewal — regenerate on reinstall |
+| Standalone | Operator-issued static token (env var `LYRA_TOKEN`) OR `POST /v1/auth/login` for username/password | `POST /v1/auth/refresh` returns a new pair |
+| Managed | OAuth 2.1 + PKCE (`/v1/auth/authorize` + `/v1/auth/token`) | Refresh token rotation |
+
+Frontend probes `GET /v1/info` (unauthenticated) to discover which mechanism
+this backend uses, then dispatches to the right flow. **Backend MUST never
+serve any non-`/v1/info`, non-`/v1/auth/*` endpoint without a valid token.**
+
+### 2.4 Errors — RFC 7807 Problem Details
+
+```ts
+interface ProblemDetails {
+  type: string;       // URI: "https://lyra.dev/problems/rate-limit"
+  title: string;      // human-readable summary
+  status: number;     // HTTP status mirror
+  detail?: string;    // longer explanation
+  instance?: string;  // request id (mirrors X-Lyra-Request-ID)
+  errors?: Array<{ path: string; message: string }>;  // for 422
+}
+```
+
+Every non-2xx response is a ProblemDetails JSON. Frontends normalise to
+this via a single interceptor regardless of which backend variant they hit.
+
+### 2.5 Idempotency
+
+POSTs that mutate state require `Idempotency-Key`. Server stores the
+`(key, response)` pair for 24h and replays the same response on retry —
+covers the "user clicks Send, network flaps, client retries" case.
+
+Applies to: `POST /run`, `POST /sessions`, `POST /attachments`,
+`POST /messages/{id}/edit`, `POST /run/{id}/cancel`.
+
+### 2.6 Pagination
+
+Cursor-based:
+
+```
+GET /v1/sessions?limit=20&cursor=eyJpZCI6InNlc3NfMTIzIn0
+→ { items: [...], nextCursor?: "...", hasMore: boolean }
+```
+
+No offset / total-count by default — both break on real-world workloads. A
+dedicated `?countOnly=true` query exists for the rare case where the
+frontend needs the total.
+
+### 2.7 Time, IDs, locale
+
+| Thing | Format |
+| --- | --- |
+| Timestamps | ISO-8601 with timezone: `"2026-05-27T12:34:56.789Z"`. Always UTC on the wire, frontends format via `Intl.DateTimeFormat`. |
+| Durations | Milliseconds, integer (e.g. `runDurationMs: 1234`). |
+| IDs | Server-generated UUID v7 by default (sortable + monotonic). Client-supplied IDs allowed where idempotency matters; server stores both `id` (server-assigned) and `clientId` (optional). |
+| Locale | `Accept-Language` request header; server returns localized strings in error `title` / `detail` only. Domain data stays in source language. |
+
+### 2.8 Backpressure & resumability
+
+| Mechanism | Where | Behaviour |
+| --- | --- | --- |
+| **SSE heartbeats** | All streams | `:heartbeat\n\n` every 15s |
+| **`Last-Event-ID`** | Frontend SSE reconnect | Server replays events with `id > Last-Event-ID` for the same `runId`, capped at a 30s replay window |
+| **HTTP/2 flow control** | Long uploads / replays | Automatic, no app code |
+| **Rate limit** | All endpoints | `429 + Retry-After: <seconds>`. Type `/problems/rate-limit`. |
+| **Cancellation** | `/run` SSE | Client closes connection AND optionally calls `POST /run/{id}/cancel` for explicit cleanup |
+
+---
+
+## 3. Streaming events — `POST /v1/run` (SSE)
+
+### 3.1 Request
+
+```http
+POST /v1/workspaces/{ws}/run HTTP/1.1
+Authorization: Bearer <token>
+Idempotency-Key: 0193…
 Content-Type: application/json
 Accept: text/event-stream
+Last-Event-ID: 1234         (optional, on reconnect)
 ```
 
 ```ts
 interface RunInput {
-  /** Conversation / thread id. Lyra calls it sessionId. */
-  threadId: string;
-  /** Optional run id; backend generates if omitted. Same `runId` is echoed
-   *  back on every event so the reducer can correlate. */
-  runId?: string;
-  /** Conversation history + the new user turn appended. */
-  messages: Message[];
-  /** Last `shared` state the backend handed us (for resume / reconnect). */
-  state?: Record<string, unknown>;
-  /** Tools the backend is allowed to call (when running tool use). */
-  tools?: ToolSpec[];
-  /** File / URL / selection references the user attached. */
-  context?: ContextItem[];
-  /** Lyra extensions — non-AG-UI but harmless if the backend ignores them. */
-  model?: string;
-  mode?: "agent" | "chat" | "plan"; // composer mode
-  attachments?: string[]; // attachment ids (see §2.B `POST /attachments`)
-  capabilities?: ClientCapabilities; // what CUSTOM events the client renders
+  threadId: string;            // == sessionId
+  runId?: string;              // server generates if omitted; UUID v7
+  messages: Message[];         // history + new turn
+  state?: Record<string, unknown>;  // resume state
+  tools?: ToolSpec[];          // client-supplied tools (rare — usually server-side)
+  context?: ContextItem[];     // file / URL / selection refs
+  model?: string;              // explicit provider/model id
+  mode?: "agent" | "chat" | "plan";
+  attachments?: string[];      // ids from POST /attachments
+  capabilities?: ClientCapabilities;  // events / blocks the client renders
 }
 ```
 
-`Message`, `ToolSpec`, `ContextItem` shapes follow
-[`@ag-ui/core`](https://github.com/ag-ui-protocol/ag-ui/tree/main/sdks/typescript/packages/core).
+### 3.2 Response (SSE)
 
-### 1.2 Response (SSE)
+Each event is `id: <seq>\nevent: <type>\ndata: {…}\n\n`. `<seq>` is a
+monotonic per-run integer used by `Last-Event-ID` for resume.
 
-`Content-Type: text/event-stream`. Each event is a JSON-encoded `BaseEvent`
-emitted as `data: {…}\n\n`. The frontend reducer at
-`frontend/src/protocol/agui/reducer.ts` folds each event into the per-session
-`AgentViewState`.
+#### 3.2.1 AG-UI standard events (16) — backbone of the agent UX
 
-#### 1.2.1 AG-UI standard events (16)
+| Group | Events |
+| --- | --- |
+| Lifecycle | `RUN_STARTED` / `RUN_FINISHED` / `RUN_ERROR` |
+| Step | `STEP_STARTED` / `STEP_FINISHED` |
+| Text | `TEXT_MESSAGE_START` / `_CONTENT` / `_END` / `_CHUNK` |
+| Tool call | `TOOL_CALL_START` / `_ARGS` / `_END` / `_CHUNK` / `_RESULT` |
+| Reasoning | `REASONING_MESSAGE_START` / `_CONTENT` / `_END` / `_CHUNK` + `THINKING_TEXT_MESSAGE_*` |
+| Shared state | `STATE_SNAPSHOT` / `STATE_DELTA` (RFC 6902 JSON Patch) |
+| History | `MESSAGES_SNAPSHOT` |
+| Per-message activity | `ACTIVITY_SNAPSHOT` / `ACTIVITY_DELTA` |
+| Extension | `CUSTOM` / `RAW` |
 
-| Group | Events | Purpose |
+#### 3.2.2 Lyra CUSTOM events — `event.type === "CUSTOM"`, dispatched by `event.name`
+
+| `name` | Payload | Purpose |
 | --- | --- | --- |
-| Lifecycle | `RUN_STARTED` / `RUN_FINISHED` / `RUN_ERROR` | one user turn boundary |
-| Step | `STEP_STARTED` / `STEP_FINISHED` | sub-phases (planning, searching, executing) |
-| Text | `TEXT_MESSAGE_START` / `_CONTENT` / `_END` / `_CHUNK` | assistant reply, streamed token deltas |
-| Tool call | `TOOL_CALL_START` / `_ARGS` / `_END` / `_CHUNK` / `_RESULT` | function-call lifecycle |
-| Reasoning | `REASONING_MESSAGE_START` / `_CONTENT` / `_END` / `_CHUNK` + `THINKING_TEXT_MESSAGE_*` | Claude-style extended thinking |
-| Shared state | `STATE_SNAPSHOT` / `STATE_DELTA` (RFC 6902 JSON Patch) | backend-owned `shared` blob |
-| Bulk history | `MESSAGES_SNAPSHOT` | reconnect / thread-switch rehydrate |
-| Per-message activity | `ACTIVITY_SNAPSHOT` / `ACTIVITY_DELTA` | structured side-data scoped to one message |
-| Extension | `CUSTOM` / `RAW` | application-defined |
+| `lyra.plan` | `{ items: PlanItem[] }` | Replaces `state.plan` |
+| `lyra.plan-block` | `{ messageId }` | Attaches a `plan` content block |
+| `lyra.code-proposal` | `{ parentMessageId, lang, file, text }` | Diff proposal block |
+| `lyra.search-results` | `{ parentMessageId, results }` | Search results block |
+| `lyra.approval` | `{ requestId, parentMessageId, text, command, reason, risk?, scope?, target?, reversible? }` | HITL approval block |
+| `lyra.approval-result` | `{ requestId, decision }` | Server confirms received decision |
+| `lyra.telemetry` | free-form | Perf / debug signals |
 
-#### 1.2.2 Lyra CUSTOM events (`event.type === "CUSTOM"`, distinguished by `event.name`)
+#### 3.2.3 Reserved for future iterations (from kimi-code / agent-chat-ui audits)
 
-| `name` | Payload | Reducer / handler |
+| `name` | Payload | Source |
 | --- | --- | --- |
-| `lyra.plan` | `{ items: PlanItem[] }` | replaces `state.plan` |
-| `lyra.plan-block` | `{ messageId: string }` | attaches a `plan` content block to a message |
-| `lyra.code-proposal` | `{ parentMessageId, lang, file, text }` | attaches a `code` block (diff proposal) |
-| `lyra.search-results` | `{ parentMessageId, results: SearchResult[] }` | attaches a `search` block |
-| `lyra.approval` | `{ parentMessageId, requestId, text, command, reason, risk?, scope?, target?, reversible? }` | materialises an `approval` block (status="requires-action") |
-| `lyra.approval-result` | `{ requestId, decision: "approved" \| "declined" }` | flips the matching `approval` block to status="complete" + stamps `decision` |
-| `lyra.telemetry` | free-form | optional perf / debug signals |
+| `lyra.interrupt` | `{ requestId, kind: "approve" \| "edit" \| "reject", display }` | LangGraph-style interrupt with structured display |
+| `lyra.resume` | `{ requestId, decision }` | Counterpart to `interrupt` |
+| `lyra.checkpoint` | `{ messageId, parentCheckpoint }` | Edit-and-re-run from a prior message |
+| `lyra.meta` | `{ kind: "thumbs-up" \| "thumbs-down" \| "note" \| "bookmark", refId, value }` | RLHF feedback (ag-ui draft) |
+| `lyra.subagent.spawned` / `.completed` / `.failed` | `{ parentRunId, subRunId, … }` | Nested agent calls |
+| `lyra.background.started` / `.updated` / `.terminated` | `{ taskId, label, progress?, exitCode? }` | Long-running background tasks (kimi-code shape) |
+| `lyra.compaction.started` / `.completed` | `{ summary, tokensBefore, tokensAfter }` | Context window compaction (Phase 4 backlog) |
 
-Schemas live in `frontend/src/protocol/agui/schemas.ts` (Zod) — re-use those for
-generating Go structs.
-
-#### 1.2.3 Proposed new CUSTOM events (when these features land)
-
-| `name` | Maps to | Source idea |
-| --- | --- | --- |
-| `lyra.interrupt` | inline HITL pause (not approval, more like LangGraph interrupt) | agent-chat-ui |
-| `lyra.resume` | response to an interrupt (user picks `approve` / `edit` / `reject`) | agent-chat-ui |
-| `lyra.checkpoint` | `{ messageId, parentCheckpoint }` — used by "edit message + re-run" | agent-chat-ui |
-| `lyra.meta` | `{ kind: "thumbs-up" \| "thumbs-down" \| "note" \| "bookmark", refId, value }` | ag-ui draft MetaEvent |
-| `lyra.subagent.*` | nested agent invocation lifecycle | cline |
+All CUSTOM event payloads MUST have a Zod schema in
+`frontend/src/protocol/agui/schemas.ts` AND a Go mirror generated from
+`schemas/events.yaml` (see §6).
 
 ---
 
-## 2. REST endpoints
+## 4. REST endpoints
 
-### 2.A Existing (mock today, replace with real impl)
+URLs are workspace-scoped when the backend is multi-tenant
+(`/v1/workspaces/{ws}/…`); the workspace prefix is dropped for embedded
+single-user backends. Path templates below show the non-workspace form
+for brevity.
 
-All return JSON. `*` marks the ones the frontend already calls.
+### 4.1 Discovery & auth — required on every backend variant
 
-| Method | Path | Frontend caller | Response | Notes |
-| --- | --- | --- | --- | --- |
-| `POST` | `/run` | `useAgentSession.runAgent` * | SSE stream (§1) | Body = `RunInput`. |
-| `POST` | `/permission` | `HttpPermissionGateway.submit` * | `{}` or 4xx | Body = `{ requestId, decision }`. |
-| `GET` | `/health` | (none) | `{ status: "ok", version, uptimeMs }` | Liveness probe — surface in Connection Settings. |
-| `GET` | `/sessions` | `useSessions` * | `SidebarSession[]` | Sidebar list. |
-| `GET` | `/projects` | `useProjects` * | `SidebarProject[]` | Workspace list. |
-| `GET` | `/files-changed` | `useFilesChanged` * | `FileChange[]` | Diff view. |
-| `GET` | `/diff` | `useDiff` * | `DiffRow[]` | Unified diff rows. |
-| `GET` | `/terminal` | `useTerminal` * | `TermLine[]` | Terminal view. |
-| `GET` | `/grep` | `useGrep` * | `GrepResult` | Code search. |
-| `GET` | `/file-head` | `useFileHead` * | `FileLine[]` | File preview. |
-| `GET` | `/mcp-servers` | `useMCPServers` * | `MCPServer[]` | MCP server list. |
-| `GET` | `/plugins` | `loadSideloadedPlugins` * | `PluginManifest[]` | Sideload manifest. |
-| `GET` | `/plugins/{id}/*` | dynamic `import()` | JS bundle / asset | Plugin asset proxy. |
+| P | Method | Path | Purpose |
+| --- | --- | --- | --- |
+| P0 | `GET` | `/v1/info` | **Unauthenticated.** Returns `{ server, protocolVersion, authKinds, instanceLabel }` so a fresh frontend knows where it is and how to log in. |
+| P0 | `GET` | `/v1/capabilities` | Requires auth. Returns supported events / providers / tools / features (see §5.1). |
+| P0 | `GET` | `/v1/health` | Liveness probe. `{ status: "ok"\|"degraded", checks: {...} }`. |
+| P0 | `POST` | `/v1/auth/login` | Username/password → token pair. Server may also accept API key. |
+| P0 | `POST` | `/v1/auth/refresh` | Refresh-token rotation. |
+| P0 | `POST` | `/v1/auth/logout` | Server-side token invalidation. |
+| P1 | `GET` | `/v1/me` | Current user profile + workspace list. |
+| P1 | `POST` | `/v1/auth/authorize` + `/v1/auth/token` | OAuth 2.1 + PKCE for managed cloud. |
 
-Response shapes are declared in `frontend/src/lib/queries.ts` (the only file
-that types the wire format for these). Treat that file as the
-**frontend-side schema source**.
+### 4.2 Sessions, messages, runs — the core conversation surface
 
-### 2.B New (required for real backend)
+| P | Method | Path | Purpose |
+| --- | --- | --- | --- |
+| P0 | `POST` | `/v1/run` | Start a run, returns SSE stream (§3). |
+| P0 | `POST` | `/v1/run/{runId}/cancel` | Explicit cancel; idempotent. |
+| P0 | `POST` | `/v1/run/{runId}/permission` | HITL decision. Body: `{ requestId, decision, reason? }`. Replaces today's `POST /permission`. |
+| P0 | `GET` | `/v1/sessions` | List sessions. Cursor-paginated. |
+| P0 | `POST` | `/v1/sessions` | Create. Body: `{ title?, model?, metadata? }`. |
+| P0 | `GET` | `/v1/sessions/{id}` | Read one (metadata + last activity). |
+| P0 | `PATCH` | `/v1/sessions/{id}` | Rename / pin / metadata patch. |
+| P0 | `DELETE` | `/v1/sessions/{id}` | Cascade delete. |
+| P0 | `GET` | `/v1/sessions/{id}/messages` | Cursor-paginated history. Replaces "bulk `MESSAGES_SNAPSHOT` on every reconnect". |
+| P1 | `POST` | `/v1/sessions/{id}/messages/{msgId}/edit` | Edit-and-re-run from a checkpoint. Returns `{ runId, checkpoint }` and emits `lyra.checkpoint` on the run SSE. |
+| P1 | `POST` | `/v1/sessions/{id}/fork` | Branch a session at a checkpoint. |
+| P2 | `GET` | `/v1/sessions/{id}/export?format=md\|json` | Server-rendered export. |
 
-Sorted by priority — P0 must land before "real LLM hooked up", P1 before
-"shippable to a second user", P2 is nice-to-have.
+### 4.3 Workspace data (the "panels" frontends render)
 
-| P | Method | Path | Body / response | Why |
-| --- | --- | --- | --- | --- |
-| **P0** | `GET` | `/capabilities` | `{ events: string[], providers: string[], tools: ToolSpec[], features: Record<string, boolean> }` | Lets the frontend gate UI on what the backend actually supports. ag-ui-official-recommended. |
-| **P0** | `POST` | `/run/{runId}/cancel` | `{}` or 409 | Explicit cancel beats relying only on client-side `agent.abortRun()`. |
-| **P0** | `POST` | `/sessions` | `{ title?, model? }` → `SidebarSession` | Create. |
-| **P0** | `PATCH` | `/sessions/{id}` | `{ title?, pinned? }` → `SidebarSession` | Rename / pin. |
-| **P0** | `DELETE` | `/sessions/{id}` | `{}` or 404 | Delete + cascade. |
-| **P0** | `GET` | `/sessions/{id}/messages?before=<msgId>&limit=N` | `{ messages: Message[], cursor?: string }` | Pagination — replaces "send full `MESSAGES_SNAPSHOT` on every reconnect". |
-| **P1** | `POST` | `/messages/{id}/edit` | `{ text }` → `{ runId, checkpoint }` | Edit-and-re-run from a prior message. Emits a `lyra.checkpoint` event. |
-| **P1** | `POST` | `/attachments` | multipart → `{ id, url, kind, size, sha256 }` | File / image uploads referenced by messages. |
-| **P1** | `GET` | `/providers` | `Provider[]` | LLM provider registry (OpenAI / Anthropic / local / …). |
-| **P1** | `POST` | `/providers/{id}/test` | `{ apiKey, baseUrl? }` → `{ ok, modelsAvailable }` | Validate creds without listing models. |
-| **P1** | `GET` | `/models?provider=<id>` | `Model[]` | Per-provider model list. |
-| **P1** | `GET` | `/tools` | `ToolSpec[]` (JSON Schema for params) | Drives composer autocomplete + tools workspace view. |
-| **P2** | `POST` | `/feedback` | `{ refId, kind, value }` | Alternative to `lyra.meta` if you prefer REST. |
-| **P2** | `GET` | `/export/sessions/{id}.{md\|json}` | file download | Server-rendered export (the client-side `conversation-export` plugin still works without this). |
-| **P2** | `GET` | `/version` | `{ semver, commit, channel }` | Frontend version-check banner. |
-| **P2** | `GET` | `/telemetry/optin` / `POST /telemetry/optin` | `{ enabled }` | Privacy consent toggle. |
+These mirror the fixture endpoints Lyra already has. Backend variant decides
+how to populate them (real filesystem / git / pty for embedded; managed
+storage for cloud).
 
-### 2.C Auth / multi-user (when product needs it)
+| P | Method | Path | Purpose |
+| --- | --- | --- | --- |
+| P0 | `GET` | `/v1/workspace/files-changed` | Diff overview. |
+| P0 | `GET` | `/v1/workspace/diff?path=…` | Unified diff for one file. |
+| P0 | `GET` | `/v1/workspace/file-head?path=…` | File preview. |
+| P0 | `GET` | `/v1/workspace/grep?q=…` | Code search. |
+| P0 | `GET` | `/v1/workspace/terminal/{runId}/output` | pty output stream for a tool's terminal session. |
+| P0 | `GET` | `/v1/workspace/projects` | Project list (when backend manages multiple). |
+| P0 | `GET` | `/v1/workspace/mcp-servers` | Registered MCP servers + status. |
+| P1 | `POST` | `/v1/workspace/mcp-servers/{id}/reconnect` | Re-establish an MCP connection. |
+| P1 | `GET` | `/v1/workspace/skills` | Available skills (kimi-code-style) when supported. |
 
-| Method | Path | Notes |
-| --- | --- | --- |
-| `POST` | `/auth/login` | OAuth code exchange or API key swap. |
-| `POST` | `/auth/refresh` | Refresh-token rotation. |
-| `POST` | `/auth/logout` | Server-side session invalidation. |
-| `GET` | `/me` | Current user profile. |
-| `GET` | `/workspaces` | Multi-workspace switcher. |
+### 4.4 Providers, models, tools — what the agent can use
 
-Current Lyra targets single-user desktop — defer until shipped to a second user.
+| P | Method | Path | Purpose |
+| --- | --- | --- | --- |
+| P0 | `GET` | `/v1/providers` | LLM provider registry. |
+| P0 | `POST` | `/v1/providers/{id}/test` | Validate creds. |
+| P0 | `GET` | `/v1/models?provider=…` | Per-provider model list. |
+| P0 | `GET` | `/v1/tools` | Tool registry with JSON-Schema params. |
+
+### 4.5 Attachments & artefacts
+
+| P | Method | Path | Purpose |
+| --- | --- | --- | --- |
+| P1 | `POST` | `/v1/attachments` | Multipart upload, returns `{ id, url, sha256, … }`. |
+| P1 | `GET` | `/v1/attachments/{id}` | Download (signed URL preferred). |
+| P1 | `DELETE` | `/v1/attachments/{id}` | Garbage-collect. |
+| P2 | `GET` | `/v1/artefacts/{runId}/{name}` | Tool-emitted artefacts (rendered diagrams, generated files). |
+
+### 4.6 Background tasks (kimi-code-inspired, when backend supports them)
+
+| P | Method | Path | Purpose |
+| --- | --- | --- | --- |
+| P1 | `GET` | `/v1/background` | Active tasks across the workspace. |
+| P1 | `POST` | `/v1/background/{taskId}/stop` | Stop a task. |
+| P1 | `GET` | `/v1/background/{taskId}/output?tail=N` | Tail output. |
+
+### 4.7 Plugin sideload (optional — frontend feature, but backend hosts the bundle)
+
+| P | Method | Path | Purpose |
+| --- | --- | --- | --- |
+| P2 | `GET` | `/v1/plugins` | Plugin manifest (when marketplace ships). |
+| P2 | `GET` | `/v1/plugins/{id}/*` | Plugin asset proxy. |
+
+### 4.8 Feedback, version, telemetry
+
+| P | Method | Path | Purpose |
+| --- | --- | --- | --- |
+| P2 | `POST` | `/v1/feedback` | RLHF — alternative to the `lyra.meta` CUSTOM event when frontend prefers REST. |
+| P2 | `GET` | `/v1/version` | `{ server, protocolVersion, channel, releasedAt }`. |
+| P2 | `GET` | `/v1/telemetry/optin` + `POST /v1/telemetry/optin` | Privacy consent toggle. |
 
 ---
 
-## 3. Request / response shapes
+## 5. Shapes
 
-> These are the wire-level shapes. Where the frontend has them already, the
-> file path is given. New shapes should be added to `frontend/src/lib/queries.ts`
-> or a new `frontend/src/domain/models/` file and **mirrored in Go**.
-
-### 3.1 Shared
+### 5.1 Capabilities — what a backend exposes
 
 ```ts
-// AG-UI standard — re-exported from @ag-ui/core
-interface Message {
+interface Capabilities {
+  protocol: {
+    version: string;          // semver of the wire contract
+    minClientVersion?: string;
+  };
+  events: {
+    standard: string[];       // AG-UI events emitted
+    custom: string[];         // lyra.* events emitted
+  };
+  features: {
+    multimodal: boolean;       // accepts image attachments
+    reasoning: boolean;        // emits REASONING_MESSAGE_*
+    checkpoints: boolean;      // supports edit-and-re-run
+    interrupts: boolean;       // supports inline HITL interrupts
+    background: boolean;       // emits + manages background tasks
+    subagents: boolean;        // emits subagent.* events
+    skills: boolean;           // exposes /skills
+    mcp: boolean;              // exposes /mcp-servers
+    sessionExport: boolean;    // serves /sessions/{id}/export
+    attachments: { enabled: boolean; maxSizeBytes?: number; mimeTypes?: string[] };
+  };
+  providers: string[];         // e.g. ["openai", "anthropic", "local"]
+  limits: {
+    maxMessagesPerSession?: number;
+    maxConcurrentRuns?: number;
+    rateLimit?: { perMinute: number; perHour: number };
+  };
+  deployment: {
+    kind: "embedded" | "standalone" | "managed";
+    instanceLabel?: string;    // shown in UI, e.g. "Lyra Cloud (us-east-1)"
+    region?: string;
+  };
+}
+```
+
+Frontend treats every `features.*` as `false` by default — it MUST NOT
+crash if the backend omits a feature it doesn't implement.
+
+### 5.2 Info — pre-auth probe
+
+```ts
+interface ServerInfo {
+  server: { name: string; version: string };
+  protocolVersion: string;
+  authKinds: Array<"bearer" | "oauth" | "apiKey" | "anonymous">;
+  instanceLabel?: string;
+  loginUrl?: string;          // OAuth start URL when relevant
+  brandingUrl?: string;       // logo / theme override when managed
+}
+```
+
+### 5.3 Core conversation shapes
+
+```ts
+type SessionStatus = "running" | "waiting" | "idle";
+
+interface Session {
   id: string;
+  workspaceId: string;
+  title: string;
+  status: SessionStatus;
+  model: string;
+  createdAt: string;          // ISO-8601
+  updatedAt: string;
+  lastMessageAt?: string;
+  metadata: Record<string, unknown>;
+  pinned?: boolean;
+  archived?: boolean;
+}
+
+interface Message {           // AG-UI shape
+  id: string;
+  sessionId: string;
   role: "user" | "assistant" | "system" | "tool" | "developer";
   content?: string;
   toolCalls?: ToolCall[];
-  toolCallId?: string; // role: "tool"
+  toolCallId?: string;
+  createdAt: string;
+  metadata?: Record<string, unknown>;
 }
 
 interface ToolSpec {
   name: string;
   description?: string;
-  parameters: JsonSchema; // JSON Schema for arguments
+  parameters: JsonSchema;
+  // execution location — informs UI ("this tool runs on your machine")
+  origin: "server" | "client" | "mcp";
 }
 
 interface ContextItem {
   kind: "file" | "url" | "selection" | "image";
   // …kind-specific fields
 }
-
-interface ClientCapabilities {
-  customEvents: string[]; // names the client renders, e.g. ["lyra.plan", "lyra.approval"]
-  contentBlocks: string[]; // block kinds the client can render
-}
 ```
 
-### 3.2 Sidebar (existing — `frontend/src/lib/queries.ts`)
-
-```ts
-type SessionStatus = "running" | "waiting" | "idle";
-
-interface SidebarSession {
-  id: string;
-  title: string;
-  status: SessionStatus;
-  model: string;
-  time: string; // ISO-8601 ideally; Lyra currently treats as opaque display string
-}
-
-interface SidebarProject {
-  id: string;
-  name: string;
-  branch: string;
-  active?: boolean;
-}
-
-interface FileChange {
-  path: string;
-  change: "add" | "mod" | "del";
-  added: number;
-  removed: number;
-}
-
-interface MCPServer {
-  id: string;
-  name: string;
-  desc: string;
-  tools: number;
-  status: "active" | "idle" | "error";
-  icon: string;
-}
-
-// + DiffRow / TermLine / GrepResult / FileLine — see queries.ts
-```
-
-### 3.3 New (proposed)
-
-```ts
-interface Capabilities {
-  events: string[];           // ["TEXT_MESSAGE_START", …, "lyra.plan", …]
-  providers: string[];        // ["openai", "anthropic", "local"]
-  tools: ToolSpec[];          // discovered tool set
-  features: {
-    multimodal: boolean;
-    reasoning: boolean;       // emits REASONING_MESSAGE_*
-    checkpoints: boolean;     // supports edit-and-re-run
-    interrupts: boolean;      // supports human-in-the-loop interrupts
-    attachments: boolean;     // accepts /attachments uploads
-  };
-  protocol: {
-    version: string;          // semver of the wire contract
-    runEndpoint: string;      // override of /run if non-default
-  };
-}
-
-interface Provider {
-  id: string;                 // "openai", "anthropic", "ollama"
-  label: string;
-  authKind: "apiKey" | "oauth" | "none";
-  status: "configured" | "missing-key" | "error";
-  icon?: string;
-}
-
-interface Model {
-  id: string;                 // "claude-sonnet-4-5"
-  provider: string;
-  label: string;
-  contextWindow: number;
-  pricing?: { input: number; output: number; currency: string };
-  capabilities?: { vision: boolean; reasoning: boolean; tools: boolean };
-}
-
-interface Attachment {
-  id: string;
-  url: string;                // server-resolvable URL (may be relative)
-  kind: "image" | "file";
-  mime: string;
-  size: number;
-  sha256: string;
-  name: string;
-}
-```
-
-### 3.4 Error envelope (RFC 7807)
-
-All non-2xx responses follow Problem Details:
+### 5.4 ProblemDetails — error envelope
 
 ```ts
 interface ProblemDetails {
-  type: string;       // URI identifying the problem class
-  title: string;      // short human-readable summary
-  status: number;     // HTTP status mirror
-  detail?: string;    // detailed explanation
-  instance?: string;  // request id / trace id for support
-  // extensions allowed — e.g. validation errors:
+  type: string;        // URI identifying the problem class
+  title: string;       // short, localized
+  status: number;
+  detail?: string;
+  instance?: string;   // mirrors X-Lyra-Request-ID
   errors?: Array<{ path: string; message: string }>;
+  retryAfterMs?: number; // for 429 / 503
 }
 ```
 
-The frontend's `lib/http.ts` should normalise to this regardless of transport.
+### 5.5 Workspace data (existing — already in `frontend/src/lib/queries.ts`)
+
+`SidebarSession`, `SidebarProject`, `FileChange`, `DiffRow`, `TermLine`,
+`GrepResult`, `FileLine`, `MCPServer` — keep current shapes; wrap each in
+`{ items, nextCursor?, hasMore }` for pagination when porting from mock.
 
 ---
 
-## 4. Transport conventions
+## 6. Schema source of truth
 
-| Topic | Convention |
-| --- | --- |
-| **Protocol** | HTTP/1.1 or HTTP/2 over TCP. SSE for `/run`. REST for everything else. |
-| **No WebSocket** | SSE + plain POST endpoints cover every push + reverse-call we need. WS adds half-duplex state without buying anything for an LLM chat use case. |
-| **Versioning** | URL prefix `/v1/…`. Frontend pins via `capabilities.protocol.version`. Major bumps require both sides updated. |
-| **Auth** | `Authorization: Bearer <token>` once auth lands. Mock backend ignores. |
-| **Idempotency** | `Idempotency-Key: <uuid>` required on `POST /run`, `POST /sessions`, `POST /attachments`. Server replays the same response within 24h. |
-| **Cancellation** | `POST /run/{runId}/cancel` (explicit) **and** the client closes the SSE stream (implicit). Backend must handle both. |
-| **Rate limits** | `429 + Retry-After: <seconds>`. Errors surface as ProblemDetails with `type: "/problems/rate-limit"`. |
-| **Pagination** | Cursor-based (`?cursor=…&limit=…`). Total counts only on dedicated endpoints. |
-| **Time** | All timestamps ISO-8601 with timezone (`2026-05-27T12:34:56.789Z`). Frontend formats via `Intl.DateTimeFormat`. |
-| **IDs** | Server-generated where possible. Client-generated `runId` allowed (UUID v7 for time-ordering). |
-| **Content negotiation** | Frontend sends `Accept: application/json` for REST and `Accept: text/event-stream` for `/run`. Server returns 415 on mismatch. |
+### 6.1 Decision: **OpenAPI 3.1 + AsyncAPI 2.6**
 
----
+- **OpenAPI 3.1** describes every REST endpoint, request/response, error
+  shape, security scheme. Native fit for the C/S surface.
+- **AsyncAPI 2.6** describes the SSE event stream — every event type, its
+  payload, its semantic relationship to the run lifecycle.
 
-## 5. Schema source of truth
+Both are YAML, both well-tooled, both generate types in every language we
+care about (TS, Go, Rust, Python, Swift).
 
-**Decision needed**: pick one — OpenAPI 3.1 or Protobuf.
+Rejected alternative: **Protobuf** — would force gRPC-Gateway for the REST
+shape and AsyncAPI-style channel descriptions are weak in proto3.
 
-| Option | Pros | Cons |
-| --- | --- | --- |
-| **OpenAPI 3.1** | Native fit for REST + SSE description; great TS codegen (`openapi-typescript`); great Go codegen (`oapi-codegen`); humans can read the YAML. | SSE event payloads need a custom `x-events` extension or a sibling AsyncAPI doc. |
-| **Protobuf + buf** | Strictly-typed wire format; gRPC-Web bridge possible if we ever leave SSE; great Go codegen; binary efficient. | Less natural for REST GETs (gRPC-Gateway needed); humans read .proto less easily than YAML; ecosystem heavier. |
-
-Lyra is REST-shaped (one streaming endpoint + plain JSON elsewhere) — **OpenAPI
-3.1 is the better fit**. Mock backend already speaks plain JSON; switching to
-proto would be a bigger lift than the marginal type-safety win.
-
-**Recommended layout** (once we commit):
+### 6.2 Layout
 
 ```
 schemas/
-├── openapi.yaml             # REST endpoints + ProblemDetails + shared models
-├── events.yaml              # AG-UI standard + lyra.* event payloads (Zod-mirror)
-└── generated/
-    ├── ts/                  # openapi-typescript output (committed for review)
-    └── go/                  # oapi-codegen output (committed for review)
+├── openapi.yaml             # /v1/* REST endpoints + ProblemDetails + shared models
+├── events.yaml              # AsyncAPI 2.6 for the /run SSE stream
+├── shared/                  # JSON Schema fragments shared between the two
+│   ├── Message.yaml
+│   ├── Session.yaml
+│   ├── Capabilities.yaml
+│   └── …
+└── generated/               # committed for review; CI rebuilds + diffs
+    ├── ts/
+    └── go/
 ```
 
-CI gate: `npm run schema:check` runs both codegens + diffs against `generated/`
-so PRs touching the contract are forced to land both sides in lockstep.
+### 6.3 CI gate
+
+`npm run schema:check` runs `openapi-typescript` + `oapi-codegen` against
+the schemas, diffs the output against `generated/`, fails the build on any
+drift. PRs touching the contract MUST land schema + generated code together.
+
+### 6.4 Versioning rules
+
+- **Adding** an endpoint / event / optional field → patch bump.
+- **Adding** a required field → minor bump.
+- **Removing** anything → major bump. Old version stays available at the
+  old URL prefix for one release cycle minimum.
+
+`Capabilities.protocol.minClientVersion` lets the backend reject ancient
+clients with a clear `426 Upgrade Required`.
 
 ---
 
-## 6. Implementation roadmap
+## 7. Deployment matrix — what each combo needs to wire
+
+### 7.1 Embedded backend + packaged-web / TUI frontend
+
+- Frontend reads `LYRA_BACKEND_URL` (set by the installer) — defaults to
+  `http://127.0.0.1:<port>` written into local config.
+- Token in `$XDG_CONFIG_HOME/lyra/token` is read by both sides at startup.
+- No CORS concerns (frontend and backend on same loopback).
+- Backend MAY skip TLS on loopback; everywhere else it's required.
+
+### 7.2 Standalone server backend + any frontend
+
+- Operator provides `LYRA_BACKEND_URL` + `LYRA_TOKEN` via env / config.
+- Server enforces TLS; frontends refuse to log in over plain HTTP unless
+  the URL is loopback.
+- CORS configured on the server side — `Access-Control-Allow-Origin` lists
+  the allowed frontend origins.
+
+### 7.3 Managed cloud backend + web / packaged-web frontend
+
+- Frontend ships with a default `LYRA_BACKEND_URL` pointing at the cloud.
+- `GET /v1/info` advertises `authKinds: ["oauth"]` → frontend kicks off
+  OAuth 2.1 + PKCE.
+- Per-tenant workspace IDs in the URL: `/v1/workspaces/{ws}/…`.
+
+### 7.4 Web frontend + any backend (browser case)
+
+- Token storage: HttpOnly cookie if same-site, else `sessionStorage`.
+- Frontend MUST handle CORS preflight failures gracefully — surface
+  "Backend at <url> didn't allow this origin" instead of a silent error.
+
+### 7.5 TUI frontend + any backend
+
+- No `EventSource` — use a streaming HTTP client that supports SSE
+  (`sse.js` for Node, `eventsource` for Python, etc.).
+- Token from env var `LYRA_TOKEN` or interactive `lyra login`.
+
+---
+
+## 8. Implementation roadmap
 
 | Phase | Scope | Effort |
 | --- | --- | --- |
-| **1. Protocol fixed** | Author `schemas/openapi.yaml`; freeze CUSTOM event payloads; wire `/capabilities`; codegen both sides; mock backend speaks the real contract. | 1 week |
-| **2. Main path** | `/run` against a real LLM (one provider); `/permission` flows back into tool-execution; `/sessions` CRUD; `/messages` pagination; `/run/{runId}/cancel`. | 2 weeks |
-| **3. Tools + context** | `/tools` registry; `/attachments` upload; `/providers` + `/models`; multi-provider switching in composer. | 2 weeks |
-| **4. Persistence** | SQLite or Postgres for sessions / messages; history hydration uses `/sessions/{id}/messages` instead of bulk `MESSAGES_SNAPSHOT`; MetaEvent feedback if product wants it. | 1 week |
-| **5. Auth + workspaces** (only if needed) | Login flow; `/me`; `/workspaces`; telemetry opt-in. | 1–2 weeks |
+| **1. Protocol freeze** | Author `schemas/openapi.yaml` + `events.yaml`; codegen TS + Go; mock backend speaks the real shapes. | 1 week |
+| **2. Auth + discovery** | `/v1/info` / `/v1/capabilities` / `/v1/health` + Bearer middleware on every other endpoint. Embedded variant ships with auto-generated token. | 1 week |
+| **3. Real run path** | Wire `/v1/run` to a real LLM (one provider); HITL via `/v1/run/{id}/permission`; SSE `Last-Event-ID` resume; `/v1/run/{id}/cancel`. | 2 weeks |
+| **4. Persistence + sessions CRUD** | SQLite (embedded / standalone) or Postgres (managed) — sessions, messages, attachments. Pagination on `/v1/sessions/{id}/messages`. | 1 week |
+| **5. Workspace data + tools** | Real filesystem / git / ripgrep / pty / MCP wiring for the `/v1/workspace/*` endpoints. `/v1/tools`, `/v1/providers`, `/v1/models`. | 2 weeks |
+| **6. Frontend variants** | TUI frontend prototype against the same protocol → proves the m × n actually works. | 2 weeks |
+| **7. Managed cloud** (later) | OAuth 2.1, workspace isolation, multi-region routing, rate limiting. | 3–4 weeks |
 
 ---
 
-## 7. Migration policy — mock → real
+## 9. Migration — mock → real, per endpoint
 
-Per-endpoint flip checklist (apply to each row in §2.A):
+Apply to every row in §4 individually:
 
-1. Schema lands in `schemas/openapi.yaml` (one PR, both sides codegen).
-2. Mock backend's handler keeps current behaviour but reads/writes through the
-   generated types (compile-time gate).
-3. Real backend handler replaces the mock body — fixtures preserved as the
-   default response when env var `LYRA_MOCK=1` is set, for E2E / demos.
-4. Frontend test pinning the response shape stays green throughout.
+1. Schema lands in `schemas/*.yaml` (one PR, both sides codegen).
+2. Mock backend handler keeps current behaviour but goes through the
+   generated types (compile-time gate on the wire format).
+3. Real backend handler replaces the mock body — fixtures preserved
+   behind `LYRA_MOCK=1` for E2E / demos.
+4. Frontend tests that pin the response shape stay green throughout.
 
-This way we **never break the frontend** during the cutover; the mock and the
-real impl are interchangeable behind one schema.
-
----
-
-## 8. Open questions
-
-Decisions the team needs to make before Phase 2 lands:
-
-- [ ] **Auth model**: API key per workspace, OAuth, or both? Affects every endpoint.
-- [ ] **Storage**: SQLite (single-user desktop) or Postgres (shared)? Affects pagination semantics.
-- [ ] **Multi-tenant**: do we need workspace isolation in the URL (`/v1/workspaces/{id}/…`) or only via the auth context? Affects URL shape forever.
-- [ ] **Tool execution location**: in-process (Go) or sandbox (gVisor / containerised)? Affects `/permission` semantics.
-- [ ] **Telemetry / RLHF**: ship MetaEvent feedback in Phase 2 or wait? Affects whether we add `/feedback`.
-- [ ] **Plugin marketplace**: keep `/plugins` open or close (only same-origin sideload)? Affects security review.
-
-Until these land, the contract above is the **minimum** that won't paint us
-into a corner.
+This way **the frontend can't tell which backend variant it's talking
+to**, which is exactly the architecture we want.
 
 ---
 
-## Appendix A — Quick reference: where things live
+## 10. Open questions
 
-| Concern | Frontend file | Backend file |
+- [ ] **Auth standardisation**: do we commit to OAuth 2.1 + PKCE for managed,
+      static token for embedded / standalone? Or invent something custom?
+- [ ] **Workspace URL shape**: `/v1/workspaces/{ws}/…` everywhere (clean
+      multi-tenant) or only when the backend opts in (simpler embedded)?
+- [ ] **Tool execution location**: server-side only, or can a frontend declare
+      `tools` in the `RunInput` that the backend calls back into? Latter
+      enables "browser as a tool" (file picker, screenshot, clipboard) but
+      complicates the security model.
+- [ ] **WebSocket vs SSE**: SSE is one-way push + idempotent reconnect, which
+      fits our use case. The only reason to add WS would be bidirectional
+      streaming for HITL — but we have REST for the reverse calls. Keep SSE
+      unless something forces our hand.
+- [ ] **Persistence story for embedded**: SQLite is the obvious choice but
+      do we expose its file path so users can back up their conversations?
+- [ ] **Sideload trust model**: only same-origin plugin bundles, or any URL
+      with manifest signature verification? Affects `/v1/plugins/*` design.
+
+---
+
+## Appendix A — File locations
+
+| Concern | Frontend | Backend |
 | --- | --- | --- |
-| Streaming events (reducer dispatch table) | `frontend/src/plugins/builtin/core-reducer/handlers.ts` | `internal/agui/events.go` |
+| Streaming reducer (event → state) | `frontend/src/plugins/builtin/core-reducer/handlers.ts` | `internal/agui/events.go` |
 | CUSTOM event handlers | `frontend/src/plugins/builtin/agui-handlers/index.ts` | `internal/agui/dsl.go` |
-| Wire-level types (REST) | `frontend/src/lib/queries.ts` | `internal/agui/rest.go` |
-| HITL approval | `frontend/src/domain/gateways/PermissionGateway.ts` + `frontend/src/infra/http/HttpPermissionGateway.ts` | `internal/agui/permissions.go` |
+| REST shapes (frontend side) | `frontend/src/lib/queries.ts` | `internal/agui/rest.go` |
+| HITL approval gateway | `frontend/src/domain/gateways/PermissionGateway.ts` + `frontend/src/infra/http/HttpPermissionGateway.ts` | `internal/agui/permissions.go` |
 | Sideload manifest | `frontend/src/plugins/sideload.ts` | `internal/agui/plugins.go` |
-| Mock fixture data | — | `internal/agui/demos.go` / `refactor_demo_data.go` / `artifacts.go` |
-| Base URL config | `frontend/src/main/config.ts` (`AGUI_BASE`) | `internal/agui/server.go` (listen addr) |
+| Base URL config | `frontend/src/main/config.ts` (`AGUI_BASE`) | `internal/agui/server.go` |
+| Fixture data | — | `internal/agui/demos.go` / `refactor_demo_data.go` / `artifacts.go` |
+
+## Appendix B — Comparison with peer projects
+
+| Project | Wire shape | Why we chose differently |
+| --- | --- | --- |
+| **kimi-code** | In-process typed RPC (`createRPC()`), no HTTP | Same-process only — doesn't support remote backend. We need m × n. |
+| **continue** | gRPC over webview postMessage | IDE-coupled; not portable across frontend variants. |
+| **cline** | gRPC + protobuf | Same; tied to VS Code extension model. |
+| **lobehub** | REST + SSE | Same family as ours, validates the choice. |
+| **agent-chat-ui** | LangGraph SDK over SSE | Closest to our shape; we generalise to non-LangGraph backends. |
+| **ag-ui-protocol** (official) | SSE + JSON / protobuf | Our event schema is a strict subset + Lyra-specific CUSTOM events. |
+
+**Take-aways for Lyra**:
+
+- Borrow `requestApproval` Promise-shape semantics (from kimi-code) for the
+  HITL flow: `POST /run/{id}/permission` is fire-and-forget today, but the
+  server can model the request/response as a Promise on its side and resolve
+  it when the POST lands. Frontend doesn't need to know.
+- Borrow background-task events (from kimi-code) as `lyra.background.*` —
+  see §3.2.3.
+- Borrow compaction events (from kimi-code) for §3.2.3 when Phase 4 lands.
+- Reject typed bidirectional RPC as the transport (kimi-code style) —
+  doesn't survive the m × n requirement.
