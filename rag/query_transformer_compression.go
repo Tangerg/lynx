@@ -35,16 +35,23 @@ type CompressionTransformerConfig struct {
 	PromptTemplate *chat.PromptTemplate
 }
 
-// validate fills the default prompt template and rejects invalid
-// configs.
+// Validate rejects invalid configs.
 func (c CompressionTransformerConfig) Validate() error {
 	if c.ChatModel == nil {
 		return errors.New("rag.CompressionTransformerConfig: ChatModel is required")
 	}
+	if c.PromptTemplate != nil {
+		return c.PromptTemplate.RequireVariables("History", "Query")
+	}
+	return nil
+}
+
+// ApplyDefaults fills zero fields. PromptTemplate defaults to
+// [compressionDefaultTemplate].
+func (c *CompressionTransformerConfig) ApplyDefaults() {
 	if c.PromptTemplate == nil {
 		c.PromptTemplate = chat.NewPromptTemplate(compressionDefaultTemplate)
 	}
-	return c.PromptTemplate.RequireVariables("History", "Query")
 }
 
 var _ QueryTransformer = (*CompressionTransformer)(nil)
@@ -67,6 +74,7 @@ type CompressionTransformer struct {
 // configuration fails validation or the chat client cannot be
 // constructed.
 func NewCompressionTransformer(cfg CompressionTransformerConfig) (*CompressionTransformer, error) {
+	cfg.ApplyDefaults()
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}

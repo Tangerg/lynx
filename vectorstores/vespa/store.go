@@ -85,9 +85,6 @@ type StoreConfig struct {
 }
 
 func (c StoreConfig) Validate() error {
-	if c.Context == nil {
-		c.Context = context.Background()
-	}
 	if c.Endpoint == "" {
 		return errors.New("vespa: Endpoint is required")
 	}
@@ -99,15 +96,6 @@ func (c StoreConfig) Validate() error {
 	}
 	if c.DocumentBatcher == nil {
 		return errors.New("vespa: DocumentBatcher is required")
-	}
-	if c.Namespace == "" {
-		c.Namespace = c.SchemaName
-	}
-	c.EmbeddingField = cmp.Or(c.EmbeddingField, DefaultEmbeddingField)
-	c.ContentField = cmp.Or(c.ContentField, DefaultContentField)
-	c.IDField = cmp.Or(c.IDField, DefaultIDField)
-	if c.HTTPClient == nil {
-		c.HTTPClient = http.DefaultClient
 	}
 	if err := ident.CheckWithDash("vespa", map[string]string{
 		"SchemaName":     c.SchemaName,
@@ -122,6 +110,22 @@ func (c StoreConfig) Validate() error {
 		return fmt.Errorf("vespa: ContentCluster=%q must be a safe identifier", c.ContentCluster)
 	}
 	return nil
+}
+
+// ApplyDefaults fills zero fields with documented defaults.
+func (c *StoreConfig) ApplyDefaults() {
+	if c.Context == nil {
+		c.Context = context.Background()
+	}
+	if c.Namespace == "" {
+		c.Namespace = c.SchemaName
+	}
+	c.EmbeddingField = cmp.Or(c.EmbeddingField, DefaultEmbeddingField)
+	c.ContentField = cmp.Or(c.ContentField, DefaultContentField)
+	c.IDField = cmp.Or(c.IDField, DefaultIDField)
+	if c.HTTPClient == nil {
+		c.HTTPClient = http.DefaultClient
+	}
 }
 
 var _ vectorstore.Store = (*Store)(nil)
@@ -144,6 +148,7 @@ type Store struct {
 
 
 func NewStore(config StoreConfig) (*Store, error) {
+	config.ApplyDefaults()
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}

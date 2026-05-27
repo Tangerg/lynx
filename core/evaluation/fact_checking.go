@@ -83,10 +83,10 @@ type FactCheckingEvaluator struct {
 // config. Returns an error when the configuration fails validation or
 // the chat client can't be constructed.
 func NewFactCheckingEvaluator(config FactCheckingEvaluatorConfig) (*FactCheckingEvaluator, error) {
+	config.ApplyDefaults()
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
-	config.ApplyDefaults()
 	base, err := newLLMEvaluator(
 		config.ChatModel,
 		config.PromptTemplate,

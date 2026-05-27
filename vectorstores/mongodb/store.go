@@ -111,9 +111,6 @@ type StoreConfig struct {
 }
 
 func (c StoreConfig) Validate() error {
-	if c.Context == nil {
-		c.Context = context.Background()
-	}
 	if c.Collection == nil {
 		return errors.New("mongodb: Collection is required")
 	}
@@ -123,7 +120,14 @@ func (c StoreConfig) Validate() error {
 	if c.DocumentBatcher == nil {
 		return errors.New("mongodb: DocumentBatcher is required")
 	}
+	return nil
+}
 
+// ApplyDefaults fills zero fields with documented defaults.
+func (c *StoreConfig) ApplyDefaults() {
+	if c.Context == nil {
+		c.Context = context.Background()
+	}
 	c.VectorIndexName = cmp.Or(c.VectorIndexName, DefaultVectorIndexName)
 	c.EmbeddingPath = cmp.Or(c.EmbeddingPath, DefaultEmbeddingPath)
 	c.ContentField = cmp.Or(c.ContentField, DefaultContentField)
@@ -132,7 +136,6 @@ func (c StoreConfig) Validate() error {
 		c.NumCandidates = DefaultNumCandidates
 	}
 	c.Similarity = cmp.Or(c.Similarity, SimilarityCosine)
-	return nil
 }
 
 var _ vectorstore.Store = (*Store)(nil)
@@ -155,6 +158,7 @@ type Store struct {
 
 
 func NewStore(config StoreConfig) (*Store, error) {
+	config.ApplyDefaults()
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}

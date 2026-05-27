@@ -114,9 +114,6 @@ type StoreConfig struct {
 }
 
 func (c StoreConfig) Validate() error {
-	if c.Context == nil {
-		c.Context = context.Background()
-	}
 	if c.Cluster == nil {
 		return errors.New("couchbase: Cluster is required")
 	}
@@ -129,19 +126,24 @@ func (c StoreConfig) Validate() error {
 	if c.DocumentBatcher == nil {
 		return errors.New("couchbase: DocumentBatcher is required")
 	}
-
-	c.ScopeName = cmp.Or(c.ScopeName, DefaultScopeName)
-	c.CollectionName = cmp.Or(c.CollectionName, DefaultCollectionName)
-	c.VectorIndexName = cmp.Or(c.VectorIndexName, DefaultIndexName)
-	c.Similarity = cmp.Or(c.Similarity, DefaultSimilarity)
-	c.IndexOptimization = cmp.Or(c.IndexOptimization, DefaultIndexOptimize)
-
 	return ident.CheckWithDash("couchbase", map[string]string{
 		"BucketName":      c.BucketName,
 		"ScopeName":       c.ScopeName,
 		"CollectionName":  c.CollectionName,
 		"VectorIndexName": c.VectorIndexName,
 	})
+}
+
+// ApplyDefaults fills zero fields with documented defaults.
+func (c *StoreConfig) ApplyDefaults() {
+	if c.Context == nil {
+		c.Context = context.Background()
+	}
+	c.ScopeName = cmp.Or(c.ScopeName, DefaultScopeName)
+	c.CollectionName = cmp.Or(c.CollectionName, DefaultCollectionName)
+	c.VectorIndexName = cmp.Or(c.VectorIndexName, DefaultIndexName)
+	c.Similarity = cmp.Or(c.Similarity, DefaultSimilarity)
+	c.IndexOptimization = cmp.Or(c.IndexOptimization, DefaultIndexOptimize)
 }
 
 var _ vectorstore.Store = (*Store)(nil)
@@ -166,6 +168,7 @@ type Store struct {
 
 
 func NewStore(config StoreConfig) (*Store, error) {
+	config.ApplyDefaults()
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}

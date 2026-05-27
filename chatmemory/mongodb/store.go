@@ -42,13 +42,18 @@ type StoreConfig struct {
 }
 
 func (c StoreConfig) Validate() error {
-	if c.Context == nil {
-		c.Context = context.Background()
-	}
 	if c.Collection == nil {
 		return errors.New("mongodb: Collection is required")
 	}
 	return nil
+}
+
+// ApplyDefaults fills zero fields. Context defaults to
+// [context.Background].
+func (c *StoreConfig) ApplyDefaults() {
+	if c.Context == nil {
+		c.Context = context.Background()
+	}
 }
 
 var _ memory.Store = (*Store)(nil)
@@ -60,6 +65,7 @@ type Store struct {
 
 // NewStore builds a [Store] from cfg.
 func NewStore(cfg StoreConfig) (*Store, error) {
+	cfg.ApplyDefaults()
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}

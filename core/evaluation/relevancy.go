@@ -86,10 +86,10 @@ type RelevancyEvaluator struct {
 
 // NewRelevancyEvaluator builds a [RelevancyEvaluator] from config.
 func NewRelevancyEvaluator(config RelevancyEvaluatorConfig) (*RelevancyEvaluator, error) {
+	config.ApplyDefaults()
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
-	config.ApplyDefaults()
 	base, err := newLLMEvaluator(
 		config.ChatModel,
 		config.PromptTemplate,

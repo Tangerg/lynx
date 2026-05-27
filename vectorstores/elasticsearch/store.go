@@ -107,9 +107,6 @@ type StoreConfig struct {
 }
 
 func (c StoreConfig) Validate() error {
-	if c.Context == nil {
-		c.Context = context.Background()
-	}
 	if c.Client == nil {
 		return errors.New("elasticsearch: Client is required")
 	}
@@ -119,21 +116,24 @@ func (c StoreConfig) Validate() error {
 	if c.DocumentBatcher == nil {
 		return errors.New("elasticsearch: DocumentBatcher is required")
 	}
+	return nil
+}
 
+// ApplyDefaults fills zero fields with documented defaults.
+func (c *StoreConfig) ApplyDefaults() {
+	if c.Context == nil {
+		c.Context = context.Background()
+	}
 	c.IndexName = cmp.Or(c.IndexName, DefaultIndexName)
 	c.EmbeddingField = cmp.Or(c.EmbeddingField, DefaultEmbeddingField)
 	c.ContentField = cmp.Or(c.ContentField, DefaultContentField)
 	if c.MetadataField == "" {
-		// Explicit zero collapses metadata onto the document root
-		// — keep it that way only if the caller deliberately set "".
-		// Default to nesting under "metadata".
 		c.MetadataField = DefaultMetadataField
 	}
 	c.Similarity = cmp.Or(c.Similarity, DefaultSimilarity)
 	if c.NumCandidatesMultiplier <= 0 {
 		c.NumCandidatesMultiplier = defaultNumCandidatesMul
 	}
-	return nil
 }
 
 var _ vectorstore.Store = (*Store)(nil)
@@ -157,6 +157,7 @@ type Store struct {
 
 
 func NewStore(config StoreConfig) (*Store, error) {
+	config.ApplyDefaults()
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}

@@ -77,9 +77,6 @@ type StoreConfig struct {
 }
 
 func (c StoreConfig) Validate() error {
-	if c.Context == nil {
-		c.Context = context.Background()
-	}
 	if c.Conn == nil {
 		return errors.New("clickhouse: Conn is required")
 	}
@@ -89,13 +86,6 @@ func (c StoreConfig) Validate() error {
 	if c.DocumentBatcher == nil {
 		return errors.New("clickhouse: DocumentBatcher is required")
 	}
-	c.TableName = cmp.Or(c.TableName, DefaultTableName)
-	c.IDColumn = cmp.Or(c.IDColumn, DefaultIDColumn)
-	c.ContentColumn = cmp.Or(c.ContentColumn, DefaultContentColumn)
-	c.MetadataColumn = cmp.Or(c.MetadataColumn, DefaultMetadataColumn)
-	c.EmbeddingColumn = cmp.Or(c.EmbeddingColumn, DefaultEmbeddingColumn)
-	c.DistanceMetric = cmp.Or(c.DistanceMetric, DefaultDistanceMetric)
-
 	checks := map[string]string{
 		"TableName":       c.TableName,
 		"IDColumn":        c.IDColumn,
@@ -107,6 +97,19 @@ func (c StoreConfig) Validate() error {
 		checks["DatabaseName"] = c.DatabaseName
 	}
 	return ident.Check("clickhouse", checks)
+}
+
+// ApplyDefaults fills zero fields with documented defaults.
+func (c *StoreConfig) ApplyDefaults() {
+	if c.Context == nil {
+		c.Context = context.Background()
+	}
+	c.TableName = cmp.Or(c.TableName, DefaultTableName)
+	c.IDColumn = cmp.Or(c.IDColumn, DefaultIDColumn)
+	c.ContentColumn = cmp.Or(c.ContentColumn, DefaultContentColumn)
+	c.MetadataColumn = cmp.Or(c.MetadataColumn, DefaultMetadataColumn)
+	c.EmbeddingColumn = cmp.Or(c.EmbeddingColumn, DefaultEmbeddingColumn)
+	c.DistanceMetric = cmp.Or(c.DistanceMetric, DefaultDistanceMetric)
 }
 
 var _ vectorstore.Store = (*Store)(nil)
@@ -130,6 +133,7 @@ type Store struct {
 
 
 func NewStore(config StoreConfig) (*Store, error) {
+	config.ApplyDefaults()
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}

@@ -94,10 +94,10 @@ type ContextualAugmenter struct {
 // NewContextualAugmenter builds a [ContextualAugmenter] from
 // cfg. Returns an error when the configuration fails validation.
 func NewContextualAugmenter(cfg ContextualAugmenterConfig) (*ContextualAugmenter, error) {
+	cfg.ApplyDefaults()
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
-	cfg.ApplyDefaults()
 	return &ContextualAugmenter{
 		promptTemplate:             cfg.PromptTemplate,
 		emptyContextPromptTemplate: cfg.EmptyContextPromptTemplate,

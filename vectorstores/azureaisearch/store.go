@@ -89,9 +89,6 @@ type StoreConfig struct {
 }
 
 func (c StoreConfig) Validate() error {
-	if c.Context == nil {
-		c.Context = context.Background()
-	}
 	if c.Endpoint == "" {
 		return errors.New("azureaisearch: Endpoint is required")
 	}
@@ -107,6 +104,14 @@ func (c StoreConfig) Validate() error {
 	if c.DocumentBatcher == nil {
 		return errors.New("azureaisearch: DocumentBatcher is required")
 	}
+	return nil
+}
+
+// ApplyDefaults fills zero fields with documented defaults.
+func (c *StoreConfig) ApplyDefaults() {
+	if c.Context == nil {
+		c.Context = context.Background()
+	}
 	c.APIVersion = cmp.Or(c.APIVersion, DefaultAPIVersion)
 	c.IDField = cmp.Or(c.IDField, DefaultIDField)
 	c.ContentField = cmp.Or(c.ContentField, DefaultContentField)
@@ -114,7 +119,6 @@ func (c StoreConfig) Validate() error {
 	if c.HTTPClient == nil {
 		c.HTTPClient = http.DefaultClient
 	}
-	return nil
 }
 
 var _ vectorstore.Store = (*Store)(nil)
@@ -138,6 +142,7 @@ type Store struct {
 
 
 func NewStore(config StoreConfig) (*Store, error) {
+	config.ApplyDefaults()
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}

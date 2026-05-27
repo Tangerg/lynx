@@ -79,10 +79,15 @@ func (c StoreConfig) Validate() error {
 	if c.DocumentBatcher == nil {
 		return ErrMissingDocumentBatcher
 	}
+	return nil
+}
+
+// ApplyDefaults fills zero fields. MetricType defaults to
+// [entity.COSINE].
+func (c *StoreConfig) ApplyDefaults() {
 	if c.MetricType == "" {
 		c.MetricType = entity.COSINE
 	}
-	return nil
 }
 
 var _ vectorstore.Store = (*Store)(nil)
@@ -99,6 +104,7 @@ type Store struct {
 }
 
 func NewStore(cfg StoreConfig) (*Store, error) {
+	cfg.ApplyDefaults()
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
