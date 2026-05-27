@@ -37,16 +37,20 @@ interface ErrorStoreActions {
   clearAll: () => void;
 }
 
+// Cap matches useNotificationStore — oldest dropped first, FIFO. A
+// pathologically buggy plugin that pushes on every event would otherwise
+// grow the log + every consumer's render scope without bound.
+const MAX_ENTRIES = 200;
+
 export const usePluginErrorStore = create<ErrorStoreState & ErrorStoreActions>((set, get) => ({
   log: [],
   nextId: 1,
 
   push({ plugin, source, message, detail }) {
     const id = get().nextId;
-    set({
-      log: [...get().log, { id, timestamp: Date.now(), plugin, source, message, detail }],
-      nextId: id + 1,
-    });
+    const next = [...get().log, { id, timestamp: Date.now(), plugin, source, message, detail }];
+    const trimmed = next.length > MAX_ENTRIES ? next.slice(next.length - MAX_ENTRIES) : next;
+    set({ log: trimmed, nextId: id + 1 });
   },
 
   clearFor(plugin) {

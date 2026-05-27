@@ -71,20 +71,32 @@ export function ChatStream({ onSend, resetKey }: Props) {
     if (!ui.selectedToolId) ui.setSelectedToolId(latestToolId);
   }, [latestToolId]);
 
+  // Stable ctx identity — without useMemo, this object literal is
+  // recreated on every render, which (combined with the React.memo on
+  // MessageBlock) would kick every message in the stream into a fresh
+  // render path on every token delta. Memoised, the ref only changes
+  // when one of the underlying slices actually changes, so pure text
+  // streaming (no tool / plan churn) keeps non-tail messages off the
+  // render path entirely.
+  const ctx = useMemo(
+    () => ({
+      plan,
+      toolCalls,
+      selectedToolId,
+      onSelectTool: setSelectedToolId,
+      expandedIds: expandedToolIds,
+      onToggleExpand: toggleExpandedTool,
+    }),
+    [plan, toolCalls, selectedToolId, setSelectedToolId, expandedToolIds, toggleExpandedTool],
+  );
+
   return (
     <>
       <RunErrorBanner />
       <ChatErrorBoundary resetKey={resetKey} label={`session:${resetKey}`}>
         <MessageStream
           messages={messages}
-          ctx={{
-            plan,
-            toolCalls,
-            selectedToolId,
-            onSelectTool: setSelectedToolId,
-            expandedIds: expandedToolIds,
-            onToggleExpand: toggleExpandedTool,
-          }}
+          ctx={ctx}
           resetKey={resetKey}
           onControlsChange={handleControls}
         />
