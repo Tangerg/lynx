@@ -1,10 +1,11 @@
 // Composer for the appearance settings pane. The component itself
-// only assembles the 5 sections in order — each section owns its own
+// only assembles the 6 sections in order — each section owns its own
 // state subscriptions, so AppearancePane stays free of store wiring.
 
 import { AccentSection } from "./AccentSection";
 import { FontSection } from "./FontSection";
 import { LanguageSection, MessageStyleSection } from "./PrefSections";
+import { ShapeMotionSection } from "./ShapeMotionSection";
 import { ThemeSection } from "./ThemeSection";
 
 export function AppearancePane() {
@@ -13,6 +14,7 @@ export function AppearancePane() {
       <ThemeSection />
       <AccentSection />
       <FontSection />
+      <ShapeMotionSection />
       <MessageStyleSection />
       <LanguageSection />
     </div>
