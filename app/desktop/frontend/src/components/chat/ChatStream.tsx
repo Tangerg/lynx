@@ -93,6 +93,15 @@ export function ChatStream({ onSend, resetKey }: Props) {
   return (
     <>
       <RunErrorBanner />
+      {/* Banner row pinned above the message stream — sits at the
+          chat header's lower edge and stays put while the user scrolls
+          messages below (the scroll lives inside MessageStream's own
+          container, not this one). Plan-progress is the only built-in
+          contributor today; the slot is open so plugins can stack
+          their own "above the stream" banners here. */}
+      <div className="pointer-events-auto mx-auto w-full max-w-[760px] px-6">
+        <Slot name="chat.banner.top" />
+      </div>
       <ChatErrorBoundary resetKey={resetKey} label={`session:${resetKey}`}>
         <MessageStream
           messages={messages}

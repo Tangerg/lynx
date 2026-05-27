@@ -1,83 +1,123 @@
-// Built-in plugin: compact Plan Progress pill in the chat top bar.
+// Built-in plugin: Plan Progress banner pinned at the top of the
+// message stream.
 //
-// Used to sit in the `chat.status` slot — a full-width 2-line banner
-// between the message stream and the composer. That position covered
-// the last visible message on shorter viewports, so the indicator
-// moved up to `chat.topbar.actions` (next to the new-tab button) as
-// a single-line pill: "Plan · 4/7" + a tiny progress bar. Hover
-// surfaces the current task's full text via the shared Tooltip; click
-// opens the Plan workspace view.
+// Position history: sat in `chat.status` above the composer (covered
+// the tail of the message stream), then briefly as a compact pill in
+// the topbar (too peripheral). Final home is `chat.banner.top` — a
+// layout slot rendered once above the scrolling message stream. The
+// banner is *not* CSS sticky; it just lives outside the message scroll
+// container so the chat scrolls beneath it.
 //
-// Cherry doesn't have an inline equivalent; Portai's plan-progress-bar
-// is the original inspiration. The difference is that ours leans on
-// the existing Plan workspace view for the full list — the pill is
-// just a status surface, not a full management UI.
+// Behaviour:
+//   - Two-line card: "Plan · X/Y · pct%" + the in-flight (or
+//     next-todo) task text.
+//   - Click anywhere on the body opens the Plan workspace view.
+//   - X button on the right dismisses the banner for the current run
+//     id. It reappears when a new run starts (runId changes) or a
+//     fresh plan lands (plan ref changes via the reducer's immutable
+//     update). So "stream finishes → user closes → next user prompt"
+//     re-surfaces the banner automatically.
 
 import type { PlanItem } from "@/protocol/agui/viewState";
+import type { MouseEvent } from "react";
 import { AnimatePresence, motion } from "motion/react";
+import { useEffect, useState } from "react";
 import { Icon, Tooltip } from "@/components/common";
 import { swift } from "@/lib/motion";
+import { cn } from "@/lib/utils";
 import { definePlugin } from "@/plugins/sdk";
 import { useAgentSlice } from "@/state/agentStore";
 import { useSessionStore } from "@/state/sessionStore";
 
 function pickCurrent(plan: PlanItem[]): PlanItem | null {
   // Prefer the in-flight task; fall back to the next not-yet-done so
-  // the pill always reads "what's happening now".
+  // the banner always reads "what's happening now".
   return plan.find((p) => p.status === "doing") ?? plan.find((p) => p.status === "todo") ?? null;
 }
 
-function PlanProgressPill() {
+function PlanProgressBanner() {
   const plan = useAgentSlice((v) => v.plan);
+  const runId = useAgentSlice((v) => v.run.runId);
+  const [dismissedRunId, setDismissedRunId] = useState<string | null>(null);
 
-  // Bail with no DOM if there's nothing planned, or every item is done
-  // already — pill shouldn't linger after completion. AnimatePresence
-  // gives it a graceful exit.
-  // (`Array#some` returns false on an empty array, so we don't need an
-  // extra length check.)
+  // Reset the dismissal when a brand-new plan lands. `plan` ref
+  // identity follows the reducer's immutable updates — a new array
+  // arrives every time the plan content changes, which is exactly
+  // when we want to re-surface the banner (new plan from the agent →
+  // user hasn't dismissed *this* version yet).
+  useEffect(() => {
+    setDismissedRunId(null);
+  }, [plan]);
+
   const hasPlan = plan.some((p) => p.status !== "done");
-
   const total = plan.length;
   const done = plan.filter((p) => p.status === "done").length;
   const current = pickCurrent(plan);
   const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+  const dismissed = runId !== null && runId === dismissedRunId;
+  const visible = hasPlan && current && !dismissed;
 
   const openPlanView = () => {
     useSessionStore.getState().openMainView({ id: "plan", title: "Plan", icon: "list" });
   };
 
+  const dismiss = (e: MouseEvent) => {
+    // Stop the click from bubbling into the outer banner button —
+    // dismiss shouldn't also open the Plan view.
+    e.stopPropagation();
+    setDismissedRunId(runId ?? "");
+  };
+
   return (
     <AnimatePresence initial={false}>
-      {hasPlan && current && (
-        <Tooltip label={`${current.text} · ${pct}%`} side="bottom">
-          <motion.button
+      {visible && (
+        <motion.div
+          initial={{ opacity: 0, y: -4 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -4 }}
+          transition={swift}
+          className="mt-2 mb-1 flex items-center gap-1 rounded-lg border border-line-soft bg-surface px-2 py-2"
+        >
+          <button
             type="button"
             onClick={openPlanView}
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.95 }}
-            transition={swift}
-            aria-label={`Open plan (${done}/${total})`}
-            className="ml-1 mr-1 mb-1 inline-flex h-6.5 items-center gap-1.5 rounded-md border border-line-soft bg-transparent px-2 font-mono text-[11px] font-semibold text-fg-muted whitespace-nowrap cursor-pointer transition-colors hover:bg-surface-2 hover:text-fg"
+            aria-label={`Open plan (${done}/${total} · ${pct}%)`}
+            className={cn(
+              "min-w-0 flex-1 grid grid-cols-[auto_1fr] items-center gap-2.5",
+              "rounded-md border-0 bg-transparent px-1.5 py-0.5",
+              "cursor-pointer text-left transition-colors hover:bg-surface-2",
+              "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent",
+            )}
           >
-            <Icon name="list" size={11} className="text-fg-faint" />
-            <span className="text-fg-faint">Plan</span>
-            <span className="text-fg-faint">·</span>
-            <span className="tabular-nums text-fg">
-              {done}/{total}
+            <span className="grid h-5 w-5 place-items-center rounded-sm bg-surface-2 text-fg-muted">
+              <Icon name="list" size={11} />
             </span>
-            {/* Tiny progress bar — fixed 32px wide, accent fill scales
-                to %. Stays in the typography baseline (h-1, not a ring)
-                so the pill doesn't grow taller than the surrounding
-                topbar buttons. */}
-            <span className="ml-0.5 inline-block h-1 w-8 overflow-hidden rounded-full bg-line">
-              <span
-                className="block h-full rounded-full bg-accent transition-[width] duration-300 ease-out"
-                style={{ width: `${pct}%` }}
-              />
-            </span>
-          </motion.button>
-        </Tooltip>
+            <div className="min-w-0">
+              <div className="flex items-baseline gap-2">
+                <span className="font-mono text-[10px] font-semibold uppercase tracking-wider text-fg-faint">
+                  Plan · {done}/{total}
+                </span>
+                <span className="font-mono text-[10px] text-fg-faint">{pct}%</span>
+              </div>
+              <div className="mt-0.5 truncate text-[12.5px] text-fg">{current.text}</div>
+            </div>
+          </button>
+          <Tooltip label="Dismiss plan">
+            <button
+              type="button"
+              onClick={dismiss}
+              aria-label="Dismiss plan banner"
+              className={cn(
+                "grid h-6 w-6 shrink-0 place-items-center rounded-md border-0 bg-transparent",
+                "text-fg-faint cursor-pointer transition-colors",
+                "hover:bg-surface-2 hover:text-fg",
+                "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent",
+              )}
+            >
+              <Icon name="x" size={11} />
+            </button>
+          </Tooltip>
+        </motion.div>
       )}
     </AnimatePresence>
   );
@@ -87,13 +127,10 @@ export default definePlugin({
   name: "lyra.builtin.plan-progress",
   version: "1.0.0",
   setup({ host }) {
-    // Live in the topbar action row (alongside the new-tab "+" button)
-    // rather than `chat.status` above the composer — the old position
-    // obscured the tail of the message stream.
-    host.layout.register("chat.topbar.actions", {
+    host.layout.register("chat.banner.top", {
       id: "plan-progress",
-      order: -10,
-      component: PlanProgressPill,
+      order: 0,
+      component: PlanProgressBanner,
     });
   },
 });
