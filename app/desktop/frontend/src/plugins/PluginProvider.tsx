@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import * as RadixTooltip from "@radix-ui/react-tooltip";
 import { useEffect, useState } from "react";
 import { builtinPlugins } from "./builtin";
 import { installHostBridge } from "./hostBridge";
@@ -60,5 +61,13 @@ export function PluginProvider({ children }: Props) {
   // routes match" or an empty kernel.
   if (!builtinsReady) return null;
 
-  return <>{children}</>;
+  // RadixTooltip.Provider must wrap every Tooltip in the tree; mounting
+  // here means every kernel + plugin <Tooltip> works without each call
+  // site dragging its own provider. `delayDuration` is the global default
+  // hover-open delay (Radix's 700ms is sluggish on a desktop app).
+  return (
+    <RadixTooltip.Provider delayDuration={250} skipDelayDuration={150}>
+      {children}
+    </RadixTooltip.Provider>
+  );
 }

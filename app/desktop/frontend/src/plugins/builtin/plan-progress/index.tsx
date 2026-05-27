@@ -13,7 +13,7 @@
 
 import type { PlanItem } from "@/protocol/agui/viewState";
 import { AnimatePresence, motion } from "motion/react";
-import { Icon } from "@/components/common";
+import { Icon, Tooltip } from "@/components/common";
 import { swift } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import { definePlugin } from "@/plugins/sdk";
@@ -48,35 +48,37 @@ function PlanProgressBanner() {
   return (
     <AnimatePresence initial={false}>
       {hasPlan && current && (
-        <motion.button
-          type="button"
-          onClick={openPlanView}
-          initial={{ opacity: 0, y: 4 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -2 }}
-          transition={swift}
-          title="Open plan"
-          className={cn(
-            "mb-2 grid w-full grid-cols-[auto_1fr_auto] items-center gap-2.5",
-            "rounded-lg border border-line-soft bg-surface px-3 py-2",
-            "cursor-pointer text-left transition-colors hover:bg-surface-2",
-            "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent",
-          )}
-        >
-          <span className="grid h-5 w-5 place-items-center rounded-sm bg-surface-2 text-fg-muted">
-            <Icon name="list" size={11} />
-          </span>
-          <div className="min-w-0">
-            <div className="flex items-baseline gap-2">
-              <span className="font-mono text-[10px] font-semibold uppercase tracking-wider text-fg-faint">
-                Plan · {done}/{total}
-              </span>
-              <span className="font-mono text-[10px] text-fg-faint">{pct}%</span>
+        <Tooltip label="Open plan">
+          <motion.button
+            type="button"
+            onClick={openPlanView}
+            initial={{ opacity: 0, y: 4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -2 }}
+            transition={swift}
+            aria-label="Open plan"
+            className={cn(
+              "mb-2 grid w-full grid-cols-[auto_1fr_auto] items-center gap-2.5",
+              "rounded-lg border border-line-soft bg-surface px-3 py-2",
+              "cursor-pointer text-left transition-colors hover:bg-surface-2",
+              "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent",
+            )}
+          >
+            <span className="grid h-5 w-5 place-items-center rounded-sm bg-surface-2 text-fg-muted">
+              <Icon name="list" size={11} />
+            </span>
+            <div className="min-w-0">
+              <div className="flex items-baseline gap-2">
+                <span className="font-mono text-[10px] font-semibold uppercase tracking-wider text-fg-faint">
+                  Plan · {done}/{total}
+                </span>
+                <span className="font-mono text-[10px] text-fg-faint">{pct}%</span>
+              </div>
+              <div className="mt-0.5 truncate text-[12.5px] text-fg">{current.text}</div>
             </div>
-            <div className="mt-0.5 truncate text-[12.5px] text-fg">{current.text}</div>
-          </div>
-          <Icon name="more" size={11} className="text-fg-faint -rotate-90" />
-        </motion.button>
+            <Icon name="more" size={11} className="text-fg-faint -rotate-90" />
+          </motion.button>
+        </Tooltip>
       )}
     </AnimatePresence>
   );

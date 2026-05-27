@@ -22,34 +22,36 @@ function CitationBadge({ n, label }: { n: number; label: string }) {
     );
   }
 
+  // Rich tooltip content (3-line card) is too custom for the shared
+  // `<Tooltip>` wrapper, so we use Radix primitives directly — but the
+  // Provider is mounted once at the app root (PluginProvider), so no
+  // local Provider is needed here.
   return (
-    <Tooltip.Provider delayDuration={200}>
-      <Tooltip.Root>
-        <Tooltip.Trigger asChild>
-          <sup
-            className="cite-marker rounded-sm bg-surface-2 px-[3px] py-px font-mono text-[10px] font-semibold text-fg-soft cursor-help hover:bg-accent hover:text-on-accent transition-colors"
-            data-citation={n}
-          >
-            {label}
-          </sup>
-        </Tooltip.Trigger>
-        <Tooltip.Portal>
-          <Tooltip.Content
-            side="top"
-            sideOffset={6}
-            className="z-50 max-w-[360px] rounded-md border border-line bg-surface px-3 py-2 shadow-lg"
-          >
-            <div className="text-[11px] font-mono text-fg-faint tabular-nums">{source.domain}</div>
-            <div className="mt-0.5 text-[12.5px] font-semibold text-fg leading-snug">
-              {source.title}
-            </div>
-            <div className="mt-1 text-[11.5px] text-fg-muted leading-snug line-clamp-3">
-              {source.snippet}
-            </div>
-          </Tooltip.Content>
-        </Tooltip.Portal>
-      </Tooltip.Root>
-    </Tooltip.Provider>
+    <Tooltip.Root delayDuration={200}>
+      <Tooltip.Trigger asChild>
+        <sup
+          className="cite-marker rounded-sm bg-surface-2 px-[3px] py-px font-mono text-[10px] font-semibold text-fg-soft cursor-help hover:bg-accent hover:text-on-accent transition-colors"
+          data-citation={n}
+        >
+          {label}
+        </sup>
+      </Tooltip.Trigger>
+      <Tooltip.Portal>
+        <Tooltip.Content
+          side="top"
+          sideOffset={6}
+          className="z-50 max-w-[360px] rounded-md border border-line bg-surface px-3 py-2 shadow-lg"
+        >
+          <div className="text-[11px] font-mono text-fg-faint tabular-nums">{source.domain}</div>
+          <div className="mt-0.5 text-[12.5px] font-semibold text-fg leading-snug">
+            {source.title}
+          </div>
+          <div className="mt-1 text-[11.5px] text-fg-muted leading-snug line-clamp-3">
+            {source.snippet}
+          </div>
+        </Tooltip.Content>
+      </Tooltip.Portal>
+    </Tooltip.Root>
   );
 }
 

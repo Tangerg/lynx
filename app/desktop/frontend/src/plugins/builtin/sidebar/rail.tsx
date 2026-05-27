@@ -3,7 +3,7 @@
 // rail slot — keeping them in one file because they share no code with
 // the expanded sidebar and only with each other.
 
-import { Icon, IconButton } from "@/components/common";
+import { Icon, IconButton, Tooltip } from "@/components/common";
 import { useT } from "@/lib/i18n";
 import { useSessions } from "@/lib/queries";
 import { cn } from "@/lib/utils";
@@ -120,12 +120,14 @@ function RailSettings() {
 
 function RailUser() {
   return (
-    <div
-      title="You · jdoe@longbridge-inc.com"
-      className="mt-1 grid h-9 w-9 place-items-center rounded-full border-2 border-transparent bg-surface-2 font-sans text-[13px] font-semibold text-fg cursor-pointer transition-colors hover:border-accent"
-    >
-      J
-    </div>
+    <Tooltip label="You · jdoe@longbridge-inc.com" side="right">
+      <div
+        aria-label="Account"
+        className="mt-1 grid h-9 w-9 place-items-center rounded-full border-2 border-transparent bg-surface-2 font-sans text-[13px] font-semibold text-fg cursor-pointer transition-colors hover:border-accent"
+      >
+        J
+      </div>
+    </Tooltip>
   );
 }
 

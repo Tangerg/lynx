@@ -2,6 +2,7 @@ import type { VariantProps } from "class-variance-authority";
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 import { cva } from "class-variance-authority";
 import { cn } from "@/lib/utils";
+import { Tooltip } from "./Tooltip";
 
 // Icon-only button with three variants used across the app.
 //   ghost        — header / chat-tab actions (32px circle, transparent until hover)
@@ -36,14 +37,24 @@ type Props = Omit<ButtonHTMLAttributes<HTMLButtonElement>, "children"> &
     children: ReactNode;
   };
 
-export function IconButton({ variant, active, className, children, ...rest }: Props) {
+export function IconButton({ variant, active, className, children, title, ...rest }: Props) {
   // Icon-only buttons need an accessible name. If the caller supplied
   // `title` (the hover tooltip) but didn't override `aria-label`, mirror
   // it so screen readers get the same text the sighted user sees.
-  const ariaLabel = rest["aria-label"] ?? rest.title;
+  const ariaLabel = rest["aria-label"] ?? title;
+  // The native `title` attribute is intentionally dropped — Radix
+  // Tooltip handles the hover affordance with a 250ms delay vs the
+  // OS-default ~1s lag, and it works on focus too (the native title
+  // doesn't).
   return (
-    <button {...rest} aria-label={ariaLabel} className={cn(styles({ variant, active }), className)}>
-      {children}
-    </button>
+    <Tooltip label={title}>
+      <button
+        {...rest}
+        aria-label={ariaLabel}
+        className={cn(styles({ variant, active }), className)}
+      >
+        {children}
+      </button>
+    </Tooltip>
   );
 }

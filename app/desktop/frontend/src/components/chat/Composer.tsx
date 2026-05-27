@@ -2,7 +2,7 @@ import type { Attachment, ComposerMode } from "@/state/composerStore";
 import type { IconName } from "@/components/common";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { useEffect, useMemo, useRef } from "react";
-import { Chip, Icon } from "@/components/common";
+import { Chip, Icon, Tooltip } from "@/components/common";
 import { useT } from "@/lib/i18n";
 import {
   lookupComposerKeyBinding,
@@ -140,14 +140,13 @@ function ModePicker({
   const active = modes.find((m) => m.id === value) ?? modes[0];
   return (
     <DropdownMenu.Root>
-      <DropdownMenu.Trigger
-        className="inline-flex h-6.5 items-center gap-1.5 rounded-sm border border-line bg-transparent px-2 font-sans text-[11.5px] font-semibold text-fg cursor-pointer transition-colors hover:bg-surface-2 data-[state=open]:bg-surface-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent"
-        title="Composer mode"
-      >
-        <Icon name={(active.icon as IconName) ?? "spark"} size={12} />
-        <span>{active.label}</span>
-        <Icon name="more" size={10} className="text-fg-faint -rotate-90" />
-      </DropdownMenu.Trigger>
+      <Tooltip label="Composer mode">
+        <DropdownMenu.Trigger className="inline-flex h-6.5 items-center gap-1.5 rounded-sm border border-line bg-transparent px-2 font-sans text-[11.5px] font-semibold text-fg cursor-pointer transition-colors hover:bg-surface-2 data-[state=open]:bg-surface-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent">
+          <Icon name={(active.icon as IconName) ?? "spark"} size={12} />
+          <span>{active.label}</span>
+          <Icon name="more" size={10} className="text-fg-faint -rotate-90" />
+        </DropdownMenu.Trigger>
+      </Tooltip>
       <DropdownMenu.Portal>
         <DropdownMenu.Content
           align="start"

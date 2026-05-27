@@ -15,7 +15,7 @@ import type { IconName } from "@/components/common";
 import type { HeaderTabCloseActions, HeaderTabKind } from "@/state/sessionStore";
 import * as ContextMenu from "@radix-ui/react-context-menu";
 import { useCallback, useRef } from "react";
-import { dragClasses, Icon, noDragClasses, StatusDot } from "@/components/common";
+import { dragClasses, Icon, noDragClasses, StatusDot, Tooltip } from "@/components/common";
 import { cn } from "@/lib/utils";
 import { Slot } from "@/plugins/Slot";
 
@@ -167,16 +167,19 @@ function TabItem({
           <span className="truncate font-semibold text-[12.5px] leading-tight" title={title}>
             {title}
           </span>
-          <span
-            className="grid h-5.5 w-5.5 place-items-center rounded text-fg-faint opacity-0 transition-all duration-150 group-hover:opacity-100 hover:bg-surface-3 hover:text-fg active:scale-90"
-            onClick={(e) => {
-              e.stopPropagation();
-              onClose();
-            }}
-            title="Close"
-          >
-            <Icon name="x" size={10} />
-          </span>
+          <Tooltip label="Close">
+            <span
+              className="grid h-5.5 w-5.5 place-items-center rounded text-fg-faint opacity-0 transition-all duration-150 group-hover:opacity-100 hover:bg-surface-3 hover:text-fg active:scale-90"
+              onClick={(e) => {
+                e.stopPropagation();
+                onClose();
+              }}
+              role="button"
+              aria-label="Close tab"
+            >
+              <Icon name="x" size={10} />
+            </span>
+          </Tooltip>
         </div>
       </ContextMenu.Trigger>
       <ContextMenu.Portal>

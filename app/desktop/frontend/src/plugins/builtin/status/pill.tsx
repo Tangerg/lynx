@@ -10,7 +10,7 @@
 // pill site.
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Icon, Sparkline, StatusDot } from "@/components/common";
+import { Icon, Sparkline, StatusDot, Tooltip } from "@/components/common";
 import { cn } from "@/lib/utils";
 import { definePlugin } from "@/plugins/sdk";
 import { useAgentAction, useAgentSlice } from "@/state/agentStore";
@@ -71,16 +71,17 @@ function RunState() {
           <span className="text-fg-faint">·</span>
           <span className="text-fg">{activity || "running"}</span>
           {stop && (
-            <button
-              type="button"
-              onClick={stop}
-              title="Stop (⌘.)"
-              aria-label="Stop (⌘.)"
-              className="ml-1 inline-flex items-center gap-0.5 rounded-xs border border-line-soft bg-transparent px-1.5 py-px font-mono text-[10px] text-fg-muted cursor-pointer transition-colors hover:bg-surface-2 hover:text-fg"
-            >
-              <Icon name="stop" size={9} />
-              stop
-            </button>
+            <Tooltip label="Stop (⌘.)">
+              <button
+                type="button"
+                onClick={stop}
+                aria-label="Stop"
+                className="ml-1 inline-flex items-center gap-0.5 rounded-xs border border-line-soft bg-transparent px-1.5 py-px font-mono text-[10px] text-fg-muted cursor-pointer transition-colors hover:bg-surface-2 hover:text-fg"
+              >
+                <Icon name="stop" size={9} />
+                stop
+              </button>
+            </Tooltip>
           )}
         </>
       ) : (
@@ -96,10 +97,12 @@ function RunState() {
 // the visual density is honest.
 function Branch() {
   return (
-    <span className={pill()} title="Git branch (placeholder)">
-      <Icon name="branch" size={10} className="text-fg-faint" />
-      <span className="font-mono">main</span>
-    </span>
+    <Tooltip label="Git branch (placeholder)">
+      <span className={pill()}>
+        <Icon name="branch" size={10} className="text-fg-faint" />
+        <span className="font-mono">main</span>
+      </span>
+    </Tooltip>
   );
 }
 
@@ -110,18 +113,20 @@ function RunId() {
   const runId = useAgentSlice((v) => v.run.runId);
   const short = runId ? runId.slice(0, 8) : "—";
   return (
-    <button
-      type="button"
-      onClick={openTimelineView}
-      title={runId ? `Run: ${runId} · open timeline` : "Open timeline"}
-      className={cn(
-        pill(),
-        "rounded-xs border-0 bg-transparent px-1 cursor-pointer transition-colors hover:bg-surface-2 hover:text-fg",
-      )}
-    >
-      <span className="text-fg-faint">run</span>
-      <span className="font-mono">{short}</span>
-    </button>
+    <Tooltip label={runId ? `Run: ${runId} · open timeline` : "Open timeline"}>
+      <button
+        type="button"
+        onClick={openTimelineView}
+        aria-label="Open timeline"
+        className={cn(
+          pill(),
+          "rounded-xs border-0 bg-transparent px-1 cursor-pointer transition-colors hover:bg-surface-2 hover:text-fg",
+        )}
+      >
+        <span className="text-fg-faint">run</span>
+        <span className="font-mono">{short}</span>
+      </button>
+    </Tooltip>
   );
 }
 
@@ -139,22 +144,26 @@ function Tokens() {
   const usedNum = useMemo(() => parseShorthand(used), [used]);
   const history = useNumericHistory(usedNum);
   return (
-    <span className={pill()} title={`Context: ${ctxPct}% of ${total}`}>
-      <Sparkline values={history} width={42} height={12} fill />
-      <span className="font-mono">{used}</span>
-      <span className="font-mono text-fg-faint">/{total}</span>
-      <span className="font-mono text-fg-faint">{ctxPct}%</span>
-    </span>
+    <Tooltip label={`Context: ${ctxPct}% of ${total}`}>
+      <span className={pill()}>
+        <Sparkline values={history} width={42} height={12} fill />
+        <span className="font-mono">{used}</span>
+        <span className="font-mono text-fg-faint">/{total}</span>
+        <span className="font-mono text-fg-faint">{ctxPct}%</span>
+      </span>
+    </Tooltip>
   );
 }
 
 function Cost() {
   const cost = useAgentSlice((v) => v.run.cost);
   return (
-    <span className={pill()} title="Session cost (USD)">
-      <span className="text-fg-faint">$</span>
-      <span className="font-mono">{cost}</span>
-    </span>
+    <Tooltip label="Session cost (USD)">
+      <span className={pill()}>
+        <span className="text-fg-faint">$</span>
+        <span className="font-mono">{cost}</span>
+      </span>
+    </Tooltip>
   );
 }
 
@@ -221,27 +230,30 @@ function TokenRate() {
   if (!running) return null;
   if (tokensPerSec !== null) {
     return (
-      <span
-        className={pill("text-fg-faint")}
-        title={`TTFT ${ttftMs?.toFixed(0)}ms · live tokens/sec`}
-      >
-        <span className="font-mono">{tokensPerSec.toFixed(0)}</span>
-        <span>t/s</span>
-      </span>
+      <Tooltip label={`TTFT ${ttftMs?.toFixed(0)}ms · live tokens/sec`}>
+        <span className={pill("text-fg-faint")}>
+          <span className="font-mono">{tokensPerSec.toFixed(0)}</span>
+          <span>t/s</span>
+        </span>
+      </Tooltip>
     );
   }
   if (ttftMs !== null) {
     return (
-      <span className={pill("text-fg-faint")} title="Time to first token">
-        <span className="font-mono">{ttftMs.toFixed(0)}</span>
-        <span>ms</span>
-      </span>
+      <Tooltip label="Time to first token">
+        <span className={pill("text-fg-faint")}>
+          <span className="font-mono">{ttftMs.toFixed(0)}</span>
+          <span>ms</span>
+        </span>
+      </Tooltip>
     );
   }
   return (
-    <span className={pill("text-fg-faint")} title="Waiting for first token…">
-      <span>·</span>
-    </span>
+    <Tooltip label="Waiting for first token…">
+      <span className={pill("text-fg-faint")}>
+        <span>·</span>
+      </span>
+    </Tooltip>
   );
 }
 
