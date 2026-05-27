@@ -24,7 +24,7 @@ func TestChatModel_Integration(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			m, err := minimax.NewOpenAIChatModel(&minimax.OpenAIChatModelConfig{
+			m, err := minimax.NewOpenAIChatModel(minimax.OpenAIChatModelConfig{
 				APIKey:         model.NewAPIKey(key),
 				DefaultOptions: opts,
 			})

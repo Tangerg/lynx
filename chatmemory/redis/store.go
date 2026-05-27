@@ -34,10 +34,7 @@ type StoreConfig struct {
 	TTL time.Duration
 }
 
-func (c *StoreConfig) validate() error {
-	if c == nil {
-		return errors.New("redis: config must not be nil")
-	}
+func (c StoreConfig) Validate() error {
 	if c.Client == nil {
 		return errors.New("redis: Client is required")
 	}
@@ -60,8 +57,8 @@ type Store struct {
 }
 
 // NewStore builds a [Store] from cfg.
-func NewStore(cfg *StoreConfig) (*Store, error) {
-	if err := cfg.validate(); err != nil {
+func NewStore(cfg StoreConfig) (*Store, error) {
+	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
 	return &Store{

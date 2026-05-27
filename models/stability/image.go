@@ -26,10 +26,7 @@ type ImageModelConfig struct {
 	Endpoint string
 }
 
-func (c *ImageModelConfig) validate() error {
-	if c == nil {
-		return errors.New("stability: config must not be nil")
-	}
+func (c ImageModelConfig) Validate() error {
 	if c.APIKey == nil {
 		return errors.New("stability: APIKey is required")
 	}
@@ -58,12 +55,12 @@ type ImageModel struct {
 	endpoint       string
 }
 
-func NewImageModel(cfg *ImageModelConfig) (*ImageModel, error) {
-	if err := cfg.validate(); err != nil {
+func NewImageModel(cfg ImageModelConfig) (*ImageModel, error) {
+	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
 
-	api, err := NewAPI(&APIConfig{
+	api, err := NewAPI(APIConfig{
 		APIKey:     cfg.APIKey,
 		BaseURL:    cfg.BaseURL,
 		HTTPClient: cfg.HTTPClient,

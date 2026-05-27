@@ -20,10 +20,7 @@ type NativeChatModelConfig struct {
 	HTTPClient     *http.Client
 }
 
-func (c *NativeChatModelConfig) validate() error {
-	if c == nil {
-		return errors.New("ollama: config must not be nil")
-	}
+func (c NativeChatModelConfig) Validate() error {
 	if c.DefaultOptions == nil {
 		return errors.New("ollama: DefaultOptions is required")
 	}
@@ -46,12 +43,12 @@ type NativeChatModel struct {
 	defaultOptions *chat.Options
 }
 
-func NewNativeChatModel(cfg *NativeChatModelConfig) (*NativeChatModel, error) {
-	if err := cfg.validate(); err != nil {
+func NewNativeChatModel(cfg NativeChatModelConfig) (*NativeChatModel, error) {
+	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
 
-	api, err := NewAPI(&APIConfig{
+	api, err := NewAPI(APIConfig{
 		BaseURL:    cfg.BaseURL,
 		HTTPClient: cfg.HTTPClient,
 	})

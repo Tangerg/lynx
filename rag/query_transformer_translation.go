@@ -37,10 +37,7 @@ type TranslationTransformerConfig struct {
 }
 
 // validate fills defaults and rejects invalid configs.
-func (c *TranslationTransformerConfig) validate() error {
-	if c == nil {
-		return errors.New("rag.TranslationTransformerConfig: config must not be nil")
-	}
+func (c TranslationTransformerConfig) Validate() error {
 	if c.ChatModel == nil {
 		return errors.New("rag.TranslationTransformerConfig: ChatModel is required")
 	}
@@ -70,8 +67,8 @@ type TranslationTransformer struct {
 // [TranslationTransformer]. Returns an error when the
 // configuration fails validation or the chat client cannot be
 // constructed.
-func NewTranslationTransformer(cfg *TranslationTransformerConfig) (*TranslationTransformer, error) {
-	if err := cfg.validate(); err != nil {
+func NewTranslationTransformer(cfg TranslationTransformerConfig) (*TranslationTransformer, error) {
+	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
 

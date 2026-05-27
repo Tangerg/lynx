@@ -40,10 +40,7 @@ type PipelineConfig struct {
 
 // validate fills in defaults and rejects configurations missing the
 // required pieces.
-func (c *PipelineConfig) validate() error {
-	if c == nil {
-		return errors.New("rag.PipelineConfig: config must not be nil")
-	}
+func (c PipelineConfig) Validate() error {
 	if len(c.DocumentRetrievers) == 0 {
 		return errors.New("rag.PipelineConfig: at least one DocumentRetriever is required")
 	}
@@ -62,7 +59,7 @@ func (c *PipelineConfig) validate() error {
 //
 // Example:
 //
-//	pipe, err := rag.NewPipeline(&rag.PipelineConfig{
+//	pipe, err := rag.NewPipeline(rag.PipelineConfig{
 //	    DocumentRetrievers: []rag.DocumentRetriever{retriever},
 //	    QueryAugmenter:     contextual,
 //	})
@@ -78,8 +75,8 @@ type Pipeline struct {
 
 // NewPipeline builds a [Pipeline] from config. Returns an error when
 // the configuration fails validation.
-func NewPipeline(config *PipelineConfig) (*Pipeline, error) {
-	if err := config.validate(); err != nil {
+func NewPipeline(config PipelineConfig) (*Pipeline, error) {
+	if err := config.Validate(); err != nil {
 		return nil, fmt.Errorf("rag.NewPipeline: %w", err)
 	}
 

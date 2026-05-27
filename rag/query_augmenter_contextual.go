@@ -2,7 +2,6 @@ package rag
 
 import (
 	"context"
-	"errors"
 	"strings"
 
 	"github.com/Tangerg/lynx/core/document"
@@ -55,10 +54,7 @@ type ContextualAugmenterConfig struct {
 }
 
 // validate fills the default templates and rejects invalid configs.
-func (c *ContextualAugmenterConfig) validate() error {
-	if c == nil {
-		return errors.New("rag.ContextualAugmenterConfig: config must not be nil")
-	}
+func (c ContextualAugmenterConfig) Validate() error {
 	if c.PromptTemplate == nil {
 		c.PromptTemplate = chat.NewPromptTemplate(contextualDefaultTemplate)
 	}
@@ -79,7 +75,7 @@ var _ QueryAugmenter = (*ContextualAugmenter)(nil)
 //
 // Example:
 //
-//	aug, _ := rag.NewContextualAugmenter(&rag.ContextualAugmenterConfig{})
+//	aug, _ := rag.NewContextualAugmenter(rag.ContextualAugmenterConfig{})
 //	finalQ, err := aug.Augment(ctx, q, retrievedDocs)
 type ContextualAugmenter struct {
 	promptTemplate             *chat.PromptTemplate
@@ -89,8 +85,8 @@ type ContextualAugmenter struct {
 
 // NewContextualAugmenter builds a [ContextualAugmenter] from
 // cfg. Returns an error when the configuration fails validation.
-func NewContextualAugmenter(cfg *ContextualAugmenterConfig) (*ContextualAugmenter, error) {
-	if err := cfg.validate(); err != nil {
+func NewContextualAugmenter(cfg ContextualAugmenterConfig) (*ContextualAugmenter, error) {
+	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
 	return &ContextualAugmenter{

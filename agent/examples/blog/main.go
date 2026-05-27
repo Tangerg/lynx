@@ -72,7 +72,7 @@ func main() {
 		Goals(agent.GoalProducing[BlogPost](core.Goal{Description: "blog post produced"})).
 		Build()
 
-	platform := agent.NewPlatform(&runtime.PlatformConfig{
+	platform := agent.NewPlatform(runtime.PlatformConfig{
 		Extensions: []core.Extension{stubLogger{}},
 	})
 	if err := platform.Deploy(a); err != nil {

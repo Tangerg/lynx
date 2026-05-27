@@ -7,7 +7,7 @@
 //
 // Quick start:
 //
-//	pipe, err := rag.NewPipeline(&rag.PipelineConfig{
+//	pipe, err := rag.NewPipeline(rag.PipelineConfig{
 //	    DocumentRetrievers: []rag.DocumentRetriever{retriever},
 //	    QueryAugmenter:     contextual,
 //	})
@@ -34,7 +34,7 @@
 // retriever results" pattern is the refiner pair below — equivalent to
 // spring-ai's ConcatenationDocumentJoiner:
 //
-//	pipe, _ := rag.NewPipeline(&rag.PipelineConfig{
+//	pipe, _ := rag.NewPipeline(rag.PipelineConfig{
 //	    DocumentRetrievers: []rag.DocumentRetriever{vectorR1, vectorR2},
 //	    DocumentRefiners: []rag.DocumentRefiner{
 //	        rag.NewDeduplicationRefiner(), // drop duplicate IDs

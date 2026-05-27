@@ -20,10 +20,7 @@ type APIConfig struct {
 	HTTPClient *http.Client
 }
 
-func (c *APIConfig) validate() error {
-	if c == nil {
-		return errors.New("revai: config must not be nil")
-	}
+func (c APIConfig) Validate() error {
 	if c.APIKey == nil {
 		return errors.New("revai: APIKey is required")
 	}
@@ -34,8 +31,8 @@ type API struct {
 	http *resty.Client
 }
 
-func NewAPI(cfg *APIConfig) (*API, error) {
-	if err := cfg.validate(); err != nil {
+func NewAPI(cfg APIConfig) (*API, error) {
+	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
 	client := resty.New().
@@ -94,10 +91,7 @@ type Transcript = string
 
 // SubmitURL queues a job pointing at media_url. Use Upload when the
 // caller has bytes instead.
-func (a *API) SubmitURL(ctx context.Context, opts *JobOptions) (*Job, error) {
-	if opts == nil {
-		return nil, errors.New("revai: request must not be nil")
-	}
+func (a *API) SubmitURL(ctx context.Context, opts JobOptions) (*Job, error) {
 	var out Job
 	resp, err := a.http.R().
 		SetContext(ctx).
@@ -116,12 +110,9 @@ func (a *API) SubmitURL(ctx context.Context, opts *JobOptions) (*Job, error) {
 
 // Upload submits a job with the audio bytes as the multipart "media"
 // field plus the options as a JSON "options" field.
-func (a *API) Upload(ctx context.Context, audio []byte, opts *JobOptions) (*Job, error) {
+func (a *API) Upload(ctx context.Context, audio []byte, opts JobOptions) (*Job, error) {
 	if len(audio) == 0 {
 		return nil, errors.New("revai: request must not be nil")
-	}
-	if opts == nil {
-		opts = &JobOptions{}
 	}
 	optsJSON, _ := json.Marshal(opts)
 

@@ -38,10 +38,7 @@ type StoreConfig struct {
 	VectorSearchOverrides *types.KnowledgeBaseVectorSearchConfiguration
 }
 
-func (c *StoreConfig) validate() error {
-	if c == nil {
-		return errors.New("bedrockkb: config must not be nil")
-	}
+func (c StoreConfig) Validate() error {
 	if c.Client == nil {
 		return errors.New("bedrockkb: Client is required")
 	}
@@ -62,8 +59,8 @@ type Store struct {
 }
 
 
-func NewStore(config *StoreConfig) (*Store, error) {
-	if err := config.validate(); err != nil {
+func NewStore(config StoreConfig) (*Store, error) {
+	if err := config.Validate(); err != nil {
 		return nil, err
 	}
 	return &Store{

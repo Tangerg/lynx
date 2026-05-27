@@ -24,7 +24,7 @@ func TestChatModel_Integration(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			m, err := openrouter.NewOpenAIChatModel(&openrouter.OpenAIChatModelConfig{
+			m, err := openrouter.NewOpenAIChatModel(openrouter.OpenAIChatModelConfig{
 				APIKey:         model.NewAPIKey(key),
 				DefaultOptions: opts,
 			})

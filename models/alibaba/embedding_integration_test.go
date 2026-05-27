@@ -24,7 +24,7 @@ func TestEmbeddingModel_Integration(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			m, err := alibaba.NewEmbeddingModel(&alibaba.EmbeddingModelConfig{
+			m, err := alibaba.NewEmbeddingModel(alibaba.EmbeddingModelConfig{
 				APIKey:         model.NewAPIKey(key),
 				DefaultOptions: opts,
 			})

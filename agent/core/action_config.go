@@ -69,7 +69,7 @@ type ActionConfig struct {
 
 // applyDefaults fills in zero-valued fields whose conceptual default
 // is non-zero.
-func (c *ActionConfig) applyDefaults() {
+func (c *ActionConfig) ApplyDefaults() {
 	if c.Cost == nil {
 		c.Cost = Static(1.0)
 	}

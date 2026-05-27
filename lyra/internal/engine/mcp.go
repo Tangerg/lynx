@@ -79,7 +79,7 @@ type MCPServer struct {
 // validate ensures one transport is fully specified and any others
 // are blank. Engine.New aggregates these so the operator sees
 // every misconfiguration at once.
-func (m MCPServer) validate() error {
+func (m MCPServer) Validate() error {
 	if m.Name == "" {
 		return errors.New("MCPServer.Name is required")
 	}
@@ -138,7 +138,7 @@ func dialMCPServers(ctx context.Context, servers []MCPServer) ([]chat.Tool, []*s
 	}
 
 	for _, srv := range servers {
-		if err := srv.validate(); err != nil {
+		if err := srv.Validate(); err != nil {
 			closeAll()
 			return nil, nil, err
 		}
@@ -157,7 +157,7 @@ func dialMCPServers(ctx context.Context, servers []MCPServer) ([]chat.Tool, []*s
 		sources = append(sources, mcp.Source{Name: srv.Name, Session: session})
 	}
 
-	provider, err := mcp.NewProvider(&mcp.ProviderConfig{
+	provider, err := mcp.NewProvider(mcp.ProviderConfig{
 		Sources: sources,
 	})
 	if err != nil {
@@ -184,9 +184,9 @@ func dialOne(ctx context.Context, srv MCPServer) (*sdkmcp.ClientSession, error) 
 	}, nil)
 	switch srv.transport() {
 	case MCPTransportHTTP:
-		return mcp.DialStreamableHTTP(ctx, client, srv.Endpoint, nil)
+		return mcp.DialStreamableHTTP(ctx, client, srv.Endpoint, mcp.HTTPClientOptions{})
 	case MCPTransportStdio:
-		return mcp.DialCommand(ctx, client, srv.Command, srv.Args, &mcp.CommandClientOptions{
+		return mcp.DialCommand(ctx, client, srv.Command, srv.Args, mcp.CommandClientOptions{
 			Env: srv.Env,
 			Dir: srv.Dir,
 		})

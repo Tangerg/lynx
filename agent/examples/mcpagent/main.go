@@ -74,7 +74,7 @@ func main() {
 
 	// Provider aggregates one or more sessions. MetaFunc=MetaFromContext
 	// pulls per-request metadata installed via mcp.WithMeta.
-	provider, err = lynxmcp.NewProvider(&lynxmcp.ProviderConfig{
+	provider, err = lynxmcp.NewProvider(lynxmcp.ProviderConfig{
 		Sources:  []lynxmcp.Source{{Name: "research", Session: cliSession}},
 		MetaFunc: lynxmcp.MetaFromContext,
 	})
@@ -144,7 +144,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	platform := agent.NewPlatform(&runtime.PlatformConfig{
+	platform := agent.NewPlatform(runtime.PlatformConfig{
 		ChatClient: chatClient,
 		Extensions: []core.Extension{resolver},
 	})

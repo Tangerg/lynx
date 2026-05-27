@@ -24,7 +24,7 @@ func TestChatModel_Integration(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			m, err := fireworks.NewOpenAIChatModel(&fireworks.OpenAIChatModelConfig{
+			m, err := fireworks.NewOpenAIChatModel(fireworks.OpenAIChatModelConfig{
 				APIKey:         model.NewAPIKey(key),
 				DefaultOptions: opts,
 			})

@@ -18,7 +18,7 @@ func (f fakeAction) Execute(context.Context, *core.ProcessContext) core.ActionSt
 }
 
 func TestValidateAgentRejectsNilAction(t *testing.T) {
-	a := core.NewAgent(&core.AgentConfig{
+	a := core.NewAgent(core.AgentConfig{
 		Name:    "bad",
 		Actions: []core.Action{nil},
 		Goals:   []*core.Goal{{Name: "goal"}},
@@ -31,7 +31,7 @@ func TestValidateAgentRejectsNilAction(t *testing.T) {
 }
 
 func TestValidateAgentRejectsNilGoalWithIndex(t *testing.T) {
-	a := core.NewAgent(&core.AgentConfig{
+	a := core.NewAgent(core.AgentConfig{
 		Name:    "bad",
 		Actions: []core.Action{fakeAction{meta: core.ActionMetadata{Name: "act"}}},
 		Goals:   []*core.Goal{nil},

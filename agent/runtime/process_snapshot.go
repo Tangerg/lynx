@@ -99,7 +99,7 @@ func RestoreProcess(platform *Platform, snap core.ProcessSnapshot) (*AgentProces
 		return nil, fmt.Errorf("restore process: agent %q not deployed", snap.AgentName)
 	}
 
-	options := &core.ProcessOptions{}
+	options := core.ProcessOptions{}
 	options.ApplyDefaults()
 	blackboard := platform.NewBlackboard()
 	plannerInst, err := platform.resolvePlanner(agentDef, options.Extensions)
@@ -108,7 +108,7 @@ func RestoreProcess(platform *Platform, snap core.ProcessSnapshot) (*AgentProces
 	}
 	system := planning.FromAgent(agentDef)
 
-	p := newAgentProcess(snap.ID, agentDef, options, blackboard, plannerInst, system, platform)
+	p := newAgentProcess(snap.ID, agentDef, &options, blackboard, plannerInst, system, platform)
 	p.parentID = snap.ParentID
 	p.startedAt = snap.StartedAt
 

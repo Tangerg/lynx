@@ -32,7 +32,7 @@ func TestConsensus_PicksMajorityVote(t *testing.T) {
 		t.Fatalf("Consensus: %v", err)
 	}
 
-	platform := agent.NewPlatform(&runtime.PlatformConfig{})
+	platform := agent.NewPlatform(runtime.PlatformConfig{})
 	if err := platform.Deploy(a); err != nil {
 		t.Fatalf("deploy: %v", err)
 	}
@@ -66,7 +66,7 @@ func TestConsensus_TieBreakByVoterOrder(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Consensus: %v", err)
 	}
-	platform := agent.NewPlatform(&runtime.PlatformConfig{})
+	platform := agent.NewPlatform(runtime.PlatformConfig{})
 	mustDeploy(t, platform, a)
 	proc, _ := platform.RunAgent(t.Context(), a,
 		map[string]any{core.DefaultBindingName: consensusIn{}},

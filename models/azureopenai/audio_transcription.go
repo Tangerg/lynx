@@ -18,10 +18,7 @@ type AudioTranscriptionModelConfig struct {
 	RequestOptions []option.RequestOption
 }
 
-func (c *AudioTranscriptionModelConfig) validate() error {
-	if c == nil {
-		return errors.New("azureopenai: config must not be nil")
-	}
+func (c AudioTranscriptionModelConfig) Validate() error {
 	if c.Endpoint == "" {
 		return errors.New("azureopenai: Endpoint is required")
 	}
@@ -35,12 +32,12 @@ func (c *AudioTranscriptionModelConfig) validate() error {
 // pointed at Azure OpenAI's /audio/transcriptions endpoint.
 // [transcription.Options].Model is the Azure deployment id (typically
 // pointing at "whisper" / "gpt-4o-transcribe" / "gpt-4o-mini-transcribe").
-func NewAudioTranscriptionModel(cfg *AudioTranscriptionModelConfig) (*openai.AudioTranscriptionModel, error) {
-	if err := cfg.validate(); err != nil {
+func NewAudioTranscriptionModel(cfg AudioTranscriptionModelConfig) (*openai.AudioTranscriptionModel, error) {
+	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
 	apiKey, reqOpts := buildAzureRequestOptions(cfg.APIKey, cfg.Endpoint, cfg.APIVersion, cfg.RequestOptions)
-	return openai.NewAudioTranscriptionModel(&openai.AudioTranscriptionModelConfig{
+	return openai.NewAudioTranscriptionModel(openai.AudioTranscriptionModelConfig{
 		APIKey:         apiKey,
 		DefaultOptions: cfg.DefaultOptions,
 		RequestOptions: reqOpts,

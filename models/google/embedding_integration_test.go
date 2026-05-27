@@ -24,7 +24,7 @@ func TestEmbeddingModel_Integration(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			m, err := google.NewEmbeddingModel(&google.EmbeddingModelConfig{
+			m, err := google.NewEmbeddingModel(google.EmbeddingModelConfig{
 				APIKey:         model.NewAPIKey(key),
 				DefaultOptions: opts,
 			})

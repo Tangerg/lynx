@@ -24,7 +24,7 @@ func TestChatModel_Integration(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			m, err := huggingface.NewOpenAIChatModel(&huggingface.OpenAIChatModelConfig{
+			m, err := huggingface.NewOpenAIChatModel(huggingface.OpenAIChatModelConfig{
 				APIKey:         model.NewAPIKey(key),
 				DefaultOptions: opts,
 			})

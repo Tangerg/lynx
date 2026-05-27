@@ -40,10 +40,7 @@ type RewriteTransformerConfig struct {
 }
 
 // validate fills defaults and rejects invalid configs.
-func (c *RewriteTransformerConfig) validate() error {
-	if c == nil {
-		return errors.New("rag.RewriteTransformerConfig: config must not be nil")
-	}
+func (c RewriteTransformerConfig) Validate() error {
 	if c.ChatModel == nil {
 		return errors.New("rag.RewriteTransformerConfig: ChatModel is required")
 	}
@@ -72,8 +69,8 @@ type RewriteTransformer struct {
 // NewRewriteTransformer builds a [RewriteTransformer].
 // Returns an error when the configuration fails validation or the
 // chat client cannot be constructed.
-func NewRewriteTransformer(cfg *RewriteTransformerConfig) (*RewriteTransformer, error) {
-	if err := cfg.validate(); err != nil {
+func NewRewriteTransformer(cfg RewriteTransformerConfig) (*RewriteTransformer, error) {
+	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
 

@@ -20,10 +20,7 @@ type EmbeddingModelConfig struct {
 	HTTPClient     *http.Client
 }
 
-func (c *EmbeddingModelConfig) validate() error {
-	if c == nil {
-		return errors.New("jina: config must not be nil")
-	}
+func (c EmbeddingModelConfig) Validate() error {
 	if c.APIKey == nil {
 		return errors.New("jina: APIKey is required")
 	}
@@ -40,12 +37,12 @@ type EmbeddingModel struct {
 	defaultOptions *embedding.Options
 }
 
-func NewEmbeddingModel(cfg *EmbeddingModelConfig) (*EmbeddingModel, error) {
-	if err := cfg.validate(); err != nil {
+func NewEmbeddingModel(cfg EmbeddingModelConfig) (*EmbeddingModel, error) {
+	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
 
-	api, err := NewAPI(&APIConfig{
+	api, err := NewAPI(APIConfig{
 		APIKey:     cfg.APIKey,
 		BaseURL:    cfg.BaseURL,
 		HTTPClient: cfg.HTTPClient,

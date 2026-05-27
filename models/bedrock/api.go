@@ -24,10 +24,7 @@ type APIConfig struct {
 	AWSConfig *aws.Config
 }
 
-func (c *APIConfig) validate() error {
-	if c == nil {
-		return errors.New("bedrock: config must not be nil")
-	}
+func (c APIConfig) Validate() error {
 	return nil
 }
 
@@ -35,8 +32,8 @@ type API struct {
 	client *bedrockruntime.Client
 }
 
-func NewAPI(ctx context.Context, cfg *APIConfig) (*API, error) {
-	if err := cfg.validate(); err != nil {
+func NewAPI(ctx context.Context, cfg APIConfig) (*API, error) {
+	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
 

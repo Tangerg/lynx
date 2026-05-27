@@ -18,7 +18,7 @@ func TestAudioTTSModel_Call_Mock(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	m, err := deepgram.NewAudioTTSModel(&deepgram.AudioTTSModelConfig{
+	m, err := deepgram.NewAudioTTSModel(deepgram.AudioTTSModelConfig{
 		APIKey:         model.NewAPIKey("test-key"),
 		DefaultOptions: opts,
 		BaseURL:        srv.URL,

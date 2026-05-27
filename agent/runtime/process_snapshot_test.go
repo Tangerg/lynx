@@ -27,7 +27,7 @@ func buildSnapshotAgent() *core.Agent {
 }
 
 func TestPlatform_SaveProcess_NoStore(t *testing.T) {
-	platform := agent.NewPlatform(&runtime.PlatformConfig{})
+	platform := agent.NewPlatform(runtime.PlatformConfig{})
 	a := buildSnapshotAgent()
 	mustDeploy(t, platform, a)
 
@@ -47,7 +47,7 @@ func TestPlatform_SaveProcess_NoStore(t *testing.T) {
 
 func TestPlatform_SaveAndRestore_RoundTrip(t *testing.T) {
 	store := core.NewInMemoryProcessStore()
-	platform := agent.NewPlatform(&runtime.PlatformConfig{
+	platform := agent.NewPlatform(runtime.PlatformConfig{
 		ProcessStore: store,
 	})
 	a := buildSnapshotAgent()
@@ -82,7 +82,7 @@ func TestPlatform_SaveAndRestore_RoundTrip(t *testing.T) {
 	}
 
 	// Restore on a fresh platform with the same agent deployed.
-	platform2 := agent.NewPlatform(&runtime.PlatformConfig{ProcessStore: store})
+	platform2 := agent.NewPlatform(runtime.PlatformConfig{ProcessStore: store})
 	mustDeploy(t, platform2, buildSnapshotAgent())
 
 	restored, err := platform2.RestoreProcess(context.Background(), proc.ID())
@@ -107,7 +107,7 @@ func TestPlatform_SaveAndRestore_RoundTrip(t *testing.T) {
 
 func TestPlatform_RestoreProcess_AgentNotDeployed(t *testing.T) {
 	store := core.NewInMemoryProcessStore()
-	platform := agent.NewPlatform(&runtime.PlatformConfig{ProcessStore: store})
+	platform := agent.NewPlatform(runtime.PlatformConfig{ProcessStore: store})
 
 	_ = store.Save(context.Background(), core.ProcessSnapshot{
 		ID:        "orphan",

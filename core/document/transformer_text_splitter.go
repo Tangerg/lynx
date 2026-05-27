@@ -27,20 +27,17 @@ var _ Transformer = (*TextSplitter)(nil)
 //
 // Example:
 //
-//	s := document.NewTextSplitter(&document.TextSplitterConfig{Separator: "\n\n"})
+//	s := document.NewTextSplitter(document.TextSplitterConfig{Separator: "\n\n"})
 //	chunks, _ := s.Transform(ctx, []*document.Document{doc})
 type TextSplitter struct {
-	config   *TextSplitterConfig
+	config   TextSplitterConfig
 	splitter *Splitter
 }
 
 // NewTextSplitter builds a [TextSplitter]. nil config falls back to
 // line-by-line splitting.
-func NewTextSplitter(config *TextSplitterConfig) *TextSplitter {
-	if config == nil {
-		config = &TextSplitterConfig{Separator: "\n"}
-	}
-	splitter, _ := NewSplitter(&SplitterConfig{
+func NewTextSplitter(config TextSplitterConfig) *TextSplitter {
+	splitter, _ := NewSplitter(SplitterConfig{
 		CopyFormatter: config.CopyFormatter,
 		SplitFunc: func(_ context.Context, text string) ([]string, error) {
 			return strings.Split(text, config.Separator), nil

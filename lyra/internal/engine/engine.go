@@ -117,7 +117,7 @@ func New(cfg Config) (*Engine, error) {
 	if err != nil {
 		return nil, fmt.Errorf("engine: build memory middleware: %w", err)
 	}
-	platform := agent.NewPlatform(&runtime.PlatformConfig{
+	platform := agent.NewPlatform(runtime.PlatformConfig{
 		ChatClient: cfg.ChatClient,
 		Extensions: []core.Extension{resolver},
 		Guardrails: &core.Guardrails{

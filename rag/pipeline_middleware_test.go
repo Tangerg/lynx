@@ -55,7 +55,7 @@ func (m *echoChatModel) Stream(_ context.Context, _ *chat.Request) iter.Seq2[*ch
 }
 
 func TestNewPipelineMiddleware_RejectsInvalidConfig(t *testing.T) {
-	if _, _, err := rag.NewPipelineMiddleware(&rag.PipelineConfig{}); err == nil {
+	if _, _, err := rag.NewPipelineMiddleware(rag.PipelineConfig{}); err == nil {
 		t.Fatal("missing retrievers must error")
 	}
 }
@@ -64,9 +64,9 @@ func TestPipelineMiddleware_AugmentsRequestAndAttachesDocs(t *testing.T) {
 	doc, _ := document.NewDocument("retrieved info", nil)
 	retriever := &stubRetriever{docs: []*document.Document{doc}}
 
-	aug, _ := rag.NewContextualAugmenter(&rag.ContextualAugmenterConfig{})
+	aug, _ := rag.NewContextualAugmenter(rag.ContextualAugmenterConfig{})
 
-	callMW, _, err := rag.NewPipelineMiddleware(&rag.PipelineConfig{
+	callMW, _, err := rag.NewPipelineMiddleware(rag.PipelineConfig{
 		DocumentRetrievers: []rag.DocumentRetriever{retriever},
 		QueryAugmenter:     aug,
 	})
@@ -105,7 +105,7 @@ func TestPipelineMiddleware_PropagatesPipelineError(t *testing.T) {
 	want := errors.New("boom")
 	failingRetriever := &errorRetriever{err: want}
 
-	callMW, _, err := rag.NewPipelineMiddleware(&rag.PipelineConfig{
+	callMW, _, err := rag.NewPipelineMiddleware(rag.PipelineConfig{
 		DocumentRetrievers: []rag.DocumentRetriever{failingRetriever},
 	})
 	if err != nil {

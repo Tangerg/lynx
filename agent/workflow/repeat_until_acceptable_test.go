@@ -38,7 +38,7 @@ func TestRepeatUntilAcceptable_StopsWhenScoreCrossesThreshold(t *testing.T) {
 		t.Fatalf("RepeatUntilAcceptable: %v", err)
 	}
 
-	platform := agent.NewPlatform(&runtime.PlatformConfig{})
+	platform := agent.NewPlatform(runtime.PlatformConfig{})
 	if err := platform.Deploy(a); err != nil {
 		t.Fatalf("deploy: %v", err)
 	}
@@ -83,7 +83,7 @@ func TestRepeatUntilAcceptable_DefaultsThresholdToZeroPointSeven(t *testing.T) {
 		t.Fatalf("RepeatUntilAcceptable: %v", err)
 	}
 
-	platform := agent.NewPlatform(&runtime.PlatformConfig{})
+	platform := agent.NewPlatform(runtime.PlatformConfig{})
 	mustDeploy(t, platform, a)
 	proc, _ := platform.RunAgent(t.Context(), a,
 		map[string]any{core.DefaultBindingName: ruaIn{Topic: "x"}},

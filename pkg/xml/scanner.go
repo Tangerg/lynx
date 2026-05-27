@@ -196,10 +196,7 @@ type StreamScannerConfig struct {
 }
 
 // validate checks and normalizes the configuration.
-func (c *StreamScannerConfig) validate() error {
-	if c == nil {
-		return errors.New("config must not be nil")
-	}
+func (c StreamScannerConfig) Validate() error {
 	if len(c.Listeners) == 0 {
 		return errors.New("at least one listener is required")
 	}
@@ -245,8 +242,8 @@ type StreamScanner struct {
 }
 
 // NewStreamScanner creates a new stream scanner with the given configuration.
-func NewStreamScanner(config *StreamScannerConfig) (*StreamScanner, error) {
-	if err := config.validate(); err != nil {
+func NewStreamScanner(config StreamScannerConfig) (*StreamScanner, error) {
+	if err := config.Validate(); err != nil {
 		return nil, err
 	}
 

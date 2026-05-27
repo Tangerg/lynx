@@ -35,10 +35,7 @@ type APIConfig struct {
 	BaseURL string
 }
 
-func (c *APIConfig) validate() error {
-	if c == nil {
-		return errors.New("google: config must not be nil")
-	}
+func (c APIConfig) Validate() error {
 	// Vertex AI authenticates via ADC / service account, not API key;
 	// every other backend requires the typed APIKey.
 	if c.Backend != genai.BackendVertexAI && c.APIKey == nil {
@@ -51,8 +48,8 @@ type API struct {
 	client *genai.Client
 }
 
-func NewAPI(cfg *APIConfig) (*API, error) {
-	if err := cfg.validate(); err != nil {
+func NewAPI(cfg APIConfig) (*API, error) {
+	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
 

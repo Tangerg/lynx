@@ -82,7 +82,7 @@ func main() {
 		Goals(agent.GoalProducing[Brief](core.Goal{Description: "topic brief produced"})).
 		Build()
 
-	platform := agent.NewPlatform(&runtime.PlatformConfig{
+	platform := agent.NewPlatform(runtime.PlatformConfig{
 		ChatClient: chatClient,
 		Extensions: []core.Extension{resolver, &eventLogger{}},
 	})

@@ -36,10 +36,7 @@ type APIConfig struct {
 	AuthBearer bool // when true (default), prefix value with "Bearer "
 }
 
-func (c *APIConfig) validate() error {
-	if c == nil {
-		return errors.New("midjourney: config must not be nil")
-	}
+func (c APIConfig) Validate() error {
 	if c.APIKey == nil {
 		return errors.New("midjourney: APIKey is required")
 	}
@@ -55,8 +52,8 @@ type API struct {
 	fetchPath  string
 }
 
-func NewAPI(cfg *APIConfig) (*API, error) {
-	if err := cfg.validate(); err != nil {
+func NewAPI(cfg APIConfig) (*API, error) {
+	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
 

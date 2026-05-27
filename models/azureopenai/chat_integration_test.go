@@ -21,7 +21,7 @@ func TestChatModel_Call_Integration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	m, err := azureopenai.NewChatModel(&azureopenai.ChatModelConfig{
+	m, err := azureopenai.NewChatModel(azureopenai.ChatModelConfig{
 		APIKey:         model.NewAPIKey(key),
 		Endpoint:       endpoint,
 		DefaultOptions: opts,

@@ -19,7 +19,7 @@ func TestChatModel(t *testing.T) {
 			if err != nil {
 				t.Fatalf("NewOptions: %v", err)
 			}
-			m, err := deepseek.NewOpenAIChatModel(&deepseek.OpenAIChatModelConfig{
+			m, err := deepseek.NewOpenAIChatModel(deepseek.OpenAIChatModelConfig{
 				APIKey:         model.NewAPIKey("test-key"),
 				DefaultOptions: opts,
 				BaseURL:        baseURL,

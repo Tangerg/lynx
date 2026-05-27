@@ -28,7 +28,7 @@ func TestChatModel_Call_Mock(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	m, err := google.NewChatModel(&google.ChatModelConfig{
+	m, err := google.NewChatModel(google.ChatModelConfig{
 		APIKey:         model.NewAPIKey("test-key"),
 		DefaultOptions: opts,
 		BaseURL:        srv.URL,

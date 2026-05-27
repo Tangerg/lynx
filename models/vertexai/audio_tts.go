@@ -15,10 +15,7 @@ type AudioTTSModelConfig struct {
 	DefaultOptions *tts.Options
 }
 
-func (c *AudioTTSModelConfig) validate() error {
-	if c == nil {
-		return errors.New("vertexai: config must not be nil")
-	}
+func (c AudioTTSModelConfig) Validate() error {
 	if c.Project == "" {
 		return errors.New("vertexai: Project is required")
 	}
@@ -34,11 +31,11 @@ func (c *AudioTTSModelConfig) validate() error {
 // NewAudioTTSModel returns a [google.AudioTTSModel] backed by Vertex
 // AI. The audio is produced by Gemini's TTS-capable models
 // (gemini-2.5-flash-preview-tts, gemini-2.5-pro-preview-tts).
-func NewAudioTTSModel(cfg *AudioTTSModelConfig) (*google.AudioTTSModel, error) {
-	if err := cfg.validate(); err != nil {
+func NewAudioTTSModel(cfg AudioTTSModelConfig) (*google.AudioTTSModel, error) {
+	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
-	return google.NewAudioTTSModel(&google.AudioTTSModelConfig{
+	return google.NewAudioTTSModel(google.AudioTTSModelConfig{
 		Backend:        genai.BackendVertexAI,
 		Project:        cfg.Project,
 		Location:       cfg.Location,

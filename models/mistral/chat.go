@@ -21,10 +21,7 @@ type OpenAIChatModelConfig struct {
 	RequestOptions []option.RequestOption
 }
 
-func (c *OpenAIChatModelConfig) validate() error {
-	if c == nil {
-		return errors.New("mistral: config must not be nil")
-	}
+func (c OpenAIChatModelConfig) Validate() error {
 	if c.APIKey == nil {
 		return errors.New("mistral: APIKey is required")
 	}
@@ -37,13 +34,13 @@ func (c *OpenAIChatModelConfig) validate() error {
 // NewOpenAIChatModel returns an openai-backed [chat.Model] pointed at
 // the Mistral API. Mistral's /chat/completions is OpenAI-compatible
 // (including tool calling and streaming), so this is a thin facade.
-func NewOpenAIChatModel(cfg *OpenAIChatModelConfig) (*openai.ChatModel, error) {
-	if err := cfg.validate(); err != nil {
+func NewOpenAIChatModel(cfg OpenAIChatModelConfig) (*openai.ChatModel, error) {
+	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
 	baseURL := cmp.Or(cfg.BaseURL, DefaultBaseURL)
 	reqOpts := append([]option.RequestOption{option.WithBaseURL(baseURL)}, cfg.RequestOptions...)
-	return openai.NewChatModel(&openai.ChatModelConfig{
+	return openai.NewChatModel(openai.ChatModelConfig{
 		APIKey:         cfg.APIKey,
 		DefaultOptions: cfg.DefaultOptions,
 		RequestOptions: reqOpts,

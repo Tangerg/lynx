@@ -21,10 +21,7 @@ type EmbeddingModelConfig struct {
 	RequestOptions []option.RequestOption
 }
 
-func (c *EmbeddingModelConfig) validate() error {
-	if c == nil {
-		return errors.New("zhipu: config must not be nil")
-	}
+func (c EmbeddingModelConfig) Validate() error {
 	if c.APIKey == nil {
 		return errors.New("zhipu: APIKey is required")
 	}
@@ -38,13 +35,13 @@ func (c *EmbeddingModelConfig) validate() error {
 // at Zhipu's /embeddings endpoint. Use [ModelEmbedding3] with
 // [embedding.Options.Dimensions] (256/512/1024/2048) for output
 // truncation; [ModelEmbedding2] is the legacy fixed-1024-dim model.
-func NewEmbeddingModel(cfg *EmbeddingModelConfig) (*openai.EmbeddingModel, error) {
-	if err := cfg.validate(); err != nil {
+func NewEmbeddingModel(cfg EmbeddingModelConfig) (*openai.EmbeddingModel, error) {
+	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
 	baseURL := cmp.Or(cfg.BaseURL, BaseURL)
 	reqOpts := append([]option.RequestOption{option.WithBaseURL(baseURL)}, cfg.RequestOptions...)
-	return openai.NewEmbeddingModel(&openai.EmbeddingModelConfig{
+	return openai.NewEmbeddingModel(openai.EmbeddingModelConfig{
 		APIKey:         cfg.APIKey,
 		DefaultOptions: cfg.DefaultOptions,
 		RequestOptions: reqOpts,

@@ -24,7 +24,7 @@ func TestChatModel_Integration(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			m, err := perplexity.NewOpenAIChatModel(&perplexity.OpenAIChatModelConfig{
+			m, err := perplexity.NewOpenAIChatModel(perplexity.OpenAIChatModelConfig{
 				APIKey:         model.NewAPIKey(key),
 				DefaultOptions: opts,
 			})

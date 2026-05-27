@@ -42,10 +42,7 @@ type TokenCountBatcherConfig struct {
 
 // validate fills defaults and returns an error when required fields
 // are missing or numerically out of range.
-func (c *TokenCountBatcherConfig) validate() error {
-	if c == nil {
-		return errors.New("document.TokenCountBatcherConfig: config must not be nil")
-	}
+func (c TokenCountBatcherConfig) Validate() error {
 	if c.TokenCountEstimator == nil {
 		return errors.New("document.TokenCountBatcherConfig: TokenCountEstimator is required")
 	}
@@ -95,8 +92,8 @@ type TokenCountBatcher struct {
 
 // NewTokenCountBatcher builds a [TokenCountBatcher]. The effective
 // per-batch budget is MaxInputTokenCount * (1 - ReservePercentage).
-func NewTokenCountBatcher(config *TokenCountBatcherConfig) (*TokenCountBatcher, error) {
-	if err := config.validate(); err != nil {
+func NewTokenCountBatcher(config TokenCountBatcherConfig) (*TokenCountBatcher, error) {
+	if err := config.Validate(); err != nil {
 		return nil, err
 	}
 

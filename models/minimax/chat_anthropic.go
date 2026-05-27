@@ -25,10 +25,7 @@ type AnthropicChatModelConfig struct {
 	RequestOptions []option.RequestOption
 }
 
-func (c *AnthropicChatModelConfig) validate() error {
-	if c == nil {
-		return errors.New("minimax: config must not be nil")
-	}
+func (c AnthropicChatModelConfig) Validate() error {
 	if c.APIKey == nil {
 		return errors.New("minimax: APIKey is required")
 	}
@@ -46,13 +43,13 @@ func (c *AnthropicChatModelConfig) validate() error {
 // MiniMax-M2 in particular is the headline model on this endpoint;
 // other MiniMax chat models are accessible via [NewChatModel] (the
 // OpenAI-compatible flavor).
-func NewAnthropicChatModel(cfg *AnthropicChatModelConfig) (*anthropic.ChatModel, error) {
-	if err := cfg.validate(); err != nil {
+func NewAnthropicChatModel(cfg AnthropicChatModelConfig) (*anthropic.ChatModel, error) {
+	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
 	baseURL := cmp.Or(cfg.BaseURL, BaseURLIntlAnthropic)
 	reqOpts := append([]option.RequestOption{option.WithBaseURL(baseURL)}, cfg.RequestOptions...)
-	return anthropic.NewChatModel(&anthropic.ChatModelConfig{
+	return anthropic.NewChatModel(anthropic.ChatModelConfig{
 		APIKey:         cfg.APIKey,
 		DefaultOptions: cfg.DefaultOptions,
 		RequestOptions: reqOpts,

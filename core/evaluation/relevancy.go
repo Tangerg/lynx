@@ -54,10 +54,7 @@ type RelevancyEvaluatorConfig struct {
 // validate fills the default prompt template and returns an error when
 // required fields are missing or the template lacks the expected
 // variables.
-func (c *RelevancyEvaluatorConfig) validate() error {
-	if c == nil {
-		return errors.New("evaluation.RelevancyEvaluatorConfig: config must not be nil")
-	}
+func (c RelevancyEvaluatorConfig) Validate() error {
 	if c.ChatModel == nil {
 		return errors.New("evaluation.RelevancyEvaluatorConfig: ChatModel is required")
 	}
@@ -80,8 +77,8 @@ type RelevancyEvaluator struct {
 }
 
 // NewRelevancyEvaluator builds a [RelevancyEvaluator] from config.
-func NewRelevancyEvaluator(config *RelevancyEvaluatorConfig) (*RelevancyEvaluator, error) {
-	if err := config.validate(); err != nil {
+func NewRelevancyEvaluator(config RelevancyEvaluatorConfig) (*RelevancyEvaluator, error) {
+	if err := config.Validate(); err != nil {
 		return nil, err
 	}
 	base, err := newLLMEvaluator(

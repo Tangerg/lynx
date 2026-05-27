@@ -67,14 +67,11 @@ type Agent struct {
 // NewAgent assembles a fresh agent from config. Slice fields are
 // stored by reference; callers shouldn't mutate them afterwards.
 // nil config is treated as a zero-value config (no actions / goals).
-func NewAgent(config *AgentConfig) *Agent {
-	if config == nil {
-		config = &AgentConfig{}
-	}
+func NewAgent(config AgentConfig) *Agent {
 	if config.Version == nil {
 		config.Version = defaultVersion
 	}
-	a := &Agent{AgentConfig: *config}
+	a := &Agent{AgentConfig: config}
 	a.knownConditions = sync.OnceValue(func() map[string]struct{} {
 		return KnownConditions(a.Actions, a.Goals, a.Conditions)
 	})

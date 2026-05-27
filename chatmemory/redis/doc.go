@@ -8,7 +8,7 @@
 // Example:
 //
 //	client := goredis.NewUniversalClient(&goredis.UniversalOptions{...})
-//	store, _ := redis.NewStore(&redis.StoreConfig{Client: client})
+//	store, _ := redis.NewStore(redis.StoreConfig{Client: client})
 //
 //	chatMW, _, _ := memory.NewMiddleware(store)
 //	resp, _ := client.Chat().

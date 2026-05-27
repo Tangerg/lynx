@@ -37,10 +37,7 @@ type CompressionTransformerConfig struct {
 
 // validate fills the default prompt template and rejects invalid
 // configs.
-func (c *CompressionTransformerConfig) validate() error {
-	if c == nil {
-		return errors.New("rag.CompressionTransformerConfig: config must not be nil")
-	}
+func (c CompressionTransformerConfig) Validate() error {
 	if c.ChatModel == nil {
 		return errors.New("rag.CompressionTransformerConfig: ChatModel is required")
 	}
@@ -69,8 +66,8 @@ type CompressionTransformer struct {
 // [CompressionTransformer]. Returns an error when the
 // configuration fails validation or the chat client cannot be
 // constructed.
-func NewCompressionTransformer(cfg *CompressionTransformerConfig) (*CompressionTransformer, error) {
-	if err := cfg.validate(); err != nil {
+func NewCompressionTransformer(cfg CompressionTransformerConfig) (*CompressionTransformer, error) {
+	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
 

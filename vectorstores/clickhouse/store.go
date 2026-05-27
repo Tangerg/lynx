@@ -76,10 +76,7 @@ type StoreConfig struct {
 	InitializeSchema    bool
 }
 
-func (c *StoreConfig) validate() error {
-	if c == nil {
-		return errors.New("clickhouse: config must not be nil")
-	}
+func (c StoreConfig) Validate() error {
 	if c.Context == nil {
 		c.Context = context.Background()
 	}
@@ -132,8 +129,8 @@ type Store struct {
 }
 
 
-func NewStore(config *StoreConfig) (*Store, error) {
-	if err := config.validate(); err != nil {
+func NewStore(config StoreConfig) (*Store, error) {
+	if err := config.Validate(); err != nil {
 		return nil, err
 	}
 	embeddingClient, err := embedding.NewClient(config.EmbeddingModel)

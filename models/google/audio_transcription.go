@@ -30,10 +30,7 @@ type AudioTranscriptionModelConfig struct {
 	Metadata *transcription.ModelMetadata
 }
 
-func (c *AudioTranscriptionModelConfig) validate() error {
-	if c == nil {
-		return errors.New("google: config must not be nil")
-	}
+func (c AudioTranscriptionModelConfig) Validate() error {
 	if c.Backend != genai.BackendVertexAI && c.APIKey == nil {
 		return errors.New("google: APIKey is required")
 	}
@@ -56,12 +53,12 @@ type AudioTranscriptionModel struct {
 	metadata       transcription.ModelMetadata
 }
 
-func NewAudioTranscriptionModel(cfg *AudioTranscriptionModelConfig) (*AudioTranscriptionModel, error) {
-	if err := cfg.validate(); err != nil {
+func NewAudioTranscriptionModel(cfg AudioTranscriptionModelConfig) (*AudioTranscriptionModel, error) {
+	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
 
-	api, err := NewAPI(&APIConfig{
+	api, err := NewAPI(APIConfig{
 		APIKey:   cfg.APIKey,
 		Backend:  cfg.Backend,
 		Project:  cfg.Project,

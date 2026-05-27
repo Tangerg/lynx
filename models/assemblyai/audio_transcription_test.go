@@ -43,7 +43,7 @@ func TestAudioTranscriptionModel_Call_Mock(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	m, err := assemblyai.NewAudioTranscriptionModel(&assemblyai.AudioTranscriptionModelConfig{
+	m, err := assemblyai.NewAudioTranscriptionModel(assemblyai.AudioTranscriptionModelConfig{
 		APIKey:         model.NewAPIKey("test-key"),
 		DefaultOptions: opts,
 		BaseURL:        srv.URL,

@@ -106,7 +106,7 @@ func ScatterGather[In, Element, Result any](spec ScatterGatherConfig[In, Element
 		},
 	)
 
-	return core.NewAgent(&core.AgentConfig{
+	return core.NewAgent(core.AgentConfig{
 		Name:        spec.Name,
 		Description: spec.Description,
 		Actions:     []core.Action{scatter, gather},

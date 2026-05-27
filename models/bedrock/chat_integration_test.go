@@ -31,7 +31,7 @@ func TestChatModel_Integration(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			m, err := bedrock.NewChatModel(t.Context(), &bedrock.ChatModelConfig{
+			m, err := bedrock.NewChatModel(t.Context(), bedrock.ChatModelConfig{
 				DefaultOptions: opts,
 				Region:         region,
 			})

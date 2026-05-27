@@ -19,7 +19,7 @@ func TestChatModel(t *testing.T) {
 			if err != nil {
 				t.Fatalf("NewOptions: %v", err)
 			}
-			m, err := zhipu.NewOpenAIChatModel(&zhipu.OpenAIChatModelConfig{
+			m, err := zhipu.NewOpenAIChatModel(zhipu.OpenAIChatModelConfig{
 				APIKey:         model.NewAPIKey("test-key"),
 				DefaultOptions: opts,
 				BaseURL:        baseURL,

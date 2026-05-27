@@ -29,10 +29,7 @@ type AudioTTSModelConfig struct {
 	PollTimeout  time.Duration
 }
 
-func (c *AudioTTSModelConfig) validate() error {
-	if c == nil {
-		return errors.New("replicate: config must not be nil")
-	}
+func (c AudioTTSModelConfig) Validate() error {
 	if c.APIKey == nil {
 		return errors.New("replicate: APIKey is required")
 	}
@@ -63,11 +60,11 @@ type AudioTTSModel struct {
 	httpClient     *http.Client
 }
 
-func NewAudioTTSModel(cfg *AudioTTSModelConfig) (*AudioTTSModel, error) {
-	if err := cfg.validate(); err != nil {
+func NewAudioTTSModel(cfg AudioTTSModelConfig) (*AudioTTSModel, error) {
+	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
-	api, err := NewAPI(&APIConfig{
+	api, err := NewAPI(APIConfig{
 		APIKey:     cfg.APIKey,
 		BaseURL:    cfg.BaseURL,
 		HTTPClient: cfg.HTTPClient,

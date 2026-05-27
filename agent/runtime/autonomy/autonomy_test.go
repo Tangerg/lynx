@@ -42,7 +42,7 @@ func newAgent(name string) *core.Agent {
 }
 
 func TestAutonomy_PicksHighestConfidence(t *testing.T) {
-	platform := agent.NewPlatform(&runtime.PlatformConfig{})
+	platform := agent.NewPlatform(runtime.PlatformConfig{})
 	a1 := newAgent("alpha")
 	a2 := newAgent("beta")
 	for _, a := range []*core.Agent{a1, a2} {
@@ -71,7 +71,7 @@ func TestAutonomy_PicksHighestConfidence(t *testing.T) {
 }
 
 func TestAutonomy_LowConfidenceReturnsError(t *testing.T) {
-	platform := agent.NewPlatform(&runtime.PlatformConfig{})
+	platform := agent.NewPlatform(runtime.PlatformConfig{})
 	if err := platform.Deploy(newAgent("alpha")); err != nil {
 		t.Fatalf("deploy: %v", err)
 	}
@@ -91,7 +91,7 @@ func TestAutonomy_LowConfidenceReturnsError(t *testing.T) {
 }
 
 func TestAutonomy_RunInstallsTargetGoalApprover(t *testing.T) {
-	platform := agent.NewPlatform(&runtime.PlatformConfig{})
+	platform := agent.NewPlatform(runtime.PlatformConfig{})
 	if err := platform.Deploy(newAgent("alpha")); err != nil {
 		t.Fatalf("deploy: %v", err)
 	}
@@ -122,7 +122,7 @@ func TestAutonomy_RunInstallsTargetGoalApprover(t *testing.T) {
 }
 
 func TestAutonomy_AgentFilter(t *testing.T) {
-	platform := agent.NewPlatform(&runtime.PlatformConfig{})
+	platform := agent.NewPlatform(runtime.PlatformConfig{})
 	mustDeploy(t, platform, newAgent("public"), newAgent("internal"))
 
 	auto, _ := autonomy.New(platform, &stubRanker{
@@ -149,7 +149,7 @@ func TestAutonomy_AgentFilter(t *testing.T) {
 }
 
 func TestAutonomy_NoCandidatesError(t *testing.T) {
-	platform := agent.NewPlatform(&runtime.PlatformConfig{})
+	platform := agent.NewPlatform(runtime.PlatformConfig{})
 	auto, _ := autonomy.New(platform, &stubRanker{}, autonomy.Config{})
 
 	_, err := auto.Choose(t.Context(), "x")
@@ -159,7 +159,7 @@ func TestAutonomy_NoCandidatesError(t *testing.T) {
 }
 
 func TestAutonomy_RejectsNilArgs(t *testing.T) {
-	platform := agent.NewPlatform(&runtime.PlatformConfig{})
+	platform := agent.NewPlatform(runtime.PlatformConfig{})
 	for _, tc := range []struct {
 		name string
 		fn   func() error

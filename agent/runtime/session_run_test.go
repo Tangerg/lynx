@@ -29,7 +29,7 @@ func buildSessionAgent() *core.Agent {
 }
 
 func TestPlatform_RunInSession_NilSession(t *testing.T) {
-	platform := agent.NewPlatform(&runtime.PlatformConfig{})
+	platform := agent.NewPlatform(runtime.PlatformConfig{})
 	a := buildSessionAgent()
 	mustDeploy(t, platform, a)
 
@@ -40,7 +40,7 @@ func TestPlatform_RunInSession_NilSession(t *testing.T) {
 }
 
 func TestPlatform_RunInSession_EmptyID(t *testing.T) {
-	platform := agent.NewPlatform(&runtime.PlatformConfig{})
+	platform := agent.NewPlatform(runtime.PlatformConfig{})
 	a := buildSessionAgent()
 	mustDeploy(t, platform, a)
 
@@ -52,7 +52,7 @@ func TestPlatform_RunInSession_EmptyID(t *testing.T) {
 }
 
 func TestPlatform_RunInSession_NoStore_PropagatesSession(t *testing.T) {
-	platform := agent.NewPlatform(&runtime.PlatformConfig{})
+	platform := agent.NewPlatform(runtime.PlatformConfig{})
 	a := buildSessionAgent()
 	mustDeploy(t, platform, a)
 
@@ -84,7 +84,7 @@ func TestPlatform_RunInSession_NoStore_PropagatesSession(t *testing.T) {
 
 func TestPlatform_RunInSession_WithStore_PersistsSession(t *testing.T) {
 	store := core.NewInMemorySessionStore()
-	platform := agent.NewPlatform(&runtime.PlatformConfig{
+	platform := agent.NewPlatform(runtime.PlatformConfig{
 		SessionStore: store,
 	})
 	a := buildSessionAgent()
@@ -110,7 +110,7 @@ func TestPlatform_RunInSession_WithStore_PersistsSession(t *testing.T) {
 }
 
 func TestPlatform_RunInSession_DerivesAgentName(t *testing.T) {
-	platform := agent.NewPlatform(&runtime.PlatformConfig{})
+	platform := agent.NewPlatform(runtime.PlatformConfig{})
 	a := buildSessionAgent()
 	mustDeploy(t, platform, a)
 

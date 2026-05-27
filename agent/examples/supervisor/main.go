@@ -32,7 +32,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	platform := agent.NewPlatform(&runtime.PlatformConfig{ChatClient: chatClient})
+	platform := agent.NewPlatform(runtime.PlatformConfig{ChatClient: chatClient})
 
 	// ---- sub-agents ---------------------------------------------------
 	research := agent.New("research-agent").

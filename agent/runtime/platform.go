@@ -96,10 +96,7 @@ type PlatformConfig struct {
 // Panics on invalid extension registration (nil extension, empty
 // Name, duplicate Name) — this is a deploy-time programmer error;
 // callers should wire extensions correctly at boot.
-func NewPlatform(config *PlatformConfig) *Platform {
-	if config == nil {
-		config = &PlatformConfig{}
-	}
+func NewPlatform(config PlatformConfig) *Platform {
 	p := &Platform{
 		agents:     newAgentRegistry(),
 		procs:      newProcessRegistry(),

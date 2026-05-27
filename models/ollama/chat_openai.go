@@ -30,10 +30,7 @@ type OpenAIChatModelConfig struct {
 	RequestOptions []option.RequestOption
 }
 
-func (c *OpenAIChatModelConfig) validate() error {
-	if c == nil {
-		return errors.New("ollama: config must not be nil")
-	}
+func (c OpenAIChatModelConfig) Validate() error {
 	if c.DefaultOptions == nil {
 		return errors.New("ollama: DefaultOptions is required")
 	}
@@ -49,8 +46,8 @@ func (c *OpenAIChatModelConfig) validate() error {
 // Note: Ollama's OpenAI-compatible mode does NOT support every native
 // feature — Ollama-specific knobs (keep_alive, format=json shorthand,
 // num_predict, mirostat, ...) are only on the native surface.
-func NewOpenAIChatModel(cfg *OpenAIChatModelConfig) (*openai.ChatModel, error) {
-	if err := cfg.validate(); err != nil {
+func NewOpenAIChatModel(cfg OpenAIChatModelConfig) (*openai.ChatModel, error) {
+	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
 	baseURL := resolveOpenAIBaseURL(cfg.BaseURL)
@@ -62,7 +59,7 @@ func NewOpenAIChatModel(cfg *OpenAIChatModelConfig) (*openai.ChatModel, error) {
 	if apiKey == nil {
 		apiKey = model.NewAPIKey("ollama")
 	}
-	return openai.NewChatModel(&openai.ChatModelConfig{
+	return openai.NewChatModel(openai.ChatModelConfig{
 		APIKey:         apiKey,
 		DefaultOptions: cfg.DefaultOptions,
 		RequestOptions: reqOpts,

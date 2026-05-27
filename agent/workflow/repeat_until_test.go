@@ -34,7 +34,7 @@ func TestRepeatUntil_LoopsUntilAccept(t *testing.T) {
 		t.Fatalf("RepeatUntil: %v", err)
 	}
 
-	platform := agent.NewPlatform(&runtime.PlatformConfig{})
+	platform := agent.NewPlatform(runtime.PlatformConfig{})
 	if err := platform.Deploy(a); err != nil {
 		t.Fatalf("deploy: %v", err)
 	}
@@ -70,7 +70,7 @@ func TestRepeatUntil_MaxIterationsCap(t *testing.T) {
 	if err != nil {
 		t.Fatalf("RepeatUntil: %v", err)
 	}
-	platform := agent.NewPlatform(&runtime.PlatformConfig{})
+	platform := agent.NewPlatform(runtime.PlatformConfig{})
 	if err := platform.Deploy(a); err != nil {
 		t.Fatalf("deploy: %v", err)
 	}
@@ -107,7 +107,7 @@ func TestRepeatUntil_HistoryPassedToTaskAndAccept(t *testing.T) {
 	if err != nil {
 		t.Fatalf("RepeatUntil: %v", err)
 	}
-	platform := agent.NewPlatform(&runtime.PlatformConfig{})
+	platform := agent.NewPlatform(runtime.PlatformConfig{})
 	if err := platform.Deploy(a); err != nil {
 		t.Fatalf("deploy: %v", err)
 	}
