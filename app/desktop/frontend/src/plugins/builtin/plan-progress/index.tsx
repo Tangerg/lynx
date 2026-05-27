@@ -1,30 +1,30 @@
 // Built-in plugin: Plan Progress banner pinned at the top of the
-// message stream.
+// message stream. Inspired by Portai's plan-progress-bar — single-row
+// header that morphs between "current task" (collapsed) and "N tasks
+// · pct% complete" (expanded), so the user always sees the same
+// vertical rhythm whether the body is open or shut.
 //
-// Position history: lived in `chat.status` above the composer (covered
-// the tail of the message stream), then briefly as a compact pill in
-// the topbar (too peripheral). Final home is `chat.banner.top` — a
-// layout slot rendered once above the scrolling message stream. The
-// banner is *not* CSS sticky; it just lives outside the message scroll
-// container so the chat scrolls beneath it.
+// Layout rhythm (single shared grid template across header + body
+// rows so icons line up vertically — the previous design had a
+// 2-line eyebrow header that the list items couldn't align to):
+//
+//   grid-template-columns: 18px 1fr auto auto auto
+//                          ↑    ↑   ↑    ↑    ↑
+//                          icon text %    ▼    ×
+//
+//   header row: status icon · summary text · percent · chevron · X
+//   list rows:  per-item    · text         ·  —      ·  —      · —
 //
 // Behaviour:
-//   - Collapsed (default): one-line summary "Plan · X/Y · pct%" plus
-//     the in-flight (or next-todo) task text.
-//   - Click anywhere on the body toggles expand: the full plan list
-//     renders inline (done / doing / todo glyphs via PlanCheck — same
-//     primitives the PlanBlock content-block uses). No navigation —
-//     plan info is light enough to read in place.
-//   - X on the right dismisses the banner for the current run id;
-//     it reappears when a new run starts (runId changes) or a fresh
-//     plan ref lands (the reducer's immutable update — agent rebuilt
-//     the plan).
+//   - Click anywhere on the body toggles expand inline (no nav).
+//   - X dismisses for the current run id; reappears when a fresh
+//     plan ref lands (reducer's immutable update) or a new run starts.
 
 import type { PlanItem } from "@/protocol/agui/viewState";
 import type { MouseEvent } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useState } from "react";
-import { PlanCheck, planItemRow } from "@/components/chat/PlanCheck";
+import { PlanCheck } from "@/components/chat/PlanCheck";
 import { Icon, Tooltip } from "@/components/common";
 import { swift } from "@/lib/motion";
 import { cn } from "@/lib/utils";
@@ -33,7 +33,7 @@ import { useAgentSlice } from "@/state/agentStore";
 
 function pickCurrent(plan: PlanItem[]): PlanItem | null {
   // Prefer the in-flight task; fall back to the next not-yet-done so
-  // the banner always reads "what's happening now".
+  // the header always reads "what's happening now".
   return plan.find((p) => p.status === "doing") ?? plan.find((p) => p.status === "todo") ?? null;
 }
 
@@ -43,10 +43,9 @@ function PlanProgressBanner() {
   const [dismissedRunId, setDismissedRunId] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
 
-  // Reset both expand + dismiss when a brand-new plan lands. `plan`
-  // ref identity follows the reducer's immutable updates — a new
-  // array arrives every time the plan content changes, which is
-  // exactly when we want to re-surface + re-collapse the banner.
+  // Reset both expand + dismiss when a fresh plan ref lands. The
+  // reducer creates a new array on any plan content change, which is
+  // exactly when we want the banner to re-surface + re-collapse.
   useEffect(() => {
     setDismissedRunId(null);
     setExpanded(false);
@@ -62,10 +61,20 @@ function PlanProgressBanner() {
 
   const dismiss = (e: MouseEvent) => {
     // Stop the click from bubbling into the outer toggle button —
-    // dismiss shouldn't also expand / collapse.
+    // dismiss shouldn't also flip expand.
     e.stopPropagation();
     setDismissedRunId(runId ?? "");
   };
+
+  // Per-row text colour for the expanded list. `text-line-through`
+  // is conditional on done. Mirrors the PlanBlock content-block.
+  const itemTextClass = (status: PlanItem["status"]) =>
+    cn(
+      "flex-1 min-w-0 text-[13px] leading-[1.5] truncate",
+      status === "done" && "text-fg-faint line-through decoration-line-soft",
+      status === "doing" && "text-fg font-semibold",
+      status === "todo" && "text-fg-soft",
+    );
 
   return (
     <AnimatePresence initial={false}>
@@ -75,76 +84,91 @@ function PlanProgressBanner() {
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -4 }}
           transition={swift}
-          className="mt-2 mb-1 flex items-start gap-1 rounded-lg border border-line-soft bg-surface px-2 py-2"
+          className="mt-2 mb-1 rounded-lg border border-line-soft bg-surface overflow-hidden"
         >
-          <button
-            type="button"
-            onClick={() => setExpanded((v) => !v)}
-            aria-expanded={expanded}
-            aria-label={
-              expanded ? "Collapse plan list" : `Expand plan (${done}/${total} · ${pct}%)`
-            }
-            className={cn(
-              "min-w-0 flex-1 grid grid-cols-[auto_1fr_auto] items-start gap-2.5",
-              "rounded-md border-0 bg-transparent px-1.5 py-0.5",
-              "cursor-pointer text-left transition-colors hover:bg-surface-2",
-              "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent",
-            )}
-          >
-            <span className="mt-0.5 grid h-5 w-5 place-items-center rounded-sm bg-surface-2 text-fg-muted">
-              <Icon name="list" size={11} />
-            </span>
-            <div className="min-w-0">
-              <div className="flex items-baseline gap-2">
-                <span className="font-mono text-[10px] font-semibold uppercase tracking-wider text-fg-faint">
-                  Plan · {done}/{total}
-                </span>
-                <span className="font-mono text-[10px] text-fg-faint">{pct}%</span>
-              </div>
-              {!expanded && current && (
-                <div className="mt-0.5 truncate text-[12.5px] text-fg">{current.text}</div>
-              )}
-              <AnimatePresence initial={false}>
-                {expanded && (
-                  <motion.ul
-                    key="list"
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: "auto", opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }}
-                    transition={swift}
-                    className="mt-1 overflow-hidden"
-                  >
-                    {plan.map((p) => (
-                      <li key={p.id} className={planItemRow(p.status)}>
-                        <PlanCheck status={p.status} />
-                        <div>{p.text}</div>
-                      </li>
-                    ))}
-                  </motion.ul>
-                )}
-              </AnimatePresence>
-            </div>
-            <Icon
-              name={expanded ? "chevron-up" : "chevron-down"}
-              size={12}
-              className="mt-1 text-fg-faint transition-colors group-hover:text-fg"
-            />
-          </button>
-          <Tooltip label="Dismiss plan">
+          {/* Header row — single line, fixed height. Clickable area
+              spans icon+text+percent+chevron; X sits outside it so the
+              dismiss click doesn't toggle expand. */}
+          <div className="flex items-center">
             <button
               type="button"
-              onClick={dismiss}
-              aria-label="Dismiss plan banner"
+              onClick={() => setExpanded((v) => !v)}
+              aria-expanded={expanded}
+              aria-label={
+                expanded ? "Collapse plan list" : `Expand plan (${done}/${total} · ${pct}%)`
+              }
               className={cn(
-                "mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-md border-0 bg-transparent",
-                "text-fg-faint cursor-pointer transition-colors",
-                "hover:bg-surface-2 hover:text-fg",
-                "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent",
+                "flex-1 min-w-0 flex items-center gap-2.5 px-3 py-2.5",
+                "border-0 bg-transparent text-left cursor-pointer transition-colors hover:bg-surface-2",
+                "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent",
               )}
             >
-              <Icon name="x" size={11} />
+              {/* Status indicator — uses the current task's status so
+                  the header glyph matches what the list shows for the
+                  active row. */}
+              <PlanCheck status={current.status} />
+              {/* Summary text — switches between "current task" and
+                  "N done of M" when expanded. AnimatePresence mode=
+                  "wait" cross-fades the two states cleanly. */}
+              <AnimatePresence mode="wait" initial={false}>
+                <motion.span
+                  key={expanded ? "summary" : "current"}
+                  initial={{ opacity: 0, y: 3 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -3 }}
+                  transition={{ duration: 0.15, ease: "easeOut" }}
+                  className="flex-1 min-w-0 truncate text-[13px] leading-[1.4] text-fg"
+                >
+                  {expanded ? `${done} of ${total} complete` : current.text}
+                </motion.span>
+              </AnimatePresence>
+              <span className="shrink-0 font-mono text-[11px] font-medium tabular-nums text-fg-muted">
+                {pct}%
+              </span>
+              <Icon
+                name={expanded ? "chevron-up" : "chevron-down"}
+                size={14}
+                className="shrink-0 text-fg-faint"
+              />
             </button>
-          </Tooltip>
+            <Tooltip label="Dismiss plan">
+              <button
+                type="button"
+                onClick={dismiss}
+                aria-label="Dismiss plan banner"
+                className={cn(
+                  "mr-1.5 grid h-7 w-7 shrink-0 place-items-center rounded-md border-0 bg-transparent",
+                  "text-fg-faint cursor-pointer transition-colors",
+                  "hover:bg-surface-2 hover:text-fg",
+                  "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent",
+                )}
+              >
+                <Icon name="x" size={12} />
+              </button>
+            </Tooltip>
+          </div>
+
+          {/* Body — same horizontal padding as the header so item
+              icons (18px PlanCheck) sit in the same column as the
+              header status indicator. CSS grid-rows trick gives a
+              smooth height transition without measuring layout. */}
+          <div
+            className={cn(
+              "grid transition-[grid-template-rows] duration-200 ease-out",
+              expanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
+            )}
+          >
+            <div className="overflow-hidden">
+              <ul className="flex flex-col gap-1 border-t border-line-soft/40 px-3 py-2">
+                {plan.map((p) => (
+                  <li key={p.id} className="flex items-center gap-2.5 py-0.5">
+                    <PlanCheck status={p.status} />
+                    <span className={itemTextClass(p.status)}>{p.text}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
         </motion.div>
       )}
     </AnimatePresence>
