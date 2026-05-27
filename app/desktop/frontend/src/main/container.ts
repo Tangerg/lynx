@@ -11,23 +11,34 @@ import { createHttpTransport, createMethods, createRpcClient, createSidecarClien
 
 export interface Container {
   permission: PermissionGateway;
-  rpc: RpcClient;
-  methods: Methods;
+  /**
+   * Lazy factory for the Lyra Runtime Protocol client (JSON-RPC over
+   * HTTP). Not pre-instantiated because constructing the client
+   * immediately opens an SSE connection to `/v1/rpc/stream` — the
+   * current mock backend doesn't serve that yet, so we defer
+   * construction until a caller actually wants it. Cutover PR (queries
+   * + permission + AG-UI migration) will call this once and cache the
+   * result.
+   */
+  createRpc: () => RpcClient;
+  /** Typed method wrappers — bound to the RpcClient passed in. */
+  createMethods: (rpc: RpcClient) => Methods;
+  /**
+   * Sidecar HTTP probe — pre-instantiated because it doesn't open a
+   * persistent connection (each call is a one-shot fetch). Safe to
+   * call against a backend that doesn't implement it yet (caller
+   * handles the RpcTransportError).
+   */
   sidecar: SidecarClient;
 }
 
 function defaultContainer(): Container {
-  // Default to the same HTTP loopback the legacy REST surface uses.
-  // The HTTP transport / sidecar are still scaffolded — no callers
-  // depend on them until the backend ships the new protocol. Existing
-  // REST-based code paths keep working untouched.
-  const transport = createHttpTransport({ baseUrl: AGUI_BASE });
-  const rpc = createRpcClient(transport);
+  const baseUrl = AGUI_BASE;
   return {
-    permission: new HttpPermissionGateway(AGUI_BASE),
-    rpc,
-    methods: createMethods(rpc),
-    sidecar: createSidecarClient({ baseUrl: AGUI_BASE }),
+    permission: new HttpPermissionGateway(baseUrl),
+    createRpc: () => createRpcClient(createHttpTransport({ baseUrl })),
+    createMethods,
+    sidecar: createSidecarClient({ baseUrl }),
   };
 }
 
