@@ -246,14 +246,19 @@ framing + TCP 栈，又不动 WebView。
 **适用**：浏览器表现层（无法嵌入 Runtime，必走网络），以及未来
 通过云端 facade 连远程 Runtime 的所有场景。
 
-**线协议**：
-- **Request → Server**：`POST /v1/rpc`，body 是单个 JSON-RPC `Message`，
-  Content-Type `application/json`
-- **Server → Client streaming**：`GET /v1/rpc/stream`，返
-  `text/event-stream`，每个 SSE event 的 `data:` 字段是一个
-  JSON-RPC notification message
-- **续传**：重连时带 `Last-Event-Id` header，server 从 `eventId >
-  lastEventId` 处继续
+**线协议（详见 API.md §10）**：
+
+| Endpoint | 用途 |
+| --- | --- |
+| `POST /v1/rpc` | 接受 JSON-RPC Request/Notification。Method 名从 body 取。**最低限度兼容路径**。 |
+| `POST /v1/rpc/{method}` | **推荐路径**。Method 名在 URL（如 `/v1/rpc/runs.start`，点保留、禁止斜杠化），body 里仍含 `method` 字段做 cross-check（不匹配返 `409 + -32011`）。Ops 友好：反代 / k8s / 浏览器 DevTools 直接按 method 分桶。 |
+| `GET /v1/rpc/stream` | SSE 流，server → client notifications。每个 SSE event 的 `data:` 字段是一条 JSON-RPC Notification。带 `Last-Event-Id` header 续传。 |
+| `GET /v1/info` | **Sidecar metadata**。扁平 JSON（不走 envelope）。无鉴权。详见 API.md §9。 |
+| `GET /v1/health` | **Sidecar liveness**。扁平 JSON，HTTP 200/503。无鉴权。详见 API.md §9。 |
+
+**HTTP status code 映射**（详见 API.md §7.3）：业务错误一律走
+JSON-RPC `error.code`，**不映射 HTTP status**。HTTP status 仅反映
+transport 层状态（200 / 204 / 400 / 404 / 409 / 401 / 500 / 503）。
 
 ```ts
 // frontend/src/transport/http.ts
@@ -266,7 +271,12 @@ export const httpTransport = (baseUrl: string, localToken?: string): Transport =
     async send(msg) {
       const headers: Record<string, string> = { "Content-Type": "application/json" };
       if (localToken) headers["Authorization"] = `Bearer ${localToken}`;
-      await fetch(`${baseUrl}/v1/rpc`, {
+      // Use the recommended URL form for ops-friendliness.
+      // Servers MUST also accept POST /v1/rpc (without method suffix).
+      const url = msg.method
+        ? `${baseUrl}/v1/rpc/${msg.method}`
+        : `${baseUrl}/v1/rpc`;
+      await fetch(url, {
         method: "POST",
         headers,
         body: JSON.stringify(msg),
@@ -281,7 +291,12 @@ export const httpTransport = (baseUrl: string, localToken?: string): Transport =
 `localToken` 仅在本地进程门禁场景使用（Web 前端连同机 Runtime），
 读自 `~/.lyra/local-token`。其他 HTTP 场景（未来 facade）由 facade
 层自己处理鉴权 + 把请求转发给 Runtime，**Runtime 看到的 HTTP
-依然是同一个 `/v1/rpc` 入口**。
+依然是同一个 `/v1/rpc[/{method}]` 入口**。
+
+**Observability 强制要求**（详见 API.md §10）：服务端必须在响应
+header 暴露 `X-Lyra-Method` / `X-Lyra-Request-Id` / `X-Lyra-Server`；
+必须输出结构化日志 + Prometheus metric with bounded-cardinality
+`method` label。
 
 成本：本地 ~200 µs / 调用，WAN ~20–200 ms。
 
@@ -332,6 +347,7 @@ export const httpTransport = (baseUrl: string, localToken?: string): Transport =
 | InProcess | 无——同进程互信。Runtime 协议层零用户概念，运行环境的信任 = OS 用户的信任。 |
 | Wails IPC | 线上无（Wails IPC 是 window-scoped）；同进程内的等价信任。 |
 | HTTP（本地 loopback） | **本地进程门禁 token**（不是用户鉴权）。Runtime 启动时随机生成、写到 `~/.lyra/local-token`（chmod 600）。仅阻止同机其他进程乱调，**不验证用户是谁**。 |
+| HTTP sidecar（`/v1/info` + `/v1/health`） | **永远无鉴权**——curl-friendly read-only metadata，详见 API.md §9 |
 | HTTP（未来 facade） | 由 facade 层处理用户鉴权、转发到内部 Runtime；Runtime 看到的请求**仍是同样形态**，不感知 facade 在做什么。 |
 
 **核心不变量**：`CoreAPI` impl **永远不做用户鉴权 / 授权**——
