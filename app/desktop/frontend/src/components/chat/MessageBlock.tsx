@@ -19,6 +19,7 @@ import { Slot } from "@/plugins/Slot";
 import { useUiStore } from "@/state/uiStore";
 import { CitationContext } from "./CitationContext";
 import { MessageContext } from "./MessageContext";
+import { MessageContextMenu } from "./MessageContextMenu";
 import { MessageOutline } from "./MessageOutline";
 import { renderPart } from "./PartRenderer";
 
@@ -106,26 +107,31 @@ export function MessageBlock({ msg, ctx }: { msg: Message; ctx: PartCtx }) {
           {/* Content row. Plain layouts (agent + user-plain) start at
               the row's left edge so they line up with the avatar above.
               User-bubble floats a max-width card to the right so its
-              right edge matches the header's right edge. */}
-          <div className={cn(bubble && "flex justify-end")}>
-            <div
-              ref={contentRef}
-              className={cn(
-                // 15px is the content baseline — markdown headings and
-                // every other content surface size off this.
-                "msg-content min-w-0 text-fg text-[15px] leading-[1.68] tracking-[-0.003em] font-normal",
-                bubble &&
-                  "max-w-[580px] rounded-[14px_14px_4px_14px] bg-surface-2 px-3.5 py-2.5 text-left light:bg-surface-3",
-              )}
-            >
-              {msg.blocks.map((part, i) => {
-                if (part.kind === "text" && part.status === "running" && i !== lastIdx) {
-                  return renderPart({ ...part, status: "complete" }, i, partCtx);
-                }
-                return renderPart(part, i, partCtx);
-              })}
+              right edge matches the header's right edge. The whole
+              content surface is the right-click target — the inline
+              header icons are also there for hover discovery, but the
+              context menu is the platform-native discovery path. */}
+          <MessageContextMenu msg={msg}>
+            <div className={cn(bubble && "flex justify-end")}>
+              <div
+                ref={contentRef}
+                className={cn(
+                  // 15px is the content baseline — markdown headings and
+                  // every other content surface size off this.
+                  "msg-content min-w-0 text-fg text-[15px] leading-[1.68] tracking-[-0.003em] font-normal",
+                  bubble &&
+                    "max-w-[580px] rounded-[14px_14px_4px_14px] bg-surface-2 px-3.5 py-2.5 text-left light:bg-surface-3",
+                )}
+              >
+                {msg.blocks.map((part, i) => {
+                  if (part.kind === "text" && part.status === "running" && i !== lastIdx) {
+                    return renderPart({ ...part, status: "complete" }, i, partCtx);
+                  }
+                  return renderPart(part, i, partCtx);
+                })}
+              </div>
             </div>
-          </div>
+          </MessageContextMenu>
 
           <div className={cn(bubble && "flex justify-end")}>
             <Slot name="message.actions" />

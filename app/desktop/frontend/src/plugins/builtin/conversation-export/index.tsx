@@ -13,7 +13,7 @@ import type { Message } from "@/protocol/agui/viewState";
 import { definePlugin } from "@/plugins/sdk";
 import { getCurrentSessionView } from "@/state/agentStore";
 import { useSessionStore } from "@/state/sessionStore";
-import { flattenMarkdown } from "../message-actions/_shared";
+import { flattenMarkdown } from "@/lib/messageContent";
 
 function timestampForFilename(): string {
   // Filesystem-safe ISO slice (no `:` or `.`).
