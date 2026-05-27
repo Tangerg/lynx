@@ -42,7 +42,8 @@
 | **取消必须显式信号** | 断 transport ≠ 取消 run。重连可续传。 |
 | **能力协商必经 `initialize`** | 没握手前 Runtime 不接业务方法。版本不匹配硬断开。 |
 | **AG-UI 事件作为流式语言** | 16 个标准事件 + Lyra CUSTOM 事件，封装在 JSON-RPC notification 的 `params.event` 里。 |
-| **不做用户鉴权** | Runtime 协议层零 user/auth/subscription 概念。需要时由外层 facade 实现（附录 B）。 |
+| **不做用户鉴权** | Runtime 协议层零 user/auth/subscription 概念。需要时由更外层（OS、本地 token 门禁、未来 facade）解决。 |
+| **HTTP transport 必须 ops 友好** | URL 路径带 method 名 / sidecar metadata 端点 / 强制 method label —— 见 §9 / §10。 |
 
 ---
 
@@ -94,9 +95,9 @@ result / error / notification 字段**。其他元信息按 transport 各
 | Idempotency key | context | metadata | `Idempotency-Key` header |
 | Protocol version | 编译期保证 | metadata | `Lyra-Protocol-Version` header |
 | Last-Event-Id（流恢复） | n/a | metadata | `Last-Event-Id` header |
-| 本地进程门禁 token（仅 Web 前端）| n/a | n/a | `Authorization: Bearer <token>` |
+| 本地进程门禁 token（仅 Web 表现层） | n/a | n/a | `Authorization: Bearer <token>` |
 
-**本地进程门禁** ≠ 用户鉴权。它只是 Web 前端连 loopback HTTP
+**本地进程门禁** ≠ 用户鉴权。它只是 Web 表现层连 loopback HTTP
 时阻止同机其他进程乱调，token 写在 `~/.lyra/local-token`（chmod 600）
 启动时随机生成，没有过期 / refresh / 用户绑定概念。
 
@@ -259,6 +260,10 @@ notification 的 `params.event` 字段出现。
 - `<domain>.<verb>` / `<domain>.<resource>.<verb>` —— camelCase verb
 - 复数 noun（`sessions` / `messages` / `attachments`），单数 verb
 - 流式方法名以 `.start` / `.subscribe` 结尾
+- **点 (`.`) 在 method 名里有语义、永远保留**——HTTP transport
+  上 `/v1/rpc/{method}` 形态直接照搬（`runs.start` →
+  `/v1/rpc/runs.start`），**严禁斜杠化**（如 `/v1/rpc/runs/start`），
+  那会跟 REST 风格混淆，引诱 REST shadow 蔓延（CLAUDE.md 反向不变量）
 
 ### 5.2 完整方法表
 
@@ -266,7 +271,7 @@ notification 的 `params.event` 字段出现。
 | --- | --- | --- | --- |
 | `runtime.initialize` | C→R | no | 握手 + 版本协商 + 能力协商 |
 | `runtime.shutdown` | C→R notify | no | 礼貌关闭 |
-| `runtime.ping` | C→R | no | Liveness 探针 |
+| `runtime.ping` | C→R | no | Liveness 探针（注：HTTP 上推荐用 sidecar `/v1/health`，见 §9） |
 | **Runs** | | | |
 | `runs.start` | C→R | yes | 启动一次 run，立即返 `{runId, streamHandle}`；事件经 `notifications/run/event` 流出 |
 | `runs.cancel` | C→R notify | no | 取消 run（等价于 `notifications/cancelled` 配对 run request id） |
@@ -305,7 +310,7 @@ notification 的 `params.event` 字段出现。
 | `background.stop` | C→R | no | 停止 |
 | `background.subscribe` | C→R | yes | Tail 输出 |
 | **Feedback** | | | |
-| `feedback.submit` | C→R | no | RLHF —— 替代 `lyra.meta` 事件的 REST 路径 |
+| `feedback.submit` | C→R | no | RLHF —— 替代 `lyra.meta` 事件的方法路径 |
 
 ### 5.3 服务端发出的 Notification 清单
 
@@ -315,7 +320,7 @@ notification 的 `params.event` 字段出现。
 | `notifications/run/closed` | run 流结束 |
 | `notifications/background/update` | background 任务状态变化 |
 | `notifications/terminal/output` | `workspace.terminal.subscribe` 后的 pty 输出 |
-| `notifications/cancelled` | server 承认收到 client 的 cancellation |
+| `notifications/cancelled` | server 承认收到 client 的 cancellation（HTTP 响应 `204 No Content`） |
 
 ### 5.4 特例 —— Attachments 二进制上传
 
@@ -453,12 +458,12 @@ interface Page<T> {
 
 ## 7. 错误
 
-### 7.1 JSON-RPC error.code
+### 7.1 JSON-RPC error.code 范围
 
 | 范围 | 含义 |
 | --- | --- |
 | -32700 ~ -32603 | JSON-RPC 标准错误（parse / invalid request / method not found / invalid params / internal error） |
-| -32000 ~ -32099 | Lyra 业务错误（见下表） |
+| -32000 ~ -32099 | Lyra 业务错误（见 §7.2） |
 
 ### 7.2 Lyra 业务错误码
 
@@ -474,7 +479,7 @@ interface Page<T> {
 | -32008 | `attachment_too_large` | 超 `maxSizeBytes` |
 | -32009 | `capability_not_negotiated` | 调了 initialize 时 client 没声明的能力 |
 | -32010 | `invalid_protocol_version` | initialize 版本协商失败 |
-| -32011 | `protocol_violation` | 客户端发了不符合协议的消息（如 batch / 未握手就调业务） |
+| -32011 | `protocol_violation` | 客户端发了不符合协议的消息（如 batch / 未握手就调业务 / URL method 跟 body method 不匹配） |
 
 `error.data` 装额外细节，结构推荐 RFC 7807 ProblemDetails 形状：
 
@@ -487,6 +492,28 @@ interface ProblemData {
 }
 ```
 
+### 7.3 HTTP status code 映射
+
+HTTP 是 transport，**业务错误一律走 JSON-RPC `error.code` 不映射
+HTTP status**。HTTP status 仅反映 transport 层状态：
+
+| HTTP status | 何时 | Body |
+| --- | --- | --- |
+| **200 OK** | JSON-RPC Response 正常返回（含业务 error） | JSON-RPC envelope |
+| **204 No Content** | Notification 已接收 | 空 |
+| **400 Bad Request** | 请求 body 不是合法 JSON / 不是 JSON-RPC envelope / `jsonrpc` 字段不是 `"2.0"` | JSON-RPC error envelope（`-32700` parse error / `-32600` invalid request） |
+| **404 Not Found** | URL path 不存在（如 `/v1/rpc/runs.unknownMethod`） | JSON-RPC error envelope（`-32601` method not found） |
+| **409 Conflict** | URL method 跟 body method 不匹配 | JSON-RPC error envelope（`-32011` protocol violation） |
+| **401 Unauthorized** | 本地进程门禁 token 缺失 / 错（Web 表现层连同机 Runtime 场景） | **扁平 JSON** `{ "error": "missing_local_token" }`（**不用 envelope**——transport 层问题） |
+| **500 Internal Server Error** | Runtime panic / 未捕获错误 | **扁平 JSON** `{ "error": "internal", "traceId": "..." }`（同样不用 envelope） |
+| **503 Service Unavailable** | `/v1/health` 返回 unhealthy 状态 | **扁平 JSON**（见 §9.2） |
+
+**核心原则**：
+- HTTP status 反映 **transport 层**状态，业务 error 一律走 `error.code`
+- JSON-RPC error envelope 跟 HTTP 4xx **可以共存**（404 + envelope 同时给出，是 method-not-found 的双重信号）
+- **401 / 500 / 503 不走 JSON-RPC envelope**——这些是 transport 层故障，请求可能根本没到 router，无法构造合理的 `id`
+- Sidecar 端点（§9）也**不走 JSON-RPC envelope**
+
 ---
 
 ## 8. Schema SSOT
@@ -496,7 +523,7 @@ pkg/coreapi/*.go              # Go interface + struct tags —— SSOT
        │
        ├── go-jsonrpc codegen ──→  schemas/methods.yaml      (JSON-RPC method table)
        │                                     │
-       │                                     └─ openapi-ts ──→ frontend/src/lib/runtime-types.ts
+       │                                     └─ jsonrpc-ts ──→ frontend/src/lib/runtime-types.ts
        │
        └── go-asyncapi codegen ──→  schemas/events.yaml      (AG-UI + Lyra CUSTOM events)
                                               │
@@ -517,7 +544,166 @@ import `pkg/coreapi`。对 TS / Rust / Python client，schema 是契约
 
 ---
 
-## 9. 现状快照（2026-05-28）
+## 9. Sidecar Endpoints（仅 HTTP transport）
+
+> **存在的全部理由**：oncall 一条 `curl` 命令能看清楚 Runtime 是否
+> 活着、版本对不对。如果套 JSON-RPC envelope 就破功了。
+
+### 9.1 设计原则
+
+- **仅 HTTP transport 暴露**——InProcess / Wails IPC 无意义
+- **read-only metadata only**——永远不暴露业务数据（sessions、messages 等）
+- **不走 JSON-RPC envelope**——返扁平 JSON，curl 直读
+- **无鉴权**（连本地进程门禁 token 也不要）
+- **不参与 lifecycle**——不需要先 `runtime.initialize`
+- **永不扩展到业务端点**——见 CLAUDE.md 反向不变量。如果哪天觉得"加
+  个 `/v1/sessions/{id}` 的 GET shadow 就方便了"，那是错觉，业务调用
+  统一走 JSON-RPC
+
+### 9.2 端点清单
+
+#### `GET /v1/info`
+
+返回 `runtime.initialize.result` 的**扁平子集**（不含 client-specific
+握手信息）：
+
+```json
+{
+  "serverInfo": { "name": "lyra-core", "version": "0.8.1" },
+  "protocolVersion": "2026-05-28",
+  "capabilities": {
+    "events": { "standard": [...], "custom": [...] },
+    "features": { ... },
+    "providers": [...]
+  }
+}
+```
+
+用途：
+- oncall 半夜确认 server 活着 + 版本对得上
+- k8s `startupProbe`（初始化时间可能较长）
+- 部署后 smoke test：`curl http://host/v1/info | jq .protocolVersion`
+
+#### `GET /v1/health`
+
+返回 liveness / readiness 状态，不带任何业务信息：
+
+```json
+{
+  "status": "ok",
+  "checks": {
+    "storage": "ok",
+    "providers": "ok"
+  }
+}
+```
+
+HTTP status：
+- `200 OK`：`status === "ok"`
+- `503 Service Unavailable`：`status === "degraded" | "unhealthy"`
+
+用途：k8s `livenessProbe` / `readinessProbe`，nginx upstream health。
+
+### 9.3 反向不变量
+
+- ❌ **不允许加 `/v1/sessions/{id}` 这类业务 read shadow**。业务方法
+  统一走 JSON-RPC `POST /v1/rpc/{method}`。任何想要"REST 风格只读
+  接口"的诉求都先驳回——理由见 CLAUDE.md
+- ❌ **sidecar 端点不能暴露 PII / session / message / attachment**
+  内容。只暴露 server-level metadata
+- ❌ **不复用 JSON-RPC envelope**。返扁平 JSON 是它存在的全部意义
+
+---
+
+## 10. Observability（HTTP transport 强制要求）
+
+### 10.1 两种 HTTP routing 形态
+
+服务端**必须**同时接受两种 URL 形态：
+
+| URL 形态 | 用途 |
+| --- | --- |
+| **`POST /v1/rpc`**（无 method 后缀） | 最低限度兼容路径。客户端不关心 ops 友好性时用。Method 名从 body 取 |
+| **`POST /v1/rpc/{method}`**（带 method 后缀，**推荐**） | Ops 友好。Nginx / k8s / Cloudflare access log 直接按 method 分桶。Body 必须仍包含 `method` 字段；URL method 跟 body method 不一致返 `409 + -32011` |
+
+**关键约束**：
+- **客户端推荐**用 `POST /v1/rpc/{method}` 形态；老 client / 简单
+  脚本仍可用 `POST /v1/rpc` —— 服务端**必须**两者都接
+- **Notification 同样适用**：`POST /v1/rpc/notifications/cancelled`、
+  HTTP 响应 `204 No Content`。URL 路径只是 observability 标签，跟
+  有没有 `id` 字段正交
+- **method 名照搬 method 表里的字符串**：`runs.start` →
+  `/v1/rpc/runs.start`（点保留）；`workspace.terminal.subscribe` →
+  `/v1/rpc/workspace.terminal.subscribe`（三段、两个点全保留）；**禁止
+  斜杠化**（详见 §5.1）
+
+### 10.2 必须暴露的响应 header
+
+服务端**必须**在每条 `POST /v1/rpc{,/<method>}` 的响应里塞：
+
+| Header | 值 | 用途 |
+| --- | --- | --- |
+| `X-Lyra-Method` | 实际执行的 method 名（如 `runs.start`） | 反代 access log 不用解 body 就能拿到 method，是 §10.1 兜底（即使客户端用了无后缀的 `POST /v1/rpc`） |
+| `X-Lyra-Request-Id` | 回显 client 传的 trace id，缺失则服务端生成 | trace correlation |
+| `X-Lyra-Server` | `<name>/<version>`（如 `lyra-core/0.8.1`） | client 侧能力降级判断 |
+
+### 10.3 Structured logging 强制字段
+
+每一条 RPC 调用，服务端必须输出一行结构化日志，**至少包含**：
+
+```json
+{
+  "ts": "2026-05-28T12:34:56.789Z",
+  "method": "runs.start",
+  "id": "req-0193abc",
+  "duration_ms": 42,
+  "error_code": null,
+  "bytes_in": 1234,
+  "bytes_out": 567,
+  "trace_id": "abc-def-..."
+}
+```
+
+错误情况下 `error_code` 填 JSON-RPC code（如 `-32005`），不填业务
+message（敏感信息不进日志）。
+
+### 10.4 Prometheus metric labels 强制
+
+```
+lyra_rpc_request_total{method="runs.start", error_code="0"}
+lyra_rpc_duration_seconds{method="runs.start"}
+lyra_rpc_bytes_in_total{method="runs.start"}
+lyra_rpc_bytes_out_total{method="runs.start"}
+```
+
+`method` label 是**有界 cardinality**——本协议方法总数 ~32 个 + 5 个
+notification = ~37 个固定值，加 `error_code` 维度（10 个左右）总共
+< 400 个 series。可以安全做 label。
+
+`error_code = "0"` 表示成功（即使有 JSON-RPC error，HTTP 是 200）；
+非零是 JSON-RPC error.code 数值字符串。
+
+### 10.5 Trace correlation
+
+- 客户端通过 `X-Lyra-Trace-Id` 传入 trace id
+- 服务端缺失则生成（UUID v7 或 trace span id）
+- 响应 header `X-Lyra-Request-Id` 回显
+- 结构化日志的 `trace_id` 字段绑定，便于跨服务 join
+
+未来 facade 接入时把 W3C `traceparent` header 也透传到这一字段。
+
+### 10.6 反向不变量
+
+- ❌ **不能把业务 error 映射成 HTTP status code**（如 `session_not_found`
+  返 404）——HTTP status 反映 transport 层，业务 error 走 `error.code`
+- ❌ **不能把 method 名拼到 metric label 之外的高 cardinality 维度**
+  （如 session_id、user_id），会爆 Prometheus
+- ❌ **不能把 PII（用户消息、prompt 内容）写进 access log / metric**
+  ——只记 method / id / duration / error_code / 字节数
+
+---
+
+## 11. 现状快照（2026-05-28）
 
 | 表面 | 今天 | 距离协议落地 |
 | --- | --- | --- |
@@ -527,27 +713,35 @@ import `pkg/coreapi`。对 TS / Rust / Python client，schema 是契约
 | 鉴权 | 无 | **协议层永远无**。Web 形态走本地进程门禁 token |
 | Schema SSOT | 前端 `lib/queries.ts` 手写 | `pkg/coreapi` 为 SSOT + codegen |
 | 版本 | 无 | `runtime.initialize` 强制协商 |
+| Sidecar | 无 | `/v1/info` + `/v1/health` 落地（见 §9） |
+| Observability | 无 | `X-Lyra-Method` header + structured log + prometheus metric（见 §10） |
 
-Mock 后端今天监听 `http://127.0.0.1:17171`；新协议落地后该端点
-变成 JSON-RPC over HTTP，路径 `POST /v1/rpc`（单 endpoint 收所有
-Request）+ `GET /v1/rpc/stream/{streamHandle}`（SSE 收 notification）。
+Mock 后端今天监听 `http://127.0.0.1:17171`；新协议落地后：
+- 主入口 `POST /v1/rpc[/{method}]`（JSON-RPC）+ `GET /v1/rpc/stream`（SSE）
+- Sidecar `GET /v1/info` + `GET /v1/health`
 
 ---
 
-## 10. 未决问题
+## 12. 未决问题
 
 - [ ] **AG-UI events 是不是直接复用 ag-ui-protocol 官方 schema？** 还
       是只复用名字、用自己的 envelope？倾向后者，避免被 ag-ui 协议
-      演进绑架。
+      演进绑架
 - [ ] **`workspace.terminal.subscribe` 怎么处理多 subscriber？** 一
-      个 runId 的 terminal 有多个表现层订阅时，server 是否要去重？
+      个 runId 的 terminal 有多个表现层订阅时，server 是否要去重
 - [ ] **`models.list` 缓存策略？** Provider 返的 model list 不便宜，
-      要不要 Runtime 缓存 1h？
+      要不要 Runtime 缓存 1h
 - [ ] **`attachments.createUploadUrl` 在 InProcess transport 怎么映
       射？** 不需要 URL，直接返 `attachmentId` + 一个 Go binding
-      函数指针？
+      函数指针
 - [ ] **Notification 顺序保证？** 同一 streamHandle 内必须保序；
-      跨 stream 不保证。值得文档化吗？
+      跨 stream 不保证。值得文档化吗
+- [ ] **OpenAPI 工具链生态对接？** 已知 JSON-RPC 工具链比 OpenAPI 小
+      很多。Postman / Stoplight / SwaggerHub 适配差。可以考虑生成一份
+      **派生**的 OpenAPI spec（不是 SSOT）给外部工具用，但维护成本待评估
+- [ ] **跟 MCP 的 drift 怎么管理？** MCP 2024 加了 batch、2025 删；
+      server→client RPC 反复来回。我们明确不跟（无 batch、无反向 RPC），
+      意味着持续 drift。要不要每个 MCP minor 版本都对一次差异表
 
 ---
 
@@ -561,6 +755,7 @@ Request）+ `GET /v1/rpc/stream/{streamHandle}`（SSE 收 notification）。
 | Method 实现入口 | n/a | `pkg/coreapi/*.go` + `pkg/coreimpl/*.go`（待建） |
 | HITL 审批 gateway | `frontend/src/domain/gateways/PermissionGateway.ts` + `frontend/src/infra/http/HttpPermissionGateway.ts` | `internal/agui/permissions.go` |
 | Base URL / runtime handle | `frontend/src/main/config.ts` | `internal/agui/server.go` |
+| Sidecar endpoints | n/a | `pkg/httpserver/sidecar.go`（待建） |
 | Fixture 数据 | — | `internal/agui/demos.go` |
 
 ---
@@ -610,11 +805,21 @@ Lyra Runtime Protocol 在精神上和 [MCP](https://modelcontextprotocol.io)
 | 取消 | 显式 `notifications/cancelled` | 同 |
 | 流式 | SSE + `Last-Event-Id` | 同 + InProcess/Wails 各自原生 |
 | Server → client RPC | 支持（sampling / elicitation） | **不支持**（HITL 用 Notification + Request 配对） |
+| Batch | 2024 支持 / 2025 移除 | **永不支持** |
 | Transport | stdio / Streamable HTTP | InProcess / Wails IPC / HTTP |
 | SSOT | TypeScript schema | Go `pkg/coreapi` |
-| Batch | 2024 支持 / 2025 移除 | **永不支持** |
+| Sidecar metadata | RFC 9728 Protected Resource Metadata | 自有 `GET /v1/info` + `GET /v1/health`（更简单、不走 OAuth flow） |
 
 **关键差异**：MCP 是 LLM ↔ MCP Server 之间的协议（让 LLM 调外部
 工具）；Lyra Runtime Protocol 是 **表现层 ↔ Runtime** 之间的协议
 （让 UI 驱动 agent）。两者解决不同的问题、可以共存：Lyra Runtime
 内部可以**作为 MCP client** 接入 MCP server，但本协议本身不是 MCP。
+
+**我们刻意不跟 MCP 一致的地方**：
+- **不跟 RFC 9728 Protected Resource Metadata** —— 那个是给 OAuth
+  flow 服务的。我们没有用户鉴权，用更朴素的 `/v1/info` 替代
+- **不跟 batch** —— pipelining 用并发连接解决
+- **不跟 server→client RPC** —— HITL 用 Notification + 后续 Request
+  配对，避免每种 transport 都要支持反向 RPC
+- **代价**：会跟 MCP 持续 drift。我们接受这个代价，因为完全 align
+  会让协议复杂度暴涨且对 Lyra 没有等价收益
