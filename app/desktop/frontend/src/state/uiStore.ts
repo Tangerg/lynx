@@ -8,6 +8,7 @@
 import { colord } from "colord";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
+import { disposeOnHmr } from "@/lib/hmr";
 // Direct registry import — going through the SDK barrel pulls in
 // host.ts which imports this file, creating a TDZ cycle under Vitest.
 import { usePluginStore } from "@/plugins/sdk/registry";
@@ -223,14 +224,4 @@ const unsubPlugins = usePluginStore.subscribe((state, prev) => {
   }
 });
 
-// HMR safety: this module's two subscribe calls live at module scope,
-// not inside an effect with a cleanup. Without an explicit dispose,
-// every HMR reload registers a fresh pair of listeners on top of the
-// previous ones — after N edits there are N+1 of each firing on every
-// theme / accent / plugin mutation, snowballing into visible jank.
-if (import.meta.hot) {
-  import.meta.hot.dispose(() => {
-    unsubUi();
-    unsubPlugins();
-  });
-}
+disposeOnHmr(unsubUi, unsubPlugins);

@@ -8,6 +8,7 @@
 import type { BaseEvent } from "@ag-ui/core";
 import type { AgentViewState } from "@/protocol/agui/viewState";
 import { create } from "zustand";
+import { disposeOnHmr } from "@/lib/hmr";
 import { reduce } from "@/protocol/agui/reducer";
 import { INITIAL_VIEW_STATE } from "@/protocol/agui/viewState";
 import { useSessionStore } from "./sessionStore";
@@ -113,12 +114,7 @@ const unsubPruneSessions = useSessionStore.subscribe((state, prev) => {
   }
 });
 
-// HMR safety: this module-level subscribe has no useEffect cleanup, so
-// every Vite reload of this file would otherwise stack a fresh listener
-// on top of the previous one. Capture the handle + release on dispose.
-if (import.meta.hot) {
-  import.meta.hot.dispose(() => unsubPruneSessions());
-}
+disposeOnHmr(unsubPruneSessions);
 
 // ---------------------------------------------------------------------------
 // Selector hooks
