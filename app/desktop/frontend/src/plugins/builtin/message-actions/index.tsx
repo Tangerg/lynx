@@ -7,10 +7,11 @@
 
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { Icon } from "@/components/common";
+import { flattenCode, flattenMarkdown, flattenText, writeToClipboard } from "@/lib/messageContent";
 import { definePlugin, useCurrentMessage } from "@/plugins/sdk";
 import { getCurrentSessionView, useAgentAction } from "@/state/agentStore";
 import { useComposerStore } from "@/state/composerStore";
-import { ACTION_BTN_CLASSES, flattenCode, flattenMarkdown, flattenText } from "./_shared";
+import { ACTION_BTN_CLASSES } from "./_shared";
 
 // ---- Copy: dropdown menu with Markdown / Plain text / Code only. ----
 //
@@ -19,15 +20,6 @@ import { ACTION_BTN_CLASSES, flattenCode, flattenMarkdown, flattenText } from ".
 // Plain text drops markup so it pastes flat into editors, Code only
 // concatenates the fenced code blocks for users who just want the
 // generated snippets. Code variant hides when the message has none.
-
-async function writeClipboard(text: string): Promise<void> {
-  if (!text || typeof navigator === "undefined" || !navigator.clipboard) return;
-  try {
-    await navigator.clipboard.writeText(text);
-  } catch {
-    /* unfocused window — silent */
-  }
-}
 
 function CopyButton() {
   const msg = useCurrentMessage();
@@ -54,18 +46,18 @@ function CopyButton() {
           <CopyItem
             label="Copy markdown"
             hint="Headings / fences kept"
-            onSelect={() => writeClipboard(markdown)}
+            onSelect={() => writeToClipboard(markdown)}
           />
           <CopyItem
             label="Copy plain text"
             hint="Markup stripped"
-            onSelect={() => writeClipboard(plain)}
+            onSelect={() => writeToClipboard(plain)}
           />
           {code && (
             <CopyItem
               label="Copy code only"
               hint="Fenced blocks joined"
-              onSelect={() => writeClipboard(code)}
+              onSelect={() => writeToClipboard(code)}
             />
           )}
         </DropdownMenu.Content>
