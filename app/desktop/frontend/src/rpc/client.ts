@@ -1,0 +1,175 @@
+// Typed JSON-RPC client wrapping a Transport. Owns id allocation,
+// response correlation, notification dispatch. See docs/API.md §1.
+//
+// Correlation pattern borrowed from kimi-code's controlledPromise idea:
+// each Request creates a pending entry with resolve/reject handles;
+// the recv() loop pops the entry by id and settles the promise.
+// Notifications go through subscribe() — no id, no waiter.
+
+import { RpcError, RpcTransportError } from "./errors";
+import type { Transport } from "./transport";
+import type {
+  RpcId,
+  RpcMessage,
+  RpcNotification,
+  RpcRequest,
+  RpcResponseError,
+  RpcResponseSuccess,
+} from "./types";
+import { JSONRPC_VERSION, isErrorResponse, isNotification, isResponse } from "./types";
+
+export type NotificationHandler = (msg: RpcNotification) => void;
+
+export interface RpcClient {
+  /** Send a Request and resolve with its result, or reject with RpcError. */
+  call<R = unknown, P = unknown>(method: string, params?: P, signal?: AbortSignal): Promise<R>;
+  /** Send a Notification (fire-and-forget). */
+  notify<P = unknown>(method: string, params?: P): Promise<void>;
+  /** Subscribe to inbound notifications matching `method`. Returns an unsubscribe fn. */
+  subscribe(method: string, handler: NotificationHandler): () => void;
+  /** Tear down the client + underlying transport. */
+  close(): Promise<void>;
+}
+
+interface Pending {
+  resolve: (value: unknown) => void;
+  reject: (err: unknown) => void;
+}
+
+export function createRpcClient(transport: Transport): RpcClient {
+  let nextId = 1;
+  const pending = new Map<RpcId, Pending>();
+  // method → handlers. We allow multiple subscribers per method so multiple
+  // UI consumers can listen to the same stream.
+  const subscribers = new Map<string, Set<NotificationHandler>>();
+  let closed = false;
+
+  // Long-running pump that drains the transport's recv() into pending
+  // promises + subscribers. Errors here are unrecoverable — we settle
+  // every pending request with RpcTransportError and bail out.
+  void (async () => {
+    try {
+      for await (const msg of transport.recv()) {
+        dispatchInbound(msg);
+      }
+    } catch (err) {
+      const failure = new RpcTransportError(`transport recv() failed: ${(err as Error).message}`);
+      for (const { reject } of pending.values()) reject(failure);
+      pending.clear();
+    }
+  })();
+
+  function dispatchInbound(msg: RpcMessage): void {
+    if (isResponse(msg)) {
+      const entry = pending.get(msg.id);
+      if (!entry) return; // unsolicited or already settled — drop silently
+      pending.delete(msg.id);
+      if (isErrorResponse(msg)) {
+        entry.reject(new RpcError((msg as RpcResponseError).error));
+      } else {
+        entry.resolve((msg as RpcResponseSuccess).result);
+      }
+      return;
+    }
+    if (isNotification(msg)) {
+      const handlers = subscribers.get(msg.method);
+      if (!handlers) return;
+      for (const handler of handlers) {
+        try {
+          handler(msg);
+        } catch (err) {
+          // Subscribers must not crash the dispatch loop. Log and move on.
+          console.error(`[rpc] notification handler for "${msg.method}" threw:`, err);
+        }
+      }
+      return;
+    }
+    // Unexpected: server-initiated Requests are not in our protocol.
+    // Drop them — see docs/API.md §1.1 (we don't do server→client RPC).
+    console.warn("[rpc] dropping unexpected server-initiated Request", msg);
+  }
+
+  async function call<R, P>(method: string, params?: P, signal?: AbortSignal): Promise<R> {
+    if (closed) throw new RpcTransportError("client closed");
+    const id = nextId++;
+    const req: RpcRequest<P> = {
+      jsonrpc: JSONRPC_VERSION,
+      id,
+      method,
+      ...(params !== undefined ? { params } : {}),
+    };
+
+    return new Promise<R>((resolve, reject) => {
+      pending.set(id, {
+        resolve: resolve as (value: unknown) => void,
+        reject,
+      });
+
+      // AbortSignal hooks — cancel locally + send notifications/cancelled
+      // so the runtime stops working on it (docs/API.md §2.4).
+      const onAbort = () => {
+        if (!pending.has(id)) return;
+        pending.delete(id);
+        // Best-effort: fire-and-forget the cancel notification.
+        void transport
+          .send({
+            jsonrpc: JSONRPC_VERSION,
+            method: "notifications/cancelled",
+            params: { requestId: id, reason: "client_aborted" },
+          })
+          .catch(() => undefined);
+        reject(new RpcTransportError("aborted"));
+      };
+      if (signal) {
+        if (signal.aborted) {
+          onAbort();
+          return;
+        }
+        signal.addEventListener("abort", onAbort, { once: true });
+      }
+
+      transport.send(req, signal).catch((err) => {
+        if (!pending.has(id)) return; // already aborted/settled
+        pending.delete(id);
+        reject(err);
+      });
+    });
+  }
+
+  async function notify<P>(method: string, params?: P): Promise<void> {
+    if (closed) throw new RpcTransportError("client closed");
+    const msg: RpcNotification<P> = {
+      jsonrpc: JSONRPC_VERSION,
+      method,
+      ...(params !== undefined ? { params } : {}),
+    };
+    await transport.send(msg);
+  }
+
+  function subscribe(method: string, handler: NotificationHandler): () => void {
+    let set = subscribers.get(method);
+    if (!set) {
+      set = new Set();
+      subscribers.set(method, set);
+    }
+    set.add(handler);
+    return () => {
+      const current = subscribers.get(method);
+      if (!current) return;
+      current.delete(handler);
+      if (current.size === 0) subscribers.delete(method);
+    };
+  }
+
+  async function close(): Promise<void> {
+    if (closed) return;
+    closed = true;
+    const failure = new RpcTransportError("client closed");
+    for (const { reject } of pending.values()) reject(failure);
+    pending.clear();
+    subscribers.clear();
+    await transport.close();
+  }
+
+  return { call, notify, subscribe, close };
+}
