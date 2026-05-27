@@ -24,12 +24,19 @@
 4 种前端 × 2 种后端 = 7 个可行组合。**每个组合都用同一份线上
 协议。** 前端不 import 后端类型，后端不假设前端共驻。
 
-**显式不做多租户。** Lyra 协议层不承认 "多 tenant 共享一个
-backend instance"。如果未来真的需要把服务给多个客户用，做法是
-**物理隔离** —— 每个客户一个独立 `lyra-server` 部署（独立进程 /
-独立 DB / 独立鉴权域），不在 URL 里塞 `workspaces/{ws}/`。这把
-租户隔离的复杂度从协议层下沉到部署层，协议保持单一服务的简洁
-形状。
+**多用户 ≠ 多租户。** 区分清楚：
+
+- **多用户（支持）**：一个 Standalone `lyra-server` 实例可以服务
+  同一个组织 / 团队内的多名成员。每个用户有自己的身份、自己
+  登录、自己的 sessions / messages。**所有用户共享同一个
+  数据域**（同一份配置、同一个 provider 凭证池、同一个 MCP
+  注册表）。鉴权按 user 走，授权按 user 走。
+- **多租户（不做）**：协议层不承认 "多个相互隔离的客户组织共
+  享一个 backend instance"。如果未来要给多组织用，做法是 **物
+  理隔离** —— 每个组织一个独立 `lyra-server` 部署（独立进程 /
+  独立 DB / 独立鉴权域），不在 URL 里塞 `workspaces/{ws}/`。
+  这把跨组织隔离的复杂度从协议层下沉到部署层，协议保持单一
+  数据域的简洁形状。
 
 ### 0.2 对 API 设计的约束
 
@@ -66,14 +73,15 @@ backend instance"。如果未来真的需要把服务给多个客户用，做法
 
 ### 0.4 后端形态 —— 各自提供什么
 
-| 形态 | 监听 | 默认鉴权 | 持久化 |
-| --- | --- | --- | --- |
-| **Embedded** | 只 `127.0.0.1:0`（不出局域网） | 本地 config 里生成的 token，单用户 | 跟客户端二进制并排的 SQLite |
-| **Standalone server** | `0.0.0.0:port`，可配置 | 必须：Bearer token / API key（也可以接 SSO，但永远单租户） | SQLite（小）或 Postgres（大） |
+| 形态 | 监听 | 用户模型 | 默认鉴权 | 持久化 |
+| --- | --- | --- | --- | --- |
+| **Embedded** | 只 `127.0.0.1:0`（不出局域网） | **单用户**（机主） | 本地 config 里生成的 token | 跟客户端二进制并排的 SQLite |
+| **Standalone server** | `0.0.0.0:port`，可配置 | **多用户**（团队成员） | per-user 账号 + Bearer token / API key（也可以接 SSO） | SQLite（小）或 Postgres（大） |
 
-两种都讲同一份线上协议。差异只在部署 / 持久化 / 鉴权强度。
-**Standalone server 始终是单租户** —— 一个进程服务一个客户。多
-客户场景用多次部署解决，不在协议或 URL 里区分。
+两种都讲同一份线上协议。差异在用户模型 / 部署 / 持久化 / 鉴权
+强度。**Standalone server 始终单租户** —— 一个进程服务一个组织
+（组织内可以有多个用户）。多组织 / 多客户场景靠多次部署解决，
+不在协议或 URL 里区分。
 
 ---
 
@@ -85,6 +93,7 @@ backend instance"。如果未来真的需要把服务给多个客户用，做法
 | REST 端点 | 13 个端点喂 fixture | 加 capabilities / auth / sessions CRUD / messages 分页 / attachments / providers / models / tools / cancel —— 见 §4 |
 | HITL 审批 | `POST /permission` 解锁一个内存 chan | 改成幂等 + 绑到具体 run id（不是全局 chan）。 |
 | 鉴权 | 无 | 第一天就得有 —— Bearer token。见 §3.2。 |
+| 用户模型 | 单进程单用户 fixture | Embedded 维持单用户；Standalone 引入 per-user 账号 + token，sessions / messages 按 ownerId 过滤。 |
 | Schema SSOT | 手写在 `frontend/src/lib/queries.ts` | OpenAPI 3.1 + AsyncAPI 2.6 生成 TS + Go。见 §6。 |
 | 版本 | 无 | URL 前缀 `/v1/` + `X-Lyra-Protocol-Version` header。 |
 
@@ -148,6 +157,11 @@ serve 任何非 `/v1/info`、非 `/v1/auth/*` 的端点。**
 需要接公司 SSO / IdP 的部署可以在 Standalone 模式上加 OAuth 2.1 +
 PKCE（`/v1/auth/authorize` + `/v1/auth/token`），登录后仍然走同一份
 Bearer token —— 单租户假设不变，只是 token 来源换了。
+
+**多用户场景下 token 永远绑定到一个 user**。每个 token 解出唯一
+的 `userId`，所有 per-user 数据查询（sessions、messages、
+attachments）都按这个 `userId` 隐式过滤——不需要在 URL 里
+传，服务端拿 token 就知道。
 
 ### 2.4 错误 —— RFC 7807 Problem Details
 
@@ -310,11 +324,11 @@ interface RunInput {
 | P0 | `POST` | `/v1/run` | 启动一次 run，返 SSE 流（§3）。 |
 | P0 | `POST` | `/v1/run/{runId}/cancel` | 显式取消；幂等。 |
 | P0 | `POST` | `/v1/run/{runId}/permission` | HITL 决策。Body：`{ requestId, decision, reason? }`。替换今天的 `POST /permission`。 |
-| P0 | `GET` | `/v1/sessions` | 列 sessions。游标分页。 |
-| P0 | `POST` | `/v1/sessions` | 新建。Body：`{ title?, model?, metadata? }`。 |
-| P0 | `GET` | `/v1/sessions/{id}` | 读一条（metadata + 最近活动）。 |
-| P0 | `PATCH` | `/v1/sessions/{id}` | 重命名 / pin / metadata patch。 |
-| P0 | `DELETE` | `/v1/sessions/{id}` | 级联删除。 |
+| P0 | `GET` | `/v1/sessions` | 列**当前用户**的 sessions（按 token 解出 userId 隐式过滤）。游标分页。 |
+| P0 | `POST` | `/v1/sessions` | 新建（owner 自动设为当前用户）。Body：`{ title?, model?, metadata? }`。 |
+| P0 | `GET` | `/v1/sessions/{id}` | 读一条（metadata + 最近活动）。非 owner 返 `403`。 |
+| P0 | `PATCH` | `/v1/sessions/{id}` | 重命名 / pin / metadata patch。非 owner 返 `403`。 |
+| P0 | `DELETE` | `/v1/sessions/{id}` | 级联删除。非 owner 返 `403`。 |
 | P0 | `GET` | `/v1/sessions/{id}/messages` | 游标分页历史。替换"每次重连大块 `MESSAGES_SNAPSHOT`"的做法。 |
 | P1 | `POST` | `/v1/sessions/{id}/messages/{msgId}/edit` | 从 checkpoint 处 edit-and-re-run。返回 `{ runId, checkpoint }`，并在 run SSE 上 emit `lyra.checkpoint`。 |
 | P1 | `POST` | `/v1/sessions/{id}/fork` | 在 checkpoint 处 fork session。 |
@@ -419,6 +433,7 @@ interface Capabilities {
   };
   deployment: {
     kind: "embedded" | "standalone";
+    multiUser: boolean;        // false for embedded, true for standalone
     instanceLabel?: string;    // shown in UI, e.g. "Lyra @ acme.internal"
   };
 }
@@ -447,6 +462,9 @@ type SessionStatus = "running" | "waiting" | "idle";
 
 interface Session {
   id: string;
+  ownerId: string;            // user who created the session;
+                              // Embedded: a fixed local user id;
+                              // Standalone: the authenticated user
   title: string;
   status: SessionStatus;
   model: string;
@@ -566,10 +584,16 @@ fail 构建。改契约的 PR 必须 schema + 生成代码同时落地。
 
 ### 7.2 独立服务后端 + 任意前端
 
-- 运营方通过 env / config 提供 `LYRA_BACKEND_URL` + `LYRA_TOKEN`。
+- 运营方通过 env / config 提供 `LYRA_BACKEND_URL`；用户用
+  `/v1/auth/login`（用户名密码或 SSO）换 token。`LYRA_TOKEN`
+  环境变量仍然支持，用于 CI / TUI 等无人交互场景。
 - 服务端强制 TLS；除非 URL 是 loopback，前端拒绝走明文 HTTP 登录。
 - CORS 在服务端配 —— `Access-Control-Allow-Origin` 列允许的
   前端 origin。
+- 数据按 user 隔离：sessions / messages / attachments 都隐式
+  按 token 解出的 `userId` 过滤；非 owner 访问返 `403`。共享
+  资源（providers / models / tools / MCP 注册表）所有用户读
+  同一份。
 
 ### 7.3 Web 前端 + 任意后端（浏览器场景）
 

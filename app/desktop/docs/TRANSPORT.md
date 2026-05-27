@@ -338,7 +338,7 @@ approval 可以走普通 `POST /permission`，下行 SSE 已经覆盖了）。
 | Wails | 线上无（Wails IPC 是 window-scoped）；`CoreAPI` impl 仍然做能力校验。 |
 | Socket | Unix 用文件 mode / Windows 用 ACL。能连上 socket 的用户必须是文件 owner。没有 Bearer token。 |
 | HTTP local | **必须 Bearer token。** 嵌入式后端安装时生成 token，写到 `~/.config/lyra/token`（chmod 600）。没有它，任何同机进程都能调我们。 |
-| HTTP remote | 静态 Bearer token（默认），或接公司 SSO/IdP 时走 OAuth 2.1 + PKCE。**永远单租户** —— 多客户走多次部署。 |
+| HTTP remote | 静态 Bearer token（默认）或 SSO/IdP 走 OAuth 2.1 + PKCE。**单租户多用户**：一个部署服务一个组织、内部多个用户；多组织走多部署。Token 绑 `userId`，CoreAPI 按 owner 过滤。 |
 
 `Request.Headers["authorization"]` 这个字段是给 HTTP 类传输用的；
 in-process 和 Wails 留空。`CoreAPI` impl **永远不信任传输层**——
