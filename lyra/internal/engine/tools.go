@@ -87,7 +87,7 @@ func buildOnlineTools(online OnlineConfig) ([]chat.Tool, error) {
 	}
 
 	out, err = appendIfBuilt(out, len(online.HTTPAllowedHosts) > 0, "httpreq", func() (chat.Tool, error) {
-		client, err := httpreq.NewClient(&httpreq.Config{AllowedHosts: online.HTTPAllowedHosts})
+		client, err := httpreq.NewClient(httpreq.Config{AllowedHosts: online.HTTPAllowedHosts})
 		if err != nil {
 			return nil, err
 		}

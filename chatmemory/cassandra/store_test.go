@@ -23,7 +23,7 @@ func TestStoreConfig_SessionRequired(t *testing.T) {
 }
 
 func TestStoreConfig_NilConfig(t *testing.T) {
-	if _, err := cassandra.NewStore(nil); err == nil {
+	if _, err := cassandra.NewStore(cassandra.StoreConfig{}); err == nil {
 		t.Fatal("expected error when config is nil")
 	}
 }
@@ -31,7 +31,7 @@ func TestStoreConfig_NilConfig(t *testing.T) {
 func TestStoreConfig_RejectsBadIdentifier(t *testing.T) {
 	cases := []struct {
 		name string
-		cfg  *cassandra.StoreConfig
+		cfg  cassandra.StoreConfig
 	}{
 		{"keyspace with hyphen", cassandra.StoreConfig{Session: stubSession(), Keyspace: "my-ks"}},
 		{"table with semicolon", cassandra.StoreConfig{Session: stubSession(), TableName: "x;y"}},

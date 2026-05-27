@@ -77,7 +77,7 @@ type Client struct {
 	defaultTimeout   time.Duration
 }
 
-func NewClient(cfg *Config) (*Client, error) {
+func NewClient(cfg Config) (*Client, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}

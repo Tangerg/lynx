@@ -53,13 +53,21 @@ type ContextualAugmenterConfig struct {
 	AllowEmptyContext bool
 }
 
-// validate fills the default templates and rejects invalid configs.
-func (c ContextualAugmenterConfig) Validate() error {
+// ApplyDefaults fills nil template fields with package defaults.
+func (c *ContextualAugmenterConfig) ApplyDefaults() {
 	if c.PromptTemplate == nil {
 		c.PromptTemplate = chat.NewPromptTemplate(contextualDefaultTemplate)
 	}
 	if c.EmptyContextPromptTemplate == nil {
 		c.EmptyContextPromptTemplate = chat.NewPromptTemplate(contextualEmptyContextTemplate)
+	}
+}
+
+// Validate rejects invalid configs. Pure check — pair with
+// [ContextualAugmenterConfig.ApplyDefaults].
+func (c ContextualAugmenterConfig) Validate() error {
+	if c.PromptTemplate == nil {
+		return nil
 	}
 	return c.PromptTemplate.RequireVariables("Context", "Query")
 }
@@ -89,6 +97,7 @@ func NewContextualAugmenter(cfg ContextualAugmenterConfig) (*ContextualAugmenter
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
+	cfg.ApplyDefaults()
 	return &ContextualAugmenter{
 		promptTemplate:             cfg.PromptTemplate,
 		emptyContextPromptTemplate: cfg.EmptyContextPromptTemplate,

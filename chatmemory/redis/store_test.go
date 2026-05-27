@@ -26,7 +26,7 @@ func TestStoreConfig_ClientRequired(t *testing.T) {
 }
 
 func TestStoreConfig_NilConfig(t *testing.T) {
-	if _, err := redis.NewStore(nil); err == nil {
+	if _, err := redis.NewStore(redis.StoreConfig{}); err == nil {
 		t.Fatal("expected error when config is nil")
 	}
 }

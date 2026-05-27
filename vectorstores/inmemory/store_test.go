@@ -291,7 +291,7 @@ func TestStore_RetrieveMinScoreFilters(t *testing.T) {
 }
 
 func TestStore_RejectsBadConfig(t *testing.T) {
-	if _, err := inmemory.NewStore(nil); err == nil {
+	if _, err := inmemory.NewStore(inmemory.StoreConfig{}); err == nil {
 		t.Fatal("nil cfg must error")
 	}
 	if _, err := inmemory.NewStore(inmemory.StoreConfig{}); err == nil {

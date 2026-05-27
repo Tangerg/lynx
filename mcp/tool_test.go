@@ -149,7 +149,7 @@ func TestTool_MetaForwardedToServer(t *testing.T) {
 func TestNewTool_RejectsBadInputs(t *testing.T) {
 	cases := []struct {
 		name string
-		cfg  *lynxmcp.ToolConfig
+		cfg  lynxmcp.ToolConfig
 		want string
 	}{
 		{

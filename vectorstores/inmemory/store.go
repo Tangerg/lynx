@@ -26,12 +26,15 @@ type StoreConfig struct {
 	Similarity Similarity
 }
 
+func (c *StoreConfig) ApplyDefaults() {
+	if c.Similarity == nil {
+		c.Similarity = CosineSimilarity
+	}
+}
+
 func (c StoreConfig) Validate() error {
 	if c.EmbeddingClient == nil {
 		return ErrMissingEmbeddingClient
-	}
-	if c.Similarity == nil {
-		c.Similarity = CosineSimilarity
 	}
 	return nil
 }
@@ -61,6 +64,7 @@ func NewStore(cfg StoreConfig) (*Store, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
+	cfg.ApplyDefaults()
 	return &Store{
 		embedder:   cfg.EmbeddingClient,
 		similarity: cfg.Similarity,

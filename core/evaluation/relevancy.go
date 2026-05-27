@@ -51,15 +51,23 @@ type RelevancyEvaluatorConfig struct {
 	Threshold float64
 }
 
-// validate fills the default prompt template and returns an error when
-// required fields are missing or the template lacks the expected
-// variables.
+// ApplyDefaults fills PromptTemplate when nil.
+func (c *RelevancyEvaluatorConfig) ApplyDefaults() {
+	if c.PromptTemplate == nil {
+		c.PromptTemplate = chat.NewPromptTemplate(relevancyDefaultTemplate)
+	}
+}
+
+// Validate returns an error when required fields are missing or the
+// template lacks the expected variables. Pure check — pair with
+// [RelevancyEvaluatorConfig.ApplyDefaults].
 func (c RelevancyEvaluatorConfig) Validate() error {
 	if c.ChatModel == nil {
 		return errors.New("evaluation.RelevancyEvaluatorConfig: ChatModel is required")
 	}
 	if c.PromptTemplate == nil {
-		c.PromptTemplate = chat.NewPromptTemplate(relevancyDefaultTemplate)
+		// Default would be applied; nothing to check.
+		return nil
 	}
 	return c.PromptTemplate.RequireVariables("Query", "Response", "Context")
 }
@@ -81,6 +89,7 @@ func NewRelevancyEvaluator(config RelevancyEvaluatorConfig) (*RelevancyEvaluator
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
+	config.ApplyDefaults()
 	base, err := newLLMEvaluator(
 		config.ChatModel,
 		config.PromptTemplate,
