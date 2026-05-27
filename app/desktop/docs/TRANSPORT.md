@@ -1,96 +1,103 @@
 # Lyra 传输层
 
-> 描述 `API.md` 定义的协议在 Lyra 前端和后端之间**物理上**怎么传输。
-> 协议在所有部署形态下保持一致；**传输层**就是负责把字节（或者
-> 在 Go-to-Go 情况下，直接把 struct 指针）从一边搬到另一边的东西。
+> 描述 `API.md` 定义的 **Lyra Runtime Protocol**（JSON-RPC 2.0）
+> 在表现层 ↔ Runtime 之间**物理上**怎么传输。协议在所有传输上
+> 完全一致；**传输层**就是负责把 JSON-RPC message（或者在 Go-to-Go
+> 情况下，直接把 struct 指针）从一边搬到另一边的东西。
 >
-> 读者：要做新前端、要把后端嵌入到新外壳里、或者要为特定部署写
-> 适配器（HTTP → in-process、socket → in-process 等）的人。
+> 读者：要做新表现层、要把 Runtime 嵌入到新外壳里、或者要为特定
+> 部署写适配器（HTTP → in-process、Wails IPC → in-process 等）的人。
 
 ---
 
-## 1. m × n 矩阵
+## 1. 部署矩阵
 
-3 种后端部署 × 3 种前端形态 = 9 种可行组合。每个格子挑**满足本组合
-进程 / 网络边界的最便宜的传输**。
+Lyra Runtime 永远是**单一形态**（本地或同进程；远程模式留给未来
+facade，详见 `API.md` 附录 B）。表现层有 3 种主要形态。每种挑
+**满足本组合进程 / 网络边界的最便宜的传输**：
 
-| ↓ 前端 / 后端 → | Local（loopback） | Server（局域网 / 公网） | Embedded（同一进程） |
+| 表现层 | Runtime 在哪 | 推荐 transport | 备注 |
 | --- | --- | --- | --- |
-| **TUI（Go，如 Bubble Tea）** | Socket / HTTP | HTTP | **In-process** |
-| **包装客户端（Wails / Tauri / Electron）** | Socket / HTTP | HTTP | Wails IPC / HTTP |
-| **Web（浏览器）** | HTTP | HTTP | n/a（浏览器无法嵌后端） |
+| **TUI（Go，如 Bubble Tea）** | 同一 Go 二进制 | **InProcess** | 直接持有 Runtime 对象，函数调用，零序列化 |
+| **包装客户端（Wails / Tauri / Electron）** | 宿主进程 | **Wails IPC** | WebView ↔ 宿主进程的 IPC bridge |
+| **Web（浏览器）** | 同机独立进程（守护） | **HTTP loopback** | 浏览器没法嵌后端，必走 HTTP；本地 token 文件做进程门禁 |
 
-矩阵释义：
+未来 facade 模式（**本轮不实现**）：任意表现层走 **HTTP** 连云端
+facade，facade 内部再转发到 Runtime。详见 `API.md` 附录 B。
 
-- **Local**：后端作为独立 OS 进程跑在同一台机器上（比如 `lyra-server`
-  作为 systemd unit、或者一个 per-user 守护进程）。前端通过 Unix
-  socket / Named pipe（最便宜）或 loopback HTTP 连上去。
-- **Server**：后端是远程服务。只有 HTTP 能用——其他方式都假设
-  共驻一台机器。
-- **Embedded**：后端代码和前端链接进同一个二进制。如果两边都是 Go，
-  边界就是一次函数调用；如果前端是 WebView（Wails / Tauri / Electron），
-  边界就是外壳本身已提供的 IPC bridge。
-
-六种独立传输共享**同一个 Go interface**；handler 代码
-（`Router.Dispatch(req)`）在它们之间不变。
+三种 transport 共享**同一个 Go interface**，handler 代码
+（`Router.Handle(msg)`）跟 transport 选哪个无关。
 
 ---
 
 ## 2. 唯一抽象 —— `Transport`
 
-两端都对接同一个 Go interface。前端拿到的 `Client` 包一层 `Transport`；
-后端用 `Server` 把 `Transport` 接到 `Router` 上。**剩下的一切——HTTP
-framing、SSE 解析、socket 缓冲——都藏在这个接口背后。**
+两端都对接同一个 Go interface。`Transport` 就是 JSON-RPC message
+的双向管道——**剩下的一切（HTTP framing、SSE 解析、Wails IPC
+bridge）都藏在接口背后**。
 
 ```go
 // pkg/transport/transport.go
 package transport
 
-import "context"
+import (
+    "context"
+    "encoding/json"
+)
 
-// Request is the wire payload — a method name plus opaque bytes.
-// For Go-to-Go in-process the bytes are skipped (see InProcessTransport).
-type Request struct {
-    Method  string            // "v1.session.send", "v1.message.list", ...
-    Headers map[string]string // auth, idempotency-key, trace context
-    Body    []byte            // JSON-encoded per API.md, OR nil for in-process
-    Stream  bool              // true → response is an event stream (SSE-equivalent)
+// Message is one JSON-RPC 2.0 envelope — Request, Response, or
+// Notification. Per spec, only the corresponding fields are populated:
+// Request:      jsonrpc + id + method + params?
+// Response:     jsonrpc + id + (result XOR error)
+// Notification: jsonrpc + method + params?  (no id)
+type Message struct {
+    JSONRPC string          `json:"jsonrpc"`           // always "2.0"
+    ID      json.RawMessage `json:"id,omitempty"`      // string|number, absent on Notification
+    Method  string          `json:"method,omitempty"`  // Request / Notification
+    Params  json.RawMessage `json:"params,omitempty"`  // method-specific
+    Result  json.RawMessage `json:"result,omitempty"`  // Response success
+    Error   *RPCError       `json:"error,omitempty"`   // Response failure
 }
 
-type Response struct {
-    Status  int               // mirrors HTTP semantics even when not on HTTP
-    Headers map[string]string
-    Body    []byte            // for non-streaming
-    Events  <-chan Event      // populated when Request.Stream == true
+type RPCError struct {
+    Code    int             `json:"code"`
+    Message string          `json:"message"`
+    Data    json.RawMessage `json:"data,omitempty"`
 }
 
-type Event struct {
-    ID   string  // monotonic per stream — replay key
-    Type string  // "TEXT_MESSAGE_CONTENT", "RUN_FINISHED", ...
-    Data []byte  // JSON-encoded event payload
-}
-
-// Transport is what every adapter implements. One interface, six
-// implementations (in-process, Wails, Unix socket, named pipe, HTTP, WS).
+// Transport is a bidirectional message pipe. One interface, three
+// implementations in scope (InProcess, Wails IPC, HTTP).
 type Transport interface {
-    // Call performs one request. Honors ctx cancellation. For streaming
-    // requests, Response.Events is non-nil and the caller drains it.
-    Call(ctx context.Context, req *Request) (*Response, error)
-    // Close releases any underlying resources (sockets, channels, ...).
+    // Send queues an outbound message (Request / Response / Notification).
+    // Returns when the message is handed to the underlying transport,
+    // not when the peer has processed it.
+    Send(ctx context.Context, msg *Message) error
+
+    // Recv returns a channel of incoming messages. The channel is
+    // closed when the transport disconnects. Consumers must drain it.
+    Recv() <-chan *Message
+
+    // Close terminates the transport. Any pending Send fails with
+    // context.Canceled; Recv channel is closed.
     Close() error
 }
 ```
 
-前端永远见不到 `*http.Request` 或 `net.Conn`。后端的 handler 签名
-是 `func(ctx, *Request) (*Response, error)`——同一份代码跑在所有
-传输背后。
+注意：`Transport` 是**纯 message pipe**，不区分 Request / Response
+配对——配对（按 `id` match response）是上一层 `RPCClient` 的事。
+Streaming 也是 `Recv()` 持续吐 Notification 而已，不需要专门
+"Stream" 字段。
+
+前端永远见不到 `*http.Request` 或 `net.Conn`。后端的 router 签名
+是 `func(ctx context.Context, msg *Message) *Message`——同一份
+代码跑在所有传输背后。
 
 ---
 
 ## 3. 服务契约 —— `pkg/coreapi`
 
-`Transport` 搬运的是不透明字节。**类型化的 Go interface**——两端
-真正同意的那份契约——位于其上一层 `pkg/coreapi`：
+`Transport` 搬运的是不透明 JSON-RPC envelope。**类型化的 Go
+interface**——两端真正同意的那份契约——位于其上一层 `pkg/coreapi`：
 
 ```go
 // pkg/coreapi/coreapi.go
@@ -99,73 +106,86 @@ package coreapi
 import "context"
 
 type CoreAPI interface {
+    // Lifecycle
+    Initialize(ctx context.Context, in InitializeIn) (*InitializeOut, error)
+    Shutdown(ctx context.Context, in ShutdownIn) error
+
     // Sessions
     ListSessions(ctx context.Context, q ListSessionsQuery) (*Page[Session], error)
+    GetSession(ctx context.Context, id string) (*Session, error)
     CreateSession(ctx context.Context, in CreateSessionIn) (*Session, error)
+    // ...
+
     // Messages
     ListMessages(ctx context.Context, sessionID string, q ListMessagesQuery) (*Page[Message], error)
-    // Runs (the streaming surface)
-    StartRun(ctx context.Context, in StartRunIn) (<-chan RunEvent, error)
+
+    // Runs (streaming surface)
+    StartRun(ctx context.Context, in StartRunIn) (*StartRunOut, <-chan AgUiEvent, error)
     CancelRun(ctx context.Context, runID string) error
-    // HITL
     SubmitApproval(ctx context.Context, in ApprovalIn) error
-    // ... full surface mirrors API.md §4
+
+    // ... full surface mirrors API.md §5.2 (the JSON-RPC method table)
 }
 ```
 
-这个 interface 是**行为的 single source of truth**。从它衍生出两份
-产物：
+这个 interface 是**行为的 single source of truth**。从它衍生出
+两份产物：
 
-- **OpenAPI 3.1 + AsyncAPI 2.6** 文件（`schemas/`）——扫描 struct
-  tag 生成，给非 Go 客户端（TS、Rust、Python）用。
-- **HTTP server 适配器**（`pkg/httpserver`）——把进来的 `*Request`
-  路由到 `CoreAPI` 的方法，再把结果重新编码成字节。
+- **JSON-RPC method 表** + **AsyncAPI 流式事件 schema**（`schemas/`）
+  ——扫描 struct tag 生成，给非 Go 客户端（TS / Rust / Python）用
+- **JSON-RPC 适配器**（`pkg/rpcadapter`）——把 inbound JSON-RPC
+  `Message` 路由到 `CoreAPI` 方法，再把结果重新编码成 outbound
+  `Message`
 
 所以结构是：
 
 ```
-              ┌───────────────────┐
-   Frontend ──│   CoreAPI client  │── uses Transport ──→ wire
-              └───────────────────┘
-                                                            ↓
-              ┌───────────────────┐
-   Backend  ──│  CoreAPI impl     │── exposed by Adapter ─→ wire
-              └───────────────────┘
+              ┌────────────────────┐    Transport.Send(msg)
+   Frontend ──│  RPCClient(typed)  │─────────────────────────► wire
+              │  + CoreAPI mirror  │◄──── Transport.Recv() ────
+              └────────────────────┘
+                                                                ↓
+              ┌────────────────────┐    Router.Handle(msg)
+   Backend  ──│  CoreAPI impl      │◄────────────────────────── wire
+              │  + RPC adapter     │─── Transport.Send(reply) ─►
+              └────────────────────┘
 ```
 
 适配器形态因传输而异：
 
 | 传输 | 适配器形态 |
 | --- | --- |
-| InProcess | 前端的 `Client` 直接持有一个 `CoreAPI` 引用。**没有适配器**——`client.ListSessions(...)` 就是 `impl.ListSessions(...)`。 |
-| Wails / Socket / HTTP | 适配器在 `*Request` ↔ `CoreAPI` 方法调用之间做编解码。 |
+| InProcess | 前端 `Client` 直接持有一个 `CoreAPI` 引用，**完全跳过 JSON-RPC 序列化**——`client.ListSessions(...)` 直译为 `impl.ListSessions(...)`。`Transport` 接口在此场景仍可选保留，只为复用 logging / tracing middleware。 |
+| Wails IPC / HTTP | 适配器把 JSON-RPC `Message` 解码为 method name + params struct，调对应 `CoreAPI` 方法，把返回值打回 `Message`。 |
 
 ---
 
-## 4. 六种传输实现
+## 4. 三种传输实现
 
 ### 4.1 InProcessTransport —— Go ↔ Go，同一二进制
 
-**适用**：链接了 `pkg/coreimpl/` 的 Bubble Tea TUI；或者 Wails 应用
-里我们选择绕开 WebView bridge、走纯 Go 路径的情况。
+**适用**：链接了 `pkg/coreimpl/` 的 Bubble Tea TUI（或任何 Go
+表现层）。两端共享 event loop。
 
 ```go
 // pkg/transport/inprocess/inprocess.go
 type InProcessTransport struct {
     api coreapi.CoreAPI // direct reference, no serialization
+    in  chan *Message   // notifications routed back to client
 }
 
-func (t *InProcessTransport) Call(ctx context.Context, req *Request) (*Response, error) {
-    // For in-process we DON'T marshal through Request.Body — the client
-    // wrapper bypasses bytes entirely and calls api.* directly. This
-    // implementation exists only for codepaths that genuinely need the
-    // generic Request shape (e.g. shared logging middleware).
-    return dispatchInProc(ctx, t.api, req)
+func (t *InProcessTransport) Send(ctx context.Context, msg *Message) error {
+    // For requests, dispatch directly to CoreAPI and stuff the response
+    // into t.in. For notifications, route to the in-process router.
+    // Skips all JSON marshaling.
+    return dispatchInProc(ctx, t.api, msg, t.in)
 }
+
+func (t *InProcessTransport) Recv() <-chan *Message { return t.in }
 ```
 
-实战中 **Go 客户端直接把 `CoreAPI` 包一层就完事**——in-process 情况
-不需要 `Request`/`Response` 往返：
+实战中 **Go 表现层直接持有 `CoreAPI` 对象就够了**——根本不需要
+`Message` 往返：
 
 ```go
 // pkg/coreclient/inproc.go
@@ -174,30 +194,31 @@ func NewInProcClient(api coreapi.CoreAPI) coreapi.CoreAPI {
 }
 ```
 
-这就是全部节省所在：**没有 JSON、没有 binding、没有 codegen**。
-Bubble Tea 的 `tea.Cmd` 返回 `tea.Msg`，我们让 `RunEvent` 实现
-`tea.Msg`，从 `StartRun` 直接 stream 到 TUI 的 update loop。
+`Transport` 接口此时只是为了让 logging / tracing middleware 可以
+统一注入，**业务路径完全跳过 JSON-RPC 序列化**。Bubble Tea 的
+`tea.Cmd` 返回 `tea.Msg`，让 `AgUiEvent` 实现 `tea.Msg` → 从
+`StartRun` 的 `<-chan AgUiEvent` 直接 stream 到 TUI 的 update loop。
 
 成本：~50 ns / 调用（Go interface dispatch）。流式吞吐只受 channel
 buffer 限制。
 
-### 4.2 WailsTransport —— 包装外壳 ↔ 嵌入式 Go 后端
+### 4.2 WailsTransport —— 包装外壳 ↔ 嵌入式 Go Runtime
 
-**适用**：Wails / Tauri / Electron，后端跑在宿主进程里、前端在
-WebView 里。
+**适用**：Wails / Tauri / Electron，Runtime 跑在宿主进程、前端
+在 WebView 里。
 
 ```go
 // pkg/transport/wails/wails.go
 type WailsTransport struct {
     runtime wails.Runtime
+    in      chan *Message
 }
 
-func (t *WailsTransport) Call(ctx context.Context, req *Request) (*Response, error) {
-    // Wails IPC: WebView posts the Request as a message, host routes it
-    // to a registered handler. For Stream=true we use Wails' EventsEmit
-    // to push events back to the WebView, where a thin shim reassembles
-    // them into a channel-like iterable for the TS client.
-    ...
+func (t *WailsTransport) Send(ctx context.Context, msg *Message) error {
+    // WebView ↔ host process IPC. For Request/Notification we route
+    // to the JSON-RPC adapter; for streaming we use Wails EventsEmit
+    // to push notifications back through t.in to the TS shim.
+    return t.runtime.Call(ctx, marshalMsg(msg))
 }
 ```
 
@@ -206,14 +227,13 @@ func (t *WailsTransport) Call(ctx context.Context, req *Request) (*Response, err
 ```ts
 // frontend/src/transport/wails.ts
 export const wailsTransport: Transport = {
-  async call(req) {
-    if (req.stream) {
-      const events = makeEventStream(req.method); // wraps Wails EventsOn
-      window.go.transport.Stream(req); // fire-and-forget; events flow back
-      return { status: 200, headers: {}, events };
-    }
-    return window.go.transport.Call(req);
+  async send(msg) {
+    // Wails IPC posts the JSON-RPC envelope to the host. Streaming
+    // notifications come back via EventsOn and are fed into the
+    // Recv() AsyncIterator.
+    await window.go.transport.Send(msg);
   },
+  recv() { return wailsEventStream; },
   close() {},
 };
 ```
@@ -221,112 +241,87 @@ export const wailsTransport: Transport = {
 成本：~30 µs / 调用（Wails IPC + structured-clone）。完全避开 HTTP
 framing + TCP 栈，又不动 WebView。
 
-### 4.3 SocketTransport —— 跨进程 loopback（Unix socket / Named pipe）
+### 4.3 HTTPTransport —— 浏览器 + 未来 facade
 
-**适用**：语言 X 写的 TUI 跟跑在旁边的 Go 后端通讯。比 HTTP loopback
-便宜（没有 TCP、没有 header parsing），但仍然跨进程，所以需要
-序列化。
+**适用**：浏览器表现层（无法嵌入 Runtime，必走网络），以及未来
+通过云端 facade 连远程 Runtime 的所有场景。
 
-```go
-// pkg/transport/socket/socket.go
-type SocketTransport struct {
-    addr string // "/tmp/lyra.sock" on Unix, `\\.\pipe\lyra` on Windows
-    conn net.Conn
-}
-
-func (t *SocketTransport) Call(ctx context.Context, req *Request) (*Response, error) {
-    // Wire format: length-prefixed JSON. For streaming, each event is a
-    // separate length-prefixed frame on the same conn until end-of-stream.
-    ...
-}
-```
-
-线格式选择：**length-prefixed JSON**（varint 长度 + body）走 socket。
-任何语言都好实现、没有 framing 歧义、stream 就是 N 个 frame 一个
-接一个。和 HTTP body 用同一份序列化——TS / Rust / Python 客户端
-复用 schema 生成的类型即可。
-
-成本：~30 µs / 调用。跨平台：macOS / Linux 上 `unix:///tmp/lyra.sock`，
-Windows 上 `npipe:///./pipe/lyra`。鉴权靠 socket 文件 mode（Unix）
-或 named-pipe ACL（Windows）——loopback only 时不需要 Bearer token。
-
-### 4.4 FetchTransport —— anywhere → anywhere，HTTP
-
-**适用**：浏览器；连远程服务器的 TUI；连远程独立服务的包装
-客户端；任何跨机器组合。
+**线协议**：
+- **Request → Server**：`POST /v1/rpc`，body 是单个 JSON-RPC `Message`，
+  Content-Type `application/json`
+- **Server → Client streaming**：`GET /v1/rpc/stream`，返
+  `text/event-stream`，每个 SSE event 的 `data:` 字段是一个
+  JSON-RPC notification message
+- **续传**：重连时带 `Last-Event-Id` header，server 从 `eventId >
+  lastEventId` 处继续
 
 ```ts
-// frontend/src/transport/fetch.ts
-export const fetchTransport = (baseURL: string, token: string): Transport => ({
-  async call(req) {
-    const res = await fetch(`${baseURL}${methodToPath(req.method)}`, {
-      method: methodToVerb(req.method),
-      headers: { Authorization: `Bearer ${token}`, ...req.headers },
-      body: req.body,
-    });
-    if (req.stream) {
-      return { status: res.status, headers: hdrs(res), events: parseSSE(res.body!) };
-    }
-    return { status: res.status, headers: hdrs(res), body: new Uint8Array(await res.arrayBuffer()) };
-  },
-  close() {},
-});
+// frontend/src/transport/http.ts
+export const httpTransport = (baseUrl: string, localToken?: string): Transport => {
+  const incoming = new EventTarget(); // pumps Recv() channel
+  const sse = new EventSource(`${baseUrl}/v1/rpc/stream`, { withCredentials: false });
+  sse.onmessage = (e) => { /* feed JSON.parse(e.data) into Recv channel */ };
+
+  return {
+    async send(msg) {
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (localToken) headers["Authorization"] = `Bearer ${localToken}`;
+      await fetch(`${baseUrl}/v1/rpc`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(msg),
+      });
+    },
+    recv() { /* return AsyncIterator backed by `incoming` */ },
+    close() { sse.close(); },
+  };
+};
 ```
 
-后端侧：`pkg/httpserver/` 是一个薄适配器，把 HTTP verb + 路径映射
-到 `CoreAPI` 的方法，再把响应重新编码。
+`localToken` 仅在本地进程门禁场景使用（Web 前端连同机 Runtime），
+读自 `~/.lyra/local-token`。其他 HTTP 场景（未来 facade）由 facade
+层自己处理鉴权 + 把请求转发给 Runtime，**Runtime 看到的 HTTP
+依然是同一个 `/v1/rpc` 入口**。
 
-成本：本地 ~200 µs / 调用，WAN ~20–200 ms。浏览器必须用（socket
-没得选），远程必须用（这是唯一能干净穿过防火墙 / 代理的协议）。
+成本：本地 ~200 µs / 调用，WAN ~20–200 ms。
 
-### 4.5 WebSocketTransport —— 浏览器需要双向时的兜底
+### 4.4 按场景挑选
 
-**适用**：web 前端需要在 run 进行中往上游推事件（罕见——HITL
-approval 可以走普通 `POST /permission`，下行 SSE 已经覆盖了）。
-
-仅作完整性列出；**MVP 不实现**。SSE + REST 已经覆盖所有场景，除了
-"server stream 期间真正需要 client 反向 push"——而我们协议里没有
-这种需求。
-
-### 4.6 按组合挑选
-
-| 组合 | 推荐传输 | 理由 |
+| 场景 | 推荐传输 | 理由 |
 | --- | --- | --- |
-| Bubble Tea TUI + 嵌入式 Go 运行时 | **InProcess** | 同一二进制、两端都是 Go——直接函数调用比其他方案快 600×。 |
-| Wails 客户端 + 嵌入式 Go 运行时 | **Wails IPC** | Wails 已经替你付过这笔成本；不用占额外端口；macOS 上不弹防火墙提示。 |
-| Wails 客户端 + 本地服务 | **Socket** | 跨进程但同机；socket 比 loopback HTTP 快 6×，还省 Bearer token 管线。 |
-| Wails 客户端 + 远程服务 | **HTTP** | 唯一能跨网络的。 |
-| 浏览器 + 任意后端 | **HTTP** | 浏览器唯一选项。 |
-| Node / Rust / Python TUI + 嵌入式 | n/a | 这些语言没法 in-process 嵌我们的 Go 运行时。改成 Socket 连一个旁边起的 `lyra-server` 子进程。 |
-| Node / Rust / Python TUI + 本地 | **Socket** | 同 Wails-local 的理由。 |
-| 任意客户端 + 远程独立服务 | **HTTP** | 跨网络。 |
+| Bubble Tea TUI + Go Runtime（同二进制） | **InProcess** | 同一进程、两端都是 Go——直接函数调用比 IPC 快 600×。 |
+| Wails / Tauri / Electron 客户端 + Go Runtime | **Wails IPC** | Wails 已替你付过这笔成本；不用占额外端口；macOS 上不弹防火墙提示。 |
+| 浏览器（任意宿主） | **HTTP** | 浏览器唯一选项。本地模式走 loopback + 进程门禁 token；未来云端模式走 facade。 |
 
-口诀：**能不序列化就不序列化**。In-process 免费，IPC 便宜，socket
-还行，HTTP 是天花板。
+口诀：**能不序列化就不序列化**。In-process 免费，IPC 便宜，HTTP 是
+天花板。
+
+非 Go TUI（Node / Rust / Python 等）/ Unix socket / WebSocket 这些
+形态本轮**不实现**——本地 Lyra 不需要跨语言进程间通讯，远程访问
+等做 facade 时再加。
 
 ---
 
 ## 5. 流式 —— 所有传输统一语义
 
-每个传输都暴露同一个原语：`Response.Events`，一个 Go channel
-（或它的 TS 等价——async iterator），产出 `Event`，带单调递增的
-`id`、`type`、`data`。这意味着 **resume / replay 只在协议层实现
-一次，不是每个传输各搞一份**。
+每个传输都通过 `Recv()` 通道吐出**同一种 JSON-RPC Notification 流**
+（主要是 `notifications/run/event`，每条 notification 的 `params`
+里带 `eventId` + AG-UI `event`）。这意味着 **resume / replay 只在
+协议层实现一次，不是每个传输各搞一份**。
 
 | 传输 | 底层机制 |
 | --- | --- |
-| InProcess | `RunEvent` 的 Go channel |
-| Wails | `EventsEmit` + JS 侧重组成 `AsyncIterator<Event>` |
-| Socket | conn 上一系列 length-prefixed frame，直到 end-of-stream 哨兵帧 |
-| HTTP | SSE（`text/event-stream`），用 `id:`、`event:`、`data:` |
+| InProcess | Notification 的 Go channel |
+| Wails IPC | `EventsEmit` + JS 侧重组成 AsyncIterator |
+| HTTP | SSE（`text/event-stream`），每个 SSE event 的 `data:` 字段是一条 JSON-RPC Notification |
 
-客户端的 resume 逻辑——"重连、发送 `Last-Event-ID: <last>`、
-后端从第 N+1 个事件开始 replay"——在每个传输上都用同一份代码，
-因为它们都暴露同一个 `Event.ID` 序列。
+客户端的续传逻辑——"重连、发送 `Last-Event-Id: <last>`、Runtime
+从该 stream 内 `eventId > lastEventId` 处 replay"——在每个传输上
+都用同一份代码，因为它们都暴露同一个 `eventId` 序列。
 
 对于 in-process，"resume" 退化（channel 是进程内的、随进程一起死），
-客户端只要检查它的 `<-chan Event` 是不是被 close 了、然后重启。
-同一份代码路径，不同的物理。
+客户端只要检查它的 `<-chan` 是不是被 close 了、然后重启。**同一
+份代码路径，不同的物理。**
 
 ---
 
@@ -334,16 +329,14 @@ approval 可以走普通 `POST /permission`，下行 SSE 已经覆盖了）。
 
 | 传输 | 鉴权模型 |
 | --- | --- |
-| InProcess | 无——同进程互信。能力校验（caller 是不是有权？）发生在 `CoreAPI` impl 内部，不在传输边界。 |
-| Wails | 线上无（Wails IPC 是 window-scoped）；`CoreAPI` impl 仍然做能力校验。 |
-| Socket | Unix 用文件 mode / Windows 用 ACL。能连上 socket 的用户必须是文件 owner。没有 Bearer token。 |
-| HTTP local | **必须 Bearer token。** 嵌入式后端安装时生成 token，写到 `~/.config/lyra/token`（chmod 600）。没有它，任何同机进程都能调我们。 |
-| HTTP remote | 静态 Bearer token（默认）或 SSO/IdP 走 OAuth 2.1 + PKCE。**单租户多用户**：一个部署服务一个组织、内部多个用户；多组织走多部署。Token 绑 `userId`，CoreAPI 按 owner 过滤。 |
+| InProcess | 无——同进程互信。Runtime 协议层零用户概念，运行环境的信任 = OS 用户的信任。 |
+| Wails IPC | 线上无（Wails IPC 是 window-scoped）；同进程内的等价信任。 |
+| HTTP（本地 loopback） | **本地进程门禁 token**（不是用户鉴权）。Runtime 启动时随机生成、写到 `~/.lyra/local-token`（chmod 600）。仅阻止同机其他进程乱调，**不验证用户是谁**。 |
+| HTTP（未来 facade） | 由 facade 层处理用户鉴权、转发到内部 Runtime；Runtime 看到的请求**仍是同样形态**，不感知 facade 在做什么。 |
 
-`Request.Headers["authorization"]` 这个字段是给 HTTP 类传输用的；
-in-process 和 Wails 留空。`CoreAPI` impl **永远不信任传输层**——
-能力校验（这个用户是不是拥有这个 session？）一律在 impl 内部
-做，不管调用从哪条管子进来。
+**核心不变量**：`CoreAPI` impl **永远不做用户鉴权 / 授权**——
+Runtime 协议层根本没有 user / account / owner 概念。需要这些
+能力时，由更外层（OS、本地 token 门禁、未来 facade）解决。
 
 ---
 
@@ -352,14 +345,13 @@ in-process 和 Wails 留空。`CoreAPI` impl **永远不信任传输层**——
 ```
   pkg/coreapi/*.go  (Go interface + structs)
             │
-            ├── go-openapi codegen ──→  schemas/openapi.yaml
+            ├── go-jsonrpc codegen ──→  schemas/methods.yaml   (JSON-RPC method table)
             │                                  │
-            │                                  ├── openapi-typescript ──→ frontend/src/lib/api-types.ts
-            │                                  └── oapi-codegen      ──→ pkg/httpserver/generated.go
+            │                                  └── jsonrpc-ts ──→ frontend/src/lib/runtime-types.ts
             │
-            └── go-asyncapi codegen ──→  schemas/asyncapi.yaml
+            └── go-asyncapi codegen ──→  schemas/events.yaml   (AG-UI streaming events)
                                                │
-                                               └── asyncapi-codegen-ts ──→ frontend/src/lib/events.ts
+                                               └── asyncapi-ts ──→ frontend/src/lib/events.ts
 ```
 
 对 Go ↔ Go（in-process / Wails）来说，**根本不需要 codegen**——
@@ -374,86 +366,80 @@ TS / Rust / Python 客户端都从它生成。
 pkg/
 ├── coreapi/                 # SSOT — Go interface + types + struct tags for codegen
 │   ├── coreapi.go
+│   ├── lifecycle.go
 │   ├── sessions.go
 │   ├── messages.go
 │   └── runs.go
 ├── coreimpl/                # implementation (calls LLM, runs tools, stores state)
 │   └── ...
 ├── transport/
-│   ├── transport.go         # the Transport interface
+│   ├── transport.go         # the Transport interface + Message envelope
 │   ├── inprocess/
 │   ├── wails/
-│   ├── socket/
 │   └── http/
-├── httpserver/              # HTTP adapter — *Request <-> CoreAPI calls
+├── rpcadapter/              # JSON-RPC Message ↔ CoreAPI method dispatch
 │   └── ...
 └── coreclient/              # client-side wrappers
     ├── inproc.go            # returns CoreAPI as-is
     ├── wails.go             # wraps WailsTransport
-    ├── socket.go            # wraps SocketTransport
-    └── http.go              # wraps FetchTransport
+    └── http.go              # wraps HTTPTransport
 
 cmd/
 ├── lyra-tui/                # Bubble Tea TUI — imports coreapi + coreimpl directly
-├── lyra-server/             # standalone server — imports coreimpl + httpserver
 └── lyra-desktop/            # Wails shell — imports coreimpl + transport/wails
 
 frontend/src/transport/
-├── transport.ts             # TS mirror of the Go interface
-├── fetch.ts                 # HTTP transport
+├── transport.ts             # TS mirror of the Transport interface
 ├── wails.ts                 # Wails IPC transport
-└── socket.ts                # Unix socket / named pipe (via Node IPC bridge for Electron)
+└── http.ts                  # HTTP transport (loopback + future facade)
 
 schemas/                     # generated, in-repo
-├── openapi.yaml
-└── asyncapi.yaml
+├── methods.yaml             # JSON-RPC method table
+└── events.yaml              # AG-UI streaming events
 ```
 
 ---
 
 ## 9. 这套切分为什么干净
 
-- **加传输不动 handler 代码。** 新形态——比如内部跨服务调用走
-  gRPC——实现 `Transport`、注册一个调 `CoreAPI` 的适配器，完事。
+- **加传输不动 handler 代码。** 新形态——比如未来 facade 内部
+  跨服务调用走 gRPC——实现 `Transport`、注册一个调 `CoreAPI` 的
+  适配器，完事
 - **加前端不分裂后端。** 新形态——比如把桌面客户端用 Tauri 重写
-  一遍——挑跟它外壳合的传输（Tauri IPC ≈ Wails IPC；没嵌入式
-  后端就回落 HTTP）、实现 TS 侧 `Transport`、其他都复用。
+  一遍——挑跟它外壳合的传输（Tauri IPC ≈ Wails IPC；浏览器版本
+  回落 HTTP）、实现 TS 侧 `Transport`、其他都复用
 - **Go-to-Go 不是特例。** 它用同一个 `Transport` 形状，只是实现
   是个空壳：客户端直接持有 `CoreAPI` 值。Bubble Tea、内部 CLI、
-  以后 Go-native 插件全走这条路径。
-- **HTTP 不享有特权。** `pkg/httpserver/` 只是四个适配器之一。
-  协议里没有把 HTTP-isms 烧进 `CoreAPI`（没有 `Request *http.Request`
-  参数、没有 `http.ResponseWriter` 返回值）。测试用 in-process；
-  生产挑部署适合的。
+  以后 Go-native 插件全走这条路径
+- **HTTP 不享有特权。** `pkg/rpcadapter/` + `pkg/transport/http/`
+  只是三个传输之一。协议里没有把 HTTP-isms 烧进 `CoreAPI`（没有
+  `Request *http.Request` 参数、没有 `http.ResponseWriter` 返回
+  值）。测试用 in-process；生产挑部署适合的
 
 ---
 
 ## 10. 未决问题
 
-- **gRPC？** 能干净装进 `Transport`，但会在 OpenAPI/AsyncAPI 之外
-  多一份 proto schema 作为 SSOT。等真有非 MVP 客户问起再做。
+- **gRPC？** 能干净装进 `Transport`，但会在 JSON-RPC schema 之外
+  多一份 proto schema 作为 SSOT。等真有非 MVP 场景再做（最可能
+  是未来 facade ↔ Runtime pool 内部互联）
 - **HTTP 流式用 WebSocket 还是 SSE？** 今天用 SSE。只有当 HITL
   需要 run 进行中 client → server 推送的时候才换 WS（当前不需要——
-  `/permission` 是普通 POST）。
-- **非 Go 语言的 TUI——嵌入还是 spawn？** Node / Python / Rust
-  没有 CGO 没法 in-process 嵌我们的 Go 运行时。推荐做法：把
-  `lyra-server` 作为子进程 spawn 起来、用 Unix socket 连。
-  省下语言互操作的痛苦，代价是多一个进程。
-- **运行时热切换传输？** 比如嵌入式客户端在用户打开"连接到远程
-  workspace"对话框时从 in-process 回落到 HTTP。可行——`Transport`
-  就是个接口——但还没 UI 入口。
+  approval 走普通 `runs.approval.submit` Request）
+- **运行时热切换传输？** 比如同一 process 启动时挑 InProcess、
+  用户切换"远程模式"时回落 HTTP。可行——`Transport` 就是个接口——
+  但还没 UI 入口
 
 ---
 
 ## 11. 速查表
 
 ```
-同一 Go 二进制、两端都是 Go         →  InProcessTransport (无 codegen, ~50ns)
-Wails / Tauri / Electron + Go core    →  WailsTransport       (无 Bearer, ~30µs)
-跨进程、同机                          →  SocketTransport      (无 Bearer, ~30µs)
-跨机器、任意语言                      →  FetchTransport (HTTP)(Bearer, ~200µs+)
-浏览器、任意后端                      →  FetchTransport (HTTP)(唯一选项)
+同一 Go 二进制、两端都是 Go            →  InProcessTransport (无 codegen, ~50ns)
+Wails / Tauri / Electron + Go Runtime  →  WailsTransport      (~30µs)
+浏览器、本地 Runtime                   →  HTTPTransport + 本地 token 门禁 (~200µs)
+浏览器、未来云端 facade                →  HTTPTransport + facade 处理鉴权
 ```
 
-一个 `Transport` 接口、六种实现、九个部署格子。挑能跨过你的
-边界的最便宜那个盒子。
+一个 `Transport` 接口、三种实现。挑能跨过你的边界的最便宜那个
+盒子，剩下的协议层零代码改动。
