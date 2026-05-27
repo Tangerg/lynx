@@ -54,9 +54,12 @@ export function useAgentSession(makeAgent: () => AbstractAgent, sessionId: strin
     const subscription = agent.subscribe({
       onEvent: ({ event }) => {
         if (cancelled) return;
-        if (import.meta.env.DEV) {
-          console.debug("[agui]", sessionId, event.type, event);
-        }
+        // No per-event console.debug: AG-UI emits ~30 events/sec during
+        // streaming and each console call retains a reference to the
+        // event payload. Over a long session the DevTools console
+        // buffer can hold tens of thousands of full event objects,
+        // which manifests as visible UI lag + memory growth. Inspect
+        // events from the Diagnostics view instead.
         queue.push(event);
         if (rafHandle === null) {
           rafHandle = requestAnimationFrame(flush);

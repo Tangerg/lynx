@@ -200,7 +200,7 @@ function applyFonts(uiFont: string, codeFont: string, fontSize: number | null) {
   applyTheme(s.theme, s.accent);
   applyFonts(s.uiFont, s.codeFont, s.fontSize);
 }
-useUiStore.subscribe((state, prev) => {
+const unsubUi = useUiStore.subscribe((state, prev) => {
   if (state.theme !== prev.theme || state.accent !== prev.accent) {
     applyTheme(state.theme, state.accent);
   }
@@ -216,9 +216,21 @@ useUiStore.subscribe((state, prev) => {
 // Re-apply when the plugin registry mutates — handles built-in themes
 // registering after the initial applyTheme call (empty registry) and
 // runtime hot-loading of theme plugins.
-usePluginStore.subscribe((state, prev) => {
+const unsubPlugins = usePluginStore.subscribe((state, prev) => {
   if (state.themes !== prev.themes || state.accents !== prev.accents) {
     const { theme, accent } = useUiStore.getState();
     applyTheme(theme, accent);
   }
 });
+
+// HMR safety: this module's two subscribe calls live at module scope,
+// not inside an effect with a cleanup. Without an explicit dispose,
+// every HMR reload registers a fresh pair of listeners on top of the
+// previous ones — after N edits there are N+1 of each firing on every
+// theme / accent / plugin mutation, snowballing into visible jank.
+if (import.meta.hot) {
+  import.meta.hot.dispose(() => {
+    unsubUi();
+    unsubPlugins();
+  });
+}

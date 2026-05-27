@@ -102,6 +102,12 @@ const onStepStarted = (state: AgentViewState, ev: StepStartedEvent): AgentViewSt
 // ---- text messages ------------------------------------------------------
 
 const onTextStart = (state: AgentViewState, ev: TextMessageStartEvent): AgentViewState => {
+  // Defensive dedup: if a TEXT_MESSAGE_START fires twice for the same
+  // messageId (HMR replay, agent retry, mock-server quirk), pushing
+  // unconditionally produces two messages with identical ids — React
+  // then logs "Encountered two children with the same key" on every
+  // subsequent render and the DEV warning loop tanks the frame rate.
+  if (findMessageById(state, ev.messageId)) return state;
   const role = roleFromTextEvent(ev.role);
   const msg: Message = {
     id: ev.messageId,
