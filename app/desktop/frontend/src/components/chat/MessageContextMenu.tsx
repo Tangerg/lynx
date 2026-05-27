@@ -61,17 +61,32 @@ export function MessageContextMenu({ msg, children }: Props) {
       <ContextMenu.Portal>
         <ContextMenu.Content className="z-50 min-w-[180px] overflow-hidden rounded-md border border-line-soft bg-surface p-1 shadow-lg animate-rise-in">
           {canCopy && (
-            <Item icon="copy" onSelect={() => void writeToClipboard(markdown || plain)}>
+            <Item
+              icon="copy"
+              onSelect={() =>
+                void writeToClipboard(markdown || plain, {
+                  successLabel: "Copied as markdown",
+                })
+              }
+            >
               Copy as markdown
             </Item>
           )}
           {plain && (
-            <Item icon="copy" onSelect={() => void writeToClipboard(plain)}>
+            <Item
+              icon="copy"
+              onSelect={() =>
+                void writeToClipboard(plain, { successLabel: "Copied as plain text" })
+              }
+            >
               Copy as plain text
             </Item>
           )}
           {code && (
-            <Item icon="code" onSelect={() => void writeToClipboard(code)}>
+            <Item
+              icon="code"
+              onSelect={() => void writeToClipboard(code, { successLabel: "Code copied" })}
+            >
               Copy code only
             </Item>
           )}

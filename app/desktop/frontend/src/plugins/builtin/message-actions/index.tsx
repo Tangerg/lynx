@@ -46,18 +46,18 @@ function CopyButton() {
           <CopyItem
             label="Copy markdown"
             hint="Headings / fences kept"
-            onSelect={() => writeToClipboard(markdown)}
+            onSelect={() => writeToClipboard(markdown, { successLabel: "Copied as markdown" })}
           />
           <CopyItem
             label="Copy plain text"
             hint="Markup stripped"
-            onSelect={() => writeToClipboard(plain)}
+            onSelect={() => writeToClipboard(plain, { successLabel: "Copied as plain text" })}
           />
           {code && (
             <CopyItem
               label="Copy code only"
               hint="Fenced blocks joined"
-              onSelect={() => writeToClipboard(code)}
+              onSelect={() => writeToClipboard(code, { successLabel: "Code copied" })}
             />
           )}
         </DropdownMenu.Content>

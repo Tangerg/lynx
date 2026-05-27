@@ -61,13 +61,25 @@ export function flattenCode(blocks: Message["blocks"]): string {
 
 /**
  * Async clipboard write, silent on permission failures so an unfocused
- * window or sandbox doesn't blow up the calling action. Returns true on
- * success so callers can chain a toast confirmation.
+ * window or sandbox doesn't blow up the calling action. Pass
+ * `successLabel` to surface a sonner success toast — the default is
+ * silent so the helper stays usable from non-UI contexts (tests, batch
+ * exports, etc).
  */
-export async function writeToClipboard(text: string): Promise<boolean> {
+export async function writeToClipboard(
+  text: string,
+  options?: { successLabel?: string },
+): Promise<boolean> {
   if (!text || typeof navigator === "undefined" || !navigator.clipboard) return false;
   try {
     await navigator.clipboard.writeText(text);
+    if (options?.successLabel) {
+      // Late import keeps tree-shaking happy when a caller never opts
+      // into the toast path. sonner is already mounted by PluginToaster
+      // so this just dispatches into the existing instance.
+      const { toast } = await import("sonner");
+      toast.success(options.successLabel);
+    }
     return true;
   } catch {
     return false;
