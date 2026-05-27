@@ -34,9 +34,18 @@ type TextSplitter struct {
 	splitter *Splitter
 }
 
-// NewTextSplitter builds a [TextSplitter]. nil config falls back to
-// line-by-line splitting.
+// ApplyDefaults fills zero fields with package defaults. Empty
+// Separator falls back to "\n" (line-by-line).
+func (c *TextSplitterConfig) ApplyDefaults() {
+	if c.Separator == "" {
+		c.Separator = "\n"
+	}
+}
+
+// NewTextSplitter builds a [TextSplitter]. Zero-value config falls
+// back to line-by-line splitting.
 func NewTextSplitter(config TextSplitterConfig) *TextSplitter {
+	config.ApplyDefaults()
 	splitter, _ := NewSplitter(SplitterConfig{
 		CopyFormatter: config.CopyFormatter,
 		SplitFunc: func(_ context.Context, text string) ([]string, error) {

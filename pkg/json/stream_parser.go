@@ -27,15 +27,22 @@ type StreamParserConfig struct {
 
 const defaultParserBufSize = 4096
 
-// validate fills in defaults and reports configuration errors.
+// Validate reports configuration errors. Pure check — no mutation;
+// pair with [StreamParserConfig.ApplyDefaults] to fill in defaults.
 func (c StreamParserConfig) Validate() error {
 	if c.Reader == nil {
 		return errors.New("json: reader required")
 	}
+	return nil
+}
+
+// ApplyDefaults fills zero / negative fields with package defaults.
+// Pointer receiver — call on the local copy inside the constructor;
+// the caller's value is untouched.
+func (c *StreamParserConfig) ApplyDefaults() {
 	if c.BufferSize <= 0 {
 		c.BufferSize = defaultParserBufSize
 	}
-	return nil
 }
 
 // StreamParser parses a JSON stream incrementally and emits each
@@ -71,6 +78,7 @@ func NewStreamParser(config StreamParserConfig) (*StreamParser, error) {
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
+	config.ApplyDefaults()
 	return &StreamParser{
 		bufferSize: config.BufferSize,
 		scopes:     make([]string, 0, 8),

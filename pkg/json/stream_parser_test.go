@@ -23,12 +23,6 @@ func TestStreamParserConfig_Validate(t *testing.T) {
 		errMsg  string
 	}{
 		{
-			name:    "nil_config",
-			config:  nil,
-			wantErr: true,
-			errMsg:  "nil config",
-		},
-		{
 			name: "nil_reader",
 			config: StreamParserConfig{
 				Reader: nil,
@@ -70,11 +64,15 @@ func TestStreamParserConfig_Validate(t *testing.T) {
 				if tt.errMsg != "" {
 					assert.Contains(t, err.Error(), tt.errMsg)
 				}
-			} else {
-				require.NoError(t, err)
-				if tt.config.BufferSize <= 0 {
-					assert.Equal(t, 4096, tt.config.BufferSize, "Should set default buffer size")
-				}
+				return
+			}
+			require.NoError(t, err)
+			// ApplyDefaults is the path that mutates — verify
+			// zero/negative buffer sizes get filled in.
+			cfg := tt.config
+			cfg.ApplyDefaults()
+			if tt.config.BufferSize <= 0 {
+				assert.Equal(t, 4096, cfg.BufferSize, "Should set default buffer size")
 			}
 		})
 	}
@@ -94,11 +92,6 @@ func TestNewStreamParser(t *testing.T) {
 				BufferSize: 1024,
 			},
 			wantErr: false,
-		},
-		{
-			name:    "nil_config",
-			config:  nil,
-			wantErr: true,
 		},
 		{
 			name: "invalid_config",

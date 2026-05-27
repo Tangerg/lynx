@@ -103,12 +103,6 @@ func TestCompositeEvaluator_PropagatesError(t *testing.T) {
 
 // --- Relevancy ------------------------------------------------------------
 
-func TestRelevancyEvaluator_RejectsNilConfig(t *testing.T) {
-	if _, err := evaluation.NewRelevancyEvaluator(nil); err == nil {
-		t.Fatal("nil config must error")
-	}
-}
-
 func TestRelevancyEvaluator_RejectsMissingChatModel(t *testing.T) {
 	if _, err := evaluation.NewRelevancyEvaluator(evaluation.RelevancyEvaluatorConfig{}); err == nil {
 		t.Fatal("missing ChatModel must error")

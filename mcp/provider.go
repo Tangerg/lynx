@@ -56,14 +56,20 @@ type ProviderConfig struct {
 	MetaFunc MetaFunc
 }
 
+// ApplyDefaults fills the naming function when nil.
+func (c *ProviderConfig) ApplyDefaults() {
+	if c.Naming == nil {
+		c.Naming = DefaultNaming
+	}
+}
+
+// Validate checks required fields. Pure check — pair with
+// [ProviderConfig.ApplyDefaults].
 func (c ProviderConfig) Validate() error {
 	for i, src := range c.Sources {
 		if src.Session == nil {
 			return fmt.Errorf("mcp.ProviderConfig: source[%d] %q: %w", i, src.Name, ErrNilSession)
 		}
-	}
-	if c.Naming == nil {
-		c.Naming = DefaultNaming
 	}
 	return nil
 }

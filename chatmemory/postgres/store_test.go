@@ -31,7 +31,7 @@ func TestStoreConfig_PoolRequired(t *testing.T) {
 }
 
 func TestStoreConfig_NilConfig(t *testing.T) {
-	_, err := postgres.NewStore(nil)
+	_, err := postgres.NewStore(postgres.StoreConfig{})
 	if err == nil {
 		t.Fatal("expected error when config is nil")
 	}
@@ -40,7 +40,7 @@ func TestStoreConfig_NilConfig(t *testing.T) {
 func TestStoreConfig_RejectsBadIdentifier(t *testing.T) {
 	cases := []struct {
 		name string
-		cfg  *postgres.StoreConfig
+		cfg  postgres.StoreConfig
 	}{
 		{
 			name: "schema with semicolon",

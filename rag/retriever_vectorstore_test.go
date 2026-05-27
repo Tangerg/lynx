@@ -29,7 +29,7 @@ func (f *fakeVectorRetriever) Retrieve(_ context.Context, req *vectorstore.Retri
 }
 
 func TestNewVectorStoreDocumentRetriever_RejectsInvalidConfig(t *testing.T) {
-	if _, err := rag.NewVectorStoreRetriever(nil); err == nil {
+	if _, err := rag.NewVectorStoreRetriever(rag.VectorStoreRetrieverConfig{}); err == nil {
 		t.Fatal("nil config must error")
 	}
 	if _, err := rag.NewVectorStoreRetriever(rag.VectorStoreRetrieverConfig{}); err == nil {

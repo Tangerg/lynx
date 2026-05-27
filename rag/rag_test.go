@@ -80,7 +80,7 @@ func TestPipeline_RequiresAtLeastOneRetriever(t *testing.T) {
 }
 
 func TestPipeline_RejectsNilConfig(t *testing.T) {
-	if _, err := rag.NewPipeline(nil); err == nil {
+	if _, err := rag.NewPipeline(rag.PipelineConfig{}); err == nil {
 		t.Fatal("nil config must error")
 	}
 }

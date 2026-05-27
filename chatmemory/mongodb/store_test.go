@@ -19,7 +19,7 @@ func TestStoreConfig_CollectionRequired(t *testing.T) {
 }
 
 func TestStoreConfig_NilConfig(t *testing.T) {
-	if _, err := mongodb.NewStore(nil); err == nil {
+	if _, err := mongodb.NewStore(mongodb.StoreConfig{}); err == nil {
 		t.Fatal("expected error when config is nil")
 	}
 }

@@ -51,17 +51,17 @@ func TestValidateAgentRejectsInvalidConditions(t *testing.T) {
 	}
 
 	base.Conditions = []core.Condition{nil}
-	if err := core.ValidateAgent(core.NewAgent(&base)); err == nil || !strings.Contains(err.Error(), "condition at index 0 is nil") {
+	if err := core.ValidateAgent(core.NewAgent(base)); err == nil || !strings.Contains(err.Error(), "condition at index 0 is nil") {
 		t.Fatalf("nil condition error = %v", err)
 	}
 
 	base.Conditions = []core.Condition{core.NewCondition("", nil)}
-	if err := core.ValidateAgent(core.NewAgent(&base)); err == nil || !strings.Contains(err.Error(), "condition at index 0 has empty name") {
+	if err := core.ValidateAgent(core.NewAgent(base)); err == nil || !strings.Contains(err.Error(), "condition at index 0 has empty name") {
 		t.Fatalf("empty condition error = %v", err)
 	}
 
 	base.Conditions = []core.Condition{core.NewCondition("ready", nil), core.NewCondition("ready", nil)}
-	if err := core.ValidateAgent(core.NewAgent(&base)); err == nil || !strings.Contains(err.Error(), "duplicate condition name") {
+	if err := core.ValidateAgent(core.NewAgent(base)); err == nil || !strings.Contains(err.Error(), "duplicate condition name") {
 		t.Fatalf("duplicate condition error = %v", err)
 	}
 }
