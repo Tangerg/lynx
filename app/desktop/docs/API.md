@@ -1,124 +1,117 @@
-# Lyra API Contract
+# Lyra API 契约
 
-> Single source of truth for the wire between any Lyra frontend and any Lyra
-> backend. Designed for an **m × n deployment matrix** — frontend variant
-> doesn't know which backend it's talking to, backend variant doesn't know
-> which frontend is calling. The protocol is the only thing they share.
+> 任何 Lyra 前端 ↔ 任何 Lyra 后端之间的"线上协议"唯一权威。
+> 设计目标是 **m × n 部署矩阵** —— 前端不知道自己在跟哪种后端
+> 说话，后端也不假设自己在被哪种前端调用。协议是它们之间唯一
+> 共享的东西。
 >
-> Audience: anyone implementing a new frontend (web / packaged-web / TUI /
-> mobile), porting the backend (embedded in a client / standalone server /
-> managed cloud), or evolving the contract itself.
+> 读者：要做新前端（web / 包装客户端 / TUI / mobile）、要移植
+> 后端（嵌入客户端 / 独立服务 / 托管云）、或者要演进契约本身
+> 的人。
 
 ---
 
-## 0. Architecture model
+## 0. 架构模型
 
-### 0.1 The m × n matrix
+### 0.1 m × n 矩阵
 
-| ↓ Frontend / Backend → | Embedded (in-client) | Standalone server | Managed (multi-tenant) |
+| ↓ 前端 / 后端 → | Embedded（嵌入客户端） | Standalone server（独立服务） | Managed（多租户托管） |
 | --- | --- | --- | --- |
-| **Web (browser)** | n/a (no client to embed in) | ✓ | ✓ |
-| **Packaged web** (Wails / Tauri / Electron) | ✓ (loopback) | ✓ | ✓ |
-| **TUI** (terminal) | ✓ (loopback) | ✓ | ✓ |
-| **Mobile** (RN / native, future) | n/a | ✓ | ✓ |
+| **Web（浏览器）** | n/a（没壳可嵌） | ✓ | ✓ |
+| **包装 Web**（Wails / Tauri / Electron） | ✓（loopback） | ✓ | ✓ |
+| **TUI**（终端） | ✓（loopback） | ✓ | ✓ |
+| **Mobile**（RN / 原生，未来） | n/a | ✓ | ✓ |
 
-Three frontend kinds × three backend kinds = 9 viable combinations. **Every
-combination uses the same wire protocol.** No frontend imports backend types,
-no backend assumes frontend co-location.
+3 种前端 × 3 种后端 = 9 个可行组合。**每个组合都用同一份线上
+协议。** 前端不 import 后端类型，后端不假设前端共驻。
 
-### 0.2 Consequences for the API design
+### 0.2 对 API 设计的约束
 
-- **Protocol and transport are separate concerns.** This document defines
-  the *protocol* — method names, payload shapes, event sequences, error
-  envelope. The *transport* (how bytes — or struct pointers — move
-  between the two halves) lives in [`TRANSPORT.md`](./TRANSPORT.md).
-  HTTP is one of six transport implementations; for Go-to-Go embedded
-  deployments (e.g. Bubble Tea TUI + Go runtime) the transport is a
-  direct function call with no serialization. **All transports speak
-  the same protocol**, so this document doesn't change based on which
-  one you pick.
-- **Auth is required when crossing a process boundary.** HTTP / Wails
-  IPC / sockets all require auth (Bearer token / OS-level ACL). The
-  in-process case (Go ↔ Go same binary) trusts the caller — capability
-  checks still happen inside the `CoreAPI` impl. See `TRANSPORT.md §6`
-  for the per-transport auth matrix.
-- **Capability discovery is non-optional.** Frontend X built today may talk
-  to backend Y built tomorrow — features only enabled by both sides.
-- **Schema is the only API.** OpenAPI + AsyncAPI files are the SSOT,
-  type-generated to TS / Go / Rust / Python / whatever consumes them.
-  No language-specific shortcuts.
-- **Stateless where possible.** Backend may run behind a load balancer with
-  N replicas. Session affinity is opt-in (via `X-Session-Affinity` header)
-  not a baked-in assumption.
-- **Streams must be resumable.** Network flakes, browser tabs sleep, TUI
-  reconnects on `^Z fg`. SSE uses `Last-Event-ID` to replay missed events.
+- **协议和传输是两件事。** 本文档定义**协议**——方法名、payload
+  形状、事件序列、错误信封。**传输**（字节——或者 struct 指针——
+  怎么在两端之间移动）放在 [`TRANSPORT.md`](./TRANSPORT.md)。
+  HTTP 只是六种传输实现之一；对于 Go-to-Go 嵌入式部署（比如
+  Bubble Tea TUI + Go 运行时）传输是直接函数调用，零序列化。
+  **所有传输说同一种协议**，所以本文档不会因为你挑了哪种传输
+  而改变。
+- **跨进程边界必须鉴权。** HTTP / Wails IPC / socket 都需要鉴权
+  （Bearer token / OS 级 ACL）。in-process 情况（Go ↔ Go 同二进制）
+  信任 caller——能力校验仍然发生在 `CoreAPI` impl 内部。每个
+  传输的鉴权矩阵见 `TRANSPORT.md §6`。
+- **能力发现不是可选。** 今天编译的前端 X 可能要跟明天编译的
+  后端 Y 说话——只有两边都启用的 feature 才能开。
+- **Schema 就是 API。** OpenAPI + AsyncAPI 文件是 SSOT，
+  按 TS / Go / Rust / Python / 任何消费方生成类型。不留语言专属
+  捷径。
+- **能无状态就无状态。** 后端可能在负载均衡后跑 N 个副本。
+  Session affinity 是可选项（通过 `X-Session-Affinity` header），
+  不是默认假设。
+- **流必须可重放。** 网络抖动、浏览器 tab 休眠、TUI `^Z fg`
+  重连。SSE 用 `Last-Event-ID` 重放丢失的事件。
 
-### 0.3 Frontend variants — what each needs
+### 0.3 前端形态 —— 各自需要什么
 
-| Variant | Default transport | Notes |
+| 形态 | 默认传输 | 备注 |
 | --- | --- | --- |
-| **Web** | HTTP (`fetch` + `EventSource`) | Only option a browser exposes. CORS preflight; cookie or Bearer auth; relative URLs from served origin. |
-| **Packaged web** (Wails / Tauri / Electron) | Wails IPC (embedded) / HTTP (remote) | When the backend is in the host process, skip HTTP and use the shell's IPC bridge. See `TRANSPORT.md §4.2`. |
-| **TUI (Go)** | InProcess (embedded) / Socket (local) / HTTP (remote) | When both halves are Go and same-binary, the "transport" is a function call. See `TRANSPORT.md §4.1`. |
-| **TUI (Node / Rust / Python)** | Socket (local) / HTTP (remote) | Can't embed our Go runtime; spawn `lyra-server` as a sibling process and connect via Unix socket / Named pipe. |
+| **Web** | HTTP（`fetch` + `EventSource`） | 浏览器唯一选项。CORS preflight；cookie 或 Bearer 鉴权；从被服务的 origin 取相对 URL。 |
+| **包装 Web**（Wails / Tauri / Electron） | Wails IPC（嵌入）/ HTTP（远程） | 后端在宿主进程里时跳过 HTTP，走外壳的 IPC bridge。见 `TRANSPORT.md §4.2`。 |
+| **TUI（Go）** | InProcess（嵌入）/ Socket（本地）/ HTTP（远程） | 两端都是 Go 且同二进制时，"传输"就是一次函数调用。见 `TRANSPORT.md §4.1`。 |
+| **TUI（Node / Rust / Python）** | Socket（本地）/ HTTP（远程） | 没法 in-process 嵌 Go 运行时；把 `lyra-server` 作为兄弟进程 spawn 起来、用 Unix socket / Named pipe 连。 |
 
-### 0.4 Backend variants — what each provides
+### 0.4 后端形态 —— 各自提供什么
 
-| Variant | Listens on | Auth defaults | Persistence |
+| 形态 | 监听 | 默认鉴权 | 持久化 |
 | --- | --- | --- | --- |
-| **Embedded** | `127.0.0.1:0` only (no LAN exposure) | Generated token in local config, single-user | SQLite next to the client binary |
-| **Standalone server** | `0.0.0.0:port`, configurable | Required: Bearer token / API key | SQLite (small) or Postgres (large) |
-| **Managed cloud** | Behind LB / reverse proxy | OAuth + per-tenant token | Postgres, multi-tenant via workspace id |
+| **Embedded** | 只 `127.0.0.1:0`（不出局域网） | 本地 config 里生成的 token，单用户 | 跟客户端二进制并排的 SQLite |
+| **Standalone server** | `0.0.0.0:port`，可配置 | 必须：Bearer token / API key | SQLite（小）或 Postgres（大） |
+| **Managed cloud** | 在 LB / 反代之后 | OAuth + per-tenant token | Postgres，按 workspace id 多租户 |
 
-All three speak the same wire protocol. Differences are only in
-deployment / persistence / auth strength.
+三种都讲同一份线上协议。差异只在部署 / 持久化 / 鉴权强度。
 
 ---
 
-## 1. Status snapshot (2026-05-27)
+## 1. 现状快照（2026-05-27）
 
-| Surface | Today | Gap to ship m × n |
+| 表面 | 今天 | 到 m × n 还差什么 |
 | --- | --- | --- |
-| Streaming events (`/run` SSE) | All 16 AG-UI standard + 7 `lyra.*` CUSTOM events from a fixture DSL | Replace fixture with real LLM call + real tool execution. Add `Last-Event-ID` resume. |
-| REST endpoints | 13 endpoints serving fixtures | Add capabilities / auth / sessions CRUD / messages pagination / attachments / providers / models / tools / cancel — see §4 |
-| HITL approval | `POST /permission` unblocks an in-memory chan | Make idempotent + tie to a running run id (not a global chan). |
-| Auth | None | Required from day one — Bearer token. See §3.2. |
-| Workspaces | None | URL-prefixed (`/v1/workspaces/{ws}/…`) when multi-tenant. |
-| Schema SSOT | Hand-typed shapes in `frontend/src/lib/queries.ts` | OpenAPI 3.1 + AsyncAPI 2.6 generated to TS + Go. See §6. |
-| Versioning | None | URL prefix `/v1/` + `X-Lyra-Protocol-Version` header. |
+| 流式事件（`/run` SSE） | 16 个 AG-UI 标准事件 + 7 个 `lyra.*` CUSTOM 事件，从 fixture DSL 出 | 把 fixture 换成真 LLM 调用 + 真工具执行。加 `Last-Event-ID` 续传。 |
+| REST 端点 | 13 个端点喂 fixture | 加 capabilities / auth / sessions CRUD / messages 分页 / attachments / providers / models / tools / cancel —— 见 §4 |
+| HITL 审批 | `POST /permission` 解锁一个内存 chan | 改成幂等 + 绑到具体 run id（不是全局 chan）。 |
+| 鉴权 | 无 | 第一天就得有 —— Bearer token。见 §3.2。 |
+| Workspaces | 无 | 多租户时 URL 前缀化（`/v1/workspaces/{ws}/…`）。 |
+| Schema SSOT | 手写在 `frontend/src/lib/queries.ts` | OpenAPI 3.1 + AsyncAPI 2.6 生成 TS + Go。见 §6。 |
+| 版本 | 无 | URL 前缀 `/v1/` + `X-Lyra-Protocol-Version` header。 |
 
-Mock backend listens on `http://127.0.0.1:17171` today; frontends configure
-that via `host.config.set("api.baseUrl", "…")`. **No code in the frontend
-assumes the backend is local.**
+Mock 后端今天监听 `http://127.0.0.1:17171`；前端通过
+`host.config.set("api.baseUrl", "…")` 配。**前端没有任何代码假设
+后端是本地的。**
 
 ---
 
-## 2. Wire principles
+## 2. 线上原则
 
-The constant rules that every endpoint inherits. **Anything new MUST follow
-these — they're what makes the m × n matrix actually work.**
+每个端点都继承的常量规则。**新加任何东西必须遵守——它们是
+m × n 矩阵真正跑得通的底座。**
 
-### 2.1 Transport
+### 2.1 传输
 
-Protocol invariants below are stated in HTTP terms because HTTP is the
-common-denominator transport; non-HTTP transports (in-process / Wails IPC
-/ Unix socket) map each row onto an equivalent primitive — see
-[`TRANSPORT.md §5–6`](./TRANSPORT.md). Anything new lands here when it
-constrains *what is sent*; landing in `TRANSPORT.md` when it constrains
-*how it travels*.
+下面的协议不变量用 HTTP 术语描述，因为 HTTP 是公分母传输；非 HTTP
+传输（in-process / Wails IPC / Unix socket）把每一行映射到等价
+原语——见 [`TRANSPORT.md §5–6`](./TRANSPORT.md)。新东西落在这里
+当它约束**发什么**；落在 `TRANSPORT.md` 当它约束**怎么发**。
 
-| Topic | Rule |
+| 项 | 规则 |
 | --- | --- |
-| **Default transport** | HTTP/1.1 or HTTP/2 over TCP. TLS required for non-loopback. Alternative transports: see `TRANSPORT.md §4`. |
-| **Content types** | Requests / responses default to `application/json; charset=utf-8`. Streams are `text/event-stream` over HTTP, length-prefixed JSON frames over sockets, channel of typed events for in-process. Uploads are `multipart/form-data`. |
-| **Versioning** | URL prefix `/v1/`. Mismatch returns `426 Upgrade Required` with the supported versions in `Sunset` header. In-process clients import `pkg/coreapi` directly, so version skew is a compile error rather than a runtime 426. |
-| **CORS** | Server backends echo `Access-Control-Allow-Origin`; embedded HTTP backends allow `null` + `127.0.0.1`. Non-HTTP transports have no CORS concept (no origin). |
-| **Compression** | `Accept-Encoding: gzip, br` honoured for JSON responses; SSE streams are never compressed (latency > size). Socket / in-process transports never compress. |
-| **Heartbeats** | SSE streams emit `:heartbeat\n\n` every 15s. Socket transports send a `{"type":"heartbeat"}` frame on the same cadence. In-process is exempt (channel closure is the liveness signal). |
+| **默认传输** | HTTP/1.1 或 HTTP/2 over TCP。非 loopback 必须 TLS。其他传输见 `TRANSPORT.md §4`。 |
+| **Content type** | 请求 / 响应默认 `application/json; charset=utf-8`。流是 HTTP 上的 `text/event-stream` / socket 上的 length-prefixed JSON 帧 / in-process 是 typed event 的 channel。上传是 `multipart/form-data`。 |
+| **版本** | URL 前缀 `/v1/`。不匹配返 `426 Upgrade Required`，`Sunset` header 列出支持的版本。In-process 客户端直接 import `pkg/coreapi`，版本漂移变成编译错而不是运行时 426。 |
+| **CORS** | 服务端后端 echo `Access-Control-Allow-Origin`；嵌入式 HTTP 后端允许 `null` + `127.0.0.1`。非 HTTP 传输无 CORS 概念（没有 origin）。 |
+| **压缩** | JSON 响应允许 `Accept-Encoding: gzip, br`；SSE 流永不压缩（延迟 > 体积）。Socket / in-process 永不压缩。 |
+| **心跳** | SSE 流每 15s 一个 `:heartbeat\n\n`。Socket 传输按同样节奏发 `{"type":"heartbeat"}` 帧。In-process 豁免（channel 关闭就是 liveness 信号）。 |
 
-### 2.2 Identity & versioning headers
+### 2.2 身份 & 版本 header
 
-Every request:
+每个请求：
 
 ```http
 Authorization: Bearer <token>
@@ -127,7 +120,7 @@ Idempotency-Key: 0193…d8b5             // UUID v7, required on POST/PUT/PATCH
 Accept-Language: en-US, zh-CN;q=0.8    // for localized error messages
 ```
 
-Every response:
+每个响应：
 
 ```http
 X-Lyra-Server: lyra-core/0.8.1
@@ -136,19 +129,19 @@ X-Lyra-Request-ID: 0193…d8b5           // echoed back for tracing
 X-Lyra-Workspace: ws_abc               // when scoped
 ```
 
-### 2.3 Auth
+### 2.3 鉴权
 
-| Variant | Token source | Renewal |
+| 形态 | Token 来源 | 续期 |
 | --- | --- | --- |
-| Embedded | Generated at install, written to `$XDG_CONFIG_HOME/lyra/token` (client reads same file) | No renewal — regenerate on reinstall |
-| Standalone | Operator-issued static token (env var `LYRA_TOKEN`) OR `POST /v1/auth/login` for username/password | `POST /v1/auth/refresh` returns a new pair |
-| Managed | OAuth 2.1 + PKCE (`/v1/auth/authorize` + `/v1/auth/token`) | Refresh token rotation |
+| Embedded | 安装时生成，写到 `$XDG_CONFIG_HOME/lyra/token`（客户端读同一个文件） | 不续期 —— 重装时重新生成 |
+| Standalone | 运营方颁发的静态 token（环境变量 `LYRA_TOKEN`）或 `POST /v1/auth/login` 走用户名密码 | `POST /v1/auth/refresh` 返回新的 token pair |
+| Managed | OAuth 2.1 + PKCE（`/v1/auth/authorize` + `/v1/auth/token`） | refresh token 轮换 |
 
-Frontend probes `GET /v1/info` (unauthenticated) to discover which mechanism
-this backend uses, then dispatches to the right flow. **Backend MUST never
-serve any non-`/v1/info`, non-`/v1/auth/*` endpoint without a valid token.**
+前端探测 `GET /v1/info`（无需鉴权）发现这个后端用哪种机制，
+再 dispatch 到对应流程。**后端绝对不能在没有合法 token 时
+serve 任何非 `/v1/info`、非 `/v1/auth/*` 的端点。**
 
-### 2.4 Errors — RFC 7807 Problem Details
+### 2.4 错误 —— RFC 7807 Problem Details
 
 ```ts
 interface ProblemDetails {
@@ -161,55 +154,54 @@ interface ProblemDetails {
 }
 ```
 
-Every non-2xx response is a ProblemDetails JSON. Frontends normalise to
-this via a single interceptor regardless of which backend variant they hit.
+所有非 2xx 响应都是 ProblemDetails JSON。前端不管碰到哪种
+后端形态，都通过单一拦截器规范化成这个形状。
 
-### 2.5 Idempotency
+### 2.5 幂等性
 
-POSTs that mutate state require `Idempotency-Key`. Server stores the
-`(key, response)` pair for 24h and replays the same response on retry —
-covers the "user clicks Send, network flaps, client retries" case.
+修改状态的 POST 必须带 `Idempotency-Key`。服务端把
+`(key, response)` 对存 24 小时、重试时回放同样的响应——
+覆盖"用户点 Send、网络抖动、客户端重试"场景。
 
-Applies to: `POST /run`, `POST /sessions`, `POST /attachments`,
-`POST /messages/{id}/edit`, `POST /run/{id}/cancel`.
+适用：`POST /run`、`POST /sessions`、`POST /attachments`、
+`POST /messages/{id}/edit`、`POST /run/{id}/cancel`。
 
-### 2.6 Pagination
+### 2.6 分页
 
-Cursor-based:
+基于游标：
 
 ```
 GET /v1/sessions?limit=20&cursor=eyJpZCI6InNlc3NfMTIzIn0
 → { items: [...], nextCursor?: "...", hasMore: boolean }
 ```
 
-No offset / total-count by default — both break on real-world workloads. A
-dedicated `?countOnly=true` query exists for the rare case where the
-frontend needs the total.
+默认不暴露 offset / total-count —— 这俩在真实负载下都坏。
+个别真的需要总数的场景留了 `?countOnly=true` 查询。
 
-### 2.7 Time, IDs, locale
+### 2.7 时间、ID、locale
 
-| Thing | Format |
+| 项 | 格式 |
 | --- | --- |
-| Timestamps | ISO-8601 with timezone: `"2026-05-27T12:34:56.789Z"`. Always UTC on the wire, frontends format via `Intl.DateTimeFormat`. |
-| Durations | Milliseconds, integer (e.g. `runDurationMs: 1234`). |
-| IDs | Server-generated UUID v7 by default (sortable + monotonic). Client-supplied IDs allowed where idempotency matters; server stores both `id` (server-assigned) and `clientId` (optional). |
-| Locale | `Accept-Language` request header; server returns localized strings in error `title` / `detail` only. Domain data stays in source language. |
+| 时间戳 | 带时区的 ISO-8601：`"2026-05-27T12:34:56.789Z"`。线上永远 UTC，前端用 `Intl.DateTimeFormat` 格式化。 |
+| 时长 | 毫秒，整数（如 `runDurationMs: 1234`）。 |
+| ID | 服务端默认生成 UUID v7（可排序 + 单调）。需要幂等的地方允许客户端提供 ID；服务端同时存 `id`（server-assigned）和 `clientId`（可选）。 |
+| Locale | 请求 `Accept-Language` header；服务端只在错误的 `title` / `detail` 里返本地化字符串。Domain 数据保持源语言。 |
 
-### 2.8 Backpressure & resumability
+### 2.8 背压 & 可恢复
 
-| Mechanism | Where | Behaviour |
+| 机制 | 在哪 | 行为 |
 | --- | --- | --- |
-| **SSE heartbeats** | All streams | `:heartbeat\n\n` every 15s |
-| **`Last-Event-ID`** | Frontend SSE reconnect | Server replays events with `id > Last-Event-ID` for the same `runId`, capped at a 30s replay window |
-| **HTTP/2 flow control** | Long uploads / replays | Automatic, no app code |
-| **Rate limit** | All endpoints | `429 + Retry-After: <seconds>`. Type `/problems/rate-limit`. |
-| **Cancellation** | `/run` SSE | Client closes connection AND optionally calls `POST /run/{id}/cancel` for explicit cleanup |
+| **SSE 心跳** | 所有流 | 每 15s 一个 `:heartbeat\n\n` |
+| **`Last-Event-ID`** | 前端 SSE 重连 | 服务端按同一个 `runId` 重放 `id > Last-Event-ID` 的事件，重放窗口 30s 封顶 |
+| **HTTP/2 流控** | 长上传 / 重放 | 自动，应用层无代码 |
+| **限流** | 所有端点 | `429 + Retry-After: <seconds>`。类型 `/problems/rate-limit`。 |
+| **取消** | `/run` SSE | 客户端关连接；可选附加 `POST /run/{id}/cancel` 走显式清理 |
 
 ---
 
-## 3. Streaming events — `POST /v1/run` (SSE)
+## 3. 流式事件 —— `POST /v1/run`（SSE）
 
-### 3.1 Request
+### 3.1 请求
 
 ```http
 POST /v1/workspaces/{ws}/run HTTP/1.1
@@ -235,156 +227,154 @@ interface RunInput {
 }
 ```
 
-### 3.2 Response (SSE)
+### 3.2 响应（SSE）
 
-Each event is `id: <seq>\nevent: <type>\ndata: {…}\n\n`. `<seq>` is a
-monotonic per-run integer used by `Last-Event-ID` for resume.
+每个事件都是 `id: <seq>\nevent: <type>\ndata: {…}\n\n`。`<seq>` 是
+每个 run 内部单调递增的整数，给 `Last-Event-ID` 续传用。
 
-#### 3.2.1 AG-UI standard events (16) — backbone of the agent UX
+#### 3.2.1 AG-UI 标准事件（16 个）—— agent UX 的骨架
 
-| Group | Events |
+| 分组 | 事件 |
 | --- | --- |
-| Lifecycle | `RUN_STARTED` / `RUN_FINISHED` / `RUN_ERROR` |
+| 生命周期 | `RUN_STARTED` / `RUN_FINISHED` / `RUN_ERROR` |
 | Step | `STEP_STARTED` / `STEP_FINISHED` |
-| Text | `TEXT_MESSAGE_START` / `_CONTENT` / `_END` / `_CHUNK` |
-| Tool call | `TOOL_CALL_START` / `_ARGS` / `_END` / `_CHUNK` / `_RESULT` |
-| Reasoning | `REASONING_MESSAGE_START` / `_CONTENT` / `_END` / `_CHUNK` + `THINKING_TEXT_MESSAGE_*` |
-| Shared state | `STATE_SNAPSHOT` / `STATE_DELTA` (RFC 6902 JSON Patch) |
-| History | `MESSAGES_SNAPSHOT` |
-| Per-message activity | `ACTIVITY_SNAPSHOT` / `ACTIVITY_DELTA` |
-| Extension | `CUSTOM` / `RAW` |
+| 文本 | `TEXT_MESSAGE_START` / `_CONTENT` / `_END` / `_CHUNK` |
+| 工具调用 | `TOOL_CALL_START` / `_ARGS` / `_END` / `_CHUNK` / `_RESULT` |
+| 推理 | `REASONING_MESSAGE_START` / `_CONTENT` / `_END` / `_CHUNK` + `THINKING_TEXT_MESSAGE_*` |
+| 共享状态 | `STATE_SNAPSHOT` / `STATE_DELTA`（RFC 6902 JSON Patch） |
+| 历史 | `MESSAGES_SNAPSHOT` |
+| Per-message 活动 | `ACTIVITY_SNAPSHOT` / `ACTIVITY_DELTA` |
+| 扩展 | `CUSTOM` / `RAW` |
 
-#### 3.2.2 Lyra CUSTOM events — `event.type === "CUSTOM"`, dispatched by `event.name`
+#### 3.2.2 Lyra CUSTOM 事件 —— `event.type === "CUSTOM"`，按 `event.name` 分发
 
-| `name` | Payload | Purpose |
+| `name` | Payload | 用途 |
 | --- | --- | --- |
-| `lyra.plan` | `{ items: PlanItem[] }` | Replaces `state.plan` |
-| `lyra.plan-block` | `{ messageId }` | Attaches a `plan` content block |
-| `lyra.code-proposal` | `{ parentMessageId, lang, file, text }` | Diff proposal block |
-| `lyra.search-results` | `{ parentMessageId, results }` | Search results block |
-| `lyra.approval` | `{ requestId, parentMessageId, text, command, reason, risk?, scope?, target?, reversible? }` | HITL approval block |
-| `lyra.approval-result` | `{ requestId, decision }` | Server confirms received decision |
-| `lyra.telemetry` | free-form | Perf / debug signals |
+| `lyra.plan` | `{ items: PlanItem[] }` | 替换 `state.plan` |
+| `lyra.plan-block` | `{ messageId }` | 挂一个 `plan` content block |
+| `lyra.code-proposal` | `{ parentMessageId, lang, file, text }` | Diff 提案 block |
+| `lyra.search-results` | `{ parentMessageId, results }` | 搜索结果 block |
+| `lyra.approval` | `{ requestId, parentMessageId, text, command, reason, risk?, scope?, target?, reversible? }` | HITL 审批 block |
+| `lyra.approval-result` | `{ requestId, decision }` | 服务端确认收到 decision |
+| `lyra.telemetry` | 自由形态 | 性能 / 调试信号 |
 
-#### 3.2.3 Reserved for future iterations (from kimi-code / agent-chat-ui audits)
+#### 3.2.3 未来迭代预留（来自 kimi-code / agent-chat-ui audit）
 
-| `name` | Payload | Source |
+| `name` | Payload | 来源 |
 | --- | --- | --- |
-| `lyra.interrupt` | `{ requestId, kind: "approve" \| "edit" \| "reject", display }` | LangGraph-style interrupt with structured display |
-| `lyra.resume` | `{ requestId, decision }` | Counterpart to `interrupt` |
-| `lyra.checkpoint` | `{ messageId, parentCheckpoint }` | Edit-and-re-run from a prior message |
-| `lyra.meta` | `{ kind: "thumbs-up" \| "thumbs-down" \| "note" \| "bookmark", refId, value }` | RLHF feedback (ag-ui draft) |
-| `lyra.subagent.spawned` / `.completed` / `.failed` | `{ parentRunId, subRunId, … }` | Nested agent calls |
-| `lyra.background.started` / `.updated` / `.terminated` | `{ taskId, label, progress?, exitCode? }` | Long-running background tasks (kimi-code shape) |
-| `lyra.compaction.started` / `.completed` | `{ summary, tokensBefore, tokensAfter }` | Context window compaction (Phase 4 backlog) |
+| `lyra.interrupt` | `{ requestId, kind: "approve" \| "edit" \| "reject", display }` | LangGraph 风格 interrupt + 结构化展示 |
+| `lyra.resume` | `{ requestId, decision }` | `interrupt` 的对应 |
+| `lyra.checkpoint` | `{ messageId, parentCheckpoint }` | 从早期消息 edit-and-re-run |
+| `lyra.meta` | `{ kind: "thumbs-up" \| "thumbs-down" \| "note" \| "bookmark", refId, value }` | RLHF 反馈（ag-ui 草案） |
+| `lyra.subagent.spawned` / `.completed` / `.failed` | `{ parentRunId, subRunId, … }` | 嵌套 agent 调用 |
+| `lyra.background.started` / `.updated` / `.terminated` | `{ taskId, label, progress?, exitCode? }` | 长任务（kimi-code 形状） |
+| `lyra.compaction.started` / `.completed` | `{ summary, tokensBefore, tokensAfter }` | 上下文窗口压缩（Phase 4 backlog） |
 
-All CUSTOM event payloads MUST have a Zod schema in
-`frontend/src/protocol/agui/schemas.ts` AND a Go mirror generated from
-`schemas/events.yaml` (see §6).
+所有 CUSTOM 事件 payload 必须在 `frontend/src/protocol/agui/schemas.ts`
+有 Zod schema **并且** 从 `schemas/events.yaml` 生成对应的 Go 镜像
+（见 §6）。
 
 ---
 
-## 4. REST endpoints
+## 4. REST 端点
 
-URLs are workspace-scoped when the backend is multi-tenant
-(`/v1/workspaces/{ws}/…`); the workspace prefix is dropped for embedded
-single-user backends. Path templates below show the non-workspace form
-for brevity.
+后端多租户时 URL 带 workspace 前缀（`/v1/workspaces/{ws}/…`）；
+嵌入式单用户后端去掉这个前缀。下面的路径模板为简洁起见用
+非 workspace 形式。
 
-### 4.1 Discovery & auth — required on every backend variant
+### 4.1 发现 & 鉴权 —— 任何后端形态都必须有
 
-| P | Method | Path | Purpose |
+| P | Method | Path | 用途 |
 | --- | --- | --- | --- |
-| P0 | `GET` | `/v1/info` | **Unauthenticated.** Returns `{ server, protocolVersion, authKinds, instanceLabel }` so a fresh frontend knows where it is and how to log in. |
-| P0 | `GET` | `/v1/capabilities` | Requires auth. Returns supported events / providers / tools / features (see §5.1). |
-| P0 | `GET` | `/v1/health` | Liveness probe. `{ status: "ok"\|"degraded", checks: {...} }`. |
-| P0 | `POST` | `/v1/auth/login` | Username/password → token pair. Server may also accept API key. |
-| P0 | `POST` | `/v1/auth/refresh` | Refresh-token rotation. |
-| P0 | `POST` | `/v1/auth/logout` | Server-side token invalidation. |
-| P1 | `GET` | `/v1/me` | Current user profile + workspace list. |
-| P1 | `POST` | `/v1/auth/authorize` + `/v1/auth/token` | OAuth 2.1 + PKCE for managed cloud. |
+| P0 | `GET` | `/v1/info` | **无鉴权。** 返回 `{ server, protocolVersion, authKinds, instanceLabel }`，让全新的前端知道自己在哪、怎么登。 |
+| P0 | `GET` | `/v1/capabilities` | 需鉴权。返回支持的事件 / providers / tools / features（见 §5.1）。 |
+| P0 | `GET` | `/v1/health` | Liveness 探针。`{ status: "ok"\|"degraded", checks: {...} }`。 |
+| P0 | `POST` | `/v1/auth/login` | 用户名密码 → token pair。服务端也可以接 API key。 |
+| P0 | `POST` | `/v1/auth/refresh` | Refresh token 轮换。 |
+| P0 | `POST` | `/v1/auth/logout` | 服务端 token 失效。 |
+| P1 | `GET` | `/v1/me` | 当前用户 profile + workspace 列表。 |
+| P1 | `POST` | `/v1/auth/authorize` + `/v1/auth/token` | 托管云的 OAuth 2.1 + PKCE。 |
 
-### 4.2 Sessions, messages, runs — the core conversation surface
+### 4.2 Sessions、messages、runs —— 对话核心面
 
-| P | Method | Path | Purpose |
+| P | Method | Path | 用途 |
 | --- | --- | --- | --- |
-| P0 | `POST` | `/v1/run` | Start a run, returns SSE stream (§3). |
-| P0 | `POST` | `/v1/run/{runId}/cancel` | Explicit cancel; idempotent. |
-| P0 | `POST` | `/v1/run/{runId}/permission` | HITL decision. Body: `{ requestId, decision, reason? }`. Replaces today's `POST /permission`. |
-| P0 | `GET` | `/v1/sessions` | List sessions. Cursor-paginated. |
-| P0 | `POST` | `/v1/sessions` | Create. Body: `{ title?, model?, metadata? }`. |
-| P0 | `GET` | `/v1/sessions/{id}` | Read one (metadata + last activity). |
-| P0 | `PATCH` | `/v1/sessions/{id}` | Rename / pin / metadata patch. |
-| P0 | `DELETE` | `/v1/sessions/{id}` | Cascade delete. |
-| P0 | `GET` | `/v1/sessions/{id}/messages` | Cursor-paginated history. Replaces "bulk `MESSAGES_SNAPSHOT` on every reconnect". |
-| P1 | `POST` | `/v1/sessions/{id}/messages/{msgId}/edit` | Edit-and-re-run from a checkpoint. Returns `{ runId, checkpoint }` and emits `lyra.checkpoint` on the run SSE. |
-| P1 | `POST` | `/v1/sessions/{id}/fork` | Branch a session at a checkpoint. |
-| P2 | `GET` | `/v1/sessions/{id}/export?format=md\|json` | Server-rendered export. |
+| P0 | `POST` | `/v1/run` | 启动一次 run，返 SSE 流（§3）。 |
+| P0 | `POST` | `/v1/run/{runId}/cancel` | 显式取消；幂等。 |
+| P0 | `POST` | `/v1/run/{runId}/permission` | HITL 决策。Body：`{ requestId, decision, reason? }`。替换今天的 `POST /permission`。 |
+| P0 | `GET` | `/v1/sessions` | 列 sessions。游标分页。 |
+| P0 | `POST` | `/v1/sessions` | 新建。Body：`{ title?, model?, metadata? }`。 |
+| P0 | `GET` | `/v1/sessions/{id}` | 读一条（metadata + 最近活动）。 |
+| P0 | `PATCH` | `/v1/sessions/{id}` | 重命名 / pin / metadata patch。 |
+| P0 | `DELETE` | `/v1/sessions/{id}` | 级联删除。 |
+| P0 | `GET` | `/v1/sessions/{id}/messages` | 游标分页历史。替换"每次重连大块 `MESSAGES_SNAPSHOT`"的做法。 |
+| P1 | `POST` | `/v1/sessions/{id}/messages/{msgId}/edit` | 从 checkpoint 处 edit-and-re-run。返回 `{ runId, checkpoint }`，并在 run SSE 上 emit `lyra.checkpoint`。 |
+| P1 | `POST` | `/v1/sessions/{id}/fork` | 在 checkpoint 处 fork session。 |
+| P2 | `GET` | `/v1/sessions/{id}/export?format=md\|json` | 服务端渲染导出。 |
 
-### 4.3 Workspace data (the "panels" frontends render)
+### 4.3 Workspace 数据（前端渲染的"面板"）
 
-These mirror the fixture endpoints Lyra already has. Backend variant decides
-how to populate them (real filesystem / git / pty for embedded; managed
-storage for cloud).
+镜像 Lyra 现在已经有的那批 fixture 端点。后端形态决定怎么填
+（嵌入式就用真文件系统 / git / pty；云端用托管存储）。
 
-| P | Method | Path | Purpose |
+| P | Method | Path | 用途 |
 | --- | --- | --- | --- |
-| P0 | `GET` | `/v1/workspace/files-changed` | Diff overview. |
-| P0 | `GET` | `/v1/workspace/diff?path=…` | Unified diff for one file. |
-| P0 | `GET` | `/v1/workspace/file-head?path=…` | File preview. |
-| P0 | `GET` | `/v1/workspace/grep?q=…` | Code search. |
-| P0 | `GET` | `/v1/workspace/terminal/{runId}/output` | pty output stream for a tool's terminal session. |
-| P0 | `GET` | `/v1/workspace/projects` | Project list (when backend manages multiple). |
-| P0 | `GET` | `/v1/workspace/mcp-servers` | Registered MCP servers + status. |
-| P1 | `POST` | `/v1/workspace/mcp-servers/{id}/reconnect` | Re-establish an MCP connection. |
-| P1 | `GET` | `/v1/workspace/skills` | Available skills (kimi-code-style) when supported. |
+| P0 | `GET` | `/v1/workspace/files-changed` | Diff 概览。 |
+| P0 | `GET` | `/v1/workspace/diff?path=…` | 单文件 unified diff。 |
+| P0 | `GET` | `/v1/workspace/file-head?path=…` | 文件预览。 |
+| P0 | `GET` | `/v1/workspace/grep?q=…` | 代码搜索。 |
+| P0 | `GET` | `/v1/workspace/terminal/{runId}/output` | 工具 terminal session 的 pty 输出流。 |
+| P0 | `GET` | `/v1/workspace/projects` | 项目列表（后端管多个时）。 |
+| P0 | `GET` | `/v1/workspace/mcp-servers` | 已注册的 MCP 服务 + 状态。 |
+| P1 | `POST` | `/v1/workspace/mcp-servers/{id}/reconnect` | 重连 MCP。 |
+| P1 | `GET` | `/v1/workspace/skills` | 可用 skill（kimi-code 风格，支持时）。 |
 
-### 4.4 Providers, models, tools — what the agent can use
+### 4.4 Providers、models、tools —— agent 能用什么
 
-| P | Method | Path | Purpose |
+| P | Method | Path | 用途 |
 | --- | --- | --- | --- |
-| P0 | `GET` | `/v1/providers` | LLM provider registry. |
-| P0 | `POST` | `/v1/providers/{id}/test` | Validate creds. |
-| P0 | `GET` | `/v1/models?provider=…` | Per-provider model list. |
-| P0 | `GET` | `/v1/tools` | Tool registry with JSON-Schema params. |
+| P0 | `GET` | `/v1/providers` | LLM provider 注册表。 |
+| P0 | `POST` | `/v1/providers/{id}/test` | 校验凭证。 |
+| P0 | `GET` | `/v1/models?provider=…` | per-provider 模型列表。 |
+| P0 | `GET` | `/v1/tools` | Tool 注册表 + JSON-Schema 参数。 |
 
-### 4.5 Attachments & artefacts
+### 4.5 附件 & 工件
 
-| P | Method | Path | Purpose |
+| P | Method | Path | 用途 |
 | --- | --- | --- | --- |
-| P1 | `POST` | `/v1/attachments` | Multipart upload, returns `{ id, url, sha256, … }`. |
-| P1 | `GET` | `/v1/attachments/{id}` | Download (signed URL preferred). |
-| P1 | `DELETE` | `/v1/attachments/{id}` | Garbage-collect. |
-| P2 | `GET` | `/v1/artefacts/{runId}/{name}` | Tool-emitted artefacts (rendered diagrams, generated files). |
+| P1 | `POST` | `/v1/attachments` | Multipart 上传，返 `{ id, url, sha256, … }`。 |
+| P1 | `GET` | `/v1/attachments/{id}` | 下载（首选签名 URL）。 |
+| P1 | `DELETE` | `/v1/attachments/{id}` | 回收。 |
+| P2 | `GET` | `/v1/artefacts/{runId}/{name}` | 工具产出的 artefact（渲染好的图、生成的文件）。 |
 
-### 4.6 Background tasks (kimi-code-inspired, when backend supports them)
+### 4.6 后台任务（kimi-code 启发，后端支持时）
 
-| P | Method | Path | Purpose |
+| P | Method | Path | 用途 |
 | --- | --- | --- | --- |
-| P1 | `GET` | `/v1/background` | Active tasks across the workspace. |
-| P1 | `POST` | `/v1/background/{taskId}/stop` | Stop a task. |
-| P1 | `GET` | `/v1/background/{taskId}/output?tail=N` | Tail output. |
+| P1 | `GET` | `/v1/background` | Workspace 内活跃任务。 |
+| P1 | `POST` | `/v1/background/{taskId}/stop` | 停止任务。 |
+| P1 | `GET` | `/v1/background/{taskId}/output?tail=N` | Tail 输出。 |
 
-### 4.7 Plugin sideload (optional — frontend feature, but backend hosts the bundle)
+### 4.7 插件 sideload（可选——前端 feature，但后端 host 包）
 
-| P | Method | Path | Purpose |
+| P | Method | Path | 用途 |
 | --- | --- | --- | --- |
-| P2 | `GET` | `/v1/plugins` | Plugin manifest (when marketplace ships). |
-| P2 | `GET` | `/v1/plugins/{id}/*` | Plugin asset proxy. |
+| P2 | `GET` | `/v1/plugins` | 插件 manifest（marketplace 上线后）。 |
+| P2 | `GET` | `/v1/plugins/{id}/*` | 插件资源代理。 |
 
-### 4.8 Feedback, version, telemetry
+### 4.8 反馈、版本、telemetry
 
-| P | Method | Path | Purpose |
+| P | Method | Path | 用途 |
 | --- | --- | --- | --- |
-| P2 | `POST` | `/v1/feedback` | RLHF — alternative to the `lyra.meta` CUSTOM event when frontend prefers REST. |
-| P2 | `GET` | `/v1/version` | `{ server, protocolVersion, channel, releasedAt }`. |
-| P2 | `GET` | `/v1/telemetry/optin` + `POST /v1/telemetry/optin` | Privacy consent toggle. |
+| P2 | `POST` | `/v1/feedback` | RLHF —— 当前端更想走 REST 时替代 `lyra.meta` CUSTOM 事件。 |
+| P2 | `GET` | `/v1/version` | `{ server, protocolVersion, channel, releasedAt }`。 |
+| P2 | `GET` | `/v1/telemetry/optin` + `POST /v1/telemetry/optin` | 隐私同意开关。 |
 
 ---
 
-## 5. Shapes
+## 5. 形状
 
-### 5.1 Capabilities — what a backend exposes
+### 5.1 Capabilities —— 后端暴露的能力清单
 
 ```ts
 interface Capabilities {
@@ -422,10 +412,10 @@ interface Capabilities {
 }
 ```
 
-Frontend treats every `features.*` as `false` by default — it MUST NOT
-crash if the backend omits a feature it doesn't implement.
+前端默认把每个 `features.*` 当 `false` 处理——后端没实现某个
+feature 时**必须不挂**。
 
-### 5.2 Info — pre-auth probe
+### 5.2 Info —— 鉴权前探针
 
 ```ts
 interface ServerInfo {
@@ -438,7 +428,7 @@ interface ServerInfo {
 }
 ```
 
-### 5.3 Core conversation shapes
+### 5.3 核心对话形状
 
 ```ts
 type SessionStatus = "running" | "waiting" | "idle";
@@ -482,7 +472,7 @@ interface ContextItem {
 }
 ```
 
-### 5.4 ProblemDetails — error envelope
+### 5.4 ProblemDetails —— 错误信封
 
 ```ts
 interface ProblemDetails {
@@ -496,30 +486,30 @@ interface ProblemDetails {
 }
 ```
 
-### 5.5 Workspace data (existing — already in `frontend/src/lib/queries.ts`)
+### 5.5 Workspace 数据（现有 —— 已在 `frontend/src/lib/queries.ts`）
 
-`SidebarSession`, `SidebarProject`, `FileChange`, `DiffRow`, `TermLine`,
-`GrepResult`, `FileLine`, `MCPServer` — keep current shapes; wrap each in
-`{ items, nextCursor?, hasMore }` for pagination when porting from mock.
+`SidebarSession`、`SidebarProject`、`FileChange`、`DiffRow`、`TermLine`、
+`GrepResult`、`FileLine`、`MCPServer` —— 保持现有形状；从 mock 移植
+时给每个套一层 `{ items, nextCursor?, hasMore }` 做分页。
 
 ---
 
-## 6. Schema source of truth
+## 6. Schema 唯一权威
 
-### 6.1 Decision: **OpenAPI 3.1 + AsyncAPI 2.6**
+### 6.1 选型：**OpenAPI 3.1 + AsyncAPI 2.6**
 
-- **OpenAPI 3.1** describes every REST endpoint, request/response, error
-  shape, security scheme. Native fit for the C/S surface.
-- **AsyncAPI 2.6** describes the SSE event stream — every event type, its
-  payload, its semantic relationship to the run lifecycle.
+- **OpenAPI 3.1** 描述每个 REST 端点、请求 / 响应、错误形状、
+  安全方案。天然贴合 C/S 表面。
+- **AsyncAPI 2.6** 描述 SSE 事件流——每个事件类型、payload、
+  跟 run 生命周期的语义关系。
 
-Both are YAML, both well-tooled, both generate types in every language we
-care about (TS, Go, Rust, Python, Swift).
+两者都是 YAML，两者工具链都好，两者都能给我们关心的所有语言
+生成类型（TS、Go、Rust、Python、Swift）。
 
-Rejected alternative: **Protobuf** — would force gRPC-Gateway for the REST
-shape and AsyncAPI-style channel descriptions are weak in proto3.
+被拒方案：**Protobuf** —— REST 形状会被迫走 gRPC-Gateway，
+AsyncAPI 式的 channel 描述在 proto3 里很弱。
 
-### 6.2 Layout
+### 6.2 布局
 
 ```
 schemas/
@@ -535,145 +525,139 @@ schemas/
     └── go/
 ```
 
-### 6.3 CI gate
+### 6.3 CI 门禁
 
-`npm run schema:check` runs `openapi-typescript` + `oapi-codegen` against
-the schemas, diffs the output against `generated/`, fails the build on any
-drift. PRs touching the contract MUST land schema + generated code together.
+`npm run schema:check` 用 `openapi-typescript` + `oapi-codegen`
+跑一遍 schema，把生成结果 diff 进 `generated/`，有任何漂移就
+fail 构建。改契约的 PR 必须 schema + 生成代码同时落地。
 
-### 6.4 Versioning rules
+### 6.4 版本规则
 
-- **Adding** an endpoint / event / optional field → patch bump.
-- **Adding** a required field → minor bump.
-- **Removing** anything → major bump. Old version stays available at the
-  old URL prefix for one release cycle minimum.
+- **加**端点 / 事件 / 可选字段 → patch 提升。
+- **加**必选字段 → minor 提升。
+- **删**任何东西 → major 提升。旧版本至少保留一个发布周期，
+  挂在旧 URL 前缀下。
 
-`Capabilities.protocol.minClientVersion` lets the backend reject ancient
-clients with a clear `426 Upgrade Required`.
-
----
-
-## 7. Deployment matrix — what each combo needs to wire
-
-### 7.1 Embedded backend + packaged-web / TUI frontend
-
-- Frontend reads `LYRA_BACKEND_URL` (set by the installer) — defaults to
-  `http://127.0.0.1:<port>` written into local config.
-- Token in `$XDG_CONFIG_HOME/lyra/token` is read by both sides at startup.
-- No CORS concerns (frontend and backend on same loopback).
-- Backend MAY skip TLS on loopback; everywhere else it's required.
-
-### 7.2 Standalone server backend + any frontend
-
-- Operator provides `LYRA_BACKEND_URL` + `LYRA_TOKEN` via env / config.
-- Server enforces TLS; frontends refuse to log in over plain HTTP unless
-  the URL is loopback.
-- CORS configured on the server side — `Access-Control-Allow-Origin` lists
-  the allowed frontend origins.
-
-### 7.3 Managed cloud backend + web / packaged-web frontend
-
-- Frontend ships with a default `LYRA_BACKEND_URL` pointing at the cloud.
-- `GET /v1/info` advertises `authKinds: ["oauth"]` → frontend kicks off
-  OAuth 2.1 + PKCE.
-- Per-tenant workspace IDs in the URL: `/v1/workspaces/{ws}/…`.
-
-### 7.4 Web frontend + any backend (browser case)
-
-- Token storage: HttpOnly cookie if same-site, else `sessionStorage`.
-- Frontend MUST handle CORS preflight failures gracefully — surface
-  "Backend at <url> didn't allow this origin" instead of a silent error.
-
-### 7.5 TUI frontend + any backend
-
-- No `EventSource` — use a streaming HTTP client that supports SSE
-  (`sse.js` for Node, `eventsource` for Python, etc.).
-- Token from env var `LYRA_TOKEN` or interactive `lyra login`.
+`Capabilities.protocol.minClientVersion` 让后端可以用清晰的
+`426 Upgrade Required` 拒掉太老的客户端。
 
 ---
 
-## 8. Implementation roadmap
+## 7. 部署矩阵 —— 每个组合要接什么线
 
-| Phase | Scope | Effort |
+### 7.1 嵌入式后端 + 包装 Web / TUI 前端
+
+- 前端读 `LYRA_BACKEND_URL`（安装器设置）—— 默认是写到本地
+  config 的 `http://127.0.0.1:<port>`。
+- `$XDG_CONFIG_HOME/lyra/token` 里的 token 启动时两端都读。
+- 不用考虑 CORS（前后端同 loopback）。
+- Loopback 上后端可以跳过 TLS；其他地方都得有。
+
+### 7.2 独立服务后端 + 任意前端
+
+- 运营方通过 env / config 提供 `LYRA_BACKEND_URL` + `LYRA_TOKEN`。
+- 服务端强制 TLS；除非 URL 是 loopback，前端拒绝走明文 HTTP 登录。
+- CORS 在服务端配 —— `Access-Control-Allow-Origin` 列允许的
+  前端 origin。
+
+### 7.3 托管云后端 + Web / 包装 Web 前端
+
+- 前端预装一个默认 `LYRA_BACKEND_URL` 指向云端。
+- `GET /v1/info` 广告 `authKinds: ["oauth"]` → 前端启动
+  OAuth 2.1 + PKCE。
+- 路径里 per-tenant workspace ID：`/v1/workspaces/{ws}/…`。
+
+### 7.4 Web 前端 + 任意后端（浏览器场景）
+
+- Token 存储：同站时 HttpOnly cookie，否则 `sessionStorage`。
+- 前端**必须**优雅处理 CORS preflight 失败 —— 显示"Backend at
+  <url> didn't allow this origin"而不是静默错误。
+
+### 7.5 TUI 前端 + 任意后端
+
+- 没有 `EventSource` —— 用支持 SSE 的流式 HTTP 客户端
+  （Node 用 `sse.js`、Python 用 `eventsource` 等）。
+- Token 从环境变量 `LYRA_TOKEN` 或交互式 `lyra login` 取。
+
+---
+
+## 8. 实施 roadmap
+
+| 阶段 | 范围 | 工期 |
 | --- | --- | --- |
-| **1. Protocol freeze** | Author `schemas/openapi.yaml` + `events.yaml`; codegen TS + Go; mock backend speaks the real shapes. | 1 week |
-| **2. Auth + discovery** | `/v1/info` / `/v1/capabilities` / `/v1/health` + Bearer middleware on every other endpoint. Embedded variant ships with auto-generated token. | 1 week |
-| **3. Real run path** | Wire `/v1/run` to a real LLM (one provider); HITL via `/v1/run/{id}/permission`; SSE `Last-Event-ID` resume; `/v1/run/{id}/cancel`. | 2 weeks |
-| **4. Persistence + sessions CRUD** | SQLite (embedded / standalone) or Postgres (managed) — sessions, messages, attachments. Pagination on `/v1/sessions/{id}/messages`. | 1 week |
-| **5. Workspace data + tools** | Real filesystem / git / ripgrep / pty / MCP wiring for the `/v1/workspace/*` endpoints. `/v1/tools`, `/v1/providers`, `/v1/models`. | 2 weeks |
-| **6. Frontend variants** | TUI frontend prototype against the same protocol → proves the m × n actually works. | 2 weeks |
-| **7. Managed cloud** (later) | OAuth 2.1, workspace isolation, multi-region routing, rate limiting. | 3–4 weeks |
+| **1. 协议冻结** | 写 `schemas/openapi.yaml` + `events.yaml`；codegen TS + Go；mock 后端讲真形状。 | 1 周 |
+| **2. 鉴权 + 发现** | `/v1/info` / `/v1/capabilities` / `/v1/health` + 其他端点上 Bearer middleware。嵌入形态自动生成 token。 | 1 周 |
+| **3. 真 run 路径** | `/v1/run` 接一个真 LLM（先一个 provider）；HITL 走 `/v1/run/{id}/permission`；SSE `Last-Event-ID` 续传；`/v1/run/{id}/cancel`。 | 2 周 |
+| **4. 持久化 + sessions CRUD** | SQLite（嵌入 / 独立）或 Postgres（托管）—— sessions、messages、attachments。`/v1/sessions/{id}/messages` 分页。 | 1 周 |
+| **5. Workspace 数据 + 工具** | 真文件系统 / git / ripgrep / pty / MCP 接到 `/v1/workspace/*`。`/v1/tools`、`/v1/providers`、`/v1/models`。 | 2 周 |
+| **6. 前端形态** | TUI 前端原型走同一份协议 → 证明 m × n 真的跑得通。 | 2 周 |
+| **7. 托管云**（晚一点） | OAuth 2.1、workspace 隔离、多 region 路由、限流。 | 3–4 周 |
 
 ---
 
-## 9. Migration — mock → real, per endpoint
+## 9. 迁移 —— mock → real，按端点逐个走
 
-Apply to every row in §4 individually:
+对 §4 每一行单独应用：
 
-1. Schema lands in `schemas/*.yaml` (one PR, both sides codegen).
-2. Mock backend handler keeps current behaviour but goes through the
-   generated types (compile-time gate on the wire format).
-3. Real backend handler replaces the mock body — fixtures preserved
-   behind `LYRA_MOCK=1` for E2E / demos.
-4. Frontend tests that pin the response shape stay green throughout.
+1. Schema 落在 `schemas/*.yaml`（一个 PR，两边 codegen）。
+2. Mock 后端 handler 保持当前行为但走生成的类型（编译期门禁
+   抓线上格式）。
+3. 真后端 handler 替换 mock body —— fixture 保留在 `LYRA_MOCK=1`
+   后面给 E2E / demo 用。
+4. 前端 pin 响应形状的测试自始至终绿。
 
-This way **the frontend can't tell which backend variant it's talking
-to**, which is exactly the architecture we want.
-
----
-
-## 10. Open questions
-
-- [ ] **Auth standardisation**: do we commit to OAuth 2.1 + PKCE for managed,
-      static token for embedded / standalone? Or invent something custom?
-- [ ] **Workspace URL shape**: `/v1/workspaces/{ws}/…` everywhere (clean
-      multi-tenant) or only when the backend opts in (simpler embedded)?
-- [ ] **Tool execution location**: server-side only, or can a frontend declare
-      `tools` in the `RunInput` that the backend calls back into? Latter
-      enables "browser as a tool" (file picker, screenshot, clipboard) but
-      complicates the security model.
-- [ ] **WebSocket vs SSE**: SSE is one-way push + idempotent reconnect, which
-      fits our use case. The only reason to add WS would be bidirectional
-      streaming for HITL — but we have REST for the reverse calls. Keep SSE
-      unless something forces our hand.
-- [ ] **Persistence story for embedded**: SQLite is the obvious choice but
-      do we expose its file path so users can back up their conversations?
-- [ ] **Sideload trust model**: only same-origin plugin bundles, or any URL
-      with manifest signature verification? Affects `/v1/plugins/*` design.
+这样**前端无法分辨自己在跟哪种后端讲话**，正是我们要的架构。
 
 ---
 
-## Appendix A — File locations
+## 10. 未决问题
 
-| Concern | Frontend | Backend |
+- [ ] **鉴权标准化**：托管走 OAuth 2.1 + PKCE、嵌入 / 独立走
+      静态 token？还是发明点自有的东西？
+- [ ] **Workspace URL 形状**：到处都是 `/v1/workspaces/{ws}/…`
+      （干净多租户）还是只在后端 opt-in 时（嵌入更简单）？
+- [ ] **工具执行位置**：只服务端，还是前端可以在 `RunInput`
+      里声明 `tools` 让后端回调？后者支持"浏览器作为工具"
+      （文件选择器、截图、剪贴板）但安全模型复杂化。
+- [ ] **WebSocket vs SSE**：SSE 是单向 push + 幂等重连，贴合
+      我们的场景。加 WS 的唯一理由是 HITL 双向流——但反向调用
+      我们已经用 REST 覆盖。除非有什么逼着我们换，否则就 SSE。
+- [ ] **嵌入式持久化故事**：SQLite 是显然选择，但要不要暴露
+      文件路径让用户备份对话？
+- [ ] **Sideload 信任模型**：只允许同源插件包，还是任何 URL +
+      manifest 签名校验？影响 `/v1/plugins/*` 设计。
+
+---
+
+## 附录 A —— 文件位置
+
+| 关注点 | 前端 | 后端 |
 | --- | --- | --- |
-| Streaming reducer (event → state) | `frontend/src/plugins/builtin/core-reducer/handlers.ts` | `internal/agui/events.go` |
-| CUSTOM event handlers | `frontend/src/plugins/builtin/agui-handlers/index.ts` | `internal/agui/dsl.go` |
-| REST shapes (frontend side) | `frontend/src/lib/queries.ts` | `internal/agui/rest.go` |
-| HITL approval gateway | `frontend/src/domain/gateways/PermissionGateway.ts` + `frontend/src/infra/http/HttpPermissionGateway.ts` | `internal/agui/permissions.go` |
+| 流式 reducer（event → state） | `frontend/src/plugins/builtin/core-reducer/handlers.ts` | `internal/agui/events.go` |
+| CUSTOM 事件 handler | `frontend/src/plugins/builtin/agui-handlers/index.ts` | `internal/agui/dsl.go` |
+| REST 形状（前端侧） | `frontend/src/lib/queries.ts` | `internal/agui/rest.go` |
+| HITL 审批 gateway | `frontend/src/domain/gateways/PermissionGateway.ts` + `frontend/src/infra/http/HttpPermissionGateway.ts` | `internal/agui/permissions.go` |
 | Sideload manifest | `frontend/src/plugins/sideload.ts` | `internal/agui/plugins.go` |
-| Base URL config | `frontend/src/main/config.ts` (`AGUI_BASE`) | `internal/agui/server.go` |
-| Fixture data | — | `internal/agui/demos.go` / `refactor_demo_data.go` / `artifacts.go` |
+| Base URL 配置 | `frontend/src/main/config.ts`（`AGUI_BASE`） | `internal/agui/server.go` |
+| Fixture 数据 | — | `internal/agui/demos.go` / `refactor_demo_data.go` / `artifacts.go` |
 
-## Appendix B — Comparison with peer projects
+## 附录 B —— 对标项目对比
 
-| Project | Wire shape | Why we chose differently |
+| 项目 | 线上形状 | 我们为什么不一样 |
 | --- | --- | --- |
-| **kimi-code** | In-process typed RPC (`createRPC()`), no HTTP | Same-process only — doesn't support remote backend. We need m × n. |
-| **continue** | gRPC over webview postMessage | IDE-coupled; not portable across frontend variants. |
-| **cline** | gRPC + protobuf | Same; tied to VS Code extension model. |
-| **lobehub** | REST + SSE | Same family as ours, validates the choice. |
-| **agent-chat-ui** | LangGraph SDK over SSE | Closest to our shape; we generalise to non-LangGraph backends. |
-| **ag-ui-protocol** (official) | SSE + JSON / protobuf | Our event schema is a strict subset + Lyra-specific CUSTOM events. |
+| **kimi-code** | In-process typed RPC（`createRPC()`），无 HTTP | 只支持同进程 —— 不支持远程后端。我们要 m × n。 |
+| **continue** | gRPC over webview postMessage | 跟 IDE 绑定；不能跨前端形态复用。 |
+| **cline** | gRPC + protobuf | 同上；跟 VS Code 扩展模型绑死。 |
+| **lobehub** | REST + SSE | 跟我们同一家族，验证了选型。 |
+| **agent-chat-ui** | LangGraph SDK over SSE | 跟我们最接近；我们泛化到非 LangGraph 后端。 |
+| **ag-ui-protocol**（官方） | SSE + JSON / protobuf | 我们的事件 schema 是它的严格子集 + Lyra 专属 CUSTOM 事件。 |
 
-**Take-aways for Lyra**:
+**对 Lyra 的启示**：
 
-- Borrow `requestApproval` Promise-shape semantics (from kimi-code) for the
-  HITL flow: `POST /run/{id}/permission` is fire-and-forget today, but the
-  server can model the request/response as a Promise on its side and resolve
-  it when the POST lands. Frontend doesn't need to know.
-- Borrow background-task events (from kimi-code) as `lyra.background.*` —
-  see §3.2.3.
-- Borrow compaction events (from kimi-code) for §3.2.3 when Phase 4 lands.
-- Reject typed bidirectional RPC as the transport (kimi-code style) —
-  doesn't survive the m × n requirement.
+- 借 `requestApproval` 的 Promise 语义（来自 kimi-code）做 HITL 流：
+  `POST /run/{id}/permission` 今天是 fire-and-forget，但服务端可以
+  在它那边把请求 / 响应建模成一个 Promise，POST 到达时 resolve。
+  前端不用知道。
+- 借后台任务事件（来自 kimi-code）作为 `lyra.background.*` —— 见 §3.2.3。
+- 借压缩事件（来自 kimi-code）放到 §3.2.3，Phase 4 上线时启用。
+- 拒绝把类型化双向 RPC 当传输（kimi-code 风格）—— 撑不起 m × n 需求。
