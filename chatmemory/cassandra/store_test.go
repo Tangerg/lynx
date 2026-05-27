@@ -13,7 +13,7 @@ import (
 func stubSession() *gocql.Session { return new(gocql.Session) }
 
 func TestStoreConfig_SessionRequired(t *testing.T) {
-	_, err := cassandra.NewStore(&cassandra.StoreConfig{})
+	_, err := cassandra.NewStore(cassandra.StoreConfig{})
 	if err == nil {
 		t.Fatal("expected error when Session is nil")
 	}
@@ -33,8 +33,8 @@ func TestStoreConfig_RejectsBadIdentifier(t *testing.T) {
 		name string
 		cfg  *cassandra.StoreConfig
 	}{
-		{"keyspace with hyphen", &cassandra.StoreConfig{Session: stubSession(), Keyspace: "my-ks"}},
-		{"table with semicolon", &cassandra.StoreConfig{Session: stubSession(), TableName: "x;y"}},
+		{"keyspace with hyphen", cassandra.StoreConfig{Session: stubSession(), Keyspace: "my-ks"}},
+		{"table with semicolon", cassandra.StoreConfig{Session: stubSession(), TableName: "x;y"}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -46,7 +46,7 @@ func TestStoreConfig_RejectsBadIdentifier(t *testing.T) {
 }
 
 func TestStoreConfig_AcceptsValidIdentifiers(t *testing.T) {
-	_, err := cassandra.NewStore(&cassandra.StoreConfig{
+	_, err := cassandra.NewStore(cassandra.StoreConfig{
 		Session:   stubSession(),
 		Keyspace:  "lynx",
 		TableName: "chat_history",

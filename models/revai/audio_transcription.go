@@ -21,10 +21,7 @@ type AudioTranscriptionModelConfig struct {
 	PollTimeout    time.Duration
 }
 
-func (c *AudioTranscriptionModelConfig) validate() error {
-	if c == nil {
-		return errors.New("revai: config must not be nil")
-	}
+func (c AudioTranscriptionModelConfig) Validate() error {
 	if c.APIKey == nil {
 		return errors.New("revai: APIKey is required")
 	}
@@ -50,11 +47,11 @@ type AudioTranscriptionModel struct {
 	pollTimeout    time.Duration
 }
 
-func NewAudioTranscriptionModel(cfg *AudioTranscriptionModelConfig) (*AudioTranscriptionModel, error) {
-	if err := cfg.validate(); err != nil {
+func NewAudioTranscriptionModel(cfg AudioTranscriptionModelConfig) (*AudioTranscriptionModel, error) {
+	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
-	api, err := NewAPI(&APIConfig{APIKey: cfg.APIKey, BaseURL: cfg.BaseURL, HTTPClient: cfg.HTTPClient})
+	api, err := NewAPI(APIConfig{APIKey: cfg.APIKey, BaseURL: cfg.BaseURL, HTTPClient: cfg.HTTPClient})
 	if err != nil {
 		return nil, err
 	}
@@ -82,13 +79,13 @@ func (a *AudioTranscriptionModel) Call(ctx context.Context, req *transcription.R
 
 	var job *Job
 	if jobOpts.MediaURL != "" {
-		job, err = a.api.SubmitURL(ctx, jobOpts)
+		job, err = a.api.SubmitURL(ctx, *jobOpts)
 	} else {
 		audio, audioErr := req.Audio.DataAsBytes()
 		if audioErr != nil {
 			return nil, audioErr
 		}
-		job, err = a.api.Upload(ctx, audio, jobOpts)
+		job, err = a.api.Upload(ctx, audio, *jobOpts)
 	}
 	if err != nil {
 		return nil, err

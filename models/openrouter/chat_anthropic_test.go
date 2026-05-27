@@ -21,7 +21,7 @@ func TestAnthropicChatModel(t *testing.T) {
 			if err != nil {
 				t.Fatalf("NewOptions: %v", err)
 			}
-			m, err := openrouter.NewAnthropicChatModel(&openrouter.AnthropicChatModelConfig{
+			m, err := openrouter.NewAnthropicChatModel(openrouter.AnthropicChatModelConfig{
 				APIKey:         model.NewAPIKey("test-key"),
 				DefaultOptions: opts,
 				BaseURL:        baseURL,

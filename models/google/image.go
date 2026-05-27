@@ -31,10 +31,7 @@ type ImageModelConfig struct {
 	Metadata *image.ModelMetadata
 }
 
-func (c *ImageModelConfig) validate() error {
-	if c == nil {
-		return errors.New("google: config must not be nil")
-	}
+func (c ImageModelConfig) Validate() error {
 	if c.Backend != genai.BackendVertexAI && c.APIKey == nil {
 		return errors.New("google: APIKey is required")
 	}
@@ -59,12 +56,12 @@ type ImageModel struct {
 	metadata       image.ModelMetadata
 }
 
-func NewImageModel(cfg *ImageModelConfig) (*ImageModel, error) {
-	if err := cfg.validate(); err != nil {
+func NewImageModel(cfg ImageModelConfig) (*ImageModel, error) {
+	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
 
-	api, err := NewAPI(&APIConfig{
+	api, err := NewAPI(APIConfig{
 		APIKey:   cfg.APIKey,
 		Backend:  cfg.Backend,
 		Project:  cfg.Project,

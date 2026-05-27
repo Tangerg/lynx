@@ -38,10 +38,7 @@ type VectorStoreRetrieverConfig struct {
 }
 
 // validate fills defaults and rejects invalid configurations.
-func (c *VectorStoreRetrieverConfig) validate() error {
-	if c == nil {
-		return errors.New("rag.VectorStoreRetrieverConfig: config must not be nil")
-	}
+func (c VectorStoreRetrieverConfig) Validate() error {
 	if c.VectorStore == nil {
 		return errors.New("rag.VectorStoreRetrieverConfig: VectorStore is required")
 	}
@@ -68,7 +65,7 @@ var _ DocumentRetriever = (*VectorStoreRetriever)(nil)
 //
 // Example:
 //
-//	r, err := rag.NewVectorStoreRetriever(&rag.VectorStoreRetrieverConfig{
+//	r, err := rag.NewVectorStoreRetriever(rag.VectorStoreRetrieverConfig{
 //	    VectorStore: store,
 //	    TopK:        10,
 //	    MinScore:    0.7,
@@ -83,8 +80,8 @@ type VectorStoreRetriever struct {
 // NewVectorStoreRetriever builds a
 // [VectorStoreRetriever]. Returns an error when the
 // configuration fails [VectorStoreRetrieverConfig.validate].
-func NewVectorStoreRetriever(cfg *VectorStoreRetrieverConfig) (*VectorStoreRetriever, error) {
-	if err := cfg.validate(); err != nil {
+func NewVectorStoreRetriever(cfg VectorStoreRetrieverConfig) (*VectorStoreRetriever, error) {
+	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
 	return &VectorStoreRetriever{

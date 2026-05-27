@@ -118,7 +118,7 @@ func NewAction[In, Out any](
 	fn TypedActionFunc[In, Out],
 	config ActionConfig,
 ) Action {
-	config.applyDefaults()
+	config.ApplyDefaults()
 
 	inputs := config.Inputs
 	if len(inputs) == 0 {

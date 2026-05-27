@@ -30,6 +30,6 @@ type StoreConfig = pgvector.StoreConfig
 type Store = pgvector.Store
 
 
-func NewStore(cfg *StoreConfig) (*Store, error) {
+func NewStore(cfg StoreConfig) (*Store, error) {
 	return pgvector.NewStore(cfg)
 }

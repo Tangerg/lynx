@@ -24,7 +24,7 @@ func TestChatModel_Integration(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			m, err := google.NewChatModel(&google.ChatModelConfig{
+			m, err := google.NewChatModel(google.ChatModelConfig{
 				APIKey:         model.NewAPIKey(key),
 				DefaultOptions: opts,
 			})

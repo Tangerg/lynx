@@ -22,7 +22,7 @@ func TestAudioTTSModel_Call_Mock(t *testing.T) {
 		t.Fatal(err)
 	}
 	opts.Voice = "test-voice"
-	m, err := hume.NewAudioTTSModel(&hume.AudioTTSModelConfig{
+	m, err := hume.NewAudioTTSModel(hume.AudioTTSModelConfig{
 		APIKey:         model.NewAPIKey("test-key"),
 		DefaultOptions: opts,
 		BaseURL:        srv.URL,

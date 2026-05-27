@@ -33,10 +33,7 @@ type ChatModelConfig struct {
 	RequestOptions []option.RequestOption
 }
 
-func (c *ChatModelConfig) validate() error {
-	if c == nil {
-		return errors.New("azureopenai: config must not be nil")
-	}
+func (c ChatModelConfig) Validate() error {
 	if c.Endpoint == "" {
 		return errors.New("azureopenai: Endpoint is required")
 	}
@@ -49,12 +46,12 @@ func (c *ChatModelConfig) validate() error {
 // NewChatModel returns an [openai.ChatModel] pointed at Azure OpenAI.
 // [chat.Options].Model should be the Azure deployment id, not the
 // underlying model name.
-func NewChatModel(cfg *ChatModelConfig) (*openai.ChatModel, error) {
-	if err := cfg.validate(); err != nil {
+func NewChatModel(cfg ChatModelConfig) (*openai.ChatModel, error) {
+	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
 	apiKey, reqOpts := buildAzureRequestOptions(cfg.APIKey, cfg.Endpoint, cfg.APIVersion, cfg.RequestOptions)
-	return openai.NewChatModel(&openai.ChatModelConfig{
+	return openai.NewChatModel(openai.ChatModelConfig{
 		APIKey:         apiKey,
 		DefaultOptions: cfg.DefaultOptions,
 		RequestOptions: reqOpts,

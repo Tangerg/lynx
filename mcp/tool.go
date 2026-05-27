@@ -53,10 +53,7 @@ type ToolConfig struct {
 	MetaFunc MetaFunc
 }
 
-func (c *ToolConfig) validate() error {
-	if c == nil {
-		return ErrNilConfig
-	}
+func (c ToolConfig) Validate() error {
 	if c.Session == nil {
 		return ErrNilSession
 	}
@@ -75,8 +72,8 @@ func (c *ToolConfig) validate() error {
 // NewTool builds a [chat.Tool] from cfg. cfg.Session must be
 // initialized (returned from (*sdkmcp.Client).Connect) and must outlive
 // the returned Tool.
-func NewTool(cfg *ToolConfig) (*Tool, error) {
-	if err := cfg.validate(); err != nil {
+func NewTool(cfg ToolConfig) (*Tool, error) {
+	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
 

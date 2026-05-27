@@ -17,10 +17,7 @@ type APIConfig struct {
 	RequestOptions []option.RequestOption
 }
 
-func (c *APIConfig) validate() error {
-	if c == nil {
-		return errors.New("anthropic: config must not be nil")
-	}
+func (c APIConfig) Validate() error {
 	if c.APIKey == nil {
 		return errors.New("anthropic: APIKey is required")
 	}
@@ -31,8 +28,8 @@ type API struct {
 	client *anthropicsdk.Client
 }
 
-func NewAPI(cfg *APIConfig) (*API, error) {
-	if err := cfg.validate(); err != nil {
+func NewAPI(cfg APIConfig) (*API, error) {
+	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
 

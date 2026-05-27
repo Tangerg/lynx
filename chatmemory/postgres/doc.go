@@ -9,7 +9,7 @@
 // Example:
 //
 //	pool, _ := pgxpool.New(ctx, "postgres://...")
-//	store, _ := postgres.NewStore(&postgres.StoreConfig{
+//	store, _ := postgres.NewStore(postgres.StoreConfig{
 //	    Pool:             pool,
 //	    InitializeSchema: true, // create the table+index on first use
 //	})

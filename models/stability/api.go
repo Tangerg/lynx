@@ -20,10 +20,7 @@ type APIConfig struct {
 	HTTPClient *http.Client
 }
 
-func (c *APIConfig) validate() error {
-	if c == nil {
-		return errors.New("stability: config must not be nil")
-	}
+func (c APIConfig) Validate() error {
 	if c.APIKey == nil {
 		return errors.New("stability: APIKey is required")
 	}
@@ -34,8 +31,8 @@ type API struct {
 	http *resty.Client
 }
 
-func NewAPI(cfg *APIConfig) (*API, error) {
-	if err := cfg.validate(); err != nil {
+func NewAPI(cfg APIConfig) (*API, error) {
+	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
 

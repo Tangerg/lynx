@@ -63,10 +63,7 @@ type StoreConfig struct {
 	InitializeSchema bool
 }
 
-func (c *StoreConfig) validate() error {
-	if c == nil {
-		return errors.New("postgres: config must not be nil")
-	}
+func (c StoreConfig) Validate() error {
 	if c.Context == nil {
 		c.Context = context.Background()
 	}
@@ -135,8 +132,8 @@ type Store struct {
 // NewStore builds a [Store] from cfg. When
 // [StoreConfig.InitializeSchema] is true the table and index are
 // created if they don't already exist using [StoreConfig.Context].
-func NewStore(cfg *StoreConfig) (*Store, error) {
-	if err := cfg.validate(); err != nil {
+func NewStore(cfg StoreConfig) (*Store, error) {
+	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
 

@@ -17,10 +17,7 @@ type AudioTranscriptionModelConfig struct {
 	HTTPClient     *http.Client
 }
 
-func (c *AudioTranscriptionModelConfig) validate() error {
-	if c == nil {
-		return errors.New("elevenlabs: config must not be nil")
-	}
+func (c AudioTranscriptionModelConfig) Validate() error {
 	if c.APIKey == nil {
 		return errors.New("elevenlabs: APIKey is required")
 	}
@@ -40,12 +37,12 @@ type AudioTranscriptionModel struct {
 	defaultOptions *transcription.Options
 }
 
-func NewAudioTranscriptionModel(cfg *AudioTranscriptionModelConfig) (*AudioTranscriptionModel, error) {
-	if err := cfg.validate(); err != nil {
+func NewAudioTranscriptionModel(cfg AudioTranscriptionModelConfig) (*AudioTranscriptionModel, error) {
+	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
 
-	api, err := NewAPI(&APIConfig{
+	api, err := NewAPI(APIConfig{
 		APIKey:     cfg.APIKey,
 		BaseURL:    cfg.BaseURL,
 		HTTPClient: cfg.HTTPClient,

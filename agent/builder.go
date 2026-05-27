@@ -64,5 +64,5 @@ func (b *Builder) PlannerName(name string) *Builder {
 // (e.g. Version) doesn't leak back into the builder.
 func (b *Builder) Build() *core.Agent {
 	cfg := b.config
-	return core.NewAgent(&cfg)
+	return core.NewAgent(cfg)
 }

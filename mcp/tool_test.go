@@ -47,7 +47,7 @@ func TestTool_IsErrorBecomesToolCallError(t *testing.T) {
 	cs, cleanup := startServerWithFailing(t, ctx)
 	defer cleanup()
 
-	p, err := lynxmcp.NewProvider(&lynxmcp.ProviderConfig{
+	p, err := lynxmcp.NewProvider(lynxmcp.ProviderConfig{
 		Sources: []lynxmcp.Source{{Name: "s", Session: cs}},
 	})
 	require.NoError(t, err)
@@ -74,7 +74,7 @@ func TestTool_RPCErrorIsNotToolCallError(t *testing.T) {
 	cs, cleanup := startServerWithFailing(t, ctx)
 	cleanup() // close immediately
 
-	tool, err := lynxmcp.NewTool(&lynxmcp.ToolConfig{
+	tool, err := lynxmcp.NewTool(lynxmcp.ToolConfig{
 		Session:    cs,
 		Descriptor: &sdkmcp.Tool{Name: "boom", InputSchema: json.RawMessage(`{"type":"object"}`)},
 	})
@@ -91,7 +91,7 @@ func TestTool_EmptyArgumentsTreatedAsEmptyObject(t *testing.T) {
 	cs, _, cleanup := startServerWithEcho(t, ctx)
 	defer cleanup()
 
-	p, err := lynxmcp.NewProvider(&lynxmcp.ProviderConfig{
+	p, err := lynxmcp.NewProvider(lynxmcp.ProviderConfig{
 		Sources: []lynxmcp.Source{{Name: "s", Session: cs}},
 	})
 	require.NoError(t, err)
@@ -128,7 +128,7 @@ func TestTool_MetaForwardedToServer(t *testing.T) {
 	require.NoError(t, err)
 	defer cs.Close()
 
-	p, err := lynxmcp.NewProvider(&lynxmcp.ProviderConfig{
+	p, err := lynxmcp.NewProvider(lynxmcp.ProviderConfig{
 		Sources:  []lynxmcp.Source{{Name: "src", Session: cs}},
 		MetaFunc: lynxmcp.MetaFromContext,
 	})
@@ -154,17 +154,17 @@ func TestNewTool_RejectsBadInputs(t *testing.T) {
 	}{
 		{
 			name: "nil session",
-			cfg:  &lynxmcp.ToolConfig{Descriptor: &sdkmcp.Tool{Name: "x"}},
+			cfg:  lynxmcp.ToolConfig{Descriptor: &sdkmcp.Tool{Name: "x"}},
 			want: "session must not be nil",
 		},
 		{
 			name: "nil descriptor",
-			cfg:  &lynxmcp.ToolConfig{Session: &sdkmcp.ClientSession{}},
+			cfg:  lynxmcp.ToolConfig{Session: &sdkmcp.ClientSession{}},
 			want: "descriptor must not be nil",
 		},
 		{
 			name: "empty name",
-			cfg:  &lynxmcp.ToolConfig{Session: &sdkmcp.ClientSession{}, Descriptor: &sdkmcp.Tool{}},
+			cfg:  lynxmcp.ToolConfig{Session: &sdkmcp.ClientSession{}, Descriptor: &sdkmcp.Tool{}},
 			want: "empty name",
 		},
 	}
@@ -178,7 +178,7 @@ func TestNewTool_RejectsBadInputs(t *testing.T) {
 }
 
 func TestNewTool_DefaultsPrefixedNameToDescriptorName(t *testing.T) {
-	tool, err := lynxmcp.NewTool(&lynxmcp.ToolConfig{
+	tool, err := lynxmcp.NewTool(lynxmcp.ToolConfig{
 		Session:    &sdkmcp.ClientSession{},
 		Descriptor: &sdkmcp.Tool{Name: "calc"},
 	})

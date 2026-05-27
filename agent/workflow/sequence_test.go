@@ -49,7 +49,7 @@ func makeDraftAgent() *core.Agent {
 }
 
 func TestSequence_TwoStepChain(t *testing.T) {
-	platform := agent.NewPlatform(&runtime.PlatformConfig{})
+	platform := agent.NewPlatform(runtime.PlatformConfig{})
 	outliner := makeOutlineAgent()
 	drafter := makeDraftAgent()
 	if err := platform.Deploy(outliner); err != nil {
@@ -104,7 +104,7 @@ func makeFailingAgent(name string, errMsg string) *core.Agent {
 }
 
 func TestSequence_StepFailurePropagates(t *testing.T) {
-	platform := agent.NewPlatform(&runtime.PlatformConfig{})
+	platform := agent.NewPlatform(runtime.PlatformConfig{})
 	failing := makeFailingAgent("failing-step", "step blew up")
 	drafter := makeDraftAgent()
 	mustDeploy(t, platform, failing, drafter)
@@ -130,14 +130,14 @@ func TestSequence_StepFailurePropagates(t *testing.T) {
 }
 
 func TestSequence_RejectsTooFewAgents(t *testing.T) {
-	platform := agent.NewPlatform(&runtime.PlatformConfig{})
+	platform := agent.NewPlatform(runtime.PlatformConfig{})
 	if _, err := workflow.Sequence[seqTopic, seqDraft](platform, "single", makeOutlineAgent()); err == nil {
 		t.Fatal("expected error")
 	}
 }
 
 func TestSequence_RejectsNilAgent(t *testing.T) {
-	platform := agent.NewPlatform(&runtime.PlatformConfig{})
+	platform := agent.NewPlatform(runtime.PlatformConfig{})
 	if _, err := workflow.Sequence[seqTopic, seqDraft](platform, "with-nil", makeOutlineAgent(), nil); err == nil {
 		t.Fatal("expected error")
 	}

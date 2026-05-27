@@ -101,7 +101,7 @@ func Sequence[In, Out any](
 		},
 	)
 
-	return core.NewAgent(&core.AgentConfig{
+	return core.NewAgent(core.AgentConfig{
 		Name:    name,
 		Actions: []core.Action{pipeline},
 		Goals: []*core.Goal{core.GoalProducing[Out](core.Goal{

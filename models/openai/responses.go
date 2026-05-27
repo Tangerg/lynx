@@ -51,12 +51,12 @@ var _ chat.Model = (*ResponsesChatModel)(nil)
 // Config is identical to [NewChatModel] — same APIKey, DefaultOptions,
 // RequestOptions, optional Metadata override — so callers can switch
 // surfaces without re-plumbing.
-func NewResponsesChatModel(cfg *ChatModelConfig) (*ResponsesChatModel, error) {
-	if err := cfg.validate(); err != nil {
+func NewResponsesChatModel(cfg ChatModelConfig) (*ResponsesChatModel, error) {
+	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
 
-	api, err := NewAPI(&APIConfig{
+	api, err := NewAPI(APIConfig{
 		APIKey:         cfg.APIKey,
 		RequestOptions: cfg.RequestOptions,
 	})

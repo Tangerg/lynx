@@ -496,10 +496,7 @@ type ChatModelConfig struct {
 	Metadata *chat.ModelMetadata
 }
 
-func (c *ChatModelConfig) validate() error {
-	if c == nil {
-		return errors.New("anthropic: config must not be nil")
-	}
+func (c ChatModelConfig) Validate() error {
 	if c.APIKey == nil {
 		return errors.New("anthropic: APIKey is required")
 	}
@@ -519,12 +516,12 @@ type ChatModel struct {
 	metadata       chat.ModelMetadata
 }
 
-func NewChatModel(cfg *ChatModelConfig) (*ChatModel, error) {
-	if err := cfg.validate(); err != nil {
+func NewChatModel(cfg ChatModelConfig) (*ChatModel, error) {
+	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
 
-	api, err := NewAPI(&APIConfig{
+	api, err := NewAPI(APIConfig{
 		APIKey:         cfg.APIKey,
 		RequestOptions: cfg.RequestOptions,
 	})

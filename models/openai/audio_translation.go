@@ -28,10 +28,7 @@ type AudioTranslationModelConfig struct {
 	Metadata *transcription.ModelMetadata
 }
 
-func (c *AudioTranslationModelConfig) validate() error {
-	if c == nil {
-		return errors.New("openai: config must not be nil")
-	}
+func (c AudioTranslationModelConfig) Validate() error {
 	if c.APIKey == nil {
 		return errors.New("openai: APIKey is required")
 	}
@@ -57,12 +54,12 @@ type AudioTranslationModel struct {
 	metadata       transcription.ModelMetadata
 }
 
-func NewAudioTranslationModel(cfg *AudioTranslationModelConfig) (*AudioTranslationModel, error) {
-	if err := cfg.validate(); err != nil {
+func NewAudioTranslationModel(cfg AudioTranslationModelConfig) (*AudioTranslationModel, error) {
+	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
 
-	api, err := NewAPI(&APIConfig{
+	api, err := NewAPI(APIConfig{
 		APIKey:         cfg.APIKey,
 		RequestOptions: cfg.RequestOptions,
 	})

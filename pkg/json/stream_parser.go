@@ -28,10 +28,7 @@ type StreamParserConfig struct {
 const defaultParserBufSize = 4096
 
 // validate fills in defaults and reports configuration errors.
-func (c *StreamParserConfig) validate() error {
-	if c == nil {
-		return errors.New("json: nil config")
-	}
+func (c StreamParserConfig) Validate() error {
 	if c.Reader == nil {
 		return errors.New("json: reader required")
 	}
@@ -47,7 +44,7 @@ func (c *StreamParserConfig) validate() error {
 //
 // Example:
 //
-//	p, _ := json.NewStreamParser(&json.StreamParserConfig{
+//	p, _ := json.NewStreamParser(json.StreamParserConfig{
 //	    Reader: r,
 //	    OnObject: func(o map[string]any) error { handle(o); return nil },
 //	})
@@ -70,8 +67,8 @@ type StreamParser struct {
 }
 
 // NewStreamParser returns a parser configured by config.
-func NewStreamParser(config *StreamParserConfig) (*StreamParser, error) {
-	if err := config.validate(); err != nil {
+func NewStreamParser(config StreamParserConfig) (*StreamParser, error) {
+	if err := config.Validate(); err != nil {
 		return nil, err
 	}
 	return &StreamParser{

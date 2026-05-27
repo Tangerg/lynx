@@ -24,7 +24,7 @@ func TestChatModel_Integration(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			m, err := deepseek.NewOpenAIChatModel(&deepseek.OpenAIChatModelConfig{
+			m, err := deepseek.NewOpenAIChatModel(deepseek.OpenAIChatModelConfig{
 				APIKey:         model.NewAPIKey(key),
 				DefaultOptions: opts,
 			})

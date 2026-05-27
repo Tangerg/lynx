@@ -19,7 +19,7 @@ func TestChatModel(t *testing.T) {
 			if err != nil {
 				t.Fatalf("NewOptions: %v", err)
 			}
-			m, err := minimax.NewOpenAIChatModel(&minimax.OpenAIChatModelConfig{
+			m, err := minimax.NewOpenAIChatModel(minimax.OpenAIChatModelConfig{
 				APIKey:         model.NewAPIKey("test-key"),
 				DefaultOptions: opts,
 				BaseURL:        baseURL,

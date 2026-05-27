@@ -145,7 +145,7 @@ func Loop[In, Out any](
 		},
 	)
 
-	return core.NewAgent(&core.AgentConfig{
+	return core.NewAgent(core.AgentConfig{
 		Name:        spec.Name,
 		Description: spec.Description,
 		Actions:     []core.Action{iter},

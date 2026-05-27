@@ -25,10 +25,7 @@ type StoreConfig struct {
 	Container *azcosmos.ContainerClient
 }
 
-func (c *StoreConfig) validate() error {
-	if c == nil {
-		return errors.New("cosmosdb: config must not be nil")
-	}
+func (c StoreConfig) Validate() error {
 	if c.Container == nil {
 		return errors.New("cosmosdb: Container is required")
 	}
@@ -44,8 +41,8 @@ type Store struct {
 }
 
 // NewStore builds a [Store] from cfg.
-func NewStore(cfg *StoreConfig) (*Store, error) {
-	if err := cfg.validate(); err != nil {
+func NewStore(cfg StoreConfig) (*Store, error) {
+	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
 	return &Store{container: cfg.Container}, nil

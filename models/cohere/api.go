@@ -19,10 +19,7 @@ type APIConfig struct {
 	RequestOptions []cohereoption.RequestOption
 }
 
-func (c *APIConfig) validate() error {
-	if c == nil {
-		return errors.New("cohere: config must not be nil")
-	}
+func (c APIConfig) Validate() error {
 	if c.APIKey == nil {
 		return errors.New("cohere: APIKey is required")
 	}
@@ -39,8 +36,8 @@ type API struct {
 	v2 *cohereclientv2.Client
 }
 
-func NewAPI(cfg *APIConfig) (*API, error) {
-	if err := cfg.validate(); err != nil {
+func NewAPI(cfg APIConfig) (*API, error) {
+	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
 

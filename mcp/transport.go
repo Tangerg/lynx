@@ -45,18 +45,13 @@ type HTTPServerOptions struct {
 //
 // Multi-tenant routing example:
 //
-//	h := mcp.NewStreamableHTTPHandler(nil, &mcp.HTTPServerOptions{
+//	h := mcp.NewStreamableHTTPHandler(nil, mcp.HTTPServerOptions{
 //	    GetServer: func(r *http.Request) *sdkmcp.Server {
 //	        return registry[r.PathValue("tenant")]
 //	    },
 //	})
-func NewStreamableHTTPHandler(server *sdkmcp.Server, opts *HTTPServerOptions) http.Handler {
-	o := HTTPServerOptions{}
-	if opts != nil {
-		o = *opts
-	}
-
-	getServer := o.GetServer
+func NewStreamableHTTPHandler(server *sdkmcp.Server, opts HTTPServerOptions) http.Handler {
+	getServer := opts.GetServer
 	if getServer == nil {
 		// Capture the server pointer so the closure is independent of
 		// the option struct after this constructor returns.
@@ -65,8 +60,8 @@ func NewStreamableHTTPHandler(server *sdkmcp.Server, opts *HTTPServerOptions) ht
 	}
 
 	return sdkmcp.NewStreamableHTTPHandler(getServer, &sdkmcp.StreamableHTTPOptions{
-		Stateless:    o.Stateless,
-		JSONResponse: o.JSONResponse,
+		Stateless:    opts.Stateless,
+		JSONResponse: opts.JSONResponse,
 	})
 }
 
@@ -110,7 +105,7 @@ func DialStreamableHTTP(
 	ctx context.Context,
 	client *sdkmcp.Client,
 	endpoint string,
-	opts *HTTPClientOptions,
+	opts HTTPClientOptions,
 ) (*sdkmcp.ClientSession, error) {
 	if client == nil {
 		return nil, errors.New("mcp.DialStreamableHTTP: client must not be nil")
@@ -120,12 +115,10 @@ func DialStreamableHTTP(
 	}
 
 	transport := &sdkmcp.StreamableClientTransport{
-		Endpoint: endpoint,
-	}
-	if opts != nil {
-		transport.HTTPClient = opts.HTTPClient
-		transport.MaxRetries = opts.MaxRetries
-		transport.DisableStandaloneSSE = opts.DisableStandaloneSSE
+		Endpoint:             endpoint,
+		HTTPClient:           opts.HTTPClient,
+		MaxRetries:           opts.MaxRetries,
+		DisableStandaloneSSE: opts.DisableStandaloneSSE,
 	}
 
 	return client.Connect(ctx, transport, nil)
@@ -174,7 +167,7 @@ func DialCommand(
 	client *sdkmcp.Client,
 	command string,
 	args []string,
-	opts *CommandClientOptions,
+	opts CommandClientOptions,
 ) (*sdkmcp.ClientSession, error) {
 	if client == nil {
 		return nil, errors.New("mcp.DialCommand: client must not be nil")
@@ -184,17 +177,15 @@ func DialCommand(
 	}
 
 	cmd := exec.CommandContext(ctx, command, args...)
-	if opts != nil {
-		if opts.Env != nil {
-			cmd.Env = opts.Env
-		}
-		if opts.Dir != "" {
-			cmd.Dir = opts.Dir
-		}
+	if opts.Env != nil {
+		cmd.Env = opts.Env
+	}
+	if opts.Dir != "" {
+		cmd.Dir = opts.Dir
 	}
 
 	transport := &sdkmcp.CommandTransport{Command: cmd}
-	if opts != nil && opts.TerminateDuration > 0 {
+	if opts.TerminateDuration > 0 {
 		transport.TerminateDuration = opts.TerminateDuration
 	}
 

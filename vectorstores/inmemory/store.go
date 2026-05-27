@@ -26,10 +26,7 @@ type StoreConfig struct {
 	Similarity Similarity
 }
 
-func (c *StoreConfig) validate() error {
-	if c == nil {
-		return ErrNilConfig
-	}
+func (c StoreConfig) Validate() error {
 	if c.EmbeddingClient == nil {
 		return ErrMissingEmbeddingClient
 	}
@@ -60,8 +57,8 @@ type Store struct {
 }
 
 
-func NewStore(cfg *StoreConfig) (*Store, error) {
-	if err := cfg.validate(); err != nil {
+func NewStore(cfg StoreConfig) (*Store, error) {
+	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
 	return &Store{

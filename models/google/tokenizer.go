@@ -22,10 +22,7 @@ type TextEstimatorConfig struct {
 	Location string
 }
 
-func (c *TextEstimatorConfig) validate() error {
-	if c == nil {
-		return errors.New("google: config must not be nil")
-	}
+func (c TextEstimatorConfig) Validate() error {
 	if c.Backend != genai.BackendVertexAI && c.APIKey == nil {
 		return errors.New("google: APIKey is required")
 	}
@@ -45,12 +42,12 @@ type TextEstimator struct {
 	model string
 }
 
-func NewTextEstimator(cfg *TextEstimatorConfig) (*TextEstimator, error) {
-	if err := cfg.validate(); err != nil {
+func NewTextEstimator(cfg TextEstimatorConfig) (*TextEstimator, error) {
+	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
 
-	api, err := NewAPI(&APIConfig{
+	api, err := NewAPI(APIConfig{
 		APIKey:   cfg.APIKey,
 		Backend:  cfg.Backend,
 		Project:  cfg.Project,

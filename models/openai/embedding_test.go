@@ -21,7 +21,7 @@ func newEmbeddingModel(t *testing.T, baseURL, modelID string) *openai.EmbeddingM
 	if err != nil {
 		t.Fatalf("NewOptions: %v", err)
 	}
-	m, err := openai.NewEmbeddingModel(&openai.EmbeddingModelConfig{
+	m, err := openai.NewEmbeddingModel(openai.EmbeddingModelConfig{
 		APIKey:         model.NewAPIKey("test-key"),
 		DefaultOptions: opts,
 		RequestOptions: []option.RequestOption{option.WithBaseURL(baseURL)},

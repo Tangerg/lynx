@@ -6,7 +6,7 @@ import (
 )
 
 func TestNewStreamScanner(t *testing.T) {
-	parser, err := NewStreamScanner(&StreamScannerConfig{
+	parser, err := NewStreamScanner(StreamScannerConfig{
 		OnText: func(s string) error {
 			t.Log("ontext", s)
 			return nil

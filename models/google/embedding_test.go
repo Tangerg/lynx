@@ -26,7 +26,7 @@ func TestEmbeddingModel_Call_Mock(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	m, err := google.NewEmbeddingModel(&google.EmbeddingModelConfig{
+	m, err := google.NewEmbeddingModel(google.EmbeddingModelConfig{
 		APIKey:         model.NewAPIKey("test-key"),
 		DefaultOptions: opts,
 		BaseURL:        srv.URL,

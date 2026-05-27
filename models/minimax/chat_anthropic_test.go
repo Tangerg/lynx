@@ -19,7 +19,7 @@ func TestAnthropicChatModel(t *testing.T) {
 			if err != nil {
 				t.Fatalf("NewOptions: %v", err)
 			}
-			m, err := minimax.NewAnthropicChatModel(&minimax.AnthropicChatModelConfig{
+			m, err := minimax.NewAnthropicChatModel(minimax.AnthropicChatModelConfig{
 				APIKey:         model.NewAPIKey("test-key"),
 				DefaultOptions: opts,
 				BaseURL:        baseURL,

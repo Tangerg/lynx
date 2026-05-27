@@ -9,7 +9,7 @@ import (
 )
 
 func TestStoreConfig_ContainerRequired(t *testing.T) {
-	_, err := cosmosdb.NewStore(&cosmosdb.StoreConfig{})
+	_, err := cosmosdb.NewStore(cosmosdb.StoreConfig{})
 	if err == nil {
 		t.Fatal("expected error when Container is nil")
 	}

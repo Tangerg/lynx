@@ -31,8 +31,8 @@ func NewCondition(name string, fn func(ctx context.Context, oc *core.ConditionEn
 // type T exists on the blackboard". See [core.GoalProducing].
 func GoalProducing[T any](g core.Goal) *core.Goal { return core.GoalProducing[T](g) }
 
-// NewPlatform constructs a runtime Platform from config. nil config
-// yields a zero-config platform.
-func NewPlatform(config *runtime.PlatformConfig) *runtime.Platform {
+// NewPlatform constructs a runtime Platform from config. The zero
+// value yields a default-configured platform.
+func NewPlatform(config runtime.PlatformConfig) *runtime.Platform {
 	return runtime.NewPlatform(config)
 }

@@ -33,9 +33,7 @@ type StoreConfig = pgvector.StoreConfig
 type Store = pgvector.Store
 
 
-func NewStore(cfg *StoreConfig) (*Store, error) {
-	if cfg != nil {
-		cfg.SkipExtensionCreate = true
-	}
+func NewStore(cfg StoreConfig) (*Store, error) {
+	cfg.SkipExtensionCreate = true
 	return pgvector.NewStore(cfg)
 }

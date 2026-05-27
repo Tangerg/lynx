@@ -49,7 +49,7 @@ func TestScatterGather_RunsAllGeneratorsAndJoins(t *testing.T) {
 		t.Fatalf("ScatterGather: %v", err)
 	}
 
-	platform := agent.NewPlatform(&runtime.PlatformConfig{})
+	platform := agent.NewPlatform(runtime.PlatformConfig{})
 	if err := platform.Deploy(a); err != nil {
 		t.Fatalf("deploy: %v", err)
 	}
@@ -90,7 +90,7 @@ func TestScatterGather_GeneratorErrorPropagates(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ScatterGather: %v", err)
 	}
-	platform := agent.NewPlatform(&runtime.PlatformConfig{})
+	platform := agent.NewPlatform(runtime.PlatformConfig{})
 	if err := platform.Deploy(a); err != nil {
 		t.Fatalf("deploy: %v", err)
 	}

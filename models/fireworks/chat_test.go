@@ -19,7 +19,7 @@ func TestChatModel(t *testing.T) {
 			if err != nil {
 				t.Fatalf("NewOptions: %v", err)
 			}
-			m, err := fireworks.NewOpenAIChatModel(&fireworks.OpenAIChatModelConfig{
+			m, err := fireworks.NewOpenAIChatModel(fireworks.OpenAIChatModelConfig{
 				APIKey:         model.NewAPIKey("test-key"),
 				DefaultOptions: opts,
 				BaseURL:        baseURL,

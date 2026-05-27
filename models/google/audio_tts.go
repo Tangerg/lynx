@@ -31,10 +31,7 @@ type AudioTTSModelConfig struct {
 	Metadata *tts.ModelMetadata
 }
 
-func (c *AudioTTSModelConfig) validate() error {
-	if c == nil {
-		return errors.New("google: config must not be nil")
-	}
+func (c AudioTTSModelConfig) Validate() error {
 	if c.Backend != genai.BackendVertexAI && c.APIKey == nil {
 		return errors.New("google: APIKey is required")
 	}
@@ -59,12 +56,12 @@ type AudioTTSModel struct {
 	metadata       tts.ModelMetadata
 }
 
-func NewAudioTTSModel(cfg *AudioTTSModelConfig) (*AudioTTSModel, error) {
-	if err := cfg.validate(); err != nil {
+func NewAudioTTSModel(cfg AudioTTSModelConfig) (*AudioTTSModel, error) {
+	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
 
-	api, err := NewAPI(&APIConfig{
+	api, err := NewAPI(APIConfig{
 		APIKey:   cfg.APIKey,
 		Backend:  cfg.Backend,
 		Project:  cfg.Project,

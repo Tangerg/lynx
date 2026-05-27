@@ -19,10 +19,7 @@ type ImageModelConfig struct {
 	HTTPClient     *http.Client
 }
 
-func (c *ImageModelConfig) validate() error {
-	if c == nil {
-		return errors.New("prodia: config must not be nil")
-	}
+func (c ImageModelConfig) Validate() error {
 	if c.APIKey == nil {
 		return errors.New("prodia: APIKey is required")
 	}
@@ -45,11 +42,11 @@ type ImageModel struct {
 	defaultOptions *image.Options
 }
 
-func NewImageModel(cfg *ImageModelConfig) (*ImageModel, error) {
-	if err := cfg.validate(); err != nil {
+func NewImageModel(cfg ImageModelConfig) (*ImageModel, error) {
+	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
-	api, err := NewAPI(&APIConfig{APIKey: cfg.APIKey, BaseURL: cfg.BaseURL, HTTPClient: cfg.HTTPClient})
+	api, err := NewAPI(APIConfig{APIKey: cfg.APIKey, BaseURL: cfg.BaseURL, HTTPClient: cfg.HTTPClient})
 	if err != nil {
 		return nil, err
 	}

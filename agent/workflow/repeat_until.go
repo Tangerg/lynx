@@ -117,7 +117,7 @@ func RepeatUntil[In, Out any](spec RepeatUntilConfig[In, Out]) (*core.Agent, err
 		},
 	)
 
-	return core.NewAgent(&core.AgentConfig{
+	return core.NewAgent(core.AgentConfig{
 		Name:        spec.Name,
 		Description: spec.Description,
 		Actions:     []core.Action{task},

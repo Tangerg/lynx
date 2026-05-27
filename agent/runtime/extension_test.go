@@ -66,7 +66,7 @@ func TestPlatformExtensionDedupPanic(t *testing.T) {
 	}()
 
 	rec := &orderRecorder{}
-	agent.NewPlatform(&runtime.PlatformConfig{
+	agent.NewPlatform(runtime.PlatformConfig{
 		Extensions: []core.Extension{
 			orderedInterceptor{name: "dup", recorder: rec},
 			orderedInterceptor{name: "dup", recorder: rec},
@@ -83,7 +83,7 @@ func TestPlatformExtensionEmptyNamePanic(t *testing.T) {
 		}
 	}()
 
-	agent.NewPlatform(&runtime.PlatformConfig{
+	agent.NewPlatform(runtime.PlatformConfig{
 		Extensions: []core.Extension{orderedInterceptor{name: "", recorder: &orderRecorder{}}},
 	})
 }
@@ -106,7 +106,7 @@ func TestActionMiddlewareOnionOrdering(t *testing.T) {
 		Goals(agent.GoalProducing[runOut](core.Goal{Description: "out"})).
 		Build()
 
-	platform := agent.NewPlatform(&runtime.PlatformConfig{
+	platform := agent.NewPlatform(runtime.PlatformConfig{
 		Extensions: []core.Extension{
 			orderedInterceptor{name: "platform-A", recorder: rec},
 			orderedInterceptor{name: "platform-B", recorder: rec},
@@ -178,7 +178,7 @@ func TestAgentValidatorRejectsDeploy(t *testing.T) {
 		Goals(agent.GoalProducing[vOut](core.Goal{Description: "done"})).
 		Build()
 
-	platform := agent.NewPlatform(&runtime.PlatformConfig{
+	platform := agent.NewPlatform(runtime.PlatformConfig{
 		Extensions: []core.Extension{
 			failingValidator{name: "policy", err: errors.New("missing SLA tag")},
 		},
@@ -211,7 +211,7 @@ func TestGoalApproverVetoesPlan(t *testing.T) {
 		Goals(agent.GoalProducing[vetoOut](core.Goal{Description: "done"})).
 		Build()
 
-	platform := agent.NewPlatform(&runtime.PlatformConfig{
+	platform := agent.NewPlatform(runtime.PlatformConfig{
 		Extensions: []core.Extension{vetoApprover{name: "veto"}},
 	})
 	if err := platform.Deploy(a); err != nil {
@@ -240,7 +240,7 @@ func TestProcessExtensionDedupErrors(t *testing.T) {
 		Goals(agent.GoalProducing[dOut](core.Goal{Description: "done"})).
 		Build()
 
-	platform := agent.NewPlatform(&runtime.PlatformConfig{})
+	platform := agent.NewPlatform(runtime.PlatformConfig{})
 	if err := platform.Deploy(a); err != nil {
 		t.Fatal(err)
 	}
@@ -289,7 +289,7 @@ func TestProcessScopedListenerFires(t *testing.T) {
 		Goals(agent.GoalProducing[pOut](core.Goal{Description: "done"})).
 		Build()
 
-	platform := agent.NewPlatform(&runtime.PlatformConfig{})
+	platform := agent.NewPlatform(runtime.PlatformConfig{})
 	if err := platform.Deploy(a); err != nil {
 		t.Fatal(err)
 	}

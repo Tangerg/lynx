@@ -18,10 +18,7 @@ type AudioTTSModelConfig struct {
 	HTTPClient     *http.Client
 }
 
-func (c *AudioTTSModelConfig) validate() error {
-	if c == nil {
-		return errors.New("lmnt: config must not be nil")
-	}
+func (c AudioTTSModelConfig) Validate() error {
 	if c.APIKey == nil {
 		return errors.New("lmnt: APIKey is required")
 	}
@@ -46,11 +43,11 @@ type AudioTTSModel struct {
 	defaultOptions *tts.Options
 }
 
-func NewAudioTTSModel(cfg *AudioTTSModelConfig) (*AudioTTSModel, error) {
-	if err := cfg.validate(); err != nil {
+func NewAudioTTSModel(cfg AudioTTSModelConfig) (*AudioTTSModel, error) {
+	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
-	api, err := NewAPI(&APIConfig{APIKey: cfg.APIKey, BaseURL: cfg.BaseURL, HTTPClient: cfg.HTTPClient})
+	api, err := NewAPI(APIConfig{APIKey: cfg.APIKey, BaseURL: cfg.BaseURL, HTTPClient: cfg.HTTPClient})
 	if err != nil {
 		return nil, err
 	}

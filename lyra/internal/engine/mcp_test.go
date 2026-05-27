@@ -89,7 +89,7 @@ func TestEngine_DialMCPServer(t *testing.T) {
 		t.Fatalf("register tools: %v", err)
 	}
 
-	httpServer := httptest.NewServer(mcp.NewStreamableHTTPHandler(mcpServer, nil))
+	httpServer := httptest.NewServer(mcp.NewStreamableHTTPHandler(mcpServer, mcp.HTTPServerOptions{}))
 	defer httpServer.Close()
 
 	// 2. Construct the engine pointing at the http MCP endpoint.

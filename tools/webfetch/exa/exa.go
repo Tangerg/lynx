@@ -188,7 +188,7 @@ func (c *Client) Fetch(ctx context.Context, req *webfetch.Request) (*webfetch.Re
 	}
 	raw, err := c.FetchNative(ctx, &Request{
 		URLs: []string{req.URL},
-		Text: &TextOptions{IncludeHTMLTags: format == webfetch.FormatHTML},
+		Text: TextOptions{IncludeHTMLTags: format == webfetch.FormatHTML},
 	})
 	if err != nil {
 		return nil, err

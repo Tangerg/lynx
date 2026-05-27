@@ -25,10 +25,7 @@ type APIConfig struct {
 	HTTPClient *http.Client
 }
 
-func (c *APIConfig) validate() error {
-	if c == nil {
-		return errors.New("ollama: config must not be nil")
-	}
+func (c APIConfig) Validate() error {
 	return nil
 }
 
@@ -39,8 +36,8 @@ type API struct {
 	client *ollamaapi.Client
 }
 
-func NewAPI(cfg *APIConfig) (*API, error) {
-	if err := cfg.validate(); err != nil {
+func NewAPI(cfg APIConfig) (*API, error) {
+	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
 

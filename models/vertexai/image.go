@@ -15,10 +15,7 @@ type ImageModelConfig struct {
 	DefaultOptions *image.Options
 }
 
-func (c *ImageModelConfig) validate() error {
-	if c == nil {
-		return errors.New("vertexai: config must not be nil")
-	}
+func (c ImageModelConfig) Validate() error {
 	if c.Project == "" {
 		return errors.New("vertexai: Project is required")
 	}
@@ -33,11 +30,11 @@ func (c *ImageModelConfig) validate() error {
 
 // NewImageModel returns a [google.ImageModel] backed by Vertex AI.
 // Supported models: imagen-4.0-generate-001, imagen-3.0-generate-002.
-func NewImageModel(cfg *ImageModelConfig) (*google.ImageModel, error) {
-	if err := cfg.validate(); err != nil {
+func NewImageModel(cfg ImageModelConfig) (*google.ImageModel, error) {
+	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
-	return google.NewImageModel(&google.ImageModelConfig{
+	return google.NewImageModel(google.ImageModelConfig{
 		Backend:        genai.BackendVertexAI,
 		Project:        cfg.Project,
 		Location:       cfg.Location,

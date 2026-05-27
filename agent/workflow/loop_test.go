@@ -40,7 +40,7 @@ func makeIncrementingBody() (*core.Agent, *int32) {
 }
 
 func TestLoop_LoopsUntilUntilTrue(t *testing.T) {
-	platform := agent.NewPlatform(&runtime.PlatformConfig{})
+	platform := agent.NewPlatform(runtime.PlatformConfig{})
 	body, iterCount := makeIncrementingBody()
 	if err := platform.Deploy(body); err != nil {
 		t.Fatalf("deploy body: %v", err)
@@ -87,7 +87,7 @@ func TestLoop_LoopsUntilUntilTrue(t *testing.T) {
 }
 
 func TestLoop_MaxIterationsCapsTheLoop(t *testing.T) {
-	platform := agent.NewPlatform(&runtime.PlatformConfig{})
+	platform := agent.NewPlatform(runtime.PlatformConfig{})
 	body, iterCount := makeIncrementingBody()
 	mustDeploy(t, platform, body)
 
@@ -128,7 +128,7 @@ func TestLoop_BranchIsolation(t *testing.T) {
 	// iteration: it should NOT see prior iterations' loopOut bindings
 	// from the Loop's own blackboard. We check this by having the
 	// body assert the absence of any prior loopOut on its blackboard.
-	platform := agent.NewPlatform(&runtime.PlatformConfig{})
+	platform := agent.NewPlatform(runtime.PlatformConfig{})
 
 	var sawPriorOut atomic.Bool
 	body := agent.New("isolation-body").
@@ -169,7 +169,7 @@ func TestLoop_BranchIsolation(t *testing.T) {
 }
 
 func TestLoop_RejectsNilBody(t *testing.T) {
-	platform := agent.NewPlatform(&runtime.PlatformConfig{})
+	platform := agent.NewPlatform(runtime.PlatformConfig{})
 	if _, err := workflow.Loop[loopIn, loopOut](platform, workflow.LoopConfig[loopIn, loopOut]{
 		Name:  "no-body",
 		Until: func(_ context.Context, _ loopIn, _ loopOut) bool { return true },
@@ -179,7 +179,7 @@ func TestLoop_RejectsNilBody(t *testing.T) {
 }
 
 func TestLoop_RejectsNilUntil(t *testing.T) {
-	platform := agent.NewPlatform(&runtime.PlatformConfig{})
+	platform := agent.NewPlatform(runtime.PlatformConfig{})
 	body, _ := makeIncrementingBody()
 	if _, err := workflow.Loop[loopIn, loopOut](platform, workflow.LoopConfig[loopIn, loopOut]{
 		Name: "no-until",

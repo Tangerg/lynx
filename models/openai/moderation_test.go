@@ -30,7 +30,7 @@ func TestModerationModel_Call_Mock(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	m, err := openai.NewModerationModel(&openai.ModerationModelConfig{
+	m, err := openai.NewModerationModel(openai.ModerationModelConfig{
 		APIKey:         model.NewAPIKey("test-key"),
 		DefaultOptions: opts,
 		RequestOptions: []option.RequestOption{option.WithBaseURL(srv.URL)},
@@ -56,7 +56,7 @@ func TestModerationModel_Metadata(t *testing.T) {
 	srv := testutil.JSONServer(http.StatusOK, "{}")
 	t.Cleanup(srv.Close)
 	opts, _ := moderation.NewOptions("omni-moderation-latest")
-	m, _ := openai.NewModerationModel(&openai.ModerationModelConfig{
+	m, _ := openai.NewModerationModel(openai.ModerationModelConfig{
 		APIKey:         model.NewAPIKey("test-key"),
 		DefaultOptions: opts,
 		RequestOptions: []option.RequestOption{option.WithBaseURL(srv.URL)},

@@ -21,10 +21,7 @@ type TextEstimatorConfig struct {
 	RequestOptions []option.RequestOption
 }
 
-func (c *TextEstimatorConfig) validate() error {
-	if c == nil {
-		return errors.New("anthropic: config must not be nil")
-	}
+func (c TextEstimatorConfig) Validate() error {
 	if c.APIKey == nil {
 		return errors.New("anthropic: APIKey is required")
 	}
@@ -48,12 +45,12 @@ type TextEstimator struct {
 	model string
 }
 
-func NewTextEstimator(cfg *TextEstimatorConfig) (*TextEstimator, error) {
-	if err := cfg.validate(); err != nil {
+func NewTextEstimator(cfg TextEstimatorConfig) (*TextEstimator, error) {
+	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
 
-	api, err := NewAPI(&APIConfig{
+	api, err := NewAPI(APIConfig{
 		APIKey:         cfg.APIKey,
 		RequestOptions: cfg.RequestOptions,
 	})

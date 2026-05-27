@@ -23,10 +23,7 @@ type ModerationModelConfig struct {
 	Metadata *moderation.ModelMetadata
 }
 
-func (c *ModerationModelConfig) validate() error {
-	if c == nil {
-		return errors.New("openai: config must not be nil")
-	}
+func (c ModerationModelConfig) Validate() error {
 	if c.APIKey == nil {
 		return errors.New("openai: APIKey is required")
 	}
@@ -44,12 +41,12 @@ type ModerationModel struct {
 	metadata       moderation.ModelMetadata
 }
 
-func NewModerationModel(cfg *ModerationModelConfig) (*ModerationModel, error) {
-	if err := cfg.validate(); err != nil {
+func NewModerationModel(cfg ModerationModelConfig) (*ModerationModel, error) {
+	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
 
-	api, err := NewAPI(&APIConfig{
+	api, err := NewAPI(APIConfig{
 		APIKey:         cfg.APIKey,
 		RequestOptions: cfg.RequestOptions,
 	})

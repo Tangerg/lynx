@@ -52,10 +52,7 @@ type TokenSplitterConfig struct {
 
 // validate fills in defaults for non-positive numeric fields and
 // returns an error when required fields are missing.
-func (c *TokenSplitterConfig) validate() error {
-	if c == nil {
-		return errors.New("document.TokenSplitterConfig: config must not be nil")
-	}
+func (c TokenSplitterConfig) Validate() error {
 	if c.Tokenizer == nil {
 		return errors.New("document.TokenSplitterConfig: Tokenizer is required")
 	}
@@ -93,8 +90,8 @@ type TokenSplitter struct {
 
 // NewTokenSplitter builds a [TokenSplitter]. Returns an error when
 // config is nil or invalid.
-func NewTokenSplitter(config *TokenSplitterConfig) (*TokenSplitter, error) {
-	if err := config.validate(); err != nil {
+func NewTokenSplitter(config TokenSplitterConfig) (*TokenSplitter, error) {
+	if err := config.Validate(); err != nil {
 		return nil, err
 	}
 
@@ -107,7 +104,7 @@ func NewTokenSplitter(config *TokenSplitterConfig) (*TokenSplitter, error) {
 		keepSeparator:  config.KeepSeparator,
 		copyFormatter:  config.CopyFormatter,
 	}
-	ts.splitter, _ = NewSplitter(&SplitterConfig{
+	ts.splitter, _ = NewSplitter(SplitterConfig{
 		CopyFormatter: config.CopyFormatter,
 		SplitFunc:     ts.splitByTokens,
 	})

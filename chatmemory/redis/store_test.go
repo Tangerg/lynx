@@ -16,7 +16,7 @@ func stubClient() goredis.UniversalClient {
 }
 
 func TestStoreConfig_ClientRequired(t *testing.T) {
-	_, err := redis.NewStore(&redis.StoreConfig{})
+	_, err := redis.NewStore(redis.StoreConfig{})
 	if err == nil {
 		t.Fatal("expected error when Client is nil")
 	}
@@ -32,7 +32,7 @@ func TestStoreConfig_NilConfig(t *testing.T) {
 }
 
 func TestStoreConfig_NegativeTTL(t *testing.T) {
-	_, err := redis.NewStore(&redis.StoreConfig{
+	_, err := redis.NewStore(redis.StoreConfig{
 		Client: stubClient(),
 		TTL:    -1 * time.Second,
 	})
@@ -42,7 +42,7 @@ func TestStoreConfig_NegativeTTL(t *testing.T) {
 }
 
 func TestStoreConfig_KeyPrefixDefaults(t *testing.T) {
-	if _, err := redis.NewStore(&redis.StoreConfig{Client: stubClient()}); err != nil {
+	if _, err := redis.NewStore(redis.StoreConfig{Client: stubClient()}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }

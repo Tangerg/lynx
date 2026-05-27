@@ -27,7 +27,7 @@ func TestEmbeddingModel_Integration(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			m, err := bedrock.NewEmbeddingModel(t.Context(), &bedrock.EmbeddingModelConfig{
+			m, err := bedrock.NewEmbeddingModel(t.Context(), bedrock.EmbeddingModelConfig{
 				DefaultOptions: opts,
 				Region:         region,
 			})

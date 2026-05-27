@@ -64,7 +64,7 @@ func newStore(t *testing.T) *inmemory.Store {
 	if err != nil {
 		t.Fatalf("NewClient: %v", err)
 	}
-	store, err := inmemory.NewStore(&inmemory.StoreConfig{EmbeddingClient: client})
+	store, err := inmemory.NewStore(inmemory.StoreConfig{EmbeddingClient: client})
 	if err != nil {
 		t.Fatalf("NewStore: %v", err)
 	}
@@ -294,7 +294,7 @@ func TestStore_RejectsBadConfig(t *testing.T) {
 	if _, err := inmemory.NewStore(nil); err == nil {
 		t.Fatal("nil cfg must error")
 	}
-	if _, err := inmemory.NewStore(&inmemory.StoreConfig{}); err == nil {
+	if _, err := inmemory.NewStore(inmemory.StoreConfig{}); err == nil {
 		t.Fatal("missing embedding client must error")
 	}
 }

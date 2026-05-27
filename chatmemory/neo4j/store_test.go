@@ -18,7 +18,7 @@ func stubDriver() neo4j.DriverWithContext {
 }
 
 func TestStoreConfig_DriverRequired(t *testing.T) {
-	_, err := neo4jmem.NewStore(&neo4jmem.StoreConfig{})
+	_, err := neo4jmem.NewStore(neo4jmem.StoreConfig{})
 	if err == nil {
 		t.Fatal("expected error when Driver is nil")
 	}
@@ -34,7 +34,7 @@ func TestStoreConfig_NilConfig(t *testing.T) {
 }
 
 func TestStoreConfig_RejectsBadLabel(t *testing.T) {
-	_, err := neo4jmem.NewStore(&neo4jmem.StoreConfig{
+	_, err := neo4jmem.NewStore(neo4jmem.StoreConfig{
 		Driver: stubDriver(),
 		Label:  "Bad-Label",
 	})
@@ -44,7 +44,7 @@ func TestStoreConfig_RejectsBadLabel(t *testing.T) {
 }
 
 func TestStoreConfig_AcceptsDefaults(t *testing.T) {
-	_, err := neo4jmem.NewStore(&neo4jmem.StoreConfig{Driver: stubDriver()})
+	_, err := neo4jmem.NewStore(neo4jmem.StoreConfig{Driver: stubDriver()})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

@@ -9,7 +9,7 @@ import (
 )
 
 func TestStoreConfig_CollectionRequired(t *testing.T) {
-	_, err := mongodb.NewStore(&mongodb.StoreConfig{})
+	_, err := mongodb.NewStore(mongodb.StoreConfig{})
 	if err == nil {
 		t.Fatal("expected error when Collection is nil")
 	}

@@ -23,10 +23,7 @@ type ChatModelConfig struct {
 	AWSConfig      *aws.Config
 }
 
-func (c *ChatModelConfig) validate() error {
-	if c == nil {
-		return errors.New("bedrock: config must not be nil")
-	}
+func (c ChatModelConfig) Validate() error {
 	if c.DefaultOptions == nil {
 		return errors.New("bedrock: DefaultOptions is required")
 	}
@@ -51,11 +48,11 @@ type ChatModel struct {
 	defaultOptions *chat.Options
 }
 
-func NewChatModel(ctx context.Context, cfg *ChatModelConfig) (*ChatModel, error) {
-	if err := cfg.validate(); err != nil {
+func NewChatModel(ctx context.Context, cfg ChatModelConfig) (*ChatModel, error) {
+	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
-	api, err := NewAPI(ctx, &APIConfig{Region: cfg.Region, AWSConfig: cfg.AWSConfig})
+	api, err := NewAPI(ctx, APIConfig{Region: cfg.Region, AWSConfig: cfg.AWSConfig})
 	if err != nil {
 		return nil, err
 	}

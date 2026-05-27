@@ -24,7 +24,7 @@ func TestChatModel_Integration(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			m, err := mistral.NewOpenAIChatModel(&mistral.OpenAIChatModelConfig{
+			m, err := mistral.NewOpenAIChatModel(mistral.OpenAIChatModelConfig{
 				APIKey:         model.NewAPIKey(key),
 				DefaultOptions: opts,
 			})

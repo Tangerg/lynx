@@ -24,7 +24,7 @@ func integrationModel(t *testing.T) *anthropic.ChatModel {
 	if err != nil {
 		t.Fatal(err)
 	}
-	m, err := anthropic.NewChatModel(&anthropic.ChatModelConfig{
+	m, err := anthropic.NewChatModel(anthropic.ChatModelConfig{
 		APIKey:         model.NewAPIKey(key),
 		DefaultOptions: opts,
 	})

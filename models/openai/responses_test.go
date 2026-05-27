@@ -19,7 +19,7 @@ func newResponsesModel(t *testing.T, baseURL, modelID string) *openai.ResponsesC
 	if err != nil {
 		t.Fatalf("NewOptions: %v", err)
 	}
-	m, err := openai.NewResponsesChatModel(&openai.ChatModelConfig{
+	m, err := openai.NewResponsesChatModel(openai.ChatModelConfig{
 		APIKey:         model.NewAPIKey("test-key"),
 		DefaultOptions: opts,
 		RequestOptions: []option.RequestOption{option.WithBaseURL(baseURL)},

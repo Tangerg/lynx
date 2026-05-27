@@ -37,7 +37,7 @@ func TestImageModel_Call_Mock(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	m, err := midjourney.NewImageModel(&midjourney.ImageModelConfig{
+	m, err := midjourney.NewImageModel(midjourney.ImageModelConfig{
 		APIKey:         model.NewAPIKey("test-key"),
 		DefaultOptions: opts,
 		BaseURL:        srv.URL,
