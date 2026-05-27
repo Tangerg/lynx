@@ -28,13 +28,20 @@ no backend assumes frontend co-location.
 
 ### 0.2 Consequences for the API design
 
-- **HTTP/1.1 + HTTP/2 over TCP only.** No platform-specific IPC, no
-  shared-memory shortcuts, no native bindings (Wails / Tauri / Electron
-  bridges). The packaged-web variants point their HTTP client at
-  `http://127.0.0.1:<port>` when embedded — same client as the browser case.
-- **Auth is required from day one.** Even loopback. The packaged-web variant
-  ships a token alongside the embedded backend at install time; the browser
-  variant negotiates one via the auth flow. No "trust because same machine".
+- **Protocol and transport are separate concerns.** This document defines
+  the *protocol* — method names, payload shapes, event sequences, error
+  envelope. The *transport* (how bytes — or struct pointers — move
+  between the two halves) lives in [`TRANSPORT.md`](./TRANSPORT.md).
+  HTTP is one of six transport implementations; for Go-to-Go embedded
+  deployments (e.g. Bubble Tea TUI + Go runtime) the transport is a
+  direct function call with no serialization. **All transports speak
+  the same protocol**, so this document doesn't change based on which
+  one you pick.
+- **Auth is required when crossing a process boundary.** HTTP / Wails
+  IPC / sockets all require auth (Bearer token / OS-level ACL). The
+  in-process case (Go ↔ Go same binary) trusts the caller — capability
+  checks still happen inside the `CoreAPI` impl. See `TRANSPORT.md §6`
+  for the per-transport auth matrix.
 - **Capability discovery is non-optional.** Frontend X built today may talk
   to backend Y built tomorrow — features only enabled by both sides.
 - **Schema is the only API.** OpenAPI + AsyncAPI files are the SSOT,
@@ -48,11 +55,12 @@ no backend assumes frontend co-location.
 
 ### 0.3 Frontend variants — what each needs
 
-| Variant | Transport surface | Notes |
+| Variant | Default transport | Notes |
 | --- | --- | --- |
-| **Web** | `fetch` + `EventSource` | CORS preflight; cookie or Bearer auth; relative URLs from served origin. |
-| **Packaged web** | Same HTTP stack (Wails / Tauri / Electron route through their WebView's fetch) | Embedded backend listens on `127.0.0.1:0` (random port), token written to local config at startup; remote backends look identical. |
-| **TUI** | `node-fetch` / `reqwest` / Go `net/http` + SSE library | No CORS (server-to-server); typically Bearer auth via env var or `~/.config/lyra/token`. |
+| **Web** | HTTP (`fetch` + `EventSource`) | Only option a browser exposes. CORS preflight; cookie or Bearer auth; relative URLs from served origin. |
+| **Packaged web** (Wails / Tauri / Electron) | Wails IPC (embedded) / HTTP (remote) | When the backend is in the host process, skip HTTP and use the shell's IPC bridge. See `TRANSPORT.md §4.2`. |
+| **TUI (Go)** | InProcess (embedded) / Socket (local) / HTTP (remote) | When both halves are Go and same-binary, the "transport" is a function call. See `TRANSPORT.md §4.1`. |
+| **TUI (Node / Rust / Python)** | Socket (local) / HTTP (remote) | Can't embed our Go runtime; spawn `lyra-server` as a sibling process and connect via Unix socket / Named pipe. |
 
 ### 0.4 Backend variants — what each provides
 
@@ -92,14 +100,21 @@ these — they're what makes the m × n matrix actually work.**
 
 ### 2.1 Transport
 
+Protocol invariants below are stated in HTTP terms because HTTP is the
+common-denominator transport; non-HTTP transports (in-process / Wails IPC
+/ Unix socket) map each row onto an equivalent primitive — see
+[`TRANSPORT.md §5–6`](./TRANSPORT.md). Anything new lands here when it
+constrains *what is sent*; landing in `TRANSPORT.md` when it constrains
+*how it travels*.
+
 | Topic | Rule |
 | --- | --- |
-| **Protocol** | HTTP/1.1 or HTTP/2 over TCP. TLS required for non-loopback. |
-| **Content types** | Requests / responses default to `application/json; charset=utf-8`. Streams are `text/event-stream`. Uploads are `multipart/form-data`. |
-| **Versioning** | URL prefix `/v1/`. Mismatch returns `426 Upgrade Required` with the supported versions in `Sunset` header. |
-| **CORS** | Server backends must implement `Access-Control-Allow-Origin` echoing the configured allowed origins. Embedded backends allow `null` (file:// origin) + `127.0.0.1`. |
-| **Compression** | `Accept-Encoding: gzip, br` honoured for JSON responses; SSE streams are never compressed (latency > size). |
-| **Heartbeats** | SSE streams emit a `:heartbeat\n\n` comment every 15s so reverse proxies don't time out. |
+| **Default transport** | HTTP/1.1 or HTTP/2 over TCP. TLS required for non-loopback. Alternative transports: see `TRANSPORT.md §4`. |
+| **Content types** | Requests / responses default to `application/json; charset=utf-8`. Streams are `text/event-stream` over HTTP, length-prefixed JSON frames over sockets, channel of typed events for in-process. Uploads are `multipart/form-data`. |
+| **Versioning** | URL prefix `/v1/`. Mismatch returns `426 Upgrade Required` with the supported versions in `Sunset` header. In-process clients import `pkg/coreapi` directly, so version skew is a compile error rather than a runtime 426. |
+| **CORS** | Server backends echo `Access-Control-Allow-Origin`; embedded HTTP backends allow `null` + `127.0.0.1`. Non-HTTP transports have no CORS concept (no origin). |
+| **Compression** | `Accept-Encoding: gzip, br` honoured for JSON responses; SSE streams are never compressed (latency > size). Socket / in-process transports never compress. |
+| **Heartbeats** | SSE streams emit `:heartbeat\n\n` every 15s. Socket transports send a `{"type":"heartbeat"}` frame on the same cadence. In-process is exempt (channel closure is the liveness signal). |
 
 ### 2.2 Identity & versioning headers
 
