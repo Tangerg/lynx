@@ -10,7 +10,7 @@ import type { Citation } from "./CitationContext";
 import type { PartCtx } from "./PartRenderer";
 import type { IconName } from "@/components/common";
 import type { Message } from "@/protocol/agui/viewState";
-import { useRef } from "react";
+import { memo, useMemo, useRef } from "react";
 import { Icon } from "@/components/common";
 import { Avatar } from "@/components/common/Avatar";
 import { cn } from "@/lib/utils";
@@ -23,7 +23,7 @@ import { MessageContextMenu } from "./MessageContextMenu";
 import { MessageOutline } from "./MessageOutline";
 import { renderPart } from "./PartRenderer";
 
-export function MessageBlock({ msg, ctx }: { msg: Message; ctx: PartCtx }) {
+function MessageBlockInner({ msg, ctx }: { msg: Message; ctx: PartCtx }) {
   const role = useMessageRole(msg.role);
   const isUser = msg.role === "user";
   const isAgent = msg.role === "assistant";
@@ -37,19 +37,26 @@ export function MessageBlock({ msg, ctx }: { msg: Message; ctx: PartCtx }) {
 
   // Citation registry — flatten every `search` block on this message
   // into a 1-indexed list keyed by `[n]` markers in the prose. The
-  // CitationBadge component reads this via context.
-  const citations: Citation[] = [];
-  for (const b of msg.blocks) {
-    if (b.kind !== "search") continue;
-    for (const r of b.results) {
-      citations.push({
-        index: citations.length + 1,
-        domain: r.domain,
-        title: r.title,
-        snippet: r.snippet,
-      });
+  // CitationBadge component reads this via context. Memoised on
+  // msg.blocks so the array identity stays stable across re-renders
+  // that don't touch the search content — keeps `<CitationContext.
+  // Provider value={citations}>` from churning every render and
+  // re-triggering all CitationBadge consumers downstream.
+  const citations = useMemo<Citation[]>(() => {
+    const out: Citation[] = [];
+    for (const b of msg.blocks) {
+      if (b.kind !== "search") continue;
+      for (const r of b.results) {
+        out.push({
+          index: out.length + 1,
+          domain: r.domain,
+          title: r.title,
+          snippet: r.snippet,
+        });
+      }
     }
-  }
+    return out;
+  }, [msg.blocks]);
 
   const displayName = role?.displayName ?? msg.who;
   const avatarVariant = (role?.avatarVariant ?? (isUser ? "msg-user" : "msg-agent")) as
@@ -149,3 +156,12 @@ export function MessageBlock({ msg, ctx }: { msg: Message; ctx: PartCtx }) {
     </MessageContext.Provider>
   );
 }
+
+// React.memo with default shallow comparison. The reducer's
+// updateMessage keeps non-modified messages at the same reference, so
+// during pure text streaming only the tail message's `msg` prop ref
+// changes — every other MessageBlock bails out of the render path
+// (with 200 messages on screen this was 199× redundant work per token
+// delta). ctx identity is stabilised in ChatStream via useMemo so
+// non-tool / non-plan churn doesn't invalidate this memo either.
+export const MessageBlock = memo(MessageBlockInner);

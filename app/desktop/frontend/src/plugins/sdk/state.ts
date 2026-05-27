@@ -65,6 +65,12 @@ export function compose(...updates: StateUpdate[]): StateUpdate {
  *  the Run Timeline view. Core handlers append directly via helpers; this
  *  SDK helper exists so plugins outside core-reducer can do the same. */
 let timelineSeq = 0;
+// Long-session cap. Every RUN_*/STEP_*/TOOL_*/REASONING_* fold pushes
+// an entry, so a multi-hour session can pile up thousands of entries —
+// timeline view renders fine but the AgentViewState clone cost on every
+// reduce + every render scales linearly with this array. Newest 500 is
+// enough to drive the audit panel + run digest; older entries drop FIFO.
+const TIMELINE_MAX = 500;
 export function appendTimelineEntry(
   entry: Omit<TimelineEntry, "id" | "ts" | "runId"> & { runId?: string | null },
 ): StateUpdate {
@@ -79,7 +85,11 @@ export function appendTimelineEntry(
       refId: entry.refId,
       status: entry.status,
     };
-    return { ...state, timeline: [...state.timeline, full] };
+    const next = [...state.timeline, full];
+    return {
+      ...state,
+      timeline: next.length > TIMELINE_MAX ? next.slice(next.length - TIMELINE_MAX) : next,
+    };
   };
 }
 
