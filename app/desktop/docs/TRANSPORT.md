@@ -252,8 +252,8 @@ Windows 上 `npipe:///./pipe/lyra`。鉴权靠 socket 文件 mode（Unix）
 
 ### 4.4 FetchTransport —— anywhere → anywhere，HTTP
 
-**适用**：浏览器；连远程服务器的 TUI；连托管云的包装客户端；
-任何跨机器组合。
+**适用**：浏览器；连远程服务器的 TUI；连远程独立服务的包装
+客户端；任何跨机器组合。
 
 ```ts
 // frontend/src/transport/fetch.ts
@@ -299,7 +299,7 @@ approval 可以走普通 `POST /permission`，下行 SSE 已经覆盖了）。
 | 浏览器 + 任意后端 | **HTTP** | 浏览器唯一选项。 |
 | Node / Rust / Python TUI + 嵌入式 | n/a | 这些语言没法 in-process 嵌我们的 Go 运行时。改成 Socket 连一个旁边起的 `lyra-server` 子进程。 |
 | Node / Rust / Python TUI + 本地 | **Socket** | 同 Wails-local 的理由。 |
-| 任意客户端 + 远程 / 托管 | **HTTP** | 跨网络。 |
+| 任意客户端 + 远程独立服务 | **HTTP** | 跨网络。 |
 
 口诀：**能不序列化就不序列化**。In-process 免费，IPC 便宜，socket
 还行，HTTP 是天花板。
@@ -338,7 +338,7 @@ approval 可以走普通 `POST /permission`，下行 SSE 已经覆盖了）。
 | Wails | 线上无（Wails IPC 是 window-scoped）；`CoreAPI` impl 仍然做能力校验。 |
 | Socket | Unix 用文件 mode / Windows 用 ACL。能连上 socket 的用户必须是文件 owner。没有 Bearer token。 |
 | HTTP local | **必须 Bearer token。** 嵌入式后端安装时生成 token，写到 `~/.config/lyra/token`（chmod 600）。没有它，任何同机进程都能调我们。 |
-| HTTP remote | OAuth（托管云）或静态 API key（自建）。 |
+| HTTP remote | 静态 Bearer token（默认），或接公司 SSO/IdP 时走 OAuth 2.1 + PKCE。**永远单租户** —— 多客户走多次部署。 |
 
 `Request.Headers["authorization"]` 这个字段是给 HTTP 类传输用的；
 in-process 和 Wails 留空。`CoreAPI` impl **永远不信任传输层**——
@@ -413,9 +413,8 @@ schemas/                     # generated, in-repo
 
 ## 9. 这套切分为什么干净
 
-- **加传输不动 handler 代码。** 新形态——比如托管云内部的 gRPC
-  跨服务调用——实现 `Transport`、注册一个调 `CoreAPI` 的适配器，
-  完事。
+- **加传输不动 handler 代码。** 新形态——比如内部跨服务调用走
+  gRPC——实现 `Transport`、注册一个调 `CoreAPI` 的适配器，完事。
 - **加前端不分裂后端。** 新形态——比如把桌面客户端用 Tauri 重写
   一遍——挑跟它外壳合的传输（Tauri IPC ≈ Wails IPC；没嵌入式
   后端就回落 HTTP）、实现 TS 侧 `Transport`、其他都复用。

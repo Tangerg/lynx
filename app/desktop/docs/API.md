@@ -6,8 +6,7 @@
 > 共享的东西。
 >
 > 读者：要做新前端（web / 包装客户端 / TUI / mobile）、要移植
-> 后端（嵌入客户端 / 独立服务 / 托管云）、或者要演进契约本身
-> 的人。
+> 后端（嵌入客户端 / 独立服务）、或者要演进契约本身的人。
 
 ---
 
@@ -15,15 +14,22 @@
 
 ### 0.1 m × n 矩阵
 
-| ↓ 前端 / 后端 → | Embedded（嵌入客户端） | Standalone server（独立服务） | Managed（多租户托管） |
-| --- | --- | --- | --- |
-| **Web（浏览器）** | n/a（没壳可嵌） | ✓ | ✓ |
-| **包装 Web**（Wails / Tauri / Electron） | ✓（loopback） | ✓ | ✓ |
-| **TUI**（终端） | ✓（loopback） | ✓ | ✓ |
-| **Mobile**（RN / 原生，未来） | n/a | ✓ | ✓ |
+| ↓ 前端 / 后端 → | Embedded（嵌入客户端） | Standalone server（独立服务） |
+| --- | --- | --- |
+| **Web（浏览器）** | n/a（没壳可嵌） | ✓ |
+| **包装 Web**（Wails / Tauri / Electron） | ✓（loopback） | ✓ |
+| **TUI**（终端） | ✓（loopback） | ✓ |
+| **Mobile**（RN / 原生，未来） | n/a | ✓ |
 
-3 种前端 × 3 种后端 = 9 个可行组合。**每个组合都用同一份线上
+4 种前端 × 2 种后端 = 7 个可行组合。**每个组合都用同一份线上
 协议。** 前端不 import 后端类型，后端不假设前端共驻。
+
+**显式不做多租户。** Lyra 协议层不承认 "多 tenant 共享一个
+backend instance"。如果未来真的需要把服务给多个客户用，做法是
+**物理隔离** —— 每个客户一个独立 `lyra-server` 部署（独立进程 /
+独立 DB / 独立鉴权域），不在 URL 里塞 `workspaces/{ws}/`。这把
+租户隔离的复杂度从协议层下沉到部署层，协议保持单一服务的简洁
+形状。
 
 ### 0.2 对 API 设计的约束
 
@@ -63,10 +69,11 @@
 | 形态 | 监听 | 默认鉴权 | 持久化 |
 | --- | --- | --- | --- |
 | **Embedded** | 只 `127.0.0.1:0`（不出局域网） | 本地 config 里生成的 token，单用户 | 跟客户端二进制并排的 SQLite |
-| **Standalone server** | `0.0.0.0:port`，可配置 | 必须：Bearer token / API key | SQLite（小）或 Postgres（大） |
-| **Managed cloud** | 在 LB / 反代之后 | OAuth + per-tenant token | Postgres，按 workspace id 多租户 |
+| **Standalone server** | `0.0.0.0:port`，可配置 | 必须：Bearer token / API key（也可以接 SSO，但永远单租户） | SQLite（小）或 Postgres（大） |
 
-三种都讲同一份线上协议。差异只在部署 / 持久化 / 鉴权强度。
+两种都讲同一份线上协议。差异只在部署 / 持久化 / 鉴权强度。
+**Standalone server 始终是单租户** —— 一个进程服务一个客户。多
+客户场景用多次部署解决，不在协议或 URL 里区分。
 
 ---
 
@@ -78,7 +85,6 @@
 | REST 端点 | 13 个端点喂 fixture | 加 capabilities / auth / sessions CRUD / messages 分页 / attachments / providers / models / tools / cancel —— 见 §4 |
 | HITL 审批 | `POST /permission` 解锁一个内存 chan | 改成幂等 + 绑到具体 run id（不是全局 chan）。 |
 | 鉴权 | 无 | 第一天就得有 —— Bearer token。见 §3.2。 |
-| Workspaces | 无 | 多租户时 URL 前缀化（`/v1/workspaces/{ws}/…`）。 |
 | Schema SSOT | 手写在 `frontend/src/lib/queries.ts` | OpenAPI 3.1 + AsyncAPI 2.6 生成 TS + Go。见 §6。 |
 | 版本 | 无 | URL 前缀 `/v1/` + `X-Lyra-Protocol-Version` header。 |
 
@@ -126,7 +132,6 @@ Accept-Language: en-US, zh-CN;q=0.8    // for localized error messages
 X-Lyra-Server: lyra-core/0.8.1
 X-Lyra-Protocol-Version: 1.2.0         // semver of the wire contract
 X-Lyra-Request-ID: 0193…d8b5           // echoed back for tracing
-X-Lyra-Workspace: ws_abc               // when scoped
 ```
 
 ### 2.3 鉴权
@@ -135,11 +140,14 @@ X-Lyra-Workspace: ws_abc               // when scoped
 | --- | --- | --- |
 | Embedded | 安装时生成，写到 `$XDG_CONFIG_HOME/lyra/token`（客户端读同一个文件） | 不续期 —— 重装时重新生成 |
 | Standalone | 运营方颁发的静态 token（环境变量 `LYRA_TOKEN`）或 `POST /v1/auth/login` 走用户名密码 | `POST /v1/auth/refresh` 返回新的 token pair |
-| Managed | OAuth 2.1 + PKCE（`/v1/auth/authorize` + `/v1/auth/token`） | refresh token 轮换 |
 
 前端探测 `GET /v1/info`（无需鉴权）发现这个后端用哪种机制，
 再 dispatch 到对应流程。**后端绝对不能在没有合法 token 时
 serve 任何非 `/v1/info`、非 `/v1/auth/*` 的端点。**
+
+需要接公司 SSO / IdP 的部署可以在 Standalone 模式上加 OAuth 2.1 +
+PKCE（`/v1/auth/authorize` + `/v1/auth/token`），登录后仍然走同一份
+Bearer token —— 单租户假设不变，只是 token 来源换了。
 
 ### 2.4 错误 —— RFC 7807 Problem Details
 
@@ -204,7 +212,7 @@ GET /v1/sessions?limit=20&cursor=eyJpZCI6InNlc3NfMTIzIn0
 ### 3.1 请求
 
 ```http
-POST /v1/workspaces/{ws}/run HTTP/1.1
+POST /v1/run HTTP/1.1
 Authorization: Bearer <token>
 Idempotency-Key: 0193…
 Content-Type: application/json
@@ -278,9 +286,9 @@ interface RunInput {
 
 ## 4. REST 端点
 
-后端多租户时 URL 带 workspace 前缀（`/v1/workspaces/{ws}/…`）；
-嵌入式单用户后端去掉这个前缀。下面的路径模板为简洁起见用
-非 workspace 形式。
+所有端点都直接挂在 `/v1/` 下，**没有 workspace 前缀**。每个
+`lyra-server` 实例服务一个客户 / 一个隔离域 —— 多客户需求通过
+独立部署解决，不在 URL 形状里反映。
 
 ### 4.1 发现 & 鉴权 —— 任何后端形态都必须有
 
@@ -292,8 +300,8 @@ interface RunInput {
 | P0 | `POST` | `/v1/auth/login` | 用户名密码 → token pair。服务端也可以接 API key。 |
 | P0 | `POST` | `/v1/auth/refresh` | Refresh token 轮换。 |
 | P0 | `POST` | `/v1/auth/logout` | 服务端 token 失效。 |
-| P1 | `GET` | `/v1/me` | 当前用户 profile + workspace 列表。 |
-| P1 | `POST` | `/v1/auth/authorize` + `/v1/auth/token` | 托管云的 OAuth 2.1 + PKCE。 |
+| P1 | `GET` | `/v1/me` | 当前用户 profile。 |
+| P1 | `POST` | `/v1/auth/authorize` + `/v1/auth/token` | 接公司 SSO / IdP 时的 OAuth 2.1 + PKCE（可选，单租户内部使用）。 |
 
 ### 4.2 Sessions、messages、runs —— 对话核心面
 
@@ -314,8 +322,13 @@ interface RunInput {
 
 ### 4.3 Workspace 数据（前端渲染的"面板"）
 
+> 这里的 "workspace" 指**前端面板域**（diff / grep / terminal / mcp
+> 那一组数据），跟多租户无关 —— Lyra 不做多租户。命名是历史习惯，
+> URL 上是单一 `/v1/workspace/...` 前缀而不是 `/v1/workspaces/{ws}/...`。
+
 镜像 Lyra 现在已经有的那批 fixture 端点。后端形态决定怎么填
-（嵌入式就用真文件系统 / git / pty；云端用托管存储）。
+（嵌入式用真文件系统 / git / pty；独立服务把它们指向运行后端的
+那台机器上的对应资源）。
 
 | P | Method | Path | 用途 |
 | --- | --- | --- | --- |
@@ -405,9 +418,8 @@ interface Capabilities {
     rateLimit?: { perMinute: number; perHour: number };
   };
   deployment: {
-    kind: "embedded" | "standalone" | "managed";
-    instanceLabel?: string;    // shown in UI, e.g. "Lyra Cloud (us-east-1)"
-    region?: string;
+    kind: "embedded" | "standalone";
+    instanceLabel?: string;    // shown in UI, e.g. "Lyra @ acme.internal"
   };
 }
 ```
@@ -424,7 +436,7 @@ interface ServerInfo {
   authKinds: Array<"bearer" | "oauth" | "apiKey" | "anonymous">;
   instanceLabel?: string;
   loginUrl?: string;          // OAuth start URL when relevant
-  brandingUrl?: string;       // logo / theme override when managed
+  brandingUrl?: string;       // logo / theme override when self-hosted with branding
 }
 ```
 
@@ -435,7 +447,6 @@ type SessionStatus = "running" | "waiting" | "idle";
 
 interface Session {
   id: string;
-  workspaceId: string;
   title: string;
   status: SessionStatus;
   model: string;
@@ -560,20 +571,13 @@ fail 构建。改契约的 PR 必须 schema + 生成代码同时落地。
 - CORS 在服务端配 —— `Access-Control-Allow-Origin` 列允许的
   前端 origin。
 
-### 7.3 托管云后端 + Web / 包装 Web 前端
-
-- 前端预装一个默认 `LYRA_BACKEND_URL` 指向云端。
-- `GET /v1/info` 广告 `authKinds: ["oauth"]` → 前端启动
-  OAuth 2.1 + PKCE。
-- 路径里 per-tenant workspace ID：`/v1/workspaces/{ws}/…`。
-
-### 7.4 Web 前端 + 任意后端（浏览器场景）
+### 7.3 Web 前端 + 任意后端（浏览器场景）
 
 - Token 存储：同站时 HttpOnly cookie，否则 `sessionStorage`。
 - 前端**必须**优雅处理 CORS preflight 失败 —— 显示"Backend at
   <url> didn't allow this origin"而不是静默错误。
 
-### 7.5 TUI 前端 + 任意后端
+### 7.4 TUI 前端 + 任意后端
 
 - 没有 `EventSource` —— 用支持 SSE 的流式 HTTP 客户端
   （Node 用 `sse.js`、Python 用 `eventsource` 等）。
@@ -588,10 +592,10 @@ fail 构建。改契约的 PR 必须 schema + 生成代码同时落地。
 | **1. 协议冻结** | 写 `schemas/openapi.yaml` + `events.yaml`；codegen TS + Go；mock 后端讲真形状。 | 1 周 |
 | **2. 鉴权 + 发现** | `/v1/info` / `/v1/capabilities` / `/v1/health` + 其他端点上 Bearer middleware。嵌入形态自动生成 token。 | 1 周 |
 | **3. 真 run 路径** | `/v1/run` 接一个真 LLM（先一个 provider）；HITL 走 `/v1/run/{id}/permission`；SSE `Last-Event-ID` 续传；`/v1/run/{id}/cancel`。 | 2 周 |
-| **4. 持久化 + sessions CRUD** | SQLite（嵌入 / 独立）或 Postgres（托管）—— sessions、messages、attachments。`/v1/sessions/{id}/messages` 分页。 | 1 周 |
+| **4. 持久化 + sessions CRUD** | SQLite（嵌入式默认）或 Postgres（独立服务，大库时）—— sessions、messages、attachments。`/v1/sessions/{id}/messages` 分页。 | 1 周 |
 | **5. Workspace 数据 + 工具** | 真文件系统 / git / ripgrep / pty / MCP 接到 `/v1/workspace/*`。`/v1/tools`、`/v1/providers`、`/v1/models`。 | 2 周 |
 | **6. 前端形态** | TUI 前端原型走同一份协议 → 证明 m × n 真的跑得通。 | 2 周 |
-| **7. 托管云**（晚一点） | OAuth 2.1、workspace 隔离、多 region 路由、限流。 | 3–4 周 |
+| **7. 独立服务硬化**（晚一点） | TLS 必选 + 限流 + 静态 token 与 SSO/OAuth 双路、备份方案。**不做多租户**——多客户走多次部署。 | 2 周 |
 
 ---
 
@@ -612,10 +616,9 @@ fail 构建。改契约的 PR 必须 schema + 生成代码同时落地。
 
 ## 10. 未决问题
 
-- [ ] **鉴权标准化**：托管走 OAuth 2.1 + PKCE、嵌入 / 独立走
-      静态 token？还是发明点自有的东西？
-- [ ] **Workspace URL 形状**：到处都是 `/v1/workspaces/{ws}/…`
-      （干净多租户）还是只在后端 opt-in 时（嵌入更简单）？
+- [ ] **鉴权标准化**：嵌入式生成 token / 独立服务静态 token +
+      可选 SSO-OAuth 一条路够不够？还是把 OAuth 当默认？
+      （当前判断：默认静态 token，OAuth 在接公司 IdP 时按需开。）
 - [ ] **工具执行位置**：只服务端，还是前端可以在 `RunInput`
       里声明 `tools` 让后端回调？后者支持"浏览器作为工具"
       （文件选择器、截图、剪贴板）但安全模型复杂化。
