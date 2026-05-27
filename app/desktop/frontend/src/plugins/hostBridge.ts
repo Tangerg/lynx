@@ -32,6 +32,7 @@ export interface LyraHostBridge {
 }
 
 let bridgeInstalled = false;
+let beforeUnloadHandler: (() => void) | null = null;
 
 export function installHostBridge(): void {
   if (typeof window === "undefined") return;
@@ -48,9 +49,25 @@ export function installHostBridge(): void {
   // BeforeUnloadHandler. Synchronous on purpose: browsers don't await
   // promises during unload. Guarded by `bridgeInstalled` so React strict-
   // mode's double-mounted effect doesn't stack duplicate listeners.
-  window.addEventListener("beforeunload", () => {
+  beforeUnloadHandler = () => {
     for (const o of usePluginStore.getState().beforeUnloadHandlers.values()) {
       safeCall(() => o.value(), `[plugin] ${o.pluginName} onBeforeUnload threw:`);
     }
+  };
+  window.addEventListener("beforeunload", beforeUnloadHandler);
+}
+
+// HMR safety: a Vite reload of this module resets `bridgeInstalled`
+// to false on the new module's module scope — the next call to
+// `installHostBridge()` would then register a fresh `beforeunload`
+// listener while the previous module's listener is still attached.
+// Dispose releases the previous listener so the count stays at 1.
+if (import.meta.hot) {
+  import.meta.hot.dispose(() => {
+    if (beforeUnloadHandler) {
+      window.removeEventListener("beforeunload", beforeUnloadHandler);
+      beforeUnloadHandler = null;
+    }
+    bridgeInstalled = false;
   });
 }
