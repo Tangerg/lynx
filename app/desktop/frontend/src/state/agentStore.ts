@@ -104,7 +104,7 @@ export const useAgentStore = create<AgentStore>((set) => ({
 // Prune sessions whose tab is closed. The view slice (messages, toolCalls,
 // shared, plan) can be megabytes of streamed markdown per session — without
 // this it accumulates forever.
-useSessionStore.subscribe((state, prev) => {
+const unsubPruneSessions = useSessionStore.subscribe((state, prev) => {
   if (state.tabIds === prev.tabIds) return;
   const live = new Set(state.tabIds);
   const sessions = useAgentStore.getState().sessions;
@@ -112,6 +112,13 @@ useSessionStore.subscribe((state, prev) => {
     if (!live.has(id)) useAgentStore.getState().dropSession(id);
   }
 });
+
+// HMR safety: this module-level subscribe has no useEffect cleanup, so
+// every Vite reload of this file would otherwise stack a fresh listener
+// on top of the previous one. Capture the handle + release on dispose.
+if (import.meta.hot) {
+  import.meta.hot.dispose(() => unsubPruneSessions());
+}
 
 // ---------------------------------------------------------------------------
 // Selector hooks
