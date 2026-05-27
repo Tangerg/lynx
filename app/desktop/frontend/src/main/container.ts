@@ -6,14 +6,28 @@
 import type { PermissionGateway } from "@/domain";
 import { HttpPermissionGateway } from "@/infra/http/HttpPermissionGateway";
 import { AGUI_BASE } from "@/main/config";
+import type { Methods, RpcClient, SidecarClient } from "@/rpc";
+import { createHttpTransport, createMethods, createRpcClient, createSidecarClient } from "@/rpc";
 
 export interface Container {
   permission: PermissionGateway;
+  rpc: RpcClient;
+  methods: Methods;
+  sidecar: SidecarClient;
 }
 
 function defaultContainer(): Container {
+  // Default to the same HTTP loopback the legacy REST surface uses.
+  // The HTTP transport / sidecar are still scaffolded — no callers
+  // depend on them until the backend ships the new protocol. Existing
+  // REST-based code paths keep working untouched.
+  const transport = createHttpTransport({ baseUrl: AGUI_BASE });
+  const rpc = createRpcClient(transport);
   return {
     permission: new HttpPermissionGateway(AGUI_BASE),
+    rpc,
+    methods: createMethods(rpc),
+    sidecar: createSidecarClient({ baseUrl: AGUI_BASE }),
   };
 }
 
