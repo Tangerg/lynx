@@ -1,7 +1,7 @@
 # CLAUDE.md — chatmemory module
 
 > Persistent `chat.Message` history backends — Postgres / Redis / Mongo / Cassandra / Neo4j / Cosmos DB.
-> 项目级约定见 `../lyra/CLAUDE.md`。
+> 项目级约定见 `../CLAUDE.md`。
 
 ---
 

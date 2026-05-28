@@ -1,7 +1,7 @@
 # CLAUDE.md — otel module
 
 > Lightweight OpenTelemetry span exporters for dev/debug — no OTLP backend needed.
-> 项目级约定见 `../lyra/CLAUDE.md`。
+> 项目级约定见 `../CLAUDE.md`。
 
 ---
 

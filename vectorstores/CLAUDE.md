@@ -1,7 +1,7 @@
 # CLAUDE.md — vectorstores module
 
 > 27 个 vector database 后端的统一适配层 —— pgvector / Qdrant / Weaviate / Pinecone / Chroma / Milvus / Elasticsearch / MongoDB / Neo4j / Redis / Oracle / MariaDB ...
-> 项目级约定见 `../lyra/CLAUDE.md`。
+> 项目级约定见 `../CLAUDE.md`。
 
 ---
 

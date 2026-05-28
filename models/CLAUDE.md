@@ -1,7 +1,7 @@
 # CLAUDE.md — models module
 
 > 38 个 LLM / embedding / image / audio provider 的统一适配层。
-> 项目级约定见 `../lyra/CLAUDE.md`。
+> 项目级约定见 `../CLAUDE.md`。
 
 ---
 
@@ -89,6 +89,6 @@ go test ./openai/... -run TestStream  # 单 provider 流式
 ## 强反向不变量
 
 - ❌ **provider 间共享 helpers**：每 provider 自己写 requestHelper / responseHelper，别强行抽公共基类（不同 SDK shape 差异大于相似度）
-- ❌ **加 retry layer**：SDK 自己有重试，框架不再加（见 lyra/CLAUDE.md 反向不变量）
-- ❌ **加 OAuth / token refresh**：用户填 API key + 401 重填，OAuth 是 Claude Code 复杂度（同 lyra）
-- ❌ **DefaultOptions 返指针**：`*Options` 会破坏 immutability 保证，必须返值（同 lyra 的 user feedback memory）
+- ❌ **加 retry layer**：SDK 自己有重试，框架不再加（见 `../CLAUDE.md` 共用反向不变量）
+- ❌ **加 OAuth / token refresh**：用户填 API key + 401 重填，OAuth 是 Claude Code 复杂度
+- ❌ **DefaultOptions 返指针**：`*Options` 会破坏 immutability 保证，必须返值
