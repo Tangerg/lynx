@@ -8,6 +8,7 @@ import (
 
 	goredis "github.com/redis/go-redis/v9"
 
+	"github.com/Tangerg/lynx/chatmemory/internal/codec"
 	"github.com/Tangerg/lynx/chatmemory/internal/tracing"
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/core/model/chat/memory"
@@ -95,7 +96,7 @@ func (s *Store) Write(ctx context.Context, conversationID string, messages ...ch
 
 	payloads := make([]any, 0, len(messages))
 	for _, msg := range messages {
-		raw, err := encodeMessage(msg)
+		raw, err := codec.EncodeMessage(msg)
 		if err != nil {
 			return fmt.Errorf("redis.Store.Write: encode message: %w", err)
 		}
@@ -155,24 +156,4 @@ func (s *Store) Clear(ctx context.Context, conversationID string) (err error) {
 		return fmt.Errorf("redis.Store.Clear: %w", err)
 	}
 	return nil
-}
-
-// encodeMessage marshals msg via its MarshalJSON. See the postgres
-// provider for the rationale on the per-type switch.
-func encodeMessage(msg chat.Message) ([]byte, error) {
-	if msg == nil {
-		return nil, errors.New("message must not be nil")
-	}
-	switch m := msg.(type) {
-	case *chat.SystemMessage:
-		return m.MarshalJSON()
-	case *chat.UserMessage:
-		return m.MarshalJSON()
-	case *chat.AssistantMessage:
-		return m.MarshalJSON()
-	case *chat.ToolMessage:
-		return m.MarshalJSON()
-	default:
-		return nil, fmt.Errorf("unsupported message type %T", msg)
-	}
 }
