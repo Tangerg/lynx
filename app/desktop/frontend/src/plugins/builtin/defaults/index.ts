@@ -5,7 +5,7 @@
 // `defaultCommands` lives in a sibling file because it's substantially
 // bigger than the rest (~100 lines for the reactive command rebuild).
 
-import { api } from "@/lib/http";
+import { api } from "@/lib/data/http";
 import { AGUI_BASE } from "@/main/config";
 import { definePlugin } from "@/plugins/sdk";
 

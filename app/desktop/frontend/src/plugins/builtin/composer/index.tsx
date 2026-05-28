@@ -11,7 +11,7 @@ import * as Popover from "@radix-ui/react-popover";
 import * as React from "react";
 import { submitComposer } from "@/components/chat/submitComposer";
 import { Icon, Tooltip } from "@/components/common";
-import { useSessions } from "@/lib/queries";
+import { useSessions } from "@/lib/data/queries";
 import { cn } from "@/lib/utils";
 import { definePlugin, useCommands } from "@/plugins/sdk";
 import { useAgentAction } from "@/state/agentStore";

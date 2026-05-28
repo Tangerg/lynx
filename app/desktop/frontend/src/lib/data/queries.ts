@@ -14,7 +14,7 @@ import { lookupDataProvider } from "@/plugins/sdk";
 // Declared here (the data fetcher) rather than in the rendering
 // components so neither state/ nor lib/ has to import upward into
 // components/ for type-only metadata. Components import these types
-// from `@/lib/queries` when they need to type a row prop.
+// from `@/lib/data/queries` when they need to type a row prop.
 
 export interface SidebarSession {
   id: string;

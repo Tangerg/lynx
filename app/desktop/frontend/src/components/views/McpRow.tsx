@@ -1,4 +1,4 @@
-import type { MCPServer } from "@/lib/queries";
+import type { MCPServer } from "@/lib/data/queries";
 import type { IconName } from "@/components/common";
 import { Icon } from "@/components/common";
 import { cn } from "@/lib/utils";

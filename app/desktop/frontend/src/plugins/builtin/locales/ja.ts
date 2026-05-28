@@ -1,4 +1,4 @@
-import { ja } from "@/lib/locales/ja";
+import { ja } from "@/lib/i18n/locales/ja";
 import { definePlugin } from "@/plugins/sdk";
 
 export const localeJa = definePlugin({

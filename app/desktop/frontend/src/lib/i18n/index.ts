@@ -17,7 +17,7 @@
 
 import i18next from "i18next";
 import { initReactI18next, useTranslation } from "react-i18next";
-import { en } from "@/lib/locales/en";
+import { en } from "@/lib/i18n/locales/en";
 
 export type Locale = string;
 

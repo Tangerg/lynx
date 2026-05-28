@@ -7,7 +7,7 @@
 // actions alongside).
 
 import { Icon, noDragClasses, Tooltip } from "@/components/common";
-import { useSessions } from "@/lib/queries";
+import { useSessions } from "@/lib/data/queries";
 import { cn } from "@/lib/utils";
 import { definePlugin } from "@/plugins/sdk";
 import { useSessionStore } from "@/state/sessionStore";

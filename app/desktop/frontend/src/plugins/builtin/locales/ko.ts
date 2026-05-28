@@ -1,4 +1,4 @@
-import { ko } from "@/lib/locales/ko";
+import { ko } from "@/lib/i18n/locales/ko";
 import { definePlugin } from "@/plugins/sdk";
 
 export const localeKo = definePlugin({

@@ -125,7 +125,7 @@ describe("architecture conformance", () => {
 
   // ---- infra/ -----------------------------------------------------------
   // Implements domain gateways using external libs / fetch. Allowed to
-  // pull from @/domain and @/lib/http (the transport facade). Forbidden to
+  // pull from @/domain and @/lib/data/http (the transport facade). Forbidden to
   // reach into UI, store, plugins, main, protocol.
   it("infra/ depends only on domain (+ lib/http) and never on UI/state/plugins/main", () => {
     const files = walk(resolve(SRC_ROOT, "infra"));

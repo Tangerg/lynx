@@ -1,6 +1,6 @@
 // Shared Tailwind chrome for the three message-action button plugins
 // (copy / edit / regenerate). The flatten / clipboard helpers that used
-// to live here moved to `@/lib/messageContent` once a third consumer
+// to live here moved to `@/lib/agent/messageContent` once a third consumer
 // (the right-click message context menu) showed up — plugin-internal
 // `_shared` was the wrong home for shared domain logic.
 

@@ -1,5 +1,5 @@
 import { QueryClientProvider } from "@tanstack/react-query";
-import { queryClient } from "@/lib/queryClient";
+import { queryClient } from "@/lib/data/queryClient";
 import { PluginProvider } from "@/plugins/PluginProvider";
 import { AppRouter } from "@/router";
 

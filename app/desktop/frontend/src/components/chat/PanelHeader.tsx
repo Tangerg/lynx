@@ -11,7 +11,7 @@
 
 import type { ChatTab } from "./PanelTabBar";
 import { useMemo } from "react";
-import { useSessions } from "@/lib/queries";
+import { useSessions } from "@/lib/data/queries";
 import { headerTabCloseActionsFor, useSessionStore } from "@/state/sessionStore";
 import { PanelTabBar } from "./PanelTabBar";
 

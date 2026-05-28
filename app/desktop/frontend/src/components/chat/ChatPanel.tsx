@@ -12,7 +12,7 @@
 
 import type { ComposerMode } from "@/state/composerStore";
 import { Panel } from "@/components/common";
-import { useSessions } from "@/lib/queries";
+import { useSessions } from "@/lib/data/queries";
 import { useSessionStore } from "@/state/sessionStore";
 import { ChatStream } from "./ChatStream";
 import { PanelHeader } from "./PanelHeader";

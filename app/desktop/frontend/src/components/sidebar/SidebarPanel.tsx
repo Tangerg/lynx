@@ -1,4 +1,4 @@
-import type { SidebarProject, SidebarSession } from "@/lib/queries";
+import type { SidebarProject, SidebarSession } from "@/lib/data/queries";
 import type { Theme } from "@/state/uiStore";
 import { SidebarExpanded } from "./SidebarExpanded";
 import { SidebarRail } from "./SidebarRail";

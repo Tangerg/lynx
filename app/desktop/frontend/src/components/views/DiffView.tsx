@@ -1,7 +1,7 @@
 import type { Highlighter } from "shiki";
-import type { DiffRow } from "@/lib/queries";
+import type { DiffRow } from "@/lib/data/queries";
 import { useEffect, useMemo, useState } from "react";
-import { getHighlighter } from "@/lib/shiki";
+import { getHighlighter } from "@/lib/markdown/shiki";
 import { cn } from "@/lib/utils";
 import { resolveScheme } from "@/plugins/sdk";
 import { useUiStore } from "@/state/uiStore";
