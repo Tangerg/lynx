@@ -14,10 +14,14 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 
 	"github.com/Tangerg/lynx/lyra/internal/config"
 	lyraruntime "github.com/Tangerg/lynx/lyra/internal/runtime"
+	memorysvc "github.com/Tangerg/lynx/lyra/internal/service/memory"
+	sessionsvc "github.com/Tangerg/lynx/lyra/internal/service/session"
 	"github.com/Tangerg/lynx/lyra/internal/storage"
+	sqlitestore "github.com/Tangerg/lynx/lyra/internal/storage/sqlite"
 )
 
 // App is the top-level CLI object. It owns the IO streams every
@@ -91,17 +95,15 @@ func (a *App) ensureRuntime() error {
 		return err
 	}
 
-	sessionSvc, err := storage.NewFileSessionService()
+	sessionSvc, memSvc, err := buildSessionAndMemory(cfg.Storage)
 	if err != nil {
-		return fmt.Errorf("session storage: %w", err)
+		return err
 	}
+	// Message history stays file-backed for now (JSONL append-only
+	// pattern doesn't map cleanly to SQLite rows yet).
 	msgStore, err := storage.NewFileMessageStore()
 	if err != nil {
 		return fmt.Errorf("message storage: %w", err)
-	}
-	memSvc, err := storage.NewFileMemoryService()
-	if err != nil {
-		return fmt.Errorf("memory storage: %w", err)
 	}
 
 	rt, err := lyraruntime.New(lyraruntime.Config{
@@ -126,6 +128,41 @@ func (a *App) ensureRuntime() error {
 // ensureRuntime succeeded. Centralises the nil-check that would
 // otherwise sprinkle across every cmd file.
 func (a *App) runtime() *lyraruntime.Runtime { return a.rt }
+
+// buildSessionAndMemory picks the session + memory backend based on
+// the storage kind. SQLite shares one *sql.DB across both services
+// at $LYRA_HOME/lyra.db; the file backend keeps the per-LYRA.md /
+// sessions.json layout that lets users `cat` or `jq` the state
+// directly.
+//
+// The *sql.DB is intentionally leaked — process lifetime equals DB
+// lifetime, and modernc.org/sqlite cleans up its WAL on close at
+// exit. Add explicit teardown when the runtime grows a Shutdown
+// path.
+func buildSessionAndMemory(kind config.StorageKind) (sessionsvc.Service, memorysvc.Service, error) {
+	switch kind {
+	case config.StorageSQLite:
+		home, err := storage.Home()
+		if err != nil {
+			return nil, nil, fmt.Errorf("sqlite storage: %w", err)
+		}
+		db, err := sqlitestore.Open(filepath.Join(home, "lyra.db"))
+		if err != nil {
+			return nil, nil, err
+		}
+		return sqlitestore.NewSessionService(db), sqlitestore.NewMemoryService(db), nil
+	default:
+		sess, err := storage.NewFileSessionService()
+		if err != nil {
+			return nil, nil, fmt.Errorf("session storage: %w", err)
+		}
+		mem, err := storage.NewFileMemoryService()
+		if err != nil {
+			return nil, nil, fmt.Errorf("memory storage: %w", err)
+		}
+		return sess, mem, nil
+	}
+}
 
 // fatalErr writes "lyra: <err>" to Err and returns a cobra-friendly
 // error so RunE propagates the non-zero exit code without printing

@@ -29,6 +29,16 @@ const (
 	ProviderOpenAI    Provider = "openai"
 )
 
+// StorageKind selects the backend for session + memory state. "file"
+// keeps the per-LYRA.md / sessions.json layout; "sqlite" puts both in
+// one SQLite database at $LYRA_HOME/lyra.db.
+type StorageKind string
+
+const (
+	StorageFile   StorageKind = "file"
+	StorageSQLite StorageKind = "sqlite"
+)
+
 // Config is the loaded runtime configuration. Constructed by [Load];
 // passed verbatim into engine + service wiring.
 type Config struct {
@@ -46,6 +56,11 @@ type Config struct {
 	// the engine's tool set under the server's Name as prefix.
 	// Empty disables MCP integration.
 	MCPServers []MCPServer
+
+	// Storage selects the persistence backend for session +
+	// memory services. Defaults to StorageFile — set LYRA_STORAGE
+	// to "sqlite" to use the SQLite backend instead.
+	Storage StorageKind
 }
 
 // MCPTransport mirrors engine.MCPTransport in shape; we keep our
@@ -127,6 +142,13 @@ func Load() (Config, error) {
 		return Config{}, fmt.Errorf("config: LYRA_MCP_SERVERS: %w", err)
 	}
 
+	storage := StorageKind(envOr("LYRA_STORAGE", string(StorageFile)))
+	switch storage {
+	case StorageFile, StorageSQLite:
+	default:
+		return Config{}, errors.New("config: unknown LYRA_STORAGE (want file|sqlite)")
+	}
+
 	return Config{
 		Provider: provider,
 		Model:    model,
@@ -137,6 +159,7 @@ func Load() (Config, error) {
 			HTTPAllowedHosts: splitHosts(os.Getenv("LYRA_HTTP_ALLOWED_HOSTS")),
 		},
 		MCPServers: servers,
+		Storage:    storage,
 	}, nil
 }
 
