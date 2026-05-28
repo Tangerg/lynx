@@ -19,6 +19,24 @@ export type { PushPullChannel } from "./channel";
 export { createRpcClient } from "./client";
 export type { NotificationHandler, RpcClient } from "./client";
 export { RpcError, RpcTransportError } from "./errors";
+export {
+  asApprovalRequestId,
+  asAttachmentId,
+  asMessageId,
+  asRunId,
+  asSessionId,
+  asTaskId,
+  asToolCallId,
+} from "./ids";
+export type {
+  ApprovalRequestId,
+  AttachmentId,
+  MessageId,
+  RunId,
+  SessionId,
+  TaskId,
+  ToolCallId,
+} from "./ids";
 export { createMethods } from "./methods";
 export type { Methods, StreamingResult } from "./methods";
 export type {
