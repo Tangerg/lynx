@@ -3,6 +3,7 @@ package runtime
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"reflect"
 
@@ -122,7 +123,7 @@ func newDynamicAgentTool(
 		extract: func(child *AgentProcess) (any, error) {
 			out, ok := child.Blackboard().Lookup(core.LastResultBindingName, "")
 			if !ok {
-				return nil, fmt.Errorf("completed but blackboard has no result")
+				return nil, errors.New("completed but blackboard has no result")
 			}
 			return out, nil
 		},

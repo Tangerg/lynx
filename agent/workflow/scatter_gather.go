@@ -2,6 +2,7 @@ package workflow
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"golang.org/x/sync/errgroup"
@@ -57,13 +58,13 @@ type ScatterGatherConfig[In, Element, Result any] struct {
 // Returns an error on missing Name, empty Generators, or nil Joiner.
 func ScatterGather[In, Element, Result any](spec ScatterGatherConfig[In, Element, Result]) (*core.Agent, error) {
 	if spec.Name == "" {
-		return nil, fmt.Errorf("workflow.ScatterGather: Name must not be empty")
+		return nil, errors.New("workflow.ScatterGather: Name must not be empty")
 	}
 	if len(spec.Generators) == 0 {
-		return nil, fmt.Errorf("workflow.ScatterGather: Generators must not be empty")
+		return nil, errors.New("workflow.ScatterGather: Generators must not be empty")
 	}
 	if spec.Joiner == nil {
-		return nil, fmt.Errorf("workflow.ScatterGather: Joiner must not be nil")
+		return nil, errors.New("workflow.ScatterGather: Joiner must not be nil")
 	}
 
 	scatter := core.NewAction[In, ResultList[Element]](

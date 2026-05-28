@@ -72,10 +72,10 @@ type AwaitDecider func(ctx context.Context, arguments string) core.Awaitable
 // or decider is nil — caller decides whether to surface or panic.
 func RequireAwait(tool chat.Tool, decider AwaitDecider) (chat.Tool, error) {
 	if tool == nil {
-		return nil, fmt.Errorf("hitl.RequireAwait: tool must not be nil")
+		return nil, errors.New("hitl.RequireAwait: tool must not be nil")
 	}
 	if decider == nil {
-		return nil, fmt.Errorf("hitl.RequireAwait: decider must not be nil")
+		return nil, errors.New("hitl.RequireAwait: decider must not be nil")
 	}
 	return &awaitingTool{delegate: tool, decider: decider}, nil
 }
@@ -117,10 +117,10 @@ func RequireConfirmation(
 	onResponse func(approved bool) core.ResponseImpact,
 ) (chat.Tool, error) {
 	if tool == nil {
-		return nil, fmt.Errorf("hitl.RequireConfirmation: tool must not be nil")
+		return nil, errors.New("hitl.RequireConfirmation: tool must not be nil")
 	}
 	if prompter == nil {
-		return nil, fmt.Errorf("hitl.RequireConfirmation: prompter must not be nil")
+		return nil, errors.New("hitl.RequireConfirmation: prompter must not be nil")
 	}
 	handler := onResponse
 	if handler == nil {
@@ -145,10 +145,10 @@ func RequireType[T any](
 	onResponse func(value T) core.ResponseImpact,
 ) (chat.Tool, error) {
 	if tool == nil {
-		return nil, fmt.Errorf("hitl.RequireType: tool must not be nil")
+		return nil, errors.New("hitl.RequireType: tool must not be nil")
 	}
 	if prompter == nil {
-		return nil, fmt.Errorf("hitl.RequireType: prompter must not be nil")
+		return nil, errors.New("hitl.RequireType: prompter must not be nil")
 	}
 	handler := onResponse
 	if handler == nil {

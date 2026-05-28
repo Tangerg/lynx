@@ -39,7 +39,7 @@ var ErrToolLocked = errors.New("toolpolicy: tool is locked by an unlock conditio
 // when tool is nil — caller decides whether to surface or panic.
 func OnceOnly(tool chat.Tool) (chat.Tool, error) {
 	if tool == nil {
-		return nil, fmt.Errorf("toolpolicy.OnceOnly: tool must not be nil")
+		return nil, errors.New("toolpolicy.OnceOnly: tool must not be nil")
 	}
 	return &onceOnlyTool{delegate: tool}, nil
 }
@@ -103,10 +103,10 @@ type UnlockCondition func(ctx context.Context, arguments string) (allowed bool, 
 // whether to surface or panic.
 func Unlocked(tool chat.Tool, condition UnlockCondition) (chat.Tool, error) {
 	if tool == nil {
-		return nil, fmt.Errorf("toolpolicy.Unlocked: tool must not be nil")
+		return nil, errors.New("toolpolicy.Unlocked: tool must not be nil")
 	}
 	if condition == nil {
-		return nil, fmt.Errorf("toolpolicy.Unlocked: condition must not be nil")
+		return nil, errors.New("toolpolicy.Unlocked: condition must not be nil")
 	}
 	return &unlockTool{delegate: tool, condition: condition}, nil
 }

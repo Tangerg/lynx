@@ -81,10 +81,10 @@ type Autonomy struct {
 // to surface or panic.
 func New(platform *runtime.Platform, ranker Ranker, cfg Config) (*Autonomy, error) {
 	if platform == nil {
-		return nil, fmt.Errorf("autonomy.New: platform must not be nil")
+		return nil, errors.New("autonomy.New: platform must not be nil")
 	}
 	if ranker == nil {
-		return nil, fmt.Errorf("autonomy.New: ranker must not be nil")
+		return nil, errors.New("autonomy.New: ranker must not be nil")
 	}
 	return &Autonomy{platform: platform, ranker: ranker, cfg: cfg}, nil
 }

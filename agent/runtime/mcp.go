@@ -2,7 +2,7 @@ package runtime
 
 import (
 	"context"
-	"fmt"
+	"errors"
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/mcp"
@@ -31,10 +31,10 @@ type MCPResolver struct {
 // surface or panic.
 func NewMCPResolver(role string, provider *mcp.Provider) (*MCPResolver, error) {
 	if role == "" {
-		return nil, fmt.Errorf("runtime.NewMCPResolver: role must not be empty")
+		return nil, errors.New("runtime.NewMCPResolver: role must not be empty")
 	}
 	if provider == nil {
-		return nil, fmt.Errorf("runtime.NewMCPResolver: provider must not be nil")
+		return nil, errors.New("runtime.NewMCPResolver: provider must not be nil")
 	}
 	return &MCPResolver{
 		name:     "mcp-tool-resolver:" + role,

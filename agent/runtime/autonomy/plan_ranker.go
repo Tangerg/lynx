@@ -3,6 +3,7 @@ package autonomy
 import (
 	"cmp"
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -44,7 +45,7 @@ type LLMPlanRankerConfig struct {
 // error on a nil client — caller decides whether to surface or panic.
 func NewLLMPlanRanker(client *chat.Client, cfg LLMPlanRankerConfig) (*LLMPlanRanker, error) {
 	if client == nil {
-		return nil, fmt.Errorf("autonomy.NewLLMPlanRanker: chat.Client must not be nil")
+		return nil, errors.New("autonomy.NewLLMPlanRanker: chat.Client must not be nil")
 	}
 	return &LLMPlanRanker{client: client, cfg: cfg}, nil
 }

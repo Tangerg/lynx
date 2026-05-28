@@ -2,6 +2,7 @@ package workflow
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/Tangerg/lynx/agent/core"
@@ -45,10 +46,10 @@ func Sequence[In, Out any](
 	agents ...*core.Agent,
 ) (*core.Agent, error) {
 	if platform == nil {
-		return nil, fmt.Errorf("workflow.Sequence: platform must not be nil")
+		return nil, errors.New("workflow.Sequence: platform must not be nil")
 	}
 	if name == "" {
-		return nil, fmt.Errorf("workflow.Sequence: name must not be empty")
+		return nil, errors.New("workflow.Sequence: name must not be empty")
 	}
 	if len(agents) < 2 {
 		return nil, fmt.Errorf("workflow.Sequence: at least 2 agents required, got %d", len(agents))

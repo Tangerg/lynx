@@ -3,6 +3,7 @@ package autonomy
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -39,7 +40,7 @@ type LLMRankerConfig struct {
 // on a nil client — caller decides whether to surface or panic.
 func NewLLMRanker(client *chat.Client, cfg LLMRankerConfig) (*LLMRanker, error) {
 	if client == nil {
-		return nil, fmt.Errorf("autonomy.NewLLMRanker: chat.Client must not be nil")
+		return nil, errors.New("autonomy.NewLLMRanker: chat.Client must not be nil")
 	}
 	return &LLMRanker{client: client, cfg: cfg}, nil
 }
@@ -169,7 +170,7 @@ type rankerReply struct {
 func parseRankerReply(text string) (map[string]rankerEntry, error) {
 	jsonStr := extractJSON(text)
 	if jsonStr == "" {
-		return nil, fmt.Errorf("autonomy.parseRankerReply: no JSON object in reply")
+		return nil, errors.New("autonomy.parseRankerReply: no JSON object in reply")
 	}
 	var reply rankerReply
 	if err := json.Unmarshal([]byte(jsonStr), &reply); err != nil {

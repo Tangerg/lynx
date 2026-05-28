@@ -2,6 +2,7 @@ package workflow
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"golang.org/x/sync/errgroup"
@@ -61,16 +62,16 @@ func Parallel[In, Element, Result any](
 	spec ParallelConfig[In, Element, Result],
 ) (*core.Agent, error) {
 	if platform == nil {
-		return nil, fmt.Errorf("workflow.Parallel: platform must not be nil")
+		return nil, errors.New("workflow.Parallel: platform must not be nil")
 	}
 	if spec.Name == "" {
-		return nil, fmt.Errorf("workflow.Parallel: Name must not be empty")
+		return nil, errors.New("workflow.Parallel: Name must not be empty")
 	}
 	if len(spec.Agents) == 0 {
-		return nil, fmt.Errorf("workflow.Parallel: Agents must not be empty")
+		return nil, errors.New("workflow.Parallel: Agents must not be empty")
 	}
 	if spec.Joiner == nil {
-		return nil, fmt.Errorf("workflow.Parallel: Joiner must not be nil")
+		return nil, errors.New("workflow.Parallel: Joiner must not be nil")
 	}
 	for i, a := range spec.Agents {
 		if a == nil {

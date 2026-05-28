@@ -2,6 +2,7 @@ package workflow
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/Tangerg/lynx/agent/core"
@@ -72,16 +73,16 @@ func Loop[In, Out any](
 	spec LoopConfig[In, Out],
 ) (*core.Agent, error) {
 	if platform == nil {
-		return nil, fmt.Errorf("workflow.Loop: platform must not be nil")
+		return nil, errors.New("workflow.Loop: platform must not be nil")
 	}
 	if spec.Name == "" {
-		return nil, fmt.Errorf("workflow.Loop: Name must not be empty")
+		return nil, errors.New("workflow.Loop: Name must not be empty")
 	}
 	if spec.Body == nil {
-		return nil, fmt.Errorf("workflow.Loop: Body must not be nil")
+		return nil, errors.New("workflow.Loop: Body must not be nil")
 	}
 	if spec.Until == nil {
-		return nil, fmt.Errorf("workflow.Loop: Until must not be nil")
+		return nil, errors.New("workflow.Loop: Until must not be nil")
 	}
 	maxIter := spec.MaxIterations
 	if maxIter <= 0 {

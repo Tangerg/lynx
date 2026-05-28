@@ -2,7 +2,7 @@ package workflow
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"sort"
 
 	"github.com/Tangerg/lynx/agent/core"
@@ -50,13 +50,13 @@ type ConsensusConfig[In, Element any] struct {
 // Returns an error on missing Name / empty Voters / nil Key.
 func Consensus[In, Element any](spec ConsensusConfig[In, Element]) (*core.Agent, error) {
 	if spec.Name == "" {
-		return nil, fmt.Errorf("workflow.Consensus: Name must not be empty")
+		return nil, errors.New("workflow.Consensus: Name must not be empty")
 	}
 	if len(spec.Voters) == 0 {
-		return nil, fmt.Errorf("workflow.Consensus: Voters must not be empty")
+		return nil, errors.New("workflow.Consensus: Voters must not be empty")
 	}
 	if spec.Key == nil {
-		return nil, fmt.Errorf("workflow.Consensus: Key must not be nil")
+		return nil, errors.New("workflow.Consensus: Key must not be nil")
 	}
 
 	return ScatterGather(ScatterGatherConfig[In, Element, Element]{

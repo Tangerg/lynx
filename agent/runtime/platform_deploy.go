@@ -1,6 +1,7 @@
 package runtime
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/Tangerg/lynx/agent/core"
@@ -65,7 +66,7 @@ func checkGoalsReachable(a *core.Agent) error {
 	producible := map[string]struct{}{}
 	for _, action := range a.Actions {
 		if action == nil {
-			return fmt.Errorf("action list contains a nil action")
+			return errors.New("action list contains a nil action")
 		}
 		meta := action.Metadata()
 		for key, value := range meta.Effects {
