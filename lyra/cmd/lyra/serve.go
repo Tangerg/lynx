@@ -79,6 +79,17 @@ Stdio transport is intentionally not supported — see docs/API.md §1.1.`,
 				Capabilities:    server.Capabilities(),
 				LocalToken:      tokenValue,
 				CORSOrigins:     corsOrigins,
+				HealthProbes: []lyrahttp.HealthProbe{
+					{
+						Name: "runtime",
+						Probe: func(ctx context.Context) lyrahttp.HealthCheck {
+							if err := api.Ping(ctx); err != nil {
+								return lyrahttp.HealthCheck{Status: lyrahttp.HealthUnhealthy, Detail: err.Error()}
+							}
+							return lyrahttp.HealthCheck{Status: lyrahttp.HealthOK}
+						},
+					},
+				},
 			})
 			if err != nil {
 				return a.fatalErr(err)
