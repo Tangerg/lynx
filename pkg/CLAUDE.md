@@ -45,7 +45,7 @@
 ## 强约定
 
 - **零业务依赖**：pkg 不 import 任何 `core/` / `agent/` / `models/` / `vectorstores/`。CI 应该锁这条（否则形成循环）
-- **导出即长存**：一旦 export 的类型 / 函数永远不破坏。breaking 改动 = 新包 / 新主版本
+- **公开 API 改动须先咨询用户**：dev 阶段允许 breaking change（schema / 签名 / 类型都能换），但 pkg 是被整个 monorepo 依赖的基础层，**任何 exported API 调整先确认 scope + 影响面**。详见 `../lyra/CLAUDE.md` 强约定段
 - **Generics 强制**：所有集合用类型参数，公开 API 禁 `interface{}` / `any`
 - **Iterator-first**：Go 1.23 `range-over-func` 优先于 `ForEach(func(T))` —— 调用方拿到 `break` / 提前退出能力
 - **流式不缓冲**：`xml` / `json` / `stream` 优先增量处理；处理不可信输入时强制 buffer cap（防 OOM）
