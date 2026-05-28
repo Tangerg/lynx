@@ -33,6 +33,7 @@
 - **`errors.New` 优先于 `fmt.Errorf("constant")`**。`fmt.Errorf` 只在真要格式化时用，包装其他错误必须 `%w` 才能 `errors.Is/As`
 - **没有 Java 味**：禁 `impl.go` 文件 / `Impl` / `Service` / `Manager` / `Helper` / `Handler` 这种空白后缀 / `GetX/SetX` getter / `NewBuilder().With().Build()` 链。文件名描述内容（`inmemory.go` / `engine.go` / `sqlite/session.go`），struct 名描述本质
 - **现代 Go**：`atomic.Int32` / `atomic.Pointer[T]` / `sync.Map` 优先于自家 atomic wrapper；`slices.*` / `maps.*` 替代手写 loop；`iter.Seq2` 替代 channel-based 流
+- **Logging 走 OTel，不用 stdlib `log` / `log/slog`**：所有内部错误 / 事件记录通过 OTel span（`otel.Tracer(...).Start()` + `span.RecordError(err)` + `span.SetStatus(codes.Error, ...)` + `span.End()`），不用 `log.Printf` / `slog.Default()`。参考 `chatmemory/internal/tracing/` 和 `lyra/rpc/transport/http/tracing.go` 的 helper pattern。**例外**：(a) `otel/log/` 和 `otel/slog/` 子包本身是 OTel→stdlib 的导出器（设计就是 bridge）；(b) 公开 API 接受 `slog.Level` 等 stdlib 类型作为入参（如 `mcp.LogToClient`，是用户选择不是内部 logging）；(c) `core/model/chat/middleware.NewSlogLogger` 是给用户用 slog 的 optional convenience provider（用户也可以自己写 OTel 实现）
 - **设计原则**（高内聚低耦合 / KISS / DRY / SOLID / YAGNI）—— 是判断标准，详见下方"## 设计原则"段
 - **目前开发阶段，公开 API 可以调整**：不写 legacy 兼容代码、不写 migration、schema / exported type / 函数签名变了直接换；注释里不提"Legacy …"。**但任何破坏性公开 API 改动必须先咨询用户**（不只是大重构 —— 改一个 exported 函数签名 / 删一个 exported 类型 / 改 struct field 也算），列清楚 scope + 影响面 + 备选方案，等用户确认再动手。这条规则适用于**所有 sub-module**
 - **加文档？先问** —— 每个 sub-module 已有 `CLAUDE.md`，本根级也已有。其他默认不写
