@@ -26,7 +26,7 @@ import (
 // multi-client event fan-out, plan-mode pause/resume, etc. The
 // Service interface is stable, so transport adapters don't care
 // which impl they talk to.
-func New(eng *engine.Engine, approvalSvc approval.Service) Service {
+func New(eng Engine, approvalSvc approval.Service) Service {
 	if eng == nil {
 		panic("chat: engine is required")
 	}
@@ -85,7 +85,7 @@ func (st *turnState) drainSteering() []string {
 }
 
 type impl struct {
-	engine   *engine.Engine
+	engine   Engine
 	approval approval.Service // optional — nil = auto-approve every tool
 
 	mu    sync.Mutex
