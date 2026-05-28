@@ -39,7 +39,7 @@ func New(api coreapi.CoreAPI) *Dispatcher {
 type HandleResult struct {
 	// Response is the synchronous JSON-RPC reply. nil when the input
 	// was a notification (no id, no response on the wire).
-	Response *transport.Message
+	Response *transport.Response
 
 	// RunID is set when the dispatched method initiated a stream — the
 	// transport uses it as the routing key for notifications/run/event
@@ -58,56 +58,58 @@ type HandleResult struct {
 //
 // ExpectedMethod, when non-empty, is the method name the transport
 // extracted from the URL path (HTTP /v1/rpc/{method}); the dispatcher
-// cross-checks it against msg.Method and returns -32011 on mismatch.
-func (d *Dispatcher) Handle(ctx context.Context, msg *transport.Message, expectedMethod string) HandleResult {
-	if msg == nil {
-		return responseError(nil, transport.NewError(transport.CodeInvalidRequest, nil))
+// cross-checks it against the body method and returns -32011 on
+// mismatch.
+func (d *Dispatcher) Handle(ctx context.Context, msg transport.Message, expectedMethod string) HandleResult {
+	// Discriminate Request vs Response. Responses arriving at the
+	// dispatcher are invalid (we don't issue outbound requests today)
+	// and get rejected as a malformed envelope. Nil msg also falls
+	// through here.
+	req, ok := msg.(*transport.Request)
+	if !ok || req == nil {
+		return responseError(transport.ID{}, transport.NewError(transport.CodeInvalidRequest, nil))
 	}
-	if msg.JSONRPC != transport.JSONRPCVersion {
-		return responseError(msg.ID, transport.NewError(transport.CodeInvalidRequest, problemDataFrom(
-			fmt.Errorf("jsonrpc must be %q, got %q", transport.JSONRPCVersion, msg.JSONRPC),
-		)))
-	}
-	if expectedMethod != "" && msg.Method != "" && expectedMethod != msg.Method {
-		return responseError(msg.ID, protocolViolation(fmt.Sprintf(
-			"url method %q does not match body method %q", expectedMethod, msg.Method,
+
+	if expectedMethod != "" && expectedMethod != req.Method {
+		return responseError(req.ID, protocolViolation(fmt.Sprintf(
+			"url method %q does not match body method %q", expectedMethod, req.Method,
 		)))
 	}
 
 	// API.md v4 §1.1: id MUST be a JSON number. Reject string ids
 	// (and any other non-number type) at the dispatcher boundary.
-	if msg.ID != nil {
-		if err := validateNumberID(msg.ID); err != nil {
-			return responseError(msg.ID, transport.NewError(transport.CodeInvalidRequest, problemDataFrom(err)))
+	// IDs come from MakeID — nil, int64, or string; we only allow
+	// int64 (or absent, for Notifications).
+	if req.ID.IsValid() {
+		if _, ok := req.ID.Raw().(int64); !ok {
+			return responseError(req.ID, transport.NewError(transport.CodeInvalidRequest, problemDataFrom(
+				fmt.Errorf("id must be a JSON number, got %T", req.ID.Raw()),
+			)))
 		}
 	}
 
 	// Notifications: no response. We still dispatch so cancel-style
 	// notifications take effect; errors are dropped silently per
 	// JSON-RPC spec (logged elsewhere).
-	if msg.IsNotification() {
-		d.handleNotification(ctx, msg)
+	if !req.IsCall() {
+		d.handleNotification(ctx, req)
 		return HandleResult{}
 	}
 
-	if !msg.IsRequest() {
-		return responseError(msg.ID, transport.NewError(transport.CodeInvalidRequest, nil))
-	}
-
 	// Gate business methods behind initialize.
-	if !d.initialized.Load() && msg.Method != MethodInitialize && msg.Method != MethodPing {
-		return responseError(msg.ID, protocolViolation(
+	if !d.initialized.Load() && req.Method != MethodInitialize && req.Method != MethodPing {
+		return responseError(req.ID, protocolViolation(
 			"runtime.initialize must succeed before any business method",
 		))
 	}
 
-	return d.dispatchRequest(ctx, msg)
+	return d.dispatchRequest(ctx, req)
 }
 
 // dispatchRequest fans the request out to the right CoreAPI method.
 // Each method shape is small and self-explanatory — decode params,
 // call the typed method, encode result.
-func (d *Dispatcher) dispatchRequest(ctx context.Context, msg *transport.Message) HandleResult {
+func (d *Dispatcher) dispatchRequest(ctx context.Context, msg *transport.Request) HandleResult {
 	switch msg.Method {
 
 	// ─── Lifecycle ──────────────────────────────────────────────
@@ -465,7 +467,7 @@ func (d *Dispatcher) dispatchRequest(ctx context.Context, msg *transport.Message
 // in-flight JSON-RPC Request (matched by requestId == Message.id).
 // To stop an in-flight RUN the client must use the runs.cancel
 // Request method. The two paths are no longer overloaded.
-func (d *Dispatcher) handleNotification(ctx context.Context, msg *transport.Message) {
+func (d *Dispatcher) handleNotification(ctx context.Context, msg *transport.Request) {
 	switch msg.Method {
 	case MethodShutdown:
 		var in coreapi.ShutdownIn
@@ -485,24 +487,16 @@ func (d *Dispatcher) handleNotification(ctx context.Context, msg *transport.Mess
 
 // ─── helpers ────────────────────────────────────────────────────────
 
-func responseResult(id json.RawMessage, result any) HandleResult {
-	body, err := json.Marshal(result)
+func responseResult(id transport.ID, result any) HandleResult {
+	resp, err := transport.NewResponseResult(id, result)
 	if err != nil {
 		return responseError(id, transport.NewError(transport.CodeInternalError, problemDataFrom(err)))
 	}
-	return HandleResult{Response: &transport.Message{
-		JSONRPC: transport.JSONRPCVersion,
-		ID:      id,
-		Result:  body,
-	}}
+	return HandleResult{Response: resp}
 }
 
-func responseError(id json.RawMessage, err *transport.RPCError) HandleResult {
-	return HandleResult{Response: &transport.Message{
-		JSONRPC: transport.JSONRPCVersion,
-		ID:      id,
-		Error:   err,
-	}}
+func responseError(id transport.ID, rpcErr *transport.Error) HandleResult {
+	return HandleResult{Response: transport.NewResponseError(id, rpcErr)}
 }
 
 func unmarshal(raw json.RawMessage, dst any) error {
@@ -540,39 +534,5 @@ func decodeIDParam(raw json.RawMessage, key string) (string, error) {
 	return "", fmt.Errorf("missing %s", key)
 }
 
-// validateNumberID enforces API.md v4 §1.1 — Message.id MUST be a
-// JSON number. Strings and other types are rejected at this boundary.
-func validateNumberID(raw json.RawMessage) error {
-	if len(raw) == 0 {
-		return nil
-	}
-	trimmed := bytesTrimSpace(raw)
-	if len(trimmed) == 0 {
-		return fmt.Errorf("id must be a JSON number, got empty")
-	}
-	c := trimmed[0]
-	if c == '-' || (c >= '0' && c <= '9') {
-		// Confirm it parses as a number by going through Decoder so we
-		// catch "1abc" / NaN / etc.
-		var n json.Number
-		if err := json.Unmarshal(raw, &n); err != nil {
-			return fmt.Errorf("id must be a JSON number: %w", err)
-		}
-		return nil
-	}
-	return fmt.Errorf("id must be a JSON number, got %s", string(trimmed))
-}
-
-// bytesTrimSpace is a tiny local trim — avoids dragging in
-// strings/bytes for one call.
-func bytesTrimSpace(b []byte) []byte {
-	i := 0
-	for i < len(b) && (b[i] == ' ' || b[i] == '\t' || b[i] == '\n' || b[i] == '\r') {
-		i++
-	}
-	j := len(b)
-	for j > i && (b[j-1] == ' ' || b[j-1] == '\t' || b[j-1] == '\n' || b[j-1] == '\r') {
-		j--
-	}
-	return b[i:j]
-}
+// (validateNumberID + bytesTrimSpace removed in SDK migration —
+// Request.ID.Raw() type assertion in Handle replaces them.)

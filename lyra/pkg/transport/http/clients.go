@@ -24,7 +24,7 @@ type clientRegistry struct {
 // HTTP handler drains into the response writer; closing done signals
 // the handler to exit.
 type clientConn struct {
-	send chan *transport.Message
+	send chan transport.Message
 	done chan struct{}
 	once sync.Once
 }
@@ -49,7 +49,7 @@ func (r *clientRegistry) register(c *clientConn) func() {
 // broadcast pushes msg into every client's send buffer. Slow clients
 // drop the message on a full buffer rather than blocking the
 // runtime — keeps one stuck SSE consumer from stalling everyone else.
-func (r *clientRegistry) broadcast(msg *transport.Message) {
+func (r *clientRegistry) broadcast(msg transport.Message) {
 	r.mu.Lock()
 	conns := make([]*clientConn, 0, len(r.clients))
 	for c := range r.clients {

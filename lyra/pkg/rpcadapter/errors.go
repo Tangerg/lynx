@@ -9,15 +9,16 @@ import (
 	"github.com/Tangerg/lynx/lyra/pkg/transport"
 )
 
-// errorToRPC maps a Go error returned from CoreAPI into an RPCError
-// envelope. Sentinel errors from pkg/coreapi map to their
+// errorToRPC maps a Go error returned from CoreAPI into a JSON-RPC
+// Error envelope. Sentinel errors from pkg/coreapi map to their
 // corresponding wire codes; everything else falls through to
 // -32603 internal_error with the error's String() as detail.
-func errorToRPC(err error) *transport.RPCError {
+func errorToRPC(err error) *transport.Error {
 	if err == nil {
 		return nil
 	}
-	if rpcErr := new(transport.RPCError); errors.As(err, &rpcErr) {
+	var rpcErr *transport.Error
+	if errors.As(err, &rpcErr) {
 		return rpcErr
 	}
 
@@ -66,14 +67,14 @@ func problemDataFrom(err error) json.RawMessage {
 
 // invalidParams wraps an unmarshalling error as a -32602 invalid_params
 // envelope. The detail surfaces the field/message that failed.
-func invalidParams(reason string) *transport.RPCError {
+func invalidParams(reason string) *transport.Error {
 	data, _ := json.Marshal(transport.ProblemData{Detail: reason})
 	return transport.NewError(transport.CodeInvalidParams, data)
 }
 
 // methodNotFound builds the canonical -32601 envelope for an unknown
 // method.
-func methodNotFound(method string) *transport.RPCError {
+func methodNotFound(method string) *transport.Error {
 	data, _ := json.Marshal(transport.ProblemData{Detail: fmt.Sprintf("unknown method %q", method)})
 	return transport.NewError(transport.CodeMethodNotFound, data)
 }
@@ -81,7 +82,7 @@ func methodNotFound(method string) *transport.RPCError {
 // protocolViolation is the -32011 envelope used when the client
 // breaks a wire rule (calling a business method before initialize,
 // URL/body method mismatch, ...).
-func protocolViolation(detail string) *transport.RPCError {
+func protocolViolation(detail string) *transport.Error {
 	data, _ := json.Marshal(transport.ProblemData{Detail: detail})
 	return transport.NewError(transport.CodeProtocolViolation, data)
 }
