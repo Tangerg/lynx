@@ -19,7 +19,7 @@ func skipWithoutShell(t *testing.T) {
 
 func TestLocalExecutor_Run_HappyPath(t *testing.T) {
 	skipWithoutShell(t)
-	out, err := NewLocalExecutor().Run(t.Context(), RunInput{Cmd: "echo hello"})
+	out, err := NewLocalExecutor().Run(t.Context(), Input{Cmd: "echo hello"})
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
@@ -36,7 +36,7 @@ func TestLocalExecutor_Run_HappyPath(t *testing.T) {
 
 func TestLocalExecutor_Run_NonZeroExit(t *testing.T) {
 	skipWithoutShell(t)
-	out, err := NewLocalExecutor().Run(t.Context(), RunInput{Cmd: "exit 7"})
+	out, err := NewLocalExecutor().Run(t.Context(), Input{Cmd: "exit 7"})
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
@@ -47,7 +47,7 @@ func TestLocalExecutor_Run_NonZeroExit(t *testing.T) {
 
 func TestLocalExecutor_Run_StderrCaptured(t *testing.T) {
 	skipWithoutShell(t)
-	out, err := NewLocalExecutor().Run(t.Context(), RunInput{Cmd: "echo oops 1>&2"})
+	out, err := NewLocalExecutor().Run(t.Context(), Input{Cmd: "echo oops 1>&2"})
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
@@ -59,7 +59,7 @@ func TestLocalExecutor_Run_StderrCaptured(t *testing.T) {
 func TestLocalExecutor_Run_Timeout(t *testing.T) {
 	skipWithoutShell(t)
 	start := time.Now()
-	out, err := NewLocalExecutor().Run(t.Context(), RunInput{
+	out, err := NewLocalExecutor().Run(t.Context(), Input{
 		Cmd:     "sleep 5",
 		Timeout: 50 * time.Millisecond,
 	})
@@ -75,7 +75,7 @@ func TestLocalExecutor_Run_Timeout(t *testing.T) {
 }
 
 func TestLocalExecutor_Run_EmptyCommand(t *testing.T) {
-	_, err := NewLocalExecutor().Run(t.Context(), RunInput{Cmd: ""})
+	_, err := NewLocalExecutor().Run(t.Context(), Input{Cmd: ""})
 	if !errors.Is(err, ErrEmptyCommand) {
 		t.Errorf("Run with empty Cmd: err = %v, want ErrEmptyCommand", err)
 	}
@@ -85,7 +85,7 @@ func TestLocalExecutor_OutputCap(t *testing.T) {
 	skipWithoutShell(t)
 	exec := NewLocalExecutor()
 	exec.MaxOutputBytes = 100
-	out, err := exec.Run(t.Context(), RunInput{
+	out, err := exec.Run(t.Context(), Input{
 		Cmd: `for i in $(seq 1 1000); do echo "line $i"; done`,
 	})
 	if err != nil {

@@ -8,12 +8,12 @@ import (
 // Executor is the SPI backing [NewTool]. One method, predictable
 // shape.
 type Executor interface {
-	Run(ctx context.Context, in RunInput) (RunOutput, error)
+	Run(ctx context.Context, in Input) (Output, error)
 }
 
-// RunInput captures everything an executor needs to launch a single
+// Input captures everything an executor needs to launch a single
 // command. Only Cmd is required.
-type RunInput struct {
+type Input struct {
 	// Cmd is the shell command line. Required.
 	Cmd string
 
@@ -22,15 +22,15 @@ type RunInput struct {
 	Timeout time.Duration
 }
 
-// RunOutput is what every executor returns. A non-zero ExitCode is
+// Output is what every executor returns. A non-zero ExitCode is
 // not an error — only spawn/I/O failures populate the error return.
-type RunOutput struct {
+type Output struct {
 	Stdout   []byte
 	Stderr   []byte
 	ExitCode int
 	Duration time.Duration
 
 	// Killed is true when the process was terminated by ctx or
-	// RunInput.Timeout rather than exiting on its own.
+	// Input.Timeout rather than exiting on its own.
 	Killed bool
 }
