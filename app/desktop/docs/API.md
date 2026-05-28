@@ -56,14 +56,14 @@ type Message = Request | Response | Notification;
 
 interface Request {
   jsonrpc: "2.0";
-  id: string | number;          // 同会话内单调，绝不重用，绝不 null
+  id: number;                   // 单调递增整数，同会话内不重用，绝不 null
   method: string;               // "runs.start" / "sessions.list" / ...
   params?: unknown;             // method-specific
 }
 
 interface Response {
   jsonrpc: "2.0";
-  id: string | number;          // 匹配 Request.id
+  id: number;                   // 匹配 Request.id
   result?: unknown;             // result 和 error 互斥
   error?: { code: number; message: string; data?: unknown };
 }
@@ -76,11 +76,16 @@ interface Notification {
 }
 ```
 
+**`id` 类型锁死为整数**（JSON-RPC 2.0 允许 `string | number`，我们
+收紧到 `number`）：客户端用单调递增 integer，服务端不接 string id。
+少一个 union 分支、少一组解析路径。
+
 **不做的事**：
 - ❌ JSON-RPC batch（MCP 2025-06-18 也删了 —— pipeline 用并发连接解决）
 - ❌ stdio transport（Lyra 没这需求）
 - ❌ Server → Client request（双向 RPC 让 transport 复杂化；HITL 用
   "Notification + 后续 Request" 配对实现，见 §4.3）
+- ❌ `id` 用字符串（greenfield 锁死整数）
 
 ### 1.2 元数据走带外通道
 
@@ -169,18 +174,25 @@ cancelled notification 才真停。
 `background.subscribe`）返回流而不是单一结果：
 
 1. Client 发 Request（如 `runs.start`）
-2. Server **立即回 Response**，包含 `runId` + `streamHandle`，
+2. Server **立即回 Response**，包含**唯一 id**（`runs.start` 返 `runId`、
+   `terminal.subscribe` 返 `runId`、`background.subscribe` 返 `taskId`），
    **不等流结束**
 3. Server 通过 Notification 推 event：
    ```ts
    "notifications/run/event" {
-     streamHandle: string;
+     runId: string;            // 关联回 runs.start 的 runId（唯一标识）
      eventId: string;          // 单调递增，用作 Last-Event-Id resume key
      event: AgUiEvent;          // 见 §4
    }
    ```
-4. 流结束时 server 发 `notifications/run/closed { streamHandle, reason }`
-5. Client 想取消用 `notifications/cancelled { requestId: <run request id> }`
+4. 流结束时 server 发 `notifications/run/closed { runId, reason? }`
+5. Client 想停 run 用 `runs.cancel { runId, reason? }`（见 §5.2）；
+   想取消**还在飞的 Request**（如慢 `sessions.list`）用
+   `notifications/cancelled { requestId }`（见 §2.4）。**两个语义彻底分开**
+
+**为什么不用 streamHandle 这种第二 id**：每个流式方法已经有自己的
+唯一资源 id（runId / taskId / 等），再多一个 streamHandle 是无意义
+冗余。Greenfield 决议：流过滤直接按资源 id。
 
 ### 3.2 每种 transport 上的物理形态
 
@@ -193,11 +205,11 @@ cancelled notification 才真停。
 ### 3.3 续传
 
 Client 断线 → 重连 → 重新发 Request（带 `lastEventId` 参数 OR
-`Last-Event-Id` header） → Server 回放该 stream 里 `eventId >
-lastEventId` 的事件。
+`Last-Event-Id` header） → Server 回放该流里 `eventId > lastEventId`
+的事件。
 
 - **重放窗口：30s**。超时后 client 要从 `messages.list` 拉历史补全
-- 续传只在同一个 `streamHandle` 内有效，不跨 run
+- 续传只在**同一个资源 id**（runId / taskId 等）内有效，不跨资源
 
 ---
 
@@ -286,8 +298,8 @@ notification 的 `params.event` 字段出现。
 | `runtime.shutdown` | C→R notify | `void` | `{ reason? }` |
 | `runtime.ping` | C→R | `void` | — （HTTP 上推荐用 sidecar `/v1/health`，见 §9） |
 | **Runs** | | | |
-| `runs.start` | C→R | `Stream<StartRunResult, AgUiEvent>` | `StartRunParams`（§6.3）；事件经 `notifications/run/event` 流出 |
-| `runs.cancel` | C→R notify | `void` | 等价于 `notifications/cancelled { requestId }` |
+| `runs.start` | C→R | `Stream<StartRunResult, AgUiEvent>` | `StartRunParams`（§6.3）；事件经 `notifications/run/event` 流出。Result = `{ runId }` |
+| `runs.cancel` | C→R | `void` | `{ runId, reason? }` —— **正经 Request**（不是 notification），停止 long-running run。跟 `notifications/cancelled`（取消在飞 JSON-RPC Request）语义不同，详见 §2.4 + §3.1 |
 | `runs.approval.submit` | C→R | `void` | `{ requestId, decision: "approve"\|"deny", reason? }`（见 §4.3） |
 | **Sessions** | | | |
 | `sessions.list` | C→R | `Page<Session>` | `PageQuery`（游标分页） |
@@ -305,7 +317,7 @@ notification 的 `params.event` 字段出现。
 | `workspace.diff` | C→R | `DiffRow[]` | `{ path }` —— 结构化 row（§6.6），不是裸 string |
 | `workspace.fileHead` | C→R | `FileLine[]` | `{ path }` —— 结构化 line（§6.6），不是裸 string |
 | `workspace.grep` | C→R | `GrepResult` | `{ query }` —— 单对象 `{ matches, total }`，未来 additive 加 `nextCursor?` |
-| `workspace.terminal.subscribe` | C→R | `Stream<{streamHandle}, TermLine>` | `{ runId }`；输出经 `notifications/terminal/output` 流出 |
+| `workspace.terminal.subscribe` | C→R | `Stream<{runId}, TermLine>` | `{ runId }`；输出经 `notifications/terminal/output` 流出。Result 字段 = `{ runId }`（回显） |
 | `workspace.projects` | C→R | `Project[]` | — |
 | `workspace.mcp.list` | C→R | `MCPServer[]` | — |
 | `workspace.mcp.reconnect` | C→R | `void` | `{ name }` —— **MCP 协议原生 name 作唯一标识**（不再用 `id`） |
@@ -321,7 +333,7 @@ notification 的 `params.event` 字段出现。
 | **Background** | | | |
 | `background.list` | C→R | `BackgroundTask[]` | — |
 | `background.stop` | C→R | `void` | `{ taskId }` —— **字段名 `taskId`，不是 `id`** |
-| `background.subscribe` | C→R | `Stream<{streamHandle}, BackgroundUpdate>` | `{ taskId }` |
+| `background.subscribe` | C→R | `Stream<{taskId}, BackgroundUpdate>` | `{ taskId }`；输出经 `notifications/background/update` 流出。Result 字段 = `{ taskId }`（回显） |
 | **Feedback** | | | |
 | `feedback.submit` | C→R | `void` | `{ kind, refId, value? }` —— 替代 `lyra.meta` 事件的方法路径 |
 
@@ -338,13 +350,16 @@ notification 的 `params.event` 字段出现。
 
 ### 5.3 服务端发出的 Notification 清单
 
-| Notification method | 何时 |
-| --- | --- |
-| `notifications/run/event` | run 期间每个 AG-UI 事件 |
-| `notifications/run/closed` | run 流结束 |
-| `notifications/background/update` | background 任务状态变化 |
-| `notifications/terminal/output` | `workspace.terminal.subscribe` 后的 pty 输出 |
-| `notifications/cancelled` | server 承认收到 client 的 cancellation（HTTP 响应 `204 No Content`） |
+每条 notification 的 `params` 都带**对应资源 id**（runId / taskId）做
+流过滤，客户端按 id match。详细形状见 §3.1。
+
+| Notification method | 何时 | params 关键字段 |
+| --- | --- | --- |
+| `notifications/run/event` | run 期间每个 AG-UI 事件 | `{ runId, eventId, event }` |
+| `notifications/run/closed` | run 流结束 | `{ runId, reason? }` |
+| `notifications/background/update` | background 任务状态变化 | `{ taskId, eventId, status, progress?, outputDelta? }` |
+| `notifications/terminal/output` | `workspace.terminal.subscribe` 后的 pty 输出 | `{ runId, eventId, line }` |
+| `notifications/cancelled` | server 承认收到 client 的 cancellation（HTTP 响应 `204 No Content`） | `{ requestId }` —— 注意这里是 JSON-RPC Request id 不是 runId |
 
 ### 5.4 特例 —— Attachments 二进制上传
 
@@ -437,6 +452,10 @@ interface ToolCall {
   arguments: string;             // JSON-encoded
 }
 
+// JSON Schema (draft 2020-12)。这里明确类型而不用 `unknown`，让 codegen
+// 出来的客户端能就着 schema 做参数校验。Wire 上是任意 object。
+type JsonSchema = Record<string, unknown>;
+
 interface ToolSpec {
   name: string;
   description?: string;
@@ -481,8 +500,7 @@ interface StartRunParams {
 }
 
 interface StartRunResult {
-  runId: string;
-  streamHandle: string;
+  runId: string;                 // 唯一标识，notifications/run/event 用此 id 关联
 }
 ```
 
@@ -560,15 +578,16 @@ interface Project {
   active?: boolean;
 }
 
-// MCP server —— `name` 是 MCP 协议原生唯一标识符。
-// 不带 `id` 字段（v3 决议：避免 `id` vs `name` 谁是真标识符的歧义）
+// MCP server —— `name` 是 MCP 协议原生唯一标识符（MCP 协议 server name
+// 已经是 human-readable 标识，如 "filesystem" / "github" / "browser"），
+// **不带** `id`（v3 决议：避免 `id` vs `name` 谁是真标识符的歧义）、
+// **不带** `displayName`（多余，name 本身就够）、**不带** `icon`
+// （UI presentation 不进 wire，客户端按 name 自己映射图标）。
 interface MCPServer {
   name: string;                  // MCP server name (== reconnect 的 wire key)
-  displayName?: string;          // 可选 pretty label
   desc: string;
-  tools: number;
+  tools: number;                 // 工具数量
   status: "active" | "idle" | "error";
-  icon: string;
 }
 
 interface Skill {
@@ -813,18 +832,24 @@ HTTP status：
 
 ## 10. Observability（HTTP transport 强制要求）
 
-### 10.1 两种 HTTP routing 形态
+### 10.1 HTTP routing —— 单一形态
 
-服务端**必须**同时接受两种 URL 形态：
+**所有 JSON-RPC message 走唯一路径**：
 
-| URL 形态 | 用途 |
-| --- | --- |
-| **`POST /v1/rpc`**（无 method 后缀） | 最低限度兼容路径。客户端不关心 ops 友好性时用。Method 名从 body 取 |
-| **`POST /v1/rpc/{method}`**（带 method 后缀，**推荐**） | Ops 友好。Nginx / k8s / Cloudflare access log 直接按 method 分桶。Body 必须仍包含 `method` 字段；URL method 跟 body method 不一致返 `409 + -32011` |
+```
+POST /v1/rpc/{method}
+```
+
+不接受 `POST /v1/rpc`（无后缀）的备用形态。Greenfield 决议：
+
+- 没有"老 client"需要兼容
+- 单一 entry 让反代 / k8s / Cloudflare access log 永远能按 method
+  分桶，不会有"该解 body 才能拿 method"的边缘场景
+- 服务端少一个分支 + 少一组 `URL method ≠ body method` 校验
+- typed client 永远拼对 URL，**未带 method 后缀的请求服务端返 404**
 
 **关键约束**：
-- **客户端推荐**用 `POST /v1/rpc/{method}` 形态；老 client / 简单
-  脚本仍可用 `POST /v1/rpc` —— 服务端**必须**两者都接
+
 - **Notification 同样适用**：`POST /v1/rpc/notifications/cancelled`、
   HTTP 响应 `204 No Content`。URL 路径只是 observability 标签，跟
   有没有 `id` 字段正交
@@ -832,6 +857,8 @@ HTTP status：
   `/v1/rpc/runs.start`（点保留）；`workspace.terminal.subscribe` →
   `/v1/rpc/workspace.terminal.subscribe`（三段、两个点全保留）；**禁止
   斜杠化**（详见 §5.1）
+- Body 里 `method` 字段必须跟 URL 里的 method 一致，不一致返
+  `409 + -32011`
 
 ### 10.2 必须暴露的响应 header
 

@@ -250,8 +250,7 @@ framing + TCP 栈，又不动 WebView。
 
 | Endpoint | 用途 |
 | --- | --- |
-| `POST /v1/rpc` | 接受 JSON-RPC Request/Notification。Method 名从 body 取。**最低限度兼容路径**。 |
-| `POST /v1/rpc/{method}` | **推荐路径**。Method 名在 URL（如 `/v1/rpc/runs.start`，点保留、禁止斜杠化），body 里仍含 `method` 字段做 cross-check（不匹配返 `409 + -32011`）。Ops 友好：反代 / k8s / 浏览器 DevTools 直接按 method 分桶。 |
+| `POST /v1/rpc/{method}` | **唯一 JSON-RPC entry**。Method 名在 URL（如 `/v1/rpc/runs.start`，点保留、禁止斜杠化），body 里仍含 `method` 字段做 cross-check（不匹配返 `409 + -32011`）。Ops 友好：反代 / k8s / 浏览器 DevTools 直接按 method 分桶。**不接受无 method 后缀的 `POST /v1/rpc`**（greenfield 决议）。 |
 | `GET /v1/rpc/stream` | SSE 流，server → client notifications。每个 SSE event 的 `data:` 字段是一条 JSON-RPC Notification。带 `Last-Event-Id` header 续传。 |
 | `GET /v1/info` | **Sidecar metadata**。扁平 JSON（不走 envelope）。无鉴权。详见 API.md §9。 |
 | `GET /v1/health` | **Sidecar liveness**。扁平 JSON，HTTP 200/503。无鉴权。详见 API.md §9。 |
@@ -271,11 +270,14 @@ export const httpTransport = (baseUrl: string, localToken?: string): Transport =
     async send(msg) {
       const headers: Record<string, string> = { "Content-Type": "application/json" };
       if (localToken) headers["Authorization"] = `Bearer ${localToken}`;
-      // Use the recommended URL form for ops-friendliness.
-      // Servers MUST also accept POST /v1/rpc (without method suffix).
-      const url = msg.method
-        ? `${baseUrl}/v1/rpc/${msg.method}`
-        : `${baseUrl}/v1/rpc`;
+      // Single-form: POST /v1/rpc/{method}. Server rejects requests
+      // without method suffix with 404 (greenfield, no compat fallback).
+      // Response messages don't carry method, so this only applies to
+      // outbound Request / Notification.
+      if (!msg.method) {
+        throw new Error("HTTP transport only sends Request / Notification messages");
+      }
+      const url = `${baseUrl}/v1/rpc/${msg.method}`;
       await fetch(url, {
         method: "POST",
         headers,

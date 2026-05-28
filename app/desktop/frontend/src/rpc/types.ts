@@ -12,7 +12,10 @@
 
 export const JSONRPC_VERSION = "2.0" as const;
 
-export type RpcId = string | number;
+// JSON-RPC 2.0 spec allows string | number for id; we lock to number
+// (monotonic integer). Greenfield decision — saves a union branch on
+// both ends, simpler dispatch table on the server.
+export type RpcId = number;
 
 export interface RpcRequest<P = unknown> {
   jsonrpc: typeof JSONRPC_VERSION;

@@ -82,16 +82,21 @@ export function createHttpTransport(config: HttpTransportConfig): Transport {
     };
   }
 
-  function buildUrl(method?: string): string {
-    return method ? `${baseUrl}/v1/rpc/${method}` : `${baseUrl}/v1/rpc`;
-  }
-
   async function send(msg: RpcMessage, signal?: AbortSignal): Promise<void> {
     if (closed) throw new RpcTransportError("transport closed");
 
-    // Method is in body always; URL suffix is the recommended ops form.
+    // Single URL form: POST /v1/rpc/{method}. Server rejects requests
+    // without method suffix with 404 (greenfield decision — no compat
+    // fallback to bare /v1/rpc). Response messages don't carry method
+    // and HTTPTransport never sends them anyway (the server is the only
+    // one that issues Responses, via the SSE channel).
     const method = "method" in msg ? msg.method : undefined;
-    const url = buildUrl(method);
+    if (!method) {
+      throw new RpcTransportError(
+        "HTTP transport only sends Request / Notification messages (which carry a `method`)",
+      );
+    }
+    const url = `${baseUrl}/v1/rpc/${method}`;
 
     const headers: Record<string, string> = { "Content-Type": "application/json" };
     if (config.localToken) headers.Authorization = `Bearer ${config.localToken}`;

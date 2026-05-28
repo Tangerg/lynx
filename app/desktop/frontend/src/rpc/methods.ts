@@ -89,7 +89,7 @@ export interface Methods {
       subscribe: (
         runId: string,
         signal?: AbortSignal,
-      ) => Promise<StreamingResult<{ streamHandle: string }, TermLine>>;
+      ) => Promise<StreamingResult<{ runId: string }, TermLine>>;
     };
     projects: () => Promise<Project[]>;
     mcp: {
@@ -119,7 +119,7 @@ export interface Methods {
     subscribe: (
       taskId: string,
       signal?: AbortSignal,
-    ) => Promise<StreamingResult<{ streamHandle: string }, BackgroundUpdate>>;
+    ) => Promise<StreamingResult<{ taskId: string }, BackgroundUpdate>>;
   };
   feedback: {
     submit: (input: FeedbackInput) => Promise<void>;
@@ -138,11 +138,14 @@ export function createMethods(client: RpcClient): Methods {
         const result = await client.call<StartRunResult>("runs.start", params, signal);
         return {
           result,
-          events: streamRunEvents(client, result.streamHandle, signal),
+          events: streamRunEvents(client, result.runId, signal),
         };
       },
-      cancel: (runId, reason) =>
-        client.notify("notifications/cancelled", { requestId: runId, reason }),
+      // Proper Request (not Notification). Semantically distinct from
+      // `notifications/cancelled` which cancels an in-flight JSON-RPC
+      // Request by JSON-RPC id. `runs.cancel` stops a long-running run
+      // by its runId — the runs.start Request has long since returned.
+      cancel: (runId, reason) => client.call<void>("runs.cancel", { runId, reason }),
       approval: {
         submit: (params) => client.call<void>("runs.approval.submit", params),
       },
@@ -170,14 +173,14 @@ export function createMethods(client: RpcClient): Methods {
       grep: (query) => client.call<GrepResult>("workspace.grep", { query }),
       terminal: {
         subscribe: async (runId, signal) => {
-          const result = await client.call<{ streamHandle: string }>(
+          const result = await client.call<{ runId: string }>(
             "workspace.terminal.subscribe",
             { runId },
             signal,
           );
           return {
             result,
-            events: createTerminalStream(client, result.streamHandle, signal),
+            events: createTerminalStream(client, result.runId, signal),
           };
         },
       },
@@ -207,14 +210,14 @@ export function createMethods(client: RpcClient): Methods {
       list: () => client.call<BackgroundTask[]>("background.list"),
       stop: (taskId) => client.call<void>("background.stop", { taskId }),
       subscribe: async (taskId, signal) => {
-        const result = await client.call<{ streamHandle: string }>(
+        const result = await client.call<{ taskId: string }>(
           "background.subscribe",
           { taskId },
           signal,
         );
         return {
           result,
-          events: createBackgroundStream(client, result.streamHandle, signal),
+          events: createBackgroundStream(client, result.taskId, signal),
         };
       },
     },
@@ -231,13 +234,15 @@ export function createMethods(client: RpcClient): Methods {
 
 function createTerminalStream(
   client: RpcClient,
-  streamHandle: string,
+  runId: string,
   signal?: AbortSignal,
 ): AsyncIterable<TermLine> {
   return makeStream<TermLine>(
     client,
-    streamHandle,
+    "runId",
+    runId,
     "notifications/terminal/output",
+    "notifications/run/closed",
     (params) => (params as { line: TermLine }).line,
     signal,
   );
@@ -245,24 +250,30 @@ function createTerminalStream(
 
 function createBackgroundStream(
   client: RpcClient,
-  streamHandle: string,
+  taskId: string,
   signal?: AbortSignal,
 ): AsyncIterable<BackgroundUpdate> {
   return makeStream<BackgroundUpdate>(
     client,
-    streamHandle,
+    "taskId",
+    taskId,
     "notifications/background/update",
+    "notifications/background/update", // background stream closes via status=succeeded|failed|stopped in update itself
     (params) => params as BackgroundUpdate,
     signal,
   );
 }
 
-// Generic streamer — extracted because terminal + background look
-// identical except for the notification method and payload shape.
+// Generic streamer — terminal + background look identical except for
+// the id field name (runId vs taskId), notification method, and payload
+// shape. Filters notifications by the resource id field (greenfield:
+// no more `streamHandle` indirection, the resource id IS the stream id).
 function makeStream<T>(
   client: RpcClient,
-  streamHandle: string,
+  idField: "runId" | "taskId",
+  idValue: string,
   notificationMethod: string,
+  closedMethod: string,
   extract: (params: unknown) => T,
   signal?: AbortSignal,
 ): AsyncIterable<T> {
@@ -284,8 +295,8 @@ function makeStream<T>(
 
       const unsubEvent = client.subscribe(notificationMethod, (msg) => {
         if (done) return;
-        const params = msg.params as { streamHandle?: string } | undefined;
-        if (params?.streamHandle !== streamHandle) return;
+        const params = msg.params as Record<string, unknown> | undefined;
+        if (params?.[idField] !== idValue) return;
         const value = extract(params);
         if (waiter) {
           const w = waiter;
@@ -296,9 +307,9 @@ function makeStream<T>(
         }
       });
 
-      const unsubClosed = client.subscribe("notifications/run/closed", (msg) => {
-        const params = msg.params as { streamHandle?: string } | undefined;
-        if (params?.streamHandle !== streamHandle) return;
+      const unsubClosed = client.subscribe(closedMethod, (msg) => {
+        const params = msg.params as Record<string, unknown> | undefined;
+        if (params?.[idField] !== idValue) return;
         settleDone();
       });
 
