@@ -2,22 +2,22 @@ package coreapi
 
 import "context"
 
-// LifecycleAPI is the handshake + heartbeat surface (API.md §2).
+// Lifecycle is the handshake + heartbeat surface (API.md §2).
 // Initialize MUST be the first business method called; the runtime
 // rejects everything else with -32011 protocol_violation until it
 // succeeds.
-type LifecycleAPI interface {
+type Lifecycle interface {
 	// Initialize negotiates protocol version + capabilities. The
 	// returned protocolVersion is what the server agrees to speak;
 	// when the client cannot fall back to it, the client MUST
 	// disconnect.
-	Initialize(ctx context.Context, in InitializeIn) (*InitializeOut, error)
+	Initialize(ctx context.Context, in InitializeRequest) (*InitializeResponse, error)
 
 	// Shutdown is a polite "I'm leaving" notification (no response
 	// expected on the wire — but the impl returns error for parity).
 	// Runtime stops accepting new requests, cancels in-flight runs
 	// with notifications/cancelled, and closes the transport.
-	Shutdown(ctx context.Context, in ShutdownIn) error
+	Shutdown(ctx context.Context, in ShutdownRequest) error
 
 	// Ping is a liveness probe — empty response on success. Most
 	// transports prefer the sidecar /v1/health endpoint when they
@@ -25,22 +25,22 @@ type LifecycleAPI interface {
 	Ping(ctx context.Context) error
 }
 
-// InitializeIn is the runtime.initialize request payload.
-type InitializeIn struct {
+// InitializeRequest is the runtime.initialize request payload.
+type InitializeRequest struct {
 	ProtocolVersion string             `json:"protocolVersion"`
 	ClientInfo      ClientInfo         `json:"clientInfo"`
 	Capabilities    ClientCapabilities `json:"capabilities"`
 }
 
-// InitializeOut is the runtime.initialize result payload.
-type InitializeOut struct {
+// InitializeResponse is the runtime.initialize result payload.
+type InitializeResponse struct {
 	ProtocolVersion string             `json:"protocolVersion"`
 	ServerInfo      ServerInfo         `json:"serverInfo"`
 	Capabilities    ServerCapabilities `json:"capabilities"`
 }
 
-// ShutdownIn is the runtime.shutdown notification payload.
-type ShutdownIn struct {
+// ShutdownRequest is the runtime.shutdown notification payload.
+type ShutdownRequest struct {
 	Reason string `json:"reason,omitempty"`
 }
 

@@ -16,7 +16,7 @@ const (
 
 // Session is the wire shape of one conversation. Metadata is
 // `Record<string, unknown>` on the wire (any JSON value), the internal
-// store may be narrower — coreimpl bridges the type at the boundary.
+// store may be narrower — lyracore bridges the type at the boundary.
 type Session struct {
 	ID            string         `json:"id"`
 	Title         string         `json:"title"`
@@ -30,29 +30,29 @@ type Session struct {
 	Archived      bool           `json:"archived,omitempty"`
 }
 
-// SessionsAPI is the sessions.* method group.
-type SessionsAPI interface {
+// Sessions is the sessions.* method group.
+type Sessions interface {
 	ListSessions(ctx context.Context, q PageQuery) (*Page[Session], error)
 	GetSession(ctx context.Context, id string) (*Session, error)
-	CreateSession(ctx context.Context, in CreateSessionIn) (*Session, error)
-	UpdateSession(ctx context.Context, in UpdateSessionIn) (*Session, error)
+	CreateSession(ctx context.Context, in CreateSessionRequest) (*Session, error)
+	UpdateSession(ctx context.Context, in UpdateSessionRequest) (*Session, error)
 	DeleteSession(ctx context.Context, id string) error
-	ForkSession(ctx context.Context, in ForkSessionIn) (*Session, error)
-	ExportSession(ctx context.Context, in ExportSessionIn) (*ExportSessionOut, error)
+	ForkSession(ctx context.Context, in ForkSessionRequest) (*Session, error)
+	ExportSession(ctx context.Context, in ExportSessionRequest) (*ExportSessionResponse, error)
 }
 
-// CreateSessionIn — sessions.create body.
-type CreateSessionIn struct {
+// CreateSessionRequest — sessions.create body.
+type CreateSessionRequest struct {
 	Title    string         `json:"title,omitempty"`
 	Model    string         `json:"model,omitempty"`
 	Metadata map[string]any `json:"metadata,omitempty"`
 }
 
-// UpdateSessionIn — sessions.update body. Carries the target ID
+// UpdateSessionRequest — sessions.update body. Carries the target ID
 // plus optional patch fields (flat wire shape, no nested envelope).
 // Nil pointers mean "leave alone"; non-nil applies the value. Metadata
 // is full replacement.
-type UpdateSessionIn struct {
+type UpdateSessionRequest struct {
 	ID       string             `json:"id"`
 	Title    *string            `json:"title,omitempty"`
 	Pinned   *bool              `json:"pinned,omitempty"`
@@ -60,10 +60,10 @@ type UpdateSessionIn struct {
 	Metadata *map[string]any    `json:"metadata,omitempty"`
 }
 
-// ForkSessionIn — sessions.fork body. ParentID is the source session
+// ForkSessionRequest — sessions.fork body. ParentID is the source session
 // being forked from (not the new id). See BACKEND_REVIEW §5.1 for the
 // naming rationale.
-type ForkSessionIn struct {
+type ForkSessionRequest struct {
 	ParentID    string `json:"parentId"`
 	AtMessageID string `json:"atMessageId"`
 }
@@ -76,15 +76,15 @@ const (
 	ExportFormatJSON     ExportFormat = "json"
 )
 
-// ExportSessionIn — sessions.export body.
-type ExportSessionIn struct {
+// ExportSessionRequest — sessions.export body.
+type ExportSessionRequest struct {
 	ID     string       `json:"id"`
 	Format ExportFormat `json:"format"`
 }
 
-// ExportSessionOut — sessions.export result. URL points at a
+// ExportSessionResponse — sessions.export result. URL points at a
 // transport-specific download endpoint; the caller fetches the bytes
 // through that URL out of band (API.md §5.2).
-type ExportSessionOut struct {
+type ExportSessionResponse struct {
 	URL string `json:"url"`
 }

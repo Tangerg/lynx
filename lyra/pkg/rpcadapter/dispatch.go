@@ -10,13 +10,13 @@ import (
 	"github.com/Tangerg/lynx/lyra/pkg/transport"
 )
 
-// Dispatcher routes inbound JSON-RPC messages to typed CoreAPI
+// Dispatcher routes inbound JSON-RPC messages to typed Runtime
 // methods. One instance per connection — it carries the per-conn
 // handshake state (initialized + negotiated capabilities) which the
 // HTTP transport keys by request affinity (cookie / sticky token) or
 // the InProcess transport sees as a single long-lived value.
 type Dispatcher struct {
-	api coreapi.CoreAPI
+	api coreapi.Runtime
 
 	// initialized flips once runtime.initialize succeeds. Until then
 	// every business method returns -32011 protocol_violation. atomic
@@ -24,10 +24,10 @@ type Dispatcher struct {
 	initialized atomic.Bool
 }
 
-// New builds a Dispatcher bound to the given CoreAPI. Concurrency:
+// New builds a Dispatcher bound to the given Runtime. Concurrency:
 // the returned Dispatcher is safe for parallel Handle calls; per-conn
 // state lives on it, so use one Dispatcher per logical session.
-func New(api coreapi.CoreAPI) *Dispatcher {
+func New(api coreapi.Runtime) *Dispatcher {
 	return &Dispatcher{api: api}
 }
 
@@ -106,7 +106,7 @@ func (d *Dispatcher) Handle(ctx context.Context, msg transport.Message, expected
 	return d.dispatchRequest(ctx, req)
 }
 
-// dispatchRequest fans the request out to the right CoreAPI method.
+// dispatchRequest fans the request out to the right Runtime method.
 // Each method shape is small and self-explanatory — decode params,
 // call the typed method, encode result.
 func (d *Dispatcher) dispatchRequest(ctx context.Context, msg *transport.Request) HandleResult {
@@ -114,7 +114,7 @@ func (d *Dispatcher) dispatchRequest(ctx context.Context, msg *transport.Request
 
 	// ─── Lifecycle ──────────────────────────────────────────────
 	case MethodInitialize:
-		var in coreapi.InitializeIn
+		var in coreapi.InitializeRequest
 		if err := unmarshal(msg.Params, &in); err != nil {
 			return responseError(msg.ID, invalidParams(err.Error()))
 		}
@@ -133,7 +133,7 @@ func (d *Dispatcher) dispatchRequest(ctx context.Context, msg *transport.Request
 
 	// ─── Runs ───────────────────────────────────────────────────
 	case MethodRunsStart:
-		var in coreapi.StartRunIn
+		var in coreapi.StartRunRequest
 		if err := unmarshal(msg.Params, &in); err != nil {
 			return responseError(msg.ID, invalidParams(err.Error()))
 		}
@@ -148,7 +148,7 @@ func (d *Dispatcher) dispatchRequest(ctx context.Context, msg *transport.Request
 		// It stops an in-flight run identified by runId. Decoupled from
 		// notifications/cancelled (which aborts an in-flight JSON-RPC
 		// Request — different semantic).
-		var in coreapi.CancelRunIn
+		var in coreapi.CancelRunRequest
 		if err := unmarshal(msg.Params, &in); err != nil {
 			return responseError(msg.ID, invalidParams(err.Error()))
 		}
@@ -161,7 +161,7 @@ func (d *Dispatcher) dispatchRequest(ctx context.Context, msg *transport.Request
 		return responseResult(msg.ID, struct{}{})
 
 	case MethodRunsApprovalSubmit:
-		var in coreapi.ApprovalIn
+		var in coreapi.ApprovalRequest
 		if err := unmarshal(msg.Params, &in); err != nil {
 			return responseError(msg.ID, invalidParams(err.Error()))
 		}
@@ -192,7 +192,7 @@ func (d *Dispatcher) dispatchRequest(ctx context.Context, msg *transport.Request
 		return responseResult(msg.ID, sess)
 
 	case MethodSessionsCreate:
-		var in coreapi.CreateSessionIn
+		var in coreapi.CreateSessionRequest
 		_ = unmarshal(msg.Params, &in)
 		sess, err := d.api.CreateSession(ctx, in)
 		if err != nil {
@@ -201,10 +201,10 @@ func (d *Dispatcher) dispatchRequest(ctx context.Context, msg *transport.Request
 		return responseResult(msg.ID, sess)
 
 	case MethodSessionsUpdate:
-		// UpdateSessionIn is flat — `id` lives alongside the patch
+		// UpdateSessionRequest is flat — `id` lives alongside the patch
 		// fields. One unmarshal pass covers everything (no inline-tag
 		// hack).
-		var in coreapi.UpdateSessionIn
+		var in coreapi.UpdateSessionRequest
 		if err := unmarshal(msg.Params, &in); err != nil {
 			return responseError(msg.ID, invalidParams(err.Error()))
 		}
@@ -228,7 +228,7 @@ func (d *Dispatcher) dispatchRequest(ctx context.Context, msg *transport.Request
 		return responseResult(msg.ID, struct{}{})
 
 	case MethodSessionsFork:
-		var in coreapi.ForkSessionIn
+		var in coreapi.ForkSessionRequest
 		if err := unmarshal(msg.Params, &in); err != nil {
 			return responseError(msg.ID, invalidParams(err.Error()))
 		}
@@ -239,7 +239,7 @@ func (d *Dispatcher) dispatchRequest(ctx context.Context, msg *transport.Request
 		return responseResult(msg.ID, sess)
 
 	case MethodSessionsExport:
-		var in coreapi.ExportSessionIn
+		var in coreapi.ExportSessionRequest
 		if err := unmarshal(msg.Params, &in); err != nil {
 			return responseError(msg.ID, invalidParams(err.Error()))
 		}
@@ -252,7 +252,7 @@ func (d *Dispatcher) dispatchRequest(ctx context.Context, msg *transport.Request
 	// ─── Messages ───────────────────────────────────────────────
 	case MethodMessagesList:
 		// Flat shape: sessionId + limit + cursor at the same level.
-		var in coreapi.ListMessagesIn
+		var in coreapi.ListMessagesRequest
 		if err := unmarshal(msg.Params, &in); err != nil {
 			return responseError(msg.ID, invalidParams(err.Error()))
 		}
@@ -266,7 +266,7 @@ func (d *Dispatcher) dispatchRequest(ctx context.Context, msg *transport.Request
 		return responseResult(msg.ID, page)
 
 	case MethodMessagesEdit:
-		var in coreapi.EditMessageIn
+		var in coreapi.EditMessageRequest
 		if err := unmarshal(msg.Params, &in); err != nil {
 			return responseError(msg.ID, invalidParams(err.Error()))
 		}
@@ -401,7 +401,7 @@ func (d *Dispatcher) dispatchRequest(ctx context.Context, msg *transport.Request
 
 	// ─── Attachments ────────────────────────────────────────────
 	case MethodAttachmentsCreateUploadURL:
-		var in coreapi.CreateUploadURLIn
+		var in coreapi.CreateUploadURLRequest
 		if err := unmarshal(msg.Params, &in); err != nil {
 			return responseError(msg.ID, invalidParams(err.Error()))
 		}
@@ -442,7 +442,7 @@ func (d *Dispatcher) dispatchRequest(ctx context.Context, msg *transport.Request
 
 	// ─── Feedback ───────────────────────────────────────────────
 	case MethodFeedbackSubmit:
-		var in coreapi.FeedbackIn
+		var in coreapi.FeedbackRequest
 		if err := unmarshal(msg.Params, &in); err != nil {
 			return responseError(msg.ID, invalidParams(err.Error()))
 		}
@@ -470,7 +470,7 @@ func (d *Dispatcher) dispatchRequest(ctx context.Context, msg *transport.Request
 func (d *Dispatcher) handleNotification(ctx context.Context, msg *transport.Request) {
 	switch msg.Method {
 	case MethodShutdown:
-		var in coreapi.ShutdownIn
+		var in coreapi.ShutdownRequest
 		_ = unmarshal(msg.Params, &in)
 		_ = d.api.Shutdown(ctx, in)
 

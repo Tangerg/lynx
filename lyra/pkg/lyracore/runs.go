@@ -1,4 +1,4 @@
-package coreimpl
+package lyracore
 
 import (
 	"context"
@@ -17,7 +17,7 @@ import (
 //
 // The transport layer wraps each event into a
 // notifications/run/event JSON-RPC notification per API.md §3.1.
-func (i *Impl) StartRun(ctx context.Context, in coreapi.StartRunIn) (*coreapi.StartRunOut, <-chan coreapi.AgUiEvent, error) {
+func (i *Server) StartRun(ctx context.Context, in coreapi.StartRunRequest) (*coreapi.StartRunResponse, <-chan coreapi.AgUiEvent, error) {
 	sessionID, err := i.resolveSession(ctx, in.SessionID)
 	if err != nil {
 		return nil, nil, err
@@ -48,7 +48,7 @@ func (i *Impl) StartRun(ctx context.Context, in coreapi.StartRunIn) (*coreapi.St
 	// filtering — no separate streamHandle.
 	runID := handle.TurnID
 
-	out := &coreapi.StartRunOut{RunID: runID}
+	out := &coreapi.StartRunResponse{RunID: runID}
 	events := make(chan coreapi.AgUiEvent, 32)
 
 	runCtx, cancel := context.WithCancel(context.Background())
@@ -69,7 +69,7 @@ func (i *Impl) StartRun(ctx context.Context, in coreapi.StartRunIn) (*coreapi.St
 // pumpRun translates internal chat events to AG-UI events and pipes
 // them to the consumer. Exits when the inner stream closes (turn end)
 // or the run is cancelled.
-func (i *Impl) pumpRun(ctx context.Context, handle chat.TurnHandle, inner <-chan chat.Event, out chan<- coreapi.AgUiEvent) {
+func (i *Server) pumpRun(ctx context.Context, handle chat.TurnHandle, inner <-chan chat.Event, out chan<- coreapi.AgUiEvent) {
 	translator := agui.NewTranslator(handle.SessionID, handle.TurnID)
 	defer close(out)
 	defer func() {
@@ -106,7 +106,7 @@ func (i *Impl) pumpRun(ctx context.Context, handle chat.TurnHandle, inner <-chan
 // CancelRun handles the runs.cancel Request (API.md v4 §3.5 — a
 // proper Request method, distinct from notifications/cancelled which
 // targets in-flight JSON-RPC Requests).
-func (i *Impl) CancelRun(_ context.Context, runID string) error {
+func (i *Server) CancelRun(_ context.Context, runID string) error {
 	i.runMu.Lock()
 	e, ok := i.runs[runID]
 	i.runMu.Unlock()
@@ -119,7 +119,7 @@ func (i *Impl) CancelRun(_ context.Context, runID string) error {
 
 // SubmitApproval handles runs.approval.submit (API.md §4.3). Maps
 // the wire decision strings onto the internal enum.
-func (i *Impl) SubmitApproval(ctx context.Context, in coreapi.ApprovalIn) error {
+func (i *Server) SubmitApproval(ctx context.Context, in coreapi.ApprovalRequest) error {
 	if in.RequestID == "" {
 		return errors.New("runs.approval.submit: requestId is required")
 	}
@@ -141,7 +141,7 @@ func (i *Impl) SubmitApproval(ctx context.Context, in coreapi.ApprovalIn) error 
 // resolveSession returns sessionID after verifying it exists, or
 // creates a fresh session when sessionID is empty — mirrors the
 // auto-create-on-empty path the previous HTTP handler had.
-func (i *Impl) resolveSession(ctx context.Context, sessionID string) (string, error) {
+func (i *Server) resolveSession(ctx context.Context, sessionID string) (string, error) {
 	if sessionID == "" {
 		sess, err := i.rt.Session().Create(ctx, "")
 		if err != nil {

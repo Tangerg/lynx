@@ -27,7 +27,7 @@ var sentinelToCode = map[error]int{
 	coreapi.ErrToolFailed:              transport.CodeToolFailed,
 }
 
-// errorToRPC maps a Go error returned from CoreAPI into a JSON-RPC
+// errorToRPC maps a Go error returned from Runtime into a JSON-RPC
 // Error envelope. Resolution order:
 //
 //  1. If err already wraps a *transport.Error, surface it verbatim

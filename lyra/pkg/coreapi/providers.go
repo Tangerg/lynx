@@ -2,19 +2,19 @@ package coreapi
 
 import "context"
 
-// ProvidersAPI is the providers.* method group.
-type ProvidersAPI interface {
+// Providers is the providers.* method group.
+type Providers interface {
 	ListProviders(ctx context.Context) ([]Provider, error)
 	TestProvider(ctx context.Context, id string) (*ProviderTestResult, error)
 }
 
-// ModelsAPI is the models.* method group.
-type ModelsAPI interface {
+// Models is the models.* method group.
+type Models interface {
 	ListModels(ctx context.Context, providerID string) ([]Model, error)
 }
 
-// ToolsAPI is the tools.* method group.
-type ToolsAPI interface {
+// Tools is the tools.* method group.
+type Tools interface {
 	ListTools(ctx context.Context) ([]Tool, error)
 }
 

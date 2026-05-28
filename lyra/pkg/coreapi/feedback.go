@@ -2,16 +2,16 @@ package coreapi
 
 import "context"
 
-// FeedbackAPI is the feedback.* method group — RLHF / quality
+// Feedback is the feedback.* method group — RLHF / quality
 // signals. The same data flows can also arrive as a lyra.meta
 // CUSTOM event during a run; this REST-shaped path is the
 // out-of-band channel.
-type FeedbackAPI interface {
-	SubmitFeedback(ctx context.Context, in FeedbackIn) error
+type Feedback interface {
+	SubmitFeedback(ctx context.Context, in FeedbackRequest) error
 }
 
-// FeedbackIn — feedback.submit body.
-type FeedbackIn struct {
+// FeedbackRequest — feedback.submit body.
+type FeedbackRequest struct {
 	Kind  string         `json:"kind"`            // "thumbs-up" | "thumbs-down" | "note" | "bookmark"
 	RefID string         `json:"refId"`           // message id / run id this feedback attaches to
 	Value any            `json:"value,omitempty"` // free-form per kind

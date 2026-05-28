@@ -11,23 +11,23 @@ import (
 	"github.com/Tangerg/lynx/lyra/pkg/transport/inprocess"
 )
 
-// fakeAPI is just enough CoreAPI to drive the InProcess transport's
+// fakeRuntime is just enough Runtime to drive the InProcess transport's
 // dispatch + response paths. Methods that aren't exercised by the
-// test embed the interface so the type satisfies coreapi.CoreAPI
+// test embed the interface so the type satisfies coreapi.Runtime
 // without us having to stub all 32 entries.
-type fakeAPI struct{ coreapi.CoreAPI }
+type fakeRuntime struct{ coreapi.Runtime }
 
-func (fakeAPI) Initialize(_ context.Context, _ coreapi.InitializeIn) (*coreapi.InitializeOut, error) {
-	return &coreapi.InitializeOut{ProtocolVersion: "2026-05-28"}, nil
+func (fakeRuntime) Initialize(_ context.Context, _ coreapi.InitializeRequest) (*coreapi.InitializeResponse, error) {
+	return &coreapi.InitializeResponse{ProtocolVersion: "2026-05-28"}, nil
 }
 
-func (fakeAPI) Ping(_ context.Context) error { return nil }
+func (fakeRuntime) Ping(_ context.Context) error { return nil }
 
 // TestInProcessRoundtrip confirms a Request sent to the InProcess
 // transport surfaces as a Response on the Recv channel — proves the
 // dispatcher + transport wiring is correctly bidirectional.
 func TestInProcessRoundtrip(t *testing.T) {
-	tp, err := inprocess.NewTransport(inprocess.Config{API: fakeAPI{}})
+	tp, err := inprocess.NewTransport(inprocess.Config{Runtime: fakeRuntime{}})
 	if err != nil {
 		t.Fatalf("NewTransport: %v", err)
 	}
@@ -61,7 +61,7 @@ func TestInProcessRoundtrip(t *testing.T) {
 // TestInProcessUnknownMethod confirms unknown methods get -32601 +
 // the dispatcher's standard envelope. Covers the failure path.
 func TestInProcessUnknownMethod(t *testing.T) {
-	tp, err := inprocess.NewTransport(inprocess.Config{API: fakeAPI{}})
+	tp, err := inprocess.NewTransport(inprocess.Config{Runtime: fakeRuntime{}})
 	if err != nil {
 		t.Fatalf("NewTransport: %v", err)
 	}
@@ -72,7 +72,7 @@ func TestInProcessUnknownMethod(t *testing.T) {
 	_ = tp.Send(context.Background(), initReq)
 	<-tp.Recv()
 
-	// Now a method the fakeAPI doesn't declare — falls through to
+	// Now a method the fakeRuntime doesn't declare — falls through to
 	// the dispatcher's default branch.
 	bogus, _ := transport.NewCall(2, "totally.bogus", nil)
 	_ = tp.Send(context.Background(), bogus)

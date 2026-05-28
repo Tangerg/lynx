@@ -35,36 +35,36 @@ type ToolCall struct {
 	Arguments string `json:"arguments"`
 }
 
-// MessagesAPI is the messages.* method group.
-type MessagesAPI interface {
-	ListMessages(ctx context.Context, in ListMessagesIn) (*Page[Message], error)
-	EditMessage(ctx context.Context, in EditMessageIn) (*EditMessageOut, error)
+// Messages is the messages.* method group.
+type Messages interface {
+	ListMessages(ctx context.Context, in ListMessagesRequest) (*Page[Message], error)
+	EditMessage(ctx context.Context, in EditMessageRequest) (*EditMessageResponse, error)
 }
 
-// ListMessagesIn — messages.list body. Flat wire shape: sessionId
+// ListMessagesRequest — messages.list body. Flat wire shape: sessionId
 // alongside the pagination fields (NOT nested under a `query` key).
-type ListMessagesIn struct {
+type ListMessagesRequest struct {
 	SessionID string `json:"sessionId"`
 	Limit     int    `json:"limit,omitempty"`
 	Cursor    string `json:"cursor,omitempty"`
 }
 
-// PageQuery extracts the pagination fields from ListMessagesIn for
+// PageQuery extracts the pagination fields from ListMessagesRequest for
 // callsites that want the typed pagination shape.
-func (in ListMessagesIn) PageQuery() PageQuery {
+func (in ListMessagesRequest) PageQuery() PageQuery {
 	return PageQuery{Limit: in.Limit, Cursor: in.Cursor}
 }
 
-// EditMessageIn — messages.edit body. Wire field is `content` (not
+// EditMessageRequest — messages.edit body. Wire field is `content` (not
 // `newContent` — see BACKEND_REVIEW §4.1).
-type EditMessageIn struct {
+type EditMessageRequest struct {
 	SessionID string `json:"sessionId"`
 	MessageID string `json:"messageId"`
 	Content   string `json:"content"`
 }
 
-// EditMessageOut — messages.edit result.
-type EditMessageOut struct {
+// EditMessageResponse — messages.edit result.
+type EditMessageResponse struct {
 	RunID      string `json:"runId"`
 	Checkpoint string `json:"checkpoint"`
 }

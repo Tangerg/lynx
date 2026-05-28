@@ -2,9 +2,9 @@ package coreapi
 
 import "context"
 
-// BackgroundAPI is the background.* method group — long-running
+// Background is the background.* method group — long-running
 // tasks the agent spawned that outlive a single run.
-type BackgroundAPI interface {
+type Background interface {
 	ListBackground(ctx context.Context) ([]BackgroundTask, error)
 	StopBackground(ctx context.Context, taskID string) error
 	SubscribeBackground(ctx context.Context, taskID string) (<-chan BackgroundUpdate, error)
