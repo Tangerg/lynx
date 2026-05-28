@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/lyra/internal/engine"
 	"github.com/Tangerg/lynx/lyra/internal/service/approval"
 )
@@ -42,11 +43,21 @@ func New(eng Engine, approvalGate approval.Gate) Service {
 // fires when [Service.Cancel] is called, a monotone sequence number
 // stamped onto every emitted event, and the plan-decision channel
 // runTurn blocks on when the turn is in plan-pending state.
+//
+// Once the chat agent dispatches, proc holds the running
+// [engine.ChatProcess]; [Service.Cancel] routes through it so the
+// agent runtime (not just ctx cancellation) drives termination.
 type turnState struct {
 	handle TurnHandle
 	events chan Event
 	cancel context.CancelFunc
 	seq    atomic.Uint64
+
+	// proc is the agent process backing this turn. Populated once
+	// runTurn calls engine.StartChat (after plan approval in
+	// plan-mode), nil before that. Cancel and Status both inspect
+	// it.
+	proc engine.ChatProcess
 
 	// planDecision is non-nil only while the turn is paused
 	// waiting for [Service.ContinuePlan]. Buffered (cap 1) so a
@@ -185,12 +196,24 @@ func (s *inMemory) InjectSteering(_ context.Context, handle TurnHandle, message 
 	return nil
 }
 
+// Cancel routes through the agent runtime when the chat process has
+// already dispatched — Platform.KillProcess flips the process to
+// StatusKilled and the run loop exits at its next checkpoint. The
+// ctx cancel still fires too so any in-flight LLM stream (which
+// reads ctx.Done()) aborts promptly. For turns still in plan-mode
+// (proc not yet populated), only the ctx cancel applies — runTurn
+// observes ctx.Done() during waitDecision and emits TurnEndCancelled.
 func (s *inMemory) Cancel(_ context.Context, handle TurnHandle) error {
 	state, err := s.findTurn(handle.TurnID)
 	if err != nil {
 		return err
 	}
 	state.cancel()
+	if state.proc != nil {
+		// KillProcess returns an error only on unknown id, which
+		// can't happen here — proc.ID() is the live process. Ignore.
+		_ = state.proc.Cancel("user cancel")
+	}
 	return nil
 }
 
@@ -244,11 +267,13 @@ func (s *inMemory) runTurn(ctx context.Context, st *turnState, req StartTurnRequ
 	}
 
 	observer := &turnObserver{svc: s, st: st}
-	out, runErr := s.engine.RunChat(ctx, engine.RunChatRequest{
+	proc := s.engine.StartChat(ctx, engine.RunChatRequest{
 		SessionID: req.SessionID,
 		Message:   req.Message,
 		Observer:  observer,
 	})
+	st.proc = proc
+	runErr := <-proc.Done()
 
 	// Drain any steering the client injected during the turn so it
 	// lands in conversation history BEFORE post-turn maintenance —
@@ -261,8 +286,11 @@ func (s *inMemory) runTurn(ctx context.Context, st *turnState, req StartTurnRequ
 	}
 	if runErr != nil {
 		// Honor cancellation differently from genuine errors so
-		// transport adapters can render the right state.
-		if errors.Is(ctx.Err(), context.Canceled) {
+		// transport adapters can render the right state. The agent
+		// runtime reports kill via proc.Status() == StatusKilled
+		// when [Service.Cancel] fired KillProcess; ctx cancel falls
+		// through the same branch.
+		if proc.Status() == core.StatusKilled || errors.Is(ctx.Err(), context.Canceled) {
 			s.emit(st, TurnEnd{
 				Reason:   TurnEndCancelled,
 				Duration: time.Since(startedAt),
@@ -282,7 +310,7 @@ func (s *inMemory) runTurn(ctx context.Context, st *turnState, req StartTurnRequ
 
 	// MessageDelta events already flowed through the observer during
 	// the stream — no need to re-emit the assembled reply here.
-
+	out, _ := proc.Output()
 	s.emit(st, TurnEnd{
 		Reason:     TurnEndCompleted,
 		Duration:   time.Since(startedAt),

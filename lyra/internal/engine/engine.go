@@ -69,7 +69,9 @@ type OnlineConfig struct {
 
 // Engine is the runtime facade. It composes three concerns:
 //
-//   - chat execution: platform + agent drive [Engine.RunChat]
+//   - chat execution: platform + agent drive [Engine.StartChat]
+//     (async; returns a [ChatProcess] handle backed by a real
+//     [runtime.AgentProcess]) and [Engine.RunChat] (sync wrapper)
 //   - maintenance:    compactor / extractor / planner power
 //     [Engine.MaybeCompact] / [Engine.MaybeExtract] /
 //     [Engine.GeneratePlan]
@@ -278,20 +280,83 @@ type RunChatRequest struct {
 	Observer ToolObserver
 }
 
-// RunChat is the engine's lowest-level chat entry. The runtime
-// schedules a process against the configured ChatAgent, blocks on
-// completion, and returns the produced reply alongside the per-turn
-// token roll-up.
+// ChatProcess is the handle [Engine.StartChat] returns. It exposes
+// the underlying [runtime.AgentProcess] lifecycle (status, failure,
+// cancellation) plus a typed result extractor — chat.Service drives
+// the turn off Done() and queries Status() to decide TurnEnd reason.
 //
-// When req.Observer is non-nil the engine attaches a process-scope
-// [core.ToolDecorator] that fires OnToolCallStart / OnToolCallEnd
-// for every tool the model invokes during the turn, plus
-// OnMessageDelta for each streamed text chunk.
+// The interface lives in this package (not chat.Engine) so test
+// stubs can substitute a fake without standing up a full platform.
+type ChatProcess interface {
+	// ID is the underlying agent process id — surfaces to clients as
+	// the turn handle so cancellation / resume requests route through
+	// the runtime by process id.
+	ID() string
+
+	// Status reports the current [core.AgentProcessStatus] —
+	// Running while the action loop ticks, Completed / Failed /
+	// Killed / Terminated when the run ends.
+	Status() core.AgentProcessStatus
+
+	// Failure returns the terminal error the process recorded on
+	// itself, or nil when the run is still in flight or succeeded.
+	Failure() error
+
+	// Done delivers the final error (or nil on success) once the
+	// run loop exits. Buffered cap-1 so callers can receive after
+	// the goroutine has already finished.
+	Done() <-chan error
+
+	// Output extracts the typed [ChatOutput] from the process
+	// blackboard. Returns an error when the run produced no output
+	// (status reflects the terminal cause).
+	Output() (ChatOutput, error)
+
+	// Cancel marks the process [core.StatusKilled] via the platform.
+	// The ongoing tick observes the status flip at its next checkpoint
+	// and the run loop exits, delivering its error on Done().
+	Cancel(reason string) error
+}
+
+// chatProcess is the canonical [ChatProcess] backed by a real
+// [runtime.AgentProcess]. Platform reference is held so Cancel can
+// invoke [runtime.Platform.KillProcess] without callers reaching
+// into engine internals.
+type chatProcess struct {
+	proc     *runtime.AgentProcess
+	done     <-chan error
+	platform *runtime.Platform
+}
+
+func (cp *chatProcess) ID() string                      { return cp.proc.ID() }
+func (cp *chatProcess) Status() core.AgentProcessStatus { return cp.proc.Status() }
+func (cp *chatProcess) Failure() error                  { return cp.proc.Failure() }
+func (cp *chatProcess) Done() <-chan error              { return cp.done }
+func (cp *chatProcess) Cancel(reason string) error {
+	_ = reason
+	return cp.platform.KillProcess(cp.proc.ID())
+}
+
+func (cp *chatProcess) Output() (ChatOutput, error) {
+	out, ok := core.ResultOfType[ChatOutput](cp.proc)
+	if !ok {
+		return ChatOutput{}, fmt.Errorf("engine: no ChatOutput produced; status=%s failure=%v", cp.proc.Status(), cp.proc.Failure())
+	}
+	return out, nil
+}
+
+// StartChat dispatches a chat turn as an async agent process and
+// returns the [ChatProcess] handle the caller drives. The lifecycle
+// — cancel, status, awaiting completion, output extraction — runs
+// against the agent runtime's [runtime.AgentProcess] rather than a
+// bare goroutine, so future HITL integration (plan approval, tool
+// approval) can drop in on the same Process via
+// [runtime.Platform.ResumeProcess].
 //
-// When req.SessionID is non-empty the engine binds the turn to a
-// chat-memory keyed conversation — the memory middleware auto-loads
-// prior turns and saves new messages keyed by SessionID.
-func (e *Engine) RunChat(ctx context.Context, req RunChatRequest) (ChatOutput, error) {
+// Observer / SessionID wiring matches [Engine.RunChat]: Observer
+// attaches a process-scope [core.ToolDecorator]; SessionID binds the
+// turn to the chat-memory middleware's keyed conversation.
+func (e *Engine) StartChat(ctx context.Context, req RunChatRequest) ChatProcess {
 	in := ChatInput{Message: req.Message}
 
 	opts := core.ProcessOptions{}
@@ -304,16 +369,20 @@ func (e *Engine) RunChat(ctx context.Context, req RunChatRequest) (ChatOutput, e
 		}
 	}
 
-	proc, err := e.platform.RunAgent(ctx, e.agent,
+	proc, done := e.platform.StartAgent(ctx, e.agent,
 		map[string]any{core.DefaultBindingName: in},
 		opts,
 	)
-	if err != nil {
+	return &chatProcess{proc: proc, done: done, platform: e.platform}
+}
+
+// RunChat is the synchronous wrapper kept for callers that don't
+// need the [ChatProcess] handle (engine tests, CLI smoke runs).
+// Newer call sites should use [Engine.StartChat] directly.
+func (e *Engine) RunChat(ctx context.Context, req RunChatRequest) (ChatOutput, error) {
+	cp := e.StartChat(ctx, req)
+	if err := <-cp.Done(); err != nil {
 		return ChatOutput{}, fmt.Errorf("engine: run chat: %w", err)
 	}
-	out, ok := core.ResultOfType[ChatOutput](proc)
-	if !ok {
-		return ChatOutput{}, fmt.Errorf("engine: no ChatOutput produced; status=%s failure=%v", proc.Status(), proc.Failure())
-	}
-	return out, nil
+	return cp.Output()
 }
