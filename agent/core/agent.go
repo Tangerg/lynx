@@ -1,6 +1,7 @@
 package core
 
 import (
+	"errors"
 	"fmt"
 	"sync"
 
@@ -99,10 +100,10 @@ func (a *Agent) KnownConditions() map[string]struct{} {
 // The intent is fail-fast at deploy time rather than at first tick.
 func ValidateAgent(a *Agent) error {
 	if a == nil {
-		return fmt.Errorf("invalid agent: agent is nil")
+		return errors.New("invalid agent: agent is nil")
 	}
 	if a.Name == "" {
-		return fmt.Errorf("invalid agent: name is empty")
+		return errors.New("invalid agent: name is empty")
 	}
 
 	type item struct {

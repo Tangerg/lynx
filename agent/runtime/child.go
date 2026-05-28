@@ -2,6 +2,7 @@ package runtime
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/Tangerg/lynx/agent/core"
@@ -75,7 +76,7 @@ func SpawnChildFresh(
 	in any,
 ) (*AgentProcess, error) {
 	if platform == nil {
-		return nil, fmt.Errorf("spawn child fresh: platform is nil")
+		return nil, errors.New("spawn child fresh: platform is nil")
 	}
 	options := core.ProcessOptions{Blackboard: platform.NewBlackboard()}
 	return spawnChildOptions(ctx, platform, agentDef, in, options)
@@ -97,10 +98,10 @@ func RunFresh(
 	in any,
 ) (*AgentProcess, error) {
 	if platform == nil {
-		return nil, fmt.Errorf("run fresh: platform is nil")
+		return nil, errors.New("run fresh: platform is nil")
 	}
 	if agentDef == nil {
-		return nil, fmt.Errorf("run fresh: agent is nil")
+		return nil, errors.New("run fresh: agent is nil")
 	}
 	var bindings map[string]any
 	if in != nil {
@@ -125,7 +126,7 @@ func RunFresh(
 // [core.AgentProcessStatus] before calling ChildError.
 func ChildError(child *AgentProcess) error {
 	if child == nil {
-		return fmt.Errorf("child process is nil")
+		return errors.New("child process is nil")
 	}
 	status := child.Status()
 	if status == core.StatusCompleted {
@@ -148,14 +149,14 @@ func spawnChildOptions(
 	options core.ProcessOptions,
 ) (*AgentProcess, error) {
 	if platform == nil {
-		return nil, fmt.Errorf("spawn child: platform is nil")
+		return nil, errors.New("spawn child: platform is nil")
 	}
 	if agentDef == nil {
-		return nil, fmt.Errorf("spawn child: agent is nil")
+		return nil, errors.New("spawn child: agent is nil")
 	}
 	parent := core.ProcessFrom(ctx)
 	if parent == nil {
-		return nil, fmt.Errorf("spawn child: no parent process in ctx (use core.WithProcess to inject one)")
+		return nil, errors.New("spawn child: no parent process in ctx (use core.WithProcess to inject one)")
 	}
 	parentProc, ok := platform.ProcessByID(parent.ID())
 	if !ok {

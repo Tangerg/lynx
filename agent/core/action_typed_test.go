@@ -95,12 +95,12 @@ func (f fakeBlackboard) Objects() []any {
 }
 func (f fakeBlackboard) Condition(string) (bool, bool) { return false, false }
 func (f fakeBlackboard) Inspect(bool) string           { return "fake" }
-func (f fakeBlackboard) Set(string, any)                  {}
-func (f fakeBlackboard) AddObject(any)                    {}
-func (f fakeBlackboard) Bind(any)                         {}
-func (f fakeBlackboard) BindAll(map[string]any)           {}
-func (f fakeBlackboard) BindProtected(string, any)        {}
-func (f fakeBlackboard) Hide(any)                         {}
-func (f fakeBlackboard) SetCondition(string, bool)        {}
-func (f fakeBlackboard) Spawn() core.Blackboard           { return f }
-func (f fakeBlackboard) Clear()                           {}
+func (f fakeBlackboard) Set(string, any)               {}
+func (f fakeBlackboard) AddObject(any)                 {}
+func (f fakeBlackboard) Bind(any)                      {}
+func (f fakeBlackboard) BindAll(map[string]any)        {}
+func (f fakeBlackboard) BindProtected(string, any)     {}
+func (f fakeBlackboard) Hide(any)                      {}
+func (f fakeBlackboard) SetCondition(string, bool)     {}
+func (f fakeBlackboard) Spawn() core.Blackboard        { return f }
+func (f fakeBlackboard) Clear()                        {}

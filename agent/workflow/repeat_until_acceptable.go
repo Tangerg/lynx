@@ -2,7 +2,7 @@ package workflow
 
 import (
 	"context"
-	"fmt"
+	"errors"
 
 	"github.com/Tangerg/lynx/agent/core"
 )
@@ -66,13 +66,13 @@ type RepeatUntilAcceptableConfig[In, Out any] struct {
 // Returns an error on missing Name / nil Task / nil Evaluator.
 func RepeatUntilAcceptable[In, Out any](spec RepeatUntilAcceptableConfig[In, Out]) (*core.Agent, error) {
 	if spec.Name == "" {
-		return nil, fmt.Errorf("workflow.RepeatUntilAcceptable: Name must not be empty")
+		return nil, errors.New("workflow.RepeatUntilAcceptable: Name must not be empty")
 	}
 	if spec.Task == nil {
-		return nil, fmt.Errorf("workflow.RepeatUntilAcceptable: Task must not be nil")
+		return nil, errors.New("workflow.RepeatUntilAcceptable: Task must not be nil")
 	}
 	if spec.Evaluator == nil {
-		return nil, fmt.Errorf("workflow.RepeatUntilAcceptable: Evaluator must not be nil")
+		return nil, errors.New("workflow.RepeatUntilAcceptable: Evaluator must not be nil")
 	}
 	threshold := spec.AcceptableScore
 	if threshold <= 0 {

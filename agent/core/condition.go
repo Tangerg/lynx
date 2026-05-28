@@ -2,7 +2,7 @@ package core
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"strings"
 
 	"github.com/Tangerg/lynx/core/model/chat"
@@ -114,13 +114,13 @@ func NewPromptCondition(
 	parser ConditionParser,
 ) (*PromptCondition, error) {
 	if client == nil {
-		return nil, fmt.Errorf("core.NewPromptCondition: client must not be nil")
+		return nil, errors.New("core.NewPromptCondition: client must not be nil")
 	}
 	if prompt == nil {
-		return nil, fmt.Errorf("core.NewPromptCondition: prompt builder must not be nil")
+		return nil, errors.New("core.NewPromptCondition: prompt builder must not be nil")
 	}
 	if parser == nil {
-		return nil, fmt.Errorf("core.NewPromptCondition: parser must not be nil")
+		return nil, errors.New("core.NewPromptCondition: parser must not be nil")
 	}
 	return &PromptCondition{
 		name:   name,

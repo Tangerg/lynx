@@ -125,7 +125,7 @@ func newStubModel() *stubModel {
 }
 
 func (m *stubModel) DefaultOptions() chat.Options { return *m.defaults }
-func (m *stubModel) Metadata() chat.ModelMetadata          { return chat.ModelMetadata{Provider: "stub"} }
+func (m *stubModel) Metadata() chat.ModelMetadata { return chat.ModelMetadata{Provider: "stub"} }
 
 // Call walks the conversation and decides:
 //

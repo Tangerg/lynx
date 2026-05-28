@@ -37,12 +37,12 @@ type Platform struct {
 
 	extensions extensionRegistry // platform-scoped extensions
 
-	events     *event.Multicast      // populated from EventListener extensions
-	services   *core.ServiceProvider // open registry exposed via Platform.Services()
-	chatClient   *chat.Client      // optional shared LLM client
-	guardrails   *core.Guardrails  // optional global chat middlewares
-	processStore core.ProcessStore // optional snapshot backend
-	sessionStore core.SessionStore // optional session persistence
+	events       *event.Multicast      // populated from EventListener extensions
+	services     *core.ServiceProvider // open registry exposed via Platform.Services()
+	chatClient   *chat.Client          // optional shared LLM client
+	guardrails   *core.Guardrails      // optional global chat middlewares
+	processStore core.ProcessStore     // optional snapshot backend
+	sessionStore core.SessionStore     // optional session persistence
 }
 
 // PlatformConfig is the construction-time configuration for
@@ -98,11 +98,11 @@ type PlatformConfig struct {
 // callers should wire extensions correctly at boot.
 func NewPlatform(config PlatformConfig) *Platform {
 	p := &Platform{
-		agents:     newAgentRegistry(),
-		procs:      newProcessRegistry(),
-		extensions: newExtensionRegistry(),
-		events:     event.NewMulticast(),
-		services:   core.NewServiceProvider(),
+		agents:       newAgentRegistry(),
+		procs:        newProcessRegistry(),
+		extensions:   newExtensionRegistry(),
+		events:       event.NewMulticast(),
+		services:     core.NewServiceProvider(),
 		chatClient:   config.ChatClient,
 		guardrails:   config.Guardrails,
 		processStore: config.ProcessStore,

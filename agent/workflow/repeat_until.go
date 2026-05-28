@@ -2,7 +2,7 @@ package workflow
 
 import (
 	"context"
-	"fmt"
+	"errors"
 
 	"github.com/Tangerg/lynx/agent/core"
 )
@@ -57,13 +57,13 @@ type RepeatUntilConfig[In, Out any] struct {
 // Returns an error on missing Name, nil Task, or nil Accept.
 func RepeatUntil[In, Out any](spec RepeatUntilConfig[In, Out]) (*core.Agent, error) {
 	if spec.Name == "" {
-		return nil, fmt.Errorf("workflow.RepeatUntil: Name must not be empty")
+		return nil, errors.New("workflow.RepeatUntil: Name must not be empty")
 	}
 	if spec.Task == nil {
-		return nil, fmt.Errorf("workflow.RepeatUntil: Task must not be nil")
+		return nil, errors.New("workflow.RepeatUntil: Task must not be nil")
 	}
 	if spec.Accept == nil {
-		return nil, fmt.Errorf("workflow.RepeatUntil: Accept must not be nil")
+		return nil, errors.New("workflow.RepeatUntil: Accept must not be nil")
 	}
 	maxIter := spec.MaxIterations
 	if maxIter <= 0 {

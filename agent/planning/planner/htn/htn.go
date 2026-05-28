@@ -118,7 +118,7 @@ type Planner struct {
 // Returns an error when library is nil.
 func NewPlanner(library *Library) (*Planner, error) {
 	if library == nil {
-		return nil, fmt.Errorf("htn.NewPlanner: library must not be nil")
+		return nil, errors.New("htn.NewPlanner: library must not be nil")
 	}
 	return &Planner{library: library, maxRecursion: defaultMaxRecursion}, nil
 }

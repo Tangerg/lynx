@@ -85,13 +85,13 @@ func SnapshotProcess(p *AgentProcess) core.ProcessSnapshot {
 // not re-run.
 func RestoreProcess(platform *Platform, snap core.ProcessSnapshot) (*AgentProcess, error) {
 	if platform == nil {
-		return nil, fmt.Errorf("restore process: nil platform")
+		return nil, errors.New("restore process: nil platform")
 	}
 	if snap.ID == "" {
-		return nil, fmt.Errorf("restore process: snapshot has empty ID")
+		return nil, errors.New("restore process: snapshot has empty ID")
 	}
 	if snap.AgentName == "" {
-		return nil, fmt.Errorf("restore process: snapshot has empty AgentName")
+		return nil, errors.New("restore process: snapshot has empty AgentName")
 	}
 
 	agentDef, ok := platform.agents.find(snap.AgentName)
