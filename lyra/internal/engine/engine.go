@@ -67,23 +67,39 @@ type OnlineConfig struct {
 	HTTPAllowedHosts []string
 }
 
-// Engine is the runtime container. Holds the lynx Platform and the
-// minimal Agent definition used for single-turn chat. Future
-// milestones extend it (more agents, tool resolvers, blackboard
-// providers, ...).
+// Engine is the runtime facade. It composes three concerns:
+//
+//   - chat execution: platform + agent drive [Engine.RunChat]
+//   - maintenance:    compactor / extractor / planner power
+//                     [Engine.MaybeCompact] / [Engine.MaybeExtract] /
+//                     [Engine.GeneratePlan]
+//   - context:        memStore / memSvc / workdir feed the system
+//                     prompt and the chat-memory middleware
+//
+// Each sub-component is a focused struct in its own file; Engine
+// just owns construction and the public surface. The chat.Engine
+// interface in internal/service/chat narrows this to exactly the
+// operations the chat service needs.
 type Engine struct {
-	platform  *runtime.Platform
-	agent     *core.Agent
-	tools     []chat.Tool
-	memStore  memory.Store
-	memSvc    lyramem.Service
-	workdir   string // captured from Config.Workdir for the AGENTS.md cascade
+	// Chat execution.
+	platform *runtime.Platform
+	agent    *core.Agent
+
+	// Context inputs (read at SystemPrompt + chat-memory time).
+	tools    []chat.Tool
+	memStore memory.Store
+	memSvc   lyramem.Service
+	workdir  string // captured from Config.Workdir for the AGENTS.md cascade
+
+	// Maintenance sub-components — each may be nil when the
+	// corresponding feature is disabled by config (e.g. extractor
+	// when no MemoryService was supplied).
 	compactor *compactor
 	extractor *extractor
 	planner   *planner
 
-	// mcpSessions holds the live MCP client sessions opened in New.
-	// Closed during [Engine.Close]; nil when no servers are wired.
+	// External lifecycle. mcpSessions are closed during [Engine.Close];
+	// nil when no MCP servers are wired.
 	mcpSessions []*sdkmcp.ClientSession
 }
 
@@ -241,15 +257,6 @@ func (e *Engine) InjectUserMessage(ctx context.Context, sessionID, text string) 
 	}
 	return e.memStore.Write(ctx, sessionID, chat.NewUserMessage(text))
 }
-
-// Platform exposes the underlying lynx platform for service
-// implementations that need fine-grained control (most don't —
-// prefer the high-level helpers below).
-func (e *Engine) Platform() *runtime.Platform { return e.platform }
-
-// ChatAgent returns the minimal "single-turn chat" agent. M2 adds
-// tools to this agent's actions; M6 adds planner-aware variants.
-func (e *Engine) ChatAgent() *core.Agent { return e.agent }
 
 // RunChatRequest carries the per-turn parameters for [Engine.RunChat].
 // sessionID is non-empty to bind the turn to a chat-memory keyed
