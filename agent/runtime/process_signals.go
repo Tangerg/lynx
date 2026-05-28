@@ -27,7 +27,7 @@ import (
 //     observes ctx.Done() and aborts.
 //
 // The struct intentionally has no methods that need an outer lock —
-// everything is built on channel + atomic primitives so signalling can
+// everything is built on channel + atomic primitives so signaling can
 // race with state-machine reads without contending the main mutex.
 type processSignals struct {
 	terminate        chan core.TerminationSignal

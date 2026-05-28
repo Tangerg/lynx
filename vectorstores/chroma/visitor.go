@@ -44,11 +44,9 @@ type Visitor struct {
 	currentFieldValue any            // temporary storage for field value extraction
 }
 
-
 func NewVisitor() *Visitor {
 	return &Visitor{}
 }
-
 
 func (v *Visitor) Result() v2.WhereClause {
 	if v.err != nil {
@@ -57,11 +55,9 @@ func (v *Visitor) Result() v2.WhereClause {
 	return v.result
 }
 
-
 func (v *Visitor) Error() error {
 	return v.err
 }
-
 
 func (v *Visitor) Visit(expr ast.Expr) ast.Visitor {
 	v.err = v.visit(expr)

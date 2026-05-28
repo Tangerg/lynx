@@ -185,7 +185,7 @@ func TestService_PlanMode_RejectPath(t *testing.T) {
 	}
 
 	if endReason != chat.TurnEndCancelled {
-		t.Errorf("reject path: TurnEnd reason = %s, want cancelled", endReason)
+		t.Errorf("reject path: TurnEnd reason = %s, want canceled", endReason)
 	}
 	// One call total: the plan generation. The real Chat path must not run.
 	if got := stub.callCount() - priorCalls; got != 1 {
@@ -264,7 +264,7 @@ func TestService_InjectSteering_LandsInNextTurn(t *testing.T) {
 }
 
 // TestService_InjectSteering_UnknownTurn returns ErrTurnNotFound
-// for handles the service doesn't recognise — completed turns are
+// for handles the service doesn't recognize — completed turns are
 // pruned from the in-memory map.
 func TestService_InjectSteering_UnknownTurn(t *testing.T) {
 	svc, _ := buildService(t)
@@ -495,8 +495,10 @@ func newStubChatModel() *stubChatModel {
 	return &stubChatModel{defaults: opts}
 }
 
-func (m *stubChatModel) DefaultOptions() chatmodel.Options    { return *m.defaults }
-func (m *stubChatModel) Metadata() chatmodel.ModelMetadata    { return chatmodel.ModelMetadata{Provider: "stub"} }
+func (m *stubChatModel) DefaultOptions() chatmodel.Options { return *m.defaults }
+func (m *stubChatModel) Metadata() chatmodel.ModelMetadata {
+	return chatmodel.ModelMetadata{Provider: "stub"}
+}
 
 func (m *stubChatModel) Call(_ context.Context, req *chatmodel.Request) (*chatmodel.Response, error) {
 	if hasToolMsg(req.Messages) {
@@ -590,8 +592,10 @@ func newPlanAwareStub(planReply, chatReply string) *planAwareStub {
 	return &planAwareStub{planReply: planReply, chatReply: chatReply, defaults: opts}
 }
 
-func (m *planAwareStub) DefaultOptions() chatmodel.Options    { return *m.defaults }
-func (m *planAwareStub) Metadata() chatmodel.ModelMetadata    { return chatmodel.ModelMetadata{Provider: "stub"} }
+func (m *planAwareStub) DefaultOptions() chatmodel.Options { return *m.defaults }
+func (m *planAwareStub) Metadata() chatmodel.ModelMetadata {
+	return chatmodel.ModelMetadata{Provider: "stub"}
+}
 
 func (m *planAwareStub) callCount() int {
 	m.mu.Lock()

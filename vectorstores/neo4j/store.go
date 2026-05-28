@@ -1,8 +1,8 @@
 package neo4j
 
 import (
-	"context"
 	"cmp"
+	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -161,7 +161,6 @@ type Store struct {
 	dimensions        int
 	similarity        SimilarityFunction
 }
-
 
 func NewStore(config StoreConfig) (*Store, error) {
 	config.ApplyDefaults()
@@ -509,6 +508,5 @@ func (s *Store) Metadata() vectorstore.StoreMetadata {
 		Provider:     Provider,
 	}
 }
-
 
 func (s *Store) Close() error { return nil }

@@ -136,7 +136,7 @@ func TestHealthAllOK(t *testing.T) {
 }
 
 // TestHealthDegraded confirms: one degraded probe ⇒ 503 +
-// status:"degraded" + that probe's check labelled degraded.
+// status:"degraded" + that probe's check labeled degraded.
 func TestHealthDegraded(t *testing.T) {
 	ts := newProbeServer(t,
 		lyrahttp.HealthProbe{

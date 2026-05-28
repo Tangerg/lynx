@@ -110,7 +110,8 @@ func (r *ClientRequest) resolveOptions() *Options {
 	if r.options != nil {
 		return r.options.Clone()
 	}
-	defaults := r.model.DefaultOptions(); return defaults.Clone()
+	defaults := r.model.DefaultOptions()
+	return defaults.Clone()
 }
 
 // buildRequest assembles the [*Request] sent through the middleware

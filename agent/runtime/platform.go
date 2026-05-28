@@ -14,7 +14,7 @@ import (
 // agents, builds processes, dispatches events, and exposes the
 // resume API for HITL.
 //
-// Pluggable behaviour (event listeners, action interceptors, tool
+// Pluggable behavior (event listeners, action interceptors, tool
 // decorators, agent validators, goal approvers, tool-group
 // resolvers, id generators, planner factories, blackboard factories)
 // flows through one mechanism: registered [core.Extension]s.
@@ -66,7 +66,7 @@ type PlatformConfig struct {
 	// ProcessStore persists [AgentProcess] snapshots so a process
 	// can survive runtime restart, be migrated across nodes, or
 	// audited after termination. Optional — nil means "no
-	// persistence" (lynx's historical in-memory-only behaviour).
+	// persistence" (lynx's historical in-memory-only behavior).
 	// See [SnapshotProcess] / [RestoreProcess] / [Platform.Save] /
 	// [Platform.Restore] for the surface.
 	ProcessStore core.ProcessStore

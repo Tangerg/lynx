@@ -16,7 +16,7 @@ import (
 
 const defaultMaxIterations = 10_000
 
-// Tracing span / attribute keys for the A* planner. Centralised so a
+// Tracing span / attribute keys for the A* planner. Centralized so a
 // typo at one call site is impossible and listeners have one schema to
 // key off; treat as stable across releases.
 const (
@@ -354,7 +354,7 @@ func goalReachable(start core.WorldState, actions []core.Action, goal *core.Goal
 
 // backwardOptimize walks the plan in reverse, keeping only actions whose
 // effects contribute to a still-needed condition. Tracks a "needed" set
-// initialised from goal preconditions not yet satisfied at start; for each
+// initialized from goal preconditions not yet satisfied at start; for each
 // action we check whether it establishes any needed condition, drop it if
 // not, and otherwise update needed to (needed - effects) ∪ preconditions.
 //
@@ -369,7 +369,7 @@ func backwardOptimize(actions []core.Action, start core.WorldState, goal *core.G
 
 	startState := start.State()
 
-	// Initialise needed = goal preconditions not yet satisfied at start.
+	// Initialize needed = goal preconditions not yet satisfied at start.
 	needed := map[string]core.Determination{}
 	for key, required := range goal.Preconditions() {
 		if startState[key] != required {

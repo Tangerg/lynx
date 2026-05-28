@@ -389,7 +389,7 @@ func NewChatModel(cfg ChatModelConfig) (*ChatModel, error) {
 		api:            api,
 		defaultOptions: cfg.DefaultOptions,
 		reqHelper:      requestHelper{cfg.DefaultOptions},
-		metadata:           info,
+		metadata:       info,
 	}, nil
 }
 

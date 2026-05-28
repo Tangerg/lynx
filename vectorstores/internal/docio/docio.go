@@ -28,7 +28,7 @@ func MetadataOrEmpty(m map[string]any) map[string]any {
 	return m
 }
 
-// MarshalMetadata serialises m to JSON. A nil m maps to JSON `null`
+// MarshalMetadata serializes m to JSON. A nil m maps to JSON `null`
 // when nullSentinel is "null" (the pgvector / postgres default),
 // otherwise to the supplied empty-object sentinel — most JSON column
 // types accept "{}" too.

@@ -16,7 +16,7 @@ import (
 // agent-level orchestration.
 //
 // The child blackboard inherits the parent's via
-// [core.Blackboard.Spawn] (default behaviour of CreateChildProcess) so
+// [core.Blackboard.Spawn] (default behavior of CreateChildProcess) so
 // staged artifacts on the parent are visible to the child. Use this
 // for **supervisor-style** flows where the sub-agent should see what
 // the parent already knows. For **orchestration** flows (loop / fan-out

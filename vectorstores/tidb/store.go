@@ -1,8 +1,8 @@
 package tidb
 
 import (
-	"context"
 	"cmp"
+	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -124,7 +124,6 @@ type Store struct {
 	distanceMetric  DistanceMetric
 }
 
-
 func NewStore(config StoreConfig) (*Store, error) {
 	config.ApplyDefaults()
 	if err := config.Validate(); err != nil {
@@ -173,7 +172,6 @@ func (s *Store) initialize(ctx context.Context, initSchema bool) error {
 	if !initSchema {
 		return nil
 	}
-
 
 	stmt := fmt.Sprintf(
 		`CREATE TABLE IF NOT EXISTS %s (
@@ -405,7 +403,6 @@ func (s *Store) Metadata() vectorstore.StoreMetadata {
 	}
 }
 
-
 func (s *Store) Close() error { return nil }
 
 // distanceToScore maps a VEC_*_DISTANCE result onto a [0, 1]
@@ -440,7 +437,6 @@ func distanceToScore(metric DistanceMetric, distance float64) float64 {
 		}
 	}
 }
-
 
 func marshalMetadata(m map[string]any) ([]byte, error) {
 	if m == nil {

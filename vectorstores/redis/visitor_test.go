@@ -15,14 +15,14 @@ import (
 // so `in_numbers` is opted out via [storetest.Options.Skip].
 func TestVisitor_Conformance(t *testing.T) {
 	fields := map[string]redis.MetadataFieldType{
-		"author":           redis.FieldTag, // == / !=
-		"year":             redis.FieldNumeric,
-		"published":        redis.FieldTag, // bool ==
-		"n":                redis.FieldNumeric,
-		"a":                redis.FieldNumeric,
-		"b":                redis.FieldNumeric,
-		"c":                redis.FieldNumeric,
-		"d":                redis.FieldNumeric,
+		"author":    redis.FieldTag, // == / !=
+		"year":      redis.FieldNumeric,
+		"published": redis.FieldTag, // bool ==
+		"n":         redis.FieldNumeric,
+		"a":         redis.FieldNumeric,
+		"b":         redis.FieldNumeric,
+		"c":         redis.FieldNumeric,
+		"d":         redis.FieldNumeric,
 		"tags":      redis.FieldTag,  // IN strings
 		"flags":     redis.FieldTag,  // IN bools (rendered as tag string)
 		"title":     redis.FieldText, // LIKE

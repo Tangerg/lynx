@@ -18,7 +18,7 @@ import (
 // needed compared to FileSessionService (which has to undo the in-memory
 // repo when persist fails).
 //
-// All methods are safe for concurrent use; the underlying *sql.DB serialises
+// All methods are safe for concurrent use; the underlying *sql.DB serializes
 // writes when MaxOpenConns is 1 (see [Open]).
 type SessionService struct {
 	db *sql.DB

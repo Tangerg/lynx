@@ -23,7 +23,7 @@ const memoryFileName = "LYRA.md"
 //   - <home>/LYRA.md   — user scope    (cross-project preferences)
 //
 // Files are created lazily on first Update; Get returns "" until
-// that point. Concurrent writes are serialised per-scope so
+// that point. Concurrent writes are serialized per-scope so
 // `lyra memory edit` racing with the agent's auto-extract doesn't
 // truncate either side.
 type FileMemoryService struct {

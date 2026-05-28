@@ -9,7 +9,7 @@ import (
 	"github.com/Tangerg/lynx/lyra/internal/service/memory"
 )
 
-// basePrompt is the always-on identity / behavioural preamble. It
+// basePrompt is the always-on identity / behavioral preamble. It
 // stays small on purpose — anything project-specific lives in
 // LYRA.md / AGENTS.md and gets appended at SystemPrompt time.
 // Anything user-specific lives in ~/.lyra/LYRA.md.

@@ -46,7 +46,6 @@ type Visitor struct {
 	currentFieldValue interface{}            // Temporary storage for field values during extraction
 }
 
-
 func NewVisitor() *Visitor {
 	return &Visitor{}
 }

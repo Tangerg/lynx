@@ -168,7 +168,7 @@ outcome.
 
 Consider whether the goal looks aligned with prior context, whether
 the actions cover the work needed, and whether the value/cost ratio
-is favourable. Be strict: only mark 0.8+ when you would confidently
+is favorable. Be strict: only mark 0.8+ when you would confidently
 pick this plan as the best path forward.
 
 Always reply with ONLY the JSON shape requested by the user message,

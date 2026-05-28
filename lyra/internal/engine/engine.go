@@ -71,10 +71,10 @@ type OnlineConfig struct {
 //
 //   - chat execution: platform + agent drive [Engine.RunChat]
 //   - maintenance:    compactor / extractor / planner power
-//                     [Engine.MaybeCompact] / [Engine.MaybeExtract] /
-//                     [Engine.GeneratePlan]
+//     [Engine.MaybeCompact] / [Engine.MaybeExtract] /
+//     [Engine.GeneratePlan]
 //   - context:        memStore / memSvc / workdir feed the system
-//                     prompt and the chat-memory middleware
+//     prompt and the chat-memory middleware
 //
 // Each sub-component is a focused struct in its own file; Engine
 // just owns construction and the public surface. The chat.Engine

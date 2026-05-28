@@ -40,8 +40,9 @@ func NewAPI(cfg APIConfig) (*API, error) {
 	// slice. Cloning prevents append from mutating the caller's
 	// backing array when capacity allows.
 	options := append(slices.Clone(cfg.RequestOptions), option.WithAPIKey(cfg.APIKey.Get()))
+	client := openai.NewClient(options...)
 
-	return &API{client: new(openai.NewClient(options...))}, nil
+	return &API{client: &client}, nil
 }
 
 func (a *API) ChatCompletion(ctx context.Context, req *openai.ChatCompletionNewParams, opts ...option.RequestOption) (*openai.ChatCompletion, error) {

@@ -220,4 +220,3 @@ func TestResponsesChatModel_Metadata(t *testing.T) {
 		t.Errorf("provider = %q; want %q", m.Metadata().Provider, openai.Provider)
 	}
 }
-

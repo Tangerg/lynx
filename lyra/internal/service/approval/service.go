@@ -62,7 +62,7 @@ type Console interface {
 	Decide(ctx context.Context, requestID string, decision Decision) error
 
 	// SetMode changes the runtime-wide stance. Future tool calls
-	// honour the new mode; in-flight calls keep their original mode.
+	// honor the new mode; in-flight calls keep their original mode.
 	SetMode(ctx context.Context, mode Mode) error
 
 	// GetMode returns the current runtime stance. Producers

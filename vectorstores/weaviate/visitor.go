@@ -49,7 +49,6 @@ type Visitor struct {
 	currentFieldValue any                   // Temporary storage for field values
 }
 
-
 func NewVisitor() *Visitor {
 	return &Visitor{}
 }

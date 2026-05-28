@@ -33,7 +33,7 @@ type Awaitable interface {
 	// handler decided plus an error when the response value isn't
 	// assignable to the awaitable's expected response type.
 	//
-	// Typed flavours (e.g. [hitl.TypedRequest]) implement this by
+	// Typed flavors (e.g. [hitl.TypedRequest]) implement this by
 	// type-asserting response to their concrete R type and forwarding
 	// to OnResponse(R).
 	OnResponseAny(response any) (ResponseImpact, error)

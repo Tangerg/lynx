@@ -2,8 +2,8 @@ package elasticsearch
 
 import (
 	"bytes"
-	"context"
 	"cmp"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -142,19 +142,18 @@ var _ vectorstore.Store = (*Store)(nil)
 // [vectorstore.Store]. It uses the dense_vector field type and the
 // `knn` query for similarity search.
 type Store struct {
-	client          *elasticsearch.Client
-	indexName       string
-	embeddingField  string
-	contentField    string
-	metadataField   string
-	embeddingModel  embedding.Model
-	embeddingClient *embedding.Client
-	documentBatcher document.Batcher
-	dimensions      int
-	similarity      SimilarityFunction
+	client           *elasticsearch.Client
+	indexName        string
+	embeddingField   string
+	contentField     string
+	metadataField    string
+	embeddingModel   embedding.Model
+	embeddingClient  *embedding.Client
+	documentBatcher  document.Batcher
+	dimensions       int
+	similarity       SimilarityFunction
 	numCandidatesMul float64
 }
-
 
 func NewStore(config StoreConfig) (*Store, error) {
 	config.ApplyDefaults()
@@ -569,7 +568,6 @@ func (s *Store) Metadata() vectorstore.StoreMetadata {
 		Provider:     Provider,
 	}
 }
-
 
 func (s *Store) Close() error { return nil }
 

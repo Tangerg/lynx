@@ -27,7 +27,7 @@ func newFakeTTSModel(t *testing.T) *fakeTTSModel {
 }
 
 func (m *fakeTTSModel) DefaultOptions() tts.Options { return *m.defaults }
-func (m *fakeTTSModel) Metadata() tts.ModelMetadata          { return tts.ModelMetadata{Provider: "fake"} }
+func (m *fakeTTSModel) Metadata() tts.ModelMetadata { return tts.ModelMetadata{Provider: "fake"} }
 
 func (m *fakeTTSModel) Call(ctx context.Context, req *tts.Request) (*tts.Response, error) {
 	m.lastReq = req

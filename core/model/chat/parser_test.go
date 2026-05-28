@@ -1,7 +1,6 @@
 package chat_test
 
 import (
-	"errors"
 	"strings"
 	"testing"
 
@@ -141,8 +140,5 @@ func TestRemoveMarkdownCodeBlock_NotPanicOnShort(t *testing.T) {
 	_, err := p.Parse("ab")
 	if err == nil {
 		t.Fatal("short non-JSON input should error, not panic")
-	}
-	if errors.Is(err, errors.New("nothing")) {
-		// just sanity-check error chain plumbing
 	}
 }

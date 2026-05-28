@@ -1,8 +1,8 @@
 package oracle
 
 import (
-	"context"
 	"cmp"
+	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -158,7 +158,6 @@ type Store struct {
 	dimensions      int
 	distanceMetric  DistanceMetric
 }
-
 
 func NewStore(config StoreConfig) (*Store, error) {
 	config.ApplyDefaults()
@@ -471,7 +470,6 @@ func (s *Store) Metadata() vectorstore.StoreMetadata {
 	}
 }
 
-
 func (s *Store) Close() error { return nil }
 
 // distanceToScore maps a VECTOR_DISTANCE result onto a [0, 1]
@@ -507,7 +505,6 @@ func distanceToScore(metric DistanceMetric, distance float64) float64 {
 		}
 	}
 }
-
 
 func marshalMetadata(m map[string]any) ([]byte, error) {
 	if m == nil {

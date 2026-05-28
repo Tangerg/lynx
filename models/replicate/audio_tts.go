@@ -284,4 +284,4 @@ func ttsInputKeys(modelID string) (textKey, voiceKey string) {
 }
 
 func (a *AudioTTSModel) DefaultOptions() tts.Options { return *a.defaultOptions }
-func (a *AudioTTSModel) Metadata() tts.ModelMetadata         { return tts.ModelMetadata{Provider: Provider} }
+func (a *AudioTTSModel) Metadata() tts.ModelMetadata { return tts.ModelMetadata{Provider: Provider} }

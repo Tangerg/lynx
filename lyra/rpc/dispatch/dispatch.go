@@ -146,7 +146,7 @@ func (d *Dispatcher) dispatchRequest(ctx context.Context, msg *transport.Request
 	case MethodRunsCancel:
 		// API.md v4 §3.5: runs.cancel is a Request (not a notification).
 		// It stops an in-flight run identified by runId. Decoupled from
-		// notifications/cancelled (which aborts an in-flight JSON-RPC
+		// notifications/canceled (which aborts an in-flight JSON-RPC
 		// Request — different semantic).
 		var in protocol.CancelRunRequest
 		if err := unmarshal(msg.Params, &in); err != nil {
@@ -460,7 +460,7 @@ func (d *Dispatcher) dispatchRequest(ctx context.Context, msg *transport.Request
 // not surfaced over the wire (JSON-RPC notifications are fire-and-
 // forget); the transport may log them.
 //
-// API.md v4 §2.4 / §3.5: notifications/cancelled aborts an in-flight
+// API.md v4 §2.4 / §3.5: notifications/canceled aborts an in-flight
 // JSON-RPC Request (matched by requestId == Message.id). The
 // dispatcher itself has no per-id ctx registry — the transport layer
 // owns request lifecycle and must intercept this notification
@@ -523,4 +523,3 @@ func decodeIDParam(raw json.RawMessage, key string) (string, error) {
 	}
 	return "", fmt.Errorf("missing %s", key)
 }
-

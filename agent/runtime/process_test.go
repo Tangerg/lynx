@@ -214,7 +214,7 @@ func TestRunAgentMarksCancelledDuringActionAsKilled(t *testing.T) {
 			},
 			core.ActionConfig{},
 		)).
-		Goals(agent.GoalProducing[out](core.Goal{Description: "cancelled"})).
+		Goals(agent.GoalProducing[out](core.Goal{Description: "canceled"})).
 		Build()
 
 	platform := agent.NewPlatform(runtime.PlatformConfig{})

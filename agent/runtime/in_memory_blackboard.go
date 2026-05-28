@@ -6,8 +6,9 @@ import (
 	"slices"
 	"sync"
 
-	"github.com/Tangerg/lynx/agent/core"
 	"github.com/google/uuid"
+
+	"github.com/Tangerg/lynx/agent/core"
 )
 
 // inMemoryBlackboard is the default blackboard backed by maps and a slice.

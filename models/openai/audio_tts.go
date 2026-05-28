@@ -63,7 +63,7 @@ func NewAudioTTSModel(cfg AudioTTSModelConfig) (*AudioTTSModel, error) {
 	return &AudioTTSModel{
 		api:            api,
 		defaultOptions: cfg.DefaultOptions,
-		metadata:           info,
+		metadata:       info,
 	}, nil
 }
 

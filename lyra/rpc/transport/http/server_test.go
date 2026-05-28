@@ -37,7 +37,7 @@ func newTestServer(t *testing.T) (*httptest.Server, *fakeRuntime) {
 	t.Helper()
 	api := &fakeRuntime{}
 	srv, err := lyrahttp.NewServer(lyrahttp.Config{
-		Runtime:             api,
+		Runtime:         api,
 		Addr:            ":0",
 		ServerInfo:      protocol.ServerInfo{Name: "lyra-test", Version: "0.0.0"},
 		ProtocolVersion: "2026-05-28",
@@ -66,7 +66,7 @@ func TestSidecarInfo(t *testing.T) {
 	}
 	var body struct {
 		ServerInfo      protocol.ServerInfo `json:"serverInfo"`
-		ProtocolVersion string             `json:"protocolVersion"`
+		ProtocolVersion string              `json:"protocolVersion"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
 		t.Fatalf("decode: %v", err)
@@ -93,7 +93,9 @@ func TestSidecarHealth(t *testing.T) {
 	if resp.StatusCode != 200 {
 		t.Fatalf("status = %d", resp.StatusCode)
 	}
-	var body struct{ Status string `json:"status"` }
+	var body struct {
+		Status string `json:"status"`
+	}
 	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
@@ -121,8 +123,8 @@ func TestInitializeOverRPC(t *testing.T) {
 		t.Fatalf("status = %d", resp.StatusCode)
 	}
 	var env struct {
-		JSONRPC string          `json:"jsonrpc"`
-		Result  json.RawMessage `json:"result"`
+		JSONRPC string           `json:"jsonrpc"`
+		Result  json.RawMessage  `json:"result"`
 		Error   *json.RawMessage `json:"error,omitempty"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&env); err != nil {
@@ -337,9 +339,9 @@ func TestRunsCancelIsRequest(t *testing.T) {
 		t.Fatalf("status = %d, want 200; body = %s", resp.StatusCode, raw)
 	}
 	var env struct {
-		JSONRPC string          `json:"jsonrpc"`
-		ID      json.RawMessage `json:"id"`
-		Result  json.RawMessage `json:"result"`
+		JSONRPC string           `json:"jsonrpc"`
+		ID      json.RawMessage  `json:"id"`
+		Result  json.RawMessage  `json:"result"`
 		Error   *json.RawMessage `json:"error,omitempty"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&env); err != nil {

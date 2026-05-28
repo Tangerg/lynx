@@ -15,7 +15,7 @@ func TestNewSyncSet(t *testing.T) {
 	t.Run("create with default HashSet", func(t *testing.T) {
 		set := NewSyncSet[int]()
 		if set == nil {
-			t.Error("NewSyncSet() returned nil")
+			t.Fatal("NewSyncSet() returned nil")
 		}
 		if set.inner == nil {
 			t.Error("inner set should not be nil")

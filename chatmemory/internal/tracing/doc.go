@@ -1,4 +1,4 @@
-// Package tracing centralises the OTel span emission shared by every
+// Package tracing centralizes the OTel span emission shared by every
 // chat-memory provider in this module. Each provider's Read / Write /
 // Clear entry point wraps its inner SDK work with the helpers here so
 // the DB semconv attribute set stays consistent across backends.

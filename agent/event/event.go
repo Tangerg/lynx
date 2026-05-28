@@ -34,7 +34,7 @@ func NewBaseEvent(processID string) BaseEvent {
 
 // envelope is the on-wire JSON shape for every event: a discriminator
 // field plus the BaseEvent's timestamp / process id plus an opaque
-// payload object. Centralised here so each concrete event's MarshalJSON
+// payload object. Centralized here so each concrete event's MarshalJSON
 // is a one-liner.
 type envelope struct {
 	Event     string    `json:"event"`

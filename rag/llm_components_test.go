@@ -33,7 +33,7 @@ func newFakeChatModel(t *testing.T, reply string) *fakeChatModel {
 }
 
 func (m *fakeChatModel) DefaultOptions() chat.Options { return *m.defaults }
-func (m *fakeChatModel) Metadata() chat.ModelMetadata          { return chat.ModelMetadata{Provider: "fake"} }
+func (m *fakeChatModel) Metadata() chat.ModelMetadata { return chat.ModelMetadata{Provider: "fake"} }
 
 func (m *fakeChatModel) Call(_ context.Context, req *chat.Request) (*chat.Response, error) {
 	if user, ok := req.Messages[len(req.Messages)-1].(*chat.UserMessage); ok {

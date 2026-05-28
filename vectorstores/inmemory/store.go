@@ -59,7 +59,6 @@ type Store struct {
 	records map[string]record
 }
 
-
 func NewStore(cfg StoreConfig) (*Store, error) {
 	cfg.ApplyDefaults()
 	if err := cfg.Validate(); err != nil {
@@ -71,7 +70,6 @@ func NewStore(cfg StoreConfig) (*Store, error) {
 		records:    map[string]record{},
 	}, nil
 }
-
 
 func (s *Store) Metadata() vectorstore.StoreMetadata {
 	return vectorstore.StoreMetadata{

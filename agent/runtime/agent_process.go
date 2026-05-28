@@ -27,7 +27,7 @@ import (
 //     a pointer.
 //   - budget   subtree cost / token / action aggregation; lock pointer
 //     points at state.mu.
-//   - signals  channel + atomic-based signalling primitives
+//   - signals  channel + atomic-based signaling primitives
 //     (terminate / awaitable slot / toolCallCancel) — no
 //     shared lock, all built on lock-free primitives.
 //
@@ -239,7 +239,7 @@ func (p *AgentProcess) publishAny(e any) {
 // --- tracing helpers ------------------------------------------------------
 
 // Tracing attribute keys shared between process- and action-level
-// spans. Centralised at the AgentProcess scope (where they originate)
+// spans. Centralized at the AgentProcess scope (where they originate)
 // because external listeners — dashboards, exporters — key off the
 // stable string values. Treat as schema; renaming breaks consumers.
 const (

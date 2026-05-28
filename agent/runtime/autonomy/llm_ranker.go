@@ -27,7 +27,7 @@ type LLMRanker struct {
 type LLMRankerConfig struct {
 	// SystemPrompt overrides the default "you are a routing
 	// classifier" preamble. Use for domain-specific guidance ("score
-	// strictly; favour exact-match keyword overlap").
+	// strictly; favor exact-match keyword overlap").
 	SystemPrompt string
 
 	// PromptHeader prefixes the per-candidate listing in the user

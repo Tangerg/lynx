@@ -9,7 +9,7 @@
 //     "search_recency_filter" steer the underlying web search.
 //   - "return_images" / "return_related_questions" toggle extra
 //     response fields.
-//   - "web_search_options" controls per-call search behaviour
+//   - "web_search_options" controls per-call search behavior
 //     (search context size, user location, etc.).
 //
 // Response extras (citations, search_results, related_questions) come

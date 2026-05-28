@@ -22,7 +22,7 @@ type turnOptions struct {
 
 // TurnRunner drives a single chat turn end-to-end: starts it,
 // drains the event channel, prints events to the App's IO
-// streams, and handles SIGINT by cancelling the in-flight turn
+// streams, and handles SIGINT by canceling the in-flight turn
 // (rather than the whole process).
 //
 // One instance per turn — TurnRunner holds the active TurnHandle
@@ -46,7 +46,7 @@ func NewTurnRunner(app *App, opts turnOptions) *TurnRunner {
 //
 // Cancellation: SIGINT during the turn calls
 // [chat.Service.Cancel](handle) so the runtime emits a clean
-// TurnEnd(Cancelled). A second SIGINT escalates to the default
+// TurnEnd(Canceled). A second SIGINT escalates to the default
 // kill — for wedged turns.
 func (r *TurnRunner) Run(ctx context.Context, sessionID, message string) int {
 	handle, err := r.app.rt.Chat().StartTurn(ctx, chat.StartTurnRequest{
@@ -76,7 +76,7 @@ func (r *TurnRunner) Run(ctx context.Context, sessionID, message string) int {
 			}
 			r.dispatch(ctx, handle, ev)
 		case <-sigCh:
-			fmt.Fprintln(r.app.Err, "\n[lyra] cancelling...")
+			fmt.Fprintln(r.app.Err, "\n[lyra] canceling...")
 			_ = r.app.rt.Chat().Cancel(ctx, handle)
 			sigCh = nil // ignore further signals until TurnEnd drains the channel
 		}

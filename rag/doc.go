@@ -30,7 +30,7 @@
 // Lynx deliberately does NOT ship a separate "DocumentJoiner"
 // abstraction. When multiple retrievers run in parallel, the pipeline
 // unions their result lists into a flat slice, and the refine stage is
-// where you re-organise that slice. The canonical "join overlapping
+// where you re-organize that slice. The canonical "join overlapping
 // retriever results" pattern is the refiner pair below — equivalent to
 // spring-ai's ConcatenationDocumentJoiner:
 //

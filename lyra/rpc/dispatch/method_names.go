@@ -27,9 +27,9 @@ const (
 	MethodPing       = "runtime.ping"
 
 	// Runs.
-	MethodRunsStart            = "runs.start"
-	MethodRunsCancel           = "runs.cancel"
-	MethodRunsApprovalSubmit   = "runs.approval.submit"
+	MethodRunsStart          = "runs.start"
+	MethodRunsCancel         = "runs.cancel"
+	MethodRunsApprovalSubmit = "runs.approval.submit"
 
 	// Sessions.
 	MethodSessionsList   = "sessions.list"
@@ -45,15 +45,15 @@ const (
 	MethodMessagesEdit = "messages.edit"
 
 	// Workspace.
-	MethodWorkspaceFilesChanged       = "workspace.filesChanged"
-	MethodWorkspaceDiff               = "workspace.diff"
-	MethodWorkspaceFileHead           = "workspace.fileHead"
-	MethodWorkspaceGrep               = "workspace.grep"
-	MethodWorkspaceTerminalSubscribe  = "workspace.terminal.subscribe"
-	MethodWorkspaceProjects           = "workspace.projects"
-	MethodWorkspaceMCPList            = "workspace.mcp.list"
-	MethodWorkspaceMCPReconnect       = "workspace.mcp.reconnect"
-	MethodWorkspaceSkills             = "workspace.skills"
+	MethodWorkspaceFilesChanged      = "workspace.filesChanged"
+	MethodWorkspaceDiff              = "workspace.diff"
+	MethodWorkspaceFileHead          = "workspace.fileHead"
+	MethodWorkspaceGrep              = "workspace.grep"
+	MethodWorkspaceTerminalSubscribe = "workspace.terminal.subscribe"
+	MethodWorkspaceProjects          = "workspace.projects"
+	MethodWorkspaceMCPList           = "workspace.mcp.list"
+	MethodWorkspaceMCPReconnect      = "workspace.mcp.reconnect"
+	MethodWorkspaceSkills            = "workspace.skills"
 
 	// Providers / Models / Tools.
 	MethodProvidersList = "providers.list"
@@ -74,10 +74,9 @@ const (
 	MethodFeedbackSubmit = "feedback.submit"
 
 	// Notifications (no response).
-	NotificationCancelled       = "notifications/cancelled"
-	NotificationRunEvent        = "notifications/run/event"
-	NotificationRunClosed       = "notifications/run/closed"
+	NotificationCancelled        = "notifications/canceled"
+	NotificationRunEvent         = "notifications/run/event"
+	NotificationRunClosed        = "notifications/run/closed"
 	NotificationBackgroundUpdate = "notifications/background/update"
-	NotificationTerminalOutput  = "notifications/terminal/output"
+	NotificationTerminalOutput   = "notifications/terminal/output"
 )
-

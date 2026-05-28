@@ -19,13 +19,13 @@ import (
 // linear log. The tree shape is stored on disk so [Fork] can return
 // without recomputing structure.
 type Session struct {
-	ID         string
-	Title      string // human-readable; auto-generated from first user message
-	ParentID   string // empty for root sessions; non-empty for forks
-	StartedAt  time.Time
-	UpdatedAt  time.Time
-	TurnCount  int
-	Metadata   map[string]string
+	ID        string
+	Title     string // human-readable; auto-generated from first user message
+	ParentID  string // empty for root sessions; non-empty for forks
+	StartedAt time.Time
+	UpdatedAt time.Time
+	TurnCount int
+	Metadata  map[string]string
 }
 
 // Service is the SessionService contract.

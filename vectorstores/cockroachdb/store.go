@@ -32,7 +32,6 @@ type StoreConfig = pgvector.StoreConfig
 // inheriting every method from [pgvector.Store].
 type Store = pgvector.Store
 
-
 func NewStore(cfg StoreConfig) (*Store, error) {
 	cfg.SkipExtensionCreate = true
 	return pgvector.NewStore(cfg)

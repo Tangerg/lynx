@@ -97,4 +97,3 @@ func TestInProcessUnknownMethod(t *testing.T) {
 		t.Fatal("timeout waiting for response")
 	}
 }
-

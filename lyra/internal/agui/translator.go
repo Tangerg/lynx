@@ -1,6 +1,6 @@
 // Package agui translates Lyra's internal [chat.Event] stream
 // into AG-UI protocol events, using the official AG-UI Go SDK
-// for the event types + serialisation.
+// for the event types + serialization.
 //
 // SDK: github.com/ag-ui-protocol/ag-ui/sdks/community/go
 // Spec: https://docs.ag-ui.com/concepts/events
@@ -34,25 +34,25 @@ type Event = aguievents.Event
 //
 //   - chat.TurnStart        → RunStartedEvent
 //   - chat.MessageDelta     → close thinking + TextMessageStart (lazy) +
-//                             TextMessageContent
+//     TextMessageContent
 //   - chat.ReasoningDelta   → ThinkingStart (lazy) +
-//                             ThinkingTextMessageStart (lazy) +
-//                             ThinkingTextMessageContent
+//     ThinkingTextMessageStart (lazy) +
+//     ThinkingTextMessageContent
 //   - chat.ToolCallStart    → close thinking + close text +
-//                             StepStarted("tool:<name>") +
-//                             ToolCallStart + ToolCallArgs +
-//                             ToolCallEnd
+//     StepStarted("tool:<name>") +
+//     ToolCallStart + ToolCallArgs +
+//     ToolCallEnd
 //   - chat.ToolCallEnd      → ToolCallResultEvent +
-//                             StepFinished("tool:<name>")
+//     StepFinished("tool:<name>")
 //   - chat.PlanGenerated    → StepStarted("plan_review") +
-//                             CustomEvent("plan_generated") +
-//                             StepFinished("plan_review")
+//     CustomEvent("plan_generated") +
+//     StepFinished("plan_review")
 //   - chat.ToolCallApproval → StepStarted("approval:<name>") +
-//                             CustomEvent("tool_call_approval")
-//                             (StepFinished fires next ToolCall*)
+//     CustomEvent("tool_call_approval")
+//     (StepFinished fires next ToolCall*)
 //   - chat.ErrorEvent       → RunErrorEvent
 //   - chat.TurnEnd          → close streams + RunFinished /
-//                             RunError(code=TURN_ERRORED)
+//     RunError(code=TURN_ERRORED)
 type Translator struct {
 	threadID  string
 	runID     string
@@ -332,7 +332,7 @@ func (s *reasoningStream) appendDelta(text string) []Event {
 	return []Event{aguievents.NewThinkingTextMessageContentEvent(text)}
 }
 
-// closeIfOpen finalises the thinking lifecycle: MessageEnd +
+// closeIfOpen finalizes the thinking lifecycle: MessageEnd +
 // ThinkingEnd. Returns nil when no thinking message is in flight
 // so callers can append unconditionally.
 func (s *reasoningStream) closeIfOpen() []Event {

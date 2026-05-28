@@ -36,7 +36,7 @@ func newEchoChatModel(t *testing.T) *echoChatModel {
 }
 
 func (m *echoChatModel) DefaultOptions() chat.Options { return *m.defaults }
-func (m *echoChatModel) Metadata() chat.ModelMetadata          { return chat.ModelMetadata{Provider: "fake"} }
+func (m *echoChatModel) Metadata() chat.ModelMetadata { return chat.ModelMetadata{Provider: "fake"} }
 
 func (m *echoChatModel) Call(_ context.Context, req *chat.Request) (*chat.Response, error) {
 	m.captured = req.UserMessage().Text

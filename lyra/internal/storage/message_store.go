@@ -32,7 +32,7 @@ type FileMessageStore struct {
 	dir string
 
 	// locks holds per-conversation mutexes. Different conversations
-	// can write concurrently; same conversation serialises through
+	// can write concurrently; same conversation serializes through
 	// its own mutex. sync.Map suits the read-mostly access pattern
 	// (the mutex pointer is created once per conversation then
 	// only looked up).
@@ -69,7 +69,7 @@ func (s *FileMessageStore) pathFor(id string) (string, error) {
 
 // lockFor returns a per-conversation mutex, allocating one on first
 // use. Different conversations write concurrently; same conversation
-// serialises. Uses sync.Map's LoadOrStore for atomic first-write —
+// serializes. Uses sync.Map's LoadOrStore for atomic first-write —
 // concurrent callers see the same mutex without an outer lock.
 func (s *FileMessageStore) lockFor(id string) *sync.Mutex {
 	if existing, ok := s.locks.Load(id); ok {

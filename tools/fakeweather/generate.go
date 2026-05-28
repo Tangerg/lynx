@@ -306,7 +306,7 @@ func generatePressure(elevation int, condition string, rng *rand.Rand) int {
 }
 
 func generateVisibility(condition string, humidity int, rng *rand.Rand) int {
-	base := 10
+	var base int
 	switch condition {
 	case "Foggy", "Mist":
 		base = rng.IntN(2) + 1

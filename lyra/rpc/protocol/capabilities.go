@@ -33,16 +33,16 @@ type ClientFeatureCapabilities struct {
 // ServerFeatureCapabilities — feature toggles Runtime advertises.
 // Unset fields default to false on the client side.
 type ServerFeatureCapabilities struct {
-	Multimodal     bool                `json:"multimodal"`
-	Reasoning      bool                `json:"reasoning"`
-	Checkpoints    bool                `json:"checkpoints"`
-	Interrupts     bool                `json:"interrupts"`
-	Background     bool                `json:"background"`
-	Subagents      bool                `json:"subagents"`
-	Skills         bool                `json:"skills"`
-	MCP            bool                `json:"mcp"`
-	SessionExport  bool                `json:"sessionExport"`
-	Attachments    AttachmentLimits    `json:"attachments"`
+	Multimodal    bool             `json:"multimodal"`
+	Reasoning     bool             `json:"reasoning"`
+	Checkpoints   bool             `json:"checkpoints"`
+	Interrupts    bool             `json:"interrupts"`
+	Background    bool             `json:"background"`
+	Subagents     bool             `json:"subagents"`
+	Skills        bool             `json:"skills"`
+	MCP           bool             `json:"mcp"`
+	SessionExport bool             `json:"sessionExport"`
+	Attachments   AttachmentLimits `json:"attachments"`
 }
 
 // AttachmentLimits is the nested feature shape for attachments.

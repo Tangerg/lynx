@@ -73,7 +73,7 @@ type ListenResponse struct {
 		Channels       int      `json:"channels"`
 		Duration       float64  `json:"duration"`
 		Models         []string `json:"models"`
-		Metadata      map[string]struct {
+		Metadata       map[string]struct {
 			Name string `json:"name"`
 			Tier string `json:"tier"`
 		} `json:"model_info"`

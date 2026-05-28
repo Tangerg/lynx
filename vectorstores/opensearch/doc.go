@@ -6,7 +6,7 @@
 // Requirements: OpenSearch 2.x+ with the k-NN plugin (built-in on
 // every recent release).
 //
-// Space types — five distance variants are recognised; coverage
+// Space types — five distance variants are recognized; coverage
 // depends on the engine:
 //
 //   - [SpaceTypeCosine] / [SpaceTypeL2] / [SpaceTypeIP] — supported

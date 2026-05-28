@@ -38,8 +38,9 @@ func NewAPI(cfg APIConfig) (*API, error) {
 	// slice. Cloning prevents append from mutating the caller's
 	// backing array when capacity allows.
 	options := append(slices.Clone(cfg.RequestOptions), option.WithAPIKey(cfg.APIKey.Get()))
+	client := anthropicsdk.NewClient(options...)
 
-	return &API{client: new(anthropicsdk.NewClient(options...))}, nil
+	return &API{client: &client}, nil
 }
 
 func (a *API) ChatCompletion(ctx context.Context, req *anthropicsdk.MessageNewParams, opts ...option.RequestOption) (*anthropicsdk.Message, error) {

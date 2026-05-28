@@ -230,7 +230,7 @@ func TestTranslate_ApprovalStepClosesOnToolStart(t *testing.T) {
 	tr := agui.NewTranslator("s", "r")
 	_ = tr.Translate(chat.ToolCallApproval{
 		BaseEvent: base("s", "r"),
-		Request: approvalRequest("c-1", "bash"),
+		Request:   approvalRequest("c-1", "bash"),
 	})
 	out := tr.Translate(chat.ToolCallStart{
 		BaseEvent: base("s", "r"),
@@ -305,7 +305,7 @@ func TestTranslate_ErrorEvent(t *testing.T) {
 }
 
 // TestTranslate_EventToJSON_RunStarted verifies the SDK
-// serialises a translated event into the canonical AG-UI shape —
+// serializes a translated event into the canonical AG-UI shape —
 // `type` discriminator + the documented field names.
 func TestTranslate_EventToJSON_RunStarted(t *testing.T) {
 	tr := agui.NewTranslator("s1", "r1")

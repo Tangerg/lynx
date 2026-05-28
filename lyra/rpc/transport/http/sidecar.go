@@ -47,7 +47,7 @@ func (s *Server) handleInfo(w http.ResponseWriter, r *http.Request) {
 // Runs configured HealthProbes in parallel under a shared timeout
 // (API.md §9.2). Status mapping: "ok" → 200, "degraded" /
 // "unhealthy" → 503. With no probes configured the response is
-// `{"status":"ok"}` (current default behaviour preserved).
+// `{"status":"ok"}` (current default behavior preserved).
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	overall, checks := runHealthProbes(r.Context(), s.healthProbes)
 

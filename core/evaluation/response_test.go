@@ -4,7 +4,7 @@ import "testing"
 
 // TestParseScoredResponse_ExtractsFirstInRangeFloat ensures common LLM
 // reply shapes all parse to the right score / Pass / Feedback split.
-// Indirectly pins the regex + clamp behaviour at the function level so
+// Indirectly pins the regex + clamp behavior at the function level so
 // we catch parsing regressions without going through the LLM client.
 func TestParseScoredResponse_ExtractsFirstInRangeFloat(t *testing.T) {
 	cases := []struct {

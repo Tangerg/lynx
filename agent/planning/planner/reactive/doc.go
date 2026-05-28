@@ -14,7 +14,7 @@
 //   - actions are inherently incremental (chat agents, monitoring
 //     loops) and the goal is "make progress, then re-evaluate"
 //   - the action space is too large for A* but you still want goal-
-//     directed behaviour
+//     directed behavior
 //
 // Mirrors embabel's UtilityPlanner — same shape, different name.
 package reactive

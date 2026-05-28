@@ -515,7 +515,7 @@ func (s *ToolSupport) BuildReturnDirectResponse(msgs []Message) (*Response, erro
 }
 
 // ShouldInvokeToolCalls reports whether the response contains tool
-// calls that the registry can fulfil.
+// calls that the registry can fulfill.
 func (s *ToolSupport) ShouldInvokeToolCalls(resp *Response) (bool, error) {
 	return s.invoker.canInvokeToolCalls(resp)
 }

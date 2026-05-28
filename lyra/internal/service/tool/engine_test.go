@@ -97,7 +97,9 @@ func newStubModel() *stubModel {
 }
 
 func (m *stubModel) DefaultOptions() chatmodel.Options { return *m.defaults }
-func (m *stubModel) Metadata() chatmodel.ModelMetadata { return chatmodel.ModelMetadata{Provider: "stub"} }
+func (m *stubModel) Metadata() chatmodel.ModelMetadata {
+	return chatmodel.ModelMetadata{Provider: "stub"}
+}
 
 func (m *stubModel) Call(_ context.Context, _ *chatmodel.Request) (*chatmodel.Response, error) {
 	return chatmodel.NewResponse(

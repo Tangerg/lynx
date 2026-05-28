@@ -125,7 +125,7 @@ func (a *App) ensureRuntime() error {
 }
 
 // runtime returns the runtime bundle; subcommands call this after
-// ensureRuntime succeeded. Centralises the nil-check that would
+// ensureRuntime succeeded. Centralizes the nil-check that would
 // otherwise sprinkle across every cmd file.
 func (a *App) runtime() *lyraruntime.Runtime { return a.rt }
 

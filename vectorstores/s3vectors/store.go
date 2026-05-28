@@ -1,8 +1,8 @@
 package s3vectors
 
 import (
-	"context"
 	"cmp"
+	"context"
 	"errors"
 	"fmt"
 
@@ -106,7 +106,6 @@ type Store struct {
 	documentBatcher  document.Batcher
 	distanceMetric   DistanceMetric
 }
-
 
 func NewStore(config StoreConfig) (*Store, error) {
 	config.ApplyDefaults()
@@ -369,6 +368,5 @@ func (s *Store) Metadata() vectorstore.StoreMetadata {
 		Provider:     Provider,
 	}
 }
-
 
 func (s *Store) Close() error { return nil }

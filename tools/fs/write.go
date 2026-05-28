@@ -59,11 +59,7 @@ func (t *WriteTool) Call(ctx context.Context, arguments string) (string, error) 
 	if req.Path == "" {
 		return "", fmt.Errorf("fs.write: %w", ErrEmptyPath)
 	}
-	res, err := t.executor.Write(ctx, WriteInput{
-		Path:    req.Path,
-		Content: req.Content,
-		Append:  req.Append,
-	})
+	res, err := t.executor.Write(ctx, WriteInput(req))
 	if err != nil {
 		return "", fmt.Errorf("fs.write: %w", err)
 	}

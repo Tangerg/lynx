@@ -190,10 +190,10 @@ func (r *requestHelper) buildToolMsg(msg *chat.ToolMessage) []openai.ChatComplet
 }
 
 func (r *requestHelper) buildMsg(msg chat.Message) openai.ChatCompletionMessageParamUnion {
-	if msg.Type()== chat.MessageTypeUser {
+	if msg.Type() == chat.MessageTypeUser {
 		return r.buildUserMsg(msg.(*chat.UserMessage))
 	}
-	if msg.Type()== chat.MessageTypeAssistant {
+	if msg.Type() == chat.MessageTypeAssistant {
 		return r.buildAssistantMsg(msg.(*chat.AssistantMessage))
 	}
 	return r.buildSystemMsg(msg.(*chat.SystemMessage))
@@ -203,7 +203,7 @@ func (r *requestHelper) buildMsgs(msgs []chat.Message) []openai.ChatCompletionMe
 	result := make([]openai.ChatCompletionMessageParamUnion, 0, len(msgs))
 
 	for _, msg := range msgs {
-		if msg.Type()== chat.MessageTypeTool {
+		if msg.Type() == chat.MessageTypeTool {
 			result = append(result, r.buildToolMsg(msg.(*chat.ToolMessage))...)
 		} else {
 			result = append(result, r.buildMsg(msg))

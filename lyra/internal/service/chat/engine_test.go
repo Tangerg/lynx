@@ -124,5 +124,5 @@ type slowStubEngine struct{ stubEngine }
 
 func (s *slowStubEngine) RunChat(ctx context.Context, _ engine.RunChatRequest) (engine.ChatOutput, error) {
 	<-ctx.Done()
-	return engine.ChatOutput{}, errors.New("cancelled")
+	return engine.ChatOutput{}, errors.New("canceled")
 }

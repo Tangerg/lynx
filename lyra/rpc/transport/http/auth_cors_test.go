@@ -256,4 +256,3 @@ func TestIssueLocalToken(t *testing.T) {
 		t.Fatalf("file content mismatch")
 	}
 }
-

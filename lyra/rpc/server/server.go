@@ -1,4 +1,4 @@
-// Package server realises protocol.Runtime on top of Lyra's
+// Package server realizes protocol.Runtime on top of Lyra's
 // internal engine + service layer. It's the single place where the
 // JSON-RPC method table (rpc/dispatch) and the runtime's existing
 // chat / session / approval / tool services meet.
@@ -14,8 +14,6 @@ import (
 	"errors"
 	"fmt"
 	"sync"
-
-	"github.com/google/uuid"
 
 	lyraruntime "github.com/Tangerg/lynx/lyra/internal/runtime"
 	"github.com/Tangerg/lynx/lyra/rpc/protocol"
@@ -114,18 +112,6 @@ func Capabilities() protocol.ServerCapabilities {
 }
 
 // ─── helpers ────────────────────────────────────────────────────────
-
-// genID is the canonical id generator. UUID v7 (sortable timestamp +
-// random tail) — API.md §6.3 expects v7 so receivers can order ids
-// without consulting timestamps. Falls back to v4 only when the v7
-// RNG fails (effectively never).
-func genID() string {
-	u, err := uuid.NewV7()
-	if err != nil {
-		return uuid.NewString()
-	}
-	return u.String()
-}
 
 // notImpl is a tiny helper so each stubbed method reads as one line.
 func notImpl(method string) error {

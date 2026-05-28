@@ -84,7 +84,7 @@ func TestNewAssistantMessage_Generic(t *testing.T) {
 	t.Run("metadata", func(t *testing.T) {
 		md := map[string]any{"k": 1}
 		m := chat.NewAssistantMessage(md)
-		if v, _ := m.Meta()["k"]; v != 1 {
+		if v := m.Meta()["k"]; v != 1 {
 			t.Fatalf("Meta()[k] = %v, want 1", v)
 		}
 	})

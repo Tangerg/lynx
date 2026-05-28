@@ -25,7 +25,7 @@ type BackgroundTask struct {
 	TaskID    string           `json:"taskId"`
 	Label     string           `json:"label"`
 	Status    BackgroundStatus `json:"status"`
-	StartedAt string           `json:"startedAt"`         // ISO-8601
+	StartedAt string           `json:"startedAt"`          // ISO-8601
 	Progress  *float64         `json:"progress,omitempty"` // 0..1
 }
 

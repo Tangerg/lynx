@@ -26,7 +26,7 @@ const maxRPCBodyBytes = 4 << 20
 //
 // Go's `{method...}` wildcard matches the bare `/v1/rpc` path too
 // (zero-or-more trailing segments), so we explicitly 404 on the
-// empty-method case to honour the v4 "no fallback" rule.
+// empty-method case to honor the v4 "no fallback" rule.
 func (s *Server) handleRPCWithMethod(w http.ResponseWriter, r *http.Request) {
 	urlMethod := r.PathValue("method")
 	if urlMethod == "" {
@@ -37,7 +37,7 @@ func (s *Server) handleRPCWithMethod(w http.ResponseWriter, r *http.Request) {
 	s.serveRPC(w, r, urlMethod)
 }
 
-// serveRPC reads, dispatches, and serialises one JSON-RPC message.
+// serveRPC reads, dispatches, and serializes one JSON-RPC message.
 // Wire encode/decode goes through transport.DecodeMessage /
 // EncodeMessage — those wrap the MCP SDK's jsonrpc package, which
 // owns the conformant JSON-RPC 2.0 implementation.
@@ -131,7 +131,7 @@ func (s *Server) attachStream(ctx context.Context, runID string, events <-chan p
 						recordError("rpc.encode-run-closed", err,
 							attribute.String("lynx.lyra.run_id", runID),
 						)
-					} else if closed != nil {
+					} else {
 						s.clients.broadcast(closed)
 					}
 					// Keep the buffer alive for the replay window;
