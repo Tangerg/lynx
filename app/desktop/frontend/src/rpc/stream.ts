@@ -22,6 +22,7 @@
 // Now we split via predicate vs separate method explicitly.
 
 import type { BaseEvent } from "@ag-ui/core";
+import { z } from "zod";
 import { createPushPullChannel } from "./channel";
 import type { RpcClient } from "./client";
 import type {
@@ -31,6 +32,75 @@ import type {
   TerminalOutputParams,
   TermLine,
 } from "./shapes";
+
+// ---------------------------------------------------------------------------
+// Notification param schemas — Zod boundary validation
+// ---------------------------------------------------------------------------
+//
+// Per CLAUDE.md "边界校验用 Zod": the JSON-RPC notification payload is a
+// trust boundary (server-controlled, runtime-shaped, not TypeScript-checked
+// at this point). We validate the WRAPPER shape (`{ runId | taskId,
+// eventId, ... }`) here. The inner `event` payload is left as opaque
+// `BaseEvent` — AG-UI CUSTOM event payloads get their own Zod schemas in
+// `frontend/src/protocol/agui/schemas.ts` at the handler boundary.
+//
+// On validation failure: log warning, drop the notification (don't crash
+// the stream — one malformed event shouldn't kill an ongoing run).
+
+const RunEventParamsSchema = z.object({
+  runId: z.string(),
+  eventId: z.string(),
+  event: z.unknown(), // AG-UI BaseEvent — validated downstream by reducer + CUSTOM handler schemas
+});
+
+const RunClosedParamsSchema = z.object({
+  runId: z.string(),
+  reason: z.string().optional(),
+});
+
+const TerminalOutputParamsSchema = z.object({
+  runId: z.string(),
+  eventId: z.string(),
+  line: z.object({
+    kind: z.string(),
+    text: z.string(),
+  }),
+});
+
+const BackgroundUpdateParamsSchema = z.object({
+  taskId: z.string(),
+  eventId: z.string(),
+  status: z.enum(["running", "stopped", "succeeded", "failed"]),
+  progress: z.number().optional(),
+  outputDelta: z.string().optional(),
+});
+
+// Map notification method to its param schema. Used by makeFilteredStream
+// to validate the wrapper before extracting + pushing.
+const PARAM_SCHEMAS: Record<string, z.ZodType<unknown>> = {
+  "notifications/run/event": RunEventParamsSchema,
+  "notifications/run/closed": RunClosedParamsSchema,
+  "notifications/terminal/output": TerminalOutputParamsSchema,
+  "notifications/background/update": BackgroundUpdateParamsSchema,
+};
+
+function validateParams(method: string, params: unknown): Record<string, unknown> | null {
+  const schema = PARAM_SCHEMAS[method];
+  if (!schema) {
+    // Unknown notification method — skip silently (forward-compat for new
+    // notification types we haven't taught the frontend about yet).
+    return null;
+  }
+  const result = schema.safeParse(params);
+  if (!result.success) {
+    console.warn(
+      `[rpc/stream] dropping malformed ${method} payload:`,
+      z.treeifyError(result.error),
+    );
+    return null;
+  }
+  return result.data as Record<string, unknown>;
+}
 
 // ---------------------------------------------------------------------------
 // makeFilteredStream — generic helper
@@ -66,7 +136,7 @@ export function makeFilteredStream<T>(
 
   const unsubEvent = client.subscribe(spec.notificationMethod, (msg) => {
     if (channel.closed) return;
-    const params = msg.params as Record<string, unknown> | undefined;
+    const params = validateParams(spec.notificationMethod, msg.params);
     if (!params || params[spec.idField] !== spec.idValue) return;
     channel.push(spec.extract(params));
     if (spec.isTerminal?.(params)) channel.close();
@@ -74,8 +144,8 @@ export function makeFilteredStream<T>(
 
   const unsubClosed = spec.closedMethod
     ? client.subscribe(spec.closedMethod, (msg) => {
-        const params = msg.params as Record<string, unknown> | undefined;
-        if (params?.[spec.idField] !== spec.idValue) return;
+        const params = validateParams(spec.closedMethod!, msg.params);
+        if (!params || params[spec.idField] !== spec.idValue) return;
         channel.close();
       })
     : () => undefined;
