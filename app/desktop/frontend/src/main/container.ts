@@ -6,6 +6,7 @@
 import type { PermissionGateway } from "@/domain";
 import { HttpPermissionGateway } from "@/infra/http/HttpPermissionGateway";
 import { AGUI_BASE } from "@/main/config";
+import { getConfig } from "@/plugins/sdk/config";
 import type { Methods, RpcClient, SidecarClient } from "@/rpc";
 import { createHttpTransport, createMethods, createRpcClient, createSidecarClient } from "@/rpc";
 
@@ -36,7 +37,19 @@ function defaultContainer(): Container {
   const baseUrl = AGUI_BASE;
   return {
     permission: new HttpPermissionGateway(baseUrl),
-    createRpc: () => createRpcClient(createHttpTransport({ baseUrl })),
+    createRpc: () =>
+      // Read `api.localToken` at factory-call time so plugins (e.g. a
+      // Wails-side bootstrap reading `~/.lyra/local-token`) can set it
+      // via `host.config.set("api.localToken", ...)` before the first
+      // RpcClient is instantiated. Web frontend hitting a same-machine
+      // lyra-server needs this for the local process gate (docs/API.md
+      // §1.2). For dev mock backend that doesn't validate, leave unset.
+      createRpcClient(
+        createHttpTransport({
+          baseUrl,
+          localToken: getConfig<string>("api.localToken") ?? undefined,
+        }),
+      ),
     createMethods,
     sidecar: createSidecarClient({ baseUrl }),
   };
