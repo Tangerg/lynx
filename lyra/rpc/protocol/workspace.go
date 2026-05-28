@@ -36,10 +36,11 @@ type FileChange struct {
 // every render (API.md §6.5).
 //
 // Discriminator: Type
-//   "hunk"  → Text   (the `@@ -1,3 +1,3 @@` header)
-//   "ctx"   → L, R, Code   (unchanged line, both line numbers)
-//   "add"   → R, Code      (added line, new line number)
-//   "del"   → L, Code      (removed line, old line number)
+//
+//	"hunk"  → Text   (the `@@ -1,3 +1,3 @@` header)
+//	"ctx"   → L, R, Code   (unchanged line, both line numbers)
+//	"add"   → R, Code      (added line, new line number)
+//	"del"   → L, Code      (removed line, old line number)
 type DiffRow struct {
 	Type string `json:"type"`
 	Text string `json:"text,omitempty"`
@@ -50,8 +51,8 @@ type DiffRow struct {
 
 // FileLine is one row of a structured file preview (API.md §6.5).
 type FileLine struct {
-	Ln    string `json:"ln"`             // line number or marker (e.g. "···")
-	Code  string `json:"code"`           // pre-rendered HTML / highlighted text
+	Ln    string `json:"ln"`   // line number or marker (e.g. "···")
+	Code  string `json:"code"` // pre-rendered HTML / highlighted text
 	Muted bool   `json:"muted,omitempty"`
 }
 
@@ -107,10 +108,10 @@ type Project struct {
 //     "github", "browser") are already human-readable
 //   - `icon` is UI presentation that doesn't belong on the wire
 type MCPServer struct {
-	Name   string `json:"name"`             // MCP-native server identifier
+	Name   string `json:"name"` // MCP-native server identifier
 	Desc   string `json:"desc"`
-	Tools  int    `json:"tools"`            // count of tools the server exposes
-	Status string `json:"status"`           // "active" | "idle" | "error"
+	Tools  int    `json:"tools"`  // count of tools the server exposes
+	Status string `json:"status"` // "active" | "idle" | "error"
 }
 
 // Skill is one entry in workspace.skills (API.md §6.5).

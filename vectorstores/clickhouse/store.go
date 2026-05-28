@@ -1,8 +1,8 @@
 package clickhouse
 
 import (
-	"context"
 	"cmp"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -71,9 +71,9 @@ type StoreConfig struct {
 	EmbeddingModel  embedding.Model
 	DocumentBatcher document.Batcher
 
-	Dimensions          int
-	DistanceMetric      DistanceMetric
-	InitializeSchema    bool
+	Dimensions       int
+	DistanceMetric   DistanceMetric
+	InitializeSchema bool
 }
 
 func (c StoreConfig) Validate() error {
@@ -130,7 +130,6 @@ type Store struct {
 	dimensions      int
 	distanceMetric  DistanceMetric
 }
-
 
 func NewStore(config StoreConfig) (*Store, error) {
 	config.ApplyDefaults()
@@ -362,7 +361,7 @@ func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 // Delete removes rows matching the filter expression.
 //
 // ClickHouse mutations are asynchronous — callers should consider
-// MutationOptions for synchronous behaviour in their environment.
+// MutationOptions for synchronous behavior in their environment.
 func (s *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) (err error) {
 	if err = req.Validate(); err != nil {
 		return fmt.Errorf("clickhouse: invalid delete request: %w", err)
@@ -408,7 +407,6 @@ func (s *Store) Metadata() vectorstore.StoreMetadata {
 		Provider:     Provider,
 	}
 }
-
 
 func (s *Store) Close() error { return nil }
 

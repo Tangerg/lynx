@@ -6,7 +6,7 @@ import "strings"
 // generator needs for a known city. It's the single source of truth
 // — the system code only reads from it; adding a new city is just
 // adding a row, no system changes required (inversion-of-control:
-// behaviour is parameterised by data, not by code).
+// behavior is parameterised by data, not by code).
 //
 // Keys in [knownCities] are lowercase substrings — a request
 // location matches when its lowercase form contains the key.
@@ -15,7 +15,7 @@ import "strings"
 type cityProfile struct {
 	Latitude  float64
 	Longitude float64
-	Elevation int         // metres
+	Elevation int         // meters
 	Zone      climateZone // climate band → climateProfiles lookup
 	Polluted  bool        // baseline AQI elevated (megacities, basin geographies, dense industry)
 }
@@ -23,7 +23,7 @@ type cityProfile struct {
 // lookupCity is the single read path the rest of the package uses
 // for any city-specific characteristic. Returns the matched profile
 // plus a bool that callers use to fall back to "unknown location"
-// behaviour (random northern coords, default pollution baseline).
+// behavior (random northern coords, default pollution baseline).
 func lookupCity(location string) (cityProfile, bool) {
 	low := strings.ToLower(location)
 	for city, profile := range knownCities {
@@ -48,10 +48,10 @@ func lookupRegion(location string) (climateZone, bool) {
 	return 0, false
 }
 
-// knownCities is the global gazetteer the package recognises.
+// knownCities is the global gazetteer the package recognizes.
 // Coverage spans every climate zone the package models; extending
 // it is just a matter of adding one row per city. Coordinates are
-// approximate city-centre values; elevations are typical local
+// approximate city-center values; elevations are typical local
 // reference altitudes.
 //
 // The map's keys are case-insensitive substrings; ordering is not

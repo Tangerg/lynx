@@ -35,7 +35,7 @@ type ProviderTestResult struct {
 // Model is one entry in models.list (API.md §6.6).
 type Model struct {
 	ID            string `json:"id"`
-	Provider      string `json:"provider"`                // Provider.id
+	Provider      string `json:"provider"` // Provider.id
 	ContextWindow int    `json:"contextWindow,omitempty"`
 	Description   string `json:"description,omitempty"`
 }

@@ -105,7 +105,7 @@ type processStarter func(
 	in any,
 ) (*AgentProcess, error)
 
-// newTypedAgentTool builds the typed flavour of [agentTool]: input
+// newTypedAgentTool builds the typed flavor of [agentTool]: input
 // schema derived from a zero In sample at construction; decode does a
 // strict json.Unmarshal into a typed In; extract uses
 // [core.ResultOfType[Out]].

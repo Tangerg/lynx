@@ -128,7 +128,7 @@ func ReportProgress(ctx context.Context, progress float64, total *float64, messa
 //	    },
 //	})
 //	if err != nil { return "", err }
-//	if res.Action != "accept" { return "user cancelled", nil }
+//	if res.Action != "accept" { return "user canceled", nil }
 //	env, _ := res.Content["env"].(string)
 func ElicitFromClient(ctx context.Context, opts ElicitOptions) (*sdkmcp.ElicitResult, error) {
 	session := ServerSessionFromContext(ctx)

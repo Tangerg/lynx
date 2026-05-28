@@ -79,7 +79,7 @@ func NewImageModel(cfg ImageModelConfig) (*ImageModel, error) {
 	return &ImageModel{
 		api:            api,
 		defaultOptions: cfg.DefaultOptions,
-		metadata:           info,
+		metadata:       info,
 	}, nil
 }
 

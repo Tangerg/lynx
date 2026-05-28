@@ -30,7 +30,7 @@ func newFakeChatModel(t *testing.T, reply string) *fakeChatModel {
 }
 
 func (m *fakeChatModel) DefaultOptions() chat.Options { return *m.defaults }
-func (m *fakeChatModel) Metadata() chat.ModelMetadata          { return chat.ModelMetadata{Provider: "fake"} }
+func (m *fakeChatModel) Metadata() chat.ModelMetadata { return chat.ModelMetadata{Provider: "fake"} }
 
 func (m *fakeChatModel) Call(_ context.Context, _ *chat.Request) (*chat.Response, error) {
 	if m.err != nil {

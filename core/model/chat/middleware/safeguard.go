@@ -71,7 +71,7 @@ type SafeguardOptions struct {
 // Matcher so any in-memory state (compiled regex, hash set) is
 // allocated once.
 //
-// Behaviour:
+// Behavior:
 //
 //   - Input scope: every [chat.SystemMessage].Text and
 //     [chat.UserMessage].Text in the request is scanned before the

@@ -19,7 +19,7 @@ import (
 // (so the body would short-circuit without doing work).
 //
 // Because each iteration starts clean, the body sub-agent **cannot
-// read its own prior outputs**. If iteration-aware behaviour is
+// read its own prior outputs**. If iteration-aware behavior is
 // needed, encode it externally — closure state, an injected service,
 // or fold the previous Out into the typed In type so the
 // orchestrator's typed wrapper feeds it back in (the next iteration's

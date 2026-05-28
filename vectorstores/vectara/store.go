@@ -2,8 +2,8 @@ package vectara
 
 import (
 	"bytes"
-	"context"
 	"cmp"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -103,7 +103,6 @@ type Store struct {
 	httpClient      *http.Client
 }
 
-
 func NewStore(config StoreConfig) (*Store, error) {
 	config.ApplyDefaults()
 	if err := config.Validate(); err != nil {
@@ -146,9 +145,9 @@ func (s *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) (err
 				id = uuid.NewString()
 			}
 			payload := map[string]any{
-				"id":           id,
-				"type":         "core",
-				"metadata":     metaOrEmpty(doc.Metadata),
+				"id":       id,
+				"type":     "core",
+				"metadata": metaOrEmpty(doc.Metadata),
 				"document_parts": []any{
 					map[string]any{"text": doc.Text},
 				},
@@ -329,7 +328,6 @@ func (s *Store) Metadata() vectorstore.StoreMetadata {
 		Provider:     Provider,
 	}
 }
-
 
 func (s *Store) Close() error { return nil }
 

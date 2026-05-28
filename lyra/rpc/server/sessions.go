@@ -93,13 +93,13 @@ func (i *Server) ForkSession(ctx context.Context, in protocol.ForkSessionRequest
 }
 
 // ExportSession — no file-serving endpoint backed yet. Once a
-// downloadable artefact endpoint exists, return its URL here.
+// downloadable artifact endpoint exists, return its URL here.
 func (i *Server) ExportSession(_ context.Context, _ protocol.ExportSessionRequest) (*protocol.ExportSessionResponse, error) {
 	return nil, notImpl("sessions.export")
 }
 
 // sessionToWire converts the internal session shape into the wire
-// shape. Status is synthesised — internal Sessions don't track an
+// shape. Status is synthesized — internal Sessions don't track an
 // explicit "running/waiting/idle" flag yet, so we default to idle.
 // Metadata widens map[string]string → map[string]any at the boundary;
 // internal store stays string-only.

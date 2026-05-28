@@ -35,7 +35,7 @@ type Goal struct {
 	// `runtime.PublishAll`); leaving Export non-nil without those
 	// callers wired is harmless but also means nothing happens — the
 	// field exists to drive user-facing fan-out, not to gate planner
-	// behaviour.
+	// behavior.
 	Export *GoalExport
 }
 
@@ -52,7 +52,7 @@ type GoalExport struct {
 
 	// Description overrides Goal.Description when surfacing the goal
 	// as an externally-facing tool. Useful when the internal
-	// description is too implementation-flavoured for an LLM caller.
+	// description is too implementation-flavored for an LLM caller.
 	// Empty falls back to Goal.Description.
 	Description string
 

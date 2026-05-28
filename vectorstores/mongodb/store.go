@@ -1,8 +1,8 @@
 package mongodb
 
 import (
-	"context"
 	"cmp"
+	"context"
 	"errors"
 	"fmt"
 
@@ -156,7 +156,6 @@ type Store struct {
 	numCandidates          int
 }
 
-
 func NewStore(config StoreConfig) (*Store, error) {
 	config.ApplyDefaults()
 	if err := config.Validate(); err != nil {
@@ -280,9 +279,9 @@ func (s *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) (err
 			}
 
 			payload := bson.M{
-				defaultIDField:    id,
-				s.contentField:    doc.Text,
-				s.embeddingPath:   math.ConvertSlice[float64, float32](vectors[i]),
+				defaultIDField:  id,
+				s.contentField:  doc.Text,
+				s.embeddingPath: math.ConvertSlice[float64, float32](vectors[i]),
 			}
 			if s.metadataField != "" {
 				meta := doc.Metadata
@@ -465,6 +464,5 @@ func (s *Store) Metadata() vectorstore.StoreMetadata {
 		Provider:     Provider,
 	}
 }
-
 
 func (s *Store) Close() error { return nil }

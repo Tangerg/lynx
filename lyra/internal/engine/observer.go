@@ -24,7 +24,7 @@ type ToolObserver interface {
 	// a non-nil error short-circuits the tool: the engine reports
 	// the error back to the model so it can recover. nil means
 	// "go ahead". Implementations that don't gate should return nil
-	// unconditionally (the engine's default observer behaviour).
+	// unconditionally (the engine's default observer behavior).
 	//
 	// Receives the same callID it will later get on Start / End so
 	// the implementation can pair the gate with the lifecycle.

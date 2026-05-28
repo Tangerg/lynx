@@ -3,7 +3,7 @@ package event
 // JSON marshaling for every event type lives here, separate from the
 // type definitions in process.go / execution.go / planning.go /
 // platform.go. The split is an SRP move: event definitions describe
-// what the runtime publishes; marshaling describes how it serialises
+// what the runtime publishes; marshaling describes how it serializes
 // onto an external wire (audit log, websocket fan-out, etc).
 //
 // Listeners that only care about in-memory dispatch can ignore this

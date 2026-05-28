@@ -1,7 +1,7 @@
 // Package inprocess implements the [transport.Transport] interface
 // for "Go ↔ Go in the same binary" deployments — typically a Bubble
 // Tea TUI linking the runtime directly. The business path skips
-// JSON-RPC serialisation entirely; the Transport surface exists only
+// JSON-RPC serialization entirely; the Transport surface exists only
 // so logging / tracing middleware can wrap calls uniformly.
 //
 // Two modes of use:
@@ -9,8 +9,8 @@
 //  1. Direct Runtime passthrough (recommended). Get the Runtime
 //     interface back as-is and call methods directly:
 //
-//	    api := server.New(...)
-//	    sessions, err := api.ListSessions(ctx, ...)
+//     api := server.New(...)
+//     sessions, err := api.ListSessions(ctx, ...)
 //
 //  2. Through Transport (for middleware symmetry). Wrap the api in
 //     an InProcessTransport and treat it like any other transport.
@@ -27,8 +27,8 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/Tangerg/lynx/lyra/rpc/protocol"
 	"github.com/Tangerg/lynx/lyra/rpc/dispatch"
+	"github.com/Tangerg/lynx/lyra/rpc/protocol"
 	"github.com/Tangerg/lynx/lyra/rpc/transport"
 )
 
@@ -150,4 +150,3 @@ func (t *Transport) Close() error {
 	})
 	return nil
 }
-

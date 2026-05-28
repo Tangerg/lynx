@@ -16,7 +16,7 @@ import (
 //     against ToolName with ToolArgs.
 //   - Round 2 (tool message present): emit the configured FinalText.
 //
-// Two-round behaviour is enough to exercise the ToolMiddleware tool
+// Two-round behavior is enough to exercise the ToolMiddleware tool
 // loop end-to-end (tool dispatch → result feedback → final reply)
 // while staying fully offline.
 type stubModel struct {
@@ -69,7 +69,9 @@ func newStreamingStubModel(chunks ...string) *streamingStubModel {
 }
 
 func (m *streamingStubModel) DefaultOptions() chat.Options { return *m.defaults }
-func (m *streamingStubModel) Metadata() chat.ModelMetadata { return chat.ModelMetadata{Provider: "stub"} }
+func (m *streamingStubModel) Metadata() chat.ModelMetadata {
+	return chat.ModelMetadata{Provider: "stub"}
+}
 
 // Call concatenates the chunks into one response — used when a non-
 // stream caller asks for the full reply (the engine doesn't, but

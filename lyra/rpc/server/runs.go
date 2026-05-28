@@ -68,7 +68,7 @@ func (i *Server) StartRun(ctx context.Context, in protocol.StartRunRequest) (*pr
 
 // pumpRun translates internal chat events to AG-UI events and pipes
 // them to the consumer. Exits when the inner stream closes (turn end)
-// or the run is cancelled.
+// or the run is canceled.
 func (i *Server) pumpRun(ctx context.Context, handle chat.TurnHandle, inner <-chan chat.Event, out chan<- protocol.AgUiEvent) {
 	translator := agui.NewTranslator(handle.SessionID, handle.TurnID)
 	defer close(out)
@@ -104,7 +104,7 @@ func (i *Server) pumpRun(ctx context.Context, handle chat.TurnHandle, inner <-ch
 }
 
 // CancelRun handles the runs.cancel Request (API.md v4 §3.5 — a
-// proper Request method, distinct from notifications/cancelled which
+// proper Request method, distinct from notifications/canceled which
 // targets in-flight JSON-RPC Requests).
 func (i *Server) CancelRun(_ context.Context, runID string) error {
 	i.runMu.Lock()

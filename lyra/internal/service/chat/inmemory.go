@@ -19,7 +19,7 @@ import (
 //
 // approvalSvc is optional. When non-nil the chat impl threads
 // every tool call through it for permission gating; on nil the
-// gate is a no-op and every call passes (legacy YOLO behaviour
+// gate is a no-op and every call passes (legacy YOLO behavior
 // useful for tests / smoke runs).
 //
 // Future milestones extend this: session-store backing,
@@ -137,7 +137,7 @@ func (s *inMemory) StartTurn(ctx context.Context, req StartTurnRequest) (TurnHan
 
 // findTurn looks up the per-turn state by id under the impl's
 // mutex. Returns ErrTurnNotFound when the turn has already ended
-// (runTurn deletes itself from the map on exit). Centralises the
+// (runTurn deletes itself from the map on exit). Centralizes the
 // "lock / lookup / unlock" sequence every public method below
 // needs to perform.
 func (s *inMemory) findTurn(id string) (*turnState, error) {
@@ -253,14 +253,14 @@ func (s *inMemory) runTurn(ctx context.Context, st *turnState, req StartTurnRequ
 	// Drain any steering the client injected during the turn so it
 	// lands in conversation history BEFORE post-turn maintenance —
 	// the compactor / extractor then see steering as part of the
-	// conversation they summarise.
+	// conversation they summarize.
 	s.flushSteering(ctx, st, req.SessionID)
 
 	if runErr == nil && req.SessionID != "" {
 		s.postTurnMaintenance(ctx, st, req.SessionID)
 	}
 	if runErr != nil {
-		// Honour cancellation differently from genuine errors so
+		// Honor cancellation differently from genuine errors so
 		// transport adapters can render the right state.
 		if errors.Is(ctx.Err(), context.Canceled) {
 			s.emit(st, TurnEnd{
@@ -385,8 +385,8 @@ func (s *inMemory) flushSteering(ctx context.Context, st *turnState, sessionID s
 // the user's reply is already on screen.
 //
 // Fact extraction is gated on compaction firing: extraction is one
-// extra LLM call, so we amortise it onto the moments where the
-// runtime had to summarise anyway.
+// extra LLM call, so we amortize it onto the moments where the
+// runtime had to summarize anyway.
 func (s *inMemory) postTurnMaintenance(ctx context.Context, st *turnState, sessionID string) {
 	compacted, err := s.engine.MaybeCompact(ctx, sessionID)
 	if err != nil {
@@ -408,12 +408,12 @@ func (s *inMemory) postTurnMaintenance(ctx context.Context, st *turnState, sessi
 }
 
 // waitDecision blocks until the client calls ContinuePlan or the
-// turn context is cancelled. Returns the second value as false on
+// turn context is canceled. Returns the second value as false on
 // cancellation so the caller emits TurnEndCancelled cleanly.
 //
 // Lives on *turnState (not as a free function) because the state
 // owns the planDecision channel — keeping the method here matches
-// the rest of the file's "behaviour lives on the type that holds
+// the rest of the file's "behavior lives on the type that holds
 // the data" convention.
 func (st *turnState) waitDecision(ctx context.Context) (PlanDecision, bool) {
 	select {

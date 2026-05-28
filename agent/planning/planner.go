@@ -113,7 +113,7 @@ func BestValuePlan(
 //     definition or notice a misconfigured precondition.
 //   - Documentation generation — strip dead actions before
 //     rendering the action catalog.
-//   - Repeated planning over an optimised system — the planner
+//   - Repeated planning over an optimized system — the planner
 //     stops considering known-dead actions tick after tick.
 //
 // Prune does *not* mutate system. Returns (nil, error) when the

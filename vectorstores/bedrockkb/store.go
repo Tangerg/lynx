@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"errors"
+
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/bedrockagentruntime"
 	"github.com/aws/aws-sdk-go-v2/service/bedrockagentruntime/types"
@@ -57,7 +58,6 @@ type Store struct {
 	knowledgeBaseID string
 	vectorOverrides *types.KnowledgeBaseVectorSearchConfiguration
 }
-
 
 func NewStore(config StoreConfig) (*Store, error) {
 	if err := config.Validate(); err != nil {
@@ -192,6 +192,5 @@ func (s *Store) Metadata() vectorstore.StoreMetadata {
 		Provider:     Provider,
 	}
 }
-
 
 func (s *Store) Close() error { return nil }

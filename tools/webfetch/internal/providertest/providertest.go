@@ -15,7 +15,7 @@ type Factory func(apiKey string) (webfetch.Provider, error)
 // provider:
 //   - RequiresAPIKey: NewClient with an empty key must error
 //   - Fetch: skip when envKey is unset; otherwise hit the live API
-//     against https://example.com and log the marshalled response
+//     against https://example.com and log the marshaled response
 //
 // envKey is the OS environment variable holding the provider's API
 // key (e.g., "JINA_KEY", "FIRECRAWL_KEY").

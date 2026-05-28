@@ -21,18 +21,18 @@ import "errors"
 //	ErrProviderRateLimited   → -32002 provider_rate_limited
 //	ErrToolFailed            → -32003 tool_failed
 //
-// Unrecognised errors map to -32603 internal_error.
+// Unrecognized errors map to -32603 internal_error.
 var (
-	ErrNotImplemented         = errors.New("protocol: method not implemented")
-	ErrSessionNotFound        = errors.New("protocol: session not found")
-	ErrMessageNotFound        = errors.New("protocol: message not found")
-	ErrRunNotFound            = errors.New("protocol: run not found")
-	ErrAttachmentTooLarge     = errors.New("protocol: attachment too large")
+	ErrNotImplemented          = errors.New("protocol: method not implemented")
+	ErrSessionNotFound         = errors.New("protocol: session not found")
+	ErrMessageNotFound         = errors.New("protocol: message not found")
+	ErrRunNotFound             = errors.New("protocol: run not found")
+	ErrAttachmentTooLarge      = errors.New("protocol: attachment too large")
 	ErrCapabilityNotNegotiated = errors.New("protocol: capability not negotiated")
-	ErrInvalidProtocolVersion = errors.New("protocol: invalid protocol version")
-	ErrProtocolViolation      = errors.New("protocol: protocol violation")
-	ErrApprovalRequired       = errors.New("protocol: approval required")
-	ErrProviderError          = errors.New("protocol: provider error")
-	ErrProviderRateLimited    = errors.New("protocol: provider rate limited")
-	ErrToolFailed             = errors.New("protocol: tool failed")
+	ErrInvalidProtocolVersion  = errors.New("protocol: invalid protocol version")
+	ErrProtocolViolation       = errors.New("protocol: protocol violation")
+	ErrApprovalRequired        = errors.New("protocol: approval required")
+	ErrProviderError           = errors.New("protocol: provider error")
+	ErrProviderRateLimited     = errors.New("protocol: provider rate limited")
+	ErrToolFailed              = errors.New("protocol: tool failed")
 )

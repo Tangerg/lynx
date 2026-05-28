@@ -23,8 +23,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Tangerg/lynx/lyra/rpc/protocol"
 	"github.com/Tangerg/lynx/lyra/rpc/dispatch"
+	"github.com/Tangerg/lynx/lyra/rpc/protocol"
 )
 
 // Server is the HTTP transport. One instance per process — it owns
@@ -75,11 +75,11 @@ type Config struct {
 	// origin TUI scenarios.
 	LocalToken string
 
-	// CORSOrigins is the exact-match origin allowlist; "*" is honoured
+	// CORSOrigins is the exact-match origin allowlist; "*" is honored
 	// (without credentials). Empty disables CORS — same-origin only.
 	CORSOrigins []string
 
-	// HealthProbes are the labelled liveness checks invoked on every
+	// HealthProbes are the labeled liveness checks invoked on every
 	// GET /v1/health. Empty list ⇒ the endpoint always returns ok.
 	// Probes run in parallel under a shared 2s budget.
 	HealthProbes []HealthProbe
@@ -129,8 +129,8 @@ func NewServer(cfg Config) (*Server, error) {
 		healthProbes:    cfg.HealthProbes,
 		agentDocsLister: cfg.AgentDocsLister,
 		dispatcher:      dispatch.New(cfg.Runtime),
-		streams:    newStreamRegistry(),
-		clients:    newClientRegistry(),
+		streams:         newStreamRegistry(),
+		clients:         newClientRegistry(),
 		info: protocol.InitializeResponse{
 			ProtocolVersion: cfg.ProtocolVersion,
 			ServerInfo:      cfg.ServerInfo,

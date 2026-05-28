@@ -74,7 +74,7 @@ func NewAudioTranslationModel(cfg AudioTranslationModelConfig) (*AudioTranslatio
 	return &AudioTranslationModel{
 		api:            api,
 		defaultOptions: cfg.DefaultOptions,
-		metadata:           info,
+		metadata:       info,
 	}, nil
 }
 

@@ -134,7 +134,7 @@ type ProcessContext struct {
 	// lastErr captures the most recent error from a typed-action body so
 	// the runtime can extract a ReplanRequest. ProcessContext is built
 	// fresh per tick (see runtime.buildProcessContext) and never shared
-	// across goroutines, so no synchronisation is needed.
+	// across goroutines, so no synchronization is needed.
 	lastErr error
 }
 
@@ -287,7 +287,7 @@ func (pc *ProcessContext) ActionTools(ctx context.Context) ([]AgentTool, error) 
 // [Process.TerminateToolCall]. The returned cancel func MUST be
 // deferred — it both cancels the ctx and detaches the runtime's
 // pointer so a later TerminateToolCall doesn't fire on a stale ctx.
-// Without a registered canceller, behaviour falls back to plain
+// Without a registered canceller, behavior falls back to plain
 // [context.WithCancel] (TerminateToolCall becomes a no-op).
 func (pc *ProcessContext) ToolCallContext(parent context.Context) (context.Context, context.CancelFunc) {
 	ctx, cancel := context.WithCancel(parent)

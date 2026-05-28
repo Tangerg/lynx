@@ -41,13 +41,13 @@ func (p *AgentProcess) tickConcurrent(ctx context.Context, worldState core.World
 // runActionsInParallel dispatches every achievable action onto its own
 // goroutine and waits for completion. Result indices align with the input
 // slice so the caller can correlate per-action outcomes. Each goroutine
-// writes a unique pre-allocated slot, and Wait synchronises the writes
+// writes a unique pre-allocated slot, and Wait synchronizes the writes
 // with the post-Wait reads — so no explicit mutex is required.
 //
 // We use plain [sync.WaitGroup] (rather than [errgroup.Group]) because
 // per-action failure is captured in the structured replans / results
 // slices, not bubbled as an error — there's nothing for errgroup to
-// fan in. Cancellation is honoured by [executeAction] via the supplied
+// fan in. Cancellation is honored by [executeAction] via the supplied
 // ctx, so we don't need errgroup's auto-cancel-on-error either.
 func (p *AgentProcess) runActionsInParallel(ctx context.Context, actions []core.Action) ([]core.ActionStatus, []*core.ReplanRequest) {
 	results := make([]core.ActionStatus, len(actions))

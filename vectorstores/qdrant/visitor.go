@@ -45,7 +45,6 @@ type Visitor struct {
 	currentFieldKey   string         // Temporary storage for field keys during extraction
 }
 
-
 func NewVisitor() *Visitor {
 	return &Visitor{
 		filter: &qdrant.Filter{},

@@ -111,7 +111,6 @@ type Store struct {
 	storeDocumentContent bool
 }
 
-
 func NewStore(config StoreConfig) (*Store, error) {
 	config.ApplyDefaults()
 	if err := config.Validate(); err != nil {

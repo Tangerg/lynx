@@ -2,12 +2,12 @@ package typesense
 
 import (
 	"fmt"
-	"strings"
 	"strconv"
+	"strings"
 
 	"github.com/Tangerg/lynx/core/vectorstore/filter/ast"
-	"github.com/Tangerg/lynx/vectorstores/internal/filterhelp"
 	"github.com/Tangerg/lynx/core/vectorstore/filter/token"
+	"github.com/Tangerg/lynx/vectorstores/internal/filterhelp"
 )
 
 var _ ast.Visitor = (*Visitor)(nil)
@@ -33,11 +33,9 @@ type Visitor struct {
 	metadataPrefix string
 }
 
-
 func NewVisitor(metadataPrefix string) *Visitor {
 	return &Visitor{metadataPrefix: metadataPrefix}
 }
-
 
 func (v *Visitor) Result() string {
 	if v.err != nil {
@@ -202,7 +200,6 @@ func (v *Visitor) fieldPath(expr ast.Expr) (string, error) {
 	}
 	return v.metadataPrefix + "." + joined, nil
 }
-
 
 func filterOpFor(kind token.Kind) (string, error) {
 	switch kind {

@@ -47,7 +47,7 @@ func (w *ConditionWorldState) State() map[string]core.Determination {
 
 func (w *ConditionWorldState) Timestamp() time.Time { return w.timestamp }
 
-// HashKey returns the stable serialisation of the (sorted) (key, det)
+// HashKey returns the stable serialization of the (sorted) (key, det)
 // pairs separated by '|'. Computed eagerly at construction — see the
 // type-level doc.
 func (w *ConditionWorldState) HashKey() string { return w.hashKey }

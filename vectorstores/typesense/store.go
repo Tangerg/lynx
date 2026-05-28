@@ -1,8 +1,8 @@
 package typesense
 
 import (
-	"context"
 	"cmp"
+	"context"
 	"errors"
 	"fmt"
 	"strconv"
@@ -100,7 +100,6 @@ type Store struct {
 	documentBatcher document.Batcher
 	dimensions      int
 }
-
 
 func NewStore(config StoreConfig) (*Store, error) {
 	config.ApplyDefaults()
@@ -374,6 +373,5 @@ func (s *Store) Metadata() vectorstore.StoreMetadata {
 		Provider:     Provider,
 	}
 }
-
 
 func (s *Store) Close() error { return nil }

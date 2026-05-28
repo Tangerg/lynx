@@ -3,7 +3,7 @@
 // shape (emitted by the concrete Message types' MarshalJSON) so a
 // conversation written by one backend can be re-read by another.
 //
-// Centralising the encoder here removes the per-backend duplication
+// Centralizing the encoder here removes the per-backend duplication
 // that previously had six near-identical type-switches drifting in
 // sync.
 package codec

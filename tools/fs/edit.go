@@ -61,12 +61,7 @@ func (t *EditTool) Call(ctx context.Context, arguments string) (string, error) {
 	if req.Path == "" {
 		return "", fmt.Errorf("fs.edit: %w", ErrEmptyPath)
 	}
-	res, err := t.executor.Edit(ctx, EditInput{
-		Path:       req.Path,
-		OldString:  req.OldString,
-		NewString:  req.NewString,
-		ReplaceAll: req.ReplaceAll,
-	})
+	res, err := t.executor.Edit(ctx, EditInput(req))
 	if err != nil {
 		return "", fmt.Errorf("fs.edit: %w", err)
 	}

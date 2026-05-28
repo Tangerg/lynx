@@ -118,4 +118,3 @@ func printSession(out interface {
 		fmt.Fprintf(out, "meta.%s: %s\n", k, v)
 	}
 }
-

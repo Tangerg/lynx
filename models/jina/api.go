@@ -50,14 +50,14 @@ func NewAPI(cfg APIConfig) (*API, error) {
 }
 
 type EmbeddingRequest struct {
-	Model           string   `json:"model"`
-	Input           []string `json:"input"`
-	Task            string   `json:"task,omitempty"`
-	LateChunking    *bool    `json:"late_chunking,omitempty"`
-	Dimensions      *int64   `json:"dimensions,omitempty"`
-	Truncate        *bool    `json:"truncate,omitempty"`
-	EmbeddingType   string   `json:"embedding_type,omitempty"`
-	Normalized      *bool    `json:"normalized,omitempty"`
+	Model         string   `json:"model"`
+	Input         []string `json:"input"`
+	Task          string   `json:"task,omitempty"`
+	LateChunking  *bool    `json:"late_chunking,omitempty"`
+	Dimensions    *int64   `json:"dimensions,omitempty"`
+	Truncate      *bool    `json:"truncate,omitempty"`
+	EmbeddingType string   `json:"embedding_type,omitempty"`
+	Normalized    *bool    `json:"normalized,omitempty"`
 }
 
 type EmbeddingResponse struct {

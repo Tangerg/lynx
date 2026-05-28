@@ -61,7 +61,7 @@ func NewModerationModel(cfg ModerationModelConfig) (*ModerationModel, error) {
 	return &ModerationModel{
 		api:            api,
 		defaultOptions: cfg.DefaultOptions,
-		metadata:           info,
+		metadata:       info,
 	}, nil
 }
 

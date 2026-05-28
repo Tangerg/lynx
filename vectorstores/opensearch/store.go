@@ -2,8 +2,8 @@ package opensearch
 
 import (
 	"bytes"
-	"context"
 	"cmp"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -33,7 +33,7 @@ const (
 	DefaultMethodName     = "hnsw"
 )
 
-// SpaceType selects the vector similarity space recognised by
+// SpaceType selects the vector similarity space recognized by
 // OpenSearch's knn_vector field. The chosen value is baked into the
 // index mapping; changing it after the index is created has no effect.
 type SpaceType string
@@ -178,7 +178,6 @@ type Store struct {
 	engine          Engine
 	methodName      string
 }
-
 
 func NewStore(config StoreConfig) (*Store, error) {
 	config.ApplyDefaults()
@@ -556,7 +555,6 @@ func (s *Store) Metadata() vectorstore.StoreMetadata {
 		Provider:     Provider,
 	}
 }
-
 
 func (s *Store) Close() error { return nil }
 

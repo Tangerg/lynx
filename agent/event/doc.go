@@ -13,7 +13,7 @@
 // not provided — listeners that need it should consume events in their
 // in-memory form.
 //
-// File organisation (post-split):
+// File organization (post-split):
 //
 //   - event.go       — Event interface + BaseEvent + envelope/emit helpers
 //   - multicast.go   — Listener + ListenerFunc + Multicast

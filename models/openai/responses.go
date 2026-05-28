@@ -536,4 +536,3 @@ func (a *responsesChunkAccumulator) responseMeta(usage *chat.Usage) *chat.Respon
 		Usage: usage,
 	}
 }
-

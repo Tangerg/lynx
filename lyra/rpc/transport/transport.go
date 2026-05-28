@@ -5,9 +5,9 @@
 // One [Transport] interface, three implementations in scope:
 //
 //   - rpc/transport/inprocess — Go ↔ Go in the same binary, business
-//     path bypasses JSON serialisation entirely.
+//     path bypasses JSON serialization entirely.
 //   - rpc/transport/http      — JSON-RPC over HTTP (POST /v1/rpc/{method})
-//     + SSE notifications (GET /v1/rpc/stream) + sidecar /v1/info,
+//   - SSE notifications (GET /v1/rpc/stream) + sidecar /v1/info,
 //     /v1/health.
 //   - rpc/transport/wails     — Wails IPC (WebView ↔ host) — deferred.
 //
@@ -62,7 +62,7 @@ type ID = jsonrpc.ID
 // [ProblemData] per API.md §7.2).
 type Error = jsonrpc.Error
 
-// EncodeMessage serialises a Message to wire bytes (no trailing
+// EncodeMessage serializes a Message to wire bytes (no trailing
 // newline). Delegates to the SDK.
 func EncodeMessage(msg Message) ([]byte, error) { return jsonrpc.EncodeMessage(msg) }
 

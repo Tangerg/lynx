@@ -50,7 +50,7 @@ type Runs interface {
 
 	// CancelRun stops an in-flight run. Backs the runs.cancel JSON-RPC
 	// Request (API.md v4 §3.5): a proper Request method that returns
-	// void, NOT a notification. notifications/cancelled is reserved for
+	// void, NOT a notification. notifications/canceled is reserved for
 	// aborting an in-flight JSON-RPC Request (different semantic, see
 	// API.md §2.4).
 	CancelRun(ctx context.Context, runID string) error

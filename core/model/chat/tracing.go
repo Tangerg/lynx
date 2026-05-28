@@ -42,7 +42,7 @@ const (
 // https://opentelemetry.io/docs/specs/semconv/registry/attributes/gen-ai/
 // so downstream collectors (Tempo, Jaeger, Honeycomb, …) and any
 // auto-instrumentation hook (go.opentelemetry.io/auto/sdk) can
-// recognise them without lynx-specific wiring.
+// recognize them without lynx-specific wiring.
 const (
 	attrGenAISystem                = "gen_ai.system"
 	attrGenAIOperationName         = "gen_ai.operation.name"

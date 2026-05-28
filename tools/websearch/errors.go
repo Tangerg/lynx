@@ -12,7 +12,7 @@ var (
 	ErrEmptyQuery = errors.New("websearch: query must not be empty")
 
 	// ErrDomainsBothSides is returned when both AllowedDomains and
-	// BlockedDomains are set — most providers only honour one.
+	// BlockedDomains are set — most providers only honor one.
 	ErrDomainsBothSides = errors.New("websearch: allowed_domains and blocked_domains are mutually exclusive")
 
 	// ErrMissingProvider is returned by [NewTool] when the provider

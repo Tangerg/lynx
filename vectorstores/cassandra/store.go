@@ -1,8 +1,8 @@
 package cassandra
 
 import (
-	"context"
 	"cmp"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -50,7 +50,6 @@ const (
 	// similarity score by Cassandra itself.
 	SimilarityEuclidean SimilarityFunction = "euclidean"
 )
-
 
 // MetadataColumn declares a custom metadata column that the store
 // indexes for filtering. Cassandra has no JSON-path operator, so each
@@ -186,7 +185,6 @@ type Store struct {
 	dimensions      int
 	similarity      SimilarityFunction
 }
-
 
 func NewStore(config StoreConfig) (*Store, error) {
 	config.ApplyDefaults()
@@ -526,9 +524,7 @@ func (s *Store) Metadata() vectorstore.StoreMetadata {
 	}
 }
 
-
 func (s *Store) Close() error { return nil }
-
 
 // marshalMetadata / unmarshalMetadata are unused right now but kept
 // for future compatibility with stores that switch metadata storage

@@ -16,7 +16,7 @@ type Lifecycle interface {
 	// Shutdown is a polite "I'm leaving" notification (no response
 	// expected on the wire — but the impl returns error for parity).
 	// Runtime stops accepting new requests, cancels in-flight runs
-	// with notifications/cancelled, and closes the transport.
+	// with notifications/canceled, and closes the transport.
 	Shutdown(ctx context.Context, in ShutdownRequest) error
 
 	// Ping is a liveness probe — empty response on success. Most

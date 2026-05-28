@@ -25,7 +25,7 @@ func (i *Server) ListModels(_ context.Context, _ string) ([]protocol.Model, erro
 }
 
 // ListTools surfaces every tool the engine registered — built-in
-// coding tools plus any MCP-server tools dialled at boot.
+// coding tools plus any MCP-server tools dialed at boot.
 func (i *Server) ListTools(ctx context.Context) ([]protocol.Tool, error) {
 	internal, err := i.rt.Tool().List(ctx)
 	if err != nil {

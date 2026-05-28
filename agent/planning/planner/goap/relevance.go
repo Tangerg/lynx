@@ -17,7 +17,7 @@ import (
 // without losing optimality.
 //
 // Returned slice preserves the input order for stable downstream
-// behaviour (the caller's specificity sort still applies). When goal
+// behavior (the caller's specificity sort still applies). When goal
 // is unreachable from any subset of actions, the returned slice is
 // empty — the caller can short-circuit before running A*.
 func relevantActions(actions []core.Action, goal *core.Goal) []core.Action {

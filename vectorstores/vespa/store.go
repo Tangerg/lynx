@@ -2,8 +2,8 @@ package vespa
 
 import (
 	"bytes"
-	"context"
 	"cmp"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -146,7 +146,6 @@ type Store struct {
 	httpClient      *http.Client
 }
 
-
 func NewStore(config StoreConfig) (*Store, error) {
 	config.ApplyDefaults()
 	if err := config.Validate(); err != nil {
@@ -250,10 +249,10 @@ func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 	}
 
 	body := map[string]any{
-		"yql":       yql,
-		"hits":      req.TopK,
+		"yql":            yql,
+		"hits":           req.TopK,
 		"input.query(q)": map[string]any{"values": queryVec},
-		"ranking":   "default",
+		"ranking":        "default",
 	}
 
 	raw, err := s.do(ctx, http.MethodPost, "/search/", body)
@@ -264,9 +263,9 @@ func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 	var parsed struct {
 		Root struct {
 			Children []struct {
-				ID       string         `json:"id"`
-				Relevance float64       `json:"relevance"`
-				Fields   map[string]any `json:"fields"`
+				ID        string         `json:"id"`
+				Relevance float64        `json:"relevance"`
+				Fields    map[string]any `json:"fields"`
 			} `json:"children"`
 		} `json:"root"`
 	}
@@ -438,6 +437,5 @@ func (s *Store) Metadata() vectorstore.StoreMetadata {
 		Provider:     Provider,
 	}
 }
-
 
 func (s *Store) Close() error { return nil }

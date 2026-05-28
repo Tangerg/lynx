@@ -3,7 +3,7 @@ package core
 import "context"
 
 // StuckPolicy is invoked when the planner returns no plan. The
-// default behaviour is "give up and transition to StatusStuck";
+// default behavior is "give up and transition to StatusStuck";
 // agents that want graceful degradation can supply a policy that
 // mutates the blackboard (relax a constraint, drop a goal, …) and
 // requests a re-plan.

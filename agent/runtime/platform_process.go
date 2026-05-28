@@ -182,7 +182,7 @@ func validateProcessExtensions(extensions []core.Extension) error {
 }
 
 // bindBlackboardSeed applies the caller's initial bindings.
-// [core.DefaultBindingName] uses Bind() so the dual-binding behaviour
+// [core.DefaultBindingName] uses Bind() so the dual-binding behavior
 // kicks in; other keys go through Set so their explicit name wins.
 func bindBlackboardSeed(blackboard core.Blackboard, bindings map[string]any) {
 	for key, value := range bindings {

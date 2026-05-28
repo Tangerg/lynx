@@ -20,7 +20,7 @@
 //
 // Use [NewPlanner] for pure-iteration loops (chat, exploration);
 // use [NewHybridPlanner] when combining a real terminal goal with
-// opportunistic intermediate work (research-then-summarise,
+// opportunistic intermediate work (research-then-summarize,
 // gather-then-decide pipelines).
 //
 // For multi-step search with cost minimization choose the

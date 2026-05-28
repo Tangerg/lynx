@@ -6,7 +6,7 @@ import (
 	"github.com/Tangerg/lynx/lyra/internal/engine"
 )
 
-// Engine is the narrow behavioural surface chat depends on. It
+// Engine is the narrow behavioral surface chat depends on. It
 // captures exactly the engine operations the chat service drives
 // — RunChat / GeneratePlan / steering / post-turn maintenance —
 // and nothing more.

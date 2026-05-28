@@ -210,7 +210,7 @@ func toDocument(v any) document.Interface {
 // mediaToBlock maps a [*media.Media] payload onto the appropriate
 // Bedrock content-block variant. Only image media is fully supported
 // today — Bedrock Converse expects png / jpeg / gif / webp inline
-// bytes. Unrecognised media types are silently dropped (the assistant
+// bytes. Unrecognized media types are silently dropped (the assistant
 // gets the text portion of the message and the caller learns of the
 // gap by inspecting the prompt that round-tripped).
 func mediaToBlock(m *media.Media) types.ContentBlock {
@@ -540,4 +540,4 @@ func (c *ChatModel) Stream(ctx context.Context, req *chat.Request) iter.Seq2[*ch
 }
 
 func (c *ChatModel) DefaultOptions() chat.Options { return *c.defaultOptions }
-func (c *ChatModel) Metadata() chat.ModelMetadata         { return chat.ModelMetadata{Provider: Provider} }
+func (c *ChatModel) Metadata() chat.ModelMetadata { return chat.ModelMetadata{Provider: Provider} }

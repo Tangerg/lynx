@@ -12,8 +12,8 @@ type Feedback interface {
 
 // FeedbackRequest — feedback.submit body.
 type FeedbackRequest struct {
-	Kind  string         `json:"kind"`            // "thumbs-up" | "thumbs-down" | "note" | "bookmark"
-	RefID string         `json:"refId"`           // message id / run id this feedback attaches to
-	Value any            `json:"value,omitempty"` // free-form per kind
-	Note  string         `json:"note,omitempty"`
+	Kind  string `json:"kind"`            // "thumbs-up" | "thumbs-down" | "note" | "bookmark"
+	RefID string `json:"refId"`           // message id / run id this feedback attaches to
+	Value any    `json:"value,omitempty"` // free-form per kind
+	Note  string `json:"note,omitempty"`
 }

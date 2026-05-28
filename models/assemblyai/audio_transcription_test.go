@@ -17,11 +17,11 @@ func TestAudioTranscriptionModel_Call_Mock(t *testing.T) {
 	var polls testutil.PollCounter
 
 	srv := testutil.MuxServer(
-		testutil.Route{Method: "POST", Contains:"/upload", Handle: func(w http.ResponseWriter, r *http.Request) {
+		testutil.Route{Method: "POST", Contains: "/upload", Handle: func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
 			w.Write([]byte(`{"upload_url":"https://cdn.test/audio.bin"}`))
 		}},
-		testutil.Route{Method: "POST", Contains:"/transcript", Handle: func(w http.ResponseWriter, r *http.Request) {
+		testutil.Route{Method: "POST", Contains: "/transcript", Handle: func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
 			w.Write([]byte(`{"id":"job-1","status":"queued","audio_duration":0}`))
 		}},

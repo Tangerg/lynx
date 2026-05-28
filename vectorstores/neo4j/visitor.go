@@ -5,8 +5,8 @@ import (
 	"strings"
 
 	"github.com/Tangerg/lynx/core/vectorstore/filter/ast"
-	"github.com/Tangerg/lynx/vectorstores/internal/filterhelp"
 	"github.com/Tangerg/lynx/core/vectorstore/filter/token"
+	"github.com/Tangerg/lynx/vectorstores/internal/filterhelp"
 )
 
 var _ ast.Visitor = (*Visitor)(nil)
@@ -35,7 +35,6 @@ type Visitor struct {
 	metadataPrefix string
 }
 
-
 func NewVisitor(nodeAlias, metadataPrefix string) *Visitor {
 	if nodeAlias == "" {
 		nodeAlias = "node"
@@ -46,7 +45,6 @@ func NewVisitor(nodeAlias, metadataPrefix string) *Visitor {
 		params:         make(map[string]any),
 	}
 }
-
 
 func (v *Visitor) Result() (string, map[string]any) {
 	if v.err != nil {
@@ -222,7 +220,7 @@ func (v *Visitor) visitLikeExpr(expr *ast.BinaryExpr) error {
 }
 
 // propertyAccess assembles the Cypher property accessor for the left
-// side of a comparison, e.g. ``node.`metadata.foo` ``.
+// side of a comparison, e.g. “node.`metadata.foo` “.
 func (v *Visitor) propertyAccess(expr ast.Expr) (string, error) {
 	keys, err := filterhelp.CollectKeyPath(expr)
 	if err != nil {
@@ -241,7 +239,6 @@ func (v *Visitor) propertyAccess(expr ast.Expr) (string, error) {
 	escaped := strings.ReplaceAll(propName, "`", "``")
 	return v.nodeAlias + ".`" + escaped + "`", nil
 }
-
 
 func cypherOpFor(kind token.Kind) (string, error) {
 	switch kind {

@@ -12,7 +12,7 @@ import (
 
 // MemoryService implements memory.Service against a SQLite database.
 // Unlike FileMemoryService (which stores per-scope LYRA.md files the user
-// can edit directly with their editor), the SQLite variant centralises
+// can edit directly with their editor), the SQLite variant centralizes
 // content in one DB — trading direct-edit ergonomics for a single
 // source of truth that's easy to back up / replicate.
 //

@@ -177,7 +177,8 @@ func (r *ClientRequest) resolveOptions() *Options {
 	if r.options != nil {
 		return r.options.Clone()
 	}
-	defaults := r.model.DefaultOptions(); return defaults.Clone()
+	defaults := r.model.DefaultOptions()
+	return defaults.Clone()
 }
 
 // resolveMessages produces the final, normalized message list — seed

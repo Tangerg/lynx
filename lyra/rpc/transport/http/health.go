@@ -24,7 +24,7 @@ type HealthCheck struct {
 	Detail string
 }
 
-// HealthProbe lets the runtime contribute a labelled liveness check.
+// HealthProbe lets the runtime contribute a labeled liveness check.
 // Name is the key under `checks` in the response and should be short
 // + stable ("runtime", "storage", "providers").
 type HealthProbe struct {
@@ -33,7 +33,7 @@ type HealthProbe struct {
 }
 
 // healthBudget caps how long /v1/health waits for probes. Probes
-// share the budget — a slow downstream doesn't penalise the others.
+// share the budget — a slow downstream doesn't penalize the others.
 // 2s matches the typical k8s liveness probe timeout default.
 const healthBudget = 2 * time.Second
 

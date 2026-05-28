@@ -63,7 +63,7 @@ func newCompactor(store memory.Store, client *chat.Client, cfg CompactionConfig)
 }
 
 // maybeCompact inspects sessionID's history. When the message
-// count exceeds the threshold the older slice is summarised and
+// count exceeds the threshold the older slice is summarized and
 // the store is rewritten as [summary, recent...]. Returns
 // (compacted, nil) so callers can fire follow-on work
 // (e.g. extraction) only when the sweep actually fired.
@@ -88,9 +88,9 @@ func (c *compactor) maybeCompact(ctx context.Context, sessionID string) (bool, e
 	older := msgs[:cutoff]
 	recent := msgs[cutoff:]
 
-	summary, err := c.summarise(ctx, older)
+	summary, err := c.summarize(ctx, older)
 	if err != nil {
-		return false, fmt.Errorf("compactor: summarise: %w", err)
+		return false, fmt.Errorf("compactor: summarize: %w", err)
 	}
 
 	if err := c.store.Clear(ctx, sessionID); err != nil {
@@ -105,13 +105,13 @@ func (c *compactor) maybeCompact(ctx context.Context, sessionID string) (bool, e
 	return true, nil
 }
 
-// summarise asks the LLM to fold the older messages into a single
+// summarize asks the LLM to fold the older messages into a single
 // system message of bullet points. Failure aborts compaction —
 // keeping the existing history is always preferable to losing it
 // behind a bad summary.
-func (c *compactor) summarise(ctx context.Context, msgs []chat.Message) (chat.Message, error) {
+func (c *compactor) summarize(ctx context.Context, msgs []chat.Message) (chat.Message, error) {
 	transcript := renderTranscript(msgs)
-	const prompt = `You are summarising the earlier portion of a coding-agent
+	const prompt = `You are summarizing the earlier portion of a coding-agent
 conversation that has grown too long to keep verbatim. Produce a
 compact, faithful summary the agent can use to continue without
 losing key context.
@@ -166,7 +166,7 @@ func renderTranscript(msgs []chat.Message) string {
 				}
 			}
 		default:
-			b.WriteString(fmt.Sprintf("[%s] (unrecognised)", msg.Type()))
+			b.WriteString(fmt.Sprintf("[%s] (unrecognized)", msg.Type()))
 		}
 		b.WriteString("\n")
 	}

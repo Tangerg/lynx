@@ -24,7 +24,7 @@ func newFakeImageModel(t *testing.T) *fakeImageModel {
 }
 
 func (m *fakeImageModel) DefaultOptions() image.Options { return *m.defaults }
-func (m *fakeImageModel) Metadata() image.ModelMetadata          { return image.ModelMetadata{Provider: "fake"} }
+func (m *fakeImageModel) Metadata() image.ModelMetadata { return image.ModelMetadata{Provider: "fake"} }
 
 func (m *fakeImageModel) Call(ctx context.Context, req *image.Request) (*image.Response, error) {
 	m.lastReq = req

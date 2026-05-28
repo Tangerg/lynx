@@ -189,7 +189,7 @@ func (p *Planner) PlanToGoal(
 //     next method;
 //   - (nil, _, _, err) on a structural error that aborts the entire
 //     plan (recursion depth exceeded; method references an unknown
-//     subtask; ctx cancelled).
+//     subtask; ctx canceled).
 func (p *Planner) decompose(
 	ctx context.Context,
 	task *Task,

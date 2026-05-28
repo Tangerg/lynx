@@ -3,15 +3,16 @@ package hitl
 import (
 	"fmt"
 
-	"github.com/Tangerg/lynx/agent/core"
 	"github.com/google/uuid"
+
+	"github.com/Tangerg/lynx/agent/core"
 )
 
 // Request is the typed surface every HITL prompt implements. Generic
 // methods Prompt/OnResponse mirror embabel 0.4's Awaitable<P, R> contract.
 // Named Request rather than Awaitable to avoid the same-name collision
 // with [core.Awaitable] — the latter is the non-generic root the
-// runtime uses; this one is the typed flavour user code talks to.
+// runtime uses; this one is the typed flavor user code talks to.
 type Request[P any, R any] interface {
 	core.Awaitable
 	Prompt() P

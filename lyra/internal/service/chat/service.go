@@ -78,12 +78,12 @@ type Service interface {
 	// ContinuePlan resumes a plan-mode turn that paused after emitting
 	// a [PlanGenerated] event. Decision = Approve runs the plan
 	// through the regular tool-loop path; Reject ends the turn with
-	// Reason=Cancelled. Returns [ErrTurnNotFound] when the turn is
+	// Reason=Canceled. Returns [ErrTurnNotFound] when the turn is
 	// not in the plan-pending state.
 	ContinuePlan(ctx context.Context, handle TurnHandle, decision PlanDecision) error
 
 	// Cancel stops the turn immediately, drains pending tool calls
-	// safely, and emits a final [TurnEnd] event with Reason=Cancelled.
+	// safely, and emits a final [TurnEnd] event with Reason=Canceled.
 	Cancel(ctx context.Context, handle TurnHandle) error
 }
 
@@ -93,7 +93,7 @@ type PlanDecision int
 const (
 	// PlanApprove tells the runtime to execute the proposed plan.
 	PlanApprove PlanDecision = iota
-	// PlanReject aborts the turn — Lyra emits TurnEnd(Cancelled)
+	// PlanReject aborts the turn — Lyra emits TurnEnd(Canceled)
 	// without running any tools.
 	PlanReject
 )
@@ -263,7 +263,7 @@ const (
 	// TurnEndCompleted — the model returned a stop-marker normally.
 	TurnEndCompleted TurnEndReason = iota
 	// TurnEndCancelled — the client called [Service.Cancel] or ctx was
-	// cancelled.
+	// canceled.
 	TurnEndCancelled
 	// TurnEndErrored — the turn aborted on error. An [ErrorEvent]
 	// fires before [TurnEnd] in this case.
@@ -275,7 +275,7 @@ func (r TurnEndReason) String() string {
 	case TurnEndCompleted:
 		return "completed"
 	case TurnEndCancelled:
-		return "cancelled"
+		return "canceled"
 	case TurnEndErrored:
 		return "errored"
 	default:

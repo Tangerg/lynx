@@ -83,7 +83,7 @@ func collectExportedTools(platform *Platform, remoteOnly bool, start processStar
 	return out
 }
 
-// newDynamicAgentTool builds the dynamic flavour of [agentTool]:
+// newDynamicAgentTool builds the dynamic flavor of [agentTool]:
 // input schema derived from [core.GoalExport.InputSample] at
 // construction; decode uses [reflect.New] on that sample's runtime
 // type so the agent receives a properly-typed binding rather than

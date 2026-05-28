@@ -114,4 +114,4 @@ func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Respo
 }
 
 func (i *ImageModel) DefaultOptions() image.Options { return *i.defaultOptions }
-func (i *ImageModel) Metadata() image.ModelMetadata         { return image.ModelMetadata{Provider: Provider} }
+func (i *ImageModel) Metadata() image.ModelMetadata { return image.ModelMetadata{Provider: Provider} }

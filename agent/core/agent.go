@@ -60,7 +60,7 @@ type Agent struct {
 	AgentConfig
 
 	// knownConditions is the lazily-computed condition-key cache.
-	// Initialised by [NewAgent] via [sync.OnceValue]; subsequent
+	// Initialized by [NewAgent] via [sync.OnceValue]; subsequent
 	// [Agent.KnownConditions] calls are a single function call.
 	knownConditions func() map[string]struct{}
 }

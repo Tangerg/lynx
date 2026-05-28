@@ -193,7 +193,7 @@ func TestLLMRanker_PromptIncludesGoalTagsAndExamples(t *testing.T) {
 			core.ActionConfig{},
 		)).
 		Goals(agent.GoalProducing[chooseOut](core.Goal{
-			Description: "categorise sentiment",
+			Description: "categorize sentiment",
 			Tags:        []string{"sentiment", "classifier"},
 			Examples:    []string{"how do I feel about this?", "rate this review"},
 		})).

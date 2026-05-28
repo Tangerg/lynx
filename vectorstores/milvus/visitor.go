@@ -41,7 +41,6 @@ type Visitor struct {
 	currentFieldValue string // Temporary storage for encoded values during extraction
 }
 
-
 func NewVisitor() *Visitor {
 	return &Visitor{}
 }

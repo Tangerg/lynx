@@ -1,8 +1,8 @@
 package couchbase
 
 import (
-	"context"
 	"cmp"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -22,16 +22,16 @@ import (
 const Provider = "Couchbase"
 
 const (
-	DefaultScopeName       = "_default"
-	DefaultCollectionName  = "_default"
-	DefaultIndexName       = "lynx-vector-index"
-	DefaultDimensions      = 1536
-	DefaultSimilarity      = SimilarityDotProduct
-	DefaultIndexOptimize   = OptimizeRecall
-	contentField           = "content"
-	embeddingField         = "embedding"
-	metadataField          = "metadata"
-	idField                = "id"
+	DefaultScopeName      = "_default"
+	DefaultCollectionName = "_default"
+	DefaultIndexName      = "lynx-vector-index"
+	DefaultDimensions     = 1536
+	DefaultSimilarity     = SimilarityDotProduct
+	DefaultIndexOptimize  = OptimizeRecall
+	contentField          = "content"
+	embeddingField        = "embedding"
+	metadataField         = "metadata"
+	idField               = "id"
 )
 
 // Similarity selects the vector similarity function written into the
@@ -166,7 +166,6 @@ type Store struct {
 	indexOptimization IndexOptimization
 }
 
-
 func NewStore(config StoreConfig) (*Store, error) {
 	config.ApplyDefaults()
 	if err := config.Validate(); err != nil {
@@ -265,11 +264,11 @@ func (s *Store) upsertSearchIndex() error {
 							"enabled": true,
 							"fields": []any{
 								map[string]any{
-									"dims":                      s.dimensions,
-									"index":                     true,
-									"name":                      embeddingField,
-									"similarity":                string(s.similarity),
-									"type":                      "vector",
+									"dims":                       s.dimensions,
+									"index":                      true,
+									"name":                       embeddingField,
+									"similarity":                 string(s.similarity),
+									"type":                       "vector",
 									"vector_index_optimized_for": string(s.indexOptimization),
 								},
 							},
@@ -493,6 +492,5 @@ func (s *Store) Metadata() vectorstore.StoreMetadata {
 		Provider:     Provider,
 	}
 }
-
 
 func (s *Store) Close() error { return nil }

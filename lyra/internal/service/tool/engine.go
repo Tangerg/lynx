@@ -62,7 +62,7 @@ func (s *engineBacked) Invoke(ctx context.Context, name string, arguments string
 }
 
 // defaultSafetyClass maps a tool name to its built-in default safety
-// classification. Centralised here so the SafetyClass-by-name table
+// classification. Centralized here so the SafetyClass-by-name table
 // has a single source of truth. A future milestone may let users
 // override per-tool via config.
 func defaultSafetyClass(name string) SafetyClass {

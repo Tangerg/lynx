@@ -21,8 +21,8 @@ const (
 // Entry is one piece of stored memory. Content is the verbatim markdown
 // shown to the model; CapturedAt records when it landed in LYRA.md.
 type Entry struct {
-	Scope     Scope
-	Content   string
+	Scope      Scope
+	Content    string
 	CapturedAt string // RFC3339; kept as string so simple transports don't need to marshal time
 }
 

@@ -53,11 +53,11 @@ type CreateSessionRequest struct {
 // Nil pointers mean "leave alone"; non-nil applies the value. Metadata
 // is full replacement.
 type UpdateSessionRequest struct {
-	ID       string             `json:"id"`
-	Title    *string            `json:"title,omitempty"`
-	Pinned   *bool              `json:"pinned,omitempty"`
-	Archived *bool              `json:"archived,omitempty"`
-	Metadata *map[string]any    `json:"metadata,omitempty"`
+	ID       string          `json:"id"`
+	Title    *string         `json:"title,omitempty"`
+	Pinned   *bool           `json:"pinned,omitempty"`
+	Archived *bool           `json:"archived,omitempty"`
+	Metadata *map[string]any `json:"metadata,omitempty"`
 }
 
 // ForkSessionRequest — sessions.fork body. ParentID is the source session

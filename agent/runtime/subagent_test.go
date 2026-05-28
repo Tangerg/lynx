@@ -286,7 +286,7 @@ func TestAsChatToolFromAgent_RejectsNilArgs(t *testing.T) {
 }
 
 // TestAsMCPTool_RejectsUnknownAgent matches AsChatTool's fail-fast
-// boot-time behaviour, surfaced as an error.
+// boot-time behavior, surfaced as an error.
 func TestAsMCPTool_RejectsUnknownAgent(t *testing.T) {
 	platform := agent.NewPlatform(runtime.PlatformConfig{})
 	if _, err := runtime.AsMCPTool[subInput, subOutput](platform, "missing"); err == nil {

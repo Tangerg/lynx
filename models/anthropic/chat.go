@@ -192,7 +192,7 @@ func (r *requestHelper) buildToolMsg(msg *chat.ToolMessage) []anthropicsdk.Messa
 }
 
 func (r *requestHelper) buildMsg(msg chat.Message) anthropicsdk.MessageParam {
-	if msg.Type()== chat.MessageTypeUser {
+	if msg.Type() == chat.MessageTypeUser {
 		return r.buildUserMsg(msg.(*chat.UserMessage))
 	}
 	return r.buildAssistantMsg(msg.(*chat.AssistantMessage))
@@ -204,7 +204,7 @@ func (r *requestHelper) buildMsgs(msgs []chat.Message) []anthropicsdk.MessagePar
 
 	result := make([]anthropicsdk.MessageParam, 0, len(nonSystem))
 	for _, msg := range nonSystem {
-		if msg.Type()== chat.MessageTypeTool {
+		if msg.Type() == chat.MessageTypeTool {
 			result = append(result, r.buildToolMsg(msg.(*chat.ToolMessage))...)
 		} else {
 			result = append(result, r.buildMsg(msg))

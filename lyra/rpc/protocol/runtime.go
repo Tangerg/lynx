@@ -2,7 +2,7 @@
 // Protocol — the typed Go interface every transport and every
 // implementation agrees on. The wire formats (JSON-RPC over HTTP /
 // Wails IPC / InProcess) are derived from this surface; the runtime
-// implementation in rpc/server realises it on top of Lyra's
+// implementation in rpc/server realizes it on top of Lyra's
 // internal engine + service layer.
 //
 // The docs at docs/{API,TRANSPORT}.md describe the wire protocol;

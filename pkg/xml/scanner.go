@@ -64,16 +64,6 @@ func (s *elementScope) appendElement(element Element) {
 	s.element.Contents = append(s.element.Contents, element)
 }
 
-// appendContent adds content (either CharData or Element) to the current scope.
-func (s *elementScope) appendContent(content Content) {
-	switch typed := content.(type) {
-	case CharData:
-		s.appendCharData(typed)
-	case Element:
-		s.appendElement(typed)
-	}
-}
-
 // elementStack manages nested element scopes using a stack structure.
 // Each scope has an associated buffer for accumulating the element's string representation.
 type elementStack struct {

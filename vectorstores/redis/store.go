@@ -1,8 +1,8 @@
 package redis
 
 import (
-	"context"
 	"cmp"
+	"context"
 	"encoding/binary"
 	"encoding/json"
 	"errors"
@@ -230,7 +230,6 @@ type Store struct {
 	hnswEFConstruct int
 	hnswEFRuntime   int
 }
-
 
 func NewStore(config StoreConfig) (*Store, error) {
 	config.ApplyDefaults()
@@ -679,6 +678,5 @@ func (s *Store) Metadata() vectorstore.StoreMetadata {
 		Provider:     Provider,
 	}
 }
-
 
 func (s *Store) Close() error { return nil }

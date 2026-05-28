@@ -47,7 +47,7 @@ type ProcessWaiting struct {
 func (ProcessWaiting) EventName() string { return "process_waiting" }
 
 // ProcessKilled fires from Platform.KillProcess or when ctx is
-// cancelled mid-run.
+// canceled mid-run.
 type ProcessKilled struct {
 	BaseEvent
 	Reason string `json:"reason,omitempty"`

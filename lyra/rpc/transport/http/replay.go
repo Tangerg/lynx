@@ -90,14 +90,6 @@ func (r *streamRegistry) open(runID string) *streamBuffer {
 	return b
 }
 
-// close evicts a runId's buffer — called after
-// notifications/run/closed fires + grace period elapses.
-func (r *streamRegistry) close(runID string) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	delete(r.streams, runID)
-}
-
 // compareEventID compares two decimal-encoded eventIds numerically.
 // Both inputs are produced by `strconv.FormatUint`, so a successful
 // parse is the common case; we only fall back to string compare for

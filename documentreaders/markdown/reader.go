@@ -17,10 +17,10 @@ import (
 
 // Metadata keys written onto emitted documents.
 const (
-	MetadataHeading       = "markdown.heading"
-	MetadataHeadingLevel  = "markdown.heading.level"
-	MetadataHeadingPath   = "markdown.heading.path"
-	MetadataSourceName    = "markdown.source"
+	MetadataHeading      = "markdown.heading"
+	MetadataHeadingLevel = "markdown.heading.level"
+	MetadataHeadingPath  = "markdown.heading.path"
+	MetadataSourceName   = "markdown.source"
 )
 
 // Option configures a [Reader].

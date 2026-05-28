@@ -33,7 +33,7 @@ func Open(path string) (*sql.DB, error) {
 	if err != nil {
 		return nil, fmt.Errorf("sqlite: open %q: %w", path, err)
 	}
-	// modernc.org/sqlite serialises writes internally; one connection
+	// modernc.org/sqlite serializes writes internally; one connection
 	// is sufficient and avoids "database is locked" surprises under
 	// concurrent transactions.
 	db.SetMaxOpenConns(1)

@@ -2,7 +2,7 @@
 // bundles the engine + every Service interface a transport adapter
 // might need. The architecture goal documented in ARCHITECTURE.md is
 // "transport-agnostic Service interface": Runtime is that interface,
-// realised in code.
+// realized in code.
 //
 // Decoupling boundary:
 //
