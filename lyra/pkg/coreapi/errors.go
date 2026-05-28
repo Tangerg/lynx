@@ -3,7 +3,7 @@ package coreapi
 import "errors"
 
 // Sentinel errors that the rpcadapter maps onto JSON-RPC error codes
-// (API.md §7.2). CoreAPI implementations return these (or wrap them)
+// (API.md §7.2). Runtime implementations return these (or wrap them)
 // so the transport boundary can produce stable error envelopes.
 //
 // Mapping (rpcadapter):

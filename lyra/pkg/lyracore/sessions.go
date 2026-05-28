@@ -1,4 +1,4 @@
-package coreimpl
+package lyracore
 
 import (
 	"context"
@@ -13,7 +13,7 @@ import (
 // we treat the full list as one page when no cursor is supplied,
 // and return ErrNotImplemented when a cursor is passed (forces an
 // honest signal to the client until the store grows real pagination).
-func (i *Impl) ListSessions(ctx context.Context, q coreapi.PageQuery) (*coreapi.Page[coreapi.Session], error) {
+func (i *Server) ListSessions(ctx context.Context, q coreapi.PageQuery) (*coreapi.Page[coreapi.Session], error) {
 	if q.Cursor != "" {
 		return nil, coreapi.ErrNotImplemented
 	}
@@ -30,7 +30,7 @@ func (i *Impl) ListSessions(ctx context.Context, q coreapi.PageQuery) (*coreapi.
 	}
 	items := make([]coreapi.Session, 0, limit)
 	for _, s := range sessions[:limit] {
-		items = append(items, sessionToCoreAPI(s))
+		items = append(items, sessionToWire(s))
 	}
 	return &coreapi.Page[coreapi.Session]{
 		Items:   items,
@@ -38,7 +38,7 @@ func (i *Impl) ListSessions(ctx context.Context, q coreapi.PageQuery) (*coreapi.
 	}, nil
 }
 
-func (i *Impl) GetSession(ctx context.Context, id string) (*coreapi.Session, error) {
+func (i *Server) GetSession(ctx context.Context, id string) (*coreapi.Session, error) {
 	s, err := i.rt.Session().Get(ctx, id)
 	if err != nil {
 		if errors.Is(err, session.ErrNotFound) {
@@ -46,25 +46,25 @@ func (i *Impl) GetSession(ctx context.Context, id string) (*coreapi.Session, err
 		}
 		return nil, err
 	}
-	out := sessionToCoreAPI(s)
+	out := sessionToWire(s)
 	return &out, nil
 }
 
-func (i *Impl) CreateSession(ctx context.Context, in coreapi.CreateSessionIn) (*coreapi.Session, error) {
+func (i *Server) CreateSession(ctx context.Context, in coreapi.CreateSessionRequest) (*coreapi.Session, error) {
 	s, err := i.rt.Session().Create(ctx, in.Title)
 	if err != nil {
 		return nil, err
 	}
-	out := sessionToCoreAPI(s)
+	out := sessionToWire(s)
 	return &out, nil
 }
 
 // UpdateSession — session.Service has no update verb yet. Stub.
-func (i *Impl) UpdateSession(_ context.Context, _ coreapi.UpdateSessionIn) (*coreapi.Session, error) {
+func (i *Server) UpdateSession(_ context.Context, _ coreapi.UpdateSessionRequest) (*coreapi.Session, error) {
 	return nil, notImpl("sessions.update")
 }
 
-func (i *Impl) DeleteSession(ctx context.Context, id string) error {
+func (i *Server) DeleteSession(ctx context.Context, id string) error {
 	if id == "" {
 		return errors.New("sessions.delete: id is required")
 	}
@@ -77,7 +77,7 @@ func (i *Impl) DeleteSession(ctx context.Context, id string) error {
 	return nil
 }
 
-func (i *Impl) ForkSession(ctx context.Context, in coreapi.ForkSessionIn) (*coreapi.Session, error) {
+func (i *Server) ForkSession(ctx context.Context, in coreapi.ForkSessionRequest) (*coreapi.Session, error) {
 	if in.ParentID == "" || in.AtMessageID == "" {
 		return nil, errors.New("sessions.fork: parentId + atMessageId required")
 	}
@@ -88,22 +88,22 @@ func (i *Impl) ForkSession(ctx context.Context, in coreapi.ForkSessionIn) (*core
 		}
 		return nil, err
 	}
-	out := sessionToCoreAPI(s)
+	out := sessionToWire(s)
 	return &out, nil
 }
 
 // ExportSession — no file-serving endpoint backed yet. Once a
 // downloadable artefact endpoint exists, return its URL here.
-func (i *Impl) ExportSession(_ context.Context, _ coreapi.ExportSessionIn) (*coreapi.ExportSessionOut, error) {
+func (i *Server) ExportSession(_ context.Context, _ coreapi.ExportSessionRequest) (*coreapi.ExportSessionResponse, error) {
 	return nil, notImpl("sessions.export")
 }
 
-// sessionToCoreAPI converts the internal session shape into the wire
+// sessionToWire converts the internal session shape into the wire
 // shape. Status is synthesised — internal Sessions don't track an
 // explicit "running/waiting/idle" flag yet, so we default to idle.
 // Metadata widens map[string]string → map[string]any at the boundary;
 // internal store stays string-only.
-func sessionToCoreAPI(s session.Session) coreapi.Session {
+func sessionToWire(s session.Session) coreapi.Session {
 	var meta map[string]any
 	if len(s.Metadata) > 0 {
 		meta = make(map[string]any, len(s.Metadata))

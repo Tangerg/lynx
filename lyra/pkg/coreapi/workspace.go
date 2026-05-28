@@ -2,11 +2,11 @@ package coreapi
 
 import "context"
 
-// WorkspaceAPI is the workspace.* method group — the surface backing
+// Workspace is the workspace.* method group — the surface backing
 // the "what's the project doing" sidebar UI (files-changed, diff,
 // grep, terminal output, MCP status). Most of these are stubbed
 // until the wider Lyra workspace integration lands.
-type WorkspaceAPI interface {
+type Workspace interface {
 	WorkspaceFilesChanged(ctx context.Context) ([]FileChange, error)
 	WorkspaceDiff(ctx context.Context, path string) ([]DiffRow, error)
 	WorkspaceFileHead(ctx context.Context, path string) ([]FileLine, error)

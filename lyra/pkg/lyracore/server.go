@@ -1,4 +1,4 @@
-// Package coreimpl realises coreapi.CoreAPI on top of Lyra's
+// Package lyracore realises coreapi.Runtime on top of Lyra's
 // internal engine + service layer. It's the single place where the
 // JSON-RPC method table (pkg/rpcadapter) and the runtime's existing
 // chat / session / approval / tool services meet.
@@ -7,7 +7,7 @@
 // some tool reads) are wired through; the rest return coreapi.ErrNotImplemented,
 // which the rpcadapter maps to JSON-RPC -32601 method not found so
 // the client sees an honest "not supported on this build" signal.
-package coreimpl
+package lyracore
 
 import (
 	"context"
@@ -35,10 +35,10 @@ type Config struct {
 	ServerInfo coreapi.ServerInfo
 }
 
-// Impl is the CoreAPI implementation. Exposed via [New] but the
-// returned interface is coreapi.CoreAPI — keeps callers from
+// Server is the Runtime implementation. Exposed via [New] but the
+// returned interface is coreapi.Runtime — keeps callers from
 // reaching past the typed surface.
-type Impl struct {
+type Server struct {
 	rt         *lyraruntime.Runtime
 	serverInfo coreapi.ServerInfo
 
@@ -57,10 +57,10 @@ type runEntry struct {
 	cancel    context.CancelFunc
 }
 
-// New builds an Impl. Returns an error when Runtime is nil.
-func New(cfg Config) (coreapi.CoreAPI, error) {
+// New builds an Server. Returns an error when Runtime is nil.
+func New(cfg Config) (coreapi.Runtime, error) {
 	if cfg.Runtime == nil {
-		return nil, errors.New("coreimpl: Runtime is required")
+		return nil, errors.New("lyracore: Runtime is required")
 	}
 	if cfg.ServerInfo.Name == "" {
 		cfg.ServerInfo.Name = "lyra-core"
@@ -68,7 +68,7 @@ func New(cfg Config) (coreapi.CoreAPI, error) {
 	if cfg.ServerInfo.Version == "" {
 		cfg.ServerInfo.Version = "0.0.0-dev"
 	}
-	return &Impl{
+	return &Server{
 		rt:         cfg.Runtime,
 		serverInfo: cfg.ServerInfo,
 		runs:       map[string]*runEntry{},
@@ -77,7 +77,7 @@ func New(cfg Config) (coreapi.CoreAPI, error) {
 
 // ServerCapabilities returns the static capability snapshot this
 // build advertises. Pure function so the HTTP /v1/info sidecar can
-// reach it without needing a CoreAPI instance.
+// reach it without needing a Runtime instance.
 func ServerCapabilities() coreapi.ServerCapabilities {
 	return coreapi.ServerCapabilities{
 		Events: coreapi.EventCapabilities{

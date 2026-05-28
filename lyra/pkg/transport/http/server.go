@@ -31,9 +31,9 @@ import (
 // the dispatcher, the per-stream replay buffers, and the inbound
 // connection registry for the SSE channel.
 type Server struct {
-	api      coreapi.CoreAPI
+	api      coreapi.Runtime
 	addr     string
-	info     coreapi.InitializeOut
+	info     coreapi.InitializeResponse
 	serverID string
 
 	dispatcher *rpcadapter.Dispatcher
@@ -47,8 +47,8 @@ type Server struct {
 
 // Config bundles construction inputs.
 type Config struct {
-	// API is the CoreAPI implementation. Required.
-	API coreapi.CoreAPI
+	// API is the Runtime implementation. Required.
+	Runtime coreapi.Runtime
 
 	// Addr is the listen address (":8080", "127.0.0.1:0", ...). Required.
 	Addr string
@@ -66,7 +66,7 @@ type Config struct {
 
 // NewServer assembles a Server.
 func NewServer(cfg Config) (*Server, error) {
-	if cfg.API == nil {
+	if cfg.Runtime == nil {
 		return nil, errors.New("http: API is required")
 	}
 	if cfg.Addr == "" {
@@ -80,13 +80,13 @@ func NewServer(cfg Config) (*Server, error) {
 		serverID = cfg.ServerInfo.Name + "/" + cfg.ServerInfo.Version
 	}
 	return &Server{
-		api:        cfg.API,
+		api:        cfg.Runtime,
 		addr:       cfg.Addr,
 		serverID:   serverID,
-		dispatcher: rpcadapter.New(cfg.API),
+		dispatcher: rpcadapter.New(cfg.Runtime),
 		streams:    newStreamRegistry(),
 		clients:    newClientRegistry(),
-		info: coreapi.InitializeOut{
+		info: coreapi.InitializeResponse{
 			ProtocolVersion: cfg.ProtocolVersion,
 			ServerInfo:      cfg.ServerInfo,
 			Capabilities:    cfg.Capabilities,

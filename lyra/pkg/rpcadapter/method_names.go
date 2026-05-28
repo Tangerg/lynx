@@ -1,13 +1,13 @@
-// Package rpcadapter is the JSON-RPC ↔ CoreAPI bridge. It owns the
-// mapping from JSON-RPC method names (API.md §5.2) to typed CoreAPI
+// Package rpcadapter is the JSON-RPC ↔ Runtime bridge. It owns the
+// mapping from JSON-RPC method names (API.md §5.2) to typed Runtime
 // calls + the inverse encoding of results / errors into JSON-RPC
 // envelopes.
 //
 // Single responsibility:
 //
 //	Decode  inbound transport.Message → resolve method name → unmarshal params
-//	        → call CoreAPI method → marshal result OR map error to code.
-//	Encode  CoreAPI streaming events  → notifications/run/event envelopes.
+//	        → call Runtime method → marshal result OR map error to code.
+//	Encode  Runtime streaming events  → notifications/run/event envelopes.
 //
 // The dispatcher gates business methods behind a successful
 // runtime.initialize call — pre-handshake requests get -32011

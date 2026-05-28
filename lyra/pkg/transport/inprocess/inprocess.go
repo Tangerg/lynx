@@ -6,10 +6,10 @@
 //
 // Two modes of use:
 //
-//  1. Direct CoreAPI passthrough (recommended). Get the CoreAPI
+//  1. Direct Runtime passthrough (recommended). Get the Runtime
 //     interface back as-is and call methods directly:
 //
-//	    api := coreimpl.New(...)
+//	    api := lyracore.New(...)
 //	    sessions, err := api.ListSessions(ctx, ...)
 //
 //  2. Through Transport (for middleware symmetry). Wrap the api in
@@ -46,9 +46,9 @@ type Transport struct {
 
 // Config bundles the inputs for NewTransport.
 type Config struct {
-	// API is the CoreAPI implementation the dispatcher routes to.
+	// API is the Runtime implementation the dispatcher routes to.
 	// Required.
-	API coreapi.CoreAPI
+	Runtime coreapi.Runtime
 
 	// RecvBuffer sizes the inbound channel. Defaults to 64. Streaming
 	// methods can push many notifications quickly; bigger buffers
@@ -59,14 +59,14 @@ type Config struct {
 // NewTransport builds an InProcess transport. Returns an error when
 // API is nil.
 func NewTransport(cfg Config) (*Transport, error) {
-	if cfg.API == nil {
+	if cfg.Runtime == nil {
 		return nil, errors.New("inprocess: API is required")
 	}
 	if cfg.RecvBuffer <= 0 {
 		cfg.RecvBuffer = 64
 	}
 	return &Transport{
-		dispatcher: rpcadapter.New(cfg.API),
+		dispatcher: rpcadapter.New(cfg.Runtime),
 		in:         make(chan transport.Message, cfg.RecvBuffer),
 		close:      make(chan struct{}),
 	}, nil

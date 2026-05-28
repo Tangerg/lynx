@@ -2,11 +2,11 @@
 // Protocol — the typed Go interface every transport and every
 // implementation agrees on. The wire formats (JSON-RPC over HTTP /
 // Wails IPC / InProcess) are derived from this surface; the runtime
-// implementation in pkg/coreimpl realises it on top of Lyra's
+// implementation in pkg/lyracore realises it on top of Lyra's
 // internal engine + service layer.
 //
 // The docs at docs/{API,TRANSPORT}.md describe the wire protocol;
-// every method on [CoreAPI] corresponds to one row in API.md §5.2.
+// every method on [Runtime] corresponds to one row in API.md §5.2.
 //
 // Design notes:
 //
@@ -22,22 +22,22 @@
 //     specific notification streams (SSE / Wails EventsEmit / Go chan).
 package coreapi
 
-// CoreAPI is the runtime's public surface — the union of every
+// Runtime is the runtime's public surface — the union of every
 // method group exposed over the wire. See sub-interfaces for the
 // per-domain method signatures.
 //
-// Construct one via pkg/coreimpl.New(...) and pass to any transport
+// Construct one via pkg/lyracore.New(...) and pass to any transport
 // adapter (pkg/transport/inprocess, pkg/transport/http).
-type CoreAPI interface {
-	LifecycleAPI
-	SessionsAPI
-	MessagesAPI
-	RunsAPI
-	WorkspaceAPI
-	ProvidersAPI
-	ModelsAPI
-	ToolsAPI
-	AttachmentsAPI
-	BackgroundAPI
-	FeedbackAPI
+type Runtime interface {
+	Lifecycle
+	Sessions
+	Messages
+	Runs
+	Workspace
+	Providers
+	Models
+	Tools
+	Attachments
+	Background
+	Feedback
 }

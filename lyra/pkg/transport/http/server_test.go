@@ -13,31 +13,31 @@ import (
 	lyrahttp "github.com/Tangerg/lynx/lyra/pkg/transport/http"
 )
 
-// fakeAPI is the smallest CoreAPI we can pass to NewServer for
+// fakeRuntime is the smallest Runtime we can pass to NewServer for
 // smoke-testing the transport layer. Anything we don't exercise is
 // allowed to panic — the tests only hit lifecycle, sidecars, error
 // paths.
-type fakeAPI struct {
-	coreapi.CoreAPI
+type fakeRuntime struct {
+	coreapi.Runtime
 	cancelledRuns []string
 }
 
-func (f *fakeAPI) Initialize(_ context.Context, _ coreapi.InitializeIn) (*coreapi.InitializeOut, error) {
-	return &coreapi.InitializeOut{ProtocolVersion: "2026-05-28"}, nil
+func (f *fakeRuntime) Initialize(_ context.Context, _ coreapi.InitializeRequest) (*coreapi.InitializeResponse, error) {
+	return &coreapi.InitializeResponse{ProtocolVersion: "2026-05-28"}, nil
 }
 
-func (f *fakeAPI) Ping(_ context.Context) error { return nil }
+func (f *fakeRuntime) Ping(_ context.Context) error { return nil }
 
-func (f *fakeAPI) CancelRun(_ context.Context, runID string) error {
+func (f *fakeRuntime) CancelRun(_ context.Context, runID string) error {
 	f.cancelledRuns = append(f.cancelledRuns, runID)
 	return nil
 }
 
-func newTestServer(t *testing.T) (*httptest.Server, *fakeAPI) {
+func newTestServer(t *testing.T) (*httptest.Server, *fakeRuntime) {
 	t.Helper()
-	api := &fakeAPI{}
+	api := &fakeRuntime{}
 	srv, err := lyrahttp.NewServer(lyrahttp.Config{
-		API:             api,
+		Runtime:             api,
 		Addr:            ":0",
 		ServerInfo:      coreapi.ServerInfo{Name: "lyra-test", Version: "0.0.0"},
 		ProtocolVersion: "2026-05-28",

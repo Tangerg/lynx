@@ -35,18 +35,18 @@ const (
 	RunModePlan  RunMode = "plan"
 )
 
-// RunsAPI is the runs.* method group.
-type RunsAPI interface {
+// Runs is the runs.* method group.
+type Runs interface {
 	// StartRun returns synchronously with the runId the client uses to
 	// match incoming notifications/run/event entries; the actual
 	// stream flows out through the transport's notification path
 	// (Recv() channel for InProcess / SSE for HTTP).
 	//
 	// The returned event channel is for in-process consumers (TUI /
-	// tests / coreimpl wiring). HTTP/Wails adapters pipe it into
+	// tests / lyracore wiring). HTTP/Wails adapters pipe it into
 	// the transport's outbound notification stream and don't expose
 	// it to the wire client directly.
-	StartRun(ctx context.Context, in StartRunIn) (*StartRunOut, <-chan AgUiEvent, error)
+	StartRun(ctx context.Context, in StartRunRequest) (*StartRunResponse, <-chan AgUiEvent, error)
 
 	// CancelRun stops an in-flight run. Backs the runs.cancel JSON-RPC
 	// Request (API.md v4 §3.5): a proper Request method that returns
@@ -58,11 +58,11 @@ type RunsAPI interface {
 	// SubmitApproval is runs.approval.submit — the client-side HITL
 	// decision. The server validates the requestId against pending
 	// approvals and resumes the matching run.
-	SubmitApproval(ctx context.Context, in ApprovalIn) error
+	SubmitApproval(ctx context.Context, in ApprovalRequest) error
 }
 
-// StartRunIn is the runs.start request payload (API.md §6.3).
-type StartRunIn struct {
+// StartRunRequest is the runs.start request payload (API.md §6.3).
+type StartRunRequest struct {
 	SessionID   string         `json:"sessionId"`
 	RunID       string         `json:"runId,omitempty"`
 	Messages    []Message      `json:"messages"`
@@ -74,25 +74,25 @@ type StartRunIn struct {
 	Attachments []string       `json:"attachments,omitempty"`
 }
 
-// StartRunOut is the runs.start result. RunID is server-assigned
-// when StartRunIn.RunID is empty.
+// StartRunResponse is the runs.start result. RunID is server-assigned
+// when StartRunRequest.RunID is empty.
 //
 // API.md v4 greenfield cut: no `streamHandle` field — the runId IS
 // the stream identifier. notifications/run/event carries the same
 // runId in its params for client-side filtering.
-type StartRunOut struct {
+type StartRunResponse struct {
 	RunID string `json:"runId"`
 }
 
-// CancelRunIn is the runs.cancel request payload (API.md v4 §3.5).
-type CancelRunIn struct {
+// CancelRunRequest is the runs.cancel request payload (API.md v4 §3.5).
+type CancelRunRequest struct {
 	RunID  string `json:"runId"`
 	Reason string `json:"reason,omitempty"`
 }
 
-// ApprovalIn is the runs.approval.submit payload (§4.3). Decision is
+// ApprovalRequest is the runs.approval.submit payload (§4.3). Decision is
 // the two-value wire enum "approve" | "deny" (API.md v4 §4.2).
-type ApprovalIn struct {
+type ApprovalRequest struct {
 	RequestID string `json:"requestId"`
 	Decision  string `json:"decision"` // "approve" | "deny"
 	Reason    string `json:"reason,omitempty"`

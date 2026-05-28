@@ -11,7 +11,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/Tangerg/lynx/lyra/pkg/coreimpl"
+	"github.com/Tangerg/lynx/lyra/pkg/lyracore"
 	lyrahttp "github.com/Tangerg/lynx/lyra/pkg/transport/http"
 )
 
@@ -45,7 +45,7 @@ Stdio transport is intentionally not supported — see docs/API.md §1.1.`,
 				return a.fatalErr(err)
 			}
 
-			api, err := coreimpl.New(coreimpl.Config{
+			api, err := lyracore.New(lyracore.Config{
 				Runtime: a.runtime(),
 				ServerInfo: lyrahttp.ServerInfoOrDefault(),
 			})
@@ -54,11 +54,11 @@ Stdio transport is intentionally not supported — see docs/API.md §1.1.`,
 			}
 
 			server, err := lyrahttp.NewServer(lyrahttp.Config{
-				API:             api,
+				Runtime:         api,
 				Addr:            addr,
 				ServerInfo:      lyrahttp.ServerInfoOrDefault(),
-				ProtocolVersion: coreimpl.ProtocolVersion,
-				Capabilities:    coreimpl.ServerCapabilities(),
+				ProtocolVersion: lyracore.ProtocolVersion,
+				Capabilities:    lyracore.ServerCapabilities(),
 			})
 			if err != nil {
 				return a.fatalErr(err)
