@@ -36,9 +36,10 @@ type Server struct {
 	info     protocol.InitializeResponse
 	serverID string
 
-	localToken   string
-	corsCfg      corsConfig
-	healthProbes []HealthProbe
+	localToken      string
+	corsCfg         corsConfig
+	healthProbes    []HealthProbe
+	agentDocsLister AgentDocsLister
 
 	dispatcher *dispatch.Dispatcher
 	streams    *streamRegistry
@@ -82,6 +83,26 @@ type Config struct {
 	// GET /v1/health. Empty list ⇒ the endpoint always returns ok.
 	// Probes run in parallel under a shared 2s budget.
 	HealthProbes []HealthProbe
+
+	// AgentDocsLister, when non-nil, is called on every GET /v1/info
+	// to surface the AGENTS.md files the engine would inject into
+	// the system prompt for the server's working directory. Listed
+	// under the `agentDocs` field (path + size only — content stays
+	// out of the response to keep oncall payloads small). Nil
+	// omits the field entirely.
+	AgentDocsLister AgentDocsLister
+}
+
+// AgentDocsLister returns the AGENTS.md files currently visible to
+// the runtime. Paths are absolute; Bytes is the on-disk size of
+// the file's trimmed content. Implementations should be cheap —
+// the function fires on every /v1/info hit.
+type AgentDocsLister func(ctx context.Context) []AgentDocInfo
+
+// AgentDocInfo is one entry in the /v1/info.agentDocs array.
+type AgentDocInfo struct {
+	Path  string `json:"path"`
+	Bytes int    `json:"bytes"`
 }
 
 // NewServer assembles a Server.
@@ -100,13 +121,14 @@ func NewServer(cfg Config) (*Server, error) {
 		serverID = cfg.ServerInfo.Name + "/" + cfg.ServerInfo.Version
 	}
 	return &Server{
-		api:          cfg.Runtime,
-		addr:         cfg.Addr,
-		serverID:     serverID,
-		localToken:   cfg.LocalToken,
-		corsCfg:      corsConfig{origins: cfg.CORSOrigins},
-		healthProbes: cfg.HealthProbes,
-		dispatcher:   dispatch.New(cfg.Runtime),
+		api:             cfg.Runtime,
+		addr:            cfg.Addr,
+		serverID:        serverID,
+		localToken:      cfg.LocalToken,
+		corsCfg:         corsConfig{origins: cfg.CORSOrigins},
+		healthProbes:    cfg.HealthProbes,
+		agentDocsLister: cfg.AgentDocsLister,
+		dispatcher:      dispatch.New(cfg.Runtime),
 		streams:    newStreamRegistry(),
 		clients:    newClientRegistry(),
 		info: protocol.InitializeResponse{

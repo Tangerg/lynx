@@ -218,6 +218,75 @@ func TestHealthWorstWins(t *testing.T) {
 	}
 }
 
+// TestInfoExposesAgentDocs confirms /v1/info surfaces the
+// AgentDocsLister's output under the `agentDocs` field.
+func TestInfoExposesAgentDocs(t *testing.T) {
+	srv, err := lyrahttp.NewServer(lyrahttp.Config{
+		Runtime:         &fakeRuntime{},
+		Addr:            ":0",
+		ServerInfo:      protocol.ServerInfo{Name: "lyra-test", Version: "0.0.0"},
+		ProtocolVersion: "2026-05-28",
+		Capabilities:    protocol.ServerCapabilities{},
+		AgentDocsLister: func(_ context.Context) []lyrahttp.AgentDocInfo {
+			return []lyrahttp.AgentDocInfo{
+				{Path: "/proj/AGENTS.md", Bytes: 120},
+				{Path: "/proj/pkg/AGENTS.md", Bytes: 42},
+			}
+		},
+	})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+	ts := httptest.NewServer(srv.Handler())
+	defer ts.Close()
+
+	resp, err := netHTTP.Get(ts.URL + "/v1/info")
+	if err != nil {
+		t.Fatalf("get info: %v", err)
+	}
+	defer resp.Body.Close()
+
+	var body struct {
+		AgentDocs []struct {
+			Path  string `json:"path"`
+			Bytes int    `json:"bytes"`
+		} `json:"agentDocs"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(body.AgentDocs) != 2 {
+		t.Fatalf("agentDocs len = %d, want 2", len(body.AgentDocs))
+	}
+	if body.AgentDocs[0].Path != "/proj/AGENTS.md" || body.AgentDocs[0].Bytes != 120 {
+		t.Fatalf("agentDocs[0] = %+v", body.AgentDocs[0])
+	}
+	if body.AgentDocs[1].Path != "/proj/pkg/AGENTS.md" || body.AgentDocs[1].Bytes != 42 {
+		t.Fatalf("agentDocs[1] = %+v", body.AgentDocs[1])
+	}
+}
+
+// TestInfoOmitsAgentDocsWhenListerNil confirms the field is absent
+// when no lister is wired (rather than appearing as null / empty).
+func TestInfoOmitsAgentDocsWhenListerNil(t *testing.T) {
+	ts := newProbeServer(t)
+	defer ts.Close()
+
+	resp, err := netHTTP.Get(ts.URL + "/v1/info")
+	if err != nil {
+		t.Fatalf("get info: %v", err)
+	}
+	defer resp.Body.Close()
+
+	var body map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if _, present := body["agentDocs"]; present {
+		t.Fatalf("agentDocs should be omitted when lister is nil; body = %+v", body)
+	}
+}
+
 // TestHealthProbePanicIsContained confirms a panicking probe maps
 // to unhealthy instead of crashing the whole /v1/health handler.
 func TestHealthProbePanicIsContained(t *testing.T) {
