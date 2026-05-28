@@ -10,6 +10,12 @@
     "strict": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+    // noUncheckedIndexedAccess + exactOptionalPropertyTypes intentionally
+    // OFF for this commit:
+    //   - noUncheckedIndexedAccess 产 141 errors, 拆下一拨专门审计
+    //   - exactOptionalPropertyTypes 跟 fetch RequestInit 摩擦太大
     "forceConsistentCasingInFileNames": true,
     "module": "ESNext",
     "moduleResolution": "Bundler",
