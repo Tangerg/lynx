@@ -27,18 +27,18 @@ interface State {
  * This is the cheapest insurance we can buy for trust-on-install plugins.
  */
 export class PluginBoundary extends Component<Props, State> {
-  state: State = { error: null };
+  override state: State = { error: null };
 
   static getDerivedStateFromError(error: Error): State {
     return { error };
   }
 
-  componentDidCatch(error: Error, info: ErrorInfo): void {
+  override componentDidCatch(error: Error, info: ErrorInfo): void {
     console.error(`[plugin] ${this.props.plugin} render failed:`, error, info.componentStack);
     reportPluginError(this.props.plugin, "render", error, info.componentStack ?? undefined);
   }
 
-  render(): ReactNode {
+  override render(): ReactNode {
     if (!this.state.error) return this.props.children;
 
     const fallback = pickPluginErrorFallback();
