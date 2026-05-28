@@ -11,7 +11,7 @@
 // Slices live until the process exits (no per-plugin unload — they can
 // be useful across plugin restarts) but the registry is reset in tests.
 
-import type { Disposable } from "./types";
+import type { Disposable } from "./types/common";
 import { useSyncExternalStore } from "react";
 
 export interface StateSlice<T> {

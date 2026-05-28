@@ -9,7 +9,7 @@
 
 import type { MetricRow } from "./store";
 import { useEffect, useMemo } from "react";
-import { ensureProvider } from "./index";
+import { ensureProvider } from "./provider";
 import { useDiagnosticsStore } from "./store";
 
 export function DiagnosticsView() {

@@ -8,7 +8,7 @@
 // In-memory only. Persistence is the plugin's responsibility: a plugin
 // can subscribe to a key and mirror it to localStorage if needed.
 
-import type { Disposable } from "./types";
+import type { Disposable } from "./types/common";
 import { create } from "zustand";
 import { safeCall } from "./errors";
 
