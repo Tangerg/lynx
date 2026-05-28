@@ -6,44 +6,35 @@ import (
 	"sync/atomic"
 )
 
-// New returns the in-memory ApprovalService. The initial stance is
-// supplied via mode — pass [ModeYolo] for environments where every
-// tool call should auto-pass (CI, smoke tests). Production callers
-// typically wire [ModeBalanced] or [ModeSafe].
+// New returns the single-process in-memory [Service]. Initial
+// stance comes from mode — pass [ModeYolo] for environments where
+// every tool call auto-passes (CI, smoke tests); production
+// callers typically wire [ModeBalanced] or [ModeSafe].
 //
 // The implementation keeps pending requests in a map keyed by
-// requestID and uses one buffered channel per request so [Decide]
-// never blocks regardless of producer scheduling.
-//
-// All methods are safe for concurrent use.
+// request id and uses one buffered channel per request so
+// [Console.Decide] never blocks regardless of producer
+// scheduling. All methods are safe for concurrent use.
 func New(mode Mode) Service {
-	return &impl{
-		mode:    atomicMode{value: int32(mode)},
-		pending: map[string]*pendingRequest{},
-	}
+	s := &inMemory{pending: map[string]*pendingRequest{}}
+	s.mode.Store(int32(mode))
+	return s
 }
-
-// atomicMode lets [Service.GetMode] / [Service.SetMode] run
-// lock-free under contention — the value swaps atomically, the
-// pending map keeps its own mutex.
-type atomicMode struct {
-	value int32
-}
-
-func (m *atomicMode) get() Mode      { return Mode(atomic.LoadInt32(&m.value)) }
-func (m *atomicMode) set(next Mode)  { atomic.StoreInt32(&m.value, int32(next)) }
 
 // pendingRequest pairs the public [Request] with the buffered
-// channel [Decide] pushes onto. The channel is buffered cap-1 so
-// a Decide call never blocks even if the Request goroutine has
-// already given up on ctx.
+// channel [Console.Decide] pushes onto. The channel is buffered
+// cap-1 so a Decide call never blocks even if the Request
+// goroutine has already given up on ctx.
 type pendingRequest struct {
 	req      Request
 	decision chan Decision
 }
 
-type impl struct {
-	mode atomicMode
+// inMemory is the in-process Service implementation. Mode is held
+// in an atomic.Int32 so [Console.GetMode] / [Console.SetMode] never
+// contend with the pending-map mutex.
+type inMemory struct {
+	mode atomic.Int32
 
 	mu      sync.Mutex
 	pending map[string]*pendingRequest
@@ -52,7 +43,7 @@ type impl struct {
 // ListPending returns a copy of the pending requests in arbitrary
 // (map-iteration) order. Caller mutation is safe — the slice and
 // its elements are detached from the internal state.
-func (s *impl) ListPending(_ context.Context) ([]Request, error) {
+func (s *inMemory) ListPending(_ context.Context) ([]Request, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	out := make([]Request, 0, len(s.pending))
@@ -67,7 +58,7 @@ func (s *impl) ListPending(_ context.Context) ([]Request, error) {
 // The pending entry is removed by the Request goroutine when it
 // observes the decision, so a second Decide on the same id also
 // returns ErrRequestNotFound.
-func (s *impl) Decide(_ context.Context, requestID string, decision Decision) error {
+func (s *inMemory) Decide(_ context.Context, requestID string, decision Decision) error {
 	s.mu.Lock()
 	p, ok := s.pending[requestID]
 	s.mu.Unlock()
@@ -85,13 +76,13 @@ func (s *impl) Decide(_ context.Context, requestID string, decision Decision) er
 	}
 }
 
-func (s *impl) SetMode(_ context.Context, mode Mode) error {
-	s.mode.set(mode)
+func (s *inMemory) SetMode(_ context.Context, mode Mode) error {
+	s.mode.Store(int32(mode))
 	return nil
 }
 
-func (s *impl) GetMode(_ context.Context) (Mode, error) {
-	return s.mode.get(), nil
+func (s *inMemory) GetMode(_ context.Context) (Mode, error) {
+	return Mode(s.mode.Load()), nil
 }
 
 // Register declares req as pending and returns the channel its
@@ -103,7 +94,7 @@ func (s *impl) GetMode(_ context.Context) (Mode, error) {
 //
 // Empty req.ID returns a closed channel sending [DecisionDeny] so
 // callers can treat the error path the same as a normal Deny.
-func (s *impl) Register(req Request) (<-chan Decision, func()) {
+func (s *inMemory) Register(req Request) (<-chan Decision, func()) {
 	if req.ID == "" {
 		// Closed channel returns the zero value (DecisionAllowOnce)
 		// immediately — not desirable. We return a buffered channel

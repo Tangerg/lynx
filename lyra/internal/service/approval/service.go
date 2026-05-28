@@ -48,14 +48,10 @@ const (
 	DecisionDeny
 )
 
-// Service is the ApprovalService contract.
-//
-// The interface unifies two roles. Client-facing methods
-// (ListPending, Decide, SetMode, GetMode) drive the UX layer —
-// list outstanding asks, push a verdict, swap the runtime stance.
-// Producer-side (Register) is used by chat / engine to declare a
-// pending ask and obtain the channel the decision arrives on.
-type Service interface {
+// Console is the client-side surface of approvals: list what's
+// pending, push a verdict, read or change the runtime stance.
+// HTTP handlers + the CLI depend on this, NOT on Gate.
+type Console interface {
 	// ListPending returns every unresolved approval request — useful
 	// for client startup ("any approvals waiting for me?").
 	ListPending(ctx context.Context) ([]Request, error)
@@ -69,22 +65,44 @@ type Service interface {
 	// honour the new mode; in-flight calls keep their original mode.
 	SetMode(ctx context.Context, mode Mode) error
 
-	// GetMode returns the current runtime stance.
+	// GetMode returns the current runtime stance. Producers
+	// (chat / engine) also call this to decide whether a tool needs
+	// gating — hence its presence on both Console and Gate via
+	// the Service union.
+	GetMode(ctx context.Context) (Mode, error)
+}
+
+// Gate is the producer-side surface: declare an ask, get the
+// decision channel, clean up. The chat service depends on this,
+// NOT on Console.
+//
+// The split — register / emit / wait — exists so producers can
+// emit the user-facing event AFTER registration completes, with
+// no race where [Console.Decide] could be called before the
+// pending entry is observable to [Console.ListPending].
+type Gate interface {
+	// GetMode lets producers short-circuit gating (e.g. ModeYolo
+	// auto-passes everything). Mirrored from Console — same signal,
+	// both sides need it.
 	GetMode(ctx context.Context) (Mode, error)
 
 	// Register declares a pending approval ask and returns the
-	// channel its decision lands on, plus a cleanup func the caller
-	// MUST call (typically via defer) to remove the entry if the
-	// caller gives up before [Decide] arrives.
-	//
-	// The split — register / emit / wait — exists so producers can
-	// emit the user-facing event after registration completes, with
-	// no race where [Decide] could be called before the pending
-	// entry exists.
+	// channel its decision lands on, plus a cleanup func the
+	// caller MUST call (typically via defer) to remove the entry
+	// if the caller gives up before [Console.Decide] arrives.
 	//
 	// req.ID must be non-empty and globally unique within the
 	// process; producers typically reuse the tool call's UUID so
 	// the request id matches the lifecycle event ids on the same
 	// turn channel.
 	Register(req Request) (<-chan Decision, func())
+}
+
+// Service is the union of [Console] + [Gate] — kept so a single
+// concrete implementation can satisfy both roles and runtime
+// wiring stays a single object. Per ISP, callers should depend on
+// the narrowest interface they actually use.
+type Service interface {
+	Console
+	Gate
 }

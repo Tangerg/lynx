@@ -26,13 +26,13 @@ import (
 // multi-client event fan-out, plan-mode pause/resume, etc. The
 // Service interface is stable, so transport adapters don't care
 // which impl they talk to.
-func New(eng Engine, approvalSvc approval.Service) Service {
+func New(eng Engine, approvalGate approval.Gate) Service {
 	if eng == nil {
 		panic("chat: engine is required")
 	}
-	return &impl{
+	return &inMemory{
 		engine:   eng,
-		approval: approvalSvc,
+		approval: approvalGate,
 		turns:    map[string]*turnState{},
 	}
 }
@@ -84,9 +84,12 @@ func (st *turnState) drainSteering() []string {
 	return out
 }
 
-type impl struct {
+// inMemory is the single-process [Service] implementation. It
+// tracks live turns in a map keyed by turn id; state lives in
+// process memory and does not survive restart.
+type inMemory struct {
 	engine   Engine
-	approval approval.Service // optional — nil = auto-approve every tool
+	approval approval.Gate // optional — nil = auto-approve every tool
 
 	mu    sync.Mutex
 	turns map[string]*turnState // turn_id → state
@@ -96,7 +99,7 @@ type impl struct {
 // Service implementation
 // ------------------------------------------------------------------
 
-func (s *impl) StartTurn(ctx context.Context, req StartTurnRequest) (TurnHandle, error) {
+func (s *inMemory) StartTurn(ctx context.Context, req StartTurnRequest) (TurnHandle, error) {
 	if req.SessionID == "" {
 		return TurnHandle{}, errors.New("chat: SessionID is required")
 	}
@@ -137,7 +140,7 @@ func (s *impl) StartTurn(ctx context.Context, req StartTurnRequest) (TurnHandle,
 // (runTurn deletes itself from the map on exit). Centralises the
 // "lock / lookup / unlock" sequence every public method below
 // needs to perform.
-func (s *impl) findTurn(id string) (*turnState, error) {
+func (s *inMemory) findTurn(id string) (*turnState, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	state, ok := s.turns[id]
@@ -147,7 +150,7 @@ func (s *impl) findTurn(id string) (*turnState, error) {
 	return state, nil
 }
 
-func (s *impl) Events(_ context.Context, handle TurnHandle) (<-chan Event, error) {
+func (s *inMemory) Events(_ context.Context, handle TurnHandle) (<-chan Event, error) {
 	state, err := s.findTurn(handle.TurnID)
 	if err != nil {
 		return nil, err
@@ -170,7 +173,7 @@ func (s *impl) Events(_ context.Context, handle TurnHandle) (<-chan Event, error
 // Returns [ErrTurnNotFound] when the turn has already ended (its
 // runTurn deleted itself from the map on exit). Empty messages
 // are silently dropped.
-func (s *impl) InjectSteering(_ context.Context, handle TurnHandle, message string) error {
+func (s *inMemory) InjectSteering(_ context.Context, handle TurnHandle, message string) error {
 	if message == "" {
 		return nil
 	}
@@ -182,7 +185,7 @@ func (s *impl) InjectSteering(_ context.Context, handle TurnHandle, message stri
 	return nil
 }
 
-func (s *impl) Cancel(_ context.Context, handle TurnHandle) error {
+func (s *inMemory) Cancel(_ context.Context, handle TurnHandle) error {
 	state, err := s.findTurn(handle.TurnID)
 	if err != nil {
 		return err
@@ -197,7 +200,7 @@ func (s *impl) Cancel(_ context.Context, handle TurnHandle) error {
 // chat turns (no PlanMode) have no planDecision channel and so
 // also return ErrTurnNotFound — the wrong-mode case is folded in
 // rather than introducing a separate sentinel.
-func (s *impl) ContinuePlan(_ context.Context, handle TurnHandle, decision PlanDecision) error {
+func (s *inMemory) ContinuePlan(_ context.Context, handle TurnHandle, decision PlanDecision) error {
 	state, err := s.findTurn(handle.TurnID)
 	if err != nil {
 		return err
@@ -223,7 +226,7 @@ func (s *impl) ContinuePlan(_ context.Context, handle TurnHandle, decision PlanD
 // it goes. It always closes the event channel and clears the turn
 // from the in-memory map so subsequent [Events] / [Cancel] return
 // ErrTurnNotFound.
-func (s *impl) runTurn(ctx context.Context, st *turnState, req StartTurnRequest) {
+func (s *inMemory) runTurn(ctx context.Context, st *turnState, req StartTurnRequest) {
 	defer func() {
 		close(st.events)
 		s.mu.Lock()
@@ -240,7 +243,7 @@ func (s *impl) runTurn(ctx context.Context, st *turnState, req StartTurnRequest)
 		return
 	}
 
-	observer := &turnObserver{impl: s, st: st}
+	observer := &turnObserver{svc: s, st: st}
 	out, runErr := s.engine.RunChat(ctx, engine.RunChatRequest{
 		SessionID: req.SessionID,
 		Message:   req.Message,
@@ -299,7 +302,7 @@ func (s *impl) runTurn(ctx context.Context, st *turnState, req StartTurnRequest)
 // drop the event rather than stall the turn. A future enhancement
 // could buffer dropped events into an outbox + metric counter so
 // slow clients are visible in observability.
-func (s *impl) emit(st *turnState, ev Event) {
+func (s *inMemory) emit(st *turnState, ev Event) {
 	stamped := ev.stamp(BaseEvent{
 		SessionID: st.handle.SessionID,
 		TurnID:    st.handle.TurnID,
@@ -321,7 +324,7 @@ func (s *impl) emit(st *turnState, ev Event) {
 //
 // Lives as a method so it shares the runTurn defer (cleanup +
 // channel close) without duplicating it.
-func (s *impl) runPlanMode(ctx context.Context, st *turnState, message string, startedAt time.Time) bool {
+func (s *inMemory) runPlanMode(ctx context.Context, st *turnState, message string, startedAt time.Time) bool {
 	plan, err := s.engine.GeneratePlan(ctx, message)
 	if err != nil {
 		s.emit(st, ErrorEvent{
@@ -360,7 +363,7 @@ func (s *impl) runPlanMode(ctx context.Context, st *turnState, message string, s
 // Errors surface through an ErrorEvent but don't abort the turn —
 // dropping steering is preferable to wrecking an otherwise
 // successful turn.
-func (s *impl) flushSteering(ctx context.Context, st *turnState, sessionID string) {
+func (s *inMemory) flushSteering(ctx context.Context, st *turnState, sessionID string) {
 	queue := st.drainSteering()
 	if sessionID == "" || len(queue) == 0 {
 		return
@@ -384,7 +387,7 @@ func (s *impl) flushSteering(ctx context.Context, st *turnState, sessionID strin
 // Fact extraction is gated on compaction firing: extraction is one
 // extra LLM call, so we amortise it onto the moments where the
 // runtime had to summarise anyway.
-func (s *impl) postTurnMaintenance(ctx context.Context, st *turnState, sessionID string) {
+func (s *inMemory) postTurnMaintenance(ctx context.Context, st *turnState, sessionID string) {
 	compacted, err := s.engine.MaybeCompact(ctx, sessionID)
 	if err != nil {
 		s.emit(st, ErrorEvent{
@@ -426,8 +429,8 @@ func (st *turnState) waitDecision(ctx context.Context) (PlanDecision, bool) {
 // the model invokes; we translate each into a Lyra ToolCall*
 // event so transport adapters surface them verbatim.
 type turnObserver struct {
-	impl *impl
-	st   *turnState
+	svc *inMemory
+	st  *turnState
 }
 
 // OnToolCallApprove is the gate the engine fires BEFORE every tool
@@ -443,10 +446,10 @@ type turnObserver struct {
 // (engine.observedTool collapses Deny into a non-fatal tool
 // result) so the model can recover without aborting the turn.
 func (t *turnObserver) OnToolCallApprove(ctx context.Context, callID, toolName, arguments string) error {
-	if t.impl.approval == nil {
+	if t.svc.approval == nil {
 		return nil
 	}
-	mode, err := t.impl.approval.GetMode(ctx)
+	mode, err := t.svc.approval.GetMode(ctx)
 	if err != nil {
 		return err
 	}
@@ -464,10 +467,10 @@ func (t *turnObserver) OnToolCallApprove(ctx context.Context, callID, toolName, 
 	}
 	// Register BEFORE emit so a Decide that arrives the instant
 	// the client sees the event has a pending entry to resolve.
-	decisionCh, cleanup := t.impl.approval.Register(req)
+	decisionCh, cleanup := t.svc.approval.Register(req)
 	defer cleanup()
 
-	t.impl.emit(t.st, ToolCallApproval{Request: req})
+	t.svc.emit(t.st, ToolCallApproval{Request: req})
 
 	select {
 	case d := <-decisionCh:
@@ -482,7 +485,7 @@ func (t *turnObserver) OnToolCallApprove(ctx context.Context, callID, toolName, 
 }
 
 func (t *turnObserver) OnToolCallStart(callID, toolName, arguments string) {
-	t.impl.emit(t.st, ToolCallStart{
+	t.svc.emit(t.st, ToolCallStart{
 		CallID:    callID,
 		ToolName:  toolName,
 		Arguments: arguments,
@@ -494,7 +497,7 @@ func (t *turnObserver) OnToolCallEnd(callID, _ string, output string, err error)
 	if err != nil {
 		errStr = err.Error()
 	}
-	t.impl.emit(t.st, ToolCallEnd{
+	t.svc.emit(t.st, ToolCallEnd{
 		CallID: callID,
 		Output: output,
 		Err:    errStr,
@@ -502,7 +505,7 @@ func (t *turnObserver) OnToolCallEnd(callID, _ string, output string, err error)
 }
 
 func (t *turnObserver) OnMessageDelta(text string) {
-	t.impl.emit(t.st, MessageDelta{
+	t.svc.emit(t.st, MessageDelta{
 		Text: text,
 	})
 }
@@ -512,7 +515,7 @@ func (t *turnObserver) OnMessageDelta(text string) {
 // about reasoning can ignore the type in their dispatch switch —
 // no event is dropped on the engine side.
 func (t *turnObserver) OnReasoningDelta(text string) {
-	t.impl.emit(t.st, ReasoningDelta{
+	t.svc.emit(t.st, ReasoningDelta{
 		Text: text,
 	})
 }
