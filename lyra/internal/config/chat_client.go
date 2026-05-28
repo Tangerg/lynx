@@ -22,36 +22,11 @@ func EngineOnline(cfg Config) engine.OnlineConfig {
 	}
 }
 
-// EngineMCPServers maps the loaded config's MCP entries into the
-// engine-package shape. Same direction-of-knowledge rule as
-// EngineOnline — engine stays config-agnostic.
-func EngineMCPServers(cfg Config) []engine.MCPServer {
-	if len(cfg.MCPServers) == 0 {
-		return nil
-	}
-	out := make([]engine.MCPServer, 0, len(cfg.MCPServers))
-	for _, s := range cfg.MCPServers {
-		out = append(out, engine.MCPServer{
-			Name:      s.Name,
-			Transport: engineMCPTransport(s.Transport),
-			Endpoint:  s.Endpoint,
-			Command:   s.Command,
-			Args:      s.Args,
-		})
-	}
-	return out
-}
-
-// engineMCPTransport bridges the config + engine enums so neither
-// package has to know about the other's symbol.
-func engineMCPTransport(t MCPTransport) engine.MCPTransport {
-	switch t {
-	case MCPTransportStdio:
-		return engine.MCPTransportStdio
-	default:
-		return engine.MCPTransportHTTP
-	}
-}
+// EngineMCPServers exposes the parsed MCP server list. Kept as a
+// helper so cmd/lyra's wiring code stays symmetrical with
+// EngineOnline; the underlying slice already uses the engine's
+// wire format so no conversion happens.
+func EngineMCPServers(cfg Config) []engine.MCPServer { return cfg.MCPServers }
 
 // BuildChatClient wires a *chat.Client from the loaded config — picks
 // the right lynx model adapter, plugs in the model id and api key.

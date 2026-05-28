@@ -31,11 +31,12 @@ import (
 type FileMessageStore struct {
 	dir string
 
-	// mu guards the concurrent-conversation maps. Per-conversation
-	// IO still uses the OS file lock implicitly through O_APPEND
-	// + the per-conversation Mutex obtained from locks.
-	mu    sync.Mutex
-	locks map[string]*sync.Mutex
+	// locks holds per-conversation mutexes. Different conversations
+	// can write concurrently; same conversation serialises through
+	// its own mutex. sync.Map suits the read-mostly access pattern
+	// (the mutex pointer is created once per conversation then
+	// only looked up).
+	locks sync.Map // map[conversationID]*sync.Mutex
 }
 
 // NewFileMessageStore opens <home>/messages and returns a ready
@@ -47,7 +48,7 @@ func NewFileMessageStore() (*FileMessageStore, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &FileMessageStore{dir: dir, locks: map[string]*sync.Mutex{}}, nil
+	return &FileMessageStore{dir: dir}, nil
 }
 
 var _ memory.Store = (*FileMessageStore)(nil)
@@ -68,16 +69,14 @@ func (s *FileMessageStore) pathFor(id string) (string, error) {
 
 // lockFor returns a per-conversation mutex, allocating one on first
 // use. Different conversations write concurrently; same conversation
-// serializes.
+// serialises. Uses sync.Map's LoadOrStore for atomic first-write —
+// concurrent callers see the same mutex without an outer lock.
 func (s *FileMessageStore) lockFor(id string) *sync.Mutex {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	m, ok := s.locks[id]
-	if !ok {
-		m = &sync.Mutex{}
-		s.locks[id] = m
+	if existing, ok := s.locks.Load(id); ok {
+		return existing.(*sync.Mutex)
 	}
-	return m
+	actual, _ := s.locks.LoadOrStore(id, &sync.Mutex{})
+	return actual.(*sync.Mutex)
 }
 
 // Read returns every message stored for conversationID, preserving

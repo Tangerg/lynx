@@ -3,6 +3,8 @@ package config
 import (
 	"reflect"
 	"testing"
+
+	"github.com/Tangerg/lynx/lyra/internal/engine"
 )
 
 // TestParseMCPServers covers the env-var parser across both HTTP
@@ -11,7 +13,7 @@ func TestParseMCPServers(t *testing.T) {
 	cases := []struct {
 		name    string
 		in      string
-		want    []MCPServer
+		want    []engine.MCPServer
 		wantErr bool
 	}{
 		{
@@ -22,18 +24,18 @@ func TestParseMCPServers(t *testing.T) {
 		{
 			name: "single http entry",
 			in:   "github=https://mcp.github.com/",
-			want: []MCPServer{{
+			want: []engine.MCPServer{{
 				Name:      "github",
-				Transport: MCPTransportHTTP,
+				Transport: engine.MCPTransportHTTP,
 				Endpoint:  "https://mcp.github.com/",
 			}},
 		},
 		{
 			name: "single stdio entry",
 			in:   "fs=stdio:npx -y @modelcontextprotocol/server-filesystem /workspace",
-			want: []MCPServer{{
+			want: []engine.MCPServer{{
 				Name:      "fs",
-				Transport: MCPTransportStdio,
+				Transport: engine.MCPTransportStdio,
 				Command:   "npx",
 				Args:      []string{"-y", "@modelcontextprotocol/server-filesystem", "/workspace"},
 			}},
@@ -41,9 +43,9 @@ func TestParseMCPServers(t *testing.T) {
 		{
 			name: "stdio with single-word command",
 			in:   "time=stdio:mcp-server-time",
-			want: []MCPServer{{
+			want: []engine.MCPServer{{
 				Name:      "time",
-				Transport: MCPTransportStdio,
+				Transport: engine.MCPTransportStdio,
 				Command:   "mcp-server-time",
 				Args:      []string{},
 			}},
@@ -51,9 +53,9 @@ func TestParseMCPServers(t *testing.T) {
 		{
 			name: "mixed http + stdio with whitespace",
 			in:   " github = https://mcp.github.com/ , fs = stdio:npx mcp-server-fs ",
-			want: []MCPServer{
-				{Name: "github", Transport: MCPTransportHTTP, Endpoint: "https://mcp.github.com/"},
-				{Name: "fs", Transport: MCPTransportStdio, Command: "npx", Args: []string{"mcp-server-fs"}},
+			want: []engine.MCPServer{
+				{Name: "github", Transport: engine.MCPTransportHTTP, Endpoint: "https://mcp.github.com/"},
+				{Name: "fs", Transport: engine.MCPTransportStdio, Command: "npx", Args: []string{"mcp-server-fs"}},
 			},
 		},
 		{
