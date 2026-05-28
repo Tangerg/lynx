@@ -70,7 +70,10 @@ export interface Methods {
     create: (input: CreateSessionInput) => Promise<Session>;
     update: (id: string, patch: SessionPatch) => Promise<Session>;
     delete: (id: string) => Promise<void>;
-    fork: (id: string, atMessageId: string) => Promise<Session>;
+    // Per PROTOCOL_ALIGNMENT v3: first arg is `parentId` (the source
+    // session being forked), not `id` — `id` was ambiguous at callsite
+    // ("which id, the new one or the source?").
+    fork: (parentId: string, atMessageId: string) => Promise<Session>;
     export: (id: string, format: "md" | "json") => Promise<{ url: string }>;
   };
   messages: {
@@ -91,7 +94,8 @@ export interface Methods {
     projects: () => Promise<Project[]>;
     mcp: {
       list: () => Promise<MCPServer[]>;
-      reconnect: (id: string) => Promise<void>;
+      // Per PROTOCOL_ALIGNMENT v3: wire key is `name` (MCP-native identifier).
+      reconnect: (name: string) => Promise<void>;
     };
     skills: () => Promise<Skill[]>;
   };
@@ -149,7 +153,8 @@ export function createMethods(client: RpcClient): Methods {
       create: (input) => client.call<Session>("sessions.create", input),
       update: (id, patch) => client.call<Session>("sessions.update", { id, ...patch }),
       delete: (id) => client.call<void>("sessions.delete", { id }),
-      fork: (id, atMessageId) => client.call<Session>("sessions.fork", { id, atMessageId }),
+      fork: (parentId, atMessageId) =>
+        client.call<Session>("sessions.fork", { parentId, atMessageId }),
       export: (id, format) => client.call<{ url: string }>("sessions.export", { id, format }),
     },
     messages: {
@@ -179,7 +184,7 @@ export function createMethods(client: RpcClient): Methods {
       projects: () => client.call<Project[]>("workspace.projects"),
       mcp: {
         list: () => client.call<MCPServer[]>("workspace.mcp.list"),
-        reconnect: (id) => client.call<void>("workspace.mcp.reconnect", { id }),
+        reconnect: (name) => client.call<void>("workspace.mcp.reconnect", { name }),
       },
       skills: () => client.call<Skill[]>("workspace.skills"),
     },

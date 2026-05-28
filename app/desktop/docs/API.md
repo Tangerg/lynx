@@ -247,6 +247,11 @@ notification 的 `params.event` 字段出现。
 3. Client 发 Request `runs.approval.submit { requestId, decision, reason? }`
 4. Server 校验后继续 run，并在流里推 `lyra.approval-result`
 
+**`decision` 取值仅为 `"approve" | "deny"`**（两值闭集）。"记住选择"
+/ "允许一次" / "永久允许" 等更细的策略语义**不在本协议层** —— 由
+前端的 UI 选项 + 未来可能的 `runs.approval.policy.set` 方法表达。
+后端在 wire 层只看到 `approve` / `deny`，内部映射到具体执行策略。
+
 **为什么不用 server → client request？** 那会逼每种 transport 实现
 真双向 RPC（HTTP 上得开第二条 SSE 反向流），实现复杂度跟收益不成
 正比。MCP 走了那条路、坑很多；我们这条更朴素也够用。
@@ -267,50 +272,69 @@ notification 的 `params.event` 字段出现。
 
 ### 5.2 完整方法表
 
-| Method | C/N | Streaming | 用途 |
+**Returns 列**约定：
+- `T` 单对象 / 标量
+- `T[]` 裸数组（非分页 list 方法 —— 集合规模天然有界）
+- `Page<T>` 游标分页（详见 §6.4）
+- `Stream<...>` 立即返 `{runId|..., streamHandle}` + 事件经 notification 流出
+- `void` 无返回（typed 上 `null` / 空 object）
+
+| Method | C/N | Returns | 关键参数 |
 | --- | --- | --- | --- |
-| `runtime.initialize` | C→R | no | 握手 + 版本协商 + 能力协商 |
-| `runtime.shutdown` | C→R notify | no | 礼貌关闭 |
-| `runtime.ping` | C→R | no | Liveness 探针（注：HTTP 上推荐用 sidecar `/v1/health`，见 §9） |
+| **Runtime** | | | |
+| `runtime.initialize` | C→R | `InitializeResult` | `{ protocolVersion, clientInfo, capabilities }` |
+| `runtime.shutdown` | C→R notify | `void` | `{ reason? }` |
+| `runtime.ping` | C→R | `void` | — （HTTP 上推荐用 sidecar `/v1/health`，见 §9） |
 | **Runs** | | | |
-| `runs.start` | C→R | yes | 启动一次 run，立即返 `{runId, streamHandle}`；事件经 `notifications/run/event` 流出 |
-| `runs.cancel` | C→R notify | no | 取消 run（等价于 `notifications/cancelled` 配对 run request id） |
-| `runs.approval.submit` | C→R | no | HITL 决策（见 §4.3） |
+| `runs.start` | C→R | `Stream<StartRunResult, AgUiEvent>` | `StartRunParams`（§6.3）；事件经 `notifications/run/event` 流出 |
+| `runs.cancel` | C→R notify | `void` | 等价于 `notifications/cancelled { requestId }` |
+| `runs.approval.submit` | C→R | `void` | `{ requestId, decision: "approve"\|"deny", reason? }`（见 §4.3） |
 | **Sessions** | | | |
-| `sessions.list` | C→R | no | 列 session（游标分页） |
-| `sessions.get` | C→R | no | 读一条 |
-| `sessions.create` | C→R | no | 新建 `{ title?, model?, metadata? }` |
-| `sessions.update` | C→R | no | 重命名 / pin / metadata patch |
-| `sessions.delete` | C→R | no | 删除 |
-| `sessions.fork` | C→R | no | 在 checkpoint 分叉 |
-| `sessions.export` | C→R | no | 导出 md/json |
+| `sessions.list` | C→R | `Page<Session>` | `PageQuery`（游标分页） |
+| `sessions.get` | C→R | `Session` | `{ id }` |
+| `sessions.create` | C→R | `Session` | `{ title?, model?, metadata? }` |
+| `sessions.update` | C→R | `Session` | `{ id, title?, pinned?, archived?, metadata? }` |
+| `sessions.delete` | C→R | `void` | `{ id }` |
+| `sessions.fork` | C→R | `Session` | `{ parentId, atMessageId }` —— `parentId` 是**被 fork 的源** session |
+| `sessions.export` | C→R | `{ url: string }` | `{ id, format: "md"\|"json" }`；URL 走单独 file-serving endpoint |
 | **Messages** | | | |
-| `messages.list` | C→R | no | 游标分页历史 |
-| `messages.edit` | C→R | no | edit-and-rerun；返 `{ runId, checkpoint }` 并在流里推 `lyra.checkpoint` |
+| `messages.list` | C→R | `Page<Message>` | `{ sessionId, ...PageQuery }`（游标分页） |
+| `messages.edit` | C→R | `{ runId, checkpoint }` | `{ sessionId, messageId, content }` —— **字段名 `content`，不是 `newContent`**；新 run 在流里推 `lyra.checkpoint` |
 | **Workspace** | | | |
-| `workspace.filesChanged` | C→R | no | Diff 概览 |
-| `workspace.diff` | C→R | no | 单文件 diff |
-| `workspace.fileHead` | C→R | no | 文件预览 |
-| `workspace.grep` | C→R | no | 代码搜索 |
-| `workspace.terminal.subscribe` | C→R | yes | Tool pty 输出流 |
-| `workspace.projects` | C→R | no | 项目列表 |
-| `workspace.mcp.list` | C→R | no | MCP 服务状态 |
-| `workspace.mcp.reconnect` | C→R | no | 重连 MCP |
-| `workspace.skills` | C→R | no | 可用 skill（kimi-code 风格） |
+| `workspace.filesChanged` | C→R | `FileChange[]` | — |
+| `workspace.diff` | C→R | `DiffRow[]` | `{ path }` —— 结构化 row（§6.6），不是裸 string |
+| `workspace.fileHead` | C→R | `FileLine[]` | `{ path }` —— 结构化 line（§6.6），不是裸 string |
+| `workspace.grep` | C→R | `GrepResult` | `{ query }` —— 单对象 `{ matches, total }`，未来 additive 加 `nextCursor?` |
+| `workspace.terminal.subscribe` | C→R | `Stream<{streamHandle}, TermLine>` | `{ runId }`；输出经 `notifications/terminal/output` 流出 |
+| `workspace.projects` | C→R | `Project[]` | — |
+| `workspace.mcp.list` | C→R | `MCPServer[]` | — |
+| `workspace.mcp.reconnect` | C→R | `void` | `{ name }` —— **MCP 协议原生 name 作唯一标识**（不再用 `id`） |
+| `workspace.skills` | C→R | `Skill[]` | — |
 | **Providers / Models / Tools** | | | |
-| `providers.list` | C→R | no | LLM provider 注册表 |
-| `providers.test` | C→R | no | 校验凭证 |
-| `models.list` | C→R | no | per-provider model 列表 |
-| `tools.list` | C→R | no | Tool 注册表 + JSON-Schema 参数 |
+| `providers.list` | C→R | `Provider[]` | — |
+| `providers.test` | C→R | `ProviderTestResult` | `{ id }` |
+| `models.list` | C→R | `Model[]` | `{ provider? }` |
+| `tools.list` | C→R | `ToolSpec[]` | — |
 | **Attachments** | | | |
-| `attachments.createUploadUrl` | C→R | no | 返 `{ uploadUrl, attachmentId }`；用 transport 各自的 binary 通道上传 |
-| `attachments.delete` | C→R | no | 删除 |
+| `attachments.createUploadUrl` | C→R | `CreateUploadUrlResult` | `{ filename, mime, size }`；走 transport 各自的 binary 通道上传 |
+| `attachments.delete` | C→R | `void` | `{ id }` |
 | **Background** | | | |
-| `background.list` | C→R | no | 活跃任务 |
-| `background.stop` | C→R | no | 停止 |
-| `background.subscribe` | C→R | yes | Tail 输出 |
+| `background.list` | C→R | `BackgroundTask[]` | — |
+| `background.stop` | C→R | `void` | `{ taskId }` —— **字段名 `taskId`，不是 `id`** |
+| `background.subscribe` | C→R | `Stream<{streamHandle}, BackgroundUpdate>` | `{ taskId }` |
 | **Feedback** | | | |
-| `feedback.submit` | C→R | no | RLHF —— 替代 `lyra.meta` 事件的方法路径 |
+| `feedback.submit` | C→R | `void` | `{ kind, refId, value? }` —— 替代 `lyra.meta` 事件的方法路径 |
+
+**反向不变量**（来自 PROTOCOL_ALIGNMENT v3 §1）：
+
+- ❌ **非分页 list 不要套 `{items}` wrapper**：`tools.list` / `providers.list`
+  等返裸数组。从 `T[]` 升级到 `Page<T>` 本来就是 breaking change（client
+  从 `data` 改 `data.items`），不存在"零破坏升级"路径，所以**没必要预投资**
+- ❌ **不要把内部存储类型泄漏到 wire**：`Session.metadata` 是
+  `Record<string, unknown>` 不是 `Record<string, string>`，即使后端内部
+  存的是 string-only
+- ❌ **方法表里 `void` 表示语义无返回**，typed 上服务端返 `null` 或
+  空 object；不要返 `true` / `1` 这类哨兵值
 
 ### 5.3 服务端发出的 Notification 清单
 
@@ -389,6 +413,8 @@ interface Session {
   createdAt: string;             // ISO-8601
   updatedAt: string;
   lastMessageAt?: string;
+  // 任意 JSON 可序列化的 value —— 不约束 string-only。
+  // 后端内部存储如果窄，由 coreimpl 边界做转换，不污染 wire。
   metadata: Record<string, unknown>;
   pinned?: boolean;
   archived?: boolean;
@@ -405,16 +431,37 @@ interface Message {
   metadata?: Record<string, unknown>;
 }
 
+interface ToolCall {
+  id: string;
+  name: string;
+  arguments: string;             // JSON-encoded
+}
+
 interface ToolSpec {
   name: string;
   description?: string;
   parameters: JsonSchema;
   origin: "server" | "client" | "mcp";
+  // 服务端可选附加字段（如 `safetyClass`），未声明的客户端必须
+  // 忽略未知字段（forward-compat）。
 }
 
-interface ContextItem {
-  kind: "file" | "url" | "selection" | "image";
-  // ...kind-specific fields
+// Discriminated union — 新 kind 必须扩 union，**禁止**走
+// { kind, data: { ... } } 嵌套形态（Go 端用 struct + omitempty
+// 模拟即可）
+type ContextItem =
+  | { kind: "file"; path: string }
+  | { kind: "url"; url: string }
+  | { kind: "selection"; path: string; range: [number, number] }
+  | { kind: "image"; attachmentId: string };
+
+// HITL approval — `decision` 只接受两值（详见 §4.3）
+type ApprovalDecision = "approve" | "deny";
+
+interface ApprovalSubmission {
+  requestId: string;
+  decision: ApprovalDecision;
+  reason?: string;
 }
 ```
 
@@ -451,6 +498,155 @@ interface Page<T> {
   items: T[];
   nextCursor?: string;
   hasMore: boolean;
+}
+```
+
+**用 vs 不用 `Page<T>`**：
+
+- **用**：`sessions.list` / `messages.list` —— 真分页方法，集合规模
+  可能很大（一个用户上千 session、一个 session 上万 message），必须
+  游标分页
+- **不用**：`tools.list` / `providers.list` / `models.list` /
+  `workspace.*` / `background.list` —— 集合规模天然有界（个位数到
+  几十），直接返裸数组 `T[]`
+
+详见 §5.2 Returns 列。
+
+### 6.5 Workspace 数据形状
+
+```ts
+interface FileChange {
+  path: string;
+  change: "add" | "mod" | "del";
+  added: number;                 // 新增行数
+  removed: number;               // 删除行数
+}
+
+// Unified diff row 的结构化表示 —— 服务端解析一次，前端不用每次 regex
+type DiffRow =
+  | { type: "hunk"; text: string }                            // @@ 头
+  | { type: "ctx";  l: number; r: number; code: string }      // 上下文
+  | { type: "add";  r: number; code: string }                 // 新增
+  | { type: "del";  l: number; code: string };                // 删除
+
+interface FileLine {
+  ln: string;                    // 行号或标记（如 "···"）
+  code: string;                  // 已渲染 HTML（服务端 highlight）
+  muted?: boolean;
+}
+
+interface GrepMatch {
+  path: string;
+  match: string;                 // 命中行的预渲染 snippet
+}
+
+interface GrepResult {
+  matches: GrepMatch[];
+  total: number;                 // 总命中数（可能 > matches.length）
+  // 将来要分页时 additive 加 nextCursor?: string —— 不破坏现有调用
+}
+
+type TermLineKind = "prompt" | "cmd" | "out" | "err" | "warn" | "mute" | "ok";
+
+interface TermLine {
+  kind: TermLineKind;
+  text: string;
+}
+
+interface Project {
+  id: string;
+  name: string;
+  branch: string;                // 当前分支
+  active?: boolean;
+}
+
+// MCP server —— `name` 是 MCP 协议原生唯一标识符。
+// 不带 `id` 字段（v3 决议：避免 `id` vs `name` 谁是真标识符的歧义）
+interface MCPServer {
+  name: string;                  // MCP server name (== reconnect 的 wire key)
+  displayName?: string;          // 可选 pretty label
+  desc: string;
+  tools: number;
+  status: "active" | "idle" | "error";
+  icon: string;
+}
+
+interface Skill {
+  id: string;
+  name: string;
+  description: string;
+}
+```
+
+### 6.6 Provider / Model 形状
+
+```ts
+interface Provider {
+  id: string;                    // 内部稳定 id（如 "openai", "anthropic"）
+  type: string;                  // 供应商类型 enum
+  baseUrl?: string;              // 自建 / 代理时覆盖
+  hasApiKey: boolean;            // 是否已配凭据（仅 boolean，不暴露 key）
+}
+
+interface ProviderTestResult {
+  ok: boolean;
+  detail?: string;               // 失败时的诊断信息
+}
+
+interface Model {
+  id: string;
+  provider: string;              // 关联的 Provider.id
+  contextWindow?: number;
+  description?: string;
+}
+```
+
+### 6.7 Background tasks
+
+```ts
+type BackgroundStatus = "running" | "stopped" | "succeeded" | "failed";
+
+interface BackgroundTask {
+  taskId: string;                // 主键，所有 background.* method 都用此 key
+  label: string;
+  status: BackgroundStatus;
+  startedAt: string;
+  progress?: number;             // 0..1
+}
+
+interface BackgroundUpdate {
+  taskId: string;
+  status: BackgroundStatus;
+  progress?: number;
+  outputDelta?: string;          // 自上次以来新增的 tail 输出
+}
+```
+
+### 6.8 Attachments
+
+```ts
+interface CreateUploadUrlInput {
+  filename: string;
+  mime: string;
+  size: number;
+}
+
+interface CreateUploadUrlResult {
+  uploadUrl: string;             // 透 binary 通道用，详见 §5.4
+  attachmentId: string;
+  expiresAt: string;             // ISO-8601
+}
+```
+
+### 6.9 Feedback
+
+```ts
+type FeedbackKind = "thumbs-up" | "thumbs-down" | "note" | "bookmark";
+
+interface FeedbackInput {
+  kind: FeedbackKind;
+  refId: string;                 // 评价对象（message id / run id / 等）
+  value?: string;                // note 的文字 / bookmark 的标签
 }
 ```
 

@@ -215,9 +215,15 @@ export interface Project {
   active?: boolean;
 }
 
+// MCP server identifier follows the MCP protocol — `name` IS the unique
+// id (MCP namespaces by name). We dropped the historical `id` field
+// per PROTOCOL_ALIGNMENT v3: it was a REST-mock-era inheritance, had
+// no upstream meaning, and forced a "which one's the real identifier"
+// ambiguity. Wire methods (e.g. `workspace.mcp.reconnect`) accept
+// `name` directly.
 export interface MCPServer {
-  id: string;
-  name: string;
+  name: string; // MCP server name (== reconnect wire key)
+  displayName?: string; // optional human-readable label
   desc: string;
   tools: number;
   status: "active" | "idle" | "error";
