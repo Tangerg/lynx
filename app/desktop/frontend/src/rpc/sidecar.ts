@@ -9,7 +9,15 @@
 import { RpcTransportError } from "./errors";
 import type { ServerCapabilities } from "./shapes";
 
-export interface ServerInfo {
+/**
+ * Response of `GET /v1/info` (and a structurally-compatible subset of
+ * `runtime.initialize` result). Named `RuntimeInfo` rather than
+ * `RuntimeInfo` because the *type* describes the whole handshake snapshot
+ * — the *field* `serverInfo` inside it describes name+version, so
+ * collapsing both into a single `RuntimeInfo` name was awkward
+ * (`info.serverInfo.serverInfo.name`).
+ */
+export interface RuntimeInfo {
   serverInfo: { name: string; version: string };
   protocolVersion: string;
   capabilities: Pick<ServerCapabilities, "events" | "features" | "providers">;
@@ -26,7 +34,7 @@ export interface SidecarClientConfig {
 }
 
 export interface SidecarClient {
-  info(signal?: AbortSignal): Promise<ServerInfo>;
+  info(signal?: AbortSignal): Promise<RuntimeInfo>;
   health(signal?: AbortSignal): Promise<HealthStatus>;
 }
 
@@ -58,7 +66,7 @@ export function createSidecarClient(config: SidecarClientConfig): SidecarClient 
   }
 
   return {
-    info: (signal) => getJson<ServerInfo>("/v1/info", signal),
+    info: (signal) => getJson<RuntimeInfo>("/v1/info", signal),
     health: (signal) => getJson<HealthStatus>("/v1/health", signal),
   };
 }

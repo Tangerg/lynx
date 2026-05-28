@@ -19,57 +19,15 @@
 
 import { afterEach, describe, expect, it } from "vitest";
 import { createMemoryTransport, type MemoryTransport } from "./transports/memory";
+import {
+  injectRunClosed,
+  injectRunEvent,
+  respondSuccess,
+  waitForRequest,
+} from "./transports/memory.testkit";
 import { createRpcClient, type RpcClient } from "./client";
 import { createMethods, type Methods } from "./methods";
-import { JSONRPC_VERSION, isRequest, type RpcId, type RpcMessage, type RpcRequest } from "./types";
-
-// ---------------------------------------------------------------------------
-// Test helpers — keep the scenario readable
-// ---------------------------------------------------------------------------
-
-/**
- * Wait until a Request with the given method appears in the transport's
- * outbox, then return it. Used to grab the id the client allocated so
- * we can craft a matching Response.
- */
-async function waitForRequest(t: MemoryTransport, method: string): Promise<RpcRequest> {
-  // Poll the outbox briefly. Tests are single-threaded; in practice
-  // the request is queued before the next microtask cycle.
-  for (let attempt = 0; attempt < 50; attempt++) {
-    const found = t.outbox().find((m): m is RpcRequest => isRequest(m) && m.method === method);
-    if (found) return found;
-    await new Promise((r) => setTimeout(r, 0));
-  }
-  throw new Error(`timeout waiting for outbound Request "${method}"`);
-}
-
-/** Inject a JSON-RPC success Response matching a previous Request. */
-function respondSuccess(t: MemoryTransport, id: RpcId, result: unknown): void {
-  t.inject({ jsonrpc: JSONRPC_VERSION, id, result } as RpcMessage);
-}
-
-/** Inject a `notifications/run/event` carrying an AG-UI event payload. */
-function injectRunEvent(
-  t: MemoryTransport,
-  runId: string,
-  eventId: string,
-  event: Record<string, unknown>,
-): void {
-  t.inject({
-    jsonrpc: JSONRPC_VERSION,
-    method: "notifications/run/event",
-    params: { runId, eventId, event },
-  });
-}
-
-/** Inject `notifications/run/closed` — terminates the events iterator. */
-function injectRunClosed(t: MemoryTransport, runId: string, reason?: string): void {
-  t.inject({
-    jsonrpc: JSONRPC_VERSION,
-    method: "notifications/run/closed",
-    params: reason ? { runId, reason } : { runId },
-  });
-}
+import { JSONRPC_VERSION } from "./types";
 
 // ---------------------------------------------------------------------------
 // Scenario

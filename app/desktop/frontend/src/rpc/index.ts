@@ -85,7 +85,7 @@ export {
 } from "./stream";
 export type { FilteredStreamSpec } from "./stream";
 export { createSidecarClient } from "./sidecar";
-export type { HealthStatus, ServerInfo, SidecarClient, SidecarClientConfig } from "./sidecar";
+export type { HealthStatus, RuntimeInfo, SidecarClient, SidecarClientConfig } from "./sidecar";
 export { createHttpTransport } from "./transports/http";
 export type { HttpTransportConfig } from "./transports/http";
 export { createMemoryTransport } from "./transports/memory";

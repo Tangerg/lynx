@@ -2,19 +2,9 @@ import { describe, expect, it } from "vitest";
 import { createRpcClient } from "./client";
 import { createMethods } from "./methods";
 import { createMemoryTransport } from "./transports/memory";
-import type { RpcMessage, RpcRequest } from "./types";
+import { waitForRequest } from "./transports/memory.testkit";
+import type { RpcMessage } from "./types";
 import { JSONRPC_VERSION } from "./types";
-
-function takeRequest(t: ReturnType<typeof createMemoryTransport>): Promise<RpcRequest> {
-  return new Promise((resolve) => {
-    const tick = () => {
-      const last = t.outbox().at(-1);
-      if (last && "id" in last && "method" in last) resolve(last as RpcRequest);
-      else setTimeout(tick, 0);
-    };
-    tick();
-  });
-}
 
 describe("methods factory", () => {
   it("sessions.list sends sessions.list method with optional query", async () => {
@@ -23,7 +13,7 @@ describe("methods factory", () => {
     const methods = createMethods(client);
 
     const promise = methods.sessions.list({ limit: 10 });
-    const req = await takeRequest(t);
+    const req = await waitForRequest(t, "sessions.list");
     expect(req.method).toBe("sessions.list");
     expect(req.params).toEqual({ limit: 10 });
 
@@ -56,8 +46,7 @@ describe("methods factory", () => {
       sessionId: "s1",
       messages: [],
     });
-    const req = await takeRequest(t);
-    expect(req.method).toBe("runs.start");
+    const req = await waitForRequest(t, "runs.start");
 
     t.inject({
       jsonrpc: JSONRPC_VERSION,
@@ -106,7 +95,7 @@ describe("methods factory", () => {
     const methods = createMethods(client);
 
     const startPromise = methods.runs.start({ sessionId: "s1", messages: [] });
-    const req = await takeRequest(t);
+    const req = await waitForRequest(t, "runs.start");
     t.inject({
       jsonrpc: JSONRPC_VERSION,
       id: req.id,

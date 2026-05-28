@@ -2,22 +2,9 @@ import { describe, expect, it } from "vitest";
 import { createRpcClient } from "./client";
 import { RpcError, RpcTransportError } from "./errors";
 import { createMemoryTransport } from "./transports/memory";
-import type { RpcMessage, RpcRequest } from "./types";
+import { waitForRequest } from "./transports/memory.testkit";
+import type { RpcMessage } from "./types";
 import { JSONRPC_VERSION, RPC_METHOD_NOT_FOUND, RPC_SESSION_NOT_FOUND } from "./types";
-
-function awaitNextOutbound(t: ReturnType<typeof createMemoryTransport>): Promise<RpcRequest> {
-  return new Promise((resolve) => {
-    const tick = () => {
-      const last = t.outbox().at(-1);
-      if (last && "id" in last && "method" in last) {
-        resolve(last as RpcRequest);
-      } else {
-        setTimeout(tick, 0);
-      }
-    };
-    tick();
-  });
-}
 
 describe("RpcClient", () => {
   it("call() sends a Request and resolves with result", async () => {
@@ -25,7 +12,7 @@ describe("RpcClient", () => {
     const client = createRpcClient(t);
 
     const promise = client.call<{ ok: boolean }>("runtime.ping");
-    const req = await awaitNextOutbound(t);
+    const req = await waitForRequest(t, "runtime.ping");
     expect(req.method).toBe("runtime.ping");
     expect(req.jsonrpc).toBe(JSONRPC_VERSION);
 
@@ -40,7 +27,7 @@ describe("RpcClient", () => {
     const client = createRpcClient(t);
 
     const promise = client.call("sessions.get", { id: "missing" });
-    const req = await awaitNextOutbound(t);
+    const req = await waitForRequest(t, "sessions.get");
 
     t.inject({
       jsonrpc: JSONRPC_VERSION,
@@ -94,7 +81,7 @@ describe("RpcClient", () => {
     const t = createMemoryTransport();
     const client = createRpcClient(t);
     const promise = client.call("runtime.ping");
-    await awaitNextOutbound(t);
+    await waitForRequest(t, "runtime.ping");
 
     await client.close();
     await expect(promise).rejects.toBeInstanceOf(RpcTransportError);
@@ -106,7 +93,7 @@ describe("RpcClient", () => {
     const client = createRpcClient(t);
     const ctrl = new AbortController();
     const promise = client.call("runs.start", undefined, ctrl.signal);
-    await awaitNextOutbound(t);
+    await waitForRequest(t, "runs.start");
     ctrl.abort();
     await expect(promise).rejects.toBeInstanceOf(RpcTransportError);
     // Last sent message should be the cancel notification.
@@ -128,7 +115,7 @@ describe("RpcClient", () => {
     await new Promise((r) => setTimeout(r, 0));
     // Survives — call still works.
     const promise = client.call<number>("runtime.ping");
-    const req = await awaitNextOutbound(t);
+    const req = await waitForRequest(t, "runtime.ping");
     t.inject({ jsonrpc: JSONRPC_VERSION, id: req.id, result: 1 });
     expect(await promise).toBe(1);
     await client.close();
