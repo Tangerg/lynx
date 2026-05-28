@@ -17,6 +17,7 @@ require (
 require (
 	github.com/Masterminds/semver/v3 v3.5.0 // indirect
 	github.com/Tangerg/lynx/pkg v0.0.0-20260511081009-fbf46737de3d // indirect
+	github.com/Tangerg/sse v0.0.1 // indirect
 	github.com/anthropics/anthropic-sdk-go v1.43.0 // indirect
 	github.com/bahlo/generic-list-go v0.2.0 // indirect
 	github.com/bits-and-blooms/bitset v1.24.4 // indirect
