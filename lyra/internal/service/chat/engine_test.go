@@ -7,9 +7,52 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/lyra/internal/engine"
 	"github.com/Tangerg/lynx/lyra/internal/service/chat"
 )
+
+// stubChatProcess fakes the [engine.ChatProcess] handle without
+// touching the real platform. The done channel is pre-fired so
+// runTurn receives immediately; status / output / cancel return
+// the values the test wired.
+type stubChatProcess struct {
+	id       string
+	status   atomic.Int32 // core.AgentProcessStatus
+	failure  error
+	output   engine.ChatOutput
+	done     chan error
+	onCancel func(reason string)
+}
+
+func newStubChatProcess(id string, output engine.ChatOutput) *stubChatProcess {
+	cp := &stubChatProcess{
+		id:     id,
+		output: output,
+		done:   make(chan error, 1),
+	}
+	cp.status.Store(int32(core.StatusCompleted))
+	cp.done <- nil
+	close(cp.done)
+	return cp
+}
+
+func (cp *stubChatProcess) ID() string { return cp.id }
+func (cp *stubChatProcess) Status() core.AgentProcessStatus {
+	return core.AgentProcessStatus(cp.status.Load())
+}
+func (cp *stubChatProcess) Failure() error     { return cp.failure }
+func (cp *stubChatProcess) Done() <-chan error { return cp.done }
+func (cp *stubChatProcess) Output() (engine.ChatOutput, error) {
+	return cp.output, nil
+}
+func (cp *stubChatProcess) Cancel(reason string) error {
+	cp.status.Store(int32(core.StatusKilled))
+	if cp.onCancel != nil {
+		cp.onCancel(reason)
+	}
+	return nil
+}
 
 // stubEngine satisfies chat.Engine without touching the real
 // platform / chat-memory / MCP wiring. Existence proves the chat
@@ -20,12 +63,12 @@ type stubEngine struct {
 	runReply     string
 }
 
-func (s *stubEngine) RunChat(ctx context.Context, req engine.RunChatRequest) (engine.ChatOutput, error) {
+func (s *stubEngine) StartChat(_ context.Context, req engine.RunChatRequest) engine.ChatProcess {
 	s.runChatCalls.Add(1)
 	if req.Observer != nil {
 		req.Observer.OnMessageDelta(s.runReply)
 	}
-	return engine.ChatOutput{Reply: s.runReply}, nil
+	return newStubChatProcess("stub-proc-"+req.SessionID, engine.ChatOutput{Reply: s.runReply})
 }
 
 func (s *stubEngine) GeneratePlan(_ context.Context, _ string) (string, error) {
@@ -119,10 +162,29 @@ func TestStubEngineCancelsCleanly(t *testing.T) {
 }
 
 // slowStubEngine simulates an engine that respects ctx cancellation
-// without ever returning normally.
+// without ever returning normally — the stub ChatProcess holds a
+// done channel that fires only when ctx is canceled, mirroring how
+// the real platform reacts to KillProcess / ctx cancel.
 type slowStubEngine struct{ stubEngine }
 
-func (s *slowStubEngine) RunChat(ctx context.Context, _ engine.RunChatRequest) (engine.ChatOutput, error) {
-	<-ctx.Done()
-	return engine.ChatOutput{}, errors.New("canceled")
+func (s *slowStubEngine) StartChat(ctx context.Context, _ engine.RunChatRequest) engine.ChatProcess {
+	cp := &stubChatProcess{
+		id:   "slow-stub-proc",
+		done: make(chan error, 1),
+	}
+	cp.status.Store(int32(core.StatusRunning))
+	cp.onCancel = func(_ string) {
+		select {
+		case cp.done <- errors.New("canceled"):
+		default:
+		}
+	}
+	go func() {
+		<-ctx.Done()
+		select {
+		case cp.done <- errors.New("canceled"):
+		default:
+		}
+	}()
+	return cp
 }
