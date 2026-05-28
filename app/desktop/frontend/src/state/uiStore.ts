@@ -6,12 +6,29 @@
 // theme-{scheme} class on <html>).
 
 import { colord } from "colord";
+import { z } from "zod";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { disposeOnHmr } from "@/lib/hmr";
 // Direct registry import — going through the SDK barrel pulls in
 // host.ts which imports this file, creating a TDZ cycle under Vitest.
 import { usePluginStore } from "@/plugins/sdk/registry";
+
+// localStorage payload schema. Validated on rehydrate so a corrupted
+// `lyra.ui` entry (manual edit, downgrade leaving a future-shape blob,
+// browser extension tampering) falls back to defaults instead of
+// crashing the boot.
+const uiPersistSchema = z.object({
+  theme: z.string(),
+  accent: z.string(),
+  uiFont: z.string(),
+  codeFont: z.string(),
+  fontSize: z.number().nullable(),
+  radiusScale: z.number(),
+  motionScale: z.number(),
+  messageStyle: z.enum(["bubble", "plain"]),
+  sidebarRail: z.boolean(),
+});
 
 /**
  * A theme id — references a `ThemeSpec` registered via
@@ -116,6 +133,15 @@ export const useUiStore = create<UiState & UiActions>()(
       name: "lyra.ui",
       storage: createJSONStorage(() => localStorage),
       version: 2,
+      merge: (persisted, current) => {
+        const parsed = uiPersistSchema.safeParse(persisted);
+        if (!parsed.success) {
+          // Reset on schema mismatch — defaults are always a safe boot.
+          console.warn("[uiStore] discarding corrupted lyra.ui:", parsed.error.issues);
+          return current;
+        }
+        return { ...current, ...parsed.data };
+      },
     },
   ),
 );

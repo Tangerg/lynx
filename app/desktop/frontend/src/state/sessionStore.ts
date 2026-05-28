@@ -8,8 +8,18 @@
 //     selectedToolId, expandedToolIds — all reference data that may not
 //     exist or may have changed on next boot.
 
+import { z } from "zod";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
+
+// localStorage payload schema. Mirrors `partialize` below — only the
+// two continuity fields. Anything else in storage is dropped on
+// rehydrate; a malformed entry falls back to defaults instead of
+// crashing the boot.
+const sessionPersistSchema = z.object({
+  activeSessionId: z.string(),
+  tabIds: z.array(z.string()),
+});
 
 interface MainViewTab {
   id: string;
@@ -230,6 +240,14 @@ export const useSessionStore = create<SessionState & SessionActions>()(
         tabIds: s.tabIds,
       }),
       version: 1,
+      merge: (persisted, current) => {
+        const parsed = sessionPersistSchema.safeParse(persisted);
+        if (!parsed.success) {
+          console.warn("[sessionStore] discarding corrupted lyra.session:", parsed.error.issues);
+          return current;
+        }
+        return { ...current, ...parsed.data };
+      },
     },
   ),
 );
