@@ -35,11 +35,7 @@ const (
 	MessageTypeTool MessageType = "tool"
 )
 
-func (t MessageType) String() string    { return string(t) }
-func (t MessageType) IsSystem() bool    { return t == MessageTypeSystem }
-func (t MessageType) IsUser() bool      { return t == MessageTypeUser }
-func (t MessageType) IsAssistant() bool { return t == MessageTypeAssistant }
-func (t MessageType) IsTool() bool      { return t == MessageTypeTool }
+func (t MessageType) String() string { return string(t) }
 
 // Message is the sealed interface implemented by [SystemMessage],
 // [UserMessage], [AssistantMessage], and [ToolMessage]. Concrete types
@@ -557,12 +553,12 @@ func MergeToolMessages(messages []Message) (*ToolMessage, error) {
 // MergeMessages dispatches to the right per-type merge helper. Assistant
 // messages cannot be merged — each represents a distinct model turn.
 func MergeMessages(messages []Message, messageType MessageType) (Message, error) {
-	switch {
-	case messageType.IsSystem():
+	switch messageType {
+	case MessageTypeSystem:
 		return MergeSystemMessages(messages), nil
-	case messageType.IsUser():
+	case MessageTypeUser:
 		return MergeUserMessages(messages), nil
-	case messageType.IsTool():
+	case MessageTypeTool:
 		return MergeToolMessages(messages)
 	default:
 		return nil, fmt.Errorf("chat.MergeMessages: cannot merge type %q", messageType)
