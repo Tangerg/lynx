@@ -17,12 +17,13 @@ var infoEndpoints = map[string]string{
 
 // handleInfo serves GET /v1/info — a no-auth flat-JSON snapshot of
 // server identity + protocol version + advertised capabilities, plus
-// operational metadata (serverID / transport / endpoints) so oncall
-// has a single place to look during integration.
+// operational metadata (serverID / transport / endpoints / discovered
+// AGENTS.md files) so oncall has a single place to look during
+// integration.
 //
 // API.md §9.2: this endpoint deliberately does NOT use the JSON-RPC
 // envelope so oncall can curl it and read the result.
-func (s *Server) handleInfo(w http.ResponseWriter, _ *http.Request) {
+func (s *Server) handleInfo(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("X-Lyra-Server", s.serverID)
@@ -35,6 +36,9 @@ func (s *Server) handleInfo(w http.ResponseWriter, _ *http.Request) {
 		"serverID":        s.serverID,
 		"transport":       "http",
 		"endpoints":       infoEndpoints,
+	}
+	if s.agentDocsLister != nil {
+		body["agentDocs"] = s.agentDocsLister(r.Context())
 	}
 	_ = json.NewEncoder(w).Encode(body)
 }

@@ -5,12 +5,14 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
 	"github.com/spf13/cobra"
 
+	"github.com/Tangerg/lynx/lyra/internal/service/agentdoc"
 	"github.com/Tangerg/lynx/lyra/rpc/server"
 	lyrahttp "github.com/Tangerg/lynx/lyra/rpc/transport/http"
 )
@@ -90,6 +92,7 @@ Stdio transport is intentionally not supported — see docs/API.md §1.1.`,
 						},
 					},
 				},
+				AgentDocsLister: agentDocsLister(),
 			})
 			if err != nil {
 				return a.fatalErr(err)
@@ -107,6 +110,35 @@ Stdio transport is intentionally not supported — see docs/API.md §1.1.`,
 	cmd.Flags().StringSliceVar(&corsOrigins, "cors-origin", lyrahttp.DefaultCORSOrigins,
 		"CORS-allowed origin; repeatable. Pass an empty value to disable CORS.")
 	return cmd
+}
+
+// agentDocsLister returns an AgentDocsLister wired to the server's
+// working directory (process cwd at construction time, locked once
+// so a later `chdir` doesn't shift discovery to a different tree).
+// Discovery walks the same paths the engine uses, so /v1/info's
+// agentDocs field reflects exactly what the model will see.
+func agentDocsLister() lyrahttp.AgentDocsLister {
+	cwd, err := os.Getwd()
+	if err != nil {
+		// No usable cwd ⇒ omit the field entirely. Nil lister tells
+		// the Server to skip rendering the key.
+		return nil
+	}
+	home, _ := os.UserHomeDir()
+	return func(ctx context.Context) []lyrahttp.AgentDocInfo {
+		files, err := agentdoc.Discover(ctx, cwd, home)
+		if err != nil {
+			return nil
+		}
+		out := make([]lyrahttp.AgentDocInfo, 0, len(files))
+		for _, f := range files {
+			out = append(out, lyrahttp.AgentDocInfo{
+				Path:  f.Path,
+				Bytes: len(f.Content),
+			})
+		}
+		return out
+	}
 }
 
 // runServer launches the server, blocks until it returns or a

@@ -14,6 +14,7 @@ func (a *App) RootCmd() *cobra.Command {
 		SilenceErrors: true, // we render errors via App.fatalErr so cobra doesn't double-print
 	}
 	root.AddCommand(
+		a.AgentsCmd(),
 		a.ChatCmd(),
 		a.ReplCmd(),
 		a.MemoryCmd(),
