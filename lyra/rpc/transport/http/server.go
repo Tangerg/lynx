@@ -36,8 +36,9 @@ type Server struct {
 	info     protocol.InitializeResponse
 	serverID string
 
-	localToken string
-	corsCfg    corsConfig
+	localToken   string
+	corsCfg      corsConfig
+	healthProbes []HealthProbe
 
 	dispatcher *dispatch.Dispatcher
 	streams    *streamRegistry
@@ -76,6 +77,11 @@ type Config struct {
 	// CORSOrigins is the exact-match origin allowlist; "*" is honoured
 	// (without credentials). Empty disables CORS — same-origin only.
 	CORSOrigins []string
+
+	// HealthProbes are the labelled liveness checks invoked on every
+	// GET /v1/health. Empty list ⇒ the endpoint always returns ok.
+	// Probes run in parallel under a shared 2s budget.
+	HealthProbes []HealthProbe
 }
 
 // NewServer assembles a Server.
@@ -94,12 +100,13 @@ func NewServer(cfg Config) (*Server, error) {
 		serverID = cfg.ServerInfo.Name + "/" + cfg.ServerInfo.Version
 	}
 	return &Server{
-		api:        cfg.Runtime,
-		addr:       cfg.Addr,
-		serverID:   serverID,
-		localToken: cfg.LocalToken,
-		corsCfg:    corsConfig{origins: cfg.CORSOrigins},
-		dispatcher: dispatch.New(cfg.Runtime),
+		api:          cfg.Runtime,
+		addr:         cfg.Addr,
+		serverID:     serverID,
+		localToken:   cfg.LocalToken,
+		corsCfg:      corsConfig{origins: cfg.CORSOrigins},
+		healthProbes: cfg.HealthProbes,
+		dispatcher:   dispatch.New(cfg.Runtime),
 		streams:    newStreamRegistry(),
 		clients:    newClientRegistry(),
 		info: protocol.InitializeResponse{
