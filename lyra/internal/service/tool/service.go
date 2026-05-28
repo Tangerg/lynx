@@ -34,8 +34,9 @@ const (
 	SafetyClassNetwork
 )
 
-// Service is the ToolService contract. M2 milestone wires the real
-// implementation; M1 leaves it as a stub.
+// Service is the ToolService contract. The in-package New(eng)
+// constructor returns an engine-backed implementation — list +
+// invoke route through the engine's registered tool set.
 type Service interface {
 	// List returns every registered tool. Empty result is valid (no
 	// tools registered).
