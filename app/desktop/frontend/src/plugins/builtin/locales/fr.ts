@@ -1,4 +1,4 @@
-import { fr } from "@/lib/locales/fr";
+import { fr } from "@/lib/i18n/locales/fr";
 import { definePlugin } from "@/plugins/sdk";
 
 export const localeFr = definePlugin({

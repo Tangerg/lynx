@@ -14,7 +14,12 @@ import type { Message } from "@/protocol/agui/viewState";
 import type { ReactNode } from "react";
 import * as ContextMenu from "@radix-ui/react-context-menu";
 import { Icon } from "@/components/common";
-import { flattenCode, flattenMarkdown, flattenText, writeToClipboard } from "@/lib/messageContent";
+import {
+  flattenCode,
+  flattenMarkdown,
+  flattenText,
+  writeToClipboard,
+} from "@/lib/agent/messageContent";
 import { getCurrentSessionView, useAgentStore } from "@/state/agentStore";
 import { useComposerStore } from "@/state/composerStore";
 import { useSessionStore } from "@/state/sessionStore";

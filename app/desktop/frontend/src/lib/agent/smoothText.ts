@@ -5,7 +5,7 @@
 // so the visible cadence stays on-target through vsync jitter.
 
 import { useEffect, useRef, useState } from "react";
-import { segmentWords } from "./segmentWords";
+import { segmentWords } from "@/lib/i18n/segmentWords";
 
 // Rates in chars/sec. The visible cadence picks one based on backlog and
 // whether the source is still streaming.

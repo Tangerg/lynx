@@ -6,7 +6,7 @@
 
 import type { ToolPreviewProps } from "@/plugins/sdk";
 import { PreviewFoot } from "@/components/tools/previews/PreviewFoot";
-import { useDiff, useFileHead, useGrep, useTerminal } from "@/lib/queries";
+import { useDiff, useFileHead, useGrep, useTerminal } from "@/lib/data/queries";
 import { cn } from "@/lib/utils";
 import { definePlugin } from "@/plugins/sdk";
 

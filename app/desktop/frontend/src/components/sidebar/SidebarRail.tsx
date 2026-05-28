@@ -11,7 +11,7 @@
 // to the bottom" should leave a flex spacer or set its own
 // `margin-top: auto`.
 
-import type { SidebarSession } from "@/lib/queries";
+import type { SidebarSession } from "@/lib/data/queries";
 import { DragStrip, Icon, IconButton, Panel } from "@/components/common";
 import { useT } from "@/lib/i18n";
 import { PluginBoundary } from "@/plugins/PluginBoundary";

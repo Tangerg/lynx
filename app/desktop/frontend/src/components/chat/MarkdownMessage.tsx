@@ -11,11 +11,11 @@ import remarkMath from "remark-math";
 import remend from "remend";
 import { parseMarkdownIntoBlocks } from "streamdown";
 import { markdownComponents } from "@/components/chat/markdownComponents";
-import { ensureKatexCss } from "@/lib/katexCss";
+import { ensureKatexCss } from "@/lib/markdown/katexCss";
 import { measureMarkdownRepair } from "@/lib/metrics";
-import { rehypeCitations } from "@/lib/rehypeCitations";
-import { rehypeFadeIn } from "@/lib/rehypeFadeIn";
-import { useSmoothText } from "@/lib/smoothText";
+import { rehypeCitations } from "@/lib/markdown/rehypeCitations";
+import { rehypeFadeIn } from "@/lib/markdown/rehypeFadeIn";
+import { useSmoothText } from "@/lib/agent/smoothText";
 import "remark-github-blockquote-alert/alert.css";
 
 interface Props {

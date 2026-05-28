@@ -7,7 +7,12 @@
 
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { Icon, Tooltip } from "@/components/common";
-import { flattenCode, flattenMarkdown, flattenText, writeToClipboard } from "@/lib/messageContent";
+import {
+  flattenCode,
+  flattenMarkdown,
+  flattenText,
+  writeToClipboard,
+} from "@/lib/agent/messageContent";
 import { definePlugin, useCurrentMessage } from "@/plugins/sdk";
 import { getCurrentSessionView, useAgentAction } from "@/state/agentStore";
 import { useComposerStore } from "@/state/composerStore";

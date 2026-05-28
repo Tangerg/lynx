@@ -1,4 +1,4 @@
-import { zh } from "@/lib/locales/zh";
+import { zh } from "@/lib/i18n/locales/zh";
 import { definePlugin } from "@/plugins/sdk";
 
 export const localeZh = definePlugin({

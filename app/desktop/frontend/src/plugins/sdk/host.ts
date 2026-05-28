@@ -42,7 +42,7 @@ import type {
   WorkspaceViewSpec,
 } from "./types";
 import type { ContentBlockKind } from "@/protocol/agui/viewState";
-import { api } from "@/lib/http";
+import { api } from "@/lib/data/http";
 import { addLocaleBundle } from "@/lib/i18n";
 import { useSessionStore } from "@/state/sessionStore";
 import { startTask } from "@/state/tasksStore";

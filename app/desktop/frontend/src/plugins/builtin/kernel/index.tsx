@@ -7,7 +7,7 @@
 import { ChatPanel } from "@/components/chat/ChatPanel";
 import { SettingsPage } from "@/components/settings/SettingsPage";
 import { SidebarPanel } from "@/components/sidebar/SidebarPanel";
-import { useSessions } from "@/lib/queries";
+import { useSessions } from "@/lib/data/queries";
 import { definePlugin } from "@/plugins/sdk";
 import { useSessionStore } from "@/state/sessionStore";
 import { useUiStore } from "@/state/uiStore";

@@ -1,7 +1,7 @@
 import { DataView, Icon, IconButton, ScrollArea } from "@/components/common";
 import { McpRow } from "@/components/views/McpRow";
 import { ViewHeader } from "@/components/views/ViewHeader";
-import { useMCPServers } from "@/lib/queries";
+import { useMCPServers } from "@/lib/data/queries";
 import { definePlugin } from "@/plugins/sdk";
 
 const CONFIG_PATH = "~/.lyra/mcp.json";

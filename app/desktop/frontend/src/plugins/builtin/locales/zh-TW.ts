@@ -1,4 +1,4 @@
-import { zhTW } from "@/lib/locales/zh-TW";
+import { zhTW } from "@/lib/i18n/locales/zh-TW";
 import { definePlugin } from "@/plugins/sdk";
 
 export const localeZhTW = definePlugin({

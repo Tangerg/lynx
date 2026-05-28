@@ -1,7 +1,7 @@
-import type { SidebarSession } from "@/lib/queries";
+import type { SidebarSession } from "@/lib/data/queries";
 import { Icon, StatusDot } from "@/components/common";
 import { useT } from "@/lib/i18n";
-import { formatRelative } from "@/lib/relativeTime";
+import { formatRelative } from "@/lib/i18n/relativeTime";
 import { cn } from "@/lib/utils";
 
 interface Props {

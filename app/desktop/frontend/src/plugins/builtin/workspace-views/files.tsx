@@ -7,7 +7,7 @@
 import { DataView, Icon, IconButton, ScrollArea } from "@/components/common";
 import { FilesChanged } from "@/components/views/FilesChanged";
 import { ViewHeader } from "@/components/views/ViewHeader";
-import { useFilesChanged } from "@/lib/queries";
+import { useFilesChanged } from "@/lib/data/queries";
 import { definePlugin } from "@/plugins/sdk";
 import { useSessionStore } from "@/state/sessionStore";
 

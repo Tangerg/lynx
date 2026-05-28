@@ -6,7 +6,7 @@
 
 import type { Element, Root, Text } from "hast";
 import { visit } from "unist-util-visit";
-import { segmentWords } from "./segmentWords";
+import { segmentWords } from "@/lib/i18n/segmentWords";
 
 const SKIP_TAGS = new Set(["pre", "code", "script", "style"]);
 
