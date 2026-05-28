@@ -13,11 +13,12 @@
 // reconnect.
 
 import { create } from "zustand";
-import type { ServerCapabilities, ServerInfo } from "@/rpc";
+import type { ServerCapabilities } from "@/rpc";
 
 interface RuntimeState {
-  /** Server identity from `runtime.initialize` (or null pre-handshake). */
-  serverInfo: ServerInfo | null;
+  /** Server name + version (`{name, version}` from initialize result). */
+  serverName: string | null;
+  serverVersion: string | null;
   /** Negotiated protocol version (e.g. "2026-05-28"). */
   protocolVersion: string | null;
   /** What the server can do. Null before handshake. */
@@ -36,24 +37,24 @@ interface RuntimeState {
 }
 
 export const useRuntimeStore = create<RuntimeState>((set) => ({
-  serverInfo: null,
+  serverName: null,
+  serverVersion: null,
   protocolVersion: null,
   capabilities: null,
   setHandshake: (result) =>
     set({
-      serverInfo: {
-        serverInfo: result.serverInfo,
-        protocolVersion: result.protocolVersion,
-        capabilities: {
-          events: result.capabilities.events,
-          features: result.capabilities.features,
-          providers: result.capabilities.providers,
-        },
-      },
+      serverName: result.serverInfo.name,
+      serverVersion: result.serverInfo.version,
       protocolVersion: result.protocolVersion,
       capabilities: result.capabilities,
     }),
-  clear: () => set({ serverInfo: null, protocolVersion: null, capabilities: null }),
+  clear: () =>
+    set({
+      serverName: null,
+      serverVersion: null,
+      protocolVersion: null,
+      capabilities: null,
+    }),
 }));
 
 // ---------------------------------------------------------------------------

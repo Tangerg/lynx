@@ -37,14 +37,15 @@ describe("runtimeStore", () => {
     useRuntimeStore.getState().clear();
   });
 
-  it("starts empty with all selectors returning false", () => {
+  it("starts empty with all fields null", () => {
     const s = useRuntimeStore.getState();
-    expect(s.serverInfo).toBeNull();
+    expect(s.serverName).toBeNull();
+    expect(s.serverVersion).toBeNull();
     expect(s.capabilities).toBeNull();
     expect(s.protocolVersion).toBeNull();
   });
 
-  it("setHandshake populates serverInfo + capabilities + protocolVersion", () => {
+  it("setHandshake flattens InitializeResult into store fields", () => {
     useRuntimeStore.getState().setHandshake({
       protocolVersion: "2026-05-28",
       serverInfo: { name: "lyra-core", version: "0.8.1" },
@@ -53,7 +54,8 @@ describe("runtimeStore", () => {
 
     const s = useRuntimeStore.getState();
     expect(s.protocolVersion).toBe("2026-05-28");
-    expect(s.serverInfo?.serverInfo.name).toBe("lyra-core");
+    expect(s.serverName).toBe("lyra-core");
+    expect(s.serverVersion).toBe("0.8.1");
     expect(s.capabilities?.features.reasoning).toBe(true);
   });
 
@@ -64,8 +66,11 @@ describe("runtimeStore", () => {
       capabilities: makeCaps(),
     });
     useRuntimeStore.getState().clear();
-    expect(useRuntimeStore.getState().serverInfo).toBeNull();
-    expect(useRuntimeStore.getState().capabilities).toBeNull();
+    const s = useRuntimeStore.getState();
+    expect(s.serverName).toBeNull();
+    expect(s.serverVersion).toBeNull();
+    expect(s.capabilities).toBeNull();
+    expect(s.protocolVersion).toBeNull();
   });
 
   it("capabilities undefined pre-handshake (selectors default to false)", () => {
