@@ -36,6 +36,9 @@ type Server struct {
 	info     protocol.InitializeResponse
 	serverID string
 
+	localToken string
+	corsCfg    corsConfig
+
 	dispatcher *dispatch.Dispatcher
 	streams    *streamRegistry
 	clients    *clientRegistry
@@ -47,7 +50,7 @@ type Server struct {
 
 // Config bundles construction inputs.
 type Config struct {
-	// API is the Runtime implementation. Required.
+	// Runtime is the Runtime implementation. Required.
 	Runtime protocol.Runtime
 
 	// Addr is the listen address (":8080", "127.0.0.1:0", ...). Required.
@@ -62,12 +65,23 @@ type Config struct {
 	// ServerID identifies this process in X-Lyra-Server response
 	// header. Defaults to ServerInfo.Name + "/" + ServerInfo.Version.
 	ServerID string
+
+	// LocalToken, when non-empty, gates every POST /v1/rpc/* with
+	// `Authorization: Bearer <LocalToken>`. Sidecars and the SSE
+	// stream bypass (TRANSPORT.md §4.3 mirrors FE's withCredentials:
+	// false EventSource). Empty disables the gate — tests + same-
+	// origin TUI scenarios.
+	LocalToken string
+
+	// CORSOrigins is the exact-match origin allowlist; "*" is honoured
+	// (without credentials). Empty disables CORS — same-origin only.
+	CORSOrigins []string
 }
 
 // NewServer assembles a Server.
 func NewServer(cfg Config) (*Server, error) {
 	if cfg.Runtime == nil {
-		return nil, errors.New("http: API is required")
+		return nil, errors.New("http: Runtime is required")
 	}
 	if cfg.Addr == "" {
 		return nil, errors.New("http: Addr is required")
@@ -83,6 +97,8 @@ func NewServer(cfg Config) (*Server, error) {
 		api:        cfg.Runtime,
 		addr:       cfg.Addr,
 		serverID:   serverID,
+		localToken: cfg.LocalToken,
+		corsCfg:    corsConfig{origins: cfg.CORSOrigins},
 		dispatcher: dispatch.New(cfg.Runtime),
 		streams:    newStreamRegistry(),
 		clients:    newClientRegistry(),
@@ -97,6 +113,15 @@ func NewServer(cfg Config) (*Server, error) {
 // Handler returns the routed handler — exposed so tests can drive it
 // with httptest.NewServer without going through Start. Each call
 // builds a fresh mux so concurrent tests don't share state.
+//
+// Middleware order (outer → inner):
+//
+//	observability → cors → authGate → mux
+//
+// observability outermost so every request (including CORS preflight
+// and 401) is logged; cors before authGate so OPTIONS preflights
+// resolve without a token; authGate before mux so unauth requests
+// never touch handlers.
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 
@@ -113,7 +138,7 @@ func (s *Server) Handler() http.Handler {
 	// Streaming notifications (SSE).
 	mux.HandleFunc("GET /v1/rpc/stream", s.handleStream)
 
-	return s.observability(mux)
+	return s.observability(s.cors(s.authGate(mux)))
 }
 
 // Start binds the listen address and serves until Shutdown is called.

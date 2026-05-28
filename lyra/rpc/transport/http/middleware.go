@@ -9,24 +9,25 @@ import (
 // observability wraps the mux with a single middleware layer that
 // implements the API.md §10 contract:
 //
-//   - structured log line per request (method / id / duration_ms /
-//     error_code / bytes_in / bytes_out / trace_id)
-//   - X-Lyra-Server header on every response (the handlers add
-//     X-Lyra-Method themselves once they know the method)
+//   - structured log line for any 4xx/5xx response (path / method /
+//     status / duration_ms / bytes_out / trace_id) — 2xx stays
+//     quiet to keep stdout usable in TUI scenarios
 //   - panic recovery with a flat 500 envelope so the runtime
 //     survives a misbehaving handler
 //
 // Today the structured log goes through the stdlib logger; a follow-
-// up wire it into Lyra's tracing package once that's settled.
+// up wires it into Lyra's tracing package once that's settled.
 func (s *Server) observability(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 
 		rec := &recordingResponseWriter{ResponseWriter: w, status: http.StatusOK}
 		defer func() {
-			if rec.status >= 500 {
-				log.Printf("lyra-http path=%s status=%d duration_ms=%d bytes_out=%d",
-					r.URL.Path, rec.status, time.Since(start).Milliseconds(), rec.bytes)
+			if rec.status >= 400 {
+				traceID := r.Header.Get("X-Lyra-Trace-Id")
+				log.Printf("lyra-http path=%s http_method=%s status=%d duration_ms=%d bytes_out=%d trace_id=%q",
+					r.URL.Path, r.Method, rec.status,
+					time.Since(start).Milliseconds(), rec.bytes, traceID)
 			}
 		}()
 
