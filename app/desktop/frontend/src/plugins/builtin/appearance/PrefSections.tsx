@@ -34,6 +34,9 @@ export function MessageStyleSection() {
           <button
             key={s}
             type="button"
+            // ARIA Authoring Practices radiogroup pattern — native <input
+            // type="radio"> can't be styled as a segmented control.
+            // eslint-disable-next-line jsx-a11y/prefer-tag-over-role
             role="radio"
             aria-checked={messageStyle === s}
             onClick={() => setMessageStyle(s)}

@@ -38,10 +38,9 @@ export function SkeletonList({
   label?: string;
 }) {
   return (
-    <div
+    <output
       className="flex flex-col gap-2 px-3 py-2"
       style={style}
-      role="status"
       aria-busy="true"
       aria-live="polite"
     >
@@ -49,6 +48,6 @@ export function SkeletonList({
       {Array.from({ length: count }, (_, i) => (
         <SkeletonRow key={i} />
       ))}
-    </div>
+    </output>
   );
 }

@@ -36,6 +36,7 @@ function CustomAccentPicker({
           opens the OS color picker. */}
       <input
         type="color"
+        aria-label="Custom accent color"
         value={value}
         onChange={(e) => onChange(e.target.value)}
         className="absolute inset-0 h-full w-full cursor-pointer opacity-0"

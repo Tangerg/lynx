@@ -39,6 +39,6 @@ describe("MemoryTransport", () => {
     await t.close();
     const result = await iter.next();
     expect(result.done).toBe(true);
-    await expect(t.send({ jsonrpc: JSONRPC_VERSION, method: "x" })).rejects.toThrow();
+    await expect(t.send({ jsonrpc: JSONRPC_VERSION, method: "x" })).rejects.toThrow(/closed/);
   });
 });

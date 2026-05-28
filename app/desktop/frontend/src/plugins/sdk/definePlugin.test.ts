@@ -99,9 +99,10 @@ describe("loadPlugin", () => {
       }),
     );
     expect(result.kind).toBe("skipped");
-    if (result.kind === "skipped") {
-      expect(result.reason).toMatch(/invalid apiVersion/);
-    }
+    // Narrow via assertion before unconditional expect — keeps the
+    // reason assertion non-conditional for vitest/no-conditional-expect.
+    if (result.kind !== "skipped") throw new Error("unreachable");
+    expect(result.reason).toMatch(/invalid apiVersion/);
   });
 });
 
@@ -201,9 +202,8 @@ describe("loadPlugins", () => {
     ]);
     const first = results[0]!;
     expect(first).toMatchObject({ kind: "skipped", name: "orphan" });
-    if (first.kind === "skipped") {
-      expect(first.reason).toMatch(/does-not-exist/);
-    }
+    if (first.kind !== "skipped") throw new Error("unreachable");
+    expect(first.reason).toMatch(/does-not-exist/);
   });
 
   it("skips every plugin participating in a dependency cycle", async () => {

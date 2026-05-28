@@ -53,6 +53,9 @@ function Segmented<T extends string | number>({
           <button
             key={String(opt.value)}
             type="button"
+            // ARIA Authoring Practices radiogroup pattern — native <input
+            // type="radio"> can't be styled as a segmented control.
+            // eslint-disable-next-line jsx-a11y/prefer-tag-over-role
             role="radio"
             aria-checked={active}
             onClick={() => onChange(opt.value)}

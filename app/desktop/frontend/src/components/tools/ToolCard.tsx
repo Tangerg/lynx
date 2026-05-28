@@ -47,9 +47,22 @@ export function ToolCard({ tool, selected, expanded, onToggleExpand, onOpenView 
         running && "running",
       )}
     >
+      {/* Header row contains nested <button> action affordances (run, view,
+          expand) — turning the row itself into a button would emit invalid
+          button-in-button HTML. Keep div + role + manual keyboard handling. */}
       <div
-        className="grid grid-cols-[28px_minmax(0,1fr)_auto_auto_auto] items-center gap-2.5 px-3 py-1.5"
+        // eslint-disable-next-line jsx-a11y/prefer-tag-over-role
+        role="button"
+        tabIndex={0}
+        aria-expanded={expanded}
+        className="grid grid-cols-[28px_minmax(0,1fr)_auto_auto_auto] items-center gap-2.5 px-3 py-1.5 focus-visible:outline-none focus-visible:shadow-[0_0_0_2px_var(--color-accent)]"
         onClick={onToggleExpand}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            onToggleExpand();
+          }
+        }}
       >
         <div
           className={cn(
