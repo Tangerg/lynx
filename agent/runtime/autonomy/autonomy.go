@@ -69,9 +69,18 @@ type Config struct {
 	GoalFilter func(*core.Agent, *core.Goal) bool
 }
 
+// platform is the narrow surface Autonomy needs from a runtime
+// platform: enumerate deployed agents and run one. *runtime.Platform
+// satisfies this implicitly — tests can pass a stub without
+// constructing a full Platform.
+type platform interface {
+	Agents() []*core.Agent
+	RunAgent(ctx context.Context, agent *core.Agent, bindings map[string]any, opts core.ProcessOptions) (*runtime.AgentProcess, error)
+}
+
 // Autonomy is the orchestrator. Construct with [New].
 type Autonomy struct {
-	platform *runtime.Platform
+	platform platform
 	ranker   Ranker
 	cfg      Config
 }
@@ -79,14 +88,18 @@ type Autonomy struct {
 // New returns an orchestrator backed by ranker. Both platform and
 // ranker are required; nil returns an error — caller decides whether
 // to surface or panic.
-func New(platform *runtime.Platform, ranker Ranker, cfg Config) (*Autonomy, error) {
-	if platform == nil {
+//
+// The platform parameter is still typed as *runtime.Platform so the
+// public API stays stable; internally we hold it through the narrow
+// [platform] interface above.
+func New(p *runtime.Platform, ranker Ranker, cfg Config) (*Autonomy, error) {
+	if p == nil {
 		return nil, errors.New("autonomy.New: platform must not be nil")
 	}
 	if ranker == nil {
 		return nil, errors.New("autonomy.New: ranker must not be nil")
 	}
-	return &Autonomy{platform: platform, ranker: ranker, cfg: cfg}, nil
+	return &Autonomy{platform: p, ranker: ranker, cfg: cfg}, nil
 }
 
 // Candidates enumerates the (agent, goal) pool currently visible to
