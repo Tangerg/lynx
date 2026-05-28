@@ -34,7 +34,7 @@ func (s *Server) observability(next http.Handler) http.Handler {
 		defer func() {
 			if rcv := recover(); rcv != nil {
 				log.Printf("lyra-http panic path=%s err=%v", r.URL.Path, rcv)
-				writeTransportError(w, http.StatusInternalServerError, "internal error")
+				writeTransportError(w, r, http.StatusInternalServerError, "internal error")
 			}
 		}()
 
