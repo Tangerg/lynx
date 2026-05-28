@@ -20,7 +20,7 @@ const heartbeatInterval = 15 * time.Second
 func (s *Server) handleStream(w http.ResponseWriter, r *http.Request) {
 	flusher, ok := w.(http.Flusher)
 	if !ok {
-		writeTransportError(w, http.StatusInternalServerError, "streaming unsupported")
+		writeTransportError(w, r, http.StatusInternalServerError, "streaming unsupported")
 		return
 	}
 

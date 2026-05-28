@@ -72,7 +72,7 @@ func (s *Server) authGate(next http.Handler) http.Handler {
 			return
 		}
 		if !validBearer(r.Header.Get("Authorization"), s.localToken) {
-			writeUnauthorized(w)
+			writeUnauthorized(w, r)
 			return
 		}
 		next.ServeHTTP(w, r)
@@ -106,12 +106,19 @@ func validBearer(header, expected string) bool {
 }
 
 // writeUnauthorized emits the exact body shape FE checks for (per
-// API.md §7.3): a flat `{"error":"missing_local_token"}`.
-func writeUnauthorized(w http.ResponseWriter) {
+// API.md §7.3): flat `{"error":"missing_local_token","traceId"?:...}`.
+// X-Lyra-Trace-Id from the request is echoed into `traceId` so
+// RpcTransportError on the FE side carries it through.
+func writeUnauthorized(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
 	w.WriteHeader(http.StatusUnauthorized)
-	_ = json.NewEncoder(w).Encode(struct {
-		Error string `json:"error"`
-	}{Error: "missing_local_token"})
+	body := struct {
+		Error   string `json:"error"`
+		TraceID string `json:"traceId,omitempty"`
+	}{Error: "missing_local_token"}
+	if r != nil {
+		body.TraceID = strings.TrimSpace(r.Header.Get("X-Lyra-Trace-Id"))
+	}
+	_ = json.NewEncoder(w).Encode(body)
 }

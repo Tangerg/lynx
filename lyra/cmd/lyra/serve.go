@@ -98,7 +98,8 @@ Stdio transport is intentionally not supported — see docs/API.md §1.1.`,
 			return a.runServer(cmd.Context(), httpServer, addr, token)
 		},
 	}
-	cmd.Flags().StringVar(&addr, "listen", ":8080", "HTTP bind address")
+	cmd.Flags().StringVar(&addr, "listen", "127.0.0.1:17171",
+		"HTTP bind address (matches frontend's default AGUI_BASE)")
 	cmd.Flags().StringVar(&localTokenPath, "local-token-path", "",
 		"path for the local-process gate token (default: $HOME/.lyra/local-token)")
 	cmd.Flags().BoolVar(&noLocalToken, "no-local-token", false,

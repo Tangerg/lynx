@@ -28,7 +28,7 @@ const maxRPCBodyBytes = 4 << 20
 func (s *Server) handleRPCWithMethod(w http.ResponseWriter, r *http.Request) {
 	urlMethod := r.PathValue("method")
 	if urlMethod == "" {
-		writeTransportError(w, http.StatusNotFound,
+		writeTransportError(w, r, http.StatusNotFound,
 			"POST /v1/rpc requires a method suffix (use /v1/rpc/{method})")
 		return
 	}
@@ -42,7 +42,7 @@ func (s *Server) handleRPCWithMethod(w http.ResponseWriter, r *http.Request) {
 func (s *Server) serveRPC(w http.ResponseWriter, r *http.Request, urlMethod string) {
 	body, err := io.ReadAll(io.LimitReader(r.Body, maxRPCBodyBytes))
 	if err != nil {
-		writeTransportError(w, http.StatusBadRequest, "read body: "+err.Error())
+		writeTransportError(w, r, http.StatusBadRequest, "read body: "+err.Error())
 		return
 	}
 
@@ -183,12 +183,20 @@ func chooseMethodLabel(urlMethod, bodyMethod string) string {
 // the JSON-RPC layer (request body could not be read, etc.). Per
 // API.md §7.3, these use a flat JSON envelope — NOT the JSON-RPC
 // envelope, since we may not have a valid request id.
-func writeTransportError(w http.ResponseWriter, status int, msg string) {
+//
+// X-Lyra-Trace-Id is echoed into the body as `traceId` so the FE's
+// RpcTransportError.traceId field gets populated for ops correlation.
+func writeTransportError(w http.ResponseWriter, r *http.Request, status int, msg string) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(struct {
-		Error string `json:"error"`
-	}{Error: msg})
+	body := struct {
+		Error   string `json:"error"`
+		TraceID string `json:"traceId,omitempty"`
+	}{Error: msg}
+	if r != nil {
+		body.TraceID = strings.TrimSpace(r.Header.Get("X-Lyra-Trace-Id"))
+	}
+	_ = json.NewEncoder(w).Encode(body)
 }
 
 // writeRPCError serves a JSON-RPC error envelope with an explicit
