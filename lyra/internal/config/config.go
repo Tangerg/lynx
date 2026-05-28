@@ -1,16 +1,11 @@
-// Package config loads Lyra's runtime configuration. M1 keeps the
-// shape minimal — just enough to pick a model provider and its API
-// key. Later milestones extend with permission mode, sandbox profile,
-// MCP server list, etc.
+// Package config loads Lyra's runtime configuration.
 //
 // Configuration sources (later overrides earlier):
 //
 //  1. Built-in defaults
-//  2. ~/.lyra/config.toml (when present)
+//  2. ~/.lyra/config.toml (when present — not implemented yet)
 //  3. Environment variables (LYRA_*)
 //  4. CLI flags (resolved by cmd/lyra)
-//
-// M1 implements 1 + 3 only — TOML loading lands in M2.
 package config
 
 import (
@@ -18,6 +13,8 @@ import (
 	"fmt"
 	"os"
 	"strings"
+
+	"github.com/Tangerg/lynx/lyra/internal/engine"
 )
 
 // Provider enumerates the LLM provider Lyra talks to. M1 ships the
@@ -54,44 +51,14 @@ type Config struct {
 	// MCPServers is the parsed list of external MCP servers the
 	// engine dials at startup. Tools from each server merge into
 	// the engine's tool set under the server's Name as prefix.
-	// Empty disables MCP integration.
-	MCPServers []MCPServer
+	// Empty disables MCP integration. Stored directly in the
+	// engine's wire format so no bridge layer is needed.
+	MCPServers []engine.MCPServer
 
 	// Storage selects the persistence backend for session +
 	// memory services. Defaults to StorageFile — set LYRA_STORAGE
 	// to "sqlite" to use the SQLite backend instead.
 	Storage StorageKind
-}
-
-// MCPTransport mirrors engine.MCPTransport in shape; we keep our
-// own enum here so the config package stays independent of engine.
-type MCPTransport int
-
-const (
-	MCPTransportHTTP MCPTransport = iota + 1
-	MCPTransportStdio
-)
-
-// MCPServer is one parsed entry from LYRA_MCP_SERVERS. The wire
-// syntax is a discriminated union:
-//
-//	HTTP:  name=https://mcp.example.com/
-//	stdio: name=stdio:command arg1 arg2 ...
-//
-// `stdio:` is a literal prefix on the value; the remainder is the
-// command + args split by whitespace (no shell interpolation).
-// Use a TOML config (planned) for env var injection or complex
-// argument lists.
-type MCPServer struct {
-	Name      string
-	Transport MCPTransport
-
-	// HTTP-only.
-	Endpoint string
-
-	// Stdio-only.
-	Command string
-	Args    []string
 }
 
 // OnlineConfig groups the credentials needed by network-reaching
@@ -179,12 +146,12 @@ func Load() (Config, error) {
 //	LYRA_MCP_SERVERS="github=https://mcp.github.com/,\
 //	  fs=stdio:npx -y @modelcontextprotocol/server-filesystem /workspace,\
 //	  time=stdio:uvx mcp-server-time"
-func parseMCPServers(raw string) ([]MCPServer, error) {
+func parseMCPServers(raw string) ([]engine.MCPServer, error) {
 	if raw == "" {
 		return nil, nil
 	}
 	parts := strings.Split(raw, ",")
-	out := make([]MCPServer, 0, len(parts))
+	out := make([]engine.MCPServer, 0, len(parts))
 	for _, p := range parts {
 		p = strings.TrimSpace(p)
 		if p == "" {
@@ -216,26 +183,26 @@ func parseMCPServers(raw string) ([]MCPServer, error) {
 // convention — anything else must look like an HTTP(S) URL (we
 // only sanity-check the scheme so the typo "stido:" stops here
 // rather than turning into a stalled HTTP dial).
-func parseMCPServerValue(name, value string) (MCPServer, error) {
+func parseMCPServerValue(name, value string) (engine.MCPServer, error) {
 	if rest, ok := strings.CutPrefix(value, "stdio:"); ok {
 		rest = strings.TrimSpace(rest)
 		if rest == "" {
-			return MCPServer{}, fmt.Errorf("stdio: command is empty")
+			return engine.MCPServer{}, fmt.Errorf("stdio: command is empty")
 		}
 		fields := strings.Fields(rest)
-		return MCPServer{
+		return engine.MCPServer{
 			Name:      name,
-			Transport: MCPTransportStdio,
+			Transport: engine.MCPTransportStdio,
 			Command:   fields[0],
 			Args:      fields[1:],
 		}, nil
 	}
 	if !strings.HasPrefix(value, "http://") && !strings.HasPrefix(value, "https://") {
-		return MCPServer{}, fmt.Errorf("expected http(s):// URL or stdio: prefix, got %q", value)
+		return engine.MCPServer{}, fmt.Errorf("expected http(s):// URL or stdio: prefix, got %q", value)
 	}
-	return MCPServer{
+	return engine.MCPServer{
 		Name:      name,
-		Transport: MCPTransportHTTP,
+		Transport: engine.MCPTransportHTTP,
 		Endpoint:  value,
 	}, nil
 }
