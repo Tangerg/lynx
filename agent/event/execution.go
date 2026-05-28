@@ -17,10 +17,6 @@ type ActionExecutionStart struct {
 
 func (ActionExecutionStart) EventName() string { return "action_execution_start" }
 
-func (e ActionExecutionStart) MarshalJSON() ([]byte, error) {
-	return emit(e, map[string]any{"action": actionName(e.Action), "started_at": e.StartedAt})
-}
-
 // ActionExecutionResult fires after an action's retry loop
 // terminates — Status carries the final outcome, Err the last error
 // (may be nil on success).
@@ -34,15 +30,6 @@ type ActionExecutionResult struct {
 
 func (ActionExecutionResult) EventName() string { return "action_execution_result" }
 
-func (e ActionExecutionResult) MarshalJSON() ([]byte, error) {
-	return emit(e, map[string]any{
-		"action":      actionName(e.Action),
-		"status":      e.Status.String(),
-		"duration_ns": e.Duration.Nanoseconds(),
-		"error":       errString(e.Err),
-	})
-}
-
 // GoalAchieved fires when the planner returns an empty plan for a
 // non-nil goal (i.e. preconditions are already satisfied).
 type GoalAchieved struct {
@@ -51,7 +38,3 @@ type GoalAchieved struct {
 }
 
 func (GoalAchieved) EventName() string { return "goal_achieved" }
-
-func (e GoalAchieved) MarshalJSON() ([]byte, error) {
-	return emit(e, map[string]any{"goal": summarizeGoal(e.Goal)})
-}
