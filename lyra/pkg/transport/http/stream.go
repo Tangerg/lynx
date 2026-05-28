@@ -1,7 +1,6 @@
 package http
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
@@ -36,7 +35,7 @@ func (s *Server) handleStream(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 
 	client := &clientConn{
-		send: make(chan *transport.Message, 64),
+		send: make(chan transport.Message, 64),
 		done: make(chan struct{}),
 	}
 	dereg := s.clients.register(client)
@@ -102,8 +101,8 @@ func (s *Server) replay(w http.ResponseWriter, flusher http.Flusher, lastEventID
 // writeSSE marshals msg as a single SSE frame. Notifications get an
 // `id:` line when their params carry a stream eventId so client
 // EventSource can resume on reconnect.
-func writeSSE(w http.ResponseWriter, msg interface{}) error {
-	body, err := json.Marshal(msg)
+func writeSSE(w http.ResponseWriter, msg transport.Message) error {
+	body, err := transport.EncodeMessage(msg)
 	if err != nil {
 		return err
 	}
@@ -114,8 +113,8 @@ func writeSSE(w http.ResponseWriter, msg interface{}) error {
 }
 
 // writeSSEWithID is like writeSSE but stamps the SSE id field.
-func writeSSEWithID(w http.ResponseWriter, eventID string, msg interface{}) error {
-	body, err := json.Marshal(msg)
+func writeSSEWithID(w http.ResponseWriter, eventID string, msg transport.Message) error {
+	body, err := transport.EncodeMessage(msg)
 	if err != nil {
 		return err
 	}

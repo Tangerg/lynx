@@ -37,7 +37,7 @@ import (
 type Transport struct {
 	dispatcher *rpcadapter.Dispatcher
 
-	in    chan *transport.Message // outbound from Runtime's POV → inbound to client
+	in    chan transport.Message // outbound from Runtime's POV → inbound to client
 	once  sync.Once
 	close chan struct{}
 	gone  atomic.Bool
@@ -66,7 +66,7 @@ func NewTransport(cfg Config) (*Transport, error) {
 	}
 	return &Transport{
 		dispatcher: rpcadapter.New(cfg.API),
-		in:         make(chan *transport.Message, cfg.RecvBuffer),
+		in:         make(chan transport.Message, cfg.RecvBuffer),
 		close:      make(chan struct{}),
 	}, nil
 }
@@ -74,7 +74,7 @@ func NewTransport(cfg Config) (*Transport, error) {
 // Send dispatches one outbound message through the rpcadapter. For
 // streaming methods (runs.start, ...), the resulting events are
 // piped onto the Recv channel as notifications/run/event entries.
-func (t *Transport) Send(ctx context.Context, msg *transport.Message) error {
+func (t *Transport) Send(ctx context.Context, msg transport.Message) error {
 	if t.gone.Load() {
 		return errors.New("inprocess: transport closed")
 	}
@@ -125,7 +125,7 @@ func (t *Transport) pumpStream(ctx context.Context, runID string, events <-chan 
 	}
 }
 
-func (t *Transport) tryEmit(msg *transport.Message) bool {
+func (t *Transport) tryEmit(msg transport.Message) bool {
 	if msg == nil {
 		return true
 	}
@@ -138,7 +138,7 @@ func (t *Transport) tryEmit(msg *transport.Message) bool {
 }
 
 // Recv returns the inbound channel — responses + notifications.
-func (t *Transport) Recv() <-chan *transport.Message { return t.in }
+func (t *Transport) Recv() <-chan transport.Message { return t.in }
 
 // Close drains pending sends and closes the Recv channel. Idempotent.
 func (t *Transport) Close() error {

@@ -33,11 +33,9 @@ func TestInProcessRoundtrip(t *testing.T) {
 	}
 	defer tp.Close()
 
-	req := &transport.Message{
-		JSONRPC: transport.JSONRPCVersion,
-		ID:      json.RawMessage(`1`),
-		Method:  "runtime.initialize",
-		Params:  json.RawMessage(`{}`),
+	req, err := transport.NewCall(1, "runtime.initialize", map[string]any{})
+	if err != nil {
+		t.Fatalf("NewCall: %v", err)
 	}
 	if err := tp.Send(context.Background(), req); err != nil {
 		t.Fatalf("Send: %v", err)
@@ -45,11 +43,15 @@ func TestInProcessRoundtrip(t *testing.T) {
 
 	select {
 	case msg := <-tp.Recv():
-		if msg.Error != nil {
-			t.Fatalf("got error envelope: %+v", msg.Error)
+		resp, ok := msg.(*transport.Response)
+		if !ok {
+			t.Fatalf("expected *Response, got %T", msg)
 		}
-		if !contains(msg.Result, "2026-05-28") {
-			t.Fatalf("missing protocolVersion in result: %s", string(msg.Result))
+		if resp.Error != nil {
+			t.Fatalf("got error envelope: %+v", resp.Error)
+		}
+		if !contains(resp.Result, "2026-05-28") {
+			t.Fatalf("missing protocolVersion in result: %s", string(resp.Result))
 		}
 	case <-time.After(1 * time.Second):
 		t.Fatal("timeout waiting for response")
@@ -66,29 +68,30 @@ func TestInProcessUnknownMethod(t *testing.T) {
 	defer tp.Close()
 
 	// Initialize first so the gate doesn't fire.
-	_ = tp.Send(context.Background(), &transport.Message{
-		JSONRPC: transport.JSONRPCVersion,
-		ID:      json.RawMessage(`1`),
-		Method:  "runtime.initialize",
-	})
+	initReq, _ := transport.NewCall(1, "runtime.initialize", nil)
+	_ = tp.Send(context.Background(), initReq)
 	<-tp.Recv()
 
 	// Now a method the fakeAPI doesn't declare — falls through to
 	// the dispatcher's default branch.
-	bogus := &transport.Message{
-		JSONRPC: transport.JSONRPCVersion,
-		ID:      json.RawMessage(`2`),
-		Method:  "totally.bogus",
-	}
+	bogus, _ := transport.NewCall(2, "totally.bogus", nil)
 	_ = tp.Send(context.Background(), bogus)
 
 	select {
 	case msg := <-tp.Recv():
-		if msg.Error == nil {
+		resp, ok := msg.(*transport.Response)
+		if !ok {
+			t.Fatalf("expected *Response, got %T", msg)
+		}
+		if resp.Error == nil {
 			t.Fatal("expected error envelope")
 		}
-		if msg.Error.Code != transport.CodeMethodNotFound {
-			t.Fatalf("error.code = %d, want %d", msg.Error.Code, transport.CodeMethodNotFound)
+		rpcErr, ok := resp.Error.(*transport.Error)
+		if !ok {
+			t.Fatalf("Error is %T, want *transport.Error", resp.Error)
+		}
+		if rpcErr.Code != transport.CodeMethodNotFound {
+			t.Fatalf("error.code = %d, want %d", rpcErr.Code, transport.CodeMethodNotFound)
 		}
 	case <-time.After(1 * time.Second):
 		t.Fatal("timeout waiting for response")

@@ -35,6 +35,9 @@ func (s *Server) handleRPCWithMethod(w http.ResponseWriter, r *http.Request) {
 }
 
 // serveRPC reads, dispatches, and serialises one JSON-RPC message.
+// Wire encode/decode goes through transport.DecodeMessage /
+// EncodeMessage — those wrap the MCP SDK's jsonrpc package, which
+// owns the conformant JSON-RPC 2.0 implementation.
 func (s *Server) serveRPC(w http.ResponseWriter, r *http.Request, urlMethod string) {
 	body, err := io.ReadAll(io.LimitReader(r.Body, maxRPCBodyBytes))
 	if err != nil {
@@ -42,23 +45,30 @@ func (s *Server) serveRPC(w http.ResponseWriter, r *http.Request, urlMethod stri
 		return
 	}
 
-	var msg transport.Message
-	if err := json.Unmarshal(body, &msg); err != nil {
-		writeRPCError(w, http.StatusBadRequest, nil,
+	msg, err := transport.DecodeMessage(body)
+	if err != nil {
+		writeRPCError(w, http.StatusBadRequest, transport.ID{},
 			transport.NewError(transport.CodeParseError,
-				marshalProblem("invalid JSON: "+err.Error())))
+				marshalProblem("invalid JSON-RPC envelope: "+err.Error())))
 		return
 	}
 
-	res := s.dispatcher.Handle(r.Context(), &msg, urlMethod)
+	res := s.dispatcher.Handle(r.Context(), msg, urlMethod)
+
+	// Surface the body's method (if any) for the X-Lyra-Method header.
+	// Only Request envelopes carry Method; Responses don't.
+	bodyMethod := ""
+	if req, ok := msg.(*transport.Request); ok {
+		bodyMethod = req.Method
+	}
 
 	// Notifications get 204 No Content per API.md §7.3.
 	if res.Response == nil {
 		w.Header().Set("X-Lyra-Server", s.serverID)
 		if urlMethod != "" {
 			w.Header().Set("X-Lyra-Method", urlMethod)
-		} else if msg.Method != "" {
-			w.Header().Set("X-Lyra-Method", msg.Method)
+		} else if bodyMethod != "" {
+			w.Header().Set("X-Lyra-Method", bodyMethod)
 		}
 		echoTraceID(w, r)
 		if res.EventStream != nil {
@@ -76,16 +86,18 @@ func (s *Server) serveRPC(w http.ResponseWriter, r *http.Request, urlMethod stri
 	// Compute HTTP status (API.md §7.3): 200 by default, 404 on
 	// method-not-found, 409 on URL/body method mismatch, 400 on
 	// invalid request / parse error.
-	status := statusForRPC(res.Response, urlMethod, msg.Method)
+	status := statusForRPC(res.Response, urlMethod, bodyMethod)
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.Header().Set("X-Lyra-Server", s.serverID)
-	methodLabel := chooseMethodLabel(urlMethod, msg.Method)
+	methodLabel := chooseMethodLabel(urlMethod, bodyMethod)
 	if methodLabel != "" {
 		w.Header().Set("X-Lyra-Method", methodLabel)
 	}
 	echoTraceID(w, r)
 	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(res.Response)
+	if data, err := transport.EncodeMessage(res.Response); err == nil {
+		_, _ = w.Write(data)
+	}
 }
 
 // attachStream registers the AG-UI event stream with the per-stream
@@ -127,11 +139,17 @@ func (s *Server) attachStream(ctx context.Context, runID string, events <-chan c
 
 // statusForRPC translates a dispatcher response into an HTTP status
 // (API.md §7.3).
-func statusForRPC(resp *transport.Message, urlMethod, bodyMethod string) int {
+func statusForRPC(resp *transport.Response, urlMethod, bodyMethod string) int {
 	if resp == nil || resp.Error == nil {
 		return http.StatusOK
 	}
-	switch resp.Error.Code {
+	// resp.Error is `error` typed — but we always populate it with a
+	// *transport.Error. Cast to inspect the code.
+	rpcErr, ok := resp.Error.(*transport.Error)
+	if !ok {
+		return http.StatusInternalServerError
+	}
+	switch rpcErr.Code {
 	case transport.CodeParseError, transport.CodeInvalidRequest:
 		return http.StatusBadRequest
 	case transport.CodeMethodNotFound:
@@ -175,14 +193,13 @@ func writeTransportError(w http.ResponseWriter, status int, msg string) {
 // writeRPCError serves a JSON-RPC error envelope with an explicit
 // HTTP status. Used for parse errors where we successfully read the
 // body but couldn't decode it as a message.
-func writeRPCError(w http.ResponseWriter, status int, id json.RawMessage, rpcErr *transport.RPCError) {
+func writeRPCError(w http.ResponseWriter, status int, id transport.ID, rpcErr *transport.Error) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(transport.Message{
-		JSONRPC: transport.JSONRPCVersion,
-		ID:      id,
-		Error:   rpcErr,
-	})
+	resp := transport.NewResponseError(id, rpcErr)
+	if data, err := transport.EncodeMessage(resp); err == nil {
+		_, _ = w.Write(data)
+	}
 }
 
 // echoTraceID copies the client-supplied X-Lyra-Trace-Id into the

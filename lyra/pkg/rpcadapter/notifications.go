@@ -14,7 +14,7 @@ import (
 //
 // API.md v4 §3.1 cut: the older `streamHandle` field is gone — the
 // runId IS the stream identifier.
-func EncodeRunEvent(runID, eventID string, ev coreapi.AgUiEvent) (*transport.Message, error) {
+func EncodeRunEvent(runID, eventID string, ev coreapi.AgUiEvent) (transport.Message, error) {
 	if ev == nil {
 		return nil, fmt.Errorf("rpcadapter: nil ag-ui event")
 	}
@@ -22,35 +22,19 @@ func EncodeRunEvent(runID, eventID string, ev coreapi.AgUiEvent) (*transport.Mes
 	if err != nil {
 		return nil, fmt.Errorf("rpcadapter: encode ag-ui event: %w", err)
 	}
-	params, err := json.Marshal(coreapi.RunEvent{
+	return transport.NewNotification(NotificationRunEvent, coreapi.RunEvent{
 		RunID:   runID,
 		EventID: eventID,
-		Event:   body,
+		Event:   json.RawMessage(body),
 	})
-	if err != nil {
-		return nil, fmt.Errorf("rpcadapter: marshal run event params: %w", err)
-	}
-	return &transport.Message{
-		JSONRPC: transport.JSONRPCVersion,
-		Method:  NotificationRunEvent,
-		Params:  params,
-	}, nil
 }
 
 // EncodeRunClosed produces a notifications/run/closed terminator
 // (API.md §3.1). Carries the same runId clients used to filter
 // notifications/run/event.
-func EncodeRunClosed(runID, reason string) (*transport.Message, error) {
-	params, err := json.Marshal(struct {
+func EncodeRunClosed(runID, reason string) (transport.Message, error) {
+	return transport.NewNotification(NotificationRunClosed, struct {
 		RunID  string `json:"runId"`
 		Reason string `json:"reason,omitempty"`
 	}{RunID: runID, Reason: reason})
-	if err != nil {
-		return nil, fmt.Errorf("rpcadapter: marshal run closed params: %w", err)
-	}
-	return &transport.Message{
-		JSONRPC: transport.JSONRPCVersion,
-		Method:  NotificationRunClosed,
-		Params:  params,
-	}, nil
 }

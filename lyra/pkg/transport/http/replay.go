@@ -15,7 +15,7 @@ const replayWindow = 30 * time.Second
 // streamRecord is one buffered notification waiting for replay.
 type streamRecord struct {
 	eventID string
-	msg     *transport.Message
+	msg     transport.Message
 	at      time.Time
 }
 
