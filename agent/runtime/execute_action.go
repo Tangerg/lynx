@@ -203,17 +203,21 @@ func (p *AgentProcess) recordActionFailure(actionName string, err error) {
 // without exposing those types to ProcessContext consumers.
 func (p *AgentProcess) buildProcessContext(actionToolGroups []core.ToolGroupRequirement, action core.Action) *core.ProcessContext {
 	config := core.ProcessContextConfig{
-		Process:          p,
-		Blackboard:       p.blackboard,
-		Options:          p.options,
-		OutputChannel:    p.options.OutputChannel,
-		Services:         p.platformServices(),
-		ChatClient:       p.platformChatClient(),
-		Guardrails:       p.platformGuardrails(),
+		ProcessState: core.ProcessState{
+			Process:       p,
+			Blackboard:    p.blackboard,
+			Options:       p.options,
+			OutputChannel: p.options.OutputChannel,
+			Services:      p.platformServices(),
+		},
+		PlatformHooks: core.PlatformHooks{
+			ChatClient:     p.platformChatClient(),
+			Guardrails:     p.platformGuardrails(),
+			Publish:        p.publishAny,
+			ResolveTools:   p.toolResolverFor(action),
+			ToolCallCancel: p.signals.registerToolCallCancel,
+		},
 		ActionToolGroups: actionToolGroups,
-		Publish:          p.publishAny,
-		ToolCallCancel:   p.signals.registerToolCallCancel,
-		ResolveTools:     p.toolResolverFor(action),
 	}
 	return core.NewProcessContext(config)
 }

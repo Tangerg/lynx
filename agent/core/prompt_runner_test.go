@@ -15,7 +15,9 @@ import (
 func newPromptRunnerPC(t *testing.T, model chat.Model) *core.ProcessContext {
 	t.Helper()
 	return core.NewProcessContext(core.ProcessContextConfig{
-		ChatClient: newStubChatClient(t, model),
+		PlatformHooks: core.PlatformHooks{
+			ChatClient: newStubChatClient(t, model),
+		},
 	})
 }
 

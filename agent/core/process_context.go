@@ -36,35 +36,23 @@ type EventPublisher func(event any)
 // the parent ctx unchanged.
 type ToolCallCancelFunc func(cancel context.CancelFunc) (release func())
 
-// ProcessContextConfig is the runtime-internal input bundle for
-// [NewProcessContext]. The runtime fills it once per tick — keeping
-// the field-injection plumbing inside one constructor instead of
-// scattered setter methods on the public surface.
-//
-// Fields divide into three concerns:
-//
-//   - Per-process state (Process / Blackboard / Options /
-//     OutputChannel / Services) — flow through unchanged across
-//     ticks of the same process.
-//   - Platform-wired hooks (ChatClient / Guardrails / Publish /
-//     ResolveTools / ToolCallCancel) — installed by the platform
-//     at construction; same value for every tick.
-//   - Per-action state (ActionToolGroups) — refreshed at each
-//     tick from the currently-executing action.
-//
-// The struct stays flat for ease of construction at the single
-// caller (runtime/execute_action.go:buildProcessContext).
-type ProcessContextConfig struct {
-	// --- Per-process state (constant across a process's lifetime). ---
-
+// ProcessState bundles the per-process fields — constant across
+// every tick of the same process. The runtime carries one of these
+// per AgentProcess and threads it into the ProcessContext built at
+// each tick.
+type ProcessState struct {
 	Process       Process
 	Blackboard    Blackboard
 	Options       *ProcessOptions
 	OutputChannel OutputChannel
 	Services      *ServiceProvider
+}
 
-	// --- Platform-wired hooks (installed once at platform construction). ---
-
+// PlatformHooks bundles the platform-wired callbacks — installed
+// once at Platform construction time and reused across every tick
+// of every process. nil-safe at the ProcessContext methods that
+// consume them (e.g. Publish becomes a no-op when nil).
+type PlatformHooks struct {
 	// ChatClient is the shared LLM client surfaced to action bodies
 	// via [ProcessContext.Chat] and [ProcessContext.ChatWithActionTools].
 	// nil when the platform was constructed without one — pc.Chat()
@@ -90,8 +78,22 @@ type ProcessContextConfig struct {
 	// closure — single function rather than a register/clear pair so
 	// callers can't mismatch them.
 	ToolCallCancel ToolCallCancelFunc
+}
 
-	// --- Per-action state (refreshed every tick). ---
+// ProcessContextConfig is the runtime-internal input bundle for
+// [NewProcessContext]. The runtime fills it once per tick — keeping
+// the field-injection plumbing inside one constructor instead of
+// scattered setter methods on the public surface.
+//
+// Three concerns physically split via embedded sub-structs:
+//
+//   - [ProcessState]   — constant across a process's lifetime
+//   - [PlatformHooks]  — constant across the Platform's lifetime
+//   - ActionToolGroups — refreshed every tick from the
+//     currently-executing action's declared requirements
+type ProcessContextConfig struct {
+	ProcessState
+	PlatformHooks
 
 	// ActionToolGroups carries the currently-executing action's declared
 	// [ToolGroupRequirement]s, so [ProcessContext.ActionTools] can

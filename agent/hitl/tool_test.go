@@ -175,7 +175,7 @@ func (p *fakeProcess) AwaitInput(req core.Awaitable) core.ActionStatus {
 
 func TestHandlePause_RoutesPauseErrorToAwaitInput(t *testing.T) {
 	fp := &fakeProcess{}
-	pc := core.NewProcessContext(core.ProcessContextConfig{Process: fp})
+	pc := core.NewProcessContext(core.ProcessContextConfig{ProcessState: core.ProcessState{Process: fp}})
 
 	a := hitl.NewConfirmation("ok?", func(bool) core.ResponseImpact { return core.ImpactUnchanged })
 	pe := &hitl.PauseError{Request: a}
@@ -194,7 +194,7 @@ func TestHandlePause_RoutesPauseErrorToAwaitInput(t *testing.T) {
 
 func TestHandlePause_PassesThroughNonPauseError(t *testing.T) {
 	fp := &fakeProcess{}
-	pc := core.NewProcessContext(core.ProcessContextConfig{Process: fp})
+	pc := core.NewProcessContext(core.ProcessContextConfig{ProcessState: core.ProcessState{Process: fp}})
 
 	plain := errors.New("ordinary failure")
 	_, paused := hitl.HandlePause(pc, plain)

@@ -11,9 +11,11 @@ import (
 func TestTypedActionRejectsNilFunction(t *testing.T) {
 	action := core.NewAction[string, int]("nil-fn", nil, core.ActionConfig{})
 	processContext := core.NewProcessContext(core.ProcessContextConfig{
-		Blackboard: fakeBlackboard{
-			value: "hello",
-			ok:    true,
+		ProcessState: core.ProcessState{
+			Blackboard: fakeBlackboard{
+				value: "hello",
+				ok:    true,
+			},
 		},
 	})
 
@@ -31,7 +33,9 @@ func TestTypedActionReportsMissingInput(t *testing.T) {
 		core.ActionConfig{},
 	)
 	processContext := core.NewProcessContext(core.ProcessContextConfig{
-		Blackboard: fakeBlackboard{},
+		ProcessState: core.ProcessState{
+			Blackboard: fakeBlackboard{},
+		},
 	})
 
 	if got := action.Execute(t.Context(), processContext); got != core.ActionFailed {
@@ -48,9 +52,11 @@ func TestTypedActionReportsInputTypeMismatch(t *testing.T) {
 		core.ActionConfig{},
 	)
 	processContext := core.NewProcessContext(core.ProcessContextConfig{
-		Blackboard: fakeBlackboard{
-			value: 42,
-			ok:    true,
+		ProcessState: core.ProcessState{
+			Blackboard: fakeBlackboard{
+				value: 42,
+				ok:    true,
+			},
 		},
 	})
 
