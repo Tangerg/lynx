@@ -8,8 +8,10 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Tangerg/lynx/lyra/rpc/protocol"
+	"go.opentelemetry.io/otel/attribute"
+
 	"github.com/Tangerg/lynx/lyra/rpc/dispatch"
+	"github.com/Tangerg/lynx/lyra/rpc/protocol"
 	"github.com/Tangerg/lynx/lyra/rpc/transport"
 )
 
@@ -96,8 +98,17 @@ func (s *Server) serveRPC(w http.ResponseWriter, r *http.Request, urlMethod stri
 	}
 	echoTraceID(w, r)
 	w.WriteHeader(status)
-	if data, err := transport.EncodeMessage(res.Response); err == nil {
-		_, _ = w.Write(data)
+	data, err := transport.EncodeMessage(res.Response)
+	if err != nil {
+		recordError("rpc.encode-response", err,
+			attribute.String("lynx.lyra.method", methodLabel),
+		)
+		return
+	}
+	if _, err := w.Write(data); err != nil {
+		recordError("rpc.write-response", err,
+			attribute.String("lynx.lyra.method", methodLabel),
+		)
 	}
 }
 
@@ -115,8 +126,12 @@ func (s *Server) attachStream(ctx context.Context, runID string, events <-chan p
 			select {
 			case ev, ok := <-events:
 				if !ok {
-					closed, _ := dispatch.EncodeRunClosed(runID, "completed")
-					if closed != nil {
+					closed, err := dispatch.EncodeRunClosed(runID, "completed")
+					if err != nil {
+						recordError("rpc.encode-run-closed", err,
+							attribute.String("lynx.lyra.run_id", runID),
+						)
+					} else if closed != nil {
 						s.clients.broadcast(closed)
 					}
 					// Keep the buffer alive for the replay window;
@@ -127,6 +142,10 @@ func (s *Server) attachStream(ctx context.Context, runID string, events <-chan p
 				eventID := strconv.FormatUint(seq, 10)
 				notif, err := dispatch.EncodeRunEvent(runID, eventID, ev)
 				if err != nil {
+					recordError("rpc.encode-run-event", err,
+						attribute.String("lynx.lyra.run_id", runID),
+						attribute.String("lynx.lyra.event_id", eventID),
+					)
 					continue
 				}
 				buf.append(streamRecord{eventID: eventID, msg: notif, at: nowFn()})
