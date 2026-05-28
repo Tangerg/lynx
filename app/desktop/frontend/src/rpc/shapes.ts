@@ -6,6 +6,8 @@
 // derive from wire shapes via the AG-UI reducer; this file is the
 // upstream contract.
 
+import type { BaseEvent } from "@ag-ui/core";
+
 // ---------------------------------------------------------------------------
 // Lifecycle
 // ---------------------------------------------------------------------------
@@ -324,4 +326,33 @@ export interface FeedbackInput {
   kind: FeedbackKind;
   refId: string;
   value?: string;
+}
+
+// ---------------------------------------------------------------------------
+// Notification params (server → client streaming notifications)
+// ---------------------------------------------------------------------------
+
+export interface RunEventParams {
+  runId: string;
+  eventId: string;
+  event: BaseEvent;
+}
+
+export interface RunClosedParams {
+  runId: string;
+  reason?: string;
+}
+
+export interface TerminalOutputParams {
+  runId: string;
+  eventId: string;
+  line: TermLine;
+}
+
+export interface BackgroundUpdateParams {
+  taskId: string;
+  eventId: string;
+  status: BackgroundStatus;
+  progress?: number;
+  outputDelta?: string;
 }

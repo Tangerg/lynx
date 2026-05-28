@@ -5,11 +5,11 @@
 //
 // Streaming methods (runs.start / workspace.terminal.subscribe /
 // background.subscribe) return `{ result, events }` where `events` is
-// an AsyncIterable filtered by the streamHandle.
+// an AsyncIterable filtered by the resource id (runId / taskId). The
+// filter helpers live in `./stream`.
 
 import type { BaseEvent } from "@ag-ui/core";
 import type { RpcClient } from "./client";
-import { streamRunEvents } from "./events";
 import type {
   ApprovalSubmission,
   BackgroundTask,
@@ -42,6 +42,7 @@ import type {
   TermLine,
   ToolSpec,
 } from "./shapes";
+import { streamBackgroundUpdates, streamRunEvents, streamTerminalOutput } from "./stream";
 
 export interface StreamingResult<R, E> {
   result: R;
@@ -180,7 +181,7 @@ export function createMethods(client: RpcClient): Methods {
           );
           return {
             result,
-            events: createTerminalStream(client, result.runId, signal),
+            events: streamTerminalOutput(client, result.runId, signal),
           };
         },
       },
@@ -217,124 +218,12 @@ export function createMethods(client: RpcClient): Methods {
         );
         return {
           result,
-          events: createBackgroundStream(client, result.taskId, signal),
+          events: streamBackgroundUpdates(client, result.taskId, signal),
         };
       },
     },
     feedback: {
       submit: (input) => client.call<void>("feedback.submit", input),
-    },
-  };
-}
-
-// ---------------------------------------------------------------------------
-// Streaming helpers for non-run streams. Same shape as streamRunEvents,
-// just filtering different notification methods.
-// ---------------------------------------------------------------------------
-
-function createTerminalStream(
-  client: RpcClient,
-  runId: string,
-  signal?: AbortSignal,
-): AsyncIterable<TermLine> {
-  return makeStream<TermLine>(
-    client,
-    "runId",
-    runId,
-    "notifications/terminal/output",
-    "notifications/run/closed",
-    (params) => (params as { line: TermLine }).line,
-    signal,
-  );
-}
-
-function createBackgroundStream(
-  client: RpcClient,
-  taskId: string,
-  signal?: AbortSignal,
-): AsyncIterable<BackgroundUpdate> {
-  return makeStream<BackgroundUpdate>(
-    client,
-    "taskId",
-    taskId,
-    "notifications/background/update",
-    "notifications/background/update", // background stream closes via status=succeeded|failed|stopped in update itself
-    (params) => params as BackgroundUpdate,
-    signal,
-  );
-}
-
-// Generic streamer — terminal + background look identical except for
-// the id field name (runId vs taskId), notification method, and payload
-// shape. Filters notifications by the resource id field (greenfield:
-// no more `streamHandle` indirection, the resource id IS the stream id).
-function makeStream<T>(
-  client: RpcClient,
-  idField: "runId" | "taskId",
-  idValue: string,
-  notificationMethod: string,
-  closedMethod: string,
-  extract: (params: unknown) => T,
-  signal?: AbortSignal,
-): AsyncIterable<T> {
-  return {
-    [Symbol.asyncIterator]() {
-      const buffer: T[] = [];
-      let waiter: ((value: IteratorResult<T>) => void) | null = null;
-      let done = false;
-
-      const settleDone = () => {
-        if (done) return;
-        done = true;
-        if (waiter) {
-          const w = waiter;
-          waiter = null;
-          w({ value: undefined, done: true });
-        }
-      };
-
-      const unsubEvent = client.subscribe(notificationMethod, (msg) => {
-        if (done) return;
-        const params = msg.params as Record<string, unknown> | undefined;
-        if (params?.[idField] !== idValue) return;
-        const value = extract(params);
-        if (waiter) {
-          const w = waiter;
-          waiter = null;
-          w({ value, done: false });
-        } else {
-          buffer.push(value);
-        }
-      });
-
-      const unsubClosed = client.subscribe(closedMethod, (msg) => {
-        const params = msg.params as Record<string, unknown> | undefined;
-        if (params?.[idField] !== idValue) return;
-        settleDone();
-      });
-
-      const onAbort = () => settleDone();
-      if (signal) {
-        if (signal.aborted) settleDone();
-        else signal.addEventListener("abort", onAbort, { once: true });
-      }
-
-      return {
-        async next(): Promise<IteratorResult<T>> {
-          if (buffer.length > 0) return { value: buffer.shift()!, done: false };
-          if (done) return { value: undefined, done: true };
-          return new Promise<IteratorResult<T>>((resolve) => {
-            waiter = resolve;
-          });
-        },
-        async return(): Promise<IteratorResult<T>> {
-          settleDone();
-          unsubEvent();
-          unsubClosed();
-          if (signal) signal.removeEventListener("abort", onAbort);
-          return { value: undefined, done: true };
-        },
-      };
     },
   };
 }

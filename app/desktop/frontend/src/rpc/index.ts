@@ -14,16 +14,11 @@
 //
 // In tests, swap createHttpTransport with createMemoryTransport.
 
+export { createPushPullChannel } from "./channel";
+export type { PushPullChannel } from "./channel";
 export { createRpcClient } from "./client";
 export type { NotificationHandler, RpcClient } from "./client";
 export { RpcError, RpcTransportError } from "./errors";
-export { streamRunEvents } from "./events";
-export type {
-  BackgroundUpdateParams,
-  RunClosedParams,
-  RunEventParams,
-  TerminalOutputParams,
-} from "./events";
 export { createMethods } from "./methods";
 export type { Methods, StreamingResult } from "./methods";
 export type {
@@ -34,6 +29,7 @@ export type {
   BackgroundStatus,
   BackgroundTask,
   BackgroundUpdate,
+  BackgroundUpdateParams,
   ClientCapabilities,
   // Context / tools
   ContextItem,
@@ -51,6 +47,7 @@ export type {
   GrepResult,
   InitializeParams,
   InitializeResult,
+  JsonSchema,
   MCPServer,
   Message,
   MessageEditResult,
@@ -61,6 +58,9 @@ export type {
   Project,
   Provider,
   ProviderTestResult,
+  // Notification params (server → client streaming)
+  RunClosedParams,
+  RunEventParams,
   ServerCapabilities,
   // Sessions / messages
   Session,
@@ -71,11 +71,19 @@ export type {
   // Runs
   StartRunParams,
   StartRunResult,
+  TerminalOutputParams,
   TermLine,
   TermLineKind,
   ToolCall,
   ToolSpec,
 } from "./shapes";
+export {
+  makeFilteredStream,
+  streamBackgroundUpdates,
+  streamRunEvents,
+  streamTerminalOutput,
+} from "./stream";
+export type { FilteredStreamSpec } from "./stream";
 export { createSidecarClient } from "./sidecar";
 export type { HealthStatus, ServerInfo, SidecarClient, SidecarClientConfig } from "./sidecar";
 export { createHttpTransport } from "./transports/http";

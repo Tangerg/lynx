@@ -1,8 +1,10 @@
 // In-memory Transport for unit tests + future InProcess (Bubble Tea
-// would use a Go equivalent). Two queues: sent (outbound from client)
-// and recv (inbound to client). Test harnesses drive both sides by
-// pushing messages via `inject()` and reading via `outbox()`.
+// would use a Go equivalent). Backed by a push-pull async channel
+// (`channel.ts`) for the inbound side; `inject()` is just a thin alias
+// for `channel.push()`. Outbound side stores messages in an array that
+// tests inspect via `outbox()`.
 
+import { createPushPullChannel } from "../channel";
 import type { Transport } from "../transport";
 import type { RpcMessage } from "../types";
 
@@ -15,54 +17,20 @@ export interface MemoryTransport extends Transport {
 
 export function createMemoryTransport(): MemoryTransport {
   const sent: RpcMessage[] = [];
-  let waiters: Array<(msg: RpcMessage | typeof DONE) => void> = [];
-  const pending: RpcMessage[] = [];
-  let closed = false;
-
-  // Sentinel for end-of-stream (channel close).
-  const DONE = Symbol("memory-transport-done");
-  type Sentinel = typeof DONE;
-
-  function dispatch(msg: RpcMessage | Sentinel): void {
-    if (waiters.length > 0) {
-      const next = waiters.shift()!;
-      next(msg);
-    } else if (msg !== DONE) {
-      pending.push(msg);
-    }
-  }
-
-  async function* recv(): AsyncIterable<RpcMessage> {
-    while (!closed || pending.length > 0) {
-      const buffered = pending.shift();
-      if (buffered !== undefined) {
-        yield buffered;
-        continue;
-      }
-      const next = await new Promise<RpcMessage | Sentinel>((resolve) => {
-        waiters.push(resolve);
-      });
-      if (next === DONE) return;
-      yield next;
-    }
-  }
+  const channel = createPushPullChannel<RpcMessage>();
 
   return {
     async send(msg) {
-      if (closed) throw new Error("transport closed");
+      if (channel.closed) throw new Error("transport closed");
       sent.push(msg);
     },
-    recv,
+    recv: () => channel.iterator(),
     async close() {
-      closed = true;
-      // Wake any blocked recv() with the sentinel.
-      const pendingWaiters = waiters;
-      waiters = [];
-      for (const w of pendingWaiters) w(DONE);
+      channel.close();
     },
     inject(msg) {
-      if (closed) throw new Error("transport closed");
-      dispatch(msg);
+      if (channel.closed) throw new Error("transport closed");
+      channel.push(msg);
     },
     outbox() {
       return [...sent];
