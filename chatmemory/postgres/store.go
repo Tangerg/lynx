@@ -9,6 +9,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/Tangerg/lynx/chatmemory/internal/codec"
 	"github.com/Tangerg/lynx/chatmemory/internal/tracing"
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/core/model/chat/memory"
@@ -209,7 +210,7 @@ func (s *Store) Write(ctx context.Context, conversationID string, messages ...ch
 
 	batch := &pgx.Batch{}
 	for _, msg := range messages {
-		raw, err := encodeMessage(msg)
+		raw, err := codec.EncodeMessage(msg)
 		if err != nil {
 			return fmt.Errorf("postgres.Store.Write: encode message: %w", err)
 		}
@@ -274,28 +275,4 @@ func (s *Store) Clear(ctx context.Context, conversationID string) (err error) {
 		return fmt.Errorf("postgres.Store.Clear: %w", err)
 	}
 	return nil
-}
-
-// encodeMessage marshals msg to JSON via the message type's
-// MarshalJSON. nil-message safe (returns an error rather than
-// inserting "null").
-func encodeMessage(msg chat.Message) ([]byte, error) {
-	if msg == nil {
-		return nil, errors.New("message must not be nil")
-	}
-	// Each concrete chat.Message type implements MarshalJSON to emit
-	// the canonical MessageParams wire shape with a Type discriminator;
-	// chat.UnmarshalMessage decodes the same shape back.
-	switch m := msg.(type) {
-	case *chat.SystemMessage:
-		return m.MarshalJSON()
-	case *chat.UserMessage:
-		return m.MarshalJSON()
-	case *chat.AssistantMessage:
-		return m.MarshalJSON()
-	case *chat.ToolMessage:
-		return m.MarshalJSON()
-	default:
-		return nil, fmt.Errorf("unsupported message type %T", msg)
-	}
 }

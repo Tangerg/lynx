@@ -10,6 +10,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
+	"github.com/Tangerg/lynx/chatmemory/internal/codec"
 	"github.com/Tangerg/lynx/chatmemory/internal/tracing"
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/core/model/chat/memory"
@@ -78,7 +79,7 @@ func (s *Store) Write(ctx context.Context, conversationID string, messages ...ch
 	createdAt := now.Format(time.RFC3339Nano)
 
 	for i, msg := range messages {
-		raw, encErr := encodeMessage(msg)
+		raw, encErr := codec.EncodeMessage(msg)
 		if encErr != nil {
 			err = fmt.Errorf("cosmosdb.Store.Write: encode message: %w", encErr)
 			return err
@@ -183,22 +184,4 @@ func (s *Store) Clear(ctx context.Context, conversationID string) (err error) {
 		}
 	}
 	return nil
-}
-
-func encodeMessage(msg chat.Message) ([]byte, error) {
-	if msg == nil {
-		return nil, errors.New("message must not be nil")
-	}
-	switch m := msg.(type) {
-	case *chat.SystemMessage:
-		return m.MarshalJSON()
-	case *chat.UserMessage:
-		return m.MarshalJSON()
-	case *chat.AssistantMessage:
-		return m.MarshalJSON()
-	case *chat.ToolMessage:
-		return m.MarshalJSON()
-	default:
-		return nil, fmt.Errorf("unsupported message type %T", msg)
-	}
 }

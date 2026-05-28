@@ -8,6 +8,7 @@ import (
 
 	"github.com/gocql/gocql"
 
+	"github.com/Tangerg/lynx/chatmemory/internal/codec"
 	"github.com/Tangerg/lynx/chatmemory/internal/tracing"
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/core/model/chat/memory"
@@ -82,9 +83,9 @@ var _ memory.Store = (*Store)(nil)
 type Store struct {
 	session *gocql.Session
 
-	writeCQL string
-	readCQL  string
-	clearCQL string
+	writeCQL  string
+	readCQL   string
+	clearCQL  string
 	createCQL string
 }
 
@@ -139,7 +140,7 @@ func (s *Store) Write(ctx context.Context, conversationID string, messages ...ch
 	defer func() { tracing.Finish(span, err) }()
 
 	for _, msg := range messages {
-		raw, encErr := encodeMessage(msg)
+		raw, encErr := codec.EncodeMessage(msg)
 		if encErr != nil {
 			err = fmt.Errorf("cassandra.Store.Write: encode message: %w", encErr)
 			return err
@@ -193,22 +194,4 @@ func (s *Store) Clear(ctx context.Context, conversationID string) (err error) {
 		return fmt.Errorf("cassandra.Store.Clear: %w", err)
 	}
 	return nil
-}
-
-func encodeMessage(msg chat.Message) ([]byte, error) {
-	if msg == nil {
-		return nil, errors.New("message must not be nil")
-	}
-	switch m := msg.(type) {
-	case *chat.SystemMessage:
-		return m.MarshalJSON()
-	case *chat.UserMessage:
-		return m.MarshalJSON()
-	case *chat.AssistantMessage:
-		return m.MarshalJSON()
-	case *chat.ToolMessage:
-		return m.MarshalJSON()
-	default:
-		return nil, fmt.Errorf("unsupported message type %T", msg)
-	}
 }
