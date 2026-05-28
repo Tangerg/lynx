@@ -10,6 +10,7 @@
 
 import type { BaseEvent } from "@ag-ui/core";
 import type { RpcClient } from "./client";
+import type { AttachmentId, MessageId, RunId, SessionId, TaskId } from "./ids";
 import type {
   ApprovalSubmission,
   BackgroundTask,
@@ -60,26 +61,30 @@ export interface Methods {
       params: StartRunParams,
       signal?: AbortSignal,
     ) => Promise<StreamingResult<StartRunResult, BaseEvent>>;
-    cancel: (runId: string, reason?: string) => Promise<void>;
+    cancel: (runId: RunId, reason?: string) => Promise<void>;
     approval: {
       submit: (params: ApprovalSubmission) => Promise<void>;
     };
   };
   sessions: {
     list: (query?: PageQuery) => Promise<Page<Session>>;
-    get: (id: string) => Promise<Session>;
+    get: (id: SessionId) => Promise<Session>;
     create: (input: CreateSessionInput) => Promise<Session>;
-    update: (id: string, patch: SessionPatch) => Promise<Session>;
-    delete: (id: string) => Promise<void>;
+    update: (id: SessionId, patch: SessionPatch) => Promise<Session>;
+    delete: (id: SessionId) => Promise<void>;
     // Per PROTOCOL_ALIGNMENT v3: first arg is `parentId` (the source
     // session being forked), not `id` — `id` was ambiguous at callsite
     // ("which id, the new one or the source?").
-    fork: (parentId: string, atMessageId: string) => Promise<Session>;
-    export: (id: string, format: "md" | "json") => Promise<{ url: string }>;
+    fork: (parentId: SessionId, atMessageId: MessageId) => Promise<Session>;
+    export: (id: SessionId, format: "md" | "json") => Promise<{ url: string }>;
   };
   messages: {
-    list: (sessionId: string, query?: PageQuery) => Promise<Page<Message>>;
-    edit: (sessionId: string, messageId: string, content: string) => Promise<MessageEditResult>;
+    list: (sessionId: SessionId, query?: PageQuery) => Promise<Page<Message>>;
+    edit: (
+      sessionId: SessionId,
+      messageId: MessageId,
+      content: string,
+    ) => Promise<MessageEditResult>;
   };
   workspace: {
     filesChanged: () => Promise<FileChange[]>;
@@ -88,9 +93,9 @@ export interface Methods {
     grep: (query: string) => Promise<GrepResult>;
     terminal: {
       subscribe: (
-        runId: string,
+        runId: RunId,
         signal?: AbortSignal,
-      ) => Promise<StreamingResult<{ runId: string }, TermLine>>;
+      ) => Promise<StreamingResult<{ runId: RunId }, TermLine>>;
     };
     projects: () => Promise<Project[]>;
     mcp: {
@@ -112,15 +117,15 @@ export interface Methods {
   };
   attachments: {
     createUploadUrl: (input: CreateUploadUrlInput) => Promise<CreateUploadUrlResult>;
-    delete: (id: string) => Promise<void>;
+    delete: (id: AttachmentId) => Promise<void>;
   };
   background: {
     list: () => Promise<BackgroundTask[]>;
-    stop: (taskId: string) => Promise<void>;
+    stop: (taskId: TaskId) => Promise<void>;
     subscribe: (
-      taskId: string,
+      taskId: TaskId,
       signal?: AbortSignal,
-    ) => Promise<StreamingResult<{ taskId: string }, BackgroundUpdate>>;
+    ) => Promise<StreamingResult<{ taskId: TaskId }, BackgroundUpdate>>;
   };
   feedback: {
     submit: (input: FeedbackInput) => Promise<void>;
@@ -174,7 +179,7 @@ export function createMethods(client: RpcClient): Methods {
       grep: (query) => client.call<GrepResult>("workspace.grep", { query }),
       terminal: {
         subscribe: async (runId, signal) => {
-          const result = await client.call<{ runId: string }>(
+          const result = await client.call<{ runId: RunId }>(
             "workspace.terminal.subscribe",
             { runId },
             signal,
@@ -211,7 +216,7 @@ export function createMethods(client: RpcClient): Methods {
       list: () => client.call<BackgroundTask[]>("background.list"),
       stop: (taskId) => client.call<void>("background.stop", { taskId }),
       subscribe: async (taskId, signal) => {
-        const result = await client.call<{ taskId: string }>(
+        const result = await client.call<{ taskId: TaskId }>(
           "background.subscribe",
           { taskId },
           signal,

@@ -7,6 +7,15 @@
 // upstream contract.
 
 import type { BaseEvent } from "@ag-ui/core";
+import type {
+  ApprovalRequestId,
+  AttachmentId,
+  MessageId,
+  RunId,
+  SessionId,
+  TaskId,
+  ToolCallId,
+} from "./ids";
 
 // ---------------------------------------------------------------------------
 // Lifecycle
@@ -75,7 +84,7 @@ export interface ShutdownParams {
 export type SessionStatus = "running" | "waiting" | "idle";
 
 export interface Session {
-  id: string;
+  id: SessionId;
   title: string;
   status: SessionStatus;
   model: string;
@@ -107,24 +116,24 @@ export interface SessionPatch {
 export type MessageRole = "user" | "assistant" | "system" | "tool" | "developer";
 
 export interface ToolCall {
-  id: string;
+  id: ToolCallId;
   name: string;
   arguments: string;
 }
 
 export interface Message {
-  id: string;
-  sessionId: string;
+  id: MessageId;
+  sessionId: SessionId;
   role: MessageRole;
   content?: string;
   toolCalls?: ToolCall[];
-  toolCallId?: string;
+  toolCallId?: ToolCallId;
   createdAt: string;
   metadata?: Record<string, unknown>;
 }
 
 export interface MessageEditResult {
-  runId: string;
+  runId: RunId;
   checkpoint: string;
 }
 
@@ -149,28 +158,28 @@ export type ContextItem =
   | { kind: "file"; path: string }
   | { kind: "url"; url: string }
   | { kind: "selection"; path: string; range: [number, number] }
-  | { kind: "image"; attachmentId: string };
+  | { kind: "image"; attachmentId: AttachmentId };
 
 export interface StartRunParams {
-  sessionId: string;
-  runId?: string;
+  sessionId: SessionId;
+  runId?: RunId;
   messages: Message[];
   state?: Record<string, unknown>;
   tools?: ToolSpec[];
   context?: ContextItem[];
   model?: string;
   mode?: "agent" | "chat" | "plan";
-  attachments?: string[];
+  attachments?: AttachmentId[];
 }
 
 export interface StartRunResult {
-  runId: string; // Unique id; notifications/run/event uses this for stream filtering
+  runId: RunId; // Unique id; notifications/run/event uses this for stream filtering
 }
 
 export type ApprovalDecision = "approve" | "deny";
 
 export interface ApprovalSubmission {
-  requestId: string;
+  requestId: ApprovalRequestId;
   decision: ApprovalDecision;
   reason?: string;
 }
@@ -276,7 +285,7 @@ export interface CreateUploadUrlInput {
 
 export interface CreateUploadUrlResult {
   uploadUrl: string;
-  attachmentId: string;
+  attachmentId: AttachmentId;
   expiresAt: string;
 }
 
@@ -287,7 +296,7 @@ export interface CreateUploadUrlResult {
 export type BackgroundStatus = "running" | "stopped" | "succeeded" | "failed";
 
 export interface BackgroundTask {
-  taskId: string;
+  taskId: TaskId;
   label: string;
   status: BackgroundStatus;
   startedAt: string;
@@ -295,7 +304,7 @@ export interface BackgroundTask {
 }
 
 export interface BackgroundUpdate {
-  taskId: string;
+  taskId: TaskId;
   status: BackgroundStatus;
   progress?: number;
   outputDelta?: string;
@@ -333,24 +342,24 @@ export interface FeedbackInput {
 // ---------------------------------------------------------------------------
 
 export interface RunEventParams {
-  runId: string;
+  runId: RunId;
   eventId: string;
   event: BaseEvent;
 }
 
 export interface RunClosedParams {
-  runId: string;
+  runId: RunId;
   reason?: string;
 }
 
 export interface TerminalOutputParams {
-  runId: string;
+  runId: RunId;
   eventId: string;
   line: TermLine;
 }
 
 export interface BackgroundUpdateParams {
-  taskId: string;
+  taskId: TaskId;
   eventId: string;
   status: BackgroundStatus;
   progress?: number;

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createRpcClient } from "./client";
+import { asSessionId } from "./ids";
 import { createMethods } from "./methods";
 import { createMemoryTransport } from "./transports/memory";
 import { waitForRequest } from "./transports/memory.testkit";
@@ -43,7 +44,7 @@ describe("methods factory", () => {
     const methods = createMethods(client);
 
     const startPromise = methods.runs.start({
-      sessionId: "s1",
+      sessionId: asSessionId("s1"),
       messages: [],
     });
     const req = await waitForRequest(t, "runs.start");
@@ -94,7 +95,7 @@ describe("methods factory", () => {
     const client = createRpcClient(t);
     const methods = createMethods(client);
 
-    const startPromise = methods.runs.start({ sessionId: "s1", messages: [] });
+    const startPromise = methods.runs.start({ sessionId: asSessionId("s1"), messages: [] });
     const req = await waitForRequest(t, "runs.start");
     t.inject({
       jsonrpc: JSONRPC_VERSION,

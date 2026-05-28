@@ -26,6 +26,7 @@ import {
   waitForRequest,
 } from "./transports/memory.testkit";
 import { createRpcClient, type RpcClient } from "./client";
+import { asApprovalRequestId, asMessageId, asSessionId } from "./ids";
 import { createMethods, type Methods } from "./methods";
 import { JSONRPC_VERSION } from "./types";
 
@@ -117,11 +118,11 @@ describe("smoke: end-to-end happy path", () => {
 
     // ---- Step 3: runs.start (immediate Response + event stream) -----------
     const startPromise = methods.runs.start({
-      sessionId: "s1",
+      sessionId: asSessionId("s1"),
       messages: [
         {
-          id: "u1",
-          sessionId: "s1",
+          id: asMessageId("u1"),
+          sessionId: asSessionId("s1"),
           role: "user",
           content: "list files in cwd",
           createdAt: "2026-05-28T00:00:01Z",
@@ -179,7 +180,7 @@ describe("smoke: end-to-end happy path", () => {
 
     // ---- Step 6: runs.approval.submit (user approves) ---------------------
     const approvePromise = methods.runs.approval.submit({
-      requestId: "approval-1",
+      requestId: asApprovalRequestId("approval-1"),
       decision: "approve",
     });
     const approveReq = await waitForRequest(transport, "runs.approval.submit");
@@ -230,7 +231,7 @@ describe("smoke: end-to-end happy path", () => {
     // Skip the handshake — capability gating is asserted in the main
     // scenario; here we focus on the per-runId filter contract.
     const startPromise = methods.runs.start({
-      sessionId: "s1",
+      sessionId: asSessionId("s1"),
       messages: [],
     });
     const req = await waitForRequest(transport, "runs.start");
@@ -257,7 +258,7 @@ describe("smoke: end-to-end happy path", () => {
     methods = createMethods(client);
 
     const startPromise = methods.runs.start({
-      sessionId: "s1",
+      sessionId: asSessionId("s1"),
       messages: [],
     });
     const req = await waitForRequest(transport, "runs.start");
