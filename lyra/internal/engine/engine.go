@@ -278,6 +278,19 @@ type RunChatRequest struct {
 	// Observer receives streaming tool-call + text-delta
 	// notifications. May be nil — the turn still runs.
 	Observer ToolObserver
+
+	// EventListener, when non-nil, is registered as a process-scope
+	// extension. Values that also implement [event.Listener] (i.e.
+	// have OnEvent) receive every agent runtime event for this turn
+	// — process lifecycle (Created / Completed / Failed / Killed /
+	// Stuck / Terminated), action execution, ready-to-plan, etc.
+	// The canonical wrapper is [event.NamedListener]; chat.Service
+	// uses one to map process terminal events onto TurnEnd reasons
+	// without re-deriving status from the run loop's error.
+	//
+	// Names must be unique across the process extension slice — the
+	// runtime panics on collisions at registration time.
+	EventListener core.Extension
 }
 
 // ChatProcess is the handle [Engine.StartChat] returns. It exposes
@@ -364,9 +377,10 @@ func (e *Engine) StartChat(ctx context.Context, req RunChatRequest) ChatProcess 
 		opts.Session = &core.Session{ID: req.SessionID}
 	}
 	if req.Observer != nil {
-		opts.Extensions = []core.Extension{
-			&toolObserverDecorator{observer: req.Observer},
-		}
+		opts.Extensions = append(opts.Extensions, &toolObserverDecorator{observer: req.Observer})
+	}
+	if req.EventListener != nil {
+		opts.Extensions = append(opts.Extensions, req.EventListener)
 	}
 
 	proc, done := e.platform.StartAgent(ctx, e.agent,

@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/Tangerg/lynx/agent/core"
+	"github.com/Tangerg/lynx/agent/event"
 	"github.com/Tangerg/lynx/lyra/internal/engine"
 	"github.com/Tangerg/lynx/lyra/internal/service/approval"
 )
@@ -267,10 +268,12 @@ func (s *inMemory) runTurn(ctx context.Context, st *turnState, req StartTurnRequ
 	}
 
 	observer := &turnObserver{svc: s, st: st}
+	lifecycle := &turnLifecycle{}
 	proc := s.engine.StartChat(ctx, engine.RunChatRequest{
-		SessionID: req.SessionID,
-		Message:   req.Message,
-		Observer:  observer,
+		SessionID:     req.SessionID,
+		Message:       req.Message,
+		Observer:      observer,
+		EventListener: lifecycle.listener(st.handle.TurnID),
 	})
 	st.proc = proc
 	runErr := <-proc.Done()
@@ -284,39 +287,94 @@ func (s *inMemory) runTurn(ctx context.Context, st *turnState, req StartTurnRequ
 	if runErr == nil && req.SessionID != "" {
 		s.postTurnMaintenance(ctx, st, req.SessionID)
 	}
-	if runErr != nil {
-		// Honor cancellation differently from genuine errors so
-		// transport adapters can render the right state. The agent
-		// runtime reports kill via proc.Status() == StatusKilled
-		// when [Service.Cancel] fired KillProcess; ctx cancel falls
-		// through the same branch.
-		if proc.Status() == core.StatusKilled || errors.Is(ctx.Err(), context.Canceled) {
-			s.emit(st, TurnEnd{
-				Reason:   TurnEndCancelled,
-				Duration: time.Since(startedAt),
-			})
-			return
-		}
-		s.emit(st, ErrorEvent{
-			Message: runErr.Error(),
-			Code:    "ENGINE_ERROR",
-		})
-		s.emit(st, TurnEnd{
-			Reason:   TurnEndErrored,
-			Duration: time.Since(startedAt),
-		})
-		return
-	}
 
 	// MessageDelta events already flowed through the observer during
 	// the stream — no need to re-emit the assembled reply here.
-	out, _ := proc.Output()
-	s.emit(st, TurnEnd{
-		Reason:     TurnEndCompleted,
-		Duration:   time.Since(startedAt),
-		TokenUsage: out.Usage,
-		// CostUSD requires per-provider pricing — see M-future.
+	s.emitTurnEnd(st, proc, lifecycle.get(), runErr, time.Since(startedAt), ctx.Err())
+}
+
+// emitTurnEnd maps the captured agent runtime terminal event onto a
+// transport-shape TurnEnd. The lifecycle listener fires terminal
+// events authoritatively (ProcessKilled / ProcessFailed /
+// ProcessStuck / ProcessTerminated / ProcessCompleted), so we read
+// those rather than re-deriving status from the run loop's error.
+// The runErr / ctxErr / status fallback covers stub tests where no
+// listener fired and any race where Done() returned before the
+// platform multicast delivered the terminal event.
+func (s *inMemory) emitTurnEnd(st *turnState, proc engine.ChatProcess, terminal event.Event, runErr error, duration time.Duration, ctxErr error) {
+	switch ev := terminal.(type) {
+	case event.ProcessCompleted:
+		_ = ev
+		out, _ := proc.Output()
+		s.emit(st, TurnEnd{Reason: TurnEndCompleted, Duration: duration, TokenUsage: out.Usage})
+	case event.ProcessKilled, event.ProcessTerminated:
+		_ = ev
+		s.emit(st, TurnEnd{Reason: TurnEndCancelled, Duration: duration})
+	case event.ProcessFailed:
+		msg := "engine error"
+		if ev.Err != nil {
+			msg = ev.Err.Error()
+		}
+		s.emit(st, ErrorEvent{Message: msg, Code: "ENGINE_ERROR"})
+		s.emit(st, TurnEnd{Reason: TurnEndErrored, Duration: duration})
+	case event.ProcessStuck:
+		_ = ev
+		s.emit(st, ErrorEvent{Message: "agent stuck — planner produced no plan", Code: "AGENT_STUCK"})
+		s.emit(st, TurnEnd{Reason: TurnEndErrored, Duration: duration})
+	default:
+		// Listener didn't capture a terminal event — stub tests or
+		// pre-platform race. Fall back to the run-loop signals.
+		if runErr != nil {
+			if proc.Status() == core.StatusKilled || errors.Is(ctxErr, context.Canceled) {
+				s.emit(st, TurnEnd{Reason: TurnEndCancelled, Duration: duration})
+				return
+			}
+			s.emit(st, ErrorEvent{Message: runErr.Error(), Code: "ENGINE_ERROR"})
+			s.emit(st, TurnEnd{Reason: TurnEndErrored, Duration: duration})
+			return
+		}
+		out, _ := proc.Output()
+		s.emit(st, TurnEnd{Reason: TurnEndCompleted, Duration: duration, TokenUsage: out.Usage})
+	}
+}
+
+// turnLifecycle captures the first terminal process event the agent
+// runtime publishes for a turn. The lifecycle listener wires into
+// [engine.RunChatRequest.EventListener] so the platform multicast
+// fans every event for the process through capture; runTurn reads
+// the captured event after proc.Done() to decide the TurnEnd reason.
+//
+// Only terminal events are kept — non-terminal events (ReadyToPlan,
+// ActionExecutionStart, etc.) are dropped to keep the listener
+// allocation-free in the hot path. Earliest-wins: a race between
+// e.g. ProcessKilled (from KillProcess) and the run loop's exit
+// ProcessFailed yields whichever the multicast delivered first.
+type turnLifecycle struct {
+	mu       sync.Mutex
+	terminal event.Event
+}
+
+func (l *turnLifecycle) listener(turnID string) *event.NamedListener {
+	return event.NewNamedListener("lyra-chat-lifecycle-"+turnID, func(e event.Event) {
+		switch e.(type) {
+		case event.ProcessCompleted,
+			event.ProcessKilled,
+			event.ProcessFailed,
+			event.ProcessTerminated,
+			event.ProcessStuck:
+			l.mu.Lock()
+			if l.terminal == nil {
+				l.terminal = e
+			}
+			l.mu.Unlock()
+		}
 	})
+}
+
+func (l *turnLifecycle) get() event.Event {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.terminal
 }
 
 // emit stamps the event with the next sequence number and timestamp
