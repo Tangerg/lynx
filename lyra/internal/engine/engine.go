@@ -77,6 +77,7 @@ type Engine struct {
 	tools     []chat.Tool
 	memStore  memory.Store
 	memSvc    lyramem.Service
+	workdir   string // captured from Config.Workdir for the AGENTS.md cascade
 	compactor *compactor
 	extractor *extractor
 	planner   *planner
@@ -134,6 +135,7 @@ func New(cfg Config) (*Engine, error) {
 		tools:       tools,
 		memStore:    memStore,
 		memSvc:      cfg.MemoryService,
+		workdir:     cfg.Workdir,
 		mcpSessions: mcpSessions,
 	}
 	e.agent = e.buildChatAgent()

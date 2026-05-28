@@ -14,7 +14,7 @@ import (
 // TestComposeSystemPrompt_BaseOnly verifies a nil memory service
 // yields the base prompt verbatim (no markdown headers).
 func TestComposeSystemPrompt_BaseOnly(t *testing.T) {
-	got := composePrompt(context.Background(), nil)
+	got := composePrompt(context.Background(), nil, "")
 	if !strings.Contains(got, "You are Lyra") {
 		t.Errorf("base prompt missing identity, got %q", got)
 	}
@@ -30,7 +30,7 @@ func TestComposeSystemPrompt_WithMemory(t *testing.T) {
 		user:    "prefer terse output",
 		project: "build with `make test`",
 	}
-	got := composePrompt(context.Background(), svc)
+	got := composePrompt(context.Background(), svc, "")
 	if !strings.Contains(got, "## User preferences") {
 		t.Error("user section missing")
 	}
@@ -49,7 +49,7 @@ func TestComposeSystemPrompt_WithMemory(t *testing.T) {
 // don't produce empty markdown headers.
 func TestComposeSystemPrompt_SkipsEmptyScopes(t *testing.T) {
 	svc := &stubMemoryService{project: "only project"}
-	got := composePrompt(context.Background(), svc)
+	got := composePrompt(context.Background(), svc, "")
 	if strings.Contains(got, "## User preferences") {
 		t.Error("empty user scope should be skipped")
 	}

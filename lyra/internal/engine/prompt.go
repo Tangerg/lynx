@@ -2,15 +2,17 @@ package engine
 
 import (
 	"context"
+	"os"
 	"strings"
 
+	"github.com/Tangerg/lynx/lyra/internal/service/agentdoc"
 	"github.com/Tangerg/lynx/lyra/internal/service/memory"
 )
 
 // basePrompt is the always-on identity / behavioural preamble. It
 // stays small on purpose — anything project-specific lives in
-// LYRA.md and gets appended at SystemPrompt time. Anything
-// user-specific lives in ~/.lyra/LYRA.md.
+// LYRA.md / AGENTS.md and gets appended at SystemPrompt time.
+// Anything user-specific lives in ~/.lyra/LYRA.md.
 const basePrompt = `You are Lyra, a general-purpose AI coding agent.
 
 You can read and modify files, run shell commands, search the
@@ -27,44 +29,69 @@ task is ambiguous, ask one focused question rather than guess.`
 // shape is:
 //
 //	<base prompt>
-//	<user memory>     (when ~/.lyra/LYRA.md is non-empty)
-//	<project memory>  (when <cwd>/LYRA.md is non-empty)
+//	<user memory>     (memory.Service.Get(ScopeUser)  — user-managed)
+//	<project memory>  (memory.Service.Get(ScopeProject) — user-managed)
+//	<discovered>      (agentdoc cascade — AGENTS.md walked from
+//	                   cwd up to project root + standard user dirs)
 //
-// User scope first because cross-project preferences should be
-// readable as the agent's default tendency; project scope last so
-// it can override or refine. Each section is wrapped in a clear
-// markdown header so the model can tell which knowledge layer it
-// came from.
+// memory.Service is Lyra's writable surface (`lyra memory edit`);
+// agentdoc is the read-only cross-tool AGENTS.md convention. Both
+// flow in so users get both the curated notes AND the project's
+// committed AGENTS.md.
 //
 // Engines built without a memory service simply yield the base
-// prompt — tests and minimal deployments both stay valid.
+// prompt + discovered files.
 func (e *Engine) SystemPrompt(ctx context.Context) string {
-	return composePrompt(ctx, e.memSvc)
+	return composePrompt(ctx, e.memSvc, e.workdir)
 }
 
 // composePrompt is the pure form behind [Engine.SystemPrompt],
 // exposed unexported so the unit tests (which build stub memory
 // services without a full Engine) can exercise the cascade
 // directly.
-func composePrompt(ctx context.Context, mem memory.Service) string {
+func composePrompt(ctx context.Context, mem memory.Service, workdir string) string {
 	var b strings.Builder
 	b.WriteString(basePrompt)
 
-	if mem == nil {
-		return b.String()
+	if mem != nil {
+		userMem, _ := mem.Get(ctx, memory.ScopeUser)
+		if s := strings.TrimSpace(userMem); s != "" {
+			b.WriteString("\n\n## User preferences (from ~/.lyra/LYRA.md)\n\n")
+			b.WriteString(s)
+		}
+
+		projectMem, _ := mem.Get(ctx, memory.ScopeProject)
+		if s := strings.TrimSpace(projectMem); s != "" {
+			b.WriteString("\n\n## Project knowledge (from <cwd>/LYRA.md)\n\n")
+			b.WriteString(s)
+		}
 	}
 
-	userMem, _ := mem.Get(ctx, memory.ScopeUser)
-	if s := strings.TrimSpace(userMem); s != "" {
-		b.WriteString("\n\n## User preferences (from ~/.lyra/LYRA.md)\n\n")
-		b.WriteString(s)
-	}
-
-	projectMem, _ := mem.Get(ctx, memory.ScopeProject)
-	if s := strings.TrimSpace(projectMem); s != "" {
-		b.WriteString("\n\n## Project knowledge (from <cwd>/LYRA.md)\n\n")
-		b.WriteString(s)
+	// AGENTS.md cascade — best-effort, silent on error so a missing
+	// file or unreadable home dir never derails a turn.
+	if cwd := resolveCwd(workdir); cwd != "" {
+		home, _ := os.UserHomeDir()
+		if files, err := agentdoc.Discover(ctx, cwd, home); err == nil {
+			if rendered := agentdoc.Render(files, agentdoc.DefaultMaxBytes); rendered != "" {
+				b.WriteString("\n\n## Project context (from AGENTS.md cascade)\n\n")
+				b.WriteString(rendered)
+			}
+		}
 	}
 
 	return b.String()
+}
+
+// resolveCwd picks the engine's configured workdir when set,
+// falling back to the process cwd. Returns "" only when both
+// sources fail — in which case agentdoc discovery silently skips.
+func resolveCwd(workdir string) string {
+	if workdir != "" {
+		return workdir
+	}
+	cwd, err := os.Getwd()
+	if err != nil {
+		return ""
+	}
+	return cwd
 }
