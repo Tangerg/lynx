@@ -16,7 +16,8 @@
     "lint:fix": "oxlint src --fix",
     "typecheck": "tsc --noEmit",
     "knip": "knip",
-    "check": "npm run typecheck && npm run lint && npm run format:check && npm run test && npm run knip",
+    "check:circular": "node scripts/check-circular.mjs",
+    "check": "npm run typecheck && npm run lint && npm run format:check && npm run test && npm run knip && npm run check:circular",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "prepare": "cd .. && frontend/node_modules/.bin/husky .husky"
@@ -94,6 +95,7 @@
     "husky": "^9.1.7",
     "knip": "^6.14.2",
     "lint-staged": "^17.0.5",
+    "madge": "^8.0.0",
     "oxlint": "^1.66.0",
     "prettier": "^3.8.3",
     "tailwindcss": "^4.3.0",

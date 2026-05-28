@@ -1,5 +1,6 @@
 # Frontend quality gate — runs the same `npm run check` we run locally:
-# typecheck + oxlint + prettier --check + vitest + knip.
+# typecheck + oxlint + prettier --check + vitest + knip + madge (no new
+# circular dependencies).
 #
 # Triggers on every PR + every push to main. The CI script doesn't try
 # to start the Wails desktop shell or the Go backend — those are
@@ -39,8 +40,8 @@ jobs:
       - name: Install deps
         run: npm ci --no-audit --no-fund
 
-      # `npm run check` = typecheck + lint + format:check + test + knip,
-      # configured in frontend/package.json. Single source of truth so
-      # CI and local feedback can't drift.
+      # `npm run check` = typecheck + lint + format:check + test + knip
+      # + check:circular, configured in frontend/package.json. Single
+      # source of truth so CI and local feedback can't drift.
       - name: Quality gate
         run: npm run check

@@ -5,7 +5,7 @@
 // machinery.
 
 import { colord } from "colord";
-import type { ThemeCta, ThemePluginSpec, ThemeRadii, ThemeShadows } from "./defineThemePlugin";
+import type { ThemeCta, ThemePluginSpec, ThemeRadii, ThemeShadows } from "./types";
 
 // ---------------------------------------------------------------------------
 // Default shadow + radii ladders

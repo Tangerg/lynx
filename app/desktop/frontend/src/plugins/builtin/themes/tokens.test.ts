@@ -5,7 +5,7 @@
 // existing themes' tokens.
 
 import { describe, expect, it } from "vitest";
-import type { ThemePluginSpec } from "./defineThemePlugin";
+import type { ThemePluginSpec } from "./types";
 import { DARK_SHADOWS, DEFAULT_RADII, LIGHT_SHADOWS, SCHEME_ICON, buildTokenMap } from "./tokens";
 
 function makeSpec(overrides: Partial<ThemePluginSpec> = {}): ThemePluginSpec {
