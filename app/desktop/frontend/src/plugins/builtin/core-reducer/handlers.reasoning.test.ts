@@ -60,7 +60,7 @@ describe("core-reducer — TOOL_CALL_RESULT", () => {
         content: "file contents here",
       }),
     );
-    expect(s.toolCalls.t1.result).toBe("file contents here");
+    expect(s.toolCalls.t1!.result).toBe("file contents here");
   });
 
   it("no-op when toolCallId is unknown (defensive)", () => {

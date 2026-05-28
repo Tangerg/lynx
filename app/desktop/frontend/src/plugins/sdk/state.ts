@@ -108,7 +108,8 @@ function updateMessage(
 
 function findLastAssistantId(state: AgentViewState): string | null {
   for (let i = state.messages.length - 1; i >= 0; i--) {
-    if (state.messages[i].role === "assistant") return state.messages[i].id;
+    const m = state.messages[i]!;
+    if (m.role === "assistant") return m.id;
   }
   return null;
 }

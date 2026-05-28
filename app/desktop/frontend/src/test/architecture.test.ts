@@ -53,7 +53,7 @@ function walk(dir: string, out: string[] = []): string[] {
 function staticImports(src: string): string[] {
   const re = /^\s*import\s+(?:[^"'\s;]+\s+from\s+)?["']([^"']+)["']/gm;
   const out: string[] = [];
-  for (const m of src.matchAll(re)) out.push(m[1]);
+  for (const m of src.matchAll(re)) out.push(m[1] ?? "");
   return out;
 }
 

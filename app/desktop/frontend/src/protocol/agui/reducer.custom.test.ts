@@ -39,7 +39,7 @@ describe("reducer — built-in CUSTOM events (via builtin plugin handlers)", () 
       }),
     );
     expect(next.plan).toHaveLength(1);
-    expect(next.plan[0].text).toBe("do x");
+    expect(next.plan[0]!.text).toBe("do x");
   });
 
   it("lyra.telemetry patches the run state once telemetry-handler is loaded", async () => {
@@ -109,7 +109,7 @@ describe("reducer — plugin CUSTOM fallback", () => {
       }),
     );
 
-    expect(next.messages[0].blocks).toEqual([
+    expect(next.messages[0]!.blocks).toEqual([
       { kind: "text", text: "banner: hi", status: "complete" },
     ]);
   });
@@ -174,6 +174,6 @@ describe("reducer — plugin CUSTOM fallback", () => {
       }),
     );
 
-    expect(next.messages[0].blocks).toEqual([{ kind: "plan" }]);
+    expect(next.messages[0]!.blocks).toEqual([{ kind: "plan" }]);
   });
 });

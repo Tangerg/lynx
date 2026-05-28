@@ -141,7 +141,7 @@ function estimatePercentiles(buckets: HistogramValue["buckets"]): { p50: number;
   let p95 = 0;
   let p50Done = false;
   for (let i = 0; i < buckets.counts.length; i++) {
-    running += buckets.counts[i];
+    running += buckets.counts[i]!;
     if (!p50Done && running >= target50) {
       p50 = buckets.boundaries[i] ?? buckets.boundaries[buckets.boundaries.length - 1] ?? 0;
       p50Done = true;

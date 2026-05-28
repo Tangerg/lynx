@@ -45,9 +45,9 @@ describe("loadPlugin", () => {
     // And the error landed in the log under source="setup".
     const log = usePluginErrorStore.getState().log;
     expect(log).toHaveLength(1);
-    expect(log[0].plugin).toBe("a");
-    expect(log[0].source).toBe("setup");
-    expect(log[0].message).toBe("kaboom");
+    expect(log[0]!.plugin).toBe("a");
+    expect(log[0]!.source).toBe("setup");
+    expect(log[0]!.message).toBe("kaboom");
   });
 
   it("rejects plugins whose apiVersion doesn't match the host", async () => {
@@ -63,7 +63,7 @@ describe("loadPlugin", () => {
 
     expect(result).toMatchObject({ kind: "skipped", name: "tooOld" });
     expect(setup).not.toHaveBeenCalled();
-    expect(usePluginErrorStore.getState().log[0].source).toBe("setup");
+    expect(usePluginErrorStore.getState().log[0]!.source).toBe("setup");
   });
 
   it("accepts plugins with a matching range", async () => {
@@ -199,9 +199,10 @@ describe("loadPlugins", () => {
         setup: vi.fn(),
       }),
     ]);
-    expect(results[0]).toMatchObject({ kind: "skipped", name: "orphan" });
-    if (results[0].kind === "skipped") {
-      expect(results[0].reason).toMatch(/does-not-exist/);
+    const first = results[0]!;
+    expect(first).toMatchObject({ kind: "skipped", name: "orphan" });
+    if (first.kind === "skipped") {
+      expect(first.reason).toMatch(/does-not-exist/);
     }
   });
 
@@ -274,7 +275,7 @@ describe("lazy activation", () => {
             // host.tool is not declared — must throw.
             (
               host as unknown as Record<string, { registerPreview: () => void }>
-            ).tool.registerPreview();
+            ).tool!.registerPreview();
           } catch (err) {
             captured = err;
           }

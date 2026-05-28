@@ -28,15 +28,15 @@ describe("appendBlockToMessage", () => {
     const update = appendBlockToMessage("m1", { kind: "text", text: "hi", status: "complete" });
     const next = update(stateWith([msg("m1"), msg("m2")]));
 
-    expect(next.messages[0].blocks).toHaveLength(1);
-    expect(next.messages[1].blocks).toHaveLength(0);
+    expect(next.messages[0]!.blocks).toHaveLength(1);
+    expect(next.messages[1]!.blocks).toHaveLength(0);
   });
 
   it("is a no-op when the id is missing", () => {
     const initial = stateWith([msg("m1")]);
     const update = appendBlockToMessage("nope", { kind: "text", text: "x", status: "complete" });
     const next = update(initial);
-    expect(next.messages[0].blocks).toHaveLength(0);
+    expect(next.messages[0]!.blocks).toHaveLength(0);
   });
 });
 
@@ -52,9 +52,9 @@ describe("appendBlockToLatestAssistant", () => {
       ]),
     );
 
-    expect(next.messages[1].blocks).toHaveLength(0);
-    expect(next.messages[3].blocks).toHaveLength(1);
-    expect(next.messages[3].blocks[0]).toEqual({ kind: "plan" });
+    expect(next.messages[1]!.blocks).toHaveLength(0);
+    expect(next.messages[3]!.blocks).toHaveLength(1);
+    expect(next.messages[3]!.blocks[0]).toEqual({ kind: "plan" });
   });
 
   it("is a no-op when no assistant messages exist", () => {

@@ -99,11 +99,13 @@ function initToolCall(state: AgentViewState, ev: ToolCallChunkEvent): AgentViewS
 }
 
 function fillToolName(state: AgentViewState, id: string, name: string): AgentViewState {
+  // Caller checks toolCalls[id] exists before invoking; safe non-null.
+  const prev = state.toolCalls[id]!;
   return {
     ...state,
     toolCalls: {
       ...state.toolCalls,
-      [id]: { ...state.toolCalls[id], fn: name },
+      [id]: { ...prev, fn: name },
     },
   };
 }

@@ -118,7 +118,8 @@ export function mapReasoning(
 
 export function findLastAssistantMessageId(state: AgentViewState): string | null {
   for (let i = state.messages.length - 1; i >= 0; i--) {
-    if (state.messages[i].role === "assistant") return state.messages[i].id;
+    const m = state.messages[i]!;
+    if (m.role === "assistant") return m.id;
   }
   return null;
 }
@@ -131,9 +132,9 @@ export function findMessageById(state: AgentViewState, id: string): Message | un
 // block. That's the "currently open" thinking block we should write to.
 export function findActiveThinkingId(state: AgentViewState): string | null {
   for (let i = state.messages.length - 1; i >= 0; i--) {
-    const m = state.messages[i];
+    const m = state.messages[i]!;
     for (let j = m.blocks.length - 1; j >= 0; j--) {
-      const b = m.blocks[j];
+      const b = m.blocks[j]!;
       if (b.kind === "reasoning" && b.status === "running") return b.reasoningId;
     }
   }

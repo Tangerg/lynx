@@ -40,7 +40,7 @@ export interface RunDigest {
 // for file-touching tools whose first arg is the path.
 function firstToken(args: string): string {
   const m = args.match(/^([^\s(,]+)/);
-  return m ? m[1] : "";
+  return m ? (m[1] ?? "") : "";
 }
 
 // Tool categorisation. Lookup sets (not switch) so adding a new tool
@@ -54,7 +54,7 @@ export function deriveLatestRun(view: AgentViewState): RunDigest | null {
   // Walk timeline backwards for the last run-start. If none, no digest.
   let startIdx = -1;
   for (let i = view.timeline.length - 1; i >= 0; i--) {
-    if (view.timeline[i].kind === "run-start") {
+    if (view.timeline[i]!.kind === "run-start") {
       startIdx = i;
       break;
     }
@@ -62,7 +62,8 @@ export function deriveLatestRun(view: AgentViewState): RunDigest | null {
   if (startIdx < 0) return null;
 
   const slice = view.timeline.slice(startIdx);
-  const startEntry = slice[0];
+  // startIdx came from a successful in-bounds find above, so slice[0] exists.
+  const startEntry = slice[0]!;
   const terminal = slice.find(
     (e): e is TimelineEntry => e.kind === "run-end" || e.kind === "run-error",
   );

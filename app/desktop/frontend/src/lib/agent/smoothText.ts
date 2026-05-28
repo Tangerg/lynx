@@ -102,7 +102,7 @@ export function useSmoothText(rawText: string, enabled: boolean): string {
       let charCount = 0;
       let wordIdx = 0;
       while (wordIdx < words.length && charCount < st.displayLen) {
-        charCount += words[wordIdx].length;
+        charCount += words[wordIdx]!.length;
         wordIdx++;
       }
 
@@ -112,7 +112,7 @@ export function useSmoothText(rawText: string, enabled: boolean): string {
         // like it's hung.
         st.lastTickAt = now;
         if (wordIdx < words.length) {
-          charCount += words[wordIdx].length;
+          charCount += words[wordIdx]!.length;
           wordIdx++;
         }
       } else {
@@ -121,8 +121,9 @@ export function useSmoothText(rawText: string, enabled: boolean): string {
         const rate = pickRate(backlog, enabledRef.current);
         st.charDebt += rate * (elapsed / 1000);
         while (st.charDebt >= 1 && wordIdx < words.length) {
-          charCount += words[wordIdx].length;
-          st.charDebt -= words[wordIdx].length;
+          const w = words[wordIdx]!;
+          charCount += w.length;
+          st.charDebt -= w.length;
           wordIdx++;
         }
         st.charDebt = Math.max(0, Math.min(st.charDebt, MAX_DEBT));

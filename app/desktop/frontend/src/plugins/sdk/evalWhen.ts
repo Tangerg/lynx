@@ -25,7 +25,7 @@ function tokenize(s: string): Token[] {
   const out: Token[] = [];
   let i = 0;
   while (i < s.length) {
-    const c = s[i];
+    const c = s[i]!;
     if (/\s/.test(c)) {
       i++;
       continue;
@@ -69,7 +69,7 @@ function tokenize(s: string): Token[] {
     }
     if (ID_CHAR.test(c)) {
       let j = i;
-      while (j < s.length && ID_CHAR.test(s[j])) j++;
+      while (j < s.length && ID_CHAR.test(s[j]!)) j++;
       out.push({ type: "id", value: s.slice(i, j) });
       i = j;
       continue;
@@ -86,7 +86,7 @@ class Parser {
   parse(): Node {
     const node = this.parseOr();
     if (this.pos < this.tokens.length) {
-      throw new Error(`unexpected token "${this.tokens[this.pos].value}"`);
+      throw new Error(`unexpected token "${this.tokens[this.pos]!.value}"`);
     }
     return node;
   }

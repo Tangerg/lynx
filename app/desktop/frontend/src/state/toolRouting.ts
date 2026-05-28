@@ -24,7 +24,7 @@ function routeForTool(fn: string, args: string): ViewRouting {
     // Pull the path off the front of the args ("src/foo.ts …") so the
     // diff view knows which file to render.
     const m = args.match(/^([^\s(]+)/);
-    if (m) useSessionStore.getState().setActiveFile(m[1]);
+    if (m && m[1]) useSessionStore.getState().setActiveFile(m[1]);
     return { id: "diff", title: "Diff", icon: "diff" };
   }
   return { id: "diff", title: "Diff", icon: "diff" };

@@ -9,9 +9,9 @@ describe("usePluginErrorStore", () => {
 
     const log = usePluginErrorStore.getState().log;
     expect(log).toHaveLength(2);
-    expect(log[0].id).toBe(1);
-    expect(log[1].id).toBe(2);
-    expect(log[0].timestamp).toBeLessThanOrEqual(log[1].timestamp);
+    expect(log[0]!.id).toBe(1);
+    expect(log[1]!.id).toBe(2);
+    expect(log[0]!.timestamp).toBeLessThanOrEqual(log[1]!.timestamp);
   });
 
   it("clearFor removes only the given plugin's entries", () => {
@@ -24,7 +24,7 @@ describe("usePluginErrorStore", () => {
 
     const remaining = usePluginErrorStore.getState().log;
     expect(remaining).toHaveLength(1);
-    expect(remaining[0].plugin).toBe("b");
+    expect(remaining[0]!.plugin).toBe("b");
   });
 
   it("clearAll empties the log", () => {
@@ -41,7 +41,7 @@ describe("usePluginErrorStore", () => {
 describe("reportPluginError", () => {
   it("captures Error.message", () => {
     reportPluginError("p", "agui", new Error("boom"));
-    const e = usePluginErrorStore.getState().log[0];
+    const e = usePluginErrorStore.getState().log[0]!;
     expect(e.plugin).toBe("p");
     expect(e.source).toBe("agui");
     expect(e.message).toBe("boom");
@@ -49,11 +49,11 @@ describe("reportPluginError", () => {
 
   it("stringifies non-Error values", () => {
     reportPluginError("p", "command", "raw-string");
-    expect(usePluginErrorStore.getState().log[0].message).toBe("raw-string");
+    expect(usePluginErrorStore.getState().log[0]!.message).toBe("raw-string");
   });
 
   it("forwards the optional detail", () => {
     reportPluginError("p", "render", new Error("x"), "at Foo.render");
-    expect(usePluginErrorStore.getState().log[0].detail).toBe("at Foo.render");
+    expect(usePluginErrorStore.getState().log[0]!.detail).toBe("at Foo.render");
   });
 });

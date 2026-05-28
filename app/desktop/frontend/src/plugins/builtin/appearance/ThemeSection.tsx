@@ -10,7 +10,10 @@ import { useUiStore } from "@/state/uiStore";
 
 // Fallback hexes for previewing themes that didn't ship a `tokens` map.
 // Match the built-in dark palette so the preview never goes blank.
-const FALLBACK_TOKENS: Record<string, Record<string, string>> = {
+// Typed as a concrete `Record<"dark" | "light", ...>` so indexed access
+// returns the inner object as a typed struct (not Record<string,string>,
+// which under noUncheckedIndexedAccess returns string | undefined).
+const FALLBACK_TOKENS: Record<"dark" | "light", { bg: string; surface: string; accent: string }> = {
   dark: { bg: "#010102", surface: "#181a1d", accent: "#1ed760" },
   light: { bg: "#fafafa", surface: "#ffffff", accent: "#15883e" },
 };

@@ -66,8 +66,8 @@ describe("reducer — built-in events", () => {
     s = reduce(s, ev({ type: EventType.TEXT_MESSAGE_END, messageId: "m1" }));
 
     expect(s.messages).toHaveLength(1);
-    expect(s.messages[0].role).toBe("assistant");
-    expect(s.messages[0].blocks).toEqual([{ kind: "text", text: "hi there", status: "complete" }]);
+    expect(s.messages[0]!.role).toBe("assistant");
+    expect(s.messages[0]!.blocks).toEqual([{ kind: "text", text: "hi there", status: "complete" }]);
   });
 
   it("tOOL_CALL_* attaches a tool block to the parent message", () => {
@@ -86,7 +86,7 @@ describe("reducer — built-in events", () => {
     s = reduce(s, ev({ type: EventType.TOOL_CALL_END, toolCallId: "t1" }));
 
     expect(s.toolCalls.t1).toMatchObject({ fn: "bash", args: "pnpm test", status: "ok" });
-    expect(s.messages[0].blocks).toEqual([{ kind: "tool", toolCallId: "t1" }]);
+    expect(s.messages[0]!.blocks).toEqual([{ kind: "tool", toolCallId: "t1" }]);
   });
 });
 
@@ -153,7 +153,7 @@ describe("reducer — chunk variants", () => {
       }),
     );
     expect(s.messages).toHaveLength(1);
-    expect(s.messages[0].blocks).toEqual([{ kind: "text", text: "hi world", status: "running" }]);
+    expect(s.messages[0]!.blocks).toEqual([{ kind: "text", text: "hi world", status: "running" }]);
   });
 
   it("tOOL_CALL_CHUNK materializes tool on first chunk; later chunks fill the name", () => {
@@ -174,8 +174,8 @@ describe("reducer — chunk variants", () => {
         delta: '{"path":',
       }),
     );
-    expect(s.toolCalls.t1.fn).toBe("");
-    expect(s.toolCalls.t1.args).toBe('{"path":');
+    expect(s.toolCalls.t1!.fn).toBe("");
+    expect(s.toolCalls.t1!.args).toBe('{"path":');
     s = reduce(
       s,
       ev({
@@ -185,7 +185,7 @@ describe("reducer — chunk variants", () => {
         delta: '"x"}',
       }),
     );
-    expect(s.toolCalls.t1.fn).toBe("read_file");
-    expect(s.toolCalls.t1.args).toBe('{"path":"x"}');
+    expect(s.toolCalls.t1!.fn).toBe("read_file");
+    expect(s.toolCalls.t1!.args).toBe('{"path":"x"}');
   });
 });

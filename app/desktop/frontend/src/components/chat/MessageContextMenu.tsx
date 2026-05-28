@@ -40,8 +40,9 @@ function regenerate(msg: Message): void {
   const idx = messages.findIndex((m) => m.id === msg.id);
   if (idx < 0) return;
   for (let i = idx - 1; i >= 0; i--) {
-    if (messages[i].role !== "user") continue;
-    const text = flattenText(messages[i].blocks).trim();
+    const m = messages[i]!;
+    if (m.role !== "user") continue;
+    const text = flattenText(m.blocks).trim();
     if (text) send(text);
     return;
   }
