@@ -65,12 +65,14 @@ function ConnectionPane() {
           <div className="mt-0.5 text-[13px] text-fg-muted">{t("settings.connection.sub")}</div>
         </div>
         <div className="grid gap-2">
-          <label className="text-[12px] font-semibold text-fg-faint">
+          <label htmlFor="agui-base-url" className="text-[12px] font-semibold text-fg-faint">
             {t("settings.connection.url")}
           </label>
           <div className="flex items-center gap-2">
             <input
+              id="agui-base-url"
               type="text"
+              aria-label={t("settings.connection.url")}
               value={url}
               onChange={(e) => setUrl(e.target.value)}
               onBlur={apply}

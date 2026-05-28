@@ -144,8 +144,11 @@ function TabItem({
     <ContextMenu.Root>
       <ContextMenu.Trigger asChild>
         <div
+          role="tab"
+          aria-selected={active}
+          tabIndex={0}
           className={cn(
-            "group relative inline-grid shrink-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-1.5 rounded-t-md px-3 py-1.5 pr-2 text-[12.5px] text-fg-muted cursor-pointer min-w-[110px] max-w-[200px] transition-colors duration-150 ease-out",
+            "group relative inline-grid shrink-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-1.5 rounded-t-md px-3 py-1.5 pr-2 text-[12.5px] text-fg-muted cursor-pointer min-w-[110px] max-w-[200px] transition-colors duration-150 ease-out focus-visible:outline-none focus-visible:shadow-[0_0_0_2px_var(--color-accent)]",
             noDragClasses,
             "hover:bg-[color-mix(in_srgb,var(--color-text)_4%,transparent)] hover:text-fg",
             active && [
@@ -154,6 +157,12 @@ function TabItem({
             ],
           )}
           onClick={onSelect}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              onSelect();
+            }
+          }}
           onAuxClick={(e) => {
             // Middle-click closes — matches every IDE / browser tab
             // convention. button=1 is the wheel button.
@@ -168,17 +177,17 @@ function TabItem({
             {title}
           </span>
           <Tooltip label="Close">
-            <span
-              className="grid h-5.5 w-5.5 place-items-center rounded text-fg-faint opacity-0 transition-all duration-150 group-hover:opacity-100 hover:bg-surface-3 hover:text-fg active:scale-90"
+            <button
+              type="button"
+              aria-label="Close tab"
+              className="grid h-5.5 w-5.5 place-items-center rounded border-0 bg-transparent text-fg-faint opacity-0 transition-all duration-150 group-hover:opacity-100 hover:bg-surface-3 hover:text-fg active:scale-90"
               onClick={(e) => {
                 e.stopPropagation();
                 onClose();
               }}
-              role="button"
-              aria-label="Close tab"
             >
               <Icon name="x" size={10} />
-            </span>
+            </button>
           </Tooltip>
         </div>
       </ContextMenu.Trigger>

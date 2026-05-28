@@ -35,6 +35,7 @@ function FontPicker({ label, mono, value, onChange, defaultLabel }: FontPickerPr
       <label className="inline-flex cursor-pointer items-center gap-1.5 text-[12.5px] text-fg-muted">
         <input
           type="checkbox"
+          aria-label={`Use custom ${label.toLowerCase()} font`}
           checked={customEnabled}
           onChange={(e) => onChange(e.target.checked ? (fonts[0] ?? "") : "")}
           className="h-3.5 w-3.5 cursor-pointer accent-accent"

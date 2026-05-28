@@ -133,16 +133,16 @@ function ChatSearchOverlay() {
   const prev = () => total > 0 && setActive((i) => (i - 1 + total) % total);
 
   return (
-    <div
+    <search
       className={cn(
         "fixed top-3 right-4 z-50 inline-flex items-center gap-1 rounded-lg border border-line bg-surface px-2 py-1.5 shadow-lg",
         "[-webkit-app-region:no-drag] [--wails-draggable:no-drag]",
       )}
-      role="search"
     >
       <input
         ref={inputRef}
         type="text"
+        aria-label="Search in chat"
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         placeholder="Search in chat…"
@@ -193,7 +193,7 @@ function ChatSearchOverlay() {
           <Icon name="x" size={12} />
         </button>
       </Tooltip>
-    </div>
+    </search>
   );
 }
 

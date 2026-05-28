@@ -43,10 +43,12 @@ function FileRow({
         : "text-warning";
   const tagLetter = file.change === "add" ? "A" : file.change === "del" ? "D" : "M";
   return (
-    <div
+    <button
+      type="button"
+      aria-pressed={active}
       onClick={() => onSelect(file.path)}
       className={cn(
-        "flex items-center gap-2 px-2.5 py-1.5 text-[12px] cursor-pointer hover:bg-surface",
+        "flex w-full items-center gap-2 border-0 bg-transparent px-2.5 py-1.5 text-left text-[12px] cursor-pointer hover:bg-surface focus-visible:outline-none focus-visible:shadow-[inset_0_0_0_2px_var(--color-accent)]",
         active ? "bg-surface-2 text-fg" : "text-fg-muted",
       )}
     >
@@ -59,6 +61,6 @@ function FileRow({
         <span className="text-accent">+{file.added}</span>
         <span className="text-negative">−{file.removed}</span>
       </span>
-    </div>
+    </button>
   );
 }

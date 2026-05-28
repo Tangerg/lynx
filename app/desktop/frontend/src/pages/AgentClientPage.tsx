@@ -28,12 +28,12 @@ export function AgentClientPage() {
           <Slot name="app.main" />
         </main>
       </div>
-      {/* `role="status"` + `aria-live="polite"` means SR users hear
-          telemetry updates (run state, tokens, branch) when they change,
-          without interruption. */}
-      <div className="app-statusbar" role="status" aria-live="polite">
+      {/* `<output>` carries implicit role="status"; `aria-live="polite"`
+          means SR users hear telemetry updates (run state, tokens, branch)
+          when they change, without interruption. */}
+      <output className="app-statusbar" aria-live="polite">
         <Slot name="app.statusbar" />
-      </div>
+      </output>
       <Slot name="app.overlay" />
     </div>
   );

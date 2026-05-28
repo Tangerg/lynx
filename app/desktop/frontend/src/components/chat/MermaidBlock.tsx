@@ -119,22 +119,16 @@ export function MermaidBlock({ code }: Props) {
   if (svg) {
     return (
       <>
-        <div
-          role="button"
-          tabIndex={0}
+        <button
+          type="button"
+          aria-label="Enlarge diagram"
           title="Click to enlarge"
           onClick={() => setZoomed(true)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === " ") {
-              e.preventDefault();
-              setZoomed(true);
-            }
-          }}
           // Inline SVG sizes itself; the wrapper provides chrome + zoom
           // affordance. `[&_svg]:` reaches the SVG that
           // dangerouslySetInnerHTML drops in (we can't put utilities on it
           // directly).
-          className="my-3.5 cursor-zoom-in overflow-x-auto rounded-lg border border-[color-mix(in_srgb,var(--color-text)_10%,transparent)] bg-[color-mix(in_srgb,var(--color-text)_3%,transparent)] p-4 text-center transition-colors duration-150 hover:border-[color-mix(in_srgb,var(--color-accent)_30%,transparent)] [&_svg]:max-w-full [&_svg]:h-auto"
+          className="my-3.5 w-full cursor-zoom-in overflow-x-auto rounded-lg border border-[color-mix(in_srgb,var(--color-text)_10%,transparent)] bg-[color-mix(in_srgb,var(--color-text)_3%,transparent)] p-4 text-center transition-colors duration-150 hover:border-[color-mix(in_srgb,var(--color-accent)_30%,transparent)] [&_svg]:max-w-full [&_svg]:h-auto"
           dangerouslySetInnerHTML={{ __html: svg }}
         />
         <AnimatePresence>
@@ -145,6 +139,10 @@ export function MermaidBlock({ code }: Props) {
               exit={{ opacity: 0 }}
               transition={swift}
               onClick={() => setZoomed(false)}
+              // Custom modal backdrop — we manage zoom-close manually; the
+              // native <dialog> element would conflict with the
+              // animate-presence enter/exit lifecycle here.
+              // eslint-disable-next-line jsx-a11y/prefer-tag-over-role
               role="dialog"
               aria-modal="true"
               // Light theme keeps the backdrop quieter — already-light
