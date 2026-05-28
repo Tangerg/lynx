@@ -37,15 +37,33 @@ type EventPublisher func(event any)
 type ToolCallCancelFunc func(cancel context.CancelFunc) (release func())
 
 // ProcessContextConfig is the runtime-internal input bundle for
-// [NewProcessContext]. The runtime fills it once per tick and calls
-// NewProcessContext — keeping the field-injection plumbing inside one
-// constructor instead of scattered setter methods on the public surface.
+// [NewProcessContext]. The runtime fills it once per tick — keeping
+// the field-injection plumbing inside one constructor instead of
+// scattered setter methods on the public surface.
+//
+// Fields divide into three concerns:
+//
+//   - Per-process state (Process / Blackboard / Options /
+//     OutputChannel / Services) — flow through unchanged across
+//     ticks of the same process.
+//   - Platform-wired hooks (ChatClient / Guardrails / Publish /
+//     ResolveTools / ToolCallCancel) — installed by the platform
+//     at construction; same value for every tick.
+//   - Per-action state (ActionToolGroups) — refreshed at each
+//     tick from the currently-executing action.
+//
+// The struct stays flat for ease of construction at the single
+// caller (runtime/execute_action.go:buildProcessContext).
 type ProcessContextConfig struct {
+	// --- Per-process state (constant across a process's lifetime). ---
+
 	Process       Process
 	Blackboard    Blackboard
 	Options       *ProcessOptions
 	OutputChannel OutputChannel
 	Services      *ServiceProvider
+
+	// --- Platform-wired hooks (installed once at platform construction). ---
 
 	// ChatClient is the shared LLM client surfaced to action bodies
 	// via [ProcessContext.Chat] and [ProcessContext.ChatWithActionTools].
@@ -57,13 +75,6 @@ type ProcessContextConfig struct {
 	// safeguard / quota etc.) that wrap every Chat request action
 	// bodies make. nil or empty means "no global middleware".
 	Guardrails *Guardrails
-
-	// ActionToolGroups carries the currently-executing action's declared
-	// [ToolGroupRequirement]s, so [ProcessContext.ActionTools] can
-	// resolve them without the action body having to re-state role
-	// names. Mirrors embabel's ConditionEnv.toolGroups, which reads
-	// action.toolGroups for the LLM ops layer.
-	ActionToolGroups []ToolGroupRequirement
 
 	// Publish is invoked by [ProcessContext.Publish]; nil makes Publish
 	// a no-op. The runtime supplies a closure that fans the event out
@@ -79,24 +90,44 @@ type ProcessContextConfig struct {
 	// closure — single function rather than a register/clear pair so
 	// callers can't mismatch them.
 	ToolCallCancel ToolCallCancelFunc
+
+	// --- Per-action state (refreshed every tick). ---
+
+	// ActionToolGroups carries the currently-executing action's declared
+	// [ToolGroupRequirement]s, so [ProcessContext.ActionTools] can
+	// resolve them without the action body having to re-state role
+	// names. Mirrors embabel's ConditionEnv.toolGroups, which reads
+	// action.toolGroups for the LLM ops layer.
+	ActionToolGroups []ToolGroupRequirement
 }
 
 // ProcessContext is the only thing handed to an [Action.Execute] call.
-// Every service the action might need lives behind a method here so future
-// refactors don't ripple through every action body.
+// Every service the action might need lives behind a method here so
+// future refactors don't ripple through every action body.
+//
+// Field grouping mirrors [ProcessContextConfig]: public state up top,
+// platform-wired hooks in the middle (held privately so callers go
+// through the typed methods), per-action state + per-tick scratch at
+// the bottom.
 type ProcessContext struct {
+	// --- Public per-process state. ---
 	Process       Process
 	Blackboard    Blackboard
 	Options       *ProcessOptions
 	OutputChannel OutputChannel
 	Services      *ServiceProvider
 
-	chatClient       *chat.Client
-	guardrails       *Guardrails
+	// --- Platform-wired hooks. Private so action bodies go through
+	// the typed methods (Chat / Publish / ResolveTools / ...) instead
+	// of touching the underlying client / closure directly.
+	chatClient     *chat.Client
+	guardrails     *Guardrails
+	publishEvent   EventPublisher
+	resolveTools   ToolResolver
+	toolCallCancel ToolCallCancelFunc
+
+	// --- Per-action state + per-tick scratch. ---
 	actionToolGroups []ToolGroupRequirement
-	publishEvent     EventPublisher
-	resolveTools     ToolResolver
-	toolCallCancel   ToolCallCancelFunc
 
 	// lastErr captures the most recent error from a typed-action body so
 	// the runtime can extract a ReplanRequest. ProcessContext is built
