@@ -27,7 +27,12 @@ import (
 //
 // See docs/{API,TRANSPORT}.md for the full protocol.
 func (a *App) ServeCmd() *cobra.Command {
-	var addr string
+	var (
+		addr           string
+		localTokenPath string
+		noLocalToken   bool
+		corsOrigins    []string
+	)
 	cmd := &cobra.Command{
 		Use:   "serve",
 		Short: "Run Lyra as a JSON-RPC over HTTP server.",
@@ -45,35 +50,56 @@ Stdio transport is intentionally not supported — see docs/API.md §1.1.`,
 				return a.fatalErr(err)
 			}
 
+			var token *lyrahttp.LocalToken
+			if !noLocalToken {
+				t, err := lyrahttp.IssueLocalToken(localTokenPath)
+				if err != nil {
+					return a.fatalErr(err)
+				}
+				token = t
+			}
+
 			api, err := server.New(server.Config{
-				Runtime: a.runtime(),
+				Runtime:    a.runtime(),
 				ServerInfo: lyrahttp.ServerInfoOrDefault(),
 			})
 			if err != nil {
 				return a.fatalErr(err)
 			}
 
+			tokenValue := ""
+			if token != nil {
+				tokenValue = token.Value
+			}
 			httpServer, err := lyrahttp.NewServer(lyrahttp.Config{
 				Runtime:         api,
 				Addr:            addr,
 				ServerInfo:      lyrahttp.ServerInfoOrDefault(),
 				ProtocolVersion: server.ProtocolVersion,
 				Capabilities:    server.Capabilities(),
+				LocalToken:      tokenValue,
+				CORSOrigins:     corsOrigins,
 			})
 			if err != nil {
 				return a.fatalErr(err)
 			}
 
-			return a.runServer(cmd.Context(), httpServer, addr)
+			return a.runServer(cmd.Context(), httpServer, addr, token)
 		},
 	}
 	cmd.Flags().StringVar(&addr, "listen", ":8080", "HTTP bind address")
+	cmd.Flags().StringVar(&localTokenPath, "local-token-path", "",
+		"path for the local-process gate token (default: $HOME/.lyra/local-token)")
+	cmd.Flags().BoolVar(&noLocalToken, "no-local-token", false,
+		"disable the local-process gate (dev / same-origin only)")
+	cmd.Flags().StringSliceVar(&corsOrigins, "cors-origin", lyrahttp.DefaultCORSOrigins,
+		"CORS-allowed origin; repeatable. Pass an empty value to disable CORS.")
 	return cmd
 }
 
 // runServer launches the server, blocks until it returns or a
 // shutdown signal arrives, then drains with a 10s budget.
-func (a *App) runServer(ctx context.Context, server *lyrahttp.Server, addr string) error {
+func (a *App) runServer(ctx context.Context, server *lyrahttp.Server, addr string, token *lyrahttp.LocalToken) error {
 	ctx, stop := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
@@ -84,6 +110,11 @@ func (a *App) runServer(ctx context.Context, server *lyrahttp.Server, addr strin
 		fmt.Fprintf(a.Err, "[lyra]   GET  /v1/rpc/stream       SSE notifications\n")
 		fmt.Fprintf(a.Err, "[lyra]   GET  /v1/info             metadata (no auth)\n")
 		fmt.Fprintf(a.Err, "[lyra]   GET  /v1/health           liveness\n")
+		if token != nil {
+			fmt.Fprintf(a.Err, "[lyra] local-token gate active; token at %s\n", token.Path)
+		} else {
+			fmt.Fprintln(a.Err, "[lyra] local-token gate disabled (--no-local-token)")
+		}
 		errs <- server.Start()
 	}()
 
