@@ -1,7 +1,7 @@
 # CLAUDE.md — mcp module
 
 > Bridge between Model Context Protocol (MCP) and lynx `chat.Tool` system — both client (consume remote MCP tools) and server (expose lynx tools as MCP).
-> 项目级约定见 `../lyra/CLAUDE.md`。
+> 项目级约定见 `../CLAUDE.md`。
 
 ---
 

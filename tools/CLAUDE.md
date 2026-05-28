@@ -1,7 +1,7 @@
 # CLAUDE.md — tools module
 
 > 给 LLM 调用的具体工具集 —— bash / 文件系统 / HTTP / 网页抓取 / 网页搜索 / 假天气.
-> 项目级约定见 `../lyra/CLAUDE.md`。
+> 项目级约定见 `../CLAUDE.md`。
 
 ---
 

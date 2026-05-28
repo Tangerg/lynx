@@ -1,7 +1,7 @@
 # CLAUDE.md — documentreaders module
 
 > Format-agnostic readers that emit `core/document.Document` streams for RAG pipelines.
-> 项目级约定见 `../lyra/CLAUDE.md`。
+> 项目级约定见 `../CLAUDE.md`。
 
 ---
 

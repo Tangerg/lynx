@@ -1,7 +1,7 @@
 # CLAUDE.md — core module
 
 > Document / embedding / chat / vectorstore / evaluation 接口层 —— RAG / agent pipeline 的语言基础。
-> 项目级约定见 `../lyra/CLAUDE.md`。
+> 项目级约定见 `../CLAUDE.md`。
 
 ---
 

@@ -1,7 +1,7 @@
 # CLAUDE.md — agent module
 
 > Goal-oriented agent runtime — planner / world-state / blackboard / HITL / 多种 planning 算法.
-> 项目级约定见 `../lyra/CLAUDE.md`。
+> 项目级约定见 `../CLAUDE.md`。
 
 ---
 

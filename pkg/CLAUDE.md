@@ -1,7 +1,7 @@
 # CLAUDE.md — pkg module
 
 > Shared utility library — generics 集合、并发原语、流式处理、JSON Schema 生成。
-> 项目级约定见 `../lyra/CLAUDE.md`。
+> 项目级约定见 `../CLAUDE.md`。
 
 ---
 
@@ -45,7 +45,7 @@
 ## 强约定
 
 - **零业务依赖**：pkg 不 import 任何 `core/` / `agent/` / `models/` / `vectorstores/`。CI 应该锁这条（否则形成循环）
-- **公开 API 改动须先咨询用户**：dev 阶段允许 breaking change（schema / 签名 / 类型都能换），但 pkg 是被整个 monorepo 依赖的基础层，**任何 exported API 调整先确认 scope + 影响面**。详见 `../lyra/CLAUDE.md` 强约定段
+- **公开 API 改动须先咨询用户**：dev 阶段允许 breaking change（schema / 签名 / 类型都能换），但 pkg 是被整个 monorepo 依赖的基础层，**任何 exported API 调整先确认 scope + 影响面**。详见 `../CLAUDE.md` 强约定段
 - **Generics 强制**：所有集合用类型参数，公开 API 禁 `interface{}` / `any`
 - **Iterator-first**：Go 1.23 `range-over-func` 优先于 `ForEach(func(T))` —— 调用方拿到 `break` / 提前退出能力
 - **流式不缓冲**：`xml` / `json` / `stream` 优先增量处理；处理不可信输入时强制 buffer cap（防 OOM）
@@ -91,5 +91,5 @@ go test -race ./...   # 并发结构必跑
 
 - **加新子包**：先问"为什么 stdlib 不够"——只在 stdlib 真不够 OR 跨业务模块要复用时才加
 - **改 export API**：考虑兼容性，宁可加新函数也别改老的
-- **加业务概念**：**不行** —— `pkg/retry/Transient` 这种分类已经被否过（见 lyra/CLAUDE.md `❌ retry layer` 反向不变量），这里只放纯工具
+- **加业务概念**：**不行** —— `pkg/retry/Transient` 这种分类已经被否过（见根 `../CLAUDE.md` `❌ retry layer` 共用反向不变量），这里只放纯工具
 - **XML / JSON parser 改 buffer 上限**：跑 fuzz，处理 LLM 输出的恶意 case
