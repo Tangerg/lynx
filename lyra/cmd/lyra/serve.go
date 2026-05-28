@@ -11,8 +11,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/Tangerg/lynx/lyra/pkg/lyracore"
-	lyrahttp "github.com/Tangerg/lynx/lyra/pkg/transport/http"
+	"github.com/Tangerg/lynx/lyra/rpc/server"
+	lyrahttp "github.com/Tangerg/lynx/lyra/rpc/transport/http"
 )
 
 // ServeCmd is `lyra serve` — boot the JSON-RPC over HTTP transport
@@ -45,7 +45,7 @@ Stdio transport is intentionally not supported — see docs/API.md §1.1.`,
 				return a.fatalErr(err)
 			}
 
-			api, err := lyracore.New(lyracore.Config{
+			api, err := server.New(server.Config{
 				Runtime: a.runtime(),
 				ServerInfo: lyrahttp.ServerInfoOrDefault(),
 			})
@@ -53,18 +53,18 @@ Stdio transport is intentionally not supported — see docs/API.md §1.1.`,
 				return a.fatalErr(err)
 			}
 
-			server, err := lyrahttp.NewServer(lyrahttp.Config{
+			httpServer, err := lyrahttp.NewServer(lyrahttp.Config{
 				Runtime:         api,
 				Addr:            addr,
 				ServerInfo:      lyrahttp.ServerInfoOrDefault(),
-				ProtocolVersion: lyracore.ProtocolVersion,
-				Capabilities:    lyracore.ServerCapabilities(),
+				ProtocolVersion: server.ProtocolVersion,
+				Capabilities:    server.Capabilities(),
 			})
 			if err != nil {
 				return a.fatalErr(err)
 			}
 
-			return a.runServer(cmd.Context(), server, addr)
+			return a.runServer(cmd.Context(), httpServer, addr)
 		},
 	}
 	cmd.Flags().StringVar(&addr, "listen", ":8080", "HTTP bind address")
