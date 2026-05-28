@@ -11,137 +11,96 @@ import (
 
 	"github.com/spf13/cobra"
 
-	lyrahttp "github.com/Tangerg/lynx/lyra/internal/transport/http"
-	lyraipc "github.com/Tangerg/lynx/lyra/internal/transport/ipc"
+	"github.com/Tangerg/lynx/lyra/pkg/coreimpl"
+	lyrahttp "github.com/Tangerg/lynx/lyra/pkg/transport/http"
 )
 
-// ServeCmd is `lyra serve` — boot one or more transport adapters
-// against the same in-process runtime bundle.
+// ServeCmd is `lyra serve` — boot the JSON-RPC over HTTP transport
+// that the frontend's Lyra Runtime Protocol talks to.
 //
-// Flags:
+// Wire endpoints:
 //
-//	--listen :8080  HTTP+SSE transport (set to "" to disable)
-//	--stdio         stdio JSON-RPC transport on stdin/stdout
+//	POST /v1/rpc[/{method}]   JSON-RPC Request / Notification
+//	GET  /v1/rpc/stream       SSE — server-pushed notifications
+//	GET  /v1/info             Flat-JSON server metadata (no auth)
+//	GET  /v1/health           Liveness probe
 //
-// At least one transport must be enabled. The runtime is shared
-// across them — sessions / approvals / events flow through the
-// same engine regardless of which transport the client connects on.
-//
-// Shutdown: SIGINT / SIGTERM triggers graceful drain on every
-// running transport.
+// See docs/{API,TRANSPORT}.md for the full protocol.
 func (a *App) ServeCmd() *cobra.Command {
-	var (
-		httpAddr  string
-		ipcStdio  bool
-	)
+	var addr string
 	cmd := &cobra.Command{
 		Use:   "serve",
-		Short: "Run Lyra as a server — HTTP+SSE and/or stdio IPC.",
-		Long: `Boot Lyra as a server. The same in-process runtime backs every
-enabled transport — sessions / approvals / events stay coherent
-regardless of which transport a client connects on.
+		Short: "Run Lyra as a JSON-RPC over HTTP server.",
+		Long: `Boot Lyra as a server. The HTTP transport surfaces the Lyra
+Runtime Protocol on a single ` + "`/v1/rpc`" + ` endpoint plus an
+` + "`/v1/rpc/stream`" + ` SSE channel, with ` + "`/v1/info`" + ` and
+` + "`/v1/health`" + ` sidecars for operations.
 
-Transports:
-  --listen :8080   HTTP+SSE (AG-UI compatible). "" disables.
-  --stdio          stdio JSON-RPC on stdin/stdout.
-
-HTTP routes:
-  POST /v1/agent/run            — start a turn; response is AG-UI SSE
-  POST /v1/turns/{id}/steer     — inject mid-turn user steering
-  GET  /v1/sessions             — list sessions
-  POST /v1/sessions             — create a session
-  GET  /v1/sessions/{id}        — fetch one session
-  DEL  /v1/sessions/{id}        — delete a session
-  GET  /v1/approvals            — list pending approval requests
-  POST /v1/approvals/{id}       — decide a pending request
-  GET  /v1/approvals/mode       — read the runtime approval mode
-  POST /v1/approvals/mode       — switch the approval mode
-  GET  /healthz                 — liveness probe
-
-stdio JSON-RPC methods (newline-delimited JSON):
-  agent.run / agent.steer / agent.cancel
-  sessions.list / .create / .get / .delete
-  approvals.list / .decide / .getMode / .setMode
-  healthz`,
+Stdio transport is intentionally not supported — see docs/API.md §1.1.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if httpAddr == "" && !ipcStdio {
-				return a.fatalErr(errors.New("at least one transport must be enabled (--listen or --stdio)"))
+			if addr == "" {
+				return a.fatalErr(errors.New("--listen is required"))
 			}
 			if err := a.ensureRuntime(); err != nil {
 				return a.fatalErr(err)
 			}
-			return a.runTransports(cmd.Context(), httpAddr, ipcStdio)
+
+			api, err := coreimpl.New(coreimpl.Config{
+				Runtime: a.runtime(),
+				ServerInfo: lyrahttp.ServerInfoOrDefault(),
+			})
+			if err != nil {
+				return a.fatalErr(err)
+			}
+
+			server, err := lyrahttp.NewServer(lyrahttp.Config{
+				API:             api,
+				Addr:            addr,
+				ServerInfo:      lyrahttp.ServerInfoOrDefault(),
+				ProtocolVersion: coreimpl.ProtocolVersion,
+				Capabilities:    coreimpl.ServerCapabilities(),
+			})
+			if err != nil {
+				return a.fatalErr(err)
+			}
+
+			return a.runServer(cmd.Context(), server, addr)
 		},
 	}
-	cmd.Flags().StringVar(&httpAddr, "listen", ":8080", `HTTP+SSE bind address ("" disables)`)
-	cmd.Flags().BoolVar(&ipcStdio, "stdio", false, "enable stdio JSON-RPC transport")
+	cmd.Flags().StringVar(&addr, "listen", ":8080", "HTTP bind address")
 	return cmd
 }
 
-// runTransports launches every enabled transport in its own
-// goroutine and blocks until any of them returns or a shutdown
-// signal arrives. Shutdown drains in parallel with a 10s budget.
-func (a *App) runTransports(ctx context.Context, httpAddr string, ipcStdio bool) error {
+// runServer launches the server, blocks until it returns or a
+// shutdown signal arrives, then drains with a 10s budget.
+func (a *App) runServer(ctx context.Context, server *lyrahttp.Server, addr string) error {
 	ctx, stop := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	type fail struct{ name string; err error }
-	failures := make(chan fail, 2)
+	errs := make(chan error, 1)
+	go func() {
+		fmt.Fprintf(a.Err, "[lyra] http listening on %s\n", addr)
+		fmt.Fprintf(a.Err, "[lyra]   POST /v1/rpc[/{method}]   JSON-RPC\n")
+		fmt.Fprintf(a.Err, "[lyra]   GET  /v1/rpc/stream       SSE notifications\n")
+		fmt.Fprintf(a.Err, "[lyra]   GET  /v1/info             metadata (no auth)\n")
+		fmt.Fprintf(a.Err, "[lyra]   GET  /v1/health           liveness\n")
+		errs <- server.Start()
+	}()
 
-	var httpServer *lyrahttp.Server
-	if httpAddr != "" {
-		srv, err := lyrahttp.NewServer(lyrahttp.Config{
-			Runtime: a.runtime(),
-			Addr:    httpAddr,
-		})
-		if err != nil {
-			return a.fatalErr(err)
-		}
-		httpServer = srv
-		go func() {
-			fmt.Fprintf(a.Err, "[lyra] http listening on %s\n", httpAddr)
-			err := srv.Start()
-			failures <- fail{name: "http", err: err}
-		}()
-	}
-
-	if ipcStdio {
-		srv, err := lyraipc.NewServer(lyraipc.Config{
-			Runtime: a.runtime(),
-			In:      a.In,
-			Out:     a.Out,
-		})
-		if err != nil {
-			return a.fatalErr(err)
-		}
-		go func() {
-			fmt.Fprintln(a.Err, "[lyra] stdio JSON-RPC ready")
-			err := srv.Serve(ctx)
-			failures <- fail{name: "ipc", err: err}
-		}()
-	}
-
-	// Block on first failure or shutdown signal.
 	select {
-	case f := <-failures:
-		// http.ErrServerClosed is the clean-shutdown sentinel.
-		if errors.Is(f.err, http.ErrServerClosed) || f.err == nil {
-			break
+	case err := <-errs:
+		if errors.Is(err, http.ErrServerClosed) || err == nil {
+			return nil
 		}
-		return a.fatalErr(fmt.Errorf("%s transport: %w", f.name, f.err))
+		return a.fatalErr(err)
 	case <-ctx.Done():
 		fmt.Fprintln(a.Err, "[lyra] shutdown requested, draining...")
 	}
 
-	// Drain.
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	if httpServer != nil {
-		_ = httpServer.Shutdown(shutdownCtx)
+	if err := server.Shutdown(shutdownCtx); err != nil {
+		return a.fatalErr(err)
 	}
-	// IPC has no explicit shutdown — closing stdin via ctx cancel
-	// is the natural drain. The goroutine's Serve returns when ctx
-	// fires; the failures channel may receive after this select.
-
 	return nil
 }
