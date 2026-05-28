@@ -23,6 +23,7 @@ package inprocess
 import (
 	"context"
 	"errors"
+	"strconv"
 	"sync"
 	"sync/atomic"
 
@@ -110,7 +111,7 @@ func (t *Transport) pumpStream(ctx context.Context, runID string, events <-chan 
 				return
 			}
 			seq++
-			notif, err := rpcadapter.EncodeRunEvent(runID, formatSeq(seq), ev)
+			notif, err := rpcadapter.EncodeRunEvent(runID, strconv.FormatUint(seq, 10), ev)
 			if err != nil {
 				continue
 			}
@@ -150,22 +151,3 @@ func (t *Transport) Close() error {
 	return nil
 }
 
-// formatSeq is a small helper that turns a uint64 into a stable
-// string for use as eventId. We use decimal so Last-Event-Id resume
-// can compare numerically without a separate parse step.
-func formatSeq(n uint64) string {
-	// 20 chars max for uint64 — small enough to alloc on the stack
-	// inside Itoa wrappers.
-	var buf [20]byte
-	pos := len(buf)
-	if n == 0 {
-		pos--
-		buf[pos] = '0'
-	}
-	for n > 0 {
-		pos--
-		buf[pos] = byte('0' + n%10)
-		n /= 10
-	}
-	return string(buf[pos:])
-}

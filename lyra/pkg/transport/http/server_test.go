@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	netHTTP "net/http"
 	"net/http/httptest"
 	"strings"
@@ -187,7 +186,7 @@ func TestURLBodyMethodMismatch(t *testing.T) {
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != 409 {
-		raw, _ := jsonRead(resp)
+		raw := readBody(resp)
 		t.Fatalf("status = %d, body = %s", resp.StatusCode, raw)
 	}
 	var env struct {
@@ -275,7 +274,7 @@ func TestRPCWithoutMethodReturns404(t *testing.T) {
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != 404 {
-		raw, _ := jsonRead(resp)
+		raw := readBody(resp)
 		t.Fatalf("status = %d, want 404; body = %s", resp.StatusCode, raw)
 	}
 }
@@ -294,7 +293,7 @@ func TestNonNumberIDRejected(t *testing.T) {
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != 400 {
-		raw, _ := jsonRead(resp)
+		raw := readBody(resp)
 		t.Fatalf("status = %d, want 400; body = %s", resp.StatusCode, raw)
 	}
 	var env struct {
@@ -334,7 +333,7 @@ func TestRunsCancelIsRequest(t *testing.T) {
 
 	// Must be 200 + envelope, NOT 204.
 	if resp.StatusCode != 200 {
-		raw, _ := jsonRead(resp)
+		raw := readBody(resp)
 		t.Fatalf("status = %d, want 200; body = %s", resp.StatusCode, raw)
 	}
 	var env struct {
@@ -358,12 +357,11 @@ func TestRunsCancelIsRequest(t *testing.T) {
 	}
 }
 
-// jsonRead reads the response body into a string for diagnostics.
-func jsonRead(r *netHTTP.Response) (string, error) {
+// readBody reads the response body into a string for diagnostic
+// t.Fatalf messages. Best-effort — errors are swallowed because the
+// caller is already in a failure path.
+func readBody(r *netHTTP.Response) string {
 	buf := new(bytes.Buffer)
-	_, err := buf.ReadFrom(r.Body)
-	if err != nil {
-		return "", err
-	}
-	return buf.String(), fmt.Errorf("ok")
+	_, _ = buf.ReadFrom(r.Body)
+	return buf.String()
 }

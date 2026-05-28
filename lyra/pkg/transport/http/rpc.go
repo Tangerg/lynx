@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/Tangerg/lynx/lyra/pkg/coreapi"
@@ -123,7 +124,7 @@ func (s *Server) attachStream(ctx context.Context, runID string, events <-chan c
 					return
 				}
 				seq++
-				eventID := formatSeq(seq)
+				eventID := strconv.FormatUint(seq, 10)
 				notif, err := rpcadapter.EncodeRunEvent(runID, eventID, ev)
 				if err != nil {
 					continue
