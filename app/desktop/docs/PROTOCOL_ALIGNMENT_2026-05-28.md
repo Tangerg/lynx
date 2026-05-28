@@ -10,6 +10,16 @@
 >
 > **修订记录**：
 >
+> - **v4 (2026-05-28 12:30)** — 用户提醒"全新项目无历史包袱，不要为
+>   兼容性留口子"。审计出 8 处 compat-shaped 设计，**全部砍掉**：
+>   (1) HTTP transport 双 URL 形态收敛为单一 `POST /v1/rpc/{method}`；
+>   (2) `runId` + `streamHandle` 双 id 塌缩为单一 `runId`；
+>   (3) `runs.cancel` 改正经 Request，跟 `notifications/cancelled`
+>   语义彻底拆开；(4) `MCPServer` 砍 `icon` + `displayName`（UI 关心
+>   的事不进 wire）；(5) JSON-RPC `id` 锁死 `number`；(6) `ToolSpec.
+>   parameters` 类型从 `unknown` 锁到 `JsonSchema`；(7) 后端
+>   `MethodRunsCancel` 常量删除；(8) §10 "推荐 vs 必须"分级删除，单
+>   一 mandate。详见 §greenfield-cuts。
 > - **v3 (2026-05-28 11:30)** — 跟 `BACKEND_REVIEW.md` v2 同步收口。
 >   后端 v2 撤回了"统一 `Listing<T>`" 提议、接受更激进的 `MCPServer.id`
 >   砍除方案、补齐 P1 6 项 + P2 4 项的具体 fix path、加 §13 时间线。
@@ -318,9 +328,129 @@ P1 #1 (版本协商) + #2 (capability filter) + #5 (/v1/health probe) +
 
 ---
 
+## Greenfield cuts (v4)
+
+用户明确"全新项目无历史包袱，不要为兼容性留口子"后做的第 8 项设计
+清理。这一轮把之前为"低门槛 fallback / 未来灵活性"留的设计冗余全部
+砍掉。
+
+### 1. HTTP transport 单一 URL 形态
+
+**砍掉**：`POST /v1/rpc`（无 method 后缀）的备用路径。
+
+**理由**：没有"老 client"，没有"简单脚本"。typed client 永远走推荐
+形态，curl 用户也能拼对完整路径。
+
+**改动**：API.md §10.1 + TRANSPORT.md §4.3 + frontend
+`transports/http.ts` 删除 `buildUrl` 函数 + 加显式 `throw if !method`。
+
+### 2. `runId` + `streamHandle` 塌缩
+
+**砍掉**：`StartRunResult.streamHandle` 字段；所有 notification 的
+`streamHandle` 字段。
+
+**理由**：今天值跟 `runId` 一样、注释说"未来可能解耦"——典型 YAGNI
+违反。每个流式资源已经有自己的 id（runId / taskId / 等），再多一个
+streamHandle 是无意义间接层。
+
+**改动**：API.md §3.1 / §3.3 / §5.2 / §5.3 / §6.3 + frontend
+`shapes.ts` `methods.ts` `events.ts` `methods.test.ts` 同步。
+
+### 3. `runs.cancel` 语义独立
+
+**砍掉**：`runs.cancel C→R notify | 等价于 notifications/cancelled`
+这种重叠语义。
+
+**改成**：
+- `runs.cancel { runId, reason? }` —— **正经 Request method**，
+  停止 long-running run，返 `void`
+- `notifications/cancelled { requestId }` —— 取消**在飞 JSON-RPC
+  Request**（如慢 `sessions.list`），按 JSON-RPC id 配对
+
+**理由**：两个动词做不同的事 —— "run 已启动、stream 在跑、想停 run"
+vs "Request 在飞、想 abort 这个 in-flight 调用"。语义混在一起会导致
+后端 dispatch 路径分叉模糊。
+
+**改动**：API.md §3.1 / §5.2 + frontend `methods.ts` `runs.cancel`
+从 `notify()` 改 `call()`，wire method 改 `runs.cancel`（不是
+`notifications/cancelled`）。
+
+### 4. `MCPServer` 极简化
+
+**砍掉**：`icon` 和 `displayName` 字段。
+
+**理由**：
+- `icon` —— UI presentation hint 不该进 wire，客户端按 `name` 自己
+  映射图标
+- `displayName` —— MCP 协议 server name（`filesystem` / `github` /
+  `browser`）本身就 human-readable，多一个 displayName 是空架子
+
+**最终形状**：
+
+```ts
+interface MCPServer {
+  name: string;
+  desc: string;
+  tools: number;
+  status: "active" | "idle" | "error";
+}
+```
+
+**改动**：API.md §6.5 + frontend `shapes.ts`。
+
+### 5. JSON-RPC `id` 锁 number
+
+**砍掉**：`id: string | number` 的 union，统一为 `id: number`。
+
+**理由**：JSON-RPC 2.0 spec 允许两种，我们收紧到整数。客户端永远用
+`nextId++`，服务端少一个解析分支。
+
+**改动**：API.md §1.1 + frontend `types.ts` `RpcId` 类型 + 测试用例。
+
+### 6. `ToolSpec.parameters: JsonSchema`
+
+**砍掉**：`parameters: unknown // JSON Schema` 这种"注释说 X、类型说
+Y"的双面说辞。
+
+**改成**：显式 `type JsonSchema = Record<string, unknown>` 类型别名 +
+`parameters: JsonSchema`。codegen 出来的客户端能就着 schema 做参数
+校验。
+
+**改动**：API.md §6.2 + frontend `shapes.ts`。
+
+### 7. `MethodRunsCancel` 常量删除（后端）
+
+随 §3 落地：`runs.cancel` 是正经 Request method，后端 dispatcher
+需要正经路由分支，`MethodRunsCancel` 常量从"声明但不用"的中间态变
+成"必须保留并接路由"。原 §10 P2 列表里的"删除"动作改成"实装"。
+
+### 8. `POST /v1/rpc` "推荐 vs 必须"分级删除
+
+随 §1 落地：API.md §10.1 单一 mandate，没有"老 client 仍可用"的
+分级表述。
+
+---
+
 ## 状态
 
 **`[CLOSED]` — 等三边动手落地，无新决议待定**。
+
+v4 changes 已在 spec / frontend 完成同步：
+
+- `docs/API.md` §1.1 / §3 / §5.2 / §5.3 / §6.2 / §6.3 / §6.5 / §10.1 patches
+- `docs/TRANSPORT.md` §4.3 patch
+- `frontend/src/rpc/{types,shapes,methods,events}.ts` + `transports/http.ts`
+- `frontend/src/rpc/{types,methods}.test.ts` 同步
+
+**后端待动**（除 BACKEND_REVIEW v3 §8.1 那 11 个文件外，v4 新增）：
+
+- `runs.cancel` 改成正经 dispatcher route（不是 notification 路径）
+- `MCPServer` 砍 `icon` 字段（如果已实现）
+- HTTP server 删除 `POST /v1/rpc`（无 method 后缀）的 handler，请求
+  返 404
+- 所有 streaming notification 的 `streamHandle` 字段改 `runId` /
+  `taskId`
+- `MessageID` 类型锁 number（如果是 union）
 
 下次需要再开 PROTOCOL_ALIGNMENT 文档的触发条件：
 - 后端在落地过程中发现新的 shape 歧义

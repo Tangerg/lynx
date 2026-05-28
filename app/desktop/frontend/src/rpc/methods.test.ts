@@ -62,19 +62,18 @@ describe("methods factory", () => {
     t.inject({
       jsonrpc: JSONRPC_VERSION,
       id: req.id,
-      result: { runId: "r1", streamHandle: "h1" },
+      result: { runId: "r1" },
     } as RpcMessage);
 
     const { result, events } = await startPromise;
     expect(result.runId).toBe("r1");
-    expect(result.streamHandle).toBe("h1");
 
-    // Push two events on the right stream, then close.
+    // Push two events on the right run, then close.
     t.inject({
       jsonrpc: JSONRPC_VERSION,
       method: "notifications/run/event",
       params: {
-        streamHandle: "h1",
+        runId: "r1",
         eventId: "1",
         event: { type: "TEXT_MESSAGE_START", messageId: "m1" },
       },
@@ -83,7 +82,7 @@ describe("methods factory", () => {
       jsonrpc: JSONRPC_VERSION,
       method: "notifications/run/event",
       params: {
-        streamHandle: "h1",
+        runId: "r1",
         eventId: "2",
         event: { type: "TEXT_MESSAGE_END", messageId: "m1" },
       },
@@ -91,7 +90,7 @@ describe("methods factory", () => {
     t.inject({
       jsonrpc: JSONRPC_VERSION,
       method: "notifications/run/closed",
-      params: { streamHandle: "h1" },
+      params: { runId: "r1" },
     });
 
     const collected: unknown[] = [];
@@ -101,7 +100,7 @@ describe("methods factory", () => {
     await client.close();
   });
 
-  it("filters events by streamHandle (ignores other runs)", async () => {
+  it("filters events by runId (ignores other runs)", async () => {
     const t = createMemoryTransport();
     const client = createRpcClient(t);
     const methods = createMethods(client);
@@ -111,26 +110,26 @@ describe("methods factory", () => {
     t.inject({
       jsonrpc: JSONRPC_VERSION,
       id: req.id,
-      result: { runId: "r1", streamHandle: "h1" },
+      result: { runId: "r1" },
     } as RpcMessage);
     const { events } = await startPromise;
 
-    // Foreign stream — must be ignored.
+    // Foreign run — must be ignored.
     t.inject({
       jsonrpc: JSONRPC_VERSION,
       method: "notifications/run/event",
-      params: { streamHandle: "OTHER", eventId: "x", event: { type: "X" } },
+      params: { runId: "OTHER", eventId: "x", event: { type: "X" } },
     });
-    // Our stream + close.
+    // Our run + close.
     t.inject({
       jsonrpc: JSONRPC_VERSION,
       method: "notifications/run/event",
-      params: { streamHandle: "h1", eventId: "1", event: { type: "MINE" } },
+      params: { runId: "r1", eventId: "1", event: { type: "MINE" } },
     });
     t.inject({
       jsonrpc: JSONRPC_VERSION,
       method: "notifications/run/closed",
-      params: { streamHandle: "h1" },
+      params: { runId: "r1" },
     });
 
     const collected: Array<{ type?: string }> = [];

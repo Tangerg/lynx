@@ -130,11 +130,17 @@ export interface MessageEditResult {
 // Runs
 // ---------------------------------------------------------------------------
 
+// JSON Schema (draft 2020-12) — declared explicitly instead of `unknown`
+// so codegen-generated clients can validate params against the schema.
+export type JsonSchema = Record<string, unknown>;
+
 export interface ToolSpec {
   name: string;
   description?: string;
-  parameters: unknown; // JSON Schema
+  parameters: JsonSchema;
   origin: "server" | "client" | "mcp";
+  // Server-side optional fields (e.g. `safetyClass`) — clients MUST
+  // ignore unknown fields (forward-compat).
 }
 
 export type ContextItem =
@@ -156,8 +162,7 @@ export interface StartRunParams {
 }
 
 export interface StartRunResult {
-  runId: string;
-  streamHandle: string;
+  runId: string; // Unique id; notifications/run/event uses this for stream filtering
 }
 
 export type ApprovalDecision = "approve" | "deny";
@@ -215,19 +220,17 @@ export interface Project {
   active?: boolean;
 }
 
-// MCP server identifier follows the MCP protocol — `name` IS the unique
-// id (MCP namespaces by name). We dropped the historical `id` field
-// per PROTOCOL_ALIGNMENT v3: it was a REST-mock-era inheritance, had
-// no upstream meaning, and forced a "which one's the real identifier"
-// ambiguity. Wire methods (e.g. `workspace.mcp.reconnect`) accept
-// `name` directly.
+// MCP server — `name` is the MCP protocol's native unique identifier
+// (already human-readable like "filesystem" / "github" / "browser").
+// Greenfield decision: no `id` (REST-mock leftover, ambiguous vs name),
+// no `displayName` (name itself is the display label), no `icon`
+// (UI presentation hint doesn't belong on the wire — client maps icon
+// from name).
 export interface MCPServer {
   name: string; // MCP server name (== reconnect wire key)
-  displayName?: string; // optional human-readable label
   desc: string;
-  tools: number;
+  tools: number; // tool count
   status: "active" | "idle" | "error";
-  icon: string;
 }
 
 export interface Skill {

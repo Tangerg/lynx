@@ -2,11 +2,12 @@
 // See docs/API.md §3 + §4: every run event is wrapped in a
 // `notifications/run/event` notification whose `params` looks like:
 //
-//   { streamHandle: string, eventId: string, event: AgUiEvent }
+//   { runId: string, eventId: string, event: AgUiEvent }
 //
 // This file gives the typed envelope + a helper to subscribe to a
-// single stream's events and yield AG-UI BaseEvents to the consumer
-// (typically the agent store batcher).
+// single run's events and yield AG-UI BaseEvents to the consumer
+// (typically the agent store batcher). Filters notifications by runId
+// (the resource id IS the stream id — no separate streamHandle layer).
 
 import type { BaseEvent } from "@ag-ui/core";
 import type { RpcClient, NotificationHandler } from "./client";
@@ -16,49 +17,48 @@ import type { RpcClient, NotificationHandler } from "./client";
 // ---------------------------------------------------------------------------
 
 export interface RunEventParams {
-  streamHandle: string;
+  runId: string;
   eventId: string;
   event: BaseEvent;
 }
 
 export interface RunClosedParams {
-  streamHandle: string;
+  runId: string;
   reason?: string;
 }
 
 export interface TerminalOutputParams {
-  streamHandle: string;
+  runId: string;
   eventId: string;
   line: { kind: string; text: string };
 }
 
 export interface BackgroundUpdateParams {
-  streamHandle: string;
-  eventId: string;
   taskId: string;
+  eventId: string;
   status: string;
   progress?: number;
   outputDelta?: string;
 }
 
 // ---------------------------------------------------------------------------
-// Streaming helper — filter notifications by streamHandle and yield
-// the unwrapped event payload.
+// Streaming helper — filter notifications by runId and yield the
+// unwrapped event payload.
 // ---------------------------------------------------------------------------
 
 /**
  * Subscribe to AG-UI events for a single run. Returns an AsyncIterable
  * that yields `BaseEvent` until either:
- *   - `notifications/run/closed` arrives for this streamHandle, OR
+ *   - `notifications/run/closed` arrives for this runId, OR
  *   - the AbortSignal fires, OR
  *   - the consumer calls `.return()` on the iterator
  *
  * The transport's recv() backs every notification through the client;
- * we layer per-stream filtering on top.
+ * we layer per-run filtering on top.
  */
 export function streamRunEvents(
   client: RpcClient,
-  streamHandle: string,
+  runId: string,
   signal?: AbortSignal,
 ): AsyncIterable<BaseEvent> {
   return {
@@ -80,7 +80,7 @@ export function streamRunEvents(
       const onEvent: NotificationHandler = (msg) => {
         if (done) return;
         const params = msg.params as RunEventParams | undefined;
-        if (!params || params.streamHandle !== streamHandle) return;
+        if (!params || params.runId !== runId) return;
         if (waiter) {
           const w = waiter;
           waiter = null;
@@ -92,7 +92,7 @@ export function streamRunEvents(
 
       const onClosed: NotificationHandler = (msg) => {
         const params = msg.params as RunClosedParams | undefined;
-        if (params?.streamHandle !== streamHandle) return;
+        if (params?.runId !== runId) return;
         settleDone();
       };
 

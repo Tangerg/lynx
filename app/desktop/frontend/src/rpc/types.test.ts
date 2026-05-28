@@ -12,7 +12,7 @@ import {
 describe("rpc/types discriminators", () => {
   it("isRequest matches { jsonrpc, id, method, params? }", () => {
     expect(isRequest({ jsonrpc: JSONRPC_VERSION, id: 1, method: "x" })).toBe(true);
-    expect(isRequest({ jsonrpc: JSONRPC_VERSION, id: "a", method: "x", params: {} })).toBe(true);
+    expect(isRequest({ jsonrpc: JSONRPC_VERSION, id: 42, method: "x", params: {} })).toBe(true);
   });
 
   it("isResponse matches { jsonrpc, id, result|error } but not Request", () => {
