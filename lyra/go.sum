@@ -12,6 +12,8 @@ github.com/Tangerg/lynx/pkg v0.0.0-20260511081009-fbf46737de3d h1:gjCbC1D3FfBMdG
 github.com/Tangerg/lynx/pkg v0.0.0-20260511081009-fbf46737de3d/go.mod h1:irOX9IMBJ1Oms4KWfCne/0FWPdh3Uk0vpQJ88KKpv8I=
 github.com/Tangerg/lynx/tools v0.0.0-20260521101326-c68784dc9f99 h1:E/LrZby3/cm76kjtK46ubcXnZkOkZdw3p6SQRGxSUkY=
 github.com/Tangerg/lynx/tools v0.0.0-20260521101326-c68784dc9f99/go.mod h1:rGn+APD+aRZz9Kflek1MBtta+EMzFN2XnTz2REwru5E=
+github.com/Tangerg/sse v0.0.1 h1:y8NIGcy6PgC1gnwJ65SzDnCtvsoxz4KoXKLMkJkmqmw=
+github.com/Tangerg/sse v0.0.1/go.mod h1:+GPL/425WlIYRig6frpXeEk7GFYgcHaadIufk6pwe0I=
 github.com/ag-ui-protocol/ag-ui/sdks/community/go v0.0.0-20260520152522-0245ce4434c4 h1:Pj5Kw3N2n/qxlQOqbNTBuU2nIjKIfcyvHtTg19GmCcg=
 github.com/ag-ui-protocol/ag-ui/sdks/community/go v0.0.0-20260520152522-0245ce4434c4/go.mod h1:ERAMOexUee4AIuoxksuuGoEcHl3aqLwaazjGwlR9ZCI=
 github.com/anthropics/anthropic-sdk-go v1.43.0 h1:ShY3C7lafzHP0ze1dCxL3ZFZzvkGfXJN91DfZTG8zLM=
