@@ -336,11 +336,11 @@ func actionFailureError(name string) error {
 }
 
 // handleStuck is invoked when the planner returned no plan. If the agent
-// supplied a StuckHandler that resolves the situation we re-loop;
+// supplied a StuckPolicy that resolves the situation we re-loop;
 // otherwise we transition to Stuck.
 func (p *AgentProcess) handleStuck(ctx context.Context, worldState core.WorldState) error {
-	if handler := p.agent.StuckHandler; handler != nil {
-		if result := handler.HandleStuck(ctx, p); result.Code == core.StuckReplan {
+	if handler := p.agent.StuckPolicy; handler != nil {
+		if result := handler.Recover(ctx, p); result.Code == core.StuckReplan {
 			p.state.clearExclusions()
 			return nil
 		}

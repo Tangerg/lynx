@@ -24,9 +24,9 @@ type AgentConfig struct {
 	// Version is the semver tag. Nil → 1.0.0.
 	Version *semver.Version
 
-	// StuckHandler is the recovery hook fired when the planner
+	// StuckPolicy is the recovery hook fired when the planner
 	// returns no plan. Nil → transition to StatusStuck.
-	StuckHandler StuckHandler
+	StuckPolicy StuckPolicy
 
 	// Actions are the planner-visible actions. ≥1 required.
 	Actions []Action

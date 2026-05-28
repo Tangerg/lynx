@@ -29,7 +29,7 @@ type ProcessFailed struct {
 func (ProcessFailed) EventName() string { return "process_failed" }
 
 // ProcessStuck fires when the planner returns no plan and no
-// StuckHandler resolves it.
+// StuckPolicy resolves it.
 type ProcessStuck struct {
 	BaseEvent
 	LastWorld core.WorldState `json:"-"`

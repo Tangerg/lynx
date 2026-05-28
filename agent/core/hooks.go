@@ -2,25 +2,32 @@ package core
 
 import "context"
 
-// StuckHandler is invoked when the planner returns no plan. The default is
-// "give up and transition to StatusStuck"; agents that want graceful
-// degradation can supply a handler that mutates the blackboard (relax a
-// constraint, drop a goal, ...) and request a re-plan.
-type StuckHandler interface {
-	HandleStuck(ctx context.Context, p Process) StuckResult
+// StuckPolicy is invoked when the planner returns no plan. The
+// default behaviour is "give up and transition to StatusStuck";
+// agents that want graceful degradation can supply a policy that
+// mutates the blackboard (relax a constraint, drop a goal, …) and
+// requests a re-plan.
+//
+// Parallels [EarlyTerminationPolicy] in shape: each policy returns
+// a verdict the runtime acts on.
+type StuckPolicy interface {
+	// Recover decides what to do when planning has stalled. Return
+	// [StuckResult] with Code = StuckReplan to retry after any
+	// mutations, or StuckNoResolution to surrender.
+	Recover(ctx context.Context, p Process) StuckResult
 }
 
-// StuckHandlingCode is the handler's verdict.
-type StuckHandlingCode int8
+// StuckCode is the verdict a [StuckPolicy] returns.
+type StuckCode int8
 
 const (
-	StuckReplan       StuckHandlingCode = iota // Re-plan after the handler's mutations.
-	StuckNoResolution                          // Surrender; runtime sets StatusStuck.
+	StuckReplan       StuckCode = iota // Re-plan after the policy's mutations.
+	StuckNoResolution                  // Surrender; runtime sets StatusStuck.
 )
 
 // StuckResult carries the verdict plus a human-readable reason.
 type StuckResult struct {
-	Code   StuckHandlingCode
+	Code   StuckCode
 	Reason string
 }
 
