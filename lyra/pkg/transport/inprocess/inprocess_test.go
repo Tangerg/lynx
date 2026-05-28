@@ -2,7 +2,7 @@ package inprocess_test
 
 import (
 	"context"
-	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
@@ -50,7 +50,7 @@ func TestInProcessRoundtrip(t *testing.T) {
 		if resp.Error != nil {
 			t.Fatalf("got error envelope: %+v", resp.Error)
 		}
-		if !contains(resp.Result, "2026-05-28") {
+		if !strings.Contains(string(resp.Result), "2026-05-28") {
 			t.Fatalf("missing protocolVersion in result: %s", string(resp.Result))
 		}
 	case <-time.After(1 * time.Second):
@@ -98,19 +98,3 @@ func TestInProcessUnknownMethod(t *testing.T) {
 	}
 }
 
-func contains(raw json.RawMessage, needle string) bool {
-	return len(raw) > 0 && bytesContains(string(raw), needle)
-}
-
-// bytesContains avoids importing strings to keep test deps tight.
-func bytesContains(haystack, needle string) bool {
-	if len(needle) == 0 {
-		return true
-	}
-	for i := 0; i+len(needle) <= len(haystack); i++ {
-		if haystack[i:i+len(needle)] == needle {
-			return true
-		}
-	}
-	return false
-}

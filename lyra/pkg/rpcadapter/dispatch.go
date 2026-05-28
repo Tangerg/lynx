@@ -141,10 +141,7 @@ func (d *Dispatcher) dispatchRequest(ctx context.Context, msg *transport.Request
 		if err != nil {
 			return responseError(msg.ID, errorToRPC(err))
 		}
-		res := responseResult(msg.ID, out)
-		res.RunID = out.RunID
-		res.EventStream = events
-		return res
+		return streamingResult(msg.ID, out, out.RunID, events)
 
 	case MethodRunsCancel:
 		// API.md v4 §3.5: runs.cancel is a Request (not a notification).
@@ -463,10 +460,13 @@ func (d *Dispatcher) dispatchRequest(ctx context.Context, msg *transport.Request
 // not surfaced over the wire (JSON-RPC notifications are fire-and-
 // forget); the transport may log them.
 //
-// API.md v4 §2.4 / §3.5: notifications/cancelled aborts an
-// in-flight JSON-RPC Request (matched by requestId == Message.id).
-// To stop an in-flight RUN the client must use the runs.cancel
-// Request method. The two paths are no longer overloaded.
+// API.md v4 §2.4 / §3.5: notifications/cancelled aborts an in-flight
+// JSON-RPC Request (matched by requestId == Message.id). The
+// dispatcher itself has no per-id ctx registry — the transport layer
+// owns request lifecycle and must intercept this notification
+// upstream of Handle. We accept the message here for protocol
+// completeness; a future intercepting hook can plug in without
+// changing the wire shape.
 func (d *Dispatcher) handleNotification(ctx context.Context, msg *transport.Request) {
 	switch msg.Method {
 	case MethodShutdown:
@@ -475,13 +475,7 @@ func (d *Dispatcher) handleNotification(ctx context.Context, msg *transport.Requ
 		_ = d.api.Shutdown(ctx, in)
 
 	case NotificationCancelled:
-		// Aborting an in-flight JSON-RPC Request is a transport-layer
-		// concern (the handler holds the ctx). The dispatcher itself
-		// has no per-id ctx registry today; this branch exists so
-		// transports can intercept upstream before reaching us.
-		// Decoded params are recorded for telemetry but no action is
-		// taken at this layer.
-		_ = msg.Params
+		// no-op at this layer (see method doc)
 	}
 }
 
@@ -499,6 +493,16 @@ func responseError(id transport.ID, rpcErr *transport.Error) HandleResult {
 	return HandleResult{Response: transport.NewResponseError(id, rpcErr)}
 }
 
+// streamingResult is the same as [responseResult] but also attaches
+// the run/task id + event channel so the transport's notification
+// pump can fan events out under the resource id.
+func streamingResult(id transport.ID, result any, runID string, events <-chan coreapi.AgUiEvent) HandleResult {
+	res := responseResult(id, result)
+	res.RunID = runID
+	res.EventStream = events
+	return res
+}
+
 func unmarshal(raw json.RawMessage, dst any) error {
 	if len(raw) == 0 {
 		return nil
@@ -507,32 +511,16 @@ func unmarshal(raw json.RawMessage, dst any) error {
 }
 
 // decodeIDParam pulls a single id-shaped string out of a method's
-// params. Accepts either {"<key>": "..."} (the common shape) or a
-// bare string. key parameterises which JSON field to look at so
+// params object. key parameterises which JSON field to look at so
 // methods that name their id field differently (e.g. background.stop
-// uses "taskId") get a clear error path.
+// uses "taskId") share one decoder.
 func decodeIDParam(raw json.RawMessage, key string) (string, error) {
-	if len(raw) == 0 {
-		return "", fmt.Errorf("missing %s", key)
-	}
-	// Generic decode into a map then look up the key — keeps decoder
-	// agnostic of struct tags so different keys work without N tagged
-	// helper structs.
-	var obj map[string]json.RawMessage
+	var obj map[string]string
 	if err := json.Unmarshal(raw, &obj); err == nil {
-		if raw, ok := obj[key]; ok {
-			var s string
-			if jerr := json.Unmarshal(raw, &s); jerr == nil && s != "" {
-				return s, nil
-			}
+		if v := obj[key]; v != "" {
+			return v, nil
 		}
-	}
-	var s string
-	if err := json.Unmarshal(raw, &s); err == nil && s != "" {
-		return s, nil
 	}
 	return "", fmt.Errorf("missing %s", key)
 }
 
-// (validateNumberID + bytesTrimSpace removed in SDK migration —
-// Request.ID.Raw() type assertion in Handle replaces them.)

@@ -6,15 +6,15 @@ import (
 	"github.com/Tangerg/lynx/lyra/pkg/transport"
 )
 
-// clientRegistry tracks every connected SSE consumer so the
-// HTTP transport can fan a single outbound notification out to
-// every active /v1/rpc/stream listener. Today's MVP runs as a
-// single-tenant in-process Runtime — broadcasting to every client
-// is the right semantics (everyone sees the same world).
+// clientRegistry tracks every connected SSE consumer so the HTTP
+// transport can fan a single outbound notification out to every
+// active /v1/rpc/stream listener. Today's MVP runs as a single-
+// tenant in-process Runtime — broadcasting to every client is the
+// right semantics (everyone sees the same world).
 //
 // Per-stream affinity (only sending an event to the client that
-// started the run) is a future enhancement; the protocol's
-// streamHandle already encodes the routing key when we want it.
+// started the run) is a future enhancement; the protocol's runId
+// already encodes the routing key when we want it.
 type clientRegistry struct {
 	mu      sync.Mutex
 	clients map[*clientConn]struct{}

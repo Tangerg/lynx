@@ -81,17 +81,3 @@ const (
 	NotificationTerminalOutput  = "notifications/terminal/output"
 )
 
-// IsNotificationMethod reports whether method is the name of a
-// notification (no Response expected on the wire).
-func IsNotificationMethod(method string) bool {
-	switch method {
-	case NotificationCancelled,
-		NotificationRunEvent,
-		NotificationRunClosed,
-		NotificationBackgroundUpdate,
-		NotificationTerminalOutput,
-		MethodShutdown:
-		return true
-	}
-	return false
-}
