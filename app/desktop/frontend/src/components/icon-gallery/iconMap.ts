@@ -16,7 +16,8 @@ const monoModules = import.meta.glob<{ default: ComponentType<{ size?: number }>
 export const IconMap: Record<string, ComponentType<{ size?: number }>> = {};
 for (const [path, mod] of Object.entries(monoModules)) {
   const match = path.match(/\/es\/([^/]+)\/components\/Mono\.js$/);
-  if (match) IconMap[match[1]] = mod.default;
+  // match[1] is the captured group — defined when match is non-null.
+  if (match) IconMap[match[1]!] = mod.default;
 }
 
 export { rawToc };

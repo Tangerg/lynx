@@ -91,7 +91,8 @@ export const markdownComponents: Components = {
         </code>
       );
     }
-    const lang = match[1].toLowerCase();
+    // Regex has a capture group, so match[1] is defined when match is.
+    const lang = match[1]!.toLowerCase();
     const codeStr = String(children ?? "").replace(/\n$/, "");
     if (lang === "mermaid") return <MermaidBlock code={codeStr} />;
     if (lang === "html" || lang === "htm") return <HtmlArtifact code={codeStr} />;

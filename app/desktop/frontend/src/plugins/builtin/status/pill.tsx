@@ -28,8 +28,9 @@ function parseShorthand(input: string | undefined): number {
   if (!input) return Number.NaN;
   const m = input.trim().match(/^([\d.]+)\s*([km]?)$/i);
   if (!m) return Number.NaN;
-  const n = Number.parseFloat(m[1]);
-  const unit = m[2].toLowerCase();
+  // Two capture groups in the regex — both defined when match succeeds.
+  const n = Number.parseFloat(m[1]!);
+  const unit = m[2]!.toLowerCase();
   if (unit === "k") return n * 1_000;
   if (unit === "m") return n * 1_000_000;
   return n;

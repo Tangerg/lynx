@@ -248,7 +248,7 @@ describe("smoke: end-to-end happy path", () => {
     const collected: Array<{ type?: string }> = [];
     for await (const ev of events) collected.push(ev as { type?: string });
     expect(collected).toHaveLength(1);
-    expect(collected[0].type).toBe("OK_EVENT");
+    expect(collected[0]!.type).toBe("OK_EVENT");
   });
 
   it("malformed notification params are dropped (Zod boundary)", async () => {
@@ -279,6 +279,6 @@ describe("smoke: end-to-end happy path", () => {
     const collected: Array<{ type?: string }> = [];
     for await (const ev of events) collected.push(ev as { type?: string });
     expect(collected).toHaveLength(1);
-    expect(collected[0].type).toBe("OK_EVENT");
+    expect(collected[0]!.type).toBe("OK_EVENT");
   });
 });

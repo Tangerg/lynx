@@ -124,7 +124,7 @@ describe("methods factory", () => {
     const collected: Array<{ type?: string }> = [];
     for await (const ev of events) collected.push(ev as { type?: string });
     expect(collected).toHaveLength(1);
-    expect(collected[0].type).toBe("MINE");
+    expect(collected[0]!.type).toBe("MINE");
     await client.close();
   });
 });

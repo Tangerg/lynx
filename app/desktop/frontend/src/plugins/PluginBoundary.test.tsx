@@ -40,9 +40,9 @@ describe("pluginBoundary", () => {
     );
     const log = usePluginErrorStore.getState().log;
     expect(log).toHaveLength(1);
-    expect(log[0].plugin).toBe("bad.plugin");
-    expect(log[0].source).toBe("render");
-    expect(log[0].message).toBe("kaboom");
+    expect(log[0]!.plugin).toBe("bad.plugin");
+    expect(log[0]!.source).toBe("render");
+    expect(log[0]!.message).toBe("kaboom");
     spy.mockRestore();
   });
 });

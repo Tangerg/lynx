@@ -52,7 +52,7 @@ describe("plugin registry", () => {
       createHost("beta", sinkB).tool.registerPreview("bash", AnotherPreview);
 
       expect(warn).toHaveBeenCalledOnce();
-      expect(warn.mock.calls[0][0]).toMatch(/beta overrides tool preview "bash"/);
+      expect(warn.mock.calls[0]![0]).toMatch(/beta overrides tool preview "bash"/);
 
       const entry = usePluginStore.getState().toolPreviews.get("bash");
       expect(entry?.value).toBe(AnotherPreview);
@@ -86,7 +86,7 @@ describe("plugin registry", () => {
     // simulate: after override, then disposing the "old" handle should not
     // touch the new owner's entry.
     hostB.tool.registerPreview("bash", StubPreview);
-    const aDispose = a[a.length - 1].dispose; // alpha's "bash" disposer (stale)
+    const aDispose = a[a.length - 1]!.dispose; // alpha's "bash" disposer (stale)
     aDispose();
 
     // beta still owns "bash"
@@ -176,9 +176,9 @@ describe("plugin registry", () => {
 
     const entries = Array.from(usePluginStore.getState().layoutSlots.values());
     expect(entries).toHaveLength(1);
-    expect(entries[0].pluginName).toBe("alpha");
-    expect(entries[0].value.slot).toBe("app.main");
-    expect(entries[0].value.spec.id).toBe("x");
+    expect(entries[0]!.pluginName).toBe("alpha");
+    expect(entries[0]!.value.slot).toBe("app.main");
+    expect(entries[0]!.value.spec.id).toBe("x");
   });
 
   it("layout.register disposable removes the slot entry", () => {
@@ -306,7 +306,7 @@ describe("plugin registry", () => {
     host.config.set("featureX", true);
     expect(host.config.get("featureX")).toBe(true);
     expect(fn).toHaveBeenCalledOnce();
-    expect(fn.mock.calls[0][0]).toBe(true);
+    expect(fn.mock.calls[0]![0]).toBe(true);
 
     // Setting the same value doesn't re-fire subscribers.
     host.config.set("featureX", true);
@@ -415,7 +415,7 @@ describe("plugin registry", () => {
     });
 
     expect(fn).toHaveBeenCalledOnce();
-    expect(fn.mock.calls[0][0].name).toBe("beta");
+    expect(fn.mock.calls[0]![0].name).toBe("beta");
   });
 
   it("plugins.registerErrorFallback picks highest priority", () => {
@@ -444,7 +444,7 @@ describe("plugin registry", () => {
     usePluginStore.getState().unload("beta");
 
     expect(fn).toHaveBeenCalledOnce();
-    expect(fn.mock.calls[0][0]).toBe("beta");
+    expect(fn.mock.calls[0]![0]).toBe("beta");
   });
 
   it("state.slice subscribers fire on change + can be disposed", () => {
@@ -579,11 +579,11 @@ describe("plugin registry", () => {
 
       // Console forwarded with prefix
       expect(log).toHaveBeenCalledOnce();
-      expect(log.mock.calls[0][0]).toBe("[plugin:alpha]");
+      expect(log.mock.calls[0]![0]).toBe("[plugin:alpha]");
 
       // Subscriber received the event
       expect(sub).toHaveBeenCalledOnce();
-      const ev = sub.mock.calls[0][0];
+      const ev = sub.mock.calls[0]![0];
       expect(ev.plugin).toBe("alpha");
       expect(ev.level).toBe("info");
       expect(ev.args).toEqual(["hello", 1, 2]);

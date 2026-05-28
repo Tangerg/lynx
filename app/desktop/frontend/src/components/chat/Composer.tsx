@@ -138,6 +138,7 @@ function ModePicker({
   onChange: (v: ComposerMode) => void;
 }) {
   const active = modes.find((m) => m.id === value) ?? modes[0];
+  if (!active) return null; // no modes registered — composer shows no picker
   return (
     <DropdownMenu.Root>
       <Tooltip label="Composer mode">

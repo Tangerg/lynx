@@ -75,8 +75,8 @@ describe("reducer — timeline accumulator", () => {
 
     const approval = s.timeline.filter((t) => t.kind.startsWith("approval"));
     expect(approval.map((t) => t.kind)).toEqual(["approval-request", "approval-result"]);
-    expect(approval[0].refId).toBe("req-1");
-    expect(approval[1].status).toBe("approved");
+    expect(approval[0]!.refId).toBe("req-1");
+    expect(approval[1]!.status).toBe("approved");
   });
 });
 
@@ -158,11 +158,11 @@ describe("reducer — messages snapshot", () => {
     );
 
     expect(next.messages.map((m) => m.role)).toEqual(["user", "assistant"]);
-    expect(next.messages[1].blocks).toEqual([
+    expect(next.messages[1]!.blocks).toEqual([
       { kind: "text", text: "ok", status: "complete" },
       { kind: "tool", toolCallId: "t1" },
     ]);
-    expect(next.toolCalls.t1.fn).toBe("read_file");
-    expect(next.toolCalls.t1.result).toBe("file contents");
+    expect(next.toolCalls.t1!.fn).toBe("read_file");
+    expect(next.toolCalls.t1!.result).toBe("file contents");
   });
 });

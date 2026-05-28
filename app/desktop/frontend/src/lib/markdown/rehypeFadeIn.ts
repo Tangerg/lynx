@@ -58,7 +58,7 @@ export function rehypeFadeIn() {
 
     // Apply in reverse so indices stay valid as we splice.
     for (let i = jobs.length - 1; i >= 0; i--) {
-      const { parent, index, replacement } = jobs[i];
+      const { parent, index, replacement } = jobs[i]!;
       parent.children.splice(index, 1, ...replacement);
     }
   };

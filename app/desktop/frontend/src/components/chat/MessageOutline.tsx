@@ -25,7 +25,10 @@ const MIN_ITEMS = 3;
 function sameItems(a: OutlineItem[], b: OutlineItem[]): boolean {
   if (a.length !== b.length) return false;
   for (let i = 0; i < a.length; i++) {
-    if (a[i].id !== b[i].id || a[i].level !== b[i].level || a[i].text !== b[i].text) return false;
+    // Bound-checked above; non-null asserts are safe here.
+    const ai = a[i]!;
+    const bi = b[i]!;
+    if (ai.id !== bi.id || ai.level !== bi.level || ai.text !== bi.text) return false;
   }
   return true;
 }

@@ -111,7 +111,7 @@ describe("diagnostics store: ingest", () => {
     );
     const rows = Object.values(useDiagnosticsStore.getState().rows);
     expect(rows).toHaveLength(1);
-    const [r] = rows;
+    const r = rows[0]!;
     expect(r.name).toBe("lyra.reducer.duration");
     expect(r.kind).toBe("histogram");
     expect(r.attrs).toEqual({ eventType: "TEXT_MESSAGE_CONTENT" });
@@ -139,7 +139,7 @@ describe("diagnostics store: ingest", () => {
           }),
       ]),
     );
-    const [r] = Object.values(useDiagnosticsStore.getState().rows);
+    const r = Object.values(useDiagnosticsStore.getState().rows)[0]!;
     expect(r.p50).toBe(50);
     expect(r.p95).toBe(100);
   });
@@ -156,7 +156,7 @@ describe("diagnostics store: ingest", () => {
           }),
       ]),
     );
-    const [r] = Object.values(useDiagnosticsStore.getState().rows);
+    const r = Object.values(useDiagnosticsStore.getState().rows)[0]!;
     expect(r.count).toBe(0);
     expect(r.avg).toBe(0);
     expect(r.p50).toBe(0);
@@ -174,7 +174,7 @@ describe("diagnostics store: ingest", () => {
           }),
       ]),
     );
-    const [r] = Object.values(useDiagnosticsStore.getState().rows);
+    const r = Object.values(useDiagnosticsStore.getState().rows)[0]!;
     expect(r.kind).toBe("counter");
     expect(r.count).toBe(42);
     expect(r.sum).toBe(42);
@@ -204,7 +204,7 @@ describe("diagnostics store: ingest", () => {
     // Two data points sharing the same name + attribute key collapse;
     // CUMULATIVE temporality means the last one wins.
     expect(rows).toHaveLength(1);
-    expect(rows[0].count).toBe(7);
+    expect(rows[0]!.count).toBe(7);
   });
 
   it("keeps separate rows when attributes differ", () => {

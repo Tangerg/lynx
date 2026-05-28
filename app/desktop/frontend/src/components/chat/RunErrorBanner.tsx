@@ -17,7 +17,7 @@ import { useSessionStore } from "@/state/sessionStore";
 function findLastUserText(): string {
   const { messages } = getCurrentSessionView();
   for (let i = messages.length - 1; i >= 0; i--) {
-    const m = messages[i];
+    const m = messages[i]!;
     if (m.role !== "user") continue;
     const text = m.blocks
       .map((b) => ("text" in b ? ((b as { text?: string }).text ?? "") : ""))
