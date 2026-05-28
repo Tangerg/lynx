@@ -26,8 +26,9 @@ type Entry struct {
 	CapturedAt string // RFC3339; kept as string so simple transports don't need to marshal time
 }
 
-// Service is the MemoryService contract. M5 wires the real
-// implementation; M1 leaves it as a stub.
+// Service is the MemoryService contract. File-backed and SQLite-
+// backed implementations live in internal/storage and
+// internal/storage/sqlite respectively.
 type Service interface {
 	// Get returns the full LYRA.md content for the given scope.
 	// Empty result is valid (file may not exist yet).
