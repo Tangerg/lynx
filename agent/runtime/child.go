@@ -82,6 +82,63 @@ func SpawnChildFresh(
 	return spawnChildOptions(ctx, platform, agentDef, in, options)
 }
 
+// SpawnChildAsync is the non-blocking sibling of [SpawnChild]: it
+// creates the child, binds the typed input, and drives its OODA loop in
+// the background via [Platform.ContinueProcessAsync] — returning the
+// child's process id (use it as a task handle) and a done channel that
+// fires the run's terminal error (nil on clean exit) the moment the
+// background loop exits.
+//
+// Unlike SpawnChild the caller's tick is NOT blocked: the spawning
+// action returns while the child keeps running, and the result is
+// collected later via [Platform.ProcessByID] + [core.ResultOfType], or
+// the child is cancelled via [Platform.KillProcess] (= SDK stopTask).
+// The child joins the parent's budget tree (subtree usage still counts
+// against the parent's BudgetPolicy) and inherits the parent blackboard
+// via Spawn, exactly like SpawnChild.
+//
+// The background run uses [context.WithoutCancel] so the child survives
+// the spawning action's ctx ending — a background task whose parent
+// action already returned must not die just because that call frame is
+// gone. It therefore has NO deadline and is NOT auto-cancelled when the
+// parent ends; lifecycle is the orchestrator's job via the returned id
+// (KillProcess one, or [Platform.KillChildren] to sweep all of a
+// parent's outstanding children on turn exit).
+//
+// nil platform / nil agent / missing parent in ctx return errors.
+func SpawnChildAsync(
+	ctx context.Context,
+	platform *Platform,
+	agentDef *core.Agent,
+	in any,
+) (string, <-chan error, error) {
+	if platform == nil {
+		return "", nil, errors.New("spawn child async: platform is nil")
+	}
+	if agentDef == nil {
+		return "", nil, errors.New("spawn child async: agent is nil")
+	}
+	parent := core.ProcessFrom(ctx)
+	if parent == nil {
+		return "", nil, errors.New("spawn child async: no parent process in ctx (use core.WithProcess to inject one)")
+	}
+	parentProc, ok := platform.ProcessByID(parent.ID())
+	if !ok {
+		return "", nil, fmt.Errorf("spawn child async: parent process %q not registered on platform", parent.ID())
+	}
+
+	child, err := platform.CreateChildProcess(agentDef, parentProc, core.ProcessOptions{})
+	if err != nil {
+		return "", nil, fmt.Errorf("spawn child async %q: create: %w", agentDef.Name, err)
+	}
+	if in != nil {
+		child.Blackboard().Bind(in)
+	}
+
+	done := platform.ContinueProcessAsync(context.WithoutCancel(ctx), child.ID())
+	return child.ID(), done, nil
+}
+
 // RunFresh is the top-level companion to [SpawnChild]: starts a fresh
 // process via [Platform.RunAgent] (no parent process required in ctx)
 // and binds in under [core.DefaultBindingName]. Used by MCP-publish
