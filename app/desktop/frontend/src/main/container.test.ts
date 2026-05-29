@@ -1,46 +1,35 @@
-import type { ApprovalSubmission, PermissionGateway } from "@/domain";
 import { afterEach, describe, expect, it } from "vitest";
+import type { Methods } from "@/rpc";
 import { getContainer, resetContainer, setContainer } from "./container";
-
-class FakePermissionGateway implements PermissionGateway {
-  calls: ApprovalSubmission[] = [];
-  async submit(s: ApprovalSubmission) {
-    this.calls.push(s);
-  }
-}
 
 describe("main/container", () => {
   afterEach(resetContainer);
 
-  it("exposes a default permission gateway out of the box", () => {
-    expect(getContainer().permission).toBeDefined();
-    expect(typeof getContainer().permission.submit).toBe("function");
+  it("exposes the Runtime Protocol entry points out of the box", () => {
+    const c = getContainer();
+    expect(typeof c.createRpc).toBe("function");
+    expect(typeof c.methods).toBe("function");
+    expect(c.sidecar).toBeDefined();
   });
 
-  it("setContainer() swaps a single gateway, leaving others intact", () => {
-    const fake = new FakePermissionGateway();
-    setContainer({ permission: fake });
-    expect(getContainer().permission).toBe(fake);
+  it("setContainer() swaps a single slot, leaving others intact", () => {
+    const fakeMethods = {} as Methods;
+    const before = getContainer().sidecar;
+    setContainer({ methods: () => fakeMethods });
+    expect(getContainer().methods()).toBe(fakeMethods);
+    expect(getContainer().sidecar).toBe(before);
   });
 
   it("resetContainer() restores defaults", () => {
-    const fake = new FakePermissionGateway();
-    setContainer({ permission: fake });
+    const fakeMethods = {} as Methods;
+    setContainer({ methods: () => fakeMethods });
     resetContainer();
-    expect(getContainer().permission).not.toBe(fake);
-  });
-
-  it("gateway calls route through whatever container currently holds", async () => {
-    const fake = new FakePermissionGateway();
-    setContainer({ permission: fake });
-    await getContainer().permission.submit({ requestId: "r1", decision: "approved" });
-    expect(fake.calls).toEqual([{ requestId: "r1", decision: "approved" }]);
+    expect(getContainer().methods()).not.toBe(fakeMethods);
   });
 
   it("methods() returns a cached singleton (one client for the container's life)", () => {
     const first = getContainer().methods();
     expect(getContainer().methods()).toBe(first);
-    // A fresh container builds a new one.
     resetContainer();
     expect(getContainer().methods()).not.toBe(first);
   });

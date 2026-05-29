@@ -232,8 +232,8 @@ func (s customStep) Run(e *env) bool {
 // Wire shape — the `lyra.approval` event carries:
 //   { requestId, parentMessageId, text, command, reason,
 //     risk?, scope?, target?, reversible? }
-// The frontend renders an ApprovalCard, the user clicks; we get a POST
-// /permission with { requestId, decision }, and unblock here.
+// The frontend renders an ApprovalCard, the user clicks; we get a
+// runs.approval.submit call with { requestId, decision }, and unblock here.
 //
 // Follow-up `lyra.approval-result` event:
 //   { requestId, decision: "approved" | "declined" }

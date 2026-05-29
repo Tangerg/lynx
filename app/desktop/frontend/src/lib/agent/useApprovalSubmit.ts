@@ -1,20 +1,25 @@
-import type { ApprovalDecision } from "@/domain";
 import { useCallback, useState } from "react";
 import { getContainer } from "@/main/container";
+import { asApprovalRequestId } from "@/rpc";
 
-// Submits the user's approval / decline decision via the permission
-// gateway (see `@/domain/gateways/PermissionGateway`). Pure UI state
-// (`pending`) lives here; the HTTP plumbing lives in the gateway impl
-// so this hook is transport-agnostic and trivially mockable in tests:
+// Submits the user's HITL decision via the JSON-RPC `runs.approval.submit`
+// method (the cached client from `container.methods()`). Pure UI state
+// (`pending`) lives here; the transport is the shared RpcClient, so tests
+// mock it the same way every other method does:
 //
-//   setContainer({ permission: fakeGateway });
+//   setContainer({ methods: () => fakeMethods });
 //
 // We deliberately do NOT clear `pending` on success — the backend's
-// `lyra.approval-result` event will stamp the block's `decision` field,
-// and the card renders against that. Clearing here would briefly flicker
-// the card back to the pre-decision state.
+// `lyra.approval-result` event stamps the block's `decision` field and the
+// card renders against that. Clearing here would flicker the card back to
+// its pre-decision state.
 
-export type { ApprovalDecision };
+// UI decision vocabulary (past-tense). The protocol wire uses the
+// imperative pair "approve" | "deny" (API.md §4.3); we map at the call
+// boundary below so the rest of the view layer keeps its own vocabulary.
+export type ApprovalDecision = "approved" | "declined";
+
+const WIRE_DECISION = { approved: "approve", declined: "deny" } as const;
 
 export interface ApprovalSubmit {
   submit: (decision: ApprovalDecision) => void;
@@ -29,9 +34,13 @@ export function useApprovalSubmit(requestId: string | undefined): ApprovalSubmit
       if (!requestId || pending !== null) return;
       setPending(decision);
       getContainer()
-        .permission.submit({ requestId, decision })
-        .catch((err) => {
-          console.error("[approval] gateway rejected:", err);
+        .methods()
+        .runs.approval.submit({
+          requestId: asApprovalRequestId(requestId),
+          decision: WIRE_DECISION[decision],
+        })
+        .catch((err: unknown) => {
+          console.error("[approval] submit rejected:", err);
           setPending(null);
         });
     },

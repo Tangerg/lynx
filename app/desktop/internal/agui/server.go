@@ -48,9 +48,10 @@ func (s *Server) Start() error {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/run", s.handleRun)
-	mux.HandleFunc("/permission", s.handlePermission)
 	// Lyra Runtime Protocol (JSON-RPC). Exact-match /v1/rpc/stream wins
 	// over the /v1/rpc/ subtree dispatcher per ServeMux longest-pattern.
+	// HITL approval now rides runs.approval.submit (rpc.go) — the old
+	// POST /permission endpoint is retired.
 	mux.HandleFunc("/v1/rpc/stream", s.handleRPCStream)
 	mux.HandleFunc("/v1/rpc/", s.handleRPC)
 	mux.HandleFunc("/health", func(w http.ResponseWriter, _ *http.Request) {
@@ -131,38 +132,6 @@ func (s *Server) handleRun(w http.ResponseWriter, r *http.Request) {
 	}
 
 	Run(ctx, input, emit)
-}
-
-// handlePermission accepts the user's decision on an approval card and
-// forwards it to whichever script goroutine is blocked on that
-// requestId in permissions.go.
-//
-//   POST application/json {"requestId":"...","decision":"approved"|"declined"}
-//   → 204 on resolve, 404 if the id isn't waited on (script aborted /
-//     decision arrived twice).
-func (s *Server) handlePermission(w http.ResponseWriter, r *http.Request) {
-	if r.Method == http.MethodOptions {
-		w.WriteHeader(http.StatusNoContent)
-		return
-	}
-	if r.Method != http.MethodPost {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-	var resp PermissionResponse
-	if err := json.NewDecoder(r.Body).Decode(&resp); err != nil {
-		http.Error(w, "invalid body: "+err.Error(), http.StatusBadRequest)
-		return
-	}
-	if resp.RequestID == "" {
-		http.Error(w, "missing requestId", http.StatusBadRequest)
-		return
-	}
-	if !permissions.resolve(resp) {
-		http.Error(w, "unknown requestId", http.StatusNotFound)
-		return
-	}
-	w.WriteHeader(http.StatusNoContent)
 }
 
 // withCORS allows the Wails webview origin and Vite dev origin to call us.
