@@ -146,6 +146,14 @@ func (e *Engine) buildChatAgent() *core.Agent {
 			},
 			core.ActionConfig{
 				ToolGroups: core.ToolRolesFor(ToolRoleCoding),
+				// Recover instead of aborting when the model misbehaves:
+				// a hallucinated tool name gets fed back with the real
+				// tool list so the model can re-pick, and an empty reply
+				// gets one nudge. Both are no-ops on a well-behaved turn.
+				ToolLoop: chat.ToolLoopConfig{
+					FeedbackOnUnknownTool:   true,
+					FeedbackOnEmptyResponse: true,
+				},
 			},
 		)).
 		Goals(agent.GoalProducing[ChatOutput](core.Goal{
