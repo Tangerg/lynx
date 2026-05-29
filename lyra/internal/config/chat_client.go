@@ -53,15 +53,15 @@ func BuildChatClient(cfg Config) (*chat.Client, engine.Pricing, error) {
 }
 
 // pricingFromMetadata turns a model's rate card (set by the adapter from
-// the pricing catalog) into the engine's per-round cost hook. Returns
-// nil when pricing is unknown — the engine then leaves CostUSD at zero
-// rather than guessing. The served-model arg is ignored: lyra runs one
+// the model catalog) into the engine's per-round cost hook. Returns nil
+// when pricing is unknown — the engine then leaves CostUSD at zero rather
+// than guessing. The served-model arg is ignored: lyra runs one
 // configured model per client, so its rate card applies to every round.
 func pricingFromMetadata(meta chat.ModelMetadata) engine.Pricing {
-	if meta.Pricing.IsZero() {
+	if meta.Model.Pricing.IsZero() {
 		return nil
 	}
-	rate := meta.Pricing
+	rate := meta.Model.Pricing
 	return func(_ string, u *chat.Usage) float64 {
 		return rate.Cost(u)
 	}

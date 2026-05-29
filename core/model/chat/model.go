@@ -33,16 +33,51 @@ type Model interface {
 	Metadata() ModelMetadata
 }
 
-// ModelMetadata holds identity metadata for a [Model] instance. Provider names
-// are conventionally lowercase (e.g. "openai", "anthropic", "google") so
-// downstream filters can match without case folding.
+// ModelInfo is a single chat model's metadata — identity, pricing, and
+// capabilities. It's the row type of a model catalog (provider → many
+// models) and the per-model payload carried by [ModelMetadata].
+//
+// A chat [Model] instance can serve more than one model id (the id is a
+// request option), so the catalog — keyed by model id — is the canonical
+// source; ModelMetadata carries the instance's default model's info as a
+// convenience.
+type ModelInfo struct {
+	// ID is the model identifier (e.g. "claude-sonnet-4-6").
+	ID string `json:"id,omitempty"`
+
+	// DisplayName is a human-readable label (e.g. "Claude Sonnet 4.6").
+	DisplayName string `json:"display_name,omitempty"`
+
+	// Pricing is the per-1M-token rate card, zero (IsZero) when unknown.
+	Pricing Pricing `json:"pricing,omitzero"`
+
+	// CanReason reports whether the model supports extended thinking /
+	// reasoning.
+	CanReason bool `json:"can_reason,omitempty"`
+
+	// ContextWindow is the maximum context size in tokens (0 = unknown).
+	ContextWindow int64 `json:"context_window,omitempty"`
+
+	// MaxTokens is the model's default max output tokens (0 = unknown).
+	MaxTokens int64 `json:"max_tokens,omitempty"`
+}
+
+// IsZero reports whether no model info is set.
+func (m ModelInfo) IsZero() bool { return m == ModelInfo{} }
+
+// ModelMetadata holds identity metadata for a [Model] instance: the
+// vendor plus the instance's default model info. Provider names are
+// conventionally lowercase ("openai", "anthropic", ...) so downstream
+// filters match without case folding.
+//
+// Per-model metadata for arbitrary model ids lives in a catalog
+// (github.com/Tangerg/lynx/models/catalog, modeled on catwalk); Model is
+// just the default model's view.
 type ModelMetadata struct {
 	// Provider names the LLM vendor — "openai", "anthropic", "google", etc.
 	Provider string `json:"provider"`
 
-	// Pricing is the model's per-1M-token rate card, zero (IsZero) when
-	// unknown. Providers populate it — typically from a pricing catalog
-	// (github.com/Tangerg/lynx/models/pricing, modeled on catwalk) — so
-	// consumers can attribute USD cost without hard-coding rates.
-	Pricing Pricing `json:"pricing,omitzero"`
+	// Model is the instance's default model metadata — pricing,
+	// capabilities, and identity. Accessed as meta.Model.Pricing etc.
+	Model ModelInfo `json:"model,omitzero"`
 }

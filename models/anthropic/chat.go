@@ -13,8 +13,8 @@ import (
 
 	"github.com/Tangerg/lynx/core/model"
 	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/models/catalog"
 	"github.com/Tangerg/lynx/models/internal/options"
-	"github.com/Tangerg/lynx/models/pricing"
 	"github.com/Tangerg/lynx/pkg/mime"
 )
 
@@ -534,11 +534,11 @@ func NewChatModel(cfg ChatModelConfig) (*ChatModel, error) {
 	if cfg.Metadata != nil {
 		info = *cfg.Metadata
 	}
-	// Fill the rate card from the embedded catalog when the caller didn't
-	// supply one — so cost can be attributed via Metadata().Pricing.
-	if info.Pricing.IsZero() && cfg.DefaultOptions != nil {
-		if p, ok := pricing.Lookup(info.Provider, cfg.DefaultOptions.Model); ok {
-			info.Pricing = p
+	// Fill model info from the embedded catalog when the caller didn't
+	// supply one — so cost and capabilities surface via Metadata().Model.
+	if info.Model.IsZero() && cfg.DefaultOptions != nil {
+		if m, ok := catalog.Lookup(info.Provider, cfg.DefaultOptions.Model); ok {
+			info.Model = m
 		}
 	}
 	return &ChatModel{
