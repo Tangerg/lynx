@@ -13,6 +13,7 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/core/model/chat/memory"
 	lyramem "github.com/Tangerg/lynx/lyra/internal/service/memory"
+	"github.com/Tangerg/lynx/mcp"
 )
 
 // Config is the engine construction-time bundle. All fields are
@@ -54,7 +55,7 @@ type Config struct {
 	// construction. Their tools are merged into the built-in coding
 	// tool set, prefixed with the server's Name so collisions across
 	// servers stay separable. Empty disables MCP integration.
-	MCPServers []MCPServer
+	MCPServers []mcp.ServerConfig
 
 	// Pricing optionally computes per-round USD cost from the served
 	// model + token usage. nil leaves cost at zero (the chat path gets

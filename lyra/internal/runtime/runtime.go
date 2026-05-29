@@ -37,6 +37,7 @@ import (
 	memsvc "github.com/Tangerg/lynx/lyra/internal/service/memory"
 	sessionsvc "github.com/Tangerg/lynx/lyra/internal/service/session"
 	toolsvc "github.com/Tangerg/lynx/lyra/internal/service/tool"
+	"github.com/Tangerg/lynx/mcp"
 )
 
 // Config is the construction-time bundle for [New]. ChatClient is
@@ -59,7 +60,7 @@ type Config struct {
 	// MCPServers lists external MCP servers to dial at startup.
 	// Their tools merge into the engine's tool set under the
 	// configured Name prefix.
-	MCPServers []engine.MCPServer
+	MCPServers []mcp.ServerConfig
 
 	// Compaction tunes the post-turn auto-compaction. Zero values
 	// fall back to the package defaults; setting MaxMessages
