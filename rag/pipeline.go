@@ -39,7 +39,7 @@ type PipelineConfig struct {
 }
 
 // Validate rejects configurations missing the required pieces.
-func (c PipelineConfig) Validate() error {
+func (c *PipelineConfig) Validate() error {
 	if len(c.DocumentRetrievers) == 0 {
 		return errors.New("rag.PipelineConfig: at least one DocumentRetriever is required")
 	}

@@ -37,7 +37,7 @@ type TranslationTransformerConfig struct {
 }
 
 // Validate rejects invalid configs.
-func (c TranslationTransformerConfig) Validate() error {
+func (c *TranslationTransformerConfig) Validate() error {
 	if c.ChatModel == nil {
 		return errors.New("rag.TranslationTransformerConfig: ChatModel is required")
 	}

@@ -42,7 +42,7 @@ type TokenCountBatcherConfig struct {
 
 // Validate returns an error when required fields are missing or
 // numerically out of range.
-func (c TokenCountBatcherConfig) Validate() error {
+func (c *TokenCountBatcherConfig) Validate() error {
 	if c.TokenCountEstimator == nil {
 		return errors.New("document.TokenCountBatcherConfig: TokenCountEstimator is required")
 	}

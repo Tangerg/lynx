@@ -71,7 +71,7 @@ type StoreConfig struct {
 	StoreDocumentContent bool
 }
 
-func (c StoreConfig) Validate() error {
+func (c *StoreConfig) Validate() error {
 	if c.Client == nil {
 		return ErrMissingClient
 	}

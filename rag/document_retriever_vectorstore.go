@@ -38,7 +38,7 @@ type VectorStoreRetrieverConfig struct {
 }
 
 // Validate rejects invalid configurations.
-func (c VectorStoreRetrieverConfig) Validate() error {
+func (c *VectorStoreRetrieverConfig) Validate() error {
 	if c.VectorStore == nil {
 		return errors.New("rag.VectorStoreRetrieverConfig: VectorStore is required")
 	}

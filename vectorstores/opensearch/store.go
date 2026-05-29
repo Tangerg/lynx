@@ -134,7 +134,7 @@ type StoreConfig struct {
 	InitializeSchema bool
 }
 
-func (c StoreConfig) Validate() error {
+func (c *StoreConfig) Validate() error {
 	if c.Client == nil {
 		return errors.New("opensearch: Client is required")
 	}

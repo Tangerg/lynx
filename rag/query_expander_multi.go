@@ -50,7 +50,7 @@ type MultiQueryExpanderConfig struct {
 }
 
 // Validate rejects invalid configs.
-func (c MultiQueryExpanderConfig) Validate() error {
+func (c *MultiQueryExpanderConfig) Validate() error {
 	if c.ChatModel == nil {
 		return errors.New("rag.MultiQueryExpanderConfig: ChatModel is required")
 	}

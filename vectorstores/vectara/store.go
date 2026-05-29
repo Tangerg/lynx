@@ -61,7 +61,7 @@ type StoreConfig struct {
 	HTTPClient *http.Client
 }
 
-func (c StoreConfig) Validate() error {
+func (c *StoreConfig) Validate() error {
 	if c.APIKey == "" {
 		return errors.New("vectara: APIKey is required")
 	}

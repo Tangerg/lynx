@@ -136,7 +136,7 @@ type StoreConfig struct {
 	SkipExtensionCreate bool
 }
 
-func (c StoreConfig) Validate() error {
+func (c *StoreConfig) Validate() error {
 	if c.Pool == nil {
 		return errors.New("pgvector: Pool is required")
 	}

@@ -57,7 +57,7 @@ func (c *FactCheckingEvaluatorConfig) ApplyDefaults() {
 // Validate returns an error when required fields are missing or the
 // template lacks the expected variables. Pure check — pair with
 // [FactCheckingEvaluatorConfig.ApplyDefaults].
-func (c FactCheckingEvaluatorConfig) Validate() error {
+func (c *FactCheckingEvaluatorConfig) Validate() error {
 	if c.ChatModel == nil {
 		return errors.New("evaluation.FactCheckingEvaluatorConfig: ChatModel is required")
 	}

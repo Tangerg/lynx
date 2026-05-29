@@ -104,7 +104,7 @@ type StoreConfig struct {
 	InitializeSchema bool
 }
 
-func (c StoreConfig) Validate() error {
+func (c *StoreConfig) Validate() error {
 	if c.DB == nil {
 		return errors.New("oracle: DB is required")
 	}

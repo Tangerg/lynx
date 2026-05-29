@@ -40,7 +40,7 @@ type RewriteTransformerConfig struct {
 }
 
 // Validate rejects invalid configs.
-func (c RewriteTransformerConfig) Validate() error {
+func (c *RewriteTransformerConfig) Validate() error {
 	if c.ChatModel == nil {
 		return errors.New("rag.RewriteTransformerConfig: ChatModel is required")
 	}

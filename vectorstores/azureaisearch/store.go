@@ -88,7 +88,7 @@ type StoreConfig struct {
 	HTTPClient *http.Client
 }
 
-func (c StoreConfig) Validate() error {
+func (c *StoreConfig) Validate() error {
 	if c.Endpoint == "" {
 		return errors.New("azureaisearch: Endpoint is required")
 	}

@@ -65,7 +65,7 @@ func (c *ProviderConfig) ApplyDefaults() {
 
 // Validate checks required fields. Pure check — pair with
 // [ProviderConfig.ApplyDefaults].
-func (c ProviderConfig) Validate() error {
+func (c *ProviderConfig) Validate() error {
 	for i, src := range c.Sources {
 		if src.Session == nil {
 			return fmt.Errorf("mcp.ProviderConfig: source[%d] %q: %w", i, src.Name, ErrNilSession)
