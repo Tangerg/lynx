@@ -160,6 +160,14 @@ func (r *Runtime) Memory() memsvc.Service { return r.memory }
 // constructs one regardless of cfg.ApprovalMode (defaults to YOLO).
 func (r *Runtime) Approval() approval.Service { return r.approval }
 
+// ReadHistory returns sessionID's persisted chat history — the
+// messages.list transport surface converts these to wire messages,
+// and ForkSession copies a prefix of them. Delegates to the engine,
+// which owns the chat-memory store.
+func (r *Runtime) ReadHistory(ctx context.Context, sessionID string) ([]chat.Message, error) {
+	return r.engine.ReadHistory(ctx, sessionID)
+}
+
 // Close releases per-runtime external resources — MCP sessions and
 // any future engine-owned handles. Idempotent.
 func (r *Runtime) Close() error {
