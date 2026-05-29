@@ -2,6 +2,7 @@ package chat_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/Tangerg/lynx/core/model/chat"
@@ -142,6 +143,43 @@ func TestToolMiddleware_StreamEmitsToolMessageBetweenTurns(t *testing.T) {
 	}
 	if assistantChunks < 2 {
 		t.Errorf("expected at least 2 assistant deltas, got %d", assistantChunks)
+	}
+}
+
+// TestToolMiddleware_MaxIterationsCap verifies the loop aborts with a
+// MaxToolIterationsError instead of recursing forever when the model keeps
+// requesting tools and the tool result never satisfies it.
+func TestToolMiddleware_MaxIterationsCap(t *testing.T) {
+	model := newFakeChatModel(t)
+
+	calls := 0
+	// Always ask for the tool again — a loop that never terminates.
+	model.respond = func(req *chat.Request) (*chat.Response, error) {
+		calls++
+		return responseWithToolCall(t, "echo", `{"x":1}`), nil
+	}
+
+	echoTool := mustNewCallable(t, "echo", false, func(_ context.Context, args string) (string, error) {
+		return "echoed:" + args, nil
+	})
+
+	callMW, _ := chat.NewToolMiddleware(chat.ToolLoopConfig{MaxIterations: 3})
+	req, _ := chat.NewClientRequest(model)
+	req.
+		WithMiddlewares(callMW).
+		WithMessages(chat.NewUserMessage("seed")).
+		WithTools(echoTool)
+
+	_, err := req.Call().Response(context.Background())
+	var capErr *chat.MaxToolIterationsError
+	if !errors.As(err, &capErr) {
+		t.Fatalf("expected MaxToolIterationsError, got %v", err)
+	}
+	if capErr.Limit != 3 {
+		t.Fatalf("Limit = %d, want 3", capErr.Limit)
+	}
+	if calls != 3 {
+		t.Fatalf("model invoked %d times, want exactly 3 (the cap)", calls)
 	}
 }
 

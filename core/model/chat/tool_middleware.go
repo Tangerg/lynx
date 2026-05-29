@@ -2,14 +2,40 @@ package chat
 
 import (
 	"context"
+	"fmt"
 	"iter"
 )
+
+// DefaultMaxToolIterations bounds the self-driving tool loop. A model that
+// keeps requesting tools — or a buggy tool whose result always re-triggers
+// a call — would otherwise spin forever; the cap turns that into a
+// [MaxToolIterationsError] instead. Mirrors embabel's
+// MaxIterationsExceededException.
+const DefaultMaxToolIterations = 50
+
+// ToolLoopConfig tunes [NewToolMiddleware]. Every field is optional; the
+// zero value yields the default loop (cap = [DefaultMaxToolIterations]).
+type ToolLoopConfig struct {
+	// MaxIterations caps the number of model calls the tool loop makes.
+	// <= 0 falls back to [DefaultMaxToolIterations].
+	MaxIterations int
+}
+
+// MaxToolIterationsError is returned when the tool-calling loop exceeds its
+// configured iteration cap. Callers can detect it with [errors.As].
+type MaxToolIterationsError struct {
+	Limit int
+}
+
+func (e *MaxToolIterationsError) Error() string {
+	return fmt.Sprintf("chat: tool loop exceeded %d iterations without a final reply", e.Limit)
+}
 
 // ToolMiddleware turns the model handler into a self-driving tool-calling
 // loop. When the LLM emits tool calls the middleware executes them via
 // the [ToolSupport] machinery and re-prompts the model with the results,
-// repeating until the model produces a regular reply or every tool is
-// configured for direct return.
+// repeating until the model produces a regular reply, every tool is
+// configured for direct return, or the iteration cap is hit.
 //
 // Use it via [NewToolMiddleware], which returns both call and stream
 // halves so a single registration covers both paths.
@@ -21,11 +47,24 @@ import (
 //	    WithMiddlewares(callMW, streamMW).
 //	    WithTools(myTool).
 //	    Call().Response(ctx)
-type ToolMiddleware struct{}
+type ToolMiddleware struct {
+	maxIterations int
+}
 
-// NewToolMiddleware constructs the tool-calling middleware pair.
-func NewToolMiddleware() (CallMiddleware, StreamMiddleware) {
-	mw := &ToolMiddleware{}
+// NewToolMiddleware constructs the tool-calling middleware pair. Pass an
+// optional [ToolLoopConfig] to tune the loop; omit it for defaults.
+func NewToolMiddleware(config ...ToolLoopConfig) (CallMiddleware, StreamMiddleware) {
+	var cfg ToolLoopConfig
+	if len(config) > 0 {
+		cfg = config[0]
+	}
+
+	maxIterations := cfg.MaxIterations
+	if maxIterations <= 0 {
+		maxIterations = DefaultMaxToolIterations
+	}
+
+	mw := &ToolMiddleware{maxIterations: maxIterations}
 	return mw.wrapCallHandler, mw.wrapStreamHandler
 }
 
@@ -55,13 +94,18 @@ func (m *ToolMiddleware) executeCall(ctx context.Context, req *Request, next Cal
 	}
 
 	support.Register(req.Tools...)
-	return m.executeCallRecursively(ctx, req, next, support)
+	return m.executeCallRecursively(ctx, req, next, support, 1)
 }
 
 // executeCallRecursively runs one round of model + tool execution. If
 // the model asks for tools and the tools want LLM follow-up, the
-// function re-prompts and recurses.
-func (m *ToolMiddleware) executeCallRecursively(ctx context.Context, req *Request, next CallHandler, support *ToolSupport) (*Response, error) {
+// function re-prompts and recurses. iteration is the 1-based model-call
+// count; exceeding maxIterations aborts with a [MaxToolIterationsError].
+func (m *ToolMiddleware) executeCallRecursively(ctx context.Context, req *Request, next CallHandler, support *ToolSupport, iteration int) (*Response, error) {
+	if iteration > m.maxIterations {
+		return nil, &MaxToolIterationsError{Limit: m.maxIterations}
+	}
+
 	resp, err := next.Call(ctx, req)
 	if err != nil {
 		return nil, err
@@ -88,7 +132,7 @@ func (m *ToolMiddleware) executeCallRecursively(ctx context.Context, req *Reques
 	if err != nil {
 		return nil, err
 	}
-	return m.executeCallRecursively(ctx, nextReq, next, support)
+	return m.executeCallRecursively(ctx, nextReq, next, support, iteration+1)
 }
 
 // executeStream is the streaming entry point. Same shape as executeCall
@@ -105,7 +149,7 @@ func (m *ToolMiddleware) executeStream(ctx context.Context, req *Request, next S
 		}
 
 		support.Register(req.Tools...)
-		m.executeStreamRecursively(ctx, req, next, support, yield)
+		m.executeStreamRecursively(ctx, req, next, support, yield, 1)
 	}
 }
 
@@ -119,7 +163,12 @@ func (m *ToolMiddleware) executeStream(ctx context.Context, req *Request, next S
 // the request history. This is the discriminator established in §8.4
 // of MESSAGE_PARTS_DESIGN: each yielded Response has exactly one of
 // Result.AssistantMessage or Result.ToolMessage populated.
-func (m *ToolMiddleware) executeStreamRecursively(ctx context.Context, req *Request, next StreamHandler, support *ToolSupport, yield func(*Response, error) bool) {
+func (m *ToolMiddleware) executeStreamRecursively(ctx context.Context, req *Request, next StreamHandler, support *ToolSupport, yield func(*Response, error) bool, iteration int) {
+	if iteration > m.maxIterations {
+		yield(nil, &MaxToolIterationsError{Limit: m.maxIterations})
+		return
+	}
+
 	accumulator := NewResponseAccumulator()
 
 	for chunk, err := range next.Stream(ctx, req) {
@@ -172,7 +221,7 @@ func (m *ToolMiddleware) executeStreamRecursively(ctx context.Context, req *Requ
 		yield(nil, err)
 		return
 	}
-	m.executeStreamRecursively(ctx, nextReq, next, support, yield)
+	m.executeStreamRecursively(ctx, nextReq, next, support, yield, iteration+1)
 }
 
 // newToolMessageResponse wraps a [*ToolMessage] in a [*Response] whose
