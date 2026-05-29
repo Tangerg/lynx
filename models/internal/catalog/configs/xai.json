@@ -4,19 +4,19 @@
     {
       "id": "grok-4.20-0309-non-reasoning",
       "display_name": "Grok 4.20 (Non-Reasoning)",
-      "pricing": {
-        "input_per_1m": 1.25,
-        "output_per_1m": 2.5,
-        "cache_read_per_1m": 0.2,
-        "tiers": [
-          {
-            "threshold": 200000,
-            "input_per_1m": 2.5,
-            "output_per_1m": 5,
-            "cache_read_per_1m": 0.4
-          }
-        ]
-      },
+      "pricing": [
+        {
+          "input_per_1m": 1.25,
+          "output_per_1m": 2.5,
+          "cache_read_per_1m": 0.2
+        },
+        {
+          "threshold": 200000,
+          "input_per_1m": 2.5,
+          "output_per_1m": 5,
+          "cache_read_per_1m": 0.4
+        }
+      ],
       "modalities": {
         "input": [
           "text",
@@ -36,19 +36,19 @@
     {
       "id": "grok-4.20-0309-reasoning",
       "display_name": "Grok 4.20 (Reasoning)",
-      "pricing": {
-        "input_per_1m": 1.25,
-        "output_per_1m": 2.5,
-        "cache_read_per_1m": 0.2,
-        "tiers": [
-          {
-            "threshold": 200000,
-            "input_per_1m": 2.5,
-            "output_per_1m": 5,
-            "cache_read_per_1m": 0.4
-          }
-        ]
-      },
+      "pricing": [
+        {
+          "input_per_1m": 1.25,
+          "output_per_1m": 2.5,
+          "cache_read_per_1m": 0.2
+        },
+        {
+          "threshold": 200000,
+          "input_per_1m": 2.5,
+          "output_per_1m": 5,
+          "cache_read_per_1m": 0.4
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -71,19 +71,19 @@
     {
       "id": "grok-4.20-multi-agent-0309",
       "display_name": "Grok 4.20 Multi-Agent",
-      "pricing": {
-        "input_per_1m": 1.25,
-        "output_per_1m": 2.5,
-        "cache_read_per_1m": 0.2,
-        "tiers": [
-          {
-            "threshold": 200000,
-            "input_per_1m": 2.5,
-            "output_per_1m": 5,
-            "cache_read_per_1m": 0.4
-          }
-        ]
-      },
+      "pricing": [
+        {
+          "input_per_1m": 1.25,
+          "output_per_1m": 2.5,
+          "cache_read_per_1m": 0.2
+        },
+        {
+          "threshold": 200000,
+          "input_per_1m": 2.5,
+          "output_per_1m": 5,
+          "cache_read_per_1m": 0.4
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -105,19 +105,19 @@
     {
       "id": "grok-4.3",
       "display_name": "Grok 4.3",
-      "pricing": {
-        "input_per_1m": 1.25,
-        "output_per_1m": 2.5,
-        "cache_read_per_1m": 0.2,
-        "tiers": [
-          {
-            "threshold": 200000,
-            "input_per_1m": 2.5,
-            "output_per_1m": 5,
-            "cache_read_per_1m": 0.4
-          }
-        ]
-      },
+      "pricing": [
+        {
+          "input_per_1m": 1.25,
+          "output_per_1m": 2.5,
+          "cache_read_per_1m": 0.2
+        },
+        {
+          "threshold": 200000,
+          "input_per_1m": 2.5,
+          "output_per_1m": 5,
+          "cache_read_per_1m": 0.4
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -140,19 +140,19 @@
     {
       "id": "grok-build-0.1",
       "display_name": "Grok Build 0.1",
-      "pricing": {
-        "input_per_1m": 1,
-        "output_per_1m": 2,
-        "cache_read_per_1m": 0.2,
-        "tiers": [
-          {
-            "threshold": 200000,
-            "input_per_1m": 2,
-            "output_per_1m": 4,
-            "cache_read_per_1m": 0.4
-          }
-        ]
-      },
+      "pricing": [
+        {
+          "input_per_1m": 1,
+          "output_per_1m": 2,
+          "cache_read_per_1m": 0.2
+        },
+        {
+          "threshold": 200000,
+          "input_per_1m": 2,
+          "output_per_1m": 4,
+          "cache_read_per_1m": 0.4
+        }
+      ],
       "reasoning": {
         "supported": true
       },

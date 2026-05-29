@@ -5,11 +5,13 @@
       "id": "glm-4.5",
       "display_name": "GLM-4.5",
       "knowledge_cutoff": "2025-04",
-      "pricing": {
-        "input_per_1m": 0.6,
-        "output_per_1m": 2.2,
-        "cache_read_per_1m": 0.11
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.6,
+          "output_per_1m": 2.2,
+          "cache_read_per_1m": 0.11
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -31,11 +33,13 @@
       "id": "glm-4.5-air",
       "display_name": "GLM-4.5-Air",
       "knowledge_cutoff": "2025-04",
-      "pricing": {
-        "input_per_1m": 0.2,
-        "output_per_1m": 1.1,
-        "cache_read_per_1m": 0.03
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.2,
+          "output_per_1m": 1.1,
+          "cache_read_per_1m": 0.03
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -78,10 +82,12 @@
       "id": "glm-4.5v",
       "display_name": "GLM-4.5V",
       "knowledge_cutoff": "2025-04",
-      "pricing": {
-        "input_per_1m": 0.6,
-        "output_per_1m": 1.8
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.6,
+          "output_per_1m": 1.8
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -105,11 +111,13 @@
       "id": "glm-4.6",
       "display_name": "GLM-4.6",
       "knowledge_cutoff": "2025-04",
-      "pricing": {
-        "input_per_1m": 0.6,
-        "output_per_1m": 2.2,
-        "cache_read_per_1m": 0.11
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.6,
+          "output_per_1m": 2.2,
+          "cache_read_per_1m": 0.11
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -131,10 +139,12 @@
       "id": "glm-4.6v",
       "display_name": "GLM-4.6V",
       "knowledge_cutoff": "2025-04",
-      "pricing": {
-        "input_per_1m": 0.3,
-        "output_per_1m": 0.9
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.3,
+          "output_per_1m": 0.9
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -158,11 +168,13 @@
       "id": "glm-4.7",
       "display_name": "GLM-4.7",
       "knowledge_cutoff": "2025-04",
-      "pricing": {
-        "input_per_1m": 0.6,
-        "output_per_1m": 2.2,
-        "cache_read_per_1m": 0.11
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.6,
+          "output_per_1m": 2.2,
+          "cache_read_per_1m": 0.11
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -205,11 +217,13 @@
       "id": "glm-4.7-flashx",
       "display_name": "GLM-4.7-FlashX",
       "knowledge_cutoff": "2025-04",
-      "pricing": {
-        "input_per_1m": 0.07,
-        "output_per_1m": 0.4,
-        "cache_read_per_1m": 0.01
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.07,
+          "output_per_1m": 0.4,
+          "cache_read_per_1m": 0.01
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -230,11 +244,13 @@
     {
       "id": "glm-5",
       "display_name": "GLM-5",
-      "pricing": {
-        "input_per_1m": 1,
-        "output_per_1m": 3.2,
-        "cache_read_per_1m": 0.2
-      },
+      "pricing": [
+        {
+          "input_per_1m": 1,
+          "output_per_1m": 3.2,
+          "cache_read_per_1m": 0.2
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -255,11 +271,13 @@
     {
       "id": "glm-5.1",
       "display_name": "GLM-5.1",
-      "pricing": {
-        "input_per_1m": 6,
-        "output_per_1m": 24,
-        "cache_read_per_1m": 1.3
-      },
+      "pricing": [
+        {
+          "input_per_1m": 6,
+          "output_per_1m": 24,
+          "cache_read_per_1m": 1.3
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -281,11 +299,13 @@
     {
       "id": "glm-5v-turbo",
       "display_name": "GLM-5V-Turbo",
-      "pricing": {
-        "input_per_1m": 5,
-        "output_per_1m": 22,
-        "cache_read_per_1m": 1.2
-      },
+      "pricing": [
+        {
+          "input_per_1m": 5,
+          "output_per_1m": 22,
+          "cache_read_per_1m": 1.2
+        }
+      ],
       "reasoning": {
         "supported": true
       },

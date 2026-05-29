@@ -58,11 +58,11 @@ func BuildChatClient(cfg Config) (*chat.Client, engine.Pricing, error) {
 // than guessing. The served-model arg is ignored: lyra runs one
 // configured model per client, so its rate card applies to every round.
 func pricingFromMetadata(meta chat.ModelMetadata) engine.Pricing {
-	if meta.Model.Pricing.IsZero() {
+	if len(meta.Model.Pricing) == 0 {
 		return nil
 	}
-	rate := meta.Model.Pricing
+	bands := meta.Model.Pricing
 	return func(_ string, u *chat.Usage) float64 {
-		return rate.Cost(u)
+		return chat.CostOf(bands, u)
 	}
 }

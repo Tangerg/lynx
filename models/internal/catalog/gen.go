@@ -86,18 +86,22 @@ type apiModel struct {
 		Input  []string `json:"input"`
 		Output []string `json:"output"`
 	} `json:"modalities"`
-	Cost struct {
-		Input      float64   `json:"input"`
-		Output     float64   `json:"output"`
-		CacheRead  float64   `json:"cache_read"`
-		CacheWrite float64   `json:"cache_write"`
-		Tiers      []apiTier `json:"tiers"`
-	} `json:"cost"`
+	Cost  apiCost `json:"cost"`
 	Limit struct {
 		Context int64 `json:"context"`
 		Input   int64 `json:"input"`
 		Output  int64 `json:"output"`
 	} `json:"limit"`
+}
+
+// apiCost mirrors a models.dev [cost] block: base rates plus optional
+// context tiers.
+type apiCost struct {
+	Input      float64   `json:"input"`
+	Output     float64   `json:"output"`
+	CacheRead  float64   `json:"cache_read"`
+	CacheWrite float64   `json:"cache_write"`
+	Tiers      []apiTier `json:"tiers"`
 }
 
 // apiTier is one models.dev tiered-pricing step: rates that take over
@@ -184,13 +188,7 @@ func toModelInfo(m apiModel, aug augEntry) chat.ModelInfo {
 		KnowledgeCutoff:  m.Knowledge,
 		ToolCall:         m.ToolCall,
 		StructuredOutput: m.StructuredOutput,
-		Pricing: chat.Pricing{
-			InputPer1M:      m.Cost.Input,
-			OutputPer1M:     m.Cost.Output,
-			CacheReadPer1M:  m.Cost.CacheRead,
-			CacheWritePer1M: m.Cost.CacheWrite,
-			Tiers:           toTiers(m.Cost.Tiers),
-		},
+		Pricing:          toPricing(m.Cost),
 		Modalities: chat.Modalities{
 			Input:  toModalities(m.Modalities.Input),
 			Output: toModalities(m.Modalities.Output),
@@ -213,16 +211,26 @@ func toModelInfo(m apiModel, aug augEntry) chat.ModelInfo {
 	return info
 }
 
-// toTiers maps models.dev context tiers to chat.PricingTier, sorted
-// ascending by threshold (Cost relies on that order). Non-context tiers
-// are skipped — we only model prompt-size repricing.
-func toTiers(in []apiTier) []chat.PricingTier {
-	var out []chat.PricingTier
-	for _, t := range in {
+// toPricing maps a models.dev [cost] block to a banded rate card: the
+// base band (threshold 0) plus a band per context tier, sorted ascending
+// by threshold (CostOf scans back to front). Non-context tiers are
+// skipped — we only model prompt-size repricing. Returns nil when there's
+// no input rate (unknown pricing).
+func toPricing(c apiCost) []chat.Pricing {
+	if c.Input == 0 && c.Output == 0 {
+		return nil
+	}
+	bands := []chat.Pricing{{
+		InputPer1M:      c.Input,
+		OutputPer1M:     c.Output,
+		CacheReadPer1M:  c.CacheRead,
+		CacheWritePer1M: c.CacheWrite,
+	}}
+	for _, t := range c.Tiers {
 		if t.Tier.Type != "context" || t.Tier.Size == 0 {
 			continue
 		}
-		out = append(out, chat.PricingTier{
+		bands = append(bands, chat.Pricing{
 			Threshold:       t.Tier.Size,
 			InputPer1M:      t.Input,
 			OutputPer1M:     t.Output,
@@ -230,8 +238,8 @@ func toTiers(in []apiTier) []chat.PricingTier {
 			CacheWritePer1M: t.CacheWrite,
 		})
 	}
-	sort.Slice(out, func(i, j int) bool { return out[i].Threshold < out[j].Threshold })
-	return out
+	sort.Slice(bands, func(i, j int) bool { return bands[i].Threshold < bands[j].Threshold })
+	return bands
 }
 
 func toModalities(in []string) []chat.Modality {

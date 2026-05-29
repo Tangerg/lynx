@@ -5,10 +5,12 @@
       "id": "MiniMaxAI/MiniMax-M2.1",
       "display_name": "MiniMax-M2.1",
       "knowledge_cutoff": "2025-10",
-      "pricing": {
-        "input_per_1m": 0.3,
-        "output_per_1m": 1.2
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.3,
+          "output_per_1m": 1.2
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -29,11 +31,13 @@
     {
       "id": "MiniMaxAI/MiniMax-M2.5",
       "display_name": "MiniMax-M2.5",
-      "pricing": {
-        "input_per_1m": 0.3,
-        "output_per_1m": 1.2,
-        "cache_read_per_1m": 0.03
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.3,
+          "output_per_1m": 1.2,
+          "cache_read_per_1m": 0.03
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -54,11 +58,13 @@
     {
       "id": "MiniMaxAI/MiniMax-M2.7",
       "display_name": "MiniMax-M2.7",
-      "pricing": {
-        "input_per_1m": 0.3,
-        "output_per_1m": 1.2,
-        "cache_read_per_1m": 0.06
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.3,
+          "output_per_1m": 1.2,
+          "cache_read_per_1m": 0.06
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -81,10 +87,12 @@
       "id": "Qwen/Qwen3-235B-A22B-Thinking-2507",
       "display_name": "Qwen3-235B-A22B-Thinking-2507",
       "knowledge_cutoff": "2025-04",
-      "pricing": {
-        "input_per_1m": 0.3,
-        "output_per_1m": 3
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.3,
+          "output_per_1m": 3
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -106,10 +114,12 @@
       "id": "Qwen/Qwen3-Coder-480B-A35B-Instruct",
       "display_name": "Qwen3-Coder-480B-A35B-Instruct",
       "knowledge_cutoff": "2025-04",
-      "pricing": {
-        "input_per_1m": 2,
-        "output_per_1m": 2
-      },
+      "pricing": [
+        {
+          "input_per_1m": 2,
+          "output_per_1m": 2
+        }
+      ],
       "modalities": {
         "input": [
           "text"
@@ -128,10 +138,12 @@
       "id": "Qwen/Qwen3-Coder-Next",
       "display_name": "Qwen3-Coder-Next",
       "knowledge_cutoff": "2025-04",
-      "pricing": {
-        "input_per_1m": 0.2,
-        "output_per_1m": 1.5
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.2,
+          "output_per_1m": 1.5
+        }
+      ],
       "modalities": {
         "input": [
           "text"
@@ -150,10 +162,12 @@
       "id": "Qwen/Qwen3-Next-80B-A3B-Instruct",
       "display_name": "Qwen3-Next-80B-A3B-Instruct",
       "knowledge_cutoff": "2025-04",
-      "pricing": {
-        "input_per_1m": 0.25,
-        "output_per_1m": 1
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.25,
+          "output_per_1m": 1
+        }
+      ],
       "modalities": {
         "input": [
           "text"
@@ -172,10 +186,12 @@
       "id": "Qwen/Qwen3-Next-80B-A3B-Thinking",
       "display_name": "Qwen3-Next-80B-A3B-Thinking",
       "knowledge_cutoff": "2025-04",
-      "pricing": {
-        "input_per_1m": 0.3,
-        "output_per_1m": 2
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.3,
+          "output_per_1m": 2
+        }
+      ],
       "modalities": {
         "input": [
           "text"
@@ -194,10 +210,12 @@
       "id": "Qwen/Qwen3.5-397B-A17B",
       "display_name": "Qwen3.5-397B-A17B",
       "knowledge_cutoff": "2025-04",
-      "pricing": {
-        "input_per_1m": 0.6,
-        "output_per_1m": 3.6
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.6,
+          "output_per_1m": 3.6
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -220,10 +238,12 @@
       "id": "XiaomiMiMo/MiMo-V2-Flash",
       "display_name": "MiMo-V2-Flash",
       "knowledge_cutoff": "2024-12",
-      "pricing": {
-        "input_per_1m": 0.1,
-        "output_per_1m": 0.3
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.1,
+          "output_per_1m": 0.3
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -245,10 +265,12 @@
       "id": "deepseek-ai/DeepSeek-R1-0528",
       "display_name": "DeepSeek-R1-0528",
       "knowledge_cutoff": "2025-05",
-      "pricing": {
-        "input_per_1m": 3,
-        "output_per_1m": 5
-      },
+      "pricing": [
+        {
+          "input_per_1m": 3,
+          "output_per_1m": 5
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -270,10 +292,12 @@
       "id": "deepseek-ai/DeepSeek-V3.2",
       "display_name": "DeepSeek-V3.2",
       "knowledge_cutoff": "2024-07",
-      "pricing": {
-        "input_per_1m": 0.28,
-        "output_per_1m": 0.4
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.28,
+          "output_per_1m": 0.4
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -295,11 +319,13 @@
       "id": "deepseek-ai/DeepSeek-V4-Pro",
       "display_name": "DeepSeek V4 Pro",
       "knowledge_cutoff": "2025-05",
-      "pricing": {
-        "input_per_1m": 0.435,
-        "output_per_1m": 0.87,
-        "cache_read_per_1m": 0.003625
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.435,
+          "output_per_1m": 0.87,
+          "cache_read_per_1m": 0.003625
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -322,10 +348,12 @@
       "id": "moonshotai/Kimi-K2-Instruct",
       "display_name": "Kimi-K2-Instruct",
       "knowledge_cutoff": "2024-10",
-      "pricing": {
-        "input_per_1m": 1,
-        "output_per_1m": 3
-      },
+      "pricing": [
+        {
+          "input_per_1m": 1,
+          "output_per_1m": 3
+        }
+      ],
       "modalities": {
         "input": [
           "text"
@@ -344,10 +372,12 @@
       "id": "moonshotai/Kimi-K2-Instruct-0905",
       "display_name": "Kimi-K2-Instruct-0905",
       "knowledge_cutoff": "2024-10",
-      "pricing": {
-        "input_per_1m": 1,
-        "output_per_1m": 3
-      },
+      "pricing": [
+        {
+          "input_per_1m": 1,
+          "output_per_1m": 3
+        }
+      ],
       "modalities": {
         "input": [
           "text"
@@ -366,11 +396,13 @@
       "id": "moonshotai/Kimi-K2-Thinking",
       "display_name": "Kimi-K2-Thinking",
       "knowledge_cutoff": "2024-08",
-      "pricing": {
-        "input_per_1m": 0.6,
-        "output_per_1m": 2.5,
-        "cache_read_per_1m": 0.15
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.6,
+          "output_per_1m": 2.5,
+          "cache_read_per_1m": 0.15
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -392,11 +424,13 @@
       "id": "moonshotai/Kimi-K2.5",
       "display_name": "Kimi-K2.5",
       "knowledge_cutoff": "2025-01",
-      "pricing": {
-        "input_per_1m": 0.6,
-        "output_per_1m": 3,
-        "cache_read_per_1m": 0.1
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.6,
+          "output_per_1m": 3,
+          "cache_read_per_1m": 0.1
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -420,11 +454,13 @@
       "id": "moonshotai/Kimi-K2.6",
       "display_name": "Kimi-K2.6",
       "knowledge_cutoff": "2025-01",
-      "pricing": {
-        "input_per_1m": 0.95,
-        "output_per_1m": 4,
-        "cache_read_per_1m": 0.16
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.95,
+          "output_per_1m": 4,
+          "cache_read_per_1m": 0.16
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -448,11 +484,13 @@
       "id": "zai-org/GLM-4.7",
       "display_name": "GLM-4.7",
       "knowledge_cutoff": "2025-04",
-      "pricing": {
-        "input_per_1m": 0.6,
-        "output_per_1m": 2.2,
-        "cache_read_per_1m": 0.11
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.6,
+          "output_per_1m": 2.2,
+          "cache_read_per_1m": 0.11
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -494,11 +532,13 @@
     {
       "id": "zai-org/GLM-5",
       "display_name": "GLM-5",
-      "pricing": {
-        "input_per_1m": 1,
-        "output_per_1m": 3.2,
-        "cache_read_per_1m": 0.2
-      },
+      "pricing": [
+        {
+          "input_per_1m": 1,
+          "output_per_1m": 3.2,
+          "cache_read_per_1m": 0.2
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -519,11 +559,13 @@
     {
       "id": "zai-org/GLM-5.1",
       "display_name": "GLM-5.1",
-      "pricing": {
-        "input_per_1m": 1,
-        "output_per_1m": 3.2,
-        "cache_read_per_1m": 0.2
-      },
+      "pricing": [
+        {
+          "input_per_1m": 1,
+          "output_per_1m": 3.2,
+          "cache_read_per_1m": 0.2
+        }
+      ],
       "reasoning": {
         "supported": true
       },

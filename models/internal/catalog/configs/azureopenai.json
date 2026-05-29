@@ -5,12 +5,14 @@
       "id": "claude-haiku-4-5",
       "display_name": "Claude Haiku 4.5",
       "knowledge_cutoff": "2025-02-31",
-      "pricing": {
-        "input_per_1m": 1,
-        "output_per_1m": 5,
-        "cache_read_per_1m": 0.1,
-        "cache_write_per_1m": 1.25
-      },
+      "pricing": [
+        {
+          "input_per_1m": 1,
+          "output_per_1m": 5,
+          "cache_read_per_1m": 0.1,
+          "cache_write_per_1m": 1.25
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -35,12 +37,14 @@
       "id": "claude-opus-4-1",
       "display_name": "Claude Opus 4.1",
       "knowledge_cutoff": "2025-03-31",
-      "pricing": {
-        "input_per_1m": 15,
-        "output_per_1m": 75,
-        "cache_read_per_1m": 1.5,
-        "cache_write_per_1m": 18.75
-      },
+      "pricing": [
+        {
+          "input_per_1m": 15,
+          "output_per_1m": 75,
+          "cache_read_per_1m": 1.5,
+          "cache_write_per_1m": 18.75
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -65,12 +69,14 @@
       "id": "claude-opus-4-5",
       "display_name": "Claude Opus 4.5",
       "knowledge_cutoff": "2025-03-31",
-      "pricing": {
-        "input_per_1m": 5,
-        "output_per_1m": 25,
-        "cache_read_per_1m": 0.5,
-        "cache_write_per_1m": 6.25
-      },
+      "pricing": [
+        {
+          "input_per_1m": 5,
+          "output_per_1m": 25,
+          "cache_read_per_1m": 0.5,
+          "cache_write_per_1m": 6.25
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -94,21 +100,21 @@
       "id": "claude-opus-4-6",
       "display_name": "Claude Opus 4.6",
       "knowledge_cutoff": "2025-05-31",
-      "pricing": {
-        "input_per_1m": 5,
-        "output_per_1m": 25,
-        "cache_read_per_1m": 0.5,
-        "cache_write_per_1m": 6.25,
-        "tiers": [
-          {
-            "threshold": 200000,
-            "input_per_1m": 10,
-            "output_per_1m": 37.5,
-            "cache_read_per_1m": 1,
-            "cache_write_per_1m": 12.5
-          }
-        ]
-      },
+      "pricing": [
+        {
+          "input_per_1m": 5,
+          "output_per_1m": 25,
+          "cache_read_per_1m": 0.5,
+          "cache_write_per_1m": 6.25
+        },
+        {
+          "threshold": 200000,
+          "input_per_1m": 10,
+          "output_per_1m": 37.5,
+          "cache_read_per_1m": 1,
+          "cache_write_per_1m": 12.5
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -132,12 +138,14 @@
       "id": "claude-sonnet-4-5",
       "display_name": "Claude Sonnet 4.5",
       "knowledge_cutoff": "2025-07-31",
-      "pricing": {
-        "input_per_1m": 3,
-        "output_per_1m": 15,
-        "cache_read_per_1m": 0.3,
-        "cache_write_per_1m": 3.75
-      },
+      "pricing": [
+        {
+          "input_per_1m": 3,
+          "output_per_1m": 15,
+          "cache_read_per_1m": 0.3,
+          "cache_write_per_1m": 3.75
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -162,12 +170,14 @@
       "id": "claude-sonnet-4-6",
       "display_name": "Claude Sonnet 4.6",
       "knowledge_cutoff": "2025-08-31",
-      "pricing": {
-        "input_per_1m": 3,
-        "output_per_1m": 15,
-        "cache_read_per_1m": 0.3,
-        "cache_write_per_1m": 3.75
-      },
+      "pricing": [
+        {
+          "input_per_1m": 3,
+          "output_per_1m": 15,
+          "cache_read_per_1m": 0.3,
+          "cache_write_per_1m": 3.75
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -192,10 +202,12 @@
       "id": "codestral-2501",
       "display_name": "Codestral 25.01",
       "knowledge_cutoff": "2024-03",
-      "pricing": {
-        "input_per_1m": 0.3,
-        "output_per_1m": 0.9
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.3,
+          "output_per_1m": 0.9
+        }
+      ],
       "modalities": {
         "input": [
           "text"
@@ -214,11 +226,13 @@
       "id": "codex-mini",
       "display_name": "Codex Mini",
       "knowledge_cutoff": "2024-04",
-      "pricing": {
-        "input_per_1m": 1.5,
-        "output_per_1m": 6,
-        "cache_read_per_1m": 0.375
-      },
+      "pricing": [
+        {
+          "input_per_1m": 1.5,
+          "output_per_1m": 6,
+          "cache_read_per_1m": 0.375
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -240,10 +254,12 @@
       "id": "cohere-command-a",
       "display_name": "Command A",
       "knowledge_cutoff": "2024-06-01",
-      "pricing": {
-        "input_per_1m": 2.5,
-        "output_per_1m": 10
-      },
+      "pricing": [
+        {
+          "input_per_1m": 2.5,
+          "output_per_1m": 10
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -265,10 +281,12 @@
       "id": "cohere-command-r-08-2024",
       "display_name": "Command R",
       "knowledge_cutoff": "2024-06-01",
-      "pricing": {
-        "input_per_1m": 0.15,
-        "output_per_1m": 0.6
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.15,
+          "output_per_1m": 0.6
+        }
+      ],
       "modalities": {
         "input": [
           "text"
@@ -287,10 +305,12 @@
       "id": "cohere-command-r-plus-08-2024",
       "display_name": "Command R+",
       "knowledge_cutoff": "2024-06-01",
-      "pricing": {
-        "input_per_1m": 2.5,
-        "output_per_1m": 10
-      },
+      "pricing": [
+        {
+          "input_per_1m": 2.5,
+          "output_per_1m": 10
+        }
+      ],
       "modalities": {
         "input": [
           "text"
@@ -309,10 +329,12 @@
       "id": "deepseek-r1",
       "display_name": "DeepSeek-R1",
       "knowledge_cutoff": "2024-07",
-      "pricing": {
-        "input_per_1m": 1.35,
-        "output_per_1m": 5.4
-      },
+      "pricing": [
+        {
+          "input_per_1m": 1.35,
+          "output_per_1m": 5.4
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -333,10 +355,12 @@
       "id": "deepseek-r1-0528",
       "display_name": "DeepSeek-R1-0528",
       "knowledge_cutoff": "2024-07",
-      "pricing": {
-        "input_per_1m": 1.35,
-        "output_per_1m": 5.4
-      },
+      "pricing": [
+        {
+          "input_per_1m": 1.35,
+          "output_per_1m": 5.4
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -358,10 +382,12 @@
       "id": "deepseek-v3-0324",
       "display_name": "DeepSeek-V3-0324",
       "knowledge_cutoff": "2024-07",
-      "pricing": {
-        "input_per_1m": 1.14,
-        "output_per_1m": 4.56
-      },
+      "pricing": [
+        {
+          "input_per_1m": 1.14,
+          "output_per_1m": 4.56
+        }
+      ],
       "modalities": {
         "input": [
           "text"
@@ -380,10 +406,12 @@
       "id": "deepseek-v3.1",
       "display_name": "DeepSeek-V3.1",
       "knowledge_cutoff": "2024-07",
-      "pricing": {
-        "input_per_1m": 0.56,
-        "output_per_1m": 1.68
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.56,
+          "output_per_1m": 1.68
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -405,10 +433,12 @@
       "id": "deepseek-v3.2",
       "display_name": "DeepSeek-V3.2",
       "knowledge_cutoff": "2024-07",
-      "pricing": {
-        "input_per_1m": 0.58,
-        "output_per_1m": 1.68
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.58,
+          "output_per_1m": 1.68
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -430,10 +460,12 @@
       "id": "deepseek-v3.2-speciale",
       "display_name": "DeepSeek-V3.2-Speciale",
       "knowledge_cutoff": "2024-07",
-      "pricing": {
-        "input_per_1m": 0.58,
-        "output_per_1m": 1.68
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.58,
+          "output_per_1m": 1.68
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -454,10 +486,12 @@
       "id": "gpt-3.5-turbo-0125",
       "display_name": "GPT-3.5 Turbo 0125",
       "knowledge_cutoff": "2021-08",
-      "pricing": {
-        "input_per_1m": 0.5,
-        "output_per_1m": 1.5
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.5,
+          "output_per_1m": 1.5
+        }
+      ],
       "modalities": {
         "input": [
           "text"
@@ -475,10 +509,12 @@
       "id": "gpt-3.5-turbo-0301",
       "display_name": "GPT-3.5 Turbo 0301",
       "knowledge_cutoff": "2021-08",
-      "pricing": {
-        "input_per_1m": 1.5,
-        "output_per_1m": 2
-      },
+      "pricing": [
+        {
+          "input_per_1m": 1.5,
+          "output_per_1m": 2
+        }
+      ],
       "modalities": {
         "input": [
           "text"
@@ -496,10 +532,12 @@
       "id": "gpt-3.5-turbo-0613",
       "display_name": "GPT-3.5 Turbo 0613",
       "knowledge_cutoff": "2021-08",
-      "pricing": {
-        "input_per_1m": 3,
-        "output_per_1m": 4
-      },
+      "pricing": [
+        {
+          "input_per_1m": 3,
+          "output_per_1m": 4
+        }
+      ],
       "modalities": {
         "input": [
           "text"
@@ -517,10 +555,12 @@
       "id": "gpt-3.5-turbo-1106",
       "display_name": "GPT-3.5 Turbo 1106",
       "knowledge_cutoff": "2021-08",
-      "pricing": {
-        "input_per_1m": 1,
-        "output_per_1m": 2
-      },
+      "pricing": [
+        {
+          "input_per_1m": 1,
+          "output_per_1m": 2
+        }
+      ],
       "modalities": {
         "input": [
           "text"
@@ -538,10 +578,12 @@
       "id": "gpt-3.5-turbo-instruct",
       "display_name": "GPT-3.5 Turbo Instruct",
       "knowledge_cutoff": "2021-08",
-      "pricing": {
-        "input_per_1m": 1.5,
-        "output_per_1m": 2
-      },
+      "pricing": [
+        {
+          "input_per_1m": 1.5,
+          "output_per_1m": 2
+        }
+      ],
       "modalities": {
         "input": [
           "text"
@@ -559,10 +601,12 @@
       "id": "gpt-4",
       "display_name": "GPT-4",
       "knowledge_cutoff": "2023-11",
-      "pricing": {
-        "input_per_1m": 60,
-        "output_per_1m": 120
-      },
+      "pricing": [
+        {
+          "input_per_1m": 60,
+          "output_per_1m": 120
+        }
+      ],
       "modalities": {
         "input": [
           "text"
@@ -581,10 +625,12 @@
       "id": "gpt-4-32k",
       "display_name": "GPT-4 32K",
       "knowledge_cutoff": "2023-11",
-      "pricing": {
-        "input_per_1m": 60,
-        "output_per_1m": 120
-      },
+      "pricing": [
+        {
+          "input_per_1m": 60,
+          "output_per_1m": 120
+        }
+      ],
       "modalities": {
         "input": [
           "text"
@@ -603,10 +649,12 @@
       "id": "gpt-4-turbo",
       "display_name": "GPT-4 Turbo",
       "knowledge_cutoff": "2023-12",
-      "pricing": {
-        "input_per_1m": 10,
-        "output_per_1m": 30
-      },
+      "pricing": [
+        {
+          "input_per_1m": 10,
+          "output_per_1m": 30
+        }
+      ],
       "modalities": {
         "input": [
           "text",
@@ -626,10 +674,12 @@
       "id": "gpt-4-turbo-vision",
       "display_name": "GPT-4 Turbo Vision",
       "knowledge_cutoff": "2023-11",
-      "pricing": {
-        "input_per_1m": 10,
-        "output_per_1m": 30
-      },
+      "pricing": [
+        {
+          "input_per_1m": 10,
+          "output_per_1m": 30
+        }
+      ],
       "modalities": {
         "input": [
           "text",
@@ -649,11 +699,13 @@
       "id": "gpt-4.1",
       "display_name": "GPT-4.1",
       "knowledge_cutoff": "2024-04",
-      "pricing": {
-        "input_per_1m": 2,
-        "output_per_1m": 8,
-        "cache_read_per_1m": 0.5
-      },
+      "pricing": [
+        {
+          "input_per_1m": 2,
+          "output_per_1m": 8,
+          "cache_read_per_1m": 0.5
+        }
+      ],
       "modalities": {
         "input": [
           "text",
@@ -673,11 +725,13 @@
       "id": "gpt-4.1-mini",
       "display_name": "GPT-4.1 mini",
       "knowledge_cutoff": "2024-04",
-      "pricing": {
-        "input_per_1m": 0.4,
-        "output_per_1m": 1.6,
-        "cache_read_per_1m": 0.1
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.4,
+          "output_per_1m": 1.6,
+          "cache_read_per_1m": 0.1
+        }
+      ],
       "modalities": {
         "input": [
           "text",
@@ -697,11 +751,13 @@
       "id": "gpt-4.1-nano",
       "display_name": "GPT-4.1 nano",
       "knowledge_cutoff": "2024-04",
-      "pricing": {
-        "input_per_1m": 0.1,
-        "output_per_1m": 0.4,
-        "cache_read_per_1m": 0.025
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.1,
+          "output_per_1m": 0.4,
+          "cache_read_per_1m": 0.025
+        }
+      ],
       "modalities": {
         "input": [
           "text",
@@ -721,11 +777,13 @@
       "id": "gpt-4o",
       "display_name": "GPT-4o",
       "knowledge_cutoff": "2023-09",
-      "pricing": {
-        "input_per_1m": 2.5,
-        "output_per_1m": 10,
-        "cache_read_per_1m": 1.25
-      },
+      "pricing": [
+        {
+          "input_per_1m": 2.5,
+          "output_per_1m": 10,
+          "cache_read_per_1m": 1.25
+        }
+      ],
       "modalities": {
         "input": [
           "text",
@@ -745,11 +803,13 @@
       "id": "gpt-4o-mini",
       "display_name": "GPT-4o mini",
       "knowledge_cutoff": "2023-09",
-      "pricing": {
-        "input_per_1m": 0.15,
-        "output_per_1m": 0.6,
-        "cache_read_per_1m": 0.075
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.15,
+          "output_per_1m": 0.6,
+          "cache_read_per_1m": 0.075
+        }
+      ],
       "modalities": {
         "input": [
           "text",
@@ -769,11 +829,13 @@
       "id": "gpt-5",
       "display_name": "GPT-5",
       "knowledge_cutoff": "2024-09-30",
-      "pricing": {
-        "input_per_1m": 1.25,
-        "output_per_1m": 10,
-        "cache_read_per_1m": 0.13
-      },
+      "pricing": [
+        {
+          "input_per_1m": 1.25,
+          "output_per_1m": 10,
+          "cache_read_per_1m": 0.13
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -796,11 +858,13 @@
       "id": "gpt-5-chat",
       "display_name": "GPT-5 Chat",
       "knowledge_cutoff": "2024-10-24",
-      "pricing": {
-        "input_per_1m": 1.25,
-        "output_per_1m": 10,
-        "cache_read_per_1m": 0.13
-      },
+      "pricing": [
+        {
+          "input_per_1m": 1.25,
+          "output_per_1m": 10,
+          "cache_read_per_1m": 0.13
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -822,11 +886,13 @@
       "id": "gpt-5-codex",
       "display_name": "GPT-5-Codex",
       "knowledge_cutoff": "2024-09-30",
-      "pricing": {
-        "input_per_1m": 1.25,
-        "output_per_1m": 10,
-        "cache_read_per_1m": 0.13
-      },
+      "pricing": [
+        {
+          "input_per_1m": 1.25,
+          "output_per_1m": 10,
+          "cache_read_per_1m": 0.13
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -849,11 +915,13 @@
       "id": "gpt-5-mini",
       "display_name": "GPT-5 Mini",
       "knowledge_cutoff": "2024-05-30",
-      "pricing": {
-        "input_per_1m": 0.25,
-        "output_per_1m": 2,
-        "cache_read_per_1m": 0.03
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.25,
+          "output_per_1m": 2,
+          "cache_read_per_1m": 0.03
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -876,11 +944,13 @@
       "id": "gpt-5-nano",
       "display_name": "GPT-5 Nano",
       "knowledge_cutoff": "2024-05-30",
-      "pricing": {
-        "input_per_1m": 0.05,
-        "output_per_1m": 0.4,
-        "cache_read_per_1m": 0.01
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.05,
+          "output_per_1m": 0.4,
+          "cache_read_per_1m": 0.01
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -903,10 +973,12 @@
       "id": "gpt-5-pro",
       "display_name": "GPT-5 Pro",
       "knowledge_cutoff": "2024-09-30",
-      "pricing": {
-        "input_per_1m": 15,
-        "output_per_1m": 120
-      },
+      "pricing": [
+        {
+          "input_per_1m": 15,
+          "output_per_1m": 120
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -930,11 +1002,13 @@
       "id": "gpt-5.1",
       "display_name": "GPT-5.1",
       "knowledge_cutoff": "2024-09-30",
-      "pricing": {
-        "input_per_1m": 1.25,
-        "output_per_1m": 10,
-        "cache_read_per_1m": 0.125
-      },
+      "pricing": [
+        {
+          "input_per_1m": 1.25,
+          "output_per_1m": 10,
+          "cache_read_per_1m": 0.125
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -961,11 +1035,13 @@
       "id": "gpt-5.1-chat",
       "display_name": "GPT-5.1 Chat",
       "knowledge_cutoff": "2024-09-30",
-      "pricing": {
-        "input_per_1m": 1.25,
-        "output_per_1m": 10,
-        "cache_read_per_1m": 0.125
-      },
+      "pricing": [
+        {
+          "input_per_1m": 1.25,
+          "output_per_1m": 10,
+          "cache_read_per_1m": 0.125
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -992,11 +1068,13 @@
       "id": "gpt-5.1-codex",
       "display_name": "GPT-5.1 Codex",
       "knowledge_cutoff": "2024-09-30",
-      "pricing": {
-        "input_per_1m": 1.25,
-        "output_per_1m": 10,
-        "cache_read_per_1m": 0.125
-      },
+      "pricing": [
+        {
+          "input_per_1m": 1.25,
+          "output_per_1m": 10,
+          "cache_read_per_1m": 0.125
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -1023,11 +1101,13 @@
       "id": "gpt-5.1-codex-max",
       "display_name": "GPT-5.1 Codex Max",
       "knowledge_cutoff": "2024-09-30",
-      "pricing": {
-        "input_per_1m": 1.25,
-        "output_per_1m": 10,
-        "cache_read_per_1m": 0.125
-      },
+      "pricing": [
+        {
+          "input_per_1m": 1.25,
+          "output_per_1m": 10,
+          "cache_read_per_1m": 0.125
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -1051,11 +1131,13 @@
       "id": "gpt-5.1-codex-mini",
       "display_name": "GPT-5.1 Codex Mini",
       "knowledge_cutoff": "2024-09-30",
-      "pricing": {
-        "input_per_1m": 0.25,
-        "output_per_1m": 2,
-        "cache_read_per_1m": 0.025
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.25,
+          "output_per_1m": 2,
+          "cache_read_per_1m": 0.025
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -1079,11 +1161,13 @@
       "id": "gpt-5.2",
       "display_name": "GPT-5.2",
       "knowledge_cutoff": "2025-08-31",
-      "pricing": {
-        "input_per_1m": 1.75,
-        "output_per_1m": 14,
-        "cache_read_per_1m": 0.125
-      },
+      "pricing": [
+        {
+          "input_per_1m": 1.75,
+          "output_per_1m": 14,
+          "cache_read_per_1m": 0.125
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -1107,11 +1191,13 @@
       "id": "gpt-5.2-chat",
       "display_name": "GPT-5.2 Chat",
       "knowledge_cutoff": "2025-08-31",
-      "pricing": {
-        "input_per_1m": 1.75,
-        "output_per_1m": 14,
-        "cache_read_per_1m": 0.175
-      },
+      "pricing": [
+        {
+          "input_per_1m": 1.75,
+          "output_per_1m": 14,
+          "cache_read_per_1m": 0.175
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -1135,11 +1221,13 @@
       "id": "gpt-5.2-codex",
       "display_name": "GPT-5.2 Codex",
       "knowledge_cutoff": "2025-08-31",
-      "pricing": {
-        "input_per_1m": 1.75,
-        "output_per_1m": 14,
-        "cache_read_per_1m": 0.175
-      },
+      "pricing": [
+        {
+          "input_per_1m": 1.75,
+          "output_per_1m": 14,
+          "cache_read_per_1m": 0.175
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -1163,11 +1251,13 @@
       "id": "gpt-5.3-chat",
       "display_name": "GPT-5.3 Chat",
       "knowledge_cutoff": "2025-08-31",
-      "pricing": {
-        "input_per_1m": 1.75,
-        "output_per_1m": 14,
-        "cache_read_per_1m": 0.175
-      },
+      "pricing": [
+        {
+          "input_per_1m": 1.75,
+          "output_per_1m": 14,
+          "cache_read_per_1m": 0.175
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -1191,11 +1281,13 @@
       "id": "gpt-5.3-codex",
       "display_name": "GPT-5.3 Codex",
       "knowledge_cutoff": "2025-08-31",
-      "pricing": {
-        "input_per_1m": 1.75,
-        "output_per_1m": 14,
-        "cache_read_per_1m": 0.175
-      },
+      "pricing": [
+        {
+          "input_per_1m": 1.75,
+          "output_per_1m": 14,
+          "cache_read_per_1m": 0.175
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -1219,19 +1311,19 @@
       "id": "gpt-5.4",
       "display_name": "GPT-5.4",
       "knowledge_cutoff": "2025-08-31",
-      "pricing": {
-        "input_per_1m": 2.5,
-        "output_per_1m": 15,
-        "cache_read_per_1m": 0.25,
-        "tiers": [
-          {
-            "threshold": 272000,
-            "input_per_1m": 5,
-            "output_per_1m": 22.5,
-            "cache_read_per_1m": 0.5
-          }
-        ]
-      },
+      "pricing": [
+        {
+          "input_per_1m": 2.5,
+          "output_per_1m": 15,
+          "cache_read_per_1m": 0.25
+        },
+        {
+          "threshold": 272000,
+          "input_per_1m": 5,
+          "output_per_1m": 22.5,
+          "cache_read_per_1m": 0.5
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -1257,11 +1349,13 @@
       "id": "gpt-5.4-mini",
       "display_name": "GPT-5.4 Mini",
       "knowledge_cutoff": "2025-08-31",
-      "pricing": {
-        "input_per_1m": 0.75,
-        "output_per_1m": 4.5,
-        "cache_read_per_1m": 0.075
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.75,
+          "output_per_1m": 4.5,
+          "cache_read_per_1m": 0.075
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -1287,11 +1381,13 @@
       "id": "gpt-5.4-nano",
       "display_name": "GPT-5.4 Nano",
       "knowledge_cutoff": "2025-08-31",
-      "pricing": {
-        "input_per_1m": 0.2,
-        "output_per_1m": 1.25,
-        "cache_read_per_1m": 0.02
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.2,
+          "output_per_1m": 1.25,
+          "cache_read_per_1m": 0.02
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -1317,17 +1413,17 @@
       "id": "gpt-5.4-pro",
       "display_name": "GPT-5.4 Pro",
       "knowledge_cutoff": "2025-08-31",
-      "pricing": {
-        "input_per_1m": 30,
-        "output_per_1m": 180,
-        "tiers": [
-          {
-            "threshold": 272000,
-            "input_per_1m": 60,
-            "output_per_1m": 270
-          }
-        ]
-      },
+      "pricing": [
+        {
+          "input_per_1m": 30,
+          "output_per_1m": 180
+        },
+        {
+          "threshold": 272000,
+          "input_per_1m": 60,
+          "output_per_1m": 270
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -1351,19 +1447,19 @@
       "id": "gpt-5.5",
       "display_name": "GPT-5.5",
       "knowledge_cutoff": "2025-12-01",
-      "pricing": {
-        "input_per_1m": 5,
-        "output_per_1m": 30,
-        "cache_read_per_1m": 0.5,
-        "tiers": [
-          {
-            "threshold": 272000,
-            "input_per_1m": 10,
-            "output_per_1m": 45,
-            "cache_read_per_1m": 1
-          }
-        ]
-      },
+      "pricing": [
+        {
+          "input_per_1m": 5,
+          "output_per_1m": 30,
+          "cache_read_per_1m": 0.5
+        },
+        {
+          "threshold": 272000,
+          "input_per_1m": 10,
+          "output_per_1m": 45,
+          "cache_read_per_1m": 1
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -1388,11 +1484,13 @@
     {
       "id": "grok-4-1-fast-non-reasoning",
       "display_name": "Grok 4.1 Fast (Non-Reasoning)",
-      "pricing": {
-        "input_per_1m": 0.2,
-        "output_per_1m": 0.5,
-        "cache_read_per_1m": 0.05
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.2,
+          "output_per_1m": 0.5,
+          "cache_read_per_1m": 0.05
+        }
+      ],
       "modalities": {
         "input": [
           "text",
@@ -1412,11 +1510,13 @@
     {
       "id": "grok-4-1-fast-reasoning",
       "display_name": "Grok 4.1 Fast (Reasoning)",
-      "pricing": {
-        "input_per_1m": 0.2,
-        "output_per_1m": 0.5,
-        "cache_read_per_1m": 0.05
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.2,
+          "output_per_1m": 0.5,
+          "cache_read_per_1m": 0.05
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -1440,10 +1540,12 @@
       "id": "grok-4-20-non-reasoning",
       "display_name": "Grok 4.20 (Non-Reasoning)",
       "knowledge_cutoff": "2025-09",
-      "pricing": {
-        "input_per_1m": 2,
-        "output_per_1m": 6
-      },
+      "pricing": [
+        {
+          "input_per_1m": 2,
+          "output_per_1m": 6
+        }
+      ],
       "modalities": {
         "input": [
           "text"
@@ -1462,10 +1564,12 @@
       "id": "grok-4-20-reasoning",
       "display_name": "Grok 4.20 (Reasoning)",
       "knowledge_cutoff": "2025-09",
-      "pricing": {
-        "input_per_1m": 2,
-        "output_per_1m": 6
-      },
+      "pricing": [
+        {
+          "input_per_1m": 2,
+          "output_per_1m": 6
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -1487,11 +1591,13 @@
       "id": "grok-4-fast-reasoning",
       "display_name": "Grok 4 Fast (Reasoning)",
       "knowledge_cutoff": "2025-07",
-      "pricing": {
-        "input_per_1m": 0.2,
-        "output_per_1m": 0.5,
-        "cache_read_per_1m": 0.05
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.2,
+          "output_per_1m": 0.5,
+          "cache_read_per_1m": 0.05
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -1514,11 +1620,13 @@
       "id": "kimi-k2-thinking",
       "display_name": "Kimi K2 Thinking",
       "knowledge_cutoff": "2024-08",
-      "pricing": {
-        "input_per_1m": 0.6,
-        "output_per_1m": 2.5,
-        "cache_read_per_1m": 0.15
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.6,
+          "output_per_1m": 2.5,
+          "cache_read_per_1m": 0.15
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -1540,10 +1648,12 @@
       "id": "kimi-k2.5",
       "display_name": "Kimi K2.5",
       "knowledge_cutoff": "2025-01",
-      "pricing": {
-        "input_per_1m": 0.6,
-        "output_per_1m": 3
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.6,
+          "output_per_1m": 3
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -1567,10 +1677,12 @@
       "id": "kimi-k2.6",
       "display_name": "Kimi K2.6",
       "knowledge_cutoff": "2025-01",
-      "pricing": {
-        "input_per_1m": 0.95,
-        "output_per_1m": 4
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.95,
+          "output_per_1m": 4
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -1594,10 +1706,12 @@
       "id": "llama-3.2-11b-vision-instruct",
       "display_name": "Llama-3.2-11B-Vision-Instruct",
       "knowledge_cutoff": "2023-12",
-      "pricing": {
-        "input_per_1m": 0.37,
-        "output_per_1m": 0.37
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.37,
+          "output_per_1m": 0.37
+        }
+      ],
       "modalities": {
         "input": [
           "text",
@@ -1617,10 +1731,12 @@
       "id": "llama-3.2-90b-vision-instruct",
       "display_name": "Llama-3.2-90B-Vision-Instruct",
       "knowledge_cutoff": "2023-12",
-      "pricing": {
-        "input_per_1m": 2.04,
-        "output_per_1m": 2.04
-      },
+      "pricing": [
+        {
+          "input_per_1m": 2.04,
+          "output_per_1m": 2.04
+        }
+      ],
       "modalities": {
         "input": [
           "text",
@@ -1640,10 +1756,12 @@
       "id": "llama-3.3-70b-instruct",
       "display_name": "Llama-3.3-70B-Instruct",
       "knowledge_cutoff": "2023-12",
-      "pricing": {
-        "input_per_1m": 0.71,
-        "output_per_1m": 0.71
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.71,
+          "output_per_1m": 0.71
+        }
+      ],
       "modalities": {
         "input": [
           "text"
@@ -1662,10 +1780,12 @@
       "id": "llama-4-maverick-17b-128e-instruct-fp8",
       "display_name": "Llama 4 Maverick 17B 128E Instruct FP8",
       "knowledge_cutoff": "2024-08",
-      "pricing": {
-        "input_per_1m": 0.25,
-        "output_per_1m": 1
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.25,
+          "output_per_1m": 1
+        }
+      ],
       "modalities": {
         "input": [
           "text",
@@ -1685,10 +1805,12 @@
       "id": "llama-4-scout-17b-16e-instruct",
       "display_name": "Llama 4 Scout 17B 16E Instruct",
       "knowledge_cutoff": "2024-08",
-      "pricing": {
-        "input_per_1m": 0.2,
-        "output_per_1m": 0.78
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.2,
+          "output_per_1m": 0.78
+        }
+      ],
       "modalities": {
         "input": [
           "text",
@@ -1708,10 +1830,12 @@
       "id": "mai-ds-r1",
       "display_name": "MAI-DS-R1",
       "knowledge_cutoff": "2024-06",
-      "pricing": {
-        "input_per_1m": 1.35,
-        "output_per_1m": 5.4
-      },
+      "pricing": [
+        {
+          "input_per_1m": 1.35,
+          "output_per_1m": 5.4
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -1732,10 +1856,12 @@
       "id": "meta-llama-3-70b-instruct",
       "display_name": "Meta-Llama-3-70B-Instruct",
       "knowledge_cutoff": "2023-12",
-      "pricing": {
-        "input_per_1m": 2.68,
-        "output_per_1m": 3.54
-      },
+      "pricing": [
+        {
+          "input_per_1m": 2.68,
+          "output_per_1m": 3.54
+        }
+      ],
       "modalities": {
         "input": [
           "text"
@@ -1753,10 +1879,12 @@
       "id": "meta-llama-3-8b-instruct",
       "display_name": "Meta-Llama-3-8B-Instruct",
       "knowledge_cutoff": "2023-12",
-      "pricing": {
-        "input_per_1m": 0.3,
-        "output_per_1m": 0.61
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.3,
+          "output_per_1m": 0.61
+        }
+      ],
       "modalities": {
         "input": [
           "text"
@@ -1774,10 +1902,12 @@
       "id": "meta-llama-3.1-405b-instruct",
       "display_name": "Meta-Llama-3.1-405B-Instruct",
       "knowledge_cutoff": "2023-12",
-      "pricing": {
-        "input_per_1m": 5.33,
-        "output_per_1m": 16
-      },
+      "pricing": [
+        {
+          "input_per_1m": 5.33,
+          "output_per_1m": 16
+        }
+      ],
       "modalities": {
         "input": [
           "text"
@@ -1796,10 +1926,12 @@
       "id": "meta-llama-3.1-70b-instruct",
       "display_name": "Meta-Llama-3.1-70B-Instruct",
       "knowledge_cutoff": "2023-12",
-      "pricing": {
-        "input_per_1m": 2.68,
-        "output_per_1m": 3.54
-      },
+      "pricing": [
+        {
+          "input_per_1m": 2.68,
+          "output_per_1m": 3.54
+        }
+      ],
       "modalities": {
         "input": [
           "text"
@@ -1818,10 +1950,12 @@
       "id": "meta-llama-3.1-8b-instruct",
       "display_name": "Meta-Llama-3.1-8B-Instruct",
       "knowledge_cutoff": "2023-12",
-      "pricing": {
-        "input_per_1m": 0.3,
-        "output_per_1m": 0.61
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.3,
+          "output_per_1m": 0.61
+        }
+      ],
       "modalities": {
         "input": [
           "text"
@@ -1840,10 +1974,12 @@
       "id": "ministral-3b",
       "display_name": "Ministral 3B",
       "knowledge_cutoff": "2024-03",
-      "pricing": {
-        "input_per_1m": 0.04,
-        "output_per_1m": 0.04
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.04,
+          "output_per_1m": 0.04
+        }
+      ],
       "modalities": {
         "input": [
           "text"
@@ -1862,10 +1998,12 @@
       "id": "mistral-large-2411",
       "display_name": "Mistral Large 24.11",
       "knowledge_cutoff": "2024-09",
-      "pricing": {
-        "input_per_1m": 2,
-        "output_per_1m": 6
-      },
+      "pricing": [
+        {
+          "input_per_1m": 2,
+          "output_per_1m": 6
+        }
+      ],
       "modalities": {
         "input": [
           "text"
@@ -1884,10 +2022,12 @@
       "id": "mistral-medium-2505",
       "display_name": "Mistral Medium 3",
       "knowledge_cutoff": "2025-05",
-      "pricing": {
-        "input_per_1m": 0.4,
-        "output_per_1m": 2
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.4,
+          "output_per_1m": 2
+        }
+      ],
       "modalities": {
         "input": [
           "text",
@@ -1907,10 +2047,12 @@
       "id": "mistral-nemo",
       "display_name": "Mistral Nemo",
       "knowledge_cutoff": "2024-07",
-      "pricing": {
-        "input_per_1m": 0.15,
-        "output_per_1m": 0.15
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.15,
+          "output_per_1m": 0.15
+        }
+      ],
       "modalities": {
         "input": [
           "text"
@@ -1929,10 +2071,12 @@
       "id": "mistral-small-2503",
       "display_name": "Mistral Small 3.1",
       "knowledge_cutoff": "2024-09",
-      "pricing": {
-        "input_per_1m": 0.1,
-        "output_per_1m": 0.3
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.1,
+          "output_per_1m": 0.3
+        }
+      ],
       "modalities": {
         "input": [
           "text",
@@ -1951,10 +2095,12 @@
     {
       "id": "model-router",
       "display_name": "Model Router",
-      "pricing": {
-        "input_per_1m": 0.14,
-        "output_per_1m": 0
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.14,
+          "output_per_1m": 0
+        }
+      ],
       "modalities": {
         "input": [
           "text",
@@ -1974,11 +2120,13 @@
       "id": "o1",
       "display_name": "o1",
       "knowledge_cutoff": "2023-09",
-      "pricing": {
-        "input_per_1m": 15,
-        "output_per_1m": 60,
-        "cache_read_per_1m": 7.5
-      },
+      "pricing": [
+        {
+          "input_per_1m": 15,
+          "output_per_1m": 60,
+          "cache_read_per_1m": 7.5
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -2001,11 +2149,13 @@
       "id": "o1-mini",
       "display_name": "o1-mini",
       "knowledge_cutoff": "2023-09",
-      "pricing": {
-        "input_per_1m": 1.1,
-        "output_per_1m": 4.4,
-        "cache_read_per_1m": 0.55
-      },
+      "pricing": [
+        {
+          "input_per_1m": 1.1,
+          "output_per_1m": 4.4,
+          "cache_read_per_1m": 0.55
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -2027,11 +2177,13 @@
       "id": "o1-preview",
       "display_name": "o1-preview",
       "knowledge_cutoff": "2023-09",
-      "pricing": {
-        "input_per_1m": 16.5,
-        "output_per_1m": 66,
-        "cache_read_per_1m": 8.25
-      },
+      "pricing": [
+        {
+          "input_per_1m": 16.5,
+          "output_per_1m": 66,
+          "cache_read_per_1m": 8.25
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -2053,11 +2205,13 @@
       "id": "o3",
       "display_name": "o3",
       "knowledge_cutoff": "2024-05",
-      "pricing": {
-        "input_per_1m": 2,
-        "output_per_1m": 8,
-        "cache_read_per_1m": 0.5
-      },
+      "pricing": [
+        {
+          "input_per_1m": 2,
+          "output_per_1m": 8,
+          "cache_read_per_1m": 0.5
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -2080,11 +2234,13 @@
       "id": "o3-mini",
       "display_name": "o3-mini",
       "knowledge_cutoff": "2024-05",
-      "pricing": {
-        "input_per_1m": 1.1,
-        "output_per_1m": 4.4,
-        "cache_read_per_1m": 0.55
-      },
+      "pricing": [
+        {
+          "input_per_1m": 1.1,
+          "output_per_1m": 4.4,
+          "cache_read_per_1m": 0.55
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -2106,11 +2262,13 @@
       "id": "o4-mini",
       "display_name": "o4-mini",
       "knowledge_cutoff": "2024-05",
-      "pricing": {
-        "input_per_1m": 1.1,
-        "output_per_1m": 4.4,
-        "cache_read_per_1m": 0.275
-      },
+      "pricing": [
+        {
+          "input_per_1m": 1.1,
+          "output_per_1m": 4.4,
+          "cache_read_per_1m": 0.275
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -2133,10 +2291,12 @@
       "id": "phi-3-medium-128k-instruct",
       "display_name": "Phi-3-medium-instruct (128k)",
       "knowledge_cutoff": "2023-10",
-      "pricing": {
-        "input_per_1m": 0.17,
-        "output_per_1m": 0.68
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.17,
+          "output_per_1m": 0.68
+        }
+      ],
       "modalities": {
         "input": [
           "text"
@@ -2154,10 +2314,12 @@
       "id": "phi-3-medium-4k-instruct",
       "display_name": "Phi-3-medium-instruct (4k)",
       "knowledge_cutoff": "2023-10",
-      "pricing": {
-        "input_per_1m": 0.17,
-        "output_per_1m": 0.68
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.17,
+          "output_per_1m": 0.68
+        }
+      ],
       "modalities": {
         "input": [
           "text"
@@ -2175,10 +2337,12 @@
       "id": "phi-3-mini-128k-instruct",
       "display_name": "Phi-3-mini-instruct (128k)",
       "knowledge_cutoff": "2023-10",
-      "pricing": {
-        "input_per_1m": 0.13,
-        "output_per_1m": 0.52
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.13,
+          "output_per_1m": 0.52
+        }
+      ],
       "modalities": {
         "input": [
           "text"
@@ -2196,10 +2360,12 @@
       "id": "phi-3-mini-4k-instruct",
       "display_name": "Phi-3-mini-instruct (4k)",
       "knowledge_cutoff": "2023-10",
-      "pricing": {
-        "input_per_1m": 0.13,
-        "output_per_1m": 0.52
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.13,
+          "output_per_1m": 0.52
+        }
+      ],
       "modalities": {
         "input": [
           "text"
@@ -2217,10 +2383,12 @@
       "id": "phi-3-small-128k-instruct",
       "display_name": "Phi-3-small-instruct (128k)",
       "knowledge_cutoff": "2023-10",
-      "pricing": {
-        "input_per_1m": 0.15,
-        "output_per_1m": 0.6
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.15,
+          "output_per_1m": 0.6
+        }
+      ],
       "modalities": {
         "input": [
           "text"
@@ -2238,10 +2406,12 @@
       "id": "phi-3-small-8k-instruct",
       "display_name": "Phi-3-small-instruct (8k)",
       "knowledge_cutoff": "2023-10",
-      "pricing": {
-        "input_per_1m": 0.15,
-        "output_per_1m": 0.6
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.15,
+          "output_per_1m": 0.6
+        }
+      ],
       "modalities": {
         "input": [
           "text"
@@ -2259,10 +2429,12 @@
       "id": "phi-3.5-mini-instruct",
       "display_name": "Phi-3.5-mini-instruct",
       "knowledge_cutoff": "2023-10",
-      "pricing": {
-        "input_per_1m": 0.13,
-        "output_per_1m": 0.52
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.13,
+          "output_per_1m": 0.52
+        }
+      ],
       "modalities": {
         "input": [
           "text"
@@ -2280,10 +2452,12 @@
       "id": "phi-3.5-moe-instruct",
       "display_name": "Phi-3.5-MoE-instruct",
       "knowledge_cutoff": "2023-10",
-      "pricing": {
-        "input_per_1m": 0.16,
-        "output_per_1m": 0.64
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.16,
+          "output_per_1m": 0.64
+        }
+      ],
       "modalities": {
         "input": [
           "text"
@@ -2301,10 +2475,12 @@
       "id": "phi-4",
       "display_name": "Phi-4",
       "knowledge_cutoff": "2023-10",
-      "pricing": {
-        "input_per_1m": 0.125,
-        "output_per_1m": 0.5
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.125,
+          "output_per_1m": 0.5
+        }
+      ],
       "modalities": {
         "input": [
           "text"
@@ -2322,10 +2498,12 @@
       "id": "phi-4-mini",
       "display_name": "Phi-4-mini",
       "knowledge_cutoff": "2023-10",
-      "pricing": {
-        "input_per_1m": 0.075,
-        "output_per_1m": 0.3
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.075,
+          "output_per_1m": 0.3
+        }
+      ],
       "modalities": {
         "input": [
           "text"
@@ -2344,10 +2522,12 @@
       "id": "phi-4-mini-reasoning",
       "display_name": "Phi-4-mini-reasoning",
       "knowledge_cutoff": "2023-10",
-      "pricing": {
-        "input_per_1m": 0.075,
-        "output_per_1m": 0.3
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.075,
+          "output_per_1m": 0.3
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -2369,10 +2549,12 @@
       "id": "phi-4-multimodal",
       "display_name": "Phi-4-multimodal",
       "knowledge_cutoff": "2023-10",
-      "pricing": {
-        "input_per_1m": 0.08,
-        "output_per_1m": 0.32
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.08,
+          "output_per_1m": 0.32
+        }
+      ],
       "modalities": {
         "input": [
           "text",
@@ -2392,10 +2574,12 @@
       "id": "phi-4-reasoning",
       "display_name": "Phi-4-reasoning",
       "knowledge_cutoff": "2023-10",
-      "pricing": {
-        "input_per_1m": 0.125,
-        "output_per_1m": 0.5
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.125,
+          "output_per_1m": 0.5
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -2416,10 +2600,12 @@
       "id": "phi-4-reasoning-plus",
       "display_name": "Phi-4-reasoning-plus",
       "knowledge_cutoff": "2023-10",
-      "pricing": {
-        "input_per_1m": 0.125,
-        "output_per_1m": 0.5
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.125,
+          "output_per_1m": 0.5
+        }
+      ],
       "reasoning": {
         "supported": true
       },
