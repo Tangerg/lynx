@@ -5,6 +5,8 @@
       "id": "claude-haiku-4-5",
       "display_name": "Claude Haiku 4.5",
       "knowledge_cutoff": "2025-02-31",
+      "release_date": "2025-11-18",
+      "last_updated": "2025-11-18",
       "pricing": [
         {
           "input_per_1m": 1,
@@ -37,6 +39,8 @@
       "id": "claude-opus-4-1",
       "display_name": "Claude Opus 4.1",
       "knowledge_cutoff": "2025-03-31",
+      "release_date": "2025-11-18",
+      "last_updated": "2025-11-18",
       "pricing": [
         {
           "input_per_1m": 15,
@@ -69,6 +73,8 @@
       "id": "claude-opus-4-5",
       "display_name": "Claude Opus 4.5",
       "knowledge_cutoff": "2025-03-31",
+      "release_date": "2025-11-24",
+      "last_updated": "2025-08-01",
       "pricing": [
         {
           "input_per_1m": 5,
@@ -100,6 +106,8 @@
       "id": "claude-opus-4-6",
       "display_name": "Claude Opus 4.6",
       "knowledge_cutoff": "2025-05-31",
+      "release_date": "2026-02-05",
+      "last_updated": "2026-02-05",
       "pricing": [
         {
           "input_per_1m": 5,
@@ -138,6 +146,8 @@
       "id": "claude-sonnet-4-5",
       "display_name": "Claude Sonnet 4.5",
       "knowledge_cutoff": "2025-07-31",
+      "release_date": "2025-11-18",
+      "last_updated": "2025-11-18",
       "pricing": [
         {
           "input_per_1m": 3,
@@ -170,6 +180,8 @@
       "id": "claude-sonnet-4-6",
       "display_name": "Claude Sonnet 4.6",
       "knowledge_cutoff": "2025-08-31",
+      "release_date": "2026-02-17",
+      "last_updated": "2026-03-13",
       "pricing": [
         {
           "input_per_1m": 3,
@@ -202,6 +214,8 @@
       "id": "codestral-2501",
       "display_name": "Codestral 25.01",
       "knowledge_cutoff": "2024-03",
+      "release_date": "2025-01-01",
+      "last_updated": "2025-01-01",
       "pricing": [
         {
           "input_per_1m": 0.3,
@@ -226,6 +240,8 @@
       "id": "codex-mini",
       "display_name": "Codex Mini",
       "knowledge_cutoff": "2024-04",
+      "release_date": "2025-05-16",
+      "last_updated": "2025-05-16",
       "pricing": [
         {
           "input_per_1m": 1.5,
@@ -254,6 +270,8 @@
       "id": "cohere-command-a",
       "display_name": "Command A",
       "knowledge_cutoff": "2024-06-01",
+      "release_date": "2025-03-13",
+      "last_updated": "2025-03-13",
       "pricing": [
         {
           "input_per_1m": 2.5,
@@ -281,6 +299,8 @@
       "id": "cohere-command-r-08-2024",
       "display_name": "Command R",
       "knowledge_cutoff": "2024-06-01",
+      "release_date": "2024-08-30",
+      "last_updated": "2024-08-30",
       "pricing": [
         {
           "input_per_1m": 0.15,
@@ -305,6 +325,8 @@
       "id": "cohere-command-r-plus-08-2024",
       "display_name": "Command R+",
       "knowledge_cutoff": "2024-06-01",
+      "release_date": "2024-08-30",
+      "last_updated": "2024-08-30",
       "pricing": [
         {
           "input_per_1m": 2.5,
@@ -329,6 +351,8 @@
       "id": "deepseek-r1",
       "display_name": "DeepSeek-R1",
       "knowledge_cutoff": "2024-07",
+      "release_date": "2025-01-20",
+      "last_updated": "2025-01-20",
       "pricing": [
         {
           "input_per_1m": 1.35,
@@ -355,6 +379,8 @@
       "id": "deepseek-r1-0528",
       "display_name": "DeepSeek-R1-0528",
       "knowledge_cutoff": "2024-07",
+      "release_date": "2025-05-28",
+      "last_updated": "2025-05-28",
       "pricing": [
         {
           "input_per_1m": 1.35,
@@ -382,6 +408,8 @@
       "id": "deepseek-v3-0324",
       "display_name": "DeepSeek-V3-0324",
       "knowledge_cutoff": "2024-07",
+      "release_date": "2025-03-24",
+      "last_updated": "2025-03-24",
       "pricing": [
         {
           "input_per_1m": 1.14,
@@ -406,6 +434,8 @@
       "id": "deepseek-v3.1",
       "display_name": "DeepSeek-V3.1",
       "knowledge_cutoff": "2024-07",
+      "release_date": "2025-08-21",
+      "last_updated": "2025-08-21",
       "pricing": [
         {
           "input_per_1m": 0.56,
@@ -433,6 +463,8 @@
       "id": "deepseek-v3.2",
       "display_name": "DeepSeek-V3.2",
       "knowledge_cutoff": "2024-07",
+      "release_date": "2025-12-01",
+      "last_updated": "2025-12-01",
       "pricing": [
         {
           "input_per_1m": 0.58,
@@ -460,6 +492,8 @@
       "id": "deepseek-v3.2-speciale",
       "display_name": "DeepSeek-V3.2-Speciale",
       "knowledge_cutoff": "2024-07",
+      "release_date": "2025-12-01",
+      "last_updated": "2025-12-01",
       "pricing": [
         {
           "input_per_1m": 0.58,
@@ -486,6 +520,8 @@
       "id": "gpt-3.5-turbo-0125",
       "display_name": "GPT-3.5 Turbo 0125",
       "knowledge_cutoff": "2021-08",
+      "release_date": "2024-01-25",
+      "last_updated": "2024-01-25",
       "pricing": [
         {
           "input_per_1m": 0.5,
@@ -509,6 +545,8 @@
       "id": "gpt-3.5-turbo-0301",
       "display_name": "GPT-3.5 Turbo 0301",
       "knowledge_cutoff": "2021-08",
+      "release_date": "2023-03-01",
+      "last_updated": "2023-03-01",
       "pricing": [
         {
           "input_per_1m": 1.5,
@@ -532,6 +570,8 @@
       "id": "gpt-3.5-turbo-0613",
       "display_name": "GPT-3.5 Turbo 0613",
       "knowledge_cutoff": "2021-08",
+      "release_date": "2023-06-13",
+      "last_updated": "2023-06-13",
       "pricing": [
         {
           "input_per_1m": 3,
@@ -555,6 +595,8 @@
       "id": "gpt-3.5-turbo-1106",
       "display_name": "GPT-3.5 Turbo 1106",
       "knowledge_cutoff": "2021-08",
+      "release_date": "2023-11-06",
+      "last_updated": "2023-11-06",
       "pricing": [
         {
           "input_per_1m": 1,
@@ -578,6 +620,8 @@
       "id": "gpt-3.5-turbo-instruct",
       "display_name": "GPT-3.5 Turbo Instruct",
       "knowledge_cutoff": "2021-08",
+      "release_date": "2023-09-21",
+      "last_updated": "2023-09-21",
       "pricing": [
         {
           "input_per_1m": 1.5,
@@ -601,6 +645,8 @@
       "id": "gpt-4",
       "display_name": "GPT-4",
       "knowledge_cutoff": "2023-11",
+      "release_date": "2023-03-14",
+      "last_updated": "2023-03-14",
       "pricing": [
         {
           "input_per_1m": 60,
@@ -625,6 +671,8 @@
       "id": "gpt-4-32k",
       "display_name": "GPT-4 32K",
       "knowledge_cutoff": "2023-11",
+      "release_date": "2023-03-14",
+      "last_updated": "2023-03-14",
       "pricing": [
         {
           "input_per_1m": 60,
@@ -649,6 +697,8 @@
       "id": "gpt-4-turbo",
       "display_name": "GPT-4 Turbo",
       "knowledge_cutoff": "2023-12",
+      "release_date": "2023-11-06",
+      "last_updated": "2024-04-09",
       "pricing": [
         {
           "input_per_1m": 10,
@@ -674,6 +724,8 @@
       "id": "gpt-4-turbo-vision",
       "display_name": "GPT-4 Turbo Vision",
       "knowledge_cutoff": "2023-11",
+      "release_date": "2023-11-06",
+      "last_updated": "2024-04-09",
       "pricing": [
         {
           "input_per_1m": 10,
@@ -699,6 +751,8 @@
       "id": "gpt-4.1",
       "display_name": "GPT-4.1",
       "knowledge_cutoff": "2024-04",
+      "release_date": "2025-04-14",
+      "last_updated": "2025-04-14",
       "pricing": [
         {
           "input_per_1m": 2,
@@ -725,6 +779,8 @@
       "id": "gpt-4.1-mini",
       "display_name": "GPT-4.1 mini",
       "knowledge_cutoff": "2024-04",
+      "release_date": "2025-04-14",
+      "last_updated": "2025-04-14",
       "pricing": [
         {
           "input_per_1m": 0.4,
@@ -751,6 +807,8 @@
       "id": "gpt-4.1-nano",
       "display_name": "GPT-4.1 nano",
       "knowledge_cutoff": "2024-04",
+      "release_date": "2025-04-14",
+      "last_updated": "2025-04-14",
       "pricing": [
         {
           "input_per_1m": 0.1,
@@ -777,6 +835,8 @@
       "id": "gpt-4o",
       "display_name": "GPT-4o",
       "knowledge_cutoff": "2023-09",
+      "release_date": "2024-05-13",
+      "last_updated": "2024-08-06",
       "pricing": [
         {
           "input_per_1m": 2.5,
@@ -803,6 +863,8 @@
       "id": "gpt-4o-mini",
       "display_name": "GPT-4o mini",
       "knowledge_cutoff": "2023-09",
+      "release_date": "2024-07-18",
+      "last_updated": "2024-07-18",
       "pricing": [
         {
           "input_per_1m": 0.15,
@@ -829,6 +891,8 @@
       "id": "gpt-5",
       "display_name": "GPT-5",
       "knowledge_cutoff": "2024-09-30",
+      "release_date": "2025-08-07",
+      "last_updated": "2025-08-07",
       "pricing": [
         {
           "input_per_1m": 1.25,
@@ -858,6 +922,8 @@
       "id": "gpt-5-chat",
       "display_name": "GPT-5 Chat",
       "knowledge_cutoff": "2024-10-24",
+      "release_date": "2025-08-07",
+      "last_updated": "2025-08-07",
       "pricing": [
         {
           "input_per_1m": 1.25,
@@ -886,6 +952,8 @@
       "id": "gpt-5-codex",
       "display_name": "GPT-5-Codex",
       "knowledge_cutoff": "2024-09-30",
+      "release_date": "2025-09-15",
+      "last_updated": "2025-09-15",
       "pricing": [
         {
           "input_per_1m": 1.25,
@@ -915,6 +983,8 @@
       "id": "gpt-5-mini",
       "display_name": "GPT-5 Mini",
       "knowledge_cutoff": "2024-05-30",
+      "release_date": "2025-08-07",
+      "last_updated": "2025-08-07",
       "pricing": [
         {
           "input_per_1m": 0.25,
@@ -944,6 +1014,8 @@
       "id": "gpt-5-nano",
       "display_name": "GPT-5 Nano",
       "knowledge_cutoff": "2024-05-30",
+      "release_date": "2025-08-07",
+      "last_updated": "2025-08-07",
       "pricing": [
         {
           "input_per_1m": 0.05,
@@ -973,6 +1045,8 @@
       "id": "gpt-5-pro",
       "display_name": "GPT-5 Pro",
       "knowledge_cutoff": "2024-09-30",
+      "release_date": "2025-10-06",
+      "last_updated": "2025-10-06",
       "pricing": [
         {
           "input_per_1m": 15,
@@ -1002,6 +1076,8 @@
       "id": "gpt-5.1",
       "display_name": "GPT-5.1",
       "knowledge_cutoff": "2024-09-30",
+      "release_date": "2025-11-14",
+      "last_updated": "2025-11-14",
       "pricing": [
         {
           "input_per_1m": 1.25,
@@ -1035,6 +1111,8 @@
       "id": "gpt-5.1-chat",
       "display_name": "GPT-5.1 Chat",
       "knowledge_cutoff": "2024-09-30",
+      "release_date": "2025-11-14",
+      "last_updated": "2025-11-14",
       "pricing": [
         {
           "input_per_1m": 1.25,
@@ -1068,6 +1146,8 @@
       "id": "gpt-5.1-codex",
       "display_name": "GPT-5.1 Codex",
       "knowledge_cutoff": "2024-09-30",
+      "release_date": "2025-11-14",
+      "last_updated": "2025-11-14",
       "pricing": [
         {
           "input_per_1m": 1.25,
@@ -1101,6 +1181,8 @@
       "id": "gpt-5.1-codex-max",
       "display_name": "GPT-5.1 Codex Max",
       "knowledge_cutoff": "2024-09-30",
+      "release_date": "2025-11-13",
+      "last_updated": "2025-11-13",
       "pricing": [
         {
           "input_per_1m": 1.25,
@@ -1131,6 +1213,8 @@
       "id": "gpt-5.1-codex-mini",
       "display_name": "GPT-5.1 Codex Mini",
       "knowledge_cutoff": "2024-09-30",
+      "release_date": "2025-11-14",
+      "last_updated": "2025-11-14",
       "pricing": [
         {
           "input_per_1m": 0.25,
@@ -1161,6 +1245,8 @@
       "id": "gpt-5.2",
       "display_name": "GPT-5.2",
       "knowledge_cutoff": "2025-08-31",
+      "release_date": "2025-12-11",
+      "last_updated": "2025-12-11",
       "pricing": [
         {
           "input_per_1m": 1.75,
@@ -1191,6 +1277,8 @@
       "id": "gpt-5.2-chat",
       "display_name": "GPT-5.2 Chat",
       "knowledge_cutoff": "2025-08-31",
+      "release_date": "2025-12-11",
+      "last_updated": "2025-12-11",
       "pricing": [
         {
           "input_per_1m": 1.75,
@@ -1221,6 +1309,8 @@
       "id": "gpt-5.2-codex",
       "display_name": "GPT-5.2 Codex",
       "knowledge_cutoff": "2025-08-31",
+      "release_date": "2026-01-14",
+      "last_updated": "2026-01-14",
       "pricing": [
         {
           "input_per_1m": 1.75,
@@ -1251,6 +1341,8 @@
       "id": "gpt-5.3-chat",
       "display_name": "GPT-5.3 Chat",
       "knowledge_cutoff": "2025-08-31",
+      "release_date": "2026-03-03",
+      "last_updated": "2026-03-03",
       "pricing": [
         {
           "input_per_1m": 1.75,
@@ -1281,6 +1373,8 @@
       "id": "gpt-5.3-codex",
       "display_name": "GPT-5.3 Codex",
       "knowledge_cutoff": "2025-08-31",
+      "release_date": "2026-02-24",
+      "last_updated": "2026-02-24",
       "pricing": [
         {
           "input_per_1m": 1.75,
@@ -1311,6 +1405,8 @@
       "id": "gpt-5.4",
       "display_name": "GPT-5.4",
       "knowledge_cutoff": "2025-08-31",
+      "release_date": "2026-03-05",
+      "last_updated": "2026-03-05",
       "pricing": [
         {
           "input_per_1m": 2.5,
@@ -1349,6 +1445,8 @@
       "id": "gpt-5.4-mini",
       "display_name": "GPT-5.4 Mini",
       "knowledge_cutoff": "2025-08-31",
+      "release_date": "2026-03-17",
+      "last_updated": "2026-03-17",
       "pricing": [
         {
           "input_per_1m": 0.75,
@@ -1381,6 +1479,8 @@
       "id": "gpt-5.4-nano",
       "display_name": "GPT-5.4 Nano",
       "knowledge_cutoff": "2025-08-31",
+      "release_date": "2026-03-17",
+      "last_updated": "2026-03-17",
       "pricing": [
         {
           "input_per_1m": 0.2,
@@ -1413,6 +1513,8 @@
       "id": "gpt-5.4-pro",
       "display_name": "GPT-5.4 Pro",
       "knowledge_cutoff": "2025-08-31",
+      "release_date": "2026-03-05",
+      "last_updated": "2026-03-05",
       "pricing": [
         {
           "input_per_1m": 30,
@@ -1447,6 +1549,8 @@
       "id": "gpt-5.5",
       "display_name": "GPT-5.5",
       "knowledge_cutoff": "2025-12-01",
+      "release_date": "2026-04-24",
+      "last_updated": "2026-04-24",
       "pricing": [
         {
           "input_per_1m": 5,
@@ -1484,6 +1588,8 @@
     {
       "id": "grok-4-1-fast-non-reasoning",
       "display_name": "Grok 4.1 Fast (Non-Reasoning)",
+      "release_date": "2025-06-27",
+      "last_updated": "2025-06-27",
       "pricing": [
         {
           "input_per_1m": 0.2,
@@ -1510,6 +1616,8 @@
     {
       "id": "grok-4-1-fast-reasoning",
       "display_name": "Grok 4.1 Fast (Reasoning)",
+      "release_date": "2025-06-27",
+      "last_updated": "2025-06-27",
       "pricing": [
         {
           "input_per_1m": 0.2,
@@ -1540,6 +1648,8 @@
       "id": "grok-4-20-non-reasoning",
       "display_name": "Grok 4.20 (Non-Reasoning)",
       "knowledge_cutoff": "2025-09",
+      "release_date": "2026-04-08",
+      "last_updated": "2026-04-08",
       "pricing": [
         {
           "input_per_1m": 2,
@@ -1564,6 +1674,8 @@
       "id": "grok-4-20-reasoning",
       "display_name": "Grok 4.20 (Reasoning)",
       "knowledge_cutoff": "2025-09",
+      "release_date": "2026-04-08",
+      "last_updated": "2026-04-08",
       "pricing": [
         {
           "input_per_1m": 2,
@@ -1591,6 +1703,8 @@
       "id": "grok-4-fast-reasoning",
       "display_name": "Grok 4 Fast (Reasoning)",
       "knowledge_cutoff": "2025-07",
+      "release_date": "2025-09-19",
+      "last_updated": "2025-09-19",
       "pricing": [
         {
           "input_per_1m": 0.2,
@@ -1620,6 +1734,8 @@
       "id": "kimi-k2-thinking",
       "display_name": "Kimi K2 Thinking",
       "knowledge_cutoff": "2024-08",
+      "release_date": "2025-11-06",
+      "last_updated": "2025-12-02",
       "pricing": [
         {
           "input_per_1m": 0.6,
@@ -1648,6 +1764,8 @@
       "id": "kimi-k2.5",
       "display_name": "Kimi K2.5",
       "knowledge_cutoff": "2025-01",
+      "release_date": "2026-02-06",
+      "last_updated": "2026-02-06",
       "pricing": [
         {
           "input_per_1m": 0.6,
@@ -1677,6 +1795,8 @@
       "id": "kimi-k2.6",
       "display_name": "Kimi K2.6",
       "knowledge_cutoff": "2025-01",
+      "release_date": "2026-04-22",
+      "last_updated": "2026-04-22",
       "pricing": [
         {
           "input_per_1m": 0.95,
@@ -1706,6 +1826,8 @@
       "id": "llama-3.2-11b-vision-instruct",
       "display_name": "Llama-3.2-11B-Vision-Instruct",
       "knowledge_cutoff": "2023-12",
+      "release_date": "2024-09-25",
+      "last_updated": "2024-09-25",
       "pricing": [
         {
           "input_per_1m": 0.37,
@@ -1731,6 +1853,8 @@
       "id": "llama-3.2-90b-vision-instruct",
       "display_name": "Llama-3.2-90B-Vision-Instruct",
       "knowledge_cutoff": "2023-12",
+      "release_date": "2024-09-25",
+      "last_updated": "2024-09-25",
       "pricing": [
         {
           "input_per_1m": 2.04,
@@ -1756,6 +1880,8 @@
       "id": "llama-3.3-70b-instruct",
       "display_name": "Llama-3.3-70B-Instruct",
       "knowledge_cutoff": "2023-12",
+      "release_date": "2024-12-06",
+      "last_updated": "2024-12-06",
       "pricing": [
         {
           "input_per_1m": 0.71,
@@ -1780,6 +1906,8 @@
       "id": "llama-4-maverick-17b-128e-instruct-fp8",
       "display_name": "Llama 4 Maverick 17B 128E Instruct FP8",
       "knowledge_cutoff": "2024-08",
+      "release_date": "2025-04-05",
+      "last_updated": "2025-04-05",
       "pricing": [
         {
           "input_per_1m": 0.25,
@@ -1805,6 +1933,8 @@
       "id": "llama-4-scout-17b-16e-instruct",
       "display_name": "Llama 4 Scout 17B 16E Instruct",
       "knowledge_cutoff": "2024-08",
+      "release_date": "2025-04-05",
+      "last_updated": "2025-04-05",
       "pricing": [
         {
           "input_per_1m": 0.2,
@@ -1830,6 +1960,8 @@
       "id": "mai-ds-r1",
       "display_name": "MAI-DS-R1",
       "knowledge_cutoff": "2024-06",
+      "release_date": "2025-01-20",
+      "last_updated": "2025-01-20",
       "pricing": [
         {
           "input_per_1m": 1.35,
@@ -1856,6 +1988,8 @@
       "id": "meta-llama-3-70b-instruct",
       "display_name": "Meta-Llama-3-70B-Instruct",
       "knowledge_cutoff": "2023-12",
+      "release_date": "2024-04-18",
+      "last_updated": "2024-04-18",
       "pricing": [
         {
           "input_per_1m": 2.68,
@@ -1879,6 +2013,8 @@
       "id": "meta-llama-3-8b-instruct",
       "display_name": "Meta-Llama-3-8B-Instruct",
       "knowledge_cutoff": "2023-12",
+      "release_date": "2024-04-18",
+      "last_updated": "2024-04-18",
       "pricing": [
         {
           "input_per_1m": 0.3,
@@ -1902,6 +2038,8 @@
       "id": "meta-llama-3.1-405b-instruct",
       "display_name": "Meta-Llama-3.1-405B-Instruct",
       "knowledge_cutoff": "2023-12",
+      "release_date": "2024-07-23",
+      "last_updated": "2024-07-23",
       "pricing": [
         {
           "input_per_1m": 5.33,
@@ -1926,6 +2064,8 @@
       "id": "meta-llama-3.1-70b-instruct",
       "display_name": "Meta-Llama-3.1-70B-Instruct",
       "knowledge_cutoff": "2023-12",
+      "release_date": "2024-07-23",
+      "last_updated": "2024-07-23",
       "pricing": [
         {
           "input_per_1m": 2.68,
@@ -1950,6 +2090,8 @@
       "id": "meta-llama-3.1-8b-instruct",
       "display_name": "Meta-Llama-3.1-8B-Instruct",
       "knowledge_cutoff": "2023-12",
+      "release_date": "2024-07-23",
+      "last_updated": "2024-07-23",
       "pricing": [
         {
           "input_per_1m": 0.3,
@@ -1974,6 +2116,8 @@
       "id": "ministral-3b",
       "display_name": "Ministral 3B",
       "knowledge_cutoff": "2024-03",
+      "release_date": "2024-10-22",
+      "last_updated": "2024-10-22",
       "pricing": [
         {
           "input_per_1m": 0.04,
@@ -1998,6 +2142,8 @@
       "id": "mistral-large-2411",
       "display_name": "Mistral Large 24.11",
       "knowledge_cutoff": "2024-09",
+      "release_date": "2024-11-01",
+      "last_updated": "2024-11-01",
       "pricing": [
         {
           "input_per_1m": 2,
@@ -2022,6 +2168,8 @@
       "id": "mistral-medium-2505",
       "display_name": "Mistral Medium 3",
       "knowledge_cutoff": "2025-05",
+      "release_date": "2025-05-07",
+      "last_updated": "2025-05-07",
       "pricing": [
         {
           "input_per_1m": 0.4,
@@ -2047,6 +2195,8 @@
       "id": "mistral-nemo",
       "display_name": "Mistral Nemo",
       "knowledge_cutoff": "2024-07",
+      "release_date": "2024-07-18",
+      "last_updated": "2024-07-18",
       "pricing": [
         {
           "input_per_1m": 0.15,
@@ -2071,6 +2221,8 @@
       "id": "mistral-small-2503",
       "display_name": "Mistral Small 3.1",
       "knowledge_cutoff": "2024-09",
+      "release_date": "2025-03-01",
+      "last_updated": "2025-03-01",
       "pricing": [
         {
           "input_per_1m": 0.1,
@@ -2095,6 +2247,8 @@
     {
       "id": "model-router",
       "display_name": "Model Router",
+      "release_date": "2025-05-19",
+      "last_updated": "2025-11-18",
       "pricing": [
         {
           "input_per_1m": 0.14,
@@ -2120,6 +2274,8 @@
       "id": "o1",
       "display_name": "o1",
       "knowledge_cutoff": "2023-09",
+      "release_date": "2024-12-05",
+      "last_updated": "2024-12-05",
       "pricing": [
         {
           "input_per_1m": 15,
@@ -2149,6 +2305,8 @@
       "id": "o1-mini",
       "display_name": "o1-mini",
       "knowledge_cutoff": "2023-09",
+      "release_date": "2024-09-12",
+      "last_updated": "2024-09-12",
       "pricing": [
         {
           "input_per_1m": 1.1,
@@ -2177,6 +2335,8 @@
       "id": "o1-preview",
       "display_name": "o1-preview",
       "knowledge_cutoff": "2023-09",
+      "release_date": "2024-09-12",
+      "last_updated": "2024-09-12",
       "pricing": [
         {
           "input_per_1m": 16.5,
@@ -2205,6 +2365,8 @@
       "id": "o3",
       "display_name": "o3",
       "knowledge_cutoff": "2024-05",
+      "release_date": "2025-04-16",
+      "last_updated": "2025-04-16",
       "pricing": [
         {
           "input_per_1m": 2,
@@ -2234,6 +2396,8 @@
       "id": "o3-mini",
       "display_name": "o3-mini",
       "knowledge_cutoff": "2024-05",
+      "release_date": "2024-12-20",
+      "last_updated": "2025-01-29",
       "pricing": [
         {
           "input_per_1m": 1.1,
@@ -2262,6 +2426,8 @@
       "id": "o4-mini",
       "display_name": "o4-mini",
       "knowledge_cutoff": "2024-05",
+      "release_date": "2025-04-16",
+      "last_updated": "2025-04-16",
       "pricing": [
         {
           "input_per_1m": 1.1,
@@ -2291,6 +2457,8 @@
       "id": "phi-3-medium-128k-instruct",
       "display_name": "Phi-3-medium-instruct (128k)",
       "knowledge_cutoff": "2023-10",
+      "release_date": "2024-04-23",
+      "last_updated": "2024-04-23",
       "pricing": [
         {
           "input_per_1m": 0.17,
@@ -2314,6 +2482,8 @@
       "id": "phi-3-medium-4k-instruct",
       "display_name": "Phi-3-medium-instruct (4k)",
       "knowledge_cutoff": "2023-10",
+      "release_date": "2024-04-23",
+      "last_updated": "2024-04-23",
       "pricing": [
         {
           "input_per_1m": 0.17,
@@ -2337,6 +2507,8 @@
       "id": "phi-3-mini-128k-instruct",
       "display_name": "Phi-3-mini-instruct (128k)",
       "knowledge_cutoff": "2023-10",
+      "release_date": "2024-04-23",
+      "last_updated": "2024-04-23",
       "pricing": [
         {
           "input_per_1m": 0.13,
@@ -2360,6 +2532,8 @@
       "id": "phi-3-mini-4k-instruct",
       "display_name": "Phi-3-mini-instruct (4k)",
       "knowledge_cutoff": "2023-10",
+      "release_date": "2024-04-23",
+      "last_updated": "2024-04-23",
       "pricing": [
         {
           "input_per_1m": 0.13,
@@ -2383,6 +2557,8 @@
       "id": "phi-3-small-128k-instruct",
       "display_name": "Phi-3-small-instruct (128k)",
       "knowledge_cutoff": "2023-10",
+      "release_date": "2024-04-23",
+      "last_updated": "2024-04-23",
       "pricing": [
         {
           "input_per_1m": 0.15,
@@ -2406,6 +2582,8 @@
       "id": "phi-3-small-8k-instruct",
       "display_name": "Phi-3-small-instruct (8k)",
       "knowledge_cutoff": "2023-10",
+      "release_date": "2024-04-23",
+      "last_updated": "2024-04-23",
       "pricing": [
         {
           "input_per_1m": 0.15,
@@ -2429,6 +2607,8 @@
       "id": "phi-3.5-mini-instruct",
       "display_name": "Phi-3.5-mini-instruct",
       "knowledge_cutoff": "2023-10",
+      "release_date": "2024-08-20",
+      "last_updated": "2024-08-20",
       "pricing": [
         {
           "input_per_1m": 0.13,
@@ -2452,6 +2632,8 @@
       "id": "phi-3.5-moe-instruct",
       "display_name": "Phi-3.5-MoE-instruct",
       "knowledge_cutoff": "2023-10",
+      "release_date": "2024-08-20",
+      "last_updated": "2024-08-20",
       "pricing": [
         {
           "input_per_1m": 0.16,
@@ -2475,6 +2657,8 @@
       "id": "phi-4",
       "display_name": "Phi-4",
       "knowledge_cutoff": "2023-10",
+      "release_date": "2024-12-11",
+      "last_updated": "2024-12-11",
       "pricing": [
         {
           "input_per_1m": 0.125,
@@ -2498,6 +2682,8 @@
       "id": "phi-4-mini",
       "display_name": "Phi-4-mini",
       "knowledge_cutoff": "2023-10",
+      "release_date": "2024-12-11",
+      "last_updated": "2024-12-11",
       "pricing": [
         {
           "input_per_1m": 0.075,
@@ -2522,6 +2708,8 @@
       "id": "phi-4-mini-reasoning",
       "display_name": "Phi-4-mini-reasoning",
       "knowledge_cutoff": "2023-10",
+      "release_date": "2024-12-11",
+      "last_updated": "2024-12-11",
       "pricing": [
         {
           "input_per_1m": 0.075,
@@ -2549,6 +2737,8 @@
       "id": "phi-4-multimodal",
       "display_name": "Phi-4-multimodal",
       "knowledge_cutoff": "2023-10",
+      "release_date": "2024-12-11",
+      "last_updated": "2024-12-11",
       "pricing": [
         {
           "input_per_1m": 0.08,
@@ -2574,6 +2764,8 @@
       "id": "phi-4-reasoning",
       "display_name": "Phi-4-reasoning",
       "knowledge_cutoff": "2023-10",
+      "release_date": "2024-12-11",
+      "last_updated": "2024-12-11",
       "pricing": [
         {
           "input_per_1m": 0.125,
@@ -2600,6 +2792,8 @@
       "id": "phi-4-reasoning-plus",
       "display_name": "Phi-4-reasoning-plus",
       "knowledge_cutoff": "2023-10",
+      "release_date": "2024-12-11",
+      "last_updated": "2024-12-11",
       "pricing": [
         {
           "input_per_1m": 0.125,

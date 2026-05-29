@@ -71,8 +71,12 @@ Each model entry is a `chat.ModelInfo`:
   `["text"]` for chat models.
 - `tool_call` / `structured_output` flag tool/function calling and a
   native structured-output feature.
-- `knowledge_cutoff` and `limits` (`context_window`, `max_input_tokens`,
-  `max_output_tokens`) are optional; omit when unknown.
+- `knowledge_cutoff`, `release_date`, `last_updated` and `limits`
+  (`context_window`, `max_input_tokens`, `max_output_tokens`) are
+  optional; omit when unknown.
+- `deprecated` flags a retired model. Such models are **kept** in the
+  catalog (cost still attributes for callers on the old id); consumers
+  hide or flag them via this bool. Omit (false) for current models.
 
 Only chat models are included — embedding, TTS, and image-generation
 models (output modality not `text`, or an embedding `family`) are filtered
@@ -84,7 +88,9 @@ Rows are generated from **[models.dev](https://models.dev)** — a community
 model database (also used by LangChain's model profiles) whose data lives
 as per-model TOML. Mapping:
 
-- `name` → `display_name`; `knowledge` → `knowledge_cutoff`.
+- `name` → `display_name`; `knowledge` → `knowledge_cutoff`;
+  `release_date` / `last_updated` → same names; `status == "deprecated"`
+  → `deprecated: true` (beta/alpha statuses are ignored — they're current).
 - `[cost]` `input` / `output` / `cache_read` / `cache_write` → the base
   `pricing` band. `[[cost.tiers]]` with `tier.type == "context"` → extra
   bands (`threshold` = `tier.size`); other tier types are skipped.
