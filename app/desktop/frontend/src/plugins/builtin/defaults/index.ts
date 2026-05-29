@@ -5,9 +5,26 @@
 // `defaultCommands` lives in a sibling file because it's substantially
 // bigger than the rest (~100 lines for the reactive command rebuild).
 
+import type { SidebarSession } from "@/lib/data/queries";
+import type { Session } from "@/rpc";
 import { api } from "@/lib/data/http";
 import { AGUI_BASE } from "@/main/config";
+import { getContainer } from "@/main/container";
 import { definePlugin } from "@/plugins/sdk";
+
+// First cutover slice: `sessions` rides the JSON-RPC stack
+// (methods.sessions.list) instead of REST GET /sessions. The protocol
+// `Session` is richer than the sidebar row, so map it down here — the
+// rest of the keys below still go through the ky data path.
+function toSidebarSession(s: Session): SidebarSession {
+  return {
+    id: s.id,
+    title: s.title,
+    status: s.status,
+    model: s.model,
+    time: s.updatedAt || s.createdAt,
+  };
+}
 
 export { defaultCommands } from "./commands";
 
@@ -91,11 +108,10 @@ export const defaultRoles = definePlugin({
   },
 });
 
-// HTTP_KEYS lists every query key from `lib/queries.ts`. Adding a key in
-// queries without adding it here will make the corresponding hook reject
-// at runtime (no provider registered).
+// HTTP_KEYS lists the query keys still served over REST GET. `sessions`
+// has moved to the JSON-RPC stack (registered separately below); adding a
+// key in queries without a provider here makes that hook reject at runtime.
 const HTTP_KEYS = [
-  "sessions",
   "projects",
   "files-changed",
   "diff",
@@ -109,6 +125,13 @@ export const defaultData = definePlugin({
   name: "lyra.builtin.default-data",
   version: "1.0.0",
   setup({ host }) {
+    host.data.registerProvider<SidebarSession[]>({
+      key: "sessions",
+      fetcher: async () => {
+        const page = await getContainer().methods().sessions.list();
+        return page.items.map(toSidebarSession);
+      },
+    });
     for (const key of HTTP_KEYS) {
       host.data.registerProvider({
         key,

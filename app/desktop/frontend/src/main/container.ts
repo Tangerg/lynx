@@ -13,17 +13,22 @@ import { createHttpTransport, createMethods, createRpcClient, createSidecarClien
 export interface Container {
   permission: PermissionGateway;
   /**
-   * Lazy factory for the Lyra Runtime Protocol client (JSON-RPC over
-   * HTTP). Not pre-instantiated because constructing the client
-   * immediately opens an SSE connection to `/v1/rpc/stream` — the
-   * current mock backend doesn't serve that yet, so we defer
-   * construction until a caller actually wants it. Cutover PR (queries
-   * + permission + AG-UI migration) will call this once and cache the
-   * result.
+   * Factory for a fresh Lyra Runtime Protocol client (JSON-RPC over
+   * HTTP). Constructing it opens an SSE connection to `/v1/rpc/stream`,
+   * so most callers want the cached `methods()` below rather than a new
+   * client per use. Kept exposed for tests + one-off clients.
    */
   createRpc: () => RpcClient;
   /** Typed method wrappers — bound to the RpcClient passed in. */
   createMethods: (rpc: RpcClient) => Methods;
+  /**
+   * Shared, lazily-constructed Methods for app runtime use. Builds the
+   * RpcClient (one SSE connection) on first call and caches it for the
+   * life of the container — the cutover's single entry point so callers
+   * don't each spin up their own client. Tests get a fresh cache via
+   * `resetContainer()` (and can override with `setContainer({ methods })`).
+   */
+  methods: () => Methods;
   /**
    * Sidecar HTTP probe — pre-instantiated because it doesn't open a
    * persistent connection (each call is a one-shot fetch). Safe to
@@ -35,7 +40,8 @@ export interface Container {
 
 function defaultContainer(): Container {
   const baseUrl = AGUI_BASE;
-  return {
+  let sharedMethods: Methods | null = null;
+  const container: Container = {
     permission: new HttpPermissionGateway(baseUrl),
     createRpc: () =>
       // Read `api.localToken` at factory-call time so plugins (e.g. a
@@ -51,8 +57,10 @@ function defaultContainer(): Container {
         }),
       ),
     createMethods,
+    methods: () => (sharedMethods ??= createMethods(container.createRpc())),
     sidecar: createSidecarClient({ baseUrl }),
   };
+  return container;
 }
 
 let instance: Container = defaultContainer();

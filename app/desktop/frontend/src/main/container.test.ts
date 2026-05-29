@@ -36,4 +36,12 @@ describe("main/container", () => {
     await getContainer().permission.submit({ requestId: "r1", decision: "approved" });
     expect(fake.calls).toEqual([{ requestId: "r1", decision: "approved" }]);
   });
+
+  it("methods() returns a cached singleton (one client for the container's life)", () => {
+    const first = getContainer().methods();
+    expect(getContainer().methods()).toBe(first);
+    // A fresh container builds a new one.
+    resetContainer();
+    expect(getContainer().methods()).not.toBe(first);
+  });
 });
