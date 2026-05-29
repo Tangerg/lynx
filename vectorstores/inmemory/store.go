@@ -47,7 +47,10 @@ type record struct {
 	embedding []float64
 }
 
-var _ vectorstore.Store = (*Store)(nil)
+var (
+	_ vectorstore.Store     = (*Store)(nil)
+	_ vectorstore.IDDeleter = (*Store)(nil)
+)
 
 // Store is the in-memory [vectorstore.Store] implementation.
 // Construct with [NewStore].
@@ -215,6 +218,28 @@ func (s *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) (err
 		if match {
 			delete(s.records, id)
 		}
+	}
+	return nil
+}
+
+// DeleteByIDs removes the records with the given ids. An empty slice is
+// a no-op; unknown ids are ignored (idempotent). Implements
+// [vectorstore.IDDeleter].
+func (s *Store) DeleteByIDs(ctx context.Context, ids []string) (err error) {
+	if err = ctx.Err(); err != nil {
+		return fmt.Errorf("inmemory.Store.DeleteByIDs: %w", err)
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+
+	_, span := tracing.StartDelete(ctx, "inmemory")
+	defer func() { tracing.Finish(span, err) }()
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, id := range ids {
+		delete(s.records, id)
 	}
 	return nil
 }

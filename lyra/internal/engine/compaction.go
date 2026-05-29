@@ -30,6 +30,18 @@ type CompactionConfig struct {
 	KeepRecent  int // default: defaultCompactKeepRecent
 }
 
+// CompactionResult reports what a single [Engine.MaybeCompact] sweep
+// did. Compacted is false (and the counts zero) when the sweep
+// didn't fire — no session, history below threshold, or compaction
+// disabled. The before/after message counts let the caller surface
+// an observable "context compacted (N → M messages)" event instead
+// of silently dropping history.
+type CompactionResult struct {
+	Compacted      bool
+	MessagesBefore int
+	MessagesAfter  int
+}
+
 // compactor is the engine's auto-compaction worker. Constructed
 // lazily in [Engine.MaybeCompact] (so engines without a memory
 // store + chat client both skip silently).
@@ -64,45 +76,51 @@ func newCompactor(store memory.Store, client *chat.Client, cfg CompactionConfig)
 
 // maybeCompact inspects sessionID's history. When the message
 // count exceeds the threshold the older slice is summarized and
-// the store is rewritten as [summary, recent...]. Returns
-// (compacted, nil) so callers can fire follow-on work
-// (e.g. extraction) only when the sweep actually fired.
+// the store is rewritten as [summary, recent...]. The returned
+// [CompactionResult] reports whether the sweep fired and the
+// before/after message counts so callers can both chain follow-on
+// work (e.g. extraction) and surface an observable boundary event.
 //
 // Important: the summary call goes through chat.Client directly
 // (no middleware), so it does NOT enter the chat-memory middleware
 // — otherwise the summarisation request itself would be appended
 // to the history and trigger another compaction round.
-func (c *compactor) maybeCompact(ctx context.Context, sessionID string) (bool, error) {
+func (c *compactor) maybeCompact(ctx context.Context, sessionID string) (CompactionResult, error) {
 	if c == nil || sessionID == "" {
-		return false, nil
+		return CompactionResult{}, nil
 	}
 	msgs, err := c.store.Read(ctx, sessionID)
 	if err != nil {
-		return false, fmt.Errorf("compactor: read: %w", err)
+		return CompactionResult{}, fmt.Errorf("compactor: read: %w", err)
 	}
 	if len(msgs) < c.threshold {
-		return false, nil
+		return CompactionResult{}, nil
 	}
 
+	before := len(msgs)
 	cutoff := len(msgs) - c.keepRecent
 	older := msgs[:cutoff]
 	recent := msgs[cutoff:]
 
 	summary, err := c.summarize(ctx, older)
 	if err != nil {
-		return false, fmt.Errorf("compactor: summarize: %w", err)
+		return CompactionResult{}, fmt.Errorf("compactor: summarize: %w", err)
 	}
 
 	if err := c.store.Clear(ctx, sessionID); err != nil {
-		return false, fmt.Errorf("compactor: clear: %w", err)
+		return CompactionResult{}, fmt.Errorf("compactor: clear: %w", err)
 	}
 	rewritten := make([]chat.Message, 0, 1+len(recent))
 	rewritten = append(rewritten, summary)
 	rewritten = append(rewritten, recent...)
 	if err := c.store.Write(ctx, sessionID, rewritten...); err != nil {
-		return false, err
+		return CompactionResult{}, err
 	}
-	return true, nil
+	return CompactionResult{
+		Compacted:      true,
+		MessagesBefore: before,
+		MessagesAfter:  len(rewritten),
+	}, nil
 }
 
 // summarize asks the LLM to fold the older messages into a single

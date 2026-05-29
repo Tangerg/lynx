@@ -29,6 +29,17 @@ type extractor struct {
 	minMsgs int
 }
 
+// ExtractionResult reports what a single [Engine.MaybeExtract] pass
+// wrote to long-term memory. Extracted is false (Facts empty) when
+// nothing was mined — no memory service, conversation too short, or
+// the LLM judged nothing worth keeping. Facts is the markdown the
+// pass appended to LYRA.md, so callers can surface an observable
+// "saved N notes to memory" event.
+type ExtractionResult struct {
+	Extracted bool
+	Facts     string
+}
+
 func newExtractor(store memory.Store, memSvc lyramem.Service, client *chat.Client) *extractor {
 	return &extractor{
 		store:   store,
@@ -43,32 +54,35 @@ func newExtractor(store memory.Store, memSvc lyramem.Service, client *chat.Clien
 // LYRA.md's project scope. Returns nil when the engine has no
 // memory service (LYRA.md disabled), or when the conversation is
 // still too short to be worth mining.
-func (e *extractor) maybeExtract(ctx context.Context, sessionID string) error {
+func (e *extractor) maybeExtract(ctx context.Context, sessionID string) (ExtractionResult, error) {
 	if e == nil || sessionID == "" {
-		return nil
+		return ExtractionResult{}, nil
 	}
 	msgs, err := e.store.Read(ctx, sessionID)
 	if err != nil {
-		return fmt.Errorf("extractor: read: %w", err)
+		return ExtractionResult{}, fmt.Errorf("extractor: read: %w", err)
 	}
 	if len(msgs) < e.minMsgs {
-		return nil
+		return ExtractionResult{}, nil
 	}
 
 	facts, err := e.askForFacts(ctx, msgs)
 	if err != nil {
-		return fmt.Errorf("extractor: ask: %w", err)
+		return ExtractionResult{}, fmt.Errorf("extractor: ask: %w", err)
 	}
 	if facts == "" {
-		return nil
+		return ExtractionResult{}, nil
 	}
 
 	existing, err := e.memSvc.Get(ctx, lyramem.ScopeProject)
 	if err != nil {
-		return fmt.Errorf("extractor: read memory: %w", err)
+		return ExtractionResult{}, fmt.Errorf("extractor: read memory: %w", err)
 	}
 	updated := mergeMemory(existing, facts)
-	return e.memSvc.Update(ctx, lyramem.ScopeProject, updated)
+	if err := e.memSvc.Update(ctx, lyramem.ScopeProject, updated); err != nil {
+		return ExtractionResult{}, err
+	}
+	return ExtractionResult{Extracted: true, Facts: facts}, nil
 }
 
 // askForFacts queries the LLM directly (no middleware → no

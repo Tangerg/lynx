@@ -179,14 +179,14 @@ func (r *Runtime) Close() error {
 // it after each successful turn, but the standalone form lets
 // scripts trigger it after bulk imports.
 func (r *Runtime) MaybeMaintain(ctx context.Context, sessionID string) (bool, error) {
-	compacted, err := r.engine.MaybeCompact(ctx, sessionID)
+	compaction, err := r.engine.MaybeCompact(ctx, sessionID)
 	if err != nil {
 		return false, err
 	}
-	if compacted {
-		if err := r.engine.MaybeExtract(ctx, sessionID); err != nil {
+	if compaction.Compacted {
+		if _, err := r.engine.MaybeExtract(ctx, sessionID); err != nil {
 			return true, err
 		}
 	}
-	return compacted, nil
+	return compaction.Compacted, nil
 }

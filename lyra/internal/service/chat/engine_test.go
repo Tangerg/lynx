@@ -77,9 +77,13 @@ func (s *stubEngine) GeneratePlan(_ context.Context, _ string) (string, error) {
 
 func (s *stubEngine) InjectUserMessage(_ context.Context, _, _ string) error { return nil }
 
-func (s *stubEngine) MaybeCompact(_ context.Context, _ string) (bool, error) { return false, nil }
+func (s *stubEngine) MaybeCompact(_ context.Context, _ string) (engine.CompactionResult, error) {
+	return engine.CompactionResult{}, nil
+}
 
-func (s *stubEngine) MaybeExtract(_ context.Context, _ string) error { return nil }
+func (s *stubEngine) MaybeExtract(_ context.Context, _ string) (engine.ExtractionResult, error) {
+	return engine.ExtractionResult{}, nil
+}
 
 // TestStubEngineDrivesTurn — confirms the chat service runs a full
 // turn against a stub engine, no real platform involved. If chat

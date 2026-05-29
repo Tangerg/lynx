@@ -90,6 +90,8 @@ func Capabilities() protocol.ServerCapabilities {
 			Custom: []string{
 				"plan_generated",
 				"tool_call_approval",
+				"compact_boundary",
+				"memory_updated",
 			},
 		},
 		Features: protocol.ServerFeatureCapabilities{
