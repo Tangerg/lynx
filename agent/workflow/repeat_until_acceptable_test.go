@@ -98,6 +98,60 @@ func TestRepeatUntilAcceptable_DefaultsThresholdToZeroPointSeven(t *testing.T) {
 	}
 }
 
+// TestRepeatUntilAcceptable_ReturnsBestNotLast confirms best-of-N: when no
+// attempt clears the threshold, the highest-scoring attempt is returned even
+// if a later attempt scored worse.
+func TestRepeatUntilAcceptable_ReturnsBestNotLast(t *testing.T) {
+	var iterations atomic.Int32
+
+	a, err := workflow.RepeatUntilAcceptable(workflow.RepeatUntilAcceptableConfig[ruaIn, ruaOut]{
+		Name:            "best-of-n",
+		MaxIterations:   3,
+		AcceptableScore: 0.95, // unreachable → loop runs all 3, never "accepts"
+		Task: func(_ context.Context, _ *core.ProcessContext, _ ruaIn, _ *workflow.History[ruaOut]) (ruaOut, error) {
+			n := iterations.Add(1)
+			return ruaOut{Draft: "v" + string(rune('0'+n))}, nil
+		},
+		Evaluator: func(_ context.Context, _ *core.ProcessContext, _ ruaIn, last ruaOut) (workflow.Feedback, error) {
+			// v1=0.5, v2=0.9 (best), v3=0.3 (worse, comes last).
+			score := map[string]float64{"v1": 0.5, "v2": 0.9, "v3": 0.3}[last.Draft]
+			return workflow.Feedback{Score: score, Text: last.Draft}, nil
+		},
+	})
+	if err != nil {
+		t.Fatalf("RepeatUntilAcceptable: %v", err)
+	}
+
+	platform := agent.NewPlatform(runtime.PlatformConfig{})
+	mustDeploy(t, platform, a)
+	proc, err := platform.RunAgent(t.Context(), a,
+		map[string]any{core.DefaultBindingName: ruaIn{Topic: "t"}},
+		core.ProcessOptions{})
+	if err != nil {
+		t.Fatalf("RunAgent: %v", err)
+	}
+	if proc.Status() != core.StatusCompleted {
+		t.Fatalf("status = %s; failure = %v", proc.Status(), proc.Failure())
+	}
+
+	got, ok := core.ResultOfType[ruaOut](proc)
+	if !ok {
+		t.Fatal("no ruaOut bound")
+	}
+	if got.Draft != "v2" {
+		t.Fatalf("Draft = %q, want v2 (highest score 0.9), not the last attempt v3", got.Draft)
+	}
+
+	// The full attempt+feedback record is available on the blackboard.
+	hist, ok := core.ResultOfType[*workflow.AttemptHistory[ruaOut]](proc)
+	if !ok {
+		t.Fatal("AttemptHistory should be bound on blackboard")
+	}
+	if hist.Count() != 3 {
+		t.Fatalf("AttemptHistory.Count = %d, want 3", hist.Count())
+	}
+}
+
 func TestRepeatUntilAcceptable_RejectsInvalidSpec(t *testing.T) {
 	cases := []struct {
 		name string

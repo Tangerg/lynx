@@ -3,6 +3,7 @@ package workflow
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/Tangerg/lynx/agent/core"
 )
@@ -56,12 +57,22 @@ type RepeatUntilAcceptableConfig[In, Out any] struct {
 	Evaluator Evaluator[In, Out]
 }
 
-// RepeatUntilAcceptable compiles spec into a deployable agent.
-// Implementation delegates to [RepeatUntil] — the same single
-// CanRerun action + computed Accept condition machinery. The only
-// special sauce is wrapping the user's Evaluator into a
-// [RepeatUntilConfig.Accept] and binding the latest [Feedback] on the
-// blackboard each iteration.
+// RepeatUntilAcceptable compiles spec into a deployable agent. Unlike a
+// plain [RepeatUntil], it evaluates each attempt inside the task action,
+// records every (output, feedback) pair in an [AttemptHistory], and
+// produces the highest-scoring attempt rather than merely the last
+// accepted one — so a later, worse attempt never overwrites an earlier,
+// better one. Mirrors embabel's RepeatUntilAcceptable best-of-N semantics.
+//
+// Per iteration the action: runs Task (which sees prior outputs for
+// revision), scores it via Evaluator, records the pair, binds the latest
+// Feedback (for introspection) and the running AttemptHistory, and returns
+// the best attempt so far. The "{Name}_acceptable" condition stops the loop
+// once the best score crosses the threshold or MaxIterations is reached.
+//
+// A nil/erroring Evaluator result for one attempt is recorded as score 0
+// (with the error in Feedback.Text) and the loop continues, so a transient
+// evaluation failure can't strand the workflow.
 //
 // Returns an error on missing Name / nil Task / nil Evaluator.
 func RepeatUntilAcceptable[In, Out any](spec RepeatUntilAcceptableConfig[In, Out]) (*core.Agent, error) {
@@ -78,31 +89,77 @@ func RepeatUntilAcceptable[In, Out any](spec RepeatUntilAcceptableConfig[In, Out
 	if threshold <= 0 {
 		threshold = 0.7
 	}
+	maxIter := spec.MaxIterations
+	if maxIter <= 0 {
+		maxIter = 3
+	}
 
-	return RepeatUntil(RepeatUntilConfig[In, Out]{
-		Name:          spec.Name,
-		Description:   spec.Description,
-		MaxIterations: spec.MaxIterations,
-		Task:          spec.Task,
-		Accept: func(ctx context.Context, in In, last Out, _ *History[Out]) bool {
-			// We need a pc here to bind feedback, but Accept's
-			// signature only carries ctx. Pull pc from ctx (the
-			// runtime injects [core.WithProcess] before each tick;
-			// blackboard hangs off Process).
-			fb, err := spec.Evaluator(ctx, nil, in, last)
-			if err != nil {
-				// Treat evaluator failure as "not yet acceptable";
-				// the next iteration tries again. Errors percolate
-				// to logs via the framework's event stream;
-				// returning false here keeps the loop going so a
-				// transient evaluator failure doesn't strand the
-				// workflow.
-				return false
-			}
-			if p := core.ProcessFrom(ctx); p != nil && p.Blackboard() != nil {
-				p.Blackboard().Bind(fb)
-			}
-			return fb.Acceptable(threshold)
-		},
+	acceptKey := spec.Name + "_acceptable"
+
+	acceptCondition := core.NewCondition(acceptKey, func(_ context.Context, oc *core.ConditionEnv) core.Determination {
+		history, ok := core.Last[*AttemptHistory[Out]](oc.Blackboard)
+		if !ok {
+			return core.False
+		}
+		if history.Count() >= maxIter {
+			return core.True
+		}
+		best, ok := history.Best()
+		if !ok {
+			return core.False
+		}
+		if best.Feedback.Acceptable(threshold) {
+			return core.True
+		}
+		return core.False
 	})
+
+	task := core.NewAction[In, Out](
+		spec.Name+"-task",
+		func(ctx context.Context, pc *core.ProcessContext, in In) (Out, error) {
+			var zero Out
+
+			history, ok := core.Last[*AttemptHistory[Out]](pc.Blackboard)
+			if !ok {
+				history = &AttemptHistory[Out]{}
+				pc.Blackboard.Bind(history)
+			}
+
+			// The task sees prior outputs so it can revise.
+			out, err := spec.Task(ctx, pc, in, &History[Out]{Attempts: history.outputs()})
+			if err != nil {
+				return zero, err
+			}
+
+			fb, evalErr := spec.Evaluator(ctx, pc, in, out)
+			if evalErr != nil {
+				// Keep the attempt (score 0) and keep looping rather than
+				// failing the whole workflow on a transient eval error.
+				fb = Feedback{Score: 0, Text: fmt.Sprintf("evaluation failed: %v", evalErr)}
+			}
+			history.record(out, fb)
+			pc.Blackboard.Bind(fb)
+
+			best, _ := history.Best()
+			return best.Output, nil
+		},
+		core.ActionConfig{
+			Description: "evaluator-optimizer loop body — produces, scores, keeps the best",
+			CanRerun:    true,
+			Post:        []string{acceptKey},
+			QoS:         singleAttempt,
+		},
+	)
+
+	return core.NewAgent(core.AgentConfig{
+		Name:        spec.Name,
+		Description: spec.Description,
+		Actions:     []core.Action{task},
+		Conditions:  []core.Condition{acceptCondition},
+		Goals: []*core.Goal{core.GoalProducing[Out](core.Goal{
+			Name:        spec.Name,
+			Description: "produce best-scoring " + core.TypeName[Out](),
+			Pre:         []string{acceptKey},
+		})},
+	}), nil
 }
