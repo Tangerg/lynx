@@ -137,8 +137,14 @@ func New(ctx context.Context, cfg Config) (*Engine, error) {
 	if err != nil {
 		return nil, err
 	}
-	tools = append(tools, mcpTools...)
-	resolver := buildCodingResolverFromTools(tools)
+	leafTools := append(tools, mcpTools...)
+
+	// Two tool roles share the leaf coding set. ToolRoleSubtask gets
+	// exactly those (registered now); ToolRoleCoding gets them plus the
+	// `task` delegation tool, registered below once that tool exists
+	// (it needs the platform). Register is last-write-wins.
+	resolver := core.NewStaticToolGroupResolver("lyra-tools")
+	resolver.Register(ToolRoleSubtask, newToolGroup(ToolRoleSubtask, leafTools))
 
 	memStore := cfg.MemoryStore
 	if memStore == nil {
@@ -162,12 +168,26 @@ func New(ctx context.Context, cfg Config) (*Engine, error) {
 	// of dragging a memory service through the constructor.
 	e := &Engine{
 		platform:    platform,
-		tools:       tools,
 		memStore:    memStore,
 		memSvc:      cfg.MemoryService,
 		workdir:     cfg.Workdir,
 		mcpSessions: mcpSessions,
 	}
+
+	// The `task` tool delegates to a fresh sub-agent (declares
+	// ToolRoleSubtask → leaf tools, no `task` → no recursion). Fold it
+	// into the main coding role. AsChatToolFromAgent needs no separate
+	// deploy — child processes land on the platform when spawned.
+	taskTool, err := runtime.AsChatToolFromAgent[TaskInput, string](platform, e.buildSubtaskAgent())
+	if err != nil {
+		return nil, fmt.Errorf("engine: build task tool: %w", err)
+	}
+	// Full-slice expression caps leafTools so this append allocates a
+	// fresh array — the ToolRoleSubtask group keeps its leaf-only view.
+	codingTools := append(leafTools[:len(leafTools):len(leafTools)], taskTool)
+	resolver.Register(ToolRoleCoding, newToolGroup(ToolRoleCoding, codingTools))
+	e.tools = codingTools
+
 	e.agent = e.buildChatAgent()
 	if err := platform.Deploy(e.agent); err != nil {
 		return nil, fmt.Errorf("engine: deploy chat agent: %w", err)

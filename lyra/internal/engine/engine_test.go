@@ -122,6 +122,32 @@ func TestEngine_RunChat_RecoversFromUnknownTool(t *testing.T) {
 	}
 }
 
+// TestEngine_RunChat_TaskDelegation drives the `task` tool end-to-end:
+// the main agent calls task, which spawns a fresh sub-agent (via
+// AsChatToolFromAgent + SpawnChild), the sub-agent runs its own chat
+// turn and returns an answer, and the main agent incorporates it into
+// its final reply. Proves the sub-agent delegation path works without a
+// real LLM. (The sub-agent declares ToolRoleSubtask — no `task` — so it
+// can't recurse.)
+func TestEngine_RunChat_TaskDelegation(t *testing.T) {
+	stub := newDelegatingStubModel()
+	client, _ := chat.NewClient(stub)
+	eng, err := New(context.Background(), Config{ChatClient: client})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := eng.RunChat(context.Background(), RunChatRequest{Message: "delegate this"})
+	if err != nil {
+		t.Fatalf("RunChat: %v", err)
+	}
+	// Round 2 only fires if the task tool returned successfully — i.e.
+	// the sub-agent spawned, ran, and produced an answer.
+	if out.Reply != "main: subtask done" {
+		t.Errorf("reply = %q, want the post-delegation answer", out.Reply)
+	}
+}
+
 // TestEngine_RunChat_TokenUsageAccumulates verifies the per-turn
 // usage roll-up sums across both LLM rounds (tool-call + final
 // reply). ReasoningTokens come from a pointer field on chat.Usage —
@@ -334,12 +360,13 @@ func TestEngine_Tools_OfflineOnly(t *testing.T) {
 	}
 
 	tools := eng.Tools()
-	if len(tools) != 6 {
-		t.Fatalf("tool count = %d, want 6 (offline-only)", len(tools))
+	// 6 offline coding tools + the always-present `task` delegation tool.
+	if len(tools) != 7 {
+		t.Fatalf("tool count = %d, want 7 (6 offline + task)", len(tools))
 	}
 
 	names := toolNames(tools)
-	for _, want := range []string{"read", "write", "edit", "glob", "grep", "bash"} {
+	for _, want := range []string{"read", "write", "edit", "glob", "grep", "bash", "task"} {
 		if !names[want] {
 			t.Errorf("missing tool %q in %v", want, names)
 		}
@@ -369,8 +396,8 @@ func TestEngine_Tools_OnlineEnabled(t *testing.T) {
 	}
 
 	tools := eng.Tools()
-	if len(tools) != 9 {
-		t.Fatalf("tool count = %d, want 9 (6 offline + 3 online)", len(tools))
+	if len(tools) != 10 {
+		t.Fatalf("tool count = %d, want 10 (6 offline + 3 online + task)", len(tools))
 	}
 	names := toolNames(tools)
 	for _, want := range []string{"web_fetch", "web_search", "http_request"} {
@@ -393,8 +420,8 @@ func TestEngine_Tools_PartialOnline(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(eng.Tools()) != 7 {
-		t.Fatalf("tool count = %d, want 7 (offline + jina only)", len(eng.Tools()))
+	if len(eng.Tools()) != 8 {
+		t.Fatalf("tool count = %d, want 8 (6 offline + jina + task)", len(eng.Tools()))
 	}
 }
 
