@@ -64,7 +64,7 @@ type StoreConfig struct {
 	InitializeSchema bool
 }
 
-func (c StoreConfig) Validate() error {
+func (c *StoreConfig) Validate() error {
 	if c.Pool == nil {
 		return errors.New("postgres: Pool is required")
 	}

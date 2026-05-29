@@ -61,7 +61,7 @@ func (c *RelevancyEvaluatorConfig) ApplyDefaults() {
 // Validate returns an error when required fields are missing or the
 // template lacks the expected variables. Pure check — pair with
 // [RelevancyEvaluatorConfig.ApplyDefaults].
-func (c RelevancyEvaluatorConfig) Validate() error {
+func (c *RelevancyEvaluatorConfig) Validate() error {
 	if c.ChatModel == nil {
 		return errors.New("evaluation.RelevancyEvaluatorConfig: ChatModel is required")
 	}

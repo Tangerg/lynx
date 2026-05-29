@@ -79,7 +79,7 @@ type StoreConfig struct {
 	DistanceFunction DistanceFunction
 }
 
-func (c StoreConfig) Validate() error {
+func (c *StoreConfig) Validate() error {
 	if c.Container == nil {
 		return errors.New("azurecosmos: Container is required")
 	}

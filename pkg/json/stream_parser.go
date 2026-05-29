@@ -29,7 +29,7 @@ const defaultParserBufSize = 4096
 
 // Validate reports configuration errors. Pure check — no mutation;
 // pair with [StreamParserConfig.ApplyDefaults] to fill in defaults.
-func (c StreamParserConfig) Validate() error {
+func (c *StreamParserConfig) Validate() error {
 	if c.Reader == nil {
 		return errors.New("json: reader required")
 	}

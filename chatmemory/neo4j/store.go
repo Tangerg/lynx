@@ -50,7 +50,7 @@ type StoreConfig struct {
 	InitializeSchema bool
 }
 
-func (c StoreConfig) Validate() error {
+func (c *StoreConfig) Validate() error {
 	if c.Driver == nil {
 		return errors.New("neo4j: Driver is required")
 	}

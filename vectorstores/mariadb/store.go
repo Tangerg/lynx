@@ -95,7 +95,7 @@ type StoreConfig struct {
 	InitializeSchema bool
 }
 
-func (c StoreConfig) Validate() error {
+func (c *StoreConfig) Validate() error {
 	if c.DB == nil {
 		return errors.New("mariadb: DB is required")
 	}

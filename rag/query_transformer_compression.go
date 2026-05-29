@@ -36,7 +36,7 @@ type CompressionTransformerConfig struct {
 }
 
 // Validate rejects invalid configs.
-func (c CompressionTransformerConfig) Validate() error {
+func (c *CompressionTransformerConfig) Validate() error {
 	if c.ChatModel == nil {
 		return errors.New("rag.CompressionTransformerConfig: ChatModel is required")
 	}

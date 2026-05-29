@@ -35,7 +35,7 @@ type StoreConfig struct {
 	TTL time.Duration
 }
 
-func (c StoreConfig) Validate() error {
+func (c *StoreConfig) Validate() error {
 	if c.Client == nil {
 		return errors.New("redis: Client is required")
 	}

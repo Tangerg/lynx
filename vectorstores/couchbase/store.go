@@ -113,7 +113,7 @@ type StoreConfig struct {
 	InitializeSchema bool
 }
 
-func (c StoreConfig) Validate() error {
+func (c *StoreConfig) Validate() error {
 	if c.Cluster == nil {
 		return errors.New("couchbase: Cluster is required")
 	}

@@ -32,7 +32,7 @@ func (c *StoreConfig) ApplyDefaults() {
 	}
 }
 
-func (c StoreConfig) Validate() error {
+func (c *StoreConfig) Validate() error {
 	if c.EmbeddingClient == nil {
 		return ErrMissingEmbeddingClient
 	}

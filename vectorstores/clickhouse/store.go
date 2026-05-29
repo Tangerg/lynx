@@ -76,7 +76,7 @@ type StoreConfig struct {
 	InitializeSchema bool
 }
 
-func (c StoreConfig) Validate() error {
+func (c *StoreConfig) Validate() error {
 	if c.Conn == nil {
 		return errors.New("clickhouse: Conn is required")
 	}

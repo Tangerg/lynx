@@ -120,7 +120,7 @@ type StoreConfig struct {
 	KeyspaceReplication string
 }
 
-func (c StoreConfig) Validate() error {
+func (c *StoreConfig) Validate() error {
 	if c.Session == nil {
 		return errors.New("cassandra: Session is required")
 	}

@@ -65,7 +65,7 @@ func (c *ContextualAugmenterConfig) ApplyDefaults() {
 
 // Validate rejects invalid configs. Pure check — pair with
 // [ContextualAugmenterConfig.ApplyDefaults].
-func (c ContextualAugmenterConfig) Validate() error {
+func (c *ContextualAugmenterConfig) Validate() error {
 	if c.PromptTemplate == nil {
 		return nil
 	}

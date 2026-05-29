@@ -53,7 +53,7 @@ type ToolConfig struct {
 	MetaFunc MetaFunc
 }
 
-func (c ToolConfig) Validate() error {
+func (c *ToolConfig) Validate() error {
 	if c.Session == nil {
 		return ErrNilSession
 	}

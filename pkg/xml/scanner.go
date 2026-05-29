@@ -202,7 +202,7 @@ func (c *StreamScannerConfig) ApplyDefaults() {
 
 // Validate checks the configuration. Pure check — pair with
 // [StreamScannerConfig.ApplyDefaults].
-func (c StreamScannerConfig) Validate() error {
+func (c *StreamScannerConfig) Validate() error {
 	if len(c.Listeners) == 0 {
 		return errors.New("at least one listener is required")
 	}

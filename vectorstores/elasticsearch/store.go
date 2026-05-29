@@ -106,7 +106,7 @@ type StoreConfig struct {
 	NumCandidatesMultiplier float64
 }
 
-func (c StoreConfig) Validate() error {
+func (c *StoreConfig) Validate() error {
 	if c.Client == nil {
 		return errors.New("elasticsearch: Client is required")
 	}
