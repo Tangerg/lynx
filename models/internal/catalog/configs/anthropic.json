@@ -7,9 +7,9 @@
       "knowledge_cutoff": "2024-07-31",
       "pricing": {
         "input_per_1m": 0.8,
-        "output_per_1m": 4.0,
+        "output_per_1m": 4,
         "cache_read_per_1m": 0.08,
-        "cache_write_per_1m": 1.0
+        "cache_write_per_1m": 1
       },
       "modalities": {
         "input": [
@@ -31,9 +31,9 @@
       "knowledge_cutoff": "2024-07-31",
       "pricing": {
         "input_per_1m": 0.8,
-        "output_per_1m": 4.0,
+        "output_per_1m": 4,
         "cache_read_per_1m": 0.08,
-        "cache_write_per_1m": 1.0
+        "cache_write_per_1m": 1
       },
       "modalities": {
         "input": [
@@ -54,8 +54,8 @@
       "display_name": "Claude Sonnet 3.5",
       "knowledge_cutoff": "2024-04-30",
       "pricing": {
-        "input_per_1m": 3.0,
-        "output_per_1m": 15.0,
+        "input_per_1m": 3,
+        "output_per_1m": 15,
         "cache_read_per_1m": 0.3,
         "cache_write_per_1m": 3.75
       },
@@ -78,8 +78,8 @@
       "display_name": "Claude Sonnet 3.5 v2",
       "knowledge_cutoff": "2024-04-30",
       "pricing": {
-        "input_per_1m": 3.0,
-        "output_per_1m": 15.0,
+        "input_per_1m": 3,
+        "output_per_1m": 15,
         "cache_read_per_1m": 0.3,
         "cache_write_per_1m": 3.75
       },
@@ -102,8 +102,8 @@
       "display_name": "Claude Sonnet 3.7",
       "knowledge_cutoff": "2024-10-31",
       "pricing": {
-        "input_per_1m": 3.0,
-        "output_per_1m": 15.0,
+        "input_per_1m": 3,
+        "output_per_1m": 15,
         "cache_read_per_1m": 0.3,
         "cache_write_per_1m": 3.75
       },
@@ -153,8 +153,8 @@
       "display_name": "Claude Opus 3",
       "knowledge_cutoff": "2023-08-31",
       "pricing": {
-        "input_per_1m": 15.0,
-        "output_per_1m": 75.0,
+        "input_per_1m": 15,
+        "output_per_1m": 75,
         "cache_read_per_1m": 1.5,
         "cache_write_per_1m": 18.75
       },
@@ -177,8 +177,8 @@
       "display_name": "Claude Sonnet 3",
       "knowledge_cutoff": "2023-08-31",
       "pricing": {
-        "input_per_1m": 3.0,
-        "output_per_1m": 15.0,
+        "input_per_1m": 3,
+        "output_per_1m": 15,
         "cache_read_per_1m": 0.3,
         "cache_write_per_1m": 0.3
       },
@@ -201,8 +201,8 @@
       "display_name": "Claude Haiku 4.5 (latest)",
       "knowledge_cutoff": "2025-02-28",
       "pricing": {
-        "input_per_1m": 1.0,
-        "output_per_1m": 5.0,
+        "input_per_1m": 1,
+        "output_per_1m": 5,
         "cache_read_per_1m": 0.1,
         "cache_write_per_1m": 1.25
       },
@@ -228,8 +228,8 @@
       "display_name": "Claude Haiku 4.5",
       "knowledge_cutoff": "2025-02-28",
       "pricing": {
-        "input_per_1m": 1.0,
-        "output_per_1m": 5.0,
+        "input_per_1m": 1,
+        "output_per_1m": 5,
         "cache_read_per_1m": 0.1,
         "cache_write_per_1m": 1.25
       },
@@ -255,8 +255,8 @@
       "display_name": "Claude Opus 4 (latest)",
       "knowledge_cutoff": "2025-03-31",
       "pricing": {
-        "input_per_1m": 15.0,
-        "output_per_1m": 75.0,
+        "input_per_1m": 15,
+        "output_per_1m": 75,
         "cache_read_per_1m": 1.5,
         "cache_write_per_1m": 18.75
       },
@@ -282,8 +282,8 @@
       "display_name": "Claude Opus 4.1 (latest)",
       "knowledge_cutoff": "2025-03-31",
       "pricing": {
-        "input_per_1m": 15.0,
-        "output_per_1m": 75.0,
+        "input_per_1m": 15,
+        "output_per_1m": 75,
         "cache_read_per_1m": 1.5,
         "cache_write_per_1m": 18.75
       },
@@ -309,8 +309,8 @@
       "display_name": "Claude Opus 4.1",
       "knowledge_cutoff": "2025-03-31",
       "pricing": {
-        "input_per_1m": 15.0,
-        "output_per_1m": 75.0,
+        "input_per_1m": 15,
+        "output_per_1m": 75,
         "cache_read_per_1m": 1.5,
         "cache_write_per_1m": 18.75
       },
@@ -336,8 +336,8 @@
       "display_name": "Claude Opus 4",
       "knowledge_cutoff": "2025-03-31",
       "pricing": {
-        "input_per_1m": 15.0,
-        "output_per_1m": 75.0,
+        "input_per_1m": 15,
+        "output_per_1m": 75,
         "cache_read_per_1m": 1.5,
         "cache_write_per_1m": 18.75
       },
@@ -363,8 +363,8 @@
       "display_name": "Claude Opus 4.5 (latest)",
       "knowledge_cutoff": "2025-03-31",
       "pricing": {
-        "input_per_1m": 5.0,
-        "output_per_1m": 25.0,
+        "input_per_1m": 5,
+        "output_per_1m": 25,
         "cache_read_per_1m": 0.5,
         "cache_write_per_1m": 6.25
       },
@@ -390,8 +390,8 @@
       "display_name": "Claude Opus 4.5",
       "knowledge_cutoff": "2025-03-31",
       "pricing": {
-        "input_per_1m": 5.0,
-        "output_per_1m": 25.0,
+        "input_per_1m": 5,
+        "output_per_1m": 25,
         "cache_read_per_1m": 0.5,
         "cache_write_per_1m": 6.25
       },
@@ -417,8 +417,8 @@
       "display_name": "Claude Opus 4.6",
       "knowledge_cutoff": "2025-05-31",
       "pricing": {
-        "input_per_1m": 5.0,
-        "output_per_1m": 25.0,
+        "input_per_1m": 5,
+        "output_per_1m": 25,
         "cache_read_per_1m": 0.5,
         "cache_write_per_1m": 6.25
       },
@@ -451,8 +451,8 @@
       "display_name": "Claude Opus 4.7",
       "knowledge_cutoff": "2026-01-31",
       "pricing": {
-        "input_per_1m": 5.0,
-        "output_per_1m": 25.0,
+        "input_per_1m": 5,
+        "output_per_1m": 25,
         "cache_read_per_1m": 0.5,
         "cache_write_per_1m": 6.25
       },
@@ -485,8 +485,8 @@
       "id": "claude-opus-4-8",
       "display_name": "Claude Opus 4.8",
       "pricing": {
-        "input_per_1m": 5.0,
-        "output_per_1m": 25.0,
+        "input_per_1m": 5,
+        "output_per_1m": 25,
         "cache_read_per_1m": 0.5,
         "cache_write_per_1m": 6.25
       },
@@ -520,8 +520,8 @@
       "display_name": "Claude Sonnet 4 (latest)",
       "knowledge_cutoff": "2025-03-31",
       "pricing": {
-        "input_per_1m": 3.0,
-        "output_per_1m": 15.0,
+        "input_per_1m": 3,
+        "output_per_1m": 15,
         "cache_read_per_1m": 0.3,
         "cache_write_per_1m": 3.75
       },
@@ -547,8 +547,8 @@
       "display_name": "Claude Sonnet 4",
       "knowledge_cutoff": "2025-03-31",
       "pricing": {
-        "input_per_1m": 3.0,
-        "output_per_1m": 15.0,
+        "input_per_1m": 3,
+        "output_per_1m": 15,
         "cache_read_per_1m": 0.3,
         "cache_write_per_1m": 3.75
       },
@@ -574,8 +574,8 @@
       "display_name": "Claude Sonnet 4.5 (latest)",
       "knowledge_cutoff": "2025-07-31",
       "pricing": {
-        "input_per_1m": 3.0,
-        "output_per_1m": 15.0,
+        "input_per_1m": 3,
+        "output_per_1m": 15,
         "cache_read_per_1m": 0.3,
         "cache_write_per_1m": 3.75
       },
@@ -601,8 +601,8 @@
       "display_name": "Claude Sonnet 4.5",
       "knowledge_cutoff": "2025-07-31",
       "pricing": {
-        "input_per_1m": 3.0,
-        "output_per_1m": 15.0,
+        "input_per_1m": 3,
+        "output_per_1m": 15,
         "cache_read_per_1m": 0.3,
         "cache_write_per_1m": 3.75
       },
@@ -628,8 +628,8 @@
       "display_name": "Claude Sonnet 4.6",
       "knowledge_cutoff": "2025-08-31",
       "pricing": {
-        "input_per_1m": 3.0,
-        "output_per_1m": 15.0,
+        "input_per_1m": 3,
+        "output_per_1m": 15,
         "cache_read_per_1m": 0.3,
         "cache_write_per_1m": 3.75
       },

@@ -107,11 +107,11 @@ type Pricing struct {
 
 	// CacheReadPer1M is the (discounted) rate for prompt tokens served
 	// from the provider's prompt cache. Zero falls back to InputPer1M.
-	CacheReadPer1M float64 `json:"cache_read_per_1m"`
+	CacheReadPer1M float64 `json:"cache_read_per_1m,omitempty"`
 
 	// CacheWritePer1M is the (premium) rate for prompt tokens written to
 	// the provider's prompt cache. Zero falls back to InputPer1M.
-	CacheWritePer1M float64 `json:"cache_write_per_1m"`
+	CacheWritePer1M float64 `json:"cache_write_per_1m,omitempty"`
 }
 
 // IsZero reports whether the rate card is unset (all rates zero) — i.e.
