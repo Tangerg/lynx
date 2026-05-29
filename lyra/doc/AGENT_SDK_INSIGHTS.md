@@ -93,7 +93,7 @@ Claude Agent SDK 的本质是**包一个 `claude-code` CLI 子进程**，对外 
 | `agentProgressSummaries` / `SDKTaskProgressMessage` | 依附 background；background 做了再说 |
 | `deferred_tool_use` + `permissionDecision:"defer"` | ⛔ 第一轮已判不做——in-process 同步 gate 已实现工具边界审批+不重跑 LLM，deferred 是 SDK 跨进程才需要的 |
 | `skills`（`AgentDefinition.skills`） | 🟡 lyra 有 **AGENTS.md 级联发现**（功能近似：给 agent 注入能力/上下文），形态不同，视为已有对应物 |
-| `thinking`（adaptive/extended）+ `effort`（low..max） | 🟡 **部分对齐**：catalog 的 `Reasoning{Levels,DefaultLevel}` 有数据，但 lyra 链路是否把 effort 透传到 chat options **值得一查**（可能是个小 gap） |
+| `thinking`（adaptive/extended）+ `effort`（low..max） | ✅ 已查实（2026-05-30）：**框架侧不是 gap**——`chat.Options` 无可移植 effort 字段是**有意设计**，provider 原生参数（anthropic `Thinking` budget / openai `ReasoningEffort` enum）走 `Extra`+`GetParams` 逃生通道（两家形态差太多无法统一），catalog 的 `Reasoning{Levels,DefaultLevel}` 是展示/选型/成本用，不自动注入请求。**lyra 侧有个未接的小 config 旋钮**：`BuildChatClient` 只建 `NewOptions(model)`，reasoning 模型一律跑 provider 默认 effort；lyra 能解析 reasoning 输出但从不请求特定深度。属 FE-gated 产品旋钮（effort 是用户选择），无前端需求不单方面加 config（YAGNI） |
 | `onElicitation` / `SDKElicitationCompleteMessage` | 🟡 MCP elicitation 回调——MCP 集成有，这条没接，弱需求 |
 | `output_style` / `promptSuggestions` / `fastModeState` / `applyFlagSettings` | ⛔ 噪音（CLI/UI 或账户特性，与 in-process 库无关） |
 | `SDKMessage` union 膨胀到 **30+ 变体** | 反面教材**再次印证**——更坚定不学 mega-union（见 §6） |
