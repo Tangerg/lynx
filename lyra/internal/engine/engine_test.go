@@ -278,6 +278,36 @@ func TestEngine_RunChat_StopsOnBudget(t *testing.T) {
 	}
 }
 
+// TestEngine_RunChat_StopsOnCostBudget verifies the dollar ceiling
+// (MaxCostUSD) halts the loop the same way the token one does. With a
+// $1/token stub rate, round 1 costs $15; MaxCostUSD=10 must stop there
+// and never run round 2.
+func TestEngine_RunChat_StopsOnCostBudget(t *testing.T) {
+	stub := newUsageStubModel(
+		chat.Usage{PromptTokens: 10, CompletionTokens: 5},  // round 1 → $15
+		chat.Usage{PromptTokens: 99, CompletionTokens: 99}, // round 2 → must NOT run
+	)
+	client, _ := chat.NewClient(stub)
+	pricing := func(_ string, u *chat.Usage) float64 {
+		return float64(u.PromptTokens + u.CompletionTokens)
+	}
+	eng, err := New(context.Background(), Config{ChatClient: client, Pricing: pricing})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := eng.RunChat(context.Background(), RunChatRequest{Message: "go", MaxCostUSD: 10})
+	if err != nil {
+		t.Fatalf("RunChat: %v", err)
+	}
+	if !out.StoppedOnBudget {
+		t.Error("expected StoppedOnBudget=true after exceeding MaxCostUSD")
+	}
+	if out.CostUSD != 15 {
+		t.Errorf("CostUSD = %v, want 15 (round 2 must not run)", out.CostUSD)
+	}
+}
+
 // TestEngine_RunChat_StreamingDeltas verifies the engine forwards
 // every chunk the model emits to OnMessageDelta — i.e. text is
 // streamed, not buffered. The returned reply is the concatenation
