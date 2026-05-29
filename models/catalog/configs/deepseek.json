@@ -17,6 +17,14 @@
         ],
         "default_level": "high"
       },
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
+      },
       "context_window": 1000000,
       "max_tokens": 384000
     },
@@ -35,6 +43,14 @@
           "xhigh"
         ],
         "default_level": "high"
+      },
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
       },
       "context_window": 1000000,
       "max_tokens": 384000

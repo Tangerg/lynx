@@ -19,6 +19,18 @@
         ],
         "default_level": "medium"
       },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      },
       "context_window": 1048576,
       "max_tokens": 64000
     },
@@ -39,6 +51,18 @@
         ],
         "default_level": "medium"
       },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      },
       "context_window": 1048576,
       "max_tokens": 64000
     },
@@ -57,6 +81,18 @@
           "high"
         ],
         "default_level": "high"
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
       },
       "context_window": 1048576,
       "max_tokens": 64000
@@ -79,6 +115,18 @@
         ],
         "default_level": "minimal"
       },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      },
       "context_window": 1048576,
       "max_tokens": 50000
     },
@@ -93,6 +141,18 @@
       "reasoning": {
         "supported": true
       },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      },
       "context_window": 1048576,
       "max_tokens": 50000
     },
@@ -106,6 +166,18 @@
       },
       "reasoning": {
         "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
       },
       "context_window": 1048576,
       "max_tokens": 50000

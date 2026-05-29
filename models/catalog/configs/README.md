@@ -24,6 +24,10 @@ Each model entry is a `chat.ModelInfo` (pricing is nested):
         "levels": ["high", "xhigh"],
         "default_level": "high"
       },
+      "modalities": {
+        "input": ["text", "image", "pdf"],
+        "output": ["text"]
+      },
       "context_window": 1000000,
       "max_tokens": 384000 }
   ]
@@ -45,6 +49,12 @@ Each model entry is a `chat.ModelInfo` (pricing is nested):
   `default_level` apply only when effort is level-controlled (OpenAI,
   Gemini). A token-budget reasoner (Anthropic) is just
   `{"supported": true}`. Omit `reasoning` for non-reasoning models.
+- `modalities.input` / `modalities.output` list the media types the model
+  takes and emits (`text`, `image`, `audio`, `video`, `pdf`), text first.
+  Output is `["text"]` for chat models. Tool calling and structured
+  output are *deliberately not modeled*: there's no maintained per-model
+  source for them and they're near-universal among the chat models lynx
+  adapts, so a false default would misreport "no data" as "unsupported".
 - `context_window` / `max_tokens` are optional; omit when unknown.
 
 ## Source / maintenance
@@ -58,6 +68,13 @@ catalog) with this mapping:
   `context_window` / `max_tokens`.
 - `can_reason` / `reasoning_levels` / `default_reasoning_effort` →
   `reasoning.supported` / `reasoning.levels` / `reasoning.default_level`.
+- `supports_attachments` gates `modalities`: an attachment-capable model
+  gets its vendor's full input profile (Anthropic `text/image/pdf`, OpenAI
+  `text/image/pdf`, Google/Vertex `text/image/audio/video/pdf`, xAI/Zhipu
+  `text/image`), grounded in each vendor's own model card / capabilities
+  API; otherwise input is `text`-only. catwalk has just one attachment
+  bool, so the per-modality breakdown is this profile, not raw catwalk
+  data — refresh the profiles when a vendor adds an input type.
 - catwalk's two cached fields (`cost_per_1m_in_cached`,
   `cost_per_1m_out_cached`) are used inconsistently across providers
   (Anthropic puts the write premium in `in_cached` and the read discount
