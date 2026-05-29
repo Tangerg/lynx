@@ -138,6 +138,7 @@ func NewAction[In, Out any](
 		CanRerun:        config.CanRerun,
 		QoS:             config.QoS,
 		ToolGroups:      config.ToolGroups,
+		ToolLoop:        config.ToolLoop,
 		Cost:            config.Cost,
 		Value:           config.Value,
 		OutputBinding:   config.OutputBinding,

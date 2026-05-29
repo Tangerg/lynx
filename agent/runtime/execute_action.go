@@ -233,6 +233,7 @@ func (p *AgentProcess) buildProcessContext(actionToolGroups []core.ToolGroupRequ
 			ToolCallCancel: p.signals.registerToolCallCancel,
 		},
 		ActionToolGroups: actionToolGroups,
+		ActionToolLoop:   action.Metadata().ToolLoop,
 	}
 	return core.NewProcessContext(config)
 }

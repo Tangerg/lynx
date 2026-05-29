@@ -98,6 +98,30 @@ func TestEngine_RunChat_NoObserver(t *testing.T) {
 	}
 }
 
+// TestEngine_RunChat_RecoversFromUnknownTool proves lyra's chat action
+// opts into FeedbackOnUnknownTool: when the model calls a tool that
+// isn't registered, the loop feeds the error (+ real tool list) back
+// and the model recovers on the next round instead of the turn
+// aborting. Exercises the ActionConfig.ToolLoop → ProcessContext →
+// chat tool-middleware wiring end-to-end. Without the opt-in this
+// RunChat would return a "tool not registered" error.
+func TestEngine_RunChat_RecoversFromUnknownTool(t *testing.T) {
+	stub := newStubModel("frobnicate", `{}`, "recovered: used a real approach")
+	client, _ := chat.NewClient(stub)
+	eng, err := New(context.Background(), Config{ChatClient: client})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := eng.RunChat(context.Background(), RunChatRequest{Message: "go"})
+	if err != nil {
+		t.Fatalf("RunChat aborted on unknown tool (recovery not wired?): %v", err)
+	}
+	if out.Reply != "recovered: used a real approach" {
+		t.Errorf("reply = %q, want the round-2 recovery text", out.Reply)
+	}
+}
+
 // TestEngine_RunChat_TokenUsageAccumulates verifies the per-turn
 // usage roll-up sums across both LLM rounds (tool-call + final
 // reply). ReasoningTokens come from a pointer field on chat.Usage —

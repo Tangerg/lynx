@@ -101,6 +101,13 @@ type ProcessContextConfig struct {
 	// names. Mirrors embabel's ConditionEnv.toolGroups, which reads
 	// action.toolGroups for the LLM ops layer.
 	ActionToolGroups []ToolGroupRequirement
+
+	// ActionToolLoop carries the currently-executing action's
+	// [chat.ToolLoopConfig] so [ProcessContext.ChatWithActionTools]
+	// builds the tool middleware with the action's chosen recovery
+	// policies / iteration cap. Refreshed every tick alongside
+	// ActionToolGroups.
+	ActionToolLoop chat.ToolLoopConfig
 }
 
 // ProcessContext is the only thing handed to an [Action.Execute] call.
@@ -130,6 +137,7 @@ type ProcessContext struct {
 
 	// --- Per-action state + per-tick scratch. ---
 	actionToolGroups []ToolGroupRequirement
+	actionToolLoop   chat.ToolLoopConfig
 
 	// lastErr captures the most recent error from a typed-action body so
 	// the runtime can extract a ReplanRequest. ProcessContext is built
@@ -150,6 +158,7 @@ func NewProcessContext(config ProcessContextConfig) *ProcessContext {
 		chatClient:       config.ChatClient,
 		guardrails:       config.Guardrails,
 		actionToolGroups: config.ActionToolGroups,
+		actionToolLoop:   config.ActionToolLoop,
 		publishEvent:     config.Publish,
 		resolveTools:     config.ResolveTools,
 		toolCallCancel:   config.ToolCallCancel,
@@ -233,7 +242,7 @@ func (pc *ProcessContext) buildChatRequest(tools []AgentTool) *chat.ClientReques
 
 	mws := pc.guardrails.MiddlewareValues()
 	if len(tools) > 0 {
-		callMW, streamMW := chat.NewToolMiddleware()
+		callMW, streamMW := chat.NewToolMiddleware(pc.actionToolLoop)
 		mws = append(mws, callMW, streamMW)
 	}
 	if len(mws) > 0 {

@@ -1,5 +1,7 @@
 package core
 
+import "github.com/Tangerg/lynx/core/model/chat"
+
 // ActionConfig is the optional configuration bundle for [NewAction].
 // Every field is optional — pass a zero ActionConfig{} when defaults
 // suffice. Choosing a struct over functional options keeps defaults
@@ -42,6 +44,16 @@ type ActionConfig struct {
 	// execution time. Action bodies fetch the resolved tools via
 	// [ProcessContext.ActionTools].
 	ToolGroups []ToolGroupRequirement
+
+	// ToolLoop tunes the chat tool-calling loop that
+	// [ProcessContext.ChatWithActionTools] builds for this action —
+	// max iterations + the unknown-tool / empty-response recovery
+	// policies. Zero value uses the loop defaults (cap
+	// [chat.DefaultMaxToolIterations], no recovery feedback), so
+	// existing actions are unaffected. Set FeedbackOnUnknownTool to
+	// let a model that hallucinates a tool name recover instead of
+	// aborting the action.
+	ToolLoop chat.ToolLoopConfig
 
 	// OutputBinding overrides the default "it" output variable name.
 	// Use when an action produces multiple distinct artifacts of
