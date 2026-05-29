@@ -12,6 +12,12 @@ import type { AgentViewState, ToolCall } from "@/protocol/agui/viewState";
 import { appendBlock, appendTimeline, updateMessage, updateTool } from "../helpers";
 
 export const onToolStart = (state: AgentViewState, ev: ToolCallStartEvent): AgentViewState => {
+  // Defensive dedup: a repeated TOOL_CALL_START for the same toolCallId
+  // (agent retry, mock-server quirk, HMR replay) would otherwise push a
+  // second `tool` block onto the parent message — rendering two identical
+  // ToolCards — and emit a duplicate timeline entry. `onTextStart` guards
+  // the same way; `onToolChunk` skips its block append via `!existing`.
+  if (state.toolCalls[ev.toolCallId]) return state;
   const tool: ToolCall = {
     id: ev.toolCallId,
     fn: ev.toolCallName,
