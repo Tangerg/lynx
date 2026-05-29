@@ -108,16 +108,17 @@ func runToolDecorators(
 	return tool
 }
 
-// runAgentValidators runs every validator in order; the first error
-// vetoes (fail-fast), wrapped with the validator's Name for
-// attribution.
-func runAgentValidators(validators []core.AgentValidator, agent *core.Agent) error {
+// runAgentValidators runs every validator and collects all their errors
+// (each wrapped with the validator's Name for attribution) so Deploy can
+// report every problem at once rather than stopping at the first.
+func runAgentValidators(validators []core.AgentValidator, agent *core.Agent) []error {
+	var problems []error
 	for _, v := range validators {
 		if err := v.ValidateAgent(agent); err != nil {
-			return fmt.Errorf("validator %q: %w", v.Name(), err)
+			problems = append(problems, fmt.Errorf("validator %q: %w", v.Name(), err))
 		}
 	}
-	return nil
+	return problems
 }
 
 // runGoalApprovers returns true only when every approver returns

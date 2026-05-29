@@ -192,6 +192,41 @@ func TestAgentValidatorRejectsDeploy(t *testing.T) {
 	}
 }
 
+// TestDeploy_ReportsAllProblems confirms the multi-layer validation
+// aggregates every problem (two unreachable goal conditions + a failing
+// validator) into one error rather than failing on the first.
+func TestDeploy_ReportsAllProblems(t *testing.T) {
+	type pIn struct{}
+	type pOut struct{}
+	a := agent.New("multi-problem").
+		Actions(agent.NewAction("step",
+			func(_ context.Context, _ *core.ProcessContext, _ pIn) (pOut, error) { return pOut{}, nil },
+			core.ActionConfig{},
+		)).
+		Goals(agent.GoalProducing[pOut](core.Goal{
+			Description: "needs missing conditions",
+			Pre:         []string{"never_a", "never_b"}, // no action produces these
+		})).
+		Build()
+
+	platform := agent.NewPlatform(runtime.PlatformConfig{
+		Extensions: []core.Extension{
+			failingValidator{name: "policy", err: errors.New("missing SLA tag")},
+		},
+	})
+
+	err := platform.Deploy(a)
+	if err == nil {
+		t.Fatal("expected deploy to fail")
+	}
+	msg := err.Error()
+	for _, want := range []string{"never_a", "never_b", `validator "policy"`, "missing SLA tag"} {
+		if !strings.Contains(msg, want) {
+			t.Errorf("error missing %q; full error:\n%s", want, msg)
+		}
+	}
+}
+
 // vetoApprover blocks every goal it sees.
 type vetoApprover struct{ name string }
 
