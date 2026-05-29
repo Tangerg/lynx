@@ -30,7 +30,7 @@ func TestDocument_EnsureID_AssignsWhenEmpty(t *testing.T) {
 	}
 }
 
-func TestDocument_EnsureID_NilGeneratorIsNoOp(t *testing.T) {
+func TestDocument_EnsureID_NilGeneratorIsNop(t *testing.T) {
 	doc, _ := document.NewDocument("hello", nil)
 	if err := doc.EnsureID(context.Background(), nil); err != nil {
 		t.Fatal(err)

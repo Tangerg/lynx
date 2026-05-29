@@ -46,7 +46,7 @@ const (
 // genAIMeter is the package-level meter. Like the global tracer, the
 // global meter delegates: instruments created here before a
 // MeterProvider is installed forward to the real provider once
-// otel.SetMeterProvider runs, and stay noop (zero-cost) until then.
+// otel.SetMeterProvider runs, and stay no-op (zero-cost) until then.
 var genAIMeter = otel.Meter("lynx/gen_ai")
 
 // Instruments are created once at package init. The global meter never
@@ -117,7 +117,7 @@ func (d OperationMetrics) baseAttrs() []attribute.KeyValue {
 // tag on failure). Token usage is recorded only on success and only for
 // the dimensions the provider surfaced — a nil usage or a zero count for
 // a given direction is skipped. Until a MeterProvider is configured every
-// Record is a noop, so this is zero-cost by default.
+// Record is a no-op, so this is zero-cost by default.
 func RecordOperationMetrics(ctx context.Context, dims OperationMetrics, usage *Usage, elapsed time.Duration, err error) {
 	base := dims.baseAttrs()
 

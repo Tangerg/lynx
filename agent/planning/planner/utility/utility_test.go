@@ -119,7 +119,7 @@ func TestHybridUtility_SatisfiedFirstShortCircuit(t *testing.T) {
 	start := planning.NewConditionWorldState(map[string]core.Determination{"goalKey": core.True})
 	g := &core.Goal{Name: "real", Pre: []string{"goalKey"}}
 
-	stillRunnable := newAction("noop", nil, core.Effects{"other": core.True}, 1, 99)
+	stillRunnable := newAction("nop", nil, core.Effects{"other": core.True}, 1, 99)
 	system := planning.NewSystem([]core.Action{stillRunnable}, []*core.Goal{g}, nil)
 
 	// Hybrid: empty planning.

@@ -18,7 +18,7 @@ import (
 // later `otel.SetTracerProvider` calls in the user's program take
 // effect on spans started here without re-wiring. When no provider is
 // configured (the default), Start / End / SetAttributes compile down
-// to noop — see doc/OBSERVABILITY.md §5.
+// to no-op — see doc/OBSERVABILITY.md §5.
 //
 // Tracer name follows the convention from the OTel GenAI spec:
 // instrumentation libraries SHOULD name their tracer after the
@@ -167,7 +167,7 @@ func finishChatSpan(span trace.Span, resp *Response, err error) {
 // recordChatMetrics emits the GenAI client metrics (token usage +
 // operation duration) for one chat operation. It is the metric companion
 // to [finishChatSpan]: call it once per call/stream, passing the start
-// time captured before [startChatSpan]. Noop until a MeterProvider is
+// time captured before [startChatSpan]. No-op until a MeterProvider is
 // configured.
 func recordChatMetrics(ctx context.Context, m Model, req *Request, resp *Response, err error, start time.Time) {
 	dims := model.OperationMetrics{Operation: "chat"}

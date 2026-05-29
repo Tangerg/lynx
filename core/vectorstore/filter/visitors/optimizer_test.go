@@ -40,9 +40,9 @@ func TestOptimizer_Rewrites(t *testing.T) {
 		{"absorption_reversed", `(a == 1 or b == 2) and a == 1`, `a == 1`},
 		{"nested_double_not_in_and", `(not (not (a == 1))) and b == 2`, `a == 1 and b == 2`},
 		// No-ops: distinct operands must be preserved verbatim.
-		{"noop_and", `a == 1 and b == 2`, `a == 1 and b == 2`},
-		{"noop_single_not", `not (a == 1)`, `not (a == 1)`},
-		{"noop_comparison", `year >= 2020`, `year >= 2020`},
+		{"nop_and", `a == 1 and b == 2`, `a == 1 and b == 2`},
+		{"nop_single_not", `not (a == 1)`, `not (a == 1)`},
+		{"nop_comparison", `year >= 2020`, `year >= 2020`},
 	}
 
 	for _, tc := range cases {

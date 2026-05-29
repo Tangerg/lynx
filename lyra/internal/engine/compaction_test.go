@@ -58,10 +58,10 @@ func TestComposeSystemPrompt_SkipsEmptyScopes(t *testing.T) {
 	}
 }
 
-// TestCompactor_NoOpBelowThreshold doesn't talk to a real LLM —
+// TestCompactor_NopBelowThreshold doesn't talk to a real LLM —
 // confirms the early-return path when there aren't enough
 // messages to bother compacting.
-func TestCompactor_NoOpBelowThreshold(t *testing.T) {
+func TestCompactor_NopBelowThreshold(t *testing.T) {
 	store := memory.NewInMemoryStore()
 	const sessID = "s"
 	_ = store.Write(context.Background(), sessID,

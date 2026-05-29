@@ -116,7 +116,7 @@ func (t *Tool) Descriptor() *sdkmcp.Tool { return t.descriptor }
 //
 // One `mcp.tool.call <name>` span per call (kind=Client), carrying
 // `lynx.tool.name` and (on failure) `lynx.mcp.tool.is_error=true`.
-// Noop overhead when no TracerProvider is configured.
+// No-op overhead when no TracerProvider is configured.
 func (t *Tool) Call(ctx context.Context, arguments string) (out string, err error) {
 	ctx, span := mcpTracer.Start(ctx, "mcp.tool.call "+t.descriptor.Name,
 		trace.WithSpanKind(trace.SpanKindClient),

@@ -16,7 +16,7 @@ import (
 // embedTracer is the package-level tracer for embedding client span
 // emission. Tracer name follows the gen_ai.operation convention.
 //
-// Calls into a not-yet-configured TracerProvider are noop, so spans
+// Calls into a not-yet-configured TracerProvider are no-op, so spans
 // emitted here are zero-cost by default — see doc/OBSERVABILITY.md §5.
 var embedTracer = otel.Tracer("lynx/gen_ai/embeddings")
 
@@ -101,7 +101,7 @@ func finishEmbeddingSpan(span trace.Span, resp *Response, err error) {
 // usage + operation duration) for one embedding call. Call it once per
 // call, passing the start time captured before [startEmbeddingSpan].
 // Embeddings produce no completion tokens, so only the input dimension
-// of [model.MetricGenAIClientTokenUsage] is recorded. Noop until a
+// of [model.MetricGenAIClientTokenUsage] is recorded. No-op until a
 // MeterProvider is configured.
 func recordEmbeddingMetrics(ctx context.Context, m Model, req *Request, resp *Response, err error, start time.Time) {
 	dims := model.OperationMetrics{Operation: "embeddings"}
