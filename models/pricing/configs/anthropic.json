@@ -1,0 +1,16 @@
+{
+  "provider": "anthropic",
+  "models": [
+    { "id": "claude-opus-4-8", "input_per_1m": 5, "output_per_1m": 25, "cache_read_per_1m": 0.5, "cache_write_per_1m": 6.25 },
+    { "id": "claude-opus-4-7", "input_per_1m": 5, "output_per_1m": 25, "cache_read_per_1m": 0.5, "cache_write_per_1m": 6.25 },
+    { "id": "claude-opus-4-6", "input_per_1m": 5, "output_per_1m": 25, "cache_read_per_1m": 0.5, "cache_write_per_1m": 6.25 },
+    { "id": "claude-opus-4-5-20251101", "input_per_1m": 5, "output_per_1m": 25, "cache_read_per_1m": 0.5, "cache_write_per_1m": 6.25 },
+    { "id": "claude-opus-4-1-20250805", "input_per_1m": 15, "output_per_1m": 75, "cache_read_per_1m": 1.5, "cache_write_per_1m": 18.75 },
+    { "id": "claude-opus-4-20250514", "input_per_1m": 15, "output_per_1m": 75, "cache_read_per_1m": 1.5, "cache_write_per_1m": 18.75 },
+    { "id": "claude-sonnet-4-6", "input_per_1m": 3, "output_per_1m": 15, "cache_read_per_1m": 0.3, "cache_write_per_1m": 3.75 },
+    { "id": "claude-sonnet-4-5-20250929", "input_per_1m": 3, "output_per_1m": 15, "cache_read_per_1m": 0.3, "cache_write_per_1m": 3.75 },
+    { "id": "claude-sonnet-4-20250514", "input_per_1m": 3, "output_per_1m": 15, "cache_read_per_1m": 0.3, "cache_write_per_1m": 3.75 },
+    { "id": "claude-haiku-4-5-20251001", "input_per_1m": 1, "output_per_1m": 5, "cache_read_per_1m": 0.1, "cache_write_per_1m": 1.25 },
+    { "id": "claude-3-5-haiku-20241022", "input_per_1m": 0.8, "output_per_1m": 4, "cache_read_per_1m": 0.08, "cache_write_per_1m": 1 }
+  ]
+}

@@ -230,7 +230,7 @@ func TestEngine_RunChat_PricingFillsCost(t *testing.T) {
 		chat.Usage{PromptTokens: 20, CompletionTokens: 7, ReasoningTokens: &reasoning},
 	)
 	client, _ := chat.NewClient(stub)
-	pricing := func(_ string, u TokenUsage) float64 {
+	pricing := func(_ string, u *chat.Usage) float64 {
 		return float64(u.PromptTokens + u.CompletionTokens)
 	}
 	eng, err := New(context.Background(), Config{ChatClient: client, Pricing: pricing})
