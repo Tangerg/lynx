@@ -3,12 +3,50 @@ package runtime
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/core/model/chat"
 	pkgjson "github.com/Tangerg/lynx/pkg/json"
 )
+
+// SubagentTools builds supervisor-flow [chat.Tool]s for the named deployed
+// agents — one tool per exported goal (Export != nil), with input schema
+// derived from the goal's InputSample (so the orchestrating LLM sees a
+// typed argument shape). Use it to assemble the tool set a supervisor
+// hands its LLM; see [github.com/Tangerg/lynx/agent/workflow.Supervisor].
+//
+// Each tool runs its agent as a child process (inheriting the parent
+// blackboard, like [AsChatTool]) and returns the child's most-recent
+// blackboard object as JSON. Errors when a name isn't deployed or exposes
+// no exported goal — a supervisor over an un-callable agent is a
+// configuration bug worth catching at build time.
+func SubagentTools(platform *Platform, names ...string) ([]chat.Tool, error) {
+	if platform == nil {
+		return nil, errors.New("runtime.SubagentTools: platform is nil")
+	}
+
+	var out []chat.Tool
+	for _, name := range names {
+		agentDef, ok := platform.agents.find(name)
+		if !ok {
+			return nil, fmt.Errorf("runtime.SubagentTools: agent %q not deployed", name)
+		}
+
+		before := len(out)
+		for _, goal := range agentDef.Goals {
+			if goal == nil || goal.Export == nil {
+				continue
+			}
+			out = append(out, newDynamicAgentTool(platform, agentDef, goal, SpawnChild))
+		}
+		if len(out) == before {
+			return nil, fmt.Errorf("runtime.SubagentTools: agent %q exposes no exported goal (set Goal.Export)", name)
+		}
+	}
+	return out, nil
+}
 
 // AsChatTool wraps a deployed agent as a [chat.Tool] the
 // parent's LLM can invoke as just-another-tool. This is the
