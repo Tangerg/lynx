@@ -51,16 +51,14 @@ func runHealthProbes(ctx context.Context, probes []HealthProbe) (HealthStatus, m
 	results := make([]HealthCheck, len(probes))
 	var wg sync.WaitGroup
 	for i, p := range probes {
-		wg.Add(1)
-		go func(i int, p HealthProbe) {
-			defer wg.Done()
+		wg.Go(func() {
 			defer func() {
 				if r := recover(); r != nil {
 					results[i] = HealthCheck{Status: HealthUnhealthy, Detail: "probe panic"}
 				}
 			}()
 			results[i] = p.Probe(ctx)
-		}(i, p)
+		})
 	}
 	wg.Wait()
 

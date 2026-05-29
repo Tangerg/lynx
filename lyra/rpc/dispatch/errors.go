@@ -41,8 +41,7 @@ func errorToRPC(err error) *transport.Error {
 	if err == nil {
 		return nil
 	}
-	var rpcErr *transport.Error
-	if errors.As(err, &rpcErr) {
+	if rpcErr, ok := errors.AsType[*transport.Error](err); ok {
 		return rpcErr
 	}
 	if errors.Is(err, protocol.ErrNotImplemented) {
