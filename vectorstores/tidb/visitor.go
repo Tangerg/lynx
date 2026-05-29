@@ -58,6 +58,9 @@ func (v *Visitor) visit(expr ast.Expr) error {
 	}
 	switch node := expr.(type) {
 	case *ast.BinaryExpr:
+		if node.Op.Kind.IsNullOperator() {
+			return v.visitNullTestExpr(node)
+		}
 		return v.visitBinaryExpr(node)
 	case *ast.UnaryExpr:
 		return v.visitUnaryExpr(node)
@@ -179,6 +182,25 @@ func (v *Visitor) visitLikeExpr(expr *ast.BinaryExpr) error {
 	v.appendJSONExtraction(jsonPath, "", token.EQ)
 	v.sql.WriteString(" LIKE ")
 	v.appendValuePlaceholder(pattern)
+	return nil
+}
+
+// visitNullTestExpr emits `(JSON_VALUE(metadata, '$.key') IS NULL)`.
+// TiDB's JSON_VALUE yields SQL NULL both when the key is absent and when
+// the stored value is JSON null, matching the inmemory reference
+// semantics. No bound parameter is needed. The negated `IS NOT NULL`
+// arrives as NOT(… IS NULL) and is rendered by visitUnaryExpr, so no
+// separate handling is needed here.
+func (v *Visitor) visitNullTestExpr(expr *ast.BinaryExpr) error {
+	jsonPath, err := buildJSONPath(expr.Left)
+	if err != nil {
+		return fmt.Errorf("tidb: %w (at %s)", err, expr.Start().String())
+	}
+	v.sql.WriteString("(JSON_VALUE(")
+	v.sql.WriteString(v.metadataColumn)
+	v.sql.WriteString(", ")
+	v.sql.WriteString(quoteSQLString(jsonPath))
+	v.sql.WriteString(") IS NULL)")
 	return nil
 }
 

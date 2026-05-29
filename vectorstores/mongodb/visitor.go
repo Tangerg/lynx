@@ -76,6 +76,8 @@ func (v *Visitor) translate(expr ast.Expr) (map[string]any, error) {
 
 func (v *Visitor) translateBinary(expr *ast.BinaryExpr) (map[string]any, error) {
 	switch {
+	case expr.Op.Kind.IsNullOperator():
+		return v.translateNullTest(expr)
 	case expr.Op.Kind.IsLogicalOperator():
 		return v.translateLogical(expr)
 	case expr.Op.Kind.Is(token.IN):
@@ -135,6 +137,20 @@ func (v *Visitor) translateComparison(expr *ast.BinaryExpr) (map[string]any, err
 		return nil, err
 	}
 	return map[string]any{field: map[string]any{op: value}}, nil
+}
+
+// translateNullTest emits `{field: {"$eq": null}}`. In MongoDB this
+// matches documents where the field is explicitly null OR absent,
+// which is the correct IS NULL semantics (parity with the inmemory
+// reference). The negated `IS NOT NULL` arrives as NOT(field IS NULL)
+// and is wrapped by translateUnary's $nor, so no separate handling is
+// needed here.
+func (v *Visitor) translateNullTest(expr *ast.BinaryExpr) (map[string]any, error) {
+	field, err := v.fieldPath(expr.Left)
+	if err != nil {
+		return nil, fmt.Errorf("mongodb: %w (at %s)", err, expr.Start().String())
+	}
+	return map[string]any{field: map[string]any{"$eq": nil}}, nil
 }
 
 func (v *Visitor) translateIn(expr *ast.BinaryExpr, op string) (map[string]any, error) {

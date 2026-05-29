@@ -343,3 +343,47 @@ func TestSimilarity_EuclideanSelfIsOne(t *testing.T) {
 		t.Fatalf("EuclideanSimilarity(v, v) = %v, want 1", got)
 	}
 }
+
+func TestStore_RetrieveIsNull(t *testing.T) {
+	store := newStore(t)
+	ctx := t.Context()
+	docs := []*document.Document{
+		mustDoc(t, "1", "alpha", map[string]any{"category": "a"}),   // no "owner"
+		mustDoc(t, "2", "bravo", map[string]any{"owner": "alice"}),  // has "owner"
+		mustDoc(t, "3", "charlie", map[string]any{"category": "c"}), // no "owner"
+	}
+	createReq, _ := vectorstore.NewCreateRequest(docs)
+	if err := store.Create(ctx, createReq); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	// IS NULL: matches docs missing "owner".
+	expr, err := filter.ParseAndAnalyze(`owner is null`)
+	if err != nil {
+		t.Fatalf("ParseAndAnalyze(is null): %v", err)
+	}
+	req, _ := vectorstore.NewRetrievalRequest("x")
+	req.WithFilter(expr).WithTopK(10)
+	got, err := store.Retrieve(ctx, req)
+	if err != nil {
+		t.Fatalf("Retrieve(is null): %v", err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("is null matched %d docs, want 2 (ids 1,3)", len(got))
+	}
+
+	// IS NOT NULL: matches the doc that has "owner".
+	expr2, err := filter.ParseAndAnalyze(`owner is not null`)
+	if err != nil {
+		t.Fatalf("ParseAndAnalyze(is not null): %v", err)
+	}
+	req2, _ := vectorstore.NewRetrievalRequest("x")
+	req2.WithFilter(expr2).WithTopK(10)
+	got2, err := store.Retrieve(ctx, req2)
+	if err != nil {
+		t.Fatalf("Retrieve(is not null): %v", err)
+	}
+	if len(got2) != 1 || got2[0].ID != "2" {
+		t.Fatalf("is not null = %+v, want [id 2]", got2)
+	}
+}

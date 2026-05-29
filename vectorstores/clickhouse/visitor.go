@@ -59,6 +59,9 @@ func (v *Visitor) visit(expr ast.Expr) error {
 	}
 	switch node := expr.(type) {
 	case *ast.BinaryExpr:
+		if node.Op.Kind.IsNullOperator() {
+			return v.visitNullTestExpr(node)
+		}
 		return v.visitBinaryExpr(node)
 	case *ast.UnaryExpr:
 		return v.visitUnaryExpr(node)
@@ -180,6 +183,27 @@ func (v *Visitor) visitLikeExpr(expr *ast.BinaryExpr) error {
 	v.appendMapAccess(jsonPath, "", token.EQ)
 	v.sql.WriteString(" LIKE ")
 	v.appendValuePlaceholder(pattern)
+	return nil
+}
+
+// visitNullTestExpr emits `NOT mapContains(metadata, 'key')` for an
+// `IS NULL` test. ClickHouse stores metadata as a `Map(String, String)`,
+// where a subscript on a missing key yields the type default (empty
+// string) rather than SQL NULL — so `metadata['key'] IS NULL` can never
+// match. Key absence is therefore the right model for "is null", which
+// matches the inmemory reference semantics (a missing metadata key reads
+// as null). The negated `IS NOT NULL` arrives as NOT(… IS NULL) and is
+// rendered by visitUnaryExpr, so no separate handling is needed here.
+func (v *Visitor) visitNullTestExpr(expr *ast.BinaryExpr) error {
+	key, err := buildKeyPath(expr.Left)
+	if err != nil {
+		return fmt.Errorf("clickhouse: %w (at %s)", err, expr.Start().String())
+	}
+	v.sql.WriteString("(NOT mapContains(")
+	v.sql.WriteString(v.metadataColumn)
+	v.sql.WriteString(", ")
+	v.sql.WriteString(quoteSQLString(key))
+	v.sql.WriteString("))")
 	return nil
 }
 
