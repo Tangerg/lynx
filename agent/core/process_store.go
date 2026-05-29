@@ -16,7 +16,7 @@ import (
 // restore time: a snapshot is portable across redeploys as long as
 // the same agent + goal names exist on the target platform.
 //
-// Two intentional limitations apply to the serialized state:
+// Three intentional limitations apply to the serialized state:
 //
 //   - Function-valued blackboard entries do not round-trip. Snapshot
 //     code must marshal blackboard values with [encoding/json] (or a
@@ -27,6 +27,15 @@ import (
 //   - The failure chain collapses to a string. The runtime preserves
 //     [error.Error()] but loses [errors.Is]/[errors.As] across
 //     persistence; treat the field as a human-readable diagnostic.
+//   - The pending [Awaitable] of a StatusWaiting process is NOT
+//     captured — it carries the un-serializable response-handler
+//     closure. A restored Waiting process therefore has nothing parked
+//     to resume against; the runtime must re-tick it once so the
+//     awaiting action re-issues AwaitInput against the restored
+//     blackboard before a response can be delivered. Keep awaiting
+//     actions idempotent: read the decision from a blackboard
+//     condition, re-park when it's unset, proceed when it's set. (See
+//     the runtime's RestoreProcess for the full resume sequence.)
 type ProcessSnapshot struct {
 	// ID is the original process id. A restored process keeps the
 	// same id so external systems referencing it stay valid.

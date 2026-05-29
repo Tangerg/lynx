@@ -83,6 +83,24 @@ func SnapshotProcess(p *AgentProcess) core.ProcessSnapshot {
 // (Completed / Failed / Killed / Terminated) load the process
 // read-only; callers can inspect History / Usage / Failure but
 // not re-run.
+//
+// Resuming a restored StatusWaiting process takes four steps, because
+// the pending awaitable's handler closure does not round-trip (see
+// [core.ProcessSnapshot]):
+//
+//  1. RestoreProcess — status is Waiting, but nothing is parked yet
+//     (PendingAwaitable returns nil).
+//  2. ContinueProcess — re-ticks once; the awaiting action re-issues
+//     AwaitInput against the restored blackboard and the process parks
+//     again (now PendingAwaitable is populated).
+//  3. ResumeProcess(id, response) — delivers the response to the freshly
+//     re-parked handler, which mutates the blackboard.
+//  4. ContinueProcess — drives the loop to a terminal state against the
+//     now-decided blackboard.
+//
+// This works only when the awaiting action is idempotent: it must
+// re-park when its decision condition is unset and proceed when it's
+// set. The framework cannot reconstruct the closure for it.
 func RestoreProcess(platform *Platform, snap core.ProcessSnapshot) (*AgentProcess, error) {
 	if platform == nil {
 		return nil, errors.New("restore process: nil platform")
@@ -109,6 +127,10 @@ func RestoreProcess(platform *Platform, snap core.ProcessSnapshot) (*AgentProces
 	system := planning.FromAgent(agentDef)
 
 	p := newAgentProcess(snap.ID, agentDef, &options, blackboard, plannerInst, system, platform)
+	// Wire the determiner + event multicast the same way createProcess
+	// does — without it a resumable snapshot panics on its first
+	// post-restore tick (nil determiner in observe).
+	p.wireRuntimeDeps(options.Extensions)
 	p.parentID = snap.ParentID
 	p.startedAt = snap.StartedAt
 

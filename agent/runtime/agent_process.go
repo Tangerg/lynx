@@ -52,10 +52,9 @@ type AgentProcess struct {
 	platform   *Platform
 
 	// processEvents is the per-process multicast populated from
-	// EventListener extensions on ProcessOptions.Extensions. Created at
-	// createProcess time; nil for processes that don't go through the
-	// regular factory path (e.g. test fixtures that build AgentProcess
-	// directly, though no such path exists today).
+	// EventListener extensions on ProcessOptions.Extensions. Wired by
+	// wireRuntimeDeps on every construction path (createProcess +
+	// RestoreProcess); publishEvent still nil-guards it for safety.
 	processEvents *event.Multicast
 }
 
@@ -97,6 +96,21 @@ func newAgentProcess(
 	}
 	p.budget.lock = &p.state.mu // budget shares state's mutex
 	return p
+}
+
+// wireRuntimeDeps finishes the parts of construction that need the
+// *AgentProcess pointer itself: the determiner (which wires the process
+// as the [core.Process] user-defined conditions evaluate against) and
+// the per-process event multicast (subscribing process-scope
+// EventListener extensions). Split out of newAgentProcess because both
+// fields close over the assembled pointer, and shared by every path
+// that builds a process — createProcess for fresh runs, RestoreProcess
+// for snapshots re-entering the tick loop. A restored process that
+// skips this panics on its first observe (nil determiner).
+func (p *AgentProcess) wireRuntimeDeps(extensions []core.Extension) {
+	p.determiner = newBlackboardDeterminer(p.system, p.blackboard, p)
+	p.processEvents = event.NewMulticast()
+	addEventListenerExtensions(p.processEvents, extensions)
 }
 
 // --- core.Process read surface --------------------------------------------
