@@ -17,8 +17,8 @@ import (
 // a real provider.
 type fakeModel struct{ text string }
 
-func (fakeModel) DefaultOptions() chat.Options    { return chat.Options{} }
-func (fakeModel) Metadata() chat.ModelMetadata    { return chat.ModelMetadata{} }
+func (fakeModel) DefaultOptions() chat.Options { return chat.Options{} }
+func (fakeModel) Metadata() chat.ModelMetadata { return chat.ModelMetadata{} }
 func (m fakeModel) Call(context.Context, *chat.Request) (*chat.Response, error) {
 	return fakeTextResponse(m.text), nil
 }
