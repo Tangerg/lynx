@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/Tangerg/lynx/lyra/internal/service/session"
 	"github.com/Tangerg/lynx/lyra/rpc/protocol"
@@ -81,12 +82,27 @@ func (i *Server) ForkSession(ctx context.Context, in protocol.ForkSessionRequest
 	if in.ParentID == "" || in.AtMessageID == "" {
 		return nil, errors.New("sessions.fork: parentId + atMessageId required")
 	}
+	// Read the parent's history before creating the child so a bad
+	// parent id fails fast (no orphan child) and we have the prefix to
+	// seed.
+	parentHistory, err := i.rt.ReadHistory(ctx, in.ParentID)
+	if err != nil {
+		return nil, err
+	}
 	s, err := i.rt.Session().Fork(ctx, in.ParentID, in.AtMessageID)
 	if err != nil {
 		if errors.Is(err, session.ErrNotFound) {
 			return nil, protocol.ErrSessionNotFound
 		}
 		return nil, err
+	}
+	// Seed the fresh child with the parent's history up to the fork
+	// point so its next turn continues from there rather than starting
+	// blank. Lineage is already recorded by Session().Fork.
+	if prefix := historyPrefix(parentHistory, in.AtMessageID); len(prefix) > 0 {
+		if err := i.rt.SeedHistory(ctx, s.ID, prefix); err != nil {
+			return nil, fmt.Errorf("sessions.fork: seed child history: %w", err)
+		}
 	}
 	out := sessionToWire(s)
 	return &out, nil
