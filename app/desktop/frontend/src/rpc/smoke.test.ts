@@ -1,5 +1,5 @@
-// End-to-end smoke test — exercises the full happy path defined in
-// docs/BACKEND_REVIEW.md §14. Uses MemoryTransport to simulate the
+// End-to-end smoke test — exercises the full happy path of the Lyra
+// Runtime Protocol (docs/API.md). Uses MemoryTransport to simulate the
 // server, so this test runs in CI without any backend dependency.
 //
 // Once the real backend is up, the same scenario validates wire
