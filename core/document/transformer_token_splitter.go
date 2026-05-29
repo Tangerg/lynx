@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 
+	"github.com/Tangerg/lynx/core/document/id"
 	"github.com/Tangerg/lynx/core/tokenizer"
 )
 
@@ -48,10 +49,14 @@ type TokenSplitterConfig struct {
 	// CopyFormatter copies the source document's [Formatter] to each
 	// chunk. Defaults to false.
 	CopyFormatter bool
+
+	// IDGenerator, when set, assigns an id to every emitted chunk.
+	// nil leaves chunk IDs empty. See [SplitterConfig.IDGenerator].
+	IDGenerator id.Generator
 }
 
 // Validate returns an error when required fields are missing.
-func (c TokenSplitterConfig) Validate() error {
+func (c *TokenSplitterConfig) Validate() error {
 	if c.Tokenizer == nil {
 		return errors.New("document.TokenSplitterConfig: Tokenizer is required")
 	}
@@ -112,6 +117,7 @@ func NewTokenSplitter(config TokenSplitterConfig) (*TokenSplitter, error) {
 	ts.splitter, _ = NewSplitter(SplitterConfig{
 		CopyFormatter: config.CopyFormatter,
 		SplitFunc:     ts.splitByTokens,
+		IDGenerator:   config.IDGenerator,
 	})
 	return ts, nil
 }

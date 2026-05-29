@@ -3,6 +3,8 @@ package document
 import (
 	"context"
 	"strings"
+
+	"github.com/Tangerg/lynx/core/document/id"
 )
 
 // TextSplitterConfig configures a [TextSplitter] — the simple
@@ -15,6 +17,10 @@ type TextSplitterConfig struct {
 	// CopyFormatter copies the source document's [Formatter] to each
 	// chunk. Defaults to false.
 	CopyFormatter bool
+
+	// IDGenerator, when set, assigns an id to every emitted chunk.
+	// nil leaves chunk IDs empty. See [SplitterConfig.IDGenerator].
+	IDGenerator id.Generator
 }
 
 var _ Transformer = (*TextSplitter)(nil)
@@ -48,6 +54,7 @@ func NewTextSplitter(config TextSplitterConfig) *TextSplitter {
 	config.ApplyDefaults()
 	splitter, _ := NewSplitter(SplitterConfig{
 		CopyFormatter: config.CopyFormatter,
+		IDGenerator:   config.IDGenerator,
 		SplitFunc: func(_ context.Context, text string) ([]string, error) {
 			return strings.Split(text, config.Separator), nil
 		},

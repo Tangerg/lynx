@@ -1,8 +1,10 @@
 package document
 
 import (
+	"context"
 	"errors"
 
+	"github.com/Tangerg/lynx/core/document/id"
 	"github.com/Tangerg/lynx/core/media"
 )
 
@@ -55,6 +57,27 @@ func NewDocument(text string, media *media.Media) (*Document, error) {
 		Metadata:  make(map[string]any),
 		Formatter: NewNop(),
 	}, nil
+}
+
+// EnsureID assigns an id when the document has none, deriving it from
+// the document's content (text, media, metadata) via the supplied
+// [id.Generator]. A document that already carries an id is left
+// untouched, so EnsureID is safe to call repeatedly across a pipeline.
+//
+// Pass an [id.Sha256Generator] for content-addressable, dedup-friendly
+// ids, or an [id.UUIDGenerator] for unconditional uniqueness. Returns
+// an error only when the generator does (e.g. an input that fails to
+// JSON-marshal).
+func (d *Document) EnsureID(ctx context.Context, generator id.Generator) error {
+	if d.ID != "" || generator == nil {
+		return nil
+	}
+	generated, err := generator.Generate(ctx, d.Text, d.Media, d.Metadata)
+	if err != nil {
+		return err
+	}
+	d.ID = generated
+	return nil
 }
 
 // Format renders the document with all metadata included.
