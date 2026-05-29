@@ -39,7 +39,7 @@ Claude Agent SDK 的本质是**包一个 `claude-code` CLI 子进程**，对外 
 | session 持久化 / resume / `sessionStore` | ✅ `core.ProcessStore` + `persistence.FileStore` + `PlatformConfig.AutoSnapshot`（每 tick 落盘） | 🔴 没接 | 进程级 typed 快照，restore 后**重新 plan**（非续跑 in-flight action） |
 | subagent 编排（`agents` / Task / background） | ✅ `workflow.Supervisor[In,Out]`（LLM 编排）+ `SubagentTools` / `AsChatTool`（子 agent 当工具）+ `SpawnChild` | 🔴 没接 | 子 agent **同步**跑、继承 blackboard；HITL-aware（waiting→JSON 回给 LLM）。无 background/async |
 | `total_cost_usd` / `modelUsage` / `usage` | ✅ `core.LLMInvocation`（model+provider+**cost(USD)**+prompt/completion/reasoning/**cache** tokens+action）逐调用记录 | 🔴 没接（链路未 record） | **比 SDK `modelUsage` 还细**（带 cache-token 拆分） |
-| `maxBudgetUsd` / `taskBudget` | ✅ `process_budget` 子树聚合 + `BudgetPolicy` 早停 | 🟡 lyra 只有 token ceiling（`MaxBudget`） | 升级成 cost-aware 即对齐 SDK |
+| `maxBudgetUsd` / `taskBudget` | ✅ `process_budget` 子树聚合 + `BudgetPolicy` 早停 | ✅ token + **cost** ceiling（`MaxBudget` / `MaxCostUSD`，`f48c423`） | 已对齐 SDK `maxBudgetUsd`（subtree-inclusive，round-boundary 停） |
 | tool 错误恢复 / `maxTurns` | ✅ `FeedbackOnUnknownTool` / `FeedbackOnEmptyResponse` + max-iter cap | ✅ **接了**（`ActionConfig.ToolLoop`） | lyra 幻觉工具名会自纠不 abort |
 | 结构化 tool 结果 / content blocks | ✅ `ArtifactTool` → `ToolResult{Content, Artifact}`（artifact 不进模型） | 🔴 没用 | 适合产物型工具（diff / 图片 / 结构化数据） |
 | 可观测（usage in result） | ✅ OTel metrics（tick/action/plan/exit 计数+直方图）+ invocation 审计 | 🟡 自动 emit，未专门消费 | **lynx 领先**：production-native，非 result 里塞 usage |
