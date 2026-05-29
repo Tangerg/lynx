@@ -3,11 +3,14 @@ package chat
 import (
 	"context"
 	"strings"
+	"time"
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
+
+	"github.com/Tangerg/lynx/core/model"
 )
 
 // chatTracer is the package-level tracer for chat client span
@@ -159,4 +162,25 @@ func finishChatSpan(span trace.Span, resp *Response, err error) {
 		}
 	}
 	span.End()
+}
+
+// recordChatMetrics emits the GenAI client metrics (token usage +
+// operation duration) for one chat operation. It is the metric companion
+// to [finishChatSpan]: call it once per call/stream, passing the start
+// time captured before [startChatSpan]. Noop until a MeterProvider is
+// configured.
+func recordChatMetrics(ctx context.Context, m Model, req *Request, resp *Response, err error, start time.Time) {
+	dims := model.OperationMetrics{Operation: "chat"}
+	if m != nil {
+		dims.System = strings.ToLower(m.Metadata().Provider)
+	}
+	if req != nil && req.Options != nil {
+		dims.RequestModel = req.Options.Model
+	}
+	var usage *model.Usage
+	if resp != nil && resp.Metadata != nil {
+		dims.ResponseModel = resp.Metadata.Model
+		usage = resp.Metadata.Usage
+	}
+	model.RecordOperationMetrics(ctx, dims, usage, time.Since(start), err)
 }

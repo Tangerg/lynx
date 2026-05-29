@@ -5,6 +5,7 @@ import (
 	"errors"
 	"maps"
 	"slices"
+	"time"
 
 	"github.com/Tangerg/lynx/core/document"
 	"github.com/Tangerg/lynx/core/model"
@@ -153,12 +154,14 @@ func (c *ClientCaller) Response(ctx context.Context) (*Response, error) {
 	if err != nil {
 		return nil, err
 	}
+	start := time.Now()
 	ctx, span := startEmbeddingSpan(ctx, c.request.model, req)
 	resp, err := c.request.
 		MiddlewareManager().
 		BuildCallHandler(c.request.model).
 		Call(ctx, req)
 	finishEmbeddingSpan(span, resp, err)
+	recordEmbeddingMetrics(ctx, c.request.model, req, resp, err, start)
 	return resp, err
 }
 
