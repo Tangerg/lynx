@@ -163,61 +163,84 @@ func (s *inMemory) runTurn(ctx context.Context, st *turnState, req StartTurnRequ
 // listener fired and any race where Done() returned before the
 // platform multicast delivered the terminal event.
 func (s *inMemory) emitTurnEnd(st *turnState, proc engine.ChatProcess, terminal event.Event, runErr error, duration time.Duration, ctxErr error) {
-	switch ev := terminal.(type) {
+	out, _ := proc.Output()
+	plan := terminalPlan(terminal, out, runErr, ctxErr, proc.Status())
+
+	if plan.errMsg != "" {
+		s.emit(st, ErrorEvent{Message: plan.errMsg, Code: plan.errCode})
+	}
+	end := TurnEnd{Reason: plan.reason, Duration: duration}
+	if plan.withUsage {
+		end.TokenUsage = out.Usage
+		end.UsageByModel = out.UsageByModel
+		end.CostUSD = out.CostUSD
+	}
+	s.emit(st, end)
+}
+
+// turnEndPlan is the decision emitTurnEnd derives before emitting: the
+// TurnEnd reason, whether the turn's usage should ride along (only clean
+// / budget-stopped completions carry usage; cancellations and errors
+// don't), and an optional ErrorEvent to emit first.
+type turnEndPlan struct {
+	reason    TurnEndReason
+	withUsage bool
+	errMsg    string // non-empty → emit an ErrorEvent before TurnEnd
+	errCode   string
+}
+
+// terminalPlan maps the captured agent-runtime terminal event onto a
+// turnEndPlan. The lifecycle listener fires terminal events
+// authoritatively (ProcessCompleted / Killed / Failed / Stuck /
+// Terminated), so those drive the decision; the default case is the
+// fallback for stub tests where no listener fired and the race where
+// Done() returned before the platform multicast delivered the event.
+func terminalPlan(terminal event.Event, out engine.ChatOutput, runErr, ctxErr error, status core.AgentProcessStatus) turnEndPlan {
+	switch terminal.(type) {
 	case event.ProcessCompleted:
-		_ = ev
-		out, _ := proc.Output()
-		if out.PlanRejected {
-			// Plan-mode turn the user rejected — no execution happened,
-			// so report a clean cancellation (no usage to attribute).
-			s.emit(st, TurnEnd{Reason: TurnEndCancelled, Duration: duration})
-			return
-		}
-		reason := TurnEndCompleted
-		if out.StoppedOnBudget {
-			// The action returned normally (no error) but stopped early
-			// on the budget ceiling — surface that as the terminal reason
-			// rather than a plain completion.
-			reason = TurnEndBudgetExceeded
-		}
-		s.emit(st, TurnEnd{Reason: reason, Duration: duration, TokenUsage: out.Usage, UsageByModel: out.UsageByModel, CostUSD: out.CostUSD})
+		return completedPlan(out)
 	case event.ProcessKilled, event.ProcessTerminated:
-		_ = ev
-		s.emit(st, TurnEnd{Reason: TurnEndCancelled, Duration: duration})
+		return turnEndPlan{reason: TurnEndCancelled}
 	case event.ProcessFailed:
 		msg := "engine error"
-		if ev.Err != nil {
-			msg = ev.Err.Error()
+		if failed, ok := terminal.(event.ProcessFailed); ok && failed.Err != nil {
+			msg = failed.Err.Error()
 		}
-		s.emit(st, ErrorEvent{Message: msg, Code: "ENGINE_ERROR"})
-		s.emit(st, TurnEnd{Reason: TurnEndErrored, Duration: duration})
+		return turnEndPlan{reason: TurnEndErrored, errMsg: msg, errCode: "ENGINE_ERROR"}
 	case event.ProcessStuck:
-		_ = ev
-		s.emit(st, ErrorEvent{Message: "agent stuck — planner produced no plan", Code: "AGENT_STUCK"})
-		s.emit(st, TurnEnd{Reason: TurnEndErrored, Duration: duration})
+		return turnEndPlan{reason: TurnEndErrored, errMsg: "agent stuck — planner produced no plan", errCode: "AGENT_STUCK"}
 	default:
-		// Listener didn't capture a terminal event — stub tests or
-		// pre-platform race. Fall back to the run-loop signals.
-		if runErr != nil {
-			if proc.Status() == core.StatusKilled || errors.Is(ctxErr, context.Canceled) {
-				s.emit(st, TurnEnd{Reason: TurnEndCancelled, Duration: duration})
-				return
-			}
-			s.emit(st, ErrorEvent{Message: runErr.Error(), Code: "ENGINE_ERROR"})
-			s.emit(st, TurnEnd{Reason: TurnEndErrored, Duration: duration})
-			return
-		}
-		out, _ := proc.Output()
-		if out.PlanRejected {
-			s.emit(st, TurnEnd{Reason: TurnEndCancelled, Duration: duration})
-			return
-		}
-		reason := TurnEndCompleted
-		if out.StoppedOnBudget {
-			reason = TurnEndBudgetExceeded
-		}
-		s.emit(st, TurnEnd{Reason: reason, Duration: duration, TokenUsage: out.Usage, UsageByModel: out.UsageByModel, CostUSD: out.CostUSD})
+		return fallbackPlan(out, runErr, ctxErr, status)
 	}
+}
+
+// completedPlan maps a cleanly-completed turn's output to its reason: a
+// rejected plan is a (usage-free) cancellation, a budget stop is its own
+// reason, otherwise a plain completion. Shared by the ProcessCompleted
+// case and the fallback so the mapping lives in one place.
+func completedPlan(out engine.ChatOutput) turnEndPlan {
+	switch {
+	case out.PlanRejected:
+		return turnEndPlan{reason: TurnEndCancelled}
+	case out.StoppedOnBudget:
+		return turnEndPlan{reason: TurnEndBudgetExceeded, withUsage: true}
+	default:
+		return turnEndPlan{reason: TurnEndCompleted, withUsage: true}
+	}
+}
+
+// fallbackPlan derives the plan from the run-loop signals when no
+// terminal event was captured: a run error is a cancellation (ctx
+// canceled / killed) or an engine error; no error falls back to the
+// same completion mapping the happy path uses.
+func fallbackPlan(out engine.ChatOutput, runErr, ctxErr error, status core.AgentProcessStatus) turnEndPlan {
+	if runErr != nil {
+		if status == core.StatusKilled || errors.Is(ctxErr, context.Canceled) {
+			return turnEndPlan{reason: TurnEndCancelled}
+		}
+		return turnEndPlan{reason: TurnEndErrored, errMsg: runErr.Error(), errCode: "ENGINE_ERROR"}
+	}
+	return completedPlan(out)
 }
 
 // flushSteering writes the turn's queued steering messages to the
