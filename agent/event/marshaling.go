@@ -92,3 +92,34 @@ func (e ActionExecutionResult) MarshalJSON() ([]byte, error) {
 func (e GoalAchieved) MarshalJSON() ([]byte, error) {
 	return emit(e, map[string]any{"goal": summarizeGoal(e.Goal)})
 }
+
+// ------------------------------------------------------------------
+// LLM / embedding invocations
+// ------------------------------------------------------------------
+
+func (e LLMInvocationRecorded) MarshalJSON() ([]byte, error) {
+	inv := e.Invocation
+	return emit(e, map[string]any{
+		"model":             inv.Model,
+		"provider":          inv.Provider,
+		"cost":              inv.Cost,
+		"prompt_tokens":     inv.PromptTokens,
+		"completion_tokens": inv.CompletionTokens,
+		"reasoning_tokens":  inv.ReasoningTokens,
+		"duration_ns":       inv.Duration.Nanoseconds(),
+		"action":            inv.Action,
+	})
+}
+
+func (e EmbeddingInvocationRecorded) MarshalJSON() ([]byte, error) {
+	inv := e.Invocation
+	return emit(e, map[string]any{
+		"model":        inv.Model,
+		"provider":     inv.Provider,
+		"cost":         inv.Cost,
+		"input_tokens": inv.InputTokens,
+		"input_count":  inv.InputCount,
+		"duration_ns":  inv.Duration.Nanoseconds(),
+		"action":       inv.Action,
+	})
+}

@@ -91,11 +91,12 @@ func TestProcessBudget_RecordEmbeddingInvocation(t *testing.T) {
 }
 
 func TestProcessBudget_RecordUsage_AppendsToLLMHistory(t *testing.T) {
-	// The legacy RecordUsage(cost, tokens) shape now appends a
-	// stub LLMInvocation so per-call audit code sees a record even
-	// when the integration layer doesn't know model / provider.
+	// The flat RecordUsage(cost, tokens) shape (now routed through
+	// AgentProcess.RecordUsage → recordLLMInvocation) appends a stub
+	// LLMInvocation so per-call audit code sees a record even when the
+	// integration layer doesn't know model / provider.
 	b := newBudgetForTest()
-	b.recordUsage(0.005, 250)
+	b.recordLLMInvocation(core.LLMInvocation{Cost: 0.005, PromptTokens: 250})
 
 	history := b.llmHistory()
 	if len(history) != 1 {
