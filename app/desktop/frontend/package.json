@@ -61,6 +61,7 @@
     "react-dom": "^19.2.6",
     "react-error-boundary": "^6.1.2",
     "react-i18next": "^17.0.8",
+    "rxjs": "^7.8.1",
     "react-markdown": "^10.1.0",
     "rehype-katex": "^7.0.1",
     "rehype-raw": "^7.0.0",
