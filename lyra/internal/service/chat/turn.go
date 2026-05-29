@@ -103,10 +103,6 @@ func (s *inMemory) runTurn(ctx context.Context, st *turnState, req StartTurnRequ
 		Model: "default", // M1 — engine exposes model name in M2+
 	})
 
-	if req.PlanMode && !s.runPlanMode(ctx, st, req.Message, startedAt) {
-		return
-	}
-
 	observer := &turnObserver{svc: s, st: st}
 	lifecycle := &turnLifecycle{}
 	proc := s.engine.StartChat(ctx, engine.RunChatRequest{
@@ -114,11 +110,34 @@ func (s *inMemory) runTurn(ctx context.Context, st *turnState, req StartTurnRequ
 		Message:       req.Message,
 		MaxBudget:     req.MaxBudget,
 		MaxCostUSD:    req.MaxCostUSD,
+		PlanMode:      req.PlanMode,
 		Observer:      observer,
 		EventListener: lifecycle.listener(st.handle.TurnID),
 	})
 	st.proc = proc
+
+	// Drive the process to a terminal state, pausing at each plan-mode
+	// approval: in plan mode the action drafts a plan, emits it (via the
+	// observer → PlanGenerated), and parks on AwaitInput (StatusWaiting).
+	// We wait for the client's ContinuePlan, resume the SAME process
+	// (approve → execute, reject → PlanRejected output), and loop until
+	// it ends. Plain turns never park, so the loop runs once.
 	runErr := <-proc.Done()
+	for proc.Status() == core.StatusWaiting {
+		decision, ok := st.waitDecision(ctx)
+		if !ok {
+			_ = proc.Cancel("plan approval canceled")
+			s.emit(st, TurnEnd{Reason: TurnEndCancelled, Duration: time.Since(startedAt)})
+			return
+		}
+		resumed, err := proc.Resume(ctx, decision == PlanApprove)
+		if err != nil {
+			s.emit(st, ErrorEvent{Message: err.Error(), Code: "ENGINE_ERROR"})
+			s.emit(st, TurnEnd{Reason: TurnEndErrored, Duration: time.Since(startedAt)})
+			return
+		}
+		runErr = <-resumed
+	}
 
 	// Drain any steering the client injected during the turn so it
 	// lands in conversation history BEFORE post-turn maintenance —
@@ -148,10 +167,16 @@ func (s *inMemory) emitTurnEnd(st *turnState, proc engine.ChatProcess, terminal 
 	case event.ProcessCompleted:
 		_ = ev
 		out, _ := proc.Output()
+		if out.PlanRejected {
+			// Plan-mode turn the user rejected — no execution happened,
+			// so report a clean cancellation (no usage to attribute).
+			s.emit(st, TurnEnd{Reason: TurnEndCancelled, Duration: duration})
+			return
+		}
 		reason := TurnEndCompleted
 		if out.StoppedOnBudget {
 			// The action returned normally (no error) but stopped early
-			// on the token ceiling — surface that as the terminal reason
+			// on the budget ceiling — surface that as the terminal reason
 			// rather than a plain completion.
 			reason = TurnEndBudgetExceeded
 		}
@@ -183,54 +208,16 @@ func (s *inMemory) emitTurnEnd(st *turnState, proc engine.ChatProcess, terminal 
 			return
 		}
 		out, _ := proc.Output()
+		if out.PlanRejected {
+			s.emit(st, TurnEnd{Reason: TurnEndCancelled, Duration: duration})
+			return
+		}
 		reason := TurnEndCompleted
 		if out.StoppedOnBudget {
 			reason = TurnEndBudgetExceeded
 		}
 		s.emit(st, TurnEnd{Reason: reason, Duration: duration, TokenUsage: out.Usage, UsageByModel: out.UsageByModel, CostUSD: out.CostUSD})
 	}
-}
-
-// runPlanMode handles the plan-mode pre-flight: ask the LLM for a
-// plan, emit it, then wait for the user's Approve / Reject.
-// Returns true when execution should proceed (Approve, or NO_PLAN
-// short-circuit). Returns false when the turn is over — the
-// function has already emitted the appropriate TurnEnd /
-// ErrorEvent before returning.
-//
-// Lives as a method so it shares the runTurn defer (cleanup +
-// channel close) without duplicating it.
-func (s *inMemory) runPlanMode(ctx context.Context, st *turnState, message string, startedAt time.Time) bool {
-	plan, err := s.engine.GeneratePlan(ctx, message)
-	if err != nil {
-		s.emit(st, ErrorEvent{
-			Message: "plan generation failed: " + err.Error(),
-			Code:    "PLANNING_ERROR",
-		})
-		s.emit(st, TurnEnd{
-			Reason:   TurnEndErrored,
-			Duration: time.Since(startedAt),
-		})
-		return false
-	}
-	// Trivial requests (NO_PLAN → empty plan) skip approval and
-	// fall through to direct execution.
-	if plan == "" {
-		return true
-	}
-
-	s.emit(st, PlanGenerated{
-		Plan: plan,
-	})
-	decision, ok := st.waitDecision(ctx)
-	if !ok || decision == PlanReject {
-		s.emit(st, TurnEnd{
-			Reason:   TurnEndCancelled,
-			Duration: time.Since(startedAt),
-		})
-		return false
-	}
-	return true
 }
 
 // flushSteering writes the turn's queued steering messages to the

@@ -6,6 +6,7 @@ import (
 
 	"github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/core"
+	"github.com/Tangerg/lynx/agent/hitl"
 	"github.com/Tangerg/lynx/core/model/chat"
 )
 
@@ -27,6 +28,13 @@ type ChatInput struct {
 	// cap. Requires a [Config.Pricing] hook — without one cost stays 0
 	// and this never trips. Either ceiling stops the turn.
 	MaxCostUSD float64
+
+	// PlanMode runs the turn behind plan approval: the action drafts a
+	// plan, parks on [core.ProcessContext.AwaitInput] (→ StatusWaiting,
+	// persisted), and only executes once the process is resumed with an
+	// approval. A rejected plan returns [ChatOutput.PlanRejected]; a
+	// trivial request (planner returns NO_PLAN) executes without parking.
+	PlanMode bool
 }
 
 // ChatOutput is the typed output of one turn. Reply is the assistant's
@@ -54,6 +62,10 @@ type ChatOutput struct {
 	// [ChatInput.MaxBudget] rather than the model finishing. Reply
 	// holds whatever text accumulated up to the stop.
 	StoppedOnBudget bool
+
+	// PlanRejected is true when a plan-mode turn ended because the user
+	// rejected the proposed plan (no execution happened). Reply is empty.
+	PlanRejected bool
 }
 
 // TokenUsage is a token roll-up. ReasoningTokens is the chain-of-thought
@@ -110,6 +122,12 @@ func (e *Engine) buildChatAgent() *core.Agent {
 		Description("single-turn LLM chat with the default coding tool set").
 		Actions(agent.NewAction("chat",
 			func(ctx context.Context, pc *core.ProcessContext, in ChatInput) (ChatOutput, error) {
+				if in.PlanMode {
+					out, done, err := e.planGate(ctx, pc, in.Message)
+					if err != nil || done {
+						return out, err
+					}
+				}
 				return e.runChatTurn(ctx, pc, in.Message, turnBudget{MaxTokens: in.MaxBudget, MaxCostUSD: in.MaxCostUSD})
 			},
 			core.ActionConfig{
@@ -176,6 +194,50 @@ func (e *Engine) buildSubtaskAgent() *core.Agent {
 // nudge) instead of aborting. No-op on a well-behaved turn.
 func recoverToolLoop() chat.ToolLoopConfig {
 	return chat.ToolLoopConfig{FeedbackOnUnknownTool: true, FeedbackOnEmptyResponse: true}
+}
+
+// planApprovedKey is the blackboard condition the plan-mode approval
+// writes (true = approved, false = rejected). Its presence is also the
+// "already decided" signal — see planGate.
+const planApprovedKey = "lyra.plan.approved"
+
+// planGate is the plan-mode pre-flight, run INSIDE the agent process so
+// the pause is a real [core.StatusWaiting] the runtime can persist /
+// resume (vs. an out-of-process channel). It returns:
+//
+//   - done=false: proceed to execute (the plan was approved on a prior
+//     tick, or the request is trivial — planner returned NO_PLAN).
+//   - done=true, zero output: the process just parked on AwaitInput; the
+//     typed-action wrapper turns the unproduced output into ActionWaiting.
+//   - done=true, PlanRejected output: the user rejected the plan.
+//
+// On the first tick the blackboard carries no decision, so it drafts a
+// plan, emits it to the observer, and parks. ResumeProcess(approved)
+// writes the decision and re-runs the action, which now sees it.
+func (e *Engine) planGate(ctx context.Context, pc *core.ProcessContext, message string) (ChatOutput, bool, error) {
+	if approved, decided := pc.Blackboard.Condition(planApprovedKey); decided {
+		if !approved {
+			return ChatOutput{PlanRejected: true}, true, nil
+		}
+		return ChatOutput{}, false, nil // approved → execute
+	}
+
+	plan, err := e.planner.Plan(ctx, e.SystemPrompt(ctx), message)
+	if err != nil {
+		return ChatOutput{}, false, err
+	}
+	if plan == "" {
+		return ChatOutput{}, false, nil // NO_PLAN → execute directly, no approval
+	}
+
+	if obs := ObserverFrom(pc.Options); obs != nil {
+		obs.OnPlanGenerated(plan)
+	}
+	pc.AwaitInput(hitl.NewConfirmation(plan, func(approved bool) core.ResponseImpact {
+		pc.Blackboard.SetCondition(planApprovedKey, approved)
+		return core.ImpactUpdated
+	}))
+	return ChatOutput{}, true, nil // suspends; typed wrapper → ActionWaiting
 }
 
 // runChatTurn drives one streaming chat turn end-to-end: compose the

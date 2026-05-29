@@ -556,6 +556,7 @@ type recordingObserver struct {
 	startList []startCall
 	endList   []endCall
 	deltaList []string
+	planList  []string
 }
 
 func (r *recordingObserver) OnToolCallApprove(_ context.Context, _, _, _ string) error {
@@ -584,6 +585,14 @@ func (r *recordingObserver) OnMessageDelta(text string) {
 // streams aren't asserted at the engine level. Lyra-level tests
 // in chat/impl_test.go cover the propagation path.
 func (r *recordingObserver) OnReasoningDelta(_ string) {}
+
+// OnPlanGenerated records the drafted plan so plan-mode tests can assert
+// it fired before the process parked on approval.
+func (r *recordingObserver) OnPlanGenerated(plan string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.planList = append(r.planList, plan)
+}
 
 func (r *recordingObserver) starts() []startCall {
 	r.mu.Lock()

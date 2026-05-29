@@ -54,6 +54,17 @@ func (cp *stubChatProcess) Cancel(reason string) error {
 	return nil
 }
 
+// Resume exists to satisfy engine.ChatProcess. Stubs never park on plan
+// approval (Status stays Completed), so runTurn's resume loop doesn't
+// call this — the real plan-mode path is covered by buildPlanService's
+// real-engine tests. Returns an already-fired done for safety.
+func (cp *stubChatProcess) Resume(_ context.Context, _ bool) (<-chan error, error) {
+	ch := make(chan error, 1)
+	ch <- nil
+	close(ch)
+	return ch, nil
+}
+
 // stubEngine satisfies chat.Engine without touching the real
 // platform / chat-memory / MCP wiring. Existence proves the chat
 // service does not depend on *engine.Engine directly — only on
@@ -73,10 +84,6 @@ func (s *stubEngine) StartChat(_ context.Context, req engine.RunChatRequest) eng
 		Reply:           s.runReply,
 		StoppedOnBudget: s.stopOnBudget,
 	})
-}
-
-func (s *stubEngine) GeneratePlan(_ context.Context, _ string) (string, error) {
-	return "", nil
 }
 
 func (s *stubEngine) InjectUserMessage(_ context.Context, _, _ string) error { return nil }

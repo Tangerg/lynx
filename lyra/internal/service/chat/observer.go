@@ -110,3 +110,12 @@ func (t *turnObserver) OnReasoningDelta(text string) {
 		Text: text,
 	})
 }
+
+// OnPlanGenerated forwards the plan the agent drafted (plan mode) as a
+// [PlanGenerated] event, just before the process parks on approval. The
+// client renders it and replies via [Service.ContinuePlan].
+func (t *turnObserver) OnPlanGenerated(plan string) {
+	t.svc.emit(t.st, PlanGenerated{
+		Plan: plan,
+	})
+}
