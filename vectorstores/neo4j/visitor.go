@@ -80,6 +80,8 @@ func (v *Visitor) visit(expr ast.Expr) error {
 
 func (v *Visitor) visitBinaryExpr(expr *ast.BinaryExpr) error {
 	switch {
+	case expr.Op.Kind.IsNullOperator():
+		return v.visitNullTestExpr(expr)
 	case expr.Op.Kind.IsLogicalOperator():
 		return v.visitLogicalExpr(expr)
 	case expr.Op.Kind.Is(token.IN):
@@ -216,6 +218,24 @@ func (v *Visitor) visitLikeExpr(expr *ast.BinaryExpr) error {
 	v.sql.WriteString(prop)
 	v.sql.WriteString(" =~ ")
 	v.sql.WriteString(param)
+	return nil
+}
+
+// visitNullTestExpr emits `(node.`+"`metadata.key`"+` IS NULL)`. Cypher's
+// IS NULL is true both when the property is absent and when it is
+// explicitly null, matching the inmemory reference semantics. The
+// negated `IS NOT NULL` arrives as NOT(… IS NULL) and is rendered by
+// visitUnaryExpr as `NOT (… IS NULL)`, which Cypher treats as
+// equivalent, so no separate handling is needed here. No bound
+// parameter — `IS NULL` is inline in Cypher.
+func (v *Visitor) visitNullTestExpr(expr *ast.BinaryExpr) error {
+	prop, err := v.propertyAccess(expr.Left)
+	if err != nil {
+		return fmt.Errorf("neo4j: %w (at %s)", err, expr.Start().String())
+	}
+	v.sql.WriteString("(")
+	v.sql.WriteString(prop)
+	v.sql.WriteString(" IS NULL)")
 	return nil
 }
 

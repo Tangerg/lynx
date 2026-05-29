@@ -35,6 +35,8 @@ const (
 	NOT            // Logical NOT.
 	IN             // Membership: x IN (...).
 	LIKE           // Pattern match: x LIKE 'foo%'.
+	IS             // Null test: x IS NULL / x IS NOT NULL.
+	NULL           // Null keyword (only valid as the right operand of IS).
 	LPAREN         // Left paren: (
 	RPAREN         // Right paren: )
 	LBRACK         // Left bracket: [
@@ -56,6 +58,7 @@ const (
 	catLogicalOp                       // AND, OR.
 	catMatchingOp                      // IN, LIKE.
 	catUnaryOp                         // NOT.
+	catNullOp                          // IS (null test).
 	catDelimiter                       // (, ), [, ], comma.
 )
 
@@ -86,6 +89,11 @@ var kindMetadata = [...]*struct {
 	NOT:    {Name: "NOT", Literal: "not", IsKeyword: true, Precedence: PrecedenceNOT, Categories: catUnaryOp},
 	IN:     {Name: "IN", Literal: "in", IsKeyword: true, Precedence: PrecedenceMatch, Categories: catMatchingOp},
 	LIKE:   {Name: "LIKE", Literal: "like", IsKeyword: true, Precedence: PrecedenceMatch, Categories: catMatchingOp},
+	IS:     {Name: "IS", Literal: "is", IsKeyword: true, Precedence: PrecedenceCMP, Categories: catNullOp},
+	// NULL is a reserved keyword so the lexer doesn't treat "null" as a
+	// field identifier; it carries no category (not a literal), so it is
+	// only ever consumed as the right operand of IS.
+	NULL:   {Name: "NULL", Literal: "null", IsKeyword: true},
 	LPAREN: {Name: "LPAREN", Literal: "(", Categories: catDelimiter},
 	RPAREN: {Name: "RPAREN", Literal: ")", Categories: catDelimiter},
 	LBRACK: {Name: "LBRACK", Literal: "[", Precedence: PrecedenceIndex, Categories: catDelimiter},
@@ -179,10 +187,13 @@ func (k Kind) IsLogicalOperator() bool { return k.hasCategory(catLogicalOp) }
 // IsMatchingOperator reports whether the kind is IN or LIKE.
 func (k Kind) IsMatchingOperator() bool { return k.hasCategory(catMatchingOp) }
 
+// IsNullOperator reports whether the kind is the IS null-test operator.
+func (k Kind) IsNullOperator() bool { return k.hasCategory(catNullOp) }
+
 // IsBinaryOperator reports whether the kind takes two operands —
-// comparison, logical, or matching.
+// comparison, logical, matching, or null-test (IS).
 func (k Kind) IsBinaryOperator() bool {
-	return k.hasCategory(catEqualityOp | catOrderingOp | catLogicalOp | catMatchingOp)
+	return k.hasCategory(catEqualityOp | catOrderingOp | catLogicalOp | catMatchingOp | catNullOp)
 }
 
 // IsUnaryOperator reports whether the kind takes one operand — only
@@ -192,7 +203,7 @@ func (k Kind) IsUnaryOperator() bool { return k.hasCategory(catUnaryOp) }
 // IsOperator reports whether the kind is any operator (unary or
 // binary).
 func (k Kind) IsOperator() bool {
-	return k.hasCategory(catEqualityOp | catOrderingOp | catLogicalOp | catMatchingOp | catUnaryOp)
+	return k.hasCategory(catEqualityOp | catOrderingOp | catLogicalOp | catMatchingOp | catUnaryOp | catNullOp)
 }
 
 // IsDelimiter reports whether the kind is structural punctuation —

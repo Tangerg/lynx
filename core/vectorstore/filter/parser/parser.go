@@ -88,6 +88,7 @@ func NewParser[I string | *lexer.Lexer](input I) (*Parser, error) {
 	p.addInfixHandler(token.GE, p.parseBinaryExpr)
 	p.addInfixHandler(token.IN, p.parseBinaryExpr)
 	p.addInfixHandler(token.LIKE, p.parseBinaryExpr)
+	p.addInfixHandler(token.IS, p.parseIsExpr)
 
 	// Grouping / indexing.
 	p.addPrefixHandler(token.LPAREN, p.parseParen)
@@ -421,6 +422,44 @@ func (p *Parser) parseBinaryExpr(left ast.Expr) (ast.Expr, error) {
 		Op:    op,
 		Right: right,
 	}, nil
+}
+
+// parseIsExpr handles the postfix null test `<field> IS NULL` and
+// `<field> IS NOT NULL`. It deliberately reuses existing AST shapes:
+// the test is an [ast.BinaryExpr] with the IS operator and a NULL
+// literal on the right, and the negated form wraps that in the existing
+// NOT [ast.UnaryExpr] — so every backend's NOT handling renders
+// `NOT (x IS NULL)` as `x IS NOT NULL` without a dedicated node.
+func (p *Parser) parseIsExpr(left ast.Expr) (ast.Expr, error) {
+	isTok, err := p.expectKind(token.IS)
+	if err != nil {
+		return nil, fmt.Errorf("parser.parseIsExpr: %w", err)
+	}
+
+	var notTok token.Token
+	negated := false
+	if p.currentToken.Kind.Is(token.NOT) {
+		notTok, err = p.expectKind(token.NOT)
+		if err != nil {
+			return nil, fmt.Errorf("parser.parseIsExpr: %w", err)
+		}
+		negated = true
+	}
+
+	nullTok, err := p.expectKind(token.NULL)
+	if err != nil {
+		return nil, fmt.Errorf("parser.parseIsExpr: expected NULL after IS: %w", err)
+	}
+
+	test := &ast.BinaryExpr{
+		Left:  left,
+		Op:    isTok,
+		Right: &ast.Literal{Token: nullTok, Value: nullTok.Literal},
+	}
+	if !negated {
+		return test, nil
+	}
+	return &ast.UnaryExpr{Op: notTok, Right: test}, nil
 }
 
 // parseIndexExpr handles `expr[index]`. The index must be a

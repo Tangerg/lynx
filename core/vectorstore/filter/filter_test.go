@@ -75,3 +75,30 @@ func TestParse_ErrorMessageNonempty(t *testing.T) {
 		t.Fatal("error message should be non-empty")
 	}
 }
+
+func TestParseAndAnalyze_IsNull(t *testing.T) {
+	for _, src := range []string{
+		`owner is null`,
+		`owner is not null`,
+		`metadata['k'] is null`,
+		`a is null and b == 1`,
+	} {
+		if _, err := filter.ParseAndAnalyze(src); err != nil {
+			t.Fatalf("ParseAndAnalyze(%q): unexpected error %v", src, err)
+		}
+	}
+}
+
+func TestParseAndAnalyze_IsNullRejectsNonNull(t *testing.T) {
+	// IS must be followed by NULL (optionally NOT NULL); other right
+	// sides are rejected at parse time.
+	for _, src := range []string{
+		`owner is 5`,
+		`owner is 'x'`,
+		`owner is`,
+	} {
+		if _, err := filter.ParseAndAnalyze(src); err == nil {
+			t.Fatalf("ParseAndAnalyze(%q): expected error, got nil", src)
+		}
+	}
+}

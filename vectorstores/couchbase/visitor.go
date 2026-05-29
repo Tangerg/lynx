@@ -62,6 +62,9 @@ func (v *Visitor) visit(expr ast.Expr) error {
 
 	switch node := expr.(type) {
 	case *ast.BinaryExpr:
+		if node.Op.Kind.IsNullOperator() {
+			return v.visitNullTestExpr(node)
+		}
 		return v.visitBinaryExpr(node)
 	case *ast.UnaryExpr:
 		return v.visitUnaryExpr(node)
@@ -189,6 +192,23 @@ func (v *Visitor) visitLikeExpr(expr *ast.BinaryExpr) error {
 	v.sql.WriteString(field)
 	v.sql.WriteString(" LIKE ")
 	v.sql.WriteString(jsonValue(pattern))
+	return nil
+}
+
+// visitNullTestExpr emits `(<path> IS NULL)`. In SQL++ a path that
+// resolves to JSON null is IS NULL; an absent key resolves to MISSING,
+// which IS NULL also matches in the FTS/N1QL evaluation used here,
+// mirroring the inmemory reference semantics. The negated IS NOT NULL
+// arrives as NOT(<path> IS NULL) and is rendered by visitUnaryExpr, so
+// no separate handling is needed here. No bound parameter is required.
+func (v *Visitor) visitNullTestExpr(expr *ast.BinaryExpr) error {
+	field, err := v.fieldPath(expr.Left)
+	if err != nil {
+		return fmt.Errorf("couchbase: %w (at %s)", err, expr.Start().String())
+	}
+	v.sql.WriteString("(")
+	v.sql.WriteString(field)
+	v.sql.WriteString(" IS NULL)")
 	return nil
 }
 
