@@ -1,0 +1,27 @@
+{
+  "provider": "groq",
+  "models": [
+    {
+      "id": "moonshotai/kimi-k2-instruct-0905",
+      "display_name": "Kimi K2 0905",
+      "pricing": {
+        "input_per_1m": 1,
+        "output_per_1m": 3,
+        "cache_read_per_1m": 0.5
+      },
+      "can_reason": true,
+      "context_window": 131072,
+      "max_tokens": 10000
+    },
+    {
+      "id": "qwen/qwen3-32b",
+      "display_name": "Qwen3 32B",
+      "pricing": {
+        "input_per_1m": 0.29,
+        "output_per_1m": 0.59
+      },
+      "context_window": 131072,
+      "max_tokens": 10000
+    }
+  ]
+}
