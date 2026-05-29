@@ -165,8 +165,24 @@ export function makeFilteredStream<T, P>(
     else spec.signal.addEventListener("abort", onAbort, { once: true });
   }
 
-  // Wrap the channel iterator so cleanup (unsubscribe, abort listener)
-  // happens when the consumer exits via for-await break or .return().
+  // Drop the client subscriptions + abort listener. Idempotent so it's
+  // safe to call from both exit paths below.
+  let cleanedUp = false;
+  const cleanup = (): void => {
+    if (cleanedUp) return;
+    cleanedUp = true;
+    unsubEvent();
+    unsubClosed();
+    if (spec.signal) spec.signal.removeEventListener("abort", onAbort);
+  };
+
+  // Wrap the channel iterator so cleanup runs on BOTH consumer exit paths:
+  //   - early break / throw   → `for await` calls return()
+  //   - natural completion     → channel closes (isTerminal / closedMethod /
+  //                              abort), next() resolves done=true, and the
+  //                              loop ends WITHOUT calling return().
+  // Only handling return() leaked the run-event / run-closed subscribers in
+  // the client's map for every run that finished normally (the common case).
   return {
     [Symbol.asyncIterator]() {
       const inner = channel.iterator();
@@ -174,12 +190,14 @@ export function makeFilteredStream<T, P>(
         [Symbol.asyncIterator]() {
           return this;
         },
-        next: () => inner.next(),
+        next: async (): Promise<IteratorResult<T>> => {
+          const result = await inner.next();
+          if (result.done) cleanup();
+          return result;
+        },
         return: async (): Promise<IteratorResult<T>> => {
           channel.close();
-          unsubEvent();
-          unsubClosed();
-          if (spec.signal) spec.signal.removeEventListener("abort", onAbort);
+          cleanup();
           return { value: undefined as never, done: true };
         },
       };
