@@ -13,8 +13,10 @@
           "text"
         ]
       },
-      "context_window": 4096,
-      "max_output_tokens": 4096
+      "limits": {
+        "context_window": 4096,
+        "max_output_tokens": 4096
+      }
     },
     {
       "id": "deepseek-r1-distill-llama-70b",
@@ -36,8 +38,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 131072,
-      "max_output_tokens": 8192
+      "limits": {
+        "context_window": 131072,
+        "max_output_tokens": 8192
+      }
     },
     {
       "id": "gemma2-9b-it",
@@ -56,8 +60,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 8192,
-      "max_output_tokens": 8192
+      "limits": {
+        "context_window": 8192,
+        "max_output_tokens": 8192
+      }
     },
     {
       "id": "groq/compound",
@@ -75,8 +81,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 131072,
-      "max_output_tokens": 8192
+      "limits": {
+        "context_window": 131072,
+        "max_output_tokens": 8192
+      }
     },
     {
       "id": "groq/compound-mini",
@@ -94,8 +102,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 131072,
-      "max_output_tokens": 8192
+      "limits": {
+        "context_window": 131072,
+        "max_output_tokens": 8192
+      }
     },
     {
       "id": "llama-3.1-8b-instant",
@@ -114,8 +124,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 131072,
-      "max_output_tokens": 131072
+      "limits": {
+        "context_window": 131072,
+        "max_output_tokens": 131072
+      }
     },
     {
       "id": "llama-3.3-70b-versatile",
@@ -134,8 +146,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 131072,
-      "max_output_tokens": 32768
+      "limits": {
+        "context_window": 131072,
+        "max_output_tokens": 32768
+      }
     },
     {
       "id": "llama-guard-3-8b",
@@ -152,8 +166,10 @@
           "text"
         ]
       },
-      "context_window": 8192,
-      "max_output_tokens": 8192
+      "limits": {
+        "context_window": 8192,
+        "max_output_tokens": 8192
+      }
     },
     {
       "id": "llama3-70b-8192",
@@ -172,8 +188,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 8192,
-      "max_output_tokens": 8192
+      "limits": {
+        "context_window": 8192,
+        "max_output_tokens": 8192
+      }
     },
     {
       "id": "llama3-8b-8192",
@@ -192,8 +210,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 8192,
-      "max_output_tokens": 8192
+      "limits": {
+        "context_window": 8192,
+        "max_output_tokens": 8192
+      }
     },
     {
       "id": "meta-llama/llama-4-maverick-17b-128e-instruct",
@@ -214,8 +234,10 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 131072,
-      "max_output_tokens": 8192
+      "limits": {
+        "context_window": 131072,
+        "max_output_tokens": 8192
+      }
     },
     {
       "id": "meta-llama/llama-4-scout-17b-16e-instruct",
@@ -236,8 +258,10 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 131072,
-      "max_output_tokens": 8192
+      "limits": {
+        "context_window": 131072,
+        "max_output_tokens": 8192
+      }
     },
     {
       "id": "meta-llama/llama-guard-4-12b",
@@ -255,8 +279,10 @@
           "text"
         ]
       },
-      "context_window": 131072,
-      "max_output_tokens": 1024
+      "limits": {
+        "context_window": 131072,
+        "max_output_tokens": 1024
+      }
     },
     {
       "id": "meta-llama/llama-prompt-guard-2-22m",
@@ -274,8 +300,10 @@
           "text"
         ]
       },
-      "context_window": 512,
-      "max_output_tokens": 512
+      "limits": {
+        "context_window": 512,
+        "max_output_tokens": 512
+      }
     },
     {
       "id": "meta-llama/llama-prompt-guard-2-86m",
@@ -293,8 +321,10 @@
           "text"
         ]
       },
-      "context_window": 512,
-      "max_output_tokens": 512
+      "limits": {
+        "context_window": 512,
+        "max_output_tokens": 512
+      }
     },
     {
       "id": "mistral-saba-24b",
@@ -313,8 +343,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 32768,
-      "max_output_tokens": 32768
+      "limits": {
+        "context_window": 32768,
+        "max_output_tokens": 32768
+      }
     },
     {
       "id": "moonshotai/kimi-k2-instruct",
@@ -333,8 +365,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 131072,
-      "max_output_tokens": 16384
+      "limits": {
+        "context_window": 131072,
+        "max_output_tokens": 16384
+      }
     },
     {
       "id": "moonshotai/kimi-k2-instruct-0905",
@@ -355,8 +389,10 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 262144,
-      "max_output_tokens": 16384
+      "limits": {
+        "context_window": 262144,
+        "max_output_tokens": 16384
+      }
     },
     {
       "id": "openai/gpt-oss-120b",
@@ -379,8 +415,10 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 131072,
-      "max_output_tokens": 65536
+      "limits": {
+        "context_window": 131072,
+        "max_output_tokens": 65536
+      }
     },
     {
       "id": "openai/gpt-oss-20b",
@@ -403,8 +441,10 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 131072,
-      "max_output_tokens": 65536
+      "limits": {
+        "context_window": 131072,
+        "max_output_tokens": 65536
+      }
     },
     {
       "id": "openai/gpt-oss-safeguard-20b",
@@ -426,8 +466,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 131072,
-      "max_output_tokens": 65536
+      "limits": {
+        "context_window": 131072,
+        "max_output_tokens": 65536
+      }
     },
     {
       "id": "qwen-qwq-32b",
@@ -449,8 +491,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 131072,
-      "max_output_tokens": 16384
+      "limits": {
+        "context_window": 131072,
+        "max_output_tokens": 16384
+      }
     },
     {
       "id": "qwen/qwen3-32b",
@@ -472,8 +516,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 131072,
-      "max_output_tokens": 40960
+      "limits": {
+        "context_window": 131072,
+        "max_output_tokens": 40960
+      }
     },
     {
       "id": "whisper-large-v3",
@@ -487,8 +533,10 @@
           "text"
         ]
       },
-      "context_window": 448,
-      "max_output_tokens": 448
+      "limits": {
+        "context_window": 448,
+        "max_output_tokens": 448
+      }
     },
     {
       "id": "whisper-large-v3-turbo",
@@ -502,8 +550,10 @@
           "text"
         ]
       },
-      "context_window": 448,
-      "max_output_tokens": 448
+      "limits": {
+        "context_window": 448,
+        "max_output_tokens": 448
+      }
     }
   ]
 }

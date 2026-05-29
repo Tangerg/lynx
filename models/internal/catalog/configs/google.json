@@ -24,8 +24,10 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 1048576,
-      "max_output_tokens": 8192
+      "limits": {
+        "context_window": 1048576,
+        "max_output_tokens": 8192
+      }
     },
     {
       "id": "gemini-2.0-flash-lite",
@@ -49,8 +51,10 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 1048576,
-      "max_output_tokens": 8192
+      "limits": {
+        "context_window": 1048576,
+        "max_output_tokens": 8192
+      }
     },
     {
       "id": "gemini-2.5-flash",
@@ -78,8 +82,10 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 1048576,
-      "max_output_tokens": 65536
+      "limits": {
+        "context_window": 1048576,
+        "max_output_tokens": 65536
+      }
     },
     {
       "id": "gemini-2.5-flash-image",
@@ -103,8 +109,10 @@
           "image"
         ]
       },
-      "context_window": 32768,
-      "max_output_tokens": 32768
+      "limits": {
+        "context_window": 32768,
+        "max_output_tokens": 32768
+      }
     },
     {
       "id": "gemini-2.5-flash-lite",
@@ -132,8 +140,10 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 1048576,
-      "max_output_tokens": 65536
+      "limits": {
+        "context_window": 1048576,
+        "max_output_tokens": 65536
+      }
     },
     {
       "id": "gemini-2.5-pro",
@@ -161,8 +171,10 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 1048576,
-      "max_output_tokens": 65536
+      "limits": {
+        "context_window": 1048576,
+        "max_output_tokens": 65536
+      }
     },
     {
       "id": "gemini-3-flash-preview",
@@ -197,8 +209,10 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 1048576,
-      "max_output_tokens": 65536
+      "limits": {
+        "context_window": 1048576,
+        "max_output_tokens": 65536
+      }
     },
     {
       "id": "gemini-3-pro-preview",
@@ -231,8 +245,10 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 1048576,
-      "max_output_tokens": 65536
+      "limits": {
+        "context_window": 1048576,
+        "max_output_tokens": 65536
+      }
     },
     {
       "id": "gemini-3.1-flash-image-preview",
@@ -256,8 +272,10 @@
           "image"
         ]
       },
-      "context_window": 65536,
-      "max_output_tokens": 65536
+      "limits": {
+        "context_window": 65536,
+        "max_output_tokens": 65536
+      }
     },
     {
       "id": "gemini-3.1-flash-lite",
@@ -285,8 +303,10 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 1048576,
-      "max_output_tokens": 65536
+      "limits": {
+        "context_window": 1048576,
+        "max_output_tokens": 65536
+      }
     },
     {
       "id": "gemini-3.1-flash-lite-preview",
@@ -314,8 +334,10 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 1048576,
-      "max_output_tokens": 65536
+      "limits": {
+        "context_window": 1048576,
+        "max_output_tokens": 65536
+      }
     },
     {
       "id": "gemini-3.1-pro-preview",
@@ -343,8 +365,10 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 1048576,
-      "max_output_tokens": 65536
+      "limits": {
+        "context_window": 1048576,
+        "max_output_tokens": 65536
+      }
     },
     {
       "id": "gemini-3.1-pro-preview-customtools",
@@ -378,8 +402,10 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 1048576,
-      "max_output_tokens": 65536
+      "limits": {
+        "context_window": 1048576,
+        "max_output_tokens": 65536
+      }
     },
     {
       "id": "gemini-3.5-flash",
@@ -414,8 +440,10 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 1048576,
-      "max_output_tokens": 65536
+      "limits": {
+        "context_window": 1048576,
+        "max_output_tokens": 65536
+      }
     },
     {
       "id": "gemini-flash-latest",
@@ -443,8 +471,10 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 1048576,
-      "max_output_tokens": 65536
+      "limits": {
+        "context_window": 1048576,
+        "max_output_tokens": 65536
+      }
     },
     {
       "id": "gemini-flash-lite-latest",
@@ -472,8 +502,10 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 1048576,
-      "max_output_tokens": 65536
+      "limits": {
+        "context_window": 1048576,
+        "max_output_tokens": 65536
+      }
     },
     {
       "id": "gemma-4-26b-a4b-it",
@@ -492,8 +524,10 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 262144,
-      "max_output_tokens": 32768
+      "limits": {
+        "context_window": 262144,
+        "max_output_tokens": 32768
+      }
     },
     {
       "id": "gemma-4-31b-it",
@@ -512,8 +546,10 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 262144,
-      "max_output_tokens": 32768
+      "limits": {
+        "context_window": 262144,
+        "max_output_tokens": 32768
+      }
     }
   ]
 }

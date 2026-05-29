@@ -64,17 +64,9 @@ type ModelInfo struct {
 
 	// --- limits ---
 
-	// ContextWindow is the maximum total context size in tokens
-	// (0 = unknown).
-	ContextWindow int64 `json:"context_window,omitempty"`
-
-	// MaxInputTokens is the maximum prompt size in tokens, when the
-	// provider caps it separately from the context window (0 = unknown).
-	MaxInputTokens int64 `json:"max_input_tokens,omitempty"`
-
-	// MaxOutputTokens is the maximum completion size in tokens
-	// (0 = unknown).
-	MaxOutputTokens int64 `json:"max_output_tokens,omitempty"`
+	// Limits is the model's token limits (context window, max input /
+	// output), zero (IsZero) when unknown.
+	Limits Limits `json:"limits,omitzero"`
 }
 
 // IsZero reports whether no model info is set. (Spelled out rather than
@@ -82,8 +74,7 @@ type ModelInfo struct {
 func (m ModelInfo) IsZero() bool {
 	return m.ID == "" && m.DisplayName == "" && m.KnowledgeCutoff == "" &&
 		m.Pricing.IsZero() && m.Reasoning.IsZero() && m.Modalities.IsZero() &&
-		!m.ToolCall && !m.StructuredOutput &&
-		m.ContextWindow == 0 && m.MaxInputTokens == 0 && m.MaxOutputTokens == 0
+		!m.ToolCall && !m.StructuredOutput && m.Limits.IsZero()
 }
 
 // Pricing is a chat model's per-token rate card, expressed (like the
@@ -184,6 +175,24 @@ type Reasoning struct {
 func (r Reasoning) IsZero() bool {
 	return !r.Supported && len(r.Levels) == 0 && r.DefaultLevel == ""
 }
+
+// Limits is a chat model's token limits. Like [Pricing] / [Reasoning] /
+// [Modalities], it's a value type with an [IsZero] check and nests inside
+// [ModelInfo]. A zero field means "unknown", not "unlimited".
+type Limits struct {
+	// ContextWindow is the maximum total context size in tokens.
+	ContextWindow int64 `json:"context_window,omitempty"`
+
+	// MaxInputTokens is the maximum prompt size in tokens, when the
+	// provider caps it separately from the context window.
+	MaxInputTokens int64 `json:"max_input_tokens,omitempty"`
+
+	// MaxOutputTokens is the maximum completion size in tokens.
+	MaxOutputTokens int64 `json:"max_output_tokens,omitempty"`
+}
+
+// IsZero reports whether no limits are known.
+func (l Limits) IsZero() bool { return l == Limits{} }
 
 // Modality is a media type a model takes as input or produces as output.
 type Modality string

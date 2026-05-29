@@ -20,8 +20,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 2000000,
-      "max_output_tokens": 30000
+      "limits": {
+        "context_window": 2000000,
+        "max_output_tokens": 30000
+      }
     },
     {
       "id": "grok-4.20-0309-reasoning",
@@ -45,8 +47,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 2000000,
-      "max_output_tokens": 30000
+      "limits": {
+        "context_window": 2000000,
+        "max_output_tokens": 30000
+      }
     },
     {
       "id": "grok-4.20-multi-agent-0309",
@@ -69,8 +73,10 @@
           "text"
         ]
       },
-      "context_window": 2000000,
-      "max_output_tokens": 30000
+      "limits": {
+        "context_window": 2000000,
+        "max_output_tokens": 30000
+      }
     },
     {
       "id": "grok-4.3",
@@ -94,8 +100,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 1000000,
-      "max_output_tokens": 30000
+      "limits": {
+        "context_window": 1000000,
+        "max_output_tokens": 30000
+      }
     },
     {
       "id": "grok-build-0.1",
@@ -120,8 +128,10 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 256000,
-      "max_output_tokens": 256000
+      "limits": {
+        "context_window": 256000,
+        "max_output_tokens": 256000
+      }
     }
   ]
 }

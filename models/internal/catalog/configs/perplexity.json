@@ -17,8 +17,10 @@
           "text"
         ]
       },
-      "context_window": 128000,
-      "max_output_tokens": 4096
+      "limits": {
+        "context_window": 128000,
+        "max_output_tokens": 4096
+      }
     },
     {
       "id": "sonar-deep-research",
@@ -39,8 +41,10 @@
           "text"
         ]
       },
-      "context_window": 128000,
-      "max_output_tokens": 32768
+      "limits": {
+        "context_window": 128000,
+        "max_output_tokens": 32768
+      }
     },
     {
       "id": "sonar-pro",
@@ -59,8 +63,10 @@
           "text"
         ]
       },
-      "context_window": 200000,
-      "max_output_tokens": 8192
+      "limits": {
+        "context_window": 200000,
+        "max_output_tokens": 8192
+      }
     },
     {
       "id": "sonar-reasoning-pro",
@@ -82,8 +88,10 @@
           "text"
         ]
       },
-      "context_window": 128000,
-      "max_output_tokens": 4096
+      "limits": {
+        "context_window": 128000,
+        "max_output_tokens": 4096
+      }
     }
   ]
 }

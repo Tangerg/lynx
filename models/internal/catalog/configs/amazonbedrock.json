@@ -19,8 +19,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 128000,
-      "max_output_tokens": 4096
+      "limits": {
+        "context_window": 128000,
+        "max_output_tokens": 4096
+      }
     },
     {
       "id": "amazon.nova-lite-v1:0",
@@ -42,8 +44,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 300000,
-      "max_output_tokens": 8192
+      "limits": {
+        "context_window": 300000,
+        "max_output_tokens": 8192
+      }
     },
     {
       "id": "amazon.nova-micro-v1:0",
@@ -63,8 +67,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 128000,
-      "max_output_tokens": 8192
+      "limits": {
+        "context_window": 128000,
+        "max_output_tokens": 8192
+      }
     },
     {
       "id": "amazon.nova-pro-v1:0",
@@ -86,8 +92,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 300000,
-      "max_output_tokens": 8192
+      "limits": {
+        "context_window": 300000,
+        "max_output_tokens": 8192
+      }
     },
     {
       "id": "anthropic.claude-haiku-4-5-20251001-v1:0",
@@ -114,8 +122,10 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 200000,
-      "max_output_tokens": 64000
+      "limits": {
+        "context_window": 200000,
+        "max_output_tokens": 64000
+      }
     },
     {
       "id": "anthropic.claude-opus-4-1-20250805-v1:0",
@@ -141,8 +151,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 200000,
-      "max_output_tokens": 32000
+      "limits": {
+        "context_window": 200000,
+        "max_output_tokens": 32000
+      }
     },
     {
       "id": "anthropic.claude-opus-4-5-20251101-v1:0",
@@ -169,8 +181,10 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 200000,
-      "max_output_tokens": 64000
+      "limits": {
+        "context_window": 200000,
+        "max_output_tokens": 64000
+      }
     },
     {
       "id": "anthropic.claude-opus-4-6-v1",
@@ -197,8 +211,10 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 1000000,
-      "max_output_tokens": 128000
+      "limits": {
+        "context_window": 1000000,
+        "max_output_tokens": 128000
+      }
     },
     {
       "id": "anthropic.claude-opus-4-7",
@@ -224,8 +240,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 1000000,
-      "max_output_tokens": 128000
+      "limits": {
+        "context_window": 1000000,
+        "max_output_tokens": 128000
+      }
     },
     {
       "id": "anthropic.claude-opus-4-8",
@@ -250,8 +268,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 1000000,
-      "max_output_tokens": 128000
+      "limits": {
+        "context_window": 1000000,
+        "max_output_tokens": 128000
+      }
     },
     {
       "id": "anthropic.claude-sonnet-4-5-20250929-v1:0",
@@ -278,8 +298,10 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 200000,
-      "max_output_tokens": 64000
+      "limits": {
+        "context_window": 200000,
+        "max_output_tokens": 64000
+      }
     },
     {
       "id": "anthropic.claude-sonnet-4-6",
@@ -306,8 +328,10 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 1000000,
-      "max_output_tokens": 64000
+      "limits": {
+        "context_window": 1000000,
+        "max_output_tokens": 64000
+      }
     },
     {
       "id": "au.anthropic.claude-haiku-4-5-20251001-v1:0",
@@ -334,8 +358,10 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 200000,
-      "max_output_tokens": 64000
+      "limits": {
+        "context_window": 200000,
+        "max_output_tokens": 64000
+      }
     },
     {
       "id": "au.anthropic.claude-opus-4-6-v1",
@@ -362,8 +388,10 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 1000000,
-      "max_output_tokens": 128000
+      "limits": {
+        "context_window": 1000000,
+        "max_output_tokens": 128000
+      }
     },
     {
       "id": "au.anthropic.claude-opus-4-8",
@@ -388,8 +416,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 1000000,
-      "max_output_tokens": 128000
+      "limits": {
+        "context_window": 1000000,
+        "max_output_tokens": 128000
+      }
     },
     {
       "id": "au.anthropic.claude-sonnet-4-5-20250929-v1:0",
@@ -416,8 +446,10 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 200000,
-      "max_output_tokens": 64000
+      "limits": {
+        "context_window": 200000,
+        "max_output_tokens": 64000
+      }
     },
     {
       "id": "au.anthropic.claude-sonnet-4-6",
@@ -444,8 +476,10 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 1000000,
-      "max_output_tokens": 128000
+      "limits": {
+        "context_window": 1000000,
+        "max_output_tokens": 128000
+      }
     },
     {
       "id": "deepseek.r1-v1:0",
@@ -467,8 +501,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 128000,
-      "max_output_tokens": 32768
+      "limits": {
+        "context_window": 128000,
+        "max_output_tokens": 32768
+      }
     },
     {
       "id": "deepseek.v3-v1:0",
@@ -491,8 +527,10 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 163840,
-      "max_output_tokens": 81920
+      "limits": {
+        "context_window": 163840,
+        "max_output_tokens": 81920
+      }
     },
     {
       "id": "deepseek.v3.2",
@@ -515,8 +553,10 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 163840,
-      "max_output_tokens": 81920
+      "limits": {
+        "context_window": 163840,
+        "max_output_tokens": 81920
+      }
     },
     {
       "id": "eu.anthropic.claude-haiku-4-5-20251001-v1:0",
@@ -543,8 +583,10 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 200000,
-      "max_output_tokens": 64000
+      "limits": {
+        "context_window": 200000,
+        "max_output_tokens": 64000
+      }
     },
     {
       "id": "eu.anthropic.claude-opus-4-5-20251101-v1:0",
@@ -571,8 +613,10 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 200000,
-      "max_output_tokens": 64000
+      "limits": {
+        "context_window": 200000,
+        "max_output_tokens": 64000
+      }
     },
     {
       "id": "eu.anthropic.claude-opus-4-6-v1",
@@ -599,8 +643,10 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 1000000,
-      "max_output_tokens": 128000
+      "limits": {
+        "context_window": 1000000,
+        "max_output_tokens": 128000
+      }
     },
     {
       "id": "eu.anthropic.claude-opus-4-7",
@@ -626,8 +672,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 1000000,
-      "max_output_tokens": 128000
+      "limits": {
+        "context_window": 1000000,
+        "max_output_tokens": 128000
+      }
     },
     {
       "id": "eu.anthropic.claude-opus-4-8",
@@ -652,8 +700,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 1000000,
-      "max_output_tokens": 128000
+      "limits": {
+        "context_window": 1000000,
+        "max_output_tokens": 128000
+      }
     },
     {
       "id": "eu.anthropic.claude-sonnet-4-5-20250929-v1:0",
@@ -680,8 +730,10 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 200000,
-      "max_output_tokens": 64000
+      "limits": {
+        "context_window": 200000,
+        "max_output_tokens": 64000
+      }
     },
     {
       "id": "eu.anthropic.claude-sonnet-4-6",
@@ -708,8 +760,10 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 1000000,
-      "max_output_tokens": 64000
+      "limits": {
+        "context_window": 1000000,
+        "max_output_tokens": 64000
+      }
     },
     {
       "id": "global.anthropic.claude-haiku-4-5-20251001-v1:0",
@@ -736,8 +790,10 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 200000,
-      "max_output_tokens": 64000
+      "limits": {
+        "context_window": 200000,
+        "max_output_tokens": 64000
+      }
     },
     {
       "id": "global.anthropic.claude-opus-4-5-20251101-v1:0",
@@ -764,8 +820,10 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 200000,
-      "max_output_tokens": 64000
+      "limits": {
+        "context_window": 200000,
+        "max_output_tokens": 64000
+      }
     },
     {
       "id": "global.anthropic.claude-opus-4-6-v1",
@@ -792,8 +850,10 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 1000000,
-      "max_output_tokens": 128000
+      "limits": {
+        "context_window": 1000000,
+        "max_output_tokens": 128000
+      }
     },
     {
       "id": "global.anthropic.claude-opus-4-7",
@@ -819,8 +879,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 1000000,
-      "max_output_tokens": 128000
+      "limits": {
+        "context_window": 1000000,
+        "max_output_tokens": 128000
+      }
     },
     {
       "id": "global.anthropic.claude-opus-4-8",
@@ -845,8 +907,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 1000000,
-      "max_output_tokens": 128000
+      "limits": {
+        "context_window": 1000000,
+        "max_output_tokens": 128000
+      }
     },
     {
       "id": "global.anthropic.claude-sonnet-4-5-20250929-v1:0",
@@ -873,8 +937,10 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 200000,
-      "max_output_tokens": 64000
+      "limits": {
+        "context_window": 200000,
+        "max_output_tokens": 64000
+      }
     },
     {
       "id": "global.anthropic.claude-sonnet-4-6",
@@ -901,8 +967,10 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 1000000,
-      "max_output_tokens": 64000
+      "limits": {
+        "context_window": 1000000,
+        "max_output_tokens": 64000
+      }
     },
     {
       "id": "google.gemma-3-12b-it",
@@ -922,8 +990,10 @@
         ]
       },
       "structured_output": true,
-      "context_window": 131072,
-      "max_output_tokens": 8192
+      "limits": {
+        "context_window": 131072,
+        "max_output_tokens": 8192
+      }
     },
     {
       "id": "google.gemma-3-27b-it",
@@ -944,8 +1014,10 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 202752,
-      "max_output_tokens": 8192
+      "limits": {
+        "context_window": 202752,
+        "max_output_tokens": 8192
+      }
     },
     {
       "id": "google.gemma-3-4b-it",
@@ -964,8 +1036,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 128000,
-      "max_output_tokens": 4096
+      "limits": {
+        "context_window": 128000,
+        "max_output_tokens": 4096
+      }
     },
     {
       "id": "jp.anthropic.claude-opus-4-7",
@@ -991,8 +1065,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 1000000,
-      "max_output_tokens": 128000
+      "limits": {
+        "context_window": 1000000,
+        "max_output_tokens": 128000
+      }
     },
     {
       "id": "jp.anthropic.claude-opus-4-8",
@@ -1017,8 +1093,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 1000000,
-      "max_output_tokens": 128000
+      "limits": {
+        "context_window": 1000000,
+        "max_output_tokens": 128000
+      }
     },
     {
       "id": "jp.anthropic.claude-sonnet-4-5-20250929-v1:0",
@@ -1045,8 +1123,10 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 200000,
-      "max_output_tokens": 64000
+      "limits": {
+        "context_window": 200000,
+        "max_output_tokens": 64000
+      }
     },
     {
       "id": "jp.anthropic.claude-sonnet-4-6",
@@ -1073,8 +1153,10 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 1000000,
-      "max_output_tokens": 64000
+      "limits": {
+        "context_window": 1000000,
+        "max_output_tokens": 64000
+      }
     },
     {
       "id": "meta.llama3-1-70b-instruct-v1:0",
@@ -1093,8 +1175,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 128000,
-      "max_output_tokens": 4096
+      "limits": {
+        "context_window": 128000,
+        "max_output_tokens": 4096
+      }
     },
     {
       "id": "meta.llama3-1-8b-instruct-v1:0",
@@ -1113,8 +1197,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 128000,
-      "max_output_tokens": 4096
+      "limits": {
+        "context_window": 128000,
+        "max_output_tokens": 4096
+      }
     },
     {
       "id": "meta.llama3-3-70b-instruct-v1:0",
@@ -1133,8 +1219,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 128000,
-      "max_output_tokens": 4096
+      "limits": {
+        "context_window": 128000,
+        "max_output_tokens": 4096
+      }
     },
     {
       "id": "meta.llama4-maverick-17b-instruct-v1:0",
@@ -1154,8 +1242,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 1000000,
-      "max_output_tokens": 16384
+      "limits": {
+        "context_window": 1000000,
+        "max_output_tokens": 16384
+      }
     },
     {
       "id": "meta.llama4-scout-17b-instruct-v1:0",
@@ -1175,8 +1265,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 3500000,
-      "max_output_tokens": 16384
+      "limits": {
+        "context_window": 3500000,
+        "max_output_tokens": 16384
+      }
     },
     {
       "id": "minimax.minimax-m2",
@@ -1197,8 +1289,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 204608,
-      "max_output_tokens": 128000
+      "limits": {
+        "context_window": 204608,
+        "max_output_tokens": 128000
+      }
     },
     {
       "id": "minimax.minimax-m2.1",
@@ -1219,8 +1313,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 204800,
-      "max_output_tokens": 131072
+      "limits": {
+        "context_window": 204800,
+        "max_output_tokens": 131072
+      }
     },
     {
       "id": "minimax.minimax-m2.5",
@@ -1241,8 +1337,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 196608,
-      "max_output_tokens": 98304
+      "limits": {
+        "context_window": 196608,
+        "max_output_tokens": 98304
+      }
     },
     {
       "id": "mistral.devstral-2-123b",
@@ -1261,8 +1359,10 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 256000,
-      "max_output_tokens": 8192
+      "limits": {
+        "context_window": 256000,
+        "max_output_tokens": 8192
+      }
     },
     {
       "id": "mistral.magistral-small-2509",
@@ -1285,8 +1385,10 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 128000,
-      "max_output_tokens": 40000
+      "limits": {
+        "context_window": 128000,
+        "max_output_tokens": 40000
+      }
     },
     {
       "id": "mistral.ministral-3-14b-instruct",
@@ -1305,8 +1407,10 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 128000,
-      "max_output_tokens": 4096
+      "limits": {
+        "context_window": 128000,
+        "max_output_tokens": 4096
+      }
     },
     {
       "id": "mistral.ministral-3-3b-instruct",
@@ -1326,8 +1430,10 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 256000,
-      "max_output_tokens": 8192
+      "limits": {
+        "context_window": 256000,
+        "max_output_tokens": 8192
+      }
     },
     {
       "id": "mistral.ministral-3-8b-instruct",
@@ -1346,8 +1452,10 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 128000,
-      "max_output_tokens": 4096
+      "limits": {
+        "context_window": 128000,
+        "max_output_tokens": 4096
+      }
     },
     {
       "id": "mistral.mistral-large-3-675b-instruct",
@@ -1367,8 +1475,10 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 256000,
-      "max_output_tokens": 8192
+      "limits": {
+        "context_window": 256000,
+        "max_output_tokens": 8192
+      }
     },
     {
       "id": "mistral.pixtral-large-2502-v1:0",
@@ -1387,8 +1497,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 128000,
-      "max_output_tokens": 8192
+      "limits": {
+        "context_window": 128000,
+        "max_output_tokens": 8192
+      }
     },
     {
       "id": "mistral.voxtral-mini-3b-2507",
@@ -1408,8 +1520,10 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 128000,
-      "max_output_tokens": 4096
+      "limits": {
+        "context_window": 128000,
+        "max_output_tokens": 4096
+      }
     },
     {
       "id": "mistral.voxtral-small-24b-2507",
@@ -1429,8 +1543,10 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 32000,
-      "max_output_tokens": 8192
+      "limits": {
+        "context_window": 32000,
+        "max_output_tokens": 8192
+      }
     },
     {
       "id": "moonshot.kimi-k2-thinking",
@@ -1452,8 +1568,10 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 262143,
-      "max_output_tokens": 16000
+      "limits": {
+        "context_window": 262143,
+        "max_output_tokens": 16000
+      }
     },
     {
       "id": "moonshotai.kimi-k2.5",
@@ -1476,8 +1594,10 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 262143,
-      "max_output_tokens": 16000
+      "limits": {
+        "context_window": 262143,
+        "max_output_tokens": 16000
+      }
     },
     {
       "id": "nvidia.nemotron-nano-12b-v2",
@@ -1497,8 +1617,10 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 128000,
-      "max_output_tokens": 4096
+      "limits": {
+        "context_window": 128000,
+        "max_output_tokens": 4096
+      }
     },
     {
       "id": "nvidia.nemotron-nano-3-30b",
@@ -1520,8 +1642,10 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 128000,
-      "max_output_tokens": 4096
+      "limits": {
+        "context_window": 128000,
+        "max_output_tokens": 4096
+      }
     },
     {
       "id": "nvidia.nemotron-nano-9b-v2",
@@ -1540,8 +1664,10 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 128000,
-      "max_output_tokens": 4096
+      "limits": {
+        "context_window": 128000,
+        "max_output_tokens": 4096
+      }
     },
     {
       "id": "nvidia.nemotron-super-3-120b",
@@ -1563,8 +1689,10 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 262144,
-      "max_output_tokens": 131072
+      "limits": {
+        "context_window": 262144,
+        "max_output_tokens": 131072
+      }
     },
     {
       "id": "openai.gpt-oss-120b-1:0",
@@ -1583,8 +1711,10 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 128000,
-      "max_output_tokens": 16384
+      "limits": {
+        "context_window": 128000,
+        "max_output_tokens": 16384
+      }
     },
     {
       "id": "openai.gpt-oss-20b-1:0",
@@ -1603,8 +1733,10 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 128000,
-      "max_output_tokens": 16384
+      "limits": {
+        "context_window": 128000,
+        "max_output_tokens": 16384
+      }
     },
     {
       "id": "openai.gpt-oss-safeguard-120b",
@@ -1623,8 +1755,10 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 128000,
-      "max_output_tokens": 16384
+      "limits": {
+        "context_window": 128000,
+        "max_output_tokens": 16384
+      }
     },
     {
       "id": "openai.gpt-oss-safeguard-20b",
@@ -1643,8 +1777,10 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 128000,
-      "max_output_tokens": 16384
+      "limits": {
+        "context_window": 128000,
+        "max_output_tokens": 16384
+      }
     },
     {
       "id": "qwen.qwen3-235b-a22b-2507-v1:0",
@@ -1664,8 +1800,10 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 262144,
-      "max_output_tokens": 131072
+      "limits": {
+        "context_window": 262144,
+        "max_output_tokens": 131072
+      }
     },
     {
       "id": "qwen.qwen3-32b-v1:0",
@@ -1688,8 +1826,10 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 16384,
-      "max_output_tokens": 16384
+      "limits": {
+        "context_window": 16384,
+        "max_output_tokens": 16384
+      }
     },
     {
       "id": "qwen.qwen3-coder-30b-a3b-v1:0",
@@ -1709,8 +1849,10 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 262144,
-      "max_output_tokens": 131072
+      "limits": {
+        "context_window": 262144,
+        "max_output_tokens": 131072
+      }
     },
     {
       "id": "qwen.qwen3-coder-480b-a35b-v1:0",
@@ -1730,8 +1872,10 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 131072,
-      "max_output_tokens": 65536
+      "limits": {
+        "context_window": 131072,
+        "max_output_tokens": 65536
+      }
     },
     {
       "id": "qwen.qwen3-coder-next",
@@ -1753,8 +1897,10 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 131072,
-      "max_output_tokens": 65536
+      "limits": {
+        "context_window": 131072,
+        "max_output_tokens": 65536
+      }
     },
     {
       "id": "qwen.qwen3-next-80b-a3b",
@@ -1773,8 +1919,10 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 262000,
-      "max_output_tokens": 262000
+      "limits": {
+        "context_window": 262000,
+        "max_output_tokens": 262000
+      }
     },
     {
       "id": "qwen.qwen3-vl-235b-a22b",
@@ -1794,8 +1942,10 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 262000,
-      "max_output_tokens": 262000
+      "limits": {
+        "context_window": 262000,
+        "max_output_tokens": 262000
+      }
     },
     {
       "id": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
@@ -1822,8 +1972,10 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 200000,
-      "max_output_tokens": 64000
+      "limits": {
+        "context_window": 200000,
+        "max_output_tokens": 64000
+      }
     },
     {
       "id": "us.anthropic.claude-opus-4-1-20250805-v1:0",
@@ -1849,8 +2001,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 200000,
-      "max_output_tokens": 32000
+      "limits": {
+        "context_window": 200000,
+        "max_output_tokens": 32000
+      }
     },
     {
       "id": "us.anthropic.claude-opus-4-5-20251101-v1:0",
@@ -1877,8 +2031,10 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 200000,
-      "max_output_tokens": 64000
+      "limits": {
+        "context_window": 200000,
+        "max_output_tokens": 64000
+      }
     },
     {
       "id": "us.anthropic.claude-opus-4-6-v1",
@@ -1905,8 +2061,10 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 1000000,
-      "max_output_tokens": 128000
+      "limits": {
+        "context_window": 1000000,
+        "max_output_tokens": 128000
+      }
     },
     {
       "id": "us.anthropic.claude-opus-4-7",
@@ -1932,8 +2090,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 1000000,
-      "max_output_tokens": 128000
+      "limits": {
+        "context_window": 1000000,
+        "max_output_tokens": 128000
+      }
     },
     {
       "id": "us.anthropic.claude-opus-4-8",
@@ -1958,8 +2118,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 1000000,
-      "max_output_tokens": 128000
+      "limits": {
+        "context_window": 1000000,
+        "max_output_tokens": 128000
+      }
     },
     {
       "id": "us.anthropic.claude-sonnet-4-5-20250929-v1:0",
@@ -1986,8 +2148,10 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 200000,
-      "max_output_tokens": 64000
+      "limits": {
+        "context_window": 200000,
+        "max_output_tokens": 64000
+      }
     },
     {
       "id": "us.anthropic.claude-sonnet-4-6",
@@ -2014,8 +2178,10 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 1000000,
-      "max_output_tokens": 64000
+      "limits": {
+        "context_window": 1000000,
+        "max_output_tokens": 64000
+      }
     },
     {
       "id": "us.deepseek.r1-v1:0",
@@ -2037,8 +2203,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 128000,
-      "max_output_tokens": 32768
+      "limits": {
+        "context_window": 128000,
+        "max_output_tokens": 32768
+      }
     },
     {
       "id": "us.meta.llama4-maverick-17b-instruct-v1:0",
@@ -2058,8 +2226,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 1000000,
-      "max_output_tokens": 16384
+      "limits": {
+        "context_window": 1000000,
+        "max_output_tokens": 16384
+      }
     },
     {
       "id": "us.meta.llama4-scout-17b-instruct-v1:0",
@@ -2079,8 +2249,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 3500000,
-      "max_output_tokens": 16384
+      "limits": {
+        "context_window": 3500000,
+        "max_output_tokens": 16384
+      }
     },
     {
       "id": "writer.palmyra-x4-v1:0",
@@ -2101,8 +2273,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 122880,
-      "max_output_tokens": 8192
+      "limits": {
+        "context_window": 122880,
+        "max_output_tokens": 8192
+      }
     },
     {
       "id": "writer.palmyra-x5-v1:0",
@@ -2123,8 +2297,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 1040000,
-      "max_output_tokens": 8192
+      "limits": {
+        "context_window": 1040000,
+        "max_output_tokens": 8192
+      }
     },
     {
       "id": "zai.glm-4.7",
@@ -2147,8 +2323,10 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 204800,
-      "max_output_tokens": 131072
+      "limits": {
+        "context_window": 204800,
+        "max_output_tokens": 131072
+      }
     },
     {
       "id": "zai.glm-4.7-flash",
@@ -2171,8 +2349,10 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 200000,
-      "max_output_tokens": 131072
+      "limits": {
+        "context_window": 200000,
+        "max_output_tokens": 131072
+      }
     },
     {
       "id": "zai.glm-5",
@@ -2194,8 +2374,10 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 202752,
-      "max_output_tokens": 101376
+      "limits": {
+        "context_window": 202752,
+        "max_output_tokens": 101376
+      }
     }
   ]
 }

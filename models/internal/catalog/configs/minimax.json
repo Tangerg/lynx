@@ -20,8 +20,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 196608,
-      "max_output_tokens": 128000
+      "limits": {
+        "context_window": 196608,
+        "max_output_tokens": 128000
+      }
     },
     {
       "id": "MiniMax-M2.1",
@@ -42,8 +44,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 204800,
-      "max_output_tokens": 131072
+      "limits": {
+        "context_window": 204800,
+        "max_output_tokens": 131072
+      }
     },
     {
       "id": "MiniMax-M2.5",
@@ -66,8 +70,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 204800,
-      "max_output_tokens": 131072
+      "limits": {
+        "context_window": 204800,
+        "max_output_tokens": 131072
+      }
     },
     {
       "id": "MiniMax-M2.5-highspeed",
@@ -90,8 +96,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 204800,
-      "max_output_tokens": 131072
+      "limits": {
+        "context_window": 204800,
+        "max_output_tokens": 131072
+      }
     },
     {
       "id": "MiniMax-M2.7",
@@ -114,8 +122,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 204800,
-      "max_output_tokens": 131072
+      "limits": {
+        "context_window": 204800,
+        "max_output_tokens": 131072
+      }
     },
     {
       "id": "MiniMax-M2.7-highspeed",
@@ -138,8 +148,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 204800,
-      "max_output_tokens": 131072
+      "limits": {
+        "context_window": 204800,
+        "max_output_tokens": 131072
+      }
     }
   ]
 }
