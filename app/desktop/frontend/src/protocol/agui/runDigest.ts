@@ -52,13 +52,7 @@ const SHELL_RUN = new Set(["bash", "shell", "run", "sh"]);
 
 export function deriveLatestRun(view: AgentViewState): RunDigest | null {
   // Walk timeline backwards for the last run-start. If none, no digest.
-  let startIdx = -1;
-  for (let i = view.timeline.length - 1; i >= 0; i--) {
-    if (view.timeline[i]!.kind === "run-start") {
-      startIdx = i;
-      break;
-    }
-  }
+  const startIdx = view.timeline.findLastIndex((e) => e.kind === "run-start");
   if (startIdx < 0) return null;
 
   const slice = view.timeline.slice(startIdx);

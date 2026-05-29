@@ -143,15 +143,15 @@ function estimatePercentiles(buckets: HistogramValue["buckets"]): { p50: number;
   for (let i = 0; i < buckets.counts.length; i++) {
     running += buckets.counts[i]!;
     if (!p50Done && running >= target50) {
-      p50 = buckets.boundaries[i] ?? buckets.boundaries[buckets.boundaries.length - 1] ?? 0;
+      p50 = buckets.boundaries[i] ?? buckets.boundaries.at(-1) ?? 0;
       p50Done = true;
     }
     if (running >= target95) {
-      p95 = buckets.boundaries[i] ?? buckets.boundaries[buckets.boundaries.length - 1] ?? 0;
+      p95 = buckets.boundaries[i] ?? buckets.boundaries.at(-1) ?? 0;
       return { p50, p95 };
     }
   }
   // Fell off the end — last bucket is the open-ended "+Inf"
-  const lastBoundary = buckets.boundaries[buckets.boundaries.length - 1] ?? 0;
+  const lastBoundary = buckets.boundaries.at(-1) ?? 0;
   return { p50: p50 || lastBoundary, p95: lastBoundary };
 }

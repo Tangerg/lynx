@@ -49,7 +49,7 @@ function timeOfDay(ts: number): string {
 function groupByRun(entries: TimelineEntry[]): { runId: string | null; items: TimelineEntry[] }[] {
   const groups: { runId: string | null; items: TimelineEntry[] }[] = [];
   for (const entry of entries) {
-    const last = groups[groups.length - 1];
+    const last = groups.at(-1);
     if (last && last.runId === entry.runId) {
       last.items.push(entry);
     } else {
