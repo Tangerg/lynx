@@ -108,9 +108,9 @@ func TestAsChatTool_WaitingChildSurfacesPendingAwaitableAsToolResult(t *testing.
 	platform := agent.NewPlatform(runtime.PlatformConfig{})
 
 	// Child agent's only action immediately requests HITL confirmation.
-	// We use a raw core.Action (not the typed NewAction wrapper) so the
-	// action can return ActionWaiting after AwaitInput parks the
-	// request — typed actions return only Succeeded/Failed.
+	// A raw core.Action keeps this fixture minimal; typed NewAction
+	// bodies can suspend on AwaitInput too (see
+	// TestTypedActionAwaitInputSuspendsAndResumes).
 	awaitingChild := agent.New("awaiting-child").
 		Description("asks for confirmation immediately").
 		Actions(&awaitForConfirmAction{}).

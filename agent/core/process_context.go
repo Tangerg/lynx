@@ -139,6 +139,11 @@ type ProcessContext struct {
 	actionToolGroups []ToolGroupRequirement
 	actionToolLoop   chat.ToolLoopConfig
 
+	// inputAwaited flips when the action calls [AwaitInput]; the
+	// typed-action wrapper reads it to return ActionWaiting. Per-tick
+	// (fresh ProcessContext each invocation), so no reset needed.
+	inputAwaited bool
+
 	// lastErr captures the most recent error from a typed-action body so
 	// the runtime can extract a ReplanRequest. ProcessContext is built
 	// fresh per tick (see runtime.buildProcessContext) and never shared
@@ -314,12 +319,29 @@ func (pc *ProcessContext) ToolCallContext(parent context.Context) (context.Conte
 
 // AwaitInput delegates to [Process.AwaitInput] — convenience because
 // action code already has pc.
+//
+// It also records that this action invocation parked an awaitable, so a
+// TYPED action (whose fn returns (Out, error) and can't return
+// ActionWaiting directly) still suspends correctly: the typed-action
+// wrapper checks [ProcessContext.InputAwaited] after the fn returns and
+// reports ActionWaiting instead of writing the (unproduced) output.
+// Untyped actions return this status directly and don't need the flag.
 func (pc *ProcessContext) AwaitInput(req Awaitable) ActionStatus {
 	if pc.Process == nil {
 		return ActionFailed
 	}
-	return pc.Process.AwaitInput(req)
+	status := pc.Process.AwaitInput(req)
+	if status == ActionWaiting {
+		pc.inputAwaited = true
+	}
+	return status
 }
+
+// InputAwaited reports whether this action invocation parked an
+// awaitable via [ProcessContext.AwaitInput]. The typed-action wrapper
+// uses it to translate "fn called AwaitInput" into ActionWaiting; the
+// flag is per-invocation (ProcessContext is built fresh each tick).
+func (pc *ProcessContext) InputAwaited() bool { return pc.inputAwaited }
 
 // RecordUsage attributes an LLM call's cost / tokens to the running
 // process. No-op when no Process is wired.
