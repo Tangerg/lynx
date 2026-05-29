@@ -3,6 +3,7 @@ package mcp
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"os/exec"
 	"time"
@@ -190,4 +191,105 @@ func DialCommand(
 	}
 
 	return client.Connect(ctx, transport, nil)
+}
+
+// Transport is the wire mode of an MCP server connection. The zero value
+// is invalid — callers pick one explicitly so a misconfigured entry
+// fails [ServerConfig.Validate] instead of silently defaulting.
+type Transport int
+
+const (
+	// TransportHTTP — Streamable HTTP. [ServerConfig.Endpoint] is the URL.
+	TransportHTTP Transport = iota + 1
+	// TransportStdio — local subprocess over stdin/stdout, the canonical
+	// local-tool transport (most ecosystem servers ship as
+	// `npx -y @modelcontextprotocol/server-<name>` commands).
+	TransportStdio
+)
+
+// ServerConfig declaratively describes one MCP server to connect to —
+// the lynx analog of an entry in the ubiquitous `mcpServers` config map
+// (Claude Desktop / Cursor / Cline / ...). [Dial] turns it into a live
+// session, dispatching on Transport. Exactly one transport's fields
+// apply; the others must be blank. For per-connection tuning (custom
+// http.Client, retries, terminate timeout) reach for the lower-level
+// [DialStreamableHTTP] / [DialCommand] directly — ServerConfig covers
+// the common case.
+type ServerConfig struct {
+	// Name identifies the server — carried into a [Source] for tool
+	// namespacing and surfaced in error messages. Required.
+	Name string
+
+	// Transport picks the connection mode. Required (the zero value is
+	// rejected by Validate).
+	Transport Transport
+
+	// Endpoint is the Streamable HTTP URL. Used when Transport == [TransportHTTP].
+	Endpoint string
+
+	// Command is the executable to spawn. Used when Transport == [TransportStdio].
+	Command string
+
+	// Args are the command arguments. Used when Transport == [TransportStdio].
+	Args []string
+
+	// Env, when non-nil, REPLACES the subprocess environment (it does not
+	// extend the parent env — append os.Environ() yourself to extend).
+	// Used when Transport == [TransportStdio].
+	Env []string
+
+	// Dir sets the subprocess working directory; empty inherits the
+	// parent's. Used when Transport == [TransportStdio].
+	Dir string
+}
+
+// Validate reports whether exactly one transport is fully specified and
+// the other transport's fields are blank.
+func (c ServerConfig) Validate() error {
+	if c.Name == "" {
+		return errors.New("mcp.ServerConfig: Name is required")
+	}
+	switch c.Transport {
+	case TransportHTTP:
+		if c.Endpoint == "" {
+			return fmt.Errorf("mcp.ServerConfig %q: Endpoint is required for HTTP transport", c.Name)
+		}
+		if c.Command != "" {
+			return fmt.Errorf("mcp.ServerConfig %q: Command must be empty for HTTP transport", c.Name)
+		}
+	case TransportStdio:
+		if c.Command == "" {
+			return fmt.Errorf("mcp.ServerConfig %q: Command is required for stdio transport", c.Name)
+		}
+		if c.Endpoint != "" {
+			return fmt.Errorf("mcp.ServerConfig %q: Endpoint must be empty for stdio transport", c.Name)
+		}
+	default:
+		return fmt.Errorf("mcp.ServerConfig %q: unknown transport %d (set TransportHTTP or TransportStdio)", c.Name, c.Transport)
+	}
+	return nil
+}
+
+// Dial connects client to the MCP server described by cfg and returns
+// the initialized session (the caller closes it). It validates cfg, then
+// dispatches on Transport to [DialStreamableHTTP] / [DialCommand].
+//
+// The caller supplies client so it keeps control of client-side options
+// (sampling, tools/list_changed handlers, ...) — Dial deliberately does
+// not build one. Connect several servers by calling Dial once per
+// [ServerConfig] with the same client, wrapping each session in a
+// [Source].
+func Dial(ctx context.Context, client *sdkmcp.Client, cfg ServerConfig) (*sdkmcp.ClientSession, error) {
+	if err := cfg.Validate(); err != nil {
+		return nil, err
+	}
+	switch cfg.Transport {
+	case TransportHTTP:
+		return DialStreamableHTTP(ctx, client, cfg.Endpoint, HTTPClientOptions{})
+	case TransportStdio:
+		return DialCommand(ctx, client, cfg.Command, cfg.Args, CommandClientOptions{Env: cfg.Env, Dir: cfg.Dir})
+	default:
+		// Unreachable after Validate; keeps the switch total.
+		return nil, fmt.Errorf("mcp.Dial: unknown transport %d", cfg.Transport)
+	}
 }

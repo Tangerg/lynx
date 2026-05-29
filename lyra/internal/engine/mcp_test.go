@@ -97,7 +97,7 @@ func TestEngine_DialMCPServer(t *testing.T) {
 	client, _ := chat.NewClient(stub)
 	eng, err := New(context.Background(), Config{
 		ChatClient: client,
-		MCPServers: []MCPServer{{Name: "test", Endpoint: httpServer.URL}},
+		MCPServers: []mcp.ServerConfig{{Name: "test", Transport: mcp.TransportHTTP, Endpoint: httpServer.URL}},
 	})
 	if err != nil {
 		t.Fatalf("engine.New: %v", err)
@@ -133,9 +133,9 @@ func TestEngine_DialMCPServer_RejectsDuplicateNames(t *testing.T) {
 
 	_, err := New(context.Background(), Config{
 		ChatClient: client,
-		MCPServers: []MCPServer{
-			{Name: "dup", Endpoint: "http://example.invalid/"},
-			{Name: "dup", Endpoint: "http://other.invalid/"},
+		MCPServers: []mcp.ServerConfig{
+			{Name: "dup", Transport: mcp.TransportHTTP, Endpoint: "http://example.invalid/"},
+			{Name: "dup", Transport: mcp.TransportHTTP, Endpoint: "http://other.invalid/"},
 		},
 	})
 	if err == nil {
@@ -152,8 +152,8 @@ func TestEngine_DialMCPServer_RejectsBadEndpoint(t *testing.T) {
 
 	_, err := New(context.Background(), Config{
 		ChatClient: client,
-		MCPServers: []MCPServer{
-			{Name: "bad", Endpoint: ""}, // empty endpoint fails validate()
+		MCPServers: []mcp.ServerConfig{
+			{Name: "bad", Transport: mcp.TransportHTTP, Endpoint: ""}, // empty endpoint fails Validate
 		},
 	})
 	if err == nil {
@@ -183,9 +183,9 @@ func TestEngine_DialMCPServer_Stdio(t *testing.T) {
 
 	eng, err := New(context.Background(), Config{
 		ChatClient: client,
-		MCPServers: []MCPServer{{
+		MCPServers: []mcp.ServerConfig{{
 			Name:      "stdio",
-			Transport: MCPTransportStdio,
+			Transport: mcp.TransportStdio,
 			Command:   self,
 			Args:      []string{"-test.run=^$"}, // no test selector — TestMain re-routes
 			Env:       append(os.Environ(), runAsMCPServerEnv+"=1"),
@@ -220,9 +220,9 @@ func TestEngine_DialMCPServer_StdioRejectsEmptyCommand(t *testing.T) {
 	client, _ := chat.NewClient(stub)
 	_, err := New(context.Background(), Config{
 		ChatClient: client,
-		MCPServers: []MCPServer{{
+		MCPServers: []mcp.ServerConfig{{
 			Name:      "bad",
-			Transport: MCPTransportStdio,
+			Transport: mcp.TransportStdio,
 		}},
 	})
 	if err == nil {

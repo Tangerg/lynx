@@ -4,7 +4,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/Tangerg/lynx/lyra/internal/engine"
+	"github.com/Tangerg/lynx/mcp"
 )
 
 // TestParseMCPServers covers the env-var parser across both HTTP
@@ -13,7 +13,7 @@ func TestParseMCPServers(t *testing.T) {
 	cases := []struct {
 		name    string
 		in      string
-		want    []engine.MCPServer
+		want    []mcp.ServerConfig
 		wantErr bool
 	}{
 		{
@@ -24,18 +24,18 @@ func TestParseMCPServers(t *testing.T) {
 		{
 			name: "single http entry",
 			in:   "github=https://mcp.github.com/",
-			want: []engine.MCPServer{{
+			want: []mcp.ServerConfig{{
 				Name:      "github",
-				Transport: engine.MCPTransportHTTP,
+				Transport: mcp.TransportHTTP,
 				Endpoint:  "https://mcp.github.com/",
 			}},
 		},
 		{
 			name: "single stdio entry",
 			in:   "fs=stdio:npx -y @modelcontextprotocol/server-filesystem /workspace",
-			want: []engine.MCPServer{{
+			want: []mcp.ServerConfig{{
 				Name:      "fs",
-				Transport: engine.MCPTransportStdio,
+				Transport: mcp.TransportStdio,
 				Command:   "npx",
 				Args:      []string{"-y", "@modelcontextprotocol/server-filesystem", "/workspace"},
 			}},
@@ -43,9 +43,9 @@ func TestParseMCPServers(t *testing.T) {
 		{
 			name: "stdio with single-word command",
 			in:   "time=stdio:mcp-server-time",
-			want: []engine.MCPServer{{
+			want: []mcp.ServerConfig{{
 				Name:      "time",
-				Transport: engine.MCPTransportStdio,
+				Transport: mcp.TransportStdio,
 				Command:   "mcp-server-time",
 				Args:      []string{},
 			}},
@@ -53,9 +53,9 @@ func TestParseMCPServers(t *testing.T) {
 		{
 			name: "mixed http + stdio with whitespace",
 			in:   " github = https://mcp.github.com/ , fs = stdio:npx mcp-server-fs ",
-			want: []engine.MCPServer{
-				{Name: "github", Transport: engine.MCPTransportHTTP, Endpoint: "https://mcp.github.com/"},
-				{Name: "fs", Transport: engine.MCPTransportStdio, Command: "npx", Args: []string{"mcp-server-fs"}},
+			want: []mcp.ServerConfig{
+				{Name: "github", Transport: mcp.TransportHTTP, Endpoint: "https://mcp.github.com/"},
+				{Name: "fs", Transport: mcp.TransportStdio, Command: "npx", Args: []string{"mcp-server-fs"}},
 			},
 		},
 		{

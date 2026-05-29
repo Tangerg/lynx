@@ -15,6 +15,7 @@ import (
 	"strings"
 
 	"github.com/Tangerg/lynx/lyra/internal/engine"
+	"github.com/Tangerg/lynx/mcp"
 )
 
 // Provider enumerates the LLM provider Lyra talks to. M1 ships the
@@ -55,7 +56,7 @@ type Config struct {
 	// the engine's tool set under the server's Name as prefix.
 	// Empty disables MCP integration. Stored directly in the
 	// engine's wire format so no bridge layer is needed.
-	MCPServers []engine.MCPServer
+	MCPServers []mcp.ServerConfig
 
 	// Storage selects the persistence backend for session +
 	// memory services. Defaults to StorageFile — set LYRA_STORAGE
@@ -128,12 +129,12 @@ func Load() (Config, error) {
 //	LYRA_MCP_SERVERS="github=https://mcp.github.com/,\
 //	  fs=stdio:npx -y @modelcontextprotocol/server-filesystem /workspace,\
 //	  time=stdio:uvx mcp-server-time"
-func parseMCPServers(raw string) ([]engine.MCPServer, error) {
+func parseMCPServers(raw string) ([]mcp.ServerConfig, error) {
 	if raw == "" {
 		return nil, nil
 	}
 	parts := strings.Split(raw, ",")
-	out := make([]engine.MCPServer, 0, len(parts))
+	out := make([]mcp.ServerConfig, 0, len(parts))
 	for _, p := range parts {
 		p = strings.TrimSpace(p)
 		if p == "" {
@@ -165,26 +166,26 @@ func parseMCPServers(raw string) ([]engine.MCPServer, error) {
 // convention — anything else must look like an HTTP(S) URL (we
 // only sanity-check the scheme so the typo "stido:" stops here
 // rather than turning into a stalled HTTP dial).
-func parseMCPServerValue(name, value string) (engine.MCPServer, error) {
+func parseMCPServerValue(name, value string) (mcp.ServerConfig, error) {
 	if rest, ok := strings.CutPrefix(value, "stdio:"); ok {
 		rest = strings.TrimSpace(rest)
 		if rest == "" {
-			return engine.MCPServer{}, fmt.Errorf("stdio: command is empty")
+			return mcp.ServerConfig{}, fmt.Errorf("stdio: command is empty")
 		}
 		fields := strings.Fields(rest)
-		return engine.MCPServer{
+		return mcp.ServerConfig{
 			Name:      name,
-			Transport: engine.MCPTransportStdio,
+			Transport: mcp.TransportStdio,
 			Command:   fields[0],
 			Args:      fields[1:],
 		}, nil
 	}
 	if !strings.HasPrefix(value, "http://") && !strings.HasPrefix(value, "https://") {
-		return engine.MCPServer{}, fmt.Errorf("expected http(s):// URL or stdio: prefix, got %q", value)
+		return mcp.ServerConfig{}, fmt.Errorf("expected http(s):// URL or stdio: prefix, got %q", value)
 	}
-	return engine.MCPServer{
+	return mcp.ServerConfig{
 		Name:      name,
-		Transport: engine.MCPTransportHTTP,
+		Transport: mcp.TransportHTTP,
 		Endpoint:  value,
 	}, nil
 }
