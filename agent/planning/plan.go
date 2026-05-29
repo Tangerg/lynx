@@ -52,9 +52,36 @@ func (p *Plan) Value(worldState core.WorldState) float64 {
 	return p.Goal.Value(worldState)
 }
 
-// NetValue is goal value minus plan cost — the embabel ranking heuristic.
+// ActionsValue is the sum of the plan's action values, sampled against the
+// supplied world state so dynamic-value actions get evaluated correctly.
+// Actions with a nil Value contribute nothing — the canonical construction
+// path ([core.NewAction]) fills in [core.Static](0), so this term is zero
+// unless an action opts into a non-trivial value.
+func (p *Plan) ActionsValue(worldState core.WorldState) float64 {
+	if p == nil {
+		return 0
+	}
+
+	total := 0.0
+	for _, action := range p.Actions {
+		if action == nil {
+			continue
+		}
+		if fn := action.Metadata().Value; fn != nil {
+			total += fn(worldState)
+		}
+	}
+	return total
+}
+
+// NetValue ranks competing plans: goal value plus the accumulated value of
+// the plan's actions, minus total plan cost. Mirrors embabel's Plan.netValue
+// (goal.value + actionsValue − cost) — the actions-value term rewards plans
+// whose constituent actions are independently valuable, not just the cheapest
+// path to the goal. Most actions leave Value at [core.Static](0), so this
+// reduces to goal value − cost in the common case.
 func (p *Plan) NetValue(worldState core.WorldState) float64 {
-	return p.Value(worldState) - p.Cost(worldState)
+	return p.Value(worldState) + p.ActionsValue(worldState) - p.Cost(worldState)
 }
 
 // SortByNetValueDesc sorts plans in place by NetValue descending.
