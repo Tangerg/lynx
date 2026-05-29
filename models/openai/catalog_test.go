@@ -25,7 +25,7 @@ func TestNewChatModel_PricingFromCatalog(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := m.Metadata().Model.Pricing.InputPer1M; got != 0.15 {
+	if got := m.Metadata().Model.Pricing[0].InputPer1M; got != 0.15 {
 		t.Errorf("openai pricing input = %v, want 0.15", got)
 	}
 
@@ -41,7 +41,7 @@ func TestNewChatModel_PricingFromCatalog(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := m2.Metadata().Model.Pricing.InputPer1M; got != 0.14 {
+	if got := m2.Metadata().Model.Pricing[0].InputPer1M; got != 0.14 {
 		t.Errorf("compat (deepseek via openai) pricing input = %v, want 0.14", got)
 	}
 }
