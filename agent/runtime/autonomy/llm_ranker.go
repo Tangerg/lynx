@@ -100,7 +100,7 @@ func (r *LLMRanker) buildUserPrompt(userInput string, candidates []Candidate) st
 	b.WriteString(strconv.Quote(userInput))
 	b.WriteString("\n\nCandidates:\n")
 	for _, cand := range candidates {
-		fmt.Fprintf(&b, "- %s — %s\n", cand.String(), goalDescription(cand))
+		fmt.Fprintf(&b, "- %s — %s\n", cand.String(), cand.goalDescription())
 		writeGoalHints(&b, cand)
 	}
 	b.WriteString(`
@@ -139,15 +139,15 @@ func writeGoalHints(b *strings.Builder, cand Candidate) {
 // goalDescription returns the goal's Description, falling back to
 // the agent's when the goal didn't supply one. Empty as a last
 // resort — the LLM still sees the name.
-func goalDescription(cand Candidate) string {
-	if cand.Goal == nil {
+func (c Candidate) goalDescription() string {
+	if c.Goal == nil {
 		return ""
 	}
-	if cand.Goal.Description != "" {
-		return cand.Goal.Description
+	if c.Goal.Description != "" {
+		return c.Goal.Description
 	}
-	if cand.Agent != nil {
-		return cand.Agent.Description
+	if c.Agent != nil {
+		return c.Agent.Description
 	}
 	return ""
 }
