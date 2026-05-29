@@ -12,7 +12,7 @@ import type {
   SidebarSectionSpec,
   WorkspaceViewSpec,
 } from "../types";
-import { makeLazyActivator } from "../../LazyActivator";
+import { makeLazyActivator } from "../lazyActivator";
 import { usePluginStore } from "../registry";
 import { createIndex, runActivator, useDeclaredMerged, useSortedList } from "./_helpers";
 

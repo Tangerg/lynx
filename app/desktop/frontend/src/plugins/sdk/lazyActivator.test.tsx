@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { createElement } from "react";
 import { describe, expect, it, vi } from "vitest";
-import { makeLazyActivator } from "./LazyActivator";
+import { makeLazyActivator } from "./lazyActivator";
 
 describe("makeLazyActivator", () => {
   it("renders the 'Activating <label>…' placeholder", () => {
