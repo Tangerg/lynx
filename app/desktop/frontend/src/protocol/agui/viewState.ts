@@ -61,7 +61,7 @@ export interface BuiltinContentBlockMap {
   plan: { kind: "plan" };
   tool: { kind: "tool"; toolCallId: string };
   code: { kind: "code"; lang: string; file: string; text: string };
-  search: { kind: "search"; toolCallId: string; results: SearchResult[] };
+  search: { kind: "search"; results: SearchResult[] };
   approval: {
     kind: "approval";
     status: BlockStatus;
