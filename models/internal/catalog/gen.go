@@ -50,15 +50,27 @@ const defaultSource = "https://models.dev/api.json"
 // OpenAI-compat and managed delegators keep their own name: vertexai is
 // sourced from google-vertex, zhipu from zhipuai.
 var providerMap = map[string]string{
-	"anthropic":     "anthropic",
-	"openai":        "openai",
-	"google":        "google",
-	"google-vertex": "vertexai",
-	"deepseek":      "deepseek",
-	"groq":          "groq",
-	"xai":           "xai",
-	"minimax":       "minimax",
-	"zhipuai":       "zhipu",
+	"anthropic":      "anthropic",
+	"openai":         "openai",
+	"google":         "google",
+	"google-vertex":  "vertexai",
+	"deepseek":       "deepseek",
+	"groq":           "groq",
+	"xai":            "xai",
+	"minimax":        "minimax",
+	"zhipuai":        "zhipu",
+	"alibaba":        "alibaba",
+	"azure":          "azureopenai",
+	"amazon-bedrock": "amazonbedrock",
+	"fireworks-ai":   "fireworks",
+	"huggingface":    "huggingface",
+	"mistral":        "mistral",
+	"moonshotai":     "moonshot",
+	"ollama-cloud":   "ollama",
+	"openrouter":     "openrouter",
+	"perplexity":     "perplexity",
+	"togetherai":     "together",
+	"xiaomi":         "xiaomi",
 }
 
 // apiModel mirrors the subset of a models.dev model spec we consume.

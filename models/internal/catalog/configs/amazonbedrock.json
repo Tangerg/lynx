@@ -1,0 +1,2201 @@
+{
+  "provider": "amazonbedrock",
+  "models": [
+    {
+      "id": "amazon.nova-2-lite-v1:0",
+      "display_name": "Nova 2 Lite",
+      "pricing": {
+        "input_per_1m": 0.33,
+        "output_per_1m": 2.75
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "context_window": 128000,
+      "max_output_tokens": 4096
+    },
+    {
+      "id": "amazon.nova-lite-v1:0",
+      "display_name": "Nova Lite",
+      "knowledge_cutoff": "2024-10",
+      "pricing": {
+        "input_per_1m": 0.06,
+        "output_per_1m": 0.24,
+        "cache_read_per_1m": 0.015
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "context_window": 300000,
+      "max_output_tokens": 8192
+    },
+    {
+      "id": "amazon.nova-micro-v1:0",
+      "display_name": "Nova Micro",
+      "knowledge_cutoff": "2024-10",
+      "pricing": {
+        "input_per_1m": 0.035,
+        "output_per_1m": 0.14,
+        "cache_read_per_1m": 0.00875
+      },
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "context_window": 128000,
+      "max_output_tokens": 8192
+    },
+    {
+      "id": "amazon.nova-pro-v1:0",
+      "display_name": "Nova Pro",
+      "knowledge_cutoff": "2024-10",
+      "pricing": {
+        "input_per_1m": 0.8,
+        "output_per_1m": 3.2,
+        "cache_read_per_1m": 0.2
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "context_window": 300000,
+      "max_output_tokens": 8192
+    },
+    {
+      "id": "anthropic.claude-haiku-4-5-20251001-v1:0",
+      "display_name": "Claude Haiku 4.5",
+      "knowledge_cutoff": "2025-02-28",
+      "pricing": {
+        "input_per_1m": 1,
+        "output_per_1m": 5,
+        "cache_read_per_1m": 0.1,
+        "cache_write_per_1m": 1.25
+      },
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "context_window": 200000,
+      "max_output_tokens": 64000
+    },
+    {
+      "id": "anthropic.claude-opus-4-1-20250805-v1:0",
+      "display_name": "Claude Opus 4.1",
+      "knowledge_cutoff": "2025-03-31",
+      "pricing": {
+        "input_per_1m": 15,
+        "output_per_1m": 75,
+        "cache_read_per_1m": 1.5,
+        "cache_write_per_1m": 18.75
+      },
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "context_window": 200000,
+      "max_output_tokens": 32000
+    },
+    {
+      "id": "anthropic.claude-opus-4-5-20251101-v1:0",
+      "display_name": "Claude Opus 4.5",
+      "knowledge_cutoff": "2025-03-31",
+      "pricing": {
+        "input_per_1m": 5,
+        "output_per_1m": 25,
+        "cache_read_per_1m": 0.5,
+        "cache_write_per_1m": 6.25
+      },
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "context_window": 200000,
+      "max_output_tokens": 64000
+    },
+    {
+      "id": "anthropic.claude-opus-4-6-v1",
+      "display_name": "Claude Opus 4.6",
+      "knowledge_cutoff": "2025-05-31",
+      "pricing": {
+        "input_per_1m": 5,
+        "output_per_1m": 25,
+        "cache_read_per_1m": 0.5,
+        "cache_write_per_1m": 6.25
+      },
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "context_window": 1000000,
+      "max_output_tokens": 128000
+    },
+    {
+      "id": "anthropic.claude-opus-4-7",
+      "display_name": "Claude Opus 4.7",
+      "knowledge_cutoff": "2026-01-31",
+      "pricing": {
+        "input_per_1m": 5,
+        "output_per_1m": 25,
+        "cache_read_per_1m": 0.5,
+        "cache_write_per_1m": 6.25
+      },
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "context_window": 1000000,
+      "max_output_tokens": 128000
+    },
+    {
+      "id": "anthropic.claude-opus-4-8",
+      "display_name": "Claude Opus 4.8",
+      "pricing": {
+        "input_per_1m": 5,
+        "output_per_1m": 25,
+        "cache_read_per_1m": 0.5,
+        "cache_write_per_1m": 6.25
+      },
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "context_window": 1000000,
+      "max_output_tokens": 128000
+    },
+    {
+      "id": "anthropic.claude-sonnet-4-5-20250929-v1:0",
+      "display_name": "Claude Sonnet 4.5",
+      "knowledge_cutoff": "2025-07-31",
+      "pricing": {
+        "input_per_1m": 3,
+        "output_per_1m": 15,
+        "cache_read_per_1m": 0.3,
+        "cache_write_per_1m": 3.75
+      },
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "context_window": 200000,
+      "max_output_tokens": 64000
+    },
+    {
+      "id": "anthropic.claude-sonnet-4-6",
+      "display_name": "Claude Sonnet 4.6",
+      "knowledge_cutoff": "2025-08-31",
+      "pricing": {
+        "input_per_1m": 3,
+        "output_per_1m": 15,
+        "cache_read_per_1m": 0.3,
+        "cache_write_per_1m": 3.75
+      },
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "context_window": 1000000,
+      "max_output_tokens": 64000
+    },
+    {
+      "id": "au.anthropic.claude-haiku-4-5-20251001-v1:0",
+      "display_name": "Claude Haiku 4.5 (AU)",
+      "knowledge_cutoff": "2025-02-28",
+      "pricing": {
+        "input_per_1m": 1,
+        "output_per_1m": 5,
+        "cache_read_per_1m": 0.1,
+        "cache_write_per_1m": 1.25
+      },
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "context_window": 200000,
+      "max_output_tokens": 64000
+    },
+    {
+      "id": "au.anthropic.claude-opus-4-6-v1",
+      "display_name": "AU Anthropic Claude Opus 4.6",
+      "knowledge_cutoff": "2025-05",
+      "pricing": {
+        "input_per_1m": 16.5,
+        "output_per_1m": 82.5,
+        "cache_read_per_1m": 1.65,
+        "cache_write_per_1m": 20.625
+      },
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "context_window": 1000000,
+      "max_output_tokens": 128000
+    },
+    {
+      "id": "au.anthropic.claude-opus-4-8",
+      "display_name": "Claude Opus 4.8 (AU)",
+      "pricing": {
+        "input_per_1m": 5,
+        "output_per_1m": 25,
+        "cache_read_per_1m": 0.5,
+        "cache_write_per_1m": 6.25
+      },
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "context_window": 1000000,
+      "max_output_tokens": 128000
+    },
+    {
+      "id": "au.anthropic.claude-sonnet-4-5-20250929-v1:0",
+      "display_name": "Claude Sonnet 4.5 (AU)",
+      "knowledge_cutoff": "2025-07-31",
+      "pricing": {
+        "input_per_1m": 3,
+        "output_per_1m": 15,
+        "cache_read_per_1m": 0.3,
+        "cache_write_per_1m": 3.75
+      },
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "context_window": 200000,
+      "max_output_tokens": 64000
+    },
+    {
+      "id": "au.anthropic.claude-sonnet-4-6",
+      "display_name": "AU Anthropic Claude Sonnet 4.6",
+      "knowledge_cutoff": "2025-08",
+      "pricing": {
+        "input_per_1m": 3.3,
+        "output_per_1m": 16.5,
+        "cache_read_per_1m": 0.33,
+        "cache_write_per_1m": 4.125
+      },
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "context_window": 1000000,
+      "max_output_tokens": 128000
+    },
+    {
+      "id": "deepseek.r1-v1:0",
+      "display_name": "DeepSeek-R1",
+      "knowledge_cutoff": "2024-07",
+      "pricing": {
+        "input_per_1m": 1.35,
+        "output_per_1m": 5.4
+      },
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "context_window": 128000,
+      "max_output_tokens": 32768
+    },
+    {
+      "id": "deepseek.v3-v1:0",
+      "display_name": "DeepSeek-V3.1",
+      "knowledge_cutoff": "2024-07",
+      "pricing": {
+        "input_per_1m": 0.58,
+        "output_per_1m": 1.68
+      },
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "context_window": 163840,
+      "max_output_tokens": 81920
+    },
+    {
+      "id": "deepseek.v3.2",
+      "display_name": "DeepSeek-V3.2",
+      "knowledge_cutoff": "2024-07",
+      "pricing": {
+        "input_per_1m": 0.62,
+        "output_per_1m": 1.85
+      },
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "context_window": 163840,
+      "max_output_tokens": 81920
+    },
+    {
+      "id": "eu.anthropic.claude-haiku-4-5-20251001-v1:0",
+      "display_name": "Claude Haiku 4.5 (EU)",
+      "knowledge_cutoff": "2025-02-28",
+      "pricing": {
+        "input_per_1m": 1,
+        "output_per_1m": 5,
+        "cache_read_per_1m": 0.1,
+        "cache_write_per_1m": 1.25
+      },
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "context_window": 200000,
+      "max_output_tokens": 64000
+    },
+    {
+      "id": "eu.anthropic.claude-opus-4-5-20251101-v1:0",
+      "display_name": "Claude Opus 4.5 (EU)",
+      "knowledge_cutoff": "2025-03-31",
+      "pricing": {
+        "input_per_1m": 5,
+        "output_per_1m": 25,
+        "cache_read_per_1m": 0.5,
+        "cache_write_per_1m": 6.25
+      },
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "context_window": 200000,
+      "max_output_tokens": 64000
+    },
+    {
+      "id": "eu.anthropic.claude-opus-4-6-v1",
+      "display_name": "Claude Opus 4.6 (EU)",
+      "knowledge_cutoff": "2025-05-31",
+      "pricing": {
+        "input_per_1m": 5,
+        "output_per_1m": 25,
+        "cache_read_per_1m": 0.5,
+        "cache_write_per_1m": 6.25
+      },
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "context_window": 1000000,
+      "max_output_tokens": 128000
+    },
+    {
+      "id": "eu.anthropic.claude-opus-4-7",
+      "display_name": "Claude Opus 4.7 (EU)",
+      "knowledge_cutoff": "2026-01-31",
+      "pricing": {
+        "input_per_1m": 5,
+        "output_per_1m": 25,
+        "cache_read_per_1m": 0.5,
+        "cache_write_per_1m": 6.25
+      },
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "context_window": 1000000,
+      "max_output_tokens": 128000
+    },
+    {
+      "id": "eu.anthropic.claude-opus-4-8",
+      "display_name": "Claude Opus 4.8 (EU)",
+      "pricing": {
+        "input_per_1m": 5,
+        "output_per_1m": 25,
+        "cache_read_per_1m": 0.5,
+        "cache_write_per_1m": 6.25
+      },
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "context_window": 1000000,
+      "max_output_tokens": 128000
+    },
+    {
+      "id": "eu.anthropic.claude-sonnet-4-5-20250929-v1:0",
+      "display_name": "Claude Sonnet 4.5 (EU)",
+      "knowledge_cutoff": "2025-07-31",
+      "pricing": {
+        "input_per_1m": 3,
+        "output_per_1m": 15,
+        "cache_read_per_1m": 0.3,
+        "cache_write_per_1m": 3.75
+      },
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "context_window": 200000,
+      "max_output_tokens": 64000
+    },
+    {
+      "id": "eu.anthropic.claude-sonnet-4-6",
+      "display_name": "Claude Sonnet 4.6 (EU)",
+      "knowledge_cutoff": "2025-08-31",
+      "pricing": {
+        "input_per_1m": 3,
+        "output_per_1m": 15,
+        "cache_read_per_1m": 0.3,
+        "cache_write_per_1m": 3.75
+      },
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "context_window": 1000000,
+      "max_output_tokens": 64000
+    },
+    {
+      "id": "global.anthropic.claude-haiku-4-5-20251001-v1:0",
+      "display_name": "Claude Haiku 4.5 (Global)",
+      "knowledge_cutoff": "2025-02-28",
+      "pricing": {
+        "input_per_1m": 1,
+        "output_per_1m": 5,
+        "cache_read_per_1m": 0.1,
+        "cache_write_per_1m": 1.25
+      },
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "context_window": 200000,
+      "max_output_tokens": 64000
+    },
+    {
+      "id": "global.anthropic.claude-opus-4-5-20251101-v1:0",
+      "display_name": "Claude Opus 4.5 (Global)",
+      "knowledge_cutoff": "2025-03-31",
+      "pricing": {
+        "input_per_1m": 5,
+        "output_per_1m": 25,
+        "cache_read_per_1m": 0.5,
+        "cache_write_per_1m": 6.25
+      },
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "context_window": 200000,
+      "max_output_tokens": 64000
+    },
+    {
+      "id": "global.anthropic.claude-opus-4-6-v1",
+      "display_name": "Claude Opus 4.6 (Global)",
+      "knowledge_cutoff": "2025-05-31",
+      "pricing": {
+        "input_per_1m": 5,
+        "output_per_1m": 25,
+        "cache_read_per_1m": 0.5,
+        "cache_write_per_1m": 6.25
+      },
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "context_window": 1000000,
+      "max_output_tokens": 128000
+    },
+    {
+      "id": "global.anthropic.claude-opus-4-7",
+      "display_name": "Claude Opus 4.7 (Global)",
+      "knowledge_cutoff": "2026-01-31",
+      "pricing": {
+        "input_per_1m": 5,
+        "output_per_1m": 25,
+        "cache_read_per_1m": 0.5,
+        "cache_write_per_1m": 6.25
+      },
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "context_window": 1000000,
+      "max_output_tokens": 128000
+    },
+    {
+      "id": "global.anthropic.claude-opus-4-8",
+      "display_name": "Claude Opus 4.8 (Global)",
+      "pricing": {
+        "input_per_1m": 5,
+        "output_per_1m": 25,
+        "cache_read_per_1m": 0.5,
+        "cache_write_per_1m": 6.25
+      },
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "context_window": 1000000,
+      "max_output_tokens": 128000
+    },
+    {
+      "id": "global.anthropic.claude-sonnet-4-5-20250929-v1:0",
+      "display_name": "Claude Sonnet 4.5 (Global)",
+      "knowledge_cutoff": "2025-07-31",
+      "pricing": {
+        "input_per_1m": 3,
+        "output_per_1m": 15,
+        "cache_read_per_1m": 0.3,
+        "cache_write_per_1m": 3.75
+      },
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "context_window": 200000,
+      "max_output_tokens": 64000
+    },
+    {
+      "id": "global.anthropic.claude-sonnet-4-6",
+      "display_name": "Claude Sonnet 4.6 (Global)",
+      "knowledge_cutoff": "2025-08-31",
+      "pricing": {
+        "input_per_1m": 3,
+        "output_per_1m": 15,
+        "cache_read_per_1m": 0.3,
+        "cache_write_per_1m": 3.75
+      },
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "context_window": 1000000,
+      "max_output_tokens": 64000
+    },
+    {
+      "id": "google.gemma-3-12b-it",
+      "display_name": "Google Gemma 3 12B",
+      "knowledge_cutoff": "2024-12",
+      "pricing": {
+        "input_per_1m": 0.049999999999999996,
+        "output_per_1m": 0.09999999999999999
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "structured_output": true,
+      "context_window": 131072,
+      "max_output_tokens": 8192
+    },
+    {
+      "id": "google.gemma-3-27b-it",
+      "display_name": "Google Gemma 3 27B Instruct",
+      "knowledge_cutoff": "2025-07",
+      "pricing": {
+        "input_per_1m": 0.12,
+        "output_per_1m": 0.2
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "context_window": 202752,
+      "max_output_tokens": 8192
+    },
+    {
+      "id": "google.gemma-3-4b-it",
+      "display_name": "Gemma 3 4B IT",
+      "pricing": {
+        "input_per_1m": 0.04,
+        "output_per_1m": 0.08
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "context_window": 128000,
+      "max_output_tokens": 4096
+    },
+    {
+      "id": "jp.anthropic.claude-opus-4-7",
+      "display_name": "Claude Opus 4.7 (JP)",
+      "knowledge_cutoff": "2026-01-31",
+      "pricing": {
+        "input_per_1m": 5,
+        "output_per_1m": 25,
+        "cache_read_per_1m": 0.5,
+        "cache_write_per_1m": 6.25
+      },
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "context_window": 1000000,
+      "max_output_tokens": 128000
+    },
+    {
+      "id": "jp.anthropic.claude-opus-4-8",
+      "display_name": "Claude Opus 4.8 (JP)",
+      "pricing": {
+        "input_per_1m": 5,
+        "output_per_1m": 25,
+        "cache_read_per_1m": 0.5,
+        "cache_write_per_1m": 6.25
+      },
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "context_window": 1000000,
+      "max_output_tokens": 128000
+    },
+    {
+      "id": "jp.anthropic.claude-sonnet-4-5-20250929-v1:0",
+      "display_name": "Claude Sonnet 4.5 (JP)",
+      "knowledge_cutoff": "2025-07-31",
+      "pricing": {
+        "input_per_1m": 3,
+        "output_per_1m": 15,
+        "cache_read_per_1m": 0.3,
+        "cache_write_per_1m": 3.75
+      },
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "context_window": 200000,
+      "max_output_tokens": 64000
+    },
+    {
+      "id": "jp.anthropic.claude-sonnet-4-6",
+      "display_name": "Claude Sonnet 4.6 (JP)",
+      "knowledge_cutoff": "2025-08-31",
+      "pricing": {
+        "input_per_1m": 3,
+        "output_per_1m": 15,
+        "cache_read_per_1m": 0.3,
+        "cache_write_per_1m": 3.75
+      },
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "context_window": 1000000,
+      "max_output_tokens": 64000
+    },
+    {
+      "id": "meta.llama3-1-70b-instruct-v1:0",
+      "display_name": "Llama 3.1 70B Instruct",
+      "knowledge_cutoff": "2023-12",
+      "pricing": {
+        "input_per_1m": 0.72,
+        "output_per_1m": 0.72
+      },
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "context_window": 128000,
+      "max_output_tokens": 4096
+    },
+    {
+      "id": "meta.llama3-1-8b-instruct-v1:0",
+      "display_name": "Llama 3.1 8B Instruct",
+      "knowledge_cutoff": "2023-12",
+      "pricing": {
+        "input_per_1m": 0.22,
+        "output_per_1m": 0.22
+      },
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "context_window": 128000,
+      "max_output_tokens": 4096
+    },
+    {
+      "id": "meta.llama3-3-70b-instruct-v1:0",
+      "display_name": "Llama 3.3 70B Instruct",
+      "knowledge_cutoff": "2023-12",
+      "pricing": {
+        "input_per_1m": 0.72,
+        "output_per_1m": 0.72
+      },
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "context_window": 128000,
+      "max_output_tokens": 4096
+    },
+    {
+      "id": "meta.llama4-maverick-17b-instruct-v1:0",
+      "display_name": "Llama 4 Maverick 17B Instruct",
+      "knowledge_cutoff": "2024-08",
+      "pricing": {
+        "input_per_1m": 0.24,
+        "output_per_1m": 0.97
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "context_window": 1000000,
+      "max_output_tokens": 16384
+    },
+    {
+      "id": "meta.llama4-scout-17b-instruct-v1:0",
+      "display_name": "Llama 4 Scout 17B Instruct",
+      "knowledge_cutoff": "2024-08",
+      "pricing": {
+        "input_per_1m": 0.17,
+        "output_per_1m": 0.66
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "context_window": 3500000,
+      "max_output_tokens": 16384
+    },
+    {
+      "id": "minimax.minimax-m2",
+      "display_name": "MiniMax M2",
+      "pricing": {
+        "input_per_1m": 0.3,
+        "output_per_1m": 1.2
+      },
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "context_window": 204608,
+      "max_output_tokens": 128000
+    },
+    {
+      "id": "minimax.minimax-m2.1",
+      "display_name": "MiniMax M2.1",
+      "pricing": {
+        "input_per_1m": 0.3,
+        "output_per_1m": 1.2
+      },
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "context_window": 204800,
+      "max_output_tokens": 131072
+    },
+    {
+      "id": "minimax.minimax-m2.5",
+      "display_name": "MiniMax M2.5",
+      "pricing": {
+        "input_per_1m": 0.3,
+        "output_per_1m": 1.2
+      },
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "context_window": 196608,
+      "max_output_tokens": 98304
+    },
+    {
+      "id": "mistral.devstral-2-123b",
+      "display_name": "Devstral 2 123B",
+      "pricing": {
+        "input_per_1m": 0.4,
+        "output_per_1m": 2
+      },
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "context_window": 256000,
+      "max_output_tokens": 8192
+    },
+    {
+      "id": "mistral.magistral-small-2509",
+      "display_name": "Magistral Small 1.2",
+      "pricing": {
+        "input_per_1m": 0.5,
+        "output_per_1m": 1.5
+      },
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "context_window": 128000,
+      "max_output_tokens": 40000
+    },
+    {
+      "id": "mistral.ministral-3-14b-instruct",
+      "display_name": "Ministral 14B 3.0",
+      "pricing": {
+        "input_per_1m": 0.2,
+        "output_per_1m": 0.2
+      },
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "context_window": 128000,
+      "max_output_tokens": 4096
+    },
+    {
+      "id": "mistral.ministral-3-3b-instruct",
+      "display_name": "Ministral 3 3B",
+      "pricing": {
+        "input_per_1m": 0.1,
+        "output_per_1m": 0.1
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "context_window": 256000,
+      "max_output_tokens": 8192
+    },
+    {
+      "id": "mistral.ministral-3-8b-instruct",
+      "display_name": "Ministral 3 8B",
+      "pricing": {
+        "input_per_1m": 0.15,
+        "output_per_1m": 0.15
+      },
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "context_window": 128000,
+      "max_output_tokens": 4096
+    },
+    {
+      "id": "mistral.mistral-large-3-675b-instruct",
+      "display_name": "Mistral Large 3",
+      "pricing": {
+        "input_per_1m": 0.5,
+        "output_per_1m": 1.5
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "context_window": 256000,
+      "max_output_tokens": 8192
+    },
+    {
+      "id": "mistral.pixtral-large-2502-v1:0",
+      "display_name": "Pixtral Large (25.02)",
+      "pricing": {
+        "input_per_1m": 2,
+        "output_per_1m": 6
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "context_window": 128000,
+      "max_output_tokens": 8192
+    },
+    {
+      "id": "mistral.voxtral-mini-3b-2507",
+      "display_name": "Voxtral Mini 3B 2507",
+      "pricing": {
+        "input_per_1m": 0.04,
+        "output_per_1m": 0.04
+      },
+      "modalities": {
+        "input": [
+          "audio",
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "context_window": 128000,
+      "max_output_tokens": 4096
+    },
+    {
+      "id": "mistral.voxtral-small-24b-2507",
+      "display_name": "Voxtral Small 24B 2507",
+      "pricing": {
+        "input_per_1m": 0.15,
+        "output_per_1m": 0.35
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "context_window": 32000,
+      "max_output_tokens": 8192
+    },
+    {
+      "id": "moonshot.kimi-k2-thinking",
+      "display_name": "Kimi K2 Thinking",
+      "pricing": {
+        "input_per_1m": 0.6,
+        "output_per_1m": 2.5
+      },
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "context_window": 262143,
+      "max_output_tokens": 16000
+    },
+    {
+      "id": "moonshotai.kimi-k2.5",
+      "display_name": "Kimi K2.5",
+      "pricing": {
+        "input_per_1m": 0.6,
+        "output_per_1m": 3
+      },
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "context_window": 262143,
+      "max_output_tokens": 16000
+    },
+    {
+      "id": "nvidia.nemotron-nano-12b-v2",
+      "display_name": "NVIDIA Nemotron Nano 12B v2 VL BF16",
+      "pricing": {
+        "input_per_1m": 0.2,
+        "output_per_1m": 0.6
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "context_window": 128000,
+      "max_output_tokens": 4096
+    },
+    {
+      "id": "nvidia.nemotron-nano-3-30b",
+      "display_name": "NVIDIA Nemotron Nano 3 30B",
+      "pricing": {
+        "input_per_1m": 0.06,
+        "output_per_1m": 0.24
+      },
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "context_window": 128000,
+      "max_output_tokens": 4096
+    },
+    {
+      "id": "nvidia.nemotron-nano-9b-v2",
+      "display_name": "NVIDIA Nemotron Nano 9B v2",
+      "pricing": {
+        "input_per_1m": 0.06,
+        "output_per_1m": 0.23
+      },
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "context_window": 128000,
+      "max_output_tokens": 4096
+    },
+    {
+      "id": "nvidia.nemotron-super-3-120b",
+      "display_name": "NVIDIA Nemotron 3 Super 120B A12B",
+      "pricing": {
+        "input_per_1m": 0.15,
+        "output_per_1m": 0.65
+      },
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "context_window": 262144,
+      "max_output_tokens": 131072
+    },
+    {
+      "id": "openai.gpt-oss-120b-1:0",
+      "display_name": "gpt-oss-120b",
+      "pricing": {
+        "input_per_1m": 0.15,
+        "output_per_1m": 0.6
+      },
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "context_window": 128000,
+      "max_output_tokens": 16384
+    },
+    {
+      "id": "openai.gpt-oss-20b-1:0",
+      "display_name": "gpt-oss-20b",
+      "pricing": {
+        "input_per_1m": 0.07,
+        "output_per_1m": 0.3
+      },
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "context_window": 128000,
+      "max_output_tokens": 16384
+    },
+    {
+      "id": "openai.gpt-oss-safeguard-120b",
+      "display_name": "GPT OSS Safeguard 120B",
+      "pricing": {
+        "input_per_1m": 0.15,
+        "output_per_1m": 0.6
+      },
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "context_window": 128000,
+      "max_output_tokens": 16384
+    },
+    {
+      "id": "openai.gpt-oss-safeguard-20b",
+      "display_name": "GPT OSS Safeguard 20B",
+      "pricing": {
+        "input_per_1m": 0.07,
+        "output_per_1m": 0.2
+      },
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "context_window": 128000,
+      "max_output_tokens": 16384
+    },
+    {
+      "id": "qwen.qwen3-235b-a22b-2507-v1:0",
+      "display_name": "Qwen3 235B A22B 2507",
+      "knowledge_cutoff": "2024-04",
+      "pricing": {
+        "input_per_1m": 0.22,
+        "output_per_1m": 0.88
+      },
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "context_window": 262144,
+      "max_output_tokens": 131072
+    },
+    {
+      "id": "qwen.qwen3-32b-v1:0",
+      "display_name": "Qwen3 32B (dense)",
+      "knowledge_cutoff": "2024-04",
+      "pricing": {
+        "input_per_1m": 0.15,
+        "output_per_1m": 0.6
+      },
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "context_window": 16384,
+      "max_output_tokens": 16384
+    },
+    {
+      "id": "qwen.qwen3-coder-30b-a3b-v1:0",
+      "display_name": "Qwen3 Coder 30B A3B Instruct",
+      "knowledge_cutoff": "2024-04",
+      "pricing": {
+        "input_per_1m": 0.15,
+        "output_per_1m": 0.6
+      },
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "context_window": 262144,
+      "max_output_tokens": 131072
+    },
+    {
+      "id": "qwen.qwen3-coder-480b-a35b-v1:0",
+      "display_name": "Qwen3 Coder 480B A35B Instruct",
+      "knowledge_cutoff": "2024-04",
+      "pricing": {
+        "input_per_1m": 0.22,
+        "output_per_1m": 1.8
+      },
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "context_window": 131072,
+      "max_output_tokens": 65536
+    },
+    {
+      "id": "qwen.qwen3-coder-next",
+      "display_name": "Qwen3 Coder Next",
+      "pricing": {
+        "input_per_1m": 0.22,
+        "output_per_1m": 1.8
+      },
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "context_window": 131072,
+      "max_output_tokens": 65536
+    },
+    {
+      "id": "qwen.qwen3-next-80b-a3b",
+      "display_name": "Qwen/Qwen3-Next-80B-A3B-Instruct",
+      "pricing": {
+        "input_per_1m": 0.14,
+        "output_per_1m": 1.4
+      },
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "context_window": 262000,
+      "max_output_tokens": 262000
+    },
+    {
+      "id": "qwen.qwen3-vl-235b-a22b",
+      "display_name": "Qwen/Qwen3-VL-235B-A22B-Instruct",
+      "pricing": {
+        "input_per_1m": 0.3,
+        "output_per_1m": 1.5
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "context_window": 262000,
+      "max_output_tokens": 262000
+    },
+    {
+      "id": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+      "display_name": "Claude Haiku 4.5 (US)",
+      "knowledge_cutoff": "2025-02-28",
+      "pricing": {
+        "input_per_1m": 1,
+        "output_per_1m": 5,
+        "cache_read_per_1m": 0.1,
+        "cache_write_per_1m": 1.25
+      },
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "context_window": 200000,
+      "max_output_tokens": 64000
+    },
+    {
+      "id": "us.anthropic.claude-opus-4-1-20250805-v1:0",
+      "display_name": "Claude Opus 4.1 (US)",
+      "knowledge_cutoff": "2025-03-31",
+      "pricing": {
+        "input_per_1m": 15,
+        "output_per_1m": 75,
+        "cache_read_per_1m": 1.5,
+        "cache_write_per_1m": 18.75
+      },
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "context_window": 200000,
+      "max_output_tokens": 32000
+    },
+    {
+      "id": "us.anthropic.claude-opus-4-5-20251101-v1:0",
+      "display_name": "Claude Opus 4.5 (US)",
+      "knowledge_cutoff": "2025-03-31",
+      "pricing": {
+        "input_per_1m": 5,
+        "output_per_1m": 25,
+        "cache_read_per_1m": 0.5,
+        "cache_write_per_1m": 6.25
+      },
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "context_window": 200000,
+      "max_output_tokens": 64000
+    },
+    {
+      "id": "us.anthropic.claude-opus-4-6-v1",
+      "display_name": "Claude Opus 4.6 (US)",
+      "knowledge_cutoff": "2025-05-31",
+      "pricing": {
+        "input_per_1m": 5,
+        "output_per_1m": 25,
+        "cache_read_per_1m": 0.5,
+        "cache_write_per_1m": 6.25
+      },
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "context_window": 1000000,
+      "max_output_tokens": 128000
+    },
+    {
+      "id": "us.anthropic.claude-opus-4-7",
+      "display_name": "Claude Opus 4.7 (US)",
+      "knowledge_cutoff": "2026-01-31",
+      "pricing": {
+        "input_per_1m": 5,
+        "output_per_1m": 25,
+        "cache_read_per_1m": 0.5,
+        "cache_write_per_1m": 6.25
+      },
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "context_window": 1000000,
+      "max_output_tokens": 128000
+    },
+    {
+      "id": "us.anthropic.claude-opus-4-8",
+      "display_name": "Claude Opus 4.8 (US)",
+      "pricing": {
+        "input_per_1m": 5,
+        "output_per_1m": 25,
+        "cache_read_per_1m": 0.5,
+        "cache_write_per_1m": 6.25
+      },
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "context_window": 1000000,
+      "max_output_tokens": 128000
+    },
+    {
+      "id": "us.anthropic.claude-sonnet-4-5-20250929-v1:0",
+      "display_name": "Claude Sonnet 4.5 (US)",
+      "knowledge_cutoff": "2025-07-31",
+      "pricing": {
+        "input_per_1m": 3,
+        "output_per_1m": 15,
+        "cache_read_per_1m": 0.3,
+        "cache_write_per_1m": 3.75
+      },
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "context_window": 200000,
+      "max_output_tokens": 64000
+    },
+    {
+      "id": "us.anthropic.claude-sonnet-4-6",
+      "display_name": "Claude Sonnet 4.6 (US)",
+      "knowledge_cutoff": "2025-08-31",
+      "pricing": {
+        "input_per_1m": 3,
+        "output_per_1m": 15,
+        "cache_read_per_1m": 0.3,
+        "cache_write_per_1m": 3.75
+      },
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "context_window": 1000000,
+      "max_output_tokens": 64000
+    },
+    {
+      "id": "us.deepseek.r1-v1:0",
+      "display_name": "DeepSeek-R1 (US)",
+      "knowledge_cutoff": "2024-07",
+      "pricing": {
+        "input_per_1m": 1.35,
+        "output_per_1m": 5.4
+      },
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "context_window": 128000,
+      "max_output_tokens": 32768
+    },
+    {
+      "id": "us.meta.llama4-maverick-17b-instruct-v1:0",
+      "display_name": "Llama 4 Maverick 17B Instruct (US)",
+      "knowledge_cutoff": "2024-08",
+      "pricing": {
+        "input_per_1m": 0.24,
+        "output_per_1m": 0.97
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "context_window": 1000000,
+      "max_output_tokens": 16384
+    },
+    {
+      "id": "us.meta.llama4-scout-17b-instruct-v1:0",
+      "display_name": "Llama 4 Scout 17B Instruct (US)",
+      "knowledge_cutoff": "2024-08",
+      "pricing": {
+        "input_per_1m": 0.17,
+        "output_per_1m": 0.66
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "context_window": 3500000,
+      "max_output_tokens": 16384
+    },
+    {
+      "id": "writer.palmyra-x4-v1:0",
+      "display_name": "Palmyra X4",
+      "pricing": {
+        "input_per_1m": 2.5,
+        "output_per_1m": 10
+      },
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "context_window": 122880,
+      "max_output_tokens": 8192
+    },
+    {
+      "id": "writer.palmyra-x5-v1:0",
+      "display_name": "Palmyra X5",
+      "pricing": {
+        "input_per_1m": 0.6,
+        "output_per_1m": 6
+      },
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "context_window": 1040000,
+      "max_output_tokens": 8192
+    },
+    {
+      "id": "zai.glm-4.7",
+      "display_name": "GLM-4.7",
+      "knowledge_cutoff": "2025-04",
+      "pricing": {
+        "input_per_1m": 0.6,
+        "output_per_1m": 2.2
+      },
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "context_window": 204800,
+      "max_output_tokens": 131072
+    },
+    {
+      "id": "zai.glm-4.7-flash",
+      "display_name": "GLM-4.7-Flash",
+      "knowledge_cutoff": "2025-04",
+      "pricing": {
+        "input_per_1m": 0.07,
+        "output_per_1m": 0.4
+      },
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "context_window": 200000,
+      "max_output_tokens": 131072
+    },
+    {
+      "id": "zai.glm-5",
+      "display_name": "GLM-5",
+      "pricing": {
+        "input_per_1m": 1,
+        "output_per_1m": 3.2
+      },
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "context_window": 202752,
+      "max_output_tokens": 101376
+    }
+  ]
+}
