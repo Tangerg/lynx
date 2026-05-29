@@ -67,3 +67,30 @@ func TestPricing_Cost_CacheRateFallback(t *testing.T) {
 		t.Errorf("Cost = %v, want 0.002 (cache read falls back to input rate)", got)
 	}
 }
+
+func TestModalities(t *testing.T) {
+	var zero Modalities
+	if !zero.IsZero() {
+		t.Error("empty Modalities should be IsZero")
+	}
+
+	m := Modalities{Input: []Modality{ModalityText, ModalityImage, ModalityPDF}, Output: []Modality{ModalityText}}
+	if m.IsZero() {
+		t.Error("populated Modalities should not be IsZero")
+	}
+	if !m.AcceptsInput(ModalityImage) || m.AcceptsInput(ModalityAudio) {
+		t.Error("AcceptsInput mismatch")
+	}
+	if !m.EmitsOutput(ModalityText) || m.EmitsOutput(ModalityImage) {
+		t.Error("EmitsOutput mismatch")
+	}
+}
+
+func TestReasoning_IsZero(t *testing.T) {
+	if !(Reasoning{}).IsZero() {
+		t.Error("empty Reasoning should be IsZero")
+	}
+	if (Reasoning{Supported: true}).IsZero() {
+		t.Error("budget-thinking (Supported, no levels) must not be IsZero")
+	}
+}

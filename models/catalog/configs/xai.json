@@ -12,6 +12,15 @@
       "reasoning": {
         "supported": true
       },
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ]
+      },
       "context_window": 200000,
       "max_tokens": 20000
     },
@@ -26,6 +35,15 @@
       "reasoning": {
         "supported": true
       },
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ]
+      },
       "context_window": 200000,
       "max_tokens": 20000
     },
@@ -36,6 +54,15 @@
         "input_per_1m": 1.25,
         "output_per_1m": 2.5,
         "cache_read_per_1m": 0.2
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ]
       },
       "context_window": 200000,
       "max_tokens": 20000
@@ -50,6 +77,15 @@
       },
       "reasoning": {
         "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ]
       },
       "context_window": 131072,
       "max_tokens": 13107

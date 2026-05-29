@@ -12,6 +12,14 @@
       "reasoning": {
         "supported": true
       },
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
+      },
       "context_window": 204800,
       "max_tokens": 65536
     },
@@ -25,6 +33,14 @@
       },
       "reasoning": {
         "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
       },
       "context_window": 200000,
       "max_tokens": 128000
@@ -40,6 +56,14 @@
       "reasoning": {
         "supported": true
       },
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
+      },
       "context_window": 204800,
       "max_tokens": 65536
     },
@@ -53,6 +77,14 @@
       },
       "reasoning": {
         "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
       },
       "context_window": 204800,
       "max_tokens": 98000
@@ -68,6 +100,14 @@
       "reasoning": {
         "supported": true
       },
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
+      },
       "context_window": 200000,
       "max_tokens": 65550
     },
@@ -82,6 +122,14 @@
       "reasoning": {
         "supported": true
       },
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
+      },
       "context_window": 204800,
       "max_tokens": 102400
     },
@@ -94,6 +142,15 @@
       },
       "reasoning": {
         "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ]
       },
       "context_window": 131072,
       "max_tokens": 65536
@@ -109,6 +166,14 @@
       "reasoning": {
         "supported": true
       },
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
+      },
       "context_window": 131072,
       "max_tokens": 49152
     },
@@ -123,6 +188,14 @@
       "reasoning": {
         "supported": true
       },
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
+      },
       "context_window": 131072,
       "max_tokens": 49152
     },
@@ -136,6 +209,15 @@
       },
       "reasoning": {
         "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ]
       },
       "context_window": 65536,
       "max_tokens": 8192

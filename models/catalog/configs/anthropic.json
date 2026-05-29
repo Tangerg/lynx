@@ -20,6 +20,16 @@
         ],
         "default_level": "high"
       },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      },
       "context_window": 1000000,
       "max_tokens": 64000
     },
@@ -34,6 +44,16 @@
       },
       "reasoning": {
         "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
       },
       "context_window": 200000,
       "max_tokens": 64000
@@ -58,6 +78,16 @@
         ],
         "default_level": "high"
       },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      },
       "context_window": 1000000,
       "max_tokens": 126000
     },
@@ -81,6 +111,16 @@
         ],
         "default_level": "high"
       },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      },
       "context_window": 1000000,
       "max_tokens": 126000
     },
@@ -103,6 +143,16 @@
         ],
         "default_level": "high"
       },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      },
       "context_window": 1000000,
       "max_tokens": 126000
     },
@@ -117,6 +167,16 @@
       },
       "reasoning": {
         "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
       },
       "context_window": 200000,
       "max_tokens": 64000
@@ -133,6 +193,16 @@
       "reasoning": {
         "supported": true
       },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      },
       "context_window": 200000,
       "max_tokens": 64000
     },
@@ -147,6 +217,16 @@
       },
       "reasoning": {
         "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
       },
       "context_window": 200000,
       "max_tokens": 32000
@@ -163,6 +243,16 @@
       "reasoning": {
         "supported": true
       },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      },
       "context_window": 200000,
       "max_tokens": 32000
     },
@@ -178,6 +268,16 @@
       "reasoning": {
         "supported": true
       },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      },
       "context_window": 200000,
       "max_tokens": 64000
     },
@@ -189,6 +289,16 @@
         "output_per_1m": 4,
         "cache_read_per_1m": 0.08,
         "cache_write_per_1m": 1
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
       },
       "context_window": 200000,
       "max_tokens": 8192

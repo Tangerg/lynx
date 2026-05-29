@@ -9,6 +9,14 @@
         "output_per_1m": 2.4,
         "cache_read_per_1m": 0.375
       },
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
+      },
       "context_window": 200000,
       "max_tokens": 128000
     },
@@ -21,6 +29,14 @@
         "cache_read_per_1m": 0.06,
         "cache_write_per_1m": 0.375
       },
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
+      },
       "context_window": 200000,
       "max_tokens": 128000
     },
@@ -31,6 +47,14 @@
         "input_per_1m": 0.6,
         "output_per_1m": 2.4,
         "cache_read_per_1m": 0.375
+      },
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
       },
       "context_window": 200000,
       "max_tokens": 128000
@@ -44,6 +68,14 @@
         "cache_read_per_1m": 0.03,
         "cache_write_per_1m": 0.375
       },
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
+      },
       "context_window": 200000,
       "max_tokens": 128000
     },
@@ -54,6 +86,14 @@
         "input_per_1m": 0.6,
         "output_per_1m": 2.4,
         "cache_read_per_1m": 0.375
+      },
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
       },
       "context_window": 200000,
       "max_tokens": 128000
@@ -67,6 +107,14 @@
         "cache_read_per_1m": 0.03,
         "cache_write_per_1m": 0.375
       },
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
+      },
       "context_window": 200000,
       "max_tokens": 128000
     },
@@ -78,6 +126,14 @@
         "output_per_1m": 1.2,
         "cache_read_per_1m": 0.03,
         "cache_write_per_1m": 0.375
+      },
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
       },
       "context_window": 200000,
       "max_tokens": 20000

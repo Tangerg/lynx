@@ -18,6 +18,14 @@
         ],
         "default_level": "medium"
       },
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
+      },
       "context_window": 131072,
       "max_tokens": 10000
     },
@@ -27,6 +35,14 @@
       "pricing": {
         "input_per_1m": 0.29,
         "output_per_1m": 0.59
+      },
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
       },
       "context_window": 131072,
       "max_tokens": 10000
