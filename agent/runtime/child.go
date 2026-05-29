@@ -112,29 +112,10 @@ func SpawnChildAsync(
 	agentDef *core.Agent,
 	in any,
 ) (string, <-chan error, error) {
-	if platform == nil {
-		return "", nil, errors.New("spawn child async: platform is nil")
-	}
-	if agentDef == nil {
-		return "", nil, errors.New("spawn child async: agent is nil")
-	}
-	parent := core.ProcessFrom(ctx)
-	if parent == nil {
-		return "", nil, errors.New("spawn child async: no parent process in ctx (use core.WithProcess to inject one)")
-	}
-	parentProc, ok := platform.ProcessByID(parent.ID())
-	if !ok {
-		return "", nil, fmt.Errorf("spawn child async: parent process %q not registered on platform", parent.ID())
-	}
-
-	child, err := platform.CreateChildProcess(agentDef, parentProc, core.ProcessOptions{})
+	child, err := prepareChild(ctx, platform, agentDef, in, core.ProcessOptions{})
 	if err != nil {
-		return "", nil, fmt.Errorf("spawn child async %q: create: %w", agentDef.Name, err)
+		return "", nil, err
 	}
-	if in != nil {
-		child.Blackboard().Bind(in)
-	}
-
 	done := platform.ContinueProcessAsync(context.WithoutCancel(ctx), child.ID())
 	return child.ID(), done, nil
 }
@@ -195,10 +176,16 @@ func ChildError(child *AgentProcess) error {
 	return fmt.Errorf("ended in %s", status)
 }
 
-// spawnChildOptions is the shared core of [SpawnChild] and
-// [SpawnChildFresh] — the only difference between the two is the
-// ProcessOptions.Blackboard slot.
-func spawnChildOptions(
+// prepareChild is the shared prefix of every child-spawn entry point:
+// it validates the inputs, resolves the parent process from ctx,
+// creates the child (joining the parent's budget tree, with the given
+// blackboard options), and binds the typed input — returning a child
+// ready to be driven. The caller picks how: synchronously via
+// [Platform.ContinueProcess] ([SpawnChild] / [SpawnChildFresh]) or in
+// the background via [Platform.ContinueProcessAsync] ([SpawnChildAsync]).
+// Centralizing the prefix keeps validation and error messages identical
+// across the three.
+func prepareChild(
 	ctx context.Context,
 	platform *Platform,
 	agentDef *core.Agent,
@@ -227,7 +214,24 @@ func spawnChildOptions(
 	if in != nil {
 		child.Blackboard().Bind(in)
 	}
+	return child, nil
+}
 
+// spawnChildOptions is the synchronous shared core of [SpawnChild] and
+// [SpawnChildFresh] — prepare the child, then drive it to a terminal
+// state in-line. The two differ only in the ProcessOptions.Blackboard
+// slot they pass through.
+func spawnChildOptions(
+	ctx context.Context,
+	platform *Platform,
+	agentDef *core.Agent,
+	in any,
+	options core.ProcessOptions,
+) (*AgentProcess, error) {
+	child, err := prepareChild(ctx, platform, agentDef, in, options)
+	if err != nil {
+		return nil, err
+	}
 	if err := platform.ContinueProcess(ctx, child.ID()); err != nil {
 		return nil, fmt.Errorf("spawn child %q (process %q): run: %w", agentDef.Name, child.ID(), err)
 	}
