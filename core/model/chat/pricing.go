@@ -71,3 +71,30 @@ func derefInt64(p *int64) int64 {
 	}
 	return *p
 }
+
+// Reasoning describes a chat model's extended-thinking (reasoning)
+// support. Like [Pricing], it's a value type with an [IsZero] check and
+// nests inside [ModelInfo].
+//
+// Supported is the authoritative "can this model reason" bit. Levels and
+// DefaultLevel are populated only when effort is level-controlled (e.g.
+// OpenAI's "low"/"medium"/"high", Gemini's tiers); a model that reasons
+// via a token budget (Anthropic) reports Supported with no Levels.
+type Reasoning struct {
+	// Supported reports whether the model can reason / think at all.
+	Supported bool `json:"supported,omitempty"`
+
+	// Levels are the discrete effort levels the model accepts, in
+	// increasing order (e.g. "low", "medium", "high"). Nil when effort
+	// isn't level-controlled.
+	Levels []string `json:"levels,omitempty"`
+
+	// DefaultLevel is the effort used when the caller doesn't pick one.
+	// Empty when there are no Levels.
+	DefaultLevel string `json:"default_level,omitempty"`
+}
+
+// IsZero reports whether reasoning is unset — i.e. the model can't reason.
+func (r Reasoning) IsZero() bool {
+	return !r.Supported && len(r.Levels) == 0 && r.DefaultLevel == ""
+}

@@ -19,7 +19,11 @@ Each model entry is a `chat.ModelInfo` (pricing is nested):
         "input_per_1m": 0.14, "output_per_1m": 0.28,
         "cache_read_per_1m": 0.0028
       },
-      "can_reason": true,
+      "reasoning": {
+        "supported": true,
+        "levels": ["high", "xhigh"],
+        "default_level": "high"
+      },
       "context_window": 1000000,
       "max_tokens": 384000 }
   ]
@@ -37,8 +41,11 @@ Each model entry is a `chat.ModelInfo` (pricing is nested):
   unknown (`Cost` falls back to the input rate). Omit `pricing` entirely
   for a metadata-only row (capabilities still useful) — a zero `Pricing`
   means "cost unknown", not "free".
-- `can_reason` / `context_window` / `max_tokens` are optional; omit when
-  unknown.
+- `reasoning.supported` is the authoritative "can reason" bit; `levels` /
+  `default_level` apply only when effort is level-controlled (OpenAI,
+  Gemini). A token-budget reasoner (Anthropic) is just
+  `{"supported": true}`. Omit `reasoning` for non-reasoning models.
+- `context_window` / `max_tokens` are optional; omit when unknown.
 
 ## Source / maintenance
 
@@ -47,8 +54,10 @@ catalog) with this mapping:
 
 - `cost_per_1m_in` → `pricing.input_per_1m`, `cost_per_1m_out` →
   `pricing.output_per_1m` (exact).
-- `name` → `display_name`; `can_reason` / `context_window` /
-  `default_max_tokens` → `can_reason` / `context_window` / `max_tokens`.
+- `name` → `display_name`; `context_window` / `default_max_tokens` →
+  `context_window` / `max_tokens`.
+- `can_reason` / `reasoning_levels` / `default_reasoning_effort` →
+  `reasoning.supported` / `reasoning.levels` / `reasoning.default_level`.
 - catwalk's two cached fields (`cost_per_1m_in_cached`,
   `cost_per_1m_out_cached`) are used inconsistently across providers
   (Anthropic puts the write premium in `in_cached` and the read discount
