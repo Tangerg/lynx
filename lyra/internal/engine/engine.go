@@ -288,6 +288,11 @@ type RunChatRequest struct {
 	// Message is the user's input for this turn.
 	Message string
 
+	// MaxBudget caps the total tokens (prompt + completion) the turn
+	// may spend across its tool-loop rounds. 0 means unlimited. See
+	// [ChatInput.MaxBudget] for the stop semantics.
+	MaxBudget int64
+
 	// Observer receives streaming tool-call + text-delta
 	// notifications. May be nil — the turn still runs.
 	Observer ToolObserver
@@ -383,7 +388,7 @@ func (cp *chatProcess) Output() (ChatOutput, error) {
 // attaches a process-scope [core.ToolDecorator]; SessionID binds the
 // turn to the chat-memory middleware's keyed conversation.
 func (e *Engine) StartChat(ctx context.Context, req RunChatRequest) ChatProcess {
-	in := ChatInput{Message: req.Message}
+	in := ChatInput{Message: req.Message, MaxBudget: req.MaxBudget}
 
 	opts := core.ProcessOptions{}
 	if req.SessionID != "" {

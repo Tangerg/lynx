@@ -14,6 +14,13 @@ import (
 // session context, tool selection hints, etc.
 type ChatInput struct {
 	Message string
+
+	// MaxBudget caps the total tokens (prompt + completion) the turn
+	// may spend across its tool-loop rounds. 0 means unlimited. When
+	// exceeded the action stops cleanly after the current round —
+	// before paying for the next LLM call — and reports the partial
+	// reply with [ChatOutput.StoppedOnBudget] set.
+	MaxBudget int64
 }
 
 // ChatOutput is the typed output of one turn. Reply is the
@@ -22,6 +29,11 @@ type ChatInput struct {
 type ChatOutput struct {
 	Reply string
 	Usage TokenUsage
+
+	// StoppedOnBudget is true when the turn ended because it hit
+	// [ChatInput.MaxBudget] rather than the model finishing. Reply
+	// holds whatever text accumulated up to the stop.
+	StoppedOnBudget bool
 }
 
 // TokenUsage is the per-turn token total — sum across every LLM
@@ -45,6 +57,13 @@ func (t *TokenUsage) add(u *chat.Usage) {
 	if u.ReasoningTokens != nil {
 		t.ReasoningTokens += *u.ReasoningTokens
 	}
+}
+
+// total is prompt + completion — the figure a token budget caps.
+// ReasoningTokens is a subset of CompletionTokens (not an addition),
+// so it's already counted.
+func (t TokenUsage) total() int64 {
+	return t.PromptTokens + t.CompletionTokens
 }
 
 // buildChatAgent constructs the chat agent owned by this Engine.
@@ -93,6 +112,17 @@ func (e *Engine) buildChatAgent() *core.Agent {
 					if isToolRoundBoundary(chunk) {
 						totals.add(roundUsage)
 						roundUsage = nil
+						// Enforce the per-turn token budget at the round
+						// boundary — stop here, before the next LLM call,
+						// rather than after paying for it. Returning ends
+						// the stream iterator (no further rounds run).
+						if in.MaxBudget > 0 && totals.total() >= in.MaxBudget {
+							return ChatOutput{
+								Reply:           accumulated.String(),
+								Usage:           totals,
+								StoppedOnBudget: true,
+							}, nil
+						}
 					}
 					if chunk != nil && chunk.Metadata != nil && chunk.Metadata.Usage != nil {
 						roundUsage = chunk.Metadata.Usage

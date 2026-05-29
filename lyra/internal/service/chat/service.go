@@ -24,6 +24,14 @@ type StartTurnRequest struct {
 	// the client either continues the turn (via a separate call,
 	// TBD) or cancels. M6 milestone.
 	PlanMode bool
+
+	// MaxBudget caps the total tokens (prompt + completion) the turn
+	// may spend across its tool-loop rounds. 0 means unlimited. On
+	// overrun the turn stops cleanly after the current round and ends
+	// with Reason=[TurnEndBudgetExceeded], the partial reply already
+	// streamed. In-process / automated callers set this; it is not
+	// (yet) carried on the wire.
+	MaxBudget int64
 }
 
 // TurnHandle uniquely identifies an in-flight turn. Returned by
@@ -293,6 +301,11 @@ const (
 	// TurnEndErrored — the turn aborted on error. An [ErrorEvent]
 	// fires before [TurnEnd] in this case.
 	TurnEndErrored
+	// TurnEndBudgetExceeded — the turn hit [StartTurnRequest.MaxBudget]
+	// and stopped cleanly after the current round. Not an error: the
+	// partial reply already streamed; TokenUsage reflects what was
+	// spent.
+	TurnEndBudgetExceeded
 )
 
 func (r TurnEndReason) String() string {
@@ -303,6 +316,8 @@ func (r TurnEndReason) String() string {
 		return "canceled"
 	case TurnEndErrored:
 		return "errored"
+	case TurnEndBudgetExceeded:
+		return "budget_exceeded"
 	default:
 		return "unknown"
 	}

@@ -61,6 +61,7 @@ func (cp *stubChatProcess) Cancel(reason string) error {
 type stubEngine struct {
 	runChatCalls atomic.Int32
 	runReply     string
+	stopOnBudget bool // when true the produced ChatOutput sets StoppedOnBudget
 }
 
 func (s *stubEngine) StartChat(_ context.Context, req engine.RunChatRequest) engine.ChatProcess {
@@ -68,7 +69,10 @@ func (s *stubEngine) StartChat(_ context.Context, req engine.RunChatRequest) eng
 	if req.Observer != nil {
 		req.Observer.OnMessageDelta(s.runReply)
 	}
-	return newStubChatProcess("stub-proc-"+req.SessionID, engine.ChatOutput{Reply: s.runReply})
+	return newStubChatProcess("stub-proc-"+req.SessionID, engine.ChatOutput{
+		Reply:           s.runReply,
+		StoppedOnBudget: s.stopOnBudget,
+	})
 }
 
 func (s *stubEngine) GeneratePlan(_ context.Context, _ string) (string, error) {
@@ -131,6 +135,43 @@ func TestStubEngineDrivesTurn(t *testing.T) {
 	}
 	if got := stub.runChatCalls.Load(); got != 1 {
 		t.Errorf("RunChat called %d times, want 1", got)
+	}
+}
+
+// TestStubEngineBudgetStop — a turn whose process reports
+// StoppedOnBudget ends with Reason=TurnEndBudgetExceeded, not a plain
+// completion, so clients can tell "stopped at the ceiling" apart from
+// "model finished".
+func TestStubEngineBudgetStop(t *testing.T) {
+	stub := &stubEngine{runReply: "partial answer", stopOnBudget: true}
+	svc := chat.New(stub, nil)
+
+	handle, err := svc.StartTurn(context.Background(), chat.StartTurnRequest{
+		SessionID: "s",
+		Message:   "go",
+		MaxBudget: 1,
+	})
+	if err != nil {
+		t.Fatalf("StartTurn: %v", err)
+	}
+	events, _ := svc.Events(context.Background(), handle)
+
+	deadline := time.After(2 * time.Second)
+	for {
+		select {
+		case ev, ok := <-events:
+			if !ok {
+				t.Fatal("channel closed without a TurnEnd")
+			}
+			if end, ok := ev.(chat.TurnEnd); ok {
+				if end.Reason != chat.TurnEndBudgetExceeded {
+					t.Fatalf("TurnEnd reason = %v, want budget_exceeded", end.Reason)
+				}
+				return
+			}
+		case <-deadline:
+			t.Fatal("no TurnEnd within 2s")
+		}
 	}
 }
 

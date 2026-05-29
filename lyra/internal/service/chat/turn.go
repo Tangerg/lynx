@@ -112,6 +112,7 @@ func (s *inMemory) runTurn(ctx context.Context, st *turnState, req StartTurnRequ
 	proc := s.engine.StartChat(ctx, engine.RunChatRequest{
 		SessionID:     req.SessionID,
 		Message:       req.Message,
+		MaxBudget:     req.MaxBudget,
 		Observer:      observer,
 		EventListener: lifecycle.listener(st.handle.TurnID),
 	})
@@ -146,7 +147,14 @@ func (s *inMemory) emitTurnEnd(st *turnState, proc engine.ChatProcess, terminal 
 	case event.ProcessCompleted:
 		_ = ev
 		out, _ := proc.Output()
-		s.emit(st, TurnEnd{Reason: TurnEndCompleted, Duration: duration, TokenUsage: out.Usage})
+		reason := TurnEndCompleted
+		if out.StoppedOnBudget {
+			// The action returned normally (no error) but stopped early
+			// on the token ceiling — surface that as the terminal reason
+			// rather than a plain completion.
+			reason = TurnEndBudgetExceeded
+		}
+		s.emit(st, TurnEnd{Reason: reason, Duration: duration, TokenUsage: out.Usage})
 	case event.ProcessKilled, event.ProcessTerminated:
 		_ = ev
 		s.emit(st, TurnEnd{Reason: TurnEndCancelled, Duration: duration})
@@ -174,7 +182,11 @@ func (s *inMemory) emitTurnEnd(st *turnState, proc engine.ChatProcess, terminal 
 			return
 		}
 		out, _ := proc.Output()
-		s.emit(st, TurnEnd{Reason: TurnEndCompleted, Duration: duration, TokenUsage: out.Usage})
+		reason := TurnEndCompleted
+		if out.StoppedOnBudget {
+			reason = TurnEndBudgetExceeded
+		}
+		s.emit(st, TurnEnd{Reason: reason, Duration: duration, TokenUsage: out.Usage})
 	}
 }
 

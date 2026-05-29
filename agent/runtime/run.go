@@ -3,6 +3,7 @@ package runtime
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"go.opentelemetry.io/otel/attribute"
 
@@ -33,6 +34,7 @@ func (p *AgentProcess) run(ctx context.Context) error {
 
 		if p.checkEarlyTermination() {
 			p.maybeAutoSnapshot(ctx)
+			p.recordRunExitMetric(ctx)
 			return nil
 		}
 
@@ -51,6 +53,7 @@ func (p *AgentProcess) run(ctx context.Context) error {
 		// terminal cleanup) can drive next.
 		if p.Status() != core.StatusRunning {
 			p.publishTerminalEvent()
+			p.recordRunExitMetric(ctx)
 			return nil
 		}
 	}
@@ -167,6 +170,7 @@ func (p *AgentProcess) Tick(ctx context.Context) error {
 
 	ctx, span := p.startTickSpan(ctx, spanTick)
 	defer span.End()
+	p.recordTickMetric(ctx)
 
 	worldState := p.observe(ctx, span)
 
@@ -254,7 +258,9 @@ func (p *AgentProcess) tickSimple(ctx context.Context, worldState core.WorldStat
 //   - nil,        true,  err  — Tick should propagate err (handleStuck
 //     can't currently produce one but the contract leaves room)
 func (p *AgentProcess) planForTick(ctx context.Context, worldState core.WorldState) (*planning.Plan, bool, error) {
+	planStart := core.Now()
 	planResult, err := p.formulatePlan(ctx, worldState)
+	p.recordPlanMetric(ctx, time.Since(planStart))
 	if err != nil {
 		p.failProcess(err)
 		return nil, true, nil
