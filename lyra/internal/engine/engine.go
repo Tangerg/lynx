@@ -273,6 +273,19 @@ func (e *Engine) InjectUserMessage(ctx context.Context, sessionID, text string) 
 	return e.memStore.Write(ctx, sessionID, chat.NewUserMessage(text))
 }
 
+// ReadHistory returns the persisted chat-memory history for sessionID
+// — the same messages the chat-memory middleware loads at the start of
+// each turn. Empty (nil, nil) for an unknown / never-used session. The
+// messages.list wire surface converts these to protocol.Message; fork
+// copies a prefix of them. Reads through the engine (not the raw store)
+// so callers depend on the engine's narrow surface, not memory.Store.
+func (e *Engine) ReadHistory(ctx context.Context, sessionID string) ([]chat.Message, error) {
+	if sessionID == "" {
+		return nil, errors.New("engine: sessionID is required")
+	}
+	return e.memStore.Read(ctx, sessionID)
+}
+
 // RunChatRequest carries the per-turn parameters for [Engine.RunChat].
 // sessionID is non-empty to bind the turn to a chat-memory keyed
 // conversation; observer is non-nil to receive streaming
