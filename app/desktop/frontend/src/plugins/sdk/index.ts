@@ -136,6 +136,8 @@ export type {
 } from "./types";
 export type { NotificationEntry, NotificationLevel } from "./types";
 
-// Per-message context + slots. Re-export from the chat component so
-// plugin authors only ever import from `@/plugins/sdk`.
-export { useCurrentMessage } from "@/components/chat/MessageContext";
+// Per-message context hook. The context + hook live in the SDK (the
+// plugin-integration seam) so plugin authors only ever import from
+// `@/plugins/sdk`; kernel UI (`MessageBlock`) imports the Provider from
+// `./messageContext` directly.
+export { useCurrentMessage } from "./messageContext";
