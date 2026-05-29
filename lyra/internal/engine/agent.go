@@ -89,87 +89,139 @@ func (e *Engine) buildChatAgent() *core.Agent {
 		Description("single-turn LLM chat with the default coding tool set").
 		Actions(agent.NewAction("chat",
 			func(ctx context.Context, pc *core.ProcessContext, in ChatInput) (ChatOutput, error) {
-				req, err := pc.ChatWithActionTools(ctx)
-				if err != nil {
-					return ChatOutput{}, err
-				}
-
-				observer := ObserverFrom(pc.Options)
-				stream := req.
-					WithSystemPrompt(e.SystemPrompt(ctx)).
-					WithUserPrompt(in.Message).
-					Stream()
-
-				var (
-					accumulated strings.Builder
-					roundUsage  *chat.Usage
-					roundModel  string
-				)
-				// recordRound commits the just-finished LLM round to the
-				// process budget via the framework's invocation ledger;
-				// usage is read back from there, not tallied locally.
-				recordRound := func() {
-					if roundUsage == nil {
-						return
-					}
-					pc.RecordLLMInvocation(invocationFrom(roundModel, roundUsage))
-					roundUsage, roundModel = nil, ""
-				}
-				for chunk, streamErr := range stream.Response(ctx) {
-					if streamErr != nil {
-						return ChatOutput{}, streamErr
-					}
-					if isToolRoundBoundary(chunk) {
-						recordRound()
-						// Enforce the per-turn token budget at the round
-						// boundary — stop before the next LLM call. The
-						// running total comes from the process budget the
-						// recordRound above just updated.
-						if in.MaxBudget > 0 && processTokens(pc) >= in.MaxBudget {
-							return chatOutput(pc, accumulated.String(), true), nil
-						}
-					}
-					if chunk != nil && chunk.Metadata != nil {
-						if chunk.Metadata.Usage != nil {
-							roundUsage = chunk.Metadata.Usage
-						}
-						if chunk.Metadata.Model != "" {
-							roundModel = chunk.Metadata.Model
-						}
-					}
-					if observer != nil {
-						if reasoning := extractReasoningDelta(chunk); reasoning != "" {
-							observer.OnReasoningDelta(reasoning)
-						}
-					}
-					delta := extractTextDelta(chunk)
-					if delta == "" {
-						continue
-					}
-					accumulated.WriteString(delta)
-					if observer != nil {
-						observer.OnMessageDelta(delta)
-					}
-				}
-				recordRound()
-				return chatOutput(pc, accumulated.String(), false), nil
+				return e.runChatTurn(ctx, pc, in.Message, in.MaxBudget)
 			},
 			core.ActionConfig{
 				ToolGroups: core.ToolRolesFor(ToolRoleCoding),
-				// Recover instead of aborting when the model misbehaves:
-				// a hallucinated tool name gets fed back with the real
-				// tool list so the model can re-pick, and an empty reply
-				// gets one nudge. Both are no-ops on a well-behaved turn.
-				ToolLoop: chat.ToolLoopConfig{
-					FeedbackOnUnknownTool:   true,
-					FeedbackOnEmptyResponse: true,
-				},
+				ToolLoop:   recoverToolLoop(),
 			},
 		)).
 		Goals(agent.GoalProducing[ChatOutput](core.Goal{
 			Description: "single-turn reply produced",
 		})).
 		Build()
+}
+
+// TaskInput is the argument schema the model fills to call the `task`
+// tool: one self-contained subtask description. lyra runs it in a fresh
+// sub-agent (isolated context, the coding tools minus `task`) and hands
+// back the sub-agent's final reply.
+type TaskInput struct {
+	Prompt string `json:"prompt"`
+}
+
+// buildSubtaskAgent constructs the agent behind the `task` delegation
+// tool. Same chat body as the main agent, but: (1) named "task" so the
+// derived tool is `task`; (2) declares [ToolRoleSubtask] — the coding
+// tools WITHOUT `task`, so a subtask can't recurse into another
+// delegation; (3) its goal produces just the reply string, so the tool
+// result handed to the parent model is the answer text, not a ChatOutput
+// blob. Its LLM rounds still record into the process budget, which
+// aggregates up the subtree into the parent turn's usage roll-up.
+func (e *Engine) buildSubtaskAgent() *core.Agent {
+	return agent.New("task").
+		Description("Delegate a self-contained subtask to a fresh sub-agent that has the coding " +
+			"tools. Use for focused, separable work (investigate a question, draft a file) so the " +
+			"main conversation stays uncluttered. Returns the sub-agent's final answer.").
+		Actions(agent.NewAction("subtask",
+			func(ctx context.Context, pc *core.ProcessContext, in TaskInput) (string, error) {
+				out, err := e.runChatTurn(ctx, pc, in.Prompt, 0)
+				if err != nil {
+					return "", err
+				}
+				return out.Reply, nil
+			},
+			core.ActionConfig{
+				ToolGroups: core.ToolRolesFor(ToolRoleSubtask),
+				ToolLoop:   recoverToolLoop(),
+			},
+		)).
+		Goals(agent.GoalProducing[string](core.Goal{
+			Description: "subtask answer produced",
+		})).
+		Build()
+}
+
+// recoverToolLoop is the tool-loop policy both the chat agent and the
+// task sub-agent use: recover from a hallucinated tool name (feed back
+// the real tool list so the model re-picks) or an empty reply (one
+// nudge) instead of aborting. No-op on a well-behaved turn.
+func recoverToolLoop() chat.ToolLoopConfig {
+	return chat.ToolLoopConfig{FeedbackOnUnknownTool: true, FeedbackOnEmptyResponse: true}
+}
+
+// runChatTurn drives one streaming chat turn end-to-end: compose the
+// system prompt + user message, run the tool-loop, stream deltas to the
+// observer (when one is attached), record each LLM round into the
+// process budget, and assemble the result from that ledger. Shared by
+// the main chat agent and the task sub-agent — they differ only in the
+// typed input wrapper, the declared tool role, and whether an observer
+// is present (sub-agents run without one, so their work is opaque to the
+// parent turn's event stream; only the final answer flows back).
+func (e *Engine) runChatTurn(ctx context.Context, pc *core.ProcessContext, message string, maxBudget int64) (ChatOutput, error) {
+	req, err := pc.ChatWithActionTools(ctx)
+	if err != nil {
+		return ChatOutput{}, err
+	}
+
+	observer := ObserverFrom(pc.Options)
+	stream := req.
+		WithSystemPrompt(e.SystemPrompt(ctx)).
+		WithUserPrompt(message).
+		Stream()
+
+	var (
+		accumulated strings.Builder
+		roundUsage  *chat.Usage
+		roundModel  string
+	)
+	// recordRound commits the just-finished LLM round to the process
+	// budget via the framework's invocation ledger; usage is read back
+	// from there, not tallied locally.
+	recordRound := func() {
+		if roundUsage == nil {
+			return
+		}
+		pc.RecordLLMInvocation(invocationFrom(roundModel, roundUsage))
+		roundUsage, roundModel = nil, ""
+	}
+	for chunk, streamErr := range stream.Response(ctx) {
+		if streamErr != nil {
+			return ChatOutput{}, streamErr
+		}
+		if isToolRoundBoundary(chunk) {
+			recordRound()
+			// Enforce the per-turn token budget at the round boundary —
+			// stop before the next LLM call. The running total comes from
+			// the process budget the recordRound above just updated.
+			if maxBudget > 0 && processTokens(pc) >= maxBudget {
+				return chatOutput(pc, accumulated.String(), true), nil
+			}
+		}
+		if chunk != nil && chunk.Metadata != nil {
+			if chunk.Metadata.Usage != nil {
+				roundUsage = chunk.Metadata.Usage
+			}
+			if chunk.Metadata.Model != "" {
+				roundModel = chunk.Metadata.Model
+			}
+		}
+		if observer != nil {
+			if reasoning := extractReasoningDelta(chunk); reasoning != "" {
+				observer.OnReasoningDelta(reasoning)
+			}
+		}
+		delta := extractTextDelta(chunk)
+		if delta == "" {
+			continue
+		}
+		accumulated.WriteString(delta)
+		if observer != nil {
+			observer.OnMessageDelta(delta)
+		}
+	}
+	recordRound()
+	return chatOutput(pc, accumulated.String(), false), nil
 }
 
 // invocationFrom maps a streamed round's usage + served model to the

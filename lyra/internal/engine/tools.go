@@ -15,11 +15,17 @@ import (
 	"github.com/Tangerg/lynx/tools/websearch/tavily"
 )
 
-// ToolRoleCoding is the role name the chat agent declares to require
-// the default coding tool group. Action bodies that opt into this
-// role get every tool returned by [BuildToolSet] wired into their
-// chat request.
-const ToolRoleCoding = "coding"
+// ToolRoleCoding is the role the main chat agent declares: the full
+// coding tool set ([BuildToolSet]) PLUS the `task` delegation tool.
+//
+// ToolRoleSubtask is the role the sub-agent behind `task` declares: the
+// SAME coding tools but WITHOUT `task` itself, so a delegated subtask
+// can't recurse into another delegation. The two-role split is the
+// recursion guard.
+const (
+	ToolRoleCoding  = "coding"
+	ToolRoleSubtask = "subtask"
+)
 
 // BuildToolSet returns the runtime's complete tool list — six
 // always-on coding tools plus zero or more provider-backed online
@@ -117,30 +123,24 @@ func appendIfBuilt(tools []chat.Tool, cond bool, label string, build func() (cha
 	return append(tools, tool), nil
 }
 
-// buildCodingResolverFromTools wires the supplied tool list behind
-// [ToolRoleCoding] on a fresh [core.StaticToolGroupResolver]. The
-// resolver is registered as a platform-scope extension so every
-// agent (just the chat agent for now) can opt-in via
-// [core.ToolRolesFor].
-func buildCodingResolverFromTools(tools []chat.Tool) *core.StaticToolGroupResolver {
-	resolver := core.NewStaticToolGroupResolver("coding-tools")
-	resolver.Register(ToolRoleCoding, &codingToolGroup{tools: tools})
-	return resolver
-}
-
-// codingToolGroup is the minimal [core.ToolGroup] wrapping our tool
-// slice. It declares no permissions — the runtime accepts the group
+// toolGroup is the minimal [core.ToolGroup] wrapping a tool slice for a
+// named role. It declares no permissions — the runtime accepts the group
 // against any requirement (a [core.ToolGroupRequirement] with empty
 // Permissions). M4 will refine this with HostAccess / InternetAccess
 // labels once sandbox + permission land.
-type codingToolGroup struct {
+type toolGroup struct {
+	role  string
 	tools []chat.Tool
 }
 
-func (g *codingToolGroup) Metadata() core.ToolGroupMetadata {
-	return core.SimpleToolGroupMetadata{RoleText: ToolRoleCoding}
+func newToolGroup(role string, tools []chat.Tool) *toolGroup {
+	return &toolGroup{role: role, tools: tools}
 }
 
-func (g *codingToolGroup) Tools(_ context.Context) ([]core.AgentTool, error) {
+func (g *toolGroup) Metadata() core.ToolGroupMetadata {
+	return core.SimpleToolGroupMetadata{RoleText: g.role}
+}
+
+func (g *toolGroup) Tools(_ context.Context) ([]core.AgentTool, error) {
 	return g.tools, nil
 }

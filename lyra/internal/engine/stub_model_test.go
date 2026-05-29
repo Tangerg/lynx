@@ -3,9 +3,52 @@ package engine
 import (
 	"context"
 	"iter"
+	"strings"
 
 	"github.com/Tangerg/lynx/core/model/chat"
 )
+
+// delegatingStubModel exercises the `task` delegation tool. A turn whose
+// user message mentions "delegate" calls task once, then (after the tool
+// result) returns a final answer. A turn that doesn't (the sub-agent's
+// own turn, whose prompt is "do the subtask") returns text directly — so
+// the delegation resolves in one level with no recursion.
+type delegatingStubModel struct{ defaults *chat.Options }
+
+func newDelegatingStubModel() *delegatingStubModel {
+	opts, _ := chat.NewOptions("stub-delegating")
+	return &delegatingStubModel{defaults: opts}
+}
+
+func (m *delegatingStubModel) DefaultOptions() chat.Options { return *m.defaults }
+func (m *delegatingStubModel) Metadata() chat.ModelMetadata {
+	return chat.ModelMetadata{Provider: "stub"}
+}
+
+func (m *delegatingStubModel) Call(_ context.Context, req *chat.Request) (*chat.Response, error) {
+	switch {
+	case hasToolMessage(req.Messages):
+		return responseWithText("main: subtask done")
+	case mentionsDelegate(req.Messages):
+		return responseWithToolCall("task", `{"prompt":"do the subtask"}`)
+	default:
+		return responseWithText("subtask: result")
+	}
+}
+
+func (m *delegatingStubModel) Stream(ctx context.Context, req *chat.Request) iter.Seq2[*chat.Response, error] {
+	resp, err := m.Call(ctx, req)
+	return func(yield func(*chat.Response, error) bool) { yield(resp, err) }
+}
+
+func mentionsDelegate(msgs []chat.Message) bool {
+	for _, msg := range msgs {
+		if u, ok := msg.(*chat.UserMessage); ok && strings.Contains(u.Text, "delegate") {
+			return true
+		}
+	}
+	return false
+}
 
 // stubModel is a deterministic chat.Model used by engine + chat-service
 // tests to drive the agent loop without a real LLM.
