@@ -211,6 +211,26 @@ func (p *Platform) KillProcess(id string) error {
 	return nil
 }
 
+// KillChildren terminates every non-terminal process whose ParentID
+// matches parentID and returns the killed ids (order unspecified).
+// Orchestrators call it on turn exit to sweep background children
+// spawned via [SpawnChildAsync] that are still running, so background
+// work can't outlive the parent that launched it. Already-terminal
+// children are skipped — there's nothing to kill and overwriting their
+// status would corrupt a clean Completed into Killed.
+func (p *Platform) KillChildren(parentID string) []string {
+	var killed []string
+	for _, proc := range p.procs.list() {
+		if proc.ParentID() != parentID || proc.Status().IsTerminal() {
+			continue
+		}
+		if err := p.KillProcess(proc.ID()); err == nil {
+			killed = append(killed, proc.ID())
+		}
+	}
+	return killed
+}
+
 // RemoveProcess deletes a process from the registry. Mirrors
 // embabel's AgentProcessRepository.delete: lets long-running
 // services free terminal-state processes that the host has already
