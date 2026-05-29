@@ -43,6 +43,7 @@ type Platform struct {
 	guardrails   *core.Guardrails      // optional global chat middlewares
 	processStore core.ProcessStore     // optional snapshot backend
 	sessionStore core.SessionStore     // optional session persistence
+	autoSnapshot bool                  // snapshot every tick when a store is configured
 }
 
 // PlatformConfig is the construction-time configuration for
@@ -70,6 +71,14 @@ type PlatformConfig struct {
 	// See [SnapshotProcess] / [RestoreProcess] / [Platform.Save] /
 	// [Platform.Restore] for the surface.
 	ProcessStore core.ProcessStore
+
+	// AutoSnapshot, when true and a ProcessStore is configured, makes the
+	// runtime persist a snapshot after every tick (and on terminal /
+	// early-termination transitions) — embabel-style automatic
+	// persistence, instead of requiring an explicit [Platform.SaveProcess]
+	// call. Snapshot failures are recorded on a span and do not abort the
+	// running process. Ignored when ProcessStore is nil.
+	AutoSnapshot bool
 
 	// SessionStore persists multi-turn [core.Session] records so
 	// conversations survive runtime restart and dispatch can pick
@@ -107,6 +116,7 @@ func NewPlatform(config PlatformConfig) *Platform {
 		guardrails:   config.Guardrails,
 		processStore: config.ProcessStore,
 		sessionStore: config.SessionStore,
+		autoSnapshot: config.AutoSnapshot,
 	}
 	for _, ext := range config.Extensions {
 		p.extensions.register("PlatformConfig.Extensions", ext)
