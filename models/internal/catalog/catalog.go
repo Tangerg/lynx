@@ -1,14 +1,20 @@
-// Package catalog is a small embedded catalog of per-model metadata —
-// pricing, capabilities, and identity — modeled on charm.land/catwalk:
-// the data lives in per-provider JSON configs under configs/, is embedded
-// via go:embed, and is exposed through [Lookup] and [Models]. Provider
-// adapters use it to populate chat.ModelMetadata.Model so consumers can
-// attribute USD cost and read capabilities without hard-coding tables.
+// Package catalog is an embedded catalog of per-model metadata — pricing,
+// capabilities (modalities, reasoning, tool calling, structured output),
+// limits, and identity. The data lives in per-provider JSON configs under
+// configs/, is embedded via go:embed, and is exposed through [Lookup] and
+// [Models]. Provider adapters use it to populate chat.ModelMetadata.Model
+// so consumers can attribute USD cost and read capabilities without
+// hard-coding tables.
 //
-// Maintenance: edit (or regenerate) the configs/<provider>.json files —
-// each lists its models with rates and capabilities. Only the providers
-// lynx ships adapters for are covered; add a config + nothing else to
-// extend (the embed is a glob).
+// The configs are generated from models.dev (a community model database,
+// also used by LangChain's model profiles), with reasoning effort levels
+// backfilled from charm.land/catwalk. It's internal to the models module:
+// adapters fill metadata, and downstream code reads it via a Model's
+// Metadata, not by importing this package.
+//
+// Maintenance: regenerate the configs/<provider>.json files from
+// models.dev. Only the providers lynx ships adapters for are covered; add
+// a config + nothing else to extend (the embed is a glob).
 package catalog
 
 import (

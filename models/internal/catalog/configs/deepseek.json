@@ -1,0 +1,110 @@
+{
+  "provider": "deepseek",
+  "models": [
+    {
+      "id": "deepseek-chat",
+      "display_name": "DeepSeek Chat",
+      "knowledge_cutoff": "2025-09",
+      "pricing": {
+        "input_per_1m": 0.14,
+        "output_per_1m": 0.28,
+        "cache_read_per_1m": 0.028
+      },
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "context_window": 1000000,
+      "max_output_tokens": 384000
+    },
+    {
+      "id": "deepseek-reasoner",
+      "display_name": "DeepSeek Reasoner",
+      "knowledge_cutoff": "2025-09",
+      "pricing": {
+        "input_per_1m": 0.14,
+        "output_per_1m": 0.28,
+        "cache_read_per_1m": 0.028
+      },
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "context_window": 1000000,
+      "max_output_tokens": 384000
+    },
+    {
+      "id": "deepseek-v4-flash",
+      "display_name": "DeepSeek V4 Flash",
+      "knowledge_cutoff": "2025-05",
+      "pricing": {
+        "input_per_1m": 0.14,
+        "output_per_1m": 0.28,
+        "cache_read_per_1m": 0.0028
+      },
+      "reasoning": {
+        "supported": true,
+        "levels": [
+          "high",
+          "xhigh"
+        ],
+        "default_level": "high"
+      },
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "context_window": 1000000,
+      "max_output_tokens": 384000
+    },
+    {
+      "id": "deepseek-v4-pro",
+      "display_name": "DeepSeek V4 Pro",
+      "knowledge_cutoff": "2025-05",
+      "pricing": {
+        "input_per_1m": 0.435,
+        "output_per_1m": 0.87,
+        "cache_read_per_1m": 0.003625
+      },
+      "reasoning": {
+        "supported": true,
+        "levels": [
+          "high",
+          "xhigh"
+        ],
+        "default_level": "high"
+      },
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "context_window": 1000000,
+      "max_output_tokens": 384000
+    }
+  ]
+}

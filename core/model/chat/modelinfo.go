@@ -7,9 +7,9 @@ import "slices"
 // conventionally lowercase ("openai", "anthropic", ...) so downstream
 // filters match without case folding.
 //
-// Per-model metadata for arbitrary model ids lives in a catalog
-// (github.com/Tangerg/lynx/models/catalog, modeled on catwalk); Model is
-// just the default model's view.
+// Per-model metadata for arbitrary model ids lives in a catalog keyed by
+// model id (the models module ships one sourced from models.dev); Model
+// is just the default model's view.
 type ModelMetadata struct {
 	// Provider names the LLM vendor — "openai", "anthropic", "google", etc.
 	Provider string `json:"provider"`
@@ -28,14 +28,24 @@ type ModelMetadata struct {
 // source; ModelMetadata carries the instance's default model's info as a
 // convenience.
 type ModelInfo struct {
+	// --- identity ---
+
 	// ID is the model identifier (e.g. "claude-sonnet-4-6").
 	ID string `json:"id,omitempty"`
 
 	// DisplayName is a human-readable label (e.g. "Claude Sonnet 4.6").
 	DisplayName string `json:"display_name,omitempty"`
 
+	// KnowledgeCutoff is the training knowledge cutoff (e.g. "2025-05"),
+	// empty when unknown.
+	KnowledgeCutoff string `json:"knowledge_cutoff,omitempty"`
+
+	// --- pricing ---
+
 	// Pricing is the per-1M-token rate card, zero (IsZero) when unknown.
 	Pricing Pricing `json:"pricing,omitzero"`
+
+	// --- capabilities ---
 
 	// Reasoning describes extended-thinking support, zero (IsZero) when
 	// the model can't reason.
@@ -45,33 +55,49 @@ type ModelInfo struct {
 	// output, zero (IsZero) when unknown.
 	Modalities Modalities `json:"modalities,omitzero"`
 
-	// ContextWindow is the maximum context size in tokens (0 = unknown).
+	// ToolCall reports whether the model supports tool / function calling.
+	ToolCall bool `json:"tool_call,omitempty"`
+
+	// StructuredOutput reports whether the model supports a native
+	// structured-output / JSON-schema feature.
+	StructuredOutput bool `json:"structured_output,omitempty"`
+
+	// --- limits ---
+
+	// ContextWindow is the maximum total context size in tokens
+	// (0 = unknown).
 	ContextWindow int64 `json:"context_window,omitempty"`
 
-	// MaxTokens is the model's default max output tokens (0 = unknown).
-	MaxTokens int64 `json:"max_tokens,omitempty"`
+	// MaxInputTokens is the maximum prompt size in tokens, when the
+	// provider caps it separately from the context window (0 = unknown).
+	MaxInputTokens int64 `json:"max_input_tokens,omitempty"`
+
+	// MaxOutputTokens is the maximum completion size in tokens
+	// (0 = unknown).
+	MaxOutputTokens int64 `json:"max_output_tokens,omitempty"`
 }
 
 // IsZero reports whether no model info is set. (Spelled out rather than
 // `m == ModelInfo{}` because nested slices make ModelInfo non-comparable.)
 func (m ModelInfo) IsZero() bool {
-	return m.ID == "" && m.DisplayName == "" && m.Pricing.IsZero() &&
-		m.Reasoning.IsZero() && m.Modalities.IsZero() &&
-		m.ContextWindow == 0 && m.MaxTokens == 0
+	return m.ID == "" && m.DisplayName == "" && m.KnowledgeCutoff == "" &&
+		m.Pricing.IsZero() && m.Reasoning.IsZero() && m.Modalities.IsZero() &&
+		!m.ToolCall && !m.StructuredOutput &&
+		m.ContextWindow == 0 && m.MaxInputTokens == 0 && m.MaxOutputTokens == 0
 }
 
 // Pricing is a chat model's per-token rate card, expressed (like the
-// industry convention and the catwalk catalog) as USD per 1,000,000
-// tokens. It lives in the chat package because input/output/cache token
-// rates are a chat-model concept — other modalities price differently
-// (per image, per second of audio), so this isn't a generic model type.
+// industry convention) as USD per 1,000,000 tokens. It lives in the chat
+// package because input/output/cache token rates are a chat-model concept
+// — other modalities price differently (per image, per second of audio),
+// so this isn't a generic model type.
 //
 // The zero value means "unknown" — treat a zero Pricing as "no cost
 // available", not "free". Surface it via [ModelInfo.Pricing] so cost can
 // be attributed without the consumer hard-coding a rate table. The rate
 // table itself (which model costs what) is reference data that tracks
-// vendor pricing and lives outside this protocol layer (see
-// github.com/Tangerg/lynx/models/catalog, modeled on charm.land/catwalk).
+// vendor pricing and lives outside this protocol layer (the models module
+// ships one sourced from models.dev).
 type Pricing struct {
 	// InputPer1M is the rate for uncached prompt (input) tokens.
 	InputPer1M float64 `json:"input_per_1m"`

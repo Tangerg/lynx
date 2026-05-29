@@ -12,7 +12,7 @@ import (
 
 	"github.com/Tangerg/lynx/core/model"
 	"github.com/Tangerg/lynx/core/model/chat"
-	"github.com/Tangerg/lynx/models/catalog"
+	"github.com/Tangerg/lynx/models/internal/catalog"
 	"github.com/Tangerg/lynx/models/internal/options"
 )
 

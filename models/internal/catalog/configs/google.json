@@ -1,0 +1,519 @@
+{
+  "provider": "google",
+  "models": [
+    {
+      "id": "gemini-2.0-flash",
+      "display_name": "Gemini 2.0 Flash",
+      "knowledge_cutoff": "2024-06",
+      "pricing": {
+        "input_per_1m": 0.1,
+        "output_per_1m": 0.4,
+        "cache_read_per_1m": 0.025
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "context_window": 1048576,
+      "max_output_tokens": 8192
+    },
+    {
+      "id": "gemini-2.0-flash-lite",
+      "display_name": "Gemini 2.0 Flash-Lite",
+      "knowledge_cutoff": "2024-06",
+      "pricing": {
+        "input_per_1m": 0.075,
+        "output_per_1m": 0.3
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "context_window": 1048576,
+      "max_output_tokens": 8192
+    },
+    {
+      "id": "gemini-2.5-flash",
+      "display_name": "Gemini 2.5 Flash",
+      "knowledge_cutoff": "2025-01",
+      "pricing": {
+        "input_per_1m": 0.3,
+        "output_per_1m": 2.5,
+        "cache_read_per_1m": 0.03
+      },
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "context_window": 1048576,
+      "max_output_tokens": 65536
+    },
+    {
+      "id": "gemini-2.5-flash-image",
+      "display_name": "Nano Banana",
+      "knowledge_cutoff": "2025-06",
+      "pricing": {
+        "input_per_1m": 0.3,
+        "output_per_1m": 30,
+        "cache_read_per_1m": 0.075
+      },
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text",
+          "image"
+        ]
+      },
+      "context_window": 32768,
+      "max_output_tokens": 32768
+    },
+    {
+      "id": "gemini-2.5-flash-lite",
+      "display_name": "Gemini 2.5 Flash-Lite",
+      "knowledge_cutoff": "2025-01",
+      "pricing": {
+        "input_per_1m": 0.1,
+        "output_per_1m": 0.4,
+        "cache_read_per_1m": 0.01
+      },
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "context_window": 1048576,
+      "max_output_tokens": 65536
+    },
+    {
+      "id": "gemini-2.5-pro",
+      "display_name": "Gemini 2.5 Pro",
+      "knowledge_cutoff": "2025-01",
+      "pricing": {
+        "input_per_1m": 1.25,
+        "output_per_1m": 10.0,
+        "cache_read_per_1m": 0.125
+      },
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "context_window": 1048576,
+      "max_output_tokens": 65536
+    },
+    {
+      "id": "gemini-3-flash-preview",
+      "display_name": "Gemini 3 Flash Preview",
+      "knowledge_cutoff": "2025-01",
+      "pricing": {
+        "input_per_1m": 0.5,
+        "output_per_1m": 3.0,
+        "cache_read_per_1m": 0.05
+      },
+      "reasoning": {
+        "supported": true,
+        "levels": [
+          "minimal",
+          "low",
+          "medium",
+          "high"
+        ],
+        "default_level": "minimal"
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "context_window": 1048576,
+      "max_output_tokens": 65536
+    },
+    {
+      "id": "gemini-3-pro-preview",
+      "display_name": "Gemini 3 Pro Preview",
+      "knowledge_cutoff": "2025-01",
+      "pricing": {
+        "input_per_1m": 2,
+        "output_per_1m": 12,
+        "cache_read_per_1m": 0.2
+      },
+      "reasoning": {
+        "supported": true,
+        "levels": [
+          "low",
+          "high"
+        ],
+        "default_level": "high"
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "context_window": 1048576,
+      "max_output_tokens": 65536
+    },
+    {
+      "id": "gemini-3.1-flash-image-preview",
+      "display_name": "Nano Banana 2",
+      "knowledge_cutoff": "2025-01",
+      "pricing": {
+        "input_per_1m": 0.5,
+        "output_per_1m": 60
+      },
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text",
+          "image"
+        ]
+      },
+      "context_window": 65536,
+      "max_output_tokens": 65536
+    },
+    {
+      "id": "gemini-3.1-flash-lite",
+      "display_name": "Gemini 3.1 Flash Lite",
+      "knowledge_cutoff": "2025-01",
+      "pricing": {
+        "input_per_1m": 0.25,
+        "output_per_1m": 1.5,
+        "cache_read_per_1m": 0.025
+      },
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "context_window": 1048576,
+      "max_output_tokens": 65536
+    },
+    {
+      "id": "gemini-3.1-flash-lite-preview",
+      "display_name": "Gemini 3.1 Flash Lite Preview",
+      "knowledge_cutoff": "2025-01",
+      "pricing": {
+        "input_per_1m": 0.25,
+        "output_per_1m": 1.5,
+        "cache_read_per_1m": 0.025
+      },
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "context_window": 1048576,
+      "max_output_tokens": 65536
+    },
+    {
+      "id": "gemini-3.1-pro-preview",
+      "display_name": "Gemini 3.1 Pro Preview",
+      "knowledge_cutoff": "2025-01",
+      "pricing": {
+        "input_per_1m": 2.0,
+        "output_per_1m": 12.0,
+        "cache_read_per_1m": 0.2
+      },
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "context_window": 1048576,
+      "max_output_tokens": 65536
+    },
+    {
+      "id": "gemini-3.1-pro-preview-customtools",
+      "display_name": "Gemini 3.1 Pro Preview Custom Tools",
+      "knowledge_cutoff": "2025-01",
+      "pricing": {
+        "input_per_1m": 2.0,
+        "output_per_1m": 12.0,
+        "cache_read_per_1m": 0.2
+      },
+      "reasoning": {
+        "supported": true,
+        "levels": [
+          "low",
+          "medium",
+          "high"
+        ],
+        "default_level": "medium"
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "context_window": 1048576,
+      "max_output_tokens": 65536
+    },
+    {
+      "id": "gemini-3.5-flash",
+      "display_name": "Gemini 3.5 Flash",
+      "knowledge_cutoff": "2025-01",
+      "pricing": {
+        "input_per_1m": 1.5,
+        "output_per_1m": 9.0,
+        "cache_read_per_1m": 0.15
+      },
+      "reasoning": {
+        "supported": true,
+        "levels": [
+          "minimal",
+          "low",
+          "medium",
+          "high"
+        ],
+        "default_level": "medium"
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "context_window": 1048576,
+      "max_output_tokens": 65536
+    },
+    {
+      "id": "gemini-flash-latest",
+      "display_name": "Gemini Flash Latest",
+      "knowledge_cutoff": "2025-01",
+      "pricing": {
+        "input_per_1m": 0.3,
+        "output_per_1m": 2.5,
+        "cache_read_per_1m": 0.075
+      },
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "context_window": 1048576,
+      "max_output_tokens": 65536
+    },
+    {
+      "id": "gemini-flash-lite-latest",
+      "display_name": "Gemini Flash-Lite Latest",
+      "knowledge_cutoff": "2025-01",
+      "pricing": {
+        "input_per_1m": 0.1,
+        "output_per_1m": 0.4,
+        "cache_read_per_1m": 0.025
+      },
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "context_window": 1048576,
+      "max_output_tokens": 65536
+    },
+    {
+      "id": "gemma-4-26b-a4b-it",
+      "display_name": "Gemma 4 26B A4B IT",
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "context_window": 262144,
+      "max_output_tokens": 32768
+    },
+    {
+      "id": "gemma-4-31b-it",
+      "display_name": "Gemma 4 31B IT",
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "context_window": 262144,
+      "max_output_tokens": 32768
+    }
+  ]
+}
