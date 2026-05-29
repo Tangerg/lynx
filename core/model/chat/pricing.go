@@ -1,16 +1,17 @@
-package model
+package chat
 
-// Pricing is a model's per-token rate card, expressed (like the industry
-// convention and the catwalk catalog) as USD per 1,000,000 tokens. The
-// zero value means "unknown" — callers should treat a zero Pricing as
-// "no cost available" rather than "free". Surface it via a modality's
-// model metadata (e.g. chat.ModelMetadata.Pricing) so cost can be
-// attributed without the consumer hard-coding a rate table.
+// Pricing is a chat model's per-token rate card, expressed (like the
+// industry convention and the catwalk catalog) as USD per 1,000,000
+// tokens. It lives in the chat package because input/output/cache token
+// rates are a chat-model concept — other modalities price differently
+// (per image, per second of audio), so this isn't a generic model type.
 //
-// The rate table itself (which model costs what) is reference data that
-// changes with vendor pricing; it lives outside this protocol layer
-// (see github.com/Tangerg/lynx/models/pricing, modeled on charm.land/
-// catwalk). This type is only the shape + the arithmetic.
+// The zero value means "unknown" — treat a zero Pricing as "no cost
+// available", not "free". Surface it via [ModelMetadata.Pricing] so cost
+// can be attributed without the consumer hard-coding a rate table. The
+// rate table itself (which model costs what) is reference data that
+// tracks vendor pricing and lives outside this protocol layer (see
+// github.com/Tangerg/lynx/models/pricing, modeled on charm.land/catwalk).
 type Pricing struct {
 	// InputPer1M is the rate for uncached prompt (input) tokens.
 	InputPer1M float64 `json:"input_per_1m"`

@@ -1,11 +1,11 @@
-package model
+package chat
 
 import (
 	"math"
 	"testing"
 )
 
-func approx(a, b float64) bool { return math.Abs(a-b) < 1e-9 }
+func costApprox(a, b float64) bool { return math.Abs(a-b) < 1e-9 }
 
 func TestPricing_Cost(t *testing.T) {
 	// Claude Sonnet-style rates ($/1M): in 3, out 15, cache read 0.3,
@@ -32,13 +32,13 @@ func TestPricing_Cost(t *testing.T) {
 				CacheReadInputTokens:  new(int64(800)),
 				CacheWriteInputTokens: new(int64(100)),
 			},
-			// 100*3 + 500*15 + 800*0.3 + 100*3.75 = 300+7500+240+375 = 8415 / 1e6
+			// 100*3 + 500*15 + 800*0.3 + 100*3.75 = 8415 / 1e6
 			want: 0.008415,
 		},
 		{name: "nil usage", u: nil, want: 0},
 	}
 	for _, c := range cases {
-		if got := p.Cost(c.u); !approx(got, c.want) {
+		if got := p.Cost(c.u); !costApprox(got, c.want) {
 			t.Errorf("%s: Cost = %v, want %v", c.name, got, c.want)
 		}
 	}
@@ -62,8 +62,8 @@ func TestPricing_Cost_CacheRateFallback(t *testing.T) {
 		CompletionTokens:     0,
 		CacheReadInputTokens: new(int64(400)),
 	}
-	// uncached 600 @2 + read 400 @ (fallback) 2 = 1000*2 = 2000 / 1e6
-	if got := p.Cost(u); !approx(got, 0.002) {
+	// uncached 600 @2 + read 400 @ (fallback) 2 = 2000 / 1e6
+	if got := p.Cost(u); !costApprox(got, 0.002) {
 		t.Errorf("Cost = %v, want 0.002 (cache read falls back to input rate)", got)
 	}
 }
