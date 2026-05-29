@@ -851,7 +851,7 @@ func BenchmarkStreamParser_Objects(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		config := StreamParserConfig{
 			Reader:     strings.NewReader(input),
 			BufferSize: 64,
@@ -870,7 +870,7 @@ func BenchmarkStreamParser_Arrays(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		config := StreamParserConfig{
 			Reader:     strings.NewReader(input),
 			BufferSize: 64,
@@ -889,7 +889,7 @@ func BenchmarkStreamParser_Mixed(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		config := StreamParserConfig{
 			Reader:     strings.NewReader(input),
 			BufferSize: 64,
@@ -922,7 +922,7 @@ func BenchmarkStreamParser_LargeDocument(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		config := StreamParserConfig{
 			Reader:     strings.NewReader(input),
 			BufferSize: 4096,
