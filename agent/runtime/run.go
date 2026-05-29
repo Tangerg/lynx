@@ -32,12 +32,18 @@ func (p *AgentProcess) run(ctx context.Context) error {
 		}
 
 		if p.checkEarlyTermination() {
+			p.maybeAutoSnapshot(ctx)
 			return nil
 		}
 
 		if err := p.Tick(ctx); err != nil {
 			return err
 		}
+
+		// Persist the post-tick state when auto-snapshot is on. Placed
+		// after Tick so it captures whatever status the tick produced —
+		// including the terminal / waiting one on the loop's last pass.
+		p.maybeAutoSnapshot(ctx)
 
 		// Mirror embabel's AbstractAgentProcess.run loop: keep ticking
 		// only while Running. Waiting / Paused / Stuck / terminal all
@@ -47,6 +53,23 @@ func (p *AgentProcess) run(ctx context.Context) error {
 			p.publishTerminalEvent()
 			return nil
 		}
+	}
+}
+
+// maybeAutoSnapshot persists the current process state when the platform
+// has auto-snapshot enabled and a store configured. Best-effort: a
+// persistence failure is recorded on a span but never aborts the running
+// process — losing a snapshot is recoverable, killing a live agent is not.
+func (p *AgentProcess) maybeAutoSnapshot(ctx context.Context) {
+	if p.platform == nil || !p.platform.autoSnapshot || p.platform.processStore == nil {
+		return
+	}
+
+	if err := p.platform.processStore.Save(ctx, SnapshotProcess(p)); err != nil {
+		_, span := core.AgentTracer().Start(ctx, "agent.auto_snapshot")
+		span.SetAttributes(attribute.String(attrProcessID, p.id))
+		finishSpanWithError(span, err)
+		span.End()
 	}
 }
 
