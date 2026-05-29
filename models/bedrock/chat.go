@@ -58,13 +58,9 @@ func NewChatModel(ctx context.Context, cfg ChatModelConfig) (*ChatModel, error) 
 	if err != nil {
 		return nil, err
 	}
-	// Fill model info from the embedded catalog by the configured Bedrock
-	// model id (e.g. "eu.anthropic.claude-haiku-4-5-20251001-v1:0") so cost
-	// and capabilities surface via Metadata().Model.
-	info := chat.ModelMetadata{Provider: Provider}
-	if m, ok := catalog.Lookup(info.Provider, cfg.DefaultOptions.Model); ok {
-		info.Model = m
-	}
+	// Bedrock has no Metadata config; resolve straight from the catalog by
+	// the configured model id (e.g. "eu.anthropic.claude-haiku-4-5-...").
+	info := catalog.Resolve(Provider, cfg.DefaultOptions, nil)
 	return &ChatModel{api: api, defaultOptions: cfg.DefaultOptions, info: info}, nil
 }
 

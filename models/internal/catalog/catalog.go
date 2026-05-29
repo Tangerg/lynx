@@ -82,6 +82,25 @@ func Lookup(provider, modelID string) (chat.ModelInfo, bool) {
 	return chat.ModelInfo{}, false
 }
 
+// Resolve builds a [chat.ModelMetadata] for a provider, filling Model from
+// the catalog by the default model id. It's the one place adapters share:
+// the caller's override (a non-nil Config.Metadata) wins as-is, otherwise
+// the lookup keys off the override's (or provider's) name — so OpenAI- and
+// Anthropic-compat delegators (deepseek, vertexai, …) that pass their own
+// Provider resolve against their own config. opts may be nil.
+func Resolve(provider string, opts *chat.Options, override *chat.ModelMetadata) chat.ModelMetadata {
+	md := chat.ModelMetadata{Provider: provider}
+	if override != nil {
+		md = *override
+	}
+	if md.Model.IsZero() && opts != nil {
+		if m, ok := Lookup(md.Provider, opts.Model); ok {
+			md.Model = m
+		}
+	}
+	return md
+}
+
 // Models returns every cataloged model for a provider (case-insensitive),
 // or nil when the provider isn't cataloged. Order is unspecified.
 func Models(provider string) []chat.ModelInfo {
