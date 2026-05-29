@@ -6,6 +6,7 @@ import (
 	"iter"
 	"maps"
 	"slices"
+	"time"
 
 	"github.com/Tangerg/lynx/core/model"
 )
@@ -283,6 +284,7 @@ type ClientStreamer struct {
 // the last chunk that carried them; a `gen_ai.stream.first_token_received`
 // event fires on the first non-empty yield.
 func (s *ClientStreamer) stream(ctx context.Context, req *Request) iter.Seq2[*Response, error] {
+	start := time.Now()
 	spanCtx, span := startChatSpan(ctx, s.request.model, req, "chat")
 	handler := s.request.MiddlewareManager().BuildStreamHandler(s.request.model)
 	inner := handler.Stream(spanCtx, req)
@@ -311,6 +313,7 @@ func (s *ClientStreamer) stream(ctx context.Context, req *Request) iter.Seq2[*Re
 			}
 		}
 		finishChatSpan(span, lastResp, lastErr)
+		recordChatMetrics(spanCtx, s.request.model, req, lastResp, lastErr, start)
 	}
 }
 
@@ -379,10 +382,12 @@ type ClientCaller struct {
 // no TracerProvider is configured (the default) the span calls are
 // noop and effectively zero-cost.
 func (c *ClientCaller) call(ctx context.Context, req *Request) (*Response, error) {
+	start := time.Now()
 	ctx, span := startChatSpan(ctx, c.request.model, req, "chat")
 	handler := c.request.MiddlewareManager().BuildCallHandler(c.request.model)
 	resp, err := handler.Call(ctx, req)
 	finishChatSpan(span, resp, err)
+	recordChatMetrics(ctx, c.request.model, req, resp, err, start)
 	return resp, err
 }
 

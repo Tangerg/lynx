@@ -3,11 +3,14 @@ package embedding
 import (
 	"context"
 	"strings"
+	"time"
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
+
+	"github.com/Tangerg/lynx/core/model"
 )
 
 // embedTracer is the package-level tracer for embedding client span
@@ -92,4 +95,26 @@ func finishEmbeddingSpan(span trace.Span, resp *Response, err error) {
 		}
 	}
 	span.End()
+}
+
+// recordEmbeddingMetrics emits the GenAI client metrics (input token
+// usage + operation duration) for one embedding call. Call it once per
+// call, passing the start time captured before [startEmbeddingSpan].
+// Embeddings produce no completion tokens, so only the input dimension
+// of [model.MetricGenAIClientTokenUsage] is recorded. Noop until a
+// MeterProvider is configured.
+func recordEmbeddingMetrics(ctx context.Context, m Model, req *Request, resp *Response, err error, start time.Time) {
+	dims := model.OperationMetrics{Operation: "embeddings"}
+	if m != nil {
+		dims.System = strings.ToLower(m.Metadata().Provider)
+	}
+	if req != nil && req.Options != nil {
+		dims.RequestModel = req.Options.Model
+	}
+	var usage *model.Usage
+	if resp != nil && resp.Metadata != nil {
+		dims.ResponseModel = resp.Metadata.Model
+		usage = resp.Metadata.Usage
+	}
+	model.RecordOperationMetrics(ctx, dims, usage, time.Since(start), err)
 }
