@@ -5,7 +5,23 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
+	"github.com/Tangerg/lynx/core/vectorstore/filter/ast"
 )
+
+func TestParseAndAnalyze_Optimizes(t *testing.T) {
+	// ParseAndAnalyze folds dead logic: not(not(x)) collapses to x, so
+	// the result is the comparison itself, not a UnaryExpr.
+	expr, err := filter.ParseAndAnalyze(`not (not (year >= 2020))`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, isUnary := expr.(*ast.UnaryExpr); isUnary {
+		t.Fatalf("expected double-NOT to be folded away, got %T", expr)
+	}
+	if _, isBinary := expr.(*ast.BinaryExpr); !isBinary {
+		t.Fatalf("expected the bare comparison BinaryExpr, got %T", expr)
+	}
+}
 
 func TestParse_ValidExpression(t *testing.T) {
 	expr, err := filter.Parse(`category == 'tech'`)
