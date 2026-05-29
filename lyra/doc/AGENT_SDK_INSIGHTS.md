@@ -73,6 +73,8 @@ Claude Agent SDK 的本质是**包一个 `claude-code` CLI 子进程**，对外 
 | token budget 上限（`MaxBudget`，工具循环边界停） | ✅（混入 `231cd21`） | — |
 | `messages.list`（wire-addressable 消息层，稳定 `m<n>` id） | ✅ | `c7d8605` |
 | message-level fork（子会话拷贝父历史前缀） | ✅ | `d676e46` |
+| **C1 用框架 invocation ledger**（record per-round → 读回 total + per-model `UsageByModel`，弃私有 tally） | ✅ | `9b73fb6` |
+| **C3 `task` 子 agent 委派**（`AsChatToolFromAgent`/`SpawnChild`，两 role 防递归，subtree usage 自动并入） | ✅ | `6f7d59d` |
 
 **deferred-tool（第一轮的"最高价值"项）：判定不做 ✅。** 第二轮专门复核了新 snapshot——`ProcessSnapshot` 只存进程级状态，**不存 mid-action 执行点**，restore 是重新 plan。所以"工具边界冻结 + 不重跑 LLM resume"在 runtime 层做不到（要做就是 mid-action snapshot，巨大侵入）。而 lyra 现有的 **in-process 同步 gate**（`observedTool.Call` 在工具执行前 park 在 `approval.Decide` 的 channel 上）**已经做到了工具边界审批 + 不重跑 LLM**。新持久化没有改变这个结论。
 
@@ -82,20 +84,17 @@ Claude Agent SDK 的本质是**包一个 `claude-code` CLI 子进程**，对外 
 
 ## 5. 还能做的：让 lyra 吃上 agent 新肌肉（= 同时补 lyra 的 SDK gap）
 
-按价值 / 解锁度排序：
+### C1. per-call usage ledger → `TurnEnd`（✅ 已做 `9b73fb6`）
+lyra chat action 不再私攒 token tally：每轮经 `pc.RecordLLMInvocation` 记进框架的 invocation ledger（model + prompt/completion/reasoning/cache），turn 结束从 `pc.Process.LLMInvocations()` 读回 total + per-model `UsageByModel`（SDK `modelUsage` 的对标）；budget 检查读 `pc.Process.Usage()`。cost(USD) 仍为 0，待 pricing 层填 `LLMInvocation.Cost`（映射已就位）。
 
-### C1. per-call cost + per-model usage → `TurnEnd` ⭐（最值得，现已 unblocked）
-- 我 Batch 5 当时把 per-model / CostUSD 按"单 model、无定价表"砍成 YAGNI。**现在 `LLMInvocation` 自带 cost + model + cache token**，且 Supervisor/sub-agent 让"一轮多 model"成真——YAGNI 前提没了，该重做。直接补 SDK 的 `total_cost_usd` / `modelUsage`。
-- ⚠️ **前提**：得先查清"谁在 LLM 调用后 record invocation"。框架有 `RecordLLMInvocation`，但 lyra 的 chat 中间件**目前没调它**——可能连 agent 自己的 budget 都是空的。C1 的第一步是把 invocation 记录链路接上。
+### C3. `task` 子 agent 委派（✅ 已做 `6f7d59d`）
+`AsChatToolFromAgent[TaskInput,string]` + `SpawnChild` 把"委派子任务"做成 `task` 工具；两 tool role（coding=leaf+task / subtask=leaf）防递归；子 agent 无 observer（工作对父 turn 不透传，只回最终答案），其 LLM 轮次经 subtree budget 自动并入父 turn 的 per-model usage（C1 协同）。对标 SDK Task/subagents。
 
-### C2. budget 升级成 cost-aware
-- lyra `MaxBudget` 现在只是 token 上限；接 invocation cost → 真 `maxBudgetUsd`；或直接复用 agent `BudgetPolicy` 做早停。依赖 C1 的 record 链路。
-
-### C3. subagent / `task` 工具（feature 级）
-- `Supervisor` + `AsChatTool` 已就绪，lyra ROADMAP M2 的 `task` 委派工具现在能真做——对标 SDK Task/subagents。需先想清多 agent 产品形态 + 事件如何透传（子 agent delta 带 parent id）。
+### C2. budget 升级成 cost-aware（待 pricing 层）
+lyra `MaxBudget` 现在是 token 上限。要变 `maxBudgetUsd`，得先有 pricing 层把 `LLMInvocation.Cost` 填上（provider 不直接回 USD）——pricing 表是独立专题，YAGNI 到有真实需求。也可复用 agent `BudgetPolicy` 做 tick 级早停（但 lyra chat 是单 action，tick 级拦不住 in-action 工具循环，故 in-action 检查更合适）。
 
 ### C4. 持久化 / resume（铺路，非急需）
-- `AutoSnapshot` 接进 lyra → 会话跨重启恢复。**诚实**：snapshot 是进程级 re-plan，lyra chat 是单 action 短 turn，resume 价值有限；真正有价值是将来**长 agentic turn**。现在做是铺路。
+`AutoSnapshot` 接进 lyra 能跨重启恢复进程，但 **需要配套 resume 通路**（把持久化的 process 重连到新 event stream）——lyra 现在 turn 是 fire-and-forget，没有这条通路，单接 AutoSnapshot 只是落盘不可用。snapshot 又是进程级 re-plan，对 lyra 单 action 短 turn 价值有限；真正有价值是将来长 agentic turn。**做它 = 一个完整 feature（持久化 + resume 通路），不是快接。**
 
 ### 仍卡在前端协调上（非 lyra 单方面可推）
 - **`messages.edit`** —— 协议要返 `{runId, checkpoint}`，但 lyra 无 checkpoint 模型（capability 标 false，前端仅预留）。要先定 rewind/checkpoint 语义。
