@@ -68,24 +68,27 @@ func TestPricing_Cost_CacheRateFallback(t *testing.T) {
 	}
 }
 
-// TestPricing_Cost_Tiered verifies tiered pricing reprices the WHOLE
-// prompt at the tier rate once it crosses the threshold (Gemini 2.5 Pro
-// shape: base 1.25/10, >200K 2.5/15).
-func TestPricing_Cost_Tiered(t *testing.T) {
-	p := Pricing{
-		InputPer1M: 1.25, OutputPer1M: 10,
-		Tiers: []PricingTier{{Threshold: 200_000, InputPer1M: 2.5, OutputPer1M: 15}},
+// TestCostOf_Tiered verifies banded pricing reprices the WHOLE prompt at
+// the band rate once it crosses the threshold (Gemini 2.5 Pro shape: base
+// 1.25/10, >200K 2.5/15).
+func TestCostOf_Tiered(t *testing.T) {
+	bands := []Pricing{
+		{InputPer1M: 1.25, OutputPer1M: 10},
+		{Threshold: 200_000, InputPer1M: 2.5, OutputPer1M: 15},
 	}
-	// Below threshold → base rates: 100k*1.25 + 10k*10 = 225000 / 1e6.
-	below := p.Cost(&Usage{PromptTokens: 100_000, CompletionTokens: 10_000})
+	// Below threshold → base band: 100k*1.25 + 10k*10 = 225000 / 1e6.
+	below := CostOf(bands, &Usage{PromptTokens: 100_000, CompletionTokens: 10_000})
 	if !costApprox(below, 0.225) {
-		t.Errorf("below tier: Cost = %v, want 0.225", below)
+		t.Errorf("below tier: CostOf = %v, want 0.225", below)
 	}
-	// At/above threshold → tier rates on the WHOLE prompt: 250k*2.5 +
+	// At/above threshold → tier band on the WHOLE prompt: 250k*2.5 +
 	// 10k*15 = 775000 / 1e6 (not a marginal split).
-	above := p.Cost(&Usage{PromptTokens: 250_000, CompletionTokens: 10_000})
+	above := CostOf(bands, &Usage{PromptTokens: 250_000, CompletionTokens: 10_000})
 	if !costApprox(above, 0.775) {
-		t.Errorf("above tier: Cost = %v, want 0.775", above)
+		t.Errorf("above tier: CostOf = %v, want 0.775", above)
+	}
+	if CostOf(nil, &Usage{PromptTokens: 100}) != 0 {
+		t.Error("CostOf(nil) should be 0")
 	}
 }
 

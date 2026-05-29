@@ -22,10 +22,12 @@
       "id": "deepseek-r1-distill-llama-70b",
       "display_name": "DeepSeek R1 Distill Llama 70B",
       "knowledge_cutoff": "2024-07",
-      "pricing": {
-        "input_per_1m": 0.75,
-        "output_per_1m": 0.99
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.75,
+          "output_per_1m": 0.99
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -47,10 +49,12 @@
       "id": "gemma2-9b-it",
       "display_name": "Gemma 2 9B",
       "knowledge_cutoff": "2024-06",
-      "pricing": {
-        "input_per_1m": 0.2,
-        "output_per_1m": 0.2
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.2,
+          "output_per_1m": 0.2
+        }
+      ],
       "modalities": {
         "input": [
           "text"
@@ -111,10 +115,12 @@
       "id": "llama-3.1-8b-instant",
       "display_name": "Llama 3.1 8B Instant",
       "knowledge_cutoff": "2023-12",
-      "pricing": {
-        "input_per_1m": 0.05,
-        "output_per_1m": 0.08
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.05,
+          "output_per_1m": 0.08
+        }
+      ],
       "modalities": {
         "input": [
           "text"
@@ -133,10 +139,12 @@
       "id": "llama-3.3-70b-versatile",
       "display_name": "Llama 3.3 70B Versatile",
       "knowledge_cutoff": "2023-12",
-      "pricing": {
-        "input_per_1m": 0.59,
-        "output_per_1m": 0.79
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.59,
+          "output_per_1m": 0.79
+        }
+      ],
       "modalities": {
         "input": [
           "text"
@@ -154,10 +162,12 @@
     {
       "id": "llama-guard-3-8b",
       "display_name": "Llama Guard 3 8B",
-      "pricing": {
-        "input_per_1m": 0.2,
-        "output_per_1m": 0.2
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.2,
+          "output_per_1m": 0.2
+        }
+      ],
       "modalities": {
         "input": [
           "text"
@@ -175,10 +185,12 @@
       "id": "llama3-70b-8192",
       "display_name": "Llama 3 70B",
       "knowledge_cutoff": "2023-03",
-      "pricing": {
-        "input_per_1m": 0.59,
-        "output_per_1m": 0.79
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.59,
+          "output_per_1m": 0.79
+        }
+      ],
       "modalities": {
         "input": [
           "text"
@@ -197,10 +209,12 @@
       "id": "llama3-8b-8192",
       "display_name": "Llama 3 8B",
       "knowledge_cutoff": "2023-03",
-      "pricing": {
-        "input_per_1m": 0.05,
-        "output_per_1m": 0.08
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.05,
+          "output_per_1m": 0.08
+        }
+      ],
       "modalities": {
         "input": [
           "text"
@@ -219,10 +233,12 @@
       "id": "meta-llama/llama-4-maverick-17b-128e-instruct",
       "display_name": "Llama 4 Maverick 17B",
       "knowledge_cutoff": "2024-08",
-      "pricing": {
-        "input_per_1m": 0.2,
-        "output_per_1m": 0.6
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.2,
+          "output_per_1m": 0.6
+        }
+      ],
       "modalities": {
         "input": [
           "text",
@@ -243,10 +259,12 @@
       "id": "meta-llama/llama-4-scout-17b-16e-instruct",
       "display_name": "Llama 4 Scout 17B",
       "knowledge_cutoff": "2024-08",
-      "pricing": {
-        "input_per_1m": 0.11,
-        "output_per_1m": 0.34
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.11,
+          "output_per_1m": 0.34
+        }
+      ],
       "modalities": {
         "input": [
           "text",
@@ -266,10 +284,12 @@
     {
       "id": "meta-llama/llama-guard-4-12b",
       "display_name": "Llama Guard 4 12B",
-      "pricing": {
-        "input_per_1m": 0.2,
-        "output_per_1m": 0.2
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.2,
+          "output_per_1m": 0.2
+        }
+      ],
       "modalities": {
         "input": [
           "text",
@@ -288,10 +308,12 @@
       "id": "meta-llama/llama-prompt-guard-2-22m",
       "display_name": "Llama Prompt Guard 2 22M",
       "knowledge_cutoff": "2024-10",
-      "pricing": {
-        "input_per_1m": 0.03,
-        "output_per_1m": 0.03
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.03,
+          "output_per_1m": 0.03
+        }
+      ],
       "modalities": {
         "input": [
           "text"
@@ -309,10 +331,12 @@
       "id": "meta-llama/llama-prompt-guard-2-86m",
       "display_name": "Llama Prompt Guard 2 86M",
       "knowledge_cutoff": "2024-10",
-      "pricing": {
-        "input_per_1m": 0.04,
-        "output_per_1m": 0.04
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.04,
+          "output_per_1m": 0.04
+        }
+      ],
       "modalities": {
         "input": [
           "text"
@@ -330,10 +354,12 @@
       "id": "mistral-saba-24b",
       "display_name": "Mistral Saba 24B",
       "knowledge_cutoff": "2024-08",
-      "pricing": {
-        "input_per_1m": 0.79,
-        "output_per_1m": 0.79
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.79,
+          "output_per_1m": 0.79
+        }
+      ],
       "modalities": {
         "input": [
           "text"
@@ -352,10 +378,12 @@
       "id": "moonshotai/kimi-k2-instruct",
       "display_name": "Kimi K2 Instruct",
       "knowledge_cutoff": "2024-10",
-      "pricing": {
-        "input_per_1m": 1,
-        "output_per_1m": 3
-      },
+      "pricing": [
+        {
+          "input_per_1m": 1,
+          "output_per_1m": 3
+        }
+      ],
       "modalities": {
         "input": [
           "text"
@@ -374,11 +402,13 @@
       "id": "moonshotai/kimi-k2-instruct-0905",
       "display_name": "Kimi K2 Instruct 0905",
       "knowledge_cutoff": "2024-10",
-      "pricing": {
-        "input_per_1m": 1,
-        "output_per_1m": 3,
-        "cache_read_per_1m": 0.5
-      },
+      "pricing": [
+        {
+          "input_per_1m": 1,
+          "output_per_1m": 3,
+          "cache_read_per_1m": 0.5
+        }
+      ],
       "modalities": {
         "input": [
           "text"
@@ -397,11 +427,13 @@
     {
       "id": "openai/gpt-oss-120b",
       "display_name": "GPT OSS 120B",
-      "pricing": {
-        "input_per_1m": 0.15,
-        "output_per_1m": 0.6,
-        "cache_read_per_1m": 0.075
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.15,
+          "output_per_1m": 0.6,
+          "cache_read_per_1m": 0.075
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -423,11 +455,13 @@
     {
       "id": "openai/gpt-oss-20b",
       "display_name": "GPT OSS 20B",
-      "pricing": {
-        "input_per_1m": 0.075,
-        "output_per_1m": 0.3,
-        "cache_read_per_1m": 0.0375
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.075,
+          "output_per_1m": 0.3,
+          "cache_read_per_1m": 0.0375
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -449,11 +483,13 @@
     {
       "id": "openai/gpt-oss-safeguard-20b",
       "display_name": "Safety GPT OSS 20B",
-      "pricing": {
-        "input_per_1m": 0.075,
-        "output_per_1m": 0.3,
-        "cache_read_per_1m": 0.037
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.075,
+          "output_per_1m": 0.3,
+          "cache_read_per_1m": 0.037
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -475,10 +511,12 @@
       "id": "qwen-qwq-32b",
       "display_name": "Qwen QwQ 32B",
       "knowledge_cutoff": "2024-09",
-      "pricing": {
-        "input_per_1m": 0.29,
-        "output_per_1m": 0.39
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.29,
+          "output_per_1m": 0.39
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -500,10 +538,12 @@
       "id": "qwen/qwen3-32b",
       "display_name": "Qwen3 32B",
       "knowledge_cutoff": "2024-11-08",
-      "pricing": {
-        "input_per_1m": 0.29,
-        "output_per_1m": 0.59
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.29,
+          "output_per_1m": 0.59
+        }
+      ],
       "reasoning": {
         "supported": true
       },

@@ -19,10 +19,12 @@
       "id": "gpt-3.5-turbo",
       "display_name": "GPT-3.5-turbo",
       "knowledge_cutoff": "2021-09-01",
-      "pricing": {
-        "input_per_1m": 0.5,
-        "output_per_1m": 1.5
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.5,
+          "output_per_1m": 1.5
+        }
+      ],
       "modalities": {
         "input": [
           "text"
@@ -40,10 +42,12 @@
       "id": "gpt-4",
       "display_name": "GPT-4",
       "knowledge_cutoff": "2023-11",
-      "pricing": {
-        "input_per_1m": 30,
-        "output_per_1m": 60
-      },
+      "pricing": [
+        {
+          "input_per_1m": 30,
+          "output_per_1m": 60
+        }
+      ],
       "modalities": {
         "input": [
           "text"
@@ -62,10 +66,12 @@
       "id": "gpt-4-turbo",
       "display_name": "GPT-4 Turbo",
       "knowledge_cutoff": "2023-12",
-      "pricing": {
-        "input_per_1m": 10,
-        "output_per_1m": 30
-      },
+      "pricing": [
+        {
+          "input_per_1m": 10,
+          "output_per_1m": 30
+        }
+      ],
       "modalities": {
         "input": [
           "text",
@@ -85,11 +91,13 @@
       "id": "gpt-4.1",
       "display_name": "GPT-4.1",
       "knowledge_cutoff": "2024-04",
-      "pricing": {
-        "input_per_1m": 2,
-        "output_per_1m": 8,
-        "cache_read_per_1m": 0.5
-      },
+      "pricing": [
+        {
+          "input_per_1m": 2,
+          "output_per_1m": 8,
+          "cache_read_per_1m": 0.5
+        }
+      ],
       "modalities": {
         "input": [
           "text",
@@ -111,11 +119,13 @@
       "id": "gpt-4.1-mini",
       "display_name": "GPT-4.1 mini",
       "knowledge_cutoff": "2024-04",
-      "pricing": {
-        "input_per_1m": 0.4,
-        "output_per_1m": 1.6,
-        "cache_read_per_1m": 0.1
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.4,
+          "output_per_1m": 1.6,
+          "cache_read_per_1m": 0.1
+        }
+      ],
       "modalities": {
         "input": [
           "text",
@@ -137,11 +147,13 @@
       "id": "gpt-4.1-nano",
       "display_name": "GPT-4.1 nano",
       "knowledge_cutoff": "2024-04",
-      "pricing": {
-        "input_per_1m": 0.1,
-        "output_per_1m": 0.4,
-        "cache_read_per_1m": 0.025
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.1,
+          "output_per_1m": 0.4,
+          "cache_read_per_1m": 0.025
+        }
+      ],
       "modalities": {
         "input": [
           "text",
@@ -162,11 +174,13 @@
       "id": "gpt-4o",
       "display_name": "GPT-4o",
       "knowledge_cutoff": "2023-09",
-      "pricing": {
-        "input_per_1m": 2.5,
-        "output_per_1m": 10,
-        "cache_read_per_1m": 1.25
-      },
+      "pricing": [
+        {
+          "input_per_1m": 2.5,
+          "output_per_1m": 10,
+          "cache_read_per_1m": 1.25
+        }
+      ],
       "modalities": {
         "input": [
           "text",
@@ -188,10 +202,12 @@
       "id": "gpt-4o-2024-05-13",
       "display_name": "GPT-4o (2024-05-13)",
       "knowledge_cutoff": "2023-09",
-      "pricing": {
-        "input_per_1m": 5,
-        "output_per_1m": 15
-      },
+      "pricing": [
+        {
+          "input_per_1m": 5,
+          "output_per_1m": 15
+        }
+      ],
       "modalities": {
         "input": [
           "text",
@@ -212,11 +228,13 @@
       "id": "gpt-4o-2024-08-06",
       "display_name": "GPT-4o (2024-08-06)",
       "knowledge_cutoff": "2023-09",
-      "pricing": {
-        "input_per_1m": 2.5,
-        "output_per_1m": 10,
-        "cache_read_per_1m": 1.25
-      },
+      "pricing": [
+        {
+          "input_per_1m": 2.5,
+          "output_per_1m": 10,
+          "cache_read_per_1m": 1.25
+        }
+      ],
       "modalities": {
         "input": [
           "text",
@@ -237,11 +255,13 @@
       "id": "gpt-4o-2024-11-20",
       "display_name": "GPT-4o (2024-11-20)",
       "knowledge_cutoff": "2023-09",
-      "pricing": {
-        "input_per_1m": 2.5,
-        "output_per_1m": 10,
-        "cache_read_per_1m": 1.25
-      },
+      "pricing": [
+        {
+          "input_per_1m": 2.5,
+          "output_per_1m": 10,
+          "cache_read_per_1m": 1.25
+        }
+      ],
       "modalities": {
         "input": [
           "text",
@@ -262,11 +282,13 @@
       "id": "gpt-4o-mini",
       "display_name": "GPT-4o mini",
       "knowledge_cutoff": "2023-09",
-      "pricing": {
-        "input_per_1m": 0.15,
-        "output_per_1m": 0.6,
-        "cache_read_per_1m": 0.075
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.15,
+          "output_per_1m": 0.6,
+          "cache_read_per_1m": 0.075
+        }
+      ],
       "modalities": {
         "input": [
           "text",
@@ -288,11 +310,13 @@
       "id": "gpt-5",
       "display_name": "GPT-5",
       "knowledge_cutoff": "2024-09-30",
-      "pricing": {
-        "input_per_1m": 1.25,
-        "output_per_1m": 10,
-        "cache_read_per_1m": 0.125
-      },
+      "pricing": [
+        {
+          "input_per_1m": 1.25,
+          "output_per_1m": 10,
+          "cache_read_per_1m": 0.125
+        }
+      ],
       "reasoning": {
         "supported": true,
         "levels": [
@@ -324,11 +348,13 @@
       "id": "gpt-5-chat-latest",
       "display_name": "GPT-5 Chat (latest)",
       "knowledge_cutoff": "2024-09-30",
-      "pricing": {
-        "input_per_1m": 1.25,
-        "output_per_1m": 10,
-        "cache_read_per_1m": 0.125
-      },
+      "pricing": [
+        {
+          "input_per_1m": 1.25,
+          "output_per_1m": 10,
+          "cache_read_per_1m": 0.125
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -352,11 +378,13 @@
       "id": "gpt-5-codex",
       "display_name": "GPT-5-Codex",
       "knowledge_cutoff": "2024-09-30",
-      "pricing": {
-        "input_per_1m": 1.25,
-        "output_per_1m": 10,
-        "cache_read_per_1m": 0.125
-      },
+      "pricing": [
+        {
+          "input_per_1m": 1.25,
+          "output_per_1m": 10,
+          "cache_read_per_1m": 0.125
+        }
+      ],
       "reasoning": {
         "supported": true,
         "levels": [
@@ -388,11 +416,13 @@
       "id": "gpt-5-mini",
       "display_name": "GPT-5 Mini",
       "knowledge_cutoff": "2024-05-30",
-      "pricing": {
-        "input_per_1m": 0.25,
-        "output_per_1m": 2,
-        "cache_read_per_1m": 0.025
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.25,
+          "output_per_1m": 2,
+          "cache_read_per_1m": 0.025
+        }
+      ],
       "reasoning": {
         "supported": true,
         "levels": [
@@ -423,11 +453,13 @@
       "id": "gpt-5-nano",
       "display_name": "GPT-5 Nano",
       "knowledge_cutoff": "2024-05-30",
-      "pricing": {
-        "input_per_1m": 0.05,
-        "output_per_1m": 0.4,
-        "cache_read_per_1m": 0.005
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.05,
+          "output_per_1m": 0.4,
+          "cache_read_per_1m": 0.005
+        }
+      ],
       "reasoning": {
         "supported": true,
         "levels": [
@@ -458,10 +490,12 @@
       "id": "gpt-5-pro",
       "display_name": "GPT-5 Pro",
       "knowledge_cutoff": "2024-09-30",
-      "pricing": {
-        "input_per_1m": 15,
-        "output_per_1m": 120
-      },
+      "pricing": [
+        {
+          "input_per_1m": 15,
+          "output_per_1m": 120
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -486,11 +520,13 @@
       "id": "gpt-5.1",
       "display_name": "GPT-5.1",
       "knowledge_cutoff": "2024-09-30",
-      "pricing": {
-        "input_per_1m": 1.25,
-        "output_per_1m": 10,
-        "cache_read_per_1m": 0.125
-      },
+      "pricing": [
+        {
+          "input_per_1m": 1.25,
+          "output_per_1m": 10,
+          "cache_read_per_1m": 0.125
+        }
+      ],
       "reasoning": {
         "supported": true,
         "levels": [
@@ -522,11 +558,13 @@
       "id": "gpt-5.1-chat-latest",
       "display_name": "GPT-5.1 Chat",
       "knowledge_cutoff": "2024-09-30",
-      "pricing": {
-        "input_per_1m": 1.25,
-        "output_per_1m": 10,
-        "cache_read_per_1m": 0.125
-      },
+      "pricing": [
+        {
+          "input_per_1m": 1.25,
+          "output_per_1m": 10,
+          "cache_read_per_1m": 0.125
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -550,11 +588,13 @@
       "id": "gpt-5.1-codex",
       "display_name": "GPT-5.1 Codex",
       "knowledge_cutoff": "2024-09-30",
-      "pricing": {
-        "input_per_1m": 1.25,
-        "output_per_1m": 10,
-        "cache_read_per_1m": 0.125
-      },
+      "pricing": [
+        {
+          "input_per_1m": 1.25,
+          "output_per_1m": 10,
+          "cache_read_per_1m": 0.125
+        }
+      ],
       "reasoning": {
         "supported": true,
         "levels": [
@@ -586,11 +626,13 @@
       "id": "gpt-5.1-codex-max",
       "display_name": "GPT-5.1 Codex Max",
       "knowledge_cutoff": "2024-09-30",
-      "pricing": {
-        "input_per_1m": 1.25,
-        "output_per_1m": 10,
-        "cache_read_per_1m": 0.125
-      },
+      "pricing": [
+        {
+          "input_per_1m": 1.25,
+          "output_per_1m": 10,
+          "cache_read_per_1m": 0.125
+        }
+      ],
       "reasoning": {
         "supported": true,
         "levels": [
@@ -622,11 +664,13 @@
       "id": "gpt-5.1-codex-mini",
       "display_name": "GPT-5.1 Codex mini",
       "knowledge_cutoff": "2024-09-30",
-      "pricing": {
-        "input_per_1m": 0.25,
-        "output_per_1m": 2,
-        "cache_read_per_1m": 0.025
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.25,
+          "output_per_1m": 2,
+          "cache_read_per_1m": 0.025
+        }
+      ],
       "reasoning": {
         "supported": true,
         "levels": [
@@ -657,11 +701,13 @@
       "id": "gpt-5.2",
       "display_name": "GPT-5.2",
       "knowledge_cutoff": "2025-08-31",
-      "pricing": {
-        "input_per_1m": 1.75,
-        "output_per_1m": 14,
-        "cache_read_per_1m": 0.175
-      },
+      "pricing": [
+        {
+          "input_per_1m": 1.75,
+          "output_per_1m": 14,
+          "cache_read_per_1m": 0.175
+        }
+      ],
       "reasoning": {
         "supported": true,
         "levels": [
@@ -693,11 +739,13 @@
       "id": "gpt-5.2-chat-latest",
       "display_name": "GPT-5.2 Chat",
       "knowledge_cutoff": "2025-08-31",
-      "pricing": {
-        "input_per_1m": 1.75,
-        "output_per_1m": 14,
-        "cache_read_per_1m": 0.175
-      },
+      "pricing": [
+        {
+          "input_per_1m": 1.75,
+          "output_per_1m": 14,
+          "cache_read_per_1m": 0.175
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -721,11 +769,13 @@
       "id": "gpt-5.2-codex",
       "display_name": "GPT-5.2 Codex",
       "knowledge_cutoff": "2025-08-31",
-      "pricing": {
-        "input_per_1m": 1.75,
-        "output_per_1m": 14,
-        "cache_read_per_1m": 0.175
-      },
+      "pricing": [
+        {
+          "input_per_1m": 1.75,
+          "output_per_1m": 14,
+          "cache_read_per_1m": 0.175
+        }
+      ],
       "reasoning": {
         "supported": true,
         "levels": [
@@ -758,10 +808,12 @@
       "id": "gpt-5.2-pro",
       "display_name": "GPT-5.2 Pro",
       "knowledge_cutoff": "2025-08-31",
-      "pricing": {
-        "input_per_1m": 21,
-        "output_per_1m": 168
-      },
+      "pricing": [
+        {
+          "input_per_1m": 21,
+          "output_per_1m": 168
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -785,11 +837,13 @@
       "id": "gpt-5.3-chat-latest",
       "display_name": "GPT-5.3 Chat (latest)",
       "knowledge_cutoff": "2025-08-31",
-      "pricing": {
-        "input_per_1m": 1.75,
-        "output_per_1m": 14,
-        "cache_read_per_1m": 0.175
-      },
+      "pricing": [
+        {
+          "input_per_1m": 1.75,
+          "output_per_1m": 14,
+          "cache_read_per_1m": 0.175
+        }
+      ],
       "modalities": {
         "input": [
           "text",
@@ -810,11 +864,13 @@
       "id": "gpt-5.3-codex",
       "display_name": "GPT-5.3 Codex",
       "knowledge_cutoff": "2025-08-31",
-      "pricing": {
-        "input_per_1m": 1.75,
-        "output_per_1m": 14,
-        "cache_read_per_1m": 0.175
-      },
+      "pricing": [
+        {
+          "input_per_1m": 1.75,
+          "output_per_1m": 14,
+          "cache_read_per_1m": 0.175
+        }
+      ],
       "reasoning": {
         "supported": true,
         "levels": [
@@ -847,11 +903,13 @@
       "id": "gpt-5.3-codex-spark",
       "display_name": "GPT-5.3 Codex Spark",
       "knowledge_cutoff": "2025-08-31",
-      "pricing": {
-        "input_per_1m": 1.75,
-        "output_per_1m": 14,
-        "cache_read_per_1m": 0.175
-      },
+      "pricing": [
+        {
+          "input_per_1m": 1.75,
+          "output_per_1m": 14,
+          "cache_read_per_1m": 0.175
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -877,19 +935,19 @@
       "id": "gpt-5.4",
       "display_name": "GPT-5.4",
       "knowledge_cutoff": "2025-08-31",
-      "pricing": {
-        "input_per_1m": 2.5,
-        "output_per_1m": 15,
-        "cache_read_per_1m": 0.25,
-        "tiers": [
-          {
-            "threshold": 272000,
-            "input_per_1m": 5,
-            "output_per_1m": 22.5,
-            "cache_read_per_1m": 0.5
-          }
-        ]
-      },
+      "pricing": [
+        {
+          "input_per_1m": 2.5,
+          "output_per_1m": 15,
+          "cache_read_per_1m": 0.25
+        },
+        {
+          "threshold": 272000,
+          "input_per_1m": 5,
+          "output_per_1m": 22.5,
+          "cache_read_per_1m": 0.5
+        }
+      ],
       "reasoning": {
         "supported": true,
         "levels": [
@@ -922,11 +980,13 @@
       "id": "gpt-5.4-mini",
       "display_name": "GPT-5.4 mini",
       "knowledge_cutoff": "2025-08-31",
-      "pricing": {
-        "input_per_1m": 0.75,
-        "output_per_1m": 4.5,
-        "cache_read_per_1m": 0.075
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.75,
+          "output_per_1m": 4.5,
+          "cache_read_per_1m": 0.075
+        }
+      ],
       "reasoning": {
         "supported": true,
         "levels": [
@@ -958,11 +1018,13 @@
       "id": "gpt-5.4-nano",
       "display_name": "GPT-5.4 nano",
       "knowledge_cutoff": "2025-08-31",
-      "pricing": {
-        "input_per_1m": 0.2,
-        "output_per_1m": 1.25,
-        "cache_read_per_1m": 0.02
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.2,
+          "output_per_1m": 1.25,
+          "cache_read_per_1m": 0.02
+        }
+      ],
       "reasoning": {
         "supported": true,
         "levels": [
@@ -994,17 +1056,17 @@
       "id": "gpt-5.4-pro",
       "display_name": "GPT-5.4 Pro",
       "knowledge_cutoff": "2025-08-31",
-      "pricing": {
-        "input_per_1m": 30,
-        "output_per_1m": 180,
-        "tiers": [
-          {
-            "threshold": 272000,
-            "input_per_1m": 60,
-            "output_per_1m": 270
-          }
-        ]
-      },
+      "pricing": [
+        {
+          "input_per_1m": 30,
+          "output_per_1m": 180
+        },
+        {
+          "threshold": 272000,
+          "input_per_1m": 60,
+          "output_per_1m": 270
+        }
+      ],
       "reasoning": {
         "supported": true,
         "levels": [
@@ -1034,19 +1096,19 @@
       "id": "gpt-5.5",
       "display_name": "GPT-5.5",
       "knowledge_cutoff": "2025-12-01",
-      "pricing": {
-        "input_per_1m": 5,
-        "output_per_1m": 30,
-        "cache_read_per_1m": 0.5,
-        "tiers": [
-          {
-            "threshold": 272000,
-            "input_per_1m": 10,
-            "output_per_1m": 45,
-            "cache_read_per_1m": 1
-          }
-        ]
-      },
+      "pricing": [
+        {
+          "input_per_1m": 5,
+          "output_per_1m": 30,
+          "cache_read_per_1m": 0.5
+        },
+        {
+          "threshold": 272000,
+          "input_per_1m": 10,
+          "output_per_1m": 45,
+          "cache_read_per_1m": 1
+        }
+      ],
       "reasoning": {
         "supported": true,
         "levels": [
@@ -1079,17 +1141,17 @@
       "id": "gpt-5.5-pro",
       "display_name": "GPT-5.5 Pro",
       "knowledge_cutoff": "2025-12-01",
-      "pricing": {
-        "input_per_1m": 30,
-        "output_per_1m": 180,
-        "tiers": [
-          {
-            "threshold": 272000,
-            "input_per_1m": 60,
-            "output_per_1m": 270
-          }
-        ]
-      },
+      "pricing": [
+        {
+          "input_per_1m": 30,
+          "output_per_1m": 180
+        },
+        {
+          "threshold": 272000,
+          "input_per_1m": 60,
+          "output_per_1m": 270
+        }
+      ],
       "reasoning": {
         "supported": true,
         "levels": [
@@ -1150,11 +1212,13 @@
       "id": "o1",
       "display_name": "o1",
       "knowledge_cutoff": "2023-09",
-      "pricing": {
-        "input_per_1m": 15,
-        "output_per_1m": 60,
-        "cache_read_per_1m": 7.5
-      },
+      "pricing": [
+        {
+          "input_per_1m": 15,
+          "output_per_1m": 60,
+          "cache_read_per_1m": 7.5
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -1179,11 +1243,13 @@
       "id": "o1-mini",
       "display_name": "o1-mini",
       "knowledge_cutoff": "2023-09",
-      "pricing": {
-        "input_per_1m": 1.1,
-        "output_per_1m": 4.4,
-        "cache_read_per_1m": 0.55
-      },
+      "pricing": [
+        {
+          "input_per_1m": 1.1,
+          "output_per_1m": 4.4,
+          "cache_read_per_1m": 0.55
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -1205,11 +1271,13 @@
       "id": "o1-preview",
       "display_name": "o1-preview",
       "knowledge_cutoff": "2023-09",
-      "pricing": {
-        "input_per_1m": 15,
-        "output_per_1m": 60,
-        "cache_read_per_1m": 7.5
-      },
+      "pricing": [
+        {
+          "input_per_1m": 15,
+          "output_per_1m": 60,
+          "cache_read_per_1m": 7.5
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -1230,10 +1298,12 @@
       "id": "o1-pro",
       "display_name": "o1-pro",
       "knowledge_cutoff": "2023-09",
-      "pricing": {
-        "input_per_1m": 150,
-        "output_per_1m": 600
-      },
+      "pricing": [
+        {
+          "input_per_1m": 150,
+          "output_per_1m": 600
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -1257,11 +1327,13 @@
       "id": "o3",
       "display_name": "o3",
       "knowledge_cutoff": "2024-05",
-      "pricing": {
-        "input_per_1m": 2,
-        "output_per_1m": 8,
-        "cache_read_per_1m": 0.5
-      },
+      "pricing": [
+        {
+          "input_per_1m": 2,
+          "output_per_1m": 8,
+          "cache_read_per_1m": 0.5
+        }
+      ],
       "reasoning": {
         "supported": true,
         "levels": [
@@ -1292,11 +1364,13 @@
       "id": "o3-deep-research",
       "display_name": "o3-deep-research",
       "knowledge_cutoff": "2024-05",
-      "pricing": {
-        "input_per_1m": 10,
-        "output_per_1m": 40,
-        "cache_read_per_1m": 2.5
-      },
+      "pricing": [
+        {
+          "input_per_1m": 10,
+          "output_per_1m": 40,
+          "cache_read_per_1m": 2.5
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -1319,11 +1393,13 @@
       "id": "o3-mini",
       "display_name": "o3-mini",
       "knowledge_cutoff": "2024-05",
-      "pricing": {
-        "input_per_1m": 1.1,
-        "output_per_1m": 4.4,
-        "cache_read_per_1m": 0.55
-      },
+      "pricing": [
+        {
+          "input_per_1m": 1.1,
+          "output_per_1m": 4.4,
+          "cache_read_per_1m": 0.55
+        }
+      ],
       "reasoning": {
         "supported": true,
         "levels": [
@@ -1352,10 +1428,12 @@
       "id": "o3-pro",
       "display_name": "o3-pro",
       "knowledge_cutoff": "2024-05",
-      "pricing": {
-        "input_per_1m": 20,
-        "output_per_1m": 80
-      },
+      "pricing": [
+        {
+          "input_per_1m": 20,
+          "output_per_1m": 80
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -1379,11 +1457,13 @@
       "id": "o4-mini",
       "display_name": "o4-mini",
       "knowledge_cutoff": "2024-05",
-      "pricing": {
-        "input_per_1m": 1.1,
-        "output_per_1m": 4.4,
-        "cache_read_per_1m": 0.275
-      },
+      "pricing": [
+        {
+          "input_per_1m": 1.1,
+          "output_per_1m": 4.4,
+          "cache_read_per_1m": 0.275
+        }
+      ],
       "reasoning": {
         "supported": true,
         "levels": [
@@ -1413,11 +1493,13 @@
       "id": "o4-mini-deep-research",
       "display_name": "o4-mini-deep-research",
       "knowledge_cutoff": "2024-05",
-      "pricing": {
-        "input_per_1m": 2,
-        "output_per_1m": 8,
-        "cache_read_per_1m": 0.5
-      },
+      "pricing": [
+        {
+          "input_per_1m": 2,
+          "output_per_1m": 8,
+          "cache_read_per_1m": 0.5
+        }
+      ],
       "reasoning": {
         "supported": true
       },

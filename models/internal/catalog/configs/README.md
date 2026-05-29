@@ -16,10 +16,9 @@ Each model entry is a `chat.ModelInfo`:
     { "id": "deepseek-reasoner",
       "display_name": "DeepSeek Reasoner",
       "knowledge_cutoff": "2024-07",
-      "pricing": {
-        "input_per_1m": 0.55, "output_per_1m": 2.19,
-        "cache_read_per_1m": 0.14
-      },
+      "pricing": [
+        { "input_per_1m": 0.55, "output_per_1m": 2.19, "cache_read_per_1m": 0.14 }
+      ],
       "reasoning": {
         "supported": true,
         "levels": ["high", "xhigh"],
@@ -46,25 +45,23 @@ Each model entry is a `chat.ModelInfo`:
   and the lookup keys off that — so their config is keyed by their name
   (`deepseek`, `groq`, `xai`, …), not `openai`. Likewise `vertexai`
   delegates to `google.NewChatModel` but keeps Provider `"VertexAI"`.
-- `pricing` rates are USD per 1,000,000 tokens; omit `cache_*` when
-  unknown (`Cost` falls back to the input rate). Omit `pricing` entirely
-  for a metadata-only row — a zero `Pricing` means "cost unknown", not
-  "free".
-- **Tiered pricing** (`pricing.tiers`): long-context models (Gemini 2.5
-  Pro, some OpenAI) reprice above a token threshold. Each tier is
-  `{ "threshold": 200000, "input_per_1m": …, "output_per_1m": … }`,
-  ascending by threshold. **A tier reprices the *whole* prompt, not the
-  marginal tokens** — a 250K-token Gemini 2.5 Pro call bills entirely at
-  the >200K rate. `Cost` applies the highest tier the prompt reaches:
+- `pricing` is an **array of rate bands** (USD per 1,000,000 tokens),
+  ascending by `threshold`. Usually one band (threshold omitted = 0, the
+  base). Omit `pricing` for a metadata-only row; omit `cache_*` within a
+  band when unknown (`CostOf` falls back to that band's input rate).
+- **Tiered pricing** — long-context models (Gemini 2.5 Pro, some OpenAI)
+  reprice above a token threshold, expressed as extra bands.
+  **A band reprices the *whole* prompt, not the marginal tokens** — a
+  250K-token Gemini 2.5 Pro call bills entirely at the >200K band.
+  `CostOf` selects the highest band the prompt's input size reaches
+  (scanning back to front):
 
   ```json
-  "pricing": {
-    "input_per_1m": 1.25, "output_per_1m": 10, "cache_read_per_1m": 0.125,
-    "tiers": [
-      { "threshold": 200000,
-        "input_per_1m": 2.5, "output_per_1m": 15, "cache_read_per_1m": 0.25 }
-    ]
-  }
+  "pricing": [
+    { "input_per_1m": 1.25, "output_per_1m": 10, "cache_read_per_1m": 0.125 },
+    { "threshold": 200000,
+      "input_per_1m": 2.5, "output_per_1m": 15, "cache_read_per_1m": 0.25 }
+  ]
   ```
 - `reasoning.supported` is the authoritative "can reason" bit; `levels` /
   `default_level` apply only when effort is level-controlled (OpenAI,
@@ -88,9 +85,9 @@ model database (also used by LangChain's model profiles) whose data lives
 as per-model TOML. Mapping:
 
 - `name` → `display_name`; `knowledge` → `knowledge_cutoff`.
-- `[cost]` `input` / `output` / `cache_read` / `cache_write` →
-  `pricing.*_per_1m`. `[[cost.tiers]]` with `tier.type == "context"` →
-  `pricing.tiers` (keyed by `tier.size`); other tier types are skipped.
+- `[cost]` `input` / `output` / `cache_read` / `cache_write` → the base
+  `pricing` band. `[[cost.tiers]]` with `tier.type == "context"` → extra
+  bands (`threshold` = `tier.size`); other tier types are skipped.
 - `reasoning` (bool) → `reasoning.supported`. models.dev has no effort
   levels, so `reasoning.levels` / `default_level` are **backfilled from
   charm.land/catwalk** (`reasoning_levels` / `default_reasoning_effort`)

@@ -22,8 +22,8 @@ func TestLookup(t *testing.T) {
 			t.Errorf("Lookup(%q,%q) ok = %v, want %v", c.provider, c.model, ok, c.wantOK)
 			continue
 		}
-		if ok && got.Pricing.InputPer1M != c.wantInput {
-			t.Errorf("Lookup(%q,%q) input = %v, want %v", c.provider, c.model, got.Pricing.InputPer1M, c.wantInput)
+		if ok && (len(got.Pricing) == 0 || got.Pricing[0].InputPer1M != c.wantInput) {
+			t.Errorf("Lookup(%q,%q) base input = %v, want %v", c.provider, c.model, got.Pricing, c.wantInput)
 		}
 	}
 }
@@ -40,11 +40,11 @@ func TestModels(t *testing.T) {
 }
 
 // TestCatalogIntegrity guards the embedded configs: every cataloged model
-// must have an id and, when priced, a positive input rate. Output may be
-// zero — some endpoints bill input only (e.g. Azure's model-router).
-// Metadata-only rows (no pricing) are allowed — capabilities are still
-// useful. A zero input rate with a nonzero output rate is the real
-// red flag (a half-set / typo'd row), so that's what we catch.
+// must have an id, and every pricing band must have a positive input rate.
+// Output may be zero — some endpoints bill input only (e.g. Azure's
+// model-router). Metadata-only rows (no pricing) are allowed — a zero
+// input rate is the real red flag (a half-set / typo'd band). Tiered
+// bands must also be ascending by threshold, which CostOf relies on.
 func TestCatalogIntegrity(t *testing.T) {
 	if len(catalog) == 0 {
 		t.Fatal("catalog is empty — embedded configs failed to load")
@@ -57,9 +57,17 @@ func TestCatalogIntegrity(t *testing.T) {
 			if id == "" {
 				t.Errorf("provider %q has a model with empty id", provider)
 			}
-			if !m.Pricing.IsZero() && m.Pricing.InputPer1M <= 0 {
-				t.Errorf("%s/%s: input=%v output=%v, a priced model needs a positive input rate",
-					provider, id, m.Pricing.InputPer1M, m.Pricing.OutputPer1M)
+			var prev int64 = -1
+			for _, band := range m.Pricing {
+				if band.InputPer1M <= 0 {
+					t.Errorf("%s/%s: band threshold=%d input=%v, a priced band needs a positive input rate",
+						provider, id, band.Threshold, band.InputPer1M)
+				}
+				if band.Threshold <= prev {
+					t.Errorf("%s/%s: pricing bands not ascending by threshold (%d after %d)",
+						provider, id, band.Threshold, prev)
+				}
+				prev = band.Threshold
 			}
 		}
 	}

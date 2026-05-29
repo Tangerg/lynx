@@ -42,8 +42,11 @@ type ModelInfo struct {
 
 	// --- pricing ---
 
-	// Pricing is the per-1M-token rate card, zero (IsZero) when unknown.
-	Pricing Pricing `json:"pricing,omitzero"`
+	// Pricing is the per-1M-token rate card as one or more bands (see
+	// [Pricing]) — usually a single band, more for long-context models
+	// that reprice past a token threshold. Nil when unknown. Use [CostOf]
+	// to price a call across the bands.
+	Pricing []Pricing `json:"pricing,omitempty"`
 
 	// --- capabilities ---
 
@@ -73,23 +76,33 @@ type ModelInfo struct {
 // `m == ModelInfo{}` because nested slices make ModelInfo non-comparable.)
 func (m ModelInfo) IsZero() bool {
 	return m.ID == "" && m.DisplayName == "" && m.KnowledgeCutoff == "" &&
-		m.Pricing.IsZero() && m.Reasoning.IsZero() && m.Modalities.IsZero() &&
+		len(m.Pricing) == 0 && m.Reasoning.IsZero() && m.Modalities.IsZero() &&
 		!m.ToolCall && !m.StructuredOutput && m.Limits.IsZero()
 }
 
-// Pricing is a chat model's per-token rate card, expressed (like the
-// industry convention) as USD per 1,000,000 tokens. It lives in the chat
-// package because input/output/cache token rates are a chat-model concept
-// — other modalities price differently (per image, per second of audio),
-// so this isn't a generic model type.
+// Pricing is one band of a chat model's per-token rate card, expressed
+// (like the industry convention) as USD per 1,000,000 tokens. A model's
+// full rate card is a []Pricing (see [ModelInfo.Pricing]): usually a
+// single band, but long-context models carry more — a base band plus
+// higher bands that take over once the prompt crosses [Pricing.Threshold]
+// (Gemini 2.5 Pro is $1.25/$10 up to 200K input tokens, $2.50/$15 beyond;
+// several OpenAI models split short vs long context the same way).
 //
-// The zero value means "unknown" — treat a zero Pricing as "no cost
-// available", not "free". Surface it via [ModelInfo.Pricing] so cost can
-// be attributed without the consumer hard-coding a rate table. The rate
-// table itself (which model costs what) is reference data that tracks
-// vendor pricing and lives outside this protocol layer (the models module
-// ships one sourced from models.dev).
+// IMPORTANT: a band reprices the WHOLE prompt, not the marginal tokens
+// above the threshold — a 250K-token Gemini 2.5 Pro call is billed
+// entirely at the >200K rates, not 200K at base + 50K at the tier. See
+// [CostOf] for selection across bands; [Pricing.Cost] is one band alone.
+//
+// It lives in the chat package because input/output/cache token rates are
+// a chat-model concept — other modalities price differently (per image,
+// per second of audio). The rate table itself (which model costs what) is
+// reference data outside this protocol layer (the models module ships one
+// sourced from models.dev).
 type Pricing struct {
+	// Threshold is the prompt input-token count at or above which this
+	// band applies. 0 is the base band (always applicable).
+	Threshold int64 `json:"threshold,omitempty"`
+
 	// InputPer1M is the rate for uncached prompt (input) tokens.
 	InputPer1M float64 `json:"input_per_1m"`
 
@@ -103,88 +116,60 @@ type Pricing struct {
 	// CacheWritePer1M is the (premium) rate for prompt tokens written to
 	// the provider's prompt cache. Zero falls back to InputPer1M.
 	CacheWritePer1M float64 `json:"cache_write_per_1m,omitempty"`
-
-	// Tiers is TIERED PRICING — extra rate cards that take over once the
-	// prompt crosses a token threshold, used by long-context models
-	// (Gemini 2.5 Pro and some OpenAI models reprice above ~200K tokens).
-	//
-	// IMPORTANT: a tier reprices the WHOLE prompt, not the marginal
-	// tokens above the threshold — a 250K-token prompt on Gemini 2.5 Pro
-	// is billed entirely at the >200K rate, not 200K at base + 50K at the
-	// tier. Tiers are sorted ascending by [PricingTier.Threshold]; [Cost]
-	// applies the highest tier the prompt reaches, else the base rates.
-	// Empty means flat pricing.
-	Tiers []PricingTier `json:"tiers,omitempty"`
 }
 
-// PricingTier is one step of [Pricing.Tiers]: the rate card that applies
-// when a prompt's input-token count reaches Threshold. Its rates mirror
-// the base [Pricing] fields (a zero cache rate likewise falls back to
-// this tier's InputPer1M).
-type PricingTier struct {
-	// Threshold is the prompt input-token count at or above which this
-	// tier's rates apply (e.g. 200000).
-	Threshold int64 `json:"threshold"`
+// IsZero reports whether this band carries no rates.
+func (p Pricing) IsZero() bool { return p == Pricing{} }
 
-	InputPer1M      float64 `json:"input_per_1m,omitempty"`
-	OutputPer1M     float64 `json:"output_per_1m,omitempty"`
-	CacheReadPer1M  float64 `json:"cache_read_per_1m,omitempty"`
-	CacheWritePer1M float64 `json:"cache_write_per_1m,omitempty"`
+// CostOf computes the USD cost of one call from a [Usage] breakdown,
+// across a banded rate card (see [Pricing]). The prompt's input-token size
+// selects the band — the highest [Pricing.Threshold] the prompt reaches,
+// scanning back to front (bands are ascending by Threshold) — and the
+// whole call bills at that band. Returns 0 for an empty card or nil usage.
+func CostOf(bands []Pricing, u *Usage) float64 {
+	if u == nil || len(bands) == 0 {
+		return 0
+	}
+	band := bands[0]
+	for i := len(bands) - 1; i >= 0; i-- {
+		if u.PromptTokens >= bands[i].Threshold {
+			band = bands[i]
+			break
+		}
+	}
+	return band.Cost(u)
 }
 
-// IsZero reports whether the rate card is unset (no rates, no tiers) —
-// i.e. pricing is unknown for this model. (Spelled out because Tiers is a
-// slice, so Pricing isn't comparable.)
-func (p Pricing) IsZero() bool {
-	return p.InputPer1M == 0 && p.OutputPer1M == 0 &&
-		p.CacheReadPer1M == 0 && p.CacheWritePer1M == 0 && len(p.Tiers) == 0
-}
-
-// Cost computes the USD cost of one call from a [Usage] breakdown.
+// Cost computes the USD cost of one call at THIS band's rates (no band
+// selection — see [CostOf] for that).
 //
 // [Usage.PromptTokens] is the FULL prompt count and already includes any
 // cache-read / cache-write portions (per the Usage docs), so those are
 // billed at their own rates and subtracted from the uncached remainder.
 // A nil/zero cache rate falls back to the standard input rate so a model
 // that reports cache tokens but lists no cache rate isn't under-billed.
-//
-// When [Pricing.Tiers] is set, the prompt size selects the rate card
-// (see Tiers) — the whole call is billed at that tier, input and output.
 func (p Pricing) Cost(u *Usage) float64 {
 	if u == nil || p.IsZero() {
 		return 0
 	}
-	in, out, readRate, writeRate := p.ratesFor(u.PromptTokens)
-
 	cacheRead := derefInt64(u.CacheReadInputTokens)
 	cacheWrite := derefInt64(u.CacheWriteInputTokens)
 	uncachedIn := max(u.PromptTokens-cacheRead-cacheWrite, 0)
 
+	readRate := p.CacheReadPer1M
 	if readRate == 0 {
-		readRate = in
+		readRate = p.InputPer1M
 	}
+	writeRate := p.CacheWritePer1M
 	if writeRate == 0 {
-		writeRate = in
+		writeRate = p.InputPer1M
 	}
 
-	total := float64(uncachedIn)*in +
-		float64(u.CompletionTokens)*out +
+	total := float64(uncachedIn)*p.InputPer1M +
+		float64(u.CompletionTokens)*p.OutputPer1M +
 		float64(cacheRead)*readRate +
 		float64(cacheWrite)*writeRate
 	return total / 1_000_000
-}
-
-// ratesFor returns the effective input / output / cache-read / cache-write
-// rates for a prompt of the given input-token size: the highest tier the
-// prompt reaches (Tiers are ascending by Threshold), else the base rates.
-func (p Pricing) ratesFor(promptTokens int64) (in, out, cacheRead, cacheWrite float64) {
-	in, out, cacheRead, cacheWrite = p.InputPer1M, p.OutputPer1M, p.CacheReadPer1M, p.CacheWritePer1M
-	for _, t := range p.Tiers {
-		if promptTokens >= t.Threshold {
-			in, out, cacheRead, cacheWrite = t.InputPer1M, t.OutputPer1M, t.CacheReadPer1M, t.CacheWritePer1M
-		}
-	}
-	return
 }
 
 func derefInt64(p *int64) int64 {

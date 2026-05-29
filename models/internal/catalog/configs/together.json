@@ -4,11 +4,13 @@
     {
       "id": "MiniMaxAI/MiniMax-M2.5",
       "display_name": "MiniMax-M2.5",
-      "pricing": {
-        "input_per_1m": 0.3,
-        "output_per_1m": 1.2,
-        "cache_read_per_1m": 0.06
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.3,
+          "output_per_1m": 1.2,
+          "cache_read_per_1m": 0.06
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -29,11 +31,13 @@
     {
       "id": "MiniMaxAI/MiniMax-M2.7",
       "display_name": "MiniMax-M2.7",
-      "pricing": {
-        "input_per_1m": 0.3,
-        "output_per_1m": 1.2,
-        "cache_read_per_1m": 0.06
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.3,
+          "output_per_1m": 1.2,
+          "cache_read_per_1m": 0.06
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -56,10 +60,12 @@
       "id": "Qwen/Qwen3-235B-A22B-Instruct-2507-tput",
       "display_name": "Qwen3 235B A22B Instruct 2507 FP8",
       "knowledge_cutoff": "2025-07",
-      "pricing": {
-        "input_per_1m": 0.2,
-        "output_per_1m": 0.6
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.2,
+          "output_per_1m": 0.6
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -81,10 +87,12 @@
       "id": "Qwen/Qwen3-Coder-480B-A35B-Instruct-FP8",
       "display_name": "Qwen3 Coder 480B A35B Instruct",
       "knowledge_cutoff": "2025-04",
-      "pricing": {
-        "input_per_1m": 2,
-        "output_per_1m": 2
-      },
+      "pricing": [
+        {
+          "input_per_1m": 2,
+          "output_per_1m": 2
+        }
+      ],
       "modalities": {
         "input": [
           "text"
@@ -103,10 +111,12 @@
       "id": "Qwen/Qwen3-Coder-Next-FP8",
       "display_name": "Qwen3 Coder Next FP8",
       "knowledge_cutoff": "2026-02-03",
-      "pricing": {
-        "input_per_1m": 0.5,
-        "output_per_1m": 1.2
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.5,
+          "output_per_1m": 1.2
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -127,10 +137,12 @@
     {
       "id": "Qwen/Qwen3.5-397B-A17B",
       "display_name": "Qwen3.5 397B A17B",
-      "pricing": {
-        "input_per_1m": 0.6,
-        "output_per_1m": 3.6
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.6,
+          "output_per_1m": 3.6
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -152,10 +164,12 @@
     {
       "id": "Qwen/Qwen3.6-Plus",
       "display_name": "Qwen3.6 Plus",
-      "pricing": {
-        "input_per_1m": 0.5,
-        "output_per_1m": 3
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.5,
+          "output_per_1m": 3
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -176,10 +190,12 @@
     {
       "id": "Qwen/Qwen3.7-Max",
       "display_name": "Qwen3.7 Max",
-      "pricing": {
-        "input_per_1m": 2.5,
-        "output_per_1m": 7.5
-      },
+      "pricing": [
+        {
+          "input_per_1m": 2.5,
+          "output_per_1m": 7.5
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -201,10 +217,12 @@
       "id": "deepseek-ai/DeepSeek-R1",
       "display_name": "DeepSeek R1",
       "knowledge_cutoff": "2024-07",
-      "pricing": {
-        "input_per_1m": 3,
-        "output_per_1m": 7
-      },
+      "pricing": [
+        {
+          "input_per_1m": 3,
+          "output_per_1m": 7
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -225,10 +243,12 @@
       "id": "deepseek-ai/DeepSeek-V3",
       "display_name": "DeepSeek V3",
       "knowledge_cutoff": "2024-07",
-      "pricing": {
-        "input_per_1m": 1.25,
-        "output_per_1m": 1.25
-      },
+      "pricing": [
+        {
+          "input_per_1m": 1.25,
+          "output_per_1m": 1.25
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -250,10 +270,12 @@
       "id": "deepseek-ai/DeepSeek-V3-1",
       "display_name": "DeepSeek V3.1",
       "knowledge_cutoff": "2025-08",
-      "pricing": {
-        "input_per_1m": 0.6,
-        "output_per_1m": 1.7
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.6,
+          "output_per_1m": 1.7
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -274,11 +296,13 @@
     {
       "id": "deepseek-ai/DeepSeek-V4-Pro",
       "display_name": "DeepSeek V4 Pro",
-      "pricing": {
-        "input_per_1m": 2.1,
-        "output_per_1m": 4.4,
-        "cache_read_per_1m": 0.2
-      },
+      "pricing": [
+        {
+          "input_per_1m": 2.1,
+          "output_per_1m": 4.4,
+          "cache_read_per_1m": 0.2
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -301,10 +325,12 @@
       "id": "essentialai/Rnj-1-Instruct",
       "display_name": "Rnj-1 Instruct",
       "knowledge_cutoff": "2024-10",
-      "pricing": {
-        "input_per_1m": 0.15,
-        "output_per_1m": 0.15
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.15,
+          "output_per_1m": 0.15
+        }
+      ],
       "modalities": {
         "input": [
           "text"
@@ -323,10 +349,12 @@
       "id": "google/gemma-4-31B-it",
       "display_name": "Gemma 4 31B Instruct",
       "knowledge_cutoff": "2025-01",
-      "pricing": {
-        "input_per_1m": 0.2,
-        "output_per_1m": 0.5
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.2,
+          "output_per_1m": 0.5
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -349,10 +377,12 @@
       "id": "meta-llama/Llama-3.3-70B-Instruct-Turbo",
       "display_name": "Llama 3.3 70B",
       "knowledge_cutoff": "2023-12",
-      "pricing": {
-        "input_per_1m": 0.88,
-        "output_per_1m": 0.88
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.88,
+          "output_per_1m": 0.88
+        }
+      ],
       "modalities": {
         "input": [
           "text"
@@ -371,10 +401,12 @@
       "id": "moonshotai/Kimi-K2.5",
       "display_name": "Kimi K2.5",
       "knowledge_cutoff": "2026-01",
-      "pricing": {
-        "input_per_1m": 0.5,
-        "output_per_1m": 2.8
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.5,
+          "output_per_1m": 2.8
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -397,11 +429,13 @@
       "id": "moonshotai/Kimi-K2.6",
       "display_name": "Kimi K2.6",
       "knowledge_cutoff": "2025-01",
-      "pricing": {
-        "input_per_1m": 1.2,
-        "output_per_1m": 4.5,
-        "cache_read_per_1m": 0.2
-      },
+      "pricing": [
+        {
+          "input_per_1m": 1.2,
+          "output_per_1m": 4.5,
+          "cache_read_per_1m": 0.2
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -426,10 +460,12 @@
       "id": "openai/gpt-oss-120b",
       "display_name": "GPT OSS 120B",
       "knowledge_cutoff": "2025-08",
-      "pricing": {
-        "input_per_1m": 0.15,
-        "output_per_1m": 0.6
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.15,
+          "output_per_1m": 0.6
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -451,10 +487,12 @@
       "id": "zai-org/GLM-5.1",
       "display_name": "GLM-5.1",
       "knowledge_cutoff": "2025-11",
-      "pricing": {
-        "input_per_1m": 1.4,
-        "output_per_1m": 4.4
-      },
+      "pricing": [
+        {
+          "input_per_1m": 1.4,
+          "output_per_1m": 4.4
+        }
+      ],
       "reasoning": {
         "supported": true
       },

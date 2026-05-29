@@ -5,11 +5,13 @@
       "id": "kimi-k2-0711-preview",
       "display_name": "Kimi K2 0711",
       "knowledge_cutoff": "2024-10",
-      "pricing": {
-        "input_per_1m": 0.6,
-        "output_per_1m": 2.5,
-        "cache_read_per_1m": 0.15
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.6,
+          "output_per_1m": 2.5,
+          "cache_read_per_1m": 0.15
+        }
+      ],
       "modalities": {
         "input": [
           "text"
@@ -28,11 +30,13 @@
       "id": "kimi-k2-0905-preview",
       "display_name": "Kimi K2 0905",
       "knowledge_cutoff": "2024-10",
-      "pricing": {
-        "input_per_1m": 0.6,
-        "output_per_1m": 2.5,
-        "cache_read_per_1m": 0.15
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.6,
+          "output_per_1m": 2.5,
+          "cache_read_per_1m": 0.15
+        }
+      ],
       "modalities": {
         "input": [
           "text"
@@ -51,11 +55,13 @@
       "id": "kimi-k2-thinking",
       "display_name": "Kimi K2 Thinking",
       "knowledge_cutoff": "2024-08",
-      "pricing": {
-        "input_per_1m": 0.6,
-        "output_per_1m": 2.5,
-        "cache_read_per_1m": 0.15
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.6,
+          "output_per_1m": 2.5,
+          "cache_read_per_1m": 0.15
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -77,11 +83,13 @@
       "id": "kimi-k2-thinking-turbo",
       "display_name": "Kimi K2 Thinking Turbo",
       "knowledge_cutoff": "2024-08",
-      "pricing": {
-        "input_per_1m": 1.15,
-        "output_per_1m": 8,
-        "cache_read_per_1m": 0.15
-      },
+      "pricing": [
+        {
+          "input_per_1m": 1.15,
+          "output_per_1m": 8,
+          "cache_read_per_1m": 0.15
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -103,11 +111,13 @@
       "id": "kimi-k2-turbo-preview",
       "display_name": "Kimi K2 Turbo",
       "knowledge_cutoff": "2024-10",
-      "pricing": {
-        "input_per_1m": 2.4,
-        "output_per_1m": 10,
-        "cache_read_per_1m": 0.6
-      },
+      "pricing": [
+        {
+          "input_per_1m": 2.4,
+          "output_per_1m": 10,
+          "cache_read_per_1m": 0.6
+        }
+      ],
       "modalities": {
         "input": [
           "text"
@@ -126,11 +136,13 @@
       "id": "kimi-k2.5",
       "display_name": "Kimi K2.5",
       "knowledge_cutoff": "2025-01",
-      "pricing": {
-        "input_per_1m": 0.6,
-        "output_per_1m": 3,
-        "cache_read_per_1m": 0.1
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.6,
+          "output_per_1m": 3,
+          "cache_read_per_1m": 0.1
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -155,11 +167,13 @@
       "id": "kimi-k2.6",
       "display_name": "Kimi K2.6",
       "knowledge_cutoff": "2025-01",
-      "pricing": {
-        "input_per_1m": 0.95,
-        "output_per_1m": 4,
-        "cache_read_per_1m": 0.16
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.95,
+          "output_per_1m": 4,
+          "cache_read_per_1m": 0.16
+        }
+      ],
       "reasoning": {
         "supported": true
       },

@@ -5,10 +5,12 @@
       "id": "sonar",
       "display_name": "Sonar",
       "knowledge_cutoff": "2025-09-01",
-      "pricing": {
-        "input_per_1m": 1,
-        "output_per_1m": 1
-      },
+      "pricing": [
+        {
+          "input_per_1m": 1,
+          "output_per_1m": 1
+        }
+      ],
       "modalities": {
         "input": [
           "text"
@@ -26,10 +28,12 @@
       "id": "sonar-deep-research",
       "display_name": "Perplexity Sonar Deep Research",
       "knowledge_cutoff": "2025-01",
-      "pricing": {
-        "input_per_1m": 2,
-        "output_per_1m": 8
-      },
+      "pricing": [
+        {
+          "input_per_1m": 2,
+          "output_per_1m": 8
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -50,10 +54,12 @@
       "id": "sonar-pro",
       "display_name": "Sonar Pro",
       "knowledge_cutoff": "2025-09-01",
-      "pricing": {
-        "input_per_1m": 3,
-        "output_per_1m": 15
-      },
+      "pricing": [
+        {
+          "input_per_1m": 3,
+          "output_per_1m": 15
+        }
+      ],
       "modalities": {
         "input": [
           "text",
@@ -72,10 +78,12 @@
       "id": "sonar-reasoning-pro",
       "display_name": "Sonar Reasoning Pro",
       "knowledge_cutoff": "2025-09-01",
-      "pricing": {
-        "input_per_1m": 2,
-        "output_per_1m": 8
-      },
+      "pricing": [
+        {
+          "input_per_1m": 2,
+          "output_per_1m": 8
+        }
+      ],
       "reasoning": {
         "supported": true
       },

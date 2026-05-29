@@ -5,11 +5,13 @@
       "id": "accounts/fireworks/models/deepseek-v4-flash",
       "display_name": "DeepSeek V4 Flash",
       "knowledge_cutoff": "2025-05",
-      "pricing": {
-        "input_per_1m": 0.14,
-        "output_per_1m": 0.28,
-        "cache_read_per_1m": 0.03
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.14,
+          "output_per_1m": 0.28,
+          "cache_read_per_1m": 0.03
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -32,11 +34,13 @@
       "id": "accounts/fireworks/models/deepseek-v4-pro",
       "display_name": "DeepSeek V4 Pro",
       "knowledge_cutoff": "2025-05",
-      "pricing": {
-        "input_per_1m": 1.74,
-        "output_per_1m": 3.48,
-        "cache_read_per_1m": 0.145
-      },
+      "pricing": [
+        {
+          "input_per_1m": 1.74,
+          "output_per_1m": 3.48,
+          "cache_read_per_1m": 0.145
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -58,11 +62,13 @@
     {
       "id": "accounts/fireworks/models/glm-5p1",
       "display_name": "GLM 5.1",
-      "pricing": {
-        "input_per_1m": 1.4,
-        "output_per_1m": 4.4,
-        "cache_read_per_1m": 0.26
-      },
+      "pricing": [
+        {
+          "input_per_1m": 1.4,
+          "output_per_1m": 4.4,
+          "cache_read_per_1m": 0.26
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -83,11 +89,13 @@
     {
       "id": "accounts/fireworks/models/gpt-oss-120b",
       "display_name": "GPT OSS 120B",
-      "pricing": {
-        "input_per_1m": 0.15,
-        "output_per_1m": 0.6,
-        "cache_read_per_1m": 0.015
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.15,
+          "output_per_1m": 0.6,
+          "cache_read_per_1m": 0.015
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -108,11 +116,13 @@
     {
       "id": "accounts/fireworks/models/gpt-oss-20b",
       "display_name": "GPT OSS 20B",
-      "pricing": {
-        "input_per_1m": 0.07,
-        "output_per_1m": 0.3,
-        "cache_read_per_1m": 0.035
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.07,
+          "output_per_1m": 0.3,
+          "cache_read_per_1m": 0.035
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -134,11 +144,13 @@
       "id": "accounts/fireworks/models/kimi-k2p5",
       "display_name": "Kimi K2.5",
       "knowledge_cutoff": "2025-01",
-      "pricing": {
-        "input_per_1m": 0.6,
-        "output_per_1m": 3,
-        "cache_read_per_1m": 0.1
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.6,
+          "output_per_1m": 3,
+          "cache_read_per_1m": 0.1
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -161,11 +173,13 @@
     {
       "id": "accounts/fireworks/models/kimi-k2p6",
       "display_name": "Kimi K2.6",
-      "pricing": {
-        "input_per_1m": 0.95,
-        "output_per_1m": 4,
-        "cache_read_per_1m": 0.16
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.95,
+          "output_per_1m": 4,
+          "cache_read_per_1m": 0.16
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -187,11 +201,13 @@
     {
       "id": "accounts/fireworks/models/minimax-m2p5",
       "display_name": "MiniMax-M2.5",
-      "pricing": {
-        "input_per_1m": 0.3,
-        "output_per_1m": 1.2,
-        "cache_read_per_1m": 0.03
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.3,
+          "output_per_1m": 1.2,
+          "cache_read_per_1m": 0.03
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -212,11 +228,13 @@
     {
       "id": "accounts/fireworks/models/minimax-m2p7",
       "display_name": "MiniMax-M2.7",
-      "pricing": {
-        "input_per_1m": 0.3,
-        "output_per_1m": 1.2,
-        "cache_read_per_1m": 0.06
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.3,
+          "output_per_1m": 1.2,
+          "cache_read_per_1m": 0.06
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -237,11 +255,13 @@
     {
       "id": "accounts/fireworks/models/qwen3p6-plus",
       "display_name": "Qwen 3.6 Plus",
-      "pricing": {
-        "input_per_1m": 0.5,
-        "output_per_1m": 3,
-        "cache_read_per_1m": 0.1
-      },
+      "pricing": [
+        {
+          "input_per_1m": 0.5,
+          "output_per_1m": 3,
+          "cache_read_per_1m": 0.1
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -263,11 +283,13 @@
     {
       "id": "accounts/fireworks/routers/glm-5p1-fast",
       "display_name": "GLM 5.1 Fast",
-      "pricing": {
-        "input_per_1m": 2.8,
-        "output_per_1m": 8.8,
-        "cache_read_per_1m": 0.52
-      },
+      "pricing": [
+        {
+          "input_per_1m": 2.8,
+          "output_per_1m": 8.8,
+          "cache_read_per_1m": 0.52
+        }
+      ],
       "reasoning": {
         "supported": true
       },
@@ -288,11 +310,13 @@
     {
       "id": "accounts/fireworks/routers/kimi-k2p6-turbo",
       "display_name": "Kimi K2.6 Turbo",
-      "pricing": {
-        "input_per_1m": 2,
-        "output_per_1m": 8,
-        "cache_read_per_1m": 0.3
-      },
+      "pricing": [
+        {
+          "input_per_1m": 2,
+          "output_per_1m": 8,
+          "cache_read_per_1m": 0.3
+        }
+      ],
       "reasoning": {
         "supported": true
       },
