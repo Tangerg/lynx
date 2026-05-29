@@ -73,11 +73,13 @@ type ModelUsage struct {
 }
 
 // Pricing computes the USD cost of one LLM round from the served model
-// and its token usage. Supply via [Config.Pricing] to populate cost on
-// invocations / ChatOutput / TurnEnd; nil leaves cost at zero. The
-// per-provider rate table behind it is the caller's to maintain — the
-// framework never invents cost numbers.
-type Pricing func(model string, usage TokenUsage) float64
+// and its full token usage (cache breakdown included). Supply via
+// [Config.Pricing] to populate cost on invocations / ChatOutput /
+// TurnEnd; nil leaves cost at zero. lyra builds it from the chat model's
+// [chat.ModelMetadata].Pricing (see config.BuildChatClient); the rate
+// table behind that lives in the model adapters' pricing catalog — the
+// engine never invents cost numbers.
+type Pricing func(model string, usage *chat.Usage) float64
 
 // buildChatAgent constructs the chat agent owned by this Engine.
 // The Action's closure captures `e` so it can reach the engine's
@@ -274,11 +276,7 @@ func (e *Engine) invocationFrom(model string, u *chat.Usage) core.LLMInvocation 
 		inv.CacheWriteInputTokens = *u.CacheWriteInputTokens
 	}
 	if e.pricing != nil {
-		inv.Cost = e.pricing(model, TokenUsage{
-			PromptTokens:     inv.PromptTokens,
-			CompletionTokens: inv.CompletionTokens,
-			ReasoningTokens:  inv.ReasoningTokens,
-		})
+		inv.Cost = e.pricing(model, u)
 	}
 	return inv
 }

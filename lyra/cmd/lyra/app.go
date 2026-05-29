@@ -90,7 +90,7 @@ func (a *App) ensureRuntime(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	client, err := config.BuildChatClient(cfg)
+	client, pricing, err := config.BuildChatClient(cfg)
 	if err != nil {
 		return err
 	}
@@ -108,6 +108,7 @@ func (a *App) ensureRuntime(ctx context.Context) error {
 
 	rt, err := lyraruntime.New(ctx, lyraruntime.Config{
 		ChatClient:     client,
+		Pricing:        pricing,
 		Online:         cfg.Online,
 		MCPServers:     cfg.MCPServers,
 		MemoryStore:    msgStore,

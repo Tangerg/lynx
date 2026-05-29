@@ -39,4 +39,10 @@ type Model interface {
 type ModelMetadata struct {
 	// Provider names the LLM vendor — "openai", "anthropic", "google", etc.
 	Provider string `json:"provider"`
+
+	// Pricing is the model's per-1M-token rate card, zero (IsZero) when
+	// unknown. Providers populate it — typically from a pricing catalog
+	// (github.com/Tangerg/lynx/models/pricing, modeled on catwalk) — so
+	// consumers can attribute USD cost without hard-coding rates.
+	Pricing model.Pricing `json:"pricing,omitzero"`
 }
