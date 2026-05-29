@@ -102,6 +102,33 @@ Claude Agent SDK 的本质是**包一个 `claude-code` CLI 子进程**，对外 
 
 **lyra 单方面能补的 SDK gap 基本清零。** 真实剩余分两堆：① 框架级 **background/async subagent**（唯一还值得在框架层投入的结构性能力，且 lyra 早晚要 long-running 任务）；② 一串 **FE-gated 项**（cross-restart 恢复 / mid-turn steering / edit-checkpoint / tag），卡在协议未定，不能单方面动 wire。而我们在 **model metadata catalog** 上已反超 SDK 一个身位。**下一步若要继续，唯一不依赖前端的方向是框架级 async subagent；其余等前端 spec。**
 
+### A.实施方案：框架级 async / background subagent（focused-round，进行中）
+
+> 对标 SDK `AgentDefinition.background` + `stopTask` + `task_progress`。**框架层可单方面做**（agent 模块）；lyra 暴露给前端仍 FE-gated（需 `lyra.background.*` 事件，目前仅预留）。
+
+**核心发现：gap 比预期窄，大半原语已就位。** 审计同步路径（`subagent.go`+`child.go`）后：后台跑进程（`Platform.ContinueProcessAsync` 返回 done channel、goroutine 跑）、子进程继承 blackboard + budget 并树（`CreateChildProcess`+`budget.addChild`）、查状态/取结果（`ProcessByID(id).Status()/Output()`）、取消（`KillProcess(id)` = SDK `stopTask`）、生命周期事件（child 已 emit `ProcessCreated/Completed/Failed`）——**全在**。`spawnChildOptions` 之所以同步，仅因它最后调 `ContinueProcess`（阻塞）而非 `ContinueProcessAsync`。所以这是**组装现有原语 + 加一个 LLM 面向工具形态**，纯增量、合 OCP。
+
+**缺的四样：**
+1. **async child spawn helper**：`SpawnChildAsync(ctx, platform, agent, in) (taskID, done, err)` —— `CreateChildProcess`+`Bind`+`ContinueProcessAsync`，立即返回 child id（对照同步 `SpawnChild`）。
+2. **LLM 面向 spawn/collect 工具对**：把现在"一个 `task` 工具阻塞到完成"拆成 `spawn_task(prompt)→{task_id}`（非阻塞）+ `collect_task(task_id)→{status, result?}`（轮询收割）。模型 spawn 多个 → 继续干别的 → 回头 collect。
+3. **parent 侧 task 反查**：列"我 spawn 的后台任务" —— **复用 `platform.procs`+parentID 反查**（child 已带 parentID），零新状态。
+4. **收尾约定**：parent turn 结束/取消 → kill 未完成 child；result 走 `collect_task` 读 child `Output()` 显式收割。
+
+**planner-driven 的天然契合**：SDK 靠往对话注入 message（`SDKTaskNotificationMessage`+`origin`）把后台结果塞回主循环；我们有 blackboard——后台 child 完成写 parent blackboard 的 task-keyed 槽，下一 planning tick 自然看见，比消息注入干净。`CreateChildProcess` 给 child 的是 parent blackboard 的 `Spawn()` **副本**（隔离），后台写不污染 parent，收割显式 → 无共享可变状态竞态。
+
+**API 增量（最小集）**：
+```go
+// runtime/child.go —— 异步孪生（不改同步 SpawnChild）
+func SpawnChildAsync(ctx, platform, agentDef, in) (taskID string, done <-chan error, err error)
+// runtime/subagent.go —— LLM 面向工具对
+func AsBackgroundChatTool[In, Out any](platform, agentDef) (spawn, collect chat.Tool, err error)
+// KillProcess 已存在 → 直接当 stopTask，无需新增
+```
+
+**已定决策**：task registry = 复用 `platform.procs`+parentID（YAGNI，零新状态）；收割 = 显式 `collect_task` 轮询（自动写 blackboard 是后续增强）；parent 退出 = 自动 kill 未完成 child（避免泄漏，符合 subtree 语义）。
+
+**范围/风险**：纯增量（~2 exported fn + 1 background tool 类型 + 测试），**不碰同步路径、不动 lyra/wire**，可独立 revert。风险在 goroutine 生命周期 vs parent turn 边界同步——先写 `TestSpawnChildAsync_CollectAfterParentContinues` 钉死时序。**不做**：`taskBudget`（API 侧 pacing，做不了）/ `forwardSubagentText`（子任务故意不透传）/ 进度 summary（依附 background，之后再说）。
+
 ---
 
 ## 4. 这轮已经做了的（lyra 侧，实施记录）
