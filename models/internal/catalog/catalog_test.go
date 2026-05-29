@@ -40,9 +40,11 @@ func TestModels(t *testing.T) {
 }
 
 // TestCatalogIntegrity guards the embedded configs: every cataloged model
-// must have an id and, when priced, a positive input + output rate (a
-// half-set rate usually means a typo'd / missing field). Metadata-only
-// rows (no pricing) are allowed — capabilities are still useful.
+// must have an id and, when priced, a positive input rate. Output may be
+// zero — some endpoints bill input only (e.g. Azure's model-router).
+// Metadata-only rows (no pricing) are allowed — capabilities are still
+// useful. A zero input rate with a nonzero output rate is the real
+// red flag (a half-set / typo'd row), so that's what we catch.
 func TestCatalogIntegrity(t *testing.T) {
 	if len(catalog) == 0 {
 		t.Fatal("catalog is empty — embedded configs failed to load")
@@ -55,8 +57,8 @@ func TestCatalogIntegrity(t *testing.T) {
 			if id == "" {
 				t.Errorf("provider %q has a model with empty id", provider)
 			}
-			if !m.Pricing.IsZero() && (m.Pricing.InputPer1M <= 0 || m.Pricing.OutputPer1M <= 0) {
-				t.Errorf("%s/%s: input=%v output=%v, a priced model needs both > 0",
+			if !m.Pricing.IsZero() && m.Pricing.InputPer1M <= 0 {
+				t.Errorf("%s/%s: input=%v output=%v, a priced model needs a positive input rate",
 					provider, id, m.Pricing.InputPer1M, m.Pricing.OutputPer1M)
 			}
 		}
