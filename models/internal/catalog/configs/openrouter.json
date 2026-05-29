@@ -5,6 +5,8 @@
       "id": "ai21/jamba-large-1.7",
       "display_name": "Jamba Large 1.7",
       "knowledge_cutoff": "2024-08-31",
+      "release_date": "2025-08-08",
+      "last_updated": "2025-08-08",
       "pricing": [
         {
           "input_per_1m": 2,
@@ -28,6 +30,8 @@
     {
       "id": "aion-labs/aion-1.0",
       "display_name": "Aion-1.0",
+      "release_date": "2025-02-04",
+      "last_updated": "2025-02-04",
       "pricing": [
         {
           "input_per_1m": 4,
@@ -53,6 +57,8 @@
     {
       "id": "aion-labs/aion-1.0-mini",
       "display_name": "Aion-1.0-Mini",
+      "release_date": "2025-02-04",
+      "last_updated": "2025-02-04",
       "pricing": [
         {
           "input_per_1m": 0.7,
@@ -78,6 +84,8 @@
     {
       "id": "aion-labs/aion-2.0",
       "display_name": "Aion-2.0",
+      "release_date": "2026-02-23",
+      "last_updated": "2026-02-23",
       "pricing": [
         {
           "input_per_1m": 0.8,
@@ -105,6 +113,8 @@
       "id": "aion-labs/aion-rp-llama-3.1-8b",
       "display_name": "Aion-RP 1.0 (8B)",
       "knowledge_cutoff": "2023-12-31",
+      "release_date": "2025-02-04",
+      "last_updated": "2025-02-04",
       "pricing": [
         {
           "input_per_1m": 0.8,
@@ -128,6 +138,8 @@
       "id": "alfredpros/codellama-7b-instruct-solidity",
       "display_name": "CodeLLaMa 7B Instruct Solidity",
       "knowledge_cutoff": "2023-06-30",
+      "release_date": "2025-04-14",
+      "last_updated": "2025-04-14",
       "pricing": [
         {
           "input_per_1m": 0.8,
@@ -150,6 +162,8 @@
     {
       "id": "allenai/olmo-3-32b-think",
       "display_name": "Olmo 3 32B Think",
+      "release_date": "2025-11-21",
+      "last_updated": "2025-11-21",
       "pricing": [
         {
           "input_per_1m": 0.15,
@@ -176,6 +190,8 @@
     {
       "id": "amazon/nova-2-lite-v1",
       "display_name": "Nova 2 Lite",
+      "release_date": "2025-12-02",
+      "last_updated": "2025-12-02",
       "pricing": [
         {
           "input_per_1m": 0.3,
@@ -206,6 +222,8 @@
       "id": "amazon/nova-lite-v1",
       "display_name": "Nova Lite 1.0",
       "knowledge_cutoff": "2024-10-31",
+      "release_date": "2024-12-05",
+      "last_updated": "2024-12-05",
       "pricing": [
         {
           "input_per_1m": 0.06,
@@ -231,6 +249,8 @@
       "id": "amazon/nova-micro-v1",
       "display_name": "Nova Micro 1.0",
       "knowledge_cutoff": "2024-10-31",
+      "release_date": "2024-12-05",
+      "last_updated": "2024-12-05",
       "pricing": [
         {
           "input_per_1m": 0.035,
@@ -254,6 +274,8 @@
     {
       "id": "amazon/nova-premier-v1",
       "display_name": "Nova Premier 1.0",
+      "release_date": "2025-10-31",
+      "last_updated": "2025-10-31",
       "pricing": [
         {
           "input_per_1m": 2.5,
@@ -280,6 +302,8 @@
       "id": "amazon/nova-pro-v1",
       "display_name": "Nova Pro 1.0",
       "knowledge_cutoff": "2024-10-31",
+      "release_date": "2024-12-05",
+      "last_updated": "2024-12-05",
       "pricing": [
         {
           "input_per_1m": 0.8,
@@ -305,6 +329,8 @@
       "id": "anthracite-org/magnum-v4-72b",
       "display_name": "Magnum v4 72B",
       "knowledge_cutoff": "2024-06-30",
+      "release_date": "2024-10-22",
+      "last_updated": "2024-10-22",
       "pricing": [
         {
           "input_per_1m": 3,
@@ -328,6 +354,8 @@
       "id": "anthropic/claude-3-haiku",
       "display_name": "Claude 3 Haiku",
       "knowledge_cutoff": "2023-08-31",
+      "release_date": "2024-03-13",
+      "last_updated": "2024-03-13",
       "pricing": [
         {
           "input_per_1m": 0.25,
@@ -355,6 +383,8 @@
       "id": "anthropic/claude-3.5-haiku",
       "display_name": "Claude 3.5 Haiku",
       "knowledge_cutoff": "2024-07-31",
+      "release_date": "2024-11-04",
+      "last_updated": "2024-11-04",
       "pricing": [
         {
           "input_per_1m": 0.8,
@@ -382,6 +412,8 @@
       "id": "anthropic/claude-haiku-4.5",
       "display_name": "Claude Haiku 4.5 (latest)",
       "knowledge_cutoff": "2025-02-28",
+      "release_date": "2025-10-15",
+      "last_updated": "2025-10-15",
       "pricing": [
         {
           "input_per_1m": 1,
@@ -414,6 +446,8 @@
       "id": "anthropic/claude-opus-4",
       "display_name": "Claude Opus 4",
       "knowledge_cutoff": "2025-01-31",
+      "release_date": "2025-05-22",
+      "last_updated": "2025-05-22",
       "pricing": [
         {
           "input_per_1m": 15,
@@ -445,6 +479,8 @@
       "id": "anthropic/claude-opus-4.1",
       "display_name": "Claude Opus 4.1 (latest)",
       "knowledge_cutoff": "2025-03-31",
+      "release_date": "2025-08-05",
+      "last_updated": "2025-08-05",
       "pricing": [
         {
           "input_per_1m": 15,
@@ -477,6 +513,8 @@
       "id": "anthropic/claude-opus-4.5",
       "display_name": "Claude Opus 4.5 (latest)",
       "knowledge_cutoff": "2025-03-31",
+      "release_date": "2025-11-24",
+      "last_updated": "2025-11-24",
       "pricing": [
         {
           "input_per_1m": 5,
@@ -509,6 +547,8 @@
       "id": "anthropic/claude-opus-4.6",
       "display_name": "Claude Opus 4.6",
       "knowledge_cutoff": "2025-05-31",
+      "release_date": "2026-02-05",
+      "last_updated": "2026-03-13",
       "pricing": [
         {
           "input_per_1m": 5,
@@ -547,6 +587,8 @@
     {
       "id": "anthropic/claude-opus-4.6-fast",
       "display_name": "Claude Opus 4.6 (Fast)",
+      "release_date": "2026-04-07",
+      "last_updated": "2026-04-07",
       "pricing": [
         {
           "input_per_1m": 30,
@@ -579,6 +621,8 @@
       "id": "anthropic/claude-opus-4.7",
       "display_name": "Claude Opus 4.7",
       "knowledge_cutoff": "2026-01-31",
+      "release_date": "2026-04-16",
+      "last_updated": "2026-04-16",
       "pricing": [
         {
           "input_per_1m": 5,
@@ -617,6 +661,8 @@
     {
       "id": "anthropic/claude-opus-4.7-fast",
       "display_name": "Claude Opus 4.7 (Fast)",
+      "release_date": "2026-05-12",
+      "last_updated": "2026-05-12",
       "pricing": [
         {
           "input_per_1m": 30,
@@ -648,6 +694,8 @@
     {
       "id": "anthropic/claude-opus-4.8",
       "display_name": "Claude Opus 4.8",
+      "release_date": "2026-05-28",
+      "last_updated": "2026-05-28",
       "pricing": [
         {
           "input_per_1m": 5,
@@ -679,6 +727,8 @@
     {
       "id": "anthropic/claude-opus-4.8-fast",
       "display_name": "Claude Opus 4.8 (Fast)",
+      "release_date": "2026-05-27",
+      "last_updated": "2026-05-27",
       "pricing": [
         {
           "input_per_1m": 10,
@@ -711,6 +761,8 @@
       "id": "anthropic/claude-sonnet-4",
       "display_name": "Claude Sonnet 4",
       "knowledge_cutoff": "2025-01-31",
+      "release_date": "2025-05-22",
+      "last_updated": "2025-05-22",
       "pricing": [
         {
           "input_per_1m": 3,
@@ -749,6 +801,8 @@
       "id": "anthropic/claude-sonnet-4.5",
       "display_name": "Claude Sonnet 4.5 (latest)",
       "knowledge_cutoff": "2025-07-31",
+      "release_date": "2025-09-29",
+      "last_updated": "2025-09-29",
       "pricing": [
         {
           "input_per_1m": 3,
@@ -788,6 +842,8 @@
       "id": "anthropic/claude-sonnet-4.6",
       "display_name": "Claude Sonnet 4.6",
       "knowledge_cutoff": "2025-08-31",
+      "release_date": "2026-02-17",
+      "last_updated": "2026-03-13",
       "pricing": [
         {
           "input_per_1m": 3,
@@ -827,6 +883,8 @@
       "id": "arcee-ai/coder-large",
       "display_name": "Coder Large",
       "knowledge_cutoff": "2025-03-31",
+      "release_date": "2025-05-05",
+      "last_updated": "2025-05-05",
       "pricing": [
         {
           "input_per_1m": 0.5,
@@ -850,6 +908,8 @@
       "id": "arcee-ai/maestro-reasoning",
       "display_name": "Maestro Reasoning",
       "knowledge_cutoff": "2025-03-31",
+      "release_date": "2025-05-05",
+      "last_updated": "2025-05-05",
       "pricing": [
         {
           "input_per_1m": 0.9,
@@ -873,6 +933,8 @@
       "id": "arcee-ai/spotlight",
       "display_name": "Spotlight",
       "knowledge_cutoff": "2025-03-31",
+      "release_date": "2025-05-05",
+      "last_updated": "2025-05-05",
       "pricing": [
         {
           "input_per_1m": 0.18,
@@ -896,6 +958,8 @@
     {
       "id": "arcee-ai/trinity-large-thinking",
       "display_name": "Trinity Large Thinking",
+      "release_date": "2026-04-01",
+      "last_updated": "2026-04-01",
       "pricing": [
         {
           "input_per_1m": 0.22,
@@ -924,6 +988,8 @@
     {
       "id": "arcee-ai/trinity-mini",
       "display_name": "Trinity Mini",
+      "release_date": "2025-12-01",
+      "last_updated": "2025-12-01",
       "pricing": [
         {
           "input_per_1m": 0.045,
@@ -952,6 +1018,8 @@
       "id": "arcee-ai/virtuoso-large",
       "display_name": "Virtuoso Large",
       "knowledge_cutoff": "2025-03-31",
+      "release_date": "2025-05-05",
+      "last_updated": "2025-05-05",
       "pricing": [
         {
           "input_per_1m": 0.75,
@@ -976,6 +1044,8 @@
       "id": "baidu/ernie-4.5-21b-a3b",
       "display_name": "ERNIE 4.5 21B A3B",
       "knowledge_cutoff": "2025-03-31",
+      "release_date": "2025-08-12",
+      "last_updated": "2025-08-12",
       "pricing": [
         {
           "input_per_1m": 0.07,
@@ -1000,6 +1070,8 @@
       "id": "baidu/ernie-4.5-21b-a3b-thinking",
       "display_name": "ERNIE 4.5 21B A3B Thinking",
       "knowledge_cutoff": "2025-03-31",
+      "release_date": "2025-10-09",
+      "last_updated": "2025-10-09",
       "pricing": [
         {
           "input_per_1m": 0.07,
@@ -1026,6 +1098,8 @@
       "id": "baidu/ernie-4.5-300b-a47b",
       "display_name": "ERNIE 4.5 300B A47B ",
       "knowledge_cutoff": "2025-03-31",
+      "release_date": "2025-06-30",
+      "last_updated": "2025-06-30",
       "pricing": [
         {
           "input_per_1m": 0.28,
@@ -1049,6 +1123,8 @@
       "id": "baidu/ernie-4.5-vl-28b-a3b",
       "display_name": "ERNIE 4.5 VL 28B A3B",
       "knowledge_cutoff": "2025-03-31",
+      "release_date": "2025-08-12",
+      "last_updated": "2025-08-12",
       "pricing": [
         {
           "input_per_1m": 0.14,
@@ -1077,6 +1153,8 @@
       "id": "baidu/ernie-4.5-vl-424b-a47b",
       "display_name": "ERNIE 4.5 VL 424B A47B ",
       "knowledge_cutoff": "2025-03-31",
+      "release_date": "2025-06-30",
+      "last_updated": "2025-06-30",
       "pricing": [
         {
           "input_per_1m": 0.42,
@@ -1103,6 +1181,8 @@
     {
       "id": "bytedance-seed/seed-1.6",
       "display_name": "Seed 1.6",
+      "release_date": "2025-12-23",
+      "last_updated": "2025-12-23",
       "pricing": [
         {
           "input_per_1m": 0.25,
@@ -1132,6 +1212,8 @@
     {
       "id": "bytedance-seed/seed-1.6-flash",
       "display_name": "Seed 1.6 Flash",
+      "release_date": "2025-12-23",
+      "last_updated": "2025-12-23",
       "pricing": [
         {
           "input_per_1m": 0.075,
@@ -1161,6 +1243,8 @@
     {
       "id": "bytedance-seed/seed-2.0-lite",
       "display_name": "Seed-2.0-Lite",
+      "release_date": "2026-03-10",
+      "last_updated": "2026-03-10",
       "pricing": [
         {
           "input_per_1m": 0.25,
@@ -1190,6 +1274,8 @@
     {
       "id": "bytedance-seed/seed-2.0-mini",
       "display_name": "Seed-2.0-Mini",
+      "release_date": "2026-02-26",
+      "last_updated": "2026-02-26",
       "pricing": [
         {
           "input_per_1m": 0.1,
@@ -1220,6 +1306,8 @@
       "id": "bytedance/ui-tars-1.5-7b",
       "display_name": "UI-TARS 7B ",
       "knowledge_cutoff": "2025-01-31",
+      "release_date": "2025-07-22",
+      "last_updated": "2025-07-22",
       "pricing": [
         {
           "input_per_1m": 0.1,
@@ -1245,6 +1333,8 @@
       "id": "cognitivecomputations/dolphin-mistral-24b-venice-edition:free",
       "display_name": "Uncensored (free)",
       "knowledge_cutoff": "2024-04-30",
+      "release_date": "2025-07-09",
+      "last_updated": "2025-07-09",
       "modalities": {
         "input": [
           "text"
@@ -1263,6 +1353,8 @@
       "id": "cohere/command-a",
       "display_name": "Command A",
       "knowledge_cutoff": "2024-08-31",
+      "release_date": "2025-03-13",
+      "last_updated": "2025-03-13",
       "pricing": [
         {
           "input_per_1m": 2.5,
@@ -1287,6 +1379,8 @@
       "id": "cohere/command-r-08-2024",
       "display_name": "Command R",
       "knowledge_cutoff": "2024-06-01",
+      "release_date": "2024-08-30",
+      "last_updated": "2024-08-30",
       "pricing": [
         {
           "input_per_1m": 0.15,
@@ -1312,6 +1406,8 @@
       "id": "cohere/command-r-plus-08-2024",
       "display_name": "Command R+",
       "knowledge_cutoff": "2024-06-01",
+      "release_date": "2024-08-30",
+      "last_updated": "2024-08-30",
       "pricing": [
         {
           "input_per_1m": 2.5,
@@ -1337,6 +1433,8 @@
       "id": "cohere/command-r7b-12-2024",
       "display_name": "Command R7B",
       "knowledge_cutoff": "2024-06-01",
+      "release_date": "2024-02-27",
+      "last_updated": "2024-02-27",
       "pricing": [
         {
           "input_per_1m": 0.0375,
@@ -1360,6 +1458,8 @@
     {
       "id": "deepcogito/cogito-v2.1-671b",
       "display_name": "Cogito v2.1 671B",
+      "release_date": "2025-11-13",
+      "last_updated": "2025-11-13",
       "pricing": [
         {
           "input_per_1m": 1.25,
@@ -1387,6 +1487,8 @@
       "id": "deepseek/deepseek-chat",
       "display_name": "DeepSeek Chat",
       "knowledge_cutoff": "2025-09",
+      "release_date": "2025-12-01",
+      "last_updated": "2026-02-28",
       "pricing": [
         {
           "input_per_1m": 0.2288,
@@ -1412,6 +1514,8 @@
       "id": "deepseek/deepseek-chat-v3-0324",
       "display_name": "DeepSeek V3 0324",
       "knowledge_cutoff": "2024-07-31",
+      "release_date": "2025-03-24",
+      "last_updated": "2025-03-24",
       "pricing": [
         {
           "input_per_1m": 0.2,
@@ -1438,6 +1542,8 @@
       "id": "deepseek/deepseek-chat-v3.1",
       "display_name": "DeepSeek V3.1",
       "knowledge_cutoff": "2025-03-31",
+      "release_date": "2025-08-21",
+      "last_updated": "2025-08-21",
       "pricing": [
         {
           "input_per_1m": 0.21,
@@ -1467,6 +1573,8 @@
       "id": "deepseek/deepseek-r1",
       "display_name": "R1",
       "knowledge_cutoff": "2024-07-31",
+      "release_date": "2025-01-20",
+      "last_updated": "2025-01-20",
       "pricing": [
         {
           "input_per_1m": 0.7,
@@ -1495,6 +1603,8 @@
       "id": "deepseek/deepseek-r1-0528",
       "display_name": "R1 0528",
       "knowledge_cutoff": "2025-03-31",
+      "release_date": "2025-05-28",
+      "last_updated": "2025-05-28",
       "pricing": [
         {
           "input_per_1m": 0.5,
@@ -1524,6 +1634,8 @@
       "id": "deepseek/deepseek-r1-distill-llama-70b",
       "display_name": "R1 Distill Llama 70B",
       "knowledge_cutoff": "2024-07-31",
+      "release_date": "2025-01-23",
+      "last_updated": "2025-01-23",
       "pricing": [
         {
           "input_per_1m": 0.7,
@@ -1550,6 +1662,8 @@
       "id": "deepseek/deepseek-r1-distill-qwen-32b",
       "display_name": "R1 Distill Qwen 32B",
       "knowledge_cutoff": "2024-07-31",
+      "release_date": "2025-01-29",
+      "last_updated": "2025-01-29",
       "pricing": [
         {
           "input_per_1m": 0.29,
@@ -1577,6 +1691,8 @@
       "id": "deepseek/deepseek-v3.1-terminus",
       "display_name": "DeepSeek V3.1 Terminus",
       "knowledge_cutoff": "2025-03-31",
+      "release_date": "2025-09-22",
+      "last_updated": "2025-09-22",
       "pricing": [
         {
           "input_per_1m": 0.27,
@@ -1606,6 +1722,8 @@
       "id": "deepseek/deepseek-v3.2",
       "display_name": "DeepSeek V3.2",
       "knowledge_cutoff": "2024-07",
+      "release_date": "2025-12-01",
+      "last_updated": "2025-12-01",
       "pricing": [
         {
           "input_per_1m": 0.252,
@@ -1635,6 +1753,8 @@
       "id": "deepseek/deepseek-v3.2-exp",
       "display_name": "DeepSeek V3.2 Exp",
       "knowledge_cutoff": "2025-07-31",
+      "release_date": "2025-09-29",
+      "last_updated": "2025-09-29",
       "pricing": [
         {
           "input_per_1m": 0.27,
@@ -1663,6 +1783,8 @@
       "id": "deepseek/deepseek-v4-flash",
       "display_name": "DeepSeek V4 Flash",
       "knowledge_cutoff": "2025-05",
+      "release_date": "2026-04-24",
+      "last_updated": "2026-04-24",
       "pricing": [
         {
           "input_per_1m": 0.1,
@@ -1692,6 +1814,8 @@
       "id": "deepseek/deepseek-v4-flash:free",
       "display_name": "DeepSeek V4 Flash (free)",
       "knowledge_cutoff": "2025-05",
+      "release_date": "2026-04-24",
+      "last_updated": "2026-04-24",
       "reasoning": {
         "supported": true
       },
@@ -1713,6 +1837,8 @@
       "id": "deepseek/deepseek-v4-pro",
       "display_name": "DeepSeek V4 Pro",
       "knowledge_cutoff": "2025-05",
+      "release_date": "2026-04-24",
+      "last_updated": "2026-04-24",
       "pricing": [
         {
           "input_per_1m": 0.435,
@@ -1741,6 +1867,8 @@
     {
       "id": "essentialai/rnj-1-instruct",
       "display_name": "Rnj 1 Instruct",
+      "release_date": "2025-12-07",
+      "last_updated": "2025-12-07",
       "pricing": [
         {
           "input_per_1m": 0.15,
@@ -1766,6 +1894,8 @@
       "id": "google/gemini-2.0-flash-001",
       "display_name": "Gemini 2.0 Flash",
       "knowledge_cutoff": "2024-08-31",
+      "release_date": "2025-02-05",
+      "last_updated": "2025-02-05",
       "pricing": [
         {
           "input_per_1m": 0.1,
@@ -1797,6 +1927,8 @@
       "id": "google/gemini-2.0-flash-lite-001",
       "display_name": "Gemini 2.0 Flash Lite",
       "knowledge_cutoff": "2024-08-31",
+      "release_date": "2025-02-25",
+      "last_updated": "2025-02-25",
       "pricing": [
         {
           "input_per_1m": 0.075,
@@ -1826,6 +1958,8 @@
       "id": "google/gemini-2.5-flash",
       "display_name": "Gemini 2.5 Flash",
       "knowledge_cutoff": "2025-01",
+      "release_date": "2025-03-20",
+      "last_updated": "2025-06-05",
       "pricing": [
         {
           "input_per_1m": 0.3,
@@ -1860,6 +1994,8 @@
       "id": "google/gemini-2.5-flash-image",
       "display_name": "Nano Banana",
       "knowledge_cutoff": "2025-06",
+      "release_date": "2025-08-26",
+      "last_updated": "2025-08-26",
       "pricing": [
         {
           "input_per_1m": 0.3,
@@ -1888,6 +2024,8 @@
       "id": "google/gemini-2.5-flash-lite",
       "display_name": "Gemini 2.5 Flash-Lite",
       "knowledge_cutoff": "2025-01",
+      "release_date": "2025-06-17",
+      "last_updated": "2025-06-17",
       "pricing": [
         {
           "input_per_1m": 0.1,
@@ -1922,6 +2060,8 @@
       "id": "google/gemini-2.5-flash-lite-preview-09-2025",
       "display_name": "Gemini 2.5 Flash Lite Preview 09-2025",
       "knowledge_cutoff": "2025-01-31",
+      "release_date": "2025-09-25",
+      "last_updated": "2025-09-25",
       "pricing": [
         {
           "input_per_1m": 0.1,
@@ -1956,6 +2096,8 @@
       "id": "google/gemini-2.5-pro",
       "display_name": "Gemini 2.5 Pro",
       "knowledge_cutoff": "2025-01",
+      "release_date": "2025-03-20",
+      "last_updated": "2025-06-05",
       "pricing": [
         {
           "input_per_1m": 1.25,
@@ -1990,6 +2132,8 @@
       "id": "google/gemini-2.5-pro-preview",
       "display_name": "Gemini 2.5 Pro Preview 06-05",
       "knowledge_cutoff": "2025-01-31",
+      "release_date": "2025-06-05",
+      "last_updated": "2025-06-05",
       "pricing": [
         {
           "input_per_1m": 1.25,
@@ -2023,6 +2167,8 @@
       "id": "google/gemini-2.5-pro-preview-05-06",
       "display_name": "Gemini 2.5 Pro Preview 05-06",
       "knowledge_cutoff": "2025-01-31",
+      "release_date": "2025-05-07",
+      "last_updated": "2025-05-07",
       "pricing": [
         {
           "input_per_1m": 1.25,
@@ -2057,6 +2203,8 @@
       "id": "google/gemini-3-flash-preview",
       "display_name": "Gemini 3 Flash Preview",
       "knowledge_cutoff": "2025-01",
+      "release_date": "2025-12-17",
+      "last_updated": "2025-12-17",
       "pricing": [
         {
           "input_per_1m": 0.5,
@@ -2090,6 +2238,8 @@
     {
       "id": "google/gemini-3-pro-image-preview",
       "display_name": "Nano Banana Pro (Gemini 3 Pro Image Preview)",
+      "release_date": "2025-11-20",
+      "last_updated": "2025-11-20",
       "pricing": [
         {
           "input_per_1m": 2,
@@ -2121,6 +2271,8 @@
       "id": "google/gemini-3.1-flash-image-preview",
       "display_name": "Nano Banana 2",
       "knowledge_cutoff": "2025-01",
+      "release_date": "2026-02-26",
+      "last_updated": "2026-02-26",
       "pricing": [
         {
           "input_per_1m": 0.5,
@@ -2150,6 +2302,8 @@
       "id": "google/gemini-3.1-flash-lite",
       "display_name": "Gemini 3.1 Flash Lite",
       "knowledge_cutoff": "2025-01",
+      "release_date": "2026-05-07",
+      "last_updated": "2026-05-07",
       "pricing": [
         {
           "input_per_1m": 0.25,
@@ -2184,6 +2338,8 @@
       "id": "google/gemini-3.1-flash-lite-preview",
       "display_name": "Gemini 3.1 Flash Lite Preview",
       "knowledge_cutoff": "2025-01",
+      "release_date": "2026-03-03",
+      "last_updated": "2026-03-03",
       "pricing": [
         {
           "input_per_1m": 0.25,
@@ -2218,6 +2374,8 @@
       "id": "google/gemini-3.1-pro-preview",
       "display_name": "Gemini 3.1 Pro Preview",
       "knowledge_cutoff": "2025-01",
+      "release_date": "2026-02-19",
+      "last_updated": "2026-02-19",
       "pricing": [
         {
           "input_per_1m": 2,
@@ -2258,6 +2416,8 @@
       "id": "google/gemini-3.1-pro-preview-customtools",
       "display_name": "Gemini 3.1 Pro Preview Custom Tools",
       "knowledge_cutoff": "2025-01",
+      "release_date": "2026-02-19",
+      "last_updated": "2026-02-19",
       "pricing": [
         {
           "input_per_1m": 2,
@@ -2298,6 +2458,8 @@
       "id": "google/gemini-3.5-flash",
       "display_name": "Gemini 3.5 Flash",
       "knowledge_cutoff": "2025-01",
+      "release_date": "2026-05-19",
+      "last_updated": "2026-05-19",
       "pricing": [
         {
           "input_per_1m": 1.5,
@@ -2332,6 +2494,8 @@
       "id": "google/gemma-2-27b-it",
       "display_name": "Gemma 2 27B",
       "knowledge_cutoff": "2024-06-30",
+      "release_date": "2024-07-13",
+      "last_updated": "2024-07-13",
       "pricing": [
         {
           "input_per_1m": 0.65,
@@ -2356,6 +2520,8 @@
       "id": "google/gemma-3-12b-it",
       "display_name": "Gemma 3 12B",
       "knowledge_cutoff": "2024-08-31",
+      "release_date": "2025-03-13",
+      "last_updated": "2025-03-13",
       "pricing": [
         {
           "input_per_1m": 0.04,
@@ -2382,6 +2548,8 @@
       "id": "google/gemma-3-27b-it",
       "display_name": "Gemma 3 27B",
       "knowledge_cutoff": "2024-08-31",
+      "release_date": "2025-03-12",
+      "last_updated": "2025-03-12",
       "pricing": [
         {
           "input_per_1m": 0.08,
@@ -2408,6 +2576,8 @@
       "id": "google/gemma-3-4b-it",
       "display_name": "Gemma 3 4B",
       "knowledge_cutoff": "2024-08-31",
+      "release_date": "2025-03-13",
+      "last_updated": "2025-03-13",
       "pricing": [
         {
           "input_per_1m": 0.04,
@@ -2433,6 +2603,8 @@
       "id": "google/gemma-3n-e4b-it",
       "display_name": "Gemma 3n 4B",
       "knowledge_cutoff": "2024-08-31",
+      "release_date": "2025-05-20",
+      "last_updated": "2025-05-20",
       "pricing": [
         {
           "input_per_1m": 0.06,
@@ -2455,6 +2627,8 @@
     {
       "id": "google/gemma-4-26b-a4b-it",
       "display_name": "Gemma 4 26B A4B IT",
+      "release_date": "2026-04-02",
+      "last_updated": "2026-04-02",
       "pricing": [
         {
           "input_per_1m": 0.06,
@@ -2484,6 +2658,8 @@
     {
       "id": "google/gemma-4-26b-a4b-it:free",
       "display_name": "Gemma 4 26B A4B  (free)",
+      "release_date": "2026-04-02",
+      "last_updated": "2026-04-02",
       "reasoning": {
         "supported": true
       },
@@ -2506,6 +2682,8 @@
     {
       "id": "google/gemma-4-31b-it",
       "display_name": "Gemma 4 31B IT",
+      "release_date": "2026-04-02",
+      "last_updated": "2026-04-02",
       "pricing": [
         {
           "input_per_1m": 0.12,
@@ -2535,6 +2713,8 @@
     {
       "id": "google/gemma-4-31b-it:free",
       "display_name": "Gemma 4 31B (free)",
+      "release_date": "2026-04-02",
+      "last_updated": "2026-04-02",
       "reasoning": {
         "supported": true
       },
@@ -2557,6 +2737,8 @@
     {
       "id": "google/lyria-3-clip-preview",
       "display_name": "Lyria 3 Clip Preview",
+      "release_date": "2026-03-30",
+      "last_updated": "2026-03-30",
       "modalities": {
         "input": [
           "text",
@@ -2575,6 +2757,8 @@
     {
       "id": "google/lyria-3-pro-preview",
       "display_name": "Lyria 3 Pro Preview",
+      "release_date": "2026-03-30",
+      "last_updated": "2026-03-30",
       "modalities": {
         "input": [
           "text",
@@ -2594,6 +2778,8 @@
       "id": "gryphe/mythomax-l2-13b",
       "display_name": "MythoMax 13B",
       "knowledge_cutoff": "2023-06-30",
+      "release_date": "2023-07-02",
+      "last_updated": "2023-07-02",
       "pricing": [
         {
           "input_per_1m": 0.06,
@@ -2617,6 +2803,8 @@
     {
       "id": "ibm-granite/granite-4.0-h-micro",
       "display_name": "Granite 4.0 Micro",
+      "release_date": "2025-10-20",
+      "last_updated": "2025-10-20",
       "pricing": [
         {
           "input_per_1m": 0.017,
@@ -2639,6 +2827,8 @@
     {
       "id": "ibm-granite/granite-4.1-8b",
       "display_name": "Granite 4.1 8B",
+      "release_date": "2026-04-30",
+      "last_updated": "2026-04-30",
       "pricing": [
         {
           "input_per_1m": 0.05,
@@ -2664,6 +2854,8 @@
     {
       "id": "inception/mercury-2",
       "display_name": "Mercury 2",
+      "release_date": "2026-03-04",
+      "last_updated": "2026-03-04",
       "pricing": [
         {
           "input_per_1m": 0.25,
@@ -2692,6 +2884,8 @@
     {
       "id": "inclusionai/ling-2.6-1t",
       "display_name": "Ling-2.6-1T",
+      "release_date": "2026-04-23",
+      "last_updated": "2026-04-23",
       "pricing": [
         {
           "input_per_1m": 0.075,
@@ -2717,6 +2911,8 @@
     {
       "id": "inclusionai/ling-2.6-flash",
       "display_name": "Ling-2.6-flash",
+      "release_date": "2026-04-21",
+      "last_updated": "2026-04-21",
       "pricing": [
         {
           "input_per_1m": 0.01,
@@ -2742,6 +2938,8 @@
     {
       "id": "inclusionai/ring-2.6-1t",
       "display_name": "Ring-2.6-1T",
+      "release_date": "2026-05-08",
+      "last_updated": "2026-05-08",
       "pricing": [
         {
           "input_per_1m": 0.075,
@@ -2770,6 +2968,8 @@
       "id": "inflection/inflection-3-pi",
       "display_name": "Inflection 3 Pi",
       "knowledge_cutoff": "2024-10-31",
+      "release_date": "2024-10-11",
+      "last_updated": "2024-10-11",
       "pricing": [
         {
           "input_per_1m": 2.5,
@@ -2793,6 +2993,8 @@
       "id": "inflection/inflection-3-productivity",
       "display_name": "Inflection 3 Productivity",
       "knowledge_cutoff": "2024-10-31",
+      "release_date": "2024-10-11",
+      "last_updated": "2024-10-11",
       "pricing": [
         {
           "input_per_1m": 2.5,
@@ -2815,6 +3017,8 @@
     {
       "id": "kwaipilot/kat-coder-pro-v2",
       "display_name": "KAT-Coder-Pro V2",
+      "release_date": "2026-03-27",
+      "last_updated": "2026-03-27",
       "pricing": [
         {
           "input_per_1m": 0.3,
@@ -2840,6 +3044,8 @@
     {
       "id": "liquid/lfm-2-24b-a2b",
       "display_name": "LFM2-24B-A2B",
+      "release_date": "2026-02-25",
+      "last_updated": "2026-02-25",
       "pricing": [
         {
           "input_per_1m": 0.03,
@@ -2863,6 +3069,8 @@
       "id": "liquid/lfm-2.5-1.2b-instruct:free",
       "display_name": "LFM2.5-1.2B-Instruct (free)",
       "knowledge_cutoff": "2025-06",
+      "release_date": "2026-01-20",
+      "last_updated": "2026-01-20",
       "modalities": {
         "input": [
           "text"
@@ -2880,6 +3088,8 @@
       "id": "liquid/lfm-2.5-1.2b-thinking:free",
       "display_name": "LFM2.5-1.2B-Thinking (free)",
       "knowledge_cutoff": "2025-06",
+      "release_date": "2026-01-20",
+      "last_updated": "2026-01-20",
       "reasoning": {
         "supported": true
       },
@@ -2900,6 +3110,8 @@
       "id": "mancer/weaver",
       "display_name": "Weaver (alpha)",
       "knowledge_cutoff": "2023-06-30",
+      "release_date": "2023-08-02",
+      "last_updated": "2023-08-02",
       "pricing": [
         {
           "input_per_1m": 0.75,
@@ -2923,6 +3135,8 @@
       "id": "meta-llama/llama-3-70b-instruct",
       "display_name": "Llama 3 70B Instruct",
       "knowledge_cutoff": "2023-12-31",
+      "release_date": "2024-04-18",
+      "last_updated": "2024-04-18",
       "pricing": [
         {
           "input_per_1m": 0.51,
@@ -2947,6 +3161,8 @@
       "id": "meta-llama/llama-3-8b-instruct",
       "display_name": "Llama 3 8B Instruct",
       "knowledge_cutoff": "2023-12-31",
+      "release_date": "2024-04-18",
+      "last_updated": "2024-04-18",
       "pricing": [
         {
           "input_per_1m": 0.04,
@@ -2970,6 +3186,8 @@
       "id": "meta-llama/llama-3.1-70b-instruct",
       "display_name": "Llama 3.1 70B Instruct",
       "knowledge_cutoff": "2023-12-31",
+      "release_date": "2024-07-23",
+      "last_updated": "2024-07-23",
       "pricing": [
         {
           "input_per_1m": 0.4,
@@ -2995,6 +3213,8 @@
       "id": "meta-llama/llama-3.1-8b-instruct",
       "display_name": "Llama 3.1 8B Instruct",
       "knowledge_cutoff": "2023-12-31",
+      "release_date": "2024-07-23",
+      "last_updated": "2024-07-23",
       "pricing": [
         {
           "input_per_1m": 0.02,
@@ -3020,6 +3240,8 @@
       "id": "meta-llama/llama-3.2-11b-vision-instruct",
       "display_name": "Llama 3.2 11B Vision Instruct",
       "knowledge_cutoff": "2023-12-31",
+      "release_date": "2024-09-25",
+      "last_updated": "2024-09-25",
       "pricing": [
         {
           "input_per_1m": 0.245,
@@ -3044,6 +3266,8 @@
       "id": "meta-llama/llama-3.2-1b-instruct",
       "display_name": "Llama 3.2 1B Instruct",
       "knowledge_cutoff": "2023-12-31",
+      "release_date": "2024-09-25",
+      "last_updated": "2024-09-25",
       "pricing": [
         {
           "input_per_1m": 0.027,
@@ -3067,6 +3291,8 @@
       "id": "meta-llama/llama-3.2-3b-instruct",
       "display_name": "Llama 3.2 3B Instruct",
       "knowledge_cutoff": "2023-12-31",
+      "release_date": "2024-09-25",
+      "last_updated": "2024-09-25",
       "pricing": [
         {
           "input_per_1m": 0.0509,
@@ -3090,6 +3316,8 @@
       "id": "meta-llama/llama-3.2-3b-instruct:free",
       "display_name": "Llama 3.2 3B Instruct (free)",
       "knowledge_cutoff": "2023-12-31",
+      "release_date": "2024-09-25",
+      "last_updated": "2024-09-25",
       "modalities": {
         "input": [
           "text"
@@ -3107,6 +3335,8 @@
       "id": "meta-llama/llama-3.3-70b-instruct",
       "display_name": "Llama-3.3-70B-Instruct",
       "knowledge_cutoff": "2023-12",
+      "release_date": "2024-12-06",
+      "last_updated": "2024-12-06",
       "pricing": [
         {
           "input_per_1m": 0.1,
@@ -3132,6 +3362,8 @@
       "id": "meta-llama/llama-3.3-70b-instruct:free",
       "display_name": "Llama 3.3 70B Instruct (free)",
       "knowledge_cutoff": "2023-12",
+      "release_date": "2024-12-06",
+      "last_updated": "2024-12-06",
       "modalities": {
         "input": [
           "text"
@@ -3150,6 +3382,8 @@
       "id": "meta-llama/llama-4-maverick",
       "display_name": "Llama 4 Maverick",
       "knowledge_cutoff": "2024-08-31",
+      "release_date": "2025-04-05",
+      "last_updated": "2025-04-05",
       "pricing": [
         {
           "input_per_1m": 0.15,
@@ -3175,6 +3409,8 @@
       "id": "meta-llama/llama-4-scout",
       "display_name": "Llama 4 Scout",
       "knowledge_cutoff": "2024-08-31",
+      "release_date": "2025-04-05",
+      "last_updated": "2025-04-05",
       "pricing": [
         {
           "input_per_1m": 0.08,
@@ -3201,6 +3437,8 @@
       "id": "meta-llama/llama-guard-3-8b",
       "display_name": "Llama Guard 3 8B",
       "knowledge_cutoff": "2023-12-31",
+      "release_date": "2025-02-12",
+      "last_updated": "2025-02-12",
       "pricing": [
         {
           "input_per_1m": 0.484,
@@ -3224,6 +3462,8 @@
       "id": "meta-llama/llama-guard-4-12b",
       "display_name": "Llama Guard 4 12B",
       "knowledge_cutoff": "2024-08-31",
+      "release_date": "2025-04-30",
+      "last_updated": "2025-04-30",
       "pricing": [
         {
           "input_per_1m": 0.18,
@@ -3248,6 +3488,8 @@
       "id": "microsoft/phi-4",
       "display_name": "Phi 4",
       "knowledge_cutoff": "2024-06-30",
+      "release_date": "2025-01-10",
+      "last_updated": "2025-01-10",
       "pricing": [
         {
           "input_per_1m": 0.065,
@@ -3271,6 +3513,8 @@
     {
       "id": "microsoft/phi-4-mini-instruct",
       "display_name": "Phi 4 Mini Instruct",
+      "release_date": "2025-10-17",
+      "last_updated": "2025-10-17",
       "pricing": [
         {
           "input_per_1m": 0.08,
@@ -3296,6 +3540,8 @@
       "id": "microsoft/wizardlm-2-8x22b",
       "display_name": "WizardLM-2 8x22B",
       "knowledge_cutoff": "2024-04-30",
+      "release_date": "2024-04-16",
+      "last_updated": "2024-04-16",
       "pricing": [
         {
           "input_per_1m": 0.62,
@@ -3319,6 +3565,8 @@
       "id": "minimax/minimax-01",
       "display_name": "MiniMax-01",
       "knowledge_cutoff": "2024-03-31",
+      "release_date": "2025-01-15",
+      "last_updated": "2025-01-15",
       "pricing": [
         {
           "input_per_1m": 0.2,
@@ -3343,6 +3591,8 @@
       "id": "minimax/minimax-m1",
       "display_name": "MiniMax M1",
       "knowledge_cutoff": "2024-06-30",
+      "release_date": "2025-06-17",
+      "last_updated": "2025-06-17",
       "pricing": [
         {
           "input_per_1m": 0.4,
@@ -3369,6 +3619,8 @@
     {
       "id": "minimax/minimax-m2",
       "display_name": "MiniMax-M2",
+      "release_date": "2025-10-27",
+      "last_updated": "2025-10-27",
       "pricing": [
         {
           "input_per_1m": 0.255,
@@ -3397,6 +3649,8 @@
     {
       "id": "minimax/minimax-m2-her",
       "display_name": "MiniMax M2-her",
+      "release_date": "2026-01-23",
+      "last_updated": "2026-01-23",
       "pricing": [
         {
           "input_per_1m": 0.3,
@@ -3420,6 +3674,8 @@
     {
       "id": "minimax/minimax-m2.1",
       "display_name": "MiniMax-M2.1",
+      "release_date": "2025-12-23",
+      "last_updated": "2025-12-23",
       "pricing": [
         {
           "input_per_1m": 0.29,
@@ -3448,6 +3704,8 @@
     {
       "id": "minimax/minimax-m2.5",
       "display_name": "MiniMax-M2.5",
+      "release_date": "2026-02-12",
+      "last_updated": "2026-02-12",
       "pricing": [
         {
           "input_per_1m": 0.15,
@@ -3475,6 +3733,8 @@
     {
       "id": "minimax/minimax-m2.5:free",
       "display_name": "MiniMax M2.5 (free)",
+      "release_date": "2026-02-12",
+      "last_updated": "2026-02-12",
       "reasoning": {
         "supported": true
       },
@@ -3495,6 +3755,8 @@
     {
       "id": "minimax/minimax-m2.7",
       "display_name": "MiniMax-M2.7",
+      "release_date": "2026-03-18",
+      "last_updated": "2026-03-18",
       "pricing": [
         {
           "input_per_1m": 0.279,
@@ -3523,6 +3785,8 @@
       "id": "mistralai/codestral-2508",
       "display_name": "Codestral 2508",
       "knowledge_cutoff": "2025-03-31",
+      "release_date": "2025-08-01",
+      "last_updated": "2025-08-01",
       "pricing": [
         {
           "input_per_1m": 0.3,
@@ -3550,6 +3814,8 @@
       "id": "mistralai/devstral-2512",
       "display_name": "Devstral 2",
       "knowledge_cutoff": "2025-12",
+      "release_date": "2025-12-09",
+      "last_updated": "2025-12-09",
       "pricing": [
         {
           "input_per_1m": 0.4,
@@ -3577,6 +3843,8 @@
       "id": "mistralai/devstral-medium",
       "display_name": "Devstral Medium",
       "knowledge_cutoff": "2025-06-30",
+      "release_date": "2025-07-10",
+      "last_updated": "2025-07-10",
       "pricing": [
         {
           "input_per_1m": 0.4,
@@ -3604,6 +3872,8 @@
       "id": "mistralai/devstral-small",
       "display_name": "Devstral Small 1.1",
       "knowledge_cutoff": "2025-03-31",
+      "release_date": "2025-07-10",
+      "last_updated": "2025-07-10",
       "pricing": [
         {
           "input_per_1m": 0.1,
@@ -3630,6 +3900,8 @@
     {
       "id": "mistralai/ministral-14b-2512",
       "display_name": "Ministral 3 14B 2512",
+      "release_date": "2025-12-02",
+      "last_updated": "2025-12-02",
       "pricing": [
         {
           "input_per_1m": 0.2,
@@ -3656,6 +3928,8 @@
     {
       "id": "mistralai/ministral-3b-2512",
       "display_name": "Ministral 3 3B 2512",
+      "release_date": "2025-12-02",
+      "last_updated": "2025-12-02",
       "pricing": [
         {
           "input_per_1m": 0.1,
@@ -3682,6 +3956,8 @@
     {
       "id": "mistralai/ministral-8b-2512",
       "display_name": "Ministral 3 8B 2512",
+      "release_date": "2025-12-02",
+      "last_updated": "2025-12-02",
       "pricing": [
         {
           "input_per_1m": 0.15,
@@ -3709,6 +3985,8 @@
       "id": "mistralai/mistral-7b-instruct-v0.1",
       "display_name": "Mistral 7B Instruct v0.1",
       "knowledge_cutoff": "2023-09-30",
+      "release_date": "2023-09-28",
+      "last_updated": "2023-09-28",
       "pricing": [
         {
           "input_per_1m": 0.11,
@@ -3732,6 +4010,8 @@
       "id": "mistralai/mistral-large",
       "display_name": "Mistral Large",
       "knowledge_cutoff": "2024-11-30",
+      "release_date": "2024-02-26",
+      "last_updated": "2024-02-26",
       "pricing": [
         {
           "input_per_1m": 2,
@@ -3759,6 +4039,8 @@
       "id": "mistralai/mistral-large-2407",
       "display_name": "Mistral Large 2407",
       "knowledge_cutoff": "2024-03-31",
+      "release_date": "2024-11-19",
+      "last_updated": "2024-11-19",
       "pricing": [
         {
           "input_per_1m": 2,
@@ -3786,6 +4068,8 @@
       "id": "mistralai/mistral-large-2411",
       "display_name": "Mistral Large 2.1",
       "knowledge_cutoff": "2024-11",
+      "release_date": "2024-11-01",
+      "last_updated": "2024-11-04",
       "pricing": [
         {
           "input_per_1m": 2,
@@ -3813,6 +4097,8 @@
       "id": "mistralai/mistral-large-2512",
       "display_name": "Mistral Large 3",
       "knowledge_cutoff": "2024-11",
+      "release_date": "2024-11-01",
+      "last_updated": "2025-12-02",
       "pricing": [
         {
           "input_per_1m": 0.5,
@@ -3841,6 +4127,8 @@
       "id": "mistralai/mistral-medium-3",
       "display_name": "Mistral Medium 3",
       "knowledge_cutoff": "2025-03-31",
+      "release_date": "2025-05-07",
+      "last_updated": "2025-05-07",
       "pricing": [
         {
           "input_per_1m": 0.4,
@@ -3868,6 +4156,8 @@
     {
       "id": "mistralai/mistral-medium-3-5",
       "display_name": "Mistral Medium 3.5",
+      "release_date": "2026-04-30",
+      "last_updated": "2026-04-30",
       "pricing": [
         {
           "input_per_1m": 1.5,
@@ -3898,6 +4188,8 @@
       "id": "mistralai/mistral-medium-3.1",
       "display_name": "Mistral Medium 3.1",
       "knowledge_cutoff": "2025-06-30",
+      "release_date": "2025-08-13",
+      "last_updated": "2025-08-13",
       "pricing": [
         {
           "input_per_1m": 0.4,
@@ -3926,6 +4218,8 @@
       "id": "mistralai/mistral-nemo",
       "display_name": "Mistral Nemo",
       "knowledge_cutoff": "2024-07",
+      "release_date": "2024-07-01",
+      "last_updated": "2024-07-01",
       "pricing": [
         {
           "input_per_1m": 0.02,
@@ -3951,6 +4245,8 @@
       "id": "mistralai/mistral-saba",
       "display_name": "Saba",
       "knowledge_cutoff": "2024-09-30",
+      "release_date": "2025-02-17",
+      "last_updated": "2025-02-17",
       "pricing": [
         {
           "input_per_1m": 0.2,
@@ -3978,6 +4274,8 @@
       "id": "mistralai/mistral-small-24b-instruct-2501",
       "display_name": "Mistral Small 3",
       "knowledge_cutoff": "2023-10-31",
+      "release_date": "2025-01-30",
+      "last_updated": "2025-01-30",
       "pricing": [
         {
           "input_per_1m": 0.05,
@@ -4002,6 +4300,8 @@
       "id": "mistralai/mistral-small-2603",
       "display_name": "Mistral Small 4",
       "knowledge_cutoff": "2025-06",
+      "release_date": "2026-03-16",
+      "last_updated": "2026-03-16",
       "pricing": [
         {
           "input_per_1m": 0.15,
@@ -4032,6 +4332,8 @@
       "id": "mistralai/mistral-small-3.1-24b-instruct",
       "display_name": "Mistral Small 3.1 24B",
       "knowledge_cutoff": "2023-10-31",
+      "release_date": "2025-03-17",
+      "last_updated": "2025-03-17",
       "pricing": [
         {
           "input_per_1m": 0.351,
@@ -4056,6 +4358,8 @@
       "id": "mistralai/mistral-small-3.2-24b-instruct",
       "display_name": "Mistral Small 3.2 24B",
       "knowledge_cutoff": "2023-10-31",
+      "release_date": "2025-06-20",
+      "last_updated": "2025-06-20",
       "pricing": [
         {
           "input_per_1m": 0.075,
@@ -4082,6 +4386,8 @@
       "id": "mistralai/mixtral-8x22b-instruct",
       "display_name": "Mixtral 8x22B Instruct",
       "knowledge_cutoff": "2024-01-31",
+      "release_date": "2024-04-17",
+      "last_updated": "2024-04-17",
       "pricing": [
         {
           "input_per_1m": 2,
@@ -4109,6 +4415,8 @@
       "id": "mistralai/pixtral-large-2411",
       "display_name": "Pixtral Large 2411",
       "knowledge_cutoff": "2024-07-31",
+      "release_date": "2024-11-19",
+      "last_updated": "2024-11-19",
       "pricing": [
         {
           "input_per_1m": 2,
@@ -4136,6 +4444,8 @@
     {
       "id": "mistralai/voxtral-small-24b-2507",
       "display_name": "Voxtral Small 24B 2507",
+      "release_date": "2025-10-30",
+      "last_updated": "2025-10-30",
       "pricing": [
         {
           "input_per_1m": 0.1,
@@ -4164,6 +4474,8 @@
       "id": "moonshotai/kimi-k2",
       "display_name": "Kimi K2 0711",
       "knowledge_cutoff": "2024-12-31",
+      "release_date": "2025-07-11",
+      "last_updated": "2025-07-11",
       "pricing": [
         {
           "input_per_1m": 0.57,
@@ -4188,6 +4500,8 @@
       "id": "moonshotai/kimi-k2-0905",
       "display_name": "Kimi K2 0905",
       "knowledge_cutoff": "2024-12-31",
+      "release_date": "2025-09-04",
+      "last_updated": "2025-09-04",
       "pricing": [
         {
           "input_per_1m": 0.6,
@@ -4213,6 +4527,8 @@
       "id": "moonshotai/kimi-k2-thinking",
       "display_name": "Kimi K2 Thinking",
       "knowledge_cutoff": "2024-08",
+      "release_date": "2025-11-06",
+      "last_updated": "2025-11-06",
       "pricing": [
         {
           "input_per_1m": 0.6,
@@ -4241,6 +4557,8 @@
       "id": "moonshotai/kimi-k2.5",
       "display_name": "Kimi K2.5",
       "knowledge_cutoff": "2025-01",
+      "release_date": "2026-01",
+      "last_updated": "2026-01",
       "pricing": [
         {
           "input_per_1m": 0.4,
@@ -4271,6 +4589,8 @@
       "id": "moonshotai/kimi-k2.6",
       "display_name": "Kimi K2.6",
       "knowledge_cutoff": "2025-01",
+      "release_date": "2026-04-21",
+      "last_updated": "2026-04-21",
       "pricing": [
         {
           "input_per_1m": 0.73,
@@ -4301,6 +4621,8 @@
       "id": "moonshotai/kimi-k2.6:free",
       "display_name": "Kimi K2.6 (free)",
       "knowledge_cutoff": "2025-01",
+      "release_date": "2026-04-21",
+      "last_updated": "2026-04-21",
       "reasoning": {
         "supported": true
       },
@@ -4322,6 +4644,8 @@
     {
       "id": "morph/morph-v3-fast",
       "display_name": "Morph V3 Fast",
+      "release_date": "2025-07-07",
+      "last_updated": "2025-07-07",
       "pricing": [
         {
           "input_per_1m": 0.8,
@@ -4344,6 +4668,8 @@
     {
       "id": "morph/morph-v3-large",
       "display_name": "Morph V3 Large",
+      "release_date": "2025-07-07",
+      "last_updated": "2025-07-07",
       "pricing": [
         {
           "input_per_1m": 0.9,
@@ -4366,6 +4692,8 @@
     {
       "id": "nex-agi/deepseek-v3.1-nex-n1",
       "display_name": "DeepSeek V3.1 Nex N1",
+      "release_date": "2025-12-08",
+      "last_updated": "2025-12-08",
       "pricing": [
         {
           "input_per_1m": 0.135,
@@ -4391,6 +4719,8 @@
       "id": "nousresearch/hermes-2-pro-llama-3-8b",
       "display_name": "Hermes 2 Pro - Llama-3 8B",
       "knowledge_cutoff": "2023-12-31",
+      "release_date": "2024-05-27",
+      "last_updated": "2024-05-27",
       "pricing": [
         {
           "input_per_1m": 0.14,
@@ -4415,6 +4745,8 @@
       "id": "nousresearch/hermes-3-llama-3.1-405b",
       "display_name": "Hermes 3 405B Instruct",
       "knowledge_cutoff": "2023-12-31",
+      "release_date": "2024-08-16",
+      "last_updated": "2024-08-16",
       "pricing": [
         {
           "input_per_1m": 1,
@@ -4439,6 +4771,8 @@
       "id": "nousresearch/hermes-3-llama-3.1-405b:free",
       "display_name": "Hermes 3 405B Instruct (free)",
       "knowledge_cutoff": "2023-12-31",
+      "release_date": "2024-08-16",
+      "last_updated": "2024-08-16",
       "modalities": {
         "input": [
           "text"
@@ -4456,6 +4790,8 @@
       "id": "nousresearch/hermes-3-llama-3.1-70b",
       "display_name": "Hermes 3 70B Instruct",
       "knowledge_cutoff": "2023-12-31",
+      "release_date": "2024-08-18",
+      "last_updated": "2024-08-18",
       "pricing": [
         {
           "input_per_1m": 0.3,
@@ -4480,6 +4816,8 @@
       "id": "nousresearch/hermes-4-405b",
       "display_name": "Hermes 4 405B",
       "knowledge_cutoff": "2024-08-31",
+      "release_date": "2025-08-26",
+      "last_updated": "2025-08-26",
       "pricing": [
         {
           "input_per_1m": 1,
@@ -4506,6 +4844,8 @@
       "id": "nousresearch/hermes-4-70b",
       "display_name": "Hermes 4 70B",
       "knowledge_cutoff": "2024-08-31",
+      "release_date": "2025-08-26",
+      "last_updated": "2025-08-26",
       "pricing": [
         {
           "input_per_1m": 0.13,
@@ -4532,6 +4872,8 @@
       "id": "nvidia/llama-3.3-nemotron-super-49b-v1.5",
       "display_name": "Llama 3.3 Nemotron Super 49B V1.5",
       "knowledge_cutoff": "2024-03-31",
+      "release_date": "2025-10-10",
+      "last_updated": "2025-10-10",
       "pricing": [
         {
           "input_per_1m": 0.1,
@@ -4558,6 +4900,8 @@
     {
       "id": "nvidia/nemotron-3-nano-30b-a3b",
       "display_name": "Nemotron 3 Nano 30B A3B",
+      "release_date": "2025-12-14",
+      "last_updated": "2025-12-14",
       "pricing": [
         {
           "input_per_1m": 0.05,
@@ -4585,6 +4929,8 @@
       "id": "nvidia/nemotron-3-nano-30b-a3b:free",
       "display_name": "Nemotron 3 Nano 30B A3B (free)",
       "knowledge_cutoff": "2025-11",
+      "release_date": "2025-12-14",
+      "last_updated": "2025-12-14",
       "reasoning": {
         "supported": true
       },
@@ -4605,6 +4951,8 @@
     {
       "id": "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
       "display_name": "Nemotron 3 Nano Omni (free)",
+      "release_date": "2026-04-28",
+      "last_updated": "2026-04-28",
       "reasoning": {
         "supported": true
       },
@@ -4629,6 +4977,8 @@
       "id": "nvidia/nemotron-3-super-120b-a12b",
       "display_name": "Nemotron 3 Super",
       "knowledge_cutoff": "2024-04",
+      "release_date": "2026-03-11",
+      "last_updated": "2026-03-11",
       "pricing": [
         {
           "input_per_1m": 0.09,
@@ -4656,6 +5006,8 @@
       "id": "nvidia/nemotron-3-super-120b-a12b:free",
       "display_name": "Nemotron 3 Super (free)",
       "knowledge_cutoff": "2024-04",
+      "release_date": "2026-03-11",
+      "last_updated": "2026-03-11",
       "reasoning": {
         "supported": true
       },
@@ -4678,6 +5030,8 @@
       "id": "nvidia/nemotron-nano-12b-v2-vl:free",
       "display_name": "Nemotron Nano 12B 2 VL (free)",
       "knowledge_cutoff": "2025-11",
+      "release_date": "2025-10-28",
+      "last_updated": "2025-10-28",
       "reasoning": {
         "supported": true
       },
@@ -4701,6 +5055,8 @@
       "id": "nvidia/nemotron-nano-9b-v2",
       "display_name": "Nemotron Nano 9B V2",
       "knowledge_cutoff": "2025-03-31",
+      "release_date": "2025-09-05",
+      "last_updated": "2025-09-05",
       "pricing": [
         {
           "input_per_1m": 0.04,
@@ -4728,6 +5084,8 @@
       "id": "nvidia/nemotron-nano-9b-v2:free",
       "display_name": "Nemotron Nano 9B V2 (free)",
       "knowledge_cutoff": "2025-03-31",
+      "release_date": "2025-09-05",
+      "last_updated": "2025-09-05",
       "reasoning": {
         "supported": true
       },
@@ -4750,6 +5108,8 @@
       "id": "openai/gpt-3.5-turbo",
       "display_name": "GPT-3.5-turbo",
       "knowledge_cutoff": "2021-09-01",
+      "release_date": "2023-03-01",
+      "last_updated": "2023-11-06",
       "pricing": [
         {
           "input_per_1m": 0.5,
@@ -4775,6 +5135,8 @@
       "id": "openai/gpt-3.5-turbo-0613",
       "display_name": "GPT-3.5 Turbo (older v0613)",
       "knowledge_cutoff": "2021-09-30",
+      "release_date": "2024-01-25",
+      "last_updated": "2024-01-25",
       "pricing": [
         {
           "input_per_1m": 1,
@@ -4800,6 +5162,8 @@
       "id": "openai/gpt-3.5-turbo-16k",
       "display_name": "GPT-3.5 Turbo 16k",
       "knowledge_cutoff": "2021-09-30",
+      "release_date": "2023-08-28",
+      "last_updated": "2023-08-28",
       "pricing": [
         {
           "input_per_1m": 3,
@@ -4825,6 +5189,8 @@
       "id": "openai/gpt-3.5-turbo-instruct",
       "display_name": "GPT-3.5 Turbo Instruct",
       "knowledge_cutoff": "2021-09-30",
+      "release_date": "2023-09-28",
+      "last_updated": "2023-09-28",
       "pricing": [
         {
           "input_per_1m": 1.5,
@@ -4849,6 +5215,8 @@
       "id": "openai/gpt-4",
       "display_name": "GPT-4",
       "knowledge_cutoff": "2023-11",
+      "release_date": "2023-11-06",
+      "last_updated": "2024-04-09",
       "pricing": [
         {
           "input_per_1m": 30,
@@ -4874,6 +5242,8 @@
       "id": "openai/gpt-4-0314",
       "display_name": "GPT-4 (older v0314)",
       "knowledge_cutoff": "2021-09-30",
+      "release_date": "2023-05-28",
+      "last_updated": "2023-05-28",
       "pricing": [
         {
           "input_per_1m": 30,
@@ -4899,6 +5269,8 @@
       "id": "openai/gpt-4-1106-preview",
       "display_name": "GPT-4 Turbo (older v1106)",
       "knowledge_cutoff": "2023-04-30",
+      "release_date": "2023-11-06",
+      "last_updated": "2023-11-06",
       "pricing": [
         {
           "input_per_1m": 10,
@@ -4924,6 +5296,8 @@
       "id": "openai/gpt-4-turbo",
       "display_name": "GPT-4 Turbo",
       "knowledge_cutoff": "2023-12",
+      "release_date": "2023-11-06",
+      "last_updated": "2024-04-09",
       "pricing": [
         {
           "input_per_1m": 10,
@@ -4950,6 +5324,8 @@
       "id": "openai/gpt-4-turbo-preview",
       "display_name": "GPT-4 Turbo Preview",
       "knowledge_cutoff": "2023-12-31",
+      "release_date": "2024-01-25",
+      "last_updated": "2024-01-25",
       "pricing": [
         {
           "input_per_1m": 10,
@@ -4975,6 +5351,8 @@
       "id": "openai/gpt-4.1",
       "display_name": "GPT-4.1",
       "knowledge_cutoff": "2024-04",
+      "release_date": "2025-04-14",
+      "last_updated": "2025-04-14",
       "pricing": [
         {
           "input_per_1m": 2,
@@ -5003,6 +5381,8 @@
       "id": "openai/gpt-4.1-mini",
       "display_name": "GPT-4.1 mini",
       "knowledge_cutoff": "2024-04",
+      "release_date": "2025-04-14",
+      "last_updated": "2025-04-14",
       "pricing": [
         {
           "input_per_1m": 0.4,
@@ -5031,6 +5411,8 @@
       "id": "openai/gpt-4.1-nano",
       "display_name": "GPT-4.1 nano",
       "knowledge_cutoff": "2024-04",
+      "release_date": "2025-04-14",
+      "last_updated": "2025-04-14",
       "pricing": [
         {
           "input_per_1m": 0.1,
@@ -5059,6 +5441,8 @@
       "id": "openai/gpt-4o",
       "display_name": "GPT-4o",
       "knowledge_cutoff": "2023-09",
+      "release_date": "2024-05-13",
+      "last_updated": "2024-08-06",
       "pricing": [
         {
           "input_per_1m": 2.5,
@@ -5086,6 +5470,8 @@
       "id": "openai/gpt-4o-2024-05-13",
       "display_name": "GPT-4o (2024-05-13)",
       "knowledge_cutoff": "2023-09",
+      "release_date": "2024-05-13",
+      "last_updated": "2024-05-13",
       "pricing": [
         {
           "input_per_1m": 5,
@@ -5113,6 +5499,8 @@
       "id": "openai/gpt-4o-2024-08-06",
       "display_name": "GPT-4o (2024-08-06)",
       "knowledge_cutoff": "2023-09",
+      "release_date": "2024-08-06",
+      "last_updated": "2024-08-06",
       "pricing": [
         {
           "input_per_1m": 2.5,
@@ -5141,6 +5529,8 @@
       "id": "openai/gpt-4o-2024-11-20",
       "display_name": "GPT-4o (2024-11-20)",
       "knowledge_cutoff": "2023-09",
+      "release_date": "2024-11-20",
+      "last_updated": "2024-11-20",
       "pricing": [
         {
           "input_per_1m": 2.5,
@@ -5169,6 +5559,8 @@
       "id": "openai/gpt-4o-audio-preview",
       "display_name": "GPT-4o Audio",
       "knowledge_cutoff": "2023-10-31",
+      "release_date": "2025-08-15",
+      "last_updated": "2025-08-15",
       "pricing": [
         {
           "input_per_1m": 2.5,
@@ -5196,6 +5588,8 @@
       "id": "openai/gpt-4o-mini",
       "display_name": "GPT-4o mini",
       "knowledge_cutoff": "2023-09",
+      "release_date": "2024-07-18",
+      "last_updated": "2024-07-18",
       "pricing": [
         {
           "input_per_1m": 0.15,
@@ -5224,6 +5618,8 @@
       "id": "openai/gpt-4o-mini-2024-07-18",
       "display_name": "GPT-4o-mini (2024-07-18)",
       "knowledge_cutoff": "2023-10-31",
+      "release_date": "2024-07-18",
+      "last_updated": "2024-07-18",
       "pricing": [
         {
           "input_per_1m": 0.15,
@@ -5252,6 +5648,8 @@
       "id": "openai/gpt-4o-mini-search-preview",
       "display_name": "GPT-4o-mini Search Preview",
       "knowledge_cutoff": "2023-10-31",
+      "release_date": "2025-03-12",
+      "last_updated": "2025-03-12",
       "pricing": [
         {
           "input_per_1m": 0.15,
@@ -5276,6 +5674,8 @@
       "id": "openai/gpt-4o-search-preview",
       "display_name": "GPT-4o Search Preview",
       "knowledge_cutoff": "2023-10-31",
+      "release_date": "2025-03-12",
+      "last_updated": "2025-03-12",
       "pricing": [
         {
           "input_per_1m": 2.5,
@@ -5300,6 +5700,8 @@
       "id": "openai/gpt-5",
       "display_name": "GPT-5",
       "knowledge_cutoff": "2024-09-30",
+      "release_date": "2025-08-07",
+      "last_updated": "2025-08-07",
       "pricing": [
         {
           "input_per_1m": 1.25,
@@ -5331,6 +5733,8 @@
       "id": "openai/gpt-5-chat",
       "display_name": "GPT-5 Chat",
       "knowledge_cutoff": "2024-09-30",
+      "release_date": "2025-08-07",
+      "last_updated": "2025-08-07",
       "pricing": [
         {
           "input_per_1m": 1.25,
@@ -5358,6 +5762,8 @@
       "id": "openai/gpt-5-codex",
       "display_name": "GPT-5-Codex",
       "knowledge_cutoff": "2024-09-30",
+      "release_date": "2025-09-15",
+      "last_updated": "2025-09-15",
       "pricing": [
         {
           "input_per_1m": 1.25,
@@ -5388,6 +5794,8 @@
       "id": "openai/gpt-5-image",
       "display_name": "GPT-5 Image",
       "knowledge_cutoff": "2024-10-01",
+      "release_date": "2025-10-14",
+      "last_updated": "2025-10-14",
       "pricing": [
         {
           "input_per_1m": 10,
@@ -5418,6 +5826,8 @@
     {
       "id": "openai/gpt-5-image-mini",
       "display_name": "GPT-5 Image Mini",
+      "release_date": "2025-10-16",
+      "last_updated": "2025-10-16",
       "pricing": [
         {
           "input_per_1m": 2.5,
@@ -5449,6 +5859,8 @@
       "id": "openai/gpt-5-mini",
       "display_name": "GPT-5 Mini",
       "knowledge_cutoff": "2024-05-30",
+      "release_date": "2025-08-07",
+      "last_updated": "2025-08-07",
       "pricing": [
         {
           "input_per_1m": 0.25,
@@ -5480,6 +5892,8 @@
       "id": "openai/gpt-5-nano",
       "display_name": "GPT-5 Nano",
       "knowledge_cutoff": "2024-05-30",
+      "release_date": "2025-08-07",
+      "last_updated": "2025-08-07",
       "pricing": [
         {
           "input_per_1m": 0.05,
@@ -5511,6 +5925,8 @@
       "id": "openai/gpt-5-pro",
       "display_name": "GPT-5 Pro",
       "knowledge_cutoff": "2024-09-30",
+      "release_date": "2025-10-06",
+      "last_updated": "2025-10-06",
       "pricing": [
         {
           "input_per_1m": 15,
@@ -5541,6 +5957,8 @@
       "id": "openai/gpt-5.1",
       "display_name": "GPT-5.1",
       "knowledge_cutoff": "2024-09-30",
+      "release_date": "2025-11-13",
+      "last_updated": "2025-11-13",
       "pricing": [
         {
           "input_per_1m": 1.25,
@@ -5572,6 +5990,8 @@
       "id": "openai/gpt-5.1-chat",
       "display_name": "GPT-5.1 Chat",
       "knowledge_cutoff": "2024-09-30",
+      "release_date": "2025-11-13",
+      "last_updated": "2025-11-13",
       "pricing": [
         {
           "input_per_1m": 1.25,
@@ -5600,6 +6020,8 @@
       "id": "openai/gpt-5.1-codex",
       "display_name": "GPT-5.1 Codex",
       "knowledge_cutoff": "2024-09-30",
+      "release_date": "2025-11-13",
+      "last_updated": "2025-11-13",
       "pricing": [
         {
           "input_per_1m": 1.25,
@@ -5630,6 +6052,8 @@
       "id": "openai/gpt-5.1-codex-max",
       "display_name": "GPT-5.1 Codex Max",
       "knowledge_cutoff": "2024-09-30",
+      "release_date": "2025-11-13",
+      "last_updated": "2025-11-13",
       "pricing": [
         {
           "input_per_1m": 1.25,
@@ -5660,6 +6084,8 @@
       "id": "openai/gpt-5.1-codex-mini",
       "display_name": "GPT-5.1 Codex mini",
       "knowledge_cutoff": "2024-09-30",
+      "release_date": "2025-11-13",
+      "last_updated": "2025-11-13",
       "pricing": [
         {
           "input_per_1m": 0.25,
@@ -5690,6 +6116,8 @@
       "id": "openai/gpt-5.2",
       "display_name": "GPT-5.2",
       "knowledge_cutoff": "2025-08-31",
+      "release_date": "2025-12-11",
+      "last_updated": "2025-12-11",
       "pricing": [
         {
           "input_per_1m": 1.75,
@@ -5721,6 +6149,8 @@
       "id": "openai/gpt-5.2-chat",
       "display_name": "GPT-5.2 Chat",
       "knowledge_cutoff": "2025-08-31",
+      "release_date": "2025-12-10",
+      "last_updated": "2025-12-10",
       "pricing": [
         {
           "input_per_1m": 1.75,
@@ -5749,6 +6179,8 @@
       "id": "openai/gpt-5.2-codex",
       "display_name": "GPT-5.2 Codex",
       "knowledge_cutoff": "2025-08-31",
+      "release_date": "2025-12-11",
+      "last_updated": "2025-12-11",
       "pricing": [
         {
           "input_per_1m": 1.75,
@@ -5779,6 +6211,8 @@
       "id": "openai/gpt-5.2-pro",
       "display_name": "GPT-5.2 Pro",
       "knowledge_cutoff": "2025-08-31",
+      "release_date": "2025-12-11",
+      "last_updated": "2025-12-11",
       "pricing": [
         {
           "input_per_1m": 21,
@@ -5808,6 +6242,8 @@
     {
       "id": "openai/gpt-5.3-chat",
       "display_name": "GPT-5.3 Chat",
+      "release_date": "2026-03-03",
+      "last_updated": "2026-03-03",
       "pricing": [
         {
           "input_per_1m": 1.75,
@@ -5836,6 +6272,8 @@
       "id": "openai/gpt-5.3-codex",
       "display_name": "GPT-5.3 Codex",
       "knowledge_cutoff": "2025-08-31",
+      "release_date": "2026-02-05",
+      "last_updated": "2026-02-05",
       "pricing": [
         {
           "input_per_1m": 1.75,
@@ -5867,6 +6305,8 @@
       "id": "openai/gpt-5.4",
       "display_name": "GPT-5.4",
       "knowledge_cutoff": "2025-08-31",
+      "release_date": "2026-03-05",
+      "last_updated": "2026-03-05",
       "pricing": [
         {
           "input_per_1m": 2.5,
@@ -5897,6 +6337,8 @@
     {
       "id": "openai/gpt-5.4-image-2",
       "display_name": "GPT-5.4 Image 2",
+      "release_date": "2026-04-21",
+      "last_updated": "2026-04-21",
       "pricing": [
         {
           "input_per_1m": 8,
@@ -5928,6 +6370,8 @@
       "id": "openai/gpt-5.4-mini",
       "display_name": "GPT-5.4 mini",
       "knowledge_cutoff": "2025-08-31",
+      "release_date": "2026-03-17",
+      "last_updated": "2026-03-17",
       "pricing": [
         {
           "input_per_1m": 0.75,
@@ -5959,6 +6403,8 @@
       "id": "openai/gpt-5.4-nano",
       "display_name": "GPT-5.4 nano",
       "knowledge_cutoff": "2025-08-31",
+      "release_date": "2026-03-17",
+      "last_updated": "2026-03-17",
       "pricing": [
         {
           "input_per_1m": 0.2,
@@ -5990,6 +6436,8 @@
       "id": "openai/gpt-5.4-pro",
       "display_name": "GPT-5.4 Pro",
       "knowledge_cutoff": "2025-08-31",
+      "release_date": "2026-03-05",
+      "last_updated": "2026-03-05",
       "pricing": [
         {
           "input_per_1m": 30,
@@ -6021,6 +6469,8 @@
       "id": "openai/gpt-5.5",
       "display_name": "GPT-5.5",
       "knowledge_cutoff": "2025-12-01",
+      "release_date": "2026-04-23",
+      "last_updated": "2026-04-23",
       "pricing": [
         {
           "input_per_1m": 5,
@@ -6052,6 +6502,8 @@
       "id": "openai/gpt-5.5-pro",
       "display_name": "GPT-5.5 Pro",
       "knowledge_cutoff": "2025-12-01",
+      "release_date": "2026-04-23",
+      "last_updated": "2026-04-23",
       "pricing": [
         {
           "input_per_1m": 30,
@@ -6081,6 +6533,8 @@
     {
       "id": "openai/gpt-audio",
       "display_name": "GPT Audio",
+      "release_date": "2026-01-19",
+      "last_updated": "2026-01-19",
       "pricing": [
         {
           "input_per_1m": 2.5,
@@ -6107,6 +6561,8 @@
     {
       "id": "openai/gpt-audio-mini",
       "display_name": "GPT Audio Mini",
+      "release_date": "2026-01-19",
+      "last_updated": "2026-01-19",
       "pricing": [
         {
           "input_per_1m": 0.6,
@@ -6133,6 +6589,8 @@
     {
       "id": "openai/gpt-chat-latest",
       "display_name": "GPT Chat Latest",
+      "release_date": "2026-05-05",
+      "last_updated": "2026-05-05",
       "pricing": [
         {
           "input_per_1m": 5,
@@ -6161,6 +6619,8 @@
       "id": "openai/gpt-oss-120b",
       "display_name": "gpt-oss-120b",
       "knowledge_cutoff": "2024-06-30",
+      "release_date": "2025-08-05",
+      "last_updated": "2025-08-05",
       "pricing": [
         {
           "input_per_1m": 0.039,
@@ -6189,6 +6649,8 @@
       "id": "openai/gpt-oss-120b:free",
       "display_name": "gpt-oss-120b (free)",
       "knowledge_cutoff": "2024-06-30",
+      "release_date": "2025-08-05",
+      "last_updated": "2025-08-05",
       "reasoning": {
         "supported": true
       },
@@ -6210,6 +6672,8 @@
       "id": "openai/gpt-oss-20b",
       "display_name": "gpt-oss-20b",
       "knowledge_cutoff": "2024-06-30",
+      "release_date": "2025-08-05",
+      "last_updated": "2025-08-05",
       "pricing": [
         {
           "input_per_1m": 0.03,
@@ -6238,6 +6702,8 @@
       "id": "openai/gpt-oss-20b:free",
       "display_name": "gpt-oss-20b (free)",
       "knowledge_cutoff": "2024-06-30",
+      "release_date": "2025-08-05",
+      "last_updated": "2025-08-05",
       "reasoning": {
         "supported": true
       },
@@ -6258,6 +6724,8 @@
     {
       "id": "openai/gpt-oss-safeguard-20b",
       "display_name": "gpt-oss-safeguard-20b",
+      "release_date": "2025-10-29",
+      "last_updated": "2025-10-29",
       "pricing": [
         {
           "input_per_1m": 0.075,
@@ -6286,6 +6754,8 @@
       "id": "openai/o1",
       "display_name": "o1",
       "knowledge_cutoff": "2023-09",
+      "release_date": "2024-12-05",
+      "last_updated": "2024-12-05",
       "pricing": [
         {
           "input_per_1m": 15,
@@ -6317,6 +6787,8 @@
       "id": "openai/o1-pro",
       "display_name": "o1-pro",
       "knowledge_cutoff": "2023-09",
+      "release_date": "2025-03-19",
+      "last_updated": "2025-03-19",
       "pricing": [
         {
           "input_per_1m": 150,
@@ -6346,6 +6818,8 @@
       "id": "openai/o3",
       "display_name": "o3",
       "knowledge_cutoff": "2024-05",
+      "release_date": "2025-04-16",
+      "last_updated": "2025-04-16",
       "pricing": [
         {
           "input_per_1m": 2,
@@ -6377,6 +6851,8 @@
       "id": "openai/o3-deep-research",
       "display_name": "o3-deep-research",
       "knowledge_cutoff": "2024-05",
+      "release_date": "2024-06-26",
+      "last_updated": "2024-06-26",
       "pricing": [
         {
           "input_per_1m": 10,
@@ -6408,6 +6884,8 @@
       "id": "openai/o3-mini",
       "display_name": "o3-mini",
       "knowledge_cutoff": "2024-05",
+      "release_date": "2024-12-20",
+      "last_updated": "2025-01-29",
       "pricing": [
         {
           "input_per_1m": 1.1,
@@ -6438,6 +6916,8 @@
       "id": "openai/o3-mini-high",
       "display_name": "o3 Mini High",
       "knowledge_cutoff": "2023-10-31",
+      "release_date": "2025-02-12",
+      "last_updated": "2025-02-12",
       "pricing": [
         {
           "input_per_1m": 1.1,
@@ -6468,6 +6948,8 @@
       "id": "openai/o3-pro",
       "display_name": "o3-pro",
       "knowledge_cutoff": "2024-05",
+      "release_date": "2025-06-10",
+      "last_updated": "2025-06-10",
       "pricing": [
         {
           "input_per_1m": 20,
@@ -6498,6 +6980,8 @@
       "id": "openai/o4-mini",
       "display_name": "o4-mini",
       "knowledge_cutoff": "2024-05",
+      "release_date": "2025-04-16",
+      "last_updated": "2025-04-16",
       "pricing": [
         {
           "input_per_1m": 1.1,
@@ -6529,6 +7013,8 @@
       "id": "openai/o4-mini-deep-research",
       "display_name": "o4-mini-deep-research",
       "knowledge_cutoff": "2024-05",
+      "release_date": "2024-06-26",
+      "last_updated": "2024-06-26",
       "pricing": [
         {
           "input_per_1m": 2,
@@ -6560,6 +7046,8 @@
       "id": "openai/o4-mini-high",
       "display_name": "o4 Mini High",
       "knowledge_cutoff": "2024-06-30",
+      "release_date": "2025-04-16",
+      "last_updated": "2025-04-16",
       "pricing": [
         {
           "input_per_1m": 1.1,
@@ -6590,6 +7078,8 @@
     {
       "id": "openrouter/auto",
       "display_name": "Auto Router",
+      "release_date": "2023-11-08",
+      "last_updated": "2023-11-08",
       "reasoning": {
         "supported": true
       },
@@ -6616,6 +7106,8 @@
     {
       "id": "openrouter/bodybuilder",
       "display_name": "Body Builder (beta)",
+      "release_date": "2025-12-05",
+      "last_updated": "2025-12-05",
       "modalities": {
         "input": [
           "text"
@@ -6632,6 +7124,8 @@
     {
       "id": "openrouter/free",
       "display_name": "Free Models Router",
+      "release_date": "2026-02-01",
+      "last_updated": "2026-02-01",
       "reasoning": {
         "supported": true
       },
@@ -6655,6 +7149,8 @@
     {
       "id": "openrouter/owl-alpha",
       "display_name": "Owl Alpha",
+      "release_date": "2026-04-28",
+      "last_updated": "2026-04-28",
       "modalities": {
         "input": [
           "text"
@@ -6673,6 +7169,8 @@
     {
       "id": "openrouter/pareto-code",
       "display_name": "Pareto Code Router",
+      "release_date": "2026-04-21",
+      "last_updated": "2026-04-21",
       "modalities": {
         "input": [
           "text"
@@ -6689,6 +7187,8 @@
     {
       "id": "perceptron/perceptron-mk1",
       "display_name": "Perceptron Mk1",
+      "release_date": "2026-05-12",
+      "last_updated": "2026-05-12",
       "pricing": [
         {
           "input_per_1m": 0.15,
@@ -6717,6 +7217,8 @@
     {
       "id": "perplexity/sonar",
       "display_name": "Sonar",
+      "release_date": "2025-01-27",
+      "last_updated": "2025-01-27",
       "pricing": [
         {
           "input_per_1m": 1,
@@ -6740,6 +7242,8 @@
     {
       "id": "perplexity/sonar-deep-research",
       "display_name": "Sonar Deep Research",
+      "release_date": "2025-03-07",
+      "last_updated": "2025-03-07",
       "pricing": [
         {
           "input_per_1m": 2,
@@ -6765,6 +7269,8 @@
     {
       "id": "perplexity/sonar-pro",
       "display_name": "Sonar Pro",
+      "release_date": "2025-03-07",
+      "last_updated": "2025-03-07",
       "pricing": [
         {
           "input_per_1m": 3,
@@ -6788,6 +7294,8 @@
     {
       "id": "perplexity/sonar-pro-search",
       "display_name": "Sonar Pro Search",
+      "release_date": "2025-10-30",
+      "last_updated": "2025-10-30",
       "pricing": [
         {
           "input_per_1m": 3,
@@ -6815,6 +7323,8 @@
     {
       "id": "perplexity/sonar-reasoning-pro",
       "display_name": "Sonar Reasoning Pro",
+      "release_date": "2025-03-07",
+      "last_updated": "2025-03-07",
       "pricing": [
         {
           "input_per_1m": 2,
@@ -6841,6 +7351,8 @@
     {
       "id": "poolside/laguna-m.1:free",
       "display_name": "Laguna M.1 (free)",
+      "release_date": "2026-04-28",
+      "last_updated": "2026-04-28",
       "reasoning": {
         "supported": true
       },
@@ -6861,6 +7373,8 @@
     {
       "id": "poolside/laguna-xs.2:free",
       "display_name": "Laguna XS.2 (free)",
+      "release_date": "2026-04-28",
+      "last_updated": "2026-04-28",
       "reasoning": {
         "supported": true
       },
@@ -6882,6 +7396,8 @@
       "id": "prime-intellect/intellect-3",
       "display_name": "INTELLECT-3",
       "knowledge_cutoff": "2024-10",
+      "release_date": "2025-11-27",
+      "last_updated": "2025-11-27",
       "pricing": [
         {
           "input_per_1m": 0.2,
@@ -6910,6 +7426,8 @@
       "id": "qwen/qwen-2.5-72b-instruct",
       "display_name": "Qwen2.5 72B Instruct",
       "knowledge_cutoff": "2024-06-30",
+      "release_date": "2024-09-19",
+      "last_updated": "2024-09-19",
       "pricing": [
         {
           "input_per_1m": 0.36,
@@ -6935,6 +7453,8 @@
       "id": "qwen/qwen-2.5-7b-instruct",
       "display_name": "Qwen2.5 7B Instruct",
       "knowledge_cutoff": "2024-06-30",
+      "release_date": "2024-10-16",
+      "last_updated": "2024-10-16",
       "pricing": [
         {
           "input_per_1m": 0.04,
@@ -6959,6 +7479,8 @@
       "id": "qwen/qwen-2.5-coder-32b-instruct",
       "display_name": "Qwen2.5 Coder 32B Instruct",
       "knowledge_cutoff": "2024-06-30",
+      "release_date": "2024-11-11",
+      "last_updated": "2024-11-11",
       "pricing": [
         {
           "input_per_1m": 0.66,
@@ -6982,6 +7504,8 @@
       "id": "qwen/qwen-plus",
       "display_name": "Qwen-Plus",
       "knowledge_cutoff": "2025-03-31",
+      "release_date": "2025-02-01",
+      "last_updated": "2025-02-01",
       "pricing": [
         {
           "input_per_1m": 0.26,
@@ -7008,6 +7532,8 @@
       "id": "qwen/qwen-plus-2025-07-28",
       "display_name": "Qwen Plus 0728",
       "knowledge_cutoff": "2025-03-31",
+      "release_date": "2025-09-08",
+      "last_updated": "2025-09-08",
       "pricing": [
         {
           "input_per_1m": 0.26,
@@ -7033,6 +7559,8 @@
       "id": "qwen/qwen-plus-2025-07-28:thinking",
       "display_name": "Qwen Plus 0728 (thinking)",
       "knowledge_cutoff": "2025-03-31",
+      "release_date": "2025-09-08",
+      "last_updated": "2025-09-08",
       "pricing": [
         {
           "input_per_1m": 0.26,
@@ -7062,6 +7590,8 @@
       "id": "qwen/qwen2.5-vl-72b-instruct",
       "display_name": "Qwen2.5 VL 72B Instruct",
       "knowledge_cutoff": "2024-06-30",
+      "release_date": "2025-02-01",
+      "last_updated": "2025-02-01",
       "pricing": [
         {
           "input_per_1m": 0.25,
@@ -7087,6 +7617,8 @@
       "id": "qwen/qwen3-14b",
       "display_name": "Qwen3 14B",
       "knowledge_cutoff": "2025-03-31",
+      "release_date": "2025-04-28",
+      "last_updated": "2025-04-28",
       "pricing": [
         {
           "input_per_1m": 0.1,
@@ -7115,6 +7647,8 @@
       "id": "qwen/qwen3-235b-a22b",
       "display_name": "Qwen3 235B A22B",
       "knowledge_cutoff": "2025-03-31",
+      "release_date": "2025-04-28",
+      "last_updated": "2025-04-28",
       "pricing": [
         {
           "input_per_1m": 0.455,
@@ -7142,6 +7676,8 @@
       "id": "qwen/qwen3-235b-a22b-2507",
       "display_name": "Qwen3 235B A22B Instruct 2507",
       "knowledge_cutoff": "2025-06-30",
+      "release_date": "2025-07-21",
+      "last_updated": "2025-07-21",
       "pricing": [
         {
           "input_per_1m": 0.071,
@@ -7167,6 +7703,8 @@
       "id": "qwen/qwen3-235b-a22b-thinking-2507",
       "display_name": "Qwen3 235B A22B Thinking 2507",
       "knowledge_cutoff": "2025-06-30",
+      "release_date": "2025-07-25",
+      "last_updated": "2025-07-25",
       "pricing": [
         {
           "input_per_1m": 0.1495,
@@ -7195,6 +7733,8 @@
       "id": "qwen/qwen3-30b-a3b",
       "display_name": "Qwen3 30B A3B",
       "knowledge_cutoff": "2025-03-31",
+      "release_date": "2025-04-28",
+      "last_updated": "2025-04-28",
       "pricing": [
         {
           "input_per_1m": 0.09,
@@ -7223,6 +7763,8 @@
       "id": "qwen/qwen3-30b-a3b-instruct-2507",
       "display_name": "Qwen3 30B A3B Instruct 2507",
       "knowledge_cutoff": "2025-06-30",
+      "release_date": "2025-07-29",
+      "last_updated": "2025-07-29",
       "pricing": [
         {
           "input_per_1m": 0.09,
@@ -7248,6 +7790,8 @@
       "id": "qwen/qwen3-30b-a3b-thinking-2507",
       "display_name": "Qwen3 30B A3B Thinking 2507",
       "knowledge_cutoff": "2025-06-30",
+      "release_date": "2025-08-28",
+      "last_updated": "2025-08-28",
       "pricing": [
         {
           "input_per_1m": 0.08,
@@ -7277,6 +7821,8 @@
       "id": "qwen/qwen3-32b",
       "display_name": "Qwen3 32B",
       "knowledge_cutoff": "2025-03-31",
+      "release_date": "2025-04-28",
+      "last_updated": "2025-04-28",
       "pricing": [
         {
           "input_per_1m": 0.08,
@@ -7305,6 +7851,8 @@
       "id": "qwen/qwen3-8b",
       "display_name": "Qwen3 8B",
       "knowledge_cutoff": "2025-03-31",
+      "release_date": "2025-04-28",
+      "last_updated": "2025-04-28",
       "pricing": [
         {
           "input_per_1m": 0.05,
@@ -7334,6 +7882,8 @@
       "id": "qwen/qwen3-coder",
       "display_name": "Qwen3 Coder 480B A35B",
       "knowledge_cutoff": "2025-06-30",
+      "release_date": "2025-07-23",
+      "last_updated": "2025-07-23",
       "pricing": [
         {
           "input_per_1m": 0.22,
@@ -7359,6 +7909,8 @@
       "id": "qwen/qwen3-coder-30b-a3b-instruct",
       "display_name": "Qwen3 Coder 30B A3B Instruct",
       "knowledge_cutoff": "2025-06-30",
+      "release_date": "2025-07-31",
+      "last_updated": "2025-07-31",
       "pricing": [
         {
           "input_per_1m": 0.07,
@@ -7384,6 +7936,8 @@
       "id": "qwen/qwen3-coder-flash",
       "display_name": "Qwen3 Coder Flash",
       "knowledge_cutoff": "2025-06-30",
+      "release_date": "2025-09-17",
+      "last_updated": "2025-09-17",
       "pricing": [
         {
           "input_per_1m": 0.195,
@@ -7409,6 +7963,8 @@
     {
       "id": "qwen/qwen3-coder-next",
       "display_name": "Qwen3 Coder Next",
+      "release_date": "2026-02-04",
+      "last_updated": "2026-02-04",
       "pricing": [
         {
           "input_per_1m": 0.11,
@@ -7435,6 +7991,8 @@
       "id": "qwen/qwen3-coder-plus",
       "display_name": "Qwen3 Coder Plus",
       "knowledge_cutoff": "2025-06-30",
+      "release_date": "2025-09-23",
+      "last_updated": "2025-09-23",
       "pricing": [
         {
           "input_per_1m": 0.65,
@@ -7462,6 +8020,8 @@
       "id": "qwen/qwen3-coder:free",
       "display_name": "Qwen3 Coder 480B A35B (free)",
       "knowledge_cutoff": "2025-06-30",
+      "release_date": "2025-07-23",
+      "last_updated": "2025-07-23",
       "modalities": {
         "input": [
           "text"
@@ -7480,6 +8040,8 @@
       "id": "qwen/qwen3-max",
       "display_name": "Qwen3 Max",
       "knowledge_cutoff": "2025-06-30",
+      "release_date": "2025-09-23",
+      "last_updated": "2025-09-23",
       "pricing": [
         {
           "input_per_1m": 0.78,
@@ -7505,6 +8067,8 @@
     {
       "id": "qwen/qwen3-max-thinking",
       "display_name": "Qwen3 Max Thinking",
+      "release_date": "2026-02-09",
+      "last_updated": "2026-02-09",
       "pricing": [
         {
           "input_per_1m": 0.78,
@@ -7533,6 +8097,8 @@
       "id": "qwen/qwen3-next-80b-a3b-instruct",
       "display_name": "Qwen3 Next 80B A3B Instruct",
       "knowledge_cutoff": "2025-09-30",
+      "release_date": "2025-09-11",
+      "last_updated": "2025-09-11",
       "pricing": [
         {
           "input_per_1m": 0.09,
@@ -7558,6 +8124,8 @@
       "id": "qwen/qwen3-next-80b-a3b-instruct:free",
       "display_name": "Qwen3 Next 80B A3B Instruct (free)",
       "knowledge_cutoff": "2025-09-30",
+      "release_date": "2025-09-11",
+      "last_updated": "2025-09-11",
       "modalities": {
         "input": [
           "text"
@@ -7577,6 +8145,8 @@
       "id": "qwen/qwen3-next-80b-a3b-thinking",
       "display_name": "Qwen3 Next 80B A3B Thinking",
       "knowledge_cutoff": "2025-09-30",
+      "release_date": "2025-09-11",
+      "last_updated": "2025-09-11",
       "pricing": [
         {
           "input_per_1m": 0.0975,
@@ -7605,6 +8175,8 @@
       "id": "qwen/qwen3-vl-235b-a22b-instruct",
       "display_name": "Qwen3 VL 235B A22B Instruct",
       "knowledge_cutoff": "2025-03-31",
+      "release_date": "2025-09-23",
+      "last_updated": "2025-09-23",
       "pricing": [
         {
           "input_per_1m": 0.2,
@@ -7632,6 +8204,8 @@
       "id": "qwen/qwen3-vl-235b-a22b-thinking",
       "display_name": "Qwen3 VL 235B A22B Thinking",
       "knowledge_cutoff": "2025-03-31",
+      "release_date": "2025-09-23",
+      "last_updated": "2025-09-23",
       "pricing": [
         {
           "input_per_1m": 0.26,
@@ -7660,6 +8234,8 @@
       "id": "qwen/qwen3-vl-30b-a3b-instruct",
       "display_name": "Qwen3 VL 30B A3B Instruct",
       "knowledge_cutoff": "2025-03-31",
+      "release_date": "2025-10-06",
+      "last_updated": "2025-10-06",
       "pricing": [
         {
           "input_per_1m": 0.13,
@@ -7686,6 +8262,8 @@
       "id": "qwen/qwen3-vl-30b-a3b-thinking",
       "display_name": "Qwen3 VL 30B A3B Thinking",
       "knowledge_cutoff": "2025-03-31",
+      "release_date": "2025-10-06",
+      "last_updated": "2025-10-06",
       "pricing": [
         {
           "input_per_1m": 0.13,
@@ -7714,6 +8292,8 @@
     {
       "id": "qwen/qwen3-vl-32b-instruct",
       "display_name": "Qwen3 VL 32B Instruct",
+      "release_date": "2025-10-23",
+      "last_updated": "2025-10-23",
       "pricing": [
         {
           "input_per_1m": 0.104,
@@ -7738,6 +8318,8 @@
     {
       "id": "qwen/qwen3-vl-8b-instruct",
       "display_name": "Qwen3 VL 8B Instruct",
+      "release_date": "2025-10-14",
+      "last_updated": "2025-10-14",
       "pricing": [
         {
           "input_per_1m": 0.08,
@@ -7763,6 +8345,8 @@
     {
       "id": "qwen/qwen3-vl-8b-thinking",
       "display_name": "Qwen3 VL 8B Thinking",
+      "release_date": "2025-10-14",
+      "last_updated": "2025-10-14",
       "pricing": [
         {
           "input_per_1m": 0.117,
@@ -7791,6 +8375,8 @@
     {
       "id": "qwen/qwen3.5-122b-a10b",
       "display_name": "Qwen3.5-122B-A10B",
+      "release_date": "2026-02-25",
+      "last_updated": "2026-02-25",
       "pricing": [
         {
           "input_per_1m": 0.26,
@@ -7820,6 +8406,8 @@
     {
       "id": "qwen/qwen3.5-27b",
       "display_name": "Qwen3.5-27B",
+      "release_date": "2026-02-25",
+      "last_updated": "2026-02-25",
       "pricing": [
         {
           "input_per_1m": 0.195,
@@ -7849,6 +8437,8 @@
     {
       "id": "qwen/qwen3.5-35b-a3b",
       "display_name": "Qwen3.5-35B-A3B",
+      "release_date": "2026-02-25",
+      "last_updated": "2026-02-25",
       "pricing": [
         {
           "input_per_1m": 0.139,
@@ -7879,6 +8469,8 @@
       "id": "qwen/qwen3.5-397b-a17b",
       "display_name": "Qwen3.5 397B A17B",
       "knowledge_cutoff": "2025-04",
+      "release_date": "2026-02-16",
+      "last_updated": "2026-02-16",
       "pricing": [
         {
           "input_per_1m": 0.39,
@@ -7908,6 +8500,8 @@
     {
       "id": "qwen/qwen3.5-9b",
       "display_name": "Qwen3.5-9B",
+      "release_date": "2026-03-10",
+      "last_updated": "2026-03-10",
       "pricing": [
         {
           "input_per_1m": 0.04,
@@ -7937,6 +8531,8 @@
     {
       "id": "qwen/qwen3.5-flash-02-23",
       "display_name": "Qwen3.5-Flash",
+      "release_date": "2026-02-25",
+      "last_updated": "2026-02-25",
       "pricing": [
         {
           "input_per_1m": 0.065,
@@ -7967,6 +8563,8 @@
       "id": "qwen/qwen3.5-plus-02-15",
       "display_name": "Qwen3.5 Plus 2026-02-15",
       "knowledge_cutoff": "2025-04",
+      "release_date": "2026-02-16",
+      "last_updated": "2026-02-16",
       "pricing": [
         {
           "input_per_1m": 0.26,
@@ -7996,6 +8594,8 @@
     {
       "id": "qwen/qwen3.5-plus-20260420",
       "display_name": "Qwen3.5 Plus 2026-04-20",
+      "release_date": "2026-04-27",
+      "last_updated": "2026-04-27",
       "pricing": [
         {
           "input_per_1m": 0.3,
@@ -8026,6 +8626,8 @@
     {
       "id": "qwen/qwen3.6-27b",
       "display_name": "Qwen3.6 27B",
+      "release_date": "2026-04-27",
+      "last_updated": "2026-04-27",
       "pricing": [
         {
           "input_per_1m": 0.29,
@@ -8055,6 +8657,8 @@
     {
       "id": "qwen/qwen3.6-35b-a3b",
       "display_name": "Qwen3.6 35B A3B",
+      "release_date": "2026-04-27",
+      "last_updated": "2026-04-27",
       "pricing": [
         {
           "input_per_1m": 0.14,
@@ -8084,6 +8688,8 @@
     {
       "id": "qwen/qwen3.6-flash",
       "display_name": "Qwen3.6 Flash",
+      "release_date": "2026-04-27",
+      "last_updated": "2026-04-27",
       "pricing": [
         {
           "input_per_1m": 0.1875,
@@ -8114,6 +8720,8 @@
     {
       "id": "qwen/qwen3.6-max-preview",
       "display_name": "Qwen3.6 Max Preview",
+      "release_date": "2026-04-27",
+      "last_updated": "2026-04-27",
       "pricing": [
         {
           "input_per_1m": 1.04,
@@ -8143,6 +8751,8 @@
       "id": "qwen/qwen3.6-plus",
       "display_name": "Qwen3.6 Plus",
       "knowledge_cutoff": "2025-04",
+      "release_date": "2026-04-02",
+      "last_updated": "2026-04-02",
       "pricing": [
         {
           "input_per_1m": 0.325,
@@ -8173,6 +8783,8 @@
     {
       "id": "qwen/qwen3.7-max",
       "display_name": "Qwen3.7 Max",
+      "release_date": "2026-05-21",
+      "last_updated": "2026-05-21",
       "pricing": [
         {
           "input_per_1m": 1.25,
@@ -8202,6 +8814,8 @@
     {
       "id": "rekaai/reka-edge",
       "display_name": "Reka Edge",
+      "release_date": "2026-03-20",
+      "last_updated": "2026-03-20",
       "pricing": [
         {
           "input_per_1m": 0.1,
@@ -8229,6 +8843,8 @@
       "id": "rekaai/reka-flash-3",
       "display_name": "Reka Flash 3",
       "knowledge_cutoff": "2025-01-31",
+      "release_date": "2025-03-12",
+      "last_updated": "2025-03-12",
       "pricing": [
         {
           "input_per_1m": 0.1,
@@ -8254,6 +8870,8 @@
     {
       "id": "relace/relace-apply-3",
       "display_name": "Relace Apply 3",
+      "release_date": "2025-09-26",
+      "last_updated": "2025-09-26",
       "pricing": [
         {
           "input_per_1m": 0.85,
@@ -8276,6 +8894,8 @@
     {
       "id": "relace/relace-search",
       "display_name": "Relace Search",
+      "release_date": "2025-12-08",
+      "last_updated": "2025-12-08",
       "pricing": [
         {
           "input_per_1m": 1,
@@ -8300,6 +8920,8 @@
       "id": "sao10k/l3-euryale-70b",
       "display_name": "Llama 3 Euryale 70B v2.1",
       "knowledge_cutoff": "2023-12-31",
+      "release_date": "2024-06-18",
+      "last_updated": "2024-06-18",
       "pricing": [
         {
           "input_per_1m": 1.48,
@@ -8324,6 +8946,8 @@
       "id": "sao10k/l3-lunaris-8b",
       "display_name": "Llama 3 8B Lunaris",
       "knowledge_cutoff": "2023-12-31",
+      "release_date": "2024-08-13",
+      "last_updated": "2024-08-13",
       "pricing": [
         {
           "input_per_1m": 0.04,
@@ -8348,6 +8972,8 @@
       "id": "sao10k/l3.1-70b-hanami-x1",
       "display_name": "Llama 3.1 70B Hanami x1",
       "knowledge_cutoff": "2023-12-31",
+      "release_date": "2025-01-08",
+      "last_updated": "2025-01-08",
       "pricing": [
         {
           "input_per_1m": 3,
@@ -8371,6 +8997,8 @@
       "id": "sao10k/l3.1-euryale-70b",
       "display_name": "Llama 3.1 Euryale 70B v2.2",
       "knowledge_cutoff": "2023-12-31",
+      "release_date": "2024-08-28",
+      "last_updated": "2024-08-28",
       "pricing": [
         {
           "input_per_1m": 0.85,
@@ -8396,6 +9024,8 @@
       "id": "sao10k/l3.3-euryale-70b",
       "display_name": "Llama 3.3 Euryale 70B",
       "knowledge_cutoff": "2023-12-31",
+      "release_date": "2024-12-18",
+      "last_updated": "2024-12-18",
       "pricing": [
         {
           "input_per_1m": 0.65,
@@ -8420,6 +9050,8 @@
       "id": "stepfun/step-3.5-flash",
       "display_name": "Step 3.5 Flash",
       "knowledge_cutoff": "2025-01",
+      "release_date": "2026-01-29",
+      "last_updated": "2026-01-29",
       "pricing": [
         {
           "input_per_1m": 0.09,
@@ -8447,6 +9079,8 @@
     {
       "id": "stepfun/step-3.7-flash",
       "display_name": "Step 3.7 Flash",
+      "release_date": "2026-05-28",
+      "last_updated": "2026-05-28",
       "pricing": [
         {
           "input_per_1m": 0.2,
@@ -8477,6 +9111,8 @@
     {
       "id": "switchpoint/router",
       "display_name": "Switchpoint Router",
+      "release_date": "2025-07-11",
+      "last_updated": "2025-07-11",
       "pricing": [
         {
           "input_per_1m": 0.85,
@@ -8503,6 +9139,8 @@
       "id": "tencent/hunyuan-a13b-instruct",
       "display_name": "Hunyuan A13B Instruct",
       "knowledge_cutoff": "2025-03-31",
+      "release_date": "2025-07-08",
+      "last_updated": "2025-07-08",
       "pricing": [
         {
           "input_per_1m": 0.14,
@@ -8529,6 +9167,8 @@
     {
       "id": "tencent/hy3-preview",
       "display_name": "Hy3 preview",
+      "release_date": "2026-04-22",
+      "last_updated": "2026-04-22",
       "pricing": [
         {
           "input_per_1m": 0.063,
@@ -8557,6 +9197,8 @@
       "id": "thedrummer/cydonia-24b-v4.1",
       "display_name": "Cydonia 24B V4.1",
       "knowledge_cutoff": "2024-04-30",
+      "release_date": "2025-09-27",
+      "last_updated": "2025-09-27",
       "pricing": [
         {
           "input_per_1m": 0.3,
@@ -8581,6 +9223,8 @@
       "id": "thedrummer/rocinante-12b",
       "display_name": "Rocinante 12B",
       "knowledge_cutoff": "2024-04-30",
+      "release_date": "2024-09-30",
+      "last_updated": "2024-09-30",
       "pricing": [
         {
           "input_per_1m": 0.17,
@@ -8606,6 +9250,8 @@
       "id": "thedrummer/skyfall-36b-v2",
       "display_name": "Skyfall 36B V2",
       "knowledge_cutoff": "2024-06-30",
+      "release_date": "2025-03-10",
+      "last_updated": "2025-03-10",
       "pricing": [
         {
           "input_per_1m": 0.55,
@@ -8630,6 +9276,8 @@
       "id": "thedrummer/unslopnemo-12b",
       "display_name": "UnslopNemo 12B",
       "knowledge_cutoff": "2024-04-30",
+      "release_date": "2024-11-08",
+      "last_updated": "2024-11-08",
       "pricing": [
         {
           "input_per_1m": 0.4,
@@ -8655,6 +9303,8 @@
       "id": "undi95/remm-slerp-l2-13b",
       "display_name": "ReMM SLERP 13B",
       "knowledge_cutoff": "2023-06-30",
+      "release_date": "2023-07-22",
+      "last_updated": "2023-07-22",
       "pricing": [
         {
           "input_per_1m": 0.45,
@@ -8678,6 +9328,8 @@
     {
       "id": "upstage/solar-pro-3",
       "display_name": "Solar Pro 3",
+      "release_date": "2026-01-27",
+      "last_updated": "2026-01-27",
       "pricing": [
         {
           "input_per_1m": 0.15,
@@ -8706,6 +9358,8 @@
     {
       "id": "writer/palmyra-x5",
       "display_name": "Palmyra X5",
+      "release_date": "2026-01-21",
+      "last_updated": "2026-01-21",
       "pricing": [
         {
           "input_per_1m": 0.6,
@@ -8729,6 +9383,8 @@
       "id": "x-ai/grok-4.20",
       "display_name": "Grok 4.20",
       "knowledge_cutoff": "2025-09-01",
+      "release_date": "2026-03-31",
+      "last_updated": "2026-03-31",
       "pricing": [
         {
           "input_per_1m": 1.25,
@@ -8760,6 +9416,8 @@
       "id": "x-ai/grok-4.20-multi-agent",
       "display_name": "Grok 4.20 Multi-Agent",
       "knowledge_cutoff": "2025-09-01",
+      "release_date": "2026-03-31",
+      "last_updated": "2026-03-31",
       "pricing": [
         {
           "input_per_1m": 2,
@@ -8789,6 +9447,8 @@
     {
       "id": "x-ai/grok-4.3",
       "display_name": "Grok 4.3",
+      "release_date": "2026-04-17",
+      "last_updated": "2026-04-17",
       "pricing": [
         {
           "input_per_1m": 1.25,
@@ -8824,6 +9484,8 @@
     {
       "id": "x-ai/grok-build-0.1",
       "display_name": "Grok Build 0.1",
+      "release_date": "2026-04-16",
+      "last_updated": "2026-04-16",
       "pricing": [
         {
           "input_per_1m": 1,
@@ -8854,6 +9516,8 @@
       "id": "xiaomi/mimo-v2-flash",
       "display_name": "MiMo-V2-Flash",
       "knowledge_cutoff": "2024-12-01",
+      "release_date": "2025-12-16",
+      "last_updated": "2026-02-04",
       "pricing": [
         {
           "input_per_1m": 0.1,
@@ -8882,6 +9546,8 @@
       "id": "xiaomi/mimo-v2-omni",
       "display_name": "MiMo-V2-Omni",
       "knowledge_cutoff": "2024-12",
+      "release_date": "2026-03-18",
+      "last_updated": "2026-03-18",
       "pricing": [
         {
           "input_per_1m": 0.4,
@@ -8913,6 +9579,8 @@
       "id": "xiaomi/mimo-v2-pro",
       "display_name": "MiMo-V2-Pro",
       "knowledge_cutoff": "2024-12",
+      "release_date": "2026-03-18",
+      "last_updated": "2026-03-18",
       "pricing": [
         {
           "input_per_1m": 1,
@@ -8941,6 +9609,8 @@
       "id": "xiaomi/mimo-v2.5",
       "display_name": "MiMo-V2.5",
       "knowledge_cutoff": "2024-12",
+      "release_date": "2026-04-22",
+      "last_updated": "2026-04-22",
       "pricing": [
         {
           "input_per_1m": 0.14,
@@ -8972,6 +9642,8 @@
       "id": "xiaomi/mimo-v2.5-pro",
       "display_name": "MiMo-V2.5-Pro",
       "knowledge_cutoff": "2024-12",
+      "release_date": "2026-04-22",
+      "last_updated": "2026-04-22",
       "pricing": [
         {
           "input_per_1m": 0.435,
@@ -9001,6 +9673,8 @@
       "id": "z-ai/glm-4-32b",
       "display_name": "GLM 4 32B ",
       "knowledge_cutoff": "2024-06-30",
+      "release_date": "2025-07-24",
+      "last_updated": "2025-07-24",
       "pricing": [
         {
           "input_per_1m": 0.1,
@@ -9025,6 +9699,8 @@
       "id": "z-ai/glm-4.5",
       "display_name": "GLM-4.5",
       "knowledge_cutoff": "2025-04",
+      "release_date": "2025-07-28",
+      "last_updated": "2025-07-28",
       "pricing": [
         {
           "input_per_1m": 0.6,
@@ -9053,6 +9729,8 @@
       "id": "z-ai/glm-4.5-air",
       "display_name": "GLM-4.5-Air",
       "knowledge_cutoff": "2025-04",
+      "release_date": "2025-07-28",
+      "last_updated": "2025-07-28",
       "pricing": [
         {
           "input_per_1m": 0.125,
@@ -9081,6 +9759,8 @@
       "id": "z-ai/glm-4.5-air:free",
       "display_name": "GLM 4.5 Air (free)",
       "knowledge_cutoff": "2025-04",
+      "release_date": "2025-07-28",
+      "last_updated": "2025-07-28",
       "reasoning": {
         "supported": true
       },
@@ -9102,6 +9782,8 @@
       "id": "z-ai/glm-4.5v",
       "display_name": "GLM-4.5V",
       "knowledge_cutoff": "2025-04",
+      "release_date": "2025-08-11",
+      "last_updated": "2025-08-11",
       "pricing": [
         {
           "input_per_1m": 0.6,
@@ -9131,6 +9813,8 @@
       "id": "z-ai/glm-4.6",
       "display_name": "GLM-4.6",
       "knowledge_cutoff": "2025-04",
+      "release_date": "2025-09-30",
+      "last_updated": "2025-09-30",
       "pricing": [
         {
           "input_per_1m": 0.43,
@@ -9160,6 +9844,8 @@
       "id": "z-ai/glm-4.6v",
       "display_name": "GLM-4.6V",
       "knowledge_cutoff": "2025-04",
+      "release_date": "2025-12-08",
+      "last_updated": "2025-12-08",
       "pricing": [
         {
           "input_per_1m": 0.3,
@@ -9190,6 +9876,8 @@
       "id": "z-ai/glm-4.7",
       "display_name": "GLM-4.7",
       "knowledge_cutoff": "2025-04",
+      "release_date": "2025-12-22",
+      "last_updated": "2025-12-22",
       "pricing": [
         {
           "input_per_1m": 0.4,
@@ -9219,6 +9907,8 @@
       "id": "z-ai/glm-4.7-flash",
       "display_name": "GLM-4.7-Flash",
       "knowledge_cutoff": "2025-04",
+      "release_date": "2026-01-19",
+      "last_updated": "2026-01-19",
       "pricing": [
         {
           "input_per_1m": 0.06,
@@ -9247,6 +9937,8 @@
     {
       "id": "z-ai/glm-5",
       "display_name": "GLM-5",
+      "release_date": "2026-02-11",
+      "last_updated": "2026-02-11",
       "pricing": [
         {
           "input_per_1m": 0.6,
@@ -9275,6 +9967,8 @@
     {
       "id": "z-ai/glm-5-turbo",
       "display_name": "GLM-5-Turbo",
+      "release_date": "2026-03-16",
+      "last_updated": "2026-03-16",
       "pricing": [
         {
           "input_per_1m": 1.2,
@@ -9302,6 +9996,8 @@
     {
       "id": "z-ai/glm-5.1",
       "display_name": "GLM-5.1",
+      "release_date": "2026-03-27",
+      "last_updated": "2026-03-27",
       "pricing": [
         {
           "input_per_1m": 0.98,
@@ -9330,6 +10026,8 @@
     {
       "id": "z-ai/glm-5v-turbo",
       "display_name": "GLM-5V-Turbo",
+      "release_date": "2026-04-01",
+      "last_updated": "2026-04-01",
       "pricing": [
         {
           "input_per_1m": 1.2,
@@ -9359,6 +10057,8 @@
     {
       "id": "~anthropic/claude-haiku-latest",
       "display_name": "Anthropic Claude Haiku Latest",
+      "release_date": "2026-04-27",
+      "last_updated": "2026-04-27",
       "pricing": [
         {
           "input_per_1m": 1,
@@ -9390,6 +10090,8 @@
     {
       "id": "~anthropic/claude-opus-latest",
       "display_name": "Claude Opus Latest",
+      "release_date": "2026-04-21",
+      "last_updated": "2026-04-21",
       "pricing": [
         {
           "input_per_1m": 5,
@@ -9421,6 +10123,8 @@
     {
       "id": "~anthropic/claude-sonnet-latest",
       "display_name": "Anthropic Claude Sonnet Latest",
+      "release_date": "2026-04-27",
+      "last_updated": "2026-04-27",
       "pricing": [
         {
           "input_per_1m": 3,
@@ -9453,6 +10157,8 @@
       "id": "~google/gemini-flash-latest",
       "display_name": "Google Gemini Flash Latest",
       "knowledge_cutoff": "2025-01-01",
+      "release_date": "2026-04-27",
+      "last_updated": "2026-04-27",
       "pricing": [
         {
           "input_per_1m": 1.5,
@@ -9486,6 +10192,8 @@
     {
       "id": "~google/gemini-pro-latest",
       "display_name": "Google Gemini Pro Latest",
+      "release_date": "2026-04-27",
+      "last_updated": "2026-04-27",
       "pricing": [
         {
           "input_per_1m": 2,
@@ -9519,6 +10227,8 @@
     {
       "id": "~moonshotai/kimi-latest",
       "display_name": "MoonshotAI Kimi Latest",
+      "release_date": "2026-04-27",
+      "last_updated": "2026-04-27",
       "pricing": [
         {
           "input_per_1m": 0.73,
@@ -9549,6 +10259,8 @@
       "id": "~openai/gpt-latest",
       "display_name": "OpenAI GPT Latest",
       "knowledge_cutoff": "2025-12-01",
+      "release_date": "2026-04-27",
+      "last_updated": "2026-04-27",
       "pricing": [
         {
           "input_per_1m": 5,
@@ -9580,6 +10292,8 @@
       "id": "~openai/gpt-mini-latest",
       "display_name": "OpenAI GPT Mini Latest",
       "knowledge_cutoff": "2025-08-31",
+      "release_date": "2026-04-27",
+      "last_updated": "2026-04-27",
       "pricing": [
         {
           "input_per_1m": 0.75,

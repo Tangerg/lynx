@@ -5,6 +5,8 @@
       "id": "sonar",
       "display_name": "Sonar",
       "knowledge_cutoff": "2025-09-01",
+      "release_date": "2024-01-01",
+      "last_updated": "2025-09-01",
       "pricing": [
         {
           "input_per_1m": 1,
@@ -28,6 +30,8 @@
       "id": "sonar-deep-research",
       "display_name": "Perplexity Sonar Deep Research",
       "knowledge_cutoff": "2025-01",
+      "release_date": "2025-02-01",
+      "last_updated": "2025-09-01",
       "pricing": [
         {
           "input_per_1m": 2,
@@ -54,6 +58,8 @@
       "id": "sonar-pro",
       "display_name": "Sonar Pro",
       "knowledge_cutoff": "2025-09-01",
+      "release_date": "2024-01-01",
+      "last_updated": "2025-09-01",
       "pricing": [
         {
           "input_per_1m": 3,
@@ -78,6 +84,8 @@
       "id": "sonar-reasoning-pro",
       "display_name": "Sonar Reasoning Pro",
       "knowledge_cutoff": "2025-09-01",
+      "release_date": "2024-01-01",
+      "last_updated": "2025-09-01",
       "pricing": [
         {
           "input_per_1m": 2,

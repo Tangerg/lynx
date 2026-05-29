@@ -5,6 +5,8 @@
       "id": "codestral-latest",
       "display_name": "Codestral (latest)",
       "knowledge_cutoff": "2024-10",
+      "release_date": "2024-05-29",
+      "last_updated": "2025-01-04",
       "pricing": [
         {
           "input_per_1m": 0.3,
@@ -29,6 +31,8 @@
       "id": "devstral-2512",
       "display_name": "Devstral 2",
       "knowledge_cutoff": "2025-12",
+      "release_date": "2025-12-09",
+      "last_updated": "2025-12-09",
       "pricing": [
         {
           "input_per_1m": 0.4,
@@ -53,6 +57,8 @@
       "id": "devstral-medium-2507",
       "display_name": "Devstral Medium",
       "knowledge_cutoff": "2025-05",
+      "release_date": "2025-07-10",
+      "last_updated": "2025-07-10",
       "pricing": [
         {
           "input_per_1m": 0.4,
@@ -77,6 +83,8 @@
       "id": "devstral-medium-latest",
       "display_name": "Devstral 2 (latest)",
       "knowledge_cutoff": "2025-12",
+      "release_date": "2025-12-02",
+      "last_updated": "2025-12-02",
       "pricing": [
         {
           "input_per_1m": 0.4,
@@ -101,6 +109,8 @@
       "id": "devstral-small-2505",
       "display_name": "Devstral Small 2505",
       "knowledge_cutoff": "2025-05",
+      "release_date": "2025-05-07",
+      "last_updated": "2025-05-07",
       "pricing": [
         {
           "input_per_1m": 0.1,
@@ -125,6 +135,8 @@
       "id": "devstral-small-2507",
       "display_name": "Devstral Small",
       "knowledge_cutoff": "2025-05",
+      "release_date": "2025-07-10",
+      "last_updated": "2025-07-10",
       "pricing": [
         {
           "input_per_1m": 0.1,
@@ -149,6 +161,8 @@
       "id": "labs-devstral-small-2512",
       "display_name": "Devstral Small 2",
       "knowledge_cutoff": "2025-12",
+      "release_date": "2025-12-09",
+      "last_updated": "2025-12-09",
       "modalities": {
         "input": [
           "text",
@@ -168,6 +182,8 @@
       "id": "magistral-medium-latest",
       "display_name": "Magistral Medium (latest)",
       "knowledge_cutoff": "2025-06",
+      "release_date": "2025-03-17",
+      "last_updated": "2025-03-20",
       "pricing": [
         {
           "input_per_1m": 2,
@@ -195,6 +211,8 @@
       "id": "magistral-small",
       "display_name": "Magistral Small",
       "knowledge_cutoff": "2025-06",
+      "release_date": "2025-03-17",
+      "last_updated": "2025-03-17",
       "pricing": [
         {
           "input_per_1m": 0.5,
@@ -222,6 +240,8 @@
       "id": "ministral-3b-latest",
       "display_name": "Ministral 3B (latest)",
       "knowledge_cutoff": "2024-10",
+      "release_date": "2024-10-01",
+      "last_updated": "2024-10-04",
       "pricing": [
         {
           "input_per_1m": 0.04,
@@ -246,6 +266,8 @@
       "id": "ministral-8b-latest",
       "display_name": "Ministral 8B (latest)",
       "knowledge_cutoff": "2024-10",
+      "release_date": "2024-10-01",
+      "last_updated": "2024-10-04",
       "pricing": [
         {
           "input_per_1m": 0.1,
@@ -270,6 +292,8 @@
       "id": "mistral-large-2411",
       "display_name": "Mistral Large 2.1",
       "knowledge_cutoff": "2024-11",
+      "release_date": "2024-11-01",
+      "last_updated": "2024-11-04",
       "pricing": [
         {
           "input_per_1m": 2,
@@ -294,6 +318,8 @@
       "id": "mistral-large-2512",
       "display_name": "Mistral Large 3",
       "knowledge_cutoff": "2024-11",
+      "release_date": "2024-11-01",
+      "last_updated": "2025-12-02",
       "pricing": [
         {
           "input_per_1m": 0.5,
@@ -319,6 +345,8 @@
       "id": "mistral-large-latest",
       "display_name": "Mistral Large (latest)",
       "knowledge_cutoff": "2024-11",
+      "release_date": "2024-11-01",
+      "last_updated": "2025-12-02",
       "pricing": [
         {
           "input_per_1m": 0.5,
@@ -344,6 +372,8 @@
       "id": "mistral-medium-2505",
       "display_name": "Mistral Medium 3",
       "knowledge_cutoff": "2025-05",
+      "release_date": "2025-05-07",
+      "last_updated": "2025-05-07",
       "pricing": [
         {
           "input_per_1m": 0.4,
@@ -369,6 +399,8 @@
       "id": "mistral-medium-2508",
       "display_name": "Mistral Medium 3.1",
       "knowledge_cutoff": "2025-05",
+      "release_date": "2025-08-12",
+      "last_updated": "2025-08-12",
       "pricing": [
         {
           "input_per_1m": 0.4,
@@ -393,6 +425,8 @@
     {
       "id": "mistral-medium-2604",
       "display_name": "Mistral Medium 3.5",
+      "release_date": "2026-04-29",
+      "last_updated": "2026-04-29",
       "pricing": [
         {
           "input_per_1m": 1.5,
@@ -421,6 +455,8 @@
     {
       "id": "mistral-medium-latest",
       "display_name": "Mistral Medium (latest)",
+      "release_date": "2026-04-29",
+      "last_updated": "2026-04-29",
       "pricing": [
         {
           "input_per_1m": 1.5,
@@ -450,6 +486,8 @@
       "id": "mistral-nemo",
       "display_name": "Mistral Nemo",
       "knowledge_cutoff": "2024-07",
+      "release_date": "2024-07-01",
+      "last_updated": "2024-07-01",
       "pricing": [
         {
           "input_per_1m": 0.15,
@@ -474,6 +512,8 @@
       "id": "mistral-small-2506",
       "display_name": "Mistral Small 3.2",
       "knowledge_cutoff": "2025-03",
+      "release_date": "2025-06-20",
+      "last_updated": "2025-06-20",
       "pricing": [
         {
           "input_per_1m": 0.1,
@@ -499,6 +539,8 @@
       "id": "mistral-small-2603",
       "display_name": "Mistral Small 4",
       "knowledge_cutoff": "2025-06",
+      "release_date": "2026-03-16",
+      "last_updated": "2026-03-16",
       "pricing": [
         {
           "input_per_1m": 0.15,
@@ -527,6 +569,8 @@
       "id": "mistral-small-latest",
       "display_name": "Mistral Small (latest)",
       "knowledge_cutoff": "2025-06",
+      "release_date": "2026-03-16",
+      "last_updated": "2026-03-16",
       "pricing": [
         {
           "input_per_1m": 0.15,
@@ -555,6 +599,8 @@
       "id": "open-mistral-7b",
       "display_name": "Mistral 7B",
       "knowledge_cutoff": "2023-12",
+      "release_date": "2023-09-27",
+      "last_updated": "2023-09-27",
       "pricing": [
         {
           "input_per_1m": 0.25,
@@ -579,6 +625,8 @@
       "id": "open-mixtral-8x22b",
       "display_name": "Mixtral 8x22B",
       "knowledge_cutoff": "2024-04",
+      "release_date": "2024-04-17",
+      "last_updated": "2024-04-17",
       "pricing": [
         {
           "input_per_1m": 2,
@@ -603,6 +651,8 @@
       "id": "open-mixtral-8x7b",
       "display_name": "Mixtral 8x7B",
       "knowledge_cutoff": "2024-01",
+      "release_date": "2023-12-11",
+      "last_updated": "2023-12-11",
       "pricing": [
         {
           "input_per_1m": 0.7,
@@ -627,6 +677,8 @@
       "id": "pixtral-12b",
       "display_name": "Pixtral 12B",
       "knowledge_cutoff": "2024-09",
+      "release_date": "2024-09-01",
+      "last_updated": "2024-09-01",
       "pricing": [
         {
           "input_per_1m": 0.15,
@@ -652,6 +704,8 @@
       "id": "pixtral-large-latest",
       "display_name": "Pixtral Large (latest)",
       "knowledge_cutoff": "2024-11",
+      "release_date": "2024-11-01",
+      "last_updated": "2024-11-04",
       "pricing": [
         {
           "input_per_1m": 2,

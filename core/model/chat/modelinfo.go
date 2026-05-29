@@ -40,6 +40,19 @@ type ModelInfo struct {
 	// empty when unknown.
 	KnowledgeCutoff string `json:"knowledge_cutoff,omitempty"`
 
+	// ReleaseDate is the model's first public release date (e.g.
+	// "2025-11-24"), empty when unknown.
+	ReleaseDate string `json:"release_date,omitempty"`
+
+	// LastUpdated is when the model spec last changed (e.g. "2025-11-24"),
+	// empty when unknown.
+	LastUpdated string `json:"last_updated,omitempty"`
+
+	// Deprecated reports whether the provider has retired the model. It's
+	// kept in the catalog — cost attribution still works for callers on
+	// the old id — so consumers can hide or flag it rather than lose it.
+	Deprecated bool `json:"deprecated,omitempty"`
+
 	// --- pricing ---
 
 	// Pricing is the per-1M-token rate card as one or more bands (see
@@ -76,6 +89,7 @@ type ModelInfo struct {
 // `m == ModelInfo{}` because nested slices make ModelInfo non-comparable.)
 func (m ModelInfo) IsZero() bool {
 	return m.ID == "" && m.DisplayName == "" && m.KnowledgeCutoff == "" &&
+		m.ReleaseDate == "" && m.LastUpdated == "" && !m.Deprecated &&
 		len(m.Pricing) == 0 && m.Reasoning.IsZero() && m.Modalities.IsZero() &&
 		!m.ToolCall && !m.StructuredOutput && m.Limits.IsZero()
 }

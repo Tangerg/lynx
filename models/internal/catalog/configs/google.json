@@ -5,6 +5,8 @@
       "id": "gemini-2.0-flash",
       "display_name": "Gemini 2.0 Flash",
       "knowledge_cutoff": "2024-06",
+      "release_date": "2024-12-11",
+      "last_updated": "2024-12-11",
       "pricing": [
         {
           "input_per_1m": 0.1,
@@ -35,6 +37,8 @@
       "id": "gemini-2.0-flash-lite",
       "display_name": "Gemini 2.0 Flash-Lite",
       "knowledge_cutoff": "2024-06",
+      "release_date": "2024-12-11",
+      "last_updated": "2024-12-11",
       "pricing": [
         {
           "input_per_1m": 0.075,
@@ -64,6 +68,8 @@
       "id": "gemini-2.5-flash",
       "display_name": "Gemini 2.5 Flash",
       "knowledge_cutoff": "2025-01",
+      "release_date": "2025-03-20",
+      "last_updated": "2025-06-05",
       "pricing": [
         {
           "input_per_1m": 0.3,
@@ -97,6 +103,8 @@
       "id": "gemini-2.5-flash-image",
       "display_name": "Nano Banana",
       "knowledge_cutoff": "2025-06",
+      "release_date": "2025-08-26",
+      "last_updated": "2025-08-26",
       "pricing": [
         {
           "input_per_1m": 0.3,
@@ -126,6 +134,8 @@
       "id": "gemini-2.5-flash-lite",
       "display_name": "Gemini 2.5 Flash-Lite",
       "knowledge_cutoff": "2025-01",
+      "release_date": "2025-06-17",
+      "last_updated": "2025-06-17",
       "pricing": [
         {
           "input_per_1m": 0.1,
@@ -159,6 +169,8 @@
       "id": "gemini-2.5-pro",
       "display_name": "Gemini 2.5 Pro",
       "knowledge_cutoff": "2025-01",
+      "release_date": "2025-03-20",
+      "last_updated": "2025-06-05",
       "pricing": [
         {
           "input_per_1m": 1.25,
@@ -198,6 +210,8 @@
       "id": "gemini-3-flash-preview",
       "display_name": "Gemini 3 Flash Preview",
       "knowledge_cutoff": "2025-01",
+      "release_date": "2025-12-17",
+      "last_updated": "2025-12-17",
       "pricing": [
         {
           "input_per_1m": 0.5,
@@ -238,6 +252,8 @@
       "id": "gemini-3-pro-preview",
       "display_name": "Gemini 3 Pro Preview",
       "knowledge_cutoff": "2025-01",
+      "release_date": "2025-11-18",
+      "last_updated": "2025-11-18",
       "pricing": [
         {
           "input_per_1m": 2,
@@ -282,6 +298,8 @@
       "id": "gemini-3.1-flash-image-preview",
       "display_name": "Nano Banana 2",
       "knowledge_cutoff": "2025-01",
+      "release_date": "2026-02-26",
+      "last_updated": "2026-02-26",
       "pricing": [
         {
           "input_per_1m": 0.5,
@@ -311,6 +329,8 @@
       "id": "gemini-3.1-flash-lite",
       "display_name": "Gemini 3.1 Flash Lite",
       "knowledge_cutoff": "2025-01",
+      "release_date": "2026-05-07",
+      "last_updated": "2026-05-07",
       "pricing": [
         {
           "input_per_1m": 0.25,
@@ -344,6 +364,8 @@
       "id": "gemini-3.1-flash-lite-preview",
       "display_name": "Gemini 3.1 Flash Lite Preview",
       "knowledge_cutoff": "2025-01",
+      "release_date": "2026-03-03",
+      "last_updated": "2026-03-03",
       "pricing": [
         {
           "input_per_1m": 0.25,
@@ -377,6 +399,8 @@
       "id": "gemini-3.1-pro-preview",
       "display_name": "Gemini 3.1 Pro Preview",
       "knowledge_cutoff": "2025-01",
+      "release_date": "2026-02-19",
+      "last_updated": "2026-02-19",
       "pricing": [
         {
           "input_per_1m": 2,
@@ -416,6 +440,8 @@
       "id": "gemini-3.1-pro-preview-customtools",
       "display_name": "Gemini 3.1 Pro Preview Custom Tools",
       "knowledge_cutoff": "2025-01",
+      "release_date": "2026-02-19",
+      "last_updated": "2026-02-19",
       "pricing": [
         {
           "input_per_1m": 2,
@@ -461,6 +487,8 @@
       "id": "gemini-3.5-flash",
       "display_name": "Gemini 3.5 Flash",
       "knowledge_cutoff": "2025-01",
+      "release_date": "2026-05-19",
+      "last_updated": "2026-05-19",
       "pricing": [
         {
           "input_per_1m": 1.5,
@@ -501,6 +529,8 @@
       "id": "gemini-flash-latest",
       "display_name": "Gemini Flash Latest",
       "knowledge_cutoff": "2025-01",
+      "release_date": "2025-09-25",
+      "last_updated": "2025-09-25",
       "pricing": [
         {
           "input_per_1m": 0.3,
@@ -534,6 +564,8 @@
       "id": "gemini-flash-lite-latest",
       "display_name": "Gemini Flash-Lite Latest",
       "knowledge_cutoff": "2025-01",
+      "release_date": "2025-09-25",
+      "last_updated": "2025-09-25",
       "pricing": [
         {
           "input_per_1m": 0.1,
@@ -566,6 +598,8 @@
     {
       "id": "gemma-4-26b-a4b-it",
       "display_name": "Gemma 4 26B A4B IT",
+      "release_date": "2026-04-02",
+      "last_updated": "2026-04-02",
       "reasoning": {
         "supported": true
       },
@@ -588,6 +622,8 @@
     {
       "id": "gemma-4-31b-it",
       "display_name": "Gemma 4 31B IT",
+      "release_date": "2026-04-02",
+      "last_updated": "2026-04-02",
       "reasoning": {
         "supported": true
       },

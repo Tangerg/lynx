@@ -5,6 +5,8 @@
       "id": "mimo-v2-flash",
       "display_name": "MiMo-V2-Flash",
       "knowledge_cutoff": "2024-12-01",
+      "release_date": "2025-12-16",
+      "last_updated": "2026-02-04",
       "pricing": [
         {
           "input_per_1m": 0.1,
@@ -33,6 +35,8 @@
       "id": "mimo-v2-omni",
       "display_name": "MiMo-V2-Omni",
       "knowledge_cutoff": "2024-12",
+      "release_date": "2026-03-18",
+      "last_updated": "2026-03-18",
       "pricing": [
         {
           "input_per_1m": 0.4,
@@ -65,6 +69,8 @@
       "id": "mimo-v2-pro",
       "display_name": "MiMo-V2-Pro",
       "knowledge_cutoff": "2024-12",
+      "release_date": "2026-03-18",
+      "last_updated": "2026-03-18",
       "pricing": [
         {
           "input_per_1m": 1,
@@ -99,6 +105,8 @@
       "id": "mimo-v2.5",
       "display_name": "MiMo-V2.5",
       "knowledge_cutoff": "2024-12",
+      "release_date": "2026-04-22",
+      "last_updated": "2026-04-22",
       "pricing": [
         {
           "input_per_1m": 0.4,
@@ -136,6 +144,8 @@
       "id": "mimo-v2.5-pro",
       "display_name": "MiMo-V2.5-Pro",
       "knowledge_cutoff": "2024-12",
+      "release_date": "2026-04-22",
+      "last_updated": "2026-04-22",
       "pricing": [
         {
           "input_per_1m": 1,

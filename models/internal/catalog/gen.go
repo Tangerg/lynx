@@ -82,6 +82,9 @@ type apiModel struct {
 	ToolCall         bool   `json:"tool_call"`
 	StructuredOutput bool   `json:"structured_output"`
 	Knowledge        string `json:"knowledge"`
+	ReleaseDate      string `json:"release_date"`
+	LastUpdated      string `json:"last_updated"`
+	Status           string `json:"status"`
 	Modalities       struct {
 		Input  []string `json:"input"`
 		Output []string `json:"output"`
@@ -186,6 +189,9 @@ func toModelInfo(m apiModel, aug augEntry) chat.ModelInfo {
 		ID:               m.ID,
 		DisplayName:      m.Name,
 		KnowledgeCutoff:  m.Knowledge,
+		ReleaseDate:      m.ReleaseDate,
+		LastUpdated:      m.LastUpdated,
+		Deprecated:       m.Status == "deprecated",
 		ToolCall:         m.ToolCall,
 		StructuredOutput: m.StructuredOutput,
 		Pricing:          toPricing(m.Cost),
