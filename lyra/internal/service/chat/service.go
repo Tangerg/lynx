@@ -218,6 +218,29 @@ type ToolCallEnd struct {
 	Err    string
 }
 
+// CompactBoundary fires when the runtime auto-compacts the
+// conversation after a turn — the older messages were folded into a
+// single summary so context stays within bounds. Surfacing it lets
+// clients show "context compacted (120 → 40 messages)" instead of
+// silently dropping history. Mirrors the SDK's
+// SDKCompactBoundaryMessage. Fires before [TurnEnd].
+type CompactBoundary struct {
+	BaseEvent
+	MessagesBefore int
+	MessagesAfter  int
+}
+
+// MemoryUpdated fires when the runtime mines durable facts out of the
+// finished turn and appends them to project memory (LYRA.md). Facts
+// is the markdown the runtime saved; clients can surface "saved notes
+// to memory". Only fires when extraction actually wrote something,
+// and always after a [CompactBoundary] (extraction is gated on
+// compaction). Mirrors the spirit of the SDK's memory events.
+type MemoryUpdated struct {
+	BaseEvent
+	Facts string
+}
+
 // TurnEnd fires once at the end of a turn. Reason explains why the
 // turn ended; TokenUsage / CostUSD are the rolled-up totals for the
 // turn (sum across every LLM call inside it).
@@ -253,6 +276,8 @@ func (e ToolCallStart) stamp(b BaseEvent) Event    { e.BaseEvent = b; return e }
 func (e ToolCallEnd) stamp(b BaseEvent) Event      { e.BaseEvent = b; return e }
 func (e ToolCallApproval) stamp(b BaseEvent) Event { e.BaseEvent = b; return e }
 func (e PlanGenerated) stamp(b BaseEvent) Event    { e.BaseEvent = b; return e }
+func (e CompactBoundary) stamp(b BaseEvent) Event  { e.BaseEvent = b; return e }
+func (e MemoryUpdated) stamp(b BaseEvent) Event    { e.BaseEvent = b; return e }
 func (e TurnEnd) stamp(b BaseEvent) Event          { e.BaseEvent = b; return e }
 func (e ErrorEvent) stamp(b BaseEvent) Event       { e.BaseEvent = b; return e }
 

@@ -192,6 +192,61 @@ func TestTranslate_PlanGenerated_Custom(t *testing.T) {
 	}
 }
 
+// TestTranslate_CompactBoundary_Custom — a compaction boundary
+// surfaces as a standalone "compact_boundary" CustomEvent carrying
+// the before/after message counts (no Step bracket — it's a
+// notification, not an interactive phase).
+func TestTranslate_CompactBoundary_Custom(t *testing.T) {
+	tr := agui.NewTranslator("s", "r")
+	out := tr.Translate(chat.CompactBoundary{BaseEvent: base("s", "r"), MessagesBefore: 120, MessagesAfter: 40})
+	if len(out) != 1 {
+		t.Fatalf("want a single CustomEvent, got %d events", len(out))
+	}
+	c, ok := out[0].(*aguievents.CustomEvent)
+	if !ok || c.Name != "compact_boundary" {
+		t.Fatalf("out[0] = %#v, want CustomEvent(compact_boundary)", out[0])
+	}
+	v, ok := c.Value.(map[string]any)
+	if !ok || v["messagesBefore"] != 120 || v["messagesAfter"] != 40 {
+		t.Errorf("value = %#v", c.Value)
+	}
+}
+
+// TestTranslate_MemoryUpdated_Custom — a memory write surfaces as a
+// standalone "memory_updated" CustomEvent carrying the saved facts.
+func TestTranslate_MemoryUpdated_Custom(t *testing.T) {
+	tr := agui.NewTranslator("s", "r")
+	out := tr.Translate(chat.MemoryUpdated{BaseEvent: base("s", "r"), Facts: "- prefers tabs"})
+	if len(out) != 1 {
+		t.Fatalf("want a single CustomEvent, got %d events", len(out))
+	}
+	c, ok := out[0].(*aguievents.CustomEvent)
+	if !ok || c.Name != "memory_updated" {
+		t.Fatalf("out[0] = %#v, want CustomEvent(memory_updated)", out[0])
+	}
+	if v, ok := c.Value.(map[string]any); !ok || v["facts"] != "- prefers tabs" {
+		t.Errorf("value = %#v", c.Value)
+	}
+}
+
+// TestTranslate_MaintenanceCustom_ClosesOpenText — a maintenance
+// CustomEvent emitted while an assistant text stream is still open
+// first closes that stream, keeping the wire balanced.
+func TestTranslate_MaintenanceCustom_ClosesOpenText(t *testing.T) {
+	tr := agui.NewTranslator("s", "r")
+	_ = tr.Translate(chat.MessageDelta{BaseEvent: base("s", "r"), Text: "hi"}) // opens text
+	out := tr.Translate(chat.CompactBoundary{BaseEvent: base("s", "r"), MessagesBefore: 10, MessagesAfter: 3})
+	if len(out) != 2 {
+		t.Fatalf("want TextMessageEnd + CustomEvent, got %d events", len(out))
+	}
+	if _, ok := out[0].(*aguievents.TextMessageEndEvent); !ok {
+		t.Errorf("out[0] = %T, want TextMessageEnd (open text closed first)", out[0])
+	}
+	if c, ok := out[1].(*aguievents.CustomEvent); !ok || c.Name != "compact_boundary" {
+		t.Errorf("out[1] = %#v, want CustomEvent(compact_boundary)", out[1])
+	}
+}
+
 // TestTranslate_ToolStepLifecycle — tool calls emit a balanced
 // StepStarted("tool:<name>") + StepFinished pair around the
 // AG-UI tool triplet so clients can render the tool's progress

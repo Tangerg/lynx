@@ -169,7 +169,10 @@ func (c *StoreConfig) ApplyDefaults() {
 	c.IndexType = cmp.Or(c.IndexType, IndexHNSW)
 }
 
-var _ vectorstore.Store = (*Store)(nil)
+var (
+	_ vectorstore.Store     = (*Store)(nil)
+	_ vectorstore.IDDeleter = (*Store)(nil)
+)
 
 // Store is a pgvector-backed implementation of [vectorstore.Store].
 type Store struct {
@@ -512,6 +515,25 @@ func (s *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) (err
 	sql := fmt.Sprintf(`DELETE FROM %s%s`, s.fullTable, fragment)
 	if _, err = s.pool.Exec(ctx, sql, args...); err != nil {
 		return fmt.Errorf("pgvector: delete from %s: %w", s.fullTable, err)
+	}
+	return nil
+}
+
+// DeleteByIDs removes rows by primary key — `DELETE ... WHERE id = ANY($1)`.
+// pgx maps the []string to a Postgres text array. An empty slice is a
+// no-op; unknown ids are silently ignored (idempotent). Implements
+// [vectorstore.IDDeleter].
+func (s *Store) DeleteByIDs(ctx context.Context, ids []string) (err error) {
+	if len(ids) == 0 {
+		return nil
+	}
+
+	ctx, span := tracing.StartDelete(ctx, "pgvector")
+	defer func() { tracing.Finish(span, err) }()
+
+	sql := fmt.Sprintf(`DELETE FROM %s WHERE id = ANY($1)`, s.fullTable)
+	if _, err = s.pool.Exec(ctx, sql, ids); err != nil {
+		return fmt.Errorf("pgvector: delete by ids from %s: %w", s.fullTable, err)
 	}
 	return nil
 }

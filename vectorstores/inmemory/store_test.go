@@ -419,3 +419,40 @@ func TestStore_RetrieveNotIn(t *testing.T) {
 		t.Fatalf("not in ('a','b') matched %v, want [3]", ids)
 	}
 }
+
+func TestStore_DeleteByIDs(t *testing.T) {
+	store := newStore(t)
+	ctx := t.Context()
+	docs := []*document.Document{
+		mustDoc(t, "1", "a", map[string]any{"k": "v"}),
+		mustDoc(t, "2", "b", map[string]any{"k": "v"}),
+		mustDoc(t, "3", "c", map[string]any{"k": "v"}),
+	}
+	createReq, _ := vectorstore.NewCreateRequest(docs)
+	if err := store.Create(ctx, createReq); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	// Empty slice is a no-op; an unknown id is ignored.
+	if err := store.DeleteByIDs(ctx, nil); err != nil {
+		t.Fatalf("DeleteByIDs(nil): %v", err)
+	}
+	if err := store.DeleteByIDs(ctx, []string{"1", "missing"}); err != nil {
+		t.Fatalf("DeleteByIDs: %v", err)
+	}
+
+	req, _ := vectorstore.NewRetrievalRequest("x")
+	req.WithTopK(10)
+	got, err := store.Retrieve(ctx, req)
+	if err != nil {
+		t.Fatalf("Retrieve: %v", err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("after DeleteByIDs([1]), have %d docs, want 2 (2,3)", len(got))
+	}
+	for _, d := range got {
+		if d.ID == "1" {
+			t.Fatal("id 1 should have been deleted")
+		}
+	}
+}

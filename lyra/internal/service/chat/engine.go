@@ -32,6 +32,6 @@ type Engine interface {
 	StartChat(ctx context.Context, req engine.RunChatRequest) engine.ChatProcess
 	GeneratePlan(ctx context.Context, userMessage string) (string, error)
 	InjectUserMessage(ctx context.Context, sessionID, text string) error
-	MaybeCompact(ctx context.Context, sessionID string) (bool, error)
-	MaybeExtract(ctx context.Context, sessionID string) error
+	MaybeCompact(ctx context.Context, sessionID string) (engine.CompactionResult, error)
+	MaybeExtract(ctx context.Context, sessionID string) (engine.ExtractionResult, error)
 }

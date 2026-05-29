@@ -247,11 +247,18 @@ func (s *inMemory) flushSteering(ctx context.Context, st *turnState, sessionID s
 // this stage surface through ErrorEvent but don't abort the turn —
 // the user's reply is already on screen.
 //
+// Both maintenance actions are observable: a fired compaction emits
+// [CompactBoundary] (before/after message counts) and a successful
+// extraction emits [MemoryUpdated] (the facts saved). Surfacing them
+// keeps the runtime's housekeeping visible to clients instead of
+// silently mutating context behind the user's back — the SDK's
+// SDKCompactBoundaryMessage / memory-event spirit, adapted.
+//
 // Fact extraction is gated on compaction firing: extraction is one
 // extra LLM call, so we amortize it onto the moments where the
 // runtime had to summarize anyway.
 func (s *inMemory) postTurnMaintenance(ctx context.Context, st *turnState, sessionID string) {
-	compacted, err := s.engine.MaybeCompact(ctx, sessionID)
+	compaction, err := s.engine.MaybeCompact(ctx, sessionID)
 	if err != nil {
 		s.emit(st, ErrorEvent{
 			Message: "auto-compaction failed: " + err.Error(),
@@ -259,13 +266,23 @@ func (s *inMemory) postTurnMaintenance(ctx context.Context, st *turnState, sessi
 		})
 		return
 	}
-	if !compacted {
+	if !compaction.Compacted {
 		return
 	}
-	if err := s.engine.MaybeExtract(ctx, sessionID); err != nil {
+	s.emit(st, CompactBoundary{
+		MessagesBefore: compaction.MessagesBefore,
+		MessagesAfter:  compaction.MessagesAfter,
+	})
+
+	extraction, err := s.engine.MaybeExtract(ctx, sessionID)
+	if err != nil {
 		s.emit(st, ErrorEvent{
 			Message: "memory extraction failed: " + err.Error(),
 			Code:    "EXTRACTION_ERROR",
 		})
+		return
+	}
+	if extraction.Extracted {
+		s.emit(st, MemoryUpdated{Facts: extraction.Facts})
 	}
 }

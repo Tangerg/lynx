@@ -198,27 +198,28 @@ func (e *Engine) GeneratePlan(ctx context.Context, userMessage string) (string, 
 
 // MaybeCompact runs one auto-compaction sweep against sessionID. The
 // runtime calls this at every turn-end so growing histories get
-// folded into a summary before the next turn starts. Returns
-// (compacted, nil) — compacted is true only when the sweep
-// actually replaced history, so callers can chain follow-on work
-// (e.g. fact extraction) only on real events.
+// folded into a summary before the next turn starts. The returned
+// [CompactionResult] reports whether the sweep fired (so callers can
+// chain follow-on work like fact extraction) and the before/after
+// message counts (so callers can surface an observable boundary).
 //
-// No-op (returns false, nil) when:
+// No-op (returns a zero CompactionResult) when:
 //   - sessionID is empty (single-turn / no chat-memory path)
 //   - the configured Compaction.MaxMessages is negative (disabled)
 //   - the current history is shorter than the threshold
-func (e *Engine) MaybeCompact(ctx context.Context, sessionID string) (bool, error) {
+func (e *Engine) MaybeCompact(ctx context.Context, sessionID string) (CompactionResult, error) {
 	return e.compactor.maybeCompact(ctx, sessionID)
 }
 
 // MaybeExtract mines the recent conversation for facts worth
 // recording in <cwd>/LYRA.md. Best run right after MaybeCompact so
-// the LLM sees a digest rather than a raw firehose. Best-effort —
-// failures are logged but don't bubble.
+// the LLM sees a digest rather than a raw firehose. The returned
+// [ExtractionResult] reports whether anything was written and the
+// facts themselves, so callers can surface a memory-updated event.
 //
-// No-op when the engine has no MemoryService or the conversation
-// is too short.
-func (e *Engine) MaybeExtract(ctx context.Context, sessionID string) error {
+// No-op (zero ExtractionResult) when the engine has no MemoryService
+// or the conversation is too short.
+func (e *Engine) MaybeExtract(ctx context.Context, sessionID string) (ExtractionResult, error) {
 	return e.extractor.maybeExtract(ctx, sessionID)
 }
 

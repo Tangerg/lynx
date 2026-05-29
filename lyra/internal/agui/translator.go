@@ -104,6 +104,17 @@ func (t *Translator) Translate(ev chat.Event) []Event {
 		return t.planAsCustom(e)
 	case chat.ToolCallApproval:
 		return t.approvalAsCustom(e)
+	case chat.CompactBoundary:
+		return t.maintenanceCustom("compact_boundary", map[string]any{
+			"runId":          t.runID,
+			"messagesBefore": e.MessagesBefore,
+			"messagesAfter":  e.MessagesAfter,
+		})
+	case chat.MemoryUpdated:
+		return t.maintenanceCustom("memory_updated", map[string]any{
+			"runId": t.runID,
+			"facts": e.Facts,
+		})
 	case chat.ErrorEvent:
 		return []Event{t.runError(e)}
 	case chat.TurnEnd:
@@ -206,6 +217,19 @@ func (t *Translator) approvalAsCustom(e chat.ToolCallApproval) []Event {
 			}),
 		),
 	}
+}
+
+// maintenanceCustom encodes a post-turn housekeeping event
+// (compaction boundary, memory update) as a standalone AG-UI
+// CustomEvent. It first closes any in-flight text / reasoning
+// stream — these fire after the assistant's reply is complete, so
+// the streams are done — keeping the wire balanced (every Start has
+// its End before the Custom lands). No Step bracket: these are
+// instantaneous notifications, not interactive phases.
+func (t *Translator) maintenanceCustom(name string, value map[string]any) []Event {
+	out := t.reasoning.closeIfOpen()
+	out = append(out, t.text.closeIfOpen()...)
+	return append(out, aguievents.NewCustomEvent(name, aguievents.WithValue(value)))
 }
 
 // runError lifts a chat.ErrorEvent into an AG-UI RunErrorEvent,

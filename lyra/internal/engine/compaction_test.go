@@ -69,11 +69,11 @@ func TestCompactor_NopBelowThreshold(t *testing.T) {
 		chat.NewAssistantMessage("b"),
 	)
 	c := newCompactor(store, nil /* never called */, CompactionConfig{MaxMessages: 10})
-	compacted, err := c.maybeCompact(context.Background(), sessID)
+	res, err := c.maybeCompact(context.Background(), sessID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if compacted {
+	if res.Compacted {
 		t.Error("below threshold should not compact")
 	}
 }
@@ -95,12 +95,15 @@ func TestCompactor_Compacts(t *testing.T) {
 	client, _ := chat.NewClient(stub)
 
 	c := newCompactor(store, client, CompactionConfig{MaxMessages: total, KeepRecent: 4})
-	compacted, err := c.maybeCompact(context.Background(), sessID)
+	res, err := c.maybeCompact(context.Background(), sessID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !compacted {
+	if !res.Compacted {
 		t.Fatal("expected compaction to fire")
+	}
+	if res.MessagesBefore != total || res.MessagesAfter != 5 {
+		t.Errorf("result counts = (%d → %d), want (%d → 5)", res.MessagesBefore, res.MessagesAfter, total)
 	}
 
 	after, _ := store.Read(context.Background(), sessID)
