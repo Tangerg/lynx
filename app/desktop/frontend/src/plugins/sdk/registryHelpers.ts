@@ -13,6 +13,23 @@
 
 import type { Owned } from "./registryState";
 
+// Immutable single-key update of a plain (non-Owned) Map field — the
+// `const next = new Map(prev); next.set/delete(...); return next` ritual
+// Zustand actions repeat for every Map-valued slot. Owned slots use the
+// {add,remove}Owned* helpers below; these two cover the registry's plain
+// bookkeeping Maps (loaded plugins, pending activations).
+export function mapSet<K, V>(map: Map<K, V>, key: K, value: V): Map<K, V> {
+  const next = new Map(map);
+  next.set(key, value);
+  return next;
+}
+
+export function mapDrop<K, V>(map: Map<K, V>, key: K): Map<K, V> {
+  const next = new Map(map);
+  next.delete(key);
+  return next;
+}
+
 export function addOwned<T>(
   map: Map<string, Owned<T>>,
   pluginName: string,

@@ -50,6 +50,8 @@ import {
   addOwned,
   addOwnedMulti,
   clearByPlugin,
+  mapDrop,
+  mapSet,
   removeOwned,
   removeOwnedMulti,
 } from "./registryHelpers";
@@ -193,9 +195,7 @@ export const usePluginStore = create<PluginStoreState & PluginStoreActions>((set
     ...freshState(),
 
     registerLoaded(plugin) {
-      const next = new Map(get().loaded);
-      next.set(plugin.spec.name, plugin);
-      set({ loaded: next });
+      set({ loaded: mapSet(get().loaded, plugin.spec.name, plugin) });
       for (const o of get().pluginLoadListeners.values()) {
         safeCall(() => o.value(plugin.spec), `[plugin] ${o.pluginName} onLoad listener threw:`);
       }
@@ -207,9 +207,7 @@ export const usePluginStore = create<PluginStoreState & PluginStoreActions>((set
       for (const d of plugin.disposables) {
         safeCall(() => d.dispose(), `[plugin] ${pluginName} dispose threw:`);
       }
-      const next = new Map(get().loaded);
-      next.delete(pluginName);
-      set({ loaded: next });
+      set({ loaded: mapDrop(get().loaded, pluginName) });
       for (const o of get().pluginUnloadListeners.values()) {
         safeCall(() => o.value(pluginName), `[plugin] ${o.pluginName} onUnload listener threw:`);
       }
@@ -331,14 +329,10 @@ export const usePluginStore = create<PluginStoreState & PluginStoreActions>((set
     },
 
     addPendingActivation(spec, events) {
-      const next = new Map(get().pendingActivations);
-      next.set(spec.name, { spec, events });
-      set({ pendingActivations: next });
+      set({ pendingActivations: mapSet(get().pendingActivations, spec.name, { spec, events }) });
     },
     removePendingActivation(name) {
-      const next = new Map(get().pendingActivations);
-      next.delete(name);
-      set({ pendingActivations: next });
+      set({ pendingActivations: mapDrop(get().pendingActivations, name) });
     },
 
     addDataProvider: dataProviders.add,
