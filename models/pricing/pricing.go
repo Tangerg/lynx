@@ -12,18 +12,19 @@
 package pricing
 
 import (
-	_ "embed"
+	"embed"
 	"encoding/json"
+	"io/fs"
 	"strings"
 
 	"github.com/Tangerg/lynx/core/model/chat"
 )
 
-//go:embed configs/anthropic.json
-var anthropicConfig []byte
-
-//go:embed configs/openai.json
-var openaiConfig []byte
+// configs holds one JSON file per provider. Adding a provider is just
+// dropping a configs/<provider>.json — no code change (glob embed).
+//
+//go:embed configs/*.json
+var configs embed.FS
 
 // entry is one model's row: its id plus the embedded rate card (the
 // chat.Pricing json tags flatten into the same JSON object).
@@ -37,19 +38,27 @@ type providerConfig struct {
 	Models   []entry `json:"models"`
 }
 
-// catalog maps provider -> model id -> rate card, built once from the
-// embedded configs.
-var catalog = mustLoad(anthropicConfig, openaiConfig)
+// catalog maps provider -> model id -> rate card, built once from every
+// embedded config.
+var catalog = mustLoad()
 
-func mustLoad(configs ...[]byte) map[string]map[string]chat.Pricing {
-	out := make(map[string]map[string]chat.Pricing, len(configs))
-	for _, raw := range configs {
+func mustLoad() map[string]map[string]chat.Pricing {
+	files, err := fs.Glob(configs, "configs/*.json")
+	if err != nil {
+		panic("pricing: glob configs: " + err.Error())
+	}
+	out := make(map[string]map[string]chat.Pricing, len(files))
+	for _, name := range files {
+		raw, err := configs.ReadFile(name)
+		if err != nil {
+			panic("pricing: read " + name + ": " + err.Error())
+		}
 		var cfg providerConfig
 		if err := json.Unmarshal(raw, &cfg); err != nil {
 			// Embedded, compile-time data — a parse failure is a build
 			// error in our own configs, so fail fast (mirrors
 			// regexp.MustCompile). Tests cover the configs parsing.
-			panic("pricing: invalid embedded config: " + err.Error())
+			panic("pricing: invalid config " + name + ": " + err.Error())
 		}
 		byModel := make(map[string]chat.Pricing, len(cfg.Models))
 		for _, e := range cfg.Models {

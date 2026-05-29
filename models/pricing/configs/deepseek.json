@@ -1,0 +1,17 @@
+{
+  "provider": "deepseek",
+  "models": [
+    {
+      "id": "deepseek-v4-flash",
+      "input_per_1m": 0.14,
+      "output_per_1m": 0.28,
+      "cache_read_per_1m": 0.0028
+    },
+    {
+      "id": "deepseek-v4-pro",
+      "input_per_1m": 0.435,
+      "output_per_1m": 0.87,
+      "cache_read_per_1m": 0.003625
+    }
+  ]
+}

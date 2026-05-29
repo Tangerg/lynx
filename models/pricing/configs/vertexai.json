@@ -1,0 +1,76 @@
+{
+  "provider": "vertexai",
+  "models": [
+    {
+      "id": "gemini-3.1-pro-preview",
+      "input_per_1m": 2.0,
+      "output_per_1m": 12.0,
+      "cache_read_per_1m": 0.2
+    },
+    {
+      "id": "gemini-3.1-pro-preview-customtools",
+      "input_per_1m": 2.0,
+      "output_per_1m": 12.0,
+      "cache_read_per_1m": 0.2
+    },
+    {
+      "id": "gemini-3-pro-preview",
+      "input_per_1m": 2.0,
+      "output_per_1m": 12.0,
+      "cache_read_per_1m": 0.2
+    },
+    {
+      "id": "gemini-3-flash-preview",
+      "input_per_1m": 0.5,
+      "output_per_1m": 3.0,
+      "cache_read_per_1m": 0.05
+    },
+    {
+      "id": "gemini-2.5-pro",
+      "input_per_1m": 1.25,
+      "output_per_1m": 10.0,
+      "cache_read_per_1m": 0.125
+    },
+    {
+      "id": "gemini-2.5-flash",
+      "input_per_1m": 0.3,
+      "output_per_1m": 2.5,
+      "cache_read_per_1m": 0.03
+    },
+    {
+      "id": "claude-sonnet-4-6",
+      "input_per_1m": 3.0,
+      "output_per_1m": 15.0,
+      "cache_read_per_1m": 0.3,
+      "cache_write_per_1m": 3.75
+    },
+    {
+      "id": "claude-sonnet-4-5-20250929",
+      "input_per_1m": 3.0,
+      "output_per_1m": 15.0,
+      "cache_read_per_1m": 0.3,
+      "cache_write_per_1m": 3.75
+    },
+    {
+      "id": "claude-opus-4-6",
+      "input_per_1m": 5.0,
+      "output_per_1m": 25.0,
+      "cache_read_per_1m": 0.5,
+      "cache_write_per_1m": 6.25
+    },
+    {
+      "id": "claude-opus-4-5-20251101",
+      "input_per_1m": 5.0,
+      "output_per_1m": 25.0,
+      "cache_read_per_1m": 0.5,
+      "cache_write_per_1m": 6.25
+    },
+    {
+      "id": "claude-haiku-4-5-20251001",
+      "input_per_1m": 1.0,
+      "output_per_1m": 5.0,
+      "cache_read_per_1m": 0.1,
+      "cache_write_per_1m": 1.25
+    }
+  ]
+}
