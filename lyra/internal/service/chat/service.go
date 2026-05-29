@@ -254,10 +254,11 @@ type MemoryUpdated struct {
 // turn (sum across every LLM call inside it).
 type TurnEnd struct {
 	BaseEvent
-	Reason     TurnEndReason
-	TokenUsage TokenUsage
-	CostUSD    float64 // M-future — per-provider pricing table required
-	Duration   time.Duration
+	Reason       TurnEndReason
+	TokenUsage   TokenUsage
+	UsageByModel []ModelUsage // per-model breakdown; one entry for a single-model turn
+	CostUSD      float64      // M-future — per-provider pricing table required
+	Duration     time.Duration
 }
 
 // ErrorEvent fires when an unrecoverable error aborts the turn. The
@@ -328,3 +329,8 @@ func (r TurnEndReason) String() string {
 // the chat package re-exports it so transport adapters can stay
 // scoped to one import.
 type TokenUsage = engine.TokenUsage
+
+// ModelUsage is the per-model token breakdown re-exported from the
+// engine, so transport adapters consuming [TurnEnd.UsageByModel] stay
+// scoped to one import.
+type ModelUsage = engine.ModelUsage

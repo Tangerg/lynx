@@ -23,12 +23,21 @@ type ChatInput struct {
 	MaxBudget int64
 }
 
-// ChatOutput is the typed output of one turn. Reply is the
-// assistant's final text; Usage is the per-turn token roll-up
-// summed across every LLM round in the tool loop.
+// ChatOutput is the typed output of one turn. Reply is the assistant's
+// final text. Usage / UsageByModel are read back from the process
+// budget — the agent framework's invocation ledger — rather than a
+// hand-rolled tally: the action records each LLM round via
+// [core.ProcessContext.RecordLLMInvocation], and these fields are the
+// rolled-up view.
 type ChatOutput struct {
 	Reply string
 	Usage TokenUsage
+
+	// UsageByModel breaks Usage down per served model — the lynx analog
+	// of the SDK's modelUsage. One entry for a plain single-model turn;
+	// several once a turn spans models (tool rounds routed elsewhere,
+	// sub-agents).
+	UsageByModel []ModelUsage
 
 	// StoppedOnBudget is true when the turn ended because it hit
 	// [ChatInput.MaxBudget] rather than the model finishing. Reply
@@ -36,34 +45,25 @@ type ChatOutput struct {
 	StoppedOnBudget bool
 }
 
-// TokenUsage is the per-turn token total — sum across every LLM
-// round in the tool loop. ReasoningTokens stays zero for providers
-// that don't report it (it's a subset of CompletionTokens, not an
-// addition).
+// TokenUsage is a token roll-up. ReasoningTokens is the chain-of-thought
+// subset of CompletionTokens (not an addition), so total counts only
+// prompt + completion.
 type TokenUsage struct {
 	PromptTokens     int64
 	CompletionTokens int64
 	ReasoningTokens  int64
 }
 
-// add folds one round's [chat.Usage] into the running per-turn
-// total. nil usage is a no-op so callers don't need a guard.
-func (t *TokenUsage) add(u *chat.Usage) {
-	if u == nil {
-		return
-	}
-	t.PromptTokens += u.PromptTokens
-	t.CompletionTokens += u.CompletionTokens
-	if u.ReasoningTokens != nil {
-		t.ReasoningTokens += *u.ReasoningTokens
-	}
-}
-
 // total is prompt + completion — the figure a token budget caps.
-// ReasoningTokens is a subset of CompletionTokens (not an addition),
-// so it's already counted.
 func (t TokenUsage) total() int64 {
 	return t.PromptTokens + t.CompletionTokens
+}
+
+// ModelUsage is one model's slice of a turn's tokens — the lynx analog
+// of an SDK modelUsage map entry.
+type ModelUsage struct {
+	Model string
+	TokenUsage
 }
 
 // buildChatAgent constructs the chat agent owned by this Engine.
@@ -102,30 +102,40 @@ func (e *Engine) buildChatAgent() *core.Agent {
 
 				var (
 					accumulated strings.Builder
-					totals      TokenUsage
 					roundUsage  *chat.Usage
+					roundModel  string
 				)
+				// recordRound commits the just-finished LLM round to the
+				// process budget via the framework's invocation ledger;
+				// usage is read back from there, not tallied locally.
+				recordRound := func() {
+					if roundUsage == nil {
+						return
+					}
+					pc.RecordLLMInvocation(invocationFrom(roundModel, roundUsage))
+					roundUsage, roundModel = nil, ""
+				}
 				for chunk, streamErr := range stream.Response(ctx) {
 					if streamErr != nil {
 						return ChatOutput{}, streamErr
 					}
 					if isToolRoundBoundary(chunk) {
-						totals.add(roundUsage)
-						roundUsage = nil
+						recordRound()
 						// Enforce the per-turn token budget at the round
-						// boundary — stop here, before the next LLM call,
-						// rather than after paying for it. Returning ends
-						// the stream iterator (no further rounds run).
-						if in.MaxBudget > 0 && totals.total() >= in.MaxBudget {
-							return ChatOutput{
-								Reply:           accumulated.String(),
-								Usage:           totals,
-								StoppedOnBudget: true,
-							}, nil
+						// boundary — stop before the next LLM call. The
+						// running total comes from the process budget the
+						// recordRound above just updated.
+						if in.MaxBudget > 0 && processTokens(pc) >= in.MaxBudget {
+							return chatOutput(pc, accumulated.String(), true), nil
 						}
 					}
-					if chunk != nil && chunk.Metadata != nil && chunk.Metadata.Usage != nil {
-						roundUsage = chunk.Metadata.Usage
+					if chunk != nil && chunk.Metadata != nil {
+						if chunk.Metadata.Usage != nil {
+							roundUsage = chunk.Metadata.Usage
+						}
+						if chunk.Metadata.Model != "" {
+							roundModel = chunk.Metadata.Model
+						}
 					}
 					if observer != nil {
 						if reasoning := extractReasoningDelta(chunk); reasoning != "" {
@@ -141,8 +151,8 @@ func (e *Engine) buildChatAgent() *core.Agent {
 						observer.OnMessageDelta(delta)
 					}
 				}
-				totals.add(roundUsage)
-				return ChatOutput{Reply: accumulated.String(), Usage: totals}, nil
+				recordRound()
+				return chatOutput(pc, accumulated.String(), false), nil
 			},
 			core.ActionConfig{
 				ToolGroups: core.ToolRolesFor(ToolRoleCoding),
@@ -160,6 +170,64 @@ func (e *Engine) buildChatAgent() *core.Agent {
 			Description: "single-turn reply produced",
 		})).
 		Build()
+}
+
+// invocationFrom maps a streamed round's usage + served model to the
+// framework's [core.LLMInvocation]. Cost stays zero — the chat layer
+// gets no per-call dollar figure from the provider here; a pricing
+// layer can populate it later without touching this mapping.
+func invocationFrom(model string, u *chat.Usage) core.LLMInvocation {
+	inv := core.LLMInvocation{
+		Model:            model,
+		Action:           "chat",
+		PromptTokens:     u.PromptTokens,
+		CompletionTokens: u.CompletionTokens,
+	}
+	if u.ReasoningTokens != nil {
+		inv.ReasoningTokens = *u.ReasoningTokens
+	}
+	if u.CacheReadInputTokens != nil {
+		inv.CacheReadInputTokens = *u.CacheReadInputTokens
+	}
+	if u.CacheWriteInputTokens != nil {
+		inv.CacheWriteInputTokens = *u.CacheWriteInputTokens
+	}
+	return inv
+}
+
+// processTokens is the running prompt+completion total the process
+// budget has aggregated from recorded invocations so far.
+func processTokens(pc *core.ProcessContext) int64 {
+	_, tokens, _ := pc.Process.Usage()
+	return int64(tokens)
+}
+
+// chatOutput assembles the turn result from the process budget's
+// invocation ledger: the total roll-up plus a per-model breakdown
+// (insertion order preserved). Reading from the ledger — rather than a
+// local tally — is the point: lyra uses the framework's accounting.
+func chatOutput(pc *core.ProcessContext, reply string, stoppedOnBudget bool) ChatOutput {
+	out := ChatOutput{Reply: reply, StoppedOnBudget: stoppedOnBudget}
+	byModel := map[string]*ModelUsage{}
+	var order []string
+	for _, inv := range pc.Process.LLMInvocations() {
+		out.Usage.PromptTokens += inv.PromptTokens
+		out.Usage.CompletionTokens += inv.CompletionTokens
+		out.Usage.ReasoningTokens += inv.ReasoningTokens
+		m := byModel[inv.Model]
+		if m == nil {
+			m = &ModelUsage{Model: inv.Model}
+			byModel[inv.Model] = m
+			order = append(order, inv.Model)
+		}
+		m.PromptTokens += inv.PromptTokens
+		m.CompletionTokens += inv.CompletionTokens
+		m.ReasoningTokens += inv.ReasoningTokens
+	}
+	for _, model := range order {
+		out.UsageByModel = append(out.UsageByModel, *byModel[model])
+	}
+	return out
 }
 
 // extractTextDelta pulls the text the model emitted in this chunk

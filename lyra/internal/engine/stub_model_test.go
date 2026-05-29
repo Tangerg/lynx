@@ -169,10 +169,20 @@ func (m *usageStubModel) DefaultOptions() chat.Options { return *m.defaults }
 func (m *usageStubModel) Metadata() chat.ModelMetadata { return chat.ModelMetadata{Provider: "stub"} }
 
 func (m *usageStubModel) Call(_ context.Context, req *chat.Request) (*chat.Response, error) {
+	var (
+		resp *chat.Response
+		err  error
+	)
 	if hasToolMessage(req.Messages) {
-		return responseWithTextAndUsage("done", m.round2Usage)
+		resp, err = responseWithTextAndUsage("done", m.round2Usage)
+	} else {
+		resp, err = responseWithToolCallAndUsage("bash", `{"command":"echo lyra"}`, m.round1Usage)
 	}
-	return responseWithToolCallAndUsage("bash", `{"command":"echo lyra"}`, m.round1Usage)
+	// Stamp the served model so per-model usage roll-up is exercised.
+	if resp != nil && resp.Metadata != nil {
+		resp.Metadata.Model = "stub-usage-model"
+	}
+	return resp, err
 }
 
 func (m *usageStubModel) Stream(ctx context.Context, req *chat.Request) iter.Seq2[*chat.Response, error] {
