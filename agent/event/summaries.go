@@ -69,7 +69,7 @@ func summarizePlan(p *planning.Plan) *planSummary {
 // the condition map and the snapshot timestamp.
 type worldSnapshot struct {
 	State     map[string]core.Determination `json:"state,omitempty"`
-	Timestamp time.Time                     `json:"timestamp,omitempty"`
+	Timestamp time.Time                     `json:"timestamp,omitzero"`
 }
 
 func snapshotWorld(ws core.WorldState) *worldSnapshot {
