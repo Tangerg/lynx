@@ -88,6 +88,19 @@ describe("RpcClient", () => {
     await expect(client.call("runtime.ping")).rejects.toBeInstanceOf(RpcTransportError);
   });
 
+  it("rejects in-flight calls when the transport stream ends cleanly", async () => {
+    // Close the transport directly (not via client.close()), simulating a
+    // remote/clean EOS while a request is in flight. recv() completes
+    // without throwing — the pump must still settle the pending call.
+    const t = createMemoryTransport();
+    const client = createRpcClient(t);
+    const promise = client.call("runtime.ping");
+    await waitForRequest(t, "runtime.ping");
+
+    await t.close();
+    await expect(promise).rejects.toBeInstanceOf(RpcTransportError);
+  });
+
   it("AbortSignal cancels in-flight call and emits notifications/cancelled", async () => {
     const t = createMemoryTransport();
     const client = createRpcClient(t);

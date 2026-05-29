@@ -44,18 +44,25 @@ export function createRpcClient(transport: Transport): RpcClient {
   const subscribers = new Map<string, Set<NotificationHandler>>();
   let closed = false;
 
+  function failAllPending(failure: RpcTransportError): void {
+    for (const { reject } of pending.values()) reject(failure);
+    pending.clear();
+  }
+
   // Long-running pump that drains the transport's recv() into pending
-  // promises + subscribers. Errors here are unrecoverable — we settle
-  // every pending request with RpcTransportError and bail out.
+  // promises + subscribers. When the stream ends — whether it throws or
+  // closes cleanly — no further Responses can arrive, so every in-flight
+  // request must be settled (rejected). Handling only the throw path left
+  // pending calls hung forever on a clean EOS (e.g. a future WebSocket /
+  // InProcess transport whose recv() ends without an exception).
   void (async () => {
     try {
       for await (const msg of transport.recv()) {
         dispatchInbound(msg);
       }
+      failAllPending(new RpcTransportError("transport stream ended"));
     } catch (err) {
-      const failure = new RpcTransportError(`transport recv() failed: ${(err as Error).message}`);
-      for (const { reject } of pending.values()) reject(failure);
-      pending.clear();
+      failAllPending(new RpcTransportError(`transport recv() failed: ${(err as Error).message}`));
     }
   })();
 
@@ -100,11 +107,6 @@ export function createRpcClient(transport: Transport): RpcClient {
     };
 
     return new Promise<R>((resolve, reject) => {
-      pending.set(id, {
-        resolve: resolve as (value: unknown) => void,
-        reject,
-      });
-
       // AbortSignal hooks — cancel locally + send notifications/cancelled
       // so the runtime stops working on it (docs/API.md §2.4).
       const onAbort = () => {
@@ -120,6 +122,21 @@ export function createRpcClient(transport: Transport): RpcClient {
           .catch(() => undefined);
         reject(new RpcTransportError("aborted"));
       };
+      // Detach the abort listener once the request settles by any path —
+      // otherwise a long-lived / shared signal accumulates one dead
+      // listener per completed call ({ once: true } only fires on abort).
+      const detach = () => signal?.removeEventListener("abort", onAbort);
+      pending.set(id, {
+        resolve: (value) => {
+          detach();
+          (resolve as (v: unknown) => void)(value);
+        },
+        reject: (err) => {
+          detach();
+          reject(err);
+        },
+      });
+
       if (signal) {
         if (signal.aborted) {
           onAbort();
@@ -131,6 +148,7 @@ export function createRpcClient(transport: Transport): RpcClient {
       transport.send(req, signal).catch((err) => {
         if (!pending.has(id)) return; // already aborted/settled
         pending.delete(id);
+        detach();
         reject(err);
       });
     });
@@ -164,9 +182,7 @@ export function createRpcClient(transport: Transport): RpcClient {
   async function close(): Promise<void> {
     if (closed) return;
     closed = true;
-    const failure = new RpcTransportError("client closed");
-    for (const { reject } of pending.values()) reject(failure);
-    pending.clear();
+    failAllPending(new RpcTransportError("client closed"));
     subscribers.clear();
     await transport.close();
   }
