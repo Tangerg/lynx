@@ -121,8 +121,22 @@ func (p *AgentProcess) runWithRetry(
 	processContext *core.ProcessContext,
 	qos core.ActionQoS,
 ) (status core.ActionStatus, replan *core.ReplanRequest, attempts int, lastErr error) {
+	effects := action.Metadata().Effects
 	op := func() error {
 		attempts++
+
+		// On a retry (any attempt after the first), clear this action's
+		// declared effect conditions so a half-applied effect from the
+		// failed attempt doesn't poison the next one. Mirrors embabel's
+		// AbstractAgentProcess retry (effects.forEach { setCondition(it,
+		// false) } when retryCount > 0). The hasRun key is only promoted on
+		// success after the loop, so clearing it here is a harmless no-op.
+		if attempts > 1 {
+			for key := range effects {
+				p.blackboard.SetCondition(key, false)
+			}
+		}
+
 		processContext.ResetError()
 
 		status = processContext.ExecuteSafely(ctx, action)
