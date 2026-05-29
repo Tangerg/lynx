@@ -108,8 +108,8 @@ func (a *App) ensureRuntime(ctx context.Context) error {
 
 	rt, err := lyraruntime.New(ctx, lyraruntime.Config{
 		ChatClient:     client,
-		Online:         config.EngineOnline(cfg),
-		MCPServers:     config.EngineMCPServers(cfg),
+		Online:         cfg.Online,
+		MCPServers:     cfg.MCPServers,
 		MemoryStore:    msgStore,
 		MemoryService:  memSvc,
 		SessionService: sessionSvc,
