@@ -86,7 +86,10 @@ func (c *StoreConfig) ApplyDefaults() {
 	}
 }
 
-var _ vectorstore.Store = (*Store)(nil)
+var (
+	_ vectorstore.Store     = (*Store)(nil)
+	_ vectorstore.IDDeleter = (*Store)(nil)
+)
 
 type Store struct {
 	client               *qdrant.Client
@@ -414,6 +417,36 @@ func (v *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) (err
 	})
 	if err != nil {
 		return fmt.Errorf("qdrant: failed to delete points from collection %s: %w", v.collectionName, err)
+	}
+
+	return nil
+}
+
+// DeleteByIDs removes points by their Qdrant point ids. Each id is the
+// UUID surfaced as document.ID by Retrieve (buildPointStruct assigns a
+// fresh UUID via qdrant.NewID, and buildDocumentsFromPoints reads it back
+// out), so the same qdrant.NewID conversion maps an id back to a *PointId.
+// An empty slice is a no-op; unknown ids are silently ignored (idempotent).
+// Implements [vectorstore.IDDeleter].
+func (v *Store) DeleteByIDs(ctx context.Context, ids []string) (err error) {
+	if len(ids) == 0 {
+		return nil
+	}
+
+	ctx, span := tracing.StartDelete(ctx, "qdrant")
+	defer func() { tracing.Finish(span, err) }()
+
+	pointIDs := make([]*qdrant.PointId, len(ids))
+	for i, id := range ids {
+		pointIDs[i] = qdrant.NewID(id)
+	}
+
+	_, err = v.client.Delete(ctx, &qdrant.DeletePoints{
+		CollectionName: v.collectionName,
+		Points:         qdrant.NewPointsSelector(pointIDs...),
+	})
+	if err != nil {
+		return fmt.Errorf("qdrant: failed to delete points by ids from collection %s: %w", v.collectionName, err)
 	}
 
 	return nil

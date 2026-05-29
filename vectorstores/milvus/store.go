@@ -99,7 +99,10 @@ func (c *StoreConfig) ApplyDefaults() {
 	}
 }
 
-var _ vectorstore.Store = (*Store)(nil)
+var (
+	_ vectorstore.Store     = (*Store)(nil)
+	_ vectorstore.IDDeleter = (*Store)(nil)
+)
 
 type Store struct {
 	client               *milvusclient.Client
@@ -386,6 +389,25 @@ func (v *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) (err
 	_, err = v.client.Delete(ctx, milvusclient.NewDeleteOption(v.collectionName).WithExpr(filterExpr))
 	if err != nil {
 		return fmt.Errorf("milvus: failed to delete from collection %s: %w", v.collectionName, err)
+	}
+
+	return nil
+}
+
+// DeleteByIDs removes rows by primary key. WithStringIDs compiles to the
+// expr `id in ["a","b"]`, so unknown ids are silently ignored (idempotent).
+// An empty slice is a no-op. Implements [vectorstore.IDDeleter].
+func (v *Store) DeleteByIDs(ctx context.Context, ids []string) (err error) {
+	if len(ids) == 0 {
+		return nil
+	}
+
+	ctx, span := tracing.StartDelete(ctx, "milvus")
+	defer func() { tracing.Finish(span, err) }()
+
+	_, err = v.client.Delete(ctx, milvusclient.NewDeleteOption(v.collectionName).WithStringIDs(fieldID, ids))
+	if err != nil {
+		return fmt.Errorf("milvus: failed to delete by ids from collection %s: %w", v.collectionName, err)
 	}
 
 	return nil

@@ -141,7 +141,10 @@ func (c *StoreConfig) ApplyDefaults() {
 	c.Similarity = cmp.Or(c.Similarity, SimilarityCosine)
 }
 
-var _ vectorstore.Store = (*Store)(nil)
+var (
+	_ vectorstore.Store     = (*Store)(nil)
+	_ vectorstore.IDDeleter = (*Store)(nil)
+)
 
 // Store is a Neo4j-backed [vectorstore.Store] implementation. Each
 // document maps onto a node carrying the configured label and a flat
@@ -484,6 +487,31 @@ func (s *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) (err
 		_, err := tx.Run(ctx, cypher, params)
 		return nil, err
 	})
+}
+
+// DeleteByIDs removes nodes by document id — `MATCH ... WHERE n.<id> IN
+// $ids DETACH DELETE n`. An empty slice is a no-op; unknown ids are
+// silently ignored (idempotent). Implements [vectorstore.IDDeleter].
+func (s *Store) DeleteByIDs(ctx context.Context, ids []string) (err error) {
+	if len(ids) == 0 {
+		return nil
+	}
+
+	ctx, span := tracing.StartDelete(ctx, "neo4j")
+	defer func() { tracing.Finish(span, err) }()
+
+	cypher := fmt.Sprintf(
+		"MATCH (n:`%s`) WHERE n.`%s` IN $ids DETACH DELETE n",
+		s.label, s.idProperty,
+	)
+
+	if err = s.write(ctx, func(tx neo4j.ManagedTransaction) (any, error) {
+		_, runErr := tx.Run(ctx, cypher, map[string]any{"ids": ids})
+		return nil, runErr
+	}); err != nil {
+		return fmt.Errorf("neo4j: delete by ids: %w", err)
+	}
+	return nil
 }
 
 // buildPredicate converts the optional filter into a Cypher WHERE

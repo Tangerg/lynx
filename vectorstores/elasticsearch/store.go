@@ -136,7 +136,10 @@ func (c *StoreConfig) ApplyDefaults() {
 	}
 }
 
-var _ vectorstore.Store = (*Store)(nil)
+var (
+	_ vectorstore.Store     = (*Store)(nil)
+	_ vectorstore.IDDeleter = (*Store)(nil)
+)
 
 // Store is an Elasticsearch-backed implementation of
 // [vectorstore.Store]. It uses the dense_vector field type and the
@@ -474,6 +477,44 @@ func (s *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) (err
 	return nil
 }
 
+// DeleteByIDs removes documents by their _id via a single bulk request
+// carrying one delete action per id. An empty slice is a no-op; unknown
+// ids are silently ignored (the bulk delete reports `not_found` rather
+// than an error). Implements [vectorstore.IDDeleter].
+func (s *Store) DeleteByIDs(ctx context.Context, ids []string) (err error) {
+	if len(ids) == 0 {
+		return nil
+	}
+
+	ctx, span := tracing.StartDelete(ctx, "elasticsearch")
+	defer func() { tracing.Finish(span, err) }()
+
+	var body bytes.Buffer
+	for _, id := range ids {
+		var actionLine []byte
+		actionLine, err = json.Marshal(map[string]any{
+			"delete": map[string]any{
+				"_index": s.indexName,
+				"_id":    id,
+			},
+		})
+		if err != nil {
+			return fmt.Errorf("elasticsearch: encode bulk delete action: %w", err)
+		}
+		body.Write(actionLine)
+		body.WriteByte('\n')
+	}
+
+	resp, err := s.client.Bulk(
+		bytes.NewReader(body.Bytes()),
+		s.client.Bulk.WithContext(ctx),
+	)
+	if err != nil {
+		return fmt.Errorf("elasticsearch: bulk delete: %w", err)
+	}
+	return parseBulkDeleteResponse(resp)
+}
+
 // buildFilterQuery converts the AST filter into a Lucene query string
 // for `query_string`. Returns "" when filter is nil.
 func (s *Store) buildFilterQuery(filter ast.Expr) (string, error) {
@@ -625,6 +666,50 @@ func parseBulkResponse(resp *esapi.Response) error {
 		firstErr = "unknown error"
 	}
 	return fmt.Errorf("elasticsearch: bulk failed on id=%s: %s", failedID, firstErr)
+}
+
+// bulkDeleteResponse mirrors the slice of a bulk response whose items
+// carry a `delete` action. A missing id surfaces as status 404 with no
+// error object, which is treated as success (idempotent delete).
+type bulkDeleteResponse struct {
+	Errors bool `json:"errors"`
+	Items  []struct {
+		Delete *struct {
+			ID     string         `json:"_id"`
+			Status int            `json:"status"`
+			Error  map[string]any `json:"error"`
+		} `json:"delete"`
+	} `json:"items"`
+}
+
+func parseBulkDeleteResponse(resp *esapi.Response) error {
+	defer resp.Body.Close()
+	if resp.IsError() {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("elasticsearch: bulk delete: status=%d body=%s",
+			resp.StatusCode, string(body))
+	}
+	var parsed bulkDeleteResponse
+	if err := json.NewDecoder(resp.Body).Decode(&parsed); err != nil {
+		return fmt.Errorf("elasticsearch: decode bulk delete response: %w", err)
+	}
+	if !parsed.Errors {
+		return nil
+	}
+	var firstErr, failedID string
+	for _, item := range parsed.Items {
+		if item.Delete != nil && item.Delete.Error != nil {
+			failedID = item.Delete.ID
+			if reason, ok := item.Delete.Error["reason"].(string); ok {
+				firstErr = reason
+			}
+			break
+		}
+	}
+	if firstErr == "" {
+		firstErr = "unknown error"
+	}
+	return fmt.Errorf("elasticsearch: bulk delete failed on id=%s: %s", failedID, firstErr)
 }
 
 // jsonReader marshals v to JSON and returns it as an io.Reader.

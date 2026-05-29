@@ -207,7 +207,10 @@ func (c *StoreConfig) ApplyDefaults() {
 	}
 }
 
-var _ vectorstore.Store = (*Store)(nil)
+var (
+	_ vectorstore.Store     = (*Store)(nil)
+	_ vectorstore.IDDeleter = (*Store)(nil)
+)
 
 // Store is a Redis-backed implementation of [vectorstore.Store]. It
 // stores documents as Redis HASHes and queries them through RediSearch
@@ -575,6 +578,28 @@ func (s *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) (err
 			return nil
 		}
 	}
+}
+
+// DeleteByIDs removes documents by id, resolving each to its HASH key
+// `<KeyPrefix><id>` and issuing a single DEL. An empty slice is a
+// no-op; unknown ids are silently ignored (idempotent). Implements
+// [vectorstore.IDDeleter].
+func (s *Store) DeleteByIDs(ctx context.Context, ids []string) (err error) {
+	if len(ids) == 0 {
+		return nil
+	}
+
+	ctx, span := tracing.StartDelete(ctx, "redis")
+	defer func() { tracing.Finish(span, err) }()
+
+	keys := make([]string, len(ids))
+	for i, id := range ids {
+		keys[i] = s.keyPrefix + id
+	}
+	if _, err = s.client.Del(ctx, keys...).Result(); err != nil {
+		return fmt.Errorf("redis: DEL: %w", err)
+	}
+	return nil
 }
 
 // buildFilterQuery turns the optional ast.Expr filter into a

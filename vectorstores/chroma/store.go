@@ -98,7 +98,10 @@ func (c *StoreConfig) ApplyDefaults() {
 	}
 }
 
-var _ vectorstore.Store = (*Store)(nil)
+var (
+	_ vectorstore.Store     = (*Store)(nil)
+	_ vectorstore.IDDeleter = (*Store)(nil)
+)
 
 // Store is a Chroma-backed implementation of vectorstore.Store.
 type Store struct {
@@ -438,6 +441,30 @@ func (v *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) (err
 
 	if err = v.collection.Delete(ctx, opts...); err != nil {
 		return fmt.Errorf("chroma: failed to delete documents from collection %s: %w",
+			v.collectionName, err)
+	}
+
+	return nil
+}
+
+// DeleteByIDs removes documents from the collection by their Chroma IDs.
+// An empty slice is a no-op; unknown ids are silently ignored. Implements
+// [vectorstore.IDDeleter].
+func (v *Store) DeleteByIDs(ctx context.Context, ids []string) (err error) {
+	if len(ids) == 0 {
+		return nil
+	}
+
+	ctx, span := tracing.StartDelete(ctx, "chroma")
+	defer func() { tracing.Finish(span, err) }()
+
+	docIDs := make([]v2.DocumentID, len(ids))
+	for i, id := range ids {
+		docIDs[i] = v2.DocumentID(id)
+	}
+
+	if err = v.collection.Delete(ctx, v2.WithIDs(docIDs...)); err != nil {
+		return fmt.Errorf("chroma: failed to delete documents by ids from collection %s: %w",
 			v.collectionName, err)
 	}
 

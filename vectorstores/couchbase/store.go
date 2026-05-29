@@ -146,7 +146,10 @@ func (c *StoreConfig) ApplyDefaults() {
 	c.IndexOptimization = cmp.Or(c.IndexOptimization, DefaultIndexOptimize)
 }
 
-var _ vectorstore.Store = (*Store)(nil)
+var (
+	_ vectorstore.Store     = (*Store)(nil)
+	_ vectorstore.IDDeleter = (*Store)(nil)
+)
 
 // Store is a Couchbase Search Service backed [vectorstore.Store].
 type Store struct {
@@ -446,6 +449,30 @@ func (s *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) (err
 	)
 	if _, err := s.scope.Query(stmt, &gocb.QueryOptions{Context: ctx}); err != nil {
 		return fmt.Errorf("couchbase: delete: %w", err)
+	}
+	return nil
+}
+
+// DeleteByIDs removes documents by their KV key. Create upserts each
+// document under its id as the document key (see [Store.Create]), so the
+// id is the KV key here too. An empty slice is a no-op; a per-key
+// "document not found" error is treated as success so repeated deletes
+// stay idempotent. Implements [vectorstore.IDDeleter].
+func (s *Store) DeleteByIDs(ctx context.Context, ids []string) (err error) {
+	if len(ids) == 0 {
+		return nil
+	}
+
+	ctx, span := tracing.StartDelete(ctx, "couchbase")
+	defer func() { tracing.Finish(span, err) }()
+
+	for _, id := range ids {
+		if _, removeErr := s.collection.Remove(id, &gocb.RemoveOptions{Context: ctx}); removeErr != nil {
+			if errors.Is(removeErr, gocb.ErrDocumentNotFound) {
+				continue
+			}
+			return fmt.Errorf("couchbase: remove %s: %w", id, removeErr)
+		}
 	}
 	return nil
 }

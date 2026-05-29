@@ -3,11 +3,14 @@ package weaviate
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"net/http"
 
 	"github.com/go-openapi/strfmt"
 	"github.com/google/uuid"
 	"github.com/weaviate/weaviate-go-client/v5/weaviate"
+	"github.com/weaviate/weaviate-go-client/v5/weaviate/fault"
 	"github.com/weaviate/weaviate-go-client/v5/weaviate/filters"
 	"github.com/weaviate/weaviate-go-client/v5/weaviate/graphql"
 	"github.com/weaviate/weaviate/entities/models"
@@ -97,7 +100,10 @@ func (c *StoreConfig) ApplyDefaults() {
 	}
 }
 
-var _ vectorstore.Store = (*Store)(nil)
+var (
+	_ vectorstore.Store     = (*Store)(nil)
+	_ vectorstore.IDDeleter = (*Store)(nil)
+)
 
 type Store struct {
 	client               *weaviate.Client
@@ -410,6 +416,42 @@ func (v *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) (err
 		Do(ctx)
 	if err != nil {
 		return fmt.Errorf("weaviate: failed to delete from class %s: %w", v.className, err)
+	}
+
+	return nil
+}
+
+// DeleteByIDs removes objects by their Weaviate object UUID. The ids are
+// the same identifiers surfaced as document.ID by Retrieve (the object's
+// `_additional.id`), since Create assigns each object a UUID that becomes
+// its primary key. An empty slice is a no-op; unknown ids are silently
+// ignored (Weaviate's per-object Deleter is idempotent). Implements
+// [vectorstore.IDDeleter].
+//
+// One `db.vector.delete weaviate` span per call.
+func (v *Store) DeleteByIDs(ctx context.Context, ids []string) (err error) {
+	if len(ids) == 0 {
+		return nil
+	}
+
+	ctx, span := tracing.StartDelete(ctx, "weaviate")
+	defer func() { tracing.Finish(span, err) }()
+
+	for _, id := range ids {
+		if delErr := v.client.Data().Deleter().
+			WithClassName(v.className).
+			WithID(id).
+			Do(ctx); delErr != nil {
+			// A missing object yields a 404; treat unknown ids as a no-op
+			// so the operation stays idempotent.
+			var clientErr *fault.WeaviateClientError
+			if errors.As(delErr, &clientErr) && clientErr.StatusCode == http.StatusNotFound {
+				continue
+			}
+			err = fmt.Errorf("weaviate: failed to delete object %s from class %s: %w",
+				id, v.className, delErr)
+			return err
+		}
 	}
 
 	return nil

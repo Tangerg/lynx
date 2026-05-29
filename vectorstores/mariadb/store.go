@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/google/uuid"
 
@@ -131,7 +132,10 @@ func (c *StoreConfig) ApplyDefaults() {
 	c.DistanceMetric = cmp.Or(c.DistanceMetric, DefaultDistanceMetric)
 }
 
-var _ vectorstore.Store = (*Store)(nil)
+var (
+	_ vectorstore.Store     = (*Store)(nil)
+	_ vectorstore.IDDeleter = (*Store)(nil)
+)
 
 // Store is a MariaDB-backed [vectorstore.Store] implementation using
 // the VECTOR column type and vec_distance_* functions introduced in
@@ -406,6 +410,32 @@ func (s *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) (err
 	stmt := fmt.Sprintf("DELETE FROM %s WHERE %s", s.fullTable, predicate)
 	if _, err := s.db.ExecContext(ctx, stmt, args...); err != nil {
 		return fmt.Errorf("mariadb: delete from %s: %w", s.fullTable, err)
+	}
+	return nil
+}
+
+// DeleteByIDs removes rows by primary key. MariaDB has no array type,
+// so it emits one `?` placeholder per id —
+// `DELETE FROM <table> WHERE <id> IN (?, ?, ...)` — binding the ids as
+// query args. An empty slice is a no-op; unknown ids are silently
+// ignored (idempotent). Implements [vectorstore.IDDeleter].
+func (s *Store) DeleteByIDs(ctx context.Context, ids []string) (err error) {
+	if len(ids) == 0 {
+		return nil
+	}
+
+	ctx, span := tracing.StartDelete(ctx, "mariadb")
+	defer func() { tracing.Finish(span, err) }()
+
+	placeholders := strings.Repeat("?, ", len(ids)-1) + "?"
+	args := make([]any, len(ids))
+	for i, id := range ids {
+		args[i] = id
+	}
+
+	stmt := fmt.Sprintf("DELETE FROM %s WHERE %s IN (%s)", s.fullTable, s.idColumn, placeholders)
+	if _, err = s.db.ExecContext(ctx, stmt, args...); err != nil {
+		return fmt.Errorf("mariadb: delete by ids from %s: %w", s.fullTable, err)
 	}
 	return nil
 }

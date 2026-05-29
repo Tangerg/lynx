@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 	"github.com/google/uuid"
@@ -112,7 +113,10 @@ func (c *StoreConfig) ApplyDefaults() {
 	c.DistanceMetric = cmp.Or(c.DistanceMetric, DefaultDistanceMetric)
 }
 
-var _ vectorstore.Store = (*Store)(nil)
+var (
+	_ vectorstore.Store     = (*Store)(nil)
+	_ vectorstore.IDDeleter = (*Store)(nil)
+)
 
 // Store is a ClickHouse-backed [vectorstore.Store] implementation.
 type Store struct {
@@ -384,6 +388,34 @@ func (s *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) (err
 	stmt := fmt.Sprintf("ALTER TABLE %s DELETE WHERE %s", s.fullTable, predicate)
 	if err := s.conn.Exec(ctx, stmt, args...); err != nil {
 		return fmt.Errorf("clickhouse: delete from %s: %w", s.fullTable, err)
+	}
+	return nil
+}
+
+// DeleteByIDs removes rows by primary key via an `ALTER TABLE ...
+// DELETE WHERE <id> IN (?, ...)` mutation, matching the form Delete
+// uses. An empty slice is a no-op; unknown ids are silently ignored.
+// Implements [vectorstore.IDDeleter].
+//
+// ClickHouse mutations are asynchronous — callers should consider
+// MutationOptions for synchronous behavior in their environment.
+func (s *Store) DeleteByIDs(ctx context.Context, ids []string) (err error) {
+	if len(ids) == 0 {
+		return nil
+	}
+
+	ctx, span := tracing.StartDelete(ctx, "clickhouse")
+	defer func() { tracing.Finish(span, err) }()
+
+	placeholders := strings.Repeat("?, ", len(ids)-1) + "?"
+	stmt := fmt.Sprintf("ALTER TABLE %s DELETE WHERE %s IN (%s)", s.fullTable, s.idColumn, placeholders)
+
+	args := make([]any, len(ids))
+	for i, id := range ids {
+		args[i] = id
+	}
+	if err = s.conn.Exec(ctx, stmt, args...); err != nil {
+		return fmt.Errorf("clickhouse: delete by ids from %s: %w", s.fullTable, err)
 	}
 	return nil
 }
