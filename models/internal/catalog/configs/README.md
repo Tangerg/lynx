@@ -31,8 +31,10 @@ Each model entry is a `chat.ModelInfo`:
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 128000,
-      "max_output_tokens": 65536 }
+      "limits": {
+        "context_window": 128000,
+        "max_output_tokens": 65536
+      } }
   ]
 }
 ```
@@ -56,8 +58,8 @@ Each model entry is a `chat.ModelInfo`:
   `["text"]` for chat models.
 - `tool_call` / `structured_output` flag tool/function calling and a
   native structured-output feature.
-- `knowledge_cutoff`, `context_window`, `max_input_tokens`,
-  `max_output_tokens` are optional; omit when unknown.
+- `knowledge_cutoff` and `limits` (`context_window`, `max_input_tokens`,
+  `max_output_tokens`) are optional; omit when unknown.
 
 Only chat models are included — embedding, TTS, and image-generation
 models (output modality not `text`, or an embedding `family`) are filtered
@@ -79,8 +81,8 @@ as per-model TOML. Mapping:
 - `[modalities]` `input` / `output` → `modalities.*` (real per-model
   arrays, not a heuristic).
 - `tool_call` / `structured_output` → same names.
-- `[limit]` `context` / `input` / `output` → `context_window` /
-  `max_input_tokens` / `max_output_tokens`.
+- `[limit]` `context` / `input` / `output` → `limits.context_window` /
+  `limits.max_input_tokens` / `limits.max_output_tokens`.
 - `[extends]` is resolved (a wrapper model — e.g. most `google-vertex`
   entries — overlays the canonical model it points at). This is why
   `vertexai` mirrors `google`'s Gemini lineup.

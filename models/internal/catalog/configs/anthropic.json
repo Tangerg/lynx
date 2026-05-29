@@ -22,8 +22,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 200000,
-      "max_output_tokens": 8192
+      "limits": {
+        "context_window": 200000,
+        "max_output_tokens": 8192
+      }
     },
     {
       "id": "claude-3-5-haiku-latest",
@@ -46,8 +48,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 200000,
-      "max_output_tokens": 8192
+      "limits": {
+        "context_window": 200000,
+        "max_output_tokens": 8192
+      }
     },
     {
       "id": "claude-3-5-sonnet-20240620",
@@ -70,8 +74,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 200000,
-      "max_output_tokens": 8192
+      "limits": {
+        "context_window": 200000,
+        "max_output_tokens": 8192
+      }
     },
     {
       "id": "claude-3-5-sonnet-20241022",
@@ -94,8 +100,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 200000,
-      "max_output_tokens": 8192
+      "limits": {
+        "context_window": 200000,
+        "max_output_tokens": 8192
+      }
     },
     {
       "id": "claude-3-7-sonnet-20250219",
@@ -121,8 +129,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 200000,
-      "max_output_tokens": 64000
+      "limits": {
+        "context_window": 200000,
+        "max_output_tokens": 64000
+      }
     },
     {
       "id": "claude-3-haiku-20240307",
@@ -145,8 +155,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 200000,
-      "max_output_tokens": 4096
+      "limits": {
+        "context_window": 200000,
+        "max_output_tokens": 4096
+      }
     },
     {
       "id": "claude-3-opus-20240229",
@@ -169,8 +181,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 200000,
-      "max_output_tokens": 4096
+      "limits": {
+        "context_window": 200000,
+        "max_output_tokens": 4096
+      }
     },
     {
       "id": "claude-3-sonnet-20240229",
@@ -193,8 +207,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 200000,
-      "max_output_tokens": 4096
+      "limits": {
+        "context_window": 200000,
+        "max_output_tokens": 4096
+      }
     },
     {
       "id": "claude-haiku-4-5",
@@ -220,8 +236,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 200000,
-      "max_output_tokens": 64000
+      "limits": {
+        "context_window": 200000,
+        "max_output_tokens": 64000
+      }
     },
     {
       "id": "claude-haiku-4-5-20251001",
@@ -247,8 +265,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 200000,
-      "max_output_tokens": 64000
+      "limits": {
+        "context_window": 200000,
+        "max_output_tokens": 64000
+      }
     },
     {
       "id": "claude-opus-4-0",
@@ -274,8 +294,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 200000,
-      "max_output_tokens": 32000
+      "limits": {
+        "context_window": 200000,
+        "max_output_tokens": 32000
+      }
     },
     {
       "id": "claude-opus-4-1",
@@ -301,8 +323,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 200000,
-      "max_output_tokens": 32000
+      "limits": {
+        "context_window": 200000,
+        "max_output_tokens": 32000
+      }
     },
     {
       "id": "claude-opus-4-1-20250805",
@@ -328,8 +352,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 200000,
-      "max_output_tokens": 32000
+      "limits": {
+        "context_window": 200000,
+        "max_output_tokens": 32000
+      }
     },
     {
       "id": "claude-opus-4-20250514",
@@ -355,8 +381,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 200000,
-      "max_output_tokens": 32000
+      "limits": {
+        "context_window": 200000,
+        "max_output_tokens": 32000
+      }
     },
     {
       "id": "claude-opus-4-5",
@@ -382,8 +410,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 200000,
-      "max_output_tokens": 64000
+      "limits": {
+        "context_window": 200000,
+        "max_output_tokens": 64000
+      }
     },
     {
       "id": "claude-opus-4-5-20251101",
@@ -409,8 +439,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 200000,
-      "max_output_tokens": 64000
+      "limits": {
+        "context_window": 200000,
+        "max_output_tokens": 64000
+      }
     },
     {
       "id": "claude-opus-4-6",
@@ -443,8 +475,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 1000000,
-      "max_output_tokens": 128000
+      "limits": {
+        "context_window": 1000000,
+        "max_output_tokens": 128000
+      }
     },
     {
       "id": "claude-opus-4-7",
@@ -478,8 +512,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 1000000,
-      "max_output_tokens": 128000
+      "limits": {
+        "context_window": 1000000,
+        "max_output_tokens": 128000
+      }
     },
     {
       "id": "claude-opus-4-8",
@@ -512,8 +548,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 1000000,
-      "max_output_tokens": 128000
+      "limits": {
+        "context_window": 1000000,
+        "max_output_tokens": 128000
+      }
     },
     {
       "id": "claude-sonnet-4-0",
@@ -539,8 +577,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 200000,
-      "max_output_tokens": 64000
+      "limits": {
+        "context_window": 200000,
+        "max_output_tokens": 64000
+      }
     },
     {
       "id": "claude-sonnet-4-20250514",
@@ -566,8 +606,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 200000,
-      "max_output_tokens": 64000
+      "limits": {
+        "context_window": 200000,
+        "max_output_tokens": 64000
+      }
     },
     {
       "id": "claude-sonnet-4-5",
@@ -593,8 +635,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 200000,
-      "max_output_tokens": 64000
+      "limits": {
+        "context_window": 200000,
+        "max_output_tokens": 64000
+      }
     },
     {
       "id": "claude-sonnet-4-5-20250929",
@@ -620,8 +664,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 200000,
-      "max_output_tokens": 64000
+      "limits": {
+        "context_window": 200000,
+        "max_output_tokens": 64000
+      }
     },
     {
       "id": "claude-sonnet-4-6",
@@ -654,8 +700,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 1000000,
-      "max_output_tokens": 64000
+      "limits": {
+        "context_window": 1000000,
+        "max_output_tokens": 64000
+      }
     }
   ]
 }

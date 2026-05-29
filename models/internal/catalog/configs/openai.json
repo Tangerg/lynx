@@ -31,8 +31,10 @@
           "text"
         ]
       },
-      "context_window": 16385,
-      "max_output_tokens": 4096
+      "limits": {
+        "context_window": 16385,
+        "max_output_tokens": 4096
+      }
     },
     {
       "id": "gpt-4",
@@ -51,8 +53,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 8192,
-      "max_output_tokens": 8192
+      "limits": {
+        "context_window": 8192,
+        "max_output_tokens": 8192
+      }
     },
     {
       "id": "gpt-4-turbo",
@@ -72,8 +76,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 128000,
-      "max_output_tokens": 4096
+      "limits": {
+        "context_window": 128000,
+        "max_output_tokens": 4096
+      }
     },
     {
       "id": "gpt-4.1",
@@ -96,8 +102,10 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 1047576,
-      "max_output_tokens": 32768
+      "limits": {
+        "context_window": 1047576,
+        "max_output_tokens": 32768
+      }
     },
     {
       "id": "gpt-4.1-mini",
@@ -120,8 +128,10 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 1047576,
-      "max_output_tokens": 32768
+      "limits": {
+        "context_window": 1047576,
+        "max_output_tokens": 32768
+      }
     },
     {
       "id": "gpt-4.1-nano",
@@ -143,8 +153,10 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 1047576,
-      "max_output_tokens": 32768
+      "limits": {
+        "context_window": 1047576,
+        "max_output_tokens": 32768
+      }
     },
     {
       "id": "gpt-4o",
@@ -167,8 +179,10 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 128000,
-      "max_output_tokens": 16384
+      "limits": {
+        "context_window": 128000,
+        "max_output_tokens": 16384
+      }
     },
     {
       "id": "gpt-4o-2024-05-13",
@@ -189,8 +203,10 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 128000,
-      "max_output_tokens": 4096
+      "limits": {
+        "context_window": 128000,
+        "max_output_tokens": 4096
+      }
     },
     {
       "id": "gpt-4o-2024-08-06",
@@ -212,8 +228,10 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 128000,
-      "max_output_tokens": 16384
+      "limits": {
+        "context_window": 128000,
+        "max_output_tokens": 16384
+      }
     },
     {
       "id": "gpt-4o-2024-11-20",
@@ -235,8 +253,10 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 128000,
-      "max_output_tokens": 16384
+      "limits": {
+        "context_window": 128000,
+        "max_output_tokens": 16384
+      }
     },
     {
       "id": "gpt-4o-mini",
@@ -259,8 +279,10 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 128000,
-      "max_output_tokens": 16384
+      "limits": {
+        "context_window": 128000,
+        "max_output_tokens": 16384
+      }
     },
     {
       "id": "gpt-5",
@@ -292,9 +314,11 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 400000,
-      "max_input_tokens": 272000,
-      "max_output_tokens": 128000
+      "limits": {
+        "context_window": 400000,
+        "max_input_tokens": 272000,
+        "max_output_tokens": 128000
+      }
     },
     {
       "id": "gpt-5-chat-latest",
@@ -318,9 +342,11 @@
         ]
       },
       "structured_output": true,
-      "context_window": 400000,
-      "max_input_tokens": 272000,
-      "max_output_tokens": 128000
+      "limits": {
+        "context_window": 400000,
+        "max_input_tokens": 272000,
+        "max_output_tokens": 128000
+      }
     },
     {
       "id": "gpt-5-codex",
@@ -352,9 +378,11 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 400000,
-      "max_input_tokens": 272000,
-      "max_output_tokens": 128000
+      "limits": {
+        "context_window": 400000,
+        "max_input_tokens": 272000,
+        "max_output_tokens": 128000
+      }
     },
     {
       "id": "gpt-5-mini",
@@ -385,9 +413,11 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 400000,
-      "max_input_tokens": 272000,
-      "max_output_tokens": 128000
+      "limits": {
+        "context_window": 400000,
+        "max_input_tokens": 272000,
+        "max_output_tokens": 128000
+      }
     },
     {
       "id": "gpt-5-nano",
@@ -418,9 +448,11 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 400000,
-      "max_input_tokens": 272000,
-      "max_output_tokens": 128000
+      "limits": {
+        "context_window": 400000,
+        "max_input_tokens": 272000,
+        "max_output_tokens": 128000
+      }
     },
     {
       "id": "gpt-5-pro",
@@ -444,9 +476,11 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 400000,
-      "max_input_tokens": 272000,
-      "max_output_tokens": 272000
+      "limits": {
+        "context_window": 400000,
+        "max_input_tokens": 272000,
+        "max_output_tokens": 272000
+      }
     },
     {
       "id": "gpt-5.1",
@@ -478,9 +512,11 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 400000,
-      "max_input_tokens": 272000,
-      "max_output_tokens": 128000
+      "limits": {
+        "context_window": 400000,
+        "max_input_tokens": 272000,
+        "max_output_tokens": 128000
+      }
     },
     {
       "id": "gpt-5.1-chat-latest",
@@ -505,8 +541,10 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 128000,
-      "max_output_tokens": 16384
+      "limits": {
+        "context_window": 128000,
+        "max_output_tokens": 16384
+      }
     },
     {
       "id": "gpt-5.1-codex",
@@ -538,9 +576,11 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 400000,
-      "max_input_tokens": 272000,
-      "max_output_tokens": 128000
+      "limits": {
+        "context_window": 400000,
+        "max_input_tokens": 272000,
+        "max_output_tokens": 128000
+      }
     },
     {
       "id": "gpt-5.1-codex-max",
@@ -572,9 +612,11 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 400000,
-      "max_input_tokens": 272000,
-      "max_output_tokens": 128000
+      "limits": {
+        "context_window": 400000,
+        "max_input_tokens": 272000,
+        "max_output_tokens": 128000
+      }
     },
     {
       "id": "gpt-5.1-codex-mini",
@@ -605,9 +647,11 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 400000,
-      "max_input_tokens": 272000,
-      "max_output_tokens": 128000
+      "limits": {
+        "context_window": 400000,
+        "max_input_tokens": 272000,
+        "max_output_tokens": 128000
+      }
     },
     {
       "id": "gpt-5.2",
@@ -639,9 +683,11 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 400000,
-      "max_input_tokens": 272000,
-      "max_output_tokens": 128000
+      "limits": {
+        "context_window": 400000,
+        "max_input_tokens": 272000,
+        "max_output_tokens": 128000
+      }
     },
     {
       "id": "gpt-5.2-chat-latest",
@@ -666,8 +712,10 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 128000,
-      "max_output_tokens": 16384
+      "limits": {
+        "context_window": 128000,
+        "max_output_tokens": 16384
+      }
     },
     {
       "id": "gpt-5.2-codex",
@@ -700,9 +748,11 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 400000,
-      "max_input_tokens": 272000,
-      "max_output_tokens": 128000
+      "limits": {
+        "context_window": 400000,
+        "max_input_tokens": 272000,
+        "max_output_tokens": 128000
+      }
     },
     {
       "id": "gpt-5.2-pro",
@@ -725,9 +775,11 @@
         ]
       },
       "tool_call": true,
-      "context_window": 400000,
-      "max_input_tokens": 272000,
-      "max_output_tokens": 128000
+      "limits": {
+        "context_window": 400000,
+        "max_input_tokens": 272000,
+        "max_output_tokens": 128000
+      }
     },
     {
       "id": "gpt-5.3-chat-latest",
@@ -749,8 +801,10 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 128000,
-      "max_output_tokens": 16384
+      "limits": {
+        "context_window": 128000,
+        "max_output_tokens": 16384
+      }
     },
     {
       "id": "gpt-5.3-codex",
@@ -783,9 +837,11 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 400000,
-      "max_input_tokens": 272000,
-      "max_output_tokens": 128000
+      "limits": {
+        "context_window": 400000,
+        "max_input_tokens": 272000,
+        "max_output_tokens": 128000
+      }
     },
     {
       "id": "gpt-5.3-codex-spark",
@@ -811,9 +867,11 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 128000,
-      "max_input_tokens": 100000,
-      "max_output_tokens": 32000
+      "limits": {
+        "context_window": 128000,
+        "max_input_tokens": 100000,
+        "max_output_tokens": 32000
+      }
     },
     {
       "id": "gpt-5.4",
@@ -846,9 +904,11 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 1050000,
-      "max_input_tokens": 922000,
-      "max_output_tokens": 128000
+      "limits": {
+        "context_window": 1050000,
+        "max_input_tokens": 922000,
+        "max_output_tokens": 128000
+      }
     },
     {
       "id": "gpt-5.4-mini",
@@ -880,9 +940,11 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 400000,
-      "max_input_tokens": 272000,
-      "max_output_tokens": 128000
+      "limits": {
+        "context_window": 400000,
+        "max_input_tokens": 272000,
+        "max_output_tokens": 128000
+      }
     },
     {
       "id": "gpt-5.4-nano",
@@ -914,9 +976,11 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 400000,
-      "max_input_tokens": 272000,
-      "max_output_tokens": 128000
+      "limits": {
+        "context_window": 400000,
+        "max_input_tokens": 272000,
+        "max_output_tokens": 128000
+      }
     },
     {
       "id": "gpt-5.4-pro",
@@ -945,9 +1009,11 @@
         ]
       },
       "tool_call": true,
-      "context_window": 1050000,
-      "max_input_tokens": 922000,
-      "max_output_tokens": 128000
+      "limits": {
+        "context_window": 1050000,
+        "max_input_tokens": 922000,
+        "max_output_tokens": 128000
+      }
     },
     {
       "id": "gpt-5.5",
@@ -980,9 +1046,11 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 1050000,
-      "max_input_tokens": 922000,
-      "max_output_tokens": 128000
+      "limits": {
+        "context_window": 1050000,
+        "max_input_tokens": 922000,
+        "max_output_tokens": 128000
+      }
     },
     {
       "id": "gpt-5.5-pro",
@@ -1014,9 +1082,11 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 1050000,
-      "max_input_tokens": 922000,
-      "max_output_tokens": 128000
+      "limits": {
+        "context_window": 1050000,
+        "max_input_tokens": 922000,
+        "max_output_tokens": 128000
+      }
     },
     {
       "id": "gpt-image-1-mini",
@@ -1070,8 +1140,10 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 200000,
-      "max_output_tokens": 100000
+      "limits": {
+        "context_window": 200000,
+        "max_output_tokens": 100000
+      }
     },
     {
       "id": "o1-mini",
@@ -1094,8 +1166,10 @@
         ]
       },
       "structured_output": true,
-      "context_window": 128000,
-      "max_output_tokens": 65536
+      "limits": {
+        "context_window": 128000,
+        "max_output_tokens": 65536
+      }
     },
     {
       "id": "o1-preview",
@@ -1117,8 +1191,10 @@
           "text"
         ]
       },
-      "context_window": 128000,
-      "max_output_tokens": 32768
+      "limits": {
+        "context_window": 128000,
+        "max_output_tokens": 32768
+      }
     },
     {
       "id": "o1-pro",
@@ -1142,8 +1218,10 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 200000,
-      "max_output_tokens": 100000
+      "limits": {
+        "context_window": 200000,
+        "max_output_tokens": 100000
+      }
     },
     {
       "id": "o3",
@@ -1175,8 +1253,10 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 200000,
-      "max_output_tokens": 100000
+      "limits": {
+        "context_window": 200000,
+        "max_output_tokens": 100000
+      }
     },
     {
       "id": "o3-deep-research",
@@ -1200,8 +1280,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 200000,
-      "max_output_tokens": 100000
+      "limits": {
+        "context_window": 200000,
+        "max_output_tokens": 100000
+      }
     },
     {
       "id": "o3-mini",
@@ -1231,8 +1313,10 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 200000,
-      "max_output_tokens": 100000
+      "limits": {
+        "context_window": 200000,
+        "max_output_tokens": 100000
+      }
     },
     {
       "id": "o3-pro",
@@ -1256,8 +1340,10 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 200000,
-      "max_output_tokens": 100000
+      "limits": {
+        "context_window": 200000,
+        "max_output_tokens": 100000
+      }
     },
     {
       "id": "o4-mini",
@@ -1288,8 +1374,10 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 200000,
-      "max_output_tokens": 100000
+      "limits": {
+        "context_window": 200000,
+        "max_output_tokens": 100000
+      }
     },
     {
       "id": "o4-mini-deep-research",
@@ -1313,8 +1401,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 200000,
-      "max_output_tokens": 100000
+      "limits": {
+        "context_window": 200000,
+        "max_output_tokens": 100000
+      }
     }
   ]
 }

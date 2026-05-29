@@ -21,8 +21,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 204800,
-      "max_output_tokens": 131072
+      "limits": {
+        "context_window": 204800,
+        "max_output_tokens": 131072
+      }
     },
     {
       "id": "MiniMaxAI/MiniMax-M2.5",
@@ -44,8 +46,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 204800,
-      "max_output_tokens": 131072
+      "limits": {
+        "context_window": 204800,
+        "max_output_tokens": 131072
+      }
     },
     {
       "id": "MiniMaxAI/MiniMax-M2.7",
@@ -68,8 +72,10 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 204800,
-      "max_output_tokens": 131072
+      "limits": {
+        "context_window": 204800,
+        "max_output_tokens": 131072
+      }
     },
     {
       "id": "Qwen/Qwen3-235B-A22B-Thinking-2507",
@@ -91,8 +97,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 262144,
-      "max_output_tokens": 131072
+      "limits": {
+        "context_window": 262144,
+        "max_output_tokens": 131072
+      }
     },
     {
       "id": "Qwen/Qwen3-Coder-480B-A35B-Instruct",
@@ -111,8 +119,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 262144,
-      "max_output_tokens": 66536
+      "limits": {
+        "context_window": 262144,
+        "max_output_tokens": 66536
+      }
     },
     {
       "id": "Qwen/Qwen3-Coder-Next",
@@ -131,8 +141,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 262144,
-      "max_output_tokens": 65536
+      "limits": {
+        "context_window": 262144,
+        "max_output_tokens": 65536
+      }
     },
     {
       "id": "Qwen/Qwen3-Next-80B-A3B-Instruct",
@@ -151,8 +163,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 262144,
-      "max_output_tokens": 66536
+      "limits": {
+        "context_window": 262144,
+        "max_output_tokens": 66536
+      }
     },
     {
       "id": "Qwen/Qwen3-Next-80B-A3B-Thinking",
@@ -171,8 +185,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 262144,
-      "max_output_tokens": 131072
+      "limits": {
+        "context_window": 262144,
+        "max_output_tokens": 131072
+      }
     },
     {
       "id": "Qwen/Qwen3.5-397B-A17B",
@@ -195,8 +211,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 262144,
-      "max_output_tokens": 32768
+      "limits": {
+        "context_window": 262144,
+        "max_output_tokens": 32768
+      }
     },
     {
       "id": "XiaomiMiMo/MiMo-V2-Flash",
@@ -218,8 +236,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 262144,
-      "max_output_tokens": 4096
+      "limits": {
+        "context_window": 262144,
+        "max_output_tokens": 4096
+      }
     },
     {
       "id": "deepseek-ai/DeepSeek-R1-0528",
@@ -241,8 +261,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 163840,
-      "max_output_tokens": 163840
+      "limits": {
+        "context_window": 163840,
+        "max_output_tokens": 163840
+      }
     },
     {
       "id": "deepseek-ai/DeepSeek-V3.2",
@@ -264,8 +286,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 163840,
-      "max_output_tokens": 65536
+      "limits": {
+        "context_window": 163840,
+        "max_output_tokens": 65536
+      }
     },
     {
       "id": "deepseek-ai/DeepSeek-V4-Pro",
@@ -289,8 +313,10 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 1048576,
-      "max_output_tokens": 393216
+      "limits": {
+        "context_window": 1048576,
+        "max_output_tokens": 393216
+      }
     },
     {
       "id": "moonshotai/Kimi-K2-Instruct",
@@ -309,8 +335,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 131072,
-      "max_output_tokens": 16384
+      "limits": {
+        "context_window": 131072,
+        "max_output_tokens": 16384
+      }
     },
     {
       "id": "moonshotai/Kimi-K2-Instruct-0905",
@@ -329,8 +357,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 262144,
-      "max_output_tokens": 16384
+      "limits": {
+        "context_window": 262144,
+        "max_output_tokens": 16384
+      }
     },
     {
       "id": "moonshotai/Kimi-K2-Thinking",
@@ -353,8 +383,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 262144,
-      "max_output_tokens": 262144
+      "limits": {
+        "context_window": 262144,
+        "max_output_tokens": 262144
+      }
     },
     {
       "id": "moonshotai/Kimi-K2.5",
@@ -379,8 +411,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 262144,
-      "max_output_tokens": 262144
+      "limits": {
+        "context_window": 262144,
+        "max_output_tokens": 262144
+      }
     },
     {
       "id": "moonshotai/Kimi-K2.6",
@@ -405,8 +439,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 262144,
-      "max_output_tokens": 262144
+      "limits": {
+        "context_window": 262144,
+        "max_output_tokens": 262144
+      }
     },
     {
       "id": "zai-org/GLM-4.7",
@@ -429,8 +465,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 204800,
-      "max_output_tokens": 131072
+      "limits": {
+        "context_window": 204800,
+        "max_output_tokens": 131072
+      }
     },
     {
       "id": "zai-org/GLM-4.7-Flash",
@@ -448,8 +486,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 200000,
-      "max_output_tokens": 128000
+      "limits": {
+        "context_window": 200000,
+        "max_output_tokens": 128000
+      }
     },
     {
       "id": "zai-org/GLM-5",
@@ -471,8 +511,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 202752,
-      "max_output_tokens": 131072
+      "limits": {
+        "context_window": 202752,
+        "max_output_tokens": 131072
+      }
     },
     {
       "id": "zai-org/GLM-5.1",
@@ -494,8 +536,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 202752,
-      "max_output_tokens": 131072
+      "limits": {
+        "context_window": 202752,
+        "max_output_tokens": 131072
+      }
     }
   ]
 }

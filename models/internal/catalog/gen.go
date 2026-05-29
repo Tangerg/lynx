@@ -180,9 +180,11 @@ func toModelInfo(m apiModel, aug augEntry) chat.ModelInfo {
 			Input:  toModalities(m.Modalities.Input),
 			Output: toModalities(m.Modalities.Output),
 		},
-		ContextWindow:   m.Limit.Context,
-		MaxInputTokens:  m.Limit.Input,
-		MaxOutputTokens: m.Limit.Output,
+		Limits: chat.Limits{
+			ContextWindow:   m.Limit.Context,
+			MaxInputTokens:  m.Limit.Input,
+			MaxOutputTokens: m.Limit.Output,
+		},
 	}
 	if m.Reasoning {
 		// models.dev only knows whether a model reasons; effort levels

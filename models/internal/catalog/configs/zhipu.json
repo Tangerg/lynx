@@ -22,8 +22,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 131072,
-      "max_output_tokens": 98304
+      "limits": {
+        "context_window": 131072,
+        "max_output_tokens": 98304
+      }
     },
     {
       "id": "glm-4.5-air",
@@ -46,8 +48,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 131072,
-      "max_output_tokens": 98304
+      "limits": {
+        "context_window": 131072,
+        "max_output_tokens": 98304
+      }
     },
     {
       "id": "glm-4.5-flash",
@@ -65,8 +69,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 131072,
-      "max_output_tokens": 98304
+      "limits": {
+        "context_window": 131072,
+        "max_output_tokens": 98304
+      }
     },
     {
       "id": "glm-4.5v",
@@ -90,8 +96,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 64000,
-      "max_output_tokens": 16384
+      "limits": {
+        "context_window": 64000,
+        "max_output_tokens": 16384
+      }
     },
     {
       "id": "glm-4.6",
@@ -114,8 +122,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 204800,
-      "max_output_tokens": 131072
+      "limits": {
+        "context_window": 204800,
+        "max_output_tokens": 131072
+      }
     },
     {
       "id": "glm-4.6v",
@@ -139,8 +149,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 128000,
-      "max_output_tokens": 32768
+      "limits": {
+        "context_window": 128000,
+        "max_output_tokens": 32768
+      }
     },
     {
       "id": "glm-4.7",
@@ -163,8 +175,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 204800,
-      "max_output_tokens": 131072
+      "limits": {
+        "context_window": 204800,
+        "max_output_tokens": 131072
+      }
     },
     {
       "id": "glm-4.7-flash",
@@ -182,8 +196,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 200000,
-      "max_output_tokens": 131072
+      "limits": {
+        "context_window": 200000,
+        "max_output_tokens": 131072
+      }
     },
     {
       "id": "glm-4.7-flashx",
@@ -206,8 +222,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 200000,
-      "max_output_tokens": 131072
+      "limits": {
+        "context_window": 200000,
+        "max_output_tokens": 131072
+      }
     },
     {
       "id": "glm-5",
@@ -229,8 +247,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 204800,
-      "max_output_tokens": 131072
+      "limits": {
+        "context_window": 204800,
+        "max_output_tokens": 131072
+      }
     },
     {
       "id": "glm-5.1",
@@ -253,8 +273,10 @@
       },
       "tool_call": true,
       "structured_output": true,
-      "context_window": 200000,
-      "max_output_tokens": 131072
+      "limits": {
+        "context_window": 200000,
+        "max_output_tokens": 131072
+      }
     },
     {
       "id": "glm-5v-turbo",
@@ -279,8 +301,10 @@
         ]
       },
       "tool_call": true,
-      "context_window": 200000,
-      "max_output_tokens": 131072
+      "limits": {
+        "context_window": 200000,
+        "max_output_tokens": 131072
+      }
     }
   ]
 }
