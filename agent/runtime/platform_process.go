@@ -43,13 +43,9 @@ func (p *Platform) createProcess(
 	id := p.idGenerator().Next()
 	proc := newAgentProcess(id, agentDef, &options, blackboard, planner, system, p)
 
-	// determiner needs the *AgentProcess pointer (for user-defined
-	// conditions); processEvents subscribes process-scope
-	// EventListener extensions so they only see this process's
-	// events.
-	proc.determiner = newBlackboardDeterminer(system, blackboard, proc)
-	proc.processEvents = event.NewMulticast()
-	addEventListenerExtensions(proc.processEvents, options.Extensions)
+	// determiner + per-process event multicast both close over the
+	// assembled pointer, so they're wired after construction.
+	proc.wireRuntimeDeps(options.Extensions)
 
 	p.procs.register(proc)
 	p.publish(event.ProcessCreated{
