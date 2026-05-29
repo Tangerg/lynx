@@ -141,11 +141,22 @@ export function createMethods(client: RpcClient): Methods {
     },
     runs: {
       start: async (params, signal) => {
+        // Subscribe to the event stream BEFORE issuing the call when the
+        // runId is known up front (client-supplied): the runtime starts
+        // emitting notifications/run/event the instant it handles the POST,
+        // and a subscribe-after-response would drop the leading events
+        // (RUN_STARTED), failing the consumer's event-sequence check.
+        // makeFilteredStream subscribes synchronously on construction.
+        if (params.runId) {
+          const events = streamRunEvents(client, params.runId, signal);
+          const result = await client.call<StartRunResult>("runs.start", params, signal);
+          return { result, events };
+        }
+        // No client runId: the server assigns one, so we can only subscribe
+        // after the response (a small leading-event race the caller accepts
+        // by not supplying a runId).
         const result = await client.call<StartRunResult>("runs.start", params, signal);
-        return {
-          result,
-          events: streamRunEvents(client, result.runId, signal),
-        };
+        return { result, events: streamRunEvents(client, result.runId, signal) };
       },
       // Proper Request (not Notification). Semantically distinct from
       // `notifications/cancelled` which cancels an in-flight JSON-RPC

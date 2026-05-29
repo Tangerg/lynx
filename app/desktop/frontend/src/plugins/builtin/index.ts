@@ -54,6 +54,7 @@ import diagnostics from "./diagnostics";
 import globalKeymap from "./global-keymap";
 import httpAgent from "./http-agent";
 import iconGallery from "./icon-gallery";
+import rpcAgent from "./rpc-agent";
 import { kernelChat, kernelSettings, kernelSidebar } from "./kernel";
 import {
   localeDe,
@@ -119,6 +120,7 @@ const infrastructure: PluginSpec[] = [
   defaultConfig,
   defaultData,
   httpAgent,
+  rpcAgent,
   defaultTitle,
   defaultAccents,
   ...builtinThemes,
