@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	goredis "github.com/redis/go-redis/v9"
@@ -53,7 +54,10 @@ func (c *StoreConfig) ApplyDefaults() {
 	}
 }
 
-var _ memory.Store = (*Store)(nil)
+var (
+	_ memory.Store  = (*Store)(nil)
+	_ memory.Lister = (*Store)(nil)
+)
 
 // Store is a Redis-backed [memory.Store]. Construct via [NewStore].
 type Store struct {
@@ -156,4 +160,53 @@ func (s *Store) Clear(ctx context.Context, conversationID string) (err error) {
 		return fmt.Errorf("redis.Store.Clear: %w", err)
 	}
 	return nil
+}
+
+// Conversations enumerates the ids of every stored conversation via a
+// non-blocking SCAN over the keyPrefix namespace. The returned slice is
+// a point-in-time snapshot in no guaranteed order; SCAN may surface a
+// given key more than once across cursor iterations, so ids are
+// de-duplicated. Honors ctx cancellation.
+func (s *Store) Conversations(ctx context.Context) (ids []string, err error) {
+	if err = ctx.Err(); err != nil {
+		return nil, err
+	}
+
+	ctx, span := tracing.StartList(ctx, "redis")
+	defer func() { tracing.RecordListResult(span, err, len(ids)) }()
+
+	match := s.keyPrefix + "*"
+	seen := make(map[string]struct{})
+
+	var cursor uint64
+	for {
+		if err = ctx.Err(); err != nil {
+			return nil, err
+		}
+
+		var keys []string
+		keys, cursor, err = s.client.Scan(ctx, cursor, match, 0).Result()
+		if err != nil {
+			return nil, fmt.Errorf("redis.Store.Conversations: %w", err)
+		}
+
+		for _, k := range keys {
+			id, ok := strings.CutPrefix(k, s.keyPrefix)
+			if !ok {
+				// MATCH should preclude this, but guard against the
+				// prefix incidentally matching unintended keys.
+				continue
+			}
+			if _, dup := seen[id]; dup {
+				continue
+			}
+			seen[id] = struct{}{}
+			ids = append(ids, id)
+		}
+
+		if cursor == 0 {
+			break
+		}
+	}
+	return ids, nil
 }

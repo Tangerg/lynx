@@ -105,7 +105,10 @@ func cmpOr(values ...string) string {
 	return ""
 }
 
-var _ memory.Store = (*Store)(nil)
+var (
+	_ memory.Store  = (*Store)(nil)
+	_ memory.Lister = (*Store)(nil)
+)
 
 // Store is a PostgreSQL-backed [memory.Store]. Construct via
 // [NewStore].
@@ -132,6 +135,7 @@ type Store struct {
 	readSQL   string
 	writeSQL  string
 	clearSQL  string
+	listSQL   string
 	createSQL []string
 }
 
@@ -157,6 +161,10 @@ func NewStore(cfg StoreConfig) (*Store, error) {
 		),
 		clearSQL: fmt.Sprintf(
 			"DELETE FROM %s WHERE conversation_id = $1",
+			qualified,
+		),
+		listSQL: fmt.Sprintf(
+			"SELECT DISTINCT conversation_id FROM %s",
 			qualified,
 		),
 		createSQL: []string{
@@ -275,4 +283,35 @@ func (s *Store) Clear(ctx context.Context, conversationID string) (err error) {
 		return fmt.Errorf("postgres.Store.Clear: %w", err)
 	}
 	return nil
+}
+
+// Conversations returns the ids of every stored conversation as a
+// point-in-time snapshot. An empty slice is returned when the store
+// holds no messages.
+func (s *Store) Conversations(ctx context.Context) (ids []string, err error) {
+	if err = ctx.Err(); err != nil {
+		return nil, err
+	}
+
+	ctx, span := tracing.StartList(ctx, "postgres")
+	defer func() { tracing.RecordListResult(span, err, len(ids)) }()
+
+	rows, err := s.pool.Query(ctx, s.listSQL)
+	if err != nil {
+		return nil, fmt.Errorf("postgres.Store.Conversations: %w", err)
+	}
+	defer rows.Close()
+
+	ids = []string{}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("postgres.Store.Conversations: scan: %w", err)
+		}
+		ids = append(ids, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("postgres.Store.Conversations: %w", err)
+	}
+	return ids, nil
 }

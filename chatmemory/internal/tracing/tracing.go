@@ -14,6 +14,7 @@ const (
 	attrDBOperationName = "db.operation.name"
 	attrLynxConvID      = "lynx.chat_memory.conv_id"
 	attrLynxMsgCount    = "lynx.chat_memory.msg_count"
+	attrLynxConvCount   = "lynx.chat_memory.conv_count"
 )
 
 // tracerFor returns the per-provider tracer. Names follow
@@ -57,6 +58,12 @@ func StartClear(ctx context.Context, system, convID string) (context.Context, tr
 	return start(ctx, system, "clear", convID)
 }
 
+// StartList opens a span for [memory.Lister.Conversations] — a
+// deliberate cross-conversation scan, so it carries no convID attribute.
+func StartList(ctx context.Context, system string) (context.Context, trace.Span) {
+	return start(ctx, system, "list", "")
+}
+
 // Finish records err on span and ends it.
 func Finish(span trace.Span, err error, extra ...attribute.KeyValue) {
 	if len(extra) > 0 {
@@ -73,4 +80,10 @@ func Finish(span trace.Span, err error, extra ...attribute.KeyValue) {
 // before ending it.
 func RecordReadResult(span trace.Span, err error, msgCount int) {
 	Finish(span, err, attribute.Int(attrLynxMsgCount, msgCount))
+}
+
+// RecordListResult stamps the number of conversations found onto a List
+// span before ending it.
+func RecordListResult(span trace.Span, err error, convCount int) {
+	Finish(span, err, attribute.Int(attrLynxConvCount, convCount))
 }

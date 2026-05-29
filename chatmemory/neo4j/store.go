@@ -75,7 +75,10 @@ func (c *StoreConfig) ApplyDefaults() {
 	}
 }
 
-var _ memory.Store = (*Store)(nil)
+var (
+	_ memory.Store  = (*Store)(nil)
+	_ memory.Lister = (*Store)(nil)
+)
 
 // Store is a Neo4j-backed [memory.Store]. Construct via [NewStore].
 type Store struct {
@@ -233,4 +236,43 @@ func (s *Store) Clear(ctx context.Context, conversationID string) (err error) {
 		return fmt.Errorf("neo4j.Store.Clear: %w", err)
 	}
 	return nil
+}
+
+// Conversations returns the ids of every stored conversation as a
+// point-in-time snapshot. An empty slice is returned when the store
+// holds no messages.
+func (s *Store) Conversations(ctx context.Context) (ids []string, err error) {
+	if err = ctx.Err(); err != nil {
+		return nil, err
+	}
+
+	ctx, span := tracing.StartList(ctx, "neo4j")
+	defer func() { tracing.RecordListResult(span, err, len(ids)) }()
+
+	cypher := fmt.Sprintf(
+		"MATCH (m:%s) RETURN DISTINCT m.conversation_id AS id",
+		s.label,
+	)
+	var result *neo4j.EagerResult
+	result, err = neo4j.ExecuteQuery(ctx, s.driver, cypher, nil,
+		neo4j.EagerResultTransformer,
+		neo4j.ExecuteQueryWithDatabase(s.database),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("neo4j.Store.Conversations: %w", err)
+	}
+
+	ids = make([]string, 0, len(result.Records))
+	for _, rec := range result.Records {
+		raw, ok := rec.Get("id")
+		if !ok {
+			continue
+		}
+		id, ok := raw.(string)
+		if !ok {
+			return nil, fmt.Errorf("neo4j.Store.Conversations: id column type %T, want string", raw)
+		}
+		ids = append(ids, id)
+	}
+	return ids, nil
 }

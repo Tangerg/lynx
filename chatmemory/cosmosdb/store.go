@@ -33,7 +33,10 @@ func (c StoreConfig) Validate() error {
 	return nil
 }
 
-var _ memory.Store = (*Store)(nil)
+var (
+	_ memory.Store  = (*Store)(nil)
+	_ memory.Lister = (*Store)(nil)
+)
 
 // Store is a Cosmos DB-backed [memory.Store]. Construct via
 // [NewStore].
@@ -144,6 +147,39 @@ func (s *Store) Read(ctx context.Context, conversationID string) (out []chat.Mes
 		}
 	}
 	return out, nil
+}
+
+// Conversations returns the id of every conversation that currently
+// has at least one stored message — a point-in-time snapshot. The
+// distinct ids are gathered with a cross-partition projection query.
+func (s *Store) Conversations(ctx context.Context) (ids []string, err error) {
+	if err = ctx.Err(); err != nil {
+		return nil, err
+	}
+
+	ctx, span := tracing.StartList(ctx, "cosmosdb")
+	defer func() { tracing.RecordListResult(span, err, len(ids)) }()
+
+	// Empty partition key + a WHERE-less projection runs cross-partition;
+	// SELECT DISTINCT VALUE is a simple projection the gateway can serve.
+	query := "SELECT DISTINCT VALUE c.conversation_id FROM c"
+
+	ids = []string{}
+	pager := s.container.NewQueryItemsPager(query, azcosmos.NewPartitionKey(), nil)
+	for pager.More() {
+		resp, pageErr := pager.NextPage(ctx)
+		if pageErr != nil {
+			return nil, fmt.Errorf("cosmosdb.Store.Conversations: %w", pageErr)
+		}
+		for _, item := range resp.Items {
+			var id string
+			if err = json.Unmarshal(item, &id); err != nil {
+				return nil, fmt.Errorf("cosmosdb.Store.Conversations: unmarshal id: %w", err)
+			}
+			ids = append(ids, id)
+		}
+	}
+	return ids, nil
 }
 
 // Clear deletes every document for conversationID. Cosmos has no
