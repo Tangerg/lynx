@@ -13,17 +13,34 @@ function activeBase(): string {
   return getConfig<string>("api.baseUrl") ?? AGUI_BASE;
 }
 
+// Thread the request through every before-hook: each may return a
+// replacement Request (or void to leave it). Returning on the first match
+// skipped the remaining hooks AND fed them the original request, so two
+// plugins couldn't both transform it (e.g. base rewrite + auth header).
+// ky applies the same "remaining hooks see the updated request" rule.
 const beforeRequest = async (state: { request: Request }) => {
+  let req = state.request;
+  let changed = false;
   for (const hook of listRpcBeforeHooks()) {
-    const result = await hook(state.request);
-    if (result instanceof Request) return result;
+    const result = await hook(req);
+    if (result instanceof Request) {
+      req = result;
+      changed = true;
+    }
   }
+  return changed ? req : undefined;
 };
 const afterResponse = async (state: { request: Request; response: Response }) => {
+  let res = state.response;
+  let changed = false;
   for (const hook of listRpcAfterHooks()) {
-    const result = await hook(state.request, state.response);
-    if (result instanceof Response) return result;
+    const result = await hook(state.request, res);
+    if (result instanceof Response) {
+      res = result;
+      changed = true;
+    }
   }
+  return changed ? res : undefined;
 };
 
 // Re-anchor `req` against `base`, preserving path + search + the original
