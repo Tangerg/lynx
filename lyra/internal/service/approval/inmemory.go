@@ -96,7 +96,7 @@ func (s *inMemory) GetMode(_ context.Context) (Mode, error) {
 // callers can treat the error path the same as a normal Deny.
 func (s *inMemory) Register(req Request) (<-chan Decision, func()) {
 	if req.ID == "" {
-		// Closed channel returns the zero value (DecisionAllowOnce)
+		// Closed channel returns the zero value (DecisionApprove)
 		// immediately — not desirable. We return a buffered channel
 		// pre-loaded with Deny so the caller's select picks it up.
 		ch := make(chan Decision, 1)

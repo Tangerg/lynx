@@ -172,13 +172,13 @@ func lastUserMessage(msgs []protocol.Message) string {
 
 // parseDecision maps the wire decision string onto the internal enum.
 // API.md v4 §4.2: wire values are "approve" | "deny" only — the
-// finer "remember choice" semantic is not on the wire (deferred to a
-// future runs.approval.policy.set method). "approve" maps to
-// allow-once; persistent allow is a separate concern.
+// "remember choice" / "always allow" semantic is deliberately not on
+// the wire (it's a client-side UI affordance per the protocol
+// alignment), so the backend enum is the same two values.
 func parseDecision(s string) (approval.Decision, error) {
 	switch s {
 	case "approve":
-		return approval.DecisionAllowOnce, nil
+		return approval.DecisionApprove, nil
 	case "deny":
 		return approval.DecisionDeny, nil
 	default:

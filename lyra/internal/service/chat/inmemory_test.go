@@ -302,7 +302,7 @@ func TestService_ApprovalGate_AllowOnce(t *testing.T) {
 			if e.Request.ToolName != "bash" {
 				t.Errorf("ToolCallApproval.ToolName = %q, want bash", e.Request.ToolName)
 			}
-			if err := approvalSvc.Decide(context.Background(), e.Request.ID, approval.DecisionAllowOnce); err != nil {
+			if err := approvalSvc.Decide(context.Background(), e.Request.ID, approval.DecisionApprove); err != nil {
 				t.Errorf("Decide: %v", err)
 			}
 		case chat.TurnEnd:

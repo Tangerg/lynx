@@ -10,17 +10,35 @@ import (
 )
 
 // Mode is the runtime-wide permission stance. Set via config; flows
-// into the per-tool decision at request time.
+// into the per-tool gate decision at request time.
+//
+// Strictness gradient (strictest → loosest):
+//
+//	ModeReadOnly  deny every non-read tool outright (no prompt)
+//	ModeSafe      prompt on every write / exec / network tool
+//	ModeBalanced  auto-allow write/network; prompt only on exec
+//	ModeYolo      auto-allow everything
+//
+// The const VALUES are not in strictness order — ModeReadOnly is
+// appended (value 3) so the existing zero value (ModeSafe) is
+// unchanged. Order code against the named constants, never the ints.
 type Mode int
 
 const (
 	// ModeSafe — every Exec/Write/Network tool prompts.
 	ModeSafe Mode = iota
-	// ModeBalanced — Write/Network auto-allow; Exec prompts (with
-	// optional LLM classifier in M-future).
+	// ModeBalanced — Write/Network auto-allow; Exec prompts.
 	ModeBalanced
 	// ModeYolo — auto-allow everything (use at your own risk).
 	ModeYolo
+	// ModeReadOnly — the strictest stance: only read-only tools
+	// (read / grep / glob) run; every write / exec / network tool is
+	// denied immediately WITHOUT prompting, and the model sees the
+	// refusal as a tool error so it can adapt. Use for "explore /
+	// explain my code but touch nothing" sessions and untrusted
+	// contexts. Distinct from plan-mode (which previews then
+	// executes) and ModeSafe (which prompts rather than denies).
+	ModeReadOnly
 )
 
 // Request is one outstanding approval ask. Created by the runtime
@@ -35,14 +53,16 @@ type Request struct {
 }
 
 // Decision is the outcome the client returns for a pending request.
+// Two values only, mirroring the wire contract (runs.approval.submit
+// carries "approve" | "deny"). "Remember this choice" / "always
+// allow" is deliberately NOT modeled here — per the frontend
+// protocol alignment it is a client-side UI affordance, not a wire
+// or backend concept; the backend only ever sees approve or deny.
 type Decision int
 
 const (
-	// DecisionAllowOnce — let this one call through.
-	DecisionAllowOnce Decision = iota
-	// DecisionAllowAlways — let this one through and cache the
-	// (tool, normalized-args) pair so future identical calls auto-pass.
-	DecisionAllowAlways
+	// DecisionApprove — let this call through.
+	DecisionApprove Decision = iota
 	// DecisionDeny — abort this call. The tool returns an error to
 	// the model so the model can recover.
 	DecisionDeny
