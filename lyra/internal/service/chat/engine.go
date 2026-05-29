@@ -8,7 +8,7 @@ import (
 
 // Engine is the narrow behavioral surface chat depends on. It
 // captures exactly the engine operations the chat service drives
-// — async chat dispatch, plan generation, steering, post-turn
+// — async chat dispatch (plan mode included), steering, post-turn
 // maintenance — and nothing more.
 //
 // StartChat returns an [engine.ChatProcess] that wraps the running
@@ -30,7 +30,6 @@ import (
 // not the other way).
 type Engine interface {
 	StartChat(ctx context.Context, req engine.RunChatRequest) engine.ChatProcess
-	GeneratePlan(ctx context.Context, userMessage string) (string, error)
 	InjectUserMessage(ctx context.Context, sessionID, text string) error
 	MaybeCompact(ctx context.Context, sessionID string) (engine.CompactionResult, error)
 	MaybeExtract(ctx context.Context, sessionID string) (engine.ExtractionResult, error)
