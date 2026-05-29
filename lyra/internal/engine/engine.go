@@ -55,6 +55,12 @@ type Config struct {
 	// tool set, prefixed with the server's Name so collisions across
 	// servers stay separable. Empty disables MCP integration.
 	MCPServers []MCPServer
+
+	// Pricing optionally computes per-round USD cost from the served
+	// model + token usage. nil leaves cost at zero (the chat path gets
+	// no dollar figure from providers). Supply a rate table to surface
+	// CostUSD on ChatOutput / TurnEnd. See [Pricing].
+	Pricing Pricing
 }
 
 // OnlineConfig groups the credentials network-reaching tools need
@@ -102,7 +108,8 @@ type Engine struct {
 	tools    []chat.Tool
 	memStore memory.Store
 	memSvc   lyramem.Service
-	workdir  string // captured from Config.Workdir for the AGENTS.md cascade
+	workdir  string  // captured from Config.Workdir for the AGENTS.md cascade
+	pricing  Pricing // optional per-round cost hook; nil → cost stays zero
 
 	// Maintenance sub-components — each may be nil when the
 	// corresponding feature is disabled by config (e.g. extractor
@@ -171,6 +178,7 @@ func New(ctx context.Context, cfg Config) (*Engine, error) {
 		memStore:    memStore,
 		memSvc:      cfg.MemoryService,
 		workdir:     cfg.Workdir,
+		pricing:     cfg.Pricing,
 		mcpSessions: mcpSessions,
 	}
 

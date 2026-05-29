@@ -62,9 +62,13 @@ func (s *engineBacked) Invoke(ctx context.Context, name string, arguments string
 }
 
 // defaultSafetyClass maps a tool name to its built-in default safety
-// classification. Centralized here so the SafetyClass-by-name table
-// has a single source of truth. A future milestone may let users
-// override per-tool via config.
+// classification, for the ListTools wire metadata. A future milestone
+// may let users override per-tool via config.
+//
+// NOTE: chat/policy.go's safetyClassFor encodes the same name→class
+// mapping for approval GATING. They're deliberately separate (wire
+// metadata vs internal gate, different enum types, may diverge) — but
+// keep the shared rows in sync when adding a built-in tool.
 func defaultSafetyClass(name string) SafetyClass {
 	switch name {
 	case "read", "glob", "grep":

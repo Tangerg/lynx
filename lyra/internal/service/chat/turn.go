@@ -154,7 +154,7 @@ func (s *inMemory) emitTurnEnd(st *turnState, proc engine.ChatProcess, terminal 
 			// rather than a plain completion.
 			reason = TurnEndBudgetExceeded
 		}
-		s.emit(st, TurnEnd{Reason: reason, Duration: duration, TokenUsage: out.Usage, UsageByModel: out.UsageByModel})
+		s.emit(st, TurnEnd{Reason: reason, Duration: duration, TokenUsage: out.Usage, UsageByModel: out.UsageByModel, CostUSD: out.CostUSD})
 	case event.ProcessKilled, event.ProcessTerminated:
 		_ = ev
 		s.emit(st, TurnEnd{Reason: TurnEndCancelled, Duration: duration})
@@ -186,7 +186,7 @@ func (s *inMemory) emitTurnEnd(st *turnState, proc engine.ChatProcess, terminal 
 		if out.StoppedOnBudget {
 			reason = TurnEndBudgetExceeded
 		}
-		s.emit(st, TurnEnd{Reason: reason, Duration: duration, TokenUsage: out.Usage, UsageByModel: out.UsageByModel})
+		s.emit(st, TurnEnd{Reason: reason, Duration: duration, TokenUsage: out.Usage, UsageByModel: out.UsageByModel, CostUSD: out.CostUSD})
 	}
 }
 

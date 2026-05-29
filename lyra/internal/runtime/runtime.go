@@ -81,6 +81,10 @@ type Config struct {
 	// service is always constructed; mode defaults to [approval.ModeYolo]
 	// when this field is the zero value.
 	ApprovalMode approval.Mode
+
+	// Pricing optionally computes per-round USD cost so turns report
+	// CostUSD. nil leaves cost at zero. See [engine.Pricing].
+	Pricing engine.Pricing
 }
 
 // Runtime is the bundle. Construct once via [New]; share the
@@ -115,6 +119,7 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 		MemoryStore:   cfg.MemoryStore,
 		MemoryService: cfg.MemoryService,
 		Compaction:    cfg.Compaction,
+		Pricing:       cfg.Pricing,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("runtime: engine: %w", err)

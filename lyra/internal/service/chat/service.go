@@ -257,7 +257,7 @@ type TurnEnd struct {
 	Reason       TurnEndReason
 	TokenUsage   TokenUsage
 	UsageByModel []ModelUsage // per-model breakdown; one entry for a single-model turn
-	CostUSD      float64      // M-future — per-provider pricing table required
+	CostUSD      float64      // turn cost; zero unless a pricing hook is configured (engine.Config.Pricing)
 	Duration     time.Duration
 }
 
