@@ -20,13 +20,13 @@ func TestRoundTrip(t *testing.T) {
 	defer cleanup()
 
 	// Now that the request is registered, Decide must succeed.
-	if err := svc.Decide(context.Background(), "r1", approval.DecisionAllowOnce); err != nil {
+	if err := svc.Decide(context.Background(), "r1", approval.DecisionApprove); err != nil {
 		t.Fatalf("Decide: %v", err)
 	}
 
 	select {
 	case got := <-decisionCh:
-		if got != approval.DecisionAllowOnce {
+		if got != approval.DecisionApprove {
 			t.Errorf("decision = %v, want AllowOnce", got)
 		}
 	case <-time.After(time.Second):
@@ -38,7 +38,7 @@ func TestRoundTrip(t *testing.T) {
 // no matching pending entry.
 func TestDecideUnknown(t *testing.T) {
 	svc := approval.New(approval.ModeSafe)
-	err := svc.Decide(context.Background(), "no-such", approval.DecisionAllowOnce)
+	err := svc.Decide(context.Background(), "no-such", approval.DecisionApprove)
 	if !errors.Is(err, approval.ErrRequestNotFound) {
 		t.Errorf("err = %v, want ErrRequestNotFound", err)
 	}
@@ -58,7 +58,7 @@ func TestCleanupClearsPending(t *testing.T) {
 	if len(pending) != 0 {
 		t.Errorf("post-cleanup pending count = %d, want 0", len(pending))
 	}
-	if err := svc.Decide(context.Background(), "x", approval.DecisionAllowOnce); !errors.Is(err, approval.ErrRequestNotFound) {
+	if err := svc.Decide(context.Background(), "x", approval.DecisionApprove); !errors.Is(err, approval.ErrRequestNotFound) {
 		t.Errorf("post-cleanup Decide err = %v, want ErrRequestNotFound", err)
 	}
 }

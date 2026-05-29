@@ -37,9 +37,16 @@ func (t *turnObserver) OnToolCallApprove(ctx context.Context, callID, toolName, 
 	if err != nil {
 		return err
 	}
-	if !needsApproval(toolName, mode) {
+	switch gateFor(toolName, mode) {
+	case gatePass:
 		return nil
+	case gateDeny:
+		// ModeReadOnly (or any future deny stance): refuse without
+		// prompting. The engine surfaces this back to the model as a
+		// tool error so it adapts instead of aborting the turn.
+		return errors.New("read-only mode: " + toolName + " is not permitted")
 	}
+	// gatePrompt: register, emit the event, wait for the verdict.
 
 	req := approval.Request{
 		ID:          callID,
@@ -61,7 +68,7 @@ func (t *turnObserver) OnToolCallApprove(ctx context.Context, callID, toolName, 
 		if d == approval.DecisionDeny {
 			return errors.New("tool call denied by user")
 		}
-		return nil
+		return nil // DecisionApprove
 	case <-ctx.Done():
 		// Fail-closed on turn cancellation.
 		return ctx.Err()

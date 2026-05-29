@@ -2,27 +2,48 @@ package chat
 
 import "github.com/Tangerg/lynx/lyra/internal/service/approval"
 
-// needsApproval encodes the (tool, mode) → gating decision. The
-// rules mirror the docs on [approval.Mode]:
+// gateAction is the three-way outcome of the per-call permission
+// gate: run it, ask the user, or refuse outright. Replacing the
+// older bool ("needs approval?") lets ModeReadOnly express "deny
+// without prompting" — a stance a bool can't capture.
+type gateAction int
+
+const (
+	gatePass   gateAction = iota // run without prompting
+	gatePrompt                   // register an approval request and wait
+	gateDeny                     // refuse immediately, no prompt
+)
+
+// gateFor encodes the (tool, mode) → gate action. The rules mirror
+// the strictness gradient documented on [approval.Mode]:
 //
-//   - ModeYolo    → never gate
-//   - ModeBalanced → gate only "exec" class (bash + unknown)
-//   - ModeSafe     → gate every write / exec / unknown tool
+//   - ModeYolo     → always pass
+//   - ModeBalanced → prompt only on exec class (bash + unknown)
+//   - ModeSafe     → prompt on every write / exec / unknown tool
+//   - ModeReadOnly → deny every write / exec / unknown tool outright
 //
 // Pure function so transport adapters and tests can audit the
 // matrix without touching the service impl.
-func needsApproval(toolName string, mode approval.Mode) bool {
+func gateFor(toolName string, mode approval.Mode) gateAction {
 	if mode == approval.ModeYolo {
-		return false
+		return gatePass
 	}
 	cls := safetyClassFor(toolName)
-	switch mode {
-	case approval.ModeSafe:
-		return cls != safetyClassSafe
-	case approval.ModeBalanced:
-		return cls == safetyClassExec
+	if cls == safetyClassSafe {
+		return gatePass // read-only tools never gate, in any mode
 	}
-	return false
+	switch mode {
+	case approval.ModeReadOnly:
+		return gateDeny
+	case approval.ModeSafe:
+		return gatePrompt // write + exec
+	case approval.ModeBalanced:
+		if cls == safetyClassExec {
+			return gatePrompt
+		}
+		return gatePass // write/network auto-allow
+	}
+	return gatePass
 }
 
 // safetyClass is the per-tool side-effect classification. The
