@@ -13,6 +13,7 @@ import (
 	"github.com/Tangerg/lynx/core/model"
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/models/internal/options"
+	"github.com/Tangerg/lynx/models/pricing"
 )
 
 type requestHelper struct {
@@ -384,6 +385,15 @@ func NewChatModel(cfg ChatModelConfig) (*ChatModel, error) {
 	info := chat.ModelMetadata{Provider: Provider}
 	if cfg.Metadata != nil {
 		info = *cfg.Metadata
+	}
+	// Fill the rate card from the embedded catalog when the caller didn't
+	// supply one. Keyed by info.Provider so delegators (e.g. vertexai,
+	// which serves Gemini models with its own Provider) get their own
+	// pricing config.
+	if info.Pricing.IsZero() && cfg.DefaultOptions != nil {
+		if p, ok := pricing.Lookup(info.Provider, cfg.DefaultOptions.Model); ok {
+			info.Pricing = p
+		}
 	}
 	return &ChatModel{
 		api:            api,

@@ -537,7 +537,7 @@ func NewChatModel(cfg ChatModelConfig) (*ChatModel, error) {
 	// Fill the rate card from the embedded catalog when the caller didn't
 	// supply one — so cost can be attributed via Metadata().Pricing.
 	if info.Pricing.IsZero() && cfg.DefaultOptions != nil {
-		if p, ok := pricing.Lookup(Provider, cfg.DefaultOptions.Model); ok {
+		if p, ok := pricing.Lookup(info.Provider, cfg.DefaultOptions.Model); ok {
 			info.Pricing = p
 		}
 	}
