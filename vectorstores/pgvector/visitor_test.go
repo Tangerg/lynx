@@ -256,3 +256,17 @@ func TestVisitor_IsNotNull(t *testing.T) {
 		t.Fatalf("sql=%q must wrap IS NULL in NOT", sql)
 	}
 }
+
+func TestVisitor_NotIn(t *testing.T) {
+	sql, args, err := build(t, `tags not in ('a', 'b')`)
+	if err != nil {
+		t.Fatalf("build: %v", err)
+	}
+	// NOT(tags IN (...)) — the existing NOT wrapper around = ANY.
+	if !strings.Contains(sql, "NOT") || !strings.Contains(sql, "ANY") {
+		t.Fatalf("sql=%q must wrap an = ANY(...) in NOT", sql)
+	}
+	if len(args) != 1 {
+		t.Fatalf("expected one array arg, got %v", args)
+	}
+}
