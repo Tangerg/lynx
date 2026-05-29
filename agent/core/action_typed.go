@@ -52,6 +52,15 @@ func (a *typedAction[In, Out]) Execute(ctx context.Context, pc *ProcessContext) 
 		return ActionFailed
 	}
 
+	// HITL: if the fn parked an awaitable via pc.AwaitInput, it
+	// suspends rather than completes — the returned output is the
+	// unproduced zero value, so don't bind it. The runtime flips the
+	// process to StatusWaiting; on resume the action re-runs and (with
+	// the response now on the blackboard) takes the non-await path.
+	if pc.InputAwaited() {
+		return ActionWaiting
+	}
+
 	// Mirror embabel's MultiTransformationAction: when the action is
 	// flagged ClearBlackboard, wipe (preserving Protected entries)
 	// before binding the output so only the just-produced value
