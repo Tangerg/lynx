@@ -341,8 +341,8 @@
       "display_name": "Kimi K2 Instruct 0905",
       "knowledge_cutoff": "2024-10",
       "pricing": {
-        "input_per_1m": 1.0,
-        "output_per_1m": 3.0,
+        "input_per_1m": 1,
+        "output_per_1m": 3,
         "cache_read_per_1m": 0.5
       },
       "modalities": {

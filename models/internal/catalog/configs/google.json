@@ -141,7 +141,7 @@
       "knowledge_cutoff": "2025-01",
       "pricing": {
         "input_per_1m": 1.25,
-        "output_per_1m": 10.0,
+        "output_per_1m": 10,
         "cache_read_per_1m": 0.125
       },
       "reasoning": {
@@ -170,7 +170,7 @@
       "knowledge_cutoff": "2025-01",
       "pricing": {
         "input_per_1m": 0.5,
-        "output_per_1m": 3.0,
+        "output_per_1m": 3,
         "cache_read_per_1m": 0.05
       },
       "reasoning": {
@@ -322,8 +322,8 @@
       "display_name": "Gemini 3.1 Pro Preview",
       "knowledge_cutoff": "2025-01",
       "pricing": {
-        "input_per_1m": 2.0,
-        "output_per_1m": 12.0,
+        "input_per_1m": 2,
+        "output_per_1m": 12,
         "cache_read_per_1m": 0.2
       },
       "reasoning": {
@@ -351,8 +351,8 @@
       "display_name": "Gemini 3.1 Pro Preview Custom Tools",
       "knowledge_cutoff": "2025-01",
       "pricing": {
-        "input_per_1m": 2.0,
-        "output_per_1m": 12.0,
+        "input_per_1m": 2,
+        "output_per_1m": 12,
         "cache_read_per_1m": 0.2
       },
       "reasoning": {
@@ -387,7 +387,7 @@
       "knowledge_cutoff": "2025-01",
       "pricing": {
         "input_per_1m": 1.5,
-        "output_per_1m": 9.0,
+        "output_per_1m": 9,
         "cache_read_per_1m": 0.15
       },
       "reasoning": {
