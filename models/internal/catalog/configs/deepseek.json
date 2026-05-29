@@ -4,9 +4,9 @@
     {
       "id": "deepseek-chat",
       "display_name": "DeepSeek Chat",
-      "knowledge_cutoff": "2025-09",
-      "release_date": "2025-12-01",
-      "last_updated": "2026-02-28",
+      "knowledge_cutoff": "2025-09-01T00:00:00Z",
+      "release_date": "2025-12-01T00:00:00Z",
+      "last_updated": "2026-02-28T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.14,
@@ -31,9 +31,9 @@
     {
       "id": "deepseek-reasoner",
       "display_name": "DeepSeek Reasoner",
-      "knowledge_cutoff": "2025-09",
-      "release_date": "2025-12-01",
-      "last_updated": "2026-02-28",
+      "knowledge_cutoff": "2025-09-01T00:00:00Z",
+      "release_date": "2025-12-01T00:00:00Z",
+      "last_updated": "2026-02-28T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.14,
@@ -61,9 +61,9 @@
     {
       "id": "deepseek-v4-flash",
       "display_name": "DeepSeek V4 Flash",
-      "knowledge_cutoff": "2025-05",
-      "release_date": "2026-04-24",
-      "last_updated": "2026-04-24",
+      "knowledge_cutoff": "2025-05-01T00:00:00Z",
+      "release_date": "2026-04-24T00:00:00Z",
+      "last_updated": "2026-04-24T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.14,
@@ -97,9 +97,9 @@
     {
       "id": "deepseek-v4-pro",
       "display_name": "DeepSeek V4 Pro",
-      "knowledge_cutoff": "2025-05",
-      "release_date": "2026-04-24",
-      "last_updated": "2026-04-24",
+      "knowledge_cutoff": "2025-05-01T00:00:00Z",
+      "release_date": "2026-04-24T00:00:00Z",
+      "last_updated": "2026-04-24T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.435,

@@ -4,9 +4,9 @@
     {
       "id": "claude-3-5-haiku@20241022",
       "display_name": "Claude Haiku 3.5",
-      "knowledge_cutoff": "2024-07-31",
-      "release_date": "2024-10-22",
-      "last_updated": "2024-10-22",
+      "knowledge_cutoff": "2024-07-31T00:00:00Z",
+      "release_date": "2024-10-22T00:00:00Z",
+      "last_updated": "2024-10-22T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.8,
@@ -34,9 +34,9 @@
     {
       "id": "claude-3-5-sonnet@20241022",
       "display_name": "Claude Sonnet 3.5 v2",
-      "knowledge_cutoff": "2024-04-30",
-      "release_date": "2024-10-22",
-      "last_updated": "2024-10-22",
+      "knowledge_cutoff": "2024-04-30T00:00:00Z",
+      "release_date": "2024-10-22T00:00:00Z",
+      "last_updated": "2024-10-22T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 3,
@@ -64,9 +64,9 @@
     {
       "id": "claude-3-7-sonnet@20250219",
       "display_name": "Claude Sonnet 3.7",
-      "knowledge_cutoff": "2024-10-31",
-      "release_date": "2025-02-19",
-      "last_updated": "2025-02-19",
+      "knowledge_cutoff": "2024-10-31T00:00:00Z",
+      "release_date": "2025-02-19T00:00:00Z",
+      "last_updated": "2025-02-19T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 3,
@@ -97,9 +97,9 @@
     {
       "id": "claude-haiku-4-5@20251001",
       "display_name": "Claude Haiku 4.5",
-      "knowledge_cutoff": "2025-02-28",
-      "release_date": "2025-10-15",
-      "last_updated": "2025-10-15",
+      "knowledge_cutoff": "2025-02-28T00:00:00Z",
+      "release_date": "2025-10-15T00:00:00Z",
+      "last_updated": "2025-10-15T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 1,
@@ -130,9 +130,9 @@
     {
       "id": "claude-opus-4-1@20250805",
       "display_name": "Claude Opus 4.1",
-      "knowledge_cutoff": "2025-03-31",
-      "release_date": "2025-08-05",
-      "last_updated": "2025-08-05",
+      "knowledge_cutoff": "2025-03-31T00:00:00Z",
+      "release_date": "2025-08-05T00:00:00Z",
+      "last_updated": "2025-08-05T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 15,
@@ -163,9 +163,9 @@
     {
       "id": "claude-opus-4-5@20251101",
       "display_name": "Claude Opus 4.5",
-      "knowledge_cutoff": "2025-03-31",
-      "release_date": "2025-11-01",
-      "last_updated": "2025-11-01",
+      "knowledge_cutoff": "2025-03-31T00:00:00Z",
+      "release_date": "2025-11-01T00:00:00Z",
+      "last_updated": "2025-11-01T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 5,
@@ -196,9 +196,9 @@
     {
       "id": "claude-opus-4-6@default",
       "display_name": "Claude Opus 4.6",
-      "knowledge_cutoff": "2025-05-31",
-      "release_date": "2026-02-05",
-      "last_updated": "2026-03-13",
+      "knowledge_cutoff": "2025-05-31T00:00:00Z",
+      "release_date": "2026-02-05T00:00:00Z",
+      "last_updated": "2026-03-13T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 5,
@@ -236,9 +236,9 @@
     {
       "id": "claude-opus-4-7@default",
       "display_name": "Claude Opus 4.7",
-      "knowledge_cutoff": "2026-01-31",
-      "release_date": "2026-04-16",
-      "last_updated": "2026-04-16",
+      "knowledge_cutoff": "2026-01-31T00:00:00Z",
+      "release_date": "2026-04-16T00:00:00Z",
+      "last_updated": "2026-04-16T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 5,
@@ -276,8 +276,8 @@
     {
       "id": "claude-opus-4-8@default",
       "display_name": "Claude Opus 4.8",
-      "release_date": "2026-05-28",
-      "last_updated": "2026-05-28",
+      "release_date": "2026-05-28T00:00:00Z",
+      "last_updated": "2026-05-28T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 5,
@@ -315,9 +315,9 @@
     {
       "id": "claude-opus-4@20250514",
       "display_name": "Claude Opus 4",
-      "knowledge_cutoff": "2025-03-31",
-      "release_date": "2025-05-22",
-      "last_updated": "2025-05-22",
+      "knowledge_cutoff": "2025-03-31T00:00:00Z",
+      "release_date": "2025-05-22T00:00:00Z",
+      "last_updated": "2025-05-22T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 15,
@@ -348,9 +348,9 @@
     {
       "id": "claude-sonnet-4-5@20250929",
       "display_name": "Claude Sonnet 4.5",
-      "knowledge_cutoff": "2025-07-31",
-      "release_date": "2025-09-29",
-      "last_updated": "2025-09-29",
+      "knowledge_cutoff": "2025-07-31T00:00:00Z",
+      "release_date": "2025-09-29T00:00:00Z",
+      "last_updated": "2025-09-29T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 3,
@@ -381,9 +381,9 @@
     {
       "id": "claude-sonnet-4-6@default",
       "display_name": "Claude Sonnet 4.6",
-      "knowledge_cutoff": "2025-08-31",
-      "release_date": "2026-02-17",
-      "last_updated": "2026-03-13",
+      "knowledge_cutoff": "2025-08-31T00:00:00Z",
+      "release_date": "2026-02-17T00:00:00Z",
+      "last_updated": "2026-03-13T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 3,
@@ -421,9 +421,9 @@
     {
       "id": "claude-sonnet-4@20250514",
       "display_name": "Claude Sonnet 4",
-      "knowledge_cutoff": "2025-03-31",
-      "release_date": "2025-05-22",
-      "last_updated": "2025-05-22",
+      "knowledge_cutoff": "2025-03-31T00:00:00Z",
+      "release_date": "2025-05-22T00:00:00Z",
+      "last_updated": "2025-05-22T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 3,
@@ -454,8 +454,8 @@
     {
       "id": "deepseek-ai/deepseek-v3.1-maas",
       "display_name": "DeepSeek V3.1",
-      "release_date": "2025-08-28",
-      "last_updated": "2025-08-28",
+      "release_date": "2025-08-28T00:00:00Z",
+      "last_updated": "2025-08-28T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.6,
@@ -484,8 +484,8 @@
     {
       "id": "deepseek-ai/deepseek-v3.2-maas",
       "display_name": "DeepSeek V3.2",
-      "release_date": "2025-12-17",
-      "last_updated": "2026-04-04",
+      "release_date": "2025-12-17T00:00:00Z",
+      "last_updated": "2026-04-04T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.56,
@@ -515,9 +515,9 @@
     {
       "id": "gemini-2.0-flash",
       "display_name": "Gemini 2.0 Flash",
-      "knowledge_cutoff": "2024-06",
-      "release_date": "2024-12-11",
-      "last_updated": "2024-12-11",
+      "knowledge_cutoff": "2024-06-01T00:00:00Z",
+      "release_date": "2024-12-11T00:00:00Z",
+      "last_updated": "2024-12-11T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.15,
@@ -546,9 +546,9 @@
     {
       "id": "gemini-2.0-flash-lite",
       "display_name": "Gemini 2.0 Flash-Lite",
-      "knowledge_cutoff": "2024-06",
-      "release_date": "2024-12-11",
-      "last_updated": "2024-12-11",
+      "knowledge_cutoff": "2024-06-01T00:00:00Z",
+      "release_date": "2024-12-11T00:00:00Z",
+      "last_updated": "2024-12-11T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.075,
@@ -576,9 +576,9 @@
     {
       "id": "gemini-2.5-flash",
       "display_name": "Gemini 2.5 Flash",
-      "knowledge_cutoff": "2025-01",
-      "release_date": "2025-06-17",
-      "last_updated": "2025-06-17",
+      "knowledge_cutoff": "2025-01-01T00:00:00Z",
+      "release_date": "2025-06-17T00:00:00Z",
+      "last_updated": "2025-06-17T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.3,
@@ -611,9 +611,9 @@
     {
       "id": "gemini-2.5-flash-lite",
       "display_name": "Gemini 2.5 Flash-Lite",
-      "knowledge_cutoff": "2025-01",
-      "release_date": "2025-06-17",
-      "last_updated": "2025-06-17",
+      "knowledge_cutoff": "2025-01-01T00:00:00Z",
+      "release_date": "2025-06-17T00:00:00Z",
+      "last_updated": "2025-06-17T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.1,
@@ -645,9 +645,9 @@
     {
       "id": "gemini-2.5-flash-lite-preview-06-17",
       "display_name": "Gemini 2.5 Flash Lite Preview 06-17",
-      "knowledge_cutoff": "2025-01",
-      "release_date": "2025-06-17",
-      "last_updated": "2025-06-17",
+      "knowledge_cutoff": "2025-01-01T00:00:00Z",
+      "release_date": "2025-06-17T00:00:00Z",
+      "last_updated": "2025-06-17T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.1,
@@ -679,9 +679,9 @@
     {
       "id": "gemini-2.5-flash-preview-09-2025",
       "display_name": "Gemini 2.5 Flash Preview 09-25",
-      "knowledge_cutoff": "2025-01",
-      "release_date": "2025-09-25",
-      "last_updated": "2025-09-25",
+      "knowledge_cutoff": "2025-01-01T00:00:00Z",
+      "release_date": "2025-09-25T00:00:00Z",
+      "last_updated": "2025-09-25T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.3,
@@ -714,9 +714,9 @@
     {
       "id": "gemini-2.5-pro",
       "display_name": "Gemini 2.5 Pro",
-      "knowledge_cutoff": "2025-01",
-      "release_date": "2025-03-20",
-      "last_updated": "2025-06-05",
+      "knowledge_cutoff": "2025-01-01T00:00:00Z",
+      "release_date": "2025-03-20T00:00:00Z",
+      "last_updated": "2025-06-05T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 1.25,
@@ -754,9 +754,9 @@
     {
       "id": "gemini-3-flash-preview",
       "display_name": "Gemini 3 Flash Preview",
-      "knowledge_cutoff": "2025-01",
-      "release_date": "2025-12-17",
-      "last_updated": "2025-12-17",
+      "knowledge_cutoff": "2025-01-01T00:00:00Z",
+      "release_date": "2025-12-17T00:00:00Z",
+      "last_updated": "2025-12-17T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.5,
@@ -796,9 +796,9 @@
     {
       "id": "gemini-3-pro-preview",
       "display_name": "Gemini 3 Pro Preview",
-      "knowledge_cutoff": "2025-01",
-      "release_date": "2025-11-18",
-      "last_updated": "2025-11-18",
+      "knowledge_cutoff": "2025-01-01T00:00:00Z",
+      "release_date": "2025-11-18T00:00:00Z",
+      "last_updated": "2025-11-18T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 2,
@@ -842,9 +842,9 @@
     {
       "id": "gemini-3.1-flash-lite",
       "display_name": "Gemini 3.1 Flash Lite",
-      "knowledge_cutoff": "2025-01",
-      "release_date": "2026-05-07",
-      "last_updated": "2026-05-07",
+      "knowledge_cutoff": "2025-01-01T00:00:00Z",
+      "release_date": "2026-05-07T00:00:00Z",
+      "last_updated": "2026-05-07T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.25,
@@ -877,9 +877,9 @@
     {
       "id": "gemini-3.1-flash-lite-preview",
       "display_name": "Gemini 3.1 Flash Lite Preview",
-      "knowledge_cutoff": "2025-01",
-      "release_date": "2026-03-03",
-      "last_updated": "2026-03-03",
+      "knowledge_cutoff": "2025-01-01T00:00:00Z",
+      "release_date": "2026-03-03T00:00:00Z",
+      "last_updated": "2026-03-03T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.25,
@@ -912,9 +912,9 @@
     {
       "id": "gemini-3.1-pro-preview",
       "display_name": "Gemini 3.1 Pro Preview",
-      "knowledge_cutoff": "2025-01",
-      "release_date": "2026-02-19",
-      "last_updated": "2026-02-19",
+      "knowledge_cutoff": "2025-01-01T00:00:00Z",
+      "release_date": "2026-02-19T00:00:00Z",
+      "last_updated": "2026-02-19T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 2,
@@ -959,9 +959,9 @@
     {
       "id": "gemini-3.1-pro-preview-customtools",
       "display_name": "Gemini 3.1 Pro Preview Custom Tools",
-      "knowledge_cutoff": "2025-01",
-      "release_date": "2026-02-19",
-      "last_updated": "2026-02-19",
+      "knowledge_cutoff": "2025-01-01T00:00:00Z",
+      "release_date": "2026-02-19T00:00:00Z",
+      "last_updated": "2026-02-19T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 2,
@@ -1006,9 +1006,9 @@
     {
       "id": "gemini-3.5-flash",
       "display_name": "Gemini 3.5 Flash",
-      "knowledge_cutoff": "2025-01",
-      "release_date": "2026-05-19",
-      "last_updated": "2026-05-19",
+      "knowledge_cutoff": "2025-01-01T00:00:00Z",
+      "release_date": "2026-05-19T00:00:00Z",
+      "last_updated": "2026-05-19T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 1.5,
@@ -1041,9 +1041,9 @@
     {
       "id": "gemini-flash-latest",
       "display_name": "Gemini Flash Latest",
-      "knowledge_cutoff": "2025-01",
-      "release_date": "2025-09-25",
-      "last_updated": "2025-09-25",
+      "knowledge_cutoff": "2025-01-01T00:00:00Z",
+      "release_date": "2025-09-25T00:00:00Z",
+      "last_updated": "2025-09-25T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.3,
@@ -1076,9 +1076,9 @@
     {
       "id": "gemini-flash-lite-latest",
       "display_name": "Gemini Flash-Lite Latest",
-      "knowledge_cutoff": "2025-01",
-      "release_date": "2025-09-25",
-      "last_updated": "2025-09-25",
+      "knowledge_cutoff": "2025-01-01T00:00:00Z",
+      "release_date": "2025-09-25T00:00:00Z",
+      "last_updated": "2025-09-25T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.1,
@@ -1110,9 +1110,9 @@
     {
       "id": "meta/llama-3.3-70b-instruct-maas",
       "display_name": "Llama 3.3 70B Instruct",
-      "knowledge_cutoff": "2023-12",
-      "release_date": "2025-04-29",
-      "last_updated": "2025-04-29",
+      "knowledge_cutoff": "2023-12-01T00:00:00Z",
+      "release_date": "2025-04-29T00:00:00Z",
+      "last_updated": "2025-04-29T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.72,
@@ -1137,9 +1137,9 @@
     {
       "id": "meta/llama-4-maverick-17b-128e-instruct-maas",
       "display_name": "Llama 4 Maverick 17B 128E Instruct",
-      "knowledge_cutoff": "2024-08",
-      "release_date": "2025-04-29",
-      "last_updated": "2025-04-29",
+      "knowledge_cutoff": "2024-08-01T00:00:00Z",
+      "release_date": "2025-04-29T00:00:00Z",
+      "last_updated": "2025-04-29T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.35,
@@ -1165,9 +1165,9 @@
     {
       "id": "moonshotai/kimi-k2-thinking-maas",
       "display_name": "Kimi K2 Thinking",
-      "knowledge_cutoff": "2024-08",
-      "release_date": "2025-11-13",
-      "last_updated": "2025-11-13",
+      "knowledge_cutoff": "2024-08-01T00:00:00Z",
+      "release_date": "2025-11-13T00:00:00Z",
+      "last_updated": "2025-11-13T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.6,
@@ -1195,8 +1195,8 @@
     {
       "id": "openai/gpt-oss-120b-maas",
       "display_name": "GPT OSS 120B",
-      "release_date": "2025-08-05",
-      "last_updated": "2025-08-05",
+      "release_date": "2025-08-05T00:00:00Z",
+      "last_updated": "2025-08-05T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.09,
@@ -1223,8 +1223,8 @@
     {
       "id": "openai/gpt-oss-20b-maas",
       "display_name": "GPT OSS 20B",
-      "release_date": "2025-08-05",
-      "last_updated": "2025-08-05",
+      "release_date": "2025-08-05T00:00:00Z",
+      "last_updated": "2025-08-05T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.07,
@@ -1251,8 +1251,8 @@
     {
       "id": "qwen/qwen3-235b-a22b-instruct-2507-maas",
       "display_name": "Qwen3 235B A22B Instruct",
-      "release_date": "2025-08-13",
-      "last_updated": "2025-08-13",
+      "release_date": "2025-08-13T00:00:00Z",
+      "last_updated": "2025-08-13T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.22,
@@ -1280,9 +1280,9 @@
     {
       "id": "zai-org/glm-4.7-maas",
       "display_name": "GLM-4.7",
-      "knowledge_cutoff": "2025-04",
-      "release_date": "2026-01-06",
-      "last_updated": "2026-01-06",
+      "knowledge_cutoff": "2025-04-01T00:00:00Z",
+      "release_date": "2026-01-06T00:00:00Z",
+      "last_updated": "2026-01-06T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.6,
@@ -1311,8 +1311,8 @@
     {
       "id": "zai-org/glm-5-maas",
       "display_name": "GLM-5",
-      "release_date": "2026-02-11",
-      "last_updated": "2026-02-11",
+      "release_date": "2026-02-11T00:00:00Z",
+      "last_updated": "2026-02-11T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 1,

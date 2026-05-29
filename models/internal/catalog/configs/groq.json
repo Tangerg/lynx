@@ -4,9 +4,9 @@
     {
       "id": "allam-2-7b",
       "display_name": "ALLaM-2-7b",
-      "knowledge_cutoff": "2024-09",
-      "release_date": "2024-09",
-      "last_updated": "2024-09",
+      "knowledge_cutoff": "2024-09-01T00:00:00Z",
+      "release_date": "2024-09-01T00:00:00Z",
+      "last_updated": "2024-09-01T00:00:00Z",
       "modalities": {
         "input": [
           "text"
@@ -23,9 +23,9 @@
     {
       "id": "deepseek-r1-distill-llama-70b",
       "display_name": "DeepSeek R1 Distill Llama 70B",
-      "knowledge_cutoff": "2024-07",
-      "release_date": "2025-01-20",
-      "last_updated": "2025-01-20",
+      "knowledge_cutoff": "2024-07-01T00:00:00Z",
+      "release_date": "2025-01-20T00:00:00Z",
+      "last_updated": "2025-01-20T00:00:00Z",
       "deprecated": true,
       "pricing": [
         {
@@ -53,9 +53,9 @@
     {
       "id": "gemma2-9b-it",
       "display_name": "Gemma 2 9B",
-      "knowledge_cutoff": "2024-06",
-      "release_date": "2024-06-27",
-      "last_updated": "2024-06-27",
+      "knowledge_cutoff": "2024-06-01T00:00:00Z",
+      "release_date": "2024-06-27T00:00:00Z",
+      "last_updated": "2024-06-27T00:00:00Z",
       "deprecated": true,
       "pricing": [
         {
@@ -80,9 +80,9 @@
     {
       "id": "groq/compound",
       "display_name": "Compound",
-      "knowledge_cutoff": "2025-09-04",
-      "release_date": "2025-09-04",
-      "last_updated": "2025-09-04",
+      "knowledge_cutoff": "2025-09-04T00:00:00Z",
+      "release_date": "2025-09-04T00:00:00Z",
+      "last_updated": "2025-09-04T00:00:00Z",
       "reasoning": {
         "supported": true
       },
@@ -103,9 +103,9 @@
     {
       "id": "groq/compound-mini",
       "display_name": "Compound Mini",
-      "knowledge_cutoff": "2025-09-04",
-      "release_date": "2025-09-04",
-      "last_updated": "2025-09-04",
+      "knowledge_cutoff": "2025-09-04T00:00:00Z",
+      "release_date": "2025-09-04T00:00:00Z",
+      "last_updated": "2025-09-04T00:00:00Z",
       "reasoning": {
         "supported": true
       },
@@ -126,9 +126,9 @@
     {
       "id": "llama-3.1-8b-instant",
       "display_name": "Llama 3.1 8B Instant",
-      "knowledge_cutoff": "2023-12",
-      "release_date": "2024-07-23",
-      "last_updated": "2024-07-23",
+      "knowledge_cutoff": "2023-12-01T00:00:00Z",
+      "release_date": "2024-07-23T00:00:00Z",
+      "last_updated": "2024-07-23T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.05,
@@ -152,9 +152,9 @@
     {
       "id": "llama-3.3-70b-versatile",
       "display_name": "Llama 3.3 70B Versatile",
-      "knowledge_cutoff": "2023-12",
-      "release_date": "2024-12-06",
-      "last_updated": "2024-12-06",
+      "knowledge_cutoff": "2023-12-01T00:00:00Z",
+      "release_date": "2024-12-06T00:00:00Z",
+      "last_updated": "2024-12-06T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.59,
@@ -178,8 +178,8 @@
     {
       "id": "llama-guard-3-8b",
       "display_name": "Llama Guard 3 8B",
-      "release_date": "2024-07-23",
-      "last_updated": "2024-07-23",
+      "release_date": "2024-07-23T00:00:00Z",
+      "last_updated": "2024-07-23T00:00:00Z",
       "deprecated": true,
       "pricing": [
         {
@@ -203,9 +203,9 @@
     {
       "id": "llama3-70b-8192",
       "display_name": "Llama 3 70B",
-      "knowledge_cutoff": "2023-03",
-      "release_date": "2024-04-18",
-      "last_updated": "2024-04-18",
+      "knowledge_cutoff": "2023-03-01T00:00:00Z",
+      "release_date": "2024-04-18T00:00:00Z",
+      "last_updated": "2024-04-18T00:00:00Z",
       "deprecated": true,
       "pricing": [
         {
@@ -230,9 +230,9 @@
     {
       "id": "llama3-8b-8192",
       "display_name": "Llama 3 8B",
-      "knowledge_cutoff": "2023-03",
-      "release_date": "2024-04-18",
-      "last_updated": "2024-04-18",
+      "knowledge_cutoff": "2023-03-01T00:00:00Z",
+      "release_date": "2024-04-18T00:00:00Z",
+      "last_updated": "2024-04-18T00:00:00Z",
       "deprecated": true,
       "pricing": [
         {
@@ -257,9 +257,9 @@
     {
       "id": "meta-llama/llama-4-maverick-17b-128e-instruct",
       "display_name": "Llama 4 Maverick 17B",
-      "knowledge_cutoff": "2024-08",
-      "release_date": "2025-04-05",
-      "last_updated": "2025-04-05",
+      "knowledge_cutoff": "2024-08-01T00:00:00Z",
+      "release_date": "2025-04-05T00:00:00Z",
+      "last_updated": "2025-04-05T00:00:00Z",
       "deprecated": true,
       "pricing": [
         {
@@ -286,9 +286,9 @@
     {
       "id": "meta-llama/llama-4-scout-17b-16e-instruct",
       "display_name": "Llama 4 Scout 17B",
-      "knowledge_cutoff": "2024-08",
-      "release_date": "2025-04-05",
-      "last_updated": "2025-04-05",
+      "knowledge_cutoff": "2024-08-01T00:00:00Z",
+      "release_date": "2025-04-05T00:00:00Z",
+      "last_updated": "2025-04-05T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.11,
@@ -314,8 +314,8 @@
     {
       "id": "meta-llama/llama-guard-4-12b",
       "display_name": "Llama Guard 4 12B",
-      "release_date": "2025-04-05",
-      "last_updated": "2025-04-05",
+      "release_date": "2025-04-05T00:00:00Z",
+      "last_updated": "2025-04-05T00:00:00Z",
       "deprecated": true,
       "pricing": [
         {
@@ -340,9 +340,9 @@
     {
       "id": "meta-llama/llama-prompt-guard-2-22m",
       "display_name": "Llama Prompt Guard 2 22M",
-      "knowledge_cutoff": "2024-10",
-      "release_date": "2024-10-01",
-      "last_updated": "2024-10-01",
+      "knowledge_cutoff": "2024-10-01T00:00:00Z",
+      "release_date": "2024-10-01T00:00:00Z",
+      "last_updated": "2024-10-01T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.03,
@@ -365,9 +365,9 @@
     {
       "id": "meta-llama/llama-prompt-guard-2-86m",
       "display_name": "Llama Prompt Guard 2 86M",
-      "knowledge_cutoff": "2024-10",
-      "release_date": "2024-10-01",
-      "last_updated": "2024-10-01",
+      "knowledge_cutoff": "2024-10-01T00:00:00Z",
+      "release_date": "2024-10-01T00:00:00Z",
+      "last_updated": "2024-10-01T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.04,
@@ -390,9 +390,9 @@
     {
       "id": "mistral-saba-24b",
       "display_name": "Mistral Saba 24B",
-      "knowledge_cutoff": "2024-08",
-      "release_date": "2025-02-06",
-      "last_updated": "2025-02-06",
+      "knowledge_cutoff": "2024-08-01T00:00:00Z",
+      "release_date": "2025-02-06T00:00:00Z",
+      "last_updated": "2025-02-06T00:00:00Z",
       "deprecated": true,
       "pricing": [
         {
@@ -417,9 +417,9 @@
     {
       "id": "moonshotai/kimi-k2-instruct",
       "display_name": "Kimi K2 Instruct",
-      "knowledge_cutoff": "2024-10",
-      "release_date": "2025-07-14",
-      "last_updated": "2025-07-14",
+      "knowledge_cutoff": "2024-10-01T00:00:00Z",
+      "release_date": "2025-07-14T00:00:00Z",
+      "last_updated": "2025-07-14T00:00:00Z",
       "deprecated": true,
       "pricing": [
         {
@@ -444,9 +444,9 @@
     {
       "id": "moonshotai/kimi-k2-instruct-0905",
       "display_name": "Kimi K2 Instruct 0905",
-      "knowledge_cutoff": "2024-10",
-      "release_date": "2025-09-05",
-      "last_updated": "2026-05-27",
+      "knowledge_cutoff": "2024-10-01T00:00:00Z",
+      "release_date": "2025-09-05T00:00:00Z",
+      "last_updated": "2026-05-27T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 1,
@@ -472,8 +472,8 @@
     {
       "id": "openai/gpt-oss-120b",
       "display_name": "GPT OSS 120B",
-      "release_date": "2025-08-05",
-      "last_updated": "2026-05-27",
+      "release_date": "2025-08-05T00:00:00Z",
+      "last_updated": "2026-05-27T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.15,
@@ -502,8 +502,8 @@
     {
       "id": "openai/gpt-oss-20b",
       "display_name": "GPT OSS 20B",
-      "release_date": "2025-08-05",
-      "last_updated": "2026-05-27",
+      "release_date": "2025-08-05T00:00:00Z",
+      "last_updated": "2026-05-27T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.075,
@@ -532,8 +532,8 @@
     {
       "id": "openai/gpt-oss-safeguard-20b",
       "display_name": "Safety GPT OSS 20B",
-      "release_date": "2025-03-05",
-      "last_updated": "2025-03-05",
+      "release_date": "2025-03-05T00:00:00Z",
+      "last_updated": "2025-03-05T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.075,
@@ -561,9 +561,9 @@
     {
       "id": "qwen-qwq-32b",
       "display_name": "Qwen QwQ 32B",
-      "knowledge_cutoff": "2024-09",
-      "release_date": "2024-11-27",
-      "last_updated": "2024-11-27",
+      "knowledge_cutoff": "2024-09-01T00:00:00Z",
+      "release_date": "2024-11-27T00:00:00Z",
+      "last_updated": "2024-11-27T00:00:00Z",
       "deprecated": true,
       "pricing": [
         {
@@ -591,9 +591,9 @@
     {
       "id": "qwen/qwen3-32b",
       "display_name": "Qwen3 32B",
-      "knowledge_cutoff": "2024-11-08",
-      "release_date": "2024-12-23",
-      "last_updated": "2024-12-23",
+      "knowledge_cutoff": "2024-11-08T00:00:00Z",
+      "release_date": "2024-12-23T00:00:00Z",
+      "last_updated": "2024-12-23T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.29,
@@ -620,9 +620,9 @@
     {
       "id": "whisper-large-v3",
       "display_name": "Whisper Large V3",
-      "knowledge_cutoff": "2023-09",
-      "release_date": "2023-09-01",
-      "last_updated": "2025-09-05",
+      "knowledge_cutoff": "2023-09-01T00:00:00Z",
+      "release_date": "2023-09-01T00:00:00Z",
+      "last_updated": "2025-09-05T00:00:00Z",
       "modalities": {
         "input": [
           "audio"
@@ -639,9 +639,9 @@
     {
       "id": "whisper-large-v3-turbo",
       "display_name": "Whisper Large v3 Turbo",
-      "knowledge_cutoff": "2024-10",
-      "release_date": "2024-10-01",
-      "last_updated": "2024-10-01",
+      "knowledge_cutoff": "2024-10-01T00:00:00Z",
+      "release_date": "2024-10-01T00:00:00Z",
+      "last_updated": "2024-10-01T00:00:00Z",
       "modalities": {
         "input": [
           "audio"
