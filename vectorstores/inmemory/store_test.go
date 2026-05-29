@@ -387,3 +387,35 @@ func TestStore_RetrieveIsNull(t *testing.T) {
 		t.Fatalf("is not null = %+v, want [id 2]", got2)
 	}
 }
+
+func TestStore_RetrieveNotIn(t *testing.T) {
+	store := newStore(t)
+	ctx := t.Context()
+	docs := []*document.Document{
+		mustDoc(t, "1", "alpha", map[string]any{"category": "a"}),
+		mustDoc(t, "2", "bravo", map[string]any{"category": "b"}),
+		mustDoc(t, "3", "charlie", map[string]any{"category": "c"}),
+	}
+	createReq, _ := vectorstore.NewCreateRequest(docs)
+	if err := store.Create(ctx, createReq); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	expr, err := filter.ParseAndAnalyze(`category not in ('a', 'b')`)
+	if err != nil {
+		t.Fatalf("ParseAndAnalyze: %v", err)
+	}
+	req, _ := vectorstore.NewRetrievalRequest("x")
+	req.WithFilter(expr).WithTopK(10)
+	got, err := store.Retrieve(ctx, req)
+	if err != nil {
+		t.Fatalf("Retrieve: %v", err)
+	}
+	if len(got) != 1 || got[0].ID != "3" {
+		ids := make([]string, 0, len(got))
+		for _, d := range got {
+			ids = append(ids, d.ID)
+		}
+		t.Fatalf("not in ('a','b') matched %v, want [3]", ids)
+	}
+}

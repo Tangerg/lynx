@@ -118,3 +118,28 @@ func TestParseAndAnalyze_IsNullRejectsNonNull(t *testing.T) {
 		}
 	}
 }
+
+func TestParseAndAnalyze_NotIn(t *testing.T) {
+	// `NOT IN` reuses the NOT + IN tokens: it parses to a NOT wrapping an
+	// IN, not a dedicated node.
+	expr, err := filter.ParseAndAnalyze(`tags not in ('a', 'b', 'c')`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	unary, ok := expr.(*ast.UnaryExpr)
+	if !ok {
+		t.Fatalf("NOT IN should be a UnaryExpr(NOT, ...), got %T", expr)
+	}
+	if _, ok := unary.Right.(*ast.BinaryExpr); !ok {
+		t.Fatalf("NOT IN inner should be a BinaryExpr(IN), got %T", unary.Right)
+	}
+}
+
+func TestParseAndAnalyze_NotInRejectsNonIn(t *testing.T) {
+	// Infix NOT only accepts IN after it.
+	for _, src := range []string{`a not == 1`, `a not 5`} {
+		if _, err := filter.ParseAndAnalyze(src); err == nil {
+			t.Fatalf("ParseAndAnalyze(%q): expected error, got nil", src)
+		}
+	}
+}
