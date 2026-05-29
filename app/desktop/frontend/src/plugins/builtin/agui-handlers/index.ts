@@ -136,7 +136,6 @@ export const searchResultsHandler = definePlugin({
       withSchema(CUSTOM.SEARCH_RESULTS, SearchResultsPayloadSchema, (value) =>
         appendBlockToMessage(value.parentMessageId, {
           kind: "search",
-          toolCallId: value.parentMessageId,
           results: value.results,
         }),
       ),
