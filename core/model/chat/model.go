@@ -44,5 +44,5 @@ type ModelMetadata struct {
 	// unknown. Providers populate it — typically from a pricing catalog
 	// (github.com/Tangerg/lynx/models/pricing, modeled on catwalk) — so
 	// consumers can attribute USD cost without hard-coding rates.
-	Pricing model.Pricing `json:"pricing,omitzero"`
+	Pricing Pricing `json:"pricing,omitzero"`
 }

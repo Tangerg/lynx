@@ -16,7 +16,7 @@ import (
 	"encoding/json"
 	"strings"
 
-	"github.com/Tangerg/lynx/core/model"
+	"github.com/Tangerg/lynx/core/model/chat"
 )
 
 //go:embed configs/anthropic.json
@@ -26,10 +26,10 @@ var anthropicConfig []byte
 var openaiConfig []byte
 
 // entry is one model's row: its id plus the embedded rate card (the
-// model.Pricing json tags flatten into the same JSON object).
+// chat.Pricing json tags flatten into the same JSON object).
 type entry struct {
 	ID string `json:"id"`
-	model.Pricing
+	chat.Pricing
 }
 
 type providerConfig struct {
@@ -41,8 +41,8 @@ type providerConfig struct {
 // embedded configs.
 var catalog = mustLoad(anthropicConfig, openaiConfig)
 
-func mustLoad(configs ...[]byte) map[string]map[string]model.Pricing {
-	out := make(map[string]map[string]model.Pricing, len(configs))
+func mustLoad(configs ...[]byte) map[string]map[string]chat.Pricing {
+	out := make(map[string]map[string]chat.Pricing, len(configs))
 	for _, raw := range configs {
 		var cfg providerConfig
 		if err := json.Unmarshal(raw, &cfg); err != nil {
@@ -51,7 +51,7 @@ func mustLoad(configs ...[]byte) map[string]map[string]model.Pricing {
 			// regexp.MustCompile). Tests cover the configs parsing.
 			panic("pricing: invalid embedded config: " + err.Error())
 		}
-		byModel := make(map[string]model.Pricing, len(cfg.Models))
+		byModel := make(map[string]chat.Pricing, len(cfg.Models))
 		for _, e := range cfg.Models {
 			byModel[e.ID] = e.Pricing
 		}
@@ -64,12 +64,12 @@ func mustLoad(configs ...[]byte) map[string]map[string]model.Pricing {
 // matched case-insensitively (adapter Provider consts are capitalized,
 // e.g. "Anthropic", while configs use lowercase ids). ok is false when
 // the pair isn't cataloged — the caller treats that as "pricing
-// unknown" (a zero model.Pricing).
-func Lookup(provider, modelID string) (model.Pricing, bool) {
+// unknown" (a zero chat.Pricing).
+func Lookup(provider, modelID string) (chat.Pricing, bool) {
 	if byModel, ok := catalog[strings.ToLower(provider)]; ok {
 		if p, ok := byModel[modelID]; ok {
 			return p, true
 		}
 	}
-	return model.Pricing{}, false
+	return chat.Pricing{}, false
 }
