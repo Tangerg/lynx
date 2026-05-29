@@ -106,354 +106,77 @@ func (d *Dispatcher) Handle(ctx context.Context, msg transport.Message, expected
 	return d.dispatchRequest(ctx, req)
 }
 
-// dispatchRequest fans the request out to the right Runtime method.
-// Each method shape is small and self-explanatory — decode params,
-// call the typed method, encode result.
+// methodHandler decodes one request, calls the typed Runtime method,
+// and encodes the result. Every business method has the same shape,
+// so they share one signature and route through [methodTable] instead
+// of a long switch (CLAUDE.md: 查表法替代条件链).
+type methodHandler = func(*Dispatcher, context.Context, *transport.Request) HandleResult
+
+// methodTable maps each JSON-RPC method name to its handler. Handlers
+// live in domain-grouped files (handlers_runs.go / handlers_sessions.go
+// / handlers_workspace.go / handlers_catalog.go); adding a method means
+// writing one handler + one table row — nothing in dispatchRequest
+// changes. Notifications (shutdown / canceled) are NOT here; they have
+// no response and route through [Dispatcher.handleNotification].
+var methodTable = map[string]methodHandler{
+	// Lifecycle.
+	MethodInitialize: (*Dispatcher).handleInitialize,
+	MethodPing:       (*Dispatcher).handlePing,
+
+	// Runs.
+	MethodRunsStart:          (*Dispatcher).handleRunsStart,
+	MethodRunsCancel:         (*Dispatcher).handleRunsCancel,
+	MethodRunsApprovalSubmit: (*Dispatcher).handleRunsApprovalSubmit,
+
+	// Sessions.
+	MethodSessionsList:   (*Dispatcher).handleSessionsList,
+	MethodSessionsGet:    (*Dispatcher).handleSessionsGet,
+	MethodSessionsCreate: (*Dispatcher).handleSessionsCreate,
+	MethodSessionsUpdate: (*Dispatcher).handleSessionsUpdate,
+	MethodSessionsDelete: (*Dispatcher).handleSessionsDelete,
+	MethodSessionsFork:   (*Dispatcher).handleSessionsFork,
+	MethodSessionsExport: (*Dispatcher).handleSessionsExport,
+
+	// Messages.
+	MethodMessagesList: (*Dispatcher).handleMessagesList,
+	MethodMessagesEdit: (*Dispatcher).handleMessagesEdit,
+
+	// Workspace.
+	MethodWorkspaceFilesChanged: (*Dispatcher).handleWorkspaceFilesChanged,
+	MethodWorkspaceDiff:         (*Dispatcher).handleWorkspaceDiff,
+	MethodWorkspaceFileHead:     (*Dispatcher).handleWorkspaceFileHead,
+	MethodWorkspaceGrep:         (*Dispatcher).handleWorkspaceGrep,
+	MethodWorkspaceProjects:     (*Dispatcher).handleWorkspaceProjects,
+	MethodWorkspaceMCPList:      (*Dispatcher).handleWorkspaceMCPList,
+	MethodWorkspaceMCPReconnect: (*Dispatcher).handleWorkspaceMCPReconnect,
+	MethodWorkspaceSkills:       (*Dispatcher).handleWorkspaceSkills,
+
+	// Providers / Models / Tools.
+	MethodProvidersList: (*Dispatcher).handleProvidersList,
+	MethodProvidersTest: (*Dispatcher).handleProvidersTest,
+	MethodModelsList:    (*Dispatcher).handleModelsList,
+	MethodToolsList:     (*Dispatcher).handleToolsList,
+
+	// Attachments.
+	MethodAttachmentsCreateUploadURL: (*Dispatcher).handleAttachmentsCreateUploadURL,
+	MethodAttachmentsDelete:          (*Dispatcher).handleAttachmentsDelete,
+
+	// Background.
+	MethodBackgroundList: (*Dispatcher).handleBackgroundList,
+	MethodBackgroundStop: (*Dispatcher).handleBackgroundStop,
+
+	// Feedback.
+	MethodFeedbackSubmit: (*Dispatcher).handleFeedbackSubmit,
+}
+
+// dispatchRequest routes the request to its handler via [methodTable].
+// Unknown methods get -32601 method-not-found.
 func (d *Dispatcher) dispatchRequest(ctx context.Context, msg *transport.Request) HandleResult {
-	switch msg.Method {
-
-	// ─── Lifecycle ──────────────────────────────────────────────
-	case MethodInitialize:
-		var in protocol.InitializeRequest
-		if err := unmarshal(msg.Params, &in); err != nil {
-			return responseError(msg.ID, invalidParams(err.Error()))
-		}
-		out, err := d.api.Initialize(ctx, in)
-		if err != nil {
-			return responseError(msg.ID, errorToRPC(err))
-		}
-		d.initialized.Store(true)
-		return responseResult(msg.ID, out)
-
-	case MethodPing:
-		if err := d.api.Ping(ctx); err != nil {
-			return responseError(msg.ID, errorToRPC(err))
-		}
-		return responseResult(msg.ID, struct{}{})
-
-	// ─── Runs ───────────────────────────────────────────────────
-	case MethodRunsStart:
-		var in protocol.StartRunRequest
-		if err := unmarshal(msg.Params, &in); err != nil {
-			return responseError(msg.ID, invalidParams(err.Error()))
-		}
-		out, events, err := d.api.StartRun(ctx, in)
-		if err != nil {
-			return responseError(msg.ID, errorToRPC(err))
-		}
-		return streamingResult(msg.ID, out, out.RunID, events)
-
-	case MethodRunsCancel:
-		// API.md v4 §3.5: runs.cancel is a Request (not a notification).
-		// It stops an in-flight run identified by runId. Decoupled from
-		// notifications/canceled (which aborts an in-flight JSON-RPC
-		// Request — different semantic).
-		var in protocol.CancelRunRequest
-		if err := unmarshal(msg.Params, &in); err != nil {
-			return responseError(msg.ID, invalidParams(err.Error()))
-		}
-		if in.RunID == "" {
-			return responseError(msg.ID, invalidParams("runId is required"))
-		}
-		if err := d.api.CancelRun(ctx, in.RunID); err != nil {
-			return responseError(msg.ID, errorToRPC(err))
-		}
-		return responseResult(msg.ID, struct{}{})
-
-	case MethodRunsApprovalSubmit:
-		var in protocol.ApprovalRequest
-		if err := unmarshal(msg.Params, &in); err != nil {
-			return responseError(msg.ID, invalidParams(err.Error()))
-		}
-		if err := d.api.SubmitApproval(ctx, in); err != nil {
-			return responseError(msg.ID, errorToRPC(err))
-		}
-		return responseResult(msg.ID, struct{}{})
-
-	// ─── Sessions ───────────────────────────────────────────────
-	case MethodSessionsList:
-		var q protocol.PageQuery
-		_ = unmarshal(msg.Params, &q) // empty params is valid
-		page, err := d.api.ListSessions(ctx, q)
-		if err != nil {
-			return responseError(msg.ID, errorToRPC(err))
-		}
-		return responseResult(msg.ID, page)
-
-	case MethodSessionsGet:
-		id, err := decodeIDParam(msg.Params, "id")
-		if err != nil {
-			return responseError(msg.ID, invalidParams(err.Error()))
-		}
-		sess, err := d.api.GetSession(ctx, id)
-		if err != nil {
-			return responseError(msg.ID, errorToRPC(err))
-		}
-		return responseResult(msg.ID, sess)
-
-	case MethodSessionsCreate:
-		var in protocol.CreateSessionRequest
-		_ = unmarshal(msg.Params, &in)
-		sess, err := d.api.CreateSession(ctx, in)
-		if err != nil {
-			return responseError(msg.ID, errorToRPC(err))
-		}
-		return responseResult(msg.ID, sess)
-
-	case MethodSessionsUpdate:
-		// UpdateSessionRequest is flat — `id` lives alongside the patch
-		// fields. One unmarshal pass covers everything (no inline-tag
-		// hack).
-		var in protocol.UpdateSessionRequest
-		if err := unmarshal(msg.Params, &in); err != nil {
-			return responseError(msg.ID, invalidParams(err.Error()))
-		}
-		if in.ID == "" {
-			return responseError(msg.ID, invalidParams("id is required"))
-		}
-		sess, err := d.api.UpdateSession(ctx, in)
-		if err != nil {
-			return responseError(msg.ID, errorToRPC(err))
-		}
-		return responseResult(msg.ID, sess)
-
-	case MethodSessionsDelete:
-		id, err := decodeIDParam(msg.Params, "id")
-		if err != nil {
-			return responseError(msg.ID, invalidParams(err.Error()))
-		}
-		if err := d.api.DeleteSession(ctx, id); err != nil {
-			return responseError(msg.ID, errorToRPC(err))
-		}
-		return responseResult(msg.ID, struct{}{})
-
-	case MethodSessionsFork:
-		var in protocol.ForkSessionRequest
-		if err := unmarshal(msg.Params, &in); err != nil {
-			return responseError(msg.ID, invalidParams(err.Error()))
-		}
-		sess, err := d.api.ForkSession(ctx, in)
-		if err != nil {
-			return responseError(msg.ID, errorToRPC(err))
-		}
-		return responseResult(msg.ID, sess)
-
-	case MethodSessionsExport:
-		var in protocol.ExportSessionRequest
-		if err := unmarshal(msg.Params, &in); err != nil {
-			return responseError(msg.ID, invalidParams(err.Error()))
-		}
-		out, err := d.api.ExportSession(ctx, in)
-		if err != nil {
-			return responseError(msg.ID, errorToRPC(err))
-		}
-		return responseResult(msg.ID, out)
-
-	// ─── Messages ───────────────────────────────────────────────
-	case MethodMessagesList:
-		// Flat shape: sessionId + limit + cursor at the same level.
-		var in protocol.ListMessagesRequest
-		if err := unmarshal(msg.Params, &in); err != nil {
-			return responseError(msg.ID, invalidParams(err.Error()))
-		}
-		if in.SessionID == "" {
-			return responseError(msg.ID, invalidParams("sessionId is required"))
-		}
-		page, err := d.api.ListMessages(ctx, in)
-		if err != nil {
-			return responseError(msg.ID, errorToRPC(err))
-		}
-		return responseResult(msg.ID, page)
-
-	case MethodMessagesEdit:
-		var in protocol.EditMessageRequest
-		if err := unmarshal(msg.Params, &in); err != nil {
-			return responseError(msg.ID, invalidParams(err.Error()))
-		}
-		out, err := d.api.EditMessage(ctx, in)
-		if err != nil {
-			return responseError(msg.ID, errorToRPC(err))
-		}
-		return responseResult(msg.ID, out)
-
-	// ─── Workspace ──────────────────────────────────────────────
-	// Non-paginated list methods return bare arrays (no {items}
-	// wrapper) per API.md v3 §5.2.
-	case MethodWorkspaceFilesChanged:
-		files, err := d.api.WorkspaceFilesChanged(ctx)
-		if err != nil {
-			return responseError(msg.ID, errorToRPC(err))
-		}
-		return responseResult(msg.ID, files)
-
-	case MethodWorkspaceDiff:
-		var in struct {
-			Path string `json:"path"`
-		}
-		if err := unmarshal(msg.Params, &in); err != nil {
-			return responseError(msg.ID, invalidParams(err.Error()))
-		}
-		rows, err := d.api.WorkspaceDiff(ctx, in.Path)
-		if err != nil {
-			return responseError(msg.ID, errorToRPC(err))
-		}
-		return responseResult(msg.ID, rows)
-
-	case MethodWorkspaceFileHead:
-		var in struct {
-			Path string `json:"path"`
-		}
-		if err := unmarshal(msg.Params, &in); err != nil {
-			return responseError(msg.ID, invalidParams(err.Error()))
-		}
-		lines, err := d.api.WorkspaceFileHead(ctx, in.Path)
-		if err != nil {
-			return responseError(msg.ID, errorToRPC(err))
-		}
-		return responseResult(msg.ID, lines)
-
-	case MethodWorkspaceGrep:
-		var in struct {
-			Query string `json:"query"`
-		}
-		if err := unmarshal(msg.Params, &in); err != nil {
-			return responseError(msg.ID, invalidParams(err.Error()))
-		}
-		res, err := d.api.WorkspaceGrep(ctx, in.Query)
-		if err != nil {
-			return responseError(msg.ID, errorToRPC(err))
-		}
-		return responseResult(msg.ID, res)
-
-	case MethodWorkspaceProjects:
-		projects, err := d.api.WorkspaceProjects(ctx)
-		if err != nil {
-			return responseError(msg.ID, errorToRPC(err))
-		}
-		return responseResult(msg.ID, projects)
-
-	case MethodWorkspaceMCPList:
-		servers, err := d.api.WorkspaceMCPList(ctx)
-		if err != nil {
-			return responseError(msg.ID, errorToRPC(err))
-		}
-		return responseResult(msg.ID, servers)
-
-	case MethodWorkspaceMCPReconnect:
-		var in struct {
-			Name string `json:"name"`
-		}
-		if err := unmarshal(msg.Params, &in); err != nil {
-			return responseError(msg.ID, invalidParams(err.Error()))
-		}
-		if err := d.api.WorkspaceMCPReconnect(ctx, in.Name); err != nil {
-			return responseError(msg.ID, errorToRPC(err))
-		}
-		return responseResult(msg.ID, struct{}{})
-
-	case MethodWorkspaceSkills:
-		skills, err := d.api.WorkspaceSkills(ctx)
-		if err != nil {
-			return responseError(msg.ID, errorToRPC(err))
-		}
-		return responseResult(msg.ID, skills)
-
-	// ─── Providers / Models / Tools ─────────────────────────────
-	case MethodProvidersList:
-		providers, err := d.api.ListProviders(ctx)
-		if err != nil {
-			return responseError(msg.ID, errorToRPC(err))
-		}
-		return responseResult(msg.ID, providers)
-
-	case MethodProvidersTest:
-		var in struct {
-			ID string `json:"id"`
-		}
-		if err := unmarshal(msg.Params, &in); err != nil {
-			return responseError(msg.ID, invalidParams(err.Error()))
-		}
-		res, err := d.api.TestProvider(ctx, in.ID)
-		if err != nil {
-			return responseError(msg.ID, errorToRPC(err))
-		}
-		return responseResult(msg.ID, res)
-
-	case MethodModelsList:
-		var in struct {
-			Provider string `json:"provider"`
-		}
-		if err := unmarshal(msg.Params, &in); err != nil {
-			return responseError(msg.ID, invalidParams(err.Error()))
-		}
-		models, err := d.api.ListModels(ctx, in.Provider)
-		if err != nil {
-			return responseError(msg.ID, errorToRPC(err))
-		}
-		return responseResult(msg.ID, models)
-
-	case MethodToolsList:
-		tools, err := d.api.ListTools(ctx)
-		if err != nil {
-			return responseError(msg.ID, errorToRPC(err))
-		}
-		return responseResult(msg.ID, tools)
-
-	// ─── Attachments ────────────────────────────────────────────
-	case MethodAttachmentsCreateUploadURL:
-		var in protocol.CreateUploadURLRequest
-		if err := unmarshal(msg.Params, &in); err != nil {
-			return responseError(msg.ID, invalidParams(err.Error()))
-		}
-		out, err := d.api.CreateUploadURL(ctx, in)
-		if err != nil {
-			return responseError(msg.ID, errorToRPC(err))
-		}
-		return responseResult(msg.ID, out)
-
-	case MethodAttachmentsDelete:
-		id, err := decodeIDParam(msg.Params, "id")
-		if err != nil {
-			return responseError(msg.ID, invalidParams(err.Error()))
-		}
-		if err := d.api.DeleteAttachment(ctx, id); err != nil {
-			return responseError(msg.ID, errorToRPC(err))
-		}
-		return responseResult(msg.ID, struct{}{})
-
-	// ─── Background ─────────────────────────────────────────────
-	case MethodBackgroundList:
-		tasks, err := d.api.ListBackground(ctx)
-		if err != nil {
-			return responseError(msg.ID, errorToRPC(err))
-		}
-		return responseResult(msg.ID, tasks)
-
-	case MethodBackgroundStop:
-		// API.md v3 §4.1: param key is `taskId`, not generic `id`.
-		taskID, err := decodeIDParam(msg.Params, "taskId")
-		if err != nil {
-			return responseError(msg.ID, invalidParams(err.Error()))
-		}
-		if err := d.api.StopBackground(ctx, taskID); err != nil {
-			return responseError(msg.ID, errorToRPC(err))
-		}
-		return responseResult(msg.ID, struct{}{})
-
-	// ─── Feedback ───────────────────────────────────────────────
-	case MethodFeedbackSubmit:
-		var in protocol.FeedbackRequest
-		if err := unmarshal(msg.Params, &in); err != nil {
-			return responseError(msg.ID, invalidParams(err.Error()))
-		}
-		if err := d.api.SubmitFeedback(ctx, in); err != nil {
-			return responseError(msg.ID, errorToRPC(err))
-		}
-		return responseResult(msg.ID, struct{}{})
-
-	default:
+	handle, ok := methodTable[msg.Method]
+	if !ok {
 		return responseError(msg.ID, methodNotFound(msg.Method))
 	}
+	return handle(d, ctx, msg)
 }
 
 // handleNotification dispatches the no-response methods. Errors are

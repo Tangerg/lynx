@@ -45,8 +45,10 @@ type Config struct {
 
 	// Online optionally enables provider-backed tools (web fetch,
 	// web search, HTTP requests). Each field is independent — set
-	// only the ones you have credentials for. See [OnlineConfig].
-	Online OnlineConfig
+	// only the ones you have credentials for. Stored directly in the
+	// engine's wire format so no bridge layer is needed (same pattern
+	// as MCPServers).
+	Online engine.OnlineConfig
 
 	// MCPServers is the parsed list of external MCP servers the
 	// engine dials at startup. Tools from each server merge into
@@ -59,26 +61,6 @@ type Config struct {
 	// memory services. Defaults to StorageFile — set LYRA_STORAGE
 	// to "sqlite" to use the SQLite backend instead.
 	Storage StorageKind
-}
-
-// OnlineConfig groups the credentials needed by network-reaching
-// tools. Empty fields disable the corresponding tool — no tool is
-// registered without explicit opt-in, so an offline-only install
-// has no surprise outbound traffic.
-type OnlineConfig struct {
-	// JinaAPIKey enables the webfetch tool backed by Jina Reader.
-	// Get a key from https://jina.ai/reader.
-	JinaAPIKey string
-
-	// TavilyAPIKey enables the websearch tool backed by Tavily.
-	// Get a key from https://app.tavily.com.
-	TavilyAPIKey string
-
-	// HTTPAllowedHosts enables the httpreq tool. Pass an explicit
-	// allowlist (e.g. ["api.github.com", "*.openai.com"]) — empty
-	// keeps the tool disabled. Required so the LLM can't reach
-	// arbitrary internal endpoints.
-	HTTPAllowedHosts []string
 }
 
 // Load resolves the configuration from defaults + environment. The
@@ -120,7 +102,7 @@ func Load() (Config, error) {
 		Provider: provider,
 		Model:    model,
 		APIKey:   apiKey,
-		Online: OnlineConfig{
+		Online: engine.OnlineConfig{
 			JinaAPIKey:       os.Getenv("LYRA_JINA_API_KEY"),
 			TavilyAPIKey:     os.Getenv("LYRA_TAVILY_API_KEY"),
 			HTTPAllowedHosts: splitHosts(os.Getenv("LYRA_HTTP_ALLOWED_HOSTS")),

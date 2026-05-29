@@ -57,13 +57,24 @@ type Config struct {
 	MCPServers []MCPServer
 }
 
-// OnlineConfig is engine's view of the runtime-time online-tool
-// credentials. Mirrors config.OnlineConfig but lives in this
-// package so the engine has no dependency on the config layer
-// (callers map between them).
+// OnlineConfig groups the credentials network-reaching tools need
+// (webfetch / websearch / httpreq). Empty fields disable the
+// corresponding tool — no tool is registered without explicit
+// opt-in, so an offline-only install makes no surprise outbound
+// calls. This is the canonical definition; the config layer stores
+// it directly (no bridge mapping), keeping engine free of any
+// dependency on config.
 type OnlineConfig struct {
-	JinaAPIKey       string
-	TavilyAPIKey     string
+	// JinaAPIKey enables the webfetch tool backed by Jina Reader.
+	JinaAPIKey string
+
+	// TavilyAPIKey enables the websearch tool backed by Tavily.
+	TavilyAPIKey string
+
+	// HTTPAllowedHosts enables the httpreq tool. Pass an explicit
+	// allowlist (e.g. ["api.github.com", "*.openai.com"]) — empty
+	// keeps the tool disabled so the LLM can't reach arbitrary
+	// internal endpoints.
 	HTTPAllowedHosts []string
 }
 
