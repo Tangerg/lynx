@@ -101,6 +101,9 @@ func (i *Server) ForkSession(ctx context.Context, in protocol.ForkSessionRequest
 	// blank. Lineage is already recorded by Session().Fork.
 	if prefix := historyPrefix(parentHistory, in.AtMessageID); len(prefix) > 0 {
 		if err := i.rt.SeedHistory(ctx, s.ID, prefix); err != nil {
+			// Don't leave a half-initialized child (created but no
+			// history) for sessions.list to show — roll it back.
+			_ = i.rt.Session().Delete(ctx, s.ID)
 			return nil, fmt.Errorf("sessions.fork: seed child history: %w", err)
 		}
 	}

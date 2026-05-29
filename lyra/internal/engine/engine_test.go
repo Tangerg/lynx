@@ -183,6 +183,38 @@ func TestEngine_RunChat_TokenUsageAccumulates(t *testing.T) {
 	}
 }
 
+// TestEngine_RunChat_PricingFillsCost verifies the cost conduit: with a
+// Pricing hook configured, each round's cost is recorded on its
+// invocation and rolls up to ChatOutput.CostUSD + per-model cost. The
+// rate table itself is the caller's; here a stub rate of $1/token makes
+// cost == total prompt+completion tokens (30 + 12 = 42).
+func TestEngine_RunChat_PricingFillsCost(t *testing.T) {
+	reasoning := int64(3)
+	stub := newUsageStubModel(
+		chat.Usage{PromptTokens: 10, CompletionTokens: 5},
+		chat.Usage{PromptTokens: 20, CompletionTokens: 7, ReasoningTokens: &reasoning},
+	)
+	client, _ := chat.NewClient(stub)
+	pricing := func(_ string, u TokenUsage) float64 {
+		return float64(u.PromptTokens + u.CompletionTokens)
+	}
+	eng, err := New(context.Background(), Config{ChatClient: client, Pricing: pricing})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := eng.RunChat(context.Background(), RunChatRequest{Message: "go"})
+	if err != nil {
+		t.Fatalf("RunChat: %v", err)
+	}
+	if out.CostUSD != 42 {
+		t.Errorf("CostUSD = %v, want 42", out.CostUSD)
+	}
+	if len(out.UsageByModel) != 1 || out.UsageByModel[0].CostUSD != 42 {
+		t.Errorf("per-model cost = %+v, want one entry costing 42", out.UsageByModel)
+	}
+}
+
 // TestEngine_RunChat_StopsOnBudget verifies the per-turn token
 // ceiling halts the tool loop at a round boundary — before the next
 // LLM call — and reports the partial result with StoppedOnBudget set.

@@ -24,9 +24,9 @@ type ChatInput struct {
 }
 
 // ChatOutput is the typed output of one turn. Reply is the assistant's
-// final text. Usage / UsageByModel are read back from the process
-// budget — the agent framework's invocation ledger — rather than a
-// hand-rolled tally: the action records each LLM round via
+// final text. Usage / UsageByModel / CostUSD are read back from the
+// process budget — the agent framework's invocation ledger — rather
+// than a hand-rolled tally: the action records each LLM round via
 // [core.ProcessContext.RecordLLMInvocation], and these fields are the
 // rolled-up view.
 type ChatOutput struct {
@@ -38,6 +38,11 @@ type ChatOutput struct {
 	// several once a turn spans models (tool rounds routed elsewhere,
 	// sub-agents).
 	UsageByModel []ModelUsage
+
+	// CostUSD is the turn's total dollar cost, summed from the recorded
+	// invocations. Zero unless a [Pricing] func is configured (providers
+	// don't return a dollar figure on the chat path); see [Config.Pricing].
+	CostUSD float64
 
 	// StoppedOnBudget is true when the turn ended because it hit
 	// [ChatInput.MaxBudget] rather than the model finishing. Reply
@@ -59,12 +64,20 @@ func (t TokenUsage) total() int64 {
 	return t.PromptTokens + t.CompletionTokens
 }
 
-// ModelUsage is one model's slice of a turn's tokens — the lynx analog
-// of an SDK modelUsage map entry.
+// ModelUsage is one model's slice of a turn's tokens + cost — the lynx
+// analog of an SDK modelUsage map entry.
 type ModelUsage struct {
 	Model string
 	TokenUsage
+	CostUSD float64
 }
+
+// Pricing computes the USD cost of one LLM round from the served model
+// and its token usage. Supply via [Config.Pricing] to populate cost on
+// invocations / ChatOutput / TurnEnd; nil leaves cost at zero. The
+// per-provider rate table behind it is the caller's to maintain — the
+// framework never invents cost numbers.
+type Pricing func(model string, usage TokenUsage) float64
 
 // buildChatAgent constructs the chat agent owned by this Engine.
 // The Action's closure captures `e` so it can reach the engine's
@@ -125,6 +138,13 @@ func (e *Engine) buildSubtaskAgent() *core.Agent {
 			"main conversation stays uncluttered. Returns the sub-agent's final answer.").
 		Actions(agent.NewAction("subtask",
 			func(ctx context.Context, pc *core.ProcessContext, in TaskInput) (string, error) {
+				// maxBudget=0: a subtask runs without its own token cap.
+				// It isn't unbounded at the turn level, though — its
+				// usage records into the child budget, which aggregates
+				// into the parent's subtree, so the parent turn's next
+				// round-boundary budget check (processTokens reads the
+				// subtree total) stops further work once the subtask
+				// pushes the parent over MaxBudget.
 				out, err := e.runChatTurn(ctx, pc, in.Prompt, 0)
 				if err != nil {
 					return "", err
@@ -182,11 +202,15 @@ func (e *Engine) runChatTurn(ctx context.Context, pc *core.ProcessContext, messa
 		if roundUsage == nil {
 			return
 		}
-		pc.RecordLLMInvocation(invocationFrom(roundModel, roundUsage))
+		pc.RecordLLMInvocation(e.invocationFrom(roundModel, roundUsage))
 		roundUsage, roundModel = nil, ""
 	}
 	for chunk, streamErr := range stream.Response(ctx) {
 		if streamErr != nil {
+			// Best-effort accounting: if the round's usage already
+			// arrived before the error, record it (tokens were spent).
+			// No-op when nothing arrived yet.
+			recordRound()
 			return ChatOutput{}, streamErr
 		}
 		if isToolRoundBoundary(chunk) {
@@ -225,10 +249,15 @@ func (e *Engine) runChatTurn(ctx context.Context, pc *core.ProcessContext, messa
 }
 
 // invocationFrom maps a streamed round's usage + served model to the
-// framework's [core.LLMInvocation]. Cost stays zero — the chat layer
-// gets no per-call dollar figure from the provider here; a pricing
-// layer can populate it later without touching this mapping.
-func invocationFrom(model string, u *chat.Usage) core.LLMInvocation {
+// framework's [core.LLMInvocation]. Cost is filled from the engine's
+// [Pricing] hook when configured (else zero — the chat layer gets no
+// dollar figure from the provider). An empty model name (provider
+// didn't report one) falls back to "unknown" so the per-model roll-up
+// doesn't grow a blank-keyed entry.
+func (e *Engine) invocationFrom(model string, u *chat.Usage) core.LLMInvocation {
+	if model == "" {
+		model = "unknown"
+	}
 	inv := core.LLMInvocation{
 		Model:            model,
 		Action:           "chat",
@@ -243,6 +272,13 @@ func invocationFrom(model string, u *chat.Usage) core.LLMInvocation {
 	}
 	if u.CacheWriteInputTokens != nil {
 		inv.CacheWriteInputTokens = *u.CacheWriteInputTokens
+	}
+	if e.pricing != nil {
+		inv.Cost = e.pricing(model, TokenUsage{
+			PromptTokens:     inv.PromptTokens,
+			CompletionTokens: inv.CompletionTokens,
+			ReasoningTokens:  inv.ReasoningTokens,
+		})
 	}
 	return inv
 }
@@ -266,6 +302,7 @@ func chatOutput(pc *core.ProcessContext, reply string, stoppedOnBudget bool) Cha
 		out.Usage.PromptTokens += inv.PromptTokens
 		out.Usage.CompletionTokens += inv.CompletionTokens
 		out.Usage.ReasoningTokens += inv.ReasoningTokens
+		out.CostUSD += inv.Cost
 		m := byModel[inv.Model]
 		if m == nil {
 			m = &ModelUsage{Model: inv.Model}
@@ -275,6 +312,7 @@ func chatOutput(pc *core.ProcessContext, reply string, stoppedOnBudget bool) Cha
 		m.PromptTokens += inv.PromptTokens
 		m.CompletionTokens += inv.CompletionTokens
 		m.ReasoningTokens += inv.ReasoningTokens
+		m.CostUSD += inv.Cost
 	}
 	for _, model := range order {
 		out.UsageByModel = append(out.UsageByModel, *byModel[model])

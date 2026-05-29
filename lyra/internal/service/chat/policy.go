@@ -57,9 +57,12 @@ const (
 	safetyClassExec                     // runs arbitrary code / network (bash / httpreq)
 )
 
-// safetyClassFor maps a built-in tool name to its class. Unknown
-// tools fall into ExecClass — fail-conservative, since user-added
-// tools may do anything.
+// safetyClassFor maps a built-in tool name to its class, for approval
+// gating. Unknown tools (incl. `task` delegation, MCP, online tools)
+// fall into ExecClass — fail-conservative, since they may do anything.
+//
+// NOTE: tool/engine.go's defaultSafetyClass encodes the same name→class
+// mapping for ListTools metadata; keep the shared rows in sync.
 func safetyClassFor(name string) safetyClass {
 	switch name {
 	case "read", "grep", "glob":
