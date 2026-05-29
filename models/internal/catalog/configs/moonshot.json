@@ -4,9 +4,9 @@
     {
       "id": "kimi-k2-0711-preview",
       "display_name": "Kimi K2 0711",
-      "knowledge_cutoff": "2024-10",
-      "release_date": "2025-07-14",
-      "last_updated": "2025-07-14",
+      "knowledge_cutoff": "2024-10-01T00:00:00Z",
+      "release_date": "2025-07-14T00:00:00Z",
+      "last_updated": "2025-07-14T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.6,
@@ -31,9 +31,9 @@
     {
       "id": "kimi-k2-0905-preview",
       "display_name": "Kimi K2 0905",
-      "knowledge_cutoff": "2024-10",
-      "release_date": "2025-09-05",
-      "last_updated": "2025-09-05",
+      "knowledge_cutoff": "2024-10-01T00:00:00Z",
+      "release_date": "2025-09-05T00:00:00Z",
+      "last_updated": "2025-09-05T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.6,
@@ -58,9 +58,9 @@
     {
       "id": "kimi-k2-thinking",
       "display_name": "Kimi K2 Thinking",
-      "knowledge_cutoff": "2024-08",
-      "release_date": "2025-11-06",
-      "last_updated": "2025-11-06",
+      "knowledge_cutoff": "2024-08-01T00:00:00Z",
+      "release_date": "2025-11-06T00:00:00Z",
+      "last_updated": "2025-11-06T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.6,
@@ -88,9 +88,9 @@
     {
       "id": "kimi-k2-thinking-turbo",
       "display_name": "Kimi K2 Thinking Turbo",
-      "knowledge_cutoff": "2024-08",
-      "release_date": "2025-11-06",
-      "last_updated": "2025-11-06",
+      "knowledge_cutoff": "2024-08-01T00:00:00Z",
+      "release_date": "2025-11-06T00:00:00Z",
+      "last_updated": "2025-11-06T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 1.15,
@@ -118,9 +118,9 @@
     {
       "id": "kimi-k2-turbo-preview",
       "display_name": "Kimi K2 Turbo",
-      "knowledge_cutoff": "2024-10",
-      "release_date": "2025-09-05",
-      "last_updated": "2025-09-05",
+      "knowledge_cutoff": "2024-10-01T00:00:00Z",
+      "release_date": "2025-09-05T00:00:00Z",
+      "last_updated": "2025-09-05T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 2.4,
@@ -145,9 +145,9 @@
     {
       "id": "kimi-k2.5",
       "display_name": "Kimi K2.5",
-      "knowledge_cutoff": "2025-01",
-      "release_date": "2026-01",
-      "last_updated": "2026-01",
+      "knowledge_cutoff": "2025-01-01T00:00:00Z",
+      "release_date": "2026-01-01T00:00:00Z",
+      "last_updated": "2026-01-01T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.6,
@@ -178,9 +178,9 @@
     {
       "id": "kimi-k2.6",
       "display_name": "Kimi K2.6",
-      "knowledge_cutoff": "2025-01",
-      "release_date": "2026-04-21",
-      "last_updated": "2026-04-21",
+      "knowledge_cutoff": "2025-01-01T00:00:00Z",
+      "release_date": "2026-04-21T00:00:00Z",
+      "last_updated": "2026-04-21T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.95,

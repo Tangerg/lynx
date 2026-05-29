@@ -39,6 +39,7 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/Tangerg/lynx/core/model/chat"
 )
@@ -188,9 +189,9 @@ func toModelInfo(m apiModel, aug augEntry) chat.ModelInfo {
 	info := chat.ModelInfo{
 		ID:               m.ID,
 		DisplayName:      m.Name,
-		KnowledgeCutoff:  m.Knowledge,
-		ReleaseDate:      m.ReleaseDate,
-		LastUpdated:      m.LastUpdated,
+		KnowledgeCutoff:  parseDate(m.Knowledge),
+		ReleaseDate:      parseDate(m.ReleaseDate),
+		LastUpdated:      parseDate(m.LastUpdated),
 		Deprecated:       m.Status == "deprecated",
 		ToolCall:         m.ToolCall,
 		StructuredOutput: m.StructuredOutput,
@@ -246,6 +247,18 @@ func toPricing(c apiCost) []chat.Pricing {
 	}
 	sort.Slice(bands, func(i, j int) bool { return bands[i].Threshold < bands[j].Threshold })
 	return bands
+}
+
+// parseDate parses a models.dev date — full "2006-01-02" or month-only
+// "2006-01" (which lands on the first of the month) — to a time.Time, or
+// the zero time when empty / unparseable.
+func parseDate(s string) time.Time {
+	for _, layout := range []string{"2006-01-02", "2006-01"} {
+		if t, err := time.Parse(layout, s); err == nil {
+			return t
+		}
+	}
+	return time.Time{}
 }
 
 func toModalities(in []string) []chat.Modality {

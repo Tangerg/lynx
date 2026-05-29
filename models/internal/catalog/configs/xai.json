@@ -4,8 +4,8 @@
     {
       "id": "grok-4.20-0309-non-reasoning",
       "display_name": "Grok 4.20 (Non-Reasoning)",
-      "release_date": "2026-03-09",
-      "last_updated": "2026-03-09",
+      "release_date": "2026-03-09T00:00:00Z",
+      "last_updated": "2026-03-09T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 1.25,
@@ -38,8 +38,8 @@
     {
       "id": "grok-4.20-0309-reasoning",
       "display_name": "Grok 4.20 (Reasoning)",
-      "release_date": "2026-03-09",
-      "last_updated": "2026-03-09",
+      "release_date": "2026-03-09T00:00:00Z",
+      "last_updated": "2026-03-09T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 1.25,
@@ -75,8 +75,8 @@
     {
       "id": "grok-4.20-multi-agent-0309",
       "display_name": "Grok 4.20 Multi-Agent",
-      "release_date": "2026-03-09",
-      "last_updated": "2026-03-09",
+      "release_date": "2026-03-09T00:00:00Z",
+      "last_updated": "2026-03-09T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 1.25,
@@ -111,8 +111,8 @@
     {
       "id": "grok-4.3",
       "display_name": "Grok 4.3",
-      "release_date": "2026-04-17",
-      "last_updated": "2026-04-17",
+      "release_date": "2026-04-17T00:00:00Z",
+      "last_updated": "2026-04-17T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 1.25,
@@ -148,8 +148,8 @@
     {
       "id": "grok-build-0.1",
       "display_name": "Grok Build 0.1",
-      "release_date": "2026-04-16",
-      "last_updated": "2026-04-16",
+      "release_date": "2026-04-16T00:00:00Z",
+      "last_updated": "2026-04-16T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 1,

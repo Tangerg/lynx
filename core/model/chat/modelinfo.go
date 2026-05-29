@@ -1,6 +1,9 @@
 package chat
 
-import "slices"
+import (
+	"slices"
+	"time"
+)
 
 // ModelMetadata holds identity metadata for a [Model] instance: the
 // vendor plus the instance's default model info. Provider names are
@@ -36,17 +39,16 @@ type ModelInfo struct {
 	// DisplayName is a human-readable label (e.g. "Claude Sonnet 4.6").
 	DisplayName string `json:"display_name,omitempty"`
 
-	// KnowledgeCutoff is the training knowledge cutoff (e.g. "2025-05"),
-	// empty when unknown.
-	KnowledgeCutoff string `json:"knowledge_cutoff,omitempty"`
+	// KnowledgeCutoff is the training knowledge cutoff, zero when unknown.
+	// Month-precision sources land on the first of the month.
+	KnowledgeCutoff time.Time `json:"knowledge_cutoff,omitzero"`
 
-	// ReleaseDate is the model's first public release date (e.g.
-	// "2025-11-24"), empty when unknown.
-	ReleaseDate string `json:"release_date,omitempty"`
+	// ReleaseDate is the model's first public release date, zero when
+	// unknown.
+	ReleaseDate time.Time `json:"release_date,omitzero"`
 
-	// LastUpdated is when the model spec last changed (e.g. "2025-11-24"),
-	// empty when unknown.
-	LastUpdated string `json:"last_updated,omitempty"`
+	// LastUpdated is when the model spec last changed, zero when unknown.
+	LastUpdated time.Time `json:"last_updated,omitzero"`
 
 	// Deprecated reports whether the provider has retired the model. It's
 	// kept in the catalog — cost attribution still works for callers on
@@ -88,8 +90,8 @@ type ModelInfo struct {
 // IsZero reports whether no model info is set. (Spelled out rather than
 // `m == ModelInfo{}` because nested slices make ModelInfo non-comparable.)
 func (m ModelInfo) IsZero() bool {
-	return m.ID == "" && m.DisplayName == "" && m.KnowledgeCutoff == "" &&
-		m.ReleaseDate == "" && m.LastUpdated == "" && !m.Deprecated &&
+	return m.ID == "" && m.DisplayName == "" && m.KnowledgeCutoff.IsZero() &&
+		m.ReleaseDate.IsZero() && m.LastUpdated.IsZero() && !m.Deprecated &&
 		len(m.Pricing) == 0 && m.Reasoning.IsZero() && m.Modalities.IsZero() &&
 		!m.ToolCall && !m.StructuredOutput && m.Limits.IsZero()
 }

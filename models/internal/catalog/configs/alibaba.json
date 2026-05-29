@@ -4,9 +4,9 @@
     {
       "id": "qvq-max",
       "display_name": "QVQ Max",
-      "knowledge_cutoff": "2024-04",
-      "release_date": "2025-03-25",
-      "last_updated": "2025-03-25",
+      "knowledge_cutoff": "2024-04-01T00:00:00Z",
+      "release_date": "2025-03-25T00:00:00Z",
+      "last_updated": "2025-03-25T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 1.2,
@@ -34,9 +34,9 @@
     {
       "id": "qwen-flash",
       "display_name": "Qwen Flash",
-      "knowledge_cutoff": "2024-04",
-      "release_date": "2025-07-28",
-      "last_updated": "2025-07-28",
+      "knowledge_cutoff": "2024-04-01T00:00:00Z",
+      "release_date": "2025-07-28T00:00:00Z",
+      "last_updated": "2025-07-28T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.05,
@@ -63,9 +63,9 @@
     {
       "id": "qwen-max",
       "display_name": "Qwen Max",
-      "knowledge_cutoff": "2024-04",
-      "release_date": "2024-04-03",
-      "last_updated": "2025-01-25",
+      "knowledge_cutoff": "2024-04-01T00:00:00Z",
+      "release_date": "2024-04-03T00:00:00Z",
+      "last_updated": "2025-01-25T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 1.6,
@@ -89,9 +89,9 @@
     {
       "id": "qwen-mt-plus",
       "display_name": "Qwen-MT Plus",
-      "knowledge_cutoff": "2024-04",
-      "release_date": "2025-01",
-      "last_updated": "2025-01",
+      "knowledge_cutoff": "2024-04-01T00:00:00Z",
+      "release_date": "2025-01-01T00:00:00Z",
+      "last_updated": "2025-01-01T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 2.46,
@@ -114,9 +114,9 @@
     {
       "id": "qwen-mt-turbo",
       "display_name": "Qwen-MT Turbo",
-      "knowledge_cutoff": "2024-04",
-      "release_date": "2025-01",
-      "last_updated": "2025-01",
+      "knowledge_cutoff": "2024-04-01T00:00:00Z",
+      "release_date": "2025-01-01T00:00:00Z",
+      "last_updated": "2025-01-01T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.16,
@@ -139,9 +139,9 @@
     {
       "id": "qwen-omni-turbo",
       "display_name": "Qwen-Omni Turbo",
-      "knowledge_cutoff": "2024-04",
-      "release_date": "2025-01-19",
-      "last_updated": "2025-03-26",
+      "knowledge_cutoff": "2024-04-01T00:00:00Z",
+      "release_date": "2025-01-19T00:00:00Z",
+      "last_updated": "2025-03-26T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.07,
@@ -169,9 +169,9 @@
     {
       "id": "qwen-omni-turbo-realtime",
       "display_name": "Qwen-Omni Turbo Realtime",
-      "knowledge_cutoff": "2024-04",
-      "release_date": "2025-05-08",
-      "last_updated": "2025-05-08",
+      "knowledge_cutoff": "2024-04-01T00:00:00Z",
+      "release_date": "2025-05-08T00:00:00Z",
+      "last_updated": "2025-05-08T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.27,
@@ -198,9 +198,9 @@
     {
       "id": "qwen-plus",
       "display_name": "Qwen Plus",
-      "knowledge_cutoff": "2024-04",
-      "release_date": "2024-01-25",
-      "last_updated": "2025-09-11",
+      "knowledge_cutoff": "2024-04-01T00:00:00Z",
+      "release_date": "2024-01-25T00:00:00Z",
+      "last_updated": "2025-09-11T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.4,
@@ -227,9 +227,9 @@
     {
       "id": "qwen-plus-character-ja",
       "display_name": "Qwen Plus Character (Japanese)",
-      "knowledge_cutoff": "2024-04",
-      "release_date": "2024-01",
-      "last_updated": "2024-01",
+      "knowledge_cutoff": "2024-04-01T00:00:00Z",
+      "release_date": "2024-01-01T00:00:00Z",
+      "last_updated": "2024-01-01T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.5,
@@ -253,9 +253,9 @@
     {
       "id": "qwen-turbo",
       "display_name": "Qwen Turbo",
-      "knowledge_cutoff": "2024-04",
-      "release_date": "2024-11-01",
-      "last_updated": "2025-04-28",
+      "knowledge_cutoff": "2024-04-01T00:00:00Z",
+      "release_date": "2024-11-01T00:00:00Z",
+      "last_updated": "2025-04-28T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.05,
@@ -282,9 +282,9 @@
     {
       "id": "qwen-vl-max",
       "display_name": "Qwen-VL Max",
-      "knowledge_cutoff": "2024-04",
-      "release_date": "2024-04-08",
-      "last_updated": "2025-08-13",
+      "knowledge_cutoff": "2024-04-01T00:00:00Z",
+      "release_date": "2024-04-08T00:00:00Z",
+      "last_updated": "2025-08-13T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.8,
@@ -309,9 +309,9 @@
     {
       "id": "qwen-vl-ocr",
       "display_name": "Qwen-VL OCR",
-      "knowledge_cutoff": "2024-04",
-      "release_date": "2024-10-28",
-      "last_updated": "2025-04-13",
+      "knowledge_cutoff": "2024-04-01T00:00:00Z",
+      "release_date": "2024-10-28T00:00:00Z",
+      "last_updated": "2025-04-13T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.72,
@@ -335,9 +335,9 @@
     {
       "id": "qwen-vl-plus",
       "display_name": "Qwen-VL Plus",
-      "knowledge_cutoff": "2024-04",
-      "release_date": "2024-01-25",
-      "last_updated": "2025-08-15",
+      "knowledge_cutoff": "2024-04-01T00:00:00Z",
+      "release_date": "2024-01-25T00:00:00Z",
+      "last_updated": "2025-08-15T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.21,
@@ -362,9 +362,9 @@
     {
       "id": "qwen2-5-14b-instruct",
       "display_name": "Qwen2.5 14B Instruct",
-      "knowledge_cutoff": "2024-04",
-      "release_date": "2024-09",
-      "last_updated": "2024-09",
+      "knowledge_cutoff": "2024-04-01T00:00:00Z",
+      "release_date": "2024-09-01T00:00:00Z",
+      "last_updated": "2024-09-01T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.35,
@@ -388,9 +388,9 @@
     {
       "id": "qwen2-5-32b-instruct",
       "display_name": "Qwen2.5 32B Instruct",
-      "knowledge_cutoff": "2024-04",
-      "release_date": "2024-09",
-      "last_updated": "2024-09",
+      "knowledge_cutoff": "2024-04-01T00:00:00Z",
+      "release_date": "2024-09-01T00:00:00Z",
+      "last_updated": "2024-09-01T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.7,
@@ -414,9 +414,9 @@
     {
       "id": "qwen2-5-72b-instruct",
       "display_name": "Qwen2.5 72B Instruct",
-      "knowledge_cutoff": "2024-04",
-      "release_date": "2024-09",
-      "last_updated": "2024-09",
+      "knowledge_cutoff": "2024-04-01T00:00:00Z",
+      "release_date": "2024-09-01T00:00:00Z",
+      "last_updated": "2024-09-01T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 1.4,
@@ -440,9 +440,9 @@
     {
       "id": "qwen2-5-7b-instruct",
       "display_name": "Qwen2.5 7B Instruct",
-      "knowledge_cutoff": "2024-04",
-      "release_date": "2024-09",
-      "last_updated": "2024-09",
+      "knowledge_cutoff": "2024-04-01T00:00:00Z",
+      "release_date": "2024-09-01T00:00:00Z",
+      "last_updated": "2024-09-01T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.175,
@@ -466,9 +466,9 @@
     {
       "id": "qwen2-5-omni-7b",
       "display_name": "Qwen2.5-Omni 7B",
-      "knowledge_cutoff": "2024-04",
-      "release_date": "2024-12",
-      "last_updated": "2024-12",
+      "knowledge_cutoff": "2024-04-01T00:00:00Z",
+      "release_date": "2024-12-01T00:00:00Z",
+      "last_updated": "2024-12-01T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.1,
@@ -496,9 +496,9 @@
     {
       "id": "qwen2-5-vl-72b-instruct",
       "display_name": "Qwen2.5-VL 72B Instruct",
-      "knowledge_cutoff": "2024-04",
-      "release_date": "2024-09",
-      "last_updated": "2024-09",
+      "knowledge_cutoff": "2024-04-01T00:00:00Z",
+      "release_date": "2024-09-01T00:00:00Z",
+      "last_updated": "2024-09-01T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 2.8,
@@ -523,9 +523,9 @@
     {
       "id": "qwen2-5-vl-7b-instruct",
       "display_name": "Qwen2.5-VL 7B Instruct",
-      "knowledge_cutoff": "2024-04",
-      "release_date": "2024-09",
-      "last_updated": "2024-09",
+      "knowledge_cutoff": "2024-04-01T00:00:00Z",
+      "release_date": "2024-09-01T00:00:00Z",
+      "last_updated": "2024-09-01T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.35,
@@ -550,9 +550,9 @@
     {
       "id": "qwen3-14b",
       "display_name": "Qwen3 14B",
-      "knowledge_cutoff": "2025-04",
-      "release_date": "2025-04",
-      "last_updated": "2025-04",
+      "knowledge_cutoff": "2025-04-01T00:00:00Z",
+      "release_date": "2025-04-01T00:00:00Z",
+      "last_updated": "2025-04-01T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.35,
@@ -579,9 +579,9 @@
     {
       "id": "qwen3-235b-a22b",
       "display_name": "Qwen3 235B-A22B",
-      "knowledge_cutoff": "2025-04",
-      "release_date": "2025-04",
-      "last_updated": "2025-04",
+      "knowledge_cutoff": "2025-04-01T00:00:00Z",
+      "release_date": "2025-04-01T00:00:00Z",
+      "last_updated": "2025-04-01T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.7,
@@ -608,9 +608,9 @@
     {
       "id": "qwen3-32b",
       "display_name": "Qwen3 32B",
-      "knowledge_cutoff": "2025-04",
-      "release_date": "2025-04",
-      "last_updated": "2025-04",
+      "knowledge_cutoff": "2025-04-01T00:00:00Z",
+      "release_date": "2025-04-01T00:00:00Z",
+      "last_updated": "2025-04-01T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.7,
@@ -637,9 +637,9 @@
     {
       "id": "qwen3-8b",
       "display_name": "Qwen3 8B",
-      "knowledge_cutoff": "2025-04",
-      "release_date": "2025-04",
-      "last_updated": "2025-04",
+      "knowledge_cutoff": "2025-04-01T00:00:00Z",
+      "release_date": "2025-04-01T00:00:00Z",
+      "last_updated": "2025-04-01T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.18,
@@ -666,9 +666,9 @@
     {
       "id": "qwen3-asr-flash",
       "display_name": "Qwen3-ASR Flash",
-      "knowledge_cutoff": "2024-04",
-      "release_date": "2025-09-08",
-      "last_updated": "2025-09-08",
+      "knowledge_cutoff": "2024-04-01T00:00:00Z",
+      "release_date": "2025-09-08T00:00:00Z",
+      "last_updated": "2025-09-08T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.035,
@@ -691,9 +691,9 @@
     {
       "id": "qwen3-coder-30b-a3b-instruct",
       "display_name": "Qwen3-Coder 30B-A3B Instruct",
-      "knowledge_cutoff": "2025-04",
-      "release_date": "2025-04",
-      "last_updated": "2025-04",
+      "knowledge_cutoff": "2025-04-01T00:00:00Z",
+      "release_date": "2025-04-01T00:00:00Z",
+      "last_updated": "2025-04-01T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.45,
@@ -717,9 +717,9 @@
     {
       "id": "qwen3-coder-480b-a35b-instruct",
       "display_name": "Qwen3-Coder 480B-A35B Instruct",
-      "knowledge_cutoff": "2025-04",
-      "release_date": "2025-04",
-      "last_updated": "2025-04",
+      "knowledge_cutoff": "2025-04-01T00:00:00Z",
+      "release_date": "2025-04-01T00:00:00Z",
+      "last_updated": "2025-04-01T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 1.5,
@@ -743,9 +743,9 @@
     {
       "id": "qwen3-coder-flash",
       "display_name": "Qwen3 Coder Flash",
-      "knowledge_cutoff": "2025-04",
-      "release_date": "2025-07-28",
-      "last_updated": "2025-07-28",
+      "knowledge_cutoff": "2025-04-01T00:00:00Z",
+      "release_date": "2025-07-28T00:00:00Z",
+      "last_updated": "2025-07-28T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.3,
@@ -769,9 +769,9 @@
     {
       "id": "qwen3-coder-plus",
       "display_name": "Qwen3 Coder Plus",
-      "knowledge_cutoff": "2025-04",
-      "release_date": "2025-07-23",
-      "last_updated": "2025-07-23",
+      "knowledge_cutoff": "2025-04-01T00:00:00Z",
+      "release_date": "2025-07-23T00:00:00Z",
+      "last_updated": "2025-07-23T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 1,
@@ -795,9 +795,9 @@
     {
       "id": "qwen3-livetranslate-flash-realtime",
       "display_name": "Qwen3-LiveTranslate Flash Realtime",
-      "knowledge_cutoff": "2024-04",
-      "release_date": "2025-09-22",
-      "last_updated": "2025-09-22",
+      "knowledge_cutoff": "2024-04-01T00:00:00Z",
+      "release_date": "2025-09-22T00:00:00Z",
+      "last_updated": "2025-09-22T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 10,
@@ -824,9 +824,9 @@
     {
       "id": "qwen3-max",
       "display_name": "Qwen3 Max",
-      "knowledge_cutoff": "2025-04",
-      "release_date": "2025-09-23",
-      "last_updated": "2025-09-23",
+      "knowledge_cutoff": "2025-04-01T00:00:00Z",
+      "release_date": "2025-09-23T00:00:00Z",
+      "last_updated": "2025-09-23T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 1.2,
@@ -850,9 +850,9 @@
     {
       "id": "qwen3-next-80b-a3b-instruct",
       "display_name": "Qwen3-Next 80B-A3B Instruct",
-      "knowledge_cutoff": "2025-04",
-      "release_date": "2025-09",
-      "last_updated": "2025-09",
+      "knowledge_cutoff": "2025-04-01T00:00:00Z",
+      "release_date": "2025-09-01T00:00:00Z",
+      "last_updated": "2025-09-01T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.5,
@@ -876,9 +876,9 @@
     {
       "id": "qwen3-next-80b-a3b-thinking",
       "display_name": "Qwen3-Next 80B-A3B (Thinking)",
-      "knowledge_cutoff": "2025-04",
-      "release_date": "2025-09",
-      "last_updated": "2025-09",
+      "knowledge_cutoff": "2025-04-01T00:00:00Z",
+      "release_date": "2025-09-01T00:00:00Z",
+      "last_updated": "2025-09-01T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.5,
@@ -905,9 +905,9 @@
     {
       "id": "qwen3-omni-flash",
       "display_name": "Qwen3-Omni Flash",
-      "knowledge_cutoff": "2024-04",
-      "release_date": "2025-09-15",
-      "last_updated": "2025-09-15",
+      "knowledge_cutoff": "2024-04-01T00:00:00Z",
+      "release_date": "2025-09-15T00:00:00Z",
+      "last_updated": "2025-09-15T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.43,
@@ -938,9 +938,9 @@
     {
       "id": "qwen3-omni-flash-realtime",
       "display_name": "Qwen3-Omni Flash Realtime",
-      "knowledge_cutoff": "2024-04",
-      "release_date": "2025-09-15",
-      "last_updated": "2025-09-15",
+      "knowledge_cutoff": "2024-04-01T00:00:00Z",
+      "release_date": "2025-09-15T00:00:00Z",
+      "last_updated": "2025-09-15T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.52,
@@ -968,9 +968,9 @@
     {
       "id": "qwen3-vl-235b-a22b",
       "display_name": "Qwen3-VL 235B-A22B",
-      "knowledge_cutoff": "2025-04",
-      "release_date": "2025-04",
-      "last_updated": "2025-04",
+      "knowledge_cutoff": "2025-04-01T00:00:00Z",
+      "release_date": "2025-04-01T00:00:00Z",
+      "last_updated": "2025-04-01T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.7,
@@ -998,9 +998,9 @@
     {
       "id": "qwen3-vl-30b-a3b",
       "display_name": "Qwen3-VL 30B-A3B",
-      "knowledge_cutoff": "2025-04",
-      "release_date": "2025-04",
-      "last_updated": "2025-04",
+      "knowledge_cutoff": "2025-04-01T00:00:00Z",
+      "release_date": "2025-04-01T00:00:00Z",
+      "last_updated": "2025-04-01T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.2,
@@ -1028,9 +1028,9 @@
     {
       "id": "qwen3-vl-plus",
       "display_name": "Qwen3-VL Plus",
-      "knowledge_cutoff": "2025-04",
-      "release_date": "2025-09-23",
-      "last_updated": "2025-09-23",
+      "knowledge_cutoff": "2025-04-01T00:00:00Z",
+      "release_date": "2025-09-23T00:00:00Z",
+      "last_updated": "2025-09-23T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.2,
@@ -1058,8 +1058,8 @@
     {
       "id": "qwen3.5-122b-a10b",
       "display_name": "Qwen3.5 122B-A10B",
-      "release_date": "2026-02-23",
-      "last_updated": "2026-02-23",
+      "release_date": "2026-02-23T00:00:00Z",
+      "last_updated": "2026-02-23T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.4,
@@ -1090,8 +1090,8 @@
     {
       "id": "qwen3.5-27b",
       "display_name": "Qwen3.5 27B",
-      "release_date": "2026-02-23",
-      "last_updated": "2026-02-23",
+      "release_date": "2026-02-23T00:00:00Z",
+      "last_updated": "2026-02-23T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.3,
@@ -1122,8 +1122,8 @@
     {
       "id": "qwen3.5-35b-a3b",
       "display_name": "Qwen3.5 35B-A3B",
-      "release_date": "2026-02-23",
-      "last_updated": "2026-02-23",
+      "release_date": "2026-02-23T00:00:00Z",
+      "last_updated": "2026-02-23T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.25,
@@ -1154,8 +1154,8 @@
     {
       "id": "qwen3.5-397b-a17b",
       "display_name": "Qwen3.5 397B-A17B",
-      "release_date": "2026-02-15",
-      "last_updated": "2026-02-15",
+      "release_date": "2026-02-15T00:00:00Z",
+      "last_updated": "2026-02-15T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.6,
@@ -1186,9 +1186,9 @@
     {
       "id": "qwen3.5-plus",
       "display_name": "Qwen3.5 Plus",
-      "knowledge_cutoff": "2025-04",
-      "release_date": "2026-02-16",
-      "last_updated": "2026-02-16",
+      "knowledge_cutoff": "2025-04-01T00:00:00Z",
+      "release_date": "2026-02-16T00:00:00Z",
+      "last_updated": "2026-02-16T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.4,
@@ -1217,8 +1217,8 @@
     {
       "id": "qwen3.6-27b",
       "display_name": "Qwen3.6 27B",
-      "release_date": "2026-04-22",
-      "last_updated": "2026-04-22",
+      "release_date": "2026-04-22T00:00:00Z",
+      "last_updated": "2026-04-22T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.6,
@@ -1249,8 +1249,8 @@
     {
       "id": "qwen3.6-35b-a3b",
       "display_name": "Qwen3.6 35B-A3B",
-      "release_date": "2026-04-17",
-      "last_updated": "2026-04-17",
+      "release_date": "2026-04-17T00:00:00Z",
+      "last_updated": "2026-04-17T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.248,
@@ -1281,8 +1281,8 @@
     {
       "id": "qwen3.6-flash",
       "display_name": "Qwen3.6 Flash",
-      "release_date": "2026-04-27",
-      "last_updated": "2026-04-27",
+      "release_date": "2026-04-27T00:00:00Z",
+      "last_updated": "2026-04-27T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.1875,
@@ -1313,9 +1313,9 @@
     {
       "id": "qwen3.6-max-preview",
       "display_name": "Qwen3.6 Max Preview",
-      "knowledge_cutoff": "2025-04",
-      "release_date": "2026-04-20",
-      "last_updated": "2026-04-20",
+      "knowledge_cutoff": "2025-04-01T00:00:00Z",
+      "release_date": "2026-04-20T00:00:00Z",
+      "last_updated": "2026-04-20T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 1.3,
@@ -1344,9 +1344,9 @@
     {
       "id": "qwen3.6-plus",
       "display_name": "Qwen3.6 Plus",
-      "knowledge_cutoff": "2025-04",
-      "release_date": "2026-04-02",
-      "last_updated": "2026-04-02",
+      "knowledge_cutoff": "2025-04-01T00:00:00Z",
+      "release_date": "2026-04-02T00:00:00Z",
+      "last_updated": "2026-04-02T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.5,
@@ -1384,8 +1384,8 @@
     {
       "id": "qwen3.7-max",
       "display_name": "Qwen3.7 Max",
-      "release_date": "2026-05-21",
-      "last_updated": "2026-05-21",
+      "release_date": "2026-05-21T00:00:00Z",
+      "last_updated": "2026-05-21T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 2.5,
@@ -1414,9 +1414,9 @@
     {
       "id": "qwq-plus",
       "display_name": "QwQ Plus",
-      "knowledge_cutoff": "2024-04",
-      "release_date": "2025-03-05",
-      "last_updated": "2025-03-05",
+      "knowledge_cutoff": "2024-04-01T00:00:00Z",
+      "release_date": "2025-03-05T00:00:00Z",
+      "last_updated": "2025-03-05T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.8,

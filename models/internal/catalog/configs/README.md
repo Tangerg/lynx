@@ -15,7 +15,7 @@ Each model entry is a `chat.ModelInfo`:
   "models": [
     { "id": "deepseek-reasoner",
       "display_name": "DeepSeek Reasoner",
-      "knowledge_cutoff": "2024-07",
+      "knowledge_cutoff": "2024-07-01T00:00:00Z",
       "pricing": [
         { "input_per_1m": 0.55, "output_per_1m": 2.19, "cache_read_per_1m": 0.14 }
       ],
@@ -71,9 +71,10 @@ Each model entry is a `chat.ModelInfo`:
   `["text"]` for chat models.
 - `tool_call` / `structured_output` flag tool/function calling and a
   native structured-output feature.
-- `knowledge_cutoff`, `release_date`, `last_updated` and `limits`
-  (`context_window`, `max_input_tokens`, `max_output_tokens`) are
-  optional; omit when unknown.
+- `knowledge_cutoff`, `release_date`, `last_updated` are `time.Time`
+  (RFC3339 in JSON); month-only sources land on the first of the month.
+  `limits` (`context_window`, `max_input_tokens`, `max_output_tokens`)
+  and the dates are optional — omit when unknown.
 - `deprecated` flags a retired model. Such models are **kept** in the
   catalog (cost still attributes for callers on the old id); consumers
   hide or flag them via this bool. Omit (false) for current models.

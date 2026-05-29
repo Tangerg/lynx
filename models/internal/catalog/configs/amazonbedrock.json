@@ -4,8 +4,8 @@
     {
       "id": "amazon.nova-2-lite-v1:0",
       "display_name": "Nova 2 Lite",
-      "release_date": "2024-12-01",
-      "last_updated": "2024-12-01",
+      "release_date": "2024-12-01T00:00:00Z",
+      "last_updated": "2024-12-01T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.33,
@@ -31,9 +31,9 @@
     {
       "id": "amazon.nova-lite-v1:0",
       "display_name": "Nova Lite",
-      "knowledge_cutoff": "2024-10",
-      "release_date": "2024-12-03",
-      "last_updated": "2024-12-03",
+      "knowledge_cutoff": "2024-10-01T00:00:00Z",
+      "release_date": "2024-12-03T00:00:00Z",
+      "last_updated": "2024-12-03T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.06,
@@ -60,9 +60,9 @@
     {
       "id": "amazon.nova-micro-v1:0",
       "display_name": "Nova Micro",
-      "knowledge_cutoff": "2024-10",
-      "release_date": "2024-12-03",
-      "last_updated": "2024-12-03",
+      "knowledge_cutoff": "2024-10-01T00:00:00Z",
+      "release_date": "2024-12-03T00:00:00Z",
+      "last_updated": "2024-12-03T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.035,
@@ -87,9 +87,9 @@
     {
       "id": "amazon.nova-pro-v1:0",
       "display_name": "Nova Pro",
-      "knowledge_cutoff": "2024-10",
-      "release_date": "2024-12-03",
-      "last_updated": "2024-12-03",
+      "knowledge_cutoff": "2024-10-01T00:00:00Z",
+      "release_date": "2024-12-03T00:00:00Z",
+      "last_updated": "2024-12-03T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.8,
@@ -116,9 +116,9 @@
     {
       "id": "anthropic.claude-haiku-4-5-20251001-v1:0",
       "display_name": "Claude Haiku 4.5",
-      "knowledge_cutoff": "2025-02-28",
-      "release_date": "2025-10-15",
-      "last_updated": "2025-10-15",
+      "knowledge_cutoff": "2025-02-28T00:00:00Z",
+      "release_date": "2025-10-15T00:00:00Z",
+      "last_updated": "2025-10-15T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 1,
@@ -150,9 +150,9 @@
     {
       "id": "anthropic.claude-opus-4-1-20250805-v1:0",
       "display_name": "Claude Opus 4.1",
-      "knowledge_cutoff": "2025-03-31",
-      "release_date": "2025-08-05",
-      "last_updated": "2025-08-05",
+      "knowledge_cutoff": "2025-03-31T00:00:00Z",
+      "release_date": "2025-08-05T00:00:00Z",
+      "last_updated": "2025-08-05T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 15,
@@ -183,9 +183,9 @@
     {
       "id": "anthropic.claude-opus-4-5-20251101-v1:0",
       "display_name": "Claude Opus 4.5",
-      "knowledge_cutoff": "2025-03-31",
-      "release_date": "2025-11-24",
-      "last_updated": "2025-08-01",
+      "knowledge_cutoff": "2025-03-31T00:00:00Z",
+      "release_date": "2025-11-24T00:00:00Z",
+      "last_updated": "2025-08-01T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 5,
@@ -217,9 +217,9 @@
     {
       "id": "anthropic.claude-opus-4-6-v1",
       "display_name": "Claude Opus 4.6",
-      "knowledge_cutoff": "2025-05-31",
-      "release_date": "2026-02-05",
-      "last_updated": "2026-03-13",
+      "knowledge_cutoff": "2025-05-31T00:00:00Z",
+      "release_date": "2026-02-05T00:00:00Z",
+      "last_updated": "2026-03-13T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 5,
@@ -251,9 +251,9 @@
     {
       "id": "anthropic.claude-opus-4-7",
       "display_name": "Claude Opus 4.7",
-      "knowledge_cutoff": "2026-01-31",
-      "release_date": "2026-04-16",
-      "last_updated": "2026-04-16",
+      "knowledge_cutoff": "2026-01-31T00:00:00Z",
+      "release_date": "2026-04-16T00:00:00Z",
+      "last_updated": "2026-04-16T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 5,
@@ -284,8 +284,8 @@
     {
       "id": "anthropic.claude-opus-4-8",
       "display_name": "Claude Opus 4.8",
-      "release_date": "2026-05-28",
-      "last_updated": "2026-05-28",
+      "release_date": "2026-05-28T00:00:00Z",
+      "last_updated": "2026-05-28T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 5,
@@ -316,9 +316,9 @@
     {
       "id": "anthropic.claude-sonnet-4-5-20250929-v1:0",
       "display_name": "Claude Sonnet 4.5",
-      "knowledge_cutoff": "2025-07-31",
-      "release_date": "2025-09-29",
-      "last_updated": "2025-09-29",
+      "knowledge_cutoff": "2025-07-31T00:00:00Z",
+      "release_date": "2025-09-29T00:00:00Z",
+      "last_updated": "2025-09-29T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 3,
@@ -350,9 +350,9 @@
     {
       "id": "anthropic.claude-sonnet-4-6",
       "display_name": "Claude Sonnet 4.6",
-      "knowledge_cutoff": "2025-08-31",
-      "release_date": "2026-02-17",
-      "last_updated": "2026-03-13",
+      "knowledge_cutoff": "2025-08-31T00:00:00Z",
+      "release_date": "2026-02-17T00:00:00Z",
+      "last_updated": "2026-03-13T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 3,
@@ -384,9 +384,9 @@
     {
       "id": "au.anthropic.claude-haiku-4-5-20251001-v1:0",
       "display_name": "Claude Haiku 4.5 (AU)",
-      "knowledge_cutoff": "2025-02-28",
-      "release_date": "2025-10-15",
-      "last_updated": "2025-10-15",
+      "knowledge_cutoff": "2025-02-28T00:00:00Z",
+      "release_date": "2025-10-15T00:00:00Z",
+      "last_updated": "2025-10-15T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 1,
@@ -418,9 +418,9 @@
     {
       "id": "au.anthropic.claude-opus-4-6-v1",
       "display_name": "AU Anthropic Claude Opus 4.6",
-      "knowledge_cutoff": "2025-05",
-      "release_date": "2026-02-05",
-      "last_updated": "2026-02-05",
+      "knowledge_cutoff": "2025-05-01T00:00:00Z",
+      "release_date": "2026-02-05T00:00:00Z",
+      "last_updated": "2026-02-05T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 16.5,
@@ -452,8 +452,8 @@
     {
       "id": "au.anthropic.claude-opus-4-8",
       "display_name": "Claude Opus 4.8 (AU)",
-      "release_date": "2026-05-28",
-      "last_updated": "2026-05-28",
+      "release_date": "2026-05-28T00:00:00Z",
+      "last_updated": "2026-05-28T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 5,
@@ -484,9 +484,9 @@
     {
       "id": "au.anthropic.claude-sonnet-4-5-20250929-v1:0",
       "display_name": "Claude Sonnet 4.5 (AU)",
-      "knowledge_cutoff": "2025-07-31",
-      "release_date": "2025-09-29",
-      "last_updated": "2025-09-29",
+      "knowledge_cutoff": "2025-07-31T00:00:00Z",
+      "release_date": "2025-09-29T00:00:00Z",
+      "last_updated": "2025-09-29T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 3,
@@ -518,9 +518,9 @@
     {
       "id": "au.anthropic.claude-sonnet-4-6",
       "display_name": "AU Anthropic Claude Sonnet 4.6",
-      "knowledge_cutoff": "2025-08",
-      "release_date": "2026-02-17",
-      "last_updated": "2026-02-17",
+      "knowledge_cutoff": "2025-08-01T00:00:00Z",
+      "release_date": "2026-02-17T00:00:00Z",
+      "last_updated": "2026-02-17T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 3.3,
@@ -552,9 +552,9 @@
     {
       "id": "deepseek.r1-v1:0",
       "display_name": "DeepSeek-R1",
-      "knowledge_cutoff": "2024-07",
-      "release_date": "2025-01-20",
-      "last_updated": "2025-05-29",
+      "knowledge_cutoff": "2024-07-01T00:00:00Z",
+      "release_date": "2025-01-20T00:00:00Z",
+      "last_updated": "2025-05-29T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 1.35,
@@ -581,9 +581,9 @@
     {
       "id": "deepseek.v3-v1:0",
       "display_name": "DeepSeek-V3.1",
-      "knowledge_cutoff": "2024-07",
-      "release_date": "2025-09-18",
-      "last_updated": "2025-09-18",
+      "knowledge_cutoff": "2024-07-01T00:00:00Z",
+      "release_date": "2025-09-18T00:00:00Z",
+      "last_updated": "2025-09-18T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.58,
@@ -611,9 +611,9 @@
     {
       "id": "deepseek.v3.2",
       "display_name": "DeepSeek-V3.2",
-      "knowledge_cutoff": "2024-07",
-      "release_date": "2026-02-06",
-      "last_updated": "2026-02-06",
+      "knowledge_cutoff": "2024-07-01T00:00:00Z",
+      "release_date": "2026-02-06T00:00:00Z",
+      "last_updated": "2026-02-06T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.62,
@@ -641,9 +641,9 @@
     {
       "id": "eu.anthropic.claude-haiku-4-5-20251001-v1:0",
       "display_name": "Claude Haiku 4.5 (EU)",
-      "knowledge_cutoff": "2025-02-28",
-      "release_date": "2025-10-15",
-      "last_updated": "2025-10-15",
+      "knowledge_cutoff": "2025-02-28T00:00:00Z",
+      "release_date": "2025-10-15T00:00:00Z",
+      "last_updated": "2025-10-15T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 1,
@@ -675,9 +675,9 @@
     {
       "id": "eu.anthropic.claude-opus-4-5-20251101-v1:0",
       "display_name": "Claude Opus 4.5 (EU)",
-      "knowledge_cutoff": "2025-03-31",
-      "release_date": "2025-11-24",
-      "last_updated": "2025-08-01",
+      "knowledge_cutoff": "2025-03-31T00:00:00Z",
+      "release_date": "2025-11-24T00:00:00Z",
+      "last_updated": "2025-08-01T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 5,
@@ -709,9 +709,9 @@
     {
       "id": "eu.anthropic.claude-opus-4-6-v1",
       "display_name": "Claude Opus 4.6 (EU)",
-      "knowledge_cutoff": "2025-05-31",
-      "release_date": "2026-02-05",
-      "last_updated": "2026-03-13",
+      "knowledge_cutoff": "2025-05-31T00:00:00Z",
+      "release_date": "2026-02-05T00:00:00Z",
+      "last_updated": "2026-03-13T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 5,
@@ -743,9 +743,9 @@
     {
       "id": "eu.anthropic.claude-opus-4-7",
       "display_name": "Claude Opus 4.7 (EU)",
-      "knowledge_cutoff": "2026-01-31",
-      "release_date": "2026-04-16",
-      "last_updated": "2026-04-16",
+      "knowledge_cutoff": "2026-01-31T00:00:00Z",
+      "release_date": "2026-04-16T00:00:00Z",
+      "last_updated": "2026-04-16T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 5,
@@ -776,8 +776,8 @@
     {
       "id": "eu.anthropic.claude-opus-4-8",
       "display_name": "Claude Opus 4.8 (EU)",
-      "release_date": "2026-05-28",
-      "last_updated": "2026-05-28",
+      "release_date": "2026-05-28T00:00:00Z",
+      "last_updated": "2026-05-28T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 5,
@@ -808,9 +808,9 @@
     {
       "id": "eu.anthropic.claude-sonnet-4-5-20250929-v1:0",
       "display_name": "Claude Sonnet 4.5 (EU)",
-      "knowledge_cutoff": "2025-07-31",
-      "release_date": "2025-09-29",
-      "last_updated": "2025-09-29",
+      "knowledge_cutoff": "2025-07-31T00:00:00Z",
+      "release_date": "2025-09-29T00:00:00Z",
+      "last_updated": "2025-09-29T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 3,
@@ -842,9 +842,9 @@
     {
       "id": "eu.anthropic.claude-sonnet-4-6",
       "display_name": "Claude Sonnet 4.6 (EU)",
-      "knowledge_cutoff": "2025-08-31",
-      "release_date": "2026-02-17",
-      "last_updated": "2026-03-13",
+      "knowledge_cutoff": "2025-08-31T00:00:00Z",
+      "release_date": "2026-02-17T00:00:00Z",
+      "last_updated": "2026-03-13T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 3,
@@ -876,9 +876,9 @@
     {
       "id": "global.anthropic.claude-haiku-4-5-20251001-v1:0",
       "display_name": "Claude Haiku 4.5 (Global)",
-      "knowledge_cutoff": "2025-02-28",
-      "release_date": "2025-10-15",
-      "last_updated": "2025-10-15",
+      "knowledge_cutoff": "2025-02-28T00:00:00Z",
+      "release_date": "2025-10-15T00:00:00Z",
+      "last_updated": "2025-10-15T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 1,
@@ -910,9 +910,9 @@
     {
       "id": "global.anthropic.claude-opus-4-5-20251101-v1:0",
       "display_name": "Claude Opus 4.5 (Global)",
-      "knowledge_cutoff": "2025-03-31",
-      "release_date": "2025-11-24",
-      "last_updated": "2025-08-01",
+      "knowledge_cutoff": "2025-03-31T00:00:00Z",
+      "release_date": "2025-11-24T00:00:00Z",
+      "last_updated": "2025-08-01T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 5,
@@ -944,9 +944,9 @@
     {
       "id": "global.anthropic.claude-opus-4-6-v1",
       "display_name": "Claude Opus 4.6 (Global)",
-      "knowledge_cutoff": "2025-05-31",
-      "release_date": "2026-02-05",
-      "last_updated": "2026-03-13",
+      "knowledge_cutoff": "2025-05-31T00:00:00Z",
+      "release_date": "2026-02-05T00:00:00Z",
+      "last_updated": "2026-03-13T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 5,
@@ -978,9 +978,9 @@
     {
       "id": "global.anthropic.claude-opus-4-7",
       "display_name": "Claude Opus 4.7 (Global)",
-      "knowledge_cutoff": "2026-01-31",
-      "release_date": "2026-04-16",
-      "last_updated": "2026-04-16",
+      "knowledge_cutoff": "2026-01-31T00:00:00Z",
+      "release_date": "2026-04-16T00:00:00Z",
+      "last_updated": "2026-04-16T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 5,
@@ -1011,8 +1011,8 @@
     {
       "id": "global.anthropic.claude-opus-4-8",
       "display_name": "Claude Opus 4.8 (Global)",
-      "release_date": "2026-05-28",
-      "last_updated": "2026-05-28",
+      "release_date": "2026-05-28T00:00:00Z",
+      "last_updated": "2026-05-28T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 5,
@@ -1043,9 +1043,9 @@
     {
       "id": "global.anthropic.claude-sonnet-4-5-20250929-v1:0",
       "display_name": "Claude Sonnet 4.5 (Global)",
-      "knowledge_cutoff": "2025-07-31",
-      "release_date": "2025-09-29",
-      "last_updated": "2025-09-29",
+      "knowledge_cutoff": "2025-07-31T00:00:00Z",
+      "release_date": "2025-09-29T00:00:00Z",
+      "last_updated": "2025-09-29T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 3,
@@ -1077,9 +1077,9 @@
     {
       "id": "global.anthropic.claude-sonnet-4-6",
       "display_name": "Claude Sonnet 4.6 (Global)",
-      "knowledge_cutoff": "2025-08-31",
-      "release_date": "2026-02-17",
-      "last_updated": "2026-03-13",
+      "knowledge_cutoff": "2025-08-31T00:00:00Z",
+      "release_date": "2026-02-17T00:00:00Z",
+      "last_updated": "2026-03-13T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 3,
@@ -1111,9 +1111,9 @@
     {
       "id": "google.gemma-3-12b-it",
       "display_name": "Google Gemma 3 12B",
-      "knowledge_cutoff": "2024-12",
-      "release_date": "2024-12-01",
-      "last_updated": "2024-12-01",
+      "knowledge_cutoff": "2024-12-01T00:00:00Z",
+      "release_date": "2024-12-01T00:00:00Z",
+      "last_updated": "2024-12-01T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.049999999999999996,
@@ -1138,9 +1138,9 @@
     {
       "id": "google.gemma-3-27b-it",
       "display_name": "Google Gemma 3 27B Instruct",
-      "knowledge_cutoff": "2025-07",
-      "release_date": "2025-07-27",
-      "last_updated": "2025-07-27",
+      "knowledge_cutoff": "2025-07-01T00:00:00Z",
+      "release_date": "2025-07-27T00:00:00Z",
+      "last_updated": "2025-07-27T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.12,
@@ -1166,8 +1166,8 @@
     {
       "id": "google.gemma-3-4b-it",
       "display_name": "Gemma 3 4B IT",
-      "release_date": "2024-12-01",
-      "last_updated": "2024-12-01",
+      "release_date": "2024-12-01T00:00:00Z",
+      "last_updated": "2024-12-01T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.04,
@@ -1192,9 +1192,9 @@
     {
       "id": "jp.anthropic.claude-opus-4-7",
       "display_name": "Claude Opus 4.7 (JP)",
-      "knowledge_cutoff": "2026-01-31",
-      "release_date": "2026-04-16",
-      "last_updated": "2026-04-16",
+      "knowledge_cutoff": "2026-01-31T00:00:00Z",
+      "release_date": "2026-04-16T00:00:00Z",
+      "last_updated": "2026-04-16T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 5,
@@ -1225,8 +1225,8 @@
     {
       "id": "jp.anthropic.claude-opus-4-8",
       "display_name": "Claude Opus 4.8 (JP)",
-      "release_date": "2026-05-28",
-      "last_updated": "2026-05-28",
+      "release_date": "2026-05-28T00:00:00Z",
+      "last_updated": "2026-05-28T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 5,
@@ -1257,9 +1257,9 @@
     {
       "id": "jp.anthropic.claude-sonnet-4-5-20250929-v1:0",
       "display_name": "Claude Sonnet 4.5 (JP)",
-      "knowledge_cutoff": "2025-07-31",
-      "release_date": "2025-09-29",
-      "last_updated": "2025-09-29",
+      "knowledge_cutoff": "2025-07-31T00:00:00Z",
+      "release_date": "2025-09-29T00:00:00Z",
+      "last_updated": "2025-09-29T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 3,
@@ -1291,9 +1291,9 @@
     {
       "id": "jp.anthropic.claude-sonnet-4-6",
       "display_name": "Claude Sonnet 4.6 (JP)",
-      "knowledge_cutoff": "2025-08-31",
-      "release_date": "2026-02-17",
-      "last_updated": "2026-03-13",
+      "knowledge_cutoff": "2025-08-31T00:00:00Z",
+      "release_date": "2026-02-17T00:00:00Z",
+      "last_updated": "2026-03-13T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 3,
@@ -1325,9 +1325,9 @@
     {
       "id": "meta.llama3-1-70b-instruct-v1:0",
       "display_name": "Llama 3.1 70B Instruct",
-      "knowledge_cutoff": "2023-12",
-      "release_date": "2024-07-23",
-      "last_updated": "2024-07-23",
+      "knowledge_cutoff": "2023-12-01T00:00:00Z",
+      "release_date": "2024-07-23T00:00:00Z",
+      "last_updated": "2024-07-23T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.72,
@@ -1351,9 +1351,9 @@
     {
       "id": "meta.llama3-1-8b-instruct-v1:0",
       "display_name": "Llama 3.1 8B Instruct",
-      "knowledge_cutoff": "2023-12",
-      "release_date": "2024-07-23",
-      "last_updated": "2024-07-23",
+      "knowledge_cutoff": "2023-12-01T00:00:00Z",
+      "release_date": "2024-07-23T00:00:00Z",
+      "last_updated": "2024-07-23T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.22,
@@ -1377,9 +1377,9 @@
     {
       "id": "meta.llama3-3-70b-instruct-v1:0",
       "display_name": "Llama 3.3 70B Instruct",
-      "knowledge_cutoff": "2023-12",
-      "release_date": "2024-12-06",
-      "last_updated": "2024-12-06",
+      "knowledge_cutoff": "2023-12-01T00:00:00Z",
+      "release_date": "2024-12-06T00:00:00Z",
+      "last_updated": "2024-12-06T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.72,
@@ -1403,9 +1403,9 @@
     {
       "id": "meta.llama4-maverick-17b-instruct-v1:0",
       "display_name": "Llama 4 Maverick 17B Instruct",
-      "knowledge_cutoff": "2024-08",
-      "release_date": "2025-04-05",
-      "last_updated": "2025-04-05",
+      "knowledge_cutoff": "2024-08-01T00:00:00Z",
+      "release_date": "2025-04-05T00:00:00Z",
+      "last_updated": "2025-04-05T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.24,
@@ -1430,9 +1430,9 @@
     {
       "id": "meta.llama4-scout-17b-instruct-v1:0",
       "display_name": "Llama 4 Scout 17B Instruct",
-      "knowledge_cutoff": "2024-08",
-      "release_date": "2025-04-05",
-      "last_updated": "2025-04-05",
+      "knowledge_cutoff": "2024-08-01T00:00:00Z",
+      "release_date": "2025-04-05T00:00:00Z",
+      "last_updated": "2025-04-05T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.17,
@@ -1457,8 +1457,8 @@
     {
       "id": "minimax.minimax-m2",
       "display_name": "MiniMax M2",
-      "release_date": "2025-10-27",
-      "last_updated": "2025-10-27",
+      "release_date": "2025-10-27T00:00:00Z",
+      "last_updated": "2025-10-27T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.3,
@@ -1485,8 +1485,8 @@
     {
       "id": "minimax.minimax-m2.1",
       "display_name": "MiniMax M2.1",
-      "release_date": "2025-12-23",
-      "last_updated": "2025-12-23",
+      "release_date": "2025-12-23T00:00:00Z",
+      "last_updated": "2025-12-23T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.3,
@@ -1513,8 +1513,8 @@
     {
       "id": "minimax.minimax-m2.5",
       "display_name": "MiniMax M2.5",
-      "release_date": "2026-03-18",
-      "last_updated": "2026-03-18",
+      "release_date": "2026-03-18T00:00:00Z",
+      "last_updated": "2026-03-18T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.3,
@@ -1541,8 +1541,8 @@
     {
       "id": "mistral.devstral-2-123b",
       "display_name": "Devstral 2 123B",
-      "release_date": "2026-02-17",
-      "last_updated": "2026-02-17",
+      "release_date": "2026-02-17T00:00:00Z",
+      "last_updated": "2026-02-17T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.4,
@@ -1567,8 +1567,8 @@
     {
       "id": "mistral.magistral-small-2509",
       "display_name": "Magistral Small 1.2",
-      "release_date": "2025-12-02",
-      "last_updated": "2025-12-02",
+      "release_date": "2025-12-02T00:00:00Z",
+      "last_updated": "2025-12-02T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.5,
@@ -1597,8 +1597,8 @@
     {
       "id": "mistral.ministral-3-14b-instruct",
       "display_name": "Ministral 14B 3.0",
-      "release_date": "2024-12-01",
-      "last_updated": "2024-12-01",
+      "release_date": "2024-12-01T00:00:00Z",
+      "last_updated": "2024-12-01T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.2,
@@ -1623,8 +1623,8 @@
     {
       "id": "mistral.ministral-3-3b-instruct",
       "display_name": "Ministral 3 3B",
-      "release_date": "2025-12-02",
-      "last_updated": "2025-12-02",
+      "release_date": "2025-12-02T00:00:00Z",
+      "last_updated": "2025-12-02T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.1,
@@ -1650,8 +1650,8 @@
     {
       "id": "mistral.ministral-3-8b-instruct",
       "display_name": "Ministral 3 8B",
-      "release_date": "2024-12-01",
-      "last_updated": "2024-12-01",
+      "release_date": "2024-12-01T00:00:00Z",
+      "last_updated": "2024-12-01T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.15,
@@ -1676,8 +1676,8 @@
     {
       "id": "mistral.mistral-large-3-675b-instruct",
       "display_name": "Mistral Large 3",
-      "release_date": "2025-12-02",
-      "last_updated": "2025-12-02",
+      "release_date": "2025-12-02T00:00:00Z",
+      "last_updated": "2025-12-02T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.5,
@@ -1703,8 +1703,8 @@
     {
       "id": "mistral.pixtral-large-2502-v1:0",
       "display_name": "Pixtral Large (25.02)",
-      "release_date": "2025-04-08",
-      "last_updated": "2025-04-08",
+      "release_date": "2025-04-08T00:00:00Z",
+      "last_updated": "2025-04-08T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 2,
@@ -1729,8 +1729,8 @@
     {
       "id": "mistral.voxtral-mini-3b-2507",
       "display_name": "Voxtral Mini 3B 2507",
-      "release_date": "2024-12-01",
-      "last_updated": "2024-12-01",
+      "release_date": "2024-12-01T00:00:00Z",
+      "last_updated": "2024-12-01T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.04,
@@ -1756,8 +1756,8 @@
     {
       "id": "mistral.voxtral-small-24b-2507",
       "display_name": "Voxtral Small 24B 2507",
-      "release_date": "2025-07-01",
-      "last_updated": "2025-07-01",
+      "release_date": "2025-07-01T00:00:00Z",
+      "last_updated": "2025-07-01T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.15,
@@ -1783,8 +1783,8 @@
     {
       "id": "moonshot.kimi-k2-thinking",
       "display_name": "Kimi K2 Thinking",
-      "release_date": "2025-12-02",
-      "last_updated": "2025-12-02",
+      "release_date": "2025-12-02T00:00:00Z",
+      "last_updated": "2025-12-02T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.6,
@@ -1812,8 +1812,8 @@
     {
       "id": "moonshotai.kimi-k2.5",
       "display_name": "Kimi K2.5",
-      "release_date": "2026-02-06",
-      "last_updated": "2026-02-06",
+      "release_date": "2026-02-06T00:00:00Z",
+      "last_updated": "2026-02-06T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.6,
@@ -1842,8 +1842,8 @@
     {
       "id": "nvidia.nemotron-nano-12b-v2",
       "display_name": "NVIDIA Nemotron Nano 12B v2 VL BF16",
-      "release_date": "2024-12-01",
-      "last_updated": "2024-12-01",
+      "release_date": "2024-12-01T00:00:00Z",
+      "last_updated": "2024-12-01T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.2,
@@ -1869,8 +1869,8 @@
     {
       "id": "nvidia.nemotron-nano-3-30b",
       "display_name": "NVIDIA Nemotron Nano 3 30B",
-      "release_date": "2025-12-23",
-      "last_updated": "2025-12-23",
+      "release_date": "2025-12-23T00:00:00Z",
+      "last_updated": "2025-12-23T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.06,
@@ -1898,8 +1898,8 @@
     {
       "id": "nvidia.nemotron-nano-9b-v2",
       "display_name": "NVIDIA Nemotron Nano 9B v2",
-      "release_date": "2024-12-01",
-      "last_updated": "2024-12-01",
+      "release_date": "2024-12-01T00:00:00Z",
+      "last_updated": "2024-12-01T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.06,
@@ -1924,8 +1924,8 @@
     {
       "id": "nvidia.nemotron-super-3-120b",
       "display_name": "NVIDIA Nemotron 3 Super 120B A12B",
-      "release_date": "2026-03-11",
-      "last_updated": "2026-03-11",
+      "release_date": "2026-03-11T00:00:00Z",
+      "last_updated": "2026-03-11T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.15,
@@ -1953,8 +1953,8 @@
     {
       "id": "openai.gpt-oss-120b-1:0",
       "display_name": "gpt-oss-120b",
-      "release_date": "2025-08-05",
-      "last_updated": "2025-08-05",
+      "release_date": "2025-08-05T00:00:00Z",
+      "last_updated": "2025-08-05T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.15,
@@ -1979,8 +1979,8 @@
     {
       "id": "openai.gpt-oss-20b-1:0",
       "display_name": "gpt-oss-20b",
-      "release_date": "2025-08-05",
-      "last_updated": "2025-08-05",
+      "release_date": "2025-08-05T00:00:00Z",
+      "last_updated": "2025-08-05T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.07,
@@ -2005,8 +2005,8 @@
     {
       "id": "openai.gpt-oss-safeguard-120b",
       "display_name": "GPT OSS Safeguard 120B",
-      "release_date": "2025-10-29",
-      "last_updated": "2025-10-29",
+      "release_date": "2025-10-29T00:00:00Z",
+      "last_updated": "2025-10-29T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.15,
@@ -2031,8 +2031,8 @@
     {
       "id": "openai.gpt-oss-safeguard-20b",
       "display_name": "GPT OSS Safeguard 20B",
-      "release_date": "2025-10-29",
-      "last_updated": "2025-10-29",
+      "release_date": "2025-10-29T00:00:00Z",
+      "last_updated": "2025-10-29T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.07,
@@ -2057,9 +2057,9 @@
     {
       "id": "qwen.qwen3-235b-a22b-2507-v1:0",
       "display_name": "Qwen3 235B A22B 2507",
-      "knowledge_cutoff": "2024-04",
-      "release_date": "2025-09-18",
-      "last_updated": "2025-09-18",
+      "knowledge_cutoff": "2024-04-01T00:00:00Z",
+      "release_date": "2025-09-18T00:00:00Z",
+      "last_updated": "2025-09-18T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.22,
@@ -2084,9 +2084,9 @@
     {
       "id": "qwen.qwen3-32b-v1:0",
       "display_name": "Qwen3 32B (dense)",
-      "knowledge_cutoff": "2024-04",
-      "release_date": "2025-09-18",
-      "last_updated": "2025-09-18",
+      "knowledge_cutoff": "2024-04-01T00:00:00Z",
+      "release_date": "2025-09-18T00:00:00Z",
+      "last_updated": "2025-09-18T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.15,
@@ -2114,9 +2114,9 @@
     {
       "id": "qwen.qwen3-coder-30b-a3b-v1:0",
       "display_name": "Qwen3 Coder 30B A3B Instruct",
-      "knowledge_cutoff": "2024-04",
-      "release_date": "2025-09-18",
-      "last_updated": "2025-09-18",
+      "knowledge_cutoff": "2024-04-01T00:00:00Z",
+      "release_date": "2025-09-18T00:00:00Z",
+      "last_updated": "2025-09-18T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.15,
@@ -2141,9 +2141,9 @@
     {
       "id": "qwen.qwen3-coder-480b-a35b-v1:0",
       "display_name": "Qwen3 Coder 480B A35B Instruct",
-      "knowledge_cutoff": "2024-04",
-      "release_date": "2025-09-18",
-      "last_updated": "2025-09-18",
+      "knowledge_cutoff": "2024-04-01T00:00:00Z",
+      "release_date": "2025-09-18T00:00:00Z",
+      "last_updated": "2025-09-18T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.22,
@@ -2168,8 +2168,8 @@
     {
       "id": "qwen.qwen3-coder-next",
       "display_name": "Qwen3 Coder Next",
-      "release_date": "2026-02-06",
-      "last_updated": "2026-02-06",
+      "release_date": "2026-02-06T00:00:00Z",
+      "last_updated": "2026-02-06T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.22,
@@ -2197,8 +2197,8 @@
     {
       "id": "qwen.qwen3-next-80b-a3b",
       "display_name": "Qwen/Qwen3-Next-80B-A3B-Instruct",
-      "release_date": "2025-09-18",
-      "last_updated": "2025-11-25",
+      "release_date": "2025-09-18T00:00:00Z",
+      "last_updated": "2025-11-25T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.14,
@@ -2223,8 +2223,8 @@
     {
       "id": "qwen.qwen3-vl-235b-a22b",
       "display_name": "Qwen/Qwen3-VL-235B-A22B-Instruct",
-      "release_date": "2025-10-04",
-      "last_updated": "2025-11-25",
+      "release_date": "2025-10-04T00:00:00Z",
+      "last_updated": "2025-11-25T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.3,
@@ -2250,9 +2250,9 @@
     {
       "id": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
       "display_name": "Claude Haiku 4.5 (US)",
-      "knowledge_cutoff": "2025-02-28",
-      "release_date": "2025-10-15",
-      "last_updated": "2025-10-15",
+      "knowledge_cutoff": "2025-02-28T00:00:00Z",
+      "release_date": "2025-10-15T00:00:00Z",
+      "last_updated": "2025-10-15T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 1,
@@ -2284,9 +2284,9 @@
     {
       "id": "us.anthropic.claude-opus-4-1-20250805-v1:0",
       "display_name": "Claude Opus 4.1 (US)",
-      "knowledge_cutoff": "2025-03-31",
-      "release_date": "2025-08-05",
-      "last_updated": "2025-08-05",
+      "knowledge_cutoff": "2025-03-31T00:00:00Z",
+      "release_date": "2025-08-05T00:00:00Z",
+      "last_updated": "2025-08-05T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 15,
@@ -2317,9 +2317,9 @@
     {
       "id": "us.anthropic.claude-opus-4-5-20251101-v1:0",
       "display_name": "Claude Opus 4.5 (US)",
-      "knowledge_cutoff": "2025-03-31",
-      "release_date": "2025-11-24",
-      "last_updated": "2025-08-01",
+      "knowledge_cutoff": "2025-03-31T00:00:00Z",
+      "release_date": "2025-11-24T00:00:00Z",
+      "last_updated": "2025-08-01T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 5,
@@ -2351,9 +2351,9 @@
     {
       "id": "us.anthropic.claude-opus-4-6-v1",
       "display_name": "Claude Opus 4.6 (US)",
-      "knowledge_cutoff": "2025-05-31",
-      "release_date": "2026-02-05",
-      "last_updated": "2026-03-13",
+      "knowledge_cutoff": "2025-05-31T00:00:00Z",
+      "release_date": "2026-02-05T00:00:00Z",
+      "last_updated": "2026-03-13T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 5,
@@ -2385,9 +2385,9 @@
     {
       "id": "us.anthropic.claude-opus-4-7",
       "display_name": "Claude Opus 4.7 (US)",
-      "knowledge_cutoff": "2026-01-31",
-      "release_date": "2026-04-16",
-      "last_updated": "2026-04-16",
+      "knowledge_cutoff": "2026-01-31T00:00:00Z",
+      "release_date": "2026-04-16T00:00:00Z",
+      "last_updated": "2026-04-16T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 5,
@@ -2418,8 +2418,8 @@
     {
       "id": "us.anthropic.claude-opus-4-8",
       "display_name": "Claude Opus 4.8 (US)",
-      "release_date": "2026-05-28",
-      "last_updated": "2026-05-28",
+      "release_date": "2026-05-28T00:00:00Z",
+      "last_updated": "2026-05-28T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 5,
@@ -2450,9 +2450,9 @@
     {
       "id": "us.anthropic.claude-sonnet-4-5-20250929-v1:0",
       "display_name": "Claude Sonnet 4.5 (US)",
-      "knowledge_cutoff": "2025-07-31",
-      "release_date": "2025-09-29",
-      "last_updated": "2025-09-29",
+      "knowledge_cutoff": "2025-07-31T00:00:00Z",
+      "release_date": "2025-09-29T00:00:00Z",
+      "last_updated": "2025-09-29T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 3,
@@ -2484,9 +2484,9 @@
     {
       "id": "us.anthropic.claude-sonnet-4-6",
       "display_name": "Claude Sonnet 4.6 (US)",
-      "knowledge_cutoff": "2025-08-31",
-      "release_date": "2026-02-17",
-      "last_updated": "2026-03-13",
+      "knowledge_cutoff": "2025-08-31T00:00:00Z",
+      "release_date": "2026-02-17T00:00:00Z",
+      "last_updated": "2026-03-13T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 3,
@@ -2518,9 +2518,9 @@
     {
       "id": "us.deepseek.r1-v1:0",
       "display_name": "DeepSeek-R1 (US)",
-      "knowledge_cutoff": "2024-07",
-      "release_date": "2025-01-20",
-      "last_updated": "2025-05-29",
+      "knowledge_cutoff": "2024-07-01T00:00:00Z",
+      "release_date": "2025-01-20T00:00:00Z",
+      "last_updated": "2025-05-29T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 1.35,
@@ -2547,9 +2547,9 @@
     {
       "id": "us.meta.llama4-maverick-17b-instruct-v1:0",
       "display_name": "Llama 4 Maverick 17B Instruct (US)",
-      "knowledge_cutoff": "2024-08",
-      "release_date": "2025-04-05",
-      "last_updated": "2025-04-05",
+      "knowledge_cutoff": "2024-08-01T00:00:00Z",
+      "release_date": "2025-04-05T00:00:00Z",
+      "last_updated": "2025-04-05T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.24,
@@ -2574,9 +2574,9 @@
     {
       "id": "us.meta.llama4-scout-17b-instruct-v1:0",
       "display_name": "Llama 4 Scout 17B Instruct (US)",
-      "knowledge_cutoff": "2024-08",
-      "release_date": "2025-04-05",
-      "last_updated": "2025-04-05",
+      "knowledge_cutoff": "2024-08-01T00:00:00Z",
+      "release_date": "2025-04-05T00:00:00Z",
+      "last_updated": "2025-04-05T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.17,
@@ -2601,8 +2601,8 @@
     {
       "id": "writer.palmyra-x4-v1:0",
       "display_name": "Palmyra X4",
-      "release_date": "2025-04-28",
-      "last_updated": "2025-04-28",
+      "release_date": "2025-04-28T00:00:00Z",
+      "last_updated": "2025-04-28T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 2.5,
@@ -2629,8 +2629,8 @@
     {
       "id": "writer.palmyra-x5-v1:0",
       "display_name": "Palmyra X5",
-      "release_date": "2025-04-28",
-      "last_updated": "2025-04-28",
+      "release_date": "2025-04-28T00:00:00Z",
+      "last_updated": "2025-04-28T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.6,
@@ -2657,9 +2657,9 @@
     {
       "id": "zai.glm-4.7",
       "display_name": "GLM-4.7",
-      "knowledge_cutoff": "2025-04",
-      "release_date": "2025-12-22",
-      "last_updated": "2025-12-22",
+      "knowledge_cutoff": "2025-04-01T00:00:00Z",
+      "release_date": "2025-12-22T00:00:00Z",
+      "last_updated": "2025-12-22T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.6,
@@ -2687,9 +2687,9 @@
     {
       "id": "zai.glm-4.7-flash",
       "display_name": "GLM-4.7-Flash",
-      "knowledge_cutoff": "2025-04",
-      "release_date": "2026-01-19",
-      "last_updated": "2026-01-19",
+      "knowledge_cutoff": "2025-04-01T00:00:00Z",
+      "release_date": "2026-01-19T00:00:00Z",
+      "last_updated": "2026-01-19T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.07,
@@ -2717,8 +2717,8 @@
     {
       "id": "zai.glm-5",
       "display_name": "GLM-5",
-      "release_date": "2026-03-18",
-      "last_updated": "2026-03-18",
+      "release_date": "2026-03-18T00:00:00Z",
+      "last_updated": "2026-03-18T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 1,

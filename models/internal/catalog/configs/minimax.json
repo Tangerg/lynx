@@ -4,8 +4,8 @@
     {
       "id": "MiniMax-M2",
       "display_name": "MiniMax-M2",
-      "release_date": "2025-10-27",
-      "last_updated": "2025-10-27",
+      "release_date": "2025-10-27T00:00:00Z",
+      "last_updated": "2025-10-27T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.3,
@@ -32,8 +32,8 @@
     {
       "id": "MiniMax-M2.1",
       "display_name": "MiniMax-M2.1",
-      "release_date": "2025-12-23",
-      "last_updated": "2025-12-23",
+      "release_date": "2025-12-23T00:00:00Z",
+      "last_updated": "2025-12-23T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.3,
@@ -60,8 +60,8 @@
     {
       "id": "MiniMax-M2.5",
       "display_name": "MiniMax-M2.5",
-      "release_date": "2026-02-12",
-      "last_updated": "2026-02-12",
+      "release_date": "2026-02-12T00:00:00Z",
+      "last_updated": "2026-02-12T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.3,
@@ -90,8 +90,8 @@
     {
       "id": "MiniMax-M2.5-highspeed",
       "display_name": "MiniMax-M2.5-highspeed",
-      "release_date": "2026-02-13",
-      "last_updated": "2026-02-13",
+      "release_date": "2026-02-13T00:00:00Z",
+      "last_updated": "2026-02-13T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.6,
@@ -120,8 +120,8 @@
     {
       "id": "MiniMax-M2.7",
       "display_name": "MiniMax-M2.7",
-      "release_date": "2026-03-18",
-      "last_updated": "2026-03-18",
+      "release_date": "2026-03-18T00:00:00Z",
+      "last_updated": "2026-03-18T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.3,
@@ -150,8 +150,8 @@
     {
       "id": "MiniMax-M2.7-highspeed",
       "display_name": "MiniMax-M2.7-highspeed",
-      "release_date": "2026-03-18",
-      "last_updated": "2026-03-18",
+      "release_date": "2026-03-18T00:00:00Z",
+      "last_updated": "2026-03-18T00:00:00Z",
       "pricing": [
         {
           "input_per_1m": 0.6,
