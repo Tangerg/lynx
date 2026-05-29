@@ -103,12 +103,41 @@ type Pricing struct {
 	// CacheWritePer1M is the (premium) rate for prompt tokens written to
 	// the provider's prompt cache. Zero falls back to InputPer1M.
 	CacheWritePer1M float64 `json:"cache_write_per_1m,omitempty"`
+
+	// Tiers is TIERED PRICING — extra rate cards that take over once the
+	// prompt crosses a token threshold, used by long-context models
+	// (Gemini 2.5 Pro and some OpenAI models reprice above ~200K tokens).
+	//
+	// IMPORTANT: a tier reprices the WHOLE prompt, not the marginal
+	// tokens above the threshold — a 250K-token prompt on Gemini 2.5 Pro
+	// is billed entirely at the >200K rate, not 200K at base + 50K at the
+	// tier. Tiers are sorted ascending by [PricingTier.Threshold]; [Cost]
+	// applies the highest tier the prompt reaches, else the base rates.
+	// Empty means flat pricing.
+	Tiers []PricingTier `json:"tiers,omitempty"`
 }
 
-// IsZero reports whether the rate card is unset (all rates zero) — i.e.
-// pricing is unknown for this model.
+// PricingTier is one step of [Pricing.Tiers]: the rate card that applies
+// when a prompt's input-token count reaches Threshold. Its rates mirror
+// the base [Pricing] fields (a zero cache rate likewise falls back to
+// this tier's InputPer1M).
+type PricingTier struct {
+	// Threshold is the prompt input-token count at or above which this
+	// tier's rates apply (e.g. 200000).
+	Threshold int64 `json:"threshold"`
+
+	InputPer1M      float64 `json:"input_per_1m,omitempty"`
+	OutputPer1M     float64 `json:"output_per_1m,omitempty"`
+	CacheReadPer1M  float64 `json:"cache_read_per_1m,omitempty"`
+	CacheWritePer1M float64 `json:"cache_write_per_1m,omitempty"`
+}
+
+// IsZero reports whether the rate card is unset (no rates, no tiers) —
+// i.e. pricing is unknown for this model. (Spelled out because Tiers is a
+// slice, so Pricing isn't comparable.)
 func (p Pricing) IsZero() bool {
-	return p == Pricing{}
+	return p.InputPer1M == 0 && p.OutputPer1M == 0 &&
+		p.CacheReadPer1M == 0 && p.CacheWritePer1M == 0 && len(p.Tiers) == 0
 }
 
 // Cost computes the USD cost of one call from a [Usage] breakdown.
@@ -118,28 +147,44 @@ func (p Pricing) IsZero() bool {
 // billed at their own rates and subtracted from the uncached remainder.
 // A nil/zero cache rate falls back to the standard input rate so a model
 // that reports cache tokens but lists no cache rate isn't under-billed.
+//
+// When [Pricing.Tiers] is set, the prompt size selects the rate card
+// (see Tiers) — the whole call is billed at that tier, input and output.
 func (p Pricing) Cost(u *Usage) float64 {
 	if u == nil || p.IsZero() {
 		return 0
 	}
+	in, out, readRate, writeRate := p.ratesFor(u.PromptTokens)
+
 	cacheRead := derefInt64(u.CacheReadInputTokens)
 	cacheWrite := derefInt64(u.CacheWriteInputTokens)
 	uncachedIn := max(u.PromptTokens-cacheRead-cacheWrite, 0)
 
-	readRate := p.CacheReadPer1M
 	if readRate == 0 {
-		readRate = p.InputPer1M
+		readRate = in
 	}
-	writeRate := p.CacheWritePer1M
 	if writeRate == 0 {
-		writeRate = p.InputPer1M
+		writeRate = in
 	}
 
-	total := float64(uncachedIn)*p.InputPer1M +
-		float64(u.CompletionTokens)*p.OutputPer1M +
+	total := float64(uncachedIn)*in +
+		float64(u.CompletionTokens)*out +
 		float64(cacheRead)*readRate +
 		float64(cacheWrite)*writeRate
 	return total / 1_000_000
+}
+
+// ratesFor returns the effective input / output / cache-read / cache-write
+// rates for a prompt of the given input-token size: the highest tier the
+// prompt reaches (Tiers are ascending by Threshold), else the base rates.
+func (p Pricing) ratesFor(promptTokens int64) (in, out, cacheRead, cacheWrite float64) {
+	in, out, cacheRead, cacheWrite = p.InputPer1M, p.OutputPer1M, p.CacheReadPer1M, p.CacheWritePer1M
+	for _, t := range p.Tiers {
+		if promptTokens >= t.Threshold {
+			in, out, cacheRead, cacheWrite = t.InputPer1M, t.OutputPer1M, t.CacheReadPer1M, t.CacheWritePer1M
+		}
+	}
+	return
 }
 
 func derefInt64(p *int64) int64 {

@@ -1161,7 +1161,16 @@
         "input_per_1m": 0.5,
         "output_per_1m": 3,
         "cache_read_per_1m": 0.05,
-        "cache_write_per_1m": 0.625
+        "cache_write_per_1m": 0.625,
+        "tiers": [
+          {
+            "threshold": 256000,
+            "input_per_1m": 2,
+            "output_per_1m": 6,
+            "cache_read_per_1m": 0.2,
+            "cache_write_per_1m": 2.5
+          }
+        ]
       },
       "reasoning": {
         "supported": true

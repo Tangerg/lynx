@@ -87,16 +87,30 @@ type apiModel struct {
 		Output []string `json:"output"`
 	} `json:"modalities"`
 	Cost struct {
-		Input      float64 `json:"input"`
-		Output     float64 `json:"output"`
-		CacheRead  float64 `json:"cache_read"`
-		CacheWrite float64 `json:"cache_write"`
+		Input      float64   `json:"input"`
+		Output     float64   `json:"output"`
+		CacheRead  float64   `json:"cache_read"`
+		CacheWrite float64   `json:"cache_write"`
+		Tiers      []apiTier `json:"tiers"`
 	} `json:"cost"`
 	Limit struct {
 		Context int64 `json:"context"`
 		Input   int64 `json:"input"`
 		Output  int64 `json:"output"`
 	} `json:"limit"`
+}
+
+// apiTier is one models.dev tiered-pricing step: rates that take over
+// once the prompt exceeds tier.size tokens (tier.type == "context").
+type apiTier struct {
+	Input      float64 `json:"input"`
+	Output     float64 `json:"output"`
+	CacheRead  float64 `json:"cache_read"`
+	CacheWrite float64 `json:"cache_write"`
+	Tier       struct {
+		Type string `json:"type"`
+		Size int64  `json:"size"`
+	} `json:"tier"`
 }
 
 type apiProvider struct {
@@ -175,6 +189,7 @@ func toModelInfo(m apiModel, aug augEntry) chat.ModelInfo {
 			OutputPer1M:     m.Cost.Output,
 			CacheReadPer1M:  m.Cost.CacheRead,
 			CacheWritePer1M: m.Cost.CacheWrite,
+			Tiers:           toTiers(m.Cost.Tiers),
 		},
 		Modalities: chat.Modalities{
 			Input:  toModalities(m.Modalities.Input),
@@ -196,6 +211,27 @@ func toModelInfo(m apiModel, aug augEntry) chat.ModelInfo {
 		}
 	}
 	return info
+}
+
+// toTiers maps models.dev context tiers to chat.PricingTier, sorted
+// ascending by threshold (Cost relies on that order). Non-context tiers
+// are skipped — we only model prompt-size repricing.
+func toTiers(in []apiTier) []chat.PricingTier {
+	var out []chat.PricingTier
+	for _, t := range in {
+		if t.Tier.Type != "context" || t.Tier.Size == 0 {
+			continue
+		}
+		out = append(out, chat.PricingTier{
+			Threshold:       t.Tier.Size,
+			InputPer1M:      t.Input,
+			OutputPer1M:     t.Output,
+			CacheReadPer1M:  t.CacheRead,
+			CacheWritePer1M: t.CacheWrite,
+		})
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Threshold < out[j].Threshold })
+	return out
 }
 
 func toModalities(in []string) []chat.Modality {

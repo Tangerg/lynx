@@ -50,6 +50,22 @@ Each model entry is a `chat.ModelInfo`:
   unknown (`Cost` falls back to the input rate). Omit `pricing` entirely
   for a metadata-only row — a zero `Pricing` means "cost unknown", not
   "free".
+- **Tiered pricing** (`pricing.tiers`): long-context models (Gemini 2.5
+  Pro, some OpenAI) reprice above a token threshold. Each tier is
+  `{ "threshold": 200000, "input_per_1m": …, "output_per_1m": … }`,
+  ascending by threshold. **A tier reprices the *whole* prompt, not the
+  marginal tokens** — a 250K-token Gemini 2.5 Pro call bills entirely at
+  the >200K rate. `Cost` applies the highest tier the prompt reaches:
+
+  ```json
+  "pricing": {
+    "input_per_1m": 1.25, "output_per_1m": 10, "cache_read_per_1m": 0.125,
+    "tiers": [
+      { "threshold": 200000,
+        "input_per_1m": 2.5, "output_per_1m": 15, "cache_read_per_1m": 0.25 }
+    ]
+  }
+  ```
 - `reasoning.supported` is the authoritative "can reason" bit; `levels` /
   `default_level` apply only when effort is level-controlled (OpenAI,
   Gemini, …). A token-budget reasoner is just `{"supported": true}`.
@@ -73,7 +89,8 @@ as per-model TOML. Mapping:
 
 - `name` → `display_name`; `knowledge` → `knowledge_cutoff`.
 - `[cost]` `input` / `output` / `cache_read` / `cache_write` →
-  `pricing.*_per_1m`.
+  `pricing.*_per_1m`. `[[cost.tiers]]` with `tier.type == "context"` →
+  `pricing.tiers` (keyed by `tier.size`); other tier types are skipped.
 - `reasoning` (bool) → `reasoning.supported`. models.dev has no effort
   levels, so `reasoning.levels` / `default_level` are **backfilled from
   charm.land/catwalk** (`reasoning_levels` / `default_reasoning_effort`)
