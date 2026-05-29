@@ -7,7 +7,15 @@
       "pricing": {
         "input_per_1m": 1.25,
         "output_per_1m": 2.5,
-        "cache_read_per_1m": 0.2
+        "cache_read_per_1m": 0.2,
+        "tiers": [
+          {
+            "threshold": 200000,
+            "input_per_1m": 2.5,
+            "output_per_1m": 5,
+            "cache_read_per_1m": 0.4
+          }
+        ]
       },
       "modalities": {
         "input": [
@@ -31,7 +39,15 @@
       "pricing": {
         "input_per_1m": 1.25,
         "output_per_1m": 2.5,
-        "cache_read_per_1m": 0.2
+        "cache_read_per_1m": 0.2,
+        "tiers": [
+          {
+            "threshold": 200000,
+            "input_per_1m": 2.5,
+            "output_per_1m": 5,
+            "cache_read_per_1m": 0.4
+          }
+        ]
       },
       "reasoning": {
         "supported": true
@@ -58,7 +74,15 @@
       "pricing": {
         "input_per_1m": 1.25,
         "output_per_1m": 2.5,
-        "cache_read_per_1m": 0.2
+        "cache_read_per_1m": 0.2,
+        "tiers": [
+          {
+            "threshold": 200000,
+            "input_per_1m": 2.5,
+            "output_per_1m": 5,
+            "cache_read_per_1m": 0.4
+          }
+        ]
       },
       "reasoning": {
         "supported": true
@@ -84,7 +108,15 @@
       "pricing": {
         "input_per_1m": 1.25,
         "output_per_1m": 2.5,
-        "cache_read_per_1m": 0.2
+        "cache_read_per_1m": 0.2,
+        "tiers": [
+          {
+            "threshold": 200000,
+            "input_per_1m": 2.5,
+            "output_per_1m": 5,
+            "cache_read_per_1m": 0.4
+          }
+        ]
       },
       "reasoning": {
         "supported": true
@@ -111,7 +143,15 @@
       "pricing": {
         "input_per_1m": 1,
         "output_per_1m": 2,
-        "cache_read_per_1m": 0.2
+        "cache_read_per_1m": 0.2,
+        "tiers": [
+          {
+            "threshold": 200000,
+            "input_per_1m": 2,
+            "output_per_1m": 4,
+            "cache_read_per_1m": 0.4
+          }
+        ]
       },
       "reasoning": {
         "supported": true

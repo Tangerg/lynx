@@ -64,7 +64,15 @@
       "pricing": {
         "input_per_1m": 1,
         "output_per_1m": 3,
-        "cache_read_per_1m": 0.2
+        "cache_read_per_1m": 0.2,
+        "tiers": [
+          {
+            "threshold": 256000,
+            "input_per_1m": 2,
+            "output_per_1m": 6,
+            "cache_read_per_1m": 0.4
+          }
+        ]
       },
       "reasoning": {
         "supported": true
@@ -90,7 +98,15 @@
       "pricing": {
         "input_per_1m": 0.4,
         "output_per_1m": 2,
-        "cache_read_per_1m": 0.08
+        "cache_read_per_1m": 0.08,
+        "tiers": [
+          {
+            "threshold": 256000,
+            "input_per_1m": 0.8,
+            "output_per_1m": 4,
+            "cache_read_per_1m": 0.16
+          }
+        ]
       },
       "reasoning": {
         "supported": true
@@ -119,7 +135,15 @@
       "pricing": {
         "input_per_1m": 1,
         "output_per_1m": 3,
-        "cache_read_per_1m": 0.2
+        "cache_read_per_1m": 0.2,
+        "tiers": [
+          {
+            "threshold": 256000,
+            "input_per_1m": 2,
+            "output_per_1m": 6,
+            "cache_read_per_1m": 0.4
+          }
+        ]
       },
       "reasoning": {
         "supported": true
