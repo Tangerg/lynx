@@ -145,7 +145,7 @@ func (p *AgentProcess) Usage() (cost float64, tokens int, actions int) {
 // LLM-client adapter that knows the per-model rate. The framework
 // itself never invents numbers here.
 func (p *AgentProcess) RecordUsage(cost float64, tokens int) {
-	p.RecordLLMInvocation(core.LLMInvocation{Cost: cost, PromptTokens: int64(tokens)})
+	p.RecordLLMInvocation(core.LLMInvocation{CostUSD: cost, PromptTokens: int64(tokens)})
 }
 
 // RecordLLMInvocation appends a fully-attributed LLM call to this

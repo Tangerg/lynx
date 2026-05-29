@@ -79,7 +79,7 @@ func (e *Engine) invocationFrom(model string, u *chat.Usage) core.LLMInvocation 
 		inv.CacheWriteInputTokens = *u.CacheWriteInputTokens
 	}
 	if e.pricing != nil {
-		inv.Cost = e.pricing(model, u)
+		inv.CostUSD = e.pricing(model, u)
 	}
 	return inv
 }
@@ -94,7 +94,7 @@ func chatOutput(pc *core.ProcessContext, reply string, stoppedOnBudget bool) Cha
 	var order []string
 	for _, inv := range pc.Process.LLMInvocations() {
 		addUsage(&out.Usage, inv)
-		out.CostUSD += inv.Cost
+		out.CostUSD += inv.CostUSD
 		m := byModel[inv.Model]
 		if m == nil {
 			m = &ModelUsage{Model: inv.Model}
@@ -102,7 +102,7 @@ func chatOutput(pc *core.ProcessContext, reply string, stoppedOnBudget bool) Cha
 			order = append(order, inv.Model)
 		}
 		addUsage(&m.TokenUsage, inv)
-		m.CostUSD += inv.Cost
+		m.CostUSD += inv.CostUSD
 	}
 	for _, model := range order {
 		out.UsageByModel = append(out.UsageByModel, *byModel[model])
