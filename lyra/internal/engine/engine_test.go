@@ -125,6 +125,34 @@ func TestEngine_RunChat_TokenUsageAccumulates(t *testing.T) {
 	}
 }
 
+// TestEngine_RunChat_StopsOnBudget verifies the per-turn token
+// ceiling halts the tool loop at a round boundary — before the next
+// LLM call — and reports the partial result with StoppedOnBudget set.
+// Round 1 (tool call) spends 15 tokens; with MaxBudget=10 the loop
+// must stop there and never run round 2.
+func TestEngine_RunChat_StopsOnBudget(t *testing.T) {
+	stub := newUsageStubModel(
+		chat.Usage{PromptTokens: 10, CompletionTokens: 5},  // round 1 → total 15
+		chat.Usage{PromptTokens: 99, CompletionTokens: 99}, // round 2 → must NOT run
+	)
+	client, _ := chat.NewClient(stub)
+	eng, err := New(context.Background(), Config{ChatClient: client})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := eng.RunChat(context.Background(), RunChatRequest{Message: "go", MaxBudget: 10})
+	if err != nil {
+		t.Fatalf("RunChat: %v", err)
+	}
+	if !out.StoppedOnBudget {
+		t.Error("expected StoppedOnBudget=true after exceeding MaxBudget")
+	}
+	if got := out.Usage.total(); got != 15 {
+		t.Errorf("usage total = %d, want 15 (round 2 must not run)", got)
+	}
+}
+
 // TestEngine_RunChat_StreamingDeltas verifies the engine forwards
 // every chunk the model emits to OnMessageDelta — i.e. text is
 // streamed, not buffered. The returned reply is the concatenation

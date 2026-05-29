@@ -64,6 +64,7 @@ func (p *AgentProcess) executeAction(ctx context.Context, action core.Action) (c
 	})
 
 	duration := time.Since(startedAt)
+	p.recordActionMetric(ctx, status, duration)
 
 	p.state.recordInvocation(ActionInvocation{
 		ActionName: meta.Name,
