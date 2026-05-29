@@ -118,7 +118,7 @@ func (v *Store) buildVectors(docs []*document.Document, vectors [][]float64) ([]
 			Values: &values,
 		}
 
-		metaMap := make(map[string]interface{}, len(doc.Metadata)+1)
+		metaMap := make(map[string]any, len(doc.Metadata)+1)
 		for k, val := range doc.Metadata {
 			metaMap[k] = val
 		}

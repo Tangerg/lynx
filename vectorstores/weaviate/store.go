@@ -162,7 +162,7 @@ func (v *Store) initialize(ctx context.Context) error {
 		Class:           v.className,
 		Vectorizer:      "none",
 		VectorIndexType: "hnsw",
-		VectorIndexConfig: map[string]interface{}{
+		VectorIndexConfig: map[string]any{
 			"distance": v.distanceMetric,
 		},
 		Properties: []*models.Property{
@@ -202,7 +202,7 @@ func (v *Store) buildObjects(docs []*document.Document, vectors [][]float64) ([]
 			Class:  v.className,
 			ID:     strfmt.UUID(uuid.NewString()),
 			Vector: models.C11yVector(math.ConvertSlice[float64, float32](vectors[i])),
-			Properties: map[string]interface{}{
+			Properties: map[string]any{
 				fieldContent:  content,
 				fieldMetadata: string(metaBytes),
 			},
@@ -340,7 +340,7 @@ func (v *Store) buildDocumentsFromResult(result *models.GraphQLResponse) ([]*doc
 		return nil, nil
 	}
 
-	getMap, ok := getData.(map[string]interface{})
+	getMap, ok := getData.(map[string]any)
 	if !ok {
 		return nil, nil
 	}
@@ -350,7 +350,7 @@ func (v *Store) buildDocumentsFromResult(result *models.GraphQLResponse) ([]*doc
 		return nil, nil
 	}
 
-	items, ok := classData.([]interface{})
+	items, ok := classData.([]any)
 	if !ok {
 		return nil, nil
 	}
@@ -358,14 +358,14 @@ func (v *Store) buildDocumentsFromResult(result *models.GraphQLResponse) ([]*doc
 	docs := make([]*document.Document, 0, len(items))
 
 	for _, item := range items {
-		objMap, ok := item.(map[string]interface{})
+		objMap, ok := item.(map[string]any)
 		if !ok {
 			continue
 		}
 
 		doc := &document.Document{}
 
-		if additional, ok := objMap["_additional"].(map[string]interface{}); ok {
+		if additional, ok := objMap["_additional"].(map[string]any); ok {
 			if id, ok := additional[additionalID].(string); ok {
 				doc.ID = id
 			}
@@ -444,8 +444,7 @@ func (v *Store) DeleteByIDs(ctx context.Context, ids []string) (err error) {
 			Do(ctx); delErr != nil {
 			// A missing object yields a 404; treat unknown ids as a no-op
 			// so the operation stays idempotent.
-			var clientErr *fault.WeaviateClientError
-			if errors.As(delErr, &clientErr) && clientErr.StatusCode == http.StatusNotFound {
+			if clientErr, ok := errors.AsType[*fault.WeaviateClientError](delErr); ok && clientErr.StatusCode == http.StatusNotFound {
 				continue
 			}
 			err = fmt.Errorf("weaviate: failed to delete object %s from class %s: %w",
