@@ -406,19 +406,7 @@ func NewChatModel(cfg ChatModelConfig) (*ChatModel, error) {
 		return nil, err
 	}
 
-	info := chat.ModelMetadata{Provider: Provider}
-	if cfg.Metadata != nil {
-		info = *cfg.Metadata
-	}
-	// Fill model info from the embedded catalog when the caller didn't
-	// supply one — so cost and capabilities surface via Metadata().Model.
-	// Keyed by info.Provider so OpenAI-compat delegators (deepseek, groq,
-	// …) resolve against their own config, not openai's.
-	if info.Model.IsZero() && cfg.DefaultOptions != nil {
-		if m, ok := catalog.Lookup(info.Provider, cfg.DefaultOptions.Model); ok {
-			info.Model = m
-		}
-	}
+	info := catalog.Resolve(Provider, cfg.DefaultOptions, cfg.Metadata)
 	return &ChatModel{
 		api:            api,
 		defaultOptions: cfg.DefaultOptions,

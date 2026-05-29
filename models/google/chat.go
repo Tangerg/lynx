@@ -382,19 +382,7 @@ func NewChatModel(cfg ChatModelConfig) (*ChatModel, error) {
 		return nil, err
 	}
 
-	info := chat.ModelMetadata{Provider: Provider}
-	if cfg.Metadata != nil {
-		info = *cfg.Metadata
-	}
-	// Fill model info from the embedded catalog when the caller didn't
-	// supply one. Keyed by info.Provider so delegators (e.g. vertexai,
-	// which serves Gemini models with its own Provider) resolve against
-	// their own config.
-	if info.Model.IsZero() && cfg.DefaultOptions != nil {
-		if m, ok := catalog.Lookup(info.Provider, cfg.DefaultOptions.Model); ok {
-			info.Model = m
-		}
-	}
+	info := catalog.Resolve(Provider, cfg.DefaultOptions, cfg.Metadata)
 	return &ChatModel{
 		api:            api,
 		defaultOptions: cfg.DefaultOptions,
