@@ -61,6 +61,14 @@ type Config struct {
 	// no dollar figure from providers). Supply a rate table to surface
 	// CostUSD on ChatOutput / TurnEnd. See [Pricing].
 	Pricing Pricing
+
+	// ProcessStore, when non-nil, makes the platform auto-snapshot every
+	// agent process per tick to a durable backend (audit trail + the
+	// foundation for resuming a paused turn across restart). nil = no
+	// persistence (no per-tick disk churn). The snapshot is process-level
+	// (status / blackboard / history / budget), so for a single-action
+	// chat turn it captures the turn boundary, not mid-LLM-loop state.
+	ProcessStore core.ProcessStore
 }
 
 // OnlineConfig groups the credentials network-reaching tools need
@@ -168,6 +176,10 @@ func New(ctx context.Context, cfg Config) (*Engine, error) {
 			CallMiddlewares:   []chat.CallMiddleware{callMW},
 			StreamMiddlewares: []chat.StreamMiddleware{streamMW},
 		},
+		// Auto-snapshot only when a store is configured — no store, no
+		// per-tick disk churn.
+		ProcessStore: cfg.ProcessStore,
+		AutoSnapshot: cfg.ProcessStore != nil,
 	})
 
 	// Build the engine value first so the agent's Action closure can

@@ -6,6 +6,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/core/model/chat/memory"
 )
@@ -180,6 +181,40 @@ func TestEngine_RunChat_TokenUsageAccumulates(t *testing.T) {
 		out.UsageByModel[0].Model != "stub-usage-model" ||
 		out.UsageByModel[0].TokenUsage != want {
 		t.Errorf("UsageByModel = %+v, want one entry {stub-usage-model, %+v}", out.UsageByModel, want)
+	}
+}
+
+// TestEngine_RunChat_PersistsProcessSnapshot verifies the persistence
+// conduit: when a ProcessStore is configured, the platform auto-snapshots
+// the turn's agent process, and the persisted snapshot reflects the
+// completed turn. No store → no persistence (covered by every other test
+// constructing the engine without one).
+func TestEngine_RunChat_PersistsProcessSnapshot(t *testing.T) {
+	stub := newStreamingStubModel("done")
+	client, _ := chat.NewClient(stub)
+	store := core.NewInMemoryProcessStore()
+	eng, err := New(context.Background(), Config{ChatClient: client, ProcessStore: store})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := eng.RunChat(context.Background(), RunChatRequest{Message: "go"}); err != nil {
+		t.Fatalf("RunChat: %v", err)
+	}
+
+	ids, err := store.List(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ids) == 0 {
+		t.Fatal("expected the turn's process snapshot to be persisted")
+	}
+	snap, err := store.Load(context.Background(), ids[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if snap.Status != core.StatusCompleted {
+		t.Errorf("snapshot status = %v, want completed", snap.Status)
 	}
 }
 

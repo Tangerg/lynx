@@ -27,6 +27,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/core/model/chat"
 	chatmem "github.com/Tangerg/lynx/core/model/chat/memory"
 
@@ -85,6 +86,11 @@ type Config struct {
 	// Pricing optionally computes per-round USD cost so turns report
 	// CostUSD. nil leaves cost at zero. See [engine.Pricing].
 	Pricing engine.Pricing
+
+	// ProcessStore, when non-nil, persists agent-process snapshots
+	// (audit + restart durability). nil = no persistence. See
+	// [engine.Config.ProcessStore].
+	ProcessStore core.ProcessStore
 }
 
 // Runtime is the bundle. Construct once via [New]; share the
@@ -120,6 +126,7 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 		MemoryService: cfg.MemoryService,
 		Compaction:    cfg.Compaction,
 		Pricing:       cfg.Pricing,
+		ProcessStore:  cfg.ProcessStore,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("runtime: engine: %w", err)
