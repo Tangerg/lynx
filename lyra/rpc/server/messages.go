@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"strconv"
+	"strings"
 
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/lyra/rpc/protocol"
@@ -44,6 +45,58 @@ func (i *Server) ListMessages(ctx context.Context, in protocol.ListMessagesReque
 // wired through the engine yet.
 func (i *Server) EditMessage(_ context.Context, _ protocol.EditMessageRequest) (*protocol.EditMessageResponse, error) {
 	return nil, notImpl("messages.edit")
+}
+
+// historyPrefix returns the slice of history up to and including the
+// chat.Message that owns wire message atMessageID ("m<n>"). Because a
+// tool message expands to several wire messages, the boundary is taken
+// at the owning chat.Message — forking at the first of a tool message's
+// returns includes that whole message. An empty / unparseable id (or one
+// past the end) yields the whole history, i.e. "fork at the tip".
+func historyPrefix(history []chat.Message, atMessageID string) []chat.Message {
+	n, ok := parseMessageSeq(atMessageID)
+	if !ok {
+		return history
+	}
+	wire := 0
+	for i, msg := range history {
+		wire += wireMessageCount(msg)
+		if wire >= n {
+			return history[:i+1]
+		}
+	}
+	return history
+}
+
+// parseMessageSeq decodes a wire message id ("m" + 1-based index) back
+// to its index. Returns ok=false for empty / malformed ids.
+func parseMessageSeq(id string) (int, bool) {
+	rest, ok := strings.CutPrefix(id, "m")
+	if !ok {
+		return 0, false
+	}
+	n, err := strconv.Atoi(rest)
+	if err != nil || n <= 0 {
+		return 0, false
+	}
+	return n, true
+}
+
+// wireMessageCount is the number of wire messages one chat.Message
+// expands to — 1 for everything except a tool message, which yields one
+// per non-nil return. Keeps [historyPrefix] aligned with the id scheme
+// in [wireMessages].
+func wireMessageCount(msg chat.Message) int {
+	if tm, ok := msg.(*chat.ToolMessage); ok {
+		c := 0
+		for _, r := range tm.ToolReturns {
+			if r != nil {
+				c++
+			}
+		}
+		return c
+	}
+	return 1
 }
 
 // wireMessages converts persisted [chat.Message]s to wire messages,

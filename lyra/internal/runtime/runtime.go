@@ -168,6 +168,12 @@ func (r *Runtime) ReadHistory(ctx context.Context, sessionID string) ([]chat.Mes
 	return r.engine.ReadHistory(ctx, sessionID)
 }
 
+// SeedHistory copies msgs into sessionID's chat history — used by
+// ForkSession to seed a fresh child with the parent's prefix.
+func (r *Runtime) SeedHistory(ctx context.Context, sessionID string, msgs []chat.Message) error {
+	return r.engine.SeedHistory(ctx, sessionID, msgs)
+}
+
 // Close releases per-runtime external resources — MCP sessions and
 // any future engine-owned handles. Idempotent.
 func (r *Runtime) Close() error {

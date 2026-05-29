@@ -286,6 +286,21 @@ func (e *Engine) ReadHistory(ctx context.Context, sessionID string) ([]chat.Mess
 	return e.memStore.Read(ctx, sessionID)
 }
 
+// SeedHistory writes msgs into sessionID's chat-memory store. Used by
+// sessions.fork to copy a slice of the parent's history into a freshly
+// created child so the child's next turn continues from the fork point.
+// No-op for an empty slice. The store appends, so seed a fresh session
+// only (seeding one with existing history would concatenate).
+func (e *Engine) SeedHistory(ctx context.Context, sessionID string, msgs []chat.Message) error {
+	if sessionID == "" {
+		return errors.New("engine: sessionID is required")
+	}
+	if len(msgs) == 0 {
+		return nil
+	}
+	return e.memStore.Write(ctx, sessionID, msgs...)
+}
+
 // RunChatRequest carries the per-turn parameters for [Engine.RunChat].
 // sessionID is non-empty to bind the turn to a chat-memory keyed
 // conversation; observer is non-nil to receive streaming

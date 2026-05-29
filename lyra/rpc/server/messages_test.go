@@ -61,3 +61,41 @@ func TestWireMessages(t *testing.T) {
 		t.Errorf("assistant tool call = %+v", tc[0])
 	}
 }
+
+// TestHistoryPrefix checks the fork-point slicing, including that a
+// wire id landing inside a multi-return tool message takes the whole
+// owning chat.Message, and that empty / out-of-range ids fork at the tip.
+func TestHistoryPrefix(t *testing.T) {
+	toolMsg, err := chat.NewToolMessage([]*chat.ToolReturn{
+		{ID: "c1", Name: "bash", Result: "ok"},
+		{ID: "c2", Name: "grep", Result: "match"},
+	})
+	if err != nil {
+		t.Fatalf("NewToolMessage: %v", err)
+	}
+	// wire ids: m1 system, m2 user, m3 assistant, m4 tool-ret1, m5 tool-ret2
+	history := []chat.Message{
+		chat.NewSystemMessage("sys"),
+		chat.NewUserMessage("hi"),
+		chat.NewAssistantMessage([]*chat.ToolCallPart{{ID: "c1", Name: "bash", Arguments: "{}"}}),
+		toolMsg,
+	}
+	cases := []struct {
+		at      string
+		wantLen int
+	}{
+		{"m1", 1},
+		{"m2", 2},
+		{"m3", 3},
+		{"m4", 4},  // inside the tool message → whole tool message included
+		{"m5", 4},  // second return of the same tool message → still 4
+		{"", 4},    // empty id → fork at tip
+		{"m99", 4}, // past the end → fork at tip
+		{"bogus", 4},
+	}
+	for _, c := range cases {
+		if got := historyPrefix(history, c.at); len(got) != c.wantLen {
+			t.Errorf("historyPrefix(at=%q) len = %d, want %d", c.at, len(got), c.wantLen)
+		}
+	}
+}
