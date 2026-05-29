@@ -74,7 +74,9 @@ func (s *Server) handleRPC(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(resp)
 }
 
-func dispatchRPC(method string, _ json.RawMessage) (any, *rpcError) {
+const rpcInvalidParams = -32602
+
+func dispatchRPC(method string, params json.RawMessage) (any, *rpcError) {
 	switch method {
 	case "sessions.list":
 		return sessionsPage(), nil
@@ -84,9 +86,38 @@ func dispatchRPC(method string, _ json.RawMessage) (any, *rpcError) {
 		return filesChanged, nil
 	case "workspace.mcp.list":
 		return mcpListLean(), nil
+	case "runs.approval.submit":
+		return submitApproval(params)
 	default:
 		return nil, &rpcError{Code: rpcMethodNotFound, Message: "method not found: " + method}
 	}
+}
+
+// submitApproval is the JSON-RPC counterpart of the old POST /permission.
+// Wire decision is the protocol's imperative pair "approve" | "deny"
+// (API.md §4.3); we map it onto the internal past-tense Decision the
+// script goroutine waits on.
+func submitApproval(params json.RawMessage) (any, *rpcError) {
+	var in struct {
+		RequestID string `json:"requestId"`
+		Decision  string `json:"decision"`
+	}
+	if err := json.Unmarshal(params, &in); err != nil || in.RequestID == "" {
+		return nil, &rpcError{Code: rpcInvalidParams, Message: "expected { requestId, decision }"}
+	}
+	var d Decision
+	switch in.Decision {
+	case "approve":
+		d = DecisionApproved
+	case "deny":
+		d = DecisionDeclined
+	default:
+		return nil, &rpcError{Code: rpcInvalidParams, Message: `decision must be "approve" | "deny"`}
+	}
+	if !permissions.resolve(PermissionResponse{RequestID: in.RequestID, Decision: d}) {
+		return nil, &rpcError{Code: -32011, Message: "unknown or already-resolved requestId"}
+	}
+	return struct{}{}, nil
 }
 
 // mcpListLean projects the fixture down to the protocol's MCPServer shape

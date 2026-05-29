@@ -1,17 +1,14 @@
-// Composition root — wires infra to domain gateways at app start.
-// Singleton instead of Context because non-component code (zustand
-// effects, plugin setup) calls these too; tests inject fakes via
-// `setContainer()`.
+// Composition root — owns the app's Runtime Protocol entry points (the
+// JSON-RPC client + typed methods + sidecar probe). Singleton instead of
+// Context because non-component code (zustand effects, plugin setup) calls
+// these too; tests inject fakes via `setContainer()`.
 
-import type { PermissionGateway } from "@/domain";
-import { HttpPermissionGateway } from "@/infra/http/HttpPermissionGateway";
 import { AGUI_BASE } from "@/main/config";
 import { getConfig } from "@/plugins/sdk/config";
 import type { Methods, RpcClient, SidecarClient } from "@/rpc";
 import { createHttpTransport, createMethods, createRpcClient, createSidecarClient } from "@/rpc";
 
 export interface Container {
-  permission: PermissionGateway;
   /**
    * Factory for a fresh Lyra Runtime Protocol client (JSON-RPC over
    * HTTP). Constructing it opens an SSE connection to `/v1/rpc/stream`,
@@ -42,7 +39,6 @@ function defaultContainer(): Container {
   const baseUrl = AGUI_BASE;
   let sharedMethods: Methods | null = null;
   const container: Container = {
-    permission: new HttpPermissionGateway(baseUrl),
     createRpc: () =>
       // Read `api.localToken` at factory-call time so plugins (e.g. a
       // Wails-side bootstrap reading `~/.lyra/local-token`) can set it
