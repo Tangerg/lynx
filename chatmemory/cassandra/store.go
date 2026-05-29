@@ -77,7 +77,10 @@ func (c *StoreConfig) ApplyDefaults() {
 	}
 }
 
-var _ memory.Store = (*Store)(nil)
+var (
+	_ memory.Store  = (*Store)(nil)
+	_ memory.Lister = (*Store)(nil)
+)
 
 // Store is a Cassandra-backed [memory.Store]. Construct via [NewStore].
 type Store struct {
@@ -86,6 +89,7 @@ type Store struct {
 	writeCQL  string
 	readCQL   string
 	clearCQL  string
+	listCQL   string
 	createCQL string
 }
 
@@ -108,6 +112,7 @@ func NewStore(cfg StoreConfig) (*Store, error) {
 			qualified,
 		),
 		clearCQL: fmt.Sprintf("DELETE FROM %s WHERE conversation_id = ?", qualified),
+		listCQL:  fmt.Sprintf("SELECT DISTINCT conversation_id FROM %s", qualified),
 		createCQL: fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
 			conversation_id TEXT,
 			seq             TIMEUUID,
@@ -194,4 +199,32 @@ func (s *Store) Clear(ctx context.Context, conversationID string) (err error) {
 		return fmt.Errorf("cassandra.Store.Clear: %w", err)
 	}
 	return nil
+}
+
+// Conversations returns the ids of every stored conversation as a
+// point-in-time snapshot. An empty slice is returned when the store
+// holds no messages.
+//
+// SELECT DISTINCT on the partition key reads only partition metadata,
+// so no ALLOW FILTERING is needed.
+func (s *Store) Conversations(ctx context.Context) (ids []string, err error) {
+	if err = ctx.Err(); err != nil {
+		return nil, err
+	}
+
+	ctx, span := tracing.StartList(ctx, "cassandra")
+	defer func() { tracing.RecordListResult(span, err, len(ids)) }()
+
+	iter := s.session.Query(s.listCQL).WithContext(ctx).Iter()
+	defer iter.Close()
+
+	ids = []string{}
+	var id string
+	for iter.Scan(&id) {
+		ids = append(ids, id)
+	}
+	if err = iter.Close(); err != nil {
+		return nil, fmt.Errorf("cassandra.Store.Conversations: %w", err)
+	}
+	return ids, nil
 }

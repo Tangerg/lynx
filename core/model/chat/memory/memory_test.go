@@ -141,3 +141,49 @@ func TestMemoryMiddleware_RejectsNilStore(t *testing.T) {
 		t.Fatal("nil store must error")
 	}
 }
+
+func TestInMemoryStore_Conversations(t *testing.T) {
+	store := memory.NewInMemoryStore()
+	ctx := context.Background()
+
+	if ids, err := store.Conversations(ctx); err != nil || len(ids) != 0 {
+		t.Fatalf("empty store: ids=%v err=%v, want empty", ids, err)
+	}
+
+	_ = store.Write(ctx, "a", chat.NewUserMessage("hi"))
+	_ = store.Write(ctx, "b", chat.NewUserMessage("yo"))
+
+	ids, err := store.Conversations(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]bool{}
+	for _, id := range ids {
+		got[id] = true
+	}
+	if len(ids) != 2 || !got["a"] || !got["b"] {
+		t.Fatalf("Conversations = %v, want {a, b}", ids)
+	}
+
+	_ = store.Clear(ctx, "a")
+	ids, _ = store.Conversations(ctx)
+	if len(ids) != 1 || ids[0] != "b" {
+		t.Fatalf("after Clear(a), Conversations = %v, want [b]", ids)
+	}
+}
+
+func TestMessageWindowStore_ConversationsForwards(t *testing.T) {
+	base := memory.NewInMemoryStore()
+	windowed, _ := memory.NewMessageWindowStore(base, 10)
+	ctx := context.Background()
+
+	_ = base.Write(ctx, "c", chat.NewUserMessage("hi"))
+
+	ids, err := windowed.Conversations(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ids) != 1 || ids[0] != "c" {
+		t.Fatalf("windowed.Conversations = %v, want [c]", ids)
+	}
+}

@@ -57,7 +57,10 @@ func (c *StoreConfig) ApplyDefaults() {
 	}
 }
 
-var _ memory.Store = (*Store)(nil)
+var (
+	_ memory.Store  = (*Store)(nil)
+	_ memory.Lister = (*Store)(nil)
+)
 
 // Store is a MongoDB-backed [memory.Store]. Construct via [NewStore].
 type Store struct {
@@ -180,4 +183,22 @@ func (s *Store) Clear(ctx context.Context, conversationID string) (err error) {
 		return fmt.Errorf("mongodb.Store.Clear: %w", err)
 	}
 	return nil
+}
+
+// Conversations returns the distinct conversation ids stored in the
+// collection — a point-in-time snapshot in no guaranteed order. It is a
+// deliberate cross-conversation scan for ops tasks (listing, bulk
+// cleanup, GC), distinct from the per-conversation hot path.
+func (s *Store) Conversations(ctx context.Context) (ids []string, err error) {
+	if err = ctx.Err(); err != nil {
+		return nil, err
+	}
+
+	ctx, span := tracing.StartList(ctx, "mongodb")
+	defer func() { tracing.RecordListResult(span, err, len(ids)) }()
+
+	if err = s.collection.Distinct(ctx, fieldConversationID, bson.D{}).Decode(&ids); err != nil {
+		return nil, fmt.Errorf("mongodb.Store.Conversations: %w", err)
+	}
+	return ids, nil
 }

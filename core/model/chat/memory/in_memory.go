@@ -8,7 +8,10 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat"
 )
 
-var _ Store = (*InMemoryStore)(nil)
+var (
+	_ Store  = (*InMemoryStore)(nil)
+	_ Lister = (*InMemoryStore)(nil)
+)
 
 // InMemoryStore is an [Store] implementation backed by an in-process map
 // guarded by an RWMutex. Suitable for development and single-instance
@@ -56,6 +59,23 @@ func (m *InMemoryStore) Read(ctx context.Context, conversationID string) ([]chat
 		return []chat.Message{}, nil
 	}
 	return slices.Clone(stored), nil
+}
+
+// Conversations returns the ids of all stored conversations, in no
+// guaranteed order (map iteration).
+func (m *InMemoryStore) Conversations(ctx context.Context) ([]string, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	ids := make([]string, 0, len(m.store))
+	for id := range m.store {
+		ids = append(ids, id)
+	}
+	return ids, nil
 }
 
 // Clear drops every message stored under conversationID. Unknown ids
