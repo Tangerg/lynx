@@ -147,6 +147,14 @@ func TestEngine_RunChat_TokenUsageAccumulates(t *testing.T) {
 	if got != want {
 		t.Errorf("usage = %+v, want %+v", got, want)
 	}
+	// Usage is read back from the process invocation ledger, and the
+	// per-model breakdown rolls up to the same total under the one
+	// served model.
+	if len(out.UsageByModel) != 1 ||
+		out.UsageByModel[0].Model != "stub-usage-model" ||
+		out.UsageByModel[0].TokenUsage != want {
+		t.Errorf("UsageByModel = %+v, want one entry {stub-usage-model, %+v}", out.UsageByModel, want)
+	}
 }
 
 // TestEngine_RunChat_StopsOnBudget verifies the per-turn token
