@@ -82,7 +82,7 @@ func buildService(t *testing.T) tool.Service {
 	if err != nil {
 		t.Fatal(err)
 	}
-	eng, err := engine.New(engine.Config{ChatClient: client})
+	eng, err := engine.New(context.Background(), engine.Config{ChatClient: client})
 	if err != nil {
 		t.Fatal(err)
 	}

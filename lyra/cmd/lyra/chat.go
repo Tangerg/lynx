@@ -23,7 +23,7 @@ func (a *App) ChatCmd() *cobra.Command {
 		Short: "Send one message and print the streamed reply.",
 		Args:  cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := a.ensureRuntime(); err != nil {
+			if err := a.ensureRuntime(cmd.Context()); err != nil {
 				return a.fatalErr(err)
 			}
 			message := strings.TrimSpace(strings.Join(args, " "))

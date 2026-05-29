@@ -82,7 +82,7 @@ func (a *App) Run(ctx context.Context, args []string) int {
 // this from a no-args help command would falsely demand one. Help
 // / version commands therefore don't call ensureRuntime; commands
 // that actually talk to the model do.
-func (a *App) ensureRuntime() error {
+func (a *App) ensureRuntime(ctx context.Context) error {
 	if a.rt != nil {
 		return nil
 	}
@@ -106,7 +106,7 @@ func (a *App) ensureRuntime() error {
 		return fmt.Errorf("message storage: %w", err)
 	}
 
-	rt, err := lyraruntime.New(lyraruntime.Config{
+	rt, err := lyraruntime.New(ctx, lyraruntime.Config{
 		ChatClient:     client,
 		Online:         config.EngineOnline(cfg),
 		MCPServers:     config.EngineMCPServers(cfg),

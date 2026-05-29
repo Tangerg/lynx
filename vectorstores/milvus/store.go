@@ -35,6 +35,12 @@ const (
 
 // StoreConfig contains configuration options for Milvus vector store.
 type StoreConfig struct {
+	// Context is the bootstrap context used during NewStore (schema /
+	// index creation when InitializeSchema is true). Per-call operations
+	// (Create / Retrieve / Delete) use their own caller-supplied ctx and
+	// ignore this field. Optional: defaults to context.Background().
+	Context context.Context
+
 	// Client is the Milvus client instance.
 	// Required: must be provided, otherwise initialization will fail.
 	Client *milvusclient.Client
@@ -66,7 +72,7 @@ type StoreConfig struct {
 	MetricType entity.MetricType
 }
 
-func (c StoreConfig) Validate() error {
+func (c *StoreConfig) Validate() error {
 	if c.Client == nil {
 		return ErrMissingClient
 	}
@@ -83,10 +89,13 @@ func (c StoreConfig) Validate() error {
 }
 
 // ApplyDefaults fills zero fields. MetricType defaults to
-// [entity.COSINE].
+// [entity.COSINE]; Context defaults to context.Background().
 func (c *StoreConfig) ApplyDefaults() {
 	if c.MetricType == "" {
 		c.MetricType = entity.COSINE
+	}
+	if c.Context == nil {
+		c.Context = context.Background()
 	}
 }
 
@@ -125,7 +134,7 @@ func NewStore(cfg StoreConfig) (*Store, error) {
 		storeDocumentContent: cfg.StoreDocumentContent,
 	}
 
-	if err = store.initialize(context.Background()); err != nil {
+	if err = store.initialize(cfg.Context); err != nil {
 		return nil, fmt.Errorf("milvus: failed to initialize vector store: %w", err)
 	}
 

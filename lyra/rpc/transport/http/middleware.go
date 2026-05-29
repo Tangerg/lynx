@@ -1,7 +1,6 @@
 package http
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 	"time"
@@ -37,7 +36,7 @@ func (s *Server) observability(next http.Handler) http.Handler {
 
 		defer func() {
 			if rcv := recover(); rcv != nil {
-				recordError("rpc.panic",
+				recordError(r.Context(), "rpc.panic",
 					fmt.Errorf("%v", rcv),
 					attribute.String("http.target", r.URL.Path),
 					attribute.String("http.method", r.Method),
@@ -55,7 +54,7 @@ func (s *Server) observability(next http.Handler) http.Handler {
 // responses are marked Error so backends can alert on them;
 // 4xx is left as Ok status (client problem, not server fault).
 func recordResponse(r *http.Request, status int, duration time.Duration, bytes int) {
-	_, span := tracer.Start(context.Background(), "rpc.response",
+	_, span := tracer.Start(r.Context(), "rpc.response",
 		trace.WithAttributes(
 			attribute.String("http.target", r.URL.Path),
 			attribute.String("http.method", r.Method),

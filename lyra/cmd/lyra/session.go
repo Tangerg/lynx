@@ -32,7 +32,7 @@ func (a *App) sessionListCmd() *cobra.Command {
 		Short:   "List all known sessions.",
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := a.ensureRuntime(); err != nil {
+			if err := a.ensureRuntime(cmd.Context()); err != nil {
 				return a.fatalErr(err)
 			}
 			sessions, err := a.rt.Session().List(cmd.Context())
@@ -63,7 +63,7 @@ func (a *App) sessionShowCmd() *cobra.Command {
 		Short: "Show one session's metadata.",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := a.ensureRuntime(); err != nil {
+			if err := a.ensureRuntime(cmd.Context()); err != nil {
 				return a.fatalErr(err)
 			}
 			id := args[0]
@@ -88,7 +88,7 @@ func (a *App) sessionDeleteCmd() *cobra.Command {
 		Short:   "Drop a session (idempotent).",
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := a.ensureRuntime(); err != nil {
+			if err := a.ensureRuntime(cmd.Context()); err != nil {
 				return a.fatalErr(err)
 			}
 			if err := a.rt.Session().Delete(cmd.Context(), args[0]); err != nil {

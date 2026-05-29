@@ -75,15 +75,18 @@ func (s *Server) serveRPC(w http.ResponseWriter, r *http.Request, urlMethod stri
 		}
 		echoTraceID(w, r)
 		if res.EventStream != nil {
-			s.attachStream(r.Context(), res.RunID, res.EventStream)
+			// The pump outlives this request — bind it to the server
+			// lifetime, not r.Context() (which cancels on return).
+			s.attachStream(s.baseCtx, res.RunID, res.EventStream)
 		}
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
 
-	// Streaming response: kick off the event pump in the background.
+	// Streaming response: kick off the event pump in the background,
+	// bound to the server lifetime (not this request's ctx).
 	if res.EventStream != nil {
-		s.attachStream(context.Background(), res.RunID, res.EventStream)
+		s.attachStream(s.baseCtx, res.RunID, res.EventStream)
 	}
 
 	// Compute HTTP status (API.md §7.3): 200 by default, 404 on
@@ -100,13 +103,13 @@ func (s *Server) serveRPC(w http.ResponseWriter, r *http.Request, urlMethod stri
 	w.WriteHeader(status)
 	data, err := transport.EncodeMessage(res.Response)
 	if err != nil {
-		recordError("rpc.encode-response", err,
+		recordError(r.Context(), "rpc.encode-response", err,
 			attribute.String("lynx.lyra.method", methodLabel),
 		)
 		return
 	}
 	if _, err := w.Write(data); err != nil {
-		recordError("rpc.write-response", err,
+		recordError(r.Context(), "rpc.write-response", err,
 			attribute.String("lynx.lyra.method", methodLabel),
 		)
 	}
@@ -128,7 +131,7 @@ func (s *Server) attachStream(ctx context.Context, runID string, events <-chan p
 				if !ok {
 					closed, err := dispatch.EncodeRunClosed(runID, "completed")
 					if err != nil {
-						recordError("rpc.encode-run-closed", err,
+						recordError(ctx, "rpc.encode-run-closed", err,
 							attribute.String("lynx.lyra.run_id", runID),
 						)
 					} else {
@@ -142,7 +145,7 @@ func (s *Server) attachStream(ctx context.Context, runID string, events <-chan p
 				eventID := strconv.FormatUint(seq, 10)
 				notif, err := dispatch.EncodeRunEvent(runID, eventID, ev)
 				if err != nil {
-					recordError("rpc.encode-run-event", err,
+					recordError(ctx, "rpc.encode-run-event", err,
 						attribute.String("lynx.lyra.run_id", runID),
 						attribute.String("lynx.lyra.event_id", eventID),
 					)

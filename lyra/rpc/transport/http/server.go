@@ -45,6 +45,17 @@ type Server struct {
 	streams    *streamRegistry
 	clients    *clientRegistry
 
+	// baseCtx bounds detached background work (the SSE event-pump
+	// goroutines started by attachStream) to the server's lifetime: it
+	// outlives any single request — so a pump keeps broadcasting after
+	// the triggering request returns — yet is canceled by Shutdown so
+	// pumps don't leak. A server owns its own lifetime, so Background is
+	// the correct root here; request handlers must NOT hand their
+	// per-request ctx to a pump (it would cancel the stream the moment
+	// the response is written).
+	baseCtx    context.Context
+	baseCancel context.CancelFunc
+
 	httpServer *http.Server
 
 	mu sync.Mutex
@@ -120,6 +131,7 @@ func NewServer(cfg Config) (*Server, error) {
 	if serverID == "" {
 		serverID = cfg.ServerInfo.Name + "/" + cfg.ServerInfo.Version
 	}
+	baseCtx, baseCancel := context.WithCancel(context.Background())
 	return &Server{
 		api:             cfg.Runtime,
 		addr:            cfg.Addr,
@@ -131,6 +143,8 @@ func NewServer(cfg Config) (*Server, error) {
 		dispatcher:      dispatch.New(cfg.Runtime),
 		streams:         newStreamRegistry(),
 		clients:         newClientRegistry(),
+		baseCtx:         baseCtx,
+		baseCancel:      baseCancel,
 		info: protocol.InitializeResponse{
 			ProtocolVersion: cfg.ProtocolVersion,
 			ServerInfo:      cfg.ServerInfo,
@@ -185,8 +199,11 @@ func (s *Server) Start() error {
 	return srv.ListenAndServe()
 }
 
-// Shutdown gracefully closes the server. Idempotent.
+// Shutdown gracefully closes the server. Idempotent. Cancels baseCtx so
+// every detached SSE event pump stops, then closes inbound clients and
+// the HTTP server.
 func (s *Server) Shutdown(ctx context.Context) error {
+	s.baseCancel()
 	s.mu.Lock()
 	srv := s.httpServer
 	s.mu.Unlock()

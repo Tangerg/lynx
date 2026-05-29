@@ -95,7 +95,7 @@ func TestEngine_DialMCPServer(t *testing.T) {
 	// 2. Construct the engine pointing at the http MCP endpoint.
 	stub := newStubModel("ping", `{}`, "pong-received")
 	client, _ := chat.NewClient(stub)
-	eng, err := New(Config{
+	eng, err := New(context.Background(), Config{
 		ChatClient: client,
 		MCPServers: []MCPServer{{Name: "test", Endpoint: httpServer.URL}},
 	})
@@ -131,7 +131,7 @@ func TestEngine_DialMCPServer_RejectsDuplicateNames(t *testing.T) {
 	stub := newStubModel("noop", `{}`, "")
 	client, _ := chat.NewClient(stub)
 
-	_, err := New(Config{
+	_, err := New(context.Background(), Config{
 		ChatClient: client,
 		MCPServers: []MCPServer{
 			{Name: "dup", Endpoint: "http://example.invalid/"},
@@ -150,7 +150,7 @@ func TestEngine_DialMCPServer_RejectsBadEndpoint(t *testing.T) {
 	stub := newStubModel("noop", `{}`, "")
 	client, _ := chat.NewClient(stub)
 
-	_, err := New(Config{
+	_, err := New(context.Background(), Config{
 		ChatClient: client,
 		MCPServers: []MCPServer{
 			{Name: "bad", Endpoint: ""}, // empty endpoint fails validate()
@@ -181,7 +181,7 @@ func TestEngine_DialMCPServer_Stdio(t *testing.T) {
 	stub := newStubModel("ping", `{}`, "")
 	client, _ := chat.NewClient(stub)
 
-	eng, err := New(Config{
+	eng, err := New(context.Background(), Config{
 		ChatClient: client,
 		MCPServers: []MCPServer{{
 			Name:      "stdio",
@@ -218,7 +218,7 @@ func TestEngine_DialMCPServer_Stdio(t *testing.T) {
 func TestEngine_DialMCPServer_StdioRejectsEmptyCommand(t *testing.T) {
 	stub := newStubModel("noop", `{}`, "")
 	client, _ := chat.NewClient(stub)
-	_, err := New(Config{
+	_, err := New(context.Background(), Config{
 		ChatClient: client,
 		MCPServers: []MCPServer{{
 			Name:      "bad",
