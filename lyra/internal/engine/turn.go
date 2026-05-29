@@ -51,7 +51,7 @@ func (e *Engine) runChatTurn(ctx context.Context, pc *core.ProcessContext, messa
 			recordRound()
 			return ChatOutput{}, streamErr
 		}
-		if isToolRoundBoundary(chunk) {
+		if chunk.IsToolResult() {
 			recordRound()
 			// Enforce the per-turn budget at the round boundary — stop
 			// before the next LLM call. The running totals come from the
@@ -69,11 +69,11 @@ func (e *Engine) runChatTurn(ctx context.Context, pc *core.ProcessContext, messa
 			}
 		}
 		if observer != nil {
-			if reasoning := extractReasoningDelta(chunk); reasoning != "" {
+			if reasoning := chunk.ReasoningDelta(); reasoning != "" {
 				observer.OnReasoningDelta(reasoning)
 			}
 		}
-		delta := extractTextDelta(chunk)
+		delta := chunk.TextDelta()
 		if delta == "" {
 			continue
 		}
@@ -84,43 +84,4 @@ func (e *Engine) runChatTurn(ctx context.Context, pc *core.ProcessContext, messa
 	}
 	recordRound()
 	return chatOutput(pc, accumulated.String(), false), nil
-}
-
-// extractTextDelta pulls the text the model emitted in this chunk
-// (its TextPart bodies, joined). Returns "" for chunks that don't
-// carry assistant text — tool-call rounds (AssistantMessage has
-// only ToolCallParts), tool-injection rounds (Result.AssistantMessage
-// is nil and only Result.ToolMessage is populated), and any
-// reasoning-only or empty chunk the provider sends.
-func extractTextDelta(resp *chat.Response) string {
-	if resp == nil || resp.Result == nil || resp.Result.AssistantMessage == nil {
-		return ""
-	}
-	return resp.Result.AssistantMessage.JoinedText()
-}
-
-// isToolRoundBoundary reports whether resp is the synthetic
-// tool-result chunk the chat ToolMiddleware yields between LLM
-// rounds. The middleware emits a Response with Result.ToolMessage
-// set and Result.AssistantMessage nil to surface the tool return
-// to stream consumers — that's our cue that the prior round is
-// over and any pending Usage should be committed to the per-turn
-// total before the next round overwrites it.
-func isToolRoundBoundary(resp *chat.Response) bool {
-	return resp != nil &&
-		resp.Result != nil &&
-		resp.Result.AssistantMessage == nil &&
-		resp.Result.ToolMessage != nil
-}
-
-// extractReasoningDelta pulls extended-thinking text from one
-// streamed chunk (its ReasoningPart bodies, joined). Returns ""
-// for chunks without reasoning content — text-only or tool-only
-// rounds. Mirrors [extractTextDelta] in shape but reads the
-// reasoning subset instead of the final-text subset.
-func extractReasoningDelta(resp *chat.Response) string {
-	if resp == nil || resp.Result == nil || resp.Result.AssistantMessage == nil {
-		return ""
-	}
-	return resp.Result.AssistantMessage.JoinedReasoning()
 }

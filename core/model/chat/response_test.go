@@ -98,3 +98,50 @@ func TestNewResponse_ErrorMessageMentionsCause(t *testing.T) {
 		t.Fatalf("error %q should mention result", err.Error())
 	}
 }
+
+// TestResponse_StreamAccessors covers the streaming-chunk accessors a
+// tool-loop consumer reads per chunk: a text chunk yields TextDelta only,
+// a reasoning-only chunk yields ReasoningDelta only, the middleware's
+// tool-result chunk reports IsToolResult, and all three are nil-safe.
+func TestResponse_StreamAccessors(t *testing.T) {
+	textResp := &chat.Response{Result: &chat.Result{
+		AssistantMessage: chat.NewAssistantMessage(chat.MessageParams{Text: "hello"}),
+	}}
+	if got := textResp.TextDelta(); got != "hello" {
+		t.Fatalf("TextDelta = %q, want hello", got)
+	}
+	if textResp.ReasoningDelta() != "" {
+		t.Fatal("a text chunk carries no reasoning")
+	}
+	if textResp.IsToolResult() {
+		t.Fatal("a text chunk is not a tool result")
+	}
+
+	reasoningResp := &chat.Response{Result: &chat.Result{
+		AssistantMessage: chat.NewAssistantMessage([]chat.OutputPart{&chat.ReasoningPart{Text: "thinking"}}),
+	}}
+	if got := reasoningResp.ReasoningDelta(); got != "thinking" {
+		t.Fatalf("ReasoningDelta = %q, want thinking", got)
+	}
+	if reasoningResp.TextDelta() != "" {
+		t.Fatal("a reasoning-only chunk carries no text")
+	}
+
+	// Tool-result chunk = round boundary: ToolMessage set, AssistantMessage nil.
+	toolResp := &chat.Response{Result: &chat.Result{ToolMessage: &chat.ToolMessage{}}}
+	if !toolResp.IsToolResult() {
+		t.Fatal("a ToolMessage-only chunk should report IsToolResult")
+	}
+	if toolResp.TextDelta() != "" || toolResp.ReasoningDelta() != "" {
+		t.Fatal("a tool-result chunk carries no assistant text/reasoning")
+	}
+
+	// nil receiver + empty response must be safe and falsy.
+	var nilResp *chat.Response
+	empty := &chat.Response{}
+	for _, r := range []*chat.Response{nilResp, empty} {
+		if r.TextDelta() != "" || r.ReasoningDelta() != "" || r.IsToolResult() {
+			t.Fatalf("accessors must be safe + falsy on %#v", r)
+		}
+	}
+}

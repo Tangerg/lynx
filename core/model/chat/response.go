@@ -191,3 +191,42 @@ func NewResponse(result *Result, metadata *ResponseMetadata) (*Response, error) 
 		Metadata: metadata,
 	}, nil
 }
+
+// TextDelta returns the assistant text this response chunk carries — the
+// joined TextPart bodies of its assistant message. Returns "" when the
+// chunk has no assistant text: a tool-call round (the assistant message
+// holds only ToolCallParts), a tool-result round (see [Response.IsToolResult]),
+// or a reasoning-only / empty chunk. Convenience for streaming consumers
+// accumulating the visible reply across chunks; nil-safe on the receiver
+// and the result/message chain.
+func (r *Response) TextDelta() string {
+	if r == nil || r.Result == nil || r.Result.AssistantMessage == nil {
+		return ""
+	}
+	return r.Result.AssistantMessage.JoinedText()
+}
+
+// ReasoningDelta returns the extended-thinking text this response chunk
+// carries — the joined ReasoningPart bodies of its assistant message.
+// Returns "" for chunks without reasoning content. Mirrors [Response.TextDelta]
+// but reads the reasoning subset, so consumers can surface thinking
+// separately from the final reply.
+func (r *Response) ReasoningDelta() string {
+	if r == nil || r.Result == nil || r.Result.AssistantMessage == nil {
+		return ""
+	}
+	return r.Result.AssistantMessage.JoinedReasoning()
+}
+
+// IsToolResult reports whether this is the synthetic tool-result chunk the
+// tool-loop middleware (see [NewToolMiddleware]) yields between LLM rounds:
+// Result.ToolMessage set, Result.AssistantMessage nil. It marks a round
+// boundary — the prior LLM round is over and its usage is final — which
+// streaming consumers use to commit per-round accounting before the next
+// round begins.
+func (r *Response) IsToolResult() bool {
+	return r != nil &&
+		r.Result != nil &&
+		r.Result.AssistantMessage == nil &&
+		r.Result.ToolMessage != nil
+}
