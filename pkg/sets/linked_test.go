@@ -1592,7 +1592,7 @@ func BenchmarkLinkedSet_AddAll(b *testing.B) {
 			}
 
 			b.ResetTimer()
-			for i := 0; i < b.N; i++ {
+			for b.Loop() {
 				set := NewLinkedSet[int]()
 				set.AddAll(items...)
 			}
@@ -1632,7 +1632,7 @@ func BenchmarkLinkedSet_Iter(b *testing.B) {
 	}
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		for range set.Iter() {
 			// Iterate through all elements
 		}
@@ -1646,7 +1646,7 @@ func BenchmarkLinkedSet_Clone(b *testing.B) {
 	}
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_ = set.Clone()
 	}
 }

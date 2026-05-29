@@ -984,7 +984,7 @@ func BenchmarkFutureTaskCreate(b *testing.B) {
 		return 42, nil
 	}
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_ = NewFutureTask(task)
 	}
 }
@@ -994,7 +994,7 @@ func BenchmarkFutureTaskRunAndGet(b *testing.B) {
 		return 42, nil
 	}
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		future := NewFutureTask(task)
 		future.Run()
 		future.Get()
@@ -1025,7 +1025,7 @@ func BenchmarkFutureTaskState(b *testing.B) {
 	future.Run()
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_ = future.State()
 	}
 }
@@ -1039,7 +1039,7 @@ func BenchmarkFutureTaskTryGet(b *testing.B) {
 	future.Get()
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		future.TryGet()
 	}
 }
