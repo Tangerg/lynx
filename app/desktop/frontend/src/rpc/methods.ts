@@ -72,9 +72,9 @@ export interface Methods {
     create: (input: CreateSessionInput) => Promise<Session>;
     update: (id: SessionId, patch: SessionPatch) => Promise<Session>;
     delete: (id: SessionId) => Promise<void>;
-    // Per PROTOCOL_ALIGNMENT v3: first arg is `parentId` (the source
-    // session being forked), not `id` — `id` was ambiguous at callsite
-    // ("which id, the new one or the source?").
+    // Per API.md §5.2: first arg is `parentId` (the source session being
+    // forked), not `id` — `id` was ambiguous at the callsite ("which id,
+    // the new one or the source?").
     fork: (parentId: SessionId, atMessageId: MessageId) => Promise<Session>;
     export: (id: SessionId, format: "md" | "json") => Promise<{ url: string }>;
   };
@@ -100,7 +100,7 @@ export interface Methods {
     projects: () => Promise<Project[]>;
     mcp: {
       list: () => Promise<MCPServer[]>;
-      // Per PROTOCOL_ALIGNMENT v3: wire key is `name` (MCP-native identifier).
+      // Per API.md §6.5: wire key is `name` (MCP-native identifier).
       reconnect: (name: string) => Promise<void>;
     };
     skills: () => Promise<Skill[]>;
