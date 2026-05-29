@@ -41,7 +41,7 @@ func (b *processBudget) recordLLMInvocation(inv core.LLMInvocation) {
 	}
 	b.lock.Lock()
 	defer b.lock.Unlock()
-	b.ownCost += inv.Cost
+	b.ownCost += inv.CostUSD
 	b.ownTokens += int(inv.PromptTokens + inv.CompletionTokens)
 	b.llmInvocations = append(b.llmInvocations, inv)
 }
@@ -54,7 +54,7 @@ func (b *processBudget) recordEmbeddingInvocation(inv core.EmbeddingInvocation) 
 	}
 	b.lock.Lock()
 	defer b.lock.Unlock()
-	b.ownCost += inv.Cost
+	b.ownCost += inv.CostUSD
 	b.ownTokens += int(inv.InputTokens)
 	b.embeddingInvocations = append(b.embeddingInvocations, inv)
 }

@@ -43,10 +43,10 @@ func TestRecordInvocation_PublishesEvents(t *testing.T) {
 			func(_ context.Context, pc *core.ProcessContext, in word) (wordCount, error) {
 				pc.Process.RecordLLMInvocation(core.LLMInvocation{
 					Model: "claude-x", Provider: "anthropic",
-					Cost: 0.01, PromptTokens: 100, CompletionTokens: 20,
+					CostUSD: 0.01, PromptTokens: 100, CompletionTokens: 20,
 				})
 				pc.Process.RecordEmbeddingInvocation(core.EmbeddingInvocation{
-					Model: "embed-x", Cost: 0.001, InputTokens: 50, InputCount: 2,
+					Model: "embed-x", CostUSD: 0.001, InputTokens: 50, InputCount: 2,
 				})
 				return wordCount{Count: len(in.Text)}, nil
 			},
@@ -72,7 +72,7 @@ func TestRecordInvocation_PublishesEvents(t *testing.T) {
 	if len(capture.llm) != 1 {
 		t.Fatalf("LLM invocation events = %d, want 1", len(capture.llm))
 	}
-	if capture.llm[0].Model != "claude-x" || capture.llm[0].Cost != 0.01 {
+	if capture.llm[0].Model != "claude-x" || capture.llm[0].CostUSD != 0.01 {
 		t.Fatalf("llm event payload: %#v", capture.llm[0])
 	}
 	if capture.llm[0].Timestamp.IsZero() {

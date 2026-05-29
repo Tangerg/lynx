@@ -102,7 +102,7 @@ func (e LLMInvocationRecorded) MarshalJSON() ([]byte, error) {
 	return emit(e, map[string]any{
 		"model":             inv.Model,
 		"provider":          inv.Provider,
-		"cost":              inv.Cost,
+		"cost":              inv.CostUSD,
 		"prompt_tokens":     inv.PromptTokens,
 		"completion_tokens": inv.CompletionTokens,
 		"reasoning_tokens":  inv.ReasoningTokens,
@@ -116,7 +116,7 @@ func (e EmbeddingInvocationRecorded) MarshalJSON() ([]byte, error) {
 	return emit(e, map[string]any{
 		"model":        inv.Model,
 		"provider":     inv.Provider,
-		"cost":         inv.Cost,
+		"cost":         inv.CostUSD,
 		"input_tokens": inv.InputTokens,
 		"input_count":  inv.InputCount,
 		"duration_ns":  inv.Duration.Nanoseconds(),
