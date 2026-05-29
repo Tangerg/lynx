@@ -183,6 +183,112 @@ func TestToolMiddleware_MaxIterationsCap(t *testing.T) {
 	}
 }
 
+// TestToolMiddleware_UnknownToolThrowsByDefault confirms the default
+// behavior is unchanged: a call to an unregistered tool aborts the request.
+func TestToolMiddleware_UnknownToolThrowsByDefault(t *testing.T) {
+	model := newFakeChatModel(t)
+	model.respond = func(req *chat.Request) (*chat.Response, error) {
+		return responseWithToolCall(t, "ghost", `{}`), nil
+	}
+
+	callMW, _ := chat.NewToolMiddleware()
+	req, _ := chat.NewClientRequest(model)
+	req.WithMiddlewares(callMW).WithMessages(chat.NewUserMessage("seed"))
+
+	if _, err := req.Call().Response(context.Background()); err == nil {
+		t.Fatal("expected error for unregistered tool, got nil")
+	}
+}
+
+// TestToolMiddleware_UnknownToolFeedback verifies that with feedback enabled
+// the loop hands the model an error result for the missing tool (so it can
+// recover) and continues, rather than aborting.
+func TestToolMiddleware_UnknownToolFeedback(t *testing.T) {
+	model := newFakeChatModel(t)
+
+	calls := 0
+	model.respond = func(req *chat.Request) (*chat.Response, error) {
+		calls++
+		if calls == 1 {
+			return responseWithToolCall(t, "ghost", `{}`), nil // not registered
+		}
+		return responseWithText("recovered"), nil
+	}
+
+	real := mustNewCallable(t, "real", false, func(context.Context, string) (string, error) {
+		return "ok", nil
+	})
+
+	callMW, _ := chat.NewToolMiddleware(chat.ToolLoopConfig{FeedbackOnUnknownTool: true})
+	req, _ := chat.NewClientRequest(model)
+	req.WithMiddlewares(callMW).WithMessages(chat.NewUserMessage("seed")).WithTools(real)
+
+	resp, err := req.Call().Response(context.Background())
+	if err != nil {
+		t.Fatalf("expected recovery, got error: %v", err)
+	}
+	if calls != 2 {
+		t.Fatalf("model invoked %d times, want 2 (error result fed back, then recovery)", calls)
+	}
+	if resp.Result.AssistantMessage.JoinedText() != "recovered" {
+		t.Fatalf("text = %q, want recovered", resp.Result.AssistantMessage.JoinedText())
+	}
+}
+
+// TestToolMiddleware_EmptyResponseFeedback verifies the one-shot nudge: an
+// empty reply triggers a single re-prompt when the policy is enabled.
+func TestToolMiddleware_EmptyResponseFeedback(t *testing.T) {
+	model := newFakeChatModel(t)
+
+	calls := 0
+	model.respond = func(req *chat.Request) (*chat.Response, error) {
+		calls++
+		if calls == 1 {
+			return responseWithText(""), nil // empty
+		}
+		return responseWithText("now answered"), nil
+	}
+
+	callMW, _ := chat.NewToolMiddleware(chat.ToolLoopConfig{FeedbackOnEmptyResponse: true})
+	req, _ := chat.NewClientRequest(model)
+	req.WithMiddlewares(callMW).WithMessages(chat.NewUserMessage("seed"))
+
+	resp, err := req.Call().Response(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if calls != 2 {
+		t.Fatalf("model invoked %d times, want 2 (empty, then nudged)", calls)
+	}
+	if resp.Result.AssistantMessage.JoinedText() != "now answered" {
+		t.Fatalf("text = %q, want 'now answered'", resp.Result.AssistantMessage.JoinedText())
+	}
+}
+
+// TestToolMiddleware_EmptyResponseNudgeIsOneShot confirms the nudge fires at
+// most once: a persistently empty model returns the empty reply rather than
+// looping.
+func TestToolMiddleware_EmptyResponseNudgeIsOneShot(t *testing.T) {
+	model := newFakeChatModel(t)
+
+	calls := 0
+	model.respond = func(req *chat.Request) (*chat.Response, error) {
+		calls++
+		return responseWithText(""), nil // always empty
+	}
+
+	callMW, _ := chat.NewToolMiddleware(chat.ToolLoopConfig{FeedbackOnEmptyResponse: true})
+	req, _ := chat.NewClientRequest(model)
+	req.WithMiddlewares(callMW).WithMessages(chat.NewUserMessage("seed"))
+
+	if _, err := req.Call().Response(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if calls != 2 {
+		t.Fatalf("model invoked %d times, want exactly 2 (original + one nudge)", calls)
+	}
+}
+
 // TestToolMiddleware_PassthroughWithoutToolCalls verifies the middleware
 // is invisible when the LLM doesn't request any tools.
 func TestToolMiddleware_PassthroughWithoutToolCalls(t *testing.T) {

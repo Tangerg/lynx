@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+	"strings"
 	"sync"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -326,6 +327,11 @@ func (r *ToolInvocationResult) validate() error {
 // [*ToolInvocationResult].
 type toolCallInvoker struct {
 	registry *ToolRegistry
+
+	// feedbackOnUnknown, when set, makes a call to an unregistered tool
+	// produce an error result fed back to the model (so it can pick a real
+	// tool) instead of aborting the whole request.
+	feedbackOnUnknown bool
 }
 
 // newToolCallInvoker pairs an invoker with its registry.
@@ -335,10 +341,16 @@ func newToolCallInvoker(registry *ToolRegistry) *toolCallInvoker {
 
 // canInvokeToolCalls verifies every requested tool name is registered.
 // Returns (false, nil) when the response contains no tool calls at all.
-// Returns (false, err) when an unknown tool is requested.
+// Returns (false, err) when an unknown tool is requested — unless
+// feedbackOnUnknown is set, in which case unknown tools are tolerated and
+// turned into error results by invokeToolCalls.
 func (i *toolCallInvoker) canInvokeToolCalls(resp *Response) (bool, error) {
 	if resp.Result == nil || !resp.Result.AssistantMessage.HasToolCalls() {
 		return false, nil
+	}
+
+	if i.feedbackOnUnknown {
+		return true, nil
 	}
 
 	for call := range resp.Result.AssistantMessage.ToolCalls() {
@@ -347,6 +359,18 @@ func (i *toolCallInvoker) canInvokeToolCalls(resp *Response) (bool, error) {
 		}
 	}
 	return true, nil
+}
+
+// unknownToolResult is the synthetic tool result fed back to the model when
+// it calls a tool that isn't registered (feedbackOnUnknown path). It names
+// the missing tool and lists the available ones so the model can recover.
+func unknownToolResult(name string, available []string) string {
+	sorted := slices.Clone(available)
+	slices.Sort(sorted)
+	if len(sorted) == 0 {
+		return fmt.Sprintf("error: tool %q is not available, and no tools are registered", name)
+	}
+	return fmt.Sprintf("error: tool %q is not available. Available tools: %s", name, strings.Join(sorted, ", "))
 }
 
 // invokeToolCalls runs every requested tool in order and collects the
@@ -358,8 +382,20 @@ func (i *toolCallInvoker) invokeToolCalls(ctx context.Context, calls []*ToolCall
 	returns := make([]*ToolReturn, 0, len(calls))
 
 	for _, call := range calls {
-		// Existence is guaranteed by the canInvokeToolCalls precheck.
-		t, _ := i.registry.Find(call.Name)
+		t, exists := i.registry.Find(call.Name)
+		if !exists {
+			// Reachable only with feedbackOnUnknown set (otherwise
+			// canInvokeToolCalls already aborted). Answer the tool call
+			// with an error result so the model can self-correct, and
+			// force a follow-up round.
+			allReturnDirect = false
+			returns = append(returns, &ToolReturn{
+				ID:     call.ID,
+				Name:   call.Name,
+				Result: unknownToolResult(call.Name, i.registry.Names()),
+			})
+			continue
+		}
 
 		result, err := i.invokeOne(ctx, t, call)
 		if err != nil {
@@ -449,6 +485,14 @@ func NewToolSupport(capacityHint ...int) *ToolSupport {
 
 // Registry exposes the underlying [ToolRegistry] for direct access.
 func (s *ToolSupport) Registry() *ToolRegistry { return s.registry }
+
+// SetFeedbackOnUnknownTool toggles unknown-tool tolerance. When enabled, a
+// call to an unregistered tool yields an error result fed back to the model
+// (so it can pick a real tool) instead of aborting the whole request. The
+// default is off, preserving the strict "unknown tool is an error" behavior.
+func (s *ToolSupport) SetFeedbackOnUnknownTool(enabled bool) {
+	s.invoker.feedbackOnUnknown = enabled
+}
 
 // Register is a shorthand for [ToolRegistry.Register].
 func (s *ToolSupport) Register(tools ...Tool) {
