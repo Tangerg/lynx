@@ -61,7 +61,27 @@ func (s *Server) handleRPC(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result, rerr := dispatchRPC(method, req.Params)
+	var (
+		result any
+		rerr   *rpcError
+	)
+	switch method {
+	case "runs.start":
+		// Streaming method: return the runId now; AG-UI events flow to the
+		// connection's SSE stream as notifications (API.md §3). The conn id
+		// rides the Lyra-Connection-Id header so the hub knows which /v1/rpc
+		// /stream to push to.
+		conn := r.Header.Get("Lyra-Connection-Id")
+		if conn == "" {
+			rerr = &rpcError{Code: rpcInvalidParams, Message: "runs.start requires the Lyra-Connection-Id header"}
+		} else {
+			result = map[string]string{"runId": startRunStream(conn, req.Params)}
+		}
+	case "runs.cancel":
+		result, rerr = cancelRunRPC(req.Params)
+	default:
+		result, rerr = dispatchRPC(method, req.Params)
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "no-store")
@@ -175,10 +195,21 @@ func sessionsPage() page {
 	return page{Items: items, HasMore: false}
 }
 
-// handleRPCStream is the GET /v1/rpc/stream SSE endpoint. The mock has no
-// server-initiated notifications to push yet, so it just holds the
-// connection open with periodic keepalive comments — enough for the
-// frontend client's recv() pump to attach without retry spam.
+// cancelRunRPC stops an in-flight run started by runs.start.
+func cancelRunRPC(params json.RawMessage) (any, *rpcError) {
+	var in struct {
+		RunID string `json:"runId"`
+	}
+	if err := json.Unmarshal(params, &in); err != nil || in.RunID == "" {
+		return nil, &rpcError{Code: rpcInvalidParams, Message: "expected { runId }"}
+	}
+	cancelRun(in.RunID) // idempotent — unknown / already-finished runId is a no-op
+	return struct{}{}, nil
+}
+
+// handleRPCStream is the GET /v1/rpc/stream SSE endpoint. It attaches the
+// connection (identified by ?conn=) to the hub and writes every queued
+// notification as an SSE `data:` frame, with periodic keepalive comments.
 func (s *Server) handleRPCStream(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodOptions {
 		w.WriteHeader(http.StatusNoContent)
@@ -195,6 +226,10 @@ func (s *Server) handleRPCStream(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("X-Accel-Buffering", "no")
 	w.WriteHeader(http.StatusOK)
 
+	conn := r.URL.Query().Get("conn")
+	ch := hub.subscribe(conn)
+	defer hub.unsubscribe(conn, ch)
+
 	ctx := r.Context()
 	ticker := time.NewTicker(15 * time.Second)
 	defer ticker.Stop()
@@ -206,6 +241,9 @@ func (s *Server) handleRPCStream(w http.ResponseWriter, r *http.Request) {
 			return
 		case <-ticker.C:
 			fmt.Fprint(w, ": ping\n\n")
+			flusher.Flush()
+		case frame := <-ch:
+			fmt.Fprintf(w, "data: %s\n\n", frame)
 			flusher.Flush()
 		}
 	}

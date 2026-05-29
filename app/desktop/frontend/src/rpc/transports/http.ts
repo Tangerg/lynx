@@ -40,9 +40,18 @@ export function createHttpTransport(config: HttpTransportConfig): Transport {
   let sse: EventSource | null = null;
   let lastEventId: string | null = null;
 
+  // Connection id ties this client's POSTs to its notification stream
+  // (API.md §3.2). The SSE GET carries it as a query param because the
+  // browser EventSource API can't set request headers; POSTs carry it as
+  // the Lyra-Connection-Id header. Server routes a run's notifications to
+  // the matching stream.
+  const connId = crypto.randomUUID();
+
   function openSse(): void {
     if (sse || channel.closed) return;
-    sse = new EventSourceImpl(`${baseUrl}/v1/rpc/stream`, { withCredentials: false });
+    sse = new EventSourceImpl(`${baseUrl}/v1/rpc/stream?conn=${connId}`, {
+      withCredentials: false,
+    });
     sse.onmessage = (ev) => {
       if (ev.lastEventId) lastEventId = ev.lastEventId;
       try {
@@ -71,7 +80,10 @@ export function createHttpTransport(config: HttpTransportConfig): Transport {
     }
     const url = `${baseUrl}/v1/rpc/${method}`;
 
-    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      "Lyra-Connection-Id": connId,
+    };
     if (config.localToken) headers.Authorization = `Bearer ${config.localToken}`;
     if (lastEventId) headers["Last-Event-Id"] = lastEventId;
 
