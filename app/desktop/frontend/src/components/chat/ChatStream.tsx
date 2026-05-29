@@ -61,10 +61,7 @@ export function ChatStream({ onSend, resetKey }: Props) {
   // Object.is) so it only fires when the *latest* tool changes —
   // not on every TOOL_CALL_ARGS delta that mutates the toolCalls map
   // reference while leaving the latest id alone.
-  const latestToolId = useMemo(() => {
-    const ids = Object.keys(toolCalls);
-    return ids.length === 0 ? "" : ids[ids.length - 1];
-  }, [toolCalls]);
+  const latestToolId = useMemo(() => Object.keys(toolCalls).at(-1) ?? "", [toolCalls]);
   useEffect(() => {
     if (!latestToolId) return;
     const ui = useSessionStore.getState();

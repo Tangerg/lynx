@@ -66,7 +66,7 @@ function TasksPill() {
   const list = Array.from(tasks.values()).sort((a, b) => a.startedAt - b.startedAt);
   const running = list.filter((t) => t.status === "running");
   // tasks.size > 0 above guarantees list non-empty → head exists.
-  const head = running[0] ?? list[list.length - 1]!;
+  const head = running[0] ?? list.at(-1)!;
   const { name, tone } = STATUS_ICON[head.status];
   const label = running.length > 1 ? `${head.label} +${running.length - 1}` : head.label;
 

@@ -38,7 +38,7 @@ export function pickComposerPlaceholder(): ComposerPlaceholderSpec | undefined {
     r -= spec.weight ?? 1;
     if (r <= 0) return spec;
   }
-  return specs[specs.length - 1];
+  return specs.at(-1);
 }
 
 /** Look up a composer key binding by canonical combo. */

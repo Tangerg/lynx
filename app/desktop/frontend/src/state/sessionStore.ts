@@ -180,7 +180,7 @@ export const useSessionStore = create<SessionState & SessionActions>()(
         const cur = get().mainViewTabs;
         const next = cur.filter((t) => t.id !== id);
         const activeMainView =
-          get().activeMainView === id ? (next[next.length - 1]?.id ?? null) : get().activeMainView;
+          get().activeMainView === id ? (next.at(-1)?.id ?? null) : get().activeMainView;
         set({ mainViewTabs: next, activeMainView });
       },
       selectMainView: (id) => set({ activeMainView: id }),
