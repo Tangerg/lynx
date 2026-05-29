@@ -37,7 +37,7 @@ func (a *App) memoryShowCmd() *cobra.Command {
 		Short: "Print the LYRA.md cascade (default: both scopes).",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := a.ensureRuntime(); err != nil {
+			if err := a.ensureRuntime(cmd.Context()); err != nil {
 				return a.fatalErr(err)
 			}
 			target, both, err := parseScope(scope, true)
@@ -68,7 +68,7 @@ func (a *App) memorySetCmd() *cobra.Command {
 		Short: "Overwrite a scope from stdin or --from <path>.",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := a.ensureRuntime(); err != nil {
+			if err := a.ensureRuntime(cmd.Context()); err != nil {
 				return a.fatalErr(err)
 			}
 			target, _, err := parseScope(scope, false)
@@ -98,7 +98,7 @@ func (a *App) memoryClearCmd() *cobra.Command {
 		Short: "Empty a scope.",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := a.ensureRuntime(); err != nil {
+			if err := a.ensureRuntime(cmd.Context()); err != nil {
 				return a.fatalErr(err)
 			}
 			target, _, err := parseScope(scope, false)

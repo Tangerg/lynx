@@ -107,7 +107,7 @@ type Engine struct {
 
 // New constructs an engine. Returns an error when required deps
 // are missing or when agent deployment fails.
-func New(cfg Config) (*Engine, error) {
+func New(ctx context.Context, cfg Config) (*Engine, error) {
 	if cfg.ChatClient == nil {
 		return nil, errors.New("engine: ChatClient is required")
 	}
@@ -120,8 +120,9 @@ func New(cfg Config) (*Engine, error) {
 	// Dial MCP servers and merge their tools alongside the built-in
 	// coding tools so the model can call them transparently. The
 	// dial happens before resolver wiring so the resolver sees the
-	// merged set in one place.
-	mcpTools, mcpSessions, err := dialMCPServers(context.Background(), cfg.MCPServers)
+	// merged set in one place. ctx flows from the caller so a slow /
+	// unreachable MCP server can be canceled during startup.
+	mcpTools, mcpSessions, err := dialMCPServers(ctx, cfg.MCPServers)
 	if err != nil {
 		return nil, err
 	}

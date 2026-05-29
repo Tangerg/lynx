@@ -32,7 +32,7 @@ func TestEngine_RunChat_ToolCallObserved(t *testing.T) {
 		t.Fatalf("chat client: %v", err)
 	}
 
-	eng, err := New(Config{ChatClient: client})
+	eng, err := New(context.Background(), Config{ChatClient: client})
 	if err != nil {
 		t.Fatalf("engine.New: %v", err)
 	}
@@ -84,7 +84,7 @@ func TestEngine_RunChat_ToolCallObserved(t *testing.T) {
 func TestEngine_RunChat_NoObserver(t *testing.T) {
 	stub := newStubModel("bash", `{"command":"echo lyra"}`, "done")
 	client, _ := chat.NewClient(stub)
-	eng, err := New(Config{ChatClient: client})
+	eng, err := New(context.Background(), Config{ChatClient: client})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -109,7 +109,7 @@ func TestEngine_RunChat_TokenUsageAccumulates(t *testing.T) {
 		chat.Usage{PromptTokens: 20, CompletionTokens: 7, ReasoningTokens: &reasoning},
 	)
 	client, _ := chat.NewClient(stub)
-	eng, err := New(Config{ChatClient: client})
+	eng, err := New(context.Background(), Config{ChatClient: client})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -132,7 +132,7 @@ func TestEngine_RunChat_TokenUsageAccumulates(t *testing.T) {
 func TestEngine_RunChat_StreamingDeltas(t *testing.T) {
 	stub := newStreamingStubModel("Hello, ", "world!", " (lyra)")
 	client, _ := chat.NewClient(stub)
-	eng, err := New(Config{ChatClient: client})
+	eng, err := New(context.Background(), Config{ChatClient: client})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -169,7 +169,7 @@ func TestEngine_RunChat_StreamingDeltas(t *testing.T) {
 func TestEngine_RunChat_MultiTurnMemory(t *testing.T) {
 	stub := newHistoryAwareStub()
 	client, _ := chat.NewClient(stub)
-	eng, err := New(Config{ChatClient: client})
+	eng, err := New(context.Background(), Config{ChatClient: client})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -206,7 +206,7 @@ func TestEngine_RunChat_PersistentMemoryStoreRoundTrip(t *testing.T) {
 	shared := memoryNewInMemoryStore() // built-in store; durability proxy
 	stub1 := newHistoryAwareStub()
 	cli1, _ := chat.NewClient(stub1)
-	eng1, _ := New(Config{ChatClient: cli1, MemoryStore: shared})
+	eng1, _ := New(context.Background(), Config{ChatClient: cli1, MemoryStore: shared})
 
 	const sessionID = "shared-sess"
 	if _, err := eng1.RunChat(context.Background(), RunChatRequest{
@@ -218,7 +218,7 @@ func TestEngine_RunChat_PersistentMemoryStoreRoundTrip(t *testing.T) {
 	// Simulate process restart: brand-new engine, same store.
 	stub2 := newHistoryAwareStub()
 	cli2, _ := chat.NewClient(stub2)
-	eng2, _ := New(Config{ChatClient: cli2, MemoryStore: shared})
+	eng2, _ := New(context.Background(), Config{ChatClient: cli2, MemoryStore: shared})
 
 	if _, err := eng2.RunChat(context.Background(), RunChatRequest{
 		SessionID: sessionID, Message: "second",
@@ -241,7 +241,7 @@ func TestEngine_RunChat_PersistentMemoryStoreRoundTrip(t *testing.T) {
 func TestEngine_RunChat_NoSessionIDDoesNotPersist(t *testing.T) {
 	stub := newHistoryAwareStub()
 	client, _ := chat.NewClient(stub)
-	eng, err := New(Config{ChatClient: client})
+	eng, err := New(context.Background(), Config{ChatClient: client})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -268,7 +268,7 @@ func TestEngine_RunChat_NoSessionIDDoesNotPersist(t *testing.T) {
 func TestEngine_Tools_OfflineOnly(t *testing.T) {
 	stub := newStubModel("bash", `{}`, "")
 	client, _ := chat.NewClient(stub)
-	eng, err := New(Config{ChatClient: client})
+	eng, err := New(context.Background(), Config{ChatClient: client})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -296,7 +296,7 @@ func TestEngine_Tools_OfflineOnly(t *testing.T) {
 func TestEngine_Tools_OnlineEnabled(t *testing.T) {
 	stub := newStubModel("bash", `{}`, "")
 	client, _ := chat.NewClient(stub)
-	eng, err := New(Config{
+	eng, err := New(context.Background(), Config{
 		ChatClient: client,
 		Online: OnlineConfig{
 			JinaAPIKey:       "test-jina",
@@ -326,7 +326,7 @@ func TestEngine_Tools_OnlineEnabled(t *testing.T) {
 func TestEngine_Tools_PartialOnline(t *testing.T) {
 	stub := newStubModel("bash", `{}`, "")
 	client, _ := chat.NewClient(stub)
-	eng, err := New(Config{
+	eng, err := New(context.Background(), Config{
 		ChatClient: client,
 		Online:     OnlineConfig{JinaAPIKey: "k"},
 	})

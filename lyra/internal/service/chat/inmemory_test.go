@@ -222,7 +222,7 @@ func TestService_PlanMode_NoPlanFallthrough(t *testing.T) {
 func TestService_InjectSteering_LandsInNextTurn(t *testing.T) {
 	stub := newHistoryAwareStub()
 	client, _ := chatmodel.NewClient(stub)
-	eng, _ := engine.New(engine.Config{ChatClient: client})
+	eng, _ := engine.New(context.Background(), engine.Config{ChatClient: client})
 	svc := chat.New(eng, nil)
 
 	// Turn 1.
@@ -281,7 +281,7 @@ func TestService_InjectSteering_UnknownTurn(t *testing.T) {
 // normally (TurnEndCompleted).
 func TestService_ApprovalGate_AllowOnce(t *testing.T) {
 	client, _ := chatmodel.NewClient(newStubChatModel())
-	eng, _ := engine.New(engine.Config{ChatClient: client})
+	eng, _ := engine.New(context.Background(), engine.Config{ChatClient: client})
 	approvalSvc := approval.New(approval.ModeBalanced) // bash → gate
 	svc := chat.New(eng, approvalSvc)
 
@@ -323,7 +323,7 @@ func TestService_ApprovalGate_AllowOnce(t *testing.T) {
 // and emits its final text reply; turn still completes.
 func TestService_ApprovalGate_Deny(t *testing.T) {
 	client, _ := chatmodel.NewClient(newStubChatModel())
-	eng, _ := engine.New(engine.Config{ChatClient: client})
+	eng, _ := engine.New(context.Background(), engine.Config{ChatClient: client})
 	approvalSvc := approval.New(approval.ModeBalanced)
 	svc := chat.New(eng, approvalSvc)
 
@@ -358,7 +358,7 @@ func TestService_ApprovalGate_Deny(t *testing.T) {
 // tool runs as if no gate were wired.
 func TestService_ApprovalGate_YoloSkipsEvent(t *testing.T) {
 	client, _ := chatmodel.NewClient(newStubChatModel())
-	eng, _ := engine.New(engine.Config{ChatClient: client})
+	eng, _ := engine.New(context.Background(), engine.Config{ChatClient: client})
 	svc := chat.New(eng, approval.New(approval.ModeYolo))
 
 	handle, _ := svc.StartTurn(context.Background(), chat.StartTurnRequest{
@@ -397,7 +397,7 @@ func buildService(t *testing.T) (chat.Service, *engine.Engine) {
 	if err != nil {
 		t.Fatalf("chat client: %v", err)
 	}
-	eng, err := engine.New(engine.Config{ChatClient: client})
+	eng, err := engine.New(context.Background(), engine.Config{ChatClient: client})
 	if err != nil {
 		t.Fatalf("engine.New: %v", err)
 	}
@@ -415,7 +415,7 @@ func buildPlanService(t *testing.T, planText string) (chat.Service, *planAwareSt
 	if err != nil {
 		t.Fatal(err)
 	}
-	eng, err := engine.New(engine.Config{ChatClient: client})
+	eng, err := engine.New(context.Background(), engine.Config{ChatClient: client})
 	if err != nil {
 		t.Fatal(err)
 	}

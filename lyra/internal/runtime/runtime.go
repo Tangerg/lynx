@@ -102,12 +102,12 @@ type Runtime struct {
 // New assembles a Runtime from cfg. Returns an error when a required
 // dependency (ChatClient) is missing or any internal constructor
 // fails — engine deployment, MCP dial, etc.
-func New(cfg Config) (*Runtime, error) {
+func New(ctx context.Context, cfg Config) (*Runtime, error) {
 	if cfg.ChatClient == nil {
 		return nil, errors.New("runtime: ChatClient is required")
 	}
 
-	eng, err := engine.New(engine.Config{
+	eng, err := engine.New(ctx, engine.Config{
 		ChatClient:    cfg.ChatClient,
 		Workdir:       cfg.Workdir,
 		Online:        cfg.Online,

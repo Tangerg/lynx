@@ -48,7 +48,7 @@ Stdio transport is intentionally not supported — see docs/API.md §1.1.`,
 			if addr == "" {
 				return a.fatalErr(errors.New("--listen is required"))
 			}
-			if err := a.ensureRuntime(); err != nil {
+			if err := a.ensureRuntime(cmd.Context()); err != nil {
 				return a.fatalErr(err)
 			}
 

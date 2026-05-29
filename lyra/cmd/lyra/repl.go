@@ -27,7 +27,7 @@ func (a *App) ReplCmd() *cobra.Command {
 		Use:   "repl",
 		Short: "Interactive multi-turn conversation.",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := a.ensureRuntime(); err != nil {
+			if err := a.ensureRuntime(cmd.Context()); err != nil {
 				return a.fatalErr(err)
 			}
 			r, err := NewReplRunner(a, sessionID)
