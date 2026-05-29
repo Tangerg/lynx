@@ -40,7 +40,7 @@ Claude Agent SDK 的本质是**包一个 `claude-code` CLI 子进程**，对外 
 |---|---|---|---|
 | （SDK 无对应物）**model metadata catalog** | ✅ `chat.ModelInfo`/`ModelMetadata`（banded `Pricing` + `Reasoning` + `Modalities` + `Limits` + 下架日期）+ `models/internal/catalog`（21 provider / 911 model，`models.dev` 生成器） | ✅ 经 `BuildChatClient` 读 `Metadata().Pricing` 建 cost 导管 | **SDK 完全没有**——它只报 usage，不知道模型能干嘛/多少钱。这轮拉开的最大身位 |
 | session 持久化 / resume / `sessionStore` | ✅ `core.ProcessStore` + `persistence.FileStore` + `PlatformConfig.AutoSnapshot`（每 tick 落盘） | 🟡 导管接了（`ProcessStore`→`AutoSnapshot`），**未做开机 restore** | 进程级 typed 快照，restore 后**重新 plan**（非续跑 in-flight action）。restore-Waiting→resume 框架已证明（`e79cd99`） |
-| subagent 编排（`agents` / Task / **background**） | ✅ `workflow.Supervisor[In,Out]`（LLM 编排）+ `SubagentTools` / `AsChatTool`（子 agent 当工具）+ `SpawnChild` | ✅ `task` 工具（`AsChatToolFromAgent`，两 role 防递归，`6f7d59d`） | 子 agent **只同步**跑、继承 blackboard、subtree budget 自动并入。**🔴 无 background/async**——见 §A.B 唯一框架级结构 gap |
+| subagent 编排（`agents` / Task / **background**） | ✅ `Supervisor` + `SubagentTools`/`AsChatTool`（同步）+ `SpawnChild`；**`SpawnChildAsync`/`AsBackgroundChatTool`/`KillChildren`（async，`44ce90c`）** | 🟡 同步 `task` 工具已用（`6f7d59d`）；**background 工具框架就绪、lyra 未接**（FE-gated） | 同步子 agent 继承 blackboard + subtree budget 并入；**background 已补**（spawn/collect + stopTask 语义），lyra 消费等 `lyra.background.*` 协议 |
 | `total_cost_usd` / `modelUsage` / `usage` | ✅ `core.LLMInvocation`（model+provider+**cost(USD)**+prompt/completion/reasoning/**cache** tokens+action）逐调用记录 | ✅ catalog→`invocationFrom`填 Cost→`TurnEnd.CostUSD`+`UsageByModel`（`1b8f3a2`） | **比 SDK `modelUsage` 还细**（带 cache-token 拆分） |
 | `maxBudgetUsd` / `taskBudget` | ✅ `process_budget` 子树聚合 + `BudgetPolicy` 早停 | ✅ token + **cost** ceiling（`MaxBudget` / `MaxCostUSD`，`f48c423`） | 已对齐 `maxBudgetUsd`（subtree-inclusive，round-boundary 停）。`taskBudget`（API 侧 token pacing）⛔ 做不了，需 model API 原生支持 |
 | tool 错误恢复 / `maxTurns` | ✅ `FeedbackOnUnknownTool` / `FeedbackOnEmptyResponse` + max-iter cap | ✅ **接了**（`ActionConfig.ToolLoop`） | lyra 幻觉工具名会自纠不 abort |
@@ -74,7 +74,7 @@ Claude Agent SDK 的本质是**包一个 `claude-code` CLI 子进程**，对外 
 
 | gap | 现状 | 能否单方面做 |
 |---|---|---|
-| **background/async subagent** + `stopTask` + `task_progress`/通知 | 框架 subagent **只能同步**（`AsChatTool` 阻塞父 turn）；`SpawnChild` 也是 spawn→wait | 🟡 **框架级可做**（runtime 加 async spawn + 任务句柄），当前唯一值得投入的结构性 gap。lyra 暴露需 FE 协议（`lyra.background.*` 仅预留） |
+| ~~**background/async subagent** + `stopTask`~~ | ✅ **框架层已落地**（`44ce90c`）：`SpawnChildAsync` + `AsBackgroundChatTool`（spawn/collect）+ `KillChildren`/`KillProcess`(=stopTask)。见 [§A.实施方案](#a实施方案框架级-async--background-subagentfocused-round-框架层已落地-44ce90c) | lyra 消费 `task_progress`/通知仍需 FE 协议（`lyra.background.*` 仅预留） |
 | **跨重启自动恢复**（lyra Tier 2） | 框架前置已就绪+证明（`e79cd99`）；lyra 只差「开机 restore Waiting → 重建 turnState → list 暴露 → 重连」 | 🔴 FE-gated（需 list/reconnect 协议） |
 | **真·mid-turn steering**（`interrupt`/`streamInput`） | lyra steering 落到**下一轮**，非当前轮中断；框架有 `TerminateAction/ToolCall` 但无「注入消息续跑」 | 🔴 FE-gated（`lyra.interrupt/resume` 无 spec） |
 | 运行时 `setModel`/`setPermissionMode` | 框架 model 锁定在 ProcessContext，无运行时切换 | 🟡 框架可做，但 YAGNI 信号强（无明确需求） |
@@ -100,11 +100,11 @@ Claude Agent SDK 的本质是**包一个 `claude-code` CLI 子进程**，对外 
 
 ### A.结论
 
-**lyra 单方面能补的 SDK gap 基本清零。** 真实剩余分两堆：① 框架级 **background/async subagent**（唯一还值得在框架层投入的结构性能力，且 lyra 早晚要 long-running 任务）；② 一串 **FE-gated 项**（cross-restart 恢复 / mid-turn steering / edit-checkpoint / tag），卡在协议未定，不能单方面动 wire。而我们在 **model metadata catalog** 上已反超 SDK 一个身位。**下一步若要继续，唯一不依赖前端的方向是框架级 async subagent；其余等前端 spec。**
+**lyra 单方面能补的 SDK gap 已清零。** 原本"唯一还值得在框架层投入"的 **background/async subagent** 也已落地（`44ce90c`，见 §A.实施方案）。**剩余全是 FE-gated 项**：lyra 消费 background（`lyra.background.*` 事件）/ cross-restart 恢复（list/reconnect 协议）/ mid-turn steering（`lyra.interrupt/resume`）/ edit-checkpoint / session tag —— 全卡在前端协议未定，不能单方面动 wire。而我们在 **model metadata catalog** 上已反超 SDK 一个身位。**下一步必须等前端 spec——后端侧已没有不依赖前端、还值得做的结构性项。**
 
-### A.实施方案：框架级 async / background subagent（focused-round，进行中）
+### A.实施方案：框架级 async / background subagent（focused-round，✅ 框架层已落地 `44ce90c`）
 
-> 对标 SDK `AgentDefinition.background` + `stopTask` + `task_progress`。**框架层可单方面做**（agent 模块）；lyra 暴露给前端仍 FE-gated（需 `lyra.background.*` 事件，目前仅预留）。
+> 对标 SDK `AgentDefinition.background` + `stopTask` + `task_progress`。**框架层已做完**（agent 模块，纯增量、不碰同步路径）；lyra 暴露给前端仍 FE-gated（需 `lyra.background.*` 事件，目前仅预留）。落地：`SpawnChildAsync`（child.go，`context.WithoutCancel` 跑后台、返回 taskID+done）+ `AsBackgroundChatTool[In,Out]`（subagent.go，spawn/collect 工具对，collect 报 running/waiting/done/failed）+ `Platform.KillChildren(parentID)`（turn 退出清理，复用 KillProcess + IsTerminal 守卫）。测试 `runtime -race` 全绿：done-channel 钉死时序 + 工具往返 + unknown-task + KillChildren 清扫。下文为设计记录。
 
 **核心发现：gap 比预期窄，大半原语已就位。** 审计同步路径（`subagent.go`+`child.go`）后：后台跑进程（`Platform.ContinueProcessAsync` 返回 done channel、goroutine 跑）、子进程继承 blackboard + budget 并树（`CreateChildProcess`+`budget.addChild`）、查状态/取结果（`ProcessByID(id).Status()/Output()`）、取消（`KillProcess(id)` = SDK `stopTask`）、生命周期事件（child 已 emit `ProcessCreated/Completed/Failed`）——**全在**。`spawnChildOptions` 之所以同步，仅因它最后调 `ContinueProcess`（阻塞）而非 `ContinueProcessAsync`。所以这是**组装现有原语 + 加一个 LLM 面向工具形态**，纯增量、合 OCP。
 
