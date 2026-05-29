@@ -51,9 +51,9 @@ type ModelInfo struct {
 	// Pricing is the per-1M-token rate card, zero (IsZero) when unknown.
 	Pricing Pricing `json:"pricing,omitzero"`
 
-	// CanReason reports whether the model supports extended thinking /
-	// reasoning.
-	CanReason bool `json:"can_reason,omitempty"`
+	// Reasoning describes extended-thinking support, zero (IsZero) when
+	// the model can't reason.
+	Reasoning Reasoning `json:"reasoning,omitzero"`
 
 	// ContextWindow is the maximum context size in tokens (0 = unknown).
 	ContextWindow int64 `json:"context_window,omitempty"`
@@ -62,8 +62,13 @@ type ModelInfo struct {
 	MaxTokens int64 `json:"max_tokens,omitempty"`
 }
 
-// IsZero reports whether no model info is set.
-func (m ModelInfo) IsZero() bool { return m == ModelInfo{} }
+// IsZero reports whether no model info is set. (Spelled out rather than
+// `m == ModelInfo{}` because Reasoning.Levels is a slice, so ModelInfo
+// isn't comparable.)
+func (m ModelInfo) IsZero() bool {
+	return m.ID == "" && m.DisplayName == "" && m.Pricing.IsZero() &&
+		m.Reasoning.IsZero() && m.ContextWindow == 0 && m.MaxTokens == 0
+}
 
 // ModelMetadata holds identity metadata for a [Model] instance: the
 // vendor plus the instance's default model info. Provider names are

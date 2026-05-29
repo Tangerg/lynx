@@ -9,7 +9,9 @@
         "output_per_1m": 4.4,
         "cache_read_per_1m": 0.26
       },
-      "can_reason": true,
+      "reasoning": {
+        "supported": true
+      },
       "context_window": 204800,
       "max_tokens": 65536
     },
@@ -21,7 +23,9 @@
         "output_per_1m": 4.0,
         "cache_read_per_1m": 0.24
       },
-      "can_reason": true,
+      "reasoning": {
+        "supported": true
+      },
       "context_window": 200000,
       "max_tokens": 128000
     },
@@ -33,7 +37,9 @@
         "output_per_1m": 3.2,
         "cache_read_per_1m": 0.2
       },
-      "can_reason": true,
+      "reasoning": {
+        "supported": true
+      },
       "context_window": 204800,
       "max_tokens": 65536
     },
@@ -45,7 +51,9 @@
         "output_per_1m": 2.2,
         "cache_read_per_1m": 0.11
       },
-      "can_reason": true,
+      "reasoning": {
+        "supported": true
+      },
       "context_window": 204800,
       "max_tokens": 98000
     },
@@ -57,7 +65,9 @@
         "output_per_1m": 0.4,
         "cache_read_per_1m": 0.01
       },
-      "can_reason": true,
+      "reasoning": {
+        "supported": true
+      },
       "context_window": 200000,
       "max_tokens": 65550
     },
@@ -69,7 +79,9 @@
         "output_per_1m": 2.2,
         "cache_read_per_1m": 0.11
       },
-      "can_reason": true,
+      "reasoning": {
+        "supported": true
+      },
       "context_window": 204800,
       "max_tokens": 102400
     },
@@ -80,7 +92,9 @@
         "input_per_1m": 0.3,
         "output_per_1m": 0.9
       },
-      "can_reason": true,
+      "reasoning": {
+        "supported": true
+      },
       "context_window": 131072,
       "max_tokens": 65536
     },
@@ -92,7 +106,9 @@
         "output_per_1m": 2.2,
         "cache_read_per_1m": 0.11
       },
-      "can_reason": true,
+      "reasoning": {
+        "supported": true
+      },
       "context_window": 131072,
       "max_tokens": 49152
     },
@@ -104,7 +120,9 @@
         "output_per_1m": 1.1,
         "cache_read_per_1m": 0.03
       },
-      "can_reason": true,
+      "reasoning": {
+        "supported": true
+      },
       "context_window": 131072,
       "max_tokens": 49152
     },
@@ -116,7 +134,9 @@
         "output_per_1m": 1.8,
         "cache_read_per_1m": 0.11
       },
-      "can_reason": true,
+      "reasoning": {
+        "supported": true
+      },
       "context_window": 65536,
       "max_tokens": 8192
     }

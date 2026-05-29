@@ -9,7 +9,15 @@
         "output_per_1m": 3,
         "cache_read_per_1m": 0.5
       },
-      "can_reason": true,
+      "reasoning": {
+        "supported": true,
+        "levels": [
+          "low",
+          "medium",
+          "high"
+        ],
+        "default_level": "medium"
+      },
       "context_window": 131072,
       "max_tokens": 10000
     },
