@@ -388,7 +388,7 @@ func (i *toolCallInvoker) invokeToolCalls(ctx context.Context, calls []*ToolCall
 // invokeOne dispatches a single tool call under its own OTel span.
 // The span emits `lynx.tool.name` / `lynx.tool.call_id`; an error
 // adds `lynx.tool.is_error=true` and sets span status before
-// re-throwing the underlying error to the caller. Noop overhead
+// re-throwing the underlying error to the caller. No-op overhead
 // when no TracerProvider is configured.
 func (i *toolCallInvoker) invokeOne(ctx context.Context, t Tool, call *ToolCallPart) (string, error) {
 	ctx, span := toolTracer.Start(ctx, "tool.invoke "+call.Name,

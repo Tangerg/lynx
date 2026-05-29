@@ -104,7 +104,7 @@ func (m *stubModel) Metadata() chatmodel.ModelMetadata {
 func (m *stubModel) Call(_ context.Context, _ *chatmodel.Request) (*chatmodel.Response, error) {
 	return chatmodel.NewResponse(
 		&chatmodel.Result{
-			AssistantMessage: chatmodel.NewAssistantMessage("noop"),
+			AssistantMessage: chatmodel.NewAssistantMessage("nop"),
 			Metadata:         &chatmodel.ResultMetadata{FinishReason: chatmodel.FinishReasonStop},
 		},
 		&chatmodel.ResponseMetadata{},

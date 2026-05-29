@@ -380,7 +380,7 @@ type ClientCaller struct {
 // One OTel span is started per call, following the GenAI semconv —
 // see [startChatSpan] / [finishChatSpan] for the attribute set. When
 // no TracerProvider is configured (the default) the span calls are
-// noop and effectively zero-cost.
+// no-op and effectively zero-cost.
 func (c *ClientCaller) call(ctx context.Context, req *Request) (*Response, error) {
 	start := time.Now()
 	ctx, span := startChatSpan(ctx, c.request.model, req, "chat")

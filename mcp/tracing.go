@@ -5,7 +5,7 @@ import (
 )
 
 // mcpTracer is the package-level tracer for MCP client and server
-// span emission. Noop overhead when no TracerProvider is installed —
+// span emission. No-op overhead when no TracerProvider is installed —
 // see doc/OBSERVABILITY.md §5.
 var mcpTracer = otel.Tracer("lynx/mcp")
 

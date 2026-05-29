@@ -30,8 +30,8 @@ func TestNamedListener_NameAndOnEvent(t *testing.T) {
 	}
 }
 
-func TestNamedListener_NilFnIsNoop(t *testing.T) {
-	listener := event.NewNamedListener("noop", nil)
+func TestNamedListener_NilFnIsNop(t *testing.T) {
+	listener := event.NewNamedListener("nop", nil)
 
 	// Should not panic.
 	listener.OnEvent(event.AgentDeployed{BaseEvent: event.NewBaseEvent(""), AgentName: "x"})

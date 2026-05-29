@@ -148,7 +148,7 @@ type ClientCaller struct {
 //
 // One OTel span is started per call following the GenAI semconv —
 // see [startEmbeddingSpan] / [finishEmbeddingSpan] for the attribute
-// set. Noop overhead when no TracerProvider is configured.
+// set. No-op overhead when no TracerProvider is configured.
 func (c *ClientCaller) Response(ctx context.Context) (*Response, error) {
 	req, err := c.request.buildRequest()
 	if err != nil {

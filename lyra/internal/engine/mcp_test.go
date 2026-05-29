@@ -128,7 +128,7 @@ func TestEngine_DialMCPServer(t *testing.T) {
 // entries with the same Name must abort engine.New rather than
 // silently overwriting.
 func TestEngine_DialMCPServer_RejectsDuplicateNames(t *testing.T) {
-	stub := newStubModel("noop", `{}`, "")
+	stub := newStubModel("nop", `{}`, "")
 	client, _ := chat.NewClient(stub)
 
 	_, err := New(context.Background(), Config{
@@ -147,7 +147,7 @@ func TestEngine_DialMCPServer_RejectsDuplicateNames(t *testing.T) {
 // failures at engine.New time so operators don't discover the
 // problem on the first tool call.
 func TestEngine_DialMCPServer_RejectsBadEndpoint(t *testing.T) {
-	stub := newStubModel("noop", `{}`, "")
+	stub := newStubModel("nop", `{}`, "")
 	client, _ := chat.NewClient(stub)
 
 	_, err := New(context.Background(), Config{
@@ -216,7 +216,7 @@ func TestEngine_DialMCPServer_Stdio(t *testing.T) {
 // TestEngine_DialMCPServer_StdioRejectsEmptyCommand mirrors the
 // HTTP empty-endpoint guard for the stdio path.
 func TestEngine_DialMCPServer_StdioRejectsEmptyCommand(t *testing.T) {
-	stub := newStubModel("noop", `{}`, "")
+	stub := newStubModel("nop", `{}`, "")
 	client, _ := chat.NewClient(stub)
 	_, err := New(context.Background(), Config{
 		ChatClient: client,
