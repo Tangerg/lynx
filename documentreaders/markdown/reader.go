@@ -134,7 +134,7 @@ func (r *Reader) readSplit(ctx context.Context, raw []byte) ([]*document.Documen
 			if len(sections) == 0 {
 				sections = append(sections, &section{})
 			}
-			appendNodeSource(sections[len(sections)-1], raw, n)
+			sections[len(sections)-1].appendNodeSource(raw, n)
 			continue
 		}
 
@@ -150,7 +150,7 @@ func (r *Reader) readSplit(ctx context.Context, raw []byte) ([]*document.Documen
 			level:   heading.Level,
 			path:    pathFromStack(stack),
 		}
-		appendNodeSource(sec, raw, n)
+		sec.appendNodeSource(raw, n)
 		sections = append(sections, sec)
 	}
 
@@ -226,10 +226,10 @@ func pathFromStack(stack []sectionRef) string {
 	return strings.Join(titles, " > ")
 }
 
-// appendNodeSource copies the raw markdown bytes backing n into the
-// section body. goldmark preserves byte offsets via Segments, which we
+// appendNodeSource copies the raw markdown bytes backing n into this
+// section's body. goldmark preserves byte offsets via Segments, which we
 // can stitch together.
-func appendNodeSource(s *section, raw []byte, n ast.Node) {
+func (s *section) appendNodeSource(raw []byte, n ast.Node) {
 	var buf bytes.Buffer
 	collectSegments(&buf, raw, n)
 	if buf.Len() == 0 {
