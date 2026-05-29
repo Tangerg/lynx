@@ -64,6 +64,9 @@ func (v *Visitor) visit(expr ast.Expr) error {
 
 	switch node := expr.(type) {
 	case *ast.BinaryExpr:
+		if node.Op.Kind.IsNullOperator() {
+			return v.visitNullTestExpr(node)
+		}
 		return filterhelp.DispatchBinaryErr(node,
 			v.visitLogicalExpr,
 			v.visitComparisonExpr,
@@ -172,6 +175,27 @@ func (v *Visitor) visitInExpr(expr *ast.BinaryExpr) error {
 	v.sql.WriteString(":(")
 	v.sql.WriteString(strings.Join(parts, " OR "))
 	v.sql.WriteString(")")
+	return nil
+}
+
+// visitNullTestExpr emits a "field is null" test as `NOT _exists_:<path>`.
+// In Lucene query-string syntax `_exists_:<path>` matches documents where
+// the field is present, so its negation matches absent (null) fields —
+// matching the inmemory reference semantics where a missing or JSON-null
+// metadata key is treated as null.
+//
+// The negated `IS NOT NULL` arrives as NOT(field IS NULL) and is rendered
+// by visitNotExpr, which wraps this clause in another `NOT (...)`. The
+// resulting `NOT (NOT _exists_:<path>)` is a double negation equivalent to
+// `_exists_:<path>` — the existence check — so no separate handling is
+// needed here.
+func (v *Visitor) visitNullTestExpr(expr *ast.BinaryExpr) error {
+	field, err := v.fieldPath(expr.Left)
+	if err != nil {
+		return fmt.Errorf("elasticsearch: %w (at %s)", err, expr.Start().String())
+	}
+	v.sql.WriteString("NOT _exists_:")
+	v.sql.WriteString(field)
 	return nil
 }
 
