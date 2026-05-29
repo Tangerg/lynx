@@ -69,7 +69,10 @@ func (c StoreConfig) Validate() error {
 	return nil
 }
 
-var _ vectorstore.Store = (*Store)(nil)
+var (
+	_ vectorstore.Store     = (*Store)(nil)
+	_ vectorstore.IDDeleter = (*Store)(nil)
+)
 
 type Store struct {
 	index                *pinecone.IndexConnection
@@ -270,6 +273,24 @@ func (v *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) (err
 
 	if err = v.index.DeleteVectorsByFilter(ctx, filter); err != nil {
 		return fmt.Errorf("pinecone: failed to delete vectors: %w", err)
+	}
+
+	return nil
+}
+
+// DeleteByIDs removes vectors by their string ids. An empty slice is a
+// no-op; unknown ids are silently ignored (idempotent). Implements
+// [vectorstore.IDDeleter].
+func (v *Store) DeleteByIDs(ctx context.Context, ids []string) (err error) {
+	if len(ids) == 0 {
+		return nil
+	}
+
+	ctx, span := tracing.StartDelete(ctx, "pinecone")
+	defer func() { tracing.Finish(span, err) }()
+
+	if err = v.index.DeleteVectorsById(ctx, ids); err != nil {
+		return fmt.Errorf("pinecone: failed to delete vectors by ids: %w", err)
 	}
 
 	return nil

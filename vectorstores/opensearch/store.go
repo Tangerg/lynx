@@ -161,7 +161,10 @@ func (c *StoreConfig) ApplyDefaults() {
 	c.MethodName = cmp.Or(c.MethodName, DefaultMethodName)
 }
 
-var _ vectorstore.Store = (*Store)(nil)
+var (
+	_ vectorstore.Store     = (*Store)(nil)
+	_ vectorstore.IDDeleter = (*Store)(nil)
+)
 
 // Store is an OpenSearch-backed [vectorstore.Store] implementation.
 type Store struct {
@@ -492,6 +495,45 @@ func (s *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) (err
 	if resp != nil && len(resp.Failures) > 0 {
 		return fmt.Errorf("opensearch: delete_by_query %s reported %d failures",
 			s.indexName, len(resp.Failures))
+	}
+	return nil
+}
+
+// DeleteByIDs removes documents by their OpenSearch _id via a single
+// Bulk request carrying one delete action per id (NDJSON
+// `{"delete":{"_index":idx,"_id":id}}`). An empty slice is a no-op;
+// unknown ids are silently ignored (Bulk reports them as not_found, not
+// an error). Implements [vectorstore.IDDeleter].
+func (s *Store) DeleteByIDs(ctx context.Context, ids []string) (err error) {
+	if len(ids) == 0 {
+		return nil
+	}
+
+	ctx, span := tracing.StartDelete(ctx, "opensearch")
+	defer func() { tracing.Finish(span, err) }()
+
+	var body bytes.Buffer
+	for _, id := range ids {
+		var actionLine []byte
+		actionLine, err = json.Marshal(map[string]any{
+			"delete": map[string]any{"_index": s.indexName, "_id": id},
+		})
+		if err != nil {
+			return fmt.Errorf("opensearch: encode bulk delete action: %w", err)
+		}
+		body.Write(actionLine)
+		body.WriteByte('\n')
+	}
+
+	resp, err := s.client.Bulk(ctx, opensearchapi.BulkReq{
+		Index: s.indexName,
+		Body:  bytes.NewReader(body.Bytes()),
+	})
+	if err != nil {
+		return fmt.Errorf("opensearch: bulk delete: %w", err)
+	}
+	if resp != nil && resp.Errors {
+		return s.bulkErrorReason(resp)
 	}
 	return nil
 }

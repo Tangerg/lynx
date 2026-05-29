@@ -138,7 +138,10 @@ func (c *StoreConfig) ApplyDefaults() {
 	c.Similarity = cmp.Or(c.Similarity, SimilarityCosine)
 }
 
-var _ vectorstore.Store = (*Store)(nil)
+var (
+	_ vectorstore.Store     = (*Store)(nil)
+	_ vectorstore.IDDeleter = (*Store)(nil)
+)
 
 // Store is a MongoDB Atlas Vector Search backed [vectorstore.Store].
 type Store struct {
@@ -398,6 +401,23 @@ func (s *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) (err
 
 	if _, err := s.collection.DeleteMany(ctx, filter); err != nil {
 		return fmt.Errorf("mongodb: DeleteMany: %w", err)
+	}
+	return nil
+}
+
+// DeleteByIDs removes documents by their _id — `DeleteMany({_id: {$in: ids}})`.
+// An empty slice is a no-op; unknown ids are silently ignored (idempotent).
+// Implements [vectorstore.IDDeleter].
+func (s *Store) DeleteByIDs(ctx context.Context, ids []string) (err error) {
+	if len(ids) == 0 {
+		return nil
+	}
+
+	ctx, span := tracing.StartDelete(ctx, "mongodb")
+	defer func() { tracing.Finish(span, err) }()
+
+	if _, err = s.collection.DeleteMany(ctx, bson.M{defaultIDField: bson.M{"$in": ids}}); err != nil {
+		return fmt.Errorf("mongodb: DeleteMany by ids: %w", err)
 	}
 	return nil
 }

@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/google/uuid"
 
@@ -104,7 +105,10 @@ func (c *StoreConfig) ApplyDefaults() {
 	c.DistanceMetric = cmp.Or(c.DistanceMetric, DefaultDistanceMetric)
 }
 
-var _ vectorstore.Store = (*Store)(nil)
+var (
+	_ vectorstore.Store     = (*Store)(nil)
+	_ vectorstore.IDDeleter = (*Store)(nil)
+)
 
 // Store is a TiDB-backed [vectorstore.Store] implementation using
 // TiDB's native VECTOR column type and VEC_*_DISTANCE functions.
@@ -379,6 +383,31 @@ func (s *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) (err
 	stmt := fmt.Sprintf("DELETE FROM %s WHERE %s", s.fullTable, predicate)
 	if _, err := s.db.ExecContext(ctx, stmt, args...); err != nil {
 		return fmt.Errorf("tidb: delete from %s: %w", s.fullTable, err)
+	}
+	return nil
+}
+
+// DeleteByIDs removes rows by primary key —
+// `DELETE ... WHERE <idCol> IN (?, ...)` with one placeholder per id.
+// An empty slice is a no-op; unknown ids are silently ignored
+// (idempotent). Implements [vectorstore.IDDeleter].
+func (s *Store) DeleteByIDs(ctx context.Context, ids []string) (err error) {
+	if len(ids) == 0 {
+		return nil
+	}
+
+	ctx, span := tracing.StartDelete(ctx, "tidb")
+	defer func() { tracing.Finish(span, err) }()
+
+	placeholders := strings.Repeat("?, ", len(ids)-1) + "?"
+	stmt := fmt.Sprintf("DELETE FROM %s WHERE %s IN (%s)", s.fullTable, s.idColumn, placeholders)
+
+	args := make([]any, len(ids))
+	for i, id := range ids {
+		args[i] = id
+	}
+	if _, err = s.db.ExecContext(ctx, stmt, args...); err != nil {
+		return fmt.Errorf("tidb: delete by ids from %s: %w", s.fullTable, err)
 	}
 	return nil
 }

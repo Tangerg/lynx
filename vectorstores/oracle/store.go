@@ -140,7 +140,10 @@ func (c *StoreConfig) ApplyDefaults() {
 	c.DistanceMetric = cmp.Or(c.DistanceMetric, DefaultDistanceMetric)
 }
 
-var _ vectorstore.Store = (*Store)(nil)
+var (
+	_ vectorstore.Store     = (*Store)(nil)
+	_ vectorstore.IDDeleter = (*Store)(nil)
+)
 
 // Store is an Oracle 23ai-backed [vectorstore.Store] implementation.
 type Store struct {
@@ -413,6 +416,33 @@ func (s *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) (err
 	stmt := fmt.Sprintf("DELETE FROM %s WHERE %s", s.fullTable, predicate)
 	if _, err := s.db.ExecContext(ctx, stmt, args...); err != nil {
 		return fmt.Errorf("oracle: delete from %s: %w", s.fullTable, err)
+	}
+	return nil
+}
+
+// DeleteByIDs removes rows by primary key — `DELETE ... WHERE <id> IN
+// (:1, :2, …)` with one positional bind per id. An empty slice is a
+// no-op; unknown ids are silently ignored (idempotent). Implements
+// [vectorstore.IDDeleter].
+func (s *Store) DeleteByIDs(ctx context.Context, ids []string) (err error) {
+	if len(ids) == 0 {
+		return nil
+	}
+
+	ctx, span := tracing.StartDelete(ctx, "oracle")
+	defer func() { tracing.Finish(span, err) }()
+
+	placeholders := make([]string, len(ids))
+	args := make([]any, len(ids))
+	for i, id := range ids {
+		placeholders[i] = ":" + strconv.Itoa(i+1)
+		args[i] = id
+	}
+
+	stmt := fmt.Sprintf("DELETE FROM %s WHERE %s IN (%s)",
+		s.fullTable, s.idColumn, strings.Join(placeholders, ", "))
+	if _, err = s.db.ExecContext(ctx, stmt, args...); err != nil {
+		return fmt.Errorf("oracle: delete by ids from %s: %w", s.fullTable, err)
 	}
 	return nil
 }

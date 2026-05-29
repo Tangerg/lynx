@@ -150,7 +150,10 @@ func (c *StoreConfig) Validate() error {
 	return ident.Check("cassandra", checks)
 }
 
-var _ vectorstore.Store = (*Store)(nil)
+var (
+	_ vectorstore.Store     = (*Store)(nil)
+	_ vectorstore.IDDeleter = (*Store)(nil)
+)
 
 // ApplyDefaults fills zero fields with documented defaults.
 func (c *StoreConfig) ApplyDefaults() {
@@ -500,6 +503,36 @@ func (s *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) (err
 		if err := s.session.Query(deleteStmt, id).WithContext(ctx).Exec(); err != nil {
 			return fmt.Errorf("cassandra: delete %s: %w", id, err)
 		}
+	}
+	return nil
+}
+
+// DeleteByIDs removes rows by primary key. Because the id column is the
+// partition key, CQL allows a single DELETE with an IN list over it:
+// `DELETE FROM <table> WHERE <idCol> IN (?, ?, ...)`. An empty slice is a
+// no-op; unknown ids are silently ignored (idempotent). Implements
+// [vectorstore.IDDeleter].
+func (s *Store) DeleteByIDs(ctx context.Context, ids []string) (err error) {
+	if len(ids) == 0 {
+		return nil
+	}
+
+	ctx, span := tracing.StartDelete(ctx, "cassandra")
+	defer func() { tracing.Finish(span, err) }()
+
+	placeholders := make([]string, len(ids))
+	args := make([]any, len(ids))
+	for i, id := range ids {
+		placeholders[i] = "?"
+		args[i] = id
+	}
+
+	stmt := fmt.Sprintf(
+		"DELETE FROM %s WHERE %s IN (%s)",
+		s.fullTable, s.idColumn, strings.Join(placeholders, ", "),
+	)
+	if err = s.session.Query(stmt, args...).WithContext(ctx).Exec(); err != nil {
+		return fmt.Errorf("cassandra: delete by ids from %s: %w", s.fullTable, err)
 	}
 	return nil
 }
