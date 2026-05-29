@@ -78,9 +78,33 @@ func dispatchRPC(method string, _ json.RawMessage) (any, *rpcError) {
 	switch method {
 	case "sessions.list":
 		return sessionsPage(), nil
+	case "workspace.projects":
+		return projects, nil
+	case "workspace.filesChanged":
+		return filesChanged, nil
+	case "workspace.mcp.list":
+		return mcpListLean(), nil
 	default:
 		return nil, &rpcError{Code: rpcMethodNotFound, Message: "method not found: " + method}
 	}
+}
+
+// mcpListLean projects the fixture down to the protocol's MCPServer shape
+// (API.md §6.5): no `id`, no `icon` — both are client-side presentation
+// (the frontend maps `name` → icon itself).
+type rpcMCPServer struct {
+	Name   string `json:"name"`
+	Desc   string `json:"desc"`
+	Tools  int    `json:"tools"`
+	Status string `json:"status"`
+}
+
+func mcpListLean() []rpcMCPServer {
+	out := make([]rpcMCPServer, len(mcpServers))
+	for i, s := range mcpServers {
+		out[i] = rpcMCPServer{Name: s.Name, Desc: s.Desc, Tools: s.Tools, Status: s.Status}
+	}
+	return out
 }
 
 // rpcSession mirrors the frontend rpc/shapes.ts `Session` (richer than the

@@ -5,17 +5,23 @@
 // `defaultCommands` lives in a sibling file because it's substantially
 // bigger than the rest (~100 lines for the reactive command rebuild).
 
-import type { SidebarSession } from "@/lib/data/queries";
-import type { Session } from "@/rpc";
+import type {
+  MCPServer as SidebarMCPServer,
+  SidebarProject,
+  SidebarSession,
+} from "@/lib/data/queries";
+import type { MCPServer as RpcMCPServer, Session } from "@/rpc";
 import { api } from "@/lib/data/http";
 import { AGUI_BASE } from "@/main/config";
 import { getContainer } from "@/main/container";
 import { definePlugin } from "@/plugins/sdk";
 
-// First cutover slice: `sessions` rides the JSON-RPC stack
-// (methods.sessions.list) instead of REST GET /sessions. The protocol
-// `Session` is richer than the sidebar row, so map it down here — the
-// rest of the keys below still go through the ky data path.
+// Cutover mappers: several side-panel keys now ride the JSON-RPC stack
+// instead of REST GET. Where the protocol shape differs from the sidebar
+// row, we map it down here (the protocol intentionally omits client-side
+// presentation like the MCP icon — see API.md §6.5).
+
+// `sessions` — protocol Session is richer than the sidebar row.
 function toSidebarSession(s: Session): SidebarSession {
   return {
     id: s.id,
@@ -23,6 +29,29 @@ function toSidebarSession(s: Session): SidebarSession {
     status: s.status,
     model: s.model,
     time: s.updatedAt || s.createdAt,
+  };
+}
+
+// `mcp-servers` — the protocol MCPServer carries no id/icon (both are
+// client-side). Use the MCP name as the stable id and map name → icon.
+const MCP_ICON: Record<string, string> = {
+  Filesystem: "folder",
+  Git: "branch",
+  Shell: "terminal",
+  "Web Search": "globe",
+  Linear: "list",
+  GitHub: "git",
+  Postgres: "tool",
+  Slack: "chat",
+};
+function toSidebarMCPServer(s: RpcMCPServer): SidebarMCPServer {
+  return {
+    id: s.name,
+    name: s.name,
+    desc: s.desc,
+    tools: s.tools,
+    status: s.status,
+    icon: MCP_ICON[s.name] ?? "tool",
   };
 }
 
@@ -108,30 +137,37 @@ export const defaultRoles = definePlugin({
   },
 });
 
-// HTTP_KEYS lists the query keys still served over REST GET. `sessions`
-// has moved to the JSON-RPC stack (registered separately below); adding a
-// key in queries without a provider here makes that hook reject at runtime.
-const HTTP_KEYS = [
-  "projects",
-  "files-changed",
-  "diff",
-  "terminal",
-  "grep",
-  "file-head",
-  "mcp-servers",
-] as const;
+// HTTP_KEYS lists the query keys still served over REST GET. Migrated to
+// the JSON-RPC stack so far: sessions, projects, files-changed, mcp-servers
+// (registered separately below). The four that remain need view-param
+// plumbing (diff / grep / file-head take a path/query the param-less
+// provider model can't carry yet) or are a stream (terminal → #160).
+// Adding a key in queries without a provider here makes that hook reject.
+const HTTP_KEYS = ["diff", "terminal", "grep", "file-head"] as const;
 
 export const defaultData = definePlugin({
   name: "lyra.builtin.default-data",
   version: "1.0.0",
   setup({ host }) {
+    const methods = () => getContainer().methods();
+
     host.data.registerProvider<SidebarSession[]>({
       key: "sessions",
-      fetcher: async () => {
-        const page = await getContainer().methods().sessions.list();
-        return page.items.map(toSidebarSession);
-      },
+      fetcher: async () => (await methods().sessions.list()).items.map(toSidebarSession),
     });
+    host.data.registerProvider<SidebarProject[]>({
+      key: "projects",
+      fetcher: () => methods().workspace.projects(),
+    });
+    host.data.registerProvider({
+      key: "files-changed",
+      fetcher: () => methods().workspace.filesChanged(),
+    });
+    host.data.registerProvider<SidebarMCPServer[]>({
+      key: "mcp-servers",
+      fetcher: async () => (await methods().workspace.mcp.list()).map(toSidebarMCPServer),
+    });
+
     for (const key of HTTP_KEYS) {
       host.data.registerProvider({
         key,
