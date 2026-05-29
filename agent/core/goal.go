@@ -130,7 +130,7 @@ func (g *Goal) IsSatisfiedBy(ws WorldState) bool {
 //
 //	core.GoalProducing[BlogPost](core.Goal{Description: "blog post produced"})
 func GoalProducing[T any](g Goal) *Goal {
-	rt := reflect.TypeOf((*T)(nil)).Elem()
+	rt := reflect.TypeFor[T]()
 	typeName := TypeFullName(rt)
 
 	if g.Name == "" {

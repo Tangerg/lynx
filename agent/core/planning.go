@@ -58,7 +58,7 @@ type DomainType struct {
 // declaring sealed-interface families up front so the planner has the parent
 // information it needs.
 func DomainTypeOf[T any](description string) DomainType {
-	rt := reflect.TypeOf((*T)(nil)).Elem()
+	rt := reflect.TypeFor[T]()
 	return DomainType{
 		Name:        TypeFullName(rt),
 		Description: description,
