@@ -361,6 +361,10 @@ type RunChatRequest struct {
 	// [ChatInput.MaxBudget] for the stop semantics.
 	MaxBudget int64
 
+	// MaxCostUSD caps the turn's dollar cost (0 = no cap). See
+	// [ChatInput.MaxCostUSD] — requires a [Config.Pricing] hook.
+	MaxCostUSD float64
+
 	// Observer receives streaming tool-call + text-delta
 	// notifications. May be nil — the turn still runs.
 	Observer ToolObserver
@@ -456,7 +460,7 @@ func (cp *chatProcess) Output() (ChatOutput, error) {
 // attaches a process-scope [core.ToolDecorator]; SessionID binds the
 // turn to the chat-memory middleware's keyed conversation.
 func (e *Engine) StartChat(ctx context.Context, req RunChatRequest) ChatProcess {
-	in := ChatInput{Message: req.Message, MaxBudget: req.MaxBudget}
+	in := ChatInput{Message: req.Message, MaxBudget: req.MaxBudget, MaxCostUSD: req.MaxCostUSD}
 
 	opts := core.ProcessOptions{}
 	if req.SessionID != "" {

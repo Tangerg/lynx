@@ -32,6 +32,11 @@ type StartTurnRequest struct {
 	// streamed. In-process / automated callers set this; it is not
 	// (yet) carried on the wire.
 	MaxBudget int64
+
+	// MaxCostUSD caps the turn's dollar cost the same way MaxBudget caps
+	// tokens (0 = no cap). Needs a configured pricing hook; same
+	// TurnEndBudgetExceeded stop. Also not (yet) on the wire.
+	MaxCostUSD float64
 }
 
 // TurnHandle uniquely identifies an in-flight turn. Returned by

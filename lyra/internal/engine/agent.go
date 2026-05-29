@@ -21,6 +21,12 @@ type ChatInput struct {
 	// before paying for the next LLM call — and reports the partial
 	// reply with [ChatOutput.StoppedOnBudget] set.
 	MaxBudget int64
+
+	// MaxCostUSD caps the turn's dollar cost the same way MaxBudget caps
+	// tokens (the lynx analog of the SDK's maxBudgetUsd). 0 means no cost
+	// cap. Requires a [Config.Pricing] hook — without one cost stays 0
+	// and this never trips. Either ceiling stops the turn.
+	MaxCostUSD float64
 }
 
 // ChatOutput is the typed output of one turn. Reply is the assistant's
@@ -104,7 +110,7 @@ func (e *Engine) buildChatAgent() *core.Agent {
 		Description("single-turn LLM chat with the default coding tool set").
 		Actions(agent.NewAction("chat",
 			func(ctx context.Context, pc *core.ProcessContext, in ChatInput) (ChatOutput, error) {
-				return e.runChatTurn(ctx, pc, in.Message, in.MaxBudget)
+				return e.runChatTurn(ctx, pc, in.Message, turnBudget{MaxTokens: in.MaxBudget, MaxCostUSD: in.MaxCostUSD})
 			},
 			core.ActionConfig{
 				ToolGroups: core.ToolRolesFor(ToolRoleCoding),
@@ -144,10 +150,10 @@ func (e *Engine) buildSubtaskAgent() *core.Agent {
 				// It isn't unbounded at the turn level, though — its
 				// usage records into the child budget, which aggregates
 				// into the parent's subtree, so the parent turn's next
-				// round-boundary budget check (processTokens reads the
-				// subtree total) stops further work once the subtask
-				// pushes the parent over MaxBudget.
-				out, err := e.runChatTurn(ctx, pc, in.Prompt, 0)
+				// round-boundary budget check (which reads the subtree
+				// total) stops further work once the subtask pushes the
+				// parent over its budget.
+				out, err := e.runChatTurn(ctx, pc, in.Prompt, turnBudget{})
 				if err != nil {
 					return "", err
 				}
@@ -180,7 +186,7 @@ func recoverToolLoop() chat.ToolLoopConfig {
 // typed input wrapper, the declared tool role, and whether an observer
 // is present (sub-agents run without one, so their work is opaque to the
 // parent turn's event stream; only the final answer flows back).
-func (e *Engine) runChatTurn(ctx context.Context, pc *core.ProcessContext, message string, maxBudget int64) (ChatOutput, error) {
+func (e *Engine) runChatTurn(ctx context.Context, pc *core.ProcessContext, message string, budget turnBudget) (ChatOutput, error) {
 	req, err := pc.ChatWithActionTools(ctx)
 	if err != nil {
 		return ChatOutput{}, err
@@ -217,10 +223,10 @@ func (e *Engine) runChatTurn(ctx context.Context, pc *core.ProcessContext, messa
 		}
 		if isToolRoundBoundary(chunk) {
 			recordRound()
-			// Enforce the per-turn token budget at the round boundary —
-			// stop before the next LLM call. The running total comes from
-			// the process budget the recordRound above just updated.
-			if maxBudget > 0 && processTokens(pc) >= maxBudget {
+			// Enforce the per-turn budget at the round boundary — stop
+			// before the next LLM call. The running totals come from the
+			// process budget the recordRound above just updated.
+			if budget.exceeded(pc) {
 				return chatOutput(pc, accumulated.String(), true), nil
 			}
 		}
@@ -281,11 +287,21 @@ func (e *Engine) invocationFrom(model string, u *chat.Usage) core.LLMInvocation 
 	return inv
 }
 
-// processTokens is the running prompt+completion total the process
-// budget has aggregated from recorded invocations so far.
-func processTokens(pc *core.ProcessContext) int64 {
-	_, tokens, _ := pc.Process.Usage()
-	return int64(tokens)
+// turnBudget caps one turn by tokens and/or dollars. A zero field means
+// no cap on that dimension; the zero value is unbounded.
+type turnBudget struct {
+	MaxTokens  int64
+	MaxCostUSD float64
+}
+
+// exceeded reports whether the turn has hit either ceiling, reading the
+// running cost / token totals the process budget has aggregated from
+// recorded invocations so far (subtree-inclusive, so a sub-agent's spend
+// counts toward the parent).
+func (b turnBudget) exceeded(pc *core.ProcessContext) bool {
+	cost, tokens, _ := pc.Process.Usage()
+	return (b.MaxTokens > 0 && int64(tokens) >= b.MaxTokens) ||
+		(b.MaxCostUSD > 0 && cost >= b.MaxCostUSD)
 }
 
 // chatOutput assembles the turn result from the process budget's

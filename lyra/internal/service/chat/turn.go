@@ -113,6 +113,7 @@ func (s *inMemory) runTurn(ctx context.Context, st *turnState, req StartTurnRequ
 		SessionID:     req.SessionID,
 		Message:       req.Message,
 		MaxBudget:     req.MaxBudget,
+		MaxCostUSD:    req.MaxCostUSD,
 		Observer:      observer,
 		EventListener: lifecycle.listener(st.handle.TurnID),
 	})

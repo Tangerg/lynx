@@ -18,6 +18,11 @@ type turnOptions struct {
 	PlanMode    bool
 	AutoApprove bool
 	Verbose     bool
+
+	// MaxBudget / MaxCostUSD cap the turn by tokens / dollars (0 = no
+	// cap). On overrun the turn stops cleanly and ends budget_exceeded.
+	MaxBudget  int64
+	MaxCostUSD float64
 }
 
 // TurnRunner drives a single chat turn end-to-end: starts it,
@@ -50,9 +55,11 @@ func NewTurnRunner(app *App, opts turnOptions) *TurnRunner {
 // kill — for wedged turns.
 func (r *TurnRunner) Run(ctx context.Context, sessionID, message string) int {
 	handle, err := r.app.rt.Chat().StartTurn(ctx, chat.StartTurnRequest{
-		SessionID: sessionID,
-		Message:   message,
-		PlanMode:  r.opts.PlanMode,
+		SessionID:  sessionID,
+		Message:    message,
+		PlanMode:   r.opts.PlanMode,
+		MaxBudget:  r.opts.MaxBudget,
+		MaxCostUSD: r.opts.MaxCostUSD,
 	})
 	if err != nil {
 		fmt.Fprintf(r.app.Err, "lyra: %s\n", err)

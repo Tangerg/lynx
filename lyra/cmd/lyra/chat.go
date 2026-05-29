@@ -17,6 +17,8 @@ func (a *App) ChatCmd() *cobra.Command {
 		planMode    bool
 		autoApprove bool
 		verbose     bool
+		maxBudget   int64
+		maxCostUSD  float64
 	)
 	cmd := &cobra.Command{
 		Use:   "chat [message...]",
@@ -34,6 +36,8 @@ func (a *App) ChatCmd() *cobra.Command {
 				PlanMode:    planMode,
 				AutoApprove: autoApprove,
 				Verbose:     verbose,
+				MaxBudget:   maxBudget,
+				MaxCostUSD:  maxCostUSD,
 			})
 			if runner.Run(cmd.Context(), "cli-"+uuid.NewString(), message) != 0 {
 				return errSilenced
@@ -44,5 +48,7 @@ func (a *App) ChatCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&planMode, "plan", false, "ask the LLM for a plan and prompt to approve before executing")
 	cmd.Flags().BoolVar(&autoApprove, "auto-approve", false, "with --plan: approve the plan without prompting")
 	cmd.Flags().BoolVar(&verbose, "verbose", false, "print full tool output (default: truncate after a few lines)")
+	cmd.Flags().Int64Var(&maxBudget, "max-budget", 0, "stop the turn after this many tokens (0 = unlimited)")
+	cmd.Flags().Float64Var(&maxCostUSD, "max-cost", 0, "stop the turn after this many USD (0 = unlimited; needs pricing)")
 	return cmd
 }
