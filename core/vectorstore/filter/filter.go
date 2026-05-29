@@ -46,3 +46,17 @@ func ParseAndAnalyze(input string) (ast.Expr, error) {
 	}
 	return expr, Analyze(expr)
 }
+
+// Optimize returns a simplified, semantically-equivalent form of expr,
+// folding dead logic (multiple NOTs, idempotent and absorption laws)
+// before a backend visitor translates it. It is optional and pure: a
+// valid analyzed tree stays valid and the matching record set is
+// unchanged. See [visitors.Optimizer] for the exact rewrites.
+//
+// Example:
+//
+//	expr, _ := filter.ParseAndAnalyze(`not (not (year >= 2020))`)
+//	expr = filter.Optimize(expr) // → year >= 2020
+func Optimize(expr ast.Expr) ast.Expr {
+	return visitors.NewOptimizer().Optimize(expr)
+}
