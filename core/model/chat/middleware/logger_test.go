@@ -126,7 +126,7 @@ func TestLoggerMiddleware_NilLoggerIsSafe(t *testing.T) {
 func splitJSONLines(t *testing.T, b []byte) []map[string]any {
 	t.Helper()
 	var out []map[string]any
-	for _, line := range strings.Split(strings.TrimSpace(string(b)), "\n") {
+	for line := range strings.SplitSeq(strings.TrimSpace(string(b)), "\n") {
 		if line == "" {
 			continue
 		}
