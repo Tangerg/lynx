@@ -4,8 +4,6 @@ import (
 	"context"
 	"fmt"
 	"iter"
-	"maps"
-	"slices"
 	"strings"
 )
 
@@ -293,7 +291,7 @@ func (m *ToolMiddleware) maybeNudgeEmpty(req *Request, resp *Response, state too
 	if !m.feedbackEmpty || state.emptyRetried || !isEmptyResponse(resp) {
 		return nil, false, nil
 	}
-	next, err := continueRequestWith(req, resp.Result.AssistantMessage, NewUserMessage(emptyResponseNudge))
+	next, err := req.continueWith(resp.Result.AssistantMessage, NewUserMessage(emptyResponseNudge))
 	if err != nil {
 		return nil, false, err
 	}
@@ -313,20 +311,6 @@ func isEmptyResponse(resp *Response) bool {
 		return false
 	}
 	return !am.HasToolCalls() && strings.TrimSpace(am.JoinedText()) == ""
-}
-
-// continueRequestWith builds the next request in the loop: base messages
-// plus the supplied extras, carrying over options, tools, and params.
-func continueRequestWith(base *Request, extra ...Message) (*Request, error) {
-	msgs := append(slices.Clone(base.Messages), extra...)
-	next, err := NewRequest(msgs)
-	if err != nil {
-		return nil, err
-	}
-	next.Options = base.Options.Clone()
-	next.Tools = slices.Clone(base.Tools)
-	next.Params = maps.Clone(base.Params)
-	return next, nil
 }
 
 // newToolMessageResponse wraps a [*ToolMessage] in a [*Response] whose
