@@ -4,6 +4,7 @@
 // the expanded sidebar and only with each other.
 
 import { Icon, IconButton, Tooltip } from "@/components/common";
+import { useCreateSession } from "@/lib/agent/useCreateSession";
 import { useT } from "@/lib/i18n";
 import { useSessions } from "@/lib/data/queries";
 import { cn } from "@/lib/utils";
@@ -14,8 +15,13 @@ import { useSessionStore } from "@/state/sessionStore";
 
 function NewSessionBtn() {
   const t = useT();
+  const createSession = useCreateSession();
   return (
-    <IconButton variant="rail-primary" title={t("sidebar.action.newSession")}>
+    <IconButton
+      variant="rail-primary"
+      title={t("sidebar.action.newSession")}
+      onClick={() => void createSession()}
+    >
       <Icon name="plus" size={16} />
     </IconButton>
   );
@@ -44,8 +50,9 @@ export const sidebarRailActions = definePlugin({
 function RailSessions() {
   const { data: sessions = [] } = useSessions();
   const activeSessionId = useSessionStore((s) => s.activeSessionId);
+  const draftIds = useSessionStore((s) => s.draftSessionIds);
   const selectTab = useSessionStore((s) => s.selectTab);
-  const recent = sessions.slice(0, 5);
+  const recent = sessions.filter((s) => !draftIds.has(s.id)).slice(0, 5);
 
   return (
     <>

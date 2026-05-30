@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { DataView, SectionLabel } from "@/components/common";
 import { SessionRow } from "@/components/sidebar/SessionRow";
 import { useT } from "@/lib/i18n";
@@ -8,9 +9,16 @@ import { sideListClasses } from "./styles";
 
 function SessionsSection() {
   const t = useT();
-  const { data: sessions, isLoading } = useSessions();
+  const { data, isLoading } = useSessions();
   const activeSessionId = useSessionStore((s) => s.activeSessionId);
+  const draftIds = useSessionStore((s) => s.draftSessionIds);
   const selectTab = useSessionStore((s) => s.selectTab);
+  // Hide draft sessions (created but not yet sent to) — they graduate into
+  // the list on first message.
+  const sessions = useMemo(
+    () => (data ? data.filter((s) => !draftIds.has(s.id)) : data),
+    [data, draftIds],
+  );
 
   return (
     <>

@@ -2,6 +2,7 @@ import type { AbstractAgent } from "@ag-ui/client";
 import type { BaseEvent } from "@ag-ui/core";
 import { useEffect, useRef } from "react";
 import { useAgentStore } from "./agentStore";
+import { useSessionStore } from "./sessionStore";
 
 // Owns the AG-UI agent lifecycle for one session: instantiate, subscribe
 // to events → useAgentStore.applyEvents (batched), expose imperative
@@ -33,7 +34,7 @@ export function useAgentSession(makeAgent: () => AbstractAgent, sessionId: strin
         /* ignore */
       }
     });
-    useAgentStore.getState().setSend(sessionId, (text: string) => sendText(agent, text));
+    useAgentStore.getState().setSend(sessionId, (text: string) => sendVia(agent, sessionId, text));
 
     // Per-session rAF batcher. AG-UI streams ~30 token-deltas per
     // second; without batching each one triggers a store.set + React
@@ -72,8 +73,14 @@ export function useAgentSession(makeAgent: () => AbstractAgent, sessionId: strin
 
     // No auto-run on mount. Opening a session must NOT start a run — that
     // was demo-only behaviour (the mock played a script for empty messages).
-    // A real run begins when the user sends (sendText below); replaying an
-    // existing session's history is a separate concern (messages.list).
+    // A real run begins when the user sends; replaying an existing session's
+    // history is a separate concern (messages.list).
+    //
+    // Exception: a message typed on the welcome screen (no active session)
+    // was queued by useCreateSession against this freshly-created draft —
+    // flush it now that the agent for this id is live.
+    const pending = useSessionStore.getState().takePendingMessage(sessionId);
+    if (pending) sendVia(agent, sessionId, pending);
 
     return () => {
       cancelled = true;
@@ -93,7 +100,7 @@ export function useAgentSession(makeAgent: () => AbstractAgent, sessionId: strin
   return {
     send: (text: string) => {
       const agent = agentRef.current;
-      if (agent) sendText(agent, text);
+      if (agent) sendVia(agent, sessionId, text);
     },
     stop: () => {
       try {
@@ -105,9 +112,16 @@ export function useAgentSession(makeAgent: () => AbstractAgent, sessionId: strin
   };
 }
 
-// Append a user message then kick a new run. Used by both the
-// store-side `setSend` and the hook's returned `send` so the
-// "append + run" pair can't drift across the two call sites.
+// Send a message + graduate the session out of draft state (its first
+// message means it's no longer an empty draft, so it should appear in the
+// sidebar). Both send entry points — the store-side `setSend` and the
+// hook's returned `send` — go through here so the behaviour can't drift.
+function sendVia(agent: AbstractAgent, sessionId: string, text: string): void {
+  sendText(agent, text);
+  useSessionStore.getState().graduateDraft(sessionId);
+}
+
+// Append a user message then kick a new run.
 function sendText(agent: AbstractAgent, text: string): void {
   agent.addMessage({
     id: `user_${Date.now()}`,
