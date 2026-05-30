@@ -39,7 +39,7 @@ func TestAuthGateMissingToken(t *testing.T) {
 	ts := newGatedServer(t)
 	defer ts.Close()
 
-	body := []byte(`{"jsonrpc":"2.0","id":1,"method":"runtime.ping"}`)
+	body := []byte(`{"jsonrpc":"2.0","id":"1","method":"runtime.ping"}`)
 	resp, err := netHTTP.Post(ts.URL+"/v1/rpc/runtime.ping", "application/json", bytes.NewReader(body))
 	if err != nil {
 		t.Fatalf("post: %v", err)
@@ -64,7 +64,7 @@ func TestAuthGateEchoesTraceID(t *testing.T) {
 	ts := newGatedServer(t)
 	defer ts.Close()
 
-	body := []byte(`{"jsonrpc":"2.0","id":1,"method":"runtime.ping"}`)
+	body := []byte(`{"jsonrpc":"2.0","id":"1","method":"runtime.ping"}`)
 	req, _ := netHTTP.NewRequest("POST", ts.URL+"/v1/rpc/runtime.ping", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-Lyra-Trace-Id", "trace-42")
@@ -87,7 +87,7 @@ func TestAuthGateWrongToken(t *testing.T) {
 	ts := newGatedServer(t)
 	defer ts.Close()
 
-	body := []byte(`{"jsonrpc":"2.0","id":1,"method":"runtime.ping"}`)
+	body := []byte(`{"jsonrpc":"2.0","id":"1","method":"runtime.ping"}`)
 	req, _ := netHTTP.NewRequest("POST", ts.URL+"/v1/rpc/runtime.ping", bytes.NewReader(body))
 	req.Header.Set("Authorization", "Bearer wrong")
 	req.Header.Set("Content-Type", "application/json")
@@ -109,7 +109,7 @@ func TestAuthGateCorrectToken(t *testing.T) {
 	defer ts.Close()
 
 	// initialize is allowed pre-handshake
-	body := []byte(`{"jsonrpc":"2.0","id":1,"method":"runtime.initialize","params":{}}`)
+	body := []byte(`{"jsonrpc":"2.0","id":"1","method":"runtime.initialize","params":{}}`)
 	req, _ := netHTTP.NewRequest("POST", ts.URL+"/v1/rpc/runtime.initialize", bytes.NewReader(body))
 	req.Header.Set("Authorization", "Bearer test-token")
 	req.Header.Set("Content-Type", "application/json")
@@ -179,7 +179,7 @@ func TestCORSAllowedOriginOnPost(t *testing.T) {
 	ts := newGatedServer(t)
 	defer ts.Close()
 
-	body := []byte(`{"jsonrpc":"2.0","id":1,"method":"runtime.initialize","params":{}}`)
+	body := []byte(`{"jsonrpc":"2.0","id":"1","method":"runtime.initialize","params":{}}`)
 	req, _ := netHTTP.NewRequest("POST", ts.URL+"/v1/rpc/runtime.initialize", bytes.NewReader(body))
 	req.Header.Set("Authorization", "Bearer test-token")
 	req.Header.Set("Content-Type", "application/json")
@@ -210,7 +210,7 @@ func TestCORSDisallowedOrigin(t *testing.T) {
 	ts := newGatedServer(t)
 	defer ts.Close()
 
-	body := []byte(`{"jsonrpc":"2.0","id":1,"method":"runtime.initialize","params":{}}`)
+	body := []byte(`{"jsonrpc":"2.0","id":"1","method":"runtime.initialize","params":{}}`)
 	req, _ := netHTTP.NewRequest("POST", ts.URL+"/v1/rpc/runtime.initialize", bytes.NewReader(body))
 	req.Header.Set("Authorization", "Bearer test-token")
 	req.Header.Set("Content-Type", "application/json")

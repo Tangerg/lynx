@@ -108,10 +108,10 @@ type Project struct {
 //     "github", "browser") are already human-readable
 //   - `icon` is UI presentation that doesn't belong on the wire
 type MCPServer struct {
-	Name   string `json:"name"` // MCP-native server identifier
-	Desc   string `json:"desc"`
-	Tools  int    `json:"tools"`  // count of tools the server exposes
-	Status string `json:"status"` // "active" | "idle" | "error"
+	Name      string `json:"name"` // MCP-native server identifier
+	Desc      string `json:"desc"`
+	ToolCount int    `json:"toolCount"` // tool count; per-tool detail via workspace.mcp.tools
+	Status    string `json:"status"`    // "active" | "idle" | "error"
 }
 
 // Skill is one entry in workspace.skills (API.md §6.5).

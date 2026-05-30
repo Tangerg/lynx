@@ -21,7 +21,7 @@
 //     Request/Response/ID/Error type aliases
 //   - codes.go    — wire error codes + canonical-message helper
 //   - builders.go — NewCall/NewNotification/NewResponseResult/
-//     NewResponseError + Int64ID convenience constructors
+//     NewResponseError + StringID convenience constructors
 //   - problem.go  — RFC 7807 [ProblemData] used as Error.Data payload
 package transport
 

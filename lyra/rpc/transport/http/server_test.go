@@ -113,7 +113,7 @@ func TestInitializeOverRPC(t *testing.T) {
 	ts, _ := newTestServer(t)
 	defer ts.Close()
 
-	reqBody := []byte(`{"jsonrpc":"2.0","id":1,"method":"runtime.initialize","params":{"protocolVersion":"2026-05-28","clientInfo":{"name":"test","version":"0"},"capabilities":{"events":{"standard":[],"custom":[]},"features":{}}}}`)
+	reqBody := []byte(`{"jsonrpc":"2.0","id":"1","method":"runtime.initialize","params":{"protocolVersion":"2026-05-28","clientInfo":{"name":"test","version":"0"},"capabilities":{"events":{"standard":[],"custom":[]},"features":{}}}}`)
 	resp, err := netHTTP.Post(ts.URL+"/v1/rpc/runtime.initialize", "application/json", bytes.NewReader(reqBody))
 	if err != nil {
 		t.Fatalf("post rpc: %v", err)
@@ -148,7 +148,7 @@ func TestURLPathMethodForm(t *testing.T) {
 	defer ts.Close()
 
 	// initialize first so subsequent calls don't trip the gate
-	initBody := []byte(`{"jsonrpc":"2.0","id":1,"method":"runtime.initialize","params":{}}`)
+	initBody := []byte(`{"jsonrpc":"2.0","id":"1","method":"runtime.initialize","params":{}}`)
 	initResp, err := netHTTP.Post(ts.URL+"/v1/rpc/runtime.initialize", "application/json", bytes.NewReader(initBody))
 	if err != nil {
 		t.Fatalf("post initialize: %v", err)
@@ -161,7 +161,7 @@ func TestURLPathMethodForm(t *testing.T) {
 		t.Fatalf("X-Lyra-Method = %q, want runtime.initialize", got)
 	}
 
-	pingBody := []byte(`{"jsonrpc":"2.0","id":2,"method":"runtime.ping"}`)
+	pingBody := []byte(`{"jsonrpc":"2.0","id":"2","method":"runtime.ping"}`)
 	pingResp, err := netHTTP.Post(ts.URL+"/v1/rpc/runtime.ping", "application/json", bytes.NewReader(pingBody))
 	if err != nil {
 		t.Fatalf("post ping: %v", err)
@@ -181,7 +181,7 @@ func TestURLBodyMethodMismatch(t *testing.T) {
 	ts, _ := newTestServer(t)
 	defer ts.Close()
 
-	body := []byte(`{"jsonrpc":"2.0","id":1,"method":"runtime.ping"}`)
+	body := []byte(`{"jsonrpc":"2.0","id":"1","method":"runtime.ping"}`)
 	resp, err := netHTTP.Post(ts.URL+"/v1/rpc/runtime.initialize", "application/json", bytes.NewReader(body))
 	if err != nil {
 		t.Fatalf("post: %v", err)
@@ -211,11 +211,11 @@ func TestUnknownMethodReturns404(t *testing.T) {
 	defer ts.Close()
 
 	// initialize first so the gate doesn't fire
-	initBody := []byte(`{"jsonrpc":"2.0","id":1,"method":"runtime.initialize","params":{}}`)
+	initBody := []byte(`{"jsonrpc":"2.0","id":"1","method":"runtime.initialize","params":{}}`)
 	r1, _ := netHTTP.Post(ts.URL+"/v1/rpc/runtime.initialize", "application/json", bytes.NewReader(initBody))
 	r1.Body.Close()
 
-	body := []byte(`{"jsonrpc":"2.0","id":2,"method":"runs.unknownMethod"}`)
+	body := []byte(`{"jsonrpc":"2.0","id":"2","method":"runs.unknownMethod"}`)
 	resp, err := netHTTP.Post(ts.URL+"/v1/rpc/runs.unknownMethod", "application/json", bytes.NewReader(body))
 	if err != nil {
 		t.Fatalf("post: %v", err)
@@ -243,7 +243,7 @@ func TestProtocolGateBeforeInitialize(t *testing.T) {
 	ts, _ := newTestServer(t)
 	defer ts.Close()
 
-	body := []byte(`{"jsonrpc":"2.0","id":1,"method":"sessions.list","params":{}}`)
+	body := []byte(`{"jsonrpc":"2.0","id":"1","method":"sessions.list","params":{}}`)
 	resp, err := netHTTP.Post(ts.URL+"/v1/rpc/sessions.list", "application/json", bytes.NewReader(body))
 	if err != nil {
 		t.Fatalf("post: %v", err)
@@ -269,7 +269,7 @@ func TestRPCWithoutMethodReturns404(t *testing.T) {
 	ts, _ := newTestServer(t)
 	defer ts.Close()
 
-	body := []byte(`{"jsonrpc":"2.0","id":1,"method":"runtime.initialize","params":{}}`)
+	body := []byte(`{"jsonrpc":"2.0","id":"1","method":"runtime.initialize","params":{}}`)
 	resp, err := netHTTP.Post(ts.URL+"/v1/rpc", "application/json", bytes.NewReader(body))
 	if err != nil {
 		t.Fatalf("post: %v", err)
@@ -281,14 +281,14 @@ func TestRPCWithoutMethodReturns404(t *testing.T) {
 	}
 }
 
-// TestNonNumberIDRejected confirms API.md v4 §1.1: JSON-RPC id must
-// be a number, string ids are rejected at the dispatcher boundary
+// TestNonStringIDRejected confirms API.md §1.1: the envelope id must
+// be a STRING; a numeric id is rejected at the dispatcher boundary
 // with -32600 invalid_request.
-func TestNonNumberIDRejected(t *testing.T) {
+func TestNonStringIDRejected(t *testing.T) {
 	ts, _ := newTestServer(t)
 	defer ts.Close()
 
-	body := []byte(`{"jsonrpc":"2.0","id":"not-a-number","method":"runtime.initialize","params":{}}`)
+	body := []byte(`{"jsonrpc":"2.0","id":42,"method":"runtime.initialize","params":{}}`)
 	resp, err := netHTTP.Post(ts.URL+"/v1/rpc/runtime.initialize", "application/json", bytes.NewReader(body))
 	if err != nil {
 		t.Fatalf("post: %v", err)
@@ -319,14 +319,14 @@ func TestRunsCancelIsRequest(t *testing.T) {
 	defer ts.Close()
 
 	// initialize first
-	initBody := []byte(`{"jsonrpc":"2.0","id":1,"method":"runtime.initialize","params":{}}`)
+	initBody := []byte(`{"jsonrpc":"2.0","id":"1","method":"runtime.initialize","params":{}}`)
 	r1, err := netHTTP.Post(ts.URL+"/v1/rpc/runtime.initialize", "application/json", bytes.NewReader(initBody))
 	if err != nil {
 		t.Fatalf("init: %v", err)
 	}
 	r1.Body.Close()
 
-	body := []byte(`{"jsonrpc":"2.0","id":2,"method":"runs.cancel","params":{"runId":"r-123"}}`)
+	body := []byte(`{"jsonrpc":"2.0","id":"2","method":"runs.cancel","params":{"runId":"r-123"}}`)
 	resp, err := netHTTP.Post(ts.URL+"/v1/rpc/runs.cancel", "application/json", bytes.NewReader(body))
 	if err != nil {
 		t.Fatalf("cancel: %v", err)
@@ -350,8 +350,8 @@ func TestRunsCancelIsRequest(t *testing.T) {
 	if env.Error != nil {
 		t.Fatalf("got error envelope: %s", string(*env.Error))
 	}
-	if string(env.ID) != "2" {
-		t.Fatalf("id = %s, want 2", string(env.ID))
+	if string(env.ID) != `"2"` {
+		t.Fatalf("id = %s, want \"2\"", string(env.ID))
 	}
 	// Backend's CancelRun should have been invoked with the runId.
 	if len(api.cancelledRuns) != 1 || api.cancelledRuns[0] != "r-123" {
