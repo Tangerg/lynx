@@ -12,10 +12,12 @@
 
 export const JSONRPC_VERSION = "2.0" as const;
 
-// JSON-RPC 2.0 spec allows string | number for id; we lock to number
-// (monotonic integer). Greenfield decision — saves a union branch on
-// both ends, simpler dispatch table on the server.
-export type RpcId = number;
+// JSON-RPC 2.0 spec allows string | number for id; we lock to string
+// (docs/API.md §1.1). Type uniformity across the wire — every id in the
+// protocol (sessionId / runId / requestId / envelope id) is a string, so
+// dispatch + correlation never branch on id type. The client allocates
+// monotonic integers but stringifies them before they hit the wire.
+export type RpcId = string;
 
 export interface RpcRequest<P = unknown> {
   jsonrpc: typeof JSONRPC_VERSION;

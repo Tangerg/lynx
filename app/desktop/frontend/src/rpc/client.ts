@@ -37,6 +37,9 @@ interface Pending {
 }
 
 export function createRpcClient(transport: Transport): RpcClient {
+  // Monotonic integer counter, stringified at allocation — the wire id is
+  // always a string (RpcId, §1.1), but an integer counter is the cheapest
+  // way to guarantee per-connection uniqueness (§6.10).
   let nextId = 1;
   const pending = new Map<RpcId, Pending>();
   // method → handlers. We allow multiple subscribers per method so multiple
@@ -98,7 +101,7 @@ export function createRpcClient(transport: Transport): RpcClient {
 
   async function call<R, P>(method: string, params?: P, signal?: AbortSignal): Promise<R> {
     if (closed) throw new RpcTransportError("client closed");
-    const id = nextId++;
+    const id = String(nextId++);
     const req: RpcRequest<P> = {
       jsonrpc: JSONRPC_VERSION,
       id,
@@ -117,7 +120,10 @@ export function createRpcClient(transport: Transport): RpcClient {
           .send({
             jsonrpc: JSONRPC_VERSION,
             method: "notifications/canceled",
-            params: { requestId: id, reason: "client_aborted" },
+            // Per §2: cancel-in-flight params are `{ id, reason? }` where
+            // `id` is the envelope id of the Request being canceled (NOT
+            // the HITL business `requestId` — §2.3 keeps them distinct).
+            params: { id, reason: "client_aborted" },
           })
           .catch(() => undefined);
         reject(new RpcTransportError("aborted"));
