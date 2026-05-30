@@ -150,17 +150,23 @@ func startRunStream(conn string, params json.RawMessage) string {
 		}
 		Run(ctx, input, emit)
 
-		status := "ok"
+		// run/closed carries a RunResult (API.md §3.1 step 4 / §6.3): stop
+		// reason + usage read in one shot, not parsed from the last event.
+		stopReason := "completed"
 		if ctx.Err() != nil {
-			status = "cancelled"
+			stopReason = "canceled" // US spelling, matches the contract
 		}
 		// Deliver the close even after cancel (a fresh, bounded ctx so we
 		// never block on a vanished consumer).
 		closeCtx, closeCancel := context.WithTimeout(context.Background(), 2*time.Second)
 		defer closeCancel()
 		hub.push(closeCtx, conn, notificationFrame("notifications/run/closed", map[string]any{
-			"runId":  runID,
-			"status": status,
+			"runId": runID,
+			"result": map[string]any{
+				"stopReason": stopReason,
+				"usage":      map[string]any{"inputTokens": 1200, "outputTokens": 420},
+				"turns":      1,
+			},
 		}))
 	}()
 	return runID

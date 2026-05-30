@@ -98,8 +98,12 @@ const rpcInvalidParams = -32602
 
 func dispatchRPC(method string, params json.RawMessage) (any, *rpcError) {
 	switch method {
+	case "runtime.initialize":
+		return initializeResult(params)
 	case "sessions.list":
 		return sessionsPage(), nil
+	case "sessions.create":
+		return createSession(params)
 	case "workspace.projects":
 		return projects, nil
 	case "workspace.filesChanged":
@@ -111,6 +115,83 @@ func dispatchRPC(method string, params json.RawMessage) (any, *rpcError) {
 	default:
 		return nil, &rpcError{Code: rpcMethodNotFound, Message: "method not found: " + method}
 	}
+}
+
+// initializeResult answers runtime.initialize (API.md §2/§6.1): echoes the
+// negotiated protocol version and advertises what this mock can do. The
+// frontend's runtimeStore gates optional UI on capabilities.features.*, and
+// won't emit HITL the client didn't declare — so this set keeps the mock's
+// demo features (plan / approval / question / mcp / skills) lit.
+func initializeResult(params json.RawMessage) (any, *rpcError) {
+	var in struct {
+		ProtocolVersion string `json:"protocolVersion"`
+	}
+	_ = json.Unmarshal(params, &in)
+	pv := in.ProtocolVersion
+	if pv == "" {
+		pv = "2026-05-28"
+	}
+	return map[string]any{
+		"protocolVersion": pv,
+		"serverInfo":      map[string]string{"name": "lyra-agui-mock", "version": "0.1.0"},
+		"capabilities": map[string]any{
+			"events": map[string]any{
+				"standard": []string{
+					"RUN_STARTED", "RUN_FINISHED", "RUN_ERROR", "STEP_STARTED", "STEP_FINISHED",
+					"TEXT_MESSAGE_START", "TEXT_MESSAGE_CONTENT", "TEXT_MESSAGE_END",
+					"TOOL_CALL_START", "TOOL_CALL_ARGS", "TOOL_CALL_END", "TOOL_CALL_RESULT",
+					"REASONING_MESSAGE_START", "REASONING_MESSAGE_CONTENT", "REASONING_MESSAGE_END",
+					"STATE_SNAPSHOT", "STATE_DELTA", "MESSAGES_SNAPSHOT", "CUSTOM",
+				},
+				"custom": []string{
+					"lyra.plan", "lyra.plan-block", "lyra.code-proposal", "lyra.search-results",
+					"lyra.approval", "lyra.approval-result", "lyra.question", "lyra.question-result",
+					"lyra.telemetry",
+				},
+			},
+			"features": map[string]any{
+				"multimodal": true, "reasoning": true, "checkpoints": false,
+				"interrupts": true, "background": false, "subagents": false,
+				"skills": true, "mcp": true, "sessionExport": true, "memory": false,
+				"attachments": map[string]any{"enabled": true, "maxSizeBytes": 10 * 1024 * 1024},
+			},
+			"providers": []string{"openai", "anthropic", "moonshot"},
+			"limits":    map[string]any{"maxConcurrentRuns": 4},
+		},
+	}, nil
+}
+
+// createSession answers sessions.create — fabricates a fresh idle session
+// (CreateSessionRequest { title?, model?, metadata? } → Session, §6.2).
+func createSession(params json.RawMessage) (any, *rpcError) {
+	var in struct {
+		Title    string         `json:"title"`
+		Model    string         `json:"model"`
+		Metadata map[string]any `json:"metadata"`
+	}
+	_ = json.Unmarshal(params, &in)
+	title := in.Title
+	if title == "" {
+		title = "New session"
+	}
+	model := in.Model
+	if model == "" {
+		model = "gpt-4o"
+	}
+	md := in.Metadata
+	if md == nil {
+		md = map[string]any{}
+	}
+	now := time.Now().Format(time.RFC3339)
+	return rpcSession{
+		ID:        newID("sess"),
+		Title:     title,
+		Status:    "idle",
+		Model:     model,
+		CreatedAt: now,
+		UpdatedAt: now,
+		Metadata:  md,
+	}, nil
 }
 
 // submitApproval is the JSON-RPC counterpart of the old POST /permission.
@@ -144,16 +225,16 @@ func submitApproval(params json.RawMessage) (any, *rpcError) {
 // (API.md §6.5): no `id`, no `icon` — both are client-side presentation
 // (the frontend maps `name` → icon itself).
 type rpcMCPServer struct {
-	Name   string `json:"name"`
-	Desc   string `json:"desc"`
-	Tools  int    `json:"tools"`
-	Status string `json:"status"`
+	Name      string `json:"name"`
+	Desc      string `json:"desc"`
+	ToolCount int    `json:"toolCount"` // API.md §6.5: count only; details via workspace.mcp.tools
+	Status    string `json:"status"`
 }
 
 func mcpListLean() []rpcMCPServer {
 	out := make([]rpcMCPServer, len(mcpServers))
 	for i, s := range mcpServers {
-		out[i] = rpcMCPServer{Name: s.Name, Desc: s.Desc, Tools: s.Tools, Status: s.Status}
+		out[i] = rpcMCPServer{Name: s.Name, Desc: s.Desc, ToolCount: s.Tools, Status: s.Status}
 	}
 	return out
 }
