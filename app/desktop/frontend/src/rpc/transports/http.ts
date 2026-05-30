@@ -6,6 +6,13 @@
 //   - POST /v1/rpc/{method}   — single form, no bare /v1/rpc fallback
 //   - GET  /v1/rpc/stream     — SSE stream of inbound notifications
 //
+// The notification stream is consumed via `fetch` + a ReadableStream reader,
+// NOT the native `EventSource`. EventSource is GET-only and can't set request
+// headers, which forced the connection id into a `?conn=` query and left the
+// reconnect behaviour opaque. The fetch reader sends `Lyra-Connection-Id`
+// (+ Authorization + Last-Event-Id) as real headers — identical to the POST
+// path — and gives full control over parsing + reconnect.
+//
 // HTTP status mapping (docs/API.md §7.3):
 //   200/204     → ack received, JSON-RPC Response (if any) in body
 //   400/404/409 → JSON-RPC error envelope in body
@@ -15,6 +22,8 @@ import { createPushPullChannel } from "../channel";
 import { RpcTransportError } from "../errors";
 import type { Transport } from "../transport";
 import type { RpcMessage } from "../types";
+
+const SSE_RECONNECT_MS = 1000;
 
 export interface HttpTransportConfig {
   /** Runtime base URL, e.g. "http://127.0.0.1:17171". No trailing slash. */
@@ -27,43 +36,97 @@ export interface HttpTransportConfig {
   localToken?: string;
   /** Custom fetch impl (tests inject one). Defaults to globalThis.fetch. */
   fetch?: typeof fetch;
-  /** Custom EventSource ctor (tests inject one). Defaults to global. */
-  EventSource?: typeof EventSource;
 }
 
 export function createHttpTransport(config: HttpTransportConfig): Transport {
   const baseUrl = config.baseUrl.replace(/\/$/, "");
   const fetchImpl = config.fetch ?? globalThis.fetch.bind(globalThis);
-  const EventSourceImpl = config.EventSource ?? globalThis.EventSource;
 
   const channel = createPushPullChannel<RpcMessage>();
-  let sse: EventSource | null = null;
   let lastEventId: string | null = null;
 
   // Connection id ties this client's POSTs to its notification stream
-  // (API.md §3.2). The SSE GET carries it as a query param because the
-  // browser EventSource API can't set request headers; POSTs carry it as
-  // the Lyra-Connection-Id header. Server routes a run's notifications to
-  // the matching stream.
+  // (API.md §3.2). Sent as the `Lyra-Connection-Id` header on BOTH the POSTs
+  // and the SSE GET (plus a `?conn=` query for backends that read the query).
   const connId = crypto.randomUUID();
 
+  let sseAbort: AbortController | null = null;
+  let sseStarted = false;
+
+  function authHeaders(extra: Record<string, string>): Record<string, string> {
+    const headers: Record<string, string> = { "Lyra-Connection-Id": connId, ...extra };
+    if (config.localToken) headers.Authorization = `Bearer ${config.localToken}`;
+    if (lastEventId) headers["Last-Event-Id"] = lastEventId;
+    return headers;
+  }
+
   function openSse(): void {
-    if (sse || channel.closed) return;
-    sse = new EventSourceImpl(`${baseUrl}/v1/rpc/stream?conn=${connId}`, {
-      withCredentials: false,
-    });
-    sse.onmessage = (ev) => {
-      if (ev.lastEventId) lastEventId = ev.lastEventId;
+    if (sseStarted || channel.closed) return;
+    sseStarted = true;
+    sseAbort = new AbortController();
+    void pumpSse();
+  }
+
+  // Connect the notification stream and keep it alive across drops until the
+  // transport closes. Each connection streams `notifications/*` frames; a
+  // clean end or a network error reconnects (with Last-Event-Id resume).
+  async function pumpSse(): Promise<void> {
+    while (!channel.closed && !sseAbort?.signal.aborted) {
       try {
-        channel.push(JSON.parse(ev.data) as RpcMessage);
-      } catch {
-        // Malformed event — skip rather than tearing down the stream.
+        const res = await fetchImpl(`${baseUrl}/v1/rpc/stream?conn=${connId}`, {
+          method: "GET",
+          headers: authHeaders({ Accept: "text/event-stream" }),
+          signal: sseAbort?.signal,
+        });
+        if (!res.ok || !res.body) {
+          throw new RpcTransportError(`SSE connect failed: http ${res.status}`, res.status);
+        }
+        await readSse(res.body);
+      } catch (err) {
+        if (channel.closed || sseAbort?.signal.aborted) return;
+        console.warn("[rpc] SSE dropped, reconnecting:", (err as Error).message);
       }
-    };
-    sse.onerror = () => {
-      // Browser will auto-reconnect; nothing to do. EventSource sends
-      // Last-Event-Id on reconnect automatically.
-    };
+      if (channel.closed || sseAbort?.signal.aborted) return;
+      await delay(SSE_RECONNECT_MS);
+    }
+  }
+
+  // Read an SSE response body, splitting on frame boundaries (a blank line)
+  // and buffering across chunks so a frame split mid-stream is reassembled.
+  async function readSse(body: ReadableStream<Uint8Array>): Promise<void> {
+    const reader = body.getReader();
+    const decoder = new TextDecoder();
+    let buf = "";
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) return;
+      buf += decoder.decode(value, { stream: true });
+      const frames = buf.split(/\r\n\r\n|\n\n|\r\r/);
+      buf = frames.pop() ?? ""; // trailing partial frame stays buffered
+      for (const frame of frames) handleFrame(frame);
+    }
+  }
+
+  // Parse one SSE frame: concatenate `data:` lines, track `id:`; push the
+  // assembled JSON into the channel. `event:` / `retry:` are ignored — our
+  // notifications are unnamed `data:` frames.
+  function handleFrame(frame: string): void {
+    let data = "";
+    for (const raw of frame.split(/\r\n|\n|\r/)) {
+      if (!raw || raw.startsWith(":")) continue; // blank / comment (keepalive)
+      const colon = raw.indexOf(":");
+      const field = colon === -1 ? raw : raw.slice(0, colon);
+      let val = colon === -1 ? "" : raw.slice(colon + 1);
+      if (val.startsWith(" ")) val = val.slice(1);
+      if (field === "data") data += data ? `\n${val}` : val;
+      else if (field === "id") lastEventId = val;
+    }
+    if (!data) return;
+    try {
+      channel.push(JSON.parse(data) as RpcMessage);
+    } catch {
+      // Malformed frame — skip rather than tearing down the stream.
+    }
   }
 
   async function send(msg: RpcMessage, signal?: AbortSignal): Promise<void> {
@@ -80,18 +143,11 @@ export function createHttpTransport(config: HttpTransportConfig): Transport {
     }
     const url = `${baseUrl}/v1/rpc/${method}`;
 
-    const headers: Record<string, string> = {
-      "Content-Type": "application/json",
-      "Lyra-Connection-Id": connId,
-    };
-    if (config.localToken) headers.Authorization = `Bearer ${config.localToken}`;
-    if (lastEventId) headers["Last-Event-Id"] = lastEventId;
-
     let res: Response;
     try {
       res = await fetchImpl(url, {
         method: "POST",
-        headers,
+        headers: authHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify(msg),
         signal,
       });
@@ -127,19 +183,21 @@ export function createHttpTransport(config: HttpTransportConfig): Transport {
   }
 
   function recv(): AsyncIterable<RpcMessage> {
-    // Lazy SSE open: first recv() call triggers the connection. RpcClient
-    // typically calls recv() once and keeps the iterator forever.
+    // Lazy SSE open: first recv() call starts the notification stream.
+    // RpcClient calls recv() once and keeps the iterator forever.
     openSse();
     return channel.iterator();
   }
 
   async function close(): Promise<void> {
     channel.close();
-    if (sse) {
-      sse.close();
-      sse = null;
-    }
+    sseAbort?.abort();
+    sseAbort = null;
   }
 
   return { send, recv, close };
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }

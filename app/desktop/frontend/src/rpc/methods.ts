@@ -54,7 +54,12 @@ import type {
   UpdateMemoryRequest,
   UpdateSessionRequest,
 } from "./shapes";
-import { streamBackgroundUpdates, streamRunEvents, streamTerminalOutput } from "./stream";
+import {
+  streamBackgroundUpdates,
+  streamRunEvents,
+  streamRunEventsDeferred,
+  streamTerminalOutput,
+} from "./stream";
 
 export interface StreamingResult<R, E> {
   result: R;
@@ -177,22 +182,16 @@ export function createMethods(client: RpcClient): Methods {
     },
     runs: {
       start: async (params, signal) => {
-        // Subscribe to the event stream BEFORE issuing the call when the
-        // runId is known up front (client-supplied): the runtime starts
-        // emitting notifications/run/event the instant it handles the POST,
-        // and a subscribe-after-response would drop the leading events
-        // (RUN_STARTED), failing the consumer's event-sequence check.
-        // makeFilteredStream subscribes synchronously on construction.
-        if (params.runId) {
-          const events = streamRunEvents(client, params.runId, signal);
-          const result = await client.call<StartRunResponse>("runs.start", params, signal);
-          return { result, events };
-        }
-        // No client runId: the server assigns one, so we can only subscribe
-        // after the response (a small leading-event race the caller accepts
-        // by not supplying a runId).
+        // Subscribe to the run-event stream BEFORE issuing the POST, then bind
+        // it to the runtime-assigned runId from the response. A fast runtime
+        // emits + broadcasts the whole run the instant it handles the POST, so
+        // a subscribe-after-response would drop everything; and a client-
+        // supplied runId may be ignored, so we filter by the response's id,
+        // not ours (§3.1 / §6.3). streamRunEventsDeferred buffers until bind().
+        const stream = streamRunEventsDeferred(client, signal);
         const result = await client.call<StartRunResponse>("runs.start", params, signal);
-        return { result, events: streamRunEvents(client, result.runId, signal) };
+        stream.bind(result.runId);
+        return { result, events: stream.events };
       },
       list: (sessionId) => client.call<RunSummary[]>("runs.list", { sessionId }),
       subscribe: async (runId, signal) => {
