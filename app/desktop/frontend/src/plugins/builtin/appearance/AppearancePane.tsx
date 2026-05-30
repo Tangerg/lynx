@@ -3,8 +3,9 @@
 // state subscriptions, so AppearancePane stays free of store wiring.
 
 import { AccentSection } from "./AccentSection";
+import { CustomThemeColors } from "./CustomThemeColors";
 import { FontSection } from "./FontSection";
-import { LanguageSection, MessageStyleSection } from "./PrefSections";
+import { LanguageSection } from "./PrefSections";
 import { ShapeMotionSection } from "./ShapeMotionSection";
 import { ThemeSection } from "./ThemeSection";
 
@@ -12,10 +13,11 @@ export function AppearancePane() {
   return (
     <div>
       <ThemeSection />
+      {/* Only renders when the "Custom" theme is active. */}
+      <CustomThemeColors />
       <AccentSection />
       <FontSection />
       <ShapeMotionSection />
-      <MessageStyleSection />
       <LanguageSection />
     </div>
   );

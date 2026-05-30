@@ -140,9 +140,11 @@ export function FontSection() {
   const uiFont = useUiStore((s) => s.uiFont);
   const codeFont = useUiStore((s) => s.codeFont);
   const fontSize = useUiStore((s) => s.fontSize);
+  const fontSmoothing = useUiStore((s) => s.fontSmoothing);
   const setUiFont = useUiStore((s) => s.setUiFont);
   const setCodeFont = useUiStore((s) => s.setCodeFont);
   const setFontSize = useUiStore((s) => s.setFontSize);
+  const setFontSmoothing = useUiStore((s) => s.setFontSmoothing);
 
   return (
     <div className="grid grid-cols-[140px_1fr] items-start gap-4 py-3">
@@ -171,6 +173,16 @@ export function FontSection() {
           onChange={setFontSize}
           resetLabel={t("settings.font.default")}
         />
+        <label className="mt-1 inline-flex cursor-pointer items-center gap-2 text-[12.5px] text-fg-muted">
+          <input
+            type="checkbox"
+            aria-label={t("settings.font.smoothing")}
+            checked={fontSmoothing}
+            onChange={(e) => setFontSmoothing(e.target.checked)}
+            className="h-3.5 w-3.5 cursor-pointer accent-accent"
+          />
+          <span>{t("settings.font.smoothing")}</span>
+        </label>
       </div>
     </div>
   );

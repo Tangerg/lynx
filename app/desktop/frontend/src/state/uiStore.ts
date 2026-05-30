@@ -21,9 +21,11 @@ import { usePluginStore } from "@/plugins/sdk/registry";
 const uiPersistSchema = z.object({
   theme: z.string(),
   accent: z.string(),
+  customTheme: z.object({ accent: z.string(), bg: z.string(), fg: z.string() }),
   uiFont: z.string(),
   codeFont: z.string(),
   fontSize: z.number().nullable(),
+  fontSmoothing: z.boolean(),
   radiusScale: z.number(),
   motionScale: z.number(),
   messageStyle: z.enum(["bubble", "plain"]),
@@ -43,9 +45,23 @@ const uiPersistSchema = z.object({
  */
 export type Theme = string;
 
+/** The user's editable "custom" theme — just the three base colors. The
+ *  full palette (surface + ink + border ladders, semantic colors) is
+ *  derived from these via the custom-theme plugin (colord). Scheme is
+ *  inferred from `bg` luminance. Accent here is the custom theme's own
+ *  accent (independent of the global `accent` picker, which drives the
+ *  built-in themes). */
+export interface CustomTheme {
+  accent: string;
+  bg: string;
+  fg: string;
+}
+
 interface UiState {
   theme: Theme;
   accent: string;
+  /** Edited by the "Custom" theme pickers; applied when `theme === "custom"`. */
+  customTheme: CustomTheme;
   /** Empty string = use the bundled Geist default. Anything else overrides
    *  `--font-sans` on :root and propagates via Tailwind's `font-sans`. */
   uiFont: string;
@@ -54,6 +70,9 @@ interface UiState {
   /** Pixel font-size on <html>. Null = browser default (16px) so existing
    *  rem tokens stay calibrated. Range: 13–18 in the picker. */
   fontSize: number | null;
+  /** macOS-style font antialiasing. true → `-webkit-font-smoothing: antialiased`
+   *  (lighter strokes); false → `auto` (the OS default, heavier). */
+  fontSmoothing: boolean;
   /** Global radius multiplier — Tailwind 4 `rounded-*` utilities read
    *  `var(--radius-*)` tokens, and each token multiplies by
    *  `--radius-scale`, so any value here propagates to every corner
@@ -82,9 +101,12 @@ interface UiActions {
    */
   toggleTheme: () => void;
   setAccent: (accent: string) => void;
+  /** Patch one or more of the custom theme's base colors. */
+  setCustomTheme: (patch: Partial<CustomTheme>) => void;
   setUiFont: (font: string) => void;
   setCodeFont: (font: string) => void;
   setFontSize: (size: number | null) => void;
+  setFontSmoothing: (on: boolean) => void;
   setRadiusScale: (scale: number) => void;
   setMotionScale: (scale: number) => void;
   setMessageStyle: (style: "bubble" | "plain") => void;
@@ -96,9 +118,11 @@ export const useUiStore = create<UiState & UiActions>()(
     (set, get) => ({
       theme: "dark",
       accent: "#1ed760",
+      customTheme: { accent: "#1ed760", bg: "#0f1117", fg: "#e6e8ee" },
       uiFont: "",
       codeFont: "",
       fontSize: null,
+      fontSmoothing: true,
       radiusScale: 1,
       motionScale: 1,
       messageStyle: "bubble",
@@ -121,9 +145,11 @@ export const useUiStore = create<UiState & UiActions>()(
         if (candidates[0]) set({ theme: candidates[0].id });
       },
       setAccent: (accent) => set({ accent }),
+      setCustomTheme: (patch) => set((s) => ({ customTheme: { ...s.customTheme, ...patch } })),
       setUiFont: (uiFont) => set({ uiFont }),
       setCodeFont: (codeFont) => set({ codeFont }),
       setFontSize: (fontSize) => set({ fontSize }),
+      setFontSmoothing: (fontSmoothing) => set({ fontSmoothing }),
       setRadiusScale: (radiusScale) => set({ radiusScale }),
       setMotionScale: (motionScale) => set({ motionScale }),
       setMessageStyle: (messageStyle) => set({ messageStyle }),
@@ -132,7 +158,8 @@ export const useUiStore = create<UiState & UiActions>()(
     {
       name: "lyra.ui",
       storage: createJSONStorage(() => localStorage),
-      version: 2,
+      // v3: added customTheme (3-color custom theme) + fontSmoothing.
+      version: 3,
       merge: (persisted, current) => {
         const parsed = uiPersistSchema.safeParse(persisted);
         if (!parsed.success) {
@@ -200,9 +227,14 @@ function applyTheme(theme: Theme, accent: string) {
   }
 
   // Accent override last so the user's accent pick beats the theme's
-  // default --color-accent token. Also tracked so a theme switch clears
-  // it cleanly.
-  const c = scheme === "light" ? lookupLightVariant(accent) : accent;
+  // default --color-accent token. The custom theme carries its OWN accent
+  // (independent of the global accent picker), so it wins there.
+  const c =
+    theme === "custom"
+      ? useUiStore.getState().customTheme.accent
+      : scheme === "light"
+        ? lookupLightVariant(accent)
+        : accent;
   root.style.setProperty("--color-accent", c);
   if (!appliedTokenNames.includes("--color-accent")) {
     appliedTokenNames.push("--color-accent");
@@ -214,8 +246,16 @@ function applyTheme(theme: Theme, accent: string) {
 // font-size in px so every rem-anchored token scales proportionally.
 // (See tokens.css comment for why we DON'T set this to a rem-based
 // value — that would self-reference.)
-function applyFonts(uiFont: string, codeFont: string, fontSize: number | null) {
+function applyFonts(
+  uiFont: string,
+  codeFont: string,
+  fontSize: number | null,
+  fontSmoothing: boolean,
+) {
   const root = document.documentElement;
+  // antialiased = lighter macOS-style strokes; auto = OS default (heavier).
+  root.style.setProperty("-webkit-font-smoothing", fontSmoothing ? "antialiased" : "auto");
+  root.style.setProperty("-moz-osx-font-smoothing", fontSmoothing ? "grayscale" : "auto");
   if (uiFont) {
     root.style.setProperty("--font-sans", `"${uiFont}", "Geist", "Inter", system-ui, sans-serif`);
   } else {
@@ -258,19 +298,25 @@ function applyShape(radiusScale: number, motionScale: number) {
 {
   const s = useUiStore.getState();
   applyTheme(s.theme, s.accent);
-  applyFonts(s.uiFont, s.codeFont, s.fontSize);
+  applyFonts(s.uiFont, s.codeFont, s.fontSize, s.fontSmoothing);
   applyShape(s.radiusScale, s.motionScale);
 }
 const unsubUi = useUiStore.subscribe((state, prev) => {
-  if (state.theme !== prev.theme || state.accent !== prev.accent) {
+  if (
+    state.theme !== prev.theme ||
+    state.accent !== prev.accent ||
+    // custom theme's accent changed while it's the active theme
+    (state.theme === "custom" && state.customTheme.accent !== prev.customTheme.accent)
+  ) {
     applyTheme(state.theme, state.accent);
   }
   if (
     state.uiFont !== prev.uiFont ||
     state.codeFont !== prev.codeFont ||
-    state.fontSize !== prev.fontSize
+    state.fontSize !== prev.fontSize ||
+    state.fontSmoothing !== prev.fontSmoothing
   ) {
-    applyFonts(state.uiFont, state.codeFont, state.fontSize);
+    applyFonts(state.uiFont, state.codeFont, state.fontSize, state.fontSmoothing);
   }
   if (state.radiusScale !== prev.radiusScale || state.motionScale !== prev.motionScale) {
     applyShape(state.radiusScale, state.motionScale);

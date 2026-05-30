@@ -20,6 +20,7 @@ import {
   telemetryHandler,
 } from "./agui-handlers";
 import appearance from "./appearance";
+import personalization from "./personalization";
 import chatSearch from "./chat-search";
 import commandPalette from "./command-palette";
 import {
@@ -44,6 +45,7 @@ import {
 import bootstrap from "./bootstrap";
 import conversationExport from "./conversation-export";
 import coreReducer from "./core-reducer";
+import customTheme from "./custom-theme";
 import {
   defaultAccents,
   defaultCommands,
@@ -131,6 +133,7 @@ const infrastructure: PluginSpec[] = [
   defaultTitle,
   defaultAccents,
   ...builtinThemes,
+  customTheme,
   // Locale packs — each language is its own plugin so a third-party
   // can ship Vietnamese / Arabic / ... without touching the kernel.
   // English isn't strictly needed here (its bundle is bootstrapped by
@@ -189,6 +192,7 @@ const composer: PluginSpec[] = [
 // ---------------------------------------------------------------------------
 const panes: PluginSpec[] = [
   appearance,
+  personalization,
   connectionSettings,
   pluginsPane,
   diffView,
