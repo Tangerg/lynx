@@ -43,7 +43,7 @@ describe("RpcClient", () => {
   it("notify() sends a Notification with no id", async () => {
     const t = createMemoryTransport();
     const client = createRpcClient(t);
-    await client.notify("notifications/canceled", { requestId: 5 });
+    await client.notify("notifications/canceled", { id: "5" });
     const sent = t.outbox()[0];
     expect(sent).toBeDefined();
     expect("id" in (sent as object)).toBe(false);
@@ -111,8 +111,10 @@ describe("RpcClient", () => {
     await expect(promise).rejects.toBeInstanceOf(RpcTransportError);
     // Last sent message should be the cancel notification.
     const sent = t.outbox();
-    const cancelMsg = sent[sent.length - 1] as { method: string; params: { requestId: number } };
+    const cancelMsg = sent[sent.length - 1] as { method: string; params: { id: string } };
     expect(cancelMsg.method).toBe("notifications/canceled");
+    // Cancel targets the in-flight Request by its envelope `id` (a string).
+    expect(typeof cancelMsg.params.id).toBe("string");
     await client.close();
   });
 

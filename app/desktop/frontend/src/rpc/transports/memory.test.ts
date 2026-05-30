@@ -5,7 +5,7 @@ import { createMemoryTransport } from "./memory";
 describe("MemoryTransport", () => {
   it("captures sent messages in outbox", async () => {
     const t = createMemoryTransport();
-    await t.send({ jsonrpc: JSONRPC_VERSION, id: 1, method: "runtime.ping" });
+    await t.send({ jsonrpc: JSONRPC_VERSION, id: "1", method: "runtime.ping" });
     expect(t.outbox()).toHaveLength(1);
     expect((t.outbox()[0] as { method: string }).method).toBe("runtime.ping");
   });
