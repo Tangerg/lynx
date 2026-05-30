@@ -1,9 +1,10 @@
 // AgentClientPage — the kernel layout.
 //
-// VS Code-inspired regions: left sidebar + center main area + bottom
-// status bar + global overlay. Each region is a named Slot whose body
-// comes from plugin contributions; this file owns no functional code,
-// only the grid.
+// VS Code-inspired regions: left sidebar + center main area + global
+// overlay. Each region is a named Slot whose body comes from plugin
+// contributions; this file owns no functional code, only the grid.
+// (Run telemetry lives in the composer footer, global indicators in the
+// sidebar footer — there is no bottom status bar.)
 
 import { Slot } from "@/plugins/Slot";
 import { useUiStore } from "@/state/uiStore";
@@ -28,12 +29,6 @@ export function AgentClientPage() {
           <Slot name="app.main" />
         </main>
       </div>
-      {/* `<output>` carries implicit role="status"; `aria-live="polite"`
-          means SR users hear telemetry updates (run state, tokens, branch)
-          when they change, without interruption. */}
-      <output className="app-statusbar" aria-live="polite">
-        <Slot name="app.statusbar" />
-      </output>
       <Slot name="app.overlay" />
     </div>
   );

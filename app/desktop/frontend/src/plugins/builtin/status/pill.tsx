@@ -1,20 +1,19 @@
-// Built-in plugin: status-bar items. Direction 2 — Bloomberg-style data
-// density. Run state on the left with a ticking live dot; tokens / cost
-// pinned right with mono numbers + a token sparkline tracking how usage
-// has grown across the current run.
+// Built-in plugin: run telemetry chips for the composer footer's right
+// side. Bloomberg-style data density — run state with a ticking live dot,
+// tokens / cost with mono numbers + a token sparkline tracking how usage
+// has grown across the current run. Registered with `align: "end"` so
+// they pin to the right of the session-context chips.
 //
-// Each pill component now owns its visual treatment via Tailwind utility
-// classes (P6.4 migration). The shared "inline-flex + gap + nowrap"
-// status-bar pill shape is captured by the `pill` helper below — one
-// internal abstraction to avoid restating the same 4 utilities at every
-// pill site.
+// Each chip owns its visual treatment via Tailwind utility classes. The
+// shared "inline-flex + gap + nowrap" pill shape is captured by the
+// `pill` helper below — one internal abstraction to avoid restating the
+// same utilities at every site.
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Icon, Sparkline, StatusDot, Tooltip } from "@/components/common";
 import { cn } from "@/lib/utils";
 import { definePlugin } from "@/plugins/sdk";
 import { useAgentAction, useAgentSlice } from "@/state/agentStore";
-import { openTimelineView } from "@/state/deeplinks";
 
 // One slot in the status bar. All callers use the same shape:
 // inline-flex row, 5px gap, no-wrap, tabular-numeric so digits don't
@@ -90,49 +89,6 @@ function RunState() {
       )}
     </span>
   );
-}
-
-// Branch indicator. Currently a static "main" placeholder — wiring a
-// real git branch needs a Go-side gateway (the renderer can't shell
-// out). Until that lands, the chip exists so the slot is reserved and
-// the visual density is honest.
-function Branch() {
-  return (
-    <Tooltip label="Git branch (placeholder)">
-      <span className={pill()}>
-        <Icon name="branch" size={10} className="text-fg-faint" />
-        <span className="font-mono">main</span>
-      </span>
-    </Tooltip>
-  );
-}
-
-// RunId — 8-char prefix of the active run's id. Mono + tnum so the
-// glyphs line up. Becomes "—" between runs. Clickable → opens the
-// Timeline workspace view so users can audit what the run did.
-function RunId() {
-  const runId = useAgentSlice((v) => v.run.runId);
-  const short = runId ? runId.slice(0, 8) : "—";
-  return (
-    <Tooltip label={runId ? `Run: ${runId} · open timeline` : "Open timeline"}>
-      <button
-        type="button"
-        onClick={openTimelineView}
-        aria-label="Open timeline"
-        className={cn(
-          pill(),
-          "rounded-xs border-0 bg-transparent px-1 cursor-pointer transition-colors hover:bg-surface-2 hover:text-fg",
-        )}
-      >
-        <span className="text-fg-faint">run</span>
-        <span className="font-mono">{short}</span>
-      </button>
-    </Tooltip>
-  );
-}
-
-function Spacer() {
-  return <span className="flex-1" />;
 }
 
 function Tokens() {
@@ -262,12 +218,16 @@ export const statusPill = definePlugin({
   name: "lyra.builtin.status-pill",
   version: "1.0.0",
   setup({ host }) {
-    host.layout.register("app.statusbar", { id: "run", order: 0, component: RunState });
-    host.layout.register("app.statusbar", { id: "branch", order: 10, component: Branch });
-    host.layout.register("app.statusbar", { id: "runid", order: 20, component: RunId });
-    host.layout.register("app.statusbar", { id: "spacer", order: 100, component: Spacer });
-    host.layout.register("app.statusbar", { id: "token-rate", order: 190, component: TokenRate });
-    host.layout.register("app.statusbar", { id: "tokens", order: 200, component: Tokens });
-    host.layout.register("app.statusbar", { id: "cost", order: 210, component: Cost });
+    // align: "end" → right cluster of the composer footer, after the
+    // session-context chips (project / mode / branch).
+    host.composer.registerStatus({ id: "run", order: 90, align: "end", component: RunState });
+    host.composer.registerStatus({
+      id: "token-rate",
+      order: 91,
+      align: "end",
+      component: TokenRate,
+    });
+    host.composer.registerStatus({ id: "tokens", order: 92, align: "end", component: Tokens });
+    host.composer.registerStatus({ id: "cost", order: 93, align: "end", component: Cost });
   },
 });

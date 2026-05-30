@@ -47,10 +47,10 @@ html.theme-light {
 }
 
 /* Kernel grid — cards-on-canvas: .app paints the canvas, .app-main
-   pads it so panels read as lifted cards, statusbar sits flush. */
+   pads it so panels read as lifted cards. */
 .app {
   display: grid;
-  grid-template-rows: 1fr 24px;
+  grid-template-rows: 1fr;
   height: 100vh;
   min-width: var(--app-min-width);
   min-height: var(--app-min-height);
@@ -60,10 +60,9 @@ html.theme-light {
 .app-main {
   display: grid;
   grid-template-columns: 248px minmax(0, 1fr);
-  /* Gap + padding expose the canvas around lifted panels on ALL four
-     sides — including bottom, so the statusbar reads as floating below
-     the panel rather than glued to its base. The 8px value matches
-     --radius-md so corners and gutters rhyme. */
+  /* Gap + padding expose the canvas around lifted panels on all four
+     sides. The 8px value matches --radius-md so corners and gutters
+     rhyme. */
   gap: 8px;
   padding: 8px;
   min-height: 0;
@@ -71,33 +70,6 @@ html.theme-light {
 
 .app.rail .app-main {
   grid-template-columns: 56px minmax(0, 1fr);
-}
-
-/* Status bar — slim horizontal strip flush at the bottom. Sits on the
-   outer canvas (matches .app background) so the bottom edge of the
-   window reads as part of the frame. */
-.app-statusbar {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 0 12px;
-  min-height: 0;
-  font-size: 11px;
-  color: var(--color-text-muted);
-  background: var(--color-bg);
-}
-
-/* Light-theme bar polish + sparkline desaturation. Sparkline reads as a
-   faint trace on light, fully-coloured on dark. */
-html.theme-light .app-statusbar {
-  background: var(--color-surface);
-  color: var(--color-text-muted);
-}
-html.theme-light .app-statusbar svg polyline {
-  stroke-opacity: 0.55;
-}
-html.theme-light .app-statusbar svg polygon {
-  fill-opacity: 0.1;
 }
 
 /* Running tool card border — full accent gradient is too loud on white;
