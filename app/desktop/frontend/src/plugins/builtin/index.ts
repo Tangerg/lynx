@@ -41,6 +41,7 @@ import {
   reasoningBlock,
   searchBlock,
 } from "./content-blocks";
+import bootstrap from "./bootstrap";
 import conversationExport from "./conversation-export";
 import coreReducer from "./core-reducer";
 import {
@@ -121,6 +122,9 @@ const protocol: PluginSpec[] = [
 // ---------------------------------------------------------------------------
 const infrastructure: PluginSpec[] = [
   defaultConfig,
+  // bootstrap after defaultConfig so api.localToken is set before the
+  // handshake builds the RpcClient (INTEGRATION.md §2).
+  bootstrap,
   defaultData,
   httpAgent,
   rpcAgent,
