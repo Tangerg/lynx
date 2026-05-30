@@ -344,6 +344,10 @@ server→client request。
 - 流式方法名以 `.start` / `.subscribe` 结尾
 - **点在 method 名里有语义、永远保留**：HTTP 上 `runs.start` → `/v1/rpc/runs.start`，
   **严禁斜杠化**（`/v1/rpc/runs/start` 会跟 REST 混淆、引诱 REST shadow 蔓延）
+- **`workspace.*` 只读查询豁免 verb**：`filesChanged` / `diff` / `grep` / `fileHead`
+  / `projects` / `skills` / `agentDocs` 用 **资源名**作 method（"取某资源"的快捷读，
+  对标 `git diff` / `git grep` 的命令命名），不强加 `list`/`get` 前缀。带副作用的
+  workspace 方法仍用 verb（`selectProject` / `mcp.reconnect`）。
 
 > **参数 / 结果的类型名**遵循 §8.1 的 `<Verb><Noun>Request` / `Response` 规则
 > （与后端 Go SSOT 对齐）。
@@ -391,8 +395,10 @@ server→client request。
 | `workspace.terminal.subscribe` | `Stream<{runId}, TerminalOutput>` | `{ runId }`；输出经 `notifications/terminal/output`（params=`TerminalOutput`，§6.5） |
 | `workspace.projects` | `Project[]` | — （`Project.active` 标当前 active） |
 | `workspace.selectProject` | `void` | `{ id }` —— 切换 active project（影响后续所有 `workspace.*` 读方法） |
-| `workspace.mcp.list` | `MCPServer[]` | — |
+| `workspace.mcp.list` | `MCPServer[]` | — （`MCPServer.toolCount` 给数量；详情用下方 mcp.tools） |
+| `workspace.mcp.tools` | `ToolSpec[]` | `{ name }` —— 展开某 MCP server 的具体工具（list 页只给数量，详情按需拉） |
 | `workspace.mcp.reconnect` | `void` | `{ name }` —— MCP 原生 name 作唯一标识 |
+| `workspace.agentDocs` | `AgentDoc[]` | — —— 级联发现的 AGENTS.md **正文**（sidecar `/v1/info` 只给 path+size，业务读取走这里） |
 | `workspace.skills` | `Skill[]` | — |
 
 > **Project 维度**：`workspace.diff/grep/fileHead/filesChanged` 不带 `projectId`，
@@ -403,8 +409,14 @@ server→client request。
 | **Providers / Models / Tools** | | |
 | `providers.list` | `Provider[]` | — |
 | `providers.test` | `ProviderTestResult` | `{ id }` |
+| `providers.configure` | `Provider` | `ConfigureProviderRequest { id, apiKey?, baseUrl? }` —— 配置 provider 凭据/端点（返更新后的 `Provider`，`hasApiKey` 反映结果）。配置 ≠ 鉴权，是 Runtime 的 provider 管理 |
 | `models.list` | `Model[]` | `{ provider? }` |
 | `tools.list` | `ToolSpec[]` | — |
+| `tools.invoke` | `InvokeToolResponse { output }` | `InvokeToolRequest { name, arguments }` —— 不经 LLM 直接调一个工具（诊断 / 工作流） |
+| **Memory**（LYRA.md 长期记忆） | | |
+| `memory.list` | `MemoryEntry[]` | — —— 所有 scope（天然有界） |
+| `memory.get` | `GetMemoryResponse { scope, content }` | `GetMemoryRequest { scope }` |
+| `memory.update` | `void` | `UpdateMemoryRequest { scope, content }` —— `features.memory=false`（如 SQLite 模式）时返 `-32009` |
 | **Attachments** | | |
 | `attachments.createUploadUrl` | `CreateUploadURLResponse` | `CreateUploadURLRequest { filename, mime, size }`；走 §5.4 binary 通道 |
 | `attachments.delete` | `void` | `{ id }` |
@@ -472,6 +484,9 @@ interface ClientCapabilities {
 }
 ```
 
+> ServerCapabilities.features 另有 `memory?: boolean` —— 为 `false` 时 LYRA.md
+> 不可写（如 SQLite 模式），`memory.update` 返 `-32009`（§5.2）。
+
 未声明的 feature 默认 `false`。Server **必须不发** client 没声明能渲染的事件
 （但 client 必须忽略未知字段以保前向兼容，§8.2）。
 
@@ -496,6 +511,7 @@ interface Session {
   metadata: Record<string, unknown>;  // 任意 JSON，不约束 string-only
   pinned?: boolean;
   archived?: boolean;
+  usage?: Usage;                 // 本 session 累计用量/成本（§6.3）；list 可省、get 可带
 }
 
 interface Message {
@@ -503,6 +519,7 @@ interface Message {
   sessionId: string;
   role: "user" | "assistant" | "system" | "tool" | "developer";
   content?: string;
+  attachments?: string[];        // attachmentId[]，回放多模态历史消息（multimodal）
   toolCalls?: ToolCall[];
   toolCallId?: string;
   createdAt: string;
@@ -519,6 +536,7 @@ interface ToolSpec {
   description?: string;
   parameters: JsonSchema;
   origin: "server" | "client" | "mcp";
+  safetyClass?: string;          // 危险度标记（前端标红/需审批用），对齐后端 Tool.SafetyClass
   // 服务端可选附加字段；客户端忽略未知字段（前向兼容）
 }
 
@@ -558,6 +576,16 @@ interface StartRunRequest {
   attachments?: string[];        // attachmentId（来自 createUploadUrl）
   maxTurns?: number;             // 工具循环轮数上限；触顶 → stopReason="max_turns"
   maxBudgetUsd?: number;         // 成本上限（含子 agent subtree）；触顶 → stopReason="max_budget"
+  params?: GenerationParams;     // 生成调参（高级设置）
+}
+
+// LLM 生成参数（对齐后端 chat.Options）。收进子对象而非平铺顶层。
+interface GenerationParams {
+  temperature?: number;
+  maxTokens?: number;            // chat.Options.MaxTokens
+  maxOutputTokens?: number;      // chat.Options.MaxOutputTokens
+  topP?: number;
+  stop?: string[];
 }
 
 interface StartRunResponse { runId: string }   // notifications/run/event 用此 id 关联
@@ -628,9 +656,12 @@ interface Project { id: string; name: string; branch: string; active?: boolean }
 
 // MCP server —— `name` 是 MCP 协议原生唯一标识（如 "filesystem" / "github"）。
 // 不带 id / displayName / icon（UI presentation 不进 wire，客户端按 name 映射图标）。
-interface MCPServer { name: string; desc: string; tools: number; status: "active" | "idle" | "error" }
+// `toolCount` 只给数量（list 页用）；具体工具走 workspace.mcp.tools（§5.2）。
+interface MCPServer { name: string; desc: string; toolCount: number; status: "active" | "idle" | "error" }
 
 interface Skill { id: string; name: string; description: string }
+
+interface AgentDoc { path: string; content: string }   // workspace.agentDocs（AGENTS.md 正文）
 ```
 
 ### 6.6 Provider / Model
@@ -638,7 +669,19 @@ interface Skill { id: string; name: string; description: string }
 ```ts
 interface Provider { id: string; type: string; baseUrl?: string; hasApiKey: boolean /* 仅 boolean，不暴露 key */ }
 interface ProviderTestResult { ok: boolean; detail?: string }
-interface Model { id: string; provider: string; contextWindow?: number; description?: string }
+// providers.configure 参数；返更新后的 Provider
+interface ConfigureProviderRequest { id: string; apiKey?: string; baseUrl?: string }
+
+interface Model {
+  id: string;
+  provider: string;
+  contextWindow?: number;
+  description?: string;
+  // 来自 model catalog（纯投影，全可选）：
+  maxOutputTokens?: number;
+  pricing?: { inputPerMTokens: number; outputPerMTokens: number; cacheReadPerMTokens?: number; cacheWritePerMTokens?: number };
+  capabilities?: { tools?: boolean; vision?: boolean; reasoning?: boolean };
+}
 ```
 
 ### 6.7 Background
@@ -739,6 +782,20 @@ runId 全局唯一，refId 自包含可定位。
   `-32011` 或排队，实现自选，但**协议层语义是串行**）。
 - `capabilities.limits.maxConcurrentRuns`（§6.1）是 **runtime 全局**（跨 session）
   的并发 run 上限，不是单 session 内的。
+
+### 6.12 Memory / Tool 直接调用
+
+```ts
+type MemoryScope = "project" | "user";   // project=<cwd>/LYRA.md / user=~/.lyra/LYRA.md
+interface MemoryEntry { scope: MemoryScope; content: string; capturedAt: string /* ISO-8601 */ }
+interface GetMemoryRequest    { scope: MemoryScope }
+interface GetMemoryResponse   { scope: MemoryScope; content: string }
+interface UpdateMemoryRequest { scope: MemoryScope; content: string }
+
+// tools.invoke —— 不经 LLM 直接调一个工具
+interface InvokeToolRequest  { name: string; arguments: string /* JSON-encoded，同 ToolCall.arguments */ }
+interface InvokeToolResponse { output: string }
+```
 
 ---
 
@@ -932,7 +989,7 @@ lyra_rpc_duration_seconds{method="runs.start"}
 lyra_rpc_bytes_{in,out}_total{method="runs.start"}
 ```
 
-`method` 是有界 cardinality（~34 method + ~4 notification）；`error_code="0"`
+`method` 是有界 cardinality（~42 method + ~4 notification）；`error_code="0"`
 表成功（即使有 JSON-RPC error，HTTP 仍是 200）。
 
 ### 10.5 Trace correlation
@@ -957,6 +1014,9 @@ access log / metric。
   rewind 模型未定（Runtime capability 暂标 false）。先定 rewind 语义。
 - **mid-turn steering**（`lyra.interrupt` / `lyra.resume`）：当前 steering 落到下一
   轮，非当前轮中断注入。需先定事件 + 方法形状。
+- **Terminal 是否交互**：`workspace.terminal.subscribe` 当前只读（收 agent 命令
+  输出）。若要做**交互式终端**（用户敲命令）则补 `workspace.terminal.input
+  { runId, data }`；若只展示则现状够。待产品定位。
 - **高频 delta 流控**：`TEXT_MESSAGE_CONTENT` / `TOOL_CALL_ARGS` ~30 条/秒；是否需
   可选 coalescing。当前 SSE 够用，暂不做。
 - **`models.list` 缓存**：provider 返的 model list 不便宜，是否 Runtime 缓存 1h。
