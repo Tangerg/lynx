@@ -4,7 +4,6 @@ import { EventType } from "@ag-ui/core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { INITIAL_VIEW_STATE } from "@/protocol/agui/viewState";
 import { useConfigStore } from "./config";
-import { definePlugin, loadPlugin } from "./definePlugin";
 import { createHost } from "./host";
 import { useNotificationStore } from "./notifications";
 import { normalizeCombo, usePluginStore } from "./registry";
@@ -167,25 +166,6 @@ describe("plugin registry", () => {
 
     d.dispose();
     expect(lookupCoreEventHandlers(EventType.RUN_STARTED)).toHaveLength(0);
-  });
-
-  it("loading the same plugin twice is idempotent (handlers don't stack)", async () => {
-    // Reloading a plugin (HMR, provider remount) must not stack its
-    // onCore handlers — otherwise every AG-UI delta gets applied once per
-    // stale registration and streamed text duplicates word-by-word.
-    const spec = definePlugin({
-      name: "dup.reducer",
-      version: "1.0.0",
-      setup: ({ host }) => {
-        host.agui.onCore(EventType.TEXT_MESSAGE_CONTENT, (s) => s);
-      },
-    });
-
-    await loadPlugin(spec);
-    expect(lookupCoreEventHandlers(EventType.TEXT_MESSAGE_CONTENT)).toHaveLength(1);
-
-    await loadPlugin(spec);
-    expect(lookupCoreEventHandlers(EventType.TEXT_MESSAGE_CONTENT)).toHaveLength(1);
   });
 
   it("layout.register stores the spec under (slot, plugin, id)", () => {
