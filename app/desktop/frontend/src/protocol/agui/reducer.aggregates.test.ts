@@ -69,7 +69,8 @@ describe("reducer — timeline accumulator", () => {
       ev({
         type: EventType.CUSTOM,
         name: CUSTOM.APPROVAL_RESULT,
-        value: { requestId: "req-1", decision: "approved" },
+        // Wire value is the imperative pair (§6.9); handler maps to view vocab.
+        value: { requestId: "req-1", decision: "approve" },
       }),
     );
 

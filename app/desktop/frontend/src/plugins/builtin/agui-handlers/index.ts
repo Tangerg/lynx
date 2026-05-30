@@ -25,6 +25,13 @@ import {
   withSchema,
 } from "@/protocol/agui/schemas";
 
+// Wire ↔ view vocab. The protocol uses the imperative pair (§4.3); the
+// view layer + ApprovalCard speak past-tense (mirrors useApprovalSubmit).
+const VIEW_DECISION = { approve: "approved", deny: "declined" } as const;
+const KNOWN_RISK = new Set(["low", "medium", "high"]);
+const narrowRisk = (r: string | undefined): "low" | "medium" | "high" | undefined =>
+  r !== undefined && KNOWN_RISK.has(r) ? (r as "low" | "medium" | "high") : undefined;
+
 export const approvalHandler = definePlugin({
   name: "lyra.builtin.approval-handler",
   version: "1.0.0",
@@ -41,10 +48,12 @@ export const approvalHandler = definePlugin({
             kind: "approval",
             status: "requires-action",
             text: value.text,
-            command: value.command,
-            reason: value.reason,
+            // command / reason are optional on the wire (§6.9); block fields
+            // are required strings, so default to empty.
+            command: value.command ?? "",
+            reason: value.reason ?? "",
             requestId: value.requestId,
-            risk: value.risk,
+            risk: narrowRisk(value.risk),
             scope: value.scope,
             target: value.target,
             reversible: value.reversible,
@@ -72,7 +81,7 @@ export const approvalHandler = definePlugin({
               ...m,
               blocks: m.blocks.map((b) =>
                 b.kind === "approval" && b.requestId === value.requestId
-                  ? { ...b, status: "complete", decision: value.decision }
+                  ? { ...b, status: "complete", decision: VIEW_DECISION[value.decision] }
                   : b,
               ),
             })),
@@ -80,7 +89,7 @@ export const approvalHandler = definePlugin({
           appendTimelineEntry({
             kind: "approval-result",
             refId: value.requestId,
-            status: value.decision,
+            status: VIEW_DECISION[value.decision],
           }),
         ),
       ),
