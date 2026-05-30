@@ -21,9 +21,16 @@ type AgUiEvent = aguievents.Event
 // notification carries the same resource id the StartRun result
 // returned.
 type RunEvent struct {
-	RunID   string          `json:"runId"`
-	EventID string          `json:"eventId"`
-	Event   json.RawMessage `json:"event"`
+	RunID   string `json:"runId"`
+	EventID string `json:"eventId"`
+	// Ts is the server-authoritative timestamp (ISO-8601), present on
+	// every event (API.md §3.1).
+	Ts string `json:"ts"`
+	// ParentToolUseID attributes the event to a sub-agent derived from a
+	// tool-use; empty = main agent's event. Reserved until sub-agents
+	// surface their own event source (API.md §3.1).
+	ParentToolUseID string          `json:"parentToolUseId,omitempty"`
+	Event           json.RawMessage `json:"event"`
 }
 
 // RunMode is the optional execution mode hint (API.md §6.3).
