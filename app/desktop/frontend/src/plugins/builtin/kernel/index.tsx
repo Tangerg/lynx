@@ -8,7 +8,7 @@ import { useMemo } from "react";
 import { ChatPanel } from "@/components/chat/ChatPanel";
 import { SettingsPage } from "@/components/settings/SettingsPage";
 import { SidebarPanel } from "@/components/sidebar/SidebarPanel";
-import { useCreateSession } from "@/lib/agent/useCreateSession";
+import { useChatSend } from "@/lib/agent/useChatSend";
 import { useSessions } from "@/lib/data/queries";
 import { definePlugin } from "@/plugins/sdk";
 import { useSessionStore } from "@/state/sessionStore";
@@ -16,17 +16,11 @@ import { useUiStore } from "@/state/uiStore";
 import { useDefaultChatSession } from "@/state/useDefaultChatSession";
 
 function KernelChat() {
-  const session = useDefaultChatSession();
-  const createSession = useCreateSession();
-  // Clearing the textarea after submit is owned by `submitComposer`. Here we
-  // route the message: into the live session if one is active, otherwise
-  // spin up a draft session and queue the text (welcome-screen first send →
-  // the chat remounts on the new id and flushes it).
-  const handleSend = (text: string) => {
-    if (useSessionStore.getState().activeSessionId) session.send(text);
-    else void createSession(text);
-  };
-  return <ChatPanel onSend={handleSend} />;
+  // Mount the active session's agent lifecycle (subscribe + register the
+  // send/stop actions); the send routing itself goes through useChatSend.
+  useDefaultChatSession();
+  const send = useChatSend();
+  return <ChatPanel onSend={send} />;
 }
 
 function KernelSidebar() {

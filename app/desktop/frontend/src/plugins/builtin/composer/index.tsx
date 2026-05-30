@@ -11,10 +11,11 @@ import * as Popover from "@radix-ui/react-popover";
 import * as React from "react";
 import { submitComposer } from "@/components/chat/submitComposer";
 import { Icon, Tooltip } from "@/components/common";
+import { useChatSend } from "@/lib/agent/useChatSend";
 import { useSessions } from "@/lib/data/queries";
 import { cn } from "@/lib/utils";
 import { definePlugin, useCommands } from "@/plugins/sdk";
-import { useAgentAction } from "@/state/agentStore";
+import { useAgentAction, useAgentSlice } from "@/state/agentStore";
 import { useComposerStore } from "@/state/composerStore";
 import { useSessionStore } from "@/state/sessionStore";
 
@@ -273,13 +274,31 @@ export const composerHint = definePlugin({
 function SendButton() {
   const value = useComposerStore((s) => s.value);
   const clear = useComposerStore((s) => s.clear);
-  const send = useAgentAction("send");
+  const send = useChatSend();
+  const stop = useAgentAction("stop");
+  // While a run is streaming, the send affordance becomes a stop button —
+  // one active run per session (§6.11), so there's nothing to send mid-run.
+  const running = useAgentSlice((v) => v.run.running);
 
-  const disabled = !value.trim() || !send;
-  const onClick = () => {
-    if (!send) return;
-    submitComposer({ value, clear, sendText: send });
-  };
+  if (running) {
+    return (
+      <Tooltip label="Stop (Esc)">
+        <button
+          type="button"
+          disabled={!stop}
+          onClick={() => stop?.()}
+          className="grid h-8 w-8 shrink-0 place-items-center rounded-full border-0 cursor-pointer bg-surface-3 text-fg transition-transform duration-150 hover:scale-105 active:scale-95"
+        >
+          <Icon name="stop" size={13} />
+        </button>
+      </Tooltip>
+    );
+  }
+
+  // Enabled whenever there's text — with no active session, send spins up a
+  // draft (useChatSend), so the button works on the welcome screen too.
+  const disabled = !value.trim();
+  const onClick = () => submitComposer({ value, clear, sendText: send });
 
   return (
     <Tooltip label="Send (⌘↵)">
