@@ -61,19 +61,19 @@ export interface ServerCapabilities {
   };
 }
 
-export interface InitializeParams {
+export interface InitializeRequest {
   protocolVersion: string;
   clientInfo: { name: string; version: string };
   capabilities: ClientCapabilities;
 }
 
-export interface InitializeResult {
+export interface InitializeResponse {
   protocolVersion: string;
   serverInfo: { name: string; version: string };
   capabilities: ServerCapabilities;
 }
 
-export interface ShutdownParams {
+export interface ShutdownRequest {
   reason?: string;
 }
 
@@ -96,13 +96,13 @@ export interface Session {
   archived?: boolean;
 }
 
-export interface CreateSessionInput {
+export interface CreateSessionRequest {
   title?: string;
   model?: string;
   metadata?: Record<string, unknown>;
 }
 
-export interface SessionPatch {
+export interface UpdateSessionRequest {
   title?: string;
   pinned?: boolean;
   archived?: boolean;
@@ -132,7 +132,7 @@ export interface Message {
   metadata?: Record<string, unknown>;
 }
 
-export interface MessageEditResult {
+export interface EditMessageResponse {
   runId: RunId;
   checkpoint: string;
 }
@@ -160,7 +160,7 @@ export type ContextItem =
   | { kind: "selection"; path: string; range: [number, number] }
   | { kind: "image"; attachmentId: AttachmentId };
 
-export interface StartRunParams {
+export interface StartRunRequest {
   sessionId: SessionId;
   runId?: RunId;
   messages: Message[];
@@ -172,13 +172,13 @@ export interface StartRunParams {
   attachments?: AttachmentId[];
 }
 
-export interface StartRunResult {
+export interface StartRunResponse {
   runId: RunId; // Unique id; notifications/run/event uses this for stream filtering
 }
 
 export type ApprovalDecision = "approve" | "deny";
 
-export interface ApprovalSubmission {
+export interface SubmitApprovalRequest {
   requestId: ApprovalRequestId;
   decision: ApprovalDecision;
   reason?: string;
@@ -277,13 +277,13 @@ export interface Model {
 // Attachments
 // ---------------------------------------------------------------------------
 
-export interface CreateUploadUrlInput {
+export interface CreateUploadURLRequest {
   filename: string;
   mime: string;
   size: number;
 }
 
-export interface CreateUploadUrlResult {
+export interface CreateUploadURLResponse {
   uploadUrl: string;
   attachmentId: AttachmentId;
   expiresAt: string;
@@ -331,7 +331,7 @@ export interface Page<T> {
 
 export type FeedbackKind = "thumbs-up" | "thumbs-down" | "note" | "bookmark";
 
-export interface FeedbackInput {
+export interface FeedbackRequest {
   kind: FeedbackKind;
   refId: string;
   value?: string;
