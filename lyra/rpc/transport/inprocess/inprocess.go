@@ -106,13 +106,7 @@ func (t *Transport) pumpStream(ctx context.Context, runID string, events <-chan 
 		select {
 		case ev, ok := <-events:
 			if !ok {
-				result := protocol.RunResult{StopReason: "completed"}
-				if results != nil {
-					if r, rok := <-results; rok {
-						result = r
-					}
-				}
-				closedMsg, _ := dispatch.EncodeRunClosed(runID, result)
+				closedMsg, _ := dispatch.EncodeRunClosedFrom(runID, results)
 				t.tryEmit(closedMsg)
 				return
 			}

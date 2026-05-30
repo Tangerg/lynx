@@ -41,3 +41,18 @@ func EncodeRunClosed(runID string, result protocol.RunResult) (transport.Message
 		Result protocol.RunResult `json:"result"`
 	}{RunID: runID, Result: result})
 }
+
+// EncodeRunClosedFrom reads the single terminal RunResult from results
+// (defaulting to a completed result when results is nil or already
+// closed) and encodes notifications/run/closed. Shared by every
+// transport's stream pump so the drain-terminal-and-default logic lives
+// in one place, not copied per transport.
+func EncodeRunClosedFrom(runID string, results <-chan protocol.RunResult) (transport.Message, error) {
+	result := protocol.RunResult{StopReason: "completed"}
+	if results != nil {
+		if r, ok := <-results; ok {
+			result = r
+		}
+	}
+	return EncodeRunClosed(runID, result)
+}

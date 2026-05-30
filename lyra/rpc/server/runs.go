@@ -143,20 +143,25 @@ func turnEndToRunResult(e chat.TurnEnd) protocol.RunResult {
 	if len(e.UsageByModel) > 0 {
 		u.ByModel = make(map[string]protocol.ModelUsage, len(e.UsageByModel))
 		for _, m := range e.UsageByModel {
-			mu := protocol.ModelUsage{InputTokens: m.PromptTokens, OutputTokens: m.CompletionTokens}
-			if m.CostUSD > 0 {
-				c := m.CostUSD
-				mu.CostUSD = &c
+			u.ByModel[m.Model] = protocol.ModelUsage{
+				InputTokens:  m.PromptTokens,
+				OutputTokens: m.CompletionTokens,
+				CostUSD:      optCostUSD(m.CostUSD),
 			}
-			u.ByModel[m.Model] = mu
 		}
 	}
 	res.Usage = u
-	if e.CostUSD > 0 {
-		c := e.CostUSD
-		res.CostUSD = &c
-	}
+	res.CostUSD = optCostUSD(e.CostUSD)
 	return res
+}
+
+// optCostUSD returns &c when a pricing hook produced a real figure
+// (c > 0), else nil — API.md §6.3 omits cost rather than faking 0.
+func optCostUSD(c float64) *float64 {
+	if c > 0 {
+		return &c
+	}
+	return nil
 }
 
 func stopReasonToWire(r chat.TurnEndReason) string {

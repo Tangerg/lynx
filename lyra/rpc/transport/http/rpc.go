@@ -129,13 +129,7 @@ func (s *Server) attachStream(ctx context.Context, runID string, events <-chan p
 			select {
 			case ev, ok := <-events:
 				if !ok {
-					result := protocol.RunResult{StopReason: "completed"}
-					if results != nil {
-						if r, rok := <-results; rok {
-							result = r
-						}
-					}
-					closed, err := dispatch.EncodeRunClosed(runID, result)
+					closed, err := dispatch.EncodeRunClosedFrom(runID, results)
 					if err != nil {
 						recordError(ctx, "rpc.encode-run-closed", err,
 							attribute.String("lynx.lyra.run_id", runID),
