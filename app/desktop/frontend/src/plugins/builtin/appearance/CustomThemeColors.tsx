@@ -5,6 +5,7 @@
 
 import { useT } from "@/lib/i18n";
 import { useUiStore } from "@/state/uiStore";
+import { SettingRow } from "./SettingRow";
 
 function ColorRow({
   label,
@@ -47,11 +48,11 @@ export function CustomThemeColors() {
   if (theme !== "custom") return null;
 
   return (
-    <div className="grid grid-cols-[140px_1fr] items-start gap-4 py-3">
-      <div>
-        <div className="text-[15px] font-semibold text-fg">{t("settings.customColors")}</div>
-        <div className="mt-0.5 text-[13px] text-fg-muted">{t("settings.customColors.sub")}</div>
-      </div>
+    <SettingRow
+      label={t("settings.customColors")}
+      sub={t("settings.customColors.sub")}
+      align="start"
+    >
       <div className="grid max-w-[300px] gap-2">
         <ColorRow
           label={t("settings.color.bg")}
@@ -64,6 +65,6 @@ export function CustomThemeColors() {
           onChange={(fg) => setCustomTheme({ fg })}
         />
       </div>
-    </div>
+    </SettingRow>
   );
 }

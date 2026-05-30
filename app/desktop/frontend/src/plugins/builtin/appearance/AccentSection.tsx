@@ -5,6 +5,7 @@ import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { useAccents } from "@/plugins/sdk";
 import { useUiStore } from "@/state/uiStore";
+import { SettingRow } from "./SettingRow";
 
 // Conic gradient used when no custom color is active — communicates
 // "click me, you can pick anything" without committing to a default hue.
@@ -54,11 +55,7 @@ export function AccentSection() {
   const isCustom = !accents.some((a) => a.dark === accent);
 
   return (
-    <div className="grid grid-cols-[140px_1fr] items-center gap-4 py-3">
-      <div>
-        <div className="text-[15px] font-semibold text-fg">{t("settings.accent")}</div>
-        <div className="mt-0.5 text-[13px] text-fg-muted">{t("settings.accent.sub")}</div>
-      </div>
+    <SettingRow label={t("settings.accent")} sub={t("settings.accent.sub")}>
       <div className="flex flex-wrap gap-2.5 justify-start items-center">
         {accents.map((a) => (
           <button
@@ -82,6 +79,6 @@ export function AccentSection() {
           label={t("settings.accent.custom")}
         />
       </div>
-    </div>
+    </SettingRow>
   );
 }

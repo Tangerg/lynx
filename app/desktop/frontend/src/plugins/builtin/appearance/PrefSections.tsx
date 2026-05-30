@@ -7,6 +7,7 @@ import { Icon, Segmented } from "@/components/common";
 import { setLocale, useLocale, useT } from "@/lib/i18n";
 import { useLocales } from "@/plugins/sdk";
 import { useUiStore } from "@/state/uiStore";
+import { SettingRow } from "./SettingRow";
 
 export function MessageStyleSection() {
   const t = useT();
@@ -14,11 +15,7 @@ export function MessageStyleSection() {
   const setMessageStyle = useUiStore((s) => s.setMessageStyle);
 
   return (
-    <div className="grid grid-cols-[140px_1fr] items-center gap-4 py-3">
-      <div>
-        <div className="text-[15px] font-semibold text-fg">{t("settings.messageStyle")}</div>
-        <div className="mt-0.5 text-[13px] text-fg-muted">{t("settings.messageStyle.sub")}</div>
-      </div>
+    <SettingRow label={t("settings.messageStyle")} sub={t("settings.messageStyle.sub")}>
       <Segmented
         value={messageStyle}
         options={[
@@ -28,7 +25,7 @@ export function MessageStyleSection() {
         onChange={setMessageStyle}
         ariaLabel={t("settings.messageStyle")}
       />
-    </div>
+    </SettingRow>
   );
 }
 
@@ -43,11 +40,7 @@ export function LanguageSection() {
   if (!active) return null;
 
   return (
-    <div className="grid grid-cols-[140px_1fr] items-center gap-4 py-3">
-      <div>
-        <div className="text-[15px] font-semibold text-fg">{t("settings.language.label")}</div>
-        <div className="mt-0.5 text-[13px] text-fg-muted">{t("settings.language.sub")}</div>
-      </div>
+    <SettingRow label={t("settings.language.label")} sub={t("settings.language.sub")}>
       {/* Dropdown rather than segmented because the locale set
           (8 entries today, more via plugins) doesn't fit a single row.
           Radix DropdownMenu gives keyboard nav + focus management for
@@ -85,6 +78,6 @@ export function LanguageSection() {
           </DropdownMenu.Content>
         </DropdownMenu.Portal>
       </DropdownMenu.Root>
-    </div>
+    </SettingRow>
   );
 }

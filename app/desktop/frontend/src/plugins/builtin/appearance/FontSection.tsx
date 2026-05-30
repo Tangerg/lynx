@@ -7,13 +7,15 @@
 // of fonts actually installed on the user's machine. Each item renders
 // in its own family so the user sees a preview before clicking.
 
+import type { SegmentedOption } from "@/components/common";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { useId } from "react";
-import { Checkbox, Icon } from "@/components/common";
+import { Checkbox, Icon, Segmented } from "@/components/common";
 import { useT } from "@/lib/i18n";
 import { useSystemFonts } from "@/lib/systemFonts";
 import { cn } from "@/lib/utils";
 import { useUiStore } from "@/state/uiStore";
+import { SettingRow } from "./SettingRow";
 
 interface FontPickerProps {
   label: string;
@@ -90,7 +92,9 @@ function FontPicker({ label, mono, value, onChange, defaultLabel }: FontPickerPr
   );
 }
 
-const SIZE_OPTIONS = [13, 14, 15, 16, 17, 18] as const;
+const SIZE_VALUES = [13, 14, 15, 16, 17, 18] as const;
+// "default" sentinel = revert to the inherited 15px baseline (null in store).
+const SIZE_RESET = "default";
 
 function FontSizeField({
   label,
@@ -103,38 +107,20 @@ function FontSizeField({
   onChange: (v: number | null) => void;
   resetLabel: string;
 }) {
+  const options: SegmentedOption<string>[] = [
+    { value: SIZE_RESET, label: resetLabel },
+    ...SIZE_VALUES.map((px) => ({ value: String(px), label: String(px) })),
+  ];
   return (
     <div className="grid grid-cols-[60px_1fr] items-center gap-2">
       <span className="text-[12px] font-semibold text-fg-faint">{label}</span>
-      <div className="inline-flex w-fit items-center gap-1 rounded-md border border-line bg-surface-2 p-1">
-        <button
-          type="button"
-          onClick={() => onChange(null)}
-          className={cn(
-            "rounded-sm px-2.5 py-0.5 text-[12px] cursor-pointer transition-colors",
-            value === null
-              ? "bg-surface text-fg shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]"
-              : "bg-transparent text-fg-muted hover:text-fg",
-          )}
-        >
-          {resetLabel}
-        </button>
-        {SIZE_OPTIONS.map((px) => (
-          <button
-            key={px}
-            type="button"
-            onClick={() => onChange(px)}
-            className={cn(
-              "rounded-sm px-2.5 py-0.5 font-mono text-[12px] tabular-nums cursor-pointer transition-colors",
-              value === px
-                ? "bg-surface text-fg shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]"
-                : "bg-transparent text-fg-muted hover:text-fg",
-            )}
-          >
-            {px}
-          </button>
-        ))}
-      </div>
+      <Segmented
+        value={value === null ? SIZE_RESET : String(value)}
+        options={options}
+        onChange={(v) => onChange(v === SIZE_RESET ? null : Number(v))}
+        ariaLabel={label}
+        mono
+      />
     </div>
   );
 }
@@ -152,11 +138,7 @@ export function FontSection() {
   const smoothingId = useId();
 
   return (
-    <div className="grid grid-cols-[140px_1fr] items-start gap-4 py-3">
-      <div>
-        <div className="text-[15px] font-semibold text-fg">{t("settings.font")}</div>
-        <div className="mt-0.5 text-[13px] text-fg-muted">{t("settings.font.sub")}</div>
-      </div>
+    <SettingRow label={t("settings.font")} sub={t("settings.font.sub")} align="start">
       <div className="grid gap-2">
         <FontPicker
           label={t("settings.font.ui")}
@@ -191,6 +173,6 @@ export function FontSection() {
           <span>{t("settings.font.smoothing")}</span>
         </label>
       </div>
-    </div>
+    </SettingRow>
   );
 }

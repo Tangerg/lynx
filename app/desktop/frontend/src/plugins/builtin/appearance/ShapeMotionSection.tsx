@@ -14,6 +14,7 @@
 import { Segmented, Slider, type SegmentedOption } from "@/components/common";
 import { useT } from "@/lib/i18n";
 import { useUiStore } from "@/state/uiStore";
+import { SettingRow } from "./SettingRow";
 
 const RADIUS_OPTIONS: SegmentedOption<number>[] = [
   { value: 0.6, label: "Sharp" },
@@ -28,18 +29,6 @@ const MOTION_OPTIONS: SegmentedOption<number>[] = [
   { value: 1.5, label: "Slow" },
 ];
 
-function Row({ label, sub, children }: { label: string; sub: string; children: React.ReactNode }) {
-  return (
-    <div className="grid grid-cols-[140px_1fr] items-start gap-4 py-3">
-      <div>
-        <div className="text-[15px] font-semibold text-fg">{label}</div>
-        <div className="mt-0.5 text-[13px] text-fg-muted">{sub}</div>
-      </div>
-      <div>{children}</div>
-    </div>
-  );
-}
-
 export function ShapeMotionSection() {
   const t = useT();
   const radiusScale = useUiStore((s) => s.radiusScale);
@@ -51,35 +40,23 @@ export function ShapeMotionSection() {
 
   return (
     <>
-      <Row
-        label={t("settings.radius") || "Corners"}
-        sub={
-          t("settings.radius.sub") ||
-          "Global corner radius. Multiplies every rounded-* token in the app."
-        }
-      >
+      <SettingRow label={t("settings.radius")} sub={t("settings.radius.sub")} align="start">
         <Segmented
           value={radiusScale}
           options={RADIUS_OPTIONS}
           onChange={setRadiusScale}
           ariaLabel="Corner radius"
         />
-      </Row>
-      <Row
-        label={t("settings.motion") || "Motion"}
-        sub={
-          t("settings.motion.sub") ||
-          "Animation speed. Off skips transitions entirely (matches the OS reduced-motion preference)."
-        }
-      >
+      </SettingRow>
+      <SettingRow label={t("settings.motion")} sub={t("settings.motion.sub")} align="start">
         <Segmented
           value={motionScale}
           options={MOTION_OPTIONS}
           onChange={setMotionScale}
           ariaLabel="Animation speed"
         />
-      </Row>
-      <Row label={t("settings.contrast")} sub={t("settings.contrast.sub")}>
+      </SettingRow>
+      <SettingRow label={t("settings.contrast")} sub={t("settings.contrast.sub")} align="start">
         <div className="flex items-center gap-3">
           <Slider
             value={contrast}
@@ -92,7 +69,7 @@ export function ShapeMotionSection() {
             {contrast}
           </span>
         </div>
-      </Row>
+      </SettingRow>
     </>
   );
 }

@@ -11,6 +11,8 @@ interface SegmentedProps<T extends string | number> {
   options: SegmentedOption<T>[];
   onChange: (value: T) => void;
   ariaLabel: string;
+  /** Render labels in tabular mono — for numeric segments (e.g. font size). */
+  mono?: boolean;
   className?: string;
 }
 
@@ -25,6 +27,7 @@ export function Segmented<T extends string | number>({
   options,
   onChange,
   ariaLabel,
+  mono = false,
   className,
 }: SegmentedProps<T>) {
   return (
@@ -50,6 +53,7 @@ export function Segmented<T extends string | number>({
           value={String(opt.value)}
           className={cn(
             "rounded-sm px-2.5 py-0.5 text-[12px] font-medium text-fg-muted cursor-pointer transition-colors duration-150 hover:text-fg",
+            mono && "font-mono tabular-nums",
             "data-[state=on]:bg-surface data-[state=on]:text-fg data-[state=on]:shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]",
             "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent",
           )}
