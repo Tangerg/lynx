@@ -62,7 +62,7 @@ export const en: Record<string, string> = {
   "settings.font.default": "Default",
   "settings.font.smoothing": "Font smoothing (macOS antialiasing)",
   "settings.customColors": "Custom colors",
-  "settings.customColors.sub": "Three base colors; the rest is derived.",
+  "settings.customColors.sub": "Background + foreground; the rest is derived (accent is shared).",
   "settings.color.accent": "Accent",
   "settings.color.bg": "Background",
   "settings.color.fg": "Foreground",

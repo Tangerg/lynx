@@ -59,7 +59,7 @@ export const zh: Record<string, string> = {
   "settings.font.default": "默认",
   "settings.font.smoothing": "字体平滑（macOS 抗锯齿）",
   "settings.customColors": "自定义颜色",
-  "settings.customColors.sub": "三个基色，其余自动派生。",
+  "settings.customColors.sub": "背景 + 前景，其余自动派生（强调色共用上面那栏）。",
   "settings.color.accent": "强调色",
   "settings.color.bg": "背景",
   "settings.color.fg": "前景",
