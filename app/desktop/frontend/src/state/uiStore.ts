@@ -224,8 +224,17 @@ function applyTheme(theme: Theme, accent: string) {
 
   // Step 2 — write the new theme's tokens. Inline beats stylesheet, so
   // the plugin owns the palette regardless of what tokens.css says.
+  //
+  // Exception: the surface-2/3/4 ladder is NEVER written inline, even when a
+  // theme pins it — we let globals.css derive it via color-mix(--depth-step)
+  // so the global contrast slider moves the ladder for EVERY theme (8 of 10
+  // built-ins pin these; pinning would make contrast a no-op for them). The
+  // theme's identity colors — bg / surface / text / accent — still win.
   if (spec?.tokens) {
     for (const [name, value] of Object.entries(spec.tokens)) {
+      if (name === "color-surface-2" || name === "color-surface-3" || name === "color-surface-4") {
+        continue;
+      }
       const fullName = `--${name}`;
       root.style.setProperty(fullName, value);
       appliedTokenNames.push(fullName);
