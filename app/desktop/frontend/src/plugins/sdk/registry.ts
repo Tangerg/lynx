@@ -195,19 +195,6 @@ export const usePluginStore = create<PluginStoreState & PluginStoreActions>((set
     ...freshState(),
 
     registerLoaded(plugin) {
-      // Idempotent (re)load: if a plugin with this name is already loaded,
-      // dispose its prior registrations first. Without this, loading the
-      // same plugin twice (HMR re-run, provider remount) STACKS its
-      // onCore handlers / layout slots — and since this map entry is
-      // about to be overwritten, the old disposables would also leak.
-      // The visible symptom is every AG-UI text delta being applied once
-      // per stacked handler, so streamed text duplicates word-by-word.
-      const existing = get().loaded.get(plugin.spec.name);
-      if (existing) {
-        for (const d of existing.disposables) {
-          safeCall(() => d.dispose(), `[plugin] ${plugin.spec.name} reload dispose threw:`);
-        }
-      }
       set({ loaded: mapSet(get().loaded, plugin.spec.name, plugin) });
       for (const o of get().pluginLoadListeners.values()) {
         safeCall(() => o.value(plugin.spec), `[plugin] ${o.pluginName} onLoad listener threw:`);
