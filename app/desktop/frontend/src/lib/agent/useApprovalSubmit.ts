@@ -1,6 +1,9 @@
 import { useCallback, useState } from "react";
 import { getContainer } from "@/main/container";
 import { asApprovalRequestId } from "@/rpc";
+import { WIRE_DECISION, type ApprovalDecision } from "./hitlDecision";
+
+export type { ApprovalDecision };
 
 // Submits the user's HITL decision via the JSON-RPC `runs.approval.submit`
 // method (the cached client from `container.methods()`). Pure UI state
@@ -14,12 +17,9 @@ import { asApprovalRequestId } from "@/rpc";
 // card renders against that. Clearing here would flicker the card back to
 // its pre-decision state.
 
-// UI decision vocabulary (past-tense). The protocol wire uses the
-// imperative pair "approve" | "deny" (API.md §4.3); we map at the call
-// boundary below so the rest of the view layer keeps its own vocabulary.
-export type ApprovalDecision = "approved" | "declined";
-
-const WIRE_DECISION = { approved: "approve", declined: "deny" } as const;
+// Decision vocabulary + the view↔wire maps live in `./hitlDecision`
+// (single source of truth). We map UI past-tense → wire imperative at the
+// submit boundary below.
 
 export interface ApprovalSubmit {
   /**

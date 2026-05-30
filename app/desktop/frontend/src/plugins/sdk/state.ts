@@ -45,6 +45,27 @@ export function appendBlockToLatestAssistant<K extends ContentBlockKind>(
   };
 }
 
+/**
+ * Patch every content block matching `predicate`, across all messages.
+ * HITL result handlers use this to settle a block by its requestId when the
+ * result event doesn't carry the parent message id (so a by-id lookup isn't
+ * possible). `predicate` is a type guard so `patch` receives the narrowed
+ * block type. Messages with no match keep their identity (no needless clone).
+ */
+export function patchBlocksWhere<B extends ContentBlock>(
+  predicate: (block: ContentBlock) => block is B,
+  patch: (block: B) => B,
+): StateUpdate {
+  return (state) => ({
+    ...state,
+    messages: state.messages.map((m) =>
+      m.blocks.some(predicate)
+        ? { ...m, blocks: m.blocks.map((b) => (predicate(b) ? patch(b) : b)) }
+        : m,
+    ),
+  });
+}
+
 /** Replace the run plan wholesale. */
 export function setPlan(items: PlanItem[]): StateUpdate {
   return (state) => ({ ...state, plan: items });

@@ -10,9 +10,12 @@ import {
   appendTimelineEntry,
   compose,
   definePlugin,
+  patchBlocksWhere,
   patchRun,
   setPlan,
 } from "@/plugins/sdk";
+import type { ContentBlockMap } from "@/protocol/agui/viewState";
+import { VIEW_DECISION } from "@/lib/agent/hitlDecision";
 import { CUSTOM } from "@/protocol/agui/customEvents";
 import {
   ApprovalRequestSchema,
@@ -27,9 +30,6 @@ import {
   withSchema,
 } from "@/protocol/agui/schemas";
 
-// Wire ↔ view vocab. The protocol uses the imperative pair (§4.3); the
-// view layer + ApprovalCard speak past-tense (mirrors useApprovalSubmit).
-const VIEW_DECISION = { approve: "approved", deny: "declined" } as const;
 const KNOWN_RISK = new Set(["low", "medium", "high"]);
 const narrowRisk = (r: string | undefined): "low" | "medium" | "high" | undefined =>
   r !== undefined && KNOWN_RISK.has(r) ? (r as "low" | "medium" | "high") : undefined;
@@ -78,17 +78,11 @@ export const approvalHandler = definePlugin({
       CUSTOM.APPROVAL_RESULT,
       withSchema(CUSTOM.APPROVAL_RESULT, ApprovalResultSchema, (value) =>
         compose(
-          (state) => ({
-            ...state,
-            messages: state.messages.map((m) => ({
-              ...m,
-              blocks: m.blocks.map((b) =>
-                b.kind === "approval" && b.requestId === value.requestId
-                  ? { ...b, status: "complete", decision: VIEW_DECISION[value.decision] }
-                  : b,
-              ),
-            })),
-          }),
+          patchBlocksWhere(
+            (b): b is ContentBlockMap["approval"] =>
+              b.kind === "approval" && b.requestId === value.requestId,
+            (b) => ({ ...b, status: "complete", decision: VIEW_DECISION[value.decision] }),
+          ),
           appendTimelineEntry({
             kind: "approval-result",
             refId: value.requestId,
@@ -123,17 +117,13 @@ export const questionHandler = definePlugin({
     // on the result event), mirroring the approval-result handler.
     host.agui.on(
       CUSTOM.QUESTION_RESULT,
-      withSchema(CUSTOM.QUESTION_RESULT, QuestionResultSchema, (value) => (state) => ({
-        ...state,
-        messages: state.messages.map((m) => ({
-          ...m,
-          blocks: m.blocks.map((b) =>
-            b.kind === "question" && b.requestId === value.requestId
-              ? { ...b, status: "complete", answered: true }
-              : b,
-          ),
-        })),
-      })),
+      withSchema(CUSTOM.QUESTION_RESULT, QuestionResultSchema, (value) =>
+        patchBlocksWhere(
+          (b): b is ContentBlockMap["question"] =>
+            b.kind === "question" && b.requestId === value.requestId,
+          (b) => ({ ...b, status: "complete", answered: true }),
+        ),
+      ),
     );
   },
 });
