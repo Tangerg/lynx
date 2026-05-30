@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
+	"strings"
 	"time"
 
 	"lyra/internal/agui"
@@ -27,8 +29,26 @@ func NewApp() *App {
 // context here.
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
+	// Mock is OFF by default now that we integrate the real lynx Runtime —
+	// this keeps :17171 free for it. Set LYRA_MOCK=1 to bring the demo mock
+	// back (e.g. `LYRA_MOCK=1 wails dev`).
+	if !mockEnabled() {
+		log.Printf("agui: embedded mock disabled (set LYRA_MOCK=1 to enable); " +
+			"frontend will talk to the runtime on its configured base URL")
+		return
+	}
 	if err := a.server.Start(); err != nil {
 		log.Printf("agui: failed to start: %v", err)
+	}
+}
+
+// mockEnabled reports whether the embedded AG-UI demo mock should bind.
+func mockEnabled() bool {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("LYRA_MOCK"))) {
+	case "1", "true", "on", "yes":
+		return true
+	default:
+		return false
 	}
 }
 
