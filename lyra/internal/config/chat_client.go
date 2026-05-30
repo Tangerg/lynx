@@ -7,6 +7,7 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/lyra/internal/engine"
 	"github.com/Tangerg/lynx/models/anthropic"
+	"github.com/Tangerg/lynx/models/moonshot"
 	"github.com/Tangerg/lynx/models/openai"
 )
 
@@ -35,6 +36,13 @@ func BuildChatClient(cfg Config) (*chat.Client, engine.Pricing, error) {
 		})
 	case ProviderOpenAI:
 		llm, err = openai.NewChatModel(openai.ChatModelConfig{
+			APIKey:         apiKey,
+			DefaultOptions: opts,
+		})
+	case ProviderMoonshot:
+		// Kimi via Moonshot's OpenAI-compatible endpoint (domestic
+		// api.moonshot.cn by default; BaseURL is internal to the adapter).
+		llm, err = moonshot.NewOpenAIChatModel(moonshot.OpenAIChatModelConfig{
 			APIKey:         apiKey,
 			DefaultOptions: opts,
 		})
