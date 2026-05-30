@@ -7,7 +7,7 @@
 //   Response:     { jsonrpc, id, result? | error? }    (mutually exclusive)
 //   Notification: { jsonrpc, method, params? }         (no id)
 //
-// Notifications carry both client→runtime (notifications/cancelled,
+// Notifications carry both client→runtime (notifications/canceled,
 // runtime.shutdown) and runtime→client (notifications/run/event, …) traffic.
 
 export const JSONRPC_VERSION = "2.0" as const;

@@ -107,7 +107,7 @@ export function createRpcClient(transport: Transport): RpcClient {
     };
 
     return new Promise<R>((resolve, reject) => {
-      // AbortSignal hooks — cancel locally + send notifications/cancelled
+      // AbortSignal hooks — cancel locally + send notifications/canceled
       // so the runtime stops working on it (docs/API.md §2.4).
       const onAbort = () => {
         if (!pending.has(id)) return;
@@ -116,7 +116,7 @@ export function createRpcClient(transport: Transport): RpcClient {
         void transport
           .send({
             jsonrpc: JSONRPC_VERSION,
-            method: "notifications/cancelled",
+            method: "notifications/canceled",
             params: { requestId: id, reason: "client_aborted" },
           })
           .catch(() => undefined);
