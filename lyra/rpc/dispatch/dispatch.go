@@ -50,6 +50,12 @@ type HandleResult struct {
 	// EventStream is the channel of AG-UI events for streaming
 	// methods. Closed when the underlying run ends.
 	EventStream <-chan protocol.AgUiEvent
+
+	// ResultStream yields one RunResult when a run ends, then closes.
+	// Transports read it after EventStream closes to build
+	// notifications/run/closed (API.md §3.1 / §6.3). nil for streaming
+	// methods that have no terminal RunResult (terminal/background).
+	ResultStream <-chan protocol.RunResult
 }
 
 // Handle is the entry point — every inbound transport.Message goes
@@ -152,10 +158,17 @@ var methodTable = map[string]methodHandler{
 	MethodWorkspaceSkills:       (*Dispatcher).handleWorkspaceSkills,
 
 	// Providers / Models / Tools.
-	MethodProvidersList: (*Dispatcher).handleProvidersList,
-	MethodProvidersTest: (*Dispatcher).handleProvidersTest,
-	MethodModelsList:    (*Dispatcher).handleModelsList,
-	MethodToolsList:     (*Dispatcher).handleToolsList,
+	MethodProvidersList:      (*Dispatcher).handleProvidersList,
+	MethodProvidersTest:      (*Dispatcher).handleProvidersTest,
+	MethodProvidersConfigure: (*Dispatcher).handleProvidersConfigure,
+	MethodModelsList:         (*Dispatcher).handleModelsList,
+	MethodToolsList:          (*Dispatcher).handleToolsList,
+	MethodToolsInvoke:        (*Dispatcher).handleToolsInvoke,
+
+	// Memory.
+	MethodMemoryList:   (*Dispatcher).handleMemoryList,
+	MethodMemoryGet:    (*Dispatcher).handleMemoryGet,
+	MethodMemoryUpdate: (*Dispatcher).handleMemoryUpdate,
 
 	// Attachments.
 	MethodAttachmentsCreateUploadURL: (*Dispatcher).handleAttachmentsCreateUploadURL,
@@ -219,10 +232,11 @@ func responseError(id transport.ID, rpcErr *transport.Error) HandleResult {
 // streamingResult is the same as [responseResult] but also attaches
 // the run/task id + event channel so the transport's notification
 // pump can fan events out under the resource id.
-func streamingResult(id transport.ID, result any, runID string, events <-chan protocol.AgUiEvent) HandleResult {
+func streamingResult(id transport.ID, result any, runID string, events <-chan protocol.AgUiEvent, results <-chan protocol.RunResult) HandleResult {
 	res := responseResult(id, result)
 	res.RunID = runID
 	res.EventStream = events
+	res.ResultStream = results
 	return res
 }
 

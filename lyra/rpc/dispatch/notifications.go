@@ -30,11 +30,12 @@ func EncodeRunEvent(runID, eventID string, ev protocol.AgUiEvent) (transport.Mes
 }
 
 // EncodeRunClosed produces a notifications/run/closed terminator
-// (API.md §3.1). Carries the same runId clients used to filter
-// notifications/run/event.
-func EncodeRunClosed(runID, reason string) (transport.Message, error) {
+// (API.md §3.1 / §5.3 / §6.3). Carries the same runId clients used to
+// filter notifications/run/event plus the terminal RunResult (stop
+// reason + usage + cost) — read here, not by parsing the last event.
+func EncodeRunClosed(runID string, result protocol.RunResult) (transport.Message, error) {
 	return transport.NewNotification(NotificationRunClosed, struct {
-		RunID  string `json:"runId"`
-		Reason string `json:"reason,omitempty"`
-	}{RunID: runID, Reason: reason})
+		RunID  string             `json:"runId"`
+		Result protocol.RunResult `json:"result"`
+	}{RunID: runID, Result: result})
 }

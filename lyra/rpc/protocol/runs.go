@@ -46,7 +46,13 @@ type Runs interface {
 	// tests / server wiring). HTTP/Wails adapters pipe it into
 	// the transport's outbound notification stream and don't expose
 	// it to the wire client directly.
-	StartRun(ctx context.Context, in StartRunRequest) (*StartRunResponse, <-chan AgUiEvent, error)
+	// StartRun returns the runId, the AG-UI event stream, and a
+	// single-shot terminal channel that yields one RunResult when the
+	// run ends (then closes). Transports drain events, then read the
+	// RunResult to build notifications/run/closed (API.md §3.1 / §6.3) —
+	// terminal state + metering are read here, not by parsing the last
+	// event.
+	StartRun(ctx context.Context, in StartRunRequest) (*StartRunResponse, <-chan AgUiEvent, <-chan RunResult, error)
 
 	// CancelRun stops an in-flight run. Backs the runs.cancel JSON-RPC
 	// Request (API.md v4 §3.5): a proper Request method that returns
@@ -72,6 +78,27 @@ type StartRunRequest struct {
 	Model       string         `json:"model,omitempty"`
 	Mode        RunMode        `json:"mode,omitempty"`
 	Attachments []string       `json:"attachments,omitempty"`
+
+	// MaxTurns caps the tool-loop rounds; hitting it ends the run with
+	// RunResult.stopReason="max_turns". Engine consumption TBD (chat has
+	// no turn-count cap yet) — declared so the wire shape matches §6.3.
+	MaxTurns int `json:"maxTurns,omitempty"`
+	// MaxBudgetUSD caps cumulative cost (subtree-inclusive); overrun ends
+	// with stopReason="max_budget". Wired to chat.StartTurnRequest.MaxCostUSD.
+	MaxBudgetUSD float64 `json:"maxBudgetUsd,omitempty"`
+	// Params is optional generation tuning (§6.3). Engine consumption TBD.
+	Params *GenerationParams `json:"params,omitempty"`
+}
+
+// GenerationParams is optional LLM generation tuning (API.md §6.3),
+// aligned with chat.Options. Pointers distinguish "unset" from a real
+// zero so the engine only overrides what the client explicitly sent.
+type GenerationParams struct {
+	Temperature     *float64 `json:"temperature,omitempty"`
+	MaxTokens       *int64   `json:"maxTokens,omitempty"`
+	MaxOutputTokens *int64   `json:"maxOutputTokens,omitempty"`
+	TopP            *float64 `json:"topP,omitempty"`
+	Stop            []string `json:"stop,omitempty"`
 }
 
 // StartRunResponse is the runs.start result. RunID is server-assigned
@@ -132,4 +159,41 @@ type ContextItem struct {
 	URL          string `json:"url,omitempty"`
 	Range        []int  `json:"range,omitempty"`
 	AttachmentID string `json:"attachmentId,omitempty"`
+}
+
+// RunResult is a run's terminal state, delivered once in
+// notifications/run/closed (API.md §3.1 / §6.3). Stop reason + metering
+// are read from here, not by parsing the last AG-UI event.
+type RunResult struct {
+	// StopReason: "completed" | "canceled" | "error" | "max_turns" | "max_budget".
+	StopReason string    `json:"stopReason"`
+	Usage      *Usage    `json:"usage,omitempty"`
+	CostUSD    *float64  `json:"costUsd,omitempty"` // omitted when no pricing hook (not faked to 0)
+	Turns      *int      `json:"turns,omitempty"`   // tool-loop rounds; omitted until the engine surfaces it
+	Error      *RunError `json:"error,omitempty"`   // present when StopReason == "error"
+}
+
+// RunError is the structured error inside RunResult — same {code,message}
+// shape as the §7 JSON-RPC error (code is a §7.2 business code).
+type RunError struct {
+	Code    int    `json:"code"`
+	Message string `json:"message"`
+}
+
+// Usage is the cumulative token usage for a run (subtree-inclusive,
+// API.md §6.3).
+type Usage struct {
+	InputTokens      int64                 `json:"inputTokens"`
+	OutputTokens     int64                 `json:"outputTokens"`
+	ReasoningTokens  int64                 `json:"reasoningTokens,omitempty"`
+	CacheReadTokens  int64                 `json:"cacheReadTokens,omitempty"`
+	CacheWriteTokens int64                 `json:"cacheWriteTokens,omitempty"`
+	ByModel          map[string]ModelUsage `json:"byModel,omitempty"`
+}
+
+// ModelUsage is one model's slice of a run's tokens + cost.
+type ModelUsage struct {
+	InputTokens  int64    `json:"inputTokens"`
+	OutputTokens int64    `json:"outputTokens"`
+	CostUSD      *float64 `json:"costUsd,omitempty"`
 }

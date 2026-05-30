@@ -91,7 +91,7 @@ func (t *Transport) Send(ctx context.Context, msg transport.Message) error {
 		}
 	}
 	if res.EventStream != nil {
-		go t.pumpStream(ctx, res.RunID, res.EventStream)
+		go t.pumpStream(ctx, res.RunID, res.EventStream, res.ResultStream)
 	}
 	return nil
 }
@@ -100,13 +100,19 @@ func (t *Transport) Send(ctx context.Context, msg transport.Message) error {
 // encodes each event as a notifications/run/event message. Exits
 // when the channel closes (run ended) or the transport closes.
 // runID is the resource id used for stream filtering (API.md v4 §3.1).
-func (t *Transport) pumpStream(ctx context.Context, runID string, events <-chan protocol.AgUiEvent) {
+func (t *Transport) pumpStream(ctx context.Context, runID string, events <-chan protocol.AgUiEvent, results <-chan protocol.RunResult) {
 	var seq uint64
 	for {
 		select {
 		case ev, ok := <-events:
 			if !ok {
-				closedMsg, _ := dispatch.EncodeRunClosed(runID, "completed")
+				result := protocol.RunResult{StopReason: "completed"}
+				if results != nil {
+					if r, rok := <-results; rok {
+						result = r
+					}
+				}
+				closedMsg, _ := dispatch.EncodeRunClosed(runID, result)
 				t.tryEmit(closedMsg)
 				return
 			}

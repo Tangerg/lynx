@@ -17,29 +17,30 @@ import (
 //
 // The transport layer wraps each event into a
 // notifications/run/event JSON-RPC notification per API.md §3.1.
-func (i *Server) StartRun(ctx context.Context, in protocol.StartRunRequest) (*protocol.StartRunResponse, <-chan protocol.AgUiEvent, error) {
+func (i *Server) StartRun(ctx context.Context, in protocol.StartRunRequest) (*protocol.StartRunResponse, <-chan protocol.AgUiEvent, <-chan protocol.RunResult, error) {
 	sessionID, err := i.resolveSession(ctx, in.SessionID)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	userMsg := lastUserMessage(in.Messages)
 	if userMsg == "" {
-		return nil, nil, errors.New("runs.start: messages must end with a user message")
+		return nil, nil, nil, errors.New("runs.start: messages must end with a user message")
 	}
 
 	handle, err := i.rt.Chat().StartTurn(ctx, chat.StartTurnRequest{
-		SessionID: sessionID,
-		Message:   userMsg,
-		PlanMode:  in.Mode == protocol.RunModePlan,
+		SessionID:  sessionID,
+		Message:    userMsg,
+		PlanMode:   in.Mode == protocol.RunModePlan,
+		MaxCostUSD: in.MaxBudgetUSD, // API.md §6.3 maxBudgetUsd → turn dollar cap
 	})
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	inner, err := i.rt.Chat().Events(ctx, handle)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	// runId on the wire == the turn id Lyra assigns internally.
@@ -50,6 +51,9 @@ func (i *Server) StartRun(ctx context.Context, in protocol.StartRunRequest) (*pr
 
 	out := &protocol.StartRunResponse{RunID: runID}
 	events := make(chan protocol.AgUiEvent, 32)
+	// Single-shot terminal channel (buffered so pumpRun never blocks on
+	// the send): yields one RunResult then closes (API.md §3.1 / §6.3).
+	resultCh := make(chan protocol.RunResult, 1)
 
 	runCtx, cancel := context.WithCancel(context.Background())
 	i.runMu.Lock()
@@ -61,18 +65,26 @@ func (i *Server) StartRun(ctx context.Context, in protocol.StartRunRequest) (*pr
 	}
 	i.runMu.Unlock()
 
-	go i.pumpRun(runCtx, handle, inner, events)
+	go i.pumpRun(runCtx, handle, inner, events, resultCh)
 
-	return out, events, nil
+	return out, events, resultCh, nil
 }
 
 // pumpRun translates internal chat events to AG-UI events and pipes
-// them to the consumer. Exits when the inner stream closes (turn end)
-// or the run is canceled.
-func (i *Server) pumpRun(ctx context.Context, handle chat.TurnHandle, inner <-chan chat.Event, out chan<- protocol.AgUiEvent) {
+// them to the consumer, capturing the turn's terminal state along the
+// way. Exits when the inner stream closes (turn end) or the run is
+// canceled; on exit it sends one RunResult on resultCh (then closes it)
+// so the transport can build notifications/run/closed (API.md §6.3).
+func (i *Server) pumpRun(ctx context.Context, handle chat.TurnHandle, inner <-chan chat.Event, out chan<- protocol.AgUiEvent, resultCh chan<- protocol.RunResult) {
 	translator := agui.NewTranslator(handle.SessionID, handle.TurnID)
-	defer close(out)
+	// Defaults to completed in case the stream ends without an explicit
+	// TurnEnd; overwritten when TurnEnd / cancellation is observed.
+	result := protocol.RunResult{StopReason: "completed"}
+	var errMsg string
 	defer func() {
+		resultCh <- result // buffered cap-1, never blocks
+		close(resultCh)
+		close(out)
 		i.runMu.Lock()
 		if e, ok := i.runs[handle.TurnID]; ok {
 			e.cancel()
@@ -87,19 +99,78 @@ func (i *Server) pumpRun(ctx context.Context, handle chat.TurnHandle, inner <-ch
 			if !ok {
 				return
 			}
+			switch e := ev.(type) {
+			case chat.TurnEnd:
+				result = turnEndToRunResult(e)
+				if result.StopReason == "error" && errMsg != "" {
+					result.Error = &protocol.RunError{Code: runErrorCodeInternal, Message: errMsg}
+				}
+			case chat.ErrorEvent:
+				errMsg = e.Message
+			}
 			for _, translated := range translator.Translate(ev) {
 				select {
 				case out <- translated:
 				case <-ctx.Done():
+					result.StopReason = "canceled"
 					return
 				}
 			}
 		case <-ctx.Done():
 			// Best-effort cancel of the underlying turn — ignore the
 			// error, the turn may have already ended.
+			result.StopReason = "canceled"
 			_ = i.rt.Chat().Cancel(context.Background(), handle)
 			return
 		}
+	}
+}
+
+// runErrorCodeInternal is the placeholder code for a run-execution
+// error until chat surfaces a typed code (§7.2). -32603 internal_error.
+const runErrorCodeInternal = -32603
+
+// turnEndToRunResult maps the engine's terminal TurnEnd event onto the
+// wire RunResult (API.md §6.3). Cost is omitted (nil) when no pricing
+// hook produced a figure — never faked to 0.
+func turnEndToRunResult(e chat.TurnEnd) protocol.RunResult {
+	res := protocol.RunResult{StopReason: stopReasonToWire(e.Reason)}
+	u := &protocol.Usage{
+		InputTokens:     e.TokenUsage.PromptTokens,
+		OutputTokens:    e.TokenUsage.CompletionTokens,
+		ReasoningTokens: e.TokenUsage.ReasoningTokens,
+	}
+	if len(e.UsageByModel) > 0 {
+		u.ByModel = make(map[string]protocol.ModelUsage, len(e.UsageByModel))
+		for _, m := range e.UsageByModel {
+			mu := protocol.ModelUsage{InputTokens: m.PromptTokens, OutputTokens: m.CompletionTokens}
+			if m.CostUSD > 0 {
+				c := m.CostUSD
+				mu.CostUSD = &c
+			}
+			u.ByModel[m.Model] = mu
+		}
+	}
+	res.Usage = u
+	if e.CostUSD > 0 {
+		c := e.CostUSD
+		res.CostUSD = &c
+	}
+	return res
+}
+
+func stopReasonToWire(r chat.TurnEndReason) string {
+	switch r {
+	case chat.TurnEndCompleted:
+		return "completed"
+	case chat.TurnEndCancelled:
+		return "canceled"
+	case chat.TurnEndErrored:
+		return "error"
+	case chat.TurnEndBudgetExceeded:
+		return "max_budget"
+	default:
+		return "completed"
 	}
 }
 

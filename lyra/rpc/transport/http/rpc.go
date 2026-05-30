@@ -77,7 +77,7 @@ func (s *Server) serveRPC(w http.ResponseWriter, r *http.Request, urlMethod stri
 		if res.EventStream != nil {
 			// The pump outlives this request — bind it to the server
 			// lifetime, not r.Context() (which cancels on return).
-			s.attachStream(s.baseCtx, res.RunID, res.EventStream)
+			s.attachStream(s.baseCtx, res.RunID, res.EventStream, res.ResultStream)
 		}
 		w.WriteHeader(http.StatusNoContent)
 		return
@@ -86,7 +86,7 @@ func (s *Server) serveRPC(w http.ResponseWriter, r *http.Request, urlMethod stri
 	// Streaming response: kick off the event pump in the background,
 	// bound to the server lifetime (not this request's ctx).
 	if res.EventStream != nil {
-		s.attachStream(s.baseCtx, res.RunID, res.EventStream)
+		s.attachStream(s.baseCtx, res.RunID, res.EventStream, res.ResultStream)
 	}
 
 	// Compute HTTP status (API.md §7.3): 200 by default, 404 on
@@ -118,7 +118,7 @@ func (s *Server) serveRPC(w http.ResponseWriter, r *http.Request, urlMethod stri
 // attachStream registers the AG-UI event stream with the per-stream
 // replay buffer (keyed by runId, API.md v4 §3.1) and the client
 // broadcast registry. Events arrive through dispatch.EncodeRunEvent.
-func (s *Server) attachStream(ctx context.Context, runID string, events <-chan protocol.AgUiEvent) {
+func (s *Server) attachStream(ctx context.Context, runID string, events <-chan protocol.AgUiEvent, results <-chan protocol.RunResult) {
 	if runID == "" || events == nil {
 		return
 	}
@@ -129,7 +129,13 @@ func (s *Server) attachStream(ctx context.Context, runID string, events <-chan p
 			select {
 			case ev, ok := <-events:
 				if !ok {
-					closed, err := dispatch.EncodeRunClosed(runID, "completed")
+					result := protocol.RunResult{StopReason: "completed"}
+					if results != nil {
+						if r, rok := <-results; rok {
+							result = r
+						}
+					}
+					closed, err := dispatch.EncodeRunClosed(runID, result)
 					if err != nil {
 						recordError(ctx, "rpc.encode-run-closed", err,
 							attribute.String("lynx.lyra.run_id", runID),
