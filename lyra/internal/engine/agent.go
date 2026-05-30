@@ -101,6 +101,13 @@ func (e *Engine) buildChatAgent() *core.Agent {
 			core.ActionConfig{
 				ToolGroups: core.ToolRolesFor(ToolRoleCoding),
 				ToolLoop:   recoverToolLoop(),
+				// MaxAttempts:1 — don't let the runtime retry an LLM action.
+				// Transient errors are already retried inside the model SDK;
+				// permanent ones (no-access model, bad key, invalid request)
+				// and ctx timeouts won't improve on retry. The default 5
+				// attempts × llmCallTimeout is exactly what made a failed run
+				// hang for minutes instead of surfacing run/closed{error}.
+				QoS: core.ActionQoS{MaxAttempts: 1},
 			},
 		)).
 		Goals(agent.GoalProducing[ChatOutput](core.Goal{
@@ -148,6 +155,7 @@ func (e *Engine) buildSubtaskAgent() *core.Agent {
 			core.ActionConfig{
 				ToolGroups: core.ToolRolesFor(ToolRoleSubtask),
 				ToolLoop:   recoverToolLoop(),
+				QoS:        core.ActionQoS{MaxAttempts: 1}, // same rationale as the chat action
 			},
 		)).
 		Goals(agent.GoalProducing[string](core.Goal{
