@@ -21,8 +21,9 @@ import { usePluginStore } from "@/plugins/sdk/registry";
 const uiPersistSchema = z.object({
   theme: z.string(),
   accent: z.string(),
-  // contrast .default keeps v3 blobs (bg/fg only) parsing — no version bump.
-  customTheme: z.object({ bg: z.string(), fg: z.string(), contrast: z.number().default(60) }),
+  customTheme: z.object({ bg: z.string(), fg: z.string() }),
+  // .default keeps older blobs (no contrast field) parsing — no version bump.
+  contrast: z.number().default(60),
   uiFont: z.string(),
   codeFont: z.string(),
   fontSize: z.number().nullable(),
@@ -54,9 +55,6 @@ export type Theme = string;
 export interface CustomTheme {
   bg: string;
   fg: string;
-  /** 0–100. Scales how far the derived ladders (surface step, text
-   *  muted/faint, borders) spread from the base bg/fg. Higher = punchier. */
-  contrast: number;
 }
 
 interface UiState {
@@ -64,6 +62,9 @@ interface UiState {
   accent: string;
   /** Edited by the "Custom" theme pickers; applied when `theme === "custom"`. */
   customTheme: CustomTheme;
+  /** Global UI contrast 0–100. Drives the surface-ladder depth (`--depth-step`)
+   *  across all themes, and the full derived ladders of the custom theme. */
+  contrast: number;
   /** Empty string = use the bundled Geist default. Anything else overrides
    *  `--font-sans` on :root and propagates via Tailwind's `font-sans`. */
   uiFont: string;
@@ -105,6 +106,7 @@ interface UiActions {
   setAccent: (accent: string) => void;
   /** Patch one or more of the custom theme's base colors. */
   setCustomTheme: (patch: Partial<CustomTheme>) => void;
+  setContrast: (contrast: number) => void;
   setUiFont: (font: string) => void;
   setCodeFont: (font: string) => void;
   setFontSize: (size: number | null) => void;
@@ -120,7 +122,8 @@ export const useUiStore = create<UiState & UiActions>()(
     (set, get) => ({
       theme: "dark",
       accent: "#1ed760",
-      customTheme: { bg: "#0f1117", fg: "#e6e8ee", contrast: 60 },
+      customTheme: { bg: "#0f1117", fg: "#e6e8ee" },
+      contrast: 60,
       uiFont: "",
       codeFont: "",
       fontSize: null,
@@ -148,6 +151,7 @@ export const useUiStore = create<UiState & UiActions>()(
       },
       setAccent: (accent) => set({ accent }),
       setCustomTheme: (patch) => set((s) => ({ customTheme: { ...s.customTheme, ...patch } })),
+      setContrast: (contrast) => set({ contrast }),
       setUiFont: (uiFont) => set({ uiFont }),
       setCodeFont: (codeFont) => set({ codeFont }),
       setFontSize: (fontSize) => set({ fontSize }),
@@ -236,6 +240,15 @@ function applyTheme(theme: Theme, accent: string) {
   if (!appliedTokenNames.includes("--color-accent")) {
     appliedTokenNames.push("--color-accent");
   }
+
+  // Global contrast → surface-ladder depth. Overrides the theme's depth-step
+  // token for every theme (2%..10%, default 60 ≈ 6.8%); the custom theme's
+  // fuller ladders also read `contrast` (in the custom-theme plugin).
+  const contrast = useUiStore.getState().contrast;
+  root.style.setProperty("--depth-step", `${(2 + (contrast / 100) * 8).toFixed(1)}%`);
+  if (!appliedTokenNames.includes("--depth-step")) {
+    appliedTokenNames.push("--depth-step");
+  }
 }
 
 // Apply user font preferences to :root. uiFont / codeFont override the
@@ -299,7 +312,11 @@ function applyShape(radiusScale: number, motionScale: number) {
   applyShape(s.radiusScale, s.motionScale);
 }
 const unsubUi = useUiStore.subscribe((state, prev) => {
-  if (state.theme !== prev.theme || state.accent !== prev.accent) {
+  if (
+    state.theme !== prev.theme ||
+    state.accent !== prev.accent ||
+    state.contrast !== prev.contrast
+  ) {
     applyTheme(state.theme, state.accent);
   }
   if (
