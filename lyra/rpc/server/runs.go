@@ -195,7 +195,7 @@ func (i *Server) CancelRun(_ context.Context, runID string) error {
 
 // SubmitApproval handles runs.approval.submit (API.md §4.3). Maps
 // the wire decision strings onto the internal enum.
-func (i *Server) SubmitApproval(ctx context.Context, in protocol.ApprovalRequest) error {
+func (i *Server) SubmitApproval(ctx context.Context, in protocol.SubmitApprovalRequest) error {
 	if in.RequestID == "" {
 		return errors.New("runs.approval.submit: requestId is required")
 	}
@@ -203,6 +203,10 @@ func (i *Server) SubmitApproval(ctx context.Context, in protocol.ApprovalRequest
 	if err != nil {
 		return err
 	}
+	// NOTE: in.EditedArgs (approve-with-modified-args, §4.3) is accepted
+	// on the wire but not yet applied — approval.Service.Decide has no
+	// arg-rewrite path. Wire it through once the approval gate supports
+	// substituting the tool input.
 	if err := i.rt.Approval().Decide(ctx, in.RequestID, dec); err != nil {
 		if errors.Is(err, approval.ErrRequestNotFound) {
 			return protocol.ErrRunNotFound
@@ -210,6 +214,15 @@ func (i *Server) SubmitApproval(ctx context.Context, in protocol.ApprovalRequest
 		return err
 	}
 	return nil
+}
+
+// AnswerQuestion handles runs.question.answer (API.md §4.4 / §6.9).
+// Not implemented: the engine has no clarifying-question event source
+// yet (no chat.Question event), so there is never a pending question to
+// answer. Wired here so the method table matches the protocol; returns
+// -32601 until the engine grows the ask-user capability.
+func (i *Server) AnswerQuestion(_ context.Context, _ protocol.AnswerQuestionRequest) error {
+	return notImpl("runs.question.answer")
 }
 
 // ─── helpers ────────────────────────────────────────────────────────

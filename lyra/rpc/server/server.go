@@ -88,8 +88,11 @@ func Capabilities() protocol.ServerCapabilities {
 				"CUSTOM", "RAW",
 			},
 			Custom: []string{
+				"lyra.approval",
+				"lyra.approval-result",
+				// TODO §4.2: align the rest to lyra.* once their payloads
+				// match the protocol (plan needs items[], etc.).
 				"plan_generated",
-				"tool_call_approval",
 				"compact_boundary",
 				"memory_updated",
 			},

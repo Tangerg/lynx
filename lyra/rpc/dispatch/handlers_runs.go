@@ -62,11 +62,22 @@ func (d *Dispatcher) handleRunsCancel(ctx context.Context, msg *transport.Reques
 }
 
 func (d *Dispatcher) handleRunsApprovalSubmit(ctx context.Context, msg *transport.Request) HandleResult {
-	var in protocol.ApprovalRequest
+	var in protocol.SubmitApprovalRequest
 	if err := unmarshal(msg.Params, &in); err != nil {
 		return responseError(msg.ID, invalidParams(err.Error()))
 	}
 	if err := d.api.SubmitApproval(ctx, in); err != nil {
+		return responseError(msg.ID, errorToRPC(err))
+	}
+	return responseResult(msg.ID, struct{}{})
+}
+
+func (d *Dispatcher) handleRunsQuestionAnswer(ctx context.Context, msg *transport.Request) HandleResult {
+	var in protocol.AnswerQuestionRequest
+	if err := unmarshal(msg.Params, &in); err != nil {
+		return responseError(msg.ID, invalidParams(err.Error()))
+	}
+	if err := d.api.AnswerQuestion(ctx, in); err != nil {
 		return responseError(msg.ID, errorToRPC(err))
 	}
 	return responseResult(msg.ID, struct{}{})

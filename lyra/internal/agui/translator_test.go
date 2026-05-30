@@ -293,16 +293,19 @@ func TestTranslate_ApprovalStepClosesOnToolStart(t *testing.T) {
 		ToolName:  "bash",
 		Arguments: `{}`,
 	})
-	// Expected ordering: StepFinished(approval:bash) +
-	// StepStarted(tool:bash) + tool triplet.
-	if len(out) != 5 {
-		t.Fatalf("want 5 events, got %d (%+v)", len(out), out)
+	// Expected ordering: lyra.approval-result(approve) +
+	// StepFinished(approval:bash) + StepStarted(tool:bash) + tool triplet.
+	if len(out) != 6 {
+		t.Fatalf("want 6 events, got %d (%+v)", len(out), out)
 	}
-	if step, ok := out[0].(*aguievents.StepFinishedEvent); !ok || step.StepName != "approval:bash" {
-		t.Errorf("out[0] = %#v, want StepFinished(approval:bash)", out[0])
+	if c, ok := out[0].(*aguievents.CustomEvent); !ok || c.Name != "lyra.approval-result" {
+		t.Errorf("out[0] = %#v, want CustomEvent(lyra.approval-result)", out[0])
 	}
-	if step, ok := out[1].(*aguievents.StepStartedEvent); !ok || step.StepName != "tool:bash" {
-		t.Errorf("out[1] = %#v, want StepStarted(tool:bash)", out[1])
+	if step, ok := out[1].(*aguievents.StepFinishedEvent); !ok || step.StepName != "approval:bash" {
+		t.Errorf("out[1] = %#v, want StepFinished(approval:bash)", out[1])
+	}
+	if step, ok := out[2].(*aguievents.StepStartedEvent); !ok || step.StepName != "tool:bash" {
+		t.Errorf("out[2] = %#v, want StepStarted(tool:bash)", out[2])
 	}
 }
 

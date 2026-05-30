@@ -133,6 +133,7 @@ var methodTable = map[string]methodHandler{
 	MethodRunsStart:          (*Dispatcher).handleRunsStart,
 	MethodRunsCancel:         (*Dispatcher).handleRunsCancel,
 	MethodRunsApprovalSubmit: (*Dispatcher).handleRunsApprovalSubmit,
+	MethodRunsQuestionAnswer: (*Dispatcher).handleRunsQuestionAnswer,
 
 	// Sessions.
 	MethodSessionsList:   (*Dispatcher).handleSessionsList,
