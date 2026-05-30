@@ -1,3 +1,4 @@
+export { Checkbox } from "./Checkbox";
 export { Chip } from "./Chip";
 export { DataView } from "./DataView";
 export { Divider } from "./Divider";
