@@ -17,6 +17,12 @@ import (
 // is present (sub-agents run without one, so their work is opaque to the
 // parent turn's event stream; only the final answer flows back).
 func (e *Engine) runChatTurn(ctx context.Context, pc *core.ProcessContext, message string, budget turnBudget) (ChatOutput, error) {
+	// Backstop a hung LLM connection (see llmCallTimeout): the deadline
+	// rides the whole streaming round so a stuck read surfaces as a
+	// stream error here rather than blocking the run forever.
+	ctx, cancel := context.WithTimeout(ctx, llmCallTimeout)
+	defer cancel()
+
 	req, err := pc.ChatWithActionTools(ctx)
 	if err != nil {
 		return ChatOutput{}, err
