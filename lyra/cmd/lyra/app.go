@@ -45,6 +45,10 @@ type App struct {
 	// ensureRuntime so `lyra help` / `lyra version` don't require
 	// an API key. Nil until ensureRuntime succeeds.
 	rt *lyraruntime.Runtime
+
+	// cfg is the config loaded on the first ensureRuntime; serve reads
+	// its Server section (listen / cors / token gate) from here.
+	cfg config.Config
 }
 
 // NewApp returns an App wired to the OS standard streams. Tests
@@ -122,6 +126,7 @@ func (a *App) ensureRuntime(ctx context.Context) error {
 		return err
 	}
 	a.rt = rt
+	a.cfg = cfg
 	return nil
 }
 
@@ -129,6 +134,9 @@ func (a *App) ensureRuntime(ctx context.Context) error {
 // ensureRuntime succeeded. Centralizes the nil-check that would
 // otherwise sprinkle across every cmd file.
 func (a *App) runtime() *lyraruntime.Runtime { return a.rt }
+
+// config returns the loaded config; valid after ensureRuntime.
+func (a *App) config() config.Config { return a.cfg }
 
 // buildSessionAndMemory picks the session + memory backend based on
 // the storage kind. SQLite shares one *sql.DB across both services

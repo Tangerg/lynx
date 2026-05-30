@@ -45,16 +45,34 @@ Runtime Protocol on a single ` + "`/v1/rpc`" + ` endpoint plus an
 
 Stdio transport is intentionally not supported — see docs/API.md §1.1.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if addr == "" {
-				return a.fatalErr(errors.New("--listen is required"))
-			}
 			if err := a.ensureRuntime(cmd.Context()); err != nil {
 				return a.fatalErr(err)
 			}
+			// Server settings come from config (config/config.yaml);
+			// CLI flags override per-field when explicitly set.
+			srv := a.config().Server
+			if cmd.Flags().Changed("listen") {
+				srv.Listen = addr
+			}
+			if cmd.Flags().Changed("no-local-token") {
+				srv.NoLocalToken = noLocalToken
+			}
+			if cmd.Flags().Changed("local-token-path") {
+				srv.LocalTokenPath = localTokenPath
+			}
+			if cmd.Flags().Changed("cors-origin") {
+				srv.CORSOrigins = corsOrigins
+			}
+			if len(srv.CORSOrigins) == 0 {
+				srv.CORSOrigins = lyrahttp.DefaultCORSOrigins
+			}
+			if srv.Listen == "" {
+				return a.fatalErr(errors.New("server.listen is empty (set serve --listen or config server.listen)"))
+			}
 
 			var token *lyrahttp.LocalToken
-			if !noLocalToken {
-				t, err := lyrahttp.IssueLocalToken(localTokenPath)
+			if !srv.NoLocalToken {
+				t, err := lyrahttp.IssueLocalToken(srv.LocalTokenPath)
 				if err != nil {
 					return a.fatalErr(err)
 				}
@@ -75,12 +93,12 @@ Stdio transport is intentionally not supported — see docs/API.md §1.1.`,
 			}
 			httpServer, err := lyrahttp.NewServer(lyrahttp.Config{
 				Runtime:         api,
-				Addr:            addr,
+				Addr:            srv.Listen,
 				ServerInfo:      lyrahttp.ServerInfoOrDefault(),
 				ProtocolVersion: server.ProtocolVersion,
 				Capabilities:    server.Capabilities(),
 				LocalToken:      tokenValue,
-				CORSOrigins:     corsOrigins,
+				CORSOrigins:     srv.CORSOrigins,
 				HealthProbes: []lyrahttp.HealthProbe{
 					{
 						Name: "runtime",
@@ -98,17 +116,17 @@ Stdio transport is intentionally not supported — see docs/API.md §1.1.`,
 				return a.fatalErr(err)
 			}
 
-			return a.runServer(cmd.Context(), httpServer, addr, token)
+			return a.runServer(cmd.Context(), httpServer, srv.Listen, token)
 		},
 	}
-	cmd.Flags().StringVar(&addr, "listen", "127.0.0.1:17171",
-		"HTTP bind address (matches frontend's default AGUI_BASE)")
+	cmd.Flags().StringVar(&addr, "listen", "",
+		"HTTP bind address; overrides config server.listen (default 127.0.0.1:17171)")
 	cmd.Flags().StringVar(&localTokenPath, "local-token-path", "",
-		"path for the local-process gate token (default: $HOME/.lyra/local-token)")
+		"local-process gate token path; overrides config server.localTokenPath")
 	cmd.Flags().BoolVar(&noLocalToken, "no-local-token", false,
-		"disable the local-process gate (dev / same-origin only)")
-	cmd.Flags().StringSliceVar(&corsOrigins, "cors-origin", lyrahttp.DefaultCORSOrigins,
-		"CORS-allowed origin; repeatable. Pass an empty value to disable CORS.")
+		"disable the local-process gate; overrides config server.noLocalToken")
+	cmd.Flags().StringSliceVar(&corsOrigins, "cors-origin", nil,
+		"CORS-allowed origin (repeatable); overrides config server.corsOrigins")
 	return cmd
 }
 
