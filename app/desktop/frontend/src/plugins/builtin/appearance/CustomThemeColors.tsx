@@ -63,6 +63,23 @@ export function CustomThemeColors() {
           value={custom.fg}
           onChange={(fg) => setCustomTheme({ fg })}
         />
+        <div className="flex items-center justify-between gap-3 rounded-md border border-line bg-surface-2 px-3 py-1.5">
+          <span className="text-[13px] text-fg-muted">{t("settings.color.contrast")}</span>
+          <div className="flex items-center gap-3">
+            <input
+              type="range"
+              min={0}
+              max={100}
+              value={custom.contrast}
+              aria-label={t("settings.color.contrast")}
+              onChange={(e) => setCustomTheme({ contrast: Number(e.target.value) })}
+              className="w-36 cursor-pointer accent-accent"
+            />
+            <span className="w-7 text-right font-mono text-[12px] tabular-nums text-fg">
+              {custom.contrast}
+            </span>
+          </div>
+        </div>
       </div>
     </div>
   );

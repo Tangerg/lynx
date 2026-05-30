@@ -26,28 +26,34 @@ const CUSTOM_THEME_ID = "custom";
 // the browser, so the derived ladder tracks the base colors exactly.
 const mix = (a: string, pct: number, b: string): string => `color-mix(in srgb, ${a} ${pct}%, ${b})`;
 
-/** Derive a full theme spec from the custom bg/fg + the shared global accent. */
+/** Derive a full theme spec from the custom bg/fg + the shared global accent.
+ *  `contrast` (0–100) scales how far each derived ladder spreads from the
+ *  base colors — low = flat/subtle, high = punchy. */
 function deriveCustomSpec(ct: CustomTheme, accent: string): ThemePluginSpec {
   const { bg, fg } = ct;
+  const k = Math.min(100, Math.max(0, ct.contrast)) / 100; // 0..1
+  // lerp a fg-toward-bg mix percentage by contrast, then round to an int.
+  const p = (lo: number, hi: number) => Math.round(lo + (hi - lo) * k);
   const scheme: "dark" | "light" = colord(bg).isDark() ? "dark" : "light";
   const extreme = scheme === "dark" ? "#ffffff" : "#000000";
   return {
     id: CUSTOM_THEME_ID,
     label: "Custom",
     scheme,
+    depthStep: `${p(3, 8)}%`, // surface-2/3/4 color-mix ladder step
     brand: { accent, textOnAccent: colord(accent).isDark() ? "#ffffff" : "#000000" },
-    surfaces: { bg, surface: mix(fg, 6, bg) },
+    surfaces: { bg, surface: mix(fg, p(4, 12), bg) },
     ink: {
       text: fg,
       textBright: mix(fg, 80, extreme), // nudge toward pure white/black
-      textSoft: mix(fg, 88, bg),
-      textMuted: mix(fg, 60, bg),
-      textFaint: mix(fg, 42, bg),
+      textSoft: mix(fg, p(86, 94), bg),
+      textMuted: mix(fg, p(45, 75), bg),
+      textFaint: mix(fg, p(28, 52), bg),
     },
     borders: {
-      border: mix(fg, 14, bg),
-      borderSoft: mix(fg, 22, bg),
-      divider: mix(fg, 9, bg),
+      border: mix(fg, p(8, 22), bg),
+      borderSoft: mix(fg, p(14, 32), bg),
+      divider: mix(fg, p(5, 13), bg),
       appDivider: bg,
     },
     semantic: { negative: "#e5484d", warning: "#f5a623", info: "#3b82f6", success: "#30a46c" },

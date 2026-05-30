@@ -66,6 +66,7 @@ export const en: Record<string, string> = {
   "settings.color.accent": "Accent",
   "settings.color.bg": "Background",
   "settings.color.fg": "Foreground",
+  "settings.color.contrast": "Contrast",
   "settings.radius": "Corners",
   "settings.radius.sub": "Global corner radius.",
   "settings.motion": "Motion",

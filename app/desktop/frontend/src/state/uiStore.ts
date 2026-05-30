@@ -21,7 +21,8 @@ import { usePluginStore } from "@/plugins/sdk/registry";
 const uiPersistSchema = z.object({
   theme: z.string(),
   accent: z.string(),
-  customTheme: z.object({ bg: z.string(), fg: z.string() }),
+  // contrast .default keeps v3 blobs (bg/fg only) parsing — no version bump.
+  customTheme: z.object({ bg: z.string(), fg: z.string(), contrast: z.number().default(60) }),
   uiFont: z.string(),
   codeFont: z.string(),
   fontSize: z.number().nullable(),
@@ -53,6 +54,9 @@ export type Theme = string;
 export interface CustomTheme {
   bg: string;
   fg: string;
+  /** 0–100. Scales how far the derived ladders (surface step, text
+   *  muted/faint, borders) spread from the base bg/fg. Higher = punchier. */
+  contrast: number;
 }
 
 interface UiState {
@@ -116,7 +120,7 @@ export const useUiStore = create<UiState & UiActions>()(
     (set, get) => ({
       theme: "dark",
       accent: "#1ed760",
-      customTheme: { bg: "#0f1117", fg: "#e6e8ee" },
+      customTheme: { bg: "#0f1117", fg: "#e6e8ee", contrast: 60 },
       uiFont: "",
       codeFont: "",
       fontSize: null,
