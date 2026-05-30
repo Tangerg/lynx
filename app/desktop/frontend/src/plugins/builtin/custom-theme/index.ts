@@ -29,9 +29,9 @@ const mix = (a: string, pct: number, b: string): string => `color-mix(in srgb, $
 /** Derive a full theme spec from the custom bg/fg + the shared global accent.
  *  `contrast` (0–100) scales how far each derived ladder spreads from the
  *  base colors — low = flat/subtle, high = punchy. */
-function deriveCustomSpec(ct: CustomTheme, accent: string): ThemePluginSpec {
+function deriveCustomSpec(ct: CustomTheme, accent: string, contrast: number): ThemePluginSpec {
   const { bg, fg } = ct;
-  const k = Math.min(100, Math.max(0, ct.contrast)) / 100; // 0..1
+  const k = Math.min(100, Math.max(0, contrast)) / 100; // 0..1 — global contrast
   // lerp a fg-toward-bg mix percentage by contrast, then round to an int.
   const p = (lo: number, hi: number) => Math.round(lo + (hi - lo) * k);
   const scheme: "dark" | "light" = colord(bg).isDark() ? "dark" : "light";
@@ -40,7 +40,7 @@ function deriveCustomSpec(ct: CustomTheme, accent: string): ThemePluginSpec {
     id: CUSTOM_THEME_ID,
     label: "Custom",
     scheme,
-    depthStep: `${p(3, 8)}%`, // surface-2/3/4 color-mix ladder step
+    // (--depth-step is set globally from contrast in uiStore.applyTheme)
     brand: { accent, textOnAccent: colord(accent).isDark() ? "#ffffff" : "#000000" },
     surfaces: { bg, surface: mix(fg, p(4, 12), bg) },
     ink: {
@@ -65,8 +65,8 @@ export default definePlugin({
   version: "1.0.0",
   setup({ host }) {
     const register = () => {
-      const { customTheme, accent } = useUiStore.getState();
-      const spec = deriveCustomSpec(customTheme, accent);
+      const { customTheme, accent, contrast } = useUiStore.getState();
+      const spec = deriveCustomSpec(customTheme, accent, contrast);
       host.theme.registerTheme({
         id: CUSTOM_THEME_ID,
         label: spec.label,
@@ -78,10 +78,11 @@ export default definePlugin({
     };
 
     register();
-    // Re-derive when the base colors OR the shared accent change (the latter
-    // flips textOnAccent black/white). applyTheme then re-applies the tokens.
+    // Re-derive when the base colors, shared accent, or global contrast
+    // change. applyTheme then re-applies the tokens.
     const unsub = useUiStore.subscribe((s, p) => {
-      if (s.customTheme !== p.customTheme || s.accent !== p.accent) register();
+      if (s.customTheme !== p.customTheme || s.accent !== p.accent || s.contrast !== p.contrast)
+        register();
     });
     disposeOnHmr(unsub);
   },
