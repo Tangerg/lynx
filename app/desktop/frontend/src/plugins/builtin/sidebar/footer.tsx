@@ -1,5 +1,6 @@
 import { Icon } from "@/components/common";
 import { useT } from "@/lib/i18n";
+import { Slot } from "@/plugins/Slot";
 import { definePlugin } from "@/plugins/sdk";
 import { useSessionStore } from "@/state/sessionStore";
 
@@ -16,7 +17,7 @@ function SidebarFooter() {
     });
 
   return (
-    <div className="grid grid-cols-[32px_minmax(0,1fr)_auto_auto] items-center gap-2.5 rounded-lg px-2.5 py-2 cursor-default transition-colors hover:bg-surface light:hover:bg-surface-2">
+    <div className="grid grid-cols-[32px_minmax(0,1fr)_auto_auto_auto] items-center gap-2.5 rounded-lg px-2.5 py-2 cursor-default transition-colors hover:bg-surface light:hover:bg-surface-2">
       {/* Avatar — 32px round, online-dot via `after:` pseudo. Dot border
           matches the panel surface so it pops on both canvas + surface. */}
       <div className="relative grid h-8 w-8 shrink-0 place-items-center rounded-full bg-surface-3 font-sans text-[13px] font-semibold text-fg after:content-[''] after:absolute after:-right-px after:-bottom-px after:h-2.5 after:w-2.5 after:rounded-full after:bg-accent after:border-2 after:border-canvas light:after:border-surface">
@@ -28,6 +29,9 @@ function SidebarFooter() {
         </div>
         <div className="mt-px truncate text-[11px] text-fg-faint">jdoe@longbridge-inc.com</div>
       </div>
+      {/* Global indicators — notifications + background tasks. Plugins
+          register here; sits in the avatar row, not a separate bottom bar. */}
+      <Slot name="sidebar.footer.status" className="flex items-center gap-0.5" />
       <button
         type="button"
         onClick={openSettings}

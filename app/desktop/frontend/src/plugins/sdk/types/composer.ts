@@ -111,6 +111,12 @@ export interface ComposerStatusSpec {
   id: string;
   /** Sort hint — lower comes first. Built-ins use 0..99. */
   order?: number;
+  /**
+   * Which side of the footer the chip sits on. "start" (default) =
+   * left context chips (project / mode / branch); "end" = right-aligned
+   * run telemetry (tokens / cost / run state).
+   */
+  align?: "start" | "end";
   /** The chip body. Receives no props. */
   component: ComponentType;
 }

@@ -1,6 +1,6 @@
-// Status-bar pill that surfaces tasks registered via `host.tasks.start`.
-// Hidden when no task exists; expands to a popover listing each entry
-// when the user clicks.
+// Sidebar-footer indicator that surfaces tasks registered via
+// `host.tasks.start`. Hidden when no task exists; expands to a popover
+// listing each entry when the user clicks.
 
 import type { TaskEntry, TaskStatus } from "@/state/tasksStore";
 import * as Popover from "@radix-ui/react-popover";
@@ -79,21 +79,26 @@ function TasksPill() {
       <Popover.Trigger asChild>
         <button
           type="button"
-          className="sb-item sb-btn inline-flex items-center gap-1.5 whitespace-nowrap"
+          aria-label={label}
           title={running.length > 0 ? `${running.length} running task(s)` : "Recent tasks"}
+          className="relative grid h-6.5 w-6.5 place-items-center rounded-md border-0 bg-transparent text-fg-faint cursor-pointer transition-[background,color] hover:bg-surface-2 hover:text-fg light:hover:bg-surface-3 active:scale-[0.92]"
         >
           <Icon
             name={name}
-            size={11}
+            size={14}
             className={cn(tone, head.status === "running" && "animate-pulse-dot")}
           />
-          <span className="max-w-[180px] truncate text-[11.5px] text-fg-muted">{label}</span>
+          {running.length > 0 && (
+            <span className="absolute -right-0.5 -top-0.5 grid h-3.5 min-w-3.5 place-items-center rounded-full bg-accent px-0.5 font-mono text-[9px] font-semibold tabular-nums text-on-accent">
+              {running.length}
+            </span>
+          )}
         </button>
       </Popover.Trigger>
       <Popover.Portal>
         <Popover.Content
           side="top"
-          align="end"
+          align="start"
           sideOffset={6}
           className="z-50 w-[320px] overflow-hidden rounded-lg border border-line bg-surface shadow-lg"
         >
@@ -115,9 +120,9 @@ export const tasksPill = definePlugin({
   name: "lyra.builtin.tasks",
   version: "1.0.0",
   setup({ host }) {
-    host.layout.register("app.statusbar", {
+    host.layout.register("sidebar.footer.status", {
       id: "tasks",
-      order: 210,
+      order: 0,
       component: TasksPill,
     });
   },
