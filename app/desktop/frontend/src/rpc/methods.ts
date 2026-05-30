@@ -12,22 +12,22 @@ import type { BaseEvent } from "@ag-ui/core";
 import type { RpcClient } from "./client";
 import type { AttachmentId, MessageId, RunId, SessionId, TaskId } from "./ids";
 import type {
-  ApprovalSubmission,
+  SubmitApprovalRequest,
   BackgroundTask,
   BackgroundUpdate,
-  CreateSessionInput,
-  CreateUploadUrlInput,
-  CreateUploadUrlResult,
+  CreateSessionRequest,
+  CreateUploadURLRequest,
+  CreateUploadURLResponse,
   DiffRow,
-  FeedbackInput,
+  FeedbackRequest,
   FileChange,
   FileLine,
   GrepResult,
-  InitializeParams,
-  InitializeResult,
+  InitializeRequest,
+  InitializeResponse,
   MCPServer,
   Message,
-  MessageEditResult,
+  EditMessageResponse,
   Model,
   Page,
   PageQuery,
@@ -35,11 +35,11 @@ import type {
   Provider,
   ProviderTestResult,
   Session,
-  SessionPatch,
-  ShutdownParams,
+  UpdateSessionRequest,
+  ShutdownRequest,
   Skill,
-  StartRunParams,
-  StartRunResult,
+  StartRunRequest,
+  StartRunResponse,
   TermLine,
   ToolSpec,
 } from "./shapes";
@@ -52,25 +52,25 @@ export interface StreamingResult<R, E> {
 
 export interface Methods {
   runtime: {
-    initialize: (params: InitializeParams) => Promise<InitializeResult>;
-    shutdown: (params?: ShutdownParams) => Promise<void>;
+    initialize: (params: InitializeRequest) => Promise<InitializeResponse>;
+    shutdown: (params?: ShutdownRequest) => Promise<void>;
     ping: () => Promise<void>;
   };
   runs: {
     start: (
-      params: StartRunParams,
+      params: StartRunRequest,
       signal?: AbortSignal,
-    ) => Promise<StreamingResult<StartRunResult, BaseEvent>>;
+    ) => Promise<StreamingResult<StartRunResponse, BaseEvent>>;
     cancel: (runId: RunId, reason?: string) => Promise<void>;
     approval: {
-      submit: (params: ApprovalSubmission) => Promise<void>;
+      submit: (params: SubmitApprovalRequest) => Promise<void>;
     };
   };
   sessions: {
     list: (query?: PageQuery) => Promise<Page<Session>>;
     get: (id: SessionId) => Promise<Session>;
-    create: (input: CreateSessionInput) => Promise<Session>;
-    update: (id: SessionId, patch: SessionPatch) => Promise<Session>;
+    create: (input: CreateSessionRequest) => Promise<Session>;
+    update: (id: SessionId, patch: UpdateSessionRequest) => Promise<Session>;
     delete: (id: SessionId) => Promise<void>;
     // Per API.md §5.2: first arg is `parentId` (the source session being
     // forked), not `id` — `id` was ambiguous at the callsite ("which id,
@@ -84,7 +84,7 @@ export interface Methods {
       sessionId: SessionId,
       messageId: MessageId,
       content: string,
-    ) => Promise<MessageEditResult>;
+    ) => Promise<EditMessageResponse>;
   };
   workspace: {
     filesChanged: () => Promise<FileChange[]>;
@@ -116,7 +116,7 @@ export interface Methods {
     list: () => Promise<ToolSpec[]>;
   };
   attachments: {
-    createUploadUrl: (input: CreateUploadUrlInput) => Promise<CreateUploadUrlResult>;
+    createUploadUrl: (input: CreateUploadURLRequest) => Promise<CreateUploadURLResponse>;
     delete: (id: AttachmentId) => Promise<void>;
   };
   background: {
@@ -128,14 +128,14 @@ export interface Methods {
     ) => Promise<StreamingResult<{ taskId: TaskId }, BackgroundUpdate>>;
   };
   feedback: {
-    submit: (input: FeedbackInput) => Promise<void>;
+    submit: (input: FeedbackRequest) => Promise<void>;
   };
 }
 
 export function createMethods(client: RpcClient): Methods {
   return {
     runtime: {
-      initialize: (params) => client.call<InitializeResult>("runtime.initialize", params),
+      initialize: (params) => client.call<InitializeResponse>("runtime.initialize", params),
       shutdown: (params) => client.notify("runtime.shutdown", params ?? {}),
       ping: () => client.call<void>("runtime.ping"),
     },
@@ -149,13 +149,13 @@ export function createMethods(client: RpcClient): Methods {
         // makeFilteredStream subscribes synchronously on construction.
         if (params.runId) {
           const events = streamRunEvents(client, params.runId, signal);
-          const result = await client.call<StartRunResult>("runs.start", params, signal);
+          const result = await client.call<StartRunResponse>("runs.start", params, signal);
           return { result, events };
         }
         // No client runId: the server assigns one, so we can only subscribe
         // after the response (a small leading-event race the caller accepts
         // by not supplying a runId).
-        const result = await client.call<StartRunResult>("runs.start", params, signal);
+        const result = await client.call<StartRunResponse>("runs.start", params, signal);
         return { result, events: streamRunEvents(client, result.runId, signal) };
       },
       // Proper Request (not Notification). Semantically distinct from
@@ -181,7 +181,7 @@ export function createMethods(client: RpcClient): Methods {
       list: (sessionId, query) =>
         client.call<Page<Message>>("messages.list", { sessionId, ...query }),
       edit: (sessionId, messageId, content) =>
-        client.call<MessageEditResult>("messages.edit", { sessionId, messageId, content }),
+        client.call<EditMessageResponse>("messages.edit", { sessionId, messageId, content }),
     },
     workspace: {
       filesChanged: () => client.call<FileChange[]>("workspace.filesChanged"),
@@ -220,7 +220,7 @@ export function createMethods(client: RpcClient): Methods {
     },
     attachments: {
       createUploadUrl: (input) =>
-        client.call<CreateUploadUrlResult>("attachments.createUploadUrl", input),
+        client.call<CreateUploadURLResponse>("attachments.createUploadUrl", input),
       delete: (id) => client.call<void>("attachments.delete", { id }),
     },
     background: {

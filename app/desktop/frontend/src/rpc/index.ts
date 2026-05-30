@@ -42,7 +42,7 @@ export type { Methods, StreamingResult } from "./methods";
 export type {
   // Lifecycle
   ApprovalDecision,
-  ApprovalSubmission,
+  SubmitApprovalRequest,
   // Background
   BackgroundStatus,
   BackgroundTask,
@@ -51,24 +51,24 @@ export type {
   ClientCapabilities,
   // Context / tools
   ContextItem,
-  CreateSessionInput,
-  CreateUploadUrlInput,
-  CreateUploadUrlResult,
+  CreateSessionRequest,
+  CreateUploadURLRequest,
+  CreateUploadURLResponse,
   // Workspace
   DiffRow,
   // Feedback
-  FeedbackInput,
+  FeedbackRequest,
   FeedbackKind,
   FileChange,
   FileLine,
   GrepMatch,
   GrepResult,
-  InitializeParams,
-  InitializeResult,
+  InitializeRequest,
+  InitializeResponse,
   JsonSchema,
   MCPServer,
   Message,
-  MessageEditResult,
+  EditMessageResponse,
   MessageRole,
   Model,
   Page,
@@ -82,13 +82,13 @@ export type {
   ServerCapabilities,
   // Sessions / messages
   Session,
-  SessionPatch,
+  UpdateSessionRequest,
   SessionStatus,
-  ShutdownParams,
+  ShutdownRequest,
   Skill,
   // Runs
-  StartRunParams,
-  StartRunResult,
+  StartRunRequest,
+  StartRunResponse,
   TerminalOutputParams,
   TermLine,
   TermLineKind,

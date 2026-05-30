@@ -24,7 +24,7 @@ interface RuntimeState {
   /** What the server can do. Null before handshake. */
   capabilities: ServerCapabilities | null;
   /**
-   * Mark handshake complete with the InitializeResult payload. Callers
+   * Mark handshake complete with the InitializeResponse payload. Callers
    * typically pass the value straight from `methods.runtime.initialize`.
    */
   setHandshake: (result: {

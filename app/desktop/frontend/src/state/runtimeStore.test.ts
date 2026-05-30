@@ -45,7 +45,7 @@ describe("runtimeStore", () => {
     expect(s.protocolVersion).toBeNull();
   });
 
-  it("setHandshake flattens InitializeResult into store fields", () => {
+  it("setHandshake flattens InitializeResponse into store fields", () => {
     useRuntimeStore.getState().setHandshake({
       protocolVersion: "2026-05-28",
       serverInfo: { name: "lyra-core", version: "0.8.1" },
