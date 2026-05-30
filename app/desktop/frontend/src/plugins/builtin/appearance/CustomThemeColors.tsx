@@ -54,11 +54,6 @@ export function CustomThemeColors() {
       </div>
       <div className="grid max-w-[300px] gap-2">
         <ColorRow
-          label={t("settings.color.accent")}
-          value={custom.accent}
-          onChange={(accent) => setCustomTheme({ accent })}
-        />
-        <ColorRow
           label={t("settings.color.bg")}
           value={custom.bg}
           onChange={(bg) => setCustomTheme({ bg })}
