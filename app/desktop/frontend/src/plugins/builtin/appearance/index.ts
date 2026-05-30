@@ -1,7 +1,7 @@
 // Built-in plugin: Appearance settings pane.
 //
-// Sections (theme / accent / font / message style / language) live in
-// sibling files. This file is only the plugin manifest.
+// Sections (theme / accent / contrast / font / shape / motion / language)
+// live in sibling files. This file is only the plugin manifest.
 
 import { definePlugin } from "@/plugins/sdk";
 import { AppearancePane } from "./AppearancePane";

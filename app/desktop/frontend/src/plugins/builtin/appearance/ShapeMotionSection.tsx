@@ -11,7 +11,7 @@
 //     `duration-*` utilities collapse via a blanket override in
 //     globals.css.
 
-import { Segmented, Slider, type SegmentedOption } from "@/components/common";
+import { Segmented, type SegmentedOption } from "@/components/common";
 import { useT } from "@/lib/i18n";
 import { useUiStore } from "@/state/uiStore";
 import { SettingRow } from "./SettingRow";
@@ -33,10 +33,8 @@ export function ShapeMotionSection() {
   const t = useT();
   const radiusScale = useUiStore((s) => s.radiusScale);
   const motionScale = useUiStore((s) => s.motionScale);
-  const contrast = useUiStore((s) => s.contrast);
   const setRadiusScale = useUiStore((s) => s.setRadiusScale);
   const setMotionScale = useUiStore((s) => s.setMotionScale);
-  const setContrast = useUiStore((s) => s.setContrast);
 
   return (
     <>
@@ -55,20 +53,6 @@ export function ShapeMotionSection() {
           onChange={setMotionScale}
           ariaLabel="Animation speed"
         />
-      </SettingRow>
-      <SettingRow label={t("settings.contrast")} sub={t("settings.contrast.sub")} align="start">
-        <div className="flex items-center gap-3">
-          <Slider
-            value={contrast}
-            min={0}
-            max={100}
-            onValueChange={setContrast}
-            ariaLabel={t("settings.contrast")}
-          />
-          <span className="w-7 text-right font-mono text-[12px] tabular-nums text-fg-muted">
-            {contrast}
-          </span>
-        </div>
       </SettingRow>
     </>
   );
