@@ -1,11 +1,14 @@
-// Package config loads Lyra's runtime configuration.
+// Package config loads Lyra's runtime configuration via viper.
 //
-// Configuration sources (later overrides earlier):
+// Sources, later overrides earlier:
 //
 //  1. Built-in defaults
-//  2. ~/.lyra/config.toml (when present — not implemented yet)
-//  3. Environment variables (LYRA_*)
-//  4. CLI flags (resolved by cmd/lyra)
+//  2. config/config.yaml (or $HOME/.lyra/config.yaml) — viper
+//  3. Environment variables (LYRA_* + provider {NAME}_API_KEY)
+//  4. CLI flags (resolved by cmd/lyra; e.g. serve --listen)
+//
+// The yaml file is where the API key lives in dev; it is gitignored.
+// Copy config/config.example.yaml → config/config.yaml and fill it in.
 package config
 
 import (
@@ -14,12 +17,13 @@ import (
 	"os"
 	"strings"
 
+	"github.com/spf13/viper"
+
 	"github.com/Tangerg/lynx/lyra/internal/engine"
 	"github.com/Tangerg/lynx/mcp"
 )
 
-// Provider enumerates the LLM provider Lyra talks to. M1 ships the
-// two we have the smoothest lynx adapters for.
+// Provider enumerates the LLM provider Lyra talks to.
 type Provider string
 
 const (
@@ -27,9 +31,7 @@ const (
 	ProviderOpenAI    Provider = "openai"
 )
 
-// StorageKind selects the backend for session + memory state. "file"
-// keeps the per-LYRA.md / sessions.json layout; "sqlite" puts both in
-// one SQLite database at $LYRA_HOME/lyra.db.
+// StorageKind selects the backend for session + memory state.
 type StorageKind string
 
 const (
@@ -37,54 +39,91 @@ const (
 	StorageSQLite StorageKind = "sqlite"
 )
 
-// Config is the loaded runtime configuration. Constructed by [Load];
-// passed verbatim into engine + service wiring.
+// ServerConfig holds the `lyra serve` HTTP transport settings. CLI
+// flags override these (serve resolves flag-vs-config per field).
+type ServerConfig struct {
+	Listen         string
+	NoLocalToken   bool
+	LocalTokenPath string
+	CORSOrigins    []string // empty → serve falls back to the built-in dev allowlist
+}
+
+// Config is the loaded runtime configuration.
 type Config struct {
 	Provider Provider
 	Model    string
 	APIKey   string
 
-	// Online optionally enables provider-backed tools (web fetch,
-	// web search, HTTP requests). Each field is independent — set
-	// only the ones you have credentials for. Stored directly in the
-	// engine's wire format so no bridge layer is needed (same pattern
-	// as MCPServers).
+	// Online optionally enables provider-backed tools.
 	Online engine.OnlineConfig
 
-	// MCPServers is the parsed list of external MCP servers the
-	// engine dials at startup. Tools from each server merge into
-	// the engine's tool set under the server's Name as prefix.
-	// Empty disables MCP integration. Stored directly in the
-	// engine's wire format so no bridge layer is needed.
+	// MCPServers is the parsed list of external MCP servers dialed at
+	// startup. First cut: sourced from LYRA_MCP_SERVERS env (yaml
+	// support is a later addition).
 	MCPServers []mcp.ServerConfig
 
-	// Storage selects the persistence backend for session +
-	// memory services. Defaults to StorageFile — set LYRA_STORAGE
-	// to "sqlite" to use the SQLite backend instead.
+	// Storage selects the persistence backend.
 	Storage StorageKind
+
+	// Server holds the HTTP serve settings.
+	Server ServerConfig
 }
 
-// Load resolves the configuration from defaults + environment. The
-// returned config is ready to hand to engine.New.
-//
-// M1 lookups (in priority order):
-//
-//   - LYRA_PROVIDER (default "anthropic")
-//   - LYRA_MODEL    (default per provider)
-//   - {PROVIDER}_API_KEY  (anthropic → ANTHROPIC_API_KEY etc.)
+// Load resolves configuration from yaml + env + defaults. A missing
+// config file is fine (defaults + env only). The returned config is
+// ready to hand to engine + transport wiring.
 func Load() (Config, error) {
-	provider := Provider(envOr("LYRA_PROVIDER", string(ProviderAnthropic)))
+	v := viper.New()
+	v.SetConfigName("config")
+	v.SetConfigType("yaml")
+	v.AddConfigPath("config")      // ./config/config.yaml (run from the lyra dir)
+	v.AddConfigPath("$HOME/.lyra") // ~/.lyra/config.yaml
 
+	v.SetDefault("provider", string(ProviderAnthropic))
+	v.SetDefault("storage", string(StorageFile))
+	v.SetDefault("server.listen", "127.0.0.1:17171")
+	v.SetDefault("server.noLocalToken", false)
+
+	// LYRA_* env override yaml (e.g. LYRA_PROVIDER, LYRA_SERVER_LISTEN).
+	v.SetEnvPrefix("LYRA")
+	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+	v.AutomaticEnv()
+
+	if err := v.ReadInConfig(); err != nil {
+		var notFound viper.ConfigFileNotFoundError
+		if !errors.As(err, &notFound) {
+			return Config{}, fmt.Errorf("config: read config file: %w", err)
+		}
+		// No config file — defaults + env only.
+	}
+
+	provider := Provider(v.GetString("provider"))
 	switch provider {
 	case ProviderAnthropic, ProviderOpenAI:
 	default:
-		return Config{}, errors.New("config: unknown LYRA_PROVIDER (want anthropic|openai)")
+		return Config{}, errors.New("config: unknown provider (want anthropic|openai)")
 	}
 
-	model := envOr("LYRA_MODEL", defaultModelFor(provider))
-	apiKey := os.Getenv(apiKeyEnvFor(provider))
+	model := v.GetString("model")
+	if model == "" {
+		model = defaultModelFor(provider)
+	}
+
+	// API key: yaml `apiKey`, overridden by the provider's native env
+	// var ({ANTHROPIC,OPENAI}_API_KEY) so the old env workflow still works.
+	apiKey := v.GetString("apiKey")
+	if envKey := os.Getenv(apiKeyEnvFor(provider)); envKey != "" {
+		apiKey = envKey
+	}
 	if apiKey == "" {
-		return Config{}, errors.New("config: " + apiKeyEnvFor(provider) + " is empty")
+		return Config{}, errors.New("config: apiKey is empty — set it in config/config.yaml or " + apiKeyEnvFor(provider))
+	}
+
+	storage := StorageKind(v.GetString("storage"))
+	switch storage {
+	case StorageFile, StorageSQLite:
+	default:
+		return Config{}, errors.New("config: unknown storage (want file|sqlite)")
 	}
 
 	servers, err := parseMCPServers(os.Getenv("LYRA_MCP_SERVERS"))
@@ -92,43 +131,46 @@ func Load() (Config, error) {
 		return Config{}, fmt.Errorf("config: LYRA_MCP_SERVERS: %w", err)
 	}
 
-	storage := StorageKind(envOr("LYRA_STORAGE", string(StorageFile)))
-	switch storage {
-	case StorageFile, StorageSQLite:
-	default:
-		return Config{}, errors.New("config: unknown LYRA_STORAGE (want file|sqlite)")
-	}
-
 	return Config{
-		Provider: provider,
-		Model:    model,
-		APIKey:   apiKey,
-		Online: engine.OnlineConfig{
-			JinaAPIKey:       os.Getenv("LYRA_JINA_API_KEY"),
-			TavilyAPIKey:     os.Getenv("LYRA_TAVILY_API_KEY"),
-			HTTPAllowedHosts: splitHosts(os.Getenv("LYRA_HTTP_ALLOWED_HOSTS")),
-		},
+		Provider:   provider,
+		Model:      model,
+		APIKey:     apiKey,
+		Online:     loadOnline(v),
 		MCPServers: servers,
 		Storage:    storage,
+		Server: ServerConfig{
+			Listen:         v.GetString("server.listen"),
+			NoLocalToken:   v.GetBool("server.noLocalToken"),
+			LocalTokenPath: v.GetString("server.localTokenPath"),
+			CORSOrigins:    v.GetStringSlice("server.corsOrigins"),
+		},
 	}, nil
 }
 
+// loadOnline reads the optional provider-tool credentials. yaml under
+// `online:`, with the legacy LYRA_* env vars taking precedence so the
+// old workflow keeps working.
+func loadOnline(v *viper.Viper) engine.OnlineConfig {
+	jina := firstNonEmpty(os.Getenv("LYRA_JINA_API_KEY"), v.GetString("online.jinaApiKey"))
+	tavily := firstNonEmpty(os.Getenv("LYRA_TAVILY_API_KEY"), v.GetString("online.tavilyApiKey"))
+	hosts := v.GetStringSlice("online.httpAllowedHosts")
+	if env := os.Getenv("LYRA_HTTP_ALLOWED_HOSTS"); env != "" {
+		hosts = splitHosts(env)
+	}
+	return engine.OnlineConfig{
+		JinaAPIKey:       jina,
+		TavilyAPIKey:     tavily,
+		HTTPAllowedHosts: hosts,
+	}
+}
+
 // parseMCPServers parses the LYRA_MCP_SERVERS env var: a comma-
-// separated list of "name=value" pairs. Empty input yields nil
-// with no error; per-entry errors include the offending fragment
-// so the operator can spot the typo immediately.
+// separated list of "name=value" pairs. Empty input yields nil.
 //
 // Two value shapes:
 //
 //	HTTP:  name=https://mcp.example.com/   (or http://)
-//	stdio: name=stdio:command arg1 arg2    (whitespace-split argv,
-//	                                        no shell interpolation)
-//
-// Examples:
-//
-//	LYRA_MCP_SERVERS="github=https://mcp.github.com/,\
-//	  fs=stdio:npx -y @modelcontextprotocol/server-filesystem /workspace,\
-//	  time=stdio:uvx mcp-server-time"
+//	stdio: name=stdio:command arg1 arg2    (whitespace-split argv)
 func parseMCPServers(raw string) ([]mcp.ServerConfig, error) {
 	if raw == "" {
 		return nil, nil
@@ -163,14 +205,12 @@ func parseMCPServers(raw string) ([]mcp.ServerConfig, error) {
 }
 
 // parseMCPServerValue dispatches by prefix. `stdio:` is a Lyra
-// convention — anything else must look like an HTTP(S) URL (we
-// only sanity-check the scheme so the typo "stido:" stops here
-// rather than turning into a stalled HTTP dial).
+// convention — anything else must look like an HTTP(S) URL.
 func parseMCPServerValue(name, value string) (mcp.ServerConfig, error) {
 	if rest, ok := strings.CutPrefix(value, "stdio:"); ok {
 		rest = strings.TrimSpace(rest)
 		if rest == "" {
-			return mcp.ServerConfig{}, fmt.Errorf("stdio: command is empty")
+			return mcp.ServerConfig{}, errors.New("stdio: command is empty")
 		}
 		fields := strings.Fields(rest)
 		return mcp.ServerConfig{
@@ -190,9 +230,7 @@ func parseMCPServerValue(name, value string) (mcp.ServerConfig, error) {
 	}, nil
 }
 
-// splitHosts parses the comma-separated LYRA_HTTP_ALLOWED_HOSTS
-// value. Empty entries are dropped so trailing commas are tolerated.
-// Empty input → nil slice (tool stays disabled).
+// splitHosts parses the comma-separated LYRA_HTTP_ALLOWED_HOSTS value.
 func splitHosts(raw string) []string {
 	if raw == "" {
 		return nil
@@ -200,8 +238,7 @@ func splitHosts(raw string) []string {
 	parts := strings.Split(raw, ",")
 	out := make([]string, 0, len(parts))
 	for _, p := range parts {
-		p = strings.TrimSpace(p)
-		if p != "" {
+		if p = strings.TrimSpace(p); p != "" {
 			out = append(out, p)
 		}
 	}
@@ -211,11 +248,11 @@ func splitHosts(raw string) []string {
 	return out
 }
 
-func envOr(key, fallback string) string {
-	if v := os.Getenv(key); v != "" {
-		return v
+func firstNonEmpty(a, b string) string {
+	if a != "" {
+		return a
 	}
-	return fallback
+	return b
 }
 
 func defaultModelFor(p Provider) string {
