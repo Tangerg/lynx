@@ -32,7 +32,11 @@ class RpcAgent extends AbstractAgent {
             .runs.start(
               {
                 sessionId: asSessionId(input.threadId),
-                runId: input.runId ? asRunId(input.runId) : undefined,
+                // Client-supplied runId — the contract's idempotency key (§6.3).
+                // The runtime may assign its own anyway; methods.runs.start
+                // subscribes before the POST and binds the stream to whichever
+                // runId the response returns, so events are never raced/dropped.
+                runId: asRunId(input.runId || crypto.randomUUID()),
                 // The Go runtime reads id/role/content; the protocol Message
                 // shape carries more, but the cast is safe for the fields it
                 // actually consumes (full message-shape alignment is tracked).

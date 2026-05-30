@@ -221,6 +221,89 @@ const asGenericParser =
   (raw: unknown) =>
     p(raw) as Record<string, unknown> | null;
 
+/**
+ * Subscribe to run events BEFORE the runId is known, then bind to it once
+ * `runs.start` returns. A fast runtime emits — and broadcasts — the WHOLE run
+ * the instant it handles the POST; subscribing only after the response races
+ * and drops everything. So we subscribe immediately, buffer events until
+ * `bind(runId)` supplies the runtime-assigned id (a client-supplied runId may
+ * be ignored by the runtime — §6.3), then flush the buffer + filter ongoing.
+ *
+ * Returns the event iterable plus `bind`; the caller invokes `bind(result.runId)`
+ * with the runs.start response's runId.
+ */
+export function streamRunEventsDeferred(
+  client: RpcClient,
+  signal?: AbortSignal,
+): { events: AsyncIterable<BaseEvent>; bind: (runId: string) => void } {
+  const channel = createPushPullChannel<BaseEvent>();
+  let runId: string | null = null;
+  const pendingEvents: RunEventParams[] = [];
+  const closedRunIds = new Set<string>();
+
+  const unsubEvent = client.subscribe("notifications/run/event", (msg) => {
+    if (channel.closed) return;
+    const p = parseRunEventParams(msg.params);
+    if (!p) return;
+    if (runId === null)
+      pendingEvents.push(p); // not bound yet — buffer until we learn our runId
+    else if (p.runId === runId) channel.push(p.event as BaseEvent);
+  });
+
+  const unsubClosed = client.subscribe("notifications/run/closed", (msg) => {
+    const p = parseRunClosedParams(msg.params);
+    if (!p) return;
+    if (runId === null) closedRunIds.add(p.runId);
+    else if (p.runId === runId) channel.close();
+  });
+
+  const onAbort = () => channel.close();
+  if (signal) {
+    if (signal.aborted) channel.close();
+    else signal.addEventListener("abort", onAbort, { once: true });
+  }
+
+  let cleanedUp = false;
+  const cleanup = (): void => {
+    if (cleanedUp) return;
+    cleanedUp = true;
+    unsubEvent();
+    unsubClosed();
+    if (signal) signal.removeEventListener("abort", onAbort);
+  };
+
+  const events: AsyncIterable<BaseEvent> = {
+    [Symbol.asyncIterator]() {
+      const inner = channel.iterator();
+      return {
+        [Symbol.asyncIterator]() {
+          return this;
+        },
+        next: async (): Promise<IteratorResult<BaseEvent>> => {
+          const result = await inner.next();
+          if (result.done) cleanup();
+          return result;
+        },
+        return: async (): Promise<IteratorResult<BaseEvent>> => {
+          channel.close();
+          cleanup();
+          return { value: undefined as never, done: true };
+        },
+      };
+    },
+  };
+
+  const bind = (id: string): void => {
+    if (runId !== null) return;
+    runId = id;
+    for (const p of pendingEvents) if (p.runId === id) channel.push(p.event as BaseEvent);
+    pendingEvents.length = 0;
+    if (closedRunIds.has(id)) channel.close();
+  };
+
+  return { events, bind };
+}
+
 /** Subscribe to AG-UI events from a single `runs.start` invocation. */
 export function streamRunEvents(
   client: RpcClient,
