@@ -11,6 +11,7 @@
 // this module.
 
 import type { MemoryTransport } from "./memory";
+import type { RunResult } from "../shapes";
 import {
   JSONRPC_VERSION,
   isRequest,
@@ -68,10 +69,19 @@ export function injectRunEvent(
   eventId: string,
   event: Record<string, unknown>,
 ): void {
-  injectNotification(t, "notifications/run/event", { runId, eventId, event });
+  // `ts` is required by RunEventParamsSchema (§3.1 — every event carries a
+  // server-authoritative timestamp). A fixed stamp keeps fixtures stable.
+  injectNotification(t, "notifications/run/event", {
+    runId,
+    eventId,
+    ts: "2025-01-01T00:00:00Z",
+    event,
+  });
 }
 
-/** Inject `notifications/run/closed` — terminates a run's event stream. */
-export function injectRunClosed(t: MemoryTransport, runId: string, reason?: string): void {
-  injectNotification(t, "notifications/run/closed", reason ? { runId, reason } : { runId });
+/** Inject `notifications/run/closed` — terminates a run's event stream.
+ *  Per §3.1 it carries a RunResult; the stream only needs `runId` to close,
+ *  so `result` is optional for fixtures that don't assert on it. */
+export function injectRunClosed(t: MemoryTransport, runId: string, result?: RunResult): void {
+  injectNotification(t, "notifications/run/closed", result ? { runId, result } : { runId });
 }

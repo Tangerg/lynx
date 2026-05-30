@@ -49,7 +49,7 @@ function toSidebarMCPServer(s: RpcMCPServer): SidebarMCPServer {
     id: s.name,
     name: s.name,
     desc: s.desc,
-    tools: s.tools,
+    tools: s.toolCount,
     status: s.status,
     icon: MCP_ICON[s.name] ?? "tool",
   };

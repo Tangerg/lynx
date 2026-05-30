@@ -12,36 +12,47 @@ import type { BaseEvent } from "@ag-ui/core";
 import type { RpcClient } from "./client";
 import type { AttachmentId, MessageId, RunId, SessionId, TaskId } from "./ids";
 import type {
-  SubmitApprovalRequest,
+  AgentDoc,
+  AnswerQuestionRequest,
   BackgroundTask,
   BackgroundUpdate,
+  ConfigureProviderRequest,
   CreateSessionRequest,
   CreateUploadURLRequest,
   CreateUploadURLResponse,
   DiffRow,
+  EditMessageResponse,
+  ExportSessionResponse,
   FeedbackRequest,
   FileChange,
   FileLine,
+  GetMemoryResponse,
   GrepResult,
   InitializeRequest,
   InitializeResponse,
+  InvokeToolRequest,
+  InvokeToolResponse,
   MCPServer,
+  MemoryEntry,
+  MemoryScope,
   Message,
-  EditMessageResponse,
   Model,
   Page,
   PageQuery,
   Project,
   Provider,
   ProviderTestResult,
+  RunSummary,
   Session,
-  UpdateSessionRequest,
   ShutdownRequest,
   Skill,
   StartRunRequest,
   StartRunResponse,
+  SubmitApprovalRequest,
   TermLine,
   ToolSpec,
+  UpdateMemoryRequest,
+  UpdateSessionRequest,
 } from "./shapes";
 import { streamBackgroundUpdates, streamRunEvents, streamTerminalOutput } from "./stream";
 
@@ -61,9 +72,20 @@ export interface Methods {
       params: StartRunRequest,
       signal?: AbortSignal,
     ) => Promise<StreamingResult<StartRunResponse, BaseEvent>>;
+    // Crash-recovery / durable-HITL discovery: only active|waiting runs (§3.3).
+    list: (sessionId: SessionId) => Promise<RunSummary[]>;
+    // Reattach an existing run (started on another connection) to this one
+    // and replay its events from the start / Last-Event-Id anchor (§3.2/§3.3).
+    subscribe: (
+      runId: RunId,
+      signal?: AbortSignal,
+    ) => Promise<StreamingResult<{ runId: RunId }, BaseEvent>>;
     cancel: (runId: RunId, reason?: string) => Promise<void>;
     approval: {
       submit: (params: SubmitApprovalRequest) => Promise<void>;
+    };
+    question: {
+      answer: (params: AnswerQuestionRequest) => Promise<void>;
     };
   };
   sessions: {
@@ -76,7 +98,7 @@ export interface Methods {
     // forked), not `id` — `id` was ambiguous at the callsite ("which id,
     // the new one or the source?").
     fork: (parentId: SessionId, atMessageId: MessageId) => Promise<Session>;
-    export: (id: SessionId, format: "md" | "json") => Promise<{ url: string }>;
+    export: (id: SessionId, format: "md" | "json") => Promise<ExportSessionResponse>;
   };
   messages: {
     list: (sessionId: SessionId, query?: PageQuery) => Promise<Page<Message>>;
@@ -102,18 +124,32 @@ export interface Methods {
       list: () => Promise<MCPServer[]>;
       // Per API.md §6.5: wire key is `name` (MCP-native identifier).
       reconnect: (name: string) => Promise<void>;
+      // Expand one MCP server's concrete tools (list page only gives a count).
+      tools: (name: string) => Promise<ToolSpec[]>;
     };
     skills: () => Promise<Skill[]>;
+    // Cascade-discovered AGENTS.md bodies (sidecar /v1/info only gives paths).
+    agentDocs: () => Promise<AgentDoc[]>;
   };
   providers: {
     list: () => Promise<Provider[]>;
     test: (id: string) => Promise<ProviderTestResult>;
+    // Configure provider credentials/endpoint; returns the updated Provider
+    // (hasApiKey reflects the result). Configure ≠ auth — it's provider mgmt.
+    configure: (input: ConfigureProviderRequest) => Promise<Provider>;
   };
   models: {
     list: (provider?: string) => Promise<Model[]>;
   };
   tools: {
     list: () => Promise<ToolSpec[]>;
+    // Invoke a tool directly, bypassing the LLM (diagnostics / workflows).
+    invoke: (input: InvokeToolRequest) => Promise<InvokeToolResponse>;
+  };
+  memory: {
+    list: () => Promise<MemoryEntry[]>;
+    get: (scope: MemoryScope) => Promise<GetMemoryResponse>;
+    update: (input: UpdateMemoryRequest) => Promise<void>;
   };
   attachments: {
     createUploadUrl: (input: CreateUploadURLRequest) => Promise<CreateUploadURLResponse>;
@@ -158,6 +194,15 @@ export function createMethods(client: RpcClient): Methods {
         const result = await client.call<StartRunResponse>("runs.start", params, signal);
         return { result, events: streamRunEvents(client, result.runId, signal) };
       },
+      list: (sessionId) => client.call<RunSummary[]>("runs.list", { sessionId }),
+      subscribe: async (runId, signal) => {
+        // Same leading-event reasoning as start with a client runId: the
+        // runId is known, so subscribe synchronously before the call to
+        // avoid dropping replayed head events.
+        const events = streamRunEvents(client, runId, signal);
+        const result = await client.call<{ runId: RunId }>("runs.subscribe", { runId }, signal);
+        return { result, events };
+      },
       // Proper Request (not Notification). Semantically distinct from
       // `notifications/canceled` which cancels an in-flight JSON-RPC
       // Request by JSON-RPC id. `runs.cancel` stops a long-running run
@@ -165,6 +210,9 @@ export function createMethods(client: RpcClient): Methods {
       cancel: (runId, reason) => client.call<void>("runs.cancel", { runId, reason }),
       approval: {
         submit: (params) => client.call<void>("runs.approval.submit", params),
+      },
+      question: {
+        answer: (params) => client.call<void>("runs.question.answer", params),
       },
     },
     sessions: {
@@ -175,7 +223,7 @@ export function createMethods(client: RpcClient): Methods {
       delete: (id) => client.call<void>("sessions.delete", { id }),
       fork: (parentId, atMessageId) =>
         client.call<Session>("sessions.fork", { parentId, atMessageId }),
-      export: (id, format) => client.call<{ url: string }>("sessions.export", { id, format }),
+      export: (id, format) => client.call<ExportSessionResponse>("sessions.export", { id, format }),
     },
     messages: {
       list: (sessionId, query) =>
@@ -205,18 +253,27 @@ export function createMethods(client: RpcClient): Methods {
       mcp: {
         list: () => client.call<MCPServer[]>("workspace.mcp.list"),
         reconnect: (name) => client.call<void>("workspace.mcp.reconnect", { name }),
+        tools: (name) => client.call<ToolSpec[]>("workspace.mcp.tools", { name }),
       },
       skills: () => client.call<Skill[]>("workspace.skills"),
+      agentDocs: () => client.call<AgentDoc[]>("workspace.agentDocs"),
     },
     providers: {
       list: () => client.call<Provider[]>("providers.list"),
       test: (id) => client.call<ProviderTestResult>("providers.test", { id }),
+      configure: (input) => client.call<Provider>("providers.configure", input),
     },
     models: {
       list: (provider) => client.call<Model[]>("models.list", provider ? { provider } : {}),
     },
     tools: {
       list: () => client.call<ToolSpec[]>("tools.list"),
+      invoke: (input) => client.call<InvokeToolResponse>("tools.invoke", input),
+    },
+    memory: {
+      list: () => client.call<MemoryEntry[]>("memory.list"),
+      get: (scope) => client.call<GetMemoryResponse>("memory.get", { scope }),
+      update: (input) => client.call<void>("memory.update", input),
     },
     attachments: {
       createUploadUrl: (input) =>

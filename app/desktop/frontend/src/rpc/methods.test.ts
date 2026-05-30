@@ -65,6 +65,7 @@ describe("methods factory", () => {
       params: {
         runId: "r1",
         eventId: "1",
+        ts: "2025-01-01T00:00:00Z",
         event: { type: "TEXT_MESSAGE_START", messageId: "m1" },
       },
     });
@@ -74,6 +75,7 @@ describe("methods factory", () => {
       params: {
         runId: "r1",
         eventId: "2",
+        ts: "2025-01-01T00:00:00Z",
         event: { type: "TEXT_MESSAGE_END", messageId: "m1" },
       },
     });
@@ -108,13 +110,13 @@ describe("methods factory", () => {
     t.inject({
       jsonrpc: JSONRPC_VERSION,
       method: "notifications/run/event",
-      params: { runId: "OTHER", eventId: "x", event: { type: "X" } },
+      params: { runId: "OTHER", eventId: "x", ts: "2025-01-01T00:00:00Z", event: { type: "X" } },
     });
     // Our run + close.
     t.inject({
       jsonrpc: JSONRPC_VERSION,
       method: "notifications/run/event",
-      params: { runId: "r1", eventId: "1", event: { type: "MINE" } },
+      params: { runId: "r1", eventId: "1", ts: "2025-01-01T00:00:00Z", event: { type: "MINE" } },
     });
     t.inject({
       jsonrpc: JSONRPC_VERSION,

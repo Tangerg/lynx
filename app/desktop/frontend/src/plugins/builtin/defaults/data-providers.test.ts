@@ -74,8 +74,8 @@ describe("defaultData — providers over JSON-RPC", () => {
 
   it("mcp-servers: synthesises id from name + maps name → icon", async () => {
     const rows = await runProvider<SidebarMCPServer[]>("mcp-servers", "workspace.mcp.list", [
-      { name: "Git", desc: "Branches, commits", tools: 12, status: "active" },
-      { name: "Unknown", desc: "novel server", tools: 1, status: "idle" },
+      { name: "Git", desc: "Branches, commits", toolCount: 12, status: "active" },
+      { name: "Unknown", desc: "novel server", toolCount: 1, status: "idle" },
     ]);
     expect(rows).toEqual([
       {
