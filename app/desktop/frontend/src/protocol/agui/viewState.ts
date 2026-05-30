@@ -46,6 +46,23 @@ export interface SearchResult {
   snippet: string;
 }
 
+export interface QuestionOption {
+  label: string;
+  description: string;
+  preview?: string;
+}
+
+// One clarifying question (API.md §6.9 Question). The card renders these
+// as single/multi-select cards with an optional free-text fallback.
+export interface QuestionItem {
+  id: string;
+  question: string;
+  header: string;
+  options: QuestionOption[];
+  multiSelect: boolean;
+  allowFreeText?: boolean;
+}
+
 // ContentBlock — discriminated union extended via TypeScript declaration
 // merging on `CustomContentBlockMap`. A plugin adds:
 //   declare module "@/protocol/agui/viewState" {
@@ -75,6 +92,15 @@ export interface BuiltinContentBlockMap {
     scope?: string[];
     target?: string;
     reversible?: boolean;
+  };
+  question: {
+    kind: "question";
+    status: BlockStatus;
+    requestId?: string;
+    questions: QuestionItem[];
+    /** Stamped true once lyra.question-result confirms the answer landed —
+     *  flips the card to its settled state. */
+    answered?: boolean;
   };
   checkpoint: { kind: "checkpoint"; text: string };
 }

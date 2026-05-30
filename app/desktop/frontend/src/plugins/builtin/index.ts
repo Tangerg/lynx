@@ -15,6 +15,7 @@ import {
   approvalHandler,
   codeProposalHandler,
   planHandler,
+  questionHandler,
   searchResultsHandler,
   telemetryHandler,
 } from "./agui-handlers";
@@ -36,6 +37,7 @@ import {
   checkpointBlock,
   codeBlock,
   planBlock,
+  questionBlock,
   reasoningBlock,
   searchBlock,
 } from "./content-blocks";
@@ -110,6 +112,7 @@ const protocol: PluginSpec[] = [
   codeProposalHandler,
   searchResultsHandler,
   approvalHandler,
+  questionHandler, // CUSTOM "lyra.question" / "lyra.question-result"
   telemetryHandler,
 ];
 
@@ -151,6 +154,7 @@ const messageRendering: PluginSpec[] = [
   codeBlock,
   searchBlock,
   approvalBlock,
+  questionBlock,
   checkpointBlock,
   reasoningBlock,
 ];

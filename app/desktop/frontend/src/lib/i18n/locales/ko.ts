@@ -84,6 +84,11 @@ export const ko: Record<string, string> = {
   "approval.risk.high": "높은 위험",
   "approval.reversible": "되돌릴 수 있음",
   "approval.permanent": "되돌릴 수 없음",
+  "question.required": "입력이 필요합니다",
+  "question.multiSelect": "다중 선택",
+  "question.action.submit": "제출",
+  "question.settled.answered": "답변함",
+  "question.freetext.placeholder": "직접 입력…",
 
   "runError.title": "Agent 오류",
   "runError.action.retry": "재시도",

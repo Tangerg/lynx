@@ -9,6 +9,7 @@ import type { ContentBlockRendererProps } from "@/plugins/sdk";
 import { ApprovalCard } from "@/components/chat/ApprovalCard";
 import { Checkpoint } from "@/components/chat/Checkpoint";
 import { PlanBlock } from "@/components/chat/PlanBlock";
+import { QuestionCard } from "@/components/chat/QuestionCard";
 import { ReasoningBlock } from "@/components/chat/ReasoningBlock";
 import { SearchResults } from "@/components/chat/SearchResults";
 import { ShikiCodeBlock } from "@/components/chat/ShikiCodeBlock";
@@ -33,6 +34,24 @@ export const approvalBlock = definePlugin({
           scope={block.scope}
           target={block.target}
           reversible={block.reversible}
+        />
+      ),
+    );
+  },
+});
+
+export const questionBlock = definePlugin({
+  name: "lyra.builtin.question-block",
+  version: "1.0.0",
+  setup({ host }) {
+    host.message.registerContentBlock(
+      "question",
+      ({ block }: ContentBlockRendererProps<"question">) => (
+        <QuestionCard
+          status={block.status}
+          requestId={block.requestId}
+          questions={block.questions}
+          answered={block.answered}
         />
       ),
     );
