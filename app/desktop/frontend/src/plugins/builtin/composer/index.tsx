@@ -7,14 +7,13 @@
 // primitives — see CLAUDE.md "Tailwind first" / "Radix first" rules.
 
 import type { IconName } from "@/components/common";
-import * as Popover from "@radix-ui/react-popover";
-import * as React from "react";
+import type { ReactNode } from "react";
 import { submitComposer } from "@/components/chat/submitComposer";
 import { Icon, Tooltip } from "@/components/common";
 import { useChatSend } from "@/lib/agent/useChatSend";
 import { useSessions } from "@/lib/data/queries";
 import { cn } from "@/lib/utils";
-import { definePlugin, useCommands } from "@/plugins/sdk";
+import { definePlugin } from "@/plugins/sdk";
 import { useAgentAction, useAgentSlice } from "@/state/agentStore";
 import { useComposerStore } from "@/state/composerStore";
 import { useSessionStore } from "@/state/sessionStore";
@@ -107,37 +106,38 @@ export const composerKeymap = definePlugin({
 // project, current branch via git, …) is a follow-up that doesn't touch
 // the registration API.
 
-function Chip({
-  icon,
-  title,
-  children,
-}: {
-  icon: IconName;
-  title: string;
-  children: React.ReactNode;
-}) {
+// Readable chip — icon + label, no affordance glyph. Used where the
+// value itself carries meaning the user wants to read (e.g. branch name).
+function Chip({ icon, title, children }: { icon: IconName; title: string; children: ReactNode }) {
   return (
-    <button
-      type="button"
+    <span
       title={title}
-      className="group inline-flex h-6 items-center gap-1.5 rounded-sm border border-transparent bg-transparent px-2 pl-2.5 font-mono text-[11.5px] font-normal text-fg-muted tracking-tight whitespace-nowrap cursor-pointer transition-colors duration-150 hover:bg-surface-2 hover:text-fg"
+      className="group inline-flex h-6 items-center gap-1.5 rounded-sm px-2 font-mono text-[11.5px] font-normal text-fg-muted tracking-tight whitespace-nowrap"
     >
-      <Icon name={icon} size={11} className="text-fg-faint shrink-0 group-hover:text-fg" />
+      <Icon name={icon} size={11} className="text-fg-faint shrink-0" />
       <span>{children}</span>
-      <Icon name="more" size={10} className="text-fg-faint opacity-60 group-hover:text-fg-muted" />
-    </button>
+    </span>
   );
 }
-const ProjectChip = () => (
-  <Chip icon="folder" title="Working directory">
-    fern-api
-  </Chip>
-);
-const ExecModeChip = () => (
-  <Chip icon="shield" title="Execution mode">
-    Workspace · Auto
-  </Chip>
-);
+
+// Icon-only affordance — the value lives in the tooltip, the glyph keeps
+// the footer light. Click reserved for future state toggles.
+function IconChip({ icon, hint, onClick }: { icon: IconName; hint: string; onClick?: () => void }) {
+  return (
+    <Tooltip label={hint}>
+      <button
+        type="button"
+        aria-label={hint}
+        onClick={onClick}
+        className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-sm border-0 bg-transparent text-fg-faint cursor-pointer transition-colors hover:bg-surface-2 hover:text-fg"
+      >
+        <Icon name={icon} size={12} />
+      </button>
+    </Tooltip>
+  );
+}
+
+const ExecModeChip = () => <IconChip icon="shield" hint="Execution mode · Workspace · Auto" />;
 const GitBranchChip = () => (
   <Chip icon="branch" title="Git branch">
     feat/result-type
@@ -148,7 +148,6 @@ export const composerChips = definePlugin({
   name: "lyra.builtin.composer-chips",
   version: "1.0.0",
   setup({ host }) {
-    host.composer.registerStatus({ id: "project", order: 0, component: ProjectChip });
     host.composer.registerStatus({ id: "exec-mode", order: 1, component: ExecModeChip });
     host.composer.registerStatus({ id: "git-branch", order: 2, component: GitBranchChip });
   },
@@ -210,66 +209,7 @@ export const composerToolbar = definePlugin({
   },
 });
 
-// ---- toolbar (end): keyboard hint + send ---------------------------------
-//
-// Composer-local key handlers — registered by composerKeymap on the
-// textarea, not on the global shortcut store. They don't appear in
-// useCommands(), so we list them statically.
-
-const STATIC_CHEATS: Array<{ combo: string; label: string }> = [
-  { combo: "↵", label: "Send message" },
-  { combo: "⌘↵", label: "Send message" },
-  { combo: "⇧↵", label: "New line" },
-  { combo: "Esc", label: "Unfocus composer" },
-  { combo: "⌘1-9", label: "Switch to tab N" },
-];
-
-function KeyHint() {
-  // Dynamic rows: any palette command that advertises a `shortcut` string.
-  const commands = useCommands();
-  const dynamic = commands
-    .filter((c) => c.shortcut)
-    .map((c) => ({ combo: c.shortcut as string, label: c.label }));
-
-  return (
-    <Popover.Root>
-      <Popover.Trigger className="hidden xl:inline-flex items-center gap-1 px-1 font-mono text-[11px] text-fg-faint cursor-default border-0 bg-transparent">
-        <span className="text-accent">⌘K</span> commands · <span className="text-accent">⌘↵</span>{" "}
-        send
-      </Popover.Trigger>
-      <Popover.Portal>
-        <Popover.Content
-          side="top"
-          sideOffset={8}
-          align="end"
-          role="tooltip"
-          className="z-50 min-w-[220px] rounded-md border border-line-soft bg-surface-2 p-2.5 shadow-lg animate-rise-in"
-        >
-          <div className="mb-1.5 font-mono text-[10px] font-semibold text-fg-faint">Shortcuts</div>
-          {[...STATIC_CHEATS, ...dynamic].map((r, i) => (
-            <div
-              key={`${r.combo}:${i}`}
-              className="grid grid-cols-[64px_1fr] items-center gap-2.5 py-0.5 text-[11.5px]"
-            >
-              <kbd className="rounded-sm border border-line-soft bg-line px-1.5 text-center font-mono text-[11px] text-fg-soft">
-                {r.combo}
-              </kbd>
-              <span className="text-fg-muted">{r.label}</span>
-            </div>
-          ))}
-        </Popover.Content>
-      </Popover.Portal>
-    </Popover.Root>
-  );
-}
-
-export const composerHint = definePlugin({
-  name: "lyra.builtin.composer-hint",
-  version: "1.0.0",
-  setup({ host }) {
-    host.layout.register("composer.toolbar.end", { id: "kbd-hint", order: 0, component: KeyHint });
-  },
-});
+// ---- toolbar (end): send -------------------------------------------------
 
 function SendButton() {
   const value = useComposerStore((s) => s.value);

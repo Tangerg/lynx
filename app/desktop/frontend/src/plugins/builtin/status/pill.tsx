@@ -1,8 +1,8 @@
 // Built-in plugin: run telemetry chips for the composer footer's right
-// side. Bloomberg-style data density — run state with a ticking live dot,
-// tokens / cost with mono numbers + a token sparkline tracking how usage
-// has grown across the current run. Registered with `align: "end"` so
-// they pin to the right of the session-context chips.
+// side. Three glyphs, only while a run matters — run state (live dot +
+// step + activity), generation rate (t/s), and a context-usage ring.
+// Registered with `align: "end"` so they pin right of the session-context
+// chips. Exact numbers live in tooltips; the footer stays light.
 //
 // Each chip owns its visual treatment via Tailwind utility classes. The
 // shared "inline-flex + gap + nowrap" pill shape is captured by the
@@ -10,7 +10,7 @@
 // same utilities at every site.
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Icon, Sparkline, StatusDot, Tooltip } from "@/components/common";
+import { Icon, StatusDot, Tooltip } from "@/components/common";
 import { cn } from "@/lib/utils";
 import { definePlugin } from "@/plugins/sdk";
 import { useAgentAction, useAgentSlice } from "@/state/agentStore";
@@ -35,90 +35,83 @@ function parseShorthand(input: string | undefined): number {
   return n;
 }
 
-// Push a fresh sample whenever the underlying value moves, capped at
-// MAX so the sparkline buffer doesn't grow forever during long runs.
-function useNumericHistory(current: number, max = 32): number[] {
-  const [history, setHistory] = useState<number[]>([]);
-  const lastRef = useRef<number | null>(null);
-  useEffect(() => {
-    if (Number.isNaN(current)) return;
-    if (lastRef.current === current) return;
-    lastRef.current = current;
-    setHistory((h) => (h.length >= max ? [...h.slice(1), current] : [...h, current]));
-  }, [current, max]);
-  return history;
-}
-
 // Narrow subscriptions: subscribing to the whole `v.run` object would
-// re-render this on every telemetry tick (token / cost / ctxPct). Only
-// the four primitives below actually drive the visual; pulling each via
-// Object.is means RunState skips renders the other status-bar pieces
-// (Tokens / Cost) care about.
+// re-render this on every telemetry tick (tokens / ctxPct). Pulling each
+// primitive via Object.is means RunState skips the renders the rate +
+// context ring care about.
+//
+// Only renders while a run is in flight. Idle state is already conveyed
+// by the chat-tab strip, so showing an "idle" pill here would duplicate
+// it; collapsing to null keeps the footer quiet between runs.
 function RunState() {
   const running = useAgentSlice((v) => v.run.running);
   const step = useAgentSlice((v) => v.run.step);
   const totalSteps = useAgentSlice((v) => v.run.totalSteps);
   const activity = useAgentSlice((v) => v.run.activity);
   const stop = useAgentAction("stop");
+  if (!running) return null;
   return (
-    <span className={pill(running ? "text-accent" : "")}>
-      <StatusDot tone={running ? "running" : "idle"} />
-      {running ? (
-        <>
-          <span className="font-mono">
-            {step}/{totalSteps}
-          </span>
-          <span className="text-fg-faint">·</span>
-          <span className="text-fg">{activity || "running"}</span>
-          {stop && (
-            <Tooltip label="Stop (⌘.)">
-              <button
-                type="button"
-                onClick={stop}
-                aria-label="Stop"
-                className="ml-1 inline-flex items-center gap-0.5 rounded-xs border border-line-soft bg-transparent px-1.5 py-px font-mono text-[10px] text-fg-muted cursor-pointer transition-colors hover:bg-surface-2 hover:text-fg"
-              >
-                <Icon name="stop" size={9} />
-                stop
-              </button>
-            </Tooltip>
-          )}
-        </>
-      ) : (
-        <span>idle</span>
+    <span className={pill("text-accent")}>
+      <StatusDot tone="running" />
+      <span className="font-mono">
+        {step}/{totalSteps}
+      </span>
+      <span className="text-fg-faint">·</span>
+      <span className="text-fg">{activity || "running"}</span>
+      {stop && (
+        <Tooltip label="Stop (⌘.)">
+          <button
+            type="button"
+            onClick={stop}
+            aria-label="Stop"
+            className="ml-1 inline-flex items-center gap-0.5 rounded-xs border border-line-soft bg-transparent px-1.5 py-px font-mono text-[10px] text-fg-muted cursor-pointer transition-colors hover:bg-surface-2 hover:text-fg"
+          >
+            <Icon name="stop" size={9} />
+            stop
+          </button>
+        </Tooltip>
       )}
     </span>
   );
 }
 
-function Tokens() {
+// Context usage as a single ring — a universal "how full" glyph that
+// stays legible at 16px where "142k/200k 9%" would crowd the footer. The
+// exact numbers live in the tooltip. Arc turns warning-toned past 90% so
+// a near-full context still reads at a glance.
+const RING_R = 6;
+const RING_C = 2 * Math.PI * RING_R;
+
+function ContextRing() {
   const used = useAgentSlice((v) => v.run.tokens.used);
   const total = useAgentSlice((v) => v.run.tokens.total);
   const ctxPct = useAgentSlice((v) => v.run.ctxPct);
-  // parseShorthand walks a regex + does float math — cheap individually
-  // but it ran on every render. Memo by the underlying string so it
-  // recomputes only when the displayed value actually changes.
-  const usedNum = useMemo(() => parseShorthand(used), [used]);
-  const history = useNumericHistory(usedNum);
+  const pct = Math.max(0, Math.min(100, Number(ctxPct) || 0));
+  const stroke = pct >= 90 ? "var(--color-warning)" : "var(--color-accent)";
   return (
-    <Tooltip label={`Context: ${ctxPct}% of ${total}`}>
-      <span className={pill()}>
-        <Sparkline values={history} width={42} height={12} fill />
-        <span className="font-mono">{used}</span>
-        <span className="font-mono text-fg-faint">/{total}</span>
-        <span className="font-mono text-fg-faint">{ctxPct}%</span>
-      </span>
-    </Tooltip>
-  );
-}
-
-function Cost() {
-  const cost = useAgentSlice((v) => v.run.cost);
-  return (
-    <Tooltip label="Session cost (USD)">
-      <span className={pill()}>
-        <span className="text-fg-faint">$</span>
-        <span className="font-mono">{cost}</span>
+    <Tooltip label={`Context · ${ctxPct}% · ${used}/${total}`}>
+      <span className={pill()} aria-label={`Context ${ctxPct}% used`}>
+        <svg width="16" height="16" viewBox="0 0 16 16" className="-rotate-90">
+          <circle
+            cx="8"
+            cy="8"
+            r={RING_R}
+            fill="none"
+            stroke="var(--color-surface-3)"
+            strokeWidth="2"
+          />
+          <circle
+            cx="8"
+            cy="8"
+            r={RING_R}
+            fill="none"
+            stroke={stroke}
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeDasharray={RING_C}
+            strokeDashoffset={RING_C * (1 - pct / 100)}
+          />
+        </svg>
       </span>
     </Tooltip>
   );
@@ -131,8 +124,8 @@ function Cost() {
 // blow the number up.
 //
 // Cherry Studio surfaces this as a per-message badge; we put it in the
-// status bar next to Tokens so the user always sees current generation
-// speed regardless of which message they're looking at.
+// composer footer next to the context ring so the user always sees
+// current generation speed regardless of which message they're viewing.
 function TokenRate() {
   const running = useAgentSlice((v) => v.run.running);
   const runId = useAgentSlice((v) => v.run.runId);
@@ -219,7 +212,7 @@ export const statusPill = definePlugin({
   version: "1.0.0",
   setup({ host }) {
     // align: "end" → right cluster of the composer footer, after the
-    // session-context chips (project / mode / branch).
+    // session-context chips (exec mode / branch).
     host.composer.registerStatus({ id: "run", order: 90, align: "end", component: RunState });
     host.composer.registerStatus({
       id: "token-rate",
@@ -227,7 +220,11 @@ export const statusPill = definePlugin({
       align: "end",
       component: TokenRate,
     });
-    host.composer.registerStatus({ id: "tokens", order: 92, align: "end", component: Tokens });
-    host.composer.registerStatus({ id: "cost", order: 93, align: "end", component: Cost });
+    host.composer.registerStatus({
+      id: "context",
+      order: 92,
+      align: "end",
+      component: ContextRing,
+    });
   },
 });

@@ -1,6 +1,5 @@
 import type { Attachment, ComposerMode } from "@/state/composerStore";
 import type { IconName } from "@/components/common";
-import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { useEffect, useMemo, useRef } from "react";
 import { Chip, Icon, Tooltip } from "@/components/common";
 import { useT } from "@/lib/i18n";
@@ -122,10 +121,11 @@ export function Composer({
   );
 }
 
-// Compact mode picker — Radix DropdownMenu trigger that shows the
-// current mode (icon + label + chevron) and reveals the full list on
-// click. Replaces the wider Segmented control to give the composer
-// toolbar more breathing room.
+// Icon-only mode toggle — one glyph, no label. Click cycles to the next
+// registered mode; the tooltip names the current mode + what it does. A
+// universal-icon + weak-hint affordance that keeps the toolbar light
+// (DESIGN: "通用图标 + 弱提示"). With three modes, cycling beats a
+// dropdown for click economy.
 type Mode = ReturnType<typeof useComposerModes>[number];
 
 function ModePicker({
@@ -137,48 +137,28 @@ function ModePicker({
   value: ComposerMode;
   onChange: (v: ComposerMode) => void;
 }) {
-  const active = modes.find((m) => m.id === value) ?? modes[0];
+  const idx = modes.findIndex((m) => m.id === value);
+  const active = modes[idx] ?? modes[0];
   if (!active) return null; // no modes registered — composer shows no picker
+  const cycle = () => {
+    const next = modes[(Math.max(idx, 0) + 1) % modes.length];
+    if (next) onChange(next.id);
+  };
   return (
-    <DropdownMenu.Root>
-      <Tooltip label="Composer mode">
-        <DropdownMenu.Trigger className="inline-flex h-6.5 items-center gap-1.5 rounded-sm border border-line bg-transparent px-2 font-sans text-[11.5px] font-semibold text-fg cursor-pointer transition-colors hover:bg-surface-2 data-[state=open]:bg-surface-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent">
-          <Icon name={(active.icon as IconName) ?? "spark"} size={12} />
-          <span>{active.label}</span>
-          <Icon name="more" size={10} className="text-fg-faint -rotate-90" />
-        </DropdownMenu.Trigger>
-      </Tooltip>
-      <DropdownMenu.Portal>
-        <DropdownMenu.Content
-          align="start"
-          sideOffset={6}
-          className="z-50 min-w-[240px] overflow-hidden rounded-md border border-line-soft bg-surface p-1 shadow-lg animate-rise-in"
-        >
-          {modes.map((m) => (
-            <DropdownMenu.Item
-              key={m.id}
-              onSelect={() => onChange(m.id)}
-              className="grid grid-cols-[16px_minmax(0,1fr)_12px] cursor-pointer items-start gap-2 rounded-sm px-2.5 py-1.5 text-[12.5px] text-fg-muted outline-none data-[highlighted]:bg-surface-2 data-[highlighted]:text-fg"
-            >
-              <Icon name={(m.icon as IconName) ?? "spark"} size={12} className="mt-0.5" />
-              <div className="min-w-0">
-                <div className="text-fg">{m.label}</div>
-                {m.description && (
-                  <div className="mt-0.5 text-[11px] leading-snug text-fg-faint">
-                    {m.description}
-                  </div>
-                )}
-              </div>
-              {m.id === value ? (
-                <Icon name="check" size={12} className="mt-0.5 text-accent" />
-              ) : (
-                <span aria-hidden />
-              )}
-            </DropdownMenu.Item>
-          ))}
-        </DropdownMenu.Content>
-      </DropdownMenu.Portal>
-    </DropdownMenu.Root>
+    <Tooltip
+      label={
+        active.description ? `${active.label} · ${active.description}` : `Mode: ${active.label}`
+      }
+    >
+      <button
+        type="button"
+        aria-label={`Mode: ${active.label} (click to switch)`}
+        onClick={cycle}
+        className="inline-flex h-6.5 w-6.5 shrink-0 items-center justify-center rounded-sm border-0 bg-transparent text-fg-muted cursor-pointer transition-colors hover:bg-surface-2 hover:text-fg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent"
+      >
+        <Icon name={(active.icon as IconName) ?? "spark"} size={14} />
+      </button>
+    </Tooltip>
   );
 }
 
