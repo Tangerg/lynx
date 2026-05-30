@@ -1,6 +1,7 @@
 import type { BlockStatus, QuestionItem } from "@/protocol/agui/viewState";
 import { useMemo, useState } from "react";
-import { Divider, Icon, PillButton } from "@/components/common";
+import { PillButton } from "@/components/common";
+import { HitlCardShell, HitlSettledRow } from "@/components/chat/HitlCard";
 import { useT } from "@/lib/i18n";
 import { useQuestionAnswer, type QuestionAnswers } from "@/lib/agent/useQuestionAnswer";
 import { cn } from "@/lib/utils";
@@ -71,11 +72,7 @@ export function QuestionCard({ status, requestId, questions, answered }: Props) 
   );
 
   if (settled || pending) {
-    return (
-      <Divider icon={<Icon name="check" size={11} strokeWidth={3} />} intent="accent">
-        {t("question.settled.answered")}
-      </Divider>
-    );
+    return <HitlSettledRow label={t("question.settled.answered")} />;
   }
 
   const toggleOption = (q: QuestionItem, label: string) => {
@@ -103,12 +100,7 @@ export function QuestionCard({ status, requestId, questions, answered }: Props) 
   const disabled = !requestId || !allAnswered;
 
   return (
-    <div className="my-3 rounded-xl border border-accent/25 bg-[linear-gradient(180deg,color-mix(in_srgb,var(--color-accent)_6%,transparent)_0%,var(--color-surface)_60%)] px-4 py-3.5">
-      <div className="mb-3 flex items-center gap-2 font-mono text-[11px] font-semibold text-accent">
-        <Icon name="chat" size={12} />
-        <span>{t("question.required")}</span>
-      </div>
-
+    <HitlCardShell tone="accent" icon="chat" label={t("question.required")}>
       <div className="flex flex-col gap-4">
         {questions.map((q) => {
           const cur = draft[q.id] ?? { selected: [], text: "" };
@@ -183,6 +175,6 @@ export function QuestionCard({ status, requestId, questions, answered }: Props) 
           {t("question.action.submit")}
         </PillButton>
       </div>
-    </div>
+    </HitlCardShell>
   );
 }

@@ -75,6 +75,7 @@ export {
   appendBlockToMessage,
   appendTimelineEntry,
   compose,
+  patchBlocksWhere,
   patchRun,
   setPlan,
 } from "./state";

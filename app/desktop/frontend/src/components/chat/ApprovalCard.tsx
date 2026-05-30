@@ -2,6 +2,7 @@ import type { ApprovalDecision } from "@/lib/agent/useApprovalSubmit";
 import type { BlockStatus } from "@/protocol/agui/viewState";
 import { useState } from "react";
 import { Divider, Icon, PillButton } from "@/components/common";
+import { HitlCardShell, HitlSettledRow } from "@/components/chat/HitlCard";
 import { useT } from "@/lib/i18n";
 import { useApprovalSubmit } from "@/lib/agent/useApprovalSubmit";
 import { cn } from "@/lib/utils";
@@ -119,11 +120,7 @@ export function ApprovalCard({
 
   const finalised = status === "complete" ? decision : pending;
   if (finalised === "approved") {
-    return (
-      <Divider icon={<Icon name="check" size={11} strokeWidth={3} />} intent="accent">
-        {t("approval.settled.approved")}
-      </Divider>
-    );
+    return <HitlSettledRow label={t("approval.settled.approved")} />;
   }
   if (finalised === "declined") {
     return <Divider icon={<Icon name="x" size={11} />}>{t("approval.settled.declined")}</Divider>;
@@ -134,11 +131,11 @@ export function ApprovalCard({
   const disabled = !requestId || pending !== null;
   const effectiveRisk: Risk = risk ?? "medium";
   return (
-    <div className="my-3 rounded-xl border border-warning/25 bg-[linear-gradient(180deg,rgba(255,164,43,0.06)_0%,var(--color-surface)_60%)] px-4 py-3.5">
-      <div className="mb-2 flex items-center gap-2 font-mono text-[11px] font-semibold text-warning">
-        <Icon name="shield" size={12} />
-        <span>{t("approval.required")}</span>
-        <span className="flex-1" />
+    <HitlCardShell
+      tone="warning"
+      icon="shield"
+      label={t("approval.required")}
+      trailing={
         <span
           className={cn(
             "rounded-sm border px-1.5 py-px font-mono text-[10px] font-semibold uppercase tracking-wider",
@@ -147,7 +144,8 @@ export function ApprovalCard({
         >
           {t(RISK_I18N_KEY[effectiveRisk])}
         </span>
-      </div>
+      }
+    >
       <div className="mb-1.5 text-[15px] font-semibold leading-[1.4] text-fg">{what}</div>
       <code className="my-2 block whitespace-pre-wrap break-all rounded-sm bg-warning/14 px-3 py-2 font-mono text-[13px] text-fg">
         $ {cmd}
@@ -239,6 +237,6 @@ export function ApprovalCard({
           {t("approval.action.decline")}
         </PillButton>
       </div>
-    </div>
+    </HitlCardShell>
   );
 }
