@@ -65,6 +65,48 @@ describe("reducer — built-in CUSTOM events (via builtin plugin handlers)", () 
     expect(next.run.activity).toBe("scan");
     expect(next.run.tokens).toEqual({ used: "1k", total: "200k" });
   });
+
+  it("lyra.question appends a question block, lyra.question-result settles it", async () => {
+    const { questionHandler: spec } = await import("@/plugins/builtin/agui-handlers");
+    await loadPlugin(spec);
+
+    let s = reduce(
+      INITIAL_VIEW_STATE,
+      ev({ type: EventType.TEXT_MESSAGE_START, messageId: "m1", role: "assistant" }),
+    );
+    s = reduce(
+      s,
+      ev({
+        type: EventType.CUSTOM,
+        name: CUSTOM.QUESTION,
+        value: {
+          requestId: "q-1",
+          parentMessageId: "m1",
+          questions: [
+            {
+              id: "db",
+              question: "Which database?",
+              header: "DB",
+              options: [
+                { label: "Postgres", description: "relational" },
+                { label: "SQLite", description: "embedded" },
+              ],
+              multiSelect: false,
+            },
+          ],
+        },
+      }),
+    );
+    const block = s.messages[0]!.blocks.find((b) => b.kind === "question");
+    expect(block).toMatchObject({ kind: "question", status: "requires-action", requestId: "q-1" });
+
+    s = reduce(
+      s,
+      ev({ type: EventType.CUSTOM, name: CUSTOM.QUESTION_RESULT, value: { requestId: "q-1" } }),
+    );
+    const settled = s.messages[0]!.blocks.find((b) => b.kind === "question");
+    expect(settled).toMatchObject({ status: "complete", answered: true });
+  });
 });
 
 describe("reducer — plugin CUSTOM fallback", () => {

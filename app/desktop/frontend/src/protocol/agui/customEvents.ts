@@ -9,5 +9,7 @@ export const CUSTOM = {
   SEARCH_RESULTS: "lyra.search-results",
   APPROVAL: "lyra.approval",
   APPROVAL_RESULT: "lyra.approval-result",
+  QUESTION: "lyra.question",
+  QUESTION_RESULT: "lyra.question-result",
   TELEMETRY: "lyra.telemetry",
 } as const;

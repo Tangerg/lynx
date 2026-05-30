@@ -86,6 +86,11 @@ export const es: Record<string, string> = {
   "approval.risk.high": "Riesgo alto",
   "approval.reversible": "Reversible",
   "approval.permanent": "Permanente",
+  "question.required": "Se necesita tu respuesta",
+  "question.multiSelect": "Selección múltiple",
+  "question.action.submit": "Enviar",
+  "question.settled.answered": "Respondido",
+  "question.freetext.placeholder": "Escribe una respuesta…",
 
   "runError.title": "Error de agent",
   "runError.action.retry": "Reintentar",

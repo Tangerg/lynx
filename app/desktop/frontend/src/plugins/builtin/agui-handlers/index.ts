@@ -20,6 +20,8 @@ import {
   CodeProposalPayloadSchema,
   PlanBlockAttachmentSchema,
   PlanSnapshotSchema,
+  QuestionRequestSchema,
+  QuestionResultSchema,
   SearchResultsPayloadSchema,
   TelemetryPayloadSchema,
   withSchema,
@@ -93,6 +95,44 @@ export const approvalHandler = definePlugin({
           }),
         ),
       ),
+    );
+  },
+});
+
+export const questionHandler = definePlugin({
+  name: "lyra.builtin.question-handler",
+  version: "1.0.0",
+  setup({ host }) {
+    // Clarifying question arrives → render a single/multi-select card.
+    // Same pre-HITL convention as approval: no requestId ⇒ decorative.
+    host.agui.on(
+      CUSTOM.QUESTION,
+      withSchema(CUSTOM.QUESTION, QuestionRequestSchema, (value) =>
+        appendBlockToMessage(value.parentMessageId, {
+          kind: "question",
+          status: "requires-action",
+          requestId: value.requestId,
+          questions: value.questions,
+        }),
+      ),
+    );
+
+    // Answer landed (runs.question.answer accepted) → stamp the matching
+    // block answered + collapse it. Walks all messages (no parentMessageId
+    // on the result event), mirroring the approval-result handler.
+    host.agui.on(
+      CUSTOM.QUESTION_RESULT,
+      withSchema(CUSTOM.QUESTION_RESULT, QuestionResultSchema, (value) => (state) => ({
+        ...state,
+        messages: state.messages.map((m) => ({
+          ...m,
+          blocks: m.blocks.map((b) =>
+            b.kind === "question" && b.requestId === value.requestId
+              ? { ...b, status: "complete", answered: true }
+              : b,
+          ),
+        })),
+      })),
     );
   },
 });

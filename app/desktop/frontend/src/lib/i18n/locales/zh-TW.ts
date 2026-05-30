@@ -84,6 +84,11 @@ export const zhTW: Record<string, string> = {
   "approval.risk.high": "高風險",
   "approval.reversible": "可撤銷",
   "approval.permanent": "不可撤銷",
+  "question.required": "需要你確認",
+  "question.multiSelect": "可多選",
+  "question.action.submit": "提交",
+  "question.settled.answered": "已回答",
+  "question.freetext.placeholder": "輸入自訂答案…",
 
   "runError.title": "Agent 錯誤",
   "runError.action.retry": "重試",

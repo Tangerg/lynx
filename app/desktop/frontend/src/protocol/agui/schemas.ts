@@ -89,6 +89,34 @@ export const ApprovalResultSchema = z.object({
   decision: z.enum(["approve", "deny"]),
 });
 
+// `lyra.question` payload (API.md §6.9 QuestionRequest). Clarifying
+// questions the agent raises mid-run; the card renders each as a single/
+// multi-select with an optional free-text field, and the answer goes back
+// via the `runs.question.answer` method (not just a CUSTOM event).
+const QuestionItemSchema = z.object({
+  id: z.string(),
+  question: z.string(),
+  header: z.string(),
+  options: z.array(
+    z.object({ label: z.string(), description: z.string(), preview: z.string().optional() }),
+  ),
+  multiSelect: z.boolean(),
+  allowFreeText: z.boolean().optional(),
+});
+
+export const QuestionRequestSchema = z.object({
+  // Same pre-HITL convention as approval: a card without requestId is a
+  // decorative preview with no submit button.
+  requestId: z.string().optional(),
+  parentMessageId: z.string(),
+  questions: z.array(QuestionItemSchema),
+});
+
+// `lyra.question-result` payload (§6.9 QuestionResult) — answered receipt.
+export const QuestionResultSchema = z.object({
+  requestId: z.string(),
+});
+
 export const SearchResultItemSchema = z.object({
   domain: z.string(),
   title: z.string(),

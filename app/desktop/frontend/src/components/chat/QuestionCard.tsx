@@ -1,0 +1,188 @@
+import type { BlockStatus, QuestionItem } from "@/protocol/agui/viewState";
+import { useMemo, useState } from "react";
+import { Divider, Icon, PillButton } from "@/components/common";
+import { useT } from "@/lib/i18n";
+import { useQuestionAnswer, type QuestionAnswers } from "@/lib/agent/useQuestionAnswer";
+import { cn } from "@/lib/utils";
+
+interface Props {
+  /** Block lifecycle. `"requires-action"` shows the interactive card;
+   *  `"complete"` (or `answered`) collapses to a settled row. */
+  status: BlockStatus;
+  /** Backend id used to POST the answer back. Absent ⇒ decorative preview
+   *  with no submit button (pre-HITL). */
+  requestId?: string;
+  questions: QuestionItem[];
+  /** Set by the agui-handlers reducer once lyra.question-result lands. */
+  answered?: boolean;
+}
+
+// Per-question working state: chosen option labels + an optional free-text
+// value. For single-select the two are mutually exclusive (picking an
+// option clears the text and vice versa) so the submitted answer is never
+// ambiguous; multi-select unions them.
+type Draft = Record<string, { selected: string[]; text: string }>;
+
+function emptyDraft(questions: QuestionItem[]): Draft {
+  const d: Draft = {};
+  for (const q of questions) d[q.id] = { selected: [], text: "" };
+  return d;
+}
+
+function isAnswered(entry: { selected: string[]; text: string }): boolean {
+  return entry.selected.length > 0 || entry.text.trim().length > 0;
+}
+
+// Project the working draft into the wire shape: question.id → label(s).
+// Free text (when present) is the answer itself, not an "Other" marker
+// (API.md §4.4); multi-select appends it to the chosen labels.
+function toAnswers(questions: QuestionItem[], draft: Draft): QuestionAnswers {
+  const answers: QuestionAnswers = {};
+  for (const q of questions) {
+    const { selected, text } = draft[q.id] ?? { selected: [], text: "" };
+    const trimmed = text.trim();
+    if (q.multiSelect) {
+      answers[q.id] = trimmed ? [...selected, trimmed] : selected;
+    } else {
+      answers[q.id] = trimmed || (selected[0] ?? "");
+    }
+  }
+  return answers;
+}
+
+// Clarifying-question card — pure presentation. Submitting state lives in
+// useQuestionAnswer; this component owns the local selection draft.
+//
+// HITL flow (parallels ApprovalCard):
+//   1. Backend raises lyra.question { requestId, questions }
+//   2. Reducer materialises a question block (status="requires-action")
+//   3. User selects / types → useQuestionAnswer POSTs runs.question.answer
+//   4. Backend continues the run + emits lyra.question-result
+//   5. Reducer stamps `answered` + flips status → card settles
+export function QuestionCard({ status, requestId, questions, answered }: Props) {
+  const t = useT();
+  const { submit, pending } = useQuestionAnswer(requestId);
+  const [draft, setDraft] = useState<Draft>(() => emptyDraft(questions));
+
+  const settled = status === "complete" || answered;
+  const allAnswered = useMemo(
+    () => questions.every((q) => isAnswered(draft[q.id] ?? { selected: [], text: "" })),
+    [questions, draft],
+  );
+
+  if (settled || pending) {
+    return (
+      <Divider icon={<Icon name="check" size={11} strokeWidth={3} />} intent="accent">
+        {t("question.settled.answered")}
+      </Divider>
+    );
+  }
+
+  const toggleOption = (q: QuestionItem, label: string) => {
+    setDraft((prev) => {
+      const cur = prev[q.id] ?? { selected: [], text: "" };
+      if (q.multiSelect) {
+        const selected = cur.selected.includes(label)
+          ? cur.selected.filter((l) => l !== label)
+          : [...cur.selected, label];
+        return { ...prev, [q.id]: { ...cur, selected } };
+      }
+      // Single-select: replace selection, clear any free text.
+      return { ...prev, [q.id]: { selected: [label], text: "" } };
+    });
+  };
+
+  const setText = (q: QuestionItem, text: string) => {
+    setDraft((prev) => {
+      const cur = prev[q.id] ?? { selected: [], text: "" };
+      // Typing free text in a single-select clears the option choice.
+      return { ...prev, [q.id]: { selected: q.multiSelect ? cur.selected : [], text } };
+    });
+  };
+
+  const disabled = !requestId || !allAnswered;
+
+  return (
+    <div className="my-3 rounded-xl border border-accent/25 bg-[linear-gradient(180deg,color-mix(in_srgb,var(--color-accent)_6%,transparent)_0%,var(--color-surface)_60%)] px-4 py-3.5">
+      <div className="mb-3 flex items-center gap-2 font-mono text-[11px] font-semibold text-accent">
+        <Icon name="chat" size={12} />
+        <span>{t("question.required")}</span>
+      </div>
+
+      <div className="flex flex-col gap-4">
+        {questions.map((q) => {
+          const cur = draft[q.id] ?? { selected: [], text: "" };
+          return (
+            <div key={q.id} className="flex flex-col gap-2">
+              <div className="flex items-center gap-2">
+                <span className="rounded-sm border border-line bg-surface-2 px-1.5 py-px font-mono text-[10px] font-semibold uppercase tracking-wider text-fg-muted">
+                  {q.header}
+                </span>
+                {q.multiSelect && (
+                  <span className="font-mono text-[10px] text-fg-faint">
+                    {t("question.multiSelect")}
+                  </span>
+                )}
+              </div>
+              <div className="text-[15px] font-semibold leading-[1.4] text-fg">{q.question}</div>
+
+              <div className="grid grid-cols-[minmax(0,1fr)] gap-1.5">
+                {q.options.map((opt) => {
+                  const active = cur.selected.includes(opt.label);
+                  return (
+                    <button
+                      key={opt.label}
+                      type="button"
+                      aria-pressed={active}
+                      onClick={() => toggleOption(q, opt.label)}
+                      className={cn(
+                        "flex flex-col gap-0.5 rounded-lg border px-3 py-2 text-left transition-colors duration-150",
+                        active
+                          ? "border-accent/60 bg-accent/10"
+                          : "border-line bg-surface-2 hover:border-line-soft hover:bg-surface-3",
+                      )}
+                    >
+                      <span className="text-[13px] font-medium text-fg">{opt.label}</span>
+                      {opt.description && (
+                        <span className="text-[12px] leading-[1.45] text-fg-muted">
+                          {opt.description}
+                        </span>
+                      )}
+                      {opt.preview && (
+                        <code className="mt-1 block whitespace-pre-wrap break-all rounded-sm bg-surface-3 px-2 py-1 font-mono text-[11px] text-fg-muted">
+                          {opt.preview}
+                        </code>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {q.allowFreeText && (
+                <input
+                  type="text"
+                  value={cur.text}
+                  aria-label={q.question}
+                  placeholder={t("question.freetext.placeholder")}
+                  onChange={(e) => setText(q, e.target.value)}
+                  className="rounded-lg border border-line bg-surface-2 px-3 py-2 font-sans text-[13px] text-fg placeholder:text-fg-faint focus:border-accent/60 focus:outline-none"
+                />
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="mt-3.5 flex items-center gap-2">
+        <PillButton
+          variant="accent"
+          size="sm"
+          disabled={disabled}
+          onClick={() => submit(toAnswers(questions, draft))}
+        >
+          {t("question.action.submit")}
+        </PillButton>
+      </div>
+    </div>
+  );
+}

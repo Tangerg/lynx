@@ -85,6 +85,11 @@ export const ja: Record<string, string> = {
   "approval.risk.high": "高リスク",
   "approval.reversible": "取り消し可",
   "approval.permanent": "取り消し不可",
+  "question.required": "入力が必要です",
+  "question.multiSelect": "複数選択可",
+  "question.action.submit": "送信",
+  "question.settled.answered": "回答済み",
+  "question.freetext.placeholder": "自由に入力…",
 
   "runError.title": "Agent エラー",
   "runError.action.retry": "再試行",
