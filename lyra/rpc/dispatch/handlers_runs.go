@@ -36,11 +36,11 @@ func (d *Dispatcher) handleRunsStart(ctx context.Context, msg *transport.Request
 	if err := unmarshal(msg.Params, &in); err != nil {
 		return responseError(msg.ID, invalidParams(err.Error()))
 	}
-	out, events, err := d.api.StartRun(ctx, in)
+	out, events, results, err := d.api.StartRun(ctx, in)
 	if err != nil {
 		return responseError(msg.ID, errorToRPC(err))
 	}
-	return streamingResult(msg.ID, out, out.RunID, events)
+	return streamingResult(msg.ID, out, out.RunID, events, results)
 }
 
 func (d *Dispatcher) handleRunsCancel(ctx context.Context, msg *transport.Request) HandleResult {

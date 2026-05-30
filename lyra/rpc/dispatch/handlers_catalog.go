@@ -31,6 +31,21 @@ func (d *Dispatcher) handleProvidersTest(ctx context.Context, msg *transport.Req
 	return responseResult(msg.ID, res)
 }
 
+func (d *Dispatcher) handleProvidersConfigure(ctx context.Context, msg *transport.Request) HandleResult {
+	var in protocol.ConfigureProviderRequest
+	if err := unmarshal(msg.Params, &in); err != nil {
+		return responseError(msg.ID, invalidParams(err.Error()))
+	}
+	if in.ID == "" {
+		return responseError(msg.ID, invalidParams("id is required"))
+	}
+	out, err := d.api.ConfigureProvider(ctx, in)
+	if err != nil {
+		return responseError(msg.ID, errorToRPC(err))
+	}
+	return responseResult(msg.ID, out)
+}
+
 func (d *Dispatcher) handleModelsList(ctx context.Context, msg *transport.Request) HandleResult {
 	var in struct {
 		Provider string `json:"provider"`
@@ -51,6 +66,21 @@ func (d *Dispatcher) handleToolsList(ctx context.Context, msg *transport.Request
 		return responseError(msg.ID, errorToRPC(err))
 	}
 	return responseResult(msg.ID, tools)
+}
+
+func (d *Dispatcher) handleToolsInvoke(ctx context.Context, msg *transport.Request) HandleResult {
+	var in protocol.InvokeToolRequest
+	if err := unmarshal(msg.Params, &in); err != nil {
+		return responseError(msg.ID, invalidParams(err.Error()))
+	}
+	if in.Name == "" {
+		return responseError(msg.ID, invalidParams("name is required"))
+	}
+	out, err := d.api.InvokeTool(ctx, in)
+	if err != nil {
+		return responseError(msg.ID, errorToRPC(err))
+	}
+	return responseResult(msg.ID, out)
 }
 
 // ─── Attachments ────────────────────────────────────────────────────

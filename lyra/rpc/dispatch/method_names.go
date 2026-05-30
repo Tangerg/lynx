@@ -56,10 +56,17 @@ const (
 	MethodWorkspaceSkills            = "workspace.skills"
 
 	// Providers / Models / Tools.
-	MethodProvidersList = "providers.list"
-	MethodProvidersTest = "providers.test"
-	MethodModelsList    = "models.list"
-	MethodToolsList     = "tools.list"
+	MethodProvidersList      = "providers.list"
+	MethodProvidersTest      = "providers.test"
+	MethodProvidersConfigure = "providers.configure"
+	MethodModelsList         = "models.list"
+	MethodToolsList          = "tools.list"
+	MethodToolsInvoke        = "tools.invoke"
+
+	// Memory (LYRA.md long-term memory).
+	MethodMemoryList   = "memory.list"
+	MethodMemoryGet    = "memory.get"
+	MethodMemoryUpdate = "memory.update"
 
 	// Attachments.
 	MethodAttachmentsCreateUploadURL = "attachments.createUploadUrl"

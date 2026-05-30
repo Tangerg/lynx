@@ -37,6 +37,7 @@ type Runtime interface {
 	Providers
 	Models
 	Tools
+	Memory
 	Attachments
 	Background
 	Feedback

@@ -20,6 +20,14 @@ func (i *Server) TestProvider(_ context.Context, _ string) (*protocol.ProviderTe
 	return nil, notImpl("providers.test")
 }
 
+// ConfigureProvider — provider registry isn't part of the engine yet
+// (chat.Client is a single configured provider via env). Not implemented
+// until the registry lands; dispatch maps this to -32601 so the client
+// sees an honest "not supported on this build".
+func (i *Server) ConfigureProvider(_ context.Context, _ protocol.ConfigureProviderRequest) (*protocol.Provider, error) {
+	return nil, notImpl("providers.configure")
+}
+
 func (i *Server) ListModels(_ context.Context, _ string) ([]protocol.Model, error) {
 	return []protocol.Model{}, nil
 }
@@ -46,6 +54,16 @@ func (i *Server) ListTools(ctx context.Context) ([]protocol.Tool, error) {
 		})
 	}
 	return out, nil
+}
+
+// InvokeTool runs one tool directly, outside a chat turn (diagnostics /
+// client-driven workflows). Backed by tool.Service.Invoke.
+func (i *Server) InvokeTool(ctx context.Context, in protocol.InvokeToolRequest) (*protocol.InvokeToolResponse, error) {
+	out, err := i.rt.Tool().Invoke(ctx, in.Name, in.Arguments)
+	if err != nil {
+		return nil, err
+	}
+	return &protocol.InvokeToolResponse{Output: out}, nil
 }
 
 func safetyClassToString(c tool.SafetyClass) string {
