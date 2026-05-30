@@ -70,9 +70,10 @@ export function useAgentSession(makeAgent: () => AbstractAgent, sessionId: strin
       },
     });
 
-    void agent.runAgent().catch((err) => {
-      console.error("[agui] runAgent threw:", sessionId, err);
-    });
+    // No auto-run on mount. Opening a session must NOT start a run — that
+    // was demo-only behaviour (the mock played a script for empty messages).
+    // A real run begins when the user sends (sendText below); replaying an
+    // existing session's history is a separate concern (messages.list).
 
     return () => {
       cancelled = true;
