@@ -107,11 +107,15 @@ interface SessionActions {
 export const useSessionStore = create<SessionState & SessionActions>()(
   persist(
     (set, get) => ({
-      activeSessionId: "s1",
-      tabIds: ["s1", "s2", "s3"],
+      // No demo fixtures — open tabs + active session start empty and are
+      // driven by the real backend's sessions.list (the sidebar) + user
+      // clicks. Ghost ids would make the chat try to load/run a session the
+      // runtime doesn't have (session_not_found on boot).
+      activeSessionId: "",
+      tabIds: [],
       mainViewTabs: [],
       activeMainView: null,
-      activeFile: "src/api/auth.ts",
+      activeFile: "",
       selectedToolId: "",
       expandedToolIds: new Set<string>(),
 
@@ -239,7 +243,9 @@ export const useSessionStore = create<SessionState & SessionActions>()(
         activeSessionId: s.activeSessionId,
         tabIds: s.tabIds,
       }),
-      version: 1,
+      // v2: dropped the demo-fixture defaults (s1/s2/s3). Bump discards any
+      // persisted ghost tabs from older builds (no migration in dev phase).
+      version: 2,
       merge: (persisted, current) => {
         const parsed = sessionPersistSchema.safeParse(persisted);
         if (!parsed.success) {
