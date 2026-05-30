@@ -33,7 +33,7 @@ func TestInProcessRoundtrip(t *testing.T) {
 	}
 	defer tp.Close()
 
-	req, err := transport.NewCall(1, "runtime.initialize", map[string]any{})
+	req, err := transport.NewCall("1", "runtime.initialize", map[string]any{})
 	if err != nil {
 		t.Fatalf("NewCall: %v", err)
 	}
@@ -68,13 +68,13 @@ func TestInProcessUnknownMethod(t *testing.T) {
 	defer tp.Close()
 
 	// Initialize first so the gate doesn't fire.
-	initReq, _ := transport.NewCall(1, "runtime.initialize", nil)
+	initReq, _ := transport.NewCall("1", "runtime.initialize", nil)
 	_ = tp.Send(context.Background(), initReq)
 	<-tp.Recv()
 
 	// Now a method the fakeRuntime doesn't declare — falls through to
 	// the dispatcher's default branch.
-	bogus, _ := transport.NewCall(2, "totally.bogus", nil)
+	bogus, _ := transport.NewCall("2", "totally.bogus", nil)
 	_ = tp.Send(context.Background(), bogus)
 
 	select {

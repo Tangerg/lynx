@@ -82,14 +82,14 @@ func (d *Dispatcher) Handle(ctx context.Context, msg transport.Message, expected
 		)))
 	}
 
-	// API.md v4 §1.1: id MUST be a JSON number. Reject string ids
-	// (and any other non-number type) at the dispatcher boundary.
-	// IDs come from MakeID — nil, int64, or string; we only allow
-	// int64 (or absent, for Notifications).
+	// API.md §1.1: envelope id is a STRING (UUID or stringified
+	// counter) — protocol-wide, all ids are strings. Reject non-string
+	// ids at the dispatcher boundary. IDs come from MakeID — nil, int64,
+	// or string; we only allow string (or absent, for Notifications).
 	if req.ID.IsValid() {
-		if _, ok := req.ID.Raw().(int64); !ok {
+		if _, ok := req.ID.Raw().(string); !ok {
 			return responseError(req.ID, transport.NewError(transport.CodeInvalidRequest, problemDataFrom(
-				fmt.Errorf("id must be a JSON number, got %T", req.ID.Raw()),
+				fmt.Errorf("id must be a JSON string, got %T", req.ID.Raw()),
 			)))
 		}
 	}

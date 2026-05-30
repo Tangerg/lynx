@@ -12,15 +12,15 @@ import (
 // type aliases so callers don't have to construct envelopes by
 // hand or reach into internal/jsonrpc2.
 
-// NewCall builds a Request with the given ID + marshaled params.
-// Use a positive integer id; the dispatcher rejects string ids at
-// the boundary per API.md v4 §1.1.
-func NewCall(id int64, method string, params any) (*Request, error) {
+// NewCall builds a Request with the given string ID + marshaled params.
+// API.md §1.1: envelope ids are strings (the dispatcher rejects
+// non-string ids at the boundary).
+func NewCall(id string, method string, params any) (*Request, error) {
 	raw, err := marshalParams(params)
 	if err != nil {
 		return nil, err
 	}
-	return &Request{ID: Int64ID(id), Method: method, Params: raw}, nil
+	return &Request{ID: StringID(id), Method: method, Params: raw}, nil
 }
 
 // NewNotification builds a no-id Request — JSON-RPC Notification.
@@ -64,10 +64,10 @@ func NewErrorWithMessage(code int, msg string, data json.RawMessage) *Error {
 	return &Error{Code: int64(code), Message: msg, Data: data}
 }
 
-// Int64ID constructs an integer JSON-RPC id. The SDK exposes only
-// MakeID(any) — accepting float64 → int64 — so we wrap it.
-func Int64ID(i int64) ID {
-	id, _ := jsonrpc.MakeID(float64(i))
+// StringID constructs a string JSON-RPC id (API.md §1.1 — all envelope
+// ids are strings). The SDK exposes only MakeID(any); we wrap it.
+func StringID(s string) ID {
+	id, _ := jsonrpc.MakeID(s)
 	return id
 }
 

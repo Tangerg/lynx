@@ -6,13 +6,14 @@ import (
 	"github.com/Tangerg/lynx/lyra/rpc/protocol"
 )
 
-// workspace.* — none of the workspace endpoints have a runtime
-// equivalent today. The frontend reads from fixture data; once the
-// engine grows real workspace probes (git diff / ripgrep / pty)
-// these stubs come down.
+// workspace.* — no real workspace probes yet (git diff / ripgrep / pty
+// not wired into the engine). The three round-1 P0 list endpoints
+// (filesChanged / projects / mcp.list) return an EMPTY slice so the
+// frontend panels render an empty state instead of eating -32601; the
+// rest stay notImpl until the engine grows the corresponding probe.
 
 func (i *Server) WorkspaceFilesChanged(_ context.Context) ([]protocol.FileChange, error) {
-	return nil, notImpl("workspace.filesChanged")
+	return []protocol.FileChange{}, nil
 }
 
 func (i *Server) WorkspaceDiff(_ context.Context, _ string) ([]protocol.DiffRow, error) {
@@ -32,11 +33,11 @@ func (i *Server) WorkspaceTerminalSubscribe(_ context.Context, _ string) (<-chan
 }
 
 func (i *Server) WorkspaceProjects(_ context.Context) ([]protocol.Project, error) {
-	return nil, notImpl("workspace.projects")
+	return []protocol.Project{}, nil
 }
 
 func (i *Server) WorkspaceMCPList(_ context.Context) ([]protocol.MCPServer, error) {
-	return nil, notImpl("workspace.mcp.list")
+	return []protocol.MCPServer{}, nil
 }
 
 func (i *Server) WorkspaceMCPReconnect(_ context.Context, _ string) error {
