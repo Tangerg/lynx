@@ -8,7 +8,8 @@
 // in its own family so the user sees a preview before clicking.
 
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
-import { Icon } from "@/components/common";
+import { useId } from "react";
+import { Checkbox, Icon } from "@/components/common";
 import { useT } from "@/lib/i18n";
 import { useSystemFonts } from "@/lib/systemFonts";
 import { cn } from "@/lib/utils";
@@ -25,6 +26,7 @@ interface FontPickerProps {
 function FontPicker({ label, mono, value, onChange, defaultLabel }: FontPickerProps) {
   const fonts = useSystemFonts(mono);
   const customEnabled = value !== "";
+  const checkboxId = useId();
   // Display name on the trigger: the chosen family, or the localized
   // "Default (Geist…)" placeholder when the checkbox is off.
   const triggerLabel = customEnabled ? value : defaultLabel;
@@ -32,13 +34,15 @@ function FontPicker({ label, mono, value, onChange, defaultLabel }: FontPickerPr
   return (
     <div className="grid grid-cols-[60px_auto_1fr] items-center gap-2">
       <span className="text-[12px] font-semibold text-fg-faint">{label}</span>
-      <label className="inline-flex cursor-pointer items-center gap-1.5 text-[12.5px] text-fg-muted">
-        <input
-          type="checkbox"
-          aria-label={`Use custom ${label.toLowerCase()} font`}
+      <label
+        htmlFor={checkboxId}
+        className="inline-flex cursor-pointer items-center gap-1.5 text-[12.5px] text-fg-muted"
+      >
+        <Checkbox
+          id={checkboxId}
+          ariaLabel={`Use custom ${label.toLowerCase()} font`}
           checked={customEnabled}
-          onChange={(e) => onChange(e.target.checked ? (fonts[0] ?? "") : "")}
-          className="h-3.5 w-3.5 cursor-pointer accent-accent"
+          onCheckedChange={(c) => onChange(c ? (fonts[0] ?? "") : "")}
         />
         <span>Use custom</span>
       </label>
@@ -145,6 +149,7 @@ export function FontSection() {
   const setCodeFont = useUiStore((s) => s.setCodeFont);
   const setFontSize = useUiStore((s) => s.setFontSize);
   const setFontSmoothing = useUiStore((s) => s.setFontSmoothing);
+  const smoothingId = useId();
 
   return (
     <div className="grid grid-cols-[140px_1fr] items-start gap-4 py-3">
@@ -173,13 +178,15 @@ export function FontSection() {
           onChange={setFontSize}
           resetLabel={t("settings.font.default")}
         />
-        <label className="mt-1 inline-flex cursor-pointer items-center gap-2 text-[12.5px] text-fg-muted">
-          <input
-            type="checkbox"
-            aria-label={t("settings.font.smoothing")}
+        <label
+          htmlFor={smoothingId}
+          className="mt-1 inline-flex cursor-pointer items-center gap-2 text-[12.5px] text-fg-muted"
+        >
+          <Checkbox
+            id={smoothingId}
+            ariaLabel={t("settings.font.smoothing")}
             checked={fontSmoothing}
-            onChange={(e) => setFontSmoothing(e.target.checked)}
-            className="h-3.5 w-3.5 cursor-pointer accent-accent"
+            onCheckedChange={setFontSmoothing}
           />
           <span>{t("settings.font.smoothing")}</span>
         </label>
