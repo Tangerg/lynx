@@ -28,7 +28,7 @@ method call，把 Runtime 流回的 AG-UI 事件渲染成 UI。
 | 原则 | 理由 |
 | --- | --- |
 | **JSON-RPC 2.0 envelope** | MCP 验证过的多 transport 共享方案。三种 message：Request / Response / Notification。 |
-| **元数据走带外通道** | connection id / trace id / idempotency key / 流恢复 cursor 走 `context.Context` 或 transport header/URL，**永不进 message body**（§1.2）。 |
+| **元数据走带外通道** | connection id / trace id / 流恢复 cursor 走 `context.Context` 或 transport header/URL，**永不进 message body**（§1.2）。（幂等是例外：runId 就在 body，§6.3。） |
 | **取消必须显式信号** | 断 transport ≠ 取消 run；重连可续传。只有显式 cancel 才真停（§2.3）。 |
 | **能力协商必经 `initialize`** | 握手前 Runtime 不接业务方法；版本不匹配硬断开（§2.1）。 |
 | **AG-UI 事件作为流式语言** | 标准事件 + Lyra CUSTOM 事件，封装在 notification 的 `params.event` 里（§4）。 |
@@ -400,12 +400,6 @@ server→client request。
 | `workspace.mcp.reconnect` | `void` | `{ name }` —— MCP 原生 name 作唯一标识 |
 | `workspace.agentDocs` | `AgentDoc[]` | — —— 级联发现的 AGENTS.md **正文**（sidecar `/v1/info` 只给 path+size，业务读取走这里） |
 | `workspace.skills` | `Skill[]` | — |
-
-> **Project 维度**：`workspace.diff/grep/fileHead/filesChanged` 不带 `projectId`，
-> 一律作用于 **active project**（`workspace.projects` 里 `active:true` 的那个）。
-> 切换用 `workspace.selectProject { id }`。多 project 下这避免了每个方法都塞
-> `projectId` 的噪音，代价是 active 是连接级隐式状态（切换后旧读结果可能 stale，
-> client 切 project 后应 refetch）。
 | **Providers / Models / Tools** | | |
 | `providers.list` | `Provider[]` | — |
 | `providers.test` | `ProviderTestResult` | `{ id }` |
@@ -426,6 +420,12 @@ server→client request。
 | `background.subscribe` | `Stream<{taskId}, BackgroundUpdate>` | `{ taskId }`；输出经 `notifications/background/update` |
 | **Feedback** | | |
 | `feedback.submit` | `void` | `FeedbackRequest { kind, refId, value? }` |
+
+> **Project 维度**：`workspace.diff/grep/fileHead/filesChanged` 不带 `projectId`，
+> 一律作用于 **active project**（`workspace.projects` 里 `active:true` 的那个）。
+> 切换用 `workspace.selectProject { id }`。多 project 下这避免了每个方法都塞
+> `projectId` 的噪音，代价是 active 是连接级隐式状态（切换后旧读结果可能 stale，
+> client 切 project 后应 refetch）。
 
 **反向不变量**：
 
