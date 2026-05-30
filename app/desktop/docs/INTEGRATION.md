@@ -71,7 +71,7 @@ ServerCapabilities                    // 决定服务端可发哪些事件 / 前
 ```jsonc
 // → runtime.initialize
 {
-  "protocolVersion": "1.0",
+  "protocolVersion": "2026-05-28",
   "clientInfo": { "name": "lyra-desktop", "version": "0.0.0" },
   "capabilities": {
     "events": {
@@ -238,7 +238,7 @@ curl -s http://127.0.0.1:17171/v1/info | jq
 # 2) 握手
 curl -s -X POST http://127.0.0.1:17171/v1/rpc/runtime.initialize \
   -H 'Content-Type: application/json' -H 'Lyra-Connection-Id: dev-1' \
-  -d '{"jsonrpc":"2.0","id":"1","method":"runtime.initialize","params":{"protocolVersion":"1.0","clientInfo":{"name":"curl","version":"0"},"capabilities":{"events":{"standard":[],"custom":["lyra.approval","lyra.question"]},"features":{}}}}' | jq
+  -d '{"jsonrpc":"2.0","id":"1","method":"runtime.initialize","params":{"protocolVersion": "2026-05-28","clientInfo":{"name":"curl","version":"0"},"capabilities":{"events":{"standard":[],"custom":["lyra.approval","lyra.question"]},"features":{}}}}' | jq
 
 # 3) 开 SSE（另开一个终端，conn 必须和 POST 的 Lyra-Connection-Id 一致）
 curl -N "http://127.0.0.1:17171/v1/rpc/stream?conn=dev-1"
