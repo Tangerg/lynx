@@ -42,13 +42,17 @@ import type { BackgroundUpdate, TermLine } from "./shapes";
 const RunEventParamsSchema = z.object({
   runId: z.string(),
   eventId: z.string(),
+  ts: z.string(), // §3.1: 服务端权威时间戳，每条必带
+  parentToolUseId: z.string().optional(), // 子 agent 归属（缺省=主 agent）
   event: z.unknown(),
 });
 type RunEventParams = z.infer<typeof RunEventParamsSchema>;
 
+// run/closed 现在携带 RunResult（§3.1 step 4）。流层只用 runId 判终止；
+// result 的完整形状（stopReason/usage/cost）由消费侧按 shapes.RunResult 解读。
 const RunClosedParamsSchema = z.object({
   runId: z.string(),
-  reason: z.string().optional(),
+  result: z.unknown().optional(),
 });
 type RunClosedParams = z.infer<typeof RunClosedParamsSchema>;
 
