@@ -30,6 +30,7 @@ const (
 	MethodRunsStart          = "runs.start"
 	MethodRunsCancel         = "runs.cancel"
 	MethodRunsApprovalSubmit = "runs.approval.submit"
+	MethodRunsQuestionAnswer = "runs.question.answer"
 
 	// Sessions.
 	MethodSessionsList   = "sessions.list"

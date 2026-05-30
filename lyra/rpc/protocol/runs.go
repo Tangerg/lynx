@@ -69,9 +69,13 @@ type Runs interface {
 	CancelRun(ctx context.Context, runID string) error
 
 	// SubmitApproval is runs.approval.submit — the client-side HITL
-	// decision. The server validates the requestId against pending
-	// approvals and resumes the matching run.
-	SubmitApproval(ctx context.Context, in ApprovalRequest) error
+	// decision (§6.9). Validates requestId against pending approvals
+	// and resumes the matching run.
+	SubmitApproval(ctx context.Context, in SubmitApprovalRequest) error
+
+	// AnswerQuestion is runs.question.answer — the client's reply to a
+	// clarifying lyra.question (§6.9).
+	AnswerQuestion(ctx context.Context, in AnswerQuestionRequest) error
 }
 
 // StartRunRequest is the runs.start request payload (API.md §6.3).
@@ -122,14 +126,6 @@ type StartRunResponse struct {
 type CancelRunRequest struct {
 	RunID  string `json:"runId"`
 	Reason string `json:"reason,omitempty"`
-}
-
-// ApprovalRequest is the runs.approval.submit payload (§4.3). Decision is
-// the two-value wire enum "approve" | "deny" (API.md v4 §4.2).
-type ApprovalRequest struct {
-	RequestID string `json:"requestId"`
-	Decision  string `json:"decision"` // "approve" | "deny"
-	Reason    string `json:"reason,omitempty"`
 }
 
 // JsonSchema is the wire type for any field that carries a JSON Schema

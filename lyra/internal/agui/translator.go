@@ -12,6 +12,8 @@
 package agui
 
 import (
+	"encoding/json"
+
 	"github.com/google/uuid"
 
 	aguievents "github.com/ag-ui-protocol/ag-ui/sdks/community/go/pkg/core/events"
@@ -138,7 +140,10 @@ func (t *Translator) toolCallStart(e chat.ToolCallStart) []Event {
 	out := t.reasoning.closeIfOpen()
 	out = append(out, t.text.closeIfOpen()...)
 	if name, ok := t.approvalSteps[e.CallID]; ok {
-		out = append(out, aguievents.NewStepFinishedEvent(name))
+		// Tool is starting → the gated approval was granted.
+		out = append(out,
+			approvalResultCustom(e.CallID, "approve"),
+			aguievents.NewStepFinishedEvent(name))
 		delete(t.approvalSteps, e.CallID)
 	}
 	stepName := "tool:" + e.ToolName
@@ -173,7 +178,11 @@ func (t *Translator) toolCallResult(e chat.ToolCallEnd) []Event {
 		delete(t.toolSteps, e.CallID)
 	}
 	if name, ok := t.approvalSteps[e.CallID]; ok {
-		out = append(out, aguievents.NewStepFinishedEvent(name))
+		// approval step still open at result time → tool was denied
+		// (engine short-circuited; no ToolCallStart fired).
+		out = append(out,
+			approvalResultCustom(e.CallID, "deny"),
+			aguievents.NewStepFinishedEvent(name))
 		delete(t.approvalSteps, e.CallID)
 	}
 	return out
@@ -206,17 +215,43 @@ func (t *Translator) planAsCustom(e chat.PlanGenerated) []Event {
 func (t *Translator) approvalAsCustom(e chat.ToolCallApproval) []Event {
 	stepName := "approval:" + e.Request.ToolName
 	t.approvalSteps[e.Request.ID] = stepName
+	payload := map[string]any{
+		"requestId":       e.Request.ID,
+		"parentMessageId": t.runID,
+		"text":            "Approve running " + e.Request.ToolName,
+		"command":         e.Request.ToolName,
+	}
+	if args := parseToolArgs(e.Request.Arguments); args != nil {
+		payload["args"] = args
+	}
 	return []Event{
 		aguievents.NewStepStartedEvent(stepName),
-		aguievents.NewCustomEvent("tool_call_approval",
-			aguievents.WithValue(map[string]any{
-				"runId":     t.runID,
-				"requestId": e.Request.ID,
-				"toolName":  e.Request.ToolName,
-				"arguments": e.Request.Arguments,
-			}),
-		),
+		aguievents.NewCustomEvent("lyra.approval", aguievents.WithValue(payload)),
 	}
+}
+
+// approvalResultCustom encodes the lyra.approval-result event (the
+// decision landing the approval card, API.md §6.9). requestId == the
+// approval/tool call id; decision is "approve" | "deny".
+func approvalResultCustom(requestID, decision string) Event {
+	return aguievents.NewCustomEvent("lyra.approval-result",
+		aguievents.WithValue(map[string]any{
+			"requestId": requestID,
+			"decision":  decision,
+		}))
+}
+
+// parseToolArgs decodes a tool's JSON-encoded arguments into an object
+// for the lyra.approval payload; nil (omitted) when empty or unparseable.
+func parseToolArgs(raw string) map[string]any {
+	if raw == "" {
+		return nil
+	}
+	var m map[string]any
+	if json.Unmarshal([]byte(raw), &m) != nil {
+		return nil
+	}
+	return m
 }
 
 // maintenanceCustom encodes a post-turn housekeeping event
