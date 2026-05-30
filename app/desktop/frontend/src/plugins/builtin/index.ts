@@ -25,7 +25,6 @@ import chatSearch from "./chat-search";
 import commandPalette from "./command-palette";
 import {
   composerChips,
-  composerHint,
   composerKeymap,
   composerModes,
   composerPlaceholders,
@@ -183,7 +182,6 @@ const composer: PluginSpec[] = [
   composerPlaceholders,
   sampleAttachments,
   composerKeymap,
-  composerHint,
   composerSend,
 ];
 

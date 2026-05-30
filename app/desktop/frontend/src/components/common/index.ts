@@ -14,6 +14,5 @@ export { SectionLabel } from "./SectionLabel";
 export { Segmented } from "./Segmented";
 export type { SegmentedOption } from "./Segmented";
 export { Slider } from "./Slider";
-export { Sparkline } from "./Sparkline";
 export { StatusDot } from "./StatusDot";
 export { Tooltip } from "./Tooltip";
