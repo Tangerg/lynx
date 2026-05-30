@@ -9,6 +9,7 @@ import type { PluginSpec } from "@/plugins/sdk";
 import atomOneDark from "../atom-one-dark";
 import atomOneLight from "../atom-one-light";
 import catppuccinLatte from "../catppuccin-latte";
+import catppuccinMacchiato from "../catppuccin-macchiato";
 import catppuccinMocha from "../catppuccin-mocha";
 import lyraDark from "../lyra-dark";
 import lyraLight from "../lyra-light";
@@ -27,5 +28,6 @@ export const builtinThemes: PluginSpec[] = [
   solarizedDark,
   solarizedLight,
   catppuccinMocha,
+  catppuccinMacchiato,
   catppuccinLatte,
 ];

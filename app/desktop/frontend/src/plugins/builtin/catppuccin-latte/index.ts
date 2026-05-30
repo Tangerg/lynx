@@ -24,7 +24,7 @@ export default defineThemePlugin({
   id: "catppuccin-latte",
   label: "Catppuccin Latte",
   scheme: "light",
-  order: 41,
+  order: 42,
 
   brand: {
     accent: c.mauve,
