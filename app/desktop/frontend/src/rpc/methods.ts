@@ -159,7 +159,7 @@ export function createMethods(client: RpcClient): Methods {
         return { result, events: streamRunEvents(client, result.runId, signal) };
       },
       // Proper Request (not Notification). Semantically distinct from
-      // `notifications/cancelled` which cancels an in-flight JSON-RPC
+      // `notifications/canceled` which cancels an in-flight JSON-RPC
       // Request by JSON-RPC id. `runs.cancel` stops a long-running run
       // by its runId — the runs.start Request has long since returned.
       cancel: (runId, reason) => client.call<void>("runs.cancel", { runId, reason }),

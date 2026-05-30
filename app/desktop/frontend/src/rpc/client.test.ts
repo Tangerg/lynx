@@ -43,11 +43,11 @@ describe("RpcClient", () => {
   it("notify() sends a Notification with no id", async () => {
     const t = createMemoryTransport();
     const client = createRpcClient(t);
-    await client.notify("notifications/cancelled", { requestId: 5 });
+    await client.notify("notifications/canceled", { requestId: 5 });
     const sent = t.outbox()[0];
     expect(sent).toBeDefined();
     expect("id" in (sent as object)).toBe(false);
-    expect((sent as { method: string }).method).toBe("notifications/cancelled");
+    expect((sent as { method: string }).method).toBe("notifications/canceled");
     await client.close();
   });
 
@@ -101,7 +101,7 @@ describe("RpcClient", () => {
     await expect(promise).rejects.toBeInstanceOf(RpcTransportError);
   });
 
-  it("AbortSignal cancels in-flight call and emits notifications/cancelled", async () => {
+  it("AbortSignal cancels in-flight call and emits notifications/canceled", async () => {
     const t = createMemoryTransport();
     const client = createRpcClient(t);
     const ctrl = new AbortController();
@@ -112,7 +112,7 @@ describe("RpcClient", () => {
     // Last sent message should be the cancel notification.
     const sent = t.outbox();
     const cancelMsg = sent[sent.length - 1] as { method: string; params: { requestId: number } };
-    expect(cancelMsg.method).toBe("notifications/cancelled");
+    expect(cancelMsg.method).toBe("notifications/canceled");
     await client.close();
   });
 
