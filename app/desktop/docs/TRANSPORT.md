@@ -286,14 +286,18 @@ facade）解决。
 
 ## 7. Schema 流 —— 一份契约，多个发射器
 
+行为 SSOT 是后端 `rpc/protocol` 的 Go interface（路径见 §8、命名规则见
+`API.md` §8.1）：
+
 ```
-  pkg/coreapi/*.go  (Go interface + structs)
-        ├── go-jsonrpc  → schemas/methods.yaml  → jsonrpc-ts  → frontend/src/lib/runtime-types.ts
-        └── go-asyncapi → schemas/events.yaml   → asyncapi-ts → frontend/src/lib/events.ts
+  lyra/rpc/protocol/*.go  (Go interface + structs)
+        ├── (codegen) → schemas/methods.yaml  → TS  → frontend/src/rpc/ 类型
+        └── (codegen) → schemas/events.yaml   → TS  → frontend/src/protocol/agui/ 类型
 ```
 
-Go ↔ Go（in-process / Wails）两端直接 import `pkg/coreapi`，**不需要
-codegen**。其他场景 schema 才是契约，TS / Rust / Python 客户端从它生成。
+Go ↔ Go（in-process / Wails）两端直接 import `rpc/protocol`，**不需要 codegen**。
+其他场景 schema 才是契约，TS / Rust / Python 客户端从它生成（codegen 管线待接，
+当前前端类型手写以 Go interface 为准）。
 
 ---
 
@@ -333,7 +337,7 @@ frontend/src/rpc/transports/   # transport 实现（http.ts / memory.ts）
   `Transport`，其余复用。
 - **Go-to-Go 不是特例**：用同一个 `Transport` 形状，只是实现是空壳（客户端
   直接持有 `CoreAPI` 值）。
-- **HTTP 不享特权**：`pkg/transport/http/` 只是三个传输之一。`CoreAPI` 里
+- **HTTP 不享特权**：`rpc/transport/http/` 只是三个传输之一。`Runtime` 接口里
   没有 HTTP-isms（无 `*http.Request` 参数、无 `http.ResponseWriter` 返回）。
   测试用 in-process，生产挑部署合适的。
 
