@@ -26,9 +26,9 @@ const CUSTOM_THEME_ID = "custom";
 // the browser, so the derived ladder tracks the base colors exactly.
 const mix = (a: string, pct: number, b: string): string => `color-mix(in srgb, ${a} ${pct}%, ${b})`;
 
-/** Derive a full theme spec from the three base colors. */
-function deriveCustomSpec(ct: CustomTheme): ThemePluginSpec {
-  const { accent, bg, fg } = ct;
+/** Derive a full theme spec from the custom bg/fg + the shared global accent. */
+function deriveCustomSpec(ct: CustomTheme, accent: string): ThemePluginSpec {
+  const { bg, fg } = ct;
   const scheme: "dark" | "light" = colord(bg).isDark() ? "dark" : "light";
   const extreme = scheme === "dark" ? "#ffffff" : "#000000";
   return {
@@ -58,8 +58,9 @@ export default definePlugin({
   name: "lyra.builtin.custom-theme",
   version: "1.0.0",
   setup({ host }) {
-    const register = (ct: CustomTheme) => {
-      const spec = deriveCustomSpec(ct);
+    const register = () => {
+      const { customTheme, accent } = useUiStore.getState();
+      const spec = deriveCustomSpec(customTheme, accent);
       host.theme.registerTheme({
         id: CUSTOM_THEME_ID,
         label: spec.label,
@@ -70,9 +71,11 @@ export default definePlugin({
       });
     };
 
-    register(useUiStore.getState().customTheme);
+    register();
+    // Re-derive when the base colors OR the shared accent change (the latter
+    // flips textOnAccent black/white). applyTheme then re-applies the tokens.
     const unsub = useUiStore.subscribe((s, p) => {
-      if (s.customTheme !== p.customTheme) register(s.customTheme);
+      if (s.customTheme !== p.customTheme || s.accent !== p.accent) register();
     });
     disposeOnHmr(unsub);
   },

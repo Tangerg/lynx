@@ -21,7 +21,7 @@ import { usePluginStore } from "@/plugins/sdk/registry";
 const uiPersistSchema = z.object({
   theme: z.string(),
   accent: z.string(),
-  customTheme: z.object({ accent: z.string(), bg: z.string(), fg: z.string() }),
+  customTheme: z.object({ bg: z.string(), fg: z.string() }),
   uiFont: z.string(),
   codeFont: z.string(),
   fontSize: z.number().nullable(),
@@ -45,14 +45,12 @@ const uiPersistSchema = z.object({
  */
 export type Theme = string;
 
-/** The user's editable "custom" theme — just the three base colors. The
- *  full palette (surface + ink + border ladders, semantic colors) is
- *  derived from these via the custom-theme plugin (colord). Scheme is
- *  inferred from `bg` luminance. Accent here is the custom theme's own
- *  accent (independent of the global `accent` picker, which drives the
- *  built-in themes). */
+/** The user's editable "custom" theme — background + foreground. The full
+ *  palette (surface + ink + border ladders, semantic colors) is derived
+ *  from these via the custom-theme plugin; the accent comes from the shared
+ *  global `accent` picker (one accent across all themes), and the scheme is
+ *  inferred from `bg` luminance. */
 export interface CustomTheme {
-  accent: string;
   bg: string;
   fg: string;
 }
@@ -118,7 +116,7 @@ export const useUiStore = create<UiState & UiActions>()(
     (set, get) => ({
       theme: "dark",
       accent: "#1ed760",
-      customTheme: { accent: "#1ed760", bg: "#0f1117", fg: "#e6e8ee" },
+      customTheme: { bg: "#0f1117", fg: "#e6e8ee" },
       uiFont: "",
       codeFont: "",
       fontSize: null,
@@ -227,14 +225,9 @@ function applyTheme(theme: Theme, accent: string) {
   }
 
   // Accent override last so the user's accent pick beats the theme's
-  // default --color-accent token. The custom theme carries its OWN accent
-  // (independent of the global accent picker), so it wins there.
-  const c =
-    theme === "custom"
-      ? useUiStore.getState().customTheme.accent
-      : scheme === "light"
-        ? lookupLightVariant(accent)
-        : accent;
+  // default --color-accent token (applies to every theme, custom included —
+  // one shared accent).
+  const c = scheme === "light" ? lookupLightVariant(accent) : accent;
   root.style.setProperty("--color-accent", c);
   if (!appliedTokenNames.includes("--color-accent")) {
     appliedTokenNames.push("--color-accent");
@@ -302,12 +295,7 @@ function applyShape(radiusScale: number, motionScale: number) {
   applyShape(s.radiusScale, s.motionScale);
 }
 const unsubUi = useUiStore.subscribe((state, prev) => {
-  if (
-    state.theme !== prev.theme ||
-    state.accent !== prev.accent ||
-    // custom theme's accent changed while it's the active theme
-    (state.theme === "custom" && state.customTheme.accent !== prev.customTheme.accent)
-  ) {
+  if (state.theme !== prev.theme || state.accent !== prev.accent) {
     applyTheme(state.theme, state.accent);
   }
   if (
