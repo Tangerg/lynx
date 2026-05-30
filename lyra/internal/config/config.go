@@ -33,6 +33,22 @@ const (
 	ProviderDeepSeek  Provider = "deepseek" // DeepSeek (OpenAI-compatible)
 )
 
+// providerInfo is the per-provider metadata table — the single place
+// that knows each provider's default model + the env var its key reads
+// from. A provider is "known" iff it has a row here. Adding one = a row
+// here + a case in BuildChatClient's model construction; the validate /
+// default-model / key-env lookups all read this map instead of each
+// repeating a switch.
+var providerInfo = map[Provider]struct {
+	defaultModel string
+	apiKeyEnv    string
+}{
+	ProviderAnthropic: {"claude-3-5-haiku-20241022", "ANTHROPIC_API_KEY"},
+	ProviderOpenAI:    {"gpt-4o-mini", "OPENAI_API_KEY"},
+	ProviderMoonshot:  {"kimi-k2-0905-preview", "MOONSHOT_API_KEY"},
+	ProviderDeepSeek:  {"deepseek-v4-flash", "DEEPSEEK_API_KEY"},
+}
+
 // StorageKind selects the backend for session + memory state.
 type StorageKind string
 
@@ -100,25 +116,25 @@ func Load() (Config, error) {
 	}
 
 	provider := Provider(v.GetString("provider"))
-	switch provider {
-	case ProviderAnthropic, ProviderOpenAI, ProviderMoonshot, ProviderDeepSeek:
-	default:
+	info, ok := providerInfo[provider]
+	if !ok {
 		return Config{}, errors.New("config: unknown provider (want anthropic|openai|moonshot|deepseek)")
 	}
 
 	model := v.GetString("model")
 	if model == "" {
-		model = defaultModelFor(provider)
+		model = info.defaultModel
 	}
 
 	// API key: yaml `apiKey`, overridden by the provider's native env
-	// var ({ANTHROPIC,OPENAI}_API_KEY) so the old env workflow still works.
+	// var ({ANTHROPIC,OPENAI,MOONSHOT,DEEPSEEK}_API_KEY) so the old env
+	// workflow still works.
 	apiKey := v.GetString("apiKey")
-	if envKey := os.Getenv(apiKeyEnvFor(provider)); envKey != "" {
+	if envKey := os.Getenv(info.apiKeyEnv); envKey != "" {
 		apiKey = envKey
 	}
 	if apiKey == "" {
-		return Config{}, errors.New("config: apiKey is empty — set it in config/config.yaml or " + apiKeyEnvFor(provider))
+		return Config{}, errors.New("config: apiKey is empty — set it in config/config.yaml or " + info.apiKeyEnv)
 	}
 
 	storage := StorageKind(v.GetString("storage"))
@@ -255,32 +271,4 @@ func firstNonEmpty(a, b string) string {
 		return a
 	}
 	return b
-}
-
-func defaultModelFor(p Provider) string {
-	switch p {
-	case ProviderAnthropic:
-		return "claude-3-5-haiku-20241022"
-	case ProviderOpenAI:
-		return "gpt-4o-mini"
-	case ProviderMoonshot:
-		return "kimi-k2-0905-preview"
-	case ProviderDeepSeek:
-		return "deepseek-v4-flash"
-	}
-	return ""
-}
-
-func apiKeyEnvFor(p Provider) string {
-	switch p {
-	case ProviderAnthropic:
-		return "ANTHROPIC_API_KEY"
-	case ProviderOpenAI:
-		return "OPENAI_API_KEY"
-	case ProviderMoonshot:
-		return "MOONSHOT_API_KEY"
-	case ProviderDeepSeek:
-		return "DEEPSEEK_API_KEY"
-	}
-	return ""
 }
