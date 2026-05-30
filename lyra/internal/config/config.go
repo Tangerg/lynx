@@ -29,6 +29,7 @@ type Provider string
 const (
 	ProviderAnthropic Provider = "anthropic"
 	ProviderOpenAI    Provider = "openai"
+	ProviderMoonshot  Provider = "moonshot" // Kimi (OpenAI-compatible)
 )
 
 // StorageKind selects the backend for session + memory state.
@@ -99,9 +100,9 @@ func Load() (Config, error) {
 
 	provider := Provider(v.GetString("provider"))
 	switch provider {
-	case ProviderAnthropic, ProviderOpenAI:
+	case ProviderAnthropic, ProviderOpenAI, ProviderMoonshot:
 	default:
-		return Config{}, errors.New("config: unknown provider (want anthropic|openai)")
+		return Config{}, errors.New("config: unknown provider (want anthropic|openai|moonshot)")
 	}
 
 	model := v.GetString("model")
@@ -261,6 +262,8 @@ func defaultModelFor(p Provider) string {
 		return "claude-3-5-haiku-20241022"
 	case ProviderOpenAI:
 		return "gpt-4o-mini"
+	case ProviderMoonshot:
+		return "kimi-k2-0905-preview"
 	}
 	return ""
 }
@@ -271,6 +274,8 @@ func apiKeyEnvFor(p Provider) string {
 		return "ANTHROPIC_API_KEY"
 	case ProviderOpenAI:
 		return "OPENAI_API_KEY"
+	case ProviderMoonshot:
+		return "MOONSHOT_API_KEY"
 	}
 	return ""
 }
