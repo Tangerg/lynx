@@ -39,6 +39,18 @@ AGUI_BASE = "http://127.0.0.1:17171"
 `Authorization: Bearer <localToken>`（前端从 `host.config.set("api.localToken", …)`
 读，见 `container.ts`）。round-1 dev 直接不设。**这不是用户鉴权**（`API.md` §1.2）。
 
+**CORS（桌面壳硬性要求，否则一个请求都发不出去）**：Wails WebView 的 origin 是
+`wails://wails.localhost`，打 `http://127.0.0.1:17171` 是**跨源**，WKWebView 强制
+CORS（curl 不受影响，所以命令行能通 ≠ app 能通）。后端**必须**：
+
+- 所有 `/v1/*` 响应带 `Access-Control-Allow-Origin: *`（或回显请求的 `Origin`）。
+- **处理 `OPTIONS` 预检**：带自定义 header 的跨源 POST 会先发 `OPTIONS`，必须返
+  `204`/`200` + 下面这组头（**不能返 405**）。
+- `Access-Control-Allow-Methods: GET, POST, OPTIONS`
+- `Access-Control-Allow-Headers: Content-Type, Last-Event-Id, Lyra-Connection-Id, Authorization`
+
+dev mock 的 `withCORS`（`internal/agui/server.go`）就是参考实现，照搬即可。
+
 **HTTP status 映射**（`API.md` §7.3，前端 `transports/http.ts` 已按此解析）：
 
 | status | 含义 | body |
