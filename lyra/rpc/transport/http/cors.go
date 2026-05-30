@@ -92,6 +92,8 @@ var (
 		"Authorization",
 		"Content-Type",
 		"Last-Event-Id",
+		"Lyra-Connection-Id",    // §1.2 — sent on every POST; preflight must allow it
+		"Lyra-Protocol-Version", // §1.2 out-of-band metadata
 		"X-Lyra-Trace-Id",
 	}, ", ")
 
