@@ -62,6 +62,21 @@ interface SessionState {
   mainViewTabs: MainViewTab[];
   activeMainView: string | null;
 
+  /**
+   * Draft sessions — real backend sessions (created up front so they can
+   * receive a run) that haven't had their first message yet. Hidden from
+   * the sidebar list until they "graduate" (first send), so a fresh
+   * "New" doesn't litter the list with empties. Ephemeral (not persisted).
+   */
+  draftSessionIds: Set<string>;
+  /**
+   * First message queued for a freshly-created session, keyed by id. When
+   * the user types on the welcome screen (no active session), we create a
+   * draft and stash the text here; the chat remounts on the new id and
+   * flushes it. Ephemeral.
+   */
+  pendingMessages: Record<string, string>;
+
   activeFile: string;
   selectedToolId: string;
   expandedToolIds: Set<string>;
@@ -71,6 +86,15 @@ interface SessionActions {
   selectTab: (id: string) => void;
   closeTab: (id: string) => void;
   openTab: (id: string) => void;
+
+  /** Mark a session as a hidden draft (just created, no message yet). */
+  markDraft: (id: string) => void;
+  /** Promote a draft to a real session (first message sent). Idempotent. */
+  graduateDraft: (id: string) => void;
+  /** Queue the first message for a session id. */
+  setPendingMessage: (id: string, text: string) => void;
+  /** Read + clear the queued first message for a session id. */
+  takePendingMessage: (id: string) => string | undefined;
 
   /** Close every chat tab except `id`. */
   closeOtherTabs: (id: string) => void;
@@ -115,6 +139,8 @@ export const useSessionStore = create<SessionState & SessionActions>()(
       tabIds: [],
       mainViewTabs: [],
       activeMainView: null,
+      draftSessionIds: new Set<string>(),
+      pendingMessages: {},
       activeFile: "",
       selectedToolId: "",
       expandedToolIds: new Set<string>(),
@@ -137,6 +163,26 @@ export const useSessionStore = create<SessionState & SessionActions>()(
       openTab: (id) => {
         const { tabIds } = get();
         if (!tabIds.includes(id)) set({ tabIds: [...tabIds, id] });
+      },
+
+      markDraft: (id) => set({ draftSessionIds: new Set(get().draftSessionIds).add(id) }),
+      graduateDraft: (id) => {
+        const drafts = get().draftSessionIds;
+        if (!drafts.has(id)) return;
+        const next = new Set(drafts);
+        next.delete(id);
+        set({ draftSessionIds: next });
+      },
+      setPendingMessage: (id, text) =>
+        set({ pendingMessages: { ...get().pendingMessages, [id]: text } }),
+      takePendingMessage: (id) => {
+        const { pendingMessages } = get();
+        const text = pendingMessages[id];
+        if (text === undefined) return undefined;
+        const next = { ...pendingMessages };
+        delete next[id];
+        set({ pendingMessages: next });
+        return text;
       },
 
       // Multi-tab close helpers — all preserve `activeSessionId`

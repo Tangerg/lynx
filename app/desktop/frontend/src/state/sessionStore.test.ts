@@ -235,3 +235,39 @@ describe("headerTabCloseActionsFor (unified-strip semantics)", () => {
     expect(s.mainViewTabs.map((t) => t.id)).toEqual(["v2", "v3"]);
   });
 });
+
+describe("sessionStore draft lifecycle", () => {
+  beforeEach(() => {
+    useSessionStore.setState({
+      activeSessionId: "",
+      tabIds: [],
+      draftSessionIds: new Set<string>(),
+      pendingMessages: {},
+    });
+  });
+
+  it("markDraft hides a session; graduateDraft reveals it", () => {
+    const s = useSessionStore.getState();
+    s.markDraft("d1");
+    expect(useSessionStore.getState().draftSessionIds.has("d1")).toBe(true);
+    s.graduateDraft("d1");
+    expect(useSessionStore.getState().draftSessionIds.has("d1")).toBe(false);
+  });
+
+  it("graduateDraft on a non-draft is a no-op", () => {
+    useSessionStore.getState().graduateDraft("nope");
+    expect(useSessionStore.getState().draftSessionIds.size).toBe(0);
+  });
+
+  it("takePendingMessage returns then clears the queued first message", () => {
+    const s = useSessionStore.getState();
+    s.setPendingMessage("d1", "hello");
+    expect(useSessionStore.getState().takePendingMessage("d1")).toBe("hello");
+    // consumed — second take is undefined
+    expect(useSessionStore.getState().takePendingMessage("d1")).toBeUndefined();
+  });
+
+  it("takePendingMessage is undefined when nothing queued", () => {
+    expect(useSessionStore.getState().takePendingMessage("x")).toBeUndefined();
+  });
+});

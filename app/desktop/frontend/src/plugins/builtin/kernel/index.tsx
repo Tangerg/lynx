@@ -4,9 +4,11 @@
 // replace `kernel-chat` with their own session UI) without touching the
 // rest.
 
+import { useMemo } from "react";
 import { ChatPanel } from "@/components/chat/ChatPanel";
 import { SettingsPage } from "@/components/settings/SettingsPage";
 import { SidebarPanel } from "@/components/sidebar/SidebarPanel";
+import { useCreateSession } from "@/lib/agent/useCreateSession";
 import { useSessions } from "@/lib/data/queries";
 import { definePlugin } from "@/plugins/sdk";
 import { useSessionStore } from "@/state/sessionStore";
@@ -15,9 +17,16 @@ import { useDefaultChatSession } from "@/state/useDefaultChatSession";
 
 function KernelChat() {
   const session = useDefaultChatSession();
-  // Clearing the textarea after submit is owned by `submitComposer` so
-  // this callback only has to forward into the live agent.
-  return <ChatPanel onSend={session.send} />;
+  const createSession = useCreateSession();
+  // Clearing the textarea after submit is owned by `submitComposer`. Here we
+  // route the message: into the live session if one is active, otherwise
+  // spin up a draft session and queue the text (welcome-screen first send →
+  // the chat remounts on the new id and flushes it).
+  const handleSend = (text: string) => {
+    if (useSessionStore.getState().activeSessionId) session.send(text);
+    else void createSession(text);
+  };
+  return <ChatPanel onSend={handleSend} />;
 }
 
 function KernelSidebar() {
@@ -27,8 +36,11 @@ function KernelSidebar() {
   const toggleSidebar = useUiStore((s) => s.toggleSidebar);
 
   // Only the rail view still needs the sessions list (the expanded view
-  // gets it via the plugin-contributed sidebar sections).
-  const { data: sessions = [] } = useSessions();
+  // gets it via the plugin-contributed sidebar sections). Drafts are hidden
+  // until their first message graduates them.
+  const { data = [] } = useSessions();
+  const draftIds = useSessionStore((s) => s.draftSessionIds);
+  const sessions = useMemo(() => data.filter((s) => !draftIds.has(s.id)), [data, draftIds]);
 
   return (
     <SidebarPanel
