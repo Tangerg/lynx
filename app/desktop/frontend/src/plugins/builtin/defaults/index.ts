@@ -106,7 +106,8 @@ export const defaultAccents = definePlugin({
       id: "orange",
       label: "Orange",
       dark: "#ffa42b",
-      light: "#c2410c",
+      // Amber (hue ~32), not the old #c2410c which read as red on light bg.
+      light: "#d97706",
       order: 3,
     });
   },
