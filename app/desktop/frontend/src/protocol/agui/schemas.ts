@@ -53,27 +53,26 @@ export const PlanBlockAttachmentSchema = z.object({
 });
 
 /**
- * Risk metadata on an approval request. All optional — backends that
- * haven't been updated yet keep working; richer backends supply these
- * so the card can render a risk badge, scope chips, target path, and
- * a "reversible" hint (UX review §2.3 P0.5 — Approval Risk Model).
+ * `lyra.approval` payload (API.md §6.9 `ApprovalRequest`). The wire
+ * contract makes `command` / `reason` / `risk` optional; the card +
+ * handler degrade gracefully when absent. `risk` is a FREE string on the
+ * wire — the handler narrows it to the known low/medium/high badge set
+ * (anything else → no badge, same neutral fallback as unknown `scope`).
  *
- * `scope` is open-ended on purpose. The card renders any string as a
- * chip; backends that want stricter typing can validate themselves.
- * Built-in scopes the UI knows how to colour-code: read / write /
- * network / shell / delete.
+ * `scope` / `target` / `reversible` are UI enrichments beyond the wire
+ * contract — optional, richer backends may supply them. Unknown extra
+ * keys (`args` / `expiresAt` / `onTimeout`, not consumed by the UI yet)
+ * are stripped by Zod, so contract payloads carrying them still validate.
  */
-const ApprovalRiskSchema = z.enum(["low", "medium", "high"]);
-
 export const ApprovalRequestSchema = z.object({
   // Pre-HITL events omit requestId — the resulting card is a decorative
   // preview with no buttons. Real requests have it.
   requestId: z.string().optional(),
   parentMessageId: z.string(),
   text: z.string(),
-  command: z.string(),
-  reason: z.string(),
-  risk: ApprovalRiskSchema.optional(),
+  command: z.string().optional(),
+  reason: z.string().optional(),
+  risk: z.string().optional(),
   scope: z.array(z.string()).optional(),
   /** Path / URL / resource the action will touch. */
   target: z.string().optional(),
@@ -82,9 +81,12 @@ export const ApprovalRequestSchema = z.object({
   reversible: z.boolean().optional(),
 });
 
+// `lyra.approval-result` payload (§6.9 `ApprovalResult`). decision is the
+// imperative wire pair "approve" | "deny" (§4.3); the handler maps it to
+// the view's past-tense vocabulary when stamping the block.
 export const ApprovalResultSchema = z.object({
   requestId: z.string(),
-  decision: z.enum(["approved", "declined"]),
+  decision: z.enum(["approve", "deny"]),
 });
 
 export const SearchResultItemSchema = z.object({
