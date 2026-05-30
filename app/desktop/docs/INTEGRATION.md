@@ -285,3 +285,58 @@ HITL（stretch，前端已就绪）：
       `lyra.approval-result` 落定卡片
 - [ ] 后端推 `lyra.question` → 前端提问卡片 → `runs.question.answer {answers}` →
       `lyra.question-result` 落定卡片
+
+---
+
+## 8. 已知联调问题（round-1 实测）
+
+第一轮真机对接（前端 Wails 壳 ↔ 真 lynx，监听 `127.0.0.1:17171`）实测发现的问题。
+**BE = 后端待修**，**FE = 前端已修**。
+
+### BE-1 · CORS 缺失 — ✅ 已修
+- **现象**：Wails WebView（origin `wails://wails.localhost`）打 `:17171` 跨源，lynx
+  无 `Access-Control-Allow-Origin`、且 `OPTIONS` 预检返 `405` → 所有请求被 WebView
+  拦截（握手 degrade、`runAgent` send 失败）。curl 不受影响，故命令行无感。
+- **修复**：后端加 CORS（见 §1「CORS」段）。已验证 `OPTIONS→204` + 三个
+  `Access-Control-*` 头齐全。
+
+### BE-2 · `TOOL_CALL_ARGS` 参数被双写 — ❗ 待修（阻塞工具调用）
+- **现象**：接入真 apikey 后 LLM 会决定调工具，但工具入参在流里**逐 token 双写**，
+  变成非法 JSON，后端解析失败 → `RUN_ERROR`，整轮 `stopReason:"error"`。
+- **repro**（`glob` 工具）：
+  - 实际 `TOOL_CALL_ARGS.delta` = `{{""patternpattern"": : ""****/*/*"", , ""maxmax_results_results"": : 1010}}`
+  - 期望 = `{"pattern":"**/*","max_results":10}`
+  - 错误 = `fs.glob: parse arguments: invalid character '{' looking for beginning of object key string`
+- **归属**：同一份双写 args 既喂给 tool invoker（导致 parse 失败）也发给前端，所以
+  问题在**后端 args 组装/emit**那一步 —— 疑似把「累计的完整 args」当「增量 delta」
+  发，或 args buffer 自我拼接导致 doubling。前端不参与工具调用，无关。
+
+### BE-3 · `providers.configure` 未实现 + `providers.list`/`models.list` 返空 — ❗ 待补
+- **现象**：`providers.configure` → `-32601 method not found`；`providers.list` /
+  `models.list` → `[]`。
+- **影响**：前端做不了「填 API key / 选模型」的引导 UI（方法不存在、列表为空）。
+  当前 run 能跑（key 在后端配置），所以非阻塞，但 composer 的 model 选择器、Settings
+  的 provider 配置都缺数据源。要做这些 UI 时需要后端先就绪这三个。
+
+### BE-4 · CUSTOM 事件命名分歧 — ❗ 待对齐
+- **现象**：lynx 握手广播的 `capabilities.events.custom` =
+  `["lyra.approval","lyra.approval-result","plan_generated","compact_boundary","memory_updated"]`。
+- **差距**：前端 handler 按 `lyra.plan` / `lyra.plan-block` / `lyra.code-proposal` /
+  `lyra.search-results` / `lyra.question` / `lyra.question-result` / `lyra.telemetry`
+  分发（§4.2）。lynx 用了 `plan_generated` / `compact_boundary` / `memory_updated`
+  这些**不同名**、且**缺 `lyra.question`**。
+- **影响**：计划 / 提问 / 代码提案等富内容块暂不渲染（标准事件 `RUN_*`/`TEXT_*`/
+  `TOOL_*` 命名一致，所以纯文本 + 工具流不受影响）。需双方按 §4.2 的 `lyra.*`
+  命名表对齐（或前端加映射层，但 SSOT 是 §4.2）。
+
+### FE-1 · 幽灵 demo 会话 + mount 自动 run — ✅ 已修
+- **现象**：前端持久化了 demo 会话默认值（`activeSessionId:"s1"`,`tabIds:["s1","s2","s3"]`）
+  且 `useAgentSession` 在 mount 时无条件 `runAgent()` → 对空的 lynx 全部
+  `session_not_found`，且循环重试。
+- **修复**：会话默认值清空 + 持久化 version bump 丢弃幽灵；去掉 mount 自动 run（run
+  改为用户发送时才起）。
+
+### FE-2 · 没有「开始会话」交互 — ✅ 已修
+- **现象**：`+` 按钮是死按钮、`sessions.create` 从没被调用 → 无法开始一段对话。
+- **修复**：draft-session 流（`+` / welcome 发送 → `sessions.create` 建草稿 → 首条消息
+  毕业进侧栏）+ Send↔Stop 切换 + 统一发送路径。
