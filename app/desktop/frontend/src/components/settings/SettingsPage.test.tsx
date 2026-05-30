@@ -40,7 +40,8 @@ describe("settingsPage", () => {
   it("switches the body when a different pane is clicked", async () => {
     await loadPanes();
     render(<SettingsPage />);
-    fireEvent.click(screen.getByText("Plugins"));
+    // Radix Tabs.Trigger activates on mousedown (+ focus), not click.
+    fireEvent.mouseDown(screen.getByText("Plugins"));
     expect(screen.getByTestId("plugins-body")).toBeTruthy();
     expect(screen.queryByTestId("appearance-body")).toBeNull();
   });
