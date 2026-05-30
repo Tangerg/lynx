@@ -72,6 +72,9 @@ export const ApprovalRequestSchema = z.object({
   text: z.string(),
   command: z.string().optional(),
   reason: z.string().optional(),
+  // Tool arguments about to be executed — the baseline the user can edit
+  // before approving (§4.3 editedArgs). Free-form JSON object.
+  args: z.record(z.string(), z.unknown()).optional(),
   risk: z.string().optional(),
   scope: z.array(z.string()).optional(),
   /** Path / URL / resource the action will touch. */

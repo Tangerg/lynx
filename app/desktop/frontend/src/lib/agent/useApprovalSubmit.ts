@@ -22,7 +22,12 @@ export type ApprovalDecision = "approved" | "declined";
 const WIRE_DECISION = { approved: "approve", declined: "deny" } as const;
 
 export interface ApprovalSubmit {
-  submit: (decision: ApprovalDecision) => void;
+  /**
+   * Submit the decision. `editedArgs` (approve-with-modified-args, §4.3)
+   * is forwarded only when the user tweaked the tool's arguments before
+   * approving — omitted otherwise so the runtime executes the original args.
+   */
+  submit: (decision: ApprovalDecision, editedArgs?: Record<string, unknown>) => void;
   pending: ApprovalDecision | null;
 }
 
@@ -30,7 +35,7 @@ export function useApprovalSubmit(requestId: string | undefined): ApprovalSubmit
   const [pending, setPending] = useState<ApprovalDecision | null>(null);
 
   const submit = useCallback(
-    (decision: ApprovalDecision) => {
+    (decision: ApprovalDecision, editedArgs?: Record<string, unknown>) => {
       if (!requestId || pending !== null) return;
       setPending(decision);
       getContainer()
@@ -38,6 +43,7 @@ export function useApprovalSubmit(requestId: string | undefined): ApprovalSubmit
         .runs.approval.submit({
           requestId: asApprovalRequestId(requestId),
           decision: WIRE_DECISION[decision],
+          ...(editedArgs ? { editedArgs } : {}),
         })
         .catch((err: unknown) => {
           console.error("[approval] submit rejected:", err);

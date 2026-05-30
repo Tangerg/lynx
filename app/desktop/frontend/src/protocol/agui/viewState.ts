@@ -87,6 +87,9 @@ export interface BuiltinContentBlockMap {
     reason: string;
     requestId?: string;
     decision?: "approved" | "declined";
+    /** Tool args about to run — the editable baseline for approve-with-
+     *  modified-args (§4.3). Absent ⇒ the card shows no edit affordance. */
+    args?: Record<string, unknown>;
     /** Risk metadata. All optional — older backends omit them. */
     risk?: "low" | "medium" | "high";
     scope?: string[];
