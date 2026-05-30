@@ -1,8 +1,7 @@
-import { AnimatePresence, motion } from "motion/react";
+import * as Dialog from "@radix-ui/react-dialog";
 import { useEffect, useMemo, useState } from "react";
 import { useDebounce } from "use-debounce";
 import { measureMermaidRender } from "@/lib/metrics";
-import { popIn, swift } from "@/lib/motion";
 import { useUiStore } from "@/state/uiStore";
 
 // `beautiful-mermaid` is heavy (~200KB) and only mounts when an
@@ -102,66 +101,40 @@ export function MermaidBlock({ code }: Props) {
 
   const [zoomed, setZoomed] = useState(false);
 
-  // Esc closes the lightbox — only bind the listener while it's open so
-  // we don't compete with other Escape handlers (composer, palette).
-  useEffect(() => {
-    if (!zoomed) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        e.preventDefault();
-        setZoomed(false);
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [zoomed]);
-
   if (svg) {
     return (
-      <>
-        <button
+      <Dialog.Root open={zoomed} onOpenChange={setZoomed}>
+        <Dialog.Trigger
           type="button"
           aria-label="Enlarge diagram"
           title="Click to enlarge"
-          onClick={() => setZoomed(true)}
           // Inline SVG sizes itself; the wrapper provides chrome + zoom
           // affordance. `[&_svg]:` reaches the SVG that
           // dangerouslySetInnerHTML drops in (we can't put utilities on it
           // directly).
-          className="my-3.5 w-full cursor-zoom-in overflow-x-auto rounded-lg border border-[color-mix(in_srgb,var(--color-text)_10%,transparent)] bg-[color-mix(in_srgb,var(--color-text)_3%,transparent)] p-4 text-center transition-colors duration-150 hover:border-[color-mix(in_srgb,var(--color-accent)_30%,transparent)] [&_svg]:max-w-full [&_svg]:h-auto"
+          className="my-3.5 w-full cursor-zoom-in overflow-x-auto rounded-lg border border-[color-mix(in_srgb,var(--color-text)_10%,transparent)] bg-[color-mix(in_srgb,var(--color-text)_3%,transparent)] p-4 text-center transition-colors duration-150 hover:border-[color-mix(in_srgb,var(--color-accent)_30%,transparent)] [&_svg]:h-auto [&_svg]:max-w-full"
           dangerouslySetInnerHTML={{ __html: svg }}
         />
-        <AnimatePresence>
-          {zoomed && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={swift}
-              onClick={() => setZoomed(false)}
-              // Custom modal backdrop — we manage zoom-close manually; the
-              // native <dialog> element would conflict with the
-              // animate-presence enter/exit lifecycle here.
-              // eslint-disable-next-line jsx-a11y/prefer-tag-over-role
-              role="dialog"
-              aria-modal="true"
-              // Light theme keeps the backdrop quieter — already-light
-              // page bg + a 60% black wash reads as a flat grey haze.
-              className="fixed inset-0 z-[200] grid cursor-zoom-out place-items-center bg-black/60 light:bg-black/25 backdrop-blur-[8px] p-10"
-            >
-              <motion.div
-                {...popIn}
-                onClick={(e) => e.stopPropagation()}
-                // Frame: a Panel-style card that pops the SVG out of the
-                // backdrop. SVG renders at native scale (max-width: none)
-                // so the user gets the full readable diagram.
-                className="max-h-[90vh] max-w-[min(1400px,95vw)] overflow-auto rounded-xl border border-line-soft bg-surface p-6 shadow-lg cursor-default [&_svg]:block [&_svg]:mx-auto [&_svg]:max-w-none"
-                dangerouslySetInnerHTML={{ __html: svg }}
-              />
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </>
+        <Dialog.Portal>
+          {/* Backdrop — quieter on light (already-light page + a wash).
+              cursor-zoom-out signals click-to-close (Radix closes on the
+              outside-click + Esc + traps focus + locks scroll). */}
+          <Dialog.Overlay className="fixed inset-0 z-[200] cursor-zoom-out bg-black/60 backdrop-blur-[8px] light:bg-black/25" />
+          {/* The framed SVG, centered via inset-0 + m-auto (no transform, so it
+              doesn't fight the rise-in keyframe). Native scale = fully readable;
+              pop-in on open via the shared rise-in keyframe. */}
+          <Dialog.Content
+            aria-describedby={undefined}
+            className="fixed inset-0 z-[201] m-auto h-fit w-fit max-h-[90vh] max-w-[min(1400px,95vw)] overflow-auto rounded-xl border border-line-soft bg-surface p-6 shadow-lg outline-none data-[state=open]:animate-rise-in"
+          >
+            <Dialog.Title className="sr-only">Diagram</Dialog.Title>
+            <div
+              className="[&_svg]:mx-auto [&_svg]:block [&_svg]:max-w-none"
+              dangerouslySetInnerHTML={{ __html: svg }}
+            />
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
     );
   }
 

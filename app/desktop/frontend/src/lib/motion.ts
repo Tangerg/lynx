@@ -28,7 +28,6 @@ function scaled(seconds: number): Transition {
   return t;
 }
 
-const fast: Transition = scaled(0.16);
 export const swift: Transition = scaled(0.22);
 
 // Soft enter from a few px below — for new chat messages.
@@ -37,12 +36,4 @@ export const enterUp = {
   animate: { opacity: 1, y: 0 },
   exit: { opacity: 0, y: -4 },
   transition: swift,
-};
-
-// Scale-in for floating panels (command palette).
-export const popIn = {
-  initial: { opacity: 0, scale: 0.96, y: 4 },
-  animate: { opacity: 1, scale: 1, y: 0 },
-  exit: { opacity: 0, scale: 0.97, y: 2 },
-  transition: fast,
 };
