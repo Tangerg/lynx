@@ -4,6 +4,7 @@
 
 import type { TaskEntry, TaskStatus } from "@/state/tasksStore";
 import * as Popover from "@radix-ui/react-popover";
+import * as Progress from "@radix-ui/react-progress";
 import { Icon } from "@/components/common";
 import { cn } from "@/lib/utils";
 import { definePlugin } from "@/plugins/sdk";
@@ -42,16 +43,19 @@ function TaskRow({ task }: { task: TaskEntry }) {
       {task.error && (
         <div className="mt-0.5 pl-[18px] text-[11.5px] text-negative">{task.error}</div>
       )}
+      {/* Radix Progress → role=progressbar + aria-valuenow/max for SR.
+          Only rendered when `pct` is set, which excludes failed tasks,
+          so the fill is always the accent tone. */}
       {pct !== null && (
-        <div className="mt-1.5 ml-[18px] h-1 rounded-full bg-surface-3 overflow-hidden">
-          <div
-            className={cn(
-              "h-full transition-[width] duration-150",
-              task.status === "failed" ? "bg-negative" : "bg-accent",
-            )}
+        <Progress.Root
+          value={pct}
+          className="mt-1.5 ml-[18px] h-1 overflow-hidden rounded-full bg-surface-3"
+        >
+          <Progress.Indicator
+            className="h-full bg-accent transition-[width] duration-150"
             style={{ width: `${pct}%` }}
           />
-        </div>
+        </Progress.Root>
       )}
     </div>
   );
