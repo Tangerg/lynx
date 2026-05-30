@@ -11,69 +11,22 @@
 //     `duration-*` utilities collapse via a blanket override in
 //     globals.css.
 
-import { Slider } from "@/components/common";
+import { Segmented, Slider, type SegmentedOption } from "@/components/common";
 import { useT } from "@/lib/i18n";
-import { cn } from "@/lib/utils";
 import { useUiStore } from "@/state/uiStore";
 
-type Option<T> = { value: T; label: string };
-
-const RADIUS_OPTIONS: Option<number>[] = [
+const RADIUS_OPTIONS: SegmentedOption<number>[] = [
   { value: 0.6, label: "Sharp" },
   { value: 1, label: "Default" },
   { value: 1.4, label: "Soft" },
 ];
 
-const MOTION_OPTIONS: Option<number>[] = [
+const MOTION_OPTIONS: SegmentedOption<number>[] = [
   { value: 0, label: "Off" },
   { value: 0.6, label: "Fast" },
   { value: 1, label: "Default" },
   { value: 1.5, label: "Slow" },
 ];
-
-function Segmented<T extends string | number>({
-  value,
-  options,
-  onChange,
-  ariaLabel,
-}: {
-  value: T;
-  options: Option<T>[];
-  onChange: (v: T) => void;
-  ariaLabel: string;
-}) {
-  return (
-    <div
-      role="radiogroup"
-      aria-label={ariaLabel}
-      className="inline-flex w-fit items-center gap-1 rounded-md border border-line bg-surface-2 p-1"
-    >
-      {options.map((opt) => {
-        const active = value === opt.value;
-        return (
-          <button
-            key={String(opt.value)}
-            type="button"
-            // ARIA Authoring Practices radiogroup pattern — native <input
-            // type="radio"> can't be styled as a segmented control.
-            // eslint-disable-next-line jsx-a11y/prefer-tag-over-role
-            role="radio"
-            aria-checked={active}
-            onClick={() => onChange(opt.value)}
-            className={cn(
-              "rounded-sm px-2.5 py-0.5 text-[12px] font-medium cursor-pointer transition-colors duration-150",
-              active
-                ? "bg-surface text-fg shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]"
-                : "bg-transparent text-fg-muted hover:text-fg",
-            )}
-          >
-            {opt.label}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
 
 function Row({ label, sub, children }: { label: string; sub: string; children: React.ReactNode }) {
   return (

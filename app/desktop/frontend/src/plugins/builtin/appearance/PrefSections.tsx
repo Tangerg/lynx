@@ -3,16 +3,10 @@
 // each section is < 60 lines.
 
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
-import { Icon } from "@/components/common";
+import { Icon, Segmented } from "@/components/common";
 import { setLocale, useLocale, useT } from "@/lib/i18n";
-import { cn } from "@/lib/utils";
 import { useLocales } from "@/plugins/sdk";
 import { useUiStore } from "@/state/uiStore";
-
-const SEGMENT_BTN_BASE =
-  "rounded-sm px-3 py-1 text-[13px] font-medium cursor-pointer transition-colors duration-150";
-const SEGMENT_BTN_ACTIVE = "bg-surface text-fg shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]";
-const SEGMENT_BTN_IDLE = "bg-transparent text-fg-muted hover:text-fg";
 
 export function MessageStyleSection() {
   const t = useT();
@@ -25,30 +19,15 @@ export function MessageStyleSection() {
         <div className="text-[15px] font-semibold text-fg">{t("settings.messageStyle")}</div>
         <div className="mt-0.5 text-[13px] text-fg-muted">{t("settings.messageStyle.sub")}</div>
       </div>
-      <div
-        role="radiogroup"
-        aria-label={t("settings.messageStyle")}
-        className="inline-flex w-fit gap-1 rounded-md border border-line bg-surface-2 p-1"
-      >
-        {(["bubble", "plain"] as const).map((s) => (
-          <button
-            key={s}
-            type="button"
-            // ARIA Authoring Practices radiogroup pattern — native <input
-            // type="radio"> can't be styled as a segmented control.
-            // eslint-disable-next-line jsx-a11y/prefer-tag-over-role
-            role="radio"
-            aria-checked={messageStyle === s}
-            onClick={() => setMessageStyle(s)}
-            className={cn(
-              SEGMENT_BTN_BASE,
-              messageStyle === s ? SEGMENT_BTN_ACTIVE : SEGMENT_BTN_IDLE,
-            )}
-          >
-            {t(`settings.messageStyle.${s}`)}
-          </button>
-        ))}
-      </div>
+      <Segmented
+        value={messageStyle}
+        options={[
+          { value: "bubble", label: t("settings.messageStyle.bubble") },
+          { value: "plain", label: t("settings.messageStyle.plain") },
+        ]}
+        onChange={setMessageStyle}
+        ariaLabel={t("settings.messageStyle")}
+      />
     </div>
   );
 }
