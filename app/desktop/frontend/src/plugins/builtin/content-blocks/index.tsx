@@ -30,6 +30,7 @@ export const approvalBlock = definePlugin({
           reason={block.reason}
           requestId={block.requestId}
           decision={block.decision}
+          args={block.args}
           risk={block.risk}
           scope={block.scope}
           target={block.target}

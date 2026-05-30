@@ -55,6 +55,7 @@ export const approvalHandler = definePlugin({
             command: value.command ?? "",
             reason: value.reason ?? "",
             requestId: value.requestId,
+            args: value.args,
             risk: narrowRisk(value.risk),
             scope: value.scope,
             target: value.target,

@@ -33,6 +33,23 @@ describe("useApprovalSubmit", () => {
     expect(submit).toHaveBeenCalledWith({ requestId: "req-2", decision: "deny" });
   });
 
+  it("forwards editedArgs only when provided (approve-with-modified-args)", () => {
+    const submit = stubSubmit();
+    const { result } = renderHook(() => useApprovalSubmit("req-e"));
+    act(() => result.current.submit("approved", { path: "/safe" }));
+    expect(submit).toHaveBeenCalledWith({
+      requestId: "req-e",
+      decision: "approve",
+      editedArgs: { path: "/safe" },
+    });
+
+    // Without editedArgs the key is omitted entirely (execute original args).
+    const submit2 = stubSubmit();
+    const { result: r2 } = renderHook(() => useApprovalSubmit("req-f"));
+    act(() => r2.current.submit("approved"));
+    expect(submit2).toHaveBeenCalledWith({ requestId: "req-f", decision: "approve" });
+  });
+
   it("no-ops without a requestId, and never double-submits", () => {
     const submit = stubSubmit();
     const { result } = renderHook(() => useApprovalSubmit(undefined));

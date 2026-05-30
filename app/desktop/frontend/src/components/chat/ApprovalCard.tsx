@@ -1,5 +1,6 @@
 import type { ApprovalDecision } from "@/lib/agent/useApprovalSubmit";
 import type { BlockStatus } from "@/protocol/agui/viewState";
+import { useState } from "react";
 import { Divider, Icon, PillButton } from "@/components/common";
 import { useT } from "@/lib/i18n";
 import { useApprovalSubmit } from "@/lib/agent/useApprovalSubmit";
@@ -21,6 +22,9 @@ interface Props {
   /** Set by the agui-handlers reducer once the backend has confirmed
    *  receipt of the decision via the lyra.approval-result event. */
   decision?: ApprovalDecision;
+  /** Tool arguments about to be executed. When present, the card lets the
+   *  user edit them before approving (approve-with-modified-args, §4.3). */
+  args?: Record<string, unknown>;
   /** Risk level — drives the badge colour + dot. Defaults to "medium"
    *  when omitted (older backends): "we don't know, be cautious". */
   risk?: Risk;
@@ -78,6 +82,7 @@ export function ApprovalCard({
   reason,
   requestId,
   decision,
+  args,
   risk,
   scope,
   target,
@@ -85,6 +90,32 @@ export function ApprovalCard({
 }: Props) {
   const t = useT();
   const { submit, pending } = useApprovalSubmit(requestId);
+
+  // Editable-args state. The textarea seeds from the original args; on
+  // approve we re-parse it and forward `editedArgs` only when it changed.
+  const hasArgs = args !== undefined;
+  const originalArgs = hasArgs ? JSON.stringify(args, null, 2) : "";
+  const [editing, setEditing] = useState(false);
+  const [argsText, setArgsText] = useState(originalArgs);
+  const [argsInvalid, setArgsInvalid] = useState(false);
+
+  const onApprove = () => {
+    if (!hasArgs) {
+      submit("approved");
+      return;
+    }
+    let editedArgs: Record<string, unknown> | undefined;
+    try {
+      const parsed = JSON.parse(argsText) as Record<string, unknown>;
+      // Only forward when the user actually changed something — a no-op
+      // edit should execute the original args, not a re-serialised copy.
+      if (JSON.stringify(parsed) !== JSON.stringify(args)) editedArgs = parsed;
+    } catch {
+      setArgsInvalid(true);
+      return; // block approve on malformed JSON
+    }
+    submit("approved", editedArgs);
+  };
 
   const finalised = status === "complete" ? decision : pending;
   if (finalised === "approved") {
@@ -121,6 +152,51 @@ export function ApprovalCard({
       <code className="my-2 block whitespace-pre-wrap break-all rounded-sm bg-warning/14 px-3 py-2 font-mono text-[13px] text-fg">
         $ {cmd}
       </code>
+      {hasArgs && (
+        <div className="mb-2">
+          <div className="mb-1 flex items-center gap-2">
+            <span className="font-mono text-[10px] font-semibold uppercase tracking-wider text-fg-faint">
+              {t("approval.args.label")}
+            </span>
+            {!editing && (
+              <button
+                type="button"
+                onClick={() => setEditing(true)}
+                className="font-mono text-[10.5px] font-semibold text-accent hover:underline"
+              >
+                {t("approval.args.edit")}
+              </button>
+            )}
+          </div>
+          {editing ? (
+            <>
+              <textarea
+                value={argsText}
+                aria-label={t("approval.args.label")}
+                spellCheck={false}
+                rows={Math.min(10, argsText.split("\n").length + 1)}
+                onChange={(e) => {
+                  setArgsText(e.target.value);
+                  setArgsInvalid(false);
+                }}
+                className={cn(
+                  "w-full resize-y rounded-sm bg-surface-2 px-3 py-2 font-mono text-[12px] text-fg focus:outline-none",
+                  argsInvalid ? "border border-negative/60" : "border border-line",
+                )}
+              />
+              {argsInvalid && (
+                <div className="mt-1 font-mono text-[10.5px] text-negative">
+                  {t("approval.args.invalid")}
+                </div>
+              )}
+            </>
+          ) : (
+            <pre className="m-0 max-h-32 overflow-auto whitespace-pre-wrap break-all rounded-sm bg-surface-2 px-3 py-2 font-mono text-[12px] text-fg-muted">
+              {argsText}
+            </pre>
+          )}
+        </div>
+      )}
       {(scope?.length || target || reversible !== undefined) && (
         <div className="mb-2 flex flex-wrap items-center gap-1.5">
           {scope?.map((s) => (
@@ -156,12 +232,7 @@ export function ApprovalCard({
       )}
       <div className="mb-3 text-[13px] leading-[1.55] text-fg-muted">{reason}</div>
       <div className="flex items-center gap-2">
-        <PillButton
-          variant="accent"
-          size="sm"
-          disabled={disabled}
-          onClick={() => submit("approved")}
-        >
+        <PillButton variant="accent" size="sm" disabled={disabled} onClick={onApprove}>
           {t("approval.action.approve")}
         </PillButton>
         <PillButton size="sm" disabled={disabled} onClick={() => submit("declined")}>
