@@ -3,6 +3,7 @@ package dispatch
 import (
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/Tangerg/lynx/lyra/rpc/protocol"
 	"github.com/Tangerg/lynx/lyra/rpc/transport"
@@ -25,6 +26,7 @@ func EncodeRunEvent(runID, eventID string, ev protocol.AgUiEvent) (transport.Mes
 	return transport.NewNotification(NotificationRunEvent, protocol.RunEvent{
 		RunID:   runID,
 		EventID: eventID,
+		Ts:      time.Now().UTC().Format(time.RFC3339Nano),
 		Event:   json.RawMessage(body),
 	})
 }
