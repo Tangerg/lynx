@@ -75,19 +75,27 @@ func (r *TurnRunner) Run(ctx context.Context, sessionID, message string) int {
 	signal.Notify(sigCh, os.Interrupt)
 	defer signal.Stop(sigCh)
 
-	for {
+	// Handle SIGINT off the event loop: the first one cancels the turn
+	// (the runtime then emits TurnEnd(Canceled) and closes the stream,
+	// ending the range below); a second escalates to the default kill.
+	// sigCtx ties this goroutine's lifetime to the turn so it exits when
+	// the stream drains.
+	sigCtx, stopSig := context.WithCancel(ctx)
+	defer stopSig()
+	go func() {
 		select {
-		case ev, ok := <-events:
-			if !ok {
-				return r.exit
-			}
-			r.dispatch(ctx, handle, ev)
 		case <-sigCh:
 			fmt.Fprintln(r.app.Err, "\n[lyra] canceling...")
 			_ = r.app.rt.Chat().Cancel(ctx, handle)
-			sigCh = nil // ignore further signals until TurnEnd drains the channel
+			signal.Stop(sigCh)
+		case <-sigCtx.Done():
 		}
+	}()
+
+	for ev := range events {
+		r.dispatch(ctx, handle, ev)
 	}
+	return r.exit
 }
 
 // dispatch routes one event to the right per-type renderer. Each

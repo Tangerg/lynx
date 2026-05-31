@@ -29,8 +29,10 @@ type turnState struct {
 
 	// proc is the agent process backing this turn. Populated once
 	// runTurn calls engine.StartChat (after plan approval in
-	// plan-mode), nil before that. Cancel and Status both inspect
-	// it.
+	// plan-mode), nil before that. Written by runTurn and read by
+	// [Service.Cancel] on another goroutine, so both sides guard it
+	// with the impl mutex; runTurn's own status loop uses its local
+	// proc handle, not this field.
 	proc engine.ChatProcess
 
 	// planDecision is non-nil only while the turn is paused
@@ -114,7 +116,10 @@ func (s *inMemory) runTurn(ctx context.Context, st *turnState, req StartTurnRequ
 		Observer:      observer,
 		EventListener: lifecycle.listener(st.handle.TurnID),
 	})
+	// Guarded by s.mu: Service.Cancel reads st.proc from another goroutine.
+	s.mu.Lock()
 	st.proc = proc
+	s.mu.Unlock()
 
 	// Drive the process to a terminal state, pausing at each plan-mode
 	// approval: in plan mode the action drafts a plan, emits it (via the

@@ -112,29 +112,24 @@ func TestStubEngineDrivesTurn(t *testing.T) {
 		t.Fatalf("StartTurn: %v", err)
 	}
 
-	events, err := svc.Events(context.Background(), handle)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	events, err := svc.Events(ctx, handle)
 	if err != nil {
 		t.Fatalf("Events: %v", err)
 	}
 
 	var sawDelta, sawEnd bool
-	deadline := time.After(2 * time.Second)
-	for !sawEnd {
-		select {
-		case ev, ok := <-events:
-			if !ok {
-				sawEnd = true
-				break
-			}
-			switch ev.(type) {
-			case chat.MessageDelta:
-				sawDelta = true
-			case chat.TurnEnd:
-				sawEnd = true
-			}
-		case <-deadline:
-			t.Fatalf("timed out; sawDelta=%v sawEnd=%v", sawDelta, sawEnd)
+	for ev := range events {
+		switch ev.(type) {
+		case chat.MessageDelta:
+			sawDelta = true
+		case chat.TurnEnd:
+			sawEnd = true
 		}
+	}
+	if !sawEnd {
+		t.Fatalf("timed out without TurnEnd; sawDelta=%v sawEnd=%v", sawDelta, sawEnd)
 	}
 
 	if !sawDelta {
@@ -161,25 +156,19 @@ func TestStubEngineBudgetStop(t *testing.T) {
 	if err != nil {
 		t.Fatalf("StartTurn: %v", err)
 	}
-	events, _ := svc.Events(context.Background(), handle)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	events, _ := svc.Events(ctx, handle)
 
-	deadline := time.After(2 * time.Second)
-	for {
-		select {
-		case ev, ok := <-events:
-			if !ok {
-				t.Fatal("channel closed without a TurnEnd")
+	for ev := range events {
+		if end, ok := ev.(chat.TurnEnd); ok {
+			if end.Reason != chat.TurnEndBudgetExceeded {
+				t.Fatalf("TurnEnd reason = %v, want budget_exceeded", end.Reason)
 			}
-			if end, ok := ev.(chat.TurnEnd); ok {
-				if end.Reason != chat.TurnEndBudgetExceeded {
-					t.Fatalf("TurnEnd reason = %v, want budget_exceeded", end.Reason)
-				}
-				return
-			}
-		case <-deadline:
-			t.Fatal("no TurnEnd within 2s")
+			return
 		}
 	}
+	t.Fatal("no TurnEnd within 2s")
 }
 
 // TestStubEngineCancelsCleanly — confirms Cancel propagates to the
@@ -196,20 +185,18 @@ func TestStubEngineCancelsCleanly(t *testing.T) {
 		t.Fatalf("Cancel: %v", err)
 	}
 
-	events, _ := svc.Events(context.Background(), handle)
-	deadline := time.After(2 * time.Second)
-	for {
-		select {
-		case ev, ok := <-events:
-			if !ok {
-				return // channel closed = turn done
-			}
-			if end, ok := ev.(chat.TurnEnd); ok && end.Reason == chat.TurnEndCancelled {
-				return
-			}
-		case <-deadline:
-			t.Fatalf("turn did not cancel within 2s")
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	events, _ := svc.Events(ctx, handle)
+	for ev := range events {
+		if end, ok := ev.(chat.TurnEnd); ok && end.Reason == chat.TurnEndCancelled {
+			return
 		}
+	}
+	// Iterator drained: either a TurnEnd(Cancelled) returned above, or the
+	// channel closed on turn done. Reaching here only on the 2s ctx timeout.
+	if ctx.Err() != nil {
+		t.Fatalf("turn did not cancel within 2s")
 	}
 }
 

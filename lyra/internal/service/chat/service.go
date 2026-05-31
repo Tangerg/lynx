@@ -6,6 +6,7 @@ package chat
 
 import (
 	"context"
+	"iter"
 	"time"
 
 	"github.com/Tangerg/lynx/lyra/internal/engine"
@@ -78,13 +79,14 @@ type Service interface {
 	// happens asynchronously and surfaces via [Events].
 	StartTurn(ctx context.Context, req StartTurnRequest) (TurnHandle, error)
 
-	// Events returns the read-only channel for a turn's events. The
-	// channel closes when the turn ends (success or error). It is a
-	// single-consumer stream: every call returns the same underlying
-	// channel, so a second ranger would steal events from the first —
-	// one drain loop per turn. Returns [ErrTurnNotFound] once the turn
-	// has ended.
-	Events(ctx context.Context, handle TurnHandle) (<-chan Event, error)
+	// Events returns a pull iterator over a turn's events: range it to
+	// drain the stream, which ends when the turn does (success or error).
+	// It is single-consumer — one drain loop per turn. ctx bounds how
+	// long the caller listens: when ctx is done the iterator stops
+	// yielding, but the turn keeps running on its own lifetime (use
+	// [Service.Cancel] to stop the turn itself). Returns [ErrTurnNotFound]
+	// once the turn has ended.
+	Events(ctx context.Context, handle TurnHandle) (iter.Seq[Event], error)
 
 	// InjectSteering delivers a user message mid-turn. The runtime
 	// queues it until the next tool boundary then injects it into the

@@ -422,7 +422,7 @@ func buildPlanService(t *testing.T, planText string) (chat.Service, *planAwareSt
 	return chat.New(eng, nil), stub
 }
 
-func drainEvents(events <-chan chat.Event) []chat.Event {
+func drainEvents(events iter.Seq[chat.Event]) []chat.Event {
 	var out []chat.Event
 	for ev := range events {
 		out = append(out, ev)

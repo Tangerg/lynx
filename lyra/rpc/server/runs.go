@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"errors"
+	"iter"
 
 	"github.com/Tangerg/lynx/lyra/internal/agui"
 	"github.com/Tangerg/lynx/lyra/internal/service/approval"
@@ -38,8 +39,16 @@ func (i *Server) StartRun(ctx context.Context, in protocol.StartRunRequest) (*pr
 		return nil, nil, nil, err
 	}
 
-	inner, err := i.rt.Chat().Events(ctx, handle)
+	// runCtx outlives the StartRun request ctx — it drives the pump and
+	// bounds the event iterator, and is canceled by runs.cancel or when
+	// the turn ends. Created before subscribing so the iterator honors
+	// the long-lived ctx, not the request ctx (which dies when this RPC
+	// returns).
+	runCtx, cancel := context.WithCancel(context.Background())
+
+	inner, err := i.rt.Chat().Events(runCtx, handle)
 	if err != nil {
+		cancel()
 		return nil, nil, nil, err
 	}
 
@@ -55,7 +64,6 @@ func (i *Server) StartRun(ctx context.Context, in protocol.StartRunRequest) (*pr
 	// the send): yields one RunResult then closes (API.md §3.1 / §6.3).
 	resultCh := make(chan protocol.RunResult, 1)
 
-	runCtx, cancel := context.WithCancel(context.Background())
 	i.runMu.Lock()
 	i.runs[runID] = &runEntry{
 		runID:     runID,
@@ -75,7 +83,7 @@ func (i *Server) StartRun(ctx context.Context, in protocol.StartRunRequest) (*pr
 // way. Exits when the inner stream closes (turn end) or the run is
 // canceled; on exit it sends one RunResult on resultCh (then closes it)
 // so the transport can build notifications/run/closed (API.md §6.3).
-func (i *Server) pumpRun(ctx context.Context, handle chat.TurnHandle, inner <-chan chat.Event, out chan<- protocol.AgUiEvent, resultCh chan<- protocol.RunResult) {
+func (i *Server) pumpRun(ctx context.Context, handle chat.TurnHandle, inner iter.Seq[chat.Event], out chan<- protocol.AgUiEvent, resultCh chan<- protocol.RunResult) {
 	translator := agui.NewTranslator(handle.SessionID, handle.TurnID)
 	// Defaults to completed in case the stream ends without an explicit
 	// TurnEnd; overwritten when TurnEnd / cancellation is observed.
@@ -93,36 +101,39 @@ func (i *Server) pumpRun(ctx context.Context, handle chat.TurnHandle, inner <-ch
 		i.runMu.Unlock()
 	}()
 
-	for {
-		select {
-		case ev, ok := <-inner:
-			if !ok {
+	// Best-effort cancel of the underlying turn on run cancellation —
+	// ignore the error, the turn may have already ended.
+	markCanceled := func() {
+		result.StopReason = "canceled"
+		_ = i.rt.Chat().Cancel(context.Background(), handle)
+	}
+
+	// The event iterator multiplexes ctx internally, so ranging it stops
+	// on either turn end (channel closed) or run cancellation (ctx done) —
+	// no outer select needed. Only the back-pressured write to out still
+	// races ctx, since out is the transport's channel, not ours.
+	for ev := range inner {
+		switch e := ev.(type) {
+		case chat.TurnEnd:
+			result = turnEndToRunResult(e)
+			if result.StopReason == "error" && errMsg != "" {
+				result.Error = &protocol.RunError{Code: runErrorCodeInternal, Message: errMsg}
+			}
+		case chat.ErrorEvent:
+			errMsg = e.Message
+		}
+		for _, translated := range translator.Translate(ev) {
+			select {
+			case out <- translated:
+			case <-ctx.Done():
+				markCanceled()
 				return
 			}
-			switch e := ev.(type) {
-			case chat.TurnEnd:
-				result = turnEndToRunResult(e)
-				if result.StopReason == "error" && errMsg != "" {
-					result.Error = &protocol.RunError{Code: runErrorCodeInternal, Message: errMsg}
-				}
-			case chat.ErrorEvent:
-				errMsg = e.Message
-			}
-			for _, translated := range translator.Translate(ev) {
-				select {
-				case out <- translated:
-				case <-ctx.Done():
-					result.StopReason = "canceled"
-					return
-				}
-			}
-		case <-ctx.Done():
-			// Best-effort cancel of the underlying turn — ignore the
-			// error, the turn may have already ended.
-			result.StopReason = "canceled"
-			_ = i.rt.Chat().Cancel(context.Background(), handle)
-			return
 		}
+	}
+	// Iterator drained: turn ended naturally unless ctx canceled it.
+	if ctx.Err() != nil {
+		markCanceled()
 	}
 }
 

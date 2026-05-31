@@ -3,6 +3,7 @@ package chat
 import (
 	"context"
 	"errors"
+	"iter"
 	"sync"
 	"time"
 
@@ -105,12 +106,28 @@ func (s *inMemory) findTurn(id string) (*turnState, error) {
 	return state, nil
 }
 
-func (s *inMemory) Events(_ context.Context, handle TurnHandle) (<-chan Event, error) {
+func (s *inMemory) Events(ctx context.Context, handle TurnHandle) (iter.Seq[Event], error) {
 	state, err := s.findTurn(handle.TurnID)
 	if err != nil {
 		return nil, err
 	}
-	return state.events, nil
+	// Single-consumer pull stream. The internal select multiplexes the
+	// turn's event channel against ctx so the iterator stops promptly
+	// when the caller stops listening — even while parked waiting for
+	// the next event. runTurn closes state.events on turn end, which
+	// terminates the range cleanly (ok == false).
+	return func(yield func(Event) bool) {
+		for {
+			select {
+			case ev, ok := <-state.events:
+				if !ok || !yield(ev) {
+					return
+				}
+			case <-ctx.Done():
+				return
+			}
+		}
+	}, nil
 }
 
 // InjectSteering queues message onto the active turn's pending
@@ -153,10 +170,15 @@ func (s *inMemory) Cancel(_ context.Context, handle TurnHandle) error {
 		return err
 	}
 	state.cancel()
-	if state.proc != nil {
+	// proc is written by runTurn on another goroutine; read it under the
+	// impl lock to avoid racing that write.
+	s.mu.Lock()
+	proc := state.proc
+	s.mu.Unlock()
+	if proc != nil {
 		// Cancel returns an error only on unknown id, which can't
 		// happen here — proc is the live process. Ignore.
-		_ = state.proc.Cancel("user cancel")
+		_ = proc.Cancel("user cancel")
 	}
 	return nil
 }
