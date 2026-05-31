@@ -21,15 +21,15 @@ type BlackboardReader interface {
 	// Get returns whatever is stored at key (by name only).
 	Get(key string) (any, bool)
 
-	// GetValue returns the value bound to (variable, typeName). When
+	// Lookup returns the value bound to (variable, typeName). When
 	// variable is DefaultBindingName ("it"), implementations search the
-	// objects list from newest to oldest for a type match.
-	// LastResultBindingName returns the most-recent object regardless
-	// of type.
+	// objects list from newest to oldest for a type match. When variable
+	// is LastResultBindingName ("last_result"), it returns the most-recent
+	// object regardless of type.
 	Lookup(variable, typeName string) (any, bool)
 
 	// HasValue is the planner's cheap precondition probe; equivalent to
-	// GetValue returning ok.
+	// Lookup returning ok.
 	HasValue(variable, typeName string) bool
 
 	// Objects returns a snapshot in insertion order.
@@ -67,7 +67,7 @@ type BlackboardWriter interface {
 	// and other ambient context.
 	BindProtected(key string, value any)
 
-	// Hide marks an object as not-discoverable via GetValue, without removing
+	// Hide marks an object as not-discoverable via Lookup, without removing
 	// it from the historical record (Objects() still returns it).
 	Hide(target any)
 

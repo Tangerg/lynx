@@ -66,8 +66,11 @@ type TurnHandle struct {
 // In plan mode the turn pauses after [PlanGenerated]; call
 // [ContinuePlan] with the user's decision to resume.
 //
-// Cancellation flows through ctx — closing ctx cancels the turn and
-// drains the event channel.
+// A turn outlives the ctx that started it: StartTurn derives the turn's
+// own context from a background root so the caller's ctx ending (e.g. the
+// StartTurn RPC returning) does not kill the in-flight turn. To stop a
+// turn, call [Service.Cancel] — closing the ctx you passed in has no
+// effect on a running turn.
 type Service interface {
 	// StartTurn launches a new turn against the given session. Returns
 	// a handle the caller uses to subscribe to events. The method
@@ -76,10 +79,11 @@ type Service interface {
 	StartTurn(ctx context.Context, req StartTurnRequest) (TurnHandle, error)
 
 	// Events returns the read-only channel for a turn's events. The
-	// channel closes when the turn ends (success or error). Calling
-	// Events twice for the same turn returns two independent channels
-	// that fan-out from the same underlying stream — useful for
-	// transport layers that need to multiplex.
+	// channel closes when the turn ends (success or error). It is a
+	// single-consumer stream: every call returns the same underlying
+	// channel, so a second ranger would steal events from the first —
+	// one drain loop per turn. Returns [ErrTurnNotFound] once the turn
+	// has ended.
 	Events(ctx context.Context, handle TurnHandle) (<-chan Event, error)
 
 	// InjectSteering delivers a user message mid-turn. The runtime
@@ -135,9 +139,9 @@ func (d PlanDecision) String() string {
 //
 // Concrete event types implement [stamp] so the runtime replaces
 // the full BaseEvent header in one call. Call sites construct
-// events with their type-specific fields only — the dispatcher in
-// impl.go fills the four routing fields uniformly. Adding a new
-// event = adding the struct + one stamp method, nothing else.
+// events with their type-specific fields only — the dispatcher
+// (emit, in inmemory.go) fills the four routing fields uniformly.
+// Adding a new event = adding the struct + one stamp method, nothing else.
 type Event interface {
 	isLyraEvent()
 	stamp(b BaseEvent) Event

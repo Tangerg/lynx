@@ -65,7 +65,7 @@ type Reader struct {
 }
 
 // NewReader builds a PDF reader. The underlying source must implement
-// io.ReaderAt because pdfcpu parses PDF objects via random access.
+// io.ReaderAt because ledongthuc/pdf parses PDF objects via random access.
 // size is the total byte length of the PDF — pass file.Size() (from
 // os.File.Stat) or len(buf) for in-memory data.
 func NewReader(src io.ReaderAt, size int64, opts ...Option) (*Reader, error) {

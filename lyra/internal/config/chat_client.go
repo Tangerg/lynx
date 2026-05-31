@@ -18,9 +18,10 @@ import (
 // metadata (nil when the model isn't in the pricing catalog), so turns
 // can report CostUSD. Both are handed to engine.New via runtime.Config.
 //
-// M1 supports anthropic + openai. Adding a provider = one case in the
-// switch + one import; the rest of Lyra doesn't care which model is
-// behind the client.
+// Supports anthropic / openai / moonshot / deepseek (the last two via
+// their OpenAI-compatible endpoints). Adding a provider = one case in the
+// switch + one import + a row in providerInfo; the rest of Lyra doesn't
+// care which model is behind the client.
 func BuildChatClient(cfg Config) (*chat.Client, engine.Pricing, error) {
 	opts, err := chat.NewOptions(cfg.Model)
 	if err != nil {
