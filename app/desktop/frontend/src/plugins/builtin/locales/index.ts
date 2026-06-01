@@ -1,7 +1,7 @@
 // Built-in locale plugins. Each language is its own plugin spec; the
 // kernel's `lib/i18n.ts` bootstraps English so first-paint always has
 // strings, and these plugins fill in everything else via
-// `host.i18n.addBundle` + `host.i18n.registerLocale`.
+// `host.i18n.addBundle` + `host.extensions.contribute(LOCALE, …)`.
 //
 // Adding a new language is one file + one line in the manifest —
 // same as adding a theme. Third-party plugins ship their own locale

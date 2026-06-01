@@ -1,6 +1,6 @@
 // Built-in plugins: inline previews for the standard tool calls.
 //
-// Each preview is a small React component plus a `host.tool.registerPreview`
+// Each preview is a small React component plus a `host.extensions.contribute(TOOL_PREVIEW, …)`
 // call. They go through the same SDK surface third-party plugins use, so
 // adding a new tool fn means writing a similar plugin — no special-casing.
 

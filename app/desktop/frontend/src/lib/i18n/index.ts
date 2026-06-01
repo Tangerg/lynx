@@ -4,7 +4,7 @@
 // The kernel ships **only the English bundle** — every other language
 // (zh / zh-TW / ja / ko / es / fr / de) is a built-in plugin under
 // `plugins/builtin/locales/` that calls `host.i18n.addBundle()` +
-// `host.i18n.registerLocale()` in its setup. The picker is driven by
+// `host.extensions.contribute(LOCALE, …)` in its setup. The picker is driven by
 // the plugin store's `locales` registry (read via `useLocales()` from
 // the SDK), not a hardcoded array here.
 //

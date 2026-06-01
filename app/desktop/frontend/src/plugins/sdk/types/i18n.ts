@@ -2,8 +2,8 @@
 //
 // Each shipped language is its own plugin (`plugins/builtin/locales/
 // <id>`) that calls `host.i18n.addBundle(id, dict)` to register the
-// translation bundle, and `host.i18n.registerLocale(spec)` to make
-// the language pickable in the UI. A third-party plugin can ship its
+// translation bundle, and `host.extensions.contribute(LOCALE, spec)` to
+// make the language pickable in the UI. A third-party plugin can ship its
 // own language the same way — the kernel only bootstraps English.
 
 export interface LocaleSpec {

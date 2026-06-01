@@ -1,6 +1,6 @@
 // Collapsed sidebar — slim vertical strip. The kernel owns the expand
 // button + the rail container; every other item is contributed via
-// `host.sidebar.registerRailItem`.
+// `host.extensions.contribute(SIDEBAR_RAIL_ITEM, …)`.
 //
 // Order convention (loosely enforced by `order` numbers, see types.ts):
 //   - 0..99    : top (new-session, search)

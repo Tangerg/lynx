@@ -40,7 +40,7 @@ const uiPersistSchema = z.object({
 
 /**
  * A theme id — references a `ThemeSpec` registered via
- * `host.theme.registerTheme()`. Built-ins ship as `"dark"` / `"light"`
+ * `host.extensions.contribute(THEME, …)`. Built-ins ship as `"dark"` / `"light"`
  * + the 8 IDE-style packs; plugins can add more.
  *
  * Code that needs the binary dark/light distinction (shiki / mermaid

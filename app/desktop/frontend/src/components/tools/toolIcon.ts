@@ -1,7 +1,7 @@
 // Resolve a tool fn name to the icon glyph rendered inside ToolCard.
 //
 // Lookup order:
-//   1. Plugin registry — `host.tool.registerIcon("bash", "terminal")`. Lets
+//   1. Plugin registry — `host.extensions.contribute(TOOL_ICON, "terminal", { key: "bash" })`. Lets
 //      a plugin add an icon for a custom tool, or swap the built-in one.
 //   2. Hardcoded fallback — kept inline so the kernel still renders sensibly
 //      even with zero plugins loaded (and so the built-in mapping plugin
