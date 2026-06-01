@@ -49,6 +49,18 @@ export interface Owned<T> {
   value: T;
 }
 
+/**
+ * One entry in the shared open-extension-point map. `point` is the point id
+ * the entry belongs to; `order` is the optional sort hint passed at
+ * contribute time (the item may also carry its own `order`); `item` is the
+ * contributed value. See `defineExtensionPoint` + `selectors/extensions.ts`.
+ */
+export interface ContributionEntry {
+  point: string;
+  order?: number;
+  item: unknown;
+}
+
 export interface PluginStoreState {
   loaded: Map<string, LoadedPlugin>;
   toolPreviews: Map<string, Owned<ToolPreviewComponent>>;
@@ -119,6 +131,10 @@ export interface PluginStoreState {
   pluginUnloadListeners: Map<string, Owned<(name: string) => void>>;
   pluginErrorFallbacks: Map<string, Owned<PluginErrorFallbackSpec>>;
   workspaceViews: Map<string, Owned<WorkspaceViewSpec>>;
+  // Open extension points — the unified substrate. Plugin-defined points
+  // (and, post-collapse, every kernel point) store their contributions here
+  // keyed by `${point.id}#${dedupeKey}`. Read via the extensions selector.
+  extensions: Map<string, Owned<ContributionEntry>>;
   // Window title state — most-recent setter wins. Stored as the "base"
   // text + a badge count; document.title is derived: `[n] base`.
   windowTitle: string;
@@ -260,6 +276,18 @@ export interface PluginStoreActions {
   addWorkspaceView: (pluginName: string, spec: WorkspaceViewSpec) => void;
   removeWorkspaceView: (pluginName: string, id: string) => void;
 
+  // Open extension points (substrate). `outerKey` is the fully-qualified
+  // `${point}#${dedupeKey}`; the host computes it (single vs multi keying)
+  // and hands it back via the disposable so removal is exact.
+  addContribution: (
+    pluginName: string,
+    point: string,
+    outerKey: string,
+    entry: ContributionEntry,
+    conflictKey: string,
+  ) => void;
+  removeContribution: (pluginName: string, outerKey: string) => void;
+
   setWindowTitle: (text: string) => void;
   setWindowBadge: (n: number) => void;
 
@@ -314,6 +342,7 @@ export function freshState(): PluginStoreState {
     pluginUnloadListeners: new Map(),
     pluginErrorFallbacks: new Map(),
     workspaceViews: new Map(),
+    extensions: new Map(),
     appReady: false,
     windowTitle: "",
     windowBadge: 0,

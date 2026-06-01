@@ -386,6 +386,26 @@ export const usePluginStore = create<PluginStoreState & PluginStoreActions>((set
     addWorkspaceView: workspaceViews.add,
     removeWorkspaceView: workspaceViews.remove,
 
+    // Open extension points. The host computes `outerKey` from the point's
+    // keying (single → `${point}#${dedupeKey}`, multi → `${point}#${plugin}|${id}`)
+    // so the store stays oblivious to keying policy. `single` points warn on
+    // cross-plugin override, mirroring `addOwned`.
+    addContribution(pluginName, point, outerKey, entry, conflictKey) {
+      const existing = get().extensions.get(outerKey);
+      if (existing && existing.pluginName !== pluginName) {
+        console.warn(
+          `[plugin] ${pluginName} overrides contribution "${conflictKey}" ` +
+            `on point "${point}" (previously ${existing.pluginName})`,
+        );
+      }
+      set({ extensions: mapSet(get().extensions, outerKey, { pluginName, value: entry }) });
+    },
+    removeContribution(pluginName, outerKey) {
+      const entry = get().extensions.get(outerKey);
+      if (!entry || entry.pluginName !== pluginName) return;
+      set({ extensions: mapDrop(get().extensions, outerKey) });
+    },
+
     resetForTest() {
       set(freshState());
     },

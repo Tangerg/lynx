@@ -17,6 +17,8 @@ import type {
   CustomEventHandler,
   DataProviderSpec,
   Disposable,
+  ExtensionContributionOptions,
+  ExtensionPoint,
   Host,
   HostCapability,
   LayoutSlotSpec,
@@ -272,6 +274,41 @@ export function createHost(
       register(spec: CommandSpec): Disposable {
         store().addCommand(pluginName, spec);
         return track({ dispose: () => store().removeCommand(pluginName, spec.id) });
+      },
+    },
+
+    extensions: {
+      // Contribute a typed item to a plugin-defined extension point. Keying
+      // policy lives on the point: `single` dedupes by `keyOf(item)` (warns
+      // on cross-plugin override); `multi` mints a per-(plugin,id) key so
+      // every contribution coexists. The fully-qualified outer key is baked
+      // here and handed back via the disposable so removal is exact.
+      contribute<T>(
+        point: ExtensionPoint<T>,
+        item: T,
+        opts?: ExtensionContributionOptions,
+      ): Disposable {
+        const keyOf = point.keyOf ?? ((i: T) => (i as unknown as { id: string }).id);
+        let outerKey: string;
+        let conflictKey: string;
+        if (point.keying === "single") {
+          const base = keyOf(item);
+          const k = point.normalizeKey ? point.normalizeKey(base) : base;
+          outerKey = `${point.id}#${k}`;
+          conflictKey = k;
+        } else {
+          const id = opts?.id ?? mintId(point.id);
+          outerKey = `${point.id}#${pluginName}|${id}`;
+          conflictKey = id;
+        }
+        store().addContribution(
+          pluginName,
+          point.id,
+          outerKey,
+          { point: point.id, order: opts?.order, item },
+          conflictKey,
+        );
+        return track({ dispose: () => store().removeContribution(pluginName, outerKey) });
       },
     },
 
