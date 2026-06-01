@@ -12,6 +12,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { definePlugin, loadPlugin } from "@/plugins/sdk";
+import { DATA_PROVIDER } from "@/plugins/sdk/kernelPoints";
 import { useSessionStore } from "@/state/sessionStore";
 import { PanelHeader } from "./PanelHeader";
 
@@ -34,7 +35,7 @@ async function loadSessionsProvider(rows: SidebarSession[]): Promise<void> {
       name: "test.panel-header.sessions",
       version: "1.0.0",
       setup: ({ host }) => {
-        host.data.registerProvider<SidebarSession[]>({
+        host.extensions.contribute(DATA_PROVIDER, {
           key: "sessions",
           fetcher: async () => rows,
         });

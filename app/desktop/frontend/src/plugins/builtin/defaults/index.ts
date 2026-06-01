@@ -5,17 +5,13 @@
 // `defaultCommands` lives in a sibling file because it's substantially
 // bigger than the rest (~100 lines for the reactive command rebuild).
 
-import type {
-  MCPServer as SidebarMCPServer,
-  SidebarProject,
-  SidebarSession,
-} from "@/lib/data/queries";
+import type { MCPServer as SidebarMCPServer, SidebarSession } from "@/lib/data/queries";
 import type { MCPServer as RpcMCPServer, Session } from "@/rpc";
 import { api } from "@/lib/data/http";
 import { AGUI_BASE } from "@/main/config";
 import { getContainer } from "@/main/container";
 import { definePlugin } from "@/plugins/sdk";
-import { ACCENT } from "@/plugins/sdk/kernelPoints";
+import { ACCENT, DATA_PROVIDER } from "@/plugins/sdk/kernelPoints";
 
 // Cutover mappers: several side-panel keys now ride the JSON-RPC stack
 // instead of REST GET. Where the protocol shape differs from the sidebar
@@ -153,25 +149,25 @@ export const defaultData = definePlugin({
   setup({ host }) {
     const methods = () => getContainer().methods();
 
-    host.data.registerProvider<SidebarSession[]>({
+    host.extensions.contribute(DATA_PROVIDER, {
       key: "sessions",
       fetcher: async () => (await methods().sessions.list()).items.map(toSidebarSession),
     });
-    host.data.registerProvider<SidebarProject[]>({
+    host.extensions.contribute(DATA_PROVIDER, {
       key: "projects",
       fetcher: () => methods().workspace.projects(),
     });
-    host.data.registerProvider({
+    host.extensions.contribute(DATA_PROVIDER, {
       key: "files-changed",
       fetcher: () => methods().workspace.filesChanged(),
     });
-    host.data.registerProvider<SidebarMCPServer[]>({
+    host.extensions.contribute(DATA_PROVIDER, {
       key: "mcp-servers",
       fetcher: async () => (await methods().workspace.mcp.list()).map(toSidebarMCPServer),
     });
 
     for (const key of HTTP_KEYS) {
-      host.data.registerProvider({
+      host.extensions.contribute(DATA_PROVIDER, {
         key,
         fetcher: () => api.get(key).json(),
       });

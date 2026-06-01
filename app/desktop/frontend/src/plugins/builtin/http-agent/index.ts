@@ -12,6 +12,7 @@
 import { HttpAgent } from "@ag-ui/client";
 import { AGUI_BASE } from "@/main/config";
 import { definePlugin } from "@/plugins/sdk";
+import { AGENT_SOURCE } from "@/plugins/sdk/kernelPoints";
 import { useSessionStore } from "@/state/sessionStore";
 
 const AGUI_URL = `${AGUI_BASE}/run`;
@@ -20,7 +21,7 @@ export default definePlugin({
   name: "lyra.builtin.http-agent",
   version: "1.0.0",
   setup({ host }) {
-    host.agent.registerSource({
+    host.extensions.contribute(AGENT_SOURCE, {
       id: "http",
       label: "HTTP (local backend)",
       priority: 0,

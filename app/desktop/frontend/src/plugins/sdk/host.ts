@@ -4,7 +4,6 @@
 
 import type { ConfigValue } from "./config";
 import type {
-  AgentSourceSpec,
   BeforeUnloadHandler,
   CommandSpec,
   ComposerAttachmentSourceSpec,
@@ -15,7 +14,6 @@ import type {
   ContentBlockRenderer,
   CoreEventHandler,
   CustomEventHandler,
-  DataProviderSpec,
   Disposable,
   ExtensionContributionOptions,
   ExtensionPoint,
@@ -26,10 +24,8 @@ import type {
   LogLevel,
   LogSubscriber,
   MessageRoleSpec,
-  PluginErrorFallbackSpec,
   PluginSpec,
   ReadyHandler,
-  RouteSpec,
   RpcAfterResponseHook,
   RpcBeforeRequestHook,
   SettingsPaneSpec,
@@ -49,7 +45,6 @@ import { startTask } from "@/state/tasksStore";
 import { getConfig, hasConfig, setConfig, useConfigStore } from "./config";
 import { safeCall } from "./errors";
 import {
-  AGENT_SOURCE,
   BEFORE_UNLOAD_HANDLER,
   COMMAND,
   COMPOSER_ATTACHMENT_SOURCE,
@@ -60,8 +55,6 @@ import {
   CONTENT_BLOCK,
   CORE_EVENT_HANDLER,
   CUSTOM_EVENT_HANDLER,
-  DATA_PROVIDER,
-  ERROR_FALLBACK,
   LAYOUT_SLOT,
   LOCALE,
   LOG_SUBSCRIBER,
@@ -69,7 +62,6 @@ import {
   PLUGIN_LOAD_LISTENER,
   PLUGIN_UNLOAD_LISTENER,
   READY_HANDLER,
-  ROUTE,
   RPC_AFTER_RESPONSE,
   RPC_BEFORE_REQUEST,
   SETTINGS_PANE,
@@ -233,10 +225,6 @@ export function createHost(
       },
     },
 
-    router: {
-      register: (spec: RouteSpec): Disposable => contribute(ROUTE, spec),
-    },
-
     composer: {
       registerCommand(cmd: string, spec: SlashCommandSpec): Disposable {
         // Normalize so callers can omit the leading slash.
@@ -261,18 +249,6 @@ export function createHost(
 
     shortcuts: {
       register: (spec: ShortcutSpec): Disposable => contribute(SHORTCUT, spec),
-    },
-
-    agent: {
-      registerSource: (spec: AgentSourceSpec): Disposable => contribute(AGENT_SOURCE, spec),
-    },
-
-    data: {
-      registerProvider<T = unknown>(spec: DataProviderSpec<T>): Disposable {
-        // Cast through unknown — the registry erases T, callers cast on
-        // the way out via `lookupDataProvider<T>()`.
-        return contribute(DATA_PROVIDER, spec as DataProviderSpec);
-      },
     },
 
     commands: {
@@ -375,8 +351,6 @@ export function createHost(
       reload(name: string): Promise<void> {
         return getRuntime().reload(name);
       },
-      registerErrorFallback: (spec: PluginErrorFallbackSpec): Disposable =>
-        contribute(ERROR_FALLBACK, spec),
     },
 
     log: {

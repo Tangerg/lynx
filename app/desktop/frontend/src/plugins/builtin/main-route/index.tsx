@@ -7,12 +7,13 @@
 
 import { AgentClientPage } from "@/pages/AgentClientPage";
 import { definePlugin } from "@/plugins/sdk";
+import { ROUTE } from "@/plugins/sdk/kernelPoints";
 
 export default definePlugin({
   name: "lyra.builtin.main-route",
   version: "1.0.0",
   setup({ host }) {
-    host.router.register({
+    host.extensions.contribute(ROUTE, {
       id: "main",
       path: "/",
       component: AgentClientPage,
