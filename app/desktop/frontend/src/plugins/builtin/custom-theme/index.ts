@@ -15,6 +15,7 @@
 import { colord } from "colord";
 import { disposeOnHmr } from "@/lib/hmr";
 import { definePlugin } from "@/plugins/sdk";
+import { THEME } from "@/plugins/sdk/kernelPoints";
 import { useUiStore } from "@/state/uiStore";
 import { buildTokenMap } from "../themes/tokens";
 import type { ThemePluginSpec } from "../themes/types";
@@ -67,7 +68,7 @@ export default definePlugin({
     const register = () => {
       const { customTheme, accent, contrast } = useUiStore.getState();
       const spec = deriveCustomSpec(customTheme, accent, contrast);
-      host.theme.registerTheme({
+      host.extensions.contribute(THEME, {
         id: CUSTOM_THEME_ID,
         label: spec.label,
         scheme: spec.scheme,

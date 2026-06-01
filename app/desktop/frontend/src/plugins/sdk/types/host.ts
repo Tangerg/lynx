@@ -34,7 +34,6 @@ import type {
 import type { ContentBlockRenderer, MessageRoleSpec } from "./message";
 import type { LoadedPlugin, PluginSpec } from "./plugin";
 import type { SidebarRailItemSpec, SidebarSectionSpec } from "./sidebar";
-import type { ThemeAccentSpec, ThemeSpec } from "./theme";
 import type { ToolActionSpec, ToolPreviewComponent } from "./tool";
 import type { LayoutSlotSpec, RouteSpec, SettingsPaneSpec, WorkspaceViewSpec } from "./workspace";
 import type { ContentBlockKind } from "@/protocol/agui/viewState";
@@ -86,12 +85,6 @@ export interface Host {
     openView: (id: string) => void;
     /** Close a registered view by id. */
     closeView: (id: string) => void;
-  };
-  theme: {
-    /** Contribute a selectable theme. */
-    registerTheme: (spec: ThemeSpec) => Disposable;
-    /** Contribute a selectable accent. */
-    registerAccent: (spec: ThemeAccentSpec) => Disposable;
   };
   router: {
     /** Contribute a top-level route to the router tree. */

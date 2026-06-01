@@ -10,6 +10,7 @@
 import type { Disposable } from "@/plugins/sdk/types";
 import { beforeEach, describe, expect, it } from "vitest";
 import { createHost } from "@/plugins/sdk/host";
+import { ACCENT, THEME } from "@/plugins/sdk/kernelPoints";
 import { useUiStore } from "@/state/uiStore";
 
 const sink: Disposable[] = [];
@@ -26,7 +27,7 @@ beforeEach(() => {
 describe("applyTheme — theme-as-plugin contract", () => {
   it("writes spec.tokens to :root.style when the active theme is registered", () => {
     const host = createHost("test", sink);
-    host.theme.registerTheme({
+    host.extensions.contribute(THEME, {
       id: "dark",
       label: "Dark",
       scheme: "dark",
@@ -45,7 +46,7 @@ describe("applyTheme — theme-as-plugin contract", () => {
 
   it("toggles theme-{scheme} class — drives structural CSS overrides", () => {
     const host = createHost("test", sink);
-    host.theme.registerTheme({
+    host.extensions.contribute(THEME, {
       id: "solarized-light",
       label: "Solarized Light",
       scheme: "light",
@@ -62,13 +63,13 @@ describe("applyTheme — theme-as-plugin contract", () => {
 
   it("switching themes replaces token values", () => {
     const host = createHost("test", sink);
-    host.theme.registerTheme({
+    host.extensions.contribute(THEME, {
       id: "dark",
       label: "Dark",
       scheme: "dark",
       tokens: { "color-bg": "#010102", "color-text": "#f7f8f8" },
     });
-    host.theme.registerTheme({
+    host.extensions.contribute(THEME, {
       id: "light",
       label: "Light",
       scheme: "light",
@@ -88,13 +89,13 @@ describe("applyTheme — theme-as-plugin contract", () => {
 
   it("resolves accent through the registry for light-scheme themes", () => {
     const host = createHost("test", sink);
-    host.theme.registerTheme({
+    host.extensions.contribute(THEME, {
       id: "light",
       label: "Light",
       scheme: "light",
       tokens: {},
     });
-    host.theme.registerAccent({
+    host.extensions.contribute(ACCENT, {
       id: "green",
       label: "Green",
       dark: "#1ed760",
@@ -108,14 +109,14 @@ describe("applyTheme — theme-as-plugin contract", () => {
 
   it("toggleTheme flips to the first registered theme of the opposite scheme", () => {
     const host = createHost("test", sink);
-    host.theme.registerTheme({
+    host.extensions.contribute(THEME, {
       id: "dark",
       label: "Dark",
       scheme: "dark",
       order: 0,
       tokens: {},
     });
-    host.theme.registerTheme({
+    host.extensions.contribute(THEME, {
       id: "solarized-light",
       label: "Solarized Light",
       scheme: "light",

@@ -37,8 +37,6 @@ import type {
   SidebarRailItemSpec,
   SidebarSectionSpec,
   SlashCommandSpec,
-  ThemeAccentSpec,
-  ThemeSpec,
   ToolActionSpec,
   ToolPreviewComponent,
   WorkspaceViewSpec,
@@ -51,7 +49,6 @@ import { startTask } from "@/state/tasksStore";
 import { getConfig, hasConfig, setConfig, useConfigStore } from "./config";
 import { safeCall } from "./errors";
 import {
-  ACCENT,
   AGENT_SOURCE,
   BEFORE_UNLOAD_HANDLER,
   COMMAND,
@@ -80,7 +77,6 @@ import {
   SIDEBAR_RAIL_ITEM,
   SIDEBAR_SECTION,
   SLASH_COMMAND,
-  THEME,
   TOOL_ACTION,
   TOOL_ICON,
   TOOL_PREVIEW,
@@ -235,11 +231,6 @@ export function createHost(
       closeView(id: string): void {
         useSessionStore.getState().closeMainView(id);
       },
-    },
-
-    theme: {
-      registerTheme: (spec: ThemeSpec): Disposable => contribute(THEME, spec),
-      registerAccent: (spec: ThemeAccentSpec): Disposable => contribute(ACCENT, spec),
     },
 
     router: {

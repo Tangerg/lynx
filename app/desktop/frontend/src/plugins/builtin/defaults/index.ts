@@ -15,6 +15,7 @@ import { api } from "@/lib/data/http";
 import { AGUI_BASE } from "@/main/config";
 import { getContainer } from "@/main/container";
 import { definePlugin } from "@/plugins/sdk";
+import { ACCENT } from "@/plugins/sdk/kernelPoints";
 
 // Cutover mappers: several side-panel keys now ride the JSON-RPC stack
 // instead of REST GET. Where the protocol shape differs from the sidebar
@@ -81,28 +82,28 @@ export const defaultAccents = definePlugin({
   name: "lyra.builtin.default-accents",
   version: "1.0.0",
   setup({ host }) {
-    host.theme.registerAccent({
+    host.extensions.contribute(ACCENT, {
       id: "green",
       label: "Green",
       dark: "#1ed760",
       light: "#169c46",
       order: 0,
     });
-    host.theme.registerAccent({
+    host.extensions.contribute(ACCENT, {
       id: "blue",
       label: "Blue",
       dark: "#82cfff",
       light: "#2563eb",
       order: 1,
     });
-    host.theme.registerAccent({
+    host.extensions.contribute(ACCENT, {
       id: "pink",
       label: "Pink",
       dark: "#e07acc",
       light: "#a823a3",
       order: 2,
     });
-    host.theme.registerAccent({
+    host.extensions.contribute(ACCENT, {
       id: "orange",
       label: "Orange",
       dark: "#ffa42b",
