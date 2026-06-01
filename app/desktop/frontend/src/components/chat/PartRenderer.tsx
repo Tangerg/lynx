@@ -23,6 +23,12 @@ export interface PartCtx {
    * typed, so animating it back at them feels patronizing and slow.
    */
   instant?: boolean;
+  /**
+   * Reveal streamed assistant text character-by-character (typewriter) instead
+   * of word-by-word with a fade (smooth). Global preference, read once in
+   * ChatStream so it doesn't re-subscribe per message block.
+   */
+  typewriter?: boolean;
 }
 
 /**
@@ -55,6 +61,7 @@ export function renderPart(block: ContentBlock, key: number, ctx: PartCtx) {
             text={block.text}
             streaming={block.status === "running"}
             instant={ctx.instant}
+            typewriter={ctx.typewriter}
           />
         </div>
       );

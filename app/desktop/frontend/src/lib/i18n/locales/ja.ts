@@ -62,6 +62,10 @@ export const ja: Record<string, string> = {
   "settings.messageStyle.sub": "自分のメッセージの表示形式。",
   "settings.messageStyle.bubble": "バブル",
   "settings.messageStyle.plain": "プレーン",
+  "settings.streamRender": "ストリーミング表示",
+  "settings.streamRender.sub": "応答がストリーミングされる際の表示のされ方。",
+  "settings.streamRender.smooth": "スムーズ",
+  "settings.streamRender.typewriter": "タイプライター",
   "settings.language.label": "言語",
   "settings.language.sub": "UI 言語。プラグインで追加できます。",
 

@@ -24,6 +24,9 @@ interface Props {
   /** Skip smoothing + fade-in. User-typed messages set this — the
    *  author already saw what they typed; animating it back is noise. */
   instant?: boolean;
+  /** Reveal char-by-char (typewriter) instead of word + per-word fade.
+   *  Drops the fade-in so each character appears crisp. */
+  typewriter?: boolean;
 }
 
 // Module-level plugin lists keep react-markdown from treating each
@@ -45,8 +48,8 @@ const allowElement = (el: { tagName: string }) => !DENIED_HTML_TAGS.has(el.tagNa
 // "strong">` design system that bypasses `.md` CSS. Each block is its
 // own memoised <MarkdownBlock>; only the tail block re-parses on each
 // smooth-text tick.
-export function MarkdownMessage({ text, streaming, instant }: Props) {
-  const smoothed = useSmoothText(text, !instant && !!streaming);
+export function MarkdownMessage({ text, streaming, instant, typewriter }: Props) {
+  const smoothed = useSmoothText(text, !instant && !!streaming, typewriter);
   const display = instant ? text : smoothed;
 
   // remend (auto-close unterminated bold / inline code / fenced blocks)
@@ -78,6 +81,7 @@ export function MarkdownMessage({ text, streaming, instant }: Props) {
           text={block}
           streaming={!!streaming && i === lastIdx}
           instant={instant}
+          typewriter={typewriter}
         />
       ))}
     </div>
@@ -88,7 +92,7 @@ export function MarkdownMessage({ text, streaming, instant }: Props) {
 // on its content + flags. `streaming` is forwarded but doesn't gate
 // any visual yet — the per-word fade-in already conveys "currently
 // generating", so a tail caret would just double the signal.
-const MarkdownBlock = memo(function MarkdownBlock({ text, instant }: Props) {
+const MarkdownBlock = memo(function MarkdownBlock({ text, instant, typewriter }: Props) {
   // Pull in the KaTeX stylesheet (~30KB) the first time a math-bearing
   // block mounts. Probe is just `$` — false positives (USD prices)
   // preload the CSS earlier than strictly needed, which is harmless;
@@ -103,13 +107,14 @@ const MarkdownBlock = memo(function MarkdownBlock({ text, instant }: Props) {
   // animation, non-instant only — CSS runs once per span mount, so
   // settled blocks animate on first paint then stay inert) →
   // rehypeKatex. rehypeRaw must come first so later plugins see the
-  // expanded tree.
+  // expanded tree. Typewriter mode drops rehypeFadeIn — the char-by-char
+  // reveal is the animation, a per-word fade on top would muddy it.
   const rehypePlugins = useMemo(
     () =>
-      instant
+      instant || typewriter
         ? [rehypeRaw, rehypeCitations, rehypeKatex]
         : [rehypeRaw, rehypeCitations, rehypeFadeIn, rehypeKatex],
-    [instant],
+    [instant, typewriter],
   );
 
   return (

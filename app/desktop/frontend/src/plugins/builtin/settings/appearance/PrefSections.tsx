@@ -1,6 +1,6 @@
-// Two small preference rows: message style (binary → segmented) and
-// UI language (8+ options → dropdown). Bundled into one file since
-// each section is < 60 lines.
+// Small preference rows: message style + streaming style (binary →
+// segmented) and UI language (8+ options → dropdown). Bundled into one
+// file since each section is < 60 lines.
 
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { Icon, Segmented } from "@/components/common";
@@ -24,6 +24,26 @@ export function MessageStyleSection() {
         ]}
         onChange={setMessageStyle}
         ariaLabel={t("settings.messageStyle")}
+      />
+    </SettingRow>
+  );
+}
+
+export function StreamRenderSection() {
+  const t = useT();
+  const streamRender = useUiStore((s) => s.streamRender);
+  const setStreamRender = useUiStore((s) => s.setStreamRender);
+
+  return (
+    <SettingRow label={t("settings.streamRender")} sub={t("settings.streamRender.sub")}>
+      <Segmented
+        value={streamRender}
+        options={[
+          { value: "smooth", label: t("settings.streamRender.smooth") },
+          { value: "typewriter", label: t("settings.streamRender.typewriter") },
+        ]}
+        onChange={setStreamRender}
+        ariaLabel={t("settings.streamRender")}
       />
     </SettingRow>
   );

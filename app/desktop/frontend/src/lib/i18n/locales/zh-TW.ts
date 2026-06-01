@@ -61,6 +61,10 @@ export const zhTW: Record<string, string> = {
   "settings.messageStyle.sub": "你自己訊息的呈現方式。",
   "settings.messageStyle.bubble": "氣泡",
   "settings.messageStyle.plain": "平鋪",
+  "settings.streamRender": "串流樣式",
+  "settings.streamRender.sub": "助手回覆在串流輸出時的呈現方式。",
+  "settings.streamRender.smooth": "平滑",
+  "settings.streamRender.typewriter": "打字機",
   "settings.language.label": "語言",
   "settings.language.sub": "介面語言。可以透過外掛新增更多語言。",
 

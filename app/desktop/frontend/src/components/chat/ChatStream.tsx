@@ -11,6 +11,7 @@ import { Slot } from "@/plugins/Slot";
 import { useAgentSlice } from "@/state/agentStore";
 import { useComposerStore } from "@/state/composerStore";
 import { useSessionStore } from "@/state/sessionStore";
+import { useUiStore } from "@/state/uiStore";
 import { ChatErrorBoundary } from "./ChatErrorBoundary";
 import { Composer } from "./Composer";
 import { ComposerFooter } from "./ComposerFooter";
@@ -45,6 +46,11 @@ export function ChatStream({ onSend, resetKey }: Props) {
   const setComposerValue = useComposerStore((s) => s.setValue);
   const setComposerMode = useComposerStore((s) => s.setMode);
   const removeAttachment = useComposerStore((s) => s.removeAttachment);
+
+  // Global streaming-reveal preference. Read once here (stable string) and
+  // threaded through ctx so MarkdownMessage stays prop-driven — no per-block
+  // store subscription on the hot streaming path.
+  const typewriter = useUiStore((s) => s.streamRender) === "typewriter";
 
   // Sticky-bottom auto-scroll lives inside MessageStream via
   // `use-stick-to-bottom`. This component only needs to know "is the
@@ -83,8 +89,17 @@ export function ChatStream({ onSend, resetKey }: Props) {
       onSelectTool: setSelectedToolId,
       expandedIds: expandedToolIds,
       onToggleExpand: toggleExpandedTool,
+      typewriter,
     }),
-    [plan, toolCalls, selectedToolId, setSelectedToolId, expandedToolIds, toggleExpandedTool],
+    [
+      plan,
+      toolCalls,
+      selectedToolId,
+      setSelectedToolId,
+      expandedToolIds,
+      toggleExpandedTool,
+      typewriter,
+    ],
   );
 
   return (
