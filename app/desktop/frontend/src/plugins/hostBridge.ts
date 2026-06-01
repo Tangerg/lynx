@@ -16,7 +16,8 @@ import * as SDK from "@/plugins/sdk";
 import { disposeOnHmr } from "@/lib/hmr";
 import { HOST_API_VERSION } from "./sdk/apiVersion";
 import { safeCall } from "./sdk/errors";
-import { usePluginStore } from "./sdk/registry";
+import { BEFORE_UNLOAD_HANDLER } from "./sdk/kernelPoints";
+import { lookupExtensionOwnedEntries } from "./sdk/selectors/extensions";
 
 declare global {
   interface Window {
@@ -51,8 +52,8 @@ export function installHostBridge(): void {
   // promises during unload. Guarded by `bridgeInstalled` so React strict-
   // mode's double-mounted effect doesn't stack duplicate listeners.
   beforeUnloadHandler = () => {
-    for (const o of usePluginStore.getState().beforeUnloadHandlers.values()) {
-      safeCall(() => o.value(), `[plugin] ${o.pluginName} onBeforeUnload threw:`);
+    for (const o of lookupExtensionOwnedEntries(BEFORE_UNLOAD_HANDLER)) {
+      safeCall(() => o.item(), `[plugin] ${o.pluginName} onBeforeUnload threw:`);
     }
   };
   window.addEventListener("beforeunload", beforeUnloadHandler);

@@ -5,7 +5,6 @@
 // mutation helpers live in `registryHelpers.ts`.
 
 import type {
-  BeforeUnloadHandler,
   ContributedCommand,
   ContributedSettingsPane,
   ContributedView,
@@ -14,7 +13,6 @@ import type {
   LayoutSlotSpec,
   LoadedPlugin,
   PluginSpec,
-  ReadyHandler,
 } from "./types";
 
 export interface Owned<T> {
@@ -71,14 +69,8 @@ export interface PluginStoreState {
    * plugin).
    */
   pendingActivations: Map<string, { spec: PluginSpec; events: string[] }>;
-  // Lifecycle hooks — composite key `${pluginName}|${id}`.
-  readyHandlers: Map<string, Owned<ReadyHandler>>;
-  beforeUnloadHandlers: Map<string, Owned<BeforeUnloadHandler>>;
   /** Set true after PluginProvider has finished loading built-ins. */
   appReady: boolean;
-  // Plugin-load / unload listeners — composite key per registration.
-  pluginLoadListeners: Map<string, Owned<(spec: PluginSpec) => void>>;
-  pluginUnloadListeners: Map<string, Owned<(name: string) => void>>;
   // Open extension points — the unified substrate. Plugin-defined points
   // (and, post-collapse, every kernel point) store their contributions here
   // keyed by `${point.id}#${dedupeKey}`. Read via the extensions selector.
@@ -125,19 +117,8 @@ export interface PluginStoreActions {
   addPendingActivation: (spec: PluginSpec, events: string[]) => void;
   removePendingActivation: (name: string) => void;
 
-  addReadyHandler: (pluginName: string, id: string, fn: ReadyHandler) => void;
-  removeReadyHandler: (pluginName: string, id: string) => void;
-
-  addBeforeUnloadHandler: (pluginName: string, id: string, fn: BeforeUnloadHandler) => void;
-  removeBeforeUnloadHandler: (pluginName: string, id: string) => void;
-
-  /** Mark the app as ready — fires all registered readyHandlers in order. */
+  /** Mark the app as ready — fires every contributed onReady hook in order. */
   markAppReady: () => void;
-
-  addPluginLoadListener: (pluginName: string, id: string, fn: (spec: PluginSpec) => void) => void;
-  removePluginLoadListener: (pluginName: string, id: string) => void;
-  addPluginUnloadListener: (pluginName: string, id: string, fn: (name: string) => void) => void;
-  removePluginUnloadListener: (pluginName: string, id: string) => void;
 
   // Open extension points (substrate). `outerKey` is the fully-qualified
   // `${point}#${dedupeKey}`; the host computes it (single vs multi keying)
@@ -174,10 +155,6 @@ export function freshState(): PluginStoreState {
     declaredViews: new Map(),
     declaredSettingsPanes: new Map(),
     pendingActivations: new Map(),
-    readyHandlers: new Map(),
-    beforeUnloadHandlers: new Map(),
-    pluginLoadListeners: new Map(),
-    pluginUnloadListeners: new Map(),
     extensions: new Map(),
     appReady: false,
     windowTitle: "",

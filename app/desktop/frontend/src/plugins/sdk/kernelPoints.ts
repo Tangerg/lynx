@@ -11,6 +11,7 @@
 
 import type {
   AgentSourceSpec,
+  BeforeUnloadHandler,
   CommandSpec,
   ComposerAttachmentSourceSpec,
   ComposerKeyBindingSpec,
@@ -23,6 +24,8 @@ import type {
   LogSubscriber,
   MessageRoleSpec,
   PluginErrorFallbackSpec,
+  PluginSpec,
+  ReadyHandler,
   RouteSpec,
   RpcAfterResponseHook,
   RpcBeforeRequestHook,
@@ -39,6 +42,7 @@ import type {
 } from "./types";
 import type { ContentBlockKind } from "@/protocol/agui/viewState";
 import { defineExtensionPoint } from "./defineExtensionPoint";
+import { LIFECYCLE_POINT_IDS } from "./pointIds";
 import { normalizeCombo } from "./registry";
 
 // ---- theme domain --------------------------------------------------------
@@ -130,6 +134,27 @@ export const RPC_AFTER_RESPONSE = defineExtensionPoint<RpcAfterResponseHook>({
 });
 export const LOG_SUBSCRIBER = defineExtensionPoint<LogSubscriber>({
   id: "lyra.log.subscriber",
+  keying: "multi",
+});
+
+// ---- lifecycle hooks ------------------------------------------------------
+// Fired from inside the registry store (markAppReady / registerLoaded /
+// unload), so their ids live in `pointIds.ts` — the store filters `extensions`
+// by these while staying ignorant of the typed handles defined here.
+export const READY_HANDLER = defineExtensionPoint<ReadyHandler>({
+  id: LIFECYCLE_POINT_IDS.ready,
+  keying: "multi",
+});
+export const BEFORE_UNLOAD_HANDLER = defineExtensionPoint<BeforeUnloadHandler>({
+  id: LIFECYCLE_POINT_IDS.beforeUnload,
+  keying: "multi",
+});
+export const PLUGIN_LOAD_LISTENER = defineExtensionPoint<(spec: PluginSpec) => void>({
+  id: LIFECYCLE_POINT_IDS.pluginLoad,
+  keying: "multi",
+});
+export const PLUGIN_UNLOAD_LISTENER = defineExtensionPoint<(name: string) => void>({
+  id: LIFECYCLE_POINT_IDS.pluginUnload,
   keying: "multi",
 });
 

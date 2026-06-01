@@ -11,7 +11,22 @@
 //     `${pluginName}|${id}` so multiple registrations per plugin coexist
 // plus a bulk `clearByPlugin` for the activation flow.
 
-import type { Owned } from "./registryState";
+import type { ContributionEntry, Owned } from "./registryState";
+
+// Owned contributions to one point on the shared `extensions` map, in
+// insertion order. Used by the store's own lifecycle-firing loops
+// (markAppReady / registerLoaded / unload), which can't import the selectors
+// (those import the registry). The owner is preserved for error attribution.
+export function ownedContributionsTo(
+  extensions: Map<string, Owned<ContributionEntry>>,
+  pointId: string,
+): Array<Owned<ContributionEntry>> {
+  const out: Array<Owned<ContributionEntry>> = [];
+  for (const o of extensions.values()) {
+    if (o.value.point === pointId) out.push(o);
+  }
+  return out;
+}
 
 // Immutable single-key update of a plain (non-Owned) Map field — the
 // `const next = new Map(prev); next.set/delete(...); return next` ritual

@@ -10,6 +10,7 @@ import type { ContributionEntry, Owned } from "../registryState";
 import type { ExtensionPoint } from "../types/extensions";
 import { useMemo } from "react";
 import { usePluginStore } from "../registry";
+import { ownedContributionsTo } from "../registryHelpers";
 import { createIndex } from "./_helpers";
 
 interface Resolved {
@@ -102,4 +103,24 @@ export function useExtensionByKey<T>(point: ExtensionPoint<T>, key: string): T |
 export function lookupExtensionOwner<T>(point: ExtensionPoint<T>, key: string): string | undefined {
   const k = point.normalizeKey ? point.normalizeKey(key) : key;
   return usePluginStore.getState().extensions.get(`${point.id}#${k}`)?.pluginName;
+}
+
+/** Item paired with its owner plugin. */
+export interface ExtensionOwnedEntry<T> {
+  pluginName: string;
+  item: T;
+}
+
+/**
+ * Every contribution to a `multi` point with its owner — for fan-out loops that
+ * attribute per-handler errors back to the contributing plugin (the global
+ * beforeunload listener). Insertion order; not a hook (imperative call sites).
+ */
+export function lookupExtensionOwnedEntries<T>(
+  point: ExtensionPoint<T>,
+): Array<ExtensionOwnedEntry<T>> {
+  return ownedContributionsTo(usePluginStore.getState().extensions, point.id).map((o) => ({
+    pluginName: o.pluginName,
+    item: o.value.item as T,
+  }));
 }
