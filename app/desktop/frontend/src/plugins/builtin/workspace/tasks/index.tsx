@@ -33,9 +33,7 @@ function TaskRow({ task }: { task: TaskEntry }) {
           className={cn(tone, task.status === "running" && "animate-pulse-dot")}
         />
         <span className="flex-1 truncate text-[12.5px] font-semibold text-fg">{task.label}</span>
-        {pct !== null && (
-          <span className="font-mono text-[11px] tabular-nums text-fg-faint">{pct}%</span>
-        )}
+        {pct !== null && <span className="font-mono text-[11px] text-fg-faint">{pct}%</span>}
       </div>
       {task.message && (
         <div className="mt-0.5 pl-[18px] text-[11.5px] text-fg-muted">{task.message}</div>
@@ -89,7 +87,7 @@ function TasksPill() {
             className={cn(tone, head.status === "running" && "animate-pulse-dot")}
           />
           {running.length > 0 && (
-            <span className="absolute -right-0.5 -top-0.5 grid h-3.5 min-w-3.5 place-items-center rounded-full bg-accent px-0.5 font-mono text-[9px] font-semibold tabular-nums text-on-accent">
+            <span className="absolute -right-0.5 -top-0.5 grid h-3.5 min-w-3.5 place-items-center rounded-full bg-accent px-0.5 font-mono text-[9px] font-semibold text-on-accent">
               {running.length}
             </span>
           )}

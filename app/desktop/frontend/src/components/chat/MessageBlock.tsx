@@ -107,7 +107,7 @@ function MessageBlockInner({ msg, ctx }: { msg: Message; ctx: PartCtx }) {
                 <span className="truncate">{displayName}</span>
                 <Slot name="message.header.end" />
               </div>
-              <span className="font-mono text-[11px] text-fg-faint tabular-nums">{msg.time}</span>
+              <span className="font-mono text-[11px] text-fg-faint">{msg.time}</span>
             </div>
           </div>
 

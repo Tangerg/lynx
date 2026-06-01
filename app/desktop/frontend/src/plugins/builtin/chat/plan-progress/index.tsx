@@ -122,7 +122,7 @@ function PlanProgressBanner() {
                   {expanded ? `${done} of ${total} complete` : current.text}
                 </motion.span>
               </AnimatePresence>
-              <span className="shrink-0 font-mono text-[11px] font-medium tabular-nums text-fg-muted">
+              <span className="shrink-0 font-mono text-[11px] font-medium text-fg-muted">
                 {pct}%
               </span>
               <Icon
