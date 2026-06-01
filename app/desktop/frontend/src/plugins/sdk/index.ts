@@ -10,6 +10,10 @@ export { definePlugin, loadPlugin, loadPlugins, reloadPlugin, unloadPlugin } fro
 // Open extension points — the JetBrains-style substrate: a plugin defines a
 // typed point, any plugin contributes, any plugin consumes.
 export { defineExtensionPoint } from "./defineExtensionPoint";
+// Built-in kernel points (THEME / COMMAND / LAYOUT_SLOT / …). Re-exported so
+// sideload bundles — which only see the SDK via `window.__LYRA__.SDK` — can
+// contribute to kernel surfaces, the same way built-ins do via the deep path.
+export * from "./kernelPoints";
 
 // Plugin error aggregation.
 export {
