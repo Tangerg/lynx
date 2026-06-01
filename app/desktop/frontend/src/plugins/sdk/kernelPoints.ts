@@ -9,7 +9,16 @@
 // migrated domain. `single` = one entry per `keyOf` (override + warn);
 // `multi` = every contribution coexists.
 
-import type { LocaleSpec, ThemeAccentSpec, ThemeSpec } from "./types";
+import type {
+  AgentSourceSpec,
+  ComposerPlaceholderSpec,
+  DataProviderSpec,
+  LocaleSpec,
+  PluginErrorFallbackSpec,
+  RouteSpec,
+  ThemeAccentSpec,
+  ThemeSpec,
+} from "./types";
 import { defineExtensionPoint } from "./defineExtensionPoint";
 
 // ---- theme domain --------------------------------------------------------
@@ -19,3 +28,25 @@ export const ACCENT = defineExtensionPoint<ThemeAccentSpec>({
   keying: "single",
 });
 export const LOCALE = defineExtensionPoint<LocaleSpec>({ id: "lyra.locale", keying: "single" });
+
+// ---- runtime / data-layer domain -----------------------------------------
+export const ROUTE = defineExtensionPoint<RouteSpec>({ id: "lyra.route", keying: "single" });
+export const AGENT_SOURCE = defineExtensionPoint<AgentSourceSpec>({
+  id: "lyra.agent.source",
+  keying: "single",
+});
+export const DATA_PROVIDER = defineExtensionPoint<DataProviderSpec>({
+  id: "lyra.data.provider",
+  keying: "single",
+  keyOf: (s) => s.key,
+});
+export const ERROR_FALLBACK = defineExtensionPoint<PluginErrorFallbackSpec>({
+  id: "lyra.plugin.errorFallback",
+  keying: "single",
+});
+
+// ---- composer domain ------------------------------------------------------
+export const COMPOSER_PLACEHOLDER = defineExtensionPoint<ComposerPlaceholderSpec>({
+  id: "lyra.composer.placeholder",
+  keying: "single",
+});

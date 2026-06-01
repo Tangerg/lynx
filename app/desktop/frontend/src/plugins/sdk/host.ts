@@ -50,7 +50,16 @@ import { useSessionStore } from "@/state/sessionStore";
 import { startTask } from "@/state/tasksStore";
 import { getConfig, hasConfig, setConfig, useConfigStore } from "./config";
 import { safeCall } from "./errors";
-import { ACCENT, LOCALE, THEME } from "./kernelPoints";
+import {
+  ACCENT,
+  AGENT_SOURCE,
+  COMPOSER_PLACEHOLDER,
+  DATA_PROVIDER,
+  ERROR_FALLBACK,
+  LOCALE,
+  ROUTE,
+  THEME,
+} from "./kernelPoints";
 import { useNotificationStore } from "./notifications";
 import { usePluginStore } from "./registry";
 import { getOrCreateSlice } from "./stateSlice";
@@ -228,10 +237,7 @@ export function createHost(
     },
 
     router: {
-      register(spec: RouteSpec): Disposable {
-        store().addRoute(pluginName, spec);
-        return track({ dispose: () => store().removeRoute(pluginName, spec.id) });
-      },
+      register: (spec: RouteSpec): Disposable => contribute(ROUTE, spec),
     },
 
     composer: {
@@ -249,10 +255,8 @@ export function createHost(
         store().addComposerMode(pluginName, spec);
         return track({ dispose: () => store().removeComposerMode(pluginName, spec.id) });
       },
-      registerPlaceholder(spec: ComposerPlaceholderSpec): Disposable {
-        store().addComposerPlaceholder(pluginName, spec);
-        return track({ dispose: () => store().removeComposerPlaceholder(pluginName, spec.id) });
-      },
+      registerPlaceholder: (spec: ComposerPlaceholderSpec): Disposable =>
+        contribute(COMPOSER_PLACEHOLDER, spec),
       registerAttachmentSource(spec: ComposerAttachmentSourceSpec): Disposable {
         store().addComposerAttachmentSource(pluginName, spec);
         return track({
@@ -284,18 +288,14 @@ export function createHost(
     },
 
     agent: {
-      registerSource(spec: AgentSourceSpec): Disposable {
-        store().addAgentSource(pluginName, spec);
-        return track({ dispose: () => store().removeAgentSource(pluginName, spec.id) });
-      },
+      registerSource: (spec: AgentSourceSpec): Disposable => contribute(AGENT_SOURCE, spec),
     },
 
     data: {
       registerProvider<T = unknown>(spec: DataProviderSpec<T>): Disposable {
         // Cast through unknown — the registry erases T, callers cast on
         // the way out via `lookupDataProvider<T>()`.
-        store().addDataProvider(pluginName, spec as DataProviderSpec);
-        return track({ dispose: () => store().removeDataProvider(pluginName, spec.key) });
+        return contribute(DATA_PROVIDER, spec as DataProviderSpec);
       },
     },
 
@@ -424,10 +424,8 @@ export function createHost(
       reload(name: string): Promise<void> {
         return getRuntime().reload(name);
       },
-      registerErrorFallback(spec: PluginErrorFallbackSpec): Disposable {
-        store().addPluginErrorFallback(pluginName, spec);
-        return track({ dispose: () => store().removePluginErrorFallback(pluginName, spec.id) });
-      },
+      registerErrorFallback: (spec: PluginErrorFallbackSpec): Disposable =>
+        contribute(ERROR_FALLBACK, spec),
     },
 
     log: {

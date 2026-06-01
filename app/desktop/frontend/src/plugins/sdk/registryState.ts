@@ -5,13 +5,11 @@
 // mutation helpers live in `registryHelpers.ts`.
 
 import type {
-  AgentSourceSpec,
   BeforeUnloadHandler,
   CommandSpec,
   ComposerAttachmentSourceSpec,
   ComposerKeyBindingSpec,
   ComposerModeSpec,
-  ComposerPlaceholderSpec,
   ComposerStatusSpec,
   ContentBlockRenderer,
   ContributedCommand,
@@ -19,15 +17,12 @@ import type {
   ContributedView,
   CoreEventHandler,
   CustomEventHandler,
-  DataProviderSpec,
   LayoutSlotSpec,
   LoadedPlugin,
   LogSubscriber,
   MessageRoleSpec,
-  PluginErrorFallbackSpec,
   PluginSpec,
   ReadyHandler,
-  RouteSpec,
   RpcAfterResponseHook,
   RpcBeforeRequestHook,
   SettingsPaneSpec,
@@ -79,15 +74,12 @@ export interface PluginStoreState {
   // Layout slot key is `${slot}|${pluginName}|${spec.id}` to allow the same
   // plugin to fill multiple slots and to keep insertion order deterministic.
   layoutSlots: Map<string, Owned<{ slot: string; spec: LayoutSlotSpec }>>;
-  routes: Map<string, Owned<RouteSpec>>;
   shortcuts: Map<string, Owned<ShortcutSpec>>;
   composerStatus: Map<string, Owned<ComposerStatusSpec>>;
   composerModes: Map<string, Owned<ComposerModeSpec>>;
-  composerPlaceholders: Map<string, Owned<ComposerPlaceholderSpec>>;
   composerAttachmentSources: Map<string, Owned<ComposerAttachmentSourceSpec>>;
   composerKeyBindings: Map<string, Owned<ComposerKeyBindingSpec>>;
   sidebarSections: Map<string, Owned<SidebarSectionSpec>>;
-  agentSources: Map<string, Owned<AgentSourceSpec>>;
   commands: Map<string, Owned<CommandSpec>>;
   /**
    * Commands declared in `PluginSpec.contributes.commands` but whose
@@ -107,7 +99,6 @@ export interface PluginStoreState {
    * plugin).
    */
   pendingActivations: Map<string, { spec: PluginSpec; events: string[] }>;
-  dataProviders: Map<string, Owned<DataProviderSpec>>;
   sidebarRailItems: Map<string, Owned<SidebarRailItemSpec>>;
   messageRoles: Map<string, Owned<MessageRoleSpec>>;
   // RPC hooks: composite key `${pluginName}|${id}` to allow multiple per plugin.
@@ -123,7 +114,6 @@ export interface PluginStoreState {
   // Plugin-load / unload listeners — composite key per registration.
   pluginLoadListeners: Map<string, Owned<(spec: PluginSpec) => void>>;
   pluginUnloadListeners: Map<string, Owned<(name: string) => void>>;
-  pluginErrorFallbacks: Map<string, Owned<PluginErrorFallbackSpec>>;
   workspaceViews: Map<string, Owned<WorkspaceViewSpec>>;
   // Open extension points — the unified substrate. Plugin-defined points
   // (and, post-collapse, every kernel point) store their contributions here
@@ -180,9 +170,6 @@ export interface PluginStoreActions {
   addLayoutSlot: (pluginName: string, slot: string, spec: LayoutSlotSpec) => void;
   removeLayoutSlot: (pluginName: string, slot: string, id: string) => void;
 
-  addRoute: (pluginName: string, spec: RouteSpec) => void;
-  removeRoute: (pluginName: string, id: string) => void;
-
   addShortcut: (pluginName: string, spec: ShortcutSpec) => void;
   removeShortcut: (pluginName: string, key: string) => void;
 
@@ -192,9 +179,6 @@ export interface PluginStoreActions {
   addComposerMode: (pluginName: string, spec: ComposerModeSpec) => void;
   removeComposerMode: (pluginName: string, id: string) => void;
 
-  addComposerPlaceholder: (pluginName: string, spec: ComposerPlaceholderSpec) => void;
-  removeComposerPlaceholder: (pluginName: string, id: string) => void;
-
   addComposerAttachmentSource: (pluginName: string, spec: ComposerAttachmentSourceSpec) => void;
   removeComposerAttachmentSource: (pluginName: string, id: string) => void;
 
@@ -203,9 +187,6 @@ export interface PluginStoreActions {
 
   addSidebarSection: (pluginName: string, spec: SidebarSectionSpec) => void;
   removeSidebarSection: (pluginName: string, id: string) => void;
-
-  addAgentSource: (pluginName: string, spec: AgentSourceSpec) => void;
-  removeAgentSource: (pluginName: string, id: string) => void;
 
   addCommand: (pluginName: string, spec: CommandSpec) => void;
   removeCommand: (pluginName: string, id: string) => void;
@@ -222,9 +203,6 @@ export interface PluginStoreActions {
 
   addPendingActivation: (spec: PluginSpec, events: string[]) => void;
   removePendingActivation: (name: string) => void;
-
-  addDataProvider: (pluginName: string, spec: DataProviderSpec) => void;
-  removeDataProvider: (pluginName: string, key: string) => void;
 
   addSidebarRailItem: (pluginName: string, spec: SidebarRailItemSpec) => void;
   removeSidebarRailItem: (pluginName: string, id: string) => void;
@@ -254,9 +232,6 @@ export interface PluginStoreActions {
   removePluginLoadListener: (pluginName: string, id: string) => void;
   addPluginUnloadListener: (pluginName: string, id: string, fn: (name: string) => void) => void;
   removePluginUnloadListener: (pluginName: string, id: string) => void;
-
-  addPluginErrorFallback: (pluginName: string, spec: PluginErrorFallbackSpec) => void;
-  removePluginErrorFallback: (pluginName: string, id: string) => void;
 
   addWorkspaceView: (pluginName: string, spec: WorkspaceViewSpec) => void;
   removeWorkspaceView: (pluginName: string, id: string) => void;
@@ -298,21 +273,17 @@ export function freshState(): PluginStoreState {
     slashCommands: new Map(),
     settingsPanes: new Map(),
     layoutSlots: new Map(),
-    routes: new Map(),
     shortcuts: new Map(),
     composerStatus: new Map(),
     composerModes: new Map(),
-    composerPlaceholders: new Map(),
     composerAttachmentSources: new Map(),
     composerKeyBindings: new Map(),
     sidebarSections: new Map(),
-    agentSources: new Map(),
     commands: new Map(),
     declaredCommands: new Map(),
     declaredViews: new Map(),
     declaredSettingsPanes: new Map(),
     pendingActivations: new Map(),
-    dataProviders: new Map(),
     sidebarRailItems: new Map(),
     messageRoles: new Map(),
     rpcBeforeRequest: new Map(),
@@ -322,7 +293,6 @@ export function freshState(): PluginStoreState {
     beforeUnloadHandlers: new Map(),
     pluginLoadListeners: new Map(),
     pluginUnloadListeners: new Map(),
-    pluginErrorFallbacks: new Map(),
     workspaceViews: new Map(),
     extensions: new Map(),
     appReady: false,

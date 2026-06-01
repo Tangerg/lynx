@@ -9,8 +9,10 @@ import type {
   RpcAfterResponseHook,
   RpcBeforeRequestHook,
 } from "../types";
+import { AGENT_SOURCE, DATA_PROVIDER, ERROR_FALLBACK, ROUTE } from "../kernelPoints";
 import { usePluginStore } from "../registry";
 import { mapOwned } from "./_helpers";
+import { lookupExtensionByKey, lookupExtensionPoint } from "./extensions";
 
 // ---------------------------------------------------------------------------
 // Routes
@@ -18,9 +20,7 @@ import { mapOwned } from "./_helpers";
 
 /** Snapshot of all registered routes, sorted by `order`. */
 export function listRoutes(): RouteSpec[] {
-  return mapOwned(usePluginStore.getState().routes).sort(
-    (a, b) => (a.order ?? 100) - (b.order ?? 100),
-  );
+  return lookupExtensionPoint(ROUTE);
 }
 
 // ---------------------------------------------------------------------------
@@ -32,7 +32,7 @@ export function listRoutes(): RouteSpec[] {
  * insertion order. Returns undefined if none registered.
  */
 export function pickAgentSource(): AgentSourceSpec | undefined {
-  const sources = mapOwned(usePluginStore.getState().agentSources);
+  const sources = lookupExtensionPoint(AGENT_SOURCE);
   if (sources.length === 0) return undefined;
   return sources.reduce((best, cur) => ((cur.priority ?? 0) > (best.priority ?? 0) ? cur : best));
 }
@@ -47,8 +47,8 @@ export function pickAgentSource(): AgentSourceSpec | undefined {
  * registered (consumer hooks should throw or fall back).
  */
 export function lookupDataProvider<T = unknown>(key: string): (() => Promise<T>) | undefined {
-  const entry = usePluginStore.getState().dataProviders.get(key);
-  return entry ? (entry.value.fetcher as () => Promise<T>) : undefined;
+  const spec = lookupExtensionByKey(DATA_PROVIDER, key);
+  return spec ? (spec.fetcher as () => Promise<T>) : undefined;
 }
 
 /** Snapshot of registered beforeRequest hooks in insertion order. */
@@ -71,7 +71,7 @@ export function listRpcAfterHooks(): RpcAfterResponseHook[] {
  * is registered.
  */
 export function pickPluginErrorFallback(): PluginErrorFallbackSpec | undefined {
-  const specs = mapOwned(usePluginStore.getState().pluginErrorFallbacks);
+  const specs = lookupExtensionPoint(ERROR_FALLBACK);
   if (specs.length === 0) return undefined;
   return specs.reduce((best, cur) => ((cur.priority ?? 0) >= (best.priority ?? 0) ? cur : best));
 }

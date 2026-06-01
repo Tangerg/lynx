@@ -8,8 +8,10 @@ import type {
   ComposerPlaceholderSpec,
   ComposerStatusSpec,
 } from "../types";
+import { COMPOSER_PLACEHOLDER } from "../kernelPoints";
 import { usePluginStore } from "../registry";
-import { mapOwned, useSortedList } from "./_helpers";
+import { useSortedList } from "./_helpers";
+import { lookupExtensionPoint } from "./extensions";
 
 export function useComposerStatus(): ComposerStatusSpec[] {
   return useSortedList(usePluginStore((s) => s.composerStatus));
@@ -29,7 +31,7 @@ export function useComposerAttachmentSources(): ComposerAttachmentSourceSpec[] {
  * default. Pure read — call once at component mount, not on every render.
  */
 export function pickComposerPlaceholder(): ComposerPlaceholderSpec | undefined {
-  const specs = mapOwned(usePluginStore.getState().composerPlaceholders);
+  const specs = lookupExtensionPoint(COMPOSER_PLACEHOLDER);
   if (specs.length === 0) return undefined;
   const total = specs.reduce((sum, s) => sum + (s.weight ?? 1), 0);
   if (total <= 0) return undefined;
