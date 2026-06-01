@@ -1,38 +1,15 @@
-// Composer selectors — status bar items, modes, attachment sources,
-// placeholders, key bindings.
+// Composer placeholder picker — the one composer read with real logic. Plain
+// reads (status / modes / attachment sources / key binding) go through the
+// generic substrate: `useExtensionPoint(COMPOSER_MODE)` etc.
 
-import type {
-  ComposerAttachmentSourceSpec,
-  ComposerKeyBindingSpec,
-  ComposerModeSpec,
-  ComposerPlaceholderSpec,
-  ComposerStatusSpec,
-} from "../types";
-import {
-  COMPOSER_ATTACHMENT_SOURCE,
-  COMPOSER_KEY_BINDING,
-  COMPOSER_MODE,
-  COMPOSER_PLACEHOLDER,
-  COMPOSER_STATUS,
-} from "../kernelPoints";
-import { lookupExtensionByKey, lookupExtensionPoint, useExtensionPoint } from "./extensions";
-
-export function useComposerStatus(): ComposerStatusSpec[] {
-  return useExtensionPoint(COMPOSER_STATUS);
-}
-
-export function useComposerModes(): ComposerModeSpec[] {
-  return useExtensionPoint(COMPOSER_MODE);
-}
-
-export function useComposerAttachmentSources(): ComposerAttachmentSourceSpec[] {
-  return useExtensionPoint(COMPOSER_ATTACHMENT_SOURCE);
-}
+import type { ComposerPlaceholderSpec } from "../types";
+import { COMPOSER_PLACEHOLDER } from "../kernelPoints";
+import { lookupExtensionPoint } from "./extensions";
 
 /**
- * Pick one composer placeholder via weighted random. Returns undefined
- * when nothing's registered; callers should fall back to a sensible
- * default. Pure read — call once at component mount, not on every render.
+ * Pick one composer placeholder via weighted random. Returns undefined when
+ * nothing's registered; callers fall back to a default. Pure read — call once
+ * at mount, not every render.
  */
 export function pickComposerPlaceholder(): ComposerPlaceholderSpec | undefined {
   const specs = lookupExtensionPoint(COMPOSER_PLACEHOLDER);
@@ -45,9 +22,4 @@ export function pickComposerPlaceholder(): ComposerPlaceholderSpec | undefined {
     if (r <= 0) return spec;
   }
   return specs.at(-1);
-}
-
-/** Look up a composer key binding by combo — normalized to canonical form. */
-export function lookupComposerKeyBinding(canonical: string): ComposerKeyBindingSpec | undefined {
-  return lookupExtensionByKey(COMPOSER_KEY_BINDING, canonical);
 }

@@ -1,14 +1,17 @@
 import type { Attachment, ComposerMode } from "@/state/composerStore";
 import type { IconName } from "@/components/common";
+import type { ComposerAttachmentSourceSpec, ComposerModeSpec } from "@/plugins/sdk";
 import { useEffect, useMemo, useRef } from "react";
 import { Chip, Icon, Tooltip } from "@/components/common";
 import { useT } from "@/lib/i18n";
 import {
-  lookupComposerKeyBinding,
+  COMPOSER_ATTACHMENT_SOURCE,
+  COMPOSER_KEY_BINDING,
+  COMPOSER_MODE,
+  lookupExtensionByKey,
   normalizeCombo,
   pickComposerPlaceholder,
-  useComposerAttachmentSources,
-  useComposerModes,
+  useExtensionPoint,
 } from "@/plugins/sdk";
 import { Slot } from "@/plugins/Slot";
 import { submitComposer } from "./submitComposer";
@@ -34,8 +37,8 @@ export function Composer({
 }: Props) {
   const t = useT();
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const modes = useComposerModes();
-  const attachmentSources = useComposerAttachmentSources();
+  const modes = useExtensionPoint(COMPOSER_MODE);
+  const attachmentSources = useExtensionPoint(COMPOSER_ATTACHMENT_SOURCE);
   // Pick a placeholder once at mount — `pickComposerPlaceholder` is
   // random, so re-running on every render would make the text flicker.
   // Falls back to the localized "ask…" string if no placeholder plugin
@@ -95,7 +98,10 @@ export function Composer({
           if (e.altKey) parts.push("alt");
           if (e.shiftKey) parts.push("shift");
           parts.push(e.key);
-          const binding = lookupComposerKeyBinding(normalizeCombo(parts.join("+")));
+          const binding = lookupExtensionByKey(
+            COMPOSER_KEY_BINDING,
+            normalizeCombo(parts.join("+")),
+          );
           if (!binding) return;
           const handled = binding.handler({
             value,
@@ -126,7 +132,7 @@ export function Composer({
 // universal-icon + weak-hint affordance that keeps the toolbar light
 // (DESIGN: "通用图标 + 弱提示"). With three modes, cycling beats a
 // dropdown for click economy.
-type Mode = ReturnType<typeof useComposerModes>[number];
+type Mode = ComposerModeSpec;
 
 function ModePicker({
   modes,
@@ -165,7 +171,7 @@ function ModePicker({
 // Render every plugin-contributed attachment source's `useAttachments()`
 // output in one row. Each source's hook runs inside its own component so a
 // throwing/buggy hook is isolated to that one bubble.
-type AttachmentSource = ReturnType<typeof useComposerAttachmentSources>[number];
+type AttachmentSource = ComposerAttachmentSourceSpec;
 function PluginAttachments({ sources }: { sources: AttachmentSource[] }) {
   if (sources.length === 0) return null;
   return (

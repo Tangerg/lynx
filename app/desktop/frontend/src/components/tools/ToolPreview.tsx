@@ -9,7 +9,7 @@
 
 import type { ToolCall } from "@/protocol/agui/viewState";
 import { PluginBoundary } from "@/plugins/PluginBoundary";
-import { useToolPreview } from "@/plugins/sdk";
+import { TOOL_PREVIEW, useExtensionByKey } from "@/plugins/sdk";
 import { ToolInspector } from "./ToolInspector";
 
 interface Props {
@@ -18,7 +18,7 @@ interface Props {
 }
 
 export function ToolPreview({ tool, onOpenView }: Props) {
-  const Preview = useToolPreview(tool.fn);
+  const Preview = useExtensionByKey(TOOL_PREVIEW, tool.fn);
   if (!Preview) {
     return <ToolInspector tool={tool} />;
   }

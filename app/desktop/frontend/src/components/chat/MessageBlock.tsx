@@ -14,7 +14,7 @@ import { memo, useMemo, useRef } from "react";
 import { Icon } from "@/components/common";
 import { Avatar } from "@/components/common/Avatar";
 import { cn } from "@/lib/utils";
-import { useMessageRole } from "@/plugins/sdk";
+import { MESSAGE_ROLE, useExtensionByKey } from "@/plugins/sdk";
 import { Slot } from "@/plugins/Slot";
 import { useUiStore } from "@/state/uiStore";
 import { MessageContext } from "@/plugins/sdk/messageContext";
@@ -24,7 +24,7 @@ import { MessageOutline } from "./MessageOutline";
 import { renderPart } from "./PartRenderer";
 
 function MessageBlockInner({ msg, ctx }: { msg: Message; ctx: PartCtx }) {
-  const role = useMessageRole(msg.role);
+  const role = useExtensionByKey(MESSAGE_ROLE, msg.role);
   const isUser = msg.role === "user";
   const isAgent = msg.role === "assistant";
   // Bubble (right-aligned card) is the default for user messages.

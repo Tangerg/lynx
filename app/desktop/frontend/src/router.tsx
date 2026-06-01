@@ -11,14 +11,14 @@ import {
   Outlet,
   RouterProvider,
 } from "@tanstack/react-router";
-import { listRoutes } from "@/plugins/sdk";
+import { lookupExtensionPoint, ROUTE } from "@/plugins/sdk";
 
 const rootRoute = createRootRoute({
   component: () => <Outlet />,
 });
 
 function buildRouter() {
-  const specs = listRoutes();
+  const specs = lookupExtensionPoint(ROUTE);
   const routes = specs.map((spec) =>
     createRoute({
       getParentRoute: () => rootRoute,

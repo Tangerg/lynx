@@ -8,7 +8,7 @@
 
 import type { ComposerStatusSpec } from "@/plugins/sdk";
 import { PluginBoundary } from "@/plugins/PluginBoundary";
-import { useComposerStatus } from "@/plugins/sdk";
+import { COMPOSER_STATUS, useExtensionPoint } from "@/plugins/sdk";
 
 function Chip({ it }: { it: ComposerStatusSpec }) {
   const Body = it.component;
@@ -20,7 +20,7 @@ function Chip({ it }: { it: ComposerStatusSpec }) {
 }
 
 export function ComposerFooter() {
-  const items = useComposerStatus();
+  const items = useExtensionPoint(COMPOSER_STATUS);
   if (items.length === 0) return null;
 
   const start = items.filter((it) => it.align !== "end");

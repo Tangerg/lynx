@@ -1,11 +1,12 @@
-// Command surface — palette commands (registered + declared merged),
-// slash commands, shortcuts. Includes the lazy-activation indirection
-// for declared commands (a placeholder run() that triggers the plugin's
-// setup, then re-dispatches to the now-registered real command).
+// Command surface with real logic: the registered+declared merge (palette
+// commands), the slash-command key pairing, and owner lookups for error
+// attribution. Plain reads (a single command / shortcut by id) go through the
+// generic substrate: `lookupExtensionByKey(COMMAND, id)`, `useExtensionPoint
+// (SHORTCUT)`, etc.
 
 import { useMemo } from "react";
-import type { CommandSpec, ContributedCommand, ShortcutSpec, SlashCommandSpec } from "../types";
-import { COMMAND, SHORTCUT, SLASH_COMMAND } from "../kernelPoints";
+import type { CommandSpec, ContributedCommand, SlashCommandSpec } from "../types";
+import { COMMAND, SLASH_COMMAND } from "../kernelPoints";
 import { usePluginStore } from "../registry";
 import { runActivator, useDeclaredMerged } from "./_helpers";
 import {
@@ -28,11 +29,6 @@ export function useCommands(): CommandSpec[] {
   return useDeclaredMerged(registered, declared, declaredToPlaceholder);
 }
 
-/** Look up a registered command by id. */
-export function lookupCommand(id: string): CommandSpec | undefined {
-  return lookupExtensionByKey(COMMAND, id);
-}
-
 /** Owner plugin of a registered command — used for error attribution. */
 export function lookupCommandOwner(id: string): string | undefined {
   return lookupExtensionOwner(COMMAND, id);
@@ -47,7 +43,7 @@ function declaredToPlaceholder(c: ContributedCommand, pluginName: string): Comma
 
 async function activateAndRun(pluginName: string, commandId: string): Promise<void> {
   await runActivator(pluginName);
-  const real = lookupCommand(commandId);
+  const real = lookupExtensionByKey(COMMAND, commandId);
   if (!real) {
     console.warn(`[plugin] ${pluginName} activated but did not register command ${commandId}`);
     return;
@@ -56,49 +52,16 @@ async function activateAndRun(pluginName: string, commandId: string): Promise<vo
 }
 
 // ---------------------------------------------------------------------------
-// Slash commands
+// Slash commands — the list pairs each spec with its trigger (the trigger
+// lives in the map key, not on the spec, so the generic read can't surface it).
 // ---------------------------------------------------------------------------
-//
-// IMPORTANT — selector + useMemo split. Zustand's `useShallow` compares
-// element-by-element with Object.is. Our selectors used to wrap each entry
-// in a fresh `{ cmd, spec }` object every call, which never `Object.is`-
-// equals the previous one — useShallow saw a "different" array on every
-// render, useSyncExternalStore raised "result of getSnapshot should be
-// cached", and we got "Maximum update depth exceeded".
-//
-// Pattern: the selector returns the raw Map (reference stable until a
-// register/unregister mutates the registry). The component-side useMemo
-// then derives whatever shape it needs, with the Map as a dep so it only
-// recomputes when the underlying data actually changes.
+
 export function useSlashCommands(): Array<{ cmd: string; spec: SlashCommandSpec }> {
   const entries = useExtensionEntries(SLASH_COMMAND);
   return useMemo(() => entries.map((e) => ({ cmd: e.key, spec: e.item })), [entries]);
 }
 
-/** Look up a slash command by exact key (including leading "/"). */
-export function lookupSlashCommand(cmd: string): SlashCommandSpec | undefined {
-  return lookupExtensionByKey(SLASH_COMMAND, cmd);
-}
-
 /** Owner plugin of a slash command — used for error attribution when one throws. */
 export function lookupSlashCommandOwner(cmd: string): string | undefined {
   return lookupExtensionOwner(SLASH_COMMAND, cmd);
-}
-
-// ---------------------------------------------------------------------------
-// Shortcuts
-// ---------------------------------------------------------------------------
-
-/** Look up a registered shortcut by combo — normalized to canonical form. */
-export function lookupShortcut(canonical: string): ShortcutSpec | undefined {
-  return lookupExtensionByKey(SHORTCUT, canonical);
-}
-
-/**
- * Every registered shortcut. Used by the cheat-sheet pane in Settings.
- * ShortcutSpec has no `order` field, so callers should sort by `description`
- * (or whatever makes sense for presentation) themselves.
- */
-export function useShortcuts(): ShortcutSpec[] {
-  return useExtensionPoint(SHORTCUT);
 }

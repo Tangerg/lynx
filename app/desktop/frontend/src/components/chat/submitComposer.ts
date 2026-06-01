@@ -2,7 +2,12 @@
 // button, and any future trigger (palette command etc.). Owns slash
 // routing + the always-clear-after-submit invariant.
 
-import { lookupSlashCommand, lookupSlashCommandOwner, reportPluginError } from "@/plugins/sdk";
+import {
+  lookupExtensionByKey,
+  lookupSlashCommandOwner,
+  reportPluginError,
+  SLASH_COMMAND,
+} from "@/plugins/sdk";
 
 export interface SubmitDeps {
   /** Current textarea contents. */
@@ -20,7 +25,7 @@ export function submitComposer({ value, clear, sendText }: SubmitDeps): void {
 
   const slash = parseSlash(text);
   if (slash) {
-    const spec = lookupSlashCommand(slash.cmd);
+    const spec = lookupExtensionByKey(SLASH_COMMAND, slash.cmd);
     if (spec?.run) {
       void Promise.resolve(spec.run({ args: slash.args, send: sendText })).catch((err) => {
         console.error(`[plugin] command ${slash.cmd} threw:`, err);

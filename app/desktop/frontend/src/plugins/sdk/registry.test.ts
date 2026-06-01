@@ -10,6 +10,7 @@ import {
   ACCENT,
   AGENT_SOURCE,
   BEFORE_UNLOAD_HANDLER,
+  COMMAND,
   COMPOSER_ATTACHMENT_SOURCE,
   COMPOSER_KEY_BINDING,
   COMPOSER_MODE,
@@ -32,20 +33,12 @@ import {
 } from "./kernelPoints";
 import { normalizeCombo, usePluginStore } from "./registry";
 import {
-  listRoutes,
   listRpcAfterHooks,
   listRpcBeforeHooks,
-  lookupAccent,
-  lookupCommand,
-  lookupComposerKeyBinding,
   lookupCoreEventHandlers,
   lookupCustomEventHandlers,
   lookupDataProvider,
   lookupExtensionPoint,
-  lookupShortcut,
-  lookupSlashCommand,
-  lookupTheme,
-  lookupToolIcon,
   pickAgentSource,
   pickComposerPlaceholder,
   pickPluginErrorFallback,
@@ -171,8 +164,8 @@ describe("plugin registry", () => {
     host.extensions.contribute(SLASH_COMMAND, { description: "pong" }, { key: "/ping" });
     host.extensions.contribute(SLASH_COMMAND, { description: "hi" }, { key: "hello" });
 
-    expect(lookupSlashCommand("/ping")?.description).toBe("pong");
-    expect(lookupSlashCommand("/hello")?.description).toBe("hi");
+    expect(lookupExtensionByKey(SLASH_COMMAND, "/ping")?.description).toBe("pong");
+    expect(lookupExtensionByKey(SLASH_COMMAND, "/hello")?.description).toBe("hi");
   });
 
   it("onCore registers multiple handlers per event type and chains in order", () => {
@@ -238,9 +231,9 @@ describe("plugin registry", () => {
     const host = createHost("alpha", sink);
     const d = host.extensions.contribute(THEME, { id: "dim", label: "Dim", scheme: "dark" });
 
-    expect(lookupTheme("dim")?.label).toBe("Dim");
+    expect(lookupExtensionByKey(THEME, "dim")?.label).toBe("Dim");
     d.dispose();
-    expect(lookupTheme("dim")).toBeUndefined();
+    expect(lookupExtensionByKey(THEME, "dim")).toBeUndefined();
   });
 
   it("theme.registerTheme retains the tokens map for applyTheme to consume", () => {
@@ -256,7 +249,7 @@ describe("plugin registry", () => {
       },
     });
 
-    const spec = lookupTheme("dim");
+    const spec = lookupExtensionByKey(THEME, "dim");
     expect(spec?.tokens).toEqual({
       "color-bg": "#101010",
       "color-text": "#fafafa",
@@ -268,7 +261,7 @@ describe("plugin registry", () => {
     const host = createHost("alpha", sink);
     host.extensions.contribute(ACCENT, { id: "violet", label: "Violet", dark: "#7c3aed" });
 
-    expect(lookupAccent("violet")?.dark).toBe("#7c3aed");
+    expect(lookupExtensionByKey(ACCENT, "violet")?.dark).toBe("#7c3aed");
   });
 
   it("router.register surfaces specs via listRoutes, ordered", () => {
@@ -277,7 +270,7 @@ describe("plugin registry", () => {
     host.extensions.contribute(ROUTE, { id: "b", path: "/b", component: () => null, order: 10 });
     host.extensions.contribute(ROUTE, { id: "a", path: "/a", component: () => null, order: 1 });
 
-    expect(listRoutes().map((r) => r.id)).toEqual(["a", "b"]);
+    expect(lookupExtensionPoint(ROUTE).map((r) => r.id)).toEqual(["a", "b"]);
   });
 
   it("normalizeCombo canonicalizes modifier order + case", () => {
@@ -296,8 +289,8 @@ describe("plugin registry", () => {
     host.extensions.contribute(SHORTCUT, { key: "Cmd+K", handler });
 
     // Both canonical and equivalent inputs resolve the same entry.
-    expect(lookupShortcut("mod+k")).toBeDefined();
-    expect(lookupShortcut(normalizeCombo("Mod+K"))?.handler).toBe(handler);
+    expect(lookupExtensionByKey(SHORTCUT, "mod+k")).toBeDefined();
+    expect(lookupExtensionByKey(SHORTCUT, normalizeCombo("Mod+K"))?.handler).toBe(handler);
   });
 
   it("shortcuts.register disposable removes the entry", () => {
@@ -305,9 +298,9 @@ describe("plugin registry", () => {
     const host = createHost("alpha", sink);
     const d = host.extensions.contribute(SHORTCUT, { key: "Escape", handler: () => {} });
 
-    expect(lookupShortcut("escape")).toBeDefined();
+    expect(lookupExtensionByKey(SHORTCUT, "escape")).toBeDefined();
     d.dispose();
-    expect(lookupShortcut("escape")).toBeUndefined();
+    expect(lookupExtensionByKey(SHORTCUT, "escape")).toBeUndefined();
   });
 
   it("composer.registerStatus stores a chip", () => {
@@ -337,8 +330,8 @@ describe("plugin registry", () => {
     const host = createHost("alpha", sink);
     host.extensions.contribute(TOOL_ICON, "terminal", { key: "bash" });
 
-    expect(lookupToolIcon("bash")).toBe("terminal");
-    expect(lookupToolIcon("unknown")).toBeUndefined();
+    expect(lookupExtensionByKey(TOOL_ICON, "bash")).toBe("terminal");
+    expect(lookupExtensionByKey(TOOL_ICON, "unknown")).toBeUndefined();
   });
 
   it("config.set/get round-trip + onChange fires", () => {
@@ -387,7 +380,7 @@ describe("plugin registry", () => {
       handler: () => true,
     });
 
-    expect(lookupComposerKeyBinding("mod+enter")).toBeDefined();
+    expect(lookupExtensionByKey(COMPOSER_KEY_BINDING, "mod+enter")).toBeDefined();
   });
 
   it("composer.registerAttachmentSource stores a source", () => {
@@ -552,8 +545,8 @@ describe("plugin registry", () => {
     const run = vi.fn();
     host.commands.register({ id: "do-it", label: "Do It", run });
 
-    expect(lookupCommand("do-it")?.label).toBe("Do It");
-    lookupCommand("do-it")?.run();
+    expect(lookupExtensionByKey(COMMAND, "do-it")?.label).toBe("Do It");
+    lookupExtensionByKey(COMMAND, "do-it")?.run();
     expect(run).toHaveBeenCalledOnce();
   });
 

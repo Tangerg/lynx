@@ -11,7 +11,7 @@
 //     registry only; the listener itself never re-binds.
 
 import { useEffect } from "react";
-import { lookupShortcut, normalizeCombo, usePluginStore } from "@/plugins/sdk";
+import { lookupExtensionByKey, normalizeCombo, SHORTCUT, usePluginStore } from "@/plugins/sdk";
 
 // Stuff we ignore in form fields by default. `allowInInputs: true` opts in.
 function isEditableTarget(target: EventTarget | null): boolean {
@@ -44,7 +44,7 @@ export function ShortcutsProvider() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const combo = comboFromEvent(e);
-      const spec = lookupShortcut(combo);
+      const spec = lookupExtensionByKey(SHORTCUT, combo);
       if (!spec) return;
       if (!spec.allowInInputs && isEditableTarget(e.target)) return;
       spec.handler(e);

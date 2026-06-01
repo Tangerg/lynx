@@ -3,8 +3,8 @@
 // registers the bindings. Cmd+1..9 stays here as pure shortcuts —
 // 9 "switch to tab N" entries would drown the palette.
 
-import { definePlugin, lookupCommand } from "@/plugins/sdk";
-import { SHORTCUT } from "@/plugins/sdk/kernelPoints";
+import { definePlugin, lookupExtensionByKey } from "@/plugins/sdk";
+import { COMMAND, SHORTCUT } from "@/plugins/sdk/kernelPoints";
 import { useSessionStore } from "@/state/sessionStore";
 
 // Late binding: the handler resolves the command at trigger time, so
@@ -35,7 +35,7 @@ export default definePlugin({
         allowInInputs: true,
         handler: (e) => {
           e.preventDefault();
-          const cmd = lookupCommand(commandId);
+          const cmd = lookupExtensionByKey(COMMAND, commandId);
           if (cmd) void cmd.run();
         },
       });

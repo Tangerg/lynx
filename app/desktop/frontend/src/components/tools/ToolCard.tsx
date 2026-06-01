@@ -4,7 +4,12 @@ import { AnimatePresence, motion } from "motion/react";
 import { Icon } from "@/components/common";
 import { swift } from "@/lib/motion";
 import { cn } from "@/lib/utils";
-import { lookupToolActionOwner, reportPluginError, useToolActions } from "@/plugins/sdk";
+import {
+  lookupToolActionOwner,
+  reportPluginError,
+  TOOL_ACTION,
+  useExtensionPoint,
+} from "@/plugins/sdk";
 import { toolIconFor } from "./toolIcon";
 import { ToolPreview } from "./ToolPreview";
 
@@ -31,7 +36,7 @@ export function ToolCard({ tool, selected, expanded, onToggleExpand, onOpenView 
   // row an RPC-log voice (see DESIGN.md §8 "RPC log rule"). The pulsing dot
   // for `running` is set up via the `before:` pseudo-element below.
   const statusGlyph = tool.status === "running" ? "" : tool.status === "ok" ? "✓" : "✗";
-  const actions = useToolActions().filter((a) => !a.predicate || a.predicate(tool));
+  const actions = useExtensionPoint(TOOL_ACTION).filter((a) => !a.predicate || a.predicate(tool));
   const running = tool.status === "running";
 
   return (

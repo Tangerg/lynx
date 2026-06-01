@@ -5,7 +5,6 @@
 import type {
   AgentSourceSpec,
   PluginErrorFallbackSpec,
-  RouteSpec,
   RpcAfterResponseHook,
   RpcBeforeRequestHook,
 } from "../types";
@@ -13,20 +12,10 @@ import {
   AGENT_SOURCE,
   DATA_PROVIDER,
   ERROR_FALLBACK,
-  ROUTE,
   RPC_AFTER_RESPONSE,
   RPC_BEFORE_REQUEST,
 } from "../kernelPoints";
 import { lookupExtensionByKey, lookupExtensionPoint } from "./extensions";
-
-// ---------------------------------------------------------------------------
-// Routes
-// ---------------------------------------------------------------------------
-
-/** Snapshot of all registered routes, sorted by `order`. */
-export function listRoutes(): RouteSpec[] {
-  return lookupExtensionPoint(ROUTE);
-}
 
 // ---------------------------------------------------------------------------
 // Agent sources

@@ -5,7 +5,7 @@ import { DragStrip, Icon, noDragClasses, Panel, ScrollArea } from "@/components/
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { PluginBoundary } from "@/plugins/PluginBoundary";
-import { useSidebarSections } from "@/plugins/sdk";
+import { SIDEBAR_SECTION, useExtensionPoint } from "@/plugins/sdk";
 import { Slot } from "@/plugins/Slot";
 
 interface Props {
@@ -14,7 +14,7 @@ interface Props {
 
 export function SidebarExpanded({ onToggleRail }: Props) {
   const t = useT();
-  const sections = useSidebarSections();
+  const sections = useExtensionPoint(SIDEBAR_SECTION);
 
   return (
     // `sidebar` class is kept as a DOM hook for layout.css (macOS

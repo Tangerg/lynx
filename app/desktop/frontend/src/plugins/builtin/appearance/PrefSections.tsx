@@ -5,7 +5,7 @@
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { Icon, Segmented } from "@/components/common";
 import { setLocale, useLocale, useT } from "@/lib/i18n";
-import { useLocales } from "@/plugins/sdk";
+import { LOCALE, useExtensionPoint } from "@/plugins/sdk";
 import { useUiStore } from "@/state/uiStore";
 import { SettingRow } from "./SettingRow";
 
@@ -32,7 +32,7 @@ export function MessageStyleSection() {
 export function LanguageSection() {
   const t = useT();
   const locale = useLocale();
-  const locales = useLocales();
+  const locales = useExtensionPoint(LOCALE);
   const active = locales.find((l) => l.id === locale) ?? locales[0];
   // While locale plugins are still loading (shouldn't happen post
   // PluginProvider, but defensive), the picker would render with no

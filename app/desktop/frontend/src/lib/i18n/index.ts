@@ -5,7 +5,7 @@
 // (zh / zh-TW / ja / ko / es / fr / de) is a built-in plugin under
 // `plugins/builtin/locales/` that calls `host.i18n.addBundle()` +
 // `host.extensions.contribute(LOCALE, …)` in its setup. The picker is driven by
-// the plugin store's `locales` registry (read via `useLocales()` from
+// the plugin store's `locales` registry (read via `useExtensionPoint(LOCALE)` from
 // the SDK), not a hardcoded array here.
 //
 // Locale type is `string` rather than a union because the set of

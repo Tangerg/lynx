@@ -8,17 +8,9 @@ import type {
   ContributedView,
   LayoutSlotSpec,
   SettingsPaneSpec,
-  SidebarRailItemSpec,
-  SidebarSectionSpec,
   WorkspaceViewSpec,
 } from "../types";
-import {
-  LAYOUT_SLOT,
-  SETTINGS_PANE,
-  SIDEBAR_RAIL_ITEM,
-  SIDEBAR_SECTION,
-  WORKSPACE_VIEW,
-} from "../kernelPoints";
+import { LAYOUT_SLOT, SETTINGS_PANE, WORKSPACE_VIEW } from "../kernelPoints";
 import { makeLazyActivator } from "../lazyActivator";
 import { usePluginStore } from "../registry";
 import { runActivator, useDeclaredMerged } from "./_helpers";
@@ -42,18 +34,6 @@ export function useLayoutSlot(slot: string): LayoutSlotSpec[] {
       ),
     [extensions, slot],
   );
-}
-
-// ---------------------------------------------------------------------------
-// Sidebar
-// ---------------------------------------------------------------------------
-
-export function useSidebarSections(): SidebarSectionSpec[] {
-  return useExtensionPoint(SIDEBAR_SECTION);
-}
-
-export function useSidebarRailItems(): SidebarRailItemSpec[] {
-  return useExtensionPoint(SIDEBAR_RAIL_ITEM);
 }
 
 // ---------------------------------------------------------------------------

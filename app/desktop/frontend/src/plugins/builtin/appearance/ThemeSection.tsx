@@ -5,7 +5,7 @@ import type { ThemeSpec } from "@/plugins/sdk";
 import { Icon } from "@/components/common";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
-import { useThemes } from "@/plugins/sdk";
+import { THEME, useExtensionPoint } from "@/plugins/sdk";
 import { useUiStore } from "@/state/uiStore";
 
 // Fallback hexes for previewing themes that didn't ship a `tokens` map.
@@ -74,7 +74,7 @@ function ThemeRow({
 
 export function ThemeSection() {
   const t = useT();
-  const themes = useThemes();
+  const themes = useExtensionPoint(THEME);
   const theme = useUiStore((s) => s.theme);
   const setTheme = useUiStore((s) => s.setTheme);
 
