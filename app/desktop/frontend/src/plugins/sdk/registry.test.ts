@@ -6,6 +6,15 @@ import { INITIAL_VIEW_STATE } from "@/protocol/agui/viewState";
 import { useConfigStore } from "./config";
 import { createHost } from "./host";
 import { useNotificationStore } from "./notifications";
+import {
+  COMPOSER_ATTACHMENT_SOURCE,
+  COMPOSER_MODE,
+  COMPOSER_STATUS,
+  MESSAGE_ROLE,
+  SIDEBAR_RAIL_ITEM,
+  SIDEBAR_SECTION,
+  TOOL_ACTION,
+} from "./kernelPoints";
 import { normalizeCombo, usePluginStore } from "./registry";
 import {
   listRoutes,
@@ -17,6 +26,7 @@ import {
   lookupCoreEventHandlers,
   lookupCustomEventHandlers,
   lookupDataProvider,
+  lookupExtensionPoint,
   lookupShortcut,
   lookupSlashCommand,
   lookupTheme,
@@ -25,6 +35,7 @@ import {
   pickComposerPlaceholder,
   pickPluginErrorFallback,
 } from "./selectors";
+import { lookupExtensionByKey, lookupExtensionOwner } from "./selectors/extensions";
 
 // A throwaway component used for `tool.registerPreview` calls. It doesn't get
 // mounted in these tests — we only care about identity.
@@ -273,9 +284,8 @@ describe("plugin registry", () => {
     const host = createHost("alpha", sink);
     host.composer.registerStatus({ id: "branch", order: 5, component: () => null });
 
-    const map = usePluginStore.getState().composerStatus;
-    expect(map.size).toBe(1);
-    expect(map.get("branch")?.value.order).toBe(5);
+    expect(lookupExtensionPoint(COMPOSER_STATUS).length).toBe(1);
+    expect(lookupExtensionByKey(COMPOSER_STATUS, "branch")?.order).toBe(5);
   });
 
   it("sidebar.registerSection stores a section", () => {
@@ -283,9 +293,8 @@ describe("plugin registry", () => {
     const host = createHost("alpha", sink);
     host.sidebar.registerSection({ id: "bookmarks", order: 20, component: () => null });
 
-    const map = usePluginStore.getState().sidebarSections;
-    expect(map.size).toBe(1);
-    expect(map.get("bookmarks")?.pluginName).toBe("alpha");
+    expect(lookupExtensionPoint(SIDEBAR_SECTION).length).toBe(1);
+    expect(lookupExtensionOwner(SIDEBAR_SECTION, "bookmarks")).toBe("alpha");
   });
 
   it("tool.registerIcon + lookupToolIcon round-trip", () => {
@@ -355,9 +364,8 @@ describe("plugin registry", () => {
       useAttachments: () => [],
     });
 
-    const map = usePluginStore.getState().composerAttachmentSources;
-    expect(map.size).toBe(1);
-    expect(map.get("files")?.value.order).toBe(5);
+    expect(lookupExtensionPoint(COMPOSER_ATTACHMENT_SOURCE).length).toBe(1);
+    expect(lookupExtensionByKey(COMPOSER_ATTACHMENT_SOURCE, "files")?.order).toBe(5);
   });
 
   it("tool.registerAction stores an action spec", () => {
@@ -370,9 +378,8 @@ describe("plugin registry", () => {
       run: () => {},
     });
 
-    const map = usePluginStore.getState().toolActions;
-    expect(map.size).toBe(1);
-    expect(map.get("copy")?.value.title).toBe("Copy");
+    expect(lookupExtensionPoint(TOOL_ACTION).length).toBe(1);
+    expect(lookupExtensionByKey(TOOL_ACTION, "copy")?.title).toBe("Copy");
   });
 
   it("state.slice shares store across plugins by name", () => {
@@ -468,9 +475,8 @@ describe("plugin registry", () => {
     const host = createHost("alpha", sink);
     host.composer.registerMode({ id: "research", label: "Research", icon: "search", order: 5 });
 
-    const map = usePluginStore.getState().composerModes;
-    expect(map.size).toBe(1);
-    expect(map.get("research")?.value.label).toBe("Research");
+    expect(lookupExtensionPoint(COMPOSER_MODE).length).toBe(1);
+    expect(lookupExtensionByKey(COMPOSER_MODE, "research")?.label).toBe("Research");
   });
 
   it("pickAgentSource picks the highest-priority registration", () => {
@@ -529,9 +535,8 @@ describe("plugin registry", () => {
     const host = createHost("alpha", sink);
     host.sidebar.registerRailItem({ id: "tools", order: 900, component: () => null });
 
-    const map = usePluginStore.getState().sidebarRailItems;
-    expect(map.size).toBe(1);
-    expect(map.get("tools")?.value.order).toBe(900);
+    expect(lookupExtensionPoint(SIDEBAR_RAIL_ITEM).length).toBe(1);
+    expect(lookupExtensionByKey(SIDEBAR_RAIL_ITEM, "tools")?.order).toBe(900);
   });
 
   it("message.registerRole stores a role identity", () => {
@@ -539,9 +544,8 @@ describe("plugin registry", () => {
     const host = createHost("alpha", sink);
     host.message.registerRole({ id: "dev", displayName: "Dev", icon: "tool" });
 
-    const map = usePluginStore.getState().messageRoles;
-    expect(map.size).toBe(1);
-    expect(map.get("dev")?.value.displayName).toBe("Dev");
+    expect(lookupExtensionPoint(MESSAGE_ROLE).length).toBe(1);
+    expect(lookupExtensionByKey(MESSAGE_ROLE, "dev")?.displayName).toBe("Dev");
   });
 
   it("rpc.beforeRequest + listRpcBeforeHooks round-trip", () => {

@@ -12,9 +12,11 @@ import type {
   SidebarSectionSpec,
   WorkspaceViewSpec,
 } from "../types";
+import { SIDEBAR_RAIL_ITEM, SIDEBAR_SECTION } from "../kernelPoints";
 import { makeLazyActivator } from "../lazyActivator";
 import { usePluginStore } from "../registry";
-import { createIndex, runActivator, useDeclaredMerged, useSortedList } from "./_helpers";
+import { createIndex, runActivator, useDeclaredMerged } from "./_helpers";
+import { useExtensionPoint } from "./extensions";
 
 // ---------------------------------------------------------------------------
 // Layout slots
@@ -39,11 +41,11 @@ export function useLayoutSlot(slot: string): LayoutSlotSpec[] {
 // ---------------------------------------------------------------------------
 
 export function useSidebarSections(): SidebarSectionSpec[] {
-  return useSortedList(usePluginStore((s) => s.sidebarSections));
+  return useExtensionPoint(SIDEBAR_SECTION);
 }
 
 export function useSidebarRailItems(): SidebarRailItemSpec[] {
-  return useSortedList(usePluginStore((s) => s.sidebarRailItems));
+  return useExtensionPoint(SIDEBAR_RAIL_ITEM);
 }
 
 // ---------------------------------------------------------------------------

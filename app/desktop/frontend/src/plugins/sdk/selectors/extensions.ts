@@ -58,3 +58,24 @@ export function lookupExtensionByKey<T>(point: ExtensionPoint<T>, key: string): 
   const entry = usePluginStore.getState().extensions.get(`${point.id}#${k}`);
   return entry?.value.item as T | undefined;
 }
+
+/**
+ * Reactive sibling of `lookupExtensionByKey` — subscribes to exactly one
+ * `single`-point slot so a component re-renders only when that key's
+ * contribution changes (replaces the old `usePluginStore(s => s.X.get(id))`).
+ */
+export function useExtensionByKey<T>(point: ExtensionPoint<T>, key: string): T | undefined {
+  const k = point.normalizeKey ? point.normalizeKey(key) : key;
+  const outerKey = `${point.id}#${k}`;
+  return usePluginStore((s) => s.extensions.get(outerKey)?.value.item as T | undefined);
+}
+
+/**
+ * Owner plugin of a single contribution — for error attribution (which
+ * plugin's tool action threw). Returns undefined when nothing is registered
+ * under the key.
+ */
+export function lookupExtensionOwner<T>(point: ExtensionPoint<T>, key: string): string | undefined {
+  const k = point.normalizeKey ? point.normalizeKey(key) : key;
+  return usePluginStore.getState().extensions.get(`${point.id}#${k}`)?.pluginName;
+}

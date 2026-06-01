@@ -7,10 +7,7 @@
 import type {
   BeforeUnloadHandler,
   CommandSpec,
-  ComposerAttachmentSourceSpec,
   ComposerKeyBindingSpec,
-  ComposerModeSpec,
-  ComposerStatusSpec,
   ContentBlockRenderer,
   ContributedCommand,
   ContributedSettingsPane,
@@ -20,17 +17,13 @@ import type {
   LayoutSlotSpec,
   LoadedPlugin,
   LogSubscriber,
-  MessageRoleSpec,
   PluginSpec,
   ReadyHandler,
   RpcAfterResponseHook,
   RpcBeforeRequestHook,
   SettingsPaneSpec,
   ShortcutSpec,
-  SidebarRailItemSpec,
-  SidebarSectionSpec,
   SlashCommandSpec,
-  ToolActionSpec,
   ToolPreviewComponent,
   WorkspaceViewSpec,
 } from "./types";
@@ -56,7 +49,6 @@ export interface ContributionEntry {
 export interface PluginStoreState {
   loaded: Map<string, LoadedPlugin>;
   toolPreviews: Map<string, Owned<ToolPreviewComponent>>;
-  toolActions: Map<string, Owned<ToolActionSpec>>;
   toolIcons: Map<string, Owned<string>>;
   contentBlocks: Map<string, Owned<ContentBlockRenderer<ContentBlockKind>>>;
   // Composite key `${pluginName}|${id}` so multiple handlers can be
@@ -75,11 +67,7 @@ export interface PluginStoreState {
   // plugin to fill multiple slots and to keep insertion order deterministic.
   layoutSlots: Map<string, Owned<{ slot: string; spec: LayoutSlotSpec }>>;
   shortcuts: Map<string, Owned<ShortcutSpec>>;
-  composerStatus: Map<string, Owned<ComposerStatusSpec>>;
-  composerModes: Map<string, Owned<ComposerModeSpec>>;
-  composerAttachmentSources: Map<string, Owned<ComposerAttachmentSourceSpec>>;
   composerKeyBindings: Map<string, Owned<ComposerKeyBindingSpec>>;
-  sidebarSections: Map<string, Owned<SidebarSectionSpec>>;
   commands: Map<string, Owned<CommandSpec>>;
   /**
    * Commands declared in `PluginSpec.contributes.commands` but whose
@@ -99,8 +87,6 @@ export interface PluginStoreState {
    * plugin).
    */
   pendingActivations: Map<string, { spec: PluginSpec; events: string[] }>;
-  sidebarRailItems: Map<string, Owned<SidebarRailItemSpec>>;
-  messageRoles: Map<string, Owned<MessageRoleSpec>>;
   // RPC hooks: composite key `${pluginName}|${id}` to allow multiple per plugin.
   rpcBeforeRequest: Map<string, Owned<RpcBeforeRequestHook>>;
   rpcAfterResponse: Map<string, Owned<RpcAfterResponseHook>>;
@@ -131,9 +117,6 @@ export interface PluginStoreActions {
 
   addToolPreview: (pluginName: string, fn: string, c: ToolPreviewComponent) => void;
   removeToolPreview: (pluginName: string, fn: string) => void;
-
-  addToolAction: (pluginName: string, spec: ToolActionSpec) => void;
-  removeToolAction: (pluginName: string, id: string) => void;
 
   addToolIcon: (pluginName: string, fn: string, icon: string) => void;
   removeToolIcon: (pluginName: string, fn: string) => void;
@@ -173,20 +156,8 @@ export interface PluginStoreActions {
   addShortcut: (pluginName: string, spec: ShortcutSpec) => void;
   removeShortcut: (pluginName: string, key: string) => void;
 
-  addComposerStatus: (pluginName: string, spec: ComposerStatusSpec) => void;
-  removeComposerStatus: (pluginName: string, id: string) => void;
-
-  addComposerMode: (pluginName: string, spec: ComposerModeSpec) => void;
-  removeComposerMode: (pluginName: string, id: string) => void;
-
-  addComposerAttachmentSource: (pluginName: string, spec: ComposerAttachmentSourceSpec) => void;
-  removeComposerAttachmentSource: (pluginName: string, id: string) => void;
-
   addComposerKeyBinding: (pluginName: string, spec: ComposerKeyBindingSpec) => void;
   removeComposerKeyBinding: (pluginName: string, key: string) => void;
-
-  addSidebarSection: (pluginName: string, spec: SidebarSectionSpec) => void;
-  removeSidebarSection: (pluginName: string, id: string) => void;
 
   addCommand: (pluginName: string, spec: CommandSpec) => void;
   removeCommand: (pluginName: string, id: string) => void;
@@ -203,12 +174,6 @@ export interface PluginStoreActions {
 
   addPendingActivation: (spec: PluginSpec, events: string[]) => void;
   removePendingActivation: (name: string) => void;
-
-  addSidebarRailItem: (pluginName: string, spec: SidebarRailItemSpec) => void;
-  removeSidebarRailItem: (pluginName: string, id: string) => void;
-
-  addMessageRole: (pluginName: string, spec: MessageRoleSpec) => void;
-  removeMessageRole: (pluginName: string, id: string) => void;
 
   addRpcBeforeRequest: (pluginName: string, id: string, hook: RpcBeforeRequestHook) => void;
   removeRpcBeforeRequest: (pluginName: string, id: string) => void;
@@ -265,7 +230,6 @@ export function freshState(): PluginStoreState {
   return {
     loaded: new Map(),
     toolPreviews: new Map(),
-    toolActions: new Map(),
     toolIcons: new Map(),
     contentBlocks: new Map(),
     customEventHandlers: new Map(),
@@ -274,18 +238,12 @@ export function freshState(): PluginStoreState {
     settingsPanes: new Map(),
     layoutSlots: new Map(),
     shortcuts: new Map(),
-    composerStatus: new Map(),
-    composerModes: new Map(),
-    composerAttachmentSources: new Map(),
     composerKeyBindings: new Map(),
-    sidebarSections: new Map(),
     commands: new Map(),
     declaredCommands: new Map(),
     declaredViews: new Map(),
     declaredSettingsPanes: new Map(),
     pendingActivations: new Map(),
-    sidebarRailItems: new Map(),
-    messageRoles: new Map(),
     rpcBeforeRequest: new Map(),
     rpcAfterResponse: new Map(),
     logSubscribers: new Map(),

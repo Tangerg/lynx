@@ -11,13 +11,20 @@
 
 import type {
   AgentSourceSpec,
+  ComposerAttachmentSourceSpec,
+  ComposerModeSpec,
   ComposerPlaceholderSpec,
+  ComposerStatusSpec,
   DataProviderSpec,
   LocaleSpec,
+  MessageRoleSpec,
   PluginErrorFallbackSpec,
   RouteSpec,
+  SidebarRailItemSpec,
+  SidebarSectionSpec,
   ThemeAccentSpec,
   ThemeSpec,
+  ToolActionSpec,
 } from "./types";
 import { defineExtensionPoint } from "./defineExtensionPoint";
 
@@ -48,5 +55,37 @@ export const ERROR_FALLBACK = defineExtensionPoint<PluginErrorFallbackSpec>({
 // ---- composer domain ------------------------------------------------------
 export const COMPOSER_PLACEHOLDER = defineExtensionPoint<ComposerPlaceholderSpec>({
   id: "lyra.composer.placeholder",
+  keying: "single",
+});
+export const COMPOSER_STATUS = defineExtensionPoint<ComposerStatusSpec>({
+  id: "lyra.composer.status",
+  keying: "single",
+});
+export const COMPOSER_MODE = defineExtensionPoint<ComposerModeSpec>({
+  id: "lyra.composer.mode",
+  keying: "single",
+});
+export const COMPOSER_ATTACHMENT_SOURCE = defineExtensionPoint<ComposerAttachmentSourceSpec>({
+  id: "lyra.composer.attachmentSource",
+  keying: "single",
+});
+
+// ---- sidebar domain -------------------------------------------------------
+export const SIDEBAR_SECTION = defineExtensionPoint<SidebarSectionSpec>({
+  id: "lyra.sidebar.section",
+  keying: "single",
+});
+export const SIDEBAR_RAIL_ITEM = defineExtensionPoint<SidebarRailItemSpec>({
+  id: "lyra.sidebar.railItem",
+  keying: "single",
+});
+
+// ---- message / tool domain ------------------------------------------------
+export const MESSAGE_ROLE = defineExtensionPoint<MessageRoleSpec>({
+  id: "lyra.message.role",
+  keying: "single",
+});
+export const TOOL_ACTION = defineExtensionPoint<ToolActionSpec>({
+  id: "lyra.tool.action",
   keying: "single",
 });
