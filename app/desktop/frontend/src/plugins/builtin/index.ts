@@ -18,11 +18,11 @@ import {
   questionHandler,
   searchResultsHandler,
   telemetryHandler,
-} from "./agui-handlers";
-import appearance from "./appearance";
-import personalization from "./personalization";
-import chatSearch from "./chat-search";
-import commandPalette from "./command-palette";
+} from "./chat/agui-handlers";
+import appearance from "./settings/appearance";
+import personalization from "./settings/personalization";
+import chatSearch from "./chat/chat-search";
+import commandPalette from "./command/command-palette";
 import {
   composerChips,
   composerKeymap,
@@ -30,8 +30,8 @@ import {
   composerPlaceholders,
   composerSend,
   composerToolbar,
-} from "./composer";
-import connectionSettings from "./connection-settings";
+} from "./chat/composer";
+import connectionSettings from "./settings/connection-settings";
 import {
   approvalBlock,
   checkpointBlock,
@@ -40,11 +40,11 @@ import {
   questionBlock,
   reasoningBlock,
   searchBlock,
-} from "./content-blocks";
-import bootstrap from "./bootstrap";
-import conversationExport from "./conversation-export";
-import coreReducer from "./core-reducer";
-import customTheme from "./custom-theme";
+} from "./chat/content-blocks";
+import bootstrap from "./agent/bootstrap";
+import conversationExport from "./workspace/conversation-export";
+import coreReducer from "./agent/core-reducer";
+import customTheme from "./theme/custom-theme";
 import {
   defaultAccents,
   defaultCommands,
@@ -52,14 +52,14 @@ import {
   defaultData,
   defaultRoles,
   defaultTitle,
-} from "./defaults";
-import demo from "./demo";
-import diagnostics from "./diagnostics";
-import globalKeymap from "./global-keymap";
-import httpAgent from "./http-agent";
-import iconGallery from "./icon-gallery";
-import rpcAgent from "./rpc-agent";
-import { kernelChat, kernelSettings, kernelSidebar } from "./kernel";
+} from "./shell/defaults";
+import demo from "./samples/demo";
+import diagnostics from "./workspace/diagnostics";
+import globalKeymap from "./command/global-keymap";
+import httpAgent from "./agent/http-agent";
+import iconGallery from "./settings/icon-gallery";
+import rpcAgent from "./agent/rpc-agent";
+import { kernelChat, kernelSettings, kernelSidebar } from "./shell/kernel";
 import {
   localeDe,
   localeEn,
@@ -69,13 +69,13 @@ import {
   localeKo,
   localeZh,
   localeZhTW,
-} from "./locales";
-import mainRoute from "./main-route";
-import { messageCopy, messageEdit, messageRegenerate } from "./message-actions";
-import planProgress from "./plan-progress";
-import pluginsPane from "./plugins-pane";
-import sampleAttachments from "./sample-attachments";
-import shortcuts from "./shortcuts";
+} from "./i18n/locales";
+import mainRoute from "./shell/main-route";
+import { messageCopy, messageEdit, messageRegenerate } from "./chat/message-actions";
+import planProgress from "./chat/plan-progress";
+import pluginsPane from "./settings/plugins-pane";
+import sampleAttachments from "./samples/sample-attachments";
+import shortcuts from "./command/shortcuts";
 import {
   sidebarFooter,
   sidebarProjects,
@@ -84,16 +84,16 @@ import {
   sidebarRailSessions,
   sidebarSearch,
   sidebarSessions,
-} from "./sidebar";
-import slashHints from "./slash-hints";
-import { statusNotifications, statusPill } from "./status";
-import { tasksPill } from "./tasks";
-import { builtinThemes } from "./themes";
-import toaster from "./toaster";
-import { toolActions, toolIcons } from "./tool-meta";
-import { bash, diff, file, grep } from "./tool-previews";
-import topbarNewTab from "./topbar-new-tab";
-import welcomeScreen from "./welcome-screen";
+} from "./shell/sidebar";
+import slashHints from "./chat/slash-hints";
+import { statusNotifications, statusPill } from "./shell/status";
+import { tasksPill } from "./workspace/tasks";
+import { builtinThemes } from "./theme/themes";
+import toaster from "./shell/toaster";
+import { toolActions, toolIcons } from "./chat/tool-meta";
+import { bash, diff, file, grep } from "./chat/tool-previews";
+import topbarNewTab from "./shell/topbar-new-tab";
+import welcomeScreen from "./shell/welcome-screen";
 import {
   diffView,
   filesView,
@@ -103,7 +103,7 @@ import {
   terminalView,
   timelineView,
   toolsView,
-} from "./workspace-views";
+} from "./workspace/workspace-views";
 
 // ---------------------------------------------------------------------------
 // Protocol — fold AG-UI events into view state.

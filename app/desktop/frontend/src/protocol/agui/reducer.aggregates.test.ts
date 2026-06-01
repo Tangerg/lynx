@@ -15,7 +15,7 @@ import { INITIAL_VIEW_STATE } from "./viewState";
 const ev = <T extends BaseEvent>(e: T): BaseEvent => e;
 
 beforeEach(async () => {
-  const { default: spec } = await import("@/plugins/builtin/core-reducer");
+  const { default: spec } = await import("@/plugins/builtin/agent/core-reducer");
   await loadPlugin(spec);
 });
 
@@ -44,7 +44,7 @@ describe("reducer — timeline accumulator", () => {
   });
 
   it("records approval-request + approval-result when handler loaded", async () => {
-    const { approvalHandler: spec } = await import("@/plugins/builtin/agui-handlers");
+    const { approvalHandler: spec } = await import("@/plugins/builtin/chat/agui-handlers");
     await loadPlugin(spec);
 
     let s: AgentViewState = INITIAL_VIEW_STATE;
