@@ -6,6 +6,8 @@
 // `infrastructure` group stays uncluttered as more themes ship.
 
 import type { PluginSpec } from "@/plugins/sdk";
+import { definePluginPack } from "@/plugins/sdk";
+import customTheme from "../custom-theme";
 import atomOneDark from "../atom-one-dark";
 import atomOneLight from "../atom-one-light";
 import catppuccinLatte from "../catppuccin-latte";
@@ -31,3 +33,13 @@ export const builtinThemes: PluginSpec[] = [
   catppuccinMacchiato,
   catppuccinLatte,
 ];
+
+// All built-in themes shipped as one Plugin Pack — a single manifest entry that
+// loads each theme (+ the user-editable custom theme) as an independent child.
+// Themes have no `requires` and distinct ids, so child array order is purely
+// the picker's sort hint. Demonstrates `definePluginPack` on first-party code.
+export const themesPack = definePluginPack({
+  name: "lyra.builtin.themes",
+  version: "1.0.0",
+  children: [...builtinThemes, customTheme],
+});
