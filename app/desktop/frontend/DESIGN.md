@@ -37,10 +37,13 @@ colors:
   # ---- Semantic ----
   # Used ONLY for genuine errors / warnings / live confirmations. Not
   # decoration. RUN_ERROR banner / approval-card warnings / status dots.
-  success: "#27a644"             # Confirmed action, run finished cleanly
-  warning: "#f5a623"             # User attention required (approval pending)
-  negative: "#ee0000"            # Errors (RUN_ERROR banner, tool failure)
-  info: "#0070f3"                # Inline links, info badges
+  # Dark-tuned: desaturated + lifted vs the raw web values so they don't
+  # vibrate / edge-bleed on the near-black canvas (Apple Dark Mode / Ant
+  # dark). Light themes keep the saturated web values (read clean on white).
+  success: "#3fb950"             # Confirmed action, run finished cleanly
+  warning: "#f0a936"             # User attention required (approval pending)
+  negative: "#f85149"            # Errors (RUN_ERROR banner, tool failure)
+  info: "#58a6ff"                # Inline links, info badges
 
   # ---- Light theme (Vercel-derived) ----
   light-canvas: "#ffffff"
@@ -416,12 +419,19 @@ Forbidden surfaces for accent: section background, card fill, avatar background,
 
 ### Semantic palette
 
-| Token | Hex | Use |
+| Token | Hex (dark) | Use |
 |---|---|---|
-| `success` | `#27a644` | Run finished cleanly, action confirmed. Allowed in: run pill (idle/done), `tab-dot.idle` after success. |
-| `warning` | `#f5a623` | User attention required. Allowed in: `approval-card`, `tab-dot.waiting`. |
-| `negative` | `#ee0000` | Error. Allowed in: `run-error-banner`, tool-call `status: err`. |
-| `info` | `#0070f3` | Information / link. Allowed in: inline links, info badges. |
+| `success` | `#3fb950` | Run finished cleanly, action confirmed. Allowed in: run pill (idle/done), `tab-dot.idle` after success. |
+| `warning` | `#f0a936` | User attention required. Allowed in: `approval-card`, `tab-dot.waiting`. |
+| `negative` | `#f85149` | Error. Allowed in: `run-error-banner`, tool-call `status: err`. |
+| `info` | `#58a6ff` | Information / link. Allowed in: inline links, info badges. |
+
+**Semantic colours are scheme-tuned.** The dark values above are desaturated +
+lifted in luminance so they don't vibrate or edge-bleed on the near-black canvas
+(Apple Dark Mode / Ant dark). Light themes keep the saturated web values
+(`#ee0000` / `#0070f3` …) — those read crisp on white. Palette themes
+(Catppuccin / Tokyo Night / Solarized / One Dark) ship their own canonical
+semantic tones and are left untouched.
 
 ## 3. Typography
 

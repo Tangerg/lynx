@@ -55,9 +55,12 @@ export default defineThemePlugin({
     appDivider: c.hairline,
   },
   semantic: {
-    negative: "#ee0000",
-    warning: "#f5a623",
-    info: "#0070f3",
-    success: "#27a644",
+    // Dark-tuned: the raw web-saturated values (#ee0000 / #0070f3) vibrate and
+    // bleed at the edges on the near-black canvas. Desaturated + lifted in
+    // luminance per Apple Dark Mode / Ant dark guidance — GitHub-dark-aligned.
+    negative: "#f85149",
+    warning: "#f0a936",
+    info: "#58a6ff",
+    success: "#3fb950",
   },
 });
