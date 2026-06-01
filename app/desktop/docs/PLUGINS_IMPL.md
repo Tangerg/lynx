@@ -677,17 +677,16 @@ window.__LYRA__.SDK.usePluginStore.subscribe(console.log);
 | 14  | `file`                   | tool preview   | `fn: "read_file"` 文件头预览                                     |
 | 15  | `grep`                   | tool preview   | `fn: "grep"` 匹配列表                                            |
 | 16  | `slash-hints`            | slash          | 8 条 hint-only 命令                                              |
-| 17  | `demo`                   | 多接缝         | `/health` 命令 + `lyra.demo.banner` handler + `demoBanner` block |
-| 18  | `appearance`             | settings pane  | 主题 / accent 选择                                               |
-| 19  | `plugins-pane`           | settings pane  | 列出所有已加载插件                                               |
-| 20  | `diffView`               | workspace view | Diff 视图                                                        |
-| 21  | `filesView`              | workspace view | Files 视图（带未提交数）                                         |
-| 22  | `notificationsView`      | workspace view | Notifications 视图                                               |
-| 23  | `planView`               | workspace view | Plan 视图（带未完成数）                                          |
-| 24  | `runSummaryView`         | workspace view | Run summary 视图                                                 |
-| 25  | `terminalView`           | workspace view | Terminal 视图                                                    |
-| 26  | `timelineView`           | workspace view | Timeline 视图                                                    |
-| 27  | `toolsView`              | workspace view | Tools 视图（带 active MCP 数）                                   |
+| 17  | `appearance`             | settings pane  | 主题 / accent 选择                                               |
+| 18  | `plugins-pane`           | settings pane  | 列出所有已加载插件                                               |
+| 19  | `diffView`               | workspace view | Diff 视图                                                        |
+| 20  | `filesView`              | workspace view | Files 视图（带未提交数）                                         |
+| 21  | `notificationsView`      | workspace view | Notifications 视图                                               |
+| 22  | `planView`               | workspace view | Plan 视图（带未完成数）                                          |
+| 23  | `runSummaryView`         | workspace view | Run summary 视图                                                 |
+| 24  | `terminalView`           | workspace view | Terminal 视图                                                    |
+| 25  | `timelineView`           | workspace view | Timeline 视图                                                    |
+| 26  | `toolsView`              | workspace view | Tools 视图（带 active MCP 数）                                   |
 
 （清单只列代表性接缝；完整插件集见 `frontend/src/plugins/builtin/index.ts`，会随主题 / 视图增减而变。）
 
@@ -761,7 +760,6 @@ frontend/src/plugins/
     ├── file/
     ├── grep/
     ├── slash-hints/              # composer 命令
-    ├── demo/                     # 多接缝示例
     ├── appearance/               # 2 个 settings pane
     ├── plugins-pane/
     └── workspace-views/{diff,files,notifications,plan,run-summary,terminal,timeline,tools}.tsx  # 8 个 workspace view

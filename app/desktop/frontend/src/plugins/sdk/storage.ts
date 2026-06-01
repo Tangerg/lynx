@@ -1,6 +1,6 @@
 // Namespaced key-value storage handed to each plugin.
 //
-//   const storage = createStorage("lyra.builtin.demo");
+//   const storage = createStorage("lyra.builtin.my-plugin");
 //   storage.set("threshold", 0.42);
 //   storage.get<number>("threshold")  // → 0.42
 //
