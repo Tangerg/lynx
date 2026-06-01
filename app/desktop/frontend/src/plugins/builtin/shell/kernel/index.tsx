@@ -6,7 +6,7 @@
 
 import { useMemo } from "react";
 import { ChatPanel } from "@/components/chat/ChatPanel";
-import { SettingsPage } from "@/components/settings/SettingsPage";
+import { SettingsPage } from "./SettingsPage";
 import { SidebarPanel } from "@/components/sidebar/SidebarPanel";
 import { useChatSend } from "@/lib/agent/useChatSend";
 import { useSessions } from "@/lib/data/queries";

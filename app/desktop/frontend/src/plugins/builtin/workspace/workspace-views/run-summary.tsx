@@ -10,7 +10,7 @@ import type { ReactNode } from "react";
 import type { RunDigest } from "@/protocol/agui/runDigest";
 import { useMemo, useState } from "react";
 import { EmptyState, Icon, IconButton, ScrollArea } from "@/components/common";
-import { ViewHeader } from "@/components/views/ViewHeader";
+import { ViewHeader } from "./views/ViewHeader";
 import { cn } from "@/lib/utils";
 import { definePlugin } from "@/plugins/sdk";
 import { WORKSPACE_VIEW } from "@/plugins/sdk/kernelPoints";

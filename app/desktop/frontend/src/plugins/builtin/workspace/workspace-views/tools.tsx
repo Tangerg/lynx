@@ -1,6 +1,6 @@
 import { DataView, Icon, IconButton, ScrollArea } from "@/components/common";
-import { McpRow } from "@/components/views/McpRow";
-import { ViewHeader } from "@/components/views/ViewHeader";
+import { McpRow } from "./views/McpRow";
+import { ViewHeader } from "./views/ViewHeader";
 import { useMCPServers } from "@/lib/data/queries";
 import { definePlugin } from "@/plugins/sdk";
 import { WORKSPACE_VIEW } from "@/plugins/sdk/kernelPoints";

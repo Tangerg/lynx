@@ -13,7 +13,7 @@
 import type { IconName } from "@/components/common";
 import type { TimelineEntry, TimelineEntryKind } from "@/protocol/agui/viewState";
 import { EmptyState, Icon, IconButton, ScrollArea } from "@/components/common";
-import { ViewHeader } from "@/components/views/ViewHeader";
+import { ViewHeader } from "./views/ViewHeader";
 import { cn } from "@/lib/utils";
 import { definePlugin } from "@/plugins/sdk";
 import { WORKSPACE_VIEW } from "@/plugins/sdk/kernelPoints";

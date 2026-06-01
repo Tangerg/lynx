@@ -5,8 +5,8 @@
 // state and opens the Diff tab.
 
 import { DataView, Icon, IconButton, ScrollArea } from "@/components/common";
-import { FilesChanged } from "@/components/views/FilesChanged";
-import { ViewHeader } from "@/components/views/ViewHeader";
+import { FilesChanged } from "./views/FilesChanged";
+import { ViewHeader } from "./views/ViewHeader";
 import { useFilesChanged } from "@/lib/data/queries";
 import { definePlugin } from "@/plugins/sdk";
 import { WORKSPACE_VIEW } from "@/plugins/sdk/kernelPoints";

@@ -1,6 +1,6 @@
 import { EmptyState, Icon, IconButton, ScrollArea } from "@/components/common";
-import { PlanList } from "@/components/views/PlanList";
-import { ViewHeader } from "@/components/views/ViewHeader";
+import { PlanList } from "./views/PlanList";
+import { ViewHeader } from "./views/ViewHeader";
 import { definePlugin } from "@/plugins/sdk";
 import { WORKSPACE_VIEW } from "@/plugins/sdk/kernelPoints";
 import { useAgentSlice } from "@/state/agentStore";
