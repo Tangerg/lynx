@@ -94,10 +94,29 @@ describe("extension point substrate", () => {
     expect(lookupExtensionPoint(HANDLER)).toHaveLength(1);
   });
 
-  it("capabilities gate: extensions must be declared when restricting", () => {
-    const restricted = createHost("alpha", [], ["commands"]); // no "extensions"
-    expect(() => restricted.extensions.contribute(FORMAT, { id: "x", label: "X" })).toThrow(
-      /not in this plugin's declared capabilities/,
+  it("capability gate is per-point: a restricted host may only contribute to points it declared", () => {
+    // FORMAT carries capability "theme"; a host that declared only "commands"
+    // must be denied, and one that declared "theme" allowed.
+    const themed = defineExtensionPoint<Format>({
+      id: "test.themed",
+      keying: "single",
+      capability: "theme",
+    });
+    const denied = createHost("alpha", [], ["commands"]);
+    expect(() => denied.extensions.contribute(themed, { id: "x", label: "X" })).toThrow(
+      /needs capability "theme"/,
     );
+
+    const granted = createHost("beta", [], ["theme"]);
+    granted.extensions.contribute(themed, { id: "y", label: "Y" });
+    expect(lookupExtensionPoint(themed)).toHaveLength(1);
+  });
+
+  it("plugin-defined points (no capability) are always contributable, even when restricted", () => {
+    // FORMAT has no `capability` — a third-party point. Any restricted host can
+    // fill it; only kernel points gate.
+    const restricted = createHost("alpha", [], ["commands"]);
+    restricted.extensions.contribute(FORMAT, { id: "x", label: "X" });
+    expect(lookupExtensionPoint(FORMAT)).toHaveLength(1);
   });
 });

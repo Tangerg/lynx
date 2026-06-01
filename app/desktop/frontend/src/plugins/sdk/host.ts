@@ -118,6 +118,17 @@ export function createHost(
     item: T,
     opts?: ExtensionContributionOptions,
   ): Disposable => {
+    // Per-point capability gate. Full hosts (built-ins — no declared
+    // `capabilities`) skip it; a restricted host (sideload) may only contribute
+    // to points whose capability it declared. Plugin-defined points carry no
+    // capability and are always allowed (contributing to a plugin's own point
+    // needs no kernel permission).
+    if (capabilities && point.capability && !capabilities.includes(point.capability)) {
+      throw new Error(
+        `[plugin] ${pluginName}: contributing to "${point.id}" needs capability ` +
+          `"${point.capability}" — add it to spec.capabilities`,
+      );
+    }
     const keyOf = point.keyOf ?? ((i: T) => (i as unknown as { id: string }).id);
     let outerKey: string;
     let conflictKey: string;
@@ -315,12 +326,13 @@ export function createHost(
 }
 
 /**
- * Wrap a host such that any access to a namespace the plugin didn't
- * declare in `capabilities` throws with a clear error message. The
- * allowed namespaces are returned as-is.
+ * Wrap a host such that any access to a namespace the plugin didn't declare in
+ * `capabilities` throws with a clear error message. `extensions` is always
+ * reachable — it's the universal write path, gated per-point inside
+ * `contribute` (by the point's `capability`), not at the namespace level.
  */
 function restrictHost(host: Host, pluginName: string, allowed: HostCapability[]): Host {
-  const allowedSet = new Set(allowed);
+  const allowedSet = new Set<HostCapability>([...allowed, "extensions"]);
   const denied: Record<string, unknown> = {};
   for (const key of Object.keys(host) as Array<keyof Host>) {
     if (allowedSet.has(key as HostCapability)) {

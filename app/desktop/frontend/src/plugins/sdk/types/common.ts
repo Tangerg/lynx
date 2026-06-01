@@ -25,3 +25,39 @@ export type ReadyHandler = () => void;
  * something quickly" cleanup, not promise-y teardown.
  */
 export type BeforeUnloadHandler = () => void;
+
+/**
+ * The permission vocabulary. Each value names a top-level `Host` namespace and
+ * doubles as the gate for contributing to a kernel extension point (a point's
+ * `capability`). A plugin narrows what it can touch by listing only the ones it
+ * needs in `PluginSpec.capabilities`; anything else becomes a throwing proxy /
+ * a denied `contribute`. Lives in this leaf module so both `plugin` and
+ * `extensions` can reference it without forming a type cycle.
+ */
+export type HostCapability =
+  | "tool"
+  | "message"
+  | "agui"
+  | "layout"
+  | "workspace"
+  | "theme"
+  | "router"
+  | "composer"
+  | "sidebar"
+  | "shortcuts"
+  | "agent"
+  | "data"
+  | "commands"
+  | "extensions"
+  | "lifecycle"
+  | "state"
+  | "config"
+  | "settings"
+  | "storage"
+  | "rpc"
+  | "notify"
+  | "window"
+  | "plugins"
+  | "log"
+  | "i18n"
+  | "tasks";

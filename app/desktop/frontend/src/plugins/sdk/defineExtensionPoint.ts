@@ -9,15 +9,12 @@
 // the descriptor itself. Kept as a function (not a bare object) so the door
 // stays open for validation / branding without touching call sites.
 
-import type { ExtensionKeying, ExtensionPoint } from "./types/extensions";
+import type { ExtensionPoint } from "./types/extensions";
 
-export function defineExtensionPoint<T>(def: {
-  id: string;
-  keying: ExtensionKeying;
-  keyOf?: (item: T) => string;
-  normalizeKey?: (key: string) => string;
-  /** @internal kernel-only migration seam — see ExtensionPoint.field. */
-  field?: string;
-}): ExtensionPoint<T> {
+// The descriptor a caller passes — the whole `ExtensionPoint` shape minus the
+// phantom `__itemType` (carried for inference, never written).
+export function defineExtensionPoint<T>(
+  def: Omit<ExtensionPoint<T>, "__itemType">,
+): ExtensionPoint<T> {
   return def;
 }
