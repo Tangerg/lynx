@@ -47,6 +47,7 @@ export {
   lookupExtensionPoint,
   lookupShortcut,
   lookupSlashCommand,
+  lookupSlashCommandOwner,
   lookupTheme,
   lookupToolActionOwner,
   lookupToolIcon,

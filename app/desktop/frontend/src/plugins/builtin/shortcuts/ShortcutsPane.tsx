@@ -1,6 +1,6 @@
 // Settings pane: a single discoverability page for every keyboard
 // shortcut a plugin has registered. The list is built reactively off the
-// `usePluginStore.shortcuts` map, so plugins that load later automatically
+// `lyra.shortcut` extension point, so plugins that load later automatically
 // show up; nothing here knows about specific commands.
 
 import { useMemo, useState } from "react";

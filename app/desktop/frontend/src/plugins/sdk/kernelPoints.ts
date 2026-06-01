@@ -12,6 +12,7 @@
 import type {
   AgentSourceSpec,
   ComposerAttachmentSourceSpec,
+  ComposerKeyBindingSpec,
   ComposerModeSpec,
   ComposerPlaceholderSpec,
   ComposerStatusSpec,
@@ -21,8 +22,10 @@ import type {
   MessageRoleSpec,
   PluginErrorFallbackSpec,
   RouteSpec,
+  ShortcutSpec,
   SidebarRailItemSpec,
   SidebarSectionSpec,
+  SlashCommandSpec,
   ThemeAccentSpec,
   ThemeSpec,
   ToolActionSpec,
@@ -30,6 +33,7 @@ import type {
 } from "./types";
 import type { ContentBlockKind } from "@/protocol/agui/viewState";
 import { defineExtensionPoint } from "./defineExtensionPoint";
+import { normalizeCombo } from "./registry";
 
 // ---- theme domain --------------------------------------------------------
 export const THEME = defineExtensionPoint<ThemeSpec>({ id: "lyra.theme", keying: "single" });
@@ -71,6 +75,28 @@ export const COMPOSER_MODE = defineExtensionPoint<ComposerModeSpec>({
 export const COMPOSER_ATTACHMENT_SOURCE = defineExtensionPoint<ComposerAttachmentSourceSpec>({
   id: "lyra.composer.attachmentSource",
   keying: "single",
+});
+// Slash trigger lives in the map key (prepended "/" by the facade), not on the
+// spec — the facade passes it via `opts.key`.
+export const SLASH_COMMAND = defineExtensionPoint<SlashCommandSpec>({
+  id: "lyra.composer.slashCommand",
+  keying: "single",
+});
+// Key combos fold "Cmd+K" / "mod+k" to one canonical form on both contribute
+// and lookup, so registrations and keydown lookups always agree.
+export const COMPOSER_KEY_BINDING = defineExtensionPoint<ComposerKeyBindingSpec>({
+  id: "lyra.composer.keyBinding",
+  keying: "single",
+  keyOf: (s) => s.key,
+  normalizeKey: normalizeCombo,
+});
+
+// ---- shortcuts domain -----------------------------------------------------
+export const SHORTCUT = defineExtensionPoint<ShortcutSpec>({
+  id: "lyra.shortcut",
+  keying: "single",
+  keyOf: (s) => s.key,
+  normalizeKey: normalizeCombo,
 });
 
 // ---- sidebar domain -------------------------------------------------------

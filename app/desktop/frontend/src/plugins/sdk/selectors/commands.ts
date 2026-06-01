@@ -5,8 +5,15 @@
 
 import { useMemo } from "react";
 import type { CommandSpec, ContributedCommand, ShortcutSpec, SlashCommandSpec } from "../types";
+import { SHORTCUT, SLASH_COMMAND } from "../kernelPoints";
 import { usePluginStore } from "../registry";
 import { runActivator, useDeclaredMerged } from "./_helpers";
+import {
+  lookupExtensionByKey,
+  lookupExtensionOwner,
+  useExtensionEntries,
+  useExtensionPoint,
+} from "./extensions";
 
 // ---------------------------------------------------------------------------
 // Palette commands (registered + declared merged)
@@ -59,34 +66,34 @@ async function activateAndRun(pluginName: string, commandId: string): Promise<vo
 // then derives whatever shape it needs, with the Map as a dep so it only
 // recomputes when the underlying data actually changes.
 export function useSlashCommands(): Array<{ cmd: string; spec: SlashCommandSpec }> {
-  const map = usePluginStore((s) => s.slashCommands);
-  return useMemo(
-    () => Array.from(map.entries()).map(([cmd, owned]) => ({ cmd, spec: owned.value })),
-    [map],
-  );
+  const entries = useExtensionEntries(SLASH_COMMAND);
+  return useMemo(() => entries.map((e) => ({ cmd: e.key, spec: e.item })), [entries]);
 }
 
 /** Look up a slash command by exact key (including leading "/"). */
 export function lookupSlashCommand(cmd: string): SlashCommandSpec | undefined {
-  return usePluginStore.getState().slashCommands.get(cmd)?.value;
+  return lookupExtensionByKey(SLASH_COMMAND, cmd);
+}
+
+/** Owner plugin of a slash command — used for error attribution when one throws. */
+export function lookupSlashCommandOwner(cmd: string): string | undefined {
+  return lookupExtensionOwner(SLASH_COMMAND, cmd);
 }
 
 // ---------------------------------------------------------------------------
 // Shortcuts
 // ---------------------------------------------------------------------------
 
-/** Look up a registered shortcut by canonical combo (after `normalizeCombo`). */
+/** Look up a registered shortcut by combo — normalized to canonical form. */
 export function lookupShortcut(canonical: string): ShortcutSpec | undefined {
-  return usePluginStore.getState().shortcuts.get(canonical)?.value;
+  return lookupExtensionByKey(SHORTCUT, canonical);
 }
 
 /**
- * Every registered shortcut, in registration order. Used by the
- * cheat-sheet pane in Settings. ShortcutSpec has no `order` field, so
- * callers should sort by `description` (or whatever makes sense for
- * presentation) themselves.
+ * Every registered shortcut. Used by the cheat-sheet pane in Settings.
+ * ShortcutSpec has no `order` field, so callers should sort by `description`
+ * (or whatever makes sense for presentation) themselves.
  */
 export function useShortcuts(): ShortcutSpec[] {
-  const map = usePluginStore((s) => s.shortcuts);
-  return useMemo(() => Array.from(map.values()).map((o) => o.value), [map]);
+  return useExtensionPoint(SHORTCUT);
 }

@@ -2,7 +2,7 @@
 // button, and any future trigger (palette command etc.). Owns slash
 // routing + the always-clear-after-submit invariant.
 
-import { lookupSlashCommand, reportPluginError, usePluginStore } from "@/plugins/sdk";
+import { lookupSlashCommand, lookupSlashCommandOwner, reportPluginError } from "@/plugins/sdk";
 
 export interface SubmitDeps {
   /** Current textarea contents. */
@@ -24,8 +24,7 @@ export function submitComposer({ value, clear, sendText }: SubmitDeps): void {
     if (spec?.run) {
       void Promise.resolve(spec.run({ args: slash.args, send: sendText })).catch((err) => {
         console.error(`[plugin] command ${slash.cmd} threw:`, err);
-        const owner =
-          usePluginStore.getState().slashCommands.get(slash.cmd)?.pluginName ?? "unknown";
+        const owner = lookupSlashCommandOwner(slash.cmd) ?? "unknown";
         reportPluginError(owner, "command", err, `command: ${slash.cmd}`);
       });
       clear();
