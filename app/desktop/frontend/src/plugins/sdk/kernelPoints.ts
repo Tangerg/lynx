@@ -89,11 +89,13 @@ export const COMPOSER_ATTACHMENT_SOURCE = defineExtensionPoint<ComposerAttachmen
   id: "lyra.composer.attachmentSource",
   keying: "single",
 });
-// Slash trigger lives in the map key (prepended "/" by the facade), not on the
-// spec — the facade passes it via `opts.key`.
+// Slash trigger lives in the map key, not on the spec — contributors pass it
+// via `opts.key`. `normalizeKey` folds the leading "/" so callers can register
+// "ping" or "/ping" and look it up either way.
 export const SLASH_COMMAND = defineExtensionPoint<SlashCommandSpec>({
   id: "lyra.composer.slashCommand",
   keying: "single",
+  normalizeKey: (k) => (k.startsWith("/") ? k : `/${k}`),
 });
 // Key combos fold "Cmd+K" / "mod+k" to one canonical form on both contribute
 // and lookup, so registrations and keydown lookups always agree.

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { definePlugin, loadPlugin } from "@/plugins/sdk";
+import { SLASH_COMMAND } from "@/plugins/sdk/kernelPoints";
 import { parseSlash, submitComposer } from "./submitComposer";
 
 describe("parseSlash", () => {
@@ -40,7 +41,7 @@ describe("submitComposer", () => {
         name: "test.submit.slash",
         version: "1.0.0",
         setup: ({ host }) => {
-          host.composer.registerCommand("/echo", { description: "echo", run });
+          host.extensions.contribute(SLASH_COMMAND, { description: "echo", run }, { key: "/echo" });
         },
       }),
     );

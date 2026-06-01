@@ -4,6 +4,7 @@
 // handlers come from plugins.
 
 import { definePlugin } from "@/plugins/sdk";
+import { SLASH_COMMAND } from "@/plugins/sdk/kernelPoints";
 
 const HINTS: Array<[cmd: string, description: string]> = [
   ["/explain", "Explain a file, function, or selection"],
@@ -21,7 +22,7 @@ export default definePlugin({
   version: "1.0.0",
   setup({ host }) {
     for (const [cmd, description] of HINTS) {
-      host.composer.registerCommand(cmd, { description });
+      host.extensions.contribute(SLASH_COMMAND, { description }, { key: cmd });
     }
   },
 });

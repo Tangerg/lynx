@@ -14,6 +14,12 @@ import { useChatSend } from "@/lib/agent/useChatSend";
 import { useSessions } from "@/lib/data/queries";
 import { cn } from "@/lib/utils";
 import { definePlugin } from "@/plugins/sdk";
+import {
+  COMPOSER_KEY_BINDING,
+  COMPOSER_MODE,
+  COMPOSER_PLACEHOLDER,
+  COMPOSER_STATUS,
+} from "@/plugins/sdk/kernelPoints";
 import { useAgentAction, useAgentSlice } from "@/state/agentStore";
 import { useComposerStore } from "@/state/composerStore";
 import { useSessionStore } from "@/state/sessionStore";
@@ -24,21 +30,21 @@ export const composerModes = definePlugin({
   name: "lyra.builtin.composer-modes",
   version: "1.0.0",
   setup({ host }) {
-    host.composer.registerMode({
+    host.extensions.contribute(COMPOSER_MODE, {
       id: "agent",
       label: "Agent",
       icon: "spark",
       order: 0,
       description: "Runs tools, edits files, executes commands. Asks before risky actions.",
     });
-    host.composer.registerMode({
+    host.extensions.contribute(COMPOSER_MODE, {
       id: "ask",
       label: "Ask",
       icon: "chat",
       order: 1,
       description: "Read-only conversation. No tool calls, no file changes.",
     });
-    host.composer.registerMode({
+    host.extensions.contribute(COMPOSER_MODE, {
       id: "plan",
       label: "Plan",
       icon: "list",
@@ -54,19 +60,19 @@ export const composerPlaceholders = definePlugin({
   name: "lyra.builtin.composer-placeholders",
   version: "1.0.0",
   setup({ host }) {
-    host.composer.registerPlaceholder({
+    host.extensions.contribute(COMPOSER_PLACEHOLDER, {
       id: "ask",
       text: "Ask, plan, or paste a stack trace…  /  to run a command",
     });
-    host.composer.registerPlaceholder({
+    host.extensions.contribute(COMPOSER_PLACEHOLDER, {
       id: "debug",
       text: "Paste a failing test output and I'll walk you through it.",
     });
-    host.composer.registerPlaceholder({
+    host.extensions.contribute(COMPOSER_PLACEHOLDER, {
       id: "implement",
       text: "Implement what? Describe the change and I'll plan + execute.",
     });
-    host.composer.registerPlaceholder({
+    host.extensions.contribute(COMPOSER_PLACEHOLDER, {
       id: "refactor",
       text: "Point at code that smells; I'll suggest a refactor.",
     });
@@ -79,7 +85,7 @@ export const composerKeymap = definePlugin({
   name: "lyra.builtin.composer-keymap",
   version: "1.0.0",
   setup({ host }) {
-    host.composer.registerKeyBinding({
+    host.extensions.contribute(COMPOSER_KEY_BINDING, {
       key: "Enter",
       description: "Send message",
       handler: ({ submit, event }) => {
@@ -88,7 +94,7 @@ export const composerKeymap = definePlugin({
         return true;
       },
     });
-    host.composer.registerKeyBinding({
+    host.extensions.contribute(COMPOSER_KEY_BINDING, {
       key: "Mod+Enter",
       description: "Send message (override)",
       handler: ({ submit }) => {
@@ -148,8 +154,16 @@ export const composerChips = definePlugin({
   name: "lyra.builtin.composer-chips",
   version: "1.0.0",
   setup({ host }) {
-    host.composer.registerStatus({ id: "exec-mode", order: 1, component: ExecModeChip });
-    host.composer.registerStatus({ id: "git-branch", order: 2, component: GitBranchChip });
+    host.extensions.contribute(COMPOSER_STATUS, {
+      id: "exec-mode",
+      order: 1,
+      component: ExecModeChip,
+    });
+    host.extensions.contribute(COMPOSER_STATUS, {
+      id: "git-branch",
+      order: 2,
+      component: GitBranchChip,
+    });
   },
 });
 

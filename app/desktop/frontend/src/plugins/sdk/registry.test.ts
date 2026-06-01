@@ -11,7 +11,9 @@ import {
   AGENT_SOURCE,
   BEFORE_UNLOAD_HANDLER,
   COMPOSER_ATTACHMENT_SOURCE,
+  COMPOSER_KEY_BINDING,
   COMPOSER_MODE,
+  COMPOSER_PLACEHOLDER,
   COMPOSER_STATUS,
   DATA_PROVIDER,
   ERROR_FALLBACK,
@@ -21,6 +23,7 @@ import {
   SETTINGS_PANE,
   SIDEBAR_RAIL_ITEM,
   SIDEBAR_SECTION,
+  SLASH_COMMAND,
   THEME,
   TOOL_ACTION,
   TOOL_PREVIEW,
@@ -147,8 +150,8 @@ describe("plugin registry", () => {
   it("lookupSlashCommand normalizes the leading slash", () => {
     const sink: Disposable[] = [];
     const host = createHost("alpha", sink);
-    host.composer.registerCommand("/ping", { description: "pong" });
-    host.composer.registerCommand("hello", { description: "hi" });
+    host.extensions.contribute(SLASH_COMMAND, { description: "pong" }, { key: "/ping" });
+    host.extensions.contribute(SLASH_COMMAND, { description: "hi" }, { key: "hello" });
 
     expect(lookupSlashCommand("/ping")?.description).toBe("pong");
     expect(lookupSlashCommand("/hello")?.description).toBe("hi");
@@ -292,7 +295,7 @@ describe("plugin registry", () => {
   it("composer.registerStatus stores a chip", () => {
     const sink: Disposable[] = [];
     const host = createHost("alpha", sink);
-    host.composer.registerStatus({ id: "branch", order: 5, component: () => null });
+    host.extensions.contribute(COMPOSER_STATUS, { id: "branch", order: 5, component: () => null });
 
     expect(lookupExtensionPoint(COMPOSER_STATUS).length).toBe(1);
     expect(lookupExtensionByKey(COMPOSER_STATUS, "branch")?.order).toBe(5);
@@ -357,7 +360,7 @@ describe("plugin registry", () => {
   it("composer.registerKeyBinding stores under canonical key", () => {
     const sink: Disposable[] = [];
     const host = createHost("alpha", sink);
-    host.composer.registerKeyBinding({
+    host.extensions.contribute(COMPOSER_KEY_BINDING, {
       key: "Mod+Enter",
       handler: () => true,
     });
@@ -368,7 +371,7 @@ describe("plugin registry", () => {
   it("composer.registerAttachmentSource stores a source", () => {
     const sink: Disposable[] = [];
     const host = createHost("alpha", sink);
-    host.composer.registerAttachmentSource({
+    host.extensions.contribute(COMPOSER_ATTACHMENT_SOURCE, {
       id: "files",
       order: 5,
       useAttachments: () => [],
@@ -483,7 +486,12 @@ describe("plugin registry", () => {
   it("composer.registerMode stores a mode", () => {
     const sink: Disposable[] = [];
     const host = createHost("alpha", sink);
-    host.composer.registerMode({ id: "research", label: "Research", icon: "search", order: 5 });
+    host.extensions.contribute(COMPOSER_MODE, {
+      id: "research",
+      label: "Research",
+      icon: "search",
+      order: 5,
+    });
 
     expect(lookupExtensionPoint(COMPOSER_MODE).length).toBe(1);
     expect(lookupExtensionByKey(COMPOSER_MODE, "research")?.label).toBe("Research");
@@ -674,7 +682,7 @@ describe("plugin registry", () => {
   it("composer.registerPlaceholder pool picks one entry", () => {
     const sink: Disposable[] = [];
     const host = createHost("alpha", sink);
-    host.composer.registerPlaceholder({ id: "only", text: "Hi" });
+    host.extensions.contribute(COMPOSER_PLACEHOLDER, { id: "only", text: "Hi" });
 
     const pick = pickComposerPlaceholder();
     expect(pick?.text).toBe("Hi");

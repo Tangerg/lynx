@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { definePlugin, loadPlugin } from "@/plugins/sdk";
+import { COMPOSER_KEY_BINDING } from "@/plugins/sdk/kernelPoints";
 import { Composer } from "./Composer";
 
 // Composer relies on a built-in composer-keymap registration to bind
@@ -11,7 +12,7 @@ async function withEnterKeymap() {
       name: "test.composer-keymap",
       version: "1.0.0",
       setup: ({ host }) => {
-        host.composer.registerKeyBinding({
+        host.extensions.contribute(COMPOSER_KEY_BINDING, {
           key: "Enter",
           description: "submit",
           handler: ({ submit }) => {
