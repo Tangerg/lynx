@@ -25,7 +25,8 @@ const CUSTOM_THEME_ID = "custom";
 
 // mix(a, pct, b) → CSS color-mix string: pct% of `a`, rest `b`. Resolved by
 // the browser, so the derived ladder tracks the base colors exactly.
-const mix = (a: string, pct: number, b: string): string => `color-mix(in srgb, ${a} ${pct}%, ${b})`;
+const mix = (a: string, pct: number, b: string): string =>
+  `color-mix(in oklab, ${a} ${pct}%, ${b})`;
 
 /** Derive a full theme spec from the custom bg/fg + the shared global accent.
  *  `contrast` (0–100) scales how far each derived ladder spreads from the

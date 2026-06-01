@@ -122,17 +122,17 @@
   --color-surface: #181a1d;
   --depth-step: 5%;
   --color-surface-2: color-mix(
-    in srgb,
+    in oklab,
     var(--color-text) calc(var(--depth-step) * 1),
     var(--color-surface)
   );
   --color-surface-3: color-mix(
-    in srgb,
+    in oklab,
     var(--color-text) calc(var(--depth-step) * 2),
     var(--color-surface)
   );
   --color-surface-4: color-mix(
-    in srgb,
+    in oklab,
     var(--color-text) calc(var(--depth-step) * 3),
     var(--color-surface)
   );
@@ -243,7 +243,7 @@
     inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 1px 2px rgba(0, 0, 0, 0.4),
     0 8px 16px -4px rgba(0, 0, 0, 0.5), 0 24px 32px -8px rgba(0, 0, 0, 0.6),
     inset 0 0 0 1px var(--color-border);
-  --shadow-glow: 0 0 12px color-mix(in srgb, var(--color-accent) 50%, transparent);
+  --shadow-glow: 0 0 12px color-mix(in oklab, var(--color-accent) 50%, transparent);
   --shadow-card: none;
   --shadow-dialog: var(--shadow-lg);
   --shadow-soft: none;
@@ -252,7 +252,7 @@
   /* Input focus ring — accent halo + soft-border inset, used by
      .side-search and any input that wants the same affordance. */
   --shadow-input-focus:
-    0 0 0 2px color-mix(in srgb, var(--color-accent) 30%, transparent),
+    0 0 0 2px color-mix(in oklab, var(--color-accent) 30%, transparent),
     inset 0 0 0 1px var(--color-border-soft);
 }
 
@@ -295,7 +295,7 @@ body {
 /* Accent-tinted text selection — reads as a deliberate UI affordance
    instead of the OS default blue bleeding through. */
 ::selection {
-  background: color-mix(in srgb, var(--color-accent) 30%, transparent);
+  background: color-mix(in oklab, var(--color-accent) 30%, transparent);
   color: var(--color-text);
 }
 
@@ -325,7 +325,7 @@ html.theme-light .tool-card.selected {
 :focus-visible {
   outline: 2px solid var(--color-accent);
   outline-offset: 2px;
-  box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-accent) 22%, transparent);
+  box-shadow: 0 0 0 4px color-mix(in oklab, var(--color-accent) 22%, transparent);
 }
 /* Inputs already get an inset focus stroke from --shadow-input-focus —
    skip the outline so the two effects don't double up. */

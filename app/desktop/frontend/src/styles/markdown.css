@@ -118,8 +118,8 @@
   margin: 0 8px 0 0;
   vertical-align: -2px;
   border-radius: 4px;
-  border: 1.5px solid color-mix(in srgb, var(--color-text) 22%, transparent);
-  background: color-mix(in srgb, var(--color-text) 4%, transparent);
+  border: 1.5px solid color-mix(in oklab, var(--color-text) 22%, transparent);
+  background: color-mix(in oklab, var(--color-text) 4%, transparent);
   cursor: default;
   position: relative;
   transition:
@@ -144,7 +144,7 @@
 .md blockquote {
   margin: 12px 0;
   padding: 2px 0 2px 14px;
-  border-left: 2px solid color-mix(in srgb, var(--color-accent) 55%, transparent);
+  border-left: 2px solid color-mix(in oklab, var(--color-accent) 55%, transparent);
   color: var(--color-text-muted);
   font-style: italic;
 }
@@ -155,7 +155,7 @@
 .md a {
   color: var(--color-accent);
   text-decoration: underline;
-  text-decoration-color: color-mix(in srgb, var(--color-accent) 35%, transparent);
+  text-decoration-color: color-mix(in oklab, var(--color-accent) 35%, transparent);
   text-underline-offset: 2px;
   transition: text-decoration-color var(--polish-fast);
 }
@@ -165,7 +165,7 @@
 
 .md hr {
   border: 0;
-  border-top: 1px solid color-mix(in srgb, var(--color-text) 10%, transparent);
+  border-top: 1px solid color-mix(in oklab, var(--color-text) 10%, transparent);
   margin: 18px 0;
 }
 
@@ -181,7 +181,7 @@
   height: 8px;
 }
 .md-table-wrap::-webkit-scrollbar-thumb {
-  background: color-mix(in srgb, var(--color-text) 14%, transparent);
+  background: color-mix(in oklab, var(--color-text) 14%, transparent);
   border-radius: var(--radius-pill);
   border: 2px solid transparent;
   background-clip: content-box;
@@ -194,7 +194,7 @@
   margin: 12px 0;
   font-size: 13px; /* two steps below body (15) so rows stay dense */
   width: auto;
-  border: 1px solid color-mix(in srgb, var(--color-text) 10%, transparent);
+  border: 1px solid color-mix(in oklab, var(--color-text) 10%, transparent);
   border-radius: 8px;
   overflow: hidden;
 }
@@ -202,13 +202,13 @@
 .md table td {
   padding: 7px 12px;
   text-align: left;
-  border-bottom: 1px solid color-mix(in srgb, var(--color-text) 7%, transparent);
+  border-bottom: 1px solid color-mix(in oklab, var(--color-text) 7%, transparent);
 }
 .md table tr:last-child td {
   border-bottom: 0;
 }
 .md table th {
-  background: color-mix(in srgb, var(--color-text) 5%, transparent);
+  background: color-mix(in oklab, var(--color-text) 5%, transparent);
   color: var(--color-text-bright);
   font-weight: 600;
   font-size: 12px;
@@ -217,7 +217,7 @@
   text-transform: none;
 }
 .md table tbody tr:hover td {
-  background: color-mix(in srgb, var(--color-text) 3%, transparent);
+  background: color-mix(in oklab, var(--color-text) 3%, transparent);
 }
 
 /* Inline code — flat tinted background, no border (would compete with
@@ -226,7 +226,7 @@
   font-family: var(--font-mono);
   font-size: 0.88em;
   padding: 1px 6px;
-  background: color-mix(in srgb, var(--color-text) 8%, transparent);
+  background: color-mix(in oklab, var(--color-text) 8%, transparent);
   border-radius: 4px;
   color: var(--color-text);
   letter-spacing: 0;
@@ -272,7 +272,7 @@
 }
 .shiki-block .shiki::-webkit-scrollbar-thumb,
 .shiki-block .shiki-fallback::-webkit-scrollbar-thumb {
-  background: color-mix(in srgb, var(--color-text) 14%, transparent);
+  background: color-mix(in oklab, var(--color-text) 14%, transparent);
   border-radius: var(--radius-pill);
   border: 2px solid transparent;
   background-clip: content-box;
@@ -299,7 +299,7 @@
   margin: 16px 0;
   padding: 10px 14px;
   border-radius: var(--radius-md);
-  background: color-mix(in srgb, var(--color-text) 3%, transparent);
+  background: color-mix(in oklab, var(--color-text) 3%, transparent);
 }
 .md .markdown-alert .markdown-alert-title {
   font-family: var(--font-mono);
