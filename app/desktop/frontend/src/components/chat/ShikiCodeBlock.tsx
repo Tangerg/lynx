@@ -19,7 +19,7 @@ interface Props {
 }
 
 // We debounce `code` so the Shiki tokenizer (3-10ms per pass) doesn't
-// run on every smooth-text delta during streaming. While it's settling,
+// run on every stream-reveal delta during streaming. While it's settling,
 // raw code shows in a <pre> fallback. Blocks longer than this auto-fold
 // once the stream finishes.
 const FOLD_LINE_THRESHOLD = 24;

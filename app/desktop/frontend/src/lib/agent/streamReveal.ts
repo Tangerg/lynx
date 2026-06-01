@@ -1,8 +1,15 @@
-// Smooth-text engine — paces token reveal at a steady rate so each
-// per-word fade-in has time to register, regardless of how irregularly
-// the backend chunks arrive. Three-tier adaptive rate based on backlog
-// + drain mode when the stream ends + time-based char-debt accounting
-// so the visible cadence stays on-target through vsync jitter.
+// Stream-reveal engine — paces assistant token reveal at a steady, backlog-
+// adaptive rate regardless of how irregularly the backend chunks arrive. One
+// rAF loop + time-based char-debt accounting drives two reveal modes that share
+// the same cadence math and differ only in their per-frame advance:
+//
+//   - smooth     — reveals whole words and breathes at sentence ends, so each
+//                  per-word fade-in (applied by the caller) has time to land.
+//   - typewriter — reveals raw characters, no snapping, no pauses: a steady
+//                  terminal type-out (the caller drops the fade + adds a caret).
+//
+// Three-tier rate by backlog + a drain mode when the stream ends keep the
+// visible cadence on-target through vsync jitter and bursty chunking.
 
 import { useEffect, useRef, useState } from "react";
 import { segmentWords } from "@/lib/i18n/segmentWords";
@@ -28,7 +35,7 @@ const DRAIN_RATE_PER_CHAR = 8;
 const SENTENCE_END_RE = /[。！？…!?.]$/;
 
 // Exported so tests can pin the rate selection. Not part of the public
-// API otherwise — keep imports through `useSmoothText` from app code.
+// API otherwise — keep imports through `useStreamReveal` from app code.
 export function pickRate(backlog: number, streaming: boolean): number {
   if (!streaming) {
     // Drain mode — proportional to remaining backlog, clamped.
@@ -39,13 +46,12 @@ export function pickRate(backlog: number, streaming: boolean): number {
   return RATE_CRUISE;
 }
 
-// Reveals `rawText` at the adaptive rate from pickRate. `enabled` controls
-// both the initial state (false → start fully revealed) and the live rate
-// (false → drain mode). `typewriter` switches the reveal granularity from
-// whole-word + per-word fade (smooth, the default) to crisp character-by-
-// character with no sentence pauses (a steady terminal cadence). The rAF loop
-// stays mounted so stream-end transitions drain gracefully.
-export function useSmoothText(rawText: string, enabled: boolean, typewriter = false): string {
+// Reveals `rawText` at the adaptive rate from pickRate. `enabled` controls both
+// the initial state (false → start fully revealed) and the live rate (false →
+// drain mode). `typewriter` switches the per-frame advance from whole-word +
+// sentence pauses (smooth, the default) to raw character-by-character. The rAF
+// loop stays mounted so stream-end transitions drain gracefully.
+export function useStreamReveal(rawText: string, enabled: boolean, typewriter = false): string {
   const initialLen = enabled ? 0 : rawText.length;
   const [displayLen, setDisplayLen] = useState(initialLen);
 
@@ -60,11 +66,10 @@ export function useSmoothText(rawText: string, enabled: boolean, typewriter = fa
     pauseUntil: 0,
   });
 
-  // Mirror the enabled flag into a ref so the rAF closure picks up the
-  // latest value without re-subscribing.
+  // Mirror the live flags into refs so the rAF closure picks up the latest
+  // values without re-subscribing.
   const enabledRef = useRef(enabled);
   enabledRef.current = enabled;
-
   const typewriterRef = useRef(typewriter);
   typewriterRef.current = typewriter;
 
@@ -102,72 +107,57 @@ export function useSmoothText(rawText: string, enabled: boolean, typewriter = fa
         return;
       }
 
-      // Typewriter cadence — reveal individual characters at the same
-      // backlog-adaptive rate, no word snapping, no sentence pauses. The
-      // crisp char-by-char appear IS the effect (the caller drops the
-      // per-word fade-in), so it reads as a steady terminal type-out.
-      if (typewriterRef.current) {
-        let reveal: number;
-        if (st.lastTickAt < 0) {
-          st.lastTickAt = now;
-          reveal = 1; // cold start: emit one char so it doesn't look hung
-        } else {
-          const elapsed = Math.min(now - st.lastTickAt, MAX_FRAME_STEP_MS);
-          st.lastTickAt = now;
-          st.charDebt += pickRate(backlog, enabledRef.current) * (elapsed / 1000);
-          reveal = Math.floor(st.charDebt);
-          st.charDebt = Math.max(0, Math.min(st.charDebt - reveal, MAX_DEBT));
-        }
-        const newLen = Math.min(st.displayLen + reveal, st.rawText.length);
-        if (newLen !== st.displayLen) {
-          st.displayLen = newLen;
-          setDisplayLen(newLen);
-        }
-        rafId = requestAnimationFrame(tick);
-        return;
-      }
-
-      // Find the word boundary that aligns with the current displayLen.
-      const words = st.words;
-      let charCount = 0;
-      let wordIdx = 0;
-      while (wordIdx < words.length && charCount < st.displayLen) {
-        charCount += words[wordIdx]!.length;
-        wordIdx++;
-      }
-
-      const isFirstFrame = st.lastTickAt < 0;
-      if (isFirstFrame) {
-        // Cold start: emit at least one word so the bubble doesn't feel
-        // like it's hung.
+      // --- Shared cadence: turn elapsed time into a per-frame char budget. ---
+      if (st.lastTickAt < 0) {
+        // Cold start: seed one unit so the first frame isn't empty (no elapsed
+        // to integrate yet). The advance below consumes it — one word / char.
         st.lastTickAt = now;
-        if (wordIdx < words.length) {
-          charCount += words[wordIdx]!.length;
-          wordIdx++;
-        }
+        st.charDebt = 1;
       } else {
         const elapsed = Math.min(now - st.lastTickAt, MAX_FRAME_STEP_MS);
         st.lastTickAt = now;
-        const rate = pickRate(backlog, enabledRef.current);
-        st.charDebt += rate * (elapsed / 1000);
+        st.charDebt += pickRate(backlog, enabledRef.current) * (elapsed / 1000);
+      }
+
+      // --- Mode-specific advance — the only step that differs. ---
+      let newLen: number;
+      let lastWord = "";
+      if (typewriterRef.current) {
+        // Raw characters: spend the integer part of the debt.
+        const reveal = Math.floor(st.charDebt);
+        st.charDebt -= reveal;
+        newLen = st.displayLen + reveal;
+      } else {
+        // Whole words: walk to the current boundary, then reveal words while
+        // the debt covers them (debt paid in characters).
+        const words = st.words;
+        let charCount = 0;
+        let wordIdx = 0;
+        while (wordIdx < words.length && charCount < st.displayLen) {
+          charCount += words[wordIdx]!.length;
+          wordIdx++;
+        }
         while (st.charDebt >= 1 && wordIdx < words.length) {
           const w = words[wordIdx]!;
           charCount += w.length;
           st.charDebt -= w.length;
           wordIdx++;
         }
-        st.charDebt = Math.max(0, Math.min(st.charDebt, MAX_DEBT));
+        lastWord = wordIdx > 0 ? words[wordIdx - 1]! : "";
+        newLen = charCount;
       }
+      st.charDebt = Math.max(0, Math.min(st.charDebt, MAX_DEBT));
 
-      const lastWord = wordIdx > 0 ? words[wordIdx - 1] : "";
-      const newLen = Math.min(charCount, st.rawText.length);
+      // --- Shared commit. ---
+      newLen = Math.min(newLen, st.rawText.length);
       if (newLen !== st.displayLen) {
         st.displayLen = newLen;
         setDisplayLen(newLen);
       }
-      // Sentence-end breathing — only honour while still streaming. During
-      // drain we want to flush without artificial pauses.
-      if (enabledRef.current && lastWord && SENTENCE_END_RE.test(lastWord.trimEnd())) {
+
+      // Sentence-end breathing — smooth mode only (lastWord is "" in
+      // typewriter), and only while still streaming (drain flushes clean).
+      if (lastWord && enabledRef.current && SENTENCE_END_RE.test(lastWord.trimEnd())) {
         st.pauseUntil = now + SENTENCE_PAUSE_MS;
       }
 

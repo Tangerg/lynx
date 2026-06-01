@@ -39,7 +39,7 @@ function readThemeColors() {
 
 // Debounced 300ms — every parse on an in-progress diagram throws
 // (malformed until the closing fence lands), each throw is 30-100ms,
-// and smooth-text feeds chars at ~30 Hz. Until the source settles we
+// and stream-reveal feeds chars at ~30 Hz. Until the source settles we
 // show a quiet "pending" pre-block; settled + parses → SVG snaps in.
 export function MermaidBlock({ code }: Props) {
   // theme + accent feed into readThemeColors() below via deps so the
