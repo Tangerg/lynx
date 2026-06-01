@@ -9,8 +9,8 @@
 import type { ReactNode } from "react";
 import type { RunDigest } from "@/protocol/agui/runDigest";
 import { useMemo, useState } from "react";
-import { EmptyState, Icon, IconButton, ScrollArea } from "@/components/common";
-import { ViewHeader } from "./views/ViewHeader";
+import { EmptyState, Icon, IconButton } from "@/components/common";
+import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
 import { cn } from "@/lib/utils";
 import { defineWorkspaceView } from "./defineWorkspaceView";
 import { buildPlaintext, deriveLatestRun, durationText } from "@/protocol/agui/runDigest";
@@ -69,16 +69,13 @@ function RunSummaryTab() {
 
   if (!digest) {
     return (
-      <>
-        <ViewHeader icon="check" titleStrong title="Run summary" sub="No runs yet" />
-        <ScrollArea>
-          <EmptyState
-            icon="check"
-            title="Nothing to summarise yet"
-            sub="When a run finishes, its changes, commands, approvals, and errors collect here."
-          />
-        </ScrollArea>
-      </>
+      <WorkspaceViewLayout icon="check" titleStrong title="Run summary" sub="No runs yet">
+        <EmptyState
+          icon="check"
+          title="Nothing to summarise yet"
+          sub="When a run finishes, its changes, commands, approvals, and errors collect here."
+        />
+      </WorkspaceViewLayout>
     );
   }
 
@@ -100,105 +97,102 @@ function RunSummaryTab() {
   };
 
   return (
-    <>
-      <ViewHeader
-        icon="check"
-        titleStrong
-        title="Run summary"
-        sub={`run ${digest.runId ?? "—"} · ${dur}`}
-        actions={
-          <IconButton title={copied ? "Copied" : "Copy summary"} onClick={onCopy}>
-            <Icon name={copied ? "check" : "copy"} size={14} />
-          </IconButton>
-        }
-      />
-      <ScrollArea>
-        <div className="px-4 pb-2 pt-1">
-          <span
-            className={cn(
-              "inline-flex items-center rounded-sm border px-1.5 py-px font-mono text-[10.5px] font-semibold uppercase tracking-wider",
-              status.cls,
-            )}
+    <WorkspaceViewLayout
+      icon="check"
+      titleStrong
+      title="Run summary"
+      sub={`run ${digest.runId ?? "—"} · ${dur}`}
+      actions={
+        <IconButton title={copied ? "Copied" : "Copy summary"} onClick={onCopy}>
+          <Icon name={copied ? "check" : "copy"} size={14} />
+        </IconButton>
+      }
+    >
+      <div className="px-4 pb-2 pt-1">
+        <span
+          className={cn(
+            "inline-flex items-center rounded-sm border px-1.5 py-px font-mono text-[10.5px] font-semibold uppercase tracking-wider",
+            status.cls,
+          )}
+        >
+          {status.label}
+        </span>
+      </div>
+
+      <Section title="Changed files" count={digest.changedFiles.length}>
+        {digest.changedFiles.map((f) => (
+          <div
+            key={f.path}
+            className="flex items-baseline gap-2 font-mono text-[12px] text-fg-muted"
           >
-            {status.label}
-          </span>
-        </div>
+            <Icon name="filetext" size={11} className="text-fg-faint" />
+            <span className="truncate text-fg">{f.path}</span>
+            {(f.added != null || f.removed != null) && (
+              <span className="ml-auto text-[11px]">
+                <span className="text-positive">+{f.added ?? 0}</span>
+                {" / "}
+                <span className="text-negative">-{f.removed ?? 0}</span>
+              </span>
+            )}
+          </div>
+        ))}
+      </Section>
 
-        <Section title="Changed files" count={digest.changedFiles.length}>
-          {digest.changedFiles.map((f) => (
-            <div
-              key={f.path}
-              className="flex items-baseline gap-2 font-mono text-[12px] text-fg-muted"
+      <Section title="Read files" count={digest.readFiles.length}>
+        {digest.readFiles.map((p) => (
+          <div key={p} className="flex items-baseline gap-2 font-mono text-[12px] text-fg-muted">
+            <Icon name="filetext" size={11} className="text-fg-faint" />
+            <span className="truncate">{p}</span>
+          </div>
+        ))}
+      </Section>
+
+      <Section title="Commands" count={digest.commands.length}>
+        {digest.commands.map((c, i) => (
+          <div key={`${c.cmd}:${i}`} className="flex items-baseline gap-2 font-mono text-[12px]">
+            <Icon name="terminal" size={11} className="text-fg-faint" />
+            <span
+              className={cn("truncate", c.status === "err" ? "text-negative" : "text-fg-muted")}
             >
-              <Icon name="filetext" size={11} className="text-fg-faint" />
-              <span className="truncate text-fg">{f.path}</span>
-              {(f.added != null || f.removed != null) && (
-                <span className="ml-auto text-[11px]">
-                  <span className="text-positive">+{f.added ?? 0}</span>
-                  {" / "}
-                  <span className="text-negative">-{f.removed ?? 0}</span>
-                </span>
+              {c.cmd}
+            </span>
+          </div>
+        ))}
+      </Section>
+
+      <Section title="Approvals" count={digest.approvals.length}>
+        {digest.approvals.map((a, i) => (
+          <div
+            key={`${a.command}:${i}`}
+            className="flex items-baseline gap-2 font-mono text-[12px] text-fg-muted"
+          >
+            <Icon name="shield" size={11} className="text-fg-faint" />
+            <span className="truncate">{a.command || "(no command)"}</span>
+            <span
+              className={cn(
+                "ml-auto rounded-xs px-1 text-[10px] font-semibold uppercase tracking-wider",
+                a.decision === "approved"
+                  ? "text-positive"
+                  : a.decision === "declined"
+                    ? "text-warning"
+                    : "text-fg-faint",
               )}
-            </div>
-          ))}
-        </Section>
-
-        <Section title="Read files" count={digest.readFiles.length}>
-          {digest.readFiles.map((p) => (
-            <div key={p} className="flex items-baseline gap-2 font-mono text-[12px] text-fg-muted">
-              <Icon name="filetext" size={11} className="text-fg-faint" />
-              <span className="truncate">{p}</span>
-            </div>
-          ))}
-        </Section>
-
-        <Section title="Commands" count={digest.commands.length}>
-          {digest.commands.map((c, i) => (
-            <div key={`${c.cmd}:${i}`} className="flex items-baseline gap-2 font-mono text-[12px]">
-              <Icon name="terminal" size={11} className="text-fg-faint" />
-              <span
-                className={cn("truncate", c.status === "err" ? "text-negative" : "text-fg-muted")}
-              >
-                {c.cmd}
-              </span>
-            </div>
-          ))}
-        </Section>
-
-        <Section title="Approvals" count={digest.approvals.length}>
-          {digest.approvals.map((a, i) => (
-            <div
-              key={`${a.command}:${i}`}
-              className="flex items-baseline gap-2 font-mono text-[12px] text-fg-muted"
             >
-              <Icon name="shield" size={11} className="text-fg-faint" />
-              <span className="truncate">{a.command || "(no command)"}</span>
-              <span
-                className={cn(
-                  "ml-auto rounded-xs px-1 text-[10px] font-semibold uppercase tracking-wider",
-                  a.decision === "approved"
-                    ? "text-positive"
-                    : a.decision === "declined"
-                      ? "text-warning"
-                      : "text-fg-faint",
-                )}
-              >
-                {a.decision ?? "pending"}
-              </span>
-            </div>
-          ))}
-        </Section>
+              {a.decision ?? "pending"}
+            </span>
+          </div>
+        ))}
+      </Section>
 
-        <Section title="Errors" count={digest.errors.length}>
-          {digest.errors.map((e, i) => (
-            <div key={`${e}:${i}`} className="flex items-baseline gap-2 text-[12px] text-negative">
-              <Icon name="bug" size={11} />
-              <span className="whitespace-pre-wrap break-words">{e}</span>
-            </div>
-          ))}
-        </Section>
-      </ScrollArea>
-    </>
+      <Section title="Errors" count={digest.errors.length}>
+        {digest.errors.map((e, i) => (
+          <div key={`${e}:${i}`} className="flex items-baseline gap-2 text-[12px] text-negative">
+            <Icon name="bug" size={11} />
+            <span className="whitespace-pre-wrap break-words">{e}</span>
+          </div>
+        ))}
+      </Section>
+    </WorkspaceViewLayout>
   );
 }
 

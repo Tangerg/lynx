@@ -12,8 +12,8 @@
 
 import type { IconName } from "@/components/common";
 import type { TimelineEntry, TimelineEntryKind } from "@/protocol/agui/viewState";
-import { EmptyState, Icon, IconButton, ScrollArea } from "@/components/common";
-import { ViewHeader } from "./views/ViewHeader";
+import { EmptyState, Icon, IconButton } from "@/components/common";
+import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
 import { cn } from "@/lib/utils";
 import { defineWorkspaceView } from "./defineWorkspaceView";
 import { useAgentSlice } from "@/state/agentStore";
@@ -102,44 +102,42 @@ function TimelineTab() {
   const runCount = groups.filter((g) => g.runId !== null).length;
 
   return (
-    <>
-      <ViewHeader
-        icon="history"
-        titleStrong
-        title="Run timeline"
-        sub={`${timeline.length} events · ${runCount} run${runCount === 1 ? "" : "s"}`}
-        actions={
-          <IconButton title="Jump to chat" onClick={() => useSessionStore.getState().selectChat()}>
-            <Icon name="chat" size={14} />
-          </IconButton>
-        }
-      />
-      <ScrollArea className="py-1">
-        {timeline.length === 0 ? (
-          <EmptyState
-            icon="history"
-            title="No activity yet"
-            sub="As the agent runs, every tool call, approval, and run boundary lands here."
-          />
-        ) : (
-          groups.map((g, gi) => (
-            <div
-              key={`${g.runId ?? "pre"}:${gi}`}
-              className={cn(gi > 0 && "mt-2 border-t border-line-soft pt-2")}
-            >
-              {g.runId && (
-                <div className="px-3.5 pb-1 font-mono text-[10px] uppercase tracking-wider text-fg-faint">
-                  run {g.runId}
-                </div>
-              )}
-              {g.items.map((entry) => (
-                <TimelineRow key={entry.id} entry={entry} />
-              ))}
-            </div>
-          ))
-        )}
-      </ScrollArea>
-    </>
+    <WorkspaceViewLayout
+      icon="history"
+      titleStrong
+      title="Run timeline"
+      sub={`${timeline.length} events · ${runCount} run${runCount === 1 ? "" : "s"}`}
+      scrollClassName="py-1"
+      actions={
+        <IconButton title="Jump to chat" onClick={() => useSessionStore.getState().selectChat()}>
+          <Icon name="chat" size={14} />
+        </IconButton>
+      }
+    >
+      {timeline.length === 0 ? (
+        <EmptyState
+          icon="history"
+          title="No activity yet"
+          sub="As the agent runs, every tool call, approval, and run boundary lands here."
+        />
+      ) : (
+        groups.map((g, gi) => (
+          <div
+            key={`${g.runId ?? "pre"}:${gi}`}
+            className={cn(gi > 0 && "mt-2 border-t border-line-soft pt-2")}
+          >
+            {g.runId && (
+              <div className="px-3.5 pb-1 font-mono text-[10px] uppercase tracking-wider text-fg-faint">
+                run {g.runId}
+              </div>
+            )}
+            {g.items.map((entry) => (
+              <TimelineRow key={entry.id} entry={entry} />
+            ))}
+          </div>
+        ))
+      )}
+    </WorkspaceViewLayout>
   );
 }
 
