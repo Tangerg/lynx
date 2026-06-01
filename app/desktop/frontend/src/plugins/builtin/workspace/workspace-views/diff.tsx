@@ -44,10 +44,10 @@ function DiffViewTab() {
 
   const sub = (
     <>
-      <span style={{ color: "var(--color-accent)" }}>+{added}</span>
-      <span style={{ margin: "0 4px" }}>·</span>
-      <span style={{ color: "var(--color-negative)" }}>−{removed}</span>
-      <span style={{ margin: "0 8px", color: "var(--color-text-faint)" }}>·</span>
+      <span className="text-accent">+{added}</span>
+      <span className="mx-1">·</span>
+      <span className="text-negative">−{removed}</span>
+      <span className="mx-2">·</span>
       <span>{lineCount} lines</span>
     </>
   );

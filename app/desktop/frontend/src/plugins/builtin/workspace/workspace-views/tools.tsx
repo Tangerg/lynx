@@ -25,7 +25,7 @@ function ToolsTab() {
           </IconButton>
         }
       />
-      <ScrollArea style={{ padding: "4px 0" }}>
+      <ScrollArea className="py-1">
         <DataView
           items={servers}
           isLoading={isLoading}

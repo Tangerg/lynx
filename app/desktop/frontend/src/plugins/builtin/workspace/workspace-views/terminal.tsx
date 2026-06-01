@@ -18,14 +18,14 @@ function TerminalTab() {
 
   const sub = (
     <>
-      <span style={{ color: running ? "var(--color-info)" : "var(--color-text-faint)" }}>
+      <span className={running ? "text-info" : "text-fg-faint"}>
         ● {running ? "Running" : "Idle"}
       </span>
-      <span style={{ margin: "0 8px", color: "var(--color-text-faint)" }}>·</span>
+      <span className="mx-2">·</span>
       <span>
         {errors} error{errors === 1 ? "" : "s"} · {warnings} warning{warnings === 1 ? "" : "s"}
       </span>
-      <span style={{ margin: "0 8px", color: "var(--color-text-faint)" }}>·</span>
+      <span className="mx-2">·</span>
       <span>{cwd}</span>
     </>
   );
