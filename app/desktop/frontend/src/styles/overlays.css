@@ -42,6 +42,16 @@
   animation: fadeIn 0.7s ease-in-out both;
 }
 
+/* Apple spatial-motion rule: Radix poppers scale out from their trigger edge,
+   not uniformly from below. Radix sets `--radix-popper-transform-origin` on the
+   popper wrapper per side/align; apply it to the animated content child so the
+   shared `animate-rise-in` (scale 0.97→1) emanates from the trigger. Non-popper
+   overlays (cmdk palette, SlashSuggestions) aren't wrapped, so they keep the
+   default centre origin — which is correct for a centred modal. */
+[data-radix-popper-content-wrapper] > * {
+  transform-origin: var(--radix-popper-transform-origin, center);
+}
+
 /* Chat search hit painting (chat-search plugin). Uses CSS Custom
    Highlight API — Range objects painted by `CSS.highlights.set(name, ...)`
    pick up these pseudo-class rules. */

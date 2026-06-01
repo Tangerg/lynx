@@ -94,11 +94,11 @@
 }
 @keyframes lyra-rise-in {
   from {
-    transform: translateY(8px);
+    transform: scale(0.97) translateY(4px);
     opacity: 0;
   }
   to {
-    transform: translateY(0);
+    transform: scale(1) translateY(0);
     opacity: 1;
   }
 }
@@ -271,6 +271,13 @@ body {
   font-size: var(--fs-body-md);
   font-weight: var(--fw-regular);
   line-height: var(--leading-body);
+}
+
+/* Mono is the technical / data voice (DESIGN.md §3) — bake tabular figures into
+   the face itself so every ID / duration / count / token meter / code digit
+   aligns by default, without each call site re-declaring `tabular-nums`. */
+.font-mono {
+  font-variant-numeric: tabular-nums;
 }
 
 /* =========================================================================
