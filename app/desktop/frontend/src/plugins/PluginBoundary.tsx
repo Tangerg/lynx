@@ -20,7 +20,7 @@ interface State {
  * Failure mode:
  *   - the misbehaving region renders a small red note (default) OR a
  *     plugin-provided fallback registered via
- *     `host.plugins.registerErrorFallback(...)`
+ *     `host.extensions.contribute(ERROR_FALLBACK, ...)`
  *   - main app keeps running
  *   - console gets the full stack, the error store gets a structured entry
  *

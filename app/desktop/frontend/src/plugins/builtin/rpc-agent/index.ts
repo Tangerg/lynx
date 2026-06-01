@@ -14,6 +14,7 @@ import { AbstractAgent } from "@ag-ui/client";
 import type { BaseEvent, RunAgentInput } from "@ag-ui/core";
 import { Observable } from "rxjs";
 import { definePlugin } from "@/plugins/sdk";
+import { AGENT_SOURCE } from "@/plugins/sdk/kernelPoints";
 import { getContainer } from "@/main/container";
 import type { Message } from "@/rpc";
 import { asRunId, asSessionId } from "@/rpc";
@@ -70,7 +71,7 @@ export default definePlugin({
   name: "lyra.builtin.rpc-agent",
   version: "1.0.0",
   setup({ host }) {
-    host.agent.registerSource({
+    host.extensions.contribute(AGENT_SOURCE, {
       id: "rpc",
       label: "Runtime Protocol (JSON-RPC)",
       priority: 1,

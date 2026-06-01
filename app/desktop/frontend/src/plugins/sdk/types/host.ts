@@ -21,11 +21,8 @@ import type {
   SlashCommandSpec,
 } from "./composer";
 import type {
-  AgentSourceSpec,
-  DataProviderSpec,
   LogSubscriber,
   NotificationLevel,
-  PluginErrorFallbackSpec,
   RpcAfterResponseHook,
   RpcBeforeRequestHook,
   TaskHandle,
@@ -35,7 +32,7 @@ import type { ContentBlockRenderer, MessageRoleSpec } from "./message";
 import type { LoadedPlugin, PluginSpec } from "./plugin";
 import type { SidebarRailItemSpec, SidebarSectionSpec } from "./sidebar";
 import type { ToolActionSpec, ToolPreviewComponent } from "./tool";
-import type { LayoutSlotSpec, RouteSpec, SettingsPaneSpec, WorkspaceViewSpec } from "./workspace";
+import type { LayoutSlotSpec, SettingsPaneSpec, WorkspaceViewSpec } from "./workspace";
 import type { ContentBlockKind } from "@/protocol/agui/viewState";
 
 export interface Host {
@@ -86,10 +83,6 @@ export interface Host {
     /** Close a registered view by id. */
     closeView: (id: string) => void;
   };
-  router: {
-    /** Contribute a top-level route to the router tree. */
-    register: (spec: RouteSpec) => Disposable;
-  };
   composer: {
     /** Register a slash command (`/<cmd>`). */
     registerCommand: (cmd: string, spec: SlashCommandSpec) => Disposable;
@@ -113,14 +106,6 @@ export interface Host {
   shortcuts: {
     /** Register a global keyboard shortcut (e.g. "Mod+K", "Escape"). */
     register: (spec: ShortcutSpec) => Disposable;
-  };
-  agent: {
-    /** Register an AG-UI agent source. Highest-priority spec wins. */
-    registerSource: (spec: AgentSourceSpec) => Disposable;
-  };
-  data: {
-    /** Register a query-key fetcher consumed by `useQuery({queryKey: [key]})`. */
-    registerProvider: <T = unknown>(spec: DataProviderSpec<T>) => Disposable;
   };
   commands: {
     /** Contribute a command palette entry. */
@@ -274,12 +259,6 @@ export interface Host {
      * load promise so callers can `await` for setup completion.
      */
     reload: (name: string) => Promise<void>;
-    /**
-     * Contribute a custom error-fallback UI shown inside `PluginBoundary`
-     * when a plugin-rendered component throws. Highest-priority registration
-     * wins; if none, the built-in red banner is rendered.
-     */
-    registerErrorFallback: (spec: PluginErrorFallbackSpec) => Disposable;
   };
   /**
    * Structured logger. Calls always forward to `console.{method}` with a

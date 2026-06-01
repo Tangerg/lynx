@@ -8,12 +8,16 @@ import { createHost } from "./host";
 import { useNotificationStore } from "./notifications";
 import {
   ACCENT,
+  AGENT_SOURCE,
   BEFORE_UNLOAD_HANDLER,
   COMPOSER_ATTACHMENT_SOURCE,
   COMPOSER_MODE,
   COMPOSER_STATUS,
+  DATA_PROVIDER,
+  ERROR_FALLBACK,
   LAYOUT_SLOT,
   MESSAGE_ROLE,
+  ROUTE,
   SETTINGS_PANE,
   SIDEBAR_RAIL_ITEM,
   SIDEBAR_SECTION,
@@ -249,8 +253,8 @@ describe("plugin registry", () => {
   it("router.register surfaces specs via listRoutes, ordered", () => {
     const sink: Disposable[] = [];
     const host = createHost("alpha", sink);
-    host.router.register({ id: "b", path: "/b", component: () => null, order: 10 });
-    host.router.register({ id: "a", path: "/a", component: () => null, order: 1 });
+    host.extensions.contribute(ROUTE, { id: "b", path: "/b", component: () => null, order: 10 });
+    host.extensions.contribute(ROUTE, { id: "a", path: "/a", component: () => null, order: 1 });
 
     expect(listRoutes().map((r) => r.id)).toEqual(["a", "b"]);
   });
@@ -438,8 +442,8 @@ describe("plugin registry", () => {
 
     const lo = () => null;
     const hi = () => null;
-    a.plugins.registerErrorFallback({ id: "lo", priority: 0, component: lo });
-    b.plugins.registerErrorFallback({ id: "hi", priority: 10, component: hi });
+    a.extensions.contribute(ERROR_FALLBACK, { id: "lo", priority: 0, component: lo });
+    b.extensions.contribute(ERROR_FALLBACK, { id: "hi", priority: 10, component: hi });
 
     expect(pickPluginErrorFallback()?.id).toBe("hi");
   });
@@ -492,8 +496,18 @@ describe("plugin registry", () => {
     // factory only runs if someone calls it.
     const lo = vi.fn();
     const hi = vi.fn();
-    host.agent.registerSource({ id: "lo", label: "Low", priority: 0, factory: lo as never });
-    host.agent.registerSource({ id: "hi", label: "High", priority: 10, factory: hi as never });
+    host.extensions.contribute(AGENT_SOURCE, {
+      id: "lo",
+      label: "Low",
+      priority: 0,
+      factory: lo as never,
+    });
+    host.extensions.contribute(AGENT_SOURCE, {
+      id: "hi",
+      label: "High",
+      priority: 10,
+      factory: hi as never,
+    });
 
     expect(pickAgentSource()?.id).toBe("hi");
   });
@@ -516,7 +530,7 @@ describe("plugin registry", () => {
   it("data.registerProvider + lookupDataProvider round-trip", async () => {
     const sink: Disposable[] = [];
     const host = createHost("alpha", sink);
-    host.data.registerProvider<{ id: string }[]>({
+    host.extensions.contribute(DATA_PROVIDER, {
       key: "rows",
       fetcher: async () => [{ id: "a" }, { id: "b" }],
     });
@@ -529,7 +543,7 @@ describe("plugin registry", () => {
   it("data.registerProvider disposable removes the entry", () => {
     const sink: Disposable[] = [];
     const host = createHost("alpha", sink);
-    const d = host.data.registerProvider({ key: "rows", fetcher: async () => [] });
+    const d = host.extensions.contribute(DATA_PROVIDER, { key: "rows", fetcher: async () => [] });
 
     expect(lookupDataProvider("rows")).toBeDefined();
     d.dispose();
