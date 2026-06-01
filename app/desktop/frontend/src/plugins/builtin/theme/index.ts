@@ -2,8 +2,8 @@
 //
 // Adding a theme = drop a new folder under `theme/`, add it to the array below,
 // done. The manifest (plugins/builtin/index.ts) pulls in this single pack and
-// never touches individual theme imports. The `themes/` subfolder holds the
-// shared helper (`defineThemePlugin` + tokens + types), not the bundle.
+// never touches individual theme imports. The `kit/` subfolder holds the
+// shared theme-authoring helper (`defineThemePlugin` + tokens + types).
 
 import type { PluginSpec } from "@/plugins/sdk";
 import { definePluginPack } from "@/plugins/sdk";

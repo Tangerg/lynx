@@ -1,7 +1,7 @@
 // Tokyo Night Light — canonical Day variant. Cool-grey bg ladder
 // instead of pure white so the saturated blue accent doesn't scream.
 
-import { defineThemePlugin } from "../themes/defineThemePlugin";
+import { defineThemePlugin } from "../kit/defineThemePlugin";
 
 const c = {
   blue: "#34548a",

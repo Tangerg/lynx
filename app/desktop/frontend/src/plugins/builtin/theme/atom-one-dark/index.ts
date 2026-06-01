@@ -1,6 +1,6 @@
 // Atom One Dark — canonical palette from one-dark-syntax / One Dark Pro.
 
-import { defineThemePlugin } from "../themes/defineThemePlugin";
+import { defineThemePlugin } from "../kit/defineThemePlugin";
 
 const c = {
   blue: "#528bff",
