@@ -42,6 +42,29 @@
   animation: fadeIn 0.7s ease-in-out both;
 }
 
+/* Typewriter-mode tail caret (rehypeStreamCaret). A small accent dot glued to
+   the last glyph of the streaming block, blinking on a terminal step cadence.
+   Accent is the sanctioned "live indicator" surface (DESIGN.md §9). */
+.type-caret {
+  display: inline-block;
+  width: 0.5em;
+  height: 0.5em;
+  margin-left: 0.12em;
+  vertical-align: baseline;
+  border-radius: 9999px;
+  background: var(--color-accent);
+  animation: lyra-caret-blink 1.05s step-end infinite;
+}
+@keyframes lyra-caret-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+
 /* Apple spatial-motion rule: Radix poppers scale out from their trigger edge,
    not uniformly from below. Radix sets `--radix-popper-transform-origin` on the
    popper wrapper per side/align; apply it to the animated content child so the
