@@ -105,6 +105,34 @@ export function lookupExtensionOwner<T>(point: ExtensionPoint<T>, key: string): 
   return usePluginStore.getState().extensions.get(`${point.id}#${k}`)?.pluginName;
 }
 
+/**
+ * Cached secondary index over one point's contributions, bucketed by a sub-key
+ * derived from each item (event type, slot name…). Caches on the `extensions`
+ * Map reference — rebuilt once per registry mutation, O(1) per lookup in
+ * between (the reducer hits this per AG-UI event). Insertion order within a
+ * bucket is preserved, matching the old per-slot index.
+ */
+export function createPointSubIndex<I, V>(
+  pointId: string,
+  extract: (item: I, pluginName: string) => { key: string; value: V },
+) {
+  const cache = new WeakMap<Map<string, Owned<ContributionEntry>>, Map<string, V[]>>();
+  return (extensions: Map<string, Owned<ContributionEntry>>): Map<string, V[]> => {
+    const cached = cache.get(extensions);
+    if (cached) return cached;
+    const idx = new Map<string, V[]>();
+    for (const o of extensions.values()) {
+      if (o.value.point !== pointId) continue;
+      const { key, value } = extract(o.value.item as I, o.pluginName);
+      const list = idx.get(key);
+      if (list) list.push(value);
+      else idx.set(key, [value]);
+    }
+    cache.set(extensions, idx);
+    return idx;
+  };
+}
+
 /** Item paired with its owner plugin. */
 export interface ExtensionOwnedEntry<T> {
   pluginName: string;

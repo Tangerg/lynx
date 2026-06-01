@@ -1,15 +1,14 @@
-// Map mutation helpers shared by every registry slot. Pulled out of
-// `registryState.ts` so that file is purely shape (types + `freshState`)
-// and this file is purely behaviour. The Zustand store in `registry.ts`
-// imports both.
+// Map mutation helpers shared by the registry's remaining bookkeeping maps.
+// Pulled out of `registryState.ts` so that file is purely shape (types +
+// `freshState`) and this file is purely behaviour. The Zustand store in
+// `registry.ts` imports both.
 //
-// Every registry slot is a `Map<string, Owned<T>>`. We expose two key
-// strategies:
-//   - "single" via {add,remove}Owned — caller-supplied key, conflict-warn
-//     when another plugin overrides
-//   - "multi"  via {add,remove}OwnedMulti — auto composite key
-//     `${pluginName}|${id}` so multiple registrations per plugin coexist
-// plus a bulk `clearByPlugin` for the activation flow.
+// What's left after the extension-point collapse: the declared-* placeholder
+// maps use {add,remove}Owned (caller-supplied key, conflict-warn on override)
+// plus `clearByPlugin` for the activation flow; `ownedContributionsTo` reads
+// the shared `extensions` substrate from inside the store's own lifecycle
+// loops; `mapSet`/`mapDrop` cover the plain (loaded / pendingActivations)
+// Maps.
 
 import type { ContributionEntry, Owned } from "./registryState";
 
@@ -73,39 +72,6 @@ export function removeOwned<T>(
   if (!entry || entry.pluginName !== pluginName) return map;
   const next = new Map(map);
   next.delete(key);
-  return next;
-}
-
-// ---- composite-key helpers (multi-registration slots) -----------------
-//
-// For slots that allow multiple registrations per (plugin, id) — RPC hooks,
-// log subscribers, lifecycle hooks, plugin observers, core event handlers,
-// layout slots — the key is `${pluginName}|${id}` (or a discriminated id
-// like `${slot}#${spec.id}` baked in by the caller). No conflict warning
-// is meaningful for these: multiple entries per plugin are intentional.
-
-function compositeKey(pluginName: string, id: string): string {
-  return `${pluginName}|${id}`;
-}
-
-export function addOwnedMulti<T>(
-  map: Map<string, Owned<T>>,
-  pluginName: string,
-  id: string,
-  value: T,
-): Map<string, Owned<T>> {
-  const next = new Map(map);
-  next.set(compositeKey(pluginName, id), { pluginName, value });
-  return next;
-}
-
-export function removeOwnedMulti<T>(
-  map: Map<string, Owned<T>>,
-  pluginName: string,
-  id: string,
-): Map<string, Owned<T>> {
-  const next = new Map(map);
-  next.delete(compositeKey(pluginName, id));
   return next;
 }
 

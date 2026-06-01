@@ -8,9 +8,6 @@ import type {
   ContributedCommand,
   ContributedSettingsPane,
   ContributedView,
-  CoreEventHandler,
-  CustomEventHandler,
-  LayoutSlotSpec,
   LoadedPlugin,
   PluginSpec,
 } from "./types";
@@ -38,19 +35,6 @@ export interface ContributionEntry {
 
 export interface PluginStoreState {
   loaded: Map<string, LoadedPlugin>;
-  // Composite key `${pluginName}|${id}` so multiple handlers can be
-  // registered for the same custom event name across (or within) plugins.
-  // The reducer fans the event out through every match in registration
-  // order, chaining StateUpdate returns.
-  customEventHandlers: Map<string, Owned<{ name: string; handler: CustomEventHandler<unknown> }>>;
-  // Built-in AG-UI events can have *multiple* handlers per type — they
-  // chain. The key is `${eventType}|${pluginName}|${id}` to keep insertion
-  // order stable + allow the same plugin to register more than one handler
-  // for the same type (rare but legal).
-  coreEventHandlers: Map<string, Owned<{ eventType: string; handler: CoreEventHandler }>>;
-  // Layout slot key is `${slot}|${pluginName}|${spec.id}` to allow the same
-  // plugin to fill multiple slots and to keep insertion order deterministic.
-  layoutSlots: Map<string, Owned<{ slot: string; spec: LayoutSlotSpec }>>;
   /**
    * Commands declared in `PluginSpec.contributes.commands` but whose
    * owning plugin hasn't been activated yet. Displayed as palette
@@ -84,25 +68,6 @@ export interface PluginStoreState {
 export interface PluginStoreActions {
   registerLoaded: (plugin: LoadedPlugin) => void;
   unload: (pluginName: string) => void;
-
-  addCustomEventHandler: (
-    pluginName: string,
-    name: string,
-    id: string,
-    h: CustomEventHandler<unknown>,
-  ) => void;
-  removeCustomEventHandler: (pluginName: string, id: string) => void;
-
-  addCoreEventHandler: (
-    pluginName: string,
-    eventType: string,
-    id: string,
-    handler: CoreEventHandler,
-  ) => void;
-  removeCoreEventHandler: (pluginName: string, eventType: string, id: string) => void;
-
-  addLayoutSlot: (pluginName: string, slot: string, spec: LayoutSlotSpec) => void;
-  removeLayoutSlot: (pluginName: string, slot: string, id: string) => void;
 
   addDeclaredCommand: (pluginName: string, spec: ContributedCommand) => void;
   removeDeclaredCommand: (pluginName: string, id: string) => void;
@@ -148,9 +113,6 @@ export interface PluginStoreActions {
 export function freshState(): PluginStoreState {
   return {
     loaded: new Map(),
-    customEventHandlers: new Map(),
-    coreEventHandlers: new Map(),
-    layoutSlots: new Map(),
     declaredCommands: new Map(),
     declaredViews: new Map(),
     declaredSettingsPanes: new Map(),

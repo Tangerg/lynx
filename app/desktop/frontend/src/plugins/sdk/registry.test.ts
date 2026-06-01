@@ -11,6 +11,7 @@ import {
   COMPOSER_ATTACHMENT_SOURCE,
   COMPOSER_MODE,
   COMPOSER_STATUS,
+  LAYOUT_SLOT,
   MESSAGE_ROLE,
   SETTINGS_PANE,
   SIDEBAR_RAIL_ITEM,
@@ -38,7 +39,11 @@ import {
   pickComposerPlaceholder,
   pickPluginErrorFallback,
 } from "./selectors";
-import { lookupExtensionByKey, lookupExtensionOwner } from "./selectors/extensions";
+import {
+  lookupExtensionByKey,
+  lookupExtensionOwnedEntries,
+  lookupExtensionOwner,
+} from "./selectors/extensions";
 
 // A throwaway component used for `tool.registerPreview` calls. It doesn't get
 // mounted in these tests — we only care about identity.
@@ -184,11 +189,11 @@ describe("plugin registry", () => {
 
     host.layout.register("app.main", { id: "x", order: 5, component: () => null });
 
-    const entries = Array.from(usePluginStore.getState().layoutSlots.values());
+    const entries = lookupExtensionOwnedEntries(LAYOUT_SLOT);
     expect(entries).toHaveLength(1);
     expect(entries[0]!.pluginName).toBe("alpha");
-    expect(entries[0]!.value.slot).toBe("app.main");
-    expect(entries[0]!.value.spec.id).toBe("x");
+    expect(entries[0]!.item.slot).toBe("app.main");
+    expect(entries[0]!.item.spec.id).toBe("x");
   });
 
   it("layout.register disposable removes the slot entry", () => {
@@ -196,9 +201,9 @@ describe("plugin registry", () => {
     const host = createHost("alpha", sink);
     const d = host.layout.register("app.main", { id: "x", component: () => null });
 
-    expect(usePluginStore.getState().layoutSlots.size).toBe(1);
+    expect(lookupExtensionPoint(LAYOUT_SLOT).length).toBe(1);
     d.dispose();
-    expect(usePluginStore.getState().layoutSlots.size).toBe(0);
+    expect(lookupExtensionPoint(LAYOUT_SLOT).length).toBe(0);
   });
 
   it("theme.registerTheme + lookupTheme round-trip", () => {

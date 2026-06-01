@@ -3,23 +3,24 @@
 // secondary index in _helpers (invalidates on registry mutation).
 
 import type { CoreEventHandler, CustomEventHandler } from "../types";
+import { CORE_EVENT_HANDLER, CUSTOM_EVENT_HANDLER } from "../kernelPoints";
 import { usePluginStore } from "../registry";
-import { createIndex } from "./_helpers";
+import { createPointSubIndex } from "./extensions";
 
-const customByName = createIndex<
+const customByName = createPointSubIndex<
   { name: string; handler: CustomEventHandler<unknown> },
   { pluginName: string; handler: CustomEventHandler<unknown> }
->((o) => ({
-  key: o.value.name,
-  value: { pluginName: o.pluginName, handler: o.value.handler },
+>(CUSTOM_EVENT_HANDLER.id, (item, pluginName) => ({
+  key: item.name,
+  value: { pluginName, handler: item.handler },
 }));
 
-const coreByType = createIndex<
+const coreByType = createPointSubIndex<
   { eventType: string; handler: CoreEventHandler },
   { pluginName: string; handler: CoreEventHandler }
->((o) => ({
-  key: o.value.eventType,
-  value: { pluginName: o.pluginName, handler: o.value.handler },
+>(CORE_EVENT_HANDLER.id, (item, pluginName) => ({
+  key: item.eventType,
+  value: { pluginName, handler: item.handler },
 }));
 
 /**
@@ -30,7 +31,7 @@ const coreByType = createIndex<
 export function lookupCustomEventHandlers(
   name: string,
 ): Array<{ pluginName: string; handler: CustomEventHandler<unknown> }> {
-  return customByName(usePluginStore.getState().customEventHandlers).get(name) ?? [];
+  return customByName(usePluginStore.getState().extensions).get(name) ?? [];
 }
 
 /**
@@ -40,5 +41,5 @@ export function lookupCustomEventHandlers(
 export function lookupCoreEventHandlers(
   eventType: string,
 ): Array<{ pluginName: string; handler: CoreEventHandler }> {
-  return coreByType(usePluginStore.getState().coreEventHandlers).get(eventType) ?? [];
+  return coreByType(usePluginStore.getState().extensions).get(eventType) ?? [];
 }
