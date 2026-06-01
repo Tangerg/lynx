@@ -134,6 +134,27 @@ describe("buildTokenMap", () => {
     expect(tokens["color-accent"]).toBe("#999999");
   });
 
+  it("explicit ink soft/muted/faint pass through verbatim", () => {
+    const tokens = buildTokenMap(makeSpec());
+    expect(tokens["color-text-soft"]).toBe("#cccccc");
+    expect(tokens["color-text-muted"]).toBe("#999999");
+    expect(tokens["color-text-faint"]).toBe("#666666");
+  });
+
+  it("omitted ink soft/muted/faint derive as text at decreasing alpha", () => {
+    const tokens = buildTokenMap(makeSpec({ ink: { text: "#eeeeee", textBright: "#ffffff" } }));
+    expect(tokens["color-text"]).toBe("#eeeeee");
+    expect(tokens["color-text-soft"]).toBe(
+      "color-mix(in oklab, var(--color-text) 82%, transparent)",
+    );
+    expect(tokens["color-text-muted"]).toBe(
+      "color-mix(in oklab, var(--color-text) 56%, transparent)",
+    );
+    expect(tokens["color-text-faint"]).toBe(
+      "color-mix(in oklab, var(--color-text) 38%, transparent)",
+    );
+  });
+
   it("SCHEME_ICON maps dark/light to moon/sun", () => {
     expect(SCHEME_ICON.dark).toBe("moon");
     expect(SCHEME_ICON.light).toBe("sun");
