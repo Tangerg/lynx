@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { definePlugin, loadPlugin, loadPlugins, reloadPlugin, unloadPlugin } from "./definePlugin";
+import { definePluginPack } from "./definePluginPack";
 import { usePluginErrorStore } from "./errors";
 import { COMMAND, THEME, TOOL_PREVIEW } from "./kernelPoints";
 import { setPluginOrigin } from "./pluginOrigin";
@@ -378,5 +379,44 @@ describe("sideload default-deny", () => {
     );
     expect(result.kind).toBe("loaded");
     expect(lookupExtensionByKey(THEME, "trusted")?.label).toBe("T");
+  });
+});
+
+describe("definePluginPack", () => {
+  it("loads children in order, runs pack setup after, cascades unload in reverse", async () => {
+    const log: string[] = [];
+    const child = (name: string) =>
+      definePlugin({
+        name,
+        version: "1.0.0",
+        setup: () => {
+          log.push(`load:${name}`);
+          return () => log.push(`unload:${name}`);
+        },
+      });
+
+    const pack = definePluginPack({
+      name: "lyra.builtin.demo-pack",
+      version: "1.0.0",
+      children: [child("pack.a"), child("pack.b")],
+      setup: () => {
+        log.push("pack:setup");
+        return () => log.push("pack:cleanup");
+      },
+    });
+
+    await loadPlugin(pack);
+    // children load in array order, pack setup runs last (so it can consume them)
+    expect(log).toEqual(["load:pack.a", "load:pack.b", "pack:setup"]);
+    expect(usePluginStore.getState().loaded.has("pack.a")).toBe(true);
+    expect(usePluginStore.getState().loaded.has("pack.b")).toBe(true);
+    expect(usePluginStore.getState().loaded.has("lyra.builtin.demo-pack")).toBe(true);
+
+    log.length = 0;
+    unloadPlugin("lyra.builtin.demo-pack");
+    // pack cleanup first, then children newest-first
+    expect(log).toEqual(["pack:cleanup", "unload:pack.b", "unload:pack.a"]);
+    expect(usePluginStore.getState().loaded.has("pack.a")).toBe(false);
+    expect(usePluginStore.getState().loaded.has("pack.b")).toBe(false);
   });
 });
