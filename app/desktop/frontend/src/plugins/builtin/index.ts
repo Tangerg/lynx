@@ -59,16 +59,7 @@ import httpAgent from "./agent/http-agent";
 import iconGallery from "./settings/icon-gallery";
 import rpcAgent from "./agent/rpc-agent";
 import { kernelChat, kernelSettings, kernelSidebar } from "./shell/kernel";
-import {
-  localeDe,
-  localeEn,
-  localeEs,
-  localeFr,
-  localeJa,
-  localeKo,
-  localeZh,
-  localeZhTW,
-} from "./i18n/locales";
+import { localesPack } from "./i18n";
 import mainRoute from "./shell/main-route";
 import { messageCopy, messageEdit, messageRegenerate } from "./chat/message-actions";
 import planProgress from "./chat/plan-progress";
@@ -87,7 +78,7 @@ import {
 import slashHints from "./chat/slash-hints";
 import { statusNotifications, statusPill } from "./shell/status";
 import { tasksPill } from "./workspace/tasks";
-import { themesPack } from "./theme/themes";
+import { themesPack } from "./theme";
 import toaster from "./shell/toaster";
 import { toolActions, toolIcons } from "./chat/tool-meta";
 import { bash, diff, file, grep } from "./chat/tool-previews";
@@ -131,18 +122,7 @@ const infrastructure: PluginSpec[] = [
   defaultTitle,
   defaultAccents,
   themesPack,
-  // Locale packs — each language is its own plugin so a third-party
-  // can ship Vietnamese / Arabic / ... without touching the kernel.
-  // English isn't strictly needed here (its bundle is bootstrapped by
-  // `lib/i18n.ts`) but the plugin registers the picker entry.
-  localeEn,
-  localeZh,
-  localeZhTW,
-  localeJa,
-  localeKo,
-  localeEs,
-  localeFr,
-  localeDe,
+  localesPack,
   mainRoute,
 ];
 
