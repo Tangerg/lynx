@@ -47,7 +47,11 @@ import {
 } from "./kernelPoints";
 import { useNotificationStore } from "./notifications";
 import { usePluginStore } from "./registry";
-import { lookupExtensionByKey, lookupExtensionPoint } from "./selectors/extensions";
+import {
+  composeExtensionKey,
+  lookupExtensionByKey,
+  lookupExtensionPoint,
+} from "./selectors/extensions";
 import { getOrCreateSlice } from "./stateSlice";
 import { createStorage } from "./storage";
 
@@ -119,13 +123,11 @@ export function createHost(
     let conflictKey: string;
     if (point.keying === "single") {
       const base = opts?.key ?? keyOf(item);
-      const k = point.normalizeKey ? point.normalizeKey(base) : base;
-      outerKey = `${point.id}#${k}`;
-      conflictKey = k;
+      conflictKey = point.normalizeKey ? point.normalizeKey(base) : base;
+      outerKey = composeExtensionKey(point.id, conflictKey);
     } else {
-      const id = opts?.id ?? mintId(point.id);
-      outerKey = `${point.id}#${pluginName}|${id}`;
-      conflictKey = id;
+      conflictKey = opts?.id ?? mintId(point.id);
+      outerKey = composeExtensionKey(point.id, `${pluginName}|${conflictKey}`);
     }
     store().addContribution(
       pluginName,

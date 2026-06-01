@@ -13,6 +13,19 @@ import { usePluginStore } from "../registry";
 import { ownedContributionsTo } from "../registryHelpers";
 import { createIndex } from "./_helpers";
 
+// The one structural invariant shared by the write path (host.contribute) and
+// every read: a contribution lives under `${point.id}#${dedupe}` in the flat
+// `extensions` map. `dedupe` is the normalized single key, or `${plugin}|${id}`
+// for multi points. Keep the format here so write + read can't drift.
+export function composeExtensionKey(pointId: string, dedupe: string): string {
+  return `${pointId}#${dedupe}`;
+}
+
+/** Map key for a single-point lookup — applies the point's `normalizeKey`. */
+function slotKeyOf<T>(point: ExtensionPoint<T>, key: string): string {
+  return composeExtensionKey(point.id, point.normalizeKey ? point.normalizeKey(key) : key);
+}
+
 interface Resolved {
   key: string;
   order?: number;
@@ -79,8 +92,7 @@ export function useExtensionEntries<T>(point: ExtensionPoint<T>): Array<Extensio
  * Applies the point's `normalizeKey` so lookups match how it was stored.
  */
 export function lookupExtensionByKey<T>(point: ExtensionPoint<T>, key: string): T | undefined {
-  const k = point.normalizeKey ? point.normalizeKey(key) : key;
-  const entry = usePluginStore.getState().extensions.get(`${point.id}#${k}`);
+  const entry = usePluginStore.getState().extensions.get(slotKeyOf(point, key));
   return entry?.value.item as T | undefined;
 }
 
@@ -90,8 +102,7 @@ export function lookupExtensionByKey<T>(point: ExtensionPoint<T>, key: string): 
  * contribution changes (replaces the old `usePluginStore(s => s.X.get(id))`).
  */
 export function useExtensionByKey<T>(point: ExtensionPoint<T>, key: string): T | undefined {
-  const k = point.normalizeKey ? point.normalizeKey(key) : key;
-  const outerKey = `${point.id}#${k}`;
+  const outerKey = slotKeyOf(point, key);
   return usePluginStore((s) => s.extensions.get(outerKey)?.value.item as T | undefined);
 }
 
@@ -101,8 +112,7 @@ export function useExtensionByKey<T>(point: ExtensionPoint<T>, key: string): T |
  * under the key.
  */
 export function lookupExtensionOwner<T>(point: ExtensionPoint<T>, key: string): string | undefined {
-  const k = point.normalizeKey ? point.normalizeKey(key) : key;
-  return usePluginStore.getState().extensions.get(`${point.id}#${k}`)?.pluginName;
+  return usePluginStore.getState().extensions.get(slotKeyOf(point, key))?.pluginName;
 }
 
 /**
