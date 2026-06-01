@@ -2,7 +2,7 @@
 // Vercel (typography + elevation). Source of truth; tokens.css `:root`
 // only stands in until this plugin's setup runs.
 
-import { defineThemePlugin } from "./kit/defineThemePlugin";
+import { defineThemePlugin } from "../kit/defineThemePlugin";
 
 const c = {
   // Brand — Lyra signature green. accentBorder/Press derived by
