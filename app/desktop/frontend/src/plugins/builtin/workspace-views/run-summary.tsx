@@ -13,6 +13,7 @@ import { EmptyState, Icon, IconButton, ScrollArea } from "@/components/common";
 import { ViewHeader } from "@/components/views/ViewHeader";
 import { cn } from "@/lib/utils";
 import { definePlugin } from "@/plugins/sdk";
+import { WORKSPACE_VIEW } from "@/plugins/sdk/kernelPoints";
 import { buildPlaintext, deriveLatestRun, durationText } from "@/protocol/agui/runDigest";
 import { INITIAL_VIEW_STATE } from "@/protocol/agui/viewState";
 import { useAgentSlice } from "@/state/agentStore";
@@ -206,7 +207,7 @@ export const runSummaryView = definePlugin({
   name: "lyra.builtin.view-run-summary",
   version: "1.0.0",
   setup({ host }) {
-    host.workspace.registerView({
+    host.extensions.contribute(WORKSPACE_VIEW, {
       id: "run-summary",
       title: "Run summary",
       icon: "check",

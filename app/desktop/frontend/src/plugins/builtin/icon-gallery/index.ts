@@ -6,13 +6,13 @@
 import { IconGallery } from "@/components/icon-gallery/IconGallery";
 import { IconShowcase } from "@/components/icon-gallery/IconShowcase";
 import { definePlugin } from "@/plugins/sdk";
-import { SETTINGS_PANE } from "@/plugins/sdk/kernelPoints";
+import { SETTINGS_PANE, WORKSPACE_VIEW } from "@/plugins/sdk/kernelPoints";
 
 export default definePlugin({
   name: "lyra.builtin.icon-gallery",
   version: "1.0.0",
   setup({ host }) {
-    host.workspace.registerView({
+    host.extensions.contribute(WORKSPACE_VIEW, {
       id: "icon-gallery",
       title: "Icon Gallery",
       icon: "spark",

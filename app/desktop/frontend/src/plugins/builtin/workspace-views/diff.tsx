@@ -7,6 +7,7 @@ import { DiffView } from "@/components/views/DiffView";
 import { ViewHeader } from "@/components/views/ViewHeader";
 import { useDiff } from "@/lib/data/queries";
 import { definePlugin } from "@/plugins/sdk";
+import { WORKSPACE_VIEW } from "@/plugins/sdk/kernelPoints";
 import { useSessionStore } from "@/state/sessionStore";
 
 interface DiffStats {
@@ -90,7 +91,7 @@ export const diffView = definePlugin({
   name: "lyra.builtin.view-diff",
   version: "1.0.0",
   setup({ host }) {
-    host.workspace.registerView({
+    host.extensions.contribute(WORKSPACE_VIEW, {
       id: "diff",
       title: "Diff",
       icon: "diff",

@@ -5,6 +5,7 @@ import { EmptyState, Icon, IconButton, ScrollArea } from "@/components/common";
 import { ViewHeader } from "@/components/views/ViewHeader";
 import { cn } from "@/lib/utils";
 import { definePlugin, useNotificationStore } from "@/plugins/sdk";
+import { WORKSPACE_VIEW } from "@/plugins/sdk/kernelPoints";
 
 function timeAgo(ts: number): string {
   const sec = Math.floor((Date.now() - ts) / 1000);
@@ -109,7 +110,7 @@ export const notificationsView = definePlugin({
   name: "lyra.builtin.view-notifications",
   version: "1.0.0",
   setup({ host }) {
-    host.workspace.registerView({
+    host.extensions.contribute(WORKSPACE_VIEW, {
       id: "notifications",
       title: "Notifications",
       icon: "chat",

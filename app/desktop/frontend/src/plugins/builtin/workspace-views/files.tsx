@@ -9,6 +9,7 @@ import { FilesChanged } from "@/components/views/FilesChanged";
 import { ViewHeader } from "@/components/views/ViewHeader";
 import { useFilesChanged } from "@/lib/data/queries";
 import { definePlugin } from "@/plugins/sdk";
+import { WORKSPACE_VIEW } from "@/plugins/sdk/kernelPoints";
 import { useSessionStore } from "@/state/sessionStore";
 
 function FilesView() {
@@ -67,7 +68,7 @@ export const filesView = definePlugin({
   name: "lyra.builtin.view-files",
   version: "1.0.0",
   setup({ host }) {
-    host.workspace.registerView({
+    host.extensions.contribute(WORKSPACE_VIEW, {
       id: "files",
       title: "Files",
       icon: "filetext",

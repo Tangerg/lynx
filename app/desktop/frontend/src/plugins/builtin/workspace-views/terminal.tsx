@@ -3,6 +3,7 @@ import { Terminal } from "@/components/views/Terminal";
 import { ViewHeader } from "@/components/views/ViewHeader";
 import { useTerminal } from "@/lib/data/queries";
 import { definePlugin } from "@/plugins/sdk";
+import { WORKSPACE_VIEW } from "@/plugins/sdk/kernelPoints";
 
 function TerminalTab() {
   const { data: lines, isLoading } = useTerminal();
@@ -68,7 +69,7 @@ export const terminalView = definePlugin({
   name: "lyra.builtin.view-terminal",
   version: "1.0.0",
   setup({ host }) {
-    host.workspace.registerView({
+    host.extensions.contribute(WORKSPACE_VIEW, {
       id: "terminal",
       title: "Terminal",
       icon: "terminal",

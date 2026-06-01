@@ -11,7 +11,6 @@ import type { CoreEventHandler, CustomEventHandler } from "./agui";
 import type { CommandSpec } from "./commands";
 import type { ExtensionContributionOptions, ExtensionPoint } from "./extensions";
 import type { BeforeUnloadHandler, Disposable, ReadyHandler } from "./common";
-import type { LocaleSpec } from "./i18n";
 import type {
   LogSubscriber,
   NotificationLevel,
@@ -22,7 +21,7 @@ import type {
 } from "./infra";
 import type { ContentBlockRenderer } from "./message";
 import type { LoadedPlugin, PluginSpec } from "./plugin";
-import type { LayoutSlotSpec, WorkspaceViewSpec } from "./workspace";
+import type { LayoutSlotSpec } from "./workspace";
 import type { ContentBlockKind } from "@/protocol/agui/viewState";
 
 export interface Host {
@@ -51,8 +50,6 @@ export interface Host {
     register: (slot: string, spec: LayoutSlotSpec) => Disposable;
   };
   workspace: {
-    /** Contribute a dockable view that participates in the workspace layout. */
-    registerView: (spec: WorkspaceViewSpec) => Disposable;
     /** Open (or focus) a registered view by id. Imperative trigger from a
      *  command palette entry / slash command / external link. */
     openView: (id: string) => void;
@@ -145,18 +142,6 @@ export interface Host {
      * re-overwrites the same keys.
      */
     addBundle: (locale: string, dict: Record<string, string>) => Disposable;
-    /**
-     * Register a language with the Settings → Language picker. The
-     * `spec.id` should match the locale passed to `addBundle`. Sort by
-     * `order` ascending; built-ins use 0..99. Returns a disposable that
-     * removes the entry from the picker when the plugin unloads.
-     *
-     * Typical flow inside a locale plugin's setup:
-     *
-     *   host.i18n.addBundle("ja", japaneseDict);
-     *   host.i18n.registerLocale({ id: "ja", label: "日本語", order: 30 });
-     */
-    registerLocale: (spec: LocaleSpec) => Disposable;
   };
   tasks: {
     /**

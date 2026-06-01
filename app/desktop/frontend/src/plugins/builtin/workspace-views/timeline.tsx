@@ -16,6 +16,7 @@ import { EmptyState, Icon, IconButton, ScrollArea } from "@/components/common";
 import { ViewHeader } from "@/components/views/ViewHeader";
 import { cn } from "@/lib/utils";
 import { definePlugin } from "@/plugins/sdk";
+import { WORKSPACE_VIEW } from "@/plugins/sdk/kernelPoints";
 import { useAgentSlice } from "@/state/agentStore";
 import { useSessionStore } from "@/state/sessionStore";
 
@@ -147,7 +148,7 @@ export const timelineView = definePlugin({
   name: "lyra.builtin.view-timeline",
   version: "1.0.0",
   setup({ host }) {
-    host.workspace.registerView({
+    host.extensions.contribute(WORKSPACE_VIEW, {
       id: "timeline",
       title: "Timeline",
       icon: "history",
