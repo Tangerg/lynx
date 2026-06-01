@@ -18,11 +18,8 @@ import type {
   CoreEventHandler,
   CustomEventHandler,
   LayoutSlotSpec,
-  LogSubscriber,
   PluginSpec,
   ReadyHandler,
-  RpcAfterResponseHook,
-  RpcBeforeRequestHook,
 } from "./types";
 import { create } from "zustand";
 import { safeCall } from "./errors";
@@ -105,9 +102,6 @@ export const usePluginStore = create<PluginStoreState & PluginStoreActions>((set
     "coreEventHandlers",
   );
   const layoutSlots = multiSlot<{ slot: string; spec: LayoutSlotSpec }>("layoutSlots");
-  const rpcBeforeRequest = multiSlot<RpcBeforeRequestHook>("rpcBeforeRequest");
-  const rpcAfterResponse = multiSlot<RpcAfterResponseHook>("rpcAfterResponse");
-  const logSubscribers = multiSlot<LogSubscriber>("logSubscribers");
   const readyHandlers = multiSlot<ReadyHandler>("readyHandlers");
   const beforeUnloadHandlers = multiSlot<BeforeUnloadHandler>("beforeUnloadHandlers");
   const pluginLoadListeners = multiSlot<(spec: PluginSpec) => void>("pluginLoadListeners");
@@ -172,14 +166,6 @@ export const usePluginStore = create<PluginStoreState & PluginStoreActions>((set
     removePendingActivation(name) {
       set({ pendingActivations: mapDrop(get().pendingActivations, name) });
     },
-
-    addRpcBeforeRequest: rpcBeforeRequest.add,
-    removeRpcBeforeRequest: rpcBeforeRequest.remove,
-    addRpcAfterResponse: rpcAfterResponse.add,
-    removeRpcAfterResponse: rpcAfterResponse.remove,
-
-    addLogSubscriber: logSubscribers.add,
-    removeLogSubscriber: logSubscribers.remove,
 
     addReadyHandler: readyHandlers.add,
     removeReadyHandler: readyHandlers.remove,

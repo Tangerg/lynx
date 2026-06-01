@@ -63,8 +63,11 @@ import {
   DATA_PROVIDER,
   ERROR_FALLBACK,
   LOCALE,
+  LOG_SUBSCRIBER,
   MESSAGE_ROLE,
   ROUTE,
+  RPC_AFTER_RESPONSE,
+  RPC_BEFORE_REQUEST,
   SETTINGS_PANE,
   SHORTCUT,
   SIDEBAR_RAIL_ITEM,
@@ -78,7 +81,7 @@ import {
 } from "./kernelPoints";
 import { useNotificationStore } from "./notifications";
 import { usePluginStore } from "./registry";
-import { lookupExtensionByKey } from "./selectors/extensions";
+import { lookupExtensionByKey, lookupExtensionPoint } from "./selectors/extensions";
 import { getOrCreateSlice } from "./stateSlice";
 import { createStorage } from "./storage";
 
@@ -341,16 +344,10 @@ export function createHost(
         const p = path.startsWith("/") ? path.slice(1) : path;
         return api.post(p, body !== undefined ? { json: body } : undefined).json<T>();
       },
-      beforeRequest(hook: RpcBeforeRequestHook): Disposable {
-        const id = mintId("before");
-        store().addRpcBeforeRequest(pluginName, id, hook);
-        return track({ dispose: () => store().removeRpcBeforeRequest(pluginName, id) });
-      },
-      afterResponse(hook: RpcAfterResponseHook): Disposable {
-        const id = mintId("after");
-        store().addRpcAfterResponse(pluginName, id, hook);
-        return track({ dispose: () => store().removeRpcAfterResponse(pluginName, id) });
-      },
+      beforeRequest: (hook: RpcBeforeRequestHook): Disposable =>
+        contribute(RPC_BEFORE_REQUEST, hook),
+      afterResponse: (hook: RpcAfterResponseHook): Disposable =>
+        contribute(RPC_AFTER_RESPONSE, hook),
     },
 
     notify(message: string, level: "info" | "warn" | "error" = "info"): void {
@@ -407,11 +404,7 @@ export function createHost(
       info: (...args) => emitLog(pluginName, "info", args),
       warn: (...args) => emitLog(pluginName, "warn", args),
       error: (...args) => emitLog(pluginName, "error", args),
-      subscribe(fn: LogSubscriber): Disposable {
-        const id = mintId("log");
-        store().addLogSubscriber(pluginName, id, fn);
-        return track({ dispose: () => store().removeLogSubscriber(pluginName, id) });
-      },
+      subscribe: (fn: LogSubscriber): Disposable => contribute(LOG_SUBSCRIBER, fn),
     },
 
     i18n: {
@@ -493,8 +486,8 @@ function logToConsole(plugin: string, level: LogLevel, args: unknown[]): void {
 function emitLog(plugin: string, level: LogLevel, args: unknown[]): void {
   logToConsole(plugin, level, args);
   const event = { plugin, level, args, timestamp: Date.now() };
-  for (const o of usePluginStore.getState().logSubscribers.values()) {
-    safeCall(() => o.value(event), "[plugin] log subscriber threw:");
+  for (const fn of lookupExtensionPoint(LOG_SUBSCRIBER)) {
+    safeCall(() => fn(event), "[plugin] log subscriber threw:");
   }
 }
 

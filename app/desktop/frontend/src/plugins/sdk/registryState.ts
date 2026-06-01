@@ -13,11 +13,8 @@ import type {
   CustomEventHandler,
   LayoutSlotSpec,
   LoadedPlugin,
-  LogSubscriber,
   PluginSpec,
   ReadyHandler,
-  RpcAfterResponseHook,
-  RpcBeforeRequestHook,
 } from "./types";
 
 export interface Owned<T> {
@@ -74,12 +71,7 @@ export interface PluginStoreState {
    * plugin).
    */
   pendingActivations: Map<string, { spec: PluginSpec; events: string[] }>;
-  // RPC hooks: composite key `${pluginName}|${id}` to allow multiple per plugin.
-  rpcBeforeRequest: Map<string, Owned<RpcBeforeRequestHook>>;
-  rpcAfterResponse: Map<string, Owned<RpcAfterResponseHook>>;
-  // Log subscribers — composite key, same pattern.
-  logSubscribers: Map<string, Owned<LogSubscriber>>;
-  // Lifecycle hooks — also composite key.
+  // Lifecycle hooks — composite key `${pluginName}|${id}`.
   readyHandlers: Map<string, Owned<ReadyHandler>>;
   beforeUnloadHandlers: Map<string, Owned<BeforeUnloadHandler>>;
   /** Set true after PluginProvider has finished loading built-ins. */
@@ -133,15 +125,6 @@ export interface PluginStoreActions {
   addPendingActivation: (spec: PluginSpec, events: string[]) => void;
   removePendingActivation: (name: string) => void;
 
-  addRpcBeforeRequest: (pluginName: string, id: string, hook: RpcBeforeRequestHook) => void;
-  removeRpcBeforeRequest: (pluginName: string, id: string) => void;
-
-  addRpcAfterResponse: (pluginName: string, id: string, hook: RpcAfterResponseHook) => void;
-  removeRpcAfterResponse: (pluginName: string, id: string) => void;
-
-  addLogSubscriber: (pluginName: string, id: string, fn: LogSubscriber) => void;
-  removeLogSubscriber: (pluginName: string, id: string) => void;
-
   addReadyHandler: (pluginName: string, id: string, fn: ReadyHandler) => void;
   removeReadyHandler: (pluginName: string, id: string) => void;
 
@@ -191,9 +174,6 @@ export function freshState(): PluginStoreState {
     declaredViews: new Map(),
     declaredSettingsPanes: new Map(),
     pendingActivations: new Map(),
-    rpcBeforeRequest: new Map(),
-    rpcAfterResponse: new Map(),
-    logSubscribers: new Map(),
     readyHandlers: new Map(),
     beforeUnloadHandlers: new Map(),
     pluginLoadListeners: new Map(),
