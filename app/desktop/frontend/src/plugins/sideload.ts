@@ -13,7 +13,11 @@ import { z } from "zod";
 import { AGUI_BASE } from "@/main/config";
 import { loadPlugin } from "./sdk/definePlugin";
 import { reportPluginError } from "./sdk/errors";
+import { pluginOrigin, setPluginOrigin } from "./sdk/pluginOrigin";
 import { usePluginStore } from "./sdk/registry";
+
+// Re-export so existing importers (PluginsPane) keep `@/plugins/sideload`.
+export { pluginOrigin };
 
 // Sideloaded modules cross the trust boundary — we can't trust their
 // default export from TS alone. Validate the shape with Zod before
@@ -34,17 +38,6 @@ const PluginSpecSchema = z.object({
 interface SideloadInfo {
   id: string;
   url: string;
-}
-
-/**
- * Track where each plugin came from so the Plugins settings pane can mark
- * "built-in" vs "sideloaded". Keyed by spec.name (not by sideload id —
- * spec.name is the canonical identifier used everywhere else).
- */
-const pluginOrigins = new Map<string, "builtin" | "sideload">();
-
-export function pluginOrigin(name: string): "builtin" | "sideload" {
-  return pluginOrigins.get(name) ?? "builtin";
 }
 
 async function fetchSideloadList(): Promise<SideloadInfo[]> {
@@ -99,7 +92,7 @@ export async function loadSideloadedPlugins(): Promise<LoadResult[]> {
       continue;
     }
 
-    pluginOrigins.set(spec.name, "sideload");
+    setPluginOrigin(spec.name, "sideload");
     results.push(await loadPlugin(spec));
   }
 
@@ -111,6 +104,6 @@ export async function loadSideloadedPlugins(): Promise<LoadResult[]> {
 // entry to "sideload" inside `loadSideloadedPlugins`.
 export function tagAllAsBuiltin(): void {
   for (const name of usePluginStore.getState().loaded.keys()) {
-    if (!pluginOrigins.has(name)) pluginOrigins.set(name, "builtin");
+    setPluginOrigin(name, "builtin");
   }
 }

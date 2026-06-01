@@ -2,8 +2,10 @@ import type { Disposable, PluginSpec } from "./types";
 import { satisfies } from "compare-versions";
 import { measurePluginLoad } from "@/lib/metrics";
 import { HOST_API_VERSION } from "./apiVersion";
+import { aggregateRisk } from "./capabilities";
 import { reportPluginError } from "./errors";
 import { createHost, setPluginRuntime } from "./host";
+import { pluginOrigin } from "./pluginOrigin";
 import { usePluginStore } from "./registry";
 import { setActivator } from "./selectors";
 
@@ -54,7 +56,20 @@ export async function loadPlugin(spec: PluginSpec): Promise<LoadResult> {
 
   // 2. Setup.
   const disposables: Disposable[] = [];
-  const host = createHost(spec.name, disposables, spec.capabilities);
+  // Sideload default-deny: a third-party bundle that declares no `capabilities`
+  // gets NONE (deny-all), never full access — so an un-audited plugin can't
+  // silently touch `rpc` / `plugins` / etc. Built-ins (trusted, first-party)
+  // keep full access when they omit `capabilities`. Origin is recorded by the
+  // loader, not the name, so it can't be spoofed.
+  const origin = pluginOrigin(spec.name);
+  const declared = origin === "sideload" ? (spec.capabilities ?? []) : spec.capabilities;
+  if (origin === "sideload" && declared && declared.length > 0) {
+    console.info(
+      `[plugin] sideload "${spec.name}" capabilities [${declared.join(", ")}] — ` +
+        `risk: ${aggregateRisk(declared)}`,
+    );
+  }
+  const host = createHost(spec.name, disposables, declared);
 
   // Record duration regardless of outcome so a slow-failing plugin
   // shows up in diagnostics next to its faster-loading peers.

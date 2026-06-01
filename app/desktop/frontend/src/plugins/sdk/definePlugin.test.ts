@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import { definePlugin, loadPlugin, loadPlugins, reloadPlugin, unloadPlugin } from "./definePlugin";
 import { usePluginErrorStore } from "./errors";
-import { COMMAND, TOOL_PREVIEW } from "./kernelPoints";
+import { COMMAND, THEME, TOOL_PREVIEW } from "./kernelPoints";
+import { setPluginOrigin } from "./pluginOrigin";
 import { usePluginStore } from "./registry";
 import { lookupExtensionByKey, lookupExtensionPoint } from "./selectors";
 
@@ -328,5 +329,54 @@ describe("lazy activation", () => {
 
     // And the placeholder is gone.
     expect(usePluginStore.getState().declaredCommands.has("greet")).toBe(false);
+  });
+});
+
+describe("sideload default-deny", () => {
+  it("a sideload plugin with no declared capabilities is denied all gated points", async () => {
+    setPluginOrigin("sideload.greedy", "sideload");
+    const result = await loadPlugin(
+      definePlugin({
+        name: "sideload.greedy",
+        version: "1.0.0",
+        // no `capabilities` → deny-all for sideload (full access only for built-ins)
+        setup: ({ host }) => {
+          host.extensions.contribute(THEME, { id: "x", label: "X", scheme: "dark" });
+        },
+      }),
+    );
+    expect(result.kind).toBe("failed");
+    expect(lookupExtensionPoint(THEME)).toHaveLength(0);
+    expect(usePluginErrorStore.getState().log.at(-1)?.message).toMatch(/needs capability "theme"/);
+  });
+
+  it("a sideload plugin may contribute to points whose capability it declared", async () => {
+    setPluginOrigin("sideload.themer", "sideload");
+    const result = await loadPlugin(
+      definePlugin({
+        name: "sideload.themer",
+        version: "1.0.0",
+        capabilities: ["theme"],
+        setup: ({ host }) => {
+          host.extensions.contribute(THEME, { id: "brand", label: "Brand", scheme: "dark" });
+        },
+      }),
+    );
+    expect(result.kind).toBe("loaded");
+    expect(lookupExtensionByKey(THEME, "brand")?.label).toBe("Brand");
+  });
+
+  it("a built-in (no recorded origin) keeps full access when capabilities are omitted", async () => {
+    const result = await loadPlugin(
+      definePlugin({
+        name: "lyra.builtin.trusted",
+        version: "1.0.0",
+        setup: ({ host }) => {
+          host.extensions.contribute(THEME, { id: "trusted", label: "T", scheme: "dark" });
+        },
+      }),
+    );
+    expect(result.kind).toBe("loaded");
+    expect(lookupExtensionByKey(THEME, "trusted")?.label).toBe("T");
   });
 });
