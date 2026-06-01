@@ -44,18 +44,22 @@ export interface ThemeSurfaces {
 /** The five-step ink ladder. Each step has a defined role — see
  *  DESIGN.md §2 for the hierarchy. */
 export interface ThemeInk {
-  /** Headlines + emphasized body. */
+  /** Headlines + emphasized body. The anchor — the soft/muted/faint ramp
+   *  derives from this when omitted. */
   text: string;
   /** True maximum-contrast text — pure white on dark, pure black on
    *  light. Used for h1-h3 and `<strong>`. */
   textBright: string;
-  /** Body paragraph default. */
-  textSoft: string;
-  /** Secondary / inactive nav / meta. Must clear WCAG AA at 11-12px. */
-  textMuted: string;
-  /** Tertiary / disabled / footnotes. Must clear WCAG AA at 11-12px on
-   *  both canvas and surface. */
-  textFaint: string;
+  /** Body paragraph default. Omit to auto-derive as `text` at ~82% alpha
+   *  (Apple-label style) — adapts to the surface behind it. Pin an explicit
+   *  hue when the palette's ink ramp is intentional (Solarized, Catppuccin). */
+  textSoft?: string;
+  /** Secondary / inactive nav / meta. Omit to auto-derive (~56% alpha).
+   *  Must clear WCAG AA at 11-12px. */
+  textMuted?: string;
+  /** Tertiary / disabled / footnotes. Omit to auto-derive (~38% alpha).
+   *  Must clear WCAG AA at 11-12px on both canvas and surface. */
+  textFaint?: string;
 }
 
 /** The three-step hairline ladder. DESIGN.md §2: use literal hex, not

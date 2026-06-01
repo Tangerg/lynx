@@ -406,6 +406,8 @@ Color carries information, not decoration. The system uses **one chromatic accen
 
 **Hairlines must use literal hex values, not `color-mix(text X%, transparent)`** — semi-transparent borders shift visually across different surface lifts and read as "approximate". Literal hex = precision = perceived craft.
 
+**Ink, by contrast, may derive.** Unlike hairlines, the ink ramp (`text-soft` / `text-muted` / `text-faint`) *should* adapt to the surface behind it — that's the Apple label model. A theme can ship just `text` + `text-bright` and let the soft/muted/faint steps derive as `text` at ~82% / ~56% / ~38% alpha over transparent (so they composite against whatever surface they sit on). Palette themes (Solarized, Catppuccin, Tokyo Night, One Dark) instead pin explicit ink hues — their ramp is part of the palette identity, not a single hue at falling opacity. The first-party Lyra themes keep explicit values too; the derivation is the low-friction default for third-party themes.
+
 ### Accent policy
 
 The single accent (`primary: #1ed760`) is reserved for **exactly four surfaces**:

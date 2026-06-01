@@ -101,6 +101,10 @@ export function buildTokenMap(spec: ThemePluginSpec): Record<string, string> {
   // Auto-derive accentBorder / accentPress from the base accent via
   // colord. Themes can still pass explicit values when the perceptual
   // darkening doesn't land where the palette wants it.
+  // Ink ramp fallback: `text` at reduced opacity, mixed over transparent so it
+  // composites against whatever surface it sits on (Apple label adaptivity).
+  const inkAlpha = (pct: number) => `color-mix(in oklab, var(--color-text) ${pct}%, transparent)`;
+
   const accent = colord(spec.brand.accent);
   const accentBorder = spec.brand.accentBorder ?? accent.darken(0.08).toHex();
   const accentPress = spec.brand.accentPress ?? accent.darken(0.16).toHex();
@@ -128,12 +132,14 @@ export function buildTokenMap(spec: ThemePluginSpec): Record<string, string> {
     ...(spec.surfaces.surface3 ? { "color-surface-3": spec.surfaces.surface3 } : {}),
     ...(spec.surfaces.surface4 ? { "color-surface-4": spec.surfaces.surface4 } : {}),
 
-    // Ink
+    // Ink — soft/muted/faint default to `text` at decreasing alpha (Apple
+    // label model) so a theme can ship just `text` + `textBright` and get an
+    // adaptive ramp; palette themes pin explicit hues to keep their identity.
     "color-text": spec.ink.text,
     "color-text-bright": spec.ink.textBright,
-    "color-text-soft": spec.ink.textSoft,
-    "color-text-muted": spec.ink.textMuted,
-    "color-text-faint": spec.ink.textFaint,
+    "color-text-soft": spec.ink.textSoft ?? inkAlpha(82),
+    "color-text-muted": spec.ink.textMuted ?? inkAlpha(56),
+    "color-text-faint": spec.ink.textFaint ?? inkAlpha(38),
 
     // Borders
     "color-border": spec.borders.border,
