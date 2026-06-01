@@ -172,7 +172,7 @@ cd frontend && npm run check        # 一次跑完上面 4 个，全绿才往下
 - ✅ registry.ts 抽 `clearByPlugin` helper（Phase 3）
 - ✅ 主题系统：10 个主题 + `defineThemePlugin` helper + Settings picker UI
 - ✅ 所有 legacy 代码 / 注释 / 文档清除（dev phase 阶段）
-- ✅ **开放扩展点底座（L2+L3）**：40 个命名贡献 map → 单一 `extensions` 底座 + `defineExtensionPoint`/`contribute`；删掉 ~24 个纯 spec-register host facade，内置源码改直接 `contribute(POINT, …)`；保留少量薄 facade（agui / layout / contentBlock / lifecycle）。**capability-on-point 已做**：每个点带 `capability`，`contribute` 按点强制校验（受限 host 只能填声明了对应 capability 的点）。见 `docs/EXTENSION_POINTS.md`。下一步：§9.3 风险分级表 + sideload 默认 deny。
+- ✅ **开放扩展点底座（L2+L3）**：40 个命名贡献 map → 单一 `extensions` 底座 + `defineExtensionPoint`/`contribute`；删掉 ~24 个纯 spec-register host facade，内置源码改直接 `contribute(POINT, …)`；保留少量薄 facade（agui / layout / contentBlock / lifecycle）。**capability-on-point + §9.3 + T1-b + Plugin Pack 已做**：每个点带 `capability`（`contribute` 按点强制校验）；capability 风险分级表（`capabilities.ts`）+ sideload 默认 deny（`pluginOrigin.ts`，origin 由 loader 记录不可 spoof）；`host.commands.execute(id,…args)` 插件间命令互调；`definePluginPack` 一条目含 N 子插件。见 `docs/EXTENSION_POINTS.md`。下一步：install-time 同意 UI / Plugins-pane 风险徽章 / fs 扩展点（均 T3/owner 后补）。
 
 下一波"值得做但要先决条件"的清单在 `frontend/ARCHITECTURE.md §12`。
 
