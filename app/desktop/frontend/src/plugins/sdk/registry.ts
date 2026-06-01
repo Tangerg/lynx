@@ -11,7 +11,6 @@
 
 import type { Owned, PluginStoreActions, PluginStoreState } from "./registryState";
 import type {
-  BeforeUnloadHandler,
   ContributedCommand,
   ContributedSettingsPane,
   ContributedView,
@@ -23,12 +22,14 @@ import type {
 } from "./types";
 import { create } from "zustand";
 import { safeCall } from "./errors";
+import { LIFECYCLE_POINT_IDS } from "./pointIds";
 import {
   addOwned,
   addOwnedMulti,
   clearByPlugin,
   mapDrop,
   mapSet,
+  ownedContributionsTo,
   removeOwned,
   removeOwnedMulti,
 } from "./registryHelpers";
@@ -102,18 +103,15 @@ export const usePluginStore = create<PluginStoreState & PluginStoreActions>((set
     "coreEventHandlers",
   );
   const layoutSlots = multiSlot<{ slot: string; spec: LayoutSlotSpec }>("layoutSlots");
-  const readyHandlers = multiSlot<ReadyHandler>("readyHandlers");
-  const beforeUnloadHandlers = multiSlot<BeforeUnloadHandler>("beforeUnloadHandlers");
-  const pluginLoadListeners = multiSlot<(spec: PluginSpec) => void>("pluginLoadListeners");
-  const pluginUnloadListeners = multiSlot<(name: string) => void>("pluginUnloadListeners");
 
   return {
     ...freshState(),
 
     registerLoaded(plugin) {
       set({ loaded: mapSet(get().loaded, plugin.spec.name, plugin) });
-      for (const o of get().pluginLoadListeners.values()) {
-        safeCall(() => o.value(plugin.spec), `[plugin] ${o.pluginName} onLoad listener threw:`);
+      for (const o of ownedContributionsTo(get().extensions, LIFECYCLE_POINT_IDS.pluginLoad)) {
+        const fn = o.value.item as (spec: PluginSpec) => void;
+        safeCall(() => fn(plugin.spec), `[plugin] ${o.pluginName} onLoad listener threw:`);
       }
     },
 
@@ -124,8 +122,9 @@ export const usePluginStore = create<PluginStoreState & PluginStoreActions>((set
         safeCall(() => d.dispose(), `[plugin] ${pluginName} dispose threw:`);
       }
       set({ loaded: mapDrop(get().loaded, pluginName) });
-      for (const o of get().pluginUnloadListeners.values()) {
-        safeCall(() => o.value(pluginName), `[plugin] ${o.pluginName} onUnload listener threw:`);
+      for (const o of ownedContributionsTo(get().extensions, LIFECYCLE_POINT_IDS.pluginUnload)) {
+        const fn = o.value.item as (name: string) => void;
+        safeCall(() => fn(pluginName), `[plugin] ${o.pluginName} onUnload listener threw:`);
       }
     },
 
@@ -167,24 +166,14 @@ export const usePluginStore = create<PluginStoreState & PluginStoreActions>((set
       set({ pendingActivations: mapDrop(get().pendingActivations, name) });
     },
 
-    addReadyHandler: readyHandlers.add,
-    removeReadyHandler: readyHandlers.remove,
-
-    addBeforeUnloadHandler: beforeUnloadHandlers.add,
-    removeBeforeUnloadHandler: beforeUnloadHandlers.remove,
-
     markAppReady() {
       if (get().appReady) return;
       set({ appReady: true });
-      for (const o of get().readyHandlers.values()) {
-        safeCall(() => o.value(), `[plugin] ${o.pluginName} onReady threw:`);
+      for (const o of ownedContributionsTo(get().extensions, LIFECYCLE_POINT_IDS.ready)) {
+        const fn = o.value.item as ReadyHandler;
+        safeCall(() => fn(), `[plugin] ${o.pluginName} onReady threw:`);
       }
     },
-
-    addPluginLoadListener: pluginLoadListeners.add,
-    removePluginLoadListener: pluginLoadListeners.remove,
-    addPluginUnloadListener: pluginUnloadListeners.add,
-    removePluginUnloadListener: pluginUnloadListeners.remove,
 
     setWindowTitle(text) {
       set({ windowTitle: text });

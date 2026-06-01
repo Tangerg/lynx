@@ -7,6 +7,7 @@ import { useConfigStore } from "./config";
 import { createHost } from "./host";
 import { useNotificationStore } from "./notifications";
 import {
+  BEFORE_UNLOAD_HANDLER,
   COMPOSER_ATTACHMENT_SOURCE,
   COMPOSER_MODE,
   COMPOSER_STATUS,
@@ -625,9 +626,9 @@ describe("plugin registry", () => {
     const fn = vi.fn();
     const d = host.lifecycle.onBeforeUnload(fn);
 
-    expect(usePluginStore.getState().beforeUnloadHandlers.size).toBe(1);
+    expect(lookupExtensionPoint(BEFORE_UNLOAD_HANDLER).length).toBe(1);
     d.dispose();
-    expect(usePluginStore.getState().beforeUnloadHandlers.size).toBe(0);
+    expect(lookupExtensionPoint(BEFORE_UNLOAD_HANDLER).length).toBe(0);
   });
 
   it("notify() pushes to the persistent feed", () => {

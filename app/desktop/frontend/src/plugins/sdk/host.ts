@@ -53,6 +53,7 @@ import { safeCall } from "./errors";
 import {
   ACCENT,
   AGENT_SOURCE,
+  BEFORE_UNLOAD_HANDLER,
   COMMAND,
   COMPOSER_ATTACHMENT_SOURCE,
   COMPOSER_KEY_BINDING,
@@ -65,6 +66,9 @@ import {
   LOCALE,
   LOG_SUBSCRIBER,
   MESSAGE_ROLE,
+  PLUGIN_LOAD_LISTENER,
+  PLUGIN_UNLOAD_LISTENER,
+  READY_HANDLER,
   ROUTE,
   RPC_AFTER_RESPONSE,
   RPC_BEFORE_REQUEST,
@@ -314,15 +318,10 @@ export function createHost(
             },
           });
         }
-        const id = mintId("ready");
-        store().addReadyHandler(pluginName, id, fn);
-        return track({ dispose: () => store().removeReadyHandler(pluginName, id) });
+        return contribute(READY_HANDLER, fn);
       },
-      onBeforeUnload(fn: BeforeUnloadHandler): Disposable {
-        const id = mintId("before-unload");
-        store().addBeforeUnloadHandler(pluginName, id, fn);
-        return track({ dispose: () => store().removeBeforeUnloadHandler(pluginName, id) });
-      },
+      onBeforeUnload: (fn: BeforeUnloadHandler): Disposable =>
+        contribute(BEFORE_UNLOAD_HANDLER, fn),
     },
 
     settings: {
@@ -372,16 +371,8 @@ export function createHost(
       list(): LoadedPlugin[] {
         return Array.from(usePluginStore.getState().loaded.values());
       },
-      onLoad(fn: (spec: PluginSpec) => void): Disposable {
-        const id = mintId("load");
-        store().addPluginLoadListener(pluginName, id, fn);
-        return track({ dispose: () => store().removePluginLoadListener(pluginName, id) });
-      },
-      onUnload(fn: (name: string) => void): Disposable {
-        const id = mintId("unload");
-        store().addPluginUnloadListener(pluginName, id, fn);
-        return track({ dispose: () => store().removePluginUnloadListener(pluginName, id) });
-      },
+      onLoad: (fn: (spec: PluginSpec) => void): Disposable => contribute(PLUGIN_LOAD_LISTENER, fn),
+      onUnload: (fn: (name: string) => void): Disposable => contribute(PLUGIN_UNLOAD_LISTENER, fn),
       // Dynamic load / unload — the SDK indirection lets plugins ship admin
       // UI without importing definePlugin directly. The actual impl lives
       // in definePlugin.ts and is installed via setPluginRuntime() so we
