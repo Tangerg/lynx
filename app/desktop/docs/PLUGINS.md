@@ -42,7 +42,7 @@
 | 加一个新工具让 agent 调用（比如 `kubectl`） | **MCP server**（后端事），不是 Lyra 插件 |
 | 改变 agent 怎么思考、怎么选择工具 | **Go 端 agent 配置**，不是 Lyra 插件 |
 | 让 `kubectl` 工具输出渲染成资源表格 | **Lyra 插件**：注册一个 ToolPreview |
-| 给 inspector 加一个"Profiler"标签 | **Lyra 插件**：注册一个 Inspector Tab |
+| 给 workspace 加一个"Profiler"视图 | **Lyra 插件**：注册一个 Workspace View |
 | 接入自建的 LLM 网关 | **Go 端 transport 替换**，不是 Lyra 插件 |
 | 把 AG-UI `CUSTOM` 事件渲染成图表 | **Lyra 插件**：注册一个 CUSTOM 事件 handler + 渲染 |
 | 加一个 `/lint` slash 命令 | **Lyra 插件**：注册 command（command 体内可以通过 `host.rpc` 回调后端） |
@@ -54,7 +54,7 @@
 **目标**
 
 - 一个人用一个下午写完一个**前端 UI 扩展**（仅 TypeScript）。
-- 让消息渲染、inspector、composer、主题都可扩展，不需要 fork 前端。
+- 让消息渲染、workspace 视图、composer、主题都可扩展，不需要 fork 前端。
 - 宿主必须稳定：插件出 bug 不能炸主应用。
 - 扩展看起来要像原生：复用 DESIGN.md tokens、复用 motion、复用通用组件。
 
@@ -74,10 +74,10 @@
 | 场景 | 现状 | 用插件之后 |
 |---|---|---|
 | 把 `kubectl` 工具的输出渲染成彩色资源列表 | `bash` preview 只能看到原始文本 | 注册 `host.tool.registerPreview("kubectl", ...)` |
-| 给 inspector 加一个 "Profiler" 面板 | inspector 标签是硬编码的 | `host.inspector.registerTab({ id: "profiler", ... })` |
+| 给 workspace 加一个 "Profiler" 面板 | workspace 视图是硬编码的 | `host.workspace.registerView({ id: "profiler", ... })` |
 | `/lint` 命令把 diff 喂给后端的 eslint endpoint | 没法加新命令 | `host.composer.registerCommand("/lint", ...)`，内部 `host.rpc.post("/lint", { diff })` |
 | 自定义事件 `monitoring.cpu` → 实时折线图卡片 | reducer 不认识 | `host.agui.on("monitoring.cpu", ...)` + 注册 `ContentBlock` 渲染 |
-| 给企业部署做品牌主题 | 改 `tokens.css` | `host.theme.register({ id: "brand", tokens: {...} })` |
+| 给企业部署做品牌主题 | 改 `tokens.css` | `host.theme.registerTheme({ id: "brand", tokens: {...} })` |
 
 ---
 
@@ -103,11 +103,11 @@ export default definePlugin({
   version: "0.1.0",
   setup({ host }) {
     host.tool.registerPreview("kubectl", KubectlPreview);
-    host.inspector.registerTab({
+    host.workspace.registerView({
       id:    "kubectl-resources",
       icon:  "list",
-      label: "Resources",
-      component: KubectlTab,
+      title: "Resources",
+      component: KubectlView,
     });
   },
 });
@@ -139,17 +139,17 @@ host.tool.registerPreview("kubectl", ({ tool, onOpenInspector }) => (
 
 如果多个插件抢同一个 `fn`，**后注册的覆盖前者**，console 给一条 warning。冲突直接报错的策略后续再加。
 
-### 5.2 Inspector 标签 — `host.inspector.registerTab(spec)`
+### 5.2 Workspace 视图 — `host.workspace.registerView(spec)`
 
-插件给 inspector rail 推一个新 tab。rail 按钮、badge、激活样式由宿主渲染；内容由插件渲染。
+插件给 workspace 推一个新 view tab。tab 按钮、badge、激活样式由宿主渲染；内容由插件渲染。打开用 `host.workspace.openView(id)`。
 
 ```ts
-host.inspector.registerTab({
+host.workspace.registerView({
   id: "profiler",
   icon: "lightning",            // 任意宿主暴露的 IconName
-  label: "Profiler",
+  title: "Profiler",
   badge: () => useFlameGraphCount(),   // 可选，组件 hook
-  component: ProfilerTab,
+  component: ProfilerView,
 });
 ```
 
@@ -173,9 +173,10 @@ host.message.registerContentBlock("cpuChart", ({ block }) => (
 ));
 
 // 3. 让 reducer 知道怎么从 CUSTOM 事件转成 ContentBlock（见 §5.6）
-host.agui.on("monitoring.cpu", (value, { dispatch }) => {
-  dispatch.appendBlock("cpuChart", { series: value.series });
-});
+//    handler 返回一个 StateUpdate（(state) => newState），由宿主 apply
+host.agui.on("monitoring.cpu", (value) =>
+  (state) => appendBlock(state, "cpuChart", { series: value.series }),
+);
 ```
 
 ### 5.4 Slash 命令 — `host.composer.registerCommand(cmd, spec)`
@@ -183,18 +184,18 @@ host.agui.on("monitoring.cpu", (value, { dispatch }) => {
 ```ts
 host.composer.registerCommand("/lint", {
   description: "Run eslint --fix on the staged diff",
-  run: async ({ args, host }) => {
-    // 命令体里调后端
+  run: async ({ args, send }) => {
+    // 命令体里调后端（host 用闭包捕获，ctx 只有 { args, send }）
     const result = await host.rpc.post("/plugins/eslint/lint", { args });
-    host.notify(`Fixed ${result.fixed} issues`);
+    send(`Fixed ${result.fixed} issues`);
   },
 });
 ```
 
-### 5.5 主题 — `host.theme.register(spec)`
+### 5.5 主题 — `host.theme.registerTheme(spec)`
 
 ```ts
-host.theme.register({
+host.theme.registerTheme({
   id: "midnight",
   label: "Midnight",
   tokens: {
@@ -206,20 +207,20 @@ host.theme.register({
 });
 ```
 
-主题选择器从 `host.theme.list()` 读列表。**内置主题（dark / light）也走同一个 API 注册** —— 一等公民 / 三等公民没有区别（这点直接抄 pi-mono）。
+主题选择器从主题 registry 读列表。**内置主题（dark / light）也走同一个 API 注册** —— 一等公民 / 三等公民没有区别（这点直接抄 pi-mono）。强调色（accent）走 `host.theme.registerAccent(spec)`。
 
 ### 5.6 AG-UI CUSTOM 事件处理器 — `host.agui.on(name, handler)`
 
 现在 `lyra.plan` / `lyra.code-proposal` / `lyra.approval` / `lyra.telemetry` 这些事件在 reducer 里直接处理。插件可以监听新的 CUSTOM name，不用 fork reducer。
 
 ```ts
-host.agui.on("kubectl.resources", (value, { dispatch }) => {
-  // dispatch 是 host 暴露的一组安全 mutation 方法
-  dispatch.updateInspector({ kubectlResources: value });
-});
+host.agui.on("kubectl.resources", (value, ctx) =>
+  // handler 返回一个 StateUpdate：(state) => newState，由宿主 apply 到 viewState
+  (state) => ({ ...state, kubectlResources: value }),
+);
 ```
 
-handler 可以是 sync 或 async；返回的 `Promise` 被宿主 await，方便插件在事件链里做事。
+handler 返回 `StateUpdate | void`：返回一个 `(state) => newState` 的纯函数就能更新 viewState，返回 `void` 表示只做副作用。
 
 ### 5.7 Settings 面板 — `host.settings.registerPane(spec)`
 
@@ -238,16 +239,18 @@ host.settings.registerPane({
 
 ## 六、Host SDK（`@lyra/plugin-sdk`）
 
+> 接口已演进，**以 `sdk/types/host.ts` 为准**。下面保留提案时的代表形状，并标注与当前实现的差异。当前 Host 有 24 个 namespace：tool / message / agui / layout / workspace / theme / router / composer / sidebar / shortcuts / agent / data / commands / lifecycle / state / config / settings / storage / rpc / tasks / notify / window / plugins / log。
+
 ```ts
 type Host = {
   // ---- 注册点 ----
-  tool:     { registerPreview(fn: string, c: ToolPreviewComponent): Disposable };
-  inspector:{ registerTab(spec: TabSpec): Disposable };
-  message:  { registerContentBlock<K extends string>(kind: K, r: BlockRenderer<K>): Disposable };
-  composer: { registerCommand(cmd: string, spec: CommandSpec): Disposable };
-  theme:    { register(spec: ThemeSpec): Disposable; list(): ThemeSpec[] };
-  agui:     { on<T>(customName: string, handler: CustomEventHandler<T>): Disposable };
-  settings: { registerPane(spec: SettingsPaneSpec): Disposable };
+  tool:      { registerPreview(fn: string, c: ToolPreviewComponent): Disposable };
+  workspace: { registerView(spec: WorkspaceViewSpec): Disposable; openView(id: string): void };
+  message:   { registerContentBlock<K extends string>(kind: K, r: BlockRenderer<K>): Disposable };
+  composer:  { registerCommand(cmd: string, spec: CommandSpec): Disposable };
+  theme:     { registerTheme(spec: ThemeSpec): Disposable; registerAccent(spec: AccentSpec): Disposable };
+  agui:      { on<T>(customName: string, handler: CustomEventHandler<T>): Disposable };
+  settings:  { registerPane(spec: SettingsPaneSpec): Disposable };
 
   // ---- 后端桥（§7 详述）----
   rpc: {
@@ -256,10 +259,8 @@ type Host = {
   };
 
   // ---- 横向工具 ----
-  notify(message: string, level?: "info" | "warn" | "error"): void;
+  notify(message: string, level?: "info" | "warn" | "error"): void;  // Host 顶层方法
   storage: KeyValueStore;       // 命名空间隔离的 localStorage
-  ui:      UIPrimitives;        // Icon / PillButton / Panel / Chip / ...
-  motion:  MotionPresets;       // 共享的 ease / spring / 预设动画
 };
 ```
 
@@ -292,7 +293,7 @@ import lodash from "lodash";                  // ✔ 自己 vendor
 - `@tanstack/react-query`, `@tanstack/react-router`
 - `zustand`
 - `@ag-ui/core`, `@ag-ui/client`
-- `@lyra/plugin-sdk`（含所有 host 类型 + UI primitives + motion presets）
+- `@lyra/plugin-sdk`（含所有 host 类型 + 通用组件）
 
 其它依赖插件自己 bundle。
 
@@ -329,9 +330,9 @@ sub.next(Custom("monitoring.cpu", map[string]any{ "series": [...] }))
 
 **前端插件**：
 ```ts
-host.agui.on("monitoring.cpu", (value, { dispatch }) => {
-  dispatch.appendBlock("cpuChart", { series: value.series });
-});
+host.agui.on("monitoring.cpu", (value) =>
+  (state) => appendBlock(state, "cpuChart", { series: value.series }),
+);
 ```
 
 ### 7.3 注册新 REST endpoint（最重）
@@ -385,7 +386,7 @@ declare module "@lyra/plugin-sdk" {
 }
 ```
 
-宿主的 `ContentBlock` 联合 = 内置的 7 种 + 所有插件 declare 的合并。reducer 的 `dispatch.appendBlock` 现在能正确推断 `kind: "cpuChart"` 对应的 payload 形状。
+宿主的 `ContentBlock` 联合 = 内置的 7 种 + 所有插件 declare 的合并。handler 返回的 StateUpdate 里 `appendBlock` 现在能正确推断 `kind: "cpuChart"` 对应的 payload 形状。
 
 ---
 
@@ -524,8 +525,8 @@ return Preview ? <Preview tool={tool} onOpenInspector={onOpenInspector} /> : nul
 **阶段一 — 静态贡献 + 自证（~1 sprint）**
 
 - `host.tool.registerPreview`
-- `host.inspector.registerTab`
-- `host.theme.register`
+- `host.workspace.registerView`
+- `host.theme.registerTheme`
 - 把现有 `BashPreview` / `DiffPreview` / `dark theme` / `light theme` 改造成内置插件（§14）
 - Sideload 从 `~/.lyra/plugins/`，virtualModules 工作起来
 - **目标：验证 SDK 形状选对了**
@@ -533,7 +534,7 @@ return Preview ? <Preview tool={tool} onOpenInspector={onOpenInspector} /> : nul
 **阶段二 — 动态贡献（~1 sprint）**
 
 - `host.message.registerContentBlock` + declaration merging
-- `host.agui.on` + `dispatch` 安全 mutation API
+- `host.agui.on` + StateUpdate 返回值（`(state) => newState`）
 - `host.composer.registerCommand`
 - `host.rpc.*` 网络代理
 
@@ -558,7 +559,7 @@ return Preview ? <Preview tool={tool} onOpenInspector={onOpenInspector} /> : nul
 
 2. **状态共享。** 插件组件需不需要读 Zustand UI store？倾向 **暴露白名单 selector**：`host.useUI.theme()`、`host.useUI.activeSession()` 等只读 hook，写操作只能通过 host.action 触发。
 
-3. **多面板插件。** 插件想加一整个新顶级面板（跟 sidebar / chat / inspector 平级）—— 是大改动，留到有人真的提需求再考虑。
+3. **多面板插件。** 插件想加一整个新顶级面板（跟 sidebar / chat / workspace 平级）—— 是大改动，留到有人真的提需求再考虑。
 
 4. **dev 热重载。** Vite 已经 HMR 宿主，但插件 JS 在 `~/.lyra/plugins/` 下，超出 Vite watcher。v1 接受"sideload 插件改动后需要重启 app"；阶段四补 `fs.watch`。
 

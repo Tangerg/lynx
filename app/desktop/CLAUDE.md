@@ -28,13 +28,13 @@
 
 ## 三大支柱
 
-1. **插件系统** (`frontend/src/plugins/sdk/` + `builtin/`) — `definePlugin({ name, version, setup({ host }) { host.X.register*(...) } })`。Host 有 31 个 `register*` 方法分布在 16 个 namespace（tool / message / agui / layout / workspace / theme / composer / sidebar / commands / …）。
+1. **插件系统** (`frontend/src/plugins/sdk/` + `builtin/`) — `definePlugin({ name, version, setup({ host }) { host.X.register*(...) } })`。Host 有 30+ 个 `register*` 方法分布在 24 个 namespace（tool / message / agui / layout / workspace / theme / composer / sidebar / commands / …）。
 2. **AG-UI 协议层** (`frontend/src/protocol/agui/`) — reducer 是纯派发器，把 core events 路由到 `host.agui.onCore(...)` 注册的 handler chain，CUSTOM events 路由到 `host.agui.on(...)`。所有协议语义都在 `core-reducer` 插件里。
 3. **状态分层** (`frontend/src/state/`) — `agentStore`（每会话 view state，ephemeral）/ `themeStore`（持久化 `lyra.theme`）/ `layoutStore`（持久化 `lyra.layout`）/ `sessionStore`（部分持久化 `lyra.session`）/ `composerStore`（ephemeral）。
 
 ## 主题系统（IDE 风格）
 
-10 个内置主题（lyra-dark/light + atom-one-dark/light + tokyo-night-storm/light + solarized-dark/light + catppuccin-mocha/latte），每个是一个独立 plugin 文件，用 `defineThemePlugin()` helper：
+11 个内置主题（lyra-dark/light + atom-one-dark/light + tokyo-night-storm/light + solarized-dark/light + catppuccin-mocha/macchiato/latte），每个是一个独立 plugin 文件，用 `defineThemePlugin()` helper：
 
 ```ts
 defineThemePlugin({
