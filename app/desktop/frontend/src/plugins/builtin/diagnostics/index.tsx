@@ -13,6 +13,7 @@
 //     otel-api falls back to no-op proxies again.
 
 import { definePlugin } from "@/plugins/sdk";
+import { WORKSPACE_VIEW } from "@/plugins/sdk/kernelPoints";
 import { DiagnosticsView } from "./DiagnosticsView";
 import { teardownProvider } from "./provider";
 
@@ -20,7 +21,7 @@ export default definePlugin({
   name: "lyra.builtin.diagnostics",
   version: "1.0.0",
   setup({ host }) {
-    host.workspace.registerView({
+    host.extensions.contribute(WORKSPACE_VIEW, {
       id: "diagnostics",
       title: "Diagnostics",
       icon: "spark",

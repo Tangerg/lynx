@@ -4,11 +4,12 @@
 // available before any plugin runs).
 
 import { definePlugin } from "@/plugins/sdk";
+import { LOCALE } from "@/plugins/sdk/kernelPoints";
 
 export const localeEn = definePlugin({
   name: "lyra.builtin.locale-en",
   version: "1.0.0",
   setup({ host }) {
-    host.i18n.registerLocale({ id: "en", label: "English", order: 0 });
+    host.extensions.contribute(LOCALE, { id: "en", label: "English", order: 0 });
   },
 });

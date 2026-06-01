@@ -22,7 +22,6 @@ import type {
   ReadyHandler,
   RpcAfterResponseHook,
   RpcBeforeRequestHook,
-  WorkspaceViewSpec,
 } from "./types";
 import type { ContentBlockKind } from "@/protocol/agui/viewState";
 import { api } from "@/lib/data/http";
@@ -38,7 +37,6 @@ import {
   CORE_EVENT_HANDLER,
   CUSTOM_EVENT_HANDLER,
   LAYOUT_SLOT,
-  LOCALE,
   LOG_SUBSCRIBER,
   PLUGIN_LOAD_LISTENER,
   PLUGIN_UNLOAD_LISTENER,
@@ -175,7 +173,6 @@ export function createHost(
     },
 
     workspace: {
-      registerView: (spec: WorkspaceViewSpec): Disposable => contribute(WORKSPACE_VIEW, spec),
       openView(id: string): void {
         const view = lookupExtensionByKey(WORKSPACE_VIEW, id);
         if (!view) {
@@ -303,7 +300,6 @@ export function createHost(
         // same-name reload overwrites cleanly.
         return track({ dispose: () => {} });
       },
-      registerLocale: (spec): Disposable => contribute(LOCALE, spec),
     },
 
     tasks: {

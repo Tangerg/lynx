@@ -2,6 +2,7 @@ import { EmptyState, Icon, IconButton, ScrollArea } from "@/components/common";
 import { PlanList } from "@/components/views/PlanList";
 import { ViewHeader } from "@/components/views/ViewHeader";
 import { definePlugin } from "@/plugins/sdk";
+import { WORKSPACE_VIEW } from "@/plugins/sdk/kernelPoints";
 import { useAgentSlice } from "@/state/agentStore";
 
 function PlanTab() {
@@ -45,7 +46,7 @@ export const planView = definePlugin({
   name: "lyra.builtin.view-plan",
   version: "1.0.0",
   setup({ host }) {
-    host.workspace.registerView({
+    host.extensions.contribute(WORKSPACE_VIEW, {
       id: "plan",
       title: "Plan",
       icon: "list",

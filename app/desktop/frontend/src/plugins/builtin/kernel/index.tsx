@@ -11,6 +11,7 @@ import { SidebarPanel } from "@/components/sidebar/SidebarPanel";
 import { useChatSend } from "@/lib/agent/useChatSend";
 import { useSessions } from "@/lib/data/queries";
 import { definePlugin } from "@/plugins/sdk";
+import { WORKSPACE_VIEW } from "@/plugins/sdk/kernelPoints";
 import { useSessionStore } from "@/state/sessionStore";
 import { useUiStore } from "@/state/uiStore";
 import { useDefaultChatSession } from "@/state/useDefaultChatSession";
@@ -67,7 +68,7 @@ export const kernelSettings = definePlugin({
   name: "lyra.builtin.kernel-settings",
   version: "1.0.0",
   setup({ host }) {
-    host.workspace.registerView({
+    host.extensions.contribute(WORKSPACE_VIEW, {
       id: "settings",
       title: "Settings",
       icon: "settings",
