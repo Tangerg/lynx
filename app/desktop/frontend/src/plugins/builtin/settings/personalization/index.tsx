@@ -5,7 +5,7 @@
 
 import {
   MessageStyleSection,
-  StreamRenderSection,
+  StreamRevealSection,
 } from "@/plugins/builtin/settings/appearance/PrefSections";
 import { definePlugin } from "@/plugins/sdk";
 import { SETTINGS_PANE } from "@/plugins/sdk/kernelPoints";
@@ -14,7 +14,7 @@ function PersonalizationPane() {
   return (
     <div>
       <MessageStyleSection />
-      <StreamRenderSection />
+      <StreamRevealSection />
     </div>
   );
 }

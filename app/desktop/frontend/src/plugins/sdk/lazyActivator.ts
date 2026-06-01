@@ -3,9 +3,9 @@
 // whose `setup()` hasn't run yet.
 //
 // Mounting the placeholder fires `onActivate()` once; the plugin runs
-// setup, registers the real component, and the registry-driven selector
-// (useWorkspaceViews / useSettingsPanes) re-emits a list where the
-// real component replaces this placeholder.
+// setup and registers the real component, so the merged list from the
+// registry-driven selector (useWorkspaceViews / useSettingsPanes) now
+// carries the real component in this placeholder's place.
 
 import type { ComponentType } from "react";
 import { createElement, useEffect } from "react";
