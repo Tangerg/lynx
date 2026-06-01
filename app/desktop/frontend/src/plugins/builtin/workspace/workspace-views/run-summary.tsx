@@ -12,8 +12,7 @@ import { useMemo, useState } from "react";
 import { EmptyState, Icon, IconButton, ScrollArea } from "@/components/common";
 import { ViewHeader } from "./views/ViewHeader";
 import { cn } from "@/lib/utils";
-import { definePlugin } from "@/plugins/sdk";
-import { WORKSPACE_VIEW } from "@/plugins/sdk/kernelPoints";
+import { defineWorkspaceView } from "./defineWorkspaceView";
 import { buildPlaintext, deriveLatestRun, durationText } from "@/protocol/agui/runDigest";
 import { INITIAL_VIEW_STATE } from "@/protocol/agui/viewState";
 import { useAgentSlice } from "@/state/agentStore";
@@ -203,18 +202,12 @@ function RunSummaryTab() {
   );
 }
 
-export const runSummaryView = definePlugin({
-  name: "lyra.builtin.view-run-summary",
-  version: "1.0.0",
-  setup({ host }) {
-    host.extensions.contribute(WORKSPACE_VIEW, {
-      id: "run-summary",
-      title: "Run summary",
-      icon: "check",
-      openByDefault: false,
-      // Sits next to Timeline (35) — both are about "what happened".
-      order: 36,
-      component: RunSummaryTab,
-    });
-  },
+export const runSummaryView = defineWorkspaceView({
+  id: "run-summary",
+  title: "Run summary",
+  icon: "check",
+  openByDefault: false,
+  // Sits next to Timeline (35) — both are about "what happened".
+  order: 36,
+  component: RunSummaryTab,
 });

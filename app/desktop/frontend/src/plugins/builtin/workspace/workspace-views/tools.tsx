@@ -2,8 +2,7 @@ import { DataView, Icon, IconButton, ScrollArea } from "@/components/common";
 import { McpRow } from "./views/McpRow";
 import { ViewHeader } from "./views/ViewHeader";
 import { useMCPServers } from "@/lib/data/queries";
-import { definePlugin } from "@/plugins/sdk";
-import { WORKSPACE_VIEW } from "@/plugins/sdk/kernelPoints";
+import { defineWorkspaceView } from "./defineWorkspaceView";
 
 const CONFIG_PATH = "~/.lyra/mcp.json";
 
@@ -56,17 +55,11 @@ function ToolsTab() {
   );
 }
 
-export const toolsView = definePlugin({
-  name: "lyra.builtin.view-tools",
-  version: "1.0.0",
-  setup({ host }) {
-    host.extensions.contribute(WORKSPACE_VIEW, {
-      id: "tools",
-      title: "Tools",
-      icon: "tool",
-      openByDefault: false,
-      order: 40,
-      component: ToolsTab,
-    });
-  },
+export const toolsView = defineWorkspaceView({
+  id: "tools",
+  title: "Tools",
+  icon: "tool",
+  openByDefault: false,
+  order: 40,
+  component: ToolsTab,
 });

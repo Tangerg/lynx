@@ -8,8 +8,7 @@ import { DataView, Icon, IconButton, ScrollArea } from "@/components/common";
 import { FilesChanged } from "./views/FilesChanged";
 import { ViewHeader } from "./views/ViewHeader";
 import { useFilesChanged } from "@/lib/data/queries";
-import { definePlugin } from "@/plugins/sdk";
-import { WORKSPACE_VIEW } from "@/plugins/sdk/kernelPoints";
+import { defineWorkspaceView } from "./defineWorkspaceView";
 import { useSessionStore } from "@/state/sessionStore";
 
 function FilesView() {
@@ -64,17 +63,11 @@ function FilesView() {
   );
 }
 
-export const filesView = definePlugin({
-  name: "lyra.builtin.view-files",
-  version: "1.0.0",
-  setup({ host }) {
-    host.extensions.contribute(WORKSPACE_VIEW, {
-      id: "files",
-      title: "Files",
-      icon: "filetext",
-      openByDefault: false,
-      order: 20,
-      component: FilesView,
-    });
-  },
+export const filesView = defineWorkspaceView({
+  id: "files",
+  title: "Files",
+  icon: "filetext",
+  openByDefault: false,
+  order: 20,
+  component: FilesView,
 });
