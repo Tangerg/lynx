@@ -6,7 +6,7 @@
 import { Slider } from "@/components/common";
 import { useT } from "@/lib/i18n";
 import { useUiStore } from "@/state/uiStore";
-import { SettingRow } from "./SettingRow";
+import { SettingRow } from "../SettingRow";
 
 export function ContrastSection() {
   const t = useT();

@@ -15,7 +15,7 @@ import { useT } from "@/lib/i18n";
 import { useSystemFonts } from "@/lib/systemFonts";
 import { cn } from "@/lib/utils";
 import { useUiStore } from "@/state/uiStore";
-import { SettingRow } from "./SettingRow";
+import { SettingRow } from "../SettingRow";
 
 interface FontPickerProps {
   label: string;

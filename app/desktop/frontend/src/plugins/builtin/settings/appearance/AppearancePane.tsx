@@ -10,7 +10,7 @@ import { AccentSection } from "./AccentSection";
 import { ContrastSection } from "./ContrastSection";
 import { CustomThemeColors } from "./CustomThemeColors";
 import { FontSection } from "./FontSection";
-import { LanguageSection } from "./PrefSections";
+import { LanguageSection } from "./LanguageSection";
 import { ShapeMotionSection } from "./ShapeMotionSection";
 import { ThemeSection } from "./ThemeSection";
 

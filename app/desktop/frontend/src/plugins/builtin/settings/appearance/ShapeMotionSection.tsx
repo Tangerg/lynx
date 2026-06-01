@@ -14,7 +14,7 @@
 import { Segmented, type SegmentedOption } from "@/components/common";
 import { useT } from "@/lib/i18n";
 import { useUiStore } from "@/state/uiStore";
-import { SettingRow } from "./SettingRow";
+import { SettingRow } from "../SettingRow";
 
 const RADIUS_OPTIONS: SegmentedOption<number>[] = [
   { value: 0.6, label: "Sharp" },
