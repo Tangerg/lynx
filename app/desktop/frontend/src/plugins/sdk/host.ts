@@ -53,6 +53,7 @@ import { safeCall } from "./errors";
 import {
   ACCENT,
   AGENT_SOURCE,
+  COMMAND,
   COMPOSER_ATTACHMENT_SOURCE,
   COMPOSER_KEY_BINDING,
   COMPOSER_MODE,
@@ -64,6 +65,7 @@ import {
   LOCALE,
   MESSAGE_ROLE,
   ROUTE,
+  SETTINGS_PANE,
   SHORTCUT,
   SIDEBAR_RAIL_ITEM,
   SIDEBAR_SECTION,
@@ -72,9 +74,11 @@ import {
   TOOL_ACTION,
   TOOL_ICON,
   TOOL_PREVIEW,
+  WORKSPACE_VIEW,
 } from "./kernelPoints";
 import { useNotificationStore } from "./notifications";
 import { usePluginStore } from "./registry";
+import { lookupExtensionByKey } from "./selectors/extensions";
 import { getOrCreateSlice } from "./stateSlice";
 import { createStorage } from "./storage";
 
@@ -214,12 +218,9 @@ export function createHost(
     },
 
     workspace: {
-      registerView(spec: WorkspaceViewSpec): Disposable {
-        store().addWorkspaceView(pluginName, spec);
-        return track({ dispose: () => store().removeWorkspaceView(pluginName, spec.id) });
-      },
+      registerView: (spec: WorkspaceViewSpec): Disposable => contribute(WORKSPACE_VIEW, spec),
       openView(id: string): void {
-        const view = usePluginStore.getState().workspaceViews.get(id)?.value;
+        const view = lookupExtensionByKey(WORKSPACE_VIEW, id);
         if (!view) {
           console.warn(`[plugin] workspace.openView("${id}"): no view registered`);
           return;
@@ -279,10 +280,7 @@ export function createHost(
     },
 
     commands: {
-      register(spec: CommandSpec): Disposable {
-        store().addCommand(pluginName, spec);
-        return track({ dispose: () => store().removeCommand(pluginName, spec.id) });
-      },
+      register: (spec: CommandSpec): Disposable => contribute(COMMAND, spec),
     },
 
     extensions: { contribute },
@@ -325,10 +323,7 @@ export function createHost(
     },
 
     settings: {
-      registerPane(spec: SettingsPaneSpec): Disposable {
-        store().addSettingsPane(pluginName, spec);
-        return track({ dispose: () => store().removeSettingsPane(pluginName, spec.id) });
-      },
+      registerPane: (spec: SettingsPaneSpec): Disposable => contribute(SETTINGS_PANE, spec),
     },
 
     storage: createStorage(pluginName),

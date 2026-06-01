@@ -6,7 +6,6 @@
 
 import type {
   BeforeUnloadHandler,
-  CommandSpec,
   ContributedCommand,
   ContributedSettingsPane,
   ContributedView,
@@ -19,8 +18,6 @@ import type {
   ReadyHandler,
   RpcAfterResponseHook,
   RpcBeforeRequestHook,
-  SettingsPaneSpec,
-  WorkspaceViewSpec,
 } from "./types";
 
 export interface Owned<T> {
@@ -56,11 +53,9 @@ export interface PluginStoreState {
   // order stable + allow the same plugin to register more than one handler
   // for the same type (rare but legal).
   coreEventHandlers: Map<string, Owned<{ eventType: string; handler: CoreEventHandler }>>;
-  settingsPanes: Map<string, Owned<SettingsPaneSpec>>;
   // Layout slot key is `${slot}|${pluginName}|${spec.id}` to allow the same
   // plugin to fill multiple slots and to keep insertion order deterministic.
   layoutSlots: Map<string, Owned<{ slot: string; spec: LayoutSlotSpec }>>;
-  commands: Map<string, Owned<CommandSpec>>;
   /**
    * Commands declared in `PluginSpec.contributes.commands` but whose
    * owning plugin hasn't been activated yet. Displayed as palette
@@ -92,7 +87,6 @@ export interface PluginStoreState {
   // Plugin-load / unload listeners — composite key per registration.
   pluginLoadListeners: Map<string, Owned<(spec: PluginSpec) => void>>;
   pluginUnloadListeners: Map<string, Owned<(name: string) => void>>;
-  workspaceViews: Map<string, Owned<WorkspaceViewSpec>>;
   // Open extension points — the unified substrate. Plugin-defined points
   // (and, post-collapse, every kernel point) store their contributions here
   // keyed by `${point.id}#${dedupeKey}`. Read via the extensions selector.
@@ -115,9 +109,6 @@ export interface PluginStoreActions {
   ) => void;
   removeCustomEventHandler: (pluginName: string, id: string) => void;
 
-  addSettingsPane: (pluginName: string, spec: SettingsPaneSpec) => void;
-  removeSettingsPane: (pluginName: string, id: string) => void;
-
   addCoreEventHandler: (
     pluginName: string,
     eventType: string,
@@ -128,9 +119,6 @@ export interface PluginStoreActions {
 
   addLayoutSlot: (pluginName: string, slot: string, spec: LayoutSlotSpec) => void;
   removeLayoutSlot: (pluginName: string, slot: string, id: string) => void;
-
-  addCommand: (pluginName: string, spec: CommandSpec) => void;
-  removeCommand: (pluginName: string, id: string) => void;
 
   addDeclaredCommand: (pluginName: string, spec: ContributedCommand) => void;
   removeDeclaredCommand: (pluginName: string, id: string) => void;
@@ -168,9 +156,6 @@ export interface PluginStoreActions {
   addPluginUnloadListener: (pluginName: string, id: string, fn: (name: string) => void) => void;
   removePluginUnloadListener: (pluginName: string, id: string) => void;
 
-  addWorkspaceView: (pluginName: string, spec: WorkspaceViewSpec) => void;
-  removeWorkspaceView: (pluginName: string, id: string) => void;
-
   // Open extension points (substrate). `outerKey` is the fully-qualified
   // `${point}#${dedupeKey}`; the host computes it (single vs multi keying)
   // and hands it back via the disposable so removal is exact.
@@ -201,9 +186,7 @@ export function freshState(): PluginStoreState {
     loaded: new Map(),
     customEventHandlers: new Map(),
     coreEventHandlers: new Map(),
-    settingsPanes: new Map(),
     layoutSlots: new Map(),
-    commands: new Map(),
     declaredCommands: new Map(),
     declaredViews: new Map(),
     declaredSettingsPanes: new Map(),
@@ -215,7 +198,6 @@ export function freshState(): PluginStoreState {
     beforeUnloadHandlers: new Map(),
     pluginLoadListeners: new Map(),
     pluginUnloadListeners: new Map(),
-    workspaceViews: new Map(),
     extensions: new Map(),
     appReady: false,
     windowTitle: "",

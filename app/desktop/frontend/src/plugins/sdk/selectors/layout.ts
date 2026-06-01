@@ -12,7 +12,7 @@ import type {
   SidebarSectionSpec,
   WorkspaceViewSpec,
 } from "../types";
-import { SIDEBAR_RAIL_ITEM, SIDEBAR_SECTION } from "../kernelPoints";
+import { SETTINGS_PANE, SIDEBAR_RAIL_ITEM, SIDEBAR_SECTION, WORKSPACE_VIEW } from "../kernelPoints";
 import { makeLazyActivator } from "../lazyActivator";
 import { usePluginStore } from "../registry";
 import { createIndex, runActivator, useDeclaredMerged } from "./_helpers";
@@ -53,7 +53,7 @@ export function useSidebarRailItems(): SidebarRailItemSpec[] {
 // ---------------------------------------------------------------------------
 
 export function useWorkspaceViews(): WorkspaceViewSpec[] {
-  const registered = usePluginStore((s) => s.workspaceViews);
+  const registered = useExtensionPoint(WORKSPACE_VIEW);
   const declared = usePluginStore((s) => s.declaredViews);
   return useDeclaredMerged(registered, declared, declaredToWorkspaceView);
 }
@@ -72,7 +72,7 @@ function declaredToWorkspaceView(d: ContributedView, pluginName: string): Worksp
 // ---------------------------------------------------------------------------
 
 export function useSettingsPanes(): SettingsPaneSpec[] {
-  const registered = usePluginStore((s) => s.settingsPanes);
+  const registered = useExtensionPoint(SETTINGS_PANE);
   const declared = usePluginStore((s) => s.declaredSettingsPanes);
   return useDeclaredMerged(registered, declared, declaredToSettingsPane);
 }

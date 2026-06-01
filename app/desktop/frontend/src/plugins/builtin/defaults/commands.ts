@@ -13,7 +13,7 @@ import type { SidebarSession } from "@/lib/data/queries";
 import type { Disposable, ThemeAccentSpec, WorkspaceViewSpec } from "@/plugins/sdk";
 import { queryClient } from "@/lib/data/queryClient";
 import { definePlugin, lookupExtensionPoint, usePluginStore } from "@/plugins/sdk";
-import { ACCENT } from "@/plugins/sdk/kernelPoints";
+import { ACCENT, WORKSPACE_VIEW } from "@/plugins/sdk/kernelPoints";
 import { useSessionStore } from "@/state/sessionStore";
 import { useUiStore } from "@/state/uiStore";
 
@@ -146,23 +146,17 @@ export const defaultCommands = definePlugin({
       }
     };
 
-    const snapshot = () => {
-      const s = usePluginStore.getState();
-      return {
-        views: Array.from(s.workspaceViews.values()).map((o) => o.value),
-        accents: lookupExtensionPoint(ACCENT),
-      };
-    };
+    const snapshot = () => ({
+      views: lookupExtensionPoint(WORKSPACE_VIEW),
+      accents: lookupExtensionPoint(ACCENT),
+    });
 
     const initial = snapshot();
     rebuild(initial.views, initial.accents);
 
     const unsubscribe = usePluginStore.subscribe((state, prev) => {
-      // Accents live on the shared `extensions` map; workspace views still
-      // have their own field (not yet migrated).
-      if (state.workspaceViews === prev.workspaceViews && state.extensions === prev.extensions) {
-        return;
-      }
+      // Both workspace views and accents live on the shared `extensions` map.
+      if (state.extensions === prev.extensions) return;
       const next = snapshot();
       rebuild(next.views, next.accents);
     });

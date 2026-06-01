@@ -16,9 +16,9 @@ import { Icon } from "@/components/common";
 import {
   definePlugin,
   evalWhen,
+  lookupCommandOwner,
   reportPluginError,
   useCommands,
-  usePluginStore,
 } from "@/plugins/sdk";
 import { useWhenContext } from "@/state/useWhenContext";
 
@@ -53,7 +53,7 @@ function CommandPalette() {
     setOpen(false);
     void Promise.resolve(cmd.run()).catch((err) => {
       console.error(`[plugin] command ${cmd.id} threw:`, err);
-      const owner = usePluginStore.getState().commands.get(cmd.id)?.pluginName ?? "unknown";
+      const owner = lookupCommandOwner(cmd.id) ?? "unknown";
       reportPluginError(owner, "command", err, `command: ${cmd.id}`);
     });
   };
