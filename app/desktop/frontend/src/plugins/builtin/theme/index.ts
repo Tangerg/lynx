@@ -1,24 +1,25 @@
 // The `theme` package entry: every built-in theme shipped as one Plugin Pack.
 //
-// Adding a theme = drop a new folder under `theme/`, add it to the array below,
-// done. The manifest (plugins/builtin/index.ts) pulls in this single pack and
-// never touches individual theme imports. The `kit/` subfolder holds the
-// shared theme-authoring helper (`defineThemePlugin` + tokens + types).
+// Adding a theme = drop a new file under `theme/themes/`, add it to the array
+// below, done — mirrors `i18n/` (pack entry + `locales/` data files). The
+// manifest pulls in this single pack and never touches individual theme
+// imports. `themes/` holds the data files; `kit/` holds the shared
+// theme-authoring helper (`defineThemePlugin` + tokens + types).
 
 import type { PluginSpec } from "@/plugins/sdk";
 import { definePluginPack } from "@/plugins/sdk";
-import customTheme from "./custom-theme";
-import atomOneDark from "./atom-one-dark";
-import atomOneLight from "./atom-one-light";
-import catppuccinLatte from "./catppuccin-latte";
-import catppuccinMacchiato from "./catppuccin-macchiato";
-import catppuccinMocha from "./catppuccin-mocha";
-import lyraDark from "./lyra-dark";
-import lyraLight from "./lyra-light";
-import solarizedDark from "./solarized-dark";
-import solarizedLight from "./solarized-light";
-import tokyoNightLight from "./tokyo-night-light";
-import tokyoNightStorm from "./tokyo-night-storm";
+import customTheme from "./themes/custom-theme";
+import atomOneDark from "./themes/atom-one-dark";
+import atomOneLight from "./themes/atom-one-light";
+import catppuccinLatte from "./themes/catppuccin-latte";
+import catppuccinMacchiato from "./themes/catppuccin-macchiato";
+import catppuccinMocha from "./themes/catppuccin-mocha";
+import lyraDark from "./themes/lyra-dark";
+import lyraLight from "./themes/lyra-light";
+import solarizedDark from "./themes/solarized-dark";
+import solarizedLight from "./themes/solarized-light";
+import tokyoNightLight from "./themes/tokyo-night-light";
+import tokyoNightStorm from "./themes/tokyo-night-storm";
 
 const builtinThemes: PluginSpec[] = [
   lyraDark,

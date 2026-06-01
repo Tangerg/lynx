@@ -2,7 +2,7 @@
 // ladder is non-linear (perceptually equal steps on a yellow-blue
 // axis, not a lightness ramp), so surface-2/3/4 are pinned explicitly.
 
-import { defineThemePlugin } from "./kit/defineThemePlugin";
+import { defineThemePlugin } from "../kit/defineThemePlugin";
 
 const c = {
   blue: "#268bd2",

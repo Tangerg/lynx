@@ -2,7 +2,7 @@
 // and Frappé; warmer, slightly bluer base than Mocha. Pins every surface
 // step explicitly; the canonical feel relies on these exact tones.
 
-import { defineThemePlugin } from "./kit/defineThemePlugin";
+import { defineThemePlugin } from "../kit/defineThemePlugin";
 
 const c = {
   mauve: "#c6a0f6",

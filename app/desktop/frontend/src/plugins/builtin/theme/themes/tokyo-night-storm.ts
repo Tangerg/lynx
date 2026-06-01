@@ -1,6 +1,6 @@
 // Tokyo Night Storm — canonical enkia/tokyonight Storm variant.
 
-import { defineThemePlugin } from "./kit/defineThemePlugin";
+import { defineThemePlugin } from "../kit/defineThemePlugin";
 
 const c = {
   blue: "#7aa2f7",

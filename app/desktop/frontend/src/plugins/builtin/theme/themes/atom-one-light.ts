@@ -1,6 +1,6 @@
 // Atom One Light — canonical one-light-syntax palette.
 
-import { defineThemePlugin } from "./kit/defineThemePlugin";
+import { defineThemePlugin } from "../kit/defineThemePlugin";
 
 const c = {
   blue: "#526fff",
