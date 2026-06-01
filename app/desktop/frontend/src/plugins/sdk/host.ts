@@ -57,6 +57,7 @@ import {
   COMPOSER_MODE,
   COMPOSER_PLACEHOLDER,
   COMPOSER_STATUS,
+  CONTENT_BLOCK,
   DATA_PROVIDER,
   ERROR_FALLBACK,
   LOCALE,
@@ -66,6 +67,8 @@ import {
   SIDEBAR_SECTION,
   THEME,
   TOOL_ACTION,
+  TOOL_ICON,
+  TOOL_PREVIEW,
 } from "./kernelPoints";
 import { useNotificationStore } from "./notifications";
 import { usePluginStore } from "./registry";
@@ -139,7 +142,7 @@ export function createHost(
     let outerKey: string;
     let conflictKey: string;
     if (point.keying === "single") {
-      const base = keyOf(item);
+      const base = opts?.key ?? keyOf(item);
       const k = point.normalizeKey ? point.normalizeKey(base) : base;
       outerKey = `${point.id}#${k}`;
       conflictKey = k;
@@ -160,15 +163,11 @@ export function createHost(
 
   const full = {
     tool: {
-      registerPreview(fn: string, component: ToolPreviewComponent): Disposable {
-        store().addToolPreview(pluginName, fn, component);
-        return track({ dispose: () => store().removeToolPreview(pluginName, fn) });
-      },
+      registerPreview: (fn: string, component: ToolPreviewComponent): Disposable =>
+        contribute(TOOL_PREVIEW, component, { key: fn }),
       registerAction: (spec: ToolActionSpec): Disposable => contribute(TOOL_ACTION, spec),
-      registerIcon(fn: string, icon: string): Disposable {
-        store().addToolIcon(pluginName, fn, icon);
-        return track({ dispose: () => store().removeToolIcon(pluginName, fn) });
-      },
+      registerIcon: (fn: string, icon: string): Disposable =>
+        contribute(TOOL_ICON, icon, { key: fn }),
     },
 
     message: {
@@ -176,14 +175,11 @@ export function createHost(
         kind: K,
         renderer: ContentBlockRenderer<K>,
       ): Disposable {
-        // The store holds renderers as the union root type; the public method
-        // is typed per-kind for plugin author ergonomics.
-        store().addContentBlock(
-          pluginName,
-          kind,
-          renderer as ContentBlockRenderer<ContentBlockKind>,
-        );
-        return track({ dispose: () => store().removeContentBlock(pluginName, kind) });
+        // The substrate holds renderers as the union root type; the public
+        // method is typed per-kind for plugin author ergonomics.
+        return contribute(CONTENT_BLOCK, renderer as ContentBlockRenderer<ContentBlockKind>, {
+          key: kind,
+        });
       },
       registerRole: (spec: MessageRoleSpec): Disposable => contribute(MESSAGE_ROLE, spec),
     },

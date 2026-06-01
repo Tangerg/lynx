@@ -8,7 +8,6 @@ import type {
   BeforeUnloadHandler,
   CommandSpec,
   ComposerKeyBindingSpec,
-  ContentBlockRenderer,
   ContributedCommand,
   ContributedSettingsPane,
   ContributedView,
@@ -24,10 +23,8 @@ import type {
   SettingsPaneSpec,
   ShortcutSpec,
   SlashCommandSpec,
-  ToolPreviewComponent,
   WorkspaceViewSpec,
 } from "./types";
-import type { ContentBlockKind } from "@/protocol/agui/viewState";
 
 export interface Owned<T> {
   pluginName: string;
@@ -48,9 +45,6 @@ export interface ContributionEntry {
 
 export interface PluginStoreState {
   loaded: Map<string, LoadedPlugin>;
-  toolPreviews: Map<string, Owned<ToolPreviewComponent>>;
-  toolIcons: Map<string, Owned<string>>;
-  contentBlocks: Map<string, Owned<ContentBlockRenderer<ContentBlockKind>>>;
   // Composite key `${pluginName}|${id}` so multiple handlers can be
   // registered for the same custom event name across (or within) plugins.
   // The reducer fans the event out through every match in registration
@@ -114,19 +108,6 @@ export interface PluginStoreState {
 export interface PluginStoreActions {
   registerLoaded: (plugin: LoadedPlugin) => void;
   unload: (pluginName: string) => void;
-
-  addToolPreview: (pluginName: string, fn: string, c: ToolPreviewComponent) => void;
-  removeToolPreview: (pluginName: string, fn: string) => void;
-
-  addToolIcon: (pluginName: string, fn: string, icon: string) => void;
-  removeToolIcon: (pluginName: string, fn: string) => void;
-
-  addContentBlock: (
-    pluginName: string,
-    kind: string,
-    r: ContentBlockRenderer<ContentBlockKind>,
-  ) => void;
-  removeContentBlock: (pluginName: string, kind: string) => void;
 
   addCustomEventHandler: (
     pluginName: string,
@@ -229,9 +210,6 @@ export interface PluginStoreActions {
 export function freshState(): PluginStoreState {
   return {
     loaded: new Map(),
-    toolPreviews: new Map(),
-    toolIcons: new Map(),
-    contentBlocks: new Map(),
     customEventHandlers: new Map(),
     coreEventHandlers: new Map(),
     slashCommands: new Map(),

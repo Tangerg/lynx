@@ -11,7 +11,6 @@ import type { Owned, PluginStoreActions, PluginStoreState } from "./registryStat
 import type {
   BeforeUnloadHandler,
   CommandSpec,
-  ContentBlockRenderer,
   ContributedCommand,
   ContributedSettingsPane,
   ContributedView,
@@ -25,10 +24,8 @@ import type {
   RpcBeforeRequestHook,
   SettingsPaneSpec,
   SlashCommandSpec,
-  ToolPreviewComponent,
   WorkspaceViewSpec,
 } from "./types";
-import type { ContentBlockKind } from "@/protocol/agui/viewState";
 import { create } from "zustand";
 import { safeCall } from "./errors";
 import {
@@ -109,12 +106,6 @@ export const usePluginStore = create<PluginStoreState & PluginStoreActions>((set
 
   // Instantiate one helper per slot — kept dense; the action map below
   // wires them up to the public `addX` / `removeX` signatures.
-  const toolPreviews = ownedKeySlot<ToolPreviewComponent>("toolPreviews", "tool preview");
-  const toolIcons = ownedKeySlot<string>("toolIcons", "tool icon");
-  const contentBlocks = ownedKeySlot<ContentBlockRenderer<ContentBlockKind>>(
-    "contentBlocks",
-    "content block",
-  );
   const slashCommands = ownedKeySlot<SlashCommandSpec>("slashCommands", "slash command");
 
   const settingsPanes = ownedSpecSlot<SettingsPaneSpec>("settingsPanes", "settings pane");
@@ -166,15 +157,6 @@ export const usePluginStore = create<PluginStoreState & PluginStoreActions>((set
         safeCall(() => o.value(pluginName), `[plugin] ${o.pluginName} onUnload listener threw:`);
       }
     },
-
-    addToolPreview: toolPreviews.add,
-    removeToolPreview: toolPreviews.remove,
-
-    addToolIcon: toolIcons.add,
-    removeToolIcon: toolIcons.remove,
-
-    addContentBlock: contentBlocks.add,
-    removeContentBlock: contentBlocks.remove,
 
     addCustomEventHandler: (pluginName, name, id, handler) =>
       customEvents.add(pluginName, id, { name, handler }),
