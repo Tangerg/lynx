@@ -38,7 +38,7 @@ function comboFromEvent(e: KeyboardEvent): string {
 export function ShortcutsProvider() {
   // Subscribe to the extension substrate so the effect tears down + reattaches
   // if the registry changes. (Not strictly necessary — the handler reads
-  // through `lookupShortcut` on every keydown — but subscribing keeps the
+  // through `lookupExtensionByKey(SHORTCUT, …)` on every keydown — but subscribing keeps the
   // component honest about its dependency.)
   const extensions = usePluginStore((s) => s.extensions);
 

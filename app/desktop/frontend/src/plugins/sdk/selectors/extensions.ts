@@ -1,10 +1,23 @@
-// Read side of the open-extension-point substrate.
+// Read side of the open-extension-point substrate — the one read API for both
+// kernel and plugins. Four public reads, two axes (hook vs imperative · whole
+// list vs one key):
 //
-// Both surfaces resolve a point id to its contributed items, sorted by
-// `order`. The secondary index (`byPoint`) caches on the source Map
-// reference — the registry produces a fresh `extensions` Map on every
-// contribute/remove, so the cache auto-invalidates on mutation and steady-
-// state reads (during streaming, when nothing registers) stay O(1).
+//   useExtensionPoint(P)        hook   → T[]  (re-renders on change, sorted)
+//   lookupExtensionPoint(P)     plain  → T[]  (reducer / setup / event-time)
+//   useExtensionByKey(P, k)     hook   → T?   (subscribes to one slot only)
+//   lookupExtensionByKey(P, k)  plain  → T?   (O(1) by dedupe key)
+//
+// `use*` for render, `lookup*` everywhere else; `*ByKey` when you want one entry
+// by id/fn/combo, `*Point` for the whole list. `useExtensionEntries` is the rare
+// "I also need each item's key" variant (slash triggers). `lookupExtensionOwner`
+// / `lookupExtensionOwnedEntries` surface the contributing plugin for error
+// attribution. `createPointSubIndex` is the engine for sub-keyed fan-out
+// (events by type, layout by slot) — not a general read.
+//
+// All reads share `byPoint`, a secondary index cached on the `extensions` Map
+// reference: the registry mints a fresh Map per contribute/remove, so the cache
+// auto-invalidates on mutation and steady-state reads (streaming, no registers)
+// stay O(1).
 
 import type { ContributionEntry, Owned } from "../registryState";
 import type { ExtensionPoint } from "../types/extensions";
