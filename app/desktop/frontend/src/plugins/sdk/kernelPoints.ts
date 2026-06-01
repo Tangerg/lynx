@@ -20,9 +20,12 @@ import type {
   ContentBlockRenderer,
   DataProviderSpec,
   LocaleSpec,
+  LogSubscriber,
   MessageRoleSpec,
   PluginErrorFallbackSpec,
   RouteSpec,
+  RpcAfterResponseHook,
+  RpcBeforeRequestHook,
   SettingsPaneSpec,
   ShortcutSpec,
   SidebarRailItemSpec,
@@ -114,6 +117,20 @@ export const SETTINGS_PANE = defineExtensionPoint<SettingsPaneSpec>({
 export const WORKSPACE_VIEW = defineExtensionPoint<WorkspaceViewSpec>({
   id: "lyra.workspaceView",
   keying: "single",
+});
+
+// ---- multi-handler surfaces (every contribution coexists, runs in order) --
+export const RPC_BEFORE_REQUEST = defineExtensionPoint<RpcBeforeRequestHook>({
+  id: "lyra.rpc.beforeRequest",
+  keying: "multi",
+});
+export const RPC_AFTER_RESPONSE = defineExtensionPoint<RpcAfterResponseHook>({
+  id: "lyra.rpc.afterResponse",
+  keying: "multi",
+});
+export const LOG_SUBSCRIBER = defineExtensionPoint<LogSubscriber>({
+  id: "lyra.log.subscriber",
+  keying: "multi",
 });
 
 // ---- sidebar domain -------------------------------------------------------

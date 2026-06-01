@@ -9,9 +9,14 @@ import type {
   RpcAfterResponseHook,
   RpcBeforeRequestHook,
 } from "../types";
-import { AGENT_SOURCE, DATA_PROVIDER, ERROR_FALLBACK, ROUTE } from "../kernelPoints";
-import { usePluginStore } from "../registry";
-import { mapOwned } from "./_helpers";
+import {
+  AGENT_SOURCE,
+  DATA_PROVIDER,
+  ERROR_FALLBACK,
+  ROUTE,
+  RPC_AFTER_RESPONSE,
+  RPC_BEFORE_REQUEST,
+} from "../kernelPoints";
 import { lookupExtensionByKey, lookupExtensionPoint } from "./extensions";
 
 // ---------------------------------------------------------------------------
@@ -53,12 +58,12 @@ export function lookupDataProvider<T = unknown>(key: string): (() => Promise<T>)
 
 /** Snapshot of registered beforeRequest hooks in insertion order. */
 export function listRpcBeforeHooks(): RpcBeforeRequestHook[] {
-  return mapOwned(usePluginStore.getState().rpcBeforeRequest);
+  return lookupExtensionPoint(RPC_BEFORE_REQUEST);
 }
 
 /** Snapshot of registered afterResponse hooks in insertion order. */
 export function listRpcAfterHooks(): RpcAfterResponseHook[] {
-  return mapOwned(usePluginStore.getState().rpcAfterResponse);
+  return lookupExtensionPoint(RPC_AFTER_RESPONSE);
 }
 
 // ---------------------------------------------------------------------------

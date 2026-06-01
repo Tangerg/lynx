@@ -17,15 +17,6 @@ export interface Ordered {
 }
 
 /**
- * Pull the value off each owned entry, in insertion order. Used by the
- * imperative RPC-hook lists (`listRpcBeforeHooks` / `listRpcAfterHooks`)
- * that aren't allowed to call hooks.
- */
-export function mapOwned<T>(map: Map<string, Owned<T>>): T[] {
-  return Array.from(map.values()).map((o) => o.value);
-}
-
-/**
  * Merge two ownership maps by id and sort by order. Used for the three
  * surfaces that have both a "declared placeholder" (rendered until the
  * owning plugin activates) and a "registered real" (the activated
