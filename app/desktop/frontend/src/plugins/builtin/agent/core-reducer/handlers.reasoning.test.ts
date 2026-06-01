@@ -14,7 +14,7 @@ import { INITIAL_VIEW_STATE } from "@/protocol/agui/viewState";
 const ev = <T extends BaseEvent>(e: T): BaseEvent => e;
 
 beforeEach(async () => {
-  const { default: spec } = await import("@/plugins/builtin/core-reducer");
+  const { default: spec } = await import("@/plugins/builtin/agent/core-reducer");
   await loadPlugin(spec);
 });
 

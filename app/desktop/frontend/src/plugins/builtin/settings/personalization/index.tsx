@@ -3,7 +3,7 @@
 // with the message bubble style (moved out of Appearance). Future
 // personalization knobs land here too.
 
-import { MessageStyleSection } from "@/plugins/builtin/appearance/PrefSections";
+import { MessageStyleSection } from "@/plugins/builtin/settings/appearance/PrefSections";
 import { definePlugin } from "@/plugins/sdk";
 import { SETTINGS_PANE } from "@/plugins/sdk/kernelPoints";
 

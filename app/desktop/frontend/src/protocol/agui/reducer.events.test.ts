@@ -19,7 +19,7 @@ const ev = <T extends BaseEvent>(e: T): BaseEvent => e;
 // AG-UI protocol semantics live in the `lyra.builtin.core-reducer`
 // plugin, not the reducer dispatcher.
 beforeEach(async () => {
-  const { default: spec } = await import("@/plugins/builtin/core-reducer");
+  const { default: spec } = await import("@/plugins/builtin/agent/core-reducer");
   await loadPlugin(spec);
 });
 

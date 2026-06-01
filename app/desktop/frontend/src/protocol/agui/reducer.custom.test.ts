@@ -18,7 +18,7 @@ import { INITIAL_VIEW_STATE } from "./viewState";
 const ev = <T extends BaseEvent>(e: T): BaseEvent => e;
 
 beforeEach(async () => {
-  const { default: spec } = await import("@/plugins/builtin/core-reducer");
+  const { default: spec } = await import("@/plugins/builtin/agent/core-reducer");
   await loadPlugin(spec);
 });
 
@@ -27,7 +27,7 @@ describe("reducer — built-in CUSTOM events (via builtin plugin handlers)", () 
   // The reducer alone no longer reacts to those names — we load the
   // builtin handler before each test.
   it("lyra.plan installs the plan once plan-handler is loaded", async () => {
-    const { planHandler: spec } = await import("@/plugins/builtin/agui-handlers");
+    const { planHandler: spec } = await import("@/plugins/builtin/chat/agui-handlers");
     await loadPlugin(spec);
 
     const next = reduce(
@@ -43,7 +43,7 @@ describe("reducer — built-in CUSTOM events (via builtin plugin handlers)", () 
   });
 
   it("lyra.telemetry patches the run state once telemetry-handler is loaded", async () => {
-    const { telemetryHandler: spec } = await import("@/plugins/builtin/agui-handlers");
+    const { telemetryHandler: spec } = await import("@/plugins/builtin/chat/agui-handlers");
     await loadPlugin(spec);
 
     const next = reduce(
@@ -67,7 +67,7 @@ describe("reducer — built-in CUSTOM events (via builtin plugin handlers)", () 
   });
 
   it("lyra.question appends a question block, lyra.question-result settles it", async () => {
-    const { questionHandler: spec } = await import("@/plugins/builtin/agui-handlers");
+    const { questionHandler: spec } = await import("@/plugins/builtin/chat/agui-handlers");
     await loadPlugin(spec);
 
     let s = reduce(
