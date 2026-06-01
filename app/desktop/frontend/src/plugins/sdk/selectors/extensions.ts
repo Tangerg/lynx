@@ -13,13 +13,14 @@ import { usePluginStore } from "../registry";
 import { createIndex } from "./_helpers";
 
 interface Resolved {
+  key: string;
   order?: number;
   item: unknown;
 }
 
 const byPoint = createIndex<ContributionEntry, Resolved>((o) => ({
   key: o.value.point,
-  value: { order: o.value.order, item: o.value.item },
+  value: { key: o.value.key, order: o.value.order, item: o.value.item },
 }));
 
 // Sort hint precedence: the item's own `order` (the legacy spec field every
@@ -31,9 +32,23 @@ function sortKey(e: Resolved): number {
   return own ?? e.order ?? 100;
 }
 
-function resolve<T>(extensions: Map<string, Owned<ContributionEntry>>, pointId: string): T[] {
+/** Contribution paired with its dedupe key, for points keyed by a value the
+ * item doesn't carry (slash trigger, tool fn). */
+export interface ExtensionEntry<T> {
+  key: string;
+  item: T;
+}
+
+function resolveEntries(
+  extensions: Map<string, Owned<ContributionEntry>>,
+  pointId: string,
+): Resolved[] {
   const list = byPoint(extensions).get(pointId) ?? [];
-  return [...list].sort((a, b) => sortKey(a) - sortKey(b)).map((e) => e.item) as T[];
+  return [...list].sort((a, b) => sortKey(a) - sortKey(b));
+}
+
+function resolve<T>(extensions: Map<string, Owned<ContributionEntry>>, pointId: string): T[] {
+  return resolveEntries(extensions, pointId).map((e) => e.item) as T[];
 }
 
 /** Imperative read of every contribution to `point`, sorted by order. */
@@ -45,6 +60,15 @@ export function lookupExtensionPoint<T>(point: ExtensionPoint<T>): T[] {
 export function useExtensionPoint<T>(point: ExtensionPoint<T>): T[] {
   const extensions = usePluginStore((s) => s.extensions);
   return useMemo(() => resolve<T>(extensions, point.id), [extensions, point.id]);
+}
+
+/** Hook variant of `useExtensionPoint` that keeps each item's dedupe key. */
+export function useExtensionEntries<T>(point: ExtensionPoint<T>): Array<ExtensionEntry<T>> {
+  const extensions = usePluginStore((s) => s.extensions);
+  return useMemo(
+    () => resolveEntries(extensions, point.id).map((e) => ({ key: e.key, item: e.item as T })),
+    [extensions, point.id],
+  );
 }
 
 /**

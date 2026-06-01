@@ -54,6 +54,7 @@ import {
   ACCENT,
   AGENT_SOURCE,
   COMPOSER_ATTACHMENT_SOURCE,
+  COMPOSER_KEY_BINDING,
   COMPOSER_MODE,
   COMPOSER_PLACEHOLDER,
   COMPOSER_STATUS,
@@ -63,8 +64,10 @@ import {
   LOCALE,
   MESSAGE_ROLE,
   ROUTE,
+  SHORTCUT,
   SIDEBAR_RAIL_ITEM,
   SIDEBAR_SECTION,
+  SLASH_COMMAND,
   THEME,
   TOOL_ACTION,
   TOOL_ICON,
@@ -155,7 +158,7 @@ export function createHost(
       pluginName,
       point.id,
       outerKey,
-      { point: point.id, order: opts?.order, item },
+      { point: point.id, key: conflictKey, order: opts?.order, item },
       conflictKey,
     );
     return track({ dispose: () => store().removeContribution(pluginName, outerKey) });
@@ -241,8 +244,7 @@ export function createHost(
       registerCommand(cmd: string, spec: SlashCommandSpec): Disposable {
         // Normalize so callers can omit the leading slash.
         const key = cmd.startsWith("/") ? cmd : `/${cmd}`;
-        store().addSlashCommand(pluginName, key, spec);
-        return track({ dispose: () => store().removeSlashCommand(pluginName, key) });
+        return contribute(SLASH_COMMAND, spec, { key });
       },
       registerStatus: (spec: ComposerStatusSpec): Disposable => contribute(COMPOSER_STATUS, spec),
       registerMode: (spec: ComposerModeSpec): Disposable => contribute(COMPOSER_MODE, spec),
@@ -250,10 +252,8 @@ export function createHost(
         contribute(COMPOSER_PLACEHOLDER, spec),
       registerAttachmentSource: (spec: ComposerAttachmentSourceSpec): Disposable =>
         contribute(COMPOSER_ATTACHMENT_SOURCE, spec),
-      registerKeyBinding(spec: ComposerKeyBindingSpec): Disposable {
-        store().addComposerKeyBinding(pluginName, spec);
-        return track({ dispose: () => store().removeComposerKeyBinding(pluginName, spec.key) });
-      },
+      registerKeyBinding: (spec: ComposerKeyBindingSpec): Disposable =>
+        contribute(COMPOSER_KEY_BINDING, spec),
     },
 
     sidebar: {
@@ -263,10 +263,7 @@ export function createHost(
     },
 
     shortcuts: {
-      register(spec: ShortcutSpec): Disposable {
-        store().addShortcut(pluginName, spec);
-        return track({ dispose: () => store().removeShortcut(pluginName, spec.key) });
-      },
+      register: (spec: ShortcutSpec): Disposable => contribute(SHORTCUT, spec),
     },
 
     agent: {

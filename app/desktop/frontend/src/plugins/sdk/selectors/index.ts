@@ -10,6 +10,7 @@ export {
   lookupCommand,
   lookupShortcut,
   lookupSlashCommand,
+  lookupSlashCommandOwner,
   useCommands,
   useShortcuts,
   useSlashCommands,

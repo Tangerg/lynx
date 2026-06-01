@@ -23,7 +23,6 @@ import type {
   RpcAfterResponseHook,
   RpcBeforeRequestHook,
   SettingsPaneSpec,
-  SlashCommandSpec,
   WorkspaceViewSpec,
 } from "./types";
 import { create } from "zustand";
@@ -51,27 +50,9 @@ export const usePluginStore = create<PluginStoreState & PluginStoreActions>((set
   // `addOwnedMulti`). The `as` casts narrow PluginStoreState[K] from
   // its TS union back to the concrete `Map<string, Owned<T>>`.
 
-  // (pluginName, key, value) — caller supplies the key explicitly.
-  function ownedKeySlot<T>(slot: OwnedMapKey, label: string) {
-    return {
-      add: (pluginName: string, key: string, value: T) =>
-        set({
-          [slot]: addOwned(get()[slot] as Map<string, Owned<T>>, pluginName, key, value, label),
-        } as Partial<PluginStoreState>),
-      remove: (pluginName: string, key: string) =>
-        set({
-          [slot]: removeOwned(get()[slot] as Map<string, Owned<T>>, pluginName, key),
-        } as Partial<PluginStoreState>),
-    };
-  }
-
-  // (pluginName, spec) — key is `spec.id` by default; pass `keyOf` for
-  // slots that key by a different field (e.g. dataProvider uses `key`).
-  function ownedSpecSlot<T>(
-    slot: OwnedMapKey,
-    label: string,
-    keyOf: (spec: T) => string = (s) => (s as unknown as { id: string }).id,
-  ) {
+  // (pluginName, spec) — key is `spec.id`.
+  function ownedSpecSlot<T>(slot: OwnedMapKey, label: string) {
+    const keyOf = (s: T) => (s as unknown as { id: string }).id;
     return {
       add: (pluginName: string, spec: T) =>
         set({
@@ -106,8 +87,6 @@ export const usePluginStore = create<PluginStoreState & PluginStoreActions>((set
 
   // Instantiate one helper per slot — kept dense; the action map below
   // wires them up to the public `addX` / `removeX` signatures.
-  const slashCommands = ownedKeySlot<SlashCommandSpec>("slashCommands", "slash command");
-
   const settingsPanes = ownedSpecSlot<SettingsPaneSpec>("settingsPanes", "settings pane");
   const commands = ownedSpecSlot<CommandSpec>("commands", "command");
   const declaredCommands = ownedSpecSlot<ContributedCommand>(
@@ -162,9 +141,6 @@ export const usePluginStore = create<PluginStoreState & PluginStoreActions>((set
       customEvents.add(pluginName, id, { name, handler }),
     removeCustomEventHandler: customEvents.remove,
 
-    addSlashCommand: slashCommands.add,
-    removeSlashCommand: slashCommands.remove,
-
     addSettingsPane: settingsPanes.add,
     removeSettingsPane: settingsPanes.remove,
 
@@ -178,39 +154,6 @@ export const usePluginStore = create<PluginStoreState & PluginStoreActions>((set
     addLayoutSlot: (pluginName, slot, spec) =>
       layoutSlots.add(pluginName, `${slot}#${spec.id}`, { slot, spec }),
     removeLayoutSlot: (pluginName, slot, id) => layoutSlots.remove(pluginName, `${slot}#${id}`),
-
-    // Shortcuts + composer key bindings normalize on the way in/out so
-    // "Cmd+K" and "mod+k" hit the same slot regardless of how they
-    // were registered or looked up.
-    addShortcut(pluginName, spec) {
-      const key = normalizeCombo(spec.key);
-      set({ shortcuts: addOwned(get().shortcuts, pluginName, key, spec, "shortcut") });
-    },
-    removeShortcut(pluginName, key) {
-      set({ shortcuts: removeOwned(get().shortcuts, pluginName, normalizeCombo(key)) });
-    },
-
-    addComposerKeyBinding(pluginName, spec) {
-      const key = normalizeCombo(spec.key);
-      set({
-        composerKeyBindings: addOwned(
-          get().composerKeyBindings,
-          pluginName,
-          key,
-          spec,
-          "composer key binding",
-        ),
-      });
-    },
-    removeComposerKeyBinding(pluginName, key) {
-      set({
-        composerKeyBindings: removeOwned(
-          get().composerKeyBindings,
-          pluginName,
-          normalizeCombo(key),
-        ),
-      });
-    },
 
     addCommand: commands.add,
     removeCommand: commands.remove,

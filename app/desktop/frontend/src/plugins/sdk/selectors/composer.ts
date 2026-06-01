@@ -10,12 +10,12 @@ import type {
 } from "../types";
 import {
   COMPOSER_ATTACHMENT_SOURCE,
+  COMPOSER_KEY_BINDING,
   COMPOSER_MODE,
   COMPOSER_PLACEHOLDER,
   COMPOSER_STATUS,
 } from "../kernelPoints";
-import { usePluginStore } from "../registry";
-import { lookupExtensionPoint, useExtensionPoint } from "./extensions";
+import { lookupExtensionByKey, lookupExtensionPoint, useExtensionPoint } from "./extensions";
 
 export function useComposerStatus(): ComposerStatusSpec[] {
   return useExtensionPoint(COMPOSER_STATUS);
@@ -47,7 +47,7 @@ export function pickComposerPlaceholder(): ComposerPlaceholderSpec | undefined {
   return specs.at(-1);
 }
 
-/** Look up a composer key binding by canonical combo. */
+/** Look up a composer key binding by combo — normalized to canonical form. */
 export function lookupComposerKeyBinding(canonical: string): ComposerKeyBindingSpec | undefined {
-  return usePluginStore.getState().composerKeyBindings.get(canonical)?.value;
+  return lookupExtensionByKey(COMPOSER_KEY_BINDING, canonical);
 }

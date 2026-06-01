@@ -35,11 +35,11 @@ function comboFromEvent(e: KeyboardEvent): string {
 }
 
 export function ShortcutsProvider() {
-  // Subscribe to the shortcuts map so the effect tears down + reattaches if
-  // the registry changes. (Not strictly necessary — the handler reads
+  // Subscribe to the extension substrate so the effect tears down + reattaches
+  // if the registry changes. (Not strictly necessary — the handler reads
   // through `lookupShortcut` on every keydown — but subscribing keeps the
   // component honest about its dependency.)
-  const shortcuts = usePluginStore((s) => s.shortcuts);
+  const extensions = usePluginStore((s) => s.extensions);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -51,7 +51,7 @@ export function ShortcutsProvider() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [shortcuts]);
+  }, [extensions]);
 
   return null;
 }

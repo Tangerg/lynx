@@ -7,7 +7,6 @@
 import type {
   BeforeUnloadHandler,
   CommandSpec,
-  ComposerKeyBindingSpec,
   ContributedCommand,
   ContributedSettingsPane,
   ContributedView,
@@ -21,8 +20,6 @@ import type {
   RpcAfterResponseHook,
   RpcBeforeRequestHook,
   SettingsPaneSpec,
-  ShortcutSpec,
-  SlashCommandSpec,
   WorkspaceViewSpec,
 } from "./types";
 
@@ -33,12 +30,16 @@ export interface Owned<T> {
 
 /**
  * One entry in the shared open-extension-point map. `point` is the point id
- * the entry belongs to; `order` is the optional sort hint passed at
- * contribute time (the item may also carry its own `order`); `item` is the
- * contributed value. See `defineExtensionPoint` + `selectors/extensions.ts`.
+ * the entry belongs to; `key` is the dedupe key within that point (the
+ * normalized single key, or the minted id for multi points) so consumers can
+ * recover it without parsing the composite map key; `order` is the optional
+ * sort hint passed at contribute time (the item may also carry its own
+ * `order`); `item` is the contributed value. See `defineExtensionPoint` +
+ * `selectors/extensions.ts`.
  */
 export interface ContributionEntry {
   point: string;
+  key: string;
   order?: number;
   item: unknown;
 }
@@ -55,13 +56,10 @@ export interface PluginStoreState {
   // order stable + allow the same plugin to register more than one handler
   // for the same type (rare but legal).
   coreEventHandlers: Map<string, Owned<{ eventType: string; handler: CoreEventHandler }>>;
-  slashCommands: Map<string, Owned<SlashCommandSpec>>;
   settingsPanes: Map<string, Owned<SettingsPaneSpec>>;
   // Layout slot key is `${slot}|${pluginName}|${spec.id}` to allow the same
   // plugin to fill multiple slots and to keep insertion order deterministic.
   layoutSlots: Map<string, Owned<{ slot: string; spec: LayoutSlotSpec }>>;
-  shortcuts: Map<string, Owned<ShortcutSpec>>;
-  composerKeyBindings: Map<string, Owned<ComposerKeyBindingSpec>>;
   commands: Map<string, Owned<CommandSpec>>;
   /**
    * Commands declared in `PluginSpec.contributes.commands` but whose
@@ -117,9 +115,6 @@ export interface PluginStoreActions {
   ) => void;
   removeCustomEventHandler: (pluginName: string, id: string) => void;
 
-  addSlashCommand: (pluginName: string, cmd: string, spec: SlashCommandSpec) => void;
-  removeSlashCommand: (pluginName: string, cmd: string) => void;
-
   addSettingsPane: (pluginName: string, spec: SettingsPaneSpec) => void;
   removeSettingsPane: (pluginName: string, id: string) => void;
 
@@ -133,12 +128,6 @@ export interface PluginStoreActions {
 
   addLayoutSlot: (pluginName: string, slot: string, spec: LayoutSlotSpec) => void;
   removeLayoutSlot: (pluginName: string, slot: string, id: string) => void;
-
-  addShortcut: (pluginName: string, spec: ShortcutSpec) => void;
-  removeShortcut: (pluginName: string, key: string) => void;
-
-  addComposerKeyBinding: (pluginName: string, spec: ComposerKeyBindingSpec) => void;
-  removeComposerKeyBinding: (pluginName: string, key: string) => void;
 
   addCommand: (pluginName: string, spec: CommandSpec) => void;
   removeCommand: (pluginName: string, id: string) => void;
@@ -212,11 +201,8 @@ export function freshState(): PluginStoreState {
     loaded: new Map(),
     customEventHandlers: new Map(),
     coreEventHandlers: new Map(),
-    slashCommands: new Map(),
     settingsPanes: new Map(),
     layoutSlots: new Map(),
-    shortcuts: new Map(),
-    composerKeyBindings: new Map(),
     commands: new Map(),
     declaredCommands: new Map(),
     declaredViews: new Map(),
