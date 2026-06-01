@@ -51,7 +51,7 @@ CORS（curl 不受影响，所以命令行能通 ≠ app 能通）。后端**必
 
 dev mock 的 `withCORS`（`internal/agui/server.go`）就是参考实现，照搬即可。
 
-**HTTP status 映射**（`API.md` §7.3，前端 `transports/http.ts` 已按此解析）：
+**HTTP status 映射**（`API.md` §7.3，前端 `rpc/transports/http.ts` 已按此解析）：
 
 | status | 含义 | body |
 | --- | --- | --- |

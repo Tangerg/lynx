@@ -41,7 +41,7 @@ src/
 ├── style.css             全局样式（基础变量 + 主题）
 │
 ├── pages/
-│   └── AgentClientPage.tsx   kernel：sidebar / main / statusbar / overlay 四个 Slot
+│   └── AgentClientPage.tsx   kernel：sidebar / main / overlay 三个 Slot
 │
 ├── plugins/              插件系统
 │   ├── PluginProvider.tsx    启动编排：加载 builtin → 加载 sideload
@@ -53,7 +53,7 @@ src/
 │   ├── hostBridge.ts         挂载 window.__LYRA__，让 sideload 包共用 React/SDK
 │   ├── sideload.ts           从 Go 后端拉取并 dynamic-import 用户插件
 │   ├── sdk/                  插件 SDK —— Host、Registry、各种 spec 类型
-│   │   ├── types/            12 个 domain 文件 + barrel（按面拆，details 见 §5.1.7）
+│   │   ├── types/            13 个 domain 文件 + barrel（按面拆，details 见 §5.1.7）
 │   │   │   ├── index.ts      barrel 重导出，外部 import 仍走 `./types`
 │   │   │   ├── common.ts     Disposable + lifecycle hooks
 │   │   │   ├── tool.ts       ToolPreview / ToolAction
@@ -65,7 +65,8 @@ src/
 │   │   │   ├── commands.ts   Command / Shortcut
 │   │   │   ├── workspace.ts  WorkspaceView / Layout / Route / SettingsPane
 │   │   │   ├── infra.ts      RPC / Data / Agent / Notification / Log / ErrorFallback
-│   │   │   ├── host.ts       Host 接口（聚合 31 个 register* 方法）
+│   │   │   ├── i18n.ts       I18n resource / locale 贡献类型
+│   │   │   ├── host.ts       Host 接口（聚合 30+ register* 方法，分布在 24 个 namespace）
 │   │   │   └── plugin.ts     PluginSpec / Contributed / HostCapability / LoadedPlugin
 │   │   ├── host.ts           createHost(pluginName) 返回绑定的 Host 实例
 │   │   ├── registry.ts       usePluginStore — 集中存放所有插件贡献的 Map
@@ -83,11 +84,11 @@ src/
 │       ├── index.ts          manifest（topo sort 由 spec.requires 驱动）
 │       ├── core-reducer/     AG-UI 内置事件 → view state
 │       ├── kernel/           填 app.sidebar / app.main / Settings 三个核心 slot
-│       ├── composer/         撰写区 7 个 plugin（modes / toolbar / send / …）
-│       ├── sidebar/          侧栏 8 个 plugin（brand / sessions / rail / …）
-│       ├── workspace-views/  6 个 workspace view（Diff/Files/Terminal/Plan/Tools/Notifications）
-│       ├── content-blocks/   6 个消息内容块（plan/code/approval/…）
-│       ├── agui-handlers/    5 个 CUSTOM 事件 → state 的 handler
+│       ├── composer/         撰写区一组 plugin（modes / toolbar / send / …）
+│       ├── sidebar/          侧栏一组 plugin（brand / sessions / rail / …）
+│       ├── workspace-views/  workspace view（Diff/Files/Terminal/Plan/Tools/Notifications/Timeline/RunSummary 等）
+│       ├── content-blocks/   一组消息内容块（plan/code/approval/…）
+│       ├── agui-handlers/    一组 CUSTOM 事件 → state 的 handler
 │       ├── tool-previews/    4 个工具 inline preview（bash/diff/file/grep）
 │       ├── tool-meta/        tool actions + tool icons
 │       ├── defaults/         默认 commands / config / data / accents / roles / title
@@ -121,7 +122,7 @@ src/
 ├── components/           共享 UI 组件（不是插件）
 │   ├── common/           Icon / Panel / Chip / ScrollArea / EmptyState / Skeleton /
 │   │                     DataView（loading|empty|content 三态 render-prop）
-│   ├── chat/             ChatPanel（51 行 orchestrator） / PanelHeader / ChatStream /
+│   ├── chat/             ChatPanel（约 50 行 orchestrator） / PanelHeader / ChatStream /
 │   │                     WorkspaceViewBody / Composer / MessageStream / PartRenderer
 │   ├── tools/            ToolCard / ToolPreview / previews/
 │   ├── views/           DiffView / Terminal / FilesChanged / McpRow / PlanList / ViewHeader
@@ -264,7 +265,7 @@ App.tsx
 
 ### 4.3 AgentClientPage —— 整个 Kernel
 
-`src/pages/AgentClientPage.tsx` 全文不到 30 行：
+`src/pages/AgentClientPage.tsx` 全文约 30 行：
 
 ```tsx
 <div className={`app ${sidebarRail ? "rail" : ""}`}>
@@ -272,20 +273,16 @@ App.tsx
     <Slot name="app.sidebar" />
     <Slot name="app.main" />
   </div>
-  <div className="app-statusbar">
-    <Slot name="app.statusbar" />
-  </div>
   <Slot name="app.overlay" />
 </div>
 ```
 
-四个 Slot 就是 kernel 的全部肉：
+三个 Slot 就是 kernel 的全部肉（没有底部状态栏 —— run telemetry 在 composer footer，全局指示/通知在 sidebar footer 的 avatar 区）：
 
 | Slot | 典型贡献者 |
 | --- | --- |
 | `app.sidebar` | `kernel-sidebar` |
 | `app.main` | `kernel-chat`（ChatPanel） |
-| `app.statusbar` | `status-pill` |
 | `app.overlay` | `command-palette` / `toaster` / `shortcuts` |
 
 ---
@@ -611,9 +608,9 @@ helper 自动补：
 - CTA 默认指向 accent（除非传 `cta:` override，比如 Vercel 风格的 lyra-light 用 `#000`）
 - 注册仪式：`name`、`version`、`setup({ host }) { host.theme.registerTheme(...) }`
 
-文件从原来的 ~95 行（含 shadow / CTA / setup 模板）缩到 ~30 行（**纯调色板**）。10 个主题节省 ~600 行。
+文件从原来的 ~95 行（含 shadow / CTA / setup 模板）缩到 ~30 行（**纯调色板**）。每个主题都靠它节省 ~60 行。
 
-#### 内置 10 个主题
+#### 内置主题
 
 | order | id | series | accent |
 | --- | --- | --- | --- |
@@ -626,7 +623,8 @@ helper 自动补：
 | 30 | solarized-dark | Solarized | `#268bd2` blue |
 | 31 | solarized-light | Solarized | `#268bd2` blue |
 | 40 | catppuccin-mocha | Catppuccin | `#cba6f7` mauve |
-| 41 | catppuccin-latte | Catppuccin | `#8839ef` mauve |
+| 41 | catppuccin-macchiato | Catppuccin | `#c6a0f6` mauve |
+| 42 | catppuccin-latte | Catppuccin | `#8839ef` mauve |
 
 所有色值来自上游 canonical（`one-dark-syntax` / `enkia/tokyonight` / Ethan Schoonover Solarized / `catppuccin/catppuccin`），没有臆造。
 
@@ -865,8 +863,9 @@ declare module "@/protocol/agui/viewState" {
 | --- | --- |
 | 视觉规范 / 颜色 / 排版 | `DESIGN.md` |
 | Host 全部接口 | `src/plugins/sdk/types/host.ts` |
-| 各类 Spec 类型 | `src/plugins/sdk/types/<domain>.ts`（按 domain 拆 12 个） |
+| 各类 Spec 类型 | `src/plugins/sdk/types/<domain>.ts`（按 domain 拆 13 个） |
 | Registry 形状 + composite key | `src/plugins/sdk/registry.ts` |
+| 插件能力上限 / 演进方向 / 横向对比 | `docs/PLUGINS_CEILING.md` |
 | 一个完整的内置插件 | `src/plugins/builtin/demo/index.tsx` |
 | 主题如何注册 | `src/plugins/builtin/themes/defineThemePlugin.ts` + 任意 `<theme>/index.ts` |
 | AG-UI 数据 fold | `src/protocol/agui/reducer.ts` + `src/plugins/builtin/core-reducer/index.ts` |
@@ -883,20 +882,19 @@ declare module "@/protocol/agui/viewState" {
 
 ### 12.1 值得做（有明确收益、风险可控）
 
-#### A. 给 `core-reducer` 补集成测试，再做 table-driven 重构
-**现状**：`plugins/builtin/core-reducer/index.ts` 687 行，处理 14+ 种 AG-UI 内置事件（RUN_*、TEXT_MESSAGE_*、TOOL_CALL_*、REASONING_*、STEP_*、STATE_*、ACTIVITY_*）。大量 case 结构重复，明显可以 table-driven 化（事件类型 → handler 表）。
+#### A. 给 `core-reducer` 补全各 handler 的语义集成测试
+**现状**：`plugins/builtin/core-reducer/index.ts` 已经是约 16 行薄壳，真正的逻辑拆进了 `core-reducer/handlers/` 子目录（activity / messages / reasoning / run / state / text / tool 等，合计约 620 行），按事件类型分文件，每个 handler 处理一类 AG-UI 内置事件（RUN_*、TEXT_MESSAGE_*、TOOL_CALL_*、REASONING_*、STEP_*、STATE_*、ACTIVITY_*）。文件级拆分已完成，剩下的缺口是**逐 handler 的语义测试覆盖**。
 
-**为什么没做**：协议语义层。改错了流式渲染会挂，目前 `reducer.test.ts` 只覆盖 dispatcher 层（"事件路由到哪个 handler"），不覆盖单个 handler 的具体语义。
+**为什么没做全**：协议语义层。改错了流式渲染会挂，目前 `reducer.test.ts` 只覆盖 dispatcher 层（"事件路由到哪个 handler"），handler 子目录里只有 activity / reasoning / tool 有专项测试，messages / run / state / text 等的具体语义还没补齐。
 
 **怎么做**（先决条件）：
-1. 给每个内置事件类型写一组 input event → expected state delta 的快照测试（参考 redux-toolkit 的 reducer 测试模式）
-2. 测试通过后再用 table 替换 case，跑同一组测试验证零回归
-3. 收益：~687 行 → 估计 ~300 行 + 表格
+1. 给每个内置事件类型写一组 input event → expected state delta 的快照测试（参考 redux-toolkit 的 reducer 测试模式），补齐尚未覆盖的 handler
+2. 有了全套语义测试后，再考虑后续重构（如查表派发）时可零回归验证
 
-**触发条件**：要加新的内置事件类型时（比如 `THINKING_*` / `MEMORY_*`）一并补上。
+**触发条件**：要加新的内置事件类型时（比如 `THINKING_*` / `MEMORY_*`）一并补上对应 handler 的测试。
 
 #### B. ChatPanel/MessageStream 的视觉回归测试
-**现状**：ChatPanel 已经拆成 4 个子组件（51 行 orchestrator + PanelHeader/ChatStream/WorkspaceViewBody），单文件没法继续小拆。但视觉回归（"切 tab 时 tab strip 是否正确"、"打开 workspace view 时 composer 是否消失"）目前靠手测。
+**现状**：ChatPanel 已经拆成 4 个子组件（约 50 行 orchestrator + PanelHeader/ChatStream/WorkspaceViewBody），单文件没法继续小拆。但视觉回归（"切 tab 时 tab strip 是否正确"、"打开 workspace view 时 composer 是否消失"）目前靠手测。
 
 **为什么没做**：DOM 集成测试容易脆弱，Playwright/Storybook 是更大的引擎引入。
 

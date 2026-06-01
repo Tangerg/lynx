@@ -24,10 +24,10 @@
 | 工具调用预览 | 4 | `host.tool.registerPreview` |
 | Composer slash 命令 | 2 | `host.composer.registerCommand` |
 | 设置面板 pane | 2 | `host.settings.registerPane` |
-| Inspector 标签 | 5 | `host.inspector.registerTab` |
+| Workspace 视图 | 8 | `host.workspace.registerView` |
 | HTTP / 通知 / 存储 | — | `host.rpc` / `host.notify` / `host.storage` |
 
-**22 个内置插件**全部走标准 SDK 路径，跟未来第三方插件无差别。宿主代码（`reducer.ts` / `PartRenderer.tsx` / `InspectorPanel.tsx`）里没有任何 "这是内置" 的特判。
+**所有内置插件**全部走标准 SDK 路径，跟未来第三方插件无差别。宿主代码（`reducer.ts` / `PartRenderer.tsx` / `WorkspaceViewBody.tsx`）里没有任何 "这是内置" 的特判。
 
 ### 1.2 数据流
 
@@ -58,13 +58,13 @@
    │  customEventHandlers / ...        │
    └──────────────────────────────────┘
         ▲
-        │ useToolPreview / useInspectorTabs / ...
+        │ useToolPreview / useWorkspaceViews / ...
         ▼
-   ┌──────────────────────────────────┐
-   │  React 组件树                     │
-   │  PartRenderer / InspectorPanel /  │
-   │  SlashSuggestions / SettingsModal │
-   └──────────────────────────────────┘
+   ┌────────────────────────────────────┐
+   │  React 组件树                       │
+   │  PartRenderer / WorkspaceViewBody /  │
+   │  SlashSuggestions / SettingsModal    │
+   └────────────────────────────────────┘
 ```
 
 ### 1.3 关键设计取舍（实现层面）
@@ -122,23 +122,23 @@ esbuild src/index.tsx --bundle --format=esm --outfile=index.js \
 跟 sideload 完全一样，只是写在 `frontend/src/plugins/builtin/<name>/index.tsx` 里、可以 `import` 任意宿主模块。例：
 
 ```tsx
-// frontend/src/plugins/builtin/inspector-files/index.tsx
-import { useFilesChanged } from "@/lib/queries";
+// frontend/src/plugins/builtin/workspace-views/files.tsx
+import { useFilesChanged } from "@/lib/data/queries";
 import { definePlugin } from "@/plugins/sdk";
 
-function FilesTab() { /* ... */ }
+function FilesView() { /* ... */ }
 
-export default definePlugin({
-  name: "lyra.builtin.inspector-files",
+export const filesView = definePlugin({
+  name: "lyra.builtin.view-files",
   version: "1.0.0",
   setup({ host }) {
-    host.inspector.registerTab({
+    host.workspace.registerView({
       id: "files",
-      label: "Files",
+      title: "Files",
       icon: "filetext",
+      openByDefault: false,
       order: 20,
-      useBadge: () => useFilesChanged().data?.length,
-      component: FilesTab,
+      component: FilesView,
     });
   },
 });
@@ -260,26 +260,29 @@ function K8sSettings() {
 }
 ```
 
-### 3.6 `host.inspector.registerTab(spec)`
+### 3.6 `host.workspace.registerView(spec)`
 
 ```ts
-host.inspector.registerTab({
+host.workspace.registerView({
   id: "k8s-resources",
-  label: "K8s",
+  title: "K8s",
   icon: "list",
+  defaultLocation: "right",   // "left" | "right" | "main" | "bottom"，可选
+  openByDefault: false,       // 是否启动即打开，可选
   order: 100,
-  useBadge: () => useResourceCount(),  // 可选 hook
-  component: K8sTab,
+  component: K8sView,
 });
 ```
 
-tab 组件**无 props**，自己用 `useAgentStore` / `useUIStore` / react-query 取数据。共享状态（如"当前激活文件"）通过 `useInspector()` context：
+view 是用户可开关的 workspace tab —— kernel 只要 `id` + `component`，其余交给用户从 UI 里开关。打开/聚焦用 `host.workspace.openView(id)`，关闭用 `host.workspace.closeView(id)`。
+
+view 组件**无 props**，自己用 `useAgentStore` / `useSessionStore` / react-query 取数据。共享状态（如"当前激活文件"）直接读写对应 store，不走 context：
 
 ```tsx
-import { useInspector } from "@/components/inspector/InspectorPanel";
+import { useSessionStore } from "@/state/sessionStore";
 
-function K8sTab() {
-  const { activeFile, onSelectFile, onSwitchTab } = useInspector();
+function K8sView() {
+  const activeFile = useSessionStore((s) => s.activeFile);
   // ...
 }
 ```
@@ -345,7 +348,7 @@ declare module "@/protocol/agui/viewState" {
 `frontend/src/protocol/agui/viewState.ts`：
 
 ```ts
-export interface BuiltinContentBlockMap { /* 8 个内置 */ }
+export interface BuiltinContentBlockMap { /* 内置块 */ }
 export interface CustomContentBlockMap {}   // ← 插件 augment 这个
 export type ContentBlockMap = BuiltinContentBlockMap & CustomContentBlockMap;
 export type ContentBlock = ContentBlockMap[keyof ContentBlockMap];
@@ -426,7 +429,7 @@ type PluginStoreState = {
   customEventHandlers: Map<eventName, Owned<Handler>>;
   slashCommands: Map<cmd, Owned<Spec>>;
   settingsPanes: Map<id, Owned<Spec>>;
-  inspectorTabs: Map<id, Owned<Spec>>;
+  workspaceViews: Map<string, Owned<WorkspaceViewSpec>>;
 };
 ```
 
@@ -468,8 +471,8 @@ export function useToolPreview(fn) {
 
 **列表派生选择器**（关键模式，避免死循环）：
 ```ts
-export function useInspectorTabs() {
-  const map = usePluginStore((s) => s.inspectorTabs);   // 只取 Map
+export function useWorkspaceViews() {
+  const map = usePluginStore((s) => s.workspaceViews);  // 只取 Map
   return useMemo(
     () => Array.from(map.values()).map((o) => o.value).sort(...),
     [map],                                              // 派生放组件侧
@@ -497,17 +500,9 @@ export function PluginContentBlock({ block }) {
 
 PartRenderer 的 `default:` case 用它。
 
-### 6.5 InspectorContext
+### 6.5 Workspace view 无 context
 
-Inspector tab 之间共享"激活文件"状态（diff tab 显示、files tab 设置）。InspectorPanel 提供 context：
-
-```tsx
-<InspectorContext.Provider value={{ activeFile, onSelectFile, onSwitchTab: onTab }}>
-  <ActiveBody />
-</InspectorContext.Provider>
-```
-
-需要的 tab 自己 `useInspector()`；不需要的 tab 完全无视。避免强制每个 tab 接受统一 props 接口。
+workspace view 之间没有 context 共享层。view 直接 `host.workspace.registerView` 注册，组件无 props；需要共享状态（如"当前激活文件"）就直接读写对应 store（`useSessionStore` 的 `activeFile` / `setActiveFile` / `openMainView`）。这样避免强制每个 view 接受统一 props 接口，也不需要把 view 包进 provider。
 
 ---
 
@@ -609,7 +604,7 @@ DevTools console：
 
 ```js
 window.__LYRA__.SDK.usePluginStore.getState()
-// .toolPreviews / .contentBlocks / .inspectorTabs / ...
+// .toolPreviews / .contentBlocks / .workspaceViews / ...
 ```
 
 **4. 看 agent state 实时变化**
@@ -622,7 +617,7 @@ window.__LYRA__.SDK.usePluginStore.subscribe(console.log);
 
 ---
 
-## 9. 22 个内置插件清单
+## 9. 内置插件清单（按 domain 分组）
 
 按加载顺序（见 `frontend/src/plugins/builtin/index.ts`）：
 
@@ -647,13 +642,16 @@ window.__LYRA__.SDK.usePluginStore.subscribe(console.log);
 | 17 | `demo` | 多接缝 | `/health` 命令 + `lyra.demo.banner` handler + `demoBanner` block |
 | 18 | `appearance` | settings pane | 主题 / accent 选择 |
 | 19 | `plugins-pane` | settings pane | 列出所有已加载插件 |
-| 20 | `inspector-diff` | inspector tab | Diff 标签 |
-| 21 | `inspector-terminal` | inspector tab | Terminal 标签 |
-| 22 | `inspector-files` | inspector tab | Files 标签（带未提交数徽章） |
-| 23 | `inspector-plan` | inspector tab | Plan 标签（带未完成数徽章） |
-| 24 | `inspector-tools` | inspector tab | Tools 标签（带 active MCP 数徽章） |
+| 20 | `diffView` | workspace view | Diff 视图 |
+| 21 | `filesView` | workspace view | Files 视图（带未提交数） |
+| 22 | `notificationsView` | workspace view | Notifications 视图 |
+| 23 | `planView` | workspace view | Plan 视图（带未完成数） |
+| 24 | `runSummaryView` | workspace view | Run summary 视图 |
+| 25 | `terminalView` | workspace view | Terminal 视图 |
+| 26 | `timelineView` | workspace view | Timeline 视图 |
+| 27 | `toolsView` | workspace view | Tools 视图（带 active MCP 数） |
 
-（实际 22 个，加上 demo 注册的额外接缝凑成数据上看起来更多。）
+（清单只列代表性接缝；完整插件集见 `frontend/src/plugins/builtin/index.ts`，会随主题 / 视图增减而变。）
 
 ---
 
@@ -728,7 +726,7 @@ frontend/src/plugins/
     ├── demo/                     # 多接缝示例
     ├── appearance/               # 2 个 settings pane
     ├── plugins-pane/
-    └── inspector-{diff,terminal,files,plan,tools}/  # 5 个 inspector tab
+    └── workspace-views/{diff,files,notifications,plan,run-summary,terminal,timeline,tools}.tsx  # 8 个 workspace view
 
 frontend/sample-plugins/
 └── hello-sideload/
