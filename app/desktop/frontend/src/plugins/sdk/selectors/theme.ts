@@ -1,32 +1,32 @@
 // Theme / locale selectors — read-side of the theme + accent + locale
-// registries. `resolveScheme` is the canonical way to map an id to
+// extension points. `resolveScheme` is the canonical way to map an id to
 // "dark"/"light" (callers should never compare id strings directly —
 // custom themes like "solarized-dark" would otherwise mis-classify).
 
 import type { LocaleSpec, ThemeAccentSpec, ThemeSpec } from "../types";
-import { usePluginStore } from "../registry";
-import { useSortedList } from "./_helpers";
+import { ACCENT, LOCALE, THEME } from "../kernelPoints";
+import { lookupExtensionByKey, useExtensionPoint } from "./extensions";
 
 export function useThemes(): ThemeSpec[] {
-  return useSortedList(usePluginStore((s) => s.themes));
+  return useExtensionPoint(THEME);
 }
 
 export function useAccents(): ThemeAccentSpec[] {
-  return useSortedList(usePluginStore((s) => s.accents));
+  return useExtensionPoint(ACCENT);
 }
 
 export function useLocales(): LocaleSpec[] {
-  return useSortedList(usePluginStore((s) => s.locales));
+  return useExtensionPoint(LOCALE);
 }
 
 /** Look up a theme spec by id. */
 export function lookupTheme(id: string): ThemeSpec | undefined {
-  return usePluginStore.getState().themes.get(id)?.value;
+  return lookupExtensionByKey(THEME, id);
 }
 
 /** Look up an accent spec by id. */
 export function lookupAccent(id: string): ThemeAccentSpec | undefined {
-  return usePluginStore.getState().accents.get(id)?.value;
+  return lookupExtensionByKey(ACCENT, id);
 }
 
 /**

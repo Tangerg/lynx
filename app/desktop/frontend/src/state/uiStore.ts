@@ -12,7 +12,11 @@ import { createJSONStorage, persist } from "zustand/middleware";
 import { disposeOnHmr } from "@/lib/hmr";
 // Direct registry import — going through the SDK barrel pulls in
 // host.ts which imports this file, creating a TDZ cycle under Vitest.
+// Same reason the extension-point reads below import from the deep
+// `selectors/extensions` + `kernelPoints` paths (neither pulls host).
 import { usePluginStore } from "@/plugins/sdk/registry";
+import { ACCENT, THEME } from "@/plugins/sdk/kernelPoints";
+import { lookupExtensionByKey, lookupExtensionPoint } from "@/plugins/sdk/selectors/extensions";
 
 // localStorage payload schema. Validated on rehydrate so a corrupted
 // `lyra.ui` entry (manual edit, downgrade leaving a future-shape blob,
@@ -136,17 +140,13 @@ export const useUiStore = create<UiState & UiActions>()(
       setTheme: (theme) => set({ theme }),
       toggleTheme: () => {
         const cur = get().theme;
-        const themes = usePluginStore.getState().themes;
-        const curSpec = themes.get(cur)?.value;
+        const curSpec = lookupExtensionByKey(THEME, cur);
         const curScheme = curSpec?.scheme ?? (cur === "light" ? "light" : "dark");
         const target = curScheme === "dark" ? "light" : "dark";
-        // Sort by `order` so the toggle picks the "primary" theme of the
-        // opposite scheme rather than whichever Map happens to enumerate
-        // first. Matches the sort the appearance pane uses.
-        const candidates = Array.from(themes.values())
-          .map((o) => o.value)
-          .filter((t) => t.scheme === target)
-          .sort((a, b) => (a.order ?? 100) - (b.order ?? 100));
+        // `lookupExtensionPoint` returns themes already sorted by `order`, so
+        // the first match is the "primary" theme of the opposite scheme —
+        // matches the sort the appearance pane uses.
+        const candidates = lookupExtensionPoint(THEME).filter((t) => t.scheme === target);
         if (candidates[0]) set({ theme: candidates[0].id });
       },
       setAccent: (accent) => set({ accent }),
@@ -188,10 +188,8 @@ export const useUiStore = create<UiState & UiActions>()(
 // darken the dark hex by ~20% — enough to give it legible contrast on
 // the bright surface without losing the user's chosen hue.
 function lookupLightVariant(darkHex: string): string {
-  const accents = usePluginStore.getState().accents;
-  for (const o of accents.values()) {
-    if (o.value.dark === darkHex) return o.value.light ?? darkHex;
-  }
+  const match = lookupExtensionPoint(ACCENT).find((a) => a.dark === darkHex);
+  if (match) return match.light ?? darkHex;
   return colord(darkHex).darken(0.2).toHex();
 }
 
@@ -205,7 +203,7 @@ let appliedTokenNames: string[] = [];
 
 function applyTheme(theme: Theme, accent: string) {
   const root = document.documentElement;
-  const spec = usePluginStore.getState().themes.get(theme)?.value;
+  const spec = lookupExtensionByKey(THEME, theme);
 
   // Scheme drives the structural class. Fallback to id when the spec
   // isn't registered yet — for built-in ids ("dark"/"light") still right.
@@ -345,7 +343,10 @@ const unsubUi = useUiStore.subscribe((state, prev) => {
 // registering after the initial applyTheme call (empty registry) and
 // runtime hot-loading of theme plugins.
 const unsubPlugins = usePluginStore.subscribe((state, prev) => {
-  if (state.themes !== prev.themes || state.accents !== prev.accents) {
+  // Theme + accent live on the shared `extensions` map now, so re-apply on
+  // any registry mutation. Mutations only happen at plugin load/unload (not
+  // during streaming), so this stays quiet at steady state.
+  if (state.extensions !== prev.extensions) {
     const { theme, accent } = useUiStore.getState();
     applyTheme(theme, accent);
   }

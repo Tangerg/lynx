@@ -50,6 +50,7 @@ import { useSessionStore } from "@/state/sessionStore";
 import { startTask } from "@/state/tasksStore";
 import { getConfig, hasConfig, setConfig, useConfigStore } from "./config";
 import { safeCall } from "./errors";
+import { ACCENT, LOCALE, THEME } from "./kernelPoints";
 import { useNotificationStore } from "./notifications";
 import { usePluginStore } from "./registry";
 import { getOrCreateSlice } from "./stateSlice";
@@ -106,6 +107,40 @@ export function createHost(
   };
 
   const store = () => usePluginStore.getState();
+
+  // Shared write path for the open-extension-point substrate. Both the
+  // public `host.extensions.contribute` and every migrated kernel facade
+  // (`host.theme.registerTheme`, …) route through here, so built-in and
+  // third-party contributions hit the exact same code. Keying policy lives
+  // on the point: `single` dedupes by `keyOf(item)` (warns on cross-plugin
+  // override); `multi` mints a per-(plugin,id) key so contributions coexist.
+  const contribute = <T>(
+    point: ExtensionPoint<T>,
+    item: T,
+    opts?: ExtensionContributionOptions,
+  ): Disposable => {
+    const keyOf = point.keyOf ?? ((i: T) => (i as unknown as { id: string }).id);
+    let outerKey: string;
+    let conflictKey: string;
+    if (point.keying === "single") {
+      const base = keyOf(item);
+      const k = point.normalizeKey ? point.normalizeKey(base) : base;
+      outerKey = `${point.id}#${k}`;
+      conflictKey = k;
+    } else {
+      const id = opts?.id ?? mintId(point.id);
+      outerKey = `${point.id}#${pluginName}|${id}`;
+      conflictKey = id;
+    }
+    store().addContribution(
+      pluginName,
+      point.id,
+      outerKey,
+      { point: point.id, order: opts?.order, item },
+      conflictKey,
+    );
+    return track({ dispose: () => store().removeContribution(pluginName, outerKey) });
+  };
 
   const full = {
     tool: {
@@ -188,14 +223,8 @@ export function createHost(
     },
 
     theme: {
-      registerTheme(spec: ThemeSpec): Disposable {
-        store().addTheme(pluginName, spec);
-        return track({ dispose: () => store().removeTheme(pluginName, spec.id) });
-      },
-      registerAccent(spec: ThemeAccentSpec): Disposable {
-        store().addAccent(pluginName, spec);
-        return track({ dispose: () => store().removeAccent(pluginName, spec.id) });
-      },
+      registerTheme: (spec: ThemeSpec): Disposable => contribute(THEME, spec),
+      registerAccent: (spec: ThemeAccentSpec): Disposable => contribute(ACCENT, spec),
     },
 
     router: {
@@ -277,40 +306,7 @@ export function createHost(
       },
     },
 
-    extensions: {
-      // Contribute a typed item to a plugin-defined extension point. Keying
-      // policy lives on the point: `single` dedupes by `keyOf(item)` (warns
-      // on cross-plugin override); `multi` mints a per-(plugin,id) key so
-      // every contribution coexists. The fully-qualified outer key is baked
-      // here and handed back via the disposable so removal is exact.
-      contribute<T>(
-        point: ExtensionPoint<T>,
-        item: T,
-        opts?: ExtensionContributionOptions,
-      ): Disposable {
-        const keyOf = point.keyOf ?? ((i: T) => (i as unknown as { id: string }).id);
-        let outerKey: string;
-        let conflictKey: string;
-        if (point.keying === "single") {
-          const base = keyOf(item);
-          const k = point.normalizeKey ? point.normalizeKey(base) : base;
-          outerKey = `${point.id}#${k}`;
-          conflictKey = k;
-        } else {
-          const id = opts?.id ?? mintId(point.id);
-          outerKey = `${point.id}#${pluginName}|${id}`;
-          conflictKey = id;
-        }
-        store().addContribution(
-          pluginName,
-          point.id,
-          outerKey,
-          { point: point.id, order: opts?.order, item },
-          conflictKey,
-        );
-        return track({ dispose: () => store().removeContribution(pluginName, outerKey) });
-      },
-    },
+    extensions: { contribute },
 
     state: {
       slice<T>(name: string, initial: T) {
@@ -454,10 +450,7 @@ export function createHost(
         // same-name reload overwrites cleanly.
         return track({ dispose: () => {} });
       },
-      registerLocale(spec): Disposable {
-        store().addLocale(pluginName, spec);
-        return track({ dispose: () => store().removeLocale(pluginName, spec.id) });
-      },
+      registerLocale: (spec): Disposable => contribute(LOCALE, spec),
     },
 
     tasks: {
