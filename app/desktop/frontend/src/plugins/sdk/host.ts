@@ -53,12 +53,19 @@ import { safeCall } from "./errors";
 import {
   ACCENT,
   AGENT_SOURCE,
+  COMPOSER_ATTACHMENT_SOURCE,
+  COMPOSER_MODE,
   COMPOSER_PLACEHOLDER,
+  COMPOSER_STATUS,
   DATA_PROVIDER,
   ERROR_FALLBACK,
   LOCALE,
+  MESSAGE_ROLE,
   ROUTE,
+  SIDEBAR_RAIL_ITEM,
+  SIDEBAR_SECTION,
   THEME,
+  TOOL_ACTION,
 } from "./kernelPoints";
 import { useNotificationStore } from "./notifications";
 import { usePluginStore } from "./registry";
@@ -157,10 +164,7 @@ export function createHost(
         store().addToolPreview(pluginName, fn, component);
         return track({ dispose: () => store().removeToolPreview(pluginName, fn) });
       },
-      registerAction(spec: ToolActionSpec): Disposable {
-        store().addToolAction(pluginName, spec);
-        return track({ dispose: () => store().removeToolAction(pluginName, spec.id) });
-      },
+      registerAction: (spec: ToolActionSpec): Disposable => contribute(TOOL_ACTION, spec),
       registerIcon(fn: string, icon: string): Disposable {
         store().addToolIcon(pluginName, fn, icon);
         return track({ dispose: () => store().removeToolIcon(pluginName, fn) });
@@ -181,10 +185,7 @@ export function createHost(
         );
         return track({ dispose: () => store().removeContentBlock(pluginName, kind) });
       },
-      registerRole(spec: MessageRoleSpec): Disposable {
-        store().addMessageRole(pluginName, spec);
-        return track({ dispose: () => store().removeMessageRole(pluginName, spec.id) });
-      },
+      registerRole: (spec: MessageRoleSpec): Disposable => contribute(MESSAGE_ROLE, spec),
     },
 
     agui: {
@@ -247,22 +248,12 @@ export function createHost(
         store().addSlashCommand(pluginName, key, spec);
         return track({ dispose: () => store().removeSlashCommand(pluginName, key) });
       },
-      registerStatus(spec: ComposerStatusSpec): Disposable {
-        store().addComposerStatus(pluginName, spec);
-        return track({ dispose: () => store().removeComposerStatus(pluginName, spec.id) });
-      },
-      registerMode(spec: ComposerModeSpec): Disposable {
-        store().addComposerMode(pluginName, spec);
-        return track({ dispose: () => store().removeComposerMode(pluginName, spec.id) });
-      },
+      registerStatus: (spec: ComposerStatusSpec): Disposable => contribute(COMPOSER_STATUS, spec),
+      registerMode: (spec: ComposerModeSpec): Disposable => contribute(COMPOSER_MODE, spec),
       registerPlaceholder: (spec: ComposerPlaceholderSpec): Disposable =>
         contribute(COMPOSER_PLACEHOLDER, spec),
-      registerAttachmentSource(spec: ComposerAttachmentSourceSpec): Disposable {
-        store().addComposerAttachmentSource(pluginName, spec);
-        return track({
-          dispose: () => store().removeComposerAttachmentSource(pluginName, spec.id),
-        });
-      },
+      registerAttachmentSource: (spec: ComposerAttachmentSourceSpec): Disposable =>
+        contribute(COMPOSER_ATTACHMENT_SOURCE, spec),
       registerKeyBinding(spec: ComposerKeyBindingSpec): Disposable {
         store().addComposerKeyBinding(pluginName, spec);
         return track({ dispose: () => store().removeComposerKeyBinding(pluginName, spec.key) });
@@ -270,14 +261,9 @@ export function createHost(
     },
 
     sidebar: {
-      registerSection(spec: SidebarSectionSpec): Disposable {
-        store().addSidebarSection(pluginName, spec);
-        return track({ dispose: () => store().removeSidebarSection(pluginName, spec.id) });
-      },
-      registerRailItem(spec: SidebarRailItemSpec): Disposable {
-        store().addSidebarRailItem(pluginName, spec);
-        return track({ dispose: () => store().removeSidebarRailItem(pluginName, spec.id) });
-      },
+      registerSection: (spec: SidebarSectionSpec): Disposable => contribute(SIDEBAR_SECTION, spec),
+      registerRailItem: (spec: SidebarRailItemSpec): Disposable =>
+        contribute(SIDEBAR_RAIL_ITEM, spec),
     },
 
     shortcuts: {

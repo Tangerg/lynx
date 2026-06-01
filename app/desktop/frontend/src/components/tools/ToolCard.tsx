@@ -4,7 +4,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { Icon } from "@/components/common";
 import { swift } from "@/lib/motion";
 import { cn } from "@/lib/utils";
-import { reportPluginError, usePluginStore, useToolActions } from "@/plugins/sdk";
+import { lookupToolActionOwner, reportPluginError, useToolActions } from "@/plugins/sdk";
 import { toolIconFor } from "./toolIcon";
 import { ToolPreview } from "./ToolPreview";
 
@@ -109,8 +109,7 @@ export function ToolCard({ tool, selected, expanded, onToggleExpand, onOpenView 
             onClick={(e) => {
               e.stopPropagation();
               void Promise.resolve(a.run(tool)).catch((err) => {
-                const owner =
-                  usePluginStore.getState().toolActions.get(a.id)?.pluginName ?? "unknown";
+                const owner = lookupToolActionOwner(a.id) ?? "unknown";
 
                 console.error(`[plugin] tool action ${a.id} threw:`, err);
                 reportPluginError(owner, "command", err, `tool action: ${a.id}`);

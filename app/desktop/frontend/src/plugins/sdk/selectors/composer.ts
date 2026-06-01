@@ -8,21 +8,25 @@ import type {
   ComposerPlaceholderSpec,
   ComposerStatusSpec,
 } from "../types";
-import { COMPOSER_PLACEHOLDER } from "../kernelPoints";
+import {
+  COMPOSER_ATTACHMENT_SOURCE,
+  COMPOSER_MODE,
+  COMPOSER_PLACEHOLDER,
+  COMPOSER_STATUS,
+} from "../kernelPoints";
 import { usePluginStore } from "../registry";
-import { useSortedList } from "./_helpers";
-import { lookupExtensionPoint } from "./extensions";
+import { lookupExtensionPoint, useExtensionPoint } from "./extensions";
 
 export function useComposerStatus(): ComposerStatusSpec[] {
-  return useSortedList(usePluginStore((s) => s.composerStatus));
+  return useExtensionPoint(COMPOSER_STATUS);
 }
 
 export function useComposerModes(): ComposerModeSpec[] {
-  return useSortedList(usePluginStore((s) => s.composerModes));
+  return useExtensionPoint(COMPOSER_MODE);
 }
 
 export function useComposerAttachmentSources(): ComposerAttachmentSourceSpec[] {
-  return useSortedList(usePluginStore((s) => s.composerAttachmentSources));
+  return useExtensionPoint(COMPOSER_ATTACHMENT_SOURCE);
 }
 
 /**

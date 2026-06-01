@@ -11,9 +11,6 @@ import type { Owned, PluginStoreActions, PluginStoreState } from "./registryStat
 import type {
   BeforeUnloadHandler,
   CommandSpec,
-  ComposerAttachmentSourceSpec,
-  ComposerModeSpec,
-  ComposerStatusSpec,
   ContentBlockRenderer,
   ContributedCommand,
   ContributedSettingsPane,
@@ -22,16 +19,12 @@ import type {
   CustomEventHandler,
   LayoutSlotSpec,
   LogSubscriber,
-  MessageRoleSpec,
   PluginSpec,
   ReadyHandler,
   RpcAfterResponseHook,
   RpcBeforeRequestHook,
   SettingsPaneSpec,
-  SidebarRailItemSpec,
-  SidebarSectionSpec,
   SlashCommandSpec,
-  ToolActionSpec,
   ToolPreviewComponent,
   WorkspaceViewSpec,
 } from "./types";
@@ -124,15 +117,7 @@ export const usePluginStore = create<PluginStoreState & PluginStoreActions>((set
   );
   const slashCommands = ownedKeySlot<SlashCommandSpec>("slashCommands", "slash command");
 
-  const toolActions = ownedSpecSlot<ToolActionSpec>("toolActions", "tool action");
   const settingsPanes = ownedSpecSlot<SettingsPaneSpec>("settingsPanes", "settings pane");
-  const composerStatus = ownedSpecSlot<ComposerStatusSpec>("composerStatus", "composer status");
-  const composerModes = ownedSpecSlot<ComposerModeSpec>("composerModes", "composer mode");
-  const composerAttachmentSources = ownedSpecSlot<ComposerAttachmentSourceSpec>(
-    "composerAttachmentSources",
-    "composer attachment source",
-  );
-  const sidebarSections = ownedSpecSlot<SidebarSectionSpec>("sidebarSections", "sidebar section");
   const commands = ownedSpecSlot<CommandSpec>("commands", "command");
   const declaredCommands = ownedSpecSlot<ContributedCommand>(
     "declaredCommands",
@@ -143,11 +128,6 @@ export const usePluginStore = create<PluginStoreState & PluginStoreActions>((set
     "declaredSettingsPanes",
     "declared settings pane",
   );
-  const sidebarRailItems = ownedSpecSlot<SidebarRailItemSpec>(
-    "sidebarRailItems",
-    "sidebar rail item",
-  );
-  const messageRoles = ownedSpecSlot<MessageRoleSpec>("messageRoles", "message role");
   const workspaceViews = ownedSpecSlot<WorkspaceViewSpec>("workspaceViews", "workspace view");
 
   const customEvents = multiSlot<{ name: string; handler: CustomEventHandler<unknown> }>(
@@ -190,9 +170,6 @@ export const usePluginStore = create<PluginStoreState & PluginStoreActions>((set
     addToolPreview: toolPreviews.add,
     removeToolPreview: toolPreviews.remove,
 
-    addToolAction: toolActions.add,
-    removeToolAction: toolActions.remove,
-
     addToolIcon: toolIcons.add,
     removeToolIcon: toolIcons.remove,
 
@@ -231,15 +208,6 @@ export const usePluginStore = create<PluginStoreState & PluginStoreActions>((set
       set({ shortcuts: removeOwned(get().shortcuts, pluginName, normalizeCombo(key)) });
     },
 
-    addComposerStatus: composerStatus.add,
-    removeComposerStatus: composerStatus.remove,
-
-    addComposerMode: composerModes.add,
-    removeComposerMode: composerModes.remove,
-
-    addComposerAttachmentSource: composerAttachmentSources.add,
-    removeComposerAttachmentSource: composerAttachmentSources.remove,
-
     addComposerKeyBinding(pluginName, spec) {
       const key = normalizeCombo(spec.key);
       set({
@@ -261,9 +229,6 @@ export const usePluginStore = create<PluginStoreState & PluginStoreActions>((set
         ),
       });
     },
-
-    addSidebarSection: sidebarSections.add,
-    removeSidebarSection: sidebarSections.remove,
 
     addCommand: commands.add,
     removeCommand: commands.remove,
@@ -290,12 +255,6 @@ export const usePluginStore = create<PluginStoreState & PluginStoreActions>((set
     removePendingActivation(name) {
       set({ pendingActivations: mapDrop(get().pendingActivations, name) });
     },
-
-    addSidebarRailItem: sidebarRailItems.add,
-    removeSidebarRailItem: sidebarRailItems.remove,
-
-    addMessageRole: messageRoles.add,
-    removeMessageRole: messageRoles.remove,
 
     addRpcBeforeRequest: rpcBeforeRequest.add,
     removeRpcBeforeRequest: rpcBeforeRequest.remove,

@@ -8,8 +8,9 @@ import type {
   ToolActionSpec,
   ToolPreviewComponent,
 } from "../types";
+import { MESSAGE_ROLE, TOOL_ACTION } from "../kernelPoints";
 import { usePluginStore } from "../registry";
-import { useSortedList } from "./_helpers";
+import { lookupExtensionOwner, useExtensionByKey, useExtensionPoint } from "./extensions";
 
 // ---------------------------------------------------------------------------
 // Content blocks + role specs
@@ -22,7 +23,7 @@ export function useContentBlockRenderer(
 }
 
 export function useMessageRole(id: string): MessageRoleSpec | undefined {
-  return usePluginStore((s) => s.messageRoles.get(id)?.value);
+  return useExtensionByKey(MESSAGE_ROLE, id);
 }
 
 // ---------------------------------------------------------------------------
@@ -34,7 +35,12 @@ export function useToolPreview(fn: string): ToolPreviewComponent | undefined {
 }
 
 export function useToolActions(): ToolActionSpec[] {
-  return useSortedList(usePluginStore((s) => s.toolActions));
+  return useExtensionPoint(TOOL_ACTION);
+}
+
+/** Owner plugin of a tool action — used for error attribution when one throws. */
+export function lookupToolActionOwner(id: string): string | undefined {
+  return lookupExtensionOwner(TOOL_ACTION, id);
 }
 
 /** Look up the registered icon for a tool fn name. */

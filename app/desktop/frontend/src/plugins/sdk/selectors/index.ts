@@ -41,6 +41,7 @@ export {
 
 // Chat-message surface (content blocks + role + tool)
 export {
+  lookupToolActionOwner,
   lookupToolIcon,
   useContentBlockRenderer,
   useMessageRole,

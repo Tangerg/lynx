@@ -48,6 +48,7 @@ export {
   lookupShortcut,
   lookupSlashCommand,
   lookupTheme,
+  lookupToolActionOwner,
   lookupToolIcon,
   pickAgentSource,
   pickComposerPlaceholder,

@@ -17,21 +17,12 @@ export interface Ordered {
 }
 
 /**
- * Plain-function counterpart of useSortedList — pulls the value off
- * each owned entry. Used by imperative lookups (`listRoutes`,
- * `pick*`, RPC hook lists) that aren't allowed to call hooks.
+ * Pull the value off each owned entry, in insertion order. Used by the
+ * imperative RPC-hook lists (`listRpcBeforeHooks` / `listRpcAfterHooks`)
+ * that aren't allowed to call hooks.
  */
 export function mapOwned<T>(map: Map<string, Owned<T>>): T[] {
   return Array.from(map.values()).map((o) => o.value);
-}
-
-/**
- * Hook-version: snapshot + sort by ascending `order` (default 100 when
- * unset). Memoized on Map identity — the registry produces a fresh Map
- * on every add/remove, so the dep auto-invalidates on mutation.
- */
-export function useSortedList<T extends Ordered>(map: Map<string, Owned<T>>): T[] {
-  return useMemo(() => mapOwned(map).sort((a, b) => (a.order ?? 100) - (b.order ?? 100)), [map]);
 }
 
 /**
