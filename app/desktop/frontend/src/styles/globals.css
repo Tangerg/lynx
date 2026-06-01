@@ -380,10 +380,12 @@ html.theme-light .app {
    (white-on-white can't show one). */
 html.theme-light .panel {
   border: none;
+  /* Three-layer umbra/penumbra/ambient — matches LIGHT_SHADOWS `md` so panel
+     chrome and token-driven elevation read from the same light model. */
   box-shadow:
-    0 1px 2px rgba(15, 15, 15, 0.06),
-    0 4px 12px rgba(15, 15, 15, 0.08),
-    0 12px 24px -8px rgba(15, 15, 15, 0.1);
+    0 1px 2px -0.5px rgba(15, 15, 15, 0.06),
+    0 4px 8px -2px rgba(15, 15, 15, 0.07),
+    0 12px 20px -4px rgba(15, 15, 15, 0.08);
 }
 
 /* Syntax tokens — light-theme tones for highlight.ts / FilePreview
