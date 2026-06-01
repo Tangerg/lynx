@@ -17,8 +17,8 @@ import { disposeOnHmr } from "@/lib/hmr";
 import { definePlugin } from "@/plugins/sdk";
 import { THEME } from "@/plugins/sdk/kernelPoints";
 import { useUiStore } from "@/state/uiStore";
-import { buildTokenMap } from "../kit/tokens";
-import type { ThemePluginSpec } from "../kit/types";
+import { buildTokenMap } from "./kit/tokens";
+import type { ThemePluginSpec } from "./kit/types";
 import type { CustomTheme } from "@/state/uiStore";
 
 const CUSTOM_THEME_ID = "custom";

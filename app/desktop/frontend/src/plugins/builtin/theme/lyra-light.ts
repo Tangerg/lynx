@@ -1,7 +1,7 @@
 // Lyra Light — Vercel-inspired bright canvas + white surface. Pure
 // black-on-white CTA so the green accent stays reserved for live state.
 
-import { defineThemePlugin } from "../kit/defineThemePlugin";
+import { defineThemePlugin } from "./kit/defineThemePlugin";
 
 const c = {
   green: "#15883e",

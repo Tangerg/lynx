@@ -1,7 +1,7 @@
 // Catppuccin Mocha — canonical palette. Pins every surface step
 // explicitly; the canonical feel relies on these exact tones.
 
-import { defineThemePlugin } from "../kit/defineThemePlugin";
+import { defineThemePlugin } from "./kit/defineThemePlugin";
 
 const c = {
   mauve: "#cba6f7",
