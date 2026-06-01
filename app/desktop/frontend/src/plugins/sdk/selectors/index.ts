@@ -16,6 +16,7 @@ export {
 // Palette commands (registered + declared merge) + slash-command pairing +
 // owner attribution.
 export {
+  executeCommand,
   lookupCommandOwner,
   lookupSlashCommandOwner,
   useCommands,

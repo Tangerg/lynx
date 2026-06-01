@@ -32,8 +32,12 @@ export interface CommandSpec {
    * `theme`, `sidebarRail`). Missing/invalid → command hidden.
    */
   when?: string;
-  /** What to do. */
-  run: () => void | Promise<void>;
+  /**
+   * What to do. Optional `args` are forwarded by `host.commands.execute(id,
+   * …args)` (cross-plugin invocation, VSCode-style); palette / shortcut
+   * triggers pass none, so most commands take zero params.
+   */
+  run: (...args: unknown[]) => void | Promise<void>;
 }
 
 /**

@@ -37,18 +37,37 @@ export function lookupCommandOwner(id: string): string | undefined {
 function declaredToPlaceholder(c: ContributedCommand, pluginName: string): CommandSpec {
   return {
     ...c,
-    run: () => activateAndRun(pluginName, c.id),
+    run: (...args) => activateAndRun(pluginName, c.id, args),
   };
 }
 
-async function activateAndRun(pluginName: string, commandId: string): Promise<void> {
+async function activateAndRun(
+  pluginName: string,
+  commandId: string,
+  args: unknown[],
+): Promise<void> {
   await runActivator(pluginName);
   const real = lookupExtensionByKey(COMMAND, commandId);
   if (!real) {
     console.warn(`[plugin] ${pluginName} activated but did not register command ${commandId}`);
     return;
   }
-  await real.run();
+  await real.run(...args);
+}
+
+/**
+ * Run a command by id — the imperative cross-plugin invocation behind
+ * `host.commands.execute`. Runs a registered command directly; activates a
+ * lazy (declared-but-not-yet-loaded) command first, then runs it. Warns + is a
+ * no-op when no command matches. Args are forwarded to the command's `run`.
+ */
+export function executeCommand(id: string, ...args: unknown[]): Promise<void> {
+  const registered = lookupExtensionByKey(COMMAND, id);
+  if (registered) return Promise.resolve(registered.run(...args));
+  const declared = usePluginStore.getState().declaredCommands.get(id);
+  if (declared) return activateAndRun(declared.pluginName, id, args);
+  console.warn(`[plugin] commands.execute("${id}"): no command registered or declared`);
+  return Promise.resolve();
 }
 
 // ---------------------------------------------------------------------------
