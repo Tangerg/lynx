@@ -92,3 +92,24 @@ export interface LoadedPlugin {
   spec: PluginSpec;
   disposables: Disposable[];
 }
+
+/**
+ * A "plugin of plugins" — one manifest entry that owns N child plugins.
+ * `definePluginPack` turns it into a regular `PluginSpec` whose setup loads the
+ * children in order, runs the pack's own `setup` (so it can consume points the
+ * children filled), and cascades unload in reverse. Children each get their own
+ * bound host / capabilities / disposables / error isolation, and inherit the
+ * pack's trust origin. A sideload pack must declare `"plugins"` (dangerous) to
+ * load its children.
+ */
+export interface PluginPackSpec {
+  name: string;
+  version: string;
+  apiVersion?: string;
+  requires?: string[];
+  capabilities?: HostCapability[];
+  /** Child specs, loaded in array order (no topo-sort — order is the contract). */
+  children: PluginSpec[];
+  /** Optional — runs once after every child has loaded. */
+  setup?: (ctx: PluginContext) => void | (() => void) | Promise<void | (() => void)>;
+}

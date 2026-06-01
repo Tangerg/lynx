@@ -11,6 +11,7 @@ export { getConfig, hasConfig, setConfig, useConfigStore } from "./config";
 export type { ConfigValue } from "./config";
 
 export { definePlugin, loadPlugin, loadPlugins, reloadPlugin, unloadPlugin } from "./definePlugin";
+export { definePluginPack } from "./definePluginPack";
 
 // Open extension points — the JetBrains-style substrate: a plugin defines a
 // typed point, any plugin contributes, any plugin consumes.
@@ -119,6 +120,7 @@ export type {
   PluginContext,
   PluginErrorFallbackProps,
   PluginErrorFallbackSpec,
+  PluginPackSpec,
   PluginSpec,
   ReadyHandler,
   RouteSpec,
