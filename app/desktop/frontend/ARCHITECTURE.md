@@ -133,16 +133,18 @@ src/
 │   ├── sidebar/          类型 + Avatar
 │   └── icon-gallery/     IconGallery / IconShowcase
 │
-├── domain/               【整洁架构】业务接口 + 模型（零外部依赖）
-│   ├── models/           值类型：Approval / 未来的 Session/Tool/…
-│   ├── gateways/         outbound 副作用契约：PermissionGateway / …
-│   └── index.ts          barrel，外部从 `@/domain` 引入
+├── rpc/                  Runtime Protocol boundary —— 所有 outbound 副作用走这层。
+│   │                     JSON-RPC 2.0 client + typed methods + transports
+│   ├── client.ts         RpcClient（请求/响应 + SSE stream）
+│   ├── methods.ts        typed method 包装（runs.start / sessions.* / …）
+│   ├── shapes.ts         wire schema（Zod，信任边界）
+│   ├── transports/       http / memory（测试）
+│   └── channel.ts / ids.ts / errors.ts
 │
-├── infra/                【整洁架构】框架适配（实现 domain gateway）
-│   └── http/             HTTP 实现：HttpPermissionGateway
-│
-├── main/                 【整洁架构】composition root
-│   └── container.ts      DI 单例：getContainer() / setContainer() 测试用
+├── main/                 composition root（DI）
+│   ├── container.ts      单例：getContainer() / setContainer()（测试注入）。
+│   │                     wire rpc client + 缓存 methods() + sidecar probe
+│   └── config.ts         默认 URL 等常量
 │
 ├── lib/                  共享工具 hook + 纯函数（不属于上述任何层）
 │   ├── queries.ts / http.ts / queryClient.ts / motion.ts
@@ -154,66 +156,52 @@ src/
 └── test/                 测试 setup
 ```
 
-### 3.1 整洁架构 → Lyra 适配
+### 3.1 单向依赖与 outbound 边界
 
-参考 [clean-react-app](https://github.com/rmanguinho/clean-react) 的整洁架构分层，但**没有照搬全套六层**（`domain/data/infra/main/presentation/validation`）。Lyra 大部分 UI ↔ 数据流通过插件系统已经解耦了，所以只补真正缺的那一层 —— "UI 直接发起 outbound 副作用"——剩下的层 YAGNI 不做。
-
-**层依赖规则**（由 `src/test/architecture.test.ts` 强制）：
+Lyra 大部分 UI ↔ 数据流已经通过插件系统解耦了，真正需要"内外分层"的只有一处：**UI / 状态 / 插件不应直接发起 outbound 副作用**（HTTP、SSE、IPC）。这一层由 **`rpc/`（Runtime Protocol boundary）+ `main/container.ts`（composition root）** 承担——它取代了早期规划的 `domain/gateways` + `infra/HttpXxx` 清洁架构分层（那套从未落地：所有 outbound 都收敛成一个 JSON-RPC 协议，gateway-per-capability 的抽象就没必要了）。
 
 ```
-                       ┌──────────────────────────┐
-                       │  domain/                 │
-                       │   - models (types only)  │
-                       │   - gateways (contracts) │
-                       │   零依赖                  │
-                       └──────────────────────────┘
-                              ▲
-                              │ implements
-                       ┌──────────────────────────┐
-                       │  infra/                  │
-                       │   - HttpXxxGateway       │
-                       │   只依赖 domain + lib/http│
-                       └──────────────────────────┘
-                              ▲
-                              │ wires
-                       ┌──────────────────────────┐
-                       │  main/container.ts       │
-                       │   getContainer() 单例     │
-                       │   可以依赖任何东西        │
-                       └──────────────────────────┘
-                              ▲
-                              │ via getContainer()
-                       ┌──────────────────────────┐
-                       │  components/ state/      │
-                       │  plugins/ lib/ pages/    │
-                       │   不能直接 import infra/  │
-                       └──────────────────────────┘
+        ┌────────────────────────────────────────────┐
+        │  rpc/                                        │
+        │   JSON-RPC client + typed methods + shapes   │
+        │   transports（http / memory）+ sidecar       │
+        │   独立层：只依赖外部库 + 自己（check-layers 强制）│
+        └────────────────────────────────────────────┘
+                          ▲ wires
+        ┌────────────────────────────────────────────┐
+        │  main/container.ts                           │
+        │   getContainer() 单例：createRpc / methods() │
+        │   / sidecar。可依赖任何东西                   │
+        └────────────────────────────────────────────┘
+                          ▲ via getContainer()
+        ┌────────────────────────────────────────────┐
+        │  components/ state/ plugins/ lib/ pages/     │
+        │   拿 methods 一律走 getContainer()，          │
+        │   不自己 new RpcClient / 不绕过 container      │
+        └────────────────────────────────────────────┘
 ```
 
-具体规则：
+**层依赖规则**（由 `scripts/check-layers.mjs` + `check-circular.mjs` 强制，`npm run check` 跑）：
 
-- `domain/` 只能 `import type`，**禁** React / fetch / zustand / `@/infra/*` / 其他 `@/...` 任何运行时模块
-- `infra/` 实现 `domain/gateways/*`，可以用 fetch / localStorage / IPC，但**禁** 反向 import `@/components/*` / `@/state/*` / `@/plugins/*` / `@/main/*`
-- `main/container.ts` 是**唯一**把 infra 实现塞给 domain 接口槽的地方
-- UI / 状态 / 插件 / lib 全部通过 `getContainer().xxx.method(...)` 拿 gateway，**禁直接 import `@/infra/*`**
+- `rpc/` 是独立层：只依赖外部库 + 自己的文件，**禁** import `domain` / `state` / `sdk` / `components` / `protocol` / … 任何 app 层
+- `protocol/`（AG-UI reducer/viewState）可达 `sdk`（dispatcher seam）+ `lib` + `rpc`，**禁** UI / state / main
+- `plugins/sdk` / `state` / `lib` **禁** import UI（`components` / `pages` / `builtin` / plugins-glue）——锁住"平台/工具层不依赖它被消费的 UI"
+- 业务调用一律走 `getContainer().methods().xxx(...)`；测试用 `setContainer({ methods })` / `resetContainer()` 注入假实现，**禁**自己 `new RpcClient` 或绕过 container
 
-**增加新 gateway 的步骤**：
+**增加新协议方法的步骤**：
 
-1. `domain/gateways/Foo.ts` 写接口 + 必要的 `domain/models/Foo.ts` 类型
-2. `infra/.../HttpFoo.ts` (或别的 transport) 实现接口
-3. `main/container.ts` 加字段 + `defaultContainer()` 里实例化
-4. UI 调用 `getContainer().foo.method(...)`
-5. 测试用 `setContainer({ foo: fakeFoo })` 注入假实现
+1. `rpc/shapes.ts` 加 wire schema（Zod，信任边界校验）
+2. `rpc/methods.ts` 加 typed method 包装
+3. UI / state / plugin 通过 `getContainer().methods().foo(...)` 调用
+4. 测试用 `setContainer({ methods: () => fakeMethods })` 注入
 
-合规检查跑 `npm run test` 里的 `architecture.test.ts` 即可——违反任何一条规则都会失败。
+> 协议 method 表 / envelope / transport 形状是 forward spec，权威定义在 `docs/API.md` / `docs/PROTOCOL.md` / `docs/TRANSPORT.md`（勿在本文重述）。
 
-**抽象定义在使用方（关键纪律）**：
+**关键纪律**：
 
-- 谁需要抽象，谁定义抽象。Permission flow 需要提交审批 → `PermissionGateway` 定义在 `domain/`，**不是因为 infra 要写 HTTP 实现才定义**。
-- 反例：**禁**为了 infra 方便先建一个通用 `ApiClient` interface 然后让 domain / use case 依赖它。这样会把 transport 形状渗回业务层，违反"内层不知道外层"。
-- 反例：**禁**新建空泛的 `Repository<T>` / `Gateway<T>` 这种"以防万一"的抽象。每个 gateway 是一个具体业务能力（提交审批 / 发起 agent run / 列会话）。
-- 真实后端尚未接入前，**禁**先一次性把所有可能用到的 gateway 都建出来。等具体 use case 触发再开。
-- `lib/`、`main/config.ts` 这类配置 / 工具属于 outer adapter，不要被误读成 inner domain。Composition root 可以读 `main/config` 拿默认 URL，但不应该读 `lib/http`（plugin-aware RPC facade）拿同一个常量——配置和 RPC facade 是两件事。
+- 协议是**唯一** outbound 边界。不要在 UI / store 里直接 `fetch` / 开 SSE / 调 Wails IPC——都走 `rpc/`。
+- `lib/`、`main/config.ts` 是 outer adapter，不是 inner domain。Composition root 可以读 `main/config` 拿默认 URL，但不应读 `lib/data/http`（plugin-aware RPC facade）拿同一个常量——配置和 RPC facade 是两件事。
+- 不为"以防万一"先建空泛抽象。协议方法按真实 use case（发起 run / 列会话 / 提交审批）逐个加，后端没接入的不先建。
 
 ### 3.2 关于 monorepo（暂不拆）
 

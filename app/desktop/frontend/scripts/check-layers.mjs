@@ -43,6 +43,10 @@ function layerOf(path) {
 // or contract-only. The outer guards lock the upward edges.
 const UI = ["components", "pages", "builtin", "plugins-glue"];
 const FORBIDDEN = {
+  // NOTE: `domain/` + `infra/` hold NO files today — the early clean-arch
+  // gateway seam was superseded by the `rpc/` layer + main/container.ts
+  // (ARCHITECTURE.md §3.1). Kept as reserved guards: if those dirs ever come
+  // back they're locked to contract-/impl-only purity from the first file.
   // Pure contracts — import nothing else in src.
   domain: [
     "infra",
