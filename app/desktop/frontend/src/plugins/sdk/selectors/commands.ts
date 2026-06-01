@@ -5,7 +5,7 @@
 
 import { useMemo } from "react";
 import type { CommandSpec, ContributedCommand, ShortcutSpec, SlashCommandSpec } from "../types";
-import { SHORTCUT, SLASH_COMMAND } from "../kernelPoints";
+import { COMMAND, SHORTCUT, SLASH_COMMAND } from "../kernelPoints";
 import { usePluginStore } from "../registry";
 import { runActivator, useDeclaredMerged } from "./_helpers";
 import {
@@ -23,14 +23,19 @@ import {
 // CommandSpec replaces the contributes.commands placeholder transparently.
 
 export function useCommands(): CommandSpec[] {
-  const registered = usePluginStore((s) => s.commands);
+  const registered = useExtensionPoint(COMMAND);
   const declared = usePluginStore((s) => s.declaredCommands);
   return useDeclaredMerged(registered, declared, declaredToPlaceholder);
 }
 
 /** Look up a registered command by id. */
 export function lookupCommand(id: string): CommandSpec | undefined {
-  return usePluginStore.getState().commands.get(id)?.value;
+  return lookupExtensionByKey(COMMAND, id);
+}
+
+/** Owner plugin of a registered command — used for error attribution. */
+export function lookupCommandOwner(id: string): string | undefined {
+  return lookupExtensionOwner(COMMAND, id);
 }
 
 function declaredToPlaceholder(c: ContributedCommand, pluginName: string): CommandSpec {

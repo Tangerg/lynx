@@ -11,6 +11,7 @@
 
 import type {
   AgentSourceSpec,
+  CommandSpec,
   ComposerAttachmentSourceSpec,
   ComposerKeyBindingSpec,
   ComposerModeSpec,
@@ -22,6 +23,7 @@ import type {
   MessageRoleSpec,
   PluginErrorFallbackSpec,
   RouteSpec,
+  SettingsPaneSpec,
   ShortcutSpec,
   SidebarRailItemSpec,
   SidebarSectionSpec,
@@ -30,6 +32,7 @@ import type {
   ThemeSpec,
   ToolActionSpec,
   ToolPreviewComponent,
+  WorkspaceViewSpec,
 } from "./types";
 import type { ContentBlockKind } from "@/protocol/agui/viewState";
 import { defineExtensionPoint } from "./defineExtensionPoint";
@@ -97,6 +100,20 @@ export const SHORTCUT = defineExtensionPoint<ShortcutSpec>({
   keying: "single",
   keyOf: (s) => s.key,
   normalizeKey: normalizeCombo,
+});
+
+// ---- declared-merge surfaces ----------------------------------------------
+// The "registered" half of the registered+declared-placeholder merge. The
+// declared half (contributes.* placeholders awaiting activation) keeps its own
+// named map; the selectors merge the two (registered wins on id collision).
+export const COMMAND = defineExtensionPoint<CommandSpec>({ id: "lyra.command", keying: "single" });
+export const SETTINGS_PANE = defineExtensionPoint<SettingsPaneSpec>({
+  id: "lyra.settingsPane",
+  keying: "single",
+});
+export const WORKSPACE_VIEW = defineExtensionPoint<WorkspaceViewSpec>({
+  id: "lyra.workspaceView",
+  keying: "single",
 });
 
 // ---- sidebar domain -------------------------------------------------------

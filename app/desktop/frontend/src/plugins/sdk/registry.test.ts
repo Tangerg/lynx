@@ -11,6 +11,7 @@ import {
   COMPOSER_MODE,
   COMPOSER_STATUS,
   MESSAGE_ROLE,
+  SETTINGS_PANE,
   SIDEBAR_RAIL_ITEM,
   SIDEBAR_SECTION,
   TOOL_ACTION,
@@ -113,9 +114,7 @@ describe("plugin registry", () => {
     host.settings.registerPane({ id: "z", label: "Z", order: 50, component: () => null });
     host.settings.registerPane({ id: "a", label: "A", order: 10, component: () => null });
 
-    const panes = Array.from(usePluginStore.getState().settingsPanes.values())
-      .map((o) => o.value)
-      .sort((x, y) => (x.order ?? 100) - (y.order ?? 100));
+    const panes = lookupExtensionPoint(SETTINGS_PANE);
 
     expect(panes.map((p) => p.id)).toEqual(["a", "z"]);
   });

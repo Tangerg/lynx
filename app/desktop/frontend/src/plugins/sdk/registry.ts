@@ -3,14 +3,15 @@
 // + map helpers live in registryState.ts; this file is the action
 // implementations only.
 //
-// To keep the 30+ add/remove pairs from drowning the file, three local
-// factories (ownedKeySlot / ownedSpecSlot / multiSlot) generate the
-// `set({ ... })` bodies. Each slot then expands to ≤ 1 line per action.
+// Two local factories (ownedSpecSlot / multiSlot) generate the
+// `set({ ... })` bodies for the remaining bookkeeping maps (declared
+// placeholders + composite-key hooks). Each slot expands to ≤ 1 line per
+// action. Every user-facing register* surface lives on the `extensions`
+// substrate now (see kernelPoints.ts).
 
 import type { Owned, PluginStoreActions, PluginStoreState } from "./registryState";
 import type {
   BeforeUnloadHandler,
-  CommandSpec,
   ContributedCommand,
   ContributedSettingsPane,
   ContributedView,
@@ -22,8 +23,6 @@ import type {
   ReadyHandler,
   RpcAfterResponseHook,
   RpcBeforeRequestHook,
-  SettingsPaneSpec,
-  WorkspaceViewSpec,
 } from "./types";
 import { create } from "zustand";
 import { safeCall } from "./errors";
@@ -86,9 +85,9 @@ export const usePluginStore = create<PluginStoreState & PluginStoreActions>((set
   }
 
   // Instantiate one helper per slot — kept dense; the action map below
-  // wires them up to the public `addX` / `removeX` signatures.
-  const settingsPanes = ownedSpecSlot<SettingsPaneSpec>("settingsPanes", "settings pane");
-  const commands = ownedSpecSlot<CommandSpec>("commands", "command");
+  // wires them up to the public `addX` / `removeX` signatures. Only the
+  // "declared placeholder" maps remain here — every register* contribution
+  // surface now lives on the shared `extensions` substrate.
   const declaredCommands = ownedSpecSlot<ContributedCommand>(
     "declaredCommands",
     "declared command",
@@ -98,7 +97,6 @@ export const usePluginStore = create<PluginStoreState & PluginStoreActions>((set
     "declaredSettingsPanes",
     "declared settings pane",
   );
-  const workspaceViews = ownedSpecSlot<WorkspaceViewSpec>("workspaceViews", "workspace view");
 
   const customEvents = multiSlot<{ name: string; handler: CustomEventHandler<unknown> }>(
     "customEventHandlers",
@@ -141,9 +139,6 @@ export const usePluginStore = create<PluginStoreState & PluginStoreActions>((set
       customEvents.add(pluginName, id, { name, handler }),
     removeCustomEventHandler: customEvents.remove,
 
-    addSettingsPane: settingsPanes.add,
-    removeSettingsPane: settingsPanes.remove,
-
     // eventType is baked into the composite key so the same plugin can
     // register handlers for several event types in one go.
     addCoreEventHandler: (pluginName, eventType, id, handler) =>
@@ -154,9 +149,6 @@ export const usePluginStore = create<PluginStoreState & PluginStoreActions>((set
     addLayoutSlot: (pluginName, slot, spec) =>
       layoutSlots.add(pluginName, `${slot}#${spec.id}`, { slot, spec }),
     removeLayoutSlot: (pluginName, slot, id) => layoutSlots.remove(pluginName, `${slot}#${id}`),
-
-    addCommand: commands.add,
-    removeCommand: commands.remove,
 
     addDeclaredCommand: declaredCommands.add,
     removeDeclaredCommand: declaredCommands.remove,
@@ -216,9 +208,6 @@ export const usePluginStore = create<PluginStoreState & PluginStoreActions>((set
       set({ windowBadge: n });
       syncDocumentTitle(get().windowTitle, n);
     },
-
-    addWorkspaceView: workspaceViews.add,
-    removeWorkspaceView: workspaceViews.remove,
 
     // Open extension points. The host computes `outerKey` from the point's
     // keying (single → `${point}#${dedupeKey}`, multi → `${point}#${plugin}|${id}`)

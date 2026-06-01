@@ -8,6 +8,7 @@ export { setActivator } from "./_helpers";
 // Palette / slash / shortcuts (UI command surface)
 export {
   lookupCommand,
+  lookupCommandOwner,
   lookupShortcut,
   lookupSlashCommand,
   lookupSlashCommandOwner,

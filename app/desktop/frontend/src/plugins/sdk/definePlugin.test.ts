@@ -253,14 +253,14 @@ describe("lazy activation", () => {
       }),
     );
     expect(usePluginStore.getState().loaded.has("with-cleanup")).toBe(true);
-    expect(usePluginStore.getState().commands.has("with-cleanup.cmd")).toBe(true);
+    expect(lookupCommand("with-cleanup.cmd")).toBeDefined();
 
     unloadPlugin("with-cleanup");
 
     expect(cleanup).toHaveBeenCalledOnce();
     expect(usePluginStore.getState().loaded.has("with-cleanup")).toBe(false);
     // host.commands.register's disposable also ran — its entry is gone.
-    expect(usePluginStore.getState().commands.has("with-cleanup.cmd")).toBe(false);
+    expect(lookupCommand("with-cleanup.cmd")).toBeUndefined();
   });
 
   it("restricts host to declared capabilities and throws on disallowed namespaces", async () => {
@@ -284,7 +284,7 @@ describe("lazy activation", () => {
       }),
     );
     expect(result.kind).toBe("loaded");
-    expect(usePluginStore.getState().commands.has("ok")).toBe(true);
+    expect(lookupCommand("ok")).toBeDefined();
     expect(captured).toBeInstanceOf(Error);
     expect(String(captured)).toMatch(/not in this plugin's declared capabilities/);
   });
@@ -297,7 +297,7 @@ describe("lazy activation", () => {
     expect(setup).toHaveBeenCalledOnce();
     await reloadPlugin("reloadable");
     expect(setup).toHaveBeenCalledTimes(2);
-    expect(usePluginStore.getState().commands.has("reload.test")).toBe(true);
+    expect(lookupCommand("reload.test")).toBeDefined();
   });
 
   it("runs setup + dispatches the real handler when the placeholder fires", async () => {

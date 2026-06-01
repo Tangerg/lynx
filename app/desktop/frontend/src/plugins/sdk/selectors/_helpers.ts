@@ -32,14 +32,14 @@ export function mapOwned<T>(map: Map<string, Owned<T>>): T[] {
  * component). Registered entries win when ids collide.
  */
 export function useDeclaredMerged<D extends { id: string }, R extends { id: string } & Ordered>(
-  registered: Map<string, Owned<R>>,
+  registered: R[],
   declared: Map<string, Owned<D>>,
   declaredToReal: (d: D, pluginName: string) => R,
 ): R[] {
   return useMemo(() => {
     const byId = new Map<string, R>();
     for (const o of declared.values()) byId.set(o.value.id, declaredToReal(o.value, o.pluginName));
-    for (const o of registered.values()) byId.set(o.value.id, o.value);
+    for (const r of registered) byId.set(r.id, r);
     return Array.from(byId.values()).sort((a, b) => (a.order ?? 100) - (b.order ?? 100));
   }, [registered, declared, declaredToReal]);
 }

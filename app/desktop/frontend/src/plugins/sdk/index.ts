@@ -40,6 +40,7 @@ export {
   listRpcBeforeHooks,
   lookupAccent,
   lookupCommand,
+  lookupCommandOwner,
   lookupComposerKeyBinding,
   lookupCoreEventHandlers,
   lookupCustomEventHandlers,
